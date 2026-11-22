@@ -146,18 +146,18 @@ describe('import commands', () => {
 	// ═══════════════════════════════════════════════════════════════════════════
 
 	describe('import.json command', () => {
-		it('skips tokens with reserved path segments and reports them as errors', async () => {
+		it('refuses the whole file when a token has a reserved path segment, writing nothing (#1957)', async () => {
 			// JSON.parse creates an own '__proto__' property, so this reaches the importer
 			const content =
 				'{"__proto__": {"polluted": {"value": "yes"}}, "color": {"ok": {"value": "#000000"}}}';
 
 			const result = await importJsonCommand.handler({ targetNode: 'test-root', content }, context);
 
-			expect(result.success).toBe(true);
-			expect(result.data?.tokensImported).toBe(1);
-			expect(result.data?.errors.map((e) => e.tokenId)).toEqual(['__proto__.polluted']);
-			const ops = await db.getOperations('test-root');
-			expect(ops.map((op) => op.tokenId)).toEqual(['color.ok']);
+			expect(result.success).toBe(false);
+			expect(result.error?.code).toBe('VALIDATION_ERROR');
+			expect(result.error?.message).toContain('__proto__.polluted');
+			expect(result.error?.suggestion).toBeTruthy();
+			expect(await db.getOperations('test-root')).toEqual([]);
 		});
 
 		it('imports tokens from Style Dictionary JSON', async () => {

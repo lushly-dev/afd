@@ -14,6 +14,10 @@ export interface Database {
 	// Operation operations
 	getOperations(nodeId: string): Promise<import('./types/operation.js').OperationRecord[]>;
 	addOperation(record: import('./types/operation.js').OperationRecord): Promise<void>;
+	/** Insert an operation, allocating the node's next sequence atomically with the write */
+	appendOperation(
+		record: import('./types/operation.js').NewOperationRecord,
+	): Promise<import('./types/operation.js').OperationRecord>;
 	removeOperation(id: string): Promise<void>;
 
 	// Constraint operations

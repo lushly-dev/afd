@@ -17,6 +17,7 @@
  * string leaves get the general check.
  */
 
+import { validateTokenId } from '../types/token-id.js';
 import {
 	safeCssColor,
 	safeCssLength,
@@ -328,8 +329,8 @@ function isComposite(value: unknown): value is Record<string, unknown> {
  */
 export function checkCssToken(token: CssCheckedToken, prefix = ''): string | null {
 	const name = `${prefix}${token.id.replace(/\./g, '-')}`;
-	if (!CSS_NAME.test(name)) {
-		return 'its id cannot be a CSS name; use letters, digits, dots, _ and - only';
+	if (validateTokenId(token.id) !== null || !CSS_NAME.test(name)) {
+		return 'its id cannot be a CSS name; use non-empty dot-separated segments of letters, digits, _ and - only';
 	}
 	const structured = token.finalValue ?? token.value;
 	const problem = isComposite(structured)

@@ -7,6 +7,7 @@ import type {
 	AuditEventFilter,
 	AuditEventPage,
 	AuditEventQuery,
+	NewOperationRecord,
 	OperationRecord,
 } from '../types/operation.js';
 import type { CheckSnapshot, CheckSnapshotQuery } from '../types/snapshot.js';
@@ -20,20 +21,150 @@ import type {
 	WebhookUpdate,
 } from '../types/webhook.js';
 
+interface MemoryAsyncContext<T> {
+	getStore(): T | undefined;
+	run<R>(store: T, callback: () => R): R;
+}
+
+interface MemoryTxFrame {
+	active: boolean;
+	root: MemoryTxFrame;
+	childQueue: Promise<void>;
+	childPending: number;
+}
+
+const GUARDED_MEMORY_METHODS: ReadonlyArray<Exclude<keyof Database, 'transaction'>> = [
+	'getNode',
+	'createNode',
+	'updateNode',
+	'deleteNode',
+	'listNodes',
+	'getAncestryChain',
+	'getDescendants',
+	'getOperations',
+	'addOperation',
+	'appendOperation',
+	'removeOperation',
+	'getConstraints',
+	'setConstraints',
+	'addConstraint',
+	'removeConstraint',
+	'addAuditEvent',
+	'getAuditEvents',
+	'queryAuditEvents',
+	'addCheckSnapshot',
+	'listCheckSnapshots',
+	'getSpecimenMap',
+	'setSpecimenMap',
+	'createWebhook',
+	'getWebhook',
+	'updateWebhook',
+	'deleteWebhook',
+	'listWebhooks',
+	'createDelivery',
+	'getDelivery',
+	'updateDelivery',
+	'listDeliveries',
+	'getPendingDeliveries',
+];
+
+/**
+ * Resolve Node's AsyncLocalStorage without importing `node:async_hooks`, keeping
+ * MemoryDatabase browser- and worker-safe while isolating concurrent transactions
+ * wherever Node builtins are available (#1973).
+ */
+function createMemoryAsyncContext<T>(): MemoryAsyncContext<T> | null {
+	const getBuiltin = (
+		globalThis as {
+			process?: {
+				getBuiltinModule?: (id: string) => {
+					AsyncLocalStorage?: new () => MemoryAsyncContext<T>;
+				};
+			};
+		}
+	).process?.getBuiltinModule;
+	const AsyncLocalStorageCtor = getBuiltin?.('node:async_hooks')?.AsyncLocalStorage;
+	return AsyncLocalStorageCtor ? new AsyncLocalStorageCtor() : null;
+}
+
 /**
  * In-memory database implementation
  *
- * Useful for testing and development.
+ * Useful for testing, development and browser/worker runtimes.
  */
 export class MemoryDatabase implements Database {
 	private nodes = new Map<string, Node>();
 	private operations: OperationRecord[] = [];
+	private maxSequenceByNode = new Map<string, number>();
 	private auditEvents: AuditEvent[] = [];
 	private constraints = new Map<string, Constraint[]>(); // nodeId -> constraints
 	private webhooks = new Map<string, Webhook>();
 	private deliveries = new Map<string, WebhookDelivery>();
 	private checkSnapshots: CheckSnapshot[] = [];
 	private specimenMaps = new Map<string, SpecimenMapRecord>();
+	private readonly txContext = createMemoryAsyncContext<MemoryTxFrame>();
+	private txQueue: Promise<void> = Promise.resolve();
+	private txPending = 0;
+	private activeTopTx: MemoryTxFrame | null = null;
+	private activeFrame: MemoryTxFrame | null = null;
+
+	constructor() {
+		if (this.txContext) {
+			this.guardConnectionMethods();
+		}
+	}
+
+	private guardConnectionMethods(): void {
+		const self = this as unknown as Record<string, (...args: unknown[]) => Promise<unknown>>;
+		for (const name of GUARDED_MEMORY_METHODS) {
+			const original = self[name].bind(this);
+			self[name] = (...args: unknown[]) => this.withConnection(() => original(...args));
+		}
+	}
+
+	private async withConnection<T>(op: () => Promise<T>): Promise<T> {
+		if (!this.txContext) {
+			return op();
+		}
+		const frame = this.txContext.getStore();
+		if (frame?.active && frame === this.activeFrame) {
+			return op();
+		}
+		if (frame?.active && frame.root === this.activeTopTx) {
+			const prior = frame.childQueue;
+			let release!: () => void;
+			frame.childPending++;
+			frame.childQueue = new Promise<void>((resolve) => {
+				release = resolve;
+			});
+			await prior;
+			try {
+				if (!frame.active || frame.root !== this.activeTopTx) {
+					throw new Error('Transaction has already ended');
+				}
+				return await op();
+			} finally {
+				frame.childPending--;
+				release();
+			}
+		}
+		if (this.activeTopTx === null && this.txPending === 0) {
+			return op();
+		}
+		const prior = this.txQueue;
+		let release!: () => void;
+		this.txPending++;
+		this.txQueue = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		await prior;
+		try {
+			return await op();
+		} finally {
+			this.txPending--;
+			release();
+		}
+	}
 
 	async getNode(id: string): Promise<Node | null> {
 		return this.nodes.get(id) || null;
@@ -93,17 +224,41 @@ export class MemoryDatabase implements Database {
 	}
 
 	async getOperations(nodeId: string): Promise<OperationRecord[]> {
-		return this.operations.filter((op) => op.nodeId === nodeId);
+		return this.operations
+			.filter((op) => op.nodeId === nodeId)
+			.sort((a, b) => a.sequence - b.sequence);
 	}
 
 	async addOperation(record: OperationRecord): Promise<void> {
 		this.operations.push(record);
+		const prev = this.maxSequenceByNode.get(record.nodeId) ?? 0;
+		if (record.sequence > prev) {
+			this.maxSequenceByNode.set(record.nodeId, record.sequence);
+		}
+	}
+
+	async appendOperation(record: NewOperationRecord): Promise<OperationRecord> {
+		const next = (this.maxSequenceByNode.get(record.nodeId) ?? 0) + 1;
+		this.maxSequenceByNode.set(record.nodeId, next);
+		const stored: OperationRecord = { ...record, sequence: next };
+		this.operations.push(stored);
+		return { ...stored };
 	}
 
 	async removeOperation(id: string): Promise<void> {
 		const index = this.operations.findIndex((op) => op.id === id);
 		if (index >= 0) {
-			this.operations.splice(index, 1);
+			const [removed] = this.operations.splice(index, 1);
+			if (removed && removed.sequence === this.maxSequenceByNode.get(removed.nodeId)) {
+				let maxSeq = 0;
+				for (const op of this.operations) {
+					if (op.nodeId === removed.nodeId && op.sequence > maxSeq) {
+						maxSeq = op.sequence;
+					}
+				}
+				if (maxSeq > 0) this.maxSequenceByNode.set(removed.nodeId, maxSeq);
+				else this.maxSequenceByNode.delete(removed.nodeId);
+			}
 		}
 	}
 
@@ -210,9 +365,136 @@ export class MemoryDatabase implements Database {
 		else this.specimenMaps.delete(rootId);
 	}
 
+	/**
+	 * Run `fn` atomically: snapshots all mutable collections before running and
+	 * restores them if `fn` throws or rejects, including nested savepoints (#1973).
+	 * Where Node's `AsyncLocalStorage` is available, concurrent top-level
+	 * transactions and outside writes are serialized so a rollback never reverts
+	 * another caller's committed write. In browser runtimes without
+	 * `AsyncLocalStorage`, callers must not overlap concurrent transactions.
+	 */
 	async transaction<T>(fn: () => Promise<T>): Promise<T> {
-		// In-memory doesn't need transactions
-		return fn();
+		if (!this.txContext) {
+			const snapshot = this.snapshot();
+			try {
+				return await fn();
+			} catch (error) {
+				this.restore(snapshot);
+				throw error;
+			}
+		}
+
+		const parent = this.txContext.getStore();
+		if (parent?.active && parent.root === this.activeTopTx) {
+			const prior = parent.childQueue;
+			let release!: () => void;
+			parent.childPending++;
+			parent.childQueue = new Promise<void>((resolve) => {
+				release = resolve;
+			});
+			await prior;
+			if (!parent.active || parent.root !== this.activeTopTx) {
+				parent.childPending--;
+				release();
+				throw new Error('Parent transaction has already ended');
+			}
+			const childFrame: MemoryTxFrame = {
+				active: true,
+				root: parent.root,
+				childQueue: Promise.resolve(),
+				childPending: 0,
+			};
+			const previousFrame = this.activeFrame;
+			this.activeFrame = childFrame;
+			const snapshot = this.snapshot();
+			try {
+				const result = await this.txContext.run(childFrame, fn);
+				childFrame.active = false;
+				await childFrame.childQueue;
+				return result;
+			} catch (error) {
+				childFrame.active = false;
+				await childFrame.childQueue;
+				this.restore(snapshot);
+				throw error;
+			} finally {
+				childFrame.active = false;
+				this.activeFrame = previousFrame;
+				parent.childPending--;
+				release();
+			}
+		}
+
+		const prior = this.txQueue;
+		let release!: () => void;
+		this.txPending++;
+		this.txQueue = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		await prior;
+
+		const topFrame = {
+			active: true,
+			childQueue: Promise.resolve(),
+			childPending: 0,
+		} as MemoryTxFrame;
+		topFrame.root = topFrame;
+		this.activeTopTx = topFrame;
+		this.activeFrame = topFrame;
+		const snapshot = this.snapshot();
+		try {
+			const result = await this.txContext.run(topFrame, fn);
+			topFrame.active = false;
+			await topFrame.childQueue;
+			return result;
+		} catch (error) {
+			topFrame.active = false;
+			await topFrame.childQueue;
+			this.restore(snapshot);
+			throw error;
+		} finally {
+			topFrame.active = false;
+			this.activeTopTx = null;
+			this.activeFrame = null;
+			this.txPending--;
+			release();
+		}
+	}
+
+	private snapshot(): {
+		nodes: Map<string, Node>;
+		operations: OperationRecord[];
+		maxSequenceByNode: Map<string, number>;
+		auditEvents: AuditEvent[];
+		constraints: Map<string, Constraint[]>;
+		webhooks: Map<string, Webhook>;
+		deliveries: Map<string, WebhookDelivery>;
+		checkSnapshots: CheckSnapshot[];
+		specimenMaps: Map<string, SpecimenMapRecord>;
+	} {
+		return {
+			nodes: structuredClone(this.nodes),
+			operations: structuredClone(this.operations),
+			maxSequenceByNode: new Map(this.maxSequenceByNode),
+			auditEvents: structuredClone(this.auditEvents),
+			constraints: structuredClone(this.constraints),
+			webhooks: structuredClone(this.webhooks),
+			deliveries: structuredClone(this.deliveries),
+			checkSnapshots: structuredClone(this.checkSnapshots),
+			specimenMaps: structuredClone(this.specimenMaps),
+		};
+	}
+
+	private restore(snapshot: ReturnType<MemoryDatabase['snapshot']>): void {
+		this.nodes = snapshot.nodes;
+		this.operations = snapshot.operations;
+		this.maxSequenceByNode = snapshot.maxSequenceByNode;
+		this.auditEvents = snapshot.auditEvents;
+		this.constraints = snapshot.constraints;
+		this.webhooks = snapshot.webhooks;
+		this.deliveries = snapshot.deliveries;
+		this.checkSnapshots = snapshot.checkSnapshots;
+		this.specimenMaps = snapshot.specimenMaps;
 	}
 
 	// Webhook operations
@@ -376,6 +658,7 @@ export class MemoryDatabase implements Database {
 	clear(): void {
 		this.nodes.clear();
 		this.operations = [];
+		this.maxSequenceByNode.clear();
 		this.auditEvents = [];
 		this.constraints.clear();
 		this.webhooks.clear();

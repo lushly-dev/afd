@@ -308,17 +308,23 @@ describe('unsafe token values (#1325)', () => {
 		});
 
 		it('refuses a token id that cannot be a CSS name', async () => {
-			await importTreeCommand.handler(
-				{
-					files: [
-						{
-							name: 'evil.tokens.json',
-							content: JSON.stringify({ 'a;}body{background:red}x{--b': { $value: '#ffffff' } }),
-						},
-					],
-				},
-				context,
-			);
+			await nodeCreateCommand.handler({ name: 'evil', type: 'root', parentId: null }, context);
+			// Stored directly, as a database made before #1957 could hold one
+			await context.db.addOperation({
+				id: 'legacy-evil-id',
+				nodeId: 'evil',
+				sequence: 1,
+				type: 'add',
+				tokenId: 'a;}body{background:red}x{--b',
+				value: JSON.stringify('#ffffff'),
+				metadata: null,
+				fromNode: null,
+				asTokenId: null,
+				toAncestor: null,
+				reason: null,
+				author: null,
+				createdAt: '2026-01-01T00:00:00.000Z',
+			});
 			const result = await exportCommand.handler({ nodeId: 'evil', format: 'css' }, context);
 			expect(result.error?.code).toBe('INVALID_TOKEN_VALUE');
 			expect(result.error?.message).toContain('its id cannot be a CSS name');

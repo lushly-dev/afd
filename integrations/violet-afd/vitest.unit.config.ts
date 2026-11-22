@@ -12,6 +12,7 @@ export const databaseSuites = [
 	'src/db/lens-follow-ups-upgrade.test.ts',
 	'src/db/neon.test.ts',
 	'src/db/constraint-reason.contract.test.ts',
+	'src/db/operation-sequence.contract.test.ts',
 ];
 
 export default defineConfig({

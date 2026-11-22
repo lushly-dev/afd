@@ -19,7 +19,7 @@ const css = await registry.execute('export', { nodeId: 'base', format: 'css' }, 
 
 Exports to CSS, SCSS, TypeScript, JSON, Swift, Kotlin, Dart, Tailwind and Lua. Imports Style Dictionary and DTCG JSON, including whole node trees from files (`import.tree`), and writes a tree back as files, one per node with only its own tokens (`export.tree`). `interface.check` checks that every id of a component interface, such as `violet-elements`' `tokens/interface.json`, resolves in each theme node.
 
-Writes refuse, with `INVALID_TOKEN_VALUE`, a value its type cannot hold safely in CSS (`token.add`, `token.override`, `import.json`, `import.tree`), and the CSS and SCSS exports check again. A host that journals calls can pass `now()` and `random()` on the command context, so a replayed write stamps the same times and ids.
+Writes refuse, with `VALIDATION_ERROR`, token ids that cannot become safe CSS names or use reserved path segments (`token.add`, `token.override`, `token.copy`, `import.json`, `import.tree`), and refuse, with `INVALID_TOKEN_VALUE`, a value its type cannot hold safely in CSS (`token.add`, `token.override`, `import.json`, `import.tree`); the CSS and SCSS exports check again. Operation sequences are allocated atomically with each insert through `Database.appendOperation`. A host that journals calls can pass `now()` and `random()` on the command context, so a replayed write stamps the same times and ids.
 
 SQLite storage needs the optional `better-sqlite3` package; in-memory storage needs nothing native.
 

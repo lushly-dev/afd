@@ -5,7 +5,6 @@ import { ErrorCodes, failure, success } from '../../types/command-result.js';
 import { contextId, contextNow } from '../context-sources.js';
 import type { CommandContext, CommandDefinition } from '../registry.js';
 import { previousValue } from './previous-value.js';
-import { nextSequence } from './sequence.js';
 
 /**
  * Input schema for token.subtract command
@@ -85,14 +84,12 @@ export const tokenSubtractCommand: CommandDefinition<typeof InputSchema, Output>
 		}
 
 		// Create the operation
-		const existingOps = await db.getOperations(input.nodeId);
 		const operationId = contextId(context);
 		const now = contextNow(context);
 
-		await db.addOperation({
+		await db.appendOperation({
 			id: operationId,
 			nodeId: input.nodeId,
-			sequence: nextSequence(existingOps),
 			type: 'subtract',
 			tokenId: input.tokenId,
 			value: null,

@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import type { Database } from '../storage.js';
 import type { Constraint } from '../types/constraint.js';
 import type { Node } from '../types/node.js';
@@ -7,6 +8,7 @@ import type {
 	AuditEventFilter,
 	AuditEventPage,
 	AuditEventQuery,
+	NewOperationRecord,
 	OperationRecord,
 } from '../types/operation.js';
 import type { CheckSnapshot, CheckSnapshotQuery } from '../types/snapshot.js';
@@ -212,16 +214,20 @@ export const POSTGRES_SCHEMA_STATEMENTS = [
 /**
  * Postgres implementation of Violet's storage contract.
  *
- * This prototype assumes the adapter is used request-scoped or otherwise not
- * shared across overlapping transactions, which matches the current API usage.
+ * Active transactions are scoped to the calling async context via
+ * AsyncLocalStorage so concurrent operations on one instance never join another
+ * caller's open transaction.
  */
 export class PostgresDatabase implements Database {
 	private readonly client: PostgresClient;
-	private executor: PostgresQueryable;
+	private readonly txExecutor = new AsyncLocalStorage<PostgresQueryable>();
 
 	constructor(client: PostgresClient) {
 		this.client = client;
-		this.executor = client;
+	}
+
+	private get executor(): PostgresQueryable {
+		return this.txExecutor.getStore() ?? this.client;
 	}
 
 	async initSchema(): Promise<void> {
@@ -400,6 +406,45 @@ export class PostgresDatabase implements Database {
 				record.createdAt,
 			],
 		);
+	}
+
+	async appendOperation(record: NewOperationRecord): Promise<OperationRecord> {
+		const run = async (executor: PostgresQueryable): Promise<OperationRecord> => {
+			// Lock the node row so concurrent inserts for this node serialize before
+			// computing MAX(sequence), even under READ COMMITTED across connections (#1958).
+			await executor.query('SELECT id FROM nodes WHERE id = $1 FOR UPDATE', [record.nodeId]);
+			const rows = await executor.query<{ sequence: number | string }>(
+				`INSERT INTO operations (
+          id, node_id, sequence, type, token_id, value, metadata, from_node,
+          as_token_id, to_ancestor, reason, author, created_at
+        ) VALUES (
+          $1, $2,
+          (SELECT COALESCE(MAX(sequence), 0) + 1 FROM operations WHERE node_id = $2),
+          $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
+        ) RETURNING sequence`,
+				[
+					record.id,
+					record.nodeId,
+					record.type,
+					record.tokenId,
+					record.value,
+					record.metadata,
+					record.fromNode,
+					record.asTokenId,
+					record.toAncestor,
+					record.reason,
+					record.author,
+					record.createdAt,
+				],
+			);
+			return { ...record, sequence: Number(rows[0]?.sequence) };
+		};
+
+		const activeTx = this.txExecutor.getStore();
+		if (activeTx) {
+			return run(activeTx);
+		}
+		return this.client.transaction(run);
 	}
 
 	async removeOperation(id: string): Promise<void> {
@@ -851,16 +896,7 @@ export class PostgresDatabase implements Database {
 	}
 
 	async transaction<T>(fn: () => Promise<T>): Promise<T> {
-		return this.client.transaction(async (tx) => {
-			const previousExecutor = this.executor;
-			this.executor = tx;
-
-			try {
-				return await fn();
-			} finally {
-				this.executor = previousExecutor;
-			}
-		});
+		return this.client.transaction((tx) => this.txExecutor.run(tx, fn));
 	}
 }
 

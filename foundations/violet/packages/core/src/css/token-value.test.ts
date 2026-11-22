@@ -158,6 +158,10 @@ describe('checkCssTokenValue', () => {
 		it('refuses an id that cannot be a CSS name', () => {
 			expect(checkCssToken(token('color.page', '#fff'))).toBeNull();
 			expect(checkCssToken(token('a;}body{background:red}x{--b', '#fff'))).toContain('its id');
+			expect(checkCssToken(token('space..m', '#fff'))).toContain('its id');
+			expect(checkCssToken(token('.leading', '#fff'))).toContain('its id');
+			expect(checkCssToken(token('trailing.', '#fff'))).toContain('its id');
+			expect(checkCssToken(token('__proto__.x', '#fff'))).toContain('its id');
 			expect(checkCssToken(token('color.page', '#fff'), 'bad prefix ')).toContain('its id');
 		});
 

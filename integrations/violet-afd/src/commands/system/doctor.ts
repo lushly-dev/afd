@@ -138,7 +138,13 @@ function checkRegistry(): HealthCheck {
 function checkWriteCapability(context: CommandContext): HealthCheck {
 	try {
 		// Check that essential methods exist
-		const requiredMethods = ['createNode', 'updateNode', 'deleteNode', 'addOperation'] as const;
+		const requiredMethods = [
+			'createNode',
+			'updateNode',
+			'deleteNode',
+			'addOperation',
+			'appendOperation',
+		] as const;
 
 		for (const method of requiredMethods) {
 			if (typeof context.db[method] !== 'function') {

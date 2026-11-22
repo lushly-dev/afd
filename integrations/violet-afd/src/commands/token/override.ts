@@ -9,9 +9,8 @@ import { z } from 'zod';
 import { ErrorCodes, failure, success } from '../../types/command-result.js';
 import { contextId, contextNow } from '../context-sources.js';
 import type { CommandContext, CommandDefinition } from '../registry.js';
-import { unsafeValueSuggestion } from '../value-checks.js';
+import { tokenIdSuggestion, unsafeValueSuggestion } from '../value-checks.js';
 import { previousValue } from './previous-value.js';
-import { nextSequence } from './sequence.js';
 
 /**
  * Input schema for token.override command
@@ -54,13 +53,13 @@ export const tokenOverrideCommand: CommandDefinition<typeof InputSchema, Output>
 		// Parse input to apply defaults
 		const input = InputSchema.parse(rawInput);
 
-		// Reject ids that could reach Object.prototype when exported as object keys
+		// Reject ids that could reach Object.prototype or break CSS/SCSS names (#1957)
 		const tokenIdError = validateTokenId(input.tokenId);
 		if (tokenIdError) {
 			return failure({
 				code: ErrorCodes.VALIDATION_ERROR,
 				message: tokenIdError,
-				suggestion: "Avoid the path segments '__proto__', 'constructor' and 'prototype'",
+				suggestion: tokenIdSuggestion,
 			});
 		}
 
@@ -125,10 +124,9 @@ export const tokenOverrideCommand: CommandDefinition<typeof InputSchema, Output>
 		const operationId = contextId(context);
 		const now = contextNow(context);
 
-		await db.addOperation({
+		await db.appendOperation({
 			id: operationId,
 			nodeId: input.nodeId,
-			sequence: nextSequence(existingOps),
 			type: 'override',
 			tokenId: input.tokenId,
 			value: JSON.stringify(input.value),

@@ -1,3 +1,4 @@
+import { validateTokenId } from '@lushly-dev/violet-core/engine';
 import { z } from 'zod';
 import { ErrorCodes, failure, success } from '../../types/command-result.js';
 import type { CommandContext, CommandDefinition } from '../registry.js';
@@ -133,6 +134,15 @@ export const importValidateCommand: CommandDefinition<typeof InputSchema, Output
 				continue;
 			}
 
+			const idError = validateTokenId(token.id);
+			if (idError) {
+				errors.push({
+					tokenId: token.id,
+					error: idError,
+				});
+				continue;
+			}
+
 			// Check for valid value
 			if (token.value === undefined) {
 				errors.push({
@@ -143,13 +153,6 @@ export const importValidateCommand: CommandDefinition<typeof InputSchema, Output
 			}
 
 			// Warn about unusual token IDs
-			if (token.id.includes(' ')) {
-				warnings.push({
-					tokenId: token.id,
-					warning: 'Token ID contains spaces',
-				});
-			}
-
 			if (!/^[a-z][a-z0-9._-]*$/i.test(token.id)) {
 				warnings.push({
 					tokenId: token.id,

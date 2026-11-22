@@ -102,6 +102,12 @@ export interface OperationRecord {
 }
 
 /**
+ * Operation fields passed to `Database.appendOperation`, which allocates
+ * `sequence` atomically with the insert.
+ */
+export type NewOperationRecord = Omit<OperationRecord, 'sequence'>;
+
+/**
  * Audit event types
  */
 export const AuditEventTypeSchema = z.enum([

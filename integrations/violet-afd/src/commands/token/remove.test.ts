@@ -268,4 +268,56 @@ describe('token.remove command', () => {
 		expect(refused.error?.code).toBe('OPERATION_NOT_ALLOWED');
 		expect(refused.error?.message).toContain('d (changes it)');
 	});
+
+	it('rolls back partial removals and audit events on MemoryDatabase if the transaction fails (#1973)', async () => {
+		await tokenOverrideCommand.handler(
+			{ nodeId: 'app', tokenId: 'color.page', value: '#eeeeee' },
+			context,
+		);
+		await tokenOverrideCommand.handler(
+			{ nodeId: 'app', tokenId: 'color.page', value: '#dddddd' },
+			context,
+		);
+		const opsBefore = await context.db.getOperations('app');
+		const auditsBefore = await context.db.getAuditEvents({ targetNode: 'app' });
+
+		// Fail while generating the second audit event id inside db.transaction()
+		let calls = 0;
+		const failingContext: CommandContext = {
+			...context,
+			random: () => {
+				calls += 1;
+				if (calls > 21) throw new Error('mid-remove failure');
+				return 0.5;
+			},
+		};
+
+		await expect(
+			tokenRemoveCommand.handler({ nodeId: 'app', tokenId: 'color.page' }, failingContext),
+		).rejects.toThrow('mid-remove failure');
+
+		expect(await context.db.getOperations('app')).toEqual(opsBefore);
+		expect(await context.db.getAuditEvents({ targetNode: 'app' })).toEqual(auditsBefore);
+		expect((await resolved('app')).get('color.page')).toBe('#dddddd');
+	});
+
+	it('gives concurrent writes distinct sequences after a removal on MemoryDatabase (#1958)', async () => {
+		const first = await tokenAddCommand.handler(
+			{ nodeId: 'app', tokenId: 'color.a', value: '#111111' },
+			context,
+		);
+		await tokenAddCommand.handler({ nodeId: 'app', tokenId: 'color.b', value: '#222222' }, context);
+		await tokenRemoveCommand.handler(
+			{ nodeId: 'app', operationId: first.data?.operationId },
+			context,
+		);
+
+		const [c, d] = await Promise.all([
+			tokenAddCommand.handler({ nodeId: 'app', tokenId: 'color.c', value: '#333333' }, context),
+			tokenAddCommand.handler({ nodeId: 'app', tokenId: 'color.d', value: '#444444' }, context),
+		]);
+		expect(c.success).toBe(true);
+		expect(d.success).toBe(true);
+		expect((await context.db.getOperations('app')).map((op) => op.sequence)).toEqual([2, 3, 4]);
+	});
 });

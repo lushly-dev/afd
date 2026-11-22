@@ -3,8 +3,8 @@ import { z } from 'zod';
 import { ErrorCodes, failure, success } from '../../types/command-result.js';
 import { contextId, contextNow } from '../context-sources.js';
 import type { CommandContext, CommandDefinition } from '../registry.js';
+import { tokenIdSuggestion } from '../value-checks.js';
 import { resolvePreviousValue } from './previous-value.js';
-import { nextSequence } from './sequence.js';
 
 /**
  * Input schema for token.copy command
@@ -48,13 +48,14 @@ export const tokenCopyCommand: CommandDefinition<typeof InputSchema, Output> = {
 		// Parse input to apply defaults
 		const input = InputSchema.parse(rawInput);
 
-		// Reject ids that could reach Object.prototype when exported as object keys
-		const tokenIdError = validateTokenId(input.asTokenId || input.tokenId);
+		// Reject ids that could reach Object.prototype or break CSS/SCSS names (#1957)
+		const targetTokenId = input.asTokenId ?? input.tokenId;
+		const tokenIdError = validateTokenId(targetTokenId);
 		if (tokenIdError) {
 			return failure({
 				code: ErrorCodes.VALIDATION_ERROR,
 				message: tokenIdError,
-				suggestion: "Avoid the path segments '__proto__', 'constructor' and 'prototype'",
+				suggestion: tokenIdSuggestion,
 			});
 		}
 
@@ -115,19 +116,16 @@ export const tokenCopyCommand: CommandDefinition<typeof InputSchema, Output> = {
 			});
 		}
 
-		const targetTokenId = input.asTokenId || input.tokenId;
 		// The value the copy replaces, when the node already had the token (#90)
 		const before = await resolvePreviousValue(db, input.nodeId, targetTokenId);
 
 		// Create the operation
-		const existingOps = await db.getOperations(input.nodeId);
 		const operationId = contextId(context);
 		const now = contextNow(context);
 
-		await db.addOperation({
+		await db.appendOperation({
 			id: operationId,
 			nodeId: input.nodeId,
-			sequence: nextSequence(existingOps),
 			type: 'copy',
 			// For copy operations `tokenId` is the SOURCE token on `fromNode`; the id the
 			// value lands under on this node is `asTokenId` (or `tokenId` when not renamed).
@@ -136,7 +134,7 @@ export const tokenCopyCommand: CommandDefinition<typeof InputSchema, Output> = {
 			value: null,
 			metadata: null,
 			fromNode: input.fromNode,
-			asTokenId: input.asTokenId || null,
+			asTokenId: input.asTokenId ?? null,
 			toAncestor: null,
 			reason: input.reason || null,
 			author: actor || null,

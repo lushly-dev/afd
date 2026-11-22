@@ -1,5 +1,9 @@
 import { type CssValueMetadata, checkCssTokenValue } from '@lushly-dev/violet-core/css';
-import { resolveAncestorTokenMap, resolveNodeTokenMap } from '@lushly-dev/violet-core/engine';
+import {
+	resolveAncestorTokenMap,
+	resolveNodeTokenMap,
+	validateTokenId,
+} from '@lushly-dev/violet-core/engine';
 import type { Node, OperationRecord, TokenMetadata } from '@lushly-dev/violet-core/types';
 import { TokenMetadataSchema } from '@lushly-dev/violet-core/types';
 import { z } from 'zod';
@@ -194,6 +198,10 @@ function nestTokens(
 			unwritable.push({ node: nodeId, token: token.id, why: 'an id DTCG cannot name' });
 			continue;
 		}
+		if (validateTokenId(token.id) !== null) {
+			unwritable.push({ node: nodeId, token: token.id, why: 'an unsafe token id' });
+			continue;
+		}
 		if (tiers && !token.tier && ALL_TIERS.has(segments[0] ?? '')) {
 			unwritable.push({ node: nodeId, token: token.id, why: 'an id that reads as a tier group' });
 			continue;
@@ -312,11 +320,15 @@ export const exportTreeCommand: CommandDefinition<typeof InputSchema, Output> = 
 				.slice(0, 10)
 				.map((entry) => `${entry.node}: ${entry.why} of '${entry.token}'`)
 				.join('; ');
+			const hasUnsafeId = unwritable.some(
+				(entry) => entry.why === 'an unsafe token id' || entry.why === 'an id DTCG cannot name',
+			);
 			return failure({
 				code: ErrorCodes.OPERATION_NOT_ALLOWED,
 				message: `${unwritable.length} operation(s) cannot be written as token files: ${listed}${unwritable.length > 10 ? '; …' : ''}`,
-				suggestion:
-					"A file holds adds and overrides only: replace a subtract, reset or copy with 'token.override' or 'token.remove' (see node.get with includeOperations), then export again",
+				suggestion: hasUnsafeId
+					? "Copy any token with an unsafe id to a safe name with 'token.copy' (using asTokenId) or add its replacement, then remove the legacy operation with 'token.remove' and export again"
+					: "A file holds adds and overrides only: replace a subtract, reset or copy with 'token.override' or 'token.remove' (see node.get with includeOperations), then export again",
 			});
 		}
 

@@ -1,5 +1,5 @@
 import type { CssValueMetadata } from '@lushly-dev/violet-core/css';
-import { resolveNodeTokenMap } from '@lushly-dev/violet-core/engine';
+import { resolveNodeTokenMap, validateTokenId } from '@lushly-dev/violet-core/engine';
 import { IncludePolicySchema, NodeTypeSchema } from '@lushly-dev/violet-core/types';
 import { z } from 'zod';
 import { ErrorCodes, failure, success } from '../../types/command-result.js';
@@ -8,6 +8,7 @@ import type { CommandContext, CommandDefinition } from '../registry.js';
 import {
 	type KnownToken,
 	importedTokenType,
+	tokenIdSuggestion,
 	unsafeImportValues,
 	unsafeValueSuggestion,
 } from '../value-checks.js';
@@ -275,6 +276,7 @@ async function refuseBeforeWriting(ordered: PlannedNode[], context: CommandConte
 	const typesByNode = new Map<string, Map<string, CssValueMetadata | undefined>>();
 	const typesOf = async (nodeId: string) =>
 		typesByNode.get(nodeId) ?? (await storedTypes(nodeId, context));
+	const invalidIds: string[] = [];
 	const unsafe: string[] = [];
 	for (const node of ordered) {
 		let parsed: Record<string, unknown>;
@@ -291,6 +293,10 @@ async function refuseBeforeWriting(ordered: PlannedNode[], context: CommandConte
 			for (const [token, type] of await typesOf(id)) included.set(token, type);
 
 		const tokens = flattenTokenFile(parsed, undefined, { tiers: node.tiers });
+		for (const token of tokens) {
+			const idError = validateTokenId(token.id);
+			if (idError) invalidIds.push(`${node.file}: ${idError}`);
+		}
 		const known = (id: string): KnownToken => ({
 			metadata: inherited.has(id) ? inherited.get(id) : included.get(id),
 			becomesOverride: inherited.has(id),
@@ -307,6 +313,13 @@ async function refuseBeforeWriting(ordered: PlannedNode[], context: CommandConte
 				resolved.set(token.id, importedTokenType(token, known(token.id)));
 		}
 		typesByNode.set(node.id, resolved);
+	}
+	if (invalidIds.length > 0) {
+		throw new TreeImportError({
+			code: ErrorCodes.VALIDATION_ERROR,
+			message: `${invalidIds.length} token id(s) cannot be imported, so no node was created: ${invalidIds.slice(0, 10).join('; ')}${invalidIds.length > 10 ? '; …' : ''}`,
+			suggestion: tokenIdSuggestion,
+		});
 	}
 	if (unsafe.length > 0) {
 		throw new TreeImportError({
