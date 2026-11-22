@@ -12,6 +12,12 @@
   commands over MCP stdio with the CLI's schemas and result envelopes. It has no
   release route and changes no foundation or command API.
 
+## 2.2.0-preview.9
+
+### Minor Changes
+
+- [#2132](https://github.com/lushly-dev/afd/pull/2132) [`dae40a9`](https://github.com/lushly-dev/afd/commit/dae40a946d681e00fa3cec077f1e3e05dae1b45d) Thanks [@Falkicon](https://github.com/Falkicon)! - Split Specimen host target resolution failures into typed `TARGET_NOT_FOUND` and `TARGET_AMBIGUOUS` errors carrying actionable suggestions and match counts (`details.count`), and plumb structured `code`, `suggestion`, and `details` through the TypeScript host client, process worker IPC, and `specimen-afd` commands ([#2046](https://github.com/lushly-dev/afd/issues/2046)).
+
 ## 2.2.0-preview.8
 
 ### Patch Changes
