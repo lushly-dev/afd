@@ -87,6 +87,75 @@ in the same pull request.
 
 ## 1.0-rc
 
+[`command-metadata.md`](./command-metadata.md)'s reporting rules name `afd-help`: like `_meta` and `afd-detail`, it omits empty command-metadata arrays: `requires`, and in its `full` format `tags` and `examples` ([#1480](https://github.com/lushly-dev/afd/issues/1480)).
+
+[`authorization.md`](./authorization.md), "TypeScript", and [`error-codes.md`](./error-codes.md):
+an HTTP session can be displaced only by the same subject's `initialize`. One issuer and subject,
+across its clients, holds at most `maxSessionsPerOwner` sessions (default 100); at that quota or the
+session cap its least recently used session is evicted, and a subject with none is refused while the
+store is full, with HTTP 503, `Retry-After` and JSON-RPC `-32000` carrying the request's `id` and
+`data.code: "SESSION_LIMIT_REACHED"`. The MCP client reports that as the retryable
+`SESSION_LIMIT_REACHED`, from that status and `data.code` only. Additive, so the version stays.
+
+`spec/pipeline-variables.md` and `spec/error-codes.md` bound referenced-value nesting depth (64 levels, at most 128 levels combined) and repeated reference expansion (100,000 values and 16 MiB of string/key characters) during pipeline variable resolution, failing the step with `VALIDATION_ERROR` without invoking the command (#1704).
+
+[`command-metadata.md`](./command-metadata.md), "Approvals", and [`error-codes.md`](./error-codes.md):
+`APPROVAL_UNAVAILABLE` gains a third `details.reason`, `input-not-canonical`: the approval step's
+answer when a call needs approval and its validated input has no canonical JSON form, so no approval
+can be bound to it and the person is not asked. A call its policy lets through still runs on such an
+input. The admission rule also covers a policy given only to the approval middleware, an input
+changed while the approval step decides, and a second approval middleware, which admits only what it
+may gate. Additive, so the version stays.
+
+[`command-metadata.md`](./command-metadata.md), "Approvals": a declared approval policy now holds
+without the approval middleware. A server engine never runs a command whose policy is not
+`not-required` unless its approval step admitted that call; each batch item, pipeline step and
+command run from inside another command's handler is admitted on its own. Without such a step the
+engine answers `APPROVAL_UNAVAILABLE` before the handler runs, not retryable, reading the
+declaration alone (a policy function is not evaluated). `APPROVAL_UNAVAILABLE` joins
+[`error-codes.md`](./error-codes.md)'s catalog and `vectors/error-codes.json` (50 codes), with its
+constant in all four languages. TypeScript enforces it; Python, Rust and C++ define the constant
+and their enforcement follows in [#1886](https://github.com/lushly-dev/afd/issues/1886). Additive, so the version stays.
+
+[`command-metadata.md`](./command-metadata.md) adds app-to-app calls (Loam phase 5 step 0b, D30,
+[#884](https://github.com/lushly-dev/afd/issues/884)): `expose.apps`, default `false`, is a
+command's declaration that another app may call it; `apps` is an interface a host's trusted code
+names for an app's call; and the registry takes a host predicate, `callGrant(command, context)`,
+over the caller's grants. A call with the `apps` interface runs only when the command exists, sets
+`expose.apps` and the predicate returns `true`; every other one, invalid input included, gets one
+fixed `CALL_NOT_GRANTED` refusal before lookup and validation. `CALL_NOT_GRANTED` joins
+[`error-codes.md`](./error-codes.md)'s catalog and `vectors/error-codes.json` (49 codes), with its
+constant in all four languages, and D4 gains an `apps` row. [`plugin-manifest.md`](./plugin-manifest.md)
+adds core version 2, [`plugin-manifest.core.v2.json`](./plugin-manifest.core.v2.json): version 1 with
+`expose.apps` defined, defaulting to `false` in every profile; both profiles stay on version 1. New
+vector file [`vectors/app-calls.json`](./vectors/app-calls.json), with a documented gap for Python
+and C++ ([#1513](https://github.com/lushly-dev/afd/issues/1513)). Additive, so the version stays:
+nothing changes for a call that does not name the `apps` interface.
+
+[`spec/schema/`](./schema/README.md) adds JSON Schema 2020-12 definitions for `CommandError`
+(`error.json`), `CommandResult` (`result.json`), the standalone MCP `outputSchema` envelope
+(`output-envelope.json`), `BatchResult` (`batch.json`), `PipelineResult` (`pipeline.json`), and
+`StreamChunk` (`stream.json`), with every `spec/wire/*.json` fixture and the todo conformance runner
+validated against them (#1733). [`command-metadata.md`](./command-metadata.md) and every language's
+`commandResultOutputSchema` now type `error` (`code`, `message`, `suggestion`, `retryable`).
+
+[`vectors/error-codes.json`](./vectors/error-codes.json) now carries `{ code, retryable, profile }`
+for every code and the reserved `hostPrefix` (`"HOST_"`), and [`error-codes.md`](./error-codes.md)
+separates the 33-code core catalog from the 17-code profile catalogs and reserves `HOST_` for
+host-defined codes (#1740).
+
+[`dispatch.md`](./dispatch.md) and [`vectors/dispatch.json`](./vectors/dispatch.json) specify
+single-command dispatch order and pin it with 19 shared registry and MCP vectors run across
+TypeScript, Python, Rust, and C++ (#1736). Additive, so `spec/VERSION` stays.
+
+[`tool-strategies.md`](./tool-strategies.md) records Python's bootstrap tools as opt-in (parity decision D5, [#542](https://github.com/lushly-dev/afd/issues/542)): `create_server(..., bootstrap=True)` registers `afd-help`, `afd-docs` and `afd-schema`, as TypeScript's `bootstrap: true`, and Python's default `server/discover` instructions now add the bootstrap sentence only then. The implementation table and the vector notes no longer say Python always registers them. The contract itself is unchanged.
+
+`spec/tool-strategies.md`, "Reserved names": Python now refuses the bootstrap names with `bootstrap=True` and the context names with `contexts`, as TypeScript does (#1731).
+
+[`validation.md`](./validation.md): a string `$id` starts a schema resource, as in Draft 2020-12, and a local `$ref` resolves against the nearest one around it, or else the root ([#1700](https://github.com/lushly-dev/afd/issues/1700)). Before, the subset said `$id` did not change how `$ref` resolves. A bare fragment such as `"#node"`, a draft-07 anchor, starts no resource, and the `$id` value is never resolved as a URI. `$id` leaves the list of annotations with no effect. The new `ref-embedded-resource` case in `vectors/validation.json`, the CommandResult envelope advertised for a `data` schema with its own `$id` and `$defs`, runs in all four languages, and TypeScript also checks it with Ajv.
+
+An output schema with its own `$id` keeps its definitions inside `data` so local references resolve within that schema (#1474).
+
 [`tool-strategies.json`](./vectors/tool-strategies.json), the hybrid strategy's cases, moves into
 `vectors/` now that C++ serves the strategy and all four languages load it
 ([#1202](https://github.com/lushly-dev/afd/issues/1202)). Its content does not change, so the
