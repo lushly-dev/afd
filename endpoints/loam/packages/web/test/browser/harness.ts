@@ -907,3 +907,200 @@ export const providerDeployment = (
 		// Version 3 requires the table, so a deployment with no app names it empty.
 		...(entries.length === 0 ? ['[apps]', ''] : entries.map((entry) => `${entry}\n`)),
 	].join('\n');
+
+/** What one of the page's IndexedDB databases holds: whether it exists, its object stores, and their rows. */
+export interface HeldDatabase {
+	exists: boolean;
+	stores: string[];
+	rows: number;
+	text: string;
+}
+
+/**
+ * P3-E15: everything a shell page's origin holds that a secret could leak into: every row of every IndexedDB
+ * database it has (`indexedDB.databases()`, as `@lushly-dev/loam-host/testing`'s `scanSecrets` reads a page, so a
+ * database added later is read too, and a missing one is never made by opening it), and every `localStorage` value.
+ * `journal` and `store` are `loam-journal`'s and `loam-store`'s, so a test can check each was there to search;
+ * `text` is all of it.
+ */
+export function heldByPage(
+	page: Page
+): Promise<{ journal: HeldDatabase; store: HeldDatabase; local: string; text: string }> {
+	return page.evaluate(async () => {
+		const names = (await indexedDB.databases())
+			.map((entry) => entry.name)
+			.filter((name): name is string => !!name);
+		const read = (name: string) =>
+			new Promise<HeldDatabase>((resolve, reject) => {
+				if (!names.includes(name)) {
+					resolve({ exists: false, stores: [], rows: 0, text: '' });
+					return;
+				}
+				const request = indexedDB.open(name);
+				request.onerror = () => reject(request.error);
+				request.onsuccess = async () => {
+					const db = request.result;
+					const stores = [...db.objectStoreNames];
+					const all: unknown[][] = [];
+					for (const store of stores) {
+						all.push(
+							await new Promise<unknown[]>((done) => {
+								const got = db.transaction(store).objectStore(store).getAll();
+								got.onsuccess = () => done(got.result);
+							})
+						);
+					}
+					db.close();
+					resolve({
+						exists: true,
+						stores,
+						rows: all.reduce((sum, rows) => sum + rows.length, 0),
+						text: JSON.stringify(all),
+					});
+				};
+			});
+		const all = await Promise.all(names.map(read));
+		const none = { exists: false, stores: [], rows: 0, text: '' };
+		const journal = all[names.indexOf('loam-journal')] ?? none;
+		const store = all[names.indexOf('loam-store')] ?? none;
+		const local = JSON.stringify({ ...localStorage });
+		return { journal, store, local, text: [...all.map((entry) => entry.text), local].join('\n') };
+	});
+}
+
+const CEREMONY_KEYS = ['clientDataJSON', 'authenticatorData', 'signature', 'attestationObject'];
+
+/** P3-E15: what a page sent its provider that is a secret, as `recordSecretsSent` collects it. */
+export interface SecretsSent {
+	/** Every value of a ceremony's response and every OAuth `code` or `token` the page sent, 16 characters or more. */
+	values: string[];
+	/** WebAuthn registrations sent: a response with `attestationObject` and `clientDataJSON`. */
+	registrations: number;
+	/** WebAuthn authentications sent: a response with `signature`, `authenticatorData` and `clientDataJSON`. */
+	authentications: number;
+	/** OAuth `code` or `token` query values sent, as a sign-on's callback carries one. */
+	codes: number;
+}
+
+/**
+ * P3-E15: records the secrets a page sends under `api/auth/` as each request leaves: a WebAuthn ceremony's response
+ * bytes, from any JSON body, and any `code` or `token` in a request's query (a sign-on's callback), so a test can
+ * look for them where they must not be. It counts each kind of ceremony, so a test can require the one it ran.
+ */
+export function recordSecretsSent(page: Page): SecretsSent {
+	const sent: SecretsSent = { values: [], registrations: 0, authentications: 0, codes: 0 };
+	const walk = (value: unknown): void => {
+		if (!value || typeof value !== 'object') return;
+		const record = value as Record<string, unknown>;
+		const has = (key: string) =>
+			typeof record[key] === 'string' && (record[key] as string).length >= 16;
+		if (has('attestationObject') && has('clientDataJSON')) sent.registrations += 1;
+		if (has('signature') && has('authenticatorData') && has('clientDataJSON'))
+			sent.authentications += 1;
+		for (const [key, entry] of Object.entries(record)) {
+			if (CEREMONY_KEYS.includes(key) && typeof entry === 'string' && entry.length >= 16)
+				sent.values.push(entry);
+			else walk(entry);
+		}
+	};
+	page.on('request', (request) => {
+		const url = new URL(request.url());
+		if (!url.pathname.includes('/api/auth/')) return;
+		for (const name of ['code', 'token']) {
+			const value = url.searchParams.get(name);
+			if (value && value.length >= 16) {
+				sent.values.push(value);
+				sent.codes += 1;
+			}
+		}
+		try {
+			walk(JSON.parse(request.postData() ?? 'null'));
+		} catch {
+			// Not JSON: no ceremony.
+		}
+	});
+	return sent;
+}
+
+/** P3-E15: a mailed join or recovery link's single-use token, its `token` parameter. */
+export function linkToken(link: string): string {
+	const token = new URL(link).searchParams.get('token');
+	if (!token || token.length < 16) throw new Error(`No token in ${link}`);
+	return token;
+}
+
+/**
+ * P3-E15: the secrets a profile holds now, with a test-only auth host: the context's cookie values and every
+ * session's token and IP address in the host's database. Taken before a step that deletes them (a sign-out, a
+ * revocation, a recovery), it is passed to `secretsHeld` as `earlier`.
+ */
+export async function secretsNow(
+	shell: ShellPage,
+	authHost: TestAuthHost
+): Promise<{ cookies: string[]; tokens: string[]; addresses: string[] }> {
+	const cookies = (await shell.context.cookies())
+		.map((cookie) => cookie.value)
+		.filter((value) => value.length > 8);
+	const rows = authHost.db().prepare('SELECT token, ipAddress FROM session').all() as {
+		token: string;
+		ipAddress: string | null;
+	}[];
+	return {
+		cookies,
+		tokens: rows.map((row) => row.token),
+		addresses: rows.map((row) => row.ipAddress).filter((value): value is string => !!value),
+	};
+}
+
+/**
+ * P3-E15: which secrets a shell page's origin holds (`heldByPage`), by kind, never by value: its context's cookie
+ * values and every session's token and IP address in the host's database now (`secretsNow`) and in each snapshot
+ * of `earlier`, the link tokens and sent secrets given, the password given, and anything shaped like an IP address.
+ * `held` is what was read, so the test can check each source was there to search.
+ */
+export async function secretsHeld(
+	shell: ShellPage,
+	options: {
+		authHost: TestAuthHost;
+		password?: string;
+		linkTokens?: readonly string[];
+		sent?: SecretsSent;
+		/** Other secrets to look for, such as a virtual authenticator's private key. */
+		also?: readonly string[];
+		earlier?: ReadonlyArray<{ cookies: string[]; tokens: string[]; addresses: string[] }>;
+	}
+): Promise<{ held: Awaited<ReturnType<typeof heldByPage>>; found: string[] }> {
+	const held = await heldByPage(shell.page);
+	const secrets: Array<[string, string]> = [];
+	for (const snapshot of [await secretsNow(shell, options.authHost), ...(options.earlier ?? [])]) {
+		for (const value of snapshot.cookies) secrets.push(['a cookie value', value]);
+		for (const value of snapshot.tokens) secrets.push(['a session token', value]);
+		// A short address (`::1`) is left to the pattern below, which finds every loopback form.
+		for (const value of snapshot.addresses)
+			if (value.length >= 8) secrets.push(["a session's IP address", value]);
+	}
+	for (const value of options.linkTokens ?? []) secrets.push(["a link's token", value]);
+	for (const value of options.sent?.values ?? []) secrets.push(['a secret the page sent', value]);
+	for (const value of options.also ?? []) secrets.push(['a secret the test named', value]);
+	if (options.password) secrets.push(['the password', options.password]);
+	for (const [kind, value] of secrets)
+		if (value.length < 8) throw new Error(`${kind} is too short to scan for.`);
+	// A test's servers listen on loopback, so `127.0.0.1` is also the host of URLs a page may hold, such as a
+	// sign-on's redirect in a journaled result: the host of a URL is not a person's address, so it is masked first.
+	const text = held.text.replace(/\/\/(?:127\.0\.0\.1|\[::1\]|localhost)(?::\d+)?/g, '//loopback');
+	const found = secrets.filter(([, value]) => text.includes(value)).map(([kind]) => kind);
+	if (/ipAddress|127\.0\.0\.1|::1|::ffff:/.test(text)) found.push('an IP address');
+	return { held, found: [...new Set(found)] };
+}
+
+/**
+ * P3-E15: the sources `secretsHeld` had nothing to search in, so a test can require an empty list: a journal with no
+ * entry, or no store database with its object store, would make "no secret found" true of nothing. A profile that
+ * never signed in may hold no store row; a test of a signed-in one also requires `held.store.rows`.
+ */
+export function unsearched(held: Awaited<ReturnType<typeof heldByPage>>): string[] {
+	const missing: string[] = [];
+	if (held.journal.rows === 0) missing.push('no journal entry');
+	if (held.store.stores.length === 0) missing.push('no store');
+	return missing;
+}

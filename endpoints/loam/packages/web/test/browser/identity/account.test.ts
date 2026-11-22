@@ -1,5 +1,5 @@
 /**
- * E6, E7, E11, E17, E18 and E19 in Chromium (phase 3 specification, 5.1 to 5.8, 7 and 18): the account section, the
+ * E6, E7, E11, E15, E17, E18 and E19 in Chromium (phase 3 specification, 5.1 to 5.8, 7 and 18): the account section, the
  * members and owners, enrolment by invitation and recovery, through a test-only auth host. A real Better Auth 1.7.18
  * server stands behind `api/auth/` on the shell's own HTTPS origin; it proves no hosted lane (2.4). The deployer's
  * single sign-on is a test-only OpenID provider on loopback, which proves nothing of a real one. Passkeys are made by
@@ -16,12 +16,17 @@ import {
 	type DeploymentSite,
 	kernelCall,
 	launchForDevHost,
+	linkToken,
 	openPage,
 	openShell,
 	providerDeployment,
+	recordSecretsSent,
 	type ShellPage,
+	secretsHeld,
+	secretsNow,
 	serveDeployment,
 	settle,
+	unsearched,
 } from '../harness';
 
 const PASSWORD = 'correct horse battery staple';
@@ -66,6 +71,40 @@ afterAll(async () => {
 });
 
 const host = () => site.authHost as NonNullable<DeploymentSite['authHost']>;
+
+/**
+ * E15: no profile holds the password, a mailed link's token, a secret a page sent, nor a cookie, token or address of
+ * a session now or in `earlier`, and each had a journal and a store to search.
+ */
+async function expectNoSecret(
+	shells: ShellPage[],
+	options: {
+		links: string[];
+		sent: ReturnType<typeof recordSecretsSent>[];
+		earlier?: Awaited<ReturnType<typeof secretsNow>>[];
+		/** Profiles that never signed in, which may hold no store row. */
+		signedOut?: ShellPage[];
+	}
+): Promise<void> {
+	for (const shell of shells) {
+		await settle(shell.page);
+		const { held, found } = await secretsHeld(shell, {
+			authHost: host(),
+			password: PASSWORD,
+			linkTokens: options.links.map(linkToken),
+			sent: {
+				values: options.sent.flatMap((entry) => entry.values),
+				registrations: 0,
+				authentications: 0,
+				codes: 0,
+			},
+			earlier: options.earlier ?? [],
+		});
+		expect(unsearched(held)).toEqual([]);
+		if (!options.signedOut?.includes(shell)) expect(held.store.rows).toBeGreaterThan(0);
+		expect(found).toEqual([]);
+	}
+}
 
 async function open(path = ''): Promise<ShellPage> {
 	const page = await openShell(browser, `${site.root}${path}`);
@@ -122,7 +161,7 @@ async function mailedLink(email: string): Promise<string> {
 }
 
 describe('P3-E17: enrolment by invitation only, through a test-only auth host', () => {
-	it('P3-E17: an owner invites from the members tab; the invitee creates a passkey from the mailed link with no session, and is a member; the link fails a second time', async () => {
+	it('P3-E17: P3-E15: an owner invites from the members tab; the invitee creates a passkey from the mailed link with no session, and is a member; the link fails a second time', async () => {
 		const owner = await open();
 		await signIn(owner.page, 'olu@example.com');
 		expect(
@@ -141,6 +180,7 @@ describe('P3-E17: enrolment by invitation only, through a test-only auth host', 
 		expect(new URL(url).pathname).toBe('/~/join');
 		// A fresh browser, with no session: the join page, then a passkey made with user verification.
 		const invitee = await openLink(url);
+		const sent = recordSecretsSent(invitee.page);
 		await addVirtualAuthenticator(invitee.page, { userVerified: true });
 		await expect.poll(() => link(invitee.page).locator('h1').textContent()).toBe('Join Acme');
 		expect(await axe(invitee.page)).toEqual([]);
@@ -172,6 +212,10 @@ describe('P3-E17: enrolment by invitation only, through a test-only auth host', 
 		await invitee.page.goto(site.root);
 		await invitee.page.waitForFunction(() => document.documentElement.dataset.loamHost === 'web');
 		await expect.poll(() => accountOf(invitee.page)).toBe('Newcomer Person');
+		// E15: neither profile, the owner's that invited nor the invitee's, holds the join token, the ceremony's bytes,
+		// the password, or a session's cookie, token or address.
+		expect(sent.registrations).toBeGreaterThanOrEqual(1);
+		await expectNoSecret([owner, invitee], { links: [url], sent: [sent] });
 		// The link a second time, in yet another browser.
 		const again = await openLink(url);
 		await expect
@@ -278,9 +322,12 @@ describe('P3-E6: owners in Chromium', () => {
 });
 
 describe('P3-E18: recovery, through a test-only auth host', () => {
-	it('P3-E18: "Can\'t sign in?" mails a link; it restores access with a new passkey, signs out every other session, and the account shows the notice', async () => {
+	it('P3-E18: P3-E15: "Can\'t sign in?" mails a link; it restores access with a new passkey, signs out every other session, and the account shows the notice', async () => {
 		const other = await open();
 		await signIn(other.page, 'cy@example.com');
+		// E15: read now, since the recovery deletes that session.
+		const before = await secretsNow(other, host());
+		expect(before.cookies.length).toBeGreaterThan(0);
 		const page = await open();
 		await shadow(page.page, 'loam-main .sign-in').click();
 		const dialog = shadow(page.page, 'loam-sign-in-dialog');
@@ -293,6 +340,7 @@ describe('P3-E18: recovery, through a test-only auth host', () => {
 			.toContain('If cy@example.com has an account, a link to restore your access is on its way');
 		const url = await mailedLink('cy@example.com');
 		const recovering = await openLink(url);
+		const sent = recordSecretsSent(recovering.page);
 		await addVirtualAuthenticator(recovering.page, { userVerified: true });
 		await expect
 			.poll(() => link(recovering.page).locator('h1').textContent())
@@ -322,6 +370,15 @@ describe('P3-E18: recovery, through a test-only auth host', () => {
 		await expect
 			.poll(() => section.locator('[role="note"]').first().textContent())
 			.toContain('Your access was restored on');
+		// E15: no profile, the one that asked, the one that restored nor the one whose session it ended, holds the
+		// recovery token, the ceremony's bytes, the password, or a session's cookie, token or address.
+		expect(sent.registrations).toBeGreaterThanOrEqual(1);
+		await expectNoSecret([page, recovering, other], {
+			links: [url],
+			sent: [sent],
+			earlier: [before],
+			signedOut: [page],
+		});
 		// The link a second time.
 		const again = await openLink(url);
 		await expect
@@ -329,16 +386,19 @@ describe('P3-E18: recovery, through a test-only auth host', () => {
 			.toBe('This link does not work');
 	});
 
-	it('P3-E18: single sign-on recovery runs the ceremony and lets its session register a passkey for a holder', async () => {
+	it('P3-E18: P3-E15: single sign-on recovery runs the ceremony and lets its session register a passkey for a holder', async () => {
 		// Bea links the deployer's single sign-on and holds a passkey.
 		oidc.as({ sub: 'sub-bea', email: 'bea@example.com' });
 		const linked = await open();
+		const linkedSent = recordSecretsSent(linked.page);
 		await shadow(linked.page, 'loam-main .sign-in').click();
 		await shadow(linked.page, 'loam-sign-in-dialog')
 			.getByRole('button', { name: 'Continue with corp' })
 			.click();
 		await linked.page.waitForFunction(() => document.documentElement.dataset.loamHost === 'web');
 		await expect.poll(() => accountOf(linked.page), { timeout: 10_000 }).toBe('Bea');
+		// E15: read now, since the recovery ends that session.
+		const before = await secretsNow(linked, host());
 		const bea = host().people['bea@example.com'] as string;
 		expect(
 			host()
@@ -354,6 +414,7 @@ describe('P3-E18: recovery, through a test-only auth host', () => {
 			.run(bea, new Date().toISOString());
 		// "Can't sign in? Use corp": the ceremony, then a new passkey from its session.
 		const page = await open();
+		const sent = recordSecretsSent(page.page);
 		await shadow(page.page, 'loam-main .sign-in').click();
 		await shadow(page.page, 'loam-sign-in-dialog')
 			.getByRole('button', { name: "Can't sign in? Use corp" })
@@ -377,6 +438,19 @@ describe('P3-E18: recovery, through a test-only auth host', () => {
 		expect(
 			host().db().prepare('SELECT count(*) AS n FROM session WHERE userId = ?').get(bea)
 		).toEqual({ n: 1 });
+		// E15: neither profile holds the sign-on's code, the ceremony's bytes, or a session's cookie, token or address,
+		// the ended one's included, once the restored one has opened the shell.
+		expect(sent.registrations).toBeGreaterThanOrEqual(1);
+		expect(sent.codes).toBeGreaterThanOrEqual(1);
+		await page.page.goto(site.root);
+		await page.page.waitForFunction(() => document.documentElement.dataset.loamHost === 'web');
+		await expect.poll(() => accountOf(page.page)).toBe('Bea');
+		expect(linkedSent.codes).toBeGreaterThanOrEqual(1);
+		await expectNoSecret([page, linked], {
+			links: [],
+			sent: [sent, linkedSent],
+			earlier: [before],
+		});
 	});
 });
 

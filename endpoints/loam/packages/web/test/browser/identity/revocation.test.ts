@@ -1,5 +1,5 @@
 /**
- * E3 (phase 3 specification, 4.3 and 4.6): sessions revoked at the provider reach the shell. A real Better Auth
+ * E3 and E15's revoked sessions (phase 3 specification, 4.3, 4.6 and 18): sessions revoked at the provider reach the shell. A real Better Auth
  * 1.7.18 server stands behind `api/auth/` on the shell's own HTTPS origin, through the test-only auth host; it
  * proves no hosted lane (2.4). Each browser context is a profile, and the journal's writer lock holds one shell tab
  * per profile, so a second device is a second context and `SessionSync`'s other tab is a plain page of the same
@@ -17,8 +17,11 @@ import {
 	openShell,
 	providerDeployment,
 	type ShellPage,
+	secretsHeld,
+	secretsNow,
 	serveDeployment,
 	settle,
+	unsearched,
 } from '../harness';
 
 const PASSWORD = 'correct horse battery staple';
@@ -106,12 +109,34 @@ const providerKnows = (page: Page) =>
 		return (await response.json().catch(() => null)) !== null;
 	});
 
+const authHost = () => site.authHost as NonNullable<DeploymentSite['authHost']>;
+
+/** E15: no profile holds the password, nor a cookie, token or address of a session now or in `earlier`. */
+async function expectNoSecret(
+	shells: ShellPage[],
+	earlier: Awaited<ReturnType<typeof secretsNow>>[]
+): Promise<void> {
+	for (const shell of shells) {
+		const { held, found } = await secretsHeld(shell, {
+			authHost: authHost(),
+			password: PASSWORD,
+			earlier,
+		});
+		expect(unsearched(held)).toEqual([]);
+		expect(held.store.rows).toBeGreaterThan(0);
+		expect(found).toEqual([]);
+	}
+}
+
 describe('P3-E3: revocation reaches the shell (4.3, 4.6)', () => {
-	it("P3-E3: revokes another device's session by its handle; that device signs out when it is next visible", async () => {
+	it("P3-E3: P3-E15: revokes another device's session by its handle; that device signs out when it is next visible", async () => {
 		const here = await open();
 		const there = await open();
 		await signIn(here.page, 'dee@example.com');
 		await signIn(there.page, 'dee@example.com');
+		// E15: read now, since the revocation deletes the other device's session.
+		const before = [await secretsNow(here, authHost()), await secretsNow(there, authHost())];
+		expect(before[1]?.tokens.length).toBeGreaterThan(1);
 		const listed = (await kernelCall(here.page, 'session-list')) as Listed;
 		expect(listed.success, JSON.stringify(listed.error)).toBe(true);
 		const other = listed.data?.sessions.find((row) => !row.current);
@@ -142,13 +167,17 @@ describe('P3-E3: revocation reaches the shell (4.3, 4.6)', () => {
 		);
 		expect(settled.at(-1)?.input).toMatchObject({ person: null });
 		expect(await accountOf(here.page)).toBe('Dee');
+		// E15: neither device holds the password, a cookie or a session token, the revoked one's included.
+		await expectNoSecret([here, there], before);
 	});
 
-	it("P3-E3: revokes 'all' from a fresh session, which signs this profile's every tab out", async () => {
+	it("P3-E3: P3-E15: revokes 'all' from a fresh session, which signs this profile's every tab out", async () => {
 		const page = await open();
 		await signIn(page.page, 'eli@example.com');
 		const elsewhere = await open();
 		await signIn(elsewhere.page, 'eli@example.com');
+		// E15: read now, since revoking 'all' deletes both sessions.
+		const before = [await secretsNow(page, authHost()), await secretsNow(elsewhere, authHost())];
 		// Another tab of the same profile, listening on the channel `SessionSync` posts to.
 		const tab = await page.context.newPage();
 		await tab.goto(`${site.root}deployment.json`);
@@ -176,6 +205,8 @@ describe('P3-E3: revocation reaches the shell (4.3, 4.6)', () => {
 			(entry) => entry.command === 'session-settle'
 		);
 		expect(settled.at(-1)?.input).toMatchObject({ person: null });
+		await settle(elsewhere.page);
+		await expectNoSecret([page, elsewhere], before);
 	});
 
 	it("P3-E3: lists sessions 301 s after sign-in, but revoking 'others' from a stale session needs a fresh one", async () => {

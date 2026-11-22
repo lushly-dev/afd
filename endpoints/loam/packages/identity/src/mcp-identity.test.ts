@@ -53,6 +53,9 @@ let clientId: string;
 let closeServer: () => Promise<void>;
 /** How often anything read the Mock's session once the kernel booted. */
 let sessionReads = 0;
+let store: MemoryAdapter;
+/** E15: every secret the session's flows made: cookie values, PKCE verifiers, codes, access and refresh tokens. */
+const issued: string[] = [];
 
 const adapter = async () => (await provider.auth.$context).adapter as never;
 /** What the provider's server API answers the cases that read it. */
@@ -67,9 +70,19 @@ const api = () =>
 		(input: unknown) => Promise<ProviderAnswer>
 	>;
 
+/** E15: a browser's cookie values, and a session cookie's bare token (the value is `token.signature`). */
+function keepCookies(page: TestBrowser): void {
+	for (const [name, value] of page.jar) {
+		issued.push(value);
+		if (name.endsWith('session_token'))
+			issued.push(decodeURIComponent(value).split('.')[0] as string);
+	}
+}
+
 async function as(email: string): Promise<TestBrowser> {
 	const page = new TestBrowser((request) => provider.auth.handler(request), ORIGIN);
 	expect((await page.signIn(email, PASSWORD)).status).toBe(200);
+	keepCookies(page);
 	return page;
 }
 
@@ -80,6 +93,7 @@ async function token(
 ): Promise<{ access?: string; consent: { status: number; body: unknown } }> {
 	const page = await as(email);
 	const verifier = randomBytes(32).toString('base64url');
+	issued.push(verifier);
 	const query = new URLSearchParams({
 		response_type: 'code',
 		client_id: options.client ?? clientId,
@@ -101,6 +115,7 @@ async function token(
 	const redirect = (consent.body as { url?: string } | null)?.url;
 	if (consent.status !== 200 || !redirect) return { consent };
 	const code = new URL(redirect).searchParams.get('code') as string;
+	issued.push(code);
 	const exchanged = await provider.auth.handler(
 		new Request(`${ISSUER}/oauth2/token`, {
 			method: 'POST',
@@ -115,7 +130,11 @@ async function token(
 			}),
 		})
 	);
-	const tokens = (await exchanged.json()) as { access_token?: string };
+	const tokens = (await exchanged.json()) as { access_token?: string; refresh_token?: string };
+	issued.push(
+		...[tokens.access_token, tokens.refresh_token].filter((value) => value !== undefined)
+	);
+	keepCookies(page);
 	return { access: tokens.access_token, consent };
 }
 
@@ -253,7 +272,7 @@ beforeAll(async () => {
 	clientId = client.client_id;
 
 	// Citadel restricted to Bea and to the Mock's person: a kernel that read its adapter would let the Mock's call in.
-	const store = new MemoryAdapter();
+	store = new MemoryAdapter();
 	const base = {
 		workspace: 'personal',
 		icon: 'system/folder',
@@ -785,5 +804,26 @@ describe("P3-E8: the server kernel's own calls and its construction (9.5)", () =
 		).map((column) => column.name);
 		expect(columns.join(' ')).not.toMatch(/token|secret|password/i);
 		expect(CONNECTED_AGENT_MODEL).toBe('loamConnectedAgent');
+	});
+});
+
+// Last in the file, so it reads the journal and the store after every call of E8's session above.
+describe("P3-E15: no secret of E8's session in the journal or the store", () => {
+	it('P3-E15: no cookie value, PKCE verifier, code, access or refresh token, or password in any journal entry or store row', async () => {
+		const entries = await journal.read();
+		expect(entries.length).toBeGreaterThan(10);
+		expect(entries.some((entry) => entry.actor?.kind === 'agent')).toBe(true);
+		// MemoryAdapter keeps its rows in a private map; read whole, since a row of any table could hold one.
+		const tables = (store as unknown as { tables: Map<string, Map<string, unknown>> }).tables;
+		expect([...tables.values()].reduce((sum, table) => sum + table.size, 0)).toBeGreaterThan(0);
+		const held = JSON.stringify([
+			entries,
+			[...tables].map(([name, table]) => [name, [...table.values()]]),
+		]);
+		const secrets = [...new Set(issued)].filter((value) => value.length >= 16);
+		expect(secrets.length).toBeGreaterThan(10);
+		expect(secrets.filter((value) => held.includes(value)).length).toBe(0);
+		expect(held).not.toContain(PASSWORD);
+		expect(held).not.toMatch(/eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/);
 	});
 });
