@@ -142,8 +142,10 @@ def define_command(
         undoable: Whether the command's effects can be undone (unset by default).
         approval: Whether a call needs a human's approval before the handler runs:
             ``"required"``, ``"not-required"`` or a function of the validated input and
-            context. Enforced by ``create_approval_middleware``; reported as
-            ``_meta.approval`` (``"conditional"`` for a function).
+            context. Decided by ``create_approval_middleware``; without an approval step
+            that admitted the call, ``create_server`` and ``create_direct_registry`` refuse
+            any policy other than ``"not-required"`` with ``APPROVAL_UNAVAILABLE``.
+            Reported as ``_meta.approval`` (``"conditional"`` for a function).
         version: The command's version, reported by ``afd-detail`` and recorded as
             ``metadata.commandVersion`` on its results (and so in journal entries).
         title: A short human-readable label, reported as the MCP tool ``title`` of the

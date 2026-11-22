@@ -124,10 +124,14 @@ On a terminal, a held retry asks again.
 With no terminal and no `--approve`, the `APPROVAL_REQUIRED` result is
 printed unchanged (JSON intact with `--format json`) and the exit code is 1.
 
-Over MCP (`--connect` or a saved connection) the CLI cannot approve, and
-`--approve` is rejected. Approval evidence must come from trusted code, never
-from tool arguments, and MCP has no trusted channel for it yet. The result is
-printed unchanged.
+Over MCP (`--connect` or a saved connection) `--approve` is rejected: approval
+evidence must come from trusted code, never from tool arguments. A server
+that relays approvals (`relay: 'mcp-elicitation'`) asks the person behind the
+client through a form elicitation, which the CLI asks at a terminal (`[y/N]`)
+and answers. With no terminal, or against a server without the relay, the
+`APPROVAL_REQUIRED` result is printed unchanged. A client the server names as
+an approver carries evidence in `_meta["dev.afd/approval"]`; the CLI is not
+one.
 
 ### Validate Commands
 

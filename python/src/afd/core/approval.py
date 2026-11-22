@@ -1,7 +1,11 @@
 """The pre-execution approval policy a command declares (#420, parity with #272).
 
-``create_approval_middleware`` (``afd.server``) enforces it; this module only
-holds the types and the reporting rule (``spec/command-metadata.md``,
+``create_approval_middleware`` (``afd.server``) decides it per call. Without an
+approval step that admitted the call, ``create_server`` and
+``create_direct_registry`` refuse a command whose policy is not
+``"not-required"`` with ``APPROVAL_UNAVAILABLE`` (#1886); core's
+``create_command_registry`` runs no middleware and has no such check. This module
+only holds the types and the reporting rule (``spec/command-metadata.md``,
 "Approvals").
 """
 
@@ -21,7 +25,9 @@ ApprovalPolicy = Union[
 ]
 """A command's approval policy: a fixed decision, or a function (sync or async) of the
 validated input and the call context, for example "agents need approval, humans do not".
-Unset means ``"not-required"``. Enforced only where ``create_approval_middleware`` runs."""
+Unset means ``"not-required"``. ``create_approval_middleware`` decides it; ``create_server`` and
+``create_direct_registry`` refuse any other declared policy with ``APPROVAL_UNAVAILABLE`` when no
+approval step admitted the call. Core's ``create_command_registry`` does not check it."""
 
 
 def approval_mode(

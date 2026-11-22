@@ -34,9 +34,9 @@ have met their exit criteria on `main`:
   scope what an app sees, and documents whose types an app contributes, open
   side by side in the editor area.
 
-Phase 3, identity, and phase 6, hosts, are being built. Phases 4, 5, 7 and
-8 (settings and experiments, the copilot, the builder, and guides) and the
-collaboration service have not started. [STATUS.md](docs/STATUS.md) says
+Phases 3 to 6 are being built: identity; settings, notifications and
+overlays; the copilot; and hosts. Phases 7 and 8 (the builder, and guides)
+and the collaboration service have not started. [STATUS.md](docs/STATUS.md) says
 exactly what is done and what is not; this summary only orients.
 
 What is here:

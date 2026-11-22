@@ -703,6 +703,51 @@ async def test_a_gated_pipeline_step_with_a_random_default_runs_on_the_approved_
     assert calls == ["get", *_shown(prompts[0])]
 
 
+def _listed_notes(calls):
+    """``_notes``'s ``note-add`` with no policy of its own, gated only by the middleware's list."""
+    import uuid
+    from types import SimpleNamespace
+
+    from pydantic import BaseModel, Field
+
+    class NoteAdd(BaseModel):
+        text: str
+        id: str = Field(default_factory=lambda: uuid.uuid4().hex)
+
+    listed = SimpleNamespace(name="note-add", approval="required", confirm_prompt=None)
+    server = create_server(
+        "relay-test",
+        middleware=[
+            create_approval_middleware(secret=SECRET, relay="mcp-elicitation", commands=[listed])
+        ],
+    )
+
+    @server.command(name="todo-get", description="Get a todo", expose=MCP)
+    async def get(input):
+        calls.append("get")
+        return success({})
+
+    @server.command(
+        name="note-add", description="Add a note", mutation=True, input_schema=NoteAdd, expose=MCP
+    )
+    async def add(input):
+        calls.append(f"add:{input.id}")
+        return success({"id": input.id})
+
+    return server
+
+
+@pytest.mark.parametrize("mode", MODES)
+async def test_a_list_gated_batch_step_with_a_random_default_runs_on_the_approved_input(mode):
+    calls, prompts = [], []
+    result = await _call(
+        _listed_notes(calls), mode, prompts, "accept", tool="afd-batch", arguments=NOTES
+    )
+    assert result["success"] is True, result
+    assert len(prompts) == 1
+    assert calls == ["get", *_shown(prompts[0])]
+
+
 @pytest.mark.parametrize("mode", MODES)
 async def test_two_steps_sent_alike_each_run_on_their_own_approved_input(mode):
     calls, prompts = [], []
