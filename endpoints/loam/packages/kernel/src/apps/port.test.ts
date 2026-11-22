@@ -138,7 +138,8 @@ describe('a call the port refuses (5.3, D68)', () => {
 			scope: WORKSPACE,
 		});
 		await kernel.agent.call('layout-get');
-		expect((await last(journal)).context).toEqual({ scope: WORKSPACE });
+		// No caller; the enforcement gate's decision is journaled with an agent's call (#1936).
+		expect((await last(journal)).context).toEqual({ autonomy: 'act', scope: WORKSPACE });
 	});
 
 	it('adds the seq to a person or agent result, never to the journal or an app', async () => {

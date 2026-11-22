@@ -13,6 +13,7 @@ import type { AppsRuntime } from '../apps-runtime.js';
 import { BOOT_ONLY, INTERNAL_COMMANDS } from '../commands.js';
 import type { KernelFieldContext } from '../context-fields.js';
 import { kernelFailure } from '../errors.js';
+import { RECORDED_ANSWER } from '../journal-order.js';
 import type { OverlayStore } from '../overlays.js';
 import { shellModalOpen } from '../overlays.js';
 import {
@@ -350,8 +351,10 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 			// or a top-level entry whose context lost the mark, or a command a redeploy made mounted. It stops
 			// before its handler could reach a server (10 and 12). Recorded is the kernel's own word, never the
 			// context's: `app-instance-refresh`, or a command a mounted instance owns.
+			// One the replay answers at its handler from its entry, the gates run first (#1936), is a recorded call it holds.
 			if (
 				deps.internals?.replaying &&
+				(call as Record<symbol, unknown>)[RECORDED_ANSWER] === undefined &&
 				(name === 'app-instance-refresh' ||
 					deps.recorded?.includes(name) ||
 					deps.recordedCall?.(name, input) ||

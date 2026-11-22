@@ -8,9 +8,10 @@ import { agentCall, kernelCall, surfacesIdle } from '../harness';
 
 /**
  * The chrome's own calls join the scripted ones here: a list click, a chord, a status button, a toast's
- * timer and press, and each read they cause.
+ * timer and press, and each read they cause. The second write is an agent's (#1936): with `agents: 'ask'` it asks and
+ * the person confirms it in the inbox, so the shell runs it (phase 4's 7.2); under the person's `act` row it runs.
  */
-export async function runAppsSession(page: Page): Promise<void> {
+export async function runAppsSession(page: Page, agents: 'ask' | 'act' = 'ask'): Promise<void> {
 	const person = async (name: string, input: unknown = {}) => {
 		await kernelCall(page, name, input);
 		await surfacesIdle(page);
@@ -21,9 +22,16 @@ export async function runAppsSession(page: Page): Promise<void> {
 	};
 	await person('app-open', { instance: 'hello' });
 	await person('hello-greet', { name: 'Ada' });
-	// The person's, since phase 5's step 3: an agent's change now asks (its 6.1), and a replay of an agent's write diverges
-	// (a follow-up in the phase 5 specification), so the session's second write is the person's, checked to land.
-	await person('hello-greet', { name: 'Bot' });
+	const greeted = (await agentCall(page, 'hello-greet', { name: 'Bot' })) as {
+		error?: { code: string; details?: { notification?: string } };
+	};
+	await surfacesIdle(page);
+	if (agents === 'ask') {
+		const notification = greeted.error?.details?.notification;
+		if (greeted.error?.code !== 'CONFIRMATION_PENDING' || notification === undefined)
+			throw new Error(`The agent's greeting did not ask: ${JSON.stringify(greeted)}`);
+		await person('notification-act', { notification, answer: 'confirm' });
+	}
 	const listed = (await kernelCall(page, 'hello-list')) as {
 		data?: { items: Array<{ id: string }> };
 	};

@@ -22,6 +22,8 @@ import type { CopilotTraceV1 } from './types.js';
 /** The same keys as `late/confirmation-parts.ts`'s `ENFORCED` and `RAISED`, by `Symbol.for`: nothing of it imported. */
 const ENFORCED = Symbol.for('dev.loam/enforced');
 const RAISED = Symbol.for('dev.loam/raised');
+/** `journal-order.ts`'s `RECORDED_AUTONOMY`: in a replay alone, the decision the entry journaled (#1936). */
+const RECORDED_AUTONOMY = Symbol.for('dev.loam/recorded-autonomy');
 
 /** The person's suggestion records (6.1), in the workspace store, each carrying `person`. */
 export const SUGGESTION_TABLE = 'copilot-suggestion';
@@ -175,6 +177,8 @@ export function createEnforcement(deps: EnforcementDeps): Enforcement {
 		// The agent interface's own top-level calls: a nested call runs inside the call this let through, and an app's
 		// port is an app's, not an agent's. A hosted server's MCP calls (`interface: 'mcp'`, phase 3's step 7) are not
 		// enforced here until milestone C (10.1, D98): that server keeps no autonomy rows and has no person's inbox.
+		// The decision is this gate's alone to journal (#1936): never a caller's, nor one an outer call left.
+		delete call.autonomy;
 		if (call.interface !== 'agent' || call.parent !== undefined || call.caller !== undefined)
 			return next();
 		// The shell's run of a call a person confirmed: the confirmations' gate checks its id against the act that holds it.
@@ -215,10 +219,15 @@ export function createEnforcement(deps: EnforcementDeps): Enforcement {
 			chain.push({ id: held, mode: 'ask', as: 'ceiling' });
 			if (mode === 'act') mode = 'ask';
 		}
+		// A replay takes the decision its entry journaled, as the call was decided live (#1936).
+		const recorded = (call as unknown as Record<symbol, unknown>)[RECORDED_AUTONOMY];
+		if (recorded === 'act' || recorded === 'ask' || recorded === 'suggest') mode = recorded;
 		// No confirmation or suggestion for a project the caller may not enter (6.1's order): a shell command that ignores
 		// its scope would otherwise put the project's name in a header, and the person in front of a call that fails.
 		if (mode !== 'act' && !deps.enterable(context)) return deps.projectNotFound();
 		const decision: DecisionV1 = { mode, reason: 'policy' };
+		// Journaled with the call (#1936): a replay that answers it from its record runs this gate again all the same.
+		call.autonomy = mode;
 		if (trace !== undefined) deps.decided(trace, decision);
 		const person = deps.personOf(context);
 		const at = deps.now(context);
@@ -266,12 +275,14 @@ export function createEnforcement(deps: EnforcementDeps): Enforcement {
 				? { session: trace.session, group: `${trace.session}/${trace.turn}`, trace: { ...trace } }
 				: {}),
 		};
+		// Run in `act` without asking (6.3), a change: a read in `act` is no decision a person could be asked about, so the
+		// rates are over changes (the review's N4). A command whose own `confirm_prompt` asked is counted as asked instead.
+		// Counted before it runs, so nothing is written between its handler and its journal entry, which a read made then
+		// would see on the wrong side of it (#1936).
+		if (mode === 'act' && deps.isMutation(name) && !deps.declares(name)) await count('acted');
 		const result = await next();
 		const raised = (call as unknown as Record<symbol, unknown>)[RAISED];
 		if (typeof raised === 'string') decision.notification = raised;
-		// Run in `act` without asking (6.3), a change: a read in `act` is no decision a person could be asked about, so the
-		// rates are over changes (the review's N4). A command whose own `confirm_prompt` asked is counted as asked instead.
-		if (mode === 'act' && deps.isMutation(name) && !deps.declares(name)) await count('acted');
 		return result;
 	};
 

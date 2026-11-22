@@ -12,6 +12,7 @@ import type { DataAdapter } from '@lushly-dev/local-db';
 import type { AppCommandRowV1, CommandOwner } from '../apps-runtime.js';
 import type { KernelCallFields } from '../context-fields.js';
 import type { LoamKernelErrorCode } from '../errors.js';
+import type { StoreOrderV1 } from '../journal-order.js';
 import { appLayoutId } from '../layout.js';
 import type { KernelLimits } from '../limits.js';
 import type { OverlayStore } from '../overlays.js';
@@ -67,6 +68,8 @@ export interface AppsHost {
 	gate?: { open(experiment: string): boolean; gated(instance: string): boolean };
 	/** The `store` grant's quota, one per runtime, which `loadApps` makes (section 11). */
 	storeQuota?: StoreQuota;
+	/** What a call's store operations tell the journal's order, by its trace ID and the instance (#1936). */
+	storeOrder?(traceId: string, instance: string): StoreOrderV1;
 	/**
 	 * The kernel's scope state, read only: the active scope, for the chrome's port and its store (phase 2
 	 * specification, 3.6 and 5), the project and workspace-app records a mounted instance is checked
