@@ -20,6 +20,7 @@ import {
 	writePrivate,
 } from '../dev-files.js';
 import type { Launched, Launcher } from './launcher.js';
+import { registerTestClients, type TestClientV1 } from './oauth.js';
 
 /** One entry of the server's journal, as `journal.jsonl` holds it. */
 export type JournalEntry = Record<string, unknown>;
@@ -34,6 +35,8 @@ export interface DevHost {
 	readonly certificate: string;
 	/** The data directory, `.loam-dev/` beside the deployment file. */
 	readonly data: string;
+	/** Each of `clients`' ids, by name: pre-registered OAuth clients for an MCP client's flow (P6-H4). */
+	readonly clients: Readonly<Record<string, string>>;
 	mail(): Promise<SinkMessage[]>;
 	/** Read-only handles, for assertions; each opens only once its database exists (steps 3 and 4). */
 	db(): { auth: DatabaseSync; loam: DatabaseSync };
@@ -66,6 +69,11 @@ export interface StartDevHostOptions {
 		password?: string;
 	}[];
 	modules?: unknown[];
+	/**
+	 * OAuth clients the deployer pre-registers (phase 3's 9.4) before the profile starts, each a public native client
+	 * with one redirect, through the provider's server API by the first seeded owner with a password.
+	 */
+	clients?: readonly TestClientV1[];
 	resources?: string[];
 	accessTokenTtlSeconds?: number;
 	/**
@@ -79,8 +87,10 @@ export interface StartDevHostOptions {
 
 /** The options a later step brings, refused until then rather than ignored. */
 const LATER: Record<string, string> = {
-	resources: 'step 4, with the MCP route',
-	accessTokenTtlSeconds: 'step 4, with the MCP route',
+	// Phase 3's step 10 needs these for P3-H1's second audience and P3-H4's expiry; `createLoamAuthOptions` takes
+	// neither yet, so phase 6's step 4, which mounts the route, leaves them to the step that adds them there.
+	resources: "phase 3's step 10, with the provider's second resource",
+	accessTokenTtlSeconds: "phase 3's step 10, with the provider's test-only token lifetime",
 	modules: 'the step that builds HostModule',
 };
 
@@ -130,6 +140,7 @@ export async function createDevHost(
 		const { certificate } = await ensureCertificate(data);
 		if (options.people && !options.organization)
 			throw new Error("startDevHost's `people` are seeded into its `organization`.");
+		let clients: Record<string, string> = {};
 		if (options.organization) {
 			// Bootstrapped and seeded before the profile starts, as `bootstrap --dev` runs with `dev` stopped (3.7).
 			const { slug, name, owner } = options.organization;
@@ -146,9 +157,9 @@ export async function createDevHost(
 				if (person.methods?.includes('password') && person.password === undefined)
 					throw new Error(`startDevHost's ${person.email} signs in with a password, and has none.`);
 			}
-			if (people.length > 0) {
-				await withBootstrapProvider({ form: 'dev', deployment, data }, ({ provider }) =>
-					seedTestPeople(
+			if (people.length > 0 || options.clients?.length) {
+				await withBootstrapProvider({ form: 'dev', deployment, data }, async ({ provider }) => {
+					await seedTestPeople(
 						provider.auth,
 						report.organization.id,
 						people.map(({ email, name, role, password }) => ({
@@ -157,9 +168,22 @@ export async function createDevHost(
 							role,
 							...(password !== undefined ? { password } : {}),
 						}))
-					)
-				);
+					);
+					if (!options.clients?.length) return;
+					const owner = people.find((person) => person.role === 'owner' && person.password);
+					if (!owner?.password)
+						throw new Error(
+							"startDevHost's `clients` are registered by a seeded owner with a password."
+						);
+					clients = await registerTestClients(
+						provider.auth,
+						{ email: owner.email, password: owner.password },
+						options.clients
+					);
+				});
 			}
+		} else if (options.clients?.length) {
+			throw new Error("startDevHost's `clients` are registered in its `organization`.");
 		}
 		const env = { ...options.env, NODE_EXTRA_CA_CERTS: certificate };
 		running = await launch(deployment, env, logs, options.rateLimit);
@@ -194,6 +218,7 @@ export async function createDevHost(
 			},
 			certificate,
 			data,
+			clients,
 			mail: () => readMail(data),
 			// Each database opens when it is first read: `loam.sqlite` exists only from step 4.
 			db: () => ({

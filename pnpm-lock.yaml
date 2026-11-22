@@ -495,9 +495,15 @@ importers:
 
   endpoints/loam/packages/host:
     dependencies:
+      '@better-auth/oauth-provider':
+        specifier: 1.7.18
+        version: 1.7.18(@better-auth/core@1.7.18(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(@opentelemetry/api@1.10.0)(better-call@1.4.5(zod@4.6.7))(jose@6.2.14)(kysely@0.29.8)(nanostores@1.5.5))(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-auth@1.7.18(@opentelemetry/api@1.10.0)(mongodb@7.1.0)(pg@8.23.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.1.1))(better-call@1.4.5(zod@4.6.7))
       '@hono/node-server':
         specifier: 2.1.6
         version: 2.1.6(hono@4.13.17)
+      '@lushly-dev/afd-core':
+        specifier: workspace:*
+        version: link:../../../../packages/core
       '@lushly-dev/afd-server':
         specifier: workspace:*
         version: link:../../../../packages/server
@@ -507,9 +513,15 @@ importers:
       '@lushly-dev/loam-identity':
         specifier: workspace:*
         version: link:../identity
+      '@lushly-dev/loam-kernel':
+        specifier: workspace:*
+        version: link:../kernel
       '@lushly-dev/loam-manifest':
         specifier: workspace:*
         version: link:../manifest
+      '@lushly-dev/local-db':
+        specifier: workspace:*
+        version: link:../../../../packages/local-db
       better-auth:
         specifier: 1.7.18
         version: 1.7.18(@opentelemetry/api@1.10.0)(mongodb@7.1.0)(pg@8.23.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.1.1)
@@ -520,6 +532,9 @@ importers:
         specifier: ^4.6.6
         version: 4.6.7
     devDependencies:
+      '@lushly-dev/afd-client':
+        specifier: workspace:*
+        version: link:../../../../packages/client
       '@types/node':
         specifier: ^26.6.6
         version: 26.6.6

@@ -10,6 +10,7 @@ import { existsSync } from 'node:fs';
 import { chmod, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { oauthProviderAuthServerMetadata } from '@better-auth/oauth-provider';
 import {
 	createLoamAuthOptions,
 	type LoamMailV1,
@@ -34,6 +35,17 @@ export interface HostProvider {
 	readonly auth: Provider;
 	/** `<base><identity.path>`, with no trailing slash: the provider's routes are below it. */
 	readonly path: string;
+	/** The provider's exact issuer, Better Auth's base URL: `<origin><base><identity.path>` (9.2's step 1). */
+	readonly issuer: string;
+	/** The workspace whose binding names the organization (phase 3's 2.3). */
+	readonly workspace: string;
+	/** The deployment's single sign-on method ids, for the account an MCP call reads (phase 3's 9.2). */
+	readonly oidc: readonly string[];
+	/**
+	 * The authorization server's metadata (RFC 8414), which the host serves at its origin's root by path insertion (A2):
+	 * Better Auth's own `getOAuthServerConfig`, through `oauthProviderAuthServerMetadata`.
+	 */
+	metadata(request: Request): Promise<Response>;
 	/** Whether the binding exists: the organization was bootstrapped (3.1, `HOST_NOT_BOOTSTRAPPED`). */
 	bootstrapped(): Promise<boolean>;
 	/** Whether the bound organization has a member: the bootstrap is done (3.7, `HOST_ALREADY_BOOTSTRAPPED`). */
@@ -139,9 +151,16 @@ export async function openProvider(options: {
 		const context = await auth.$context;
 		const adapter = context.adapter;
 		const binding = () => readBinding(adapter as never, workspace);
+		const metadata = oauthProviderAuthServerMetadata(auth as never);
 		return {
 			auth,
 			path: `${basePath}${identity.path}`,
+			issuer: `${shell}${identity.path}`,
+			workspace,
+			oidc: identity.methods.flatMap((method) =>
+				method.startsWith('oidc:') ? [method.slice('oidc:'.length)] : []
+			),
+			metadata,
 			async bootstrapped() {
 				return (await binding()) !== null;
 			},

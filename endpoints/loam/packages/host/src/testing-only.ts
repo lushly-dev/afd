@@ -4,6 +4,7 @@
  */
 
 import type { AddressInfo } from 'node:net';
+import type { HostedMcp } from './mcp.js';
 import type { HostProvider } from './provider.js';
 
 /** Each listener's bound address, after `listen()`, so a test can bind port 0. */
@@ -35,4 +36,17 @@ export function providerOf(host: object): HostProvider {
 	const provider = providers.get(host);
 	if (!provider) throw new Error('The host mounts no provider: its deployment is `local`.');
 	return provider;
+}
+
+const mounted = new WeakMap<object, HostedMcp>();
+
+export function recordHostedMcp(host: object, mcp: HostedMcp): void {
+	mounted.set(host, mcp);
+}
+
+/** The server kernel and MCP surface a host mounted (3.6), for its units. */
+export function hostedMcpOf(host: object): HostedMcp {
+	const held = mounted.get(host);
+	if (!held) throw new Error('The host mounts no MCP route: its deployment is `local`.');
+	return held;
 }

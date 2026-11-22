@@ -104,7 +104,8 @@ export interface KernelEnvironmentV0 {
 
 export interface KernelOptionsV0 {
 	store: DataAdapter;
-	storeKind: 'memory' | 'indexeddb';
+	/** `sqlite` is the hosted server's `SqliteAdapter` (phase 6 specification, section 4). */
+	storeKind: 'memory' | 'indexeddb' | 'sqlite';
 	journal: JournalSink;
 	auth: AuthAdapter;
 	environment: KernelEnvironmentV0;

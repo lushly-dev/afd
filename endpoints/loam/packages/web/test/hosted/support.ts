@@ -27,6 +27,8 @@ export function hosted(
 		origin?: string;
 		/** More headers, sent as given: a cookie, an `Origin`. */
 		headers?: Record<string, string>;
+		/** A body, sent as given with the headers the caller names. */
+		body?: string;
 	} = {}
 ): Promise<Answer> {
 	const origin = new URL(options.origin ?? host.origin);
@@ -42,6 +44,9 @@ export function hosted(
 				setHost: false,
 				headers: {
 					...options.headers,
+					...(options.body !== undefined
+						? { 'content-length': String(Buffer.byteLength(options.body)) }
+						: {}),
 					host: options.host ?? origin.host,
 					...(options.accept ? { accept: options.accept } : {}),
 				},
@@ -59,7 +64,7 @@ export function hosted(
 			}
 		);
 		outgoing.on('error', fail);
-		outgoing.end();
+		outgoing.end(options.body);
 	});
 }
 

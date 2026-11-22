@@ -59,8 +59,8 @@ async function start(options: Partial<Parameters<typeof createDevHost>[0]> = {})
 
 describe('startDevHost, in-process (5.2)', () => {
 	it.each([
-		['resources', ['https://example.com/mcp'], 'step 4'],
-		['accessTokenTtlSeconds', 60, 'step 4'],
+		['resources', ['https://example.com/mcp'], "phase 3's step 10"],
+		['accessTokenTtlSeconds', 60, "phase 3's step 10"],
 		['modules', [], 'HostModule'],
 	])('refuses `%s` until the step that builds it', async (key, value, step) => {
 		const { launch, calls } = await inProcess();
@@ -97,6 +97,51 @@ describe('startDevHost, in-process (5.2)', () => {
 			{ email: 'bea@acme.example', role: 'member' },
 			{ email: 'olu@acme.example', role: 'owner' },
 		]);
+	});
+
+	it("pre-registers `clients` by the seeded owner, as the deployer's server API does, and reports their ids (P6-H4)", async () => {
+		const { host } = await start({
+			config: PROVIDER,
+			organization: { slug: 'acme', name: 'Acme' },
+			people: [
+				{
+					email: 'olu@acme.example',
+					name: 'Olu',
+					role: 'owner',
+					methods: ['password'],
+					password: 'p'.repeat(12),
+				},
+			],
+			clients: [{ name: 'agent', redirect: 'http://127.0.0.1:43123/callback' }],
+		});
+		const id = host.clients.agent as string;
+		expect(id).toBeTruthy();
+		const row = host
+			.db()
+			.auth.prepare('SELECT name, redirectUris FROM oauthClient WHERE clientId = ?')
+			.get(id) as { name: string; redirectUris: string } | undefined;
+		expect(row?.name).toBe('agent');
+		expect(row?.redirectUris).toContain('http://127.0.0.1:43123/callback');
+	});
+
+	it('refuses `clients` with no organization, or with no owner who has a password', async () => {
+		const { launch, calls } = await inProcess();
+		const clients = [{ name: 'agent', redirect: 'http://127.0.0.1:43123/callback' }];
+		await expect(createDevHost({ config: PROVIDER, clients }, launch)).rejects.toThrow(
+			'organization'
+		);
+		await expect(
+			createDevHost(
+				{
+					config: PROVIDER,
+					organization: { slug: 'acme', name: 'Acme' },
+					people: [{ email: 'a@acme.example', name: 'A', role: 'member' }],
+					clients,
+				},
+				launch
+			)
+		).rejects.toThrow('owner with a password');
+		expect(calls).toEqual([]);
 	});
 
 	it('refuses `people` with no organization, and a password method with no password', async () => {

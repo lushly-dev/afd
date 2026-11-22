@@ -177,6 +177,8 @@ export function raw(
 		headers?: Record<string, string>;
 		/** A JSON body, sent with `Content-Type: application/json`. */
 		json?: unknown;
+		/** A body sent as given, with the headers the caller names. */
+		body?: string;
 	} = {}
 ): Promise<RawAnswer> {
 	const send = options.tls ? httpsRequest : httpRequest;
@@ -184,10 +186,10 @@ export function raw(
 		const headers: Record<string, string> = { ...options.headers };
 		if (options.host !== undefined) headers.host = options.host;
 		if (options.accept !== undefined) headers.accept = options.accept;
-		const body = options.json === undefined ? undefined : JSON.stringify(options.json);
-		if (body !== undefined) {
+		const body = options.json === undefined ? options.body : JSON.stringify(options.json);
+		if (options.json !== undefined) {
 			headers['content-type'] = 'application/json';
-			headers['content-length'] = String(Buffer.byteLength(body));
+			headers['content-length'] = String(Buffer.byteLength(body as string));
 		}
 		const outgoing = send(
 			{
