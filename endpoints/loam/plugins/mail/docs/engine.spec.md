@@ -127,7 +127,7 @@ Each crate's maintenance history was not read.
 | Crate | Version | Licence | Use | Open point |
 | --- | --- | --- | --- | --- |
 | `afd` | 0.2.1, by path | MIT | Registry, journal, approvals, tasks, MCP server | None |
-| `rusqlite` | 0.41, bundled SQLite | MIT | The store | The version Umbel pins, so the repository carries one. 0.42 is current |
+| `rusqlite` | 0.43, bundled SQLite | MIT | The store | The version Umbel pins, so the repository carries one |
 | `tantivy` | 0.27 | MIT | The search index | Built without its default features; with `mmap`, `stopwords`, `stemmer` and `lz4-compression`, as the phase 0 harness was |
 | `sha2` | 0.11 | MIT or Apache-2.0 | The log's file names and a message's identity | The version the `afd` crate uses |
 | `zstd` | 0.14 | BSD-3-Clause | Compressing the log | Builds the zstd C library, as `rusqlite` builds SQLite |

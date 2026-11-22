@@ -34,7 +34,7 @@ afd = { path = "../../../packages/rust", default-features = false }
 # `context-bundle` is validated against `context-bundle.v1.json`.
 jsonschema = { version = "0.61", default-features = false }
 # `forget_bytes.rs` holds a reader open across a forget and reads the key file's markers.
-rusqlite = { version = "0.41", features = ["bundled"] }
+rusqlite = { version = "0.43", features = ["bundled"] }
 serde_json = "1"
 tempfile = "3"
 # `ideas_first_use.rs` speaks HTTP to the local person page over a socket, and reads the Ideas

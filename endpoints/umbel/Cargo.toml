@@ -130,7 +130,7 @@ base64 = { version = "0.22", optional = true }
 # The gateway assertion's signature (section 4.4, step 4), checked as AFD checks an access
 # token's: `jsonwebtoken`'s `aws-lc-rs` provider called directly, never `decode` or a
 # `Validation`, so no library default applies. AFD's version, already in the lock.
-jsonwebtoken = { version = "11.1", default-features = false, features = ["aws_lc_rs"], optional = true }
+jsonwebtoken = { version = "12.0", default-features = false, features = ["aws_lc_rs"], optional = true }
 # The person page reads its provider's answer and its own form as `application/x-www-form-urlencoded`
 # with `url`'s parser (phase 5 step 5), already in the lock through `reqwest`.
 url = { version = "2.5", optional = true }
@@ -141,7 +141,7 @@ aws-lc-rs = { version = "1.15", default-features = false, features = ["aws-lc-sy
 
 # The outbound client's TLS: the platform's roots, on the `aws-lc-rs` provider passed explicitly.
 rustls-platform-verifier = { version = "0.7", optional = true }
-rusqlite = { version = "0.41", features = ["bundled"], optional = true }
+rusqlite = { version = "0.43", features = ["bundled"], optional = true }
 # The doctor's `auth.shared` (step 2c): whether `state/shared/` is on a local file system (D29),
 # from `statfs`, and the effective user that must own the hosted profile's files, without unsafe
 # code.
@@ -197,7 +197,7 @@ umbel-sdk = { path = "sdk", features = ["mounted"] }
 # a dev-dependency: `tests/no_auth_server.rs` fails otherwise.
 umbel-testkit-idp = { path = "testkit-idp" }
 # `doctor_stores.rs` damages a store's tables, and `store_commands.rs` opens a backup.
-rusqlite = { version = "0.41", features = ["bundled"] }
+rusqlite = { version = "0.43", features = ["bundled"] }
 # The store tests build documents and chunks with the conformance suite's own samples.
 umbel-store = { path = "store", features = ["conformance"] }
 

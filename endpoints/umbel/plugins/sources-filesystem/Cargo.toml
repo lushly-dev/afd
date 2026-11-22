@@ -24,7 +24,7 @@ umbel-sdk = { path = "../../sdk" }
 
 [dev-dependencies]
 afd = { path = "../../../../packages/rust", default-features = false }
-rusqlite = { version = "0.41", features = ["bundled"] }
+rusqlite = { version = "0.43", features = ["bundled"] }
 tempfile = "3"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 # The tests boot a host with real collections, readers and allow lists.

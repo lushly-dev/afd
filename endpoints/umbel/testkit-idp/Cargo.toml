@@ -14,7 +14,8 @@ repository = "https://github.com/lushly-dev/afd"
 # and certificate in memory on start, and writes nothing to disk.
 #
 # Every dependency was already in the workspace's lock except `jsonwebtoken` (the version and
-# backend the afd crate's `server-auth` feature uses) and `base64` 0.22, which it depends on too.
+# backend the afd crate's `server-auth` feature uses) and `base64` 0.22 (the version `umbel`'s
+# `auth` feature uses).
 # `rcgen` is a normal dependency here, not a dev-dependency as the specification's table says: the
 # test certificate authority is part of the library (step 1b's amendment).
 
@@ -28,7 +29,7 @@ hyper = { version = "1", features = ["http1", "server"] }
 hyper-util = { version = "0.1", features = ["tokio"] }
 # Verification of the tokens the kit receives (ID tokens in a token exchange, ID-JAGs in a JWT
 # bearer grant): its `aws-lc-rs` provider, called directly, as the afd crate's verifier does.
-jsonwebtoken = { version = "11.1", default-features = false, features = ["aws_lc_rs"] }
+jsonwebtoken = { version = "12.0", default-features = false, features = ["aws_lc_rs"] }
 rcgen = { version = "0.14", default-features = false, features = ["crypto", "pem", "aws_lc_rs"] }
 serde = "1"
 serde_json = "1"

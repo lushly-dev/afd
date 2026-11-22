@@ -12,7 +12,7 @@ repository = "https://github.com/lushly-dev/afd"
 umbel-store = { path = "../store" }
 # Bundled SQLite: no system library is needed (specification section 1). The backend is the only
 # crate that links it.
-rusqlite = { version = "0.41", features = ["bundled"] }
+rusqlite = { version = "0.43", features = ["bundled"] }
 # The lexical lane (specification section 1): the features are fixed. `stemmer` is `en_stem`;
 # `lz4-compression` is the doc store's compressor, which an index written with it cannot be opened
 # without; `mmap` is the directory; `stopwords` is part of the specification's set.
