@@ -1269,11 +1269,11 @@
       "upstream_sha256": "88c35fada289047d3412d3f4205d416ba0bb891b59774cdf3f8dca7e9c1d1eaf",
       "staged_path": "packages/element/packages/fast-element/src/components/element-controller.ts",
       "staged_sha256": "88c35fada289047d3412d3f4205d416ba0bb891b59774cdf3f8dca7e9c1d1eaf",
-      "current_import_sha256": "921ebfa36e5af41f259dc4386b890385853cc74b827882971b1e91a763438142",
+      "current_import_sha256": "fe192ba0cbd90eca20044bf5d5b058b815c160134d63692ff43b248717fe1027",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView; Hydrated views keep a scoped host's registry, and a controller replaced by a late template is disconnected first; Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again"
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView; Hydrated views keep a scoped host's registry, and a controller replaced by a late template is disconnected first; Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again; Disconnect mid-connect controllers and preserve notifier subscribers on late-template replacement (#1389)"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/components/element-hydration.ts",
@@ -11793,11 +11793,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "195a30255c158f1e2ff0ce5065d53300e227646d36ba3231b9fab45bcd28290f",
+      "current_import_sha256": "ec9683c30a4d2bf945cf6f3e564bf1dd043bd41a26123907b85835601e3b17a4",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again; Removed what does not belong in the component layer (#1385): review fixes, the packed consumer's export count and a test that emit options override the defaults"
+      "import_reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again; Removed what does not belong in the component layer (#1385): review fixes, the packed consumer's export count and a test that emit options override the defaults; Disconnect mid-connect controllers and preserve notifier subscribers on late-template replacement (#1389)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/theme/violet-private-properties.spec.ts",

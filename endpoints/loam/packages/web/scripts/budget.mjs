@@ -573,7 +573,10 @@ export const CEILINGS = Object.freeze({
 	// within its row.
 	// All three merged (phase 3's step 7, phase 4's step 9 and the approval-admission follow-ups, `main` at `f9f61a7c`
 	// merged into step 9): 328,805 and gzip 103,379; set to 329,300 under D115.
-	jsMinified: 329_300,
+	// FAST-AF controller-replacement edges (#1389, mid-connect disconnect, connected-behavior tracking, notifier reuse
+	// and safe mid-render teardown in fast-element's ElementController), measured against `main` at `4de94c10`: 328,805
+	// to 329,804 (+999; gzip 103,590, within 103,700); set to 330,300 under D115.
+	jsMinified: 330_300,
 	// Raised from 96,500 to 97,000 under D115 by phase 4's step 4 with `main` at `8c3425d8` (phase 5's step 0b) merged,
 	// both measured from clean builds in one tree: 96,436 to 96,527 gzip (+91) and 309,074 to 309,275 minified (+201,
 	// within its row): the answer registry the `surfaces` and `editor` chunks share, in `events` (+180), and 21 in `layout`.
