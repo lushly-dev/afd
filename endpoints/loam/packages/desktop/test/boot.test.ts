@@ -146,7 +146,8 @@ describe('P6-D1: the same build on the desktop', () => {
 	it('P6-D1: axe finds nothing in light and dark', async () => {
 		await watchViolations(desktop.browser);
 		for (const theme of ['light', 'dark'] as const) {
-			expect((await desktop.agentCall('appearance-set', { theme })).success).toBe(true);
+			// The person's: an agent's write of the appearance asks first (phase 5's 6.1), and this is about axe in a theme.
+			expect((await desktop.call('appearance-set', { theme })).success).toBe(true);
 			// The shell applies the theme in its next frame.
 			await desktop.browser.waitUntil(
 				async () =>

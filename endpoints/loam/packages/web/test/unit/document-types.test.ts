@@ -36,7 +36,7 @@ const ALLOWED: ReadonlyArray<{ file: string; line: string }> = [
 	{
 		// A test provider's script: what a model asks for, as phase 5's job 1 has it, never what the shell knows.
 		file: 'kernel/scenarios/model-scripts.ts',
-		line: "		{ tools: [{ name: 'document-create', input: { type: 'notes', title: 'Seed order' } }] },",
+		line: "					input: { type: 'checklist', title: 'Seed order', project: 'garden' },",
 	},
 ];
 

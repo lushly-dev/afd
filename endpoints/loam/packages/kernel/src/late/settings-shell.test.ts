@@ -520,7 +520,9 @@ describe("the reviews' findings (step 2)", () => {
 			code: 'HUMAN_REQUIRED',
 			details: { section: 'loam.notifications', key: 'muted', level: 'person' },
 		});
-		// `toastSticky` is not a human key: the agent writes it for its person.
+		// `toastSticky` is not a human key: the agent writes it for its person, once the person lets agents act (phase 5's
+		// 6.1; it asks by default).
+		await kernel.call('autonomy-set', { level: 'workspace', mode: 'act' });
 		const sticky = await kernel.agent.call('setting-set', {
 			section: 'loam.notifications',
 			key: 'toastSticky',

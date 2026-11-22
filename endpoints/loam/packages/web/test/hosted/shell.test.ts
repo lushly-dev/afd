@@ -143,7 +143,8 @@ describe('P6-H2: the shell hosted, as it was static', () => {
 					reducedMotion: 'reduce',
 				});
 				const { page } = opened;
-				await agentCall(page, 'appearance-set', { theme, density });
+				// The person's: a hosted deployment keeps no autonomy rows, so an agent's write of it would ask (phase 5's 6.1).
+				await kernelCall(page, 'appearance-set', { theme, density });
 				await everyPart(page);
 				expect(await page.evaluate(() => document.documentElement.dataset.loamTheme)).toBe(theme);
 				expect(await axe(page)).toEqual([]);

@@ -16,15 +16,16 @@
  *
  * The seed file names the apps, so this file names none: the shell's sources name no app or document type.
  *
- * What `p5-base` holds in phase 5's step 1, and what waits:
+ * What `p5-base` holds from phase 5's step 3, and what waits:
  *
- * - a `local` workspace, whose one person is an owner, with projects Atlas (slug `atlas`) and Beacon (slug
- *   `beacon`), as phase 4's `p4-base` has them, with the ids `project-create` gives (`p4-base` fixes its own as `prj_atlas` and `prj_beacon`);
+ * - `p4-base` whole: its `local` workspace and one person, an owner, its projects `prj_atlas` and `prj_beacon`, its
+ *   four apps, tally's count of 3 and its documents;
  * - the copilot on the test provider (`kind = "test"`), its scripts `model-scripts.ts`, run in this process over
  *   real `MessagePort`s through the kernel's own port halves;
- * - **not yet**: `p4-base`'s apps, tally's count and its document (phase 4's step 2 seeds them in `p4-base`); the
- *   autonomy rows (phase 4's steps 6 and 8); `mailfix` mounted, whose `labels` and `approvals` entry keys are steps 4
- *   and 5's, and `mailfixapp` with its `calls` grant (step 4). The `mailfix` server itself is `mailfix.ts`.
+ * - the autonomy rows (6.1): workspace `act` for the shell's `project-create` and `document-create` and for
+ *   `tally-add`, and `suggest` for `tally-reset`;
+ * - **not yet**: `mailfix` mounted, whose `labels` and `approvals` entry keys are steps 4 and 5's, its rows, and
+ *   `mailfixapp` with its `calls` grant (step 4). The `mailfix` server itself is `mailfix.ts`.
  *
  * `p5-no-provider` is `p5-base` with no `[copilot]` table.
  */
@@ -38,7 +39,7 @@ import { createTestProvider, type TestProviderV1 } from '@lushly-dev/loam-copilo
 import type { ManifestV2 } from '@lushly-dev/loam-manifest';
 import { type DataAdapter, MemoryAdapter } from '@lushly-dev/local-db';
 import { type CopilotHostV1, createCopilotHost } from '../src/copilot/host.js';
-import type { CopilotProviderV1 } from '../src/copilot/types.js';
+import type { CopilotOptionsV1, CopilotProviderV1 } from '../src/copilot/types.js';
 import { createKernel } from '../src/kernel.js';
 import { DOCUMENT_TABLE, documentContentKey } from '../src/late/document-types.js';
 import type { ProjectV1 } from '../src/scope/records.js';
@@ -58,54 +59,6 @@ export interface SeededKernel {
 
 /** The test provider as `[copilot]` would name it. */
 export const TEST_PROVIDER: CopilotProviderV1 = { id: 'test', kind: 'test', model: 'scripted' };
-
-async function seed(options: { provider: boolean }): Promise<SeededKernel> {
-	const journal = new MemoryJournalSink();
-	const provider = createTestProvider({ scripts: MODEL_SCRIPTS });
-	const launcher = createInProcessLauncher();
-	const host = createCopilotHost({
-		launcher,
-		transport: {
-			async send(_provider, body, signal) {
-				return provider.send(body, signal);
-			},
-		},
-	});
-	const kernel = await createKernel({
-		store: new MemoryAdapter(),
-		storeKind: 'memory',
-		journal,
-		auth: new MockAuthAdapter(),
-		environment: createFixedEnvironment(),
-		host: 'test',
-		...(options.provider
-			? {
-					copilot: {
-						providers: [TEST_PROVIDER],
-						default: TEST_PROVIDER.id,
-						runner: host,
-						takeRunId: (session) => host.takeRunId(session),
-					},
-				}
-			: {}),
-	});
-	for (const [name, slug] of [
-		['Atlas', 'atlas'],
-		['Beacon', 'beacon'],
-	] as const) {
-		const made = await kernel.call('project-create', { name, slug });
-		if (!made.success) throw new Error(`p5-base: ${JSON.stringify(made.error)}`);
-	}
-	return {
-		kernel,
-		journal,
-		...(options.provider ? { copilot: { host, provider } } : {}),
-		async dispose() {
-			host.reset();
-			await kernel.dispose();
-		},
-	};
-}
 
 /** `p4-base`'s one person, an owner of the `local` workspace (phase 4 specification, Jobs and scenarios). */
 export const P4_PERSON = 'mock-user-ada@example.com';
@@ -216,7 +169,7 @@ function documentWrites(
 	];
 }
 
-async function p4Base(): Promise<SeededKernel> {
+async function p4Base(extra: { copilot?: CopilotOptionsV1 } = {}): Promise<SeededKernel> {
 	const served = await seedApps(P4_SEED.apps);
 	const store: DataAdapter = new MemoryAdapter();
 	const { summary } = await store.batch([
@@ -236,6 +189,7 @@ async function p4Base(): Promise<SeededKernel> {
 		auth: new MockAuthAdapter(),
 		environment: createFixedEnvironment(),
 		host: 'test',
+		...(extra.copilot ? { copilot: extra.copilot } : {}),
 		deployment: {
 			deployment_version: 2,
 			generation: 'p4-base',
@@ -259,8 +213,60 @@ async function p4Base(): Promise<SeededKernel> {
 	return { kernel, journal, dispose: () => kernel.dispose() };
 }
 
+/**
+ * `p5-base` from phase 5's step 3: `p4-base` (its workspace, person, projects, apps and documents) with the copilot on
+ * the test provider, and the autonomy rows the specification's seed names that exist before step 4's `mailfix`:
+ * workspace `act` for the shell's `project-create` and `document-create` and for `tally-add`, and `suggest` for
+ * `tally-reset`, each the person's own write, in `local` mode an owner's.
+ */
+async function p5Base(options: { provider: boolean }): Promise<SeededKernel> {
+	const provider = createTestProvider({ scripts: MODEL_SCRIPTS });
+	const host = createCopilotHost({
+		launcher: createInProcessLauncher(),
+		transport: {
+			async send(_provider, body, signal) {
+				return provider.send(body, signal);
+			},
+		},
+	});
+	const seeded = await p4Base(
+		options.provider
+			? {
+					copilot: {
+						providers: [TEST_PROVIDER],
+						default: TEST_PROVIDER.id,
+						runner: host,
+						takeRunId: (session) => host.takeRunId(session),
+					},
+				}
+			: {}
+	);
+	for (const [instance, command, mode] of [
+		['shell', 'project-create', 'act'],
+		['shell', 'document-create', 'act'],
+		['tally', 'tally-add', 'act'],
+		['tally', 'tally-reset', 'suggest'],
+	] as const) {
+		const set = await seeded.kernel.call('autonomy-set', {
+			level: 'workspace',
+			instance,
+			command,
+			mode,
+		});
+		if (!set.success) throw new Error(`p5-base: ${JSON.stringify(set.error)}`);
+	}
+	return {
+		...seeded,
+		...(options.provider ? { copilot: { host, provider } } : {}),
+		async dispose() {
+			host.reset();
+			await seeded.dispose();
+		},
+	};
+}
+
 export const SEEDS: Readonly<Record<string, () => Promise<SeededKernel>>> = Object.freeze({
 	'p4-base': p4Base,
-	'p5-base': () => seed({ provider: true }),
-	'p5-no-provider': () => seed({ provider: false }),
+	'p5-base': () => p5Base({ provider: true }),
+	'p5-no-provider': () => p5Base({ provider: false }),
 });

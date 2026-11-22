@@ -24,6 +24,9 @@ import {
 
 let browser: Browser;
 let site: DeploymentSite;
+/** Section 16's row for opening the panel to an interactive input, p95 over 20 opens (16): step 3 measured 55 ms in Chromium on a
+ * loaded machine; its measurement plus 25% is within a CI runner's noise, so the row is 150 ms, under D115. */
+const PANEL_OPEN_P95_MS = 150;
 
 const COPILOT = [
 	'[copilot]',
@@ -171,6 +174,34 @@ describe('the copilot named by the deployment (step 2)', () => {
 		expect(body).toEqual({ scrolls: true, tabindex: '0' });
 		expect(await axe(page)).toEqual([]);
 		await opened.context.close();
+	});
+
+	it('section 16: opens the panel to an interactive input, p95 over 20 opens, within its row', async () => {
+		const times: number[] = [];
+		for (let index = 0; index < 20; index += 1) {
+			const opened = await openShell(browser, site.origin, {
+				viewport: { width: 1600, height: 900 },
+			});
+			const { page } = opened;
+			const started = await page.evaluate(() => performance.now());
+			await agentCall(page, 'layout-set', { panel: { open: true } });
+			const ready = await page.evaluate(async () => {
+				const input = () =>
+					document
+						.querySelector('loam-shell')
+						?.shadowRoot?.querySelector('loam-copilot-panel')
+						?.shadowRoot?.querySelector('violet-chat-composer');
+				for (;;) {
+					const composer = input() as (HTMLElement & { disabled?: boolean }) | null | undefined;
+					if (composer?.isConnected && !composer.hasAttribute('disabled')) return performance.now();
+					await new Promise((resolve) => requestAnimationFrame(resolve));
+				}
+			});
+			times.push(ready - started);
+			await opened.context.close();
+		}
+		const p95 = [...times].sort((a, b) => a - b)[Math.ceil(0.95 * times.length) - 1] as number;
+		expect(p95).toBeLessThan(PANEL_OPEN_P95_MS);
 	});
 
 	it('leaves the copilot’s panel in the part when apps switch: it is the shell’s, not the app’s', async () => {

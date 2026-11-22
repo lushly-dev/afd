@@ -885,6 +885,7 @@ export async function createKernelParts(
 				noteAction: (trace, command) => tracker.noteAction(trace, command),
 				noteReturned: (trace) => tracker.noteReturned(trace),
 				commandNames: () => [...(mutations?.keys() ?? [])],
+				definitionOf: (name) => current.commands.find((command) => command.name === name),
 				disposed: () => disposed,
 				// An app's gate opened or closed: its commands registered again, or not (phase 4's 5.3).
 				regate: () => setAppCommands(appCommandsGiven),
@@ -1177,12 +1178,19 @@ export async function createKernelParts(
 		// The copilot's trace (phase 5 specification, 3.2): from the agent port's minted options alone, else the outer
 		// call's, which a nested call carries. A caller's own `trace` is never read.
 		const mine = minted.has(callOptions);
+		// A copilot call a person confirmed runs with the trace its confirmation stored (phase 5's 6.2): the shell's own
+		// run, a kernel path with a confirmation id, never a caller's options.
+		const confirmed = (fields as { confirmation?: unknown; trace?: CopilotTraceV1 }).trace;
 		const trace: CopilotTraceV1 | undefined =
 			iface === 'agent' && mine
 				? callOptions.trace
-				: fields.parent !== undefined
-					? traces.get(fields.parent)
-					: undefined;
+				: iface === 'agent' &&
+						typeof (fields as { confirmation?: unknown }).confirmation === 'string' &&
+						confirmed !== undefined
+					? confirmed
+					: fields.parent !== undefined
+						? traces.get(fields.parent)
+						: undefined;
 		if (iface === 'agent' && !actor && !gated) {
 			// `copilot` is reserved: only the kernel's own options name it (3.2).
 			const named = mine

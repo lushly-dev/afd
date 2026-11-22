@@ -37,7 +37,8 @@ afterAll(async () => {
 	await site?.close();
 });
 
-const NOTICE = 'Agents can read this. Loam enforces it from phase 5.';
+const NOTICE =
+	'Loam holds every agent, the copilot included, to these rules: Act runs, Ask asks you first, Suggest only offers it to you.';
 
 /** The id of the deepest focused element, through shadow roots. */
 const deepest = (page: Page) =>
@@ -51,7 +52,7 @@ const autonomy = (page: Page) =>
 
 /** A shell with Atlas made and active, the autonomy section open. */
 async function inAtlas(): Promise<{ page: Page; atlas: string }> {
-	const { page } = await openShell(browser, site.origin);
+	const { page } = await openShell(browser, site.origin, { agents: 'ask' });
 	const made = (await kernelCall(page, 'project-create', { name: 'Atlas', slug: 'atlas' })) as {
 		data: { id: string };
 	};

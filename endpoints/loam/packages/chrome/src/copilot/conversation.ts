@@ -42,6 +42,10 @@ type TextPart = { type: string; content?: string };
 export class CopilotConversation {
 	/** The session's id, once the first message started one. */
 	session: string | null = null;
+	/** The latest turn this conversation sent, from 1; 0 before the first. */
+	get turn(): number {
+		return this.#turn;
+	}
 	#client: ChatClient | null = null;
 	#turn = 0;
 	/** Which client is current: a callback of an earlier one is dropped. */

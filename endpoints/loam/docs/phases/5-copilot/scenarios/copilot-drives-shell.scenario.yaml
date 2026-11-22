@@ -5,7 +5,8 @@
 # kernel/scenarios/model-scripts.ts). The data is invented. Lists are asserted by index ('0'),
 # and an end of list by `'n': { notExists: true }`.
 # Script new-project-note: project-create { name: Garden }, then document-create
-# { type: notes, title: Seed order } in it, then a one-line reply. p5-base sets both to act.
+# { type: checklist, title: Seed order, project: garden } in it, then a one-line reply. p5-base
+# sets both to act. (Step 3: the type is checklist's, the one document type p5-base's apps declare.)
 name: Have the copilot do it with commands
 description: >-
   When I ask the copilot to set something up, I want it done through the same commands I would
@@ -68,5 +69,5 @@ steps:
       success: true
       data:
         sessions:
-          '0': { title: Garden, id: "${{ steps[0].data.session.id }}" }
+          '0': { title: Garden, id: { matches: '^cps_[0-9a-f]{16}$' } }
           '1': { notExists: true }

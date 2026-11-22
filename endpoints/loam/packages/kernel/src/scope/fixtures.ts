@@ -269,6 +269,12 @@ export interface ScopedWorkspaceOptions {
 	journal?: MemoryJournalSink;
 	/** Create no project. */
 	empty?: boolean;
+	/**
+	 * Let agents act on the workspace's commands (phase 5's 6.1): the person's own `autonomy-set { level: 'workspace',
+	 * mode: 'act' }` after the projects, for tests of what an agent's call does rather than whether it asks. A destructive
+	 * command still asks.
+	 */
+	agentsAct?: boolean;
 	internals?: KernelPartsInternals;
 	deployment?: ProjectionV3;
 	/** Default: a stepping clock from 2026-01-01. A reload's starts later, so its trace IDs differ. */
@@ -355,6 +361,10 @@ export async function createScopedWorkspace(
 			{ workspace: 'personal', project: project.id },
 		])
 	) as ScopedWorkspace['scopes'];
+	if (options.agentsAct) {
+		const set = await kernel.call('autonomy-set', { level: 'workspace', mode: 'act' });
+		if (!set.success) throw new Error(`agentsAct: ${JSON.stringify(set.error)}`);
+	}
 	// Assigned, not spread: `registries` is a getter, and stage B replaces them.
 	return Object.assign(parts, { journal, store, auth, projects, scopes });
 }

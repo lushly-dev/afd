@@ -401,6 +401,26 @@ describe('7.4: exposure and trust', () => {
 		);
 		expect(data?.commands[0]).toMatchObject({ approval: 'required', replay: 'recorded' });
 	});
+
+	it("asks an agent before a tool the server holds for approval, under the person's act row (phase 5's 6.1)", async () => {
+		const transport = fakeTransport({ 'a-read': { mutation: false, approval: 'required' } });
+		const { kernel } = await boot({ work: () => transport });
+		await kernel.startInstances();
+		await kernel.call('auth-sign-in', {
+			method: 'credentials',
+			email: 'person@example.com',
+			password: 'x',
+		});
+		await kernel.call('autonomy-set', { level: 'workspace', instance: 'work', mode: 'act' });
+		const before = transport.calls.length;
+		const asked = await kernel.agent.call('work-a-read', {});
+		expect(asked.error?.code).toBe('CONFIRMATION_PENDING');
+		expect(transport.calls.length).toBe(before);
+		const listed = await kernel.call<{
+			notifications: Array<{ confirmation?: { asked?: { chain: Array<{ id: string }> } } }>;
+		}>('notification-list', { kind: 'confirmation' });
+		expect(listed.data?.notifications[0]?.confirmation?.asked?.chain.at(-1)?.id).toBe('approval');
+	});
 });
 
 describe("a person's binding of a mounted command (phase 4 specification, 8.3; step 7's re-check, 6)", () => {
@@ -734,6 +754,8 @@ describe('a mounted call', () => {
 			email: 'person@example.com',
 			password: 'x',
 		});
+		// A mounted tool asks an agent by default (phase 5's 6.1): the person lets this instance's act.
+		await kernel.call('autonomy-set', { level: 'workspace', instance: 'work', mode: 'act' });
 		expect((await kernel.agent.call('work-a-read', {}, { agent: 'helper' })).error?.code).toBe(
 			'COMMAND_NOT_FOUND'
 		);
@@ -1420,7 +1442,23 @@ describe('P2-E6: (kernel unit) a mounted call carries its scope, and stays in it
 			context: { instance: 'work', replay: 'recorded', scope: { project: beacon } },
 			result: { success: false, error: { code: 'MOUNT_PROJECT_NOT_LISTED' } },
 		});
-		// Through `afd-call` as well: the check is the instance's, before the tool is chosen.
+		// An agent's call at the default, which asks a mounted tool, is refused before any question (phase 5's 6.1).
+		const asked = await kernel.agent.call(
+			'work-hello-whisper',
+			{},
+			{ scope: { workspace: 'personal', project: beacon } }
+		);
+		expect(asked.error?.code).toBe('MOUNT_PROJECT_NOT_LISTED');
+		expect(
+			(
+				await kernel.call<{ notifications: unknown[] }>('notification-list', {
+					kind: 'confirmation',
+				})
+			).data?.notifications
+		).toEqual([]);
+		// Through `afd-call` as well: the check is the instance's, before the tool is chosen. A mounted tool asks an agent
+		// by default (phase 5's 6.1), so the person lets this instance's act first.
+		await kernel.call('autonomy-set', { level: 'workspace', instance: 'work', mode: 'act' });
 		const lazy = await kernel.agent.call(
 			'work-hello-whisper',
 			{},
@@ -1589,6 +1627,8 @@ describe('P2-E6: (kernel unit) a mounted call carries its scope, and stays in it
 		expect(transport.metas.filter(({ meta }) => meta !== undefined)).toEqual([]);
 		const inAtlas = { scope: { workspace: 'personal', project: atlas } };
 		await kernel.call('work-hello-greet', {}, inAtlas);
+		// A mounted tool asks an agent by default (phase 5's 6.1): the person lets this instance's act.
+		await kernel.call('autonomy-set', { level: 'workspace', instance: 'work', mode: 'act' });
 		await kernel.agent.call('work-hello-whisper', {}, inAtlas);
 		const claim = { 'dev.loam/scope': { workspace: 'personal', project: atlas } };
 		expect(commandCalls(transport)).toEqual([

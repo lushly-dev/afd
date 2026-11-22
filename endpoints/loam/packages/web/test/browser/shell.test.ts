@@ -5,7 +5,7 @@
  */
 import { type Browser, chromium, type Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { agentCall, journal, layoutOf, openShell, serveDist, settle } from './harness';
+import { agentCall, journal, kernelCall, layoutOf, openShell, serveDist, settle } from './harness';
 
 let browser: Browser;
 let site: Awaited<ReturnType<typeof serveDist>>;
@@ -52,9 +52,32 @@ describe('P2-E13: E6: sign-in through the Mock adapter', () => {
 		const next = added[signIn + 1];
 		expect(next?.actor).toMatchObject({ kind: 'human', id: expect.any(String) });
 
-		// A password an agent sends is redacted before it reaches the journal.
-		await agentCall(page, 'auth-sign-out');
-		await agentCall(page, 'auth-sign-in', {
+		// An agent may not sign in (phase 5's 6.1), and its refused call's password is redacted from the journal too.
+		const sentinel = 'agent-not-kept';
+		const refused = (await agentCall(page, 'auth-sign-in', {
+			method: 'credentials',
+			email: 'person@example.com',
+			password: sentinel,
+		})) as { error?: { code: string } };
+		expect(refused.error?.code).toBe('HUMAN_REQUIRED');
+		await settle(page);
+		const entries = await journal(page);
+		const agentEntry = entries.filter(
+			(entry) => entry.command === 'auth-sign-in' && entry.interface === 'agent'
+		);
+		expect(agentEntry.at(-1)?.error?.code).toBe('HUMAN_REQUIRED');
+		// The raw journal, every field of every entry (re-check 6), not the harness's summary of it.
+		const raw = await page.evaluate(async () => {
+			const shell = document.querySelector('loam-shell') as unknown as {
+				journal: { read(): Promise<unknown[]> };
+			};
+			return JSON.stringify(await shell.journal.read());
+		});
+		expect(raw).not.toContain(sentinel);
+
+		// A password the person sends is redacted before it reaches the journal.
+		await kernelCall(page, 'auth-sign-out');
+		await kernelCall(page, 'auth-sign-in', {
 			method: 'credentials',
 			email: 'person@example.com',
 			password: 'not-kept',

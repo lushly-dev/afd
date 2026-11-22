@@ -14,6 +14,19 @@ export type AdapterFactory = (
 	fetchImpl: typeof fetch
 ) => AnyTextAdapter;
 
+/** The tool that reads a confirmation this session raised (3.5's continuation names it), never the kernel's command. */
+export const CONFIRMATION_TOOL = Object.freeze({
+	name: 'confirmation-get',
+	description:
+		'Read how a confirmation this conversation raised ended, and the result of the call the shell ran once the person confirmed it',
+	inputSchema: {
+		type: 'object',
+		properties: { notification: { type: 'string', minLength: 1, maxLength: 64 } },
+		required: ['notification'],
+		additionalProperties: false,
+	} as Record<string, unknown>,
+});
+
 /** 4.4's defaults, which phase 4's settings will set. */
 export const RUNTIME_LIMITS = Object.freeze({ iterations: 16, outputTokens: 16_384 });
 
@@ -29,13 +42,28 @@ export function createTanStackRuntime(adapterFor: AdapterFactory): CopilotRuntim
 			}
 			const blockValue = nonce;
 			const adapter = adapterFor(input.provider, ports.model.fetchFor(input.provider));
-			const tools = input.tools.map((tool) => ({
-				name: tool.name,
-				description: tool.description,
-				inputSchema: tool.inputSchema,
-				execute: async (args: unknown) =>
-					toolResultText(tool.name, await ports.agent.call(tool.name, args ?? {}), blockValue),
-			}));
+			const tools = [
+				...input.tools.map((tool) => ({
+					name: tool.name,
+					description: tool.description,
+					inputSchema: tool.inputSchema,
+					execute: async (args: unknown) =>
+						toolResultText(tool.name, await ports.agent.call(tool.name, args ?? {}), blockValue),
+				})),
+				// A confirmation this session raised, read through the agent port's `confirmation` alone (3.2, 6.2): the
+				// outcome of a call the person confirmed, which the kernel's half lets it read and nothing else.
+				{
+					...CONFIRMATION_TOOL,
+					execute: async (args: unknown) =>
+						toolResultText(
+							CONFIRMATION_TOOL.name,
+							await ports.agent.confirmation(
+								String((args as { notification?: unknown } | null)?.notification ?? '')
+							),
+							blockValue
+						),
+				},
+			];
 			const abortController = new AbortController();
 			if (ports.signal.aborted) abortController.abort();
 			ports.signal.addEventListener('abort', () => abortController.abort(), { once: true });

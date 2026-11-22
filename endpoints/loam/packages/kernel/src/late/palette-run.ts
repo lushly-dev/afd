@@ -12,6 +12,26 @@ import type { ScopeV1 } from '../scope/records.js';
 import { type Fail, promptSchemaOf, REPLACES } from './confirmation-parts.js';
 import type { ConfirmationDeps } from './confirmations.js';
 
+/** Phase 5's suggestion records (its 6.1), as "Run it" reads and runs them: a person's own, live, once. */
+export interface SuggestionReader {
+	suggestion(
+		id: string,
+		person: string,
+		now: number
+	): Promise<
+		| {
+				id: string;
+				command: string;
+				input: unknown;
+				scope: ScopeV1;
+				person: string;
+				createdAt: number;
+		  }
+		| undefined
+	>;
+	ran(record: never, now: number, person: string): Promise<boolean>;
+}
+
 export interface PaletteRunShared {
 	fail: Fail;
 	scopeOf(context: CommandContext): ScopeV1;
@@ -30,7 +50,12 @@ export function createPaletteRun(deps: ConfirmationDeps, shared: PaletteRunShare
 		command: z.string().check(z.minLength(1), z.maxLength(128)),
 		prompt: z.optional(z.string().check(z.minLength(1), z.maxLength(64))),
 		input: z.optional(z.unknown()),
+		suggestion: z.optional(z.string().check(z.minLength(1), z.maxLength(64))),
 	});
+	/** The input prompts opened for a suggestion (phase 5's 6.1), by overlay: their fill runs the record, once. */
+	const suggested = new Map<string, Awaited<ReturnType<SuggestionReader['suggestion']>> & {}>();
+	/** The prompts of suggestions spent or expired (the re-checks' B1, I2): no later fill of one runs anything. */
+	const dead = new Set<string>();
 
 	const notOpen = (prompt: string) =>
 		fail(
@@ -54,6 +79,7 @@ export function createPaletteRun(deps: ConfirmationDeps, shared: PaletteRunShare
 				command: { type: 'string', minLength: 1, maxLength: 128 },
 				prompt: { type: 'string', minLength: 1, maxLength: 64 },
 				input: {},
+				suggestion: { type: 'string', minLength: 1, maxLength: 64 },
 			},
 			required: ['command'],
 			additionalProperties: false,
@@ -74,6 +100,13 @@ export function createPaletteRun(deps: ConfirmationDeps, shared: PaletteRunShare
 			const replayed = deps.replaying() ? ran.get(traceId) : undefined;
 			if (replayed) {
 				ran.delete(traceId);
+				// A replayed fill of a suggestion's prompt spends it as the live one did (the review's B14).
+				const spent = input.prompt === undefined ? undefined : suggested.get(input.prompt);
+				if (spent && input.prompt !== undefined) {
+					suggested.delete(input.prompt);
+					dead.add(input.prompt);
+					await deps.suggestions?.ran(spent as never, kit.callNow(context), spent.person);
+				}
 				const { 'dev.loam/seq': _seq, ...metadata } = (replayed.metadata ?? {}) as Record<
 					string,
 					unknown
@@ -82,6 +115,34 @@ export function createPaletteRun(deps: ConfirmationDeps, shared: PaletteRunShare
 			}
 			const listed = deps.paletteCommand(input.command);
 			const definition = listed?.definition;
+			if (input.suggestion !== undefined && input.prompt !== undefined) {
+				return fail(
+					'VALIDATION_ERROR',
+					'suggestion opens a prompt; its fill names only the prompt',
+					'Fill the prompt with palette-run { command, prompt }'
+				);
+			}
+			// "Run it" (phase 5's 6.1): the prompt is filled from the kernel's suggestion record, never the runtime's events.
+			let record: Awaited<ReturnType<SuggestionReader['suggestion']>>;
+			if (input.suggestion !== undefined) {
+				const person =
+					kit.personKey(context.actor as never) ?? (deps.provider ? undefined : 'local');
+				record =
+					person === undefined
+						? undefined
+						: await deps.suggestions?.suggestion(input.suggestion, person, kit.callNow(context));
+				if (
+					!record ||
+					record.command !== input.command ||
+					!deps.allows(context.actor as never, record.scope)
+				) {
+					return fail(
+						'NOTIFICATION_NOT_FOUND',
+						`No live suggestion '${input.suggestion}' of yours for '${input.command}'`,
+						'A suggestion runs once, within 10 minutes; ask the copilot again'
+					);
+				}
+			}
 			if (input.prompt === undefined) {
 				if (input.input !== undefined) {
 					return fail(
@@ -106,6 +167,42 @@ export function createPaletteRun(deps: ConfirmationDeps, shared: PaletteRunShare
 					);
 				}
 				const schema = promptSchemaOf(listed?.json);
+				if (record) {
+					// The input shown whole (the review's B11): with plain fields, they start from it and the person may change
+					// them; with none, the prompt asks nothing and runs it as shown. One too long to show whole is not offered.
+					const shownInput = JSON.stringify(record.input ?? {}, null, 2) ?? '{}';
+					const body = schema
+						? `The copilot suggested this, and ran nothing. It starts from:\n${shownInput}`
+						: `The copilot suggested this, and ran nothing. It runs with:\n${shownInput}`;
+					if (body.length > 1000) {
+						return fail(
+							'VALIDATION_ERROR',
+							`The suggested input for '${input.command}' is too long to show whole, so it is not run from here`,
+							'Run it from its app, where its input can be read in full'
+						);
+					}
+					const prompt = overlays.open(
+						{ kind: 'shell', id: 'shell' },
+						'prompt',
+						{
+							title: `Run ${(definition.title ?? definition.name).slice(0, 70)}?`,
+							body,
+							// No fields at all for a fixed input, so the person's Run submits nothing but the prompt (B10).
+							...(schema
+								? { schema, value: structuredClone(record.input ?? {}) }
+								: { schema: { type: 'object', properties: {} } }),
+							confirmLabel: 'Run',
+						} as PromptInputV1,
+						{ for: { command: definition.name, kind: 'input', scope: record.scope } }
+					);
+					suggested.set(prompt.overlayId, {
+						...record,
+						...(schema ? {} : { fixed: true }),
+					} as never);
+					// One slot holds one prompt: an earlier suggestion's prompt the person closed is forgotten.
+					for (const held of [...suggested.keys()]) if (!overlays.get(held)) suggested.delete(held);
+					return kit.success({ prompt });
+				}
 				if (schema === undefined) {
 					return fail(
 						'VALIDATION_ERROR',
@@ -135,12 +232,25 @@ export function createPaletteRun(deps: ConfirmationDeps, shared: PaletteRunShare
 				asked?.kind !== 'input' ||
 				asked.command !== input.command ||
 				consumed.has(input.prompt) ||
+				dead.has(input.prompt) ||
 				!definition
 			) {
 				return notOpen(input.prompt);
 			}
+			// A suggestion's prompt with no fields runs the record's input as shown, and nothing else (phase 5's 6.1).
+			const from = suggested.get(input.prompt) as
+				| (NonNullable<typeof record> & { fixed?: true })
+				| undefined;
+			if (from?.fixed && input.input !== undefined && JSON.stringify(input.input) !== '{}') {
+				return fail(
+					'VALIDATION_ERROR',
+					'This prompt runs the suggestion as shown',
+					'Confirm it without input, or ask the copilot for another'
+				);
+			}
+			const runs = from?.fixed ? from.input : input.input;
 			// The command's own schema; on a failure the prompt stays open and shows why (7.1).
-			const fault = deps.inputFault(definition, input.input ?? {});
+			const fault = deps.inputFault(definition, runs ?? {});
 			if (fault !== undefined) {
 				return fail(
 					'VALIDATION_ERROR',
@@ -164,6 +274,20 @@ export function createPaletteRun(deps: ConfirmationDeps, shared: PaletteRunShare
 			};
 			let result: CommandResult;
 			try {
+				// Run once (6.1): marked before it runs, so a second fill of another prompt for it runs nothing.
+				if (from) {
+					suggested.delete(promptId);
+					// Dead from here, spent or not: a refused fill leaves the prompt open, and its next fill runs nothing.
+					dead.add(promptId);
+					const filler = kit.personKey(context.actor as never) ?? (deps.provider ? '' : 'local');
+					if (!(await deps.suggestions?.ran(from as never, kit.callNow(context), filler))) {
+						return fail(
+							'NOTIFICATION_NOT_FOUND',
+							'This suggestion has already run, or is no longer offered',
+							'Ask the copilot again'
+						);
+					}
+				}
 				if (deps.askedFor(input.command)) {
 					// Its confirmation replaces the input prompt in the slot, showing the input (R15); this call waits on it.
 					fields[REPLACES] = promptId;
@@ -173,7 +297,7 @@ export function createPaletteRun(deps: ConfirmationDeps, shared: PaletteRunShare
 					const closed = await deps.runBoot('prompt-settle', { close: promptId, reason: 'user' });
 					if (!closed.success) return closed;
 				}
-				result = await deps.runNow('palette', input.command, input.input ?? {}, fields);
+				result = await deps.runNow('palette', input.command, runs ?? {}, fields);
 			} finally {
 				consumed.delete(promptId);
 			}

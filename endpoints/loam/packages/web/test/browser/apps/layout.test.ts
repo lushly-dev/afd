@@ -144,7 +144,8 @@ describe('P2-E13: E9: layout and persistence with apps', () => {
 	});
 
 	it('replays a real session, with apps, overlays and switches, with zero differences', async () => {
-		const opened = await openShell(browser, site.origin);
+		// The default autonomy: the replay starts from none of the harness's rows.
+		const opened = await openShell(browser, site.origin, { agents: 'ask' });
 		const { page } = opened;
 		await runAppsSession(page);
 		const entries = (await page.evaluate(async () => {

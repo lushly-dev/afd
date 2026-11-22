@@ -1,5 +1,6 @@
 /**
- * P4-E2's units (phase 4 specification, section 2 and 19): settings, and from step 8 autonomy, grant nothing. "The type and the scan", as P3-E2's,
+ * P4-E2's units (phase 4 specification, section 2 and 19): settings, and from step 8 autonomy, grant nothing; from
+ * phase 5's step 3 autonomy decides whether an agent's call asks, so both twins hold the workspace's mode `act`. "The type and the scan", as P3-E2's,
  * and phase 3's E2 sweep (`persona-sweep`) on twin stores whose one person differs only in settings: in one twin their
  * own theme is light, an app's declared section holds a workspace value and a project value, `loam.documents.trashDays`
  * is 7, the `setting` table also holds stray rows of a section no app declares, and the `autonomy` table holds the
@@ -294,7 +295,10 @@ async function twin(set: boolean, mode: Mode): Promise<Twin> {
 		const written = await kernel.call('autonomy-set', input);
 		expect(written.success, JSON.stringify(written.error)).toBe(true);
 	};
-	await autonomy({ level: 'workspace', mode: set ? 'act' : null, ceiling: set ? 'act' : null });
+	// The workspace's own mode is `act` in both (phase 5's step 3): autonomy now decides whether an agent's call asks (its
+	// 6.1), so the twins resolve every mode alike while their rows, ceiling and cap still differ, and the sweep still
+	// shows that none of it decides what an agent may do. Ask against act is P5-A5's (`copilot/enforce.test.ts`).
+	await autonomy({ level: 'workspace', mode: 'act', ceiling: set ? 'act' : null });
 	await autonomy({
 		level: 'workspace',
 		instance: 'dual',
@@ -416,7 +420,7 @@ describe('P4-E2: settings grant nothing', { timeout: 30_000 }, () => {
 			const rows = async (held: Twin) =>
 				(await held.kernel.call<{ rows: unknown[]; cap: string | null }>('autonomy-list')).data;
 			expect(await rows(first)).toMatchObject({ rows: { length: 3 }, cap: 'act' });
-			expect(await rows(second)).toMatchObject({ rows: [], cap: null });
+			expect(await rows(second)).toMatchObject({ rows: { length: 1 }, cap: null });
 			// And by experiments: the workspace's, the person's, and an app held out in one twin alone (step 9).
 			const on = async (held: Twin, experiment: string) =>
 				(await held.kernel.call<{ on: boolean }>('experiment-check', { experiment })).data?.on;

@@ -427,7 +427,7 @@ describe('P2-D5: the editor area, a seeded walk', () => {
 					await kernelCall(page, 'scope-set', { project: 'vault' });
 					await kernelCall(page, 'section-open', { section: 'documents' });
 				} else if (kind === 'sign-out') {
-					await agentCall(page, 'auth-sign-out');
+					await kernelCall(page, 'auth-sign-out');
 				} else if (kind === 'sign-in') {
 					await signIn();
 				} else if (kind === 'gate') {

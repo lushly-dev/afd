@@ -34,6 +34,8 @@ async function documents(options: ScopedWorkspaceOptions = {}): Promise<ScopedWo
 	const workspace = await createScopedWorkspace({
 		deployment: documentsDeployment(),
 		ports: documentsPorts(),
+		// What an agent's call does, not whether it asks (phase 5's 6.1, which `copilot/enforce.test.ts` shows).
+		agentsAct: true,
 		...options,
 	});
 	kernels.push(workspace.kernel);

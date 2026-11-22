@@ -6,6 +6,7 @@
 
 import type { Actor, CommandResult } from '@lushly-dev/afd-core';
 import type {
+	ConfirmationAskedV1,
 	ConfirmationRecordV1,
 	ConfirmationStateV1,
 	NotificationV1,
@@ -87,10 +88,16 @@ export const bucketOf = (opener: Opener): string | undefined =>
  * `confirmation-withdraw` it, and see its stored result in a list. A person's own gesture owns none.
  */
 export const ownedBy = (
-	row: { cbucket?: unknown; cslot?: unknown },
-	bucket: string | undefined
+	row: { cbucket?: unknown; cslot?: unknown; confirmation?: { session?: unknown } },
+	bucket: string | undefined,
+	session?: unknown
 ): boolean =>
-	bucket !== undefined && bucket !== 'person' && row.cslot === undefined && row.cbucket === bucket;
+	bucket !== undefined &&
+	bucket !== 'person' &&
+	row.cslot === undefined &&
+	row.cbucket === bucket &&
+	// The copilot's own session's alone (phase 5's 6.2, T19): every session of a person shares its bucket.
+	(row.confirmation?.session === undefined || row.confirmation.session === session);
 
 /** The state a row stands in now: a pending one past its `expiresAt` has expired (7.2), which no write records. */
 export function stateNow(record: ConfirmationRecordV1, now: number): ConfirmationStateV1 {
@@ -106,6 +113,43 @@ export interface AskedFor {
 	/** The command's title, which Confirm and Decline name (15). */
 	title: string;
 	danger: boolean;
+	/** Phase 5's enforcement of an agent's call (its 6.1), from the gate before this one. */
+	enforced?: EnforcedV1;
+}
+
+/**
+ * Where phase 5's enforcement (its 6.1) leaves its decision on the call's context, for the confirmations' gate after it.
+ * `Symbol.for`, so the copilot's chunk names the same key without importing this one; no input or `_meta` can carry a
+ * symbol.
+ */
+export const ENFORCED = Symbol.for('dev.loam/enforced');
+
+/**
+ * Where the confirmations' gate leaves the id of the confirmation it raised, or found pending on the key, for an agent's
+ * call: the one id the copilot's port takes (the re-check's binding), never a result's own `details`.
+ */
+export const RAISED = Symbol.for('dev.loam/raised');
+
+/** What enforcement adds to a confirmation's record (phase 5's 6.2): why, and the copilot's session, group and trace. */
+export const enforcedFields = (enforced: EnforcedV1 | undefined) =>
+	enforced === undefined
+		? {}
+		: {
+				asked: structuredClone(enforced.asked),
+				...(enforced.group !== undefined ? { group: enforced.group } : {}),
+				...(enforced.session !== undefined ? { session: enforced.session } : {}),
+				...(enforced.trace !== undefined ? { trace: { ...enforced.trace } } : {}),
+			};
+
+/** What enforcement decided (phase 5's 6.1, 6.2): whether to ask whatever the command declares, and why. */
+export interface EnforcedV1 {
+	/** `ask`: raise a confirmation even for a command with no `confirm_prompt`. */
+	ask: boolean;
+	asked: ConfirmationAskedV1;
+	/** The copilot's session, which the key holds (6.2), and its turn's group and trace. */
+	session?: string;
+	group?: string;
+	trace?: { session: string; turn: number; call: string };
 }
 
 /** The kernel's own field on a call `palette-run` makes: the input prompt its confirmation replaces (R15). */

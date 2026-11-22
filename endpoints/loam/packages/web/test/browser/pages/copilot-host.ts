@@ -35,6 +35,13 @@ const NOTE_LIST: ToolDescriptorV1 = {
 const SCRIPTS: Readonly<Record<string, ModelScriptV1>> = {
 	tools: [{ tools: [{ name: 'note-list', input: { limit: 2 } }] }, { text: 'Listed.' }],
 	hang: [{ hang: true }],
+	// Section 16's row: a scripted turn of five tool calls, end to end.
+	five: [
+		...Array.from({ length: 5 }, (_, index) => ({
+			tools: [{ name: 'note-list', input: { limit: index + 1 } }],
+		})),
+		{ text: 'Listed five times.' },
+	],
 };
 
 interface Turn {

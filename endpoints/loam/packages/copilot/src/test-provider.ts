@@ -13,7 +13,12 @@ export type ScriptRoundV1 =
 	/** The model calls these tools, and the next round reads their results. */
 	| { tools: ReadonlyArray<{ name: string; input: Record<string, unknown> }> }
 	/** The model holds its answer until the stream is cancelled: a turn that runs until it is stopped. */
-	| { hang: true };
+	| { hang: true }
+	/**
+	 * Where a turn that waits on the person continues (phase 5's 3.5): never played; the rounds after it play once
+	 * Loam's message saying the person answered arrives.
+	 */
+	| { answered: true };
 
 export type ModelScriptV1 = ReadonlyArray<ScriptRoundV1>;
 
@@ -48,21 +53,33 @@ const textOf = (content: unknown): string | undefined => {
 	return parts.map((part) => part.text ?? '').join('');
 };
 
-/** The person's text of this turn, and which model round this is: assistant messages since that text. */
-function position(body: Record<string, unknown>): { text: string; round: number } {
+/** Loam's message that a waiting turn's confirmations have ended (phase 5's 3.5): it continues the person's script. */
+export const ANSWERED_PREFIX = '[Loam] ';
+
+/**
+ * The person's text of this turn, and which model round this is: assistant messages since that text. After Loam's
+ * message that the person answered, the person's text is the one before it, and the rounds count from that message.
+ */
+function position(body: Record<string, unknown>): {
+	text: string;
+	round: number;
+	answered: boolean;
+} {
 	const messages = (Array.isArray(body.messages) ? body.messages : []) as Message[];
-	let at = -1;
-	let text = '';
+	const users: Array<{ at: number; text: string }> = [];
 	messages.forEach((message, index) => {
 		if (message.role !== 'user') return;
 		const found = textOf(message.content);
-		if (found !== undefined) {
-			at = index;
-			text = found;
-		}
+		if (found !== undefined) users.push({ at: index, text: found });
 	});
-	const round = messages.slice(at + 1).filter((message) => message.role === 'assistant').length;
-	return { text, round };
+	const last = users.at(-1);
+	const rounds = (from: number) =>
+		messages.slice(from + 1).filter((message) => message.role === 'assistant').length;
+	if (last && last.text.startsWith(ANSWERED_PREFIX)) {
+		const person = [...users].reverse().find((each) => !each.text.startsWith(ANSWERED_PREFIX));
+		return { text: person?.text ?? '', round: rounds(last.at), answered: true };
+	}
+	return { text: last?.text ?? '', round: last ? rounds(last.at) : 0, answered: false };
 }
 
 const sse = (event: string, data: unknown) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
@@ -168,10 +185,16 @@ export function createTestProvider(options: TestProviderOptionsV1): TestProvider
 			bodies.push(structuredClone(body));
 			// The last 50 only: a page's transport keeps no unbounded copy of what the model was sent.
 			if (bodies.length > 50) bodies.splice(0, bodies.length - 50);
-			const { text, round } = position(body);
+			const { text, round, answered } = position(body);
 			const name = /^script:([a-z0-9-]{1,64})/.exec(text)?.[1];
 			const script = name ? options.scripts[name] : undefined;
-			const step = script?.[round];
+			// After Loam's message, the rounds after the script's `answered` mark play.
+			const mark = script?.findIndex((each) => 'answered' in each) ?? -1;
+			const step = answered
+				? mark >= 0
+					? script?.[mark + 1 + round]
+					: undefined
+				: script?.[round];
 			const encoder = new TextEncoder();
 			async function* stream(): AsyncGenerator<Uint8Array> {
 				if (step && 'hang' in step) {

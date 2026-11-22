@@ -7,7 +7,9 @@ const titleOf = (instance: string) => ({ counter: 'Counter' })[instance] ?? inst
 
 describe('the autonomy section’s words', () => {
 	it('says the advisory notice exactly (4.5, E13)', () => {
-		expect(ADVISORY).toBe('Agents can read this. Loam enforces it from phase 5.');
+		expect(ADVISORY).toBe(
+			'Loam holds every agent, the copilot included, to these rules: Act runs, Ask asks you first, Suggest only offers it to you.'
+		);
 	});
 
 	it('names what a row covers by the app’s title', () => {

@@ -62,15 +62,17 @@ const RUNS_4: Readonly<Record<string, string>> = Object.freeze({
 });
 
 /**
- * Phase 5's files, by the step that makes each runnable. `now` runs in this step; the rest wait for the commands,
- * fixtures and enforcement their steps build (the specification's section 19).
+ * Phase 5's files, by the step that makes each runnable: step 1 ran 6 and 8; step 3 enforcement, the suggestion records
+ * and `p5-base`'s apps and rows, so 1 and 5 run. The rest wait for the commands, fixtures and taint their steps build
+ * (the specification's section 19).
  */
 const RUNS: Readonly<Record<string, string>> = Object.freeze({
 	'stop-the-copilot': 'now',
 	'no-model-configured': 'now',
-	'copilot-drives-shell': "step 3: enforcement, the autonomy rows and phase 4's steps 6 and 8",
-	'copilot-suggests-only': 'step 3: suggestion records',
-	'approval-health': 'step 3: approval health and confirmations',
+	'copilot-drives-shell': 'now',
+	'copilot-suggests-only': 'now',
+	// Its counters are step 3's (P5-A5, `copilot/enforce.test.ts`); its script reads mailfix's thr_2 under taint.
+	'approval-health': 'step 4: mailfix mounted, labels and taint',
 	'mail-cannot-act-elsewhere': 'step 4: labels, taint and mounted tools listed',
 	'approve-mail-send': 'step 5: mounted approvals',
 	'person-sends-mail': 'step 5: mounted approvals and the calls grant',

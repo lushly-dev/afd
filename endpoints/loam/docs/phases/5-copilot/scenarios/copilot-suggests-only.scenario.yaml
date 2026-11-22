@@ -33,7 +33,7 @@ steps:
     input: {}
     expect:
       success: true
-      data: { count: 3 }
+      data: { total: 3 }
   - description: "[agent] The same call from any agent is only a suggestion"
     command: tally-reset
     input: {}

@@ -62,6 +62,14 @@ const definition = defineApp({
 });
 
 describe('createAppTestKernel', () => {
+	it("keeps D156's default with agents: 'ask', so an agent's change waits for the person (phase 5's 6.1)", async () => {
+		const { kernel } = await createAppTestKernel({ manifest, definition, agents: 'ask' });
+		const asked = await kernel.agent.call('greeter-greet', { name: 'Lin' });
+		expect(asked.error?.code).toBe('CONFIRMATION_PENDING');
+		expect((await kernel.call<{ items: unknown[] }>('greeter-list')).data?.items).toHaveLength(0);
+		await kernel.dispose();
+	});
+
 	it('runs a scenario through both interfaces and replays it with zero differences', async () => {
 		const { kernel, journal, replay } = await createAppTestKernel({ manifest, definition });
 		const greeted = await kernel.call<{ greeting: string }>('greeter-greet', { name: 'Ada' });
@@ -76,8 +84,8 @@ describe('createAppTestKernel', () => {
 		});
 		const { report } = await replay();
 		expect(report.diverged).toBe(false);
-		// Stage B's own `workspace-deployment-apply`, and the three calls.
-		expect(report.same).toBe(4);
+		// Stage B's own `workspace-deployment-apply`, the kit's row letting agents act (phase 5's 6.1), and the three calls.
+		expect(report.same).toBe(5);
 		await kernel.dispose();
 	});
 

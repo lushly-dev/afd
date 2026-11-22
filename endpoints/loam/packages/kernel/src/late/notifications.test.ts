@@ -565,6 +565,9 @@ describe('read and archive, and R10', () => {
 		const { kernel, store } = await boot();
 		await store.create(NOTIFICATION_TABLE, row(1) as never);
 		await store.create(NOTIFICATION_TABLE, pending(2) as never);
+		// Marking read and archiving change the person's inbox, so they ask an agent by default (phase 5's 6.1): the
+		// person lets agents act, and the handler's own refusals are what this shows.
+		await kernel.call('autonomy-set', { level: 'workspace', mode: 'act' });
 		for (const name of ['notification-read', 'notification-archive']) {
 			const single = await kernel.agent.call(name, { notification: pending(2).id });
 			expect(single.error, name).toMatchObject({
