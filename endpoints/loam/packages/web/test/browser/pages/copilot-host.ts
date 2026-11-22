@@ -410,9 +410,18 @@ const api = {
 	/** Waits up to `ms` for the run's first outcome. */
 	settled: (runId: string, ms: number) =>
 		until(() => (turns.get(runId)?.outcomes.length ?? 0) > 0, ms).then(() => view(runId)),
-	/** Waits up to `ms` for the run's first model request to have sent a chunk. */
+	/** Waits up to `ms` for the run's first model request to have reached the page's transport. */
 	streaming: (runId: string, ms: number) =>
 		until(() => streams.some((stream) => stream.runId === runId), ms).then(() => view(runId)),
+	/**
+	 * Waits up to `ms` for the run to have drawn an event of `type`. The runtime's RUN_STARTED comes once the provider's
+	 * first chunk reaches it, a round trip after the request, on the panel's port.
+	 */
+	drawn: (runId: string, type: string, ms: number) =>
+		until(
+			() => view(runId).events.some((event) => (event as { type?: unknown }).type === type),
+			ms
+		).then(() => view(runId)),
 	view,
 	abort,
 	refusals: () => [...refusals],

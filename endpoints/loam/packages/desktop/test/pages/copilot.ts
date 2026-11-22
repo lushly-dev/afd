@@ -272,6 +272,12 @@ async function ask(
 	/** Waits up to `ms` for the transport to have been sent `sends` bodies. */
 	sent: (sends: number, ms: number) =>
 		until(() => transport.sends >= sends, ms).then(() => transport),
+	/**
+	 * Waits up to `ms` for the turn to have drawn an event of `type`. The runtime's RUN_STARTED comes once the provider's
+	 * first chunk reaches it, a round trip after the request, on the panel's port.
+	 */
+	drawn: (runId: string, type: string, ms: number) =>
+		until(() => view(runId).events.includes(type), ms).then(() => view(runId)),
 	view,
 	transport: () => transport,
 	refusals: () => refusals,

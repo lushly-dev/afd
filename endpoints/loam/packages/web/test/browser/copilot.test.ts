@@ -316,7 +316,10 @@ describe("P5-A2: the runtime's frame and its ports, in Chromium (phase 5 specifi
 	it('P5-A2: a window message from the frame to its parent is ignored: no call, no event, no outcome and no journal entry', async () => {
 		const runId = await call(page, 'turn', SESSION, 'script:hang');
 		await call(page, 'streaming', runId, 15_000);
-		const before = await call(page, 'view', runId);
+		// The turn's own start is drawn a round trip after its request: the baseline waits for it, so a later event is
+		// the window message's.
+		const before = await call(page, 'drawn', runId, 'RUN_STARTED', 15_000);
+		expect(before.events.map((event) => event.type)).toContain('RUN_STARTED');
 		const entries = (await journal(page)).length;
 		const frame = copilotFrame(page) as Frame;
 		const sent = await frame.evaluate((runId) => {
