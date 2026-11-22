@@ -11,7 +11,7 @@
 //!   preview-first codemod over the same files; it writes only with `apply`.
 //! - `{"id", "op": "close"}` waits for accepted renders, stops Chromium and exits.
 //!
-//! Replies are `{"id", "ok": true, "result"}` or `{"id", "ok": false, "error": {"message", "causes"}}`.
+//! Replies are `{"id", "ok": true, "result"}` or `{"id", "ok": false, "error": {"message", "causes", "code"?, "suggestion"?, "details"?}}`.
 //! End of input means the owner is gone: Chromium's process group is killed at once.
 
 mod aria;
@@ -154,7 +154,13 @@ fn request_id(line: &str) -> Option<u64> {
 }
 
 fn failure(id: &Value, error: RenderFailure) -> Value {
-    json!({ "id": id, "ok": false, "error": { "message": error.message, "causes": error.causes } })
+    let mut body = json!({ "message": error.message, "causes": error.causes });
+    if let Some(structured) = error.structured {
+        body["code"] = json!(structured.code);
+        body["suggestion"] = json!(structured.suggestion);
+        body["details"] = structured.details;
+    }
+    json!({ "id": id, "ok": false, "error": body })
 }
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 2)]
@@ -323,4 +329,52 @@ async fn main() -> Result<()> {
     drop(replies);
     let _ = writer.await;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::failure;
+    use crate::browser::RenderFailure;
+    use crate::page::TargetError;
+    use anyhow::anyhow;
+    use serde_json::json;
+
+    #[test]
+    fn failure_reply_serializes_structured_target_error_fields() {
+        let err: anyhow::Error = TargetError::Ambiguous {
+            name: "action".into(),
+            target: "role \"button\"".into(),
+            count: 2,
+        }
+        .into();
+        let reply = failure(&json!(7), RenderFailure::from(err));
+        assert_eq!(reply["id"], json!(7));
+        assert_eq!(reply["ok"], json!(false));
+        assert_eq!(reply["error"]["code"], json!("TARGET_AMBIGUOUS"));
+        assert!(
+            reply["error"]["suggestion"]
+                .as_str()
+                .is_some_and(|s| s.contains("2") && s.contains("name"))
+        );
+        assert_eq!(
+            reply["error"]["details"],
+            json!({ "count": 2, "target": "action" })
+        );
+    }
+
+    #[test]
+    fn failure_reply_omits_optional_fields_for_untyped_errors() {
+        let reply = failure(&json!(8), RenderFailure::from(anyhow!("plain failure")));
+        assert_eq!(
+            reply,
+            json!({
+                "id": 8,
+                "ok": false,
+                "error": {
+                    "message": "plain failure",
+                    "causes": []
+                }
+            })
+        );
+    }
 }

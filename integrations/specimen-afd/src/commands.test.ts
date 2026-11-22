@@ -603,6 +603,66 @@ describe('specimen commands', () => {
 			message: 'No such checkpoint',
 		});
 		expect(result.error?.suggestion).toContain('checkpoint');
+
+		instance.render = async () => {
+			throw Object.assign(
+				new Error('Target \'print\' (role "button", name "Print") matched no elements'),
+				{
+					code: 'TARGET_NOT_FOUND',
+					suggestion: 'Point again in the review page, or name a role and name that exist.',
+					details: { count: 0, target: 'print' },
+				}
+			);
+		};
+		const notFound = await executeSpecimenCommand(instance, 'specimen-render', { id: 'button' });
+		expect(notFound.success).toBe(false);
+		expect(notFound.error).toMatchObject({
+			code: 'TARGET_NOT_FOUND',
+			message: 'Target \'print\' (role "button", name "Print") matched no elements',
+			suggestion: 'Point again in the review page, or name a role and name that exist.',
+			details: { count: 0, target: 'print' },
+		});
+
+		instance.render = async () => {
+			throw Object.assign(
+				new Error('Target \'action\' (role "button") matched 2 elements; expected 1'),
+				{
+					code: 'TARGET_AMBIGUOUS',
+					suggestion:
+						'Matched 2 elements; add a name, narrow the selector, or point in the review page.',
+					details: { count: 2, target: 'action' },
+				}
+			);
+		};
+		const ambiguous = await executeSpecimenCommand(instance, 'specimen-render', { id: 'button' });
+		expect(ambiguous.success).toBe(false);
+		expect(ambiguous.error).toMatchObject({
+			code: 'TARGET_AMBIGUOUS',
+			message: 'Target \'action\' (role "button") matched 2 elements; expected 1',
+			suggestion:
+				'Matched 2 elements; add a name, narrow the selector, or point in the review page.',
+			details: { count: 2, target: 'action' },
+		});
+
+		const circular: Record<string, unknown> = {};
+		circular.self = circular;
+		for (const unencodable of [{ attempts: 1n }, circular]) {
+			instance.render = async () => {
+				throw Object.assign(new Error('Target failure with custom details'), {
+					code: 'TARGET_NOT_FOUND',
+					suggestion: '   ',
+					details: unencodable,
+				});
+			};
+			const safe = await executeSpecimenCommand(instance, 'specimen-render', { id: 'button' });
+			expect(safe.success).toBe(false);
+			expect(() => JSON.stringify(safe)).not.toThrow();
+			expect(safe.error?.code).toBe('TARGET_NOT_FOUND');
+			expect(safe.error?.message).toBe('Target failure with custom details');
+			expect(safe.error?.suggestion).toContain('specimen-list');
+			expect(safe.error?.details).toBeUndefined();
+		}
+
 		instance.build = async () => {
 			throw new Error('Budget exceeded');
 		};

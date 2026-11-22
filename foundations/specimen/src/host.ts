@@ -136,16 +136,60 @@ export function chromiumExecutable(): string {
 export interface HostFailure {
 	message: string;
 	causes: string[];
+	code?: string;
+	suggestion?: string;
+	details?: Record<string, unknown>;
 }
 type Reply = { id: number } & ({ ok: true; result: unknown } | { ok: false; error: HostFailure });
 
+/** Error fields forwarded from the native host when a failure is structured. */
+export type SpecimenHostError = Error & {
+	code?: string;
+	suggestion?: string;
+	details?: Record<string, unknown>;
+};
+
+/** Return a JSON-safe clone of plain object details, or undefined if absent or unencodable. */
+export function jsonSafeDetails(value: unknown): Record<string, unknown> | undefined {
+	if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+	try {
+		const encoded = JSON.stringify(value);
+		if (encoded === undefined) return undefined;
+		const parsed: unknown = JSON.parse(encoded);
+		return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+			? (parsed as Record<string, unknown>)
+			: undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+function attachFailureFields<T extends Error>(
+	error: T,
+	failure: HostFailure
+): T & SpecimenHostError {
+	const target = error as T & SpecimenHostError;
+	if (typeof failure.code === 'string' && failure.code.trim().length > 0)
+		target.code = failure.code;
+	if (typeof failure.suggestion === 'string' && failure.suggestion.trim().length > 0)
+		target.suggestion = failure.suggestion;
+	const details = jsonSafeDetails(failure.details);
+	if (details !== undefined) target.details = details;
+	return target;
+}
+
 /** The host's error, with render and disposal failures kept apart as Playwright's runtime did. */
-export function hostError(failure: HostFailure): Error {
-	if (failure.causes.length < 2) return new Error(failure.message);
-	const errors = failure.causes.map((cause) => new Error(cause));
-	return new AggregateError(
-		errors,
-		`Specimen render and disposal failed: ${errors.map(String).join('; ')}`
+export function hostError(failure: HostFailure): SpecimenHostError {
+	if (failure.causes.length < 2) return attachFailureFields(new Error(failure.message), failure);
+	const errors = failure.causes.map((cause, index) =>
+		index === 0 ? attachFailureFields(new Error(cause), failure) : new Error(cause)
+	);
+	return attachFailureFields(
+		new AggregateError(
+			errors,
+			`Specimen render and disposal failed: ${errors.map(String).join('; ')}`
+		),
+		failure
 	);
 }
 

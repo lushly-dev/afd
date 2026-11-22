@@ -196,6 +196,20 @@ export interface SpecimenCommandBench {
 const runInputSchema = runRequestSchema.partial({ id: true }).extend(suiteRequestSchema.shape);
 const runOutputSchema = z.union([storyRunSchema, suiteRunSchema]);
 
+function safeErrorDetails(value: unknown): Record<string, unknown> | undefined {
+	if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+	try {
+		const encoded = JSON.stringify(value);
+		if (encoded === undefined) return undefined;
+		const parsed: unknown = JSON.parse(encoded);
+		return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+			? (parsed as Record<string, unknown>)
+			: undefined;
+	} catch {
+		return undefined;
+	}
+}
+
 async function result<T>(
 	operation: () => T | Promise<T>,
 	output: z.ZodType<T>,
@@ -208,13 +222,31 @@ async function result<T>(
 		});
 	} catch (error) {
 		const detail = error instanceof Error ? error.message : String(error);
+		const structured =
+			error instanceof Error && !(error instanceof z.ZodError)
+				? (error as Error & {
+						code?: unknown;
+						suggestion?: unknown;
+						details?: unknown;
+					})
+				: undefined;
 		const errorCode =
 			error instanceof z.ZodError
 				? 'SPECIMEN_OUTPUT_INVALID'
-				: error instanceof Error && 'code' in error && typeof error.code === 'string'
-					? error.code
+				: typeof structured?.code === 'string' && structured.code.trim().length > 0
+					? structured.code
 					: code;
-		return failure({ code: errorCode, message: detail, suggestion });
+		const errorSuggestion =
+			typeof structured?.suggestion === 'string' && structured.suggestion.trim().length > 0
+				? structured.suggestion
+				: suggestion;
+		const errorDetails = safeErrorDetails(structured?.details);
+		return failure({
+			code: errorCode,
+			message: detail,
+			suggestion: errorSuggestion,
+			...(errorDetails ? { details: errorDetails } : {}),
+		});
 	}
 }
 

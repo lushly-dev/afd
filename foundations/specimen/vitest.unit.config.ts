@@ -24,6 +24,7 @@ export const browserSuites = [
 	'src/lifecycle.test.ts',
 	'src/themes-bench.test.ts',
 	'src/pack-run.test.ts',
+	'src/targets.test.ts',
 ];
 
 export default defineConfig({

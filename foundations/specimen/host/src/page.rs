@@ -340,20 +340,22 @@ impl Page<'_> {
                 .ok_or_else(|| anyhow!("Target query failed: {name}"))?;
             let count = self
                 .call(&list, "function () { return this.length; }", json!([]))
-                .await?;
-            let first = self
-                .send(
+                .await?
+                .as_u64()
+                .unwrap_or(0);
+            let object = if count == 1 {
+                self.send(
                     "Runtime.callFunctionOn",
                     json!({ "objectId": list, "functionDeclaration": "function () { return this[0]; }" }),
                 )
-                .await?;
-            (
-                count.as_u64().unwrap_or(0),
-                first
-                    .pointer("/result/objectId")
-                    .and_then(Value::as_str)
-                    .map(String::from),
-            )
+                .await?
+                .pointer("/result/objectId")
+                .and_then(Value::as_str)
+                .map(String::from)
+            } else {
+                None
+            };
+            (count, object)
         } else {
             // Chromium names ARIA's `img` role `image`. Names compare as Playwright's role
             // engine compares them, after whitespace normalization.
@@ -378,44 +380,27 @@ impl Page<'_> {
                     json!({ "backendNodeId": root, "role": role }),
                 )
                 .await?;
-            let nodes: Vec<Value> = found
-                .get("nodes")
-                .and_then(Value::as_array)
-                .cloned()
-                .unwrap_or_default()
-                .into_iter()
-                .filter(|node| {
-                    !node
-                        .get("ignored")
-                        .and_then(Value::as_bool)
-                        .unwrap_or(false)
-                })
-                .filter(|node| node.get("backendDOMNodeId").and_then(Value::as_i64) != Some(root))
-                .filter(|node| {
-                    wanted.as_ref().is_none_or(|wanted| {
-                        let name = node
-                            .pointer("/name/value")
-                            .and_then(Value::as_str)
-                            .unwrap_or("");
-                        normalize_name(name) == *wanted
-                    })
-                })
-                .collect();
-            let object = match nodes.first().and_then(|node| node.get("backendDOMNodeId")) {
-                Some(backend) => self
-                    .send("DOM.resolveNode", json!({ "backendNodeId": backend }))
-                    .await?
-                    .pointer("/object/objectId")
-                    .and_then(Value::as_str)
-                    .map(String::from),
-                None => None,
+            let nodes = filter_ax_nodes(
+                found.get("nodes").and_then(Value::as_array),
+                root,
+                wanted.as_deref(),
+            );
+            let object = if nodes.len() == 1 {
+                match nodes[0].get("backendDOMNodeId") {
+                    Some(backend) => self
+                        .send("DOM.resolveNode", json!({ "backendNodeId": backend }))
+                        .await?
+                        .pointer("/object/objectId")
+                        .and_then(Value::as_str)
+                        .map(String::from),
+                    None => None,
+                }
+            } else {
+                None
             };
             (nodes.len() as u64, object)
         };
-        match (count, object) {
-            (1, Some(object)) => Ok(object),
-            _ => Err(anyhow!("Target must identify exactly one element: {name}")),
-        }
+        check_target_match(name, target, count, object).map_err(anyhow::Error::from)
     }
 
     /// The point Playwright clicks: the middle of the element's first content quad that keeps
@@ -833,14 +818,286 @@ pub fn backend_ids(node: &Value) -> std::collections::HashSet<i64> {
     ids
 }
 
+/// Structured failure when a declared target does not identify a single element.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TargetError {
+    NotFound {
+        name: String,
+        target: String,
+    },
+    Ambiguous {
+        name: String,
+        target: String,
+        count: u64,
+    },
+}
+
+impl TargetError {
+    pub fn code(&self) -> &'static str {
+        match self {
+            Self::NotFound { .. } => "TARGET_NOT_FOUND",
+            Self::Ambiguous { .. } => "TARGET_AMBIGUOUS",
+        }
+    }
+
+    pub fn suggestion(&self) -> String {
+        match self {
+            Self::NotFound { .. } => {
+                "Point again in the review page, or name a role and name that exist.".to_string()
+            }
+            Self::Ambiguous { count, .. } => format!(
+                "Matched {count} elements; add a name, narrow the selector, or point in the review page."
+            ),
+        }
+    }
+
+    pub fn details(&self) -> Value {
+        match self {
+            Self::NotFound { name, .. } if name.is_empty() => json!({ "count": 0 }),
+            Self::NotFound { name, .. } => json!({ "count": 0, "target": name }),
+            Self::Ambiguous { name, count, .. } if name.is_empty() => json!({ "count": count }),
+            Self::Ambiguous { name, count, .. } => json!({ "count": count, "target": name }),
+        }
+    }
+}
+
+impl std::fmt::Display for TargetError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NotFound { name, target } if name.is_empty() => {
+                write!(f, "Target ({target}) matched no elements")
+            }
+            Self::NotFound { name, target } => {
+                write!(f, "Target '{name}' ({target}) matched no elements")
+            }
+            Self::Ambiguous {
+                name,
+                target,
+                count,
+            } if name.is_empty() => {
+                write!(f, "Target ({target}) matched {count} elements; expected 1")
+            }
+            Self::Ambiguous {
+                name,
+                target,
+                count,
+            } => write!(
+                f,
+                "Target '{name}' ({target}) matched {count} elements; expected 1"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for TargetError {}
+
+fn describe_target(target: &Value) -> String {
+    if let Some(selector) = target.get("selector").and_then(Value::as_str) {
+        return format!("selector {selector:?}");
+    }
+    if let Some(role) = target.get("role").and_then(Value::as_str) {
+        return match target.get("name").and_then(Value::as_str) {
+            Some(name) => format!("role {role:?}, name {name:?}"),
+            None => format!("role {role:?}"),
+        };
+    }
+    "unspecified target".to_string()
+}
+
+fn filter_ax_nodes(nodes: Option<&Vec<Value>>, root: i64, wanted: Option<&str>) -> Vec<Value> {
+    nodes
+        .into_iter()
+        .flatten()
+        .filter(|node| {
+            !node
+                .get("ignored")
+                .and_then(Value::as_bool)
+                .unwrap_or(false)
+        })
+        .filter(|node| {
+            node.get("backendDOMNodeId")
+                .and_then(Value::as_i64)
+                .is_some_and(|id| id != root)
+        })
+        .filter(|node| {
+            wanted.is_none_or(|wanted| {
+                let name = node
+                    .pointer("/name/value")
+                    .and_then(Value::as_str)
+                    .unwrap_or("");
+                normalize_name(name) == wanted
+            })
+        })
+        .cloned()
+        .collect()
+}
+
+fn check_target_match(
+    name: &str,
+    target: &Value,
+    count: u64,
+    object: Option<String>,
+) -> std::result::Result<String, TargetError> {
+    match (count, object) {
+        (1, Some(object)) => Ok(object),
+        (0, _) | (1, None) => Err(TargetError::NotFound {
+            name: name.to_string(),
+            target: describe_target(target),
+        }),
+        (count, _) => Err(TargetError::Ambiguous {
+            name: name.to_string(),
+            target: describe_target(target),
+            count,
+        }),
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::theme_media;
+    use super::{TargetError, check_target_match, filter_ax_nodes, normalize_name, theme_media};
+    use serde_json::json;
 
     #[test]
     fn high_contrast_is_the_light_scheme_with_more_contrast() {
         assert_eq!(theme_media("light"), ("light", "no-preference"));
         assert_eq!(theme_media("dark"), ("dark", "no-preference"));
         assert_eq!(theme_media("high-contrast"), ("light", "more"));
+    }
+
+    #[test]
+    fn selector_target_match_distinguishes_zero_one_and_many() {
+        let target = json!({ "selector": "button.primary" });
+
+        let zero = check_target_match("save", &target, 0, None).unwrap_err();
+        assert_eq!(zero.code(), "TARGET_NOT_FOUND");
+        assert!(zero.to_string().contains("save"));
+        assert!(zero.to_string().contains("button.primary"));
+        assert!(zero.suggestion().contains("review page"));
+        assert!(zero.suggestion().contains("role"));
+        assert_eq!(zero.details(), json!({ "count": 0, "target": "save" }));
+
+        let resolved = check_target_match("save", &target, 1, Some("obj-1".into())).unwrap();
+        assert_eq!(resolved, "obj-1");
+
+        let disappeared = check_target_match("save", &target, 1, None).unwrap_err();
+        assert_eq!(disappeared.code(), "TARGET_NOT_FOUND");
+
+        let many = check_target_match("save", &target, 3, Some("obj-1".into())).unwrap_err();
+        assert_eq!(many.code(), "TARGET_AMBIGUOUS");
+        assert!(many.to_string().contains("3"));
+        assert!(many.suggestion().contains("3"));
+        assert!(many.suggestion().contains("name"));
+        assert!(many.suggestion().contains("review page"));
+        assert_eq!(many.details(), json!({ "count": 3, "target": "save" }));
+    }
+
+    #[test]
+    fn role_target_match_distinguishes_zero_one_and_many() {
+        let root = 10;
+        let ax_nodes = vec![
+            json!({ "backendDOMNodeId": root, "ignored": false, "name": { "value": "Root" } }),
+            json!({ "backendDOMNodeId": 11, "ignored": true, "name": { "value": "Hidden" } }),
+            json!({ "backendDOMNodeId": 12, "ignored": false, "name": { "value": "  Share\u{200b}  " } }),
+            json!({ "backendDOMNodeId": 13, "ignored": false, "name": { "value": "Export" } }),
+        ];
+
+        // Zero matches for { role, name }
+        let print_target = json!({ "role": "button", "name": "Print" });
+        let print_wanted = normalize_name("Print");
+        let print_nodes = filter_ax_nodes(Some(&ax_nodes), root, Some(&print_wanted));
+        assert_eq!(print_nodes.len(), 0);
+        let not_found =
+            check_target_match("print", &print_target, print_nodes.len() as u64, None).unwrap_err();
+        assert_eq!(not_found.code(), "TARGET_NOT_FOUND");
+        assert!(
+            not_found
+                .to_string()
+                .contains("role \"button\", name \"Print\"")
+        );
+        assert!(not_found.suggestion().contains("review page"));
+        assert_eq!(
+            not_found.details(),
+            json!({ "count": 0, "target": "print" })
+        );
+
+        // One match for { role, name } with whitespace/zero-width normalization
+        let share_target = json!({ "role": "button", "name": "Share" });
+        let share_wanted = normalize_name("Share");
+        let share_nodes = filter_ax_nodes(Some(&ax_nodes), root, Some(&share_wanted));
+        assert_eq!(share_nodes.len(), 1);
+        let one = check_target_match(
+            "share",
+            &share_target,
+            share_nodes.len() as u64,
+            Some("obj-share".into()),
+        )
+        .unwrap();
+        assert_eq!(one, "obj-share");
+
+        // Multiple matches for { role } without name
+        let role_only = json!({ "role": "button" });
+        let all_buttons = filter_ax_nodes(Some(&ax_nodes), root, None);
+        assert_eq!(all_buttons.len(), 2);
+        let ambiguous =
+            check_target_match("action", &role_only, all_buttons.len() as u64, None).unwrap_err();
+        assert_eq!(
+            ambiguous,
+            TargetError::Ambiguous {
+                name: "action".into(),
+                target: "role \"button\"".into(),
+                count: 2,
+            }
+        );
+        assert_eq!(ambiguous.code(), "TARGET_AMBIGUOUS");
+        assert!(ambiguous.to_string().contains("2 elements"));
+        assert!(ambiguous.suggestion().contains("2"));
+        assert!(ambiguous.suggestion().contains("name"));
+        assert!(ambiguous.suggestion().contains("review page"));
+        assert_eq!(
+            ambiguous.details(),
+            json!({ "count": 2, "target": "action" })
+        );
+    }
+
+    #[test]
+    fn anonymous_target_omits_target_field_from_details() {
+        let target = json!({ "role": "button" });
+        let err = check_target_match("", &target, 2, None).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "Target (role \"button\") matched 2 elements; expected 1"
+        );
+        assert_eq!(err.details(), json!({ "count": 2 }));
+    }
+
+    #[test]
+    fn role_target_ignores_virtual_ax_nodes_without_backend_dom_node_id() {
+        let root = 10;
+        let virtual_only = vec![json!({
+            "ignored": false,
+            "name": { "value": "Share" }
+        })];
+        let target = json!({ "role": "button", "name": "Share" });
+        let wanted = normalize_name("Share");
+
+        let none = filter_ax_nodes(Some(&virtual_only), root, Some(&wanted));
+        assert_eq!(none.len(), 0);
+        let not_found = check_target_match("share", &target, none.len() as u64, None).unwrap_err();
+        assert_eq!(not_found.code(), "TARGET_NOT_FOUND");
+
+        let mixed = vec![
+            json!({ "ignored": false, "name": { "value": "Share" } }),
+            json!({ "backendDOMNodeId": 12, "ignored": false, "name": { "value": "Share" } }),
+        ];
+        let matched = filter_ax_nodes(Some(&mixed), root, Some(&wanted));
+        assert_eq!(matched.len(), 1);
+        let resolved = check_target_match(
+            "share",
+            &target,
+            matched.len() as u64,
+            Some("obj-share".into()),
+        )
+        .unwrap();
+        assert_eq!(resolved, "obj-share");
     }
 }
