@@ -86,7 +86,7 @@ Written against main `a5830b4d`. Read [what is done](#what-is-done) and [what is
 
 **Known traps:**
 
-- Any edit under this folder, including this file, changes a hash in `foundations/specimen/provenance/adaptations.json`, or the tooling tests fail. Update the file's `current_import_sha256`, add to its `import_reason`, then put the record's new digest in `provenance.json`. That counts as a Specimen change, so a documents-only edit still runs `test:specimen`, `test:stories` and the Loam suites in `pnpm verify`, about 20 minutes.
+- Any edit under this folder, including this file, changes a hash in `foundations/specimen/provenance/adaptations.json`, or the tooling tests fail. Record it with `node scripts/release/provenance.mjs specimen "<reason>"`, which updates the file's `current_import_sha256` and adds to its `import_reason`; `provenance.json` holds no digest of `adaptations.json` (#1610). That counts as a Specimen change, so a documents-only edit still runs `test:specimen`, `test:stories` and the Loam suites in `pnpm verify`, about 20 minutes.
 - Strip `GIT_*` from the environment when a tool or test spawns git (`env -u GIT_EDITOR`). Afterwards, confirm `core.bare` is still `false` in the shared repository's configuration.
 - The pre-commit typecheck fails on unbuilt Loam packages: build `@lushly-dev/loam-web...` first.
 - Do not pipe `pnpm verify` into `tail` in a command chain, because the pipe hides its exit code.
