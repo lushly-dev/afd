@@ -10,10 +10,14 @@ const styles = css`
 
     :host {
         display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        min-inline-size: 0;
     }
 
     .field {
         display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        min-inline-size: 0;
         gap: 0;
     }
 
@@ -30,6 +34,7 @@ const styles = css`
         display: flex;
         align-items: center;
         inline-size: 100%;
+        min-inline-size: 0;
         block-size: var(--_target-size);
         padding-inline: max(var(--_space-inline-md), calc(var(--_target-size) * 0.375));
         padding-block: 0;
