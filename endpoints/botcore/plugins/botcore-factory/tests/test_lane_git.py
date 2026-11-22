@@ -557,3 +557,176 @@ def test_only_a_branch_s_own_nvmrc_change_is_its_to_answer_for(tmp_path, monkeyp
     assert git.merge_main(slot, dropped_main).clean
     assert git.read_file(slot, ".nvmrc") is None
     assert ".nvmrc" not in git.changed_files(slot, dropped_main)
+
+
+class FoldRepo:
+    """A repository with a branch of two own commits, ``feat``, and a ``main`` that moved past
+    where it started; every identity and hook from the machine is left out."""
+
+    def __init__(self, tmp_path, monkeypatch) -> None:
+        for key in list(os.environ):
+            if key.startswith("GIT_"):
+                monkeypatch.delenv(key)
+        monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+        monkeypatch.setenv("GIT_CONFIG_GLOBAL", os.devnull)
+        self.repo = tmp_path / "repo"
+        self.repo.mkdir()
+        self.run = run = make_runner(str(self.repo))
+        run(["git", "init", "--initial-branch=main"])
+        run(["git", "config", "user.name", "The Owner"])
+        run(["git", "config", "user.email", "owner@example.org"])
+        self.commit("a.txt", "a\n", "base")
+        run(["git", "checkout", "-q", "-b", "feat"])
+        self.commit("b.txt", "b\n", "feat: b\n\n#1809 explains it.\n\nAssisted-by: Codex")
+        self.newest = self.commit(
+            "c.txt", "c\n", "fix: c\n\nAssisted-by: Codex", "2030-01-02T10:00:00+00:00"
+        )
+        run(["git", "checkout", "-q", "main"])
+        self.main = self.commit("d.txt", "d\n", "main moved")
+        self.git = CliGit(run)
+
+    def commit(self, name: str, text: str, message: str, when: str = "2030-01-01T09:00:00Z"):
+        (self.repo / name).write_text(text, encoding="utf-8")
+        self.run(["git", "add", "-A"])
+        self.run(["git", "commit", "-q", "-m", message, "--date", when])
+        return self.run(["git", "rev-parse", "HEAD"]).strip()
+
+    def log(self, spec: str, fmt: str) -> str:
+        return self.run(["git", "log", "-1", f"--format={fmt}", spec]).strip()
+
+    def branch(self, name: str, *commits: tuple[str, str]) -> str:
+        """A new branch from ``main`` with one commit per (file, message); its head."""
+        self.run(["git", "checkout", "-q", "-b", name, "main"])
+        head = ""
+        for path, message in commits:
+            head = self.commit(path, f"{path}\n", message)
+        self.run(["git", "checkout", "-q", "main"])
+        return head
+
+
+def test_a_merged_slot_is_folded_into_one_commit_of_its_own_on_the_base(tmp_path, monkeypatch):
+    """lushly-dev/afd#1809: a rebase merge drops a branch's merges and lands each of its own
+    commits, so the lane makes the merged head one commit on the base: the same tree, authored
+    and committed as the branch's commits were, never as the lane or the lane's environment."""
+    fixture = FoldRepo(tmp_path, monkeypatch)
+    run, git, log, main = fixture.run, fixture.git, fixture.log, fixture.main
+    slot = git.prepare_slot("1", "", fixture.newest)
+    run(["git", "config", "committer.name", "Host Committer"])
+    run(["git", "config", "committer.email", "host@example.org"])
+    merged = git.merge_main(slot, main)
+    assert merged.clean
+    tree = git.tree(slot)
+    # Neither the lane's environment, the host's configuration nor a hook decides who is
+    # credited: a ``prepare-commit-msg`` hook runs even under ``git commit --no-verify``.
+    hooks = tmp_path / "hooks"
+    hooks.mkdir()
+    hook = hooks / "prepare-commit-msg"
+    hook.write_text(
+        "#!/bin/sh\nprintf '\\nCo-authored-by: Hook Agent <hook@example.org>\\n' >> \"$1\"\n",
+        encoding="utf-8",
+    )
+    hook.chmod(0o755)
+    run(["git", "config", "core.hooksPath", str(hooks)])
+    for key, value in {
+        "GIT_AUTHOR_NAME": "An Agent",
+        "GIT_AUTHOR_EMAIL": "agent@example.org",
+        "GIT_COMMITTER_NAME": "Host Agent",
+        "GIT_COMMITTER_EMAIL": "host-agent@example.org",
+    }.items():
+        monkeypatch.setenv(key, value)
+
+    folded = git.fold(slot, main)
+    assert folded.head == git.head(slot) and folded.head != merged.head and not folded.refused
+    assert git.tree(slot) == tree
+    assert log(folded.head, "%P") == main
+    assert log(folded.head, "%an <%ae>|%cn <%ce>|%aI") == (
+        "The Owner <owner@example.org>|The Owner <owner@example.org>|2030-01-02T10:00:00Z"
+    )
+    assert log(folded.head, "%B") == (
+        "feat: b\n\n#1809 explains it.\n\n- fix: c\n\nAssisted-by: Codex"
+    )
+    assert run(["git", "-C", slot, "status", "--porcelain"]).strip() == ""
+    # Folded already: the head is kept, commit for commit, never made again a moment later.
+    monkeypatch.setenv("GIT_COMMITTER_DATE", "2031-01-01T00:00:00+00:00")
+    assert git.fold(slot, main).head == folded.head
+    monkeypatch.delenv("GIT_COMMITTER_DATE")
+
+    for key in ("GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL"):
+        monkeypatch.delenv(key)
+    run(["git", "config", "--unset", "core.hooksPath"])
+
+    # Published, then repaired: the repair's fold replaces the published one under the lease.
+    remote = tmp_path / "remote.git"
+    run(["git", "init", "-q", "--bare", str(remote)])
+    run(["git", "remote", "add", "origin", str(remote)])
+    git.push_head(slot, "feat", folded.head, None)
+    run(["git", "checkout", "-q", "feat"])
+    repaired = fixture.commit("g.txt", "g\n", "fix: g")
+    run(["git", "checkout", "-q", "main"])
+    slot = git.prepare_slot("1", "", repaired)
+    assert git.merge_main(slot, main).clean
+    again = git.fold(slot, main)
+    assert again.head not in ("", folded.head) and log(again.head, "%P") == main
+    git.push_head(slot, "feat", again.head, folded.head)
+    assert run(["git", "ls-remote", str(remote), "refs/heads/feat"]).split()[0] == again.head
+
+
+def test_a_fold_is_refused_and_leaves_the_head_when_it_cannot_credit_one_author(
+    tmp_path, monkeypatch
+):
+    fixture = FoldRepo(tmp_path, monkeypatch)
+    run, git, log, main = fixture.run, fixture.git, fixture.log, fixture.main
+    # Own commits with two authors are refused, and the head left as it was.
+    run(["git", "checkout", "-q", "-b", "two", "main"])
+    fixture.commit("e.txt", "e\n", "feat: e")
+    run(["git", "config", "user.email", "someone@example.org"])
+    two = fixture.commit("f.txt", "f\n", "feat: f")
+    run(["git", "config", "user.email", "owner@example.org"])
+    run(["git", "checkout", "-q", "main"])
+    slot = git.prepare_slot("1", "", two)
+    refused = git.fold(slot, main)
+    assert "2 authors" in refused.refused and refused.head == ""
+    assert "someone@example.org" in refused.refused
+    assert git.head(slot) == two
+    # One address is one author, whatever name each machine's git gave it.
+    run(["git", "checkout", "-q", "-b", "renamed", "main"])
+    fixture.commit("h.txt", "h\n", "feat: h")
+    run(["git", "config", "user.name", "owner on the laptop"])
+    renamed = fixture.commit("i.txt", "i\n", "feat: i")
+    run(["git", "config", "user.name", "The Owner"])
+    run(["git", "checkout", "-q", "main"])
+    slot = git.prepare_slot("1", "", renamed)
+    assert git.fold(slot, main).head not in ("", renamed)
+    # One commit on the base whose message would change is folded again; one that folds to
+    # nothing is refused.
+    credited = fixture.branch(
+        "credited", ("j.txt", "feat: j\n\nCo-authored-by: Agent <agent@example.org>")
+    )
+    slot = git.prepare_slot("1", "", credited)
+    again = git.fold(slot, main)
+    assert again.head != credited and log(again.head, "%B") == "feat: j"
+    blank = fixture.branch("blank", ("k.txt", "Co-authored-by: Agent <agent@example.org>"))
+    slot = git.prepare_slot("1", "", blank)
+    assert "empty message" in git.fold(slot, main).refused
+    assert git.head(slot) == blank
+    # An identity git would store otherwise, written by another tool, is refused: the fold
+    # never credits someone the branch's commits do not name.
+    first = fixture.branch("odd", ("l.txt", "feat: l"))
+    tree = run(["git", "rev-parse", f"{first}^{{tree}}"]).strip()
+    odd = run(
+        ["git", "hash-object", "-t", "commit", "-w", "--stdin", "--literally"],
+        f"tree {tree}\nparent {first}\nauthor Jane; <owner@example.org> 1893488400 +0000\n"
+        "committer Jane; <owner@example.org> 1893488400 +0000\n\nfix: m\n",
+    ).strip()
+    slot = git.prepare_slot("1", "", odd)
+    oddly = git.fold(slot, main)
+    assert "git would credit Jane <owner@example.org>" in oddly.refused
+    assert git.head(slot) == odd
+    # A branch with nothing of its own past the base is refused too.
+    slot = git.prepare_slot("1", "", main)
+    assert "no commit of its own" in git.fold(slot, main).refused
+    # A slot that has not merged the base folds nothing.
+    slot = git.prepare_slot("1", "", fixture.newest)
+    with pytest.raises(WorldError, match="has not merged"):
+        git.fold(slot, main)
+    assert git.head(slot) == fixture.newest

@@ -19,9 +19,10 @@ from pathlib import Path
 
 from botcore_factory.real_run import Run, make_runner, parse_json, resolve_program, run_process
 from botcore_factory.real_system import LocalMachine, OsProcesses, SystemClock, T3Plans
-from botcore_factory.squash import squash_body
+from botcore_factory.squash import clean_message, fold_message, squash_body
 from botcore_factory.world import (
     Comment,
+    FoldOutcome,
     HostRecord,
     Issue,
     MergeOutcome,
@@ -798,6 +799,80 @@ class CliGit:
         except WorldError:
             return False
         return True
+
+    def fold(self, path: str, base: str) -> FoldOutcome:
+        before = self.head(path)
+        onto = self.run(["git", "-C", path, "rev-parse", "--verify", f"{base}^{{commit}}"]).strip()
+        if not self._ancestor(path, onto):
+            raise WorldError(f"The slot {path} has not merged {base}: nothing is folded")
+        # The branch's own commits, oldest first: never a merge, nor a commit the base holds.
+        out = self.run(
+            ["git", "-C", path, "log", "--reverse", "--no-merges", "-z"]
+            + ["--format=%an%x1f%ae%x1f%aI%x1f%cn%x1f%ce%x1f%B", f"{onto}..HEAD"]
+        )
+        own = [entry.split("\x1f", 5) for entry in out.split("\0") if entry.strip()]
+        if any(len(entry) != 6 for entry in own):
+            raise WorldError(f"The commits of the branch in {path} cannot be read")
+        if not own:
+            return FoldOutcome(
+                refused=f"FOLD_REFUSED: {before} has no commit of its own past {base}, so a "
+                "rebase merge would land nothing of it: commit the branch's change"
+            )
+        # One author is one address, whatever name each machine's git gave it.
+        authors: dict[str, str] = {}
+        for entry in own:
+            authors.setdefault(entry[1].strip().lower(), f"{entry[0]} <{entry[1].strip()}>")
+        if len(authors) > 1:
+            return FoldOutcome(
+                refused=f"FOLD_REFUSED: its own commits have {len(authors)} authors "
+                f"({', '.join(authors.values())}), and the one commit it is folded into can "
+                "credit only one: author every commit of the branch as the pull request's author"
+            )
+        name, email, date, committer, committer_email, _ = own[-1]
+        message = fold_message([entry[5] for entry in own])
+        if not message.strip():
+            return FoldOutcome(
+                refused="FOLD_REFUSED: its own commits fold to an empty message once "
+                "Co-authored-by: lines are left out: give the branch's commit a message"
+            )
+        parents = self.run(["git", "-C", path, "rev-list", "--parents", "-n", "1", "HEAD"]).split()
+        if parents[1:] == [onto] and len(own) == 1 and clean_message(own[0][5]) == message:
+            return FoldOutcome(head=before)  # Already one commit of its own on the base.
+        tree = self.tree(path)
+        # ``commit-tree`` runs no hook (``git commit --no-verify`` still runs
+        # ``prepare-commit-msg``, which could add a co-author), and the identity is set here:
+        # ``GIT_*`` in the lane's environment would outrank any configuration.
+        identity = {
+            "GIT_AUTHOR_NAME": name,
+            "GIT_AUTHOR_EMAIL": email,
+            "GIT_AUTHOR_DATE": date,
+            "GIT_COMMITTER_NAME": committer,
+            "GIT_COMMITTER_EMAIL": committer_email,
+        }
+        made = self.run(
+            ["git", "-C", path, "commit-tree", tree, "-p", onto], message, True, env=identity
+        ).strip()
+        found = self.run(
+            ["git", "-C", path, "log", "-1", "-z"]
+            + ["--format=%an%x1f%ae%x1f%cn%x1f%ce%x1f%P%x1f%T%x1f%B", made]
+        ).split("\x1f", 6)
+        if len(found) != 7 or found[4:6] != [onto, tree]:
+            raise WorldError(f"The fold of {before} in {path} is not one commit of its tree")
+        stored = [name, email, committer, committer_email]
+        if found[:4] != stored:
+            # git cleans an identity it stores (a quote, a stray ``;``, a leading space): one
+            # another tool wrote is the branch's to fix, never a fold crediting someone else.
+            return FoldOutcome(
+                refused=f"FOLD_REFUSED: git would credit {found[0]} <{found[1]}> (committed by "
+                f"{found[2]} <{found[3]}>) where the branch's commits say {name} <{email}> "
+                f"(committed by {committer} <{committer_email}>): commit as one identity git "
+                "keeps as written"
+            )
+        if clean_message(found[6].rstrip("\0")) != message:
+            raise WorldError(f"The fold of {before} in {path} did not keep its message")
+        # Moved only from the head the fold read: the slot's HEAD is detached.
+        self.run(["git", "-C", path, "update-ref", "--no-deref", "HEAD", made, before])
+        return FoldOutcome(head=made)
 
     def tree(self, path: str) -> str:
         return self.run(["git", "-C", path, "rev-parse", "HEAD^{tree}"]).strip()
