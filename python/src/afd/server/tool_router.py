@@ -171,7 +171,9 @@ def create_tool_router(deps: ToolRouterDeps):
         relay = current_approval_relay()
         if relay is None or deps.can_run is None or deps.validate_step is None:
             return await run()
-        up_front = UpFrontApproval(relay, tool, request, deps.can_run, deps.validate_step)
+        up_front = UpFrontApproval(
+            relay, tool, request, deps.can_run, deps.validate_step, commands_by_name.get
+        )
         with bind_approval_relay(NEVER_ASKS, up_front):
             result = await run()
         if up_front.refusal is not None:

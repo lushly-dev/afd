@@ -267,7 +267,7 @@ class UpFrontDeps(Protocol):
     async def requires_approval(self, command: str, input: Any, context: CommandContext) -> bool:
         """Whether ``command``'s policy holds this input."""
 
-    def may_require_approval(self, command: str) -> bool:
+    def may_require_approval(self, command: str, context: CommandContext) -> bool:
         """Whether ``command``'s policy could hold some input (``"required"`` or a function)."""
 
     def binding_input(self, input: Any) -> str:
@@ -328,8 +328,10 @@ class UpFrontApproval:
         request: Any,
         can_run: CanRun,
         validate: StepValidator,
+        lookup: Optional[Callable[[str], Any]] = None,
     ) -> None:
         self.relay = relay
+        self._lookup = lookup
         self.tool = tool
         self._request = request
         self._can_run = can_run
@@ -349,6 +351,11 @@ class UpFrontApproval:
         # One plan per approval middleware, shared by the call's steps (concurrent ones too).
         self._plans: dict[int, asyncio.Future[_Plan]] = {}
         self._tags: dict[int, list[str]] = {}
+
+    def command(self, command: str) -> Any:
+        """The server's definition of ``command`` (its approval policy and prompt), so the
+        middleware decides every step from the command that step runs; ``None`` when unknown."""
+        return self._lookup(command) if self._lookup is not None else None
 
     async def steps(self) -> list[UpFrontStep]:
         """The call's steps, worked out once. A step the human already approved in an earlier
@@ -411,7 +418,7 @@ class UpFrontApproval:
         command: str,
         input: Any,
         context: CommandContext,
-        next_fn: Callable[[], Awaitable[CommandResult[Any]]],
+        next_fn: Callable[..., Awaitable[CommandResult[Any]]],
     ) -> CommandResult[Any]:
         """Run one step through the up-front gate: nothing runs until the plan is to run, and
         then a gated step runs only on an unused approval of its own binding."""
@@ -427,9 +434,11 @@ class UpFrontApproval:
             return failure(decided.error)
         if not await deps.requires_approval(command, input, context):
             return await _released(next_fn)
-        bindings = deps.bindings(
-            self._call_tags(deps), command, deps.binding_input(input), deps.actor_binding(context)
-        )
+        try:
+            verified = deps.binding_input(input)
+        except _UNBINDABLE:
+            return failure(not_canonical_error(command))
+        bindings = deps.bindings(self._call_tags(deps), command, verified, deps.actor_binding(context))
         # No await between finding and taking it, so concurrent steps cannot take the same one.
         # Its expiry was checked when the call started, as a single command's is.
         approval = next(
@@ -437,13 +446,18 @@ class UpFrontApproval:
         )
         if approval is not None:
             approval.used = True
-            return await _released(next_fn)
+            # The step runs on the input its approval binds.
+            return await _released(lambda: next_fn(verified))
         return failure(_unplanned_error(self.tool, command))
 
     async def _decide(self, deps: UpFrontDeps, context: CommandContext) -> _Plan:
         steps = await self.steps()
         late = next(
-            (step for step in steps if step.dynamic and deps.may_require_approval(step.command)),
+            (
+                step
+                for step in steps
+                if step.dynamic and deps.may_require_approval(step.command, context)
+            ),
             None,
         )
         if late is not None:
@@ -456,9 +470,20 @@ class UpFrontApproval:
         for step in steps:
             if step.dynamic or not step.valid:
                 continue
+            # Before the policy runs, so a policy that changes the input is caught.
+            before = (
+                _binding_or_none(deps, step.input)
+                if deps.may_require_approval(step.command, context)
+                else None
+            )
             if not await deps.requires_approval(step.command, step.input, context):
                 continue
-            input = deps.binding_input(step.input)
+            try:
+                input = deps.binding_input(step.input)
+            except _UNBINDABLE:
+                return _Plan("refuse", error=not_canonical_error(step.command))
+            if input != before:
+                return _Plan("refuse", error=input_changed_error(step.command))
             gated.append(
                 _GatedStep(
                     index=step.index,
@@ -671,6 +696,50 @@ def _pipeline_steps(
 
 def _what(tool: str) -> str:
     return "batch" if tool == "afd-batch" else "pipeline"
+
+
+def not_canonical_error(command: str) -> CommandError:
+    """A call that needs approval on an input with no canonical form: no approval can be bound to
+    it, so nobody is asked and nothing runs."""
+    return CommandError(
+        code=ErrorCodes.APPROVAL_UNAVAILABLE,
+        message=f"{command} needs a person's approval, and this input cannot be bound to one",
+        suggestion=(
+            "Do not retry with this input: it has no exact canonical form, so an approval cannot "
+            "be bound to it. Send the input in a form canonical JSON accepts (for example, an "
+            "integer a JavaScript number cannot hold exactly, such as 2^53 + 1, as a string)."
+        ),
+        retryable=False,
+        details={"reason": "input-not-canonical"},
+    )
+
+
+def input_changed_error(command: str) -> CommandError:
+    """A call whose input changed while the approval step was deciding on it (inside a policy
+    function or a store it awaited), so what a person would be shown is not what a token would
+    bind."""
+    return CommandError(
+        code=ErrorCodes.APPROVAL_UNAVAILABLE,
+        message=f"{command}'s input changed while its approval was being decided",
+        suggestion=(
+            "Do not retry: this call is not the one the approval step decided on. The operator "
+            "fixes the policy function or middleware that changes the input."
+        ),
+        retryable=False,
+        details={"reason": "admission-mismatch"},
+    )
+
+
+_UNBINDABLE = (TypeError, ValueError, RecursionError)
+"""What canonical JSON raises for an input it cannot bind."""
+
+
+def _binding_or_none(deps: UpFrontDeps, input: Any) -> str | None:
+    """The canonical JSON ``input`` is bound by, or ``None`` when it has none."""
+    try:
+        return deps.binding_input(input)
+    except _UNBINDABLE:
+        return None
 
 
 def _split_error(tool: str, index: int, command: str) -> CommandError:

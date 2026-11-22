@@ -95,6 +95,12 @@ from afd.server.first_class import check_first_class_tools, normalize_first_clas
 from afd.server.lazy_tools import not_found_suggestion
 from afd.server.meta_argument import lift_meta_argument, meta_argument_keys
 from afd.server.middleware import CommandMiddleware
+from afd.server.approval_admission import (
+    Admission,
+    admission_for,
+    admission_required,
+    take_admission,
+)
 from afd.server.approval_relay import bind_approval_relay, current_up_front_approval
 from afd.server.confirmations import (
     CONFIRMATION_MODES,
@@ -630,8 +636,21 @@ class MCPServer:
         command: CommandDefinition,
         data: Any,
         context: CommandContext,
+        record: Admission,
     ) -> Any:
-        """Call the handler with validated input and stamp its result's metadata."""
+        """Call the handler with validated input and stamp its result's metadata.
+
+        A declared approval policy holds without the approval middleware (#1886): a command whose
+        policy is neither unset nor ``"not-required"`` runs only when an approval step admitted
+        this call, for this command and this validated input. So does a call the approval step
+        held under a policy given only in its ``commands`` list. A policy function is not
+        evaluated here; declaring one needs an approval step. The admission is taken here, so a
+        second dispatch on the same call (a retry inside the chain) needs a second admission.
+        """
+        if admission_required(record, getattr(command, "approval", None)):
+            admission = take_admission(record, command.name, data)
+            if admission != "admitted":
+                return _approval_unavailable(command.name, admission)
         clock = getattr(context, "clock", None) or system_clock
         start = clock.now()
         handler = getattr(command.handler, "__afd_validated_handler__", command.handler)
@@ -704,30 +723,35 @@ class MCPServer:
         # (#1414): what the person was shown, not what this second validation gave (a default
         # that is random or reads the clock differs, and the step would then match no approval
         # after earlier steps ran). The step was still validated as sent just above, since a
-        # schema may check state an earlier step changed; only the value is kept. Only a command
-        # that may need approval: any other runs as it does on its own.
-        if getattr(command, "approval", None) not in (None, "not-required"):
-            up_front = current_up_front_approval()
-            approved = None if up_front is None else await up_front.validated(name, input)
-            if approved is not None:
-                data = approved[0]
+        # schema may check state an earlier step changed; only the value is kept. Every step, not
+        # only one whose command declares a policy: a gate given only in the approval middleware's
+        # list binds the input validated up front too. A step no approval covers runs as validated.
+        up_front = current_up_front_approval()
+        approved = None if up_front is None else await up_front.validated(name, input)
+        if approved is not None:
+            data = approved[0]
 
         # Declared context fields, validated in context.extra before any middleware runs.
         invalid_field = apply_context_fields(self.config.context_fields, context, command.name)
         if invalid_field is not None:
             return invalid_field
 
-        async def run_handler() -> Any:
-            return await self._run_handler(command, data, context)
+        # The command this call runs, for the approval middleware to decide from and the
+        # handler's dispatch to check: this dispatch's own record, which the dispatch reads
+        # directly, wherever the chain ran it.
+        with admission_for(context, command) as record:
 
-        next_fn: Callable[[], Any] = run_handler
-        for middleware in reversed(self._middleware):
-            next_fn = (lambda mw, nxt: (lambda: mw(name, data, context, nxt)))(middleware, next_fn)
+            async def run_handler() -> Any:
+                return await self._run_handler(command, data, context, record)
 
-        try:
-            result = await next_fn()
-        except Exception as exc:
-            result = self._internal_error(name, exc)
+            next_fn: Callable[[], Any] = run_handler
+            for middleware in reversed(self._middleware):
+                next_fn = (lambda mw, nxt: (lambda: mw(name, data, context, nxt)))(middleware, next_fn)
+
+            try:
+                result = await next_fn()
+            except Exception as exc:
+                result = self._internal_error(name, exc)
         self._refresh_dynamic_tools(name, result)
         return result
 
@@ -1574,6 +1598,37 @@ def _request_meta(request: Any) -> Any:
 def _in_context(command: CommandDefinition, active_context: str | None) -> bool:
     """Whether a command is visible in the active context (universal commands always are)."""
     return not active_context or not command.contexts or active_context in command.contexts
+
+
+def _approval_unavailable(command_name: str, admission: str) -> CommandResult:
+    """``APPROVAL_UNAVAILABLE`` for a gated dispatch no approval step admitted.
+
+    ``admission`` is ``"missing"`` (no approval step admitted this call) or ``"mismatch"``: an
+    approval step ran, but this dispatch is not the one it admitted (a retry placed after it, or
+    the input changed after it), so the operator fixes the order.
+    """
+    if admission == "missing":
+        reason = "no-approval-step"
+        suggestion = (
+            f"Tell the user that {command_name} needs their approval and this server has no "
+            "approval step; do not retry. The operator adds the approval middleware "
+            "(create_approval_middleware) or removes the command's approval policy."
+        )
+    else:
+        reason = "admission-mismatch"
+        suggestion = (
+            "Do not retry: this call is not the one approved. The operator moves middleware "
+            "that retries or changes input before the approval middleware."
+        )
+    return failure(
+        CommandError(
+            code=ErrorCodes.APPROVAL_UNAVAILABLE,
+            message=f"{command_name} needs a person's approval, and this server cannot ask for it",
+            suggestion=suggestion,
+            retryable=False,
+            details={"reason": reason},
+        )
+    )
 
 
 def _with_execution_metadata(
