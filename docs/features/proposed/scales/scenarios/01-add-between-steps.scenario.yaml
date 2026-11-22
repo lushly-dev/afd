@@ -1,0 +1,114 @@
+# Draft JTBD scenario for the Scales proposal. Command extensions and ramp constraint shapes are
+# proposals; the data is invented (`studio` fixture). Lists in expect.data use dotted index paths.
+
+name: Add a size between two existing steps without renaming
+description: >-
+  When a new size is needed between two existing steps, I want to add a ramp step and point a
+  purpose-named semantic token at it, so that nothing existing is renamed.
+job: add-between-steps
+tags: [slice]
+
+fixture:
+  file: fixtures/studio.json
+
+steps:
+  - description: Add a new type ramp step 250 (13px / 16px) between 200 (12px) and 300 (14px)
+    command: token.add
+    input:
+      nodeId: studio
+      tokenId: ref.type.250.size
+      value: 13px
+      metadata: { type: dimension, category: typography, tier: global }
+    expect:
+      success: true
+      data:
+        tokenId: ref.type.250.size
+        value: 13px
+
+  - description: Add the paired line height for ramp step 250
+    command: token.add
+    input:
+      nodeId: studio
+      tokenId: ref.type.250.line
+      value: 16px
+      metadata: { type: dimension, category: typography, tier: global }
+    expect:
+      success: true
+      data:
+        tokenId: ref.type.250.line
+        value: 16px
+
+  - description: Add purpose-named label size pointing to step 250
+    command: token.add
+    input:
+      nodeId: studio
+      tokenId: type.label.size
+      value: { ref: ref.type.250.size }
+      metadata: { type: dimension, category: typography, tier: semantic }
+    expect:
+      success: true
+      data:
+        tokenId: type.label.size
+
+  - description: Add paired label line height pointing to step 250
+    command: token.add
+    input:
+      nodeId: studio
+      tokenId: type.label.line
+      value: { ref: ref.type.250.line }
+      metadata: { type: dimension, category: typography, tier: semantic }
+    expect:
+      success: true
+      data:
+        tokenId: type.label.line
+
+  - description: Validation passes with zero errors across all type tokens
+    command: constraints.validate
+    input:
+      nodeId: studio/light
+      filter: type.*
+    expect:
+      success: true
+      data:
+        valid: true
+        summary.errors: 0
+        summary.warnings: 0
+
+  - description: Resolving the new label size returns 13px with its ramp alias recorded
+    command: tokens.resolve
+    input:
+      nodeId: studio/light
+      filter: type.label.size
+    expect:
+      success: true
+      data:
+        total: 1
+        tokens.0.id: type.label.size
+        tokens.0.resolvedValue: 13px
+        tokens.0.aliasOf: ref.type.250.size
+
+  - description: Existing caption size stays unchanged at 12px on step 200 (nothing renamed)
+    command: tokens.resolve
+    input:
+      nodeId: studio/light
+      filter: type.caption.size
+    expect:
+      success: true
+      data:
+        total: 1
+        tokens.0.id: type.caption.size
+        tokens.0.resolvedValue: 12px
+        tokens.0.aliasOf: ref.type.200.size
+
+  - description: Existing body size stays unchanged at 14px on step 300 (nothing renamed)
+    command: tokens.resolve
+    input:
+      nodeId: studio/light
+      filter: type.body.size
+    expect:
+      success: true
+      data:
+        total: 1
+        tokens.0.id: type.body.size
+        tokens.0.resolvedValue: 14px
+        tokens.0.aliasOf: ref.type.300.size

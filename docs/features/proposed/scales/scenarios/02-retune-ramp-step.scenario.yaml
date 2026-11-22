@@ -1,0 +1,74 @@
+# Draft JTBD scenario for the Scales proposal. Command extensions and ramp constraint shapes are
+# proposals; the data is invented (`studio` fixture). Lists in expect.data use dotted index paths.
+
+name: Retune a ramp step and switch density steps without duplicating values
+description: >-
+  When I retune a ramp step or point a density node at lower steps, I want every semantic token
+  referencing it to update automatically, so that rhythm holds across themes and densities.
+job: retune-ramp-step
+tags: [slice]
+
+fixture:
+  file: fixtures/studio.json
+
+steps:
+  - description: Retune type ramp step 300 from 14px to 15px on the product root
+    command: token.override
+    input:
+      nodeId: studio
+      tokenId: ref.type.300.size
+      value: 15px
+      reason: Improve body legibility in the studio theme
+    expect:
+      success: true
+      data:
+        tokenId: ref.type.300.size
+        newValue: 15px
+
+  - description: Semantic body size resolves to 15px automatically through its plain ramp reference
+    command: tokens.resolve
+    input:
+      nodeId: studio/light
+      filter: type.body.size
+    expect:
+      success: true
+      data:
+        total: 1
+        tokens.0.id: type.body.size
+        tokens.0.resolvedValue: 15px
+        tokens.0.aliasOf: ref.type.300.size
+
+  - description: Override a semantic target size in the compact density node to a lower ramp step
+    command: token.override
+    input:
+      nodeId: studio/light/compact
+      tokenId: size.target.natural
+      value: { ref: ref.target.24 }
+    expect:
+      success: true
+      data:
+        nodeId: studio/light/compact
+        tokenId: size.target.natural
+
+  - description: Compact density resolves the semantic target to 24px while staying on the target ramp
+    command: tokens.resolve
+    input:
+      nodeId: studio/light/compact
+      filter: size.target.natural
+    expect:
+      success: true
+      data:
+        total: 1
+        tokens.0.resolvedValue: 24px
+        tokens.0.aliasOf: ref.target.24
+
+  - description: Compact density passes all ramp constraints with zero errors
+    command: constraints.validate
+    input:
+      nodeId: studio/light/compact
+    expect:
+      success: true
+      data:
+        valid: true
+        summary.errors: 0
+        summary.warnings: 0

@@ -1,0 +1,137 @@
+# Draft JTBD scenario for the Scales proposal. Command extensions and ramp constraint shapes are
+# proposals; the data is invented (`studio` fixture). Lists in expect.data use dotted index paths.
+
+name: Allow reasoned off-ramp exceptions and flag unreasoned literals or mismatched type pairs
+description: >-
+  When no ramp step fits a semantic token (or a type role intentionally pairs size and line height
+  from different steps), I want to set an off-ramp value with a reason and have checks flag any
+  unreasoned exception with the nearest ramp steps, so that exceptions stay deliberate.
+job: allow-reasoned-off-ramp
+tags: [slice]
+
+fixture:
+  file: fixtures/studio.json
+
+steps:
+  - description: Add an off-ramp literal without a reason (non-blocking write)
+    command: token.add
+    input:
+      nodeId: studio
+      tokenId: space.inline.badge
+      value: 5px
+      metadata: { type: dimension, category: spacing, tier: semantic }
+    expect:
+      success: true
+      data:
+        tokenId: space.inline.badge
+
+  - description: Validation flags the unreasoned off-ramp literal and names both nearest ramp steps (4px and 6px)
+    command: constraints.validate
+    input:
+      nodeId: studio/light
+      filter: space.inline.badge
+    expect:
+      success: true
+      data:
+        valid: false
+        summary.errors: 1
+        results.0.tokenId: space.inline.badge
+        results.0.violations.0.constraintId: space-ramp
+        results.0.violations.0.message: { matches: "ref\\.space\\.4.*ref\\.space\\.6" }
+
+  - description: Supplying a reason on the off-ramp token clears the error
+    command: token.override
+    input:
+      nodeId: studio
+      tokenId: space.inline.badge
+      value: 5px
+      reason: Aligns pill badge icon optically beside 12px uppercase text
+    expect:
+      success: true
+      data:
+        tokenId: space.inline.badge
+
+  - description: Resolved token surfaces the recorded reason and passes validation
+    command: tokens.resolve
+    input:
+      nodeId: studio/light
+      filter: space.inline.badge
+    expect:
+      success: true
+      data:
+        tokens.0.id: space.inline.badge
+        tokens.0.resolvedValue: 5px
+        tokens.0.reason: { contains: pill badge }
+
+  - description: Reasoned off-ramp literal validates cleanly with zero errors
+    command: constraints.validate
+    input:
+      nodeId: studio/light
+      filter: space.inline.badge
+    expect:
+      success: true
+      data:
+        valid: true
+        summary.errors: 0
+        summary.warnings: 0
+
+  - description: Add a type role whose size and line height point to different ramp steps without a reason
+    command: token.add
+    input:
+      nodeId: studio
+      tokenId: type.badge.size
+      value: { ref: ref.type.300.size }
+      metadata: { type: dimension, category: typography, tier: semantic }
+    expect:
+      success: true
+      data:
+        tokenId: type.badge.size
+
+  - description: Pair it with a tighter line height from step 200 without a reason
+    command: token.add
+    input:
+      nodeId: studio
+      tokenId: type.badge.line
+      value: { ref: ref.type.200.line }
+      metadata: { type: dimension, category: typography, tier: semantic }
+    expect:
+      success: true
+      data:
+        tokenId: type.badge.line
+
+  - description: Validation flags the unreasoned cross-step size/line mismatch even when filtering on .line
+    command: constraints.validate
+    input:
+      nodeId: studio/light
+      filter: type.badge.line
+    expect:
+      success: true
+      data:
+        valid: false
+        summary.errors: 1
+        results.0.violations.0.constraintId: type-size-ramp
+        results.0.violations.0.message: { contains: "ref.type.300.size" }
+
+  - description: Adding a reason to the tighter line height clears the cross-step pairing error
+    command: token.override
+    input:
+      nodeId: studio
+      tokenId: type.badge.line
+      value: { ref: ref.type.200.line }
+      reason: Single-line status pills cap line box height at 16px
+    expect:
+      success: true
+      data:
+        tokenId: type.badge.line
+
+  - description: Cross-step pair with a reason now validates cleanly
+    command: constraints.validate
+    input:
+      nodeId: studio/light
+      filter: type.badge.*
+    expect:
+      success: true
+      data:
+        valid: true
+        summary.errors: 0
+        summary.warnings: 0

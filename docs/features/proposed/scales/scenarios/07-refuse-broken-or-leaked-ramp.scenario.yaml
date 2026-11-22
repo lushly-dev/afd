@@ -1,0 +1,184 @@
+# Draft JTBD scenario for the Scales proposal. Command extensions and ramp constraint shapes are
+# proposals; the data is invented (`studio` fixture). Lists in expect.data use dotted index paths.
+
+name: Refuse broken ramp references, cycles, invalid configs and leaked ref.* tokens
+description: >-
+  When a semantic token references a missing step, wrong ramp family, or cycle, or a ref.* ramp
+  token leaks into the public contract/export, I want it refused or failed with the cause and fix,
+  so that broken or raw ramp values never ship.
+job: refuse-broken-or-leaked-ramp
+tags: [slice, refuse]
+
+fixture:
+  file: fixtures/studio.json
+
+steps:
+  - description: Refuse an invalid ramp constraint config (repeatThreshold below 2)
+    command: constraints.set
+    input:
+      nodeId: studio
+      merge: true
+      constraints:
+        - id: bad-ramp
+          name: Invalid ramp threshold
+          applyTo: space.*
+          severity: error
+          config:
+            type: ramp
+            ramp: ref.space.*
+            repeatThreshold: 1
+    expect:
+      success: false
+      error:
+        code: VALIDATION_ERROR
+        suggestion: { contains: repeatThreshold }
+
+  - description: Point a spacing token at a radius ramp step (wrong ramp family)
+    command: token.override
+    input:
+      nodeId: studio
+      tokenId: space.inline.group
+      value: { ref: ref.radius.8 }
+    expect:
+      success: true
+      data:
+        tokenId: space.inline.group
+
+  - description: Validation fails the wrong-family reference and names the expected ramp glob
+    command: constraints.validate
+    input:
+      nodeId: studio/light
+      filter: space.inline.group
+    expect:
+      success: true
+      data:
+        valid: false
+        summary.errors: 1
+        results.0.violations.0.constraintId: space-ramp
+        results.0.violations.0.expected: { contains: "ref.space.*" }
+
+  - description: Point a spacing token at a ramp step that does not exist
+    command: token.override
+    input:
+      nodeId: studio
+      tokenId: space.inline.group
+      value: { ref: ref.space.10 }
+    expect:
+      success: true
+      data:
+        tokenId: space.inline.group
+
+  - description: Validation fails the missing ramp step (referenceError checked before aliasOf)
+    command: constraints.validate
+    input:
+      nodeId: studio/light
+      filter: space.inline.group
+    expect:
+      success: true
+      data:
+        valid: false
+        summary.errors: 1
+        results.0.violations.0.constraintId: space-ramp
+        results.0.violations.0.message: { contains: "TOKEN_REFERENCE_NOT_FOUND" }
+
+  - description: Exporting fails with TOKEN_REFERENCE_NOT_FOUND naming the missing step
+    command: export
+    input:
+      nodeId: studio/light
+      format: css
+      excludePrefixes: [ref.]
+    expect:
+      success: false
+      error:
+        code: TOKEN_REFERENCE_NOT_FOUND
+        message: "ref.space.10"
+
+  - description: Create a two-token cycle on the spacing tokens
+    command: token.override
+    input:
+      nodeId: studio
+      tokenId: space.inline.group
+      value: { ref: space.stack.group }
+    expect:
+      success: true
+
+  - description: Complete the cycle back to space.inline.group
+    command: token.override
+    input:
+      nodeId: studio
+      tokenId: space.stack.group
+      value: { ref: space.inline.group }
+    expect:
+      success: true
+
+  - description: Exporting refuses the cycle with CIRCULAR_REFERENCE
+    command: export
+    input:
+      nodeId: studio/light
+      format: css
+      excludePrefixes: [ref.]
+    expect:
+      success: false
+      error:
+        code: CIRCULAR_REFERENCE
+        message: "space.inline.group"
+
+  - description: Restore space.inline.group to its ramp step
+    command: token.override
+    input:
+      nodeId: studio
+      tokenId: space.inline.group
+      value: { ref: ref.space.8 }
+    expect:
+      success: true
+
+  - description: Restore space.stack.group to its ramp step
+    command: token.override
+    input:
+      nodeId: studio
+      tokenId: space.stack.group
+      value: { ref: ref.space.8 }
+    expect:
+      success: true
+
+  - description: Exporting CSS with outputReferences and excludePrefixes emits resolved literals rather than dangling var(--ref-...)
+    command: export
+    input:
+      nodeId: studio/light
+      format: css
+      excludePrefixes: [ref.]
+      outputReferences: true
+    expect:
+      success: true
+      data:
+        content: { contains: "--space-inline-group: 8px;" }
+
+  - description: Add a non-ref global-tier token to verify global-tier leak detection as well
+    command: token.add
+    input:
+      nodeId: studio
+      tokenId: raw.unit.base
+      value: 4px
+      metadata: { type: dimension, category: spacing, tier: global }
+    expect:
+      success: true
+
+  - description: interface.check fails when either a ref.* prefix or a global-tier token leaks into the component interface
+    command: interface.check
+    input:
+      nodes: [studio/light]
+      interface:
+        contractVersion: 3
+        package: "@example/components"
+        tokens:
+          space.inline.group: { property: "--space-inline-group", type: dimension }
+          ref.space.8: { property: "--ref-space-8", type: dimension }
+          raw.unit.base: { property: "--raw-unit-base", type: dimension }
+    expect:
+      success: true
+      data:
+        complete: false
+        leaked.0.token: raw.unit.base
+        leaked.0.reason: global-tier
+        leaked.1.token: ref.space.8
+        leaked.1.reason: private-prefix

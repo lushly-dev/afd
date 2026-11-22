@@ -1,0 +1,70 @@
+# Draft JTBD scenario for the Scales proposal (Slice 2 / optional). Command extensions and ramp
+# constraint shapes are proposals; the data is invented (`studio` fixture). Lists in expect.data
+# use dotted index paths.
+
+name: Warn on uneven jumps across a hand-picked ramp when enabled
+description: >-
+  When I check a hand-picked ramp's progression, I want uneven jumps between adjacent steps
+  surfaced as an optional warning, so that accidental gaps or crowding are caught without forcing
+  a strict ratio.
+job: warn-uneven-ramp-jumps
+tags: [optional]
+
+fixture:
+  file: fixtures/studio.json
+
+steps:
+  - description: Enable optional warnUneven on type-size-ramp while preserving pairWith
+    command: constraints.set
+    input:
+      nodeId: studio
+      merge: true
+      constraints:
+        - id: type-size-ramp
+          name: Type sizes use ref.type.*.size with pairing and progression check
+          applyTo: type.*.size
+          severity: error
+          config:
+            type: ramp
+            ramp: ref.type.*.size
+            requireOffRampReason: true
+            repeatThreshold: 2
+            pairWith:
+              fromSuffix: ".size"
+              toSuffix: ".line"
+              rampTarget: "ref.type.*.line"
+            warnUneven:
+              maxRatioSpread: 1.5
+              ignoreAbove: 1000
+    expect:
+      success: true
+      data:
+        constraintsSet: 1
+
+  - description: Add a large jump (ref.type.600.size = 42px after 18px, a 2.33x step vs 1.09x for 11px->12px)
+    command: token.add
+    input:
+      nodeId: studio
+      tokenId: ref.type.600.size
+      value: 42px
+      metadata: { type: dimension, category: typography, tier: global }
+    expect:
+      success: true
+      data:
+        tokenId: ref.type.600.size
+
+  - description: Validating the ramp with onlyViolating returns just the outlier warning while remaining valid
+    command: constraints.validate
+    input:
+      nodeId: studio/light
+      filter: ref.type.*.size
+      onlyViolating: true
+    expect:
+      success: true
+      data:
+        valid: true
+        summary.errors: 0
+        summary.warnings: 1
+        results.0.tokenId: ref.type.600.size
+        results.0.violations.0.severity: warning
+        results.0.violations.0.constraintId: type-size-ramp
