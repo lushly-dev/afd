@@ -22,22 +22,13 @@ import { fileURLToPath } from 'node:url';
 import { appPack } from '@lushly-dev/loam-cli';
 import { writeDeployment } from '@lushly-dev/loam-cli/deployment';
 import { remote } from 'webdriverio';
+import { INVOKE_KEY_LINE, pipeRedactedStderr, redactInvokeKey } from './stderr-filter';
+
+export { INVOKE_KEY_LINE, pipeRedactedStderr, redactInvokeKey };
 
 type Browser = Awaited<ReturnType<typeof remote>>;
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url));
-
-/** Tauri 2.12's line when it drops a message for its invoke key (`Webview::on_message`). */
-export const INVOKE_KEY_LINE = /__TAURI_INVOKE_KEY__ expected (\S+) but received (\S*)/;
-
-/** A line of the app's stderr with Tauri's expected invoke key replaced, and what was received kept. */
-export function redactInvokeKey(line: string): string {
-	return line.replace(
-		INVOKE_KEY_LINE,
-		(_all, _expected: string, received: string) =>
-			`__TAURI_INVOKE_KEY__ expected <key> but received ${received === '' ? '<empty>' : '<other>'}`
-	);
-}
 export const LOAM = fileURLToPath(new URL('../../..', import.meta.url));
 const WEB_DIST = join(LOAM, 'packages/web/dist');
 const windows = process.platform === 'win32';
@@ -181,18 +172,7 @@ export async function openDesktop(options: OpenOptions = {}): Promise<Desktop> {
 		{ env: { ...process.env, LOAM_DESKTOP_DATA_DIR: data }, stdio: ['ignore', 'ignore', 'pipe'] }
 	);
 	const stderr = { lines: [] as string[], keyRefusals: 0 };
-	let partial = '';
-	driver.stderr?.setEncoding('utf8');
-	driver.stderr?.on('data', (chunk: string) => {
-		const lines = (partial + chunk).split(/\r?\n/);
-		partial = lines.pop() ?? '';
-		for (const line of lines) {
-			if (INVOKE_KEY_LINE.test(line)) stderr.keyRefusals += 1;
-			const shown = redactInvokeKey(line);
-			stderr.lines.push(shown);
-			process.stderr.write(`${shown}\n`);
-		}
-	});
+	pipeRedactedStderr(driver.stderr, stderr);
 	await waitForPort(port, driver);
 	const began = performance.now();
 	let browser: Browser;

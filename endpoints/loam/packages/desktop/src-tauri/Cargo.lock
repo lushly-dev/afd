@@ -2142,6 +2142,7 @@ dependencies = [
  "tauri-plugin-single-instance",
  "tempfile",
  "tokio",
+ "tracing",
  "windows-sys 0.61.2",
 ]
 
@@ -3921,6 +3922,7 @@ dependencies = [
  "tauri-utils",
  "thiserror 2.0.21",
  "tokio",
+ "tracing",
  "tray-icon",
  "url",
  "webkit2gtk",
@@ -4052,6 +4054,7 @@ dependencies = [
  "tao",
  "tauri-runtime",
  "tauri-utils",
+ "tracing",
  "url",
  "webkit2gtk",
  "webview2-com",
@@ -5212,6 +5215,7 @@ dependencies = [
  "soup3",
  "tao-macros",
  "thiserror 2.0.21",
+ "tracing",
  "url",
  "webkit2gtk",
  "webkit2gtk-sys",

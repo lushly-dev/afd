@@ -90,8 +90,9 @@ describe('P6-D4: the capabilities', () => {
 		expect(config.app.withGlobalTauri).toBe(false);
 		const cargo = readFileSync(join(SRC_TAURI, 'Cargo.toml'), 'utf8');
 		// No plugin but single instance, which has no JavaScript permission; no devtools in the build.
+		// Only `tracing` is enabled on `tauri` (#1448), compiling out Tauri's `eprintln!` of the invoke key.
 		expect(cargo.match(/^tauri-plugin-[a-z-]+/gm)).toEqual(['tauri-plugin-single-instance']);
-		expect(cargo).toMatch(/^tauri = \{ version = "=2\.12\.5", features = \[\] \}$/m);
+		expect(cargo).toMatch(/^tauri = \{ version = "=2\.12\.5", features = \["tracing"\] \}$/m);
 	});
 
 	it('P6-D4: refuses invoke of every other command from the main webview, and the framework transport hands out nothing', async () => {
@@ -340,6 +341,8 @@ describe('P6-D4: the capabilities', () => {
 		} finally {
 			if (last.ok) await invoke('mount_close', { handle: Number(last.value) });
 		}
+		// #1448: Tauri's invoke-key refusal must never leak an unredacted key to stderr.
+		expect(desktop.stderr.lines.join('\n')).not.toMatch(/__TAURI_INVOKE_KEY__ expected (?!<key>)/);
 	});
 
 	it('P6-D4: the loam protocol answers 404 for a path reaching mounts.json, encoded or through a symbolic link', async () => {

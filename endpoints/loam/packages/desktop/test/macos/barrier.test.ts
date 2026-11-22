@@ -16,7 +16,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { binary, INVOKE_KEY_LINE, LOAM, ORIGINS, redactInvokeKey } from '../harness';
+import { binary, LOAM, ORIGINS, pipeRedactedStderr } from '../harness';
 
 const PACKAGE = fileURLToPath(new URL('../..', import.meta.url));
 const RESULTS = join(PACKAGE, 'test-results');
@@ -655,25 +655,7 @@ beforeAll(async () => {
 		env: { ...process.env, LOAM_DESKTOP_DATA_DIR: dataDir },
 		stdio: ['ignore', 'ignore', 'pipe'],
 	});
-	const recordStderrLine = (line: string) => {
-		if (INVOKE_KEY_LINE.test(line)) stderr.keyRefusals += 1;
-		const shown = redactInvokeKey(line);
-		stderr.lines.push(shown);
-		process.stderr.write(`${shown}\n`);
-	};
-	let partial = '';
-	child.stderr?.setEncoding('utf8');
-	child.stderr?.on('data', (chunk: string) => {
-		const lines = (partial + chunk).split(/\r?\n/);
-		partial = lines.pop() ?? '';
-		for (const line of lines) recordStderrLine(line);
-	});
-	child.stderr?.on('end', () => {
-		if (partial) {
-			recordStderrLine(partial);
-			partial = '';
-		}
-	});
+	pipeRedactedStderr(child.stderr, stderr);
 
 	const raw = await waitForFile(reportPath, child);
 	report = JSON.parse(raw) as BarrierReport;
@@ -797,7 +779,8 @@ describe('D153 & P6-D4 on macOS WKWebView', () => {
 		expect(bare).toBe('error "DESKTOP_ORIGIN_REFUSED"');
 		expect(unkeyed).toBe('unanswered');
 		expect(afterHandle).toBe(beforeHandle + 2);
-		// At least the control's wrong-key post must have logged a refusal on stderr.
+		// At least the control's wrong-key post must have logged a redacted refusal on stderr, never the real key (#1448).
 		expect(stderr.keyRefusals).toBeGreaterThanOrEqual(1);
+		expect(stderr.lines.join('\n')).not.toMatch(/__TAURI_INVOKE_KEY__ expected (?!<key>)/);
 	});
 });
