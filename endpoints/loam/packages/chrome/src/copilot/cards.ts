@@ -11,6 +11,7 @@ import type {
 	CopilotConfirmationCardV1,
 	CopilotSuggestionCardV1,
 } from '@lushly-dev/loam-kernel/copilot';
+import { previewWords } from '../preview-words.js';
 import { chainWords } from '../settings/autonomy-words.js';
 import type { CopilotPanelKernelV1 } from './conversation.js';
 
@@ -168,6 +169,8 @@ export function renderCards(
 		const detail = doc.createElement('div');
 		detail.setAttribute('slot', 'detail');
 		detail.append(text('p', card.prompt), text('p', inputWords(card.input), 'card-input'));
+		// A released mounted command's preview, as text (phase 5 specification, 7.2).
+		for (const line of previewWords(card.preview)) detail.append(text('p', line, 'card-preview'));
 		for (const line of askedWords(card)) detail.append(text('p', line, 'card-why'));
 		if (card.state !== 'pending') detail.append(text('p', endedWords(card.state), 'card-ended'));
 		item.append(summary, detail);

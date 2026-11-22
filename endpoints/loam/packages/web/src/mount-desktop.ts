@@ -19,6 +19,23 @@ interface TauriInternals {
 /** The version the handshake offers; the server answers with the one it speaks. */
 export const DESKTOP_PROTOCOL_VERSION = '2025-06-18';
 
+/**
+ * MCP 2026-07-28, which an `approvals = "shell"` instance over `stdio` is opened in (phase 5 specification, 7.2): the
+ * only era on which AFD accepts an approver's `_meta["dev.afd/approval"]`. Each request carries these keys, and the
+ * connection opens with `server/discover`; a server that does not speak it is opened as before, with `initialize`.
+ */
+export const DESKTOP_MODERN_VERSION = '2026-07-28';
+const MODERN_META = Object.freeze({
+	'io.modelcontextprotocol/protocolVersion': DESKTOP_MODERN_VERSION,
+	'io.modelcontextprotocol/clientCapabilities': {},
+	'io.modelcontextprotocol/clientInfo': { name: 'loam', version: '1' },
+});
+
+export interface DesktopMountOptions {
+	/** `modern` for an instance whose entry releases commands for a person (7.2). */
+	era?: 'modern';
+}
+
 /** Pages of `tools/list` read, so a server cannot keep a discovery in a loop. */
 const TOOL_PAGES_MAX = 20;
 
@@ -72,13 +89,25 @@ function resultOf(answer: unknown, id: number): unknown {
 	return message.result;
 }
 
-export function createDesktopMountTransport(instance: string): MountTransportV2 {
+export function createDesktopMountTransport(
+	instance: string,
+	options: DesktopMountOptions = {}
+): MountTransportV2 {
 	let handle: number | undefined;
 	let id = 0;
+	/** Whether the connection is on the modern era: its keys go on every request's `_meta`, the kernel's beside them. */
+	let modern = false;
 
-	async function request(method: string, params: unknown, signal?: AbortSignal): Promise<unknown> {
+	async function request(
+		method: string,
+		given: Record<string, unknown>,
+		signal?: AbortSignal
+	): Promise<unknown> {
 		if (handle === undefined) throw new MountRefusal('MOUNT_UNREACHABLE');
 		const sent = ++id;
+		const params = modern
+			? { ...given, _meta: { ...((given._meta as object | undefined) ?? {}), ...MODERN_META } }
+			: given;
 		try {
 			const answer = await call(
 				'mount_send',
@@ -100,6 +129,18 @@ export function createDesktopMountTransport(instance: string): MountTransportV2 
 				handle = opened;
 			} catch (cause) {
 				throw refusalOf(cause);
+			}
+			if (options.era === 'modern') {
+				modern = true;
+				const discovered = (await request('server/discover', {}, signal).catch(() => null)) as {
+					supportedVersions?: unknown;
+				} | null;
+				const versions = discovered?.supportedVersions;
+				// The lane's own word that it carries a person's approval (7.2): only here, never from a server's answer.
+				if (Array.isArray(versions) && versions.includes(DESKTOP_MODERN_VERSION))
+					return { protocolVersion: DESKTOP_MODERN_VERSION, approvals: true };
+				// Not spoken: the 2025 handshake on the same connection, and the kernel releases nothing (7.2).
+				modern = false;
 			}
 			const result = (await request(
 				'initialize',

@@ -1,0 +1,19 @@
+# P5-A6's `stdio` fixture app: its commands come from the instance, `mailfix` (`kernel/scenarios/mailfix-stdio.ts`).
+manifest_version = 1
+protocol = 1
+afd_contract = "1.0"
+
+[plugin]
+id = "mailfix"
+title = "Mailfix"
+version = "0.1.0"
+description = "A fixture mail server, mounted over stdio, that names its peer an approver."
+kind = "mounted"
+domains = ["mailfix"]
+
+[mount]
+prefix = "mailfix"
+transport = "stdio"
+
+[app]
+scope_levels = ["workspace", "project"]

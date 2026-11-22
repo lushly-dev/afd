@@ -624,6 +624,9 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 			);
 			if (!isOwner) delete record.result;
 			if (!reader.human && !isOwner) delete record.input;
+			// A preview is the person's alone (phase 5's 7.2): an agent reads which read it is, never its data or digest.
+			if (!reader.human && record.preview)
+				record.preview = { command: record.preview.command } as typeof record.preview;
 			if (!reader.one && record.input !== undefined) record.input = summaryOf(record.input);
 			// And its stored outcome, as its input (step 6's second round, 8): a large result never breaks a page.
 			if (!reader.one && record.result !== undefined) record.result = summaryOf(record.result);

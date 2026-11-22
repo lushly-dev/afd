@@ -9,11 +9,18 @@
  * and a tool by `execute`, answered as `structuredContent` beside a text duplicate, as AFD's server sends both. The
  * desktop suite mounts the same server over stdio (`mailfix-stdio.ts`), and Chromium through the test relay.
  *
- * **The entry** says `labels = "per-part"` (5.1) and names the mutations the scenarios call, each exposed to agents;
- * the draft and send are exposed to apps too, for `mailfixapp`'s grant (7.5). `approvals` is step 5's.
+ * **The approver.** With `approver` (the default), the transport plays AFD's carrier as an MCP 2026-07-28 lane does for
+ * a caller the server names an approver (step 0c): a held send's `APPROVAL_REQUIRED` carries `details.approvalToken`,
+ * and a call whose `_meta` holds `dev.afd/approval` runs with it as the evidence. The server's own approval middleware
+ * still checks the token, its command, input and single use. Kernel units and the desktop suite also run the real
+ * carrier over MCP (`mounted-approvals.test.ts`, the desktop's P5-A6).
+ *
+ * **The entry** says `labels = "per-part"` (5.1) and `approvals = "shell"` (7.2), names the mutations the scenarios
+ * call, each exposed to agents, and gives the send its preview, `mailfix-draft-show` of its `draft`; the draft and send
+ * are exposed to apps too, for `mailfixapp`'s grant (7.5).
  */
 
-import type { McpServer } from '@lushly-dev/afd-server';
+import type { ApprovalRequest, McpServer } from '@lushly-dev/afd-server';
 import type { ManifestV2 } from '@lushly-dev/loam-manifest';
 import type { AppDefinitionV1 } from '@lushly-dev/loam-sdk';
 import { defineApp, success } from '@lushly-dev/loam-sdk';
@@ -47,11 +54,18 @@ export const MAILFIX_NAMED: Readonly<Record<string, { agent: boolean; apps?: tru
 		'mailfix-replyset-submit': { agent: true },
 	});
 
-/** `mailfix`'s deployment entry, as a projection lists it. */
+/** The send's preview (7.2): the draft as it would be sent, by the draft the send names. */
+export const MAILFIX_SEND_PREVIEW = Object.freeze({
+	command: 'mailfix-draft-show',
+	input: Object.freeze(['draft']),
+});
+
+/** `mailfix`'s deployment entry, as a projection lists it; `approvals = "shell"` by default (7.2). */
 export function mailfixEntry(
 	order: number,
 	labels: 'whole' | 'per-part' = 'per-part',
-	instance = 'mailfix'
+	instance = 'mailfix',
+	approvals: 'none' | 'shell' = 'shell'
 ): Record<string, unknown> {
 	return {
 		instance,
@@ -63,10 +77,21 @@ export function mailfixEntry(
 		transport: 'http',
 		route: `mounts/${instance}/mcp`,
 		labels,
+		approvals,
 		commands: Object.fromEntries(
 			Object.entries(MAILFIX_NAMED).map(([name, expose]) => [
 				name.replace(/^mailfix-/, `${instance}-`),
-				{ expose },
+				{
+					expose,
+					...(name === 'mailfix-draft-send'
+						? {
+								preview: {
+									command: MAILFIX_SEND_PREVIEW.command.replace(/^mailfix-/, `${instance}-`),
+									input: [...MAILFIX_SEND_PREVIEW.input],
+								},
+							}
+						: {}),
+				},
 			])
 		),
 	};
@@ -80,17 +105,53 @@ const asResult = (body: unknown): McpToolCallResult => ({
 /** A transport over `server` in this process: what the kernel's discovery and calls read (the file's header). */
 export function mailfixTransport(
 	server: McpServer,
-	options: { textOnly?: boolean } = {}
-): MountTransportV2 & { calls: Array<{ tool: string; args: unknown }> } {
-	const calls: Array<{ tool: string; args: unknown }> = [];
+	options: { textOnly?: boolean; approver?: boolean; held?: ApprovalRequest[] } = {}
+): MountTransportV2 & {
+	calls: Array<{ tool: string; args: unknown; meta?: Record<string, unknown> }>;
+} {
+	const calls: Array<{ tool: string; args: unknown; meta?: Record<string, unknown> }> = [];
+	const approver = options.approver !== false;
+	const held = options.held ?? [];
 	const answer = (body: unknown): McpToolCallResult =>
 		options.textOnly ? { content: [{ type: 'text', text: JSON.stringify(body) }] } : asResult(body);
+	/** A held send's answer, as the carrier gives an approver: with the token the server issued for this very call. */
+	const carried = (body: unknown, issued: number): unknown => {
+		const result = body as { success?: boolean; error?: { code?: string; details?: object } };
+		const request = held[issued];
+		if (
+			!approver ||
+			result.success !== false ||
+			result.error?.code !== 'APPROVAL_REQUIRED' ||
+			!request
+		)
+			return body;
+		return {
+			...result,
+			error: {
+				...result.error,
+				details: { ...result.error.details, approvalToken: request.approvalToken },
+			},
+		};
+	};
+	const run = async (tool: string, input: unknown, meta?: Record<string, unknown>) => {
+		const evidence = approver ? meta?.['dev.afd/approval'] : undefined;
+		const issued = held.length;
+		const body = await server.execute(
+			tool,
+			input ?? {},
+			typeof evidence === 'string' ? { approval: evidence } : undefined
+		);
+		return answer(carried(body, issued));
+	};
 	return {
 		calls,
-		connect: async () => ({ protocolVersion: '2025-11-25' }),
+		// The lane the desktop's stdio transport opens for an `approvals = "shell"` instance (7.2): 2026-07-28, the
+		// carrier's era (AFD's rule 3), by the transport's own word. Whether the server names this peer an approver is
+		// `approver`'s, apart.
+		connect: async () => ({ protocolVersion: '2026-07-28', approvals: true as const }),
 		listTools: () => Promise.reject(new Error('Discovery lists no tools')),
-		async callTool(tool, args) {
-			calls.push({ tool, args });
+		async callTool(tool, args, _signal, meta) {
+			calls.push({ tool, args, ...(meta ? { meta } : {}) });
 			if (tool === 'afd-help') return asResult(await server.execute('afd-help', args ?? {}));
 			if (tool === 'afd-detail') {
 				const asked = (args as { command?: unknown } | null)?.command;
@@ -121,18 +182,31 @@ export function mailfixTransport(
 			}
 			if (tool === 'afd-call') {
 				const { command, input } = (args ?? {}) as { command?: string; input?: unknown };
-				return answer(await server.execute(String(command), input ?? {}));
+				return run(String(command), input, meta);
 			}
-			return answer(await server.execute(tool, args ?? {}));
+			return run(tool, args, meta);
 		},
 		async close() {},
 	};
 }
 
-/** A fresh `mailfix` and its transport, for one kernel. */
-export function mountedMailfix(options: MailfixServerOptions & { textOnly?: boolean } = {}) {
-	const server = createMailfixServer(options);
-	return { server, transport: mailfixTransport(server, options) };
+/**
+ * A fresh `mailfix` and its transport, for one kernel. `held` lists each send the server held, with the token it issued,
+ * so a test can look for every token where none may be (P5-A6).
+ */
+export function mountedMailfix(
+	options: Omit<MailfixServerOptions, 'approver'> & { textOnly?: boolean; approver?: boolean } = {}
+) {
+	const held: ApprovalRequest[] = [];
+	const { approver: _approver, textOnly: _textOnly, ...serverOptions } = options;
+	const server = createMailfixServer({
+		...serverOptions,
+		onApprovalRequired: async (request) => {
+			held.push(request);
+			await options.onApprovalRequired?.(request);
+		},
+	});
+	return { server, held, transport: mailfixTransport(server, { ...options, held }) };
 }
 
 /**

@@ -194,12 +194,27 @@ export interface ConfirmationRecordV1 {
 	 * it, as `autonomy-get` gives it. Set by the kernel alone, for an agent's call.
 	 */
 	asked?: ConfirmationAskedV1;
-	/** A mounted command's preview, which the confirmation re-checks on confirm (phase 5 specification, 7.2). */
-	preview?: { command: string; digest: string };
+	/**
+	 * A mounted command's preview, which the confirmation re-checks on confirm (phase 5 specification, 7.2): the read, its
+	 * canonical digest (SHA-256, base64url), `changed` when it differed from what the person saw before, and for the
+	 * person alone its data with its instance's labels (5.1), which no agent's read carries.
+	 */
+	preview?: ConfirmationPreviewV1;
 	/** The copilot session that raised it (phase 5 specification, 6.2): its key holds the session too. */
 	session?: string;
 	/** The copilot call's trace, which the shell's run carries (phase 5 specification, 3.2, 6.2). */
 	trace?: { session: string; turn: number; call: string };
+}
+
+/** A mounted command's preview on its confirmation (phase 5 specification, 7.2). */
+export interface ConfirmationPreviewV1 {
+	command: string;
+	digest: string;
+	changed?: true;
+	/** The preview's data as its server returned it: the person's alone. */
+	data?: unknown;
+	/** Whose word labels its parts: `per-part` reads each part's `"trust": "content"`, `whole` is content throughout. */
+	labels?: 'whole' | 'per-part';
 }
 
 /** Why the kernel asked an agent's call (phase 5 specification, 6.2). */
@@ -801,6 +816,8 @@ export interface OverlayV1 extends OverlayRefV1 {
 		kind?: 'input' | 'confirmation' | 'close';
 		/** A confirmation's input, as it will run, shown beneath the prompt (7.1's R15, 7.2). */
 		input?: unknown;
+		/** A released mounted command's preview, for the person (phase 5 specification, 7.2). */
+		preview?: ConfirmationPreviewV1;
 		/** The palette's input prompt: the scope it opened in, which its fill runs in (7.1). */
 		scope?: ScopeV1;
 		/** The close prompt: the tab whose close it asks about (7.3), and its document. */

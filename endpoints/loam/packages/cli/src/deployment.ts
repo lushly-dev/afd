@@ -188,34 +188,43 @@ export function projectionOf(
 	identity: IdentityV1 = { mode: 'local' },
 	kind: HostKindV1 = 'static'
 ): ProjectionV4 {
-	const apps: Array<ProjectionAppV2 & Pick<ProjectionAppV4, 'labels'>> = instances.map((effect) => {
-		const { id, entry, mounted, prefix, transport } = effect;
-		return {
-			instance: id,
-			app: entry.app,
-			package: `apps/${id}/`,
-			...(entry.order !== undefined ? { order: entry.order } : {}),
-			...(entry.title !== undefined ? { title: entry.title } : {}),
-			...(entry.config !== undefined ? { config: entry.config } : {}),
-			...(mounted && prefix !== undefined ? { prefix } : {}),
-			...(entry.audience !== undefined ? { audience: entry.audience } : {}),
-			...(mounted && transport !== undefined ? { transport } : {}),
-			// On the desktop a `stdio` instance has a route too: it only names the instance, which the Rust host
-			// reaches by name, so the kernel discovers it as it does any other (10.4).
-			...(mounted && (transport === 'http' || (kind === 'desktop' && transport === 'stdio'))
-				? { route: `mounts/${id}/mcp` }
-				: {}),
-			...(entry.projects !== undefined ? { projects: entry.projects } : {}),
-			...(entry.space !== undefined ? { space: entry.space } : {}),
-			// Whose word decides a result's labels (phase 5 specification, 5.1): the deployer's, per instance.
-			...(mounted && 'labels' in entry && (entry.labels === 'whole' || entry.labels === 'per-part')
-				? { labels: entry.labels }
-				: {}),
-			...(entry.expose !== undefined ? { expose: entry.expose } : {}),
-			...(entry.commands !== undefined ? { commands: entry.commands } : {}),
-			boot: bootRecordOf(effect, findings),
-		};
-	});
+	const apps: Array<ProjectionAppV2 & Pick<ProjectionAppV4, 'labels' | 'approvals'>> =
+		instances.map((effect) => {
+			const { id, entry, mounted, prefix, transport } = effect;
+			return {
+				instance: id,
+				app: entry.app,
+				package: `apps/${id}/`,
+				...(entry.order !== undefined ? { order: entry.order } : {}),
+				...(entry.title !== undefined ? { title: entry.title } : {}),
+				...(entry.config !== undefined ? { config: entry.config } : {}),
+				...(mounted && prefix !== undefined ? { prefix } : {}),
+				...(entry.audience !== undefined ? { audience: entry.audience } : {}),
+				...(mounted && transport !== undefined ? { transport } : {}),
+				// On the desktop a `stdio` instance has a route too: it only names the instance, which the Rust host
+				// reaches by name, so the kernel discovers it as it does any other (10.4).
+				...(mounted && (transport === 'http' || (kind === 'desktop' && transport === 'stdio'))
+					? { route: `mounts/${id}/mcp` }
+					: {}),
+				...(entry.projects !== undefined ? { projects: entry.projects } : {}),
+				...(entry.space !== undefined ? { space: entry.space } : {}),
+				// Whose word decides a result's labels (phase 5 specification, 5.1): the deployer's, per instance.
+				...(mounted &&
+				'labels' in entry &&
+				(entry.labels === 'whole' || entry.labels === 'per-part')
+					? { labels: entry.labels }
+					: {}),
+				// Which of its commands the shell may release for a person (phase 5 specification, 7.2): the deployer's, per instance.
+				...(mounted &&
+				'approvals' in entry &&
+				(entry.approvals === 'none' || entry.approvals === 'shell')
+					? { approvals: entry.approvals }
+					: {}),
+				...(entry.expose !== undefined ? { expose: entry.expose } : {}),
+				...(entry.commands !== undefined ? { commands: entry.commands } : {}),
+				boot: bootRecordOf(effect, findings),
+			};
+		});
 	const version =
 		deployment.deployment_version === 4 ? 4 : deployment.deployment_version === 3 ? 3 : 2;
 	const host: ProjectionV4['host'] =

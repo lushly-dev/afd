@@ -44,6 +44,7 @@ import {
 	TOAST_INBOX_EVENT,
 	type ToastTone,
 } from '../elements/toast.js';
+import { previewWords, slotWords } from '../preview-words.js';
 import { type AnchorOwner, anchorOwnerOf } from './anchors.js';
 import { focusFallback } from './focus-fallback.js';
 import type { OverlayLayer } from './overlays.js';
@@ -437,7 +438,12 @@ export class OverlaySurfaces {
 		if (overlay.for) this.#asks.set(overlay.overlayId, overlay.for);
 		if (asks) options.asks = asks;
 		// A confirmation and the close prompt ask for no value (7.2, 7.3): a confirmation shows its input as it will run.
-		if (asks === 'confirmation') options.details = inputWords(overlay.for?.input);
+		// A released mounted command's preview follows, as text, its server's words marked as such (phase 5's 7.2).
+		if (asks === 'confirmation')
+			options.details = slotWords(
+				inputWords(overlay.for?.input),
+				previewWords(overlay.for?.preview)
+			);
 		else if (overlay.kind === 'prompt' && asks !== 'close' && layer) {
 			const prompt = overlay.input as PromptInputV1;
 			options.fields = layer.promptFields(this.#shell.ownerDocument, prompt.schema, prompt.value);

@@ -317,6 +317,92 @@ describe('readDeployment', () => {
 		);
 	});
 
+	describe('approvals and preview (phase 5 specification, 7.2; P5-A6)', () => {
+		const send = {
+			expose: { agent: true },
+			preview: { command: 'work-draft-show', input: ['draft'] },
+		};
+		const v4 = (entry: Record<string, unknown>) => ({
+			deployment_version: 4,
+			apps: { work: { ...mounted, ...entry } },
+		});
+
+		it('reads approvals = "shell" with a preview for each released command', () => {
+			const read = readDeployment(
+				v4({ approvals: 'shell', commands: { 'work-draft-send': send } })
+			);
+			expect(read.ok).toBe(true);
+			if (read.ok) {
+				expect(read.deployment.apps.work).toMatchObject({
+					approvals: 'shell',
+					commands: { 'work-draft-send': { preview: { command: 'work-draft-show' } } },
+				});
+			}
+			expect(readDeployment(v4({ approvals: 'none' })).ok).toBe(true);
+		});
+
+		it.each([
+			[
+				'approvals = "shell" with no preview',
+				v4({ approvals: 'shell', commands: { 'work-draft-send': { expose: { agent: true } } } }),
+				'DEPLOYMENT_PREVIEW_REQUIRED',
+				'apps.work.approvals',
+			],
+			[
+				'a preview without approvals = "shell"',
+				v4({ commands: { 'work-draft-send': send } }),
+				'DEPLOYMENT_PREVIEW_INVALID',
+				'apps.work.commands["work-draft-send"].preview',
+			],
+			[
+				'a preview naming its own command',
+				v4({
+					approvals: 'shell',
+					commands: {
+						'work-draft-send': { preview: { command: 'work-draft-send', input: ['draft'] } },
+					},
+				}),
+				'DEPLOYMENT_PREVIEW_INVALID',
+				'apps.work.commands["work-draft-send"].preview.command',
+			],
+			[
+				'a preview with no input key',
+				v4({
+					approvals: 'shell',
+					commands: { 'work-draft-send': { preview: { command: 'work-draft-show', input: [] } } },
+				}),
+				'DEPLOYMENT_INVALID',
+				'apps.work.commands["work-draft-send"].preview.input',
+			],
+			[
+				'approvals of another value',
+				v4({ approvals: 'agent' }),
+				'DEPLOYMENT_INVALID',
+				'apps.work.approvals',
+			],
+			[
+				'approvals before version 4',
+				withEntry('work', { ...mounted, approvals: 'shell' }),
+				'DEPLOYMENT_INVALID',
+				'apps.work.approvals',
+			],
+		])('refuses %s, with a suggestion', (_name, json, code, key) => {
+			const refusal = refusalsOf(json).find((candidate) => candidate.key === key);
+			expect(refusal?.code).toBe(code);
+			expect(refusal?.suggestion).toMatch(/\S/);
+		});
+
+		it('reads a native entry naming approvals as a mounted one, which says whom it serves', () => {
+			const native = readDeployment({
+				deployment_version: 4,
+				apps: { hello: { app: 'hello', package: './apps/hello', approvals: 'none' } },
+			});
+			expect(native.ok ? [] : native.refusals.map((each) => each.code)).toContain(
+				'DEPLOYMENT_AUDIENCE_REQUIRED'
+			);
+		});
+	});
+
 	it.each(['https://sandbox.example.com;script-src', 'https://Sandbox.example.com', 'https://a"b'])(
 		'refuses the sandbox origin %s, which would reach the CSP',
 		(origin) => {

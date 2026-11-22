@@ -403,7 +403,7 @@ describe('7.4: exposure and trust', () => {
 		expect(data?.commands[0]).toMatchObject({ approval: 'required', replay: 'recorded' });
 	});
 
-	it("asks an agent before a tool the server holds for approval, under the person's act row (phase 5's 6.1)", async () => {
+	it("refuses an agent's call of a tool the server holds for approval on an instance Loam cannot release, before asking (phase 5's 6.1, 7.2)", async () => {
 		const transport = fakeTransport({ 'a-read': { mutation: false, approval: 'required' } });
 		const { kernel } = await boot({ work: () => transport });
 		await kernel.startInstances();
@@ -414,13 +414,18 @@ describe('7.4: exposure and trust', () => {
 		});
 		await kernel.call('autonomy-set', { level: 'workspace', instance: 'work', mode: 'act' });
 		const before = transport.calls.length;
+		// No `approvals = "shell"` and preview: never released, so the person is not asked to approve what cannot run.
 		const asked = await kernel.agent.call('work-a-read', {});
-		expect(asked.error?.code).toBe('CONFIRMATION_PENDING');
+		expect(asked.error?.code).toBe('MOUNT_APPROVAL_UNAVAILABLE');
+		expect(asked.error?.suggestion).toContain('approvals = "shell"');
 		expect(transport.calls.length).toBe(before);
-		const listed = await kernel.call<{
-			notifications: Array<{ confirmation?: { asked?: { chain: Array<{ id: string }> } } }>;
-		}>('notification-list', { kind: 'confirmation' });
-		expect(listed.data?.notifications[0]?.confirmation?.asked?.chain.at(-1)?.id).toBe('approval');
+		const listed = await kernel.call<{ notifications: unknown[] }>('notification-list', {
+			kind: 'confirmation',
+		});
+		expect(listed.data?.notifications).toEqual([]);
+		// The person's own palette call is refused alike, and sends nothing.
+		expect((await kernel.call('work-a-read', {})).error?.code).toBe('MOUNT_APPROVAL_UNAVAILABLE');
+		expect(transport.calls.length).toBe(before);
 	});
 });
 

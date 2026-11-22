@@ -71,6 +71,8 @@ export async function confirmationCardOf(
 			? { raisedBy: { turn: record.trace.turn, call: record.trace.call } }
 			: {}),
 		...(record.asked !== undefined ? { asked: structuredClone(record.asked) } : {}),
+		// A released mounted command's preview, for the person who reads the card (phase 5 specification, 7.2).
+		...(record.preview !== undefined ? { preview: structuredClone(record.preview) } : {}),
 		expiresAt: record.expiresAt,
 	};
 }

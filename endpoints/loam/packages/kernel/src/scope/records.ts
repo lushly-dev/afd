@@ -41,6 +41,8 @@ export interface WorkspaceAppV1 {
 	space?: Record<string, string>;
 	/** A mounted entry's `labels` (phase 5 specification, 5.1). */
 	labels?: 'whole' | 'per-part';
+	/** A mounted entry's `approvals` (phase 5 specification, 7.2). */
+	approvals?: 'none' | 'shell';
 	expose?: Record<string, boolean>;
 	commands?: Record<string, unknown>;
 	order?: number;

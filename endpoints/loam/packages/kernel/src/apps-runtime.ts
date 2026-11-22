@@ -14,6 +14,7 @@ import {
 } from '@lushly-dev/afd-core';
 import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
 import type { BootProjectionV2 } from '@lushly-dev/loam-manifest';
+import type { MountReleaseV1 } from './apps/mounted-release.js';
 import type { StoreQuota } from './apps/store.js';
 import type { KernelFieldContext } from './context-fields.js';
 import { kernelFailure, LoamKernelError } from './errors.js';
@@ -45,6 +46,8 @@ export interface CommandOwner {
 	apps?: true;
 	/** A mounted command its server holds for a person's approval (`approval: 'required'`), for 6.1's bound. */
 	approval?: 'required';
+	/** A mounted command the shell may release for a person, by its entry's preview (phase 5 specification, 7.2). */
+	release?: MountReleaseV1;
 	/**
 	 * Whether it needs input, by its shape and the validator's parse of `{}`, as New and a chord decide it:
 	 * the palette's flag reads it, and falls back to the shape alone for a command with none (documents

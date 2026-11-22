@@ -115,6 +115,22 @@ export interface AskedFor {
 	danger: boolean;
 	/** Phase 5's enforcement of an agent's call (its 6.1), from the gate before this one. */
 	enforced?: EnforcedV1;
+	/** Phase 5's 7.2: a released mounted command's preview, which the person sees and the confirm re-checks. */
+	preview?: AskedPreviewV1;
+}
+
+export { RESHOW, type ReshowV1 } from './reshow.js';
+
+/**
+ * A preview as the shell shows it (phase 5 specification, 7.2): the read, its canonical digest, its data for the person
+ * alone with its instance's labels, and `changed` when it differed from what the person saw before.
+ */
+export interface AskedPreviewV1 {
+	command: string;
+	digest: string;
+	data: unknown;
+	labels: 'whole' | 'per-part';
+	changed?: true;
 }
 
 /**
@@ -362,6 +378,8 @@ export function settleInputOf(z: SettingsKit['z']) {
 					})
 				),
 				input: z.unknown(),
+				// A released mounted command's preview (phase 5's 7.2), the kernel's own read.
+				preview: z.optional(z.unknown()),
 			})
 		),
 	});

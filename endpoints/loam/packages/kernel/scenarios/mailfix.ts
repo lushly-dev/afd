@@ -31,6 +31,7 @@
 import { type CommandMiddleware, type CommandResult, failure, success } from '@lushly-dev/afd-core';
 import {
 	type ApprovalRequest,
+	type ApproverPredicate,
 	createApprovalMiddleware,
 	createMcpServer,
 	defineCommand,
@@ -156,10 +157,17 @@ export interface MailfixServerOptions {
 	/** Default `'auto'`, as `createMcpServer`'s; the stdio entry passes `'stdio'`. */
 	transport?: McpTransport;
 	/**
-	 * Called with each held send and its approval token, in this process only. Until AFD's approver carrier exists
-	 * (step 0c), this is how an in-process test plays the approver: it retries with the token as `context.approval`.
+	 * Called with each held send and its approval token, in this process only: how a test with no MCP lane between it
+	 * and the server (`server.execute`) plays the approver, retrying with the token as `context.approval`.
 	 */
 	onApprovalRequired?: (request: ApprovalRequest) => void | Promise<void>;
+	/**
+	 * Which MCP callers are approvers (AFD's approver carrier, step 0c; `createMcpServer`'s `approver`): for them alone a
+	 * held send's `APPROVAL_REQUIRED` carries `details.approvalToken`, and a 2026-07-28 retry with
+	 * `_meta["dev.afd/approval"]` runs it once (Loam's 7.2). None by default. The stdio entry names its one peer, the
+	 * shell that started it; mail's engine names the credential it gave Loam (its 3.5).
+	 */
+	approver?: ApproverPredicate;
 }
 
 interface Draft {
@@ -609,15 +617,15 @@ function mailfixCommands(state: State): ZodCommandDefinition[] {
  * Make a `mailfix` server with fresh state. `start()` serves it (over stdio with `transport: 'stdio'`); a test calls
  * `execute()` in process.
  *
- * The send's hold is AFD's approval middleware as it exists today: `mailfix-draft-send` returns `APPROVAL_REQUIRED`
- * before its handler runs, and runs only when `context.approval` holds a token issued for exactly that command, input
- * and actor, once. No result carries the token (`includeToken: false`), so over MCP no caller can obtain one.
+ * The send's hold is AFD's approval middleware: `mailfix-draft-send` returns `APPROVAL_REQUIRED` before its handler
+ * runs, and runs only when the call's approval evidence is a token issued for exactly that command, input and caller,
+ * once. No result carries the token for an ordinary caller (`includeToken: false`), so over MCP no agent can obtain one.
  *
- * Seam: AFD's approver carrier (phase 5's step 0c, "Approval evidence from an approver client" in
- * `spec/command-metadata.md`) is not built. When it lands, this server marks its approver here with
- * `createMcpServer`'s `approver(context)` option, so that for that caller alone an `APPROVAL_REQUIRED` result carries
- * `details.approvalToken` and a `tools/call` with `_meta["dev.afd/approval"]` sets the evidence; Loam's kernel
- * (step 5) presents it. Until then, the token reaches only `onApprovalRequired`, in this process.
+ * The approver (AFD's carrier, step 0c, "Approval evidence from an approver client" in `spec/command-metadata.md`):
+ * with `approver`, a caller it names is an approver, so for that caller alone an `APPROVAL_REQUIRED` result carries
+ * `details.approvalToken`, bound to its principal, and a 2026-07-28 `tools/call` with `_meta["dev.afd/approval"]` sets
+ * the evidence; Loam's kernel presents it once, after the person confirmed (its step 5, 7.2). From anyone else the key
+ * is ignored, and in an input it is refused.
  */
 export function createMailfixServer(options: MailfixServerOptions = {}): McpServer {
 	const state = freshState();
@@ -644,6 +652,7 @@ export function createMailfixServer(options: MailfixServerOptions = {}): McpServ
 			}),
 		],
 		transport: options.transport ?? 'auto',
+		...(options.approver ? { approver: options.approver } : {}),
 		toolStrategy: 'individual',
 		// `afd-help` and `afd-detail`, which the kernel's discovery reads.
 		bootstrap: true,

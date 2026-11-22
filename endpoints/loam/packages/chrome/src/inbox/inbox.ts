@@ -14,6 +14,7 @@
 import type { KernelEventV4, LoamKernelV5 } from '@lushly-dev/loam-kernel';
 import type { NotificationV1 } from '@lushly-dev/loam-sdk';
 import type { LoamShell } from '../elements/shell.js';
+import { previewWords } from '../preview-words.js';
 import { accessChanged, ownerWords } from './inbox-words.js';
 
 interface Answer<T = unknown> {
@@ -457,6 +458,8 @@ export class LoamInbox extends HTMLElement {
 								? `The input is too long to list (${(asked.input as { bytes: number }).bytes} bytes): show it before you answer`
 								: inputWords(this.#whole.get(notice.id) ?? asked.input)
 						),
+						// A released mounted command's preview, as text (phase 5 specification, 7.2).
+						...previewWords(asked.preview).map((line) => el('p', { class: 'body preview' }, line)),
 					]
 				: []),
 			actions

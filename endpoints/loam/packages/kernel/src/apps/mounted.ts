@@ -21,6 +21,21 @@ import type { CommandOwner } from '../apps-runtime.js';
 import type { KernelFieldContext } from '../context-fields.js';
 import { kernelFailure, type LoamKernelErrorCode, PAGE_DECIDED } from '../errors.js';
 import type { KernelPortsV1, McpToolCallResult, MountTransportV2 } from '../types.js';
+import {
+	APPROVAL_META_KEY,
+	createInstanceHold,
+	heldEnded,
+	holdsApprovalKey,
+	type MountReleaseV1,
+	previewInput,
+	previewSpecOf,
+	RELEASING,
+	type ReleasingV1,
+	releasableRead,
+	releaseWarnings,
+	takeToken,
+	withoutTokens,
+} from './mounted-release.js';
 import type { AppRecord } from './operations.js';
 import type { AppsHost } from './types.js';
 
@@ -276,7 +291,8 @@ function readError(error: Readonly<Record<string, unknown>>): Record<string, unk
  * `dev.loam/page-decided`, would say something the kernel did not.
  */
 export function parseMountedResult(result: McpToolCallResult, instance: string): CommandResult {
-	const body = resultBody(result);
+	// Every approval token goes first, for every instance and caller (phase 5 specification, 7.2).
+	const body = withoutTokens(resultBody(result));
 	const invalid = () =>
 		kernelFailure(
 			'MOUNT_RESULT_INVALID',
@@ -498,6 +514,8 @@ export interface MountWarningV1 {
 
 export interface InstanceCatalogV1 {
 	protocolVersion: string;
+	/** The transport's word that its lane carries a person's approval (phase 5 specification, 7.2). */
+	approvals?: true;
 	toolStrategy?: string;
 	commands: CatalogCommandV1[];
 	warnings: MountWarningV1[];
@@ -523,7 +541,8 @@ async function metaTool(
 		const code = failureOf(cause, signal);
 		throw new MountFailure(code === 'MOUNT_RESULT_INVALID' ? 'MOUNT_NOT_AFD' : code);
 	}
-	const result = resultBody(answer);
+	// No approval token is kept from discovery either, so none reaches a catalog or its journal entry (7.2).
+	const result = withoutTokens(resultBody(answer));
 	if (!isRecord(result) || result.success !== true) throw new MountFailure('MOUNT_NOT_AFD');
 	return result;
 }
@@ -563,7 +582,7 @@ export async function discoverInstance(
 	transport: MountTransportV2,
 	signal?: AbortSignal
 ): Promise<InstanceCatalogV1> {
-	const { protocolVersion } = await transport.connect(signal);
+	const { protocolVersion, approvals } = await transport.connect(signal);
 	const help = await metaTool(transport, 'afd-help', { format: 'full' }, signal);
 	const data = isRecord(help.data) ? help.data : {};
 	const rows = Array.isArray(data.commands) ? data.commands : undefined;
@@ -716,6 +735,7 @@ export async function discoverInstance(
 	}
 	return {
 		protocolVersion,
+		...(approvals === true ? { approvals: true as const } : {}),
 		...(typeof data.toolStrategy === 'string' ? { toolStrategy: data.toolStrategy } : {}),
 		commands,
 		warnings: warnings.slice(0, DISCOVERY_LIMITS.warnings),
@@ -727,6 +747,8 @@ export async function discoverInstance(
 /** What `app-instance-list` adds for an instance that has been discovered. */
 export interface MountedReading {
 	protocolVersion?: string;
+	/** The transport's word that this lane carries a person's approval (7.2); never listed. */
+	approvals?: true;
 	toolStrategy?: string;
 	discoveredAt?: string;
 	warnings: readonly MountWarningV1[];
@@ -753,7 +775,14 @@ export interface MountedHostOptions {
 	owners: Map<string, CommandOwner>;
 }
 
-const looseInput = z.looseObject({});
+/**
+ * A mounted command's input, which its server validates; the kernel refuses only `dev.afd/approval` at any depth, since
+ * approval evidence is never input (phase 5 specification, 7.2).
+ */
+const looseInput = z.looseObject({}).refine((input) => !holdsApprovalKey(input), {
+	message:
+		'Input may not hold the key "dev.afd/approval": approval evidence is never input. Remove it; Loam presents a person\'s approval itself, after they confirm in the shell.',
+});
 
 export function createMountedHost(options: MountedHostOptions): MountedHost {
 	const { record, entry, manifest, host, ports, commands, owners } = options;
@@ -762,8 +791,90 @@ export function createMountedHost(options: MountedHostOptions): MountedHost {
 	let running: Promise<CommandResult> | undefined;
 	let lastAutomatic = Number.NEGATIVE_INFINITY;
 	const approvals = new Map<string, 'required'>();
+	/** The instance's hold, and each command the shell may release with the read that previews it (7.2). */
+	const held = createInstanceHold();
+	const releases = new Map<string, MountReleaseV1>();
 
 	const reading: MountedReading = { warnings: [] };
+
+	/** The kernel's own answer for a held command it cannot release (7.2), in words for the person and the deployer. */
+	function unreleased(
+		why: 'entry' | 'preview' | 'era' | 'approver' | 'refused' | 'unconfirmed'
+	): CommandResult<never> {
+		const because = {
+			entry:
+				'its entry does not say `approvals = "shell"` and give the command a preview, so Loam does not present it',
+			preview:
+				"its entry's preview names no read of this instance callable on its own, or reads by a key the command's input does not name",
+			era: "this instance's lane carries no person's approval: only the desktop's `stdio` lane on MCP 2026-07-28 does",
+			approver: 'the server does not accept Loam as an approver, so it sent no approval to present',
+			refused: 'the server refused the approval Loam presented',
+			unconfirmed: 'no person confirmed this call in the shell, so Loam presents nothing',
+		}[why];
+		return kernelFailure(
+			'MOUNT_APPROVAL_UNAVAILABLE',
+			`This command needs a person's approval at its server, and ${because}`,
+			why === 'entry' || why === 'preview'
+				? 'Run the command at the server\'s own terminal, or give its instance entry `approvals = "shell"` and the command a `preview` naming a read of the same instance, for a server that accepts Loam as an approver.'
+				: "Run the command at the server's own terminal, or ask the server's owner to accept Loam as an approver over MCP 2026-07-28.",
+			{ retryable: false }
+		);
+	}
+
+	/** The release of `command`, from the entry's preview (7.2): its read, its hold and whether it is ready. */
+	function releaseOf(name: string): MountReleaseV1 | undefined {
+		const preview = previewSpecOf(entry, name);
+		if (!preview) return undefined;
+		const target = () => catalogCommands.find((each) => each.name === preview.command);
+		return {
+			preview,
+			blocked() {
+				if (!releasableRead(target())) return 'preview';
+				// Every key the preview reads by is one the held command's own input names (the re-check's I2).
+				const held = catalogCommands.find((each) => each.name === name);
+				const properties = (held?.inputSchema as { properties?: unknown } | undefined)?.properties;
+				if (!isRecord(properties) || !preview.input.every((key) => Object.hasOwn(properties, key)))
+					return 'preview';
+				// The transport's own word, never the version the server answered (the trust review's B4).
+				return reading.approvals === true ? undefined : 'era';
+			},
+			async read(input, context, holder, signal) {
+				const read = target();
+				if (!releasableRead(read) || !read) return { ok: false, code: 'preview' };
+				const narrowed = previewInput(preview, input);
+				if (!narrowed) return { ok: false, code: 'preview-input' };
+				// A read for this confirmation alone: no release rides on it, and its hold lets it through.
+				const own = { ...context, ...(signal ? { signal } : {}) } as unknown as Record<
+					symbol,
+					unknown
+				>;
+				delete own[RELEASING];
+				const result = await call(read, narrowed, own as unknown as CommandContext, holder);
+				if (!result.success)
+					return { ok: false, code: result.error?.code ?? 'MOUNT_RESULT_INVALID' };
+				// Labelled as 5.1 reads the answer: content whole unless the entry vouches, the data is structured, nothing at
+				// its top is labelled content, and the walk reads it whole (the re-check's I1).
+				const top = result as unknown as { trust?: unknown; data?: { trust?: unknown } };
+				const structured =
+					result.metadata?.['dev.loam/structured'] === true &&
+					top.trust !== 'content' &&
+					top.data?.trust !== 'content' &&
+					!deeperThan(result.data, 32);
+				return {
+					ok: true,
+					read: {
+						command: read.name,
+						input: narrowed,
+						data: result.data,
+						labels: structured ? labelsOf(entry) : 'whole',
+					},
+				};
+			},
+			hold: (confirmation) => held.hold(confirmation),
+		};
+	}
+	/** The commands discovery admitted, for a preview's read. */
+	let catalogCommands: CatalogCommandV1[] = [];
 
 	function failed(error: CommandError): CommandResult<never> {
 		record.state = 'failed';
@@ -774,7 +885,9 @@ export function createMountedHost(options: MountedHostOptions): MountedHost {
 	async function call(
 		command: CatalogCommandV1,
 		input: unknown,
-		context: CommandContext
+		context: CommandContext,
+		/** A preview read for this confirmation, which its hold lets through (7.2). */
+		holder?: string
 	): Promise<CommandResult> {
 		// The effective scope, after the middleware's lines 1 to 6: ids, never a name (9.2).
 		const { scope } = context as KernelFieldContext;
@@ -809,30 +922,78 @@ export function createMountedHost(options: MountedHostOptions): MountedHost {
 		);
 		if (!pinned.ok) return pinned.result;
 		const deadline = AbortSignal.timeout(MOUNTED_CALL_DEADLINE_MS);
-		const signal = context.signal ? AbortSignal.any([deadline, context.signal]) : deadline;
+		// A confirmed run's hold ends every call of it at the hold's deadline (7.2).
+		const releasing = (context as unknown as Record<symbol, unknown>)[RELEASING] as
+			| ReleasingV1
+			| undefined;
+		const signal = AbortSignal.any([
+			deadline,
+			...(context.signal ? [context.signal] : []),
+			...(releasing ? [releasing.signal] : []),
+		]);
 		// A claim the shell makes on every call of a command, `afd-call` too, and on no discovery. A server
 		// that declares the field reads it; one that does not drops it (`spec/context-fields.md`).
 		const meta = scope ? { 'dev.loam/scope': scope } : undefined;
-		let answer: McpToolCallResult;
-		try {
-			answer = await raced(
+		const send = (extra?: Record<string, unknown>): Promise<McpToolCallResult> => {
+			const sent = extra ? { ...meta, ...extra } : meta;
+			return raced(
 				command.firstClass
-					? live.callTool(command.tool, pinned.input, signal, meta)
-					: live.callTool('afd-call', { command: command.tool, input: pinned.input }, signal, meta),
+					? live.callTool(command.tool, pinned.input, signal, sent)
+					: live.callTool('afd-call', { command: command.tool, input: pinned.input }, signal, sent),
 				signal
 			);
-		} catch (cause) {
+		};
+		const failed = (cause: unknown): CommandResult<never> => {
 			if (context.signal?.aborted) {
 				return kernelFailure('CALL_ABORTED', 'The call was aborted', 'Run it again', {
 					details: { [PAGE_DECIDED]: true },
 				});
 			}
+			// A confirmed run whose hold ended: what was sent may have run at the server, so it is never offered again.
+			if (releasing?.signal.aborted) return heldEnded();
 			const code = failureOf(cause, signal);
 			const { message, suggestion, retryable } = MOUNT_FAILURES[code];
 			return kernelFailure(code, message, suggestion, { retryable });
+		};
+		let leave: () => void = () => {};
+		let result: CommandResult;
+		try {
+			let answer: McpToolCallResult;
+			try {
+				// Held by another confirmation (7.2): this call waits for its outcome, within its own deadline, and a hold
+				// claimed while it runs waits for it to end.
+				leave = await held.enter(context, signal, holder);
+				answer = await send();
+			} catch (cause) {
+				return failed(cause);
+			}
+			// The token, from the answer alone: the result below has none, and nothing keeps the answer.
+			const token = takeToken(resultBody(answer));
+			result = parseMountedResult(answer, instance);
+			if (result.error?.code === 'APPROVAL_REQUIRED') {
+				const release = releases.get(command.name);
+				const blocked = release ? release.blocked() : 'entry';
+				if (blocked) return unreleased(blocked);
+				// Never retried without a person's confirm: a released command is asked before it is sent (the late
+				// gate's `askedFor`), so only its confirmed run holds a release.
+				if (!releasing) return unreleased('unconfirmed');
+				// No token: the server does not name Loam an approver.
+				if (!token || !held.holds(releasing.confirmation)) return unreleased('approver');
+				// The one retry a person's confirm covers (7.2's step 5): this confirmation's run, holding the instance.
+				let retried: McpToolCallResult;
+				try {
+					retried = await send({ [APPROVAL_META_KEY]: token });
+				} catch (cause) {
+					return failed(cause);
+				}
+				const again = parseMountedResult(retried, instance);
+				return again.error?.code === 'APPROVAL_REQUIRED' ? unreleased('refused') : again;
+			}
+		} finally {
+			leave();
 		}
-		const result = parseMountedResult(answer, instance);
-		if (result.error?.code === 'COMMAND_NOT_FOUND') {
+		// Not from a confirmed run: its own rediscovery would wait for the hold it holds.
+		if (result.error?.code === 'COMMAND_NOT_FOUND' && !releasing) {
 			// Once, and then the call's failure as it was: the instance may have restarted with other plugins.
 			const now = host.clock();
 			if (now - lastAutomatic >= AUTO_DISCOVERY_MS) {
@@ -898,6 +1059,7 @@ export function createMountedHost(options: MountedHostOptions): MountedHost {
 		const definitions: ZodCommandDefinition[] = [];
 		const seen = new Set<string>();
 		approvals.clear();
+		releases.clear();
 		for (const command of catalog.commands) {
 			const { name } = command;
 			const conflict = host.taken.has(name) || owners.has(name) || seen.has(name);
@@ -924,6 +1086,8 @@ export function createMountedHost(options: MountedHostOptions): MountedHost {
 			definitions.push(definition);
 			admitted.push(command);
 			if (command.approval) approvals.set(name, command.approval);
+			const release = releaseOf(name);
+			if (release) releases.set(name, release);
 			owners.set(name, {
 				app,
 				instance,
@@ -935,8 +1099,19 @@ export function createMountedHost(options: MountedHostOptions): MountedHost {
 				...(entry.commands && Object.hasOwn(entry.commands, name) ? { named: true as const } : {}),
 				...(command.expose.apps === true ? { apps: true as const } : {}),
 				...(command.approval ? { approval: command.approval } : {}),
+				// A command the shell may release for a person, by the entry's preview (phase 5 specification, 7.2).
+				...(release ? { release } : {}),
 			});
 		}
+		catalogCommands = admitted;
+		warnings.push(
+			...releaseWarnings(
+				entry,
+				admitted,
+				catalog.protocolVersion,
+				catalog.approvals === true
+			).slice(0, 5)
+		);
 		commands.push(...definitions);
 		record.commands = admitted.map((command) => command.name);
 		reading.warnings = warnings;
@@ -959,6 +1134,9 @@ export function createMountedHost(options: MountedHostOptions): MountedHost {
 			record.state = 'ready';
 			delete record.error;
 			reading.protocolVersion = catalog.protocolVersion;
+			// Replaced whole: a lane that no longer carries an approval releases nothing.
+			if (catalog.approvals === true) reading.approvals = true;
+			else delete reading.approvals;
 			if (catalog.toolStrategy !== undefined) reading.toolStrategy = catalog.toolStrategy;
 			reading.discoveredAt = new Date(host.clock()).toISOString();
 			return success({
@@ -982,9 +1160,29 @@ export function createMountedHost(options: MountedHostOptions): MountedHost {
 		reading,
 		refresh() {
 			// A second call while one runs shares its answer, so two never race over the registries.
-			running ??= discover().finally(() => {
-				running = undefined;
-			});
+			// Never while a confirmation holds the instance: its preview and its send go to one connection (7.2).
+			// A discovery is a call of its own to the hold: one claimed while it runs waits for it (the re-check's B1).
+			running ??= held
+				.enter(undefined, AbortSignal.timeout(DISCOVERY_DEADLINE_MS))
+				.then(
+					async (leave) => {
+						try {
+							return await discover();
+						} finally {
+							leave();
+						}
+					},
+					() =>
+						kernelFailure(
+							'MOUNT_TIMEOUT',
+							"The instance is held for a person's approval, so it is not discovered again now",
+							'Refresh it again once the confirmation in the inbox has ended.',
+							{ retryable: true }
+						)
+				)
+				.finally(() => {
+					running = undefined;
+				});
 			return running;
 		},
 		applyCatalog(catalog) {
