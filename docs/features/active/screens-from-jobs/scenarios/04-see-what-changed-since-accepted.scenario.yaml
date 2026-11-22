@@ -2,14 +2,14 @@
 # proposals, and the data is invented. The first step runs in a checkout of `main` and the
 # second in the branch, where the notice's block padding grew from 8 to 12 pixels. Comparing
 # them is Design Decisions' `specimen-review`
-# (../../design-decisions/design-decisions.proposal.md, section 5.5).
+# (../../../proposed/design-decisions/design-decisions.proposal.md, section 6.5).
 
 name: See what changed at a step since it was accepted
 description: >-
   When I change the app, I want each job step's screen compared with the one on main, before and
   after, so that I see what my change did to every state a job passes through.
 job: see-what-changed-since-accepted
-tags: [slice]
+tags: [slice-2]
 
 steps:
   - description: The job runs on main, labelled main
@@ -43,7 +43,7 @@ steps:
       data:
         open: { length: 1 }
         open.0.kind: changed
-        open.0.captures.0.key: keep-a-draft/4
+        open.0.captures.0.key: example-keep-a-draft/4
         open.0.captures.0.before: { exists: true }
         open.0.captures.0.after: { exists: true }
         open.0.cause.property: padding-block

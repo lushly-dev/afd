@@ -9,7 +9,7 @@ description: >-
   When a step fails, or any step before it failed, I want no capture taken or checked as if the
   state were sound, and the reason given, so that a broken state is never reviewed as a screen.
 job: refuse-a-capture-from-the-wrong-state
-tags: [slice, refuse]
+tags: [slice-1, refuse]
 
 steps:
   - description: The job fails at step 2, and the later capture points are not taken

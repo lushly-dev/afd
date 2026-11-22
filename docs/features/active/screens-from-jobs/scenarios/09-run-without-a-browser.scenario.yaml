@@ -8,7 +8,7 @@ description: >-
   When no browser is available, I want the job's scenario to run as it does today and only the
   captures refused, so that capture is something added, never required.
 job: run-without-a-browser
-tags: [refuse]
+tags: [slice-1, refuse]
 
 steps:
   - description: The scenario runs headless, unchanged
