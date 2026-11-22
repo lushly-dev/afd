@@ -438,6 +438,7 @@ export interface ManifestV2 {
 				command?: string;
 				element?: string;
 				title?: string;
+				requires_experiment?: string;
 			};
 			header?: {
 				title?: string;
@@ -476,6 +477,7 @@ export interface ManifestV2 {
 								label: string;
 							}
 					  ];
+				requires_experiment?: string;
 			};
 			main?: {
 				element?: string;
@@ -485,6 +487,7 @@ export interface ManifestV2 {
 			inspector?: {
 				element: string;
 				title?: string;
+				requires_experiment?: string;
 			};
 			panel?: {
 				/**
@@ -502,6 +505,7 @@ export interface ManifestV2 {
 						element: string;
 					}[]
 				];
+				requires_experiment?: string;
 			};
 			status?: {
 				/**
@@ -577,6 +581,7 @@ export interface ManifestV2 {
 								priority?: number;
 							}
 					  ];
+				requires_experiment?: string;
 			};
 			keybindings?: {
 				chord: string;
@@ -736,6 +741,14 @@ export interface ManifestV2 {
 				};
 				additionalProperties: false;
 			};
+			requires_experiment?: string;
+		}[];
+		experiments?: {
+			id: string;
+			title: string;
+			changes: string;
+			ends: string;
+			stage: 'hidden' | 'visible' | 'graduated' | 'removed';
 		}[];
 	};
 	native?: {
@@ -752,6 +765,7 @@ export interface ManifestV2 {
 		resource_keys?: {
 			[k: string]: string;
 		};
+		requires_experiment?: string;
 	};
 }
 

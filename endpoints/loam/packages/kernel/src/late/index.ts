@@ -45,10 +45,12 @@ import {
 	sessionChanged,
 } from './auth-gate.js';
 import { DOCUMENT_KIT } from './document-kit.js';
-import { createDocumentCheck } from './document-types.js';
+import { createDocumentCheck, DOCUMENT_TABLE } from './document-types.js';
 import type { EditorParts } from './editor-commands.js';
 import type { EditorDraftsV1 } from './editor-state.js';
 import { emptyMeets } from './empty-meets.js';
+import { experimentHost, sha256 } from './experiment-host.js';
+import type { Experiments } from './experiments.js';
 import { createDocumentIndex, createLinkCommands, expireLinks } from './links.js';
 import { archivedRefusal, canOpen, setMain, writeThrough } from './main-state.js';
 import { createNewParts } from './new-list.js';
@@ -155,6 +157,8 @@ export type LateCommandDeps = ShellCommandDeps &
 		 * once (step 7's fifth round, 1).
 		 */
 		disposed?(): boolean;
+		/** An app's experiment gate opened or closed: the kernel registers the apps' commands again (phase 4's 5.3). */
+		regate?(): void;
 		/**
 		 * The server's kernel (phase 3 specification, 9.5): its chain opens with `principalGate`, so nothing here reads the
 		 * adapter's session; `session-settle`, `membership-settle` and `agent-member-settle` are not registered, the
@@ -341,6 +345,10 @@ export interface LateParts {
 	settle(run: (name: string, input: unknown) => Promise<{ success: boolean }>): Promise<void>;
 	/** The instances whose commands the palette and `listCommands` leave out: not available here (11.2). */
 	hidden(apps: readonly AppSummaryV2[]): ReadonlySet<string>;
+	/** Whether an experiment is on for the person the shell is for, as last read (phase 4 specification, 5.3). */
+	experimentOpen(experiment: string): boolean;
+	/** Whether an instance's app gate holds it out, its commands unregistered (5.3, R14). */
+	appGated(instance: string): boolean;
 	/**
 	 * After stage A has hydrated and stage B's commands are in (phase 4 specification, 3.6): an old `loam.appearance`
 	 * record moved into the person's `loam.settings`, journaled as `setting-set` with `migrated: true` through `run`,
@@ -387,6 +395,7 @@ export async function createLateParts(
 			createSettings,
 			createNotifications,
 			createAutonomy,
+			createExperiments,
 			createConfirmations,
 			bucketOf,
 			createKeybindingCommands,
@@ -437,11 +446,7 @@ export async function createLateParts(
 		// A write whose own handler refuses every agent with its hand-off reaches that handler (phase 4's 3.2, F2).
 		handlerRefuses: (name, input) => settings?.refusesAgent(name, input) === true,
 		internal: (name) => INTERNAL_COMMANDS.includes(name),
-		digest: async (value) => {
-			const bytes = new TextEncoder().encode(canonical(value));
-			const hash = new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', bytes));
-			return `sha256:${Array.from(hash, (byte) => byte.toString(16).padStart(2, '0')).join('')}`;
-		},
+		digest: (value) => sha256(canonical(value)),
 		now: () => deps.clock?.now() ?? Date.now(),
 		person: () => personOf({ actor: sessionActor(deps.auth, deps.clock) }),
 	});
@@ -452,6 +457,8 @@ export async function createLateParts(
 	let sessions: SessionSettle | undefined;
 	/** Phase 4's settings (its section 3), built below once the workspace row's store is. */
 	let settings: Settings | undefined;
+	/** Phase 4's experiments (its section 5), built below with the inbox and the confirmations they tell and withdraw. */
+	let experiments: Experiments | undefined;
 	/** The person the shell is for: the last settle's once there is one, the adapter's until then (4.4, B2). */
 	const shellPerson = (): string | undefined => {
 		// The server's kernel is for no one person and reads no adapter (9.5).
@@ -552,6 +559,15 @@ export async function createLateParts(
 			await editor?.settle(name, call);
 			// The person's settings, and so the appearance the shell paints, follow a change of person (phase 4's 3.6).
 			await settings?.follow();
+			// The gates follow the person too, and an unload waiting on a dirty tab completes once it is saved (5.3, R14).
+			const person = shellPerson();
+			if (experiments && (person !== gatesPerson || experiments.waiting())) {
+				const changed = person !== gatesPerson;
+				gatesPerson = person;
+				await experiments.refresh(call);
+				// The new person's enablements of removed experiments are settled after the call's entry (5.1).
+				if (changed) sessions?.follow(() => settleExperiments());
+			}
 			const seen = deps.scope.seen.get(call.traceId as string);
 			if (/^(editor-|document-)/.test(name) || seen?.mainChanged || seen?.scopeChanged)
 				await declare();
@@ -559,6 +575,8 @@ export async function createLateParts(
 	});
 	// The editor area's dirty tabs and selections, made here so a change of person can move them (4.5).
 	const drafts: EditorDraftsV1 = { dirty: new Map(), selections: new Map() };
+	/** The person the gates were last read for (phase 4's 5.3). */
+	let gatesPerson: string | undefined;
 	const editorParts = createEditorParts(
 		{
 			...deps,
@@ -678,6 +696,7 @@ export async function createLateParts(
 		paletteIndex: createPaletteIndex,
 		...(deps.limits ? { limits: deps.limits } : {}),
 		...(deps.keybindings ? { keybindings: deps.keybindings } : {}),
+		experimentOpen: (experiment) => experiments?.open(experiment) === true,
 		kit: { ...DOCUMENT_KIT, archivedRefusal, personKey },
 	});
 	// Made after a disposal, it reads nothing (the fifth round's 1).
@@ -959,13 +978,42 @@ export async function createLateParts(
 		},
 		releaseQueue: (context) =>
 			(context as unknown as Record<symbol, QueuedTicket | undefined>)[deps.queued]?.release?.(),
-		digest: async (value) => {
-			const bytes = new TextEncoder().encode(canonical(value));
-			const hash = new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', bytes));
-			return `sha256:${Array.from(hash, (byte) => byte.toString(16).padStart(2, '0')).join('')}`;
-		},
+		digest: (value) => sha256(canonical(value)),
 		kit: { ...DOCUMENT_KIT, archivedRefusal, personKey },
 	});
+	// Phase 4's experiments (its section 5), in `late-settings` beside the settings: gates decide presence, never access.
+	experiments = createExperiments({
+		store: deps.store,
+		scope: deps.scope,
+		apps: deps.apps,
+		provider,
+		hosted,
+		isOwner: (person) => isOwner(deps.scope.membership, person),
+		person: () => shellPerson() ?? (provider ? undefined : 'local'),
+		ownSection: (person, section) => (settings as Settings).ownSection(person, section),
+		writeOwn: (section, key, entry, context) =>
+			(settings as Settings).writeOwn(section, key, entry, context),
+		digest: sha256,
+		notice: (context, person, fields) =>
+			notifications.shellNotice(context, person, fields).then(() => undefined),
+		...experimentHost({
+			...deps,
+			drafts,
+			documentTable: DOCUMENT_TABLE,
+			typeOwner: (type) => documents.types().types.get(type)?.instance,
+			person: () => shellPerson() ?? (provider ? undefined : 'local'),
+			now: () => deps.clock?.now() ?? Date.now(),
+			confirmations,
+		}),
+		regate: () => deps.regate?.(),
+		kit: { ...DOCUMENT_KIT, personKey },
+	});
+	/** The removed experiments' enablements, deleted by boot's journaled settle, and changed ones told; never in a replay. */
+	const settleExperiments = async (): Promise<void> => {
+		if (deps.internals?.replaying === true || !experiments) return;
+		const changed = await experiments.settleChanges();
+		if (changed) await deps.runBoot('experiment-settle', changed);
+	};
 	const byName: Map<string, ZodCommandDefinition> = new Map(
 		[
 			...boot,
@@ -1036,6 +1084,8 @@ export async function createLateParts(
 			...notifications.commands,
 			...autonomy.commands,
 			autonomy.settleCommand,
+			...experiments.commands,
+			experiments.settleCommand,
 			...confirmations.commands,
 			confirmations.settle,
 			...limitCommands.commands,
@@ -1301,6 +1351,8 @@ export async function createLateParts(
 			contextFields: MCP_CONTEXT_FIELDS,
 		}),
 		hidden: (apps) => new Set(apps.filter((app) => !app.available).map((app) => app.instance)),
+		experimentOpen: (experiment) => experiments?.open(experiment) === true,
+		appGated: (instance) => experiments?.gated(instance) === true,
 		async migrate(run) {
 			try {
 				await (settings as Settings).migrate(run);
@@ -1344,6 +1396,25 @@ export async function createLateParts(
 				const changed = replaying ? undefined : await autonomy.orphanChanges();
 				if (changed && (changed.orphaned.length > 0 || changed.restored.length > 0))
 					await run('autonomy-settle', changed);
+			} catch (cause) {
+				reportLate(cause);
+			}
+			// Then the enablements of experiments now removed or no longer declared, deleted before any enable can run, and
+			// changed ones told: journaled, and only when there is some (phase 4 specification, 5.1, I6).
+			try {
+				const changed = replaying ? undefined : await experiments?.settleChanges();
+				if (changed) await run('experiment-settle', changed);
+			} catch (cause) {
+				reportLate(cause);
+			}
+			// The gates, read for the person the shell is for before the apps' commands are registered (5.3): a replay reads
+			// the same store and manifests, so decides the same, and a failed read holds every gated app out. Then a held-out
+			// app's pending confirmations end `withdrawn`, as an unload's do (R14).
+			try {
+				gatesPerson = shellPerson();
+				await experiments?.refresh();
+				const held = replaying ? undefined : await experiments?.settleChanges();
+				if (held) await run('experiment-settle', held);
 			} catch (cause) {
 				reportLate(cause);
 			}

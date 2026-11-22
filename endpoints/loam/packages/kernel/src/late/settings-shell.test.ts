@@ -387,7 +387,6 @@ describe("section-open { section: 'settings', target } (3.5, 3.10)", () => {
 		for (const [target, code] of [
 			['greet.general.colour', 'SETTING_NOT_FOUND'],
 			['nowhere', 'SETTING_NOT_FOUND'],
-			['loam.experiments', 'SETTING_USE_AUTONOMY'],
 			['loam.autonomy.mode', 'SETTING_NOT_FOUND'],
 		] as const) {
 			const refused = await kernel.call('section-open', { section: 'settings', target });
@@ -407,6 +406,8 @@ describe("section-open { section: 'settings', target } (3.5, 3.10)", () => {
 		for (const [target, path] of [
 			['loam.autonomy', 'loam.autonomy'],
 			['loam.autonomy.cap', 'loam.autonomy/cap'],
+			// Step 9: the experiments list, which only `experiment-*` writes, at the route its hand-off names.
+			['loam.experiments', 'loam.experiments'],
 		] as const) {
 			const opened = await kernel.call('section-open', { section: 'settings', target });
 			expect(opened.success, target).toBe(true);

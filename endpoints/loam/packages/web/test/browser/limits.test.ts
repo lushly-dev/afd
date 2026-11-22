@@ -91,6 +91,7 @@ describe('P4-E10: the limits', () => {
 			'Rail',
 			'Keybindings',
 			'Autonomy',
+			'Experiments',
 			'Notifications',
 			'Limits',
 			'Documents',

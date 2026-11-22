@@ -39,7 +39,8 @@ const PHASE_5 = fileURLToPath(
  * three settings jobs run; step 5 the inbox and hello's guest book, so its two jobs run; step 8 autonomy, with the
  * second app's reset command, so the three autonomy jobs run; step 6 confirmations, with the reset command's
  * `confirm_prompt`, and the palette's input prompt, so their two jobs run; step 10 the limits, with step 5 merged, so
- * `limit-refuses-call` runs; step 7 the keybindings, so `rebind-a-chord` runs. The rest need a later step's commands.
+ * `limit-refuses-call` runs; step 7 the keybindings, so `rebind-a-chord` runs; step 9 the experiments, with hello's
+ * `hello.inspector-v2`, so both experiment jobs run. Every phase 4 file runs.
  */
 const RUNS_4: Readonly<Record<string, string>> = Object.freeze({
 	'setting-per-project': 'now',
@@ -48,8 +49,8 @@ const RUNS_4: Readonly<Record<string, string>> = Object.freeze({
 	'autonomy-per-command': 'now',
 	'know-my-mode': 'now',
 	'owner-ceiling': 'now',
-	'opt-into-experiment': "step 9: experiments and hello's `hello.inspector-v2`",
-	'workspace-experiment-opt-out': 'step 9: experiments',
+	'opt-into-experiment': 'now',
+	'workspace-experiment-opt-out': 'now',
 	'decline-confirmation': 'now',
 	'palette-prompts-for-input': 'now',
 	'inbox-action': 'now',

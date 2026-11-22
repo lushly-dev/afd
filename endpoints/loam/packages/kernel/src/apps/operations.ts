@@ -105,7 +105,40 @@ function statusOf(record: AppRecord, project: string | undefined): Record<string
 	);
 }
 
-function summaryOf(record: AppRecord): AppSummaryV2 & { state: AppStateV1 } {
+/** Its state, `gated` while its app's experiment holds a ready app out (phase 4 specification, 5.3). */
+const stateOf = (record: AppRecord, host: Pick<AppsHost, 'gate'>): AppStateV1 =>
+	record.state === 'ready' && host.gate?.gated(record.instance) === true ? 'gated' : record.state;
+
+/**
+ * Each gate of the app and its surfaces, open or not for the person (5.3, A-P1-2); a settings section's gate is
+ * `setting-schema-get`'s, which leaves a closed section out.
+ */
+function gatesOf(
+	record: AppRecord,
+	host: Pick<AppsHost, 'gate'>
+): Record<string, { experiment: string; open: boolean }> {
+	const gates: Record<string, { experiment: string; open: boolean }> = {};
+	const named = (value: unknown): value is string => typeof value === 'string';
+	const app = (record.manifest?.app as { requires_experiment?: unknown } | undefined)
+		?.requires_experiment;
+	if (named(app)) gates.app = { experiment: app, open: host.gate?.open(app) === true };
+	const surfaces = (record.manifest?.ui?.surfaces ?? {}) as Record<
+		string,
+		{ requires_experiment?: unknown } | undefined
+	>;
+	for (const [surface, declared] of Object.entries(surfaces)) {
+		const experiment = (declared as { requires_experiment?: unknown } | undefined)
+			?.requires_experiment;
+		if (named(experiment))
+			gates[surface] = { experiment, open: host.gate?.open(experiment) === true };
+	}
+	return gates;
+}
+
+function summaryOf(
+	record: AppRecord,
+	host: Pick<AppsHost, 'gate'>
+): AppSummaryV2 & { state: AppStateV1 } {
 	return {
 		instance: record.instance,
 		app: record.app,
@@ -113,7 +146,7 @@ function summaryOf(record: AppRecord): AppSummaryV2 & { state: AppStateV1 } {
 		kind: record.kind,
 		icon: record.icon,
 		order: record.order,
-		state: record.state,
+		state: stateOf(record, host),
 		...(record.error !== undefined ? { error: record.error } : {}),
 		scopeLevels: [...record.scopeLevels],
 		rail: record.rail,
@@ -255,13 +288,17 @@ export function createOperations(
 		summaries: () =>
 			[...records.values()]
 				.sort((a, b) => a.order - b.order || (a.instance < b.instance ? -1 : 1))
-				.map(summaryOf),
+				.map((record) => summaryOf(record, host)),
 		detail(instance, project) {
 			const record = records.get(instance);
 			if (!record) return unknownApp(instance);
+			const gates = gatesOf(record, host);
 			return success({
-				...summaryOf(record),
+				...summaryOf(record, host),
 				...record.detail,
+				// A closed surface is not created (5.3): the chrome makes only what `surfaces` names.
+				surfaces: record.detail.surfaces.filter((surface) => gates[surface]?.open !== false),
+				gates,
 				warnings: [...record.warnings],
 				notices: [...record.notices],
 				statusItems: statusOf(record, project),

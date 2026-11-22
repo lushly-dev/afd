@@ -75,6 +75,7 @@ describe('P4-E4: the autonomy section', () => {
 			'Rail',
 			'Keybindings',
 			'Autonomy',
+			'Experiments',
 			'Notifications',
 			'Limits',
 			'Documents',

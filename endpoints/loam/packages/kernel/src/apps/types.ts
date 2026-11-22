@@ -59,6 +59,12 @@ export interface AppsHost {
 	 * chunk imports nothing of first paint (phase 3 specification, 13). Absent, only the same keys collide.
 	 */
 	keysCollide?(a: string, b: string): boolean;
+	/**
+	 * The experiments' gates (phase 4 specification, 5.3), from the `late-settings` chunk once it has loaded: whether an
+	 * experiment is on for the person the shell is for, and whether an instance's app gate holds it out now. Absent, or
+	 * before the chunk answers, every gate is closed and no app is held out, as nothing gated can be on yet.
+	 */
+	gate?: { open(experiment: string): boolean; gated(instance: string): boolean };
 	/** The `store` grant's quota, one per runtime, which `loadApps` makes (section 11). */
 	storeQuota?: StoreQuota;
 	/**

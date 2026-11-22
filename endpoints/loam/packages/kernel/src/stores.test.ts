@@ -91,6 +91,13 @@ function exempted(name: string, schema: unknown): unknown {
 		for (const branch of copy.properties?.link?.anyOf ?? []) delete branch.properties?.route;
 		return copy;
 	}
+	// Phase 4's experiments are turned on for the person or the workspace by `audience` (its 5.4): who an enablement is
+	// for, never a mounted instance's `audience`, which only a deployment entry holds (step 9).
+	if (name === 'experiment-enable' || name === 'experiment-disable') {
+		const copy = structuredClone(schema) as { properties?: Record<string, unknown> };
+		delete copy.properties?.audience;
+		return copy;
+	}
 	// Phase 4's `keybinding-list` filters the list by a binding's `command` (its 8.5): a name it reads, written nowhere.
 	if (name === 'keybinding-list') {
 		const copy = structuredClone(schema) as { properties?: { command?: unknown } };

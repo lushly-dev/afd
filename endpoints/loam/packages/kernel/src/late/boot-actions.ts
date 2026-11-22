@@ -58,6 +58,7 @@ export function withBootActions(
 				warnings: [],
 				notices: [],
 				statusItems: {},
+				gates: {},
 			});
 		},
 		open(instance) {

@@ -182,6 +182,12 @@ export interface Confirmations {
 	 * End as `withdrawn` every pending confirmation `match` selects, of the person the call is for or of `person`: an
 	 * unload of an app (R14, step 9's seam) or a change of person. Never opens the decline window.
 	 */
+	/** Whether `person` has a pending confirmation `match` selects (step 9's R14 at boot). */
+	pending(
+		person: string,
+		match: (row: StoredConfirmation) => boolean,
+		now: number
+	): Promise<boolean>;
 	withdraw(
 		context: CommandContext,
 		match: (row: StoredConfirmation) => boolean,
@@ -1399,6 +1405,12 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 			recordedRuns.set(confirmation, outcomeOf(result));
 		},
 		chain: serial,
+		async pending(person, match, now) {
+			return (await rowsOf(person)).some(
+				(row) =>
+					stateNow(row.confirmation, now) === 'pending' && row.claim === undefined && match(row)
+			);
+		},
 		async withdraw(context, match, person) {
 			const whose = person ?? personOf(context);
 			if (whose === undefined) return 0;

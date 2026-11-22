@@ -61,6 +61,8 @@ export interface SettingSectionV1 {
 	/** At least one. */
 	levels: SettingLevelV1[];
 	schema: SettingSchemaV1;
+	/** The experiment, by full id, the section is present for alone (5.3). */
+	requires_experiment?: string;
 }
 
 /** At most this many sections per app (`MANIFEST_SETTINGS_LIMIT`). */

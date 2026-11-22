@@ -190,6 +190,7 @@ describe('P4-E1: the settings section by keyboard, and under axe (15)', () => {
 			'Rail',
 			'Keybindings',
 			'Autonomy',
+			'Experiments',
 			'Notifications',
 			'Limits',
 			'Documents',

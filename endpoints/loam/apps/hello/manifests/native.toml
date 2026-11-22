@@ -93,9 +93,11 @@ actions = [{ command = "hello-greet", label = "Greet the default name" }]
 [ui.surfaces.main]
 element = "hello-main"
 
+# Phase 4's experiments (its 5.3): the inspector is present only while `hello.inspector-v2` is on for the person.
 [ui.surfaces.inspector]
 element = "hello-inspector"
 title = "Greeting"
+requires_experiment = "hello.inspector-v2"
 
 [ui.surfaces.status]
 items = [{ id = "count", label = "Greetings" }]
@@ -148,3 +150,11 @@ title = "Guest board"
 description = "The name of this project's guest board."
 maxLength = 60
 default = "Guests"
+
+# Phase 4's experiments (its 5.1): the inspector beside a greeting, off until a person or an owner turns it on.
+[[ui.experiments]]
+id = "inspector-v2"
+title = "Greeting inspector"
+changes = "Shows an inspector beside Hello's greetings, with the greeting you select. It may change or go away before it ends."
+ends = "2027-03-01"
+stage = "visible"

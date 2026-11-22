@@ -800,8 +800,18 @@ export async function createKernelParts(
 			...(clock ? { clock } : {}),
 			...(random ? { random } : {}),
 		});
+	/** The apps' commands last given, gated or not, so a change of gate registers them again (phase 4's 5.3). */
+	let appCommandsGiven: readonly ZodCommandDefinition[] = [];
 	function setAppCommands(appCommands: readonly ZodCommandDefinition[]): void {
-		const commands = [...fixed, ...appCommands];
+		appCommandsGiven = appCommands;
+		// A gated app's commands are not registered (phase 4 specification, 5.3): presence, never permission.
+		const commands = [
+			...fixed,
+			...appCommands.filter((command) => {
+				const instance = apps.owners.get(command.name)?.instance;
+				return instance === undefined || lateParts?.appGated(instance) !== true;
+			}),
+		];
 		mutations = new Map(
 			[...commands, ...bootOnly].map((command) => [command.name, command.mutation === true])
 		);
@@ -876,6 +886,8 @@ export async function createKernelParts(
 				noteReturned: (trace) => tracker.noteReturned(trace),
 				commandNames: () => [...(mutations?.keys() ?? [])],
 				disposed: () => disposed,
+				// An app's gate opened or closed: its commands registered again, or not (phase 4's 5.3).
+				regate: () => setAppCommands(appCommandsGiven),
 				// The server's kernel (9.5): no session logic, and the kernel's own calls marked under `KERNEL_OWN`.
 				gated,
 				own: KERNEL_OWN,
@@ -1016,6 +1028,11 @@ export async function createKernelParts(
 				scope,
 				limits,
 				keysCollide: (a, b) => keybindings.collide(a, b),
+				// The experiments' gates (phase 4's 5.3), which `late-settings` reads for the person the shell is for.
+				gate: {
+					open: (experiment) => lateParts?.experimentOpen(experiment) === true,
+					gated: (instance) => lateParts?.appGated(instance) === true,
+				},
 			});
 			keybindings.setApps(apps.keybindings);
 		} catch (cause) {

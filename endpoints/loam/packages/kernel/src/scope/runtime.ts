@@ -54,6 +54,8 @@ export interface ScopeSeen {
 	settings?: string[];
 	/** A confirmation in the inbox was raised, answered or ended by this call, a failed one too (phase 4's 7.2). */
 	inbox?: true;
+	/** An experiment's state for the person changed, so the shell renders its gates again (phase 4's 5.3). */
+	experiments?: true;
 }
 
 export interface ScopeRuntime {

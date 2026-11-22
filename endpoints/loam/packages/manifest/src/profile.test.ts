@@ -131,6 +131,8 @@ describe("Loam's profile", () => {
 			'ui-settings',
 			// Phase 4's step 6: a command's `confirm_prompt` (its 7.2).
 			'confirm-prompt',
+			// Phase 4's step 9: experiments (its 5.1).
+			'ui-experiments',
 		]) {
 			// Under version 1, the version is what the author is told; under 2, that no step serves it yet,
 			// until its step serves it: `app.resource_keys` is step 4's, `tree` step 6's,
@@ -156,6 +158,14 @@ describe("Loam's profile", () => {
 			'/ui/new',
 			// Phase 4's step 1: `ui.settings` is a key of version 2 (its 12.1).
 			'/ui/settings',
+			// Phase 4's step 9: experiments and their gates (its 5.1, 5.3).
+			'/ui/experiments',
+			'/app/requires_experiment',
+			'/ui/surfaces/sidebar/requires_experiment',
+			'/ui/surfaces/header/requires_experiment',
+			'/ui/surfaces/inspector/requires_experiment',
+			'/ui/surfaces/panel/requires_experiment',
+			'/ui/surfaces/status/requires_experiment',
 		];
 		const errorsOf = (errors: readonly ValidatorError[] | null | undefined): string[] =>
 			(errors ?? [])

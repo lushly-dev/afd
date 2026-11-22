@@ -20,7 +20,8 @@ export function bandFor(
 	entry: Pick<AppSummaryV2, 'scopeLevels' | 'available' | 'rail' | 'state'>,
 	project: string | undefined
 ): RailPlacement | null {
-	if (!entry.rail || entry.state === 'disabled') return null;
+	// A gated app is not present while its experiment is off (phase 4 specification, 5.3).
+	if (!entry.rail || entry.state === 'disabled' || entry.state === 'gated') return null;
 	if (!entry.scopeLevels.includes('project')) return { band: 'bottom', dimmed: false };
 	// D29, open with the owner: a dual-scope app with no project is in the bottom band. A different answer
 	// changes this row alone, and E3's expectation.

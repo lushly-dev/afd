@@ -159,6 +159,13 @@ export function canOpen(
 	if (!app) return unknownApp(instance);
 	const off = disabledRefusal(scope, instance);
 	if (off) return off;
+	// An app its experiment holds out is not present (phase 4 specification, 5.3): it opens nowhere.
+	if (app.state === 'gated')
+		return kernelFailure(
+			'APP_NOT_READY',
+			`The app '${instance}' is held out by its experiment, which is off for you`,
+			'Turn its experiment on in Settings, Experiments, or with experiment-enable'
+		);
 	if (scope.opensIn(instance, app.scopeLevels, project)) return undefined;
 	return kernelFailure(
 		'SCOPE_PROJECT_REQUIRED',

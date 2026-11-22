@@ -30,6 +30,8 @@ export function appCallable(
 		// Step 6's confirmations (7.2, 12): the ones this app raised, read and withdrawn.
 		'confirmation-get',
 		'confirmation-withdraw',
+		// Step 9's experiments (5.4, 12): whether one of the app's own is on for the person, `EXPERIMENT_NOT_OWNED` past them.
+		'experiment-check',
 		...(grants.has('projects') ? ['project-list', 'project-get'] : []),
 		// Kernel interface 4's (phase 4 specification, 3.8 and 12): the app's own sections, `SETTING_NOT_OWNED` past them.
 		...(grants.has('settings') ? ['setting-get', 'setting-list'] : []),

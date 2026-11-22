@@ -180,6 +180,9 @@ export type LoamKernelErrorCode =
 	// Step 8's: autonomy (4.3).
 	| 'AUTONOMY_ABOVE_CEILING'
 	| 'AUTONOMY_COMMAND_UNKNOWN'
+	// Phase 4's step 9 (its 5.4, 16): experiments.
+	| 'EXPERIMENT_NOT_FOUND'
+	| 'EXPERIMENT_NOT_OWNED'
 	// Step 10's: the limits (section 11).
 	| 'INPUT_TOO_LARGE'
 	| 'QUOTA_EXCEEDED'

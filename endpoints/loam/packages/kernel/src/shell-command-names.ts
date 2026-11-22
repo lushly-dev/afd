@@ -135,6 +135,11 @@ export const SHELL_COMMAND_NAMES = [
 	'autonomy-get',
 	'autonomy-list',
 	'autonomy-set',
+	// Phase 4's step 9 (its 5.4): experiments.
+	'experiment-list',
+	'experiment-check',
+	'experiment-enable',
+	'experiment-disable',
 	// Phase 4's step 6 (its 7.1, 7.2): the palette's input prompt, and a confirmation's caller reading or withdrawing it.
 	'palette-run',
 	'confirmation-get',

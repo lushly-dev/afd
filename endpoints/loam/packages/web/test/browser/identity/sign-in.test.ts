@@ -145,6 +145,8 @@ describe('P3-E1: a person signs in with a passkey, through a test-only auth host
 			'app-settle',
 			'document-trash-expire',
 			'session-settle',
+			// Amended by phase 4's step 9 (P4-E14): boot keeps each plugin's declared experiments (its 5.1).
+			'experiment-settle',
 		];
 		for (const entry of entries.filter((held) => !own.includes(held.command))) {
 			expect(SIGNED_OUT, entry.command).toContain(entry.command);
