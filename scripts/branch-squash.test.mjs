@@ -8,6 +8,10 @@ import {
 	branchSquash,
 	cleanMessage,
 	foldedMessage,
+	numberedMessage,
+	openPullRequest,
+	parseArguments,
+	pullRequestFor,
 	SquashStop,
 	splitTrailers,
 } from './branch-squash.mjs';
@@ -32,13 +36,18 @@ const as = ({ name, email }) => ({
 function setup(t) {
 	const top = mkdtempSync(join(tmpdir(), 'afd-branch-squash-'));
 	t.after(() => rmSync(top, { recursive: true, force: true }));
+	// No setting of this machine's reaches the fixture: one that signs commits, or rewrites
+	// line ends, would fail it or change what it holds.
+	const settings = join(top, 'gitconfig');
+	writeFileSync(settings, '');
+	const sealed = { GIT_CONFIG_GLOBAL: settings, GIT_CONFIG_NOSYSTEM: '1' };
 	const runner =
 		(cwd) =>
 		(args, options = {}) =>
 			execFileSync('git', args, {
 				cwd,
 				encoding: 'utf8',
-				env: { ...env, ...as(owner), ...options.env },
+				env: { ...env, ...sealed, ...as(owner), ...options.env },
 				stdio: ['ignore', 'pipe', 'pipe'],
 			});
 	const commitIn = (root, git) => (changes, message, who) => {
@@ -147,6 +156,212 @@ describe('splitTrailers and foldedMessage', () => {
 	});
 });
 
+describe("the pull request's number in the subject", () => {
+	it('ends the subject with it, once, and leaves the rest of the message alone', () => {
+		const message = 'feat: add b\n\nWhy b (#12).\n\nAssisted-by: Claude Code\n';
+		const numbered = 'feat: add b (#7)\n\nWhy b (#12).\n\nAssisted-by: Claude Code\n';
+		assert.equal(numberedMessage(message, 7), numbered);
+		assert.equal(numberedMessage(numbered, 7), numbered, 'already there');
+		assert.equal(numberedMessage('feat: add b  \n', 7), 'feat: add b (#7)\n');
+		// another number there is the author's own: this one goes last, where it is read
+		assert.equal(numberedMessage('fix: mend b (#12)\n', 7), 'fix: mend b (#12) (#7)\n');
+		assert.equal(numberedMessage('fix: mend b (#70)\n', 7), 'fix: mend b (#70) (#7)\n');
+		assert.equal(numberedMessage('fix: mend b(#7)\n', 7), 'fix: mend b(#7)\n', 'there, unspaced');
+	});
+
+	it("keeps the number the subject's last word where a line follows the first", (t) => {
+		// Git's subject is the whole first paragraph: a line right under the first would follow
+		// the number in it, and what that line ends with would be read as the pull request.
+		const s = setup(t);
+		s.commit({ 'b.txt': 'b\n' }, 'fix: keep the fold\nwhy this matters (#7)\n\nMore.');
+		s.squash({ pullRequest: () => 42 });
+		assert.equal(show(s.git, '%s'), 'fix: keep the fold (#42)');
+		assert.equal(show(s.git, '%B'), 'fix: keep the fold (#42)\n\nwhy this matters (#7)\n\nMore.');
+		const numbered = show(s.git, '%H');
+		s.squash({ pullRequest: () => 42 });
+		assert.equal(show(s.git, '%H'), numbered, 'and it is then left alone');
+
+		// a first line that has its number already, and a line under it, is parted too
+		assert.equal(numberedMessage('fix: a (#42)\nmore (#7)\n', 42), 'fix: a (#42)\n\nmore (#7)\n');
+	});
+
+	it('folds it in, with --message too, and says so', (t) => {
+		const s = setup(t);
+		s.commit({ 'b.txt': 'b\n' }, 'feat: add b\n\nWhy b.');
+		s.commit({ 'b.txt': 'b2\n' }, 'fix: tidy b');
+		const lines = s.squash({ pullRequest: (branch) => (branch === 'feat' ? 42 : null) });
+		assert.equal(show(s.git, '%B'), 'feat: add b (#42)\n\nWhy b.\n\n- fix: tidy b');
+		assert.match(
+			lines.join('\n'),
+			/Its subject now ends with the pull request's number, \(#42\)\./
+		);
+
+		const file = join(s.root, '..', 'message.txt');
+		writeFileSync(file, 'feat: add b, said better\n\nWhy.\n');
+		s.squash({ messageFile: file, pullRequest: () => 42 });
+		assert.equal(show(s.git, '%B'), 'feat: add b, said better (#42)\n\nWhy.');
+	});
+
+	it('gives a branch that is already one commit its number, and then leaves it alone', (t) => {
+		const s = setup(t);
+		s.commit({ 'b.txt': 'b\n' }, 'feat: add b\n\nWhy b.');
+		const before = currentIdentity(s.git);
+		const path = recordPath(s.git, s.root);
+		writeRecord(path, {
+			schema: 1,
+			head: before.head,
+			tree: before.tree,
+			base: before.base,
+			scope: 'affected',
+			results: [{ name: 'check (ci.yml)', ok: true }],
+			finishedAt: new Date().toISOString(),
+		});
+		// no pull request yet: one commit on origin/main is left as it is, and the fold says why
+		// it has no number
+		const unopened = s.squash();
+		assert.match(unopened[0], /^Already one commit on origin\/main/);
+		assert.match(
+			unopened[1],
+			/^No pull request is open from feat to main: the subject gets no number/
+		);
+		assert.equal(show(s.git, '%H'), before.head);
+
+		const lines = s.squash({ pullRequest: () => 42 }).join('\n');
+		assert.match(lines, /Folded 1 commit\(s\)/);
+		assert.match(lines, /record of the old head now covers the folded commit/);
+		assert.equal(show(s.git, '%B'), 'feat: add b (#42)\n\nWhy b.');
+		assert.equal(show(s.git, '%T'), before.tree, 'only the message changed');
+		const numbered = show(s.git, '%H');
+		assert.match(s.squash({ pullRequest: () => 42 })[0], /^Already one commit on origin\/main/);
+		assert.equal(show(s.git, '%H'), numbered, 'a subject that has its number is not folded again');
+	});
+
+	it('folds without a number, and says so, when GitHub cannot be asked', (t) => {
+		const s = setup(t);
+		s.commit({ 'b.txt': 'b\n' }, 'feat: add b');
+		s.commit({ 'b.txt': 'b2\n' }, 'fix: tidy b');
+		const offline = () => {
+			throw new Error('gh is not installed');
+		};
+		const lines = s.squash({ pullRequest: offline }).join('\n');
+		assert.match(
+			lines,
+			/GitHub could not be asked for this branch's pull request \(gh is not installed\)/
+		);
+		assert.match(lines, /Fold again once it can be asked, or pass --pr <number>\./);
+		assert.equal(show(s.git, '%s'), 'feat: add b');
+		// and for one commit, which is left as it is, the same is said
+		assert.match(s.squash({ pullRequest: offline }).join('\n'), /GitHub could not be asked/);
+	});
+
+	it('says what made the subject longer when commitlint then refuses it', (t) => {
+		const s = setup(t);
+		s.commit({ 'b.txt': 'b\n' }, 'feat: add b');
+		s.commit({ 'b.txt': 'b2\n' }, 'fix: tidy b');
+		const lint = () => {
+			throw Object.assign(new Error('commitlint failed'), {
+				status: 1,
+				stdout: '✖ subject must not be longer than 72 characters\n',
+			});
+		};
+		const said = stop(() => s.squash({ lint, pullRequest: () => 42 }));
+		assert.match(said, /subject must not be longer than 72 characters/);
+		assert.match(said, /The subject gained " \(#42\)", the pull request's number/);
+		assert.doesNotMatch(
+			stop(() => s.squash({ lint })),
+			/The subject gained/
+		);
+	});
+
+	it('reads --message and --pr, each once, in either order', () => {
+		assert.deepEqual(parseArguments([]), {});
+		assert.deepEqual(parseArguments(['--message', 'm.txt']), { message: 'm.txt' });
+		assert.deepEqual(parseArguments(['--pr', '42', '--message', 'm.txt']), {
+			message: 'm.txt',
+			pr: 42,
+		});
+		for (const argv of [
+			['--message', ''],
+			['--pr'],
+			['--pr', '0'],
+			['--pr', '4x'],
+			['--pr', '-4'],
+			['--pr', '1', '--pr', '2'],
+			['--message', 'a', '--message', 'b'],
+			['--force', 'x'],
+			['m.txt'],
+		])
+			assert.equal(parseArguments(argv), null, argv.join(' '));
+	});
+
+	it("asks gh for the open pull request from the branch to main, and says why it can't", () => {
+		const asked = [];
+		const answering = (answer) => (command, args, options) => {
+			asked.push([command, ...args, options.cwd, options.timeout > 0]);
+			return JSON.stringify(answer);
+		};
+		const ours = (number) => ({ number, isCrossRepository: false });
+		const theirs = (number) => ({ number, isCrossRepository: true });
+		assert.equal(openPullRequest('feat', '/repo', answering([ours(42)])), 42);
+		assert.deepEqual(asked[0], [
+			'gh', 'pr', 'list', '--head', 'feat', '--base', 'main', '--state', 'open', '--json',
+			'number,isCrossRepository', '/repo', true,
+		]); // biome-ignore format: one command line, where it runs, and a limit on its time
+		assert.equal(openPullRequest('feat', '/repo', answering([])), null);
+		// gh matches a head by its branch's name alone: a fork's branch of that name is another
+		assert.equal(openPullRequest('feat', '/repo', answering([theirs(75)])), null);
+		assert.equal(openPullRequest('feat', '/repo', answering([theirs(75), ours(42)])), 42);
+		assert.throws(
+			() => openPullRequest('feat', '/repo', answering([ours(1), theirs(9), ours(2)])),
+			/2 pull requests are open from feat: #1, #2/
+		);
+		const odd = (text) => () => text;
+		for (const text of ['not json', '{"number":1}', '[{"number":"1"}]', '[{"number":1}]'])
+			assert.throws(() => openPullRequest('feat', '/repo', odd(text)), /not a list of pull/);
+		const failing = (error) => () => {
+			throw error;
+		};
+		assert.throws(
+			() =>
+				openPullRequest(
+					'feat',
+					'/repo',
+					failing(Object.assign(new Error('x'), { code: 'ENOENT' }))
+				),
+			/gh is not installed/
+		);
+		assert.throws(
+			() =>
+				openPullRequest(
+					'feat',
+					'/repo',
+					failing(
+						Object.assign(new Error('Command failed'), { stderr: 'gh: not logged in\nmore\n' })
+					)
+				),
+			/^Error: gh: not logged in$/
+		);
+		assert.throws(
+			() => openPullRequest('feat', '/repo', failing(new Error('spawnSync gh ETIMEDOUT'))),
+			/ETIMEDOUT/
+		);
+	});
+});
+
+describe('what the command line asks for the number', () => {
+	it('takes --pr as given and asks GitHub only without it', () => {
+		const asked = [];
+		const ask = (branch, root) => {
+			asked.push([branch, root]);
+			return 7;
+		};
+		assert.equal(pullRequestFor({ pr: 42 }, '/repo', ask)('feat'), 42);
+		assert.deepEqual(asked, [], 'the fold right after opening is told, not left to a lookup');
+		assert.equal(pullRequestFor({}, '/repo', ask)('feat'), 7);
+		assert.deepEqual(asked, [['feat', '/repo']]);
+	});
+});
+
 describe('branchSquash', () => {
 	it("folds the branch's commits and its merges of main into one commit on origin/main, tree kept", (t) => {
 		const s = setup(t);
@@ -180,6 +395,8 @@ describe('branchSquash', () => {
 		assert.equal(s.linted.length, 1, 'commitlint read the message');
 		assert.deepEqual(s.squash(), [
 			`Already one commit on origin/main (${show(s.git, '%H').slice(0, 12)}): nothing to fold.`,
+			'No pull request is open from feat to main: the subject gets no number. Fold again once',
+			'one is (prepare-pr step 7); a fleet cell leaves that to the lane.',
 			`Push it: git push --force-with-lease=refs/heads/feat:${pushed} origin refs/heads/feat:refs/heads/feat`,
 		]);
 	});

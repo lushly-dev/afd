@@ -2,7 +2,7 @@
 /**
  * Folds the current branch into one commit on the `main` it has merged, keeping its tree.
  *
- *   pnpm branch:squash [--message <file>]
+ *   pnpm branch:squash [--message <file>] [--pr <number>]
  *
  * A pull request hands the merge queue one commit of its own. AFD's queue rebases: it lands each
  * of a branch's own commits on main as it is, author kept, and drops its merges of main (#1809).
@@ -18,6 +18,18 @@
  * message must pass commitlint and the credit check main applies (no co-author line), as the
  * commit-msg hook would.
  *
+ * Its subject ends with the pull request's number, ` (#n)`, once the branch has an open one. A
+ * squash merge wrote that; the rebasing queue lands the commit as it is, so nothing else does, and
+ * what reads a change's pull request from main's subjects (botcore's skill-usage audit, #2023)
+ * finds none. The number is the open pull request's from this branch of this repository to main,
+ * asked of GitHub with `gh` (a fork's pull request from a branch of the same name is not it), or
+ * the one `--pr` gives, which is how the fold right after opening one is told. A subject that
+ * already ends with it is left alone; one that ends with another number gains this one after
+ * it. Git reads a message's whole first paragraph as its subject, so a line right under the
+ * first is parted from it by a blank one: the number stays the subject's last word. With no pull
+ * request open, or where GitHub cannot be asked, the fold goes ahead without a number and says
+ * so: fold again once the pull request is open.
+ *
  * It refuses uncommitted changes, untracked files included; an open merge, rebase, cherry-pick,
  * revert or `git am`, a sequence of cherry-picks or reverts included; a detached HEAD or `main`
  * itself; a branch that has not merged `origin/main` (`pnpm base:sync` merges it, and takes the
@@ -25,8 +37,9 @@
  * of them. It never fetches or pushes. It moves the branch only if it and the checkout are still
  * as they were read, carries a `pnpm verify` record of the old head to the new one
  * (scripts/verify-record.mjs), and prints the push. A branch that is already one commit on
- * `origin/main` is left as it is unless `--message` is given, and its push is printed too. The
- * push goes to the branch of the same name on origin, never to what the branch tracks.
+ * `origin/main` is left as it is unless `--message` is given or its subject lacks the pull
+ * request's number, and its push is printed too. The push goes to the branch of the same name on
+ * origin, never to what the branch tracks.
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -135,6 +148,21 @@ export function foldedMessage(messages) {
 	return `${sections.join('\n\n')}\n`;
 }
 
+/**
+ * A message whose subject ends with a pull request's number as a forge writes it, ` (#n)`. A
+ * first line that already ends with it is kept; another number there stays, with this one after.
+ * Git's subject is the whole first paragraph, so a line right under the first is parted from it
+ * by a blank one: what that line ends with would otherwise be the subject's end, and be read as
+ * the number.
+ */
+export function numberedMessage(message, number) {
+	const [subject, ...rest] = message.split('\n');
+	const bare = subject.replace(/[ \t]+$/, '');
+	const header = new RegExp(`\\(#${number}\\)$`).test(bare) ? bare : `${bare} (#${number})`;
+	const body = rest.length > 0 && rest[0] !== '' ? ['', ...rest] : rest;
+	return [header, ...body].join('\n');
+}
+
 /** The branch's own commits past `base`, oldest first, merges left out. */
 function ownCommits(git, base, head) {
 	const out = git([
@@ -178,9 +206,11 @@ function ident(git, variable) {
 /**
  * Folds the branch checked out at `root`. `git(args, options)` runs git there and throws on a
  * non-zero exit (`options.env` adds variables); `lint(file)` runs commitlint on a message file and
- * throws with its output. Returns the report's lines, or throws SquashStop with them.
+ * throws with its output; `pullRequest(branch)` gives the number of the branch's open pull
+ * request, or null for none, and throws when it cannot say. Returns the report's lines, or throws
+ * SquashStop with them.
  */
-export function branchSquash({ root, git, lint, messageFile }) {
+export function branchSquash({ root, git, lint, messageFile, pullRequest = () => null }) {
 	for (const [name, what] of Object.entries(OPEN))
 		if (existsSync(resolve(root, git(['rev-parse', '--git-path', name]).trim())))
 			stop(
@@ -218,9 +248,29 @@ export function branchSquash({ root, git, lint, messageFile }) {
 		.split('\n')
 		.filter(Boolean);
 	const parents = git(['rev-list', '--parents', '-n', '1', head]).trim().split(' ').slice(1);
-	if (!messageFile && range.length === 1 && parents.length === 1 && parents[0] === base)
+	// The pull request's number, for the subject. Not knowing it stops nothing: the first fold
+	// comes before the pull request, and a later one adds it.
+	let number = null;
+	const notes = [];
+	try {
+		number = pullRequest(branch);
+	} catch (error) {
+		notes.push(
+			`GitHub could not be asked for this branch's pull request (${error.message}):`,
+			'the subject gets no number. Fold again once it can be asked, or pass --pr <number>.'
+		);
+	}
+	if (number === null && notes.length === 0)
+		notes.push(
+			`No pull request is open from ${branch} to main: the subject gets no number. Fold again once`,
+			'one is (prepare-pr step 7); a fleet cell leaves that to the lane.'
+		);
+	const numbered = (message) => (number === null ? message : numberedMessage(message, number));
+	const single = range.length === 1 && parents.length === 1 && parents[0] === base;
+	if (!messageFile && single && numbered(own[0].message) === own[0].message)
 		return [
 			`Already one commit on origin/main (${short(head)}): nothing to fold.`,
+			...notes,
 			pushLine(git, branch),
 		];
 
@@ -232,10 +282,13 @@ export function branchSquash({ root, git, lint, messageFile }) {
 			"Make the owner the author of each commit, or land each author's work in its own pull request."
 		);
 	const author = own[0].author;
-	const message = messageFile
+	const written = messageFile
 		? cleanMessage(readFileSync(messageFile, 'utf8'))
 		: foldedMessage(own.map((c) => c.message));
-	if (message.trim() === '') stop(`${messageFile} is empty: the commit needs a message.`);
+	if (written.trim() === '') stop(`${messageFile} is empty: the commit needs a message.`);
+	const message = numbered(written);
+	if (message !== written)
+		notes.push(`Its subject now ends with the pull request's number, (#${number}).`);
 	const committer = ident(git, 'GIT_COMMITTER_IDENT');
 	const credit = mainProblems({ message, author, committer });
 	if (credit.length > 0)
@@ -267,6 +320,12 @@ export function branchSquash({ root, git, lint, messageFile }) {
 					.trim()
 					.split('\n')
 					.map((line) => `  ${line}`),
+				...(message === written
+					? []
+					: [
+							`The subject gained " (#${number})", the pull request's number: a subject that is now too`,
+							'long must be shorter by as much.',
+						]),
 				'Give the message with --message <file>.'
 			);
 		}
@@ -301,6 +360,7 @@ export function branchSquash({ root, git, lint, messageFile }) {
 		const lines = [
 			`Folded ${range.length} commit(s), ${own.length} of them the branch's own, into ${short(folded)} on origin/main ${short(base)}.`,
 			`The tree is unchanged. The old head was ${head} (git reflog ${branch}).`,
+			...notes,
 		];
 		// The branch has moved: from here a failure is reported, never thrown, so these lines print.
 		try {
@@ -322,12 +382,83 @@ export function branchSquash({ root, git, lint, messageFile }) {
 	}
 }
 
+/** `--message <file>` and `--pr <number>`, each once and in either order; null for anything else. */
+export function parseArguments(argv) {
+	const options = {};
+	for (let at = 0; at < argv.length; at += 2) {
+		const [flag, value] = [argv[at], argv[at + 1]];
+		if (value === undefined) return null;
+		if (flag === '--message' && options.message === undefined && value !== '')
+			options.message = value;
+		else if (flag === '--pr' && options.pr === undefined && /^[1-9]\d{0,8}$/.test(value))
+			options.pr = Number(value);
+		else return null;
+	}
+	return options;
+}
+
+/**
+ * The number of the open pull request from `branch` of this repository to main, as `gh` reports
+ * it for the repository checked out at `root`; null for none. A pull request from a fork's branch
+ * of the same name is another branch, and is left out. Throws, with a line that says why, when
+ * gh is missing, is not signed in, does not answer in time, or reports more than one.
+ */
+export function openPullRequest(branch, root, run = execFileSync) {
+	let out;
+	try {
+		out = run(
+			'gh',
+			[
+				'pr',
+				'list',
+				'--head',
+				branch,
+				'--base',
+				'main',
+				'--state',
+				'open',
+				'--json',
+				'number,isCrossRepository',
+			],
+			{ cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 20_000 }
+		);
+	} catch (error) {
+		if (error.code === 'ENOENT') throw new Error('gh is not installed');
+		const said = String(error.stderr ?? '')
+			.trim()
+			.split('\n')[0];
+		throw new Error(said || error.message);
+	}
+	let found;
+	try {
+		found = JSON.parse(out);
+	} catch {
+		throw new Error('gh answered with something that is not a list of pull requests');
+	}
+	const listed =
+		Array.isArray(found) &&
+		found.every(
+			(entry) => Number.isInteger(entry?.number) && typeof entry.isCrossRepository === 'boolean'
+		);
+	if (!listed) throw new Error('gh answered with something that is not a list of pull requests');
+	const own = found.filter((entry) => !entry.isCrossRepository);
+	if (own.length > 1)
+		throw new Error(
+			`${own.length} pull requests are open from ${branch}: ${own.map((entry) => `#${entry.number}`).join(', ')}`
+		);
+	return own.length === 1 ? own[0].number : null;
+}
+
+/** What `branchSquash` asks for a branch's number: the one `--pr` gave, or GitHub's answer. */
+export function pullRequestFor(options, root, ask = openPullRequest) {
+	return (branch) => options.pr ?? ask(branch, root);
+}
+
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
 	const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-	const argv = process.argv.slice(2);
-	const at = argv.indexOf('--message');
-	if (argv.length > 0 && !(argv.length === 2 && at === 0)) {
-		console.error('Usage: pnpm branch:squash [--message <file>]');
+	const options = parseArguments(process.argv.slice(2));
+	if (!options) {
+		console.error('Usage: pnpm branch:squash [--message <file>] [--pr <number>]');
 		process.exit(2);
 	}
 	const git = (args, options = {}) =>
@@ -343,9 +474,11 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
 			throw new Error('commitlint is not installed here: run pnpm install');
 		execTool(commitlint, ['--edit', file], { cwd: root, encoding: 'utf8', stdio: 'pipe' });
 	};
+	const pullRequest = pullRequestFor(options, root);
 	try {
-		const messageFile = at === 0 ? resolve(argv[1]) : undefined;
-		for (const line of branchSquash({ root, git, lint, messageFile })) console.log(line);
+		const messageFile = options.message === undefined ? undefined : resolve(options.message);
+		for (const line of branchSquash({ root, git, lint, messageFile, pullRequest }))
+			console.log(line);
 	} catch (error) {
 		if (!(error instanceof SquashStop)) {
 			console.error(`branch:squash: ${error.message}`);

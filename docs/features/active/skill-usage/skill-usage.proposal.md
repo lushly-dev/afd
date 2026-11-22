@@ -318,6 +318,12 @@ The report uses only what is known for certain:
 - **Which merged changes touched those paths**, from git: every path a change touched, both
   sides of a rename, on the branch the checkout says is the default, never the checked-out
   commit. A path is matched as git writes it, by case, on every system.
+- **Which pull request a change is**, from its subject on the default branch: the ` (#n)` a
+  forge's squash merge ends it with, or `Merge pull request #n`. A queue that rebases lands a
+  commit as written, so there the number must already be in the subject: AFD's
+  `pnpm branch:squash` ends it with the pull request's number
+  ([#2023](https://github.com/lushly-dev/afd/issues/2023)). T3 Code's store does not say
+  which commit a pull request merged as, so nothing else on the machine ties the two.
 - **Which session opened a change's pull request, and when**, from the record. T3 Code marks
   the link on the thread that opened a pull request apart from the link on a thread that
   attached itself to one that existed, to repair, review or merge it. In the store first
