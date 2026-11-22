@@ -411,7 +411,37 @@ describe('P3-E2: the persona switch in the account menu (6.3, 14)', () => {
 	});
 });
 
-describe('P3-E10: budgets in Chromium, so far', () => {
+describe('P3-E10: budgets in Chromium', () => {
+	it("P3-E10: a local shell's stage B loads `late-identity` beside `late-documents`, and never `auth`, `sign-in`, `account-menu` or `account`", async () => {
+		const local = await serveDist();
+		try {
+			const plain = await openShell(browser, local.origin);
+			opened.push(plain);
+			const loaded = () =>
+				plain.page.evaluate(() =>
+					performance.getEntriesByType('resource').map((entry) => new URL(entry.name).pathname)
+				);
+			const chunk = (name: string) => new RegExp(`/${name}-[\\w-]+\\.js$`);
+			await expect
+				.poll(async () => {
+					const paths = await loaded();
+					return ['late-identity', 'late-documents'].filter((name) =>
+						paths.some((path) => chunk(name).test(path))
+					);
+				})
+				.toEqual(['late-identity', 'late-documents']);
+			await settle(plain.page);
+			expect(
+				(await loaded()).filter((path) =>
+					/\/(auth|sign-in|account-menu|account)-[\w-]+\.js$/.test(path)
+				)
+			).toEqual([]);
+			expect(plain.errors).toEqual([]);
+		} finally {
+			await local.close();
+		}
+	});
+
 	it("P3-E10: a provider shell's first paint adds only the probe's request to a local shell's", async () => {
 		const local = await serveDist();
 		try {

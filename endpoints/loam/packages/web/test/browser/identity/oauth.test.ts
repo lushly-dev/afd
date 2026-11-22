@@ -10,6 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
 	axe,
 	type DeploymentSite,
+	focused,
 	kernelCall,
 	launchForDevHost,
 	openShell,
@@ -36,6 +37,8 @@ beforeAll(async () => {
 				{ email: 'bea@example.com', name: 'Bea', role: 'member', password: PASSWORD },
 				// Who has not connected the client yet, so the provider asks for consent again.
 				{ email: 'cy@example.com', name: 'Cy', role: 'member', password: PASSWORD },
+				// Who connects the client by keyboard (E11), apart from Cy, who must not have consented.
+				{ email: 'dee@example.com', name: 'Dee', role: 'member', password: PASSWORD },
 			],
 			clients: [{ name: 'Claude Code', redirect: REDIRECT }],
 		},
@@ -125,6 +128,56 @@ describe('P3-E20: the consent page (9.4)', () => {
 		expect(await axe(page)).toEqual([]);
 	});
 
+	it("P3-E20: a client id that is a metadata document's URL is shown by that URL's host, in bold", async () => {
+		const { page } = await signedIn('bea@example.com');
+		// The page reads the request from its own address, as the provider's redirect gives it.
+		const query = new URLSearchParams({
+			response_type: 'code',
+			client_id: 'https://tools.example.org/oauth/client.json',
+			redirect_uri: REDIRECT,
+			scope: 'loam:read',
+			state: 'e20',
+		});
+		await page.goto(`${site.root}~/oauth/consent?${query}`);
+		await page.waitForFunction(() => document.documentElement.dataset.loamHost === 'oauth');
+		await page.waitForFunction(() =>
+			Boolean(
+				document.querySelector('loam-oauth-page')?.shadowRoot?.querySelector('h1')?.textContent
+			)
+		);
+		expect(await page.locator('loam-oauth-page strong').first().textContent()).toBe(
+			'tools.example.org'
+		);
+		expect(await pageText(page)).not.toContain('registered by the deployer');
+		expect(await axe(page)).toEqual([]);
+	});
+
+	it('P3-E20: `offline_access` is said in words, and a `localhost` redirect has the loopback warning', async () => {
+		const { page } = await signedIn('bea@example.com');
+		const query = new URLSearchParams({
+			response_type: 'code',
+			client_id: host().clients['Claude Code'] as string,
+			redirect_uri: 'http://localhost:8123/callback',
+			scope: 'loam:read offline_access',
+			state: 'e20',
+		});
+		// The page reads the request from its own address, as the provider's redirect gives it.
+		await page.goto(`${site.root}~/oauth/consent?${query}`);
+		await page.waitForFunction(() => document.documentElement.dataset.loamHost === 'oauth');
+		await page.waitForFunction(() =>
+			Boolean(
+				document.querySelector('loam-oauth-page')?.shadowRoot?.querySelector('h1')?.textContent
+			)
+		);
+		const text = await pageText(page);
+		expect(text).toContain('Stay connected until you disconnect it');
+		expect(text).not.toContain('offline_access');
+		expect(text).toContain('localhost:8123');
+		expect(text).toContain(
+			'This app runs on your own computer. Connect it only if you started it yourself.'
+		);
+	});
+
 	it('P3-E20: a read-only request says nothing of changes', async () => {
 		const { page } = await signedIn('bea@example.com');
 		await arrive(page, 'consent', authorize('loam:read'));
@@ -155,6 +208,43 @@ describe('P3-E20: the consent page (9.4)', () => {
 			status: string;
 		}[];
 		expect(rows).toEqual([{ sponsor: host().people['bea@example.com'], status: 'active' }]);
+	});
+});
+
+describe('P3-E11: the consent page by keyboard (9.4, 14)', () => {
+	it('P3-E11: focus starts on the heading; Tab reaches Connect, then Deny; Enter on Deny returns `access_denied`', async () => {
+		const { page } = await signedIn('cy@example.com');
+		await arrive(page, 'consent', authorize('loam:read'));
+		expect((await focused(page)).tag).toBe('h1');
+		await page.keyboard.press('Tab');
+		expect(await focused(page)).toMatchObject({ tag: 'button', label: 'Connect' });
+		await page.keyboard.press('Tab');
+		expect(await focused(page)).toMatchObject({ tag: 'button', label: 'Deny' });
+		const back = page.waitForRequest((request) => request.url().startsWith(REDIRECT));
+		await page.keyboard.press('Enter');
+		expect(new URL((await back).url()).searchParams.get('error')).toBe('access_denied');
+		expect(
+			host()
+				.db()
+				.prepare('SELECT * FROM loam_connected_agent WHERE sponsor = ?')
+				.all(host().people['cy@example.com'] as string)
+		).toEqual([]);
+	});
+
+	it('P3-E11: Enter on Connect, reached by Tab, returns a code and connects the agent', async () => {
+		const { page } = await signedIn('dee@example.com');
+		await arrive(page, 'consent', authorize('loam:read'));
+		await page.keyboard.press('Tab');
+		expect(await focused(page)).toMatchObject({ tag: 'button', label: 'Connect' });
+		const back = page.waitForRequest((request) => request.url().startsWith(REDIRECT));
+		await page.keyboard.press('Enter');
+		expect(new URL((await back).url()).searchParams.get('code')).toBeTruthy();
+		expect(
+			host()
+				.db()
+				.prepare('SELECT status FROM loam_connected_agent WHERE sponsor = ?')
+				.all(host().people['dee@example.com'] as string)
+		).toEqual([{ status: 'active' }]);
 	});
 });
 

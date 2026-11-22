@@ -544,6 +544,18 @@ describe("P3-E6: #852's rules in the kernel (7.3, 7.4; D110)", () => {
 			access: restricted([BEA]),
 		});
 		expect(update.error?.code).toBe('OWNER_REQUIRED');
+		// The owner may, on the same listed project, and the record says so.
+		await made.kernel.call('auth-sign-out');
+		await signIn(made.kernel, 'olu@example.com');
+		const owned = await made.kernel.call('project-update', {
+			project: 'vault',
+			access: restricted([OLU, BEA]),
+		});
+		expect(owned.success, JSON.stringify(owned.error)).toBe(true);
+		const read = await made.kernel.call<{ access: unknown }>('project-get', {
+			project: 'vault',
+		});
+		expect(read.data?.access).toEqual(restricted([OLU, BEA]));
 	});
 
 	it('P3-E6: workspace-app-set is an owner command', async () => {
@@ -700,7 +712,7 @@ describe("P3-E6: #852's rules in the kernel (7.3, 7.4; D110)", () => {
 		expect(updated.error?.code).toBe('VALIDATION_ERROR');
 	});
 
-	it("P3-E6: PROJECT_MEMBER_NOT_PERSON: a project's members are person ids only", async () => {
+	it("P3-E5: P3-E6: PROJECT_MEMBER_NOT_PERSON: a project's members are person ids only", async () => {
 		const made = await provider();
 		await signIn(made.kernel, 'olu@example.com');
 		for (const agent of ['agt_abcdefghij0123456789', 'shell-agent']) {
