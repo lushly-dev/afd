@@ -1,0 +1,106 @@
+# Draft JTBD scenario for the Agent OS proposal. Commands and shapes are proposals; the data is invented.
+# The fake runtime plays a head whose validation never ends, so the run is still active when it is stopped.
+name: Stop a run when its branch leaves the queue
+description: >-
+  When a branch is dropped or gets a new head while it is validating, I want its run stopped at
+  once, by the host and not by asking the code to stop, so that the machine is free for the
+  branch's new head or the seat for the next branch.
+job: stop-a-run-now
+tags: [m1]
+fixture:
+  file: fixtures/host.json
+steps:
+  - description: A machine for the branch
+    command: machine-create
+    input: { repository: example-repo, for: fix/slow }
+    expect:
+      success: true
+      data:
+        created: true
+  - description: A run that will not end by itself
+    command: run-start
+    input:
+      machine: "${{ steps[0].data.machine.id }}"
+      head: 9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a2f1e0d
+      steps:
+        - label: validate
+          args: [pnpm, verify, "--keep-going"]
+          timeoutSeconds: 5400
+          network: none
+    expect:
+      success: true
+      data:
+        run:
+          state: running
+  - description: A machine runs one thing at a time
+    command: run-start
+    input:
+      machine: "${{ steps[0].data.machine.id }}"
+      head: 3f9a2c4e5b6d7081928374a5b6c7d8e9f0a1b2c3
+      steps:
+        - label: validate
+          args: [pnpm, verify, "--keep-going"]
+          timeoutSeconds: 5400
+          network: none
+    expect:
+      success: false
+      error:
+        code: RUN_ACTIVE
+        suggestion: { contains: run-stop }
+  - description: And is not destroyed under a run unless the caller says so
+    command: machine-destroy
+    input: { id: "${{ steps[0].data.machine.id }}" }
+    expect:
+      success: false
+      error:
+        code: RUN_ACTIVE
+        suggestion: { contains: force }
+  - description: The host stops the run and every process it started
+    command: run-stop
+    input: { id: "${{ steps[1].data.run.id }}", reason: The branch left the queue }
+    expect:
+      success: true
+      data:
+        changed: true
+        run:
+          state: cancelled
+  - description: Stopping it again changes nothing
+    command: run-stop
+    input: { id: "${{ steps[1].data.run.id }}" }
+    expect:
+      success: true
+      data:
+        changed: false
+        run:
+          state: cancelled
+  - description: The branch's new head runs in the same machine, on a fresh checkout
+    command: run-start
+    input:
+      machine: "${{ steps[0].data.machine.id }}"
+      head: 6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d
+      steps:
+        - label: validate
+          args: [pnpm, verify, "--keep-going"]
+          timeoutSeconds: 5400
+          network: none
+    expect:
+      success: true
+      data:
+        run:
+          state: running
+          head: 6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d
+  - description: And passes
+    command: run-wait
+    input: { id: "${{ steps[6].data.run.id }}", timeoutMs: 300000 }
+    expect:
+      success: true
+      data:
+        run:
+          state: passed
+  - description: When the branch gives up its seat, the machine is destroyed
+    command: machine-destroy
+    input: { id: "${{ steps[0].data.machine.id }}", reason: The branch left the queue }
+    expect:
+      success: true
+      data:
+        destroyed: true

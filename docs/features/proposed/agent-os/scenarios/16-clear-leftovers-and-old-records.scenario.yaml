@@ -1,0 +1,74 @@
+# Draft JTBD scenario for the Agent OS proposal. Commands and shapes are proposals; the data is invented.
+# The fixture is a host whose disk is nearly full: the runtime holds a container and two volumes that
+# carry the host's label and are in none of its records, and forty runs are older than the retention
+# settings (fixtures/leftovers.json over fixtures/host.json). The clock cannot move between steps, so
+# the old records start old. The reaper calling host-prune on its own schedule needs unit tests.
+name: Clear what the host cannot account for, and what is too old to keep
+description: >-
+  When the host's disk runs short, or after a crash, I want to see what the runtime holds that
+  the host does not list and which records are past their keeping time, and to remove both with a
+  record of what went, so that a year of use never fills the disk and I never reach for the
+  runtime's own tools to clean up.
+job: clear-leftovers-and-old-records
+tags: [m1]
+fixture:
+  file: fixtures/leftovers.json
+  base: host.json
+steps:
+  - description: A host short of disk refuses a new machine and names the way forward
+    command: machine-create
+    input: { repository: example-repo, for: fix/tokens }
+    expect:
+      success: false
+      error:
+        code: HOST_FULL
+        message: disk
+        suggestion: { contains: host-prune }
+  - description: The host says how full it is and that the runtime holds things it does not list
+    command: host-status
+    expect:
+      success: true
+      data:
+        capacity: { diskGb: 400, usedGb: 395 }
+        unlisted: { containers: 1, volumes: 2 }
+        retention: { recordsDays: 90, logsDays: 30 }
+  - description: A dry run lists what would go and removes nothing
+    command: host-prune
+    input: { dryRun: true }
+    expect:
+      success: true
+      data:
+        changed: false
+        orphans:
+          - { kind: container, name: example-leftover-1 }
+          - { kind: volume, name: example-leftover-build }
+          - { kind: volume, name: example-leftover-work }
+        expired: { runs: 40, logs: 40 }
+  - description: The prune removes them and says what it freed
+    command: host-prune
+    expect:
+      success: true
+      data:
+        changed: true
+        removed: { orphans: 3, runs: 40, logs: 40 }
+        freedGb: { gte: 50 }
+  - description: Nothing unlisted remains
+    command: host-status
+    expect:
+      success: true
+      data:
+        unlisted: { containers: 0, volumes: 0 }
+  - description: Pruning again finds nothing
+    command: host-prune
+    expect:
+      success: true
+      data:
+        changed: false
+        removed: { orphans: 0, runs: 0, logs: 0 }
+  - description: The machine that was refused can now be made
+    command: machine-create
+    input: { repository: example-repo, for: fix/tokens }
+    expect:
+      success: true
+      data:
+        created: true

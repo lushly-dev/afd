@@ -1,0 +1,61 @@
+# Draft JTBD scenario for the Agent OS proposal. Commands and shapes are proposals; the data is invented.
+# The fixture is a host whose container runtime is not running, with one run that failed before it
+# went away (fixtures/runtime-down.json over fixtures/host.json). That the refusals are marked
+# retryable is in the command draft; a scenario's expect cannot read that field.
+name: Tell the host's trouble from a branch's failure
+description: >-
+  When a validation does not pass, I want the answer to say whether the branch failed or the
+  host could not do its work, so that the lane ejects a branch only for its own failure and holds
+  it, uncounted, while the host is in trouble.
+job: tell-host-trouble-from-a-branch-failure
+tags: [m1]
+fixture:
+  file: fixtures/runtime-down.json
+  base: host.json
+steps:
+  - description: The host says its runtime cannot be reached
+    command: host-status
+    expect:
+      success: true
+      data:
+        runtime: { reachable: false }
+  - description: A new machine is refused as the host's trouble, not as anything about the branch
+    command: machine-create
+    input: { repository: example-repo, for: fix/tokens }
+    expect:
+      success: false
+      error:
+        code: RUNTIME_UNAVAILABLE
+        suggestion: { contains: host-status }
+  - description: So is a run on a machine the host can no longer reach
+    command: run-start
+    input:
+      machine: m-03
+      head: 3f9a2c4e5b6d7081928374a5b6c7d8e9f0a1b2c3
+      steps:
+        - label: validate
+          args: [pnpm, verify, "--keep-going"]
+          timeoutSeconds: 5400
+          network: none
+    expect:
+      success: false
+      error:
+        code: RUNTIME_UNAVAILABLE
+  - description: A run that ended before the trouble still reads as the branch's own failure
+    command: run-get
+    input: { id: r-11 }
+    expect:
+      success: true
+      data:
+        run:
+          state: failed
+          fault: branch
+          failed: validate
+  - description: The host's records still answer while its runtime is down
+    command: machine-list
+    input: { repository: example-repo }
+    expect:
+      success: true
+      data:
+        machines:
+          - { id: m-03 }

@@ -1,0 +1,16 @@
+{
+	"journal": {
+		"mode": "required",
+		"writable": false,
+		"reason": "The journal's disk is full."
+	},
+	"machines": [
+		{
+			"id": "m-01",
+			"repository": "example-repo",
+			"for": "fix/parser",
+			"size": "standard",
+			"state": "ready"
+		}
+	]
+}

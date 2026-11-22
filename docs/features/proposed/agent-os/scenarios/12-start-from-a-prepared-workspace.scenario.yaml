@@ -1,0 +1,105 @@
+# Draft JTBD scenario for the Agent OS proposal. Commands and shapes are proposals; the data is invented.
+# The fixture holds a machine whose last run passed on the head of main, one checkpoint of an earlier
+# main and one made on an older image (fixtures/warm.json over fixtures/host.json). The fake runtime
+# plays a head whose install step, run from a checkpoint, downloads nothing. How much faster a
+# machine from a checkpoint validates is measured in M2's exit, not shown here.
+name: Start from a workspace prepared on main
+description: >-
+  When a branch's validation starts, I want its machine to begin from a checkpoint of main with
+  dependencies installed and built, so that the run does the branch's own work and not the
+  downloading and compiling that every branch shares.
+job: start-from-a-prepared-workspace
+tags: [warm]
+fixture:
+  file: fixtures/warm.json
+  base: host.json
+steps:
+  - description: The lane makes a checkpoint from the machine that just passed on main
+    command: checkpoint-create
+    input: { machine: m-main }
+    expect:
+      success: true
+      data:
+        created: true
+        checkpoint:
+          id: { matches: '^c-' }
+          repository: example-repo
+          head: 1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e
+          current: true
+          image:
+            digest: { matches: '^sha256:[0-9a-f]{64}$' }
+  - description: The newest is current; the one made on an older image is marked stale
+    command: checkpoint-list
+    input: { repository: example-repo }
+    expect:
+      success: true
+      data:
+        checkpoints:
+          - { head: 1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e, current: true, stale: false }
+          - { id: c-main, current: false, stale: false }
+          - { id: c-old, current: false, stale: true }
+  - description: A checkpoint made on an image that is no longer pinned is refused
+    command: machine-create
+    input: { repository: example-repo, for: fix/cache, checkpoint: c-old }
+    expect:
+      success: false
+      error:
+        code: CHECKPOINT_STALE
+        suggestion: { contains: checkpoint-create }
+  - description: So is one that does not exist
+    command: machine-create
+    input: { repository: example-repo, for: fix/cache, checkpoint: c-none }
+    expect:
+      success: false
+      error:
+        code: NOT_FOUND
+        suggestion: { contains: checkpoint-list }
+  - description: A branch's machine starts from the current checkpoint
+    command: machine-create
+    input: { repository: example-repo, for: fix/parser, checkpoint: current }
+    expect:
+      success: true
+      data:
+        created: true
+        machine:
+          state: ready
+          from:
+            checkpoint: { matches: '^c-' }
+            head: 1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e
+  - description: Its validation is started as on any machine
+    command: run-start
+    input:
+      machine: "${{ steps[4].data.machine.id }}"
+      head: 4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e
+      base: 1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e
+      steps:
+        - label: install
+          args: [pnpm, install, "--frozen-lockfile"]
+          timeoutSeconds: 1800
+          network: registries
+        - label: validate
+          args: [pnpm, verify, "--keep-going"]
+          timeoutSeconds: 5400
+          network: none
+    expect:
+      success: true
+      data:
+        run:
+          state: running
+  - description: >-
+      It passes, the result says which checkpoint it started from, and the install step fetched
+      nothing because everything was already there
+    command: run-wait
+    input: { id: "${{ steps[5].data.run.id }}", timeoutMs: 300000 }
+    expect:
+      success: true
+      data:
+        run:
+          state: passed
+          from:
+            checkpoint: { matches: '^c-' }
+          steps:
+            - label: install
+              code: 0
+              connections: { allowed: 0 }
+            - { label: validate, code: 0 }

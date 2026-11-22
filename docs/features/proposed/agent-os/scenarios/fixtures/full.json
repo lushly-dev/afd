@@ -1,0 +1,35 @@
+{
+	"capacity": {
+		"machines": {
+			"max": 2
+		},
+		"diskGb": 400
+	},
+	"machines": [
+		{
+			"id": "m-01",
+			"repository": "example-repo",
+			"for": "fix/parser",
+			"size": "standard",
+			"state": "ready"
+		},
+		{
+			"id": "m-02",
+			"repository": "example-repo",
+			"for": "fix/tokens",
+			"size": "standard",
+			"state": "ready"
+		},
+		{
+			"id": "m-expired",
+			"repository": "example-repo",
+			"for": "fix/old",
+			"state": "destroyed",
+			"destroyedBy": {
+				"kind": "service",
+				"id": "reaper"
+			},
+			"reason": "expired"
+		}
+	]
+}

@@ -1,0 +1,88 @@
+# Draft JTBD scenario for the Agent OS proposal. Commands and shapes are proposals; the data is invented.
+# Runs against a fake runtime that plays each head's scripted result (fixtures/host.json). The
+# clock cannot move between steps, so run-wait returns the scripted end at once.
+name: Validate a head in a machine made for it
+description: >-
+  When a branch reaches the front of the queue, I want its head checked out and its validation
+  run in a machine made for it, and the result back as a record of what ran on which image, so
+  that the result depends on the branch and the image and not on what the lane host has installed.
+job: validate-a-head-in-a-machine
+tags: [m1]
+fixture:
+  file: fixtures/host.json
+steps:
+  - description: The lane sees what the host offers before it asks
+    command: host-status
+    expect:
+      success: true
+      data:
+        runtime: { reachable: true }
+        journal: { mode: required }
+        images:
+          - name: example-image
+            digest: { matches: '^sha256:[0-9a-f]{64}$' }
+  - description: A machine is made for the branch, on the repository's pinned image
+    command: machine-create
+    input: { repository: example-repo, for: fix/tokens }
+    expect:
+      success: true
+      data:
+        created: true
+        machine:
+          id: { matches: '^m-' }
+          state: ready
+          size: standard
+          image: { name: example-image }
+          credentials: { length: 0 }
+  - description: >-
+      The head is checked out fresh, with main at the commit the lane validates against, and the
+      steps start, each as an argument list under a named network policy
+    command: run-start
+    input:
+      machine: "${{ steps[1].data.machine.id }}"
+      head: 3f9a2c4e5b6d7081928374a5b6c7d8e9f0a1b2c3
+      base: 0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f
+      steps:
+        - label: install
+          args: [pnpm, install, "--frozen-lockfile"]
+          timeoutSeconds: 1800
+          network: registries
+        - label: validate
+          args: [pnpm, verify, "--keep-going"]
+          timeoutSeconds: 5400
+          network: none
+    expect:
+      success: true
+      data:
+        run:
+          id: { matches: '^r-' }
+          state: running
+          head: 3f9a2c4e5b6d7081928374a5b6c7d8e9f0a1b2c3
+  - description: A caller that can block waits for the end; the lane's loop reads run-get on each pass instead
+    command: run-wait
+    input: { id: "${{ steps[2].data.run.id }}", timeoutMs: 300000 }
+    expect:
+      success: true
+      data:
+        waitExpired: false
+        run:
+          state: passed
+          ended: true
+          head: 3f9a2c4e5b6d7081928374a5b6c7d8e9f0a1b2c3
+          base: 0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f
+          tree: { exists: true }
+          image:
+            name: example-image
+            digest: { matches: '^sha256:[0-9a-f]{64}$' }
+          steps:
+            - { label: install, code: 0, network: registries }
+            - { label: validate, code: 0, network: none }
+  - description: The same record is there to read afterwards
+    command: run-get
+    input: { id: "${{ steps[2].data.run.id }}" }
+    expect:
+      success: true
+      data:
+        run:
+          state: passed
+          endedAt: { exists: true }

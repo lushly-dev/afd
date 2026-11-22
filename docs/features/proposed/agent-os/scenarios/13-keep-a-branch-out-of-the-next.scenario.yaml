@@ -1,0 +1,131 @@
+# Draft JTBD scenario for the Agent OS proposal. Commands and shapes are proposals; the data is invented.
+# The fixture holds a machine whose checkpoint run failed on main and one that passed on a branch
+# (fixtures/warm-red.json over fixtures/host.json). A branch has one machine, so the machine that
+# passed on main is in job 12's fixture. That a file a branch wrote is absent from the
+# next machine is M2's exit test: a scenario cannot write a file in a machine.
+name: Keep one branch's writes out of the next branch's machine
+description: >-
+  When machines start from shared prepared state, I want that state made only from main, and
+  every machine's writes kept in a layer of its own that goes when the machine does, so that code
+  from one branch can never change what the next branch builds on.
+job: keep-a-branch-out-of-the-next
+tags: [warm]
+fixture:
+  file: fixtures/warm-red.json
+  base: host.json
+steps:
+  - description: A checkpoint cannot be made from a machine that ran a branch
+    command: checkpoint-create
+    input: { machine: m-branch }
+    expect:
+      success: false
+      error:
+        code: NOT_ON_BASE
+        suggestion: { contains: base }
+  - description: Nor from a run on main that did not pass
+    command: checkpoint-create
+    input: { machine: m-red }
+    expect:
+      success: false
+      error:
+        code: RUN_NOT_PASSED
+        suggestion: { contains: run-get }
+  - description: A machine from the checkpoint gets every mount as a layer of its own
+    command: machine-create
+    input: { repository: example-repo, for: fix/parser, checkpoint: c-main }
+    expect:
+      success: true
+      data:
+        machine:
+          mounts:
+            - { name: work, access: private }
+            - { name: build, access: private }
+            - { name: downloads, access: private }
+  - description: The branch's validation runs and writes what it likes
+    command: run-start
+    input:
+      machine: "${{ steps[2].data.machine.id }}"
+      head: 3f9a2c4e5b6d7081928374a5b6c7d8e9f0a1b2c3
+      steps:
+        - label: validate
+          args: [pnpm, verify, "--keep-going"]
+          timeoutSeconds: 5400
+          network: none
+    expect:
+      success: true
+      data:
+        run:
+          state: running
+  - description: It ends
+    command: run-wait
+    input: { id: "${{ steps[3].data.run.id }}", timeoutMs: 300000 }
+    expect:
+      success: true
+      data:
+        run:
+          state: passed
+  - description: The machine and its layers go
+    command: machine-destroy
+    input: { id: "${{ steps[2].data.machine.id }}", reason: Validated }
+    expect:
+      success: true
+      data:
+        destroyed: true
+        removed:
+          volumes: [work, build, downloads]
+  - description: The checkpoint is byte for byte what it was
+    command: checkpoint-list
+    input: { repository: example-repo }
+    expect:
+      success: true
+      data:
+        checkpoints:
+          - id: c-main
+            current: true
+            digest: sha256:c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00
+          - { id: c-old, stale: true }
+  - description: The machine that failed on main is destroyed
+    command: machine-destroy
+    input: { id: m-red, reason: Main failed here }
+    expect:
+      success: true
+      data:
+        destroyed: true
+  - description: A caller makes a machine for main and runs steps of its own choosing
+    command: machine-create
+    input: { repository: example-repo, for: main }
+    expect:
+      success: true
+      data:
+        created: true
+  - description: They are not the steps the operator named for a checkpoint
+    command: run-start
+    input:
+      machine: "${{ steps[8].data.machine.id }}"
+      head: 1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e
+      steps:
+        - label: validate
+          args: [pnpm, test]
+          timeoutSeconds: 5400
+          network: none
+    expect:
+      success: true
+      data:
+        run:
+          state: running
+  - description: The run passes
+    command: run-wait
+    input: { id: "${{ steps[9].data.run.id }}", timeoutMs: 300000 }
+    expect:
+      success: true
+      data:
+        run:
+          state: passed
+  - description: A passing run of other steps makes no checkpoint, so a caller cannot choose what the next branch starts from
+    command: checkpoint-create
+    input: { machine: "${{ steps[8].data.machine.id }}" }
+    expect:
+      success: false
+      error:
+        code: RUN_NOT_CONFIGURED
+        suggestion: { contains: host-status }

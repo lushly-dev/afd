@@ -1,0 +1,80 @@
+# Draft JTBD scenario for the Agent OS proposal. Commands and shapes are proposals; the data is invented.
+# event-list is Umbel's own command, which the host inherits; its events are a projection of the
+# journal, one per command that changed something, in the host's one space. Every scenario step
+# runs as the same test actor, so the callers here are that actor and the host's own supervisor.
+# In M1 a caller's identity is what its route implies and nothing verifies it; M3 changes that.
+# That log lines and output files never enter the journal or the event log needs unit tests.
+name: See what ran, on what, and who asked
+description: >-
+  When something went wrong overnight, I want every machine made, run started, run ended and
+  machine destroyed in order with the caller that asked, the host's own actions among them, so
+  that the record answers what ran and for whom without reading a log file.
+job: see-what-ran-and-who-asked
+tags: [m1]
+fixture:
+  file: fixtures/host.json
+steps:
+  - description: A machine for the branch
+    command: machine-create
+    input: { repository: example-repo, for: fix/tokens }
+    expect:
+      success: true
+      data:
+        created: true
+  - description: Its validation starts
+    command: run-start
+    input:
+      machine: "${{ steps[0].data.machine.id }}"
+      head: 3f9a2c4e5b6d7081928374a5b6c7d8e9f0a1b2c3
+      steps:
+        - label: validate
+          args: [pnpm, verify, "--keep-going"]
+          timeoutSeconds: 5400
+          network: none
+    expect:
+      success: true
+      data:
+        run:
+          state: running
+  - description: And ends
+    command: run-wait
+    input: { id: "${{ steps[1].data.run.id }}", timeoutMs: 300000 }
+    expect:
+      success: true
+      data:
+        run:
+          state: passed
+  - description: The machine is destroyed
+    command: machine-destroy
+    input: { id: "${{ steps[0].data.machine.id }}", reason: Validated }
+    expect:
+      success: true
+      data:
+        destroyed: true
+  - description: >-
+      The event log holds each change in order, each naming the machine or run it was about. The
+      run's end is a command too, which the host's supervisor called when it saw the last step exit
+    command: event-list
+    input: { consumer: audit, limit: 10 }
+    expect:
+      success: true
+      data:
+        events:
+          - { command: machine-create, actor: { kind: test }, record: { exists: true } }
+          - { command: run-start, actor: { kind: test }, record: { exists: true } }
+          - command: run-settle
+            actor: { kind: service, id: supervisor }
+            record: { exists: true }
+          - { command: machine-destroy, actor: { kind: test }, record: { exists: true } }
+  - description: The run an event names still says what ran, on which commit and image, and how it ended
+    command: run-get
+    input: { id: "${{ steps[1].data.run.id }}" }
+    expect:
+      success: true
+      data:
+        run:
+          state: passed
+          for: fix/tokens
+          head: 3f9a2c4e5b6d7081928374a5b6c7d8e9f0a1b2c3
+          image:
+            digest: { matches: '^sha256:[0-9a-f]{64}$' }

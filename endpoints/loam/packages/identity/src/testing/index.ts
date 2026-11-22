@@ -54,6 +54,11 @@ export interface TestAuthHostOptions {
 	oidc?: readonly LoamOidcProviderV1[];
 	/** Whom `bootstrapOrganization` invites as the first owner; its join link is in the mail (5.6). */
 	bootstrapOwner?: string;
+	/**
+	 * OAuth clients the deployer pre-registers (9.4), each a public native client with one redirect URI, registered at
+	 * start through the server API by the first seeded owner with a password. Their ids are in `clients`, by name.
+	 */
+	clients?: readonly { name: string; redirect: string }[];
 }
 
 export interface TestAuthHost {
@@ -66,6 +71,8 @@ export interface TestAuthHost {
 	readonly organizationId: string;
 	/** Each seeded person's user id, by email. */
 	readonly people: Readonly<Record<string, string>>;
+	/** Each pre-registered OAuth client's id, by name. */
+	readonly clients: Readonly<Record<string, string>>;
 	/** Every message the provider has sent, in order. */
 	mail(): Promise<LoamMailV1[]>;
 	/** The provider's database, read-only unless asked: a test's direct change stands for a provider-side one. */
@@ -88,10 +95,16 @@ export interface HostChildConfig {
 	shell: string;
 	oidc?: readonly LoamOidcProviderV1[];
 	bootstrapOwner?: string;
+	clients?: readonly { name: string; redirect: string }[];
 }
 
 export type HostReady =
-	| { ready: true; organizationId: string; people: Record<string, string> }
+	| {
+			ready: true;
+			organizationId: string;
+			people: Record<string, string>;
+			clients: Record<string, string>;
+	  }
 	| { ready: false; message: string };
 
 const STARTUP_MS = 30_000;
@@ -171,6 +184,7 @@ export async function startTestAuthHost(options: TestAuthHostOptions): Promise<T
 			shell: `${origin}${path.replace(/api\/auth\/?$/, '')}`.replace(/([^/])$/, '$1/'),
 			...(options.oidc ? { oidc: options.oidc } : {}),
 			...(options.bootstrapOwner ? { bootstrapOwner: options.bootstrapOwner } : {}),
+			...(options.clients ? { clients: options.clients } : {}),
 		};
 		const entry = childEntry();
 		child = fork(entry.path, [], {
@@ -198,6 +212,7 @@ export async function startTestAuthHost(options: TestAuthHostOptions): Promise<T
 			origin,
 			organizationId: ready.organizationId,
 			people: ready.people,
+			clients: ready.clients,
 			async mail() {
 				const text = await readFile(config.mailPath, 'utf8').catch(() => '');
 				return text
