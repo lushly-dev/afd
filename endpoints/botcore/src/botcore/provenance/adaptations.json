@@ -6307,7 +6307,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "be3a6ee1e4d62b90006094451234e38310cadf6e4092343fa042b24cfa184556",
+      "current_import_sha256": "3830bdc671eec1fb445d7649e93b6b2e60bb546333163f4bf480a6a8e4c334f3",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill-usage-collect also reads Claude Code's transcripts, for sessions T3 Code did not run (lushly-dev/afd#1820); The hourly job always ends and says what it waited for (#1902, #1903)"

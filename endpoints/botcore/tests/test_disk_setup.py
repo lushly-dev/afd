@@ -1002,15 +1002,27 @@ def test_the_status_does_not_wait_at_what_it_is_asked_about(
     assert "the schedule is not installed: run disk-setup" not in status["problems"]
     assert "30 worktrees idle 3 days or more" in status["warnings"]  # what a reclaim counted
     # asked again, it waits for the read it has and starts no other
-    saved_files = setup._saved
+    wait = setup._wait
+
+    async def no_longer_for_the_machine(waited, until) -> None:
+        if waited[0].name == "disk-status":
+            at_once("STATUS_SECONDS")  # (its own files were read within the limit)
+        await wait(waited, until)
+
     monkeypatch.setattr(setup, "STATUS_SECONDS", 20)
-    monkeypatch.setattr(setup, "_saved", lambda: (saved_files(), at_once("STATUS_SECONDS"))[0])
+    monkeypatch.setattr(setup, "_wait", no_longer_for_the_machine)
     assert "did not answer" in run(setup.disk_status())["problems"][0]
     assert alive("disk-status") == 1
-    monkeypatch.setattr(setup, "_saved", saved_files)
-    release.set()
+
+    async def comes_back_meanwhile(waited, until) -> None:
+        if waited[0].name == "disk-status":
+            release.set()  # once this call has taken up the read it had, the read comes back
+        await wait(waited, until)
+
+    monkeypatch.setattr(setup, "_wait", comes_back_meanwhile)
     monkeypatch.setattr(setup, "STATUS_SECONDS", 20)
-    status = run(setup.disk_status())  # the same read, now that it has come back
+    status = run(setup.disk_status())  # the same read answers the call that waited for it
+    monkeypatch.setattr(setup, "_wait", wait)
     assert status["schedule"] == {"installed": True} and alive("disk-status") == 0
 
     def fails(settings, status):
@@ -1020,16 +1032,21 @@ def test_the_status_does_not_wait_at_what_it_is_asked_about(
     with pytest.raises(RuntimeError, match="the scheduler fell over"):
         asyncio.run(setup.disk_status())
 
-    # nor at its own files
-    monkeypatch.setattr(setup, "_live", live)
+
+def test_the_status_does_not_wait_at_its_own_files(
+    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    at_once,
+) -> None:
+    release = threading.Event()
+    saved_files = setup._saved
 
     def files_on_a_drive_that_is_away():
         steps.doing("reading", state / "status.json")
         at_once("STATUS_SECONDS")
-        release.clear()
         release.wait(30)
         return saved_files()
 
+    monkeypatch.setattr(setup, "STATUS_SECONDS", 20)
     monkeypatch.setattr(setup, "_saved", files_on_a_drive_that_is_away)
     result = asyncio.run(setup.disk_status())
     release.set()
