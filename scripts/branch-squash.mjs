@@ -4,11 +4,10 @@
  *
  *   pnpm branch:squash [--message <file>]
  *
- * A pull request hands the merge queue one commit of its own. AFD's queue is moving from squash
- * merges, which GitHub writes in the name of whoever merges, to rebase merges, which land each of
- * a branch's own commits on main as it is, author kept, and drop its merges of main (#1809). That
- * one commit is then what main receives, so it says what the change is and credits only its
- * author. While the queue still squashes, a branch of one commit squashes to itself.
+ * A pull request hands the merge queue one commit of its own. AFD's queue rebases: it lands each
+ * of a branch's own commits on main as it is, author kept, and drops its merges of main (#1809).
+ * That one commit is then what main receives, so it says what the change is and credits only its
+ * author.
  *
  * The new commit has HEAD's tree, so the review and the gates that covered HEAD cover it, and
  * `origin/main` as its one parent. Its author, and the author date, are those of the branch's own

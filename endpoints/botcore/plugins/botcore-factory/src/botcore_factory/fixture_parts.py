@@ -240,7 +240,7 @@ class FixtureGitHub:
         )
 
     def commit_message(self, commit: str) -> str:
-        """``commitMessages[commit]``: a commit's message (a merge queue's squash)."""
+        """``commitMessages[commit]``: a commit's message (the commit a merge queue built)."""
         return str(self.store.data.get("commitMessages", {}).get(commit, ""))
 
     def merge_commit(self, pr: int) -> str | None:

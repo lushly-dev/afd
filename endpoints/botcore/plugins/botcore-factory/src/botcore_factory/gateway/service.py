@@ -879,8 +879,8 @@ class Gateway:
         changes nothing, and sets no auto-merge. One whose check still runs gets auto-merge
         bound to the head, which GitHub turns into a queue entry when its requirements pass;
         where GitHub answers that nothing is left to wait for, it is added to the queue. The
-        queue squashes by its own configuration and writes the message itself, so the method
-        is the repository's only because GitHub refuses one it does not allow.
+        queue merges by its own method (AFD's rebases), so the configured method matters only
+        because GitHub refuses one the repository does not allow.
         """
         number, head = pull["number"], pull["head"]
         method = self.config.merge_method(repo)
@@ -1014,7 +1014,7 @@ class Gateway:
             "MERGE_METHOD_NOT_ALLOWED",
             f"{repo} does not allow {method} merges; nothing was merged",
             f"Set mergeMethods[{repo!r}] in the gateway's configuration to a method the "
-            "repository allows (squash for a squash-only repository) and merge again",
+            "repository allows (the only one, for a repository that allows one) and merge again",
             method=method,
         )
 

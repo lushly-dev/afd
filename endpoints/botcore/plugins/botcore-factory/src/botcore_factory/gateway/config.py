@@ -79,7 +79,8 @@ class GatewayConfig(_Model):
     #: work is credited to the owner, and an agent that helped is an Assisted-by trailer.
     owner_emails: list[str] = Field(min_length=1, alias="ownerEmails")
     #: How pr-merge merges in each repository. "merge" (the default) keeps every commit and its
-    #: author; a repository that allows only squash merges says "squash".
+    #: author; "rebase" lands each commit as it is, its author kept; "squash" makes one commit,
+    #: authored by whoever merges (an App credits its bot).
     merge_methods: dict[str, Literal["merge", "squash", "rebase"]] = Field(
         default_factory=dict, alias="mergeMethods"
     )

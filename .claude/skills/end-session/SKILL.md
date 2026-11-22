@@ -46,7 +46,7 @@ Read `.merged`, not `.state`, which is `closed` for merged and abandoned alike. 
 missing remote branch is not "nothing unpushed": head branches are deleted on merge,
 but a never-pushed or hand-deleted branch looks the same, so resolve it through
 `.merged` and the content check. That check settles every ambiguous signal ("0
-commits ahead", a squash merge): after the fetch, run start-session's landing check;
+commits ahead", the queue's own new commit): after the fetch, run start-session's landing check;
 a diff of the branch's files against `origin/main` that is empty, or shows only
 other PRs' later changes, means landed.
 

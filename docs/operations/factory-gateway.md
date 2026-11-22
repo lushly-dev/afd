@@ -221,19 +221,20 @@ the gateway binds only the tailnet address, so the two do not meet.
 Work that reaches `main` is credited to the owner: the gateway refuses a push whose commits he
 did not author, and how it merges decides who authors the commit on `main`.
 
-- **`rebase` keeps the owner as author.** GitHub lands the pull request's commits as they are,
-  with the bot only as committer. The commits are unsigned (GitHub signs no rebase merge) and
-  their subjects carry no pull request number. A pull request should hold one commit: every
-  commit of the branch lands.
+- **`rebase` keeps the owner as author.** GitHub lands the pull request's commits as they are.
+  Merged directly (Lushly), the bot is only the committer, the commits are unsigned and their
+  subjects carry no pull request number; who commits and signs a merge queue's rebase, and
+  whether its subject gains one, is settled with AFD's switch ([#1809](https://github.com/lushly-dev/afd/issues/1809)). A pull
+  request should hold one commit: every commit of the branch lands.
 - **`squash` by the App credits the bot**, with no line for the owner. Do not merge work the
   owner should be credited for that way.
 - A repository must allow the method (its settings, and any ruleset on `main`), or `pr-merge`
   answers `MERGE_METHOD_NOT_ALLOWED`.
 - Where `main` merges through a merge queue, the queue merges by its own method, whatever
   `mergeMethods` says, though GitHub still refuses a `mergeMethods` value the repository does
-  not allow. AFD's queue squashes and AFD allows nothing else, so `mergeMethods` says `squash`
-  for AFD and the gateway must not merge there. Both change to `rebase` with
-  [#1809](https://github.com/lushly-dev/afd/issues/1809).
+  not allow. AFD's queue rebases and AFD allows nothing else
+  ([#1809](https://github.com/lushly-dev/afd/issues/1809)), so `mergeMethods` says `rebase` for
+  AFD.
 
 ## When something is wrong
 

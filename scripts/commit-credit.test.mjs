@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
@@ -9,11 +9,16 @@ import { fileURLToPath } from 'node:url';
 import {
 	agentCoAuthors,
 	isAgentEmail,
+	MAIN_FIX,
+	MAIN_REBASE_FIX,
 	mainProblems,
 	mergeGroupCommits,
+	onMainFix,
 	PUSH_EVENT_LIMIT,
 	problems,
 	pushedCommits,
+	QUEUE_FIX,
+	QUEUE_REBASE_FIX,
 	queueMergeMethod,
 	rebaseProblems,
 } from './commit-credit.mjs';
@@ -159,32 +164,76 @@ describe('pushedCommits', () => {
 
 describe('--push-event', () => {
 	const script = fileURLToPath(new URL('./commit-credit.mjs', import.meta.url));
-	const push = (event) => {
+	const queue = (merge_method) => [{ type: 'merge_queue', parameters: { merge_method } }];
+	/** Runs the script on a push event, as main-credit.yml does (no token), against a local
+	 * server standing in for GitHub's API that answers the branch's rules with `rules`. */
+	const push = async (event, rules = queue('SQUASH'), environment = {}) => {
 		const directory = mkdtempSync(join(tmpdir(), 'commit-credit-'));
 		const path = join(directory, 'event.json');
 		writeFileSync(path, JSON.stringify(event));
-		const done = spawnSync(process.execPath, [script, '--push-event'], {
-			encoding: 'utf8',
-			env: { ...process.env, GITHUB_EVENT_PATH: path },
+		const requests = [];
+		const server = createServer((request, response) => {
+			requests.push({ url: request.url, authorization: request.headers.authorization });
+			response.setHeader('content-type', 'application/json');
+			response.end(JSON.stringify(rules));
 		});
+		await new Promise((done) => server.listen(0, '127.0.0.1', done));
+		const { GITHUB_TOKEN: _token, ...inherited } = process.env;
+		const child = spawn(process.execPath, [script, '--push-event'], {
+			env: {
+				...inherited,
+				GITHUB_EVENT_PATH: path,
+				GITHUB_REPOSITORY: 'example/repo',
+				GITHUB_REF_NAME: 'main',
+				GITHUB_API_URL: `http://127.0.0.1:${server.address().port}`,
+				...environment,
+			},
+		});
+		let stdout = '';
+		let stderr = '';
+		child.stdout.on('data', (chunk) => {
+			stdout += chunk;
+		});
+		child.stderr.on('data', (chunk) => {
+			stderr += chunk;
+		});
+		const status = await new Promise((done) => child.on('close', done));
+		await new Promise((done) => server.close(done));
 		rmSync(directory, { recursive: true, force: true });
-		return done;
+		return { status, stdout, stderr, requests };
 	};
 	const pushed = (message) => ({ id: 'a1b2c3d4e5', message, author: owner, committer: owner });
+	const credited = { commits: [pushed('fix: y\n\nCo-authored-by: Owner <old@example.com>\n')] };
 
-	it('fails a push whose commit names a co-author, naming the commit and the line', () => {
-		const done = push({ commits: [pushed('fix: y\n\nCo-authored-by: Owner <old@example.com>\n')] });
+	it('fails a push whose commit names a co-author, naming the commit, the line and the fix', async () => {
+		const done = await push(credited);
 		assert.equal(done.status, 1);
 		assert.match(done.stderr, /a1b2c3d4 has the line "Co-authored-by: Owner <old@example.com>"/);
 		assert.match(done.stderr, /The merge queue's ci-ok refuses such a squash/);
+		// The rules of the pushed branch, read without a token, as main-credit.yml has none.
+		assert.deepEqual(done.requests, [
+			{ url: '/repos/example/repo/rules/branches/main?per_page=100', authorization: undefined },
+		]);
 	});
-	it('passes a push whose commits credit only their authors', () => {
-		const done = push({ commits: [pushed('fix: y\n\nAssisted-by: Claude Code\n')] });
+	it("names the rebase fix when main's queue rebases, and both when it cannot tell", async () => {
+		const rebasing = await push(credited, queue('REBASE'));
+		assert.equal(rebasing.status, 1);
+		assert.match(rebasing.stderr, /the merge queue rebases, so main receives each commit as it is/);
+		assert.doesNotMatch(rebasing.stderr, /squash/);
+		const unread = await push(credited, queue('REBASE'), { GITHUB_REF_NAME: '' });
+		assert.equal(unread.status, 1);
+		assert.match(unread.stderr, /how main's queue merges could not be read/);
+		assert.match(unread.stderr, /If main's merge queue squashes:[\s\S]*If it rebases:/);
+		assert.deepEqual(unread.requests, []);
+	});
+	it('passes a push whose commits credit only their authors, reading nothing', async () => {
+		const done = await push({ commits: [pushed('fix: y\n\nAssisted-by: Claude Code\n')] });
 		assert.equal(done.status, 0, done.stderr);
 		assert.match(done.stdout, /1 commit\(s\) credit only their authors/);
+		assert.deepEqual(done.requests, []);
 	});
-	it('refuses a push event that lists no commits rather than passing it', () => {
-		const done = push({ commits: [] });
+	it('refuses a push event that lists no commits rather than passing it', async () => {
+		const done = await push({ commits: [] });
 		assert.equal(done.status, 2);
 		assert.match(done.stderr, /lists no commits/);
 	});
@@ -323,13 +372,18 @@ describe('--merge-group', () => {
 		await assert.rejects(read([comparison([])], { head: 'main' }).commits, /HEAD_SHA must be/);
 	});
 
-	/** Runs the script against a local server standing in for GitHub's API. */
-	const run = async (body, environment = {}) => {
+	/** Runs the script against a local server standing in for GitHub's API; `rules` answers the
+	 * branch's rules, read only to name a failure's fix. */
+	const run = async (
+		body,
+		environment = {},
+		rules = [{ type: 'merge_queue', parameters: { merge_method: 'SQUASH' } }]
+	) => {
 		const requests = [];
 		const server = createServer((request, response) => {
 			requests.push(request.url);
 			response.setHeader('content-type', 'application/json');
-			response.end(JSON.stringify(body));
+			response.end(JSON.stringify(request.url.includes('/rules/') ? rules : body));
 		});
 		await new Promise((done) => server.listen(0, '127.0.0.1', done));
 		const child = spawn(process.execPath, [script, '--merge-group'], {
@@ -363,9 +417,25 @@ describe('--merge-group', () => {
 		assert.equal(done.status, 1, done.stderr);
 		assert.match(done.stderr, /cccccccc has the line "Co-authored-by: Owner <old@example.com>"/);
 		assert.match(done.stderr, /The pull request has left the queue/);
+		assert.match(done.stderr, /GitHub writes the\nqueue's squash message/);
+		// The rules are read only to name the fix, once the verdict is failed.
 		assert.deepEqual(done.requests, [
 			`/repos/example/repo/compare/main...${head}?per_page=100&page=1`,
+			'/repos/example/repo/rules/branches/main?per_page=100',
 		]);
+	});
+	it("names the rebase fix when main's queue rebases, and both when it cannot tell", async () => {
+		const line = 'feat: x\n\nCo-authored-by: Owner <old@example.com>\n';
+		const rebasing = await run(comparison([queued(head, line)]), {}, [
+			{ type: 'merge_queue', parameters: { merge_method: 'REBASE' } },
+		]);
+		assert.equal(rebasing.status, 1, rebasing.stderr);
+		assert.match(rebasing.stderr, /The queue rebases/);
+		assert.doesNotMatch(rebasing.stderr, /queue's squash message/);
+		const unread = await run(comparison([queued(head, line)]), {}, { message: 'x' });
+		assert.equal(unread.status, 1, unread.stderr);
+		assert.match(unread.stderr, /how main's queue merges could not be read/);
+		assert.match(unread.stderr, /If main's merge queue squashes:[\s\S]*If it rebases:/);
 	});
 	it('fails the group whose squash an agent authored', async () => {
 		const agent = { name: 'Claude', email: 'noreply@anthropic.com' };
@@ -417,6 +487,35 @@ describe('a pull request when the queue rebases', () => {
 		assert.equal(await method([queue('SQUASH')]), 'SQUASH');
 		assert.equal(await method([{ type: 'pull_request' }]), null);
 	});
+	it('sends a token only when it has one: a public repository answers without', async () => {
+		const sent = [];
+		const read = (token) =>
+			queueMergeMethod({
+				repository: 'example/repo',
+				branch: 'main',
+				token,
+				fetchImpl: async (_url, init) => {
+					sent.push(init.headers.authorization);
+					return answer([queue('REBASE')]);
+				},
+			});
+		assert.equal(await read(undefined), 'REBASE');
+		assert.equal(await read('t'), 'REBASE');
+		assert.deepEqual(sent, [undefined, 'Bearer t']);
+	});
+	it("names the fix for a co-author on main by how main's queue merges", () => {
+		assert.equal(onMainFix('REBASE', false), MAIN_REBASE_FIX);
+		assert.equal(onMainFix('REBASE', true), QUEUE_REBASE_FIX);
+		assert.equal(onMainFix('SQUASH', false), MAIN_FIX);
+		assert.equal(onMainFix('SQUASH', true), QUEUE_FIX);
+		assert.equal(onMainFix(null, false), MAIN_FIX);
+		// Unread: both, each under its case, so the reader is never told the wrong one alone.
+		const both = onMainFix(undefined, true);
+		assert.ok(both.includes(QUEUE_FIX) && both.includes(QUEUE_REBASE_FIX));
+		assert.match(both, /^If main's merge queue squashes:\n/);
+		assert.match(QUEUE_REBASE_FIX, /pnpm branch:squash/);
+		assert.doesNotMatch(MAIN_REBASE_FIX, /squash instead/);
+	});
 	it('refuses rules it cannot read whole or that disagree, rather than guessing', async () => {
 		await assert.rejects(method([], 404), /404/);
 		await assert.rejects(method({ message: 'x' }), /not a whole list/);
@@ -428,7 +527,7 @@ describe('a pull request when the queue rebases', () => {
 		await assert.rejects(method([queue(undefined)]), /method is unclear/);
 		await assert.rejects(
 			queueMergeMethod({ repository: 'example/repo', branch: '', token: 't', fetchImpl: () => {} }),
-			/GITHUB_BASE_REF must name/
+			/no branch named whose rules to read/
 		);
 	});
 

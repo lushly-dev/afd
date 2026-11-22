@@ -75,6 +75,7 @@ describe('chooseAuthor', () => {
 		assert.equal(chosen.name, 'github-actions[bot]');
 		assert.match(chosen.warning, /#12 was opened by someone/);
 		assert.match(chosen.warning, /Co-authored-by/);
+		assert.match(chosen.warning, /this workflow's author check fails it/);
 	});
 });
 
@@ -368,6 +369,7 @@ describe('the command line release.yml runs', () => {
 		assert.equal(differs.code, 1);
 		assert.match(differs.stdout, /^::error::commit abcdef01 is by github-actions\[bot\]/m);
 		assert.match(differs.stderr, /Co-authored-by/);
+		assert.match(differs.stderr, /an author who did not open the pull request/);
 		assert.deepEqual(differs.config, ['', '']);
 	});
 
