@@ -63,7 +63,7 @@ const RUNS_4: Readonly<Record<string, string>> = Object.freeze({
 
 /**
  * Phase 5's files, by the step that makes each runnable: step 1 ran 6 and 8; step 3 enforcement, the suggestion records
- * and `p5-base`'s apps and rows, so 1 and 5 run. The rest wait for the commands, fixtures and taint their steps build
+ * and `p5-base`'s apps and rows, so 1 and 5 run; step 4 2 and 7; step 5 3 and 9. The rest wait for the commands, fixtures and taint their steps build
  * (the specification's section 19).
  */
 const RUNS: Readonly<Record<string, string>> = Object.freeze({
@@ -74,8 +74,9 @@ const RUNS: Readonly<Record<string, string>> = Object.freeze({
 	// Step 4's: mailfix mounted, labels and taint, and mounted tools listed.
 	'approval-health': 'now',
 	'mail-cannot-act-elsewhere': 'now',
-	'approve-mail-send': 'step 5: mounted approvals',
-	'person-sends-mail': 'step 5: mounted approvals and the calls grant',
+	// Step 5's: mounted approvals, with the send's preview and the shell as mailfix's approver.
+	'approve-mail-send': 'now',
+	'person-sends-mail': 'now',
 	// Step 6's: fresh-context units.
 	'reply-set-fresh-context': 'now',
 	'app-call-needs-grant': "milestone B's amendment: native calls grants",

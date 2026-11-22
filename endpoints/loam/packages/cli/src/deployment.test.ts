@@ -165,6 +165,36 @@ describe('deployment write', () => {
 		});
 	});
 
+	it("carries a mounted entry's approvals and a command's preview into the projection (phase 5 specification, 7.2)", async () => {
+		const paths = await layout(
+			'deployment_version = 4\n\n[apps.mail]\napp = "mailfix"\npackage = "mailfix"\nprefix = "mailfix"\naudience = "person"\ntransport = "http"\nurl = "http://127.0.0.1:1/mcp"\napprovals = "shell"\n\n[apps.mail.commands."mailfix-draft-send"]\nexpose = { agent = true }\npreview = { command = "mailfix-draft-show", input = ["draft"] }\n',
+			{ mailfix: mountedPackage('mailfix') }
+		);
+		const written = await write_(paths);
+		expect(written).toMatchObject({ ok: true });
+		const projection = JSON.parse(readFileSync(join(paths.out, 'deployment.json'), 'utf8'));
+		expect(readProjection(projection).ok).toBe(true);
+		expect(projection.apps[0]).toMatchObject({
+			instance: 'mail',
+			approvals: 'shell',
+			commands: {
+				'mailfix-draft-send': { preview: { command: 'mailfix-draft-show', input: ['draft'] } },
+			},
+		});
+	});
+
+	it('`deployment check` refuses approvals = "shell" with no command naming a preview, and says how (P5-A6)', async () => {
+		const paths = await layout(
+			'deployment_version = 4\n\n[apps.mail]\napp = "mailfix"\npackage = "mailfix"\nprefix = "mailfix"\naudience = "person"\ntransport = "http"\nurl = "http://127.0.0.1:1/mcp"\napprovals = "shell"\n\n[apps.mail.commands."mailfix-draft-send"]\nexpose = { agent = true }\n',
+			{ mailfix: mountedPackage('mailfix') }
+		);
+		const analysis = await analyzeDeployment(paths.config);
+		const refusal = analysis.refusals.find((each) => each.code === 'DEPLOYMENT_PREVIEW_REQUIRED');
+		expect(refusal).toMatchObject({ key: 'apps.mail.approvals' });
+		expect(refusal?.suggestion).toContain('preview');
+		expect(await write_(paths)).toMatchObject({ ok: false });
+	});
+
 	it('writes the projection of the specification', async () => {
 		const paths = await layout(SPEC_FILE, SPEC_PACKAGES);
 		const written = await write_(paths);

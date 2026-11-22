@@ -507,6 +507,7 @@ export const ADMITTED_KEYS: Record<string, Record<string, readonly string[]>> = 
 			"projects",
 			"space",
 			"labels",
+			"approvals",
 			"expose",
 			"commands",
 			"boot"
@@ -523,7 +524,8 @@ export const ADMITTED_KEYS: Record<string, Record<string, readonly string[]>> = 
 		"/apps/*/commands/*": [
 			"expose",
 			"effects",
-			"destructive"
+			"destructive",
+			"preview"
 		],
 		"/apps/*/commands/*/expose": [
 			"agent",
@@ -533,6 +535,11 @@ export const ADMITTED_KEYS: Record<string, Record<string, readonly string[]>> = 
 			"apps"
 		],
 		"/apps/*/commands/*/effects": [],
+		"/apps/*/commands/*/preview": [
+			"command",
+			"input"
+		],
+		"/apps/*/commands/*/preview/input": [],
 		"/apps/*/boot": [
 			"title",
 			"kind",

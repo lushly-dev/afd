@@ -4,6 +4,7 @@
  * check`'s, and whatever needs the other instances is a refusal of that instance at load.
  */
 
+import { approvalsRefusals } from './approvals-rules.js';
 import { deploymentRefusals } from './deployment-refusals.js';
 import { keyOf } from './pointers.js';
 import type { IdentityMethodV1, IdentityV1 } from './read-boot.js';
@@ -28,8 +29,9 @@ import {
 /** Every version this reader reads. */
 type AnyDeployment = DeploymentV1 | DeploymentV2 | DeploymentV3 | DeploymentV4;
 
-/** An instance entry of any version: version 4 adds `labels` (phase 5 specification, 5.1). */
-type Instance = DeploymentV1['apps'][string] & Pick<DeploymentV4['apps'][string], 'labels'>;
+/** An instance entry of any version: version 4 adds `labels` and `approvals` (phase 5 specification, 5.1 and 7.2). */
+type Instance = DeploymentV1['apps'][string] &
+	Pick<DeploymentV4['apps'][string], 'labels' | 'approvals'>;
 
 /** What a version 1 file, or a version 2 file naming none, means (phase 2 specification, 4.2). */
 export const DEFAULT_WORKSPACE_V2: Readonly<DeploymentWorkspaceV2> = Object.freeze({
@@ -54,6 +56,7 @@ const MOUNTED_KEYS = [
 	'projects',
 	'space',
 	'labels',
+	'approvals',
 	'expose',
 	'commands',
 ] as const satisfies readonly (keyof Instance)[];
@@ -169,6 +172,8 @@ function instanceRefusals(id: string, entry: Instance): DeploymentRefusal[] {
 			'Add `command`, an array of strings.'
 		);
 	}
+	// A mounted command only a person may run (phase 5 specification, 7.2): what the file can show of it.
+	approvalsRefusals(entry as Parameters<typeof approvalsRefusals>[0], refuse);
 	return refusals;
 }
 

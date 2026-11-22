@@ -10,6 +10,7 @@
  */
 
 import type {
+	ConfirmationPreviewV1,
 	DialogInputV1,
 	GlobalInputV1,
 	ModalInputV1,
@@ -85,6 +86,8 @@ export interface OverlayFor {
 	caller?: string;
 	kind?: 'input' | 'confirmation' | 'close';
 	input?: unknown;
+	/** A released mounted command's preview, the kernel's own read, for the person (phase 5 specification, 7.2). */
+	preview?: ConfirmationPreviewV1;
 	/** The palette's input prompt: the scope it opened in, which its fill runs in (7.1). */
 	scope?: ScopeV1;
 	/** The close prompt: the tab whose close it asks about (7.3), and its document. */

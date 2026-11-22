@@ -4,7 +4,11 @@
  */
 
 import type { CommandResult } from '@lushly-dev/afd-core';
-import type { ConfirmationAskedV1, ResourceLinkV1 } from '@lushly-dev/loam-sdk';
+import type {
+	ConfirmationAskedV1,
+	ConfirmationPreviewV1,
+	ResourceLinkV1,
+} from '@lushly-dev/loam-sdk';
 import type { ScopeV1 } from '../scope/records.js';
 import type { SuggestionV1 } from './enforce.js';
 
@@ -133,6 +137,8 @@ export interface CopilotConfirmationCardV1 {
 	scope: ScopeV1;
 	danger: boolean;
 	asked?: ConfirmationAskedV1;
+	/** A mounted command's preview, the person's to read (7.2). */
+	preview?: ConfirmationPreviewV1;
 	expiresAt: number;
 	/** The copilot session that raised it: the port and the cards take only their own session's (6.2). */
 	session?: string;

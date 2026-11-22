@@ -6,8 +6,11 @@
  * 1, `rs_1`'s two units, Ada as the reply's recipient); every value a stranger wrote sits in a part labelled
  * `"trust": "content"`; the send is held by AFD's approval policy for every caller, never carries its token in a
  * result, refuses a stale revision before the hold and again after it, and sends once; the archive answers its
- * undo. What it does not prove: anything of Loam's kernel, which mounts it in later steps, or AFD's approver carrier
- * (step 0c), which an in-process test stands in for by handing the token to `context.approval`.
+ * undo; and over stdio, as the desktop mounts it, AFD's approver carrier (step 0c): the stdio peer, its approver, gets
+ * the token, a 2026-07-28 retry with `_meta["dev.afd/approval"]` sends once, a 2025-era one is refused, and a server
+ * started with no approver gives no token. What it does not prove: Loam's kernel, which presents the token
+ * (`apps/mounted-approvals.test.ts`, the desktop suite's P5-A6). An in-process test hands the token to
+ * `context.approval`, since `server.execute` has no MCP lane between it and the server.
  */
 
 import { type ChildProcessWithoutNullStreams, spawn } from 'node:child_process';
@@ -68,7 +71,7 @@ function refused(result: CommandResult, code: string): void {
 	expect(result.error?.suggestion).not.toBe('');
 }
 
-/** A fixture whose held sends are recorded, as the approver carrier of step 0c will deliver them. */
+/** A fixture whose held sends are recorded, with the token an approver would be given (step 0c's carrier). */
 function fixture() {
 	const held: ApprovalRequest[] = [];
 	const server = createMailfixServer({ onApprovalRequired: (request) => void held.push(request) });
@@ -477,9 +480,15 @@ describe('mailfix: over stdio, as the desktop mounts it', () => {
 		for (const child of children.splice(0)) child.kill();
 	});
 
-	/** A line-delimited JSON-RPC client over the entry's stdio. */
-	function connect() {
-		const child = spawn(process.execPath, [ENTRY], { stdio: ['pipe', 'pipe', 'pipe'] });
+	/** A line-delimited JSON-RPC client over the entry's stdio; `approver: false` starts the entry with none. */
+	function connect(options: { approver?: boolean } = {}) {
+		const child = spawn(process.execPath, [ENTRY], {
+			stdio: ['pipe', 'pipe', 'pipe'],
+			env: {
+				...process.env,
+				...(options.approver === false ? { LOAM_MAILFIX_APPROVER: '0' } : {}),
+			},
+		});
 		children.push(child);
 		child.stderr.resume();
 		const waiting = new Map<number, (message: Data) => void>();
@@ -513,8 +522,8 @@ describe('mailfix: over stdio, as the desktop mounts it', () => {
 		};
 	}
 
-	it('lists every command and holds the send with no token in the result', async () => {
-		const client = connect();
+	it('lists every command and, with no approver, holds the send with no token in the result', async () => {
+		const client = connect({ approver: false });
 		const init = await client.request('initialize', {
 			protocolVersion: '2025-06-18',
 			capabilities: {},
@@ -542,6 +551,104 @@ describe('mailfix: over stdio, as the desktop mounts it', () => {
 		const hold = await call('mailfix-draft-send', { draft: 'drf_1', revision: 1 });
 		refused(hold, 'APPROVAL_REQUIRED');
 		expect(JSON.stringify(hold)).not.toContain('afdap1.');
+		expect((await call('mailfix-sent-list', {})).data).toEqual({ sent: [] });
+	}, 30_000);
+
+	/** The MCP 2026-07-28 request keys, as Loam's desktop transport sends them for an `approvals = "shell"` instance. */
+	const MODERN = {
+		'io.modelcontextprotocol/protocolVersion': '2026-07-28',
+		'io.modelcontextprotocol/clientCapabilities': {},
+		'io.modelcontextprotocol/clientInfo': { name: 'loam', version: '1' },
+	};
+
+	it("carries the send's token to its approver, the stdio peer, and runs one retry with it once (AFD's carrier, 7.2)", async () => {
+		const client = connect();
+		const discovered = await client.request('server/discover', { _meta: MODERN });
+		expect((discovered.result as Data).supportedVersions).toContain('2026-07-28');
+		const call = async (name: string, args: Data, meta: Data = {}) =>
+			(
+				(
+					await client.request('tools/call', {
+						name,
+						arguments: args,
+						_meta: { ...MODERN, ...meta },
+					})
+				).result as Data
+			).structuredContent as CommandResult;
+
+		ok(await call('mailfix-draft-create', { thread: 'thr_1', body: 'See you Thursday.' }));
+		const hold = await call('mailfix-draft-send', { draft: 'drf_1', revision: 1 });
+		refused(hold, 'APPROVAL_REQUIRED');
+		const token = (hold.error?.details as { approvalToken?: unknown } | undefined)?.approvalToken;
+		expect(token).toEqual(expect.stringMatching(/^afdap1\./));
+		// Never as input: refused before the hold, from every caller.
+		refused(
+			await call('mailfix-draft-send', { draft: 'drf_1', revision: 1, 'dev.afd/approval': token }),
+			'VALIDATION_ERROR'
+		);
+		// For another input, the token is not evidence: held again, nothing sent.
+		ok(await call('mailfix-draft-create', { thread: 'thr_1', body: 'Another.' }));
+		refused(
+			await call(
+				'mailfix-draft-send',
+				{ draft: 'drf_2', revision: 1 },
+				{ 'dev.afd/approval': token }
+			),
+			'APPROVAL_REQUIRED'
+		);
+		expect((await call('mailfix-sent-list', {})).data).toEqual({ sent: [] });
+		// The retry a person approved: once.
+		expect(
+			ok(
+				await call(
+					'mailfix-draft-send',
+					{ draft: 'drf_1', revision: 1 },
+					{ 'dev.afd/approval': token }
+				)
+			)
+		).toMatchObject({ draft: 'drf_1' });
+		refused(
+			await call(
+				'mailfix-draft-send',
+				{ draft: 'drf_1', revision: 1 },
+				{ 'dev.afd/approval': token }
+			),
+			'CONFLICT'
+		);
+		const sent = (await call('mailfix-sent-list', {})).data as { sent: Data[] };
+		expect(sent.sent).toHaveLength(1);
+		expect(sent.sent[0]).toMatchObject({ recipients: ['ada@example.com'] });
+	}, 30_000);
+
+	it('refuses the key on a 2025-era request, where AFD carries no approval (its rule 3)', async () => {
+		const client = connect();
+		await client.request('initialize', {
+			protocolVersion: '2025-06-18',
+			capabilities: {},
+			clientInfo: { name: 'mailfix-test', version: '0.0.0' },
+		});
+		client.notify('notifications/initialized');
+		const call = async (name: string, args: Data, meta?: Data) =>
+			(
+				(
+					await client.request('tools/call', {
+						name,
+						arguments: args,
+						...(meta ? { _meta: meta } : {}),
+					})
+				).result as Data
+			).structuredContent as CommandResult;
+		ok(await call('mailfix-draft-create', { thread: 'thr_1', body: 'Hi.' }));
+		const hold = await call('mailfix-draft-send', { draft: 'drf_1', revision: 1 });
+		const token = (hold.error?.details as { approvalToken?: unknown } | undefined)?.approvalToken;
+		refused(
+			await call(
+				'mailfix-draft-send',
+				{ draft: 'drf_1', revision: 1 },
+				{ 'dev.afd/approval': token }
+			),
+			'APPROVAL_REQUIRED'
+		);
 		expect((await call('mailfix-sent-list', {})).data).toEqual({ sent: [] });
 	}, 30_000);
 });

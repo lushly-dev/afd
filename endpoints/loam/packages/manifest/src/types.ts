@@ -39,7 +39,10 @@ export type ProjectionAppV1 = ProjectionV1['apps'][number];
 /** One entry of a version 2 projection (phase 2 specification, 2.2). */
 export type ProjectionAppV2 = ProjectionV2['apps'][number];
 
-/** One entry of a version 4 projection: a mounted entry's `labels` and a command's `expose.apps` (phase 5, 5.1 and 7.5). */
+/**
+ * One entry of a version 4 projection: a mounted entry's `labels` and `approvals`, and a command's `expose.apps` and
+ * `preview` (phase 5, 5.1, 7.2 and 7.5).
+ */
 export type ProjectionAppV4 = ProjectionV4['apps'][number];
 
 /** What an entry's boot record says, for display only. */
@@ -135,6 +138,8 @@ export type DeploymentRefusalCode =
 	| 'DEPLOYMENT_INSTANCE_RESERVED'
 	| 'DEPLOYMENT_TITLE_RESERVED'
 	| 'DEPLOYMENT_INVALID'
+	| 'DEPLOYMENT_PREVIEW_INVALID'
+	| 'DEPLOYMENT_PREVIEW_REQUIRED'
 	| 'DEPLOYMENT_PROJECT_INVALID'
 	| 'DEPLOYMENT_PROVIDER_NEEDS_HOST'
 	| 'DEPLOYMENT_STDIO_TEAM'

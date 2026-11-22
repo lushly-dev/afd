@@ -93,6 +93,8 @@ interface Presented {
 import { landsInInbox, type OverlayOwner, SHELL } from '../overlays.js';
 import type { Confirmations } from './confirmations.js';
 import { badCaller, confirmPromptFor, copilotPartsOf, genericAskedFor } from './copilot-wiring.js';
+import { overBound } from './input-bound.js';
+import { createMountedApprovals } from './mounted-approvals.js';
 import type { ActionVerdict } from './notifications.js';
 
 export { createOverlayStore } from '../overlays.js';
@@ -874,102 +876,100 @@ export async function createLateParts(
 	/** Whether an app is active, or owns the active tab (6.1). */
 	const appActive = async (instance: string): Promise<boolean> =>
 		instance === deps.state.activeApp() || instance === (await editor?.owner());
-	// Phase 4's confirmations (its 7.1, 7.2), in `late-settings` beside the inbox whose table holds a pending one.
-	const confirmations: Confirmations = createConfirmations({
-		store: deps.store,
-		workspace: () => deps.scope.workspace.id,
-		provider,
-		overlays: deps.overlays,
-		openerOf: (context) => openerOf(context, isHumanGesture),
-		isActive: appActive,
-		askedFor: confirmPromptOf,
-		// Phase 5's `ask` of a command that declares none (its 6.1, 6.2), in the shell's words.
-		genericAsked: (command, enforced) =>
-			genericAskedFor(definitionOf(command), deps.apps().owners.get(command)?.instance, enforced),
-		// Approval health and the copilot's waiting turn (phase 5's 6.3, 3.5).
-		observe: (event, row) => copilot.observe(event, row),
-		suggestions: copilot.suggestions,
-		paletteCommand(command) {
-			if (command === 'palette-run' || INTERNAL_COMMANDS.includes(command)) return undefined;
-			if (!deps.paletteRows().some((row) => row.name === command)) return undefined;
-			const definition =
-				byName.get(command) ??
-				deps.apps().commands.find((each) => each.name === command) ??
-				// A host's own command, which the palette lists too (the re-check's B7).
-				deps.definitionOf?.(command);
-			const json = deps.paletteCommands?.().find((each) => each.name === command)?.inputSchema;
-			return definition ? { definition, json } : undefined;
-		},
-		journaled: (command) => deps.journaled?.(command) ?? true,
-		inputFault(command, input) {
-			const parsed = z.safeParse(command.inputSchema as z.ZodMiniType, input);
-			return parsed.success ? undefined : (parsed.error.issues[0]?.message ?? 'it is invalid');
-		},
-		allows: (actor, scope) => deps.scope.allows(actor, scope),
-		// The re-check past access (7.2): the command's app still enabled for the project and loaded, and a calling app
-		// still the command's own (an app calls no other app's command in phase 4).
-		served(command, caller, scope) {
-			const owner = deps.apps().owners.get(command);
-			// A shell command an agent was asked for (phase 5's 6.1): the shell's own, which no app serves; access, re-checked
-			// beside this, is all it needs, and no app may call it.
-			if (
-				!owner &&
-				(byName.has(command) || deps.definitionOf?.(command) !== undefined) &&
-				!INTERNAL_COMMANDS.includes(command)
-			)
-				return caller === undefined ? undefined : `'${caller}' may not call it`;
-			if (!owner) return `'${command}' is no longer registered`;
-			const app = deps.summaries().find((each) => each.instance === owner.instance);
-			if (app?.state !== 'ready') return `'${owner.instance}' is not loaded`;
-			const refused = canOpen(deps.apps(), deps.scope, owner.instance, scope.project);
-			if (refused) return refused.error?.message ?? `'${owner.instance}' cannot open here`;
-			return badCaller(deps.apps(), caller, owner.instance, command);
-		},
-		appTitle: (instance) => ownerTitle(deps.summaries(), instance),
-		projectName: (project) => deps.scope.project(project)?.name,
-		personLabel,
-		runNow: (iface, name, input, fields) =>
-			deps.runNow?.(iface, name, input, fields) ??
-			Promise.resolve(
-				DOCUMENT_KIT.kernelFailure(
-					'HUMAN_REQUIRED',
-					'This kernel cannot run a confirmed call',
-					'None: only a kernel runs one'
-				)
-			),
-		runBoot: (name, input) => deps.runBoot(name, input) as Promise<CommandResult>,
+	// Phase 4's confirmations (its 7.1, 7.2), in `late-settings` beside the inbox whose table holds a pending one, with
+	// phase 5's mounted approvals around them (its 7.2).
+	const released = createMountedApprovals({
+		apps: deps.apps,
 		replaying: () => deps.internals?.replaying === true,
-		noteInbox: (context) => deps.scope.note(context.traceId, { inbox: true }),
-		archived: (command, scope) =>
-			scope.project !== undefined &&
-			deps.scope.projects.get(scope.project)?.status === 'archived' &&
-			deps.isMutation(command),
-		chainOf: documentChainOf,
-		// The settled person, and only while the adapter reports the same one: a sign-in the shell is still settling (its
-		// membership read in flight) is no one's yet, so a confirmed run fails closed (step 6's sixth round, B1).
-		personNow: () => {
-			const settled = shellPerson() ?? (provider ? undefined : 'local');
-			const adapter =
-				personKey(sessionActor(deps.auth, deps.clock)) ?? (provider ? undefined : 'local');
-			return settled === adapter ? settled : undefined;
-		},
-		// Measured here rather than with first paint's `measureJson`, whose import would part first paint's chunks.
-		inputOver(input) {
-			const bound = deps.limits?.values().inputBytes;
-			if (bound === undefined) return false;
-			try {
-				const json = JSON.stringify(input);
-				return json === undefined || new TextEncoder().encode(json).length > bound;
-			} catch {
-				// No JSON form: over every limit (section 11's R2).
-				return true;
-			}
-		},
-		releaseQueue: (context) =>
-			(context as unknown as Record<symbol, QueuedTicket | undefined>)[deps.queued]?.release?.(),
-		digest: (value) => sha256(canonical(value)),
-		kit: { ...DOCUMENT_KIT, archivedRefusal, personKey },
 	});
+	const confirmations: Confirmations = released.wrap(
+		createConfirmations({
+			store: deps.store,
+			workspace: () => deps.scope.workspace.id,
+			provider,
+			overlays: deps.overlays,
+			openerOf: (context) => openerOf(context, isHumanGesture),
+			isActive: appActive,
+			askedFor: (command) => confirmPromptOf(command) ?? released.askedFor(command),
+			previewFor: released.previewFor,
+			release: released.release,
+			// Phase 5's `ask` of a command that declares none (its 6.1, 6.2), in the shell's words.
+			genericAsked: (command, enforced) =>
+				genericAskedFor(definitionOf(command), deps.apps().owners.get(command)?.instance, enforced),
+			// Approval health and the copilot's waiting turn (phase 5's 6.3, 3.5).
+			observe: (event, row) => copilot.observe(event, row),
+			suggestions: copilot.suggestions,
+			paletteCommand(command) {
+				if (command === 'palette-run' || INTERNAL_COMMANDS.includes(command)) return undefined;
+				if (!deps.paletteRows().some((row) => row.name === command)) return undefined;
+				const definition =
+					byName.get(command) ??
+					deps.apps().commands.find((each) => each.name === command) ??
+					// A host's own command, which the palette lists too (the re-check's B7).
+					deps.definitionOf?.(command);
+				const json = deps.paletteCommands?.().find((each) => each.name === command)?.inputSchema;
+				return definition ? { definition, json } : undefined;
+			},
+			journaled: (command) => deps.journaled?.(command) ?? true,
+			inputFault(command, input) {
+				const parsed = z.safeParse(command.inputSchema as z.ZodMiniType, input);
+				return parsed.success ? undefined : (parsed.error.issues[0]?.message ?? 'it is invalid');
+			},
+			allows: (actor, scope) => deps.scope.allows(actor, scope),
+			// The re-check past access (7.2): the command's app still enabled for the project and loaded, and a calling app
+			// still the command's own (an app calls no other app's command in phase 4).
+			served(command, caller, scope) {
+				const owner = deps.apps().owners.get(command);
+				// A shell command an agent was asked for (phase 5's 6.1): the shell's own, which no app serves; access, re-checked
+				// beside this, is all it needs, and no app may call it.
+				if (
+					!owner &&
+					(byName.has(command) || deps.definitionOf?.(command) !== undefined) &&
+					!INTERNAL_COMMANDS.includes(command)
+				)
+					return caller === undefined ? undefined : `'${caller}' may not call it`;
+				if (!owner) return `'${command}' is no longer registered`;
+				const app = deps.summaries().find((each) => each.instance === owner.instance);
+				if (app?.state !== 'ready') return `'${owner.instance}' is not loaded`;
+				const refused = canOpen(deps.apps(), deps.scope, owner.instance, scope.project);
+				if (refused) return refused.error?.message ?? `'${owner.instance}' cannot open here`;
+				return badCaller(deps.apps(), caller, owner.instance, command);
+			},
+			appTitle: (instance) => ownerTitle(deps.summaries(), instance),
+			projectName: (project) => deps.scope.project(project)?.name,
+			personLabel,
+			runNow: (iface, name, input, fields) =>
+				deps.runNow?.(iface, name, input, fields) ??
+				Promise.resolve(
+					DOCUMENT_KIT.kernelFailure(
+						'HUMAN_REQUIRED',
+						'This kernel cannot run a confirmed call',
+						'None: only a kernel runs one'
+					)
+				),
+			runBoot: (name, input) => deps.runBoot(name, input) as Promise<CommandResult>,
+			replaying: () => deps.internals?.replaying === true,
+			noteInbox: (context) => deps.scope.note(context.traceId, { inbox: true }),
+			archived: (command, scope) =>
+				scope.project !== undefined &&
+				deps.scope.projects.get(scope.project)?.status === 'archived' &&
+				deps.isMutation(command),
+			chainOf: documentChainOf,
+			// The settled person, and only while the adapter reports the same one: a sign-in the shell is still settling (its
+			// membership read in flight) is no one's yet, so a confirmed run fails closed (step 6's sixth round, B1).
+			personNow: () => {
+				const settled = shellPerson() ?? (provider ? undefined : 'local');
+				const adapter =
+					personKey(sessionActor(deps.auth, deps.clock)) ?? (provider ? undefined : 'local');
+				return settled === adapter ? settled : undefined;
+			},
+			inputOver: (input) => overBound(deps.limits?.values().inputBytes, input),
+			releaseQueue: (context) =>
+				(context as unknown as Record<symbol, QueuedTicket | undefined>)[deps.queued]?.release?.(),
+			digest: (value) => sha256(canonical(value)),
+			kit: { ...DOCUMENT_KIT, archivedRefusal, personKey },
+		})
+	);
 	// Phase 4's experiments (its section 5), in `late-settings` beside the settings: gates decide presence, never access.
 	experiments = createExperiments({
 		store: deps.store,

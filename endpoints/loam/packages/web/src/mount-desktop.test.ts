@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { createDesktopMountTransport, DESKTOP_PROTOCOL_VERSION } from './mount-desktop.js';
+import {
+	createDesktopMountTransport,
+	DESKTOP_MODERN_VERSION,
+	DESKTOP_PROTOCOL_VERSION,
+} from './mount-desktop.js';
 import { webPorts } from './ports.js';
 
 type Invoke = (command: string, args: Record<string, unknown>) => Promise<unknown>;
@@ -136,5 +140,96 @@ describe('DesktopMountTransport (phase 6 specification, 10.4)', () => {
 			'https://x.example/mounts/home/mcp'
 		);
 		expect(made).toEqual(['desktop home', 'web https://x.example/mounts/home/mcp']);
+	});
+
+	it('opens an approvals = "shell" instance on MCP 2026-07-28, its keys on every request beside the kernel\'s (phase 5, 7.2)', async () => {
+		const calls = fakeHost((message) =>
+			message.method === 'server/discover'
+				? respond(message, { supportedVersions: [DESKTOP_MODERN_VERSION] })
+				: respond(message, { content: [], structuredContent: { success: true } })
+		);
+		const transport = createDesktopMountTransport('mail', { era: 'modern' });
+		expect(await transport.connect()).toEqual({
+			protocolVersion: DESKTOP_MODERN_VERSION,
+			approvals: true,
+		});
+		await transport.callTool('mail-send', { draft: 'd' }, undefined, {
+			'dev.loam/scope': { workspace: 'personal' },
+			'dev.afd/approval': 'afdap1.t',
+		});
+		const sent = calls
+			.filter(({ command }) => command === 'mount_send')
+			.map(
+				({ args }) =>
+					args.message as { method: string; params: { _meta?: Record<string, unknown> } }
+			);
+		// No `initialize`: the modern era opens with discovery, and every request says its era.
+		expect(sent.map((message) => message.method)).toEqual(['server/discover', 'tools/call']);
+		for (const message of sent) {
+			expect(message.params._meta).toMatchObject({
+				'io.modelcontextprotocol/protocolVersion': DESKTOP_MODERN_VERSION,
+				'io.modelcontextprotocol/clientInfo': { name: 'loam', version: '1' },
+			});
+		}
+		expect(sent[1]?.params._meta).toMatchObject({
+			'dev.loam/scope': { workspace: 'personal' },
+			'dev.afd/approval': 'afdap1.t',
+		});
+	});
+
+	it('opens one that does not speak 2026-07-28 with the 2025 handshake, on the same connection', async () => {
+		const calls = fakeHost((message) =>
+			message.method === 'server/discover'
+				? { jsonrpc: '2.0', id: message.id, error: { code: -32601, message: 'no' } }
+				: message.method === 'initialize'
+					? respond(message, { protocolVersion: '2025-06-18', capabilities: {} })
+					: respond(message, { content: [], structuredContent: { success: true } })
+		);
+		const transport = createDesktopMountTransport('mail', { era: 'modern' });
+		expect(await transport.connect()).toEqual({ protocolVersion: '2025-06-18' });
+		await transport.callTool('mail-read', {});
+		const sent = calls
+			.filter(({ command }) => command === 'mount_send')
+			.map(({ args }) => args.message as { method: string; params?: { _meta?: unknown } });
+		expect(sent.map((message) => message.method)).toEqual([
+			'server/discover',
+			'initialize',
+			'notifications/initialized',
+			'tools/call',
+		]);
+		expect(sent[3]?.params?._meta).toBeUndefined();
+		expect(calls.filter(({ command }) => command === 'mount_open')).toHaveLength(1);
+	});
+
+	it('asks the modern era only of an approvals = "shell" instance over stdio', async () => {
+		const made: unknown[] = [];
+		const chunk = {
+			createMountTransport: () => ({}) as never,
+			createDesktopMountTransport(instance: string, options?: unknown) {
+				made.push([instance, options]);
+				return {} as never;
+			},
+		};
+		const ports = webPorts(
+			{} as Document,
+			'http://loam.localhost/',
+			null,
+			() => Promise.reject(new Error('no view')),
+			() => Promise.resolve(chunk),
+			true
+		);
+		for (const entry of [
+			{ instance: 'a', approvals: 'shell', transport: 'stdio' },
+			{ instance: 'b', approvals: 'shell', transport: 'http' },
+			{ instance: 'c', approvals: 'none', transport: 'stdio' },
+			{ instance: 'd', transport: 'stdio' },
+		])
+			await ports.mountTransport(entry as never, 'http://loam.localhost/mounts/x/mcp');
+		expect(made).toEqual([
+			['a', { era: 'modern' }],
+			['b', {}],
+			['c', {}],
+			['d', {}],
+		]);
 	});
 });

@@ -717,7 +717,9 @@ export const CEILINGS = Object.freeze({
 	// the server's per-call roster for the sponsor rule, and the routed list `late` shares with `late-hosted`; set to
 	// 127,500 under D115.
 	// Phase 5's step 4 merged on phase 6's step 5 and #1936, the combined build: 129,416; set to 129,900 under D115.
-	lateMinified: 129_900,
+	// Phase 5's step 5, against `main` at `fa8ab4a5`: 134,203 (+4,787: the mounted approvals' gate, preview and release);
+	// set to 134,800 under D115.
+	lateMinified: 134_800,
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 16_400,
 	// Phase 3's step 7, against `main` at `0ab76415`: 62,702 to 64,976 (+2,274): `account-agent-list` and `-disconnect`,
@@ -739,7 +741,9 @@ export const CEILINGS = Object.freeze({
 	// set to 120,500.
 	// Phase 5's step 3 merged on top, the combined build: 123,388 (+3,481: the confirmations' enforced record and "Run
 	// it"); set to 124,000 under D115.
-	lateSettingsMinified: 124_000,
+	// Phase 5's step 5, against `main` at `fa8ab4a5`: 124,934 (+1,466: the preview on a confirmation, the release around
+	// its run, a changed preview's new confirmation); set to 125,500 under D115.
+	lateSettingsMinified: 125_500,
 	// Phase 6's step 5: the trust records' routing, the copy and its settle, 3,964 at its first measurement; set to 4,400,
 	// that plus 10%. After its trust review and re-check, 5,829 (the copy's holder record and one batch, the person rule, the journal's
 	// bound, the strip, the agent reads from the copy and a replay's periods); set to 6,200 under D115.
@@ -781,12 +785,16 @@ export const CEILINGS = Object.freeze({
 	// Phase 6's step 11b merged with phase 5's step 4 (`main` at `06dde692`), the combined build: 449,993, within the row.
 	// Phase 6's step 6 merged on it (`main` at `06dde692`), the combined build: 452,033; set to 452,600 under D115.
 	// Phase 6's steps 6 and 11b together (`main` at `c274ddaa`), the combined build: 452,358, within step 6's row.
-	appsMinified: 452_600,
+	// Phase 5's step 5, against `main` at `fa8ab4a5`: 460,678 (+11,010: the release, the hold, the token's strip and the
+	// lane's word); merged on phase 6's steps 6 and 11b (`main` at `49857af5`), the combined build: 463,368; 463,600 stands.
+	appsMinified: 463_600,
 	// Steps 4 and 5 together: 94,868 (step 4's slot and dialogs beside the inbox's Open inbox and hidden toasts' timers);
 	// set to 95,500 under D115.
 	// Phase 5's step 3 with phase 3's step 8 merged (`main` at `46f7ab11`; step 8's `surface-calls`, shared with
 	// `surfaces`), the combined build: 97,007; set to 97,500 under D115.
-	surfacesMinified: 97_500,
+	// Phase 5's step 5, against `main` at `fa8ab4a5`: 98,225 (+1,218: the preview's words in the slot); set to 98,800
+	// under D115.
+	surfacesMinified: 98_800,
 	// Raised from 25,105 to 25,900 by AFD #1190 (D115): `dev.loam/tokens` reads the contract's component
 	// ids, which grew from 108 to 115 with violet-elements' token interface; measured 25,793, plus a margin.
 	// Raised from 25,900 to 26,100 by the Refined design (D115): the interface's contract version 2 gives Loam's
@@ -823,7 +831,8 @@ export const CEILINGS = Object.freeze({
 	settingsMinified: 52_000,
 	editorMoveMinified: 4_205,
 	overlaysMinified: 11_000,
-	inboxMinified: 12_000,
+	// Phase 5's step 5: 12,050 (the preview's lines), set to 12,300 under D115.
+	inboxMinified: 12_300,
 });
 
 /** Group a module id by the package it belongs to. */

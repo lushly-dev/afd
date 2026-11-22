@@ -135,6 +135,9 @@
 				"labels": {
 					"enum": ["whole", "per-part"]
 				},
+				"approvals": {
+					"enum": ["none", "shell"]
+				},
 				"expose": {
 					"$ref": "#/$defs/expose"
 				},
@@ -205,8 +208,31 @@
 				},
 				"destructive": {
 					"type": "boolean"
+				},
+				"preview": {
+					"$ref": "#/$defs/preview"
 				}
 			},
+			"additionalProperties": false
+		},
+		"preview": {
+			"type": "object",
+			"properties": {
+				"command": {
+					"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/commandName"
+				},
+				"input": {
+					"type": "array",
+					"minItems": 1,
+					"maxItems": 16,
+					"uniqueItems": true,
+					"items": {
+						"type": "string",
+						"pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$"
+					}
+				}
+			},
+			"required": ["command", "input"],
 			"additionalProperties": false
 		},
 		"boot": {

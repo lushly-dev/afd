@@ -18,6 +18,7 @@
 import type { Actor, CommandContext, CommandMiddleware, CommandResult } from '@lushly-dev/afd-core';
 import type { JsonSchema, ZodCommandDefinition } from '@lushly-dev/afd-server/define';
 import type {
+	ConfirmationPreviewV1,
 	ConfirmationRecordV1,
 	ConfirmationStateV1,
 	ConfirmationV1,
@@ -25,13 +26,12 @@ import type {
 	OverlayRefV1,
 	PromptInputV1,
 } from '@lushly-dev/loam-sdk';
-import type { DataAdapter } from '@lushly-dev/local-db';
 import type { KernelFieldContext } from '../context-fields.js';
 import type { LoamKernelErrorCode } from '../errors.js';
-import type { OverlayStore } from '../overlays.js';
 import type { AccessActorV1 } from '../scope/access.js';
 import type { ScopeV1 } from '../scope/records.js';
 import type { ContextFieldV2 } from '../types.js';
+import type { ConfirmationDeps } from './confirmation-deps.js';
 import {
 	type AskedFor,
 	bucketOf,
@@ -50,6 +50,7 @@ import {
 	PERSON_LIMIT,
 	RAISED,
 	REPLACES,
+	RESHOW,
 	refusalsOf,
 	SLOT_KEPT,
 	type StoredConfirmation,
@@ -60,8 +61,8 @@ import {
 } from './confirmation-parts.js';
 import type { Opener } from './overlay-commands.js';
 import { createPaletteRun } from './palette-run.js';
-import type { SettingsKit } from './settings.js';
 
+export type { ConfirmationDeps } from './confirmation-deps.js';
 export {
 	type AskedFor,
 	bucketOf,
@@ -80,95 +81,6 @@ export {
 	stateNow,
 	summaryOf,
 } from './confirmation-parts.js';
-
-export interface ConfirmationDeps {
-	store: DataAdapter;
-	workspace(): string;
-	/** Whether the deployment's identity is `provider`: then a call with no person has no inbox. */
-	provider: boolean;
-	overlays: OverlayStore;
-	/** Step 3's path of a call (6.1): the shell's for a person's gesture, an app's port, the agent interface, or none. */
-	openerOf(context: CommandContext): Opener;
-	/** Whether an app is active, or owns the active tab (6.1). */
-	isActive(instance: string): Promise<boolean>;
-	/** A command's `confirm_prompt`, or undefined for one that declares none. */
-	askedFor(command: string): AskedFor | undefined;
-	/** Phase 5's `ask` of a command that declares none (its 6.1): the shell's own words. Absent: none is asked. */
-	genericAsked?(command: string, enforced: EnforcedV1): AskedFor | undefined;
-	/**
-	 * Told, on the call's path, when a confirmation an agent raised is raised or ends (phase 5's 6.3 and 3.5): approval
-	 * health counts it, and the copilot's waiting turn hears it.
-	 */
-	observe?(
-		event: 'asked' | 'confirmed' | 'declined' | 'withdrawn',
-		row: StoredConfirmation
-	): void | Promise<void>;
-	/**
-	 * A command the palette lists now (7.1): its definition, whose schema checks the input, and its input's JSON Schema,
-	 * whose plain fields the prompt asks for; undefined for one it does not list here.
-	 */
-	paletteCommand(command: string): { definition: ZodCommandDefinition; json: unknown } | undefined;
-	/** Why `input` does not fit the command's own schema, or undefined when it does. */
-	inputFault(command: ZodCommandDefinition, input: unknown): string | undefined;
-	/** Whether the journal records a call of `command`: one it does not leaves no entry for a replay to run (11). */
-	journaled(command: string): boolean;
-	/** `decideAccess` on a scope: whether the actor may enter it now, line 0 included. */
-	allows(actor: AccessActorV1, scope: ScopeV1): boolean;
-	/**
-	 * The re-check on confirm (7.2) past access: why the command's app, or the calling app, can no longer run it here, or
-	 * undefined when both still can: enabled for the project, loaded, and the caller's grants.
-	 */
-	served(command: string, caller: string | undefined, scope: ScopeV1): string | undefined;
-	/** An app's owner line title (6.6), never one that says "Loam". */
-	appTitle(instance: string): string;
-	/** A project's name, for the header. */
-	projectName(project: string): string | undefined;
-	/** The signed-in person's name, never an email; null for none. */
-	personLabel(): string | null;
-	/** The kernel's `execute`, past the queue: a top-level call journaled as its own (7.2's run, 7.1's). */
-	runNow(
-		iface: 'palette' | 'agent',
-		name: string,
-		input: unknown,
-		fields: Record<string | symbol, unknown>
-	): Promise<CommandResult>;
-	/** Boot's own: `prompt-settle`, journaled before the answer it waits for. */
-	runBoot(name: string, input: unknown): Promise<CommandResult>;
-	replaying(): boolean;
-	/**
-	 * Whether an input is over `loam.limits.inputBytes` now, or has no JSON form (phase 4's section 11): an app's raised
-	 * call, measured by its port then, is measured again before its confirmed run, as the limit may have fallen since.
-	 */
-	inputOver(input: unknown): boolean;
-	/**
-	 * The person signed in now, as `personKey` keys them (`local` outside `provider` mode, signed out): a confirmed run
-	 * runs only for the person it was asked of (step 6's fifth round, 2).
-	 */
-	personNow(): string | undefined;
-	/** Whether `command` is a mutation under an archived project in `scope` (line 6; step 6's second round, 4). */
-	archived(command: string, scope: ScopeV1): boolean;
-	/** Release the queue a queued call holds, as it starts waiting on a person (7.2; step 6's second round, 3). */
-	releaseQueue(context: CommandContext): void;
-	/**
-	 * The document chain a chained call holds (the scope middleware's): given up while it waits on a person, and taken
-	 * back, its resource checks repeated, before it runs (step 6's third round, A). Undefined for a call it chains to none.
-	 */
-	chainOf(context: CommandContext):
-		| {
-				release(): void;
-				again(run: () => Promise<CommandResult>): Promise<CommandResult>;
-				/** Lines 5 and 6 again, in place: the inbox's run, which holds its chain already (fifth round, 2). */
-				check(): Promise<CommandResult | undefined>;
-		  }
-		| undefined;
-	/** Mark the call's kernel event: its inbox changed, though the call may have failed (`CONFIRMATION_PENDING`). */
-	noteInbox(context: CommandContext): void;
-	/** SHA-256 of canonical JSON, as the copilot's input digest (phase 5's 3.4). */
-	digest(value: unknown): Promise<string>;
-	/** Phase 5's suggestion records (its 6.1), which `palette-run`'s "Run it" opens and runs once. */
-	suggestions?: import('./palette-run.js').SuggestionReader;
-	kit: SettingsKit;
-}
 
 export interface Confirmations {
 	/** The kernel chain's last middleware: 7.2's steps 4 to 6, and the run a confirmation approved. */
@@ -306,6 +218,21 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 	// ─── The refusals of 7.2 and 16 ────────────────────────────────────────────────
 
 	const { pending, declined, asking, expired, slotBusy, closedPrompt, noPerson } = refusalsOf(fail);
+	/** The confirmations a changed preview ended, and the new one that shows it (phase 5's 7.2), until the act reads it. */
+	const reshownAs = new Map<string, string>();
+	/** The kernel's answer for a confirmed run whose preview changed since the person looked (phase 5's 7.2). */
+	const reshown = (preview: { command: string }, notification?: string): CommandResult<never> =>
+		fail(
+			'MOUNT_PREVIEW_CHANGED',
+			'Changed since you looked, so nothing ran',
+			'Look at it again, then confirm or decline',
+			{
+				details: {
+					preview: preview.command,
+					...(notification !== undefined ? { notification } : {}),
+				},
+			}
+		);
 
 	/** The header the shell draws (7.2): who asked, for whom, and where; never the app's own words. */
 	function headerOf(
@@ -525,6 +452,7 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 					danger: asked.danger,
 					scope,
 					input: jsonOf(input),
+					...(asked.preview ? { preview: asked.preview } : {}),
 				},
 			});
 			if (!opened.success) return opened;
@@ -588,13 +516,26 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 			const early = stale(call.actor, name, caller, scope, input, asker);
 			if (early) return unrun(early);
 			let ran = false;
+			let changed: AskedFor['preview'];
 			const run = async (): Promise<CommandResult> => {
 				const late = stale(call.actor, name, caller, scope, input, asker);
 				if (late) return late;
 				ran = true;
-				return next();
+				// A released command runs on its held instance once its preview matches (phase 5's 7.2).
+				const released = deps.release
+					? await deps.release(name, input, call, asked.preview, next, async () => {})
+					: await next();
+				if (!(RESHOW in released)) return released;
+				changed = released[RESHOW];
+				return reshown(changed);
 			};
 			const result = chain ? await chain.again(run) : await run();
+			// Changed since the person looked: asked again in the slot, with what it shows now, and nothing ran. The prompt a
+			// palette fill replaced is closed by now, so the new question replaces nothing (the trust review's B9).
+			if (changed) {
+				delete (call as Record<symbol, unknown>)[REPLACES];
+				return ask(name, input, call, next, { ...asked, preview: changed });
+			}
 			return ran ? result : unrun(result);
 		}
 		if (answer?.reason === 'person') {
@@ -789,6 +730,7 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 					caller: opener.owner.id,
 					input: jsonOf(input),
 					...enforcedFields(asked.enforced),
+					...(asked.preview ? { preview: asked.preview } : {}),
 					header: headerOf(opener, asked.title, scope, call).slice(0, 200),
 					prompt: asked.prompt,
 					title: asked.title,
@@ -848,6 +790,10 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 		}
 		const person = personOf(call);
 		if (person === undefined) return noPerson();
+		// A released mounted command's preview, read before anything is asked (phase 5's 7.2); a refusal asks nothing.
+		const preview = asked.preview ?? (await deps.previewFor?.(name, input, call));
+		if (preview && 'success' in preview) return preview;
+		if (preview) asked = { ...asked, preview };
 		const caller = bucketOf(opener) as string;
 		// The copilot's key holds its session (phase 5's 6.2): two sessions never share a confirmation or a window.
 		const key = await keyOf(person, caller, name, input, scopeOf(call), asked.enforced?.session);
@@ -975,25 +921,62 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 			(call as KernelFieldContext).replay = 'recorded';
 			return refused;
 		}
-		const result = await next();
+		// The outcome, on the person's chain as every write to the row is (fifth round, 5), stored before a released
+		// command's hold ends (phase 5's 7.2, step 6).
+		const store_ = async (result: CommandResult) => {
+			deps.noteInbox(call);
+			const now = kit.callNow(call);
+			await serial(row.person, async () => {
+				const stored = (await store.get<StoredConfirmation>(TABLE, id)) ?? row;
+				const { claim: _claim, ...kept } = stored;
+				await putBack({
+					...kept,
+					confirmation: {
+						...kept.confirmation,
+						state: 'confirmed',
+						reason: 'person',
+						answeredAt: now,
+						result: outcomeOf(result),
+					},
+				});
+			});
+		};
+		const released = deps.release
+			? await deps.release(name, input, call, row.confirmation.preview as never, next, store_)
+			: await next().then(async (result) => {
+					await store_(result);
+					return result;
+				});
+		if (!(RESHOW in released)) return released;
+		// Changed since the person looked: this confirmation ends, withdrawn, and a new one shows what the preview shows
+		// now, so a press on any surface still showing the old one runs nothing (the trust review's B1).
 		deps.noteInbox(call);
 		const now = kit.callNow(call);
-		// On the person's chain, as every write to the row is (fifth round, 5).
+		const fresh = newId(call, 'ntf');
 		await serial(row.person, async () => {
 			const stored = (await store.get<StoredConfirmation>(TABLE, id)) ?? row;
 			const { claim: _claim, ...kept } = stored;
 			await putBack({
 				...kept,
+				confirmation: { ...kept.confirmation, state: 'withdrawn' },
+				...(kept.readAt === undefined ? { readAt: now } : {}),
+			});
+			const { readAt: _readAt, ...unread } = kept;
+			await putBack({
+				...unread,
+				id: fresh,
+				createdAt: now,
 				confirmation: {
 					...kept.confirmation,
-					state: 'confirmed',
-					reason: 'person',
-					answeredAt: now,
-					result: outcomeOf(result),
+					preview: released[RESHOW] as never,
+					expiresAt: now + CONFIRMATION_TTL_MS,
 				},
-			});
+			} as StoredConfirmation);
 		});
-		return result;
+		await deps.observe?.('withdrawn', row);
+		await deps.observe?.('asked', { ...row, id: fresh });
+		reshownAs.set(id, fresh);
+		return reshown(released[RESHOW], fresh);
 	}
 
 	const gate: CommandMiddleware = async (name, input, context, next) => {
@@ -1127,6 +1110,7 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 					kind: 'confirmation',
 					...(open.scope !== undefined ? { scope: open.scope } : {}),
 					input: open.input,
+					...(open.preview ? { preview: open.preview as ConfirmationPreviewV1 } : {}),
 				},
 			});
 			const record: SlotRecord = {
@@ -1424,12 +1408,18 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 			);
 			approved.delete(row.id);
 			// Read on the person's chain: a run the shell recorded is confirmed; one the chain refused first ran nothing.
-			const confirmed = await serial(
+			const after = await serial(
 				person,
 				async () =>
 					(await store.get<StoredConfirmation>(TABLE, row.id).catch(() => null))?.confirmation
-						.state === 'confirmed'
 			);
+			const confirmed = after?.state === 'confirmed';
+			// Shown again, changed since the person looked (phase 5's 7.2): a new confirmation, by the kernel's own record of
+			// it, never by the run's result, waits for their answer to what it shows now.
+			const fresh = reshownAs.get(row.id);
+			reshownAs.delete(row.id);
+			if (fresh !== undefined)
+				return kit.success({ state: 'pending' as const, changed: true, notification: fresh });
 			// The act's end, written by `prompt-settle`, journaled as its own entry (step 6's third round, G): a replay that
 			// answers this act and its run from their records, a run the page decided among them, writes it all the same.
 			const written = await deps.runBoot('prompt-settle', {

@@ -995,6 +995,7 @@ export interface ProjectionV2 {
 			[k: string]: string;
 		};
 		labels?: 'whole' | 'per-part';
+		approvals?: 'none' | 'shell';
 		expose?: {
 			agent?: boolean;
 			palette?: boolean;
@@ -1018,6 +1019,117 @@ export interface ProjectionV2 {
 					...('inspect' | 'plugin-state' | 'external' | 'store-write' | 'workspace-write')[]
 				];
 				destructive?: boolean;
+				preview?: {
+					command: string;
+					/**
+					 * @minItems 1
+					 * @maxItems 16
+					 */
+					input:
+						| [string]
+						| [string, string]
+						| [string, string, string]
+						| [string, string, string, string]
+						| [string, string, string, string, string]
+						| [string, string, string, string, string, string]
+						| [string, string, string, string, string, string, string]
+						| [string, string, string, string, string, string, string, string]
+						| [string, string, string, string, string, string, string, string, string]
+						| [string, string, string, string, string, string, string, string, string, string]
+						| [
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string
+						  ]
+						| [
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string
+						  ]
+						| [
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string
+						  ]
+						| [
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string
+						  ]
+						| [
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string
+						  ]
+						| [
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string
+						  ];
+				};
 			};
 		};
 		boot?: {
@@ -1160,6 +1272,7 @@ export interface ProjectionV3 {
 			[k: string]: string;
 		};
 		labels?: 'whole' | 'per-part';
+		approvals?: 'none' | 'shell';
 		expose?: {
 			agent?: boolean;
 			palette?: boolean;
@@ -1183,6 +1296,117 @@ export interface ProjectionV3 {
 					...('inspect' | 'plugin-state' | 'external' | 'store-write' | 'workspace-write')[]
 				];
 				destructive?: boolean;
+				preview?: {
+					command: string;
+					/**
+					 * @minItems 1
+					 * @maxItems 16
+					 */
+					input:
+						| [string]
+						| [string, string]
+						| [string, string, string]
+						| [string, string, string, string]
+						| [string, string, string, string, string]
+						| [string, string, string, string, string, string]
+						| [string, string, string, string, string, string, string]
+						| [string, string, string, string, string, string, string, string]
+						| [string, string, string, string, string, string, string, string, string]
+						| [string, string, string, string, string, string, string, string, string, string]
+						| [
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string
+						  ]
+						| [
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string
+						  ]
+						| [
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string
+						  ]
+						| [
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string
+						  ]
+						| [
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string
+						  ]
+						| [
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string
+						  ];
+				};
 			};
 		};
 		boot?: {
@@ -1284,6 +1508,7 @@ export interface DeploymentV4 {
 				[k: string]: string;
 			};
 			labels?: 'whole' | 'per-part';
+			approvals?: 'none' | 'shell';
 			expose?: {
 				agent?: boolean;
 				palette?: boolean;
@@ -1307,6 +1532,117 @@ export interface DeploymentV4 {
 						...('inspect' | 'plugin-state' | 'external' | 'store-write' | 'workspace-write')[]
 					];
 					destructive?: boolean;
+					preview?: {
+						command: string;
+						/**
+						 * @minItems 1
+						 * @maxItems 16
+						 */
+						input:
+							| [string]
+							| [string, string]
+							| [string, string, string]
+							| [string, string, string, string]
+							| [string, string, string, string, string]
+							| [string, string, string, string, string, string]
+							| [string, string, string, string, string, string, string]
+							| [string, string, string, string, string, string, string, string]
+							| [string, string, string, string, string, string, string, string, string]
+							| [string, string, string, string, string, string, string, string, string, string]
+							| [
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string
+							  ]
+							| [
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string
+							  ]
+							| [
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string
+							  ]
+							| [
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string
+							  ]
+							| [
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string
+							  ]
+							| [
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string
+							  ];
+					};
 				};
 			};
 		};
@@ -1360,6 +1696,7 @@ export interface ProjectionV4 {
 			[k: string]: string;
 		};
 		labels?: 'whole' | 'per-part';
+		approvals?: 'none' | 'shell';
 		expose?: {
 			agent?: boolean;
 			palette?: boolean;
@@ -1383,6 +1720,117 @@ export interface ProjectionV4 {
 					...('inspect' | 'plugin-state' | 'external' | 'store-write' | 'workspace-write')[]
 				];
 				destructive?: boolean;
+				preview?: {
+					command: string;
+					/**
+					 * @minItems 1
+					 * @maxItems 16
+					 */
+					input:
+						| [string]
+						| [string, string]
+						| [string, string, string]
+						| [string, string, string, string]
+						| [string, string, string, string, string]
+						| [string, string, string, string, string, string]
+						| [string, string, string, string, string, string, string]
+						| [string, string, string, string, string, string, string, string]
+						| [string, string, string, string, string, string, string, string, string]
+						| [string, string, string, string, string, string, string, string, string, string]
+						| [
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string
+						  ]
+						| [
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string
+						  ]
+						| [
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string
+						  ]
+						| [
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string
+						  ]
+						| [
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string
+						  ]
+						| [
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string,
+								string
+						  ];
+				};
 			};
 		};
 		boot?: {

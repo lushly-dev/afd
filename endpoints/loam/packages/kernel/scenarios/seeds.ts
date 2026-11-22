@@ -27,7 +27,8 @@
  *   `mailfix-draft-create`;
  * - from step 4, `mailfix` mounted in this process (`mailfix-mount.ts`) with `labels = "per-part"`, its reads acting by
  *   6.1's default, and `mailfixapp` with its `calls` grant (7.5);
- * - **not yet**: `mailfix`'s `approvals = "shell"`, step 5's. The `mailfix` server itself is `mailfix.ts`.
+ * - from step 5, `mailfix`'s `approvals = "shell"`, with `mailfix-draft-show` as the send's preview, its transport playing
+ *   AFD's approver carrier (7.2). The `mailfix` server itself is `mailfix.ts`.
  *
  * `p5-two-mounts` is `p5-base` with a second `mailfix`, `mailfixb`, whose entry says `labels = "whole"` (P5-A4).
  *
@@ -198,6 +199,8 @@ async function p4Base(
 		copilot?: CopilotOptionsV1;
 		mailfix?: ReturnType<typeof mountedMailfix>;
 		mailfixb?: ReturnType<typeof mountedMailfix>;
+		/** Keys over `mailfix`'s entry, for a test of another `approvals` or preview (7.2). */
+		mailfixEntry?: Record<string, unknown>;
 	} = {}
 ): Promise<SeededKernel> {
 	const { mailfix, mailfixb } = extra;
@@ -239,7 +242,7 @@ async function p4Base(
 			...served.apps,
 			...(mailfix
 				? [
-						mailfixEntry(900),
+						{ ...mailfixEntry(900), ...extra.mailfixEntry },
 						{
 							instance: 'mailfixapp',
 							app: 'mailfixapp',
@@ -304,8 +307,13 @@ export async function p5Base(options: {
 	scripts?: Record<string, ModelScriptV1>;
 	/** The unit composer's answer (7.3). Default: `echo-unit`. */
 	compose?: (text: string) => string;
-	/** `mailfix` and its transport, for a test that changes what it answers. Default: a fresh one. */
+	/**
+	 * `mailfix` and its transport, for a test that changes what it answers, or one whose server names no approver
+	 * (`mountedMailfix({ approver: false })`, 7.2). Default: a fresh one.
+	 */
 	mailfix?: ReturnType<typeof mountedMailfix>;
+	/** Keys over `mailfix`'s entry, for a test of another `approvals` or preview (7.2). */
+	mailfixEntry?: Record<string, unknown>;
 }): Promise<SeededKernel> {
 	const provider = createTestProvider({
 		scripts: { ...MODEL_SCRIPTS, ...options.scripts },
@@ -321,6 +329,7 @@ export async function p5Base(options: {
 	});
 	const seeded = await p4Base({
 		mailfix: options.mailfix ?? mountedMailfix(),
+		...(options.mailfixEntry ? { mailfixEntry: options.mailfixEntry } : {}),
 		...(options.mailfixb ? { mailfixb: mountedMailfix() } : {}),
 		...(options.provider
 			? {

@@ -432,7 +432,11 @@ describe('P5-A4: taint and what it lowers (5.3)', () => {
 		expect(turn.calls[1]).toMatchObject({ outcome: 'pending', mode: 'ask', reason: 'taint' });
 		data(await kernel.call('notification-act', { notification: asked?.id, answer: 'confirm' }));
 		expect((mailfixb?.transport.calls ?? []).slice(before)).toEqual([
-			{ tool: 'afd-call', args: { command: 'mailfix-thread-open', input: { thread: 'thr_1' } } },
+			{
+				tool: 'afd-call',
+				args: { command: 'mailfix-thread-open', input: { thread: 'thr_1' } },
+				meta: { 'dev.loam/scope': { workspace: 'personal' } },
+			},
 		]);
 	});
 

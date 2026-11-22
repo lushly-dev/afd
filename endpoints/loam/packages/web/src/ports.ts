@@ -28,7 +28,7 @@ export interface ViewChunk {
 export interface MountChunk {
 	createMountTransport(url: string): MountTransportV2;
 	/** The desktop's, over the Rust host by instance (phase 6 specification, 10.4). */
-	createDesktopMountTransport(instance: string): MountTransportV2;
+	createDesktopMountTransport(instance: string, options?: { era?: 'modern' }): MountTransportV2;
 }
 
 async function ok(url: string): Promise<Response> {
@@ -70,7 +70,13 @@ export function webPorts(
 		async mountTransport(entry, url) {
 			const chunk = await loadMount();
 			return desktop
-				? chunk.createDesktopMountTransport(entry.instance)
+				? chunk.createDesktopMountTransport(
+						entry.instance,
+						// The era that carries a person's approval, for an instance that releases commands over stdio (phase 5, 7.2).
+						(entry as { approvals?: unknown }).approvals === 'shell' && entry.transport === 'stdio'
+							? { era: 'modern' }
+							: {}
+					)
 				: chunk.createMountTransport(url);
 		},
 	};

@@ -68,6 +68,17 @@ const RECORDS = {
 				sources: [],
 				chain: [{ id: 'default', mode: 'ask', as: 'mode' }],
 			},
+			// A mounted server's preview (7.2), changed since the person looked, its content marked up by a stranger.
+			preview: {
+				command: 'mail-draft-show',
+				digest: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+				changed: true,
+				labels: 'per-part',
+				data: {
+					draft: 'drf_1',
+					content: { trust: 'content', body: '<img src=y onerror=alert(2)>' },
+				},
+			},
 			expiresAt: Date.now() + 600_000,
 		},
 	],
@@ -150,6 +161,13 @@ describe('P5-A8: the panel’s cards, from the kernel’s records (6.2)', () => 
 		expect(await region.locator('violet-approval-card .card-input').textContent()).toBe(
 			'name: "<img src=x onerror=alert(1)>"'
 		);
+		// The preview as text (7.2): what changed first, the server's facts, and its content marked as others'.
+		expect(await region.locator('violet-approval-card .card-preview').allTextContents()).toEqual([
+			'Changed since you looked.',
+			'What mail-draft-show shows it will do:',
+			'draft: drf_1',
+			'(written by others) content.body: <img src=y onerror=alert(2)>',
+		]);
 		expect(await region.locator('img').count()).toBe(0);
 		expect(await region.locator('.card-why').first().textContent()).toContain('the default');
 		expect(await region.locator('.suggestion .card-title').textContent()).toBe(
