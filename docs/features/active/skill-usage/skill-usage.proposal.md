@@ -255,9 +255,16 @@ machines gave different totals from one record
   no part, and every machine that has the commit says the same of it. Only names a load can
   be recorded under are listed. A front matter that cannot be read does not stop the read:
   the skill is listed by its first paragraph.
-- **A folder that is no repository**, or names no such branch, is read as it lies. A
-  repository git could not say anything of that hour (it did not answer in time, a ref is
-  broken) is neither: it says nothing, and what it said last stands.
+- **A folder that is no repository**, or names no such branch, is read as it lies, files
+  not in git and all.
+- **A repository git could not read that hour** (it did not answer in time, a ref is
+  broken, git refuses the folder) keeps the commit it has on record, through a rebuild
+  too. With none on record it is read as it lies, whatever stopped git, and git is asked
+  again the next hour. That is all there is to know of a folder another account owns,
+  where git refuses every command for good; for a first collection that only timed out it
+  lists unmerged work for an hour. An account with no commit is older than any commit, so
+  it never takes the place of one
+  ([#2051](https://github.com/lushly-dev/afd/issues/2051)).
 - **Each folder's account is kept by folder**, on the machine only. A folder that is not
   there (a volume not mounted, a checkout removed) still speaks through what it said last,
   so an older clone that does answer never takes the project back. A folder read again
@@ -484,6 +491,9 @@ for the schedule.
   until the next merge. Every reader still agrees.
 - **A folder name no load is recorded under** (one with a space, or that begins with `_`
   or a dot) is not a listed skill.
+- **A project named while git could not read its origin** keeps its folder's name after
+  git answers, apart from the same repository's `owner/name` on other machines
+  ([#2052](https://github.com/lushly-dev/afd/issues/2052)).
 - **Skills outside a project's skill folders.** Size, context cost and the `quiet` list come
   from `.claude/skills`, `.agents/skills` and `.codex/skills` of the project's default
   branch. A skill folder or `SKILL.md` that is a link is not followed in a commit. A load

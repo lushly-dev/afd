@@ -187,7 +187,10 @@ a shared folder, every other machine's, each session once; run `skill_usage_coll
   runs this botcore and their records have synced. Of several machines' accounts the one
   read from the newest commit is used, by the commit's time. A skill on a branch not yet
   merged, or kept out of git, is counted with no size and is not in `quiet`. A folder that
-  is no repository is read as it lies.
+  is no repository is read as it lies, files not in git and all. So is a repository git
+  could not read and that has no commit on record: one git refuses for good (another
+  account owns it), or a first collection that timed out, until git answers. A commit on
+  record is kept through a failed read.
 - `project`: `owner/name` or the name alone. `harness`: `claude` or `codex`. `agent`: `main`,
   `delegate` or `subagent`. `skill`: one skill. `ending_days_ago`: move the window back, to
   compare two periods. `limit`: skills listed, most used first; `more` counts the rest.

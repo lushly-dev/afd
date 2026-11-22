@@ -121,7 +121,8 @@ def default_tip(root: Path) -> tuple[str, str, str] | None:
     """The tip of the branch changes are merged to, as a checkout has it: the ref, its
     commit, and when that was committed. None when the folder names no such branch, or is
     no repository. Raises GitError when git could not say (it did not start or answer in
-    time, a ref is broken, the folder is one it refuses): that says nothing of the folder.
+    time, a ref is broken, the folder is one it refuses): that says nothing of what the
+    branch holds, and `_name_projects` decides what the folder then stands for.
 
     Never the checked-out commit: on a topic branch that is unmerged work, and a checkout
     left on an old branch would speak for the project as it was. The branch is named first
@@ -175,7 +176,9 @@ def _facts(raw: bytes) -> list[int]:
 
 def held_in_folder(root: Path) -> dict[str, list[int]]:
     """Each skill a folder holds as it lies, with its facts (`_facts`). For a project that is
-    not a repository, or names no branch that changes are merged to."""
+    not a repository, names no branch that changes are merged to, or that git could not
+    read, with no commit on record (`_name_projects`). Only a `SKILL.md` that is a file is
+    read: a pipe by that name would hold the collection until something wrote to it."""
     found: dict[str, list[int]] = {}
     for folder in SKILL_DIRS:
         try:
@@ -186,6 +189,8 @@ def held_in_folder(root: Path) -> dict[str, list[int]]:
             if not is_skill_folder(child.name):
                 continue
             try:
+                if not (child / "SKILL.md").is_file():
+                    continue
                 raw = (child / "SKILL.md").read_bytes()
             except OSError:
                 continue
@@ -234,7 +239,7 @@ def skill_inventory(root: Path, last: dict | None = None) -> dict:
     and their renames at the tip of its default branch, both read from that one commit, or
     as the folder lies where it names no such branch. `last` is what this folder said
     before: a branch that has not moved is not read again. Raises GitError, and ValueError
-    for an answer from git that cannot be read: the folder says nothing this time."""
+    for an answer from git that cannot be read: nothing is known of the branch this time."""
     tip = default_tip(root)
     if tip is None:
         return {
@@ -340,9 +345,10 @@ def _name_projects(
         names[project_id] = name
     for entry in projects.values():
         # Each folder's own account, kept by folder: one that is not there this time (a
-        # volume not mounted, a checkout removed) or that git cannot say anything of still
-        # speaks through what it said last, so an older clone that does answer never takes
-        # the project back. A folder read again replaces its own, whatever it now says.
+        # volume not mounted, a checkout removed) still speaks through what it said last,
+        # and so does one git cannot say anything of, where what it said was of a commit.
+        # So an older clone that does answer never takes the project back. A folder read
+        # again replaces its own, whatever it now says.
         accounts = {root: entry["accounts"][root] for root in entry["roots"]
                     if root in entry["accounts"]}  # fmt: skip
         for root in entry["roots"]:
@@ -350,10 +356,20 @@ def _name_projects(
             doing("reading what the project holds in", folder)
             if not folder.is_dir():
                 continue
+            last = accounts.get(root)
             try:
-                account = skill_inventory(folder, None if again else accounts.get(root))
+                account = skill_inventory(folder, None if again else last)
             except (GitError, ValueError):
-                continue  # git could not say: this folder says nothing this time
+                # Git could not say. A folder that has said something of a commit keeps it,
+                # through a rebuild too: an hour's failure must not put the files as they
+                # lie, work under way and all, in its place. One that never has is read as
+                # it lies, whatever stopped git: that is all there is to know of a
+                # repository git refuses for good (one another account owns), and for one
+                # that only timed out it lasts until git answers. Such an account is older
+                # than any commit.
+                if last is not None and last["commit"]:
+                    continue
+                account = {**NOTHING_HELD, "held": held_in_folder(folder)}
             accounts[root] = account
             entry["renames"] = {**entry["renames"], **account["renames"]}
         entry["accounts"] = accounts
