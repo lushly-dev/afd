@@ -3,17 +3,16 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 from afd import CommandResult, error, success
+from botcore.context import ExecutionContext
+from botcore.host import CommandHost, CommandPolicy
 from copilot import ToolInvocation
 from pydantic import BaseModel
 
-from botcore_llm.bridge import (
-    _extract_parameter_schema,
-    botcore_command_to_copilot_tool,
-    bridge_commands,
-)
+from botcore_llm.bridge import botcore_command_to_copilot_tool, bridge_commands
 
 # ---------------------------------------------------------------------------
 # Sample commands for testing
@@ -58,61 +57,83 @@ async def optional_params_command(
     return success(data={"name": name, "tags": tags, "count": count})
 
 
+WRITES: list[str] = []
+
+
+async def write_note(text: str) -> CommandResult[dict]:
+    """Write a note into the source tree."""
+    WRITES.append(text)
+    return success(data={"written": text})
+
+
+def _host(tmp_path: Path, profile: str = "inspection") -> CommandHost:
+    host = CommandHost("test", ExecutionContext(tmp_path, profile=profile))
+    for command in (greet, fail_command, add_numbers, no_args_command, optional_params_command):
+        host.register(command.__name__, command, CommandPolicy())
+    host.register("write_note", write_note, CommandPolicy(("source-write",)))
+    return host
+
+
+def _invoke(tool_name: str, arguments: dict | None) -> ToolInvocation:
+    return ToolInvocation(
+        session_id="s1", tool_call_id="tc1", tool_name=tool_name, arguments=arguments
+    )
+
+
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
 
 
 class TestBotcoreCommandToCopilotTool:
-    def test_converts_simple_command(self):
-        tool = botcore_command_to_copilot_tool(greet)
+    def test_converts_simple_command(self, tmp_path):
+        tool = botcore_command_to_copilot_tool("greet", _host(tmp_path))
 
         assert tool.name == "greet"
         assert "Greet a user" in tool.description
         assert tool.parameters is not None
         assert "name" in tool.parameters["properties"]
+        assert tool.parameters["required"] == ["name"]
 
-    def test_converts_pydantic_command(self):
-        tool = botcore_command_to_copilot_tool(add_numbers)
+    def test_converts_pydantic_command(self, tmp_path):
+        tool = botcore_command_to_copilot_tool("add_numbers", _host(tmp_path))
 
         assert tool.name == "add_numbers"
         assert tool.parameters is not None
-        assert "a" in tool.parameters["properties"]
-        assert "b" in tool.parameters["properties"]
+        assert "params" in tool.parameters["properties"]
 
-    def test_converts_no_args_command(self):
-        tool = botcore_command_to_copilot_tool(no_args_command)
+    def test_converts_no_args_command(self, tmp_path):
+        tool = botcore_command_to_copilot_tool("no_args_command", _host(tmp_path))
 
         assert tool.name == "no_args_command"
         assert tool.parameters is None
 
-    @pytest.mark.asyncio
-    async def test_handler_calls_command_and_returns_success(self):
-        tool = botcore_command_to_copilot_tool(greet)
+    def test_optional_params_use_the_host_catalog_schema(self, tmp_path):
+        host = _host(tmp_path)
+        tool = botcore_command_to_copilot_tool("optional_params_command", host)
+        (row,) = [r for r in host.catalog() if r["name"] == "optional_params_command"]
 
-        invocation = ToolInvocation(
-            session_id="s1",
-            tool_call_id="tc1",
-            tool_name="greet",
-            arguments={"name": "World"},
-        )
-        result = await tool.handler(invocation)
+        assert tool.parameters == row["input_schema"]
+
+    def test_missing_command_raises(self, tmp_path):
+        with pytest.raises(KeyError, match="nonexistent"):
+            botcore_command_to_copilot_tool("nonexistent", _host(tmp_path))
+
+    @pytest.mark.asyncio
+    async def test_handler_calls_command_and_returns_success(self, tmp_path):
+        tool = botcore_command_to_copilot_tool("greet", _host(tmp_path))
+
+        result = await tool.handler(_invoke("greet", {"name": "World"}))
 
         assert result.result_type == "success"
         data = json.loads(result.text_result_for_llm)
         assert data["message"] == "Hello, World!"
 
     @pytest.mark.asyncio
-    async def test_handler_converts_error_with_suggestion(self):
-        tool = botcore_command_to_copilot_tool(fail_command)
+    async def test_handler_converts_error_with_suggestion(self, tmp_path):
+        tool = botcore_command_to_copilot_tool("fail_command", _host(tmp_path))
 
-        invocation = ToolInvocation(
-            session_id="s1",
-            tool_call_id="tc1",
-            tool_name="fail_command",
-            arguments={"reason": "bad input"},
-        )
-        result = await tool.handler(invocation)
+        result = await tool.handler(_invoke("fail_command", {"reason": "bad input"}))
 
         assert result.result_type == "failure"
         data = json.loads(result.text_result_for_llm)
@@ -120,66 +141,79 @@ class TestBotcoreCommandToCopilotTool:
         assert data["suggestion"] == "Try something else"
 
     @pytest.mark.asyncio
-    async def test_handler_pydantic_model_params(self):
-        tool = botcore_command_to_copilot_tool(add_numbers)
+    async def test_handler_pydantic_model_params(self, tmp_path):
+        tool = botcore_command_to_copilot_tool("add_numbers", _host(tmp_path))
 
-        invocation = ToolInvocation(
-            session_id="s1",
-            tool_call_id="tc1",
-            tool_name="add_numbers",
-            arguments={"a": 3, "b": 4},
-        )
-        result = await tool.handler(invocation)
+        result = await tool.handler(_invoke("add_numbers", {"params": {"a": 3, "b": 4}}))
 
         assert result.result_type == "success"
         data = json.loads(result.text_result_for_llm)
         assert data["result"] == 7
 
 
-class TestExtractParameterSchema:
-    def test_simple_params(self):
-        schema = _extract_parameter_schema(greet)
+class TestHostPolicy:
+    """A model's tool call is dispatched by the host, under the host's policy."""
 
-        assert schema is not None
-        assert schema["type"] == "object"
-        assert "name" in schema["properties"]
-        assert "greeting" in schema["properties"]
-        assert "name" in schema["required"]
-        assert "greeting" not in schema.get("required", [])
+    @pytest.mark.asyncio
+    async def test_call_the_profile_refuses_is_refused_before_the_handler(self, tmp_path):
+        WRITES.clear()
+        tool = botcore_command_to_copilot_tool("write_note", _host(tmp_path, "inspection"))
 
-    def test_pydantic_params(self):
-        schema = _extract_parameter_schema(add_numbers)
+        result = await tool.handler(_invoke("write_note", {"text": "hi"}))
 
-        assert schema is not None
-        assert "a" in schema["properties"]
-        assert "b" in schema["properties"]
+        assert result.result_type == "failure"
+        data = json.loads(result.text_result_for_llm)
+        assert data["error"] == "EFFECT_DENIED"
+        assert data["suggestion"]
+        assert WRITES == []
 
-    def test_no_params(self):
-        schema = _extract_parameter_schema(no_args_command)
-        assert schema is None
+    @pytest.mark.asyncio
+    async def test_call_the_profile_admits_runs(self, tmp_path):
+        WRITES.clear()
+        tool = botcore_command_to_copilot_tool("write_note", _host(tmp_path, "trusted-local"))
 
-    def test_optional_params_unwrap_union(self):
-        schema = _extract_parameter_schema(optional_params_command)
+        result = await tool.handler(_invoke("write_note", {"text": "hi"}))
 
-        assert schema is not None
-        # list[str] | None should unwrap to "array", not fall through to "string"
-        assert schema["properties"]["tags"]["type"] == "array"
-        # int | None should unwrap to "integer"
-        assert schema["properties"]["count"]["type"] == "integer"
-        # Non-optional str stays "string"
-        assert schema["properties"]["name"]["type"] == "string"
+        assert result.result_type == "success"
+        assert WRITES == ["hi"]
+
+    @pytest.mark.asyncio
+    async def test_unknown_argument_is_refused_with_the_host_error(self, tmp_path):
+        tool = botcore_command_to_copilot_tool("greet", _host(tmp_path))
+
+        result = await tool.handler(_invoke("greet", {"nmae": "World"}))
+
+        data = json.loads(result.text_result_for_llm)
+        assert data["error"] == "VALIDATION_ERROR"
+        assert "name" in data["suggestion"]
+
+    @pytest.mark.asyncio
+    async def test_call_runs_as_an_agent(self, tmp_path):
+        from botcore.context import current_call
+
+        seen = []
+
+        async def who() -> CommandResult[dict]:
+            """Report the caller."""
+            seen.append(current_call().actor.kind)
+            return success(data={})
+
+        host = _host(tmp_path)
+        host.register("who", who, CommandPolicy())
+        tool = botcore_command_to_copilot_tool("who", host)
+
+        await tool.handler(_invoke("who", None))
+
+        assert seen == ["agent"]
 
 
 class TestBridgeCommands:
-    def test_resolves_and_bridges(self):
-        namespace = {"greet": greet, "add_numbers": add_numbers}
-        tools = bridge_commands(["greet"], namespace)
+    def test_resolves_and_bridges(self, tmp_path):
+        tools = bridge_commands(["greet"], _host(tmp_path))
 
         assert len(tools) == 1
         assert tools[0].name == "greet"
 
-    def test_missing_command_raises(self):
-        namespace = {"greet": greet}
-
+    def test_missing_command_raises(self, tmp_path):
         with pytest.raises(KeyError, match="nonexistent"):
-            bridge_commands(["nonexistent"], namespace)
+            bridge_commands(["nonexistent"], _host(tmp_path))

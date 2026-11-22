@@ -1032,21 +1032,21 @@
       "path": "packages/botcore-llm/src/botcore_llm/__init__.py",
       "upstream_sha256": "81369746eba67af0c9c715bb50bea1eb2257926aeea841dc985e7a99794b60d1",
       "staged_sha256": "81369746eba67af0c9c715bb50bea1eb2257926aeea841dc985e7a99794b60d1",
-      "current_import_sha256": "81369746eba67af0c9c715bb50bea1eb2257926aeea841dc985e7a99794b60d1",
+      "current_import_sha256": "289fc1977a658fbeed82d09e39f7067ffcda1b9aaccc8be51c2f465eb7ddd75d",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Bridged LLM tools dispatch through a managed host under its policy; shell allowlist admits one simple command only"
     },
     {
       "path": "packages/botcore-llm/src/botcore_llm/bridge.py",
       "upstream_sha256": "8555b7087bb269c4f30f335d73e21cf4130744fe8fb9820be58798d2fd5b383a",
       "staged_sha256": "8555b7087bb269c4f30f335d73e21cf4130744fe8fb9820be58798d2fd5b383a",
-      "current_import_sha256": "8555b7087bb269c4f30f335d73e21cf4130744fe8fb9820be58798d2fd5b383a",
+      "current_import_sha256": "0826919b5b15a4a4ce6e62d1b6ce883b7b0cdd3b327df9db3066da85c4e9998a",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Bridged LLM tools dispatch through a managed host under its policy; shell allowlist admits one simple command only"
     },
     {
       "path": "packages/botcore-llm/src/botcore_llm/chat_stream.py",
@@ -1072,31 +1072,31 @@
       "path": "packages/botcore-llm/src/botcore_llm/commands.py",
       "upstream_sha256": "371568e111300b2d7b89e8ee4616219a6c04256decbd4a7c5a60387f7485f962",
       "staged_sha256": "371568e111300b2d7b89e8ee4616219a6c04256decbd4a7c5a60387f7485f962",
-      "current_import_sha256": "371568e111300b2d7b89e8ee4616219a6c04256decbd4a7c5a60387f7485f962",
+      "current_import_sha256": "6f3cf9257cdc17ebc8df57760ef502928e022ee3e383d803c327dc2419e57bd8",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Bridged LLM tools dispatch through a managed host under its policy; shell allowlist admits one simple command only"
     },
     {
       "path": "packages/botcore-llm/src/botcore_llm/config.py",
       "upstream_sha256": "91742133aeca2087f98eed0d0a51ec435dfd8356eb0553ea651ad3f750f32471",
       "staged_sha256": "91742133aeca2087f98eed0d0a51ec435dfd8356eb0553ea651ad3f750f32471",
-      "current_import_sha256": "91742133aeca2087f98eed0d0a51ec435dfd8356eb0553ea651ad3f750f32471",
+      "current_import_sha256": "bc7b981ac6b978a544ba66e874ebbaa87f611d145d3a6b8242d6b19a69a13ed5",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Bridged LLM tools dispatch through a managed host under its policy; shell allowlist admits one simple command only"
     },
     {
       "path": "packages/botcore-llm/src/botcore_llm/permissions.py",
       "upstream_sha256": "8c564c035edc1b24b9e88fff026228142af9bbbcdbcdc454a4bcfb51a8bae7d4",
       "staged_sha256": "8c564c035edc1b24b9e88fff026228142af9bbbcdbcdc454a4bcfb51a8bae7d4",
-      "current_import_sha256": "5fc794ba0ba44e4b03720d1cb558c40faaeef26e87cba2c421d517fae21af2f9",
+      "current_import_sha256": "8985c0299fc20720f528e9c50a253708e8c7a7a244fa23bc0fbb8aa4c159b30d",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact frozen staged-input bytes; Fix Batch 5 P0/P1 bugs (#1871-#1875)"
+      "import_reason": "Imported exact frozen staged-input bytes; Fix Batch 5 P0/P1 bugs (#1871-#1875); Bridged LLM tools dispatch through a managed host under its policy; shell allowlist admits one simple command only"
     },
     {
       "path": "packages/botcore-llm/src/botcore_llm/session.py",
@@ -1132,11 +1132,11 @@
       "path": "packages/botcore-llm/tests/test_bridge.py",
       "upstream_sha256": "81300dbfdac249c0e86787c1049a55eb8eb9dc46bb80c8ef08d76c9ed91c1f74",
       "staged_sha256": "81300dbfdac249c0e86787c1049a55eb8eb9dc46bb80c8ef08d76c9ed91c1f74",
-      "current_import_sha256": "81300dbfdac249c0e86787c1049a55eb8eb9dc46bb80c8ef08d76c9ed91c1f74",
+      "current_import_sha256": "7fbcec86dab887e80140dd482f56148de7f3ade16d7f29c8104174599b6557ae",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Bridged LLM tools dispatch through a managed host under its policy; shell allowlist admits one simple command only"
     },
     {
       "path": "packages/botcore-llm/tests/test_chat_stream.py",
@@ -1162,21 +1162,21 @@
       "path": "packages/botcore-llm/tests/test_commands.py",
       "upstream_sha256": "69d9ffd9e7c8bdbba9868e9f784f256507c2f9fdc105280a8fdc149e58695553",
       "staged_sha256": "69d9ffd9e7c8bdbba9868e9f784f256507c2f9fdc105280a8fdc149e58695553",
-      "current_import_sha256": "69d9ffd9e7c8bdbba9868e9f784f256507c2f9fdc105280a8fdc149e58695553",
+      "current_import_sha256": "479dfde99f7df5291f0ac10a15e62cdba5d4991d7bc1ba05ac4532354a8947ba",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Bridged LLM tools dispatch through a managed host under its policy; shell allowlist admits one simple command only"
     },
     {
       "path": "packages/botcore-llm/tests/test_permissions.py",
       "upstream_sha256": "0ba198ce07082c3a1c566cb5e66907bf6c45eeeb2fae790f3a621028add79eee",
       "staged_sha256": "0ba198ce07082c3a1c566cb5e66907bf6c45eeeb2fae790f3a621028add79eee",
-      "current_import_sha256": "2185b111bd39b6e1e06cc0e5d6d8a3b9a063b0728ee06442599ad94f032a96e7",
+      "current_import_sha256": "90496a1cafd2b4b17df10c5f96893c8bbb715f4b06f11c74257b1e6df140cea8",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact frozen staged-input bytes; Fix Batch 5 P0/P1 bugs (#1871-#1875)"
+      "import_reason": "Imported exact frozen staged-input bytes; Fix Batch 5 P0/P1 bugs (#1871-#1875); Bridged LLM tools dispatch through a managed host under its policy; shell allowlist admits one simple command only"
     },
     {
       "path": "packages/botcore-llm/tests/test_plugin.py",

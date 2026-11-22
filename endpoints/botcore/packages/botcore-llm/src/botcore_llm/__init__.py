@@ -34,11 +34,33 @@ into a single result. Closing the stream early, or cancelling `llm_chat`, aborts
 the turn. It is not a registered command, because registered
 commands are bridged into Copilot tools, which return one result.
 
+## Tools
+
+`llm_session_create(tools=[...])` serves the named commands to the model through a
+managed Botcore host, so every tool call enters `host.execute` under the host's command
+policies and profile, as a CLI or MCP `call` does. A call the policy refuses (for example
+`EFFECT_DENIED`) reaches the model as that error and its suggestion. By default the host
+covers the current workspace with the `inspection` profile and serves the admitted core
+commands; `tool_profile` and `tool_plugins` widen it, and a Python embedder can pass its
+own host to `botcore_llm.commands.set_tool_host`. A name the host does not serve is
+`UNKNOWN_COMMAND`.
+
+## Shell permissions
+
+With `allow_shell` and a `shell_allowlist`, a shell request is approved only when its
+command line is one simple command: a line break, `;`, `&`, `&&`, `|`, `||`, a redirection,
+a subshell, `$` or backtick substitution, a backslash or a glob outside quotes refuses it,
+as does `$`, a backtick or a backslash inside double quotes. Quoted arguments may hold any
+other text. The program (the pattern's first word) must equal the command's, and the
+pattern is a glob over the parsed arguments. A refusal says why.
+
 ## Configuration
 
 ```toml
 [tool.botcore.plugins.llm]
 default_model = "<model-id>"  # required unless every call passes model=
+tool_profile = "inspection"   # or "remote-caller", "trusted-local"
+tool_plugins = []             # host-context-safe plugins whose commands may be bridged
 ```
 
 `default_model` has no built-in value. Model IDs are account-specific in the

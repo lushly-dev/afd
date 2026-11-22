@@ -8,7 +8,8 @@ from __future__ import annotations
 
 import contextlib
 import logging
-from typing import Any
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 from afd import CommandResult, error, success
 
@@ -19,13 +20,16 @@ from .config import LlmConfig, LlmPermissionsConfig, get_llm_config
 from .permissions import create_permission_handler
 from .session import get_session_registry
 
+if TYPE_CHECKING:
+    from botcore.host import CommandHost
+
 logger = logging.getLogger(__name__)
 
 # Module-level config — set by the plugin at startup, or lazy-default.
 _config: LlmConfig | None = None
 
-# Cached command namespace — avoids re-discovering plugins on every session create.
-_namespace: dict[str, Any] | None = None
+# The host a Python embedder chose for bridged tools; None builds one from config per session.
+_tool_host: CommandHost | None = None
 
 
 def _get_config() -> LlmConfig:
@@ -41,14 +45,31 @@ def set_config(config: LlmConfig) -> None:
     _config = config
 
 
-def _get_namespace() -> dict[str, Any]:
-    """Return the cached botcore command namespace."""
-    global _namespace
-    if _namespace is None:
-        from botcore.server import build_namespace
+def set_tool_host(host: CommandHost | None) -> None:
+    """Serve bridged tools from *host*, or (``None``) from a host built from config.
 
-        _namespace, _ = build_namespace()
-    return _namespace
+    Every bridged tool call enters ``host.execute``, so the host's policies and profile
+    decide what a model may run.
+    """
+    global _tool_host
+    _tool_host = host
+
+
+def _get_tool_host(config: LlmConfig) -> CommandHost:
+    """The host bridged tools dispatch through.
+
+    Without one from :func:`set_tool_host`, builds a managed host over the current
+    workspace with the ``tool_profile`` and ``tool_plugins`` the LLM config names.
+    """
+    if _tool_host is not None:
+        return _tool_host
+    from botcore.context import ExecutionContext
+    from botcore.host import build_host
+    from botcore.utils.workspace import find_workspace
+
+    workspace = find_workspace() or Path.cwd()
+    context = ExecutionContext(workspace, profile=config.tool_profile)
+    return build_host("llm", context, plugins=tuple(config.tool_plugins))
 
 
 # ---------------------------------------------------------------------------
@@ -87,18 +108,32 @@ async def llm_session_create(
             suggestion="Check that Copilot CLI is installed and accessible",
         )
 
-    # Bridge requested tools from the botcore command namespace
+    # Bridge requested tools from a managed host, whose policy applies to every tool call
     bridged_tools = []
     tool_names: list[str] = tools or []
     if tool_names:
         try:
-            namespace = _get_namespace()
-            bridged_tools = bridge_commands(tool_names, namespace)
+            host = _get_tool_host(config)
+        except Exception as exc:
+            return error(
+                "BRIDGE_ERROR",
+                f"Failed to build the host for bridged tools: {exc}",
+                suggestion=(
+                    "Check tool_profile and tool_plugins under [tool.botcore.plugins.llm]: "
+                    "each plugin must be installed and declare host_context_safe"
+                ),
+            )
+        try:
+            bridged_tools = bridge_commands(tool_names, host)
         except KeyError as exc:
             return error(
                 "UNKNOWN_COMMAND",
-                str(exc),
-                suggestion="Use llm_session_list or check available commands",
+                str(exc.args[0]) if exc.args else str(exc),
+                suggestion=(
+                    "Bridge only commands the tool host serves (see its catalog): admitted "
+                    "core commands and those of plugins named in tool_plugins, or pass a "
+                    "host of your own to botcore_llm.commands.set_tool_host"
+                ),
             )
         except Exception as exc:
             return error(

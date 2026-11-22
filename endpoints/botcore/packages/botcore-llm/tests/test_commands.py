@@ -2,8 +2,14 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
+from afd import CommandResult, success
 from afd.testing import assert_error, assert_success
+from botcore.context import ExecutionContext
+from botcore.host import CommandHost, CommandPolicy
+from copilot import ToolInvocation
 
 from botcore_llm.commands import (
     llm_chat,
@@ -12,6 +18,7 @@ from botcore_llm.commands import (
     llm_session_destroy,
     llm_session_list,
     set_config,
+    set_tool_host,
 )
 from botcore_llm.config import LlmConfig
 from botcore_llm.session import get_session_registry
@@ -227,3 +234,78 @@ class TestLlmChat:
         await llm_chat(session_id=mock_copilot_session.session_id, message="hi", timeout=5.0)
 
         assert mock_copilot_session.send_and_wait.call_args.kwargs["timeout"] == 5.0
+
+
+class TestLlmSessionCreateTools:
+    """Bridged tools dispatch through a managed host, under its policy."""
+
+    @pytest.fixture(autouse=True)
+    def _reset_tool_host(self):
+        set_tool_host(None)
+        yield
+        set_tool_host(None)
+
+    @staticmethod
+    def _tool(mock_copilot_client, name: str):
+        tools = mock_copilot_client.create_session.call_args.kwargs["tools"]
+        return next(tool for tool in tools if tool.name == name)
+
+    @staticmethod
+    async def _call(tool, arguments: dict | None = None) -> dict:
+        invocation = ToolInvocation(
+            session_id="s1", tool_call_id="tc1", tool_name=tool.name, arguments=arguments
+        )
+        result = await tool.handler(invocation)
+        return {"type": result.result_type, **json.loads(result.text_result_for_llm)}
+
+    @pytest.mark.asyncio
+    async def test_tool_call_the_host_policy_refuses_is_refused(
+        self, patch_client_manager, mock_copilot_client, tmp_path
+    ):
+        calls: list[str] = []
+
+        async def write_note(text: str) -> CommandResult[dict]:
+            """Write a note."""
+            calls.append(text)
+            return success(data={})
+
+        host = CommandHost("lane", ExecutionContext(tmp_path, profile="inspection"))
+        host.register("write_note", write_note, CommandPolicy(("source-write",)))
+        set_tool_host(host)
+
+        assert_success(await llm_session_create(tools=["write_note"]))
+        outcome = await self._call(self._tool(mock_copilot_client, "write_note"), {"text": "x"})
+
+        assert outcome["type"] == "failure"
+        assert outcome["error"] == "EFFECT_DENIED"
+        assert outcome["suggestion"]
+        assert calls == []
+
+    @pytest.mark.asyncio
+    async def test_default_host_admits_inspection_and_refuses_writes(
+        self, patch_client_manager, mock_copilot_client, tmp_path, monkeypatch
+    ):
+        (tmp_path / "pyproject.toml").write_text('[project]\nname = "demo"\n')
+        monkeypatch.chdir(tmp_path)
+
+        assert_success(await llm_session_create(tools=["info_workspace", "spec_create"]))
+        allowed = await self._call(self._tool(mock_copilot_client, "info_workspace"))
+        refused = await self._call(
+            self._tool(mock_copilot_client, "spec_create"), {"path": "docs/features/demo"}
+        )
+
+        assert allowed["type"] == "success"
+        assert refused["error"] == "EFFECT_DENIED"
+        assert not (tmp_path / "docs").exists()
+
+    @pytest.mark.asyncio
+    async def test_command_the_host_does_not_serve_is_unknown(
+        self, patch_client_manager, tmp_path, monkeypatch
+    ):
+        (tmp_path / "pyproject.toml").write_text('[project]\nname = "demo"\n')
+        monkeypatch.chdir(tmp_path)
+
+        result = await llm_session_create(tools=["llm_session_list"])
+
+        assert_error(result, "UNKNOWN_COMMAND")
+        assert "tool host" in result.error.suggestion

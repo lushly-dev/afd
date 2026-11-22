@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel
 
@@ -37,6 +37,11 @@ class LlmConfig(BaseModel):
     infinite_sessions: bool = True
     permissions: LlmPermissionsConfig = LlmPermissionsConfig()
     cost: LlmCostConfig = LlmCostConfig()
+    # Bridged tools dispatch through a managed Botcore host over the current workspace:
+    # its profile decides which declared effects a model's tool calls may have, and only
+    # admitted core commands plus the commands of these (host-context-safe) plugins are served.
+    tool_profile: Literal["inspection", "remote-caller", "trusted-local"] = "inspection"
+    tool_plugins: list[str] = []
 
 
 def get_llm_config(plugin_config: dict[str, Any] | None = None) -> LlmConfig:

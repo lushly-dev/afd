@@ -1,0 +1,8 @@
+---
+"lushly-botcore": minor
+---
+
+### Security
+
+- **`botcore-llm` tool calls follow host policy.** Commands bridged into an LLM session are now served through a managed Botcore host, and every tool call a model makes enters `host.execute`, as a CLI or MCP `call` does: argument checks, command policies, the execution profile and path confinement apply, and a refused call reaches the model as the host's error with its suggestion (for example `EFFECT_DENIED`). By default the host covers the current workspace with the `inspection` profile and serves the admitted core commands; `tool_profile` and `tool_plugins` under `[tool.botcore.plugins.llm]` widen it, and Python callers can pass their own host to `botcore_llm.commands.set_tool_host`. A command that host does not serve, such as an optional plugin that has no host adapter, is refused with `UNKNOWN_COMMAND` when the session is created. `botcore_command_to_copilot_tool(name, host)` and `bridge_commands(names, host)` now take a host instead of a function or namespace.
+- **The shell allowlist admits one simple command.** A shell request is approved only when its command line parses (POSIX `shlex`) into a single command: a line break, `;`, `&`, `&&`, `||`, `|`, a redirection, a subshell, `$` or backtick substitution, a backslash, a glob, `~` or `#` outside quotes, or `$`, a backtick or a backslash inside double quotes, refuses it. Command lists and pipelines are refused even when every part matches. Quoted arguments may hold any other text. The program must equal the pattern's first word, and the pattern is matched against the parsed arguments. A refusal now says what refused it and how to recover.
