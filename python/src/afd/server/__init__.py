@@ -90,6 +90,11 @@ from afd.server.context_fields import (
     check_context_fields,
     describe_context_fields,
 )
+from afd.server.context_hook import (
+    ContextHook,
+    ContextHookRequest,
+    ContextHookResult,
+)
 from afd.server.journal import (
     MAX_JOURNAL_CONTEXT_BYTES,
     JournalReplayTarget,
@@ -174,6 +179,10 @@ __all__ = [
     "ContextField",
     "check_context_fields",
     "describe_context_fields",
+    # Per-request context hook
+    "ContextHook",
+    "ContextHookRequest",
+    "ContextHookResult",
     # Command journal: recording middleware and replay
     "create_journal_middleware",
     "journal_context_fields",

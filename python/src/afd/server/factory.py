@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import dataclasses
 import json
 import logging
 import os
@@ -91,6 +92,15 @@ from afd.server.context_fields import (
     context_field_values,
     describe_context_fields,
 )
+from afd.server.context_hook import (
+    ContextHook,
+    HookOutcome,
+    bind_hook_outcome,
+    copy_extra,
+    current_hook_outcome,
+    run_context_hook,
+    trace_prefix_for_tool,
+)
 from afd.server.first_class import check_first_class_tools, normalize_first_class_tools
 from afd.server.lazy_tools import not_found_suggestion
 from afd.server.meta_argument import lift_meta_argument, meta_argument_keys
@@ -172,6 +182,9 @@ class ServerConfig:
     clock: Clock | None = None
     random: RandomSource | None = None
     actor: Actor | None = None
+    context_hook: ContextHook | None = None
+    """Per-request hook (``afd.server.context_hook``) invoked once per MCP ``tools/call`` before
+    the request-state boundary, confirmation gate and command lookup."""
     confirmations: str = "off"
     confirmation_key: bytes | str | None = None
     first_class_tools: list[str] | None = None
@@ -241,6 +254,8 @@ class MCPServer:
     def __init__(self, config: ServerConfig):
         if config.max_batch_size < 1 or config.max_batch_parallelism < 1:
             raise ValueError("max_batch_size and max_batch_parallelism must be at least 1")
+        if config.context_hook is not None and not callable(config.context_hook):
+            raise TypeError("context_hook must be callable")
         # The set's options are checked here; its entries once the commands are registered.
         first_class = normalize_first_class_tools(config.tool_strategy, config.first_class_tools)
         config.first_class_tools = first_class
@@ -1031,8 +1046,8 @@ class MCPServer:
                     item_context = CommandContext(
                         trace_id=f"{batch_trace_id}-{index}",
                         timeout=context.timeout,
-                        extra=dict(context.extra),
-                        actor=context.actor,
+                        extra=copy_extra(context.extra),
+                        actor=copy.copy(context.actor) if context.actor is not None else None,
                         clock=context.clock,
                         random=context.random,
                         approval=getattr(context, "approval", None),
@@ -1174,8 +1189,19 @@ class MCPServer:
         step_context = context or CommandContext()
 
         async def executor(command_name: str, payload: dict[str, Any]) -> CommandResult:
+            per_step = (
+                dataclasses.replace(
+                    step_context,
+                    extra=copy_extra(step_context.extra),
+                    actor=copy.copy(step_context.actor)
+                    if step_context.actor is not None
+                    else None,
+                )
+                if dataclasses.is_dataclass(step_context)
+                else step_context
+            )
             try:
-                result = await self._execute_command(command_name, payload, step_context)
+                result = await self._execute_command(command_name, payload, per_step)
             except Exception as exc:
                 result = self._internal_error(command_name, exc)
             return self._as_command_result(command_name, result)
@@ -1442,7 +1468,14 @@ class MCPServer:
                 with bound_request():
                     return [MCPTool(**definition) for definition in server.get_tool_definitions()]
 
-            async def call_tool(self, name, arguments, context=None):
+            async def _dispatch_tool_call(
+                self, name: Any, arguments: Any, context: Any, outcome: HookOutcome | None
+            ) -> Any:
+                # A hook refusal answers every route before meta-argument lifting, context
+                # checks, confirmations or command lookup, so a refused caller learns nothing
+                # about which tools or contexts exist.
+                if outcome is not None and outcome.refusal is not None:
+                    return _tool_call_result(failure(outcome.refusal))
                 # A meta-tool's `meta` argument counts as _meta from here on.
                 lifted = lift_meta_argument(
                     name, arguments, _request_meta(_CURRENT_REQUEST.get()), meta_keys
@@ -1451,10 +1484,21 @@ class MCPServer:
                     return _tool_call_result(failure(lifted.error))
                 # Declared context fields come from this request's _meta, on both eras and
                 # every transport; undeclared keys are dropped. The router puts them in
-                # context.extra and the command's execution validates them.
+                # context.extra (with hook values winning) and execution validates them.
                 values = context_field_values(server.config.context_fields, lifted.meta)
                 with bound_request(meta=lifted.meta), bind_context_field_values(values):
                     return await super().call_tool(name, lifted.arguments, context)
+
+            async def call_tool(self, name, arguments, context=None):
+                outcome = current_hook_outcome()
+                if outcome is None and server.config.context_hook is not None:
+                    # Direct SDK call_tool outside ServerRunner middleware: still run the hook.
+                    outcome = await server._run_context_hook(
+                        name if isinstance(name, str) else "", _CURRENT_REQUEST.get()
+                    )
+                    with bind_hook_outcome(outcome):
+                        return await self._dispatch_tool_call(name, arguments, context, outcome)
+                return await self._dispatch_tool_call(name, arguments, context, outcome)
 
         self._mcp_server = SessionMCPServer(
             self.config.name,
@@ -1486,21 +1530,43 @@ class MCPServer:
                 bind_principal=lambda _ctx: self._request_principal(),
             ),
         )
-        self._install_unbindable_state_refusal()
+        self._install_pre_boundary_middleware()
         self._sync_mcp_tool_definitions()
         self._install_fastmcp_context_error_translation()
         self._advertise_fixed_tools_list()
         self._advertise_context_fields()
         return self._mcp_server
 
-    def _install_unbindable_state_refusal(self) -> None:
-        """Refuse a retry that carries a ``requestState`` when the call's credentials cannot be
-        bound (``IncompleteCredentials``), with the internal error the SDK gives when it cannot
-        seal one, before the SDK's boundary would answer ``-32602``.
+    async def _run_context_hook(self, tool_name: str, request_context: Any) -> HookOutcome:
+        """Run the server's per-request context hook once for ``tools/call``."""
+        assert self.config.context_hook is not None
+        return await run_context_hook(
+            self.config.context_hook,
+            tool_name,
+            request_context,
+            ContextDefaults(
+                clock=self.config.clock,
+                random=self.config.random,
+                actor=self.config.actor,
+            ),
+            new_trace_id(trace_prefix_for_tool(tool_name)),
+        )
 
-        The SDK runs user middleware inside its request-state boundary, so this one is placed
-        just before the boundary. Without the boundary where it is expected, the server refuses
-        to start rather than accept such a retry.
+    def _install_pre_boundary_middleware(self) -> None:
+        """Install middleware immediately before the SDK's ``RequestStateBoundary``.
+
+        1. Runs ``context_hook`` once per ``tools/call`` before request-state unsealing,
+           confirmation checks, context selection or command lookup, binding the hook's
+           snapshotted actor so ``RequestStateSecurity(bind_principal=...)`` binds the
+           actor the commands actually run with. On refusal, ``requestState`` is stripped
+           from the forwarded params so the boundary neither unseals nor leaks state
+           validity before ``call_tool`` returns the refusal through normal serialization.
+        2. Refuses any ``requestState`` retry whose verified credentials are incomplete
+           (``IncompleteCredentials``) with JSON-RPC ``INTERNAL_ERROR`` naming no one,
+           before the boundary would answer ``-32602``.
+
+        Without the boundary where it is expected, the server refuses to start rather than
+        accept requests without these guards.
         """
         from mcp import MCPError
         from mcp.server.request_state import RequestStateBoundary
@@ -1509,19 +1575,44 @@ class MCPServer:
 
         server = self
 
-        async def refuse_unbindable_state(ctx: Any, call_next: Any) -> Any:
+        def check_bindable_principal(method: Any) -> None:
+            try:
+                server._request_principal()
+            except IncompleteCredentials:
+                # The reason only, never who: the credentials name the caller.
+                logger.warning("refusing requestState on %s: incomplete credentials", method)
+                raise MCPError(code=INTERNAL_ERROR, message="Internal error") from None
+
+        async def pre_boundary(ctx: Any, call_next: Any) -> Any:
             params = getattr(ctx, "params", None)
+            method = getattr(ctx, "method", None)
+            if server.config.context_hook is not None and method == "tools/call":
+                raw_name = params.get("name") if isinstance(params, Mapping) else None
+                tool_name = raw_name if isinstance(raw_name, str) else ""
+                outcome = await server._run_context_hook(tool_name, ctx)
+                if outcome.refusal is not None:
+                    if isinstance(params, Mapping) and (
+                        params.get("requestState") is not None or "inputResponses" in params
+                    ):
+                        cleaned = {
+                            key: value
+                            for key, value in params.items()
+                            if key not in ("requestState", "inputResponses")
+                        }
+                        ctx = dataclasses.replace(ctx, params=cleaned)
+                    with bind_hook_outcome(outcome):
+                        return await call_next(ctx)
+                with bind_hook_outcome(outcome):
+                    if isinstance(params, Mapping) and params.get("requestState") is not None:
+                        check_bindable_principal(method)
+                    return await call_next(ctx)
+
             if (
-                getattr(ctx, "method", None) in INPUT_REQUIRED_METHODS
+                method in INPUT_REQUIRED_METHODS
                 and isinstance(params, Mapping)
                 and params.get("requestState") is not None
             ):
-                try:
-                    server._request_principal()
-                except IncompleteCredentials:
-                    # The reason only, never who: the credentials name the caller.
-                    logger.warning("refusing requestState on %s: incomplete credentials", ctx.method)
-                    raise MCPError(code=INTERNAL_ERROR, message="Internal error") from None
+                check_bindable_principal(method)
             return await call_next(ctx)
 
         lowlevel = getattr(self._mcp_server, "_lowlevel_server", None)
@@ -1532,18 +1623,25 @@ class MCPServer:
         )
         if boundary is None:
             raise RuntimeError("the MCP SDK's request-state boundary was not found")
-        chain.insert(boundary, refuse_unbindable_state)
+        chain.insert(boundary, pre_boundary)
 
     def _request_principal(self) -> str:
         """The principal binding of the MCP request being served: the actor its commands run
-        with and the identity of the access token the SDK verified, if any.
+        with (from ``context_hook`` when set, else the server's configured ``actor`` or
+        ``Actor(kind="agent")``) and the identity of the access token the SDK verified, if any.
 
         Raises:
             IncompleteCredentials: A verified token lacks an issuer, subject or client id. The
                 SDK then refuses to seal a state with an internal error, and
-                ``_install_unbindable_state_refusal`` refuses a retry the same way.
+                ``_install_pre_boundary_middleware`` refuses a retry the same way.
         """
-        return principal_binding(self.config.actor or Actor(kind="agent"), sdk_credentials())
+        outcome = current_hook_outcome()
+        actor = (
+            outcome.actor_at_start
+            if outcome is not None and outcome.actor_at_start is not None
+            else self.config.actor or Actor(kind="agent")
+        )
+        return principal_binding(actor, sdk_credentials())
 
     def streamable_http_app(self, **options: Any) -> Any:
         """The Streamable HTTP ASGI app, for mounting in a host application.
@@ -1756,6 +1854,7 @@ def create_server(
     clock: Clock | None = None,
     random: RandomSource | None = None,
     actor: Actor | None = None,
+    context_hook: ContextHook | None = None,
     confirmations: str = "off",
     confirmation_key: bytes | str | None = None,
     first_class_tools: Sequence[str] | None = None,
@@ -1814,12 +1913,23 @@ def create_server(
             none. Default: ``system_clock``. Pass ``fixed_clock()`` in tests.
         random: Random source given to handlers as ``context.random`` when the
             context has none. Default: ``system_random``.
-        actor: Actor for commands called over MCP when the context has none.
-            Default: ``Actor(kind="agent")``. Direct ``server.execute()`` calls
-            get no default actor. Confirmation state is bound to this actor and to
-            the SDK-verified token (#532), not to an actor middleware sets later:
-            a host that tells callers apart without SDK tokens cannot separate
-            their confirmations, since Python has no per-request context hook.
+        actor: Default actor for commands called over MCP when ``context_hook``
+            is not set or leaves ``context.actor`` unset. Default: ``Actor(kind="agent")``.
+            Direct ``server.execute()`` calls get no default actor.
+        context_hook: Per-request hook ``(request, context) -> CommandContext | CommandError``
+            (sync or async; see ``afd.server.context_hook``) invoked once per MCP
+            ``tools/call`` before the request-state boundary, confirmation gate and
+            command lookup, on every route. Receives a :class:`ContextHookRequest`
+            (the tool name, SDK ``ServerRequestContext``, and Starlette HTTP request
+            when present) and a base ``CommandContext`` with server defaults (no
+            ``_meta`` context fields). Trust identity only from what a verified
+            transport layer set, never from ``_meta`` or an unverified caller header;
+            fail closed with a ``CommandError`` when a call cannot be attributed
+            (``details`` and ``cause`` are stripped). The resolved actor is bound into
+            confirmation and approval-relay ``requestState`` alongside any SDK-verified
+            token (#532, #800), and hook ``extra`` values win over declared ``_meta``
+            context fields. Does not run on ``tools/list``, ``server/discover``,
+            ``initialize`` or ``server.execute()``.
         confirmations: Enforce ``confirm_prompt`` on MCP calls
             (``spec/command-metadata.md``, "Confirmations"): ``"off"`` (the default),
             ``"enforce"`` (an accepted elicitation, or an acknowledgement:
@@ -1830,8 +1940,9 @@ def create_server(
         confirmation_key: Key (32 bytes or more) that seals the ``requestState`` of
             confirmation elicitations, shared by every instance behind one URL.
             Default: a random key per process. The state is bound to the call's
-            principal binding (``afd.server.principal``, #532): ``actor`` and the
-            issuer, subject and client of the access token the SDK verified.
+            principal binding (``afd.server.principal``, #532, #800): the actor from
+            ``context_hook`` (or ``actor``) and the issuer, subject and client of the
+            access token the SDK verified.
         advertise_output_schema: Advertise a top-level MCP ``outputSchema`` (the
             CommandResult envelope, with ``data`` typed by ``output_schema``) on each command
             listed as its own tool. MCP clients validate a result's ``structuredContent``
@@ -1877,6 +1988,7 @@ def create_server(
         clock=clock,
         random=random,
         actor=actor,
+        context_hook=context_hook,
         confirmations=confirmations,
         confirmation_key=confirmation_key,
         first_class_tools=first_class_tools,  # type: ignore[arg-type]  # MCPServer checks it

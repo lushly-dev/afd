@@ -5,10 +5,9 @@ HTTP (stateful and stateless), SSE and stdio; undeclared keys are dropped; an in
 a ``VALIDATION_ERROR`` tool result naming the field; ``tools/list`` does not vary;
 ``server/discover`` and ``afd-help`` list the fields.
 
-Mirrors ``packages/server/src/context-fields-mcp.test.ts``. Python has no ``createContext``
-hook, so the only trusted values on an MCP call are the keys the router sets itself, which a
-field cannot be named after; and it has no AFD HTTP lanes (``/rpc``, ``/batch``, ``/stream``),
-so MCP's own transports are the HTTP surface.
+Mirrors ``packages/server/src/context-fields-mcp.test.ts``. Python's ``context_hook``
+precedence is covered in ``tests/test_context_hook.py``; Python has no AFD HTTP lanes
+(``/rpc``, ``/batch``, ``/stream``), so MCP's own transports are the HTTP surface.
 """
 
 import json
