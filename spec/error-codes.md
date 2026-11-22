@@ -6,18 +6,25 @@ layer emits it. It also fixes how an engine answers a call to an unknown or unex
 Which codes each language defines today is tracked in the
 [language parity matrix](../docs/language-parity.md).
 
-The codes fall into three groups:
+The codes fall into four groups:
 
-- **The shared catalog.** Codes an agent can get from any implementation for the same situation.
-  Every language defines all of them as constants, in the order of
-  [`vectors/error-codes.json`](./vectors/error-codes.json), each constant's value being its name:
-  TypeScript `ErrorCodes`, Python `ErrorCodes`, Rust `error_codes` and C++ `error_codes`. Each test
-  suite checks its catalog against that file.
-- **Transport-specific codes.** Codes that belong to one transport (the HTTP layer or an MCP
-  client). They are listed here so that an agent can interpret them, but they are not in the shared
-  catalog: a language without that transport has no use for them.
-- **Package codes.** Codes of optional packages such as auth and view-state. They belong to those
-  packages' own contracts.
+- **The core catalog (33 codes).** Codes every AFD core implementation shares (validation,
+  resources, application auth, rate limiting, network/service, internal, commands, routing/access,
+  and batch/pipeline).
+- **Profile catalogs (17 codes).** Codes belonging to optional contract profiles (`contexts`,
+  `streaming`, `confirmations`, `approvals`, `output-budgets`, `authorization`, `tasks`,
+  `app-calls`). Together with the core catalog, these form the 50-code shared catalog in
+  [`vectors/error-codes.json`](./vectors/error-codes.json). Each entry carries
+  `{ "code", "retryable", "profile" }`, where `retryable` is `true`, `false` or `"varies"` and
+  `profile` is `"core"` or one of the profile names above. Every language defines all 50 constants
+  in catalog order (`TypeScript` `ErrorCodes`, `Python` `ErrorCodes`, `Rust` `error_codes`, `C++`
+  `error_codes`) together with their metadata (`ERROR_CODE_CATALOG` / `error_code_catalog`), and
+  each language's test suite checks `code`, `retryable` and `profile` against that file.
+- **Host-defined codes (`HOST_` prefix).** Codes defined by a host running on top of AFD, using the
+  reserved `HOST_` prefix (see [Host-defined error codes](#host-defined-error-codes)).
+- **Transport-specific and package codes.** Codes that belong to one transport (the HTTP layer or
+  an MCP client) or an optional package such as auth or view-state. They are listed here so an
+  agent can interpret them, but they are not in the shared catalog.
 
 ## Reading the tables
 
@@ -114,11 +121,13 @@ construction ([H2](./tool-strategies.md#h2-validation-at-construction)), so
 
 ## The shared catalog
 
-50 codes. The first 22 are the original TypeScript `ErrorCodes`; the next 20 are the codes the
-engines emitted without a constant; then the 2 confirmation codes, the 2 approval codes, the output
-budget code, the authorization code, the task code and the app call code.
+50 codes in [`vectors/error-codes.json`](./vectors/error-codes.json): **33 core codes** (`profile: "core"`)
+and **17 profile codes** across eight optional profiles (`contexts`, `streaming`, `confirmations`,
+`approvals`, `output-budgets`, `authorization`, `tasks`, `app-calls`).
 
-### Validation
+### Core catalog (`profile: "core"`)
+
+#### Validation
 
 | Code | Meaning | Retryable | Layers |
 | --- | --- | --- | --- |
@@ -127,7 +136,7 @@ budget code, the authorization code, the task code and the app call code.
 | `MISSING_REQUIRED_FIELD` | A required field is missing | No | Application |
 | `INVALID_FORMAT` | A field has the wrong format | No | Application |
 
-### Resources
+#### Resources
 
 | Code | Meaning | Retryable | Layers |
 | --- | --- | --- | --- |
@@ -135,7 +144,7 @@ budget code, the authorization code, the task code and the app call code.
 | `ALREADY_EXISTS` | The resource to create already exists | No | Application |
 | `CONFLICT` | The change conflicts with the resource's current state | No | Application |
 
-### Authorization
+#### Authorization
 
 | Code | Meaning | Retryable | Layers |
 | --- | --- | --- | --- |
@@ -143,14 +152,14 @@ budget code, the authorization code, the task code and the app call code.
 | `FORBIDDEN` | The caller is signed in but not allowed | No | Application |
 | `TOKEN_EXPIRED` | The caller's session expired; sign in or refresh first | No | Application; the auth package |
 
-### Rate limiting
+#### Rate limiting
 
 | Code | Meaning | Retryable | Layers |
 | --- | --- | --- | --- |
 | `RATE_LIMITED` | Too many requests in the window, or the rate limiter's client capacity is full. The suggestion says how long to wait when it is known | Yes | Middleware, application (`rateLimitError()`) |
 | `QUOTA_EXCEEDED` | A quota is used up; waiting a moment does not help | No | Application |
 
-### Network and service
+#### Network and service
 
 | Code | Meaning | Retryable | Layers |
 | --- | --- | --- | --- |
@@ -158,7 +167,7 @@ budget code, the authorization code, the task code and the app call code.
 | `TIMEOUT` | An operation ran out of time: a DirectClient or TypeScript server engine call past `context.timeout`, a client request, a Rust registry call past `timeout_ms`, or `timeoutError()`. The command may still have run | Yes | DirectClient, TypeScript server engine, client, core executors (Rust registry), application |
 | `CONNECTION_ERROR` | The request could not reach the server, or failed on the way. It may have reached the server | Yes | Client |
 
-### Internal
+#### Internal
 
 | Code | Meaning | Retryable | Layers |
 | --- | --- | --- | --- |
@@ -166,7 +175,7 @@ budget code, the authorization code, the task code and the app call code.
 | `NOT_IMPLEMENTED` | The command or option exists but is not implemented | No | Application |
 | `UNKNOWN_ERROR` | A thrown value that is not an `Error` (`wrapError()`) | Yes | Core executors |
 
-### Commands
+#### Commands
 
 | Code | Meaning | Retryable | Layers |
 | --- | --- | --- | --- |
@@ -175,26 +184,17 @@ budget code, the authorization code, the task code and the app call code.
 | `COMMAND_CANCELLED` | The caller cancelled the command, or cancelled batch/pipeline work before it started ([execution controls](./execution-controls.md#caller-cancellation)) | No | Application; TypeScript server engine; core executors (batch, pipeline) |
 | `COMMAND_EXECUTION_ERROR` | The handler threw (or panicked). Outside dev mode the message is "An internal error occurred" and carries no exception text | No | Core executors, server engine, DirectClient, batch, pipeline |
 
-### Routing and access
+#### Routing and access
 
 | Code | Meaning | Retryable | Layers |
 | --- | --- | --- | --- |
 | `COMMAND_NOT_EXPOSED` | The command exists but is not exposed to the interface an in-process caller named; see [D4](#unknown-and-unexposed-commands-d4) | No | Core executors (registry), server engine (`createDirectRegistry`) |
-| `COMMAND_NOT_IN_CONTEXT` | The command exists but is outside the active context | No | Server engine, router; the C++ and Python registries |
 | `COMMAND_NOT_ALLOWED` | The DirectClient's `allow` predicate or list excludes the command, or (TypeScript) the `allow` call option of `createDirectRegistry` excludes a command the call runs, including one reached through `afd-call`, `afd-batch`, `afd-pipe` or a grouped tool whose every action it excludes (a grouped tool resolves its action among the permitted commands, so an excluded action alone is `COMMAND_NOT_FOUND`) | No | DirectClient; server engine and router (`createDirectRegistry`) |
 | `UNKNOWN_TOOL` | The DirectClient's registry has no such command it can call; see [D4](#unknown-and-unexposed-commands-d4) | No | DirectClient |
 | `AMBIGUOUS_ACTION` | A grouped tool's `action` matches more than one command in the group | No | Router |
 | `INVALID_GROUPED_CALL` | A grouped tool was called without an `action` | No | Router |
 
-### Contexts
-
-| Code | Meaning | Retryable | Layers |
-| --- | --- | --- | --- |
-| `SESSION_REQUIRED` | `afd-context-enter` or `afd-context-exit` was called over HTTP without an MCP session to hold the context | No | Router (context tools) |
-| `CONTEXT_NOT_FOUND` | `afd-context-enter` named a context the server does not configure, or an in-process call's active context (TypeScript `activeContext`) named one the registry does not configure | No | Router (context tools); server engine (`createDirectRegistry`) |
-| `CONTEXT_DEPTH_EXCEEDED` | The context stack is full (16 levels by default) | No | Router (context tools) |
-
-### Batch and pipeline
+#### Batch and pipeline
 
 | Code | Meaning | Retryable | Layers |
 | --- | --- | --- | --- |
@@ -205,7 +205,21 @@ budget code, the authorization code, the task code and the app call code.
 | `PIPELINE_TIMEOUT` | The pipeline deadline passed: this step was aborted, or skipped | Yes | Core executors (pipeline) |
 | `UNSUPPORTED_OPTION` | The request uses an option this engine does not implement: pipeline `parallel`, a step's `stream`, or, in a Rust build without the `native` feature, a timeout | No | Core executors (pipeline; Rust registry and batch) |
 
-### Streaming
+### Profile catalogs
+
+Codes belonging to optional contract profiles. Each entry in `vectors/error-codes.json` names its
+`profile`.
+
+#### Contexts (`profile: "contexts"`)
+
+| Code | Meaning | Retryable | Layers |
+| --- | --- | --- | --- |
+| `COMMAND_NOT_IN_CONTEXT` | The command exists but is outside the active context | No | Server engine, router; the C++ and Python registries |
+| `SESSION_REQUIRED` | `afd-context-enter` or `afd-context-exit` was called over HTTP without an MCP session to hold the context | No | Router (context tools) |
+| `CONTEXT_NOT_FOUND` | `afd-context-enter` named a context the server does not configure, or an in-process call's active context (TypeScript `activeContext`) named one the registry does not configure | No | Router (context tools); server engine (`createDirectRegistry`) |
+| `CONTEXT_DEPTH_EXCEEDED` | The context stack is full (16 levels by default) | No | Router (context tools) |
+
+#### Streaming (`profile: "streaming"`)
 
 | Code | Meaning | Retryable | Layers |
 | --- | --- | --- | --- |
@@ -215,7 +229,7 @@ budget code, the authorization code, the task code and the app call code.
 | `STREAM_ENDED_UNEXPECTEDLY` | `consumeStream` saw the stream end without a complete or error chunk | Yes | Core executors (stream) |
 | `COMMAND_FAILED` | A streamed command failed without an error of its own | No | Core executors (stream) |
 
-### Confirmations
+#### Confirmations (`profile: "confirmations"`)
 
 Emitted only by a server that enforces `confirmPrompt`; see
 [Confirmations](./command-metadata.md#confirmations). No handler ran.
@@ -225,7 +239,7 @@ Emitted only by a server that enforces `confirmPrompt`; see
 | `CONFIRMATION_REQUIRED` | The command declares `confirmPrompt` and the call carried no confirmation the server accepts. The suggestion says how to confirm: repeat the call with `confirm: true`, or use a client that supports elicitation | No | Server engine, router, HTTP layer |
 | `CONFIRMATION_DECLINED` | The user declined or cancelled the confirmation. Do not retry without asking the user | No | Server engine, router |
 
-### Approvals
+#### Approvals (`profile: "approvals"`)
 
 Emitted by the approval middleware (`APPROVAL_REQUIRED`) and by the server engine
 (`APPROVAL_UNAVAILABLE`); see [Approvals](./command-metadata.md#approvals). No handler ran.
@@ -235,7 +249,7 @@ Emitted by the approval middleware (`APPROVAL_REQUIRED`) and by the server engin
 | `APPROVAL_REQUIRED` | The command's approval policy requires a human's approval and the call carried no valid approval token. `details` holds `approvalToken` (unless the server delivers it elsewhere, the default on MCP), `expiresAt`, `summary` and, for a rejected token or a declined MCP approval, `reason`. An `afd-pipe` refused up front because a gated step's input comes from an earlier step has `reason: "input-not-known"`, `step` and `command` instead, and nothing ran: split the pipeline before that step. An `afd-batch` or `afd-pipe` with more than `limit` (20) gated steps has `reason: "too-many-approvals"` and `limit`, and nothing ran: split it. Retry the same call with the token once a human approved | No | Middleware |
 | `APPROVAL_UNAVAILABLE` | The command declares an approval policy other than `not-required`, or the approval middleware's list gives it one, and no approval step admitted the call, so the server cannot ask a person. Nothing ran. `details.reason` is `no-approval-step`; `admission-mismatch` when an approval step ran but did not admit this dispatch (a retry or an input change after it, or during its decision); or `input-not-canonical`, the approval step's own answer when the call needs approval and its validated input has no canonical JSON form (a `bigint`, an integer a JavaScript number cannot hold exactly, a class instance), so no approval can be bound to it and the person is not asked. The suggestion says not to retry: for the first two the operator adds an approval step, removes the policy or reorders the middleware; for `input-not-canonical` the caller sends the input in a form canonical JSON accepts, or the operator changes a schema that produces such a value | No | Server engine; approval middleware |
 
-### Output budgets
+#### Output budgets (`profile: "output-budgets"`)
 
 Emitted by the engine's check after the handler; see
 [Output budgets](./output-budgets.md#b5-the-check-after-the-handler). The handler ran.
@@ -244,7 +258,7 @@ Emitted by the engine's check after the handler; see
 | --- | --- | --- | --- |
 | `OUTPUT_BUDGET_EXCEEDED` | A command's successful result was larger than the call's output budget. For a read, the result is replaced by this failure, with `details.limitBytes`, `actualBytes` and `maxBytes`; the suggestion says to narrow the request or ask for up to `maxBytes`. For a mutation, the result is kept and this is a warning's code instead, because the change was made | No | Server engine (the check after the handler), core executors (batch items, pipeline steps), DirectClient |
 
-### Authorization
+#### Authorization (`profile: "authorization"`)
 
 Emitted by a server configured with [authorization](./authorization.md) for a call that carries
 verified credentials; see [M6](./authorization.md#m6-scopes). No handler ran.
@@ -253,7 +267,7 @@ verified credentials; see [M6](./authorization.md#m6-scopes). No handler ran.
 | --- | --- | --- | --- |
 | `INSUFFICIENT_SCOPE` | The caller's token lacks a scope the call needs, found after routing: a call the HTTP layer could not answer with a 403 before dispatch, such as one on the deprecated `/message` lane. `details.scopes` lists every missing scope; the suggestion says to obtain a token that grants them. A batch or pipeline fails as a whole before its first step. Where HTTP can answer, the same case is an HTTP 403 with `error="insufficient_scope"` instead, never a tool result | No (a new token) | Server engine, router, HTTP layer |
 
-### Tasks
+#### Tasks (`profile: "tasks"`)
 
 Emitted by a server's task runner; see [Tasks](./command-metadata.md#tasks). The task completes
 with this failure (`completed`, with `isError: true`).
@@ -262,7 +276,7 @@ with this failure (`completed`, with `isError: true`).
 | --- | --- | --- | --- |
 | `TASK_TOKEN_EXPIRED` | A task was still working when the token that started it expired (`credentials.expiresAt`), so it was stopped; it completes with this failure. A token that expired before the task could start stops it the same way, before its handler runs, and so does a handler that returned after `expiresAt` (its result is not delivered). Start it again with a new token. Retryable unless the command is a `mutation` whose handler started: it may have made its change, in part or in full, and the suggestion says to check its effect first | Varies | Server engine (the task runner) |
 
-### App calls
+#### App calls (`profile: "app-calls"`)
 
 Emitted by a registry for a call with the `apps` interface; see
 [App-to-app calls](./command-metadata.md#app-to-app-calls). No handler ran.
@@ -270,6 +284,22 @@ Emitted by a registry for a call with the `apps` interface; see
 | Code | Meaning | Retryable | Layers |
 | --- | --- | --- | --- |
 | `CALL_NOT_GRANTED` | An app's call to a command it may not call: the command does not exist, does not set `expose.apps`, or the host's `callGrant` does not grant it to the caller. One fixed message and suggestion for every case, before lookup and validation, so the caller cannot tell them apart | No | Core executors (registry), server engine (`createAppCallRegistry`) |
+
+## Host-defined error codes
+
+The prefix `HOST_` (`HOST_ERROR_CODE_PREFIX` / `host_error_code_prefix`, recorded as `hostPrefix` in
+[`vectors/error-codes.json`](./vectors/error-codes.json)) is **reserved for host-defined error
+codes**.
+
+- **AFD will never add a code starting with `HOST_`** to the core or profile catalogs.
+- A host running on top of AFD (such as Umbel or Loam) **SHOULD** name new host-specific error
+  codes `HOST_<HOST>_<NAME>` (for example `HOST_UMBEL_SPACE_NOT_READABLE`,
+  `HOST_LOAM_WORKSPACE_LOCKED`), or `HOST_<NAME>` when scoped to a single host, so they can never
+  collide with future AFD catalog additions.
+- Host codes defined before this rule (such as Umbel's `SPACE_NOT_READABLE`, `TASK_LOST` and
+  `PERSON_VERIFICATION_INSUFFICIENT`) stay in their host's own catalog and are grandfathered.
+- Application-level command errors (such as the todo example's `NO_CHANGES`) should reuse a shared
+  catalog code whenever one fits, and avoid the `HOST_` prefix.
 
 ## Specified, not yet in the catalog
 

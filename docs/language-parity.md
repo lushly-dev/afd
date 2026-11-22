@@ -9,7 +9,7 @@ What each AFD implementation provides, where they differ, and which differences 
 | Implementations | TypeScript (reference), Python, Rust, C++ |
 | Replaces | The export counts in the [Python](./features/active/python-parity/python-parity.plan.md) and [Rust](./features/complete/rust-parity/plan.md) parity plans, which now link here |
 | Plans | [Parity closure](./features/active/parity-closure/parity-closure.plan.md) closes the gaps listed here; [Versioning and release](./features/complete/versioning/versioning.plan.md) covers each implementation's version and the contract version |
-| Related | [`spec/wire`](../spec/wire/README.md), [`spec/pipeline-variables.md`](../spec/pipeline-variables.md), [`spec/command-metadata.md`](../spec/command-metadata.md), [`spec/validation.md`](../spec/validation.md), [`spec/error-codes.md`](../spec/error-codes.md), [`spec/vectors`](../spec/vectors/README.md), [C++ proposal](./features/complete/cpp-support/proposal.md), [2026-09-23 quality review](./reviews/2026-09-23-quality-review.md) |
+| Related | [`spec/schema`](../spec/schema/README.md), [`spec/wire`](../spec/wire/README.md), [`spec/dispatch.md`](../spec/dispatch.md), [`spec/pipeline-variables.md`](../spec/pipeline-variables.md), [`spec/command-metadata.md`](../spec/command-metadata.md), [`spec/validation.md`](../spec/validation.md), [`spec/error-codes.md`](../spec/error-codes.md), [`spec/vectors`](../spec/vectors/README.md), [C++ proposal](./features/complete/cpp-support/proposal.md), [2026-09-23 quality review](./reviews/2026-09-23-quality-review.md) |
 
 The implementation rows below include the stabilization merged in #367. Python 0.9.0 is published: all 12 fresh published-wheel installs passed across Python 3.10–3.12 and base/client/server/CLI, including the original base-import reproduction; [#347](https://github.com/lushly-dev/afd/issues/347) is closed. All nine npm packages are published at 2.1.0 after verified historical 2.0.0 recovery; [#369](https://github.com/lushly-dev/afd/issues/369) is closed. See the [publication record](./operations/stabilization-release.md) for exact commits, registry consumers and workflow receipts. The historical export measurement below remains dated separately.
 
@@ -44,10 +44,11 @@ Versions below describe repository manifests. Registry checks independently conf
 
 | Check | What it proves | TS | Python | Rust | C++ |
 |---|---|---|---|---|---|
-| `spec/wire` round-trip, 6 fixtures | Wire shapes | Yes (generator) | Yes | Yes | Yes |
+| `spec/wire` round-trip, 6 fixtures, validated against `spec/schema/*.json` (#1733) | Wire shapes and JSON Schema 2020-12 conformance (plus `output-envelope.json` parity) | Yes (generator) | Yes | Yes | Yes |
 | `spec/vectors/pipeline-variables.json`, 51 references and 27 conditions | Pipeline reference and `when` behavior | Yes (generator) | Yes | Yes | Yes |
 | `spec/vectors/batch-controls.json`, 24 batch and 25 pipeline cases | `stopOnError`, `parallelism`, deadlines, `continueOnFailure`, `UNSUPPORTED_OPTION` and envelope validation in the batch and pipeline executors | Yes (generator) | Yes, through `afd-batch` and `afd-pipe` | Yes | Yes |
-| `spec/vectors/error-codes.json`, 50 codes (`OUTPUT_BUDGET_EXCEEDED` added with the Rust output budgets, Umbel phase 2 step 0b; `INSUFFICIENT_SCOPE` with Rust's MCP authorization, Umbel phase 5 step 0b; `TASK_TOKEN_EXPIRED` with Rust's MCP Tasks, Umbel phase 5 step 0e; `CALL_NOT_GRANTED` with app-to-app calls, Loam phase 5 step 0b; `APPROVAL_UNAVAILABLE` with TypeScript's declared-policy check) | The shared `ErrorCodes` catalog of `spec/error-codes.md` | Yes | Yes | Yes | Yes |
+| `spec/vectors/error-codes.json`, 50 codes (`{ code, retryable, profile }`, `hostPrefix: "HOST_"`; #1740) | The shared `ErrorCodes` and `ERROR_CODE_CATALOG` of `spec/error-codes.md` (33 core + 17 profile codes) | Yes | Yes | Yes | Yes |
+| `spec/vectors/dispatch.json`, 19 cases (16 registry + 3 MCP; #1736) | Single-command dispatch order (`spec/dispatch.md`): lookup, exposure, context, confirmation, input/context-field validation, middleware, approval, handler, stamping and hooks | Yes | Yes (skips `hooks` gap #1551) | Yes (skips `approvalUnavailable` #1886, `stamping`/`hooks` #546; MCP cases with `server` feature) | Yes (MCP cases with `AFD_BUILD_MCP_STDIO`) |
 | `spec/vectors/approval-tokens.json`, 11 bindings and 31 verification cases | Approval token format: canonical JSON, keyed digests, payload layout and every rejection reason | Yes (generator) | Yes | Yes | Yes, issuing the exact tokens with a fixed random source |
 | `spec/vectors/app-calls.json`, 6 exposure, 17 call and 2 batch cases | The `apps` exposure flag and app-to-app calls: which run, and the one `CALL_NOT_GRANTED` refusal for the rest | Yes (core registry and `createAppCallRegistry`) | Loaded; every case skipped as a documented gap (#1513) | Yes | Loaded; every case skipped as a documented gap (#1513) |
 | `spec/vectors/approver-client.json`, 87 display and 9 carrier cases | The approval display rules and the approver carrier over MCP: an approver's token, its principal binding, the `_meta` key, refusals | Yes (generator) | Loaded; every case skipped as a documented gap (#1466) | Yes (the carrier with `server-auth`) | Loaded; every case skipped as a documented gap (#1466) |
@@ -66,7 +67,7 @@ Limits of these checks:
   - the batch, pipeline or stream executors;
   - unknown-command handling.
 - **Name parity is not behavioral parity.** Rust is 9 names short of TypeScript but has no stream executor. Python is 88 names short, but 56 of those exist and are just not exported (see [Name parity](#name-parity-alfred-parity)).
-- **The behavior vectors cover pipeline references, conditions, executor controls, validation (loaded by all four implementations) and the error-code catalog.** Streams and single-command dispatch have no vectors yet, so a change there can still drift unnoticed.
+- **The behavior vectors cover pipeline references, conditions, executor controls, validation, single-command dispatch and the error-code catalog (all loaded by all four implementations).** Streams have no behavior vectors yet, so a change there can still drift unnoticed.
 
 ## Capability matrix
 
@@ -84,7 +85,7 @@ Limits of these checks:
 |---|---|---|---|---|
 | `CommandResult`, `CommandError`, metadata shapes (camelCase, unset omitted) | Yes | Yes | Yes | Yes |
 | `Warning`, `Source`, `PlanStep`, `Alternative` | Yes | Yes | Yes | Yes |
-| `ErrorCodes` catalog: the 42 shared codes of [`spec/error-codes.md`](../spec/error-codes.md), checked against `spec/vectors/error-codes.json` | Yes | Yes | Yes | Yes |
+| `ErrorCodes` and `ERROR_CODE_CATALOG`: 50 shared codes (33 core + 17 profile) with `{ code, retryable, profile }` and `HOST_` prefix ([`spec/error-codes.md`](../spec/error-codes.md)), checked against `spec/vectors/error-codes.json` (#1740) | Yes | Yes | Yes | Yes |
 | `success` / `failure` / `error` constructors | Yes | Yes (#545 candidate): every result option except success/data/error | Partial: `FailureOptions` has no `alternatives` or `undo*` | Yes |
 | `isSuccess` / `isFailure` test only `success` | Yes | Yes, including `success(None)` | Yes | Yes |
 

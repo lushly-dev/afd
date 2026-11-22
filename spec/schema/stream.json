@@ -1,0 +1,68 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://afd.dev/spec/schema/stream.json",
+	"title": "AFD StreamChunk",
+	"description": "The wire shape of a single stream chunk, discriminated by type (spec/schema/README.md).",
+	"oneOf": [
+		{ "$ref": "#/$defs/ProgressChunk" },
+		{ "$ref": "#/$defs/DataChunk" },
+		{ "$ref": "#/$defs/CompleteChunk" },
+		{ "$ref": "#/$defs/ErrorChunk" }
+	],
+	"$defs": {
+		"ProgressChunk": {
+			"type": "object",
+			"required": ["type", "progress"],
+			"additionalProperties": false,
+			"properties": {
+				"type": { "const": "progress" },
+				"progress": { "type": "number", "minimum": 0, "maximum": 1 },
+				"message": { "type": "string" },
+				"currentStep": { "type": "integer", "minimum": 0 },
+				"totalSteps": { "type": "integer", "minimum": 0 },
+				"itemsProcessed": { "type": "integer", "minimum": 0 },
+				"itemsTotal": { "type": "integer", "minimum": 0 },
+				"estimatedTimeRemainingMs": { "type": "number", "minimum": 0 },
+				"phase": { "type": "string" }
+			}
+		},
+		"DataChunk": {
+			"type": "object",
+			"required": ["type", "data", "index", "isLast"],
+			"additionalProperties": false,
+			"properties": {
+				"type": { "const": "data" },
+				"data": {},
+				"index": { "type": "integer", "minimum": 0 },
+				"isLast": { "type": "boolean" },
+				"chunkId": { "type": "string" }
+			}
+		},
+		"CompleteChunk": {
+			"type": "object",
+			"required": ["type", "totalChunks", "totalDurationMs"],
+			"additionalProperties": false,
+			"properties": {
+				"type": { "const": "complete" },
+				"totalChunks": { "type": "integer", "minimum": 0 },
+				"totalDurationMs": { "type": "number", "minimum": 0 },
+				"data": {},
+				"confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+				"reasoning": { "type": "string" },
+				"metadata": { "$ref": "result.json#/$defs/ResultMetadata" }
+			}
+		},
+		"ErrorChunk": {
+			"type": "object",
+			"required": ["type", "error", "chunksBeforeError", "recoverable"],
+			"additionalProperties": false,
+			"properties": {
+				"type": { "const": "error" },
+				"error": { "$ref": "error.json" },
+				"chunksBeforeError": { "type": "integer", "minimum": 0 },
+				"recoverable": { "type": "boolean" },
+				"resumeFrom": { "type": "integer", "minimum": 0 }
+			}
+		}
+	}
+}

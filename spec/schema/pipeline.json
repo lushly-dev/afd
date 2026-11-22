@@ -1,0 +1,165 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://afd.dev/spec/schema/pipeline.json",
+	"title": "AFD PipelineResult",
+	"description": "The wire shape of a pipeline execution result (spec/schema/README.md).",
+	"type": "object",
+	"required": ["metadata", "steps"],
+	"additionalProperties": false,
+	"properties": {
+		"data": {
+			"description": "Data of the last successful step; omitted when no step succeeded."
+		},
+		"metadata": { "$ref": "#/$defs/PipelineMetadata" },
+		"steps": {
+			"type": "array",
+			"items": { "$ref": "#/$defs/StepResult" }
+		}
+	},
+	"$defs": {
+		"StepStatus": {
+			"type": "string",
+			"enum": ["success", "failure", "skipped"]
+		},
+		"StepConfidence": {
+			"type": "object",
+			"required": ["step", "command", "confidence"],
+			"additionalProperties": false,
+			"properties": {
+				"step": { "type": "integer", "minimum": 0 },
+				"alias": { "type": "string" },
+				"command": { "type": "string" },
+				"confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+				"reasoning": { "type": "string" }
+			}
+		},
+		"StepReasoning": {
+			"type": "object",
+			"required": ["stepIndex", "command", "reasoning"],
+			"additionalProperties": false,
+			"properties": {
+				"stepIndex": { "type": "integer", "minimum": 0 },
+				"command": { "type": "string" },
+				"reasoning": { "type": "string" }
+			}
+		},
+		"PipelineWarning": {
+			"type": "object",
+			"required": ["code", "message", "stepIndex"],
+			"additionalProperties": false,
+			"properties": {
+				"code": { "type": "string", "minLength": 1 },
+				"message": { "type": "string" },
+				"severity": { "$ref": "result.json#/$defs/WarningSeverity" },
+				"details": {
+					"type": "object",
+					"additionalProperties": true
+				},
+				"stepIndex": { "type": "integer", "minimum": 0 },
+				"stepAlias": { "type": "string" }
+			}
+		},
+		"PipelineSource": {
+			"type": "object",
+			"required": ["type", "stepIndex"],
+			"additionalProperties": false,
+			"properties": {
+				"type": { "type": "string", "minLength": 1 },
+				"id": { "type": "string" },
+				"title": { "type": "string" },
+				"url": { "type": "string" },
+				"location": { "type": "string" },
+				"accessedAt": { "type": "string" },
+				"relevance": { "type": "number", "minimum": 0, "maximum": 1 },
+				"stepIndex": { "type": "integer", "minimum": 0 }
+			}
+		},
+		"PipelineAlternative": {
+			"type": "object",
+			"required": ["data", "reason", "stepIndex"],
+			"additionalProperties": false,
+			"properties": {
+				"data": {},
+				"reason": { "type": "string" },
+				"confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+				"label": { "type": "string" },
+				"stepIndex": { "type": "integer", "minimum": 0 }
+			}
+		},
+		"PipelineMetadata": {
+			"type": "object",
+			"required": [
+				"confidence",
+				"confidenceBreakdown",
+				"reasoning",
+				"warnings",
+				"sources",
+				"alternatives",
+				"executionTimeMs",
+				"completedSteps",
+				"totalSteps"
+			],
+			"additionalProperties": true,
+			"properties": {
+				"confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+				"confidenceBreakdown": {
+					"type": "array",
+					"items": { "$ref": "#/$defs/StepConfidence" }
+				},
+				"reasoning": {
+					"type": "array",
+					"items": { "$ref": "#/$defs/StepReasoning" }
+				},
+				"warnings": {
+					"type": "array",
+					"items": { "$ref": "#/$defs/PipelineWarning" }
+				},
+				"sources": {
+					"type": "array",
+					"items": { "$ref": "#/$defs/PipelineSource" }
+				},
+				"alternatives": {
+					"type": "array",
+					"items": { "$ref": "#/$defs/PipelineAlternative" }
+				},
+				"executionTimeMs": { "type": "number", "minimum": 0 },
+				"completedSteps": { "type": "integer", "minimum": 0 },
+				"totalSteps": { "type": "integer", "minimum": 0 },
+				"commandVersion": { "type": "string" },
+				"traceId": { "type": "string" },
+				"timestamp": { "type": "string" },
+				"actorKind": { "$ref": "result.json#/$defs/ActorKind" }
+			}
+		},
+		"StepResult": {
+			"type": "object",
+			"required": ["index", "command", "status", "executionTimeMs"],
+			"additionalProperties": false,
+			"properties": {
+				"index": {
+					"description": "Zero-based step index, or -1 for a synthetic pre-execution rejection step.",
+					"type": "integer",
+					"minimum": -1
+				},
+				"alias": { "type": "string" },
+				"command": { "type": "string" },
+				"status": { "$ref": "#/$defs/StepStatus" },
+				"data": {},
+				"error": { "$ref": "error.json" },
+				"executionTimeMs": { "type": "number", "minimum": 0 },
+				"metadata": { "$ref": "result.json#/$defs/ResultMetadata" }
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": { "status": { "const": "failure" } },
+						"required": ["status"]
+					},
+					"then": {
+						"required": ["error"]
+					}
+				}
+			]
+		}
+	}
+}

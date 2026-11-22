@@ -25,13 +25,13 @@ These keep their own work; this review only cross-references them.
 
 ### The contract
 
-- [#1733](https://github.com/lushly-dev/afd/issues/1733) spec: a JSON Schema for CommandResult, CommandError, BatchResult, PipelineResult and StreamChunk
+- [#1733](https://github.com/lushly-dev/afd/issues/1733) spec: a JSON Schema for CommandResult, CommandError, BatchResult, PipelineResult and StreamChunk; merged in #1950
 
 - [#1734](https://github.com/lushly-dev/afd/issues/1734) spec: vectors written from the specification, and AFD's own validation issue codes
 
 - [#1735](https://github.com/lushly-dev/afd/issues/1735) decide: a stable core contract with versioned profiles, advertised on the wire: decided 2026-11-21, yes to all three ([decisions.md](decisions.md), AR1 to AR3), which also answers [#541](https://github.com/lushly-dev/afd/issues/541); the work is #1925, #1926 and #1927; merged in #1940
 
-- [#1736](https://github.com/lushly-dev/afd/issues/1736) spec: a dispatch-order page with vectors run by all four languages
+- [#1736](https://github.com/lushly-dev/afd/issues/1736) spec: a dispatch-order page with vectors run by all four languages; merged in #1950
 
 - [#1737](https://github.com/lushly-dev/afd/issues/1737) spec: deadlines, cancellation and batch limits in execution-controls.md, with vectors
 
@@ -39,7 +39,7 @@ These keep their own work; this review only cross-references them.
 
 - [#1739](https://github.com/lushly-dev/afd/issues/1739) conformance: a shared protocol case file every backend runs, checked against the result schema
 
-- [#1740](https://github.com/lushly-dev/afd/issues/1740) spec: error-code entries with retryability and profile, and a reserved prefix for hosts
+- [#1740](https://github.com/lushly-dev/afd/issues/1740) spec: error-code entries with retryability and profile, and a reserved prefix for hosts; merged in #1950
 
 - [#1741](https://github.com/lushly-dev/afd/issues/1741) mcp: read-only hints from Python, Rust and C++, and a typed error in every outputSchema
 

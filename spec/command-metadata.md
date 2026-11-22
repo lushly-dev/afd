@@ -915,7 +915,9 @@ titles in [`meta-tools.json`](./meta-tools.json), which every implementation lis
 - **`outputSchema`:** a command with an output schema (`returns`), listed as its own tool
   (the individual strategy, or first-class in the hybrid strategy), advertises a top-level
   `outputSchema` that describes the `CommandResult`
-  envelope, with `data` typed by the command's output schema:
+  envelope ([`spec/schema/output-envelope.json`](./schema/output-envelope.json); full result schema
+  in [`spec/schema/README.md`](./schema/README.md)), with `data` typed by the command's output
+  schema and `error` typed with `code`, `message`, `suggestion` and `retryable`:
 
   ```json
   {
@@ -923,7 +925,16 @@ titles in [`meta-tools.json`](./meta-tools.json), which every implementation lis
     "properties": {
       "success": { "type": "boolean" },
       "data": "<the command's output schema>",
-      "error": { "type": "object" },
+      "error": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "string" },
+          "message": { "type": "string" },
+          "suggestion": { "type": "string" },
+          "retryable": { "type": "boolean" }
+        },
+        "required": ["code", "message"]
+      },
       "metadata": { "type": "object" }
     },
     "required": ["success"]

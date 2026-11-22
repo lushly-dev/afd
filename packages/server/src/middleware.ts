@@ -12,7 +12,7 @@ import type {
 	TelemetryEvent,
 	TelemetrySink,
 } from '@lushly-dev/afd-core';
-import { createTelemetryEvent, isActorKind, systemClock } from '@lushly-dev/afd-core';
+import { createTelemetryEvent, failure, isActorKind, systemClock } from '@lushly-dev/afd-core';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // AUTO TRACE ID MIDDLEWARE
@@ -497,7 +497,6 @@ export function createRateLimitMiddleware(options: RateLimitOptions): CommandMid
 		}
 
 		if (window.count >= maxRequests) {
-			const { failure } = await import('@lushly-dev/afd-core');
 			return failure({
 				code: 'RATE_LIMITED',
 				message: 'Too many requests',
@@ -639,7 +638,6 @@ export function createTelemetryMiddleware(options: TelemetryOptions): CommandMid
 		}
 
 		if (!result) {
-			const { failure } = await import('@lushly-dev/afd-core');
 			return failure({
 				code: 'TELEMETRY_NO_RESULT',
 				message: 'Command did not produce a result',

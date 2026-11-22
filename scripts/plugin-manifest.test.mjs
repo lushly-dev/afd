@@ -264,7 +264,7 @@ test('the case families the page cites exist', () => {
 
 test('every code in spec/error-codes.md fits the errors pattern', () => {
 	const pattern = new RegExp(core.$defs.command.properties.errors.items.pattern, 'u');
-	const vector = json('spec/vectors/error-codes.json').codes;
+	const vector = json('spec/vectors/error-codes.json').codes.map((entry) => entry.code);
 	assert.ok(vector.length > 0);
 	const table = [
 		...read('spec/error-codes.md').matchAll(/^\| Code \|.*\n\|[- |]+\n((?:\|.*\n)*)/gm),

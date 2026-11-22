@@ -53,8 +53,11 @@ from afd.core.result import (
     is_failure,
 )
 from afd.core.errors import (
+    ERROR_CODE_CATALOG,
+    HOST_ERROR_CODE_PREFIX,
     CommandError,
     ErrorCode,
+    ErrorCodeInfo,
     ErrorCodes,
     create_error,
     validation_error,
@@ -410,7 +413,10 @@ __all__ = [
     # Error types
     "CommandError",
     "ErrorCode",
+    "ErrorCodeInfo",
     "ErrorCodes",
+    "ERROR_CODE_CATALOG",
+    "HOST_ERROR_CODE_PREFIX",
     "create_error",
     "validation_error",
     "not_found_error",

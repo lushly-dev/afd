@@ -122,7 +122,49 @@ TEST_CASE("error_codes is the shared catalog in spec/vectors/error-codes.json") 
         afd::error_codes::CALL_NOT_GRANTED,
     };
     const afd::Json vectors = load_vectors("error-codes.json");
-    CHECK(catalog == vectors.at("codes").get<std::vector<std::string>>());
+    const auto& entries = vectors.at("codes");
+    REQUIRE(entries.is_array());
+    std::vector<std::string> expected_codes;
+    expected_codes.reserve(entries.size());
+    for (const auto& entry : entries) {
+        expected_codes.push_back(entry.at("code").get<std::string>());
+    }
+    CHECK(catalog == expected_codes);
+
+    // Check every entry's `{ code, retryable, profile }` against afd::error_code_catalog.
+    REQUIRE(afd::error_code_catalog.size() == entries.size());
+    for (std::size_t i = 0; i < entries.size(); ++i) {
+        const auto& entry = entries[i];
+        const auto& actual = afd::error_code_catalog[i];
+        const std::string code = entry.at("code").get<std::string>();
+        CAPTURE(code);
+        CHECK(actual.code == code);
+        if (entry.at("retryable").is_boolean()) {
+            CHECK(actual.retryable == entry.at("retryable").get<bool>());
+        } else {
+            CHECK(entry.at("retryable").get<std::string>() == "varies");
+            CHECK_FALSE(actual.retryable.has_value());
+        }
+        CHECK(actual.profile == entry.at("profile").get<std::string>());
+        CHECK(code.rfind(afd::host_error_code_prefix, 0) != 0);
+    }
+    CHECK(std::string_view(afd::host_error_code_prefix) ==
+          vectors.at("hostPrefix").get<std::string>());
+
+    // Core helpers match the catalog retryability in spec/vectors/error-codes.json.
+    auto expected_retryable = [&](std::string_view code) -> bool {
+        for (const auto& entry : entries) {
+            if (entry.at("code").get<std::string>() == code) {
+                return entry.at("retryable").get<bool>();
+            }
+        }
+        FAIL_CHECK("missing code in vector: " << code);
+        return false;
+    };
+    CHECK(afd::validation_error("bad").retryable == expected_retryable("VALIDATION_ERROR"));
+    CHECK(afd::not_found_error("Doc", "1").retryable == expected_retryable("NOT_FOUND"));
+    CHECK(afd::rate_limit_error(10).retryable == expected_retryable("RATE_LIMITED"));
+    CHECK(afd::timeout_error("op", 100).retryable == expected_retryable("TIMEOUT"));
 }
 
 namespace {

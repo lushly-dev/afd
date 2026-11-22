@@ -4,16 +4,225 @@
 //! back to JSON equal to the file. See `spec/wire/README.md`.
 
 use afd::{
-    is_failure, is_success, ActorKind, BatchResult, CommandResult, PipelineResult, PlanStepStatus,
-    StepStatus, StreamChunk, WarningSeverity,
+    command_result_output_schema, is_failure, is_success, ActorKind, BatchResult, CommandResult,
+    PipelineResult, PlanStepStatus, StepStatus, StreamChunk, WarningSeverity,
 };
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use serde_json::Value;
+use serde_json::{json, Value};
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 fn wire_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../spec/wire")
+}
+
+fn schema_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../spec/schema")
+}
+
+struct SchemaRegistry {
+    by_id: HashMap<String, Value>,
+    by_file: HashMap<String, String>,
+}
+
+impl SchemaRegistry {
+    fn load() -> Self {
+        let mut by_id = HashMap::new();
+        let mut by_file = HashMap::new();
+        for file in [
+            "error.json",
+            "result.json",
+            "output-envelope.json",
+            "batch.json",
+            "pipeline.json",
+            "stream.json",
+        ] {
+            let path = schema_dir().join(file);
+            let text = std::fs::read_to_string(&path)
+                .unwrap_or_else(|e| panic!("cannot read {}: {e}", path.display()));
+            let schema: Value = serde_json::from_str(&text)
+                .unwrap_or_else(|e| panic!("invalid JSON in {file}: {e}"));
+            let id = schema["$id"]
+                .as_str()
+                .unwrap_or_else(|| panic!("{file} missing $id"))
+                .to_string();
+            by_file.insert(file.to_string(), id.clone());
+            by_id.insert(id, schema);
+        }
+        Self { by_id, by_file }
+    }
+
+    fn resolve_ref<'a>(&'a self, current_id: &str, reference: &str) -> (&'a str, &'a Value) {
+        let (target_id, fragment) = match reference.split_once('#') {
+            Some(("", frag)) => (current_id.to_string(), frag),
+            Some((rel, frag)) => (resolve_relative_id(current_id, rel), frag),
+            None => (resolve_relative_id(current_id, reference), ""),
+        };
+        let (stored_id, root) = self
+            .by_id
+            .get_key_value(&target_id)
+            .unwrap_or_else(|| panic!("unresolved schema $ref: {reference} -> {target_id}"));
+        if fragment.is_empty() {
+            return (stored_id.as_str(), root);
+        }
+        let target = root
+            .pointer(fragment)
+            .unwrap_or_else(|| panic!("unresolved pointer {fragment} in {stored_id}"));
+        (stored_id.as_str(), target)
+    }
+
+    fn validate_file(&self, file: &str, value: &Value) -> Result<(), String> {
+        let id = self.by_file.get(file).expect("known schema file");
+        let root = &self.by_id[id];
+        self.validate_node(id, root, value, "$")
+    }
+
+    fn validate_node(
+        &self,
+        current_id: &str,
+        schema: &Value,
+        value: &Value,
+        path: &str,
+    ) -> Result<(), String> {
+        if let Some(b) = schema.as_bool() {
+            return if b {
+                Ok(())
+            } else {
+                Err(format!("{path}: schema is false"))
+            };
+        }
+        let obj = schema
+            .as_object()
+            .ok_or_else(|| format!("{path}: schema must be object or bool"))?;
+
+        if let Some(reference) = obj.get("$ref").and_then(Value::as_str) {
+            let (next_id, target) = self.resolve_ref(current_id, reference);
+            self.validate_node(next_id, target, value, path)?;
+        }
+        if let Some(expected) = obj.get("const") {
+            if value != expected {
+                return Err(format!("{path}: expected const {expected}, got {value}"));
+            }
+        }
+        if let Some(allowed) = obj.get("enum").and_then(Value::as_array) {
+            if !allowed.iter().any(|item| item == value) {
+                return Err(format!("{path}: {value} not in enum {allowed:?}"));
+            }
+        }
+        if let Some(kind) = obj.get("type") {
+            let types: Vec<&str> = match kind {
+                Value::String(s) => vec![s.as_str()],
+                Value::Array(arr) => arr.iter().filter_map(Value::as_str).collect(),
+                _ => vec![],
+            };
+            if !types.iter().any(|t| matches_type(value, t)) {
+                return Err(format!("{path}: expected type {types:?}, got {value}"));
+            }
+        }
+        if let Some(s) = value.as_str() {
+            if let Some(min) = obj.get("minLength").and_then(Value::as_u64) {
+                if (s.chars().count() as u64) < min {
+                    return Err(format!("{path}: string shorter than {min}"));
+                }
+            }
+        }
+        if let Some(n) = value.as_f64() {
+            if let Some(min) = obj.get("minimum").and_then(Value::as_f64) {
+                if n < min {
+                    return Err(format!("{path}: {n} < minimum {min}"));
+                }
+            }
+            if let Some(max) = obj.get("maximum").and_then(Value::as_f64) {
+                if n > max {
+                    return Err(format!("{path}: {n} > maximum {max}"));
+                }
+            }
+        }
+        if let Some(arr) = value.as_array() {
+            if let Some(item_schema) = obj.get("items") {
+                for (i, item) in arr.iter().enumerate() {
+                    self.validate_node(current_id, item_schema, item, &format!("{path}[{i}]"))?;
+                }
+            }
+        }
+        if let Some(map) = value.as_object() {
+            if let Some(req) = obj.get("required").and_then(Value::as_array) {
+                for key in req.iter().filter_map(Value::as_str) {
+                    if !map.contains_key(key) {
+                        return Err(format!("{path}: missing required property '{key}'"));
+                    }
+                }
+            }
+            let props = obj.get("properties").and_then(Value::as_object);
+            for (k, v) in map {
+                if let Some(prop_schema) = props.and_then(|p| p.get(k)) {
+                    self.validate_node(current_id, prop_schema, v, &format!("{path}.{k}"))?;
+                } else if let Some(addl) = obj.get("additionalProperties") {
+                    if addl == &Value::Bool(false) {
+                        return Err(format!("{path}: unexpected property '{k}'"));
+                    } else if addl.is_object() {
+                        self.validate_node(current_id, addl, v, &format!("{path}.{k}"))?;
+                    }
+                }
+            }
+        }
+        if let Some(branches) = obj.get("allOf").and_then(Value::as_array) {
+            for branch in branches {
+                self.validate_node(current_id, branch, value, path)?;
+            }
+        }
+        if let Some(branches) = obj.get("oneOf").and_then(Value::as_array) {
+            let matches = branches
+                .iter()
+                .filter(|b| self.validate_node(current_id, b, value, path).is_ok())
+                .count();
+            if matches != 1 {
+                return Err(format!("{path}: expected 1 oneOf match, got {matches}"));
+            }
+        }
+        if let Some(cond) = obj.get("if") {
+            let matched = self.validate_node(current_id, cond, value, path).is_ok();
+            if matched {
+                if let Some(then_branch) = obj.get("then") {
+                    self.validate_node(current_id, then_branch, value, path)?;
+                }
+            } else if let Some(else_branch) = obj.get("else") {
+                self.validate_node(current_id, else_branch, value, path)?;
+            }
+        }
+        if let Some(neg) = obj.get("not") {
+            if self.validate_node(current_id, neg, value, path).is_ok() {
+                return Err(format!("{path}: matched forbidden 'not' schema"));
+            }
+        }
+        Ok(())
+    }
+}
+
+fn resolve_relative_id(base_id: &str, rel: &str) -> String {
+    if rel.contains("://") {
+        return rel.to_string();
+    }
+    let prefix = base_id.rsplit_once('/').map(|(p, _)| p).unwrap_or(base_id);
+    format!("{prefix}/{rel}")
+}
+
+fn matches_type(value: &Value, expected: &str) -> bool {
+    match expected {
+        "null" => value.is_null(),
+        "boolean" => value.is_boolean(),
+        "string" => value.is_string(),
+        "array" => value.is_array(),
+        "object" => value.is_object(),
+        "number" => value.is_number(),
+        "integer" => {
+            value.as_i64().is_some()
+                || value.as_u64().is_some()
+                || value.as_f64().is_some_and(|n| n.fract() == 0.0)
+        }
+        _ => false,
+    }
 }
 
 fn load(name: &str) -> Value {
@@ -228,4 +437,80 @@ fn stream_chunk_fields_are_typed() {
         }
         other => panic!("expected error, got {other:?}"),
     }
+}
+
+#[test]
+fn every_wire_fixture_validates_against_spec_schema() {
+    let schemas = SchemaRegistry::load();
+    for (fixture, schema) in [
+        ("result-success-minimal.json", "result.json"),
+        ("result-success-full.json", "result.json"),
+        ("result-failure.json", "result.json"),
+        ("batch-result.json", "batch.json"),
+        ("pipeline-result.json", "pipeline.json"),
+    ] {
+        let value = load(fixture);
+        schemas
+            .validate_file(schema, &value)
+            .unwrap_or_else(|e| panic!("{fixture} failed {schema}: {e}"));
+    }
+    let chunks = load("stream-chunks.json");
+    for (index, chunk) in chunks.as_array().expect("chunks array").iter().enumerate() {
+        schemas
+            .validate_file("stream.json", chunk)
+            .unwrap_or_else(|e| panic!("stream-chunks[{index}] failed stream.json: {e}"));
+    }
+
+    // Negative cases: the schemas reject malformed results, errors and stream chunks.
+    assert!(schemas
+        .validate_file(
+            "result.json",
+            &json!({ "success": true, "confidence": 1.5 })
+        )
+        .is_err());
+    assert!(schemas
+        .validate_file(
+            "result.json",
+            &json!({ "success": true, "error": { "code": "E", "message": "bad" } })
+        )
+        .is_err());
+    assert!(schemas
+        .validate_file("result.json", &json!({ "success": false }))
+        .is_err());
+    assert!(schemas
+        .validate_file(
+            "result.json",
+            &json!({ "success": false, "data": {}, "error": { "code": "E", "message": "bad" } })
+        )
+        .is_err());
+    assert!(schemas
+        .validate_file(
+            "result.json",
+            &json!({ "success": true, "unknownField": 1 })
+        )
+        .is_err());
+    assert!(schemas
+        .validate_file("error.json", &json!({ "message": "missing code" }))
+        .is_err());
+    assert!(schemas
+        .validate_file("stream.json", &json!({ "type": "unknown" }))
+        .is_err());
+}
+
+#[test]
+fn output_schema_envelope_matches_spec() {
+    let path = schema_dir().join("output-envelope.json");
+    let spec: Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+    let data = json!({ "type": "object", "properties": { "id": { "type": "string" } } });
+    let actual = command_result_output_schema(&data);
+    let mut expected_props = spec["properties"].as_object().unwrap().clone();
+    expected_props.insert("data".to_string(), data);
+    assert_eq!(
+        actual,
+        json!({
+            "type": spec["type"],
+            "properties": expected_props,
+            "required": spec["required"],
+        })
+    );
 }

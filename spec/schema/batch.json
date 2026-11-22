@@ -1,0 +1,96 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://afd.dev/spec/schema/batch.json",
+	"title": "AFD BatchResult",
+	"description": "The wire shape of a batch execution result (spec/schema/README.md).",
+	"type": "object",
+	"required": ["success", "results", "summary", "timing", "confidence", "reasoning"],
+	"additionalProperties": false,
+	"properties": {
+		"success": {
+			"description": "True when the batch ran (even with partial command failures); false when the batch itself failed.",
+			"type": "boolean"
+		},
+		"results": {
+			"type": "array",
+			"items": { "$ref": "#/$defs/BatchCommandResult" }
+		},
+		"summary": { "$ref": "#/$defs/BatchSummary" },
+		"timing": { "$ref": "#/$defs/BatchTiming" },
+		"confidence": {
+			"type": "number",
+			"minimum": 0,
+			"maximum": 1
+		},
+		"reasoning": { "type": "string" },
+		"warnings": {
+			"type": "array",
+			"items": { "$ref": "#/$defs/BatchWarning" }
+		},
+		"error": { "$ref": "error.json" },
+		"metadata": { "$ref": "result.json#/$defs/ResultMetadata" }
+	},
+	"allOf": [
+		{
+			"if": {
+				"properties": { "success": { "const": false } },
+				"required": ["success"]
+			},
+			"then": {
+				"required": ["error"]
+			}
+		}
+	],
+	"$defs": {
+		"BatchCommandResult": {
+			"type": "object",
+			"required": ["id", "index", "command", "result", "durationMs"],
+			"additionalProperties": false,
+			"properties": {
+				"id": { "type": "string" },
+				"index": {
+					"type": "integer",
+					"minimum": 0
+				},
+				"command": { "type": "string" },
+				"result": { "$ref": "result.json" },
+				"durationMs": {
+					"type": "number",
+					"minimum": 0
+				}
+			}
+		},
+		"BatchSummary": {
+			"type": "object",
+			"required": ["total", "successCount", "failureCount", "skippedCount"],
+			"additionalProperties": false,
+			"properties": {
+				"total": { "type": "integer", "minimum": 0 },
+				"successCount": { "type": "integer", "minimum": 0 },
+				"failureCount": { "type": "integer", "minimum": 0 },
+				"skippedCount": { "type": "integer", "minimum": 0 }
+			}
+		},
+		"BatchTiming": {
+			"type": "object",
+			"required": ["totalMs", "averageMs", "startedAt", "completedAt"],
+			"additionalProperties": false,
+			"properties": {
+				"totalMs": { "type": "number", "minimum": 0 },
+				"averageMs": { "type": "number", "minimum": 0 },
+				"startedAt": { "type": "string" },
+				"completedAt": { "type": "string" }
+			}
+		},
+		"BatchWarning": {
+			"type": "object",
+			"required": ["commandId", "code", "message"],
+			"additionalProperties": false,
+			"properties": {
+				"commandId": { "type": "string" },
+				"code": { "type": "string", "minLength": 1 },
+				"message": { "type": "string" }
+			}
+		}
+	}
+}

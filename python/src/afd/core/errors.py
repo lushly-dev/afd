@@ -15,7 +15,8 @@ Example:
     >>> err = create_error("CUSTOM_ERROR", "Something went wrong")
 """
 
-from typing import Any, Optional, Union
+from dataclasses import dataclass
+from typing import Any, Literal, Optional, Tuple, Union
 
 from afd.core.wire import WireModel
 
@@ -158,8 +159,7 @@ class ErrorCodes:
 
     # Approvals (spec/command-metadata.md, "Approvals")
     APPROVAL_REQUIRED = "APPROVAL_REQUIRED"
-    # A declared approval policy with no approval step to admit the call. Python's engine does
-    # not refuse it yet; the shared catalog lists it.
+    # A declared approval policy with no approval step to admit the call.
     APPROVAL_UNAVAILABLE = "APPROVAL_UNAVAILABLE"
 
     # Output budgets (spec/output-budgets.md, B5)
@@ -174,6 +174,73 @@ class ErrorCodes:
     # App calls (spec/command-metadata.md, "App-to-app calls"). Python does not emit it yet
     # (https://github.com/lushly-dev/afd/issues/1513); the shared catalog lists it.
     CALL_NOT_GRANTED = "CALL_NOT_GRANTED"
+
+
+HOST_ERROR_CODE_PREFIX: str = "HOST_"
+"""Reserved prefix for host-defined error codes (``spec/error-codes.md``)."""
+
+
+@dataclass(frozen=True)
+class ErrorCodeInfo:
+    """Metadata for one entry in the shared error-code catalog."""
+
+    code: str
+    retryable: Union[bool, Literal["varies"]]
+    profile: str
+
+
+ERROR_CODE_CATALOG: Tuple[ErrorCodeInfo, ...] = (
+    ErrorCodeInfo(ErrorCodes.VALIDATION_ERROR, False, "core"),
+    ErrorCodeInfo(ErrorCodes.INVALID_INPUT, False, "core"),
+    ErrorCodeInfo(ErrorCodes.MISSING_REQUIRED_FIELD, False, "core"),
+    ErrorCodeInfo(ErrorCodes.INVALID_FORMAT, False, "core"),
+    ErrorCodeInfo(ErrorCodes.NOT_FOUND, False, "core"),
+    ErrorCodeInfo(ErrorCodes.ALREADY_EXISTS, False, "core"),
+    ErrorCodeInfo(ErrorCodes.CONFLICT, False, "core"),
+    ErrorCodeInfo(ErrorCodes.UNAUTHORIZED, False, "core"),
+    ErrorCodeInfo(ErrorCodes.FORBIDDEN, False, "core"),
+    ErrorCodeInfo(ErrorCodes.TOKEN_EXPIRED, False, "core"),
+    ErrorCodeInfo(ErrorCodes.RATE_LIMITED, True, "core"),
+    ErrorCodeInfo(ErrorCodes.QUOTA_EXCEEDED, False, "core"),
+    ErrorCodeInfo(ErrorCodes.SERVICE_UNAVAILABLE, True, "core"),
+    ErrorCodeInfo(ErrorCodes.TIMEOUT, True, "core"),
+    ErrorCodeInfo(ErrorCodes.CONNECTION_ERROR, True, "core"),
+    ErrorCodeInfo(ErrorCodes.INTERNAL_ERROR, "varies", "core"),
+    ErrorCodeInfo(ErrorCodes.NOT_IMPLEMENTED, False, "core"),
+    ErrorCodeInfo(ErrorCodes.UNKNOWN_ERROR, True, "core"),
+    ErrorCodeInfo(ErrorCodes.COMMAND_NOT_FOUND, False, "core"),
+    ErrorCodeInfo(ErrorCodes.INVALID_COMMAND_ARGS, False, "core"),
+    ErrorCodeInfo(ErrorCodes.COMMAND_CANCELLED, False, "core"),
+    ErrorCodeInfo(ErrorCodes.COMMAND_EXECUTION_ERROR, False, "core"),
+    ErrorCodeInfo(ErrorCodes.COMMAND_NOT_EXPOSED, False, "core"),
+    ErrorCodeInfo(ErrorCodes.COMMAND_NOT_IN_CONTEXT, False, "contexts"),
+    ErrorCodeInfo(ErrorCodes.COMMAND_NOT_ALLOWED, False, "core"),
+    ErrorCodeInfo(ErrorCodes.UNKNOWN_TOOL, False, "core"),
+    ErrorCodeInfo(ErrorCodes.AMBIGUOUS_ACTION, False, "core"),
+    ErrorCodeInfo(ErrorCodes.INVALID_GROUPED_CALL, False, "core"),
+    ErrorCodeInfo(ErrorCodes.SESSION_REQUIRED, False, "contexts"),
+    ErrorCodeInfo(ErrorCodes.CONTEXT_NOT_FOUND, False, "contexts"),
+    ErrorCodeInfo(ErrorCodes.CONTEXT_DEPTH_EXCEEDED, False, "contexts"),
+    ErrorCodeInfo(ErrorCodes.INVALID_BATCH_REQUEST, False, "core"),
+    ErrorCodeInfo(ErrorCodes.BATCH_TIMEOUT, True, "core"),
+    ErrorCodeInfo(ErrorCodes.COMMAND_SKIPPED, False, "core"),
+    ErrorCodeInfo(ErrorCodes.INVALID_PIPELINE_REQUEST, False, "core"),
+    ErrorCodeInfo(ErrorCodes.PIPELINE_TIMEOUT, True, "core"),
+    ErrorCodeInfo(ErrorCodes.UNSUPPORTED_OPTION, False, "core"),
+    ErrorCodeInfo(ErrorCodes.STREAM_ABORTED, True, "streaming"),
+    ErrorCodeInfo(ErrorCodes.STREAM_TIMEOUT, True, "streaming"),
+    ErrorCodeInfo(ErrorCodes.STREAM_ERROR, "varies", "streaming"),
+    ErrorCodeInfo(ErrorCodes.STREAM_ENDED_UNEXPECTEDLY, True, "streaming"),
+    ErrorCodeInfo(ErrorCodes.COMMAND_FAILED, False, "streaming"),
+    ErrorCodeInfo(ErrorCodes.CONFIRMATION_REQUIRED, False, "confirmations"),
+    ErrorCodeInfo(ErrorCodes.CONFIRMATION_DECLINED, False, "confirmations"),
+    ErrorCodeInfo(ErrorCodes.APPROVAL_REQUIRED, False, "approvals"),
+    ErrorCodeInfo(ErrorCodes.APPROVAL_UNAVAILABLE, False, "approvals"),
+    ErrorCodeInfo(ErrorCodes.OUTPUT_BUDGET_EXCEEDED, False, "output-budgets"),
+    ErrorCodeInfo(ErrorCodes.INSUFFICIENT_SCOPE, False, "authorization"),
+    ErrorCodeInfo(ErrorCodes.TASK_TOKEN_EXPIRED, "varies", "tasks"),
+    ErrorCodeInfo(ErrorCodes.CALL_NOT_GRANTED, False, "app-calls"),
+)
 
 
 def create_error(

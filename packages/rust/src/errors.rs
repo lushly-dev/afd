@@ -349,6 +349,276 @@ pub mod error_codes {
 /// Standard error code alias for parity with other AFD implementations.
 pub type ErrorCode = String;
 
+/// Reserved prefix for host-defined error codes (`spec/error-codes.md`, "Host-defined error codes").
+/// AFD will never add a catalog code starting with this prefix.
+pub const HOST_ERROR_CODE_PREFIX: &str = "HOST_";
+
+/// Metadata for one entry in the shared error-code catalog (`spec/vectors/error-codes.json`).
+///
+/// `retryable` is `Some(true)` when always retryable, `Some(false)` when never retryable,
+/// and `None` when retryability varies by emitting site (`"varies"`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ErrorCodeInfo {
+    pub code: &'static str,
+    pub retryable: Option<bool>,
+    pub profile: &'static str,
+}
+
+/// The shared error-code catalog with retryability and contract profile, in catalog order
+/// (`spec/error-codes.md`, `spec/vectors/error-codes.json`).
+pub const ERROR_CODE_CATALOG: &[ErrorCodeInfo] = &[
+    ErrorCodeInfo {
+        code: error_codes::VALIDATION_ERROR,
+        retryable: Some(false),
+        profile: "core",
+    },
+    ErrorCodeInfo {
+        code: error_codes::INVALID_INPUT,
+        retryable: Some(false),
+        profile: "core",
+    },
+    ErrorCodeInfo {
+        code: error_codes::MISSING_REQUIRED_FIELD,
+        retryable: Some(false),
+        profile: "core",
+    },
+    ErrorCodeInfo {
+        code: error_codes::INVALID_FORMAT,
+        retryable: Some(false),
+        profile: "core",
+    },
+    ErrorCodeInfo {
+        code: error_codes::NOT_FOUND,
+        retryable: Some(false),
+        profile: "core",
+    },
+    ErrorCodeInfo {
+        code: error_codes::ALREADY_EXISTS,
+        retryable: Some(false),
+        profile: "core",
+    },
+    ErrorCodeInfo {
+        code: error_codes::CONFLICT,
+        retryable: Some(false),
+        profile: "core",
+    },
+    ErrorCodeInfo {
+        code: error_codes::UNAUTHORIZED,
+        retryable: Some(false),
+        profile: "core",
+    },
+    ErrorCodeInfo {
+        code: error_codes::FORBIDDEN,
+        retryable: Some(false),
+        profile: "core",
+    },
+    ErrorCodeInfo {
+        code: error_codes::TOKEN_EXPIRED,
+        retryable: Some(false),
+        profile: "core",
+    },
+    ErrorCodeInfo {
+        code: error_codes::RATE_LIMITED,
+        retryable: Some(true),
+        profile: "core",
+    },
+    ErrorCodeInfo {
+        code: error_codes::QUOTA_EXCEEDED,
+        retryable: Some(false),
+        profile: "core",
+    },
+    ErrorCodeInfo {
+        code: error_codes::SERVICE_UNAVAILABLE,
+        retryable: Some(true),
+        profile: "core",
+    },
+    ErrorCodeInfo {
+        code: error_codes::TIMEOUT,
+        retryable: Some(true),
+        profile: "core",
+    },
+    ErrorCodeInfo {
+        code: error_codes::CONNECTION_ERROR,
+        retryable: Some(true),
+        profile: "core",
+    },
+    ErrorCodeInfo {
+        code: error_codes::INTERNAL_ERROR,
+        retryable: None,
+        profile: "core",
+    },
+    ErrorCodeInfo {
+        code: error_codes::NOT_IMPLEMENTED,
+        retryable: Some(false),
+        profile: "core",
+    },
+    ErrorCodeInfo {
+        code: error_codes::UNKNOWN_ERROR,
+        retryable: Some(true),
+        profile: "core",
+    },
+    ErrorCodeInfo {
+        code: error_codes::COMMAND_NOT_FOUND,
+        retryable: Some(false),
+        profile: "core",
+    },
+    ErrorCodeInfo {
+        code: error_codes::INVALID_COMMAND_ARGS,
+        retryable: Some(false),
+        profile: "core",
+    },
+    ErrorCodeInfo {
+        code: error_codes::COMMAND_CANCELLED,
+        retryable: Some(false),
+        profile: "core",
+    },
+    ErrorCodeInfo {
+        code: error_codes::COMMAND_EXECUTION_ERROR,
+        retryable: Some(false),
+        profile: "core",
+    },
+    ErrorCodeInfo {
+        code: error_codes::COMMAND_NOT_EXPOSED,
+        retryable: Some(false),
+        profile: "core",
+    },
+    ErrorCodeInfo {
+        code: error_codes::COMMAND_NOT_IN_CONTEXT,
+        retryable: Some(false),
+        profile: "contexts",
+    },
+    ErrorCodeInfo {
+        code: error_codes::COMMAND_NOT_ALLOWED,
+        retryable: Some(false),
+        profile: "core",
+    },
+    ErrorCodeInfo {
+        code: error_codes::UNKNOWN_TOOL,
+        retryable: Some(false),
+        profile: "core",
+    },
+    ErrorCodeInfo {
+        code: error_codes::AMBIGUOUS_ACTION,
+        retryable: Some(false),
+        profile: "core",
+    },
+    ErrorCodeInfo {
+        code: error_codes::INVALID_GROUPED_CALL,
+        retryable: Some(false),
+        profile: "core",
+    },
+    ErrorCodeInfo {
+        code: error_codes::SESSION_REQUIRED,
+        retryable: Some(false),
+        profile: "contexts",
+    },
+    ErrorCodeInfo {
+        code: error_codes::CONTEXT_NOT_FOUND,
+        retryable: Some(false),
+        profile: "contexts",
+    },
+    ErrorCodeInfo {
+        code: error_codes::CONTEXT_DEPTH_EXCEEDED,
+        retryable: Some(false),
+        profile: "contexts",
+    },
+    ErrorCodeInfo {
+        code: error_codes::INVALID_BATCH_REQUEST,
+        retryable: Some(false),
+        profile: "core",
+    },
+    ErrorCodeInfo {
+        code: error_codes::BATCH_TIMEOUT,
+        retryable: Some(true),
+        profile: "core",
+    },
+    ErrorCodeInfo {
+        code: error_codes::COMMAND_SKIPPED,
+        retryable: Some(false),
+        profile: "core",
+    },
+    ErrorCodeInfo {
+        code: error_codes::INVALID_PIPELINE_REQUEST,
+        retryable: Some(false),
+        profile: "core",
+    },
+    ErrorCodeInfo {
+        code: error_codes::PIPELINE_TIMEOUT,
+        retryable: Some(true),
+        profile: "core",
+    },
+    ErrorCodeInfo {
+        code: error_codes::UNSUPPORTED_OPTION,
+        retryable: Some(false),
+        profile: "core",
+    },
+    ErrorCodeInfo {
+        code: error_codes::STREAM_ABORTED,
+        retryable: Some(true),
+        profile: "streaming",
+    },
+    ErrorCodeInfo {
+        code: error_codes::STREAM_TIMEOUT,
+        retryable: Some(true),
+        profile: "streaming",
+    },
+    ErrorCodeInfo {
+        code: error_codes::STREAM_ERROR,
+        retryable: None,
+        profile: "streaming",
+    },
+    ErrorCodeInfo {
+        code: error_codes::STREAM_ENDED_UNEXPECTEDLY,
+        retryable: Some(true),
+        profile: "streaming",
+    },
+    ErrorCodeInfo {
+        code: error_codes::COMMAND_FAILED,
+        retryable: Some(false),
+        profile: "streaming",
+    },
+    ErrorCodeInfo {
+        code: error_codes::CONFIRMATION_REQUIRED,
+        retryable: Some(false),
+        profile: "confirmations",
+    },
+    ErrorCodeInfo {
+        code: error_codes::CONFIRMATION_DECLINED,
+        retryable: Some(false),
+        profile: "confirmations",
+    },
+    ErrorCodeInfo {
+        code: error_codes::APPROVAL_REQUIRED,
+        retryable: Some(false),
+        profile: "approvals",
+    },
+    ErrorCodeInfo {
+        code: error_codes::APPROVAL_UNAVAILABLE,
+        retryable: Some(false),
+        profile: "approvals",
+    },
+    ErrorCodeInfo {
+        code: error_codes::OUTPUT_BUDGET_EXCEEDED,
+        retryable: Some(false),
+        profile: "output-budgets",
+    },
+    ErrorCodeInfo {
+        code: error_codes::INSUFFICIENT_SCOPE,
+        retryable: Some(false),
+        profile: "authorization",
+    },
+    ErrorCodeInfo {
+        code: error_codes::TASK_TOKEN_EXPIRED,
+        retryable: None,
+        profile: "tasks",
+    },
+    ErrorCodeInfo {
+        code: error_codes::CALL_NOT_GRANTED,
+        retryable: Some(false),
+        profile: "app-calls",
+    },
+];
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // ERROR FACTORY FUNCTIONS
 // ═══════════════════════════════════════════════════════════════════════════════

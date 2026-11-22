@@ -9,7 +9,10 @@ import json
 from pathlib import Path
 from typing import Any
 
+import jsonschema
 import pytest
+import referencing
+from referencing.jsonschema import DRAFT202012
 
 from afd.core.batch import BatchResult
 from afd.core.pipeline import PipelineResult
@@ -18,6 +21,36 @@ from afd.core.streaming import parse_stream_chunk
 from afd.core.wire import to_wire
 
 WIRE_DIR = Path(__file__).resolve().parents[2] / "spec" / "wire"
+SCHEMA_DIR = Path(__file__).resolve().parents[2] / "spec" / "schema"
+
+SCHEMA_FILES = (
+    "error.json",
+    "result.json",
+    "output-envelope.json",
+    "batch.json",
+    "pipeline.json",
+    "stream.json",
+)
+
+FIXTURE_SCHEMAS = {
+    "result-success-minimal.json": "result.json",
+    "result-success-full.json": "result.json",
+    "result-failure.json": "result.json",
+    "batch-result.json": "batch.json",
+    "pipeline-result.json": "pipeline.json",
+}
+
+
+def _schema_validator(schema_file: str):
+    registry = referencing.Registry()
+    loaded = {}
+    for name in SCHEMA_FILES:
+        schema = json.loads((SCHEMA_DIR / name).read_text(encoding="utf-8"))
+        loaded[name] = schema
+        registry = registry.with_resource(
+            schema["$id"], referencing.Resource.from_contents(schema, default_specification=DRAFT202012)
+        )
+    return jsonschema.Draft202012Validator(loaded[schema_file], registry=registry)
 
 MODELS = {
     "result-success-minimal.json": CommandResult,
@@ -113,3 +146,37 @@ def test_unset_fields_are_omitted_not_null():
     result = CommandResult(success=True, data={"id": "1", "note": None})
 
     assert to_wire(result) == {"success": True, "data": {"id": "1", "note": None}}
+
+
+@pytest.mark.parametrize("name", sorted(FIXTURE_SCHEMAS))
+def test_fixture_validates_against_json_schema(name: str):
+    original = _load(name)
+    validator = _schema_validator(FIXTURE_SCHEMAS[name])
+    validator.validate(original)
+    validator.validate(to_wire(MODELS[name].model_validate(original)))
+
+
+def test_stream_chunks_validate_against_json_schema():
+    original = _load("stream-chunks.json")
+    validator = _schema_validator("stream.json")
+    for chunk in original:
+        validator.validate(chunk)
+        validator.validate(to_wire(parse_stream_chunk(chunk)))
+
+
+def test_json_schema_rejects_malformed_results_and_errors():
+    result_validator = _schema_validator("result.json")
+    error_validator = _schema_validator("error.json")
+    stream_validator = _schema_validator("stream.json")
+
+    assert not result_validator.is_valid({"success": True, "confidence": 1.5})
+    assert not result_validator.is_valid(
+        {"success": True, "error": {"code": "E", "message": "bad"}}
+    )
+    assert not result_validator.is_valid({"success": False})
+    assert not result_validator.is_valid(
+        {"success": False, "data": {}, "error": {"code": "E", "message": "bad"}}
+    )
+    assert not result_validator.is_valid({"success": True, "unknownField": 1})
+    assert not error_validator.is_valid({"message": "missing code"})
+    assert not stream_validator.is_valid({"type": "unknown"})

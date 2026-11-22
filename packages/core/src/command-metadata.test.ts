@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { commandResultOutputSchema, commandToolAnnotations } from './command-metadata.js';
 import { type CommandDefinition, commandToMcpTool, type JsonSchema } from './commands.js';
@@ -59,20 +60,36 @@ describe('commandToolAnnotations', () => {
 });
 
 describe('commandResultOutputSchema', () => {
-	it('wraps the data schema in the CommandResult envelope', () => {
+	const specEnvelope = JSON.parse(
+		readFileSync(new URL('../../../spec/schema/output-envelope.json', import.meta.url), 'utf8')
+	) as {
+		type: string;
+		properties: Record<string, unknown>;
+		required: string[];
+	};
+
+	it('wraps the data schema in the CommandResult envelope from spec/schema/output-envelope.json', () => {
 		const data = {
 			$schema: 'https://json-schema.org/draft/2020-12/schema',
 			type: 'object',
 		} as const;
 		expect(commandResultOutputSchema(data as never)).toEqual({
+			type: specEnvelope.type,
+			properties: {
+				...specEnvelope.properties,
+				data: { type: 'object' },
+			},
+			required: specEnvelope.required,
+		});
+		expect(commandResultOutputSchema(data as never).properties?.error).toEqual({
 			type: 'object',
 			properties: {
-				success: { type: 'boolean' },
-				data: { type: 'object' },
-				error: { type: 'object' },
-				metadata: { type: 'object' },
+				code: { type: 'string' },
+				message: { type: 'string' },
+				suggestion: { type: 'string' },
+				retryable: { type: 'boolean' },
 			},
-			required: ['success'],
+			required: ['code', 'message'],
 		});
 	});
 

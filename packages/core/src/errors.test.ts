@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import { describe, expect, it } from 'vitest';
+import { ERROR_CODE_CATALOG, HOST_ERROR_CODE_PREFIX } from './error-catalog.js';
 import {
 	type CommandError,
 	createError,
@@ -262,12 +263,26 @@ describe('ErrorCodes', () => {
 		expect(ErrorCodes.COMMAND_EXECUTION_ERROR).toBe('COMMAND_EXECUTION_ERROR');
 	});
 
-	it('is the shared catalog in spec/vectors/error-codes.json, each value its name', () => {
+	it('matches spec/vectors/error-codes.json on code, retryable, profile and hostPrefix', () => {
 		const vector = JSON.parse(
 			readFileSync(new URL('../../../spec/vectors/error-codes.json', import.meta.url), 'utf8')
-		) as { codes: string[] };
-		expect(Object.keys(ErrorCodes)).toEqual(vector.codes);
+		) as {
+			hostPrefix: string;
+			codes: Array<{ code: string; retryable: boolean | 'varies'; profile: string }>;
+		};
+		expect(Object.keys(ErrorCodes)).toEqual(vector.codes.map((entry) => entry.code));
 		for (const [name, value] of Object.entries(ErrorCodes)) expect(value).toBe(name);
+		expect(ERROR_CODE_CATALOG).toEqual(vector.codes);
+		expect(HOST_ERROR_CODE_PREFIX).toBe(vector.hostPrefix);
+		for (const entry of vector.codes) {
+			expect(entry.code.startsWith(HOST_ERROR_CODE_PREFIX)).toBe(false);
+		}
+		// Core error factories honor the catalog's retryability.
+		const byCode = new Map(vector.codes.map((entry) => [entry.code, entry]));
+		expect(validationError('bad').retryable).toBe(byCode.get('VALIDATION_ERROR')?.retryable);
+		expect(notFoundError('Doc', '1').retryable).toBe(byCode.get('NOT_FOUND')?.retryable);
+		expect(rateLimitError(10).retryable).toBe(byCode.get('RATE_LIMITED')?.retryable);
+		expect(timeoutError('op', 100).retryable).toBe(byCode.get('TIMEOUT')?.retryable);
 	});
 });
 

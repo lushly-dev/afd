@@ -602,7 +602,16 @@ def command_result_output_schema(data_schema: Dict[str, Any]) -> Dict[str, Any]:
         "properties": {
             "success": {"type": "boolean"},
             "data": data,
-            "error": {"type": "object"},
+            "error": {
+                "type": "object",
+                "properties": {
+                    "code": {"type": "string"},
+                    "message": {"type": "string"},
+                    "suggestion": {"type": "string"},
+                    "retryable": {"type": "boolean"},
+                },
+                "required": ["code", "message"],
+            },
             "metadata": {"type": "object"},
         },
         "required": ["success"],

@@ -6,7 +6,8 @@ reference implementation. Where `spec/wire` pins the *shapes* of results, these 
 | File | Covers | Generator |
 | --- | --- | --- |
 | `pipeline-variables.json` | Reference resolution and `when` conditions ([`spec/pipeline-variables.md`](../pipeline-variables.md)) against one fixed pipeline context | `generate-pipeline-variables.mjs` |
-| `error-codes.json` | The shared error-code catalog of [`spec/error-codes.md`](../error-codes.md), in catalog order | Written by hand; TypeScript's `ErrorCodes` must equal it |
+| `error-codes.json` | The shared error-code catalog of [`spec/error-codes.md`](../error-codes.md), in catalog order, with `{ code, retryable, profile }` per entry and the reserved `hostPrefix` | Written by hand; each language's `ErrorCodes` and `ERROR_CODE_CATALOG` must equal it |
+| `dispatch.json` | Single-command dispatch order ([`spec/dispatch.md`](../dispatch.md)): lookup, exposure, active context, confirmation, input validation, declared context fields, middleware, approval admission, handler, metadata stamping and observer hooks | Written by hand from the spec |
 | `batch-controls.json` | Batch and pipeline execution controls: `stopOnError`, `parallelism`, the batch `timeout` and pipeline `timeoutMs` deadlines, `continueOnFailure`, `UNSUPPORTED_OPTION`, and envelope validation | `generate-batch-controls.mjs` |
 | `validation.json` | Command input validation ([`spec/validation.md`](../validation.md)): unknown keys, the `VALIDATION_ERROR` shape, length units, the JSON Schema subset, explicit `null` and defaults | `generate-validation.mjs` |
 | `approval-tokens.json` | Approval tokens ([`spec/command-metadata.md`](../command-metadata.md#approvals)): canonical JSON, the keyed input and actor digests, the payload layout, and every acceptance and rejection reason | `generate-approval-tokens.mjs` |
@@ -23,12 +24,12 @@ reference implementation. Where `spec/wire` pins the *shapes* of results, these 
   language does not load a file yet, the entry is tracked in the
   [parity closure plan](../../docs/features/active/parity-closure/parity-closure.plan.md):
 
-  | Language | `pipeline-variables.json` | `batch-controls.json` | `validation.json` | `error-codes.json` | `approval-tokens.json` | `journal-context-cap.json` | `approver-client.json` | `tool-strategies.json` | `app-calls.json` |
-  | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-  | TypeScript | `packages/core/src/pipeline-variables-vectors.test.ts` | `packages/core/src/batch-controls-vectors.test.ts` | `packages/server/src/validation-vectors.test.ts` | `packages/core/src/errors.test.ts` | `packages/server/src/approval-vectors.test.ts` | `packages/server/src/journal-context-cap-vectors.test.ts` | `packages/server/src/approver-client-vectors.test.ts` | `packages/server/src/tool-strategies-vectors.test.ts` | `packages/core/src/app-calls-vectors.test.ts`, `packages/server/src/app-calls-vectors.test.ts` |
-  | Python | `python/tests/test_pipeline_vectors.py` | `python/tests/test_batch_controls_vectors.py` | `python/tests/test_validation_vectors.py` | `python/tests/test_error_codes.py` | `python/tests/test_approval_vectors.py` | `python/tests/test_journal_context_cap_vectors.py` | `python/tests/test_approver_client_vectors.py` (every case skipped: a gap) | `python/tests/test_tool_strategies_vectors.py` | `python/tests/test_app_calls_vectors.py` (every case skipped: a gap) |
-  | Rust | `packages/rust/tests/pipeline_vectors.rs` | `packages/rust/tests/batch_controls_vectors.rs` | `packages/rust/tests/validation_vectors.rs` | `packages/rust/tests/error_codes.rs` | `packages/rust/tests/approval_vectors.rs` | `packages/rust/tests/journal_context_cap_vectors.rs` | `packages/rust/tests/approver_client_vectors.rs` (the carrier with `server-auth`) | `packages/rust/tests/tool_strategies_vectors.rs` (the `server` feature) | `packages/rust/tests/app_calls_vectors.rs` |
-  | C++ | `packages/cpp/tests/vectors_test.cpp` | `packages/cpp/tests/batch_vectors_test.cpp` | `packages/cpp/tests/vectors_test.cpp` | `packages/cpp/tests/vectors_test.cpp` | `packages/cpp/tests/approval_vectors_test.cpp` | `packages/cpp/tests/journal_context_cap_vectors_test.cpp` | `packages/cpp/tests/approver_client_vectors_test.cpp` (every case skipped: a gap) | `packages/cpp/tests/tool_strategies_vectors_test.cpp` (`AFD_BUILD_MCP_STDIO`) | `packages/cpp/tests/app_calls_vectors_test.cpp` (every case skipped: a gap) |
+  | Language | `pipeline-variables.json` | `batch-controls.json` | `validation.json` | `error-codes.json` | `dispatch.json` | `approval-tokens.json` | `journal-context-cap.json` | `approver-client.json` | `tool-strategies.json` | `app-calls.json` |
+  | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+  | TypeScript | `packages/core/src/pipeline-variables-vectors.test.ts` | `packages/core/src/batch-controls-vectors.test.ts` | `packages/server/src/validation-vectors.test.ts` | `packages/core/src/errors.test.ts` | `packages/server/src/dispatch-vectors.test.ts` | `packages/server/src/approval-vectors.test.ts` | `packages/server/src/journal-context-cap-vectors.test.ts` | `packages/server/src/approver-client-vectors.test.ts` | `packages/server/src/tool-strategies-vectors.test.ts` | `packages/core/src/app-calls-vectors.test.ts`, `packages/server/src/app-calls-vectors.test.ts` |
+  | Python | `python/tests/test_pipeline_vectors.py` | `python/tests/test_batch_controls_vectors.py` | `python/tests/test_validation_vectors.py` | `python/tests/test_error_codes.py` | `python/tests/test_dispatch_vectors.py` | `python/tests/test_approval_vectors.py` | `python/tests/test_journal_context_cap_vectors.py` | `python/tests/test_approver_client_vectors.py` (every case skipped: a gap) | `python/tests/test_tool_strategies_vectors.py` | `python/tests/test_app_calls_vectors.py` (every case skipped: a gap) |
+  | Rust | `packages/rust/tests/pipeline_vectors.rs` | `packages/rust/tests/batch_controls_vectors.rs` | `packages/rust/tests/validation_vectors.rs` | `packages/rust/tests/error_codes.rs` | `packages/rust/tests/dispatch_vectors.rs` | `packages/rust/tests/approval_vectors.rs` | `packages/rust/tests/journal_context_cap_vectors.rs` | `packages/rust/tests/approver_client_vectors.rs` (the carrier with `server-auth`) | `packages/rust/tests/tool_strategies_vectors.rs` (the `server` feature) | `packages/rust/tests/app_calls_vectors.rs` |
+  | C++ | `packages/cpp/tests/vectors_test.cpp` | `packages/cpp/tests/batch_vectors_test.cpp` | `packages/cpp/tests/vectors_test.cpp` | `packages/cpp/tests/vectors_test.cpp` | `packages/cpp/tests/dispatch_vectors_test.cpp` | `packages/cpp/tests/approval_vectors_test.cpp` | `packages/cpp/tests/journal_context_cap_vectors_test.cpp` | `packages/cpp/tests/approver_client_vectors_test.cpp` (every case skipped: a gap) | `packages/cpp/tests/tool_strategies_vectors_test.cpp` (`AFD_BUILD_MCP_STDIO`) | `packages/cpp/tests/app_calls_vectors_test.cpp` (every case skipped: a gap) |
 
 - Changes to `spec/vectors` run the Python, Rust and C++ workflows as well as `ci.yml`.
 - **A documented gap.** A file may name, in its top-level `gaps`, the languages that load it but
@@ -48,6 +49,24 @@ reference implementation. Where `spec/wire` pins the *shapes* of results, these 
   (`packages/rust/tests/authorization_cases.rs`, Umbel phase 5 step 0b, with the `server-auth`
   feature), and by TypeScript and Python for its `principalBindings` section only (step 0c); C++,
   which has no HTTP server, never will, so it stays beside this directory.
+
+### `dispatch.json`
+
+Single-command dispatch order ([`spec/dispatch.md`](../dispatch.md)). `setup` defines five commands
+(`item-echo`, `secret-rotate`, `item-purge`, `item-approve`, `item-throw`), two contexts
+(`planning`, `combat`), and one required declared context field (`tenant`). Each case builds a fresh
+registry with two outer/inner observer middleware layers (`mw1`, `mw2`), optionally attaches the
+approval middleware (`withApprovalMiddleware`), declared context fields (`withContextFields`), or a
+throwing `mw1` (`middleware: "throw"`), and runs one `registry` call or one `mcp` `afd-call` (with
+confirmations enforced).
+
+`expect` pins `success`, `code`, `retryable` and `message` (when specified), `data`, the exact
+`hooks` sequence (`mw1:before`, `mw2:before`, `handler`, `mw2:after`, `mw1:after`), the `stamped`
+metadata fields (`executionTimeMs`, `commandVersion`, `traceId`, `actorKind`), and whether
+`onCommand` (with raw input) and `onError` fired. Documented per-language gaps are listed in
+top-level `gaps` (`python.hooks` [#1551](https://github.com/lushly-dev/afd/issues/1551),
+`rust.approvalUnavailable` [#1886](https://github.com/lushly-dev/afd/issues/1886),
+`rust.stamping` / `rust.hooks` [#546](https://github.com/lushly-dev/afd/issues/546)).
 
 ### `pipeline-variables.json`
 

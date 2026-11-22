@@ -99,7 +99,16 @@ export function commandResultOutputSchema(dataSchema: JsonSchema): JsonSchema {
 		properties: {
 			success: { type: 'boolean' },
 			data,
-			error: { type: 'object' },
+			error: {
+				type: 'object',
+				properties: {
+					code: { type: 'string' },
+					message: { type: 'string' },
+					suggestion: { type: 'string' },
+					retryable: { type: 'boolean' },
+				},
+				required: ['code', 'message'],
+			},
 			metadata: { type: 'object' },
 		},
 		required: ['success'],
