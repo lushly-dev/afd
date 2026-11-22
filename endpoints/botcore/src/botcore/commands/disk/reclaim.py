@@ -70,6 +70,7 @@ from botcore.commands.disk.settings import (
     state_path,
     t3_worktree_roots,
 )
+from botcore.commands.disk.steps import command, doing
 from botcore.config import DiskConfig
 
 STRIP_RECORD = "botcore-disk-strip.json"
@@ -349,10 +350,11 @@ def _run_cache(action: Action) -> None:
     if exe is None:
         action.outcome, action.detail = "skipped", f"{args[0]} not found"
         return
-    done = subprocess.run(
-        [exe, *args[1:]], cwd=action.root, capture_output=True, text=True, timeout=1800,
-        check=False,
-    )
+    with command(f"pruning the {action.target} cache", allow=1800):
+        done = subprocess.run(
+            [exe, *args[1:]], cwd=action.root, capture_output=True, text=True, timeout=1800,
+            check=False,
+        )
     action.outcome = "done" if done.returncode == 0 else "failed"
     lines = (done.stdout or done.stderr).strip().splitlines()
     action.detail = lines[-1] if lines else None
@@ -362,6 +364,7 @@ def carry_out(action: Action, run: Run) -> None:
     """Do one action, or record why not. Never raises for a filesystem or git problem."""
     if not run.apply:
         return
+    doing("removing", action.target)
     try:
         if action.kind == "strip":
             reason = _recheck_strip(action, run)

@@ -62,6 +62,7 @@ from botcore.commands.disk.settings import (
     read_repo_disk_config,
     t3_worktree_roots,
 )
+from botcore.commands.disk.steps import doing
 from botcore.config import DiskConfig
 
 MIN_GIT_SECONDS = 10.0
@@ -138,6 +139,7 @@ def volume_for(path: Path, ctx: Context) -> VolumeState | None:
 
 def _presence(path: Path) -> tuple[str, str | None]:
     """("present" | "missing" | "unreadable", detail). A permission error is not "missing"."""
+    doing("opening", path)
     try:
         os.lstat(path)
     except FileNotFoundError:
@@ -441,6 +443,7 @@ def _worktree_row(  # noqa: PLR0913 - one row needs each of these
         ctx.complete = False
         row["reasons"].append("not inspected: the time budget was spent")
         return row
+    doing("inspecting", wt.path)
     try:
         _inspect(row, wt, common, main, config, ctx)
     except (GitError, OSError) as exc:
@@ -589,6 +592,7 @@ def _orphans(ctx: Context, known: set[str]) -> list[dict]:
 
 
 def _children(folder: Path) -> list[Path]:
+    doing("reading", folder)
     try:
         return [Path(e.path) for e in os.scandir(folder) if e.is_dir(follow_symlinks=False)]
     except OSError:

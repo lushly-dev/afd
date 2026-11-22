@@ -333,17 +333,22 @@ Three rules keep configuration from becoming a way to delete the wrong thing:
 | Windows | Task Scheduler, hourly and at logon, as the current user, without elevation |
 | Linux | A systemd user timer, falling back to a crontab line |
 
-The hourly check reads free space and exits. A full run happens once a day, or at once when a
-volume is below its threshold. The job runs a persistent install
+The hourly check reads each folder the job needs, then free space, and exits. A full run
+happens once a day, or at once when a volume is below its threshold. The job runs a persistent install
 (`uv tool install 'lushly-botcore==<version>'`), not `uvx`, whose environment lives in the
 cache the job prunes. Setup records absolute paths to `git`, `pnpm`, `uv` and `gh`, because
 scheduled jobs do not inherit a shell's `PATH`.
 
 Platform traps the implementation must handle and test:
 
-- **macOS privacy prompts.** A background job needs permission to read removable volumes and
-  some home folders. Setup triggers the prompt while the owner is present, and a denied run reports
-  "no permission".
+- **macOS privacy prompts.** A scheduled program needs the owner's consent to read removable
+  and network volumes, files a cloud drive's app manages, and some home folders. macOS asks at
+  the screen and holds the read until someone answers. So every run reads each folder it will
+  need before anything else: the question then comes up in the run setup starts, with the
+  owner present, and not in the first reclaim the schedule runs alone. No run waits for ever.
+  The disk work is a step the job leaves behind once the run is 50 minutes old, unless it is
+  still working; `disk-status` names the folder it waited for and the program to allow; and a
+  denied read reports "no permission".
 - **Windows deletion.** Paths longer than 260 characters, read-only files (git marks pack files
   read-only) and files held open by another process all make a plain delete fail.
 - **Windows scheduling.** Tasks default to not running on battery and flash a console window;

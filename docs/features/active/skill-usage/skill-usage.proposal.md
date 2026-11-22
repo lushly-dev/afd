@@ -347,7 +347,9 @@ repository requires is that repository's decision: this one declares none yet.
 Collection runs inside botcore's hourly job, the one `disk-setup` installs, every hour
 whether or not a reclaim is due. It runs after the disk work, in a thread the job leaves
 behind after five minutes, so that nothing a harness's store or a shared drive does can fail,
-delay or hold the disk work. The job keeps when collection last worked and since when it has
+delay or hold the disk work. Nor does the disk work hold collection: collection waits for it
+only while it is working, and a disk step that waits (for a drive, or for the owner's answer
+to the system) is left behind. The job keeps when collection last worked and since when it has
 not. `disk-status`, which a session's preflight reads, warns of a failure at once and calls
 it a problem once it has failed for a day: the record cannot be refilled once T3 Code has
 dropped the threads.
@@ -400,6 +402,15 @@ judges nothing, as it does for this machine's.
 The folder holds session ids, project names and pull request numbers, so it must be private.
 Botcore does not sync it and never creates it: a folder that is not there is a drive or a
 sync that is away, so the collection says so and the record stays whole on the machine.
+
+The hourly job must be able to read the folder, which is not the same as a terminal being
+able to. On macOS a cloud drive that fetches files on demand serves them through the system,
+and the system asks the owner at the screen before a scheduled program reads them; the read
+waits for the answer. The record is written before it is shared, so the job says which of the
+two did not happen: `this machine's record was collected, but the shared folder did not
+answer`, with the folder and the program to allow. A drive that keeps local copies is a plain
+folder, and nothing is asked. Make the folder on one machine and let it sync: two machines
+that each make it get two folders of one name.
 
 A machine renamed after it has collected keeps its old name on the events it wrote. Run
 `skill-usage-collect --rebuild` on it and remove its old folder from the shared one; events

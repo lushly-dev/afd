@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from botcore.commands.disk.scan import long_path
+from botcore.commands.disk.steps import doing
 
 REPARSE_POINT = 0x400  # FILE_ATTRIBUTE_REPARSE_POINT
 DIRECTORY = 0x10  # FILE_ATTRIBUTE_DIRECTORY
@@ -102,6 +103,7 @@ def _unlink_at(name: str, dir_fd: int, info: os.stat_result, where: str, out: Re
 
 def _clear_at(dir_fd: int, where: str, device: int, out: Removal) -> bool:
     """Delete everything in the open folder dir_fd. True when it is empty afterwards."""
+    doing("removing", where)
     empty = True
     with os.scandir(dir_fd) as entries:
         children = list(entries)
@@ -222,6 +224,7 @@ def _remove_dir_path(top: str, device: int, out: Removal) -> bool:
     ok = True
     while stack:
         current, visited, identity = stack.pop()
+        doing("removing", current)
         if visited:
             try:
                 os.rmdir(current)

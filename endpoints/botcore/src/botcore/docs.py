@@ -143,7 +143,10 @@ machine with neither source succeeds with nothing read.
   was read, with this module's fields only: session ids, project names and pull request
   numbers, and each project's renamed skills; never a folder of the machine or a line it
   could not read. Keep it private. A name is lower case and fit for a folder on any system;
-  the shared folder is a full path.
+  the shared folder is a full path. The hourly job must be able to read it: on macOS, a
+  folder in a cloud drive that fetches files on demand needs the owner's consent for the
+  job's program, once, at the screen (`disk-status` says so while the job waits, and that
+  the record itself was collected); a folder the drive keeps local copies of needs none.
 - `since_days`: re-read that many days of T3 Code's store instead
 - `t3_store`, `machine`: read a store copied from another machine, named by `machine`
 - `rebuild`: read everything and replace what an older botcore recognised, or the name a
@@ -378,11 +381,26 @@ Recreate a worktree a tier 2 reclaim removed, at the same path and commit: on it
 branch still points there, on a recreated branch if it was deleted, else detached.
 
 ## disk_run(force=False)
-What the job runs: checks free space and exits, unless a watched volume is low or the last
-applied run is a day old; then disk_reclaim(apply=True). Notifies once a day while space stays
-low. After the disk work it collects skill usage (`skill_usage_collect`), for at most five
-minutes: a failure, a wrong machine name or a collection that does not come back never fails
-or holds the job. `skill_usage_collect = false` in the machine settings turns it off.
+What the job runs: reads each folder the disk work reads, checks free space and exits, unless
+a watched volume is low or the last applied run is a day old; then disk_reclaim(apply=True).
+Notifies once a day while space stays low. After the disk work it collects skill usage
+(`skill_usage_collect`), for at most five minutes: a failure, a wrong machine name or a
+collection that does not come back never fails or holds the job. `skill_usage_collect = false`
+in the machine settings turns it off.
+
+Every run ends by itself. The disk work and the collection are steps that say what they are
+doing. The collection waits for the disk work only while it works: five minutes without a
+word, beyond a command's own timeout, is waiting. A step that still waits when the run is 50
+minutes old is left behind, and one that works is never cut short. `disk-status` then names
+what the disk work was doing (`disk_work.waiting_on`) as a problem; a disk step that came back
+failed is a warning, and so is a job that has not checked in for three hours. Errors:
+`DISK_RUN_STALLED` (the disk work did not come back), `DISK_RUN_FAILED` (it raised).
+
+On macOS a read that waits is most often the system asking the owner: a scheduled program is
+asked at the screen before it reads an external or network volume, files a cloud drive's app
+manages, or Desktop, Documents and Downloads, and the read is held for the answer. Allow the
+program the message names (the Python botcore runs on), or give it Full Disk Access. Each
+run reads its folders first so that the question comes up in the run `disk-setup` starts.
 
 Settings: the repository's `[disk]` in botcore.toml, read from a landing branch (origin's HEAD,
 origin/main, then main; never a worktree's branch or the main checkout's HEAD), and the

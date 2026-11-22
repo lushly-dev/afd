@@ -3,6 +3,10 @@
 `disk-run` is what the scheduler starts every hour. It reads free space and exits, unless a
 watched volume is below its threshold or the last full run is a day old; then it runs
 `disk-reclaim` with apply. When space stays low after that, it notifies once a day.
+
+Every run ends by itself. The disk work and the collection of skill usage are steps
+(`steps.py`): a step that does not come back, because a drive is away or the operating system
+is waiting for the owner's consent, is left behind, and the status says what it was doing.
 """
 
 from __future__ import annotations
@@ -15,6 +19,7 @@ import subprocess
 import sys
 import threading
 import time
+from collections.abc import Callable, Iterable, Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -34,6 +39,7 @@ from botcore.commands.disk.settings import (
     state_path,
     t3_worktree_roots,
 )
+from botcore.commands.disk.steps import Step, consent_hint, describe, doing
 
 FULL_RUN_SECONDS = 23 * 3600
 STALE_SECONDS = 48 * 3600
@@ -44,6 +50,18 @@ USAGE_STALE_SECONDS = 24 * 3600
 # How long the job waits for one collection. A full read of a large store takes a quarter
 # of a minute; a scheduler does not start the next run while one is still going.
 USAGE_SECONDS = 300
+# How long a step may say nothing, beyond what its last word allowed, before the job stops
+# counting on it. A step that is working says so for every folder and every command.
+QUIET_SECONDS = 300
+# When a run ends whatever still waits: before the next hour's, which a scheduler does not
+# start while this one is alive. Until then a step that waits is left to wait, so that a
+# question the operating system put on the screen stays there to be answered.
+RUN_SECONDS = 50 * 60
+# How often the job looks at the steps it waits for
+POLL_SECONDS = 0.5
+# How long without a check before the status says the job is not running. The scheduler
+# starts it every hour, and at once when a machine wakes.
+HEARTBEAT_SECONDS = 3 * 3600
 # Space that must disappear before a still-low volume is worth another full run that day
 NEW_LOSS_BYTES = 1024**3
 TOOLS = ("git", "pnpm", "uv", "gh", "node")
@@ -439,6 +457,22 @@ async def disk_status() -> CommandResult[dict]:
     usage = check.get("skill_usage") if settings.skill_usage_collect else None
     usage = usage if isinstance(usage, dict) else None
     warnings = disk_warnings(settings, status)
+    work = check.get("disk_work")
+    work = work if isinstance(work, dict) else None
+    if work and not work.get("ok"):
+        failing = f"the scheduled disk work is not getting done: {work.get('error') or 'it failed'}"
+        if work.get("waiting_on"):
+            # it never came back: nothing but the owner's answer, or the drive, will change it
+            since = _age_hours(work.get("failing_since"))
+            problems.append(failing + (f" (for {since:.0f} hours)" if since and since >= 1 else ""))
+        else:
+            warnings.append(failing)
+    beat = _age_hours(check.get("last_check"))
+    if sched.installed and beat is not None and beat * 3600 > HEARTBEAT_SECONDS:
+        warnings.append(
+            f"the scheduled job last checked in {beat:.0f} hours ago: it is not being "
+            "started, or a run is stuck"
+        )
     if usage and not usage.get("ok"):
         failing = f"skill usage is not being collected: {usage.get('error') or 'it failed'}"
         # how long it has been failing, not how long since it worked: a machine that slept
@@ -455,6 +489,7 @@ async def disk_status() -> CommandResult[dict]:
         "last_apply": last_apply or None,
         "last_apply_hours_ago": age,
         "last_check": check.get("last_check"),
+        "disk_work": work,
         "skill_usage": usage,
         "volumes": volumes,
         "healthy": not problems,
@@ -492,16 +527,20 @@ def notify(title: str, message: str) -> None:
         pass
 
 
+_CHECK_LOCK = threading.Lock()  # the disk work and the job both write check.json
+
+
 def _write_check(update: dict) -> None:
     """check.json: the job's own heartbeat and notification time, apart from status.json."""
-    folder = state_path()
-    folder.mkdir(parents=True, exist_ok=True)
-    data = _read_json("check.json")
-    data.update(update)
-    data["last_check"] = datetime.now(UTC).isoformat(timespec="seconds")
-    tmp = folder / f".check.json.{os.getpid()}.tmp"
-    tmp.write_text(json.dumps(data, indent=1), encoding="utf-8")
-    os.replace(tmp, folder / "check.json")
+    with _CHECK_LOCK:
+        folder = state_path()
+        folder.mkdir(parents=True, exist_ok=True)
+        data = _read_json("check.json")
+        data.update(update)
+        data["last_check"] = datetime.now(UTC).isoformat(timespec="seconds")
+        tmp = folder / f".check.json.{os.getpid()}.tmp"
+        tmp.write_text(json.dumps(data, indent=1), encoding="utf-8")
+        os.replace(tmp, folder / "check.json")
 
 
 def _newly_low(volumes: list[dict], last_apply: dict) -> list[str]:
@@ -524,47 +563,14 @@ def _newly_low(volumes: list[dict], last_apply: dict) -> list[str]:
     return out
 
 
-def _collect_skill_usage(settings: MachineSettings) -> dict | None:
-    """The hourly collection of skill usage, and what the status needs of it: whether it
-    worked, when it last did, and since when it has not. It runs after the disk work and
-    never fails or holds the job: whatever a harness's store or a shared drive does, the
-    job ends, and the next hour's starts."""
-    if not settings.skill_usage_collect:
-        return None
-    from botcore.commands.skill_usage import skill_usage_collect
-
+def _outcome(part: str, failure: str | None, found: dict) -> dict:
+    """What check.json keeps of one part of the job (`disk_work`, `skill_usage`): whether it
+    worked, when it last did, and since when it has not."""
     now = datetime.now(UTC).isoformat(timespec="seconds")
-    previous = _read_json("check.json").get("skill_usage")
+    previous = _read_json("check.json").get(part)
     previous = previous if isinstance(previous, dict) else {}
-    outcome: dict = {}
-
-    def collect() -> None:
-        try:
-            outcome["result"] = asyncio.run(skill_usage_collect())
-        except BaseException as exc:  # noqa: BLE001 - the job must end whatever this raises
-            outcome["raised"] = exc
-
-    # its own thread, left behind if it does not come back: a read of a drive that is away
-    # can wait for ever, and a thread that only waits holds nothing the job needs
-    worker = threading.Thread(target=collect, name="skill-usage-collect", daemon=True)
-    worker.start()
-    worker.join(USAGE_SECONDS)
-    data: dict = {}
-    if worker.is_alive():
-        failure = f"it did not finish in {USAGE_SECONDS:g} seconds"
-    elif "raised" in outcome:
-        failure = f"{type(outcome['raised']).__name__}: {outcome['raised']}"
-    else:
-        result = outcome["result"]
-        data = result.data or {}
-        shared = data.get("shared") if isinstance(data.get("shared"), dict) else {}
-        failure = None
-        if not result.success:
-            failure = result.error.message if result.error else "the collection failed"
-        elif shared.get("error"):
-            failure = f"the shared folder could not be written: {shared['error']}"
     if failure is None:
-        return {"at": now, "ok": True, "ok_at": now, "added": data.get("added", 0)}
+        return {"at": now, "ok": True, "ok_at": now, **found}
     return {
         "at": now,
         "ok": False,
@@ -572,24 +578,183 @@ def _collect_skill_usage(settings: MachineSettings) -> dict | None:
         "failing_since": (previous.get("failing_since") if previous.get("ok") is False else None)
         or now,
         "error": failure,
+        **found,
     }
+
+
+def _with_hint(text: str, path: str) -> str:
+    hint = consent_hint(path)
+    return f"{text}. {hint}" if hint else text
+
+
+def _disk_outcome(step: Step) -> tuple[str | None, dict]:
+    """Why the disk work is not done, or None, and what else the status shows of it."""
+    if not step.done:
+        said = step.now()
+        path = said[1] if said else ""
+        waiting = {"what": said[0], "path": path} if said else {"what": "starting", "path": ""}
+        return (
+            _with_hint(f"it has been {describe(said)} and has not come back", path),
+            {"waiting_on": waiting},
+        )
+    if "raised" in step.outcome:
+        return f"{type(step.outcome['raised']).__name__}: {step.outcome['raised']}", {}
+    result = step.outcome["result"]
+    if not result.success:
+        return (result.error.message if result.error else "the disk work failed"), {}
+    return None, {}
+
+
+def _usage_outcome(step: Step) -> tuple[str | None, dict]:
+    """Why skill usage was not collected, or None, and how many events were added."""
+    from botcore.commands.skill_usage.collect import SHARING
+
+    if not step.done:
+        said = step.now()
+        what, path = (said[0], said[1]) if said else ("starting", "")
+        if what == SHARING:
+            # the record is written before it is shared: what did not answer is the folder
+            text = (f"this machine's record was collected, but the shared folder did not "
+                    f"answer in {USAGE_SECONDS:g} seconds: {path}")
+        else:
+            text = f"it did not finish in {USAGE_SECONDS:g} seconds"
+            if what != "starting":
+                text += f": it was {what} {path}".rstrip()
+        return _with_hint(text, path), {}
+    if "raised" in step.outcome:
+        return f"{type(step.outcome['raised']).__name__}: {step.outcome['raised']}", {}
+    result = step.outcome["result"]
+    data = result.data or {}
+    shared = data.get("shared") if isinstance(data.get("shared"), dict) else {}
+    if not result.success:
+        return (result.error.message if result.error else "the collection failed"), {}
+    if shared.get("error"):
+        return f"the shared folder could not be written: {shared['error']}", {}
+    return None, {"added": data.get("added", 0)}
+
+
+def _wait(steps: list[Step], until: Callable[[], bool]) -> None:
+    """Wait for every step, or until `until` says to wait no longer."""
+    while True:
+        alive = [step for step in steps if not step.done]
+        if not alive or until():
+            return
+        alive[0].wait(POLL_SECONDS)
 
 
 async def disk_run(force: bool = False) -> CommandResult[dict]:
     """What the schedule runs: a free-space check, a reclaim when it is due or space is low,
-    and then the hourly collection of skill usage."""
+    and then the hourly collection of skill usage.
+
+    The run always ends. The collection waits for the disk work only while the disk work
+    says it is working, and for at most `USAGE_SECONDS` itself. What has not come back by
+    then is left to wait until the hour is nearly up, since it is most often waiting for the
+    owner's answer to a question on the screen, and is recorded as it stands when the run
+    ends: the status says what it was doing.
+    """
     try:
         settings, _path, _found = load_machine_settings()
     except SettingsError as exc:
         return error("DISK_SETTINGS_INVALID", str(exc),
                      suggestion="Fix the machine settings file; the job will retry next hour")
-    result = await _disk_work(settings, force)
-    usage = _collect_skill_usage(settings)
-    if usage is not None:
-        _write_check({"skill_usage": usage})
-        if result.success and isinstance(result.data, dict):
-            result.data["skill_usage"] = usage
+    started = time.monotonic()
+
+    def spent() -> bool:
+        return time.monotonic() - started >= RUN_SECONDS
+
+    def stalled(steps: list[Step]) -> bool:
+        return all(step.quiet() >= QUIET_SECONDS for step in steps if not step.done)
+
+    disk = Step("disk-work", lambda: asyncio.run(_disk_work(settings, force)))
+    _wait([disk], lambda: spent() or stalled([disk]))
+    usage: Step | None = None
+    collected: dict | None = None
+
+    def record() -> None:
+        nonlocal collected
+        update = {"disk_work": _outcome("disk_work", *_disk_outcome(disk))}
+        if usage is not None:
+            collected = update["skill_usage"] = _outcome("skill_usage", *_usage_outcome(usage))
+        _write_check(update)
+
+    if not disk.done:
+        record()  # before the collection, which can take its five minutes
+    if settings.skill_usage_collect:
+        from botcore.commands.skill_usage import skill_usage_collect
+
+        began = time.monotonic()
+        usage = Step("skill-usage-collect", lambda: asyncio.run(skill_usage_collect()))
+        _wait([usage], lambda: time.monotonic() - began >= USAGE_SECONDS)
+    record()
+    waiting = [step for step in (disk, usage) if step is not None and not step.done]
+    if waiting:
+        # a step that is working is never cut short; one that waits is left once the run's
+        # time is up, and whatever came back meanwhile is recorded as it ended
+        _wait(waiting, lambda: spent() and stalled(waiting))
+        record()
+    if not disk.done:
+        failure, _found = _disk_outcome(disk)
+        print(f"the disk work was left waiting here:\n{disk.where()}", file=sys.stderr)
+        return error("DISK_RUN_STALLED", f"The disk work did not finish: {failure}",
+                     suggestion="disk-status shows what it waits for; the job tries again "
+                                "next hour")
+    if "raised" in disk.outcome:
+        raised = disk.outcome["raised"]
+        return error("DISK_RUN_FAILED", f"{type(raised).__name__}: {raised}",
+                     suggestion="disk-status shows the state; the job will try again next hour")
+    result = disk.outcome["result"]
+    if collected is not None and result.success and isinstance(result.data, dict):
+        result.data["skill_usage"] = collected
     return result
+
+
+def job_folders(settings: MachineSettings) -> Iterator[Path]:
+    """Every folder the disk work reads, each once: the watched volumes, the registered
+    repositories and their worktrees, T3 Code's worktree folders, the aged folders, and
+    Cargo output moved out of the worktrees.
+
+    In an order that names a place before anything reads it: a repository before git lists
+    its worktrees, and the worktrees before Cargo's settings are read from each of them. A
+    read that waits is then the read of the folder just named.
+    """
+    seen: set[Path] = set()
+
+    def new(folders: Iterable[Path]) -> Iterator[Path]:
+        for folder in folders:
+            if folder not in seen:
+                seen.add(folder)
+                yield folder
+
+    yield from new(expand(volume.mount) for volume in settings.volume)
+    for repo in settings.repos:
+        yield from new([expand(repo)])
+        try:
+            worktrees = list_worktrees(expand(repo))[1]
+        except GitError:
+            continue
+        yield from new(worktree.path for worktree in worktrees)
+    yield from new(t3_worktree_roots(settings)[0])
+    for aged in settings.aged:
+        text = aged.path.rstrip()
+        yield from new([expand(text[:-2] if text.endswith(("/*", "\\*")) else text)])
+    yield from new(cargo_roots(settings))
+
+
+def _reach(settings: MachineSettings) -> None:
+    """Read every folder the disk work reads, once, before anything is done with them.
+
+    Where the operating system wants the owner's consent first, the run waits here, in its
+    first second, and every hour: so the question comes up in the run that `disk-setup`
+    starts, with the owner at the machine, and not a day later in the first reclaim the
+    schedule runs alone.
+    """
+    for folder in job_folders(settings):
+        doing("reading", folder)
+        try:
+            os.listdir(folder)
+        except OSError:
+            pass  # gone or not to be read: the reclaim says so of what it needs
+    doing("checking free space")
 
 
 async def _disk_work(settings: MachineSettings, force: bool) -> CommandResult[dict]:
@@ -599,6 +764,7 @@ async def _disk_work(settings: MachineSettings, force: bool) -> CommandResult[di
     apply_tool_path(settings)
     volumes = _volumes_now(settings)
     low = [v["mount"] for v in volumes if v["below_threshold"]]
+    _reach(settings)
     last_apply = _read_status().get("last_apply") or {}
     age = _age_hours(last_apply.get("at"))
     newly_low = _newly_low(volumes, last_apply)

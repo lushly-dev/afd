@@ -14,6 +14,34 @@ Read this before the [proposal](skill-usage.proposal.md). Active since 2026-11-2
 
 ## Findings
 
+### The shared folder on two machines, 2026-11-21 (#1819, #1903, #1904)
+
+The Air and Random name one shared folder, in a cloud drive (Google Drive for desktop). Each
+writes its own folder there and reads the other's.
+
+- **Sync.** A folder made on one machine reached the other in about 20 seconds, and a
+  machine's copy (3.2 MB of events) in 10 to 30, with the same digests on both sides.
+- **First reading across two machines.** One record of 7,923 events and 1,203 sessions. Over
+  30 days: 4,311 loads of 171 skills in 592 sessions, of 954 sessions seen.
+- **The totals differ a little by machine (#1904).** Random gave 4,291 loads of 174 skills
+  from the same record. Its checkout of one repository was on a branch eleven days old, with
+  21 skills where the Air's holds 27, four of them under names since changed. A checkout that
+  still holds an old name keeps it, and the audit rule counts two thirds of what the checkout
+  holds: 14 there, 18 on the Air.
+- **macOS asks before a scheduled program reads a cloud drive's folder (#1903).** Random's
+  drive fetches files on demand. Its scheduled collection wrote the machine's record, then
+  waited at the shared folder until its five minutes were up, and said only that it had not
+  finished; run from a terminal it wrote the shared copy in seconds. The system log has the
+  question, for the job's Python and the drive. After it was allowed, a program started by
+  the scheduler wrote to the drive. The Air's drive keeps local copies, a plain folder, and
+  nothing was asked.
+- **The same question for an external volume stopped the whole job** (#1902, in the disk
+  hygiene status): no collection for as long as the disk work waited. The job now leaves a
+  disk step that waits, and says of a shared folder that does not answer that the record was
+  collected.
+- **Not done.** Hero. On Random the question for the external volume was still open when this
+  was written, so its hourly job had not run since.
+
 ### Rollout readings, 2026-11-21 (#1819)
 
 Both machines run the build of all four phases (commit `a30d79879`), installed from git by
@@ -191,7 +219,9 @@ skill for `lefthook.yml`, `ci.yml` and `scripts/check-*.mjs`), before Lushly dec
 
 - Collection with the hourly job, and one report across machines (#1818): merged in #1889.
 
-- Rollout to the Air, Random and Hero (#1819): the Air and Random run all four phases and collect hourly since 2026-11-21 (see Findings); Hero, and the shared folder on all three, to come.
+- Rollout to the Air, Random and Hero (#1819): the Air and Random run all four phases, collect hourly and share a folder since 2026-11-21 (see Findings); Hero to come.
+
+- A shared folder the hourly job cannot read (#1903): in this pull request.
 
 ## Phase 4. Provider logs
 
@@ -200,6 +230,8 @@ skill for `lefthook.yml`, `ci.yml` and `scripts/check-*.mjs`), before Lushly dec
 ## Later
 
 - Codex session logs as a source (#1891): not started; 5 of 213 logs measured are outside T3 Code.
+
+- The same totals whichever machine reads, when checkouts differ (#1904): not started.
 
 - Whether a loaded skill prevents the mistakes it names (#1829): needs its design first.
 

@@ -11,6 +11,8 @@ import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from botcore.commands.disk.steps import command, doing
+
 GIT_TIMEOUT = 120.0
 
 
@@ -37,14 +39,15 @@ def git_out(  # noqa: PLR0913 - git's own knobs
 ) -> str:
     """Run git in cwd and return stdout; raise GitError on failure or timeout."""
     try:
-        done = subprocess.run(
-            ["git", "-C", str(cwd), *args],
-            input=None if stdin is None else stdin.encode("utf-8", errors="surrogateescape"),
-            capture_output=True,
-            env=_env(env),
-            timeout=max(1.0, timeout),
-            check=False,
-        )
+        with command("running git in", cwd, allow=max(1.0, timeout)):
+            done = subprocess.run(
+                ["git", "-C", str(cwd), *args],
+                input=None if stdin is None else stdin.encode("utf-8", errors="surrogateescape"),
+                capture_output=True,
+                env=_env(env),
+                timeout=max(1.0, timeout),
+                check=False,
+            )
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise GitError(f"git {' '.join(args[:3])}: {exc}") from exc
     if done.returncode not in ok_codes:
@@ -128,6 +131,7 @@ def _admin_map(common: Path) -> dict[str, Path]:
     """
     found: dict[str, Path] = {}
     base = common / "worktrees"
+    doing("reading", base)
     try:
         admins = list(base.iterdir())
     except OSError:

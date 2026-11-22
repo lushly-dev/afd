@@ -17,6 +17,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from botcore.commands.disk.steps import command, doing
 from botcore.config import DiskRegenerable
 
 DAY = 86400.0
@@ -89,10 +90,11 @@ def mount_point(path: Path) -> Path:
 
 def _darwin_volume_id(mount: Path) -> str | None:
     try:
-        done = subprocess.run(
-            ["diskutil", "info", "-plist", str(mount)],
-            capture_output=True, timeout=30, check=False,
-        )
+        with command("asking about the volume", mount, allow=30):
+            done = subprocess.run(
+                ["diskutil", "info", "-plist", str(mount)],
+                capture_output=True, timeout=30, check=False,
+            )
         if done.returncode != 0:
             return None
         info = plistlib.loads(done.stdout)
@@ -104,10 +106,11 @@ def _darwin_volume_id(mount: Path) -> str | None:
 
 def _linux_volume_id(mount: Path) -> str | None:
     try:
-        done = subprocess.run(
-            ["findmnt", "-n", "-o", "UUID", "--mountpoint", str(mount)],
-            capture_output=True, text=True, timeout=30, check=False,
-        )
+        with command("asking about the volume", mount, allow=30):
+            done = subprocess.run(
+                ["findmnt", "-n", "-o", "UUID", "--mountpoint", str(mount)],
+                capture_output=True, text=True, timeout=30, check=False,
+            )
     except (OSError, subprocess.TimeoutExpired):
         return None
     value = done.stdout.strip()
@@ -181,6 +184,7 @@ class VolumeState:
 
 def volume_state(mount: Path, expected_id: str | None, low_space_gb: float | None) -> VolumeState:
     """Free space and identity. A drive letter on Windows counts as mounted only if readable."""
+    doing("checking the volume", mount)
     mounted = os.path.ismount(mount)
     free = total = None
     found = None
@@ -225,10 +229,11 @@ class Processes:
 def _run_lines(args: list[str], timeout: float = 60, ok_codes: tuple[int, ...] = (0,)):
     """A command's output lines, or None when it could not run or failed."""
     try:
-        done = subprocess.run(
-            args, capture_output=True, text=True, encoding="utf-8",
-            errors="replace", timeout=timeout, check=False,
-        )
+        with command(f"running {args[0]}", allow=timeout):
+            done = subprocess.run(
+                args, capture_output=True, text=True, encoding="utf-8",
+                errors="replace", timeout=timeout, check=False,
+            )
     except (OSError, subprocess.TimeoutExpired):
         return None
     if done.returncode not in ok_codes:
@@ -456,6 +461,7 @@ def find_candidates(
         if time.monotonic() > deadline:
             return found, False
         folder, prefix, depth = stack.pop()
+        doing("reading", folder)
         try:
             children = list(os.scandir(folder))
         except OSError:
@@ -510,6 +516,7 @@ def allocated(path: Path, deadline: float) -> int | None:
         if stat.S_ISDIR(info.st_mode):
             if os.name == "nt" and getattr(info, "st_file_attributes", 0) & 0x400:
                 continue  # a junction
+            doing("measuring", current)
             try:
                 stack.extend(Path(e.path) for e in os.scandir(current))
             except OSError:
@@ -536,6 +543,7 @@ def newest_mtime(path: Path, depth: int = 1) -> float | None:
     for _ in range(depth):
         below = []
         for folder in level:
+            doing("reading", folder)
             try:
                 entries = list(os.scandir(folder))
             except OSError:

@@ -14,6 +14,31 @@ Read this before the [proposal](disk-hygiene.proposal.md). Active since 2026-11-
 
 ## Findings
 
+### The scheduled job and macOS consent, 2026-11-21 (#1902)
+
+- **The first reclaim the schedule ran alone never ended**, on the Air and on Random. On the
+  Air it began when `/` fell below its threshold and waited in a folder listing for 2 hours
+  22 minutes, until the process was ended. A scheduler starts no run while one is alive, so
+  there was no check and no reclaim in that time, and the volume went under 2 GB free. On
+  Random the same run came 23 hours after the reclaim run by hand.
+- **Cause.** macOS asks at the screen before a scheduled program reads a removable volume,
+  and holds the read for the answer (`tccd` logs `AUTHREQ_PROMPTING` for
+  `kTCCServiceSystemPolicyRemovableVolumes` and the job's Python). Both machines keep
+  worktrees on an external volume. Every reclaim before had been run from a terminal, which
+  has its own consent, and the run setup starts only checked free space: a reclaim had just
+  been run by hand, so none was due.
+- **What changed.** A run reads every folder it will need first, so the question comes in the
+  run setup starts. The disk work and the collection are steps the job can stop waiting for,
+  and `disk-status` names the folder a step waited for and the program to allow.
+- **Tried on Random with the question still open**, as a scheduled program with shortened
+  waits and a reclaim that removes nothing: 20 seconds in, the status named `/Volumes/Dev`
+  and what to allow; the collection ran and was shared; the run ended by itself. The first
+  try blamed the git command that had just returned, since a command's allowance outlived
+  it, and Cargo's settings were read from the worktrees before the worktrees were named.
+- **A dry run's `planned_gb` has no figure for `node_modules` and `.venv`.** On the Air a dry
+  run planned 0.05 GB, and the scheduled run a quarter of an hour later removed 646 folders
+  and freed 1.29 GB.
+
 ### After prevention, 2026-11-21 (#1693, #1687, #1814)
 
 - **Upgrade.** All three machines run main `cf8d067c5` (still reported as 0.7.0 until the release, #1692),
@@ -134,6 +159,8 @@ Read this before the [proposal](disk-hygiene.proposal.md). Active since 2026-11-
 - Adoption in Lushly ([lushly#2697](https://github.com/lushly-dev/lushly/issues/2697)): after the release.
 
 - Rollout to the Air, Random and Hero, and retiring the cleanup agent (#1693): rolled out 2026-11-20 (see Findings); a week of receipts, then the cleanup agent is retired.
+
+- A scheduled run that waits for ever (#1902): in this pull request.
 
 ## Phase 3. Removing finished worktrees
 
