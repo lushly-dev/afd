@@ -92,9 +92,23 @@ const styles = css`
         }
     }
 
+    @keyframes indeterminate-pulse {
+        0% {
+            opacity: 1;
+        }
+
+        /* Not lower: a Highlight fill on Canvas keeps its contrast under forced colours. */
+        100% {
+            opacity: 0.75;
+        }
+    }
+
+    /* Nothing slides under reduced motion: the whole track fills and its opacity eases. */
     @media (prefers-reduced-motion: reduce) {
         :host([value=""]) .progress::before {
-            animation-duration: 3.2s;
+            inset-inline-start: 0;
+            inline-size: 100%;
+            animation: indeterminate-pulse 1.6s ease-in-out infinite alternate;
         }
     }
 

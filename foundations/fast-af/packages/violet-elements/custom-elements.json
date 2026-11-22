@@ -37307,6 +37307,18 @@
             },
             {
               "kind": "field",
+              "name": "label",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "public",
+              "description": "Accessible name for the tab list, which is inside the shadow root, so the host's aria-label\ncannot name it. It is not shown.",
+              "default": "\"\"",
+              "attribute": "label",
+              "reflects": true
+            },
+            {
+              "kind": "field",
               "name": "orientation",
               "type": {
                 "text": "\"horizontal\" | \"vertical\""
@@ -37393,6 +37405,15 @@
               },
               "default": "\"\"",
               "fieldName": "activeid"
+            },
+            {
+              "name": "label",
+              "description": "Accessible name for the tab list, which is inside the shadow root, so the host's aria-label\ncannot name it. It is not shown.",
+              "type": {
+                "text": "string"
+              },
+              "default": "\"\"",
+              "fieldName": "label"
             }
           ],
           "customElement": true,

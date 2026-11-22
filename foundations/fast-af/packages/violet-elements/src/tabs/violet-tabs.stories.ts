@@ -13,6 +13,7 @@ type VioletTabsStoryArgs = {
     orientation: VioletTabsOrientation;
     activeid: string;
     disabled: boolean;
+    label?: string;
 };
 
 const defaultTabData = [
@@ -35,6 +36,9 @@ function renderTabs(args: VioletTabsStoryArgs): HTMLElement {
     tabs.appearance = args.appearance;
     tabs.orientation = args.orientation;
     tabs.disabled = args.disabled;
+    if (args.label) {
+        tabs.label = args.label;
+    }
 
     defaultTabData.forEach((entry, index) => {
         const tab = document.createElement("violet-tab") as VioletTab;
@@ -78,6 +82,7 @@ const meta = {
             options: ["horizontal", "vertical"],
         },
         disabled: { control: "boolean" },
+        label: { control: "text" },
     },
     render: (args: VioletTabsStoryArgs) => renderTabs(args),
 } satisfies Meta<VioletTabsStoryArgs>;
@@ -156,5 +161,24 @@ export const Disabled: Story = {
         orientation: "horizontal",
         activeid: "",
         disabled: true,
+    },
+};
+
+/** Two tab sets on one page need names: label names the tab list, which is in the shadow root. */
+export const Named: Story = {
+    args: {
+        appearance: "open",
+        orientation: "horizontal",
+        activeid: "",
+        disabled: false,
+        label: "Bed record",
+    },
+    play: async ({ canvasElement }) => {
+        const tabs = canvasElement.querySelector("violet-tabs") as VioletTabs | null;
+        const tablist = tabs?.shadowRoot?.querySelector('[role="tablist"]');
+
+        await waitFor(() => {
+            expect(tablist?.getAttribute("aria-label")).toBe("Bed record");
+        });
     },
 };

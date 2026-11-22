@@ -11,6 +11,11 @@
 				"basis": "authored",
 				"id": "skeleton.hidden",
 				"text": "It always sets aria-hidden=\"true\" on itself, so convey the loading state elsewhere, for example aria-busy on the region being loaded or a visible status."
+			},
+			{
+				"basis": "authored",
+				"id": "skeleton.motion",
+				"text": "Under prefers-reduced-motion: reduce the animated shimmer stops and the shapes stay still."
 			}
 		]
 	},

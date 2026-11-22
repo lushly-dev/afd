@@ -15,8 +15,20 @@ const styles = css`
         outline: none;
     }
 
+    /* violet-tabs makes each panel a tab stop, so a focused panel shows the theme's ring. */
+    :host(:focus-visible) {
+        outline: var(--size-focus-ring-width, 2px) solid var(--_focus-ring);
+        outline-offset: 2px;
+    }
+
     :host([hidden]) {
         display: none;
+    }
+
+    @media (forced-colors: active) {
+        :host(:focus-visible) {
+            outline-color: Highlight;
+        }
     }
 
     .content {

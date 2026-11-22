@@ -284,11 +284,12 @@ export class VioletAlert extends FASTElement {
     }
 
     public connectedCallback(): void {
-        super.connectedCallback();
+        // Before the first render, so the first alert of a tone draws its own icon, not the fallback.
         registerSystemCheckmarkIcon();
         registerSystemCloseIcon();
         registerSystemDismissIcon();
         registerSystemWarningIcon();
+        super.connectedCallback();
         this.handleTitleSlotChange();
         this.handleActionsSlotChange();
         this.handleIconSlotChange();

@@ -28,6 +28,13 @@
       ]
     },
     {
+      "id": "progress.motion",
+      "text": "Under prefers-reduced-motion: reduce the indeterminate bar does not slide: it fills the track and only its opacity eases. Prefer a determinate value or a status in text where you can.",
+      "members": [
+        "value"
+      ]
+    },
+    {
       "id": "progress.announce",
       "text": "The bar is not a live region: changes in value are not announced, so announce completion or failure separately."
     }

@@ -152,4 +152,22 @@ describe("violet-icon", () => {
         expect(icon.hasAttribute("decorative")).toBe(false);
         expect(glyph(icon).getAttribute("role")).toBe("img");
     });
+
+    // #1588: violet-icon looked its icon up once, so an icon registered after it rendered never showed.
+    it("replaces the fallback glyph when its icon is registered after it renders", async () => {
+        const icon = await renderIcon(element => {
+            element.icon = "spec/late";
+        });
+        expect(icon.shadowRoot?.querySelector('[data-test-icon="late"]')).toBeNull();
+
+        registerVioletIcon({
+            name: "spec/late",
+            svg: '<svg viewBox="0 0 24 24" data-test-icon="late" xmlns="http://www.w3.org/2000/svg"><path d="M4 4h16"/></svg>',
+            sourceId: "spec",
+            originalFile: "late.svg",
+        });
+        await nextFrame();
+
+        expect(icon.shadowRoot?.querySelector('[data-test-icon="late"]')).not.toBeNull();
+    });
 });

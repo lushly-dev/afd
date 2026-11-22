@@ -105,7 +105,13 @@ const styles = css`
 
 const template = html<VioletTabs>`
     <div class="tablist-shell" part="tablist-shell">
-        <div class="tablist" part="tablist" role="tablist" aria-orientation="${x => x.orientation}">
+        <div
+            class="tablist"
+            part="tablist"
+            role="tablist"
+            aria-label="${x => x.label || null}"
+            aria-orientation="${x => x.orientation}"
+        >
             <slot name="tab" @slotchange="${x => x.handleTabSlotChange()}"></slot>
         </div>
     </div>
@@ -162,6 +168,12 @@ export class VioletTabs extends FASTElement {
      * Active tab id.
      */
     declare public activeid: string;
+
+    /**
+     * Accessible name for the tab list, which is inside the shadow root, so the host's aria-label
+     * cannot name it. It is not shown.
+     */
+    declare public label: string;
 
     public activetab: VioletTab | null;
 
@@ -240,6 +252,7 @@ export class VioletTabs extends FASTElement {
         this.disabled = false;
         this.orientation = "horizontal";
         this.activeid = "";
+        this.label = "";
         this.activetab = null;
     }
 
@@ -472,6 +485,7 @@ attr(VioletTabs.prototype, "appearance");
 attr({ mode: "boolean" })(VioletTabs.prototype, "disabled");
 attr(VioletTabs.prototype, "orientation");
 attr(VioletTabs.prototype, "activeid");
+attr(VioletTabs.prototype, "label");
 
 if (!customElements.get("violet-tabs")) {
     await FASTElement.define(VioletTabs, {

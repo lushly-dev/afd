@@ -165,7 +165,7 @@ the sheet and the palette fade. Resizing follows the pointer with no
 transition. Under `prefers-reduced-motion: reduce`, nothing moves: overlays
 fade on `duration.fast` or appear at once, and loading shows as text or a
 determinate `violet-progress`, never `violet-spinner` or an indeterminate
-`violet-progress` alone (both keep moving, slower).
+`violet-progress` alone (the spinner keeps turning, slower; the bar pulses).
 
 ## Focus and state
 

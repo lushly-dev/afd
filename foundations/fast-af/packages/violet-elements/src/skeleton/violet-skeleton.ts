@@ -78,9 +78,11 @@ const styles = css`
         }
     }
 
+    /* Under reduced motion the shimmer stops and the bars stay as placeholders. */
     @media (prefers-reduced-motion: reduce) {
         .bar::after {
-            animation-duration: 2.8s;
+            display: none;
+            animation: none;
         }
     }
 

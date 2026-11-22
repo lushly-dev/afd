@@ -89,7 +89,7 @@
 		{
 			"basis": "authored",
 			"id": "icon.registry",
-			"text": "The icon attribute is a registry name such as system/close (default system/search). An unregistered name renders an X-shaped fallback. The registry is read when icon is set, so register first."
+			"text": "The icon attribute is a registry name such as system/close (default system/search). An unregistered name renders an X-shaped fallback until that name is registered, when the icon redraws."
 		},
 		{
 			"basis": "authored",
