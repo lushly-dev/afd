@@ -152,6 +152,37 @@ describe('createAfdHelpCommand', () => {
 		expect(info?.mutation).toBeDefined();
 	});
 
+	it('full format omits empty tags and examples (#1480)', async () => {
+		const commands: CommandDefinition[] = [
+			{
+				name: 'empty-lists',
+				expose: { mcp: true },
+				description: 'Declares empty lists',
+				tags: [],
+				examples: [],
+				parameters: [],
+				handler: async () => success(null),
+			},
+			{
+				name: 'with-lists',
+				expose: { mcp: true },
+				description: 'Declares lists',
+				tags: ['read'],
+				examples: [{ title: 'Basic', input: {} }],
+				parameters: [],
+				handler: async () => success(null),
+			},
+		];
+		const cmd = createAfdHelpCommand(() => commands);
+		const result = await cmd.handler({ format: 'full' }, {});
+
+		const [empty, withLists] = result.data?.commands ?? [];
+		expect(empty).not.toHaveProperty('tags');
+		expect(empty).not.toHaveProperty('examples');
+		expect(withLists?.tags).toEqual(['read']);
+		expect(withLists?.examples).toEqual([{ title: 'Basic', input: {} }]);
+	});
+
 	it('groups commands by category', async () => {
 		const commands = makeMockCommands();
 		const cmd = createAfdHelpCommand(() => commands);
