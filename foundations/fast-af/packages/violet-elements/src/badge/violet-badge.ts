@@ -100,8 +100,10 @@ const styles = css`
         --violet-icon-size: 0.9em;
     }
 
+    /* The second selector matches the appearance rules' specificity, so the system colours win for each. */
     @media (forced-colors: active) {
-        .badge {
+        .badge,
+        :host([appearance]) .badge {
             forced-color-adjust: none;
             background: Canvas;
             color: CanvasText;

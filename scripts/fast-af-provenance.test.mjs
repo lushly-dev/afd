@@ -157,7 +157,8 @@ test('upstream Git object ids match the bytes of every file imported unchanged',
 	// and added a read-only spec to the text area: 450. The form control hosts (#1385) adapted the
 	// grid's keyboard resize spec: 449. Slotted content under forced colours (#1575) adapted the
 	// alert's, the card's and the dialog's specs: 446. Removing Lushly's look outside tokens
-	// (#1492) adapted the color swatch's spec and the raw palette reference: 444. A removed file's
-	// record is kept but not counted.
-	assert(checked > 443, `only ${checked} unchanged upstream files`);
+	// (#1492) adapted the color swatch's spec and the raw palette reference: 444. The accessibility
+	// fixes (#1576, #1583, #1584, #1585, #1588) adapted the icon registry and the icon's, the
+	// skeleton's and the tabs' specs: 440. A removed file's record is kept but not counted.
+	assert(checked > 439, `only ${checked} unchanged upstream files`);
 });

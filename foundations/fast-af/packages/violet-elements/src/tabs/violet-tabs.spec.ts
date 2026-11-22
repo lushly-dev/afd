@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { cdp, userEvent } from "vitest/browser";
 
 import "../tab-panel/violet-tab-panel";
 import type { VioletTabPanel } from "../tab-panel/violet-tab-panel";
@@ -53,6 +54,46 @@ async function renderTabs(options: {
     await nextFrame();
 
     return { tabs, tabItems, panels };
+}
+
+/**
+ * Emulates a dark forced-colours theme (Windows "Night sky") with reduced motion, or restores the
+ * media Playwright emulates by default, so later spec files on the page do not follow the host.
+ */
+async function emulateForcedColors(active: boolean): Promise<void> {
+    const session = cdp() as unknown as { send(method: string, params?: object): Promise<unknown> };
+    await session.send("Emulation.setEmulatedMedia", {
+        features: [
+            { name: "forced-colors", value: active ? "active" : "none" },
+            { name: "prefers-color-scheme", value: active ? "dark" : "light" },
+            { name: "prefers-reduced-motion", value: active ? "reduce" : "no-preference" },
+            { name: "prefers-contrast", value: "no-preference" },
+        ],
+    });
+}
+
+/** What a system colour resolves to in the current colour scheme. */
+function systemColor(name: string): string {
+    const probe = document.createElement("span");
+    probe.style.color = name;
+    document.body.append(probe);
+    const value = getComputedStyle(probe).color;
+    probe.remove();
+    return value;
+}
+
+/** The name Chromium's accessibility tree gives the tab list, read from the frame the spec runs in. */
+async function tablistName(): Promise<string | undefined> {
+    const session = cdp() as unknown as { send(method: string, params?: object): Promise<unknown> };
+    const { frameTree } = (await session.send("Page.getFrameTree")) as {
+        frameTree: { childFrames?: { frame: { id: string; url: string } }[] };
+    };
+    const frame = frameTree.childFrames?.find(child => child.frame.url === location.href)?.frame;
+    expect(frame).toBeDefined();
+    const { nodes } = (await session.send("Accessibility.getFullAXTree", { frameId: frame?.id })) as {
+        nodes: { role?: { value?: string }; name?: { value?: string } }[];
+    };
+    return nodes.find(node => node.role?.value === "tablist")?.name?.value;
 }
 
 describe("violet-tabs", () => {
@@ -130,5 +171,76 @@ describe("violet-tabs", () => {
 
         expect(tabItems[0]?.getAttribute("data-appearance")).toBe("mixed");
         expect(tabItems[1]?.getAttribute("data-appearance")).toBe("open");
+    });
+
+    // #1585: the tab list is in the shadow root, so the host's aria-label did not reach it.
+    describe("naming the tab list", () => {
+        it("is unnamed by default", async () => {
+            const { tabs } = await renderTabs();
+            const tablist = tabs.shadowRoot?.querySelector('[role="tablist"]') as HTMLElement;
+
+            expect(tablist.hasAttribute("aria-label")).toBe(false);
+        });
+
+        it("takes its name from label", async () => {
+            const { tabs } = await renderTabs();
+            tabs.label = "Account settings";
+            await nextFrame();
+            const tablist = tabs.shadowRoot?.querySelector('[role="tablist"]') as HTMLElement;
+
+            expect(tablist.getAttribute("aria-label")).toBe("Account settings");
+            expect(await tablistName()).toBe("Account settings");
+        });
+
+        it("follows label as it changes", async () => {
+            const { tabs } = await renderTabs();
+            const tablist = tabs.shadowRoot?.querySelector('[role="tablist"]') as HTMLElement;
+
+            tabs.setAttribute("label", "Billing");
+            await nextFrame();
+            expect(tablist.getAttribute("aria-label")).toBe("Billing");
+
+            tabs.removeAttribute("label");
+            await nextFrame();
+            expect(tablist.hasAttribute("aria-label")).toBe(false);
+        });
+
+        it("leaves the host's aria-label and its native property alone", async () => {
+            const { tabs } = await renderTabs();
+            tabs.setAttribute("aria-label", "Old");
+            tabs.ariaLabel = "New";
+            await nextFrame();
+            const tablist = tabs.shadowRoot?.querySelector('[role="tablist"]') as HTMLElement;
+
+            // ARIAMixin reflection still works: violet-tabs defines no aria-label of its own.
+            expect(tabs.getAttribute("aria-label")).toBe("New");
+            expect(tablist.hasAttribute("aria-label")).toBe(false);
+        });
+    });
+
+    // #1584: each panel is a tab stop, and a focused panel drew no focus indicator.
+    describe("a focused panel", () => {
+        afterEach(async () => {
+            await emulateForcedColors(false);
+        });
+
+        for (const forcedColors of [false, true]) {
+            it(`shows the focus ring${forcedColors ? " under forced colours" : ""}`, async () => {
+                await emulateForcedColors(forcedColors);
+                const { tabItems, panels } = await renderTabs();
+                tabItems[0]?.focus();
+                await userEvent.tab();
+
+                const panel = panels[0] as VioletTabPanel;
+                expect(document.activeElement).toBe(panel);
+                expect(panel.matches(":focus-visible")).toBe(true);
+                const style = getComputedStyle(panel);
+                expect(style.outlineStyle).toBe("solid");
+                expect(style.outlineWidth).toBe("2px");
+                if (forcedColors) {
+                    expect(style.outlineColor).toBe(systemColor("Highlight"));
+                }
+            });
+        }
     });
 });

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Name the `violet-tabs` tab list with a new `label` attribute (#1585). The tab list is in the shadow root, so nothing named it before, and an `aria-label` on the host does not reach it.
+
+- Fix four accessibility defects: a subtle or outline `violet-badge` now takes the system colours under forced colours (#1576); under reduced motion the indeterminate `violet-progress` stops sliding and only its opacity eases, and `violet-skeleton` stops shimmering (#1583); a focused `violet-tab-panel` shows the focus ring (#1584); and the first `violet-alert` of a tone draws its own icon, since the alert registers its icons before it renders and `violet-icon` updates when its icon is registered later (#1588).
+
 - Report the actual count of drifted pack files (instead of the total 77 component count) and log any left-out examples for drifted components when `run-stories.mjs` `pack-check` fails (#1404). No published file changes.
 
 - Remove Lushly's remaining look outside `violet-elements`' tokens (#1492, epic #1430):

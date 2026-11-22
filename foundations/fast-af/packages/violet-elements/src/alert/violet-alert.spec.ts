@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cdp } from "vitest/browser";
 
+import { clearVioletIconRegistryForTesting } from "../icon/icon-registry";
+import { systemCheckmarkIcon } from "../icon/generated/icons/system-checkmark";
 import "./violet-alert";
 import type { VioletAlert } from "./violet-alert";
 
@@ -122,5 +124,17 @@ describe("violet-alert", () => {
             expect(getComputedStyle(leading).forcedColorAdjust).toBe("none");
             expect(getComputedStyle(leading).color).toBe(systemColor("ButtonText"));
         });
+    });
+
+    // #1588: the alert registered its icons after its first render, so the first one drew the fallback.
+    it("draws its tone icon on its first render", () => {
+        clearVioletIconRegistryForTesting();
+        document.body.innerHTML = `<violet-alert tone="success"><span slot="title">Saved</span>Your changes are saved.</violet-alert>`;
+        const alert = document.querySelector("violet-alert") as VioletAlert;
+        const icon = alert.shadowRoot?.querySelector(".leading violet-icon");
+
+        expect(icon?.getAttribute("icon")).toBe("system/checkmark");
+        expect(icon?.shadowRoot?.querySelector(".glyph")?.innerHTML).toContain('d="M5 12L10 17L20 7"');
+        expect(systemCheckmarkIcon.svg).toContain('d="M5 12L10 17L20 7"');
     });
 });

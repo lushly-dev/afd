@@ -10,7 +10,7 @@
 			{
 				"basis": "authored",
 				"id": "tabs.name",
-				"text": "The tablist cannot be named: the role=\"tablist\" element is inside the shadow root, there is no label attribute, and an aria-label on the host does not reach it."
+				"text": "Name the tab list with label, which is not shown; name every tab set on a page with more than one. aria-label and aria-labelledby on the host do not reach it in the shadow root, and would name only the role-less host."
 			}
 		]
 	},
@@ -63,6 +63,17 @@
 					"taxonomy.disabled"
 				],
 				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"description": "Accessible name for the tab list, which is inside the shadow root, so the host's aria-label cannot name it. It is not shown.",
+				"name": "label",
+				"property": "label",
+				"rules": [
+					"taxonomy.label"
+				],
+				"type": "string"
 			},
 			{
 				"basis": "observed",
@@ -153,6 +164,7 @@
 		"taxonomy.activeid.not-for",
 		"taxonomy.appearance",
 		"taxonomy.disabled",
+		"taxonomy.label",
 		"taxonomy.orientation",
 		"theme.install"
 	],

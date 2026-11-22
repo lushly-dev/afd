@@ -365,11 +365,11 @@ boundary on main's side, so it is inside the part's landmark.
 - **`prefers-reduced-motion: reduce`.** Nothing moves. Overlays fade on
   `duration.fast`, or appear at once; color changes stay. The shared
   components' token defaults shorten `duration.fast` and `duration.base` to
-  0.01ms under this query. `violet-spinner` slows to 1.6s a turn and the
-  indeterminate `violet-progress` slides more slowly (3.2s) rather than
-  stopping, so under reduced motion a Loam component shows loading as text,
-  or as a determinate `violet-progress`, never with either moving indicator
-  alone.
+  0.01ms under this query. `violet-spinner` slows to 1.6s a turn rather than
+  stopping, and the indeterminate `violet-progress` stops sliding but its
+  fill still pulses, so under reduced motion a Loam component shows loading
+  as text, or as a determinate `violet-progress`, never with either
+  indicator alone.
 
 ## Focus and state
 

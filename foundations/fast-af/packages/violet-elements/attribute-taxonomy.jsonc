@@ -322,7 +322,7 @@
       "definition": "Provides the primary text label or internal accessible name for a control when the component owns its label rendering or accessible naming internally.",
       "useFor": ["field wrappers", "control shells with internal label placement", "icon-only controls that need an explicit accessible name"],
       "doNotUseFor": ["button body content that should come from a slot", "decorative headings"],
-      "usedBy": ["violet-icon", "violet-icon-button", "violet-persona", "violet-progress", "violet-radio-group", "violet-slider", "violet-spinner", "violet-badge", "violet-text-field", "violet-text-area", "violet-range-slider", "violet-reasoning-block", "violet-chat-composer", "violet-listbox", "violet-option", "violet-option-group", "violet-select", "violet-combobox", "violet-segmented-control", "violet-breadcrumb", "violet-pagination", "violet-carousel", "violet-date-picker", "violet-time-picker", "violet-date-range-picker", "violet-file-upload", "violet-color-picker", "violet-color-swatch", "violet-tree", "violet-file-explorer"]
+      "usedBy": ["violet-icon", "violet-icon-button", "violet-persona", "violet-progress", "violet-radio-group", "violet-slider", "violet-spinner", "violet-badge", "violet-text-field", "violet-text-area", "violet-range-slider", "violet-reasoning-block", "violet-chat-composer", "violet-listbox", "violet-option", "violet-option-group", "violet-select", "violet-combobox", "violet-segmented-control", "violet-breadcrumb", "violet-pagination", "violet-carousel", "violet-date-picker", "violet-time-picker", "violet-date-range-picker", "violet-file-upload", "violet-color-picker", "violet-color-swatch", "violet-tree", "violet-file-explorer", "violet-tabs"]
     },
     {
       "name": "control-label",

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { cdp } from "vitest/browser";
 
 import "./violet-badge";
 import type { VioletBadge } from "./violet-badge";
@@ -14,6 +15,32 @@ async function renderBadge(
     await customElements.whenDefined("violet-badge");
     await nextFrame();
     return document.querySelector("violet-badge") as VioletBadge;
+}
+
+/**
+ * Emulates a dark forced-colours theme (Windows "Night sky") with reduced motion, or restores the
+ * media Playwright emulates by default, so later spec files on the page do not follow the host.
+ */
+async function emulateForcedColors(active: boolean): Promise<void> {
+    const session = cdp() as unknown as { send(method: string, params?: object): Promise<unknown> };
+    await session.send("Emulation.setEmulatedMedia", {
+        features: [
+            { name: "forced-colors", value: active ? "active" : "none" },
+            { name: "prefers-color-scheme", value: active ? "dark" : "light" },
+            { name: "prefers-reduced-motion", value: active ? "reduce" : "no-preference" },
+            { name: "prefers-contrast", value: "no-preference" },
+        ],
+    });
+}
+
+/** What a system colour resolves to in the current colour scheme. */
+function systemColor(name: string): string {
+    const probe = document.createElement("span");
+    probe.style.color = name;
+    document.body.append(probe);
+    const value = getComputedStyle(probe).color;
+    probe.remove();
+    return value;
 }
 
 describe("violet-badge", () => {
@@ -54,5 +81,29 @@ describe("violet-badge", () => {
         const badge = await renderBadge(`<violet-badge icon="system/check" label="Saved"></violet-badge>`);
 
         expect(badge.getAttribute("aria-label")).toBe("Saved");
+    });
+
+    describe("under forced colours", () => {
+        afterEach(async () => {
+            await emulateForcedColors(false);
+        });
+
+        // #1576: the subtle appearance's fill outranked the forced-colours rule.
+        for (const appearance of ["filled", "outline", "subtle"]) {
+            it(`paints the ${appearance} badge in the system colours`, async () => {
+                await emulateForcedColors(true);
+                const badge = await renderBadge(
+                    `<violet-badge appearance="${appearance}" color="success">Active</violet-badge>`
+                );
+                const surface = badge.shadowRoot?.querySelector(".badge") as HTMLElement;
+                const style = getComputedStyle(surface);
+
+                expect(matchMedia("(forced-colors: active)").matches).toBe(true);
+                expect(style.forcedColorAdjust).toBe("none");
+                expect(style.backgroundColor).toBe(systemColor("Canvas"));
+                expect(style.color).toBe(systemColor("CanvasText"));
+                expect(style.borderTopColor).toBe(systemColor("ButtonText"));
+            });
+        }
     });
 });

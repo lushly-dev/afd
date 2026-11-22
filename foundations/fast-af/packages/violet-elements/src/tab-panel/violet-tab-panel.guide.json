@@ -14,7 +14,7 @@
   "a11y": [
     {
       "id": "tab-panel.name",
-      "text": "violet-tabs names it by its tab with aria-labelledby and makes it a tab stop, so the tab's text should describe the panel's content."
+      "text": "violet-tabs names it by its tab with aria-labelledby and makes it a tab stop, with the focus ring, so the tab's text should describe the panel's content."
     }
   ]
 }

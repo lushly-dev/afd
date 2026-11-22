@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { cdp } from "vitest/browser";
 
 import "./violet-progress";
 import type { VioletProgress } from "./violet-progress";
@@ -14,6 +15,22 @@ async function renderProgress(
     await customElements.whenDefined("violet-progress");
     await nextFrame();
     return document.querySelector("violet-progress") as VioletProgress;
+}
+
+/**
+ * Emulates reduced motion, with a dark forced-colours theme when asked, or restores the media
+ * Playwright emulates by default, so later spec files on the page do not follow the host.
+ */
+async function emulateMedia(media: { reducedMotion: boolean; forcedColors?: boolean }): Promise<void> {
+    const session = cdp() as unknown as { send(method: string, params?: object): Promise<unknown> };
+    await session.send("Emulation.setEmulatedMedia", {
+        features: [
+            { name: "forced-colors", value: media.forcedColors ? "active" : "none" },
+            { name: "prefers-color-scheme", value: media.forcedColors ? "dark" : "light" },
+            { name: "prefers-reduced-motion", value: media.reducedMotion ? "reduce" : "no-preference" },
+            { name: "prefers-contrast", value: "no-preference" },
+        ],
+    });
 }
 
 describe("violet-progress", () => {
@@ -51,5 +68,43 @@ describe("violet-progress", () => {
 
         expect(native?.getAttribute("aria-valuetext")).toBe("Half capacity");
         expect(progress.shadowRoot?.querySelector(".value-label")?.textContent?.trim()).toBe("50%");
+    });
+
+    describe("under reduced motion", () => {
+        afterEach(async () => {
+            await emulateMedia({ reducedMotion: false });
+        });
+
+        // #1583: the indeterminate bar kept sliding, only slower.
+        for (const forcedColors of [false, true]) {
+            it(`stops the indeterminate bar sliding${forcedColors ? " under forced colours" : ""}`, async () => {
+                await emulateMedia({ reducedMotion: true, forcedColors });
+                const progress = await renderProgress(`<violet-progress label="Loading summary" value=""></violet-progress>`);
+                const track = progress.shadowRoot?.querySelector(".progress") as HTMLElement;
+                const bar = getComputedStyle(track, "::before");
+
+                expect(matchMedia("(prefers-reduced-motion: reduce)").matches).toBe(true);
+                expect(bar.animationName).toBe("indeterminate-pulse");
+                expect(bar.insetInlineStart).toBe("0px");
+                // The whole track: the padding box, inside the border forced colours draw.
+                expect(bar.inlineSize).toBe(`${track.clientWidth}px`);
+                const keyframes = track
+                    .getAnimations({ subtree: true })
+                    .flatMap(animation => (animation.effect as KeyframeEffect).getKeyframes());
+                expect(keyframes.length).toBeGreaterThan(0);
+                for (const frame of keyframes) {
+                    expect(Object.keys(frame).filter(key => !["offset", "easing", "composite", "computedOffset"].includes(key))).toEqual(["opacity"]);
+                    // Never so faint that a Highlight fill on Canvas loses its contrast.
+                    expect(Number(frame.opacity)).toBeGreaterThanOrEqual(0.75);
+                }
+            });
+        }
+
+        it("keeps the bar sliding when motion is allowed", async () => {
+            await emulateMedia({ reducedMotion: false });
+            const progress = await renderProgress(`<violet-progress label="Loading summary" value=""></violet-progress>`);
+            const track = progress.shadowRoot?.querySelector(".progress") as HTMLElement;
+            expect(getComputedStyle(track, "::before").animationName).toBe("indeterminate-slide");
+        });
     });
 });
