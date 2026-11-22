@@ -21,10 +21,33 @@ export class HttpRequestError extends Error {
 
 export interface HttpSecurityOptions {
 	host: string;
-	devMode: boolean;
 	allowedHosts?: string[];
 	allowedOrigins?: string[];
 	maxBodyBytes?: number;
+}
+
+/**
+ * Refuse an `allowedOrigins` entry that is not a serialized http(s) origin, as a browser sends it:
+ * `scheme://host[:port]`, lower case, with no path, no trailing slash and no default port. `*`
+ * and `null` are refused: neither names one origin.
+ */
+export function assertAllowedOrigins(origins: readonly unknown[] | undefined): void {
+	if (origins === undefined) return;
+	if (!Array.isArray(origins)) throw new Error('allowedOrigins must be an array of origins');
+	for (const origin of origins) {
+		let valid = false;
+		if (typeof origin === 'string') {
+			try {
+				const url = new URL(origin);
+				valid = (url.protocol === 'http:' || url.protocol === 'https:') && url.origin === origin;
+			} catch {}
+		}
+		if (!valid) {
+			throw new Error(
+				`allowedOrigins entry ${JSON.stringify(origin)} must be an exact http(s) origin such as http://localhost:5173: scheme, host and port only, with no path or trailing slash ("*" and "null" are not allowed)`
+			);
+		}
+	}
 }
 
 export function validateHttpRequest(req: IncomingMessage, options: HttpSecurityOptions): URL {
@@ -40,13 +63,10 @@ export function validateHttpRequest(req: IncomingMessage, options: HttpSecurityO
 	if (!allowedHosts.some((allowed) => allowed.toLowerCase() === base.hostname.toLowerCase())) {
 		throw new HttpRequestError(403, 'Host is not allowed; configure allowedHosts for this host');
 	}
+	// `devMode` does not relax these checks: a page the developer visits must not reach a dev
+	// server. Browser origins other than the server's own are listed in `allowedOrigins`.
 	const origin = req.headers.origin;
-	if (
-		!options.devMode &&
-		origin &&
-		origin !== base.origin &&
-		!options.allowedOrigins?.includes(origin)
-	) {
+	if (origin && origin !== base.origin && !options.allowedOrigins?.includes(origin)) {
 		throw new HttpRequestError(
 			403,
 			'Origin is not allowed; configure allowedOrigins for browser access'
@@ -54,13 +74,7 @@ export function validateHttpRequest(req: IncomingMessage, options: HttpSecurityO
 	}
 	// Covers navigation and no-cors GET requests that omit Origin, including legacy streams.
 	const fetchSite = req.headers['sec-fetch-site'];
-	if (
-		!options.devMode &&
-		!origin &&
-		fetchSite &&
-		fetchSite !== 'same-origin' &&
-		fetchSite !== 'none'
-	) {
+	if (!origin && fetchSite && fetchSite !== 'same-origin' && fetchSite !== 'none') {
 		throw new HttpRequestError(403, 'Cross-origin browser requests require an allowed Origin');
 	}
 	const target = req.url ?? '/';

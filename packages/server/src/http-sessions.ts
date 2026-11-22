@@ -3,8 +3,14 @@
  *
  * `initialize` creates a session and returns its ID in the `Mcp-Session-Id` response header.
  * Later requests carrying that header share one context stack; requests without it are
- * stateless. Sessions expire after an idle timeout, and the least recently used session is
- * evicted when the store is full, so memory stays bounded however many clients connect.
+ * stateless. Sessions expire after an idle timeout. Each session has an owner, who alone may
+ * use it, and a quota key (with MCP authorization, the issuer and subject: one person or service
+ * across all its clients). A quota key holds at most `maxSessionsPerOwner` sessions: at that
+ * quota, or when the store is full, a new session displaces only the least recently used
+ * session of the same quota key. One with none is refused while the store is full, so memory
+ * stays bounded however many clients connect, no caller ends another's session, and no single
+ * subject can fill the store. Up to `maxSessions / maxSessionsPerOwner` distinct subjects can
+ * still fill it between them; a new subject is then refused until sessions expire.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -13,12 +19,24 @@ import { type ContextState, createContextState } from './bootstrap/afd-context.j
 /** Default maximum number of live HTTP sessions. */
 export const DEFAULT_MAX_SESSIONS = 1000;
 
+/** Default number of live sessions one owner may hold (never more than `maxSessions`). */
+export const DEFAULT_MAX_SESSIONS_PER_OWNER = 100;
+
 /** Default idle time after which an HTTP session expires (30 minutes). */
 export const DEFAULT_SESSION_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 
 export interface SessionStoreOptions {
-	/** Maximum live sessions; the least recently used one is evicted beyond it. */
+	/**
+	 * Maximum live sessions. Beyond it, the creating owner's least recently used session is
+	 * evicted, or the new session is refused when that owner has none.
+	 */
 	maxSessions?: number;
+	/**
+	 * Maximum live sessions of one quota key; at it, that key's least recently used session is
+	 * evicted. Default: `DEFAULT_MAX_SESSIONS_PER_OWNER`, or `maxSessions` when smaller. Never
+	 * more than `maxSessions`.
+	 */
+	maxSessionsPerOwner?: number;
 	/** Idle time in milliseconds after which a session expires. */
 	idleTimeoutMs?: number;
 	/** Clock, for tests. */
@@ -29,9 +47,12 @@ export interface SessionStore {
 	/**
 	 * Start a session and return its ID. `owner` binds it to a caller: on a server with MCP
 	 * authorization, the verified credentials' issuer, subject and client
-	 * (`credentialsBinding`).
+	 * (`credentialsBinding`). `quotaKey` (default: `owner`) groups the sessions that share one
+	 * quota: with MCP authorization, the issuer and subject. At that key's quota, or at capacity,
+	 * it evicts only that key's least recently used session, and returns `undefined` (nothing
+	 * created) when the store is full and the key holds none to give up.
 	 */
-	create(owner?: string): string;
+	create(owner?: string, quotaKey?: string): string | undefined;
 	/**
 	 * The context state of a live session, refreshing its idle timer; `undefined` if unknown,
 	 * expired, or owned by another caller than `owner`. A caller that is not the owner neither
@@ -48,17 +69,32 @@ interface Session {
 	state: ContextState;
 	lastSeen: number;
 	owner: string | undefined;
+	quotaKey: string | undefined;
 }
 
-export function createSessionStore(options: SessionStoreOptions = {}): SessionStore {
-	const {
-		maxSessions = DEFAULT_MAX_SESSIONS,
-		idleTimeoutMs = DEFAULT_SESSION_IDLE_TIMEOUT_MS,
-		now = Date.now,
-	} = options;
+/**
+ * `maxSessions` and the per-owner quota, defaulted and checked: the quota defaults to
+ * `DEFAULT_MAX_SESSIONS_PER_OWNER`, or `maxSessions` when smaller, and is never above it.
+ *
+ * @throws Error when either is not a positive integer, or the quota exceeds `maxSessions`
+ */
+export function sessionLimits(
+	maxSessions = DEFAULT_MAX_SESSIONS,
+	maxSessionsPerOwner?: number
+): { maxSessions: number; perOwner: number } {
 	if (!Number.isSafeInteger(maxSessions) || maxSessions <= 0) {
 		throw new Error('maxSessions must be a positive integer');
 	}
+	const perOwner = maxSessionsPerOwner ?? Math.min(DEFAULT_MAX_SESSIONS_PER_OWNER, maxSessions);
+	if (!Number.isSafeInteger(perOwner) || perOwner <= 0 || perOwner > maxSessions) {
+		throw new Error('maxSessionsPerOwner must be a positive integer no greater than maxSessions');
+	}
+	return { maxSessions, perOwner };
+}
+
+export function createSessionStore(options: SessionStoreOptions = {}): SessionStore {
+	const { idleTimeoutMs = DEFAULT_SESSION_IDLE_TIMEOUT_MS, now = Date.now } = options;
+	const { maxSessions, perOwner } = sessionLimits(options.maxSessions, options.maxSessionsPerOwner);
 	if (!Number.isFinite(idleTimeoutMs) || idleTimeoutMs <= 0) {
 		throw new Error('sessionIdleTimeoutMs must be a positive number');
 	}
@@ -73,15 +109,24 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
 	}
 
 	return {
-		create(owner) {
+		create(owner, quotaKey = owner) {
 			const at = now();
 			sweep(at);
-			for (const oldest of sessions.keys()) {
-				if (sessions.size < maxSessions) break;
-				sessions.delete(oldest);
+			// Room comes only from the caller's own sessions (its quota key's), least recently used
+			// first: one caller's `initialize` never ends another caller's session.
+			let oldestOwn: string | undefined;
+			let own = 0;
+			for (const [id, session] of sessions) {
+				if (session.quotaKey !== quotaKey) continue;
+				oldestOwn ??= id;
+				own++;
+			}
+			if (own >= perOwner || sessions.size >= maxSessions) {
+				if (oldestOwn === undefined) return undefined;
+				sessions.delete(oldestOwn);
 			}
 			const id = randomUUID();
-			sessions.set(id, { state: createContextState(), lastSeen: at, owner });
+			sessions.set(id, { state: createContextState(), lastSeen: at, owner, quotaKey });
 			return id;
 		},
 		get(id, owner) {

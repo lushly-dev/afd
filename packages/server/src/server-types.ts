@@ -76,31 +76,34 @@ export interface McpServerOptions {
 	host?: string;
 
 	/**
-	 * Enable development mode.
-	 * When true:
-	 * - Error responses include stack traces
-	 * - CORS allows all origins (*)
-	 * - Verbose validation errors are returned
+	 * Enable development mode: error responses include exception messages and stacks, and
+	 * validation errors are verbose. When false (the default) they are redacted.
 	 *
-	 * When false (default, secure by default):
-	 * - Stack traces are omitted from error responses
-	 * - CORS is restrictive (same-origin only unless cors option is set)
-	 * - Validation errors are sanitized
+	 * It changes no HTTP check: Host and Origin validation and CORS headers are the same either
+	 * way, so a page the developer visits cannot reach a dev server. To call the server from a
+	 * browser app on another origin (such as a dev server on another port), list that origin in
+	 * `allowedOrigins` and set `cors: true`.
 	 */
 	devMode?: boolean;
 
 	/**
-	 * Send CORS response headers for accepted browser origins. It does not widen which
-	 * origins are accepted; see `allowedOrigins`.
+	 * Send CORS response headers for accepted browser origins: the request's own origin is
+	 * echoed, never `*`. It does not widen which origins are accepted; see `allowedOrigins`.
 	 *
-	 * @default devMode
+	 * @default false
 	 */
 	cors?: boolean;
 
 	/** Allowed HTTP Host names (without ports). Defaults to the configured host and loopback names. Set explicitly for proxies and embedded hosts. */
 	allowedHosts?: string[];
 
-	/** Exact additional browser origins. Same-origin requests are allowed by default; devMode permits any origin. */
+	/**
+	 * Exact additional browser origins, such as `http://localhost:5173`: each a serialized http(s)
+	 * origin (`scheme://host[:port]`, no path or trailing slash; `*` and `null` throw). Same-origin
+	 * requests are allowed by default, and requests without an Origin unless their
+	 * `Sec-Fetch-Site` is `cross-site` or `same-site`; any other browser origin is refused with
+	 * HTTP 403, in `devMode` too.
+	 */
 	allowedOrigins?: string[];
 
 	/**
@@ -165,10 +168,25 @@ export interface McpServerOptions {
 	maxSseConnections?: number;
 
 	/**
-	 * Maximum live HTTP sessions when `contexts` are configured; the least recently used one
-	 * is evicted beyond it (default: 1000).
+	 * Maximum live HTTP sessions when `contexts` are configured (default: 1000). Beyond it, an
+	 * `initialize` evicts the least recently used session of its own owner (with `auth`, the
+	 * verified issuer, subject and client), never another's; an owner with no session to give up
+	 * is refused with HTTP 503, `Retry-After` and JSON-RPC `-32000` whose `data.code` is
+	 * `SESSION_LIMIT_REACHED`. Without `auth` every caller is one owner.
 	 */
 	maxSessions?: number;
+
+	/**
+	 * With `auth`: maximum live HTTP sessions of one subject, keyed by the verified issuer and
+	 * subject so its client IDs share one quota (default: 100, or `maxSessions` when smaller;
+	 * never more than `maxSessions`). At it, that subject's least recently used session is
+	 * evicted, so one subject cannot fill the store; up to `maxSessions / maxSessionsPerOwner`
+	 * distinct subjects still can, and a new subject is then refused until sessions expire.
+	 * Sessions exist only with `contexts`: without them the value is still checked but has no
+	 * effect. Without `auth` every caller is one owner whose quota is `maxSessions`, and passing
+	 * this option throws.
+	 */
+	maxSessionsPerOwner?: number;
 
 	/** Idle time in milliseconds after which an HTTP session expires (default: 1800000, 30 minutes). */
 	sessionIdleTimeoutMs?: number;

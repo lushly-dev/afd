@@ -30,7 +30,7 @@ export interface ChatConfig {
 	maxBodyBytes: number;
 	/** Largest WebSocket message in bytes (`WS_MAX_PAYLOAD`, default 16 KiB). */
 	wsMaxPayload: number;
-	/** `NODE_ENV=development`: verbose errors and any origin on the MCP server. */
+	/** `NODE_ENV=development`: verbose errors on the MCP server; browser origins are unchanged. */
 	devMode: boolean;
 	logLevel: string;
 }

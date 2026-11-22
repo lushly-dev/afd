@@ -166,9 +166,9 @@ export function createTodoMiddleware(env: Env, deps: TodoServerDeps = {}): Comma
 /**
  * Options for `createMcpServer` (add `transport`) or `createMcpHandler`.
  *
- * Dev mode (`NODE_ENV=development`) enables verbose errors and stack traces and
- * accepts any browser origin. Otherwise only same-origin requests and the
- * origins from {@link resolveAllowedOrigins} are accepted.
+ * Dev mode (`NODE_ENV=development`) enables verbose errors and stack traces. In
+ * every mode only same-origin requests and the origins from
+ * {@link resolveAllowedOrigins} are accepted.
  */
 export function createTodoServerOptions(env: Env, deps: TodoServerDeps = {}): McpHandlerOptions {
 	const devMode = env.NODE_ENV === 'development';

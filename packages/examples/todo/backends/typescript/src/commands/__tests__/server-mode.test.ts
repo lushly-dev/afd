@@ -2,11 +2,18 @@
  * @fileoverview Tests for server devMode behavior
  *
  * Tests verify that:
- * - Production mode (default) sanitizes errors and restricts CORS
- * - Development mode provides verbose errors and permissive CORS
+ * - Production mode (default) sanitizes errors
+ * - Development mode provides verbose errors, and changes no Origin check or CORS header
  */
 
-import { createMcpServer, defineCommand } from '@lushly-dev/afd-server';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import {
+	createMcpHandler,
+	createMcpServer,
+	defineCommand,
+	type McpHandlerOptions,
+} from '@lushly-dev/afd-server';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
@@ -172,56 +179,58 @@ describe('Server devMode', () => {
 		});
 	});
 
-	describe('CORS behavior', () => {
-		it('devMode: true enables CORS by default', async () => {
-			const server = createMcpServer({
+	describe('Origin and CORS do not depend on devMode', () => {
+		/** Serve the HTTP routes on an ephemeral loopback port and POST one `/rpc` call. */
+		async function rpcFrom(options: Partial<McpHandlerOptions>, origin: string): Promise<Response> {
+			const handler = createMcpHandler({
 				name: 'test-server',
 				version: '1.0.0',
+				host: '127.0.0.1',
 				commands: createTestCommands(),
-				port: 3204,
-				devMode: true,
-				// cors not specified - should default to true in dev mode
+				...options,
 			});
-			await server.start();
+			const http = createServer(handler);
+			await new Promise<void>((resolve) => http.listen(0, '127.0.0.1', resolve));
+			try {
+				const { port } = http.address() as AddressInfo;
+				return await fetch(`http://127.0.0.1:${port}/rpc`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json', Origin: origin },
+					body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
+				});
+			} finally {
+				handler.dispose();
+				http.closeAllConnections();
+				await new Promise<void>((resolve) => http.close(() => resolve()));
+			}
+		}
 
-			// The CORS headers are set in the HTTP handler, which we can't easily test here
-			// without making actual HTTP requests. This test documents the expected behavior.
-			// Integration tests should verify actual CORS headers.
-
-			await server.stop();
+		it('devMode: true refuses a cross-origin request and sends no CORS header', async () => {
+			for (const devMode of [true, false]) {
+				const response = await rpcFrom({ devMode }, 'https://elsewhere.example');
+				expect(response.status, `devMode ${devMode}`).toBe(403);
+				expect(response.headers.get('access-control-allow-origin')).toBeNull();
+			}
 		});
 
-		it('devMode: false disables CORS by default', async () => {
-			const server = createMcpServer({
-				name: 'test-server',
-				version: '1.0.0',
-				commands: createTestCommands(),
-				port: 3205,
-				devMode: false,
-				// cors not specified - should default to false in production mode
-			});
-			await server.start();
-
-			// CORS should be disabled by default in production
-			// Integration tests should verify no CORS headers are sent
-
-			await server.stop();
+		it('sends no CORS header by default, in devMode too', async () => {
+			for (const devMode of [true, false]) {
+				const response = await rpcFrom(
+					{ devMode, allowedOrigins: ['http://localhost:5173'] },
+					'http://localhost:5173'
+				);
+				expect(response.status).toBe(200);
+				expect(response.headers.get('access-control-allow-origin')).toBeNull();
+			}
 		});
 
-		it('explicit cors: true overrides devMode default', async () => {
-			const server = createMcpServer({
-				name: 'test-server',
-				version: '1.0.0',
-				commands: createTestCommands(),
-				port: 3206,
-				devMode: false,
-				cors: true, // Explicitly enable CORS even in production
-			});
-			await server.start();
-
-			// CORS should be enabled despite production mode
-
-			await server.stop();
+		it('explicit cors: true echoes a listed origin, never *', async () => {
+			const response = await rpcFrom(
+				{ devMode: true, cors: true, allowedOrigins: ['http://localhost:5173'] },
+				'http://localhost:5173'
+			);
+			expect(response.status).toBe(200);
+			expect(response.headers.get('access-control-allow-origin')).toBe('http://localhost:5173');
 		});
 	});
 });

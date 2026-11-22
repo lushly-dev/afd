@@ -214,7 +214,7 @@ describe('HTTP boundaries and lifecycle', () => {
 		expect((await post(url, '/rpc', { method: 'item-get' })).status).toBe(200);
 		expect((await post(url, '/rpc', { method: 'item-get' }, { Origin: url })).status).toBe(200);
 	});
-	it('supports explicit proxy/browser origins and intentional development access', async () => {
+	it('supports explicit proxy/browser origins', async () => {
 		const { url } = await host({
 			cors: true,
 			allowedHosts: ['proxy.example'],
@@ -228,17 +228,98 @@ describe('HTTP boundaries and lifecycle', () => {
 		);
 		expect(response.status).toBe(200);
 		expect(response.headers.get('Access-Control-Allow-Origin')).toBe('https://ui.example');
-		const dev = await host({ devMode: true });
-		expect(
-			(
-				await post(
-					dev.url,
-					'/rpc',
-					{ method: 'item-get' },
-					{ Origin: 'https://development.example' }
-				)
-			).status
-		).toBe(200);
+	});
+	it('keeps Origin checks and CORS in devMode exactly as without it', async () => {
+		const crossOrigin: Record<string, string>[] = [
+			{ Origin: 'https://development.example' },
+			{ Origin: 'http://localhost:5173' },
+			{ Origin: 'null' },
+			{ 'sec-fetch-site': 'cross-site' },
+		];
+		for (const devMode of [false, true]) {
+			const { url } = await host({ devMode });
+			for (const headers of crossOrigin) {
+				const refused = await post(url, '/rpc', { method: 'item-get' }, headers);
+				expect(refused.status, `devMode ${devMode}`).toBe(403);
+				expect(refused.headers.get('Access-Control-Allow-Origin')).toBeNull();
+			}
+			const same = await post(url, '/rpc', { method: 'item-get' }, { Origin: url });
+			expect(same.status).toBe(200);
+			// `cors` does not follow devMode: no CORS header without `cors: true`.
+			expect(same.headers.get('Access-Control-Allow-Origin')).toBeNull();
+		}
+		const listed = await host({
+			devMode: true,
+			cors: true,
+			allowedOrigins: ['http://localhost:5173'],
+		});
+		const allowed = await post(
+			listed.url,
+			'/rpc',
+			{ method: 'item-get' },
+			{ Origin: 'http://localhost:5173' }
+		);
+		expect(allowed.status).toBe(200);
+		expect(allowed.headers.get('Access-Control-Allow-Origin')).toBe('http://localhost:5173');
+		expect(allowed.headers.get('Vary')).toBe('Origin');
+		// A preflight from a listed origin is answered with the echoed origin; from any other
+		// origin, `null` included, it is refused before any CORS header is set.
+		const preflight = (origin: string) =>
+			fetch(`${listed.url}/rpc`, {
+				method: 'OPTIONS',
+				headers: { Origin: origin, 'Access-Control-Request-Method': 'POST' },
+			});
+		const listedPreflight = await preflight('http://localhost:5173');
+		expect(listedPreflight.status).toBe(204);
+		expect(listedPreflight.headers.get('Access-Control-Allow-Origin')).toBe(
+			'http://localhost:5173'
+		);
+		expect(listedPreflight.headers.get('Vary')).toBe('Origin');
+		for (const origin of ['https://development.example', 'null']) {
+			const refused = await preflight(origin);
+			expect(refused.status, origin).toBe(403);
+			expect(refused.headers.get('Access-Control-Allow-Origin')).toBeNull();
+		}
+		const other = await post(
+			listed.url,
+			'/rpc',
+			{ method: 'item-get' },
+			{ Origin: 'https://development.example' }
+		);
+		expect(other.status).toBe(403);
+		expect(other.headers.get('Access-Control-Allow-Origin')).toBeNull();
+	});
+	it('refuses allowedOrigins entries that are not serialized http(s) origins', () => {
+		for (const origin of [
+			'*',
+			'null',
+			'localhost:5173',
+			'http://localhost:5173/',
+			'http://localhost:5173/app',
+			'HTTP://LOCALHOST:5173',
+			'http://localhost:80',
+			'ftp://files.example',
+			'',
+		]) {
+			expect(
+				() =>
+					createMcpHandler({
+						name: 'origins',
+						version: '1',
+						commands: [publicCommand],
+						allowedOrigins: [origin],
+					}),
+				origin
+			).toThrow('allowedOrigins entry');
+		}
+		expect(() =>
+			createMcpHandler({
+				name: 'origins',
+				version: '1',
+				commands: [publicCommand],
+				allowedOrigins: ['http://localhost:5173', 'https://app.example:8443', 'http://[::1]:3000'],
+			})
+		).not.toThrow();
 	});
 	it('bounds fixed and chunked bodies and recovers after malformed input', async () => {
 		const { url } = await host({ maxBodyBytes: 80 });

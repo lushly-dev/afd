@@ -31,6 +31,7 @@ import type { ConfirmationGate } from './confirmations.js';
 import { type ContextField, contextFieldValues } from './context-fields.js';
 import { bindContextState } from './context-scope.js';
 import {
+	assertAllowedOrigins,
 	HttpRequestError,
 	type HttpSecurityOptions,
 	readJsonBody,
@@ -57,6 +58,9 @@ import { bindScopeView } from './scope-view.js';
 import type { CreateRequestContext } from './server-types.js';
 import { resultContent, type ToolCallResult } from './tool-router.js';
 
+/** Seconds a refused `initialize` is told to wait (`Retry-After`) when the session store is full. */
+const SESSION_RETRY_AFTER_S = 60;
+
 /** Routes whose errors are JSON-RPC error objects rather than AFD failures. */
 const JSON_RPC_PATHS = new Set(['/message', '/rpc', '/mcp']);
 
@@ -64,6 +68,8 @@ export interface HttpHandlerDeps extends HttpSecurityOptions {
 	name: string;
 	version: string;
 	port: number;
+	/** Detailed error messages. It changes no Origin check and no CORS header. */
+	devMode: boolean;
 	cors: boolean;
 	getToolsList: (context: CommandContext) => unknown[];
 	routeToolCall: (
@@ -150,6 +156,7 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 	} = deps;
 	const unconfirmed = createHttpConfirmationCheck(confirmations);
 	const metaKeys = metaArgumentKeys(contextFields);
+	assertAllowedOrigins(deps.allowedOrigins);
 	const maxBodyBytes = deps.maxBodyBytes ?? 1024 * 1024;
 	if (!Number.isSafeInteger(maxBodyBytes) || maxBodyBytes <= 0)
 		throw new Error('maxBodyBytes must be a positive integer');
@@ -187,10 +194,21 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 
 	/**
 	 * Who owns the sessions `req` creates and may use: with MCP authorization, its verified
-	 * credentials' issuer, subject and client, so one caller's session is unknown to another.
+	 * credentials' issuer, subject and client, so one caller's session is unknown to another and
+	 * no caller's `initialize` displaces another's session. Without it the transport carries no
+	 * identity: every caller is one owner, and the unguessable session ID is the only binding.
 	 */
 	function sessionOwner(req: IncomingMessage): string | undefined {
 		return auth ? credentialsBinding(auth.credentialsFor(req)) : undefined;
+	}
+
+	/**
+	 * Whose quota a session `req` creates counts against: with MCP authorization, the verified
+	 * issuer and subject, so one subject with many client IDs shares one `maxSessionsPerOwner`.
+	 */
+	function sessionQuotaKey(req: IncomingMessage): string | undefined {
+		const credentials = auth?.credentialsFor(req);
+		return credentials ? JSON.stringify([credentials.issuer, credentials.subject]) : undefined;
 	}
 
 	/**
@@ -340,7 +358,29 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 	async function handleMessage(req: IncomingMessage, res: ServerResponse): Promise<void> {
 		const message = parseJsonRpcMessage(await readJsonBody(req, maxBodyBytes));
 		if (message.method === 'initialize' && !message.notification) {
-			if (sessions) res.setHeader('Mcp-Session-Id', sessions.create(sessionOwner(req)));
+			if (sessions) {
+				const id = sessions.create(sessionOwner(req), sessionQuotaKey(req));
+				if (id === undefined) {
+					// `-32000` with an AFD `data.code`, never `-32002`: that is MCP's deprecated
+					// SERVER_NOT_INITIALIZED, which servers must not emit.
+					res.setHeader('Retry-After', String(SESSION_RETRY_AFTER_S));
+					json(res, 503, {
+						jsonrpc: '2.0',
+						id: message.id,
+						error: {
+							code: JsonRpcErrorCode.SERVER_ERROR,
+							message: 'Too many live MCP sessions',
+							data: {
+								code: 'SESSION_LIMIT_REACHED',
+								suggestion: `Retry after ${SESSION_RETRY_AFTER_S} seconds (Retry-After), when idle sessions have expired, or reuse a session you hold by sending its Mcp-Session-Id`,
+								retryAfter: SESSION_RETRY_AFTER_S,
+							},
+						},
+					});
+					return;
+				}
+				res.setHeader('Mcp-Session-Id', id);
+			}
 			json(
 				res,
 				200,
@@ -484,8 +524,9 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 
 	async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
 		const url = validateHttpRequest(req, deps);
+		// Only an origin `validateHttpRequest` accepted reaches here, and it is echoed, never `*`.
 		if (cors && req.headers.origin) {
-			res.setHeader('Access-Control-Allow-Origin', devMode ? '*' : req.headers.origin);
+			res.setHeader('Access-Control-Allow-Origin', req.headers.origin);
 			res.setHeader('Vary', 'Origin');
 			res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
 			res.setHeader(

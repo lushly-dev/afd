@@ -5,7 +5,7 @@
 import type { McpRequest, McpResponse } from '@lushly-dev/afd-core';
 import { isMcpResponse } from '@lushly-dev/afd-core';
 import { EventSource } from 'eventsource';
-import { HttpStatusError } from './client-errors.js';
+import { HttpStatusError, sessionLimitError } from './client-errors.js';
 import { McpSession } from './mcp-session.js';
 import { StreamableHttpTransport } from './streamable-http-transport.js';
 
@@ -26,12 +26,22 @@ async function readJsonBody(response: Response): Promise<unknown> {
 /**
  * Read a JSON-RPC response. A non-2xx status with a JSON-RPC error body (the AFD server answers
  * parse errors, invalid envelopes, rejected requests and unknown sessions this way) is returned
- * as that error response; any other non-2xx status throws `HttpStatusError`.
+ * as that error response; any other non-2xx status throws `HttpStatusError`. A session-limit
+ * refusal (503, `data.code: 'SESSION_LIMIT_REACHED'`) throws `SessionLimitError`, so `connect()`
+ * rejects with it too.
  */
 async function readRpcResponse(response: Response): Promise<McpResponse> {
 	if (!response.ok) {
 		const body = await readJsonBody(response);
-		if (isMcpResponse(body) && body.error) return body;
+		if (isMcpResponse(body) && body.error) {
+			const limit = sessionLimitError(
+				response.status,
+				response.headers?.get('retry-after'),
+				body.error
+			);
+			if (limit) throw limit;
+			return body;
+		}
 		throw new HttpStatusError(response.status, response.statusText);
 	}
 	const data = await response.json();

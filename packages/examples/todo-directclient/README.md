@@ -113,8 +113,7 @@ The defaults are safe for a developer machine; each one is configurable in `.env
 - **Origin allowlist**: browser requests must come from an exact allowed origin (this server's
   own `localhost` and `127.0.0.1` origins, plus any in `ALLOWED_ORIGINS`). `Origin: null` and `*`
   are always refused, and `Access-Control-Allow-Origin` only ever echoes an allowed origin. This
-  covers `/mcp` too, except with `NODE_ENV=development`, where the main server's dev mode lets
-  any origin call `/mcp`.
+  covers `/mcp` too, with `NODE_ENV=development` as without it.
 - **Host check**: the `Host` header must name this server (`ALLOWED_HOSTS`), which blocks DNS
   rebinding.
 - **Rate limiting** on `/chat` and `/chat/answer`: 30 and 120 a minute per client, keyed on the
