@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import stat
 import tarfile
 import zipfile
 from collections.abc import Callable
@@ -147,24 +148,93 @@ def verify_records(
 
 PACKAGE = "lushly_botcore"
 RECORDS = ("provenance.json", "upstream-selected.json", "staged-input-allowlist.json")
+PACKAGED_RECORDS = frozenset({*RECORDS, "adaptations.json"})
+
+
+def _normalized_parts(name: str) -> list[str]:
+    """Resolve slashes, ``.`` and ``..`` segments to detect crafted paths under the records dir."""
+    parts: list[str] = []
+    for part in name.replace("\\", "/").split("/"):
+        if part in {"", "."}:
+            continue
+        if part == ".." and parts and parts[-1] != "..":
+            parts.pop()
+            continue
+        parts.append(part)
+    return parts
+
+
+def _is_regular_zip_member(info: zipfile.ZipInfo) -> bool:
+    """True for regular zip files (or entries without Unix mode bits), False for dirs/symlinks."""
+    if info.is_dir():
+        return False
+    mode = stat.S_IFMT(info.external_attr >> 16)
+    return mode in {0, stat.S_IFREG}
 
 
 def packaged_records(artifact: Path) -> dict[str, bytes]:
-    """The provenance records a built lushly-botcore wheel or sdist ships."""
+    """The provenance records a built lushly-botcore wheel or sdist ships.
+
+    Refuses any unexpected member under the provenance directory (including case collisions,
+    ``./`` segments, subdirectories or non-regular files) and any duplicate member.
+    """
+    records: dict[str, bytes] = {}
     if artifact.name.endswith(".whl"):
+        prefix = "botcore/provenance/"
         with zipfile.ZipFile(artifact) as archive:
-            prefix = "botcore/provenance/"
-            return {
-                name[len(prefix) :]: archive.read(name)
-                for name in archive.namelist()
-                if name.startswith(prefix) and "/" not in name[len(prefix) :]
-            }
+            for info in archive.infolist():
+                raw_name = info.filename
+                norm = _normalized_parts(raw_name)
+                lower = [part.lower() for part in norm]
+                if lower[:2] != ["botcore", "provenance"]:
+                    continue
+                if len(norm) == 2 and info.is_dir() and raw_name == prefix:
+                    continue
+                record_name = raw_name[len(prefix) :] if raw_name.startswith(prefix) else ""
+                assert (
+                    _is_regular_zip_member(info)
+                    and "\\" not in raw_name
+                    and raw_name.startswith(prefix)
+                    and record_name in PACKAGED_RECORDS
+                ), f"Unexpected provenance archive member: {raw_name}"
+                assert record_name not in records, (
+                    f"Duplicate provenance archive member: {raw_name}"
+                )
+                records[record_name] = archive.read(info)
+        return records
     with tarfile.open(artifact) as archive:
-        records = {}
+        sdist_root: str | None = None
         for member in archive.getmembers():
-            parts = member.name.split("/")
-            if member.isfile() and parts[1:-1] == ["src", "botcore", "provenance"]:
-                records[parts[-1]] = archive.extractfile(member).read()
+            raw_name = member.name
+            norm = _normalized_parts(raw_name)
+            lower = [part.lower() for part in norm]
+            if lower[:3] == ["src", "botcore", "provenance"]:
+                raise AssertionError(f"Unexpected provenance archive member: {raw_name}")
+            if len(lower) < 4 or lower[1:4] != ["src", "botcore", "provenance"]:
+                continue
+            if (
+                len(norm) == 4
+                and member.isdir()
+                and "\\" not in raw_name
+                and raw_name.rstrip("/") == f"{norm[0]}/src/botcore/provenance"
+            ):
+                continue
+            parts = raw_name.split("/")
+            assert (
+                member.isfile()
+                and "\\" not in raw_name
+                and len(parts) == 5
+                and parts[0] not in {"", ".", ".."}
+                and (sdist_root is None or parts[0] == sdist_root)
+                and parts[1:4] == ["src", "botcore", "provenance"]
+                and parts[4] in PACKAGED_RECORDS
+            ), f"Unexpected provenance archive member: {raw_name}"
+            sdist_root = parts[0]
+            record_name = parts[4]
+            assert record_name not in records, f"Duplicate provenance archive member: {raw_name}"
+            extracted = archive.extractfile(member)
+            assert extracted is not None, f"Unreadable provenance archive member: {raw_name}"
+            records[record_name] = extracted.read()
         return records
 
 
@@ -178,10 +248,10 @@ def verify_artifacts(directory: Path) -> list[str]:
     kinds = {path.name.endswith(".whl") for path in built}
     assert kinds == {True, False}, f"Expected a {PACKAGE} wheel and sdist in {directory}"
     for artifact in built:
-        records = packaged_records(artifact)
-        missing = sorted({*RECORDS, "adaptations.json"} - set(records))
-        assert not missing, f"{artifact.name} lacks provenance records: {missing}"
         try:
+            records = packaged_records(artifact)
+            missing = sorted(PACKAGED_RECORDS - set(records))
+            assert not missing, f"lacks provenance records: {missing}"
             verify_records(records.__getitem__, packaged=True)
         except AssertionError as error:
             raise AssertionError(f"{artifact.name}: {error}") from error

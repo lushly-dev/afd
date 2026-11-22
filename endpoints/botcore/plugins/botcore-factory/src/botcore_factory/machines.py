@@ -15,7 +15,6 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from botcore_factory import records
 from botcore_factory.cells import seated
 from botcore_factory.claims import format_time, parse_time
 from botcore_factory.intake import read_backlog
@@ -152,7 +151,6 @@ def _recover(factory: Factory, state: dict) -> dict:
     """Rebuild the queue from origin's queue refs and the cells from GitHub's claims."""
     refs = factory.world.git.queue_refs()
     backlog = read_backlog(factory)
-    history = factory.store.read_records()
     by_branch: dict[str, dict] = {}
     for number, claim in sorted(backlog.claims.items()):
         if claim is None:
@@ -178,7 +176,7 @@ def _recover(factory: Factory, state: dict) -> dict:
                 "branch": branch,
                 "head": ref["head"],
                 "state": "queued",
-                "attempt": records.next_attempt(history, branch),
+                "attempt": factory.store.next_attempt(branch),
                 "issues": by_branch.get(branch, {}).get("issues", []),
             }
         )

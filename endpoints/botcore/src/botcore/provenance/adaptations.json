@@ -1346,10 +1346,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "24a50771b880cf0cad82dd81945a1300dee7f7c365ca02263b0e6b53769cf399",
+      "current_import_sha256": "03da64005a1ea09cf3af66fd6d763f44f73137e60d976be8d19dbb857464e010",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633); Add shared host validation lock (botcore_factory.validation_lock) and coverage stop/resume handling for #1309 (Phase A: AFD)"
+      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633); Add shared host validation lock (botcore_factory.validation_lock) and coverage stop/resume handling for #1309 (Phase A: AFD); Fix botcore bug batch: factory state durability (#1796), teams missing-command errors (#1797), provenance archive member hardening (#1671), and ignored-only tier-2 disk classification (#1933)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/claims.py",
@@ -1390,10 +1390,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "5d44d73c8f8500e648e5d2ce6d9e506b5f7dfb322e9def46b8e80ffb44a98b4d",
+      "current_import_sha256": "48fe52b742f2f964f2bc0cd06c12c3a82aee9778b6a606baa71d783a9a97dd39",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498); Eject a branch that deletes .nvmrc as node-missing (lushly-dev/afd#1505); Eject a branch that deletes or blanks .nvmrc as node-missing (lushly-dev/afd#1505); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); lane-enqueue names the install command on PREQUEUE_FAILED (#1594); Skip resolved events when delivering a lane wake (#1608); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633); Disk hygiene prevention: idle-worktree warning, Cargo arrangement check, Factory slots managed (#1695); The lane folds each branch it validates into one commit (lushly-dev/afd#1809); The texts assume the merge queue rebases (lushly-dev/afd#1809, step 3); Emit provenance-rerecorded record (schema 4), count it in lane-report, and include Health in regenerate paths (lushly-dev/afd#1472); Add shared host validation lock (botcore_factory.validation_lock) and coverage stop/resume handling for #1309 (Phase A: AFD)"
+      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498); Eject a branch that deletes .nvmrc as node-missing (lushly-dev/afd#1505); Eject a branch that deletes or blanks .nvmrc as node-missing (lushly-dev/afd#1505); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); lane-enqueue names the install command on PREQUEUE_FAILED (#1594); Skip resolved events when delivering a lane wake (#1608); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633); Disk hygiene prevention: idle-worktree warning, Cargo arrangement check, Factory slots managed (#1695); The lane folds each branch it validates into one commit (lushly-dev/afd#1809); The texts assume the merge queue rebases (lushly-dev/afd#1809, step 3); Emit provenance-rerecorded record (schema 4), count it in lane-report, and include Health in regenerate paths (lushly-dev/afd#1472); Add shared host validation lock (botcore_factory.validation_lock) and coverage stop/resume handling for #1309 (Phase A: AFD); Fix botcore bug batch: factory state durability (#1796), teams missing-command errors (#1797), provenance archive member hardening (#1671), and ignored-only tier-2 disk classification (#1933)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/events.py",
@@ -1599,10 +1599,32 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "31ee950bd0dd79bb927b00518f7b8444988c7ac0c40a3e0aec32a4d21fbb06b6",
+      "current_import_sha256": "25b1249c4f1cdb1e8dcdd356218f32d2af75c2b89f0a08ef79a95bf9528a69d8",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Add shared host validation lock (botcore_factory.validation_lock) and coverage stop/resume handling for #1309 (Phase A: AFD)"
+      "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Add shared host validation lock (botcore_factory.validation_lock) and coverage stop/resume handling for #1309 (Phase A: AFD); Fix botcore bug batch: factory state durability (#1796), teams missing-command errors (#1797), provenance archive member hardening (#1671), and ignored-only tier-2 disk classification (#1933)"
+    },
+    {
+      "path": "plugins/botcore-factory/src/botcore_factory/lock.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "a27a12a726efa13e687b2d89d2a2b8e09ad4148001f9393f23fe274e5b5ae220",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Fix botcore bug batch: factory state durability (#1796), teams missing-command errors (#1797), provenance archive member hardening (#1671), and ignored-only tier-2 disk classification (#1933)"
+    },
+    {
+      "path": "plugins/botcore-factory/src/botcore_factory/machines.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "dbce13e53951ed7ec0550e271a8c0818a519f489c6ff0ba6485d891347fb10b2",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Fix botcore bug batch: factory state durability (#1796), teams missing-command errors (#1797), provenance archive member hardening (#1671), and ignored-only tier-2 disk classification (#1933)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/queue.py",
@@ -1610,10 +1632,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "63e1c765cbc56165c8f5263864d19e3fb17837c6b2821cc8f4742219c1923900",
+      "current_import_sha256": "1c71518402f9b667e41b054bf4d130b1064862a36ea5713723f2c87e8ca6f746",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); lane-enqueue names the install command on PREQUEUE_FAILED (#1594)"
+      "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); lane-enqueue names the install command on PREQUEUE_FAILED (#1594); Fix botcore bug batch: factory state durability (#1796), teams missing-command errors (#1797), provenance archive member hardening (#1671), and ignored-only tier-2 disk classification (#1933)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/real_run.py",
@@ -1665,10 +1687,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "8e13cd77fc29bc0ad0a2f80f5ffedbc465d87ff6e6f19d1568f28df73bfe2edc",
+      "current_import_sha256": "f03f170d8dd3b5b8d2d78bb6f050354b6827cf91b6225b125b4b6684c088614a",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Emit provenance-rerecorded record (schema 4), count it in lane-report, and include Health in regenerate paths (lushly-dev/afd#1472)"
+      "import_reason": "Emit provenance-rerecorded record (schema 4), count it in lane-report, and include Health in regenerate paths (lushly-dev/afd#1472); Fix botcore bug batch: factory state durability (#1796), teams missing-command errors (#1797), provenance archive member hardening (#1671), and ignored-only tier-2 disk classification (#1933)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/squash.py",
@@ -1680,6 +1702,17 @@
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Give every Factory squash merge the branch's own messages as its body, so GitHub credits no co-author; send stdin as bytes (lushly-dev/afd#1515); The lane folds each branch it validates into one commit (lushly-dev/afd#1809)"
+    },
+    {
+      "path": "plugins/botcore-factory/src/botcore_factory/state.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "6732a924224bd3ccb82bfe1fa132e09a338f56d8deee3bb78972fe43add3db2d",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Fix botcore bug batch: factory state durability (#1796), teams missing-command errors (#1797), provenance archive member hardening (#1671), and ignored-only tier-2 disk classification (#1933)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/status.py",
@@ -1913,6 +1946,17 @@
       "import_reason": "Give every Factory squash merge the branch's own messages as its body, so GitHub credits no co-author; send stdin as bytes (lushly-dev/afd#1515); The lane folds each branch it validates into one commit (lushly-dev/afd#1809)"
     },
     {
+      "path": "plugins/botcore-factory/tests/test_state.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "c798347614a54568b258e9036007fb200950bfd39619efe867a0daa5bea3e2f2",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Fix botcore bug batch: factory state durability (#1796), teams missing-command errors (#1797), provenance archive member hardening (#1671), and ignored-only tier-2 disk classification (#1933)"
+    },
+    {
       "path": "plugins/botcore-factory/tests/test_validation_lock.py",
       "origin": "local-after-import",
       "upstream_sha256": null,
@@ -1987,11 +2031,11 @@
       "path": "plugins/botcore-teams/src/botcore_teams/commands.py",
       "upstream_sha256": "1465b12dce904f15efbe19c0d69cc5f1e1649fc97c9e50e99be477d38e9f4467",
       "staged_sha256": "1465b12dce904f15efbe19c0d69cc5f1e1649fc97c9e50e99be477d38e9f4467",
-      "current_import_sha256": "1465b12dce904f15efbe19c0d69cc5f1e1649fc97c9e50e99be477d38e9f4467",
+      "current_import_sha256": "94bd967998a6b449a989027b81bd0bb620230c7abce7383d4b8262831293dc52",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Fix botcore bug batch: factory state durability (#1796), teams missing-command errors (#1797), provenance archive member hardening (#1671), and ignored-only tier-2 disk classification (#1933)"
     },
     {
       "path": "plugins/botcore-teams/src/botcore_teams/config.py",
@@ -2097,11 +2141,11 @@
       "path": "plugins/botcore-teams/tests/test_commands.py",
       "upstream_sha256": "92951fa373406fd3fbdee8752a67a5e5ed23c5c188038b764eb3550ad2982262",
       "staged_sha256": "92951fa373406fd3fbdee8752a67a5e5ed23c5c188038b764eb3550ad2982262",
-      "current_import_sha256": "92951fa373406fd3fbdee8752a67a5e5ed23c5c188038b764eb3550ad2982262",
+      "current_import_sha256": "dccf452e3989f639b241b2646f80d3d65fe767dee9965a1ca1d5d95f7186239a",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Fix botcore bug batch: factory state durability (#1796), teams missing-command errors (#1797), provenance archive member hardening (#1671), and ignored-only tier-2 disk classification (#1933)"
     },
     {
       "path": "plugins/botcore-teams/tests/test_intent.py",
@@ -2168,11 +2212,11 @@
       "path": "scripts/verify_provenance.py",
       "upstream_sha256": null,
       "staged_sha256": null,
-      "current_import_sha256": "7ed3a19e5f70c237b7586fb1e845689109a83f6f545e99204313646fc61bbce3",
+      "current_import_sha256": "fe8904c4960bb23b84ad0b510d291f6d1c664da5fe1b49e2a5cb0ead216a8778",
       "stage_classification": "not-in-staging",
       "stage_reason": "Not selected in the frozen staged-input payload",
       "import_classification": "added-after-staging",
-      "import_reason": "Pin immutable digests and verify classifications/current hashes and publication state; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Stamp the adaptations digest into the wheel and sdist at build, not in the repository (lushly-dev/afd#1610); Repair a committed adaptations digest on refresh; refuse python -O; check each record's canonical manifest (lushly-dev/afd#1610)"
+      "import_reason": "Pin immutable digests and verify classifications/current hashes and publication state; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Stamp the adaptations digest into the wheel and sdist at build, not in the repository (lushly-dev/afd#1610); Repair a committed adaptations digest on refresh; refuse python -O; check each record's canonical manifest (lushly-dev/afd#1610); Fix botcore bug batch: factory state durability (#1796), teams missing-command errors (#1797), provenance archive member hardening (#1671), and ignored-only tier-2 disk classification (#1933)"
     },
     {
       "path": "src/botcore/__init__.py",
@@ -2479,10 +2523,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "f4bd552471cf5797353954dfa2ac99edf20690999a8a58f2c0d5fc881b2f475c",
+      "current_import_sha256": "8e7f19302f14e172c014aaf22cac554fb41d405636164d54081a7b9b9d0df4fc",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); disk tier 2 first-review fixes: hidden edits, private state, pins, T3 and volume checks (lushly-dev/afd#1694); disk tier 2 verification fixes (lushly-dev/afd#1694); disk tier 2: --cc merge paths, rev-list stdin (lushly-dev/afd#1694); The hourly job always ends and says what it waited for (#1902, #1903)"
+      "import_reason": "disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); disk tier 2 first-review fixes: hidden edits, private state, pins, T3 and volume checks (lushly-dev/afd#1694); disk tier 2 verification fixes (lushly-dev/afd#1694); disk tier 2: --cc merge paths, rev-list stdin (lushly-dev/afd#1694); The hourly job always ends and says what it waited for (#1902, #1903); Fix botcore bug batch: factory state durability (#1796), teams missing-command errors (#1797), provenance archive member hardening (#1671), and ignored-only tier-2 disk classification (#1933)"
     },
     {
       "path": "src/botcore/commands/disk/git.py",
@@ -2622,10 +2666,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "f8e25c575f2b575a547a8649f68c2bc8aabf96c331e47edabf65515198805fb6",
+      "current_import_sha256": "3ec27985f7f4dd5e56cdc2227e664c8a8726b19bd132f437e5c4cf089923fd00",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688)"
+      "import_reason": "disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); Fix botcore bug batch: factory state durability (#1796), teams missing-command errors (#1797), provenance archive member hardening (#1671), and ignored-only tier-2 disk classification (#1933)"
     },
     {
       "path": "src/botcore/commands/docs.py",
@@ -6384,10 +6428,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "3008469a3bb88e1e718312c8a8fe528f7531c13b62ca5288bff6f897b2d8e944",
+      "current_import_sha256": "8759bd1b33bf63ad8c838c51c6469ce317b853be4737d21de887b5a2cfc77ba8",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); Disk hygiene prevention: idle-worktree warning, Cargo arrangement check, Factory slots managed (#1695); git gc no longer makes every worktree look active (#1814); git gc no longer makes every worktree look active (#1814): review fixes"
+      "import_reason": "disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); Disk hygiene prevention: idle-worktree warning, Cargo arrangement check, Factory slots managed (#1695); git gc no longer makes every worktree look active (#1814); git gc no longer makes every worktree look active (#1814): review fixes; Fix botcore bug batch: factory state durability (#1796), teams missing-command errors (#1797), provenance archive member hardening (#1671), and ignored-only tier-2 disk classification (#1933)"
     },
     {
       "path": "tests/test_disk_safety.py",
@@ -6417,10 +6461,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "eda22b63bdba69c44960eebf4bd88e096d8c74244855ad8971bdb57c026a7819",
+      "current_import_sha256": "d70f65541d365ba96106234392d638f9597bfc75fd156cf650c3e5356871dc98",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); disk tier 2 first-review fixes: hidden edits, private state, pins, T3 and volume checks (lushly-dev/afd#1694); disk tier 2 verification fixes (lushly-dev/afd#1694); disk tier 2: --cc merge paths, rev-list stdin (lushly-dev/afd#1694)"
+      "import_reason": "disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); disk tier 2 first-review fixes: hidden edits, private state, pins, T3 and volume checks (lushly-dev/afd#1694); disk tier 2 verification fixes (lushly-dev/afd#1694); disk tier 2: --cc merge paths, rev-list stdin (lushly-dev/afd#1694); Fix botcore bug batch: factory state durability (#1796), teams missing-command errors (#1797), provenance archive member hardening (#1671), and ignored-only tier-2 disk classification (#1933)"
     },
     {
       "path": "tests/test_docs.py",
@@ -6547,11 +6591,11 @@
       "path": "tests/test_provenance.py",
       "upstream_sha256": null,
       "staged_sha256": null,
-      "current_import_sha256": "ac0f74472cdb95d877f1e770fd9d31c1bc783264766bfa6649419cd311e99a1d",
+      "current_import_sha256": "5c5c82cecff5791cf85a18561c5d7a80d0a2ce44ed120abb1ed7949af1db7272",
       "stage_classification": "not-in-staging",
       "stage_reason": "Not selected in the frozen staged-input payload",
       "import_classification": "added-after-staging",
-      "import_reason": "Reject rehashed false provenance and incorrect change classifications; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Stamp the adaptations digest into the wheel and sdist at build, not in the repository (lushly-dev/afd#1610); Repair a committed adaptations digest on refresh; refuse python -O; check each record's canonical manifest (lushly-dev/afd#1610)"
+      "import_reason": "Reject rehashed false provenance and incorrect change classifications; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Stamp the adaptations digest into the wheel and sdist at build, not in the repository (lushly-dev/afd#1610); Repair a committed adaptations digest on refresh; refuse python -O; check each record's canonical manifest (lushly-dev/afd#1610); Fix botcore bug batch: factory state durability (#1796), teams missing-command errors (#1797), provenance archive member hardening (#1671), and ignored-only tier-2 disk classification (#1933)"
     },
     {
       "path": "tests/test_registry.py",

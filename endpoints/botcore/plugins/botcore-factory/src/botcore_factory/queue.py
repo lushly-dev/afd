@@ -109,7 +109,7 @@ def _check_review(factory: Factory, worktree: str, head: str) -> None:
 
 def _check_gate(factory: Factory, worktree: str, branch: str, cell: dict, state: dict) -> None:
     """A branch ejected for a failing check may not come back with new gate-path edits."""
-    ejection = records.last_ejection(factory.store.read_records(), branch)
+    ejection = factory.store.last_ejection(branch)
     cause = ejection.get("cause") if ejection else None
     if ejection is None:
         events = [e for e in state["events"] if e.get("type") == "ejected"]
@@ -279,8 +279,8 @@ def enqueue(factory: Factory, worktree: str, title: str | None, body_file: str |
                 "Nothing was queued. Check the network and origin, then lane-enqueue again",
             ) from exc
         now = format_time(factory.world.clock.now())
-        history = factory.store.read_records()
-        attempt = records.next_attempt(history, branch)
+        attempt = factory.store.next_attempt(branch)
+        first_enqueued_at = factory.store.first_enqueued(branch) or now
         repaired = cell.get("state") == "ejected"
         title = title or cell.get("title")
         body_file = body_file or cell.get("bodyFile")
@@ -308,7 +308,7 @@ def enqueue(factory: Factory, worktree: str, title: str | None, body_file: str |
             route=cell.get("route"),
             profile=profile,
             state=placed,
-            firstEnqueuedAt=records.first_enqueued(history, branch) or now,
+            firstEnqueuedAt=first_enqueued_at,
             position=position,
             holdReason="queue-full" if placed == "held" else None,
             repair=repaired,

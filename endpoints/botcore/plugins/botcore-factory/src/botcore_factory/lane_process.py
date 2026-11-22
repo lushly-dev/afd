@@ -31,7 +31,6 @@ from botcore_factory.lane import Step, step
 from botcore_factory.lane_base import AT_THE_FRONT
 from botcore_factory.lock import HostLock, LaneLocked
 from botcore_factory.records import make
-from botcore_factory.report import summarize
 from botcore_factory.runtime import Factory, Refusal
 from botcore_factory.state import StateLocked
 from botcore_factory.world import LANE_HOST_VARIABLE, WorldError, nvmrc_version
@@ -172,8 +171,12 @@ def require_toolchains(factory: Factory, then: str) -> None:
 
 
 def new_run(state: dict, at: str) -> str:
-    numbers = [int(m[1]) for r in state["runs"] if (m := re.fullmatch(r"run-(\d+)", r["id"]))]
-    run_id = f"run-{max(numbers, default=0) + 1}"
+    numbers = [
+        int(m[1]) for r in state["runs"] if (m := re.fullmatch(r"run-(\d+)", str(r.get("id"))))
+    ]
+    number = max([state.get("runSeq", 0), *numbers]) + 1
+    state["runSeq"] = number
+    run_id = f"run-{number}"
     state["runs"].append({"id": run_id, "startedAt": at})
     return run_id
 
@@ -265,8 +268,10 @@ def _end_run(factory: Factory, state: dict, reason: str, *, kill: bool, pid: int
         factory.store.append_record(make("run-stopped", at, run_id, reason=reason))
         run = next((r for r in state["runs"] if r.get("id") == run_id), None)
         if run is not None:
-            history = factory.store.read_records()
-            run.update(summarize(history, run_id, run.get("startedAt"), at), stoppedAt=at)
+            run.update(
+                factory.store.summarize_run(run_id, run.get("startedAt"), at),
+                stoppedAt=at,
+            )
     lane.pop("waitingOnHostLock", None)
     lane.update(running=False, pid=None, stopRequested=None)
     if pid is not None:

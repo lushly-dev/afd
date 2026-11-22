@@ -21,6 +21,7 @@ from __future__ import annotations
 import filecmp
 import json
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -29,7 +30,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from botcore.commands.disk.git import GitError, git_out, path_key
-from botcore.commands.disk.scan import compile_pattern
+from botcore.commands.disk.scan import compile_pattern, is_link
 from botcore.commands.disk.steps import command, doing, each
 from botcore.config import DiskConfig
 
@@ -59,15 +60,33 @@ class Finished:
 
 
 def _on_a_ref(worktree: Path, head: str, timeout: float) -> bool:
-    out = git_out(worktree, "for-each-ref", "--count=1", "--contains", head,
-                  "refs/heads", "refs/remotes", "refs/tags", timeout=timeout)
+    out = git_out(
+        worktree,
+        "for-each-ref",
+        "--count=1",
+        "--contains",
+        head,
+        "refs/heads",
+        "refs/remotes",
+        "refs/tags",
+        timeout=timeout,
+    )
     return bool(out.strip())
 
 
 def _hidden_changes(worktree: Path, timeout: float) -> str | None:
     """A tracked file edited behind `skip-worktree` or `assume-unchanged`, or None."""
-    sparse = git_out(worktree, "config", "--type=bool", "--default=false",
-                     "core.sparseCheckout", timeout=timeout).strip() == "true"
+    sparse = (
+        git_out(
+            worktree,
+            "config",
+            "--type=bool",
+            "--default=false",
+            "core.sparseCheckout",
+            timeout=timeout,
+        ).strip()
+        == "true"
+    )
     out = git_out(worktree, "ls-files", "-s", "-v", "-z", timeout=timeout)
     flagged: list[tuple[str, str, str]] = []  # (tag, object id, path)
     for record in out.split("\0"):
@@ -97,8 +116,13 @@ def _hidden_changes(worktree: Path, timeout: float) -> str | None:
         on_disk.append((oid, path))
     if not on_disk:
         return None
-    hashes = git_out(worktree, "hash-object", "--stdin-paths",
-                     stdin="\n".join(p for _, p in on_disk) + "\n", timeout=timeout).split()
+    hashes = git_out(
+        worktree,
+        "hash-object",
+        "--stdin-paths",
+        stdin="\n".join(p for _, p in on_disk) + "\n",
+        timeout=timeout,
+    ).split()
     for (oid, path), now in zip(on_disk, hashes, strict=False):
         if now != oid:
             return f"a tracked file edited behind skip-worktree or assume-unchanged: {path}"
@@ -111,16 +135,24 @@ def _private_state(worktree: Path, admin: Path | None, timeout: float) -> str | 
     """Per-worktree git state removal would delete and restore could not bring back."""
     if admin is None:
         return "git's record of the worktree is unknown"
-    refs = git_out(worktree, "for-each-ref", "--format=%(refname)", "refs/worktree",
-                   "refs/bisect", timeout=timeout).split()
+    refs = git_out(
+        worktree,
+        "for-each-ref",
+        "--format=%(refname)",
+        "refs/worktree",
+        "refs/bisect",
+        timeout=timeout,
+    ).split()
     if refs:
         return f"per-worktree refs: {refs[0]}"
     try:
         reflog_only_commits(worktree, timeout)
     except ReflogTooLong as exc:
         return f"{exc}, more than removal pins"
-    for name, what in (("config.worktree", "its own git config"),
-                       ("info/sparse-checkout", "its own sparse-checkout rules")):
+    for name, what in (
+        ("config.worktree", "its own git config"),
+        ("info/sparse-checkout", "its own sparse-checkout rules"),
+    ):
         try:
             if (admin / name).stat().st_size > 0:
                 return what
@@ -151,8 +183,17 @@ def reflog_only_commits(worktree: Path, timeout: float, limit: int | None = None
     if not logged:
         return []
     wanted = list(dict.fromkeys(logged))
-    out = git_out(worktree, "rev-list", "--stdin", "--not", "--branches", "--remotes", "--tags",
-                  stdin="\n".join(wanted) + "\n", timeout=timeout)
+    out = git_out(
+        worktree,
+        "rev-list",
+        "--stdin",
+        "--not",
+        "--branches",
+        "--remotes",
+        "--tags",
+        stdin="\n".join(wanted) + "\n",
+        timeout=timeout,
+    )
     unreachable = set(out.split())
     tips = [commit for commit in wanted if commit in unreachable]
     if len(tips) > limit:
@@ -164,8 +205,16 @@ def reflog_only_commits(worktree: Path, timeout: float, limit: int | None = None
 
 
 def _ignored_paths(worktree: Path, timeout: float) -> list[str]:
-    out = git_out(worktree, "ls-files", "--others", "--ignored", "--exclude-standard",
-                  "--directory", "-z", timeout=timeout)
+    out = git_out(
+        worktree,
+        "ls-files",
+        "--others",
+        "--ignored",
+        "--exclude-standard",
+        "--directory",
+        "-z",
+        timeout=timeout,
+    )
     return [entry for entry in out.split("\0") if entry]
 
 
@@ -202,71 +251,233 @@ def _unchanged_copy(rel: str, worktree: Path, main: Path) -> bool:
         return False
 
 
-def _inside_rebuildable(
-    folder: Path, rel: str, worktree: Path, main: Path, config: DiskConfig,
-    checkouts: list[str], deadline: float,
+def _is_path_link(path: Path) -> bool:
+    """True for symlinks, Windows reparse points (junctions), or unreadable paths."""
+    try:
+        info = path.lstat()
+    except OSError:
+        return True
+    if stat.S_ISLNK(info.st_mode):
+        return True
+    if os.name == "nt":
+        attrs = getattr(info, "st_file_attributes", 0)
+        return bool(attrs & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400))
+    return False
+
+
+def _matches_any(rel: str, patterns: list[re.Pattern[str]]) -> bool:
+    parts = rel.rstrip("/").split("/")
+    prefixes = ["/".join(parts[: i + 1]) for i in range(len(parts))]
+    return any(p.match(prefix) for p in patterns for prefix in prefixes)
+
+
+def _inside_rebuildable(  # noqa: C901, PLR0912, PLR0913
+    folder: Path,
+    rel: str,
+    worktree: Path,
+    main: Path,
+    config: DiskConfig,
+    checkouts: list[str],
+    deadline: float,
+    copy_patterns: list[re.Pattern[str]] | None = None,
+    budget: list[int] | None = None,
 ) -> str | None:
     """What a rebuildable folder hides that removal would lose: a checkout or a changed copy."""
+    if _is_path_link(folder):
+        return f"an ignored file that may be unique: {rel}"
     root_key = path_key(folder).rstrip(os.sep) + os.sep
     for other in checkouts:
         if other.startswith(root_key):
             return f"a registered checkout inside {rel}"
-    seen = 0
+    copies = [compile_pattern(c) for c in config.copies] if copy_patterns is None else copy_patterns
+    seen = [0] if budget is None else budget
     stack = [(folder, rel.rstrip("/"))]
     while stack:
         current, here = stack.pop()
-        if time.monotonic() > deadline or seen > WALK_ENTRIES:
+        if time.monotonic() > deadline or seen[0] >= WALK_ENTRIES:
             return f"{rel} is too large to check in time"
         doing("reading", current)
         try:
-            entries = list(each("reading", current, os.scandir(current)))
+            it = os.scandir(current)
         except OSError:
             return f"{here} cannot be read"
-        seen += len(entries)
-        names = {e.name for e in entries}
-        if ".git" in names:
-            return f"a git checkout inside {here}"
-        if "CACHEDIR.TAG" in names:
+        pending_dirs: list[tuple[Path, str]] = []
+        pending_files: list[str] = []
+        cachedir = False
+        with it:
+            try:
+                for entry in each("reading", current, it):
+                    seen[0] += 1
+                    if seen[0] > WALK_ENTRIES or time.monotonic() > deadline:
+                        return f"{rel} is too large to check in time"
+                    if entry.name == ".git":
+                        return f"a git checkout inside {here}"
+                    if entry.name == "CACHEDIR.TAG":
+                        cachedir = True
+                        continue
+                    if is_link(entry):
+                        continue
+                    child = f"{here}/{entry.name}"
+                    if entry.is_dir(follow_symlinks=False):
+                        if entry.name not in OPAQUE:
+                            pending_dirs.append((Path(entry.path), child))
+                    else:
+                        pending_files.append(child)
+            except OSError:
+                return f"{here} cannot be read"
+        if cachedir:
             continue  # a Cargo target: build output only
-        for entry in entries:
-            child = f"{here}/{entry.name}"
-            doing("reading", current)
-            if entry.is_symlink():
-                continue
-            if entry.is_dir(follow_symlinks=False):
-                if entry.name not in OPAQUE:
-                    stack.append((Path(entry.path), child))
-            elif _is_copy(child, config) and not _unchanged_copy(child, worktree, main):
+        for child in pending_files:
+            if any(p.match(child) for p in copies) and not _unchanged_copy(child, worktree, main):
                 return f"a changed declared copy: {child}"
+        stack.extend(pending_dirs)
+    return None
+
+
+def _inside_collapsed_ignored(  # noqa: PLR0911, PLR0912, PLR0913, C901
+    folder: Path,
+    rel: str,
+    worktree: Path,
+    main: Path,
+    config: DiskConfig,
+    checkouts: list[str],
+    deadline: float,
+    checked_rebuildable: set[str],
+    rebuild_patterns: list[re.Pattern[str]],
+    copy_patterns: list[re.Pattern[str]],
+) -> str | None:
+    """Judge a collapsed ignored folder whose own path matches no [disk] pattern.
+
+    Git reports a directory containing only ignored entries as a single ``dir/`` entry. Walk it
+    boundedly and accept it only when every child is covered by a rebuildable pattern (with its
+    own safety checks) or is an unchanged declared copy.
+    """
+    if _is_path_link(folder):
+        return f"an ignored file that may be unique: {rel}"
+    root_key = path_key(folder).rstrip(os.sep) + os.sep
+    for other in checkouts:
+        if other.startswith(root_key):
+            return f"a registered checkout inside {rel}"
+    seen = [0]
+    stack = [(folder, rel.rstrip("/"))]
+    while stack:
+        current, here = stack.pop()
+        if time.monotonic() > deadline or seen[0] >= WALK_ENTRIES:
+            return f"{rel} is too large to check in time"
+        doing("reading", current)
+        try:
+            it = os.scandir(current)
+        except OSError:
+            return f"{here} cannot be read"
+        empty = True
+        with it:
+            try:
+                for entry in each("reading", current, it):
+                    empty = False
+                    seen[0] += 1
+                    if seen[0] > WALK_ENTRIES or time.monotonic() > deadline:
+                        return f"{rel} is too large to check in time"
+                    if entry.name == ".git":
+                        return f"a git checkout inside {here}"
+                    child = f"{here}/{entry.name}"
+                    if is_link(entry):
+                        return f"an ignored file that may be unique: {child}"
+                    if entry.is_dir(follow_symlinks=False):
+                        if _matches_any(child, rebuild_patterns):
+                            if child not in checked_rebuildable:
+                                checked_rebuildable.add(child)
+                                hidden = _inside_rebuildable(
+                                    Path(entry.path),
+                                    f"{child}/",
+                                    worktree,
+                                    main,
+                                    config,
+                                    checkouts,
+                                    deadline,
+                                    copy_patterns=copy_patterns,
+                                    budget=seen,
+                                )
+                                if hidden:
+                                    return hidden
+                            continue
+                        stack.append((Path(entry.path), child))
+                    elif any(p.match(child) for p in copy_patterns):
+                        if not _unchanged_copy(child, worktree, main):
+                            return f"a changed declared copy: {child}"
+                    elif not _matches_any(child, rebuild_patterns):
+                        return f"an ignored file that may be unique: {child}"
+            except OSError:
+                return f"{here} cannot be read"
+        if empty:
+            return f"an ignored file that may be unique: {here}/"
     return None
 
 
 def _ignored_reason(
-    worktree: Path, main: Path, config: DiskConfig, checkouts: list[str], timeout: float,
+    worktree: Path,
+    main: Path,
+    config: DiskConfig,
+    checkouts: list[str],
+    timeout: float,
 ) -> str | None:
     ignored = _ignored_paths(worktree, timeout)
     if len(ignored) > MAX_IGNORED:
         return "too many ignored paths to check"
     deadline = time.monotonic() + WALK_SECONDS
+    rebuild_patterns = [compile_pattern(e.path) for e in config.entries()]
+    copy_patterns = [compile_pattern(c) for c in config.copies]
+    checked_rebuildable: set[str] = set()
     for rel in ignored:
         name = rel.rstrip("/")
-        if _is_copy(name, config) and not rel.endswith("/"):
+        if any(p.match(name) for p in copy_patterns) and not rel.endswith("/"):
             if _unchanged_copy(name, worktree, main):
                 continue
             return f"a changed declared copy: {name}"
-        if not _rebuildable(rel, config):
+        if not _matches_any(rel, rebuild_patterns):
+            if rel.endswith("/"):
+                reason = _inside_collapsed_ignored(
+                    worktree / name,
+                    rel,
+                    worktree,
+                    main,
+                    config,
+                    checkouts,
+                    deadline,
+                    checked_rebuildable,
+                    rebuild_patterns,
+                    copy_patterns,
+                )
+                if reason:
+                    return reason
+                continue
             return f"an ignored file that may be unique: {rel}"
-        if rel.endswith("/"):
-            hidden = _inside_rebuildable(worktree / name, rel, worktree, main, config,
-                                         checkouts, deadline)
+        if rel.endswith("/") and name not in checked_rebuildable:
+            checked_rebuildable.add(name)
+            hidden = _inside_rebuildable(
+                worktree / name,
+                rel,
+                worktree,
+                main,
+                config,
+                checkouts,
+                deadline,
+                copy_patterns=copy_patterns,
+            )
             if hidden:
                 return hidden
     return None
 
 
 def unique_reasons(  # noqa: PLR0913 - every fact is one more way to lose work
-    worktree: Path, main: Path, admin: Path | None, head: str | None, changed: list[str],
-    operation: str | None, config: DiskConfig, timeout: float, checkouts: list[str] | None = None,
+    worktree: Path,
+    main: Path,
+    admin: Path | None,
+    head: str | None,
+    changed: list[str],
+    operation: str | None,
+    config: DiskConfig,
+    timeout: float,
+    checkouts: list[str] | None = None,
 ) -> list[str]:
     """Why removing this worktree could lose something; empty when nothing would be lost."""
     reasons = []
@@ -308,9 +519,24 @@ def _merged_pr(worktree: Path, branch: str | None, head: str) -> bool:
     try:
         with command("asking gh about", worktree, allow=30):
             done = subprocess.run(
-                [gh, "pr", "list", "--state", "merged", "--head", branch, "--limit", "20",
-                 "--json", "headRefOid"],
-                cwd=worktree, capture_output=True, text=True, timeout=30, check=False,
+                [
+                    gh,
+                    "pr",
+                    "list",
+                    "--state",
+                    "merged",
+                    "--head",
+                    branch,
+                    "--limit",
+                    "20",
+                    "--json",
+                    "headRefOid",
+                ],
+                cwd=worktree,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
                 env={**os.environ, "GH_PROMPT_DISABLED": "1"},
             )
         pulls = json.loads(done.stdout) if done.returncode == 0 else []
@@ -320,15 +546,24 @@ def _merged_pr(worktree: Path, branch: str | None, head: str) -> bool:
 
 
 def landed_how(
-    worktree: Path, head: str | None, landing_ref: str, timeout: float,
+    worktree: Path,
+    head: str | None,
+    landing_ref: str,
+    timeout: float,
     branch: str | None = None,
 ) -> str | None:
     """How the worktree's work reached the landing ref, or None when it has not (or unclear)."""
     if not head:
         return None
     try:
-        git_out(worktree, "rev-parse", "--verify", "--quiet", f"{landing_ref}^{{commit}}",
-                timeout=timeout)
+        git_out(
+            worktree,
+            "rev-parse",
+            "--verify",
+            "--quiet",
+            f"{landing_ref}^{{commit}}",
+            timeout=timeout,
+        )
     except GitError:
         return None
     try:
@@ -348,33 +583,58 @@ def _paths_match(worktree: Path, head: str, landing_ref: str, timeout: float) ->
     ones included, is identical in the landing ref."""
     try:
         base = git_out(worktree, "merge-base", head, landing_ref, timeout=timeout).strip()
-        touched = _literal(worktree, "log", "--format=", "--name-only", "--no-renames", "--cc",
-                           "-z", f"{base}..{head}", timeout=timeout)
-        overall = _literal(worktree, "diff", "--name-only", "--no-renames", "-z", base, head,
-                           timeout=timeout)
+        touched = _literal(
+            worktree,
+            "log",
+            "--format=",
+            "--name-only",
+            "--no-renames",
+            "--cc",
+            "-z",
+            f"{base}..{head}",
+            timeout=timeout,
+        )
+        overall = _literal(
+            worktree, "diff", "--name-only", "--no-renames", "-z", base, head, timeout=timeout
+        )
     except GitError:
         return False
-    paths = list(dict.fromkeys(
-        p for p in (touched + "\0" + overall).split("\0") if p.strip()
-    ))
+    paths = list(dict.fromkeys(p for p in (touched + "\0" + overall).split("\0") if p.strip()))
     if not paths or len(paths) > MAX_PATHS:
         return False
     try:
         for start in range(0, len(paths), 200):
-            _literal(worktree, "diff", "--quiet", "--no-renames", landing_ref, head, "--",
-                     *paths[start : start + 200], timeout=timeout)
+            _literal(
+                worktree,
+                "diff",
+                "--quiet",
+                "--no-renames",
+                landing_ref,
+                head,
+                "--",
+                *paths[start : start + 200],
+                timeout=timeout,
+            )
     except GitError:
         return False
     return True
 
 
 def judge(  # noqa: PLR0913 - the facts the report already holds
-    worktree: Path, main: Path, admin: Path | None, head: str | None, branch: str | None,
-    changed: list[str], operation: str | None, config: DiskConfig, timeout: float,
+    worktree: Path,
+    main: Path,
+    admin: Path | None,
+    head: str | None,
+    branch: str | None,
+    changed: list[str],
+    operation: str | None,
+    config: DiskConfig,
+    timeout: float,
     checkouts: list[str] | None = None,
 ) -> Finished:
-    verdict = Finished(unique_reasons(worktree, main, admin, head, changed, operation, config,
-                                      timeout, checkouts))
+    verdict = Finished(
+        unique_reasons(worktree, main, admin, head, changed, operation, config, timeout, checkouts)
+    )
     if not verdict.unique:
         verdict.landed = landed_how(worktree, head, config.landing_ref, timeout, branch)
     return verdict
@@ -393,7 +653,7 @@ def keep_until(lock_reason: str | None) -> str | None:
     """The date a disk-keep lock lasts until, or None for any other lock."""
     if not lock_reason or not lock_reason.startswith(KEEP_MARK):
         return None
-    value = lock_reason[len(KEEP_MARK):].split(":", 1)[0].strip()
+    value = lock_reason[len(KEEP_MARK) :].split(":", 1)[0].strip()
     return value or None
 
 

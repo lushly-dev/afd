@@ -60,7 +60,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, Path]:
     for path in paths.values():
         age_worktree(main, path)
     settings = tmp_path / "disk.toml"
-    settings.write_text(f'repos = [{json.dumps(str(main))}]\ncaches = []\n', encoding="utf-8")
+    settings.write_text(f"repos = [{json.dumps(str(main))}]\ncaches = []\n", encoding="utf-8")
     monkeypatch.setenv("BOTCORE_DISK_SETTINGS", str(settings))
     monkeypatch.setenv("BOTCORE_DISK_STATE", str(tmp_path / "state"))
     monkeypatch.setenv("BOTCORE_DISK_T3_SETTINGS", "")
@@ -81,8 +81,11 @@ def run(coro) -> dict:
 
 
 def removed(data: dict) -> set[str]:
-    return {Path(a["target"]).name for a in data["actions"]
-            if a["kind"] == "remove" and a["outcome"] == "done"}
+    return {
+        Path(a["target"]).name
+        for a in data["actions"]
+        if a["kind"] == "remove" and a["outcome"] == "done"
+    }
 
 
 # ── What counts as finished ─────────────────────────────────────────────────
@@ -110,7 +113,8 @@ def test_a_commit_on_no_branch_is_unique(repo: dict[str, Path]) -> None:
 
 
 def test_t3_codes_worktrees_are_never_tier_2(
-    repo: dict[str, Path], monkeypatch: pytest.MonkeyPatch,
+    repo: dict[str, Path],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     t3 = repo["tmp"] / "t3.json"
     t3.write_text(json.dumps({"worktreesDirectory": str(repo["done"].parent)}))
@@ -135,7 +139,9 @@ def test_tier_2_removes_finished_worktrees_and_keeps_their_branches(
 ) -> None:
     preview = run(reclaim.disk_reclaim(tier=2))
     assert {Path(a["target"]).name for a in preview["actions"] if a["kind"] == "remove"} == {
-        "done", "squashed"}
+        "done",
+        "squashed",
+    }
     assert repo["done"].exists()
     data = run(reclaim.disk_reclaim(tier=2, apply=True))
     assert removed(data) == {"done", "squashed"}
@@ -171,7 +177,8 @@ def test_restore_recreates_a_deleted_branch(repo: dict[str, Path]) -> None:
 
 
 def test_changes_after_planning_stop_a_removal(
-    repo: dict[str, Path], monkeypatch: pytest.MonkeyPatch,
+    repo: dict[str, Path],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     original = reclaim.plan_tier2
 
@@ -183,15 +190,19 @@ def test_changes_after_planning_stop_a_removal(
 
     monkeypatch.setattr(reclaim, "plan_tier2", plan_then_change)
     data = run(reclaim.disk_reclaim(tier=2, apply=True))
-    outcomes = {Path(a["target"]).name: (a["outcome"], a["detail"])
-                for a in data["actions"] if a["kind"] == "remove"}
+    outcomes = {
+        Path(a["target"]).name: (a["outcome"], a["detail"])
+        for a in data["actions"]
+        if a["kind"] == "remove"
+    }
     assert outcomes["done"][0] == "skipped"
     assert outcomes["squashed"][0] == "skipped" and "locked" in outcomes["squashed"][1]
     assert repo["done"].exists() and repo["squashed"].exists()
 
 
 def test_a_busy_worktree_is_not_removed(
-    repo: dict[str, Path], monkeypatch: pytest.MonkeyPatch,
+    repo: dict[str, Path],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     busy = Processes(cwds=[str(repo["done"])], method="test", sees_cwds=True)
     monkeypatch.setattr(reclaim, "running_processes", lambda: busy)
@@ -232,8 +243,10 @@ def test_the_main_checkout_cannot_be_kept_and_a_past_date_is_refused(
     repo: dict[str, Path],
 ) -> None:
     assert asyncio.run(keep.disk_keep(str(repo["main"]))).error.code == "DISK_NOT_A_WORKTREE"
-    assert asyncio.run(keep.disk_keep(str(repo["done"]), until="2001-01-01")).error.code == \
-        "DISK_KEEP_INVALID"
+    assert (
+        asyncio.run(keep.disk_keep(str(repo["done"]), until="2001-01-01")).error.code
+        == "DISK_KEEP_INVALID"
+    )
 
 
 def test_restore_without_a_record_says_so(repo: dict[str, Path]) -> None:
@@ -245,7 +258,8 @@ def test_restore_without_a_record_says_so(repo: dict[str, Path]) -> None:
 
 
 def test_the_job_removes_worktrees_only_when_setup_said_so(
-    repo: dict[str, Path], monkeypatch: pytest.MonkeyPatch,
+    repo: dict[str, Path],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from botcore.commands.disk import setup
 
@@ -280,7 +294,8 @@ def test_an_edit_hidden_by_skip_worktree_or_assume_unchanged_is_unique(
     for name in ("done", "squashed"):
         assert by[name]["tier"] != 2
         assert "behind skip-worktree or assume-unchanged" in " ".join(
-            by[name]["finished"]["unique"])
+            by[name]["finished"]["unique"]
+        )
     data = run(reclaim.disk_reclaim(tier=2, apply=True, include_restorable=True))
     assert {"done", "squashed"}.isdisjoint(removed(data))
 
@@ -302,8 +317,9 @@ def test_a_repository_or_changed_copy_inside_a_build_folder_is_unique(
     hidden = repo["done"] / "dist" / "vendor"
     hidden.mkdir()
     subprocess.run(["git", "init", "-q", str(hidden)], check=True)
-    (repo["main"] / "botcore.toml").write_text(DISK_TOML.replace(
-        'copies = [".env"]', 'copies = [".env", "dist/.env"]'), encoding="utf-8")
+    (repo["main"] / "botcore.toml").write_text(
+        DISK_TOML.replace('copies = [".env"]', 'copies = [".env", "dist/.env"]'), encoding="utf-8"
+    )
     commit(repo["main"], "botcore.toml", (repo["main"] / "botcore.toml").read_text(), "copies")
     git(repo["main"], "push", "-q", "origin", "main")
     git(repo["main"], "fetch", "-q", "origin")
@@ -345,7 +361,8 @@ def test_a_head_only_a_remote_reached_survives_a_prune_and_restores(
 
 
 def test_unreadable_t3_settings_turn_tier_2_off(
-    repo: dict[str, Path], monkeypatch: pytest.MonkeyPatch,
+    repo: dict[str, Path],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     broken = repo["tmp"] / "t3.json"
     broken.write_text("{not json", encoding="utf-8")
@@ -357,12 +374,14 @@ def test_unreadable_t3_settings_turn_tier_2_off(
 
 
 def test_a_volume_that_changes_before_removal_stops_it(
-    repo: dict[str, Path], monkeypatch: pytest.MonkeyPatch,
+    repo: dict[str, Path],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(reclaim, "_volume_problem", lambda path, ctx: "volume unplugged")
     data = run(reclaim.disk_reclaim(tier=2, apply=True))
-    outcomes = {Path(a["target"]).name: a["detail"] for a in data["actions"]
-                if a["kind"] == "remove"}
+    outcomes = {
+        Path(a["target"]).name: a["detail"] for a in data["actions"] if a["kind"] == "remove"
+    }
     assert outcomes["done"] == "volume unplugged" and repo["done"].exists()
 
 
@@ -376,10 +395,8 @@ def test_a_branch_that_reverted_a_landed_path_is_not_landed(repo: dict[str, Path
 def test_keep_ownership_needs_the_exact_marker_and_renewal_never_unlocks(
     repo: dict[str, Path],
 ) -> None:
-    git(repo["main"], "worktree", "lock", "--reason", "botcore-keeper owns this",
-        str(repo["done"]))
-    assert asyncio.run(keep.disk_unkeep(str(repo["done"]))).error.code == \
-        "DISK_LOCKED_ELSEWHERE"
+    git(repo["main"], "worktree", "lock", "--reason", "botcore-keeper owns this", str(repo["done"]))
+    assert asyncio.run(keep.disk_unkeep(str(repo["done"]))).error.code == "DISK_LOCKED_ELSEWHERE"
     run(keep.disk_keep(str(repo["squashed"]), until="2999-01-01"))
     run(keep.disk_keep(str(repo["squashed"]), until="29991231"[:4] + "-12-31"))
     listing = git(repo["main"], "worktree", "list", "--porcelain")
@@ -409,7 +426,8 @@ def test_an_edit_made_only_in_a_merge_commit_is_not_landed(repo: dict[str, Path]
 
 
 def test_a_reflog_too_long_to_pin_is_unique(
-    repo: dict[str, Path], monkeypatch: pytest.MonkeyPatch,
+    repo: dict[str, Path],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from botcore.commands.disk import finished
 
@@ -425,7 +443,8 @@ def test_a_reflog_too_long_to_pin_is_unique(
 
 
 def test_a_failed_record_releases_its_pins_and_keeps_the_worktree(
-    repo: dict[str, Path], monkeypatch: pytest.MonkeyPatch,
+    repo: dict[str, Path],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def full_disk(*_args, **_kwargs):
         raise OSError(28, "No space left on device")
@@ -438,10 +457,107 @@ def test_a_failed_record_releases_its_pins_and_keeps_the_worktree(
 
 def test_a_full_remote_ref_name_is_fetched(repo: dict[str, Path]) -> None:
     other = repo["tmp"] / "other"
-    subprocess.run(["git", "clone", "-q", str(repo["tmp"] / "origin.git"), str(other)],
-                   check=True)
+    subprocess.run(["git", "clone", "-q", str(repo["tmp"] / "origin.git"), str(other)], check=True)
     commit(other, "upstream.txt", "new", "upstream work")
     git(other, "push", "-q", "origin", "main")
     before = git(repo["main"], "rev-parse", "origin/main").strip()
     assert reclaim.refresh_landing(repo["main"], "refs/remotes/origin/main") is None
     assert git(repo["main"], "rev-parse", "origin/main").strip() != before
+
+
+def test_folder_holding_only_covered_node_modules_allows_tier_2(repo: dict[str, Path]) -> None:
+    main = repo["main"]
+    (main / "botcore.toml").write_text(
+        '[disk]\nregenerable = ["dist", "**/node_modules"]\ncopies = [".env", "**/.env"]\n',
+        encoding="utf-8",
+    )
+    (main / ".gitignore").write_text(
+        "dist/\n.env\nnode_modules/\nnotes.local\n",
+        encoding="utf-8",
+    )
+    git(main, "add", "botcore.toml", ".gitignore")
+    git(main, "commit", "-q", "-m", "add recursive node_modules rule")
+    git(main, "push", "-q", "origin", "main")
+    git(main, "fetch", "-q", "origin")
+
+    # Landed worktree with a collapsed folder holding ONLY node_modules -> still tier 2.
+    done = repo["done"]
+    git(done, "merge", "-q", "main")
+    nm = done / "packages" / "examples" / "vanilla" / "node_modules" / "pkg"
+    nm.mkdir(parents=True)
+    (nm / "index.js").write_text("export {};\n", encoding="utf-8")
+    age_worktree(main, done)
+
+    by = rows(run(report.disk_report(unclassified=True)))
+    assert by["done"]["tier"] == 2
+    assert by["done"]["finished"]["unique"] == []
+    assert by["done"]["unclassified"] == []
+
+    # Adding an uncovered ignored file inside that collapsed folder blocks tier 2.
+    (done / "packages" / "examples" / "vanilla" / "notes.local").write_text("precious")
+    age_worktree(main, done)
+    by = rows(run(report.disk_report(unclassified=True)))
+    assert by["done"]["tier"] != 2
+    assert "an ignored file that may be unique" in " ".join(by["done"]["finished"]["unique"])
+    assert by["done"]["unclassified"]
+
+    # Removing the uncovered file restores tier 2; a nested git repo inside node_modules blocks it.
+    (done / "packages" / "examples" / "vanilla" / "notes.local").unlink()
+    nested_repo = nm / "vendor"
+    nested_repo.mkdir()
+    subprocess.run(["git", "init", "-q", str(nested_repo)], check=True)
+    age_worktree(main, done)
+    by = rows(run(report.disk_report()))
+    assert by["done"]["tier"] != 2
+    assert "git checkout inside" in " ".join(by["done"]["finished"]["unique"])
+
+
+def test_collapsed_ignored_folder_enforces_entry_budget_and_refuses_symlinks(
+    repo: dict[str, Path],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import sys
+
+    from botcore.commands.disk import finished
+
+    main, done = repo["main"], repo["done"]
+    (main / "botcore.toml").write_text(
+        '[disk]\nregenerable = ["dist", "**/node_modules"]\ncopies = [".env"]\n',
+        encoding="utf-8",
+    )
+    (main / ".gitignore").write_text("dist/\n.env\nnode_modules/\n", encoding="utf-8")
+    git(main, "add", "botcore.toml", ".gitignore")
+    git(main, "commit", "-q", "-m", "node_modules rule")
+    git(main, "push", "-q", "origin", "main")
+    git(main, "fetch", "-q", "origin")
+    git(done, "merge", "-q", "main")
+
+    nm = done / "only_nm" / "node_modules" / "pkg"
+    nm.mkdir(parents=True)
+    for i in range(4):
+        (nm / f"f{i}.js").write_text("x", encoding="utf-8")
+    age_worktree(main, done)
+
+    # Enforced while consuming scandir: a single folder over WALK_ENTRIES fails safe.
+    with monkeypatch.context() as mp:
+        mp.setattr(finished, "WALK_ENTRIES", 2)
+        by = rows(run(report.disk_report()))
+    assert by["done"]["tier"] != 2
+    assert "too large to check in time" in " ".join(by["done"]["finished"]["unique"])
+
+    # A symlink named node_modules inside a collapsed folder must not be cleared for tier 2.
+    if sys.platform != "win32":
+        import shutil
+
+        shutil.rmtree(done / "only_nm")
+        outside = repo["tmp"] / "symlink_target"
+        outside.mkdir()
+        (outside / "file.txt").write_text("x", encoding="utf-8")
+        (done / "linked_nm").mkdir()
+        (done / "linked_nm" / "node_modules").symlink_to(outside, target_is_directory=True)
+        with (main / ".git" / "info" / "exclude").open("a", encoding="utf-8") as exclude:
+            exclude.write("linked_nm/node_modules\n")
+        age_worktree(main, done)
+        by = rows(run(report.disk_report()))
+        assert by["done"]["tier"] != 2
+        assert "an ignored file that may be unique" in " ".join(by["done"]["finished"]["unique"])

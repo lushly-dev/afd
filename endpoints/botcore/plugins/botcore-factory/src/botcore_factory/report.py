@@ -123,7 +123,7 @@ def run_summary(factory: Factory, state: dict, run_id: str) -> dict:
     if "merged" in run:  # Summarized when it stopped.
         return run
     now = factory.world.clock.now().isoformat().replace("+00:00", "Z")
-    live = summarize(factory.store.read_records(), run_id, run.get("startedAt"), now)
+    live = factory.store.summarize_run(run_id, run.get("startedAt"), now)
     return {**run, **live, "prs": run.get("prs") or live["prs"]}
 
 
