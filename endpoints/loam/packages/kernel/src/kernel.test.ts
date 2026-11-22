@@ -201,7 +201,7 @@ describe('the journal', () => {
 		expect(await journal.read()).toEqual([]);
 	});
 
-	it('journals sign-in without the password, and the next entry carries the actor', async () => {
+	it('P3-E15: journals sign-in without the password, and the next entry carries the actor', async () => {
 		const { kernel: k, journal } = await kernel();
 		const signedIn = await k.call('auth-sign-in', {
 			method: 'credentials',

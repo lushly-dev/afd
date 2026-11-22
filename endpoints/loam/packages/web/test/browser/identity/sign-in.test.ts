@@ -1,5 +1,5 @@
 /**
- * E1, E10, E11 and E15 so far (phase 3 specification, 4.2, 4.6, 5.2, 14 and 18): a person signs in to a `provider`
+ * E1, E10, E11 and E15 (phase 3 specification, 4.2, 4.6, 5.2, 14 and 18): a person signs in to a `provider`
  * deployment, through a test-only auth host. A real Better Auth 1.7.18 server stands behind `api/auth/` on the shell's
  * own HTTPS origin; it proves no hosted lane (2.4). Passkeys are made by Chromium's virtual authenticator, through its
  * DevTools `WebAuthn` domain: no real authenticator or platform prompt is involved, and the browser's own passkey
@@ -21,10 +21,14 @@ import {
 	openShell,
 	packApp,
 	providerDeployment,
+	recordSecretsSent,
 	type ShellPage,
+	secretsHeld,
+	secretsNow,
 	serveDeployment,
 	serveDist,
 	settle,
+	unsearched,
 } from '../harness';
 
 const PASSWORD = 'correct horse battery staple';
@@ -156,8 +160,9 @@ describe('P3-E1: a person signs in with a passkey, through a test-only auth host
 		expect(page.violations).toEqual([]);
 	});
 
-	it('P3-E1: signs in with a password, adds a passkey, signs out, and signs in with the passkey, journaling no credential', async () => {
+	it('P3-E1: P3-E15: signs in with a password, adds a passkey, signs out, and signs in with the passkey, journaling no credential', async () => {
 		const page = await open();
+		const sent = recordSecretsSent(page.page);
 		const authenticator = await addVirtualAuthenticator(page.page, { userVerified: true });
 		await signInWithPassword(page.page, BEA);
 		expect(await accountOf(page.page)).toBe('Bea');
@@ -179,6 +184,10 @@ describe('P3-E1: a person signs in with a passkey, through a test-only auth host
 		const credentials = await authenticator.credentials();
 		expect(credentials).toHaveLength(1);
 		beaCredential = credentials[0];
+		// E15: the password session's cookie and token, read before the sign-out deletes them.
+		const first = await secretsNow(page, site.authHost as NonNullable<DeploymentSite['authHost']>);
+		expect(first.cookies.length).toBeGreaterThan(0);
+		expect(first.tokens.length).toBeGreaterThan(0);
 		// Signed out through the account menu (its "Sign out", after "Account" since step 4).
 		await shadow(page.page, 'loam-titlebar .account').click();
 		await shadow(page.page, 'loam-account-menu')
@@ -200,6 +209,21 @@ describe('P3-E1: a person signs in with a passkey, through a test-only auth host
 			(entry) => entry.command === 'auth-sign-in' && entry.result.success
 		);
 		expect(passkey.at(-1)?.input).toEqual({ method: 'passkey' });
+		// E15: neither ceremony's bytes, the authenticator's key, the password, nor either session's cookie, token or
+		// address is held.
+		expect(sent.registrations).toBeGreaterThanOrEqual(1);
+		expect(sent.authentications).toBeGreaterThanOrEqual(1);
+		const { held, found } = await secretsHeld(page, {
+			authHost: site.authHost as NonNullable<DeploymentSite['authHost']>,
+			password: PASSWORD,
+			sent,
+			also: [(beaCredential as { privateKey: string }).privateKey],
+			earlier: [first],
+		});
+		expect(unsearched(held)).toEqual([]);
+		expect(held.store.rows).toBeGreaterThan(0);
+		expect(held.journal.text).toContain('auth-sign-in');
+		expect(found).toEqual([]);
 		expect(page.errors).toEqual([]);
 		expect(page.violations).toEqual([]);
 	});
@@ -420,49 +444,19 @@ describe('P3-E10: budgets in Chromium, so far', () => {
 	});
 });
 
-describe('P3-E15: no secret in the journal or the store, so far', () => {
+describe('P3-E15: no secret in the journal or the store', () => {
 	it('P3-E15: holds no password, cookie value or token in any journal entry, store row or localStorage value', async () => {
 		const page = await open();
 		await signInWithPassword(page.page, BEA);
 		await kernelCall(page.page, 'session-list');
-		const cookies = (await page.context.cookies())
-			.map((cookie) => cookie.value)
-			.filter((value) => value.length > 8);
-		expect(cookies.length).toBeGreaterThan(0);
-		const tokens = (
-			(site.authHost as NonNullable<DeploymentSite['authHost']>)
-				.db()
-				.prepare('SELECT token FROM session')
-				.all() as { token: string }[]
-		).map((row) => row.token);
-		const held = await page.page.evaluate(async () => {
-			const read = (name: string) =>
-				new Promise<string>((resolve, reject) => {
-					const request = indexedDB.open(name);
-					request.onerror = () => reject(request.error);
-					request.onsuccess = async () => {
-						const db = request.result;
-						const rows: unknown[] = [];
-						for (const store of [...db.objectStoreNames]) {
-							rows.push(
-								await new Promise((done) => {
-									const all = db.transaction(store).objectStore(store).getAll();
-									all.onsuccess = () => done(all.result);
-								})
-							);
-						}
-						db.close();
-						resolve(JSON.stringify(rows));
-					};
-				});
-			return [
-				await read('loam-journal'),
-				await read('loam-store'),
-				JSON.stringify({ ...localStorage }),
-			].join('\n');
+		expect((await page.context.cookies()).some((cookie) => cookie.value.length > 8)).toBe(true);
+		const { held, found } = await secretsHeld(page, {
+			authHost: site.authHost as NonNullable<DeploymentSite['authHost']>,
+			password: PASSWORD,
 		});
-		expect(held).toContain('auth-sign-in');
-		for (const secret of [PASSWORD, ...cookies, ...tokens]) expect(held).not.toContain(secret);
-		expect(held).not.toMatch(/ipAddress|127\.0\.0\.1/);
+		expect(unsearched(held)).toEqual([]);
+		expect(held.store.rows).toBeGreaterThan(0);
+		expect(held.journal.text).toContain('auth-sign-in');
+		expect(found).toEqual([]);
 	});
 });

@@ -610,12 +610,24 @@ test("Loam's exit tests cannot pass by retry, expected failure, skip, todo or on
 				'endpoints/loam/apps/*.test.ts',
 				'endpoints/loam/packages/*/vitest*.config.ts',
 				'endpoints/loam/apps/*/vitest*.config.ts',
+				// Phase 3's E9, in "AFD's identity path": afd-auth's whole suite.
+				'packages/auth/src/*.test.ts',
+				'packages/auth/vitest*.config.ts',
 			],
 			{ cwd: repoRoot, encoding: 'utf8' }
 		)
 			.split('\n')
 			.filter(Boolean),
 		'packages/server/src/entry-points.test.ts',
+		// Phase 3's E9: afd-server's files in "AFD's identity path".
+		...[
+			'authorization-cases',
+			'mcp-auth',
+			'mcp-auth-verifier',
+			'mcp-auth-scopes',
+			'mcp-auth-host',
+			'verified-credentials',
+		].map((name) => `packages/server/src/${name}.test.ts`),
 		'packages/server/vitest.config.ts',
 		'scripts/plugin-manifest.test.mjs',
 	];
