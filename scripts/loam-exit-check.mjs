@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * Loam phase 2's exit check: `node scripts/loam-exit-check.mjs <loam run id> <ci run id>`.
+ * Loam's exit check: `node scripts/loam-exit-check.mjs <loam run id> <ci run id> [--phase 3]`. Phase 2's, by
+ * default, as below; `--phase 3` is phase 3's local part, after this comment's list.
  *
  * Step 14 of the phase 2 specification (endpoints/loam/docs/phases/2-scope-projects/spec.md, section 16)
  * runs `loam.yml` and `ci.yml` by `workflow_dispatch` on `main`, which opens every gate, and then this. It
@@ -24,6 +25,17 @@
  * The minimums hold each count of a manual run, so an `exclude`, a skipped suite or a deleted file cannot
  * pass unnoticed. When exit tests are added or removed on purpose, run the check on a run that has them with
  * `--print-minimums` and copy the counts it prints into the file, in the same pull request.
+ *
+ * `--phase 3` is step 9 of the phase 3 specification (endpoints/loam/docs/phases/3-identity/spec.md, section
+ * 19), P3-E16's local part. It checks the same two runs by condition 1, then each `P3-E<n>:` row of section
+ * 18 in the places its row names, against loam-exit-check.p3.minimums.json, with condition 3 over `P3-`
+ * titles; "Identity path" is the `loam` job's "AFD's identity path" step. P3-E12 reuses phase 2's rows and
+ * minimums, as its row says: every `P2-E<n>:` and `P2-D<n>:` row above, in its own places, at
+ * loam-exit-check.minimums.json's counts, with condition 3 over `P2-` titles. Budgets are D115's (owner,
+ * 2026-11-13): a ceiling rises with its measurement, so neither P3-E10 nor E12's P2-E2 holds a ceiling to a
+ * figure; each row the specification names must be printed, at or under its own ceiling, and no row OVER. Once
+ * D161 names the date D115 ends, this reading goes back to holding the figures the specification names.
+ * The hosted part, P3-H1 to P3-H5, is step 10's.
  */
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -89,6 +101,15 @@ export const LOCATIONS = {
 		job: 'Mounted against Umbel',
 		step: "E3, E4 and E9's mounted part, through a test-only relay",
 	},
+	// Phase 3's E9: afd-server's and afd-auth's authorization suites (its specification, section 18).
+	identity: { label: 'Identity path', job: LOAM_JOB, step: "AFD's identity path" },
+	// Phase 3's E8: the unit step, but only the file its row names, so another suite's titles cannot stand in for it.
+	handler: {
+		label: 'Units, `identity/src/mcp-identity.test.ts`',
+		job: LOAM_JOB,
+		step: 'Unit suites with coverage',
+		within: /^endpoints\/loam\/packages\/identity test:\s+\S+\s+src\/mcp-identity\.test\.ts > /,
+	},
 };
 
 /**
@@ -130,14 +151,68 @@ export const ROWS = [
 	{ row: 'D10', in: ['chromium', 'units'] },
 ];
 
+/**
+ * Phase 3's exit rows: section 18 of endpoints/loam/docs/phases/3-identity/spec.md, by its "Place" column.
+ * E12 reuses phase 2's rows and minimums (`reuse`); E16 is this check. Change a row here only with its spec
+ * row. The `P3-H` rows are the hosted part, step 10's.
+ */
+export const P3_ROWS = [
+	{ row: 'E1', in: ['chromium', 'units'] },
+	{ row: 'E2', in: ['units', 'chromium'] },
+	{ row: 'E3', in: ['chromium'] },
+	{ row: 'E4', in: ['units', 'chromium'] },
+	{ row: 'E5', in: ['chromium', 'units'] },
+	{ row: 'E6', in: ['units', 'chromium'] },
+	{ row: 'E7', in: ['chromium', 'units'] },
+	// "Units (`identity/src/mcp-identity.test.ts`)", through a test-only handler: every unit, and that file's own.
+	{ row: 'E8', in: ['units', 'handler'] },
+	{ row: 'E9', in: ['identity'] },
+	{ row: 'E10', in: ['budget', 'chromium'] },
+	{ row: 'E11', in: ['chromium'] },
+	// "Phase 2's places and minimums": every row of ROWS, with no `P3-E12:` title.
+	{ row: 'E12', in: [], reuse: 2 },
+	{ row: 'E13', in: ['units'] },
+	{ row: 'E14', in: ['chromium', 'units'] },
+	{ row: 'E15', in: ['chromium', 'units'] },
+	// "The exit step": this check itself.
+	{ row: 'E16', in: [] },
+	{ row: 'E17', in: ['chromium', 'units'] },
+	{ row: 'E18', in: ['chromium', 'units'] },
+	{ row: 'E19', in: ['units', 'chromium'] },
+	{ row: 'E20', in: ['chromium', 'units'] },
+];
+
 /** The two ceilings E2 names, as the budget script prints their rows. */
 export const BUDGET_ROWS = [
 	{ label: 'JavaScript, minified', ceiling: 300_000 },
 	{ label: 'JavaScript, gzip', ceiling: 91_000 },
 ];
 
+/**
+ * The rows of phase 3's section 13, by the start of the label the budget script prints: first paint's two,
+ * then each chunk row the section names. Under D115 a ceiling is whatever the script holds, so none is a
+ * figure here. E12's P2-E2 reads the first two the same way.
+ */
+export const P3_BUDGET_ROWS = [
+	'JavaScript, minified',
+	'JavaScript, gzip',
+	'@lushly-dev/loam-kernel alone',
+	"The kernel's `late` chunk",
+	"The kernel's `late-identity` chunk",
+	'The `auth` chunk',
+	'The `sign-in` chunk',
+	'The `account-menu` chunk',
+	'The `account` chunk',
+	"The kernel's `apps` chunks",
+	"The chrome's `surfaces` chunk",
+];
+
+/**
+ * ANSI escapes, as the escape character or in caret notation (`^[[32m`), which `gh run view --log` prints
+ * in place of it since November 2026: neither is ever part of a title.
+ */
 // biome-ignore lint/suspicious/noControlCharactersInRegex: ANSI escapes are what this strips.
-const ANSI = /\u001b\[[0-9;?]*[A-Za-z]/g;
+const ANSI = /(?:\u001b|\^\[)\[[0-9;?]*[A-Za-z]/g;
 const TIMESTAMP = /^\uFEFF?\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z ?/;
 /**
  * A Vitest verbose result: pnpm's prefix in a recursive run, a mark, a browser project's name in browser
@@ -147,8 +222,8 @@ const VITEST_RESULT =
 	/^(?:[\w./@-]+ [\w-]+(?::[\w-]+)*: )?\s*([^\w\s])\s+(?:\|[\w-]+\|\s+|[\w-]+\s+)?[\w./@-]+\.test\.[cm]?[jt]sx? > (.*)$/u;
 /** A node spec result, in the lean-path step only: a mark, the title, its duration, and any directive. */
 const NODE_RESULT = /^\s*([^\w\s])\s+(.*?) \(\d+(?:\.\d+)?ms\)(?: # (.+))?$/u;
-/** A row title starts a title segment: `P2-E2: `, or several, as `P2-E2: P2-D9: `. */
-const ROW_TITLE = /^(?:P2-[ED]\d+: )+/;
+/** A row title starts a title segment: `P2-E2: `, or several, as `P2-E2: P2-D9: `; phase 3's `P3-E8: `. */
+const ROW_TITLES = { P2: /^(?:P2-[ED]\d+: )+/, P3: /^(?:P3-E\d+: )+/ };
 const VITEST_STATUS = { '✓': 'pass', '×': 'fail', '↓': 'skip', '□': 'todo' };
 const NODE_STATUS = { '✔': 'pass', '✖': 'fail', '﹣': 'skip' };
 const RETRIED = /\(retry x\d+\)/;
@@ -157,9 +232,9 @@ const RETRIED = /\(retry x\d+\)/;
  * The rows a test claims: those its own title starts with, else those of its nearest describe that starts
  * with any. A describe that groups a scenario's tests does not claim a row for a test that names its own.
  */
-function claimedRows(segments) {
+function claimedRows(segments, rowTitle) {
 	for (let index = segments.length - 1; index >= 0; index -= 1) {
-		const prefix = ROW_TITLE.exec(segments[index]);
+		const prefix = rowTitle.exec(segments[index]);
 		if (prefix)
 			return [...new Set(prefix[0].trim().split(/:\s*/).filter(Boolean))].map((id) => id.slice(3));
 	}
@@ -171,9 +246,11 @@ function claimedRows(segments) {
  * whose title claims a row, with its job, step, status and rows. Only a result line counts: Vitest's verbose
  * shape anywhere, node's spec shape in the lean-path step. A status is `pass` only for a passing mark with
  * no retry and no node directive (`# SKIP`, `# TODO`, `# EXPECTED FAILURE`); an unknown mark is its own
- * status, so a change of format fails closed.
+ * status, so a change of format fails closed. `prefix` is the phase whose titles it reads, `P2` or `P3`; each
+ * is read alone, so phase 2's reading is the same with phase 3's titles in the log.
  */
-export function readTitles(log) {
+export function readTitles(log, prefix = 'P2') {
+	const rowTitle = ROW_TITLES[prefix];
 	const titles = [];
 	for (const raw of log.split('\n')) {
 		const [job, step, ...rest] = raw.split('\t');
@@ -195,7 +272,7 @@ export function readTitles(log) {
 				? node[3].trim().toLowerCase()
 				: (NODE_STATUS[mark] ?? `unknown mark "${mark}"`);
 		} else continue;
-		const rows = claimedRows(segments);
+		const rows = claimedRows(segments, rowTitle);
 		if (rows.length === 0) continue;
 		if (status === 'pass' && RETRIED.test(text)) status = 'retried';
 		titles.push({ job, step, status, rows, text: text.trim() });
@@ -232,6 +309,44 @@ export function readBudget(log, location = LOCATIONS.budget) {
 		if (row[3] === 'OVER' || bytes > ceiling)
 			problems.push(`${location.label}: "${label}" is ${bytes}, over ${ceiling}`);
 		found.push(`${label} ${bytes} of ${ceiling}`);
+	}
+	if (lines.some((line) => /budget: over the ceiling/.test(line)))
+		problems.push(`${location.label}: the step reports a row over its ceiling`);
+	return { problems, found };
+}
+
+const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// Each figure a number, its thousands grouped: a comma alone, or a stray one, is no measurement.
+const BUDGET_ROW = /\s(\d{1,3}(?:,\d{3})*)\s+of\s+(\d{1,3}(?:,\d{3})*)\s+(OVER|\d+%)$/;
+
+/**
+ * The budget under D115, for phase 3: each label named is printed once, at or under the ceiling it is held
+ * to, and no row of the step is OVER or reported over. `labels` are the starts of the rows' labels.
+ */
+export function readBudgetWithin(log, labels, location = LOCATIONS.budget) {
+	const lines = stepText(log, location).map((line) => line.trim());
+	const problems = [];
+	const found = [];
+	const rows = lines.filter((line) => BUDGET_ROW.test(line));
+	if (rows.length === 0) problems.push(`${location.label}: no budget row in the step's log`);
+	for (const line of rows) {
+		const [, bytes, ceiling, mark] = BUDGET_ROW.exec(line);
+		const [used, held] = [bytes, ceiling].map((value) => Number(value.replaceAll(',', '')));
+		if (mark === 'OVER' || used > held)
+			problems.push(
+				`${location.label}: "${line.slice(0, line.length - BUDGET_ROW.exec(line)[0].length).trim()}" is ${used}, over ${held}`
+			);
+	}
+	for (const label of labels) {
+		const matches = rows.filter((line) => new RegExp(`^${escapeRegExp(label)}\\b`).test(line));
+		if (matches.length !== 1) {
+			problems.push(
+				`${location.label}: ${matches.length === 0 ? 'no' : matches.length} "${label}" row${matches.length === 0 ? '' : 's'} in the step's log`
+			);
+			continue;
+		}
+		const [, bytes, ceiling] = BUDGET_ROW.exec(matches[0]);
+		found.push(`${label} ${bytes.replaceAll(',', '')} of ${ceiling.replaceAll(',', '')}`);
 	}
 	if (lines.some((line) => /budget: over the ceiling/.test(line)))
 		problems.push(`${location.label}: the step reports a row over its ceiling`);
@@ -288,17 +403,85 @@ function checkStep(run, location) {
 
 /** The committed minimum count of passing titles for each row and place (see the file's `about`). */
 export const MINIMUMS_FILE = 'loam-exit-check.minimums.json';
-export function readMinimums() {
-	return JSON.parse(
-		readFileSync(join(dirname(fileURLToPath(import.meta.url)), MINIMUMS_FILE), 'utf8')
-	).minimums;
+/** Phase 3's, in the same shape; E12 reads phase 2's file. */
+export const P3_MINIMUMS_FILE = 'loam-exit-check.p3.minimums.json';
+export function readMinimums(file = MINIMUMS_FILE) {
+	return JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), file), 'utf8'))
+		.minimums;
+}
+
+/** Condition 3: every title of the phase's prefix that is not a plain pass, by name. */
+function titleProblems(titles, prefix) {
+	return titles
+		.filter((title) => title.status !== 'pass')
+		.map(
+			(title) =>
+				`${title.rows.map((row) => `${prefix}-${row}`).join(', ')} is marked ${title.status} in "${title.job}", step "${title.step}": ${title.text}`
+		);
+}
+
+/**
+ * Condition 2 over one phase's rows: each row's passing titles counted in each place it names, against its
+ * minimums. Returns the problems, the report's lines and the counts observed.
+ */
+function checkRows({ rows, prefix, titles, minimums, minimumsFile, budget }) {
+	const problems = [];
+	const report = [];
+	const observed = {};
+	for (const { row, in: places } of rows) {
+		if (places.length === 0) {
+			report.push(`${prefix}-${row}: this check`);
+			continue;
+		}
+		const counts = places.map((key) => {
+			const location = LOCATIONS[key];
+			if (location.evidence === 'budget') {
+				problems.push(...budget.problems.map((problem) => `${prefix}-${row}: ${problem}`));
+				return `${location.label} ${budget.found.join(', ') || 'none'}`;
+			}
+			const passed = titles.filter(
+				(title) =>
+					title.status === 'pass' &&
+					title.job === location.job &&
+					title.step === location.step &&
+					title.rows.includes(row) &&
+					(!location.within || location.within.test(title.text))
+			).length;
+			observed[row] = { ...observed[row], [key]: passed };
+			const floor = minimums[row]?.[key];
+			if (passed === 0)
+				problems.push(
+					`${prefix}-${row}: no passing title in ${location.label} ("${location.job}", step "${location.step}")`
+				);
+			else if (floor === undefined)
+				problems.push(`${prefix}-${row}: ${minimumsFile} records no minimum for ${location.label}`);
+			else if (passed < floor)
+				problems.push(
+					`${prefix}-${row}: ${passed} passing titles in ${location.label}, fewer than the ${floor} ${minimumsFile} records`
+				);
+			return `${location.label} ${passed}`;
+		});
+		report.push(`${prefix}-${row}: ${counts.join('; ')}`);
+	}
+	return { problems, report, observed };
 }
 
 /**
  * The whole check over the two runs and the Loam run's log. Returns the problems, each naming what is
- * wrong, the report's lines, and the counts observed, in the minimums file's shape.
+ * wrong, the report's lines, and the counts observed, in the minimums file's shape. `phase` 3 checks phase
+ * 3's rows against `minimums` (its own file by default), and E12 against `phase2Minimums`.
  */
-export function checkExit({ loam, ci, log, minimums = readMinimums(), allowRerun = false }) {
+export function checkExit({
+	loam,
+	ci,
+	log,
+	phase = 2,
+	minimums = readMinimums(phase === 3 ? P3_MINIMUMS_FILE : MINIMUMS_FILE),
+	phase2Minimums = phase === 3 ? readMinimums(MINIMUMS_FILE) : minimums,
+	allowRerun = false,
+}) {
+	// A phase this check has no rows for is refused, never read as phase 2's: phase 6's milestones add their own.
+	if (phase !== 2 && phase !== 3) throw new Error(`The exit check has no rows for phase ${phase}`);
 	const problems = [
 		...checkRun(loam, WORKFLOWS.loam, { allowRerun }),
 		...checkRun(ci, WORKFLOWS.ci, { allowRerun }),
@@ -308,52 +491,58 @@ export function checkExit({ loam, ci, log, minimums = readMinimums(), allowRerun
 			`the runs are of different commits: loam.yml ${loam.headSha}, ci.yml ${ci.headSha}`
 		);
 
-	const used = new Set(ROWS.flatMap((row) => row.in));
+	const rows = phase === 3 ? [...P3_ROWS, ...ROWS] : ROWS;
+	const used = new Set(rows.flatMap((row) => row.in));
 	for (const key of used) problems.push(...checkStep(loam, LOCATIONS[key]));
 
-	const titles = readTitles(log);
-	for (const title of titles)
-		if (title.status !== 'pass')
-			problems.push(
-				`${title.rows.map((row) => `P2-${row}`).join(', ')} is marked ${title.status} in "${title.job}", step "${title.step}": ${title.text}`
-			);
-
-	const budget = readBudget(log);
 	const report = [];
-	const observed = {};
-	for (const { row, in: places } of ROWS) {
-		if (places.length === 0) {
-			report.push(`P2-${row}: this check`);
-			continue;
-		}
-		const counts = places.map((key) => {
-			const location = LOCATIONS[key];
-			if (location.evidence === 'budget') {
-				problems.push(...budget.problems.map((problem) => `P2-${row}: ${problem}`));
-				return `${location.label} ${budget.found.join(', ') || 'none'}`;
-			}
-			const passed = titles.filter(
-				(title) =>
-					title.status === 'pass' &&
-					title.job === location.job &&
-					title.step === location.step &&
-					title.rows.includes(row)
-			).length;
-			observed[row] = { ...observed[row], [key]: passed };
-			const floor = minimums[row]?.[key];
-			if (passed === 0)
-				problems.push(
-					`P2-${row}: no passing title in ${location.label} ("${location.job}", step "${location.step}")`
-				);
-			else if (floor === undefined)
-				problems.push(`P2-${row}: ${MINIMUMS_FILE} records no minimum for ${location.label}`);
-			else if (passed < floor)
-				problems.push(
-					`P2-${row}: ${passed} passing titles in ${location.label}, fewer than the ${floor} ${MINIMUMS_FILE} records`
-				);
-			return `${location.label} ${passed}`;
+	let observed;
+	if (phase === 3) {
+		const p2Titles = readTitles(log, 'P2');
+		const p3Titles = readTitles(log, 'P3');
+		problems.push(...titleProblems(p3Titles, 'P3'), ...titleProblems(p2Titles, 'P2'));
+		// D115: a ceiling is the one the budget script holds, so phase 2's figures are not read here.
+		const firstPaint = readBudgetWithin(log, P3_BUDGET_ROWS.slice(0, 2));
+		const own = checkRows({
+			rows: P3_ROWS,
+			prefix: 'P3',
+			titles: p3Titles,
+			minimums,
+			minimumsFile: P3_MINIMUMS_FILE,
+			budget: readBudgetWithin(log, P3_BUDGET_ROWS),
 		});
-		report.push(`P2-${row}: ${counts.join('; ')}`);
+		const reused = checkRows({
+			rows: ROWS,
+			prefix: 'P2',
+			titles: p2Titles,
+			minimums: phase2Minimums,
+			minimumsFile: MINIMUMS_FILE,
+			budget: firstPaint,
+		});
+		problems.push(...own.problems, ...reused.problems.map((problem) => `P3-E12: ${problem}`));
+		for (const line of own.report)
+			if (line.startsWith('P3-E12: '))
+				report.push(
+					`P3-E12: phase 2's rows, in their places, at ${MINIMUMS_FILE}'s counts:`,
+					...reused.report.map((entry) => `  ${entry}`)
+				);
+			else if (line.startsWith('P3-E16: ')) report.push('P3-E16: this check, the local part');
+			else report.push(line);
+		observed = own.observed;
+	} else {
+		const titles = readTitles(log);
+		problems.push(...titleProblems(titles, 'P2'));
+		const own = checkRows({
+			rows: ROWS,
+			prefix: 'P2',
+			titles,
+			minimums,
+			minimumsFile: MINIMUMS_FILE,
+			budget: readBudget(log),
+		});
+		problems.push(...own.problems);
+		report.push(...own.report);
+		observed = own.observed;
 	}
 
 	const header = (run, workflow) =>
@@ -400,24 +589,48 @@ export function fetchRuns(loamId, ciId) {
 }
 
 const USAGE =
-	'usage: node scripts/loam-exit-check.mjs <loam run id> <ci run id> [--allow-rerun] [--print-minimums]';
+	'usage: node scripts/loam-exit-check.mjs <loam run id> <ci run id> [--phase 2|3] [--allow-rerun] [--print-minimums]';
+
+/** The arguments, or null when they are not the usage's: two run ids, and each flag at most once. */
+export function parseArgs(argv) {
+	const rest = [...argv];
+	let phase = 2;
+	const at = rest.indexOf('--phase');
+	if (at !== -1) {
+		const value = rest[at + 1];
+		if (value !== '2' && value !== '3') return null;
+		phase = Number(value);
+		rest.splice(at, 2);
+		if (rest.includes('--phase')) return null;
+	}
+	const args = rest.filter((arg) => !arg.startsWith('--'));
+	const flags = rest.filter((arg) => arg.startsWith('--'));
+	const unknown = flags.filter((flag) => !['--allow-rerun', '--print-minimums'].includes(flag));
+	if (args.length !== 2 || args.some((arg) => !/^\d+$/.test(arg)) || unknown.length > 0)
+		return null;
+	return {
+		ids: args,
+		phase,
+		allowRerun: flags.includes('--allow-rerun'),
+		printMinimums: flags.includes('--print-minimums'),
+	};
+}
 
 function main(argv) {
-	const args = argv.filter((arg) => !arg.startsWith('--'));
-	const flags = argv.filter((arg) => arg.startsWith('--'));
-	const unknown = flags.filter((flag) => !['--allow-rerun', '--print-minimums'].includes(flag));
-	if (args.length !== 2 || args.some((arg) => !/^\d+$/.test(arg)) || unknown.length > 0) {
+	const parsed = parseArgs(argv);
+	if (!parsed) {
 		console.error(USAGE);
 		return 2;
 	}
 	const { problems, report, observed } = checkExit({
-		...fetchRuns(args[0], args[1]),
-		allowRerun: flags.includes('--allow-rerun'),
+		...fetchRuns(parsed.ids[0], parsed.ids[1]),
+		phase: parsed.phase,
+		allowRerun: parsed.allowRerun,
 	});
 	console.log(report.join('\n'));
-	if (flags.includes('--print-minimums'))
+	if (parsed.printMinimums)
 		console.log(
-			`\nThe counts observed, for ${MINIMUMS_FILE}:\n${JSON.stringify(observed, null, '\t')}`
+			`\nThe counts observed, for ${parsed.phase === 3 ? P3_MINIMUMS_FILE : MINIMUMS_FILE}:\n${JSON.stringify(observed, null, '\t')}`
 		);
 	if (problems.length > 0) {
 		console.error(`\nThe exit check fails, ${problems.length} problem(s):`);
