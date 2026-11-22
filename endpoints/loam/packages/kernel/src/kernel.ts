@@ -59,6 +59,7 @@ import { type AccessActorV1, type MembershipV1, personKey, personOf } from './sc
 import { createScopeMiddleware, type LateScope, sessionActor } from './scope/middleware.js';
 import { personalRecordId, personalStore } from './scope/personal.js';
 import { type KernelPrincipalV1, NO_MEMBERS, type PrincipalInputV1 } from './scope/principal.js';
+import type { ScopeV1 } from './scope/records.js';
 import { CALL_MARK, createScopeRuntime, type QueuedTicket } from './scope/runtime.js';
 import { registerShellState } from './shell-state.js';
 import type {
@@ -113,6 +114,9 @@ export const UNJOURNALED_COMMANDS: readonly string[] = Object.freeze([
 	// as the shell reads `persona-list`: journaled, an empty shell's boot would gain an entry. It reads and writes nothing
 	// else, so an agent's or an app's read of it is not journaled either.
 	'notification-list',
+	// Phase 6's snapshot (its 6.1), which the transport reads after every routed call and each tab on every refresh:
+	// journaled, the server's journal would hold the person's whole view each time. It reads and writes nothing else.
+	'trust-record-snapshot',
 ]);
 
 /**
@@ -521,6 +525,15 @@ export interface KernelParts {
 	readonly admitPrincipal?: (input: PrincipalInputV1) => KernelPrincipalV1;
 	/** End a principal when its request ends (9.5): nothing made after it, a kept nested client included, runs under it. */
 	readonly retirePrincipal?: (principal: KernelPrincipalV1) => void;
+	/** A gated kernel's: `name` run as `principal` at `scope`, through the palette's chain (phase 6's 6.2, step 5). */
+	readonly callAs?: (
+		p: KernelPrincipalV1,
+		name: string,
+		input: unknown,
+		scope: ScopeV1
+	) => Promise<CommandResult>;
+	/** A gated kernel's: `agent-member-settle` with `PROVIDER_HOOK_FIELDS`, journaled as `actor` (phase 3's A4, A8). */
+	readonly runProviderHook?: (input: unknown, actor?: Actor) => Promise<CommandResult>;
 }
 
 /**
@@ -559,6 +572,8 @@ export interface KernelPartsInternals {
 	nestedUnrecorded?(parent: string, name: string): void;
 	/** A replay: stage B's own journaled work is skipped, since the entries are what ran (10). */
 	replaying?: boolean;
+	/** A replay of a journal whose `workspace-deployment-apply` records a hosted host (phase 6's A5). */
+	hostedReplay?: boolean;
 	/** The journal's actor for a trace ID, undefined for one it does not hold (10). */
 	actorOf?(traceId: string | undefined): { actor?: Actor } | undefined;
 	/** The replay's Mock set to the person a `session-settle` entry records (phase 3 specification, 4.4). */
@@ -950,6 +965,11 @@ export async function createKernelParts(
 	 * `app-instance-refresh` made with them, with no principal, and nothing else.
 	 */
 	const INSTANCE_FIELDS: KernelCallFields = {};
+	/**
+	 * The provider's removal hook's fields (phase 3's A8), compared by reference like `BOOT_FIELDS`: a principal gate passes
+	 * `agent-member-settle` made with them, as the actor `execute` is given, and nothing else.
+	 */
+	const PROVIDER_HOOK_FIELDS: KernelCallFields = {};
 	const runBoot = (name: string, input?: unknown) => run('palette', name, input, {}, BOOT_FIELDS);
 	/**
 	 * A palette call stage B makes itself, past the queue it holds, journaled as the person's (phase 4's 3.6), with the
@@ -1146,7 +1166,9 @@ export async function createKernelParts(
 		name: string,
 		input: unknown,
 		callOptions: CallOptionsV5,
-		fields: KernelCallFields
+		fields: KernelCallFields,
+		/** The provider hook's actor (A8), read only with `PROVIDER_HOOK_FIELDS`. */
+		hookActor?: Actor
 	): Promise<CommandResult<T>> {
 		if (disposed) {
 			return failure({
@@ -1174,7 +1196,7 @@ export async function createKernelParts(
 		// The agent interface runs as an agent, the session's person in its `onBehalfOf` (phase 3
 		// specification, 3.1), named by `late/`, which has loaded since its calls wait for stage B; a port's or
 		// nested call as its outer call's actor, copied.
-		let { actor } = fields;
+		let actor = fields === PROVIDER_HOOK_FIELDS ? hookActor : fields.actor;
 		// The copilot's trace (phase 5 specification, 3.2): from the agent port's minted options alone, else the outer
 		// call's, which a nested call carries. A caller's own `trace` is never read.
 		const mine = minted.has(callOptions);
@@ -1223,7 +1245,13 @@ export async function createKernelParts(
 		// calls are marked last, so no field a caller passes can claim to be one.
 		const principal = gated ? principals?.of(actor) : undefined;
 		const own =
-			fields === BOOT_FIELDS ? 'boot' : fields === INSTANCE_FIELDS ? 'instance' : undefined;
+			fields === BOOT_FIELDS
+				? 'boot'
+				: fields === INSTANCE_FIELDS
+					? 'instance'
+					: gated && fields === PROVIDER_HOOK_FIELDS
+						? 'hook'
+						: undefined;
 		const context: CommandContext & KernelCallFields & { [CALL_MARK]?: string } = {
 			traceId,
 			// A server's call holds no active scope, so it never moves one (phase 2's 3.3).
@@ -1247,7 +1275,7 @@ export async function createKernelParts(
 		// `BOOT_ONLY`, both ways (2.2): its names are in the boot registry alone, which `BOOT_FIELDS` reach and
 		// nothing else does, so a caller gets the palette's or the agent's own `COMMAND_NOT_FOUND`, and boot's
 		// fields reach no other command.
-		const registry = fields === BOOT_FIELDS ? registries.boot : registries[iface];
+		const registry = fields === BOOT_FIELDS || own === 'hook' ? registries.boot : registries[iface];
 		// A running wrapper's child, started whether or not its entry is ever written (step 6's eighth round).
 		const origin = (fields as { origin?: unknown }).origin;
 		if (typeof origin === 'string') tracker.started(origin, 'origin');
@@ -1433,7 +1461,9 @@ export async function createKernelParts(
 			chooseScope();
 		},
 		runBoot,
-		...(principals ? { admitPrincipal: principals.admit, retirePrincipal: principals.retire } : {}),
+		...(server && principals
+			? server.serverCalls(principals, execute as never, PROVIDER_HOOK_FIELDS)
+			: {}),
 		// Phase 6's, so `late/` builds it: before that chunk has loaded, nothing is served. A server's call
 		// reaches this page's listeners as a call made here does (documents specification, 5.4).
 		mcpOptions: () => lateParts?.mcpOptions(current, listeners),

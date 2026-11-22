@@ -266,6 +266,11 @@ function shellApp(options: {
 		// The routes of later steps, and `<base>mcp` in a `local` deployment: the shell's routes only (3.3). The server
 		// card and the guide below `<base>mcp/` are step 10's.
 		if (rest === 'mcp' || rest.startsWith('mcp/')) return mcpNotFound();
+		// The trust-record transport (6.2): every method reaches it, and anything but its `POST` is refused there.
+		if (rest === 'api/kernel/call' && mcp) {
+			mcp.kernelCall(c.env.incoming, c.env.outgoing);
+			return RESPONSE_ALREADY_SENT;
+		}
 		if (rest === 'api/kernel/call' || rest.startsWith('mounts/')) return notFound('no-store');
 		const answer = await site({ method, path: rest, accept: c.req.header('accept') });
 		if (answer.status !== 200) return notFound();

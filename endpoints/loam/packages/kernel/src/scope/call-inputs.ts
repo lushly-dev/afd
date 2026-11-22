@@ -110,6 +110,8 @@ export const SHELL_INPUTS: Readonly<Record<string, unknown>> = {
 	'member-invitation-list': {},
 	'member-invitation-cancel': { invitation: 'none' },
 	'member-remove': { member: 'none' },
+	// Phase 6's step 5 (S4): the person's own leave, at the provider.
+	'member-leave': {},
 	'member-role-set': { member: 'none', role: 'member' },
 	'persona-list': {},
 	'persona-create': { title: 'Reviewer', emphasis: { apps: ['dual'] } },

@@ -244,8 +244,18 @@ export function createAgentMembers(deps: AgentMembersDeps) {
 			agent: undefined,
 		}).allowed;
 
+	/**
+	 * On the server's kernel (9.5), the roster `prepare` read for one call, by its context: the sponsor rules decide on it,
+	 * since the server holds no kernel-wide membership and runs no `membership-settle` (phase 6's step 5). In a browser,
+	 * the kernel's membership, which that settle recorded.
+	 */
+	const rosters = new WeakMap<object, MembershipV1>();
+	const heldFor = (context: CommandContext): MembershipV1 =>
+		rosters.get(context) ?? scope.membership;
 	// Sponsors a read found no member of the workspace, whose agent members `agent-member-settle` suspends (8.3).
 	const left = new Set<string>();
+	/** In a hosted `provider` browser, the server suspends them (phase 6's A4) and the copy follows: none here. */
+	let heldByServer = false;
 	/** The installed agent members a person sponsors that are not suspended yet: the ones their leaving suspends. */
 	const sponsoredBy = (person: string) =>
 		cache.all().filter((agent) => agent.sponsor === person && agent.status !== 'suspended');
@@ -254,7 +264,7 @@ export function createAgentMembers(deps: AgentMembersDeps) {
 	 * alone: in `local` mode the roster is whoever is signed in, and every actor is a member (2.1).
 	 */
 	function noteLeft(person: string): string[] {
-		if (!provider || deps.replaying()) return [];
+		if (!provider || deps.replaying() || heldByServer) return [];
 		const agents = sponsoredBy(person);
 		if (agents.length > 0) left.add(person);
 		return agents.map((agent) => agent.id);
@@ -440,7 +450,7 @@ export function createAgentMembers(deps: AgentMembersDeps) {
 		const caller = personOf(context);
 		const ids = (projects as string[]).map((ref) => {
 			const found = scope.project(ref);
-			const visible = found !== undefined && mayEnter(scope.membership, caller, found.id);
+			const visible = found !== undefined && mayEnter(heldFor(context), caller, found.id);
 			const at = visible ? found.id : ref;
 			if (!visible) blind.add(at);
 			if (!labels.has(at)) labels.set(at, ref);
@@ -460,7 +470,7 @@ export function createAgentMembers(deps: AgentMembersDeps) {
 		labels: Map<string, string> = new Map(),
 		blind: ReadonlySet<string> = new Set()
 	): CommandResult<never> | undefined {
-		const member = provider ? scope.membership.members.has(sponsor) : sponsor === personOf(context);
+		const member = provider ? heldFor(context).members.has(sponsor) : sponsor === personOf(context);
 		if (sponsor.startsWith('agt_') || !member) {
 			return fail(
 				'AGENT_SPONSOR_INVALID',
@@ -470,14 +480,14 @@ export function createAgentMembers(deps: AgentMembersDeps) {
 		}
 		if (access.projects === 'sponsor') return undefined;
 		const lost = access.projects.filter(
-			(id) => blind.has(id) || !mayEnter(scope.membership, sponsor, id)
+			(id) => blind.has(id) || !mayEnter(heldFor(context), sponsor, id)
 		);
 		if (lost.length === 0) return undefined;
 		// Each as the caller wrote it; one the record already held is named only when the caller may enter it, and the
 		// rest counted, so a refusal names nothing hidden from the caller (I2, I3).
 		const caller = personOf(context);
 		const named = lost.flatMap((id) => {
-			const label = labels.get(id) ?? (mayEnter(scope.membership, caller, id) ? id : undefined);
+			const label = labels.get(id) ?? (mayEnter(heldFor(context), caller, id) ? id : undefined);
 			return label === undefined ? [] : [`'${label}'`];
 		});
 		const unseen = lost.length - named.length;
@@ -1107,6 +1117,10 @@ export function createAgentMembers(deps: AgentMembersDeps) {
 		removed: (person: string): string[] => noteLeft(person),
 		/** A settle found `person` no member (4.4): their agent members are suspended after it. */
 		noteLeft,
+		/** Phase 6's hosted lane: the server's removal hook suspends a sponsor's agent members, never this kernel. */
+		holdSettles() {
+			heldByServer = true;
+		},
 		/** Whether a suspension waits for {@link flush}. */
 		pending: () => left.size > 0,
 		flush,
@@ -1124,7 +1138,16 @@ export function createAgentMembers(deps: AgentMembersDeps) {
 			if (!provider || deps.replaying()) return undefined;
 			if (name !== 'agent-member-add' && name !== 'agent-member-update') return undefined;
 			// The handler refuses anyone else OWNER_REQUIRED, with nothing read for them.
-			if (!kit.isOwner(scope.membership, personOf(call))) return undefined;
+			if (!kit.isOwner(scope.membershipOf(call), personOf(call))) return undefined;
+			// The server reads the whole roster for this call, by its person, and decides on it (9.5; phase 6's step 5).
+			if (deps.gated) {
+				try {
+					rosters.set(call, membershipOf(await roster(call)));
+				} catch {
+					return kit.membershipUnavailable(name);
+				}
+				return undefined;
+			}
 			const asked = (input ?? {}) as {
 				agent?: unknown;
 				sponsor?: unknown;

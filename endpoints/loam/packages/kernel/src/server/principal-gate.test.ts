@@ -327,10 +327,13 @@ describe('a principal-gated kernel (9.5)', () => {
 		).rejects.toMatchObject({ code: 'IDENTITY_MODE_INVALID' });
 	});
 
-	it('registers none of the three settles, and serves no page-event middleware over MCP', async () => {
-		for (const name of ['session-settle', 'membership-settle', 'agent-member-settle']) {
+	it('registers two of the three settles, and serves no page-event middleware over MCP', async () => {
+		for (const name of ['session-settle', 'membership-settle']) {
 			expect(parts.registries.boot.hasCommand(name)).toBe(false);
 		}
+		// `agent-member-settle` is the provider hook's alone (phase 3's A4): in the boot registry, never a caller's.
+		expect(parts.registries.boot.hasCommand('agent-member-settle')).toBe(true);
+		expect(parts.registries.palette.hasCommand('agent-member-settle')).toBe(false);
 		// The kernel's own chain alone, so its first middleware is the principal gate: no page-event step ahead of it
 		// reads a page's session.
 		const first = parts.mcpOptions()?.middleware[0];

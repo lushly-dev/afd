@@ -15,6 +15,7 @@ import {
 	createLoamAuthOptions,
 	type LoamMailV1,
 	type LoamOidcProviderV1,
+	type MemberRemovedV1,
 	readBinding,
 } from '@lushly-dev/loam-identity';
 import type { IdentityV1 } from '@lushly-dev/loam-manifest';
@@ -50,6 +51,11 @@ export interface HostProvider {
 	bootstrapped(): Promise<boolean>;
 	/** Whether the bound organization has a member: the bootstrap is done (3.7, `HOST_ALREADY_BOOTSTRAPPED`). */
 	hasMembers(): Promise<boolean>;
+	/**
+	 * The server kernel's removal hook (phase 3's A4, 3.7): what `onMemberRemoved` runs, once per removal, from the time
+	 * the kernel is open. Before that, or with none, a removal's settle is logged as failed and line 2 stays in force.
+	 */
+	hearRemovals(hook: ((event: MemberRemovedV1) => Promise<void>) | undefined): void;
 	close(): void;
 }
 
@@ -134,7 +140,14 @@ export async function openProvider(options: {
 		database.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
 		const shell = `${server.origin}${basePath}`;
 		const oidc = oidcProviders(server, secrets);
+		let removals: ((event: MemberRemovedV1) => Promise<void>) | undefined;
 		const authOptions = createLoamAuthOptions({
+			// Once per removal (A4): the server kernel's `agent-member-settle`, once it is open.
+			onMemberRemoved: async (event) => {
+				if (!removals)
+					throw new Error('The server kernel is not open: no agent member was settled');
+				await removals(event);
+			},
 			baseURL: `${shell}${identity.path}`,
 			secret: secrets.auth,
 			database,
@@ -154,6 +167,9 @@ export async function openProvider(options: {
 		const metadata = oauthProviderAuthServerMetadata(auth as never);
 		return {
 			auth,
+			hearRemovals(hook) {
+				removals = hook;
+			},
 			path: `${basePath}${identity.path}`,
 			issuer: `${shell}${identity.path}`,
 			workspace,

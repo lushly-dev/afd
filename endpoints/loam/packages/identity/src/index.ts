@@ -28,7 +28,7 @@ export {
 	endConnections,
 } from './connected-agents.js';
 export { JOIN_INVITATION_MS, joinLink } from './enrolment.js';
-export { createOrganizationHooks } from './hooks.js';
+export { createOrganizationHooks, type MemberRemovedV1 } from './hooks.js';
 export {
 	type AdmitPrincipal,
 	createMcpAuth,

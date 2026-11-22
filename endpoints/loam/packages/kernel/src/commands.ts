@@ -43,6 +43,8 @@ export const BOOT_ONLY: readonly string[] = Object.freeze([
 	'prompt-settle',
 	// Each app's stored bytes counted afresh (phase 4 specification, section 11).
 	'store-usage-settle',
+	// The browser's copy of the hosted server's trust records, replaced from its snapshot (phase 6 specification, 6.3).
+	'trust-record-settle',
 	// The owners' notice of an app's first refusal by a limit in an hour (phase 4 specification, section 11).
 	'limit-notice-push',
 ]);

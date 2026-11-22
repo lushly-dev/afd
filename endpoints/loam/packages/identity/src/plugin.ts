@@ -27,6 +27,27 @@ import {
 	consentHooks,
 } from './connected-agents.js';
 import { enrolmentEndpoints, JOIN_FIELDS, JOIN_MODEL } from './enrolment.js';
+import { type MemberRemovedV1, memberRemoved, revokeRemoved } from './hooks.js';
+
+/** The most removers `afterRemoveMember` may still read: the oldest beyond it is dropped. */
+const REMOVERS_MAX = 64;
+
+/** What `leave` asks of the provider's database adapter: one transaction, with a count of what it deleted. */
+interface LeaveAdapter {
+	transaction<R>(
+		run: (trx: {
+			findMany<T>(query: {
+				model: string;
+				where: { field: string; value: string }[];
+			}): Promise<T[]>;
+			deleteMany(query: {
+				model: string;
+				where: { field: string; value: string }[];
+			}): Promise<number>;
+		}) => Promise<R>
+	): Promise<R>;
+}
+
 import { memberEndpoints } from './members.js';
 import {
 	createRecoveryAnnouncer,
@@ -64,6 +85,15 @@ export interface LoamProviderState {
 	oidc: readonly string[];
 	/** A recovery's announcement, held until its registration's transaction has committed (5.7). */
 	announcer?: ReturnType<typeof createRecoveryAnnouncer>;
+	/** The host's removal callback (phase 3's A4): run once per removal, by Better Auth's hook or Loam's `leave`. */
+	onMemberRemoved?: (event: MemberRemovedV1) => Promise<void> | void;
+	/**
+	 * Who is removing whom (A8), from the role paths' `before` hook, which reads the request's session: by organization and
+	 * the member's id or email, read and forgotten by `afterRemoveMember`, which Better Auth 1.7.18 gives no session.
+	 */
+	removers?: Map<string, string>;
+	/** The organization hooks' last-owner rule (7.1), which `leave` applies as removal does: its refusal, or none. */
+	lastOwner?: (member: { organizationId: string; role: string }) => Promise<APIError | undefined>;
 }
 
 /** No person's id may start with it (3.2): `whoami` answers such a session as none. */
@@ -307,6 +337,62 @@ export function loamServerPlugin(state: LoamProviderState) {
 			 * `GET <path>/loam/binding` (2.3): the binding as it stands, for an owner of the bound organization,
 			 * with `IDENTITY_BINDING_MISMATCH` when the deployment's slug no longer names it.
 			 */
+			/**
+			 * `POST <path>/loam/leave` (phase 6's S4): the session's person leaves the bound organization on removal's path,
+			 * since Better Auth's own `/organization/leave` skips the organization hooks and is not served. The last-owner
+			 * rule first (7.1, `MEMBER_LAST_OWNER`), then the member row deleted, then the person's sessions, grants and
+			 * connected agents, and the host's `onMemberRemoved` once; `afterRemoveMember` does not fire, so nothing runs
+			 * twice.
+			 */
+			loamLeave: createAuthEndpoint(
+				'/loam/leave',
+				{ method: 'POST', use: [sessionMiddleware] },
+				async (ctx) => {
+					const adapter = adapterOf(state);
+					const binding = await readBinding(adapter, state.workspace);
+					const userId = ctx.context.session.user.id;
+					const member = binding && (await memberOf(adapter, binding.organizationId, userId));
+					if (!binding || !member) {
+						throw refusal(
+							'BAD_REQUEST',
+							'MEMBER_NOT_FOUND',
+							'You are not a member of this workspace'
+						);
+					}
+					const refused = await state.lastOwner?.(member);
+					if (refused) throw refused;
+					// Their sessions, grants and connected agents first, so a failure leaves them a member to try again, never a
+					// membership gone with its sessions still accepted.
+					await revokeRemoved(state, userId);
+					// The last-owner rule read again and the row deleted in one transaction, so two owners leaving at once cannot
+					// both pass it; only the request that deleted the row tells the host, so the settle runs once (A4).
+					const deleted = await (adapter as unknown as LeaveAdapter).transaction(async (trx) => {
+						const owners = (
+							await trx.findMany<{ role: string }>({
+								model: 'member',
+								where: [{ field: 'organizationId', value: binding.organizationId }],
+							})
+						).filter((row) => rolesOf(row.role).includes('owner')).length;
+						if (rolesOf(member.role).includes('owner') && owners <= 1) return 'last-owner';
+						return trx.deleteMany({ model: 'member', where: [{ field: 'id', value: member.id }] });
+					});
+					if (deleted === 'last-owner') {
+						throw refusal(
+							'BAD_REQUEST',
+							'MEMBER_LAST_OWNER',
+							'The organization keeps at least one owner. Make another member an owner first'
+						);
+					}
+					if (deleted > 0) {
+						await memberRemoved(state, {
+							organizationId: binding.organizationId,
+							userId,
+							removedBy: userId,
+						});
+					}
+					return ctx.json({ left: true });
+				}
+			),
 			loamBinding: createAuthEndpoint(
 				'/loam/binding',
 				{ method: 'GET', use: [sessionMiddleware] },
@@ -372,6 +458,19 @@ export function loamServerPlugin(state: LoamProviderState) {
 						}
 						const adapter = adapterOf(state);
 						const caller = await memberOf(adapter, organizationId, session.user.id);
+						// The remover, for the server's settle journaled as them (A8), only when the caller is a member, read and
+						// forgotten by `afterRemoveMember`; a refused attempt's entry is replaced by the next or dropped past the bound.
+						const named = String(body.memberIdOrEmail ?? body.memberId ?? '').toLowerCase();
+						if (caller && ctx.path === '/organization/remove-member' && named !== '') {
+							state.removers ??= new Map();
+							const key = `${organizationId}:${named}`;
+							state.removers.delete(key);
+							state.removers.set(key, session.user.id);
+							for (const old of state.removers.keys()) {
+								if (state.removers.size <= REMOVERS_MAX) break;
+								state.removers.delete(old);
+							}
+						}
 						if (!caller || rolesOf(caller.role).includes('owner')) return;
 						const target = await memberNamed(
 							adapter,

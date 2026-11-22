@@ -97,6 +97,7 @@ export const SHELL_COMMAND_NAMES = [
 	'member-invitation-list',
 	'member-invitation-cancel',
 	'member-remove',
+	'member-leave',
 	'member-role-set',
 	// Step 5 (6.3): a person's personas.
 	'persona-list',

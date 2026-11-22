@@ -112,6 +112,7 @@ export class DeferredAuthAdapter implements AuthAdapter {
 			'listInvitations',
 			'cancelInvitation',
 			'removeMember',
+			'leave',
 			'setRole',
 			'acceptInvitation',
 			'rejectInvitation',
@@ -173,6 +174,8 @@ export interface ProviderIdentity {
 	last(): WhoamiV1;
 	/** Ask the kernel to read membership again, as a refresh finds it may have changed (4.3). */
 	membershipMayHaveChanged(): void;
+	/** Phase 3's 4.3 refresh at once: the session read again, and membership (phase 6's 6.1, after a `401`). */
+	refreshSession(): void;
 }
 
 /**
@@ -231,6 +234,10 @@ export async function probeIdentity(
 		last: () => last,
 		membershipMayHaveChanged() {
 			for (const watcher of [...watchers]) watcher();
+		},
+		refreshSession() {
+			void identity.adapter.refresh().catch(() => undefined);
+			identity.membershipMayHaveChanged();
 		},
 	};
 	if (!first) void probe.then((late) => identity.adapter.apply(late.state));

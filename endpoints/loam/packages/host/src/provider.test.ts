@@ -133,6 +133,8 @@ const SERVED: Record<string, string> = {
 	'/error': "Better Auth's error page, no session",
 	'/loam/whoami': '4.2: the session and the membership of the bound organization',
 	'/loam/binding': '2.3: the binding, to an owner alone',
+	'/loam/leave':
+		"phase 6's S4: the session's person leaves on removal's path, the last owner refused",
 	'/loam/sessions': '4.6: the sessions by handle',
 	'/loam/revoke-person': "4.6: freshness for any session but the caller's own",
 	'/loam/join/check': '5.6: the invitation, to the link holder',

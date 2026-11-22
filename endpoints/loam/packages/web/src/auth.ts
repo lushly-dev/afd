@@ -166,7 +166,10 @@ function loamOrganization(authBase: string): OrganizationAccess {
 	return {
 		membership: unsupported,
 		listMembers: unsupported,
-		leave: unsupported,
+		// Loam's own leave (phase 6's S4): Better Auth's `/organization/leave` is not served.
+		async leave(organizationId) {
+			await request('/loam/leave', { organizationId });
+		},
 		invite: async (organizationId, { email, role }) =>
 			invitation(await request('/organization/invite-member', { organizationId, email, role })),
 		listInvitations: async (organizationId) =>

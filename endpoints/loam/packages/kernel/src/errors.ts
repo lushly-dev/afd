@@ -189,7 +189,14 @@ export type LoamKernelErrorCode =
 	| 'QUOTA_EXCEEDED'
 	| 'REPLAY_ENTRY_TRUNCATED'
 	// Step 6's fourth round: a journal with an entry missing from its middle.
-	| 'REPLAY_JOURNAL_GAP';
+	| 'REPLAY_JOURNAL_GAP'
+	// Phase 6's step 5 (its 6.1 to 6.3, section 16): the trust-record transport and the browser's copy.
+	| 'SERVER_UNAVAILABLE'
+	| 'SERVER_COMMAND_NOT_SERVED'
+	| 'TRUST_RECORDS_TOO_LARGE'
+	| 'REQUEST_NOT_SAME_ORIGIN'
+	| 'REQUEST_TOO_LARGE'
+	| 'REQUEST_INVALID';
 
 /**
  * In a failure's `details`: the page decided this and not a command, as an import or a frame's deadline

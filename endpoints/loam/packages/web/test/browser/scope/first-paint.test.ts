@@ -183,8 +183,8 @@ describe('P2-E1: one first paint', () => {
 		// `budget.mjs`'s `jsMinified`, raised under D115 by phase 5's step 2, then by the replay and journal
 		// follow-ups (#663's IndexedDB `last` read), phase 4's steps 2, 3, 4, 5, 6, 10 and 7,
 		// Batch 1 AFD fixes (#1701, #1704), afd-server's approval admission, phase 3's step 7, phase 4's step 9,
-		// the approval-admission follow-ups, and fast-element's controller-replacement fixes (#1389).
-		expect(javascript).toBeLessThanOrEqual(330_300);
+		// the approval-admission follow-ups, fast-element's controller-replacement fixes (#1389), and phase 6's step 5.
+		expect(javascript).toBeLessThanOrEqual(331_000);
 		expect(javascript).toBe(budgetRow());
 		// Stage B still runs in every deployment: `late` loads after the mark, on the empty shell too.
 		await expect

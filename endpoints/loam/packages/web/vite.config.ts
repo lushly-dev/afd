@@ -40,7 +40,7 @@ export default defineConfig({
 				// bundler parts the chunks as it would.
 				chunkFileNames: (chunk) => {
 					const late =
-						/kernel[\\/]dist[\\/]late[\\/](documents|editor-commands|session-settle|settings)\.js$/.exec(
+						/kernel[\\/]dist[\\/]late[\\/](documents|editor-commands|session-settle|settings|hosted)\.js$/.exec(
 							chunk.facadeModuleId ?? ''
 						)?.[1];
 					// The copilot's panel, which the shell loads when its panel part first opens (phase 5 specification, 16).
@@ -51,6 +51,8 @@ export default defineConfig({
 						return 'assets/late-copilot-[hash].js';
 					// Phase 4's settings commands and their rules (phase 4 specification, 1): `late-settings`.
 					if (late === 'settings') return 'assets/late-settings-[hash].js';
+					// Phase 6's routing and copy of the trust records (its 6.1, 6.3): loaded in a hosted `provider` shell only.
+					if (late === 'hosted') return 'assets/late-hosted-[hash].js';
 					// The manifest's settings checks, which `late-settings` and `apps` share, named apart from the chrome's
 					// `settings` chunk, the settings section (phase 4 specification, 3.5), so `budget` reads each by name.
 					if (

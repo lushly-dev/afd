@@ -148,6 +148,7 @@ export const MEMBER_PROVIDER_COMMANDS: readonly string[] = Object.freeze([
 	'member-invitation-cancel',
 	'member-remove',
 	'member-role-set',
+	'member-leave',
 ]);
 
 /**
@@ -158,6 +159,7 @@ export const MEMBERSHIP_CHANGING_COMMANDS: readonly string[] = Object.freeze([
 	'account-invitation-accept',
 	'member-remove',
 	'member-role-set',
+	'member-leave',
 ]);
 
 /** The provider's codes the kernel keeps or maps (15). */
@@ -757,6 +759,37 @@ export function createMemberCommands(deps: MemberCommandsDeps) {
 		},
 	});
 
+	/**
+	 * `member-leave` (phase 3's 7.2, phase 6's S4): the person leaves the workspace through Loam's own `leave` endpoint,
+	 * which takes the removal path (the last-owner rule, then their sessions and the server's `agent-member-settle`), so
+	 * their membership is read again, and settled, after it. Human, recorded: its whole effect is at the provider.
+	 */
+	const memberLeave = kit.define<typeof empty, { left: true }>({
+		name: 'member-leave',
+		title: 'Leave the workspace',
+		description:
+			'Leave this workspace: your sessions here end, and the agent members you sponsor are suspended. An owner invites you again',
+		category: 'member',
+		mutation: true,
+		destructive: true,
+		executionTime: 'fast',
+		input: empty,
+		jsonSchema: EMPTY_JSON,
+		async handler(_input, context) {
+			const organizations = organization();
+			if (!account(context) || !organizations) return noProvider();
+			try {
+				await organizations.leave(await boundId(context));
+				return kit.success({ left: true as const });
+			} catch (cause) {
+				const code = (cause as { code?: unknown } | null)?.code;
+				if (code === 'YOU_CANNOT_LEAVE_THE_ORGANIZATION_AS_THE_ONLY_OWNER')
+					return fail('MEMBER_LAST_OWNER', 'The workspace keeps at least one owner');
+				return refusal(cause);
+			}
+		},
+	});
+
 	const roleInput = z.strictObject({ member: id, role });
 	const memberRoleSet = kit.define<
 		typeof roleInput,
@@ -901,6 +934,7 @@ export function createMemberCommands(deps: MemberCommandsDeps) {
 			pendingList,
 			invitationCancel,
 			memberRemove,
+			memberLeave,
 			memberRoleSet,
 		] as unknown as ZodCommandDefinition[],
 	};
