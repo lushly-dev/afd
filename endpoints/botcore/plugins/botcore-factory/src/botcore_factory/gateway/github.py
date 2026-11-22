@@ -372,6 +372,10 @@ class FakeGitHub:
             pull.update(
                 state="merged", mergedAt=data.get("now"), autoMerge=False, mergeMethod=method
             )
+            for issue_number in pull.get("closes", []):
+                issue = self._issue(data, issue_number)
+                if issue is not None:
+                    issue["state"] = "closed"
             return pull["mergedAt"]
 
     def enable_auto_merge(self, repo, number, head, method):

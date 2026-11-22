@@ -206,6 +206,22 @@
 			],
 			"closes": [102],
 			"autoMerge": false
+		},
+		{
+			"number": 48,
+			"state": "open",
+			"branch": "fix/parser",
+			"head": "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0",
+			"mergeable": "MERGEABLE",
+			"checks": [
+				{
+					"name": "ci-ok",
+					"status": "completed",
+					"conclusion": "success"
+				}
+			],
+			"closes": [101],
+			"autoMerge": false
 		}
 	],
 	"claimComments": [],

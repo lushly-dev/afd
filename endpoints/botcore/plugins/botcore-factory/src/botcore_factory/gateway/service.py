@@ -428,9 +428,21 @@ class Gateway:
         issue = self.issue_or_refuse(repo, number)
         record = self.claim(repo, number)
         same = (holder["branch"], holder["machine"])
-        if isinstance(record, Release) and (record.branch, record.machine) == same:
+        is_open = issue["state"] == "open"
+        target_label = PLANNED if is_open else None
+        has_in_progress = IN_PROGRESS in issue.get("labels", [])
+        if isinstance(record, Release) and (
+            (record.branch, record.machine) == same or (force and has_in_progress)
+        ):
+            if has_in_progress:
+                self.spend("issue-release")
+                self._release_labels(repo, issue)
+                return success(
+                    {"released": True, "changed": True, "record": {"label": target_label}},
+                    reasoning=f"Cleared {IN_PROGRESS} on already-released issue {number}",
+                )
             return success(
-                {"released": True, "changed": False, "record": {"label": PLANNED}},
+                {"released": True, "changed": False, "record": {"label": target_label}},
                 reasoning=f"Issue {number} was already released by {holder['branch']}",
             )
         if not isinstance(record, Claim):
@@ -452,12 +464,23 @@ class Gateway:
         self.spend("issue-release")
         released = record.holder() if force else holder
         self.github.add_comment(repo, number, claim_rules.release_body(released, reason))
-        labels = [label for label in issue.get("labels", []) if not label.startswith("status:")]
-        self.github.set_labels(repo, number, [*labels, PLANNED])
+        self._release_labels(repo, issue)
         return success(
-            {"released": True, "changed": True, "record": {"label": PLANNED}},
+            {"released": True, "changed": True, "record": {"label": target_label}},
             reasoning=f"Released issue {number}" + (" by force" if force else ""),
         )
+
+    def _release_labels(self, repo: str, issue: dict) -> None:
+        """Restore ``status:planned`` on an open issue; on a closed one, only drop
+        ``status:in-progress`` so a closed issue never reads as in progress or planned."""
+        previous = list(issue.get("labels", []))
+        if issue["state"] == "open":
+            labels = [label for label in previous if not label.startswith("status:")]
+            labels.append(PLANNED)
+        else:
+            labels = [label for label in previous if label != IN_PROGRESS]
+        if labels != previous:
+            self.github.set_labels(repo, issue["number"], labels)
 
     # ── issues and comments ──────────────────────────────────────────────
 
@@ -714,9 +737,14 @@ class Gateway:
         pull = self.pull_or_refuse(repo, number)
         state = self.pull_state(pull)
         if state == "merged":
+            cleaned = False if cancel else self._release_on_merge(repo, pull, spend=True)
             return success(
-                {"state": "merged", "autoMerge": False, "changed": False},
-                reasoning=f"Pull request {number} already merged",
+                {"state": "merged", "autoMerge": False, "changed": cleaned},
+                reasoning=(
+                    f"Finished releasing claims for merged pull request {number}"
+                    if cleaned
+                    else f"Pull request {number} already merged"
+                ),
             )
         if state == "closed":
             raise refuse(
@@ -1018,14 +1046,35 @@ class Gateway:
             method=method,
         )
 
-    def _release_on_merge(self, repo: str, pull: dict) -> None:
+    def _release_on_merge(self, repo: str, pull: dict, *, spend: bool = False) -> bool:
+        """Post the release comment (if still claimed) and drop ``status:in-progress`` for every
+        issue this pull request closes. Idempotent, so retrying ``pr-merge`` after a partial write
+        finishes any leftover label cleanup without re-posting the release comment."""
+        branch = pull.get("branch")
+        changed = False
         for number in pull.get("closes", []):
             record = self.claim(repo, number)
-            if isinstance(record, Claim) and record.branch == pull.get("branch"):
+            if isinstance(record, Claim) and record.branch == branch:
+                if spend and not changed:
+                    self.spend("pr-merge")
+                changed = True
                 reason = f"merged in #{pull['number']}"
                 self.github.add_comment(
                     repo, number, claim_rules.release_body(record.holder(), reason)
                 )
+                issue = self.github.issue(repo, number)
+                if issue is not None and IN_PROGRESS in issue.get("labels", []):
+                    labels = [label for label in issue["labels"] if label != IN_PROGRESS]
+                    self.github.set_labels(repo, number, labels)
+            elif isinstance(record, Release) and record.branch == branch:
+                issue = self.github.issue(repo, number)
+                if issue is not None and IN_PROGRESS in issue.get("labels", []):
+                    if spend and not changed:
+                        self.spend("pr-merge")
+                    changed = True
+                    labels = [label for label in issue["labels"] if label != IN_PROGRESS]
+                    self.github.set_labels(repo, number, labels)
+        return changed
 
     def pr_revert(self, repo: str, numbers: list[int], reason: str):
         self.repo(repo)

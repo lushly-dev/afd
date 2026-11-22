@@ -1026,17 +1026,33 @@ def test_a_tool_s_version_is_read_with_the_node_bin_first_on_path(tmp_path):
 
 
 def test_local_machine_reads_botcore_disk_warnings(tmp_path, monkeypatch):
-    state = tmp_path / "state"
-    state.mkdir()
+    from conftest import isolate_cargo_configs
+
+    # Simulate TMPDIR inside $HOME with a host ~/.cargo/config.toml setting build-dir
+    # (lushly-dev/afd#1954): isolating config discovery to the sandbox keeps the test hermetic.
+    fake_home = tmp_path / "host-home"
+    host_cargo = fake_home / ".cargo"
+    host_cargo.mkdir(parents=True)
+    host_build = json.dumps(str(tmp_path / "host-build") + "/{workspace-path-hash}")
+    (host_cargo / "config.toml").write_text(
+        f"[build]\nbuild-dir = {host_build}\n", encoding="utf-8"
+    )
+    sandbox = fake_home / "sandbox"
+    state = sandbox / "state"
+    state.mkdir(parents=True)
     now = datetime.now(UTC).isoformat(timespec="seconds")
     snapshot = {"repos": {"/repo": {"at": now, "count": 30, "warning": "/repo: too many idle"}}}
     (state / "status.json").write_text(json.dumps({"worktree_warnings": snapshot}))
     monkeypatch.setenv("BOTCORE_DISK_STATE", str(state))
-    monkeypatch.setenv("BOTCORE_DISK_SETTINGS", str(tmp_path / "missing.toml"))
-    monkeypatch.setenv("CARGO_HOME", str(tmp_path / "cargo"))
-    monkeypatch.chdir(tmp_path)  # no registered repositories: Cargo is checked from here
+    monkeypatch.setenv("BOTCORE_DISK_SETTINGS", str(sandbox / "missing.toml"))
+    monkeypatch.setenv("BOTCORE_DISK_T3_SETTINGS", "")
+    monkeypatch.setenv("CARGO_HOME", str(sandbox / "cargo"))
+    monkeypatch.setenv("HOME", str(sandbox / "home"))
+    monkeypatch.setenv("USERPROFILE", str(sandbox / "home"))
+    monkeypatch.chdir(sandbox)  # no registered repositories: Cargo is checked from here
     for name in ("CARGO_TARGET_DIR", "CARGO_BUILD_TARGET_DIR", "CARGO_BUILD_BUILD_DIR"):
         monkeypatch.delenv(name, raising=False)
+    isolate_cargo_configs(monkeypatch, sandbox)
     assert LocalMachine().disk_warnings() == ["/repo: too many idle"]
     (state / "status.json").write_text("not json")
     assert LocalMachine().disk_warnings() == []

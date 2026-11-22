@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import contextlib
 
-from botcore_factory.cells import build_dir, seated
+from botcore_factory.cells import build_dir, disk_short, seated
 from botcore_factory.events import is_open
 from botcore_factory.lane_base import (
     AT_THE_FRONT,
@@ -18,6 +18,7 @@ from botcore_factory.lane_base import (
     StepBase,
     first_lines,
 )
+from botcore_factory.runtime import Refusal
 from botcore_factory.validation_lock import parse_job_handle
 from botcore_factory.world import LANE_HOST_VARIABLE, WorldError, nvmrc_version
 
@@ -146,6 +147,23 @@ class Coverage(StepBase):
             return
         if self._blocked_on_host_lock is not None:
             return
+        busy = {
+            e.get("slot")
+            for e in self.state["queue"]
+            if e.get("state") in ("validating", "validated")
+        }
+        free = [str(n) for n in range(1, self.dial("lane.slots") + 1) if str(n) not in busy]
+        self.sweep_builds(free)
+        # Check free disk before starting coverage (lushly-dev/afd#1660), as validations do:
+        # a second ENOSPC on the same main after lane-resume would otherwise report main-broken.
+        try:
+            short = disk_short(self.factory, self.state["dials"])
+        except Refusal as refusal:
+            raise LaneTrouble(f"{refusal.message}. {refusal.suggestion}") from refusal
+        if short is not None:
+            raise LaneTrouble(
+                f"Coverage waits: {short.message}. {short.suggestion}; then lane-resume"
+            )
         lock = self.world.validation_lock
         acquired = False
         if lock is not None:

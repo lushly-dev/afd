@@ -1085,6 +1085,70 @@ def test_coverage_that_runs_out_of_disk_pauses_without_calling_main_broken(make_
     assert run.state()["lane"]["mergedSinceCoverage"] == [1, 2, 3, 4, 5]  # Still owed.
 
 
+def test_a_short_disk_pauses_the_lane_before_starting_coverage(make_run):
+    """lushly-dev/afd#1660: check free disk before start_coverage, so resuming on a still-full
+    disk pauses again instead of running coverage into a second ENOSPC reported as main-broken."""
+    run = make_run(
+        "running",
+        queue=[],
+        held=[],
+        lane={"mergedSinceCoverage": [1, 2, 3, 4, 5]},
+        host={"freeDiskGb": 12},
+    )
+    config = {"coverage": ["pnpm", "test:coverage"]}
+    run_steps(run, 2, **config)
+    assert not events(run, "main-broken") and "coverage" not in kinds(run)
+    assert run.state()["lane"].get("coverage") is None
+    assert run.state()["lane"]["paused"] is True
+    [error] = events(run, "lane-error")
+    assert "Coverage waits" in error["detail"] and "host.minFreeDiskGb is 20" in error["detail"]
+    assert run.state()["lane"]["mergedSinceCoverage"] == [1, 2, 3, 4, 5]
+
+    lane_resume(run.factory(), "freed some disk")  # Still short: pauses again, never main-broken.
+    run_steps(run, **config)
+    assert run.state()["lane"]["paused"] is True
+    assert len(events(run, "lane-error")) == 2 and not events(run, "main-broken")
+    assert run.state()["lane"].get("coverage") is None
+
+    run.change_world(host={"freeDiskGb": 200})
+    lane_resume(run.factory(), "freed enough")
+    assert "coverage on main-0" in run_steps(run, **config)
+    assert "coverage passed" in run_steps(run, **config)
+    assert run.state()["lane"]["mergedSinceCoverage"] == []
+
+
+def test_an_unreadable_disk_pauses_the_lane_before_starting_coverage(make_run):
+    run = make_run(
+        "running",
+        queue=[],
+        held=[],
+        dials={"host.buildDir": "/Volumes/Dev"},
+        lane={"mergedSinceCoverage": [1, 2, 3, 4, 5]},
+        host={"freeDiskGb": 200, "missingDirs": ["/Volumes/Dev"]},
+    )
+    run_steps(run, coverage=["pnpm", "test:coverage"])
+    assert not events(run, "main-broken") and run.state()["lane"].get("coverage") is None
+    assert run.state()["lane"]["paused"] is True
+    assert "host.buildDir /Volumes/Dev is not a directory" in run.state()["lane"]["pauseReason"]
+
+
+def test_coverage_sweeps_stale_slot_builds_before_reading_free_disk(make_run):
+    stale = str(PurePath("slots/.build/1"))
+    run = make_run(
+        "running",
+        queue=[],
+        held=[],
+        lane={
+            "mergedSinceCoverage": [1, 2, 3, 4, 5],
+            "slotBuilds": {"1": {"branch": "feat/already-merged", "path": stale}},
+        },
+    )
+    actions = run_steps(run, coverage=["pnpm", "test:coverage"])
+    assert "removed slot 1's build output for feat/already-merged" in actions
+    assert "coverage on main-0" in actions
+    assert run.world_data()["removedBuilds"] == [stale, str(PurePath("slots/.build/coverage"))]
+
+
 def job_env(run) -> list[str]:
     """Each started job's CARGO_TARGET_DIR, in the order the jobs started."""
     running = run.world_data()["processes"]["running"]

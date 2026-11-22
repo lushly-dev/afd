@@ -201,6 +201,41 @@ def test_cargo_default_keeps_output_in_each_worktree(cargo_home: Path, place: Pa
     assert check(place) == {"arrangement": "inside each worktree", "settings": [], "problems": []}
 
 
+def test_cargo_host_ancestor_config_outside_test_sandbox_is_ignored(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """lushly-dev/afd#1954: simulate TMPDIR inside $HOME where ~/.cargo/config.toml sets
+    build-dir; confining config discovery to the test sandbox keeps the host config out."""
+    fake_home = tmp_path / "host-home"
+    host_cargo = fake_home / ".cargo"
+    host_cargo.mkdir(parents=True)
+    write_config(
+        host_cargo,
+        f"build-dir = {json.dumps(str(tmp_path / 'host-build') + '/{workspace-path-hash}')}",
+    )
+    sandbox = fake_home / "antigravity-tmp" / "pytest-0"
+    nested_place = sandbox / "work" / "tree"
+    nested_place.mkdir(parents=True)
+    isolated_cargo = sandbox / "cargo-home"
+    isolated_cargo.mkdir()
+    monkeypatch.setenv("CARGO_HOME", str(isolated_cargo))
+    for name in ("CARGO_TARGET_DIR", "CARGO_BUILD_TARGET_DIR", "CARGO_BUILD_BUILD_DIR"):
+        monkeypatch.delenv(name, raising=False)
+
+    # Without the sandbox boundary at `sandbox`, Cargo's real ancestor walk reaches fake_home.
+    assert cargo.cargo_check(MachineSettings(), [nested_place])["problems"]
+
+    # Confining discovery to `sandbox` via conftest's helper isolates the test.
+    from tests.conftest import isolate_cargo_configs
+
+    isolate_cargo_configs(monkeypatch, sandbox)
+    assert cargo.cargo_check(MachineSettings(), [nested_place]) == {
+        "arrangement": "inside each worktree",
+        "settings": [],
+        "problems": [],
+    }
+
+
 def test_cargo_build_dir_per_workspace_needs_an_aged_folder(
     cargo_home: Path, place: Path, tmp_path: Path,
 ) -> None:

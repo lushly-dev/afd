@@ -364,7 +364,9 @@ records each volume holding their worktrees or T3 Code's worktree folders with i
 and a low-space threshold, and installs the hourly job: a LaunchAgent on macOS, a Task
 Scheduler task on Windows, a systemd user timer (or crontab) on Linux. Needs botcore installed
 as a tool (`uv tool install lushly-botcore==<version>`), not run through uvx. Safe to run
-again. `uninstall=True` removes the job and keeps settings and receipts. Its `cargo` says where
+again: existing usable `[tools]` entries are kept instead of overwritten by the shell's PATH,
+and any entry added, replaced or removed is reported in `changed_tools`. `uninstall=True`
+removes the job and keeps settings and receipts. Its `cargo` says where
 Cargo puts build output for the registered worktrees, reading Cargo's config files as Cargo
 does (each `.cargo/config` or `config.toml` from the worktree up, then `$CARGO_HOME`'s, with
 their includes) and this process's `CARGO_TARGET_DIR`, `CARGO_BUILD_TARGET_DIR` and
