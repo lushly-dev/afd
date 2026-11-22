@@ -8,6 +8,79 @@ Changes that are not released yet are the files in [`.changeset/`](../.changeset
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-11-22
+
+Implements AFD contract `1.0-rc`.
+
+### Breaking changes
+
+- **A declared approval policy holds without the approval middleware** ([#1886](https://github.com/lushly-dev/afd/issues/1886); `spec/command-metadata.md`, "Approvals"). `create_server` and `create_direct_registry` run a command whose `approval` is `"required"` or a function only when an approval step admitted that call, for that command and that validated input. Without one the call fails with `ErrorCodes.APPROVAL_UNAVAILABLE` before the handler runs (not retryable, `details.reason: "no-approval-step"`; a policy function is not evaluated). Each batch item, pipeline step and command run from inside another command's handler is checked on its own. A server or direct registry that declares `approval` on a command and installs no `create_approval_middleware` now refuses that command: add the middleware, or set `approval="not-required"` where no approval is wanted. Core's `create_command_registry` runs no middleware and has no check.
+- **A command missing from `create_approval_middleware`'s `commands` is now held** as its own policy says, under `create_server` and `create_direct_registry`: the middleware decides from the policy and `confirm_prompt` of the command each call runs, so a command registered after the middleware was built is held too. A policy given only in `commands` still holds: a call is held when either policy holds it.
+- **One approval runs one handler, on the input approved.** The engine takes the admission as it dispatches, so a retry middleware placed after the approval middleware, another command name, or an input changed after the approval answers `APPROVAL_UNAVAILABLE` with `details.reason: "admission-mismatch"`. This holds for a policy given only in `commands` too. Put `create_retry_middleware`, and any middleware that changes the input, before the approval middleware. A middleware that moves `next_fn` to a thread should use `asyncio.to_thread` or `contextvars.copy_context().run`; without them, a call whose context object overlapping calls share is refused. An approval middleware admits only a call a policy of its own may gate, and every one that ever admitted a call must admit it again, matching, before each dispatch, so a second middleware that does not gate a command leaves the first one's admission to decide. Install one approval middleware per engine: two that both gate a command's own policy each ask for it.
+- **An input that changes while the approval middleware decides** (in a policy function, including one an up-front `afd-batch` or `afd-pipe` step runs) answers `APPROVAL_UNAVAILABLE` with `details.reason: "admission-mismatch"`, and nobody is asked or notified. One that changes later, while a token is spent or a relayed answer awaited, is refused at dispatch the same way, so nothing runs on it.
+- **An input that needs approval and has no canonical form is answered by the approval middleware** with `APPROVAL_UNAVAILABLE`, `details.reason: "input-not-canonical"`, before anyone is asked or the handler runs, where it raised `TypeError` (a `COMMAND_EXECUTION_ERROR` result) before. That covers a token check, a relayed approval and an up-front `afd-batch` or `afd-pipe` step. Send such a value in a form canonical JSON accepts (an integer above 2^53, for example, as a string). A call whose policy lets it through on such an input still runs.
+- **Replaying gated journal entries needs the approval middleware.** A `replay_journal` target without it now refuses a gated command. A journal entry does not prove an approval, so replay gated commands against a target with the approval middleware, or pass only the entries recorded as successful to a target that serves those commands with `approval="not-required"`.
+
+- **`afd-help` in the `full` format leaves out empty lists** ([#1480](https://github.com/lushly-dev/afd/issues/1480)): an entry no longer carries `tags` or `examples` when the command declares none (see Fixed). Code that reads one of them, such as `entry["tags"]`, should treat a missing key as empty.
+
+- **The bootstrap tools are opt-in** (parity decision D5, #542): `create_server` no longer registers `afd-help`, `afd-docs` and `afd-schema` unless it is given `bootstrap=True` (also `ServerConfig.bootstrap`), as TypeScript's `bootstrap: true`. With it, the default instructions add "afd-help, afd-docs and afd-schema describe this server." The meta-tools and the context tools are listed either way. Pass `bootstrap=True` to keep the earlier tool list.
+
+- **A command named like a built-in that is on is refused** (#1731), as TypeScript's `assertValidCommandNames` refuses it: with `bootstrap=True`, registering `afd-help`, `afd-docs` or `afd-schema` raises `ValueError`, and with `contexts`, so does `afd-context-list`, `afd-context-enter` or `afd-context-exit`. The same check runs before each `tools/list` and command call (the meta-tools included), so a command added through `server.registry` directly, a built-in turned on in `server.config` after registration, or a definition renamed after registration is refused there too, and renaming the command afterwards rebuilds the server's lookups. (`server.registry.execute` still runs the registry's own commands by any name: the built-ins are not in it.) Before, the command silently replaced the built-in. Without those options the names are ordinary commands, as before. Rename the command, or leave the option off.
+
+### Added
+
+- **`ErrorCodes.APPROVAL_UNAVAILABLE`**, new in the shared catalog.
+
+- **`ErrorCodes.CALL_NOT_GRANTED`**, which joins the shared catalog with app-to-app calls (`spec/command-metadata.md`, "App-to-app calls"; Loam phase 5 step 0b). Python does not emit it yet: the `apps` exposure flag and the call check are [#1513](https://github.com/lushly-dev/afd/issues/1513), and `spec/vectors/app-calls.json` lists Python as a documented gap. Meanwhile `replay_journal` refuses an entry recorded with the `apps` interface (status `error`) before any handler runs, since a target such as `SimpleRegistry` ignores the interface.
+
+- **`ERROR_CODE_CATALOG`**, **`ErrorCodeInfo`**, and **`HOST_ERROR_CODE_PREFIX`** (`"HOST_"`) exposing retryability and contract profile metadata for every shared error code in `spec/vectors/error-codes.json` (#1740).
+
+- **`afd batch` and `afd stream`** in the Python CLI, with TypeScript's arguments, output and exit codes (#548). `afd batch COMMANDS` sends one `afd-batch` call from a JSON array or a `.json` file (`name` and `args` are accepted for `command` and `input`) with `-s/--stop-on-error`, `-t/--timeout` (ms, default 30000), `-p/--parallel`, `-f/--format` and `-v/--verbose`, and exits 1 when the batch fails and 2 when some commands fail. A refusal the server certainly did not run (a JSON-RPC error it sent other than `-32603`, an HTTP 4xx, a missing `afd-batch`) counts every command as failed; a lost, failed or undecodable answer reports `OUTCOME_UNKNOWN` with its typed cause in `details`. `afd stream NAME [ARGS]` takes a JSON object or `key=value` pairs, with `-t/--timeout` (ms, default 60000, 0 for none), `-f/--format` (json prints one chunk per line) and `--no-progress`, and exits 1 on an error chunk and 130 on Ctrl+C, or SIGTERM where the platform has POSIX signals, after a `STREAM_CANCELLED` chunk. Both take `--server`, and `-H "Name: value"` headers with those in `AFD_HEADERS`. Text output strips terminal escape sequences from what the server sends, and error lines print server text without Rich markup.
+- **`HttpStatusError` and `JsonRpcError`** (`afd.transports`), which the HTTP transport now raises, as subclasses of `TransportError` with the same messages, so a caller can tell a refusal from a lost answer. A JSON-RPC error in the body is read first, whatever the HTTP status. `StreamableHttpTransport.session_id` is the `Mcp-Session-Id` of a 2025 connection.
+
+- **`afd call` and the shell's `call` take `key=value` pairs** as well as a JSON object, as TypeScript's do (#1822): values are parsed as JSON when they can be (`count=2`, `done=true`, `tags=["a"]`) and kept as strings otherwise (`title=milk`, `note='two words'`). The pairs are one argument, so quote it when it holds several: `afd call todo-create 'title="Buy milk" priority=2'`. JSON must be strict: `NaN` is refused in an object and stays a string in a pair.
+- **`-H "Name: value"` request headers on `connect`, `tools`, `call` and `validate`, and in `shell`** (#1822, #1836), with those in `AFD_HEADERS` (one per line; a flag replaces an environment header of the same name). Headers are never saved, and `connect` says so when it is given some. `call --module` refuses `-H` and ignores `AFD_HEADERS`, since it runs in process. Names and values are trimmed of spaces and tabs only (matching TypeScript); malformed headers or values containing characters HTTP disallows (newlines, vertical tabs, or other control characters) exit 1 across every command, naming only the source (`--header 2`, `AFD_HEADERS line 3`) without echoing the value.
+
+### Changed
+
+- **Every up-front `afd-batch` or `afd-pipe` step runs on the input validated up front** (#1414), not only one whose command declares a policy, so a step gated only by the approval middleware's list, whose schema has a random or clock-based default, runs on the input the person approved.
+- **`create_approval_middleware`'s `commands` is optional.**
+
+- **`command_result_output_schema`** now types `properties.error` with `code`, `message`, `suggestion`, and `retryable` (`required: ["code", "message"]`), matching `spec/schema/output-envelope.json` (#1733).
+
+- **`afd call`'s arguments follow TypeScript's rules**, which changes three cases for scripts: an empty or blank argument now calls the tool with `{}` (it failed before); text that does not start with `{` is read as pairs, so a JSON array such as `[1]` is a malformed pair and exits 1 (it exited 2 with "Arguments must be a JSON object"), and `["a=b"]` is the pair `["a` = `b"]`; and malformed arguments print "Invalid arguments (...). Use a JSON object or key=value pairs." instead of "Invalid JSON arguments".
+
+### Fixed
+
+- **`CliWrapper._build_args`** emits valid `afd --json call <tool> [args] [--server <url>]` flags accepted by the Python `afd` CLI (#1710).
+- **`McpTestingServer.handle_request`** validates JSON-RPC request shape and returns `-32600` (`INVALID_REQUEST`) on non-object messages or missing/non-string `method` instead of crashing (#1711).
+- **`_HttpBasedTransport`** ignores `"error": null`, formats non-object `error` values, wraps non-JSON or non-object HTTP 200 bodies in `TransportError`, and raises `TransportError` on malformed `initialize` or `tools/list` results (#1712).
+- **`assert_has_sources`** validates dict-based source entries with `Source.model_validate` (defaulting `type` to `"unknown"` when absent) and preserves all `Source` fields including camelCase wire aliases (#1713).
+- **`execute_discover` (`afd-discover`)** validates input object and field types, rejects malformed `limit`/`offset` values with `VALIDATION_ERROR`, and clamps `limit: 0` to `1` instead of falling back to `50` (#1714).
+- **`PackageManagerConnector.list_deps`** supports `pnpm list --json --depth=0` JSON array output across single- and multi-project workspaces (#1715).
+
+- **`afd-help` in the `full` format leaves out empty `tags` and `examples`** ([#1480](https://github.com/lushly-dev/afd/issues/1480); `spec/command-metadata.md`, "Reporting rules"): every command that declared none was reported with `tags: []` and `examples: []`, where `afd-detail` and the TypeScript, Rust and C++ `afd-help` leave them out. They are still reported when set.
+
+- **`create_server(instructions="")` keeps the empty string** instead of generating the default instructions, as TypeScript's does (#542).
+- **A command tool's `_meta` carries its `category`** (`spec/command-metadata.md`), first, an empty one included, as TypeScript's does, so `afd validate --surface` and other clients reading `tools/list` see it without `afd-help` (#542).
+
+- **`McpClient.stream` reads streams as TypeScript's client does** (#548): lines end only at CR, LF or CRLF, so a U+2028 inside a chunk's JSON no longer splits it; events that are not stream chunks are skipped; a CR ends its line at once; frames that are not strict JSON (`NaN`) are skipped; the last chunk is always `complete` or `error`, made by the client as `STREAM_TRUNCATED`, `STREAM_TIMEOUT` (new `timeout` argument, which then replaces the per-read `config.timeout`; `idle_timeout` sets that limit), `STREAM_CANCELLED` (new `cancel` event, which wins over chunks already received), `STREAM_EVENT_TOO_LARGE` (`McpClientConfig.max_stream_event_bytes`, 1 MiB), `CONNECTION_ERROR` or `NOT_CONNECTED` (instead of raising), each with the count of chunks before it; an HTTP refusal keeps the server's own `error` (such as `INSUFFICIENT_SCOPE` and its suggestion); and the request carries the connection's `Mcp-Session-Id`, so the stream sees the session's active context. A malformed event no longer arrives as `{"raw": ...}`.
+
+- **`afd connect --timeout`** is now used for the connection (it was ignored) and must be finite and greater than 0.
+- **`call`, `connect`, `tools` and `validate` print the text of an exception without Rich markup** and strip terminal escape sequences from it, as `batch` and `stream` do; so does the shell for a malformed argument, after which it now waits for the next command instead of ending.
+
+- **`command_result_output_schema`** keeps `$defs` and `definitions` inside `data` when the output schema has its own `$id`, so MCP clients can resolve local references (#1474).
+
+- **A `$ref` inside a subschema with its own `$id` resolves against that subschema** ([#1700](https://github.com/lushly-dev/afd/issues/1700); `spec/validation.md`, "Annotations"): the JSON Schema input validator read `$id` as an annotation only and resolved every local `$ref` against the root, so a schema whose nested `$id` subschema holds its own `$defs`, such as a structured-result envelope's `data` schema, was refused at registration. A string `$id` now starts a schema resource, as in Draft 2020-12. A bare fragment such as `"#node"`, which draft-07 used as an anchor, starts no resource. The `$id` value is never resolved as a URI.
+- **The advertised output schema reads a nullable definition in its own resource** (#1700): `command_result_output_schema` stops requiring a property that accepts `null`, which the wire form omits. It looked such a property's `$ref` up from the root of the `data` schema, so a nullable definition inside a nested `$id` subschema was missed, and the envelope required a property the server's own result leaves out.
+
+- **`afd shell` keeps running when a request fails** (#1835), as TypeScript's shell does: a failed `call` prints "Call failed: ..." and a failed `tools` prints "Listing tools failed: ...", and the prompt returns. Before, the exception ended the shell with a traceback. `call` followed by a tab is a call, and a bare `call` prints its usage instead of "Unknown command".
+- **The CLI prints server text as written.** A result's error code, message and suggestion, reasoning, plan steps and alternatives, tool names and descriptions, and the messages of `afd validate`, `connect` and the other commands are shown as plain text: terminal escape sequences are stripped, and Rich does not read `[/x]` as markup or `:smile:` as an emoji. So are `afd validate --surface` findings and the shell's `help`. `--json` output from `tools`, `status` and `validate` is printed as JSON without Rich, as `call --json` already was, so it is exactly what the server sent. Before, such text could end `afd call`, `afd tools`, `validate` or the shell with a Rich markup error, or change what was shown or emitted.
+
+### Security
+
+- **`afd.testing` scenario commands and `McpTestingServer`** now enforce project-root confinement across all five scenario tools (`scenario-list`, `scenario-evaluate`, `scenario-coverage`, `scenario-create`, `scenario-suggest`) and use the resolved paths returned by `resolve_inside`, preventing path traversal and `cwd != os.getcwd()` sandbox escapes. Direct Python callers of `scenario_list`, `scenario_coverage_cmd`, and `scenario_suggest` can pass the new `root=` keyword argument when targeting directories outside the current working directory (#1709).
+
 ## [0.11.0] - 2026-11-18
 
 Implements AFD contract `1.0-rc`.
@@ -266,7 +339,8 @@ These were released together with the repository-wide releases of the same perio
 
 - Published to PyPI: `pip install afd>=0.1.1`
 
-[Unreleased]: https://github.com/lushly-dev/afd/compare/python-v0.11.0...main
+[Unreleased]: https://github.com/lushly-dev/afd/compare/python-v0.12.0...main
+[0.12.0]: https://github.com/lushly-dev/afd/compare/python-v0.11.0...python-v0.12.0
 [0.11.0]: https://github.com/lushly-dev/afd/compare/python-v0.10.0...python-v0.11.0
 [0.10.0]: https://github.com/lushly-dev/afd/compare/python-v0.9.0...python-v0.10.0
 [0.9.0]: https://github.com/lushly-dev/afd/compare/python-v0.8.0...python-v0.9.0

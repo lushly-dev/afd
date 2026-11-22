@@ -361,7 +361,7 @@ def __dir__() -> list[str]:
     return sorted(set(globals()) | set(_LAZY_EXPORTS))
 
 
-__version__ = "0.11.0"
+__version__ = "0.12.0"
 
 __all__ = [
     # Context primitives (actor, clock, random)
