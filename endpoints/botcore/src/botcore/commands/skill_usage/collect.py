@@ -454,6 +454,9 @@ def _collect(  # noqa: C901, PLR0912, PLR0913, PLR0915 - one collection, start t
 
     dropped = [event for event in stored if gone(event)]
     added = [event for event in events if event.id not in known_ids]
+    # everything is read: from here the record is written, events, sessions, then state.
+    # A collection the job has left stops before the first of them, never between two.
+    doing("writing this machine's record in", directory)
     if dropped or rebuild:
         lost = {event.id for event in dropped}
         kept = [event for event in stored if event.id not in lost]

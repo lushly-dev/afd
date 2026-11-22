@@ -251,6 +251,7 @@ def t3_worktree_roots(settings: MachineSettings) -> tuple[list[Path], bool]:
         expanded = Path(os.path.expanduser(value))
         if not expanded.is_absolute() or expanded.parent == expanded:
             continue
+        doing("resolving", expanded)
         resolved = Path(os.path.realpath(expanded))
         if resolved.parent != resolved and resolved not in roots:
             roots.append(resolved)

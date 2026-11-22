@@ -10,7 +10,8 @@ nothing the job needs, and goes with the process.
 A step says what it is doing as it goes (`doing`). That is how the job tells a step that is
 working from one that waits, and how it can say what a step was waiting for. It is also where
 a step the job has left stops: at its next word it is told so (`Left`), and starts nothing
-more. A read the system still holds cannot be told anything; it is told when it comes back.
+more. A read the system still holds cannot be told anything; it is told when it comes back,
+before whatever it would have done with what it read.
 """
 
 from __future__ import annotations
@@ -27,10 +28,8 @@ from typing import Any, TypeVar
 
 T = TypeVar("T")
 
-# thread -> (what it is doing, to which path, when it said so, how long that may take)
-_NOW: dict[int, tuple[str, str, float, float]] = {}
-# the threads of steps the job has left: each stops at its next word
-_LEFT: set[int] = set()
+# the step this thread is running, if it is running one
+_HERE = threading.local()
 
 # Everything said, for a test that checks the disk work says what it does; None otherwise
 SAID: list[tuple[str, str]] | None = None
@@ -48,15 +47,16 @@ class Left(BaseException):
 
 
 def doing(what: str, path: object = "", allow: float = 0.0) -> None:
-    """Say what this thread is about to do, for whoever waits for it. Costs one dictionary
-    write, so a walk can say it for every folder and file. `allow` is how long it may take
-    without another word; `command` gives one to a command that has a timeout.
+    """Say what this thread is about to do, for whoever waits for it. Cheap enough to say
+    for every folder and file. `allow` is how long it may take without another word;
+    `command` gives one to a command that has a timeout.
 
-    In a step the job has left, this raises `Left` instead: the thing is not begun."""
-    ident = threading.get_ident()
-    if ident in _LEFT:
-        raise Left(what)
-    _NOW[ident] = (what, str(path), time.monotonic(), max(0.0, allow))
+    In a step the job has left, this raises `Left` instead: the thing is not begun. So it
+    is said right before anything that removes or writes, after whatever was read to
+    decide on it."""
+    step = getattr(_HERE, "step", None)
+    if step is not None:
+        step.say(what, str(path), allow)
     if SAID is not None:
         SAID.append((what, str(path)))
 
@@ -73,69 +73,89 @@ def each(what: str, path: object, entries: Iterable[T]) -> Iterator[T]:
 def command(what: str, path: object = "", allow: float = 0.0) -> Iterator[None]:
     """A command with a timeout of its own: it may take `allow` seconds without a word, and
     that allowance ends when it comes back. Without this a read that waits just after a
-    command would pass for the command, for as long as the command was allowed."""
+    command would pass for the command, for as long as the command was allowed.
+
+    A step that was left while the command ran is not told here: what the command did
+    goes back to its caller, and the step stops at the next thing it would begin."""
     doing(what, path, allow)
     try:
         yield
     finally:
-        doing(f"working after {what}", path)
+        step = getattr(_HERE, "step", None)
+        if step is not None:
+            step.say(f"working after {what}", str(path), 0.0, told=False)
+        if SAID is not None:
+            SAID.append((f"working after {what}", str(path)))
 
 
 class Step:
-    """Work started in a daemon thread. Whatever it returns or raises is kept in `outcome`."""
+    """Work started in a daemon thread. Whatever it returns or raises is kept in `outcome`.
+
+    What it says, and whether it was left, belong to the step and not to its thread's
+    number, which another thread is given as soon as this one ends."""
 
     def __init__(self, name: str, work: Callable[[], Any]) -> None:
         self.name = name
         self.outcome: dict[str, Any] = {}
         self._work = work
-        # a thread is given a number another had: what that one said last is not this step's
-        self._since = time.monotonic()
+        self._lock = threading.Lock()
+        # what it is doing, to which path, when it said so, how long that may take
+        self._word: tuple[str, str, float, float] | None = None
+        self._left = False
         self._thread = threading.Thread(target=self._run, name=name, daemon=True)
         self._thread.start()
 
-    def _said(self) -> tuple[str, str, float, float] | None:
-        said = _NOW.get(self._thread.ident or 0)
-        if said is None or self.done or said[2] < self._since:
-            return None
-        return said
-
     def _run(self) -> None:
-        doing("starting")
+        _HERE.step = self
         try:
+            doing("starting")
             self.outcome["result"] = self._work()
         except BaseException as exc:  # noqa: BLE001 - the job must end whatever a step raises
             self.outcome["raised"] = exc
         finally:
-            _NOW.pop(threading.get_ident(), None)
-            _LEFT.discard(threading.get_ident())
+            with self._lock:
+                self._word = None
+
+    def say(self, what: str, path: str, allow: float, told: bool = True) -> None:
+        """Keep the step's word. Raises `Left` when it was left, unless `told` is False."""
+        with self._lock:
+            if told and self._left:
+                raise Left(what)
+            self._word = (what, path, time.monotonic(), max(0.0, allow))
 
     @property
     def done(self) -> bool:
         return not self._thread.is_alive()
-
-    def leave(self) -> None:
-        """Stop counting on the step, for good: at its next word it stops, having begun
-        nothing more. One that the system holds in a read stays there until it is let go."""
-        ident = self._thread.ident
-        if ident is not None:
-            _LEFT.add(ident)
-            if self.done:  # it has ended: the number may already be another thread's
-                _LEFT.discard(ident)
 
     def wait(self, seconds: float) -> bool:
         """Wait up to `seconds` for the step. Whether it is done."""
         self._thread.join(max(0.0, seconds))
         return self.done
 
-    def seen(self) -> tuple[str, str, float, float] | None:
-        """From one look: what it is doing, to which path, for how many seconds, and how
-        many of those are beyond what its last word allowed. None once it is done."""
-        said = self._said()
-        if said is None:
+    def leave(self, said_at: float | None = None) -> bool:
+        """Stop counting on the step, for good: at its next word it stops, having begun
+        nothing more. One that the system holds in a read stays there until it is let go.
+
+        With `said_at`, the time of the word it was seen waiting at, only if it has said
+        nothing since: a step that has spoken again is working, and is not left. Whether it
+        was left."""
+        with self._lock:
+            if said_at is not None and (self._word is None or self._word[2] != said_at):
+                return False
+            self._left = True
+            return True
+
+    def seen(self) -> tuple[str, str, float, float, float] | None:
+        """From one look: what it is doing, to which path, for how many seconds, how many
+        of those are beyond what its last word allowed, and when it said so. None once it
+        is done."""
+        with self._lock:
+            word = self._word  # (None from the moment its work ends)
+        if word is None:
             return None
-        what, path, at, allow = said
+        what, path, at, allow = word
         lasted = time.monotonic() - at
-        return what, path, lasted, max(0.0, lasted - allow)
+        return what, path, lasted, max(0.0, lasted - allow), at
 
     def now(self) -> tuple[str, str, float] | None:
         """What it is doing, to which path, and for how many seconds. None once it is done."""
@@ -189,7 +209,8 @@ def describe(said: tuple[str, str, float] | None) -> str:
 
 def consent_hint(path: str, platform: str | None = None) -> str | None:
     """What to do when a read of `path` does not come back and macOS may be holding it for
-    the owner's consent. None for a path macOS does not ask about, and on other systems."""
+    the owner's consent: what macOS asks about that place, or, for a path that may lead to
+    such a place by a link, only what to do if it is asking. None on other systems."""
     if (platform or sys.platform) != "darwin" or not path:
         return None
     home = os.path.abspath(Path.home())

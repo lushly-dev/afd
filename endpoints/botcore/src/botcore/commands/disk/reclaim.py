@@ -364,7 +364,7 @@ def carry_out(action: Action, run: Run) -> None:
     """Do one action, or record why not. Never raises for a filesystem or git problem."""
     if not run.apply:
         return
-    doing("removing", action.target)
+    doing("reclaiming", action.target)
     try:
         if action.kind == "strip":
             reason = _recheck_strip(action, run)
@@ -695,6 +695,10 @@ def _reclaim(  # noqa: PLR0913 - the command's own arguments
         _plan_and_run(run, data, pressure, include_restorable)
     except Exception as exc:  # noqa: BLE001 - the receipt must be written whatever happened
         failure = f"{type(exc).__name__}: {exc}"
+    # (A reclaim the hourly job has left is told so by `steps.Left`, which is not an
+    # Exception and passes through here: like one that was killed, it writes no receipt and
+    # no status, so the next hour's run finds it still due. Writing them would read the
+    # volumes again, which a step that was left must not begin.)
     after = _free(ctx)
     reclaimed = {m: round((after.get(m, 0) - before.get(m, 0)) / 1024**3, 2) for m in before}
     payload = {

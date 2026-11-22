@@ -43,8 +43,6 @@ from botcore.commands.disk.settings import (
 )
 from botcore.commands.disk.steps import Step, consent_hint, describe, doing, raised_text
 
-_listdir = os.listdir  # the one read `_reach` makes
-
 FULL_RUN_SECONDS = 23 * 3600
 STALE_SECONDS = 48 * 3600
 NOTIFY_SECONDS = 24 * 3600
@@ -411,13 +409,22 @@ def _age_hours(stamp: str | None) -> float | None:
     return round((datetime.now(UTC) - then).total_seconds() / 3600, 1)
 
 
-def _counted_warnings(settings: MachineSettings, status: dict) -> list[str]:
-    """Registered repositories over the idle-worktree limit when a reclaim last counted
-    them: read from what that reclaim wrote, never from the machine. A count older than 48
-    hours says when it was taken."""
+def _counted_warnings(
+    settings: MachineSettings, status: dict, registered_only: bool = True,
+) -> list[str]:
+    """Repositories over the idle-worktree limit when a reclaim last counted them, from
+    what that reclaim wrote. A count older than 48 hours says when it was taken.
+
+    `registered_only` leaves out a repository that is no longer registered. Telling takes
+    resolving its path, which reads the volume it is on: without it every count is given,
+    and nothing is read."""
     snapshot = status.get("worktree_warnings")
     repos = snapshot.get("repos") if isinstance(snapshot, dict) else None
-    registered = {path_key(expand(r)) for r in settings.repos}
+    registered: set[str] = set()
+    if registered_only:
+        for repo in settings.repos:
+            doing("resolving", expand(repo))
+            registered.add(path_key(expand(repo)))
     warnings = []
     for main, entry in (repos if isinstance(repos, dict) else {}).items():
         if not isinstance(entry, dict) or not isinstance(entry.get("warning"), str):
@@ -458,18 +465,21 @@ def _saved() -> tuple[MachineSettings, Path, bool, dict, dict]:
     return settings, path, found, status, _read_json("check.json")
 
 
-def _live(settings: MachineSettings) -> dict:
+def _live(settings: MachineSettings, status: dict) -> dict:
     """What `disk-status` reads from the machine as it is now, and not from the job's files:
-    the scheduler, the watched volumes, and what Cargo's settings say."""
+    the scheduler, the watched volumes, which counted repositories are still registered,
+    and what Cargo's settings say."""
     doing("asking the scheduler")
     found = {"schedule": schedule.current(), "volumes": _volumes_now(settings)}
+    found["counted"] = _counted_warnings(settings, status)
     doing("reading Cargo's settings")
     return {**found, "cargo": cargo_check(settings)["problems"]}
 
 
-# The last read of the machine that has not come back: a status asked again waits for that
-# one and starts no other, so a process that lives on holds one reader and not one a call.
-_LIVE: Step | None = None
+# The last read of the machine that has not come back, and the settings it was started
+# with: a status asked again of the same settings waits for that one and starts no other,
+# so a process that lives on holds one reader and not one a call.
+_LIVE: tuple[Step, MachineSettings] | None = None
 
 
 async def disk_status() -> CommandResult[dict]:
@@ -506,9 +516,11 @@ async def disk_status() -> CommandResult[dict]:
     settings, path, found, status, check = files.outcome["result"]
     last_apply = status.get("last_apply") or {}
     age = _age_hours(last_apply.get("at"))
-    live = _LIVE if _LIVE is not None and not _LIVE.done else Step(
-        "disk-status", lambda: _live(settings))
-    _LIVE = live
+    if _LIVE is not None and not _LIVE[0].done and _LIVE[1] == settings:
+        live = _LIVE[0]
+    else:
+        live = Step("disk-status", lambda: _live(settings, status))
+        _LIVE = (live, settings)
     await _wait([live], spent)
     if "raised" in live.outcome:
         raise live.outcome["raised"]
@@ -527,10 +539,9 @@ async def disk_status() -> CommandResult[dict]:
         problems.append("no machine settings: run disk-setup")
     if sched is not None and not sched.installed:
         problems.append("the schedule is not installed: run disk-setup")
-    failures = age is not None and age * 3600 <= STALE_SECONDS and not last_apply.get("ok")
     if age is None or age * 3600 > STALE_SECONDS:
         problems.append("no successful run in the last 48 hours")
-    elif failures:
+    elif not last_apply.get("ok"):
         problems.append("the last run had failures: read its receipt")
     problems += [f"{v['mount']} is below {v['low_space_gb']} GB free" for v in volumes
                  if v["below_threshold"]]
@@ -538,8 +549,10 @@ async def disk_status() -> CommandResult[dict]:
                  if not v["verified"]]
     usage = check.get("skill_usage") if settings.skill_usage_collect else None
     usage = usage if isinstance(usage, dict) else None
-    # what a reclaim counted is on file; what Cargo's settings say is read now
-    warnings = _counted_warnings(settings, status) + (now["cargo"] if now else [])
+    # what a reclaim counted is on file: all of it, when the machine does not say which
+    # of those repositories are still registered. What Cargo's settings say is read now.
+    warnings = (now["counted"] + now["cargo"]) if now else _counted_warnings(
+        settings, status, registered_only=False)
     work = check.get("disk_work")
     work = work if isinstance(work, dict) else None
     if work and not work.get("ok"):
@@ -549,8 +562,9 @@ async def disk_status() -> CommandResult[dict]:
             since = _age_hours(work.get("failing_since"))
             lasted = f" (for {since:.0f} hours)" if since and since >= 1 else ""
             problems.append(f"the scheduled disk work is waiting: {why}{lasted}")
-        elif not (work.get("reclaim_ok") is False and failures):
-            # (a reclaim's failures are told once, by its receipt, in the problem above)
+        elif work.get("reclaim_ok") is not False:
+            # (what a reclaim could not do is told by its receipt, in the problem above,
+            # for as long as that reclaim is the last one)
             warnings.append(f"the scheduled disk work failed: {why}")
     if sched is not None and sched.installed:
         beat = _age_hours(check.get("last_check"))
@@ -626,7 +640,8 @@ def _update_check(change: Callable[[dict], None]) -> None:
     step under a lock both kinds share.
 
     Never written without that lock, and never over a file that could not be read: either
-    would lose what another writer kept. Raises OSError then (`StateBusy` for the lock)."""
+    would lose what another writer kept. Raises OSError then (`StateBusy` for the lock).
+    A file that is there and is not JSON is not this job's, and starts empty."""
     folder = state_path()
     with _CHECK_LOCK, waited_lock(folder / "check.lock", CHECK_LOCK_SECONDS) as held:
         if not held:
@@ -701,16 +716,16 @@ def _with_hint(text: str, path: str) -> str:
 Said = tuple[str, str, float]  # what a step is doing, to which path, for how many seconds
 
 
-def _look(step: Step) -> tuple[str, Said | None]:
-    """`done`, `working` or `waiting`, and what the step was doing: from one look, since a
-    step can come back between two."""
+def _look(step: Step) -> tuple[str, Said | None, float | None]:
+    """`done`, `working` or `waiting`, what the step was doing, and when it said so: from
+    one look, since a step can come back between two."""
     if step.done:
-        return "done", None
+        return "done", None, None
     seen = step.seen()
     if seen is None:  # it came back this instant
-        return "working", None
-    what, path, lasted, quiet = seen
-    return ("waiting" if quiet >= QUIET_SECONDS else "working"), (what, path, lasted)
+        return "working", None, None
+    what, path, lasted, quiet, at = seen
+    return ("waiting" if quiet >= QUIET_SECONDS else "working"), (what, path, lasted), at
 
 
 def _disk_outcome(step: Step, look: str, said: Said | None) -> tuple[str | None, dict]:
@@ -847,24 +862,26 @@ async def disk_run(force: bool = False, own_process: bool = False) -> CommandRes
             await _wait(started, lambda: time.monotonic() - began >= LEAVE_SECONDS)
 
 
-async def _run(  # noqa: C901 - one run, start to end
+async def _run(  # noqa: C901, PLR0912 - one run, start to end
     settings: MachineSettings, disk: Step, started: list[Step], own_process: bool,
 ) -> CommandResult[dict]:
     usage: Step | None = None
     collected: dict | None = None
     unwritten: str | None = None
-    # What was seen of the disk work when the run left it. That stands for the rest of the
-    # run: the step ends later only because it was told to stop, which is not how it ended.
+    # What was seen of the disk work when the run left it, and where it was. That stands
+    # for the rest of the run: the step ends later only because it was told to stop.
     left: tuple[str, Said | None] | None = None
+    where = ""
 
-    async def record() -> tuple[str, Said | None]:
-        """Write what stands of each step and return what was seen of the disk work. Each
-        step is looked at once, and what is written is fixed then: a write that is slow
-        finds nothing newer to pick up."""
+    async def record() -> tuple[str, Said | None, str]:
+        """Write what stands of each step. Returns what was seen of the disk work, and of
+        the collection (`done` when there is none). Each step is looked at once, and what
+        is written is fixed then: a write that is slow finds nothing newer to pick up."""
         nonlocal collected, unwritten
-        seen = left or _look(disk)
+        seen = left or _look(disk)[:2]
         work = None if seen[0] == "working" else _disk_outcome(disk, *seen)
-        collection = None if usage is None else _usage_outcome(usage, *_look(usage))
+        usage_look = _look(usage)[:2] if usage is not None else ("done", None)
+        collection = None if usage is None else _usage_outcome(usage, *usage_look)
         kept: dict = {}
 
         def change(data: dict) -> None:
@@ -884,17 +901,23 @@ async def _run(  # noqa: C901 - one run, start to end
             unwritten = str(exc)
         if collection is not None:
             collected = kept.get("usage") or _outcome(None, *collection)
-        return seen
+        return (*seen, usage_look[0])
 
-    seen = _look(disk)
-    while seen[0] == "working":  # one look decides: done, or waiting and what for
-        await _wait([disk], lambda: _look(disk)[0] == "waiting")
-        seen = _look(disk)
-    if seen[0] != "done":
-        if own_process:
-            # for this run: the next hour's starts again, with the owner's answer or not
-            left = ("waiting", seen[1])
-            disk.leave()
+    while True:
+        look, said, at = _look(disk)
+        if look == "working":
+            await _wait([disk], lambda: _look(disk)[0] == "waiting")
+        elif look == "done" or not own_process:
+            break
+        else:
+            # Leave it, for this run: the next hour's starts again, with the owner's answer
+            # or not. Only if it has said nothing since this look: one that has spoken again
+            # is working, and is waited for.
+            stack = disk.where()
+            if disk.leave(at):
+                left, where = ("waiting", said), stack
+                break
+    if look != "done":
         await record()  # before the collection, which can take its five minutes
     if settings.skill_usage_collect:
         from botcore.commands.skill_usage import skill_usage_collect
@@ -904,13 +927,15 @@ async def _run(  # noqa: C901 - one run, start to end
         started.append(usage)
         # past its time it is left, however busy it is: the run ends now, and tells it
         await _wait([usage], lambda: time.monotonic() - began >= USAGE_SECONDS)
-    look, said = await record()
-    if not own_process and any(not step.done for step in started):
+    look, said, usage_look = await record()
+    if not own_process and (look != "done" or usage_look != "done"):
+        # what was just written says a step was not done: wait for them all, and write how
+        # they ended, even when they have ended meanwhile
         await _wait(started, lambda: False)
-        look, said = await record()
+        look, said, usage_look = await record()
     if look != "done":
         failure, _found = _disk_outcome(disk, "waiting", said)
-        print(f"the disk work was left waiting here:\n{disk.where()}", file=sys.stderr)
+        print(f"the disk work was left waiting here:\n{where or disk.where()}", file=sys.stderr)
         return error("DISK_RUN_STALLED", f"The disk work did not finish: {failure}",
                      suggestion="disk-status shows what it waits for; the job tries again "
                                 "next hour")
@@ -962,6 +987,12 @@ def job_folders(settings: MachineSettings) -> Iterator[Path]:
     yield from new(cargo_roots(settings))
 
 
+def _peek(folder: Path) -> None:
+    """Whether a folder can be read: its first entry says so, however many it holds."""
+    with os.scandir(folder) as entries:
+        next(entries, None)
+
+
 def _reach(settings: MachineSettings) -> None:
     """Read every folder the disk work reads, once, before anything is done with them.
 
@@ -973,7 +1004,7 @@ def _reach(settings: MachineSettings) -> None:
     for folder in job_folders(settings):
         doing("reading", folder)
         try:
-            _listdir(folder)
+            _peek(folder)
         except OSError:
             pass  # gone or not to be read: the reclaim says so of what it needs
     doing("checking free space")

@@ -268,29 +268,59 @@ class Looks:
 
     def __init__(self, monkeypatch: pytest.MonkeyPatch) -> None:
         self.held: set[str] = set()
+        self.acted_on = False
         self.seen: list[tuple[str, str]] = []
         self.on_look = lambda step, look: None
         monkeypatch.setattr(setup, "_look", self)
 
-    def __call__(self, step: steps.Step) -> tuple[str, tuple[str, str, float] | None]:
-        look = "done" if step.done else "waiting" if step.name in self.held else "working"
+    def __call__(self, step: steps.Step):
+        seen = step.seen()  # what it said, and when: as the job's own look takes them
+        if step.done:
+            look = "done"
+        elif seen is None or step.name not in self.held:
+            look = "working"  # (one that has not said a word yet is not waiting)
+        else:
+            look = "waiting"
+        # whether this is a look the run acts on, and not one it takes while it waits
+        self.acted_on = sys._getframe(1).f_code.co_name == "_run"  # noqa: SLF001
         self.seen.append((step.name, look))
         self.on_look(step, look)
-        return look, (None if look == "done" else step.now())
+        if look == "done" or seen is None:
+            return look, None, None
+        return look, seen[:3], seen[4]
 
 
-def alive(name: str) -> int:
-    return sum(thread.name == name and thread.is_alive() for thread in threading.enumerate())
+@pytest.fixture
+def alive(monkeypatch: pytest.MonkeyPatch):
+    """How many of the steps this test's runs started, by name, are still going. Its own
+    steps only: a worker an earlier test left behind is not this test's."""
+    made: list[steps.Step] = []
+
+    class Recorded(steps.Step):
+        def __init__(self, name: str, work) -> None:
+            made.append(self)
+            super().__init__(name, work)
+
+    monkeypatch.setattr(setup, "Step", Recorded)
+    return lambda name: sum(step.name == name and not step.done for step in made)
 
 
 def check_file(state: Path) -> dict:
     return json.loads((state / "check.json").read_text())
 
 
-def at_once(name: str):
+@pytest.fixture
+def at_once(monkeypatch: pytest.MonkeyPatch):
     """For work that has started to wait: the job's limit is up now. No test waits for a
     limit measured in tenths of a second to pass at the right moment."""
-    setattr(setup, name, 0)
+    live = [True]
+
+    def now(name: str) -> None:
+        if live[0]:  # (a worker a test left behind changes nothing in the next test)
+            monkeypatch.setattr(setup, name, 0)
+
+    yield now
+    live[0] = False
 
 
 def test_a_disk_step_that_only_waits_is_left_and_the_status_says_where(
@@ -408,6 +438,8 @@ def test_disk_work_that_is_working_is_waited_for_and_never_recorded_as_waiting(
 
 def test_a_step_that_was_left_starts_nothing_more(
     repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    capsys: pytest.CaptureFixture[str],
+    alive,
 ) -> None:
     import botcore.commands.disk.reclaim as reclaim
     import botcore.commands.skill_usage as usage
@@ -437,6 +469,8 @@ def test_a_step_that_was_left_starts_nothing_more(
     monkeypatch.setattr(usage, "skill_usage_collect", collect_as_the_owner_answers)
     result = asyncio.run(setup.disk_run(force=True, own_process=True))
     assert begun == [] and not alive("disk-work")  # it stopped at its next word
+    # the log holds where it was when it was left, though it has ended since
+    assert ", in waits_then_would_work\n" in capsys.readouterr().err
     # and it is recorded as it was left, not as the stop it was told to make
     assert result.error.code == "DISK_RUN_STALLED" and "/Volumes/Shed" in result.error.message
     work = check_file(state)["disk_work"]
@@ -446,6 +480,7 @@ def test_a_step_that_was_left_starts_nothing_more(
 
 def test_a_collection_past_its_time_is_left_however_busy_it_is(
     repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    at_once,
 ) -> None:
     import botcore.commands.disk.reclaim as reclaim
     import botcore.commands.skill_usage as usage
@@ -483,6 +518,8 @@ def test_a_collection_past_its_time_is_left_however_busy_it_is(
 
 def test_in_a_process_that_lives_on_nothing_is_left_running(
     repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    at_once,
+    alive,
 ) -> None:
     import botcore.commands.disk.reclaim as reclaim
     import botcore.commands.skill_usage as usage
@@ -563,6 +600,7 @@ def test_in_a_process_that_lives_on_nothing_is_left_running(
 
 def test_a_call_that_is_cancelled_tells_its_steps_to_stop(
     repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    alive,
 ) -> None:
     import botcore.commands.disk.reclaim as reclaim
 
@@ -601,6 +639,7 @@ def test_a_call_that_is_cancelled_tells_its_steps_to_stop(
 
 def test_the_jobs_own_files_cannot_hold_the_scheduled_run(
     repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    at_once,
 ) -> None:
     import botcore.commands.disk.reclaim as reclaim
 
@@ -712,7 +751,7 @@ def test_every_run_on_macos_reads_the_folders_it_will_need_before_anything_else(
     monkeypatch.setattr(reclaim, "disk_reclaim", fake_reclaim)
     read: list[str] = []
     release = threading.Event()
-    listdir = setup._listdir
+    peek = setup._peek
     looks = Looks(monkeypatch)
 
     def held(folder):
@@ -720,10 +759,10 @@ def test_every_run_on_macos_reads_the_folders_it_will_need_before_anything_else(
         if str(folder) == str(repo["old"]):
             looks.held = {"disk-work"}
             release.wait(30)  # the system wants the owner's answer before this one is read
-        return listdir(folder)
+        return peek(folder)
 
     assert run(setup.disk_run())["ran"] is True
-    monkeypatch.setattr(setup, "_listdir", held)
+    monkeypatch.setattr(setup, "_peek", held)
     assert run(setup.disk_run())["ran"] is False and read == []  # not on other systems
     monkeypatch.setattr(setup, "REACH", True)
     # a run that has nothing to reclaim reads them all the same: the question comes up in
@@ -741,7 +780,7 @@ def test_every_run_on_macos_reads_the_folders_it_will_need_before_anything_else(
         read.append(str(folder))
         raise PermissionError(13, "Operation not permitted")
 
-    monkeypatch.setattr(setup, "_listdir", refused)  # refused is an answer: the run goes on
+    monkeypatch.setattr(setup, "_peek", refused)  # refused is an answer: the run goes on
     assert run(setup.disk_run(own_process=True))["ran"] is False and set(wanted[:4]) <= set(read)
     assert check_file(state)["disk_work"]["ok"] is True  # and it clears what it waited for
 
@@ -813,6 +852,7 @@ def test_how_the_disk_work_ended_is_what_the_status_says(
 
 def test_a_shared_folder_that_does_not_answer_is_told_apart_from_a_collection_that_failed(
     repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path,  # noqa: F811
+    at_once,
 ) -> None:
     import botcore.commands.disk.reclaim as reclaim
     import botcore.commands.skill_usage as usage
@@ -902,6 +942,8 @@ def test_a_shared_folder_that_does_not_answer_is_told_apart_from_a_collection_th
 
 def test_the_status_does_not_wait_at_what_it_is_asked_about(
     repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    at_once,
+    alive,
 ) -> None:
     import botcore.commands.disk.reclaim as reclaim
 
@@ -941,11 +983,11 @@ def test_the_status_does_not_wait_at_what_it_is_asked_about(
     release = threading.Event()
     live = setup._live
 
-    def waits(settings):
+    def waits(settings, status):
         steps.doing("checking the volume", "/Volumes/Shed")
         at_once("STATUS_SECONDS")
         release.wait(30)
-        return live(settings)
+        return live(settings, status)
 
     monkeypatch.setattr(setup, "_live", waits)
     monkeypatch.setattr(setup, "STATUS_SECONDS", 20)
@@ -971,7 +1013,7 @@ def test_the_status_does_not_wait_at_what_it_is_asked_about(
     status = run(setup.disk_status())  # the same read, now that it has come back
     assert status["schedule"] == {"installed": True} and alive("disk-status") == 0
 
-    def fails(settings):
+    def fails(settings, status):
         raise RuntimeError("the scheduler fell over")
 
     monkeypatch.setattr(setup, "_live", fails)
@@ -1124,7 +1166,7 @@ def test_a_step_keeps_what_it_did_and_says_how_long_it_has_been_silent(
     assert said.wait(10)
     clock.at += 20
     assert step.now() == ("pruning the uv cache", "", 20.0) and step.quiet() == 0
-    assert step.seen() == ("pruning the uv cache", "", 20.0, 0.0)
+    assert step.seen() == ("pruning the uv cache", "", 20.0, 0.0, 1000.0)
     where = step.where()  # the stack, and no line of source: reading one opens a file
     assert ", in pause\n" in where and "go.wait" not in where
     clock.at += 25  # past what the command was allowed
@@ -1135,23 +1177,18 @@ def test_a_step_keeps_what_it_did_and_says_how_long_it_has_been_silent(
     assert step.quiet() == 4.0  # a read that waits just after does not pass for the command
     next_word()
     clock.at += 720
-    assert step.seen() == ("reading", "/trees/a", 720.0, 720.0)
+    assert step.seen()[:4] == ("reading", "/trees/a", 720.0, 720.0)
     assert steps.describe(step.now()) == "reading /trees/a for 12 minutes"
     assert steps.describe(("reading", "/trees/a", 12.0)) == "reading /trees/a for 12 seconds"
     assert steps.describe(("starting", "", 3.0)) == "starting for 3 seconds"
     assert steps.describe(("reading", "/two  spaces", 3.0)) == "reading /two  spaces for 3 seconds"
 
-    # a thread is given a number another had: what that one said is not this step's
-    mine = steps._NOW[step._thread.ident]  # noqa: SLF001
-    steps._NOW[step._thread.ident] = ("reading", "/elsewhere", step._since - 1, 0.0)  # noqa: SLF001
-    assert step.now() is None and step.quiet() == 0
-    steps._NOW[step._thread.ident] = mine  # noqa: SLF001
+    # what another thread says is not this step's: a word belongs to the step that said it
+    steps.doing("reading", "/elsewhere")
+    assert step.now()[:2] == ("reading", "/trees/a")
     go.set()
     assert step.wait(5) and step.outcome == {"result": 7}
-    assert step.now() is None and step.quiet() == 0
-    steps._NOW[step._thread.ident] = ("reading", "/elsewhere", clock.at, 0.0)  # noqa: SLF001
-    assert step.now() is None and step.quiet() == 0  # nor is it once the step is done
-    del steps._NOW[step._thread.ident]  # noqa: SLF001
+    assert step.now() is None and step.quiet() == 0 and step.seen() is None
 
     def fails() -> None:
         try:
@@ -1178,7 +1215,7 @@ def test_a_step_keeps_what_it_did_and_says_how_long_it_has_been_silent(
     assert other.wait(5) and isinstance(other.outcome["raised"], KeyboardInterrupt)
 
 
-def test_a_step_that_is_left_stops_at_its_next_word() -> None:
+def test_a_step_that_is_left_stops_at_its_next_word(monkeypatch: pytest.MonkeyPatch) -> None:
     said, go = threading.Event(), threading.Event()
     begun: list[str] = []
 
@@ -1196,13 +1233,34 @@ def test_a_step_that_is_left_stops_at_its_next_word() -> None:
     assert step.wait(5) and begun == ["one"]  # the next was not begun
     assert isinstance(step.outcome["raised"], steps.Left)
     assert not isinstance(step.outcome["raised"], Exception)  # no handler takes it for a failure
-    assert step._thread.ident not in steps._LEFT  # noqa: SLF001 - the number is free again
-    step.leave()  # leaving one that is done marks nothing: another thread may get its number
-    assert step._thread.ident not in steps._LEFT  # noqa: SLF001
-    steps.doing("reading", "/trees/a")  # and a thread that was never left is never told
+    # being left belongs to the step, not to its thread's number, which the next thread gets
+    numbers = set()
+    for _ in range(50):
+        other = steps.Step("test", lambda: steps.doing("reading", "/trees/b") or "went on")
+        assert other.wait(5) and other.outcome == {"result": "went on"}
+        numbers.add(other._thread.ident)  # noqa: SLF001
+        other.leave()  # leaving one that is done tells no later thread anything
+    steps.doing("reading", "/trees/a")  # nor is a thread that runs no step ever told
 
     listed = list(steps.each("reading", "/trees/a", iter(["one", "two"])))
     assert listed == ["one", "two"]
+
+    # one that is left before its first word is kept as a step that was left, like any other
+    doing, starting, release = steps.doing, threading.Event(), threading.Event()
+
+    def held_before_its_first_word(what, path="", allow=0.0):
+        if what == "starting":
+            starting.set()
+            release.wait(30)
+        doing(what, path, allow)
+
+    monkeypatch.setattr(steps, "doing", held_before_its_first_word)
+    early = steps.Step("test", lambda: begun.append("never"))
+    assert starting.wait(10)
+    early.leave()
+    release.set()
+    assert early.wait(5) and isinstance(early.outcome.get("raised"), steps.Left)
+    assert begun == ["one"]
 
 
 def test_a_step_is_waiting_once_it_has_said_nothing_for_long_enough(
@@ -1219,11 +1277,12 @@ def test_a_step_is_waiting_once_it_has_said_nothing_for_long_enough(
     step = steps.Step("test", work)
     assert said.wait(10)
     clock.at += setup.QUIET_SECONDS - 1
-    assert setup._look(step) == ("working", ("reading", "/Volumes/Shed", setup.QUIET_SECONDS - 1))
+    quiet = setup.QUIET_SECONDS
+    assert setup._look(step) == ("working", ("reading", "/Volumes/Shed", quiet - 1), 1000.0)
     clock.at += 1
-    assert setup._look(step) == ("waiting", ("reading", "/Volumes/Shed", setup.QUIET_SECONDS))
+    assert setup._look(step) == ("waiting", ("reading", "/Volumes/Shed", quiet), 1000.0)
     go.set()
-    assert step.wait(5) and setup._look(step) == ("done", None)
+    assert step.wait(5) and setup._look(step) == ("done", None, None)
 
 
 def test_the_disk_work_says_what_it_does_as_it_goes(
@@ -1244,14 +1303,377 @@ def test_the_disk_work_says_what_it_does_as_it_goes(
     said = [(what, path.removeprefix("\\\\?\\")) for what, path in heard]
     words = {what for what, _path in said}
     assert {"running git in", "checking the volume", "reading", "inspecting", "removing"} <= words
-    assert "opening" in words
+    assert {"opening", "reclaiming", "clearing", "looking at"} <= words
     for name in ("main", "old", "fresh"):  # the first read of a worktree, then its inspection
         assert ("opening", str(repo[name])) in said and ("inspecting", str(repo[name])) in said
     for target in stripped:
-        # the action, the folder as it is listed and cleared, and each file in it
-        assert said.count(("removing", target)) >= 3
-        assert ("removing", str(Path(target) / "bundle.js")) in said
+        file = str(Path(target) / "bundle.js")
+        # the action; the folder as it is opened, as each entry of it arrives, and before it
+        # goes; each file before it is looked at, and again right before it goes
+        assert ("reclaiming", target) in said and ("clearing", target) in said
+        assert said.count(("removing", target)) >= 2
+        assert said.index(("looking at", file)) < said.index(("removing", file))
     assert any(what.startswith("working after running git in") for what in words)
+
+
+def test_a_step_is_left_only_if_it_has_said_nothing_since_it_was_seen(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = Clock(monkeypatch)
+    said, go = threading.Event(), threading.Event()
+    begun: list[str] = []
+
+    def pause() -> None:
+        go.clear()
+        said.set()
+        go.wait(30)
+
+    def work() -> str:
+        steps.doing("reading", "/Volumes/Shed")
+        pause()
+        with steps.command("running git in", "/repo", allow=30):
+            pause()
+            ref = "the ref it made"  # what the command did goes back to its caller
+        begun.append(ref)
+        steps.doing("removing", "/Volumes/Shed/build")
+        begun.append("removing")
+        return "went on"
+
+    def next_word() -> None:
+        said.clear()
+        go.set()
+        assert said.wait(10)
+
+    step = steps.Step("test", work)
+    assert said.wait(10)
+    seen_at = step.seen()[4]
+    clock.at += 400
+    next_word()  # it spoke again just as the job made up its mind
+    assert step.leave(seen_at) is False  # so it is working, and is not left
+    assert step.now()[:2] == ("running git in", "/repo")
+    assert step.leave(step.seen()[4]) is True  # this time nothing was said since
+    go.set()
+    assert step.wait(5)
+    # the command that was under way came back to its caller; the next thing was not begun
+    assert begun == ["the ref it made"] and isinstance(step.outcome["raised"], steps.Left)
+
+
+def test_a_step_left_in_a_read_removes_and_shares_nothing_when_the_read_comes_back(
+    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path,  # noqa: F811
+) -> None:
+    """A read the system holds cannot be told anything. When it comes back, the step is
+    told before it does what the read was for."""
+    import botcore.commands.disk.remove as remove
+
+    folder = tmp_path / "trees" / "dist"
+    folder.mkdir(parents=True)
+    (folder / "bundle.js").write_bytes(b"x" * 100)
+    held, release = threading.Event(), threading.Event()
+
+    class Held:  # a folder entry whose metadata the system holds
+        def __init__(self, entry) -> None:
+            self.name, self.path, self._entry = entry.name, entry.path, entry
+
+        def stat(self, follow_symlinks: bool = True):
+            held.set()
+            release.wait(30)
+            return self._entry.stat(follow_symlinks=follow_symlinks)
+
+    monkeypatch.setattr(remove, "each", lambda what, path, entries: [Held(e) for e in entries])
+    step = steps.Step("disk-work", lambda: remove.remove_inside(folder, tmp_path / "trees"))
+    assert held.wait(10)
+    step.leave()  # as a run that ends does, and a call that is cancelled
+    release.set()
+    assert step.wait(10) and isinstance(step.outcome["raised"], steps.Left)
+    assert (folder / "bundle.js").exists()  # it was not removed after the step was left
+
+    directory, shared = tmp_path / "record", tmp_path / "drive"
+    directory.mkdir()
+    shared.mkdir()
+    usage_store.save_state(directory, {"record_id": "r1", "collected_at": stamp(1)})
+    load_json = usage_store._load_json
+    held.clear()
+    release.clear()
+
+    def shared_copy_held(path):
+        if str(path).startswith(str(shared)):
+            held.set()
+            release.wait(30)
+        return load_json(path)
+
+    monkeypatch.setattr(usage_store, "_load_json", shared_copy_held)
+    step = steps.Step("skill-usage-collect",
+                      lambda: usage_store.publish(directory, shared, "bench"))
+    assert held.wait(10)
+    step.leave()
+    release.set()
+    assert step.wait(10) and isinstance(step.outcome["raised"], steps.Left)
+    assert not (shared / "bench").exists()  # nothing was shared after it was left
+    monkeypatch.setattr(usage_store, "_load_json", load_json)
+    assert usage_store.publish(directory, shared, "bench") is True  # as it would have been
+
+
+def test_every_removal_and_every_shared_write_asks_first_whether_the_step_was_left(
+    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path,  # noqa: F811
+) -> None:
+    import botcore.commands.disk.remove as remove
+    import botcore.commands.skill_usage.collect as collect
+
+    held, release = threading.Event(), threading.Event()
+
+    def left_while(work, hold) -> steps.Step:
+        """Run `work` as a step, leave it while `hold` has it waiting, then let it go."""
+        held.clear()
+        release.clear()
+        step = steps.Step("test", work)
+        assert held.wait(10), hold
+        step.leave()
+        release.set()
+        assert step.wait(10) and isinstance(step.outcome.get("raised"), steps.Left), step.outcome
+        return step
+
+    def waits(*_args, **_kwargs) -> None:
+        held.set()
+        release.wait(30)
+
+    # an emptied folder is not removed
+    empty = tmp_path / "trees" / "empty"
+    empty.mkdir(parents=True)
+    with monkeypatch.context() as patch:
+        patch.setattr(remove, "each", lambda what, path, entries: waits() or list(entries))
+        left_while(lambda: remove.remove_inside(empty, tmp_path / "trees"), "the listing")
+    assert empty.is_dir()
+
+    # nor is anything by the walker that goes by path (Windows)
+    file, link = tmp_path / "trees" / "file", tmp_path / "trees" / "link"
+    file.write_text("x")
+    link.symlink_to(file)
+    for path, removal in ((file, remove._unlink_path), (link, remove._remove_link_path)):
+        info = os.lstat(path)
+        left_while(lambda path=path, removal=removal, info=info: (
+            steps.doing("reading", path), waits(),
+            removal(str(path), info, remove.Removal(str(path)))), "its metadata")
+        assert os.path.lexists(path)
+
+    # a file of the shared copy is not replaced after the copy that lies there was read
+    directory, shared = tmp_path / "record", tmp_path / "drive"
+    directory.mkdir()
+    shared.mkdir()
+    usage_store.save_state(directory, {"record_id": "r1", "collected_at": stamp(1)})
+    assert usage_store.publish(directory, shared, "bench") is True
+    usage_store.save_state(directory, {"record_id": "r1", "collected_at": stamp(2)})
+    before = (shared / "bench" / "state.json").read_bytes()
+    copy_bytes = usage_store._copy_bytes
+    with monkeypatch.context() as patch:
+        patch.setattr(usage_store, "_copy_bytes",
+                      lambda path: (path.name == "state.json" and waits()) or copy_bytes(path))
+        left_while(lambda: usage_store.publish(directory, shared, "bench"), "the copy")
+    assert (shared / "bench" / "state.json").read_bytes() == before
+
+    # a collection left during the last thing it reads writes nothing of its record: the
+    # command it was running comes back, and the record is the next thing it would begin
+    built = T3Store(tmp_path / "t3.sqlite")
+    built.project("p1", repo["main"])
+    built.skill_tool(built.thread("main"), "plant-beds", stamp(1))
+    monkeypatch.setenv(usage_store.T3_STORE_ENV, str(built.path))
+    name_projects = collect._name_projects
+
+    def projects_held(*args, **kwargs):
+        named = name_projects(*args, **kwargs)
+        waits()  # the last thing it reads before it writes
+        return named
+
+    with monkeypatch.context() as patch:
+        patch.setattr(collect, "_name_projects", projects_held)
+        left_while(lambda: asyncio.run(collect.skill_usage_collect()), "the projects")
+    assert usage_store.load_events(usage_store.state_dir())[0] == []
+    assert asyncio.run(collect.skill_usage_collect()).data["added"] == 1  # as it would have
+
+
+def test_disk_work_that_speaks_again_as_the_job_decides_is_not_left(
+    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+) -> None:
+    import botcore.commands.disk.reclaim as reclaim
+
+    first, second = threading.Event(), threading.Event()
+    looks = Looks(monkeypatch)
+    did: list[str] = []
+
+    async def waits_then_works(**_kwargs):
+        steps.doing("reading", "/Volumes/Shed")
+        looks.held = {"disk-work"}
+        first.wait(30)  # the owner answers at the moment the job looks
+        steps.doing("removing", "/Volumes/Shed/build")
+        looks.held = set()
+        did.append("removing")
+        second.wait(30)
+        return SimpleNamespace(success=True, data={"still_low": []})
+
+    def the_owner_answers(step: steps.Step, look: str) -> None:
+        if step.name != "disk-work":
+            return
+        if look == "waiting" and looks.acted_on:
+            # seen waiting by the look the run acts on, and it speaks again before the run
+            # can leave it
+            first.set()
+            until = time.monotonic() + 10
+            while time.monotonic() < until and (step.now() or ("",))[0] != "removing":
+                time.sleep(0.005)
+        elif did:
+            second.set()
+
+    looks.on_look = the_owner_answers
+    monkeypatch.setattr(reclaim, "disk_reclaim", waits_then_works)
+    data = run(setup.disk_run(force=True, own_process=True))
+    assert data["ran"] is True and did == ["removing"]  # it was waited for, to its end
+    assert check_file(state)["disk_work"]["ok"] is True
+
+
+def test_disk_work_that_ends_just_after_it_was_seen_waiting_is_recorded_as_it_ended(
+    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    alive,
+) -> None:
+    import botcore.commands.disk.reclaim as reclaim
+    import botcore.commands.skill_usage as usage
+
+    release = threading.Event()
+    looks = Looks(monkeypatch)
+    collected = threading.Event()
+
+    async def waits(**_kwargs):
+        steps.doing("reading", "/Volumes/Shed")
+        looks.held = {"disk-work"}
+        release.wait(30)
+        return SimpleNamespace(success=True, data={"still_low": []})
+
+    async def collect():
+        collected.set()
+        return SimpleNamespace(success=True, data={"added": 0})
+
+    def ends_right_after_the_look(step: steps.Step, look: str) -> None:
+        if step.name == "disk-work" and look == "waiting" and collected.is_set():
+            release.set()  # seen waiting; done before the job acts on what it saw
+            step.wait(10)
+
+    looks.on_look = ends_right_after_the_look
+    monkeypatch.setattr(reclaim, "disk_reclaim", waits)
+    monkeypatch.setattr(usage, "skill_usage_collect", collect)
+    data = run(setup.disk_run(force=True))  # in a process that lives on
+    assert data["ran"] is True
+    assert check_file(state)["disk_work"]["ok"] is True and not alive("disk-work")
+
+
+def test_the_status_of_a_machine_that_does_not_answer_reads_no_path(
+    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path,  # noqa: F811
+    at_once,
+    alive,
+) -> None:
+    state.mkdir(parents=True, exist_ok=True)
+    now = setup.datetime.now(setup.UTC).isoformat()
+    gone = tmp_path / "no-longer-registered"
+    (state / "status.json").write_text(json.dumps({
+        "last_apply": {"at": now, "ok": True, "receipt": "second.json"},
+        "worktree_warnings": {"repos": {
+            str(repo["main"]): {"at": now, "count": 30, "checkout": str(repo["main"]),
+                                "warning": "30 worktrees idle 3 days or more"},
+            str(gone): {"at": now, "count": 40, "checkout": str(gone),
+                        "warning": "40 worktrees idle 3 days or more"},
+        }},
+    }))
+    # what a reclaim could not do is the receipt's to tell, for as long as that reclaim is
+    # the last one: a later one that worked has the last word
+    setup._write_check({"disk_work": {
+        "ok": False, "ran": True, "reclaim_ok": False,
+        "error": "the reclaim had 1 failures: read its receipt"}})
+    status = run(setup.disk_status())
+    assert "30 worktrees idle 3 days or more" in status["warnings"]
+    assert "40 worktrees idle 3 days or more" not in status["warnings"]  # not registered now
+    assert not any("disk work" in found for found in status["warnings"] + status["problems"])
+
+    resolved: list[str] = []
+    path_key = setup.path_key
+    monkeypatch.setattr(setup, "path_key",
+                        lambda path: resolved.append(str(path)) or path_key(path))
+    release = threading.Event()
+    live = setup._live
+
+    def waits(settings, saved):
+        steps.doing("checking the volume", "/Volumes/Shed")
+        at_once("STATUS_SECONDS")
+        release.wait(30)
+        return live(settings, saved)
+
+    monkeypatch.setattr(setup, "_live", waits)
+    monkeypatch.setattr(setup, "STATUS_SECONDS", 20)
+    status = run(setup.disk_status())
+    # every count is given, and no path was resolved to choose among them: resolving reads
+    # the volume the repository is on, which may be the one that does not answer
+    assert {"30 worktrees idle 3 days or more", "40 worktrees idle 3 days or more"} <= set(
+        status["warnings"])
+    assert resolved == [] and alive("disk-status") == 1
+
+    # settings that changed are not answered from a read started with the old ones
+    with repo["settings"].open("a", encoding="utf-8") as handle:
+        handle.write("idle_worktree_limit = 5\n")
+    monkeypatch.setattr(setup, "_live", live)
+    monkeypatch.setattr(setup, "STATUS_SECONDS", 20)
+    status = run(setup.disk_status())
+    assert status["schedule"] is not None and alive("disk-status") == 1  # the old one waits on
+    release.set()
+
+    # T3 Code's worktree folder is named before its path is resolved
+    t3_settings = tmp_path / "t3-settings.json"
+    t3_settings.write_text(json.dumps({"worktreesDirectory": "/Volumes/Shed/worktrees"}))
+    monkeypatch.setenv("BOTCORE_DISK_T3_SETTINGS", str(t3_settings))
+    said: list[tuple[str, str]] = []
+    monkeypatch.setattr(steps, "SAID", said)
+    setup.t3_worktree_roots(load_machine_settings()[0])
+    assert said.index(("reading", str(t3_settings))) < said.index(
+        ("resolving", "/Volumes/Shed/worktrees"))
+
+
+def test_whether_a_folder_can_be_read_takes_one_entry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import botcore.commands.disk.report as report
+
+    folder = tmp_path / "many"
+    folder.mkdir()
+    for number in range(20):
+        (folder / f"file{number}").write_text("x")
+    asked: list[int] = []
+
+    class Counting:
+        def __init__(self, entries) -> None:
+            self._entries = entries
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_exc) -> None:
+            self._entries.close()
+
+        def __iter__(self):
+            return self
+
+        def __next__(self):
+            asked.append(1)
+            return next(self._entries)
+
+    scandir = os.scandir
+    monkeypatch.setattr(setup.os, "scandir", lambda path: Counting(scandir(path)))
+    setup._peek(folder)
+    assert asked == [1]  # however many it holds
+    assert report._presence(folder) == ("present", None) and asked == [1, 1]
+    assert report._presence(tmp_path / "absent")[0] == "missing"
+
+    def refused(path):
+        raise PermissionError(13, "Operation not permitted")
+
+    monkeypatch.setattr(setup.os, "scandir", refused)
+    assert report._presence(folder) == ("unreadable", "Operation not permitted")
+    with pytest.raises(PermissionError):
+        setup._peek(folder)
 
 
 def test_the_command_line_runs_the_job_as_a_process_of_its_own(

@@ -279,6 +279,11 @@ def _digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def _copy_bytes(path: Path) -> bytes:
+    """A file of a shared copy as it lies now (a read a cloud drive can hold)."""
+    return path.read_bytes()
+
+
 def _shared_link(link: object) -> dict | str | None:
     """A session's pull request as it is shared: its reference, when, and who opened it."""
     if isinstance(link, str):
@@ -403,6 +408,7 @@ def publish(directory: Path, shared: Path, machine: str) -> bool:
     shared_state["renames"] = _renames(state)
     shared_state["files"] = {name: _digest(data) for name, data in files.items()}
     files[STATE_FILE] = json.dumps(shared_state, indent=2, sort_keys=True).encode("utf-8") + b"\n"
+    doing(SHARING, shared)  # said before anything is written: a step that was left stops here
     target.mkdir(exist_ok=True)
     for left in target.glob("*.tmp"):  # what a write that was cut short left behind
         left.unlink(missing_ok=True)
@@ -410,10 +416,11 @@ def publish(directory: Path, shared: Path, machine: str) -> bool:
     for name, data in files.items():
         destination = target / name
         try:
-            if destination.read_bytes() == data:
+            if _copy_bytes(destination) == data:
                 continue
         except FileNotFoundError:
             pass
+        doing(SHARING, shared)  # after the copy was read, and before it is replaced
         temporary = destination.with_name(f"{name}.{os.getpid()}.tmp")
         temporary.write_bytes(data)
         os.replace(temporary, destination)

@@ -151,7 +151,8 @@ def _presence(path: Path) -> tuple[str, str | None]:
             return "unreadable", exc.strerror or str(exc)
     else:
         try:
-            os.listdir(path)
+            with os.scandir(path) as entries:  # whether it can be read: one entry says so
+                next(entries, None)
         except PermissionError as exc:
             return "unreadable", exc.strerror or "permission denied"
         except OSError:

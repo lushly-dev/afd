@@ -90,6 +90,7 @@ def _size(info: os.stat_result) -> int:
 
 
 def _unlink_at(name: str, dir_fd: int, info: os.stat_result, where: str, out: Removal) -> None:
+    doing("removing", where)  # right before it goes: a step that was left stops here
     try:
         os.unlink(name, dir_fd=dir_fd)
     except FileNotFoundError:
@@ -103,7 +104,7 @@ def _unlink_at(name: str, dir_fd: int, info: os.stat_result, where: str, out: Re
 
 def _clear_at(dir_fd: int, where: str, device: int, out: Removal) -> bool:
     """Delete everything in the open folder dir_fd. True when it is empty afterwards."""
-    doing("removing", where)
+    doing("clearing", where)
     empty = True
     with os.scandir(dir_fd) as entries:
         children = list(each("removing", where, entries))
@@ -112,7 +113,7 @@ def _clear_at(dir_fd: int, where: str, device: int, out: Removal) -> bool:
         return False
     for child in children:
         here = os.path.join(where, child.name)
-        doing("removing", here)  # every file: a folder of very many is work, not waiting
+        doing("looking at", here)  # every file: a folder of very many is work, not waiting
         try:
             info = child.stat(follow_symlinks=False)
         except FileNotFoundError:
@@ -150,6 +151,7 @@ def _remove_dir_at(name: str, parent_fd: int, where: str, device: int, out: Remo
         os.close(fd)
     if not empty:
         return False
+    doing("removing", where)
     try:
         os.rmdir(name, dir_fd=parent_fd)
     except FileNotFoundError:
@@ -185,6 +187,7 @@ def _remove_by_handle(path: Path, out: Removal) -> None:
 
 
 def _unlink_path(path: str, info: os.stat_result, out: Removal) -> None:
+    doing("removing", path)  # right before it goes: a step that was left stops here
     try:
         os.unlink(path)
     except FileNotFoundError:
@@ -205,6 +208,7 @@ def _unlink_path(path: str, info: os.stat_result, out: Removal) -> None:
 
 def _remove_link_path(path: str, info: os.stat_result, out: Removal) -> None:
     """Remove a link without touching its target. A directory link or junction is rmdir'd."""
+    doing("removing", path)
     try:
         if getattr(info, "st_file_attributes", 0) & DIRECTORY or stat.S_ISDIR(info.st_mode):
             os.rmdir(path)

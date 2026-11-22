@@ -412,8 +412,9 @@ or could not be written).
 
 Called with `own_process=False`, from a program that lives on, it waits for its steps however
 long they take and records what they wait for meanwhile. If that call is cancelled or fails,
-its steps are told to stop and given ten seconds; one that the system holds in a read stays
-there until it is let go, and then stops.
+its steps are told to stop and given ten seconds. A command already under way (a `git`
+call, a cache prune) runs to its end, and a step the system holds in a read stays there
+until it is let go; either then stops before it removes or writes anything more.
 
 On macOS a read that waits is most often the system asking the owner: a scheduled program is
 asked at the screen before it reads an external or network volume, files a cloud drive's app
