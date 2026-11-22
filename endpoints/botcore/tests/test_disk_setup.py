@@ -78,6 +78,109 @@ def test_setup_registers_the_repository_and_its_volumes(
     assert settings.volume and all(v.low_space_gb >= 20 for v in settings.volume)
     again = run(setup.disk_setup(install_schedule=False))
     assert again["added_repos"] == [] and again["added_volumes"] == []
+    assert again["changed_tools"] == {}
+
+
+def test_setup_rerun_keeps_usable_tools_and_reports_changes(
+    repo: dict[str, Path], state: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+) -> None:
+    """lushly-dev/afd#1934: a rerun from a different shell PATH keeps existing usable [tools]
+    entries, only filling in missing or broken ones, and reports any entry it changed."""
+    def make_tool(folder: Path, name: str, executable: bool = True) -> Path:
+        folder.mkdir(parents=True, exist_ok=True)
+        suffix = ".cmd" if sys.platform == "win32" else ""
+        path = folder / f"{name}{suffix}"
+        script = "@echo ok\r\n" if sys.platform == "win32" else "#!/bin/sh\n"
+        path.write_text(script, encoding="utf-8")
+        path.chmod(0o755 if executable else 0o644)
+        return path
+
+    owner_bin = tmp_path / "owner-bin"
+    agent_bin = tmp_path / "agent-bin"
+    owner_node = make_tool(owner_bin, "node")
+    owner_pnpm = make_tool(owner_bin, "pnpm")
+    owner_git = make_tool(owner_bin, "git")
+    agent_node = make_tool(agent_bin, "node")
+    agent_pnpm = make_tool(agent_bin, "pnpm")
+    agent_uv = make_tool(agent_bin, "uv")
+    custom_cargo = make_tool(owner_bin, "cargo")
+
+    # Avoid treating tmp_path (under TEMP/TMPDIR) as a shell-session path.
+    monkeypatch.setattr(setup, "_session_path", lambda path: "session-only" in path)
+    monkeypatch.chdir(repo["main"])
+
+    # Seed disk.toml with owner's choices plus one broken entry (gh) and one missing entry (uv).
+    initial = MachineSettings(
+        repos=[str(repo["main"])],
+        tools={
+            "node": str(owner_node),
+            "pnpm": str(owner_pnpm),
+            "git": str(owner_git),
+            "gh": str(tmp_path / "deleted" / "gh"),
+            "cargo": str(custom_cargo),
+        },
+    )
+    repo["settings"].write_text(setup.settings_toml(initial), encoding="utf-8")
+
+    # Rerun from an agent shell whose PATH points to different node/pnpm, adds uv, and lacks git/gh.
+    shell_tools = {"node": str(agent_node), "pnpm": str(agent_pnpm), "uv": str(agent_uv)}
+    monkeypatch.setattr(setup.shutil, "which", shell_tools.get)
+    data = run(setup.disk_setup(install_schedule=False))
+
+    assert data["tools"] == {
+        "node": str(owner_node),
+        "pnpm": str(owner_pnpm),
+        "git": str(owner_git),
+        "uv": str(agent_uv),
+        "cargo": str(custom_cargo),
+    }
+    assert data["changed_tools"] == {
+        "gh": {"was": str(tmp_path / "deleted" / "gh"), "now": None},
+        "uv": {"was": None, "now": str(agent_uv)},
+    }
+    assert load_machine_settings()[0].tools == data["tools"]
+
+    # A second rerun with the same tools reports no changes.
+    again = run(setup.disk_setup(install_schedule=False))
+    assert again["changed_tools"] == {}
+
+    # A broken existing entry (deleted or session-only or non-executable on POSIX) is replaced.
+    owner_node.unlink()
+    replaced = run(setup.disk_setup(install_schedule=False))
+    assert replaced["tools"]["node"] == str(agent_node)
+    assert replaced["changed_tools"] == {"node": {"was": str(owner_node), "now": str(agent_node)}}
+
+    if sys.platform == "win32":
+        # An extensionless POSIX shim cannot run directly on Windows and must be replaced.
+        posix_shim = owner_bin / "pnpm"
+        posix_shim.write_text("#!/bin/sh\n", encoding="utf-8")
+        current = load_machine_settings()[0]
+        current.tools["pnpm"] = str(posix_shim)
+        repo["settings"].write_text(setup.settings_toml(current), encoding="utf-8")
+        fixed_shim = run(setup.disk_setup(install_schedule=False))
+        assert fixed_shim["tools"]["pnpm"] == str(agent_pnpm)
+        assert fixed_shim["changed_tools"] == {
+            "pnpm": {"was": str(posix_shim), "now": str(agent_pnpm)}
+        }
+    else:
+        owner_pnpm.chmod(0o644)
+        fixed_mode = run(setup.disk_setup(install_schedule=False))
+        assert fixed_mode["tools"]["pnpm"] == str(agent_pnpm)
+        assert fixed_mode["changed_tools"] == {
+            "pnpm": {"was": str(owner_pnpm), "now": str(agent_pnpm)}
+        }
+
+    # When schedule installation fails after disk.toml was written, report changed_tools in details.
+    current = load_machine_settings()[0]
+    gone = str(tmp_path / "gone" / "gh")
+    current.tools["gh"] = gone
+    repo["settings"].write_text(setup.settings_toml(current), encoding="utf-8")
+    failed = asyncio.run(setup.disk_setup(install_schedule=True))
+    assert not failed.success and failed.error.code == "DISK_TOOL_NOT_INSTALLED"
+    assert failed.error.details == {
+        "settings": str(repo["settings"]),
+        "changed_tools": {"gh": {"was": gone, "now": None}},
+    }
 
 
 def test_setup_refuses_a_botcore_from_uvs_cache(

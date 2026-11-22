@@ -188,9 +188,169 @@ def test_a_clean_green_pull_request_merges_at_once_and_frees_its_claims(run):
     assert merged.data == {"state": "merged", "autoMerge": False, "changed": True}
     assert gateway("lane", "pr-status", repo=REPO, number=44).data["state"] == "merged"
     assert gateway("lane", "claim-list", repo=REPO).data["claims"] == []
+    issue = gateway("lane", "issue-get", repo=REPO, number=103).data
+    assert issue["state"] == "closed"
+    assert "status:in-progress" not in issue["labels"]
+    assert "status:planned" not in issue["labels"]
+    assert "claim" not in issue
     # With no method configured the gateway merges with a merge commit, keeping every author.
     pull = next(p for p in gateway.github()["pullRequests"] if p["number"] == 44)
     assert pull["mergeMethod"] == "merge"
+
+
+def test_issue_release_clears_leftover_in_progress_label_on_closed_and_open_issues(run):
+    """lushly-dev/afd#1810: when the claim comment is already released but status:in-progress
+    remains on the issue, issue-release removes it instead of answering changed: false."""
+    gateway = run()
+    assert gateway("lane", "issue-claim", repo=REPO, numbers=[101], holder=HOLDER).success
+    # Release comment posted, issue closed, but status:in-progress left behind.
+    assert gateway(
+        "lane", "issue-release", repo=REPO, number=101, holder=HOLDER, reason="merged"
+    ).success
+    gateway.edit(
+        lambda d: next(i for i in d["issues"] if i["number"] == 101).update(
+            state="closed", labels=["area:core", "status:in-progress"]
+        )
+    )
+    cleaned = gateway("lane", "issue-release", repo=REPO, number=101, holder=HOLDER, reason="clean")
+    assert cleaned.success and cleaned.data == {
+        "released": True,
+        "changed": True,
+        "record": {"label": None},
+    }
+    assert gateway("lane", "issue-get", repo=REPO, number=101).data["labels"] == ["area:core"]
+    again = gateway("lane", "issue-release", repo=REPO, number=101, holder=HOLDER, reason="clean")
+    assert again.success and again.data == {
+        "released": True,
+        "changed": False,
+        "record": {"label": None},
+    }
+
+    # On an open issue with leftover status:in-progress after release, restore status:planned.
+    gateway.edit(
+        lambda d: next(i for i in d["issues"] if i["number"] == 101).update(
+            state="open", labels=["area:core", "status:in-progress"]
+        )
+    )
+    restored = gateway("lane", "issue-release", repo=REPO, number=101, holder=HOLDER, reason="open")
+    assert restored.success and restored.data == {
+        "released": True,
+        "changed": True,
+        "record": {"label": "status:planned"},
+    }
+    assert gateway("lane", "issue-get", repo=REPO, number=101).data["labels"] == [
+        "area:core",
+        "status:planned",
+    ]
+
+
+def test_issue_release_on_claimed_closed_issue_drops_in_progress_without_adding_planned(run):
+    """When a PR merges asynchronously (auto-merge or merge queue) and GitHub closes the issue,
+    releasing the claim drops status:in-progress and never re-adds status:planned."""
+    gateway = run()
+    assert gateway("lane", "issue-claim", repo=REPO, numbers=[101], holder=HOLDER).success
+    gateway.edit(
+        lambda d: next(i for i in d["issues"] if i["number"] == 101).update(state="closed")
+    )
+    released = gateway("lane", "issue-release", repo=REPO, number=101, holder=HOLDER, reason="done")
+    assert released.success and released.data == {
+        "released": True,
+        "changed": True,
+        "record": {"label": None},
+    }
+    assert gateway("lane", "issue-get", repo=REPO, number=101).data["labels"] == ["area:core"]
+
+
+def test_owner_force_release_clears_leftover_in_progress_from_another_holder(run):
+    gateway = run()
+    assert gateway("lane", "issue-claim", repo=REPO, numbers=[101], holder=HOLDER).success
+    assert gateway(
+        "lane", "issue-release", repo=REPO, number=101, holder=HOLDER, reason="merged"
+    ).success
+    gateway.edit(
+        lambda d: next(i for i in d["issues"] if i["number"] == 101).update(
+            state="closed", labels=["area:core", "status:in-progress"]
+        )
+    )
+    other = {"branch": "fix/other", "machine": "laptop"}
+    cleaned = gateway(
+        "owner", "issue-release", repo=REPO, number=101, holder=other, reason="cleanup", force=True
+    )
+    assert cleaned.success and cleaned.data["changed"] is True
+    assert gateway("owner", "issue-get", repo=REPO, number=101).data["labels"] == ["area:core"]
+    # Once clean, force-releasing an already-released issue by another holder is NOT_CLAIMED.
+    refused = gateway(
+        "owner", "issue-release", repo=REPO, number=101, holder=other, reason="cleanup", force=True
+    )
+    assert refused.error.code == "NOT_CLAIMED"
+
+
+def test_enqueue_already_merged_clears_claim_and_in_progress_label(run, monkeypatch):
+    gateway = behind_a_queue(run, 44, PR44_HEAD)
+    gateway.edit(
+        lambda d: next(p for p in d["pullRequests"] if p["number"] == 44).update(
+            branch="fix/perf", closes=[101]
+        )
+    )
+    holder = {"branch": "fix/perf", "machine": "workstation"}
+    assert gateway("lane", "issue-claim", repo=REPO, numbers=[101], holder=holder).success
+
+    def merged_at_once(self, repo, number, head):
+        with self._write(repo) as data:
+            self._pull(data, number).update(state="merged", mergedAt=data.get("now"))
+            self._issue(data, 101)["state"] = "closed"
+        return {"state": "MERGED", "position": 1}
+
+    monkeypatch.setattr(FakeGitHub, "enqueue_pull", merged_at_once)
+    merged = gateway("lane", "pr-merge", repo=REPO, number=44, head=PR44_HEAD)
+    assert merged.data == {"state": "merged", "autoMerge": False, "changed": True}
+    issue = gateway("lane", "issue-get", repo=REPO, number=101).data
+    assert issue["state"] == "closed" and issue["labels"] == ["area:core"]
+    assert "claim" not in issue
+
+
+def test_pr_merge_retry_finishes_label_cleanup_after_transient_label_failure(run, monkeypatch):
+    """If set_labels fails after merge_pull and add_comment succeed, retrying pr-merge clears
+    the leftover status:in-progress label instead of answering changed: false."""
+    from botcore_factory.gateway.github import GitHubUnavailable
+
+    gateway = run()
+    gateway.edit(
+        lambda d: next(p for p in d["pullRequests"] if p["number"] == 44).update(
+            branch="fix/perf", closes=[103]
+        )
+    )
+    holder = {"branch": "fix/perf", "machine": "workstation"}
+    assert gateway("lane", "issue-claim", repo=REPO, numbers=[103], holder=holder).success
+    assert gateway(
+        "lane", "verification-record", repo=REPO, head=PR44_HEAD, result="passed", summary="ok"
+    ).success
+
+    real_set_labels = FakeGitHub.set_labels
+
+    def fail_once(self, repo, number, labels):
+        raise GitHubUnavailable("503 while clearing labels")
+
+    monkeypatch.setattr(FakeGitHub, "set_labels", fail_once)
+    first = gateway("lane", "pr-merge", repo=REPO, number=44, head=PR44_HEAD)
+    assert first.error.code == "GITHUB_UNAVAILABLE" and first.error.retryable is True
+    # Merge and release comment landed, but status:in-progress is still on the closed issue.
+    partial = gateway("lane", "issue-get", repo=REPO, number=103).data
+    assert partial["state"] == "closed" and "status:in-progress" in partial["labels"]
+
+    monkeypatch.setattr(FakeGitHub, "set_labels", real_set_labels)
+    retried = gateway("lane", "pr-merge", repo=REPO, number=44, head=PR44_HEAD)
+    assert retried.success and retried.data == {
+        "state": "merged",
+        "autoMerge": False,
+        "changed": True,
+    }
+    cleaned = gateway("lane", "issue-get", repo=REPO, number=103).data
+    assert "status:in-progress" not in cleaned["labels"]
+    assert "status:planned" not in cleaned["labels"]
+    # A second retry once clean changes nothing.
+    again = gateway("lane", "pr-merge", repo=REPO, number=44, head=PR44_HEAD)
+    assert again.success and again.data == {"state": "merged", "autoMerge": False, "changed": False}
 
 
 def test_a_repository_configured_for_squash_is_squash_merged(run):

@@ -199,6 +199,32 @@ def mock_plugin() -> MockPlugin:
     return MockPlugin()
 
 
+def isolate_cargo_configs(monkeypatch: pytest.MonkeyPatch, root: Path) -> None:
+    """Confine Cargo config discovery to `root` so host configs above TMPDIR never leak."""
+    from botcore.commands.disk import cargo
+
+    resolved = root.resolve()
+    real_in_folder = cargo._Configs.in_folder
+
+    def in_root(self: cargo._Configs, cargo_dir: Path) -> Path | None:
+        try:
+            if not cargo_dir.resolve().is_relative_to(resolved):
+                return None
+        except OSError:
+            return None
+        return real_in_folder(self, cargo_dir)
+
+    monkeypatch.setattr(cargo._Configs, "in_folder", in_root)
+
+
+@pytest.fixture(autouse=True)
+def _no_host_cargo_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep host Cargo configs out of tests when TMPDIR sits inside $HOME
+    (lushly-dev/afd#1954): Cargo's ancestor walk from tmp_path would otherwise reach
+    ~/.cargo/config.toml."""
+    isolate_cargo_configs(monkeypatch, tmp_path)
+
+
 @pytest.fixture(autouse=True)
 def _isolate_git_routing(monkeypatch):
     """Keep hook-injected Git routing out of child fixtures; restore caller state."""

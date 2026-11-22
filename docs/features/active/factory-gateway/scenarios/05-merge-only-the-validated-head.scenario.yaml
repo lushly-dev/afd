@@ -90,3 +90,52 @@ steps:
       error:
         code: NOT_MERGED
         suggestion: { contains: pr-status }
+  - description: Claiming an issue adds status:in-progress before its pull request merges
+    command: issue-claim
+    input:
+      repo: example-org/example-repo
+      numbers: [101]
+      holder: { branch: fix/parser, machine: workstation }
+    expect:
+      success: true
+      data:
+        record: { label: status:in-progress }
+  - description: Recording validation for the clean green pull request closing that issue
+    command: verification-record
+    input:
+      repo: example-org/example-repo
+      head: a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0
+      result: passed
+      summary: All checks passed.
+    expect:
+      success: true
+  - description: Merging a clean green pull request closes the issue and clears its claim
+    command: pr-merge
+    input: { repo: example-org/example-repo, number: 48, head: a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0 }
+    expect:
+      success: true
+      data:
+        state: merged
+        autoMerge: false
+        changed: true
+  - description: The closed issue no longer carries status:in-progress or a live claim
+    command: issue-get
+    input: { repo: example-org/example-repo, number: 101 }
+    expect:
+      success: true
+      data:
+        state: closed
+        labels: [area:core]
+        claim: { exists: false }
+  - description: A follow-up release by the holder is a no-op and keeps the closed issue clean
+    command: issue-release
+    input:
+      repo: example-org/example-repo
+      number: 101
+      holder: { branch: fix/parser, machine: workstation }
+      reason: Merged
+    expect:
+      success: true
+      data:
+        released: true
+        changed: false

@@ -272,10 +272,40 @@ def stable_tool_path(name: str, found: str) -> str | None:
     return None
 
 
+def _runnable_file(path: str) -> bool:
+    """Whether `path` is a file this platform can execute directly."""
+    if not os.path.isfile(path):
+        return False
+    if os.name == "nt":
+        exts = {
+            ext.lower()
+            for ext in os.environ.get("PATHEXT", ".COM;.EXE;.BAT;.CMD").split(os.pathsep)
+            if ext
+        }
+        return os.path.splitext(path)[1].lower() in exts
+    return os.access(path, os.X_OK)
+
+
+def _usable_tool(name: str, path: str) -> bool:
+    """Whether an existing `[tools]` entry is still a lasting, runnable file for `name`."""
+    return (
+        bool(path)
+        and os.path.isabs(path)
+        and not _session_path(path)
+        and _tool_name(path) == name
+        and _runnable_file(path)
+    )
+
+
 def record_tools(settings: MachineSettings) -> dict[str, str]:
     """Record a lasting path for each tool the job runs; a scheduler starts it without the
-    user's shell PATH. A tool whose path only lives in a shell session is left out."""
+    user's shell PATH. Existing entries whose file still exists and runs the tool are kept so
+    a rerun from another shell's PATH does not replace them (lushly-dev/afd#1934). A tool
+    whose path only lives in a shell session is left out."""
     for name in TOOLS:
+        existing = settings.tools.get(name)
+        if existing and _usable_tool(name, existing):
+            continue
         found = shutil.which(name)
         stable = stable_tool_path(name, found) if found else None
         if stable:
@@ -339,7 +369,13 @@ async def disk_setup(
             settings.repos.append(str(main))
             added_repos.append(str(main))
     added_volumes = _watch_volumes(settings)
+    before_tools = dict(settings.tools)
     record_tools(settings)
+    changed_tools = {
+        name: {"was": before_tools.get(name), "now": settings.tools.get(name)}
+        for name in sorted(set(before_tools) | set(settings.tools))
+        if before_tools.get(name) != settings.tools.get(name)
+    }
     if remove_landed is not None:
         settings.remove_landed = remove_landed
     if not settings.skill_usage_machine:
@@ -353,7 +389,8 @@ async def disk_setup(
     cargo = cargo_check(settings)
     data: dict = {"settings": str(path), "added_repos": added_repos,
                   "added_volumes": added_volumes, "repos": settings.repos,
-                  "tools": settings.tools, "remove_landed": settings.remove_landed,
+                  "tools": settings.tools, "changed_tools": changed_tools,
+                  "remove_landed": settings.remove_landed,
                   "cargo": cargo}
     if not install_schedule:
         return success(data=data, suggestions=cargo["problems"])
@@ -368,12 +405,16 @@ async def disk_setup(
         return error(
             "DISK_TOOL_NOT_INSTALLED", why or "botcore is not installed",
             suggestion="Install it as a tool first: uv tool install 'lushly-botcore==<version>'",
+            details={"settings": str(path), "changed_tools": changed_tools},
         )
     state = schedule.install(exe, state_path(), job_path(settings))
     data["schedule"] = state.as_dict()
     if not state.installed:
-        return error("DISK_SCHEDULE_FAILED", state.detail or "the scheduler refused the job",
-                     suggestion="Read the detail, fix it, and run disk-setup again")
+        return error(
+            "DISK_SCHEDULE_FAILED", state.detail or "the scheduler refused the job",
+            suggestion="Read the detail, fix it, and run disk-setup again",
+            details={"settings": str(path), "changed_tools": changed_tools},
+        )
     schedule.run_now()
     return success(data=data, suggestions=[
         *cargo["problems"],
