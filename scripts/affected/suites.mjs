@@ -287,7 +287,7 @@ export const SUITES = [
 		workflow: 'loam-desktop.yml',
 		tools: ['cargo'],
 		remote:
-			"the WebDriver suite (P6-D1 to P6-D4) under tauri-driver with WebKitGTK's driver on Linux; Windows and macOS are step 12's",
+			"the WebDriver suite (P6-D1 to P6-D4, P5-A2) under tauri-driver with WebKitGTK's driver on Linux, and the macOS job's WKWebView barrier check (test:macos); Windows and installers are step 12's",
 		steps: [
 			{ gate: 'run', cwd: 'endpoints/loam/packages/desktop/src-tauri', run: 'cargo fmt --check' },
 			{

@@ -49,11 +49,11 @@ export const WORKFLOWS = {
 		],
 	},
 	// Phase 6's step 11: the desktop suite (its specification, 10.7). Read only under `--phase 6` without
-	// `--milestone` (section 19); step 12 adds `Desktop on Windows` and `Desktop on macOS`.
+	// `--milestone` (section 19); #1400/#1779 added `Desktop on macOS`; step 12 adds `Desktop on Windows` and installers.
 	desktop: {
 		name: 'Loam desktop',
 		file: 'loam-desktop.yml',
-		jobs: ['Merge queue paths', 'Affected units', 'Desktop on Linux'],
+		jobs: ['Merge queue paths', 'Affected units', 'Desktop on Linux', 'Desktop on macOS'],
 	},
 	// A manual run's matrix (ci.yml): Node 22, 24 and 26.
 	ci: {
