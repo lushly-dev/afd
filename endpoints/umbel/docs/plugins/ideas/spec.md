@@ -18,7 +18,7 @@ Code paths are relative to `endpoints/umbel/`.
   authentication must be optional in Umbel. **The owner has not read this specification.** Every decision here stays
   open to him (the Ideas status, Q2), and section [17](#17-for-the-owner) lists what he could reasonably want
   otherwise. It decides D173 to D179; its companion, the [review host specification](host-review.spec.md), decides
-  D180. Nothing is implemented.
+  D180. Version 1 (steps C1 to C5, first-use fixes, and `public_origin` docs) is merged and confirmed in daily use ([#2005](https://github.com/lushly-dev/afd/issues/2005)).
 - **Last verified:** 2026-11-12 against `origin/main` at `8a5348ce`, where step B4 of the records host specification is
   merged (`2ce8229f`, [#1071](https://github.com/lushly-dev/afd/pull/1071)). Read: the records host specification
   (sections 1 to 8, 11.2, 13, 14, 16 to 18, follow-ups); the SDK's record methods and `CallContext`
@@ -30,24 +30,13 @@ Code paths are relative to `endpoints/umbel/`.
 - **Revised 2026-11-12 after an independent review** of this document and its companion: three blockers, all in the
   companion or in the preview (8.4), and nine improvements here, all taken; section 17 gains the local login and
   `verified_levels` rows. A focused pass on the revision is open.
-- **Step C1** (crate, records, capture and reads) implemented 2026-11-12 on `lush/ideas-c1-capture`, in its pull
-  request, not merged; the amendments it needed are below.
-- **Step C2** (`ideas-ask`) implemented 2026-11-12 on `lush/ideas-c2-ask`, in its pull request, not merged; the
-  amendments it needed are below.
-- **Step C3** (review at a terminal) implemented 2026-11-12 on `lush/ideas-c3-review`, not merged; the amendments it
-  needed are below. Every scenario now runs in full.
-- **Step C4** (review on the page) implemented 2026-11-13 on `lush/ideas-c4-review-page`, on step H3 of the review
-  host specification (merged, #1137); merged (#1145). The amendments it needed are below.
-- **Step C5** (finding and first use): the repository's part implemented 2026-11-13 on `lush/ideas-c5-first-use`, not
-  merged: the skill, the README's local instance with 11.2's paragraph and 11.4's settings, `tests/instructions.rs`,
-  and a walk-through of the README on invented content (`first-party/tests/ideas_first_use.rs`). The amendments it
-  needed are below. **Its exit is not met**: it is met only when the owner has done his own first use (section
-  [17](#17-for-the-owner)), which is pending.
-- **First use, 2026-11-13.** The owner ran a local instance from `main` at `87006e0c`: an agent captured 283 ideas over
-  the CLI and staged 283 proposals, and he reviewed and applied them on the local page from another computer. The
-  fixes it called for are on `lush/ideas-first-use-fixes`, not merged; they are recorded below as amendments F-1 to
-  F-5.
-- **Not done:** the owner's first use, which is step C5's exit.
+- **Step C1** (crate, records, capture and reads) implemented 2026-11-12 and merged ([#1091](https://github.com/lushly-dev/afd/pull/1091)); the amendments it needed are below.
+- **Step C2** (`ideas-ask`) implemented 2026-11-12 and merged ([#1099](https://github.com/lushly-dev/afd/pull/1099)); the amendments it needed are below.
+- **Step C3** (review at a terminal) implemented 2026-11-12 and merged ([#1106](https://github.com/lushly-dev/afd/pull/1106)); the amendments it needed are below. Every scenario now runs in full.
+- **Step C4** (review on the page) implemented 2026-11-13 on step H3 of the review host specification (merged, [#1137](https://github.com/lushly-dev/afd/pull/1137)) and merged ([#1145](https://github.com/lushly-dev/afd/pull/1145)); the amendments it needed are below.
+- **Step C5** (finding and first use): the repository's part implemented 2026-11-13 and merged ([#1168](https://github.com/lushly-dev/afd/pull/1168)): the skill, the README's local instance with 11.2's paragraph and 11.4's settings, `tests/instructions.rs`, and a walk-through of the README on invented content (`first-party/tests/ideas_first_use.rs`). The amendments it needed are below.
+- **First use and exit, 2026-11-13 to 2026-11-22.** The owner ran a local instance from `main` at `87006e0c`: an agent captured 283 ideas over the CLI and staged 283 proposals, and he reviewed and applied them on the local page from another computer. The fixes merged 2026-11-14 in [#1186](https://github.com/lushly-dev/afd/pull/1186) (amendments F-1 to F-5), and remote private-network `person.local.public_origin` merged 2026-11-14 in [#1188](https://github.com/lushly-dev/afd/pull/1188) and [#1189](https://github.com/lushly-dev/afd/pull/1189). On 2026-11-22 the owner confirmed step C5's local exit in daily use ([#2005](https://github.com/lushly-dev/afd/issues/2005)): two reviews completed on the local/private-network review page, export/restore verified identical across machines, and `verified_levels` default kept.
+- **Not done (v1):** README `public_origin` snippet test ([#2008](https://github.com/lushly-dev/afd/issues/2008)); cloud/OAuth hosting for web and phone connectors is tracked in [#2007](https://github.com/lushly-dev/afd/issues/2007).
 - **Follow-ups:** the [table at the end](#follow-ups). The answers to the follow-ups addressed to step A3 are in the
   [Ideas status](../../../../../docs/features/active/ideas/STATUS.md).
 
@@ -1158,10 +1147,7 @@ records host specification run beside these; B6's figures replace the pack's ban
 
 **The owner has not read this specification.** Each row is a choice he could reasonably want otherwise.
 
-**Step C5's exit waits on him.** It is met only when the owner has done his own first use: his local instance set up
-from the README, ideas captured and asked, a review of at least 50 proposals confirmed on the local page, and
-`ideas-review-report` read. That happens outside this repository, on his own content. **It is pending.** The repository's
-part is done (C5-3): the README's steps are walked on invented content by `first-party/tests/ideas_first_use.rs`.
+**Step C5's local exit is met** (confirmed by the owner on 2026-11-22 in [#2005](https://github.com/lushly-dev/afd/issues/2005)): his instance runs in daily use over a private network (two reviews completed on the review page, export/restore verified identical across machines, `verified_levels` default kept). The repository's part merged in [#1168](https://github.com/lushly-dev/afd/pull/1168), [#1186](https://github.com/lushly-dev/afd/pull/1186), [#1188](https://github.com/lushly-dev/afd/pull/1188), and [#1189](https://github.com/lushly-dev/afd/pull/1189); `first-party/tests/ideas_first_use.rs` walks the README's local steps on invented content.
 
 | # | Chosen here | The alternative, and its cost |
 | --- | --- | --- |
@@ -1202,6 +1188,6 @@ part is done (C5-3): the README's steps are walked on invented content by `first
 | 2026-11-12 | Step C3 | Staging 500 proposals takes 3.4 s, and applying 250 took about 5 s, in a debug build (`tests/review_apply.rs`) | Done in step C5, in a release build on invented content: staging 500 took 2.5 s over stdio (`first-party/tests/ideas_first_use.rs`) and 3.3 s through the registry (`tests/review_apply.rs`); applying 250 took 2.1 s in one decision on the local page, and 3.3 s at a terminal as ten groups of 25 (0.23 to 0.37 s each), against 3.4 s and about 5 s in a debug build; macOS on `aarch64-apple-darwin`, Rust 1.98.0, one run each (C5-7) |
 | 2026-11-12 | Step C1 | 8.4's paged preview answers `items` beside `preview`, which the `returns` the host requires of a preview refuses (C1-3) | Done: step H2's A19, and step C4 declares it (C4-1) |
 | 2026-11-13 | Step C4 | `ideas-guide`'s `confirmAt.page` is `null` on a local instance with its page served: no host service tells a plugin the page's address (C4-8) | A host change: the local page's list address in what a plugin may read, if the owner wants the guide to name it |
-| 2026-11-13 | Step C4 | The page answers 30 requests a minute for a decision, and a page costs two, so the whole review of 500 (25 pages) cannot be read faster than about four seconds a page (C4-7) | Watch at the owner's first use (still pending after step C5); a host change of `PAGE_REQUESTS_PER_MINUTE` if it gets in the way |
-| 2026-11-13 | Step C5 | The owner's own first use, which is C5's exit: his instance from the README, capture, ask, a review of at least 50 proposals confirmed on the local page, and the report read | The owner, outside this repository; pending |
-| 2026-11-13 | First use (F-4) | The local page cannot be read from another computer except through an SSH tunnel: it answers only a loopback `Host`, and a proxy's origin fails its post check. A host option, such as a declared allowed host for the page, or `person-page-serve` printing an `ssh -L` hint beside the address | A host change, if the owner wants more than the tunnel; not built |
+| 2026-11-13 | Step C4 | The page answers 30 requests a minute for a decision, and a page costs two, so the whole review of 500 (25 pages) cannot be read faster than about four seconds a page (C4-7) | Watch in daily use; a host change of `PAGE_REQUESTS_PER_MINUTE` if it gets in the way |
+| 2026-11-13 | Step C5 | The owner's own first use, which is C5's exit: his instance from the README, capture, ask, a review of at least 50 proposals confirmed on the local page, and the report read | Done 2026-11-22 ([#2005](https://github.com/lushly-dev/afd/issues/2005)): confirmed in daily use (two reviews completed, export/restore verified across machines, `verified_levels` default kept) |
+| 2026-11-13 | First use (F-4) | The local page cannot be read from another computer except through an SSH tunnel: it answers only a loopback `Host`, and a proxy's origin fails its post check. A host option, such as a declared allowed host for the page, or `person-page-serve` printing an `ssh -L` hint beside the address | Done 2026-11-14: `person.local.public_origin` merged in [#1188](https://github.com/lushly-dev/afd/pull/1188) and documented in [#1189](https://github.com/lushly-dev/afd/pull/1189) (host-review.spec.md A46–A50) |

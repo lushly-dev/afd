@@ -3087,6 +3087,7 @@ to 2026-11-18 and takes no new row.
 
 | Date | Session | What changed |
 | --- | --- | --- |
+| 2026-11-22 | Ideas epic #1548 gap audit and status sync | Audited all 12 sub-issues of [#1548](https://github.com/lushly-dev/afd/issues/1548) against `main` (`e28d5629`) and synced merged PR records (`#1071`, `#1080`, `#1168`, `#1186`, `#1188`, `#1189`) plus owner confirmation of step C5 local exit ([#2005](https://github.com/lushly-dev/afd/issues/2005)) across `docs/features/active/ideas/STATUS.md`, `docs/features/README.md`, and the three `plugins/ideas/*.spec.md` files. Moved P18 manifest instructions ([#2011](https://github.com/lushly-dev/afd/issues/2011)) from `#1548` to Umbel epic `#1546`, decoupled P14 ([#2009](https://github.com/lushly-dev/afd/issues/2009)) and P15 relay ([#2010](https://github.com/lushly-dev/afd/issues/2010)), and completed the documentation sync of [#2008](https://github.com/lushly-dev/afd/issues/2008) (leaving its `ideas_first_use.rs` `public_origin` snippet test open). Docs only; no Rust built or run. |
 
 ### Sessions: every other area
 
