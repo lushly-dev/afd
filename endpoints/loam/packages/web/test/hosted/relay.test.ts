@@ -12,8 +12,9 @@
  * gives `MOUNT_SESSION_UNKNOWN` and the shell reconnects; no secret is anywhere (P6-H7).
  */
 
+import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { chmod, mkdtemp, rm } from 'node:fs/promises';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -165,7 +166,7 @@ async function signedIn(email: string): Promise<ShellPage> {
 	})) as { success: boolean; error?: unknown };
 	expect(answer.success, JSON.stringify(answer.error)).toBe(true);
 	for (const cookie of await page.context.cookies(host.origin))
-		if (cookie.value.length >= 16) seenSecrets.add(decodeURIComponent(cookie.value));
+		if (cookie.value.length >= 16) seenSecrets.add(cookie.value);
 	// The shell's first discovery ran signed out, after first paint, and the kernel refused it before any request; a
 	// sign-in in the page does not discover again (a follow-up), so the person's discovery is the console's refresh.
 	for (const instance of INSTANCES)
@@ -888,8 +889,39 @@ describe('P6-H7: no secret anywhere', () => {
 			clientId: host.clients[CLIENT] as string,
 			redirect: REDIRECT,
 			resource: `${host.root}mcp`,
+			// `offline_access`, so the provider issues a refresh token, which the scan looks for too.
+			scope: 'loam:read loam:write offline_access',
 		});
 		expect(token.access, JSON.stringify(token.refused)).toEqual(expect.any(String));
+		expect(token.refresh).toEqual(expect.any(String));
+		expect(token.cookies?.length).toBeGreaterThan(0);
+		// A join token, from the bootstrap's invitation to the first owner, and a recovery token, asked for as phase 3's
+		// "Can't sign in?" asks; each link is checked at the provider as its page checks it, so both reach the server.
+		const asked = await hosted(host, `${BASE}api/auth/loam/recover/request`, {
+			method: 'POST',
+			body: JSON.stringify({ email: 'olu@acme.example' }),
+			headers: { origin: host.origin, 'content-type': 'application/json' },
+		});
+		expect(asked.status).toBe(200);
+		const mailed = async (to: string, page: 'join' | 'recover') => {
+			const pattern = new RegExp(`https://\\S+~/${page}\\?\\S+`);
+			await expect
+				.poll(async () => (await host.mail()).some((m) => m.to === to && pattern.test(m.text)))
+				.toBe(true);
+			const message = (await host.mail()).findLast((m) => m.to === to && pattern.test(m.text));
+			return new URL(pattern.exec(message?.text ?? '')?.[0] as string);
+		};
+		const joining = await mailed('owner@acme.invalid', 'join');
+		const recovering = await mailed('olu@acme.example', 'recover');
+		for (const [check, link] of [
+			['join/check', joining],
+			['recover/check', recovering],
+		] as const) {
+			const checked = await hosted(host, `${BASE}api/auth/loam/${check}${link.search}`, {
+				headers: { origin: host.origin },
+			});
+			expect(checked.status, `${check}: ${checked.body}`).toBe(200);
+		}
 		const client = new StreamableHttpTransport(`${host.root}mcp`, {
 			clientName: 'p6-h7',
 			clientVersion: '0',
@@ -920,22 +952,27 @@ describe('P6-H7: no secret anywhere', () => {
 			await Promise.all(opened.map((page) => page.context.cookies(host.origin)))
 		).flat();
 		const known = [
+			joining.searchParams.get('token') as string,
+			recovering.searchParams.get('token') as string,
 			token.access as string,
+			token.refresh as string,
 			...new Set(sessionIds),
 			...Object.values(TOKENS),
-			...new Set([
-				...seenSecrets,
-				...cookies
-					.map((cookie) => decodeURIComponent(cookie.value))
-					.filter((value) => value.length >= 16),
-			]),
+			// Every cookie value as it went over the wire and decoded: the OAuth sign-in's, each page's at its sign-in
+			// (a session that ended since included) and each page's now.
+			...new Set(
+				[...(token.cookies ?? []), ...seenSecrets, ...cookies.map((cookie) => cookie.value)]
+					.flatMap((value) => [value, decodeURIComponent(value)])
+					.filter((value) => value.length >= 16)
+			),
 		];
 		const scan = await scanSecrets(
 			host,
 			opened.map((page) => page.page),
 			known
 		);
-		expect(scan.found).toEqual([]);
+		// The development profile's mail sink is where each link was delivered, so it alone holds the two tokens.
+		expect(scan.found).toEqual(['known[0] in file mail.jsonl', 'known[1] in file mail.jsonl']);
 		const files = (dir: string): string[] =>
 			readdirSync(dir).flatMap((name) => {
 				const path = join(dir, name);
@@ -953,5 +990,24 @@ describe('P6-H7: no secret anywhere', () => {
 		expect(
 			team.log.some((request) => String(request.headers.authorization).includes(TOKENS.legacy))
 		).toBe(false);
+	});
+});
+
+// Last, since a start the host refuses leaves no server for a later case.
+describe('P6-H7: a loosened secret', () => {
+	it('P6-H7: the auth secret at mode 0644 in the data directory refuses the start, HOST_SECRET_PERMISSIONS', async () => {
+		const secret = join(host.data, 'secrets', 'auth');
+		// Windows enforces no mode bits: there the host checks the ACL, so the secret is loosened by granting
+		// BUILTIN\Users read, as the units' `loosen` does.
+		const windows = process.platform === 'win32';
+		if (windows)
+			execFileSync('icacls', [secret, '/grant', '*S-1-5-32-545:(R)'], { stdio: 'ignore' });
+		else {
+			expect(statSync(secret).mode & 0o777).toBe(0o600);
+			await chmod(secret, 0o644);
+		}
+		await expect(host.restart()).rejects.toMatchObject({ code: 'HOST_SECRET_PERMISSIONS' });
+		// Refused, not tightened: the file is as it was left.
+		if (!windows) expect(statSync(secret).mode & 0o777).toBe(0o644);
 	});
 });

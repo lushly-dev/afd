@@ -89,12 +89,19 @@ export interface AgentTokenOptions {
 
 /**
  * A person signs in with a password, authorizes `clientId` for `resource`, approves it, and the client exchanges the
- * code: the access token, or the step's answer that ended the flow.
+ * code: the access token, the refresh token when the provider issued one (with `offline_access`) and the values of
+ * the sign-in's own session cookies, for a secrets scan; or the step's answer that ended the flow.
  */
 export async function agentToken(
 	send: HostSend,
 	options: AgentTokenOptions
-): Promise<{ access?: string; refused?: { step: string; status: number; body: string } }> {
+): Promise<{
+	access?: string;
+	refresh?: string;
+	/** The sign-in's `Set-Cookie` values, as sent: the session the authorization ran under. */
+	cookies?: string[];
+	refused?: { step: string; status: number; body: string };
+}> {
 	const { origin, providerPath } = options;
 	const json = (body: unknown, cookie?: string) => ({
 		method: 'POST',
@@ -112,6 +119,9 @@ export async function agentToken(
 	if (signedIn.status !== 200)
 		return { refused: { step: 'sign-in', status: signedIn.status, body: signedIn.body } };
 	const cookie = cookiesOf(signedIn.headers['set-cookie']);
+	const cookies = cookie
+		.split('; ')
+		.flatMap((pair) => (pair.includes('=') ? [pair.slice(pair.indexOf('=') + 1)] : []));
 	const verifier = randomBytes(32).toString('base64url');
 	const query = new URLSearchParams({
 		response_type: 'code',
@@ -162,12 +172,16 @@ export async function agentToken(
 	});
 	const tokens = (() => {
 		try {
-			return JSON.parse(exchanged.body) as { access_token?: string };
+			return JSON.parse(exchanged.body) as { access_token?: string; refresh_token?: string };
 		} catch {
 			return {};
 		}
 	})();
 	return tokens.access_token
-		? { access: tokens.access_token }
+		? {
+				access: tokens.access_token,
+				...(tokens.refresh_token ? { refresh: tokens.refresh_token } : {}),
+				cookies,
+			}
 		: { refused: { step: 'token', status: exchanged.status, body: exchanged.body } };
 }

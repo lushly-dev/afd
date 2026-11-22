@@ -1,14 +1,16 @@
 /**
- * P6-H5, P6-H8, P6-H7's transport part and P6-E9's hosted row (phase 6 specification, sections 6 and 19; step 5): the
+ * P6-H5, P6-H8 and P6-E9's hosted row (phase 6 specification, sections 6 and 19; step 5): the
  * trust-record transport on the development profile at `/loam/`, with the built shell in Chromium. A signed-in owner's
  * writes from the shell land in `loam.sqlite`; a second person's tab sees them after its refresh; both journals hold
  * `trust-record-settle`; with the server stopped a write is `SERVER_UNAVAILABLE` and the copy unchanged; each of 6.2's
  * refusals runs nothing; `/organization/leave` is 404 and `member-leave` runs the server's `agent-member-settle` once;
- * a crash mid-burst restarts at once with every journaled project in the store; and no secret is anywhere.
+ * a crash mid-burst restarts at once with every journaled project in the store; and `scanSecrets` finds nothing.
+ * P6-H7, on one host with its MCP token and relay calls too, is `relay.test.ts`'s.
  */
 
-import { readFileSync } from 'node:fs';
+import { appendFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { FileJournalSink } from '@lushly-dev/afd-core/journal-file';
 import { type DevHost, scanSecrets, startDevHost } from '@lushly-dev/loam-host/testing';
 import { TEST_RATE_LIMIT } from '@lushly-dev/loam-identity/testing';
 import type { Browser } from 'playwright';
@@ -68,7 +70,7 @@ afterAll(async () => {
 	await host?.close();
 });
 
-/** Every cookie value any page held, read as each signs in: a session that later ends is scanned for too (P6-H7). */
+/** Every cookie value any page held, read as each signs in: a session that later ends is scanned for too (P6-H5). */
 const seenSecrets = new Set<string>();
 
 /** A shell signed in as `email`, its requests recorded from before the first byte. */
@@ -86,7 +88,7 @@ async function signedIn(email: string): Promise<ShellPage> {
 	})) as { success: boolean; error?: unknown };
 	expect(answer.success, JSON.stringify(answer.error)).toBe(true);
 	for (const cookie of await page.context.cookies(host.origin))
-		if (cookie.value.length >= 16) seenSecrets.add(decodeURIComponent(cookie.value));
+		if (cookie.value.length >= 16) seenSecrets.add(cookie.value);
 	return page;
 }
 
@@ -336,27 +338,6 @@ describe('P6-H5: the trust-record transport', () => {
 		expect(JSON.parse(who.body)).toBeNull();
 	});
 
-	it('P6-H7: no cookie value or session id in the served files, either journal, the logs or any store row', async () => {
-		const cookies = (
-			await Promise.all(opened.map((page) => page.context.cookies(host.origin)))
-		).flat();
-		const known = [
-			...new Set([
-				...seenSecrets,
-				...cookies
-					.map((cookie) => decodeURIComponent(cookie.value))
-					.filter((value) => value.length >= 16),
-			]),
-		];
-		expect(known.length).toBeGreaterThan(0);
-		const scan = await scanSecrets(
-			host,
-			opened.map((page) => page.page),
-			known
-		);
-		expect(scan.found).toEqual([]);
-	});
-
 	it('with the server stopped, project-create is SERVER_UNAVAILABLE and the copy is unchanged', async () => {
 		const names = await projectNames(owner);
 		await host.kill();
@@ -370,18 +351,41 @@ describe('P6-H5: the trust-record transport', () => {
 		);
 		await host.restart();
 	});
+
+	it('P6-H5: scanSecrets finds no cookie value or session id in the served files, either journal, the logs or any store row', async () => {
+		// After every case of the scenario, the stopped server's refusal in the browser's journal included.
+		const cookies = (
+			await Promise.all(opened.map((page) => page.context.cookies(host.origin)))
+		).flat();
+		// Every cookie value as it went over the wire and decoded: each page's at its sign-in (a session that ended
+		// since included) and each page's now.
+		const known = [
+			...new Set(
+				[...seenSecrets, ...cookies.map((cookie) => cookie.value)]
+					.flatMap((value) => [value, decodeURIComponent(value)])
+					.filter((value) => value.length >= 16)
+			),
+		];
+		expect(known.length).toBeGreaterThan(0);
+		const scan = await scanSecrets(
+			host,
+			opened.map((page) => page.page),
+			known
+		);
+		expect(scan.found).toEqual([]);
+	});
 });
 
 describe('P6-H8: a crash', () => {
 	it('restarts at once after SIGKILL mid-burst, every journaled project in the store, at most the in-flight beyond', async () => {
 		const cookie = await cookieOf(owner);
-		const burst = 24;
-		const sent = Array.from({ length: burst }, (_, index) =>
+		const path = join(host.data, 'journal.jsonl');
+		const create = (name: string) =>
 			hosted(host, `${BASE}api/kernel/call`, {
 				method: 'POST',
 				body: JSON.stringify({
 					command: 'project-create',
-					input: { name: `Burst ${index}` },
+					input: { name },
 					scope: { workspace: 'acme' },
 				}),
 				headers: {
@@ -390,39 +394,133 @@ describe('P6-H8: a crash', () => {
 					'loam-person': ownerId,
 					'content-type': 'application/json',
 				},
-			}).catch(() => undefined)
-		);
-		// Killed once the burst is under way: at least one of its writes is journaled, others may still be in flight.
-		const burstEntries = () =>
-			serverJournal().filter(
-				(entry) =>
-					entry.command === 'project-create' &&
-					String((entry.input as { name?: string } | undefined)?.name).startsWith('Burst ')
-			).length;
-		await expect.poll(burstEntries, { timeout: 10_000, interval: 5 }).toBeGreaterThan(0);
+			});
+		// The store's projects before the burst, so what the burst added is told by id.
+		const baseline = new Set(rows<{ id: string }>('project').map((row) => row.id));
+		// A burst of at most `concurrency` requests in flight at once, each worker sending its next as its last is
+		// answered, until the kill is about to come. Each request records how it ended: answered, failed before the
+		// signal was sent, or cut by it.
+		const concurrency = 4;
+		const burst = 400;
+		const sent: Array<{ name: string; state: 'pending' | 'answered' | 'failed' | 'cut' }> = [];
+		let stopping = false;
+		let signalled = false;
+		let created = 0;
+		const worker = async () => {
+			while (!stopping && sent.length < burst) {
+				const request = {
+					name: `Burst ${sent.length}`,
+					state: 'pending' as (typeof sent)[number]['state'],
+				};
+				sent.push(request);
+				try {
+					const answer = await create(request.name);
+					request.state = 'answered';
+					// Only a create that succeeded counts toward the burst being under way: a 200 whose result succeeded.
+					const ran = (() => {
+						try {
+							return (JSON.parse(answer.body) as { result?: { success?: boolean } }).result
+								?.success;
+						} catch {
+							return false;
+						}
+					})();
+					if (answer.status === 200 && ran === true) created += 1;
+				} catch {
+					request.state = signalled ? 'cut' : 'failed';
+				}
+			}
+		};
+		const workers = Array.from({ length: concurrency }, worker);
+		await expect
+			.poll(() => created, {
+				timeout: 10_000,
+				interval: 5,
+			})
+			.toBeGreaterThan(4);
+		// No request is sent after this, and at least one is outstanding as the signal goes.
+		stopping = true;
+		const outstanding = sent.filter((request) => request.state === 'pending').length;
+		expect(outstanding).toBeGreaterThan(0);
+		signalled = true;
 		await host.kill();
-		await Promise.all(sent);
+		await Promise.all(workers);
+		expect(sent.filter((request) => request.state === 'failed').map(({ name }) => name)).toEqual(
+			[]
+		);
+		const cut = sent.filter((request) => request.state === 'cut').map(({ name }) => name);
+		expect(cut.length).toBeLessThanOrEqual(outstanding);
+		// The journal's last line is a partial one, as a kill mid-append leaves it: torn here if the kill left none.
+		const TORN = '{"seq":';
+		const killed = readFileSync(path, 'utf8');
+		const tail = killed.slice(killed.lastIndexOf('\n') + 1);
+		const whole = (() => {
+			try {
+				return tail !== '' && JSON.parse(tail) !== undefined;
+			} catch {
+				return false;
+			}
+		})();
+		// A complete entry the kill left without its newline is kept by the reader, so the torn line goes after it.
+		if (tail === '') appendFileSync(path, TORN);
+		else if (whole) appendFileSync(path, `\n${TORN}`);
+		expect(readFileSync(path, 'utf8').endsWith('\n')).toBe(false);
+		// AFD's own reader, the server's journal sink, reads it with that line dropped.
+		const before = await new FileJournalSink(path).read();
+		const complete = readFileSync(path, 'utf8').split('\n').slice(0, -1);
+		expect(before.map((entry) => entry.seq)).toEqual(
+			complete.map((line) => (JSON.parse(line) as { seq: number }).seq)
+		);
 		const started = Date.now();
 		await host.restart();
 		expect(Date.now() - started).toBeLessThan(15_000);
-		const journaled = new Set(
-			serverJournal()
-				.filter((entry) => entry.command === 'project-create' && entry.result?.success)
-				.flatMap((entry) => (entry.result?.data as { id?: string } | undefined)?.id ?? [])
+		// Every project-create the journal holds as a success is in the store: the scenario's earlier ones too.
+		const creates = before.filter(
+			(entry) => entry.command === 'project-create' && entry.result?.success
 		);
-		const stored = new Set(rows<{ id: string; name: string }>('project').map((row) => row.id));
-		for (const id of journaled) expect(stored.has(id), id).toBe(true);
-		const burstStored = rows<{ name: string }>('project').filter((row) =>
-			row.name.startsWith('Burst ')
-		).length;
-		const burstJournaled = serverJournal().filter(
-			(entry) =>
-				entry.command === 'project-create' &&
-				entry.result?.success &&
-				String((entry.result?.data as { name?: string } | undefined)?.name).startsWith('Burst ')
-		).length;
-		expect(burstJournaled).toBeGreaterThan(0);
-		expect(burstStored - burstJournaled).toBeGreaterThanOrEqual(0);
-		expect(burstStored - burstJournaled).toBeLessThanOrEqual(burst);
+		const ids = creates.flatMap(
+			(entry) => (entry.result?.data as { id?: string } | undefined)?.id ?? []
+		);
+		expect(ids.length).toBe(creates.length);
+		expect(ids.length).toBeGreaterThan(0);
+		const stored = rows<{ id: string; name: string }>('project');
+		for (const id of ids)
+			expect(
+				stored.some((row) => row.id === id),
+				id
+			).toBe(true);
+		// Beyond the journal, the store holds only projects of requests the kill cut, one each, whose creates the journal
+		// lost: every id the burst added that the journal does not hold is a distinct cut request's.
+		const journaledIds = new Set(ids);
+		const journaledNames = new Set(
+			creates.map((entry) => String((entry.input as { name?: string } | undefined)?.name))
+		);
+		expect([...journaledNames].some((name) => name.startsWith('Burst '))).toBe(true);
+		const excess = stored
+			.filter((row) => !baseline.has(row.id) && !journaledIds.has(row.id))
+			.map((row) => row.name);
+		expect(new Set(excess).size).toBe(excess.length);
+		for (const name of excess) {
+			expect(cut, name).toContain(name);
+			expect(journaledNames.has(name), name).toBe(false);
+		}
+		expect(excess.length).toBeLessThanOrEqual(cut.length);
+		// The restarted server's journal drops the torn line on its first append and continues after the last whole entry:
+		// every line of the file is whole, and the entries before the crash are unchanged.
+		const after = await create('After the crash');
+		expect(after.status, after.body).toBe(200);
+		const lines = readFileSync(path, 'utf8').split('\n');
+		expect(lines.at(-1)).toBe('');
+		const entries = lines.slice(0, -1).map((line) => JSON.parse(line) as { seq: number });
+		expect(entries.slice(0, before.length)).toEqual(
+			before.map((entry) => JSON.parse(JSON.stringify(entry)))
+		);
+		const seqs = entries.map((entry) => entry.seq);
+		expect(seqs).toEqual(seqs.map((_, index) => (seqs[0] as number) + index));
+		expect(
+			(await new FileJournalSink(path).read()).findLast(
+				(entry) => entry.command === 'project-create'
+			)?.input
+		).toEqual({ name: 'After the crash' });
 	});
 });
