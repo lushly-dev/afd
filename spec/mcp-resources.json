@@ -287,6 +287,46 @@
 				}
 			],
 			"entry": "../escape.md"
+		},
+		{
+			"name": "a percent-encoded dot segment that leaves the skill",
+			"skills": [
+				{
+					"path": "hello",
+					"files": [
+						{ "path": "SKILL.md", "text": "---\nname: hello\ndescription: Greets.\n---\n" },
+						{ "path": "%2e%2e/x.md", "text": "x" }
+					]
+				}
+			],
+			"entry": "%2e%2e/x.md"
+		},
+		{
+			"name": "a percent-encoded dot trailing segment",
+			"skills": [
+				{
+					"path": "hello",
+					"files": [
+						{ "path": "SKILL.md", "text": "---\nname: hello\ndescription: Greets.\n---\n" },
+						{ "path": "refs/%2E", "text": "x" }
+					]
+				}
+			],
+			"entry": "refs/%2E"
+		},
+		{
+			"name": "two files whose RFC 3986 normalized URIs are equal",
+			"skills": [
+				{
+					"path": "hello",
+					"files": [
+						{ "path": "SKILL.md", "text": "---\nname: hello\ndescription: Greets.\n---\n" },
+						{ "path": "A.md", "text": "1" },
+						{ "path": "%41.md", "text": "2" }
+					]
+				}
+			],
+			"entry": "A.md"
 		}
 	]
 }

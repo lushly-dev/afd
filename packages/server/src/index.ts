@@ -135,7 +135,11 @@ export {
 	HandoffResultSchema,
 } from './handoff-schema.js';
 // Command journal: recording middleware and replay
-export { createJournalMiddleware, type JournalMiddlewareOptions } from './journal.js';
+export {
+	createJournalMiddleware,
+	JOURNAL_RESULT_UNSERIALIZABLE,
+	type JournalMiddlewareOptions,
+} from './journal.js';
 export {
 	type JournalReplayTarget,
 	type ReplayDifference,

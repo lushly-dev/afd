@@ -264,6 +264,10 @@ const HOST_IMPORTS =
  *   zero-runtime-import `task-dispatch.ts` seam in `tool-router.ts` and `lazy-tools.ts` bring the
  *   tool-surface bundle on `main` at `3aaa06e0` to 78,834 bytes (raised 78,500 → 79,200); the host,
  *   approval, and every-export bundles stay within their ceilings.
+ *   Journal uncopyable-result fallback (#865, under D115): `copyResult` and the
+ *   `JOURNAL_RESULT_UNSERIALIZABLE` entry in `journal.ts` bring the tool-surface bundle on `main`
+ *   at `b77e8674` to 79,467 bytes (raised 79,200 → 79,700); the host, approval, and every-export
+ *   bundles stay within their ceilings.
  * - 48.0 KB for a host that also imports `createApprovalMiddleware`.
  * - 68.6 KB for a host that also imports `createDirectToolSurface`: the router, the tool
  *   list, the meta-tools, `lazy-tools` and `bootstrap/`.
@@ -286,7 +290,7 @@ const DIRECT_BUDGETS = [
 	{
 		what: 'a host with the tool surface',
 		imports: `${HOST_IMPORTS}, createDirectToolSurface`,
-		bytes: 79_200,
+		bytes: 79_700,
 	},
 	{ what: 'every export', imports: undefined, bytes: 119_500 },
 ];
@@ -316,6 +320,7 @@ describe('@lushly-dev/afd-server/direct', () => {
 		expect(direct.createDirectToolSurface).toBe(root.createDirectToolSurface);
 		expect(direct.createApprovalMiddleware).toBe(root.createApprovalMiddleware);
 		expect(direct.createJournalMiddleware).toBe(root.createJournalMiddleware);
+		expect(direct.JOURNAL_RESULT_UNSERIALIZABLE).toBe(root.JOURNAL_RESULT_UNSERIALIZABLE);
 		expect(direct.replayJournal).toBe(root.replayJournal);
 		expect(direct.composeMiddleware).toBe(root.composeMiddleware);
 		expect(direct.defaultMiddleware).toBe(root.defaultMiddleware);

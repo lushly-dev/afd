@@ -361,6 +361,7 @@ does not define them.
 
 | Code | Meaning | Retryable | Implementations |
 | --- | --- | --- | --- |
+| `JOURNAL_RESULT_UNSERIALIZABLE` | Recorded on a journal entry when copying the command's result to JSON failed (throwing getter, circular reference, `bigint`); the live return value is unaffected | No | TypeScript |
 | `TELEMETRY_NO_RESULT` | The telemetry middleware's `next()` returned no result | No | TypeScript, Python |
 | `UNHANDLED_ERROR` | Recorded on a telemetry event when the command threw. Never a result's code | — | TypeScript, Python |
 

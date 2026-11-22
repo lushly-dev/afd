@@ -144,6 +144,13 @@ export interface JournalMiddlewareOptions {
 
 const DEFAULT_MAX_TAPE_READS = 1000;
 
+/**
+ * Error code recorded in a journal entry when a command's result could not be copied as JSON
+ * (for example a throwing getter, circular reference or `bigint`). The command's live return
+ * value is unaffected and the error is also reported to `onError`.
+ */
+export const JOURNAL_RESULT_UNSERIALIZABLE = 'JOURNAL_RESULT_UNSERIALIZABLE';
+
 /** `value` as plain JSON (a copy), so the entry is what a JSON Lines file would hold. */
 function toJson(value: unknown): unknown {
 	const text = JSON.stringify(value);
@@ -152,6 +159,51 @@ function toJson(value: unknown): unknown {
 
 function toError(error: unknown): Error {
 	return error instanceof Error ? error : new Error(String(error));
+}
+
+function reportError(onError: ((error: Error) => void) | undefined, error: unknown): void {
+	try {
+		onError?.(toError(error));
+	} catch {
+		// A failing onError has nowhere left to report.
+	}
+}
+
+function unserializableResult(): CommandResult {
+	return {
+		success: false,
+		error: {
+			code: JOURNAL_RESULT_UNSERIALIZABLE,
+			message: 'The command result could not be serialized for the journal',
+			suggestion: 'Return plain JSON-serializable values from the command handler',
+			retryable: false,
+		},
+	};
+}
+
+type CopiedResult =
+	| { ok: true; result: CommandResult }
+	| { ok: false; result: CommandResult; error: unknown };
+
+function copyResult(recorded: CommandResult): CopiedResult {
+	try {
+		const copy = toJson(recorded);
+		if (
+			copy &&
+			typeof copy === 'object' &&
+			!Array.isArray(copy) &&
+			typeof (copy as { success?: unknown }).success === 'boolean'
+		) {
+			return { ok: true, result: copy as CommandResult };
+		}
+		return {
+			ok: false,
+			result: unserializableResult(),
+			error: new TypeError('Command result did not serialize to a CommandResult object'),
+		};
+	} catch (error) {
+		return { ok: false, result: unserializableResult(), error };
+	}
 }
 
 /** A clock and random source that pass values through and write them to `tape`. */
@@ -272,7 +324,15 @@ export function createJournalMiddleware(
 
 		// What the server returns for a throw outside devMode, never the exception message.
 		const recorded: CommandResult = result ?? executionFailure(thrown?.error, false);
-		if (recorded.success || recordFailures) {
+		let shouldRecord: boolean;
+		let successThrown: { error: unknown } | undefined;
+		try {
+			shouldRecord = Boolean(recorded.success) || recordFailures;
+		} catch (error) {
+			shouldRecord = true;
+			successThrown = { error };
+		}
+		if (shouldRecord) {
 			// Taken now, before any await, so entries keep the order calls finished in.
 			const previous = turn;
 			let done!: () => void;
@@ -286,6 +346,10 @@ export function createJournalMiddleware(
 					context,
 					((context as Record<symbol, unknown>)[JOURNALED_CONTEXT_FIELDS] as string[]) ?? []
 				);
+				const copied: CopiedResult = successThrown
+					? { ok: false, result: unserializableResult(), error: successThrown.error }
+					: copyResult(recorded);
+				if (!copied.ok) reportError(onError, copied.error);
 				const record = redact({
 					timestamp: new Date(start).toISOString(),
 					...(typeof context.traceId === 'string' ? { traceId: context.traceId } : {}),
@@ -294,18 +358,14 @@ export function createJournalMiddleware(
 					...(actor ? { actor } : {}),
 					contextDigest: await createContextDigest(context, journaled),
 					...journaled,
-					result: toJson(recorded) as CommandResult,
+					result: copied.result,
 					durationMs,
 					...(hasTape ? { tape } : {}),
 				});
 				await previous;
 				if (record) await sink.append(record);
 			} catch (error) {
-				try {
-					onError?.(toError(error));
-				} catch {
-					// A failing onError has nowhere left to report.
-				}
+				reportError(onError, error);
 			} finally {
 				// Never released before the call ahead has appended, even when this record failed to build.
 				await previous;

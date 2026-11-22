@@ -3,7 +3,7 @@
  * in-process call, and what the journal keeps (`spec/journal.md`, "Declared context fields").
  */
 import { createContextDigest, fixedClock, MemoryJournalSink, success } from '@lushly-dev/afd-core';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { type ContextField, checkContextFields } from './context-fields.js';
 import { createDirectRegistry } from './direct-registry.js';
@@ -114,6 +114,45 @@ describe('context field values in process', () => {
 			details: { field: 'scope' },
 		});
 		expect(result.error?.suggestion).toContain('it is required');
+	});
+
+	it('contain a throwing lazy Zod error callback and skip the handler (#1170)', async () => {
+		const handler = vi.fn(async () => success({ ran: true }));
+		const probe = defineCommand({
+			name: 'scope-probe',
+			description: 'Probe lazy Zod error-map containment',
+			input: z.object({}),
+			handler,
+		});
+		const throwingField: ContextField = {
+			name: 'scope',
+			meta: 'dev.example/scope',
+			schema: z.string({
+				error: () => {
+					throw new Error('error-map-sentinel');
+				},
+			}),
+		};
+		const guarded = createDirectRegistry([probe], { contextFields: [throwingField] });
+		const result = await guarded.execute('scope-probe', {}, { scope: 42 });
+
+		expect(handler).not.toHaveBeenCalled();
+		expect(result.success).toBe(false);
+		expect(result.error).toMatchObject({
+			code: 'VALIDATION_ERROR',
+			message: "Context field 'scope' is not valid",
+			details: {
+				field: 'scope',
+				meta: 'dev.example/scope',
+				errors: [{ path: '', message: 'error-map-sentinel' }],
+			},
+		});
+		expect(result.error?.suggestion).toContain('_meta["dev.example/scope"]');
+
+		// A valid value still reaches the handler normally.
+		const ok = await guarded.execute('scope-probe', {}, { scope: 'atlas' });
+		expect(ok.success).toBe(true);
+		expect(handler).toHaveBeenCalledTimes(1);
 	});
 });
 

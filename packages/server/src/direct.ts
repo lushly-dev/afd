@@ -88,7 +88,11 @@ export {
 	type ExposeInterface,
 } from './direct-registry.js';
 export { createDirectToolSurface, type DirectToolSurfaceOptions } from './direct-tool-surface.js';
-export { createJournalMiddleware, type JournalMiddlewareOptions } from './journal.js';
+export {
+	createJournalMiddleware,
+	JOURNAL_RESULT_UNSERIALIZABLE,
+	type JournalMiddlewareOptions,
+} from './journal.js';
 export {
 	type JournalReplayTarget,
 	type ReplayDifference,

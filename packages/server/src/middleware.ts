@@ -171,16 +171,17 @@ export function createLoggingMiddleware(options: LoggingOptions = {}): CommandMi
 		const startTime = Date.now();
 		const traceId = context.traceId ?? 'no-trace';
 
-		log(`[${traceId}] Executing: ${commandName}`, logInput ? { input } : undefined);
+		const startMessage = `[${traceId}] Executing: ${commandName}`;
+		if (logInput) log(startMessage, { input });
+		else log(startMessage);
 
 		try {
 			const result = await next();
 			const duration = Date.now() - startTime;
 
-			log(
-				`[${traceId}] Completed: ${commandName} (${duration}ms) - ${result.success ? 'SUCCESS' : 'FAILURE'}`,
-				logResult ? { result } : undefined
-			);
+			const endMessage = `[${traceId}] Completed: ${commandName} (${duration}ms) - ${result.success ? 'SUCCESS' : 'FAILURE'}`;
+			if (logResult) log(endMessage, { result });
+			else log(endMessage);
 
 			return result;
 		} catch (error) {

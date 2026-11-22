@@ -6,7 +6,7 @@
 
 import type { CommandContext, CommandResult } from '@lushly-dev/afd-core';
 import { failure } from '@lushly-dev/afd-core';
-import { type $ZodType, type util as coreUtil, safeParse } from 'zod/v4/core';
+import { type $ZodType, safeParse } from 'zod/v4/core';
 import { issueMessage } from './issue-message.js';
 
 /** A request value a host declares: where it lands in the context and how it is validated. */
@@ -147,25 +147,24 @@ export function applyContextFields(
 			}
 			continue;
 		}
-		let parsed: coreUtil.SafeParseResult<unknown>;
 		try {
-			parsed = safeParse(field.schema, value, { reportInput: true });
+			const parsed = safeParse(field.schema, value, { reportInput: true });
+			if (!parsed.success) {
+				return fieldFailure(
+					field,
+					`Context field '${field.name}' is not valid`,
+					parsed.error.issues.map((issue) => ({
+						path: issue.path.map(String).join('.'),
+						message: issueMessage(issue),
+					}))
+				);
+			}
+			values[field.name] = parsed.data;
 		} catch (error) {
 			return fieldFailure(field, `Context field '${field.name}' is not valid`, [
 				{ path: '', message: error instanceof Error ? error.message : String(error) },
 			]);
 		}
-		if (!parsed.success) {
-			return fieldFailure(
-				field,
-				`Context field '${field.name}' is not valid`,
-				parsed.error.issues.map((issue) => ({
-					path: issue.path.map(String).join('.'),
-					message: issueMessage(issue),
-				}))
-			);
-		}
-		values[field.name] = parsed.data;
 	}
 	(context as Record<symbol, unknown>)[JOURNALED_CONTEXT_FIELDS] = fields
 		.filter((field) => field.journal === true)

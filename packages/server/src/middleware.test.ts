@@ -13,6 +13,7 @@ import { z } from 'zod';
 import {
 	ConsoleTelemetrySink,
 	createAutoTraceIdMiddleware,
+	createLoggingMiddleware,
 	createTelemetryMiddleware,
 	defaultMiddleware,
 } from './middleware.js';
@@ -591,5 +592,79 @@ describe('defaultMiddleware integration', () => {
 		expect(slowWarnings[0]?.ms).toBeGreaterThanOrEqual(10);
 
 		await server.stop();
+	});
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// createLoggingMiddleware Tests
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('createLoggingMiddleware', () => {
+	it('calls log with one argument when logInput and logResult are off (#1540)', async () => {
+		const calls: unknown[][] = [];
+		const middleware = createLoggingMiddleware({
+			log: (...args: unknown[]) => calls.push(args),
+		});
+
+		await middleware('todo-list', { filter: 'open' }, { traceId: 't-1' }, async () => ({
+			success: true,
+			data: [],
+		}));
+
+		expect(calls).toHaveLength(2);
+		expect(calls[0]).toHaveLength(1);
+		expect(calls[0]?.[0]).toBe('[t-1] Executing: todo-list');
+		expect(calls[1]).toHaveLength(1);
+		expect(calls[1]?.[0]).toMatch(/^\[t-1\] Completed: todo-list \(\d+ms\) - SUCCESS$/);
+	});
+
+	it('passes input or result as a second argument only when enabled', async () => {
+		const calls: unknown[][] = [];
+		const middleware = createLoggingMiddleware({
+			log: (...args: unknown[]) => calls.push(args),
+			logInput: true,
+			logResult: true,
+		});
+		const input = { filter: 'open' };
+		const output: CommandResult = { success: true, data: [{ id: '1' }] };
+
+		await middleware('todo-list', input, { traceId: 't-2' }, async () => output);
+
+		expect(calls).toHaveLength(2);
+		expect(calls[0]).toEqual(['[t-2] Executing: todo-list', { input }]);
+		expect(calls[1]).toEqual([
+			expect.stringMatching(/^\[t-2\] Completed: todo-list \(\d+ms\) - SUCCESS$/),
+			{ result: output },
+		]);
+	});
+
+	it('passes no stray undefined to default console.error and logs errors with details', async () => {
+		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+		try {
+			const middleware = createLoggingMiddleware();
+			await middleware('todo-list', {}, { traceId: 't-3' }, async () => ({
+				success: false,
+				error: { code: 'NOT_FOUND', message: 'Missing' },
+			}));
+
+			expect(errorSpy.mock.calls).toHaveLength(2);
+			expect(errorSpy.mock.calls[0]).toHaveLength(1);
+			expect(errorSpy.mock.calls[1]).toHaveLength(1);
+			expect(errorSpy.mock.calls[1]?.[0]).toContain('FAILURE');
+
+			errorSpy.mockClear();
+			const boom = new Error('boom');
+			await expect(
+				middleware('todo-list', {}, { traceId: 't-4' }, async () => {
+					throw boom;
+				})
+			).rejects.toThrow('boom');
+			expect(errorSpy.mock.calls[1]).toEqual([
+				expect.stringMatching(/^\[t-4\] Error: todo-list \(\d+ms\)$/),
+				{ error: boom },
+			]);
+		} finally {
+			errorSpy.mockRestore();
+		}
 	});
 });

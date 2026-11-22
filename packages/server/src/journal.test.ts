@@ -13,7 +13,11 @@ import {
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { createDirectRegistry } from './direct-registry.js';
-import { createJournalMiddleware, type JournalMiddlewareOptions } from './journal.js';
+import {
+	createJournalMiddleware,
+	JOURNAL_RESULT_UNSERIALIZABLE,
+	type JournalMiddlewareOptions,
+} from './journal.js';
 import { defineCommand } from './schema.js';
 import { createMcpServer } from './server.js';
 
@@ -276,5 +280,144 @@ describe('createJournalMiddleware', () => {
 
 		expect(entries.map((entry) => entry.command)).toEqual(['dice-roll']);
 		expect(JSON.stringify(entries)).not.toMatch(/hunter2|SECRET/);
+	});
+
+	it('records JOURNAL_RESULT_UNSERIALIZABLE when a result cannot be copied as JSON (#865)', async () => {
+		const throwingGetter = defineCommand({
+			name: 'summary-getter',
+			description: 'Return a result with a throwing getter',
+			input: z.object({ label: z.string() }),
+			handler: async () =>
+				success({
+					get boom() {
+						throw new Error('secret getter boom');
+					},
+				}),
+		});
+		const circular = defineCommand({
+			name: 'summary-circular',
+			description: 'Return a circular result',
+			input: z.object({}),
+			handler: async () => {
+				const node: Record<string, unknown> = {};
+				node.self = node;
+				return success(node);
+			},
+		});
+		const big = defineCommand({
+			name: 'summary-bigint',
+			description: 'Return a BigInt result',
+			input: z.object({}),
+			handler: async () => success({ count: 42n }),
+		});
+		const badToJson = defineCommand({
+			name: 'summary-tojson',
+			description: 'Return a result whose toJSON drops CommandResult shape',
+			input: z.object({}),
+			handler: async () =>
+				({
+					success: true,
+					toJSON: () => 'not-a-result',
+				}) as unknown as ReturnType<typeof success>,
+		});
+
+		const sink = new MemoryJournalSink();
+		const onError = vi.fn((_error: Error) => {
+			throw new Error('onError itself failed');
+		});
+		const host = createDirectRegistry([throwingGetter, circular, big, badToJson, roll], {
+			clock: fixedClock('2026-01-01T00:00:00Z'),
+			random: seededRandom('unserializable'),
+			middleware: [createJournalMiddleware(sink, { onError })],
+		});
+
+		const live = await host.execute('summary-getter', { label: 'atlas' }, { traceId: 't-getter' });
+		expect(live.success).toBe(true);
+		await host.execute('summary-circular', {});
+		await host.execute('summary-bigint', {});
+		await host.execute('summary-tojson', {});
+		await host.execute('dice-roll', { sides: 6 });
+
+		expect(onError).toHaveBeenCalledTimes(4);
+		expect(onError.mock.calls[0]?.[0]).toMatchObject({ message: 'secret getter boom' });
+
+		const entries = await sink.read();
+		expect(entries.map((entry) => entry.command)).toEqual([
+			'summary-getter',
+			'summary-circular',
+			'summary-bigint',
+			'summary-tojson',
+			'dice-roll',
+		]);
+		for (const entry of entries.slice(0, 4)) {
+			expect(entry.result).toEqual({
+				success: false,
+				error: {
+					code: JOURNAL_RESULT_UNSERIALIZABLE,
+					message: 'The command result could not be serialized for the journal',
+					suggestion: 'Return plain JSON-serializable values from the command handler',
+					retryable: false,
+				},
+			});
+		}
+		expect(entries[0]).toMatchObject({
+			seq: 1,
+			traceId: 't-getter',
+			input: { label: 'atlas' },
+		});
+		expect(entries[4]?.result.success).toBe(true);
+		expect(JSON.stringify(entries)).not.toContain('secret getter boom');
+	});
+
+	it('records JOURNAL_RESULT_UNSERIALIZABLE for an unserializable failure when recordFailures is true', async () => {
+		const badFailure = defineCommand({
+			name: 'fail-unserializable',
+			description: 'Return a failure with an unserializable details getter',
+			input: z.object({}),
+			handler: async () =>
+				failure({
+					code: 'BROKEN',
+					message: 'Failed',
+					details: {
+						get bad() {
+							throw new Error('details getter exploded');
+						},
+					},
+				}),
+		});
+		const sink = new MemoryJournalSink();
+		const onError = vi.fn();
+		const host = createDirectRegistry([badFailure], {
+			middleware: [createJournalMiddleware(sink, { recordFailures: true, onError })],
+		});
+		const live = await host.execute('fail-unserializable', {});
+		expect(live.success).toBe(false);
+		expect(live.error?.code).toBe('BROKEN');
+		expect(onError).toHaveBeenCalledWith(
+			expect.objectContaining({ message: 'details getter exploded' })
+		);
+		const [entry] = await sink.read();
+		expect(entry?.result.error?.code).toBe(JOURNAL_RESULT_UNSERIALIZABLE);
+	});
+
+	it('records JOURNAL_RESULT_UNSERIALIZABLE when reading result.success throws (including undefined)', async () => {
+		const sink = new MemoryJournalSink();
+		const onError = vi.fn();
+		const middleware = createJournalMiddleware(sink, { onError });
+		let reads = 0;
+		const badSuccess = {
+			get success(): boolean {
+				reads += 1;
+				throw undefined;
+			},
+		} as unknown as ReturnType<typeof success>;
+
+		const returned = await middleware('bad-success', {}, {}, async () => badSuccess);
+		expect(returned).toBe(badSuccess);
+		expect(reads).toBe(1);
+		expect(onError).toHaveBeenCalledTimes(1);
+		expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: 'undefined' }));
+		const [entry] = await sink.read();
+		expect(entry?.result.error?.code).toBe(JOURNAL_RESULT_UNSERIALIZABLE);
 	});
 });

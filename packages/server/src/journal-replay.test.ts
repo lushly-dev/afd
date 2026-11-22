@@ -15,7 +15,7 @@ import {
 } from '@lushly-dev/afd-core';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { createJournalMiddleware } from './journal.js';
+import { createJournalMiddleware, JOURNAL_RESULT_UNSERIALIZABLE } from './journal.js';
 import { replayJournal } from './journal-replay.js';
 import { defineCommand } from './schema.js';
 import { createMcpServer } from './server.js';
@@ -329,6 +329,93 @@ describe('replayJournal', () => {
 			['same', undefined],
 		]);
 		expect(await replaySink.read()).toEqual([]);
+	});
+
+	it('handles JOURNAL_RESULT_UNSERIALIZABLE entries during replay (#865)', async () => {
+		const build = (mode: 'throwing' | 'fixed', sink?: MemoryJournalSink) => {
+			let calls = 0;
+			return createMcpServer({
+				name: 'unserializable-replay',
+				version: '1.0.0',
+				clock: fixedClock('2026-01-01T09:00:00Z'),
+				...(sink ? { middleware: [createJournalMiddleware(sink)] } : {}),
+				commands: [
+					defineCommand({
+						name: 'step-unserializable',
+						description: 'Mutate state and return an unserializable or fixed result',
+						input: z.object({}),
+						handler: async (): Promise<CommandResult> => {
+							calls += 1;
+							if (mode === 'throwing') {
+								return success({
+									get boom() {
+										throw new Error('getter exploded');
+									},
+								});
+							}
+							return success({ ok: true });
+						},
+					}),
+					defineCommand({
+						name: 'step-count',
+						description: 'Read mutation count',
+						input: z.object({}),
+						handler: async () => success({ calls }),
+					}),
+				],
+			});
+		};
+
+		const sink = new MemoryJournalSink();
+		const live = build('throwing', sink);
+		await live.execute('step-unserializable', {});
+		await live.execute('step-count', {});
+		const entries = parseJournal(serializeJournal(await sink.read()));
+		expect(entries).toHaveLength(2);
+		expect(entries[0]?.result.error?.code).toBe(JOURNAL_RESULT_UNSERIALIZABLE);
+
+		// 1. Replaying against the still-unserializable handler runs its side effect, reports error,
+		//    and keeps replaying later entries cleanly.
+		const stillBroken = await replayJournal(build('throwing'), entries);
+		expect(stillBroken).toMatchObject({ same: 1, different: 0, errors: 1, diverged: true });
+		expect(stillBroken.entries[0]).toMatchObject({
+			seq: 1,
+			status: 'error',
+			error: 'Replayed result could not be serialized: getter exploded',
+			notes: [expect.stringContaining(JOURNAL_RESULT_UNSERIALIZABLE)],
+		});
+		expect(stillBroken.entries[1]).toMatchObject({
+			seq: 2,
+			status: 'same',
+			replayed: expect.objectContaining({ data: { calls: 1 } }),
+		});
+
+		// 2. Replaying against a fixed handler reports different with the advisory note.
+		const fixed = await replayJournal(build('fixed'), entries);
+		expect(fixed).toMatchObject({ same: 1, different: 1, errors: 0, diverged: true });
+		expect(fixed.entries[0]).toMatchObject({
+			seq: 1,
+			status: 'different',
+			replayed: expect.objectContaining({ success: true, data: { ok: true } }),
+			notes: [expect.stringContaining(JOURNAL_RESULT_UNSERIALIZABLE)],
+		});
+		expect(fixed.entries[1]?.status).toBe('same');
+
+		// 3. Replaying through a recorded-answer shim that returns entry.result verbatim matches.
+		const shimmed = await replayJournal(
+			{
+				execute: async (name) =>
+					name === 'step-unserializable'
+						? (entries[0]?.result as CommandResult)
+						: success({ calls: 1 }),
+			},
+			entries,
+			{ ignore: ['metadata'] }
+		);
+		expect(shimmed).toMatchObject({ same: 2, different: 0, errors: 0, diverged: false });
+		expect(shimmed.entries[0]?.notes).toContainEqual(
+			expect.stringContaining(JOURNAL_RESULT_UNSERIALIZABLE)
+		);
 	});
 });
 

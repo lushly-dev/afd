@@ -86,6 +86,34 @@ describe('SkillCatalog checks', () => {
 		}
 	);
 
+	it('refuses file URIs outside the S2 RFC 3986 manifest boundary (#1984)', () => {
+		const withFiles = (files: Record<string, string>) =>
+			new SkillCatalog([{ path: 'a', files: { 'SKILL.md': skillMd('a'), ...files } }]);
+
+		// Percent-encoded dot segments and empty/dot leaves before ? or #.
+		for (const bad of ['%2e%2e/x.md', 'refs/%2E', 'refs/.%2e', 'x/..?y', '?y', '#frag']) {
+			expect(() => withFiles({ [bad]: 'x' }), bad).toThrow(
+				new RegExp(`skill "a".*skill://a/${bad.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`)
+			);
+		}
+		// Two spellings of one file after RFC 3986 §6.2.2 normalization.
+		for (const pair of [
+			['A.md', '%41.md'],
+			['b.md', '%62.md'],
+			['a b.md', 'a%20b.md'],
+			['a%2fb.md', 'a%2Fb.md'],
+			['refs/%2e%2e/x.md', 'x.md'],
+		] as const) {
+			expect(() => withFiles({ [pair[0]]: '1', [pair[1]]: '2' }), pair.join(', ')).toThrow('twice');
+		}
+		expect(() => withFiles({ '%53KILL.md': 'x' })).toThrow('twice');
+
+		// Percent signs that decode to nothing unreserved, and dot segments staying inside the skill.
+		for (const good of ['50%-off.md', 'refs%2fguide.md', 'refs/%2e%2e/x.md', 'a%20b.md']) {
+			expect(() => withFiles({ [good]: 'x' }), good).not.toThrow();
+		}
+	});
+
 	it('refuses a file and a directory at one URI', () => {
 		expect(
 			() =>

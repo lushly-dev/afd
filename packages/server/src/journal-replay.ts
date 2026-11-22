@@ -14,7 +14,11 @@ import type {
 	RandomSource,
 } from '@lushly-dev/afd-core';
 import { fixedClock, journalActor, seededRandom } from '@lushly-dev/afd-core';
-import { JOURNAL_REPLAY, type JournalReplayMarker } from './journal.js';
+import {
+	JOURNAL_REPLAY,
+	JOURNAL_RESULT_UNSERIALIZABLE,
+	type JournalReplayMarker,
+} from './journal.js';
 
 /** Anything that executes commands by name: `createMcpServer()`, `createDirectRegistry()`, the core registry. */
 export interface JournalReplayTarget {
@@ -306,6 +310,11 @@ export async function replayJournal(
 		for (const name of entry.contextOmitted ?? []) {
 			fieldNotes.push(`context field '${name}' was too large to journal; replayed without it`);
 		}
+		if (!entry.result.success && entry.result.error?.code === JOURNAL_RESULT_UNSERIALIZABLE) {
+			fieldNotes.push(
+				`the recorded result could not be serialized (${JOURNAL_RESULT_UNSERIALIZABLE}); replay cannot compare against the original value`
+			);
+		}
 		const random = tapeRandom(tape?.random ?? [], `${seed}:${entry.seq}`);
 		let clock: (Clock & TapeSource) | undefined;
 
@@ -351,8 +360,24 @@ export async function replayJournal(
 			}
 
 			const replayed = await registry.execute(entry.command, entry.input, context);
+			let replayedJson: unknown;
+			try {
+				replayedJson = toJson(replayed);
+			} catch (error) {
+				throw new Error(
+					`Replayed result could not be serialized: ${error instanceof Error ? error.message : String(error)}`
+				);
+			}
+			if (
+				!replayedJson ||
+				typeof replayedJson !== 'object' ||
+				Array.isArray(replayedJson) ||
+				typeof (replayedJson as { success?: unknown }).success !== 'boolean'
+			) {
+				throw new Error('Replayed result did not serialize to a CommandResult object');
+			}
 			const differences: ReplayDifference[] = [];
-			diffJson(toJson(entry.result), toJson(replayed), '', ignore, differences, maxDifferences);
+			diffJson(toJson(entry.result), replayedJson, '', ignore, differences, maxDifferences);
 			outcome = {
 				seq: entry.seq,
 				command: entry.command,
