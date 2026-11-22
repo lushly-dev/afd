@@ -1,6 +1,8 @@
 //! Test doubles shared by the integration tests.
 
 #[allow(unreachable_pub)]
+pub mod http;
+#[allow(unreachable_pub)]
 pub mod imap;
 #[allow(unreachable_pub)]
 pub mod smtp;

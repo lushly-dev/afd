@@ -643,6 +643,7 @@ pub fn approval_summary(
         crate::policy::SET => crate::policy::approval_summary(engine, input),
         crate::operations::APPROVE => crate::operations::approval_summary(engine, input, now),
         crate::drafts::SEND => crate::drafts::approval_summary(engine, input),
+        crate::unsubscribe::UNSUBSCRIBE => crate::unsubscribe::approval_summary(engine, input),
         _ => crate::tokens::approval_summary(command, input),
     }
 }
