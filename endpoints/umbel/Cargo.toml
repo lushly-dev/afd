@@ -115,7 +115,7 @@ rand = { version = "0.10", default-features = false, optional = true }
 wasmtime = { version = "48.0.8", optional = true, default-features = false, features = ["runtime", "cranelift", "component-model", "std", "parallel-compilation"] }
 wasmtime-wasi = { version = "48.0.8", optional = true, default-features = false, features = ["p2"] }
 # The `wasi:io` interfaces, which `wasmtime-wasi` builds on and links through this crate.
-wasmtime-wasi-io = { version = "48.0.8", optional = true, default-features = false, features = ["std"] }
+wasmtime-wasi-io = { version = "50.0.3", optional = true, default-features = false, features = ["std"] }
 
 # Optional: the `mounted` feature. `reqwest` is named for its client builder (a private root
 # certificate, no redirects) and `sse-stream` for the SSE types the bounded HTTP client returns.
