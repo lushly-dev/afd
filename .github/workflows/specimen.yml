@@ -178,7 +178,7 @@ jobs:
           node foundations/specimen/host/stage.mjs ${{ matrix.platform }}
           pnpm -F @lushly-dev/specimen-host-${{ matrix.platform }} pack --pack-destination "$RUNNER_TEMP/specimen-host"
       - name: Upload the host package and consumer receipt
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: specimen-host-${{ matrix.platform }}
           path: |
@@ -262,7 +262,7 @@ jobs:
         run: node tests/consumers/specimen/verify-artifacts.mjs --output "$RUNNER_TEMP/specimen-receipt"
       - name: Upload consumer receipt
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: specimen-artifact-receipt
           path: ${{ runner.temp }}/specimen-receipt/

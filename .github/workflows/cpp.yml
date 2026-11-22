@@ -261,7 +261,7 @@ jobs:
           build/release/benchmarks/afd_benchmarks | tee -a "$out"
 
       - name: Upload benchmark results
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: cpp-benchmarks
           path: ${{ runner.temp }}/afd-benchmarks.txt
@@ -361,7 +361,7 @@ jobs:
           node build/emscripten/benchmarks/afd_benchmarks.cjs | tee -a "$out"
 
       - name: Upload benchmark results
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: cpp-benchmarks-wasm
           path: ${{ runner.temp }}/afd-benchmarks-wasm.txt
