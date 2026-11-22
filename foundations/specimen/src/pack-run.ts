@@ -312,18 +312,38 @@ export async function runPack(host: PackHost, request: PackBuildRequest): Promis
 			omit(`Its markup is longer than ${PACK_TEXT_LIMITS.example} characters.`);
 			continue;
 		}
-		let again: Observation | null = null;
-		try {
-			again = await host.capture(id, { timeoutMs: request.timeoutMs, observe, remount: html });
-		} catch (error) {
-			omit(`Mounted again, it failed: ${error instanceof Error ? error.message : String(error)}`);
-			continue;
-		}
+		const captureRemount = async (): Promise<{
+			observation: Observation | null;
+			error?: unknown;
+		}> => {
+			try {
+				return {
+					observation: await host.capture(id, {
+						timeoutMs: request.timeoutMs,
+						observe,
+						remount: html,
+					}),
+				};
+			} catch (error) {
+				return { observation: null, error };
+			}
+		};
 		const shown = (observation: Observation) => {
 			const { elements } = projection(observation, library) as { elements: unknown[] };
 			return JSON.stringify(elements);
 		};
-		if (!again || shown(again) !== shown(original.observation)) {
+		const expectedShown = shown(original.observation);
+		// Retry once on transient capture failure or settle race, matching `pass()`.
+		let attempt = await captureRemount();
+		if (attempt.error || !attempt.observation || shown(attempt.observation) !== expectedShown) {
+			attempt = await captureRemount();
+		}
+		if (attempt.error) {
+			const { error } = attempt;
+			omit(`Mounted again, it failed: ${error instanceof Error ? error.message : String(error)}`);
+			continue;
+		}
+		if (!attempt.observation || shown(attempt.observation) !== expectedShown) {
 			omit('Mounted again from its markup, it shows something else.');
 			continue;
 		}

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Report the actual count of drifted pack files (instead of the total 77 component count) and log any left-out examples for drifted components when `run-stories.mjs` `pack-check` fails (#1404). No published file changes.
+
 - Remove Lushly's remaining look outside `violet-elements`' tokens (#1492, epic #1430):
   - `violet-color-picker`'s fixed empty-state slider seed (`#146ba0`) and eight built-in presets (`#181b1a`, `#2c5e4b`, `#a3ebcd`, `#146ba0`, `#c42a1a`, `#f96e5b`, `#92400e`, `#6b7d6e`) now come from AFD's Refined palette, documented in `violet-color-picker.guide.json`.
   - `violet-data-grid`'s loading overlay fallback now mixes `var(--_surface-card)` at 58% instead of Lushly's `#faf9f5` (`rgba(250, 249, 245, 0.58)`).

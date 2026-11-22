@@ -21,11 +21,15 @@ const shown: Record<string, ElementObservation[]> = {
 		element('root/example-select:1/example-option:1', 'example-option', { value: 's' }),
 	],
 };
-const observation = (id: string, checkpoint: string): Observation =>
+const observation = (
+	id: string,
+	checkpoint: string,
+	overrides: { domRaw?: string; elements?: ElementObservation[] } = {}
+): Observation =>
 	({
 		manifest: { checkpoint: { name: checkpoint } },
 		channels: {
-			dom: { raw: '', normalized: '' },
+			dom: { raw: overrides.domRaw ?? '', normalized: overrides.domRaw ?? '' },
 			a11y: { snapshot: '', axe: 'not-run' },
 			events: { declared: [], history: [] },
 			evidence: {
@@ -36,18 +40,25 @@ const observation = (id: string, checkpoint: string): Observation =>
 				validity: [],
 				attributesSet: [],
 			},
-			elements: shown[id] ?? [element('root/example-field:1', 'example-field', { label: 'A' })],
+			elements: overrides.elements ??
+				shown[id] ?? [element('root/example-field:1', 'example-field', { label: 'A' })],
 		},
 	}) as unknown as Observation;
 
-function host(render: (id: string, call: number) => Observation | null): PackHost & {
+function host(
+	render: (id: string, call: number) => Observation | null,
+	remount?: (id: string, call: number) => Observation | null
+): PackHost & {
 	rendered: string[];
+	remounts: Map<string, number>;
 } {
 	const calls = new Map<string, number>();
+	const remounts = new Map<string, number>();
 	const rendered: string[] = [];
 	return {
 		config,
 		rendered,
+		remounts,
 		prepare: async () => {},
 		bundle: () => 'sha256:bundle',
 		inspect: async () => null,
@@ -60,7 +71,11 @@ function host(render: (id: string, call: number) => Observation | null): PackHos
 			calls.set(id, call);
 			return render(id, call);
 		},
-		capture: async (id) => observation(id, 'after-run'),
+		capture: async (id) => {
+			const call = (remounts.get(id) ?? 0) + 1;
+			remounts.set(id, call);
+			return remount ? remount(id, call) : observation(id, 'after-run');
+		},
 	};
 }
 
@@ -87,6 +102,52 @@ describe('a pack run’s passes', () => {
 			{ workers: 1 }
 		);
 		expect(run.cases.unstable).toEqual(['checks--select-disabled']);
+	});
+
+	it('retries a remount once after a transient error or mismatch, and omits a persistent mismatch', async () => {
+		const domByCase: Record<string, string> = {
+			'example-field--default': '<example-field label="A"></example-field>',
+			'example-field--invalid': '<example-field invalid label="A"></example-field>',
+			'example-select--default':
+				'<example-select label="Size"><example-option value="s">S</example-option></example-select>',
+		};
+		const fake = host(
+			(id) => observation(id, 'after-run', { domRaw: domByCase[id] ?? '' }),
+			(id, call) => {
+				if (id === 'example-field--default' && call === 1) throw new Error('Transient CDP hiccup');
+				if (id === 'example-select--default' && call === 1)
+					return observation(id, 'after-run', {
+						elements: [element('root/example-select:1', 'example-select', { label: 'Stale' })],
+					});
+				return observation(id, 'after-run');
+			}
+		);
+		const run = await runPack(fake, { workers: 1 });
+		expect(fake.remounts.get('example-field--default')).toBe(2);
+		expect(fake.remounts.get('example-select--default')).toBe(2);
+		expect(run.examples.kept).toBe(3);
+		expect(run.examples.leftOut).toEqual([]);
+
+		// A persistent mismatch is still retried once and omitted with the mismatch reason.
+		const persistent = host(
+			(id) => observation(id, 'after-run', { domRaw: domByCase[id] ?? '' }),
+			(id) =>
+				id === 'example-field--default'
+					? observation(id, 'after-run', {
+							elements: [element('root/example-field:1', 'example-field', { label: 'Other' })],
+						})
+					: observation(id, 'after-run')
+		);
+		const omitted = await runPack(persistent, { workers: 1 });
+		expect(persistent.remounts.get('example-field--default')).toBe(2);
+		expect(omitted.examples.kept).toBe(2);
+		expect(omitted.examples.leftOut).toEqual([
+			{
+				tag: 'example-field',
+				from: 'example-field--default',
+				reason: 'Mounted again from its markup, it shows something else.',
+			},
+		]);
 	});
 });
 

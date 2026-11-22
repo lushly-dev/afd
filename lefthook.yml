@@ -29,7 +29,7 @@ pre-commit:
       stage_fixed: true
 
     portability:
-      glob: "*.{ts,js,json,md,yml,yaml}"
+      glob: "*.{ts,tsx,js,mjs,cjs,json,md,yml,yaml}"
       run: node scripts/check-portability.mjs {staged_files}
 
     file-size:
