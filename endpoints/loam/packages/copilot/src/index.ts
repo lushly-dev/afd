@@ -9,12 +9,20 @@
 export { anthropicAdapter } from './adapter-anthropic.js';
 export { openaiAdapter } from './adapter-openai.js';
 export {
+	COMPOSER_LIMITS,
+	composeOf,
+	composeUnit,
+	UNIT_COMPOSE_KEY,
+	type UnitComposeV1,
+} from './compose.js';
+export {
 	contentBlock,
 	messagesFor,
 	SYSTEM_PROMPT,
 	serverClaimBlock,
 	sessionNonce,
 	toolResultText,
+	UNIT_PROMPT,
 } from './context.js';
 export { createInProcessLauncher, type InProcessLauncher } from './in-process.js';
 export { AgentPort, ModelPort } from './ports.js';

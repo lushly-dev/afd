@@ -76,7 +76,8 @@ const RUNS: Readonly<Record<string, string>> = Object.freeze({
 	'mail-cannot-act-elsewhere': 'now',
 	'approve-mail-send': 'step 5: mounted approvals',
 	'person-sends-mail': 'step 5: mounted approvals and the calls grant',
-	'reply-set-fresh-context': 'step 6: units',
+	// Step 6's: fresh-context units.
+	'reply-set-fresh-context': 'now',
 	'app-call-needs-grant': "milestone B's amendment: native calls grants",
 	'events-since-cursor': "milestone B's amendment: event-list",
 });

@@ -23,20 +23,26 @@ import {
 	SUGGESTION_TABLE,
 	type SuggestionV1,
 } from './enforce.js';
+import { copilotContextFields } from './fields.js';
 import { type ApprovalHealthV1, createHealth, type HealthReasonV1 } from './health.js';
 import { forRuntime, listTools } from './labels.js';
 import { createTaint } from './taint.js';
 import type {
 	CopilotAgentCapabilityV1,
 	CopilotCallV1,
+	CopilotConfirmationCardV1,
 	CopilotOptionsV1,
 	CopilotProviderV1,
 	CopilotSessionV1,
+	CopilotSuggestionCardV1,
 	CopilotTraceV1,
 	CopilotTurnOutcomeV1,
 	CopilotTurnV1,
 	ToolDescriptorV1,
 } from './types.js';
+import { createUnits, unitInvalid } from './units.js';
+
+export type { CopilotConfirmationCardV1, CopilotSuggestionCardV1 } from './types.js';
 
 /** The person's records (3.4): sessions listed by `person`, turns by `session`. */
 export const COPILOT_SESSION_TABLE = 'copilot-session';
@@ -186,6 +192,8 @@ export interface CopilotDeps {
 	): { whole: string[]; vouched: string[] };
 	/** The owning instance of an app's command. */
 	instanceOf(name: string): string | undefined;
+	/** The shell's name for a mounted instance's own tool, as its server names it (7.3's submit). Absent: none. */
+	commandOfTool?(instance: string, tool: string): string | undefined;
 	/** The agent interface's commands with their input schemas, as its registry lists them. */
 	agentCommands(): Array<{ name: string; description: string; inputSchema?: unknown }>;
 	/**
@@ -255,38 +263,6 @@ export interface CopilotDeps {
 	): Promise<number>;
 }
 
-/** A confirmation as the panel's card draws it (6.2): the kernel's record, never the runtime's word. */
-export interface CopilotConfirmationCardV1 {
-	id: string;
-	state: 'pending' | 'confirmed' | 'declined' | 'expired' | 'withdrawn';
-	title: string;
-	header: string;
-	prompt: string;
-	command: string;
-	/** The validated input as it will run, or its size past the list's bound. */
-	input: unknown;
-	scope: ScopeV1;
-	danger: boolean;
-	asked?: ConfirmationAskedV1;
-	expiresAt: number;
-	/** The copilot session that raised it: the port and the cards take only their own session's (6.2). */
-	session?: string;
-	/** The copilot call that raised it, by its turn and call id. */
-	raisedBy?: { turn: number; call: string };
-}
-
-/** A suggestion as the panel's card draws it: the kernel's record (6.1). */
-export interface CopilotSuggestionCardV1 {
-	id: string;
-	command: string;
-	input: unknown;
-	scope: ScopeV1;
-	reasons: SuggestionV1['reasons'];
-	sources: string[];
-	expiresAt: number;
-	ran: boolean;
-}
-
 /** One turn while it runs: what 3.4 records, kept in memory until it settles. */
 interface Running {
 	turn: CopilotTurnV1;
@@ -310,6 +286,8 @@ interface Running {
 interface Spent {
 	calls: number;
 	rounds: number;
+	/** Its unit composers' output tokens, within `usage` (7.3). */
+	unitOutput?: number;
 	elapsedMs: number;
 	usage: { inputTokens: number; outputTokens: number };
 }
@@ -388,6 +366,21 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 			deps.mountWordsOf?.(name, input, result) ?? { whole: [], vouched: [] },
 		personOf: (context) => kit.personOf(context),
 		now: (context) => kit.callNow(context),
+		submitting: (trace) => units.submitting(trace),
+	});
+	/** Fresh-context units (7.3): the composer's unit, and its submit, apart from the parent. */
+	const units = createUnits({
+		instanceOf: deps.instanceOf,
+		commandOfTool: (instance, tool) => deps.commandOfTool?.(instance, tool),
+		mountOf: (name) => deps.mountOf?.(name),
+		heldBy: (name) => deps.heldBy?.(name),
+		declares: (name) => deps.declares?.(name) === true,
+		callAsCopilot: deps.callAsCopilot,
+		forget(trace) {
+			decisions.delete(traceKey(trace));
+			nestedRaised.delete(traceKey(trace));
+			taint.take(trace);
+		},
 	});
 	/** The confirmations calls nested in a copilot call raised, by its trace, until the port's half reads them (B8). */
 	const nestedRaised = new Map<string, string[]>();
@@ -437,6 +430,7 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 		exempt,
 		instanceOf: deps.instanceOf,
 		taintOf: (session) => taint.sourcesOf(session),
+		unitOf: (trace) => units.unitOf(trace),
 		labelsOf: (name) => deps.mountOf?.(name)?.labels,
 		holdsHttp: (name) => deps.holdsHttp?.(name) === true,
 		personOf: (context) => kit.personOf(context),
@@ -520,11 +514,13 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 		if (!live || live.turn.seq !== seq || live.revoked) return undefined;
 		live.revoked = true;
 		running.delete(session);
+		units.end(session, seq);
 		if (live.timer) clearTimeout(live.timer);
 		live.controller.abort();
 		const spent: Spent = {
 			calls: live.spent.calls,
 			rounds: outcome.rounds ?? live.spent.rounds,
+			unitOutput: outcome.unitOutput ?? live.spent.unitOutput,
 			elapsedMs: live.spent.elapsedMs + Math.max(0, deps.now() - live.startedAt),
 			usage: outcome.usage ?? live.turn.usage,
 		};
@@ -664,7 +660,11 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 				agent: capabilityFor(live),
 				settle: (outcome) => void finish(session.id, seq, outcome),
 				signal: live.controller.signal,
-				spent: { usage: { ...held.spent.usage }, rounds: held.spent.rounds },
+				spent: {
+					usage: { ...held.spent.usage },
+					rounds: held.spent.rounds,
+					unitOutput: held.spent.unitOutput ?? 0,
+				},
 			});
 		} catch {
 			await finish(session.id, seq, {
@@ -795,13 +795,20 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 				// person while the digest was made sends nothing.
 				if (live.revoked) return refuse('The turn has ended', ['call']);
 				if (!samePerson()) return refuse('The person changed', ['call']);
-				const result = await deps.callAsCopilot(name, input, trace, scope);
+				const answered = await deps.callAsCopilot(name, input, trace, scope);
 				const decided = decisions.get(traceKey(trace));
 				decisions.delete(traceKey(trace));
 				const labels = taint.take(trace);
+				const instance = deps.instanceOf(name);
+				// A unit (7.3): the runtime's composer is given it, and the parent nothing of it but its id and state.
+				const opened = labels?.unit
+					? units.decide(name, answered, labels, trace, live.revoked)
+					: undefined;
+				if (opened?.limit)
+					void finish(session.id, live.turn.seq, { state: 'stopped', stoppedBy: 'limit' });
+				const result = opened?.result ?? answered;
 				const inner = nestedRaised.get(traceKey(trace)) ?? [];
 				nestedRaised.delete(traceKey(trace));
-				const instance = deps.instanceOf(name);
 				const code = result.success ? undefined : (result.error?.code ?? 'UNKNOWN');
 				// A result's own words never make a confirmation or a suggestion (the reviews' I1): only the id the
 				// confirmations' gate issued or found pending for this very call, or for a call nested in it (B8), read back
@@ -844,6 +851,7 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 						: {}),
 					// 5.1's parts by label, nested calls' content included (5.3).
 					labels: labels ? { ...labels.counts } : { content: 0, server: 0, trusted: 1 },
+					...(opened ? { unit: opened.unit } : {}),
 				};
 				if (!live.revoked) {
 					live.turn.calls.push(entry);
@@ -879,8 +887,16 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 						withdraw: { person: session.person, ids: [notification] },
 					});
 				}
-				return forRuntime(result, labels);
+				return opened ? opened.result : forRuntime(result, labels);
 			},
+			async unit(id, text) {
+				if (live.revoked) return refuse('The turn has ended', ['unit']);
+				if (!samePerson()) return refuse('The person changed', ['unit']);
+				const done = await units.submit(session.id, live.turn.seq, id, text, scope);
+				return done ?? refuse('No unit of this turn is being composed with that id', ['unit']);
+			},
+			composing: (id) =>
+				live.revoked ? undefined : units.composing(session.id, live.turn.seq, id),
 			async listCommands() {
 				if (live.revoked || !samePerson()) return [];
 				return toolsFor();
@@ -903,8 +919,12 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 				reads += 1;
 				const trace = { session: session.id, turn: live.turn.seq, call: `confirmation-${reads}` };
 				const read = await deps.callAsCopilot('confirmation-get', { notification }, trace, scope);
-				// A stored outcome keeps the labels of the run it was (5.1): given to the model as they say.
-				return forRuntime(read, taint.take(trace));
+				// A stored outcome keeps the labels of the run it was (5.1): given to the model as they say. A unit's, the run
+				// of a call the person confirmed, is never composed or given to the parent (7.3).
+				const kept = taint.take(trace);
+				return kept?.unit
+					? unitInvalid('a unit whose call was confirmed is not composed', kept.source)
+					: forRuntime(read, kept);
 			},
 		};
 	}
@@ -1408,31 +1428,7 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 		},
 	});
 
-	const contextFields: ContextFieldV2[] = [
-		// `session` is a name AFD sets itself (the auth session), so the copilot's session is `copilotSession`.
-		{
-			name: 'copilotSession',
-			meta: 'dev.loam/copilot-session',
-			schema: z.string().check(z.minLength(1), z.maxLength(64)),
-			journal: true,
-		},
-		{
-			name: 'turn',
-			meta: 'dev.loam/turn',
-			schema: z.int().check(z.minimum(1)),
-			journal: true,
-		},
-		{
-			name: 'trace',
-			meta: 'dev.loam/trace',
-			schema: z.strictObject({
-				session: z.string().check(z.minLength(1), z.maxLength(64)),
-				turn: z.int().check(z.minimum(1)),
-				call: z.string().check(z.minLength(1), z.maxLength(64)),
-			}),
-			journal: true,
-		},
-	];
+	const contextFields = copilotContextFields(z);
 
 	return {
 		commands: [

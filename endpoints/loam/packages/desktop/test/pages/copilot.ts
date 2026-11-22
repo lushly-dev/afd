@@ -86,6 +86,12 @@ function capability(turn: Turn): CopilotAgentCapabilityV1 {
 				error: { code: 'COPILOT_PORT_REFUSED', message: reason, suggestion: 'None' },
 			} as CommandResult;
 		},
+		// The stub hands out no unit (7.3), so it composes none.
+		async unit(unit) {
+			turn.calls.push(`unit ${unit}`);
+			return refused('The stub hands out no unit');
+		},
+		composing: () => undefined,
 	};
 }
 

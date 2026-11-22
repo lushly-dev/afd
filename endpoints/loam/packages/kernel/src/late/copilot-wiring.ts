@@ -429,6 +429,12 @@ export function copilotPartsOf(
 		isMutation: deps.isMutation,
 		isMounted: (name) => deps.apps().owners.get(name)?.recorded === true,
 		instanceOf: (name) => deps.apps().owners.get(name)?.instance,
+		// 7.3: a unit's submit names its server's tool; the shell's name for it is the instance's own.
+		commandOfTool: (instance, tool) => {
+			for (const [name, owner] of deps.apps().owners)
+				if (owner.recorded && owner.instance === instance && owner.tool === tool) return name;
+			return undefined;
+		},
 		// 4.5 and 5.1: the entry's `labels`, whether it names the command, and the deployer's words for the instance.
 		mountOf: (name) => mountOf(deps.apps(), name),
 		// 5.3: a native or view app whose `http` grant is served.

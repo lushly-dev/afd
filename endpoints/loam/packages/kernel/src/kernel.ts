@@ -50,6 +50,7 @@ import {
 	JOURNAL_WRAPPERS,
 	type JournalProvenance,
 } from './journal-provenance.js';
+import { redactJournalRecord } from './journal-redact.js';
 import {
 	createKeybindings,
 	type KeybindingRegistry,
@@ -426,14 +427,7 @@ export function redactSafely(
 	}
 }
 
-/** Remove `input.password` from an `auth-sign-in` record. */
-export function redactJournalRecord(record: JournalRecord): JournalRecord {
-	if (record.command !== 'auth-sign-in') return record;
-	const input = record.input;
-	if (typeof input !== 'object' || input === null || !('password' in input)) return record;
-	const { password: _password, ...rest } = input as Record<string, unknown>;
-	return { ...record, input: rest };
-}
+export { redactJournalRecord };
 
 /** Refuse a bad or repeated name before any registry is built. */
 function checkNames(commands: readonly ZodCommandDefinition[]): void {

@@ -6,6 +6,8 @@
  * other text answers "No script" with no tool call. It imports nothing of TanStack, so a page can hold it.
  */
 
+import { UNIT_PROMPT } from './context.js';
+
 /** One model round of a script. */
 export type ScriptRoundV1 =
 	/** The model answers with text and ends the turn. */
@@ -24,6 +26,11 @@ export type ModelScriptV1 = ReadonlyArray<ScriptRoundV1>;
 
 export interface TestProviderOptionsV1 {
 	scripts: Readonly<Record<string, ModelScriptV1>>;
+	/**
+	 * A unit composer's answer (7.3): a request whose system prompt is Loam's composer prompt is answered with this
+	 * function of its one message's text. Absent, it answers "No script".
+	 */
+	compose?: (text: string) => string;
 	/** Between two chunks. Default 1 ms. */
 	delayMs?: number;
 }
@@ -80,6 +87,14 @@ function position(body: Record<string, unknown>): {
 		return { text: person?.text ?? '', round: rounds(last.at), answered: true };
 	}
 	return { text: last?.text ?? '', round: last ? rounds(last.at) : 0, answered: false };
+}
+
+/** Whether a request is a unit composer's: its system prompt is Loam's composer prompt (7.3). */
+function composing(body: Record<string, unknown>): string | undefined {
+	const system = textOf(body.system) ?? '';
+	if (!system.startsWith(UNIT_PROMPT.split('\n')[0] as string)) return undefined;
+	const messages = (Array.isArray(body.messages) ? body.messages : []) as Message[];
+	return textOf(messages[0]?.content) ?? '';
 }
 
 const sse = (event: string, data: unknown) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
@@ -185,6 +200,17 @@ export function createTestProvider(options: TestProviderOptionsV1): TestProvider
 			bodies.push(structuredClone(body));
 			// The last 50 only: a page's transport keeps no unbounded copy of what the model was sent.
 			if (bodies.length > 50) bodies.splice(0, bodies.length - 50);
+			const encoder = new TextEncoder();
+			const unit = composing(body);
+			if (unit !== undefined) {
+				const chunks = rendered(undefined, options.compose ? options.compose(unit) : NO_SCRIPT);
+				return {
+					status: 200,
+					body: (async function* () {
+						for (const chunk of chunks) yield encoder.encode(chunk);
+					})(),
+				};
+			}
 			const { text, round, answered } = position(body);
 			const name = /^script:([a-z0-9-]{1,64})/.exec(text)?.[1];
 			const script = name ? options.scripts[name] : undefined;
@@ -195,7 +221,6 @@ export function createTestProvider(options: TestProviderOptionsV1): TestProvider
 					? script?.[mark + 1 + round]
 					: undefined
 				: script?.[round];
-			const encoder = new TextEncoder();
 			async function* stream(): AsyncGenerator<Uint8Array> {
 				if (step && 'hang' in step) {
 					// The stream opens and then holds, so the turn runs until it is stopped.

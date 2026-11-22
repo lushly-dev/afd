@@ -30,6 +30,8 @@ export interface ResultLabelsV1 {
 	counts: { content: number; server: number; trusted: number };
 	/** The sources whose content entered: the session is tainted from each (5.3). */
 	sources: string[];
+	/** A unit's result (7.3), which the parent is never given, so its content taints nothing. */
+	unit?: true;
 }
 
 /** What labelling needs to know of the command that answered. */

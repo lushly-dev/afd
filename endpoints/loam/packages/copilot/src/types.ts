@@ -44,11 +44,14 @@ export interface AgentPortV1 {
 	call(name: string, input: unknown): Promise<CommandResultLike>;
 	listCommands(): Promise<ToolDescriptorV1[]>;
 	confirmation(notification: string): Promise<CommandResultLike>;
+	/** A unit's composed text, for the kernel to send to its submit (7.3); `''` when the composer gave none. */
+	unit(unit: string, text: string): Promise<CommandResultLike>;
 }
 
 /** The model port's runtime half (4.2): a `fetch` that keeps only the body and sends it to the trusted host. */
 export interface ModelPortV1 {
-	fetchFor(provider: CopilotProviderV1): typeof fetch;
+	/** `unit`: a unit composer's request, which the kernel counts toward the unit, never the turn's rounds (7.3, 4.4). */
+	fetchFor(provider: CopilotProviderV1, options?: { unit?: string }): typeof fetch;
 }
 
 /** An AG-UI event, as TanStack AI emits it. */

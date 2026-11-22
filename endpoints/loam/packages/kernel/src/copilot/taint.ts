@@ -21,6 +21,7 @@ import type { DataAdapter } from '@lushly-dev/local-db';
 import type { KernelFieldContext } from '../context-fields.js';
 import { type LabelledCommandV1, labelResult, mergeLabels, type ResultLabelsV1 } from './labels.js';
 import type { CopilotSessionV1, CopilotTraceV1 } from './types.js';
+import { marksUnit } from './units.js';
 
 /** A confirmed run's labels, by its confirmation's id (5.1, 6.2). */
 export const OUTCOME_LABELS_TABLE = 'copilot-outcome-labels';
@@ -55,6 +56,8 @@ export interface TaintDeps {
 	): { whole: string[]; vouched: string[] };
 	personOf(context: CommandContext): string | undefined;
 	now(context: CommandContext): number;
+	/** A unit's submit (7.3), whose result never reaches the parent. Absent: none. */
+	submitting?(trace: CopilotTraceV1): boolean;
 }
 
 export interface Taint {
@@ -161,8 +164,14 @@ export function createTaint(deps: TaintDeps): Taint {
 			const labels = kept && kept.session === session ? kept.labels : UNLABELLED;
 			// The shell's own outcome stays its own, as `confirmation-get` reads it.
 			if (labels.mode === 'trusted' && labels.sources.length === 0) continue;
+			// A confirmed unit's mark is kept whichever row holds it (7.3, the re-check's B1).
 			found = found
-				? { ...found, mode: 'whole', sources: [...new Set([...found.sources, ...labels.sources])] }
+				? {
+						...found,
+						mode: 'whole',
+						sources: [...new Set([...found.sources, ...labels.sources])],
+						...(found.unit || labels.unit ? { unit: true as const } : {}),
+					}
 				: { ...labels, mode: 'whole' };
 		}
 		return found;
@@ -186,6 +195,20 @@ export function createTaint(deps: TaintDeps): Taint {
 			throw cause;
 		}
 		let labels = labelResult(result, command);
+		// A unit (7.3): the port's own call whose vouched result marks one is given to the composer, never the parent, so
+		// its content taints nothing; nor does a unit's submit, whose result the parent never gets. A call an app makes,
+		// or a confirmed run, whose result its caller or the inbox holds, is an ordinary result.
+		const unit = top && marksUnit(result, labels, command.instance);
+		// A confirmed run's unit is given to no composer: it taints as its content does, and its kept labels say it was a
+		// unit, so its outcome read back is never given to the parent either (7.3).
+		if (unit && call.confirmation !== undefined) labels = { ...labels, unit: true };
+		else if (top && call.caller === undefined && (deps.submitting?.(trace) === true || unit)) {
+			labels = { ...labels, sources: [], unit: true };
+			taken.set(key, labels);
+			if (taken.size > 256) taken.delete(taken.keys().next().value as string);
+			nested.delete(key);
+			return result;
+		}
 		// A shell read that lists a mounted catalog carries its server's words: content whole from each (the review's B1).
 		// A `per-part` instance's words alone are its claims, which taint nothing (5.1, the re-check).
 		const words =
