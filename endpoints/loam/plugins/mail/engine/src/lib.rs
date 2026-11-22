@@ -9,6 +9,7 @@
 //! (classes, the person's decisions and agents' suggestions), stream stories,
 //! bursts, selections and the person's policy, the changes at the provider
 //! with their operations, undo and proposals, drafts and snoozed threads,
+//! unsubscribe, proposed records,
 //! the tokens and the journal,
 //! and the server: `serve` over HTTP, `mcp` over stdio, and the command
 //! line's forwarding to a running server. The other commands arrive with the
@@ -33,6 +34,7 @@ pub mod parts;
 pub mod policy;
 pub mod provider;
 pub mod read;
+pub mod records;
 pub mod rules;
 pub mod screening;
 pub mod secrets;
@@ -121,6 +123,9 @@ pub fn registry(engine: &Arc<Engine>) -> Result<CommandRegistry, String> {
     registry.register(drafts::snooze(Arc::clone(engine)))?;
     registry.register(unsubscribe::show(Arc::clone(engine)))?;
     registry.register(unsubscribe::unsubscribe(Arc::clone(engine)))?;
+    registry.register(records::list(Arc::clone(engine)))?;
+    registry.register(records::propose(Arc::clone(engine)))?;
+    registry.register(records::withdraw(Arc::clone(engine)))?;
     let broken = rules::check(&registry);
     if !broken.is_empty() {
         return Err(broken.join("\n"));

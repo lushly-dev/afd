@@ -130,7 +130,7 @@ waits for Gmail has a line of its own.
 
 - D3, third: `mail-unsubscribe` at the terminal, and its preview (`mail-unsubscribe-show`). Merged as [#2071](https://github.com/lushly-dev/afd/pull/2071) ([#1975](https://github.com/lushly-dev/afd/issues/1975)).
 
-- E1: Records. Not started.
+- E1: Records (`mail-record-list`, `mail-record-propose`, `mail-record-withdraw`, migration 17). Merged as [#2125](https://github.com/lushly-dev/afd/pull/2125) ([#1976](https://github.com/lushly-dev/afd/issues/1976)).
 
 - E2: Proposed stories. Not started.
 
@@ -148,6 +148,10 @@ the top of its phase's list, and a phase that starts adds its heading above the 
 ### Verified: phase F
 
 - 2026-11-19 UTC for step F's specification, on `lush/mail-f-spec` with `main` at `5a631f89` merged in: its five scenario files parsed and validated by `afd scenario validate`, the dry-run validation and the coverage report (29 steps, and 35 after the second revision); nothing built or run.
+
+### Verified: phase E
+
+- 2026-11-22 UTC for step E1 ([#1976](https://github.com/lushly-dev/afd/issues/1976)), on `t3/mail-records` from `main` at `2ba52efc`: `cargo fmt --check`, `cargo clippy --locked --all-targets -- -D warnings` and `cargo test --no-fail-fast --locked` passed on macOS with Rust 1.98.0 (migration 17, all 9 closed record types and strict field/size caps, visible-text and decoded-`Subject` passage verification, hidden HTML and unheld-body `NOT_HELD`/`PASSAGE_NOT_FOUND` refusals, atomic supersession, proposer cap, withdrawal authorization, cursor paging, `/mcp` exposure, `mail-rebuild` persistence and `mail-account-remove` cleanup). Nothing live was run.
 
 ### Verified: phase D
 
@@ -301,6 +305,7 @@ A session adds its row at the end of its area's table. The last table holds ever
 
 | Date | Session | What changed |
 | --- | --- | --- |
+| 2026-11-22 UTC | Step E1 ([#1976](https://github.com/lushly-dev/afd/issues/1976)) | Added migration 17 (`record` table) and `mail-record-list`, `mail-record-propose` and `mail-record-withdraw` on the owner-approved 9-type closed schema with strict per-type fields, verbatim visible-text/decoded-`Subject` passage verification (`NOT_HELD`/`PASSAGE_NOT_FOUND`), 10 000 active/proposer cap, atomic supersession, person/proposer withdrawal (`FORBIDDEN` otherwise, non-destructive per M29), `"trust": "content"` wrapping, `mail-message-open` active record count, journal result redaction and account-removal cleanup. |
 
 ### Sessions: phase F, the Loam plugin
 

@@ -108,10 +108,11 @@ pub fn redact(mut record: JournalRecord) -> Option<JournalRecord> {
     Some(record)
 }
 
-/// Removes a draft's text from the result of `command`, if it is one that
-/// gives it: its ids and revision stay.
+/// Removes content payloads from the result of `command`, when its input
+/// already carries them or the result would copy them in (13.1): ids,
+/// revision, and metadata stay.
 fn drop_draft_text(command: &str, data: &mut serde_json::Value) {
-    if crate::drafts::RESULTS_WITH_TEXT.contains(&command)
+    if (crate::drafts::RESULTS_WITH_TEXT.contains(&command) || command == crate::records::PROPOSE)
         && let serde_json::Value::Object(data) = data
     {
         data.remove("content");
@@ -166,6 +167,13 @@ mod tests {
             drop_draft_text(command, &mut data);
             assert_eq!(data, json!({ "draft": 3, "revision": 2 }), "{command}");
         }
+        let mut record_res = json!({
+            "record": 5,
+            "message": 1,
+            "content": { "trust": "content", "fields": { "category": "work" }, "passages": ["hi"] },
+        });
+        drop_draft_text(crate::records::PROPOSE, &mut record_res);
+        assert_eq!(record_res, json!({ "record": 5, "message": 1 }));
         let mut other = json!({ "content": { "body": "kept" } });
         drop_draft_text("mail-sync", &mut other);
         assert_eq!(other["content"]["body"], "kept");

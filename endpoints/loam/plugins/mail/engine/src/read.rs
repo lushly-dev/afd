@@ -644,9 +644,10 @@ impl CommandHandler for MessageOpen {
                 store.message_links(message)?,
                 store.message_parts(message)?,
                 store.where_shown(message)?,
+                store.active_record_count(message)?,
             ))
         });
-        let (listed, header, whole, links, parts, shown) = match opened {
+        let (listed, header, whole, links, parts, shown, active_records) = match opened {
             Ok(opened) => opened,
             Err(error) => return failure(store_failure(&error)),
         };
@@ -700,6 +701,7 @@ impl CommandHandler for MessageOpen {
                 })).collect::<Vec<_>>(),
                 "evidence": evidence,
                 "remoteReferences": remote_count,
+                "records": active_records,
             }),
             body: json!({
                 "sender": { "name": listed.sender_name, "address": listed.sender_address },
