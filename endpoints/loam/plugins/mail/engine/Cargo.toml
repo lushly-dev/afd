@@ -58,7 +58,7 @@ ammonia = "4.2"
 mail-parser = "1.0.1"
 # The store (the specification's section 4). SQLite is bundled, at the version Umbel pins, so the
 # repository carries one.
-rusqlite = { version = "0.41", features = ["bundled"] }
+rusqlite = { version = "0.43", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # The log's file names, and a message's identity.
