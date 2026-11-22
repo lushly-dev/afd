@@ -2071,11 +2071,11 @@
       "path": "scripts/package_smoke.py",
       "upstream_sha256": null,
       "staged_sha256": null,
-      "current_import_sha256": "a3c4c3848719585d5b1ad468801e05a06f9749f32b02a2b945da979be899ab38",
+      "current_import_sha256": "8805efce64996ea9e1452252c121ae536c362f86359ee609596c88f4495d4a04",
       "stage_classification": "not-in-staging",
       "stage_reason": "Not selected in the frozen staged-input payload",
       "import_classification": "added-after-staging",
-      "import_reason": "Build/audit all six artifacts and an isolated installed- wheel app; check the bloat-sweeper skill's script ships, among ten skills; Add the gate-discipline skill and its scripts; list all eleven skills; Added the test-change report, scripts/report-test-changes.mjs, to the gate-discipline skill (lushly-dev/afd#1387, step 4). Written in AFD, not derived from Lushly; the two checks export the patterns it shares.; Stamp the adaptations digest into the wheel and sdist at build, not in the repository (lushly-dev/afd#1610); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688)"
+      "import_reason": "Build/audit all six artifacts and an isolated installed- wheel app; check the bloat-sweeper skill's script ships, among ten skills; Add the gate-discipline skill and its scripts; list all eleven skills; Added the test-change report, scripts/report-test-changes.mjs, to the gate-discipline skill (lushly-dev/afd#1387, step 4). Written in AFD, not derived from Lushly; the two checks export the patterns it shares.; Stamp the adaptations digest into the wheel and sdist at build, not in the repository (lushly-dev/afd#1610); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); Add test-discovery guard (check-test-discovery.mjs, discovery-parsers.mjs) to gate-discipline skill, re-derived under MIT from the Lushly check-test-discovery.mjs pattern named in lushly-dev/afd#1387 and #1519; report discovery register changes in report-test-changes.mjs; verify wheel ships the new scripts in package_smoke.py"
     },
     {
       "path": "scripts/package_tests.py",
@@ -4639,10 +4639,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "bf3e39d3126cba174e78725a9283023141bb60672c52f82c91a103c61d35aea6",
+      "current_import_sha256": "61bf0e0e3c252fb5687541c0343af695ba038c9d62aefa4f32545480e9ce0691",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Re-derived, generic parts only, from the private lushly-dev/lushly at c9bc7d097bdf38a8cd8e81491d9a481715db8c11: .claude/skills/lushly-gate-discipline/SKILL.md (sha256 30284f69d10ace5a462ab22cd6b1b08e12d52f6f96bcbf66a9ec0fb4501dc53f) and scripts/check-test-quarantine.mjs (sha256 6682b73bf602a6926daaa4403944d0d0dbfe8d980da1e85a952bf510eb3a87c4), under MIT by the owner's authorization (lushly-dev/afd#1387); no Lushly data, history or product configuration taken; Added the test-change report, scripts/report-test-changes.mjs, to the gate-discipline skill (lushly-dev/afd#1387, step 4). Written in AFD, not derived from Lushly; the two checks export the patterns it shares."
+      "import_reason": "Re-derived, generic parts only, from the private lushly-dev/lushly at c9bc7d097bdf38a8cd8e81491d9a481715db8c11: .claude/skills/lushly-gate-discipline/SKILL.md (sha256 30284f69d10ace5a462ab22cd6b1b08e12d52f6f96bcbf66a9ec0fb4501dc53f) and scripts/check-test-quarantine.mjs (sha256 6682b73bf602a6926daaa4403944d0d0dbfe8d980da1e85a952bf510eb3a87c4), under MIT by the owner's authorization (lushly-dev/afd#1387); no Lushly data, history or product configuration taken; Added the test-change report, scripts/report-test-changes.mjs, to the gate-discipline skill (lushly-dev/afd#1387, step 4). Written in AFD, not derived from Lushly; the two checks export the patterns it shares.; Add test-discovery guard (check-test-discovery.mjs, discovery-parsers.mjs) to gate-discipline skill, re-derived under MIT from the Lushly check-test-discovery.mjs pattern named in lushly-dev/afd#1387 and #1519; report discovery register changes in report-test-changes.mjs; verify wheel ships the new scripts in package_smoke.py"
     },
     {
       "path": "src/botcore/skills/gate-discipline/scripts/check-test-configs.mjs",
@@ -4656,6 +4656,17 @@
       "import_reason": "Moved from AFD's scripts/check-test-configs.mjs (lushly-dev/afd#1405) and generalised for seeded repositories; Added the test-change report, scripts/report-test-changes.mjs, to the gate-discipline skill (lushly-dev/afd#1387, step 4). Written in AFD, not derived from Lushly; the two checks export the patterns it shares."
     },
     {
+      "path": "src/botcore/skills/gate-discipline/scripts/check-test-discovery.mjs",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "245e55082fd15cfebf5fd832547ef90fadb979f3d5ed99a6d9951524f64e9fa7",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Add test-discovery guard (check-test-discovery.mjs, discovery-parsers.mjs) to gate-discipline skill, re-derived under MIT from the Lushly check-test-discovery.mjs pattern named in lushly-dev/afd#1387 and #1519; report discovery register changes in report-test-changes.mjs; verify wheel ships the new scripts in package_smoke.py"
+    },
+    {
       "path": "src/botcore/skills/gate-discipline/scripts/check-test-quarantine.mjs",
       "origin": "local-after-import",
       "upstream_sha256": null,
@@ -4667,15 +4678,26 @@
       "import_reason": "Re-derived, generic parts only, from the private lushly-dev/lushly at c9bc7d097bdf38a8cd8e81491d9a481715db8c11: .claude/skills/lushly-gate-discipline/SKILL.md (sha256 30284f69d10ace5a462ab22cd6b1b08e12d52f6f96bcbf66a9ec0fb4501dc53f) and scripts/check-test-quarantine.mjs (sha256 6682b73bf602a6926daaa4403944d0d0dbfe8d980da1e85a952bf510eb3a87c4), under MIT by the owner's authorization (lushly-dev/afd#1387); no Lushly data, history or product configuration taken; Added the test-change report, scripts/report-test-changes.mjs, to the gate-discipline skill (lushly-dev/afd#1387, step 4). Written in AFD, not derived from Lushly; the two checks export the patterns it shares."
     },
     {
+      "path": "src/botcore/skills/gate-discipline/scripts/discovery-parsers.mjs",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "c1af5d38c956b8d5db79e4e129ecea4e33e5b751befe7717f6a95f61c4063805",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Add test-discovery guard (check-test-discovery.mjs, discovery-parsers.mjs) to gate-discipline skill, re-derived under MIT from the Lushly check-test-discovery.mjs pattern named in lushly-dev/afd#1387 and #1519; report discovery register changes in report-test-changes.mjs; verify wheel ships the new scripts in package_smoke.py"
+    },
+    {
       "path": "src/botcore/skills/gate-discipline/scripts/report-test-changes.mjs",
       "origin": "local-after-import",
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "5e4b4126197f3f0962bb70dedeac5be5da3a3d69fe72782c6d015cbb383a5987",
+      "current_import_sha256": "0f5d456164dea46046a1314feb41d32294f2dd526894e5e07214da1a369a13d6",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Added the test-change report, scripts/report-test-changes.mjs, to the gate-discipline skill (lushly-dev/afd#1387, step 4). Written in AFD, not derived from Lushly; the two checks export the patterns it shares."
+      "import_reason": "Added the test-change report, scripts/report-test-changes.mjs, to the gate-discipline skill (lushly-dev/afd#1387, step 4). Written in AFD, not derived from Lushly; the two checks export the patterns it shares.; Add test-discovery guard (check-test-discovery.mjs, discovery-parsers.mjs) to gate-discipline skill, re-derived under MIT from the Lushly check-test-discovery.mjs pattern named in lushly-dev/afd#1387 and #1519; report discovery register changes in report-test-changes.mjs; verify wheel ships the new scripts in package_smoke.py"
     },
     {
       "path": "src/botcore/skills/git-manager/SKILL.md",

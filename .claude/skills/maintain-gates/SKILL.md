@@ -105,9 +105,9 @@ every probe "fail" for the wrong reason.
 
 ## The scripts
 
-All three need only Node and git and print each finding with its file and line. Wire the
-two checks into the gate CI runs; they read what `git ls-files` lists, so ignored
-directories stay out. The report is for the reviewer, not a gate.
+All four need only Node and git and print each finding with its file (and line where
+applicable). Wire the three checks into the gate CI runs; they read what `git ls-files`
+lists, so ignored directories stay out. The report is for the reviewer, not a gate.
 
 **`scripts/check-test-quarantine.mjs`: no silent test suppression.** `.only` always
 fails. An unconditional `.skip`, `.todo` or Playwright `.fixme` on `describe`, `it`,
@@ -145,7 +145,25 @@ Paths after the options limit the scan to those directories.
 `passWithNoTests` in any Vitest or Vite configuration, and the `--passWithNoTests` flag in
 any `package.json`, GitHub workflow or Lefthook configuration. Paths after the options add
 a repository's own scripts that start runners; a path with no file in it fails. A package
-with no tests yet adds its first test with its configuration instead.
+with no tests yet adds its first test with its config instead.
+
+**`scripts/check-test-discovery.mjs`: every test file is run by something.** The discovery
+half of the zero-tests guard: it lists every tracked test file across JavaScript and
+TypeScript (`TEST_FILE`), Python (`test_*.py`, `*_test.py`), C++ (`tests/` or `*_test.*`)
+and Rust (`tests/**/*.rs` and `src/**/*.rs` with `#[test]`), resolves what every active
+runner collects (Vitest/Vite, Playwright, Jest, `node --test` and active JS launcher
+scripts, pytest, CMake/CTest and Cargo), and fails on any file no active runner claims.
+When `.github/workflows/*.yml` or `lefthook.yml` exist, only runners reachable from a
+workflow, hook or workspace test script count as active, so a package whose suite nothing
+starts fails too. Reconciliation runs both ways: an active runner that matches zero test
+files fails, an empty test-file or active-runner set fails, and every exemption in
+`scripts/policy/test-discovery.json` (`--register <path>` for another) invalidates itself
+when its files disappear or become claimed by a runner. Start a clean register as
+`{"unrun": []}` (optional `"runners": [{"script", "include"}]` declares custom non-JS
+driver scripts, which must exist, be invoked by a workflow or hook and match at least one
+test file). Not seen, by design: dynamic runtime `include` expressions, Vitest `--project`
+CLI subsets, pytest `-k`/`-m` marker filters and Rust `src/` dead-module detection (the
+compiler checks `src/`). Paths after the options limit the scan to those directories.
 
 **`scripts/report-test-changes.mjs`: what a branch did to its tests.** It compares each
 changed test file at the merge base with the branch (`--base`, default `origin/main`;
@@ -157,7 +175,7 @@ changed test file at the merge base with the branch (`--base`, default `origin/m
 - an assertion line changed (an expected value, a matcher), and exact matchers traded for
   loose ones (`toEqual` for `toBeDefined`);
 - a snapshot that lost lines, and a runner config (Vitest, Vite, Playwright, Jest, pytest,
-  a tests `CMakeLists.txt`) or the quarantine register changed or added.
+  a tests `CMakeLists.txt`) or the quarantine/discovery policy register changed or added.
 
 It quotes the lines involved. A rename is compared with its old self; in the working
 tree, stage a move (`git mv`), or the untracked new file is unseen and the old one reads

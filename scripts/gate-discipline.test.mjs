@@ -8,6 +8,10 @@ import test, { after } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { findings } from '../endpoints/botcore/src/botcore/skills/gate-discipline/scripts/check-test-configs.mjs';
 import {
+	globToRegExp,
+	parseVitestConfig,
+} from '../endpoints/botcore/src/botcore/skills/gate-discipline/scripts/check-test-discovery.mjs';
+import {
 	findSuppressions,
 	maskSource,
 } from '../endpoints/botcore/src/botcore/skills/gate-discipline/scripts/check-test-quarantine.mjs';
@@ -97,17 +101,22 @@ test('test configs: reads the flag in a path the caller adds, and only there', (
 	assert.match(typo.stderr, /tool: git lists no file there/);
 });
 
-test('both scripts run their check when started through a symlinked folder', () => {
+test('all check scripts run their check when started through a symlinked folder', () => {
 	const root = fixture({
 		'scripts/policy/test-quarantine.json': register([]),
+		'scripts/policy/test-discovery.json': JSON.stringify({ unrun: [] }),
 		'src/a.test.ts': "it.only('a', () => {});\n",
-		'vitest.config.ts': config('\t\tpassWithNoTests: true,'),
+		'vitest.config.ts': config("\t\tpassWithNoTests: true,\n\t\tinclude: ['other/**/*.test.ts'],"),
 	});
 	const copy = join(root, 'skill-scripts');
 	cpSync(scripts, copy, { recursive: true });
 	const link = join(root, 'linked-scripts');
 	symlinkSync(copy, link, 'junction');
-	for (const script of ['check-test-quarantine.mjs', 'check-test-configs.mjs']) {
+	for (const script of [
+		'check-test-quarantine.mjs',
+		'check-test-configs.mjs',
+		'check-test-discovery.mjs',
+	]) {
 		const result = spawnSync(process.execPath, [join(link, script), '--root', root], {
 			encoding: 'utf8',
 		});
@@ -651,5 +660,437 @@ test('test changes: reads from the merge base, nets a move into a new file, and 
 			['1 lines removed, 1 added', 'export default { retries: 0 };'],
 			['new, 1 lines', 'collect_ignore_glob = ["test_*.py"]'],
 		]
+	);
+});
+
+// check-test-discovery.mjs
+
+const discoveryPolicy = (body = {}) => JSON.stringify({ unrun: [], ...body });
+
+test('test discovery: parses arrow-function vitest configs, arrow properties inside defineConfig, projects, coverage nesting and globs', () => {
+	const arrow = parseVitestConfig(`
+		export default defineConfig(({ mode }) => ({
+			test: {
+				include: ['src/**/*.test.ts'],
+				coverage: { include: ['src/**/*.ts'], exclude: ['src/**/*.test.ts'] },
+			},
+		}));
+	`);
+	assert.deepEqual(arrow.include, ['src/**/*.test.ts']);
+	assert.deepEqual(arrow.exclude, []);
+
+	// An arrow callback inside a config property must not derail findDefaultObject.
+	const withInnerArrow = parseVitestConfig(`
+		export default defineConfig({
+			test: {
+				include: ['src/**/*.test.ts'],
+				exclude: ['src/e2e/**'],
+				onConsoleLog: () => false,
+			},
+		});
+	`);
+	assert.deepEqual(withInnerArrow.include, ['src/**/*.test.ts']);
+	assert.deepEqual(withInnerArrow.exclude, ['src/e2e/**']);
+
+	const withProjects = parseVitestConfig(`
+		export default defineConfig({
+			test: {
+				projects: [
+					{ test: { root: 'web', include: ['tests/**/*.spec.ts'] } },
+				],
+			},
+		});
+	`);
+	assert.equal(withProjects.projects.length, 1);
+	assert.deepEqual(withProjects.projects[0].include, ['tests/**/*.spec.ts']);
+
+	assert.ok(globToRegExp('src/**/*.test.?(c|m)[jt]s').test('src/a/b.test.mts'));
+	assert.ok(!globToRegExp('src/**/*.test.ts').test('src/a/b.spec.ts'));
+});
+
+test('test discovery: passes a clean polyglot fixture and catches planted orphans across all four languages', () => {
+	const baseFiles = {
+		'scripts/policy/test-discovery.json': discoveryPolicy(),
+		'pnpm-workspace.yaml': 'packages:\n  - "packages/*"\n',
+		'package.json': '{"name":"root","scripts":{"test:tooling":"node scripts/run.mjs"}}\n',
+		'lefthook.yml':
+			'check:\n  commands:\n    test:\n      run: pnpm -r test\n    tooling:\n      run: pnpm test:tooling\n',
+		'.github/workflows/ci.yml': [
+			'on: pull_request',
+			'jobs:',
+			'  test:',
+			'    steps:',
+			'      - run: pnpm check',
+			'      - working-directory: py',
+			'        run: uv run pytest -q',
+			'      - working-directory: cpp',
+			'        run: ctest --preset dev',
+			'      - working-directory: rust',
+			'        run: cargo test',
+		].join('\n'),
+		'packages/a/package.json': '{"name":"pkg-a","scripts":{"test":"vitest run"}}\n',
+		'packages/a/vitest.config.ts': config("\t\tinclude: ['src/**/*.test.ts'],"),
+		'packages/a/src/ok.test.ts': "it('ok', () => {});\n",
+		'scripts/run.mjs': "spawn('node', ['--test', 'scripts/tool.test.mjs']);\n",
+		'scripts/tool.test.mjs': `${'import'} './helper.test.mjs';\n`,
+		'scripts/helper.test.mjs': "test('h', () => {});\n",
+		'py/pyproject.toml': '[tool.pytest.ini_options]\ntestpaths = ["tests"]\n',
+		'py/tests/test_ok.py': 'def test_ok():\n    assert True\n',
+		'cpp/CMakeLists.txt': 'add_executable(t tests/ok_test.cpp)\nadd_test(NAME t COMMAND t)\n',
+		'cpp/tests/ok_test.cpp': 'TEST_CASE("ok") {}\n',
+		'rust/Cargo.toml': '[package]\nname = "demo"\n',
+		'rust/src/lib.rs': '#[test]\nfn unit() {}\n',
+		'rust/tests/int.rs': 'mod common;\n#[test]\nfn ok() {}\n',
+		'rust/tests/common/mod.rs': 'pub fn helper() {}\n',
+	};
+
+	// Clean control passes.
+	const clean = run('check-test-discovery.mjs', fixture(baseFiles));
+	assert.equal(clean.status, 0, clean.stderr);
+	assert.match(clean.stdout, /Test discovery check passed: 8 test files \(8 claimed/);
+
+	// Plant one orphan in every language (including one level deeper).
+	const planted = run(
+		'check-test-discovery.mjs',
+		fixture({
+			...baseFiles,
+			'packages/a/src/nested/deep/orphan.spec.ts': "it('lost', () => {});\n",
+			'scripts/unlisted.test.mjs': "test('lost', () => {});\n",
+			'py/extra/test_orphan.py': 'def test_lost():\n    assert True\n',
+			'cpp/tests/orphan_test.cpp': 'TEST_CASE("lost") {}\n',
+			'rust/tests/nested/orphan.rs': '#[test]\nfn lost() {}\n',
+		})
+	);
+	assert.equal(planted.status, 1);
+	assert.match(
+		planted.stderr,
+		/packages\/a\/src\/nested\/deep\/orphan\.spec\.ts \(JavaScript\): not claimed/
+	);
+	assert.match(planted.stderr, /scripts\/unlisted\.test\.mjs \(JavaScript\): not claimed/);
+	assert.match(planted.stderr, /py\/extra\/test_orphan\.py \(Python\): not claimed/);
+	assert.match(planted.stderr, /cpp\/tests\/orphan_test\.cpp \(C\+\+\): not claimed/);
+	assert.match(planted.stderr, /rust\/tests\/nested\/orphan\.rs \(Rust\): not claimed/);
+});
+
+test('test discovery: catches packages and crates not started by CI, --ignore exclusions, and --lib-only cargo', () => {
+	const result = run(
+		'check-test-discovery.mjs',
+		fixture({
+			'scripts/policy/test-discovery.json': discoveryPolicy(),
+			'.github/workflows/ci.yml': [
+				'on: pull_request',
+				'jobs:',
+				'  test:',
+				'    steps:',
+				'      - working-directory: py-run',
+				'        run: pytest tests/ --ignore=tests/integration',
+				'      - working-directory: crate-lib',
+				'        run: cargo test --lib',
+			].join('\n'),
+			'py-run/tests/test_core.py': 'def test_ok(): pass\n',
+			'py-run/tests/integration/test_ignored.py': 'def test_ig(): pass\n',
+			// Exact #1359 / #1793 class: package has pyproject.toml + tests, but no workflow runs it.
+			'py-unrun/pyproject.toml': '[tool.pytest.ini_options]\ntestpaths = ["tests"]\n',
+			'py-unrun/tests/test_never_run.py': 'def test_x(): pass\n',
+			// Cargo --lib runs src/ unit tests, NOT tests/*.rs integration tests.
+			'crate-lib/Cargo.toml': '[package]\nname = "crate-lib"\n',
+			'crate-lib/src/lib.rs': '#[test]\nfn u() {}\n',
+			'crate-lib/tests/int_unrun.rs': '#[test]\nfn i() {}\n',
+			// JS package outside workspace with no workflow running it.
+			'unwired/package.json': '{"name":"unwired","scripts":{"test":"vitest run"}}\n',
+			'unwired/vitest.config.ts': config("\t\tinclude: ['src/**/*.test.ts'],"),
+			'unwired/src/never.test.ts': "it('x', () => {});\n",
+		})
+	);
+	assert.equal(result.status, 1);
+	assert.match(
+		result.stderr,
+		/py-run\/tests\/integration\/test_ignored\.py \(Python\): not claimed/
+	);
+	assert.match(result.stderr, /py-unrun\/tests\/test_never_run\.py \(Python\): not claimed/);
+	assert.match(result.stderr, /crate-lib\/tests\/int_unrun\.rs \(Rust\): not claimed/);
+	assert.match(result.stderr, /unwired\/src\/never\.test\.ts \(JavaScript\): not claimed/);
+});
+
+test('test discovery: reconciles both ways — fails on dead runners, unwired custom drivers, and stale or recovered exemptions', () => {
+	// 1. Active runner matching 0 test files fails (reverse reconciliation).
+	const deadRunner = run(
+		'check-test-discovery.mjs',
+		fixture({
+			'scripts/policy/test-discovery.json': discoveryPolicy(),
+			'vitest.config.ts': config("\t\tinclude: ['src/**/*.test.ts'],"),
+			'vitest.dead.config.ts': config("\t\tinclude: ['missing/**/*.test.ts'],"),
+			'src/a.test.ts': "it('a', () => {});\n",
+		})
+	);
+	assert.equal(deadRunner.status, 1);
+	assert.match(
+		deadRunner.stderr,
+		/vitest\.dead\.config\.ts: active test runner matched no tracked test file/
+	);
+
+	// 2. Valid `unrun` exemption passes; recovered exemption fails; stale exemption fails.
+	const entry = {
+		path: 'orphan/lost.test.ts',
+		owner: 'maintainer',
+		reason: 'Tracked for wiring into the browser suite once runner lands',
+		issue: '#99',
+	};
+	const exempted = run(
+		'check-test-discovery.mjs',
+		fixture({
+			'scripts/policy/test-discovery.json': discoveryPolicy({ unrun: [entry] }),
+			'vitest.config.ts': config("\t\tinclude: ['src/**/*.test.ts'],"),
+			'src/a.test.ts': "it('a', () => {});\n",
+			'orphan/lost.test.ts': "it('lost', () => {});\n",
+		})
+	);
+	assert.equal(exempted.status, 0, exempted.stderr);
+	assert.match(exempted.stdout, /1 registered unrun/);
+
+	const recovered = run(
+		'check-test-discovery.mjs',
+		fixture({
+			'scripts/policy/test-discovery.json': discoveryPolicy({
+				unrun: [{ ...entry, path: 'src/a.test.ts' }],
+			}),
+			'vitest.config.ts': config("\t\tinclude: ['src/**/*.test.ts'],"),
+			'src/a.test.ts': "it('a', () => {});\n",
+		})
+	);
+	assert.equal(recovered.status, 1);
+	assert.match(recovered.stderr, /already claimed by vitest\.config\.ts/);
+
+	const stale = run(
+		'check-test-discovery.mjs',
+		fixture({
+			'scripts/policy/test-discovery.json': discoveryPolicy({ unrun: [entry] }),
+			'vitest.config.ts': config("\t\tinclude: ['src/**/*.test.ts'],"),
+			'src/a.test.ts': "it('a', () => {});\n",
+		})
+	);
+	assert.equal(stale.status, 1);
+	assert.match(stale.stderr, /matches no tracked test file/);
+
+	// 3. Custom runner script in policy must be invoked by CI when workflows exist.
+	const unwiredDriver = run(
+		'check-test-discovery.mjs',
+		fixture({
+			'scripts/policy/test-discovery.json': discoveryPolicy({
+				runners: [{ script: 'scripts/driver.py', include: ['pkg/tests/**'] }],
+			}),
+			'.github/workflows/ci.yml':
+				'on: pull_request\njobs:\n  ci:\n    steps:\n      - run: vitest run\n',
+			'vitest.config.ts': config("\t\tinclude: ['src/**/*.test.ts'],"),
+			'src/a.test.ts': "it('a', () => {});\n",
+			'scripts/driver.py': 'print("run")\n',
+			'pkg/tests/test_a.py': 'def test_a(): pass\n',
+		})
+	);
+	assert.equal(unwiredDriver.status, 1);
+	assert.match(
+		unwiredDriver.stderr,
+		/runner script scripts\/driver\.py is not invoked by any workflow or hook/
+	);
+});
+
+test('test discovery: fails on missing register, empty suite, malformed entries, and respects excludes and Playwright', () => {
+	const missing = run(
+		'check-test-discovery.mjs',
+		fixture({ 'vitest.config.ts': config(''), 'src/a.test.ts': "it('a', () => {});\n" })
+	);
+	assert.equal(missing.status, 1);
+	assert.match(missing.stderr, /scripts\/policy\/test-discovery\.json is missing/);
+
+	const empty = run(
+		'check-test-discovery.mjs',
+		fixture({ 'scripts/policy/test-discovery.json': discoveryPolicy(), 'src/app.ts': '' })
+	);
+	assert.equal(empty.status, 1);
+	assert.match(empty.stderr, /found no test file/);
+
+	// Vitest exclude via const spread hides a test unless another runner claims it.
+	const excluded = run(
+		'check-test-discovery.mjs',
+		fixture({
+			'scripts/policy/test-discovery.json': discoveryPolicy(),
+			'vitest.config.ts': [
+				"const browser = ['src/b.test.ts'];",
+				"export default defineConfig({ test: { include: ['src/**/*.test.ts'], exclude: [...browser] } });",
+			].join('\n'),
+			'src/a.test.ts': "it('a', () => {});\n",
+			'src/b.test.ts': "it('b', () => {});\n",
+		})
+	);
+	assert.equal(excluded.status, 1);
+	assert.match(excluded.stderr, /src\/b\.test\.ts \(JavaScript\): not claimed/);
+
+	// Playwright testDir + testMatch catches files outside testMatch.
+	const pw = run(
+		'check-test-discovery.mjs',
+		fixture({
+			'scripts/policy/test-discovery.json': discoveryPolicy(),
+			'playwright.config.ts':
+				'export default defineConfig({ testDir: ".", testMatch: "**/*.pw.spec.ts" });\n',
+			'src/a.pw.spec.ts': "test('a', () => {});\n",
+			'src/orphan.spec.ts': "test('b', () => {});\n",
+		})
+	);
+	assert.equal(pw.status, 1);
+	assert.match(pw.stderr, /src\/orphan\.spec\.ts \(JavaScript\): not claimed/);
+	assert.doesNotMatch(pw.stderr, /src\/a\.pw\.spec\.ts/);
+
+	// Malformed unrun and runner entries (short reason, root path ".", missing include) fail loudly.
+	const malformed = run(
+		'check-test-discovery.mjs',
+		fixture({
+			'scripts/policy/test-discovery.json': JSON.stringify({
+				runners: [{ script: 'scripts/run.py', include: [] }],
+				unrun: [
+					{ path: 'src/a.test.ts', owner: 'm', reason: 'too short', issue: '#1' },
+					{
+						path: './',
+						owner: 'maintainer',
+						reason: 'Root path must be rejected so it cannot exempt everything',
+						issue: '#2',
+					},
+				],
+			}),
+			'vitest.config.ts': config("\t\tinclude: ['src/**/*.test.ts'],"),
+			'src/a.test.ts': "it('a', () => {});\n",
+		})
+	);
+	assert.equal(malformed.status, 1);
+	assert.match(malformed.stderr, /malformed runner entry/);
+	assert.match(malformed.stderr, /malformed unrun entry/);
+	assert.match(malformed.stderr, /normalizes to the repository root/);
+});
+
+test('test discovery: enforces explicit --config, portable Lefthook hooks, Jest, node --test, custom runners and report-test-changes', () => {
+	// 1. Missing explicit --config fails instead of falling back to catch-all defaults.
+	const badConfig = run(
+		'check-test-discovery.mjs',
+		fixture({
+			'scripts/policy/test-discovery.json': discoveryPolicy(),
+			'package.json':
+				'{"name":"app","scripts":{"test":"vitest run --config vitest.typo.config.ts"}}\n',
+			'src/a.test.ts': "it('a', () => {});\n",
+		})
+	);
+	assert.equal(badConfig.status, 1);
+	assert.match(
+		badConfig.stderr,
+		/vitest\.typo\.config\.ts: explicit vitest --config file is not listed by git/
+	);
+
+	// 2. Portable Lefthook `pre-push:` hook activates tests; removing test from `check:` makes `pnpm check` fail.
+	const prePushHook = run(
+		'check-test-discovery.mjs',
+		fixture({
+			'scripts/policy/test-discovery.json': discoveryPolicy(),
+			'lefthook.yml':
+				'pre-push:\n  commands:\n    unit:\n      root: web/\n      run: pnpm vitest run\n',
+			'web/vitest.config.ts': config("\t\tinclude: ['src/**/*.test.ts'],"),
+			'web/src/a.test.ts': "it('a', () => {});\n",
+		})
+	);
+	assert.equal(prePushHook.status, 0, prePushHook.stderr);
+
+	const checkWithoutTest = run(
+		'check-test-discovery.mjs',
+		fixture({
+			'scripts/policy/test-discovery.json': discoveryPolicy(),
+			'pnpm-workspace.yaml': 'packages:\n  - "packages/*"\n',
+			'package.json': '{"name":"root","scripts":{"check":"lefthook run check"}}\n',
+			'lefthook.yml': 'check:\n  commands:\n    lint:\n      run: biome check .\n',
+			'.github/workflows/ci.yml':
+				'on: pull_request\njobs:\n  ci:\n    steps:\n      - run: pnpm check\n',
+			'packages/a/package.json': '{"name":"a","scripts":{"test":"vitest run"}}\n',
+			'packages/a/vitest.config.ts': config("\t\tinclude: ['src/**/*.test.ts'],"),
+			'packages/a/src/a.test.ts': "it('a', () => {});\n",
+		})
+	);
+	assert.equal(checkWithoutTest.status, 1);
+	assert.match(
+		checkWithoutTest.stderr,
+		/packages\/a\/src\/a\.test\.ts \(JavaScript\): not claimed/
+	);
+
+	// 3. Jest config + direct `node --test` (directory, exact file, and dead target) + wired/dead custom driver.
+	const jestAndNode = run(
+		'check-test-discovery.mjs',
+		fixture({
+			'scripts/policy/test-discovery.json': discoveryPolicy({
+				runners: [{ script: 'scripts/py_driver.py', include: ['py/pkg/*/tests/**'] }],
+			}),
+			'.github/workflows/ci.yml': [
+				'on: pull_request',
+				'jobs:',
+				'  all:',
+				'    steps:',
+				'      - run: jest',
+				'        working-directory: web',
+				'      - run: node --test tools/',
+				'      - run: python scripts/py_driver.py',
+			].join('\n'),
+			'web/jest.config.js': 'module.exports = { testMatch: ["**/__tests__/**/*.test.ts"] };\n',
+			'web/__tests__/ok.test.ts': "test('ok', () => {});\n",
+			'tools/a.test.mjs': "test('t', () => {});\n",
+			'scripts/py_driver.py': 'print("ok")\n',
+			'py/pkg/one/tests/test_one.py': 'def test_one(): pass\n',
+		})
+	);
+	assert.equal(jestAndNode.status, 0, jestAndNode.stderr);
+
+	const deadNodeTest = run(
+		'check-test-discovery.mjs',
+		fixture({
+			'scripts/policy/test-discovery.json': discoveryPolicy({
+				runners: [{ script: 'scripts/dead_driver.py', include: ['py/missing/**'] }],
+			}),
+			'.github/workflows/ci.yml': [
+				'on: pull_request',
+				'jobs:',
+				'  all:',
+				'    steps:',
+				'      - run: node --test tools/ok.test.mjs',
+				'      - run: node --test tools/deleted.test.mjs',
+				'      - run: python scripts/dead_driver.py',
+			].join('\n'),
+			'tools/ok.test.mjs': "test('t', () => {});\n",
+			'scripts/dead_driver.py': 'print("dead")\n',
+		})
+	);
+	assert.equal(deadNodeTest.status, 1);
+	assert.match(
+		deadNodeTest.stderr,
+		/node --test \(\. tools\/deleted\.test\.mjs\): active test runner matched no tracked test file/
+	);
+	assert.match(
+		deadNodeTest.stderr,
+		/scripts\/dead_driver\.py: active test runner matched no tracked test file/
+	);
+
+	// 4. report-test-changes.mjs flags edits to scripts/policy/test-discovery.json.
+	const { root } = history(
+		{ 'scripts/policy/test-discovery.json': discoveryPolicy() },
+		{
+			'scripts/policy/test-discovery.json': discoveryPolicy({
+				unrun: [
+					{
+						path: 'orphan/x.test.ts',
+						owner: 'maintainer',
+						reason: 'Temporary exemption while runner is being wired up',
+						issue: '#10',
+					},
+				],
+			}),
+		}
+	);
+	const reportRes = run('report-test-changes.mjs', root, '--base', 'main', '--json');
+	assert.equal(reportRes.status, 0, reportRes.stderr);
+	assert.deepEqual(
+		JSON.parse(reportRes.stdout).findings.map(({ file, kind }) => `${kind} ${file}`),
+		['config-changed scripts/policy/test-discovery.json']
 	);
 });

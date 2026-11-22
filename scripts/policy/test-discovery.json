@@ -1,0 +1,71 @@
+{
+	"$comment": "Test discovery policy for check-test-discovery.mjs. Custom driver scripts under `runners` must be invoked by a workflow or hook and claim at least one test file. Entries under `unrun` cover known unrun test files with owner, reason and tracking issue; reconciliation runs both ways, so a deleted or newly-run test fails until its entry is removed.",
+	"runners": [
+		{
+			"script": "endpoints/botcore/scripts/package_tests.py",
+			"include": ["endpoints/botcore/packages/*/tests/**"]
+		}
+	],
+	"unrun": [
+		{
+			"path": "endpoints/botcore/botcore-connectors/tests",
+			"owner": "Falkicon",
+			"reason": "botcore.yml lints botcore-connectors but does not yet run its pytest suite",
+			"issue": "#1793"
+		},
+		{
+			"path": "endpoints/botcore/plugins/botcore-teams/tests",
+			"owner": "Falkicon",
+			"reason": "botcore.yml lints botcore-teams but does not yet run its pytest suite",
+			"issue": "#1793"
+		},
+		{
+			"path": "endpoints/botcore/tests/integration/test_scenarios.py",
+			"owner": "Falkicon",
+			"reason": "Stateful optional plugin integration scenarios excluded from core gate via --ignore=tests/integration (endpoints/botcore/AGENTS.md)",
+			"issue": "#1793"
+		},
+		{
+			"path": "foundations/fast-af/packages/element/packages/fast-element/src/declarative/attribute-map.spec.ts",
+			"owner": "Falkicon",
+			"reason": "Upstream Microsoft FAST .spec.ts file outside playwright.config.ts (**/*.pw.spec.ts) and playwright.declarative.config.ts (test/declarative/fixtures)",
+			"issue": "#1519"
+		},
+		{
+			"path": "foundations/fast-af/packages/element/packages/fast-element/src/declarative/observer-map.spec.ts",
+			"owner": "Falkicon",
+			"reason": "Upstream Microsoft FAST .spec.ts file outside playwright.config.ts (**/*.pw.spec.ts) and playwright.declarative.config.ts (test/declarative/fixtures)",
+			"issue": "#1519"
+		},
+		{
+			"path": "foundations/fast-af/packages/element/packages/fast-element/src/declarative/schema.spec.ts",
+			"owner": "Falkicon",
+			"reason": "Upstream Microsoft FAST .spec.ts file outside playwright.config.ts (**/*.pw.spec.ts) and playwright.declarative.config.ts (test/declarative/fixtures)",
+			"issue": "#1519"
+		},
+		{
+			"path": "foundations/fast-af/packages/element/packages/fast-element/src/declarative/utilities.spec.ts",
+			"owner": "Falkicon",
+			"reason": "Upstream Microsoft FAST .spec.ts file outside playwright.config.ts (**/*.pw.spec.ts) and playwright.declarative.config.ts (test/declarative/fixtures)",
+			"issue": "#1519"
+		},
+		{
+			"path": "python/examples/test_example.py",
+			"owner": "Falkicon",
+			"reason": "Documentation example demonstrating afd.testing assertions, outside python/pyproject.toml testpaths = ['tests']",
+			"issue": "#1519"
+		},
+		{
+			"path": "docs/features/active/ideas/prototype/test_prototype.py",
+			"owner": "Falkicon",
+			"reason": "Standalone design-phase prototype test run manually per its module docstring while the ideas proposal is active",
+			"issue": "#1519"
+		},
+		{
+			"path": "docs/features/active/mail/prototype/test_census.py",
+			"owner": "Falkicon",
+			"reason": "Standalone design-phase prototype test run manually via unittest while the mail proposal is active",
+			"issue": "#1519"
+		}
+	]
+}

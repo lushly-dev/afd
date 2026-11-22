@@ -14,7 +14,7 @@
  * - JavaScript matchers loosened: exact matchers (`toBe`, `toEqual`...) fewer while loose
  *   ones (`toBeDefined`, `toBeTruthy`...) more;
  * - a snapshot that lost lines, a test runner config (Vitest, Vite, Playwright, Jest, pytest,
- *   a tests CMakeLists.txt) or the quarantine register changed or added.
+ *   a tests CMakeLists.txt) or the quarantine or discovery policy register changed or added.
  *
  * It is a report, not a gate: it exits 0 whatever it finds, because a deleted test is often
  * right (the code it tested went too). What it removes is the chance that nobody noticed.
@@ -30,7 +30,7 @@
  * still counts.
  *
  * Needs only Node and git. Usage:
- *   node report-test-changes.mjs [--root <dir>] [--base <ref>] [--head <ref>] [--json]
+ *   node report-test-changes.mjs [--root <dir>] [--base <ref>] [--head <ref>] [--register <path>] [--discovery-register <path>] [--json]
  * The base defaults to origin/main and is compared from its merge base with the head. With
  * no head, the working tree is compared, so uncommitted edits are included.
  */
@@ -39,6 +39,7 @@ import { readFileSync, realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CONFIG } from './check-test-configs.mjs';
+import { DEFAULT_REGISTER as DEFAULT_DISCOVERY_REGISTER } from './check-test-discovery.mjs';
 import {
 	DEFAULT_REGISTER,
 	findSuppressions,
@@ -372,6 +373,7 @@ export function reportTestChanges({
 	base = DEFAULT_BASE,
 	head,
 	register = DEFAULT_REGISTER,
+	discoveryRegister = DEFAULT_DISCOVERY_REGISTER,
 } = {}) {
 	const git = gitRunner(root);
 	let mergeBase;
@@ -417,7 +419,7 @@ export function reportTestChanges({
 		);
 		const kind = /(^|\/)__snapshots__\/|\.snap$/.test(to)
 			? 'snapshot-changed'
-			: CONFIG.test(to) || RUNNER_CONFIG.test(to) || to === register
+			: CONFIG.test(to) || RUNNER_CONFIG.test(to) || to === register || to === discoveryRegister
 				? 'config-changed'
 				: undefined;
 		if (candidates.length === 0 && !kind) continue;
@@ -526,6 +528,7 @@ function parseArguments(argv) {
 		else if (argv[i] === '--base') options.base = argv[++i];
 		else if (argv[i] === '--head') options.head = argv[++i];
 		else if (argv[i] === '--register') options.register = argv[++i];
+		else if (argv[i] === '--discovery-register') options.discoveryRegister = argv[++i];
 		else if (argv[i] === '--json') options.json = true;
 		else throw new Error(`Unknown argument ${argv[i]}.`);
 	}
