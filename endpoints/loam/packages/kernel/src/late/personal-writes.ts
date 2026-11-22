@@ -20,12 +20,18 @@ const DROPPED = '';
  * names the next person, is neither the leaving person's change nor the next one's (4.4). From here on every
  * read and write is keyed by `person`, the person the shell is for (4.4; the review of step 2's B2).
  */
+export interface QuietRunner {
+	(fn: () => void): void;
+	/** Whether `quiet` is active right now, so `writeThrough` skips flushing dropped resets. */
+	active(): boolean;
+}
+
 export function personalWrites(
 	personal: PersonalStore,
 	store: DataAdapter,
 	viewState: Pick<ViewStateRegistry, 'set' | 'replace'>,
 	person: () => string | undefined
-): (fn: () => void) => void {
+): QuietRunner {
 	// First paint's key tells a person's record from the profile's: it suffixes only theirs (4.5).
 	const firstKey = personal.key;
 	const isPersonal = (id: string) => firstKey(id) !== id;
@@ -75,7 +81,7 @@ export function personalWrites(
 			if (key(id) !== DROPPED) await store.remove(table, key(id));
 		},
 	});
-	return (fn) => {
+	const run = (fn: () => void): void => {
 		quiet = true;
 		try {
 			fn();
@@ -83,4 +89,5 @@ export function personalWrites(
 			quiet = false;
 		}
 	};
+	return Object.assign(run, { active: () => quiet });
 }

@@ -1242,7 +1242,7 @@ export async function createLateParts(
 		],
 		copilot,
 		confirmations,
-		writeThrough: writeThrough(deps.viewState, deps.state),
+		writeThrough: writeThrough(deps.viewState, deps.state, quiet?.active),
 		// From `BOOT_ONLY` itself, so the boot registry can hold nothing else (2.2).
 		// The server registers none of the three settles (9.5): no person's session or membership is held there.
 		bootOnly: BOOT_ONLY.filter(

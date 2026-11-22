@@ -709,6 +709,209 @@ describe('#861: loam.scope survives a reload made at once', () => {
 		).toEqual({ project: null });
 		await first.kernel.dispose();
 	});
+
+	/** A store that can hold project batch writes and hold or refuse `loam.scope` / `loam.apps` writes. */
+	class GatedScopeStore extends MemoryAdapter {
+		projectHold: Promise<void> | undefined;
+		scopeHold: Promise<void> | undefined;
+		refuseScope = false;
+		scopeAttempts = 0;
+		private reachProject: () => void = () => {};
+		private reachScope: () => void = () => {};
+		projectReached: Promise<void> = new Promise((resolve) => {
+			this.reachProject = resolve;
+		});
+		scopeReached: Promise<void> = new Promise((resolve) => {
+			this.reachScope = resolve;
+		});
+		private async gateViewState(table: string, id: string | undefined): Promise<void> {
+			if (table !== 'settings' || id !== 'loam.scope') return;
+			this.scopeAttempts++;
+			if (this.refuseScope) throw new Error('HTTP 500: storage refused');
+			if (this.scopeHold) this.reachScope();
+			await this.scopeHold;
+		}
+		override async update<T>(table: string, id: string, patch: Partial<T>): Promise<T> {
+			await this.gateViewState(table, id);
+			return super.update(table, id, patch);
+		}
+		override async create<T>(table: string, data: Partial<T>): Promise<T> {
+			await this.gateViewState(table, (data as { id?: string }).id);
+			return super.create(table, data);
+		}
+		override async batch(operations: Parameters<MemoryAdapter['batch']>[0]) {
+			if (this.projectHold && operations.some((op) => op.path.startsWith('/project/'))) {
+				this.reachProject();
+				await this.projectHold;
+			}
+			return super.batch(operations);
+		}
+	}
+
+	it('#1679: starts writing through loam.scope and loam.apps when changed, holding concurrent calls before putProject finishes', async () => {
+		const store = new GatedScopeStore();
+		const journal = new MemoryJournalSink();
+		const first = await scoped({ store, journal });
+		expect((await first.kernel.call('scope-set', { project: 'atlas' })).success).toBe(true);
+		expect((await first.kernel.call('app-open', { instance: 'tasks' })).success).toBe(true);
+
+		let releaseProject!: () => void;
+		let releaseScope!: () => void;
+		store.projectHold = new Promise((resolve) => {
+			releaseProject = resolve;
+		});
+		store.scopeHold = new Promise((resolve) => {
+			releaseScope = resolve;
+		});
+
+		const archiving = first.kernel.call('project-archive', { project: 'atlas' });
+		try {
+			// `project-archive` moved scope and left `tasks`, and is now awaiting `putProject`.
+			await store.projectReached;
+			// The write-through flush must already be in flight immediately (well before the 300 ms debounce),
+			// before `project-archive` returns.
+			await Promise.race([
+				store.scopeReached,
+				new Promise((_, reject) =>
+					setTimeout(
+						() =>
+							reject(
+								new Error('loam.scope write did not start while project-archive awaited putProject')
+							),
+						150
+					)
+				),
+			]);
+
+			// A concurrent call that ends inside that window must wait for the in-flight write-through before journaling.
+			let concurrentSettled = false;
+			const concurrent = first.kernel.call('layout-get').then((result) => {
+				concurrentSettled = true;
+				return result;
+			});
+			await new Promise((resolve) => setTimeout(resolve, 20));
+			expect(concurrentSettled).toBe(false);
+			expect((await journal.read()).some((entry) => entry.command === 'layout-get')).toBe(false);
+
+			// Once the view-state write finishes, the concurrent call resolves and the store already holds the new state,
+			// even while `project-archive` is still awaiting `putProject`.
+			releaseScope();
+			expect((await concurrent).success).toBe(true);
+			expect(
+				((await store.get('settings', 'loam.scope')) as { value?: unknown } | null)?.value
+			).toEqual({ project: null });
+			expect(
+				((await store.get('settings', 'loam.apps')) as { value?: unknown } | null)?.value
+			).toEqual({ active: null, section: 'projects', path: '' });
+
+			// A reload at this point boots into the workspace with `tasks` closed, matching what the concurrent call saw.
+			const second = await scoped({
+				store,
+				journal,
+				clock: createSteppingClock(Date.UTC(2026, 0, 2)),
+			});
+			expect((await second.kernel.call('scope-get')).data).toMatchObject({ scope: WORKSPACE });
+			expect(
+				(await second.kernel.call<{ active: string | null }>('app-list')).data?.active
+			).toBeNull();
+			await second.kernel.dispose();
+		} finally {
+			releaseScope();
+			releaseProject();
+		}
+
+		const archived = await archiving;
+		expect(archived.success).toBe(true);
+		expect(archived.warnings ?? []).toEqual([]);
+		await first.kernel.dispose();
+	});
+
+	it('#1679: warns once when an immediate write-through fails before the handler returns, and retries on the next call', async () => {
+		const store = new GatedScopeStore();
+		const journal = new MemoryJournalSink();
+		const first = await scoped({ store, journal });
+		expect((await first.kernel.call('scope-set', { project: 'atlas' })).success).toBe(true);
+
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		try {
+			store.refuseScope = true;
+			store.scopeAttempts = 0;
+			let releaseProject!: () => void;
+			store.projectHold = new Promise((resolve) => {
+				releaseProject = resolve;
+			});
+
+			const archiving = first.kernel.call('project-archive', { project: 'atlas' });
+			let attemptsDuringHandler = 0;
+			try {
+				await store.projectReached;
+				// Wait deterministically for the immediate write-through attempt to fail and log while `project-archive`
+				// is still awaiting `putProject`.
+				await vi.waitFor(() => expect(warn).toHaveBeenCalled());
+				attemptsDuringHandler = store.scopeAttempts;
+				expect(attemptsDuringHandler).toBeGreaterThan(0);
+			} finally {
+				releaseProject();
+			}
+			const archived = await archiving;
+			expect(archived.success).toBe(true);
+			expect(archived.warnings).toEqual([
+				expect.objectContaining({
+					code: 'VIEW_STATE_NOT_SAVED',
+					details: { records: ['loam.scope'] },
+				}),
+			]);
+			// No redundant second flush inside the same call that already attempted the write.
+			expect(store.scopeAttempts).toBe(attemptsDuringHandler);
+
+			// The next call retries and saves the record once the store accepts writes again.
+			store.refuseScope = false;
+			const read = await first.kernel.call('layout-get');
+			expect(read.warnings ?? []).toEqual([]);
+			expect(
+				((await store.get('settings', 'loam.scope')) as { value?: unknown } | null)?.value
+			).toEqual({ project: null });
+		} finally {
+			warn.mockRestore();
+			await first.kernel.dispose();
+		}
+	});
+
+	it('#1679: queues a second write-through behind an in-flight drain when another record changes meanwhile', async () => {
+		const store = new GatedScopeStore();
+		const first = await scoped({ store });
+		let releaseScope!: () => void;
+		store.scopeHold = new Promise((resolve) => {
+			releaseScope = resolve;
+		});
+
+		const switchCall = first.kernel.call('scope-set', { project: 'atlas' });
+		let opened!: Promise<Awaited<ReturnType<typeof first.kernel.call>>>;
+		try {
+			// Wait until the first flush has started draining `loam.scope` in the store adapter.
+			await store.scopeReached;
+			// While F1 is draining `loam.scope`, a second call changes `loam.apps`, queuing F2 behind F1.
+			let openedSettled = false;
+			opened = first.kernel.call('app-open', { instance: 'tasks' }).then((result) => {
+				openedSettled = true;
+				return result;
+			});
+			await new Promise((resolve) => setTimeout(resolve, 20));
+			expect(openedSettled).toBe(false);
+		} finally {
+			releaseScope();
+		}
+
+		expect((await switchCall).success).toBe(true);
+		expect((await opened).success).toBe(true);
+		expect(
+			((await store.get('settings', 'loam.scope')) as { value?: unknown } | null)?.value
+		).toEqual({ project: first.scopes.atlas.project });
+		expect(
+			((await store.get('settings', 'loam.apps')) as { value?: unknown } | null)?.value
+		).toEqual({ active: 'tasks', section: null, path: '' });
+		await first.kernel.dispose();
+	});
 });
 
 describe("P2-E8: stage A's scope from the URL (6.3)", () => {

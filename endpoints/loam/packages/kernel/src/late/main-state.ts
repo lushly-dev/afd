@@ -36,11 +36,12 @@ export function setScopeProject(viewState: ViewStateRegistry, project: string | 
  * why it sits right inside the journal. The store may then hold a change a moment before the journal holds its entry;
  * a reload in that gap boots from the change with no entry for it, a far narrower window than the one this closes.
  *
- * - **A call that ends while a write is in flight waits for it**, so one that saw a change after the handler that made
- *   it returned, as a second `app-open` of the same app does, is not journaled before that call, since the journal
- *   appends calls in the order they finish. A change made before
- *   a handler awaits more work, as `project-archive`'s scope move before its record's write, is seen by calls that end
- *   meanwhile as it was before. The wait has no time limit: the store's write is what every such call waits for.
+ * - **The write-through flush starts when the change is made** (#1679), by wrapping `viewState.set` for `loam.apps`
+ *   and `loam.scope` (after the handler and `DebouncedPersistence.schedule` have run), not only after `next()`
+ *   returns. A change made before a handler or the scope middleware awaits more work — `project-archive`'s scope move
+ *   before its record's write, or a change before `documents.after`, `authEnd` and `settle` — is already in flight, so
+ *   a concurrent call that ends inside that window waits for the store to hold it before its own entry is journaled.
+ *   The wait has no time limit: the store's write is what every such call waits for.
  * - **A handler that throws after a change** is written through all the same, and its error is the call's.
  * - **A write that fails** leaves the call as it was, since the change is in memory and the shell runs on it, with a
  *   `VIEW_STATE_NOT_SAVED` warning naming the records that changed while it ran, which the journal keeps: a reload
@@ -49,26 +50,46 @@ export function setScopeProject(viewState: ViewStateRegistry, project: string | 
  */
 export function writeThrough(
 	viewState: ViewStateRegistry,
-	state: Pick<ShellState, 'main' | 'scopeProject'>
+	state: Pick<ShellState, 'main' | 'scopeProject'>,
+	isQuiet?: () => boolean
 ): CommandMiddleware {
 	const records: ReadonlyArray<readonly [string, () => string]> = [
 		[APPS_VIEW_STATE_ID, () => JSON.stringify(state.main())],
 		[SCOPE_VIEW_STATE_ID, () => JSON.stringify(state.scopeProject())],
 	];
+	const readers = new Map(records);
 	/** The records whose last write failed: every call writes them again until one succeeds. */
 	const unsaved = new Set<string>();
 	/** The last write-through started, until it settles. */
 	let inFlight: Promise<ViewStateFlushResult> | undefined;
+	/** Monotonic count of flushes started, so a call knows if a flush already ran while it was active. */
+	let flushes = 0;
 	const start = (): Promise<ViewStateFlushResult> => {
-		const flush = viewState.flush();
-		inFlight = flush;
-		void flush.then(() => {
-			if (inFlight === flush) inFlight = undefined;
+		flushes++;
+		const tracked = viewState.flush().then((result) => {
+			// A record that was waiting is written by every flush, so one not failed is saved.
+			unsaved.clear();
+			for (const [id] of records) if (result.failed.includes(id)) unsaved.add(id);
+			if (inFlight === tracked) inFlight = undefined;
+			return result;
 		});
-		return flush;
+		inFlight = tracked;
+		return tracked;
+	};
+	// Start the flush as soon as `loam.apps` or `loam.scope` changes, after `viewState.set` has scheduled it (#1679).
+	// Skip while `personalWrites`'s `quiet` resets records in memory during a change of person.
+	const origSet = viewState.set.bind(viewState);
+	viewState.set = (id, partial) => {
+		const read = readers.get(id);
+		if (!read) return origSet(id, partial);
+		const before = read();
+		const previous = origSet(id, partial);
+		if (!isQuiet?.() && read() !== before) start();
+		return previous;
 	};
 	return async (name, _input, _context, next) => {
 		const before = records.map(([, read]) => read());
+		const flushesBefore = flushes;
 		let outcome: { result: CommandResult } | { thrown: unknown };
 		try {
 			outcome = { result: await next() };
@@ -76,16 +97,9 @@ export function writeThrough(
 			outcome = { thrown };
 		}
 		const changed = records.filter(([, read], i) => read() !== before[i]).map(([id]) => id);
-		const mine = changed.length > 0 || unsaved.size > 0 ? start() : undefined;
-		const waited = mine ?? inFlight;
-		if (waited) {
-			const { failed } = await waited;
-			// A record that was waiting is written by every flush, so one not failed is saved.
-			if (mine) {
-				unsaved.clear();
-				for (const [id] of records) if (failed.includes(id)) unsaved.add(id);
-			}
-		}
+		const waited =
+			inFlight ?? (unsaved.size > 0 && flushes === flushesBefore ? start() : undefined);
+		if (waited) await waited;
 		if ('thrown' in outcome) throw outcome.thrown;
 		const lost = changed.filter((id) => unsaved.has(id));
 		if (lost.length === 0) return outcome.result;
