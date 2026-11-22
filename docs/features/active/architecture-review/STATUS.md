@@ -9,6 +9,7 @@ This file tracks the follow-up work from an architecture review of the whole rep
 - A pull request edits the line of the issue it works on and no other: append "merged in #N" when its work lands, or "closed: <reason>" when it is closed without a change. Issues sit under their area, with a blank line between them, so two branches don't conflict on adjacent lines.
 - No sentence says which issues are done or next: read the lines and the issues.
 - An issue filed later under the epic gets its own line under its area in the pull request that files or first works on it.
+- A question the owner answers is recorded in [decisions.md](decisions.md) or in the area's own decision log, and the line of its issue says where.
 
 ## Related epics
 
@@ -28,7 +29,7 @@ These keep their own work; this review only cross-references them.
 
 - [#1734](https://github.com/lushly-dev/afd/issues/1734) spec: vectors written from the specification, and AFD's own validation issue codes
 
-- [#1735](https://github.com/lushly-dev/afd/issues/1735) decide: a stable core contract with versioned profiles, advertised on the wire
+- [#1735](https://github.com/lushly-dev/afd/issues/1735) decide: a stable core contract with versioned profiles, advertised on the wire: decided 2026-11-21, yes to all three ([decisions.md](decisions.md), AR1 to AR3), which also answers [#541](https://github.com/lushly-dev/afd/issues/541); the work is #1925, #1926 and #1927; merged in #1940
 
 - [#1736](https://github.com/lushly-dev/afd/issues/1736) spec: a dispatch-order page with vectors run by all four languages
 
@@ -43,6 +44,12 @@ These keep their own work; this review only cross-references them.
 - [#1741](https://github.com/lushly-dev/afd/issues/1741) mcp: read-only hints from Python, Rust and C++, and a typed error in every outputSchema
 
 - [#1742](https://github.com/lushly-dev/afd/issues/1742) docs: a decision record on four hand-written implementations, a shared core or explicit tiers
+
+- [#1925](https://github.com/lushly-dev/afd/issues/1925) spec: the contract as a core and versioned profiles, in one registry
+
+- [#1926](https://github.com/lushly-dev/afd/issues/1926) spec: declare core 1.0 (spec/VERSION, the four constants and the changelog)
+
+- [#1927](https://github.com/lushly-dev/afd/issues/1927) mcp: { version, profiles } advertised on server/discover and initialize by all four languages
 
 ### TypeScript core and server
 
@@ -124,6 +131,10 @@ These keep their own work; this review only cross-references them.
 
 - [#1776](https://github.com/lushly-dev/afd/issues/1776) umbel: throughput of the per-request rate limit and the readable-graph cache
 
+- [#1931](https://github.com/lushly-dev/afd/issues/1931) umbel: one v1 of each pre-release shape, and architecture.json's surfaces generated from versions.rs
+
+- [#1932](https://github.com/lushly-dev/afd/issues/1932) umbel: the owner's review of D158 to D188 before phase 5's steps 11 and 12
+
 ### Loam
 
 - [#1777](https://github.com/lushly-dev/afd/issues/1777) loam: persistent storage and a workspace export on the local path
@@ -133,6 +144,12 @@ These keep their own work; this review only cross-references them.
 - [#1779](https://github.com/lushly-dev/afd/issues/1779) loam-desktop: a macOS job, and the frame-to-IPC barrier measured on WKWebView
 
 - [#1780](https://github.com/lushly-dev/afd/issues/1780) loam: deployment reading moves out of the developer CLI, so the hosted server stops importing it
+
+- [#1928](https://github.com/lushly-dev/afd/issues/1928) loam-desktop: the store in a SQLite file the Rust host owns
+
+- [#1929](https://github.com/lushly-dev/afd/issues/1929) loam: an end date for D115 and an asserted first-contentful-paint ceiling
+
+- [#1930](https://github.com/lushly-dev/afd/issues/1930) loam: the hosted lane frozen behind its own CI job, and the local MockAuthAdapter renamed
 
 ### Foundations, integrations and their tools
 
@@ -188,7 +205,7 @@ These keep their own work; this review only cross-references them.
 
 - [#1803](https://github.com/lushly-dev/afd/issues/1803) docs: Loam's and Umbel's STATUS files fit on one screen, with history archived
 
-- [#1804](https://github.com/lushly-dev/afd/issues/1804) decide: owner questions from the architecture review (Loam store and scope, Umbel versions and unread decisions)
+- [#1804](https://github.com/lushly-dev/afd/issues/1804) decide: owner questions from the architecture review (Loam store and scope, Umbel versions and unread decisions): decided 2026-11-21, each as recommended (Loam's D160 to D162, Umbel's D200 and D201; listed in [decisions.md](decisions.md#recorded-in-an-areas-log)); the work is #1928 to #1932; merged in #1940
 
 ### Dependencies
 

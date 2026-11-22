@@ -746,7 +746,7 @@ Each forwarded `tools/call` is appended to the server's journal as a record of c
 
 ### 10.1 What the desktop is
 
-**The same `web` build in Tauri 2's webview, as a personal shell in `local` identity mode** (phase 3's 2.1), with the kernel in the webview (D25), the store in IndexedDB (D52), and mounted instances through the Rust host. A `provider` deployment on the desktop is refused (`DEPLOYMENT_DESKTOP_PROVIDER`): passkeys bind to the deployment's host, which a webview's custom-scheme origin is not, and a team member uses the hosted shell in a browser. Joining a hosted workspace from the desktop is [reserved](#18-out-of-scope-and-the-seams-reserved).
+**The same `web` build in Tauri 2's webview, as a personal shell in `local` identity mode** (phase 3's 2.1), with the kernel in the webview (D25), the store in IndexedDB (D52; superseded 2026-11-21 by D160, a SQLite file the Rust host owns, once [10.5](#105-the-store-and-d52s-measurement) is amended), and mounted instances through the Rust host. A `provider` deployment on the desktop is refused (`DEPLOYMENT_DESKTOP_PROVIDER`): passkeys bind to the deployment's host, which a webview's custom-scheme origin is not, and a team member uses the hosted shell in a browser. Joining a hosted workspace from the desktop is [reserved](#18-out-of-scope-and-the-seams-reserved).
 
 ### 10.2 Origins and the CSP
 
@@ -776,6 +776,8 @@ The person who owns the desktop is its deployer (D56). They write `loam.deployme
 - **Scope** travels in `_meta` exactly as phase 2's 9.2 sends it; the Rust host forwards the message untouched. The desktop is `local` and single-person, so no relay checks are needed between the person and their own instances.
 
 ### 10.5 The store and D52's measurement
+
+**Superseded 2026-11-21 by [D160](../../decisions.md):** the desktop's store moves to a SQLite file the Rust host owns, whatever this measurement shows. The amendment that specifies it is the first step of [#1928](https://github.com/lushly-dev/afd/issues/1928); the text below stands as the record until that amendment replaces it.
 
 IndexedDB in the webview, as in the browser. **D52's measurement**, taken in step 11 in WebKitGTK and WebView2 on the A4 reference workspace (2,000 documents, 20,000 links): S1, listing every document record of one project, p95 at most 50 ms over 200 runs; S2, 1,000 sequential record writes in at most 2,000 ms. Both pass: no SQLite plugin, and STATUS.md records the numbers. Either fails: a SQLite store through a Tauri plugin is specified by amendment, with the store contract, before it is built. **S1 in CI is enforced on Windows alone** (the coordinator, 2026-11-17; section 14): the GPU-less Linux runner's figure is recorded only, and a real Linux desktop's measurement of S1 decides the amendment there. **S2 in CI is recorded only on a hosted Linux runner** (the owner, 2026-11-17, [#1408](https://github.com/lushly-dev/afd/issues/1408)): its sequential commits measure the runner's disk, which ran it in 550 to 7,555 ms; it is enforced on Windows and on any Linux run outside CI.
 

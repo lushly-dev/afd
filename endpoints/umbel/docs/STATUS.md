@@ -2868,12 +2868,14 @@ on another local branch and push to that remote name.
   - 9, usage: one content-free record per metered MCP HTTP request in `state/usage/usage.sqlite3`, written off the request path; `usage-list` shows a caller its own, everyone's to `usage.readers` and the operator: done 2026-11-10 on `lush/umbel-p5-9-usage`, with its [amendments](phases/5-auth-hosted/spec.md#amendments-from-step-9).
   - 10, memory: `memory-confirm` over MCP on the person page, `editors`, `memory-erase` with the two-person rule, the library's own assurance: merged in [#1180](https://github.com/lushly-dev/afd/pull/1180) (2026-11-13), with its [amendments](phases/5-auth-hosted/spec.md#amendments-from-step-10).
 
+  - The owner's review checkpoint (D201, [#1932](https://github.com/lushly-dev/afd/issues/1932)), a brief of the unread decisions among D158 to D188, read and answered by him: not started. Writing the brief waits for nothing; steps 11 and 12 wait for his answers.
+
   - 11, the erasure sweep: not started. It needs step 3, and builds its outbox row into the erasure steps step 10 shares between forget and erase.
 
   - 12, the exit: not started. It needs every other step.
 - **Build notes:** heavy steps follow the plan's build note. Steps 5 to 12 take `umbel-testkit-idp` from
   `[dev-dependencies]`.
-- **Waiting on the owner:** nothing. The gateway question was decided 2026-11-09 (a separate direct address), and
+- **Waiting on the owner:** his review of the unread decisions before steps 11 and 12 (D201, the checkpoint line under Steps); nothing else. The gateway question was decided 2026-11-09 (a separate direct address), and
   step 5b built it; step 6's rejection reason was settled by the coordinator (the person reads and confirms it).
   A library (embedder) person's `memory-confirm` was settled 2026-11-09 as a technical choice (an assurance method of
   its own, allowed only for the operator), and step 10 built it.
@@ -3089,6 +3091,7 @@ to 2026-11-18 and takes no new row.
 
 | Date | Session | What changed |
 | --- | --- | --- |
+| 2026-11-21 | Architecture review, the owner's answers ([#1804](https://github.com/lushly-dev/afd/issues/1804)) | D200 and D201 recorded in [decisions.md](decisions.md): one version 1 of each shape at release, with `architecture.json`'s surfaces generated from `versions.rs` ([#1931](https://github.com/lushly-dev/afd/issues/1931)); and the owner's review of the unread decisions before phase 5's steps 11 and 12 ([#1932](https://github.com/lushly-dev/afd/issues/1932)), which has its own line under phase 5's Steps. Documents only: nothing built or run |
 
 ### Sessions: to 2026-11-18, every area
 

@@ -635,7 +635,7 @@ sequenceDiagram
 | Commands, registry, exposure, contexts, journal, confirmations, approvals | `@lushly-dev/afd-core` and `@lushly-dev/afd-server`: `createDirectRegistry` in the browser and the desktop webview, `createMcpHandler` hosted | One contract across surfaces; most of what the kernel needs exists in TypeScript, and the gaps are the AFD prerequisites | The server package's root entry is Node-only; the browser and the webview import `@lushly-dev/afd-server/direct`; Node 26 on the hosted server |
 | Layout state | `@lushly-dev/afd-view-state` | The contract and the implementation | |
 | Identity | `@lushly-dev/afd-auth` with Better Auth | Exists | |
-| Stores | Store interfaces over IndexedDB in the browser and the desktop webview, SQLite or Postgres hosted; `@lushly-dev/local-db` as the adapter shape | Offline in the browser; one interface set | Chosen in phase 0, including whether the desktop adds SQLite through a Tauri plugin |
+| Stores | Store interfaces over IndexedDB in the browser and the desktop webview, SQLite or Postgres hosted; `@lushly-dev/local-db` as the adapter shape | Offline in the browser; one interface set | Chosen in phase 0, including whether the desktop adds SQLite through a Tauri plugin. Decided 2026-11-21 (D160): the desktop's store becomes a SQLite file the Rust host owns ([#1928](https://github.com/lushly-dev/afd/issues/1928)) |
 | Hosted server | `@lushly-dev/loam-host`: one Node 26 process on Hono 4.13 and `@hono/node-server` 2.1, serving the SPA, MCP through AFD's `createMcpHandler` mounted by the Node adapter, REST, the auth layer and the copilot runtime; its store on SQLite through `local-db`'s `SqliteAdapter` (D101, D102) | The owner's other applications already use Hono; mounting AFD's handler keeps its Host and Origin checks, contexts, confirmations and approval relay, which the SDK's own Hono package would bypass (D36) | The fetch-style AFD handler is not needed (D101); revisited if libraries extracted from Lushly assume another host |
 | Desktop | Tauri 2, pinned at 2.12, with 3.0 in alpha and watched: Rust host process, TypeScript kernel in the webview, native plugins for menus, files, notifications, updates (D106) | Native integration and small installers without Rust for logic | Mobile is younger than desktop; responsive chrome first, Tauri mobile reserved (D33) |
 | Measured accelerators | Rust compiled to WebAssembly through wasm-bindgen behind a TypeScript interface | Palette and reference index, journal replay and diff, content indexing, tree-sitter, when a measurement on a real workspace shows a need | Admitted only by the rule in D37; the TypeScript implementation ships first; `afd-loam` is reserved for such a unit |
@@ -702,7 +702,8 @@ flowchart TD
   notifications, runs, view-state and the journal go through store
   interfaces with a reference backend and a conformance suite; the browser
   and the desktop webview back them with IndexedDB, the hosted server with
-  SQLite or Postgres. App resources use the `store` grant over the same
+  SQLite or Postgres. Decided 2026-11-21 (D160): the desktop's store becomes a
+  SQLite file the Rust host owns. App resources use the `store` grant over the same
   interfaces.
 - **Every record carries** its scope, the actor that wrote it, timestamps
   and, for app resources, the app id; the kernel refuses a write without

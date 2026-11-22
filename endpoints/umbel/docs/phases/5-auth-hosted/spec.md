@@ -1738,6 +1738,7 @@ A step that finds a design decision stops and amends this document. Steps changi
 - 3 needs 2b. 4 needs 3. 5 needs 3, 0c and 0d. 6 needs 5.
 - 7 needs 1 and may run beside 2a to 6.
 - 8 needs 0e and 3. 9 and 11 need 3. 10 needs 5.
+- Added 2026-11-21 ([D201](../../decisions.md)): 11 also waits for the owner's review of the unread decisions among D158 to D188 ([#1932](https://github.com/lushly-dev/afd/issues/1932)). Writing the brief for that review waits for nothing.
 - 12 needs all.
 
 **Build cost.** Two dependency families: `jsonwebtoken` with `aws-lc-rs` (already in the lock, a C build) and
