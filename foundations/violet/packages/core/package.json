@@ -81,7 +81,7 @@
 		"pg": "^8.23.1",
 		"typescript": "^7.0.2",
 		"vitest": "^5.1.1",
-		"ws": "^8.22.0"
+		"ws": "^8.23.0"
 	},
 	"files": [
 		"dist",
@@ -93,7 +93,7 @@
 	},
 	"peerDependencies": {
 		"@neondatabase/serverless": "^1.1.0",
-		"ws": "^8.22.0"
+		"ws": "^8.23.0"
 	},
 	"peerDependenciesMeta": {
 		"@neondatabase/serverless": {
