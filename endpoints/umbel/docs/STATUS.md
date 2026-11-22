@@ -3073,6 +3073,7 @@ to 2026-11-18 and takes no new row.
 
 | Date | Session | What changed |
 | --- | --- | --- |
+| 2026-11-21 | Mounted stdio Windows `SystemRoot` and startup diagnostics ([#1397](https://github.com/lushly-dev/afd/issues/1397)) | In [#1921](https://github.com/lushly-dev/afd/pull/1921). Mounted stdio children now carry `SystemRoot` beside `PATH` on Windows (with case-insensitive override precedence for manifest and instance `env`), so Node/OpenSSL servers reading OS randomness start under the cleared environment without Windows-specific config. Startup failures during handshake or `tools/list` now capture and report the child's exit status and bounded sanitized stderr tail (2 KiB) before `kill_on_drop` runs. Updated D43, phase 1 spec sections 6.3 and 9.1, and mounted scaffold templates; added unit tests, fixture exit/stderr tests and a mounted Node `crypto.randomBytes` regression test. Verified 2026-11-21 on macOS (`aarch64-apple-darwin`, Rust 1.98.0, Node 26.13.0): `pnpm verify --keep-going` 19/19 steps passed (including 15 mounted unit tests and 33 `plugin_mounted` tests). Native Windows run on Hero pending. (`#1536` already landed in [#1827](https://github.com/lushly-dev/afd/pull/1827).) |
 
 ### Sessions: the `components` plugin
 

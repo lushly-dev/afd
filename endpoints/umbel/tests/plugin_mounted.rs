@@ -796,13 +796,210 @@ async fn the_child_gets_path_and_the_configured_environment_and_nothing_else() {
     );
     let host = open(dir.path()).unwrap();
     let names = call(&host, "fx-env-names", json!({})).await.data.unwrap();
-    assert_eq!(
-        names["names"],
+    let expected = if cfg!(windows) {
+        json!([
+            "FX_FROM_MANIFEST",
+            "FX_INSTANCE",
+            "FX_OVERRIDDEN",
+            "PATH",
+            "SystemRoot"
+        ])
+    } else {
         json!(["FX_FROM_MANIFEST", "FX_INSTANCE", "FX_OVERRIDDEN", "PATH"])
-    );
+    };
+    assert_eq!(names["names"], expected);
     // The instance overrides the manifest's default.
     assert_eq!(names["values"]["FX_OVERRIDDEN"], "instance");
     assert_eq!(names["values"]["FX_FROM_MANIFEST"], "m");
+    #[cfg(windows)]
+    assert_eq!(
+        names["values"]["SystemRoot"],
+        std::env::var("SystemRoot").unwrap()
+    );
+}
+
+#[tokio::test]
+async fn a_mounted_node_server_that_uses_os_randomness_starts_under_the_cleared_environment() {
+    let dir = workspace(&config(&[("noderng", "source = \"plugins/noderng\"")], ""));
+    let manifest = "\
+manifest_version = 1
+protocol = 1
+
+[plugin]
+id = \"noderng\"
+title = \"Node RNG\"
+version = \"0.1.0\"
+description = \"A mounted Node server that reads OS randomness at startup.\"
+kind = \"mounted\"
+domains = [\"noderng\"]
+
+[mount]
+prefix = \"noderng\"
+transport = \"stdio\"
+command = [\"node\", \"server.mjs\"]
+";
+    let root = plugin_dir(dir.path(), "noderng", manifest);
+    let script = r#"import { randomBytes } from "node:crypto";
+import { createInterface } from "node:readline";
+
+// Reproduces #1397: on Windows, OpenSSL's entropy seeding fails at startup when
+// `SystemRoot` is absent from the cleared child environment.
+const token = randomBytes(16).toString("hex");
+
+const rl = createInterface({ input: process.stdin, crlfDelay: Infinity });
+rl.on("line", (line) => {
+  if (!line.trim()) return;
+  const req = JSON.parse(line);
+  if (req.id === undefined) return;
+  let result;
+  if (req.method === "server/discover") {
+    result = {
+      resultType: "complete",
+      supportedVersions: ["2026-07-28"],
+      capabilities: { tools: {} },
+      ttlMs: 0,
+      cacheScope: "public",
+      _meta: { "io.modelcontextprotocol/serverInfo": { name: "node-rng", version: "1" } },
+    };
+  } else if (req.method === "tools/list") {
+    result = {
+      resultType: "complete",
+      tools: [
+        {
+          name: "token",
+          description: "Return the startup random token.",
+          inputSchema: { type: "object", properties: {} },
+        },
+      ],
+      ttlMs: 0,
+      cacheScope: "public",
+    };
+  } else if (req.method === "tools/call") {
+    result = {
+      resultType: "complete",
+      content: [],
+      structuredContent: { token },
+    };
+  } else {
+    process.stdout.write(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        id: req.id,
+        error: { code: -32601, message: "Method not found" },
+      }) + "\n",
+    );
+    return;
+  }
+  process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: req.id, result }) + "\n");
+});
+"#;
+    std::fs::write(root.join("server.mjs"), script).unwrap();
+
+    let host = open(dir.path()).unwrap();
+    let result = call(&host, "noderng-token", json!({})).await;
+    assert!(result.success, "{result:?}");
+    let token = result.data.unwrap()["token"].as_str().unwrap().to_owned();
+    assert_eq!(token.len(), 32, "{token}");
+    assert!(token.chars().all(|c| c.is_ascii_hexdigit()), "{token}");
+
+    // On Windows, clearing `SystemRoot` via an instance override reproduces the exact OpenSSL
+    // failure from #1397 and proves startup diagnostics surface the exit status and stderr.
+    #[cfg(windows)]
+    {
+        let broken = workspace(&config(
+            &[(
+                "noderng",
+                "source = \"plugins/noderng\"\n[plugins.noderng.env]\nSystemRoot = \"\"",
+            )],
+            "",
+        ));
+        let broken_root = plugin_dir(broken.path(), "noderng", manifest);
+        std::fs::write(broken_root.join("server.mjs"), script).unwrap();
+        let error = error_of(open(broken.path()));
+        assert_eq!(error.code(), "PLUGIN_LOAD_FAILED", "{error}");
+        assert!(error.message().contains("exited with code 1"), "{error}");
+        assert!(
+            error.message().contains("entropy source strength too weak")
+                || error.message().contains("randomBytes"),
+            "{error}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn a_stdio_child_that_dies_before_the_handshake_reports_its_exit_status_and_stderr_tail() {
+    // Non-zero exit with a short stderr reason.
+    let setting = json!({
+        "exitOnStart": {
+            "code": 7,
+            "stderr": "startup boom\nsecond detail line\n"
+        }
+    });
+    let dir = fx_stdio(
+        "",
+        "",
+        &format!("[plugins.fx.env]\nUMBEL_FIXTURE = '{setting}'"),
+    );
+    let error = error_of(open(dir.path()));
+    assert_eq!(error.code(), "PLUGIN_LOAD_FAILED");
+    assert!(error.message().contains("exited with code 7"), "{error}");
+    assert!(error.message().contains("startup boom"), "{error}");
+    assert!(error.message().contains("second detail line"), "{error}");
+
+    // Long stderr is bounded and keeps the trailing lines, not the head.
+    let setting = json!({
+        "exitOnStart": {
+            "code": 2,
+            "prefix": "EARLY_MARKER first line\n",
+            "stderr": "padding line to fill the stderr ring buffer\n",
+            "repeat": 200,
+            "suffix": "FINAL_FAILURE_LINE\n"
+        }
+    });
+    let dir = fx_stdio(
+        "",
+        "",
+        &format!("[plugins.fx.env]\nUMBEL_FIXTURE = '{setting}'"),
+    );
+    let error = error_of(open(dir.path()));
+    assert_eq!(error.code(), "PLUGIN_LOAD_FAILED");
+    assert!(error.message().contains("exited with code 2"), "{error}");
+    assert!(error.message().contains("FINAL_FAILURE_LINE"), "{error}");
+    assert!(!error.message().contains("EARLY_MARKER"), "{error}");
+    assert!(
+        error.message().len() < 4096,
+        "stderr tail was not bounded: {} bytes",
+        error.message().len()
+    );
+
+    // Silent exit still reports the exit status without a spurious `stderr:` clause.
+    let setting = json!({ "exitOnStart": { "code": 9 } });
+    let dir = fx_stdio(
+        "",
+        "",
+        &format!("[plugins.fx.env]\nUMBEL_FIXTURE = '{setting}'"),
+    );
+    let error = error_of(open(dir.path()));
+    assert_eq!(error.code(), "PLUGIN_LOAD_FAILED");
+    assert!(error.message().contains("exited with code 9"), "{error}");
+    assert!(!error.message().contains("stderr:"), "{error}");
+
+    // A child that survives the handshake but dies during `tools/list` also reports exit + stderr.
+    let setting = json!({
+        "exitOnList": {
+            "code": 4,
+            "stderr": "list-tools crash\n"
+        }
+    });
+    let dir = fx_stdio(
+        "",
+        "",
+        &format!("[plugins.fx.env]\nUMBEL_FIXTURE = '{setting}'"),
+    );
+    let error = error_of(open(dir.path()));
+    assert_eq!(error.code(), "PLUGIN_LOAD_FAILED");
+    assert!(error.message().contains("exited with code 4"), "{error}");
+    assert!(error.message().contains("list-tools crash"), "{error}");
 }
 
 #[tokio::test]

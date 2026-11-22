@@ -111,19 +111,20 @@ fn spec(request: &Request<'_>, mount: &MountDecl) -> Result<MountSpec, PluginErr
                 })?,
                 None => request.root.to_path_buf(),
             };
-            // `PATH` plus the manifest's defaults, overridden by the instance's: nothing else
-            // of the host's environment reaches the child.
-            let mut env: BTreeMap<String, String> = BTreeMap::new();
-            if let Ok(path) = std::env::var("PATH") {
-                env.insert("PATH".to_owned(), path);
-            }
-            env.extend(mount.env.clone());
-            env.extend(instance.env.clone());
+            // `PATH` (plus `SystemRoot` on Windows, which Node/OpenSSL need for the OS RNG),
+            // then the manifest's defaults, overridden by the instance's: nothing else of the
+            // host's environment reaches the child.
+            let env = build_child_env(
+                |name| std::env::var(name).ok(),
+                cfg!(windows),
+                &mount.env,
+                &instance.env,
+            );
             Endpoint::Stdio(StdioSpec {
                 program,
                 args: mount.command.iter().skip(1).cloned().collect(),
                 cwd,
-                env: env.into_iter().collect(),
+                env,
             })
         }
         Transport::Http => {
@@ -568,5 +569,129 @@ impl CommandHandler for MountedHandler {
             }
         }
         self.mount.call(&self.tool, arguments).await
+    }
+}
+
+/// Build the cleared child environment: `PATH` (plus `SystemRoot` on Windows), then `manifest_env`,
+/// then `instance_env`. On Windows, later layers replace earlier ones case-insensitively so an
+/// override like `SYSTEMROOT` never collides with the host baseline `SystemRoot`.
+fn build_child_env(
+    host_var: impl Fn(&str) -> Option<String>,
+    windows: bool,
+    manifest_env: &BTreeMap<String, String>,
+    instance_env: &BTreeMap<String, String>,
+) -> Vec<(String, String)> {
+    let mut env: Vec<(String, String)> = Vec::new();
+    let mut insert = |name: String, value: String| {
+        if let Some(existing) = env.iter_mut().find(|(key, _)| {
+            if windows {
+                key.eq_ignore_ascii_case(&name)
+            } else {
+                *key == name
+            }
+        }) {
+            *existing = (name, value);
+        } else {
+            env.push((name, value));
+        }
+    };
+    if let Some(path) = host_var("PATH") {
+        insert("PATH".to_owned(), path);
+    }
+    if windows && let Some(system_root) = host_var("SystemRoot") {
+        insert("SystemRoot".to_owned(), system_root);
+    }
+    for (name, value) in manifest_env {
+        insert(name.clone(), value.clone());
+    }
+    for (name, value) in instance_env {
+        insert(name.clone(), value.clone());
+    }
+    env
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_child_env;
+    use std::collections::BTreeMap;
+
+    fn map(entries: &[(&str, &str)]) -> BTreeMap<String, String> {
+        entries
+            .iter()
+            .map(|(k, v)| ((*k).to_owned(), (*v).to_owned()))
+            .collect()
+    }
+
+    fn host<'a>(entries: &'a [(&'a str, &'a str)]) -> impl Fn(&str) -> Option<String> + 'a {
+        move |name| {
+            entries
+                .iter()
+                .find(|(key, _)| key.eq_ignore_ascii_case(name))
+                .map(|(_, value)| (*value).to_owned())
+        }
+    }
+
+    #[test]
+    fn non_windows_child_env_keeps_only_path_and_configured_vars() {
+        let host_vars = [
+            ("PATH", "/usr/bin"),
+            ("SystemRoot", "C:\\Windows"),
+            ("SECRET_TOKEN", "do-not-leak"),
+        ];
+        let manifest = map(&[("A", "from-manifest"), ("B", "from-manifest")]);
+        let instance = map(&[("B", "from-instance"), ("C", "from-instance")]);
+
+        let env = build_child_env(host(&host_vars), false, &manifest, &instance);
+        assert_eq!(
+            env,
+            vec![
+                ("PATH".to_owned(), "/usr/bin".to_owned()),
+                ("A".to_owned(), "from-manifest".to_owned()),
+                ("B".to_owned(), "from-instance".to_owned()),
+                ("C".to_owned(), "from-instance".to_owned()),
+            ]
+        );
+    }
+
+    #[test]
+    fn windows_child_env_keeps_path_and_system_root_only_from_host() {
+        let host_vars = [
+            ("PATH", "C:\\Windows\\System32"),
+            ("SystemRoot", "C:\\Windows"),
+            ("TEMP", "C:\\Users\\alice\\AppData\\Local\\Temp"),
+            ("SECRET_TOKEN", "do-not-leak"),
+        ];
+        let manifest = map(&[("APP_MODE", "prod")]);
+        let instance = map(&[("APP_PORT", "8080")]);
+
+        let env = build_child_env(host(&host_vars), true, &manifest, &instance);
+        assert_eq!(
+            env,
+            vec![
+                ("PATH".to_owned(), "C:\\Windows\\System32".to_owned()),
+                ("SystemRoot".to_owned(), "C:\\Windows".to_owned()),
+                ("APP_MODE".to_owned(), "prod".to_owned()),
+                ("APP_PORT".to_owned(), "8080".to_owned()),
+            ]
+        );
+    }
+
+    #[test]
+    fn windows_child_env_overrides_baseline_case_insensitively_without_duplicates() {
+        let host_vars = [
+            ("PATH", "C:\\Windows\\System32"),
+            ("SystemRoot", "C:\\Windows"),
+        ];
+        let manifest = map(&[("SYSTEMROOT", "D:\\ManifestRoot")]);
+        let instance = map(&[("systemroot", "E:\\InstanceRoot"), ("Path", "E:\\Bin")]);
+
+        let env = build_child_env(host(&host_vars), true, &manifest, &instance);
+        assert_eq!(
+            env,
+            vec![
+                ("Path".to_owned(), "E:\\Bin".to_owned()),
+                ("systemroot".to_owned(), "E:\\InstanceRoot".to_owned()),
+            ]
+        );
     }
 }

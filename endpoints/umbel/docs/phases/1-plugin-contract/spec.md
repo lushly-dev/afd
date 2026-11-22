@@ -979,9 +979,13 @@ first_class = true            # optional suggestion
 - **Connect at seal.** stdio: build a `tokio::process::Command` with
   `kill_on_drop(true)` (rmcp's `TokioChildProcess` builder has no such
   option, so it is set on the `Command` before wrapping), `env_clear()`, then
-  `PATH`, the manifest's `env` and the instance's `env`; stdin and stdout for
-  JSON-RPC; stderr forwarded line by line to the host log at `debug` with
-  the instance id. HTTP: Streamable HTTP to the instance's `url` over rmcp's
+  `PATH` (plus `SystemRoot` on Windows, so servers such as Node that read the
+  operating system's random number generator start under the cleared
+  environment), the manifest's `env` and the instance's `env`; stdin and
+  stdout for JSON-RPC; stderr forwarded line by line to the host log at
+  `debug` with the instance id, and its bounded tail plus the child's exit
+  status included in `PLUGIN_LOAD_FAILED` when the child dies before
+  completing the handshake or tool listing. HTTP: Streamable HTTP to the instance's `url` over rmcp's
   reqwest client with rustls (section 1), with `Authorization: Bearer <value
   of the instance's bearer_env>` when set; `bearer = "required"` with no
   `bearer_env`, or a `bearer_env` naming an unset variable, is
@@ -1399,7 +1403,7 @@ bearer_env = "TICKETS_TOKEN"         # http mounts only: the deployer's own toke
 connect_timeout_ms = 10000           # mounted only
 timeout_ms = 30000                   # mounted only
 max_result_bytes = 1048576           # mounted only
-[plugins.tickets.env]                # stdio mounts only: added to PATH and the manifest's env, overriding it
+[plugins.tickets.env]                # stdio mounts only: added to PATH (plus SystemRoot on Windows) and the manifest's env, overriding it
 TICKETS_REGION = "eu"
 ```
 
@@ -1874,7 +1878,7 @@ section it covers.
 | `plugin_component.rs` | hello as a component: imports checked (a component importing `wasi:sockets` and one importing `umbel:plugin/events` without the grant are refused with `PLUGIN_IMPORT_DENIED`); the world read from the export and import versions, a `2.0.0` export refused; calls in both eras and the CLI; a trapping fixture is `PLUGIN_TRAPPED` and the next call works; a panicking fixture without the `log` grant loads (stderr is always linked) and its panic message reaches the host log; a forged host-filled provenance field is removed |
 | `component_limits.rs` | Fixtures that loop, allocate and log past the limits: `fuel`, `timeout`, `memory` and `io` each give `PLUGIN_LIMIT_EXCEEDED` with `details.limit`; host caps refuse larger configured limits |
 | `component_replay.rs` | A component that reads the clock and random: the journal tape holds the reads; `TestHost::replay` reports every entry `same`; a second run with another wall time gives the recorded values on replay; hello's tape stays under 16 reads per call |
-| `plugin_mounted.rs` | hello mounted over stdio (`hello-mcp`), over Streamable HTTP (the same server on a loopback port) and over **HTTPS** against a local TLS server with a test certificate the client is configured to trust: tools listed and renamed; `_meta["dev.umbel/origin"]` with the original name; the advertised schema is the server's and validation uses the stripped copy; a tool whose stripped schema still fails is skipped with `PLUGIN_TOOL_SCHEMA_UNSUPPORTED`, and fails the load when `only` names it; a description matching `description-injection` gives a `warn`; the `recorded` and `external` stamps; a forged `dev.umbel/space` in a mounted result removed; a tool with its own `space` argument is not a space command and receives the argument unchanged, while `bind_space = true` resolves it and refuses a space outside the instance's; no client capabilities declared; no `Authorization` header unless the instance sets `bearer_env`; `url` or `bearer_env` in a manifest refused; `bearer = "required"` without `bearer_env` is `PLUGIN_CONFIG_INVALID`; the child's environment holds only `PATH`, the manifest's `env` and the instance's `env`; the child dies with the host (`kill_on_drop`); a result over `max_result_bytes` is refused in the transport, over stdio and HTTP; a killed child respawns once and then answers; respawn limit gives `PLUGIN_UNAVAILABLE`; an HTTP mount defaults to `required = false`; `required = false` with a missing command skips the instance; two instances with their own prefixes serve disjoint commands and one copy of the plugin's skills |
+| `plugin_mounted.rs` | hello mounted over stdio (`hello-mcp`), over Streamable HTTP (the same server on a loopback port) and over **HTTPS** against a local TLS server with a test certificate the client is configured to trust: tools listed and renamed; `_meta["dev.umbel/origin"]` with the original name; the advertised schema is the server's and validation uses the stripped copy; a tool whose stripped schema still fails is skipped with `PLUGIN_TOOL_SCHEMA_UNSUPPORTED`, and fails the load when `only` names it; a description matching `description-injection` gives a `warn`; the `recorded` and `external` stamps; a forged `dev.umbel/space` in a mounted result removed; a tool with its own `space` argument is not a space command and receives the argument unchanged, while `bind_space = true` resolves it and refuses a space outside the instance's; no client capabilities declared; no `Authorization` header unless the instance sets `bearer_env`; `url` or `bearer_env` in a manifest refused; `bearer = "required"` without `bearer_env` is `PLUGIN_CONFIG_INVALID`; the child's environment holds only `PATH` (plus `SystemRoot` on Windows), the manifest's `env` and the instance's `env`; a mounted Node server reading OS randomness starts under the cleared environment; a stdio child that dies before the handshake or during `tools/list` reports its exit status and bounded stderr tail; the child dies with the host (`kill_on_drop`); a result over `max_result_bytes` is refused in the transport, over stdio and HTTP; a killed child respawns once and then answers; respawn limit gives `PLUGIN_UNAVAILABLE`; an HTTP mount defaults to `required = false`; `required = false` with a missing command skips the instance; two instances with their own prefixes serve disjoint commands and one copy of the plugin's skills |
 | `mount_naming.rs` | Unit-level cases of the renaming rule: case, punctuation, digits, the kept prefix, the manifest prefix replaced by an instance prefix, override names relative to the prefix, unnameable tools, collisions; `only` |
 | `plugin_conflicts.rs` | Two instances of one compiled plugin; a plugin command colliding with a built-in, `afd-help`, a host domain and a reserved verb; two skills of one name; two mounts with one prefix |
 | `first_class_plugins.rs` | Suggestions appended in order; truncation at 8 with the `plugins.first_class` warning; an explicit `mcp.first_class_tools` wins; non-MCP commands skipped |

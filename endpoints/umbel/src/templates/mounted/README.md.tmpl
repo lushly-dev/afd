@@ -25,7 +25,7 @@ Serve over stdio and write logs to stderr: stdout carries only JSON-RPC.
 
 ## What the host does with it
 
-The child starts with a cleared environment (`PATH`, the manifest's `env` and the deployer's). It
+The child starts with a cleared environment (`PATH`, plus `SystemRoot` on Windows, the manifest's `env` and the deployer's). It
 never receives a caller's credential, token or principal. Its results are labelled
 `dev.umbel/trust = "external"` and recorded in the journal but not replayed. A tool description that
 matches the `description-injection` rule is reported by `plugin check` and by the doctor.
