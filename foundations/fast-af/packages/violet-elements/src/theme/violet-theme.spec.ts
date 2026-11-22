@@ -306,7 +306,7 @@ describe("a product's replacement theme set", () => {
         expect(runtimeStyles()).toEqual([]);
         expect(getVioletThemePresets()).toEqual(["light", "dark", "high-contrast"]);
         // An open bracket or quote would swallow the rest of the stylesheet, so each is refused.
-        for (const value of ["rgb(0 0 0", "var(--x", '"Montserrat', "'Segoe UI", "attr(x]", "a)b", "[x"]) {
+        for (const value of ["rgb(0 0 0", "var(--x", '"Inter', "'Segoe UI", "attr(x]", "a)b", "[x"]) {
             expect(
                 validateVioletThemeSet({ defaultPreset: "a", presets: { a: [{ id: "x", value }] } }),
                 value,

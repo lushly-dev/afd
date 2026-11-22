@@ -146,11 +146,11 @@ describe("violet-reasoning-block", () => {
         expect(getComputedStyle(root).boxShadow).toBe(`${transparent} 0px 0px 0px 1px`);
         expect(getComputedStyle(root).borderTopWidth).toBe("0px");
 
-        block.style.setProperty("--violet-reasoning-bg", "rgb(240, 239, 230)");
-        block.style.setProperty("--violet-reasoning-border", "rgb(28, 26, 13)");
+        block.style.setProperty("--violet-reasoning-bg", "rgb(233, 229, 222)");
+        block.style.setProperty("--violet-reasoning-border", "rgb(24, 27, 26)");
 
-        expect(getComputedStyle(root).backgroundColor).toBe("rgb(240, 239, 230)");
-        expect(getComputedStyle(root).boxShadow).toBe("rgb(28, 26, 13) 0px 0px 0px 1px");
+        expect(getComputedStyle(root).backgroundColor).toBe("rgb(233, 229, 222)");
+        expect(getComputedStyle(root).boxShadow).toBe("rgb(24, 27, 26) 0px 0px 0px 1px");
     });
 
     it("renders the chevron icon as decorative", async () => {

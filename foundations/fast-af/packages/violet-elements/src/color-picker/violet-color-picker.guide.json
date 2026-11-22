@@ -32,12 +32,19 @@
       "members": [
         "presets"
       ]
+    },
+    {
+      "id": "color-picker.defaults",
+      "text": "The empty-state slider seed (#146ba0) and eight built-in presets (#181b1a, #2c5e4b, #a3ebcd, #146ba0, #c42a1a, #f96e5b, #92400e, #6b7d6e) come from AFD's Refined palette as component defaults, not theme tokens.",
+      "members": [
+        "presets"
+      ]
     }
   ],
   "a11y": [
     {
       "id": "color-picker.trigger-name",
-      "text": "The trigger button is named by the label attribute followed by its visible text, e.g. \"Accent #c84f3b Adjust color\"; without label the name is only that text.",
+      "text": "The trigger button is named by the label attribute followed by its visible text, e.g. \"Accent #146ba0 Adjust color\"; without label the name is only that text.",
       "members": [
         "label"
       ]

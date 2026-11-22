@@ -40,7 +40,7 @@ const styles = css`
         justify-content: center;
         flex: 1;
         padding: var(--_space-lg);
-        color: var(--_text-secondary, #48534b);
+        color: var(--_text-secondary);
         text-align: center;
     }
 

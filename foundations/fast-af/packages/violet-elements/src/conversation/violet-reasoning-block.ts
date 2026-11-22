@@ -11,9 +11,9 @@ const styles = css`
         display: block;
         --_reasoning-bg: var(--violet-reasoning-bg, transparent);
         --_reasoning-border: var(--violet-reasoning-border, transparent);
-        --_reasoning-font-size: var(--violet-reasoning-font-size, var(--_caption-size, 12px));
-        --_reasoning-line-height: var(--violet-reasoning-line-height, var(--_caption-line, 16px));
-        --_reasoning-toggle-size: var(--violet-reasoning-toggle-size, var(--_body-size, 14px));
+        --_reasoning-font-size: var(--violet-reasoning-font-size, var(--_caption-size));
+        --_reasoning-line-height: var(--violet-reasoning-line-height, var(--_caption-line));
+        --_reasoning-toggle-size: var(--violet-reasoning-toggle-size, var(--_body-size));
     }
 
     /*
@@ -61,7 +61,7 @@ const styles = css`
         display: none;
         inline-size: var(--_reasoning-font-size);
         block-size: var(--_reasoning-font-size);
-        border-radius: var(--_radius-round, 9999px);
+        border-radius: var(--_radius-round);
         background: currentColor;
         animation: pulse 1.4s ease-in-out infinite;
     }

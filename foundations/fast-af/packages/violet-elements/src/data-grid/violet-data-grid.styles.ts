@@ -640,7 +640,10 @@ export const styles = css`
         place-items: center;
         padding: var(--_space-inline-md);
         border-radius: calc(var(--_radius-md) - 2px);
-        background: var(--violet-data-grid-loading-overlay-background, rgba(250, 249, 245, 0.58));
+        background: var(
+            --violet-data-grid-loading-overlay-background,
+            color-mix(in srgb, var(--_surface-card) 58%, transparent)
+        );
         color: var(--_text-secondary);
         backdrop-filter: blur(calc(var(--_overlay-blur) * 1.75));
         -webkit-backdrop-filter: blur(calc(var(--_overlay-blur) * 1.75));

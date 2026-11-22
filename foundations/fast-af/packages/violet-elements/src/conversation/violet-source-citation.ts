@@ -10,9 +10,9 @@ const styles = css`
 
     :host {
         display: inline-flex;
-        --_citation-font-size: var(--violet-citation-font-size, var(--_caption-size, 12px));
-        --_citation-line-height: var(--violet-citation-line-height, var(--_caption-line, 16px));
-        --_citation-badge-size: var(--violet-citation-badge-size, var(--_caption-line, 16px));
+        --_citation-font-size: var(--violet-citation-font-size, var(--_caption-size));
+        --_citation-line-height: var(--violet-citation-line-height, var(--_caption-line));
+        --_citation-badge-size: var(--violet-citation-badge-size, var(--_caption-line));
         --_citation-max-width: var(--violet-citation-max-width, 200px);
         --_hc-border: var(--violet-hc-border, 1px solid ButtonText);
     }
@@ -33,11 +33,11 @@ const styles = css`
         block-size: var(--_citation-badge-size);
         padding-inline: var(--_space-xs, 4px);
         border-radius: var(--_radius-sm);
-        background: var(--_surface-subtle, rgba(24, 27, 26, 0.04));
+        background: var(--_surface-subtle);
         font-size: var(--_citation-font-size);
         font-variant-numeric: tabular-nums;
         font-weight: 500;
-        color: var(--_text-secondary, #48534b);
+        color: var(--_text-secondary);
     }
 
     .badge[hidden] {
@@ -64,7 +64,7 @@ const styles = css`
     }
 
     .title {
-        color: var(--_text-primary, #181b1a);
+        color: var(--_text-primary);
         max-inline-size: var(--_citation-max-width);
         overflow: hidden;
         text-overflow: ellipsis;
@@ -73,7 +73,7 @@ const styles = css`
 
     .doc-icon {
         display: inline-flex;
-        color: var(--_text-secondary, #48534b);
+        color: var(--_text-secondary);
         --violet-icon-size: var(--_citation-line-height);
     }
 

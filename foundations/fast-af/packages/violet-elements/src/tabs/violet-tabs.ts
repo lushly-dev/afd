@@ -16,12 +16,12 @@ const styles = css`
     :host {
         display: grid;
         gap: var(--_space-stack-sm);
-        color: var(--_text-primary, var(--color-text-primary, #181b1a));
+        color: var(--_text-primary);
 
         --_panel-background: var(--_surface-page);
         --_panel-border: color-mix(in srgb, var(--_border-subtle) 92%, transparent);
         --_panel-shadow: var(--_shadow-control);
-        --_panel-padding: var(--_space-lg, 24px);
+        --_panel-padding: var(--_space-lg);
     }
 
     :host([appearance="closed"]),
@@ -32,7 +32,7 @@ const styles = css`
     :host([orientation="vertical"]) {
         grid-template-columns: minmax(max-content, 16rem) minmax(0, 1fr);
         align-items: start;
-        gap: var(--_space-md, 12px);
+        gap: var(--_space-md);
     }
 
     /*
@@ -87,7 +87,7 @@ const styles = css`
     :host([appearance="mixed"]) .panel-region {
         padding: var(--_panel-padding);
         border: 1px solid var(--_panel-border);
-        border-radius: var(--_radius-lg, 6px);
+        border-radius: var(--_radius-lg);
         background: var(--_panel-background);
         box-shadow: var(--_panel-shadow);
     }

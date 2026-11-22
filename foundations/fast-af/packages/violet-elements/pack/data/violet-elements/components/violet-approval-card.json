@@ -25,17 +25,17 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
-				"default": "var(--violet-approval-caption-size, var(--_caption-size, 12px))",
+				"default": "var(--violet-approval-caption-size, var(--_caption-size))",
 				"name": "--_approval-caption-size"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-approval-font-size, var(--_body-size, 14px))",
+				"default": "var(--violet-approval-font-size, var(--_body-size))",
 				"name": "--_approval-font-size"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-approval-line-height, var(--_body-line, 20px))",
+				"default": "var(--violet-approval-line-height, var(--_body-line))",
 				"name": "--_approval-line-height"
 			},
 			{

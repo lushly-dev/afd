@@ -31,12 +31,12 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
-				"default": "var(--violet-suggestion-font-size, var(--_body-size, 14px))",
+				"default": "var(--violet-suggestion-font-size, var(--_body-size))",
 				"name": "--_suggestion-font-size"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-suggestion-line-height, var(--_body-line, 20px))",
+				"default": "var(--violet-suggestion-line-height, var(--_body-line))",
 				"name": "--_suggestion-line-height"
 			}
 		],

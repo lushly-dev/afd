@@ -27,11 +27,11 @@ describe("violet-color-swatch", () => {
 
     it("uses the provided label for non-decorative output", async () => {
         const swatch = await renderSwatch();
-        swatch.value = "#244635";
-        swatch.label = "Evergreen";
+        swatch.value = "#2c5e4b";
+        swatch.label = "Mint ink";
         await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)));
 
         const surface = swatch.shadowRoot?.querySelector(".swatch");
-        expect(surface?.getAttribute("aria-label")).toBe("Evergreen");
+        expect(surface?.getAttribute("aria-label")).toBe("Mint ink");
     });
 });

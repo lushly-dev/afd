@@ -13,8 +13,8 @@ const styles = css`
 
     :host {
         display: block;
-        --_composer-font-size: var(--violet-composer-font-size, var(--_body-size, 14px));
-        --_composer-line-height: var(--violet-composer-line-height, var(--_body-line, 20px));
+        --_composer-font-size: var(--violet-composer-font-size, var(--_body-size));
+        --_composer-line-height: var(--violet-composer-line-height, var(--_body-line));
         --_composer-min-rows: var(--violet-composer-min-rows, 3);
         --_composer-max-rows: var(--violet-composer-max-rows, 8);
     }

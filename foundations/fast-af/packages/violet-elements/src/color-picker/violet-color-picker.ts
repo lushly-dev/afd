@@ -16,8 +16,9 @@ import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 
 export type VioletColorPickerSize = "compact" | "natural" | "comfortable";
 
-const DEFAULT_COLOR = "#c84f3b";
-const DEFAULT_PRESETS = ["#244635", "#c84f3b", "#df7f44", "#d2b062", "#7c9d83", "#5f7ea6", "#7d5fa6", "#b95a7b"];
+// AFD Refined palette defaults (D159): fixed component defaults, not theme tokens.
+const DEFAULT_COLOR = "#146ba0";
+const DEFAULT_PRESETS = ["#181b1a", "#2c5e4b", "#a3ebcd", "#146ba0", "#c42a1a", "#f96e5b", "#92400e", "#6b7d6e"];
 
 let violetColorPickerCount = 0;
 registerSystemChevronRightIcon();

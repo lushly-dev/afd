@@ -12,10 +12,10 @@ const brokenImage = "data:image/png;base64,AAAA";
 
 const demoImage = `data:image/svg+xml;utf8,${encodeURIComponent(`
 <svg xmlns="http://www.w3.org/2000/svg" width="960" height="720" viewBox="0 0 960 720">
-  <rect width="960" height="720" fill="#ddeadf"/>
-  <rect x="90" y="90" width="780" height="540" rx="36" fill="#f7f3ea"/>
-  <circle cx="300" cy="280" r="92" fill="#9fc4ac"/>
-  <path d="M190 540c70-110 126-168 172-168 58 0 102 56 168 130 36 42 84 64 146 64h104v64H190z" fill="#8eb79a"/>
+  <rect width="960" height="720" fill="#dfeae3"/>
+  <rect x="90" y="90" width="780" height="540" rx="36" fill="#f4f0ea"/>
+  <circle cx="300" cy="280" r="92" fill="#badecf"/>
+  <path d="M190 540c70-110 126-168 172-168 58 0 102 56 168 130 36 42 84 64 146 64h104v64H190z" fill="#2c5e4b"/>
 </svg>
 `)}`;
 

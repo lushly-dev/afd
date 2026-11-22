@@ -8,10 +8,10 @@ const styles = css`
     :host {
         display: block;
         --_msg-border-width: var(--_card-border-width, 1px);
-        --_msg-body-size: var(--violet-message-body-size, var(--_body-size, 14px));
-        --_msg-body-line: var(--violet-message-body-line, var(--_body-line, 20px));
-        --_msg-system-size: var(--violet-message-system-size, var(--_caption-size, 12px));
-        --_msg-meta-size: var(--violet-message-meta-size, var(--_meta-size, 11px));
+        --_msg-body-size: var(--violet-message-body-size, var(--_body-size));
+        --_msg-body-line: var(--violet-message-body-line, var(--_body-line));
+        --_msg-system-size: var(--violet-message-system-size, var(--_caption-size));
+        --_msg-meta-size: var(--violet-message-meta-size, var(--_meta-size));
     }
 
     .root {
@@ -89,7 +89,7 @@ const styles = css`
         align-items: center;
         gap: var(--_space-sm);
         font-size: var(--_msg-meta-size);
-        color: var(--_text-secondary, #48534b);
+        color: var(--_text-secondary);
     }
 
     .meta[hidden] {

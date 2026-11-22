@@ -19,7 +19,7 @@ function renderPicker(args: VioletColorPickerStoryArgs): HTMLElement {
     const form = document.createElement("form");
     const picker = document.createElement("violet-color-picker") as VioletColorPicker;
     picker.label = "Accent color";
-    picker.supportingText = "Choose a color for farm map highlights.";
+    picker.supportingText = "Choose a color for chart or status highlights.";
     picker.errorText = "Select a color before continuing.";
     picker.name = "accent-color";
     picker.value = args.value;
@@ -90,7 +90,7 @@ async function openPickerForReview(canvasElement: HTMLElement): Promise<VioletCo
 
 export const Overview: Story = {
     args: {
-        value: "#c84f3b",
+        value: "#146ba0",
         size: "natural",
         disabled: false,
         required: false,
@@ -103,14 +103,14 @@ export const Overview: Story = {
             throw new Error("Expected color picker to render inside a form.");
         }
 
-        expect(new FormData(form).get("accent-color")).toBe("#c84f3b");
+        expect(new FormData(form).get("accent-color")).toBe("#146ba0");
         expect(picker.checkValidity()).toBe(true);
     },
 };
 
 export const Disabled: Story = {
     args: {
-        value: "#c84f3b",
+        value: "#146ba0",
         size: "natural",
         disabled: true,
         required: false,
@@ -151,7 +151,7 @@ export const Invalid: Story = {
 
 export const HexInteraction: Story = {
     args: {
-        value: "#c84f3b",
+        value: "#146ba0",
         size: "natural",
         disabled: false,
         required: false,
@@ -165,11 +165,11 @@ export const HexInteraction: Story = {
         }
         hexInput.focus();
         hexInput.select();
-        await userEvent.keyboard("#244635");
+        await userEvent.keyboard("#2c5e4b");
         hexInput.dispatchEvent(new Event("change", { bubbles: true }));
 
         await waitFor(() => {
-            expect(picker.value).toBe("#244635");
+            expect(picker.value).toBe("#2c5e4b");
         });
     },
 };

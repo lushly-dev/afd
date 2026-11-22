@@ -136,6 +136,94 @@ describe('the fallback scan (2.4)', () => {
 		expect(fixed).toBe(text.replace('#18181B', '#181b1a').replace('#6b7280', '#5e6460'));
 		expect(scanFallbacks([{ path: 'a.ts', text: fixed }], lightValues)).toEqual([]);
 	});
+
+	it('reports and repairs drifted private-alias, hook, and sibling-style fallbacks', () => {
+		const defaults = [
+			'export const violetSurfaceTokenDefaults: ElementStyles = css`',
+			'  :host {',
+			'    --_text-primary: var(--color-text-primary, #181b1a);',
+			'    --_surface-subtle: var(--color-surface-subtle, #e9e5de);',
+			'  }',
+			'`;',
+		].join('\n');
+		const styles = [
+			'export const cardStyles = css`',
+			'  :host { --_style-muted: var(--color-text-muted, #5e6460); }',
+			'`;',
+		].join('\n');
+		const component = [
+			'import { cardStyles } from "./card.styles";',
+			'const styles = css`',
+			'  ${violetSurfaceTokenDefaults}',
+			'  ${cardStyles}',
+			'  :host { --_local-ink: var(--_text-primary); }',
+			'  .a { color: var(--_text-primary, #1c1a0d); }',
+			'  .b { background: var(--_surface-subtle, rgba(28, 26, 13, 0.04)); }',
+			'  .c { color: var(--_local-ink, #1c1a0d); }',
+			'  .d { color: var(--_style-muted, #6b7280); }',
+			'  .e { color: var(--_text-link, #c42a1a); border-radius: var(--_radius-round, 6px); }',
+			'  .ok { color: var(--_text-primary, #181b1a); }',
+			'`;',
+		].join('\n');
+		const files = [
+			{ path: 'theme/violet-token-defaults.ts', text: defaults },
+			{ path: 'card/card.styles.ts', text: styles },
+			{ path: 'card/card.ts', text: component },
+		];
+		const mismatches = scanFallbacks(files, lightValues);
+		expect(
+			mismatches.map(({ path, line, property, literal, expected }) => [
+				path,
+				line,
+				property,
+				literal,
+				expected,
+			])
+		).toEqual([
+			['card/card.ts', 6, '--_text-primary', '#1c1a0d', '#181b1a'],
+			['card/card.ts', 7, '--_surface-subtle', 'rgba(28, 26, 13, 0.04)', '#e9e5de'],
+			['card/card.ts', 8, '--_local-ink', '#1c1a0d', '#181b1a'],
+			['card/card.ts', 9, '--_style-muted', '#6b7280', '#5e6460'],
+			['card/card.ts', 10, '--_text-link', '#c42a1a', '#146ba0'],
+			['card/card.ts', 10, '--_radius-round', '6px', '9999px'],
+		]);
+		const fixed = fixFallbacks(component, lightValues, mismatches);
+		expect(
+			scanFallbacks(
+				[
+					{ path: 'theme/violet-token-defaults.ts', text: defaults },
+					{ path: 'card/card.styles.ts', text: styles },
+					{ path: 'card/card.ts', text: fixed },
+				],
+				lightValues
+			)
+		).toEqual([]);
+	});
+
+	it('handles multi-binding aliases without false positives and marks mismatches ambiguous', () => {
+		const grid = [
+			'const styles = css`',
+			'  :host { --_row-size: var(--size-target-natural); }',
+			'  :host([density="compact"]) { --_row-size: var(--size-target-compact); }',
+			'  :host([density="comfortable"]) { --_row-size: var(--size-target-comfortable); }',
+			'  .default { block-size: var(--_row-size, 32px); }',
+			'  .compact { block-size: var(--_row-size, 24px); }',
+			'  .wrong { block-size: var(--_row-size, 18px); }',
+			'`;',
+		].join('\n');
+		const mismatches = scanFallbacks([{ path: 'grid/grid.ts', text: grid }], lightValues);
+		expect(mismatches).toHaveLength(1);
+		expect(mismatches[0]).toMatchObject({
+			path: 'grid/grid.ts',
+			line: 7,
+			property: '--_row-size',
+			literal: '18px',
+			expected: '32px | 24px | 44px',
+			ambiguous: true,
+		});
+		// Ambiguous mismatches are left untouched by automated repair.
+		expect(fixFallbacks(grid, lightValues, mismatches)).toBe(grid);
+	});
 });
 
 describe("violet-elements' token interface", () => {
@@ -183,6 +271,10 @@ describe('theme:check with the component paths', () => {
 		await writeFile(join(root, 'export.json'), exportJson);
 		await writeFile(join(root, 'interface.json'), interfaceJson);
 		await writeFile(join(root, 'src', 'button', 'button.ts'), source);
+		await writeFile(
+			join(root, 'src', 'button', 'button.spec.ts'),
+			'var(--color-text-muted, #000000)'
+		);
 		await writeFile(join(root, 'src', 'notes.md'), 'var(--color-text-muted, #000000)');
 		return {
 			interfacePath: pathToFileURL(join(root, 'interface.json')),

@@ -11,11 +11,11 @@ type Story = StoryObj<VioletEmptyState>;
 
 const demoImage = `data:image/svg+xml;utf8,${encodeURIComponent(`
 <svg xmlns="http://www.w3.org/2000/svg" width="720" height="540" viewBox="0 0 720 540">
-  <rect width="720" height="540" fill="#e6eadb"/>
-  <rect x="96" y="84" width="528" height="372" rx="28" fill="#fbf8f0"/>
-  <path d="M176 352h368" stroke="#c7d3b4" stroke-width="28" stroke-linecap="round"/>
-  <circle cx="252" cy="248" r="52" fill="#aac2a0"/>
-  <path d="M230 332c46-58 80-86 120-86s76 24 136 86" fill="none" stroke="#8eb79a" stroke-width="26" stroke-linecap="round"/>
+  <rect width="720" height="540" fill="#dfeae3"/>
+  <rect x="96" y="84" width="528" height="372" rx="28" fill="#f8f9f3"/>
+  <path d="M176 352h368" stroke="#e9e5de" stroke-width="28" stroke-linecap="round"/>
+  <circle cx="252" cy="248" r="52" fill="#badecf"/>
+  <path d="M230 332c46-58 80-86 120-86s76 24 136 86" fill="none" stroke="#2c5e4b" stroke-width="26" stroke-linecap="round"/>
 </svg>
 `)}`;
 

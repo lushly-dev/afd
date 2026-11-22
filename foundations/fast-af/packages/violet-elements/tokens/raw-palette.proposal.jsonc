@@ -1,159 +1,162 @@
 {
-  // Draft raw palette proposal for Violet.
-  // This sits below semantic tokens and gives us a named color vocabulary
-  // we can map into surfaces, text, accents, and state roles.
-  "proposalVersion": "0.1.0",
+  // AFD Refined raw palette reference for Violet's built-in default theme (D159).
+  // These primitives come from AFD's design system (site/css/tokens-m2.css and
+  // endpoints/loam/packages/theme/src/tree/primitives.ts) and map into the
+  // semantic surface, text, action, focus and state roles.
+  "proposalVersion": "0.2.0",
   "package": "@lushly-dev/violet-elements",
-  "description": "Draft raw palette names and first semantic mapping proposal for Violet.",
+  "description": "AFD Refined raw palette primitives and semantic mapping reference for Violet.",
 
   "rawPalette": [
     {
-      "id": "oat-blossom",
-      "hex": "#FFFEFA",
-      "hsl": "hsla(48, 100%, 99%, 1)",
-      "roleHint": "light warm neutral"
+      "id": "paper",
+      "hex": "#f4f0ea",
+      "hsl": "hsla(36, 31%, 94%, 1)",
+      "roleHint": "page surface (warm paper canvas)"
     },
     {
-      "id": "dry-sage",
-      "hex": "#FAF9F5",
-      "hsl": "hsla(48, 33%, 97%, 1)",
-      "roleHint": "secondary light neutral"
+      "id": "paper-bright",
+      "hex": "#f8f9f3",
+      "hsl": "hsla(70, 33%, 96%, 1)",
+      "roleHint": "card surface (brighter paper)"
     },
     {
-      "id": "sage-stem",
-      "hex": "#F0EFE6",
-      "hsl": "hsla(54, 25%, 92%, 1)",
-      "roleHint": "deeper light neutral"
+      "id": "paper-200",
+      "hex": "#e9e5de",
+      "hsl": "hsla(38, 20%, 89%, 1)",
+      "roleHint": "subtle recessed surface and tracks"
     },
     {
-      "id": "rain-mint",
-      "hex": "#DFE8E0",
-      "hsl": "hsla(127, 16%, 89%, 1)",
-      "roleHint": "soft selected-surface accent"
+      "id": "mint-wash",
+      "hex": "#dfeae3",
+      "hsl": "hsla(142, 21%, 90%, 1)",
+      "roleHint": "selected rows and success wash"
     },
     {
-      "id": "pine-teal",
-      "hex": "#244635",
-      "hsl": "hsla(150, 32%, 21%, 1)",
-      "roleHint": "cool dark accent ink"
+      "id": "mint-soft",
+      "hex": "#badecf",
+      "hsl": "hsla(155, 35%, 80%, 1)",
+      "roleHint": "selected control fill (checkbox, switch, radio)"
     },
     {
-      "id": "ripe-tomato",
-      "hex": "#EC654E",
-      "hsl": "hsla(9, 81%, 62%, 1)",
-      "roleHint": "primary accent"
+      "id": "mint-ink",
+      "hex": "#2c5e4b",
+      "hsl": "hsla(157, 36%, 27%, 1)",
+      "roleHint": "selection and success ink"
     },
     {
-      "id": "chestnut",
-      "hex": "#7A2B1E",
-      "hsl": "hsla(8, 61%, 30%, 1)",
-      "roleHint": "warm dark accent ink"
+      "id": "blue-ink",
+      "hex": "#146ba0",
+      "hsl": "hsla(203, 78%, 35%, 1)",
+      "roleHint": "focus ring and link ink"
     },
     {
-      "id": "black-pitch",
-      "hex": "#1C1A0D",
-      "hsl": "hsla(52, 37%, 8%, 1)",
-      "roleHint": "default dark neutral ink"
+      "id": "red-ink",
+      "hex": "#c42a1a",
+      "hsl": "hsla(6, 77%, 44%, 1)",
+      "roleHint": "danger action and invalid ink"
+    },
+    {
+      "id": "ink-soft",
+      "hex": "#48534b",
+      "hsl": "hsla(136, 7%, 30%, 1)",
+      "roleHint": "secondary text and hover border"
+    },
+    {
+      "id": "ink",
+      "hex": "#181b1a",
+      "hsl": "hsla(160, 6%, 10%, 1)",
+      "roleHint": "primary text and main action"
     }
   ],
 
   "semanticMapping": {
     "surfaces": {
       "color.surface.page": {
-        "source": "oat-blossom",
+        "source": "paper",
         "strategy": "direct",
         "notes": [
-          "Current page surface direction now matches the named raw palette value directly."
+          "Quiet warm paper canvas for the resting page surface."
         ]
       },
       "color.surface.card": {
-        "source": "dry-sage",
+        "source": "paper-bright",
         "strategy": "direct",
         "notes": [
-          "Cards now map more cleanly to the second light neutral instead of deriving another lighter oat-blossom step."
+          "Card surfaces step brighter than the page without leaving the paper family."
         ]
       },
       "color.surface.subtle": {
-        "source": "sage-stem",
+        "source": "paper-200",
         "strategy": "direct",
         "notes": [
-          "Subtle/recessed structure for quieter nested surfaces."
+          "Recessed bands, tinted rows and slider tracks."
         ]
       },
       "color.surface.selected": {
-        "source": "rain-mint",
+        "source": "mint-wash",
         "strategy": "direct",
         "notes": [
-          "The selected-surface green is now light enough to stand as the named raw palette value itself."
+          "Greyed mint wash for selected rows and success surfaces on paper."
         ]
       },
       "color.surface.floating": {
-        "source": "sage-stem",
-        "strategy": "direct-shared",
+        "source": "paper-bright",
+        "strategy": "brightened-to-white",
         "notes": [
-          "Floating layers currently share the subtle surface value and depend on elevation to establish separation."
+          "Floating layers sit brightest on pure white (#ffffff) with a soft drop shadow."
         ]
       }
     },
     "text": {
       "color.text.primary": {
-        "source": "black-pitch",
+        "source": "ink",
         "strategy": "direct"
       },
       "color.text.secondary": {
-        "source": "pine-teal",
-        "strategy": "derived-muted",
-        "candidateHex": "#405448",
+        "source": "ink-soft",
+        "strategy": "direct",
         "notes": [
-          "Secondary text should stay quieter than primary body text while still fitting the botanical palette."
+          "Secondary text and field hover edges stay legible over every light surface."
         ]
       },
-      "color.text.accent.primary": {
-        "source": "ripe-tomato",
-        "strategy": "direct-sparingly",
+      "color.control.selected.foreground": {
+        "source": "mint-ink",
+        "strategy": "direct",
         "notes": [
-          "Primary accent text for occasional pops, not frequent body usage."
+          "Selection and success foreground ink paired with mint-soft and mint-wash."
         ]
       },
-      "color.text.accent.secondary": {
-        "source": "rain-mint",
-        "strategy": "direct-sparingly",
+      "color.focus.ring": {
+        "source": "blue-ink",
+        "strategy": "direct",
         "notes": [
-          "Secondary accent text when a cooler emphasis is needed."
+          "Keyboard focus ring and link ink in light mode."
         ]
       },
-      "color.text.accent.coolDark": {
-        "source": "pine-teal",
-        "strategy": "direct-sparingly",
+      "color.state.danger.text": {
+        "source": "red-ink",
+        "strategy": "direct",
         "notes": [
-          "Dark cool accent ink for highlighted words or labels."
-        ]
-      },
-      "color.text.accent.warmDark": {
-        "source": "chestnut",
-        "strategy": "direct-sparingly",
-        "notes": [
-          "Dark warm accent ink for highlighted words or labels."
+          "Readable danger text and destructive action color on light paper."
         ]
       }
     },
     "actions": {
-      "color.action.primary": {
-        "source": "ripe-tomato",
+      "color.action.primary.background": {
+        "source": "ink",
         "strategy": "direct"
       },
-      "color.action.secondary": {
-        "source": "rain-mint",
+      "color.control.selected.background": {
+        "source": "mint-soft",
         "strategy": "direct"
       }
     }
   },
 
   "notes": [
-    "Raw palette names should stay expressive and botanical/material in tone.",
-    "Semantic tokens should remain functional even when they map to expressive raw names.",
-    "Ripe-tomato is the primary accent. Rain-mint is the secondary accent.",
-    "Pine-teal and chestnut are best treated as occasional dark accent inks rather than default body text colors.",
-    "Black-pitch is the default dark neutral for primary text."
+    "AFD's Refined palette pairs ink on paper with mint for selection, blue for focus, and red for danger.",
+    "Semantic tokens are generated from Loam's Violet theme tree into tokens/violet-theme.export.json (D50, D159).",
+    "Products with their own look (such as Lushly) install their own VioletThemeSet via installVioletThemeSet()."
   ]
 }

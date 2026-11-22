@@ -71,12 +71,12 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-composer-font-size, var(--_body-size, 14px))",
+				"default": "var(--violet-composer-font-size, var(--_body-size))",
 				"name": "--_composer-font-size"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-composer-line-height, var(--_body-line, 20px))",
+				"default": "var(--violet-composer-line-height, var(--_body-line))",
 				"name": "--_composer-line-height"
 			},
 			{

@@ -13,9 +13,9 @@ const styles = css`
 
     :host {
         display: block;
-        --_approval-font-size: var(--violet-approval-font-size, var(--_body-size, 14px));
-        --_approval-line-height: var(--violet-approval-line-height, var(--_body-line, 20px));
-        --_approval-caption-size: var(--violet-approval-caption-size, var(--_caption-size, 12px));
+        --_approval-font-size: var(--violet-approval-font-size, var(--_body-size));
+        --_approval-line-height: var(--violet-approval-line-height, var(--_body-line));
+        --_approval-caption-size: var(--violet-approval-caption-size, var(--_caption-size));
         --_warning-bg-subtle: var(--color-state-warning-background, #f3e8d2);
         --_warning-text: var(--color-state-warning-text, #92400e);
         --_success-bg-subtle: var(--color-state-success-background, #dfeae3);
@@ -121,7 +121,7 @@ const styles = css`
         gap: var(--_space-stack-2xs);
         font-size: var(--_approval-font-size);
         line-height: var(--_approval-line-height);
-        color: var(--_text-primary, #181b1a);
+        color: var(--_text-primary);
     }
 
     .detail {

@@ -75,17 +75,17 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
-				"default": "var(--violet-citation-badge-size, var(--_caption-line, 16px))",
+				"default": "var(--violet-citation-badge-size, var(--_caption-line))",
 				"name": "--_citation-badge-size"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-citation-font-size, var(--_caption-size, 12px))",
+				"default": "var(--violet-citation-font-size, var(--_caption-size))",
 				"name": "--_citation-font-size"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-citation-line-height, var(--_caption-line, 16px))",
+				"default": "var(--violet-citation-line-height, var(--_caption-line))",
 				"name": "--_citation-line-height"
 			},
 			{
