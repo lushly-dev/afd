@@ -743,6 +743,30 @@ export interface ManifestV2 {
 			};
 			requires_experiment?: string;
 		}[];
+		/**
+		 * @maxItems 2
+		 */
+		account?:
+			| []
+			| [
+					{
+						id: string;
+						title: string;
+						surface: string;
+					}
+			  ]
+			| [
+					{
+						id: string;
+						title: string;
+						surface: string;
+					},
+					{
+						id: string;
+						title: string;
+						surface: string;
+					}
+			  ];
 		experiments?: {
 			id: string;
 			title: string;

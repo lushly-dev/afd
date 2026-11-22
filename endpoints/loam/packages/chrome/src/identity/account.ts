@@ -4,7 +4,8 @@
  *
  * - `loam-account-section`, main's account section at `/<workspace>/~/account[/<tab>]`: a tablist of links over
  *   `profile`, `passkeys`, `sessions` and `members` (`passkeys` and `sessions` in `provider` mode only; the owner
- *   controls of `members` for an owner only, absent for anyone else). Every change is a command.
+ *   controls of `members` for an owner only, absent for anyone else), then a tab per app's `ui.account` section at
+ *   `~/account/<instance>/<id>` (5.5, `account-apps.ts`). Every change is a command.
  * - `loam-account-invitations`, the invitations a signed-in person who is no member may accept (5.3).
  * - `mountLinkPage`, the join and recovery pages (5.6, 5.7): top-level pages over the provider alone, with no kernel.
  *
@@ -21,6 +22,13 @@ import type {
 	OwnInvitationV1,
 } from '@lushly-dev/loam-kernel';
 import type { LoamShell } from '../elements/shell.js';
+import {
+	type AppAccountTab,
+	type AppTabHost,
+	appTabs,
+	type ShownAppTab,
+	showAppTab,
+} from './account-apps.js';
 import {
 	AccountElement,
 	type Answer,
@@ -68,17 +76,51 @@ export class LoamAccountSection extends AccountElement {
 	workspace = '';
 	/** Whether the deployment is `provider` mode: sessions and passkeys exist, and owners have controls. */
 	provider = false;
-	tab: Tab = 'profile';
+	/** What an app's section needs of the shell (5.5); none, and no app's tab shows. */
+	host: AppTabHost | null = null;
+	/** A built-in tab, or an app's section's `<instance>/<id>`. */
+	tab: string = 'profile';
 	#status: HTMLElement | undefined;
 	#panel: HTMLElement | undefined;
+	/** The built-in tabs' content; an app's surface goes beside it, so a view leaving after it stays in the page. */
+	#content: HTMLElement | undefined;
 	#reads = 0;
+	#shows = 0;
+	/** The tab last asked for, set before any await, so an event's re-read keeps a newer press. */
+	#wanted = 'profile';
+	#apps: AppAccountTab[] = [];
+	#shown: ShownAppTab | undefined;
+	#unsubscribe: (() => void) | undefined;
+	#unwatch: (() => void) | undefined;
 
 	connectedCallback(): void {
+		const kernel = this.kernel;
+		// A change of person drops the app's surface made for the one before, and reads every tab again; an app's own
+		// settings reach its surface, as main's do (phase 3 specification, 4.4; phase 4 specification, 3.8).
+		this.#unsubscribe ??= kernel?.subscribe((event) => {
+			if (
+				event.actorChanged ||
+				/^(session|membership)-settle$/.test(event.command) ||
+				// An experiment's change opens or closes a gate, which may name an app's section's surface (phase 4's 5.3).
+				event.experiments ||
+				(event.success && event.mutation && event.command.startsWith('auth-'))
+			) {
+				void this.drop();
+				void this.show(this.#wanted);
+			} else if (event.success && (event as { settings?: string[] }).settings?.length)
+				this.#shown?.settingsChanged((event as { settings: string[] }).settings);
+		});
+		// Main's gate (signed out, no member, the wrong binding) is set after the shell's own read: show again on it.
+		this.#unwatch ??= this.host?.watchGate(() => {
+			void this.drop();
+			void this.show(this.#wanted);
+		});
 		const root = this.shadowRoot as ShadowRoot;
 		if (root.querySelector('.section')) return;
 		const heading = el('h1', { tabindex: '-1', id: 'account-heading' }, 'Account');
 		this.#status = el('p', { class: 'status', role: 'status', 'aria-live': 'polite' });
-		this.#panel = el('div', { role: 'tabpanel', id: 'account-panel' });
+		this.#content = el('div', { class: 'content' });
+		this.#panel = el('div', { role: 'tabpanel', id: 'account-panel' }, this.#content);
 		root.append(
 			el(
 				'section',
@@ -112,45 +154,118 @@ export class LoamAccountSection extends AccountElement {
 
 	/** Show `tab`, reading what it shows. */
 	async show(tab: string): Promise<void> {
-		this.tab = (this.tabs as readonly string[]).includes(tab) ? (tab as Tab) : 'profile';
+		const shows = ++this.#shows;
+		this.#wanted = tab;
+		// The apps' sections, read again each time: an app enabled, disabled or failed since changes the list (5.5).
+		const apps = this.host?.open() && this.kernel ? await appTabs(this.kernel) : [];
+		// A later show, or the section's leaving, took its place while the list was read.
+		if (shows !== this.#shows) return;
+		this.#apps = apps;
+		const tabs: Array<{ key: string; id: string; name: string }> = [
+			...this.tabs.map((each) => ({
+				key: each as string,
+				id: `tab-${each}`,
+				name: TAB_NAMES[each],
+			})),
+			// Each names its app, so no app's tab passes for one of the shell's (5.5).
+			...apps.map((each, index) => ({
+				key: each.key,
+				id: `tab-app-${index}`,
+				name: `${each.section.title} (${each.app})`,
+			})),
+		];
+		this.tab = tabs.some((each) => each.key === tab) ? tab : 'profile';
+		const selected = tabs.find((each) => each.key === this.tab) as { id: string };
 		const list = this.shadowRoot?.querySelector('[role="tablist"]');
 		// A tab pressed keeps focus: the list is rebuilt, so the selected tab takes it again.
 		const onTab = this.shadowRoot?.activeElement?.getAttribute('role') === 'tab';
 		list?.replaceChildren(
-			...this.tabs.map((each) => {
+			...tabs.map(({ key, id, name }) => {
 				const link = el(
 					'a',
 					{
 						role: 'tab',
-						id: `tab-${each}`,
-						href: `${this.base}${this.workspace}/~/account${each === 'profile' ? '' : `/${each}`}`,
-						'aria-selected': String(each === this.tab),
+						id,
+						href: `${this.base}${this.workspace}/~/account${key === 'profile' ? '' : `/${key}`}`,
+						'aria-selected': String(key === this.tab),
 						'aria-controls': 'account-panel',
-						...(each === this.tab ? { 'aria-current': 'page' } : {}),
+						...(key === this.tab ? { 'aria-current': 'page' } : {}),
 					},
-					TAB_NAMES[each]
+					name
 				);
 				link.addEventListener('click', (event) => {
 					event.preventDefault();
 					void this.kernel?.call('section-open', {
 						section: 'account',
-						...(each === 'profile' ? {} : { path: each }),
+						...(key === 'profile' ? {} : { path: key }),
 					});
 				});
 				return link;
 			})
 		);
-		this.#panel?.setAttribute('aria-labelledby', `tab-${this.tab}`);
-		if (onTab) this.shadowRoot?.querySelector<HTMLElement>(`#tab-${this.tab}`)?.focus();
+		this.#panel?.setAttribute('aria-labelledby', selected.id);
+		if (onTab) this.shadowRoot?.querySelector<HTMLElement>(`#${selected.id}`)?.focus();
 		await this.read();
+	}
+
+	/** The app's section's surface stays while its tab shows; another tab, or the section's leaving, drops it. */
+	drop(): Promise<void> {
+		const was = this.#shown;
+		this.#shown = undefined;
+		return was?.dispose() ?? Promise.resolve();
+	}
+
+	/** Leave main: hidden at once, removed once an app's view has answered its teardown (6.2). */
+	async leave(): Promise<void> {
+		this.hidden = true;
+		this.dataset.leaving = '';
+		this.#stop();
+		await this.drop();
+		this.remove();
+	}
+
+	disconnectedCallback(): void {
+		this.#stop();
+		void this.drop();
+	}
+
+	/** Nothing read before this lands, and no event reaches the section again. */
+	#stop(): void {
+		this.#reads++;
+		this.#shows++;
+		this.#unsubscribe?.();
+		this.#unsubscribe = undefined;
+		this.#unwatch?.();
+		this.#unwatch = undefined;
 	}
 
 	/** Read the tab's records again and render them. */
 	async read(): Promise<void> {
 		const kernel = this.kernel;
 		const panel = this.#panel;
-		if (!kernel || !panel) return;
+		const content = this.#content;
+		if (!kernel || !panel || !content) return;
 		const generation = ++this.#reads;
+		const app = this.#apps.find((each) => each.key === this.tab);
+		if (app && this.host) {
+			// A surface that showed stays; one that could not is tried again.
+			if (this.#shown?.key === app.key && !this.#shown.failed) return;
+			void this.drop();
+			const shown = await showAppTab(
+				app,
+				this.host,
+				() => generation !== this.#reads || !this.isConnected
+			);
+			if (generation !== this.#reads || this.#shown) {
+				void shown.dispose();
+				return;
+			}
+			this.#shown = shown;
+			content.replaceChildren();
+			panel.append(shown.node);
+			return;
+		}
+		void this.drop();
 		const rendered =
 			this.tab === 'passkeys'
 				? await this.#passkeys(kernel)
@@ -161,7 +276,7 @@ export class LoamAccountSection extends AccountElement {
 						: this.tab === 'agents'
 							? await this.#agents(kernel)
 							: await this.#profile(kernel);
-		if (generation === this.#reads) panel.replaceChildren(...rendered);
+		if (generation === this.#reads) content.replaceChildren(...rendered);
 	}
 
 	async #profile(kernel: LoamKernelV5): Promise<Node[]> {
@@ -717,10 +832,10 @@ export async function syncAccount(shell: LoamShell): Promise<void> {
 	const main = shell.shadowRoot?.querySelector<HTMLElement>('loam-main');
 	if (!kernel || !main) return;
 	const state = await shell.readState();
-	const held = main.querySelector<LoamAccountSection>(SECTION);
+	const held = main.querySelector<LoamAccountSection>(`${SECTION}:not([data-leaving])`);
 	if (state.section !== 'account' || state.active !== null) {
 		if (!held) return;
-		held.remove();
+		void held.leave();
 		if (main.dataset.section === 'account') delete main.dataset.section;
 		return;
 	}
@@ -733,6 +848,25 @@ export async function syncAccount(shell: LoamShell): Promise<void> {
 		section.base = shell.base;
 		section.workspace = state.workspace.id;
 		section.provider = shell.identity !== null;
+		section.host = {
+			kernel,
+			workspace: state.workspace.id,
+			// A reload straight into an app's tab can come before the shell has loaded the app surfaces: wait for them,
+			// as long as main waits for its owner (15 s), rather than show the tab unavailable.
+			surfaces: async (stale) => {
+				for (let tries = 0; !shell.apps && shell.appCount > 0 && tries < 150 && !stale(); tries++)
+					await new Promise((resolve) => setTimeout(resolve, 100));
+				return shell.apps?.host() ?? null;
+			},
+			theme: () => (shell.appearance.resolved === 'dark' ? 'dark' : 'light'),
+			open: () => shell.gate === '',
+			// Main carries the shell's gate as its attribute: watched there, with nothing of FAST's in this chunk.
+			watchGate: (listener) => {
+				const observer = new MutationObserver(listener);
+				observer.observe(main, { attributes: true, attributeFilter: ['gate'] });
+				return () => observer.disconnect();
+			},
+		};
 		main.dataset.section = 'account';
 		main.append(section);
 	}

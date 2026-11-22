@@ -448,7 +448,7 @@ Written when the session coordinating phase 2 ran out of account capacity. `main
 
   - 7, identity over MCP, connecting an external agent: in review in [#1908](https://github.com/lushly-dev/afd/pull/1908), after a trust-boundary review and a re-check; the record is in the [specification's status](phases/3-identity/spec.md#status).
 
-  - 8, an app's account section: not started.
+  - 8, an app's account section: in review in [#1969](https://github.com/lushly-dev/afd/pull/1969), after two independent reviews and three re-checks; the record is in the [specification's status](phases/3-identity/spec.md#status).
 
   - 9, the local exit: not started.
 
@@ -677,6 +677,7 @@ new row.
 | Date | Session | What changed |
 | --- | --- | --- |
 | 2026-11-21 | Phase 3 step 7, `lush/loam-p3-step7-mcp-identity` | Identity over MCP: the principal-gated server kernel, `createMcpAuth`, `credentialsGate`, `createServerKernel`, connected agents in `loam_connected_agent` with `connectAgent` on consent, `account-agent-*`, the authorization server and the OAuth login and consent pages; P3-E8 and P3-E20. The record is in the [specification's status](phases/3-identity/spec.md#status) |
+| 2026-11-21 | Phase 3 step 8, `lush/loam-p3-step8-app-account` | An app's account section: `ui.account`'s schema branch, rules and refusals, a tab per app's section at workspace level through a surface port fixed to the workspace, hello's section; `apps` and `account` measured and raised under D115; P3-E14. The record is in the [specification's status](phases/3-identity/spec.md#status) |
 
 ### Sessions: phase 4, settings, experiments, notifications, overlays
 

@@ -374,6 +374,13 @@
 						"$ref": "#/$defs/settingSection"
 					}
 				},
+				"account": {
+					"type": "array",
+					"maxItems": 2,
+					"items": {
+						"$ref": "#/$defs/accountSection"
+					}
+				},
 				"experiments": {
 					"type": "array",
 					"items": {
@@ -381,6 +388,27 @@
 					}
 				}
 			},
+			"unevaluatedProperties": false
+		},
+		"accountSection": {
+			"description": "An app's section of the account section (phase 3 specification, 5.5): a tab at workspace level showing one of the app's declared surfaces.",
+			"type": "object",
+			"properties": {
+				"id": {
+					"type": "string",
+					"pattern": "^[a-z0-9][a-z0-9-]{0,39}$"
+				},
+				"title": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 40
+				},
+				"surface": {
+					"type": "string",
+					"pattern": "^[a-z0-9][a-z0-9-]{0,39}$"
+				}
+			},
+			"required": ["id", "title", "surface"],
 			"unevaluatedProperties": false
 		},
 		"settingSection": {

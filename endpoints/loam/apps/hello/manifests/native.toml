@@ -106,6 +106,13 @@ items = [{ id = "count", label = "Greetings" }]
 chord = "Mod+Shift+H"
 command = "hello-greet"
 
+# Phase 3's account section (its 5.5): a tab of the person's account, at workspace level, showing Hello's main
+# surface through a port fixed to the workspace, whatever project is active.
+[[ui.account]]
+id = "greetings"
+title = "Greetings"
+surface = "main"
+
 # Phase 4's settings (its 3.1): the greeting, for the workspace and each project, and the guest board, for a
 # project alone. Hello reads them through the `settings` grant and greets with the one that applies here.
 [[ui.settings]]

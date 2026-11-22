@@ -5,6 +5,7 @@
  */
 
 import type { Actor, CommandResult } from '@lushly-dev/afd-core';
+import type { ManifestV2 } from '@lushly-dev/loam-manifest';
 
 export type { Actor, CommandError, CommandResult } from '@lushly-dev/afd-core';
 export { failure, success } from '@lushly-dev/afd-core/result';
@@ -290,6 +291,14 @@ export interface ProjectSummaryV1 {
 	/** At most 6. */
 	links?: Array<{ label: string; link: ResourceLinkV1 }>;
 }
+
+/**
+ * One of an app's `ui.account` sections (phase 3 specification, 5.5 and 12): a tab of the account section, at workspace
+ * level, showing the declared surface `surface` (a native app's `main`, `inspector` or custom `sidebar` element, or a
+ * view app's `main` resource) through a surface port fixed to the workspace. Its handlers see the caller as
+ * `context.actor`, never an email, a session or a credential.
+ */
+export type AccountSectionV1 = NonNullable<NonNullable<ManifestV2['ui']>['account']>[number];
 
 /** A project as an app sees it: no members, and no one who wrote it (phase 2 specification, 4.3). */
 export interface AppProjectV1 {
