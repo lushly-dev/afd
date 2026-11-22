@@ -122,13 +122,20 @@ def test_define_command_rejects_an_invalid_policy():
 
 
 async def test_server_reports_approval_and_version_in_meta_detail_and_docs():
-    server = create_server("approval-meta", tool_strategy="individual", bootstrap=True)
+    # The engine refuses a gated command without an approval step (#1886), so this server has
+    # one; its policy lets the empty input through, and the call is stamped with the version.
+    server = create_server(
+        "approval-meta",
+        tool_strategy="individual",
+        bootstrap=True,
+        middleware=[create_approval_middleware(secret=SECRET)],
+    )
 
     @server.command(
         name="todo-delete",
         description="Delete a todo",
         mutation=True,
-        approval=lambda input, context: "required",
+        approval=lambda input, context: "required" if input else "not-required",
         version="2.1.0",
         expose=MCP,
     )
@@ -532,10 +539,16 @@ def test_canonical_json_rejects_cycles():
         _canonical_json(cyclic)
 
 
+def _not_canonical(result) -> None:
+    """An input no approval can be bound to is answered before anyone is asked (#1886)."""
+    assert result.success is False and result.error.code == "APPROVAL_UNAVAILABLE"
+    assert result.error.details == {"reason": "input-not-canonical"}
+    assert result.error.retryable is False
+
+
 async def test_an_unbindable_input_fails_the_call():
     gate = Gate()
-    with pytest.raises(TypeError, match="Cannot bind an approval"):
-        await gate.call({"id": math.inf})
+    _not_canonical(await gate.call({"id": math.inf}))
     assert gate.ran == []
 
 
@@ -557,8 +570,7 @@ async def test_a_model_input_with_a_non_finite_float_fails_the_call():
     class Ratio(BaseModel):
         value: float
 
-    with pytest.raises(TypeError, match="non-finite"):
-        await Gate().call(Ratio(value=math.inf))
+    _not_canonical(await Gate().call(Ratio(value=math.inf)))
 
 
 class _Secret(BaseModel):
@@ -613,8 +625,7 @@ class _Nested(BaseModel):
 async def test_a_model_whose_dump_loses_information_fails_the_call(model):
     """Two such inputs could share a digest (SecretStr dumps as asterisks), so refuse."""
     gate = Gate()
-    with pytest.raises(TypeError, match="Cannot bind an approval"):
-        await gate.call(model)
+    _not_canonical(await gate.call(model))
     assert gate.ran == []
 
 

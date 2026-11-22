@@ -37,12 +37,13 @@ from todo_backend.store import Store, create_store
 Env = Mapping[str, str]
 
 
-def all_commands(store: Store) -> list[Callable[..., Any]]:
-    """Every todo command bound to ``store``, in the TypeScript backend's order."""
+def all_commands(store: Store, *, held: bool = True) -> list[Callable[..., Any]]:
+    """Every todo command bound to ``store``, in the TypeScript backend's order. With
+    ``held=False``, ``todo-clear`` declares no approval policy (see :func:`create_todo_commands`)."""
     single = single_commands(store)
     batch = batch_commands(store)
     by_name = {command.__afd_command__.name: command for command in [*single, *batch]}
-    by_name["todo-clear"] = clear_command(store)
+    by_name["todo-clear"] = clear_command(store, held=held)
     by_name["todo-history"] = history_command(store)
     order = [
         "todo-create",
@@ -64,12 +65,21 @@ def all_commands(store: Store) -> list[Callable[..., Any]]:
 
 def resolve_approvals(env: Env) -> Literal["agents", "off"]:
     """Whether calls are held for approval, from ``APPROVALS`` (default ``agents``): ``agents``
-    holds ``todo-clear`` for any caller that is not a person; ``off`` holds nothing. The shared
+    holds ``todo-clear`` for any caller that is not a person; ``off`` holds nothing, because
+    :func:`create_todo_commands` then serves ``todo-clear`` with no approval policy. The shared
     conformance suites run with ``off``, as they set ``CONFIRMATIONS``."""
     value = env.get("APPROVALS", "agents")
     if value in ("agents", "off"):
         return value  # type: ignore[return-value]
     raise ValueError(f'APPROVALS must be agents or off, not "{value}"')
+
+
+def create_todo_commands(store: Store, env: Env) -> list[Callable[..., Any]]:
+    """The commands the server serves. With ``APPROVALS=off`` there is no approval middleware,
+    and the engine refuses a command that declares an approval policy without one
+    (``APPROVAL_UNAVAILABLE``), so ``todo-clear`` is served without its policy: it runs for every
+    caller, and ``_meta.approval`` does not advertise a hold the server does not make."""
+    return all_commands(store, held=resolve_approvals(env) == "agents")
 
 
 def resolve_approval_secret(env: Env) -> str | bytes:
@@ -84,9 +94,7 @@ def resolve_approval_secret(env: Env) -> str | bytes:
     return secret
 
 
-def create_todo_middleware(
-    store: Store, commands: list[Callable[..., Any]], env: Env
-) -> list[CommandMiddleware]:
+def create_todo_middleware(store: Store, env: Env) -> list[CommandMiddleware]:
     """The middleware, outermost first:
 
     1. ``default_middleware()``: a trace ID for each call, logging and timing.
@@ -102,7 +110,6 @@ def create_todo_middleware(
         middleware.append(
             create_approval_middleware(
                 secret=resolve_approval_secret(env),
-                commands=commands,
                 # An MCP client that declares form elicitation asks its person; any other caller
                 # gets APPROVAL_REQUIRED with a suggestion to ask the person.
                 relay="mcp-elicitation",
@@ -119,12 +126,12 @@ def create_app(store: Store, env: Env | None = None) -> MCPServer:
     """Create the todo MCP server with its commands bound to ``store``, configured from ``env``
     (default: the process environment)."""
     env = os.environ if env is None else env
-    commands = all_commands(store)
+    commands = create_todo_commands(store, env)
     server = create_server(
         name="todo-app",
         version="1.0.0",
         description="A todo list manager demonstrating AFD patterns",
-        middleware=create_todo_middleware(store, commands, env),
+        middleware=create_todo_middleware(store, env),
         # off (default), enforce or require-human (spec/command-metadata.md, "Confirmations").
         confirmations=env.get("CONFIRMATIONS", "off"),
         # Registers afd-context-list, -enter and -exit (todo_backend/contexts.py).

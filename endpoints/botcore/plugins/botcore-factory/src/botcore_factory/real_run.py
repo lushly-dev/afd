@@ -80,11 +80,18 @@ def _text(output: bytes) -> str:
 
 
 def make_runner(cwd: str) -> Run:
-    """A ``run(args, stdin=None, check=True)`` returning stdout, raising WorldError on a nonzero
-    exit unless ``check`` is false."""
+    """A ``run(args, stdin=None, check=True, env=None)`` returning stdout, raising WorldError on
+    a nonzero exit unless ``check`` is false. ``env`` is laid over this process's environment
+    for that one command."""
 
-    def run(args: Sequence[str], stdin: str | None = None, check: bool = True) -> str:
-        done = run_process(args, cwd=cwd, stdin=stdin)
+    def run(
+        args: Sequence[str],
+        stdin: str | None = None,
+        check: bool = True,
+        env: Mapping[str, str] | None = None,
+    ) -> str:
+        merged = None if env is None else {**os.environ, **env}
+        done = run_process(args, cwd=cwd, stdin=stdin, env=merged)
         if check and done.returncode != 0:
             detail = "\n".join(filter(None, (diagnostics(done.stderr), diagnostics(done.stdout))))
             command = " ".join(args[:3])[:200]

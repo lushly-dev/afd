@@ -2,9 +2,8 @@
 // schema-validated request values a host declares in `CommandRegistryOptions::context_fields`.
 // A call carries each value in `CommandContext::extra[name]` (a JSON `null` counts as no value);
 // the registry validates it before middleware and the handler run, and the journal keeps the ones
-// declared `journal` (spec/journal.md, "Declared context fields"). C++ has no MCP server: a host's
-// transport reads
-// `_meta[meta]` and sets `extra[name]`.
+// declared `journal` (spec/journal.md, "Declared context fields"). `afd::mcp_stdio` reads none
+// of them: a host's transport reads `_meta[meta]` and sets `extra[name]`.
 #pragma once
 
 #include "afd/json.hpp"
