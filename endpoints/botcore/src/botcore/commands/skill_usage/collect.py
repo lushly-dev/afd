@@ -8,8 +8,10 @@ harnesses already keep. Running it again adds only what is new.
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 import sqlite3
+import stat
 import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -63,6 +65,9 @@ _ORIGIN, _LOCAL = "refs/remotes/origin/", "refs/heads/"
 # What git says of a folder that is no repository (its messages are asked for in English)
 _NOT_A_REPOSITORY = "not a git repository"
 _LINK = "120000"  # a tree entry that is a link: its blob is the path it points to
+# How long a folder that is not there, and that nothing shows was removed, keeps speaking for
+# its project: a volume away for longer speaks no more, until it is read again
+GONE_AFTER = timedelta(days=30)
 NOTHING_HELD = {"at": None, "commit": None, "held": {}, "renames": {}}
 UNKNOWN_PROJECT = "unknown"
 _PATHSPECS = tuple(f":(glob){folder}/*/SKILL.md" for folder in SKILL_DIRS)
@@ -198,6 +203,79 @@ def held_in_folder(root: Path) -> dict[str, list[int]]:
     return found
 
 
+def folder_there(path: Path) -> bool | None:
+    """Whether a folder is there. False only where it is known not to be: nothing has that
+    name, or it is no folder, or the way to it leads through something that is none. None
+    where that cannot be told (the user may not look, a drive does not answer): never taken
+    for a folder that is gone."""
+    try:
+        mode = os.stat(path).st_mode
+    except (FileNotFoundError, NotADirectoryError):
+        return False
+    except OSError:
+        return None
+    return stat.S_ISDIR(mode)
+
+
+def storage_of(folder: Path) -> dict | None:
+    """What a folder that is there is kept on, by which to tell later whether that is still
+    there: its volume's mount point with the volume's own number (`volume`, `device`), or,
+    inside a cloud drive's folder (`Library/CloudStorage/<drive>`), that drive's own folder
+    (`folder`), which the drive's app takes away when it is signed out. The folder is taken
+    as its links resolve: a link to a checkout on another volume is on that volume. None
+    where it cannot be told."""
+    try:
+        real = Path(os.path.realpath(folder, strict=True))
+    except OSError:
+        return None
+    parts = real.parts
+    for at in range(len(parts) - 2):
+        if parts[at : at + 2] == ("Library", "CloudStorage"):
+            return {"folder": str(Path(*parts[: at + 3]))}
+    for above in (real, *real.parents):
+        if os.path.ismount(above):
+            try:
+                return {"volume": str(above), "device": os.stat(above).st_dev}
+            except OSError:
+                return None
+    return None
+
+
+def storage_there(kept_on: dict) -> bool:
+    """Whether what a folder was kept on (`storage_of`) is there now: the same volume,
+    mounted where it was, or a cloud drive's folder that is there.
+
+    The volume's root is looked at, not only asked after: Windows calls every drive letter
+    and every share a mount point from its name alone, there or not. And it must be the
+    volume that was there, by its number: another disk at the same place is not it. One that
+    comes back under another number is taken as away, which only waits."""
+    folder, volume = kept_on.get("folder"), kept_on.get("volume")
+    if isinstance(folder, str):
+        return folder_there(Path(folder)) is True
+    if not isinstance(volume, str):
+        return False
+    try:
+        device = os.stat(volume).st_dev
+    except OSError:
+        return False
+    return os.path.ismount(volume) and device == kept_on.get("device")
+
+
+def _storage(value: object) -> dict[str, dict]:
+    """What each folder was kept on, as the state holds it: only what `storage_of` writes."""
+    found: dict[str, dict] = {}
+    for root, kept_on in _mapping(value).items():
+        kept_on = _mapping(kept_on)
+        folder, volume, device = (kept_on.get(key) for key in ("folder", "volume", "device"))
+        if not isinstance(root, str):
+            continue
+        if isinstance(folder, str):
+            found[root] = {"folder": folder}
+        elif isinstance(volume, str) and type(device) is int:
+            found[root] = {"volume": volume, "device": device}
+    return found
+
+
 def held_at(root: Path, commit: str) -> dict[str, list[int]]:
     """Each skill a project holds at a commit, with its facts. Read from git's objects: what
     is checked out or changed in the folder plays no part, so every machine that has the
@@ -301,10 +379,11 @@ def project_remote(root: Path) -> str | None:
 
 
 def _name_projects(
-    previous: dict, roots: dict[str, str], again: bool = False
+    previous: dict, roots: dict[str, str], again: bool = False, now: datetime | None = None
 ) -> tuple[dict, dict[str, str]]:
     """Name each workspace root, and return the projects to keep with project id to name.
-    `again` reads what every folder holds once more, whether or not its branch has moved.
+    `again` reads what every folder holds once more, whether or not its branch has moved;
+    `now` is when, for a folder that is not there.
 
     A project is named after its origin, so two clones are one project and the name is the
     same on every machine. One with no origin takes its folder's name, and a second folder of
@@ -320,6 +399,12 @@ def _name_projects(
                 for root, value in _mapping(entry.get("accounts")).items()
                 if isinstance(root, str) and (account := as_inventory(value)) is not None
             },
+            "storage": _storage(entry.get("storage")),
+            "missing": {
+                root: since
+                for root, since in _mapping(entry.get("missing")).items()
+                if isinstance(root, str) and _parse(since) is not None
+            },
         }
         for name, entry in previous.items()
         if isinstance(name, str) and isinstance(entry, dict)
@@ -330,7 +415,9 @@ def _name_projects(
         name = by_root.get(root)
         if name is None:
             folder = Path(root)
-            remote = project_remote(folder) if folder.is_dir() else None
+            # asked the way that never raises: a folder the user may not look at is one
+            # nothing is known of, and it takes its folder's name
+            remote = project_remote(folder) if folder_there(folder) is True else None
             # a store copied from another system writes its folders that system's way: the
             # last part by either separator, never the whole path
             name = remote or re.split(r"[\\/]+", root.rstrip("\\/"))[-1] or project_id
@@ -338,24 +425,44 @@ def _name_projects(
                 name = f"{name}~{hashlib.sha256(root.encode()).hexdigest()[:6]}"
             entry = projects.setdefault(
                 name,
-                {"remote": bool(remote), "roots": [], "renames": {}, "accounts": {}},
+                {
+                    "remote": bool(remote),
+                    "roots": [],
+                    "renames": {},
+                    "accounts": {},
+                    "storage": {},
+                    "missing": {},
+                },
             )
             entry["roots"] = [*entry["roots"], root]
             by_root[root] = name
         names[project_id] = name
     for entry in projects.values():
-        # Each folder's own account, kept by folder: one that is not there this time (a
-        # volume not mounted, a checkout removed) still speaks through what it said last,
-        # and so does one git cannot say anything of, where what it said was of a commit.
-        # So an older clone that does answer never takes the project back. A folder read
-        # again replaces its own, whatever it now says.
+        # Each folder's own account, kept by folder: one whose volume is away this time
+        # still speaks through what it said last, and so does one git cannot say anything
+        # of, where what it said was of a commit. So an older clone that does answer never
+        # takes the project back. A folder read again replaces its own, whatever it now
+        # says, and one that was removed says nothing more (`_gone`).
         accounts = {root: entry["accounts"][root] for root in entry["roots"]
                     if root in entry["accounts"]}  # fmt: skip
+        storage = {root: kept for root, kept in entry["storage"].items() if root in accounts}
+        missing = {root: since for root, since in entry["missing"].items() if root in accounts}
         for root in entry["roots"]:
             folder = Path(root)
             doing("reading what the project holds in", folder)
-            if not folder.is_dir():
+            # A path of another system (a store copied from one) is no place on this one:
+            # nothing here says anything of it.
+            there = folder_there(folder) if folder.is_absolute() else None
+            if there is not True:
+                if there is False and root in accounts and _gone(root, storage, missing, now):
+                    del accounts[root]
+                    storage.pop(root, None)
+                    missing.pop(root, None)
                 continue
+            missing.pop(root, None)
+            kept_on = storage_of(folder)
+            if kept_on is not None:
+                storage[root] = kept_on
             last = accounts.get(root)
             try:
                 account = skill_inventory(folder, None if again else last)
@@ -373,10 +480,33 @@ def _name_projects(
             accounts[root] = account
             entry["renames"] = {**entry["renames"], **account["renames"]}
         entry["accounts"] = accounts
+        entry["storage"] = storage
+        entry["missing"] = missing
         # the newest of them; and an entry all the same for a project no folder ever spoke
         # for, so that a reader knows this was looked for
         entry["skills"] = newest_inventory(list(accounts.values())) or dict(NOTHING_HELD)
     return projects, names
+
+
+def _gone(root: str, storage: dict, missing: dict, now: datetime | None) -> bool:
+    """Whether a folder that is not there speaks for its project no more.
+
+    It does not once it was removed: what it was kept on when it was last read is there, and
+    it is not. That is not known where nothing was recorded of it (an account an earlier
+    botcore wrote), or where what it was on is away too: then it may only be away, and it
+    keeps speaking, from when it was first found missing, for `GONE_AFTER`. Past that a
+    volume has been away so long that what it held says little of the project now, and a
+    folder nothing was recorded of is taken as removed.
+    """
+    kept_on = storage.get(root)
+    if kept_on is not None and storage_there(kept_on):
+        return True
+    now = now or datetime.now(UTC)
+    since = _parse(missing.get(root))
+    if since is None:
+        missing[root] = now.isoformat()
+        return False
+    return now - since > GONE_AFTER
 
 
 def _read_t3(
@@ -630,7 +760,10 @@ def _collect(  # noqa: C901, PLR0912, PLR0913, PLR0915 - one collection, start t
         claude = claude_code.read(transcripts, seen, found.natives | recorded, everything=rebuild)
 
     projects, names = _name_projects(
-        _mapping(state.get("projects")), {**found.projects, **claude.projects}, again=rebuild
+        _mapping(state.get("projects")),
+        {**found.projects, **claude.projects},
+        again=rebuild,
+        now=now,
     )
     # A session stays in the project it was filed under: its checkout may have been moved
     # or removed since, and where it ran is not where its folder leads today

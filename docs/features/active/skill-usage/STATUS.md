@@ -14,6 +14,25 @@ Read this before the [proposal](skill-usage.proposal.md). Active since 2026-11-2
 
 ## Findings
 
+### Three machines, one record, and a checkout that is gone, 2026-11-22 (#1819, #2123)
+
+- **Hero shares the folder.** Its cloud drive's desktop app was installed; the drive is a
+  virtual one there. Its scheduled task runs in the signed-in session, so it sees the drive,
+  and wrote the shared copy by itself.
+- **The same report on all three.** 247 skills, 7,996 loads, 1,039 sessions that used one of
+  1,553 seen, 159 skills in `quiet`, no warnings: the same on the Air, Random and Hero, and
+  entry for entry on the two Macs.
+- **A removed checkout's skills would have stayed for ever (#2123).** A folder that is not
+  there kept its last account, so that a volume that is away still speaks. Hero's two
+  obsolete checkouts put 58 skills in every machine's report, 48 of them in `quiet`, and
+  removing the folders would not have taken them out. A folder now says nothing more once
+  it is known to be removed: it is not there, and what it was kept on when last read is.
+  One that may only be away keeps its account for thirty days.
+- **A path alone does not say which.** The first rule read it from the folder above; review
+  showed a mount point left as an empty folder, a link to a checkout on a volume that is
+  away, a cloud drive signed out and a folder the user may not look at each taken as
+  removed. What a folder is kept on is recorded while it can be read.
+
 ### Main's subjects lost their pull request numbers, 2026-11-22 (#2023)
 
 - **AFD's merge queue rebases since 2026-11-22 (#1809).** It lands a pull request's commit as
@@ -298,7 +317,7 @@ skill for `lefthook.yml`, `ci.yml` and `scripts/check-*.mjs`), before Lushly dec
 
 - Collection with the hourly job, and one report across machines (#1818): merged in #1889.
 
-- Rollout to the Air, Random and Hero (#1819): the Air and Random run all four phases, collect hourly and share a folder since 2026-11-21; Hero collects hourly since 2026-11-22, runs the same build as the two Macs, and has no shared folder yet (see Findings).
+- Rollout to the Air, Random and Hero (#1819): done 2026-11-22. All three collect hourly, run the same build and share one folder (see Findings).
 
 - A shared folder the hourly job cannot read (#1903): merged in #1923.
 
@@ -316,7 +335,9 @@ skill for `lefthook.yml`, `ci.yml` and `scripts/check-*.mjs`), before Lushly dec
 
 - A project first seen while git could not read its origin keeps its folder name (#2052): not started.
 
-- A change's pull request under a queue that rebases (#2023): `pnpm branch:squash` merged in #2088; the fleet lane not started.
+- A change's pull request under a queue that rebases (#2023): `pnpm branch:squash` merged in #2088; the fleet lane waits for #1887, to be done with it (the owner, 2026-11-22).
+
+- A removed checkout's skills leave the reports (#2123): merged in #2152.
 
 - Whether a loaded skill prevents the mistakes it names (#1829): needs its design first.
 
