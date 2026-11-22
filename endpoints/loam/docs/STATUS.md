@@ -714,6 +714,7 @@ new row.
 
 | Date | Session | What changed |
 | --- | --- | --- |
+| 2026-11-21 | macOS desktop CI and WKWebView barrier (`#1400`, `#1779`) | [#1945](https://github.com/lushly-dev/afd/pull/1945): Added `Desktop on macOS` (`macos-latest`) to `.github/workflows/loam-desktop.yml` (gated by `scope` alongside `Desktop on Linux`), running `cargo fmt --check`, `cargo clippy --locked --all-targets -- -D warnings` (linting `#[cfg(target_os = "macos")]`), `cargo test --locked`, `build:app`, and `pnpm -F @lushly-dev/loam-desktop test:macos` (`vitest.macos.config.ts`, `test/macos/barrier.test.ts`). Measured D153 and P6-D4 directly on the unmodified `loam-desktop` binary on macOS 27.0.1 / WebKit 22625.1.29.11.28 (`AppleWebKit/605.1.15`) without WebDriver: the `loam-sandbox` proxy, nested opaque view (`null`), and `sandbox="allow-scripts"` copilot (`null`, plus its `blob:` worker) frames have no `__TAURI_INTERNALS__` or `window.ipc`, IPC `fetch` is refused (`TypeError`), raw posts to `webkit.messageHandlers.ipc` reach Tauri and are dropped by the invoke key (3 frame refusals + 1 control refusal on stderr, handle counter unchanged: 1 to 2), main-frame disallowed commands and `mounts.json` traversal/symlinks are refused, and the main-frame control proves a keyed `postMessage` with forged `Origin` runs (handle 3 to 4), bare `Origin` returns `DESKTOP_ORIGIN_REFUSED`, and a wrong key is dropped. Updated `WORKFLOWS.desktop.jobs` in `scripts/loam-exit-check.mjs` and `scripts/affected/suites.mjs`. |
 
 ### Sessions: every other area
 

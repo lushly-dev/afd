@@ -2,7 +2,8 @@ name: Loam desktop
 
 # Loam's desktop lane (phase 6 specification, 10.7): the web shell in Tauri 2's webview, its Rust host and the
 # WebDriver suite, P6-D1 to P6-D4 and phase 5's P5-A2 (the copilot's frame), under `tauri-driver` with WebKitGTK's
-# driver. Step 11 runs the Linux job; step 12 adds Windows, macOS and the installers.
+# driver on Linux; and macOS cfg-branch linting, Rust tests, app build and WKWebView frame-to-IPC barrier checks
+# (D153 and P6-D4, without WebDriver) on macOS (#1400, #1779). Step 12 adds Windows and the installers.
 on:
   push:
     branches: [main]
@@ -173,6 +174,68 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: loam-desktop-test-results
+          path: endpoints/loam/packages/desktop/test-results/
+          if-no-files-found: ignore
+          retention-days: 30
+
+  macos:
+    name: Desktop on macOS
+    needs: scope
+    if: needs.scope.outputs.run == 'true'
+    runs-on: macos-latest
+    timeout-minutes: 45
+    env:
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: '.nvmrc'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Record macOS and WKWebView versions
+        run: |
+          {
+            echo "macOS $(sw_vers -productVersion) ($(sw_vers -buildVersion))"
+            webkit=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" /System/Library/Frameworks/WebKit.framework/Resources/Info.plist 2>/dev/null || /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" /System/Library/Frameworks/WebKit.framework/Versions/A/Resources/Info.plist 2>/dev/null || echo unknown)
+            echo "WebKit.framework ${webkit}"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Install Rust toolchain
+        working-directory: endpoints/loam/packages/desktop/src-tauri
+        run: rustup toolchain install
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: endpoints/loam/packages/desktop/src-tauri
+      - name: Build the web host and its dependencies
+        run: pnpm -F "@lushly-dev/loam-desktop..." build
+      - name: Build the bundled empty shell
+        run: pnpm -F @lushly-dev/loam-desktop build:site
+      - name: Format
+        working-directory: endpoints/loam/packages/desktop/src-tauri
+        run: cargo fmt --check
+      - name: Clippy on macOS
+        working-directory: endpoints/loam/packages/desktop/src-tauri
+        run: cargo clippy --locked --all-targets -- -D warnings
+      - name: Rust tests, with P6-D4's pin on Tauri's ACL exemptions
+        working-directory: endpoints/loam/packages/desktop/src-tauri
+        run: cargo test --locked
+      - name: Build the app
+        run: pnpm -F @lushly-dev/loam-desktop build:app
+      - name: WKWebView frame-to-IPC barrier (D153 and P6-D4)
+        run: pnpm -F @lushly-dev/loam-desktop test:macos
+      - name: The run leaves tracked files unchanged
+        run: test -z "$(git status --porcelain)"
+      - name: Upload test results
+        if: ${{ always() }}
+        # A diagnostic: an outage of the artifact service must not fail a job whose suites passed.
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: loam-desktop-macos-test-results
           path: endpoints/loam/packages/desktop/test-results/
           if-no-files-found: ignore
           retention-days: 30

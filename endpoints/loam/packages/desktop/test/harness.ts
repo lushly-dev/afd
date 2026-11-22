@@ -28,7 +28,7 @@ type Browser = Awaited<ReturnType<typeof remote>>;
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url));
 
 /** Tauri 2.12's line when it drops a message for its invoke key (`Webview::on_message`). */
-const INVOKE_KEY_LINE = /__TAURI_INVOKE_KEY__ expected (\S+) but received (\S*)/;
+export const INVOKE_KEY_LINE = /__TAURI_INVOKE_KEY__ expected (\S+) but received (\S*)/;
 
 /** A line of the app's stderr with Tauri's expected invoke key replaced, and what was received kept. */
 export function redactInvokeKey(line: string): string {

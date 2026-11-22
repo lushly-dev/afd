@@ -42,10 +42,9 @@ pub const ORIGIN_REFUSED: &str = "DESKTOP_ORIGIN_REFUSED";
 /// forge, and Tauri's own ACL reads the same header. On Tauri's message fallback the headers are the caller's,
 /// so there this check proves nothing. That path is guarded per engine, as P6-D4 measures with a forged
 /// `Origin`: on WebView2 wry hears only the top-level document's messages, though every frame has Tauri's IPC
-/// script and its invoke key; on WebKitGTK a frame can post to wry's `ipc` handler, which gives the message the
-/// top-level URL, but Tauri gives its script and key to the main frame alone, so the key check drops it. Each
-/// engine so has one barrier: on WebView2 a frame can read the key from its own IPC fetch's headers. A missing
-/// `Origin` is refused; the shell's fetch is allowed by its policy, so it does not fall back, but after a
+/// script and its invoke key; on WebKitGTK and macOS WKWebView a frame can post to wry's `ipc` handler, but Tauri
+/// gives its script and key to the main frame alone, so the key check drops it. Each engine so has one barrier:
+/// on WebView2 a frame can read the key from its own IPC fetch's headers. A missing `Origin` is refused; the shell's fetch is allowed by its policy, so it does not fall back, but after a
 /// failed fetch Tauri keeps using the fallback for the page's life, and the shell's calls are refused until a
 /// reload.
 fn from_shell<R: Runtime>(
@@ -197,8 +196,6 @@ fn reload_script() -> &'static str {
     }
 }
 
-// The `return` ends the macOS branch before the other platforms' tail, which only clippy on macOS sees.
-#[cfg_attr(target_os = "macos", allow(clippy::needless_return))]
 fn menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
     let palette = MenuItem::with_id(app, "palette", "Command palette", true, Some("CmdOrCtrl+K"))?;
     let reload = MenuItem::with_id(app, "reload", "Reload", true, Some("CmdOrCtrl+R"))?;
@@ -221,7 +218,7 @@ fn menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
                 &PredefinedMenuItem::select_all(app, None)?,
             ],
         )?;
-        return Menu::with_items(app, &[&loam, &edit]);
+        Menu::with_items(app, &[&loam, &edit])
     }
     #[cfg(not(target_os = "macos"))]
     Menu::with_items(app, &[&loam])
