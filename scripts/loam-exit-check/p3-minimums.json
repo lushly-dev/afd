@@ -1,0 +1,72 @@
+{
+	"about": "The counts p3-loam-run-log.txt meets exactly, for scripts/loam-exit-check.test.mjs's --phase 3 cases.",
+	"minimums": {
+		"E1": {
+			"chromium": 1,
+			"units": 1
+		},
+		"E2": {
+			"units": 1,
+			"chromium": 1
+		},
+		"E3": {
+			"chromium": 1
+		},
+		"E4": {
+			"units": 2,
+			"chromium": 1
+		},
+		"E5": {
+			"chromium": 1,
+			"units": 1
+		},
+		"E6": {
+			"units": 1,
+			"chromium": 1
+		},
+		"E7": {
+			"chromium": 1,
+			"units": 1
+		},
+		"E8": {
+			"units": 2,
+			"handler": 1
+		},
+		"E9": {
+			"identity": 2
+		},
+		"E10": {
+			"chromium": 1
+		},
+		"E11": {
+			"chromium": 1
+		},
+		"E13": {
+			"units": 1
+		},
+		"E14": {
+			"chromium": 1,
+			"units": 1
+		},
+		"E15": {
+			"chromium": 1,
+			"units": 1
+		},
+		"E17": {
+			"chromium": 2,
+			"units": 1
+		},
+		"E18": {
+			"chromium": 1,
+			"units": 1
+		},
+		"E19": {
+			"units": 1,
+			"chromium": 1
+		},
+		"E20": {
+			"chromium": 1,
+			"units": 1
+		}
+	}
+}

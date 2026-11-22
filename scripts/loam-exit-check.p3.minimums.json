@@ -1,0 +1,76 @@
+{
+	"about": [
+		"The fewest passing titles scripts/loam-exit-check.mjs --phase 3 accepts for each P3-E row, by the place its row names (phase 3 specification, section 18), so an exclude, a skipped suite or a deleted file cannot pass unnoticed. P3-E12 reads loam-exit-check.minimums.json, phase 2's; E10's budget and E16 have no count.",
+		"Each is the count a full run observed. When exit tests are added or removed on purpose, run the check on a run that has them with --phase 3 --print-minimums, and copy the counts it prints here in the same pull request, saying why each changed."
+	],
+	"observed": "loam.yml run 45049749709 and ci.yml run 45049752180, both workflow_dispatch on main at 31b409fb, attempt 1 (2026-11-22), every job run, after #2048, #2059 and #2061",
+	"minimums": {
+		"E1": {
+			"chromium": 7,
+			"units": 25
+		},
+		"E2": {
+			"units": 34,
+			"chromium": 4
+		},
+		"E3": {
+			"chromium": 4
+		},
+		"E4": {
+			"units": 49,
+			"chromium": 2
+		},
+		"E5": {
+			"chromium": 1,
+			"units": 44
+		},
+		"E6": {
+			"units": 29,
+			"chromium": 1
+		},
+		"E7": {
+			"chromium": 1,
+			"units": 19
+		},
+		"E8": {
+			"units": 30,
+			"handler": 27
+		},
+		"E9": {
+			"identity": 368
+		},
+		"E10": {
+			"chromium": 4
+		},
+		"E11": {
+			"chromium": 27
+		},
+		"E13": {
+			"units": 2
+		},
+		"E14": {
+			"chromium": 3,
+			"units": 6
+		},
+		"E15": {
+			"chromium": 7,
+			"units": 2
+		},
+		"E17": {
+			"chromium": 2,
+			"units": 17
+		},
+		"E18": {
+			"chromium": 2,
+			"units": 23
+		},
+		"E19": {
+			"units": 2,
+			"chromium": 1
+		},
+		"E20": {
+			"chromium": 9,
+			"units": 7
+		}
+	}
+}

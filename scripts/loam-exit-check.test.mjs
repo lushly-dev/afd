@@ -1,10 +1,11 @@
 /**
- * P2-E14: the exit check over recorded runs. The fixtures in loam-exit-check/ are a manual run of each
+ * P2-E14 and P3-E16: the exit check over recorded runs. The fixtures in loam-exit-check/ are a manual run of each
  * workflow on one commit, every job a success, the Loam run's log in `gh run view --log`'s layout, with
  * Vitest's verbose and node's spec reporters as each step prints them, colour included, and the minimum
  * counts that log meets exactly.
  */
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -12,8 +13,13 @@ import {
 	checkExit,
 	LOCATIONS,
 	MINIMUMS_FILE,
+	P3_BUDGET_ROWS,
+	P3_MINIMUMS_FILE,
+	P3_ROWS,
+	parseArgs,
 	ROWS,
 	readBudget,
+	readBudgetWithin,
 	readMinimums,
 	readTitles,
 	WORKFLOWS,
@@ -408,4 +414,273 @@ test("P2-E14: the jobs and steps the check reads are loam.yml's and ci.yml's", (
 		JSON.parse(manual).map((version) => `TypeScript (Node ${version})`),
 		WORKFLOWS.ci.jobs
 	);
+});
+
+// Phase 3's local part (`--phase 3`), over p3-loam-run.json and p3-loam-run-log.txt: the phase 2 fixture's
+// run with the "AFD's identity path" step, and its log with D115's budget rows, section 13's chunk rows and
+// one passing `P3-E<n>:` title or more in each place section 18 names, some in `gh run view --log`'s caret
+// notation for colour (`^[[32m`), which it prints in place of the escape character.
+const p3 = () => ({
+	loam: JSON.parse(fixture('p3-loam-run.json')),
+	ci: JSON.parse(fixture('ci-run.json')),
+	log: fixture('p3-loam-run-log.txt'),
+	phase: 3,
+	minimums: JSON.parse(fixture('p3-minimums.json')).minimums,
+	phase2Minimums: JSON.parse(fixture('minimums.json')),
+});
+const p3Problems = (input) => checkExit(input).problems;
+
+test('P3-E16: all green passes, with each P3-E row where it ran and E12 as phase 2 rows', () => {
+	const { problems, report, observed } = checkExit(p3());
+	assert.deepEqual(problems, []);
+	assert.ok(report.includes('P3-E1: Chromium 1; Units 1'));
+	assert.ok(report.includes('P3-E9: Identity path 2'));
+	assert.ok(report.includes('P3-E15: Chromium 1; Units 1'));
+	assert.ok(report.includes('P3-E16: this check, the local part'));
+	assert.match(
+		report.find((entry) => entry.startsWith('P3-E10:')),
+		/^P3-E10: Bundle budget JavaScript, minified 329804 of 330300, JavaScript, gzip 103590 of 103700, .*The chrome's `surfaces` chunk 96810 of 97000; Chromium 1$/
+	);
+	const e12 = report.indexOf(
+		`P3-E12: phase 2's rows, in their places, at ${MINIMUMS_FILE}'s counts:`
+	);
+	assert.ok(e12 > 0);
+	assert.deepEqual(
+		report.slice(e12 + 1, e12 + 1 + ROWS.length).map((entry) => entry.slice(0, 9)),
+		ROWS.map(({ row }) => `  P2-${row}:`.padEnd(9).slice(0, 9))
+	);
+	assert.ok(report.includes('  P2-E13: Chromium 3; Mounted 1; Units 1'));
+	assert.equal(report.length, 3 + P3_ROWS.length + ROWS.length);
+	assert.deepEqual(observed, p3().minimums);
+});
+
+test('P3-E16: phase 3 titles leave phase 2 reading as it was, and caret-notation colour is stripped', () => {
+	assert.deepEqual(
+		readTitles(fixture('p3-loam-run-log.txt')),
+		readTitles(fixture('loam-run-log.txt'))
+	);
+	const titles = readTitles(fixture('p3-loam-run-log.txt'), 'P3');
+	const identity = titles.filter((title) => title.step === LOCATIONS.identity.step);
+	// One claimed by its describe, one by its own title; neither keeps a colour code.
+	assert.deepEqual(
+		identity.map((title) => title.rows),
+		[['E9'], ['E9']]
+	);
+	assert.ok(titles.every((title) => !title.text.includes('^[') && title.status === 'pass'));
+	// A chain claims each row it names; console output naming a row is no result.
+	assert.deepEqual(titles.find((title) => title.text.includes('a join holds no token')).rows, [
+		'E17',
+		'E15',
+	]);
+	assert.ok(!titles.some((title) => title.text.includes('first paint requested')));
+});
+
+test('P3-E16: a P3 row with no passing title in a place it names fails, by name and place', () => {
+	const input = p3();
+	input.log = without(input.log, 'P3-E8: P3-E15:');
+	assert.deepEqual(p3Problems(input), [
+		'P3-E8: 1 passing titles in Units, fewer than the 2 loam-exit-check.p3.minimums.json records',
+		'P3-E8: no passing title in Units, `identity/src/mcp-identity.test.ts` ("Build, unit and Chromium", step "Unit suites with coverage")',
+		'P3-E15: no passing title in Units ("Build, unit and Chromium", step "Unit suites with coverage")',
+	]);
+});
+
+test('P3-E16: E12 fails on any phase 2 row, against phase 2 minimums, prefixed P3-E12', () => {
+	const input = p3();
+	input.log = without(input.log, 'P2-E5:');
+	input.phase2Minimums.D7.chromium = 2;
+	assert.deepEqual(p3Problems(input), [
+		'P3-E12: P2-E5: no passing title in Units ("Build, unit and Chromium", step "Unit suites with coverage")',
+		`P3-E12: P2-D7: 1 passing titles in Chromium, fewer than the 2 ${MINIMUMS_FILE} records`,
+	]);
+});
+
+test('P3-E16: a skipped, failed or retried title fails, of either phase', () => {
+	const input = p3();
+	input.log += [
+		line(
+			LOCATIONS.chromium,
+			`   ${E}[33m↓${E}[39m test/browser/identity/oauth.test.ts > P3-E20: later`
+		),
+		line(LOCATIONS.identity, ' ^[[31m×^[[39m src/mcp-auth.test.ts^[[2m > ^[[22mP3-E9: refuses 4ms'),
+		unit('✓ src/scope/scope.test.ts > P2-E4: passes on a retry 3ms (retry x1)'),
+	].join('\n');
+	assert.deepEqual(
+		p3Problems(input).map((entry) => entry.slice(0, 26)),
+		['P3-E20 is marked skip in "', 'P3-E9 is marked fail in "B', 'P2-E4 is marked retried in']
+	);
+});
+
+test("P3-E16: the identity path's step is read: missing, it fails, and its titles count only there", () => {
+	const input = p3();
+	const loamJob = job(input.loam, 'Build, unit and Chromium');
+	loamJob.steps = loamJob.steps.filter((step) => step.name !== LOCATIONS.identity.step);
+	input.log = input.log.replaceAll(`\t${LOCATIONS.identity.step}\t`, `\t${LOCATIONS.units.step}\t`);
+	assert.deepEqual(p3Problems(input), [
+		`Identity path: job "Build, unit and Chromium" has no step "AFD's identity path"`,
+		`P3-E9: no passing title in Identity path ("Build, unit and Chromium", step "AFD's identity path")`,
+	]);
+});
+
+test("P3-E16: the budget is D115's: section 13's rows present and within the ceilings the script holds", () => {
+	const input = p3();
+	assert.deepEqual(readBudgetWithin(input.log, P3_BUDGET_ROWS).problems, []);
+	const over = input.log.replace(
+		/The `auth` chunk, Better Auth's client and `SessionSync`, minified 72,995 {5}of 73,200 {5}100%/,
+		"The `auth` chunk, Better Auth's client and `SessionSync`, minified 73,995     of 73,200     OVER"
+	);
+	assert.deepEqual(readBudgetWithin(over, P3_BUDGET_ROWS).problems, [
+		'Bundle budget: "The `auth` chunk, Better Auth\'s client and `SessionSync`, minified" is 73995, over 73200',
+	]);
+	// A row over its ceiling is refused, named or not.
+	const css = `${input.log}\n${line(LOCATIONS.budget, 'CSS, minified, including loam-theme.css              10,600     of 10,500     OVER')}`;
+	assert.deepEqual(readBudgetWithin(css, []).problems, [
+		'Bundle budget: "CSS, minified, including loam-theme.css" is 10600, over 10500',
+	]);
+	input.log = without(input.log, 'The `sign-in` chunk');
+	assert.deepEqual(p3Problems(input), [
+		'P3-E10: Bundle budget: no "The `sign-in` chunk" row in the step\'s log',
+	]);
+	assert.deepEqual(readBudgetWithin('', ['JavaScript, gzip']).problems, [
+		"Bundle budget: no budget row in the step's log",
+		'Bundle budget: no "JavaScript, gzip" row in the step\'s log',
+	]);
+});
+
+test('P3-E16: E12 reads P2-E2 under D115 too, so a first-paint row over its ceiling fails both', () => {
+	const input = p3();
+	input.log = input.log.replace(/329,804 {4}of 330,300 {4}100%/, '331,000    of 330,300    OVER');
+	const problems = p3Problems(input);
+	assert.deepEqual(problems, [
+		'P3-E10: Bundle budget: "JavaScript, minified" is 331000, over 330300',
+		'P3-E12: P2-E2: Bundle budget: "JavaScript, minified" is 331000, over 330300',
+	]);
+	// Phase 2's own check still holds its figures, unchanged.
+	assert.ok(
+		problemsOf({ ...runs(), log: fixture('p3-loam-run-log.txt') }).includes(
+			'Bundle budget: "JavaScript, minified" is held to 330300, not 300000'.replace(/^/, 'P2-E2: ')
+		)
+	);
+});
+
+test('P3-E16: the committed phase 3 minimums name every row and place the table does, each at least 1', () => {
+	const minimums = readMinimums(P3_MINIMUMS_FILE);
+	for (const { row, in: places } of P3_ROWS)
+		for (const key of places)
+			if (LOCATIONS[key].evidence !== 'budget')
+				assert.ok(minimums[row]?.[key] >= 1, `P3-${row} ${key}: ${minimums[row]?.[key]}`);
+	assert.deepEqual(
+		Object.keys(minimums),
+		P3_ROWS.filter(({ in: places }) =>
+			places.some((key) => LOCATIONS[key].evidence !== 'budget')
+		).map(({ row }) => row)
+	);
+});
+
+test("P3-E16: the phase 3 row table is section 18's Place column", () => {
+	const spec = readFileSync(join(root, 'endpoints/loam/docs/phases/3-identity/spec.md'), 'utf8');
+	const rows = spec
+		.split('\n')
+		.filter((entry) => /^\| P3-E\d+ \|/.test(entry))
+		.map((entry) => entry.split(' | '))
+		.map(([id, , place]) => {
+			if (/Phase 2's places and minimums/.test(place)) return [id.slice(5), 'reuse'];
+			if (/The exit step/.test(place)) return [id.slice(5), []];
+			const places = [];
+			for (const [pattern, key] of [
+				[/\bBudget\b/, 'budget'],
+				[/\bUnits\b/, 'units'],
+				[/\bChromium\b/, 'chromium'],
+				[/Identity path/, 'identity'],
+				// A place that names its file: that file's titles are counted on their own too.
+				[/identity\/src\/mcp-identity\.test\.ts/, 'handler'],
+			])
+				if (pattern.test(place)) places.push(key);
+			return [id.slice(5), places.sort()];
+		});
+	assert.equal(rows.length, 20);
+	assert.deepEqual(
+		P3_ROWS.map(({ row, in: places, reuse }) => [row, reuse ? 'reuse' : [...places].sort()]),
+		rows
+	);
+	// The places table names each step the check reads, as LOCATIONS spells it.
+	for (const key of ['units', 'chromium', 'identity', 'budget', 'mounted', 'walk'])
+		assert.ok(spec.includes(`\`${LOCATIONS[key].step}\``), key);
+});
+
+test("P3-E9: every afd-server test file with a P3-E9 title runs in loam.yml's identity path, and all of afd-auth", () => {
+	const loam = readFileSync(join(root, '.github/workflows/loam.yml'), 'utf8');
+	const step = /- name: AFD's identity path\n {8}run: \|\n((?: {10}.+\n)+)/.exec(loam)?.[1] ?? '';
+	const files = execFileSync(
+		'git',
+		['grep', '-l', 'P3-E9', '--', 'packages/server/src/*.test.ts'],
+		{
+			cwd: root,
+			encoding: 'utf8',
+		}
+	)
+		.split('\n')
+		.filter(Boolean);
+	assert.ok(files.length >= 5, files.join(', '));
+	for (const file of files)
+		assert.match(
+			step,
+			new RegExp(`afd-server exec vitest run .*\\b${file.slice('packages/server/'.length)}\\b`),
+			file
+		);
+	assert.match(step, /pnpm -F @lushly-dev\/afd-auth exec vitest run --reporter=verbose/);
+});
+
+test('P3-E16: the arguments: two run ids, `--phase 2` or `3` at most once, and the known flags', () => {
+	assert.deepEqual(parseArgs(['1', '2']), {
+		ids: ['1', '2'],
+		phase: 2,
+		allowRerun: false,
+		printMinimums: false,
+	});
+	assert.deepEqual(parseArgs(['--phase', '3', '1', '2', '--allow-rerun', '--print-minimums']), {
+		ids: ['1', '2'],
+		phase: 3,
+		allowRerun: true,
+		printMinimums: true,
+	});
+	for (const argv of [
+		['1', '2', '--phase', '4'],
+		['1', '2', '--phase'],
+		['1', '2', '--phase', '3', '--phase', '3'],
+		['1', '--phase', '3'],
+		['1', '2', '--hosted'],
+	])
+		assert.equal(parseArgs(argv), null, argv.join(' '));
+});
+
+test("P3-E16: E8's place names its file: a kernel title cannot stand in for the handler's", () => {
+	const input = p3();
+	// The handler file's one E8 title moved to a kernel suite: Units still counts it, the handler place does not.
+	input.log = input.log.replace(
+		'endpoints/loam/packages/identity test:  ^[[32m✓^[[39m src/mcp-identity.test.ts',
+		'endpoints/loam/packages/kernel test:  ^[[32m✓^[[39m src/late/agent-members.test.ts'
+	);
+	assert.deepEqual(p3Problems(input), [
+		'P3-E8: no passing title in Units, `identity/src/mcp-identity.test.ts` ("Build, unit and Chromium", step "Unit suites with coverage")',
+	]);
+	assert.ok(
+		checkExit(p3()).report.includes('P3-E8: Units 2; Units, `identity/src/mcp-identity.test.ts` 1')
+	);
+});
+
+test('P3-E16: a budget row whose figure is not a number fails, as a row missing', () => {
+	const input = p3();
+	input.log = input.log.replace(
+		/The `sign-in` chunk, `loam-sign-in-dialog`, minified 9,998 {6}of 10,500/,
+		'The `sign-in` chunk, `loam-sign-in-dialog`, minified ,      of 10,500'
+	);
+	assert.deepEqual(readBudgetWithin(input.log, P3_BUDGET_ROWS).problems, [
+		'Bundle budget: no "The `sign-in` chunk" row in the step\'s log',
+	]);
+});
+
+test('P3-E16: a phase the check has no rows for is refused, not read as phase 2', () => {
+	for (const phase of [1, 4, 6])
+		assert.throws(() => checkExit({ ...p3(), phase }), /no rows for phase/, String(phase));
 });

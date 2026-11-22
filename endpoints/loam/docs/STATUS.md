@@ -73,7 +73,7 @@ should never have to scan the codebase to learn what is current.
 | 0. Kernel, chrome and design foundation | Exited 2026-11-01: E1 to E10 pass in `loam.yml` on `main` ([run 41367284963](https://github.com/lushly-dev/afd/actions/runs/41367284963) at `1405e3c0`) | Phase 0 agent | [Phase 0 specification](phases/0-kernel-chrome/spec.md); follow-ups filed as #655 to #664 | None; phase 1 may start |
 | 1. App contract | Exited 2026-11-02: E1 to E13 pass in `loam.yml` on `main` ([run 41452945001](https://github.com/lushly-dev/afd/actions/runs/41452945001) at `d7b8f9fc`), E3 and E4 through a test-only relay | Phase 1 agent | [Phase 1 specification](phases/1-app-contract/spec.md); the [shared plugin manifest proposal](../../../docs/features/complete/plugin-manifest/plugin-manifest.proposal.md), approved 2026-11-01 | None; phases 2 and 3 may start |
 | 2. Scope, projects and documents | Exited 2026-11-09: E1 to E14 and D1 to D10 pass in `loam.yml` and `ci.yml` on `main` ([run 42699728786](https://github.com/lushly-dev/afd/actions/runs/42699728786) and [run 42699734639](https://github.com/lushly-dev/afd/actions/runs/42699734639) at `9815022f`; [exit run](#exit-run-2026-11-09)). E5 through a test-only handler, which does not prove identity over MCP or a hosted server; E6 through a test-only relay, which does not prove a hosted server or more than one person | Phase 2 agent | [Scope and projects](phases/2-scope-projects/spec.md) and [documents](phases/2-documents/spec.md) (D35); follow-ups filed as #851 to #889 | None; phase 4 may start, and phase 2's part of phase 5's and the collaboration service's gates is met |
-| 3. Identity | Specification approved by the coordinator 2026-11-09 ([phase 3 specification](phases/3-identity/spec.md), after two independent reviews and three re-checks); the owner's six questions answered (D95 to D98 on 2026-11-09, D110 and D111 on 2026-11-12). Each step's state is its line under [phase detail](#3-identity) | The phase 3 owning agent | [Phase 3 specification](phases/3-identity/spec.md) | Phase 1 exit criterion met; step 10 and the hosted criterion need phase 6's hosted lane at its development profile. Its specification must restrict `project-create` for a slug a team instance lists, and such a project's `members`, to an owner (phase 2's 9.1, [#852](https://github.com/lushly-dev/afd/issues/852)), and decide identity over MCP ([#853](https://github.com/lushly-dev/afd/issues/853)) |
+| 3. Identity | **Local criterion met 2026-11-22**: P3-E1 to E20 pass in `loam.yml` and `ci.yml` on `main` (runs 45049749709 and 45049752180 at `31b409fb`; [local exit run](#local-exit-run-2026-11-22)), through a test-only auth host and handler, but two P3-E8 cases left to the server. Specification approved by the coordinator 2026-11-09 ([phase 3 specification](phases/3-identity/spec.md)); the owner's questions answered (D95 to D98, D110, D111). Each step's state is its line under [phase detail](#3-identity) | The phase 3 owning agent | [Phase 3 specification](phases/3-identity/spec.md) | The exit: step 10's hosted criterion, P3-H1 to P3-H5, on phase 6's development profile (10.2); #852 and #853 close there |
 | 4. Settings, experiments, notifications, overlays | **Specification approved** by the coordinator 2026-11-13 at `203cb3a0`, under the owner's standing grant, after three review rounds (two reviews; a re-check with three job walks; a second re-check) ([phase 4 specification](phases/4-settings/spec.md), [#1139](https://github.com/lushly-dev/afd/pull/1139)); it had merged early as a draft in [#1119](https://github.com/lushly-dev/afd/pull/1119) (`e7c813e1`), now superseded by this approval; D116 to D127 decided; fourteen jobs as scenarios; the owner answered Q1 to Q5 on 2026-11-18, each as recommended (D154 to D158). Each step's state is its line under [phase detail](#4-settings-experiments-notifications-overlays) | The phase 4 owning agent | [Phase 4 specification](phases/4-settings/spec.md) | Step 1 needed phase 3's `HUMAN_REQUIRED` and its step 4 ([1.2](phases/4-settings/spec.md#12-dependencies-on-phase-3s-steps)); the exit waits on phase 3's step 9 and nothing of phase 6 (D125, D126) |
 | 5. Bus, copilot and mounted servers | **Specification approved** by the coordinator 2026-11-17, under the owner's standing grant ([phase 5 specification](phases/5-copilot/spec.md), [#1358](https://github.com/lushly-dev/afd/pull/1358)); the owner answered Q1 to Q7 the same day, each as recommended, so D141 to D152 are decided. The desktop path first, in three milestones (D141): **A, the desktop copilot** (the runtime in the shell, model access through the Rust host, autonomy enforced, labels and taint, a mounted person-only command approved in the shell, fresh-context units, mail as the first consumer); B, the rest of the local criterion; C, the hosted criterion. Eleven jobs as scenarios, a slice of nine; its reviews are recorded in the specification. Each step's state is its line under [phase detail](#5-bus-copilot-and-mounted-servers) | The phase 5 owning agent | [Phase 5 specification](phases/5-copilot/spec.md) | **Milestone A needs no hosted work** (D129): its gates (step 0a's spike, D153's IPC gate before step 2, and step 0c) are recorded in the phase detail and the session log; its critical path is phase 4's steps 6 and 8, and its desktop rows rest on phase 6's step 11; its mail step needs the engine's step F changes; step 9 waits for the amendment that gives installing a path with no terminal (the owner's condition on Q2). **Milestone C still needs M1** and phase 3's step 10 (the hosted MCP criterion). The exit needs A, B and C; phase 7 waits for it (Q5) |
 | 6. Hosts and distribution | Specification approved by the coordinator 2026-11-09 at `71d41a9e` ([phase 6 specification](phases/6-hosts/spec.md), after two independent reviews and five re-checks, [#895](https://github.com/lushly-dev/afd/pull/895)); hosted lane first, with milestone M1, the development profile, as its earliest exit point; the owner's Q1 and Q2 answered on 2026-11-12 (D112, D113). Each step's state is its line under [phase detail](#6-hosts-and-distribution) | The phase 6 owning agent | [Phase 6 specification](phases/6-hosts/spec.md) | Step 4 after phase 3's 7, 0a here and phase 3's 0a and 0c. M1 unblocks phase 3's step 10 and phase 5; M2 the collaboration service (D100); the desktop lane and distribution gate nothing before phase 7. Local first (D129, 2026-11-16): M3, with step 12's installers (D134), comes before M2. Step 11b, inbound MCP and the CLI (10.8, D137 to D140), follows step 11 in M3. Steps 8 to 10 are held (D164) |
@@ -432,6 +432,7 @@ Written when the session coordinating phase 2 ran out of account capacity. `main
 ### 3. Identity
 
 - **State:** specification drafted 2026-11-09 and revised the same day after two independent reviews (trust and security; general), which found it approvable once fixed, and again after an independent re-check of `a08572ea` (four blockers and fourteen should-fix items, all answered) a focused re-check of `cfabbb2d` (one blocker, ten should-fix items and six nits, all answered; the first-paint allowances of 3,900 and 1,600 approved by the coordinator); and a third re-check of `d20ae2fd` (two trust-boundary blockers, six should-fix items and nine nits, all answered), whose reviewer called it approvable once they were fixed; every finding is answered in its [Review](phases/3-identity/spec.md#review-2026-11-09) section: [phase 3 specification](phases/3-identity/spec.md). **Approved by the coordinator on 2026-11-09** at `27028680`, under the owner's standing grant. Last verified 2026-11-09 against `main` at `4eee0af8`, as its status block lists; the merge states of steps 0c and 2 checked 2026-11-12 against `main` at `8a5348ce`.
+- **Local criterion met 2026-11-22,** through a test-only auth host and a test-only handler: every local exit test, P3-E1 to P3-E20 of [section 18](phases/3-identity/spec.md#18-exit-criterion-and-tests), passes in the place its row names, but for step 7's two P3-E8 cases, left to the server with their reasons (below), in [`loam.yml` run 45049749709](https://github.com/lushly-dev/afd/actions/runs/45049749709) and [`ci.yml` run 45049752180](https://github.com/lushly-dev/afd/actions/runs/45049752180), both `workflow_dispatch` on `main` at `31b409fb`, attempt 1, every job `success`, none skipped, and `node scripts/loam-exit-check.mjs 45049749709 45049752180 --phase 3` exits 0 ([its output and what it does not prove](#local-exit-run-2026-11-22)). P3-E12 reuses phase 2's rows and minimums, and every one passes. It unblocks nothing on its own (10.1): the phase exits at step 10, with the hosted criterion.
 - **Done:** the specification and its revisions, proposing D84 to D94, with the trajectory refresh (W12, R10, R14; W31 to W33; S80 to S87). It answers #852, #853, #854 and #864; #852 and #853 close only at its step 10, when the hosted lane enforces.
 - **Owner decisions of 2026-11-09:** owners are the provider's `owner` and `admin` roles, and can enter every project (D96); a person may connect their own external agent over MCP without an owner's approval, as an agent member they sponsor (D98); recovery is by an emailed one-time link or the deployer's single sign-on, and no owner can restore another person's account (D97); `stdio` instances are refused in `provider`-mode workspaces, narrowing D56 (D95). The coordinator decided the ways to sign in (D99).
 - **The owner's answers of 2026-11-12:** Q2 and Q4, each as recommended (D110, D111).
@@ -450,11 +451,81 @@ Written when the session coordinating phase 2 ran out of account capacity. `main
 
   - 8, an app's account section: merged in [#1969](https://github.com/lushly-dev/afd/pull/1969) at `c709adbf` (2026-11-22), after two independent reviews and three re-checks; the record is in the [specification's status](phases/3-identity/spec.md#status).
 
-  - 9, the local exit: not started.
+  - 9, the local exit: merged in [#2087](https://github.com/lushly-dev/afd/pull/2087) (2026-11-22): `scripts/loam-exit-check.mjs --phase 3` with `loam-exit-check.p3.minimums.json`, and the local criterion met ([local exit run](#local-exit-run-2026-11-22)); the gaps found before dispatch were closed in [#2048](https://github.com/lushly-dev/afd/pull/2048), [#2059](https://github.com/lushly-dev/afd/pull/2059) and [#2061](https://github.com/lushly-dev/afd/pull/2061), the last two under the coordinator's R8 and R9. The record is in the [specification's status](phases/3-identity/spec.md#status).
 
   - 10, the hosted criterion and the exit: not started. It waits for phase 6's development profile.
 - **The order relative to phase 6,** decided by the coordinator on 2026-11-09 as the specification recommends: phase 3 starts now, phase 6's specification is written next with its hosted lane first, and phase 3's step 10, its hosted criterion, waits for phase 6's development profile ([10.3](phases/3-identity/spec.md#103-the-order-recommended-for-the-coordinator-to-decide)).
 - **Follow-ups:** in the [specification](phases/3-identity/spec.md#follow-ups).
+
+#### Local exit run, 2026-11-22
+
+`node scripts/loam-exit-check.mjs 45049749709 45049752180 --phase 3`, run on 2026-11-22 from step 9's branch against [`loam.yml` run 45049749709](https://github.com/lushly-dev/afd/actions/runs/45049749709) and [`ci.yml` run 45049752180](https://github.com/lushly-dev/afd/actions/runs/45049752180), both `workflow_dispatch` on `main` at `31b409fb` (after [#2048](https://github.com/lushly-dev/afd/pull/2048), [#2059](https://github.com/lushly-dev/afd/pull/2059) and [#2061](https://github.com/lushly-dev/afd/pull/2061)), attempt 1, exited 0; no re-run. Each row counts the passing tests with its title in the job and step section 18's places table names, each count at or above `scripts/loam-exit-check.p3.minimums.json`, which this run set (`--print-minimums`): Units is the `loam` job's unit step, and P3-E8's second place that step's `identity/src/mcp-identity.test.ts` alone, the file its row names; Chromium is its `test:browser` step, Identity path its "AFD's identity path" step (E9), and Bundle budget its budget step. P3-E12 has no title of its own: it is every phase 2 row in phase 2's places at `scripts/loam-exit-check.minimums.json`'s counts, unchanged. No title of either phase is skipped, failed, retried or todo.
+
+- **Budgets under D115:** a ceiling rises with its measurement (owner, 2026-11-13), so P3-E10, and P3-E12's P2-E2, hold no ceiling to a figure: each row section 13 names must be printed at or under the ceiling `budget` holds, and no row is over. Phase 2's own check (no `--phase`) is unchanged, but that it now strips the log's colour in caret notation too, and still holds first paint to phase 2's 300,000 and 91,000, as its exit of 2026-11-09 recorded; first paint is now 333,804 bytes and 105,166 gzip, under ceilings of 334,100 and 105,500 that D115 raised.
+- **Through a test-only auth host** (2.4): every Chromium test of a `provider` shell, P3-E1, E2, E3, E5, E6, E7, E10, E11, E15, E17, E18, E19 and E20 (E14's, on `local` deployments, use none), and E15's sessions. A real Better Auth 1.7.18 provider runs behind the shell's own HTTPS origin on `localhost`, passkeys come from Chromium's virtual authenticator (no real authenticator or platform prompt), and single sign-on is a test-only OpenID provider on loopback. It does not prove the hosted lane, its database, its server kernel, the mount relay's enforcement, a second device on another network, or another provider: step 10's P3-H1 to P3-H5.
+- **Through a test-only handler:** P3-E8, a real `createMcpHandler` on loopback over `createKernelParts({ gate: 'principal' })` (9.6), not `createServerKernel` on the hosted server; it proves no hosted MCP endpoint, its metadata at the origin's root, or the mount relay.
+- **Not proven locally, from step 7's record:** two cases of P3-E8's row. `project-create` of a slug a team instance lists, over MCP, answering `HUMAN_REQUIRED`: it needs a team instance on the server (phase 6's steps 4 and 6); the agent interface's rule is unit-tested by step 4, and P3-H5(b) proves it over MCP. A real `startInstances` refresh on a gated kernel with `INSTANCE_FIELDS` and no principal: it needs a mounted instance on the server; E8 proves the boot commands' fields and that no other call runs without a principal.
+- **Amended by the coordinator's R8 (2026-11-22), each to its recorded limit:** P3-E1's autofill (the dialog's autofill sign-in is proven, not the browser's conditional request or its completion: Chromium's virtual authenticator does not answer it, step 3's deviation 10); P3-E3's second tab (a page on the `loam-session` channel, not a second shell: the journal's writer lock holds one shell tab per profile, step 3's deviation 9); P3-E4's `SESSION_50` (equal by the journal's own comparison to its committed recording, which phase 5's steps 1 and 3 and #1936 re-recorded; not byte identity, nor step 1's recording). R8 sent every other clause the reviews found unproven to tests, which landed in [#2059](https://github.com/lushly-dev/afd/pull/2059) and [#2061](https://github.com/lushly-dev/afd/pull/2061) before this run. Step 7's two P3-E8 cases are neither: they await the server, as "Not proven locally" above says.
+- **The coordinator's R9 (2026-11-22):** the join, recovery, OAuth login and consent pages applied no appearance, so section 14's every theme and density could not hold for them; [#2061](https://github.com/lushly-dev/afd/pull/2061) fixed the product, and P3-E11 runs the four pages in every theme and density, every rule of phase 0's axe tags.
+- **Read, not amended (R9's item 2):** P3-E8's "a direct disconnect of another person's agent is refused the same way" is the refusal `AGENT_MEMBER_SPONSOR_ONLY`, before any change and with the record unchanged, as step 7's deviation 4 records.
+- **Checked by reading, not by a test:** section 14's note that #708's screen-reader passes stay open, which axe cannot judge (P3-E11).
+
+<details>
+<summary>The script's full output</summary>
+
+```
+Repository lushly-dev/afd
+loam.yml run 45049749709, attempt 1 (workflow_dispatch on main at 31b409fb), https://github.com/lushly-dev/afd/actions/runs/45049749709: Merge queue paths success, Affected units success, Editor walk success, Mounted against Umbel success, Hosted development profile success, Build, unit and Chromium success
+ci.yml run 45049752180, attempt 1 (workflow_dispatch on main at 31b409fb), https://github.com/lushly-dev/afd/actions/runs/45049752180: TypeScript (Node 24.x) success, TypeScript (Node 22.x) success, TypeScript (Node 26.x) success
+P3-E1: Chromium 7; Units 25
+P3-E2: Units 34; Chromium 4
+P3-E3: Chromium 4
+P3-E4: Units 49; Chromium 2
+P3-E5: Chromium 1; Units 44
+P3-E6: Units 29; Chromium 1
+P3-E7: Chromium 1; Units 19
+P3-E8: Units 30; Units, `identity/src/mcp-identity.test.ts` 27
+P3-E9: Identity path 368
+P3-E10: Bundle budget JavaScript, minified 333804 of 334100, JavaScript, gzip 105166 of 105500, @lushly-dev/loam-kernel alone 145888 of 146300, The kernel's `late` chunk 129581 of 129900, The kernel's `late-identity` chunk 66629 of 67000, The `auth` chunk 73045 of 73200, The `sign-in` chunk 9998 of 10500, The `account-menu` chunk 5077 of 5400, The `account` chunk 39440 of 39900, The kernel's `apps` chunks 452033 of 452600, The chrome's `surfaces` chunk 97007 of 97500; Chromium 4
+P3-E11: Chromium 27
+P3-E12: phase 2's rows, in their places, at loam-exit-check.minimums.json's counts:
+  P2-E1: Chromium 7
+  P2-E2: Bundle budget JavaScript, minified 333804 of 334100, JavaScript, gzip 105166 of 105500; Chromium 2; AFD's lean path 2
+  P2-E3: Chromium 27
+  P2-E4: Units 22; Chromium 4
+  P2-E5: Units 22
+  P2-E6: Mounted 11
+  P2-E7: Units 36; Chromium 3
+  P2-E8: Units 192; Chromium 31
+  P2-E9: Chromium 5
+  P2-E10: Units 22; Chromium 1
+  P2-E11: Units 5; AFD's lean path 6
+  P2-E12: Chromium 19
+  P2-E13: Chromium 160; Mounted 11; Units 51
+  P2-E14: this check
+  P2-D1: Chromium 2
+  P2-D2: Chromium 2; Units 2
+  P2-D3: Units 8
+  P2-D4: Units 48
+  P2-D5: Units 64; Chromium 73; Editor walk 15
+  P2-D6: Units 25; Chromium 1
+  P2-D7: Chromium 1
+  P2-D8: Chromium 23
+  P2-D9: Units 14; Chromium 5
+  P2-D10: Chromium 26; Units 8
+P3-E13: Units 2
+P3-E14: Chromium 3; Units 6
+P3-E15: Chromium 7; Units 2
+P3-E16: this check, the local part
+P3-E17: Chromium 2; Units 17
+P3-E18: Chromium 2; Units 23
+P3-E19: Units 2; Chromium 1
+P3-E20: Chromium 9; Units 7
+
+The exit check passes: every job a success, every row passing where it names.
+```
+
+</details>
 
 ### 4. Settings, experiments, notifications, overlays
 
@@ -590,6 +661,7 @@ status changes.
 | Date | Raised by | Follow-up | Status |
 | --- | --- | --- | --- |
 | 2026-11-21 | Phase 3 step 7 | Seven rows dated 2026-11-21 in the [specification's follow-ups](phases/3-identity/spec.md#follow-ups), from the step and its review; six open | Open |
+| 2026-11-22 | Phase 3 step 9 | A journaled single sign-on result keeps the authorize URL with its `state`, in the [specification's follow-ups](phases/3-identity/spec.md#follow-ups) | Open |
 
 ### Follow-ups: phase 4, settings, experiments, notifications, overlays
 
@@ -690,6 +762,7 @@ new row.
 | --- | --- | --- |
 | 2026-11-21 | Phase 3 step 7, `lush/loam-p3-step7-mcp-identity` | Identity over MCP: the principal-gated server kernel, `createMcpAuth`, `credentialsGate`, `createServerKernel`, connected agents in `loam_connected_agent` with `connectAgent` on consent, `account-agent-*`, the authorization server and the OAuth login and consent pages; P3-E8 and P3-E20. The record is in the [specification's status](phases/3-identity/spec.md#status) |
 | 2026-11-21 | Phase 3 step 8, `lush/loam-p3-step8-app-account` | An app's account section: `ui.account`'s schema branch, rules and refusals, a tab per app's section at workspace level through a surface port fixed to the workspace, hello's section; `apps` and `account` measured and raised under D115; P3-E14. The record is in the [specification's status](phases/3-identity/spec.md#status) |
+| 2026-11-22 | Phase 3 step 9, `lush/loam-p3-step9-local-exit` | The local exit: `loam-exit-check.mjs --phase 3` over section 18's places, P3-E12 as phase 2's rows, budgets under D115, `gh`'s caret-notation colour stripped; section 18 amended for E1's autofill, E3's second tab and E4's recording (R8); minimums from the run; local criterion met at `31b409fb`, after #2048, #2059 and #2061 (R8, R9). The record is in the [specification's status](phases/3-identity/spec.md#status) |
 
 ### Sessions: phase 4, settings, experiments, notifications, overlays
 
