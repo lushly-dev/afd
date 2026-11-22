@@ -48,6 +48,35 @@ async def test_the_live_run_reports_wakes(make_run):
     assert data["foreman"]["wakes"] == 1
 
 
+async def test_lane_report_counts_provenance_rerecorded_and_deltas(make_run):
+    from botcore_factory.records import make
+
+    run = make_run(
+        "finished",
+        lane={"runId": "run-3"},
+        runs=[
+            {"id": "run-1", "merged": 1, "provenanceRerecorded": 1},
+            {"id": "run-3", "startedAt": "2030-01-01T00:00:00Z"},
+        ],
+    )
+    for branch in ("feat/a", "feat/b"):
+        run.store.append_record(
+            make(
+                "provenance-rerecorded",
+                "2030-01-01T00:01:00Z",
+                "run-3",
+                branch=branch,
+                attempt=1,
+                base="main-0",
+                names=["provenance"],
+                paths=["endpoints/health/provenance/provenance.json"],
+            )
+        )
+    data = (await run.call("lane_report", run="run-3", compare="run-1")).data
+    assert data["provenanceRerecorded"] == 2
+    assert data["delta"]["provenanceRerecorded"] == 1
+
+
 async def test_an_unknown_run_is_refused(make_run):
     result = await make_run("finished").call("lane_report", run="run-9")
     assert result.error.code == "NOT_FOUND" and "runId" in result.error.suggestion

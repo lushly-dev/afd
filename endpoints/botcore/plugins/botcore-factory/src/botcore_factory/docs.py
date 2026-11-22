@@ -260,7 +260,8 @@ The lane never edits code, and nothing is killed unless its pid and start time b
   claims (a person confirms recovery). Refuses `NOT_FOUND`, `HOST_NOT_READY`, `LANE_BUSY`.
 - `lane_report(run?, compare?)` -> `run`, `mergedPerHour`, `validationsPerMerge`,
   `productiveShare`, `staleRuns`, `reruns`, `baseAdvances`, `rerunLimitAdvances` (those whose
-  required check stood in), `ejections`, `excusedEjections` (by cause or `ejection_excuse`),
+  required check stood in), `provenanceRerecorded` (provenance-only merges resolved by
+  `regenerate`), `ejections`, `excusedEjections` (by cause or `ejection_excuse`),
   `foreman {wakes, wakesPerMerge}`, `byPlan[]`,
   `byRoute[]`, `prs[]`, `experiences[]`, `digest`; with `compare`, `delta`. Refuses `NOT_FOUND`.
 - `dial_get(key?)` -> `key`, `value`, `default`, or `dials[]`. Refuses `NOT_FOUND`.

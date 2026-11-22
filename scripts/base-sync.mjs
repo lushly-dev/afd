@@ -30,7 +30,7 @@ export const REFSPEC = '+refs/heads/main:refs/remotes/origin/main';
 const BASE = 'refs/remotes/origin/main';
 /** The open merge this command started, in the worktree's own git directory. */
 const STATE = 'afd-base-sync.json';
-const RECORD_DIRS = UNITS.flatMap((unit) => [unit.dir, unit.mirror].filter(Boolean));
+const RECORD_DIRS = UNITS.flatMap((unit) => [unit.dir, unit.mirror, unit.pinFile].filter(Boolean));
 
 /** Each unit's provenance test, keyed by its records' directory (see `UNITS`). */
 export const PROVENANCE_TESTS = {
@@ -39,6 +39,8 @@ export const PROVENANCE_TESTS = {
 	'foundations/violet/provenance': 'node --test scripts/violet-provenance.test.mjs',
 	'endpoints/botcore/provenance':
 		'uv --directory endpoints/botcore run --frozen pytest tests/test_provenance.py -q',
+	'endpoints/health/provenance':
+		'uv --directory endpoints/health run --frozen pytest tests/test_provenance.py -q',
 };
 
 /** Why base:sync stopped without concluding; `lines` say what to do. */
@@ -271,9 +273,12 @@ export function baseSync(git, root) {
 		}
 		const broken = list(git(['diff', '--cached', '--name-only', '--diff-filter=d', 'HEAD'])).filter(
 			(path) => {
-				if (!unitOf(path)) return false;
+				const found = unitOf(path);
+				if (!found) return false;
+				const content = git(['show', `:${path}`]);
+				if (found.pin) return /^(?:<<<<<<< |=======$|>>>>>>> )/m.test(content);
 				try {
-					JSON.parse(git(['show', `:${path}`]));
+					JSON.parse(content);
 					return false;
 				} catch {
 					return true;
@@ -283,7 +288,7 @@ export function baseSync(git, root) {
 		if (broken.length)
 			throw new SyncStop([
 				...lines,
-				`the merge of ${short(mergeHead)} is open: staged records are not valid JSON (conflict markers?)`,
+				`the merge of ${short(mergeHead)} is open: staged records are not valid JSON or contain conflict markers`,
 				...broken.map((path) => `  invalid: ${path}`),
 				`restore the conflict with git checkout -m -- <path> (or fix and stage it), ${AGAIN}`,
 			]);

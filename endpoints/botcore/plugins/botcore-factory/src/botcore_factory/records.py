@@ -18,6 +18,10 @@ kind                    required fields                                     writ
 ``enqueued``            branch, attempt, head, issues, plan, route,         lane-enqueue
                         profile, state (queued | held), firstEnqueuedAt
 ``queued``              branch, attempt (a held attempt joins the queue)    the lane loop
+``provenance-rerecorded`` branch, attempt, base, names, paths: the lane   the lane loop
+                        merged provenance-only conflicts with the
+                        adapter's ``regenerate`` command instead of
+                        ejecting (lushly-dev/afd#1472)
 ``validation-started``  branch, attempt, head, base, slot; optional         the lane loop
                         regenerated (the ``regenerate`` entries that wrote
                         a merge's conflicting generated files again)
@@ -82,7 +86,7 @@ from __future__ import annotations
 
 from typing import Any
 
-SCHEMA = 3
+SCHEMA = 4
 REQUIRED: dict[str, tuple[str, ...]] = {
     "cell-registered": ("branch", "issues", "plan", "route", "profile"),
     "enqueued": (
@@ -97,6 +101,7 @@ REQUIRED: dict[str, tuple[str, ...]] = {
         "firstEnqueuedAt",
     ),
     "queued": ("branch", "attempt"),
+    "provenance-rerecorded": ("branch", "attempt", "base", "names", "paths"),
     "validation-started": ("branch", "attempt", "head", "base", "slot"),
     "validated": (
         "branch",
@@ -137,7 +142,11 @@ EJECT_CAUSES = (
 #: Ejection causes that mean a check failed; a repair after one may not edit a gate.
 FAILING_CHECK_CAUSES = frozenset({"entry-invalid", "final-failed", "ci-failed", "coverage-failed"})
 #: Kinds an attempt row counts, as the field it counts them in.
-_COUNTS = {"rerun": "reruns", "base-advanced": "advances"}
+_COUNTS = {
+    "rerun": "reruns",
+    "base-advanced": "advances",
+    "provenance-rerecorded": "provenanceRerecorded",
+}
 #: When each kind happened, as the field an attempt row carries it in.
 _TIMES = {
     "enqueued": "enqueuedAt",

@@ -172,6 +172,7 @@ gate_paths = [
     "scripts/verify-record.mjs",
     "scripts/review-record.mjs",
     "scripts/provenance-merge.mjs",
+    "scripts/release/provenance.mjs",
     "biome.json",
     "package.json",
     "botcore.toml",
@@ -179,8 +180,9 @@ gate_paths = [
 
 # Two branches that each edit an imported unit both change its provenance records, so their merge
 # conflicts in the records alone. The lane merges them three ways instead of ejecting the branch;
-# a row or value both sides changed differently still ejects (lushly-dev/afd#1410). Health's records
-# keep their rows in provenance.json, which the script does not merge, so they are not listed.
+# a row or value both sides changed differently still ejects (lushly-dev/afd#1410, #1472). Health
+# pins its provenance.json digest in test_provenance.py, which the script merges only when the sole
+# conflict there is RECORD_SHA256.
 [[plugins.factory.regenerate]]
 name = "provenance"
 paths = [
@@ -189,6 +191,8 @@ paths = [
     "foundations/violet/provenance/*.json",
     "endpoints/botcore/provenance/*.json",
     "endpoints/botcore/src/botcore/provenance/*.json",
+    "endpoints/health/provenance/provenance.json",
+    "endpoints/health/tests/test_provenance.py",
 ]
 run = ["node", "scripts/provenance-merge.mjs"]
 

@@ -429,6 +429,63 @@ describe('base:sync', () => {
 		assert.equal(mergeHead(s.git), topic, 'never aborted');
 	});
 
+	it('concludes a Health provenance and pin conflict and names Health provenance test', (t) => {
+		const HEALTH = 'endpoints/health/provenance';
+		const HEALTH_PIN = 'endpoints/health/tests/test_provenance.py';
+		const mk = (files) => {
+			const text = encode({
+				schema_version: 1,
+				files: files.map((path) => ({ path, origin: 'authored' })),
+			});
+			return {
+				[`${HEALTH}/provenance.json`]: text,
+				[HEALTH_PIN]: `RECORD_SHA256 = "${sha(text)}"\n`,
+			};
+		};
+		const s = setup(t, mk(['a.py']));
+		s.commit(mk(['a.py', 'b.py']), 'branch');
+		s.main(mk(['a.py', 'c.py']), 'main');
+		const lines = s.sync().join('\n');
+		assert.match(
+			lines,
+			/merged the provenance records .*endpoints\/health\/provenance\/provenance\.json/
+		);
+		assert.ok(lines.includes(PROVENANCE_TESTS[HEALTH]), lines);
+		assertConcluded(s);
+		const mergedText = readFileSync(join(s.root, HEALTH, 'provenance.json'), 'utf8');
+		assert.deepEqual(
+			JSON.parse(mergedText).files.map((f) => f.path),
+			['a.py', 'b.py', 'c.py']
+		);
+		assert.equal(
+			readFileSync(join(s.root, HEALTH_PIN), 'utf8'),
+			`RECORD_SHA256 = "${sha(mergedText)}"\n`
+		);
+	});
+
+	it('refuses a staged Health pin file that still carries conflict markers', (t) => {
+		const HEALTH = 'endpoints/health/provenance';
+		const HEALTH_PIN = 'endpoints/health/tests/test_provenance.py';
+		const mk = (files) => {
+			const text = encode({
+				schema_version: 1,
+				files: files.map((path) => ({ path, origin: 'authored' })),
+			});
+			return {
+				[`${HEALTH}/provenance.json`]: text,
+				[HEALTH_PIN]: `RECORD_SHA256 = "${sha(text)}"\n`,
+			};
+		};
+		const s = setup(t, mk(['a.py']));
+		s.commit({ ...mk(['a.py', 'b.py']), 'src/a.ts': 'branch\n' }, 'branch');
+		s.main({ ...mk(['a.py', 'c.py']), 'src/a.ts': 'main\n' }, 'main');
+		stop(s.sync);
+		s.write({ 'src/a.ts': 'both\n' });
+		s.git(['add', '-A']);
+		const reason = stop(s.sync);
+		assert.match(reason, /invalid: endpoints\/health\/tests\/test_provenance\.py/);
+	});
+
 	it('knows a provenance test for every unit the provenance merge resolves', () => {
 		for (const unit of UNITS) assert.ok(PROVENANCE_TESTS[unit.dir], unit.dir);
 	});
