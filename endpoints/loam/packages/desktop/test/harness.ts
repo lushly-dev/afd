@@ -122,7 +122,7 @@ export interface Desktop {
 	stderr: { lines: string[]; keyRefusals: number };
 	/** The app's data directory: `site/`, `mounts.json` and the webview's profile. */
 	data: string;
-	/** Milliseconds from the session's request to the shell's `data-loam-host`. */
+	/** Milliseconds from the session's request to stage A's paint (`data-loam-host` and `loam-stage-b`). */
 	coldStartMs: number;
 	call(name: string, input?: unknown): Promise<CommandResultLike>;
 	agentCall(name: string, input?: unknown): Promise<CommandResultLike>;
@@ -213,7 +213,7 @@ export async function openDesktop(options: OpenOptions = {}): Promise<Desktop> {
 			async () =>
 				// WebDriver answers `undefined` as `null`.
 				(await browser.execute(() => document.documentElement.dataset.loamHost ?? null)) !== null,
-			{ timeout: 30_000, interval: 50 }
+			{ timeout: 30_000, interval: 15 }
 		);
 		await browser.execute(async () => {
 			const shell = document.querySelector('loam-shell') as unknown as {
@@ -232,7 +232,15 @@ export async function openDesktop(options: OpenOptions = {}): Promise<Desktop> {
 			}
 		});
 	};
-	if (!options.raw) await ready();
+	if (!options.raw) {
+		try {
+			await ready();
+		} catch (cause) {
+			await browser.deleteSession().catch(() => {});
+			driver.kill();
+			throw cause;
+		}
+	}
 	const coldStartMs = performance.now() - began;
 	const run =
 		(agent: boolean) =>

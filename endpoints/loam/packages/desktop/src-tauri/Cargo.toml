@@ -33,10 +33,18 @@ percent-encoding = "2"
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
-# A copilot provider's key from the Credential Manager (phase 5 specification, 4.2): `CredReadW`, at the version
-# Tauri's own dependencies already lock.
+# A copilot provider's key from the Credential Manager (phase 5 specification, 4.2) and owner-only ACL checks on
+# open file handles (`mounts::owner_only`), at the version Tauri's own dependencies already lock.
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "=0.61.2", features = ["Win32_Foundation", "Win32_Security_Credentials"] }
+windows-sys = { version = "=0.61.2", features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_Security_Authorization",
+    "Win32_Security_Credentials",
+    "Win32_Storage_FileSystem",
+    "Win32_System_SystemServices",
+    "Win32_System_Threading",
+] }
 
 [dev-dependencies]
 tempfile = "3"

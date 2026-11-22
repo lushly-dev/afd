@@ -28,20 +28,41 @@ import {
 const PALETTE_SCRIPT = "document.querySelector('loam-shell')?.openPalette()";
 
 const RESULTS = fileURLToPath(new URL('../test-results/', import.meta.url));
+/** Cold starts per run, each with its own empty data directory and fresh webview profile (#1396). */
+const COLD_STARTS = 3;
 
 let desktop: Desktop;
+/** The start in flight, which `afterAll` closes if `beforeAll` throws mid-loop. */
+let starting: Desktop | undefined;
+let coldStartMs = 0;
+const coldStarts: number[] = [];
+
 beforeAll(async () => {
 	const checklist = await packApp(join(LOAM, 'apps/checklist'));
-	desktop = await openDesktop({
-		deployment: desktopDeployment([
-			'[apps.checklist]',
-			'app = "checklist"',
-			`package = ${JSON.stringify(checklist)}`,
-		]),
-	});
+	const deployment = desktopDeployment([
+		'[apps.checklist]',
+		'app = "checklist"',
+		`package = ${JSON.stringify(checklist)}`,
+	]);
+	// Section 14's cold-start row (#1396): the median of `COLD_STARTS` cold starts, each from its own
+	// empty data directory and fresh webview profile, so the first-launch OS/antivirus PE scan of a
+	// newly linked binary (2.7–3.4 s before `main()` on Windows) does not fail a single-sample run,
+	// as P6-H1 does for `loam-host dev` (#1062). Every sample is logged; the last instance is kept.
+	for (let run = 1; run <= COLD_STARTS; run += 1) {
+		starting = await openDesktop({ deployment });
+		coldStarts.push(starting.coldStartMs);
+		if (run < COLD_STARTS) await starting.close();
+		else desktop = starting;
+		starting = undefined;
+	}
+	coldStartMs = [...coldStarts].sort((a, b) => a - b)[Math.floor(COLD_STARTS / 2)] as number;
+	// Match Vitest's `testTimeout` (120 s) so `loamD52()` (22k records + 200 S1 lists + 1,000 S2
+	// commits) does not hit WebDriver's 30 s default `script` timeout on slow hosted Linux runners.
+	await desktop.browser.setTimeout({ script: 120_000 });
 	await watchViolations(desktop.browser);
 });
 afterAll(async () => {
+	if (starting && starting !== desktop) await starting.close();
 	await desktop?.close();
 });
 
@@ -204,13 +225,18 @@ describe('P6-D1: the same build on the desktop', () => {
 		// runner it ran 550 to 7,555 ms on unrelated changes (#1408), so there it is recorded only.
 		const s2Enforced = !(process.platform === 'linux' && process.env.CI === 'true');
 		mkdirSync(RESULTS, { recursive: true });
-		const record = { platform: process.platform, coldStartMs: desktop.coldStartMs, ...result };
+		const record = {
+			platform: process.platform,
+			coldStartMs,
+			coldStarts,
+			...result,
+		};
 		writeFileSync(
 			join(RESULTS, `d52-${process.platform}.json`),
 			`${JSON.stringify(record, null, '\t')}\n`
 		);
 		process.stderr.write(
-			`D52 on ${process.platform}: S1 p95 ${result.s1.p95Ms.toFixed(2)} ms over ${result.s1.runs} lists of ${result.s1.listed} records (ceiling 50, ${process.platform === 'win32' ? 'enforced' : 'recorded only'}); S2 ${result.s2.totalMs.toFixed(0)} ms for ${result.s2.writes} writes (ceiling 2,000, ${s2Enforced ? 'enforced' : 'recorded only'}); cold start ${desktop.coldStartMs.toFixed(0)} ms (ceiling 2,500, ${process.platform === 'win32' ? 'enforced' : 'recorded only'}); ${result.userAgent}\n`
+			`D52 on ${process.platform}: S1 p95 ${result.s1.p95Ms.toFixed(2)} ms over ${result.s1.runs} lists of ${result.s1.listed} records (ceiling 50, ${process.platform === 'win32' ? 'enforced' : 'recorded only'}); S2 ${result.s2.totalMs.toFixed(0)} ms for ${result.s2.writes} writes (ceiling 2,000, ${s2Enforced ? 'enforced' : 'recorded only'}); cold start ${coldStartMs.toFixed(0)} ms (median of ${coldStarts.map((ms) => ms.toFixed(0)).join(', ')}, ceiling 2,500, ${process.platform === 'win32' ? 'enforced' : 'recorded only'}); ${result.userAgent}\n`
 		);
 		expect(result).toMatchObject({ documents: 2_000, links: 20_000 });
 		expect(result.s1.listed).toBe(result.s1.expected);
@@ -221,6 +247,6 @@ describe('P6-D1: the same build on the desktop', () => {
 		if (s2Enforced) expect(result.s2.totalMs).toBeLessThanOrEqual(2_000);
 		// Section 14's cold-start row is enforced on Windows alone until step 12 measures
 		// each platform (the coordinator, 2026-11-16); elsewhere the line above records it.
-		if (process.platform === 'win32') expect(desktop.coldStartMs).toBeLessThanOrEqual(2_500);
+		if (process.platform === 'win32') expect(coldStartMs).toBeLessThanOrEqual(2_500);
 	});
 });

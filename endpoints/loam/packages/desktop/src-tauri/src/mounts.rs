@@ -129,9 +129,16 @@ pub enum Unread {
 /// A file only its owner can read, read from the handle its check was made on, so no other file can be put in its
 /// place between the check and the read (phase 5's step 2, from its trust review). On POSIX the open refuses a
 /// symbolic link and the check is the handle's own metadata; on Windows the handle refuses to share writing and
-/// deleting while it is held, so the path names the same file for the ACL's check and the read.
+/// deleting while it is held, and the security descriptor is read directly from that open handle via
+/// `GetSecurityInfo` (never spawning PowerShell on launch).
 pub fn read_owner_only(path: &Path, max: usize) -> Result<Vec<u8>, Unread> {
     use std::io::Read;
+    #[cfg(windows)]
+    match std::fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.is_file() => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Err(Unread::Missing),
+        _ => return Err(Unread::Denied),
+    }
     let mut options = std::fs::OpenOptions::new();
     options.read(true);
     #[cfg(unix)]
@@ -165,8 +172,14 @@ pub fn read_owner_only(path: &Path, max: usize) -> Result<Vec<u8>, Unread> {
         }
     }
     #[cfg(windows)]
-    if !owner_only(path) {
-        return Err(Unread::Denied);
+    {
+        use std::os::windows::io::AsRawHandle;
+        let metadata = file.metadata().map_err(|_| Unread::Denied)?;
+        // Re-check `symlink_metadata` while the handle holds no write/delete share, then check the handle's own ACL.
+        let still_file = std::fs::symlink_metadata(path).is_ok_and(|meta| meta.is_file());
+        if !metadata.is_file() || !still_file || !handle_owner_only(file.as_raw_handle()) {
+            return Err(Unread::Denied);
+        }
     }
     let mut bytes = Vec::new();
     file.take(max as u64 + 1)
@@ -200,41 +213,208 @@ pub fn owner_only(path: &Path) -> bool {
     metadata.is_file() && metadata.uid() == user && metadata.permissions().mode() & 0o777 == 0o600
 }
 
-/// Windows: owned by this user, and every allowing entry of its ACL is this user's. The path reaches
-/// PowerShell as an environment value, never as code.
+/// Windows: owned by this user, and every allowing entry of its DACL is this user's. Read directly from the
+/// open file handle with `GetSecurityInfo`, failing closed on a NULL DACL, an unreadable descriptor, or any
+/// non-standard ACE type that could grant access to another principal.
 #[cfg(windows)]
 pub fn owner_only(path: &Path) -> bool {
-    use std::os::windows::process::CommandExt;
-    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-    match std::fs::symlink_metadata(path) {
-        Ok(metadata) if metadata.is_file() => {}
-        _ => return false,
+    use std::os::windows::fs::OpenOptionsExt;
+    use std::os::windows::io::AsRawHandle;
+    const FILE_SHARE_READ: u32 = 0x1;
+    if !std::fs::symlink_metadata(path).is_ok_and(|metadata| metadata.is_file()) {
+        return false;
     }
-    let script = "$ErrorActionPreference='Stop'; \
-        $a=Get-Acl -LiteralPath $env:LOAM_MOUNTS_FILE; \
-        $u=[System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value; \
-        $o=$a.GetOwner([System.Security.Principal.SecurityIdentifier]).Value; \
-        if ($o -ne $u) { exit 1 }; \
-        foreach ($r in $a.GetAccessRules($true,$true,[System.Security.Principal.SecurityIdentifier])) { \
-          if ($r.AccessControlType -eq 'Allow' -and $r.IdentityReference.Value -ne $u) { exit 1 } }; \
-        exit 0";
-    let Some(windows) = std::env::var_os("SystemRoot") else {
+    let Ok(file) = std::fs::OpenOptions::new()
+        .read(true)
+        .share_mode(FILE_SHARE_READ)
+        .open(path)
+    else {
         return false;
     };
-    let powershell = Path::new(&windows)
-        .join("System32")
-        .join("WindowsPowerShell")
-        .join("v1.0")
-        .join("powershell.exe");
-    std::process::Command::new(powershell)
-        .args(["-NoProfile", "-NonInteractive", "-Command", script])
-        .env("LOAM_MOUNTS_FILE", path)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .creation_flags(CREATE_NO_WINDOW)
-        .status()
-        .is_ok_and(|status| status.success())
+    file.metadata().is_ok_and(|metadata| metadata.is_file())
+        && std::fs::symlink_metadata(path).is_ok_and(|metadata| metadata.is_file())
+        && handle_owner_only(file.as_raw_handle())
+}
+
+#[cfg(windows)]
+fn handle_owner_only(handle: std::os::windows::io::RawHandle) -> bool {
+    use std::ffi::c_void;
+    use std::mem::{offset_of, size_of};
+    use std::ptr::{addr_of, addr_of_mut, null_mut};
+    use windows_sys::Win32::Foundation::{CloseHandle, ERROR_SUCCESS, HANDLE, LocalFree};
+    use windows_sys::Win32::Security::Authorization::{GetSecurityInfo, SE_FILE_OBJECT};
+    use windows_sys::Win32::Security::{
+        ACCESS_ALLOWED_ACE, ACE_HEADER, ACL, ACL_SIZE_INFORMATION, AclSizeInformation,
+        DACL_SECURITY_INFORMATION, EqualSid, GetAce, GetAclInformation, GetLengthSid,
+        GetTokenInformation, IsValidAcl, IsValidSid, OWNER_SECURITY_INFORMATION,
+        PSECURITY_DESCRIPTOR, PSID, TOKEN_QUERY, TOKEN_USER, TokenUser,
+    };
+    use windows_sys::Win32::Storage::FileSystem::{FILE_TYPE_DISK, GetFileType};
+    use windows_sys::Win32::System::SystemServices::{
+        ACCESS_ALLOWED_ACE_TYPE, ACCESS_DENIED_ACE_TYPE,
+    };
+    use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
+
+    // Only a real disk file (never a pipe, console or character device).
+    // SAFETY: `handle` is a live file handle owned by the caller.
+    if unsafe { GetFileType(handle as HANDLE) } != FILE_TYPE_DISK {
+        return false;
+    }
+
+    struct HandleGuard(HANDLE);
+    impl Drop for HandleGuard {
+        fn drop(&mut self) {
+            if !self.0.is_null() {
+                // SAFETY: `self.0` was opened by `OpenProcessToken` and is closed once here.
+                unsafe {
+                    CloseHandle(self.0);
+                }
+            }
+        }
+    }
+
+    struct LocalAllocGuard(PSECURITY_DESCRIPTOR);
+    impl Drop for LocalAllocGuard {
+        fn drop(&mut self) {
+            if !self.0.is_null() {
+                // SAFETY: `self.0` was allocated by `GetSecurityInfo` and must be freed with `LocalFree`.
+                unsafe {
+                    LocalFree(self.0);
+                }
+            }
+        }
+    }
+
+    let mut token: HANDLE = null_mut();
+    // SAFETY: `GetCurrentProcess` returns a pseudo-handle valid for the calling process; `token` is written on success.
+    if unsafe { OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token) } == 0 {
+        return false;
+    }
+    let _token_guard = HandleGuard(token);
+
+    let mut needed: u32 = 0;
+    // SAFETY: passing a null buffer with size 0 queries the required byte length in `needed`.
+    unsafe {
+        GetTokenInformation(token, TokenUser, null_mut(), 0, &mut needed);
+    }
+    if (needed as usize) < size_of::<TOKEN_USER>() {
+        return false;
+    }
+    // `Vec<u64>` guarantees pointer alignment for `TOKEN_USER`.
+    let words = (needed as usize).div_ceil(size_of::<u64>());
+    let Some(buf_bytes) = words
+        .checked_mul(size_of::<u64>())
+        .and_then(|bytes| u32::try_from(bytes).ok())
+    else {
+        return false;
+    };
+    let mut token_buf = vec![0u64; words];
+    // SAFETY: `token_buf` is valid, writable and properly aligned for `TOKEN_USER` with size `buf_bytes`.
+    if unsafe {
+        GetTokenInformation(
+            token,
+            TokenUser,
+            token_buf.as_mut_ptr().cast::<c_void>(),
+            buf_bytes,
+            &mut needed,
+        )
+    } == 0
+    {
+        return false;
+    }
+    // SAFETY: `GetTokenInformation(TokenUser)` populated a `TOKEN_USER` at the start of `token_buf`, whose SID
+    // points inside `token_buf` and lives as long as `token_buf`.
+    let user_sid: PSID = unsafe { (*(token_buf.as_ptr().cast::<TOKEN_USER>())).User.Sid };
+    // SAFETY: `IsValidSid` checks whether the SID pointer has a valid header.
+    if user_sid.is_null() || unsafe { IsValidSid(user_sid) } == 0 {
+        return false;
+    }
+
+    let mut owner_sid: PSID = null_mut();
+    let mut dacl: *mut ACL = null_mut();
+    let mut sd: PSECURITY_DESCRIPTOR = null_mut();
+    // SAFETY: `handle` is an open file handle; `GetSecurityInfo` writes `owner_sid`, `dacl` (pointers into `sd`)
+    // and `sd`, which `_sd_guard` frees with `LocalFree` on success.
+    let status = unsafe {
+        GetSecurityInfo(
+            handle as HANDLE,
+            SE_FILE_OBJECT,
+            OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION,
+            &mut owner_sid,
+            null_mut(),
+            &mut dacl,
+            null_mut(),
+            &mut sd,
+        )
+    };
+    if status != ERROR_SUCCESS || sd.is_null() {
+        return false;
+    }
+    let _sd_guard = LocalAllocGuard(sd);
+    // A missing owner or a NULL DACL (which grants Everyone full access on Windows) fails closed.
+    if owner_sid.is_null() || dacl.is_null() || unsafe { IsValidAcl(dacl.cast_const()) } == 0 {
+        return false;
+    }
+    // SAFETY: `owner_sid` and `user_sid` are non-null pointers into live buffers (`sd` and `token_buf`).
+    if unsafe { IsValidSid(owner_sid) == 0 || EqualSid(owner_sid, user_sid) == 0 } {
+        return false;
+    }
+
+    let mut acl_info = ACL_SIZE_INFORMATION {
+        AceCount: 0,
+        AclBytesInUse: 0,
+        AclBytesFree: 0,
+    };
+    // SAFETY: `dacl` is a valid ACL inside `sd`; `acl_info` has the exact size for `AclSizeInformation`.
+    if unsafe {
+        GetAclInformation(
+            dacl.cast_const(),
+            addr_of_mut!(acl_info).cast::<c_void>(),
+            size_of::<ACL_SIZE_INFORMATION>() as u32,
+            AclSizeInformation,
+        )
+    } == 0
+    {
+        return false;
+    }
+
+    let sid_offset = offset_of!(ACCESS_ALLOWED_ACE, SidStart);
+    for index in 0..acl_info.AceCount {
+        let mut ace_ptr: *mut c_void = null_mut();
+        // SAFETY: `index < acl_info.AceCount` for the live `dacl`.
+        if unsafe { GetAce(dacl.cast_const(), index, &mut ace_ptr) } == 0 || ace_ptr.is_null() {
+            return false;
+        }
+        // SAFETY: every ACE in a valid Windows ACL begins with an `ACE_HEADER`.
+        let header = unsafe { &*(ace_ptr.cast::<ACE_HEADER>()) };
+        match u32::from(header.AceType) {
+            ACCESS_ALLOWED_ACE_TYPE => {
+                // A valid Windows SID header is 8 bytes (Revision + SubAuthorityCount + 6-byte IdentifierAuthority).
+                let ace_size = usize::from(header.AceSize);
+                if ace_size < sid_offset + 8 {
+                    return false;
+                }
+                // SAFETY: an `ACCESS_ALLOWED_ACE_TYPE` entry is an `ACCESS_ALLOWED_ACE` whose `SidStart` field
+                // is the first DWORD of the trustee's SID.
+                let ace = ace_ptr.cast::<ACCESS_ALLOWED_ACE>();
+                let sid = unsafe { addr_of!((*ace).SidStart).cast_mut().cast::<c_void>() };
+                if unsafe { IsValidSid(sid) } == 0 {
+                    return false;
+                }
+                // SAFETY: `sid` passed `IsValidSid`, so `GetLengthSid` reads its validated length.
+                let sid_len = unsafe { GetLengthSid(sid) } as usize;
+                if ace_size < sid_offset + sid_len || unsafe { EqualSid(sid, user_sid) } == 0 {
+                    return false;
+                }
+            }
+            ACCESS_DENIED_ACE_TYPE => {
+                // Deny ACEs restrict access and never grant it to another principal.
+            }
+            // Any other ACE type (object, callback, compound, or unknown) could grant access: fail closed.
+            _ => return false,
+        }
+    }
+    true
 }
 
 // Each lives in an Arc, one per open handle, so the size of the larger variant costs nothing worth boxing.
@@ -844,6 +1024,82 @@ mod tests {
         assert_eq!(read(&path).err(), Some(PERMISSIONS));
         restrict(&path);
         assert!(read(&path).is_ok());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn p6_d2_windows_acl_refuses_other_allow_aces_directories_and_links() {
+        let dir = tempfile::tempdir().unwrap();
+        let system = Path::new(&std::env::var_os("SystemRoot").unwrap()).join("System32");
+        let icacls = system.join("icacls.exe");
+        let make = |name: &str| {
+            let path = dir.path().join(name);
+            std::fs::write(&path, r#"{"mounts":[]}"#).unwrap();
+            restrict(&path);
+            path
+        };
+
+        // Owner-only passes.
+        let owned = make("owned.json");
+        assert!(owner_only(&owned));
+        assert!(read(&owned).is_ok());
+
+        // Granting Users read fails.
+        let users = make("users.json");
+        assert!(
+            std::process::Command::new(&icacls)
+                .arg(&users)
+                .args(["/grant", "*S-1-5-32-545:R"])
+                .stdout(Stdio::null())
+                .status()
+                .unwrap()
+                .success()
+        );
+        assert!(!owner_only(&users));
+        assert_eq!(read(&users).err(), Some(PERMISSIONS));
+
+        // Granting Everyone read fails.
+        let everyone = make("everyone.json");
+        assert!(
+            std::process::Command::new(&icacls)
+                .arg(&everyone)
+                .args(["/grant", "*S-1-1-0:R"])
+                .stdout(Stdio::null())
+                .status()
+                .unwrap()
+                .success()
+        );
+        assert!(!owner_only(&everyone));
+        assert_eq!(read(&everyone).err(), Some(PERMISSIONS));
+
+        // Adding a Deny ACE for Guests (a principal the current user is not in) alongside the owner's Allow
+        // still passes: Deny ACEs restrict access and never grant it.
+        let denied = make("denied.json");
+        assert!(
+            std::process::Command::new(&icacls)
+                .arg(&denied)
+                .args(["/deny", "*S-1-5-32-546:R"])
+                .stdout(Stdio::null())
+                .status()
+                .unwrap()
+                .success()
+        );
+        assert!(owner_only(&denied));
+        assert!(read(&denied).is_ok());
+
+        // A directory is refused.
+        assert!(!owner_only(dir.path()));
+        assert_eq!(
+            read_owner_only(dir.path(), REQUEST_MAX),
+            Err(Unread::Denied)
+        );
+
+        // A symlink to an owner-only file is refused (when the account has symlink privilege).
+        let link = dir.path().join("link.json");
+        if std::os::windows::fs::symlink_file(&owned, &link).is_ok() {
+            assert!(!owner_only(&link));
+            assert_eq!(read_owner_only(&link, REQUEST_MAX), Err(Unread::Denied));
+        }
     }
 
     #[tokio::test]
