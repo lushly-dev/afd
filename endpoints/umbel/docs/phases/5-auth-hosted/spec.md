@@ -185,7 +185,7 @@
 - **Read in the repository:**
   - The [MCP Authorization proposal](../../../../../docs/features/active/mcp-authorization/mcp-authorization.proposal.md),
     A1 to A7. A4 says scopes are "not inferred from `mutation`", and A5 gives a 403 through `Mcp-Name`.
-  - The [MCP Tasks proposal](../../../../../docs/features/active/mcp-tasks/mcp-tasks.proposal.md).
+  - The [MCP Tasks proposal](../../../../../docs/features/complete/mcp-tasks/mcp-tasks.proposal.md).
   - [`spec/command-metadata.md`](../../../../../spec/command-metadata.md) lines 234-294.
   - [`docs/language-parity.md`](../../../../../docs/language-parity.md) line 136.
 - **Read in the registry sources of the crates in the lock, or planned:**

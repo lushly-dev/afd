@@ -282,7 +282,7 @@ Sizes follow the parity plan: **S** under a day, **M** a few days, **L** a week 
 | 1 | [Confirmations and input requests](../mcp-confirmations/mcp-confirmations.proposal.md) | High: `destructive` and `confirmPrompt` are advertised but ignored | High: MRTR and signed `requestState` in all three SDKs | M | Accepted 2026-10-25 (C1–C6); resolves D10 |
 | 2 | [Authorization](../../active/mcp-authorization/mcp-authorization.proposal.md) | High for hosted servers, low for stdio | Mixed: TypeScript complete, Python with gaps, Rust none | M + M | Do the spec phase now; build when a hosted deployment is planned |
 | 3 | [Progress](../../proposed/mcp-progress/mcp-progress.proposal.md) | Medium: few AFD commands run long | High on MCP; AFD core has no progress hook | M | After confirmations |
-| 4 | [Tasks](../../active/mcp-tasks/mcp-tasks.proposal.md) | Low to medium today | Low: only rmcp has a runtime | L | Wait; Rust pilot first |
+| 4 | [Tasks](../mcp-tasks/mcp-tasks.proposal.md) | Low to medium today | Low: only rmcp has a runtime | L | Wait; Rust pilot first |
 
 The authorization proposal keeps `context.auth` for `@lushly-dev/afd-auth`, so verified MCP claims go to a new `context.credentials`. Elicitation-driven undo is phase 4 of the confirmations proposal.
 

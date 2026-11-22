@@ -89,7 +89,7 @@ a Loam app from one set of commands.
 | One app calls another's commands only under a `calls` grant, in phase 5. Calls to mounted servers are journaled but cannot be replayed | Loam architecture, section 9 and section 8, "Determinism and replay" |
 | Loam's phases 0 to 2 have exited. Phase 3 (identity) and phase 6 (hosts) are in progress. Phases 4, 5 (bus, copilot, mounted servers), 7 and 8 are not started | [Loam status](../../../../endpoints/loam/docs/STATUS.md) |
 | Umbel is a Rust host for capability plugins over MCP and a CLI, with knowledge, memory and context as first-party plugins. Every part of a result that came from a document is labelled `trust: "content"`, and every stored record carries a provenance envelope | [Umbel README](../../../../endpoints/umbel/README.md); Umbel architecture, principles 7 and 9 |
-| Long-running commands as MCP tasks are an active AFD feature, with a Rust pilot; its TypeScript phase is not done. Over HTTP the Rust server offers tasks only with authorization or when its hook identifies callers. Progress notifications are not delivered for tasks | [MCP Tasks](../mcp-tasks/mcp-tasks.proposal.md), its status and "Limits"; `packages/rust/README.md`, "Features" |
+| Long-running commands as MCP tasks are an active AFD feature, with a Rust pilot; its TypeScript phase is not done. Over HTTP the Rust server offers tasks only with authorization or when its hook identifies callers. Progress notifications are not delivered for tasks | [MCP Tasks](../../complete/mcp-tasks/mcp-tasks.proposal.md), its status and "Limits"; `packages/rust/README.md`, "Features" |
 | A manifest names exactly one kind and cannot carry a mount's command line, location or credential: those are the deployer's entry. The app list is the deployer's file and no command writes an entry (D63); on the desktop the webview can write no command line (D106) | Loam phase 1 specification, section 2; Loam decisions, D63 and D106 |
 | A call to a mounted server has a 60-second deadline, and over the desktop mount a message is at most 1 MiB and a reply 4 MiB | Loam phase 1 specification, section 7.3; Loam phase 6 specification, section 10.4 |
 
@@ -391,7 +391,7 @@ to E in [section 9](#9-steps) build on the `afd` crate alone, with sends made at
 | | Need | Why |
 | --- | --- | --- |
 | A1 | A defined carrier for approval evidence from a trusted MCP client to a mounted server | The token route of L7. Today evidence is a context value only the server's own surface sets, and nothing says how a trusted client presents a token over MCP. Loam mounts any AFD server, so the convention is AFD's |
-| A2 | Tasks in the TypeScript client | L3. The MCP Tasks proposal has its Rust pilot; its TypeScript phase is next |
+| A2 | Tasks in the TypeScript client | L3. The MCP Tasks proposal has its Rust pilot; its TypeScript phase is next (*satisfied 2026-11-22 in #2034 (#1971)*) |
 
 The engine otherwise uses the crate's registry, journal, approvals, tasks and MCP server as they
 are. The crate has no command line. Whether the engine builds its own or is driven by

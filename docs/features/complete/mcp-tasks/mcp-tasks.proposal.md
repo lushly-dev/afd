@@ -1,16 +1,16 @@
 # MCP Tasks for long-running commands
 
-> **Current status (2026-11-13):** [STATUS.md](STATUS.md) records the merged Rust pilot and the remaining TypeScript, Python and shared acceptance work.
+> **Current status (2026-11-22):** Complete — all four phases and sub-issues (#1971, #1972) are merged; [STATUS.md](STATUS.md) records the evidence and closure of epic [#1553](https://github.com/lushly-dev/afd/issues/1553).
 
 > **Goal**: Let a command that outlives an HTTP request run as an MCP task under the `io.modelcontextprotocol/tasks` extension. The client gets a task handle at once, and polls for status and the result.
 
 | Field | Value |
 |---|---|
-| Status | Active. Proposed 2026-10-25; approved 2026-11-04 with the [Umbel phase 5 specification](../../../../endpoints/umbel/docs/phases/5-auth-hosted/spec.md#122-tasks-for-long-jobs-d127) (decisions D106 and D127, under the owner's 2026-10-31 delegation): Umbel's `sources-sync`, `knowledge-index` and `knowledge-refresh` outlive a request, which answers T1. Phase 1, the spec, done 2026-11-07 as Umbel step 0a: [Tasks](../../../../spec/command-metadata.md#tasks) in `spec/command-metadata.md` (T2, T3 and T5, with confirmations inside tasks left out, below). Phase 2, the Rust pilot, done 2026-11-07 as Umbel step 0e: `packages/rust` serves `task`, a `TaskStore` (a bounded in-memory default) and the `tasks/*` handlers with the owner check, on `rmcp` 3.9's model types and handler hooks for the extension. It does not use `rmcp`'s `TaskManager`, which keeps tasks in memory with no owner, no pluggable store and no bound, and marks a task past its TTL `failed`; the choices are in the Umbel specification's [Amendments from step 0e](../../../../endpoints/umbel/docs/phases/5-auth-hosted/spec.md#amendments-from-step-0e). A task-capable todo command in the conformance suite waits for a second language. TypeScript and Python (phases 3 and 4) are next; progress is in the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md). Ranked 4 of 4 among the [MCP 2026-07-28 Phase 7 follow-ons](../../complete/mcp-2026-07-28/proposal.md#phase-7-optional-follow-ons-each-its-own-proposal). |
+| Status | Complete (2026-11-22). Proposed 2026-10-25; approved 2026-11-04 with the [Umbel phase 5 specification](../../../../endpoints/umbel/docs/phases/5-auth-hosted/spec.md#122-tasks-for-long-jobs-d127) (decisions D106 and D127, under the owner's 2026-10-31 delegation): Umbel's `sources-sync`, `knowledge-index` and `knowledge-refresh` outlive a request, which answers T1. Phase 1, the spec, done 2026-11-07 as Umbel step 0a (#793): [Tasks](../../../../spec/command-metadata.md#tasks) in `spec/command-metadata.md` (T2, T3 and T5, with confirmations inside tasks left out, below). Phase 2, the Rust pilot, done 2026-11-07 as Umbel step 0e (#817): `packages/rust` serves `task`, a `TaskStore` (a bounded in-memory default) and the `tasks/*` handlers with the owner check, on `rmcp` 3.9's model types and handler hooks for the extension. It does not use `rmcp`'s `TaskManager`, which keeps tasks in memory with no owner, no pluggable store and no bound, and marks a task past its TTL `failed`; the choices are in the Umbel specification's [Amendments from step 0e](../../../../endpoints/umbel/docs/phases/5-auth-hosted/spec.md#amendments-from-step-0e). Phase 3 (TypeScript server, client and the shared todo `--suite tasks` acceptance suite for TypeScript and Rust) merged 2026-11-22 in #2034 (#1971). Phase 4 (Python server, client and todo `--suite tasks`) merged 2026-11-22 in #2134 (#1972). C++ is not planned. Ranked 4 of 4 among the [MCP 2026-07-28 Phase 7 follow-ons](../mcp-2026-07-28/proposal.md#phase-7-optional-follow-ons-each-its-own-proposal). |
 | Author | jasfalk (drafted with Claude) |
 | Spec | [SEP-2663: Tasks extension](https://modelcontextprotocol.io/seps/2663-tasks-extension) (Final, Extensions Track), [extensions overview](https://modelcontextprotocol.io/extensions/overview) |
 | Packages | `spec/`, `packages/core`, `packages/server`, `packages/client`, `python/`, `packages/rust` |
-| Related | [Command progress](../../proposed/mcp-progress/mcp-progress.proposal.md) (status messages), [MCP confirmations](../../complete/mcp-confirmations/mcp-confirmations.proposal.md) (the `input_required` status), [MCP authorization](../mcp-authorization/mcp-authorization.proposal.md) (task access checks), [handoff pattern](../../complete/handoff-pattern/) (AFD's command-level start-and-poll pattern) |
+| Related | [Command progress](../../proposed/mcp-progress/mcp-progress.proposal.md) (status messages), [MCP confirmations](../mcp-confirmations/mcp-confirmations.proposal.md) (the `input_required` status), [MCP authorization](../../active/mcp-authorization/mcp-authorization.proposal.md) (task access checks), [handoff pattern](../handoff-pattern/) (AFD's command-level start-and-poll pattern) |
 
 ## Why this is fourth
 
@@ -48,32 +48,32 @@ Until then, a Rust pilot on rmcp's `TaskManager` is cheap and would test the des
 
 ### Task store
 
-A `TaskStore` interface holds task records and results: `create`, `get`, `update`, `cancel`, `expire`. An in-memory store is the default and is documented as single-instance only. Hosts with several instances plug in a shared store. Records carry the principal from [authorization](../mcp-authorization/mcp-authorization.proposal.md) when present, and every `tasks/*` call checks it.
+A `TaskStore` interface holds task records and results: `create`, `get`, `update`, `cancel`, `expire`. An in-memory store is the default and is documented as single-instance only. Hosts with several instances plug in a shared store. Records carry the principal from [authorization](../../active/mcp-authorization/mcp-authorization.proposal.md) when present, and every `tasks/*` call checks it.
 
 ### Execution
 
 - The task runs the command through the normal executor with a fresh `CommandContext`. Its `signal` is aborted by `tasks/cancel` or by TTL expiry.
 - `context.progress` from the [progress proposal](../../proposed/mcp-progress/mcp-progress.proposal.md) updates `statusMessage`, and `lastUpdatedAt`, instead of sending notifications.
-- A confirm-gated command (see [confirmations](../../complete/mcp-confirmations/mcp-confirmations.proposal.md)) moves to `input_required`, and continues when `tasks/update` brings an accepted confirmation. *Not in the 2026-11-07 spec:* a command with `confirmPrompt`, an approval policy or the host-verified mode cannot declare `task`, so no task asks a person; a later revision may add this.
+- A confirm-gated command (see [confirmations](../mcp-confirmations/mcp-confirmations.proposal.md)) moves to `input_required`, and continues when `tasks/update` brings an accepted confirmation. *Not in the 2026-11-07 spec:* a command with `confirmPrompt`, an approval policy or the host-verified mode cannot declare `task`, so no task asks a person; a later revision may add this.
 - The result is the same `CallToolResult` that an inline call returns, including `structuredContent`.
 
 ### Per language
 
 | Language | Implementation |
 |---|---|
-| Rust | Done (Umbel step 0e): `rmcp`'s task model types and `ServerHandler` hooks, with AFD's own runner and `TaskStore`, since `TaskManager` has no owner check, store or bound. |
-| TypeScript | AFD-owned handlers for `tasks/get`, `tasks/update` and `tasks/cancel` on the low-level `Server`, plus the store. |
-| Python | The SDK's generic `Extension` and `MethodBinding` mechanism, plus the store. |
+| Rust | Done (#817, Umbel step 0e; todo `--suite tasks` in #2034): `rmcp`'s task model types and `ServerHandler` hooks, with AFD's own runner and `TaskStore`, since `TaskManager` has no owner check, store or bound. |
+| TypeScript | Done (#2034, #1971): AFD-owned handlers for `tasks/get`, `tasks/update` and `tasks/cancel` on the low-level `Server`, `TaskStore`/`InMemoryTaskStore`, `McpClient({ tasks: true })` polling, and todo `--suite tasks`. |
+| Python | Done (#2134, #1972): the SDK's generic `Extension` and `MethodBinding` mechanism, `TaskStore`/`InMemoryTaskStore`, `McpClient(McpClientConfig(tasks=True))` polling, and todo `--suite tasks`. |
 | C++ | Not planned. |
 
 The AFD client gains task support: it declares the extension when asked, polls at `pollIntervalMs`, and returns the final `CommandResult`, so callers see an ordinary result.
 
 ## Phases
 
-1. Spec: the `task` field, the store contract, and the status and cancellation rules.
-2. Rust pilot. **Server done in #817:** rmcp model types and handler hooks with AFD's bounded, owner-checked `TaskStore`, replacing the proposed `TaskManager`. The shared task-capable todo case waits for a second language.
-3. TypeScript server and client.
-4. Python.
+1. Spec: the `task` field, the store contract, and the status and cancellation rules. **Done in #793.**
+2. Rust pilot and shared todo acceptance case. **Server done in #817:** rmcp model types and handler hooks with AFD's bounded, owner-checked `TaskStore`, replacing the proposed `TaskManager`. **Shared todo acceptance suite done in #2034 (TypeScript and Rust) and #2134 (Python):** `packages/examples/todo/spec/task-cases.json` (`--suite tasks --mode modern`).
+3. TypeScript server and client. **Done in #2034 (#1971).**
+4. Python server and client. **Done in #2134 (#1972).**
 
 ## Decisions
 
