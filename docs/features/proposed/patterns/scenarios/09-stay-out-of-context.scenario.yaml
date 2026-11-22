@@ -1,10 +1,15 @@
 # Draft JTBD scenario for the Patterns proposal. The commands and their shapes are proposals.
-# The data is invented. The `select` pattern's gate `fits-narrow` runs at a viewport 390 wide.
-# `example-select` is for every viewport. `desk-select`, in a second library, declares that it
-# is for viewports 1024 wide and up, with the reason "Used only in the desktop console."
+# The data is invented. Canonical `example/select` keep order across scenarios: 0=named,
+# 1=escape-closes, 2=shows-choice, 3=fits-narrow. The `fits-narrow` gate runs at a viewport
+# 390 wide. `example-select` (in `example`) is for every viewport. `desk-select` (in `desktop`)
+# claims `example/select` and declares that it is for viewports 1024 wide and up, with the reason
+# "Used only in the desktop console."
+# Lists are asserted with dotted index paths where only part of an item or a variable length
+# matters, because `afd-testing` requires exact length matches on object arrays and compares
+# plain arrays whole.
 #
 # What this cannot show: the declared reason is content, served beside the level, and this
-# scenario asserts only that it is present.
+# scenario asserts only that it is present rather than its exact wording.
 
 name: Report a test an implementation is not for as out of context
 description: >-
@@ -14,6 +19,17 @@ job: stay-out-of-context
 tags: [verify]
 
 steps:
+  - description: Running the narrow gate on the desktop-only component reports out-of-context, never passed
+    command: specimen-run
+    input:
+      id: desk-select-three-options--gate--fits-narrow
+      capture: none
+    expect:
+      success: true
+      data:
+        outcome.status: out-of-context
+        outcome.reason: { exists: true }
+
   - description: An implementation for every viewport has the narrow gate verified
     command: specimen-coverage
     input:
@@ -21,43 +37,43 @@ steps:
     expect:
       success: true
       data:
-        patterns:
-          complete: true
-          implementations:
-            - tag: example-select
-              keep:
-                - id: select.keep.fits-narrow
-                  level: verified
+        patterns.complete: true
+        patterns.implementations.0.library: example
+        patterns.implementations.0.tag: example-select
+        patterns.implementations.0.keep.3.id: select.keep.fits-narrow
+        patterns.implementations.0.keep.3.level: verified
 
-  - description: One that declares a limit has the gate reported out of context, with its reason
+  - description: One that declares a limit has the gate reported out of context with its reason
     command: specimen-coverage
     input:
       component: desk-select
     expect:
       success: true
       data:
-        patterns:
-          implementations:
-            - tag: desk-select
-              keep:
-                - id: select.keep.fits-narrow
-                  level: out-of-context
-                  reason: { exists: true }
-          counts:
-            verified: { gte: 1 }
-            out-of-context: 1
+        patterns.complete: true
+        patterns.implementations.0.library: example
+        patterns.implementations.0.tag: desk-select
+        patterns.implementations.0.keep.3.id: select.keep.fits-narrow
+        patterns.implementations.0.keep.3.level: out-of-context
+        patterns.implementations.0.keep.3.reason: { exists: true }
+        patterns.counts.verified: { gte: 1 }
+        patterns.counts.out-of-context: 1
 
-  - description: A pattern's listing says what each implementation is for, so the limit is known before choosing
+  - description: Umbel aggregates cross-library implementations and preserves out-of-context basis and contexts
     command: components-pattern-open
     input:
+      library: example
       pattern: select
       sections: [implementations]
     expect:
       success: true
       data:
-        content:
-          pattern:
-            implementations:
-              - tag: example-select
-              - tag: desk-select
-                contexts: { exists: true }
+        content.pattern.implementations: { length: 2 }
+        content.pattern.implementations.0.library: example
+        content.pattern.implementations.0.tag: example-select
+        content.pattern.implementations.1.library: desktop
+        content.pattern.implementations.1.tag: desk-select
+        content.pattern.implementations.1.contexts: { exists: true }
+        content.pattern.implementations.1.keep.3.id: select.keep.fits-narrow
+        content.pattern.implementations.1.keep.3.basis: out-of-context
+        content.pattern.implementations.1.keep.3.reason: { exists: true }

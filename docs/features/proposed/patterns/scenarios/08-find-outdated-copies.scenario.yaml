@@ -2,6 +2,9 @@
 # The data is invented. The page's source holds three copied regions. One carries the revision
 # the pack holds for `collection-empty`, one carries an earlier revision of it, and one names a
 # copy the pack does not have. The digests below stand in for real ones.
+# Lists are asserted with dotted index paths where only part of an item or a variable length
+# matters, because `afd-testing` requires exact length matches on object arrays and compares
+# plain arrays whole.
 #
 # What this cannot show: the answer also carries a warning with the count of copies that
 # differ, and `expect` cannot reach `warnings`.
@@ -14,7 +17,7 @@ job: find-outdated-copies
 tags: [maintain]
 
 steps:
-  - description: Each provenance marker in the source is reported against the pack
+  - description: Each provenance marker in the source is reported under content with line and revision
     command: components-brief
     input:
       source: >-
@@ -27,37 +30,44 @@ steps:
     expect:
       success: true
       data:
-        copies:
-          - library: example
-            pattern: empty-collection
-            implementation: collection-empty
-            state: current
-          - library: example
-            pattern: empty-collection
-            implementation: collection-empty
-            state: differs
-          - library: example
-            pattern: saved-search
-            implementation: search-saved
-            state: unknown
+        content.trust: content
+        content.copies: { length: 3 }
+        content.copies.0.library: example
+        content.copies.0.pattern: empty-collection
+        content.copies.0.implementation: collection-empty
+        content.copies.0.state: current
+        content.copies.0.line: { gte: 1 }
+        content.copies.0.revision: sha256:1111111111111111111111111111111111111111111111111111111111111111
+        content.copies.1.library: example
+        content.copies.1.pattern: empty-collection
+        content.copies.1.implementation: collection-empty
+        content.copies.1.state: differs
+        content.copies.1.line: { gte: 1 }
+        content.copies.1.currentRevision: sha256:1111111111111111111111111111111111111111111111111111111111111111
+        content.copies.2.library: example
+        content.copies.2.pattern: saved-search
+        content.copies.2.implementation: search-saved
+        content.copies.2.state: unknown
 
-  - description: The current copy's source is read, to repair the one that differs
+  - description: The current copy's markup, styles and keep statements are read to repair the one that differs
     command: components-pattern-open
     input:
+      library: example
       pattern: empty-collection
       implementation: collection-empty
       sections: [keep, source]
     expect:
       success: true
       data:
-        content:
-          pattern:
-            pattern: empty-collection
-            implementations:
-              - kind: copy
-                name: collection-empty
-                revision: sha256:1111111111111111111111111111111111111111111111111111111111111111
-                html: { exists: true }
+        content.pattern.library: example
+        content.pattern.pattern: empty-collection
+        content.pattern.keep.0.id: { exists: true }
+        content.pattern.implementations.0.library: example
+        content.pattern.implementations.0.kind: copy
+        content.pattern.implementations.0.name: collection-empty
+        content.pattern.implementations.0.revision: sha256:1111111111111111111111111111111111111111111111111111111111111111
+        content.pattern.implementations.0.html: { exists: true }
+        content.pattern.implementations.0.css: { exists: true }
 
   - description: A pattern the pack does not hold is refused, with the way to find one
     command: components-pattern-open

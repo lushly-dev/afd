@@ -1,7 +1,10 @@
 # Draft JTBD scenario for the Patterns proposal. The commands and their shapes are proposals.
-# The data is invented. `patterns/select/pattern.json` is sound. `patterns/listbox/pattern.json`
-# has a gate whose target is the selector `example-option[selected]` and whose expectation
-# reads the `selected` attribute.
+# The data is invented. `specimens/patterns/select/pattern.json` is sound.
+# `specimens/patterns/listbox/pattern.json` has a gate whose target is the selector
+# `example-option[selected]` and whose expectation reads the `selected` attribute.
+# Lists are asserted with dotted index paths where only part of an item or a variable length
+# matters, because `afd-testing` requires exact length matches on object arrays and compares
+# plain arrays whole.
 
 name: Refuse a gate only one implementation can take
 description: >-
@@ -14,7 +17,7 @@ steps:
   - description: A pattern whose gates use roles and names passes, with no browser
     command: specimen-validate
     input:
-      file: patterns/select/pattern.json
+      file: specimens/patterns/select/pattern.json
     expect:
       success: true
       data:
@@ -25,16 +28,16 @@ steps:
   - description: A gate that names a selector and an attribute is refused, with the way forward
     command: specimen-validate
     input:
-      file: patterns/listbox/pattern.json
+      file: specimens/patterns/listbox/pattern.json
     expect:
       success: true
       data:
         valid: false
-        issues:
-          - severity: error
-            code: GATE_NOT_PORTABLE
-            field: gates.shows-choice.scenario.0
-            suggestion: { contains: role }
-          - severity: error
-            code: GATE_NOT_PORTABLE
-            field: gates.shows-choice.scenario.1
+        issues: { length: 2 }
+        issues.0.severity: error
+        issues.0.code: GATE_NOT_PORTABLE
+        issues.0.field: 'gates.shows-choice.scenario[0]'
+        issues.0.suggestion: { contains: role }
+        issues.1.severity: error
+        issues.1.code: GATE_NOT_PORTABLE
+        issues.1.field: 'gates.shows-choice.scenario[1]'

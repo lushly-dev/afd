@@ -1,0 +1,86 @@
+# Draft JTBD scenario for the Patterns proposal. The commands and their shapes are proposals.
+# The data is invented. In a consumer project loading `example/empty-collection` via
+# `patternSources`, the consumer starts a new screen region (`invoices-empty`) from the library's
+# complete saved copy `collection-empty`, adapts its text, and binds a local setup case
+# (`invoices-empty`) to `example/empty-collection`. (The library's own gate run on
+# `collection-empty` lives in Job 6.)
+# Lists are asserted with dotted index paths where only part of an item or a variable length
+# matters, because `afd-testing` requires exact length matches on object arrays and compares
+# plain arrays whole.
+#
+# A scenario runs commands. Pasting and adapting the copy into the consumer screen happens
+# between steps 1 and 2 and is not shown.
+
+name: Copy and adapt a saved reference while keeping its invariants
+description: >-
+  When I start a new screen region from a saved copy and adapt it, I want its markup, styles,
+  provenance marker, editable bounds and portable gates, so that my adaptation stays traceable
+  and keeps every required invariant.
+job: copy-and-adapt-a-reference
+tags: [copy]
+
+steps:
+  - description: Opening the pattern returns the copy's stamped markup, styles, setups, keep and customize statements
+    command: components-pattern-open
+    input:
+      library: example
+      pattern: empty-collection
+      implementation: collection-empty
+      sections: [keep, customize, setups, source]
+    expect:
+      success: true
+      data:
+        content.trust: content
+        content.pattern.library: example
+        content.pattern.pattern: empty-collection
+        content.pattern.keep.0.id: empty-collection.keep.no-outer-margin
+        content.pattern.customize.0.id: empty-collection.customize.copy
+        content.pattern.setups.empty.text: { exists: true }
+        content.pattern.implementations.0.kind: copy
+        content.pattern.implementations.0.name: collection-empty
+        content.pattern.implementations.0.html: { contains: data-pattern-copy= }
+        content.pattern.implementations.0.css: { exists: true }
+
+  - description: Specimen runs the pattern's portable gate against the consumer's adapted region case
+    command: specimen-run
+    input:
+      id: invoices-empty--gate--no-outer-margin
+      capture: none
+    expect:
+      success: true
+      data:
+        id: invoices-empty--gate--no-outer-margin
+        outcome.status: passed
+
+  - description: Coverage in the consumer project confirms the adapted case holds its pattern's keep statements
+    command: specimen-coverage
+    input:
+      pattern: example/empty-collection
+    expect:
+      success: true
+      data:
+        patterns.obligations: patterns@1
+        patterns.complete: true
+        patterns.implementations.0.library: example
+        patterns.implementations.0.pattern: empty-collection
+        patterns.implementations.0.kind: case
+        patterns.implementations.0.case: invoices-empty
+        patterns.implementations.0.keep.0.id: empty-collection.keep.no-outer-margin
+        patterns.implementations.0.keep.0.level: verified
+
+  - description: Briefing a page holding the adapted copy reports its provenance and returns pattern guidance
+    command: components-brief
+    input:
+      source: >-
+        <section data-pattern-copy="example/empty-collection/collection-empty
+        sha256:1111111111111111111111111111111111111111111111111111111111111111">
+        <h2>No invoices yet</h2></section>
+    expect:
+      success: true
+      data:
+        content.trust: content
+        content.copies: { length: 1 }
+        content.copies.0.state: current
+        content.patterns: { length: 1 }
+        content.patterns.0.pattern: empty-collection
+        content.patterns.0.keep.0.id: empty-collection.keep.no-outer-margin

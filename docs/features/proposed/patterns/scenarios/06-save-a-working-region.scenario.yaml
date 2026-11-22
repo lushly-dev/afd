@@ -2,6 +2,12 @@
 # The data is invented. The case `orders-empty` renders an orders screen with nothing in it:
 # a region named "Orders" holding a heading and a short explanation. The case `orders-list`
 # renders the same screen with rows whose click handlers were bound by the page.
+# Lists are asserted with dotted index paths where only part of an item or a variable length
+# matters, because `afd-testing` requires exact length matches on object arrays and compares
+# plain arrays whole.
+#
+# Note: in a live Umbel session, serving a freshly exported pack also requires reloading the
+# Umbel MCP server (component pack overrides are loaded on start).
 
 name: Save a working region as a reference
 description: >-
@@ -11,6 +17,19 @@ job: save-a-working-region
 tags: [capture]
 
 steps:
+  - description: A misspelled or unknown pattern is refused unless createPattern is explicit
+    command: specimen-pattern-save
+    input:
+      id: orders-empty
+      target: { role: region, name: Orders }
+      pattern: empty-collections
+      name: collection-empty
+    expect:
+      success: false
+      error:
+        code: PATTERN_UNKNOWN
+        suggestion: { contains: createPattern }
+
   - description: A region with nothing page-bound is saved whole, and its guidance is left for a person
     command: specimen-pattern-save
     input:
@@ -18,6 +37,7 @@ steps:
       target: { role: region, name: Orders }
       pattern: empty-collection
       name: collection-empty
+      createPattern: true
     expect:
       success: true
       data:
@@ -26,12 +46,11 @@ steps:
         status: complete
         revision: { matches: '^sha256:[0-9a-f]{64}$' }
         fingerprint: { matches: '^sha256:[0-9a-f]{64}$' }
-        created:
-          pattern: true
+        created.pattern: true
         stripped: { length: 0 }
-        remount:
-          same: true
-        gaps: [summary, use-when, avoid-when, keep, customize]
+        remount.same: true
+        screenshot: { exists: true }
+        gaps: [summary, useWhen, avoidWhen, keep, customize]
 
   - description: Saving it again under the same name is refused, with the way forward
     command: specimen-pattern-save
@@ -53,16 +72,15 @@ steps:
       target: { role: region, name: Orders }
       pattern: collection-list
       name: orders-rows
+      createPattern: true
     expect:
       success: true
       data:
         status: draft
-        stripped:
-          - kind: handler
-        remount:
-          same: false
+        stripped.0.kind: handler
+        remount.same: false
 
-  - description: A name that matches two regions is refused; nothing is guessed
+  - description: A target matching two regions is refused; nothing is guessed
     command: specimen-pattern-save
     input:
       id: orders-list
@@ -75,12 +93,71 @@ steps:
         code: TARGET_AMBIGUOUS
         suggestion: { contains: name }
 
-  - description: A draft is not offered to anyone looking for a pattern
-    command: components-pattern-list
+  - description: Specimen runs the pattern's portable gate against the complete saved copy before packing
+    command: specimen-run
     input:
-      contains: orders
+      id: empty-collection--collection-empty--gate--no-outer-margin
+      capture: none
     expect:
       success: true
       data:
-        content:
-          patterns: { length: 0 }
+        id: empty-collection--collection-empty--gate--no-outer-margin
+        outcome.status: passed
+
+  - description: Building the pack includes complete copies and excludes drafts
+    command: specimen-pack
+    input: {}
+    expect:
+      success: true
+      data:
+        written: { exists: true }
+
+  - description: Exporting writes the built pack to the deployment directory Umbel reads
+    command: specimen-pack-export
+    input:
+      directory: .specimen/export
+    expect:
+      success: true
+      data:
+        files: { exists: true }
+        digest: { matches: '^sha256:[0-9a-f]{64}$' }
+
+  - description: A complete copy is discoverable so the next screen can start from it
+    command: components-pattern-list
+    input:
+      contains: empty
+    expect:
+      success: true
+      data:
+        content.patterns: { length: 1 }
+        content.patterns.0.pattern: empty-collection
+        content.patterns.0.implementations.0.kind: copy
+        content.patterns.0.implementations.0.name: collection-empty
+        content.patterns.0.implementations.0.linkage: copy
+
+  - description: Opening the pattern with only a draft copy lists no served implementations
+    command: components-pattern-open
+    input:
+      library: example
+      pattern: collection-list
+      sections: [implementations]
+    expect:
+      success: true
+      data:
+        content.pattern.pattern: collection-list
+        content.pattern.implementations: { length: 0 }
+
+  - description: After cleaning the stripped markup on disk, re-verifying in place promotes the draft to complete
+    command: specimen-pattern-save
+    input:
+      pattern: collection-list
+      name: orders-rows
+      replace: true
+    expect:
+      success: true
+      data:
+        pattern: collection-list
+        implementation: orders-rows
+        status: complete
+        stripped: { length: 0 }
+        remount.same: true
