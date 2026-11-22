@@ -22,7 +22,6 @@ from botcore_factory.intake import not_dispatchable_reasons, read_backlog
 from botcore_factory.labels import IN_PROGRESS, PLANNED
 from botcore_factory.lane_base import MERGE_QUEUED, counted_ejections
 from botcore_factory.lock import HostLock
-from botcore_factory.records import last_ejection
 from botcore_factory.runtime import Factory, Refusal
 from botcore_factory.world import Plan, WorldError
 
@@ -494,7 +493,7 @@ def ejection_excuse(
         latest = cell.get("lastEjection")
         if latest is None and int(cell.get("ejections", 0)) > 0:
             # Ejected before the lane kept the latest ejection on the cell: read it back.
-            found = last_ejection(factory.store.read_records(), branch) or {}
+            found = factory.store.last_ejection(branch) or {}
             if "attempt" in found:
                 latest = {"attempt": found["attempt"], "cause": found.get("cause")}
                 latest["excused"] = None if found.get("counted", True) else found.get("excuse")

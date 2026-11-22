@@ -293,10 +293,13 @@ turns the guard off), `claims.leaseHours` 24, `foreman.leaseMinutes` 30, `cells.
 
 Claims live on GitHub. The lane's own state (cells, queue, events, dials) is in the per-user
 data directory, keyed by repository (`BOTCORE_FACTORY_DATA_DIR` overrides the base), behind
-one lock and written atomically; every change is appended to `log.jsonl`. The measurement
-records (`records.jsonl`, append-only) hold the facts the report and the improvement loop
-compute from: cell registered, enqueued (queued or held), and, from the lane loop, validated,
-ejected and merged, each with its attempt, plan, route and execution profile.
+one lock and written atomically (temp file and directory fsynced before and after rename; closed
+events and finished runs trimmed to bounded history while open events and active runs stay);
+every change is appended to `log.jsonl`. The measurement records (`records.jsonl`, append-only)
+hold the facts the report and the improvement loop compute from: cell registered, enqueued
+(queued or held), and, from the lane loop, validated, ejected and merged, each with its attempt,
+plan, route and execution profile, with incremental branch and run summaries cached in
+`records-summary.json`.
 
 ## Adapter
 

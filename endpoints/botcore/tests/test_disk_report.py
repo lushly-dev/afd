@@ -40,7 +40,9 @@ OLD = time.time() - 10 * 86400
 def git(cwd: Path, *args: str) -> str:
     return subprocess.run(
         ["git", "-C", str(cwd), "-c", "user.email=t@example.com", "-c", "user.name=t", *args],
-        check=True, capture_output=True, text=True,
+        check=True,
+        capture_output=True,
+        text=True,
     ).stdout
 
 
@@ -82,7 +84,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, Path]:
         (wt / "dist").mkdir()
         (wt / "dist" / "bundle.js").write_bytes(b"x" * 20000)
     settings = tmp_path / "disk.toml"
-    settings.write_text(f'repos = [{json.dumps(str(main))}]\ncaches = []\n', encoding="utf-8")
+    settings.write_text(f"repos = [{json.dumps(str(main))}]\ncaches = []\n", encoding="utf-8")
     monkeypatch.setenv("BOTCORE_DISK_SETTINGS", str(settings))
     monkeypatch.setenv("BOTCORE_DISK_T3_SETTINGS", "")
     monkeypatch.setenv("CARGO_HOME", str(tmp_path / "cargo-home"))  # not the machine's own
@@ -169,10 +171,13 @@ def date_reflog(reflog: Path, when: float) -> None:
 
 
 @pytest.mark.parametrize(
-    "entries_at", [OLD, 1_600_000_000], ids=["entries kept", "entries expired, reflog emptied"],
+    "entries_at",
+    [OLD, 1_600_000_000],
+    ids=["entries kept", "entries expired, reflog emptied"],
 )
 def test_git_gc_rewriting_reflogs_leaves_an_idle_worktree_idle(
-    repo: dict[str, Path], entries_at: float,
+    repo: dict[str, Path],
+    entries_at: float,
 ) -> None:
     old = repo["old"]
     reflog = Path(git(old, "rev-parse", "--absolute-git-dir").strip()) / "logs" / "HEAD"
@@ -182,8 +187,14 @@ def test_git_gc_rewriting_reflogs_leaves_an_idle_worktree_idle(
     # expiry is pinned so the machine's git config can't change it, and the file's time is set
     # to now so the test doesn't depend on the installed git rewriting it.
     for _ in range(2):
-        git(repo["main"], "reflog", "expire", "--all", "--expire=90.days.ago",
-            "--expire-unreachable=90.days.ago")
+        git(
+            repo["main"],
+            "reflog",
+            "expire",
+            "--all",
+            "--expire=90.days.ago",
+            "--expire-unreachable=90.days.ago",
+        )
         if reflog.exists():
             os.utime(reflog, None)
     by = rows(run_report())
@@ -257,7 +268,8 @@ def test_a_linked_candidate_is_a_link_and_never_followed(repo: dict[str, Path]) 
 
 
 def test_busy_and_kept_worktrees_are_not_stripped(
-    repo: dict[str, Path], monkeypatch: pytest.MonkeyPatch,
+    repo: dict[str, Path],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     old, fresh = repo["old"], repo["fresh"]
     git(repo["main"], "worktree", "lock", "--reason", "parked for review", str(fresh))
@@ -312,7 +324,7 @@ def test_a_disk_section_this_botcore_cannot_read_skips_the_repository(
     repo: dict[str, Path],
 ) -> None:
     main = repo["main"]
-    (main / "botcore.toml").write_text('[disk]\nfuture_key = 1\n', encoding="utf-8")
+    (main / "botcore.toml").write_text("[disk]\nfuture_key = 1\n", encoding="utf-8")
     git(main, "commit", "-q", "-am", "newer config")
     data = run_report()
     assert "not valid for this botcore" in data["repos"][0]["error"]
@@ -326,13 +338,18 @@ def test_invalid_machine_settings_are_an_error(repo: dict[str, Path]) -> None:
 
 
 def test_t3_code_worktrees_are_marked(
-    repo: dict[str, Path], monkeypatch: pytest.MonkeyPatch,
+    repo: dict[str, Path],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     t3 = repo["tmp"] / "t3.json"
-    t3.write_text(json.dumps({
-        "worktreesDirectory": str(repo["old"].parent),
-        "previousWorktreesDirectories": ["Dev", "/"],
-    }))
+    t3.write_text(
+        json.dumps(
+            {
+                "worktreesDirectory": str(repo["old"].parent),
+                "previousWorktreesDirectories": ["Dev", "/"],
+            }
+        )
+    )
     monkeypatch.setenv("BOTCORE_DISK_T3_SETTINGS", str(t3))
     data = run_report()
     assert rows(data)["old"]["managed_by"] == "t3-code"
@@ -350,12 +367,72 @@ def test_unclassified_lists_ignored_paths_no_rule_covers(repo: dict[str, Path]) 
     assert ".env" not in listed and "dist/" not in listed
 
 
+def test_unclassified_skips_collapsed_folder_holding_only_covered_children(
+    repo: dict[str, Path],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from botcore.commands.disk import unclassified
+
+    main, old = repo["main"], repo["old"]
+    (main / "botcore.toml").write_text(
+        DISK_TOML.replace(
+            '{ path = "node_modules", when = "pressure" }',
+            '{ path = "**/node_modules", when = "pressure" }',
+        ),
+        encoding="utf-8",
+    )
+    (main / ".gitignore").write_text(GITIGNORE + "secret.local\nempty_ignored/\n", encoding="utf-8")
+    git(main, "commit", "-q", "-am", "recursive node_modules rule")
+    git(old, "merge", "-q", "main")
+
+    # Separate top-level collapsed folder holding ONLY node_modules -> must be skipped.
+    nm = old / "only_nm" / "examples" / "vanilla" / "node_modules" / "pkg"
+    nm.mkdir(parents=True)
+    (nm / "index.js").write_text("export {};\n", encoding="utf-8")
+
+    # Separate top-level collapsed folder holding node_modules AND an uncovered file -> reported.
+    mixed = old / "mixed_pkg" / "app"
+    (mixed / "node_modules" / "pkg").mkdir(parents=True)
+    (mixed / "node_modules" / "pkg" / "index.js").write_text("x", encoding="utf-8")
+    (mixed / "secret.local").write_text("keep", encoding="utf-8")
+
+    # Empty ignored folder with no matching rule -> fails safe as unclassified.
+    (old / "empty_ignored").mkdir()
+
+    listed = rows(run_report(unclassified=True))["old"]["unclassified"]
+    assert "only_nm/" not in listed and not any("only_nm" in entry for entry in listed), listed
+    assert "mixed_pkg/" in listed
+    assert "empty_ignored/" in listed
+
+    # Exceeding WALK_ENTRIES inside a single directory fails safe and reports the folder.
+    (old / "only_nm" / "examples" / "vanilla" / "dist").mkdir()
+    (old / "only_nm" / "examples" / "vanilla" / "gen").mkdir()
+    with monkeypatch.context() as mp:
+        mp.setattr(unclassified, "WALK_ENTRIES", 2)
+        listed_bounded = rows(run_report(unclassified=True))["old"]["unclassified"]
+    assert "only_nm/" in listed_bounded
+
+    # Symlink matching a regenerable name inside a collapsed folder fails safe.
+    if sys.platform != "win32":
+        outside = repo["tmp"] / "symlink_target"
+        outside.mkdir()
+        (outside / "file.txt").write_text("x", encoding="utf-8")
+        sym_parent = old / "linked_nm"
+        sym_parent.mkdir()
+        (sym_parent / "node_modules").symlink_to(outside, target_is_directory=True)
+        # "node_modules/" in .gitignore matches directories only; ignore the link itself too.
+        with (main / ".git" / "info" / "exclude").open("a", encoding="utf-8") as exclude:
+            exclude.write("linked_nm/node_modules\n")
+        listed_link = rows(run_report(unclassified=True))["old"]["unclassified"]
+        assert "linked_nm/" in listed_link
+
+
 def test_orphan_worktree_folders_are_reported(repo: dict[str, Path]) -> None:
     orphan = repo["tmp"] / "roots" / "proj" / "lost"
     orphan.mkdir(parents=True)
     (orphan / ".git").write_text("gitdir: /nowhere/worktrees/lost\n", encoding="utf-8")
     text = repo["settings"].read_text(encoding="utf-8")
-    text = f'worktree_roots = [{json.dumps(str(repo["tmp"] / "roots"))}]\n' + text
+    text = f"worktree_roots = [{json.dumps(str(repo['tmp'] / 'roots'))}]\n" + text
     repo["settings"].write_text(text, encoding="utf-8")
     orphans = run_report()["orphans"]
     assert [o["path"] for o in orphans] == [str(orphan)]

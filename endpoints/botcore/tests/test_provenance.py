@@ -393,7 +393,10 @@ def test_built_artifacts_are_checked_for_their_stamped_records(tmp_path):
     envelope = json.loads(shipped["provenance.json"])
     envelope["records"]["adaptations"]["manifest"] = "adaptations-old.json"
     renamed["provenance.json"] = (json.dumps(envelope, indent=2) + "\n").encode()
-    write_artifacts(tmp_path / "renamed", renamed)
+    with pytest.raises(AssertionError, match="The adaptations record must name adaptations.json"):
+        verifier().verify_records(renamed.__getitem__, packaged=True)
+    renamed_only = {k: v for k, v in renamed.items() if k != "adaptations-old.json"}
+    write_artifacts(tmp_path / "renamed", renamed_only)
     with pytest.raises(AssertionError, match="The adaptations record must name adaptations.json"):
         verifier().verify_artifacts(tmp_path / "renamed")
     partial = {name: raw for name, raw in shipped.items() if name != "adaptations.json"}
@@ -403,3 +406,155 @@ def test_built_artifacts_are_checked_for_their_stamped_records(tmp_path):
     (tmp_path / "good" / "lushly_botcore-9.9.9.tar.gz").unlink()
     with pytest.raises(AssertionError, match="Expected a lushly_botcore wheel and sdist"):
         verifier().verify_artifacts(tmp_path / "good")
+
+
+def _write_crafted_artifacts(
+    directory: Path,
+    wheel_entries: list[tuple[str, bytes]],
+    sdist_entries: list[tuple[str, bytes]],
+    version: str = "9.9.9",
+) -> None:
+    import io
+    import tarfile
+    import zipfile
+
+    directory.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(directory / f"lushly_botcore-{version}-py3-none-any.whl", "w") as wheel:
+        for member_name, raw in wheel_entries:
+            wheel.writestr(member_name, raw)
+    with tarfile.open(directory / f"lushly_botcore-{version}.tar.gz", "w:gz") as sdist:
+        for member_name, raw in sdist_entries:
+            info = tarfile.TarInfo(member_name)
+            info.size = len(raw)
+            sdist.addfile(info, io.BytesIO(raw))
+
+
+@pytest.mark.parametrize("target", ["wheel", "sdist"])
+@pytest.mark.parametrize(
+    "case,extra_member,before,match",
+    [
+        ("case-collision", "Adaptations.json", False, "Unexpected provenance archive member"),
+        ("dot-segment", "./adaptations.json", False, "Unexpected provenance archive member"),
+        ("unexpected-extra", "adaptations-old.json", False, "Unexpected provenance archive member"),
+        ("nested-member", "sub/adaptations.json", False, "Unexpected provenance archive member"),
+        ("duplicate-bad-first", "adaptations.json", True, "Duplicate provenance archive member"),
+        ("duplicate-good-first", "adaptations.json", False, "Duplicate provenance archive member"),
+    ],
+)
+def test_artifact_check_refuses_unexpected_and_duplicate_provenance_members(
+    tmp_path, target, case, extra_member, before, match
+):
+    shipped = stamped(records())
+    version = "9.9.9"
+    evil = b'{"evil": true}\n'
+    good_wheel = [(f"botcore/provenance/{name}", raw) for name, raw in shipped.items()]
+    good_sdist = [
+        (f"lushly_botcore-{version}/src/botcore/provenance/{name}", raw)
+        for name, raw in shipped.items()
+    ]
+    if target == "wheel":
+        bad_entry = (f"botcore/provenance/{extra_member}", evil)
+        wheel_entries = [bad_entry, *good_wheel] if before else [*good_wheel, bad_entry]
+        sdist_entries = good_sdist
+    else:
+        bad_entry = (f"lushly_botcore-{version}/src/botcore/provenance/{extra_member}", evil)
+        wheel_entries = good_wheel
+        sdist_entries = [bad_entry, *good_sdist] if before else [*good_sdist, bad_entry]
+    out = tmp_path / f"{target}-{case}"
+    _write_crafted_artifacts(out, wheel_entries, sdist_entries, version=version)
+    with pytest.raises(AssertionError, match=match):
+        verifier().verify_artifacts(out)
+
+
+def test_artifact_check_refuses_case_mismatched_dir_leading_dot_and_symlinks(tmp_path):
+    import io
+    import tarfile
+    import zipfile
+
+    shipped = stamped(records())
+    version = "9.9.9"
+    evil = b'{"evil": true}\n'
+    good_wheel = [(f"botcore/provenance/{name}", raw) for name, raw in shipped.items()]
+    good_sdist = [
+        (f"lushly_botcore-{version}/src/botcore/provenance/{name}", raw)
+        for name, raw in shipped.items()
+    ]
+
+    # Case-mismatched provenance directory in wheel.
+    _write_crafted_artifacts(
+        tmp_path / "case-dir-whl",
+        [*good_wheel, ("Botcore/Provenance/adaptations.json", evil)],
+        good_sdist,
+    )
+    with pytest.raises(AssertionError, match="Unexpected provenance archive member"):
+        verifier().verify_artifacts(tmp_path / "case-dir-whl")
+
+    # Leading ./ before botcore/provenance in wheel.
+    _write_crafted_artifacts(
+        tmp_path / "leading-dot-whl",
+        [*good_wheel, ("./botcore/provenance/adaptations.json", evil)],
+        good_sdist,
+    )
+    with pytest.raises(AssertionError, match="Unexpected provenance archive member"):
+        verifier().verify_artifacts(tmp_path / "leading-dot-whl")
+
+    # Symlink member at an exact allowlisted record name inside sdist provenance directory.
+    sym_dir = tmp_path / "symlink-sdist"
+    sym_dir.mkdir()
+    with zipfile.ZipFile(sym_dir / f"lushly_botcore-{version}-py3-none-any.whl", "w") as wheel:
+        for member_name, raw in good_wheel:
+            wheel.writestr(member_name, raw)
+    with tarfile.open(sym_dir / f"lushly_botcore-{version}.tar.gz", "w:gz") as sdist:
+        for member_name, raw in good_sdist:
+            if member_name.endswith("/adaptations.json"):
+                continue
+            info = tarfile.TarInfo(member_name)
+            info.size = len(raw)
+            sdist.addfile(info, io.BytesIO(raw))
+        link = tarfile.TarInfo(f"lushly_botcore-{version}/src/botcore/provenance/adaptations.json")
+        link.type = tarfile.SYMTYPE
+        link.linkname = "provenance.json"
+        sdist.addfile(link)
+    with pytest.raises(AssertionError, match="Unexpected provenance archive member"):
+        verifier().verify_artifacts(sym_dir)
+
+    # Symlink member (Unix S_IFLNK external_attr) at an exact record name inside wheel.
+    import stat
+
+    sym_whl_dir = tmp_path / "symlink-wheel"
+    sym_whl_dir.mkdir()
+    with zipfile.ZipFile(sym_whl_dir / f"lushly_botcore-{version}-py3-none-any.whl", "w") as wheel:
+        for member_name, raw in good_wheel:
+            if member_name.endswith("/adaptations.json"):
+                zinfo = zipfile.ZipInfo(member_name)
+                zinfo.external_attr = (stat.S_IFLNK | 0o777) << 16
+                wheel.writestr(zinfo, b"provenance.json")
+            else:
+                wheel.writestr(member_name, raw)
+    with tarfile.open(sym_whl_dir / f"lushly_botcore-{version}.tar.gz", "w:gz") as sdist:
+        for member_name, raw in good_sdist:
+            info = tarfile.TarInfo(member_name)
+            info.size = len(raw)
+            sdist.addfile(info, io.BytesIO(raw))
+    with pytest.raises(AssertionError, match="Unexpected provenance archive member"):
+        verifier().verify_artifacts(sym_whl_dir)
+
+    # Exact provenance directory entries themselves are accepted alongside the 4 record files.
+    dir_ok = tmp_path / "dir-entries-ok"
+    dir_ok.mkdir()
+    with zipfile.ZipFile(dir_ok / f"lushly_botcore-{version}-py3-none-any.whl", "w") as wheel:
+        wheel.writestr("botcore/provenance/", b"")
+        for member_name, raw in good_wheel:
+            wheel.writestr(member_name, raw)
+    with tarfile.open(dir_ok / f"lushly_botcore-{version}.tar.gz", "w:gz") as sdist:
+        dir_info = tarfile.TarInfo(f"lushly_botcore-{version}/src/botcore/provenance")
+        dir_info.type = tarfile.DIRTYPE
+        sdist.addfile(dir_info)
+        for member_name, raw in good_sdist:
+            info = tarfile.TarInfo(member_name)
+            info.size = len(raw)
+            sdist.addfile(info, io.BytesIO(raw))
+    assert verifier().verify_artifacts(dir_ok) == [
+        f"lushly_botcore-{version}-py3-none-any.whl",
+        f"lushly_botcore-{version}.tar.gz",
+    ]
