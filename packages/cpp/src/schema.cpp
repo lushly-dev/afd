@@ -60,41 +60,51 @@ std::string schema_path(const std::string& path) {
     return path.empty() ? std::string("#") : "#/" + path;
 }
 
-// Resolves a local JSON Pointer reference ("#/definitions/Priority") against `root`.
+// The definition a reference in the subset names (spec/validation.md): "#", or
+// "#/$defs/<name>" and "#/definitions/<name>" with one JSON Pointer token, never a deeper pointer,
+// which could reach into a nested `$id` subschema and resolve its references in the wrong
+// resource. Returns nullptr outside the subset (see `in_ref_subset`) or when it does not resolve.
+bool in_ref_subset(std::string_view ref) {
+    if (ref == "#") {
+        return true;
+    }
+    for (const std::string_view prefix : {"#/$defs/", "#/definitions/"}) {
+        if (ref.substr(0, prefix.size()) == prefix) {
+            const std::string_view name = ref.substr(prefix.size());
+            return !name.empty() && name.find('/') == std::string_view::npos;
+        }
+    }
+    return false;
+}
+
 const Json* resolve_pointer(const Json& root, std::string_view ref) {
+    if (!in_ref_subset(ref)) {
+        return nullptr;
+    }
     if (ref == "#") {
         return &root;
     }
-    if (ref.substr(0, 2) != "#/") {
+    const std::size_t slash = ref.find('/', 2);
+    const std::string keyword(ref.substr(2, slash - 2));
+    std::string token(ref.substr(slash + 1));
+    // JSON Pointer escapes, each decoded once: ~1 is "/", ~0 is "~" ("~01" is "~1").
+    for (std::size_t at = token.find("~1"); at != std::string::npos;
+         at = token.find("~1", at + 1)) {
+        token.replace(at, 2, "/");
+    }
+    for (std::size_t at = token.find("~0"); at != std::string::npos;
+         at = token.find("~0", at + 1)) {
+        token.replace(at, 2, "~");
+    }
+    if (!root.is_object()) {
         return nullptr;
     }
-    const Json* node = &root;
-    std::string_view rest = ref.substr(2);
-    while (true) {
-        const std::size_t slash = rest.find('/');
-        std::string token(rest.substr(0, slash));
-        // JSON Pointer escapes: ~1 is "/", ~0 is "~".
-        for (std::size_t at = token.find("~1"); at != std::string::npos;
-             at = token.find("~1", at)) {
-            token.replace(at, 2, "/");
-        }
-        for (std::size_t at = token.find("~0"); at != std::string::npos;
-             at = token.find("~0", at)) {
-            token.replace(at, 2, "~");
-        }
-        if (!node->is_object()) {
-            return nullptr;
-        }
-        const auto it = node->find(token);
-        if (it == node->end()) {
-            return nullptr;
-        }
-        node = &*it;
-        if (slash == std::string_view::npos) {
-            return node;
-        }
-        rest = rest.substr(slash + 1);
+    const auto definitions = root.find(keyword);
+    if (definitions == root.end() || !definitions->is_object()) {
+        return nullptr;
     }
+    const auto it = definitions->find(token);
+    return it == definitions->end() ? nullptr : &*it;
 }
 
 // The schema resource `schema` belongs to: itself when it has its own string `$id` (Draft
@@ -179,6 +189,65 @@ using VisitedRefs = std::set<const Json*>;
 bool check_schema(const Json& root, const Json& schema, const std::string& path, int depth,
                   std::string& error, VisitedRefs& visited);
 
+// Checks every `$ref` under `schema`, which may sit in a definition nothing references: each must
+// be a local reference in the subset that resolves in its schema resource, as Python and Rust
+// require at registration. Other keywords of an unreferenced definition are not
+// checked, since validation never reaches them.
+bool check_refs(const Json& outer, const Json& schema, const std::string& path, int depth,
+                std::string& error) {
+    if (!schema.is_object()) {
+        return true;
+    }
+    if (depth > max_schema_depth) {
+        error = schema_path(path) + ": schema is nested deeper than " +
+                std::to_string(max_schema_depth) + " levels";
+        return false;
+    }
+    const Json& root = resource_of(outer, schema);
+    for (auto it = schema.begin(); it != schema.end(); ++it) {
+        const std::string& key = it.key();
+        const Json& value = it.value();
+        const std::string here = join_pointer(path, key);
+        if (key == "$ref") {
+            if (!value.is_string() || !in_ref_subset(value.get_ref<const std::string&>())) {
+                error = schema_path(here) +
+                        ": reference is not '#', '#/$defs/<name>' or '#/definitions/<name>'";
+                return false;
+            }
+            if (resolve_pointer(root, value.get_ref<const std::string&>()) == nullptr) {
+                error = schema_path(here) + ": reference '" + value.get_ref<const std::string&>() +
+                        "' does not resolve";
+                return false;
+            }
+        } else if (value.is_array() && (key == "allOf" || key == "anyOf" || key == "oneOf" ||
+                                        key == "items" || key == "prefixItems")) {
+            for (std::size_t i = 0; i < value.size(); ++i) {
+                if (!check_refs(root, value[i], join_pointer(here, std::to_string(i)), depth + 1,
+                                error)) {
+                    return false;
+                }
+            }
+        } else if (value.is_object() &&
+                   (key == "properties" || key == "patternProperties" || key == "$defs" ||
+                    key == "definitions" || key == "dependentSchemas" || key == "dependencies")) {
+            for (auto entry = value.begin(); entry != value.end(); ++entry) {
+                if (!check_refs(root, entry.value(), join_pointer(here, entry.key()), depth + 1,
+                                error)) {
+                    return false;
+                }
+            }
+        } else if (key == "items" || key == "additionalProperties" || key == "not" || key == "if" ||
+                   key == "then" || key == "else" || key == "contains" || key == "propertyNames" ||
+                   key == "additionalItems" || key == "unevaluatedItems" ||
+                   key == "unevaluatedProperties") {
+            if (!check_refs(root, value, here, depth + 1, error)) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
 bool check_schema_map(const Json& root, const Json& map, const std::string& path, int depth,
                       std::string& error, VisitedRefs& visited) {
     if (!map.is_object()) {
@@ -241,6 +310,12 @@ bool check_schema(const Json& outer, const Json& schema, const std::string& path
                 error = schema_path(here) + ": expected an object of schemas";
                 return false;
             }
+            for (auto entry = value.begin(); entry != value.end(); ++entry) {
+                if (!check_refs(root, entry.value(), join_pointer(here, entry.key()), depth + 1,
+                                error)) {
+                    return false;
+                }
+            }
         } else if (key == "required") {
             if (!value.is_array() || !std::all_of(value.begin(), value.end(),
                                                   [](const Json& n) { return n.is_string(); })) {
@@ -286,6 +361,11 @@ bool check_schema(const Json& outer, const Json& schema, const std::string& path
             const auto& ref = value.get_ref<const std::string&>();
             if (ref.substr(0, 1) != "#") {
                 error = schema_path(here) + ": only local references (\"#/...\") are supported";
+                return false;
+            }
+            if (!in_ref_subset(ref)) {
+                error = schema_path(here) + ": reference '" + ref +
+                        "' is not '#', '#/$defs/<name>' or '#/definitions/<name>'";
                 return false;
             }
             const Json* base = &root;

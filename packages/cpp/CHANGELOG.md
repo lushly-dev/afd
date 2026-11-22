@@ -37,6 +37,11 @@ All notable changes to afd-cpp are documented here. The package is versioned ind
 
 ### Changed
 
+- **Breaking: a `$ref` outside the subset fails at compile** ([#1910](https://github.com/lushly-dev/afd/issues/1910); `spec/validation.md`). The subset is `#`, `#/$defs/<name>` and `#/definitions/<name>`, as in Rust. Before, any local pointer was followed, such as `#/$defs/A/properties/x`. A pointer into a nested `$id` subschema then resolved that subschema's own references against the wrong resource.
+  - **Every `$ref` is checked:** a `$ref` inside a definition nothing references is now checked too, as Python and Rust check it.
+  - **Escapes:** `~0` in a definition name is decoded once, so `#/$defs/a~00` names `a~0`. Before, it named `a~`.
+- **`command_result_output_schema` follows the validators' resource rule** (#1910): `data` keeps its definitions only when its `$id` is a string that is not a bare fragment. In any other `data` schema, a `"$ref": "#"` naming `data` becomes `"#/properties/data"`. Before, it named the envelope, which is the form a recursive root schema takes. `spec/vectors/output-schema.json` checks the envelope.
+
 - **`command_result_output_schema` (`spec/schema/output-envelope.json`, #1733):** types `properties.error` with `code`, `message`, `suggestion`, and `retryable` (`required: ["code", "message"]`).
 - **Approval policies are enforced by the registry** ([#1886](https://github.com/lushly-dev/afd/issues/1886)); hosts that relied on the old behaviour need to change:
   - A registry without the approval middleware refuses a command whose policy is not `not_required` (`APPROVAL_UNAVAILABLE`): add the middleware, or register the command without its policy.

@@ -2005,17 +2005,81 @@ pub fn command_tool_annotations(command: &CommandDefinition) -> Option<serde_jso
     })
 }
 
+/// Keywords of the schema subset (`spec/validation.md`) whose value is a schema.
+const SCHEMA_KEYWORDS: [&str; 11] = [
+    "items",
+    "additionalProperties",
+    "not",
+    "if",
+    "then",
+    "else",
+    "contains",
+    "propertyNames",
+    "additionalItems",
+    "unevaluatedItems",
+    "unevaluatedProperties",
+];
+/// Keywords whose value is an array of schemas.
+const SCHEMA_LIST_KEYWORDS: [&str; 5] = ["allOf", "anyOf", "oneOf", "prefixItems", "items"];
+/// Keywords whose value maps names to schemas. Draft-07 `dependencies` maps a name to a schema or
+/// to a list of property names; only a schema is walked.
+const SCHEMA_MAP_KEYWORDS: [&str; 6] = [
+    "properties",
+    "patternProperties",
+    "$defs",
+    "definitions",
+    "dependentSchemas",
+    "dependencies",
+];
+
+/// Point every `"$ref": "#"` naming `schema`'s root, outside any nested schema resource, at
+/// `target`. Values and annotations (`const`, `enum`, `default`, `examples`) are left alone.
+fn retarget_root(schema: &mut serde_json::Value, target: &str, root: bool) {
+    use serde_json::Value;
+    if !root && crate::schema_validation::starts_resource(schema) {
+        return;
+    }
+    let Value::Object(object) = schema else {
+        return;
+    };
+    for (key, value) in object.iter_mut() {
+        let key = key.as_str();
+        if key == "$ref" && value == "#" {
+            *value = Value::String(target.to_owned());
+        } else if SCHEMA_LIST_KEYWORDS.contains(&key) && value.is_array() {
+            for item in value.as_array_mut().into_iter().flatten() {
+                retarget_root(item, target, false);
+            }
+        } else if SCHEMA_KEYWORDS.contains(&key) {
+            retarget_root(value, target, false);
+        } else if SCHEMA_MAP_KEYWORDS.contains(&key) {
+            for item in value
+                .as_object_mut()
+                .into_iter()
+                .flat_map(|map| map.values_mut())
+            {
+                retarget_root(item, target, false);
+            }
+        }
+    }
+}
+
 /// The MCP `outputSchema` of a command tool: the CommandResult envelope, with `data` typed by
 /// `data_schema` (`spec/command-metadata.md`, "Structured results").
 ///
-/// `$schema` is dropped. Definitions move to the envelope unless `data` has its own `$id`,
-/// which makes it the root for local references.
+/// `$schema` is dropped. When `data` starts a schema resource (a string `$id` that is not a bare
+/// fragment, the validators' test), its local references resolve against it, so its definitions
+/// stay inside it. Otherwise its definitions move to the envelope, and a `"$ref": "#"` that named
+/// `data` becomes `"#/properties/data"`, since `#` now names the envelope.
 pub fn command_result_output_schema(data_schema: &serde_json::Value) -> serde_json::Value {
     let mut data = data_schema.clone();
     let mut hoisted = serde_json::Map::new();
     if let Some(object) = data.as_object_mut() {
         object.remove("$schema");
-        if !object.contains_key("$id") {
+    }
+    if !crate::schema_validation::starts_resource(&data) {
+        retarget_root(&mut data, "#/properties/data", true);
+        if let Some(object) = data.as_object_mut() {
             for key in ["$defs", "definitions"] {
                 if let Some(definitions) = object.remove(key) {
                     hoisted.insert(key.to_owned(), definitions);

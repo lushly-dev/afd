@@ -5,6 +5,8 @@
 #include <iterator>
 #include <limits>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include <doctest.h>
 
@@ -404,4 +406,55 @@ TEST_CASE(
     REQUIRE_FALSE(arr_result.has_value());
     REQUIRE_FALSE(arr_result.error().errors.empty());
     CHECK(arr_result.error().errors.front().code == "too_deep");
+}
+
+TEST_CASE("a $ref outside the subset fails at compile (#1910)") {
+    // spec/validation.md: only "#", "#/$defs/<name>" and "#/definitions/<name>".
+    const auto with_ref = [](const std::string& ref) {
+        return afd::Json{
+            {"type", "object"},
+            {"properties", {{"p", {{"$ref", ref}}}}},
+            {"$defs",
+             {{"A",
+               {{"type", "object"},
+                {"$defs", {{"B", {{"type", "string"}}}}},
+                {"properties", {{"x", afd::Json::object()}}}}}}},
+            {"definitions", {{"A", {{"type", "array"}, {"items", afd::Json::object()}}}}}};
+    };
+    for (const char* ref : {"#/$defs/A/$defs/B", "#/$defs/A/properties/x", "#/definitions/A/items",
+                            "#/properties/p", "#/$defs/", "#/$defs", "#foo"}) {
+        CAPTURE(ref);
+        const auto compiled = afd::CompiledSchema::compile(with_ref(ref));
+        REQUIRE_FALSE(compiled.has_value());
+        CHECK(compiled.error().find("is not '#'") != std::string::npos);
+    }
+    CHECK(afd::CompiledSchema::compile(with_ref("#/$defs/A")).has_value());
+    CHECK(afd::CompiledSchema::compile(with_ref("#/definitions/A")).has_value());
+    CHECK(afd::CompiledSchema::compile(with_ref("#")).has_value());
+
+    // An escaped name is one name, each escape decoded once.
+    for (const auto& [ref, name] : std::vector<std::pair<std::string, std::string>>{
+             {"#/$defs/a~1b", "a/b"}, {"#/$defs/a~00", "a~0"}, {"#/$defs/a~01", "a~1"}}) {
+        CAPTURE(ref);
+        afd::Json defs = {{"a~", {{"type", "number"}}},
+                          {"a/", {{"type", "number"}}},
+                          {"a~/", {{"type", "number"}}}};
+        defs[name] = {{"type", "string"}};
+        const auto escaped = afd::CompiledSchema::compile(
+            afd::Json{{"properties", {{"p", {{"$ref", ref}}}}}, {"$defs", defs}});
+        REQUIRE(escaped.has_value());
+        CHECK(escaped->validate({{"p", "s"}}).has_value());
+        CHECK_FALSE(escaped->validate({{"p", 1}}).has_value());
+    }
+
+    // A bad reference in a definition nothing uses fails, as in Python and Rust.
+    for (const char* unused : {R"({"$defs":{"U":{"$ref":"#/properties/p"}}})",
+                               R"({"$defs":{"U":{"items":{"$ref":"#/$defs/Missing"}}}})",
+                               R"({"definitions":{"U":{"anyOf":[{"$ref":"#/$defs/U/x"}]}}})"}) {
+        CAPTURE(unused);
+        CHECK_FALSE(afd::CompiledSchema::compile(afd::Json::parse(unused)).has_value());
+    }
+    CHECK(afd::CompiledSchema::compile(
+              afd::Json::parse(R"({"$defs":{"U":{"items":{"$ref":"#/$defs/U"}}}})"))
+              .has_value());
 }

@@ -62,14 +62,19 @@ def starts_resource(schema: Any) -> bool:
 def _reference(root: dict[str, Any], ref: str) -> dict[str, Any]:
     if ref == "#":
         return root
-    if not (ref.startswith("#/definitions/") or ref.startswith("#/$defs/")):
-        raise ValueError(f"Unsupported $ref {ref!r}: only local schema references are supported")
-    target: Any = root
-    for segment in ref[2:].split("/"):
-        segment = segment.replace("~1", "/").replace("~0", "~")
-        if not isinstance(target, dict) or segment not in target:
-            raise ValueError(f"Unresolved $ref {ref!r}")
-        target = target[segment]
+    # The subset (spec/validation.md) names a definition, never a deeper pointer: one that
+    # reached into a nested `$id` subschema would resolve its references in the wrong resource.
+    keyword, _, name = ref[2:].partition("/")
+    if not ref.startswith("#/") or keyword not in ("definitions", "$defs") or not name or "/" in name:
+        raise ValueError(
+            f"Unsupported $ref {ref!r}: only '#', '#/$defs/<name>' and "
+            "'#/definitions/<name>' are supported"
+        )
+    definitions = root.get(keyword)
+    name = name.replace("~1", "/").replace("~0", "~")
+    if not isinstance(definitions, dict) or name not in definitions:
+        raise ValueError(f"Unresolved $ref {ref!r}")
+    target: Any = definitions[name]
     if not isinstance(target, dict):
         raise ValueError(f"$ref {ref!r} must resolve to a schema object")
     return target

@@ -526,3 +526,62 @@ def test_the_output_schema_reads_nullable_definitions_in_their_own_resource():
     inner = command_result_output_schema(data)["properties"]["data"]["properties"]["inner"]
     # `x` accepts null, which the wire form omits, so it is no longer required.
     assert "required" not in inner
+
+
+@pytest.mark.parametrize(
+    "ref",
+    [
+        "#/$defs/A/$defs/B",
+        "#/$defs/A/properties/x",
+        "#/definitions/A/items",
+        "#/properties/p",
+        "#/$defs/",
+        "#/$defs",
+        "#foo",
+        "urn:afd:other#/$defs/A",
+    ],
+)
+def test_a_ref_outside_the_subset_fails_at_registration(ref):
+    # spec/validation.md: only "#", "#/$defs/<name>" and "#/definitions/<name>" (#1910).
+    schema = {
+        "type": "object",
+        "properties": {"p": {"$ref": ref}},
+        "$defs": {"A": {"type": "object", "$defs": {"B": {"type": "string"}}, "properties": {"x": {}}}},
+        "definitions": {"A": {"type": "array", "items": {}}},
+    }
+    with pytest.raises(ValueError, match=r"Unsupported \$ref"):
+        check_schema(schema)
+
+
+@pytest.mark.parametrize(
+    "ref,name", [("#/$defs/a~1b", "a/b"), ("#/$defs/a~00", "a~0"), ("#/$defs/a~01", "a~1")]
+)
+def test_an_escaped_definition_name_is_one_name_decoded_once(ref, name):
+    from afd.core.schema_validation import SchemaValidationError, validate_schema
+
+    decoys = {"a~": {"type": "number"}, "a/": {"type": "number"}, "a~/": {"type": "number"}}
+    schema = {"properties": {"p": {"$ref": ref}}, "$defs": {**decoys, name: {"type": "string"}}}
+    check_schema(schema)
+    assert validate_schema(schema, {"p": "s"}) == {"p": "s"}
+    with pytest.raises(SchemaValidationError):
+        validate_schema(schema, {"p": 1})
+
+
+def test_a_pointer_into_a_nested_resource_is_refused():
+    # Reaching into a nested $id subschema would resolve its own references in the wrong
+    # resource: here "#/$defs/S" inside "q" would read the root's S.
+    schema = {
+        "type": "object",
+        "properties": {"p": {"$ref": "#/$defs/R/properties/q"}},
+        "$defs": {
+            "S": {"type": "integer"},
+            "R": {
+                "$id": "urn:afd:r",
+                "type": "object",
+                "properties": {"q": {"$ref": "#/$defs/S"}},
+                "$defs": {"S": {"type": "string"}},
+            },
+        },
+    }
+    with pytest.raises(ValueError, match=r"Unsupported \$ref"):
+        check_schema(schema)

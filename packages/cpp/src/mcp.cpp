@@ -1,5 +1,9 @@
 #include "afd/mcp.hpp"
 
+#include <algorithm>
+#include <initializer_list>
+#include <string>
+#include <string_view>
 #include <utility>
 
 namespace afd {
@@ -11,6 +15,52 @@ Json examples_json(const std::vector<CommandExample>& examples) {
         out.push_back(Json{{"title", example.title}, {"input", example.input}});
     }
     return out;
+}
+
+// Whether `schema` starts a schema resource: a string `$id` that is not a bare fragment, the
+// validators' test (spec/validation.md), so its local references resolve against it.
+bool starts_resource(const Json& schema) {
+    if (!schema.is_object()) {
+        return false;
+    }
+    const auto id = schema.find("$id");
+    return id != schema.end() && id->is_string() &&
+           !id->get_ref<const std::string&>().starts_with('#');
+}
+
+bool is_one_of(std::string_view key, std::initializer_list<std::string_view> keys) {
+    return std::find(keys.begin(), keys.end(), key) != keys.end();
+}
+
+// Points every `"$ref": "#"` naming `schema`'s root, outside any nested schema resource, at
+// `target`. Values and annotations (`const`, `enum`, `default`, `examples`) are left alone, and so
+// is a draft-07 `dependencies` entry that lists property names.
+void retarget_root(Json& schema, const std::string& target, bool root) {
+    if (!schema.is_object() || (!root && starts_resource(schema))) {
+        return;
+    }
+    for (auto it = schema.begin(); it != schema.end(); ++it) {
+        const std::string& key = it.key();
+        Json& value = it.value();
+        if (key == "$ref" && value == "#") {
+            value = target;
+        } else if (is_one_of(key, {"allOf", "anyOf", "oneOf", "prefixItems", "items"}) &&
+                   value.is_array()) {
+            for (Json& item : value) {
+                retarget_root(item, target, false);
+            }
+        } else if (is_one_of(key, {"items", "additionalProperties", "not", "if", "then", "else",
+                                   "contains", "propertyNames", "additionalItems",
+                                   "unevaluatedItems", "unevaluatedProperties"})) {
+            retarget_root(value, target, false);
+        } else if (is_one_of(key, {"properties", "patternProperties", "$defs", "definitions",
+                                   "dependentSchemas", "dependencies"}) &&
+                   value.is_object()) {
+            for (auto entry = value.begin(); entry != value.end(); ++entry) {
+                retarget_root(entry.value(), target, false);
+            }
+        }
+    }
 }
 
 } // namespace
@@ -98,12 +148,16 @@ Json command_result_output_schema(const Json& data_schema) {
     Json envelope{{"type", "object"}};
     if (data.is_object()) {
         data.erase("$schema");
-        if (!data.contains("$id")) {
-            for (const char* key : {"$defs", "definitions"}) {
-                if (const auto defs = data.find(key); defs != data.end()) {
-                    envelope[key] = std::move(*defs);
-                    data.erase(key);
-                }
+    }
+    // When `data` starts a schema resource, its local references resolve against it, so its
+    // definitions stay inside it. Otherwise they move to the envelope, and a `"$ref": "#"` that
+    // named `data` names "#/properties/data", since `#` now names the envelope.
+    if (data.is_object() && !starts_resource(data)) {
+        retarget_root(data, "#/properties/data", true);
+        for (const char* key : {"$defs", "definitions"}) {
+            if (const auto defs = data.find(key); defs != data.end()) {
+                envelope[key] = std::move(*defs);
+                data.erase(key);
             }
         }
     }

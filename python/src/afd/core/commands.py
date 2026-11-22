@@ -588,15 +588,67 @@ def command_tool_annotations(command: CommandDefinition) -> Optional[Dict[str, b
     return None
 
 
+# Keywords of the schema subset (spec/validation.md) whose value is a schema, an array of
+# schemas, or a map from names to schemas.
+_SCHEMA_KEYWORDS = frozenset(
+    {
+        "items",
+        "additionalProperties",
+        "not",
+        "if",
+        "then",
+        "else",
+        "contains",
+        "propertyNames",
+        "additionalItems",
+        "unevaluatedItems",
+        "unevaluatedProperties",
+    }
+)
+_SCHEMA_LIST_KEYWORDS = frozenset({"allOf", "anyOf", "oneOf", "prefixItems", "items"})
+# `dependencies` (draft-07) maps a name to a schema or to a list of property names; only a
+# schema is walked.
+_SCHEMA_MAP_KEYWORDS = frozenset(
+    {"properties", "patternProperties", "$defs", "definitions", "dependentSchemas", "dependencies"}
+)
+
+
+def _retarget_root(schema: Any, target: str, root: bool = True) -> Any:
+    """A copy of ``schema`` in which every ``"$ref": "#"`` naming its root, outside any nested
+    schema resource, names ``target``. Values and annotations (``const``, ``enum``,
+    ``default``, ``examples``) are left as they are."""
+    if not isinstance(schema, dict) or (not root and starts_resource(schema)):
+        return schema
+    out: Dict[str, Any] = {}
+    for key, value in schema.items():
+        if key == "$ref" and value == "#":
+            out[key] = target
+        elif key in _SCHEMA_LIST_KEYWORDS and isinstance(value, list):
+            out[key] = [_retarget_root(item, target, False) for item in value]
+        elif key in _SCHEMA_KEYWORDS:
+            out[key] = _retarget_root(value, target, False)
+        elif key in _SCHEMA_MAP_KEYWORDS and isinstance(value, dict):
+            out[key] = {name: _retarget_root(item, target, False) for name, item in value.items()}
+        else:
+            out[key] = value
+    return out
+
+
 def command_result_output_schema(data_schema: Dict[str, Any]) -> Dict[str, Any]:
     """The MCP ``outputSchema`` of a command tool: the CommandResult envelope, with
     ``data`` typed by ``data_schema`` (``spec/command-metadata.md``, "Structured results").
 
-    Definitions move to the envelope unless ``data`` has its own ``$id``, which makes it
-    the root for local references. The wire format omits a model field set to
-    ``None``, so a property that accepts ``null`` is not listed as required."""
+    When ``data`` starts a schema resource (a string ``$id`` that is not a bare fragment, the
+    validators' test), its local references resolve against it, so its definitions stay
+    inside it. Otherwise its definitions move to the envelope, and a ``"$ref": "#"`` that
+    named ``data`` becomes ``"#/properties/data"``, since ``#`` now names the envelope. The
+    wire format omits a model field set to ``None``, so a property that accepts ``null`` is
+    not listed as required."""
     data = _optional_nullable_properties(data_schema)
     data.pop("$schema", None)
+    resource = starts_resource(data)
+    if not resource:
+        data = _retarget_root(data, "#/properties/data")
     envelope: Dict[str, Any] = {
         "type": "object",
         "properties": {
@@ -616,11 +668,34 @@ def command_result_output_schema(data_schema: Dict[str, Any]) -> Dict[str, Any]:
         },
         "required": ["success"],
     }
-    if "$id" not in data:
+    if not resource:
         for key in ("$defs", "definitions"):
             if key in data:
                 envelope[key] = data.pop(key)
     return envelope
+
+
+def _local_pointer(root: Dict[str, Any], ref: str) -> Any:
+    """The value a local JSON Pointer reference (``#`` or ``#/...``) names, or None."""
+    if ref == "#":
+        return root
+    if not ref.startswith("#/"):
+        return None
+    target: Any = root
+    for token in ref[2:].split("/"):
+        token = token.replace("~1", "/").replace("~0", "~")
+        if isinstance(target, dict) and token in target:
+            target = target[token]
+        elif (
+            isinstance(target, list)
+            and token.isascii()
+            and token.isdigit()
+            and int(token) < len(target)
+        ):
+            target = target[int(token)]
+        else:
+            return None
+    return target
 
 
 def _accepts_null(schema: Any, root: Dict[str, Any], seen: frozenset = frozenset()) -> bool:
@@ -635,12 +710,14 @@ def _accepts_null(schema: Any, root: Dict[str, Any], seen: frozenset = frozenset
     if starts_resource(schema):
         root = schema
     ref = schema.get("$ref")
-    if isinstance(ref, str) and (ref == "#" or ref.startswith("#/")):
-        target: Any = root
-        for part in ref[2:].split("/") if ref != "#" else []:
-            target = target.get(part) if isinstance(target, dict) else None
+    if isinstance(ref, str):
+        # Output schemas are not checked against the `$ref` subset, so any local pointer is
+        # followed, its tokens decoded (`~1` is "/", `~0` is "~").
+        target: Any = _local_pointer(root, ref)
         # Visited by target, since the same reference text names a target in each resource.
-        if id(target) not in seen and _accepts_null(target, root, seen | {id(target)}):
+        if target is not None and id(target) not in seen and _accepts_null(
+            target, root, seen | {id(target)}
+        ):
             return True
     kind = schema.get("type")
     if kind == "null" or (isinstance(kind, list) and "null" in kind):
@@ -655,14 +732,26 @@ def _accepts_null(schema: Any, root: Dict[str, Any], seen: frozenset = frozenset
 
 
 def _optional_nullable_properties(node: Any, root: Optional[Dict[str, Any]] = None) -> Any:
-    """A copy of a schema whose objects no longer require a property that accepts ``null``."""
-    if root is None or starts_resource(node):
-        root = node
-    if isinstance(node, list):
-        return [_optional_nullable_properties(item, root) for item in node]
+    """A copy of a schema whose objects no longer require a property that accepts ``null``.
+
+    Only schema positions are walked: a value (``const``, ``enum``, ``default``, ``examples``)
+    is data, left as it is."""
     if not isinstance(node, dict):
         return node
-    out = {key: _optional_nullable_properties(value, root) for key, value in node.items()}
+    if root is None or starts_resource(node):
+        root = node
+    out: Dict[str, Any] = {}
+    for key, value in node.items():
+        if key in _SCHEMA_LIST_KEYWORDS and isinstance(value, list):
+            out[key] = [_optional_nullable_properties(item, root) for item in value]
+        elif key in _SCHEMA_KEYWORDS:
+            out[key] = _optional_nullable_properties(value, root)
+        elif key in _SCHEMA_MAP_KEYWORDS and isinstance(value, dict):
+            out[key] = {
+                name: _optional_nullable_properties(item, root) for name, item in value.items()
+            }
+        else:
+            out[key] = value
     properties, required = node.get("properties"), node.get("required")
     if isinstance(properties, dict) and isinstance(required, list):
         out["required"] = [
