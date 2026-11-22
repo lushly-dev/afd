@@ -267,7 +267,9 @@ class Step(Merging, Coverage):
         except WorldError as exc:
             raise LaneTrouble(f"Merging {base} into {branch} did not happen: {exc}") from exc
         regenerated: list[str] = []
+        regenerated_paths: list[str] = []
         if merged.open:
+            regenerated_paths = list(merged.conflicts)
             outcome = self.regenerate(entry, path, base, merged.conflicts)
             if outcome is None:
                 return False
@@ -275,6 +277,15 @@ class Step(Merging, Coverage):
         if not merged.clean:
             self.eject(entry, "conflict", f"Conflicts with {base}: {', '.join(merged.conflicts)}")
             return False
+        if regenerated:
+            self.record(
+                "provenance-rerecorded",
+                branch=branch,
+                attempt=entry["attempt"],
+                base=base,
+                names=regenerated,
+                paths=regenerated_paths,
+            )
         # One commit of its own on the base, with the merged tree: what is validated, pushed
         # and merged (lushly-dev/afd#1809).
         try:

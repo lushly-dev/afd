@@ -22,7 +22,7 @@ ENQUEUE = {
 def test_a_record_carries_schema_kind_time_and_run():
     record = rec("dropped", "t", branch="b", reason="gone")
     assert record == {
-        "schema": 3,
+        "schema": 4,
         "kind": "dropped",
         "at": "t",
         "runId": "run-1",
@@ -33,7 +33,11 @@ def test_a_record_carries_schema_kind_time_and_run():
 
 @pytest.mark.parametrize(
     "kind,fields,message",
-    [("nonsense", {}, "Unknown"), ("ejected", {"branch": "b", "attempt": 1}, "cause")],
+    [
+        ("nonsense", {}, "Unknown"),
+        ("ejected", {"branch": "b", "attempt": 1}, "cause"),
+        ("provenance-rerecorded", {"branch": "b", "attempt": 1, "base": "m1"}, "names, paths"),
+    ],
 )
 def test_a_record_off_the_schema_is_refused(kind, fields, message):
     with pytest.raises(records.RecordError, match=message):
@@ -95,6 +99,15 @@ def history():
             testsRun=905,
             minutes=11.0,
         ),
+        rec(
+            "provenance-rerecorded",
+            "t5a",
+            branch="b",
+            attempt=2,
+            base="m2",
+            names=["provenance"],
+            paths=["endpoints/botcore/provenance/adaptations.json"],
+        ),
         rec("rerun", "t5b", branch="b", attempt=2, reason="main-moved"),
         rec("merged", "t7", branch="b", attempt=2, pr=600),
         rec(
@@ -121,7 +134,11 @@ def test_attempts_fold_every_fact_about_one_attempt_into_a_row():
     )
     assert first["logPath"] == "attempts/b-1.log" and first["checksRun"] == 40
     assert (second["outcome"], second["pr"], second["mergedAt"]) == ("merged", 600, "t7")
-    assert second["reruns"] == 1 and second["withoutCheck"] is False
+    assert (
+        second["reruns"] == 1
+        and second["provenanceRerecorded"] == 1
+        and second["withoutCheck"] is False
+    )
     assert (first["base"], first["tree"]) == ("m1", "t1")
     assert second["firstEnqueuedAt"] == "t1"  # Queue wait counts from the first enqueue.
     assert (third["outcome"], third["droppedAt"]) == ("dropped", "t9")

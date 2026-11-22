@@ -29,6 +29,27 @@ plugin's tests.
 
 The queue, validation, base moves, merges, ejections and repairs.
 
+#### Provenance-only merge covers Health, Violet and `lane-report`, 2026-11-22
+
+Pull request [#2028](https://github.com/lushly-dev/afd/pull/2028), for
+[#1472](https://github.com/lushly-dev/afd/issues/1472). Closes the three remaining gaps from
+[#1458](https://github.com/lushly-dev/afd/pull/1458):
+
+- **Health:** `scripts/provenance-merge.mjs` and `botcore.toml`'s `regenerate` now cover
+  `endpoints/health/provenance/provenance.json` (`files` by `path`, `adapted_functions` by `name`;
+  derived/license rows still refuse) and `endpoints/health/tests/test_provenance.py`, updating
+  `RECORD_SHA256` only when both sides' pins matched their own records and no conflict lies outside
+  that line. `scripts/base-sync.mjs` names Health's provenance test and checks staged pin files for
+  conflict markers.
+- **Violet and manifest shapes:** `scripts/release/provenance.mjs` exports zero-dependency
+  `violetBeforeRelease` (shared with `scripts/violet-provenance.test.mjs`), so
+  `scripts/provenance-merge.mjs` merges Violet files edited on both sides (including released
+  `package.json` and `CHANGELOG.md`) and recomputes `manifest_shape_sha256` where present.
+- **Visible record:** the lane emits a `provenance-rerecorded` measurement record (`SCHEMA` raised
+  to 4; `branch`, `attempt`, `base`, `names`, `paths`) whenever `regenerate` resolves a conflict,
+  folded per attempt and counted by `lane-report` as `provenanceRerecorded` (including comparison
+  `delta`).
+
 #### Native paths in the build-directory tests, 2026-11-20
 
 Five Windows failures in the tests for [#1641](https://github.com/lushly-dev/afd/issues/1641) came
@@ -148,6 +169,16 @@ how to record a decision with `event-resolve` and its `note` argument.
 ### Hosts and toolchains
 
 The lane host, its slots, Node and the other toolchains.
+
+#### Shared host validation lock approach proposed for #1309, 2026-11-22
+
+Posted and independently reviewed the cross-repository approach on
+[#1309](https://github.com/lushly-dev/afd/issues/1309): keep each lane's own daemon `lane.lock`,
+coordinate heavy validations and coverage runs through one shared `~/.cache/lushly-factory/`
+validation lock (`validation-lock.json` + short-lived `validation-lock.mutex`, override
+`LUSHLY_FACTORY_HOST_LOCK_DIR`) using UTC epoch seconds (`startedAtEpoch`) for cross-language
+liveness and a FIFO `waiters` queue to prevent starvation. Implementation spans `lushly-dev/afd`
+and `lushly-dev/lushly` and awaits owner decisions on stale-hold recovery and non-lane local runs.
 
 ### Reviews and commit credit
 

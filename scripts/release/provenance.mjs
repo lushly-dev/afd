@@ -28,7 +28,7 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, posix, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /**
@@ -92,6 +92,115 @@ export function hasStaleShape(file, bytes) {
 }
 
 const isManifest = (path) => path === 'package.json' || path.endsWith('/package.json');
+
+const SEMVER =
+	/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
+
+/** Parses a SemVer 2.0.0 string without external dependencies, or returns null when invalid. */
+function parseSemver(version) {
+	if (typeof version !== 'string') return null;
+	const match = SEMVER.exec(version);
+	if (!match) return null;
+	const prerelease = match[4] ? match[4].split('.') : [];
+	if (prerelease.some((id) => /^0\d+$/.test(id))) return null;
+	return {
+		major: Number(match[1]),
+		minor: Number(match[2]),
+		patch: Number(match[3]),
+		prerelease,
+	};
+}
+
+/** SemVer 2.0.0 precedence comparison (-1, 0, 1). */
+function compareSemver(a, b) {
+	for (const part of ['major', 'minor', 'patch']) if (a[part] !== b[part]) return a[part] - b[part];
+	if (a.prerelease.length === 0 && b.prerelease.length === 0) return 0;
+	if (a.prerelease.length === 0) return 1;
+	if (b.prerelease.length === 0) return -1;
+	const len = Math.min(a.prerelease.length, b.prerelease.length);
+	for (let i = 0; i < len; i++) {
+		const left = a.prerelease[i];
+		const right = b.prerelease[i];
+		if (left === right) continue;
+		const leftNum = /^\d+$/.test(left);
+		const rightNum = /^\d+$/.test(right);
+		if (leftNum && rightNum) return Number(left) - Number(right);
+		if (leftNum) return -1;
+		if (rightNum) return 1;
+		return left < right ? -1 : 1;
+	}
+	return a.prerelease.length - b.prerelease.length;
+}
+
+/** Map of Violet package directory -> initialVersion from scripts/release/inventory.json. */
+export function violetInitialVersions(root) {
+	const inventoryPath = join(root, 'scripts/release/inventory.json');
+	if (!existsSync(inventoryPath)) return new Map();
+	const inventory = JSON.parse(readFileSync(inventoryPath, 'utf8'));
+	const violet = inventory.units?.find((unit) => unit.id === 'violet-npm');
+	if (!violet?.distributions) return new Map();
+	return new Map(
+		violet.distributions.map((distribution) => [
+			posix.dirname(distribution.manifest),
+			distribution.initialVersion,
+		])
+	);
+}
+
+/**
+ * Undo what a Changesets version step writes to a Violet manifest or changelog, so provenance
+ * hashing compares pre-release bytes: the manifest's version and fixed-group workspace ranges,
+ * and each released CHANGELOG section inserted below the title above earlier ones.
+ */
+export function violetBeforeRelease(
+	root,
+	path,
+	bytes,
+	initialVersions = violetInitialVersions(root)
+) {
+	const dir = posix.dirname(path);
+	const initial = initialVersions.get(dir);
+	const name = posix.basename(path);
+	if (!initial || (name !== 'package.json' && name !== 'CHANGELOG.md')) return bytes;
+	const text = bytes.toString('utf8');
+	if (name === 'package.json') {
+		const { version } = JSON.parse(text);
+		if (version === initial) return bytes;
+		return Buffer.from(
+			text
+				.replace(`"version": "${version}"`, `"version": "${initial}"`)
+				.replaceAll(`"workspace:^${version}"`, `"workspace:^${initial}"`)
+		);
+	}
+	// Only the run of sections right below the title, newest first from the manifest's own
+	// version down to above initialVersion, is the version step's; anything else must match.
+	const manifestPath = join(root, dir, 'package.json');
+	const { version } = JSON.parse(readFileSync(manifestPath, 'utf8'));
+	const parsedVersion = parseSemver(version);
+	const parsedInitial = parseSemver(initial);
+	if (!parsedVersion || !parsedInitial || compareSemver(parsedVersion, parsedInitial) <= 0)
+		return bytes;
+	const [title, ...sections] = text.split(/(?=^## )/m);
+	let released = 0;
+	let previous = null;
+	for (const section of sections) {
+		const heading = /^## (\S+)\r?\n/.exec(section)?.[1];
+		const parsedHeading = parseSemver(heading);
+		if (!parsedHeading || compareSemver(parsedHeading, parsedInitial) <= 0) break;
+		if (
+			previous
+				? compareSemver(parsedHeading, previous) >= 0
+				: compareSemver(parsedHeading, parsedVersion) !== 0
+		)
+			break;
+		previous = parsedHeading;
+		released++;
+	}
+	if (released === 0) return bytes;
+	const rest = sections.slice(released).join('');
+	// A CHANGELOG that held only its title gains a blank line before the first section.
+	return Buffer.from(rest ? title + rest : title.replace(/\n\n$/, '\n'));
+}
 
 /** The classification of a record whose file was removed after import. */
 export const REMOVED = 'removed-after-import';

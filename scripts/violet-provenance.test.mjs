@@ -6,7 +6,12 @@ import { dirname, join, resolve } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import semver from 'semver';
-import { hasStaleShape, matchesRecord } from './release/provenance.mjs';
+import {
+	hasStaleShape,
+	matchesRecord,
+	violetBeforeRelease,
+	violetInitialVersions,
+} from './release/provenance.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const directory = 'foundations/violet/provenance';
@@ -23,52 +28,8 @@ const adaptations = record('adaptations.json');
 const git = (args) => execFileSync('git', args, { cwd: root, stdio: ['ignore', 'pipe', 'ignore'] });
 const unchanged = new Set(['unchanged', 'moved-unchanged', 'fixture-copy']);
 const inventory = json('scripts/release/inventory.json');
-const violet = inventory.units.find((unit) => unit.id === 'violet-npm');
-const initialVersion = new Map(
-	violet.distributions.map((distribution) => [
-		dirname(distribution.manifest),
-		distribution.initialVersion,
-	])
-);
-
-/**
- * Undo what a Changesets version step writes, so a release PR keeps passing: the manifest's
- * version and the fixed group's workspace ranges, and each released CHANGELOG section, which
- * Changesets inserts below the title above the earlier ones.
- */
-function beforeRelease(path, bytes) {
-	const initial = initialVersion.get(dirname(path));
-	const name = path.slice(path.lastIndexOf('/') + 1);
-	if (!initial || (name !== 'package.json' && name !== 'CHANGELOG.md')) return bytes;
-	const text = bytes.toString('utf8');
-	if (name === 'package.json') {
-		const { version } = JSON.parse(text);
-		if (version === initial) return bytes;
-		return Buffer.from(
-			text
-				.replace(`"version": "${version}"`, `"version": "${initial}"`)
-				.replaceAll(`"workspace:^${version}"`, `"workspace:^${initial}"`)
-		);
-	}
-	// Only the run of sections right below the title, newest first from the manifest's own
-	// version down to above initialVersion, is the version step's; anything else must match.
-	const { version } = JSON.parse(readFileSync(join(root, dirname(path), 'package.json'), 'utf8'));
-	if (!semver.gt(version, initial)) return bytes;
-	const [title, ...sections] = text.split(/(?=^## )/m);
-	let released = 0;
-	let previous;
-	for (const section of sections) {
-		const heading = /^## (\S+)\n/.exec(section)?.[1];
-		if (!semver.valid(heading) || !semver.gt(heading, initial)) break;
-		if (previous ? !semver.lt(heading, previous) : heading !== version) break;
-		previous = heading;
-		released++;
-	}
-	if (released === 0) return bytes;
-	const rest = sections.slice(released).join('');
-	// A CHANGELOG that held only its title gains a blank line before the first section.
-	return Buffer.from(rest ? title + rest : title.replace(/\n\n$/, '\n'));
-}
+const initialVersion = violetInitialVersions(root);
+const beforeRelease = (path, bytes) => violetBeforeRelease(root, path, bytes, initialVersion);
 
 test('Violet provenance records are bound by hash and every unit is admitted for the preview', () => {
 	const { adaptations: changing, ...frozen } = provenance.records;

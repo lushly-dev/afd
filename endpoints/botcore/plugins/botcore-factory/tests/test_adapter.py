@@ -42,16 +42,19 @@ def test_afd_s_botcore_toml_states_its_labels_cheap_checks_and_gates():
         "{worktree}",
     ]
     assert (REPO_ROOT / "scripts/review-record.mjs").is_file()  # prepare-pr lane mode writes it.
-    # Every imported unit's records, and nothing else, are merged rather than ejected (#1410).
+    # Every imported unit's records, including Health and its pin, are merged (#1410, #1472).
     [records] = adapter.regenerate
     assert records.run == ["node", "scripts/provenance-merge.mjs"]
     assert (REPO_ROOT / "scripts/provenance-merge.mjs").is_file()
-    for unit in REPO_ROOT.glob("*/*/provenance/adaptations.json"):  # Health has none.
+    for unit in REPO_ROOT.glob("*/*/provenance/*.json"):
         assert matches(unit.relative_to(REPO_ROOT).as_posix(), records.paths), unit
-    assert not matches("endpoints/health/provenance/provenance.json", records.paths)
+    assert matches("endpoints/health/provenance/provenance.json", records.paths)
+    assert matches("endpoints/health/tests/test_provenance.py", records.paths)
+    assert not matches("endpoints/health/src/lushly_health/core.py", records.paths)
     assert matches("endpoints/botcore/src/botcore/provenance/adaptations.json", records.paths)
     assert not matches("endpoints/botcore/src/botcore/server.py", records.paths)
     assert matches("scripts/provenance-merge.mjs", adapter.gate_paths)
+    assert matches("scripts/release/provenance.mjs", adapter.gate_paths)
 
 
 @pytest.mark.parametrize(

@@ -921,6 +921,8 @@ def regenerating(run_, steps: int = 1) -> list[str]:
 
 
 def test_conflicts_only_in_generated_records_are_written_again_and_validated(lane):
+    from botcore_factory.report import lane_report
+
     lane.change_world(outcomes={"merge": {"feat/export-csv": f"conflict: {RECORDS}"}})
     actions = regenerating(lane)
     assert actions[:2] == [
@@ -928,8 +930,19 @@ def test_conflicts_only_in_generated_records_are_written_again_and_validated(lan
         "validating feat/export-csv in slot 1",
     ]
     assert entry_of(lane, "feat/export-csv")["validatedHead"] == "b2c3d4e+main-0"
-    started = next(r for r in lane.store.read_records() if r["kind"] == "validation-started")
+    all_records = lane.store.read_records()
+    rerecorded = next(r for r in all_records if r["kind"] == "provenance-rerecorded")
+    assert rerecorded["branch"] == "feat/export-csv"
+    assert rerecorded["attempt"] == 1
+    assert rerecorded["base"] == "main-0"
+    assert rerecorded["names"] == ["provenance"]
+    assert rerecorded["paths"] == [
+        "endpoints/botcore/provenance/provenance.json",
+        "endpoints/botcore/provenance/adaptations.json",
+    ]
+    started = next(r for r in all_records if r["kind"] == "validation-started")
     assert started["regenerated"] == ["provenance"]
+    assert lane_report(lane.factory(), None, None)["provenanceRerecorded"] == 1
     assert not events(lane, "ejected")
 
 
@@ -947,6 +960,7 @@ def test_a_regenerated_merge_is_folded_before_it_is_validated(lane):
 def test_a_conflict_outside_the_generated_files_still_ejects(lane):
     lane.change_world(outcomes={"merge": {"feat/export-csv": f"conflict: {RECORDS}, src/a.ts"}})
     assert "ejected feat/export-csv (conflict)" in regenerating(lane)
+    assert "provenance-rerecorded" not in kinds(lane)
     assert (
         "checkouts" not in lane.world_data()
         or "merging" not in (lane.world_data()["checkouts"]["1"])
@@ -967,6 +981,7 @@ def test_a_regenerate_command_that_refuses_ejects_as_a_conflict(lane):
     detail = events(lane, "ejected")[0]["detail"]
     assert "provenance could not merge them: both sides changed" in detail
     assert "merging" not in lane.world_data()["checkouts"]["1"]
+    assert "provenance-rerecorded" not in kinds(lane)
 
 
 def test_a_regenerate_command_that_cannot_run_pauses_the_lane(lane):
@@ -989,6 +1004,7 @@ def test_paths_left_unmerged_after_regenerating_eject(lane):
         }
     )
     assert "ejected feat/export-csv (conflict)" in regenerating(lane)
+    assert "provenance-rerecorded" not in kinds(lane)
 
 
 def test_without_regenerate_a_records_conflict_ejects_as_before(lane):

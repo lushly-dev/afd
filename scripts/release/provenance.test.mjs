@@ -12,6 +12,8 @@ import {
 	matchesRecord,
 	recordProvenance,
 	recordReleaseProvenance,
+	violetBeforeRelease,
+	violetInitialVersions,
 } from './provenance.mjs';
 
 const sha = (bytes) => createHash('sha256').update(bytes).digest('hex');
@@ -271,5 +273,60 @@ test('a manifest whose dependency ranges alone changed still matches its record'
 	// A record without a shape (any file but a manifest) matches its digest only.
 	assert.ok(
 		!matchesRecord({ current_import_sha256: file.current_import_sha256 }, edit('~5.9.3', '~7.0.2'))
+	);
+});
+
+test('violetBeforeRelease reverses Changesets version and changelog edits without external deps', (t) => {
+	const root = mkdtempSync(join(tmpdir(), 'afd-violet-before-release-'));
+	t.after(() => rmSync(root, { recursive: true, force: true }));
+	write(
+		root,
+		'scripts/release/inventory.json',
+		JSON.stringify({
+			units: [
+				{
+					id: 'violet-npm',
+					distributions: [
+						{
+							name: '@lushly-dev/violet-cli',
+							manifest: 'endpoints/violet-cli/package.json',
+							initialVersion: '0.3.0-preview',
+						},
+					],
+				},
+			],
+		})
+	);
+	const versions = violetInitialVersions(root);
+	assert.equal(versions.get('endpoints/violet-cli'), '0.3.0-preview');
+
+	const pkg =
+		'{\n  "name": "@lushly-dev/violet-cli",\n  "version": "0.3.0-preview.10",\n  "dependencies": { "@lushly-dev/violet-core": "workspace:^0.3.0-preview.10" }\n}\n';
+	write(root, 'endpoints/violet-cli/package.json', pkg);
+	const prePkg = violetBeforeRelease(
+		root,
+		'endpoints/violet-cli/package.json',
+		Buffer.from(pkg),
+		versions
+	).toString('utf8');
+	assert.ok(prePkg.includes('"version": "0.3.0-preview"'));
+	assert.ok(prePkg.includes('"workspace:^0.3.0-preview"'));
+
+	// Prerelease precedence: 0.3.0-preview.10 > 0.3.0-preview.2 > 0.3.0-preview > 0.2.0.
+	const log =
+		'# @lushly-dev/violet-cli\n\n## 0.3.0-preview.10\n\n- Tenth\n\n## 0.3.0-preview.2\n\n- Second\n\n## 0.2.0\n\n- Older\n';
+	const preLog = violetBeforeRelease(
+		root,
+		'endpoints/violet-cli/CHANGELOG.md',
+		Buffer.from(log),
+		versions
+	).toString('utf8');
+	assert.equal(preLog, '# @lushly-dev/violet-cli\n\n## 0.2.0\n\n- Older\n');
+
+	// Non-release files pass through unchanged.
+	const src = Buffer.from('export const x = 1;\n');
+	assert.deepEqual(
+		violetBeforeRelease(root, 'endpoints/violet-cli/src/bin.ts', src, versions),
+		src
 	);
 });

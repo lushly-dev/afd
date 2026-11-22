@@ -18,6 +18,7 @@ NUMBERS = (
     "reruns",
     "baseAdvances",
     "rerunLimitAdvances",
+    "provenanceRerecorded",
     "ejections",
     "excusedEjections",
 )
@@ -51,6 +52,7 @@ def summarize(history: list[dict], run_id: str, started_at: str | None, stopped_
         "rerunLimitAdvances": sum(
             1 for r in mine if r.get("kind") == "base-advanced" and r.get("reason") == "rerun-limit"
         ),
+        "provenanceRerecorded": sum(1 for r in mine if r.get("kind") == "provenance-rerecorded"),
         "ejections": sum(1 for r in mine if r.get("kind") == "ejected"),
         # Ejections that were not the branch's own failure: by cause (a conflict, the push or PR
         # plumbing) or excused by the foreman (ejection-excuse); none counts toward
@@ -90,6 +92,7 @@ def numbers(summary: dict) -> dict:
         "reruns": summary.get("reruns", 0),
         "baseAdvances": summary.get("baseAdvances", 0),
         "rerunLimitAdvances": summary.get("rerunLimitAdvances", 0),
+        "provenanceRerecorded": summary.get("provenanceRerecorded", 0),
         "ejections": summary.get("ejections", 0),
         "excusedEjections": summary.get("excusedEjections", 0),
         "foreman": {"wakes": wakes, "wakesPerMerge": _ratio(wakes, merged)},
