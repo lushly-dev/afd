@@ -153,7 +153,14 @@ it('preserves render and disposal failures across the process backend', async ()
 		.catch((value: unknown) => value);
 	expect(error).toBeInstanceOf(AggregateError);
 	if (!(error instanceof AggregateError)) throw new Error('Expected both process failures');
-	expect(String(error.errors[0])).toContain('Target must identify exactly one element: missing');
+	expect(String(error.errors[0])).toContain("Target 'missing'");
+	expect(String(error.errors[0])).toContain('matched no elements');
+	expect((error as Error & { code?: string; suggestion?: string }).code).toBe('TARGET_NOT_FOUND');
+	expect((error as Error & { suggestion?: string }).suggestion).toContain('review page');
+	expect(error.errors[0]).toMatchObject({
+		code: 'TARGET_NOT_FOUND',
+		details: { count: 0, target: 'missing' },
+	});
 	expect(String(error.errors[1])).toContain('process-cleanup-marker');
 });
 
@@ -422,6 +429,37 @@ it('reports unsupported worker paths and transports nested disposal errors', () 
 	if (!(error instanceof AggregateError)) throw new Error('Expected AggregateError');
 	expect(String(error.errors[0])).toContain('render-marker');
 	expect(String(error.errors[1])).toContain('cleanup-marker');
+
+	const typed = deserializeWorkerError(
+		serializeWorkerError(
+			Object.assign(new Error('Target matched 3 elements'), {
+				code: 'TARGET_AMBIGUOUS',
+				suggestion: 'Matched 3 elements; add a name or point in the review page.',
+				details: { count: 3, target: 'action' },
+			})
+		)
+	);
+	expect(typed.code).toBe('TARGET_AMBIGUOUS');
+	expect(typed.suggestion).toContain('3 elements');
+	expect(typed.details).toEqual({ count: 3, target: 'action' });
+
+	const circular: Record<string, unknown> = {};
+	circular.self = circular;
+	for (const unencodable of [{ attempts: 1n }, circular]) {
+		const serialized = serializeWorkerError(
+			Object.assign(new Error('Target failed with custom details'), {
+				code: 'TARGET_NOT_FOUND',
+				suggestion: 'Point again in the review page.',
+				details: unencodable,
+			})
+		);
+		expect(() => JSON.stringify(serialized)).not.toThrow();
+		const restored = deserializeWorkerError(JSON.parse(JSON.stringify(serialized)));
+		expect(restored.message).toBe('Target failed with custom details');
+		expect(restored.code).toBe('TARGET_NOT_FOUND');
+		expect(restored.suggestion).toBe('Point again in the review page.');
+		expect(restored.details).toBeUndefined();
+	}
 });
 
 it.skipIf(process.platform === 'win32')(

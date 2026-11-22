@@ -254,18 +254,38 @@ struct Attempted {
     profile: Option<Value>,
 }
 
+/// Structured metadata attached to a typed host failure (e.g. `TARGET_NOT_FOUND`, `TARGET_AMBIGUOUS`).
+#[derive(Debug)]
+pub struct StructuredFailure {
+    pub code: String,
+    pub suggestion: String,
+    pub details: Value,
+}
+
 /// A failure the client re-raises: one message, or the render and disposal failures together.
 #[derive(Debug)]
 pub struct RenderFailure {
     pub message: String,
     pub causes: Vec<String>,
+    pub structured: Option<Box<StructuredFailure>>,
 }
 
 impl From<anyhow::Error> for RenderFailure {
     fn from(error: anyhow::Error) -> Self {
+        let structured = error
+            .chain()
+            .find_map(|cause| cause.downcast_ref::<crate::page::TargetError>())
+            .map(|err| {
+                Box::new(StructuredFailure {
+                    code: err.code().to_string(),
+                    suggestion: err.suggestion(),
+                    details: err.details(),
+                })
+            });
         RenderFailure {
             message: format!("{error:#}"),
             causes: Vec::new(),
+            structured,
         }
     }
 }
@@ -408,15 +428,24 @@ impl Browser {
             }),
             (Ok(_), Err(failure)) => Err(failure.into()),
             // The page's own errors usually explain a render that failed or never became ready.
-            (Err(failure), Ok(())) if !errors.is_empty() => Err(RenderFailure::from(anyhow!(
-                "{failure:#}; page errors: {}",
-                errors.join("; ")
-            ))),
+            (Err(failure), Ok(())) if !errors.is_empty() => {
+                let mut rendered = RenderFailure::from(failure);
+                rendered.message =
+                    format!("{}; page errors: {}", rendered.message, errors.join("; "));
+                Err(rendered)
+            }
             (Err(failure), Ok(())) => Err(failure.into()),
-            (Err(render), Err(disposal)) => Err(RenderFailure {
-                message: format!("Specimen render and disposal failed: {render:#}; {disposal:#}"),
-                causes: vec![format!("{render:#}"), format!("{disposal:#}")],
-            }),
+            (Err(render), Err(disposal)) => {
+                let primary = RenderFailure::from(render);
+                Err(RenderFailure {
+                    message: format!(
+                        "Specimen render and disposal failed: {}; {disposal:#}",
+                        primary.message
+                    ),
+                    causes: vec![primary.message, format!("{disposal:#}")],
+                    structured: primary.structured,
+                })
+            }
         }
     }
 
@@ -767,4 +796,55 @@ async fn screenshot(page: &Page<'_>, path: &str, viewport: &Viewport) -> Result<
         base64::engine::general_purpose::STANDARD.decode(data)?,
     )?;
     Ok(path.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::RenderFailure;
+    use crate::page::TargetError;
+    use anyhow::{Context, anyhow};
+    use serde_json::json;
+
+    #[test]
+    fn render_failure_extracts_target_error_metadata_even_when_wrapped() {
+        let not_found: anyhow::Error = TargetError::NotFound {
+            name: "print".into(),
+            target: "role \"button\", name \"Print\"".into(),
+        }
+        .into();
+        let wrapped = Err::<(), _>(not_found).context("step 1").unwrap_err();
+        let failure = RenderFailure::from(wrapped);
+        let structured = failure
+            .structured
+            .as_deref()
+            .expect("expected structured metadata");
+        assert_eq!(structured.code, "TARGET_NOT_FOUND");
+        assert!(structured.suggestion.contains("review page"));
+        assert_eq!(structured.details, json!({ "count": 0, "target": "print" }));
+
+        let ambiguous: anyhow::Error = TargetError::Ambiguous {
+            name: "action".into(),
+            target: "role \"button\"".into(),
+            count: 4,
+        }
+        .into();
+        let failure = RenderFailure::from(ambiguous);
+        let structured = failure
+            .structured
+            .as_deref()
+            .expect("expected structured metadata");
+        assert_eq!(structured.code, "TARGET_AMBIGUOUS");
+        assert!(structured.suggestion.contains("4") && structured.suggestion.contains("name"));
+        assert_eq!(
+            structured.details,
+            json!({ "count": 4, "target": "action" })
+        );
+    }
+
+    #[test]
+    fn render_failure_leaves_untyped_errors_without_structured_fields() {
+        let failure = RenderFailure::from(anyhow!("boom"));
+        assert_eq!(failure.message, "boom");
+        assert!(failure.structured.is_none());
+    }
 }

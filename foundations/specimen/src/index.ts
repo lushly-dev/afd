@@ -12,6 +12,7 @@ export {
 	type GuideSourceContext,
 	type GuideSourceRule,
 } from './guide-source.js';
+export type { SpecimenHostError } from './host.js';
 export { finiteValues, readManifest } from './manifest.js';
 export { normalizeDom } from './normalize.js';
 export {

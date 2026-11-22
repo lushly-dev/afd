@@ -161,7 +161,13 @@ it('preserves a render failure when disposal also fails', async () => {
 			.catch((value: unknown) => value);
 		expect(error).toBeInstanceOf(AggregateError);
 		if (!(error instanceof AggregateError)) throw new Error('Expected both failures');
-		expect(String(error.errors[0])).toContain('Target must identify exactly one element: missing');
+		expect(String(error.errors[0])).toContain("Target 'missing'");
+		expect(String(error.errors[0])).toContain('matched no elements');
+		expect((error as Error & { code?: string }).code).toBe('TARGET_NOT_FOUND');
+		expect(error.errors[0]).toMatchObject({
+			code: 'TARGET_NOT_FOUND',
+			details: { count: 0, target: 'missing' },
+		});
 		expect(String(error.errors[1])).toContain('cleanup-marker');
 	} finally {
 		await bench?.close();

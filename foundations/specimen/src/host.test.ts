@@ -11,7 +11,14 @@ import { tmpdir } from 'node:os';
 import { join, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { chromiumExecutable, hostBinaryName, hostBinaryPath, hostPackageName } from './host.js';
+import {
+	chromiumExecutable,
+	hostBinaryName,
+	hostBinaryPath,
+	hostError,
+	hostPackageName,
+	type SpecimenHostError,
+} from './host.js';
 
 const specimen = join(import.meta.dirname, '..');
 const read = (path: string) => JSON.parse(readFileSync(path, 'utf8'));
@@ -144,4 +151,64 @@ describe('the Chromium headless shell', () => {
 			}
 		}
 	);
+});
+
+describe('hostError', () => {
+	it('preserves structured code, suggestion, and details from typed host errors', () => {
+		const notFound = hostError({
+			message: 'Target \'print\' (role "button", name "Print") matched no elements',
+			causes: [],
+			code: 'TARGET_NOT_FOUND',
+			suggestion: 'Point again in the review page, or name a role and name that exist.',
+			details: { count: 0, target: 'print' },
+		});
+		expect(notFound).toBeInstanceOf(Error);
+		expect(notFound.code).toBe('TARGET_NOT_FOUND');
+		expect(notFound.suggestion).toContain('review page');
+		expect(notFound.details).toEqual({ count: 0, target: 'print' });
+
+		const ambiguous = hostError({
+			message: 'Target \'action\' (role "button") matched 2 elements; expected 1',
+			causes: [],
+			code: 'TARGET_AMBIGUOUS',
+			suggestion:
+				'Matched 2 elements; add a name, narrow the selector, or point in the review page.',
+			details: { count: 2, target: 'action' },
+		});
+		expect(ambiguous.code).toBe('TARGET_AMBIGUOUS');
+		expect(ambiguous.details).toEqual({ count: 2, target: 'action' });
+	});
+
+	it('keeps render metadata on both the AggregateError and its primary cause', () => {
+		const combined = hostError({
+			message: 'Specimen render and disposal failed: missing; cleanup',
+			causes: ['Target \'missing\' (selector ".missing") matched no elements', 'cleanup'],
+			code: 'TARGET_NOT_FOUND',
+			suggestion: 'Point again in the review page, or name a role and name that exist.',
+			details: { count: 0, target: 'missing' },
+		}) as AggregateError & SpecimenHostError;
+		expect(combined).toBeInstanceOf(AggregateError);
+		expect(combined.code).toBe('TARGET_NOT_FOUND');
+		expect(combined.details).toEqual({ count: 0, target: 'missing' });
+		expect(combined.errors[0]).toMatchObject({
+			code: 'TARGET_NOT_FOUND',
+			suggestion: 'Point again in the review page, or name a role and name that exist.',
+			details: { count: 0, target: 'missing' },
+		});
+		expect((combined.errors[1] as SpecimenHostError).code).toBeUndefined();
+	});
+
+	it('leaves untyped host failures and blank or unencodable fields cleanly omitted', () => {
+		const plain = hostError({
+			message: 'plain failure',
+			causes: [],
+			code: '   ',
+			suggestion: '\t\n',
+			details: { attempts: 1n },
+		});
+		expect(plain.message).toBe('plain failure');
+		expect(plain.code).toBeUndefined();
+		expect(plain.suggestion).toBeUndefined();
+		expect(plain.details).toBeUndefined();
+	});
 });

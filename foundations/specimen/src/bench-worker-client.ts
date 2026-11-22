@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import type { SpecimenBench } from './bench.js';
 import type { LoadedConfig } from './config.js';
+import { jsonSafeDetails, type SpecimenHostError } from './host.js';
 import type {
 	A11yRequest,
 	A11yRun,
@@ -54,6 +55,9 @@ export interface WorkerError {
 	name: string;
 	message: string;
 	stack?: string;
+	code?: string;
+	suggestion?: string;
+	details?: Record<string, unknown>;
 	errors?: WorkerError[];
 }
 export type WorkerReply =
@@ -62,22 +66,41 @@ export type WorkerReply =
 
 export function serializeWorkerError(value: unknown, depth = 0): WorkerError {
 	const error = value instanceof Error ? value : new Error(String(value));
+	const fields = error as Error & {
+		code?: unknown;
+		suggestion?: unknown;
+		details?: unknown;
+	};
+	const details = jsonSafeDetails(fields.details);
 	return {
 		name: error.name,
 		message: error.message,
 		stack: error.stack,
+		...(typeof fields.code === 'string' && fields.code.trim().length > 0
+			? { code: fields.code }
+			: {}),
+		...(typeof fields.suggestion === 'string' && fields.suggestion.trim().length > 0
+			? { suggestion: fields.suggestion }
+			: {}),
+		...(details !== undefined ? { details } : {}),
 		...(error instanceof AggregateError && depth < 8
 			? { errors: error.errors.map((item: unknown) => serializeWorkerError(item, depth + 1)) }
 			: {}),
 	};
 }
-export function deserializeWorkerError(value: WorkerError): Error {
+export function deserializeWorkerError(value: WorkerError): SpecimenHostError {
 	const error = value.errors
 		? new AggregateError(value.errors.map(deserializeWorkerError), value.message)
 		: new Error(value.message);
 	error.name = value.name;
 	if (value.stack) error.stack = value.stack;
-	return error;
+	const target = error as SpecimenHostError;
+	if (typeof value.code === 'string' && value.code.trim().length > 0) target.code = value.code;
+	if (typeof value.suggestion === 'string' && value.suggestion.trim().length > 0)
+		target.suggestion = value.suggestion;
+	const details = jsonSafeDetails(value.details);
+	if (details !== undefined) target.details = details;
+	return target;
 }
 
 /** Never run source TypeScript with an inherited loader: published workers are plain JS. */

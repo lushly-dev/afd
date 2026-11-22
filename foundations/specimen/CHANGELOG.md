@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Split Specimen host target resolution failures (`host/src/page.rs`) into typed `TARGET_NOT_FOUND` and `TARGET_AMBIGUOUS` errors carrying actionable suggestions and match counts (`details.count`), and preserve structured `code`, `suggestion`, and `details` across the host JSON-lines client and worker IPC (#2046).
+
 - Retry component-pack example remount captures once on transient failure or settle race, use the story timeout budget for remount captures, and wait one extra animation frame after `settle()` when remounting example markup so `pack-check` does not drop examples intermittently on Windows (#1404).
 
 - Annotate synthetic macOS `ps` fixture paths in `experiments/resources/quiet.test.mjs` with `portability-ok` so the repository portability gate scans `foundations/` by default (#1221). No published file changes.
