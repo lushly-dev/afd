@@ -13,12 +13,20 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { createDirectRegistry } from './direct-registry.js';
 import { defineCommand, zodToJsonSchema } from './schema.js';
-import { formatEnhancedValidationError, type ValidationError } from './validation.js';
+import {
+	formatEnhancedValidationError,
+	VALIDATION_ISSUE_CODES,
+	type ValidationError,
+} from './validation.js';
+
+const AFD_ISSUE_CODE_SET = new Set<string>(VALIDATION_ISSUE_CODES);
 
 interface VectorTest {
 	description: string;
 	input: unknown;
 	valid: boolean;
+	/** When true, issue `message` strings are compared byte for byte; otherwise wording is advisory. */
+	exactMessage?: boolean;
 	data?: unknown;
 	error?: {
 		code: string;
@@ -55,20 +63,28 @@ const generator = (await import(new URL('generate-validation.mjs', VECTORS_DIR).
 const cases = new Map(generator.validationCases(z).map((testCase) => [testCase.id, testCase]));
 const server = { defineCommand, createDirectRegistry, success, zodToJsonSchema };
 
-/** Compare content without sibling/list order, retaining duplicate issues and omitted lists. */
+/** Compare content without sibling/list order, retaining duplicate issues and omitted lists.
+ *  Per spec/validation.md, issue messages are advisory unless a vector sets `exactMessage: true`. */
 function normalizeCase(vector: VectorCase): VectorCase {
 	return {
 		...vector,
 		tests: vector.tests.map((test) => {
 			if (!test.error) return test;
 			const { details } = test.error;
+			const includeMessage = test.exactMessage === true;
+			const project = (issue: ValidationError): ValidationError => ({
+				path: issue.path,
+				code: issue.code,
+				...(Object.hasOwn(issue, 'expected') ? { expected: issue.expected } : {}),
+				message: includeMessage ? issue.message : '',
+			});
 			const identity = (issue: ValidationError) =>
 				JSON.stringify([
 					issue.path,
 					issue.code,
 					Object.hasOwn(issue, 'expected'),
 					issue.expected,
-					issue.message,
+					includeMessage ? issue.message : '',
 				]);
 			return {
 				...test,
@@ -78,7 +94,9 @@ function normalizeCase(vector: VectorCase): VectorCase {
 					suggestion: '',
 					details: {
 						...details,
-						errors: [...details.errors].sort((a, b) => identity(a).localeCompare(identity(b))),
+						errors: details.errors
+							.map(project)
+							.sort((a, b) => identity(a).localeCompare(identity(b))),
 						...(details.expectedFields === undefined
 							? {}
 							: { expectedFields: [...details.expectedFields].sort() }),
@@ -99,6 +117,10 @@ function assertSuggestions(vector: VectorCase): void {
 	for (const test of vector.tests) {
 		if (!test.error) continue;
 		const { errors, ...fields } = test.error.details;
+		for (const issue of errors) {
+			expect(AFD_ISSUE_CODE_SET.has(issue.code), `${vector.id}: ${issue.code}`).toBe(true);
+			expect(issue.message.length, `${vector.id}: empty message`).toBeGreaterThan(0);
+		}
 		expect(test.error.suggestion).toBe(formatEnhancedValidationError(errors, fields));
 	}
 }

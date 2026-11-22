@@ -268,6 +268,11 @@ const HOST_IMPORTS =
  *   `JOURNAL_RESULT_UNSERIALIZABLE` entry in `journal.ts` bring the tool-surface bundle on `main`
  *   at `b77e8674` to 79,467 bytes (raised 79,200 → 79,700); the host, approval, and every-export
  *   bundles stay within their ceilings.
+ *   AFD validation issue code mapping (#1734, under D115): `VALIDATION_ISSUE_CODES` and
+ *   `mapZodIssueCode` in `validation.ts` add the 9-code normative catalog to `formatZodIssue`,
+ *   bringing the host, approval, and tool-surface bundles on `main` at `e28d5629` to 43,852 /
+ *   57,532 / 79,726 bytes (raised 43,700 → 44,000, 57,400 → 57,700, 79,700 → 79,900); every-export
+ *   stays within 119,500.
  * - 48.0 KB for a host that also imports `createApprovalMiddleware`.
  * - 68.6 KB for a host that also imports `createDirectToolSurface`: the router, the tool
  *   list, the meta-tools, `lazy-tools` and `bootstrap/`.
@@ -280,17 +285,17 @@ const DIRECT_BUDGETS = [
 	{
 		what: 'a host that imports the registry, the journal and defineCommand',
 		imports: HOST_IMPORTS,
-		bytes: 43_700,
+		bytes: 44_000,
 	},
 	{
 		what: 'the same host with the approval middleware',
 		imports: `${HOST_IMPORTS}, createApprovalMiddleware`,
-		bytes: 57_400,
+		bytes: 57_700,
 	},
 	{
 		what: 'a host with the tool surface',
 		imports: `${HOST_IMPORTS}, createDirectToolSurface`,
-		bytes: 79_700,
+		bytes: 79_900,
 	},
 	{ what: 'every export', imports: undefined, bytes: 119_500 },
 ];

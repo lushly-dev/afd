@@ -19,6 +19,7 @@ export const testFiles = [
 	'scripts/check-file-size.test.mjs',
 	'scripts/check-portability.test.mjs',
 	'scripts/check-doc-lines.test.mjs',
+	'scripts/check-vector-drift.test.mjs',
 	'scripts/gate-discipline.test.mjs',
 	'scripts/check-versions.test.mjs',
 	'scripts/repository-contract.test.mjs',

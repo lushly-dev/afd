@@ -169,12 +169,26 @@ TEST_CASE("error_codes is the shared catalog in spec/vectors/error-codes.json") 
 
 namespace {
 
-std::vector<std::string> validation_multiset(const afd::Json& values, bool issues = false) {
+bool is_afd_validation_issue_code(std::string_view code) {
+    static constexpr std::string_view catalog[] = {
+        "invalid_type",   "invalid_value", "too_small",       "too_big", "unrecognized_keys",
+        "invalid_format", "invalid_union", "not_multiple_of", "custom",
+    };
+    for (const auto allowed : catalog) {
+        if (code == allowed) {
+            return true;
+        }
+    }
+    return false;
+}
+
+std::vector<std::string> validation_multiset(const afd::Json& values, bool issues = false,
+                                             bool exact_message = false) {
     std::vector<std::string> entries;
     for (const auto& value : values) {
         afd::Json projected = value;
-        if (issues) {
-            projected.erase("message"); // wording is advisory; path/code/expected are normative
+        if (issues && !exact_message) {
+            projected.erase("message"); // wording is advisory unless exactMessage is true
         }
         entries.push_back(projected.dump());
     }
@@ -251,8 +265,16 @@ TEST_CASE("command validation matches every supported shared validation vector")
             CHECK(actual.at("message") == expected.at("message"));
             const auto& details = actual.at("details");
             const auto& wanted = expected.at("details");
-            CHECK(validation_multiset(details.at("errors"), true) ==
-                  validation_multiset(wanted.at("errors"), true));
+            const bool exact_message = test.value("exactMessage", false);
+            for (const auto& issue : details.at("errors")) {
+                const auto code = issue.at("code").get<std::string>();
+                CHECK_MESSAGE(is_afd_validation_issue_code(code),
+                              "issue code outside AFD catalog: " << code);
+                const auto message = issue.at("message").get<std::string>();
+                CHECK_MESSAGE(!message.empty(), "issue message must be non-empty");
+            }
+            CHECK(validation_multiset(details.at("errors"), true, exact_message) ==
+                  validation_multiset(wanted.at("errors"), true, exact_message));
             for (const char* field : {"expectedFields", "unexpectedFields", "missingFields"}) {
                 REQUIRE(details.contains(field) == wanted.contains(field));
                 if (wanted.contains(field)) {

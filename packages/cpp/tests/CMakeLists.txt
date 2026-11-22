@@ -16,6 +16,7 @@ add_executable(
     contexts_test.cpp
     direct_client_test.cpp
     dispatch_vectors_test.cpp
+    execution_controls_vectors_test.cpp
     handoff_test.cpp
     helpers_test.cpp
     journal_context_cap_vectors_test.cpp

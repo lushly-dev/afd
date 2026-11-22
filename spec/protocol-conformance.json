@@ -1,0 +1,440 @@
+{
+	"description": "Shared AFD protocol conformance cases (spec/protocol-conformance.md; #1739): discovery, exposure and D4 hiding, batch, pipe, contexts (both MCP eras), and schema validation of every result against spec/schema/{result,batch,pipeline,stream}.json.",
+	"schemas": {
+		"default": "spec/schema/result.json",
+		"afd-batch": "spec/schema/batch.json",
+		"afd-pipe": "spec/schema/pipeline.json",
+		"stream": "spec/schema/stream.json"
+	},
+	"streamSupport": {
+		"typescript": "HTTP SSE /stream/<command> validated against spec/schema/stream.json",
+		"python": "not exposed on the stdio todo backend",
+		"rust": "not exposed on the stdio todo backend",
+		"cpp": "not exposed on the stdio todo backend"
+	},
+	"streamCases": [
+		{
+			"name": "stream_todo_list_sse",
+			"description": "HTTP SSE /stream/todo-list emits StreamChunk frames matching spec/schema/stream.json and terminates with a complete chunk",
+			"method": "POST",
+			"path": "/stream/todo-list",
+			"input": {},
+			"implementedBy": ["typescript"],
+			"expect": {
+				"status": 200,
+				"minChunks": 1,
+				"terminalType": "complete"
+			}
+		}
+	],
+	"tests": [
+		{
+			"name": "discover_lists_exposed_commands",
+			"description": "afd-discover lists exposed commands and omits meta-tools",
+			"setup": [],
+			"command": "afd-discover",
+			"input": {},
+			"expect": {
+				"success": true,
+				"data.total": { "exists": true },
+				"data.commands.0.name": { "exists": true }
+			}
+		},
+		{
+			"name": "discover_search_filters",
+			"description": "afd-discover filters commands by search term",
+			"setup": [],
+			"command": "afd-discover",
+			"input": { "search": "create" },
+			"expect": {
+				"success": true,
+				"data.commands.0.name": { "exists": true }
+			}
+		},
+		{
+			"name": "discover_hides_private_command_d4",
+			"description": "D4: afd-discover never reveals a command whose expose.mcp is false",
+			"setup": [],
+			"command": "afd-discover",
+			"input": { "search": "todo-internal-ping" },
+			"expect": {
+				"success": true,
+				"data.commands.length": 0
+			}
+		},
+		{
+			"name": "detail_exposed_command",
+			"description": "afd-detail returns metadata and inputSchema for an exposed command",
+			"setup": [],
+			"command": "afd-detail",
+			"input": { "command": "todo-create" },
+			"expect": {
+				"success": true,
+				"data.0.name": "todo-create",
+				"data.0.found": true,
+				"data.0.inputSchema": { "exists": true }
+			}
+		},
+		{
+			"name": "detail_unknown_command",
+			"description": "afd-detail reports found: false and COMMAND_NOT_FOUND for an unknown name",
+			"setup": [],
+			"command": "afd-detail",
+			"input": { "command": "todo-does-not-exist" },
+			"expect": {
+				"success": true,
+				"data.0.found": false,
+				"data.0.error.code": "COMMAND_NOT_FOUND"
+			}
+		},
+		{
+			"name": "detail_private_command_hidden_d4",
+			"description": "D4: afd-detail answers a private command identically to an unknown one",
+			"setup": [],
+			"command": "afd-detail",
+			"input": { "command": "todo-internal-ping" },
+			"expect": {
+				"success": true,
+				"data.0.found": false,
+				"data.0.error.code": "COMMAND_NOT_FOUND"
+			}
+		},
+		{
+			"name": "call_via_afd_call_exposed",
+			"description": "afd-call invokes an exposed command and returns a valid CommandResult",
+			"setup": [],
+			"command": "afd-call",
+			"input": { "command": "todo-create", "input": { "title": "Via afd-call" } },
+			"expect": {
+				"success": true,
+				"data.title": "Via afd-call"
+			}
+		},
+		{
+			"name": "call_unknown_tool_direct",
+			"description": "Direct tools/call for an unknown tool returns COMMAND_NOT_FOUND with a suggestion",
+			"setup": [],
+			"command": "todo-does-not-exist",
+			"input": {},
+			"expect": {
+				"success": false,
+				"error.code": "COMMAND_NOT_FOUND",
+				"error.suggestion": { "exists": true }
+			}
+		},
+		{
+			"name": "call_private_tool_direct_d4",
+			"description": "D4: direct tools/call for an unexposed command returns COMMAND_NOT_FOUND",
+			"setup": [],
+			"command": "todo-internal-ping",
+			"input": {},
+			"expect": {
+				"success": false,
+				"error.code": "COMMAND_NOT_FOUND",
+				"error.suggestion": { "exists": true }
+			}
+		},
+		{
+			"name": "call_unknown_via_afd_call",
+			"description": "afd-call for an unknown command returns COMMAND_NOT_FOUND",
+			"setup": [],
+			"command": "afd-call",
+			"input": { "command": "todo-does-not-exist", "input": {} },
+			"expect": {
+				"success": false,
+				"error.code": "COMMAND_NOT_FOUND",
+				"error.suggestion": { "exists": true }
+			}
+		},
+		{
+			"name": "call_private_via_afd_call_d4",
+			"description": "D4: afd-call for an unexposed command returns COMMAND_NOT_FOUND",
+			"setup": [],
+			"command": "afd-call",
+			"input": { "command": "todo-internal-ping", "input": {} },
+			"expect": {
+				"success": false,
+				"error.code": "COMMAND_NOT_FOUND",
+				"error.suggestion": { "exists": true }
+			}
+		},
+		{
+			"name": "batch_multi_command_success",
+			"description": "afd-batch executes multiple commands and returns a BatchResult matching spec/schema/batch.json",
+			"setup": [],
+			"command": "afd-batch",
+			"input": {
+				"commands": [
+					{ "id": "c1", "command": "todo-create", "input": { "title": "Batch one" } },
+					{ "id": "c2", "command": "todo-list", "input": {} }
+				]
+			},
+			"expect": {
+				"success": true,
+				"summary.total": 2,
+				"summary.successCount": 2,
+				"summary.failureCount": 0,
+				"summary.skippedCount": 0,
+				"results.0.id": "c1",
+				"results.0.result.success": true,
+				"results.0.result.data.title": "Batch one",
+				"results.1.id": "c2",
+				"results.1.result.success": true,
+				"results.1.result.data.total": 1
+			}
+		},
+		{
+			"name": "batch_partial_failure",
+			"description": "afd-batch reports partial success when one item fails",
+			"setup": [],
+			"command": "afd-batch",
+			"input": {
+				"commands": [
+					{ "command": "todo-create", "input": { "title": "Batch kept" } },
+					{ "command": "todo-get", "input": { "id": "missing-id" } }
+				]
+			},
+			"expect": {
+				"success": true,
+				"summary.total": 2,
+				"summary.successCount": 1,
+				"summary.failureCount": 1,
+				"summary.skippedCount": 0,
+				"results.0.result.success": true,
+				"results.1.result.success": false,
+				"results.1.result.error.code": "NOT_FOUND"
+			}
+		},
+		{
+			"name": "batch_stop_on_error",
+			"description": "afd-batch with stopOnError skips remaining items with COMMAND_SKIPPED",
+			"setup": [],
+			"command": "afd-batch",
+			"input": {
+				"commands": [
+					{ "command": "todo-get", "input": { "id": "missing-id" } },
+					{ "command": "todo-create", "input": { "title": "Skipped item" } }
+				],
+				"options": { "stopOnError": true }
+			},
+			"expect": {
+				"success": true,
+				"summary.total": 2,
+				"summary.successCount": 0,
+				"summary.failureCount": 1,
+				"summary.skippedCount": 1,
+				"results.0.result.error.code": "NOT_FOUND",
+				"results.1.result.error.code": "COMMAND_SKIPPED",
+				"results.1.durationMs": 0
+			}
+		},
+		{
+			"name": "batch_d4_unknown_and_private",
+			"description": "D4: unknown and unexposed commands inside afd-batch both fail with COMMAND_NOT_FOUND",
+			"setup": [],
+			"command": "afd-batch",
+			"input": {
+				"commands": [
+					{ "command": "todo-does-not-exist", "input": {} },
+					{ "command": "todo-internal-ping", "input": {} }
+				]
+			},
+			"expect": {
+				"success": true,
+				"summary.total": 2,
+				"summary.failureCount": 2,
+				"results.0.result.error.code": "COMMAND_NOT_FOUND",
+				"results.1.result.error.code": "COMMAND_NOT_FOUND"
+			}
+		},
+		{
+			"name": "batch_invalid_empty_envelope",
+			"description": "afd-batch rejects an empty commands array with INVALID_BATCH_REQUEST",
+			"setup": [],
+			"command": "afd-batch",
+			"input": { "commands": [] },
+			"expect": {
+				"success": false,
+				"error.code": "INVALID_BATCH_REQUEST",
+				"results.length": 0
+			}
+		},
+		{
+			"name": "pipe_variable_passing",
+			"description": "afd-pipe chains steps via $steps.<alias>.<field> and returns a PipelineResult matching spec/schema/pipeline.json",
+			"setup": [],
+			"command": "afd-pipe",
+			"input": {
+				"steps": [
+					{ "command": "todo-create", "as": "created", "input": { "title": "Piped item" } },
+					{ "command": "todo-get", "input": { "id": "$steps.created.id" } }
+				]
+			},
+			"expect": {
+				"metadata.totalSteps": 2,
+				"metadata.completedSteps": 2,
+				"steps.0.status": "success",
+				"steps.1.status": "success",
+				"data.title": "Piped item"
+			}
+		},
+		{
+			"name": "pipe_when_condition_skips",
+			"description": "afd-pipe skips a step whose when condition evaluates to false",
+			"setup": [],
+			"command": "afd-pipe",
+			"input": {
+				"steps": [
+					{ "command": "todo-create", "as": "created", "input": { "title": "Conditional" } },
+					{
+						"command": "todo-toggle",
+						"input": { "id": "$steps.created.id" },
+						"when": { "$eq": ["$steps.created.completed", true] }
+					}
+				]
+			},
+			"expect": {
+				"metadata.totalSteps": 2,
+				"metadata.completedSteps": 1,
+				"steps.0.status": "success",
+				"steps.1.status": "skipped",
+				"data.completed": false
+			}
+		},
+		{
+			"name": "pipe_failure_stops_later_steps",
+			"description": "afd-pipe stops on a failing step and skips subsequent steps",
+			"setup": [],
+			"command": "afd-pipe",
+			"input": {
+				"steps": [
+					{ "command": "todo-get", "input": { "id": "missing-id" } },
+					{ "command": "todo-create", "input": { "title": "Never runs" } }
+				]
+			},
+			"expect": {
+				"metadata.totalSteps": 2,
+				"metadata.completedSteps": 0,
+				"steps.0.status": "failure",
+				"steps.0.error.code": "NOT_FOUND",
+				"steps.1.status": "skipped"
+			}
+		},
+		{
+			"name": "pipe_d4_private_command",
+			"description": "D4: an unexposed command inside afd-pipe fails with COMMAND_NOT_FOUND",
+			"setup": [],
+			"command": "afd-pipe",
+			"input": {
+				"steps": [{ "command": "todo-internal-ping", "input": {} }]
+			},
+			"expect": {
+				"steps.0.status": "failure",
+				"steps.0.error.code": "COMMAND_NOT_FOUND"
+			}
+		},
+		{
+			"name": "pipe_invalid_envelope",
+			"description": "afd-pipe rejects a blank step command with INVALID_PIPELINE_REQUEST",
+			"setup": [],
+			"command": "afd-pipe",
+			"input": { "steps": [{ "command": " " }] },
+			"expect": {
+				"steps.0.index": -1,
+				"steps.0.status": "failure",
+				"steps.0.error.code": "INVALID_PIPELINE_REQUEST"
+			}
+		},
+		{
+			"name": "context_list_configured",
+			"description": "afd-context-list returns the server's configured contexts in both MCP eras",
+			"setup": [],
+			"command": "afd-context-list",
+			"input": {},
+			"expect": {
+				"success": true,
+				"data.contexts.length": 2
+			}
+		},
+		{
+			"name": "context_legacy_enter_allows_read",
+			"description": "Legacy era: entering todo-reading allows todo-list on the session",
+			"era": "legacy",
+			"setup": [{ "command": "afd-context-enter", "input": { "context": "todo-reading" } }],
+			"command": "todo-list",
+			"input": {},
+			"expect": {
+				"success": true,
+				"data.total": 0
+			},
+			"then": {
+				"command": "afd-context-exit",
+				"input": {},
+				"expect": { "success": true }
+			}
+		},
+		{
+			"name": "context_legacy_enter_blocks_edit",
+			"description": "Legacy era: entering todo-reading blocks todo-create with COMMAND_NOT_IN_CONTEXT",
+			"era": "legacy",
+			"setup": [{ "command": "afd-context-enter", "input": { "context": "todo-reading" } }],
+			"command": "todo-create",
+			"input": { "title": "Blocked in reading" },
+			"expect": {
+				"success": false,
+				"error.code": "COMMAND_NOT_IN_CONTEXT"
+			},
+			"then": {
+				"command": "afd-context-exit",
+				"input": {},
+				"expect": { "success": true }
+			}
+		},
+		{
+			"name": "context_legacy_unknown_context",
+			"description": "Legacy era: entering an unknown context returns CONTEXT_NOT_FOUND",
+			"era": "legacy",
+			"setup": [],
+			"command": "afd-context-enter",
+			"input": { "context": "nonexistent-context" },
+			"expect": {
+				"success": false,
+				"error.code": "CONTEXT_NOT_FOUND"
+			}
+		},
+		{
+			"name": "context_modern_meta_allows_read",
+			"description": "Modern era: _meta[\"dev.afd/context\"]=\"todo-reading\" allows todo-list statelessly",
+			"era": "modern",
+			"setup": [],
+			"command": "todo-list",
+			"input": {},
+			"meta": { "dev.afd/context": "todo-reading" },
+			"expect": {
+				"success": true,
+				"data.total": 0
+			}
+		},
+		{
+			"name": "context_modern_meta_blocks_edit_statelessly",
+			"description": "Modern era: _meta[\"dev.afd/context\"]=\"todo-reading\" blocks todo-create without leaking into the next request",
+			"era": "modern",
+			"setup": [],
+			"command": "todo-create",
+			"input": { "title": "Blocked in reading" },
+			"meta": { "dev.afd/context": "todo-reading" },
+			"expect": {
+				"success": false,
+				"error.code": "COMMAND_NOT_IN_CONTEXT"
+			},
+			"then": {
+				"command": "todo-create",
+				"input": { "title": "Stateless ok" },
+				"expect": {
+					"success": true,
+					"data.title": "Stateless ok"
+				}
+			}
+		}
+	]
+}

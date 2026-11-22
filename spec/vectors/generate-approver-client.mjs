@@ -438,11 +438,13 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
 	const core = await import('../../packages/core/dist/index.js');
 	const { canonicalJson } = await import('../../packages/core/dist/canonical-json.js');
 	const vectors = approverClientVectors(core.approvalDisplay, canonicalJson);
-	writeFileSync(
-		new URL('./approver-client.json', import.meta.url),
-		`${JSON.stringify(vectors, null, '\t')}\n`
-	);
-	console.log(
-		`Wrote ${vectors.display.cases.length} display cases and ${vectors.carrier.cases.length} carrier cases`
-	);
+	const json = `${JSON.stringify(vectors, null, '\t')}\n`;
+	if (process.argv.includes('--stdout')) {
+		process.stdout.write(json);
+	} else {
+		writeFileSync(new URL('./approver-client.json', import.meta.url), json);
+		console.log(
+			`Wrote ${vectors.display.cases.length} display cases and ${vectors.carrier.cases.length} carrier cases`
+		);
+	}
 }

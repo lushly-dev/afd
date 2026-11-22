@@ -5,13 +5,36 @@ import {
 	formatEnhancedValidationError,
 	formatValidationErrors,
 	isValid,
+	mapZodIssueCode,
 	optional,
+	VALIDATION_ISSUE_CODES,
 	ValidationException,
 	validateInput,
 	validateInputEnhanced,
 	validateOrThrow,
 	withDefault,
 } from './validation.js';
+
+describe('AFD validation issue codes', () => {
+	it('maps every known Zod issue code into AFD VALIDATION_ISSUE_CODES', () => {
+		for (const code of VALIDATION_ISSUE_CODES) {
+			expect(mapZodIssueCode(code)).toBe(code);
+		}
+	});
+
+	it('maps unknown or future Zod issue codes to custom instead of leaking them', () => {
+		expect(mapZodIssueCode('invalid_key')).toBe('custom');
+		expect(mapZodIssueCode('invalid_element')).toBe('custom');
+		expect(mapZodIssueCode('future_zod_code')).toBe('custom');
+	});
+
+	it('ignores Object.prototype keys instead of returning inherited methods', () => {
+		expect(mapZodIssueCode('constructor')).toBe('custom');
+		expect(mapZodIssueCode('toString')).toBe('custom');
+		expect(mapZodIssueCode('valueOf')).toBe('custom');
+		expect(mapZodIssueCode('__proto__')).toBe('custom');
+	});
+});
 
 describe('validateInput', () => {
 	const schema = z.object({

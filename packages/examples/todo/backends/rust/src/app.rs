@@ -5,9 +5,12 @@
 use std::sync::Arc;
 
 use afd::{
-    create_approval_middleware, ApprovalMiddlewareOptions, ApprovalRelay, CommandRegistry,
-    ContextConfig,
+    create_approval_middleware, success, ApprovalMiddlewareOptions, ApprovalRelay, CommandContext,
+    CommandDefinition, CommandHandler, CommandRegistry, CommandResult, ContextConfig,
+    ExposeOptions,
 };
+use async_trait::async_trait;
+use serde_json::{json, Value};
 
 use crate::commands::{register_commands, summarize_clear};
 use crate::store::TodoStore;
@@ -86,4 +89,34 @@ pub fn registry(
         registry.add_middleware(create_approval_middleware(options)?);
     }
     Ok(registry)
+}
+
+struct InternalPing;
+
+#[async_trait]
+impl CommandHandler for InternalPing {
+    async fn execute(&self, _input: Value, _context: CommandContext) -> CommandResult<Value> {
+        success(json!({ "pong": true }))
+    }
+}
+
+/// Register the private `todo-internal-ping` command (not exposed to MCP) used by the shared
+/// protocol conformance suite (`spec/protocol-conformance.json`) to verify D4 hiding.
+pub fn register_protocol_conformance_command(registry: &CommandRegistry) -> Result<(), String> {
+    let command = CommandDefinition::new(
+        "todo-internal-ping",
+        "Private internal probe not exposed to MCP",
+        vec![],
+        InternalPing,
+    )
+    .with_expose(ExposeOptions {
+        palette: false,
+        mcp: false,
+        agent: true,
+        cli: false,
+        apps: false,
+    });
+    registry
+        .register(command)
+        .map_err(|error| error.to_string())
 }

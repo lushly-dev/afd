@@ -80,42 +80,50 @@ Each entry of `details.errors` has these fields:
 | Field | Value |
 | --- | --- |
 | `path` | Object keys and array indices joined with `.`, for example `filter.tags.1`. The whole input is `(root)`. Keys are not escaped. |
-| `code` | One of the Zod issue codes below. |
-| `expected` | Present only when `code` is `invalid_type` (see below). |
-| `message` | Human-readable text. Implementations should use the TypeScript wording below. |
+| `code` | One of AFD's nine normative validation issue codes below. |
+| `expected` | Present only when `code` is `invalid_type`, using AFD's `expected` vocabulary below. |
+| `message` | Non-empty human-readable text. Wording is advisory and is not compared byte for byte across languages unless a vector explicitly pins `exactMessage: true`. |
 
-| Code | Raised by | TypeScript `message` |
-| --- | --- | --- |
-| `invalid_type` | A value of the wrong JSON type, or an absent required property | `Invalid input: expected <expected>, received <received>` |
-| `invalid_value` | `enum` or `const`, whatever the value's type | `Invalid option: expected one of "a"\|"b"`, or `Invalid input: expected "a"` for a single value |
-| `too_small` / `too_big` | `minLength`/`maxLength` | `Too small: expected string to have >=N characters` / `Too big: expected string to have <=N characters` |
-| `too_small` / `too_big` | `minItems`/`maxItems` | `Too small: expected array to have >=N items` / `Too big: expected array to have <=N items` |
-| `too_small` / `too_big` | `minimum`, `exclusiveMinimum` / `maximum`, `exclusiveMaximum` | `Too small: expected number to be >=N` (`>N` when exclusive) / `Too big: expected number to be <=N` (`<N`) |
-| `unrecognized_keys` | `additionalProperties: false` | `Unrecognized key: "a"` / `Unrecognized keys: "a", "b"` |
-| `invalid_format` | `pattern`, `format` | `Invalid string: must match pattern /<pattern>/`; for a format, its own text such as `Invalid email address` |
-| `invalid_union` | `anyOf`, `oneOf`, or a `type` list with more than one non-null type | `Invalid input` |
-| `not_multiple_of` | `multipleOf` | `Invalid number: must be a multiple of N` |
+#### AFD validation issue codes
 
-`expected` and `received` in an `invalid_type` issue:
-- `expected` is the schema's `type`: `string`, `number`, `boolean`, `object`, `array` or `null`.
-- For `integer`, `expected` is `int` when the value is a number with a fraction, and `number` for
+AFD owns its own closed validation issue code vocabulary. Implementations backed by a third-party
+validator (such as Zod in TypeScript or Pydantic in Python) **MUST** map library-specific codes
+explicitly into this catalog rather than passing raw library issue codes onto the wire; any
+unmapped or custom refinement code maps to `custom`.
+
+| AFD `code` | Raised by (JSON Schema) | Zod mapping | Advisory message guidance |
+| --- | --- | --- | --- |
+| `invalid_type` | A value of the wrong JSON type, or an absent required property | `invalid_type` | `Invalid input: expected <expected>, received <received>` |
+| `invalid_value` | `enum` or `const`, whatever the value's type | `invalid_value` | `Invalid option: expected one of "a"\|"b"`, or `Invalid input: expected "a"` for a single value |
+| `too_small` | `minLength`, `minItems`, `minimum`, `exclusiveMinimum` | `too_small` | `Too small: expected <kind> to ...` |
+| `too_big` | `maxLength`, `maxItems`, `maximum`, `exclusiveMaximum` | `too_big` | `Too big: expected <kind> to ...` |
+| `unrecognized_keys` | `additionalProperties: false` | `unrecognized_keys` | `Unrecognized key: "a"` / `Unrecognized keys: "a", "b"` |
+| `invalid_format` | `pattern`, `format` | `invalid_format` | `Invalid string: must match pattern /<pattern>/`, or format-specific wording |
+| `invalid_union` | `anyOf`, `oneOf`, or a `type` list with more than one non-null type | `invalid_union` | `Invalid input` |
+| `not_multiple_of` | `multipleOf` | `not_multiple_of` | `Invalid number: must be a multiple of N` |
+| `custom` | Programmatic refinement or any validator-specific code outside the eight schema codes above | `custom` (and default fallback for any unmapped Zod code) | Human-readable explanation of the constraint |
+
+AFD's `expected` vocabulary (for `invalid_type` issues):
+- The JSON Schema `type`: `string`, `number`, `boolean`, `object`, `array` or `null`.
+- For `integer`: `int` when the value is a number with a fractional part, and `number` for
   anything else, including an absent property.
-- For a `type` list of one type plus `"null"`, `expected` is that one type, for example `string`
-  for `["string", "null"]`.
-- For `not: {}`, `expected` is `never`.
-- For an absent required property with no type constraint (including `{}`, `true`, or no
-  entry in `properties`), `expected` is `nonoptional`, matching Zod `z.unknown().nonoptional()`.
-- `received` names the value's JSON type: `undefined` for an absent property, then `null`,
-  `boolean`, `number`, `string`, `array` or `object`.
+- For a `type` list of one type plus `"null"`: that one type, for example `string` for
+  `["string", "null"]`.
+- For `not: {}`: `never`.
+- For an absent required property with no type constraint (including `{}`, `true`, or no entry in
+  `properties`): `nonoptional`.
+- When reporting the received JSON type in advisory messages, use `undefined` for an absent
+  property, otherwise `null`, `boolean`, `number`, `string`, `array` or `object`.
 
-An absent required property is reported the way its schema reports a value of the wrong type, with
-`received undefined`:
+An absent required property is reported the way its schema reports a value of the wrong type:
 - `invalid_value` for an `enum` or `const`;
 - `invalid_union` for a `type` list with more than one non-null type;
 - `invalid_type` otherwise.
 
-Validation reports every issue it finds; neither `details.errors` nor the suggestion has an issue
-cap. The following traversal rules apply:
+Validation reports every issue it finds up to the configured validation issue cap
+([`execution-controls.md#validation-issue-cap`](./execution-controls.md#validation-issue-cap),
+default `100` issues; truncation is never silent and sets `details.truncated: true` and
+`details.limit`). The following traversal rules apply:
 
 1. **Object:** property issues come before the object's own `unrecognized_keys` issue. Sibling
    property issues may follow declaration order or sorted key order; source order is not required.
@@ -174,9 +182,9 @@ sets these units.
   - A combining mark or a zero-width joiner is a code point of its own. So `e` followed by U+0301 is
     two code points, and a ZWJ family emoji is five.
   - UTF-8 bytes are not counted. `日本` is two code points.
-- **TypeScript requires Zod 4.5 or later.** `@lushly-dev/afd-server` requires `zod` `^4.5.4`,
-  whose string checks count code points. Zod 4.0 to 4.4 is outside the supported contract; there is
-  no TypeScript length-unit exception in the vectors.
+- **Unicode code points are mandatory across every implementation.** There are no language
+  length-unit exceptions in the vectors. (Implementation note: TypeScript satisfies this by
+  depending on a Zod release whose string length checks count code points rather than UTF-16 units.)
 - **Out of scope:** lone surrogates, which are not Unicode scalar values and cannot be represented
   in UTF-8 strings.
 - **Arrays:** `minItems` and `maxItems` count elements.
@@ -325,9 +333,9 @@ An implementation checks each case like this:
       duplicates and whether each list is present.
    4. The suggestion equals the [layout](#suggestion) built from the implementation's own
       `details`.
-   5. Issue messages should also match. The suggestion may differ from the vector when sibling
-      issues or field lists have a different order; it must still follow the layout built from the
-      implementation's own details. TypeScript's reference vectors retain its original ordering.
+   5. Every issue's `code` must belong to AFD's nine-code catalog, and its `message` must be a
+      non-empty string. Issue `message` text is **not** compared byte for byte across languages
+      unless a vector test explicitly sets `exactMessage: true`.
 
 There are no language exceptions for the supported contract.
 
@@ -352,8 +360,13 @@ This records source coverage, not publication of those implementations.
 2. A command advertising `"properties": {}` removes undeclared keys. An empty parameter list does
    not bypass that advertised schema. An object schema with neither `properties` nor
    `additionalProperties` keeps its keys.
-3. All issues are reported, including in suggestions, without a silent issue cap.
+3. All issues up to `maxValidationIssues` (default `100`, see
+   [`execution-controls.md#validation-issue-cap`](./execution-controls.md#validation-issue-cap)) are
+   reported; truncation past the cap is never silent (`details.truncated: true` and an explicit note
+   in `suggestion`). Legacy `vectors/validation.json` case `issue-count-uncapped` predates this cap
+   and remains frozen until the implementation follow-ups ([#2128](https://github.com/lushly-dev/afd/issues/2128)–[#2131](https://github.com/lushly-dev/afd/issues/2131))
+   land and regenerate it with a `Behaviour change:` changeset.
 4. A supported `format` with an unknown name is rejected at registration.
 5. A property with a default is optional even when listed in `required`.
-6. Supported TypeScript uses Zod 4.5 or later and counts code points; old Zod exception marks are
-   removed.
+6. All implementations count Unicode code points for `minLength` and `maxLength`; legacy length-unit
+   exceptions are removed.

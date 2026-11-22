@@ -19,12 +19,14 @@ import sys
 from collections.abc import Callable, Mapping
 from typing import Any, Literal
 
+from afd import ExposeOptions, success
 from afd.server import (
     CommandMiddleware,
     MCPServer,
     create_approval_middleware,
     create_server,
     default_middleware,
+    define_command,
 )
 
 from todo_backend.batch_commands import batch_commands
@@ -79,7 +81,19 @@ def create_todo_commands(store: Store, env: Env) -> list[Callable[..., Any]]:
     and the engine refuses a command that declares an approval policy without one
     (``APPROVAL_UNAVAILABLE``), so ``todo-clear`` is served without its policy: it runs for every
     caller, and ``_meta.approval`` does not advertise a hold the server does not make."""
-    return all_commands(store, held=resolve_approvals(env) == "agents")
+    commands = all_commands(store, held=resolve_approvals(env) == "agents")
+    if env.get("PROTOCOL_CONFORMANCE") == "1":
+
+        @define_command(
+            name="todo-internal-ping",
+            description="Private internal probe not exposed to MCP",
+            expose=ExposeOptions(mcp=False, agent=True),
+        )
+        async def internal_ping(input: Any) -> Any:
+            return success({"pong": True})
+
+        commands = [*commands, internal_ping]
+    return commands
 
 
 def resolve_approval_secret(env: Env) -> str | bytes:
