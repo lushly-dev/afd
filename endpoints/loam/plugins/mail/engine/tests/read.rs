@@ -60,7 +60,7 @@ struct Fixture {
     _directory: tempfile::TempDir,
     server: Server,
     engine: Arc<Engine>,
-    registry: CommandRegistry,
+    registry: Arc<CommandRegistry>,
     account: AccountRow,
 }
 

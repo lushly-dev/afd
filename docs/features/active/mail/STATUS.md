@@ -138,6 +138,10 @@ waits for Gmail has a line of its own.
 
 - F: The Loam plugin: the mount and the native app. In progress: its [specification](../../../../endpoints/loam/plugins/mail/docs/plugin.spec.md) is reviewed and merged as [#1652](https://github.com/lushly-dev/afd/pull/1652), not approved: the owner's answers to its Q1 to Q5 are open. Its pull requests get their own lines when each starts (its section 18). The native app waits for Loam's phase 5 (D132).
 
+- F0: `test-doubles` Cargo feature, file-backed sign-ins, loopback endpoints, scripted servers in crate, `loam-mail test-world --seed mail-f-base`, banner/status/version, and `loam-plugins.yml` checks ([#1978](https://github.com/lushly-dev/afd/issues/1978)). In progress as [#2151](https://github.com/lushly-dev/afd/pull/2151).
+
+- F1: approver tokens (migration 18, `mail-token-create` `role`/`--out`/summary/`lmail_approver_`, `mail-token-list` `role`, `mail-status` `tokens`), `McpServer::with_approver`, non-approver `approvalToken` stripping, and AFD bootstrap commands (`afd-help`, `afd-docs`, `afd-schema`) ([#1979](https://github.com/lushly-dev/afd/issues/1979)). In progress as [#2151](https://github.com/lushly-dev/afd/pull/2151).
+
 - G: Composition with a connected Umbel. Not started.
 
 ## Verification
@@ -147,6 +151,7 @@ the top of its phase's list, and a phase that starts adds its heading above the 
 
 ### Verified: phase F
 
+- 2026-11-22 UTC for steps F0 and F1 ([#1978](https://github.com/lushly-dev/afd/issues/1978), [#1979](https://github.com/lushly-dev/afd/issues/1979)), on `t3/mail-test-world-approver-tokens` from `main` at `da52418b`: `cargo fmt --check`, `cargo clippy --locked --all-targets -- -D warnings` and `cargo test --no-fail-fast --locked` passed both without and with `--features test-doubles` on Windows with Rust 1.100.0; `cargo check --locked --release --features test-doubles` was watched failing with `compile_error!` and the release build's `--version` omitted `test-doubles`; Unix `0600` `--out` file creation and mode checks run in Linux CI (`loam-plugins.yml`). Nothing live was run.
 - 2026-11-19 UTC for step F's specification, on `lush/mail-f-spec` with `main` at `5a631f89` merged in: its five scenario files parsed and validated by `afd scenario validate`, the dry-run validation and the coverage report (29 steps, and 35 after the second revision); nothing built or run.
 
 ### Verified: phase E
@@ -232,6 +237,7 @@ A new row goes at the end of its area's table. The last table holds every area's
 
 | Date | Raised by | Follow-up | Status |
 | --- | --- | --- | --- |
+| 2026-11-22 UTC | Step F1 ([#1979](https://github.com/lushly-dev/afd/issues/1979)) | `plugin.spec.md` section 20 item 6 (`ApprovalMiddlewareOptions` `include_token` default reaching non-approver MCP callers) | Tracked by [#1665](https://github.com/lushly-dev/afd/issues/1665) (`status:in-progress`); F1 strips `details.approvalToken` in engine middleware |
 
 ### Follow-ups: phase G, composition with a connected Umbel
 
@@ -316,6 +322,7 @@ A session adds its row at the end of its area's table. The last table holds ever
 | 2026-11-19 | Step F's specification revised again | A focused re-review of `8c44d05c` found three new blockers, each checked against the code: previews now take the revision or digest the held call names, so what Loam shows is what the token binds; a test-only credential source lets Loam's Linux desktop suite send through the real engine; previews declare their largest budget and targets are sized by their rendered preview. M39, M40 added. Not built. |
 | 2026-11-19 | Step F's specification, a third revision | A pass on `a2620b94` found three blockers, each checked against the code: the operation's preview form now shows the verb, its arguments, the query and the proposer it digests; a contract point asks phase 5 to show nothing when a preview fails; a `test-doubles` build runs the scripted servers as `loam-mail test-world` with endpoint and sign-in files, as a new pull request F0. Not built. |
 | 2026-11-19 | Step F's specification, a fourth revision | A confirming pass on `56172fb6` found one blocker, checked against the code: `loam-mail test-world` now makes an agent's token and an approver token as the person into `--out`, since the command line without a terminal cannot approve. Its improvements taken. Not built. |
+| 2026-11-22 UTC | Steps F0 and F1 ([#1978](https://github.com/lushly-dev/afd/issues/1978), [#1979](https://github.com/lushly-dev/afd/issues/1979)) | Implemented Step F0 (`test-doubles` Cargo feature, `compile_error!` in release, `LOAM_MAIL_TEST_SECRETS` / `LOAM_MAIL_TEST_ENDPOINTS` with strict loopback IP literals and both-or-neither guard, refusing HTTP poster when `http` is omitted, scripted IMAP/SMTP/HTTP doubles in crate with `received.jsonl`, `loam-mail test-world --seed mail-f-base`, banner/status/version markers, `loam-plugins.yml` and local suite checks; F-T14) and Step F1 (migration 18 `token.role`, `mail-token-create` `role`/`--out`/approver summary/`lmail_approver_`, `mail-token-list` `role`, `mail-status` `tokens`, canonical `is_approver` feeding `McpServer::with_approver` and non-approver `approvalToken` stripping middleware, AFD bootstrap commands `afd-help`/`afd-docs`/`afd-schema` with `rules.rs` exemption; F-T1 to F-T4, F-T13; `engine.spec.md` updated). |
 
 ### Sessions: phase G, composition with a connected Umbel
 

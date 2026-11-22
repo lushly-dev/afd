@@ -89,7 +89,7 @@ async fn serve(
     tokio::task::JoinHandle<Result<(), String>>,
     Forward,
 ) {
-    let registry = Arc::new(loam_mail::registry(engine).unwrap());
+    let registry = loam_mail::registry(engine).unwrap();
     let (stop, stopped) = tokio::sync::oneshot::channel::<()>();
     let server = tokio::spawn(loam_mail::serve::serve(
         Arc::clone(engine),
@@ -310,7 +310,7 @@ async fn a_call_to_a_server_stops_at_its_limit_on_either_route() {
             ..Limits::default()
         },
     );
-    let registry: Arc<CommandRegistry> = Arc::new(loam_mail::registry(&engine).unwrap());
+    let registry: Arc<CommandRegistry> = loam_mail::registry(&engine).unwrap();
     let agent = agent_token(&registry).await;
     let app = router(&registry, Arc::clone(&engine), 4321, "lmail_cli_test").unwrap();
     let worker = Worker::start(&engine);

@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use afd::{
     ApprovalDecision, ApprovalPolicy, CommandContext, CommandDefinition, CommandError,
-    CommandHandler, CommandParameter, CommandResult, failure, success,
+    CommandHandler, CommandParameter, CommandResult, JsonSchemaType, failure, success,
 };
 use async_trait::async_trait;
 use serde_json::json;
@@ -17,11 +17,14 @@ use sha2::{Digest, Sha256};
 
 use crate::commands::{command_line_only, store_failure};
 use crate::engine::Engine;
-use crate::store::{StoreError, TokenRow};
+use crate::store::{StoreError, TokenRole, TokenRow};
 
 /// What every agent's token starts with, so that one found in a file or a
 /// paste is known for what it is.
 pub const AGENT_PREFIX: &str = "lmail_agent_";
+
+/// What every approver token starts with (plugin.spec.md, section 4.1).
+pub const APPROVER_PREFIX: &str = "lmail_approver_";
 
 /// What the command line's own token starts with.
 pub const CLI_PREFIX: &str = "lmail_cli_";
@@ -78,6 +81,23 @@ fn name_field(input: &serde_json::Value) -> Result<String, Box<CommandError>> {
     Ok(name.to_string())
 }
 
+/// A token's role, checked: `"agent"` (the default) or `"approver"`.
+fn role_field(input: &serde_json::Value) -> Result<TokenRole, Box<CommandError>> {
+    match input.get("role") {
+        None | Some(serde_json::Value::Null) => Ok(TokenRole::Agent),
+        Some(serde_json::Value::String(role)) => TokenRole::parse(role).ok_or_else(|| {
+            Box::new(
+                CommandError::new("INVALID_INPUT", "`role` must be \"agent\" or \"approver\"")
+                    .with_suggestion("Use \"agent\" (the default) or \"approver\"."),
+            )
+        }),
+        Some(_) => Err(Box::new(
+            CommandError::new("INVALID_INPUT", "`role` must be \"agent\" or \"approver\"")
+                .with_suggestion("Use \"agent\" (the default) or \"approver\"."),
+        )),
+    }
+}
+
 /// Whether `id` has the shape of a token's id: `tok_` and 16 hex digits.
 fn plausible_id(id: &str) -> bool {
     id.strip_prefix("tok_")
@@ -111,9 +131,15 @@ pub fn approval_summary(command: &str, input: &serde_json::Value) -> Option<Stri
     match command {
         CREATE => {
             let name = name_field(input).ok()?;
-            Some(format!(
-                "Make a token named \"{name}\", for an agent to reach your mail over MCP while `loam-mail serve` runs"
-            ))
+            let role = role_field(input).ok()?;
+            match role {
+                TokenRole::Agent => Some(format!(
+                    "Make a token named \"{name}\", for an agent to reach your mail over MCP while `loam-mail serve` runs"
+                )),
+                TokenRole::Approver => Some(format!(
+                    "Make an approver token named \"{name}\". Whoever holds it can send mail, unsubscribe and approve agents' proposals from this computer, with no limit, while `loam-mail serve` runs and until you revoke it. The engine cannot check that you were asked: give it only to Loam, which asks you before each one."
+                )),
+            }
         }
         "mail-token-revoke" => {
             let id = id_field(input).ok()?;
@@ -147,8 +173,16 @@ impl CommandHandler for Create {
             Ok(name) => name,
             Err(error) => return failure(*error),
         };
+        let role = match role_field(&input) {
+            Ok(role) => role,
+            Err(error) => return failure(*error),
+        };
+        let prefix = match role {
+            TokenRole::Agent => AGENT_PREFIX,
+            TokenRole::Approver => APPROVER_PREFIX,
+        };
         let (id, secret) = match (random_hex(8), random_hex(32)) {
-            (Ok(id), Ok(secret)) => (format!("tok_{id}"), format!("{AGENT_PREFIX}{secret}")),
+            (Ok(id), Ok(secret)) => (format!("tok_{id}"), format!("{prefix}{secret}")),
             _ => {
                 return failure(CommandError::new(
                     "STORE_FAILED",
@@ -161,6 +195,7 @@ impl CommandHandler for Create {
             name: name.clone(),
             hash: hash(&secret),
             created_at: context.clock().now(),
+            role,
         };
         let engine = &self.engine;
         let made = engine.with_store(|store| {
@@ -175,6 +210,7 @@ impl CommandHandler for Create {
             Ok(true) => success(json!({
                 "token": id,
                 "name": name,
+                "role": role.as_str(),
                 // Shown this once: the store keeps its hash alone.
                 "secret": secret,
             })),
@@ -187,23 +223,34 @@ impl CommandHandler for Create {
     }
 }
 
-/// `mail-token-create`: makes a token for an agent and shows it once. A
-/// person's command.
+/// `mail-token-create`: makes a token for an agent or approver and shows it
+/// once. A person's command.
 #[must_use]
 pub fn create(engine: Arc<Engine>) -> CommandDefinition {
     CommandDefinition::new(
         CREATE,
-        "Make a token an agent presents to reach the mail over MCP",
-        vec![CommandParameter::required_string(
-            "name",
-            "A name for the token, such as the agent that will use it",
-        )],
+        "Make a token an agent or approver presents to reach the mail over MCP",
+        vec![
+            CommandParameter::required_string(
+                "name",
+                "A name for the token, such as the agent that will use it",
+            ),
+            CommandParameter {
+                name: "role".to_string(),
+                param_type: JsonSchemaType::String,
+                description: "The token's role: \"agent\" (default) or \"approver\"".to_string(),
+                required: false,
+                default: Some(json!("agent")),
+                enum_values: Some(vec![json!("agent"), json!("approver")]),
+                schema: None,
+            },
+        ],
         Create { engine },
     )
     .as_mutation()
     .with_confirm_prompt("Make a token for an agent to reach your mail over MCP")
     .with_approval(ApprovalPolicy::when(|input, _context| {
-        if name_field(input).is_ok() {
+        if name_field(input).is_ok() && role_field(input).is_ok() {
             ApprovalDecision::Required
         } else {
             ApprovalDecision::NotRequired
@@ -228,6 +275,7 @@ impl CommandHandler for List {
                 "tokens": tokens.iter().map(|token| json!({
                     "token": token.id,
                     "name": token.name,
+                    "role": token.role.as_str(),
                     "createdAt": token.created_at,
                 })).collect::<Vec<_>>(),
             })),
@@ -367,5 +415,40 @@ mod tests {
         let b = random_hex(32).unwrap();
         assert_eq!(a.len(), 64);
         assert_ne!(a, b);
+    }
+
+    #[test]
+    fn role_defaults_to_agent_and_rejects_unknown_values() {
+        assert_eq!(role_field(&json!({})).unwrap(), TokenRole::Agent);
+        assert_eq!(
+            role_field(&json!({ "role": null })).unwrap(),
+            TokenRole::Agent
+        );
+        assert_eq!(
+            role_field(&json!({ "role": "agent" })).unwrap(),
+            TokenRole::Agent
+        );
+        assert_eq!(
+            role_field(&json!({ "role": "approver" })).unwrap(),
+            TokenRole::Approver
+        );
+        for bad in [
+            json!({ "role": "admin" }),
+            json!({ "role": "" }),
+            json!({ "role": 1 }),
+            json!({ "role": true }),
+        ] {
+            assert!(role_field(&bad).is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn approver_summary_states_the_trust_boundary() {
+        let summary = approval_summary(CREATE, &json!({ "name": "loam", "role": "approver" }))
+            .expect("approver summary");
+        assert!(summary.contains("approver token named \"loam\""));
+        assert!(summary.contains("with no limit"));
+        assert!(summary.contains("The engine cannot check that you were asked"));
+        assert!(approval_summary(CREATE, &json!({ "name": "loam", "role": "unknown" })).is_none());
     }
 }

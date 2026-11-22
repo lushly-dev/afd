@@ -112,6 +112,7 @@ fn all_nine_record_types_ground_in_visible_text_and_subject_with_content_labels_
                 name: "triage-bot".to_string(),
                 hash: [1u8; 32],
                 created_at: 10,
+                role: loam_mail::store::TokenRole::Agent,
             })?;
             Ok("tok_0000000000000001".to_string())
         })

@@ -88,7 +88,7 @@ jobs:
     needs: scope
     if: needs.scope.outputs.mail == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 40
     defaults:
       run:
         working-directory: endpoints/loam/plugins/mail/engine
@@ -108,5 +108,29 @@ jobs:
         run: cargo fmt --check
       - name: Clippy
         run: cargo clippy --locked --all-targets -- -D warnings
+      - name: Clippy (test-doubles)
+        run: cargo clippy --locked --all-targets --features test-doubles -- -D warnings
       - name: Test
-        run: cargo test --locked
+        run: cargo test --no-fail-fast --locked
+      - name: Test (test-doubles)
+        run: cargo test --no-fail-fast --locked --features test-doubles
+      - name: Release build (no test-doubles)
+        run: |
+          cargo build --locked --release --bin loam-mail
+          version="$(target/release/loam-mail --version)"
+          echo "$version"
+          if echo "$version" | grep -q 'test-doubles'; then
+            echo "ERROR: release build must not include test-doubles" >&2
+            exit 1
+          fi
+      - name: Refuse test-doubles in release profile
+        run: |
+          if output="$(cargo check --locked --release --features test-doubles 2>&1)"; then
+            echo "ERROR: release profile compiled with test-doubles" >&2
+            exit 1
+          fi
+          if ! echo "$output" | grep -q 'must never be enabled in release builds'; then
+            echo "ERROR: release check failed for an unexpected reason:" >&2
+            echo "$output" >&2
+            exit 1
+          fi

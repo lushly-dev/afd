@@ -30,10 +30,11 @@ fn check_command(command: &CommandDefinition) -> Vec<String> {
         Some(ApprovalPolicy::Required | ApprovalPolicy::Conditional(_))
     );
 
-    if name
-        .strip_prefix(DOMAIN)
-        .and_then(|rest| rest.strip_prefix('-'))
-        .is_none_or(str::is_empty)
+    if !afd::AFD_BOOTSTRAP_COMMAND_NAMES.contains(&name.as_str())
+        && name
+            .strip_prefix(DOMAIN)
+            .and_then(|rest| rest.strip_prefix('-'))
+            .is_none_or(str::is_empty)
     {
         broken.push(format!("{name}: a command's name starts with `{DOMAIN}-`"));
     }

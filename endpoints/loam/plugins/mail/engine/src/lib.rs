@@ -15,10 +15,17 @@
 //! line's forwarding to a running server. The other commands arrive with the
 //! steps that follow.
 
+#[cfg(all(feature = "test-doubles", not(debug_assertions)))]
+compile_error!(
+    "the `test-doubles` feature is for debug/test builds only and must never be enabled in release builds"
+);
+
 pub mod changes;
 pub mod cli;
 pub mod commands;
 pub mod derive;
+#[cfg(feature = "test-doubles")]
+pub mod doubles;
 pub mod drafts;
 pub mod engine;
 pub mod fetch;
@@ -50,7 +57,7 @@ pub mod work;
 
 use std::sync::Arc;
 
-use afd::CommandRegistry;
+use afd::{ActorKind, CommandContext, CommandInterface, CommandRegistry};
 
 use crate::engine::Engine;
 
@@ -60,20 +67,54 @@ pub const PROGRAM: &str = "loam-mail";
 /// The domain every command of the engine is in.
 pub const DOMAIN: &str = "mail";
 
+/// Optional build features compiled into this binary (reported by `--version`).
+#[cfg(feature = "test-doubles")]
+pub const BUILD_FEATURES: &[&str] = &["test-doubles"];
+
+/// Optional build features compiled into this binary (reported by `--version`).
+#[cfg(not(feature = "test-doubles"))]
+pub const BUILD_FEATURES: &[&str] = &[];
+
 /// How long a person's approval stays good: within one run of the command
 /// line, whose key dies with it.
 const APPROVAL_TTL_MS: u64 = 30 * 60 * 1000;
 
-/// Builds the command registry of `engine`, checks it against
-/// [`rules::check`], and installs the approval middleware that holds a
-/// person's command until it is approved (the specification's section 3.5).
+/// Whether `context` is an approver caller over HTTP MCP (plugin.spec.md,
+/// sections 4.2 and 5.2): `interface == Mcp`, actor is `Agent` with a token id
+/// whose loaded role in `engine` is [`store::TokenRole::Approver`].
+///
+/// The same predicate feeds `McpServer::with_approver` and the middleware that
+/// strips `details.approvalToken` for non-approver MCP calls, so the two never
+/// disagree. Over stdio (`loam-mail mcp`) there is no actor id; on `/cli` the
+/// interface is `Cli`. Neither is ever an approver.
+#[must_use]
+pub fn is_approver(engine: &Engine, context: &CommandContext) -> bool {
+    if context.interface != Some(CommandInterface::Mcp) {
+        return false;
+    }
+    let Some(actor) = context.actor.as_ref() else {
+        return false;
+    };
+    if actor.kind != ActorKind::Agent {
+        return false;
+    }
+    let Some(id) = actor.id.as_deref() else {
+        return false;
+    };
+    engine.is_approver_token(id)
+}
+
+/// Builds the command registry of `engine`, registers AFD's bootstrap commands
+/// (`afd-help`, `afd-docs`, `afd-schema`), checks it against [`rules::check`],
+/// and installs the approval and safety middleware (the specification's section
+/// 3.5 and plugin.spec.md sections 5.2 and 12.1).
 ///
 /// # Errors
 /// Returns the broken rules, one per line, if a registered command breaks one
 /// or two commands share a name, or why the approval middleware could not be
 /// made. The engine refuses to start with such a registry.
-pub fn registry(engine: &Arc<Engine>) -> Result<CommandRegistry, String> {
-    let registry = CommandRegistry::new();
+pub fn registry(engine: &Arc<Engine>) -> Result<Arc<CommandRegistry>, String> {
+    let registry = Arc::new(CommandRegistry::new());
     // Commands are registered here, a step at a time.
     registry.register(commands::rebuild(Arc::clone(engine)))?;
     registry.register(commands::sync(Arc::clone(engine)))?;
@@ -126,10 +167,22 @@ pub fn registry(engine: &Arc<Engine>) -> Result<CommandRegistry, String> {
     registry.register(records::list(Arc::clone(engine)))?;
     registry.register(records::propose(Arc::clone(engine)))?;
     registry.register(records::withdraw(Arc::clone(engine)))?;
+    afd::register_bootstrap_commands(&registry)?;
     let broken = rules::check(&registry);
     if !broken.is_empty() {
         return Err(broken.join("\n"));
     }
+    install_middleware(&registry, engine)?;
+    Ok(registry)
+}
+
+/// Installs the engine's production middleware (pre-approval check, non-approver
+/// token stripping, approval gate, reply size limit) and journal recorder onto
+/// `registry`.
+///
+/// # Errors
+/// When the approval middleware cannot be created.
+pub fn install_middleware(registry: &CommandRegistry, engine: &Arc<Engine>) -> Result<(), String> {
     // An approval token lives only as long as the process that issued it: the
     // command line runs a command, asks, and retries in one process. The key
     // is made afresh each time and kept nowhere.
@@ -150,12 +203,41 @@ pub fn registry(engine: &Arc<Engine>) -> Result<CommandRegistry, String> {
             }),
     )?;
     registry.add_middleware(pre_approval_check(Arc::clone(engine)));
+    registry.add_middleware(strip_non_approver_token(Arc::clone(engine)));
     registry.add_middleware(gate);
     registry.add_middleware(reply_limit(Arc::clone(engine)));
     if let Some(home) = engine.home() {
-        registry.set_journal(journal::recorder(home, &registry, Arc::clone(engine)));
+        registry.set_journal(journal::recorder(home, registry, Arc::clone(engine)));
     }
-    Ok(registry)
+    Ok(())
+}
+
+/// Strips `details.approvalToken` and replaces the suggestion on `APPROVAL_REQUIRED`
+/// results returned over MCP to callers that are not approvers (plugin.spec.md,
+/// section 5.2, M37). The command line's route and approver clients keep the token.
+fn strip_non_approver_token(engine: Arc<engine::Engine>) -> afd::CommandMiddleware {
+    Arc::new(move |name, _input, context, next| {
+        let engine = Arc::clone(&engine);
+        let name = name.to_string();
+        let should_strip =
+            context.interface == Some(CommandInterface::Mcp) && !is_approver(&engine, &context);
+        Box::pin(async move {
+            let mut result = next().await;
+            if should_strip
+                && let Some(error) = result.error.as_mut()
+                && error.code == "APPROVAL_REQUIRED"
+            {
+                if let Some(details) = error.details.as_mut() {
+                    details.remove("approvalToken");
+                }
+                error.retryable = Some(false);
+                error.suggestion = Some(format!(
+                    "Only the person can do this: at the terminal with `{PROGRAM} {name}`, or in Loam, which shows them the preview and asks."
+                ));
+            }
+            result
+        })
+    })
 }
 
 /// Checks preview digests before the approval middleware holds a call, so a

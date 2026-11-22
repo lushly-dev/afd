@@ -600,7 +600,10 @@ mod tests {
                 .unwrap();
         }
         let store = Store::open(&home).unwrap();
-        assert_eq!(store.schema_version().unwrap(), 17);
+        assert_eq!(
+            store.schema_version().unwrap(),
+            u32::try_from(schema::MIGRATIONS.len()).unwrap()
+        );
 
         // Unknown record_type refused by CHECK.
         assert!(

@@ -8,11 +8,14 @@
 //! handover dot so tests can verify both retryable failures and
 //! `SEND_OUTCOME_UNKNOWN`.
 
-#![allow(dead_code, clippy::expect_used, clippy::unwrap_used)]
+#![allow(dead_code, missing_docs, clippy::expect_used, clippy::unwrap_used)]
 
+use std::io::Write;
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
+use sha2::{Digest, Sha256};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{TcpListener, TcpStream};
 
@@ -56,12 +59,58 @@ pub enum SmtpFault {
 }
 
 /// Shared state of the scripted SMTP server.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct SmtpWorld {
+    pub user: String,
+    pub password: String,
     pub received: Vec<ReceivedMail>,
     pub log: Vec<String>,
     pub fault: Option<SmtpFault>,
     pub connections: usize,
+    /// Optional path to a `received.jsonl` file appended on every received message.
+    pub received_log: Option<PathBuf>,
+}
+
+impl Default for SmtpWorld {
+    fn default() -> Self {
+        Self {
+            user: USER.to_string(),
+            password: PASSWORD.to_string(),
+            received: Vec::new(),
+            log: Vec::new(),
+            fault: None,
+            connections: 0,
+            received_log: None,
+        }
+    }
+}
+
+impl SmtpWorld {
+    fn record(&mut self, mail: ReceivedMail) -> std::io::Result<()> {
+        if let Some(path) = &self.received_log {
+            let digest: String = Sha256::digest(&mail.data)
+                .iter()
+                .map(|b| format!("{b:02x}"))
+                .collect();
+            let entry = serde_json::json!({
+                "kind": "smtp",
+                "from": mail.from,
+                "to": mail.to,
+                "bodyDigest": digest,
+                "bytes": mail.data.len(),
+            });
+            let mut line = entry.to_string();
+            line.push('\n');
+            let mut file = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(path)?;
+            file.write_all(line.as_bytes())?;
+            file.flush()?;
+        }
+        self.received.push(mail);
+        Ok(())
+    }
 }
 
 /// Running scripted SMTP server.
@@ -166,11 +215,15 @@ async fn serve(stream: TcpStream, world: Arc<Mutex<SmtpWorld>>) {
             }
             let _ = write.write_all(b"502 STARTTLS not supported\r\n").await;
         } else if upper.starts_with("AUTH PLAIN ") {
-            world.lock().unwrap().log.push("AUTH PLAIN".to_string());
-            let refuse = world.lock().unwrap().fault == Some(SmtpFault::RefuseAuth);
+            let (refuse, expected) = {
+                let mut guard = world.lock().unwrap();
+                guard.log.push("AUTH PLAIN".to_string());
+                let refuse = guard.fault == Some(SmtpFault::RefuseAuth);
+                let expected = format!("\0{}\0{}", guard.user, guard.password).into_bytes();
+                (refuse, expected)
+            };
             let encoded = cmd[11..].trim();
             let decoded = base64_decode(encoded);
-            let expected = format!("\0{USER}\0{PASSWORD}").into_bytes();
             if !refuse && decoded.as_deref() == Some(expected.as_slice()) {
                 authed = true;
                 if write
@@ -203,9 +256,16 @@ async fn serve(stream: TcpStream, world: Arc<Mutex<SmtpWorld>>) {
             if !matches!(reader.read_line(&mut p).await, Ok(n) if n > 0) {
                 return;
             }
-            let refuse = world.lock().unwrap().fault == Some(SmtpFault::RefuseAuth);
-            let ok_user = base64_decode(u.trim()).as_deref() == Some(USER.as_bytes());
-            let ok_pass = base64_decode(p.trim()).as_deref() == Some(PASSWORD.as_bytes());
+            let (refuse, expected_user, expected_pass) = {
+                let guard = world.lock().unwrap();
+                (
+                    guard.fault == Some(SmtpFault::RefuseAuth),
+                    guard.user.clone(),
+                    guard.password.clone(),
+                )
+            };
+            let ok_user = base64_decode(u.trim()).as_deref() == Some(expected_user.as_bytes());
+            let ok_pass = base64_decode(p.trim()).as_deref() == Some(expected_pass.as_bytes());
             if !refuse && ok_user && ok_pass {
                 authed = true;
                 if write
@@ -287,7 +347,7 @@ async fn serve(stream: TcpStream, world: Arc<Mutex<SmtpWorld>>) {
             let fault = world.lock().unwrap().fault.clone();
             match fault {
                 Some(SmtpFault::DropAfterHandover) => {
-                    world.lock().unwrap().received.push(ReceivedMail {
+                    let _ = world.lock().unwrap().record(ReceivedMail {
                         from: from.clone().unwrap_or_default(),
                         to: to.clone(),
                         data: body,
@@ -296,7 +356,7 @@ async fn serve(stream: TcpStream, world: Arc<Mutex<SmtpWorld>>) {
                     return;
                 }
                 Some(SmtpFault::StallAfterData) => {
-                    world.lock().unwrap().received.push(ReceivedMail {
+                    let _ = world.lock().unwrap().record(ReceivedMail {
                         from: from.clone().unwrap_or_default(),
                         to: to.clone(),
                         data: body,
@@ -307,7 +367,7 @@ async fn serve(stream: TcpStream, world: Arc<Mutex<SmtpWorld>>) {
                     return;
                 }
                 Some(SmtpFault::TruncateAfterData) => {
-                    world.lock().unwrap().received.push(ReceivedMail {
+                    let _ = world.lock().unwrap().record(ReceivedMail {
                         from: from.clone().unwrap_or_default(),
                         to: to.clone(),
                         data: body,
@@ -317,7 +377,7 @@ async fn serve(stream: TcpStream, world: Arc<Mutex<SmtpWorld>>) {
                     return;
                 }
                 Some(SmtpFault::UnexpectedCodeAfterData(code)) => {
-                    world.lock().unwrap().received.push(ReceivedMail {
+                    let _ = world.lock().unwrap().record(ReceivedMail {
                         from: from.clone().unwrap_or_default(),
                         to: to.clone(),
                         data: body,
@@ -338,12 +398,17 @@ async fn serve(stream: TcpStream, world: Arc<Mutex<SmtpWorld>>) {
                     }
                 }
                 _ => {
-                    world.lock().unwrap().received.push(ReceivedMail {
+                    let recorded = world.lock().unwrap().record(ReceivedMail {
                         from: from.clone().unwrap_or_default(),
                         to: to.clone(),
                         data: body,
                     });
-                    if write.write_all(b"250 OK queued\r\n").await.is_err() {
+                    let reply: &[u8] = if recorded.is_ok() {
+                        b"250 OK queued\r\n"
+                    } else {
+                        b"451 Local error recording test receipt\r\n"
+                    };
+                    if write.write_all(reply).await.is_err() {
                         return;
                     }
                 }

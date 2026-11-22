@@ -12,7 +12,7 @@ use crate::provider::Connector;
 use crate::provider::http::{HttpsPoster, UnsubscribePoster};
 use crate::provider::smtp::MailSender;
 use crate::secrets::{InMemory, Secrets};
-use crate::store::{Store, StoreError, TokenRow};
+use crate::store::{Store, StoreError, TokenRole, TokenRow};
 use crate::sync::Options;
 
 /// Where a command that runs for a while says how far it has come.
@@ -56,6 +56,10 @@ pub struct Engine {
     /// Whether an operation run at the terminal stops after the batch in
     /// hand when the person presses Ctrl-C: the program's, not a test's.
     interrupts: bool,
+    /// Identifies the transport wiring (`"real"` or a `test-doubles:...` tag)
+    /// written into `server.json` so CLI forwarding refuses mismatched
+    /// transports.
+    transport_tag: String,
 }
 
 /// What a call to a running server may take: the limits Loam sets on a
@@ -108,7 +112,22 @@ impl Engine {
             change: ChangeOptions::default(),
             operating: Mutex::new(HashSet::new()),
             interrupts: false,
+            transport_tag: "real".to_string(),
         }
+    }
+
+    /// Labels this engine's transport configuration for `server.json`
+    /// forwarding checks.
+    #[must_use]
+    pub fn with_transport_tag(mut self, tag: impl Into<String>) -> Self {
+        self.transport_tag = tag.into();
+        self
+    }
+
+    /// The engine's transport label (`"real"` by default).
+    #[must_use]
+    pub fn transport_tag(&self) -> &str {
+        &self.transport_tag
     }
 
     /// The same engine, sizing operations by `options`.
@@ -368,5 +387,18 @@ impl Engine {
             }
         }
         found
+    }
+
+    /// Whether `id` is currently loaded as an active token with role
+    /// [`TokenRole::Approver`].
+    #[must_use]
+    pub fn is_approver_token(&self, id: &str) -> bool {
+        let tokens = self
+            .agent_tokens
+            .read()
+            .unwrap_or_else(PoisonError::into_inner);
+        tokens
+            .iter()
+            .any(|token| token.id == id && token.role == TokenRole::Approver)
     }
 }

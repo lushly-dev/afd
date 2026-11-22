@@ -13,7 +13,7 @@
 //! a bare `EXPUNGE`, and any change in a mailbox opened with `EXAMINE`; it
 //! can do a command and lose its answer, as a dropped connection would.
 
-#![allow(dead_code, clippy::expect_used, clippy::unwrap_used)]
+#![allow(dead_code, missing_docs, clippy::expect_used, clippy::unwrap_used)]
 
 use std::collections::{BTreeMap, HashSet};
 use std::net::SocketAddr;
@@ -69,6 +69,8 @@ pub struct Mailbox {
 pub struct World {
     pub condstore: bool,
     pub qresync: bool,
+    pub user: String,
+    pub password: String,
     pub mailboxes: Vec<Mailbox>,
     pub modseq: u64,
     /// Every command received, without its tag; `LOGIN` without its
@@ -121,6 +123,8 @@ impl World {
         Self {
             condstore,
             qresync,
+            user: USER.to_string(),
+            password: PASSWORD.to_string(),
             mailboxes: Vec::new(),
             modseq: 1,
             log: Vec::new(),
@@ -525,8 +529,8 @@ fn answer(
             text(&mut out, format!("{tag} OK done\r\n"));
         }
         "LOGIN" => {
-            if words.get(1).map(String::as_str) == Some(USER)
-                && words.get(2).map(String::as_str) == Some(PASSWORD)
+            if words.get(1).map(String::as_str) == Some(world.user.as_str())
+                && words.get(2).map(String::as_str) == Some(world.password.as_str())
             {
                 text(&mut out, format!("{tag} OK signed in\r\n"));
             } else {

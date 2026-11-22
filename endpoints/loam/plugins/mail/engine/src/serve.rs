@@ -87,13 +87,19 @@ fn write_private(path: &std::path::Path, contents: &str) -> std::io::Result<()> 
 }
 
 /// The MCP server over `registry`: its MCP-exposed commands, the crate's
-/// default tool strategy with the meta-tools, and over HTTP each agent's
-/// token's id as the actor's. Each call runs within `call`.
+/// default tool strategy with the meta-tools, over HTTP each agent's
+/// token's id as the actor's, and `with_approver` wired to HTTP tokens with
+/// role `approver` (plugin.spec.md, section 4.2). Each call runs within `call`.
 #[must_use]
-pub fn mcp_server(registry: Arc<CommandRegistry>, call: Duration) -> McpServer {
+pub fn mcp_server(
+    registry: Arc<CommandRegistry>,
+    engine: Arc<Engine>,
+    call: Duration,
+) -> McpServer {
     let call_ms = milliseconds(call);
     McpServer::new(registry, crate::PROGRAM, env!("CARGO_PKG_VERSION"))
         .with_instructions(INSTRUCTIONS)
+        .with_approver(move |context| crate::is_approver(&engine, context))
         .with_context_hook(move |request, context| async move {
             // A batch or a pipeline runs many commands in one call, each
             // within the call's limits, so together beyond them.
@@ -326,8 +332,8 @@ pub fn router(
 ) -> Result<Router, String> {
     let hosts = [format!("127.0.0.1:{port}"), format!("localhost:{port}")];
     let call = engine.limits().call;
-    let service =
-        mcp_server(Arc::clone(registry), call).try_streamable_http_service(HttpOptions {
+    let service = mcp_server(Arc::clone(registry), Arc::clone(&engine), call)
+        .try_streamable_http_service(HttpOptions {
             allowed_hosts: hosts.to_vec(),
             allowed_origins: Vec::new(),
             max_body_bytes: MOST_BODY,
@@ -365,6 +371,11 @@ pub struct ServerEntry {
     pub pid: u32,
     /// The port it serves on, on `127.0.0.1`.
     pub port: u16,
+    /// The server's transport configuration (`"real"` or `test-doubles:...`),
+    /// checked by CLI forwarding so calls never cross real and test-double
+    /// transports.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transport: Option<String>,
 }
 
 /// Removes the server's files when the server stops, however it stops.
@@ -442,11 +453,14 @@ pub async fn serve(
     let entry = ServerEntry {
         pid: std::process::id(),
         port,
+        transport: Some(engine.transport_tag().to_string()),
     };
     let entry = serde_json::to_string(&entry).map_err(|error| error.to_string())?;
     write_private(&server_file(&home), &entry)
         .map_err(|error| format!("could not write server.json: {error}"))?;
     let worker = Worker::start(&engine);
+    #[cfg(feature = "test-doubles")]
+    announce("test build: scripted servers and file sign-ins are available");
     announce(&format!(
         "serving on http://127.0.0.1:{port}{MCP_PATH}; stop with Ctrl-C"
     ));
@@ -487,7 +501,7 @@ pub async fn serve_stdio(
         });
     }
     let worker = Worker::start(engine);
-    let served = mcp_server(registry, engine.limits().call)
+    let served = mcp_server(registry, Arc::clone(engine), engine.limits().call)
         .serve_stdio()
         .await;
     worker.stop().await;

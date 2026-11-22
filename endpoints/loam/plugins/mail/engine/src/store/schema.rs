@@ -952,6 +952,13 @@ pub(super) const MIGRATIONS: &[&str] = &[
         WHERE state = 'active';
     CREATE INDEX record_order ON record (proposed_at DESC, id DESC);
     ",
+    // 18: approver tokens (step F1, plugin.spec.md section 4). Every existing
+    // token keeps the role `agent`; only a token explicitly created at the
+    // terminal as `approver` gets that role.
+    "
+    ALTER TABLE token ADD COLUMN role TEXT NOT NULL DEFAULT 'agent'
+        CHECK (role IN ('agent', 'approver'));
+    ",
 ];
 
 /// Brings `connection` to the newest schema, one migration and one
