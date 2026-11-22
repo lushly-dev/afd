@@ -72,6 +72,11 @@ bool gates(const std::optional<ApprovalPolicy>& policy) noexcept;
 void admit_approval(CommandContext& context, const void* step, std::string_view name,
                     const Json& input, bool listed_gate);
 
+/// Records that the policy an approval step's `commands` list gives the command the call of
+/// `context` runs gates it, whatever name the step was called with, so a call renamed on its way
+/// to the step is still checked at dispatch. A no-op for a context the registry did not record.
+void mark_listed_gate(CommandContext& context);
+
 /// Whether the registry must take and check an admission before it dispatches the call of
 /// `record`: its command's own policy gates it, or an approval step marked it as gated by its list.
 bool needs_admission(ApprovalAdmission& record);

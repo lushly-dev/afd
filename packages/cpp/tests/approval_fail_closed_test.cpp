@@ -528,6 +528,20 @@ TEST_CASE("an approval step admits only a call one of its own policies may gate"
         CHECK(attempts == 1);
     }
 
+    SUBCASE("a call renamed on its way to the approval middleware keeps its list-only gate") {
+        const afd::CommandMiddleware approval = approval_middleware(listed);
+        // Calls the approval middleware under an ungated name.
+        const afd::CommandMiddleware rename = [approval](std::string_view, const Json& input,
+                                                         afd::CommandContext& context,
+                                                         const afd::Next& next) {
+            return approval("todo-touch", input, context, next);
+        };
+        auto registry = registry_of({commands.remove(std::nullopt), commands.touch()}, {rename});
+        const auto result = registry->execute("todo-delete", {{"id", 1}}, as_agent());
+        CHECK((result.error && result.error->code == afd::error_codes::APPROVAL_UNAVAILABLE));
+        CHECK(commands.ran->empty());
+    }
+
     /// A middleware that changes the validated input in place.
     const afd::CommandMiddleware change = [](std::string_view, const Json& input,
                                              afd::CommandContext&, const afd::Next& next) {

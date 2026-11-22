@@ -1069,6 +1069,15 @@ void admit_approval(CommandContext& context, const void* step, std::string_view 
     record->admitted.push_back(std::move(admitted));
 }
 
+void mark_listed_gate(CommandContext& context) {
+    ApprovalAdmission* record = context.approval_admission.get();
+    if (!record) {
+        return;
+    }
+    const std::lock_guard lock(record->mutex);
+    record->listed_gate = true;
+}
+
 bool needs_admission(ApprovalAdmission& record) {
     if (record.command && gates(record.command->approval)) {
         return true;
@@ -1180,6 +1189,16 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
         // refused.
         const bool may_gate = ApprovalState::may_require_approval(decider);
         const bool listed_gate = decider.listed && detail::gates(decider.listed->approval);
+        // The command the registry runs, which a middleware before this one may have called it
+        // under another name: its listed gate holds at dispatch either way, and a renamed call is
+        // refused.
+        if (const detail::ApprovalAdmission* record = context.approval_admission.get();
+            record && record->command) {
+            const auto live = state->commands.find(record->command->name);
+            if (live != state->commands.end() && detail::gates(live->second.approval)) {
+                detail::mark_listed_gate(context);
+            }
+        }
         const Next next = [&]() {
             if (may_gate) {
                 detail::admit_approval(context, state.get(), name, input, listed_gate);
