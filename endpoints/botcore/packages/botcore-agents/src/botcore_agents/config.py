@@ -5,8 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Literal
 
-from botcore_llm.config import LlmPermissionsConfig
-from pydantic import BaseModel, ConfigDict, Field
+from botcore_llm.config import LlmPermissionsConfig, validate_shell_allowlist
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class AgentPermissionsConfig(LlmPermissionsConfig):
@@ -14,6 +14,11 @@ class AgentPermissionsConfig(LlmPermissionsConfig):
 
     shell_allowlist: list[str] | None = None
     filesystem_paths: list[str] | None = None
+
+    @field_validator("shell_allowlist")
+    @classmethod
+    def _program_is_literal(cls, value: list[str] | None) -> list[str] | None:
+        return validate_shell_allowlist(value)
 
 
 class AgentConfig(BaseModel):

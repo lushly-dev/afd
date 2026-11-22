@@ -35,7 +35,9 @@ command needs an explicit policy, and plugins must declare
 has: its configuration, connectors and credential cache live on the instance each
 host discovers, and every GitHub command declares the `service` and `subprocess`
 effects (credential lookup may run `gh auth token`), so only a `trusted-local`
-host admits its calls. The bundled optional LLM, agents, memory and Teams
+host admits its calls. `build_host` keeps the selected plugin instances on
+`host.plugins`, and `await host.aclose()` calls each one's `close()` (the
+connectors' HTTP clients). The bundled optional LLM, agents, memory and Teams
 distributions remain preserved; this change does not claim their stateful
 implementations are admitted to a managed multi-worktree host. In particular,
 their module-global configuration needs adapters before such admission. The LLM

@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from afd import CommandResult, error, success
+from copilot import BUILTIN_TOOLS_ISOLATED, ToolSet
 
 from .bridge import bridge_commands
 from .chat_stream import chat_result, llm_chat_stream
@@ -55,21 +56,69 @@ def set_tool_host(host: CommandHost | None) -> None:
     _tool_host = host
 
 
-def _get_tool_host(config: LlmConfig) -> CommandHost:
-    """The host bridged tools dispatch through.
+def _get_tool_host(config: LlmConfig) -> tuple[CommandHost, bool]:
+    """The host bridged tools dispatch through, and whether this session owns it.
 
-    Without one from :func:`set_tool_host`, builds a managed host over the current
-    workspace with the ``tool_profile`` and ``tool_plugins`` the LLM config names.
+    Without one from :func:`set_tool_host` (which its caller owns and closes), builds a
+    managed host over the current workspace with the ``tool_profile`` and ``tool_plugins``
+    the LLM config names; the session owns that host and closes it when destroyed.
     """
     if _tool_host is not None:
-        return _tool_host
+        return _tool_host, False
     from botcore.context import ExecutionContext
     from botcore.host import build_host
     from botcore.utils.workspace import find_workspace
 
     workspace = find_workspace() or Path.cwd()
     context = ExecutionContext(workspace, profile=config.tool_profile)
-    return build_host("llm", context, plugins=_tool_plugins(config))
+    return build_host("llm", context, plugins=_tool_plugins(config)), True
+
+
+async def _close_owned(host: CommandHost | None, owned: bool) -> None:
+    """Close the plugins of a tool host this session built (their HTTP clients and such)."""
+    if host is None or not owned:
+        return
+    try:
+        await host.aclose()
+    except Exception as exc:
+        logger.warning("Error closing the tool host's plugins: %s", exc)
+
+
+#: Copilot built-in tools that run shell commands; offered only with ``allow_shell``.
+SHELL_BUILTIN_TOOLS = (
+    "bash",
+    "read_bash",
+    "write_bash",
+    "stop_bash",
+    "list_bash",
+    "powershell",
+    "read_powershell",
+    "write_powershell",
+    "stop_powershell",
+    "list_powershell",
+)
+#: Copilot built-in tools that read or write files; offered only with ``allow_filesystem``.
+FILESYSTEM_BUILTIN_TOOLS = ("view", "create", "edit", "str_replace_editor", "glob", "grep")
+
+
+def session_tool_allowlist(bridged: list[str], permissions: LlmPermissionsConfig) -> list[str]:
+    """The ``available_tools`` filter of a session: every tool the model may see.
+
+    The bridged tools, the runtime's session-local built-ins, the shell and file built-ins
+    the permissions allow, and MCP tools only when ``allow_mcp`` names servers in
+    ``mcp_servers`` (the permission handler then admits only those servers). Any other
+    tool the runtime provides is hidden from the model.
+    """
+    tool_set = ToolSet().add_builtin(BUILTIN_TOOLS_ISOLATED)
+    if permissions.allow_shell:
+        tool_set.add_builtin(SHELL_BUILTIN_TOOLS)
+    if permissions.allow_filesystem:
+        tool_set.add_builtin(FILESYSTEM_BUILTIN_TOOLS)
+    if permissions.allow_mcp and getattr(permissions, "mcp_servers", None):
+        tool_set.add_mcp("*")
+    for name in bridged:
+        tool_set.add_custom(name)
+    return tool_set.to_list()
 
 
 def _tool_plugins(config: LlmConfig) -> tuple[str, ...]:
@@ -125,9 +174,11 @@ async def llm_session_create(
     # Bridge requested tools from a managed host, whose policy applies to every tool call
     bridged_tools = []
     tool_names: list[str] = tools or []
+    tool_host: CommandHost | None = None
+    owned_host = False
     if tool_names:
         try:
-            host = _get_tool_host(config)
+            tool_host, owned_host = _get_tool_host(config)
         except Exception as exc:
             return error(
                 "BRIDGE_ERROR",
@@ -138,8 +189,9 @@ async def llm_session_create(
                 ),
             )
         try:
-            bridged_tools = bridge_commands(tool_names, host)
+            bridged_tools = bridge_commands(tool_names, tool_host)
         except KeyError as exc:
+            await _close_owned(tool_host, owned_host)
             return error(
                 "UNKNOWN_COMMAND",
                 str(exc.args[0]) if exc.args else str(exc),
@@ -150,6 +202,7 @@ async def llm_session_create(
                 ),
             )
         except Exception as exc:
+            await _close_owned(tool_host, owned_host)
             return error(
                 "BRIDGE_ERROR",
                 f"Failed to bridge commands: {exc}",
@@ -164,6 +217,8 @@ async def llm_session_create(
         "on_permission_request": permission_handler,
         "model": model,
         "streaming": streaming,
+        # Only these tools reach the model: anything else the runtime provides is hidden.
+        "available_tools": session_tool_allowlist([t.name for t in bridged_tools], perms),
     }
 
     if bridged_tools:
@@ -181,6 +236,7 @@ async def llm_session_create(
     try:
         session = await client.create_session(**session_config)
     except Exception as exc:
+        await _close_owned(tool_host, owned_host)
         return error(
             "SESSION_CREATE_ERROR",
             f"Failed to create session: {exc}",
@@ -196,6 +252,7 @@ async def llm_session_create(
         tools=tool_names,
         config=session_config,
         agent_name=agent_name,
+        tool_host=tool_host if owned_host else None,
     )
 
     return success(
@@ -225,6 +282,7 @@ async def llm_session_destroy(session_id: str) -> CommandResult[dict]:
     except Exception as exc:
         logger.warning("Error destroying session %s: %s", session_id, exc)
 
+    await _close_owned(entry.tool_host, entry.tool_host is not None)
     registry.remove(session_id)
 
     return success(

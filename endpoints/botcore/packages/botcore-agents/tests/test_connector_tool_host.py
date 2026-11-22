@@ -44,17 +44,23 @@ def workspace(tmp_path, monkeypatch):
 
 @pytest.fixture()
 def installed_connectors(monkeypatch):
-    """Discover the connectors plugin as an installed entry point would provide it."""
+    """Discover the connectors plugin as an installed entry point would provide it.
+
+    Returns the plugin instances discovered, so a test can see what a host held.
+    """
     real = botcore.plugin.discover_plugins
+    discovered: list[ConnectorsPlugin] = []
 
     def discover(allowlist=None):
         if allowlist is not None and "connectors" in allowlist:
             others = tuple(name for name in allowlist if name != "connectors")
-            return {**(real(others) if others else {}), "connectors": ConnectorsPlugin()}
+            discovered.append(ConnectorsPlugin())
+            return {**(real(others) if others else {}), "connectors": discovered[-1]}
         return real(allowlist)
 
     monkeypatch.setattr(botcore.plugin, "discover_plugins", discover)
     monkeypatch.setattr(llm_commands, "_installed_plugin_names", lambda: {"connectors"})
+    return discovered
 
 
 @pytest.fixture()
@@ -116,3 +122,16 @@ async def test_connector_tool_call_a_trusted_local_host_admits_reaches_the_conne
 
     # Admitted by policy, the call ran the connector, which found no credential.
     assert outcome["error"] == "GITHUB_AUTH_MISSING"
+
+
+async def test_stopping_the_agent_closes_its_connector_clients(
+    workspace, installed_connectors, copilot_client, connector_orchestrator
+):
+    llm_commands.set_config(LlmConfig(default_model="test-model"))
+    await _start_and_call(connector_orchestrator, copilot_client, "github_issue_list")
+    (plugin,) = installed_connectors
+    assert plugin._connectors  # The GitHub connector and its HTTP client are open.
+
+    assert_success(await connector_orchestrator.stop_agent("researcher"))
+
+    assert plugin._connectors == {}

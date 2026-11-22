@@ -11,6 +11,7 @@ from botcore.context import ExecutionContext
 from botcore.host import CommandHost, CommandPolicy
 from copilot import ToolInvocation
 
+import botcore_llm.commands as llm_commands
 from botcore_llm.commands import (
     llm_chat,
     llm_model_list,
@@ -20,7 +21,7 @@ from botcore_llm.commands import (
     set_config,
     set_tool_host,
 )
-from botcore_llm.config import LlmConfig
+from botcore_llm.config import LlmConfig, LlmPermissionsConfig
 from botcore_llm.session import get_session_registry
 
 
@@ -309,3 +310,81 @@ class TestLlmSessionCreateTools:
 
         assert_error(result, "UNKNOWN_COMMAND")
         assert "tool host" in result.error.suggestion
+
+    @staticmethod
+    def _lane_host(tmp_path) -> CommandHost:
+        async def note() -> CommandResult[dict]:
+            """Read a note."""
+            return success(data={})
+
+        host = CommandHost("lane", ExecutionContext(tmp_path))
+        host.register("note", note, CommandPolicy())
+        return host
+
+    @pytest.mark.asyncio
+    async def test_session_offers_only_bridged_and_permitted_tools(
+        self, patch_client_manager, mock_copilot_client, tmp_path
+    ):
+        set_tool_host(self._lane_host(tmp_path))
+
+        assert_success(await llm_session_create(tools=["note"]))
+        available = mock_copilot_client.create_session.call_args.kwargs["available_tools"]
+
+        assert "custom:note" in available
+        assert "builtin:ask_user" in available
+        # A runtime-provided MCP or custom tool, and shell or file built-ins, are hidden.
+        for hidden in ("mcp:*", "custom:extra_tool", "builtin:bash", "builtin:view"):
+            assert hidden not in available, hidden
+        assert not any(entry.startswith("mcp:") for entry in available)
+
+    @pytest.mark.asyncio
+    async def test_named_mcp_servers_and_shell_widen_the_session_tools(
+        self, patch_client_manager, mock_copilot_client
+    ):
+        permissions = LlmPermissionsConfig(allow_shell=True, mcp_servers=["github"])
+
+        assert_success(await llm_session_create(permissions=permissions))
+        available = mock_copilot_client.create_session.call_args.kwargs["available_tools"]
+
+        assert "mcp:*" in available
+        assert "builtin:bash" in available
+        assert "builtin:view" not in available
+
+    @pytest.mark.asyncio
+    async def test_destroy_closes_the_tool_host_the_session_built(
+        self, patch_client_manager, mock_copilot_session, tmp_path, monkeypatch
+    ):
+        closed: list[str] = []
+
+        class _Plugin:
+            async def close(self) -> None:
+                closed.append("plugin")
+
+        host = self._lane_host(tmp_path)
+        host.plugins = {"fake": _Plugin()}
+        monkeypatch.setattr(llm_commands, "_get_tool_host", lambda _config: (host, True))
+
+        assert_success(await llm_session_create(tools=["note"]))
+        assert closed == []
+        assert_success(await llm_session_destroy(mock_copilot_session.session_id))
+
+        assert closed == ["plugin"]
+
+    @pytest.mark.asyncio
+    async def test_destroy_leaves_a_supplied_host_open(
+        self, patch_client_manager, mock_copilot_session, tmp_path
+    ):
+        closed: list[str] = []
+
+        class _Plugin:
+            async def close(self) -> None:
+                closed.append("plugin")
+
+        host = self._lane_host(tmp_path)
+        host.plugins = {"fake": _Plugin()}
+        set_tool_host(host)
+
+        assert_success(await llm_session_create(tools=["note"]))
+        assert_success(await llm_session_destroy(mock_copilot_session.session_id))
+
+        assert closed == []

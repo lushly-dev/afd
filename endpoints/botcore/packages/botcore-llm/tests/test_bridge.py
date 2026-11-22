@@ -206,6 +206,38 @@ class TestHostPolicy:
 
         assert seen == ["agent"]
 
+    @pytest.mark.asyncio
+    async def test_host_naming_a_human_keeps_the_agent_as_caller(self, tmp_path):
+        from afd import Actor
+        from botcore.context import current_call
+
+        seen = []
+
+        async def who() -> CommandResult[dict]:
+            """Report the caller."""
+            actor = current_call().actor
+            seen.append((actor.kind, actor.on_behalf_of))
+            return success(data={})
+
+        host = _host(tmp_path)
+        host.actor = Actor(kind="human", id="owner")
+        host.register("who", who, CommandPolicy())
+        tool = botcore_command_to_copilot_tool("who", host)
+
+        await tool.handler(_invoke("who", None))
+
+        assert seen == [("agent", "owner")]
+
+    @pytest.mark.asyncio
+    async def test_non_object_arguments_reach_host_validation(self, tmp_path):
+        tool = botcore_command_to_copilot_tool("no_args_command", _host(tmp_path))
+
+        for arguments in ([], "", 0, False, ["x"]):
+            result = await tool.handler(_invoke("no_args_command", arguments))
+            data = json.loads(result.text_result_for_llm)
+            assert data.get("error") == "VALIDATION_ERROR", arguments
+        assert (await tool.handler(_invoke("no_args_command", None))).result_type == "success"
+
 
 class TestBridgeCommands:
     def test_resolves_and_bridges(self, tmp_path):

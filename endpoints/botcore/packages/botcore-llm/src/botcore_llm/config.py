@@ -6,14 +6,41 @@ from typing import Any, Literal
 
 from pydantic import BaseModel
 
+_GLOB_CHARACTERS = frozenset("*?[")
+
 
 class LlmPermissionsConfig(BaseModel):
-    """Permission gate configuration for LLM sessions."""
+    """Permission gate configuration for LLM sessions.
+
+    ``allow_mcp`` admits MCP tool calls only to the servers ``mcp_servers`` names; with
+    none named, a session offers no MCP tools and refuses every MCP request.
+    """
 
     allow_shell: bool = False
     allow_filesystem: bool = False
     allow_mcp: bool = True
+    mcp_servers: list[str] = []
     allow_custom_tools: bool = True
+
+
+def validate_shell_allowlist(patterns: list[str] | None) -> list[str] | None:
+    """Refuse a shell_allowlist entry whose program (first word) is empty or a glob.
+
+    The program is matched literally, so a glob there could only ever widen what is
+    approved (``* status`` would admit ``FOO=x git status``) and is refused at load.
+    """
+    if patterns is None:
+        return None
+    for pattern in patterns:
+        words = pattern.split()
+        if not words:
+            raise ValueError("shell_allowlist entries must name a program; found an empty one")
+        if _GLOB_CHARACTERS & set(words[0]):
+            raise ValueError(
+                f"shell_allowlist entry {pattern!r} names its program with a glob; "
+                "write the program literally, for example 'git status *'"
+            )
+    return patterns
 
 
 class LlmCostConfig(BaseModel):

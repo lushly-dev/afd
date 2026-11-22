@@ -30,8 +30,8 @@ def botcore_command_to_copilot_tool(name: str, host: CommandHost) -> Tool:
 
     The tool's name is the command's served name, its description the handler's first
     docstring line and its parameters the host catalog's input schema. Its handler calls
-    ``host.execute`` as an agent (or as the host's own actor, when it names one) and
-    converts the ``CommandResult`` into a ``ToolResult``.
+    ``host.execute`` as an agent (see :func:`model_actor`) and converts the
+    ``CommandResult`` into a ``ToolResult``.
 
     Args:
         name: A command name *host* serves, in either spelling.
@@ -50,9 +50,10 @@ def botcore_command_to_copilot_tool(name: str, host: CommandHost) -> Tool:
     parameters = input_schema if input_schema.get("properties") else None
 
     async def handler(invocation: ToolInvocation) -> ToolResult:
-        # A model's tool call is an agent's call unless the host names who calls through it.
-        context = CommandContext(actor=host.actor or Actor(kind="agent"))
-        result = await host.execute(served, invocation.arguments or {}, context)
+        context = CommandContext(actor=model_actor(host.actor))
+        # Only a missing object defaults; anything else is the host's to validate.
+        arguments = {} if invocation.arguments is None else invocation.arguments
+        result = await host.execute(served, arguments, context)
         return _command_result_to_tool_result(result)
 
     return Tool(
@@ -61,6 +62,21 @@ def botcore_command_to_copilot_tool(name: str, host: CommandHost) -> Tool:
         handler=handler,
         parameters=parameters,
     )
+
+
+def model_actor(host_actor: Actor | None) -> Actor:
+    """The actor a model's tool call runs as: always an agent.
+
+    A host whose actor is an agent lends it. A host that names someone else (a human, a
+    service) keeps the agent as the caller and records that principal as ``on_behalf_of``,
+    so policy and journals never see a model's call as the human's own.
+    """
+    if host_actor is None:
+        return Actor(kind="agent")
+    if host_actor.kind == "agent":
+        return host_actor
+    principal = host_actor.id or host_actor.label or host_actor.kind
+    return Actor(kind="agent", on_behalf_of=principal)
 
 
 def bridge_commands(command_names: list[str], host: CommandHost) -> list[Tool]:

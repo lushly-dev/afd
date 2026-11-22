@@ -45,7 +45,9 @@ commands plus those of the connectors plugin when it is installed; `tool_profile
 `tool_plugins` change it, and a Python embedder can pass its own host to
 `botcore_llm.commands.set_tool_host`. A name the host does not serve is
 `UNKNOWN_COMMAND`. A local setup that should let the model lint, test, write or call
-connectors sets `tool_profile = "trusted-local"`.
+connectors sets `tool_profile = "trusted-local"`; the setting applies to every agent.
+The session's `available_tools` lists only the bridged tools and the built-ins its
+permissions allow; MCP tools appear only for servers named in `permissions.mcp_servers`.
 
 ## Shell permissions
 
@@ -53,9 +55,10 @@ With `allow_shell` and a `shell_allowlist`, each command is approved on its own:
 request is approved only when its command line is one simple command. A line break, `;`,
 `&`, `&&`, `|`, `||`, a redirection, a subshell, `$` or backtick substitution, a backslash
 or a glob outside quotes refuses it, as does `$`, a backtick or a backslash inside double
-quotes. Quoted arguments may hold any
-other text. The program (the pattern's first word) must equal the command's, and the
-pattern is a glob over the parsed arguments. A refusal says why.
+quotes; on Windows `& | < > ^ % !` are refused even inside quotes. The runtime's own parse
+must agree (one command, same arguments, no redirection). The program must equal the
+pattern's first word literally, and the rest of the pattern is a glob over the arguments,
+so `git *` admits every git option: pin patterns to subcommands (`git status *`).
 
 ## Configuration
 
