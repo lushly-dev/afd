@@ -196,6 +196,8 @@ const entry = z.strictObject({
 	route: text,
 	projects: z.optional(z.array(z.string())),
 	space: z.optional(z.record(z.string(), z.string())),
+	// Whose word decides a mounted result's labels (phase 5 specification, 5.1).
+	labels: z.optional(z.enum(['whole', 'per-part'])),
 	expose: z.optional(z.record(z.string(), z.boolean())),
 	commands: z.optional(z.record(z.string(), z.unknown())),
 });
@@ -229,6 +231,7 @@ const ENTRY_JSON: JsonSchema = {
 		route: STRING,
 		projects: { type: 'array', items: STRING },
 		space: RECORD_JSON(STRING),
+		labels: { type: 'string', enum: ['whole', 'per-part'] },
 		expose: RECORD_JSON({ type: 'boolean' }),
 		commands: RECORD_JSON({}),
 	},
@@ -247,6 +250,7 @@ const KEPT = [
 	'route',
 	'projects',
 	'space',
+	'labels',
 	'expose',
 	'commands',
 	'order',

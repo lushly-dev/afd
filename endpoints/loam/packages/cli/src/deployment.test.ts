@@ -149,6 +149,22 @@ function servedText(dir: string): string {
 }
 
 describe('deployment write', () => {
+	it("carries a mounted entry's labels and a command's expose.apps into the projection (phase 5 specification, 5.1, 7.5)", async () => {
+		const paths = await layout(
+			'deployment_version = 4\n\n[apps.mail]\napp = "mailfix"\npackage = "mailfix"\nprefix = "mailfix"\naudience = "person"\ntransport = "http"\nurl = "http://127.0.0.1:1/mcp"\nlabels = "per-part"\n\n[apps.mail.commands."mailfix-draft-create"]\nexpose = { agent = true, apps = true }\n',
+			{ mailfix: mountedPackage('mailfix') }
+		);
+		const written = await write_(paths);
+		expect(written).toMatchObject({ ok: true });
+		const projection = JSON.parse(readFileSync(join(paths.out, 'deployment.json'), 'utf8'));
+		expect(readProjection(projection).ok).toBe(true);
+		expect(projection.apps[0]).toMatchObject({
+			instance: 'mail',
+			labels: 'per-part',
+			commands: { 'mailfix-draft-create': { expose: { agent: true, apps: true } } },
+		});
+	});
+
 	it('writes the projection of the specification', async () => {
 		const paths = await layout(SPEC_FILE, SPEC_PACKAGES);
 		const written = await write_(paths);

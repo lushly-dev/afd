@@ -70,11 +70,11 @@ function deploymentRow(
 				code: 'DEPLOYMENT_EXPOSE_UNAVAILABLE',
 				message:
 					expose === 'apps'
-						? '`expose.apps` waits for D30, in phase 5.'
+						? '`expose.apps` lets other apps call one command of a mounted instance, so it is set under `commands`, in a version 4 file (phase 5 specification, 7.5).'
 						: `\`expose.${expose}\` has no surface in phase 1.`,
 				suggestion:
 					expose === 'apps'
-						? 'Remove `apps` until phase 5.'
+						? 'Set `commands."<name>".expose.apps = true` for each command other apps may call, with `deployment_version = 4`.'
 						: `Set \`${expose} = false\`, or remove it.`,
 			};
 		}

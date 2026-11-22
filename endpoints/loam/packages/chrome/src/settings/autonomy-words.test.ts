@@ -25,7 +25,7 @@ describe('the autonomy section’s words', () => {
 
 	it('explains each step of the chain: the deciding row, a bound, the cap', () => {
 		expect(chainWords({ id: 'default', mode: 'act', as: 'mode' }, titleOf, undefined)).toBe(
-			'Act, from the default (act on reads, ask before changes and before any mounted tool)'
+			'Act, from the default (act on reads, ask before changes and before a mounted server’s tools, but a vouched server’s reads)'
 		);
 		expect(
 			chainWords({ id: 'project/prj_atlas/*/*', mode: 'act', as: 'mode' }, titleOf, 'Atlas')

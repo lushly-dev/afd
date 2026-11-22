@@ -5,7 +5,10 @@
  * checks and access (the scope middleware), and before phase 4's confirmations' gate, which holds the decline window
  * and raises the confirmation (6.1's order). `act` runs; `ask` leaves its decision on the call for that gate, which
  * asks whatever the command declares; `suggest` runs nothing, stores a suggestion record for a copilot session, and
- * answers `AUTONOMY_SUGGEST_ONLY`. Taint's lowering (5.3) is step 4's, between the mode and the window.
+ * answers `AUTONOMY_SUGGEST_ONLY`. Between the mode and the window, taint's lowering (5.3): a tainted session's call to
+ * another mounted instance, to an app holding `http`, or to a mutation outside a `per-part` source is at most `ask`,
+ * with `reason: 'taint'` and the sources, and a call nested in a copilot call (an app's, under a `calls` grant) is
+ * lowered by the same rule, with the calling app as the caller (L2).
  *
  * In the `late-copilot` chunk; it imports types alone.
  */
@@ -104,10 +107,18 @@ export interface EnforcementDeps {
 	): Promise<CommandResult<never> | undefined>;
 	/** The command's instance, or undefined for the shell's. */
 	instanceOf(name: string): string | undefined;
+	/** The sources a copilot session is tainted from (5.3), empty for none. */
+	taintOf(session: string): Promise<string[]>;
+	/** A mounted command's entry `labels` (5.1), undefined for any other. */
+	labelsOf(name: string): 'whole' | 'per-part' | undefined;
+	/** A native or view app's command whose app holds the `http` grant, served (5.3). */
+	holdsHttp(name: string): boolean;
 	personOf(context: CommandContext): string | undefined;
 	now(context: CommandContext): number;
 	/** Recorded for a copilot call, by its trace, before its result returns to the port. */
 	decided(trace: CopilotTraceV1, decision: DecisionV1): void;
+	/** A confirmation a call nested in a copilot call raised, by the trace, so its turn waits for it (3.5). */
+	nestedRaised(trace: CopilotTraceV1, notification: string): void;
 	/** Whether the call's actor may enter the call's scope (`decideAccess`): nothing is asked or suggested otherwise. */
 	enterable(context: CommandContext): boolean;
 	/** Phase 2's `PROJECT_NOT_FOUND`, byte-identical for a project that is missing and one the caller may not enter. */
@@ -120,9 +131,12 @@ export interface EnforcementDeps {
 	): CommandResult<never>;
 }
 
-/** The default when a command cannot be placed (4.2 step 3, D156): never looser than it. */
-const defaultMode = (mutation: boolean, mounted: boolean): AutonomyModeV1 =>
-	mutation || mounted ? 'ask' : 'act';
+/**
+ * The default when a command cannot be placed (4.2 step 3, D156): never looser than it, a `per-part` instance's reads
+ * acting as 6.1 says.
+ */
+const defaultMode = (mutation: boolean, mounted: boolean, vouched: boolean): AutonomyModeV1 =>
+	mutation || (mounted && !vouched) ? 'ask' : 'act';
 
 export interface Enforcement {
 	gate: CommandMiddleware;
@@ -168,12 +182,81 @@ export function createEnforcement(deps: EnforcementDeps): Enforcement {
 				await store.remove(SUGGESTION_TABLE, row.id);
 	}
 
+	/** 5.3's rule: whether a tainted session's call of `name` is lowered to at most `ask`. */
+	function lowers(name: string, sources: readonly string[]): boolean {
+		const instance = deps.instanceOf(name);
+		const mounted = deps.isMounted(name);
+		// Another mounted instance, reads included: a mounted server may be remote, so an input can carry content out.
+		if (mounted && (instance === undefined || !sources.includes(instance))) return true;
+		// A `whole` source's own commands: its mutation reports are display only (phase 1's 7.4), so none of its calls can
+		// be told a read, and each asks (the review's B5).
+		if (mounted && deps.labelsOf(name) !== 'per-part') return true;
+		// An app that holds `http`, reads included, for the same reason.
+		if (!mounted && instance !== undefined && deps.holdsHttp(name)) return true;
+		// A mutation anywhere, except in a taint source whose entry vouches for its labels (`per-part`).
+		return (
+			deps.isMutation(name) &&
+			!(
+				mounted &&
+				instance !== undefined &&
+				sources.includes(instance) &&
+				deps.labelsOf(name) === 'per-part'
+			)
+		);
+	}
+
+	/**
+	 * A call an app makes while running a command the copilot called (L2, 5.3): it carries the trace, and taint lowers it
+	 * by the same rule, with the calling app as the caller, so the confirmations' gate asks the person, saying why.
+	 * Untainted, it runs as the app's call. A run a person confirmed runs as confirmed.
+	 */
+	async function nestedGate(
+		name: string,
+		input: unknown,
+		call: CommandContext & KernelFieldContext & { confirmation?: string },
+		trace: CopilotTraceV1,
+		next: () => Promise<CommandResult>
+	): Promise<CommandResult> {
+		if (call.confirmation !== undefined) return next();
+		if (deps.exempt(name, input) || !deps.journaled(name)) return next();
+		const sources = await deps.taintOf(trace.session);
+		const tainted = sources.length > 0 && lowers(name, sources);
+		// A destructive or approval-held command is at most `ask` on a copilot's behalf, nested too (6.1, the review's B6).
+		const held = deps.heldBy(name);
+		if (!tainted && held === undefined) return next();
+		if (!deps.enterable(call)) return deps.projectNotFound();
+		const asked: ConfirmationAskedV1 = {
+			mode: 'ask',
+			reason: tainted ? 'taint' : 'policy',
+			sources: tainted ? [...sources] : [],
+			chain: [
+				...(held ? [{ id: held, mode: 'ask' as const, as: 'ceiling' as const }] : []),
+				...(tainted ? [{ id: 'taint', mode: 'ask' as const, as: 'ceiling' as const }] : []),
+			],
+		};
+		(call as unknown as Record<symbol, unknown>)[ENFORCED] = {
+			ask: true,
+			asked,
+			session: trace.session,
+			group: `${trace.session}/${trace.turn}`,
+			trace: { ...trace },
+		};
+		const result = await next();
+		// The turn waits for it as for its own (3.5, the review's B8): only an id phase 4's gate issued for this very call.
+		const raised = (call as unknown as Record<symbol, unknown>)[RAISED];
+		if (typeof raised === 'string') deps.nestedRaised(trace, raised);
+		return result;
+	}
+
 	const gate: CommandMiddleware = async (name, input, context, next) => {
 		const call = context as CommandContext &
 			KernelFieldContext & {
 				trace?: CopilotTraceV1;
 				confirmation?: string;
 			};
+		// A call nested in a copilot call, or an app's carrying its trace (L2): 5.3's rule alone.
+		if (call.trace !== undefined && (call.parent !== undefined || call.caller !== undefined))
+			return nestedGate(name, input, call, call.trace, next);
 		// The agent interface's own top-level calls: a nested call runs inside the call this let through, and an app's
 		// port is an app's, not an agent's. A hosted server's MCP calls (`interface: 'mcp'`, phase 3's step 7) are not
 		// enforced here until milestone C (10.1, D98): that server keeps no autonomy rows and has no person's inbox.
@@ -196,20 +279,12 @@ export function createEnforcement(deps: EnforcementDeps): Enforcement {
 		const handedOff = await deps.handOff(name, input, context);
 		if (handedOff) return handedOff;
 		const trace = call.trace;
-		// A mounted tool's result is content the copilot cannot label before step 4's labels and taint (4.5, 5.1): until
-		// then the copilot's call is refused, whatever its mode, so none reaches a session untainted.
-		if (trace !== undefined && deps.isMounted(name)) {
-			return deps.kernelFailure(
-				'AUTONOMY_UNAVAILABLE',
-				`'${name}' is a mounted server's command, which the copilot cannot call until labels and taint are enforced`,
-				'Agents can only read until autonomy is enforced'
-			);
-		}
 		const before = deps.preflight(name, context);
 		if (before) return before;
 		const resolved = await deps.resolve(name, context);
 		let mode: AutonomyModeV1 =
-			resolved?.mode ?? defaultMode(deps.isMutation(name), deps.isMounted(name));
+			resolved?.mode ??
+			defaultMode(deps.isMutation(name), deps.isMounted(name), deps.labelsOf(name) === 'per-part');
 		const chain: ConfirmationAskedV1['chain'] = resolved
 			? structuredClone(resolved.chain)
 			: [{ id: 'default', mode, as: 'mode' }];
@@ -219,13 +294,26 @@ export function createEnforcement(deps: EnforcementDeps): Enforcement {
 			chain.push({ id: held, mode: 'ask', as: 'ceiling' });
 			if (mode === 'act') mode = 'ask';
 		}
+		// Taint (5.3): a tainted session's call outside what its sources vouch for is at most `ask`, whatever the rows say.
+		let reason: DecisionV1['reason'] = 'policy';
+		let sources: string[] = [];
+		if (trace !== undefined) {
+			const tainted = await deps.taintOf(trace.session);
+			if (tainted.length > 0 && lowers(name, tainted)) {
+				sources = tainted;
+				chain.push({ id: 'taint', mode: 'ask', as: 'ceiling' });
+				if (mode === 'act') mode = 'ask';
+				// No setting removes a taint's ask, so it is counted apart from the policy's (6.3).
+				if (mode === 'ask') reason = 'taint';
+			}
+		}
 		// A replay takes the decision its entry journaled, as the call was decided live (#1936).
 		const recorded = (call as unknown as Record<symbol, unknown>)[RECORDED_AUTONOMY];
 		if (recorded === 'act' || recorded === 'ask' || recorded === 'suggest') mode = recorded;
 		// No confirmation or suggestion for a project the caller may not enter (6.1's order): a shell command that ignores
 		// its scope would otherwise put the project's name in a header, and the person in front of a call that fails.
 		if (mode !== 'act' && !deps.enterable(context)) return deps.projectNotFound();
-		const decision: DecisionV1 = { mode, reason: 'policy' };
+		const decision: DecisionV1 = { mode, reason };
 		// Journaled with the call (#1936): a replay that answers it from its record runs this gate again all the same.
 		call.autonomy = mode;
 		if (trace !== undefined) deps.decided(trace, decision);
@@ -233,7 +321,7 @@ export function createEnforcement(deps: EnforcementDeps): Enforcement {
 		const at = deps.now(context);
 		const scope = call.scope as ScopeV1 | undefined;
 		const count = async (field: 'acted' | 'suggested') => {
-			if (person !== undefined) await health.bump(keyOf(person, name, scope, 'policy', at), field);
+			if (person !== undefined) await health.bump(keyOf(person, name, scope, reason, at), field);
 		};
 		if (mode === 'suggest') {
 			let id: string | undefined;
@@ -248,8 +336,8 @@ export function createEnforcement(deps: EnforcementDeps): Enforcement {
 					command: name,
 					input: structuredClone(input ?? {}),
 					scope: scope ?? { workspace: deps.workspace },
-					reasons: ['policy'],
-					sources: [],
+					reasons: sources.length > 0 ? ['policy', 'taint'] : ['policy'],
+					sources: [...sources],
 					createdAt: at,
 					expiresAt: at + SUGGESTION_TTL_MS,
 				};
@@ -267,7 +355,7 @@ export function createEnforcement(deps: EnforcementDeps): Enforcement {
 				{ details: { command: name, ...(id !== undefined ? { suggestion: id } : {}) } }
 			);
 		}
-		const asked: ConfirmationAskedV1 = { mode: 'ask', reason: 'policy', sources: [], chain };
+		const asked: ConfirmationAskedV1 = { mode: 'ask', reason, sources: [...sources], chain };
 		(call as unknown as Record<symbol, unknown>)[ENFORCED] = {
 			ask: mode === 'ask',
 			asked,

@@ -875,7 +875,8 @@ test("P2-E11: Loam's profile adds only the keys its profile owns", () => {
 	const top = Object.keys(loamProfile.properties).filter(
 		(key) => !(key in core.$defs.manifest.properties)
 	);
-	assert.deepEqual(top.sort(), ['app', 'native', 'view']);
+	// `calls`: a `calls` grant's targets, Loam's own (phase 5 specification, 7.5).
+	assert.deepEqual(top.sort(), ['app', 'calls', 'native', 'view']);
 	for (const definition of LOAM_CLOSES) {
 		const added = Object.keys(loamProfile.$defs[definition].properties ?? {}).filter(
 			(key) => !(key in core.$defs[definition].properties)

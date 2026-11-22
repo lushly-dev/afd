@@ -36,13 +36,16 @@ export const inputWords = (input: unknown): string => {
 export function askedWords(card: Pick<CopilotConfirmationCardV1, 'asked'>): string[] {
 	const asked = card.asked;
 	if (!asked) return [];
-	const lines = asked.chain.map((step) =>
-		step.id === 'destructive'
-			? 'Asked because it cannot be undone'
-			: step.id === 'approval'
-				? 'Asked because it needs a person’s approval'
-				: chainWords(step, (instance) => instance, undefined)
-	);
+	// Taint's bound is said in its own line, with the sources (5.3), not as a row.
+	const lines = asked.chain
+		.filter((step) => step.id !== 'taint')
+		.map((step) =>
+			step.id === 'destructive'
+				? 'Asked because it cannot be undone'
+				: step.id === 'approval'
+					? 'Asked because it needs a person’s approval'
+					: chainWords(step, (instance) => instance, undefined)
+		);
 	if (asked.reason === 'taint' && asked.sources.length > 0)
 		lines.push(`Asked because the conversation includes content from ${asked.sources.join(', ')}`);
 	return lines;

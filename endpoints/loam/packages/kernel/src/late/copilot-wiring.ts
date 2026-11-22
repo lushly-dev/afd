@@ -10,6 +10,7 @@ import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
 import type { ConfirmationRecordV1, NotificationV1 } from '@lushly-dev/loam-sdk';
 import type { DataAdapter } from '@lushly-dev/local-db';
 import type { AppsRuntime } from '../apps-runtime.js';
+import { mountCallGranted } from '../call-grant.js';
 import { INTERNAL_COMMANDS } from '../commands.js';
 import type { CopilotConfirmationCardV1, CopilotParts } from '../copilot/commands.js';
 import type { AccessActorV1 } from '../scope/access.js';
@@ -133,15 +134,19 @@ export function mountProjectRefusal(
 export function genericAskedOf(
 	command: { name: string; title?: string | undefined; destructive?: boolean | undefined },
 	instance: string,
-	held: 'destructive' | 'approval' | undefined
+	held: 'destructive' | 'approval' | undefined,
+	/** The sources a taint names, when taint asked (5.3). */
+	tainted?: readonly string[]
 ): { prompt: string; instance: string; title: string; danger: boolean } {
 	return {
 		prompt:
-			held === 'destructive'
-				? 'Agents always ask before a command that cannot be undone.'
-				: held === 'approval'
-					? 'Agents always ask before a command that needs a person’s approval.'
-					: 'Your autonomy setting asks before agents run this.',
+			tainted && tainted.length > 0 && held === undefined
+				? `Asked because the conversation includes content from ${tainted.join(', ')}.`
+				: held === 'destructive'
+					? 'Agents always ask before a command that cannot be undone.'
+					: held === 'approval'
+						? 'Agents always ask before a command that needs a person’s approval.'
+						: 'Your autonomy setting asks before agents run this.',
 		instance,
 		title: (command.title ?? command.name).slice(0, 120),
 		danger: held === 'destructive' || command.destructive === true,
@@ -187,6 +192,8 @@ export function heldByOf(
 		return 'approval';
 	const owner = apps.owners.get(name);
 	if (!owner?.recorded) return undefined;
+	// Its registration's, which an agent-only command's palette row would not show (the review's B6).
+	if (owner.approval === 'required') return 'approval';
 	const rows = apps.commandList(owner.instance);
 	const row = rows.success ? rows.data?.commands.find((each) => each.name === name) : undefined;
 	// `required` alone: a server's `not-required` holds nothing (the re-check's N3).
@@ -271,6 +278,126 @@ export function confirmPromptFor(
 	};
 }
 
+/**
+ * A mounted command as 4.5 and 5.1 read it: its instance, its entry's `labels`, whether the entry names it, and the
+ * deployer's words for the instance (its entry's or manifest's title), never the server's.
+ */
+export function mountOf(
+	apps: AppsRuntime,
+	name: string
+):
+	| { instance: string; labels: 'whole' | 'per-part'; named: boolean; deployerText: string }
+	| undefined {
+	const owner = apps.owners.get(name);
+	if (!owner?.recorded) return undefined;
+	const title = apps.summaries().find((app) => app.instance === owner.instance)?.title;
+	return {
+		instance: owner.instance,
+		labels: owner.labels === 'per-part' ? 'per-part' : 'whole',
+		named: owner.named === true,
+		deployerText: title ? `A command of ${title.slice(0, 80)}, a mounted server.` : '',
+	};
+}
+
+/**
+ * The confirmed run's re-check of its caller (phase 4's 7.2, phase 5's 7.5): an app calls its own commands, and a
+ * mounted callee's under its `calls` grant, the port's own rule, read live (B7). Undefined when it still may.
+ */
+export const badCaller = (
+	apps: AppsRuntime,
+	caller: string | undefined,
+	owner: string,
+	command: string
+): string | undefined =>
+	caller === undefined || caller === owner || callsGranted(apps, caller, command)
+		? undefined
+		: `'${caller}' may not call it`;
+
+/** An app's call to a mounted callee (7.5): the port's own rule, read live (B7). */
+export function callsGranted(apps: AppsRuntime, caller: string, command: string): boolean {
+	const detail = apps.detail(caller);
+	let calls: ReturnType<AppsRuntime['port']>['manifest']['calls'];
+	try {
+		calls = apps.port(caller).manifest.calls;
+	} catch {
+		return false;
+	}
+	const granted = new Set(
+		detail.success
+			? (detail.data?.grants ?? []).filter((each) => each.served).map((each) => each.name)
+			: []
+	);
+	return mountCallGranted(apps.owners.get(command), command, caller, granted, calls);
+}
+
+/** Shell reads whose result lists a mounted catalog: its servers' names, descriptions and schemas (B1). */
+const CATALOG_READS: readonly string[] = [
+	'app-command-list',
+	'app-instance-list',
+	'app-instance-refresh',
+	'app-get',
+	'app-list',
+	'palette-search',
+];
+
+/**
+ * The mounted instances whose servers' words a shell read's result can carry (B1): the instance it names, and every
+ * mounted instance or command of one the result names.
+ */
+export function mountWordsIn(
+	apps: AppsRuntime,
+	name: string,
+	input: unknown,
+	result: CommandResult
+): { whole: string[]; vouched: string[] } {
+	if (!CATALOG_READS.includes(name)) return { whole: [], vouched: [] };
+	const text = JSON.stringify((result as { data?: unknown }).data ?? {});
+	const asked = (input as { instance?: unknown } | null)?.instance;
+	const named = new Set<string>();
+	// A `per-part` instance's words are its claims, which taint nothing (5.1); an instance with no command known yet is
+	// read as `whole`.
+	const vouched = new Set(
+		[...apps.owners.values()].flatMap((owner) =>
+			owner.recorded && owner.labels === 'per-part' ? [owner.instance] : []
+		)
+	);
+	for (const [command, owner] of apps.owners) {
+		if (!owner.recorded || vouched.has(owner.instance)) continue;
+		if (
+			owner.instance === asked ||
+			text.includes(`"${command}"`) ||
+			text.includes(`"${owner.instance}"`)
+		)
+			named.add(owner.instance);
+	}
+	for (const row of apps.instances())
+		if (
+			!vouched.has(row.instance) &&
+			(row.instance === asked || text.includes(`"${row.instance}"`))
+		)
+			named.add(row.instance);
+	const claims = [...vouched].filter(
+		(instance) =>
+			instance === asked ||
+			text.includes(`"${instance}"`) ||
+			[...apps.owners].some(
+				([command, owner]) => owner.instance === instance && text.includes(`"${command}"`)
+			)
+	);
+	return { whole: [...named], vouched: claims };
+}
+
+/** Whether the app owning a native or view command holds `grant`, served (5.3's `http`). */
+export function holdsGrant(apps: AppsRuntime, name: string, grant: string): boolean {
+	const owner = apps.owners.get(name);
+	if (!owner || owner.recorded) return false;
+	const detail = apps.detail(owner.instance);
+	return (
+		detail.success === true &&
+		(detail.data?.grants ?? []).some((each) => each.name === grant && each.served)
+	);
+}
+
 /** What the copilot's wiring reads of `late/`, built after it: each by a getter, read at a call, never at the wiring. */
 export interface CopilotWiringRefs {
 	settings(): { refusesAgent(name: string, input: unknown): boolean } | undefined;
@@ -302,6 +429,12 @@ export function copilotPartsOf(
 		isMutation: deps.isMutation,
 		isMounted: (name) => deps.apps().owners.get(name)?.recorded === true,
 		instanceOf: (name) => deps.apps().owners.get(name)?.instance,
+		// 4.5 and 5.1: the entry's `labels`, whether it names the command, and the deployer's words for the instance.
+		mountOf: (name) => mountOf(deps.apps(), name),
+		// 5.3: a native or view app whose `http` grant is served.
+		holdsHttp: (name) => holdsGrant(deps.apps(), name, 'http'),
+		// B1: a shell read listing a mounted catalog carries its servers' words.
+		mountWordsOf: (name, input, result) => mountWordsIn(deps.apps(), name, input, result),
 		agentCommands: () => deps.agentCommands?.() ?? [],
 		// A kernel always gives it; a test of `late/` alone has no copilot, so its calls fail closed.
 		callAsCopilot: (name, input, trace, scope) =>
@@ -366,11 +499,18 @@ export function copilotPartsOf(
 export function genericAskedFor(
 	definition: (ZodCommandDefinition & { approval?: unknown }) | undefined,
 	instance: string | undefined,
-	enforced: { asked: { chain: ReadonlyArray<{ id: string }> } }
+	enforced: {
+		asked: { chain: ReadonlyArray<{ id: string }>; reason?: string; sources?: readonly string[] };
+	}
 ): ReturnType<typeof genericAskedOf> | undefined {
 	if (!definition) return undefined;
 	const held = enforced.asked.chain.find(
 		(step) => step.id === 'destructive' || step.id === 'approval'
 	)?.id as 'destructive' | 'approval' | undefined;
-	return genericAskedOf(definition, instance ?? 'shell', held);
+	return genericAskedOf(
+		definition,
+		instance ?? 'shell',
+		held,
+		enforced.asked.reason === 'taint' ? enforced.asked.sources : undefined
+	);
 }

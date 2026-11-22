@@ -49,17 +49,46 @@ const isContentPart = (value: unknown): value is Record<string, unknown> =>
 	!Array.isArray(value) &&
 	(value as { trust?: unknown }).trust === 'content';
 
+/** The kernel's labels on a result (5.1), which only the kernel's half sets: how the result is blocked. */
+function labelsOf(result: CommandResultLike): {
+	mode: 'trusted' | 'per-part' | 'whole';
+	source: string;
+} {
+	const labels = result['dev.loam/labels'] as { mode?: unknown; source?: unknown } | undefined;
+	const mode =
+		labels?.mode === 'whole' || labels?.mode === 'per-part' ? labels.mode : ('trusted' as const);
+	return { mode, source: typeof labels?.source === 'string' ? labels.source : 'shell' };
+}
+
 /**
- * A command's result as the model is given it: the result as JSON, with every part labelled `"trust": "content"`
- * taken out into a content block of its own, which the JSON names by number. At most 32 levels and 10,000 nodes are
- * walked (5.1); past them the rest is one content block, as the kernel treats a result past the walk's bounds.
+ * A command's result as the model is given it, by the kernel's labels (5.1, 5.2). `whole`: the data and error in one
+ * content block. Otherwise the result as JSON, with every part labelled `"trust": "content"` taken out into a content
+ * block of its own, which the JSON names by number; for `per-part`, the rest is the server's claim, in its block. At
+ * most 32 levels and 10,000 nodes are walked (5.1); past them the rest is one content block, as the kernel treats a
+ * result past the walk's bounds.
  */
 export function toolResultText(
 	command: string,
 	result: CommandResultLike,
 	nonce: string,
-	from = 'shell'
+	given?: string
 ): string {
+	const labels = labelsOf(result);
+	const from = given ?? labels.source;
+	if (labels.mode === 'whole') {
+		const head = JSON.stringify({ success: result.success, content: '[content block 1]' });
+		return [
+			`<loam-result command="${source(command)}" id="${nonce}">\n${head}\n</loam-result id="${nonce}">`,
+			contentBlock(
+				from,
+				JSON.stringify({
+					...(result.data !== undefined ? { data: result.data } : {}),
+					...(result.error ? { error: result.error } : {}),
+				}),
+				nonce
+			),
+		].join('\n');
+	}
 	const blocks: string[] = [];
 	let nodes = 0;
 	let overflow = false;
@@ -91,10 +120,11 @@ export function toolResultText(
 	);
 	if (overflow) return contentBlock(from, JSON.stringify(result), nonce);
 	const json = clean(JSON.stringify(shown), nonce);
-	return [
-		`<loam-result command="${source(command)}" id="${nonce}">\n${json}\n</loam-result id="${nonce}">`,
-		...blocks,
-	].join('\n');
+	const body =
+		labels.mode === 'per-part'
+			? serverClaimBlock(from, json, nonce)
+			: `<loam-result command="${source(command)}" id="${nonce}">\n${json}\n</loam-result id="${nonce}">`;
+	return [body, ...blocks].join('\n');
 }
 
 /** The model's messages for a turn: the kernel's history, then the person's text. */

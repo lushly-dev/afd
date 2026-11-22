@@ -31,10 +31,17 @@ describe('the panel’s card words (6.2)', () => {
 					mode: 'ask',
 					reason: 'taint',
 					sources: ['mail'],
-					chain: [{ id: 'default', mode: 'ask', as: 'mode' }],
+					chain: [
+						{ id: 'default', mode: 'act', as: 'mode' },
+						{ id: 'taint', mode: 'ask', as: 'ceiling' },
+					],
 				},
-			}).at(-1)
-		).toBe('Asked because the conversation includes content from mail');
+			})
+		).toEqual([
+			// Taint's bound is its own line, never a row's words (5.3).
+			expect.stringContaining('the default'),
+			'Asked because the conversation includes content from mail',
+		]);
 		expect(askedWords({})).toEqual([]);
 	});
 

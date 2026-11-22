@@ -69,6 +69,9 @@ describe('resolution (4.2)', () => {
 		expect(defaultMode(READ)).toBe('act');
 		expect(defaultMode(WRITE)).toBe('ask');
 		expect(defaultMode(TOOL)).toBe('ask');
+		// A `per-part` instance's reads act; its mutations still ask (phase 5 specification, 6.1).
+		expect(defaultMode({ ...TOOL, mutation: false, vouched: true })).toBe('act');
+		expect(defaultMode({ ...TOOL, mutation: true, vouched: true })).toBe('ask');
 		for (const command of [READ, WRITE, TOOL]) {
 			expect(resolveAutonomy({ rows: [], command })).toEqual({
 				mode: defaultMode(command),

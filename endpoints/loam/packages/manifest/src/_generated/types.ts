@@ -791,6 +791,14 @@ export interface ManifestV2 {
 		};
 		requires_experiment?: string;
 	};
+	calls?: {
+		app: string;
+		/**
+		 * @minItems 1
+		 * @maxItems 64
+		 */
+		commands: [string, ...string[]];
+	}[];
 }
 
 export interface DeploymentV1 {
@@ -986,6 +994,7 @@ export interface ProjectionV2 {
 		space?: {
 			[k: string]: string;
 		};
+		labels?: 'whole' | 'per-part';
 		expose?: {
 			agent?: boolean;
 			palette?: boolean;
@@ -999,6 +1008,7 @@ export interface ProjectionV2 {
 					palette?: boolean;
 					mcp?: false;
 					cli?: false;
+					apps?: boolean;
 				};
 				/**
 				 * @minItems 1
@@ -1149,6 +1159,7 @@ export interface ProjectionV3 {
 		space?: {
 			[k: string]: string;
 		};
+		labels?: 'whole' | 'per-part';
 		expose?: {
 			agent?: boolean;
 			palette?: boolean;
@@ -1162,6 +1173,7 @@ export interface ProjectionV3 {
 					palette?: boolean;
 					mcp?: false;
 					cli?: false;
+					apps?: boolean;
 				};
 				/**
 				 * @minItems 1
@@ -1270,6 +1282,7 @@ export interface DeploymentV4 {
 			space?: {
 				[k: string]: string;
 			};
+			labels?: 'whole' | 'per-part';
 			expose?: {
 				agent?: boolean;
 				palette?: boolean;
@@ -1283,6 +1296,7 @@ export interface DeploymentV4 {
 						palette?: boolean;
 						mcp?: false;
 						cli?: false;
+						apps?: boolean;
 					};
 					/**
 					 * @minItems 1
@@ -1344,6 +1358,7 @@ export interface ProjectionV4 {
 		space?: {
 			[k: string]: string;
 		};
+		labels?: 'whole' | 'per-part';
 		expose?: {
 			agent?: boolean;
 			palette?: boolean;
@@ -1357,6 +1372,7 @@ export interface ProjectionV4 {
 					palette?: boolean;
 					mcp?: false;
 					cli?: false;
+					apps?: boolean;
 				};
 				/**
 				 * @minItems 1

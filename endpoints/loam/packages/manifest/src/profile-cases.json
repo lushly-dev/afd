@@ -6581,6 +6581,28 @@
 			"suggestion": "Admitted keys"
 		},
 		{
+			"id": "closed-call",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/grants/1": {
+					"name": "calls",
+					"reason": "x"
+				},
+				"/calls": [
+					{
+						"app": "mailfix",
+						"commands": ["mailfix-draft-create"],
+						"bogus": 1
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_KEY",
+			"key": "calls[0].bogus",
+			"suggestion": "Admitted keys"
+		},
+		{
 			"id": "ui-experiments-limit",
 			"base": "native",
 			"set": {
@@ -8167,6 +8189,82 @@
 				}
 			},
 			"accepted": true
+		},
+		{
+			"id": "calls-grant-loads",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/grants/1": {
+					"name": "calls",
+					"reason": "x"
+				},
+				"/calls": [
+					{
+						"app": "mailfix",
+						"commands": ["mailfix-draft-create"]
+					}
+				]
+			},
+			"accepted": true
+		},
+		{
+			"id": "calls-without-grant",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/calls": [
+					{
+						"app": "mailfix",
+						"commands": ["mailfix-draft-create"]
+					}
+				]
+			},
+			"accepted": false,
+			"code": "GRANT_REQUIRED",
+			"key": "calls",
+			"suggestion": "calls"
+		},
+		{
+			"id": "calls-own-app",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/grants/1": {
+					"name": "calls",
+					"reason": "x"
+				},
+				"/calls": [
+					{
+						"app": "hello",
+						"commands": ["x-a-b"]
+					}
+				]
+			},
+			"accepted": false,
+			"code": "GRANT_NOT_APPLICABLE",
+			"key": "calls[0].app",
+			"suggestion": "another app"
+		},
+		{
+			"id": "calls-empty-commands",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/grants/1": {
+					"name": "calls",
+					"reason": "x"
+				},
+				"/calls": [
+					{
+						"app": "mailfix",
+						"commands": []
+					}
+				]
+			},
+			"accepted": false,
+			"key": "calls[0].commands",
+			"code": "MANIFEST_INVALID"
 		},
 		{
 			"id": "grant-documents-served",

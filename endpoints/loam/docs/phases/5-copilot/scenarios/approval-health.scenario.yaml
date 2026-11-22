@@ -5,8 +5,9 @@
 # kernel/scenarios/model-scripts.ts). The data is invented. Lists are asserted by index ('0'),
 # and an end of list by `'n': { notExists: true }`.
 # The same script as mail-cannot-act-elsewhere (obey-thr-2): one read in act, one ask lowered by
-# taint, one suggestion. Counters start at zero on p5-base. Rates over days need the clock to
-# move, which P5-A5 shows.
+# taint, one suggestion. Counters start at zero on p5-base. `acted` counts changes run without
+# asking, not reads (step 3's decision), so the read is not counted and every change asked. Rates
+# over days need the clock to move, which P5-A5 shows.
 name: See how often I'm asked
 description: >-
   When I've used the copilot for a while, I want to see how often it asked, what I approved and
@@ -45,8 +46,8 @@ steps:
     expect:
       success: true
       data:
-        totals: { acted: 1, asked: 1, confirmed: 0, declined: 1, suggested: 1 }
-        askRate: 0.5
+        totals: { acted: 0, asked: 1, confirmed: 0, declined: 1, suggested: 1 }
+        askRate: 1
         declineRate: 1
         rows:
           '0': { instance: shell, command: project-create, reason: taint, asked: 1, declined: 1 }

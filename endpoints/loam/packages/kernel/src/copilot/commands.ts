@@ -1,7 +1,8 @@
 /**
  * @fileoverview The copilot's records and commands (phase 5 specification, 3.4 and 3.5), the agent port's kernel
  * half (3.2), autonomy enforced on the agent interface (6.1, `enforce.ts`), a turn that waits on the person and
- * continues once they answer (3.5), and approval health (6.3, `health.ts`). In the
+ * continues once they answer (3.5), approval health (6.3, `health.ts`), and labels and taint (5.1, 5.3, `labels.ts`,
+ * `taint.ts`). In the
  * `late-copilot` chunk, which `late/` loads in stage B: it imports types alone, and every function it shares with
  * first paint or `late` reaches it through {@link CopilotDeps}' kit, as `late-documents`' does (2.4).
  */
@@ -23,6 +24,8 @@ import {
 	type SuggestionV1,
 } from './enforce.js';
 import { type ApprovalHealthV1, createHealth, type HealthReasonV1 } from './health.js';
+import { forRuntime, listTools } from './labels.js';
+import { createTaint } from './taint.js';
 import type {
 	CopilotAgentCapabilityV1,
 	CopilotCallV1,
@@ -162,8 +165,25 @@ export interface CopilotDeps {
 	/** Whether the call's actor may enter its scope (6.1's order: access before the mode). Absent: every scope. */
 	enterable?(context: CommandContext): boolean;
 	isMutation(name: string): boolean;
-	/** A mounted instance's command: its result is the server's, labelled `content` whole until step 4 (5.1). */
+	/** A mounted instance's command: its result is the server's, `content` whole unless its entry says `per-part` (5.1). */
 	isMounted(name: string): boolean;
+	/**
+	 * A mounted command's instance, its entry's `labels`, whether the entry names it, and the deployer's words for the
+	 * instance (4.5, 5.1). Absent, or undefined for any other command.
+	 */
+	mountOf?(
+		name: string
+	):
+		| { instance: string; labels: 'whole' | 'per-part'; named: boolean; deployerText: string }
+		| undefined;
+	/** A native or view app's command whose app holds the `http` grant (5.3). Absent: none does. */
+	holdsHttp?(name: string): boolean;
+	/** The mounted instances whose servers' words a shell read's result can carry (a catalog, B1). Absent: none. */
+	mountWordsOf?(
+		name: string,
+		input: unknown,
+		result: CommandResult
+	): { whole: string[]; vouched: string[] };
 	/** The owning instance of an app's command. */
 	instanceOf(name: string): string | undefined;
 	/** The agent interface's commands with their input schemas, as its registry lists them. */
@@ -356,6 +376,23 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 	const decisions = new Map<string, DecisionV1>();
 	const traceKey = (trace: CopilotTraceV1) => `${trace.session}/${trace.turn}/${trace.call}`;
 	const health = createHealth({ store, workspace: deps.workspace });
+	const taint = createTaint({
+		store,
+		sessionTable: COPILOT_SESSION_TABLE,
+		commandOf: (name) => ({
+			instance: deps.instanceOf(name),
+			mounted: deps.isMounted(name),
+			labels: deps.mountOf?.(name)?.labels,
+		}),
+		mountWordsOf: (name, input, result) =>
+			deps.mountWordsOf?.(name, input, result) ?? { whole: [], vouched: [] },
+		personOf: (context) => kit.personOf(context),
+		now: (context) => kit.callNow(context),
+	});
+	/** The confirmations calls nested in a copilot call raised, by its trace, until the port's half reads them (B8). */
+	const nestedRaised = new Map<string, string[]>();
+	/** Each confirmation read of the port gets a trace of its own, so two reads' labels never meet (B10). */
+	let reads = 0;
 	/** Never asked or suggested (6.1). */
 	const exempt = (name: string, input: unknown): boolean =>
 		name === COPILOT_PORT_REFUSE ||
@@ -399,12 +436,22 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 		declares: (name) => deps.declares?.(name) === true,
 		exempt,
 		instanceOf: deps.instanceOf,
+		taintOf: (session) => taint.sourcesOf(session),
+		labelsOf: (name) => deps.mountOf?.(name)?.labels,
+		holdsHttp: (name) => deps.holdsHttp?.(name) === true,
 		personOf: (context) => kit.personOf(context),
 		now: (context) => kit.callNow(context),
 		decided(trace, decision) {
 			decisions.set(traceKey(trace), decision);
 			// Bounded: a decision the port never read (a nested or refused path) goes with the oldest.
 			if (decisions.size > 256) decisions.delete(decisions.keys().next().value as string);
+		},
+		nestedRaised(trace, notification) {
+			nestedRaised.set(traceKey(trace), [
+				...(nestedRaised.get(traceKey(trace)) ?? []),
+				notification,
+			]);
+			if (nestedRaised.size > 256) nestedRaised.delete(nestedRaised.keys().next().value as string);
 		},
 		kernelFailure: kit.kernelFailure,
 		enterable: (context) => deps.enterable?.(context) ?? true,
@@ -751,14 +798,21 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 				const result = await deps.callAsCopilot(name, input, trace, scope);
 				const decided = decisions.get(traceKey(trace));
 				decisions.delete(traceKey(trace));
+				const labels = taint.take(trace);
+				const inner = nestedRaised.get(traceKey(trace)) ?? [];
+				nestedRaised.delete(traceKey(trace));
 				const instance = deps.instanceOf(name);
 				const code = result.success ? undefined : (result.error?.code ?? 'UNKNOWN');
 				// A result's own words never make a confirmation or a suggestion (the reviews' I1): only the id the
-				// confirmations' gate issued or found pending for this very call, read back to be this session's, or the
-				// suggestion the gate recorded for it.
-				const claimed =
+				// confirmations' gate issued or found pending for this very call, or for a call nested in it (B8), read back
+				// to be this session's, or the suggestion the gate recorded for it.
+				const raisedId =
 					code === 'CONFIRMATION_PENDING' && decided?.notification !== undefined
-						? await deps.confirmationOf?.(decided.notification, session.person)
+						? decided.notification
+						: inner[0];
+				const claimed =
+					raisedId !== undefined
+						? await deps.confirmationOf?.(raisedId, session.person)
 						: undefined;
 				const notification = claimed?.session === session.id ? claimed.id : undefined;
 				const suggestion = code === 'AUTONOMY_SUGGEST_ONLY' ? decided?.suggestion : undefined;
@@ -769,7 +823,11 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 					inputDigest,
 					// A command's own `confirm_prompt` asks in `act` too: what reached the person is an ask (3.4).
 					mode: notification !== undefined ? 'ask' : (decided?.mode ?? 'act'),
-					...(decided ? { reason: decided.reason } : {}),
+					...(notification !== undefined && raisedId === inner[0] && claimed?.asked
+						? { reason: claimed.asked.reason }
+						: decided
+							? { reason: decided.reason }
+							: {}),
 					outcome:
 						notification !== undefined
 							? 'pending'
@@ -784,13 +842,18 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 					...(result.success && typeof result.undoCommand === 'string'
 						? { undo: result.undoCommand }
 						: {}),
-					// Before step 4 the copilot reaches no mounted instance, so every result it receives is trusted.
-					labels: { content: 0, server: 0, trusted: 1 },
+					// 5.1's parts by label, nested calls' content included (5.3).
+					labels: labels ? { ...labels.counts } : { content: 0, server: 0, trusted: 1 },
 				};
 				if (!live.revoked) {
 					live.turn.calls.push(entry);
 					if (notification !== undefined && claimed)
 						live.pending.set(notification, claimed.expiresAt);
+					// The rest a nested call raised wait too, each this session's (B8).
+					for (const id of inner.slice(1)) {
+						const card = await deps.confirmationOf?.(id, session.person);
+						if (card?.session === session.id) live.pending.set(id, card.expiresAt);
+					}
 				} else if (
 					notification !== undefined &&
 					// Only one this very call raised, and no live turn of the session holds (re-check 4): a confirmation
@@ -816,7 +879,7 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 						withdraw: { person: session.person, ids: [notification] },
 					});
 				}
-				return result;
+				return forRuntime(result, labels);
 			},
 			async listCommands() {
 				if (live.revoked || !samePerson()) return [];
@@ -837,42 +900,34 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 				// Again after the lookup, with none between this and the read (re-check 2, B5).
 				if (live.revoked) return refuse('The turn has ended', ['confirmation']);
 				if (!samePerson()) return refuse('The person changed', ['confirmation']);
-				return deps.callAsCopilot(
-					'confirmation-get',
-					{ notification },
-					{ session: session.id, turn: live.turn.seq, call: 'confirmation' },
-					scope
-				);
+				reads += 1;
+				const trace = { session: session.id, turn: live.turn.seq, call: `confirmation-${reads}` };
+				const read = await deps.callAsCopilot('confirmation-get', { notification }, trace, scope);
+				// A stored outcome keeps the labels of the run it was (5.1): given to the model as they say.
+				return forRuntime(read, taint.take(trace));
 			},
 		};
 	}
 
-	/** 4.5's list: the agent interface's commands, less every one the copilot may not reach. */
+	/**
+	 * 4.5's list: the agent interface's commands, less every one the copilot may not reach. A mounted instance's are
+	 * listed as `labels.ts`'s `mountedTool` gives them: a `per-part` server's descriptions as its claims, a `whole`
+	 * server's as the deployer's words alone, with its schema cut to structural keywords.
+	 */
 	function toolsFor(): ToolDescriptorV1[] {
-		return (
-			deps
-				.agentCommands()
-				.filter(
-					(command) =>
-						!deps.internal(command.name) &&
-						!deps.humanOnly(command.name) &&
-						// No mounted tool is listed until step 4, so no mounted content reaches a session before taint (4.5).
-						!deps.isMounted(command.name) &&
-						// Signing in or out is the person's alone (6.1).
-						!command.name.startsWith('auth-') &&
-						!command.name.startsWith('confirmation-') &&
-						!CHROME_ONLY.includes(command.name)
-				)
-				// One place is the runtime's own `confirmation-get` (4.5's 128 in all).
-				.slice(0, TOOLS_MAX - 1)
-				.map((command) => ({
-					name: command.name,
-					description: command.description,
-					inputSchema:
-						command.inputSchema && typeof command.inputSchema === 'object'
-							? (command.inputSchema as Record<string, unknown>)
-							: { type: 'object' },
-				}))
+		return listTools(
+			deps.agentCommands(),
+			(name) =>
+				deps.internal(name) ||
+				deps.humanOnly(name) ||
+				// Signing in or out is the person's alone (6.1).
+				name.startsWith('auth-') ||
+				name.startsWith('confirmation-') ||
+				CHROME_ONLY.includes(name),
+			// A mounted command whose entry the kernel cannot read is not listed: nothing of its server's reaches the model.
+			(name) => (deps.isMounted(name) ? (deps.mountOf?.(name) ?? null) : undefined),
+			// One place is the runtime's own `confirmation-get` (4.5's 128 in all).
+			TOOLS_MAX - 1
 		);
 	}
 
@@ -1392,7 +1447,9 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 		internal: [portRefuse] as unknown as ZodCommandDefinition[],
 		bootOnly: [turnSettle] as unknown as ZodCommandDefinition[],
 		contextFields,
-		gate: enforcement.gate,
+		// Taint's record outermost, so it reads every traced call's result, nested and confirmed runs too (5.3).
+		gate: (name, input, context, next) =>
+			taint.record(name, input, context, () => enforcement.gate(name, input, context, next)),
 		suggestions: { suggestion: enforcement.suggestion, ran: enforcement.ran },
 		async observe(event, row) {
 			const asked = row.confirmation.asked;

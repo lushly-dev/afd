@@ -20,6 +20,7 @@ import type {
 	HostKindV1,
 	IdentityV1,
 	ProjectionAppV2,
+	ProjectionAppV4,
 	ProjectionBootV2,
 	ProjectionV4,
 } from '@lushly-dev/loam-manifest';
@@ -187,7 +188,7 @@ export function projectionOf(
 	identity: IdentityV1 = { mode: 'local' },
 	kind: HostKindV1 = 'static'
 ): ProjectionV4 {
-	const apps: ProjectionAppV2[] = instances.map((effect) => {
+	const apps: Array<ProjectionAppV2 & Pick<ProjectionAppV4, 'labels'>> = instances.map((effect) => {
 		const { id, entry, mounted, prefix, transport } = effect;
 		return {
 			instance: id,
@@ -206,6 +207,10 @@ export function projectionOf(
 				: {}),
 			...(entry.projects !== undefined ? { projects: entry.projects } : {}),
 			...(entry.space !== undefined ? { space: entry.space } : {}),
+			// Whose word decides a result's labels (phase 5 specification, 5.1): the deployer's, per instance.
+			...(mounted && 'labels' in entry && (entry.labels === 'whole' || entry.labels === 'per-part')
+				? { labels: entry.labels }
+				: {}),
 			...(entry.expose !== undefined ? { expose: entry.expose } : {}),
 			...(entry.commands !== undefined ? { commands: entry.commands } : {}),
 			boot: bootRecordOf(effect, findings),

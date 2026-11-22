@@ -25,6 +25,8 @@ import type { AppRecord } from './operations.js';
 import type { AppsHost } from './types.js';
 
 export const DISCOVERY_DEADLINE_MS = 10_000;
+/** A definition's twin on the app-call registry (7.5), by `Symbol.for`, so the kernel reads it without this chunk. */
+const APPS_TWIN = Symbol.for('dev.loam/apps-twin');
 export const MOUNTED_CALL_DEADLINE_MS = 60_000;
 /** At most one automatic discovery per instance in this time (7.3). */
 export const AUTO_DISCOVERY_MS = 30_000;
@@ -197,6 +199,9 @@ export function parseMountedResult(result: McpToolCallResult, instance: string):
 			'dev.loam/trust': 'untrusted',
 			'dev.loam/instance': instance,
 			'dev.loam/replay': 'recorded',
+			// Whether the server sent structured data: a result read from its text duplicate is content whole, whatever
+			// its entry's `labels` (phase 5 specification, 5.1).
+			'dev.loam/structured': result.structuredContent !== undefined,
 		},
 	} as unknown as CommandResult;
 }
@@ -315,12 +320,20 @@ export function unlistedProject(
 
 // ─── Exposure ───────────────────────────────────────────────────────────────────
 
+/** An entry's `labels` (phase 5 specification, 5.1): `per-part` only when it says so exactly. */
+export const labelsOf = (entry: object): 'whole' | 'per-part' =>
+	(entry as { labels?: unknown }).labels === 'per-part' ? 'per-part' : 'whole';
+
 type EntryOverride = NonNullable<ProjectionAppV1['commands']>[string];
 
 export interface CommandFlags {
 	mutation: boolean;
 	destructive: boolean;
-	expose: { palette: boolean; agent: boolean };
+	/**
+	 * `apps` only from the entry's `commands."<name>".expose.apps` (phase 5 specification, 7.5): the instance entry is a
+	 * mounted callee's declaration (D65), and nothing else sets it.
+	 */
+	expose: { palette: boolean; agent: boolean; apps?: true };
 }
 
 /** 7.4's table. A server's claim sets display and defaults, and never widens what a deployer said. */
@@ -342,8 +355,13 @@ export function flagsOf(
 					? deriveMutation(named.effects)
 					: true));
 	const destructive = reported.destructive === true || named?.destructive === true;
+	const apps = (named?.expose as { apps?: unknown } | undefined)?.apps === true;
 	const expose = named
-		? { palette: named.expose?.palette === true, agent: named.expose?.agent === true }
+		? {
+				palette: named.expose?.palette === true,
+				agent: named.expose?.agent === true,
+				...(apps ? { apps: true as const } : {}),
+			}
 		: mutation || destructive
 			? { palette: false, agent: false }
 			: { palette: entry.expose?.palette ?? true, agent: entry.expose?.agent ?? true };
@@ -729,7 +747,23 @@ export function createMountedHost(options: MountedHostOptions): MountedHost {
 		return result;
 	}
 
+	/**
+	 * A command the entry lets apps call (7.5) gets a twin exposed to the palette's interface, registered only on the
+	 * kernel's app-call registry, which an app port's call alone reaches (the review's B2): the person's palette and the
+	 * public client keep the entry's own exposure. The port checks the grant.
+	 */
 	function define(command: CatalogCommandV1): ZodCommandDefinition {
+		const definition = defineOne(command);
+		if (command.expose.apps === true && !command.expose.palette) {
+			(definition as unknown as Record<symbol, unknown>)[APPS_TWIN] = defineOne({
+				...command,
+				expose: { ...command.expose, palette: true },
+			});
+		}
+		return definition;
+	}
+
+	function defineOne(command: CatalogCommandV1): ZodCommandDefinition {
 		return defineCommand({
 			name: command.name,
 			description: command.description,
@@ -739,7 +773,12 @@ export function createMountedHost(options: MountedHostOptions): MountedHost {
 			...(command.title !== undefined ? { title: command.title } : {}),
 			...(command.destructive ? { destructive: true } : {}),
 			...(command.undoable ? { undoable: true } : {}),
-			expose: { ...command.expose, mcp: false, cli: false },
+			expose: {
+				palette: command.expose.palette,
+				agent: command.expose.agent,
+				mcp: false,
+				cli: false,
+			},
 			handler: (input: unknown, context: CommandContext) => call(command, input, context),
 		}) as unknown as ZodCommandDefinition;
 	}
@@ -786,6 +825,11 @@ export function createMountedHost(options: MountedHostOptions): MountedHost {
 				instance,
 				recorded: true,
 				...(command.replaced ? { replaced: true as const } : {}),
+				// Whose word decides its result's labels: the entry's, `whole` by default (phase 5 specification, 5.1).
+				labels: labelsOf(entry),
+				...(entry.commands && Object.hasOwn(entry.commands, name) ? { named: true as const } : {}),
+				...(command.expose.apps === true ? { apps: true as const } : {}),
+				...(command.approval ? { approval: command.approval } : {}),
 			});
 		}
 		commands.push(...definitions);

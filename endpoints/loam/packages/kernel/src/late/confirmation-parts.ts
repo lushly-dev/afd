@@ -130,6 +130,13 @@ export const ENFORCED = Symbol.for('dev.loam/enforced');
  */
 export const RAISED = Symbol.for('dev.loam/raised');
 
+/** A stored outcome answered again (phase 5's 5.1): taint reads it as what its run was, never the kernel's own answer. */
+export const STORED = Symbol.for('dev.loam/stored');
+
+/** `result`, marked {@link STORED} with the confirmation whose stored outcome it is. */
+export const markStored = <T extends object>(result: T, confirmation: string): T =>
+	Object.assign(result, { [STORED]: confirmation }) as T;
+
 /** What enforcement adds to a confirmation's record (phase 5's 6.2): why, and the copilot's session, group and trace. */
 export const enforcedFields = (enforced: EnforcedV1 | undefined) =>
 	enforced === undefined

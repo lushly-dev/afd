@@ -43,6 +43,7 @@ import {
 	enforcedFields,
 	ID,
 	jsonOf,
+	markStored,
 	outcomeOf,
 	ownedBy,
 	PENDING_LIMIT,
@@ -426,8 +427,9 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 		const state = stateNow(live.confirmation, now);
 		if (state === 'pending') return pending(live);
 		if (state === 'declined') return refuseAgain(live);
+		// Marked as a stored outcome answered again (phase 5's 5.1): never read as the kernel's own answer.
 		if (state === 'confirmed' && live.confirmation.result !== undefined)
-			return structuredClone(live.confirmation.result) as CommandResult;
+			return markStored(structuredClone(live.confirmation.result) as CommandResult, live.id);
 		return undefined;
 	}
 

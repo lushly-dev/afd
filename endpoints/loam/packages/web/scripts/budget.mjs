@@ -536,6 +536,15 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * the settle, dead suggestion prompts): `lateCopilotMinified` 24,000 to 25,000 (24,506); `lateSettingsMinified` 104,500
  * to 105,000 (104,545). After the third and fourth re-checks (the late withdrawal by its call, the reader's access):
  * `lateCopilotMinified` 25,000 to 25,800 (25,177).
+ * Phase 5's step 4 (labels, taint and grants to mounts), under D115, on macOS with Node 26, against `main` at
+ * `f602b0f9`: `lateCopilotMinified` 25,800 to 32,500 (31,628, +6,451: 5.1's labels and walk, 4.5's schema cut, taint's
+ * record and its stored outcomes, 5.3's lowering and the nested gate); `lateMinified` 125,200 to 126,000 (125,280: the
+ * copilot's mount wiring and the taint words of a generic ask); `appsMinified` 443,200 to 450,500 (449,407: the
+ * manifest validator's `[[calls]]`, the projection's `labels` and a command's `expose.apps`, the port's grant check).
+ * After the trust review's fixes: `jsMinified` 330,300 to 331,000 (330,492: the kernel's app-call registry and its
+ * refusal of a client kept past a traced call); `lateMinified` 126,000 to 127,000 (126,493: the catalog reads' sources,
+ * the confirmed run's grant re-check); `lateCopilotMinified` 32,500 to 35,000 (34,025: stored outcomes in inbox reads,
+ * a nested ask's turn waiting, the kernel's answers for a mounted command, the per-part schema cut).
  */
 export const CEILINGS = Object.freeze({
 	// Raised from 300,000 and 93,000 under D115 by AFD's port of Microsoft FAST Element 3.1.4 into
@@ -600,7 +609,8 @@ export const CEILINGS = Object.freeze({
 	// 332,200 under D115.
 	// Both merged (#1936 on phase 6's step 5, `main` at `2b304beb`), the combined build: 332,238; set to 332,700 under
 	// D115.
-	jsMinified: 332_700,
+	// Phase 5's step 4 merged on both (`main` at `5b01fe89`), the combined build: 332,903; set to 333,400 under D115.
+	jsMinified: 333_400,
 	// Raised from 96,500 to 97,000 under D115 by phase 4's step 4 with `main` at `8c3425d8` (phase 5's step 0b) merged,
 	// both measured from clean builds in one tree: 96,436 to 96,527 gzip (+91) and 309,074 to 309,275 minified (+201,
 	// within its row): the answer registry the `surfaces` and `editor` chunks share, in `events` (+180), and 21 in `layout`.
@@ -651,7 +661,8 @@ export const CEILINGS = Object.freeze({
 	// under D115. After its reviews (the order by what each read saw): 143,721; set to 144,200 under D115.
 	// Both merged (#1936 on phase 6's step 5, `main` at `2b304beb`), the combined build: 145,003; set to 145,500 under
 	// D115.
-	kernelMinified: 145_500,
+	// Phase 5's step 4 merged on phase 6's step 5 and #1936, the combined build: 145,888; set to 146,300 under D115.
+	kernelMinified: 146_300,
 	// Phase 4's steps 2 (+1,494) and 3 (+8,786) together: 92,316 measured with both merged; set to 93,000.
 	// Phase 4's step 5: 93,596, the inbox's wiring (above); set to 94,000.
 	// With step 8 merged beside them, 93,244; set to 94,000 (the header records it).
@@ -672,7 +683,8 @@ export const CEILINGS = Object.freeze({
 	// Phase 6's step 5, against `main` at `01d92259`: 124,664 to 127,384 (+2,720): the trust records' wiring, `member-leave`,
 	// the server's per-call roster for the sponsor rule, and the routed list `late` shares with `late-hosted`; set to
 	// 127,500 under D115.
-	lateMinified: 127_500,
+	// Phase 5's step 4 merged on phase 6's step 5 and #1936, the combined build: 129,416; set to 129,900 under D115.
+	lateMinified: 129_900,
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 16_400,
 	// Phase 3's step 7, against `main` at `0ab76415`: 62,702 to 64,976 (+2,274): `account-agent-list` and `-disconnect`,
@@ -681,7 +693,8 @@ export const CEILINGS = Object.freeze({
 	// Phase 6's step 5, against `main` at `01d92259`: 65,829 to 66,629 (+800): `member-leave` and its refusals, and the
 	// agent members' roster per call on the server; set to 67,000 under D115.
 	lateIdentityMinified: 67_000,
-	lateCopilotMinified: 25_800,
+	// Phase 5's step 4 merged on phase 6's step 5 and #1936, the combined build: 34,722; set to 35,500 under D115.
+	lateCopilotMinified: 35_500,
 	// Steps 5 and 8 together: 60,469; set to 61,500 (the header records it). Step 6: 78,180; set to 78,500; after its trust review 80,506, set to 81,000; after its second round 81,152, set to 81,500; after its third, 83,764, set to 84,500; merged with step 10, 90,579, set to 91,200; after its fourth round, 91,964, set to 92,500; after its fifth, 93,273, set to 94,000; merged with step 7, 100,819, set to 101,500.
 	// Phase 4's step 9, measured in one tree against `main` at `0ab76415`: 101,093 to 116,636 (+15,543: the four `experiment-*` commands and boot's settle, their
 	// rules, refusals and notices in words); set to 117,000 under D115. After its two reviews, 118,500 (removals kept,
@@ -722,7 +735,8 @@ export const CEILINGS = Object.freeze({
 	// rules; set to 434,200 under D115, measured first as 5.5 asks. Nothing moved out: the branch is the validator's, and
 	// the validator is what `apps` holds. Merged with phase 4's step 9 (`main` at `1832a444`): 442,582, both steps'
 	// branches in the validator; set to 443,200 under D115.
-	appsMinified: 443_200,
+	// Phase 5's step 4: 449,455 after its review; merged on phase 6's step 5 and #1936, the combined build: 449,668.
+	appsMinified: 450_500,
 	// Steps 4 and 5 together: 94,868 (step 4's slot and dialogs beside the inbox's Open inbox and hidden toasts' timers);
 	// set to 95,500 under D115.
 	// Phase 5's step 3 with phase 3's step 8 merged (`main` at `46f7ab11`; step 8's `surface-calls`, shared with

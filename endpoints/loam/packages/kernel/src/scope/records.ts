@@ -39,6 +39,8 @@ export interface WorkspaceAppV1 {
 	route?: string;
 	projects?: string[];
 	space?: Record<string, string>;
+	/** A mounted entry's `labels` (phase 5 specification, 5.1). */
+	labels?: 'whole' | 'per-part';
 	expose?: Record<string, boolean>;
 	commands?: Record<string, unknown>;
 	order?: number;

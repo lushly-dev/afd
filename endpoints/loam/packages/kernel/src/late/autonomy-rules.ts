@@ -50,6 +50,11 @@ export interface AutonomyCommandV1 {
 	mutation: boolean;
 	/** A mounted server's tool: its own labels cannot be trusted, so its default is `ask` (D156). */
 	mounted: boolean;
+	/**
+	 * A mounted tool whose instance entry says `labels = "per-part"`, which vouches for the server's own mutation reports
+	 * (phase 5 specification, 5.1, 6.1): its reads default to `act`.
+	 */
+	vouched?: boolean;
 }
 
 /** One step of the explanation: the row (or `default`) that decided the mode, a ceiling that bounded it, the cap. */
@@ -105,10 +110,14 @@ export const lowerOf = (a: AutonomyModeV1, b: AutonomyModeV1): AutonomyModeV1 =>
 export const above = (mode: AutonomyModeV1, bound: AutonomyModeV1): boolean =>
 	rank(mode) > rank(bound);
 
-/** The default (4.2 step 3, D156): act on reads, ask before changes, ask before any tool of a mounted server. */
+/**
+ * The default (4.2 step 3, D156): act on reads, ask before changes, ask before any tool of a mounted server, but the
+ * reads of one whose entry says `labels = "per-part"` (phase 5 specification, 6.1).
+ */
 export const defaultMode = (
-	command: Pick<AutonomyCommandV1, 'mutation' | 'mounted'>
-): AutonomyModeV1 => (command.mounted || command.mutation ? 'ask' : 'act');
+	command: Pick<AutonomyCommandV1, 'mutation' | 'mounted' | 'vouched'>
+): AutonomyModeV1 =>
+	command.mutation || (command.mounted && command.vouched !== true) ? 'ask' : 'act';
 
 /** The strictest default, a general or instance project row's bound when the workspace sets neither (F8). */
 export const STRICTEST_DEFAULT: AutonomyModeV1 = 'ask';
