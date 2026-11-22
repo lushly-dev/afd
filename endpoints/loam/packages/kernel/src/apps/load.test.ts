@@ -404,7 +404,7 @@ describe('mounted instances before discovery', () => {
 		expect((await statusOf(kernel, 'none'))?.error?.code).toBe('DEPLOYMENT_AUDIENCE_REQUIRED');
 	});
 
-	it('P6-D2: starts a stdio instance on the desktop, through its port, and still fails one on any other host', async () => {
+	it('P6-E1: P6-D2: starts a stdio instance on the desktop, through its port, and still fails one on any other host', async () => {
 		const opened: string[] = [];
 		const ports = {
 			...createFixturePorts({ 'apps/home/': { manifest: mountedManifest() } }),

@@ -16,6 +16,7 @@ import { lazyCopilot } from './copilot-lazy.js';
 import { createHostKernel, mediaEnvironment, OTHER_TAB_NOTICE } from './host.js';
 import { type ProviderIdentity, probeIdentity } from './identity.js';
 import { applyPageAppearance } from './page-appearance.js';
+import { createSessionRefresh } from './session-refresh.js';
 
 const CANNOT_START = 'Loam cannot start';
 
@@ -33,10 +34,10 @@ const AUTH_PATH = /^(?!\.\.?(\/|$))(?!.*\/\.\.?(\/|$))[A-Za-z0-9._~-]+(\/[A-Za-z
 const base = new URL('../', /* @vite-ignore */ import.meta.url).href;
 
 /**
- * Phase 3's 4.3 refresh, set once a provider is probed: the hosted relay's own `401` runs it, as the trust-record
+ * Phase 3's 4.3 refresh, its provider given once probed: the hosted relay's own `401` runs it, as the trust-record
  * transport's does (phase 6 specification, 8.1). Never an instance's answer, which the relay does not mark.
  */
-let refreshSession: (() => void) | undefined;
+const session = createSessionRefresh(base);
 
 /** The reader and the ports, in a chunk of their own: what stage B calls. */
 async function loadApps(raw: unknown): Promise<AppsLoadV2> {
@@ -46,16 +47,7 @@ async function loadApps(raw: unknown): Promise<AppsLoadV2> {
 		document,
 		base,
 		() => import('@lushly-dev/loam-chrome/view'),
-		async () => {
-			const chunk = await import('./mount.js');
-			return {
-				...chunk,
-				createMountTransport: (url: string) =>
-					chunk.createMountTransport(url, undefined, {
-						refreshSession: () => refreshSession?.(),
-					}),
-			};
-		}
+		session.mountChunk
 	);
 }
 
@@ -213,23 +205,8 @@ async function boot(): Promise<void> {
 	// A hosted `provider` deployment runs its trust-record commands on the server (phase 6 specification, 6.1): the
 	// transport's port, its mapping loaded on the first routed call. Stage B's reader checks the projection's `host`.
 	const hosted = (raw as { host?: { kind?: unknown } } | undefined)?.host?.kind === 'hosted';
-	if (provider) refreshSession = () => (provider as ProviderIdentity).refreshSession();
-	const identityPorts =
-		provider && hosted
-			? {
-					...provider.ports,
-					serverCall: async (
-						request: Parameters<typeof import('./server-call.js').serverCall>[1]
-					) =>
-						(await import('./server-call.js')).serverCall(
-							{
-								url: new URL('api/kernel/call', base).href,
-								refreshSession: () => (provider as ProviderIdentity).refreshSession(),
-							},
-							request
-						),
-				}
-			: provider?.ports;
+	if (provider) session.use(provider);
+	const identityPorts = provider && session.identityPorts(provider.ports, hosted);
 	const host = await createHostKernel({
 		overlayAnchors,
 		...(provider ? { auth: provider.adapter, membership: provider.membership, identityPorts } : {}),

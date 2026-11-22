@@ -321,3 +321,157 @@ describe("P6-E5: `mount.ts`'s mapping of the hosted relay's answers (8.1)", () =
 		expect(connects).toBe(2);
 	});
 });
+
+describe("P6-E5: an instance's own `UNAUTHORIZED` in a tool result (8.1's last row)", () => {
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
+	const MANIFEST = {
+		manifest_version: 1,
+		protocol: 1,
+		plugin: {
+			id: 'umbel',
+			title: 'Umbel',
+			version: '0.1.0',
+			description: 'A mounted host, for this test.',
+			kind: 'mounted',
+			domains: ['umbel'],
+		},
+		mount: { prefix: 'umbel', transport: 'http' },
+	};
+	const ENTRY = {
+		instance: 'work',
+		app: 'umbel',
+		package: 'apps/work/',
+		prefix: 'work',
+		audience: 'person',
+		transport: 'http',
+		route: 'mounts/work/mcp',
+	};
+
+	/** An instance behind the route, answering `200` for each request, as the relay passes an answer back (no mark). */
+	function instance(answer: unknown) {
+		const methods: string[] = [];
+		const json = (id: unknown, result: unknown) =>
+			new Response(JSON.stringify({ jsonrpc: '2.0', id, result }), {
+				status: 200,
+				headers: { 'content-type': 'application/json' },
+			});
+		const fetch = async (_url: unknown, init?: RequestInit) => {
+			const message = JSON.parse(String(init?.body)) as {
+				id?: unknown;
+				method: string;
+				params?: { name?: string; arguments?: { command?: string[] } };
+			};
+			methods.push(message.params?.name ?? message.method);
+			if (message.id === undefined) return new Response(null, { status: 202 });
+			if (message.method === 'initialize')
+				return json(message.id, {
+					protocolVersion: '2025-11-25',
+					capabilities: { tools: {} },
+					serverInfo: { name: 'work', version: '1' },
+				});
+			const tool = message.params?.name;
+			if (tool === 'afd-help')
+				return json(message.id, {
+					structuredContent: {
+						success: true,
+						data: { toolStrategy: 'hybrid', firstClassTools: [], commands: [{ name: 'a-read' }] },
+					},
+				});
+			if (tool === 'afd-detail')
+				return json(message.id, {
+					structuredContent: {
+						success: true,
+						data: [
+							{
+								name: 'a-read',
+								found: true,
+								callable: true,
+								mutation: false,
+								description: 'Reads a',
+								inputSchema: { type: 'object', properties: {} },
+							},
+						],
+					},
+				});
+			return json(message.id, { structuredContent: answer });
+		};
+		return { methods, fetch };
+	}
+
+	it("P6-E5: is returned as the instance's code, labelled untrusted with dev.loam/instance, with no refresh and no close", async () => {
+		const { createKernel } = await import('@lushly-dev/loam-kernel');
+		const { createFixedEnvironment, createFixturePorts } = await import(
+			'@lushly-dev/loam-kernel/testing'
+		);
+		const { MockAuthAdapter } = await import('@lushly-dev/afd-auth');
+		const { MemoryJournalSink } = await import('@lushly-dev/afd-core');
+		const { MemoryAdapter } = await import('@lushly-dev/local-db');
+		const server = instance({
+			success: false,
+			error: { code: 'UNAUTHORIZED', message: 'The instance says sign in', suggestion: 'Its own' },
+		});
+		vi.stubGlobal('fetch', server.fetch);
+		const refreshSession = vi.fn();
+		const closes: number[] = [];
+		const kernel = await createKernel({
+			store: new MemoryAdapter(),
+			storeKind: 'memory',
+			journal: new MemoryJournalSink(),
+			auth: new MockAuthAdapter(),
+			environment: createFixedEnvironment(),
+			host: 'test',
+			deployment: {
+				deployment_version: 2,
+				generation: 'test',
+				workspace: { id: 'personal', name: 'Personal' },
+				sandbox_origin: null,
+				apps: [ENTRY],
+			} as never,
+			ports: {
+				...createFixturePorts({ 'apps/work/': { manifest: MANIFEST } } as never),
+				async mountTransport() {
+					const port = createMountTransport('https://shell.test/mounts/work/mcp', undefined, {
+						refreshSession,
+					});
+					return {
+						...port,
+						close() {
+							closes.push(1);
+							return port.close();
+						},
+					};
+				},
+			},
+		});
+		try {
+			await kernel.startInstances();
+			const connects = () => server.methods.filter((method) => method === 'initialize').length;
+			expect(connects()).toBe(1);
+			const result = await kernel.call('work-a-read', {});
+			// The instance's code, in its own words, as an instance's answer: not the kernel's `UNAUTHORIZED`.
+			expect(result.success).toBe(false);
+			expect(result.error).toMatchObject({
+				code: 'UNAUTHORIZED',
+				message: 'The instance says sign in',
+			});
+			expect(result.metadata).toMatchObject({
+				'dev.loam/trust': 'untrusted',
+				'dev.loam/instance': 'work',
+			});
+			// No refresh, and the transport neither closed nor connected again: the next call goes out on it.
+			expect(refreshSession).not.toHaveBeenCalled();
+			expect(closes).toEqual([]);
+			await kernel.call('work-a-read', {});
+			expect(connects()).toBe(1);
+			expect(
+				server.methods.filter((method) => method === 'a-read' || method === 'afd-call')
+			).toHaveLength(2);
+			expect(refreshSession).not.toHaveBeenCalled();
+		} finally {
+			await kernel.dispose();
+		}
+	});
+});

@@ -6,14 +6,18 @@
  * the removing person or the hook itself.
  */
 
+import { createHash } from 'node:crypto';
 import { MockAuthAdapter } from '@lushly-dev/afd-auth';
 import { type JournalEntry, MemoryJournalSink } from '@lushly-dev/afd-core';
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { createKernelParts, type KernelParts } from '../kernel.js';
+import { DOCUMENT_KIT } from '../late/document-kit.js';
+import { sha256 } from '../late/experiment-host.js';
 import { SCOPED_PROJECTS, scopedDeployment, scopedPorts, seedProjects } from '../scope/fixtures.js';
 import { createFixedEnvironment, createSeededRandom, createSteppingClock } from '../session.js';
-import { SERVER_COMMANDS, type TrustRecordSnapshotV1 } from '../trust-records.js';
+import { canonicalJson, SERVER_COMMANDS, type TrustRecordSnapshotV1 } from '../trust-records.js';
+import { createTrustSnapshot } from './trust-records.js';
 
 const OWNER = 'usr_owner';
 const MEMBER = 'usr_member';
@@ -75,7 +79,7 @@ const call = (person: string, role: 'owner' | 'member' | null, name: string, inp
 	});
 
 describe('the server kernel serves the trust records (phase 6, 6.1)', () => {
-	it('registers every SERVER_COMMANDS name', () => {
+	it('P6-E3: registers every SERVER_COMMANDS name on the server', () => {
 		for (const name of SERVER_COMMANDS)
 			expect(parts.registries.palette.hasCommand(name)).toBe(true);
 	});
@@ -90,7 +94,7 @@ describe('the server kernel serves the trust records (phase 6, 6.1)', () => {
 		expect(refused.error?.code).toBe('WORKSPACE_NOT_MEMBER');
 	});
 
-	it('answers the snapshot a person sees, with a digest of it alone', async () => {
+	it('P6-E4: answers the snapshot a person sees, its generation the digest of it alone', async () => {
 		const owner = await call(OWNER, 'owner', 'trust-record-snapshot', {});
 		const again = await call(OWNER, 'owner', 'trust-record-snapshot', {});
 		const member = await call(MEMBER, 'member', 'trust-record-snapshot', {});
@@ -102,12 +106,50 @@ describe('the server kernel serves the trust records (phase 6, 6.1)', () => {
 		expect(of(owner).generation).toMatch(/^sha256:[0-9a-f]{64}$/);
 		expect(of(owner).generation).toBe(of(again).generation);
 		expect(of(owner).generation).not.toBe(of(member).generation);
+		// The digest of that person's snapshot itself: SHA-256 of its canonical JSON, without the field (6.1).
+		for (const each of [of(owner), of(member)]) {
+			const { generation, ...seen } = each;
+			const hex = createHash('sha256').update(canonicalJson(seen)).digest('hex');
+			expect(generation).toBe(`sha256:${hex}`);
+		}
 		expect(Object.keys(of(owner)).sort()).toEqual([
 			'agents',
 			'generation',
 			'projects',
 			'workspaceApps',
 		]);
+	});
+
+	it('P6-E4: digests a snapshot with out-of-order nested keys to an independently computed SHA-256', async () => {
+		// The three reads answer their keys out of order, nested too; the digest must be of the sorted canonical bytes.
+		const answers: Record<string, unknown> = {
+			'project-list': {
+				projects: [
+					{ slug: 'zed', id: 'prj_z', access: { mode: 'restricted', members: ['usr_a'] } },
+				],
+			},
+			'workspace-app-list': { apps: [{ instance: 'tasks', enabled: true }] },
+			'agent-member-list': {
+				agents: [{ status: 'active', sponsor: 'usr_a', kind: 'installed', id: 'agt_1' }],
+			},
+		};
+		const snapshot = createTrustSnapshot({
+			definitionOf: (name) =>
+				({ handler: async () => ({ success: true, data: answers[name] }) }) as never,
+			workspace: 'personal',
+			digest: sha256,
+			kit: DOCUMENT_KIT,
+		});
+		const result = (await snapshot.handler({} as never, {} as never)) as {
+			data: TrustRecordSnapshotV1;
+		};
+		// Written by hand, and its SHA-256 computed apart from the kernel (node:crypto, once, on this exact string):
+		// {"agents":[{"id":"agt_1","kind":"installed","sponsor":"usr_a","status":"active"}],"projects":[{"access":
+		// {"members":["usr_a"],"mode":"restricted"},"id":"prj_z","slug":"zed"}],"workspaceApps":[{"enabled":true,
+		// "instance":"tasks"}]}
+		expect(result.data.generation).toBe(
+			'sha256:5de873ca699374ea93be6f67e28a26a5a15a43bad20bdcfc2095c6141b957304'
+		);
 	});
 
 	it('leaves the snapshot and its reads out of the journal', async () => {

@@ -243,7 +243,9 @@ describe('P6-H3: the provider and bootstrap', () => {
 		await expect.poll(() => link(owner.page).locator('h1').textContent()).toBe('Join Acme');
 		await link(owner.page).locator('#link-name').fill('Olu');
 		await link(owner.page).getByRole('button', { name: 'Create a passkey' }).click();
-		await expect.poll(() => link(owner.page).locator('h1').textContent()).toBe('Welcome to Acme');
+		// The ceremony's end, by the page's own heading: a passkey round trip can outlast `expect.poll`'s 1 s.
+		await link(owner.page).locator('h1', { hasText: 'Welcome to Acme' }).waitFor();
+		expect(await link(owner.page).locator('h1').textContent()).toBe('Welcome to Acme');
 		expect(
 			host
 				.db()
@@ -272,7 +274,12 @@ describe('P6-H3: the provider and bootstrap', () => {
 		);
 		await shadow(owner.page, 'loam-main .sign-in').click();
 		await shadow(owner.page, 'loam-sign-in-dialog .passkey').click();
-		await expect.poll(() => accountOf(owner.page)).toBe('Olu');
+		// The sign-in's end, by the shell's own account, as the sign-out's above: on a host just restarted the
+		// passkey round trip and the session's settle can outlast `expect.poll`'s 1 s (a merge-group run of #2143).
+		await owner.page.waitForFunction(
+			() => (document.querySelector('loam-shell') as unknown as { account: string }).account !== ''
+		);
+		expect(await accountOf(owner.page)).toBe('Olu');
 		await settle(owner.page);
 		expect(await mainHeading(owner.page)).not.toBe('This workspace is not set up');
 		expect(owner.violations).toEqual([]);
