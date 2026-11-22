@@ -1981,6 +1981,37 @@ tested on scripted SMTP and IMAP servers.
   (with `Bcc:` and `\Seen`) to the account's sent mailbox; if that append fails or times out, the
   send still succeeds with `sentCopy: false` and warning `SENT_COPY_FAILED`.
 
+**As step D3 built it** (its third part): `mail-unsubscribe-show` and `mail-unsubscribe` at the
+terminal, tested on scripted HTTPS and SMTP doubles.
+
+- **Headers and selection.** Reads only the message's held `List-Unsubscribe` and
+  `List-Unsubscribe-Post` headers from the log. When `List-Unsubscribe-Post` declares RFC 8058
+  `List-Unsubscribe=One-Click` (case-insensitive) and `List-Unsubscribe` holds a valid `https://`
+  URL (no embedded credentials, no `localhost`/`.local`/non-global IP literals, at most 2 048
+  characters), `one-click` HTTPS POST is chosen; otherwise a single valid bare-ASCII `mailto:`
+  address (rejecting multiple recipients, `to`/`cc`/`bcc`/`from`/`reply-to` query parameters,
+  unsafe subjects, or overlong targets) is chosen. Browser-only `https://` links without
+  `List-Unsubscribe-Post`, plain `http://` links, and missing or malformed headers are refused with
+  `UNSUBSCRIBE_NOT_AVAILABLE` (`retryable: false`); the engine never opens a link in a browser.
+- **Preview and digest.** `mail-unsubscribe-show` (`cli, mcp`; default output budget equal to its
+  largest budget, matching `mail-draft-show`) contacts nothing and returns `unsubscribe` with `message`, `account`, `method`, the exact target,
+  `listId`, sender, subject (and `mailto` fields for `mail`) inside `"trust": "content"`, and the
+  43-character base64url SHA-256 `digest` of canonical `{ message, account, method, target }`.
+  Passing a stale `digest` to `mail-unsubscribe-show` or `mail-unsubscribe` fails with
+  `PREVIEW_CHANGED` before any approval hold.
+- **Execution and `outbound`.** `mail-unsubscribe` is person-only, destructive, held for approval
+  (`ApprovalPolicy::Required`), and exposed to `cli` alone (M18, M29). Its approval summary holds
+  no content from mail; at a terminal the command line reads `mail-unsubscribe-show`, fills in an
+  omitted `digest`, prints the labelled target (sanitized for the terminal), and asks. Every attempt
+  is recorded in `outbound` (`kind = 'unsubscribe'`) before handover with an in-flight drop guard.
+  `one-click` sends HTTP/1.1 `POST` (`Content-Type: application/x-www-form-urlencoded`, body
+  `List-Unsubscribe=One-Click`) over TLS to globally routable IPs only, refuses 3xx redirects
+  (`PROVIDER_REFUSED`, never followed), maps 429 to retryable `PROVIDER_LIMIT`, 4xx to
+  `PROVIDER_REFUSED`, 5xx to retryable `PROVIDER_UNAVAILABLE`, and post-write drops or timeouts to
+  non-retryable `SEND_OUTCOME_UNKNOWN`. `mail` submits over SMTP and appends a best-effort `\Seen`
+  copy to the sent mailbox, sharing the same handover and `SEND_OUTCOME_UNKNOWN` rules as
+  `mail-draft-send`.
+
 ## 10. Records, proposed stories and reply sets
 
 Phase E. Its shape is the proposal's ([4.3](../../../../../docs/features/active/mail/mail.proposal.md#43-layers),
@@ -2056,7 +2087,8 @@ says otherwise.
 | `mail-draft-discard`, `mail-draft-restore` | D | Local, undoable | cli, mcp | A discarded draft is held for 30 days (M29) |
 | `mail-draft-list`, `mail-draft-show` | D | Read | cli, mcp | `mail-draft-show` is the preview of a send (step D3: adds `state`, `recipientBasis` and `replyToDiffers`) |
 | `mail-draft-send` | D | Remote, destructive; a person | cli | Step D3's second part ([9.5](#95-drafts-and-sending)): names the previewed `revision`, enforces the recipient rule, submits over SMTP, appends a sent copy with `Bcc:` and records `outbound` |
-| `mail-unsubscribe` | D | Remote, destructive; a person | cli | |
+| `mail-unsubscribe-show` | D | Read | cli, mcp | Step D3's third part ([9.5](#95-drafts-and-sending)): previews the exact `List-Unsubscribe` target labelled as content with its `digest`; contacts nothing |
+| `mail-unsubscribe` | D | Remote, destructive; a person | cli | Step D3's third part ([9.5](#95-drafts-and-sending)): names the previewed `digest`, sends RFC 8058 one-click HTTPS POST (no redirects) or RFC 2369 `mailto:` over SMTP, and records `outbound` |
 | `mail-policy-show` | D | Read | cli, mcp | Step D1 ([9.4](#94-the-policy)) |
 | `mail-policy-set` | D | Local; a person | cli | Step D1: held for approval, its summary in numbers alone; returns the numbers before |
 | `mail-record-list` | E | Read | cli, mcp | |
@@ -2146,7 +2178,8 @@ Beside the crate's own codes:
 | `PASSAGE_NOT_FOUND` | A proposed record's passage is not in the message |
 | `DRAFT_NOT_FOUND` | No draft has the id named; a discarded draft goes after 30 days (step D3) |
 | `DRAFT_CHANGED` | A change names a revision the draft is no longer at (step D3) |
-| `PREVIEW_CHANGED` | A send names a revision the draft is no longer at since its preview was read (step D3) |
+| `PREVIEW_CHANGED` | A send or unsubscribe names a revision or digest that is no longer current since its preview was read (step D3) |
+| `UNSUBSCRIBE_NOT_AVAILABLE` | A message has no usable `List-Unsubscribe` / `List-Unsubscribe-Post` header (one-click HTTPS POST or valid `mailto:`); the engine never opens a browser link (step D3) |
 
 Each failure carries a suggestion in the engine's words.
 

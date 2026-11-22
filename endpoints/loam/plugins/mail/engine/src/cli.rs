@@ -264,6 +264,21 @@ fn run_command(
             DraftSendPrep::Stop => return Ok(EXIT_FAILED),
         }
     }
+    if let Caller::Terminal(_) = &mut caller
+        && name == crate::unsubscribe::UNSUBSCRIBE
+    {
+        match prepare_unsubscribe(&mut input, runner, &runtime, err)? {
+            DraftSendPrep::Ready(lines) => preloaded_preview = Some(lines),
+            DraftSendPrep::Reject(error) => {
+                let result: afd::CommandResult<serde_json::Value> = failure(error);
+                let rendered =
+                    serde_json::to_string_pretty(&result).map_err(std::io::Error::other)?;
+                writeln!(out, "{rendered}")?;
+                return Ok(EXIT_FAILED);
+            }
+            DraftSendPrep::Stop => return Ok(EXIT_FAILED),
+        }
+    }
     if let Caller::Terminal(person) = &mut caller
         && let Some(change) = large_change(name, &input, runner, &runtime)
     {
@@ -296,6 +311,8 @@ fn run_command(
                         "`mail-operation-show` with the operation"
                     } else if name == crate::drafts::SEND {
                         "`mail-draft-show` with the draft"
+                    } else if name == crate::unsubscribe::UNSUBSCRIBE {
+                        "`mail-unsubscribe-show` with the message"
                     } else {
                         "`mail-sender-show` with the suggestion"
                     };
@@ -382,6 +399,11 @@ fn run_command(
                         writeln!(
                             err,
                             "Stopped. If the message was already handed over, check your Sent mailbox and mail-status before trying again."
+                        )?;
+                    } else if name == crate::unsubscribe::UNSUBSCRIBE {
+                        writeln!(
+                            err,
+                            "Stopped. If the unsubscribe request was already sent, check mail-status before trying again."
                         )?;
                     } else if name == "mail-account-add" {
                         writeln!(err, "Stopped. Nothing was added.")?;
@@ -1035,6 +1057,141 @@ fn prepare_draft_send(
         }
         // Preview was already printed above before typing the new recipients.
         return Ok(DraftSendPrep::Ready(Vec::new()));
+    }
+    Ok(DraftSendPrep::Ready(lines))
+}
+
+/// Reads the unsubscribe preview before a terminal unsubscribe: verifies the
+/// message has a usable `List-Unsubscribe` header, fills in `digest` when
+/// omitted, refuses unusable headers or stale digests before asking, and
+/// formats the exact target labelled as content (the specification's 9.5 and
+/// 12.1).
+fn prepare_unsubscribe(
+    input: &mut serde_json::Value,
+    runner: &(dyn Runner + Sync),
+    runtime: &tokio::runtime::Runtime,
+    err: &mut dyn Write,
+) -> std::io::Result<DraftSendPrep> {
+    let Some(message_id) = input.get("message").and_then(serde_json::Value::as_i64) else {
+        // Let the registry return its standard validation error.
+        return Ok(DraftSendPrep::Ready(Vec::new()));
+    };
+    if let Some(raw_account) = input.get("account")
+        && !raw_account.is_null()
+        && raw_account.as_i64().is_none()
+    {
+        return Ok(DraftSendPrep::Ready(Vec::new()));
+    }
+    if let Some(raw_digest) = input.get("digest")
+        && !raw_digest.is_null()
+        && raw_digest.as_str().is_none()
+    {
+        return Ok(DraftSendPrep::Ready(Vec::new()));
+    }
+    let mut show_input = serde_json::Map::new();
+    show_input.insert("message".to_string(), serde_json::json!(message_id));
+    if let Some(account) = input.get("account").and_then(serde_json::Value::as_i64) {
+        show_input.insert("account".to_string(), serde_json::json!(account));
+    }
+    if let Some(digest) = input.get("digest").and_then(serde_json::Value::as_str) {
+        show_input.insert("digest".to_string(), serde_json::json!(digest));
+    }
+    let shown = runtime.block_on(runner.run(
+        crate::unsubscribe::SHOW,
+        serde_json::Value::Object(show_input),
+        true,
+        None,
+    ));
+    let Some(data) = shown.data.filter(|_| shown.success) else {
+        if let Some(error) = shown.error {
+            return Ok(DraftSendPrep::Reject(error));
+        }
+        writeln!(
+            err,
+            "{PROGRAM}: unsubscribe preview for message {message_id} could not be read; `mail-unsubscribe-show` says why. Nothing was contacted."
+        )?;
+        return Ok(DraftSendPrep::Stop);
+    };
+    let Some(unsub) = data.get("unsubscribe") else {
+        return Ok(DraftSendPrep::Stop);
+    };
+    let current_digest = unsub
+        .get("digest")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default();
+    if input.get("digest").is_none_or(serde_json::Value::is_null)
+        && let Some(obj) = input.as_object_mut()
+    {
+        obj.insert("digest".to_string(), serde_json::json!(current_digest));
+    }
+    let account_id = unsub
+        .pointer("/account/id")
+        .and_then(serde_json::Value::as_i64)
+        .unwrap_or(0);
+    let account_addr = unsub
+        .pointer("/account/address")
+        .and_then(serde_json::Value::as_str)
+        .map(printable)
+        .unwrap_or_default();
+    let method = unsub
+        .get("method")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("unknown");
+    let text = |pointer: &str| {
+        unsub
+            .pointer(pointer)
+            .and_then(serde_json::Value::as_str)
+            .map(printable)
+            .unwrap_or_default()
+    };
+    let mut lines = vec![format!(
+        "Unsubscribe from message {message_id} (account {account_id}, {account_addr}):"
+    )];
+    if method == "one-click" {
+        lines.push(
+            "Method: one-click HTTPS POST (List-Unsubscribe-Post: List-Unsubscribe=One-Click)"
+                .to_string(),
+        );
+        lines.push(format!(
+            "Target URL, as written in the message's header: {}",
+            text("/content/target")
+        ));
+    } else {
+        lines.push("Method: send mail via SMTP".to_string());
+        lines.push(format!(
+            "Recipient, as written in the message's header: {}",
+            text("/content/mailto/to")
+        ));
+        lines.push(format!(
+            "Subject, as written in the message's header: {}",
+            text("/content/mailto/subject")
+        ));
+        let body = unsub
+            .pointer("/content/mailto/body")
+            .and_then(serde_json::Value::as_str)
+            .map(printable_body)
+            .unwrap_or_default();
+        if !body.is_empty() {
+            lines.push(format!("Body, as written in the message's header:\n{body}"));
+        }
+    }
+    let list_id = text("/content/listId");
+    if !list_id.is_empty() {
+        lines.push(format!(
+            "List-Id, as written in the message's header: {list_id}"
+        ));
+    }
+    let sender_addr = text("/content/sender/address");
+    if !sender_addr.is_empty() {
+        lines.push(format!(
+            "Sender, as written in the message's header: {sender_addr}"
+        ));
+    }
+    let subject = text("/content/subject");
+    if !subject.is_empty() {
+        lines.push(format!(
+            "Message subject, as written by the sender: {subject}"
+        ));
     }
     Ok(DraftSendPrep::Ready(lines))
 }

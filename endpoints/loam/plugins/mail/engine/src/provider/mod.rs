@@ -7,6 +7,7 @@
 //! with [`Provider::open_to_change`], and only an operation does
 //! ([`crate::operate`]).
 
+pub mod http;
 pub mod imap;
 pub mod smtp;
 

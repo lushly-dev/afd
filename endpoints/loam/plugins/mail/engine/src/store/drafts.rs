@@ -1284,6 +1284,112 @@ impl Store {
         Ok(rows.collect::<Result<_, _>>()?)
     }
 
+    /// Whether message `message` exists in the store.
+    ///
+    /// # Errors
+    /// When the database refuses.
+    pub fn message_exists(&self, message: MessageId) -> Result<bool, StoreError> {
+        Ok(self
+            .connection
+            .query_row("SELECT 1 FROM message WHERE id = ?1", [message.0], |_| {
+                Ok(())
+            })
+            .optional()?
+            .is_some())
+    }
+
+    /// Accounts associated with `message`: those currently showing it in a
+    /// non-gone mailbox, falling back to any account whose mailbox ever
+    /// observed it.
+    ///
+    /// # Errors
+    /// When the database refuses.
+    pub fn message_accounts(&self, message: MessageId) -> Result<Vec<AccountRow>, StoreError> {
+        let mut current_stmt = self.connection.prepare_cached(
+            "SELECT DISTINCT account.id, account.provider, account.address
+             FROM observation
+             JOIN mailbox ON mailbox.id = observation.mailbox_id
+             JOIN account ON account.id = mailbox.account_id
+             WHERE observation.message_id = ?1
+               AND observation.ended_at IS NULL
+               AND mailbox.gone_at IS NULL
+             ORDER BY account.id",
+        )?;
+        let current: Vec<AccountRow> = current_stmt
+            .query_map([message.0], |row| {
+                Ok(AccountRow {
+                    id: AccountId(row.get(0)?),
+                    provider: row.get(1)?,
+                    address: row.get(2)?,
+                })
+            })?
+            .collect::<Result<_, _>>()?;
+        if !current.is_empty() {
+            return Ok(current);
+        }
+        let mut historical_stmt = self.connection.prepare_cached(
+            "SELECT DISTINCT account.id, account.provider, account.address
+             FROM observation
+             JOIN mailbox ON mailbox.id = observation.mailbox_id
+             JOIN account ON account.id = mailbox.account_id
+             WHERE observation.message_id = ?1
+             ORDER BY account.id",
+        )?;
+        let rows = historical_stmt.query_map([message.0], |row| {
+            Ok(AccountRow {
+                id: AccountId(row.get(0)?),
+                provider: row.get(1)?,
+                address: row.get(2)?,
+            })
+        })?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    /// Records the start of an unsubscribe attempt in `outbound`
+    /// (`kind = 'unsubscribe'`, `state = 'sending'`) before contacting the
+    /// remote endpoint or SMTP server.
+    ///
+    /// # Errors
+    /// When the database refuses.
+    pub fn begin_unsubscribe(
+        &mut self,
+        account: AccountId,
+        message_id: &str,
+        sender: &Proposer,
+        now: i64,
+    ) -> Result<i64, StoreError> {
+        self.connection.execute(
+            "INSERT INTO outbound
+                 (account_id, draft_id, draft_revision, kind, message_id, recipients, state,
+                  sent_copy, sender_kind, sender_id, started_at)
+             VALUES (?1, NULL, NULL, 'unsubscribe', ?2, 1, 'sending', 0, ?3, ?4, ?5)",
+            params![account.0, message_id, sender.kind, sender.id, now],
+        )?;
+        Ok(self.connection.last_insert_rowid())
+    }
+
+    /// Updates an in-flight unsubscribe `outbound` row to its final `state`.
+    ///
+    /// # Errors
+    /// When the database refuses or the row is no longer in `sending`.
+    pub fn finish_unsubscribe(
+        &mut self,
+        outbound_id: i64,
+        state: OutboundState,
+        error: Option<&str>,
+        now: i64,
+    ) -> Result<(), StoreError> {
+        let changed = self.connection.execute(
+            "UPDATE outbound SET state = ?2, finished_at = ?3, error = ?4
+             WHERE id = ?1 AND state = 'sending'",
+            params![outbound_id, state.as_str(), now, error],
+        )?;
+        if changed != 1 {
+            return Err(StoreError::NotFound("outbound"));
+        }
+        Ok(())
+    }
+
     /// When thread `thread` is snoozed until, if a snooze holds it at `now`:
     /// one set on any of its messages, still in the future, and with no mail
     /// arrived in the thread since it was set.

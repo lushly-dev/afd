@@ -120,7 +120,7 @@ fn refusal(id: i64, why: DraftRefusal) -> CommandError {
 /// digits and inner hyphens. No name, no space, no character a header would
 /// read as a second address, and none that displays as something else. The
 /// domain is kept in lower case. Addresses outside ASCII wait for SMTPUTF8.
-fn address(text: &str) -> Option<String> {
+pub(crate) fn address(text: &str) -> Option<String> {
     const ATEXT: &str = "!#$%&'*+/=?^_`{|}~-";
     let text = text.trim_matches(' ');
     if text.len() > 254 {
@@ -155,7 +155,7 @@ fn address(text: &str) -> Option<String> {
 /// character other than a tab, a line or paragraph separator, or an invisible
 /// formatting character (excluding U+200D ZWJ and U+FE0F emoji variation
 /// selector, which ordinary emoji sequences carry).
-fn unsafe_in_subject(c: char) -> bool {
+pub(crate) fn unsafe_in_subject(c: char) -> bool {
     if matches!(c, '\u{200D}' | '\u{FE0F}') {
         return false;
     }

@@ -11,6 +11,7 @@ use loam_mail::cli::{Caller, Person, run};
 use loam_mail::engine::Engine;
 use loam_mail::home::Home;
 use loam_mail::operate::ChangeOptions;
+use loam_mail::provider::http::HttpsPoster;
 use loam_mail::provider::imap::{Credentials, Endpoint, ICLOUD_NAMES, ImapConnector};
 use loam_mail::provider::smtp::{SmtpEndpoint, SmtpSender};
 use loam_mail::secrets::InMemory;
@@ -18,6 +19,7 @@ use loam_mail::store::AccountRow;
 use loam_mail::sync::{Options, sync_account};
 use serde_json::{Value, json};
 
+use super::http::HttpServer;
 use super::imap::{PASSWORD, Server, USER, World};
 use super::smtp::SmtpServer;
 
@@ -35,6 +37,7 @@ pub struct Fixture {
     pub directory: tempfile::TempDir,
     pub server: Server,
     pub smtp: SmtpServer,
+    pub http: HttpServer,
     pub engine: Arc<Engine>,
     pub registry: CommandRegistry,
     pub account: AccountRow,
@@ -66,6 +69,7 @@ impl Fixture {
         let directory = tempfile::tempdir().unwrap();
         let server = Server::start(condstore, qresync);
         let smtp = SmtpServer::start();
+        let http = HttpServer::start();
         world(&mut server.world());
         let endpoint = Endpoint {
             host: "127.0.0.1".to_string(),
@@ -91,6 +95,7 @@ impl Fixture {
             Engine::new(Some(Home::at(directory.path().join("data"))))
                 .with_connector(Arc::new(connector))
                 .with_sender(Arc::new(sender))
+                .with_unsubscribe_poster(Arc::new(HttpsPoster::for_test_endpoint(http.address)))
                 .with_sync_options(Options {
                     backoff: std::time::Duration::ZERO,
                     ..Options::default()
@@ -108,6 +113,7 @@ impl Fixture {
             directory,
             server,
             smtp,
+            http,
             engine,
             registry,
             account,

@@ -236,9 +236,15 @@ async fn a_persons_command_is_neither_listed_nor_callable_over_mcp() {
         "mail-sender-accept",
         "mail-policy-set",
         "mail-operation-approve",
+        "mail-draft-send",
     ] {
         assert!(!listed.contains(person), "{person} is listed: {listed}");
     }
+    // `mail-unsubscribe-show` is a read (listed); `mail-unsubscribe` is not.
+    assert!(
+        !listed.contains("\"mail-unsubscribe\""),
+        "mail-unsubscribe is listed: {listed}"
+    );
     // An agent suggests and dismisses its own suggestions; it never decides.
     for agents in [
         "mail-sender-suggest",
@@ -250,6 +256,7 @@ async fn a_persons_command_is_neither_listed_nor_callable_over_mcp() {
         "mail-selection-create",
         "mail-policy-show",
         "mail-operation-dismiss",
+        "mail-unsubscribe-show",
     ] {
         assert!(listed.contains(agents), "{agents} is not listed: {listed}");
     }
@@ -263,6 +270,8 @@ async fn a_persons_command_is_neither_listed_nor_callable_over_mcp() {
         "mail-sender-accept",
         "mail-policy-set",
         "mail-operation-approve",
+        "mail-draft-send",
+        "mail-unsubscribe",
     ] {
         let call = mcp_body(
             "tools/call",

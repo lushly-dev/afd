@@ -9,6 +9,7 @@ use std::sync::{Arc, Mutex, PoisonError, RwLock};
 use crate::home::{Home, HomeError};
 use crate::operate::ChangeOptions;
 use crate::provider::Connector;
+use crate::provider::http::{HttpsPoster, UnsubscribePoster};
 use crate::provider::smtp::MailSender;
 use crate::secrets::{InMemory, Secrets};
 use crate::store::{Store, StoreError, TokenRow};
@@ -35,6 +36,8 @@ pub struct Engine {
     connector: Option<Arc<dyn Connector>>,
     /// How outbound mail is sent; `None` in a build that sends nothing.
     sender: Option<Arc<dyn MailSender>>,
+    /// How one-click HTTPS unsubscribes are posted.
+    unsubscribe_poster: Arc<dyn UnsubscribePoster>,
     sync: Options,
     /// Where accounts' sign-ins are kept.
     secrets: Arc<dyn Secrets>,
@@ -93,6 +96,7 @@ impl Engine {
             progress: None,
             connector: None,
             sender: None,
+            unsubscribe_poster: Arc::new(HttpsPoster::new()),
             sync: Options::default(),
             // The program gives the keychain; an engine made without one
             // keeps nothing beyond the process, so a test never reaches the
@@ -190,6 +194,13 @@ impl Engine {
         self
     }
 
+    /// The same engine, posting one-click unsubscribes through `poster`.
+    #[must_use]
+    pub fn with_unsubscribe_poster(mut self, poster: Arc<dyn UnsubscribePoster>) -> Self {
+        self.unsubscribe_poster = poster;
+        self
+    }
+
     /// The same engine, sizing sync's work by `options`.
     #[must_use]
     pub fn with_sync_options(mut self, options: Options) -> Self {
@@ -232,6 +243,12 @@ impl Engine {
     #[must_use]
     pub fn sender(&self) -> Option<&Arc<dyn MailSender>> {
         self.sender.as_ref()
+    }
+
+    /// How one-click HTTPS unsubscribes are posted.
+    #[must_use]
+    pub fn unsubscribe_poster(&self) -> &Arc<dyn UnsubscribePoster> {
+        &self.unsubscribe_poster
     }
 
     /// How sync sizes its work.

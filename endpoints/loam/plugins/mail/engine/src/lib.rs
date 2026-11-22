@@ -43,6 +43,7 @@ pub mod store;
 pub mod stories;
 pub mod sync;
 pub mod tokens;
+pub mod unsubscribe;
 pub mod work;
 
 use std::sync::Arc;
@@ -118,6 +119,8 @@ pub fn registry(engine: &Arc<Engine>) -> Result<CommandRegistry, String> {
     registry.register(drafts::show(Arc::clone(engine)))?;
     registry.register(drafts::send(Arc::clone(engine)))?;
     registry.register(drafts::snooze(Arc::clone(engine)))?;
+    registry.register(unsubscribe::show(Arc::clone(engine)))?;
+    registry.register(unsubscribe::unsubscribe(Arc::clone(engine)))?;
     let broken = rules::check(&registry);
     if !broken.is_empty() {
         return Err(broken.join("\n"));
@@ -141,12 +144,31 @@ pub fn registry(engine: &Arc<Engine>) -> Result<CommandRegistry, String> {
                 }
             }),
     )?;
+    registry.add_middleware(pre_approval_check(Arc::clone(engine)));
     registry.add_middleware(gate);
     registry.add_middleware(reply_limit(Arc::clone(engine)));
     if let Some(home) = engine.home() {
         registry.set_journal(journal::recorder(home, &registry, Arc::clone(engine)));
     }
     Ok(registry)
+}
+
+/// Checks preview digests before the approval middleware holds a call, so a
+/// missing/unusable target or stale digest fails without issuing a token.
+fn pre_approval_check(engine: Arc<engine::Engine>) -> afd::CommandMiddleware {
+    Arc::new(move |name, input, _context, next| {
+        let engine = Arc::clone(&engine);
+        let name = name.to_string();
+        let input = input.clone();
+        Box::pin(async move {
+            if name == unsubscribe::UNSUBSCRIBE
+                && let Some(error) = unsubscribe::pre_approval_check(&engine, &input)
+            {
+                return afd::failure(error);
+            }
+            next().await
+        })
+    })
 }
 
 /// On a running server, a reply larger than a call may return (the
