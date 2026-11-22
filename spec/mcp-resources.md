@@ -389,11 +389,10 @@ lane (MCP 2024-11-05, not an era this page governs) serves none of it and declar
 [current behavior](../docs/features/active/mcp-resources-skills/mcp-resources-skills.proposal.md#how-servers-behave-today)
 records what each does instead.
 
-Two rules depend on the SDK. Rust's `skills/get` omits `data` for a URI that is not a `SKILL.md` URI,
-because `rmcp` 3.9 refuses it before the server's handler runs (S4). TypeScript sends `data.uri`
-there too. Rust checks the manifest boundary of S2 when the catalog is built, with `rmcp`'s own
-check. TypeScript checks only the literal `.` and `..` segments so far, so it still accepts a
-percent-encoded dot segment such as `%2e%2e/x.md`. Its catalog check is
-[a follow-up](../docs/features/active/mcp-resources-skills/STATUS.md#follow-ups-not-yet-issues), and
-the cases join `catalogFailures` when TypeScript refuses them. Progress is recorded in the
+One rule depends on the SDK: Rust's `skills/get` omits `data` for a URI that is not a `SKILL.md`
+URI, because `rmcp` 3.9 refuses it before the server's handler runs (S4), whereas TypeScript sends
+`data.uri` there too. Both Rust (with `rmcp`'s own check) and TypeScript (`SkillCatalog` in
+`packages/server/src/skills.ts`) enforce the S2 RFC 3986 manifest boundary when the catalog is
+built, and both run the corresponding cases in [`mcp-resources.json`](./mcp-resources.json)
+`catalogFailures`. Progress is recorded in the
 [status](../docs/features/active/mcp-resources-skills/STATUS.md).

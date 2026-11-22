@@ -627,7 +627,9 @@ export const CEILINGS = Object.freeze({
 	// Phase 5's step 6 (units, 7.3; the journal's rule for a unit's entries, which first paint's journal applies): 333,441
 	// on `main` at `fa8ab4a5`; merged with phase 3's step 9 and phase 6's step 11b (`main` at `d74ab7be`), the combined
 	// build: 335,482; set to 336,000 under D115.
-	jsMinified: 336_000,
+	// Raised under D115 by #865 (`JOURNAL_RESULT_UNSERIALIZABLE` fallback in `afd-server`'s journal middleware):
+	// measured 336,158 against `main` at `b77e8674`; set to 336,600.
+	jsMinified: 336_600,
 	// Raised from 96,500 to 97,000 under D115 by phase 4's step 4 with `main` at `8c3425d8` (phase 5's step 0b) merged,
 	// both measured from clean builds in one tree: 96,436 to 96,527 gzip (+91) and 309,074 to 309,275 minified (+201,
 	// within its row): the answer registry the `surfaces` and `editor` chunks share, in `events` (+180), and 21 in `layout`.
@@ -651,7 +653,9 @@ export const CEILINGS = Object.freeze({
 	// Merged with phase 5's step 4 too (`main` at `06dde692`): 105,541; set to 106,000 under D115.
 	// Merged with phase 3's step 9 too (`main` at `31b409fb`): 105,876; set to 106,300 under D115.
 	// Phase 5's step 6 (units) merged on them (`main` at `d74ab7be`): 106,042, within its row.
-	jsGzip: 106_300,
+	// #865 (`JOURNAL_RESULT_UNSERIALIZABLE` fallback in `afd-server`'s journal middleware) on `main` at `b77e8674`:
+	// measured 106,295 (5 bytes left); set to 106,600 under D115.
+	jsGzip: 106_600,
 	// Raised from 8,496 to 10,500 by AFD's theme, Refined (D159, D115): `loam-theme.css` 8,217 to 8,431 (+214, the
 	// longer shadows and the three font stacks), and the theme's typefaces' `@font-face` rules, 1,820, the first
 	// stylesheet `index.html` links; measured 10,251, plus a margin.
@@ -695,7 +699,9 @@ export const CEILINGS = Object.freeze({
 	// Phase 5's step 6 (units, 7.3: the journal's rule for a unit's entries, a mounted command's tool kept with its owner):
 	// 146,588 on `main` at `fa8ab4a5`; merged with phase 6's step 11b (`main` at `d74ab7be`), the combined build: 147,148;
 	// set to 147,600 under D115.
-	kernelMinified: 147_600,
+	// #865 (`JOURNAL_RESULT_UNSERIALIZABLE` fallback in `afd-server`'s journal middleware) on `main` at `b77e8674`:
+	// measured 148,058; set to 148,500 under D115.
+	kernelMinified: 148_500,
 	// Phase 4's steps 2 (+1,494) and 3 (+8,786) together: 92,316 measured with both merged; set to 93,000.
 	// Phase 4's step 5: 93,596, the inbox's wiring (above); set to 94,000.
 	// With step 8 merged beside them, 93,244; set to 94,000 (the header records it).

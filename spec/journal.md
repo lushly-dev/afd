@@ -153,6 +153,14 @@ A handler that throws is recorded with the result the server returns outside dev
 `COMMAND_EXECUTION_ERROR`, "An internal error occurred", never the exception message. Replayed
 against a server in development mode, which returns the message, such an entry is `different`.
 
+In TypeScript, if copying a recorded result to JSON throws (for example a throwing getter, circular
+reference or `bigint`) or does not produce a `CommandResult` object, `createJournalMiddleware`
+reports the error to `onError` and still records a failed entry with `JOURNAL_RESULT_UNSERIALIZABLE`
+(never the exception message) while leaving the command's live return value unchanged. When replayed,
+`replayJournal` still executes the command and notes that the original result was not captured: an
+unserializable replayed result reports `error`, a serializable one reports `different`, and a target
+that answers from the recorded entry verbatim matches as `same` with the note.
+
 A handler that calls another command with its own context passes the replay marker on. Only the
 first recording middleware restarts the tape, so the nested call reads on from the same tape, as
 it did when recorded.

@@ -139,6 +139,88 @@ function isWellFormed(text: string): boolean {
 	return text.isWellFormed();
 }
 
+const HEX_PAIR = /^[0-9A-Fa-f]{2}/;
+const UNRESERVED_CHAR = /^[A-Za-z0-9\-._~]$/;
+
+/** Percent-encode characters RFC 3986 never allows literally (controls, space, non-ASCII, etc.). */
+function encodeNotInUri(value: string): string {
+	let out = '';
+	for (const byte of utf8.encode(value)) {
+		if (
+			byte <= 0x20 ||
+			byte >= 0x7f ||
+			byte === 0x22 ||
+			byte === 0x3c ||
+			byte === 0x3e ||
+			byte === 0x5c ||
+			byte === 0x5e ||
+			byte === 0x60 ||
+			byte === 0x7b ||
+			byte === 0x7c ||
+			byte === 0x7d
+		) {
+			out += `%${byte.toString(16).toUpperCase().padStart(2, '0')}`;
+		} else {
+			out += String.fromCharCode(byte);
+		}
+	}
+	return out;
+}
+
+/**
+ * RFC 3986 §6.2.2 percent-encoding normalization: decode percent-encoded unreserved characters
+ * (`ALPHA / DIGIT / "-" / "." / "_" / "~"`) and uppercase hex digits of other escapes, leaving
+ * reserved delimiters encoded.
+ */
+function normalizePercentEncoding(value: string): string {
+	const encoded = encodeNotInUri(value);
+	const first = encoded.indexOf('%');
+	if (first < 0) return encoded;
+	let out = encoded.slice(0, first);
+	for (const part of encoded.slice(first + 1).split('%')) {
+		if (part.length >= 2 && HEX_PAIR.test(part)) {
+			const hex = part.slice(0, 2);
+			const ch = String.fromCharCode(Number.parseInt(hex, 16));
+			out += UNRESERVED_CHAR.test(ch) ? ch : `%${hex.toUpperCase()}`;
+			out += part.slice(2);
+		} else {
+			out += `%${part}`;
+		}
+	}
+	return out;
+}
+
+/**
+ * Comparison key for a skill file URI under `skillUri`'s directory after RFC 3986 §6.2.2
+ * normalization (S2 manifest boundary). Returns `undefined` when resolving `.` and `..` segments
+ * before `?` or `#` leaves the skill's directory or ends on an empty, `.`, or `..` segment.
+ */
+function manifestResourceKey(skillUri: string, resourceUri: string): string | undefined {
+	if (!skillUri.endsWith('SKILL.md')) return undefined;
+	const root = normalizePercentEncoding(skillUri.slice(0, -'SKILL.md'.length));
+	const normalized = normalizePercentEncoding(resourceUri);
+	if (!normalized.startsWith(root)) return undefined;
+	const relative = normalized.slice(root.length);
+	const cut = relative.search(/[?#]/);
+	const path = cut < 0 ? relative : relative.slice(0, cut);
+	const suffix = cut < 0 ? '' : relative.slice(cut);
+	const segments = path.split('/');
+	const file = segments.pop();
+	if (file === undefined || file === '' || file === '.' || file === '..') return undefined;
+	const resolved: string[] = [];
+	for (const segment of segments) {
+		if (segment === '.') continue;
+		if (segment === '..') {
+			if (resolved.length === 0) return undefined;
+			resolved.pop();
+		} else {
+			resolved.push(segment);
+		}
+	}
+	resolved.push(file);
+	return `${resolved.join('/')}${suffix}`;
+}
+
 function checkSkill(skill: Skill): CatalogSkill {
 	const { path } = skill;
 	const fail = (rule: string) => new Error(`skill "${path}": ${rule}`);
@@ -206,21 +288,32 @@ function checkSkill(skill: Skill): CatalogSkill {
 		...files.filter((item) => item !== skillMd).sort((a, b) => byBytes(a.file, b.file)),
 	];
 	const prefix = `skill://${path}/`;
+	const skillUri = `${prefix}SKILL.md`;
+	const seenKeys = new Set<string>();
 	const catalogFiles: CatalogFile[] = ordered.map(({ file, bytes }) => {
+		const uri = `${prefix}${file}`;
+		const key = manifestResourceKey(skillUri, uri);
+		if (key === undefined) {
+			throw fail(`resource ${uri} does not identify a file within the directory of ${skillUri}`);
+		}
+		if (seenKeys.has(key)) {
+			throw fail(`skill manifest lists ${uri} twice`);
+		}
+		seenKeys.add(key);
 		const digest = sha256Digest(bytes);
 		const mimeType = skillMimeType(file);
 		const resource: Record<string, unknown> = {
-			uri: `${prefix}${file}`,
+			uri,
 			name: file === 'SKILL.md' ? name : file,
 			...(file === 'SKILL.md' && { description }),
 			mimeType,
 			size: bytes.length,
 			_meta: { [DIGEST_META_KEY]: digest },
 		};
-		return { uri: `${prefix}${file}`, path: file, bytes, digest, mimeType, resource };
+		return { uri, path: file, bytes, digest, mimeType, resource };
 	});
 	const entry = {
-		uri: `${prefix}SKILL.md`,
+		uri: skillUri,
 		frontmatter,
 		resources: catalogFiles.map(({ uri, digest, bytes }) => ({ uri, digest, size: bytes.length })),
 	};
