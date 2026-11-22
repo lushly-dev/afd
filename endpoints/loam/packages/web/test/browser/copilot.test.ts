@@ -276,6 +276,41 @@ describe("P5-A2: the runtime's frame and its ports, in Chromium (phase 5 specifi
 		expect(given).toContain('<loam-result command=\\"note-list\\"');
 	});
 
+	it('P5-A7: the production runtime composes a unit in a fresh context and tells the session only its state', async () => {
+		const before = (await call(page, 'bodies')).length;
+		const runId = await call(page, 'turn', SESSION, 'script:unit');
+		const seen = await call(page, 'settled', runId, 20_000);
+		expect(seen.outcomes[0]).toMatchObject({ state: 'done', reply: 'Composed.' });
+		// The composer's text went to the kernel's half alone: the test provider's answer to a composer.
+		expect(seen.calls).toContain('unit unt_1 No script');
+		const bodies = ((await call(page, 'bodies')) as Array<Record<string, unknown>>).slice(before);
+		const text = (body: Record<string, unknown>) => JSON.stringify(body).replaceAll('\\"', '"');
+		const composer = bodies.filter((body) => text(body).includes("You are Loam's composer."));
+		const parent = bodies.filter((body) => !text(body).includes("You are Loam's composer."));
+		expect(composer).toHaveLength(1);
+		expect(parent).toHaveLength(2);
+		const [only] = composer as [Record<string, unknown>];
+		// Its whole context: Loam's prompt, the instructions as the server's claim, the parts as content; no tools.
+		expect(only.messages).toHaveLength(1);
+		expect(only.tools === undefined || (only.tools as unknown[]).length === 0).toBe(true);
+		expect(text(only)).toMatch(
+			/<loam-server-claim source="mail" id="[0-9a-f]{32}">\\nWrite a short reply\./
+		);
+		expect(text(only)).toMatch(
+			/<loam-content source="mail" id="[0-9a-f]{32}">\\n\{"message":\{"trust":"content","text":"Does Thursday at ten still work\? Quintus"/
+		);
+		expect(text(only)).not.toContain('script:unit');
+		expect(text(only)).not.toContain("Loam's copilot");
+		// The session's model never saw the message, nor the composed text: only the unit's id and state.
+		for (const body of parent) {
+			expect(text(body)).not.toContain('Quintus');
+			expect(text(body)).not.toContain('No script');
+		}
+		expect(text(parent[1] as Record<string, unknown>)).toContain(
+			'{"success":true,"data":{"unit":"unt_1","state":"composed"}}'
+		);
+	});
+
 	it('section 16: a scripted turn of five tool calls, end to end, p95 over 20 within its row', async () => {
 		const times: number[] = [];
 		for (let index = 0; index < 20; index += 1) {
@@ -479,6 +514,7 @@ describe('P5-A2 (S2): the frame and its worker are cut off from the shell, under
 		expect(worker.listCommands).toEqual([
 			expect.objectContaining({ name: 'note-list', description: 'Lists the notes.' }),
 			expect.objectContaining({ name: 'mail-thread-open', claim: { source: 'mail' } }),
+			expect.objectContaining({ name: 'mail-replyset-next', claim: { source: 'mail' } }),
 		]);
 		for (const key of ['actor', 'scope', '_meta', 'trace', 'interface', 'palette-run'])
 			expect(worker[key], key).toMatchObject({

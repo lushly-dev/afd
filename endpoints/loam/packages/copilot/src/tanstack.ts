@@ -5,6 +5,7 @@
  */
 
 import { type AnyTextAdapter, chat, maxIterations } from '@tanstack/ai';
+import { composeOf, composeUnit, oneAtATime } from './compose.js';
 import {
 	messagesFor,
 	SYSTEM_PROMPT,
@@ -12,7 +13,12 @@ import {
 	sessionNonce,
 	toolResultText,
 } from './context.js';
-import type { AgUiEventV1, CopilotProviderV1, CopilotRuntimeV1 } from './types.js';
+import type {
+	AgUiEventV1,
+	CommandResultLike,
+	CopilotProviderV1,
+	CopilotRuntimeV1,
+} from './types.js';
 
 /** Makes a provider kind's text adapter over the model port's `fetch`. */
 export type AdapterFactory = (
@@ -48,6 +54,28 @@ export function createTanStackRuntime(adapterFor: AdapterFactory): CopilotRuntim
 			}
 			const blockValue = nonce;
 			const adapter = adapterFor(input.provider, ports.model.fetchFor(input.provider));
+			/**
+			 * A call's result as the session's model is told it. A unit (7.3) is composed apart, in a fresh context over the
+			 * model port tagged with the unit, and the kernel sends the text to its submit: the model is told the unit's id
+			 * and state alone, never its parts or the submit's result.
+			 */
+			// One composer at a time (`oneAtATime`).
+			const queue = oneAtATime();
+			const answered = async (result: CommandResultLike): Promise<CommandResultLike> => {
+				const compose = composeOf(result);
+				if (!compose) return result;
+				const mine = queue(() =>
+					composeUnit(
+						adapterFor(
+							input.provider,
+							ports.model.fetchFor(input.provider, { unit: compose.unit })
+						),
+						compose,
+						ports.signal
+					)
+				);
+				return ports.agent.unit(compose.unit, await mine);
+			};
 			const tools = [
 				...input.tools.map((tool) => ({
 					name: tool.name,
@@ -57,7 +85,11 @@ export function createTanStackRuntime(adapterFor: AdapterFactory): CopilotRuntim
 						: tool.description,
 					inputSchema: tool.inputSchema,
 					execute: async (args: unknown) =>
-						toolResultText(tool.name, await ports.agent.call(tool.name, args ?? {}), blockValue),
+						toolResultText(
+							tool.name,
+							await answered(await ports.agent.call(tool.name, args ?? {})),
+							blockValue
+						),
 				})),
 				// A confirmation this session raised, read through the agent port's `confirmation` alone (3.2, 6.2): the
 				// outcome of a call the person confirmed, which the kernel's half lets it read and nothing else.

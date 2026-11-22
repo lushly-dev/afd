@@ -928,6 +928,7 @@ export function createMountedHost(options: MountedHostOptions): MountedHost {
 				app,
 				instance,
 				recorded: true,
+				tool: command.tool,
 				...(command.replaced ? { replaced: true as const } : {}),
 				// Whose word decides its result's labels: the entry's, `whole` by default (phase 5 specification, 5.1).
 				labels: labelsOf(entry),

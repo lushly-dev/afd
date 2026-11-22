@@ -13,6 +13,7 @@ import type {
 	CopilotRunV1,
 } from './types.js';
 import { AGENT_PORT_KEYS, MODEL_PORT_KEYS, PANEL_EVENT_FIELDS, PANEL_PORT_KEYS } from './types.js';
+import { composerBodyIs, UNIT_LIMITS } from './units.js';
 
 /** A `MessagePort`, as the DOM and Node both give one. */
 export interface PortLike {
@@ -118,6 +119,12 @@ interface SessionState {
 	/** The trusted transport's code for this run's last failed request, which a failed run reports (4.2, 14). */
 	modelCode?: string;
 	events: number;
+	/**
+	 * Each unit composer's model rounds and output tokens (7.3): counted toward its unit, never the turn's rounds, and
+	 * its output apart from the turn's output limit; its input counts toward the turn's input tokens (4.4).
+	 */
+	units: Map<string, { rounds: number; output: number }>;
+	unitOutput: number;
 }
 
 type Checked =
@@ -269,6 +276,19 @@ export function createCopilotHost(options: CopilotHostOptionsV1): CopilotHostV1 
 							]);
 			} else if (message.key === 'listCommands') {
 				result = await agent.listCommands();
+			} else if (message.key === 'unit') {
+				const unit = message.unit;
+				// A unit whose composer went past its output tokens on its last answer is failed, its text never sent (7.3).
+				const over =
+					typeof unit === 'string' &&
+					(state.units.get(unit)?.output ?? 0) > UNIT_LIMITS.outputTokens;
+				result =
+					typeof unit === 'string' && typeof message.text === 'string'
+						? await agent.unit(unit, over ? '' : message.text)
+						: await refuseOn(state, 'agent', 'A unit id and its text must be strings', ['unit']);
+				// Its count goes only with the unit itself: a refused message leaves a live unit's spending in place.
+				if (typeof unit === 'string' && agent.composing(unit) === undefined)
+					state.units.delete(unit);
 			} else {
 				result =
 					typeof message.notification === 'string'
@@ -306,7 +326,24 @@ export function createCopilotHost(options: CopilotHostOptionsV1): CopilotHostV1 
 			// 4.4's rounds, and one request at a time, counted here: the runtime's own loop limit is untrusted.
 			if (state.streams.size >= MODEL_PORT_LIMITS.concurrent)
 				return refuse(id, 'One model request at a time');
-			if (state.rounds >= MODEL_PORT_LIMITS.rounds) {
+			// A unit composer's request (7.3): only for a unit this turn handed out and has not had back, within its rounds
+			// and output tokens, which count toward the unit and never the turn's rounds.
+			const unit = message.unit;
+			let spent: { rounds: number; output: number } | undefined;
+			if (unit !== undefined) {
+				const context = typeof unit === 'string' ? run.agent.composing(unit) : undefined;
+				if (typeof unit !== 'string' || context === undefined)
+					return refuse(id, 'No unit of this turn is being composed with that id');
+				// The unit's own context and nothing more: no history, no tools, no other unit (7.3).
+				if (!composerBodyIs(message.body, context))
+					return refuse(id, 'A unit’s request sends its own context alone', 'MODEL_BODY_REFUSED');
+				spent = state.units.get(unit) ?? { rounds: 0, output: 0 };
+				state.units.set(unit, spent);
+				if (spent.rounds >= UNIT_LIMITS.rounds)
+					return refuse(id, 'The unit reached its limit of model rounds');
+				if (spent.output >= UNIT_LIMITS.outputTokens)
+					return refuse(id, 'The unit reached its limit of output tokens');
+			} else if (state.rounds >= MODEL_PORT_LIMITS.rounds) {
 				refuse(id, 'The turn reached its limit of model rounds');
 				end(state, run, { state: 'stopped', stoppedBy: 'limit' });
 				return;
@@ -332,17 +369,21 @@ export function createCopilotHost(options: CopilotHostOptionsV1): CopilotHostV1 
 			const sent = JSON.parse(text) as Record<string, unknown>;
 			// 4.2: a missing `max_tokens` is set to the turn's output limit, and a larger one lowered to it.
 			const asked = sent.max_tokens;
+			const bound = spent
+				? UNIT_LIMITS.outputTokens - spent.output
+				: MODEL_PORT_LIMITS.outputTokens;
 			sent.max_tokens =
 				typeof asked === 'number' && Number.isFinite(asked) && asked > 0
-					? Math.min(Math.floor(asked), MODEL_PORT_LIMITS.outputTokens)
-					: MODEL_PORT_LIMITS.outputTokens;
-			state.rounds += 1;
+					? Math.min(Math.floor(asked), bound)
+					: bound;
+			if (spent) spent.rounds += 1;
+			else state.rounds += 1;
 			const stream = `mst_${++streams}`;
 			const controller = new AbortController();
 			state.streams.set(stream, controller);
 			run.signal.addEventListener('abort', () => controller.abort(), { once: true });
 			state.model.postMessage({ id, stream });
-			void pump(state, run, stream, sent, controller);
+			void pump(state, run, stream, sent, controller, spent);
 		};
 	}
 
@@ -351,7 +392,8 @@ export function createCopilotHost(options: CopilotHostOptionsV1): CopilotHostV1 
 		run: CopilotRunV1,
 		stream: string,
 		body: Record<string, unknown>,
-		controller: AbortController
+		controller: AbortController,
+		unit?: { rounds: number; output: number }
 	): Promise<void> {
 		const usage = new UsageReader(run.provider.kind);
 		const sentBytes = new TextEncoder().encode(JSON.stringify(body)).length;
@@ -389,8 +431,14 @@ export function createCopilotHost(options: CopilotHostOptionsV1): CopilotHostV1 
 		// so the turn's limits still bind (step 2's trust review).
 		if (state.run === run) {
 			const counted = usage.input > 0 || usage.output > 0;
+			const output = counted ? usage.output : Math.ceil(bytes / 4);
 			state.usage.inputTokens += counted ? usage.input : Math.ceil(sentBytes / 4);
-			state.usage.outputTokens += counted ? usage.output : Math.ceil(bytes / 4);
+			state.usage.outputTokens += output;
+			// A composer's output counts toward its unit, apart from the turn's output limit (7.3, 4.4).
+			if (unit) {
+				unit.output += output;
+				state.unitOutput += output;
+			}
 			if (code && code !== 'MODEL_STREAM_LIMIT') state.modelCode = code;
 		}
 		if (code) status = status >= 400 ? status : 502;
@@ -399,7 +447,8 @@ export function createCopilotHost(options: CopilotHostOptionsV1): CopilotHostV1 
 			state.run === run &&
 			state.live &&
 			(state.usage.inputTokens > MODEL_PORT_LIMITS.inputTokens ||
-				state.usage.outputTokens > MODEL_PORT_LIMITS.outputTokens * MODEL_PORT_LIMITS.rounds ||
+				state.usage.outputTokens - state.unitOutput >
+					MODEL_PORT_LIMITS.outputTokens * MODEL_PORT_LIMITS.rounds ||
 				code === 'MODEL_STREAM_LIMIT')
 		) {
 			end(state, run, { state: 'stopped', stoppedBy: 'limit' });
@@ -477,6 +526,7 @@ export function createCopilotHost(options: CopilotHostOptionsV1): CopilotHostV1 
 			reply: state.reply,
 			usage: { ...state.usage },
 			rounds: state.rounds,
+			unitOutput: state.unitOutput,
 		});
 	}
 
@@ -502,6 +552,8 @@ export function createCopilotHost(options: CopilotHostOptionsV1): CopilotHostV1 
 			rounds: 0,
 			refusals: 0,
 			events: 0,
+			units: new Map(),
+			unitOutput: 0,
 		};
 		serveAgent(state);
 		serveModel(state);
@@ -535,6 +587,9 @@ export function createCopilotHost(options: CopilotHostOptionsV1): CopilotHostV1 
 			state.refusals = 0;
 			state.modelCode = undefined;
 			state.events = 0;
+			state.units = new Map();
+			// A continuation counts on from what its turn's composers spent, apart from its own output (3.5, 4.4).
+			state.unitOutput = run.spent?.unitOutput ?? 0;
 			run.signal.addEventListener(
 				'abort',
 				() => {

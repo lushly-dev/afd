@@ -4,6 +4,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { composeOf, oneAtATime, UNIT_COMPOSE_KEY } from './compose.js';
 import {
 	contentBlock,
 	messagesFor,
@@ -11,6 +12,7 @@ import {
 	serverClaimBlock,
 	sessionNonce,
 	toolResultText,
+	UNIT_PROMPT,
 } from './context.js';
 import { createInProcessLauncher } from './in-process.js';
 import { createTestProvider, NO_SCRIPT } from './test-provider.js';
@@ -270,5 +272,59 @@ describe('a turn of the runtime over its ports (4.3)', () => {
 		expect(text).toBe('Two notes.');
 		launcher.reset();
 		for (const channel of [agent, model, panel]) channel.port1.close();
+	});
+});
+
+describe('the unit composer (7.3)', () => {
+	it('reads only the kernel’s unit: its id and the context the kernel built, nothing else', () => {
+		expect(composeOf({ success: true, data: { unit: 'u1', state: 'composing' } })).toBeUndefined();
+		expect(
+			composeOf({ success: true, [UNIT_COMPOSE_KEY]: { unit: 'u1', system: 'x' } })
+		).toBeUndefined();
+		expect(
+			composeOf({
+				success: true,
+				[UNIT_COMPOSE_KEY]: { unit: 'u1', system: UNIT_PROMPT, message: 'm', parts: { a: 1 } },
+			})
+		).toEqual({ unit: 'u1', system: UNIT_PROMPT, message: 'm' });
+	});
+
+	it('runs a session’s composers one at a time, in order, a failure not stopping the next', async () => {
+		const queue = oneAtATime();
+		const log: string[] = [];
+		const piece = (name: string, ms: number, fail = false) =>
+			queue(async () => {
+				log.push(`start ${name}`);
+				await new Promise((resolve) => setTimeout(resolve, ms));
+				log.push(`end ${name}`);
+				if (fail) throw new Error(name);
+				return name;
+			});
+		const results = await Promise.allSettled([piece('a', 20, true), piece('b', 1), piece('c', 1)]);
+		expect(log).toEqual(['start a', 'end a', 'start b', 'end b', 'start c', 'end c']);
+		expect(results.map((each) => each.status)).toEqual(['rejected', 'fulfilled', 'fulfilled']);
+	});
+
+	it('answers a composer’s request from the test provider’s composer, never a script', async () => {
+		const provider = createTestProvider({
+			scripts: { a: [{ text: 'A script' }] },
+			compose: (text) => `Composed from ${text.length} characters`,
+		});
+		const composer = await provider.send(
+			{
+				system: [{ type: 'text', text: UNIT_PROMPT }],
+				messages: [{ role: 'user', content: 'script:a' }],
+			},
+			new AbortController().signal
+		);
+		const text = await drain(composer.body);
+		expect(text).toContain('Composed from 8 characters');
+		expect(text).not.toContain('A script');
+		const plain = createTestProvider({ scripts: {} });
+		const unanswered = await plain.send(
+			{ system: UNIT_PROMPT, messages: [{ role: 'user', content: 'x' }] },
+			new AbortController().signal
+		);
+		expect(await drain(unanswered.body)).toContain(NO_SCRIPT);
 	});
 });

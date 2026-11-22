@@ -4,7 +4,9 @@
  */
 
 import type { CommandResult } from '@lushly-dev/afd-core';
-import type { ResourceLinkV1 } from '@lushly-dev/loam-sdk';
+import type { ConfirmationAskedV1, ResourceLinkV1 } from '@lushly-dev/loam-sdk';
+import type { ScopeV1 } from '../scope/records.js';
+import type { SuggestionV1 } from './enforce.js';
 
 /**
  * The trace every copilot call carries, set by the kernel alone (3.2): the session, the turn's `seq` and the
@@ -105,8 +107,49 @@ export interface CopilotAgentCapabilityV1 {
 	call(name: string, input: unknown): Promise<CommandResult>;
 	listCommands(): Promise<ToolDescriptorV1[]>;
 	confirmation(notification: string): Promise<CommandResult>;
+	/**
+	 * A unit's composed text (7.3), sent to its submit once: answers `{ unit, state }` alone, never the submit's result.
+	 */
+	unit(unit: string, text: unknown): Promise<CommandResult>;
+	/**
+	 * A unit of this turn being composed: the context its composer's requests must send, which the model port's half
+	 * checks and counts toward the unit (7.3, 4.4). Undefined for none.
+	 */
+	composing(unit: string): { system: string; message: string } | undefined;
 	/** Journals a refused port message (`COPILOT_PORT_REFUSED`), naming its keys and never its values. */
 	refuse(reason: string, keys: readonly string[]): Promise<CommandResult>;
+}
+
+/** A confirmation as the panel's card draws it (6.2): the kernel's record, never the runtime's word. */
+export interface CopilotConfirmationCardV1 {
+	id: string;
+	state: 'pending' | 'confirmed' | 'declined' | 'expired' | 'withdrawn';
+	title: string;
+	header: string;
+	prompt: string;
+	command: string;
+	/** The validated input as it will run, or its size past the list's bound. */
+	input: unknown;
+	scope: ScopeV1;
+	danger: boolean;
+	asked?: ConfirmationAskedV1;
+	expiresAt: number;
+	/** The copilot session that raised it: the port and the cards take only their own session's (6.2). */
+	session?: string;
+	/** The copilot call that raised it, by its turn and call id. */
+	raisedBy?: { turn: number; call: string };
+}
+
+/** A suggestion as the panel's card draws it: the kernel's record (6.1). */
+export interface CopilotSuggestionCardV1 {
+	id: string;
+	command: string;
+	input: unknown;
+	scope: ScopeV1;
+	reasons: SuggestionV1['reasons'];
+	sources: string[];
+	expiresAt: number;
+	ran: boolean;
 }
 
 /** How a turn ended, as the panel port's main half saw the runtime's events. */
@@ -118,6 +161,8 @@ export interface CopilotTurnOutcomeV1 {
 	stoppedBy?: 'person' | 'limit' | 'session-changed';
 	/** The model rounds the turn has used, its earlier runs' included, counted on the trusted side (4.4). */
 	rounds?: number;
+	/** The output tokens its unit composers used, within `usage`, apart from the turn's output limit (7.3, 4.4). */
+	unitOutput?: number;
 }
 
 /** One turn for the host to run (3.5, 4.3). */
@@ -138,7 +183,11 @@ export interface CopilotRunV1 {
 	 * What the turn spent in its earlier runs, when this run continues a turn that waited (3.5): the host counts 4.4's
 	 * tokens and rounds on from it, so a continuation keeps the turn's limits.
 	 */
-	spent?: { usage: { inputTokens: number; outputTokens: number }; rounds: number };
+	spent?: {
+		usage: { inputTokens: number; outputTokens: number };
+		rounds: number;
+		unitOutput?: number;
+	};
 }
 
 /** The host that runs turns: the web host's frame, or an in-process runtime in tests. */
@@ -177,10 +226,13 @@ export const AGENT_PORT_KEYS: Readonly<Record<string, readonly string[]>> = Obje
 	call: Object.freeze(['id', 'key', 'name', 'input']),
 	listCommands: Object.freeze(['id', 'key']),
 	confirmation: Object.freeze(['id', 'key', 'notification']),
+	// A unit's composed text (7.3).
+	unit: Object.freeze(['id', 'key', 'unit', 'text']),
 });
 
 export const MODEL_PORT_KEYS: Readonly<Record<string, readonly string[]>> = Object.freeze({
-	send: Object.freeze(['id', 'key', 'provider', 'body']),
+	// `unit`, optional: a unit composer's request, counted toward its unit (7.3, 4.4).
+	send: Object.freeze(['id', 'key', 'provider', 'body', 'unit']),
 	cancel: Object.freeze(['key', 'stream']),
 });
 

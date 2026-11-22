@@ -62,11 +62,13 @@ import {
 	mailfixEntry,
 	mountedMailfix,
 } from './mailfix-mount.js';
-import { MODEL_SCRIPTS } from './model-scripts.js';
+import { MODEL_SCRIPTS, UNIT_SCRIPTS } from './model-scripts.js';
 
 export interface SeededKernel {
 	kernel: LoamKernelV5;
 	journal: MemoryJournalSink;
+	/** The workspace's store, for a test to read what was kept. */
+	store?: DataAdapter;
 	/** `mailfix`, when the seed mounts it: its server and transport, for a test to read what it was sent. */
 	mailfix?: ReturnType<typeof mountedMailfix>;
 	/** The projection and ports the kernel was made with, for a replay of its journal. */
@@ -274,6 +276,7 @@ async function p4Base(
 	return {
 		kernel,
 		journal,
+		store,
 		...(mailfix ? { mailfix } : {}),
 		...(mailfixb ? { mailfixb } : {}),
 		deployment,
@@ -299,8 +302,15 @@ export async function p5Base(options: {
 	mailfixb?: boolean;
 	/** A unit test's own scripts, beside the scenarios'. */
 	scripts?: Record<string, ModelScriptV1>;
+	/** The unit composer's answer (7.3). Default: `echo-unit`. */
+	compose?: (text: string) => string;
+	/** `mailfix` and its transport, for a test that changes what it answers. Default: a fresh one. */
+	mailfix?: ReturnType<typeof mountedMailfix>;
 }): Promise<SeededKernel> {
-	const provider = createTestProvider({ scripts: { ...MODEL_SCRIPTS, ...options.scripts } });
+	const provider = createTestProvider({
+		scripts: { ...MODEL_SCRIPTS, ...options.scripts },
+		compose: options.compose ?? UNIT_SCRIPTS['echo-unit'],
+	});
 	const host = createCopilotHost({
 		launcher: createInProcessLauncher(),
 		transport: {
@@ -310,7 +320,7 @@ export async function p5Base(options: {
 		},
 	});
 	const seeded = await p4Base({
-		mailfix: mountedMailfix(),
+		mailfix: options.mailfix ?? mountedMailfix(),
 		...(options.mailfixb ? { mailfixb: mountedMailfix() } : {}),
 		...(options.provider
 			? {

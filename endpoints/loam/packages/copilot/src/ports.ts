@@ -49,6 +49,10 @@ export class AgentPort implements AgentPortV1 {
 		return this.#ask({ key: 'confirmation', notification }) as Promise<CommandResultLike>;
 	}
 
+	unit(unit: string, text: string): Promise<CommandResultLike> {
+		return this.#ask({ key: 'unit', unit, text }) as Promise<CommandResultLike>;
+	}
+
 	/** Any message, for the tests that check the kernel's half refuses it. */
 	raw(message: Record<string, unknown>): Promise<unknown> {
 		return this.#ask(message);
@@ -113,14 +117,20 @@ export class ModelPort implements ModelPortV1 {
 		};
 	}
 
-	fetchFor(provider: CopilotProviderV1): typeof fetch {
+	fetchFor(provider: CopilotProviderV1, options: { unit?: string } = {}): typeof fetch {
 		return async (input, init) => {
 			const request = new Request(input as RequestInfo, init);
 			const body = JSON.parse(await request.text()) as Record<string, unknown>;
 			const id = this.#next++;
 			const stream = await new Promise<string>((resolve, reject) => {
 				this.#answers.set(id, { resolve, reject });
-				this.port.postMessage({ id, key: 'send', provider: provider.id, body });
+				this.port.postMessage({
+					id,
+					key: 'send',
+					provider: provider.id,
+					body,
+					...(options.unit !== undefined ? { unit: options.unit } : {}),
+				});
 			});
 			const readable = new ReadableStream<Uint8Array>({
 				start: (controller) => {

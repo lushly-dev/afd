@@ -121,6 +121,8 @@ export interface EnforcementDeps {
 	nestedRaised(trace: CopilotTraceV1, notification: string): void;
 	/** Whether the call's actor may enter the call's scope (`decideAccess`): nothing is asked or suggested otherwise. */
 	enterable(context: CommandContext): boolean;
+	/** The unit a submit runs for (7.3): its source, which taints the submit. Absent, or undefined: no unit's submit. */
+	unitOf?(trace: CopilotTraceV1): { source: string } | undefined;
 	/** Phase 2's `PROJECT_NOT_FOUND`, byte-identical for a project that is missing and one the caller may not enter. */
 	projectNotFound(): CommandResult<never>;
 	kernelFailure(
@@ -137,6 +139,25 @@ export interface EnforcementDeps {
  */
 const defaultMode = (mutation: boolean, mounted: boolean, vouched: boolean): AutonomyModeV1 =>
 	mutation || (mounted && !vouched) ? 'ask' : 'act';
+
+const RANK: readonly AutonomyModeV1[] = ['suggest', 'ask', 'act'];
+const lower = (a: AutonomyModeV1, b: AutonomyModeV1): AutonomyModeV1 =>
+	RANK.indexOf(a) <= RANK.indexOf(b) ? a : b;
+
+/**
+ * A unit's submit's mode (7.3): `act` in place of the default (D156's `ask` for a mutation), since it only stores
+ * composed text at the server that asked for it, which the person reviews at the set's send. Every row a person or an
+ * owner set still applies, a command's, an instance's or a general one, as do every ceiling and the person's cap; only
+ * the default, as the mode or as a project row's bound, is replaced.
+ */
+export function unitMode(
+	resolved: { chain: ConfirmationAskedV1['chain'] } | undefined
+): AutonomyModeV1 {
+	const [first, ...rest] = resolved?.chain ?? [];
+	let mode: AutonomyModeV1 = first && first.id !== 'default' ? first.mode : 'act';
+	for (const item of rest) if (item.id !== 'default') mode = lower(mode, item.mode);
+	return mode;
+}
 
 export interface Enforcement {
 	gate: CommandMiddleware;
@@ -282,9 +303,15 @@ export function createEnforcement(deps: EnforcementDeps): Enforcement {
 		const before = deps.preflight(name, context);
 		if (before) return before;
 		const resolved = await deps.resolve(name, context);
-		let mode: AutonomyModeV1 =
-			resolved?.mode ??
-			defaultMode(deps.isMutation(name), deps.isMounted(name), deps.labelsOf(name) === 'per-part');
+		const unit = trace !== undefined ? deps.unitOf?.(trace) : undefined;
+		let mode: AutonomyModeV1 = unit
+			? unitMode(resolved)
+			: (resolved?.mode ??
+				defaultMode(
+					deps.isMutation(name),
+					deps.isMounted(name),
+					deps.labelsOf(name) === 'per-part'
+				));
 		const chain: ConfirmationAskedV1['chain'] = resolved
 			? structuredClone(resolved.chain)
 			: [{ id: 'default', mode, as: 'mode' }];
@@ -295,10 +322,13 @@ export function createEnforcement(deps: EnforcementDeps): Enforcement {
 			if (mode === 'act') mode = 'ask';
 		}
 		// Taint (5.3): a tainted session's call outside what its sources vouch for is at most `ask`, whatever the rows say.
-		let reason: DecisionV1['reason'] = 'policy';
+		let reason: DecisionV1['reason'] = unit ? 'unit' : 'policy';
 		let sources: string[] = [];
 		if (trace !== undefined) {
-			const tainted = await deps.taintOf(trace.session);
+			// A unit's submit is treated as tainted by the unit's source (7.3).
+			const tainted = [
+				...new Set([...(await deps.taintOf(trace.session)), ...(unit ? [unit.source] : [])]),
+			];
 			if (tainted.length > 0 && lowers(name, tainted)) {
 				sources = tainted;
 				chain.push({ id: 'taint', mode: 'ask', as: 'ceiling' });
@@ -310,6 +340,19 @@ export function createEnforcement(deps: EnforcementDeps): Enforcement {
 		// A replay takes the decision its entry journaled, as the call was decided live (#1936).
 		const recorded = (call as unknown as Record<symbol, unknown>)[RECORDED_AUTONOMY];
 		if (recorded === 'act' || recorded === 'ask' || recorded === 'suggest') mode = recorded;
+		// A unit's text never goes into a confirmation or a suggestion record (7.3): a submit that would ask or suggest is
+		// refused, and nothing is stored or counted.
+		// A command that declares a `confirm_prompt` would be asked by phase 4's gate in `act` too: refused alike.
+		if (unit && (mode !== 'act' || deps.declares(name))) {
+			if (trace !== undefined) deps.decided(trace, { mode, reason });
+			return deps.kernelFailure(
+				'UNIT_INVALID',
+				mode === 'act'
+					? `'${name}' asks the person first, so a unit's text is not sent to it`
+					: `The person's autonomy for '${name}' is ${mode === 'ask' ? 'Ask' : 'Suggest'}${reason === 'taint' ? ', under taint,' : ''} so a unit's text is not sent to it`,
+				"None: the server's unit is malformed or not allowed; it is reported to the person"
+			);
+		}
 		// No confirmation or suggestion for a project the caller may not enter (6.1's order): a shell command that ignores
 		// its scope would otherwise put the project's name in a header, and the person in front of a call that fails.
 		if (mode !== 'act' && !deps.enterable(context)) return deps.projectNotFound();

@@ -21,3 +21,10 @@ export {
 	UsageReader,
 } from './host.js';
 export * from './types.js';
+export {
+	composerBodyIs,
+	UNIT_LIMITS,
+	UNIT_PROMPT,
+	type UnitContextV1,
+	unitContext,
+} from './units.js';

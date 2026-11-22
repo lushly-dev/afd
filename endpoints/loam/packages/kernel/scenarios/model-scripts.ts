@@ -61,3 +61,16 @@ export const MODEL_SCRIPTS: Readonly<Record<string, ModelScriptV1>> = Object.fre
 		{ text: 'Both replies are composed.' },
 	],
 });
+
+/**
+ * The test provider's unit composers (7.3), by name: a request whose system prompt is Loam's composer prompt is
+ * answered by one, given the composer's one message. `echo-unit` greets the unit's sender by the name its message part
+ * gives and repeats the question it was given, so a reply that names anyone else shows a leak between units.
+ */
+export const UNIT_SCRIPTS: Readonly<Record<string, (text: string) => string>> = Object.freeze({
+	'echo-unit': (text: string) => {
+		const given = text.replaceAll('\\"', '"');
+		const found = /"from":\{"name":"([^"]*)"[^}]*\},"text":"([^"]*)"/.exec(given);
+		return found ? `Dear ${found[1]}, you asked: ${found[2]}` : 'Dear sender,';
+	},
+});

@@ -506,7 +506,7 @@ Written when the session coordinating phase 2 ran out of account capacity. `main
 
   - 5, mounted approvals: not started.
 
-  - 6, units: not started.
+  - 6, units: in review in [#2067](https://github.com/lushly-dev/afd/pull/2067) ([its record](phases/5-copilot/spec.md#step-6-2026-11-22)): a `per-part` instance's unit composed in a fresh context the kernel builds and the model port checks; the parent told only `{ unit, state }`, as the server's claim; the submit at `act` by default, refused rather than asked or suggested; nothing of a unit in a confirmation, the store or the journal; composer rounds and output counted toward the unit; scenario 4 runs.
 
   - 7, mail on the desktop: not started.
 
@@ -606,6 +606,7 @@ status changes.
 | 2026-11-21 | Phase 5 step 3 | P5-A8's cards and axe in the desktop suite (WebView2, WebKitGTK); step 3 ran them in Chromium only | Open |
 | 2026-11-22 | Phase 5 step 4 | Attachments stay refused until they are read as the person and given as content that taints (#1508's third item) ([phase 5's follow-ups](phases/5-copilot/spec.md#follow-ups)) | Open |
 | 2026-11-22 | Phase 5 step 4's trust review | An app's activation-client reads are untraced; a replay rebuilds no taint, and a copilot session does not replay yet (after #2056); a tainted session's prompts and toasts are phase 4's paths alone; sources named by title ([phase 5's follow-ups](phases/5-copilot/spec.md#follow-ups)) | Open |
+| 2026-11-22 | Phase 5 step 6's trust review | `copilot.turn.units` and the other turn limits as settings; a failed unit's reason on the turn's call; a stored outcome answered again opened as a unit ([phase 5's follow-ups](phases/5-copilot/spec.md#follow-ups)) | Open |
 
 ### Follow-ups: phase 6, hosts and distribution
 
@@ -729,6 +730,7 @@ new row.
 | --- | --- | --- |
 | 2026-11-21 | Phase 5 step 3 | [#1915](https://github.com/lushly-dev/afd/pull/1915): enforcement and approval health (phase 5 specification, step 3; [its record](phases/5-copilot/spec.md#step-3-2026-11-21)): the gate of 6.1 on every agent-interface call, the confirmation's `asked`, `session` and `trace`, suggestion records and "Run it", the continuation, approval health, the panel's cards, the autonomy section's notice and health, 10.8 amended; `p5-base` on `p4-base`, jobs 1 and 5 run; phase 4's P4-E2 sweep, `agent-changes-setting` and E13's notice amended; the app test kit lets agents act by default. Budget rows raised under D115. Trust review: four rounds by GPT-6.2 Astra and Claude Opus 5.5, every blocker fixed but one replay-parity gap, a follow-up. Verified on macOS with Node 26: the kernel's 1,435 units, chrome's 279, the runtime, the kit and the apps; Chromium's copilot, cards, autonomy, confirmations and inbox files; `budget`; the desktop crate's `cargo fmt`, `clippy` and `cargo test`; `pnpm verify`, all 21 steps, at `146b0769`. Not run: the desktop WebDriver suite (no macOS suite) |
 | 2026-11-22 | Phase 5 step 4 | [#2058](https://github.com/lushly-dev/afd/pull/2058): labels, taint and grants to mounts (phase 5 specification, step 4; [its record](phases/5-copilot/spec.md#step-4-2026-11-22)): the entry's `labels` and `expose.apps`, `[[calls]]` and the served `calls` grant, labels per part, mounted tools listed, taint and its lowering through nested calls, a worker per session, `mailfix` mounted in `p5-base`; jobs 2 and 7 run; phase 1's 7.4 amended; budget rows raised under D115. Trust review: GPT-6.2 Astra and Claude Opus 5.5, then three focused passes by Opus; every blocker fixed but attachments, a follow-up. Verified on macOS with Node 26, before and after the merge with `main` at `5b01fe89`: [its record](phases/5-copilot/spec.md#step-4-2026-11-22)'s Verified paragraph |
+| 2026-11-22 | Phase 5 step 6 | [#2067](https://github.com/lushly-dev/afd/pull/2067): fresh-context units (phase 5 specification, step 6; [its record](phases/5-copilot/spec.md#step-6-2026-11-22)): units read from a `per-part` instance's result, composed apart from the parent in a context the kernel builds, their submit sent once at `act`; P5-A7 in the kernel's units and Chromium; scenario 4 runs; budget rows raised under D115. Trust review: GPT-6.2 Astra and Claude Opus 5.5, then three focused passes by Opus; every blocker fixed but `copilot.turn.units` as a setting, a follow-up. Verified on macOS with Node 26: its record's Verified paragraph |
 
 ### Sessions: phase 6, hosts and distribution
 

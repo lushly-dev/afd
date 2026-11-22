@@ -163,6 +163,7 @@ export type LoamKernelErrorCode =
 	| 'COPILOT_PORT_REFUSED'
 	| 'AUTONOMY_UNAVAILABLE'
 	| 'AUTONOMY_SUGGEST_ONLY'
+	| 'UNIT_INVALID'
 	// Phase 4's settings (its section 16), from its step 1; and AFD's own over-budget read (its 3.9).
 	| 'SETTING_NOT_FOUND'
 	| 'SETTING_LEVEL_UNAVAILABLE'

@@ -33,6 +33,8 @@ export interface CommandOwner {
 	instance: string;
 	/** A mounted command: its call is recorded, and a replay does not reach the server (7.6). */
 	recorded?: true;
+	/** A mounted command's tool, as its server names it (phase 5 specification, 7.3's submit). */
+	tool?: string;
 	/** A mounted command whose advertised schema discovery replaced: no chord runs it (step 7's R11). */
 	replaced?: true;
 	/** A mounted command's labels, by its instance entry: `per-part` only when it says so (phase 5 specification, 5.1). */
