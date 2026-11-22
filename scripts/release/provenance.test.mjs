@@ -21,6 +21,9 @@ const write = (root, file, text) => {
 };
 const read = (root, file) => JSON.parse(readFileSync(join(root, file), 'utf8'));
 
+/** An envelope as every family commits it since #1610: no digest of `adaptations.json`. */
+const ENVELOPE = `${JSON.stringify({ records: { adaptations: { manifest: 'adaptations.json' } } }, null, 2)}\n`;
+
 /** A repository with Specimen's provenance layout: one imported manifest, recorded unchanged. */
 function fixture(t) {
 	const root = mkdtempSync(join(tmpdir(), 'afd-provenance-'));
@@ -47,17 +50,12 @@ function fixture(t) {
 			2
 		)}\n`
 	);
-	const adaptations = readFileSync(join(root, 'foundations/specimen/provenance/adaptations.json'));
-	write(
-		root,
-		'foundations/specimen/provenance/provenance.json',
-		`${JSON.stringify({ records: { adaptations: { manifest: 'adaptations.json', sha256: sha(adaptations) } } }, null, 2)}\n`
-	);
+	write(root, 'foundations/specimen/provenance/provenance.json', ENVELOPE);
 	execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: root });
 	return root;
 }
 
-test("a release's Changesets edits are recorded, and the records' digest follows them", (t) => {
+test("a release's Changesets edits are recorded, and the envelope gains no digest", (t) => {
 	const root = fixture(t);
 	assert.deepEqual(recordReleaseProvenance(root, 'Versioned'), []);
 	const versioned = '{ "name": "@fixture/specimen", "version": "2.2.0-preview.0" }\n';
@@ -82,8 +80,8 @@ test("a release's Changesets edits are recorded, and the records' digest follows
 		['foundations/specimen/CHANGELOG.md', 'added-after-import', 'Versioned']
 	);
 	assert.equal(
-		read(root, 'foundations/specimen/provenance/provenance.json').records.adaptations.sha256,
-		sha(readFileSync(join(root, 'foundations/specimen/provenance/adaptations.json')))
+		readFileSync(join(root, 'foundations/specimen/provenance/provenance.json'), 'utf8'),
+		ENVELOPE
 	);
 	// A second release appends its reason once.
 	write(root, 'foundations/specimen/package.json', versioned.replace('.0"', '.1"'));
@@ -128,8 +126,8 @@ test('a digest updated by hand leaves a stale shape, which recording again refre
 		'the file did not change, so no reason is added'
 	);
 	assert.equal(
-		read(root, 'foundations/specimen/provenance/provenance.json').records.adaptations.sha256,
-		sha(readFileSync(join(root, records)))
+		readFileSync(join(root, 'foundations/specimen/provenance/provenance.json'), 'utf8'),
+		ENVELOPE
 	);
 	// After a dependency update the digest is behind and the shape current: not stale.
 	assert.ok(!hasStaleShape(record(), bumped));
@@ -162,8 +160,8 @@ test('a removed file keeps its record, classified as removed, and a returning on
 	assert.equal(record().current_import_sha256, sha(manifest));
 	assert.equal(record().import_reason, 'Imported');
 	assert.equal(
-		read(root, 'foundations/specimen/provenance/provenance.json').records.adaptations.sha256,
-		sha(readFileSync(join(root, records)))
+		readFileSync(join(root, 'foundations/specimen/provenance/provenance.json'), 'utf8'),
+		ENVELOPE
 	);
 	// Recording again changes nothing: the removal is recorded once.
 	assert.deepEqual(recordProvenance(root, 'specimen', 'Again', { removals: true }), []);
@@ -203,61 +201,42 @@ test('a removed record without its earlier classification is refused when the fi
 	);
 });
 
-test("a family that does not commit the adaptations digest keeps its envelope's bytes (#1610)", (t) => {
+test("recording keeps the envelope's bytes, which hold no adaptations digest (#1610)", (t) => {
 	const root = mkdtempSync(join(tmpdir(), 'afd-provenance-'));
 	t.after(() => rmSync(root, { recursive: true, force: true }));
 	const directory = 'foundations/fast-af/provenance';
 	write(root, `${directory}/adaptations.json`, `${JSON.stringify({ files: [] }, null, 2)}\n`);
-	const envelope = `${JSON.stringify({ records: { adaptations: { manifest: 'adaptations.json' } } }, null, 2)}\n`;
-	write(root, `${directory}/provenance.json`, envelope);
+	write(root, `${directory}/provenance.json`, ENVELOPE);
 	write(root, 'foundations/fast-af/src/a.ts', 'export const a = 1;\n');
 	execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: root });
 	assert.deepEqual(recordProvenance(root, 'fast-af', 'Added'), ['foundations/fast-af/src/a.ts']);
 	assert.equal(read(root, `${directory}/adaptations.json`).files[0].import_reason, 'Added');
-	assert.equal(readFileSync(join(root, directory, 'provenance.json'), 'utf8'), envelope);
+	assert.equal(readFileSync(join(root, directory, 'provenance.json'), 'utf8'), ENVELOPE);
 });
 
-test('the recorder removes a FAST-AF digest an older base:sync merged back (#1610)', (t) => {
-	const root = mkdtempSync(join(tmpdir(), 'afd-provenance-'));
-	t.after(() => rmSync(root, { recursive: true, force: true }));
-	const directory = 'foundations/fast-af/provenance';
-	const adaptations = `${JSON.stringify({ files: [] }, null, 2)}\n`;
-	write(root, `${directory}/adaptations.json`, adaptations);
-	const envelope = (record) => `${JSON.stringify({ records: { adaptations: record } }, null, 2)}\n`;
-	// The old resolver's output: every record's sha256 recomputed, adaptations.json's included.
-	const merged = envelope({ manifest: 'adaptations.json', sha256: sha(adaptations) });
-	write(root, `${directory}/provenance.json`, merged);
-	execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: root });
-	const heard = [];
-	const onDigest = (outcome) => heard.push(outcome);
-	// Nothing to record: the repair alone.
-	assert.deepEqual(recordProvenance(root, 'fast-af', 'Repair', { onDigest }), []);
-	assert.deepEqual(heard, ['removed']);
-	const repaired = readFileSync(join(root, directory, 'provenance.json'), 'utf8');
-	assert.equal(repaired, envelope({ manifest: 'adaptations.json' }));
-	assert.equal(readFileSync(join(root, directory, 'adaptations.json'), 'utf8'), adaptations);
-	assert.deepEqual(recordProvenance(root, 'fast-af', 'Again', { onDigest }), []);
-	assert.deepEqual(heard, ['removed'], 'a second run finds nothing to repair');
-});
-
-test('the recorder restores a Specimen digest that went missing, as Specimen commits it', (t) => {
-	const root = fixture(t);
-	const path = join(root, 'foundations/specimen/provenance/provenance.json');
-	const envelope = JSON.parse(readFileSync(path, 'utf8'));
-	const committed = envelope.records.adaptations.sha256;
-	delete envelope.records.adaptations.sha256;
-	writeFileSync(path, `${JSON.stringify(envelope, null, 2)}\n`);
-	const heard = [];
-	assert.deepEqual(
-		recordProvenance(root, 'specimen', 'Repair', { onDigest: (o) => heard.push(o) }),
-		[]
-	);
-	assert.deepEqual(heard, ['written']);
-	assert.equal(
-		read(root, 'foundations/specimen/provenance/provenance.json').records.adaptations.sha256,
-		committed
-	);
-});
+for (const family of ['fast-af', 'specimen'])
+	test(`the recorder removes a ${family} digest an older base:sync merged back (#1610)`, (t) => {
+		const root = mkdtempSync(join(tmpdir(), 'afd-provenance-'));
+		t.after(() => rmSync(root, { recursive: true, force: true }));
+		const directory = `foundations/${family}/provenance`;
+		const adaptations = `${JSON.stringify({ files: [] }, null, 2)}\n`;
+		write(root, `${directory}/adaptations.json`, adaptations);
+		// The old resolver's output: every record's sha256 recomputed, adaptations.json's included.
+		const merged = {
+			records: { adaptations: { manifest: 'adaptations.json', sha256: sha(adaptations) } },
+		};
+		write(root, `${directory}/provenance.json`, `${JSON.stringify(merged, null, 2)}\n`);
+		execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: root });
+		const heard = [];
+		const onDigest = (outcome) => heard.push(outcome);
+		// Nothing to record: the repair alone.
+		assert.deepEqual(recordProvenance(root, family, 'Repair', { onDigest }), []);
+		assert.deepEqual(heard, ['removed']);
+		assert.equal(readFileSync(join(root, directory, 'provenance.json'), 'utf8'), ENVELOPE);
+		assert.equal(readFileSync(join(root, directory, 'adaptations.json'), 'utf8'), adaptations);
+		assert.deepEqual(recordProvenance(root, family, 'Again', { onDigest }), []);
+		assert.deepEqual(heard, ['removed'], 'a second run finds nothing to repair');
+	});
 
 test('recording requires a known family and a reason', (t) => {
 	const root = fixture(t);
