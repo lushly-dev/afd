@@ -138,7 +138,7 @@ describe("the shell's own sections (3.7)", () => {
 		]);
 	});
 
-	it("loam.rail.order: a person's own list of instance ids, the rest of a list refused", async () => {
+	it("P4-E9: loam.rail.order: a person's own list of instance ids, the rest of a list refused", async () => {
 		const { kernel } = await workspace();
 		expect((await set(kernel, 'loam.rail', 'order', ['greet', 'other'])).data).toMatchObject({
 			value: ['greet', 'other'],
@@ -172,7 +172,7 @@ describe("the shell's own sections (3.7)", () => {
 		expect(workspaceLevel.error?.code).toBe('SETTING_LEVEL_UNAVAILABLE');
 	});
 
-	it('loam.notifications: toastSticky is stored now, and muted never names the shell or an agent', async () => {
+	it('P4-E1: loam.notifications: toastSticky is stored now, and muted never names the shell or an agent', async () => {
 		const { kernel } = await workspace();
 		expect((await set(kernel, 'loam.notifications', 'toastSticky', 'always')).success).toBe(true);
 		expect((await set(kernel, 'loam.notifications', 'toastSticky', 'often')).error?.code).toBe(
@@ -193,7 +193,7 @@ describe("the shell's own sections (3.7)", () => {
 		expect(read.data).toMatchObject({ value: ['greet'], from: 'person' });
 	});
 
-	it('loam.keybindings.overrides: stored and checked; F6, Shift+F6 and Escape are KEYBINDING_RESERVED', async () => {
+	it('P4-E9: loam.keybindings.overrides: stored and checked; F6, Shift+F6 and Escape are KEYBINDING_RESERVED', async () => {
 		const { kernel } = await workspace();
 		const overrides = [
 			{ command: 'palette-open', keys: 'Mod+Shift+K' },
@@ -279,7 +279,7 @@ describe("the shell's own sections (3.7)", () => {
 
 type Rows = { items: PaletteItem[] };
 
-describe("the palette's setting rows (3.10)", () => {
+describe("P4-E1: the palette's setting rows (3.10)", () => {
 	it('finds a key with its section, key, title, description and app, and filters by kind', async () => {
 		const { kernel, scopes } = await workspace();
 		const found = await kernel.call<Rows>(
@@ -360,7 +360,7 @@ describe("the palette's setting rows (3.10)", () => {
 	});
 });
 
-describe("section-open { section: 'settings', target } (3.5, 3.10)", () => {
+describe("P4-E1: section-open { section: 'settings', target } (3.5, 3.10)", () => {
 	it('opens the section at a key, at a section, or at its root', async () => {
 		const { kernel, scopes } = await workspace();
 		const main = async () =>
@@ -416,7 +416,7 @@ describe("section-open { section: 'settings', target } (3.5, 3.10)", () => {
 		}
 	});
 
-	it('replays a session of the new writes and opens with no difference', async () => {
+	it('P4-E15: P4-E1: replays a session of the new writes and opens with no difference', async () => {
 		const { kernel, journal, scopes } = await workspace();
 		await set(kernel, 'loam.rail', 'order', ['greet']);
 		await set(kernel, 'loam.notifications', 'muted', ['shell']);

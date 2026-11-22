@@ -139,7 +139,7 @@ describe("measuring JSON (section 11; R2, the trust review's 16)", () => {
 	});
 });
 
-describe("the journal entry bound (section 11; the trust review's 6)", () => {
+describe("P4-E10: the journal entry bound (section 11; the trust review's 6)", () => {
 	const tight = () => {
 		const limits = createKernelLimits();
 		limits.set({ ...LIMIT_DEFAULTS, inputBytes: 65_536, journalEntryBytes: 262_144 });

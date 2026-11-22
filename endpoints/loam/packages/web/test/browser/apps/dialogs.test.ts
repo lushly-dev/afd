@@ -342,7 +342,7 @@ describe("step 4's trust review (2, 4, 6, 10)", () => {
 		expect((await overlays(page)).map((each) => each.kind)).toEqual(['modal']);
 	});
 
-	it("keeps focus where it is when a dialog opens, and follows the active tab's owner between two apps' documents", async () => {
+	it("P4-E7: keeps focus where it is when a dialog opens, and follows the active tab's owner between two apps' documents", async () => {
 		const { page } = await openShell(browser, site.origin);
 		const note = await createNote(page, 'Note');
 		const list = (await kernelCall(page, 'document-create', {
@@ -384,7 +384,7 @@ describe("step 4's trust review (2, 4, 6, 10)", () => {
 });
 
 describe("step 3's deferred Chromium cases (6.3, 6.4)", () => {
-	it("anchors a popover on a native editor's own element, in main", async () => {
+	it("P4-E7: anchors a popover on a native editor's own element, in main, the active tab owner's", async () => {
 		const { page, errors } = await openShell(browser, site.origin);
 		const id = await createNote(page, 'Anchored');
 		await open(page, id);

@@ -16,6 +16,7 @@ import {
 	deploymentEntry,
 	deploymentFile,
 	focused,
+	journal,
 	kernelCall,
 	openApp,
 	openShell,
@@ -88,6 +89,15 @@ describe('P4-E6: the inbox', () => {
 		await expect.poll(() => inbox(page).count()).toBe(1);
 		await expect.poll(() => new URL(page.url()).pathname).toMatch(/\/~\/inbox\/ntf_[a-z0-9]{16}$/);
 		await expect.poll(() => toast.count()).toBe(0);
+		// 6.2's reason: the person's Open inbox closes the toast as `inbox`, journaled as the shell's dismissal.
+		const dismissals = (await journal(page)).filter(
+			(entry) =>
+				entry.command === 'overlay-dismiss' &&
+				(entry.input as { overlayId?: string }).overlayId === shown.data?.overlayId
+		);
+		expect(
+			dismissals.map((entry) => [(entry.input as { reason?: string }).reason, entry.success])
+		).toEqual([['inbox', true]]);
 		// Focus is on the notice it opened at, which names itself unread.
 		await expect.poll(async () => (await focused(page)).label).toBe('Ada signed the book, unread');
 		await expect

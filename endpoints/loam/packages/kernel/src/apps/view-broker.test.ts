@@ -200,7 +200,7 @@ function guarded(messageBytes = 65_536) {
 
 const tokens = (limits: ReturnType<typeof createKernelLimits>) => limits.rates.get('probe')?.tokens;
 
-describe("the view broker's message bound (phase 4 specification, section 11)", () => {
+describe("P4-E10: the view broker's message bound (phase 4 specification, section 11)", () => {
 	it('drops a message over messageBytes before it reaches the port, tells the frame, journals and counts it', async () => {
 		const { limits, runAs, call, broker } = guarded();
 		const params = { name: 'probe-plain', arguments: { text: 'x'.repeat(65_536) } };

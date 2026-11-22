@@ -106,7 +106,7 @@ const ACME = (): MembershipV1 => ({
 const signIn = (kernel: LoamKernelV5, email: string) =>
 	kernel.call('auth-sign-in', { method: 'credentials', email, password: 'x' });
 
-describe('loam.limits (section 11, 3.7)', () => {
+describe('P4-E10: loam.limits (section 11, 3.7)', () => {
 	it('declares the five keys with the defaults the kernel enforces from boot', () => {
 		const keys = LIMITS_SECTION.schema.properties as Record<string, { default: number }>;
 		expect(Object.keys(keys)).toEqual([...LIMIT_KEYS]);
@@ -221,7 +221,7 @@ describe('a hosted provider deployment (section 13)', () => {
 	});
 });
 
-describe("each limit's refusal (section 11, 16)", () => {
+describe("P4-E10: each limit's refusal (section 11, 16)", () => {
 	it('refuses an input over inputBytes at the port, journaled without it', async () => {
 		const { kernel, journal } = await workspace({ empty: true });
 		const port = kernel.appPort('dual');
@@ -326,7 +326,7 @@ describe("each limit's refusal (section 11, 16)", () => {
 	});
 });
 
-describe('limit-usage-get (section 11, F3)', () => {
+describe('P4-E10: limit-usage-get (section 11, F3)', () => {
 	it("reports each limit's refusals in the hour, and each app's stored bytes, ordered by instance", async () => {
 		const { kernel } = await workspace({ empty: true });
 		const port = kernel.appPort('dual');
@@ -360,6 +360,39 @@ describe('limit-usage-get (section 11, F3)', () => {
 		expect((await kernel.call('limit-usage-get', { extra: 1 })).error?.code).toBe(
 			'VALIDATION_ERROR'
 		);
+	});
+
+	it("counts a refusal of every limit the kernel enforces on one instance (F3); messageBytes is the broker's", async () => {
+		const { kernel } = await workspace({ empty: true });
+		const port = kernel.appPort('dual');
+		// inputBytes, at the port.
+		expect((await port.call('dual-put', { key: 'a', value: 'x'.repeat(300_000) })).success).toBe(
+			false
+		);
+		// journalEntryBytes, a person's call to the app's command over the journal entry.
+		await kernel.call('dual-put', { key: 'b', value: 'x'.repeat(1_100_000) });
+		// storeBytes, with the quota at its least.
+		expect((await setLimit(kernel, 'inputBytes', 65_536)).success).toBe(true);
+		expect((await setLimit(kernel, 'storeBytes', 1_048_576)).success).toBe(true);
+		let stored: { success: boolean } = { success: true };
+		for (let index = 0; stored.success && index < 40; index += 1)
+			stored = await port.call('dual-put', { key: `s${index}`, value: 'v'.repeat(60_000) });
+		expect(stored.success).toBe(false);
+		// callsPerSecond, past the burst.
+		expect((await setLimit(kernel, 'callsPerSecond', 5)).success).toBe(true);
+		let paced: { success: boolean } = { success: true };
+		for (let index = 0; paced.success && index < 400; index += 1)
+			paced = await port.call('dual-where', {});
+		expect(paced.success).toBe(false);
+		const dual = (await kernel.call<Usage>('limit-usage-get', { instance: 'dual' })).data
+			?.instances[0];
+		expect(dual?.storeBytes.limit).toBe(1_048_576);
+		for (const key of ['inputBytes', 'callsPerSecond', 'storeBytes', 'journalEntryBytes'])
+			expect(dual?.refusals[key], key).toBeGreaterThanOrEqual(1);
+		// Every one of section 11's limits is reported, the broker's own messageBytes among them (its count is
+		// `view-broker.test.ts`'s, for a view; dual is native, so none here).
+		expect(Object.keys(dual?.refusals ?? {}).sort()).toEqual([...LIMIT_KEYS].sort());
+		expect(dual?.refusals.messageBytes).toBe(0);
 	});
 
 	it('gives an agent HUMAN_REQUIRED in its handler, a member OWNER_REQUIRED, and a port CALL_NOT_GRANTED', async () => {
@@ -638,7 +671,7 @@ describe('the trust review of step 10', () => {
 		expect(made.limits.values()).toEqual({ ...LIMIT_DEFAULTS, ...enforced });
 	});
 
-	it('keeps the defaults when the store cannot read the section (12)', async () => {
+	it('P4-E10: keeps the defaults when the store cannot read the section (12): fail closed', async () => {
 		class Failing extends MemoryAdapter {
 			override async get<T>(table: string, id: string): Promise<T | null> {
 				if (table === 'setting') throw new Error('The store is gone');
@@ -650,7 +683,7 @@ describe('the trust review of step 10', () => {
 	});
 });
 
-describe("the owners' notice through the inbox (section 11; step 5's shellNotice)", () => {
+describe("P4-E10: the owners' notice through the inbox (section 11; step 5's shellNotice)", () => {
 	type Listed = { notifications: Array<{ source: string; title: string; tone?: string }> };
 	const shellNotices = async (kernel: LoamKernelV5) =>
 		(
@@ -706,7 +739,7 @@ describe("the owners' notice through the inbox (section 11; step 5's shellNotice
 });
 
 describe('store-usage-settle (section 11)', () => {
-	it("counts each app's records at boot where its row differs, journaled, and a replay writes the same", async () => {
+	it("P4-E15: counts each app's records at boot where its row differs, journaled, and a replay writes the same", async () => {
 		const store = new MemoryAdapter();
 		// One clock across the boots, as a page's wall clock is.
 		const clock = createSteppingClock();
@@ -730,6 +763,12 @@ describe('store-usage-settle (section 11)', () => {
 				)
 			)?.used
 		).toBe(used);
+		// P4-E15: the boot that settled replays with no difference, the settle's entry among the same.
+		const replayed = await replay(entries);
+		expect(replayed.report.diverged).toBe(false);
+		expect(
+			replayed.report.entries.find((entry) => entry.command === 'store-usage-settle')?.status
+		).toBe('same');
 		// No caller reaches it.
 		expect((await second.kernel.call('store-usage-settle', { usage: [] })).error?.code).toBe(
 			'COMMAND_NOT_FOUND'
@@ -742,7 +781,7 @@ describe('store-usage-settle (section 11)', () => {
 		).toBe(false);
 	});
 
-	it('replays a session of the new commands with no difference (P4-E15)', async () => {
+	it('P4-E15: replays a session of the new commands with no difference', async () => {
 		const { kernel, journal } = await workspace({ empty: true });
 		const port = kernel.appPort('dual');
 		await setLimit(kernel, 'journalEntryBytes', 524_288);

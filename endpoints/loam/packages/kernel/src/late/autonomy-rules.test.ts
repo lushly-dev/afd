@@ -64,7 +64,7 @@ describe('the record (4.1)', () => {
 	});
 });
 
-describe('resolution (4.2)', () => {
+describe('P4-E4: resolution (4.2)', () => {
 	it('defaults to act on reads, ask before changes, and ask before any mounted tool (D156)', () => {
 		expect(defaultMode(READ)).toBe('act');
 		expect(defaultMode(WRITE)).toBe('ask');
@@ -235,7 +235,7 @@ describe('resolution (4.2)', () => {
 	});
 });
 
-describe('the write-time bound (4.2, F8)', () => {
+describe('P4-E4: the write-time bound (4.2, F8)', () => {
 	it('bounds a general or instance project row by ask when the workspace sets neither mode nor ceiling', () => {
 		expect(writeBound([], { level: 'project' })).toEqual({ id: 'default', mode: 'ask' });
 		expect(writeBound([], { level: 'project', instance: 'counter' })).toEqual({
@@ -279,7 +279,7 @@ describe('the write-time bound (4.2, F8)', () => {
 	});
 });
 
-describe('orphans (4.2; R1, R2)', () => {
+describe('P4-E4: orphans (4.2; R1, R2)', () => {
 	const tracked = (fields: Parameters<typeof row>[0], app = 'plugin:counter') => ({
 		...row(fields),
 		app,

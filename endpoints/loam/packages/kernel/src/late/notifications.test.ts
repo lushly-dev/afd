@@ -120,7 +120,7 @@ const pending = (id: number) =>
 		},
 	});
 
-describe('source, derived from the path (10.1)', () => {
+describe('P4-E6: source, derived from the path (10.1)', () => {
 	it("is the port's instance, the agent interface's agent:<id>, and the person's own shell", async () => {
 		const { kernel, probe } = await boot();
 		const fromApp = await probe.call<{ notification: NotificationV1 }>('notification-push', {
@@ -156,7 +156,7 @@ describe('source, derived from the path (10.1)', () => {
 	});
 });
 
-describe('actions (10.1)', () => {
+describe('P4-E6: actions (10.1)', () => {
 	it("takes the app's own palette command, and refuses a person's, another app's or an unlisted one", async () => {
 		const { kernel, probe, sums } = await boot();
 		const own = await probe.call('notification-push', {
@@ -288,7 +288,7 @@ describe('actions (10.1)', () => {
 	});
 });
 
-describe('rates (10.2, 6.1)', () => {
+describe('P4-E6: rates (10.2, 6.1)', () => {
 	it('gives an app 10 a minute, RATE_LIMITED with details after, and says the rate is fixed', async () => {
 		const { probe, sums, advance } = await boot();
 		for (let index = 0; index < 10; index++) {
@@ -335,7 +335,7 @@ describe('rates (10.2, 6.1)', () => {
 	});
 });
 
-describe('the quota (10.1)', () => {
+describe('P4-E6: the quota (10.1)', () => {
 	it('refuses a push past 500 unread notices, which are never dropped; confirmations count for nothing', async () => {
 		const { kernel, probe, store } = await boot();
 		for (let index = 1; index <= NOTIFICATION_QUOTA; index++)
@@ -397,7 +397,7 @@ describe('the quota (10.1)', () => {
 	});
 });
 
-describe('notification-list (10.2)', () => {
+describe('P4-E6: notification-list (10.2)', () => {
 	it('gives 20 by default, newest first, ties by id, with a cursor to the rest, and bodies only when asked', async () => {
 		const { kernel, store } = await boot();
 		for (let index = 1; index <= 25; index++)
@@ -538,7 +538,7 @@ describe('notification-list (10.2)', () => {
 	});
 });
 
-describe('read and archive, and R10', () => {
+describe('P4-E6: read and archive, and R10', () => {
 	it('mark one, all, or all from a source, and count what they changed', async () => {
 		const { kernel, store } = await boot();
 		await store.create(NOTIFICATION_TABLE, row(1) as never);
@@ -589,7 +589,7 @@ describe('read and archive, and R10', () => {
 	});
 });
 
-describe('toasts that land (6.1, 3.7)', () => {
+describe('P4-E6: toasts that land (6.1, 3.7)', () => {
 	it('lands a sticky toast as a notice, its id on the toast, counted unread', async () => {
 		const { kernel, probe } = await boot();
 		const shown = await probe.call<OverlayRefV1>('toast-show', { message: 'Stays', sticky: true });
@@ -778,7 +778,7 @@ describe('muted (3.7)', () => {
 		expect(muted.results[1]).toMatchObject({ landed: true });
 	});
 
-	it('never mutes the shell or an agent (SETTING_MUTE_SHELL)', async () => {
+	it('P4-E6: P4-E1: never mutes the shell or an agent (SETTING_MUTE_SHELL)', async () => {
 		const { kernel } = await boot();
 		for (const value of [['shell'], ['agent:shell-agent']]) {
 			const refused = await kernel.call('setting-set', {
@@ -792,7 +792,7 @@ describe('muted (3.7)', () => {
 	});
 });
 
-describe('scope (10.1)', () => {
+describe('P4-E6: scope (10.1)', () => {
 	it('lists only notices in a scope the caller may enter, and refuses a push in one it may not', async () => {
 		const workspace = await createScopedWorkspace();
 		kernels.push(workspace.kernel);
@@ -820,7 +820,7 @@ describe('scope (10.1)', () => {
 	});
 });
 
-describe('replay (P4-E15)', () => {
+describe('P4-E15: replay', () => {
 	it('replays pushes, a landed toast, read, archive and an action the same', async () => {
 		const { kernel, journal, probe } = await boot();
 		const pushed = await probe.call<{ notification: NotificationV1 }>('notification-push', {

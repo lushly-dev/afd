@@ -143,7 +143,7 @@ const ACME = (): MembershipV1 => ({
 const signIn = (kernel: LoamKernelV5, email: string) =>
 	kernel.call('auth-sign-in', { method: 'credentials', email, password: 'x' });
 
-describe('a person turns an experiment on for themselves (5.2, 5.3)', () => {
+describe('P4-E5: a person turns an experiment on for themselves (5.2, 5.3)', () => {
 	it('lists it with what may change and when it ends, off, and every gate closed', async () => {
 		const { kernel } = await workspace();
 		const [beta] = await list(kernel, { experiment: BETA });
@@ -213,7 +213,7 @@ describe('a person turns an experiment on for themselves (5.2, 5.3)', () => {
 		expect(await stateOf(kernel)).toBe('gated');
 	});
 
-	it('keeps the gates over a reload of the same store, and replays a session with no difference', async () => {
+	it('P4-E15: P4-E5: keeps the gates over a reload of the same store, and replays a session with no difference', async () => {
 		const store = new MemoryAdapter();
 		const journal = new MemoryJournalSink();
 		const first = await workspace({ store, journal });
@@ -232,7 +232,7 @@ describe('a person turns an experiment on for themselves (5.2, 5.3)', () => {
 	});
 });
 
-describe('an owner turns one on for the workspace, and a person steps out (5.2, D155)', () => {
+describe('P4-E5: an owner turns one on for the workspace, and a person steps out (5.2, D155)', () => {
 	it('is on for everyone until a person opts out, and tells them', async () => {
 		const { kernel, store } = await workspace();
 		expect(
@@ -260,6 +260,22 @@ describe('an owner turns one on for the workspace, and a person steps out (5.2, 
 		});
 		// Told once; a person who stepped out is told nothing more of it (5.2).
 		expect(await notices(store)).toEqual(['Probe pane is on for the workspace']);
+	});
+
+	it("tells a person still on it that the owner turned it off for the workspace (5.2's notices)", async () => {
+		const { kernel, store } = await workspace();
+		await kernel.call('experiment-enable', { experiment: PANE, audience: 'workspace' });
+		// Off for everyone, by no one's own choice: `by` names none.
+		expect(
+			(await kernel.call('experiment-disable', { experiment: PANE, audience: 'workspace' })).data
+		).toEqual({ on: false, by: null });
+		expect(await notices(store)).toEqual([
+			'Probe pane is on for the workspace',
+			'Probe pane is off for the workspace',
+		]);
+		expect((await kernel.call('experiment-check', { experiment: PANE })).data).toMatchObject({
+			on: false,
+		});
 	});
 
 	it('with two people, an owner and a member: OWNER_REQUIRED, the workspace for both, the opt-out for one', async () => {
@@ -302,8 +318,8 @@ describe('an owner turns one on for the workspace, and a person steps out (5.2, 
 	});
 });
 
-describe('who may call, and the codes (5.4, 3.2, 16)', () => {
-	it("hands an agent off to the person's place, with details (F2)", async () => {
+describe('P4-E5: who may call, and the codes (5.4, 3.2, 16)', () => {
+	it("P4-E5: P4-E1: hands an agent off to the person's place, with details (F2)", async () => {
 		const { kernel } = await workspace();
 		for (const audience of ['person', 'workspace'] as const) {
 			for (const name of ['experiment-enable', 'experiment-disable']) {
@@ -397,7 +413,7 @@ describe('who may call, and the codes (5.4, 3.2, 16)', () => {
 		).toEqual({ on: true, by: 'person' });
 	});
 
-	it('refuses a workspace enablement on a hosted provider deployment, journaled, and keeps the person’s (P4-E17)', async () => {
+	it('P4-E5: P4-E17: refuses a workspace enablement on a hosted provider deployment, journaled, and keeps the person’s', async () => {
 		const hosted = {
 			...deployment(),
 			deployment_version: 4,
@@ -426,6 +442,12 @@ describe('who may call, and the codes (5.4, 3.2, 16)', () => {
 		expect(
 			(await kernel.call('experiment-enable', { experiment: PANE, audience: 'person' })).data
 		).toEqual({ on: true, by: 'person' });
+		// The person's own disable succeeds too, hosted or not (P4-E17's "person `experiment-*`").
+		const off = await kernel.call('experiment-disable', { experiment: PANE, audience: 'person' });
+		expect(off.success, JSON.stringify(off.error)).toBe(true);
+		expect(
+			(await kernel.call<{ on: boolean }>('experiment-check', { experiment: PANE })).data?.on
+		).toBe(false);
 		// Hidden experiments are an author's, in a local deployment.
 		expect((await kernel.call('experiment-list', { hidden: true })).error?.code).toBe(
 			'VALIDATION_ERROR'
@@ -433,7 +455,7 @@ describe('who may call, and the codes (5.4, 3.2, 16)', () => {
 	});
 });
 
-describe('the changes digest and experiment-settle at the manifest’s apply (5.1, 5.2, I6)', () => {
+describe('P4-E5: the changes digest and experiment-settle at the manifest’s apply (5.1, 5.2, I6)', () => {
 	it('counts an enablement made for other changes as off, tells once, and turns on again', async () => {
 		const store = new MemoryAdapter();
 		const first = await workspace({ store });
@@ -464,7 +486,7 @@ describe('the changes digest and experiment-settle at the manifest’s apply (5.
 		expect((await list(third.kernel, { experiment: PANE }))[0]).toMatchObject({ changed: false });
 	});
 
-	it('deletes a removed experiment’s enablements before any enable, and a re-shipped id revives nothing', async () => {
+	it('P4-E15: P4-E5: deletes a removed experiment’s enablements before any enable, replays, and a re-shipped id revives nothing', async () => {
 		const store = new MemoryAdapter();
 		const journal = new MemoryJournalSink();
 		const first = await workspace({ store });
@@ -491,6 +513,15 @@ describe('the changes digest and experiment-settle at the manifest’s apply (5.
 		expect((await second.kernel.call('experiment-list', { experiment: PANE })).data).toEqual({
 			experiments: [],
 		});
+		// P4-E15: the boot that settled replays with no difference, over the manifest that removed it. A replay starts
+		// from an empty store, so this shows the settle's entry is answered alike from its recorded input, not the
+		// deletion, which the live reads above prove; a replay cannot change the manifest between two boots.
+		const { report } = await replayKernel(await journal.read(), {
+			deployment: deployment() as never,
+			ports: ports(removed),
+		});
+		expect(report.entries.filter(({ status }) => status !== 'same')).toEqual([]);
+		expect(report.entries.map(({ command }) => command)).toContain('experiment-settle');
 		await second.kernel.dispose();
 		const third = await workspace({ store, empty: true });
 		expect((await third.kernel.call('experiment-check', { experiment: PANE })).data).toEqual({
@@ -513,7 +544,7 @@ describe('the changes digest and experiment-settle at the manifest’s apply (5.
 	});
 });
 
-describe("the reviews' cases (step 9)", () => {
+describe("P4-E5: the reviews' cases (step 9)", () => {
 	it('refuses to open an app its experiment holds out, from the palette and an agent (5.3)', async () => {
 		const { kernel } = await workspace();
 		for (const call of [kernel.call.bind(kernel), kernel.agent.call.bind(kernel.agent)]) {
@@ -696,7 +727,7 @@ describe("the reviews' cases (step 9)", () => {
 	});
 });
 
-describe('R14: an unload never loses a dirty tab', () => {
+describe('P4-E5: R14: an unload never loses a dirty tab', () => {
 	async function dirtyProbe(options: ScopedWorkspaceOptions = {}) {
 		const made = await workspace(options);
 		const { kernel } = made;
