@@ -14,6 +14,28 @@ Read this before the [proposal](skill-usage.proposal.md). Active since 2026-11-2
 
 ## Findings
 
+### Main's subjects lost their pull request numbers, 2026-11-22 (#2023)
+
+- **AFD's merge queue rebases since 2026-11-22 (#1809).** It lands a pull request's commit as
+  written, where a squash merge ended the subject with ` (#n)`. The triggers report reads a
+  change's pull request from that, so a change merged since reads `no_pull_request`: of the
+  32 commits merged in the first day, 25 end with no number.
+- **A number written by hand is often an issue's.** Of the 7 that end with one, 2 name
+  their pull request and 5 name an issue, which the report reads as a pull request no
+  session opened.
+- **Nothing else on a machine ties a commit to its pull request.** T3 Code's link to a pull
+  request holds when it merged, its head branch and, where it was watched, its last head,
+  and not the commit it merged as, which the queue makes anew.
+- **The number goes in the commit (the owner, 2026-11-22).** `pnpm branch:squash` ends the
+  subject with the number of the branch's open pull request, so the fold after opening one
+  writes it. That covers a branch published through `prepare-pr`.
+- **The commits merged without one stay as they are read now.**
+- **Not done: the fleet lane.** It folds and validates a branch before it opens the pull
+  request, and merges exactly the commit it validated. Giving that commit its number means a
+  new commit after the pull request is open.
+- **Not covered: a pull request a tool opens.** A release's (`chore: release packages`) and
+  Dependabot's are not folded, and land without a number.
+
 ### Two machines agree, and a folder git refuses, 2026-11-22 (#1904, #1819, #2051, #2052)
 
 - **The two Macs give the same report.** With #2050 on both, the 30-day report read on each
@@ -293,6 +315,8 @@ skill for `lefthook.yml`, `ci.yml` and `scripts/check-*.mjs`), before Lushly dec
 - A repository git refuses lists the skills its folder holds (#2051): merged in #2053.
 
 - A project first seen while git could not read its origin keeps its folder name (#2052): not started.
+
+- A change's pull request under a queue that rebases (#2023): `pnpm branch:squash` merged in #2088; the fleet lane not started.
 
 - Whether a loaded skill prevents the mistakes it names (#1829): needs its design first.
 

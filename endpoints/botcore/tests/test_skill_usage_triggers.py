@@ -156,6 +156,21 @@ def test_a_checkout_git_stops_answering_in_is_named_by_the_record(
     assert (found["skill"], judged(found)) == ("gates", (1, 0, 0))
 
 
+def test_a_subject_with_two_numbers_names_its_pull_request_last(
+    state: Path, t3_store: T3Store, repo: Path
+) -> None:
+    """A queue that rebases lands a commit as written, so the fold ends its subject with the
+    pull request's number, after any number the author wrote there."""
+    merge(repo, "fix: mend the hook (#7) (#101)", "hooks.yml")
+    t3_store.skill_tool(session(t3_store, "first", (101, stamp(2))), "gate-discipline", stamp(3))
+    session(t3_store, "other", (7, stamp(2)))  # opened #7, and loaded nothing
+    run(skill_usage_collect())
+
+    found = rule(run(skill_usage_triggers(repo=str(repo))))
+
+    assert judged(found) == (1, 0, 0)
+
+
 def test_each_merged_change_is_judged_by_the_session_that_opened_it(
     state: Path, t3_store: T3Store, repo: Path
 ) -> None:
