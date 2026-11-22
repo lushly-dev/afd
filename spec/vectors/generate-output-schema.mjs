@@ -169,10 +169,9 @@ async function main() {
 			outputSchema: commandResultOutputSchema(structuredClone(testCase.dataSchema)),
 		})),
 	};
-	writeFileSync(
-		new URL('./output-schema.json', import.meta.url),
-		`${JSON.stringify(vectors, null, '\t')}\n`
-	);
+	const json = `${JSON.stringify(vectors, null, '\t')}\n`;
+	if (process.argv.includes('--stdout')) process.stdout.write(json);
+	else writeFileSync(new URL('./output-schema.json', import.meta.url), json);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main();

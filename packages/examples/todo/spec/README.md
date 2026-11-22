@@ -21,6 +21,10 @@ This directory contains the shared API contract for the Todo example. All four b
 - `task-cases.json`: MCP Tasks cases (`--suite tasks --mode modern`), where `todo-create-batch`
   declares `task: "optional"` (TypeScript and Rust; Python tracked in
   [#1972](https://github.com/lushly-dev/afd/issues/1972)).
+- `../../../../spec/protocol-conformance.json`: Shared AFD protocol cases (`--suite protocol` in
+  both `legacy` and `modern` modes; `PROTOCOL_CONFORMANCE=1` registers a private
+  `todo-internal-ping` command with `expose.mcp: false` for D4 checks), validated against
+  `spec/schema/{result,batch,pipeline}.json`.
 - `README.md`: This file.
 
 ## Conformance Test Cases

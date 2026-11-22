@@ -15,10 +15,37 @@ import {
 } from 'zod/v4/core';
 import { issueMessage } from './issue-message.js';
 
+/**
+ * AFD's normative validation issue codes (`spec/validation.md`).
+ *
+ * Owned by AFD rather than any validator library; Zod issue codes are mapped explicitly into this
+ * closed vocabulary so a validator upgrade cannot silently alter wire codes.
+ */
+export const VALIDATION_ISSUE_CODES = [
+	'invalid_type',
+	'invalid_value',
+	'too_small',
+	'too_big',
+	'unrecognized_keys',
+	'invalid_format',
+	'invalid_union',
+	'not_multiple_of',
+	'custom',
+] as const;
+
+export type ValidationIssueCode = (typeof VALIDATION_ISSUE_CODES)[number];
+
+/** Map a Zod issue code into AFD's closed validation issue code catalog. */
+export function mapZodIssueCode(zodCode: string): ValidationIssueCode {
+	return (VALIDATION_ISSUE_CODES as readonly string[]).includes(zodCode)
+		? (zodCode as ValidationIssueCode)
+		: 'custom';
+}
+
 export interface ValidationError {
 	path: string;
 	message: string;
-	code: string;
+	code: ValidationIssueCode | (string & {});
 	expected?: string;
 	received?: string;
 }
@@ -78,12 +105,13 @@ export function isValid<T>(schema: $ZodType<T>, input: unknown): input is T {
 
 function formatZodIssue(issue: $ZodIssue): ValidationError {
 	const path = issue.path.join('.');
+	const code = mapZodIssueCode(issue.code);
 	const error: ValidationError = {
 		path: path || '(root)',
 		message: issueMessage(issue),
-		code: issue.code,
+		code,
 	};
-	if (issue.code === 'invalid_type') {
+	if (code === 'invalid_type' && 'expected' in issue && typeof issue.expected === 'string') {
 		error.expected = issue.expected;
 	}
 	return error;

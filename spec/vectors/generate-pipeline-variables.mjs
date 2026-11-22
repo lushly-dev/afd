@@ -152,7 +152,6 @@ const vectors = {
 	})),
 };
 
-writeFileSync(
-	new URL('./pipeline-variables.json', import.meta.url),
-	`${JSON.stringify(vectors, null, '\t')}\n`
-);
+const json = `${JSON.stringify(vectors, null, '\t')}\n`;
+if (process.argv.includes('--stdout')) process.stdout.write(json);
+else writeFileSync(new URL('./pipeline-variables.json', import.meta.url), json);

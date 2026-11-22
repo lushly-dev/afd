@@ -427,6 +427,16 @@ export const SUITES = [
 			{
 				gate: 'todo',
 				tools: [],
+				run: 'pnpm --dir packages/examples/todo test:conformance:ts --suite protocol',
+			},
+			{
+				gate: 'todo',
+				tools: [],
+				run: 'node tests/consumers/afd/verify-artifacts.mjs',
+			},
+			{
+				gate: 'todo',
+				tools: [],
 				run: 'pnpm --dir packages/examples/todo test:conformance:ts --suite approvals',
 			},
 			{
@@ -443,6 +453,11 @@ export const SUITES = [
 			},
 			// The Python backend runs under `uv run`.
 			{ gate: 'todo', tools: ['uv'], run: 'pnpm --dir packages/examples/todo test:conformance:py' },
+			{
+				gate: 'todo',
+				tools: ['uv'],
+				run: 'pnpm --dir packages/examples/todo test:conformance:py --suite protocol',
+			},
 			{
 				gate: 'todo',
 				tools: ['uv'],
@@ -463,6 +478,11 @@ export const SUITES = [
 			{
 				gate: 'rust',
 				tools: ['cargo'],
+				run: 'pnpm --dir packages/examples/todo test:conformance:rs --suite protocol',
+			},
+			{
+				gate: 'rust',
+				tools: ['cargo'],
 				run: 'pnpm --dir packages/examples/todo test:conformance:rs --suite approvals',
 			},
 			{
@@ -479,6 +499,11 @@ export const SUITES = [
 				gate: 'cpp',
 				tools: ['cmake'],
 				run: 'pnpm --dir packages/examples/todo test:conformance:cpp',
+			},
+			{
+				gate: 'cpp',
+				tools: ['cmake'],
+				run: 'pnpm --dir packages/examples/todo test:conformance:cpp --suite protocol',
 			},
 			{
 				gate: 'cpp',

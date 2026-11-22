@@ -27,6 +27,9 @@ on:
       - 'packages/rust/**'
       - 'packages/cpp/**'
       - 'python/**'
+      - 'spec/protocol-conformance.json'
+      - 'spec/schema/**'
+      - 'tests/consumers/afd/**'
       - 'pnpm-lock.yaml'
       - '.cargo/config.toml'
       - '.github/workflows/conformance.yml'
@@ -50,6 +53,9 @@ on:
       - 'packages/rust/**'
       - 'packages/cpp/**'
       - 'python/**'
+      - 'spec/protocol-conformance.json'
+      - 'spec/schema/**'
+      - 'tests/consumers/afd/**'
       - 'pnpm-lock.yaml'
       - '.cargo/config.toml'
       - '.github/workflows/conformance.yml'
@@ -110,11 +116,11 @@ jobs:
           fetch-depth: 0
           filter: blob:none
       - id: todo
-        run: node scripts/affected.mjs gate --package @afd/example-todo-ts --package @afd/example-todo --package @afd/example-todo-ui --package @afd/example-todo-fast-af --package @afd/example-todo-react --package @afd/example-todo-directclient --package @afd/example-todo-directclient-page --path python/ --path packages/cli/ --path .github/workflows/conformance.yml
+        run: node scripts/affected.mjs gate --package @afd/example-todo-ts --package @afd/example-todo --package @afd/example-todo-ui --package @afd/example-todo-fast-af --package @afd/example-todo-react --package @afd/example-todo-directclient --package @afd/example-todo-directclient-page --path python/ --path packages/cli/ --path spec/protocol-conformance.json --path spec/schema/ --path tests/consumers/afd/ --path .github/workflows/conformance.yml
       - id: rust
-        run: node scripts/affected.mjs gate --path packages/rust/ --path packages/examples/todo/backends/rust/ --path packages/examples/todo/spec/ --path packages/examples/todo/dx/ --path packages/examples/todo/package.json --path .cargo/config.toml --path .github/workflows/conformance.yml
+        run: node scripts/affected.mjs gate --path packages/rust/ --path packages/examples/todo/backends/rust/ --path packages/examples/todo/spec/ --path packages/examples/todo/dx/ --path packages/examples/todo/package.json --path spec/protocol-conformance.json --path spec/schema/ --path .cargo/config.toml --path .github/workflows/conformance.yml
       - id: cpp
-        run: node scripts/affected.mjs gate --path packages/cpp/ --path packages/examples/todo/backends/cpp/ --path packages/examples/todo/spec/ --path packages/examples/todo/dx/ --path packages/examples/todo/package.json --path .github/workflows/conformance.yml --path .github/actions/cpp-dependencies/
+        run: node scripts/affected.mjs gate --path packages/cpp/ --path packages/examples/todo/backends/cpp/ --path packages/examples/todo/spec/ --path packages/examples/todo/dx/ --path packages/examples/todo/package.json --path spec/protocol-conformance.json --path spec/schema/ --path .github/workflows/conformance.yml --path .github/actions/cpp-dependencies/
 
   todo:
     name: Todo conformance (TypeScript + Python)
@@ -175,6 +181,16 @@ jobs:
       - name: Conformance (TypeScript backend, MCP 2026-07-28)
         run: pnpm --dir packages/examples/todo test:conformance:ts --mode modern
 
+      # spec/protocol-conformance.json: discovery, D4, batch, pipe, contexts, schema-checked.
+      - name: Protocol conformance (TypeScript backend)
+        run: pnpm --dir packages/examples/todo test:conformance:ts --suite protocol
+
+      - name: Protocol conformance (TypeScript backend, MCP 2026-07-28)
+        run: pnpm --dir packages/examples/todo test:conformance:ts --suite protocol --mode modern
+
+      - name: Packed artifacts protocol conformance (TypeScript)
+        run: node tests/consumers/afd/verify-artifacts.mjs
+
       # spec/confirmation-cases.json with CONFIRMATIONS=enforce: elicitation through the SDK shim
       # (2025 stdio) and through input_required (2026-07-28), and the acknowledgement path.
       - name: Confirmations (TypeScript backend)
@@ -222,6 +238,12 @@ jobs:
 
       - name: Conformance (Python backend, MCP 2026-07-28)
         run: pnpm --dir packages/examples/todo test:conformance:py --mode modern
+
+      - name: Protocol conformance (Python backend)
+        run: pnpm --dir packages/examples/todo test:conformance:py --suite protocol
+
+      - name: Protocol conformance (Python backend, MCP 2026-07-28)
+        run: pnpm --dir packages/examples/todo test:conformance:py --suite protocol --mode modern
 
       - name: Confirmations (Python backend)
         run: pnpm --dir packages/examples/todo test:conformance:py --suite confirmations
@@ -314,6 +336,12 @@ jobs:
       - name: Conformance (Rust backend, MCP 2026-07-28)
         run: pnpm --dir packages/examples/todo test:conformance:rs --mode modern
 
+      - name: Protocol conformance (Rust backend)
+        run: pnpm --dir packages/examples/todo test:conformance:rs --suite protocol
+
+      - name: Protocol conformance (Rust backend, MCP 2026-07-28)
+        run: pnpm --dir packages/examples/todo test:conformance:rs --suite protocol --mode modern
+
       # The runner speaks stdio to the backend, which carries elicitation in both protocol eras.
       - name: Confirmations (Rust backend)
         run: pnpm --dir packages/examples/todo test:conformance:rs --suite confirmations
@@ -382,6 +410,12 @@ jobs:
 
       - name: Conformance (C++ backend, MCP 2026-07-28)
         run: pnpm --dir packages/examples/todo test:conformance:cpp --mode modern
+
+      - name: Protocol conformance (C++ backend)
+        run: pnpm --dir packages/examples/todo test:conformance:cpp --suite protocol
+
+      - name: Protocol conformance (C++ backend, MCP 2026-07-28)
+        run: pnpm --dir packages/examples/todo test:conformance:cpp --suite protocol --mode modern
 
       - name: Confirmations (C++ backend)
         run: pnpm --dir packages/examples/todo test:conformance:cpp --suite confirmations

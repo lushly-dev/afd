@@ -17,6 +17,7 @@ import {
 	TOOL_LIST,
 	toolListView,
 	wireProblems,
+	wireSchemaForTool,
 } from './conformance.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -279,10 +280,12 @@ async function startBackend(
 		TODO_STORE_TYPE: 'memory',
 	} as Record<string, string>;
 	if (target === 'ts') {
+		const serverScript =
+			option('--server-script') ?? path.join(__dirname, '../backends/typescript/dist/server.js');
 		return {
 			transport: new StdioClientTransport({
 				command: 'node',
-				args: [path.join(__dirname, '../backends/typescript/dist/server.js')],
+				args: [serverScript],
 				env: { ...env, PORT: '3101' },
 			}),
 			stop: async () => {},
@@ -431,13 +434,13 @@ async function connect(
 	};
 }
 
-/** Call a tool, parse its CommandResult and check the wire format. */
+/** Call a tool, parse its result and check the wire format and contract JSON Schema. */
 function toolCaller(
 	session: Session,
 	taskWire?: { expectTaskFor?: ReadonlySet<string>; taskIds: string[] }
 ) {
 	const { client, interceptedTasks } = session;
-	return async (name: string, args: unknown) => {
+	return async (name: string, args: unknown, meta?: Record<string, unknown>) => {
 		if (name === TOOL_LIST) {
 			console.log('Listing tools');
 			const listed = await client.listTools();
@@ -450,6 +453,7 @@ function toolCaller(
 		const raw = (await client.callTool({
 			name,
 			arguments: args as Record<string, unknown>,
+			...(meta ? { _meta: meta } : {}),
 		})) as {
 			content: Array<{ text: string }>;
 			isError?: boolean;
@@ -509,20 +513,20 @@ function toolCaller(
 			console.error(`Failed to parse JSON from tool ${name}. Raw text:`, text);
 			throw e;
 		}
-		const problems = wireProblems(parsed, result.isError === true);
+		const problems = wireProblems(parsed, result.isError === true, wireSchemaForTool(name));
 		if (problems.length > 0) {
 			throw new Error(`${name} broke the wire format (spec/wire): ${problems.join('; ')}`);
 		}
-		return parsed as { success: boolean; data?: unknown; error?: { message: string } };
+		return parsed as { success?: boolean; data?: unknown; error?: { message: string } };
 	};
 }
 
-const SUITES = ['todo', 'confirmations', 'approvals', 'tasks'] as const;
+const SUITES = ['todo', 'protocol', 'confirmations', 'approvals', 'tasks'] as const;
 
 /** Empty the live list without a clear, which the approvals suite's agent cannot run unasked. */
 async function resetByDeleting(
-	call: (name: string, args: unknown) => Promise<{ success: boolean; data?: unknown }>
-): Promise<{ success: boolean; error?: { message: string } }> {
+	call: (name: string, args: unknown) => Promise<{ success?: boolean; data?: unknown }>
+): Promise<{ success?: boolean; error?: { message: string } }> {
 	const listed = await call('todo-list', { limit: 100 });
 	const ids = ((listed.data as { todos?: { id: string }[] } | undefined)?.todos ?? []).map(
 		(todo) => todo.id
@@ -553,6 +557,20 @@ async function run() {
 				...(await new ConformanceRunner(toolCaller(session)).run(
 					path.join(__dirname, '../spec/test-cases.json'),
 					{ language: LANGUAGE[target], backend: target }
+				))
+			);
+		} finally {
+			await session.close();
+		}
+	} else if (suite === 'protocol') {
+		const session = await connect(target, mode, { PROTOCOL_CONFORMANCE: '1' });
+		const era =
+			session.client.getNegotiatedProtocolVersion() === '2026-07-28' ? 'modern' : 'legacy';
+		try {
+			results.push(
+				...(await new ConformanceRunner(toolCaller(session)).run(
+					path.join(__dirname, '../../../../spec/protocol-conformance.json'),
+					{ era, language: LANGUAGE[target], backend: target }
 				))
 			);
 		} finally {

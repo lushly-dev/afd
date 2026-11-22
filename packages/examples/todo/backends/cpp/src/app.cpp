@@ -67,6 +67,18 @@ make_registry(const std::shared_ptr<TodoStore>& store, RegistryOptions options) 
             return afd::unexpected(*error);
         }
     }
+    if (options.protocol_conformance) {
+        if (auto error = registry->register_command({
+                .name = "todo-internal-ping",
+                .description = "Private internal probe not exposed to MCP",
+                .input_schema = {{"type", "object"}, {"properties", afd::Json::object()}},
+                .handler = [](const afd::Json&,
+                              afd::CommandContext&) { return afd::success({{"pong", true}}); },
+                .expose = {.palette = false, .mcp = false, .agent = true, .cli = false},
+            })) {
+            return afd::unexpected(*error);
+        }
+    }
     if (auto error = afd::register_context_commands(*registry, todo_contexts())) {
         return afd::unexpected(*error);
     }

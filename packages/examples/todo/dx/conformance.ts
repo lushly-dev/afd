@@ -28,22 +28,40 @@ import { AjvJsonSchemaValidator } from '@modelcontextprotocol/client/validators/
 interface TestCase {
 	name: string;
 	description: string;
-	setup: Array<{ command: string; input: unknown; capture?: string }>;
+	setup: Array<{
+		command: string;
+		input: unknown;
+		capture?: string;
+		meta?: Record<string, unknown>;
+	}>;
 	command: string;
 	input: unknown;
+	meta?: Record<string, unknown>;
 	expect: Record<string, unknown>;
 	client?: string;
+	/** MCP era filter: when set, runs only in that era (`legacy` or `modern`). */
+	era?: 'legacy' | 'modern';
 	implementedBy?: string[];
 	/** Backends that skip the case (`ts`, `py`, `rs`, `cpp`, `umbel`, `umbel-mounted`). */
 	notOn?: string[];
-	then?: { command: string; input: unknown; expect: Record<string, unknown> };
+	then?: {
+		command: string;
+		input: unknown;
+		meta?: Record<string, unknown>;
+		expect: Record<string, unknown>;
+	};
 }
 
-type ToolResult = { success: boolean; data?: unknown; error?: { message: string } };
+type ToolResult = { success?: boolean; data?: unknown; error?: { message: string } };
+type CallTool = (
+	name: string,
+	args: unknown,
+	meta?: Record<string, unknown>
+) => Promise<ToolResult>;
 
 export interface RunnerOptions {
 	/** Reset the store before each case (default: `todo-clear` with `all: true`). */
-	reset?: (callTool: (name: string, args: unknown) => Promise<ToolResult>) => Promise<ToolResult>;
+	reset?: (callTool: CallTool) => Promise<ToolResult>;
 }
 
 interface TestResult {
@@ -57,6 +75,7 @@ interface TestResult {
 /** A suite's cases from `specPath`, or none, for a client kind and a language. */
 export interface CaseFilter {
 	client?: string;
+	era?: 'legacy' | 'modern';
 	language?: string;
 	backend?: string;
 }
@@ -121,6 +140,7 @@ export async function selectCases(specPath: string, filter: CaseFilter = {}): Pr
 	return all.filter(
 		(test) =>
 			(filter.client === undefined || test.client === filter.client) &&
+			(filter.era === undefined || test.era === undefined || test.era === filter.era) &&
 			(filter.language === undefined ||
 				test.implementedBy === undefined ||
 				test.implementedBy.includes(filter.language)) &&
@@ -132,7 +152,7 @@ export class ConformanceRunner {
 	private captured: Record<string, unknown> = {};
 
 	constructor(
-		private callTool: (name: string, args: unknown) => Promise<ToolResult>,
+		private callTool: CallTool,
 		private options: RunnerOptions = {}
 	) {}
 
@@ -163,8 +183,8 @@ export class ConformanceRunner {
 				// 2. Run setup
 				for (const step of test.setup) {
 					const input = this.resolveVariables(step.input);
-					const result = await this.callTool(step.command, input);
-					if (!result.success) {
+					const result = await this.callTool(step.command, input, step.meta);
+					if (result.success === false) {
 						throw new Error(result.error?.message ?? `Setup command ${step.command} failed`);
 					}
 					if (step.capture) {
@@ -174,14 +194,15 @@ export class ConformanceRunner {
 
 				// 3. Run command
 				const input = this.resolveVariables(test.input);
-				const actual = await this.callTool(test.command, input);
+				const actual = await this.callTool(test.command, input, test.meta);
 
 				// 4. Validate expectations, then the follow-up state
 				const errors = this.validate(actual, test.expect);
 				if (test.then) {
 					const after = await this.callTool(
 						test.then.command,
-						this.resolveVariables(test.then.input)
+						this.resolveVariables(test.then.input),
+						test.then.meta
 					);
 					errors.push(
 						...this.validate(after, test.then.expect).map(
@@ -213,7 +234,10 @@ export class ConformanceRunner {
 	private resolveVariables(input: unknown): unknown {
 		if (typeof input === 'string' && input.startsWith('$')) {
 			const [key = '', ...path] = input.substring(1).split('.');
-			return this.getValue(this.captured[key], path.join('.'));
+			if (Object.hasOwn(this.captured, key)) {
+				return this.getValue(this.captured[key], path.join('.'));
+			}
+			return input;
 		}
 
 		if (Array.isArray(input)) {
@@ -292,39 +316,69 @@ function isExistsMatcher(value: unknown): value is { exists: boolean } {
 /** Keys whose values are command payloads: their own keys and nulls are not checked. */
 const FREE_FORM_KEYS = new Set(['data', 'details', 'undoArgs']);
 
-const validateCommandResultSchema = (() => {
+/** Which JSON Schema in `spec/schema/` validates a tool's wire payload. */
+export type WireSchemaKind = 'result' | 'batch' | 'pipeline' | 'stream';
+
+const schemaValidators = (() => {
 	const validator = new AjvJsonSchemaValidator();
-	const errorSchema = JSON.parse(
-		readFileSync(new URL('../../../../spec/schema/error.json', import.meta.url), 'utf8')
-	) as Parameters<AjvJsonSchemaValidator['getValidator']>[0];
-	const resultSchema = JSON.parse(
-		readFileSync(new URL('../../../../spec/schema/result.json', import.meta.url), 'utf8')
-	) as Parameters<AjvJsonSchemaValidator['getValidator']>[0];
+	const load = (name: string) =>
+		JSON.parse(
+			readFileSync(new URL(`../../../../spec/schema/${name}`, import.meta.url), 'utf8')
+		) as Parameters<AjvJsonSchemaValidator['getValidator']>[0];
+	const errorSchema = load('error.json');
+	const resultSchema = load('result.json');
+	const batchSchema = load('batch.json');
+	const pipelineSchema = load('pipeline.json');
+	const streamSchema = load('stream.json');
 	validator.getValidator(errorSchema);
-	const validate = validator.getValidator(resultSchema);
-	return (value: unknown): string | undefined => {
-		const outcome = validate(value);
-		return outcome.valid ? undefined : (outcome.errorMessage ?? 'invalid CommandResult');
+	const compiled: Record<WireSchemaKind, ReturnType<AjvJsonSchemaValidator['getValidator']>> = {
+		result: validator.getValidator(resultSchema),
+		batch: validator.getValidator(batchSchema),
+		pipeline: validator.getValidator(pipelineSchema),
+		stream: validator.getValidator(streamSchema),
+	};
+	return (kind: WireSchemaKind, value: unknown): string | undefined => {
+		const outcome = compiled[kind](value);
+		return outcome.valid ? undefined : (outcome.errorMessage ?? `invalid ${kind}`);
 	};
 })();
 
+/** Map an MCP tool name to the contract schema its wire payload must satisfy. */
+export function wireSchemaForTool(toolName: string): WireSchemaKind {
+	if (toolName === 'afd-batch') return 'batch';
+	if (toolName === 'afd-pipe') return 'pipeline';
+	return 'result';
+}
+
+/** Validate a single StreamChunk against `spec/schema/stream.json`. */
+export function streamChunkProblems(chunk: unknown): string[] {
+	const err = schemaValidators('stream', chunk);
+	return err ? [`schema (spec/schema/stream.json): ${err}`] : [];
+}
+
 /**
  * Check a tool result against the cross-language wire format (`spec/wire/README.md`) and JSON
- * Schema (`spec/schema/result.json`): `isError` matches `!success`, envelope keys are camelCase,
- * unset fields are omitted rather than `null`, and the payload validates against `result.json`.
+ * Schema (`spec/schema/{result,batch,pipeline}.json`): `isError` matches `!success`, envelope keys
+ * are camelCase, unset fields are omitted rather than `null`, and the payload validates against its
+ * contract schema.
  */
-export function wireProblems(body: unknown, isError: boolean): string[] {
+export function wireProblems(
+	body: unknown,
+	isError: boolean,
+	schemaKind: WireSchemaKind = 'result'
+): string[] {
 	const problems: string[] = [];
-	if (typeof body === 'object' && body !== null && 'success' in body) {
+	if (schemaKind !== 'pipeline' && typeof body === 'object' && body !== null && 'success' in body) {
 		const { success } = body as { success: unknown };
 		if (typeof success === 'boolean' && isError === success) {
 			problems.push(`isError is ${isError} for a result with success: ${success}`);
 		}
 	}
 
-	const schemaError = validateCommandResultSchema(body);
+	const schemaFile = `spec/schema/${schemaKind}.json`;
+	const schemaError = schemaValidators(schemaKind, body);
 	if (schemaError) {
-		problems.push(`schema (spec/schema/result.json): ${schemaError}`);
+		problems.push(`schema (${schemaFile}): ${schemaError}`);
 	}
 
 	const visit = (value: unknown, path: string): void => {

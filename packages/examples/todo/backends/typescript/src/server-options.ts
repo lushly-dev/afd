@@ -10,9 +10,12 @@ import {
 	createApprovalMiddleware,
 	createJournalMiddleware,
 	defaultMiddleware,
+	defineCommand,
 	type McpHandlerOptions,
+	success,
 	type ZodCommandDefinition,
 } from '@lushly-dev/afd-server';
+import { z } from 'zod';
 import { createClearCountsMiddleware, summarizeClear } from './commands/clear.js';
 import { allCommands } from './commands/index.js';
 import { TODO_CONTEXTS } from './contexts.js';
@@ -97,12 +100,24 @@ export function resolveApprovalSecret(env: Env): string | Uint8Array {
  * does not advertise a hold the server does not make.
  */
 export function createTodoCommands(env: Env): ZodCommandDefinition[] {
-	if (resolveApprovals(env) === 'agents') return allCommands;
-	return allCommands.map((command) => {
-		if (command.approval === undefined) return command;
-		const { approval: _approval, ...ungated } = command;
-		return ungated as ZodCommandDefinition;
+	const base =
+		resolveApprovals(env) === 'agents'
+			? allCommands
+			: allCommands.map((command) => {
+					if (command.approval === undefined) return command;
+					const { approval: _approval, ...ungated } = command;
+					return ungated as ZodCommandDefinition;
+				});
+	if (env.PROTOCOL_CONFORMANCE !== '1') return base;
+	// Private command not exposed to MCP, for D4 protocol conformance (spec/protocol-conformance.json).
+	const internalPing = defineCommand({
+		name: 'todo-internal-ping',
+		description: 'Private internal probe not exposed to MCP',
+		expose: { mcp: false, agent: true },
+		input: z.object({}),
+		handler: async () => success({ pong: true }),
 	});
+	return [...base, internalPing];
 }
 
 /** What the server is built with besides the environment, for tests and the replay module. */

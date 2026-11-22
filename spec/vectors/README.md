@@ -1,21 +1,48 @@
 # Behavior vectors
 
-Language-neutral test cases for AFD behavior, with expected values produced by the TypeScript
-reference implementation. Where `spec/wire` pins the *shapes* of results, these pin *behavior*.
+Language-neutral test cases for AFD behavior. Where `spec/wire` pins the *shapes* of results,
+these pin *behavior*. Specification-authored files are written directly from `spec/*.md`;
+mechanically generated files are guarded in CI against unflagged drift
+(`scripts/check-vector-drift.mjs`).
 
-| File | Covers | Generator |
+| File | Covers | Provenance |
 | --- | --- | --- |
-| `pipeline-variables.json` | Reference resolution and `when` conditions ([`spec/pipeline-variables.md`](../pipeline-variables.md)) against one fixed pipeline context | `generate-pipeline-variables.mjs` |
-| `error-codes.json` | The shared error-code catalog of [`spec/error-codes.md`](../error-codes.md), in catalog order, with `{ code, retryable, profile }` per entry and the reserved `hostPrefix` | Written by hand; each language's `ErrorCodes` and `ERROR_CODE_CATALOG` must equal it |
-| `dispatch.json` | Single-command dispatch order ([`spec/dispatch.md`](../dispatch.md)): lookup, exposure, active context, confirmation, input validation, declared context fields, middleware, approval admission, handler, metadata stamping and observer hooks | Written by hand from the spec |
-| `batch-controls.json` | Batch and pipeline execution controls: `stopOnError`, `parallelism`, the batch `timeout` and pipeline `timeoutMs` deadlines, `continueOnFailure`, `UNSUPPORTED_OPTION`, and envelope validation | `generate-batch-controls.mjs` |
-| `validation.json` | Command input validation ([`spec/validation.md`](../validation.md)): unknown keys, the `VALIDATION_ERROR` shape, length units, the JSON Schema subset, explicit `null` and defaults | `generate-validation.mjs` |
-| `approval-tokens.json` | Approval tokens ([`spec/command-metadata.md`](../command-metadata.md#approvals)): canonical JSON, the keyed input and actor digests, the payload layout, and every acceptance and rejection reason | `generate-approval-tokens.mjs` |
-| `approver-client.json` | Approval evidence from an approver client and the approval display rules ([`spec/command-metadata.md`](../command-metadata.md#approval-evidence-from-an-approver-client)): an approver's token and its principal binding, the `_meta` carrier over MCP, and every display limit and hidden range | `generate-approver-client.mjs` |
-| `app-calls.json` | App-to-app calls ([`spec/command-metadata.md`](../command-metadata.md#app-to-app-calls)): the `apps` exposure flag's default, and which calls with the `apps` interface run or get the one `CALL_NOT_GRANTED` refusal | Written by hand |
-| `tool-strategies.json` | The hybrid tool strategy ([`spec/tool-strategies.md`](../tool-strategies.md#conformance)): each server's `tools/list` names in order, its `ttlMs`, call outcomes, and the configurations that must fail construction | Written by hand from the spec |
-| `output-schema.json` | The CommandResult envelope a command tool advertises as its top-level `outputSchema` ([`spec/command-metadata.md`](../command-metadata.md#structured-results)): which `data` schemas keep their definitions, and a `"$ref": "#"` naming `data` retargeted to `#/properties/data` | `generate-output-schema.mjs` |
-| `journal-context-cap.json` | The journal's 4096-byte cap on a declared context field's value ([`spec/journal.md`](../journal.md#declared-context-fields)): values just at, under and over it, where number spelling, multibyte UTF-8 and escapes decide kept or omitted | `generate-journal-context-cap.mjs` |
+| `error-codes.json` | The shared error-code catalog of [`spec/error-codes.md`](../error-codes.md), in catalog order, with `{ code, retryable, profile }` per entry and the reserved `hostPrefix` | Specification-authored |
+| `dispatch.json` | Single-command dispatch order ([`spec/dispatch.md`](../dispatch.md)): lookup, exposure, active context, confirmation, input validation, declared context fields, middleware, approval admission, handler, metadata stamping and observer hooks | Specification-authored |
+| `execution-controls.json` | Server default deadline, cancellation propagation, batch size/parallelism ceilings and validation issue cap ([`spec/execution-controls.md`](../execution-controls.md)) | Specification-authored |
+| `app-calls.json` | App-to-app calls ([`spec/command-metadata.md`](../command-metadata.md#app-to-app-calls)): the `apps` exposure flag's default, and which calls with the `apps` interface run or get the one `CALL_NOT_GRANTED` refusal | Specification-authored |
+| `tool-strategies.json` | The hybrid tool strategy ([`spec/tool-strategies.md`](../tool-strategies.md#conformance)): each server's `tools/list` names in order, its `ttlMs`, call outcomes, and the configurations that must fail construction | Specification-authored |
+| `approval-tokens.json` | Approval tokens ([`spec/command-metadata.md`](../command-metadata.md#approvals)): canonical JSON, the keyed input and actor digests, the payload layout, and every acceptance and rejection reason | Format-generated (`generate-approval-tokens.mjs`) |
+| `approver-client.json` | Approval evidence from an approver client and the approval display rules ([`spec/command-metadata.md`](../command-metadata.md#approval-evidence-from-an-approver-client)): an approver's token and its principal binding, the `_meta` carrier over MCP, and every display limit and hidden range | Format-generated (`generate-approver-client.mjs`) |
+| `journal-context-cap.json` | The journal's 4096-byte cap on a declared context field's value ([`spec/journal.md`](../journal.md#declared-context-fields)): values just at, under and over it, where number spelling, multibyte UTF-8 and escapes decide kept or omitted | Format-generated (`generate-journal-context-cap.mjs`) |
+| `pipeline-variables.json` | Reference resolution and `when` conditions ([`spec/pipeline-variables.md`](../pipeline-variables.md)) against one fixed pipeline context | Legacy reference-generated (`generate-pipeline-variables.mjs`) |
+| `batch-controls.json` | Batch and pipeline execution controls: `stopOnError`, `parallelism`, the batch `timeout` and pipeline `timeoutMs` deadlines, `continueOnFailure`, `UNSUPPORTED_OPTION`, and envelope validation | Legacy reference-generated (`generate-batch-controls.mjs`) |
+| `validation.json` | Command input validation ([`spec/validation.md`](../validation.md)): unknown keys, the `VALIDATION_ERROR` shape, length units, the JSON Schema subset, explicit `null` and defaults | Legacy reference-generated (`generate-validation.mjs`) |
+| `output-schema.json` | The CommandResult envelope a command tool advertises as its top-level `outputSchema` ([`spec/command-metadata.md`](../command-metadata.md#structured-results)): which `data` schemas keep their definitions, and a `"$ref": "#"` naming `data` retargeted to `#/properties/data` | Legacy reference-generated (`generate-output-schema.mjs`) |
+
+## Authored vs. generated vectors
+
+Every vector file in `spec/vectors/` falls into one of three categories, enforced by
+`scripts/check-vector-drift.mjs` in CI:
+
+1. **Specification-authored (mandatory default for all new vectors).** Written directly from the
+   normative specification (`spec/*.md`) without deriving expected outcomes from any single
+   language's runtime output. Because no implementation judges itself, a bug or dependency upgrade in
+   TypeScript, Python, Rust or C++ cannot silently redefine the contract. Every new vector file
+   (`error-codes.json`, `dispatch.json`, `execution-controls.json`, `app-calls.json`,
+   `tool-strategies.json`, and `spec/protocol-conformance.json` beside its spec page) **MUST** be
+   specification-authored.
+2. **Format-generated (permitted only when hand computation is infeasible).** Allowed strictly for
+   vectors whose expected outputs are deterministic cryptographic digests or exact byte/code-unit
+   padding derived from documented wire formulas rather than engine verdicts:
+   - `approval-tokens.json` (HMAC-SHA256 digests and base64url payloads with fixed nonces),
+   - `journal-context-cap.json` (4095/4096/4097-byte UTF-8 canonical JSON padding), and
+   - `approver-client.json` (1000-unit boundary payloads and HMAC carrier tokens).
+3. **Legacy reference-generated (frozen set).** `validation.json`, `batch-controls.json`,
+   `pipeline-variables.json` and `output-schema.json` predate this rule and remain paired with their
+   TypeScript generators so existing cross-language coverage is preserved without churn. **No new
+   file may be added to this category.** Any change to a generated vector file must pass the CI
+   drift and behaviour-change check below.
 
 ## Contract
 
@@ -25,12 +52,12 @@ reference implementation. Where `spec/wire` pins the *shapes* of results, these 
   language does not load a file yet, the entry is tracked in the
   [parity closure plan](../../docs/features/active/parity-closure/parity-closure.plan.md):
 
-  | Language | `pipeline-variables.json` | `batch-controls.json` | `validation.json` | `error-codes.json` | `dispatch.json` | `approval-tokens.json` | `journal-context-cap.json` | `approver-client.json` | `tool-strategies.json` | `app-calls.json` | `output-schema.json` |
-  | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-  | TypeScript | `packages/core/src/pipeline-variables-vectors.test.ts` | `packages/core/src/batch-controls-vectors.test.ts` | `packages/server/src/validation-vectors.test.ts` | `packages/core/src/errors.test.ts` | `packages/server/src/dispatch-vectors.test.ts` | `packages/server/src/approval-vectors.test.ts` | `packages/server/src/journal-context-cap-vectors.test.ts` | `packages/server/src/approver-client-vectors.test.ts` | `packages/server/src/tool-strategies-vectors.test.ts` | `packages/core/src/app-calls-vectors.test.ts`, `packages/server/src/app-calls-vectors.test.ts` | `packages/server/src/output-schema-vectors.test.ts` |
-  | Python | `python/tests/test_pipeline_vectors.py` | `python/tests/test_batch_controls_vectors.py` | `python/tests/test_validation_vectors.py` | `python/tests/test_error_codes.py` | `python/tests/test_dispatch_vectors.py` | `python/tests/test_approval_vectors.py` | `python/tests/test_journal_context_cap_vectors.py` | `python/tests/test_approver_client_vectors.py` (every case skipped: a gap) | `python/tests/test_tool_strategies_vectors.py` | `python/tests/test_app_calls_vectors.py` (every case skipped: a gap) | `python/tests/test_output_schema_vectors.py` |
-  | Rust | `packages/rust/tests/pipeline_vectors.rs` | `packages/rust/tests/batch_controls_vectors.rs` | `packages/rust/tests/validation_vectors.rs` | `packages/rust/tests/error_codes.rs` | `packages/rust/tests/dispatch_vectors.rs` | `packages/rust/tests/approval_vectors.rs` | `packages/rust/tests/journal_context_cap_vectors.rs` | `packages/rust/tests/approver_client_vectors.rs` (the carrier with `server-auth`) | `packages/rust/tests/tool_strategies_vectors.rs` (the `server` feature) | `packages/rust/tests/app_calls_vectors.rs` | `packages/rust/tests/output_schema_vectors.rs` |
-  | C++ | `packages/cpp/tests/vectors_test.cpp` | `packages/cpp/tests/batch_vectors_test.cpp` | `packages/cpp/tests/vectors_test.cpp` | `packages/cpp/tests/vectors_test.cpp` | `packages/cpp/tests/dispatch_vectors_test.cpp` | `packages/cpp/tests/approval_vectors_test.cpp` | `packages/cpp/tests/journal_context_cap_vectors_test.cpp` | `packages/cpp/tests/approver_client_vectors_test.cpp` (every case skipped: a gap) | `packages/cpp/tests/tool_strategies_vectors_test.cpp` (`AFD_BUILD_MCP_STDIO`) | `packages/cpp/tests/app_calls_vectors_test.cpp` (every case skipped: a gap) | `packages/cpp/tests/vectors_test.cpp` |
+  | Language | `pipeline-variables.json` | `batch-controls.json` | `execution-controls.json` | `validation.json` | `error-codes.json` | `dispatch.json` | `approval-tokens.json` | `journal-context-cap.json` | `approver-client.json` | `tool-strategies.json` | `app-calls.json` | `output-schema.json` |
+  | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+  | TypeScript | `packages/core/src/pipeline-variables-vectors.test.ts` | `packages/core/src/batch-controls-vectors.test.ts` | `packages/server/src/execution-controls-vectors.test.ts` | `packages/server/src/validation-vectors.test.ts` | `packages/core/src/errors.test.ts` | `packages/server/src/dispatch-vectors.test.ts` | `packages/server/src/approval-vectors.test.ts` | `packages/server/src/journal-context-cap-vectors.test.ts` | `packages/server/src/approver-client-vectors.test.ts` | `packages/server/src/tool-strategies-vectors.test.ts` | `packages/core/src/app-calls-vectors.test.ts`, `packages/server/src/app-calls-vectors.test.ts` | `packages/server/src/output-schema-vectors.test.ts` |
+  | Python | `python/tests/test_pipeline_vectors.py` | `python/tests/test_batch_controls_vectors.py` | `python/tests/test_execution_controls_vectors.py` | `python/tests/test_validation_vectors.py` | `python/tests/test_error_codes.py` | `python/tests/test_dispatch_vectors.py` | `python/tests/test_approval_vectors.py` | `python/tests/test_journal_context_cap_vectors.py` | `python/tests/test_approver_client_vectors.py` (every case skipped: a gap) | `python/tests/test_tool_strategies_vectors.py` | `python/tests/test_app_calls_vectors.py` (every case skipped: a gap) | `python/tests/test_output_schema_vectors.py` |
+  | Rust | `packages/rust/tests/pipeline_vectors.rs` | `packages/rust/tests/batch_controls_vectors.rs` | `packages/rust/tests/execution_controls_vectors.rs` | `packages/rust/tests/validation_vectors.rs` | `packages/rust/tests/error_codes.rs` | `packages/rust/tests/dispatch_vectors.rs` | `packages/rust/tests/approval_vectors.rs` | `packages/rust/tests/journal_context_cap_vectors.rs` | `packages/rust/tests/approver_client_vectors.rs` (the carrier with `server-auth`) | `packages/rust/tests/tool_strategies_vectors.rs` (the `server` feature) | `packages/rust/tests/app_calls_vectors.rs` | `packages/rust/tests/output_schema_vectors.rs` |
+  | C++ | `packages/cpp/tests/vectors_test.cpp` | `packages/cpp/tests/batch_vectors_test.cpp` | `packages/cpp/tests/execution_controls_vectors_test.cpp` | `packages/cpp/tests/vectors_test.cpp` | `packages/cpp/tests/vectors_test.cpp` | `packages/cpp/tests/dispatch_vectors_test.cpp` | `packages/cpp/tests/approval_vectors_test.cpp` | `packages/cpp/tests/journal_context_cap_vectors_test.cpp` | `packages/cpp/tests/approver_client_vectors_test.cpp` (every case skipped: a gap) | `packages/cpp/tests/tool_strategies_vectors_test.cpp` (`AFD_BUILD_MCP_STDIO`) | `packages/cpp/tests/app_calls_vectors_test.cpp` (every case skipped: a gap) | `packages/cpp/tests/vectors_test.cpp` |
 
 - Changes to `spec/vectors` run the Python, Rust and C++ workflows as well as `ci.yml`.
 - **A documented gap.** A file may name, in its top-level `gaps`, the languages that load it but
@@ -134,6 +161,11 @@ Comparison rules:
 - A case with `optionalKeywords` must fail to register in a language that does not support one
   of them.
 - `exceptions` marks tests where a named language may differ, and says why.
+- The legacy `issue-count-uncapped` case predates the `maxValidationIssues = 100` cap in
+  [`spec/execution-controls.md`](../execution-controls.md#validation-issue-cap) and will be updated
+  with a `Behaviour change:` changeset when
+  [#2128](https://github.com/lushly-dev/afd/issues/2128)–[#2131](https://github.com/lushly-dev/afd/issues/2131)
+  land.
 
 ### `approval-tokens.json`
 
@@ -234,9 +266,17 @@ round-trip decimals, negative zero, integers past 2^53, two-, three- and four-by
 `\u` escapes, the short escapes, other control characters, the characters JavaScript leaves
 unescaped (DEL, U+2028 and U+2029), object keys and nesting.
 
-## Regenerating
+## Regenerating and CI drift guard
 
-After an intentional TypeScript change:
+`scripts/check-vector-drift.mjs` runs in `pnpm check` (`ci.yml`) and fails whenever:
+
+1. a `spec/vectors/*.json` file or `generate-*.mjs` script is unclassified in `VECTOR_MANIFEST`;
+2. a mechanically generated vector file differs from its generator's `--stdout` output when the
+   TypeScript build outputs exist; or
+3. a mechanically generated vector file changed relative to `main` without a `.changeset/*.md`
+   fragment whose body carries a `Behaviour change:` (or `Behavior change:`) line.
+
+After an intentional change to a generated vector file:
 
 ```bash
 pnpm -F @lushly-dev/afd-core build
@@ -247,12 +287,14 @@ node spec/vectors/generate-validation.mjs
 node spec/vectors/generate-approval-tokens.mjs
 node spec/vectors/generate-journal-context-cap.mjs
 node spec/vectors/generate-approver-client.mjs
+node spec/vectors/generate-output-schema.mjs
 npx biome format --write spec/vectors
 ```
+
+Then add a `.changeset/*.md` fragment with a `Behaviour change: ...` line describing the
+cross-language impact, and update every language that consumes the changed file in the same pull
+request.
 
 - `generate-validation.mjs` defines its cases as Zod schemas, because that is how TypeScript
   commands declare input. It records the JSON Schema TypeScript advertises for each case.
 - The TypeScript test builds the same cases and fails until the file is regenerated.
-
-A change to these files is a behavior change. Make it in every language that consumes them, in
-the same pull request.

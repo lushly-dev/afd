@@ -1,6 +1,12 @@
 # AFD protocol conformance tier
 
-Status: updated 2026-10-25 for MCP 2026-07-28 (the [upgrade plan](../docs/features/complete/mcp-2026-07-28/proposal.md), Phases 1–5); hybrid tool strategy rows added 2026-10-31; resources, skills, tool `_meta` and advertised-schema rows added 2026-11-01 (Planned; TypeScript and Rust Yes since 2026-11-01). Output-budget rows added 2026-11-01 (Planned in every language). Authorization, #532, host-verified confirmation and Tasks rows added 2026-11-07 (Planned in every language). This document indexes the protocol-level acceptance criteria AFD exercises over real transports, in both MCP eras. It is not full MCP certification or deployed-service assurance. The 34-case todo conformance suite is the shared executable tier; the per-language protocol tests below each construct their own fixtures.
+Status: updated 2026-11-22 with the shared protocol case file
+([`protocol-conformance.json`](./protocol-conformance.json), #1739) validated against the
+[`spec/schema/`](./schema/README.md) JSON Schemas (#1733) across all four languages in both MCP
+eras, plus a packed-artifact check in `.github/workflows/release.yml`
+(`tests/consumers/afd/verify-artifacts.mjs`). This document indexes the protocol-level acceptance
+criteria AFD exercises over real transports, in both MCP eras. It is not full MCP certification or
+deployed-service assurance.
 
 ## Eras
 
@@ -9,9 +15,15 @@ Status: updated 2026-10-25 for MCP 2026-07-28 (the [upgrade plan](../docs/featur
 
 Every AFD server is dual-era: one stdio connection or one `/mcp` endpoint serves both.
 
-## Shared tier: todo conformance in three negotiation modes
+## Shared tier: protocol and todo conformance in three negotiation modes
 
-`packages/examples/todo/dx/run-conformance.ts` drives each backend with the official MCP TypeScript SDK v2 client (`@modelcontextprotocol/client`) and checks 34 todo cases plus the `spec/wire` shape of every result. `--mode` selects how the client negotiates:
+`packages/examples/todo/dx/run-conformance.ts` drives each backend with the official MCP TypeScript SDK v2 client (`@modelcontextprotocol/client`) and validates every result against the wire rules (`spec/wire`) and the JSON Schema 2020-12 definitions in [`spec/schema/`](./schema/README.md) (`result.json`, `batch.json`, `pipeline.json`, and `stream.json` for streaming).
+
+- **`--suite protocol`** runs [`spec/protocol-conformance.json`](./protocol-conformance.json) against each backend with `PROTOCOL_CONFORMANCE=1` (registering a private `todo-internal-ping` command with `expose.mcp: false` for D4 checks): discovery (`afd-discover`, `afd-detail`), exposure and D4 hiding across direct calls, `afd-call`, `afd-batch` and `afd-pipe`, batch execution and rejection (`spec/schema/batch.json`), pipeline chaining and conditions (`spec/schema/pipeline.json`), and contexts in both eras (`afd-context-enter`/`exit` in `legacy`, stateless `_meta["dev.afd/context"]` in `modern`).
+- **`--suite todo`** runs the 50 todo cases in `packages/examples/todo/spec/test-cases.json`.
+- **Packed artifacts (CI + release gate):** `tests/consumers/afd/verify-artifacts.mjs` packs `@lushly-dev/afd-core` and `@lushly-dev/afd-server` with `pnpm pack`, installs the tarballs into an isolated project outside the workspace, runs a scripted MCP server built solely from those packed artifacts against [`spec/protocol-conformance.json`](./protocol-conformance.json) in both `legacy` and `modern` eras, and executes its `streamCases` against [`spec/schema/stream.json`](./schema/stream.json). Both `.github/workflows/conformance.yml` and `.github/workflows/release.yml` run this check.
+
+`--mode` selects how the client negotiates:
 
 | `--mode` | Client behaviour |
 | --- | --- |
@@ -19,17 +31,18 @@ Every AFD server is dual-era: one stdio connection or one `/mcp` endpoint serves
 | `auto` | `server/discover` probe; 2026-07-28 when offered, else `initialize` |
 | `modern` | 2026-07-28 required; connecting fails otherwise |
 
-| Backend | Transport | `legacy` | `auto` | `modern` | In `conformance.yml` |
-| --- | --- | --- | --- | --- | --- |
-| TypeScript (`@lushly-dev/afd-server`, SDK v2) | stdio | 34/34 | 34/34, 2026-07-28 | 34/34 | `legacy` and `modern` |
-| Python (`afd`, `mcp` 2.x) | stdio | 34/34 | 34/34, 2026-07-28 | 34/34 | `legacy` and `modern` |
-| Rust (`afd` `server` feature, `rmcp`) | Streamable HTTP | 34/34 | 34/34, 2026-07-28 | 34/34 | `legacy` and `modern` |
-| C++ (todo backend `mcp_stdio.cpp`) | stdio | 34/34 | 34/34, 2026-07-28 | 34/34 | `legacy` and `modern` |
+| Backend | Transport | `--suite protocol` (`legacy` / `modern`) | `--suite todo` (`legacy` / `modern`) | In `conformance.yml` |
+| --- | --- | --- | --- | --- |
+| TypeScript (`@lushly-dev/afd-server`, SDK v2) | stdio (+ HTTP SSE stream check in `verify-artifacts.mjs`) | 25/25 / 24/24 | 50/50 / 50/50 | `legacy` and `modern` |
+| Python (`afd`, `mcp` 2.x) | stdio | 25/25 / 24/24 | 50/50 / 50/50 | `legacy` and `modern` |
+| Rust (`afd` `server` feature, `rmcp`) | stdio | 25/25 / 24/24 | 50/50 / 50/50 | `legacy` and `modern` |
+| C++ (`afd::mcp_stdio`) | stdio | 25/25 / 24/24 | 50/50 / 50/50 | `legacy` and `modern` |
 
-Run one locally, for example:
+Run locally, for example:
 
 ```sh
-pnpm --dir packages/examples/todo test:conformance:ts --mode modern
+pnpm --dir packages/examples/todo test:conformance:ts --suite protocol --mode modern
+node tests/consumers/afd/verify-artifacts.mjs
 ```
 
 ## Acceptance index
@@ -71,7 +84,7 @@ Each criterion names the tests that exercise it over a real transport. "Runner" 
 
 ## Limits
 
-- The per-language suites are independent; there is no shared executable protocol fixture beyond the todo runner.
+- `spec/protocol-conformance.json` covers core protocol behavior (discovery, D4 hiding, batch, pipe, contexts in both MCP eras, and HTTP SSE streaming for TypeScript); transport-specific HTTP guard and extension rules remain in the per-language suites above.
 - Where a row says "SDK behaviour", AFD relies on the official SDK for that rule and does not assert it separately.
 - The C++ loop lives in the todo backend until `afd::mcp_stdio` lands (#341).
 - Resources, the Skills extension, extra tool `_meta` and advertised schemas ([`mcp-resources.md`](./mcp-resources.md)) are implemented in Rust (Umbel phase 1 step 0b) and specified but not yet implemented in TypeScript, Python or C++; those rows stay Planned until each language's step lands, and each step also loads [`mcp-resources.json`](./mcp-resources.json).

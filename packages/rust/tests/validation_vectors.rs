@@ -14,6 +14,18 @@ impl CommandHandler for Echo {
     }
 }
 
+const AFD_VALIDATION_ISSUE_CODES: &[&str] = &[
+    "invalid_type",
+    "invalid_value",
+    "too_small",
+    "too_big",
+    "unrecognized_keys",
+    "invalid_format",
+    "invalid_union",
+    "not_multiple_of",
+    "custom",
+];
+
 fn sorted(values: &Value) -> Vec<String> {
     let mut values = values
         .as_array()
@@ -70,11 +82,45 @@ async fn shared_validation_vectors() {
                 let error = serde_json::to_value(result.error.unwrap()).unwrap();
                 assert_eq!(error["code"], test["error"]["code"], "{label}");
                 assert_eq!(error["message"], test["error"]["message"], "{label}");
+                let exact_message = test
+                    .get("exactMessage")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false);
                 let project = |errors: &Value| {
-                    let mut entries = errors.as_array().unwrap().iter().map(|error| json!({"path":error["path"],"code":error["code"],"expected":error["expected"],"expectedPresent":error.get("expected").is_some()}).to_string()).collect::<Vec<_>>();
+                    let mut entries = errors
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|issue| {
+                            let mut projected = json!({
+                                "path": issue["path"],
+                                "code": issue["code"],
+                                "expected": issue["expected"],
+                                "expectedPresent": issue.get("expected").is_some(),
+                            });
+                            if exact_message {
+                                projected["message"] = issue["message"].clone();
+                            }
+                            projected.to_string()
+                        })
+                        .collect::<Vec<_>>();
                     entries.sort();
                     entries
                 };
+                for issue in error["details"]["errors"].as_array().unwrap() {
+                    let code = issue["code"].as_str().expect("issue code is a string");
+                    assert!(
+                        AFD_VALIDATION_ISSUE_CODES.contains(&code),
+                        "{label}: issue code `{code}` is outside AFD's nine-code catalog"
+                    );
+                    let message = issue["message"]
+                        .as_str()
+                        .expect("issue message is a string");
+                    assert!(
+                        !message.trim().is_empty(),
+                        "{label}: issue message must be non-empty"
+                    );
+                }
                 assert_eq!(
                     project(&error["details"]["errors"]),
                     project(&test["error"]["details"]["errors"]),

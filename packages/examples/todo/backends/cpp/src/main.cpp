@@ -92,9 +92,12 @@ int main(int argc, char** argv) {
     }
 
     auto clock = std::make_shared<afd::SystemClock>();
-    auto registry =
-        todo::make_registry(std::make_shared<todo::TodoStore>(),
-                            {.approvals = *approvals, .secret = std::move(secret), .clock = clock});
+    const bool protocol_conformance = environment("PROTOCOL_CONFORMANCE") == "1";
+    auto registry = todo::make_registry(std::make_shared<todo::TodoStore>(),
+                                        {.approvals = *approvals,
+                                         .secret = std::move(secret),
+                                         .clock = clock,
+                                         .protocol_conformance = protocol_conformance});
     if (!registry) {
         std::fprintf(stderr, "failed to register commands: %s\n", registry.error().c_str());
         return 2;

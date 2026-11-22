@@ -42,6 +42,9 @@ struct RegistryOptions {
     std::shared_ptr<const afd::Clock> clock;
     /// The registry's random. Default: a `SystemRandom`.
     std::shared_ptr<afd::RandomSource> random;
+    /// When true (`PROTOCOL_CONFORMANCE=1`), registers a private command not exposed to MCP
+    /// (`todo-internal-ping`) for D4 conformance checks (`spec/protocol-conformance.json`).
+    bool protocol_conformance = false;
 };
 
 /// The todo commands over `store`, the context commands for `todo_contexts()`, the bootstrap

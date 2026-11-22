@@ -1,0 +1,191 @@
+{
+	"description": "Specification-authored vectors for deadlines, cancellation propagation, batch size/parallelism limits, and the validation issue cap (spec/execution-controls.md; #1737). Written directly from the specification; never generated from one implementation's output.",
+	"defaults": {
+		"defaultTimeoutMs": 30000,
+		"maxBatchSize": 500,
+		"maxBatchParallelism": 16,
+		"maxValidationIssues": 100
+	},
+	"gaps": {
+		"typescript": {
+			"defaultDeadline": "https://github.com/lushly-dev/afd/issues/2128",
+			"batchLimits": "https://github.com/lushly-dev/afd/issues/2128",
+			"validationIssueCap": "https://github.com/lushly-dev/afd/issues/2128"
+		},
+		"python": {
+			"deadline": "https://github.com/lushly-dev/afd/issues/2129",
+			"defaultDeadline": "https://github.com/lushly-dev/afd/issues/2129",
+			"singleCancellation": "https://github.com/lushly-dev/afd/issues/2129",
+			"batchCancellation": "https://github.com/lushly-dev/afd/issues/2129",
+			"validationIssueCap": "https://github.com/lushly-dev/afd/issues/2129"
+		},
+		"rust": {
+			"deadlineSignal": "https://github.com/lushly-dev/afd/issues/2130",
+			"defaultDeadline": "https://github.com/lushly-dev/afd/issues/2130",
+			"singleCancellation": "https://github.com/lushly-dev/afd/issues/2130",
+			"batchCancellation": "https://github.com/lushly-dev/afd/issues/2130",
+			"batchLimits": "https://github.com/lushly-dev/afd/issues/2130",
+			"validationIssueCap": "https://github.com/lushly-dev/afd/issues/2130"
+		},
+		"cpp": {
+			"deadline": "https://github.com/lushly-dev/afd/issues/1766",
+			"defaultDeadline": "https://github.com/lushly-dev/afd/issues/1766",
+			"singleCancellation": "https://github.com/lushly-dev/afd/issues/1766",
+			"batchLimits": "https://github.com/lushly-dev/afd/issues/2131",
+			"validationIssueCap": "https://github.com/lushly-dev/afd/issues/2131"
+		}
+	},
+	"cases": [
+		{
+			"id": "per-call-deadline-timeout",
+			"control": "deadline",
+			"description": "A single command exceeding its per-call timeout fails with TIMEOUT (retryable: true) and signals cancellation to the handler",
+			"call": {
+				"command": "work-slow",
+				"timeoutMs": 20,
+				"handler": { "delayMs": 200 }
+			},
+			"expect": {
+				"success": false,
+				"code": "TIMEOUT",
+				"retryable": true,
+				"signalAborted": true
+			}
+		},
+		{
+			"id": "server-default-deadline",
+			"control": "defaultDeadline",
+			"description": "A server enforces its configured defaultTimeoutMs (default 30000ms) when a call specifies no per-call timeout",
+			"server": { "defaultTimeoutMs": 25 },
+			"call": {
+				"command": "work-slow",
+				"handler": { "delayMs": 200 }
+			},
+			"expect": {
+				"success": false,
+				"code": "TIMEOUT",
+				"retryable": true,
+				"signalAborted": true
+			}
+		},
+		{
+			"id": "pre-cancelled-single-command",
+			"control": "singleCancellation",
+			"description": "A call whose cancellation signal is already aborted never runs its handler and returns COMMAND_CANCELLED",
+			"call": {
+				"command": "work-run",
+				"cancelled": true,
+				"handler": {}
+			},
+			"expect": {
+				"success": false,
+				"code": "COMMAND_CANCELLED",
+				"retryable": false,
+				"handlerRan": false
+			}
+		},
+		{
+			"id": "pre-cancelled-batch",
+			"control": "batchCancellation",
+			"description": "A batch whose caller signal is already cancelled starts no command and marks each item COMMAND_CANCELLED with durationMs 0",
+			"request": {
+				"commands": [
+					{ "command": "work-run", "input": { "index": 0 } },
+					{ "command": "work-run", "input": { "index": 1 } }
+				]
+			},
+			"cancelled": true,
+			"expect": {
+				"success": true,
+				"calls": 0,
+				"itemCode": "COMMAND_CANCELLED",
+				"durationMs": 0
+			}
+		},
+		{
+			"id": "batch-at-max-size-allowed",
+			"control": "batchLimits",
+			"description": "A batch with exactly maxBatchSize (500) commands is accepted",
+			"limits": { "maxBatchSize": 500, "maxBatchParallelism": 16 },
+			"commandCount": 500,
+			"parallelism": 1,
+			"expect": {
+				"success": true,
+				"total": 500,
+				"successCount": 500
+			}
+		},
+		{
+			"id": "batch-over-max-size-refused",
+			"control": "batchLimits",
+			"description": "A batch with maxBatchSize + 1 (501) commands is refused before any command runs with INVALID_BATCH_REQUEST",
+			"limits": { "maxBatchSize": 500, "maxBatchParallelism": 16 },
+			"commandCount": 501,
+			"parallelism": 1,
+			"expect": {
+				"success": false,
+				"code": "INVALID_BATCH_REQUEST",
+				"retryable": false,
+				"calls": 0,
+				"resultsLength": 0
+			}
+		},
+		{
+			"id": "batch-at-max-parallelism-allowed",
+			"control": "batchLimits",
+			"description": "A batch requesting options.parallelism equal to maxBatchParallelism (16) is accepted",
+			"limits": { "maxBatchSize": 500, "maxBatchParallelism": 16 },
+			"commandCount": 16,
+			"parallelism": 16,
+			"expect": {
+				"success": true,
+				"total": 16,
+				"successCount": 16
+			}
+		},
+		{
+			"id": "batch-over-max-parallelism-refused",
+			"control": "batchLimits",
+			"description": "A batch requesting options.parallelism above maxBatchParallelism (17) is refused before any command runs with INVALID_BATCH_REQUEST",
+			"limits": { "maxBatchSize": 500, "maxBatchParallelism": 16 },
+			"commandCount": 2,
+			"parallelism": 17,
+			"expect": {
+				"success": false,
+				"code": "INVALID_BATCH_REQUEST",
+				"retryable": false,
+				"calls": 0,
+				"resultsLength": 0
+			}
+		},
+		{
+			"id": "validation-issues-at-cap-not-truncated",
+			"control": "validationIssueCap",
+			"description": "A validation error with exactly maxValidationIssues (100) issues reports all 100 without truncation",
+			"limit": 100,
+			"invalidItemCount": 100,
+			"expect": {
+				"success": false,
+				"code": "VALIDATION_ERROR",
+				"retryable": false,
+				"reportedErrors": 100,
+				"truncated": false
+			}
+		},
+		{
+			"id": "validation-issues-over-cap-truncated",
+			"control": "validationIssueCap",
+			"description": "A validation error with 101 issues caps details.errors at 100, sets details.truncated: true and details.limit: 100, and notes truncation in suggestion",
+			"limit": 100,
+			"invalidItemCount": 101,
+			"expect": {
+				"success": false,
+				"code": "VALIDATION_ERROR",
+				"retryable": false,
+				"reportedErrors": 100,
+				"truncated": true,
+				"detailsLimit": 100
+			}
+		}
+	]
+}

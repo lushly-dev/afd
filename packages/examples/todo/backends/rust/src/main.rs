@@ -38,6 +38,14 @@ fn build() -> Result<(ServerConfig, Arc<CommandRegistry>), (ExitCode, String)> {
                 format!("Could not register the commands: {error}"),
             )
         })?;
+    if env::var("PROTOCOL_CONFORMANCE").as_deref() == Ok("1") {
+        app::register_protocol_conformance_command(&registry).map_err(|error| {
+            (
+                ExitCode::FAILURE,
+                format!("Could not register protocol conformance command: {error}"),
+            )
+        })?;
+    }
     Ok((config, registry))
 }
 

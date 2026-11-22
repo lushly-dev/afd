@@ -93,6 +93,9 @@ pre-push-checks:
     doc-lines:
       run: node scripts/check-doc-lines.mjs
 
+    vector-drift:
+      run: node scripts/check-vector-drift.mjs
+
     test-configs:
       run: node .claude/skills/maintain-gates/scripts/check-test-configs.mjs scripts/affected/
 
@@ -151,6 +154,9 @@ check:
     # docs/features/active/merge-conflicts/ says why).
     doc-lines:
       run: node scripts/check-doc-lines.mjs
+
+    vector-drift:
+      run: node scripts/check-vector-drift.mjs
 
     test-configs:
       run: node .claude/skills/maintain-gates/scripts/check-test-configs.mjs scripts/affected/
