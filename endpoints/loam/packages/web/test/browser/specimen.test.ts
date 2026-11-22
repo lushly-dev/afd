@@ -336,3 +336,45 @@ describe('P2-E13: E4: Specimen captures of each part and the whole shell', () =>
 		expect(observation.channels.a11y.snapshot).toContain('navigation "Apps"');
 	}, 60_000);
 });
+
+/** Phase 3's section 14 (P3-E11): the sign-in dialog, the account menu, and the join, recovery, login and consent pages. */
+const IDENTITY_CAPTURES: [string, string[]][] = [
+	[
+		'identity-sign-in',
+		[
+			'dialog "Sign in to Acme"',
+			'button "Sign in with a passkey"',
+			'textbox "Password"',
+			'button "Continue with corp"',
+			'button "Can\'t sign in?"',
+		],
+	],
+	[
+		'identity-account-menu',
+		['menu "Account"', 'menuitemradio "Default" [checked]', 'menuitem "Sign out"'],
+	],
+	['identity-join', ['heading "Join Acme"', 'button "Create a passkey"']],
+	['identity-recover', ['heading "Restore your access"', 'button "Create a passkey"']],
+	['identity-oauth-login', ['button "Sign in with a passkey"', 'button "Sign in with corp"']],
+	[
+		'identity-oauth-consent',
+		[
+			'heading "Connect Claude Code to Acme?"',
+			'tools.example.org',
+			'name given by the app',
+			'button "Connect"',
+			'button "Deny"',
+		],
+	],
+];
+
+describe("P3-E11: Specimen captures of phase 3's elements and pages", () => {
+	for (const theme of ['light', 'dark', 'high-contrast'] as const)
+		it(`P3-E11: captures the sign-in dialog, the account menu, and the join, recovery, login and consent pages in ${theme}`, async () => {
+			for (const [id, expected] of IDENTITY_CAPTURES) {
+				const observation = await bench.render({ id, context: { ...CONTEXT, theme } });
+				expectClean(observation);
+				for (const each of expected) expect(observation.channels.a11y.snapshot, id).toContain(each);
+			}
+		}, 300_000);
+});

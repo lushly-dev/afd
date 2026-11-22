@@ -9,6 +9,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { LoamMailV1 } from './options.js';
 import { RECOVERY_ANSWER_MS } from './recovery.js';
+import { connectTestClient, registerTestClient } from './testing/oauth.js';
 import { startTestOidcProvider, type TestOidcProvider } from './testing/oidc.js';
 import { createTestProvider } from './testing/provider.js';
 import { linkIn, TestBrowser } from './testing/requests.js';
@@ -194,8 +195,33 @@ describe('P3-E18: recovery by email, at the provider (5.7, D97)', () => {
 		expect(tried.options.body).toMatchObject({ code: 'SIGN_OUT_FIRST' });
 	});
 
-	it("P3-E18: a fault after afterVerification leaves the person's sessions and the token untouched; the same link then succeeds", async () => {
-		await signedIn('fay@example.com');
+	it("P3-E18: a fault after afterVerification leaves the person's sessions, consents and agents and the token untouched; the same link then succeeds", async () => {
+		// Fay's own agent, connected with a refresh token: a consent, a live refresh token and a connected agent.
+		const fay = await signedIn('fay@example.com');
+		const redirect = 'http://127.0.0.1:43125/callback';
+		const clientId = await registerTestClient(
+			provider,
+			await signedIn('olu@example.com'),
+			redirect
+		);
+		expect(
+			(await connectTestClient(provider, fay, { origin: ORIGIN, clientId, redirect })).refresh
+		).toBeTruthy();
+		const grants = () => ({
+			consents: database
+				.prepare('SELECT id FROM oauthConsent WHERE userId = ?')
+				.all(idOf('fay@example.com')),
+			live: database
+				.prepare('SELECT id FROM oauthRefreshToken WHERE userId = ? AND revoked IS NULL')
+				.all(idOf('fay@example.com')),
+			agents: database
+				.prepare('SELECT id, status, suspended FROM loam_connected_agent WHERE sponsor = ?')
+				.all(idOf('fay@example.com')),
+		});
+		const granted = grants();
+		expect(granted.consents.length).toBeGreaterThan(0);
+		expect(granted.live.length).toBeGreaterThan(0);
+		expect(granted.agents).toMatchObject([{ status: 'active' }]);
 		const held = sessionsOf('fay@example.com');
 		const token = (await request('fay@example.com')).link?.searchParams.get('token') as string;
 		database.exec(
@@ -211,6 +237,7 @@ describe('P3-E18: recovery by email, at the provider (5.7, D97)', () => {
 			database.exec('DROP TRIGGER loam_fault;');
 		}
 		expect(sessionsOf('fay@example.com')).toBe(held);
+		expect(grants()).toEqual(granted);
 		const user = database
 			.prepare('SELECT recoveredAt FROM user WHERE email = ?')
 			.get('fay@example.com') as { recoveredAt: unknown };
@@ -221,6 +248,12 @@ describe('P3-E18: recovery by email, at the provider (5.7, D97)', () => {
 		});
 		expect(retried.verified?.status).toBe(200);
 		expect(sessionsOf('fay@example.com')).toBe(1);
+		// The recovery that succeeded ended them, so what the fault left was there to end.
+		expect(grants()).toMatchObject({
+			consents: [],
+			live: [],
+			agents: [{ status: 'suspended', suspended: 'disconnected' }],
+		});
 	});
 
 	it('P3-E18: with passwords allowed, the recovery page may set a new password, through the same transaction', async () => {

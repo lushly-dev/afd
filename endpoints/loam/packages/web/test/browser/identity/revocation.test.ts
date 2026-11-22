@@ -11,6 +11,7 @@ import type { Browser, Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
 	addVirtualAuthenticator,
+	connectClient,
 	type DeploymentSite,
 	kernelCall,
 	launchForDevHost,
@@ -25,6 +26,7 @@ import {
 } from '../harness';
 
 const PASSWORD = 'correct horse battery staple';
+const REDIRECT = 'http://127.0.0.1:9/callback';
 
 let browser: Browser;
 let site: DeploymentSite;
@@ -36,11 +38,15 @@ beforeAll(async () => {
 		authHost: {
 			organization: { slug: 'acme', name: 'Acme' },
 			people: [
+				// The deployer's owner, who pre-registers the client below.
+				{ email: 'olu@example.com', name: 'Olu', role: 'owner', password: PASSWORD },
 				{ email: 'dee@example.com', name: 'Dee', role: 'member', password: PASSWORD },
 				{ email: 'eli@example.com', name: 'Eli', role: 'member', password: PASSWORD },
 				{ email: 'fay@example.com', name: 'Fay', role: 'member', password: PASSWORD },
 				{ email: 'gil@example.com', name: 'Gil', role: 'member', password: PASSWORD },
 			],
+			// E3's `'all'`: a client Eli connects, so the revocation has a consent and a refresh token to end.
+			clients: [{ name: 'Client', redirect: REDIRECT }],
 		},
 	});
 	browser = await launchForDevHost({ spki: site.spki as string });
@@ -171,13 +177,39 @@ describe('P3-E3: revocation reaches the shell (4.3, 4.6)', () => {
 		await expectNoSecret([here, there], before);
 	});
 
-	it("P3-E3: P3-E15: revokes 'all' from a fresh session, which signs this profile's every tab out", async () => {
+	it("P3-E3: P3-E15: revokes 'all' from a fresh session, which signs this profile's every tab out and ends the person's grants", async () => {
 		const page = await open();
 		await signIn(page.page, 'eli@example.com');
 		const elsewhere = await open();
 		await signIn(elsewhere.page, 'eli@example.com');
+		// A client Eli connected, with `offline_access`: a consent and a refresh token at the provider.
+		const tokens = await connectClient(page.context, site, {
+			id: authHost().clients.Client as string,
+			redirect: REDIRECT,
+		});
+		expect(tokens.refresh).toBeTruthy();
+		const eli = authHost().people['eli@example.com'] as string;
+		const consents = () =>
+			authHost().db().prepare('SELECT id FROM oauthConsent WHERE userId = ?').all(eli);
+		const refreshTokens = () =>
+			authHost()
+				.db()
+				.prepare('SELECT id, revoked FROM oauthRefreshToken WHERE userId = ? ORDER BY id')
+				.all(eli) as { id: string; revoked: unknown }[];
+		expect(consents().length).toBeGreaterThan(0);
+		const issued = refreshTokens();
+		expect(issued.length).toBeGreaterThan(0);
+		expect(issued.every((row) => row.revoked === null)).toBe(true);
 		// E15: read now, since revoking 'all' deletes both sessions.
-		const before = [await secretsNow(page, authHost()), await secretsNow(elsewhere, authHost())];
+		const before = [
+			await secretsNow(page, authHost()),
+			await secretsNow(elsewhere, authHost()),
+			{
+				cookies: [],
+				tokens: [tokens.access, tokens.refresh].filter((value): value is string => !!value),
+				addresses: [],
+			},
+		];
 		// Another tab of the same profile, listening on the channel `SessionSync` posts to.
 		const tab = await page.context.newPage();
 		await tab.goto(`${site.root}deployment.json`);
@@ -200,6 +232,13 @@ describe('P3-E3: revocation reaches the shell (4.3, 4.6)', () => {
 			.poll(() => tab.evaluate(() => (globalThis as { heard?: unknown[] }).heard))
 			.toContainEqual(expect.objectContaining({ type: 'signed-out' }));
 		expect(await providerKnows(elsewhere.page)).toBe(false);
+		// The person's consents deleted and their refresh tokens, `offline_access` included, revoked: from the host's
+		// database (4.3).
+		expect(consents()).toEqual([]);
+		// Each refresh token issued is still there, marked revoked: not deleted, not live.
+		const after = refreshTokens();
+		expect(after.map((row) => row.id)).toEqual(issued.map((row) => row.id));
+		expect(after.every((row) => row.revoked !== null)).toBe(true);
 		await settle(page.page);
 		const settled = (await entriesOf(page.page)).filter(
 			(entry) => entry.command === 'session-settle'

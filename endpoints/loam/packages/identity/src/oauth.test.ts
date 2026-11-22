@@ -290,7 +290,7 @@ describe("Step 4's follow-up: a person's connections end with `revoke-person all
 			.prepare('SELECT * FROM oauthRefreshToken WHERE userId = ? AND revoked IS NULL')
 			.all(bea());
 
-	it("P3-E3's provider half: `revoke-person all` deletes the person's consents, revokes their refresh tokens and suspends their agents", async () => {
+	it("P3-E3: at the provider, `revoke-person all` deletes the person's consents, revokes their refresh tokens and suspends their agents", async () => {
 		await connected();
 		expect(consents().length).toBeGreaterThan(0);
 		expect(live().length).toBeGreaterThan(0);
@@ -305,7 +305,7 @@ describe("Step 4's follow-up: a person's connections end with `revoke-person all
 		expect(row).toEqual({ status: 'suspended', suspended: 'disconnected' });
 	});
 
-	it("P3-E18's provider half: recovery suspends the person's connected agents and ends their connections", async () => {
+	it("P3-E18: at the provider, recovery suspends the person's connected agents and ends their connections", async () => {
 		await connected();
 		const context = (await provider.auth.$context) as unknown as { adapter: never };
 		await recoverPerson(context.adapter, bea());

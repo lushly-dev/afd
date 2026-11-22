@@ -59,6 +59,8 @@ beforeAll(async () => {
 				{ email: 'dee@example.com', name: 'Dee', role: null, password: PASSWORD },
 				{ email: 'eve@example.com', name: 'Eve', role: null, password: PASSWORD },
 			],
+			// For the OAuth login page's single sign-on (E20).
+			clients: [{ name: 'Claude Code', redirect: 'http://127.0.0.1:9/callback' }],
 		},
 	});
 	browser = await launchForDevHost({ spki: site.spki as string });
@@ -245,7 +247,16 @@ describe('P3-E17: enrolment by invitation only, through a test-only auth host', 
 });
 
 describe('P3-E7: membership, the binding, and invitations', () => {
-	it('P3-E7: a signed-in person who is no member sees the notice and their invitation, accepts it with a verified email, and enters', async () => {
+	it('P3-E7: a signed-in member of another organization sees the notice and their invitation, accepts it with a verified email, and enters', async () => {
+		// Dee belongs to another organization at the same provider, and not to the bound one.
+		const now = new Date().toISOString();
+		const db = host().db({ writable: true });
+		db.prepare(
+			"INSERT INTO organization (id, name, slug, createdAt) VALUES ('org-globex', 'Globex', 'globex', ?)"
+		).run(now);
+		db.prepare(
+			"INSERT INTO member (id, organizationId, userId, role, createdAt) VALUES ('m-dee-globex', 'org-globex', ?, 'owner', ?)"
+		).run(host().people['dee@example.com'] as string, now);
 		const owner = await open();
 		await signIn(owner.page, 'olu@example.com');
 		const invited = (await kernelCall(owner.page, 'member-invite', {
@@ -263,6 +274,17 @@ describe('P3-E7: membership, the binding, and invitations', () => {
 		const panel = shadow(dee.page, 'loam-main loam-account-invitations');
 		await panel.getByRole('button', { name: 'Accept the invitation to Acme' }).click();
 		await expect.poll(() => mainHeading(dee.page)).not.toBe('You are not a member of acme');
+		// A member of both now: the other organization's membership granted nothing here, the invitation did.
+		const memberships = host()
+			.db()
+			.prepare('SELECT organizationId FROM member WHERE userId = ?')
+			.all(host().people['dee@example.com'] as string) as { organizationId: string }[];
+		expect(memberships.map((row) => row.organizationId).sort()).toEqual(
+			[host().organizationId, 'org-globex'].sort()
+		);
+		// The other organization goes, so no later test meets it.
+		db.prepare("DELETE FROM member WHERE organizationId = 'org-globex'").run();
+		db.prepare("DELETE FROM organization WHERE id = 'org-globex'").run();
 		const listed = (await kernelCall(dee.page, 'project-list')) as { success: boolean };
 		expect(listed.success).toBe(true);
 		const order = (
@@ -520,5 +542,49 @@ describe('P3-E11: the account section by keyboard and under axe', () => {
 		expect(await axe(page.page)).toEqual([]);
 		expect(page.errors).toEqual([]);
 		expect(page.violations).toEqual([]);
+	});
+});
+
+describe("P3-E20: the OAuth login page's single sign-on (9.4, D99), through a test-only auth host", () => {
+	it('P3-E20: "Sign in with corp" signs in through the deployer\'s single sign-on and resumes the authorization at the consent page', async () => {
+		oidc.as({ sub: 'sub-ada', email: 'ada@example.com' });
+		const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+		opened.push({ context } as ShellPage);
+		const page = await context.newPage();
+		const query = new URLSearchParams({
+			response_type: 'code',
+			client_id: host().clients['Claude Code'] as string,
+			redirect_uri: 'http://127.0.0.1:9/callback',
+			scope: 'loam:read',
+			state: 'sso',
+			code_challenge: 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM',
+			code_challenge_method: 'S256',
+			resource: `${site.root}mcp`,
+		});
+		const login = page.waitForResponse((response) =>
+			new URL(response.url()).pathname.endsWith('/~/oauth/login')
+		);
+		await page.goto(`${site.root}api/auth/oauth2/authorize?${query}`);
+		await login;
+		const ada = host().people['ada@example.com'] as string;
+		const linked = () =>
+			host()
+				.db()
+				.prepare("SELECT count(*) AS n FROM account WHERE userId = ? AND providerId = 'corp'")
+				.get(ada);
+		// Not linked before: the sign-on below links Ada's account, by her verified email.
+		expect(linked()).toEqual({ n: 0 });
+		const oauthPage = page.locator('loam-oauth-page');
+		await oauthPage.getByRole('button', { name: 'Sign in with corp' }).click();
+		await page.waitForFunction(
+			() =>
+				(document.querySelector('loam-oauth-page')?.shadowRoot?.textContent ?? '').includes(
+					'Connect Claude Code to Acme?'
+				),
+			undefined,
+			{ timeout: 15_000 }
+		);
+		expect(new URL(page.url()).pathname).toMatch(/\/~\/oauth\/consent$/);
+		expect(linked()).toEqual({ n: 1 });
 	});
 });

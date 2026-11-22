@@ -33,6 +33,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import * as z from 'zod/mini';
 import { CONNECTED_AGENT_MODEL } from './connected-agents.js';
 import { createMcpAuth, credentialsGate, providerKeys } from './mcp.js';
+import { CLIENT_ADDRESS_HEADER } from './options.js';
 import { createServerKernel } from './server.js';
 import { createTestProvider } from './testing/provider.js';
 import { TestBrowser } from './testing/requests.js';
@@ -79,9 +80,16 @@ function keepCookies(page: TestBrowser): void {
 	}
 }
 
+/** E15: the address every sign-in comes from, as the hosted server's header gives it (A7), so sessions record one. */
+const ADDRESS = '203.0.113.7';
+
 async function as(email: string): Promise<TestBrowser> {
 	const page = new TestBrowser((request) => provider.auth.handler(request), ORIGIN);
-	expect((await page.signIn(email, PASSWORD)).status).toBe(200);
+	const signed = await page.call('/sign-in/email', {
+		body: { email, password: PASSWORD },
+		headers: { [CLIENT_ADDRESS_HEADER]: ADDRESS },
+	});
+	expect(signed.status).toBe(200);
 	keepCookies(page);
 	return page;
 }
@@ -820,8 +828,17 @@ describe("P3-E15: no secret of E8's session in the journal or the store", () => 
 			entries,
 			[...tables].map(([name, table]) => [name, [...table.values()]]),
 		]);
-		const secrets = [...new Set(issued)].filter((value) => value.length >= 16);
+		const secrets = [...new Set(issued)].filter((value) => value.length >= 8);
 		expect(secrets.length).toBeGreaterThan(10);
+		// Every address the provider recorded for a session, and anything shaped like one.
+		const addresses = (
+			database.prepare('SELECT ipAddress FROM session WHERE ipAddress IS NOT NULL').all() as {
+				ipAddress: string;
+			}[]
+		).map((row) => row.ipAddress);
+		expect(addresses).toContain(ADDRESS);
+		expect(addresses.filter((value) => value.length > 0 && held.includes(value))).toEqual([]);
+		expect(held).not.toMatch(/ipAddress|127\.0\.0\.1|::ffff:/);
 		expect(secrets.filter((value) => held.includes(value)).length).toBe(0);
 		expect(held).not.toContain(PASSWORD);
 		expect(held).not.toMatch(/eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/);

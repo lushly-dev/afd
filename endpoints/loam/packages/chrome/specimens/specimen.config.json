@@ -689,6 +689,42 @@
 			"title": "Loam/Editor/EmbedLinkCompact",
 			"module": "./editor.specimens.ts",
 			"exportName": "EmbedLinkCompact"
+		},
+		{
+			"id": "identity-sign-in",
+			"title": "Loam/Identity/SignIn",
+			"module": "./identity.specimens.ts",
+			"exportName": "IdentitySignIn"
+		},
+		{
+			"id": "identity-account-menu",
+			"title": "Loam/Identity/AccountMenu",
+			"module": "./identity.specimens.ts",
+			"exportName": "IdentityAccountMenu"
+		},
+		{
+			"id": "identity-join",
+			"title": "Loam/Identity/Join",
+			"module": "./identity.specimens.ts",
+			"exportName": "IdentityJoin"
+		},
+		{
+			"id": "identity-recover",
+			"title": "Loam/Identity/Recover",
+			"module": "./identity.specimens.ts",
+			"exportName": "IdentityRecover"
+		},
+		{
+			"id": "identity-oauth-login",
+			"title": "Loam/Identity/OAuthLogin",
+			"module": "./identity.specimens.ts",
+			"exportName": "IdentityOAuthLogin"
+		},
+		{
+			"id": "identity-oauth-consent",
+			"title": "Loam/Identity/OAuthConsent",
+			"module": "./identity.specimens.ts",
+			"exportName": "IdentityOAuthConsent"
 		}
 	]
 }

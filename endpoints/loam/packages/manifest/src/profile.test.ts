@@ -157,8 +157,13 @@ describe("Loam's profile", () => {
 			'ui-account-inspector-served',
 			'ui-account-custom-sidebar-served',
 			'ui-account-view-served',
-		])
-			expect(byId.get(id)?.accepted, id).toBe(true);
+		]) {
+			const item = byId.get(id) as ProfileCase;
+			expect(item?.accepted, id).toBe(true);
+			// Parsed here too, so this row proves each branch reads, not only that its case says so.
+			const read = readManifest(manifestOf(item));
+			expect(read.ok ? [] : read.refusals, id).toEqual([]);
+		}
 		const refused: Record<string, string> = {
 			'version-keys-ui-account': 'MANIFEST_SURFACE_UNAVAILABLE',
 			'closed-accountSection': 'MANIFEST_UNKNOWN_KEY',

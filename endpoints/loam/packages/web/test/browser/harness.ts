@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { createHash, createPublicKey } from 'node:crypto';
+import { createHash, createPublicKey, randomBytes } from 'node:crypto';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import {
 	createServer,
@@ -1103,4 +1103,71 @@ export function unsearched(held: Awaited<ReturnType<typeof heldByPage>>): string
 	if (held.journal.rows === 0) missing.push('no journal entry');
 	if (held.store.stores.length === 0) missing.push('no store');
 	return missing;
+}
+
+/**
+ * P3-E3: connects a client the test-only auth host pre-registered for the person signed in to `context`, as an MCP
+ * client does: the authorization request with PKCE S256 and the resource, Connect on the consent page (unless the
+ * person consented before), and the code exchanged for tokens from a page of the shell's own origin. With
+ * `offline_access` the provider issues a refresh token, so a test can read its row in the host's database.
+ */
+export async function connectClient(
+	context: BrowserContext,
+	site: DeploymentSite,
+	client: { id: string; redirect: string },
+	scope = 'loam:read loam:write offline_access'
+): Promise<{ access?: string; refresh?: string }> {
+	const verifier = randomBytes(32).toString('base64url');
+	const query = new URLSearchParams({
+		response_type: 'code',
+		client_id: client.id,
+		redirect_uri: client.redirect,
+		scope,
+		state: 'connect',
+		code_challenge: createHash('sha256').update(verifier).digest('base64url'),
+		code_challenge_method: 'S256',
+		resource: `${site.root}mcp`,
+	});
+	const page = await context.newPage();
+	try {
+		const back = page.waitForRequest((request) => request.url().startsWith(client.redirect));
+		await page.goto(`${site.root}api/auth/oauth2/authorize?${query}`).catch(() => undefined);
+		const connect = page.locator('loam-oauth-page button', { hasText: 'Connect' });
+		// The loser of the race rejects once the page closes: caught, so it is never an unhandled rejection.
+		const shown = connect.waitFor().then(() => 'consent' as const);
+		shown.catch(() => undefined);
+		const first = await Promise.race([back.then(() => 'back' as const), shown]);
+		if (first === 'consent') await connect.click();
+		const code = new URL((await back).url()).searchParams.get('code');
+		if (!code) throw new Error('No code returned to the client');
+		// The client's redirect is never served, so its failed navigation keeps this page: exchange from another.
+		const exchange = await context.newPage();
+		await exchange.goto(`${site.root}deployment.json`);
+		return await exchange
+			.evaluate(
+				async ({ code, verifier, client, resource }) => {
+					const response = await fetch(new URL('api/auth/oauth2/token', document.baseURI), {
+						method: 'POST',
+						headers: { 'content-type': 'application/x-www-form-urlencoded' },
+						body: new URLSearchParams({
+							grant_type: 'authorization_code',
+							code,
+							redirect_uri: client.redirect,
+							client_id: client.id,
+							code_verifier: verifier,
+							resource,
+						}),
+					});
+					const tokens = (await response.json()) as {
+						access_token?: string;
+						refresh_token?: string;
+					};
+					return { access: tokens.access_token, refresh: tokens.refresh_token };
+				},
+				{ code, verifier, client, resource: `${site.root}mcp` }
+			)
+			.finally(() => exchange.close());
+	} finally {
+		await page.close();
+	}
 }
