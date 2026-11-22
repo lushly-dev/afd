@@ -84,8 +84,14 @@ queues held branches when there is room, validates in `lane.slots` slots (reserv
 `slots.busy` includes those waiting to push, except that a validated branch behind the front
 gives its slot to a front branch that needs one and keeps its validation, its checkout moved
 aside to `kept-<branch>-<hash>` with its record, a `slot-released` record; each merges the
-base branch's origin head in, then runs the adapter's `install`, bounded by a timeout, and
-`validate` in the background, with `CARGO_TARGET_DIR` at the slot's own build directory,
+base branch's origin head in, folds the result into one commit on that head with the same tree,
+authored (with the newest one's author date) and committed as the branch's own commits were,
+their messages folded with no `Co-authored-by:` line (a rebase merge lands each of a branch's
+own commits and drops its merges, lushly-dev/afd#1809; a branch with no commit of its own, whose
+own commits have more than one author address, or whose message folds to nothing is ejected as
+`entry-invalid` with a `detail` starting `FOLD_REFUSED`), and validates that commit: it runs the
+adapter's `install`, bounded by a timeout, and `validate` in the background, with
+`CARGO_TARGET_DIR` at the slot's own build directory,
 `<host.buildDir>/<slots directory's name>-build/<slot>` or `.build/<slot>` in the slots'
 directory, over any `CARGO_TARGET_DIR` the lane host sets, removed when the slot takes another
 branch, the dial moves, or the slot is free and its branch has left the queue), merges serially in
@@ -121,11 +127,11 @@ a pull request in GitHub's queue is validated again and its push refused by the 
 and one the queue already merged is never recorded as landed: recover a host only once
 GitHub's queue holds none of the lane's pull requests. The queue writes the
 squash message itself: in the trials a pull request of one commit kept that commit's message,
-and any other (every branch the lane merged the base into) gets the pull request's title,
-so `lane_enqueue`'s `title`, as its subject and each commit's message below. It adds
-`Co-authored-by:` for every commit author who is not the pull request's, so the lane authors
-its merges of the base as the branch's own author (its newest own commit's), whatever the
-host's git identity is.
+and any other got the pull request's title as its subject and each commit's message below. The
+lane's fold makes every branch it pushes one commit, so the folded message lands. GitHub adds
+`Co-authored-by:` for every commit author who is not the pull request's, so the fold, and the
+lane's merges of the base before it, are authored as the branch's own author (its newest own
+commit's), whatever the host's git identity is.
 Coverage runs on the base every `lane.coverageEvery` merges and at
 once after a merge touching `gate_paths`, which the front of the queue waits for. After a merge
 that advanced without a new validation (either way) the lane watches the check runs and

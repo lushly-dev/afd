@@ -145,6 +145,16 @@ class MergeOutcome:
 
 
 @dataclass(frozen=True)
+class FoldOutcome:
+    """Folding a slot's merged head into one commit on the base: the commit, or why not."""
+
+    head: str = ""
+    #: Why the branch cannot be folded, which is its own to fix: it has no commit of its own,
+    #: or its own commits have more than one author.
+    refused: str = ""
+
+
+@dataclass(frozen=True)
 class MergeProgress:
     """Where a pull request stands, read after the lane asked GitHub to merge it.
 
@@ -395,6 +405,16 @@ class Git(Protocol):
 
     def abort_merge(self, path: str) -> None:
         """Abort the open merge, if any."""
+        ...
+
+    def fold(self, path: str, base: str) -> FoldOutcome:
+        """Make the slot's head, which has merged ``base``, one commit whose parent is ``base``
+        and whose tree is the head's: authored and committed as the branch's own commits were,
+        with their messages folded (``squash.fold_message``). A rebase merge drops a branch's
+        merges and lands each of its own commits, so the lane hands it one
+        (lushly-dev/afd#1809); a squash of one commit is that commit. A head that already is
+        such a commit is kept. A refusal (``refused``) leaves the head as it was; a fold that
+        failed otherwise raises WorldError, and the head is as it was."""
         ...
 
     def tree(self, path: str) -> str: ...

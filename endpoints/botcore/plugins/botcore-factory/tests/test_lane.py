@@ -106,6 +106,20 @@ def test_a_queued_branch_is_validated_pushed_merged_and_landed(lane):
     ]
 
 
+def test_the_commit_validated_pushed_and_merged_is_the_branch_folded_into_one(lane):
+    """lushly-dev/afd#1809: a rebase merge lands each of a branch's own commits and drops its
+    merges, so the lane folds the merged head into one commit on the base before validating."""
+    lane.change_world(outcomes={"fold": {"feat/export-csv": "folded"}})
+    assert run_steps(lane) == ["validating feat/export-csv in slot 1"]
+    entry = entry_of(lane, "feat/export-csv")
+    assert (entry["validatedHead"], entry["tree"]) == ("b2c3d4e+main-0=1", "tree-b2c3d4e+main-0")
+    started = next(r for r in lane.store.read_records() if r["kind"] == "validation-started")
+    assert started["head"] == "b2c3d4e+main-0=1"
+    assert "opened PR 600 for feat/export-csv at b2c3d4e+main-0=1" in run_steps(lane)
+    assert "merged feat/export-csv (PR 600)" in run_steps(lane)
+    assert prs(lane)["600"]["mergedHead"] == "b2c3d4e+main-0=1"
+
+
 # B1: the head pushed and merged is the one validated, whatever its slot holds now.
 
 
@@ -329,6 +343,11 @@ EJECTIONS = [
         "b2c3d4e cannot be checked out: fatal: unknown revision b2c3d4e",
     ),
     (
+        {"fold": {"feat/export-csv": "refuse: FOLD_REFUSED: its own commits have 2 authors"}},
+        "entry-invalid",
+        "FOLD_REFUSED: its own commits have 2 authors",
+    ),
+    (
         {"validate": {"feat/export-csv": "fail: noise\nFAIL src/x.test.ts > parses empty input"}},
         "final-failed",
         "FAIL src/x.test.ts > parses empty input",
@@ -392,6 +411,7 @@ TROUBLE = [
     {"prepare": {"feat/export-csv": "fail: unable to access origin: Connection reset"}},
     {"checks": {"feat/export-csv": "cancelled"}},
     {"merge": {"feat/export-csv": "fail: merge: main - not something we can merge"}},
+    {"fold": {"feat/export-csv": "fail: The fold of b2c3d4e+main-0 is not one commit of its tree"}},
 ]
 
 
@@ -911,6 +931,17 @@ def test_conflicts_only_in_generated_records_are_written_again_and_validated(lan
     started = next(r for r in lane.store.read_records() if r["kind"] == "validation-started")
     assert started["regenerated"] == ["provenance"]
     assert not events(lane, "ejected")
+
+
+def test_a_regenerated_merge_is_folded_before_it_is_validated(lane):
+    lane.change_world(
+        outcomes={
+            "merge": {"feat/export-csv": f"conflict: {RECORDS}"},
+            "fold": {"feat/export-csv": "folded"},
+        }
+    )
+    assert "validating feat/export-csv in slot 1" in regenerating(lane)
+    assert entry_of(lane, "feat/export-csv")["validatedHead"] == "b2c3d4e+main-0=1"
 
 
 def test_a_conflict_outside_the_generated_files_still_ejects(lane):
