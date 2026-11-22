@@ -86,6 +86,9 @@ import { requestContextValues } from './request-context.js';
 import { type ResourceService, resourceCacheHints } from './resources.js';
 import { bindScopeView, type ScopeView } from './scope-view.js';
 import type { ContextConfig, CreateRequestContext, ToolStrategy } from './server-types.js';
+import { bindTaskDispatch } from './task-dispatch.js';
+import { TASKS_EXTENSION_ID } from './tasks.js';
+import { CreateTaskSignal, patchToolsCallForTasks, type TaskRuntime } from './tasks-runtime.js';
 import { resultContent, type ToolCallResult } from './tool-router.js';
 
 /** The MCP protocol revision this lane serves statelessly. */
@@ -144,6 +147,8 @@ export interface ModernMcpDeps {
 	resources?: ResourceService;
 	/** `ttlMs` of resource and skill results: the `tools/list` TTL option, never lowered by contexts. */
 	resourcesTtlMs?: number;
+	/** MCP Tasks runtime (`spec/command-metadata.md`, "Tasks"). */
+	tasks?: TaskRuntime;
 	devMode: boolean;
 	/** Receives unexpected errors from tool handlers and `createContext`. */
 	onError?: (error: Error) => void;
@@ -521,10 +526,24 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 	}
 
 	return ({ era }: McpRequestContext) => {
+		const isHttp = options.requestValues !== undefined;
+		const declaresTasks = era === 'modern' && deps.tasks?.declaresTasksTo(isHttp) === true;
+		const resourceCaps = deps.resources?.capabilities as
+			| (Record<string, unknown> & { extensions?: Record<string, Record<string, unknown>> })
+			| undefined;
+		const extensions = {
+			...(resourceCaps?.extensions ?? {}),
+			...(declaresTasks ? { [TASKS_EXTENSION_ID]: {} } : {}),
+		};
+		const capabilities = {
+			tools: { listChanged: false },
+			...resourceCaps,
+			...(Object.keys(extensions).length > 0 && { extensions }),
+		};
 		const server = new Server(
 			{ name: deps.name, version: deps.version },
 			{
-				capabilities: { tools: { listChanged: false }, ...deps.resources?.capabilities },
+				capabilities: capabilities as never,
 				instructions: deps.instructions,
 				cacheHints: {
 					// A list filtered by authorization varies by caller (M6, "Listing").
@@ -538,6 +557,16 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 			modern: era === 'modern',
 			internalError,
 			requestView: options.requestView,
+		});
+		if (deps.tasks?.servesTasks) {
+			patchToolsCallForTasks(server);
+		}
+		deps.tasks?.installHandlers(server, {
+			era,
+			isHttp,
+			requestValues: options.requestValues,
+			requestView: options.requestView,
+			internalError,
 		});
 		refuseApprovalKeyBeforeParsing(server, era === 'modern', report);
 
@@ -638,6 +667,12 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 			);
 			if (relay) context = bindApprovalRelay(context, relay.relay);
 			if (approver) context = bindApprover(context, approver);
+			if (deps.tasks) {
+				context = bindTaskDispatch(
+					context,
+					deps.tasks.dispatchFor(era, isHttp, ctx, options.requestView?.()?.credentials)
+				);
+			}
 			try {
 				const result = await deps.routeToolCall(
 					name,
@@ -669,6 +704,7 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 				return { ...result } as never;
 			} catch (error) {
 				if (error instanceof InputRequiredSignal) return error.result as never;
+				if (error instanceof CreateTaskSignal || error instanceof ProtocolError) throw error;
 				throw internalError(error);
 			}
 		});

@@ -429,6 +429,11 @@ export const SUITES = [
 				tools: [],
 				run: 'pnpm --dir packages/examples/todo test:conformance:ts --suite approvals',
 			},
+			{
+				gate: 'todo',
+				tools: [],
+				run: 'pnpm --dir packages/examples/todo test:conformance:ts --suite tasks --mode modern',
+			},
 			{ gate: 'todo', tools: [], run: 'pnpm --dir packages/examples/todo test:scenarios:ts' },
 			{ gate: 'todo', tools: [], run: 'pnpm --dir packages/examples/todo test:page' },
 			{
@@ -459,6 +464,11 @@ export const SUITES = [
 				gate: 'rust',
 				tools: ['cargo'],
 				run: 'pnpm --dir packages/examples/todo test:conformance:rs --suite confirmations',
+			},
+			{
+				gate: 'rust',
+				tools: ['cargo'],
+				run: 'pnpm --dir packages/examples/todo test:conformance:rs --suite tasks --mode modern',
 			},
 			{
 				gate: 'cpp',

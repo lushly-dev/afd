@@ -883,7 +883,9 @@ NAME_GAP_BUDGET = {
     # Python 88 → 93, C++ 71 → 76 (Loam phase 5 step 0c): the approval display rules in
     # TypeScript and Rust (approvalDisplay, ApprovalDisplayRefusal, APPROVAL_DISPLAY_LIMITS,
     # hidesCharacters, isHiddenCodePoint). Parity tracked in #1466; lower both when it closes.
-    "missing_from_python": 93,
+    # Python 93 → 94, C++ 76 → 77 (#1971): TaskSupport in TypeScript (matching Rust's TaskSupport).
+    # Python parity tracked in #1972 (lower when it closes); MCP Tasks are N/A for C++.
+    "missing_from_python": 94,
     "missing_from_rust": 9,
     # 73 at first measurement (Phase 5 of the C++ plan). The deferred groups: MCP JSON-RPC
     # types and helpers; the typed pipeline-condition structs and their guards (C++ keeps
@@ -893,7 +895,7 @@ NAME_GAP_BUDGET = {
     # the deferred MCP helpers group; the C++ todo backend derives them inline.
     # 76 → 71 (#465): commandResultOutputSchema, in afd/mcp.hpp, closes one gap; the budget had
     # stayed at 76 after the measured count fell to 72 (docs/language-parity.md).
-    "missing_from_cpp": 76,
+    "missing_from_cpp": 77,
 }
 
 # Exports every language must have; if one disappears the parser is broken.

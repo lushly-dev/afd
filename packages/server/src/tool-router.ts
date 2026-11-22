@@ -63,6 +63,7 @@ import {
 import type { ZodCommandDefinition } from './schema.js';
 import { knownOnly, listedCommands, scopeViewOf, shownOnly } from './scope-view.js';
 import type { ToolStrategy } from './server-types.js';
+import { taskDispatchOf } from './task-dispatch.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -267,6 +268,17 @@ export function createToolRouter(deps: ToolRouterDeps) {
 		/** The steps naming commands that exist for the caller: a confirmation names no other. */
 		const existing = <T extends { command: string }>(steps: T[]): T[] =>
 			view ? steps.filter((step) => view.known(step.command)) : steps;
+		const taskDispatch = taskDispatchOf(callContext);
+		const runTask = (cmd: ZodCommandDefinition | undefined, input: unknown, prefix: string) =>
+			taskDispatch && (cmd?.task === 'optional' || cmd?.task === 'required')
+				? taskDispatch.dispatch(cmd, input, traced(prefix))
+				: undefined;
+		const requiredTaskIn = (steps: readonly { command: string }[]) =>
+			taskDispatch
+				? existing([...steps])
+						.map((s) => commands.find((c) => c.name === s.command))
+						.find((c) => c?.task === 'required')
+				: undefined;
 
 		// Handle afd-call (available in all strategies)
 		if (toolName === 'afd-call') {
@@ -319,6 +331,9 @@ export function createToolRouter(deps: ToolRouterDeps) {
 				'repeat the afd-call with confirm: true'
 			);
 			if (unconfirmed) return unconfirmed;
+
+			const dispatched = await runTask(cmd, input ?? {}, 'afd-call');
+			if (dispatched) return dispatched;
 
 			// Execute through the execution engine (full middleware chain)
 			approvalRelay(callContext)?.route(commandName);
@@ -384,6 +399,16 @@ export function createToolRouter(deps: ToolRouterDeps) {
 				);
 			}
 			const batchArgs = args as unknown as Record<string, unknown>;
+			const requiredBatch = requiredTaskIn(args.commands);
+			if (requiredBatch && taskDispatch) {
+				return resultContent(
+					createFailedBatchResult(
+						taskDispatch.refuseComposite('afd-batch', requiredBatch.name),
+						{}
+					),
+					true
+				);
+			}
 			const unconfirmed = await confirm(
 				existing(args.commands.map((item) => ({ command: item.command, input: item.input ?? {} }))),
 				namedAcknowledgement(batchArgs.confirm),
@@ -430,6 +455,13 @@ export function createToolRouter(deps: ToolRouterDeps) {
 				);
 			}
 			const pipeArgs = args as unknown as Record<string, unknown>;
+			const requiredPipe = requiredTaskIn(args.steps);
+			if (requiredPipe && taskDispatch) {
+				return resultContent(
+					failedPipeline(taskDispatch.refuseComposite('afd-pipe', requiredPipe.name)),
+					true
+				);
+			}
 			const unconfirmed = await confirm(
 				existing(args.steps.map((step) => ({ command: step.command, input: step.input ?? {} }))),
 				namedAcknowledgement(pipeArgs.confirm),
@@ -499,6 +531,9 @@ export function createToolRouter(deps: ToolRouterDeps) {
 				);
 				if (unconfirmed) return unconfirmed;
 
+				const dispatched = await runTask(candidates[0], commandParams, 'trace');
+				if (dispatched) return dispatched;
+
 				approvalRelay(callContext)?.route(actualCommandName);
 				const result = await executeCommand(actualCommandName, commandParams, traced('trace'));
 				return resultContent(result, !result.success);
@@ -548,6 +583,9 @@ export function createToolRouter(deps: ToolRouterDeps) {
 			'repeat the call with confirm: true'
 		);
 		if (unconfirmed) return unconfirmed;
+
+		const dispatched = await runTask(command, input, 'trace');
+		if (dispatched) return dispatched;
 
 		approvalRelay(callContext)?.route(toolName);
 		const result = await executeCommand(toolName, input, traced('trace'));

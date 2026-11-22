@@ -50,6 +50,7 @@ export type {
 	CommandResult,
 	ExposeOptions,
 	JsonSchema,
+	TaskSupport,
 } from '@lushly-dev/afd-core';
 export { defaultExpose } from '@lushly-dev/afd-core/commands';
 export { error, failure, isFailure, isSuccess, success } from '@lushly-dev/afd-core/result';

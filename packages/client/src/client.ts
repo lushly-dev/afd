@@ -68,9 +68,11 @@ import { createTransport, type Transport } from './transport.js';
 import type {
 	ClientStatus,
 	ConnectionState,
+	DetailedTask,
 	McpClientConfig,
 	McpTransportType,
 	PendingRequest,
+	TaskInfo,
 } from './types.js';
 
 /**
@@ -88,6 +90,8 @@ export interface RequestOptions {
 	timeout?: number;
 	/** Cancel this request and signal in-process execution to stop. */
 	signal?: AbortSignal;
+	/** Called when a task started by `callTool()` / `call()` changes status or `statusMessage`. */
+	onTaskProgress?: (task: TaskInfo) => void;
 }
 
 const SUPPORTED_TRANSPORTS: ReadonlySet<string> = new Set<McpTransportType>([
@@ -143,6 +147,7 @@ export class McpClient extends McpClientEventEmitter {
 	private reconnectAttempts = 0;
 	private pendingRequests = new Map<string | number, PendingRequest>();
 	private activeStreams = new Set<AbortController>();
+	private activeTaskPolls = new Set<AbortController>();
 	private intentionalDisconnect = false;
 	private connectionGeneration = 0;
 	private connectionController: AbortController | null = null;
@@ -182,6 +187,7 @@ export class McpClient extends McpClientEventEmitter {
 			clientVersion: config.clientVersion ?? '0.1.0',
 			protocolMode: config.protocolMode ?? 'auto',
 			onElicitation: config.onElicitation,
+			tasks: config.tasks ?? false,
 			timeout: config.timeout ?? 30000,
 			autoReconnect: config.autoReconnect ?? true,
 			maxReconnectAttempts: config.maxReconnectAttempts ?? 5,
@@ -239,6 +245,10 @@ export class McpClient extends McpClientEventEmitter {
 			controller.abort(new Error('Client disconnected'));
 		}
 		this.activeStreams.clear();
+		for (const controller of this.activeTaskPolls) {
+			controller.abort(new NotConnectedError());
+		}
+		this.activeTaskPolls.clear();
 
 		this.setState('disconnected');
 		this.emit('disconnected', 'Manual disconnect');
@@ -301,27 +311,194 @@ export class McpClient extends McpClientEventEmitter {
 	}
 
 	/**
-	 * Call a tool and return raw MCP result.
+	 * Fetch the current state of an MCP task (`tasks/get`).
+	 */
+	async getTask(taskId: string, options?: RequestOptions): Promise<DetailedTask> {
+		return this.request<DetailedTask>('tasks/get', { taskId }, options);
+	}
+
+	/**
+	 * Request cooperative cancellation of an MCP task (`tasks/cancel`).
+	 */
+	async cancelTask(taskId: string, options?: RequestOptions): Promise<void> {
+		await this.request('tasks/cancel', { taskId }, options);
+	}
+
+	/**
+	 * Call a tool and return raw MCP result. If the server responds with an MCP task
+	 * (`resultType: 'task'`), polls `tasks/get` until the task completes.
 	 *
 	 * @param name - Tool name
 	 * @param args - Tool arguments
-	 * @param options - Request options such as `timeout`
+	 * @param options - Request options such as `timeout`, `signal`, `onTaskProgress`
 	 */
 	async callTool(
 		name: string,
 		args?: Record<string, unknown>,
 		options?: RequestOptions
 	): Promise<McpToolCallResult> {
+		const totalTimeoutMs = options?.timeout ?? this.config.timeout;
+		const deadline = Date.now() + totalTimeoutMs;
 		const params = {
 			name,
 			arguments: args,
 		};
 
-		return this.request<McpToolCallResult>(
+		const raw = await this.request<McpToolCallResult | (TaskInfo & { resultType: 'task' })>(
 			'tools/call',
 			params as Record<string, unknown>,
 			options
 		);
+		if (raw && typeof raw === 'object' && 'resultType' in raw && raw.resultType === 'task') {
+			return this.pollTask(raw, deadline, totalTimeoutMs, options);
+		}
+		return raw as McpToolCallResult;
+	}
+
+	private async pollTask(
+		initial: TaskInfo & { resultType: 'task' },
+		deadline: number,
+		totalTimeoutMs: number,
+		options?: RequestOptions
+	): Promise<McpToolCallResult> {
+		const callerSignal = options?.signal;
+		const pollController = new AbortController();
+		this.activeTaskPolls.add(pollController);
+		const signal = callerSignal
+			? AbortSignal.any([callerSignal, pollController.signal])
+			: pollController.signal;
+		const taskId = initial.taskId;
+		let pollIntervalMs =
+			typeof initial.pollIntervalMs === 'number' &&
+			Number.isFinite(initial.pollIntervalMs) &&
+			initial.pollIntervalMs > 0
+				? Math.max(10, initial.pollIntervalMs)
+				: 250;
+		let lastStatus = initial.status;
+		let lastMessage = initial.statusMessage;
+
+		const toInfo = (t: TaskInfo): TaskInfo => ({
+			taskId: t.taskId,
+			status: t.status,
+			...(t.statusMessage !== undefined && { statusMessage: t.statusMessage }),
+			createdAt: t.createdAt,
+			lastUpdatedAt: t.lastUpdatedAt,
+			ttlMs: t.ttlMs,
+			...(t.pollIntervalMs !== undefined && { pollIntervalMs: t.pollIntervalMs }),
+		});
+
+		const cancelledResult = (): McpToolCallResult => {
+			const payload = failure({
+				code: 'COMMAND_CANCELLED',
+				message: 'Task was cancelled',
+				suggestion: 'Start the command again if the work is still needed',
+				retryable: false,
+			});
+			return {
+				content: [{ type: 'text', text: JSON.stringify(payload) }],
+				isError: true,
+			};
+		};
+
+		const cancelBestEffort = () => {
+			if (!this.isConnected()) return;
+			void this.cancelTask(taskId, { timeout: 5_000 }).catch(() => {});
+		};
+
+		try {
+			options?.onTaskProgress?.(toInfo(initial));
+
+			for (;;) {
+				if (pollController.signal.aborted) {
+					throw new NotConnectedError();
+				}
+				if (callerSignal?.aborted) {
+					cancelBestEffort();
+					return cancelledResult();
+				}
+				const remainingBeforeWait = deadline - Date.now();
+				if (remainingBeforeWait <= 0) {
+					cancelBestEffort();
+					throw new RequestTimeoutError('tools/call', totalTimeoutMs);
+				}
+
+				const waitMs = Math.min(pollIntervalMs, remainingBeforeWait, MAX_TIMER_MS);
+				await new Promise<void>((resolve) => {
+					const timer = setTimeout(() => {
+						signal.removeEventListener('abort', onAbort);
+						resolve();
+					}, waitMs);
+					const onAbort = () => {
+						clearTimeout(timer);
+						resolve();
+					};
+					if (signal.aborted) {
+						clearTimeout(timer);
+						resolve();
+					} else {
+						signal.addEventListener('abort', onAbort, { once: true });
+					}
+				});
+
+				if (pollController.signal.aborted) {
+					throw new NotConnectedError();
+				}
+				if (callerSignal?.aborted) {
+					cancelBestEffort();
+					return cancelledResult();
+				}
+				const remaining = deadline - Date.now();
+				if (remaining <= 0) {
+					cancelBestEffort();
+					throw new RequestTimeoutError('tools/call', totalTimeoutMs);
+				}
+
+				let detailed: DetailedTask;
+				try {
+					detailed = await this.getTask(taskId, { timeout: remaining, signal });
+				} catch (error) {
+					if (pollController.signal.aborted) {
+						throw new NotConnectedError();
+					}
+					if (callerSignal?.aborted) {
+						cancelBestEffort();
+						return cancelledResult();
+					}
+					if (error instanceof RequestTimeoutError) {
+						cancelBestEffort();
+						throw new RequestTimeoutError('tools/call', totalTimeoutMs);
+					}
+					throw error;
+				}
+
+				if (detailed.status !== lastStatus || detailed.statusMessage !== lastMessage) {
+					lastStatus = detailed.status;
+					lastMessage = detailed.statusMessage;
+					options?.onTaskProgress?.(toInfo(detailed));
+				}
+
+				if (detailed.status === 'completed') {
+					return detailed.result ?? { content: [], isError: false };
+				}
+				if (detailed.status === 'failed') {
+					throw new JsonRpcResponseError(
+						detailed.error ?? { code: -32603, message: 'Task failed' }
+					);
+				}
+				if (detailed.status === 'cancelled') {
+					return cancelledResult();
+				}
+				if (
+					typeof detailed.pollIntervalMs === 'number' &&
+					Number.isFinite(detailed.pollIntervalMs) &&
+					detailed.pollIntervalMs > 0
+				) {
+					pollIntervalMs = Math.max(10, detailed.pollIntervalMs);
+				}
+			}
+		} finally {
+			this.activeTaskPolls.delete(pollController);
+		}
 	}
 
 	/**
@@ -777,6 +954,7 @@ export class McpClient extends McpClientEventEmitter {
 				clientVersion: this.config.clientVersion,
 				mode: this.config.protocolMode,
 				onElicitation: this.config.onElicitation,
+				tasks: this.config.tasks,
 			});
 		}
 		// SAFETY: the constructor only admits these four, and 'direct' has a registry.

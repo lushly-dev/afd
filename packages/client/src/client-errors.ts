@@ -152,6 +152,12 @@ const JSON_RPC_CODES: Record<number, JsonRpcCodeMapping> = {
 		retryable: true,
 		suggestion: 'The MCP session is unknown or expired; reconnect to start a new session',
 	},
+	[-32021]: {
+		code: 'MISSING_CLIENT_CAPABILITY',
+		retryable: false,
+		suggestion:
+			'Reconnect with the required client capability enabled (for MCP Tasks, set tasks: true on McpClient)',
+	},
 };
 
 function serverSuggestion(data: unknown): string | undefined {

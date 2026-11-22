@@ -20,6 +20,7 @@ import type { Credentials } from './mcp-auth-rules.js';
 import type { ResourcesOption } from './resources.js';
 import type { ZodCommandDefinition } from './schema.js';
 import type { SkillCatalog } from './skills.js';
+import type { TaskOptions, TaskStore } from './tasks.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TRANSPORT
@@ -396,6 +397,20 @@ export interface McpServerOptions {
 	 * directoryRead: true })` also serves `resources/directory/read`.
 	 */
 	skills?: SkillCatalog;
+
+	/**
+	 * Durable store for MCP Tasks (`spec/command-metadata.md`, "Tasks"). Defaults to an in-process
+	 * {@link InMemoryTaskStore}. Pass a shared store when multiple server processes sit behind one
+	 * URL.
+	 */
+	taskStore?: TaskStore;
+
+	/**
+	 * MCP Tasks runtime options (`spec/command-metadata.md`, "Tasks"): `ttlMs`, `pollIntervalMs`,
+	 * `checkIntervalMs`, `maxResultBytes`, `maxRunning`, `tokenExpiryGraceMs` and
+	 * `callersIdentifiedByHook`.
+	 */
+	taskOptions?: TaskOptions;
 }
 
 /**

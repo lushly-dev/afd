@@ -176,6 +176,16 @@ export interface CommandExample<TInput = unknown> {
 }
 
 /**
+ * Whether an MCP `tools/call` to a command may run as a task under the Tasks extension
+ * (`io.modelcontextprotocol/tasks`, SEP-2663; `spec/command-metadata.md`, "Tasks").
+ *
+ * - `'never'` (default): always runs inline.
+ * - `'optional'`: runs as a task when a 2026-07-28 request declares the extension, inline otherwise.
+ * - `'required'`: runs only as a task; a request without the extension gets JSON-RPC `-32021`.
+ */
+export type TaskSupport = 'never' | 'optional' | 'required';
+
+/**
  * Full command definition with schema, handler, and metadata.
  *
  * @template TInput - Type of the input parameters
@@ -346,6 +356,13 @@ export interface CommandDefinition<TInput = unknown, TOutput = unknown> {
 	 * any other key when it registers the command, so an entry never replaces one the server sets.
 	 */
 	toolMeta?: Record<string, unknown>;
+
+	/**
+	 * Whether an MCP `tools/call` may run as a task (`spec/command-metadata.md`, "Tasks").
+	 * Default `'never'`. Refused at registration beside `confirmPrompt`, an `approval` other than
+	 * `'not-required'`, or `confirmationMode`. Reported in `_meta.task` and `afd-detail`.
+	 */
+	task?: TaskSupport;
 }
 
 /**
@@ -403,6 +420,12 @@ export interface CommandContext {
 	 * `systemRandom` unless overridden).
 	 */
 	random?: RandomSource;
+
+	/**
+	 * Report progress while running as an MCP task (`spec/command-metadata.md`, "Tasks").
+	 * Updates the task's `statusMessage` and `lastUpdatedAt`; undefined outside a task.
+	 */
+	reportProgress?: (message: string) => void;
 
 	/** Custom context values */
 	[key: string]: unknown;
@@ -561,6 +584,29 @@ export function createCommandRegistry(options: CommandRegistryOptions = {}): Com
 		register(command) {
 			if (commands.has(command.name)) {
 				throw new Error(`Command '${command.name}' is already registered`);
+			}
+			if (command.task !== undefined) {
+				if (
+					command.task !== 'never' &&
+					command.task !== 'optional' &&
+					command.task !== 'required'
+				) {
+					throw new Error(
+						`Command '${command.name}' has invalid task support '${String(command.task)}' (expected 'never', 'optional', or 'required')`
+					);
+				}
+				if (command.task === 'optional' || command.task === 'required') {
+					if (
+						command.confirmPrompt !== undefined ||
+						(command.approval !== undefined && command.approval !== 'not-required') ||
+						('confirmationMode' in command &&
+							(command as { confirmationMode?: unknown }).confirmationMode !== undefined)
+					) {
+						throw new Error(
+							`Command '${command.name}' cannot declare task: '${command.task}' beside confirmPrompt, an approval policy other than 'not-required', or confirmationMode`
+						);
+					}
+				}
 			}
 			commands.set(command.name, command as CommandDefinition);
 		},

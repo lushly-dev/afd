@@ -201,6 +201,19 @@ export function createScopeAuthority(options: ScopeAuthorityOptions): ScopeAutho
 				resolver && isKnown(command)
 					? requestDecision([mergeDecisions(required, ask(command, input))], warn)
 					: 'proceed',
+			decideTask: (command: string) => {
+				if (!byName.has(command)) return 'proceed';
+				if (resolver) {
+					const visible = asks((n, c) => resolver.visible(n, c), command);
+					const resolverKnown = asks(
+						(n, c) => (resolver.known ?? resolver.visible).call(resolver, n, c),
+						command
+					);
+					return visible && resolverKnown ? 'proceed' : { forbidden: [] };
+				}
+				const cmd = byName.get(command);
+				return requestDecision([staticDecision([], cmd?.scopes ?? [], held)], warn);
+			},
 			insufficientScope: failure,
 		});
 	}

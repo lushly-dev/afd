@@ -33,6 +33,16 @@ export const MODERN_PROTOCOL_VERSION = '2026-07-28';
  */
 const NO_SDK_TIMEOUT = 2_147_483_647;
 
+const TASKS_EXTENSION_ID = 'io.modelcontextprotocol/tasks';
+const TASK_SENTINEL = '__afd_mcp_task__';
+const PASS_THROUGH_SCHEMA = {
+	'~standard': {
+		version: 1,
+		vendor: 'afd',
+		validate: (value: unknown) => ({ value }),
+	},
+} as const;
+
 export interface StreamableHttpTransportOptions {
 	headers?: Record<string, string>;
 	clientName: string;
@@ -41,6 +51,8 @@ export interface StreamableHttpTransportOptions {
 	mode?: StreamableHttpMode;
 	/** Answers form elicitations; without it the client declares no elicitation capability. */
 	onElicitation?: ElicitationHandler;
+	/** Declare the MCP Tasks extension (`io.modelcontextprotocol/tasks`) on modern requests. */
+	tasks?: boolean;
 	/**
 	 * The `fetch` every request goes through. A host that does not trust the server uses it to limit
 	 * what it reads, since the SDK reads a response whole and holds an event stream open with no deadline.
@@ -77,6 +89,7 @@ export class StreamableHttpTransport implements Transport {
 	private messageHandler: ((response: McpResponse) => void) | null = null;
 	private errorHandler: ((error: Error) => void) | null = null;
 	private closeHandler: (() => void) | null = null;
+	private readonly pendingTasks = new Map<string, Record<string, unknown>>();
 
 	constructor(
 		readonly url: string,
@@ -88,10 +101,13 @@ export class StreamableHttpTransport implements Transport {
 		this.disconnect();
 		const mode = this.options.mode ?? 'auto';
 		const onElicitation = this.options.onElicitation;
+		const capabilities: Record<string, unknown> = {};
+		if (onElicitation) capabilities.elicitation = { form: {} };
+		if (this.options.tasks) capabilities.extensions = { [TASKS_EXTENSION_ID]: {} };
 		const client = new Client(
 			{ name: this.options.clientName, version: this.options.clientVersion },
 			{
-				capabilities: onElicitation ? { elicitation: { form: {} } } : {},
+				capabilities: capabilities as never,
 				versionNegotiation: { mode: mode === 'modern' ? { pin: MODERN_PROTOCOL_VERSION } : mode },
 				// Without a handler, an input_required answer is returned to `send` as is.
 				...(!onElicitation && { inputRequired: { autoFulfill: false } }),
@@ -132,6 +148,46 @@ export class StreamableHttpTransport implements Transport {
 			await client.close().catch(() => {});
 			throw new Error('Transport disconnected');
 		}
+		if (this.options.tasks) {
+			// The MCP SDK v2.4.0 rev2026 codec rejects `resultType: 'task'` on `tools/call`.
+			// Intercept it on the transport boundary and carry it to `send()` via a private token.
+			const deliver = transport.onmessage;
+			transport.onmessage = (message) => {
+				const msg = message as { id?: string | number; result?: Record<string, unknown> };
+				if (
+					msg &&
+					typeof msg === 'object' &&
+					'result' in msg &&
+					msg.result &&
+					typeof msg.result === 'object'
+				) {
+					if (msg.result.resultType === 'task') {
+						const token = crypto.randomUUID();
+						this.pendingTasks.set(token, msg.result);
+						deliver?.({
+							jsonrpc: '2.0',
+							id: msg.id as string | number,
+							result: {
+								resultType: 'complete',
+								content: [],
+								_meta: { [TASK_SENTINEL]: token },
+							},
+						} as never);
+						return;
+					}
+					const meta = msg.result._meta as Record<string, unknown> | undefined;
+					if (meta && typeof meta === 'object' && TASK_SENTINEL in meta) {
+						const { [TASK_SENTINEL]: _stripped, ...restMeta } = meta;
+						deliver?.({
+							...msg,
+							result: { ...msg.result, _meta: restMeta },
+						} as never);
+						return;
+					}
+				}
+				deliver?.(message);
+			};
+		}
 		this.connected = true;
 	}
 
@@ -140,6 +196,7 @@ export class StreamableHttpTransport implements Transport {
 		const wasConnected = this.connected;
 		this.client = null;
 		this.connected = false;
+		this.pendingTasks.clear();
 		client?.close().catch(() => {});
 		if (wasConnected) this.closeHandler?.();
 	}
@@ -171,10 +228,26 @@ export class StreamableHttpTransport implements Transport {
 					const called = (await client.callTool(request.params as never, {
 						...options,
 						...(!this.options.onElicitation && { allowInputRequired: true }),
-					})) as { resultType?: string; inputRequests?: unknown };
-					result = called.resultType === 'input_required' ? inputRequiredResult(called) : called;
+					})) as { resultType?: string; inputRequests?: unknown; _meta?: Record<string, unknown> };
+					const taskToken = called._meta?.[TASK_SENTINEL];
+					if (typeof taskToken === 'string') {
+						const taskResult = this.pendingTasks.get(taskToken);
+						this.pendingTasks.delete(taskToken);
+						result = taskResult ?? called;
+					} else {
+						result = called.resultType === 'input_required' ? inputRequiredResult(called) : called;
+					}
 					break;
 				}
+				case 'tasks/get':
+				case 'tasks/update':
+				case 'tasks/cancel':
+					result = await client.request(
+						{ method: request.method, params: request.params as Record<string, unknown> },
+						PASS_THROUGH_SCHEMA as never,
+						options
+					);
+					break;
 				default:
 					return {
 						jsonrpc: '2.0',

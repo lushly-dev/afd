@@ -2,8 +2,7 @@
 
 Epic: [#1553](https://github.com/lushly-dev/afd/issues/1553). File new work for this area as its sub-issue.
 
-Read this before the [proposal](mcp-tasks.proposal.md). Last reconciled 2026-11-13 against
-`main` at `1024546b`, using source and merged history. This audit did not rerun the task suites.
+Read this before the [proposal](mcp-tasks.proposal.md).
 
 ## Delivery
 
@@ -11,9 +10,9 @@ Read this before the [proposal](mcp-tasks.proposal.md). Last reconciled 2026-11-
 | --- | --- | --- |
 | 1. Contract | Done | #793; [Tasks](../../../../spec/command-metadata.md#tasks) |
 | 2. Rust pilot | Done for the server implementation | #817; `packages/rust/src/server/tasks.rs`, `packages/rust/tests/server_tasks.rs`; bounded pluggable `TaskStore`, owner checks and cancellation |
-| 2. Shared todo acceptance case | Not done | Waits for a second language; a Rust-only test does not close this gate |
-| 3. TypeScript server and client | Not started | Port against the shared contract and add the common acceptance case |
-| 4. Python | Not started | Same contract; server and client behavior remain open |
+| 2. Shared todo acceptance case | Done | #2034 ([#1971](https://github.com/lushly-dev/afd/issues/1971)); `packages/examples/todo/spec/task-cases.json` (`--suite tasks --mode modern`), passing against both TypeScript and Rust todo backends (`todo-create-batch` declares `task: 'optional'`) |
+| 3. TypeScript server and client | Done | #2034 ([#1971](https://github.com/lushly-dev/afd/issues/1971)); `@lushly-dev/afd-core` (`TaskSupport`, `CommandContext.reportProgress`), `@lushly-dev/afd-server` (`TaskStore`, `InMemoryTaskStore`, `TaskOptions`, `tasks/*`, `tasks.test.ts`, `tasks-client.test.ts`), `@lushly-dev/afd-client` (`McpClient` `tasks: true`, polling, `onTaskProgress`, `getTask`, `cancelTask`, `tasks.test.ts`) |
+| 4. Python | Not started | [#1972](https://github.com/lushly-dev/afd/issues/1972); same contract; server and client behavior remain open |
 
 ## Implementation departure
 

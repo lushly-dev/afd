@@ -30,6 +30,8 @@ export interface ScopeView {
 	decideRequest(): RequestDecision;
 	/** The decision on one command about to run, on its validated input (resolver only). */
 	decideExecution(command: string, input: unknown): RequestDecision;
+	/** The decision on reading or updating a task that runs `command` (`tasks/get`, `tasks/update`). */
+	decideTask(command: string): RequestDecision;
 	/** The `INSUFFICIENT_SCOPE` failure naming `missing`. */
 	insufficientScope(missing: readonly string[]): CommandError;
 }

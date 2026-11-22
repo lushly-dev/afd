@@ -326,8 +326,20 @@ async function startBackend(
 const CONFIRMATION_CLIENTS = ['acknowledge', 'accept', 'decline'] as const;
 type ConfirmationClient = (typeof CONFIRMATION_CLIENTS)[number];
 
+const TASK_CLIENTS = ['tasks', 'no-tasks'] as const;
+const TASKS_EXTENSION_ID = 'io.modelcontextprotocol/tasks';
+const TASK_SENTINEL = '__afd_conformance_task__';
+const PASS_THROUGH_SCHEMA = {
+	'~standard': {
+		version: 1,
+		vendor: 'afd-conformance',
+		validate: (value: unknown) => ({ value }),
+	},
+} as const;
+
 interface Session {
 	client: Client;
+	interceptedTasks: Map<string, Record<string, unknown>>;
 	close(): Promise<void>;
 }
 
@@ -335,13 +347,20 @@ async function connect(
 	target: Backend,
 	mode: Mode,
 	extraEnv: Record<string, string>,
-	answer?: Exclude<ConfirmationClient, 'acknowledge'>
+	options: {
+		answer?: Exclude<ConfirmationClient, 'acknowledge'>;
+		tasks?: boolean;
+	} = {}
 ): Promise<Session> {
+	const { answer, tasks } = options;
 	const { transport, stop } = await startBackend(target, mode, extraEnv);
+	const capabilities: Record<string, unknown> = {};
+	if (answer) capabilities.elicitation = { form: {} };
+	if (tasks) capabilities.extensions = { [TASKS_EXTENSION_ID]: {} };
 	const client = new Client(
 		{ name: 'conformance-runner', version: '1.0.0' },
 		{
-			capabilities: answer ? { elicitation: { form: {} } } : {},
+			capabilities: capabilities as never,
 			versionNegotiation: {
 				mode: mode === 'modern' ? { pin: '2026-07-28' } : mode,
 			},
@@ -369,11 +388,42 @@ async function connect(
 		await stop();
 		throw error;
 	}
+	const interceptedTasks = new Map<string, Record<string, unknown>>();
+	if (tasks) {
+		let seq = 0;
+		const deliver = transport.onmessage;
+		transport.onmessage = (message) => {
+			const msg = message as { id?: string | number; result?: Record<string, unknown> };
+			if (
+				msg &&
+				typeof msg === 'object' &&
+				'result' in msg &&
+				msg.result &&
+				typeof msg.result === 'object' &&
+				msg.result.resultType === 'task'
+			) {
+				const token = String(++seq);
+				interceptedTasks.set(token, msg.result);
+				deliver?.({
+					jsonrpc: '2.0',
+					id: msg.id as string | number,
+					result: {
+						resultType: 'complete',
+						content: [],
+						_meta: { [TASK_SENTINEL]: token },
+					},
+				} as never);
+				return;
+			}
+			deliver?.(message);
+		};
+	}
 	console.log(
 		`Connected: ${client.getProtocolEra()} era, protocol ${client.getNegotiatedProtocolVersion()}.`
 	);
 	return {
 		client,
+		interceptedTasks,
 		async close() {
 			await client.close();
 			await stop();
@@ -382,7 +432,11 @@ async function connect(
 }
 
 /** Call a tool, parse its CommandResult and check the wire format. */
-function toolCaller(client: Client) {
+function toolCaller(
+	session: Session,
+	taskWire?: { expectTaskFor?: ReadonlySet<string>; taskIds: string[] }
+) {
+	const { client, interceptedTasks } = session;
 	return async (name: string, args: unknown) => {
 		if (name === TOOL_LIST) {
 			console.log('Listing tools');
@@ -393,10 +447,60 @@ function toolCaller(client: Client) {
 			};
 		}
 		console.log(`Calling tool: ${name}`, args);
-		const result = (await client.callTool({
+		const raw = (await client.callTool({
 			name,
 			arguments: args as Record<string, unknown>,
-		})) as { content: Array<{ text: string }>; isError?: boolean };
+		})) as {
+			content: Array<{ text: string }>;
+			isError?: boolean;
+			_meta?: Record<string, unknown>;
+		};
+		const taskToken = raw._meta?.[TASK_SENTINEL];
+		const startedAsTask = typeof taskToken === 'string';
+		const shouldBeTask = taskWire?.expectTaskFor?.has(name) === true;
+		if (taskWire) {
+			if (shouldBeTask && !startedAsTask) {
+				throw new Error(
+					`Expected '${name}' to start an MCP task (resultType: 'task'), but it ran inline`
+				);
+			}
+			if (!shouldBeTask && startedAsTask) {
+				throw new Error(`Expected '${name}' to run inline, but it started an MCP task`);
+			}
+		}
+
+		let result: { content: Array<{ text: string }>; isError?: boolean } = raw;
+		if (startedAsTask) {
+			const seed = interceptedTasks.get(taskToken);
+			interceptedTasks.delete(taskToken);
+			if (!seed || typeof seed.taskId !== 'string' || !/^[a-z2-7]{26}$/.test(seed.taskId)) {
+				throw new Error(`Invalid task seed from '${name}': ${JSON.stringify(seed)}`);
+			}
+			if (seed.status !== 'working' || typeof seed.ttlMs !== 'number' || seed.ttlMs <= 0) {
+				throw new Error(`Unexpected task seed fields from '${name}': ${JSON.stringify(seed)}`);
+			}
+			taskWire?.taskIds.push(seed.taskId);
+			const deadline = Date.now() + 10_000;
+			let settled: Record<string, unknown> | undefined;
+			while (Date.now() < deadline) {
+				const got = (await client.request(
+					{ method: 'tasks/get', params: { taskId: seed.taskId } },
+					PASS_THROUGH_SCHEMA as never
+				)) as Record<string, unknown>;
+				if (got.status !== 'working') {
+					settled = got;
+					break;
+				}
+				await new Promise((r) => setTimeout(r, 15));
+			}
+			if (settled?.status !== 'completed' || !settled.result) {
+				throw new Error(
+					`Task ${seed.taskId} for '${name}' did not reach status 'completed': ${JSON.stringify(settled)}`
+				);
+			}
+			result = settled.result as { content: Array<{ text: string }>; isError?: boolean };
+		}
+
 		const text = result.content[0]?.text;
 		let parsed: unknown;
 		try {
@@ -413,7 +517,7 @@ function toolCaller(client: Client) {
 	};
 }
 
-const SUITES = ['todo', 'confirmations', 'approvals'] as const;
+const SUITES = ['todo', 'confirmations', 'approvals', 'tasks'] as const;
 
 /** Empty the live list without a clear, which the approvals suite's agent cannot run unasked. */
 async function resetByDeleting(
@@ -446,13 +550,108 @@ async function run() {
 		const session = await connect(target, mode, {});
 		try {
 			results.push(
-				...(await new ConformanceRunner(toolCaller(session.client)).run(
+				...(await new ConformanceRunner(toolCaller(session)).run(
 					path.join(__dirname, '../spec/test-cases.json'),
 					{ language: LANGUAGE[target], backend: target }
 				))
 			);
 		} finally {
 			await session.close();
+		}
+	} else if (suite === 'tasks') {
+		if (mode !== 'modern') {
+			throw new Error('The tasks suite requires --mode modern (MCP 2026-07-28)');
+		}
+		const specPath = path.join(__dirname, '../spec/task-cases.json');
+		for (const kind of TASK_CLIENTS) {
+			const filter = { client: kind, language: LANGUAGE[target], backend: target };
+			if ((await selectCases(specPath, filter)).length === 0) {
+				console.log(
+					`Skipping the ${kind} client: no case in ${suite} is for ${filter.language} yet`
+				);
+				continue;
+			}
+			const isTasksClient = kind === 'tasks';
+			const session = await connect(target, mode, {}, { tasks: isTasksClient });
+			try {
+				const taskWire = {
+					expectTaskFor: isTasksClient ? new Set(['todo-create-batch']) : new Set<string>(),
+					taskIds: [] as string[],
+				};
+				if (isTasksClient) {
+					const serverCaps = session.client.getServerCapabilities() as {
+						extensions?: Record<string, unknown>;
+					};
+					if (!serverCaps.extensions || !(TASKS_EXTENSION_ID in serverCaps.extensions)) {
+						results.push({
+							name: 'Server advertises io.modelcontextprotocol/tasks capability',
+							success: false,
+							error: `Missing ${TASKS_EXTENSION_ID} in server/discover capabilities: ${JSON.stringify(serverCaps)}`,
+						});
+					} else {
+						results.push({
+							name: 'Server advertises io.modelcontextprotocol/tasks capability',
+							success: true,
+						});
+					}
+				}
+				const runner = new ConformanceRunner(toolCaller(session, taskWire));
+				results.push(...(await runner.run(specPath, filter)));
+				if (isTasksClient) {
+					const lastId = taskWire.taskIds.at(-1);
+					if (lastId) {
+						try {
+							await session.client.request(
+								{ method: 'tasks/update', params: { taskId: lastId, inputResponses: {} } },
+								PASS_THROUGH_SCHEMA as never
+							);
+							await session.client.request(
+								{ method: 'tasks/cancel', params: { taskId: lastId } },
+								PASS_THROUGH_SCHEMA as never
+							);
+							results.push({
+								name: 'tasks/update and tasks/cancel acknowledge a completed task',
+								success: true,
+							});
+						} catch (error) {
+							results.push({
+								name: 'tasks/update and tasks/cancel acknowledge a completed task',
+								success: false,
+								error: error instanceof Error ? error.message : String(error),
+							});
+						}
+					}
+					try {
+						await session.client.request(
+							{ method: 'tasks/get', params: { taskId: 'a'.repeat(26) } },
+							PASS_THROUGH_SCHEMA as never
+						);
+						results.push({
+							name: 'tasks/get on unknown taskId returns -32602',
+							success: false,
+							error: 'Expected -32602 error, got success',
+						});
+					} catch (error) {
+						const code = (error as { code?: number }).code;
+						results.push(
+							code === -32602
+								? { name: 'tasks/get on unknown taskId returns -32602', success: true }
+								: {
+										name: 'tasks/get on unknown taskId returns -32602',
+										success: false,
+										error: `Expected code -32602, got ${String(code)}: ${String(error)}`,
+									}
+						);
+					}
+				}
+			} finally {
+				await session.close();
+			}
+		}
+		if (results.length === 0) {
+			throw new Error(
+				`No case in ${specPath} is for ${LANGUAGE[target]}: this backend does not implement the suite yet`
+			);
 		}
 	} else {
 		// One backend per client kind: a client declares its capabilities once, so the
@@ -476,10 +675,10 @@ async function run() {
 				target,
 				mode,
 				approvals ? { APPROVALS: 'agents' } : { CONFIRMATIONS: 'enforce' },
-				kind === 'acknowledge' ? undefined : kind
+				{ answer: kind === 'acknowledge' ? undefined : kind }
 			);
 			try {
-				const runner = new ConformanceRunner(toolCaller(session.client), {
+				const runner = new ConformanceRunner(toolCaller(session), {
 					reset: approvals
 						? // A clear is held for an agent, so empty the live list with a batch delete
 							resetByDeleting

@@ -18,6 +18,9 @@ This directory contains the shared API contract for the Todo example. All four b
 - `confirmation-cases.json`: Confirmation enforcement cases (`--suite confirmations`).
 - `approval-cases.json`: Approval hold cases (`--suite approvals`): every backend and both Umbel
   modes run all four.
+- `task-cases.json`: MCP Tasks cases (`--suite tasks --mode modern`), where `todo-create-batch`
+  declares `task: "optional"` (TypeScript and Rust; Python tracked in
+  [#1972](https://github.com/lushly-dev/afd/issues/1972)).
 - `README.md`: This file.
 
 ## Conformance Test Cases
@@ -104,6 +107,24 @@ the reset before each case deletes the live todos with `todo-delete-batch` inste
 
 The runner skips a client kind with no case for the backend's language, and fails a suite that
 leaves the language no case at all.
+
+## Task Cases
+
+`--suite tasks --mode modern` runs `task-cases.json` on MCP 2026-07-28 against backends where
+`todo-create-batch` declares `task: "optional"`
+([`spec/command-metadata.md`](../../../../spec/command-metadata.md#tasks)). The `tasks` client
+declares `io.modelcontextprotocol/tasks` and verifies `server/discover` advertisement, `afd-detail`
+`task` reporting, `resultType: "task"` creation and `tasks/get` polling to completion on
+`todo-create-batch`, inline execution for `todo-create`, `tasks/update` and `tasks/cancel`
+acknowledgements, and `-32602` for unknown task IDs. The `no-tasks` client omits the capability and
+verifies `todo-create-batch` runs inline.
+
+| Backend | Script | Cases |
+|---------|--------|-------|
+| TypeScript | `pnpm test:conformance:ts --suite tasks --mode modern` | All 4 cases + wire checks |
+| Rust | `pnpm test:conformance:rs --suite tasks --mode modern` | All 4 cases + wire checks |
+| Python | Planned ([#1972](https://github.com/lushly-dev/afd/issues/1972)) | — |
+| C++ | N/A (not planned for C++) | — |
 
 ## Shared Database
 

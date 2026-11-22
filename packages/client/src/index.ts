@@ -100,6 +100,7 @@ export { createTransport, HttpTransport, SseTransport, type Transport } from './
 export type {
 	ClientStatus,
 	ConnectionState,
+	DetailedTask,
 	ElicitationHandler,
 	ElicitationRequest,
 	ElicitationResponse,
@@ -108,5 +109,7 @@ export type {
 	McpTransportType,
 	PendingRequest,
 	ProtocolMode,
+	TaskInfo,
+	TaskStatus,
 	TransportType,
 } from './types.js';

@@ -495,6 +495,44 @@ describe('createCommandRegistry - register', () => {
 		registry.register(cmd);
 		expect(() => registry.register(cmd)).toThrow("Command 'dup-cmd' is already registered");
 	});
+
+	it('refuses task optional or required beside confirmPrompt, approval or confirmationMode', () => {
+		const base: CommandDefinition = {
+			name: 'task-cmd',
+			description: 'Task command',
+			parameters: [],
+			handler: async () => success(null),
+		};
+
+		for (const task of ['optional', 'required'] as const) {
+			const r1 = createCommandRegistry();
+			expect(() => r1.register({ ...base, task, confirmPrompt: 'Sure?' })).toThrow(/confirmPrompt/);
+
+			const r2 = createCommandRegistry();
+			expect(() => r2.register({ ...base, task, approval: 'required' })).toThrow(/approval/);
+
+			const r3 = createCommandRegistry();
+			expect(() => r3.register({ ...base, task, approval: () => 'required' })).toThrow(/approval/);
+
+			const r4 = createCommandRegistry();
+			expect(() =>
+				r4.register({ ...base, task, confirmationMode: 'require-human' } as CommandDefinition)
+			).toThrow(/confirmationMode/);
+
+			const rOk = createCommandRegistry();
+			expect(() => rOk.register({ ...base, task, approval: 'not-required' })).not.toThrow();
+		}
+
+		const rNever = createCommandRegistry();
+		expect(() =>
+			rNever.register({
+				...base,
+				task: 'never',
+				confirmPrompt: 'Sure?',
+				approval: 'required',
+			})
+		).not.toThrow();
+	});
 });
 
 describe('createCommandRegistry - get/has/list/listByCategory', () => {

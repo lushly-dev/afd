@@ -346,6 +346,7 @@ does not define them.
 | `REQUEST_REJECTED` | JSON-RPC `-32000`: the server rejected the HTTP request (Host, Origin, Content-Type or size) | No | TypeScript |
 | `SESSION_NOT_FOUND` | JSON-RPC `-32001`: the MCP session is unknown or expired; reconnect | Yes | TypeScript |
 | `SESSION_LIMIT_REACHED` | HTTP 503 whose JSON-RPC `-32000` error carries `data.code: "SESSION_LIMIT_REACHED"`: the server refused `initialize` because its session store is full and the caller holds no session. Neither a bare `-32000` nor `-32002` is read as this | Yes (retry after `Retry-After`) | TypeScript |
+| `MISSING_CLIENT_CAPABILITY` | JSON-RPC `-32021`: the server requires a client capability (such as `io.modelcontextprotocol/tasks`) the request did not declare | No | TypeScript |
 | `JSON_RPC_ERROR` | Any other JSON-RPC error code | No | TypeScript |
 | `OUTCOME_UNKNOWN` | A batch or pipeline request got no result after it may have reached the server, so some commands may have run | No | TypeScript |
 | `TOOL_ERROR` | The tool failed and its content is not a `CommandResult` | No | TypeScript, Python |

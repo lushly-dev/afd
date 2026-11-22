@@ -60,6 +60,7 @@ export type {
 	HandoffProtocol,
 	HandoffResult,
 	ReconnectPolicy,
+	TaskSupport,
 	TelemetryEvent,
 	TelemetrySink,
 } from '@lushly-dev/afd-core';
@@ -285,6 +286,33 @@ export {
 	type SkillCatalogOptions,
 	skillFromDirectory,
 } from './skills.js';
+// MCP Tasks (spec/command-metadata.md, "Tasks"; SEP-2663)
+export {
+	applyTaskChange,
+	DEFAULT_MAX_RUNNING_TASKS,
+	DEFAULT_MAX_TASK_RESULT_BYTES,
+	DEFAULT_MAX_TASKS,
+	DEFAULT_MAX_TASKS_PER_OWNER,
+	DEFAULT_TASK_CHECK_INTERVAL_MS,
+	DEFAULT_TASK_POLL_INTERVAL_MS,
+	DEFAULT_TASK_TTL_MS,
+	InMemoryTaskStore,
+	type InMemoryTaskStoreOptions,
+	isTaskExpired,
+	isTerminalTaskStatus,
+	TASKS_EXTENSION_ID,
+	type TaskCall,
+	type TaskChange,
+	type TaskOptions,
+	type TaskRecord,
+	type TaskRpcError,
+	type TaskStatus,
+	type TaskStore,
+	TaskStoreError,
+	type TaskStoreErrorKind,
+	taskFailureResult,
+	taskOwnerMatches,
+} from './tasks.js';
 export {
 	type EnhancedValidationResult,
 	formatEnhancedValidationError,

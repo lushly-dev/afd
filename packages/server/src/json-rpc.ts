@@ -33,7 +33,8 @@ export class JsonRpcError extends Error {
 	constructor(
 		readonly code: number,
 		message: string,
-		readonly suggestion: string
+		readonly suggestion: string,
+		readonly data?: Record<string, unknown>
 	) {
 		super(message);
 	}
@@ -43,8 +44,14 @@ export function jsonRpcResult(id: JsonRpcId, result: unknown) {
 	return { jsonrpc: '2.0' as const, id, result };
 }
 
-export function jsonRpcError(id: JsonRpcId, code: number, message: string, suggestion: string) {
-	return { jsonrpc: '2.0' as const, id, error: { code, message, data: { suggestion } } };
+export function jsonRpcError(
+	id: JsonRpcId,
+	code: number,
+	message: string,
+	suggestion: string,
+	data?: Record<string, unknown>
+) {
+	return { jsonrpc: '2.0' as const, id, error: { code, message, data: { ...data, suggestion } } };
 }
 
 function invalidRequest(message: string): HttpRequestError {

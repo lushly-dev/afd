@@ -104,6 +104,7 @@ describe('verified credentials brand', () => {
 		expect(Object.keys(credentialsEntry)).toEqual(['isVerifiedCredentials']);
 		for (const entry of [root, define, direct, credentialsEntry]) {
 			expect('brandVerifiedCredentials' in entry).toBe(false);
+			expect('cloneVerifiedCredentials' in entry).toBe(false);
 			expect('unbrandVerifiedCredentials' in entry).toBe(false);
 		}
 	});

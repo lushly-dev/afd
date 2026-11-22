@@ -3,7 +3,9 @@ use super::{
 };
 use crate::store::{NewTodo, TodoStore};
 use crate::types::{Priority, Todo};
-use afd::{CommandContext, CommandError, CommandExample, CommandResult, WarningSeverity};
+use afd::{
+    CommandContext, CommandError, CommandExample, CommandResult, TaskSupport, WarningSeverity,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::sync::Arc;
@@ -38,6 +40,7 @@ impl Command for CreateBatch {
     const TAGS: &'static [&'static str] = &["todo", "create", "write", "batch"];
     const MUTATION: bool = true;
     const UNDOABLE: bool = true;
+    const TASK: TaskSupport = TaskSupport::Optional;
 
     fn schema() -> Value {
         json!({
@@ -118,6 +121,7 @@ impl Command for CreateBatch {
                 priority: item.priority,
                 now: stamp.now,
             }));
+            context.report_progress(format!("Created {} of {total} todos", succeeded.len()));
         }
 
         let reasoning = if failed.is_empty() {

@@ -260,6 +260,10 @@ const HOST_IMPORTS =
  *   tool-surface bundle (77,810 → 78,174; raised 78,100 → 78,500). `ERROR_CODE_CATALOG` lives in
  *   its own `error-catalog.ts` module and `middleware.ts` imports `failure` statically, so host
  *   and every-export `/direct` bundles tree-shake it out cleanly (every-export stays under 119,500).
+ *   MCP Tasks (#1971, under D115): `task` metadata/validation in `@lushly-dev/afd-core` and the
+ *   zero-runtime-import `task-dispatch.ts` seam in `tool-router.ts` and `lazy-tools.ts` bring the
+ *   tool-surface bundle on `main` at `3aaa06e0` to 78,834 bytes (raised 78,500 → 79,200); the host,
+ *   approval, and every-export bundles stay within their ceilings.
  * - 48.0 KB for a host that also imports `createApprovalMiddleware`.
  * - 68.6 KB for a host that also imports `createDirectToolSurface`: the router, the tool
  *   list, the meta-tools, `lazy-tools` and `bootstrap/`.
@@ -282,7 +286,7 @@ const DIRECT_BUDGETS = [
 	{
 		what: 'a host with the tool surface',
 		imports: `${HOST_IMPORTS}, createDirectToolSurface`,
-		bytes: 78_500,
+		bytes: 79_200,
 	},
 	{ what: 'every export', imports: undefined, bytes: 119_500 },
 ];

@@ -56,6 +56,8 @@ import { credentialsBinding } from './principal-binding.js';
 import { requestContextValues } from './request-context.js';
 import { bindScopeView } from './scope-view.js';
 import type { CreateRequestContext } from './server-types.js';
+import { bindTaskDispatch } from './task-dispatch.js';
+import type { TaskRuntime } from './tasks-runtime.js';
 import { resultContent, type ToolCallResult } from './tool-router.js';
 
 /** Seconds a refused `initialize` is told to wait (`Retry-After`) when the session store is full. */
@@ -119,6 +121,8 @@ export interface HttpHandlerDeps extends HttpSecurityOptions {
 	approver?: ApproverPredicate;
 	/** The actor of a call whose context has none (the server's `actor` option). */
 	actor?: Actor;
+	/** MCP Tasks runtime for refusing `task: 'required'` on the 2025 `/message` lane. */
+	tasks?: TaskRuntime;
 }
 
 function json(res: ServerResponse, status: number, body: unknown): void {
@@ -273,7 +277,7 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 			return jsonRpcResult(message.id, await run());
 		} catch (error) {
 			if (error instanceof JsonRpcError) {
-				return jsonRpcError(message.id, error.code, error.message, error.suggestion);
+				return jsonRpcError(message.id, error.code, error.message, error.suggestion, error.data);
 			}
 			report(error);
 			return jsonRpcError(
@@ -344,11 +348,14 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 					modern: false,
 				});
 				if (carrier.kind === 'refuse') return resultContent(failure(carrier.error), true);
-				return routeToolCall(
-					params.name,
-					args,
-					carrier.approver ? bindApprover(context, carrier.approver) : context
-				);
+				let routedContext = carrier.approver ? bindApprover(context, carrier.approver) : context;
+				if (deps.tasks) {
+					routedContext = bindTaskDispatch(
+						routedContext,
+						deps.tasks.legacyHttpDispatchFor(auth?.credentialsFor(req))
+					);
+				}
+				return routeToolCall(params.name, args, routedContext);
 			}
 			default:
 				throw methodNotFound(message.method);
