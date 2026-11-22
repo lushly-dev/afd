@@ -37,7 +37,7 @@ export function oidcMethodsOf(analysis: DeploymentAnalysis): string[] {
 }
 
 /**
- * Better Auth 1.7.18's environment variables that would change what Loam trusts (B1 of step 3's review; the
+ * Better Auth 1.7.26's environment variables that would change what Loam trusts (B1 of step 3's review; the
  * coordinator's decision of 2026-11-16): each widens or replaces a rule Loam sets from its own files, so the hosted
  * server does not run while one is set. `BETTER_AUTH_TRUSTED_ORIGINS` is always added to the trusted origins,
  * `BETTER_AUTH_SECRETS` replaces the `[auth]` secret, and `BETTER_AUTH_TELEMETRY` turns telemetry on whatever the

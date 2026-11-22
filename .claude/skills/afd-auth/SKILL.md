@@ -104,7 +104,7 @@ type SignInOutcome =
 
 **`BetterAuthAdapter`**: `new BetterAuthAdapter({ client, initial?, onListenerError? })` bridges the client's `useSession` nanostore to `onAuthStateChange`; `dispose()` unsubscribes. It forwards OAuth `scopes` and `redirectTo` (as `callbackURL`) to `signIn.social` and reports the redirect as a `redirect` outcome. A credentials 401 is `INVALID_CREDENTIALS`.
 
-- Tested on Better Auth 1.7.18 with `@better-auth/passkey` 1.7.18, pinned exactly (1.7.14's passkey peers do not resolve without `--legacy-peer-deps`).
+- Tested on Better Auth 1.7.26 with `@better-auth/passkey` 1.7.26, pinned exactly (1.7.14's passkey peers do not resolve without `--legacy-peer-deps`).
 - `initial` is reported until the store first answers (a session the page read from its server). `refresh()` calls the store's `refetch`.
 - It always has `sessions` (Better Auth's `/list-sessions`, which needs a fresh session, and `/revoke-*`), `passkeys` (needs `passkeyClient()`) and `organization` (needs `organizationClient()`). The client is a path proxy that answers every property, so a missing plugin cannot be detected: its calls fail with `PROVIDER_ERROR`. Never detach a method with `.call` or `.bind`: the proxy reads those as route names.
 - A passkey ceremony needs WebAuthn (checked first, `PASSKEY_UNSUPPORTED`), and `autoFill: true` needs `PublicKeyCredential.isConditionalMediationAvailable()` too. SimpleWebAuthn's abort and `NotAllowedError`, and the plugin's `AUTH_CANCELLED`, are `PASSKEY_CANCELLED`; so is a network failure while the client verifies the assertion, which the plugin reports as `AUTH_CANCELLED`. Better Auth needs a verified email to list or accept an invitation.

@@ -190,7 +190,7 @@ const client = createAuthClient({ plugins: [organizationClient(), passkeyClient(
 const adapter = new BetterAuthAdapter({ client, initial }); // initial: optional
 ```
 
-- Tested on Better Auth 1.7.18 with `@better-auth/passkey` 1.7.18, both pinned
+- Tested on Better Auth 1.7.26 with `@better-auth/passkey` 1.7.26, both pinned
   exactly in this package's development dependencies.
 - `BetterAuthAdapter` forwards OAuth `scopes` and `redirectTo` (as
   `callbackURL`) to `signIn.social`, and reports its redirect URL as a

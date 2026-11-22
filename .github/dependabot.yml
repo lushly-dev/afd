@@ -32,16 +32,25 @@ updates:
         patterns:
           - playwright
           - '@playwright/test'
+      # Loam pins better-auth and its plugins together at one exact version and audits
+      # their environment-variable reads on every move (#1960).
+      better-auth:
+        patterns:
+          - better-auth
+          - '@better-auth/*'
       dev-deps:
         dependency-type: development
         update-types:
           - minor
           - patch
-        # Playwright moves only in the group above. This group took `@playwright/test`
-        # as well and moved it alone, which split the lockfile the same way (#961).
+        # Playwright and Better Auth move only in their groups above. Without exclusions
+        # here, dev-deps takes the devDependencies copies alone and splits the lockfile
+        # (#961, #1960).
         exclude-patterns:
           - playwright
           - '@playwright/test'
+          - better-auth
+          - '@better-auth/*'
 
   - package-ecosystem: uv
     directory: /python
