@@ -4,7 +4,7 @@ Epic: [#1110](https://github.com/lushly-dev/afd/issues/1110). File new work for 
 
 Read this before the [proposal](pointing.proposal.md). It records exactly what is done and what is not, so an
 agent never has to scan the code to learn what is current. It follows the shape of the
-[Patterns status](../../proposed/patterns/STATUS.md).
+[Patterns status](../patterns/STATUS.md).
 
 ## How to keep this file
 
@@ -99,7 +99,7 @@ only; no text or code was taken from it.
 
 | Date | Session | What changed |
 | --- | --- | --- |
-| 2026-11-13 | Scaffold | After the [Patterns](../../proposed/patterns/patterns.proposal.md) proposal, the owner agreed to four follow-on proposals from the same discussion: Design Decisions, Screens from Jobs, Pointing and Scales. This scaffold was written from a survey of the code, reviewed once by an independent reader, and committed with its epic |
+| 2026-11-13 | Scaffold | After the [Patterns](../patterns/patterns.proposal.md) proposal, the owner agreed to four follow-on proposals from the same discussion: Design Decisions, Screens from Jobs, Pointing and Scales. This scaffold was written from a survey of the code, reviewed once by an independent reader, and committed with its epic |
 | 2026-11-13 | Draft | The owner asked for the proposals to be filled in and kept as draft. Section 2 verified first-hand at `f7ecbd43`; jobs tightened (every job has a "so that"; job 3 and 9 stay quiet, jobs 4 and 8 refuse; the scaffold's "leave the rest alone" became job 6, "name what else moves"); design, eight commands and nine scenarios written; the three checks pass; six recommendations made for the owner |
 | 2026-11-13 | Walk | One fresh reader walked the draft as the person, the job list and the calling agent. Blockers: scenarios 01 and 02 disagreed on which element a role resolves to (fixed by one shared climb, 4.1, and a separate `accessible`); job 5 showed the person nothing (screenshots and a preview link added); job 8 ended at detection (`specimen-note-move`, bulk `ids` on resolve). Improvements: token-only correction stated; `specimen-note-add` takes a pointer; `specimen-note-check` reports `unchecked` and `weakened`; `specimen-note-reopen` and `withdrawn`; random note ids; candidate tokens from Violet's `specimen.get`; paging; the check rule in the result and description; the CLI named with its launch cost. Separately, partial list assertions rewritten as dotted paths. Checks rerun clean: ten commands, 37 steps |
 | 2026-11-13 | Review | An independent review of the three drafts. Fixed here: step references in `expect` (01, 07) replaced with literal values and patterns; a refusal in 04 given its suggestion; fixtures added for every scenario (stale point, orphaned notes, one note, toolbar, inbox); element refs numbered by tag (`example-button:1` and `:2`); `specimen-impact` takes `point` optionally and is a mutation (it writes screenshots); `pt-` ids defined; `SPECIMEN_NOT_FOUND` names the nearest ids. Shared conventions with the other two proposals recorded in proposal 4.0 for the owner to confirm: random ids, `specimens/` for committed records and `.specimen/` (to be gitignored) for local data, the MCP host from Design Decisions' phase 5. Checks rerun clean |

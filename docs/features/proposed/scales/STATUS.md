@@ -4,7 +4,7 @@ Epic: [#1111](https://github.com/lushly-dev/afd/issues/1111). File new work for 
 
 Read this before the [proposal](scales.proposal.md). It records exactly what is done and what is not, so an
 agent never has to scan the code to learn what is current. It follows the shape of the
-[Patterns status](../patterns/STATUS.md).
+[Patterns status](../../active/patterns/STATUS.md).
 
 ## How to keep this file
 
@@ -121,7 +121,7 @@ All 7 blockers and 7 improvements were applied to [scales.proposal.md](scales.pr
 
 | Date | Raised by | Follow-up | Status |
 | --- | --- | --- | --- |
-| 2026-11-12 | First Patterns draft | Raised in the [Patterns status](../patterns/STATUS.md#follow-ups-not-yet-issues); this proposal is where it is now tracked | Moved here |
+| 2026-11-12 | First Patterns draft | Raised in the [Patterns status](../../active/patterns/STATUS.md#follow-ups-not-yet-issues); this proposal is where it is now tracked | Moved here |
 | 2026-11-22 | Pass 1 Q6 / Pass 3 Q4 | `violet-elements` HTML attribute taxonomy (`size` using `xs..xl` / `sm..lg` / `compact..comfortable`, `density`, `padding` using `none`/`small`/`medium`/`large` in `foundations/fast-af/packages/violet-elements/attribute-taxonomy.jsonc`). Out of scope for Scales | Filed as [#2120](https://github.com/lushly-dev/afd/issues/2120) |
 | 2026-11-22 | First walk (Seat 1) | Year-in off-ramp auditing: expose `reason` on `tokens.matrix` (`MatrixCellSchema`) or add an `onlyOffRamp` filter to `tokens.resolve` so accumulated unique reasoned off-ramp exceptions can be reviewed without dumping every token | Open (Slice 2 / follow-up) |
 
@@ -129,5 +129,5 @@ All 7 blockers and 7 improvements were applied to [scales.proposal.md](scales.pr
 
 | Date | Session | What changed |
 | --- | --- | --- |
-| 2026-11-13 | Scaffold | After the [Patterns](../patterns/patterns.proposal.md) proposal, the owner agreed to four follow-on proposals from the same discussion: Design Decisions, Screens from Jobs, Pointing and Scales. This scaffold was written from a survey of the code, reviewed once by an independent reader, and committed with its epic |
+| 2026-11-13 | Scaffold | After the [Patterns](../../active/patterns/patterns.proposal.md) proposal, the owner agreed to four follow-on proposals from the same discussion: Design Decisions, Screens from Jobs, Pointing and Scales. This scaffold was written from a survey of the code, reviewed once by an independent reader, and committed with its epic |
 | 2026-11-22 | Walkthrough, draft, walk & review | Ran a three-pass walkthrough with the owner locking Pass 1–3 decisions, rewrote `scales.proposal.md`, updated `STATUS.md` and `docs/features/README.md`, filed standalone attribute issue [#2120](https://github.com/lushly-dev/afd/issues/2120), wrote 8 scenarios, ran a fresh three-seat reader walk (7 blockers, 7 improvements) and a two-model independent review (Gemini 4 Neon `high` + GPT-6.2 Astra `high`; all findings applied), and re-verified all three `jobs-first` checks |

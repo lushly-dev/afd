@@ -1,6 +1,7 @@
-# Draft JTBD scenario for the Patterns proposal. The commands and their shapes are proposals.
+# Phase A JTBD scenario for Patterns (`docs/features/active/patterns/spec.md`, Umbel Amendment A31).
 # The data is invented, on the pack format's `example` library: `example-select` and the
 # deprecated `example-dropdown` both implement `select`, and `example-field` implements `field`.
+# Single-library `components-brief` uses compact same-library string pattern links (Phase 0.4 P0-6).
 # Lists are asserted with dotted index paths where only part of an item or a variable length
 # matters, because `afd-testing` requires exact length matches on object arrays and compares
 # plain arrays whole.
@@ -13,7 +14,7 @@ job: brief-with-patterns
 tags: [slice, use]
 
 steps:
-  - description: Two components of two patterns bring both patterns' statements and per-component pattern links
+  - description: Two components of two patterns bring both patterns' statements and compact same-library pattern links
     command: components-brief
     input:
       tags: [example-select, example-field]
@@ -22,8 +23,8 @@ steps:
       data:
         content.trust: content
         content.components: { length: 2 }
-        content.components.0.patterns.0.library: example
-        content.components.0.patterns.0.pattern: select
+        content.components.0.patterns.0: select
+        content.components.1.patterns.0: field
         content.patterns: { length: 2 }
         unknown: { length: 0 }
 

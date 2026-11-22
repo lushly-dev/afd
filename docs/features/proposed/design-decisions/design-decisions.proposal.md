@@ -26,7 +26,7 @@
 | --- | --- |
 | Epic | [#1108](https://github.com/lushly-dev/afd/issues/1108) |
 | Units likely touched | `foundations/specimen` (capture sets, comparison, review, the review pages), `integrations/specimen-afd` (the commands), `endpoints/specimen-cli` (and an MCP host for it); later `integrations/violet-afd` and `endpoints/loam` |
-| Related | [Patterns](../patterns/patterns.proposal.md) (epic [#1073](https://github.com/lushly-dev/afd/issues/1073)), [Screens from Jobs](../../active/screens-from-jobs/screens-from-jobs.proposal.md), [Pointing](../../active/pointing/pointing.proposal.md), [Scales](../scales/scales.proposal.md), [Specimens status](../../complete/specimens/STATUS.md) |
+| Related | [Patterns](../../active/patterns/patterns.proposal.md) (epic [#1073](https://github.com/lushly-dev/afd/issues/1073)), [Screens from Jobs](../../active/screens-from-jobs/screens-from-jobs.proposal.md), [Pointing](../../active/pointing/pointing.proposal.md), [Scales](../scales/scales.proposal.md), [Specimens status](../../complete/specimens/STATUS.md) |
 | Rank among the four | First. It is where a person's time goes |
 
 ## 1. Problem
@@ -256,6 +256,13 @@ They are the owner's to confirm.
   - Until the Screens from Jobs runner exists, `specimen-capture` with no ids skips job
     specimens and reports how many it skipped. Its result names `specimen-job-run`.
   - Once that runner lands, `specimen-capture` runs job specimens through it.
+- **Pattern gate cases (amended 2026-11-22 for [Patterns](../../active/patterns/spec.md), #1073).**
+  - `specimen-capture` with no explicit `ids` (and no `filter` explicitly selecting `kind: 'gate'`)
+    skips synthesized Pattern gate cases (`<case>--gate--<gate>`, `kind: 'gate'`) and reports how
+    many it skipped in `skipped.gates` (with `skipped.gatesNext: 'specimen-run'` when non-zero;
+    `skipped.next` stays `'specimen-job-run'` for skipped job specimens). Gate cases are behavioral
+    pass/fail tests rather than visual review captures; callers who explicitly pass a gate id in
+    `ids` or request `filter.kind` including `'gate'` still capture them.
 - **One host.** Phase 5 extends existing `endpoints/specimen-server`
   ([#1320](https://github.com/lushly-dev/afd/pull/1320)) with `confirmations: 'require-human'`;
   the other two proposals use the same host.
@@ -306,8 +313,11 @@ run writes the same kind of set, keyed `<id>/<step>`.
     A specimen that renders the time therefore hashes differently on every capture until it is
     given a fixed clock. The review reports such a specimen as `changed`, with the clock-driven
     difference.
-- **Job specimens are skipped** when no ids are given, until Screens from Jobs' runner exists.
-  `skipped.jobs` counts them and names `specimen-job-run`.
+- **Job specimens and Pattern gate cases are skipped** when no `ids` (and no `filter` selecting
+  `kind: 'gate'`) are given: `skipped.jobs` counts job specimens (`skipped.next: 'specimen-job-run'`,
+  until Screens from Jobs' runner exists) and `skipped.gates` counts synthesized Pattern gate cases
+  (`<case>--gate--<gate>`, `skipped.gatesNext: 'specimen-run'`; amended 2026-11-22 for
+  [Patterns](../../active/patterns/spec.md)).
 - **A label** (`main`, `branch`) is a local pointer to a set id. It is not a git ref. A set is
   captured from the working tree, so to capture `main`, run it in a checkout of `main`. The set
   records the revision and whether the tree was dirty, and the review shows both.
@@ -466,7 +476,7 @@ Every command lives in `integrations/specimen-afd`, with its logic in `foundatio
 
 | Command | New | Input | Result |
 | --- | --- | --- | --- |
-| `specimen-capture` | Yes, mutation (writes a set) | `ids` or `filter`, `context`, `checkpoint`, `label`, `axe` (default on) | `set`, `label`, `revision`, `dirty`, `counts` (`captured`, `unavailable`, `axe.passed`, `axe.failed`, `axe.incomplete`), `unavailable` (`id`, `reason`), `skipped` (`jobs`, `next`) |
+| `specimen-capture` | Yes, mutation (writes a set) | `ids` or `filter`, `context`, `checkpoint`, `label`, `axe` (default on) | `set`, `label`, `revision`, `dirty`, `counts` (`captured`, `unavailable`, `axe.passed`, `axe.failed`, `axe.incomplete`), `unavailable` (`id`, `reason`), `skipped` (`jobs`, `gates`, `next`, `gatesNext`) |
 | `specimen-compare` | Yes, mutation (writes a set) | `ids` (2 to 8), `context`, `checkpoint` | `set`, `context`, `checkpoint`, `captures` (`id`, `status`, `axe`, `violations`, `screenshot`), `differences` (`id`, `against`, `status`, `channels`), `page` |
 | `specimen-diff` | Extended | `left` and `right` each an observation or `{ set, id }` | As today; `events` added to the output schema |
 | `specimen-review` | Yes, read | `before`, `after` (set ids or labels), `ids` | `before` and `after` (`set`, `label`, `revision`, `dirty`), `open` (`item`, `kind`, `ids`, `cause` or `check`, `question`, `options`, `captures`, `decision` as `{ decision, reason }`), `blocking`, `settled` (`unchanged`, `kept`, `answered`), `page` |

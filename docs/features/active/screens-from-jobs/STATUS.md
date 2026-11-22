@@ -4,7 +4,7 @@ Epic: [#1109](https://github.com/lushly-dev/afd/issues/1109). File new work for 
 
 Read this before the [proposal](screens-from-jobs.proposal.md). It records exactly what is done
 and what is not, so an agent never has to scan the code to learn what is current. It follows
-the shape of the [Patterns status](../../proposed/patterns/STATUS.md).
+the shape of the [Patterns status](../patterns/STATUS.md).
 
 ## How to keep this file
 
@@ -199,7 +199,7 @@ exactly. Every list is now asserted by a dotted index path.
 
 | Date | Raised by | Follow-up | Status |
 | --- | --- | --- | --- |
-| 2026-11-12 | First Patterns draft | Raised in the [Patterns status](../../proposed/patterns/STATUS.md#follow-ups-not-yet-issues) as Specimen's application-command runner (T11) letting one scenario drive a screen to a state; this proposal is where it is now tracked | Moved here |
+| 2026-11-12 | First Patterns draft | Raised in the [Patterns status](../patterns/STATUS.md#follow-ups-not-yet-issues) as Specimen's application-command runner (T11) letting one scenario drive a screen to a state; this proposal is where it is now tracked | Moved here |
 | 2026-11-13 | Scaffold survey | `onStepComplete` in `packages/testing` is synchronous, not awaited, and fires for skipped steps | Addressed in the draft: Phase 1 ([#2036](https://github.com/lushly-dev/afd/issues/2036)) adds awaited `beforeStep` and `afterStep` hooks and leaves `onStepComplete` as it is |
 | 2026-11-13 | Review | Add `.specimen/` to the root `.gitignore`. Shared with Design Decisions, whose phase 1 adds it | Done 2026-11-21 ([#1132](https://github.com/lushly-dev/afd/issues/1132)), after the owner confirmed the convention |
 | 2026-11-13 | Draft | Link Screens from Jobs from T11's row in the [Specimens status](../../complete/specimens/STATUS.md). That file is provenance-tracked, so run its provenance script | Deferred to Phase 3 ([#1212](https://github.com/lushly-dev/afd/issues/1212)) per Q16 on 2026-11-22 |
@@ -209,7 +209,7 @@ exactly. Every list is now asserted by a dotted index path.
 
 | Date | Session | What changed |
 | --- | --- | --- |
-| 2026-11-13 | Scaffold | After the [Patterns](../../proposed/patterns/patterns.proposal.md) proposal, the owner agreed to four follow-on proposals from the same discussion: Design Decisions, Screens from Jobs, Pointing and Scales. This scaffold was written from a survey of the code, reviewed once by an independent reader, and committed with its epic |
+| 2026-11-13 | Scaffold | After the [Patterns](../patterns/patterns.proposal.md) proposal, the owner agreed to four follow-on proposals from the same discussion: Design Decisions, Screens from Jobs, Pointing and Scales. This scaffold was written from a survey of the code, reviewed once by an independent reader, and committed with its epic |
 | 2026-11-13 | Scaffold | Correction: the discussion of 2026-11-12, and the Patterns follow-up above, said Loam's scenario files assert the same commands its screen specimens stub. Loam has no scenario files; its job tests are Vitest. The proposal's section 2 states it correctly |
 | 2026-11-13 | Review | An independent review of the three drafts. The coordinator set shared conventions, which the owner has yet to confirm:<br>- runs save Design Decisions capture sets keyed `<job>/<step>`;<br>- seeing what changed and accepting go through `specimen-review` and `decision-record`;<br>- `specimen-job-diff`, `specimen-job-accept` and the committed baseline are dropped;<br>- `.specimen/` is to be ignored;<br>- the MCP host is Design Decisions' phase 5.<br>Also fixed: the person-action limit is stated, `specimen-render` takes `id`, `STEP_HAS_NO_DESCRIPTION`, references in `input` only. Eight commands new or extended; checks rerun clean |
 | 2026-11-13 | Walk | One fresh reader walked the draft, taking all three seats; verdict "revise". Every finding was fixed:<br>- the step loop moved into the page;<br>- runs keep their captures;<br>- list assertions became dotted paths;<br>- `specimen-list` and the parser were extended;<br>- four jobs were added and three folded into job 1, for eleven in all;<br>- `specimen-job-create`, `-diff` and `-accept` were drafted;<br>- `specimen-cli` joined the units touched.<br>The checks were rerun clean |

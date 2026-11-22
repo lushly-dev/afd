@@ -8,32 +8,35 @@ records which hold, and Umbel serves the result.
 
 ## Status
 
-- **State:** proposed (owner decisions recorded, walked and reviewed,
-  2026-11-21). Drafted 2026-11-12 against `main` at `d152f3dc`; revised
-  2026-11-21 against `main` at `9e2aff933` to record the owner's walkthrough
-  decisions, apply three-seat reader walks (Person, Job List, Calling Agent)
-  and two-model independent review, and reconcile shared conventions with the
-  sibling proposals ([#1133](https://github.com/lushly-dev/afd/issues/1133)).
-  Nothing is implemented and nothing is measured. [STATUS.md](STATUS.md) tracks
-  progress.
+- **State:** active (Phase 0 step 0.5 **go with changes** approved 2026-11-22 on
+  [#1966](https://github.com/lushly-dev/afd/issues/1966); promoted from `proposed/` to `active/`).
+  Drafted 2026-11-12 against `main` at `d152f3dc`; revised 2026-11-21 against `main` at `9e2aff933`
+  ([#1133](https://github.com/lushly-dev/afd/issues/1133)); Phase 0 measured 2026-11-22
+  ([#2122](https://github.com/lushly-dev/afd/pull/2122)); Phase A specification opened 2026-11-22
+  ([#2133](https://github.com/lushly-dev/afd/issues/2133)) in [`spec.md`](spec.md) and
+  [Umbel Amendment A31](../../../../endpoints/umbel/docs/plugins/components/spec.md#amendment-a31-patterns-and-saved-copies-1073).
+  Phases B–D remain gated on Phase A exit approval. [STATUS.md](STATUS.md) tracks progress.
 - **Verified:** the facts in [What exists today](#3-what-exists-today) were
-  read on `main` at `d152f3dc` and re-verified at `9e2aff933` (including
-  Component Briefs' completion on 2026-11-13, A28 `content.guidance`, A30
-  `components-check`, `endpoints/specimen-server` #1320, `.gitignore` #1132
-  and Loam's `shellFixture` specimens). All ten jobs are written as scenario
-  files and pass the checks in [Jobs](#4-jobs).
-- **Not verified:** everything in [Design](#5-design). It is a draft to write
-  jobs against, waiting on [Phase 0](#phase-0-prove-it) ([#1966](https://github.com/lushly-dev/afd/issues/1966)).
-- **Evidence this rests on:** thin. [Component Briefs](../../complete/component-briefs/prototype.md)
-  found that better context made an agent's pages cheaper and not measurably
-  more correct. [Phase 0](#phase-0-prove-it) tests this proposal's claims
-  before any format is written.
+  read on `main` at `d152f3dc` and re-verified at `9e2aff933`. Phase 0 steps 0.1–0.4 were measured
+  live in Chromium, Specimen, Umbel, and 15 builder sessions ([STATUS.md](STATUS.md#phase-0-findings)).
+  All ten jobs are written as scenario files aligned to Phase A contracts and pass the checks in
+  [STATUS.md](STATUS.md#how-the-jobs-were-checked).
+- **Normative specification:** [Design](#5-design) and [Drafted commands](#6-drafted-commands)
+  below are the proposal's original draft; exact Phase A wire contracts, Pack Format 2, and all
+  seven Phase 0 adjustments live in [`spec.md`](spec.md) and
+  [Umbel Amendment A31](../../../../endpoints/umbel/docs/plugins/components/spec.md#amendment-a31-patterns-and-saved-copies-1073).
+- **Evidence this rests on:** Phase 0 measurements ([STATUS.md](STATUS.md#phase-0-findings)):
+  10/10 seeded faults caught on real `violet-*` components (18/20 shared), 15/20 saved regions
+  faithfully reproduced with 0/20 false `complete`, 43%–54% median token reduction with 100% pass
+  rate on the builder experiment ($2.89 of $25 cap), and Loam `chrome` briefs smaller than post-A24
+  baseline at both 96k and 40k budgets once `customize` sheds before `usage`.
 
 | Field | Value |
 | --- | --- |
 | Epic | [#1073](https://github.com/lushly-dev/afd/issues/1073) |
+| Specification | [`spec.md`](spec.md), [Umbel Amendment A31](../../../../endpoints/umbel/docs/plugins/components/spec.md#amendment-a31-patterns-and-saved-copies-1073) |
 | Units touched | `foundations/specimen`, `integrations/specimen-afd`, `endpoints/specimen-cli`, `integrations/specimen-fast-af`, `foundations/fast-af/packages/violet-elements`, `endpoints/umbel` (its `components` plugin), `endpoints/loam` (its specimens and design record) |
-| Related | [Specimens status](../../complete/specimens/STATUS.md), [Component Briefs status](../../complete/component-briefs/STATUS.md), [Design Decisions](../design-decisions/design-decisions.proposal.md) ([#1108](https://github.com/lushly-dev/afd/issues/1108)), [Screens from Jobs](../../active/screens-from-jobs/screens-from-jobs.proposal.md) ([#1109](https://github.com/lushly-dev/afd/issues/1109)), [Pointing](../../active/pointing/pointing.proposal.md) ([#1110](https://github.com/lushly-dev/afd/issues/1110)), [Scales](../scales/scales.proposal.md) ([#1111](https://github.com/lushly-dev/afd/issues/1111)), [pack format](../../../../foundations/specimen/docs/pack-format.md), [`components` plugin specification](../../../../endpoints/umbel/docs/plugins/components/spec.md), [Loam design skill](../../../../.claude/skills/loam-design/SKILL.md) |
+| Related | [Specimens status](../../complete/specimens/STATUS.md), [Component Briefs status](../../complete/component-briefs/STATUS.md), [Design Decisions](../../proposed/design-decisions/design-decisions.proposal.md) ([#1108](https://github.com/lushly-dev/afd/issues/1108)), [Screens from Jobs](../screens-from-jobs/screens-from-jobs.proposal.md) ([#1109](https://github.com/lushly-dev/afd/issues/1109)), [Pointing](../pointing/pointing.proposal.md) ([#1110](https://github.com/lushly-dev/afd/issues/1110)), [Scales](../../proposed/scales/scales.proposal.md) ([#1111](https://github.com/lushly-dev/afd/issues/1111)), [pack format](../../../../foundations/specimen/docs/pack-format.md), [`components` plugin specification](../../../../endpoints/umbel/docs/plugins/components/spec.md), [Loam design skill](../../../../.claude/skills/loam-design/SKILL.md) |
 
 ## 1. Problem and goal
 
@@ -76,8 +79,8 @@ Four things are hard today.
 writes the code and Git keeps the history. Pattern inheritance or nesting.
 Ranked search (the knowledge plugin's job, as Component Briefs decided).
 Replacing a component's own stories. Changing how tokens are named or scaled
-([Scales](../scales/scales.proposal.md), [#1111](https://github.com/lushly-dev/afd/issues/1111)).
-A review surface for people: [Design Decisions](../design-decisions/design-decisions.proposal.md)
+([Scales](../../proposed/scales/scales.proposal.md), [#1111](https://github.com/lushly-dev/afd/issues/1111)).
+A review surface for people: [Design Decisions](../../proposed/design-decisions/design-decisions.proposal.md)
 ([#1108](https://github.com/lushly-dev/afd/issues/1108)) owns the single
 Specimen review surface and confirmation-gated MCP host; Patterns adds neither.
 
@@ -265,7 +268,7 @@ additions (Job 10, `specimen-list`, `PATTERN_SETUP_MISSING`, `PATTERN_UNKNOWN`,
 | Cross-library pattern loading in Specimen, cross-library implementation aggregation in Umbel, and app-level packs without a CEM (Loam) were unspecified (Job List B4, Person B1, Calling Agent B4) | Added `patternSources` and `pack.dependencies` in `specimen.config.json` (§5.1, §5.4), optional `library` on setups/obligations/implementations, and read-time cross-library implementation aggregation in Umbel (§5.7); updated Jobs 3 and 9 |
 | Collapsing `missing` and `out-of-context` into `basis: authored` broke Decision 5 and Job 9 (Person B2, Calling Agent I4, Walk 2 B1) | `patterns@1` coverage reports four levels (`verified`, `missing`, `ungated`, `out-of-context`); `specimen-pack` refuses components with `missing` gated setups (`PATTERN_SETUP_MISSING`, shown in Job 3), so pack format 2 preserves the three packable bases (`verified`, `ungated`, `out-of-context` with `reason`); Job 9 runs `specimen-run` and asserts `out-of-context` end to end |
 | Hashing the packed `.json` as `revision` let `fingerprint` or `basis` changes churn `revision` (Person B4) | `revision` hashes canonical `.html` + `.css` bytes only (§2, §5.4, §5.6); `components-pattern-open` stamps `data-pattern-copy` on served HTML and in-repo disk copies read `revision` from `<name>.json` |
-| Shadow-DOM `{ role, name }` resolution in `specimen-pattern-save` conflicted with Pointing's host-climb rule (Person B5) | Adopted [Pointing §4.1](../../active/pointing/pointing.proposal.md#41-one-rule-for-what-is-selected) and optional `point` id input (§5.0, §5.4) |
+| Shadow-DOM `{ role, name }` resolution in `specimen-pattern-save` conflicted with Pointing's host-climb rule (Person B5) | Adopted [Pointing §4.1](../pointing/pointing.proposal.md#41-one-rule-for-what-is-selected) and optional `point` id input (§5.0, §5.4) |
 | Umbel output budgets, shedding order, pagination and copy size limits were undefined (Calling Agent B1) | Set budgets for `components-pattern-list` (16/64 KB) and `components-pattern-open` (32/96 KB + `skip`), placed `content.patterns` in `components-brief` shedding order with `components-pattern-open` recovery, and capped saved copy `html` (16 KB) / `css` (8 KB) (§5.6, §5.7) |
 | `copies[]` sat outside `trust: "content"` (D153) and format 2 lacked ASCII identifier forms (Calling Agent B2) | Moved `copies` into `content.copies` under `trust: "content"`, defined ASCII-only identifier forms with `umbel-scan` drop rules, and specified `render: "text"` quoting (§5.1, §5.7, Job 8) |
 | `specimen-run` on main only runs retained stories (`bench-runtime.ts:552-555`), `specimen-list` outputs `{ specimens }` (`commands.ts:253`), `specimen-pack-export` requires `directory` and returns `files`/`digest` (`schema.ts:935-947`), and unbounded outputs flooded context (Calling Agent B3, Review B1/B2) | Documented current `specimen-run` limit in §3 and added native gate execution + gate outcome shape (`passed`/`failed`/`out-of-context`) + single-id `capture` extension in §5.3/§6/B3; fixed Job 4 (`specimens.0.id`) and Job 6 (`directory`, `files`/`digest`); used story-safe `--gate--` ids; defined browserless `fingerprintsOnly: true` (`valid`, `stale`, `changedTags`) in Job 7 |
@@ -318,9 +321,9 @@ flowchart LR
 ### 5.0 Shared conventions (aligned with sibling proposals)
 
 Confirmed by the owner on 2026-11-21 to align Patterns with
-[Design Decisions](../design-decisions/design-decisions.proposal.md),
-[Screens from Jobs](../../active/screens-from-jobs/screens-from-jobs.proposal.md) and
-[Pointing](../../active/pointing/pointing.proposal.md):
+[Design Decisions](../../proposed/design-decisions/design-decisions.proposal.md),
+[Screens from Jobs](../screens-from-jobs/screens-from-jobs.proposal.md) and
+[Pointing](../pointing/pointing.proposal.md):
 
 - **Committed records live under `specimens/`.** Pattern files and saved copies
   default to `specimens/patterns/<pattern>/pattern.json` and
@@ -338,7 +341,7 @@ Confirmed by the owner on 2026-11-21 to align Patterns with
   surface or host, and single-id gate runs default to `capture: "none"` so no
   full `Observation` enters agent context (Design Decisions exit criterion 1).
 - **Shared element resolution.** `specimen-pattern-save` adopts Pointing's
-  shared `{ role, name }` host-climb rule ([Pointing §4.1](../../active/pointing/pointing.proposal.md#41-one-rule-for-what-is-selected))
+  shared `{ role, name }` host-climb rule ([Pointing §4.1](../pointing/pointing.proposal.md#41-one-rule-for-what-is-selected))
   so resolving an accessible element inside a custom element's shadow root
   climbs to the host custom element before extracting light DOM.
 - **Every command that writes files is a mutation.** `specimen-pattern-save`,
@@ -747,7 +750,7 @@ Each is its own decision.
 - `specimen-matrix` with implementations as an axis, so a person compares
   two implementations of one pattern in the same setup.
 - Gates chosen for a token change, on Specimen's planned token impact (T09).
-- Setups that need an application's commands, on [Screens from Jobs](../../active/screens-from-jobs/screens-from-jobs.proposal.md)
+- Setups that need an application's commands, on [Screens from Jobs](../screens-from-jobs/screens-from-jobs.proposal.md)
   (T11, [#1109](https://github.com/lushly-dev/afd/issues/1109)). Until then a
   setup uses `shellFixture` or a stub client, as Loam's specimens do.
 - Implementations Specimen cannot run, listed with no evidence.
@@ -821,9 +824,9 @@ section-by-section walkthrough on 2026-11-21:
 
 ## 13. Out of scope
 
-Publishing any unit. Token names, scales or derived values ([Scales](../scales/scales.proposal.md),
+Publishing any unit. Token names, scales or derived values ([Scales](../../proposed/scales/scales.proposal.md),
 [#1111](https://github.com/lushly-dev/afd/issues/1111)). A person's review
-surface ([Design Decisions](../design-decisions/design-decisions.proposal.md),
+surface ([Design Decisions](../../proposed/design-decisions/design-decisions.proposal.md),
 [#1108](https://github.com/lushly-dev/afd/issues/1108)). Non-web
 implementations. Ranked search (the knowledge plugin). Automatic repair of a
 copy whose source changed: the marker makes it findable, and the repair is a

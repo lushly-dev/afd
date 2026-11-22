@@ -2,7 +2,7 @@
 
 Read this before the [proposal](agent-os.proposal.md). It records exactly what is done and what is
 not, so an agent never has to scan the code to learn what is current. It follows the shape of the
-[Patterns status](../patterns/STATUS.md).
+[Patterns status](../../active/patterns/STATUS.md).
 
 ## How to keep this file
 

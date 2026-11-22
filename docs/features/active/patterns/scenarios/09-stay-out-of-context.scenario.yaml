@@ -1,4 +1,4 @@
-# Draft JTBD scenario for the Patterns proposal. The commands and their shapes are proposals.
+# Phase A JTBD scenario for Patterns (`docs/features/active/patterns/spec.md`, Umbel Amendment A31).
 # The data is invented. Canonical `example/select` keep order across scenarios: 0=named,
 # 1=escape-closes, 2=shows-choice, 3=fits-narrow. The `fits-narrow` gate runs at a viewport
 # 390 wide. `example-select` (in `example`) is for every viewport. `desk-select` (in `desktop`)
@@ -38,7 +38,7 @@ steps:
       success: true
       data:
         patterns.complete: true
-        patterns.implementations.0.library: example
+        patterns.implementations.0.patternLibrary: example
         patterns.implementations.0.tag: example-select
         patterns.implementations.0.keep.3.id: select.keep.fits-narrow
         patterns.implementations.0.keep.3.level: verified
@@ -51,7 +51,7 @@ steps:
       success: true
       data:
         patterns.complete: true
-        patterns.implementations.0.library: example
+        patterns.implementations.0.patternLibrary: example
         patterns.implementations.0.tag: desk-select
         patterns.implementations.0.keep.3.id: select.keep.fits-narrow
         patterns.implementations.0.keep.3.level: out-of-context

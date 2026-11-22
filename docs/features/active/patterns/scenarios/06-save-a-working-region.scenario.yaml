@@ -1,4 +1,4 @@
-# Draft JTBD scenario for the Patterns proposal. The commands and their shapes are proposals.
+# Phase A JTBD scenario for Patterns (`docs/features/active/patterns/spec.md`, Umbel Amendment A31).
 # The data is invented. The case `orders-empty` renders an orders screen with nothing in it:
 # a region named "Orders" holding a heading and a short explanation. The case `orders-list`
 # renders the same screen with rows whose click handlers were bound by the page.
@@ -6,8 +6,10 @@
 # matters, because `afd-testing` requires exact length matches on object arrays and compares
 # plain arrays whole.
 #
-# Note: in a live Umbel session, serving a freshly exported pack also requires reloading the
-# Umbel MCP server (component pack overrides are loaded on start).
+# Note: between steps 2 and 6, the author fills in `empty-collection/pattern.json` (adding the
+# `empty` setup and `no-outer-margin` gate) and binds `setup: empty` on `collection-empty.json`.
+# In a live Umbel session, serving a freshly exported pack also requires reloading the Umbel MCP
+# server (component pack overrides are loaded on start).
 
 name: Save a working region as a reference
 description: >-
@@ -49,6 +51,7 @@ steps:
         created.pattern: true
         stripped: { length: 0 }
         remount.same: true
+        remount.errors: { length: 0 }
         screenshot: { exists: true }
         gaps: [summary, useWhen, avoidWhen, keep, customize]
 

@@ -1,4 +1,4 @@
-# Draft JTBD scenario for the Patterns proposal. The commands and their shapes are proposals.
+# Phase A JTBD scenario for Patterns (`docs/features/active/patterns/spec.md`, Umbel Amendment A31).
 # The data is invented. In a consumer project loading `example/empty-collection` via
 # `patternSources`, the consumer starts a new screen region (`invoices-empty`) from the library's
 # complete saved copy `collection-empty`, adapts its text, and binds a local setup case
@@ -61,7 +61,7 @@ steps:
       data:
         patterns.obligations: patterns@1
         patterns.complete: true
-        patterns.implementations.0.library: example
+        patterns.implementations.0.patternLibrary: example
         patterns.implementations.0.pattern: empty-collection
         patterns.implementations.0.kind: case
         patterns.implementations.0.case: invoices-empty
