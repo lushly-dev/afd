@@ -11,17 +11,15 @@ from __future__ import annotations
 
 import math
 from collections import Counter
+from collections.abc import Container
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 
 from afd import CommandResult, error, success
 
 from botcore.commands.disk.settings import SettingsError
-from botcore.commands.skill.frontmatter import split_frontmatter
-from botcore.commands.skill.lint import listing_characters
 from botcore.commands.skill.renames import SKILL_RENAMES
-from botcore.commands.skill_usage.collect import SKILL_DIRS, settings_refused
+from botcore.commands.skill_usage.collect import UNKNOWN_PROJECT, settings_refused
 from botcore.commands.skill_usage.events import (
     DELEGATE,
     EDIT,
@@ -98,29 +96,11 @@ def _mapping(value: object) -> dict:
     return value if isinstance(value, dict) else {}
 
 
-def skills_on_disk(root: str) -> dict[str, Held]:
-    """Each skill a checkout holds."""
-    found: dict[str, Held] = {}
-    for folder in SKILL_DIRS:
-        try:
-            children = sorted(Path(root, folder).iterdir())
-        except OSError:
-            continue
-        for child in children:
-            try:
-                text = (child / "SKILL.md").read_text(encoding="utf-8", errors="replace")
-            except OSError:
-                continue
-            listing = listing_characters(text, split_frontmatter(text)[0])
-            found.setdefault(child.name, Held(len(text.encode("utf-8")), listing))
-    return found
-
-
-def current_name(name: str, renames: dict[str, str], on_disk: dict[str, Held]) -> str:
+def current_name(name: str, renames: dict[str, str], held: Container[str]) -> str:
     """The name a skill has now. The project's own renames come first, then botcore's for the
-    skills it ships; a name the checkout still holds is never renamed."""
+    skills it ships; a name the project still holds is never renamed."""
     seen = {name}
-    while name not in on_disk:
+    while name not in held:
         following = renames.get(name) or SKILL_RENAMES.get(name)
         if not following or following in seen:
             break
@@ -227,25 +207,14 @@ def _is_project(project: str | None, name: str) -> bool:
     return project is None or project in (name, name.rpartition("/")[2])
 
 
-def _inventory(projects: dict) -> tuple[dict[str, dict[str, str]], dict[str, dict[str, Held]]]:
-    """Per project: its renames, and the skills its checkout holds."""
-    renames: dict[str, dict[str, str]] = {}
-    on_disk: dict[str, dict[str, Held]] = {}
-    for name, entry in projects.items():
-        entry = _mapping(entry)
-        renames[name] = {
-            old: new
-            for old, new in _mapping(entry.get("renames")).items()
-            if isinstance(old, str) and isinstance(new, str)
-        }
-        held: dict[str, Held] = {}
-        for root in entry.get("roots") if isinstance(entry.get("roots"), list) else []:
-            if isinstance(root, str):
-                held = skills_on_disk(root)
-                if held:
-                    break
-        on_disk[name] = held
-    return renames, on_disk
+def held_skills(record: Record) -> dict[str, dict[str, Held]]:
+    """Per project, the skills it holds: as the record says, never as a folder on this
+    machine lies, so every machine that reads the record lists the same skills, with the
+    same sizes, under the same names."""
+    return {
+        project: {name: Held(*facts) for name, facts in inventory["held"].items()}
+        for project, inventory in record.skills.items()
+    }
 
 
 def _invalid(message: str, suggestion: str) -> CommandResult[dict]:
@@ -324,9 +293,7 @@ async def skill_usage_report(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915 
             suggestion="Run skill-usage-collect first; it reads what the harnesses recorded",
         )
 
-    renames, on_disk = _inventory(_mapping(state.get("projects")))
-    for name, told in record.renames.items():  # what the other machines know of a project
-        renames[name] = {**told, **renames.get(name, {})}
+    renames, on_disk = record.renames, held_skills(record)
     known_projects = {event.project for event in events} | set(on_disk)
     known_projects |= {
         entry["project"] for entry in recorded.values() if isinstance(entry.get("project"), str)
@@ -489,6 +456,19 @@ async def skill_usage_report(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915 
         warnings.append(
             f"{outdated} events were recognised by an older botcore: run skill-usage-collect "
             "--rebuild to read them again"
+        )
+    # Every project in scope, whether or not a skill was loaded in it: an empty `quiet` list
+    # is as wrong as a missing size. Not the sessions no project is known for.
+    in_scope = {row.project for row in ordered} | set(seen)
+    unlisted = sorted(in_scope - set(on_disk) - {UNKNOWN_PROJECT})
+    if unlisted:  # a record an earlier botcore wrote: this one always says, even "none"
+        named = ", ".join(unlisted[:3]) + (
+            f" and {len(unlisted) - 3} more" if len(unlisted) > 3 else ""  # noqa: PLR2004
+        )
+        warnings.append(
+            f"No machine's record says which skills these projects hold: {named}. Their "
+            "skills have no size here, none is listed as quiet and no read is marked as an "
+            "audit, until skill-usage-collect runs on a machine that has them"
         )
 
     shown = ordered[:limit]

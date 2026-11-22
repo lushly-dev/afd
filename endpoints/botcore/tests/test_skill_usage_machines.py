@@ -21,10 +21,13 @@ from botcore.commands.skill_usage import (
 from tests.test_skill_usage import (  # noqa: F401 - fixtures
     T3Store,
     checkout,
+    checkout_at,
     collected,
     fail,
+    git,
     rows,
     run,
+    skill_text,
     stamp,
 )
 from tests.test_skill_usage_triggers import (  # noqa: F401 - fixtures
@@ -87,9 +90,20 @@ def test_collection_also_writes_the_record_to_the_shared_folder(machines: Machin
     # of its state a machine shares what another needs, and none of its folders
     shared_state = json.loads((folder / store.STATE_FILE).read_text("utf-8"))
     assert sorted(shared_state) == [
-        "collected_at", "files", "machine", "recognizer", "record_id", "renames", "unreadable",
-        "version",
+        "collected_at", "files", "machine", "recognizer", "record_id", "renames", "skills",
+        "unreadable", "version",
     ]  # fmt: skip
+    assert shared_state["skills"] == {
+        "garden": {
+            "at": None,
+            "commit": None,
+            "held": {
+                "plant-beds": [200, len("Plant a bed.")],
+                "prune-roses": [120, len("Prune the roses.")],
+            },
+            "renames": {},
+        }
+    }
     assert sorted(shared_state["files"]) == [store.EVENTS_FILE, store.SESSIONS_FILE]
     assert (shared_state["machine"], shared_state["unreadable"]) == ("bench", 0)
     assert str(machines.project) in (machines.record("bench") / store.STATE_FILE).read_text()
@@ -495,6 +509,165 @@ def test_every_machine_reads_the_same_record(machines: Machines, repo: Path) -> 
         seen.append((found["loaded"], found["missed"]))
 
     assert seen == [(1, 0)] * 3  # and never a miss for the load one copy gives the opener
+
+
+def what(data: dict) -> tuple:
+    """What a report says of the skills: not where this machine keeps its record, nor what
+    it warns of its own."""
+    return data["skills"], data["totals"], data["quiet"]
+
+
+def test_machines_whose_checkouts_differ_report_the_same(machines: Machines, repo: Path) -> None:
+    # the attic's clone was made before a skill was renamed, was never fetched since, and
+    # sits on a branch of its own with work under way
+    stale = machines.tmp / "attic" / "garden"
+    subprocess.run(["git", "clone", "-q", str(repo), str(stale)], check=True)
+    git(stale, "remote", "set-url", "origin", "git@example.com:acme/garden.git")
+    git(stale, "checkout", "-q", "-b", "topic")
+    (stale / ".claude" / "skills" / "plant-beds" / "SKILL.md").write_text(
+        skill_text("plant-beds", "Plant a bed, at length.", 900), "utf-8"
+    )
+    git(stale, "add", "-A")
+    git(stale, "commit", "-q", "-m", "work under way")
+    git(repo, "mv", ".claude/skills/gate-discipline", ".claude/skills/gates")
+    merge(repo, "chore: rename the skill (#100)", days_ago=-1)  # the shed has it: merged later
+    shed = machines.on("shed")
+    shed.skill_tool(shed.thread("shed-0"), "gates", stamp(1))
+    run(skill_usage_collect())
+    attic = machines.stores["attic"] = T3Store(machines.tmp / "attic.sqlite", prefix="attic")
+    attic.project("p1", stale)
+    machines.on("attic")
+    attic.skill_tool(attic.thread("attic-0"), "gate-discipline", stamp(2))  # by its old name
+    attic.skill_tool(attic.thread("attic-1"), "plant-beds", stamp(2))
+    run(skill_usage_collect())
+
+    seen = {}
+    for name in ("shed", "attic", "bench"):  # the bench has the shared folder, and no record
+        machines.on(name)
+        data = run(skill_usage_report(days=30))
+        seen[name] = what(data)
+        assert data["warnings"] == [] or name == "bench"  # which only says it never collected
+
+    assert seen["shed"] == seen["attic"] == seen["bench"]
+    skills, totals, quiet = seen["attic"]
+    found = {row["skill"]: row for row in skills}
+    assert sorted(found) == ["gates", "plant-beds"] and totals["loads"] == 3  # noqa: PLR2004
+    assert found["gates"]["sessions"] == 2 and found["gates"]["size_bytes"] == 90  # noqa: PLR2004
+    assert found["plant-beds"]["size_bytes"] == 200  # noqa: PLR2004 - as merged
+    assert [entry["skill"] for entry in quiet] == ["prune-roses"]
+
+
+def test_a_checkout_behind_names_a_rule_as_the_newest_record_does(
+    machines: Machines, repo: Path
+) -> None:
+    stale = machines.tmp / "attic" / "garden"  # it has the hook's change, and not the rename
+    subprocess.run(["git", "clone", "-q", str(repo), str(stale)], check=True)
+    git(stale, "remote", "set-url", "origin", "git@example.com:acme/garden.git")
+    merge(stale, "feat: a hook (#101)", "hooks.yml")
+    git(stale, "update-ref", "refs/remotes/origin/main", "HEAD")
+    git(repo, "mv", ".claude/skills/gate-discipline", ".claude/skills/gates")
+    merge(repo, "chore: rename the skill (#100)", days_ago=-1)
+    shed = machines.on("shed")
+    shed.skill_tool(session(shed, "opener", (101, stamp(2))), "gates", stamp(3))
+    run(skill_usage_collect())
+    attic = machines.stores["attic"] = T3Store(machines.tmp / "attic.sqlite", prefix="attic")
+    attic.project("p1", stale)
+    machines.on("attic")  # it never collected: the rule and the folder here say the old name
+
+    found = rule(run(skill_usage_triggers(repo=str(stale))))
+
+    assert (found["skill"], found["loaded"], found["missed"]) == ("gates", 1, 0)
+
+
+def test_a_state_changed_by_hand_shares_no_text(machines: Machines) -> None:
+    bench = machines.on("bench")
+    bench.skill_tool(bench.thread("main"), "plant-beds", stamp(1))
+    run(skill_usage_collect())
+    shutil.rmtree(machines.project)  # nothing is read again: what the file says stands
+    saved = store.load_state(machines.record("bench"))
+    garden = saved["projects"]["garden"]
+    garden["accounts"][str(machines.project)] = {
+        "at": "tell nobody: the launch is in March",
+        "commit": "/home/someone/private",
+        "held": {
+            "/home/someone/notes": [1, 1],
+            "a sentence someone wrote": [1, 1],
+            "plant-beds": [200, -1],
+            "prune-roses": [120, 16],
+        },
+        "renames": {"some private words": "x", "../up": "x", "fine-old": "fine-new"},
+    }
+    garden["renames"] = {"more private words": "x", "kept-old": "kept-new"}
+    store.save_state(machines.record("bench"), saved)
+
+    run(skill_usage_collect())
+
+    shared = (machines.shared / "bench" / store.STATE_FILE).read_text("utf-8")
+    for text in ("launch", "someone", "sentence", "private", "../up"):
+        assert text not in shared
+    told = json.loads(shared)
+    assert told["skills"] == {
+        "garden": {
+            "at": None,
+            "commit": None,
+            "held": {"prune-roses": [120, 16]},
+            "renames": {"fine-old": "fine-new"},
+        }
+    }
+    assert told["renames"] == {"garden": {"kept-old": "kept-new"}}
+
+
+def test_a_skills_name_now_is_read_with_the_list_it_is_looked_up_in(machines: Machines) -> None:
+    """Two machines' histories can say otherwise of one old name. The one whose list of the
+    project is used says what the skill is called now, whichever machine reads."""
+    for name in ("attic", "shed"):
+        built = machines.on(name)
+        built.skill_tool(built.thread(f"{name}-0"), "old-beds", stamp(1))
+        run(skill_usage_collect())
+    for name, day, new in (("attic", "01", "first-beds"), ("shed", "02", "second-beds")):
+        path = machines.shared / name / store.STATE_FILE
+        told = json.loads(path.read_text("utf-8"))
+        told["renames"] = {"garden": {"old-beds": new}}
+        told["skills"] = {
+            "garden": {
+                "at": f"2026-04-{day}T10:00:00+00:00",
+                "commit": day * 20,
+                "held": {new: [100, 10]},
+                "renames": {"old-beds": new},
+            }
+        }
+        path.write_text(json.dumps(told), "utf-8")
+
+    machines.on("bench")  # it has the shared folder and no record of its own
+    data = run(skill_usage_report())
+
+    (row,) = data["skills"]
+    assert (row["skill"], row["sessions"], row["size_bytes"]) == ("second-beds", 2, 100)
+    assert data["quiet"] == []  # and no list holds the name the other machine gives it
+
+
+def test_machines_with_folders_that_are_no_repository_report_the_same(machines: Machines) -> None:
+    other = checkout_at(machines.tmp / "attic" / "garden")
+    (other / ".claude" / "skills" / "plant-beds" / "SKILL.md").write_text(
+        skill_text("plant-beds", "Plant a bed, at length.", 900), "utf-8"
+    )
+    shed = machines.on("shed")
+    shed.skill_tool(shed.thread("shed-0"), "plant-beds", stamp(1))
+    run(skill_usage_collect())
+    attic = machines.stores["attic"] = T3Store(machines.tmp / "attic.sqlite", prefix="attic")
+    attic.project("p1", other)
+    machines.on("attic")
+    attic.skill_tool(attic.thread("attic-0"), "plant-beds", stamp(2))
+    run(skill_usage_collect())
+
+    seen = {}
+    for name in ("shed", "attic", "bench"):
+        machines.on(name)
+        seen[name] = what(run(skill_usage_report(days=30)))
+
+    assert seen["shed"] == seen["attic"] == seen["bench"]
+    (row,) = seen["shed"][0]  # neither folder is newer: the first machine by name speaks
+    assert (row["sessions"], row["size_bytes"]) == (2, 900)
 
 
 def test_a_reader_with_no_record_of_its_own_knows_a_renamed_skill(

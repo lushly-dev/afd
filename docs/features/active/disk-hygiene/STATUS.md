@@ -217,7 +217,7 @@ Read this before the [proposal](disk-hygiene.proposal.md). Active since 2026-11-
 
 - Rollout to the Air, Random and Hero, and retiring the cleanup agent (#1693): rolled out 2026-11-20; afd's `regenerable` list finished and Random set up again 2026-11-22 (see Findings); a week of receipts, then the cleanup agent is retired.
 
-- A scheduled run that waits for ever (#1902): in this pull request.
+- A scheduled run that waits for ever (#1902): merged in #1923.
 
 ## Phase 3. Removing finished worktrees
 

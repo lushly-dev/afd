@@ -361,6 +361,11 @@ skill_usage_machine = "laptop"
 skill_usage_shared = "~/Shared/skill-usage"
 ```
 
+Every machine then reports the same, once each runs the same botcore and their records have
+synced. A project's skills, their sizes and their names are read at collection from the tip
+of its default branch and kept in the record, so a report does not depend on what the
+machine that reads it has checked out.
+
 On macOS the system asks, once and at the screen, before the hourly job reads a folder in a
 cloud drive that fetches files on demand. After a run that waited for that answer,
 `botcore disk-status` says the shared folder did not answer, and what to allow.

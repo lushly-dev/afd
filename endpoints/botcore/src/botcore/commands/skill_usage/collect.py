@@ -20,19 +20,23 @@ from botcore.commands.disk.git import GitError, git_out
 from botcore.commands.disk.lock import LockHeld, RunLock
 from botcore.commands.disk.settings import SettingsError
 from botcore.commands.disk.steps import doing
+from botcore.commands.skill.frontmatter import split_frontmatter
+from botcore.commands.skill.lint import listing_characters
 from botcore.commands.skill_usage import claude_code, t3
-from botcore.commands.skill_usage.events import EDIT, RECOGNIZER, TYPED, Event
+from botcore.commands.skill_usage.events import EDIT, RECOGNIZER, TYPED, Event, is_skill_folder
 from botcore.commands.skill_usage.store import (
     LOCK_FILE,
     SHARING,
     InvalidMachine,
     Local,
     append_events,
+    as_inventory,
     checked_machine,
     load_events,
     load_sessions,
     load_state,
     local,
+    newest_inventory,
     publish,
     rewrite_events,
     save_sessions,
@@ -46,6 +50,20 @@ OVERLAP = timedelta(days=1)  # re-read this much, for items a harness finished w
 FULL_EVERY = timedelta(days=7)  # then read everything: a thread moved here can be older
 GIT_SECONDS = 30.0
 SKILL_DIRS = (".claude/skills", ".agents/skills", ".codex/skills")
+# The branch changes are merged to, where a checkout says which it is
+DEFAULT_BRANCHES = (
+    "refs/remotes/origin/HEAD",
+    "refs/remotes/origin/main",
+    "refs/remotes/origin/master",
+    "refs/heads/main",
+    "refs/heads/master",
+)
+_TIP = "%(refname)%09%(objectname)%09%(committerdate:iso-strict)%09%(symref)"
+_ORIGIN, _LOCAL = "refs/remotes/origin/", "refs/heads/"
+# What git says of a folder that is no repository (its messages are asked for in English)
+_NOT_A_REPOSITORY = "not a git repository"
+_LINK = "120000"  # a tree entry that is a link: its blob is the path it points to
+NOTHING_HELD = {"at": None, "commit": None, "held": {}, "renames": {}}
 UNKNOWN_PROJECT = "unknown"
 _PATHSPECS = tuple(f":(glob){folder}/*/SKILL.md" for folder in SKILL_DIRS)
 _REMOTE = re.compile(r"[:/]([^/:\s]+/[^/\s]+?)(?:\.git)?/?$")
@@ -86,25 +104,183 @@ def skill_on_disk(root: str, name: str) -> bool:
     return any((Path(root) / folder / name / "SKILL.md").is_file() for folder in SKILL_DIRS)
 
 
-def skill_renames(root: Path) -> dict[str, str] | None:
-    """Old skill name to new, from the renames in a checkout's history; None when git cannot
-    say. A skill folder renamed in one commit keeps one identity in the report this way, with
-    nothing to configure. The history read is the checkout's own (`HEAD`), the one whose
-    files the report lists, so a rename is known as soon as the checkout has it."""
+def _tips(root: Path, refs: tuple[str, ...]) -> dict[str, tuple[str, datetime, str]]:
+    """Each of some refs a checkout has: its commit, when that was committed, and the ref it
+    stands for where it is a name for another. Raises GitError."""
+    text = git_out(root, "for-each-ref", f"--format={_TIP}", *refs, timeout=GIT_SECONDS)
+    tips: dict[str, tuple[str, datetime, str]] = {}
+    for line in text.splitlines():
+        ref, commit, stamp, target = (*line.split("\t"), "", "", "")[:4]
+        when = _parse(stamp.strip())
+        if when is not None and commit:
+            tips[ref] = (commit, when, target.strip())
+    return tips
+
+
+def default_tip(root: Path) -> tuple[str, str, str] | None:
+    """The tip of the branch changes are merged to, as a checkout has it: the ref, its
+    commit, and when that was committed. None when the folder names no such branch, or is
+    no repository. Raises GitError when git could not say (it did not start or answer in
+    time, a ref is broken, the folder is one it refuses): that says nothing of the folder.
+
+    Never the checked-out commit: on a topic branch that is unmerged work, and a checkout
+    left on an old branch would speak for the project as it was. The branch is named first
+    (`origin/HEAD`'s, else `main`, else `master`), so that no other branch speaks for it
+    however new. Then of the remote's copy and the checkout's own the one ahead, since a
+    checkout that was not fetched has the remote's behind and one that was not pushed has
+    it ahead: the one the other leads to, whatever their times, and the newer only where
+    neither does."""
     try:
-        text = git_out(
-            root, "log", "HEAD", "--diff-filter=R", "-M50%", "--name-status", "--format=",
-            "--", *_PATHSPECS, timeout=GIT_SECONDS,
-        )  # fmt: skip
+        tips = _tips(root, DEFAULT_BRANCHES)
+    except GitError as exc:
+        if _NOT_A_REPOSITORY in str(exc):
+            return None
+        raise
+    named = tips.get(f"{_ORIGIN}HEAD", ("", None, ""))[2].removeprefix(_ORIGIN)
+    name = named or next(
+        (name for name in ("main", "master") if {_ORIGIN + name, _LOCAL + name} & set(tips)),
+        None,
+    )
+    if name is None:
+        return None
+    theirs, ours = _ORIGIN + name, _LOCAL + name
+    if name not in ("main", "master"):
+        tips = _tips(root, (theirs, ours))
+    found = [(ref, *tips[ref][:2]) for ref in (theirs, ours) if ref in tips]
+    if not found:
+        return None
+    ref, commit, when = found[0]
+    if len(found) > 1 and found[1][1] != commit:
+        base = git_out(
+            root, "merge-base", commit, found[1][1], ok_codes=(0, 1), timeout=GIT_SECONDS
+        ).strip()
+        if base == commit or (base != found[1][1] and found[1][2] > when):
+            ref, commit, when = found[1]  # ours is ahead, or the newer of two that parted
+    return ref, commit, when.astimezone(UTC).isoformat()
+
+
+def _facts(raw: bytes) -> list[int]:
+    """A SKILL.md's size and what it adds to every session's skill listing, from its bytes.
+    Line ends count as one character, as a file read as text has them, so a checkout that
+    writes them the Windows way says the same as the commit. A front matter that cannot be
+    read (a date there is no day for raises where bad YAML is caught) is none: one skill's
+    file never stops a collection."""
+    text = raw.decode("utf-8", errors="replace").replace("\r\n", "\n").replace("\r", "\n")
+    try:
+        described = split_frontmatter(text)[0]
+    except ValueError:
+        described = None
+    return [len(text.encode("utf-8")), listing_characters(text, described)]
+
+
+def held_in_folder(root: Path) -> dict[str, list[int]]:
+    """Each skill a folder holds as it lies, with its facts (`_facts`). For a project that is
+    not a repository, or names no branch that changes are merged to."""
+    found: dict[str, list[int]] = {}
+    for folder in SKILL_DIRS:
+        try:
+            children = sorted(Path(root, folder).iterdir())
+        except OSError:
+            continue
+        for child in children:
+            if not is_skill_folder(child.name):
+                continue
+            try:
+                raw = (child / "SKILL.md").read_bytes()
+            except OSError:
+                continue
+            found.setdefault(child.name, _facts(raw))
+    return found
+
+
+def held_at(root: Path, commit: str) -> dict[str, list[int]]:
+    """Each skill a project holds at a commit, with its facts. Read from git's objects: what
+    is checked out or changed in the folder plays no part, so every machine that has the
+    commit says the same of it. A `SKILL.md` that is a link is not followed. Raises
+    GitError, and ValueError for an answer from git that cannot be read."""
+    listed = git_out(root, "ls-tree", "-r", "-z", commit, "--", *SKILL_DIRS, timeout=GIT_SECONDS)
+    blobs: dict[str, str] = {}  # a name two folders hold is the first folder's, as on disk
+    for folder in SKILL_DIRS:
+        for entry in listed.split("\0"):
+            about, _, path = entry.partition("\t")
+            mode, kind, blob = (*about.split(), "", "", "")[:3]
+            name, _, file = path.removeprefix(f"{folder}/").partition("/")
+            if kind != "blob" or mode == _LINK:
+                continue  # a link's blob is a path, not the file
+            if path.startswith(f"{folder}/") and file == "SKILL.md" and is_skill_folder(name):
+                blobs.setdefault(name, blob)
+    if not blobs:
+        return {}
+    # every file in one call, and its bytes as git holds them
+    raw = git_out(
+        root, "cat-file", "--batch", stdin="".join(f"{blob}\n" for blob in blobs.values()),
+        timeout=GIT_SECONDS,
+    ).encode("utf-8", errors="surrogateescape")  # fmt: skip
+    found: dict[str, list[int]] = {}
+    at = 0
+    for name, blob in blobs.items():
+        end = raw.index(b"\n", at)
+        told = raw[at:end].split()
+        if len(told) != 3 or told[0].decode("ascii", "replace") != blob or told[1] != b"blob":
+            raise ValueError(f"git cat-file: {raw[at:end][:80]!r}")
+        size = int(told[2])
+        found[name] = _facts(raw[end + 1 : end + 1 + size])
+        at = end + 1 + size + 1
+    return found
+
+
+def skill_inventory(root: Path, last: dict | None = None) -> dict:
+    """What a project holds, as one of its folders says (`store.as_inventory`): its skills
+    and their renames at the tip of its default branch, both read from that one commit, or
+    as the folder lies where it names no such branch. `last` is what this folder said
+    before: a branch that has not moved is not read again. Raises GitError, and ValueError
+    for an answer from git that cannot be read: the folder says nothing this time."""
+    tip = default_tip(root)
+    if tip is None:
+        return {
+            "at": None,
+            "commit": None,
+            "held": held_in_folder(root),
+            "renames": skill_renames(root) or {},
+        }
+    _ref, commit, at = tip
+    if last is not None and last["commit"] == commit:
+        return last
+    return {
+        "at": at,
+        "commit": commit,
+        "held": held_at(root, commit),
+        "renames": _renames_in(root, commit),
+    }
+
+
+def skill_renames(root: Path, ref: str = "HEAD") -> dict[str, str] | None:
+    """Old skill name to new, from the renames in a history; None when git cannot say. A
+    skill folder renamed in one commit keeps one identity in the report this way, with
+    nothing to configure. The history read is the one whose skills the report lists: the
+    default branch's, at the commit its skills were read from (`skill_inventory`), or the
+    checkout's own where it names none."""
+    try:
+        return _renames_in(root, ref)
     except GitError:
         return None
+
+
+def _renames_in(root: Path, ref: str) -> dict[str, str]:
+    text = git_out(
+        root, "log", ref, "--diff-filter=R", "-M50%", "--name-status", "--format=",
+        "--", *_PATHSPECS, timeout=GIT_SECONDS,
+    )  # fmt: skip
     renames: dict[str, str] = {}
     for line in text.splitlines():
         parts = line.split("\t")
         if len(parts) != 3 or not parts[0].startswith("R"):
             continue
         old, new = (Path(part).parent.name for part in parts[1:])
-        if old != new:
+        # between names a load can be recorded under, as the lists hold only those: the
+        # triggers report reads these as they come, and must name a skill as the usage
+        # report does
+        if old != new and is_skill_folder(old) and is_skill_folder(new):
             renames.setdefault(old, new)  # newest first: the latest rename of a name wins
     return renames
 
@@ -119,8 +295,11 @@ def project_remote(root: Path) -> str | None:
     return match.group(1) if match else None
 
 
-def _name_projects(previous: dict, roots: dict[str, str]) -> tuple[dict, dict[str, str]]:
+def _name_projects(
+    previous: dict, roots: dict[str, str], again: bool = False
+) -> tuple[dict, dict[str, str]]:
     """Name each workspace root, and return the projects to keep with project id to name.
+    `again` reads what every folder holds once more, whether or not its branch has moved.
 
     A project is named after its origin, so two clones are one project and the name is the
     same on every machine. One with no origin takes its folder's name, and a second folder of
@@ -131,6 +310,11 @@ def _name_projects(previous: dict, roots: dict[str, str]) -> tuple[dict, dict[st
             "remote": bool(entry.get("remote")),
             "roots": _strings(entry.get("roots")),
             "renames": _renames(entry.get("renames")),
+            "accounts": {
+                root: account
+                for root, value in _mapping(entry.get("accounts")).items()
+                if isinstance(root, str) and (account := as_inventory(value)) is not None
+            },
         }
         for name, entry in previous.items()
         if isinstance(name, str) and isinstance(entry, dict)
@@ -147,16 +331,35 @@ def _name_projects(previous: dict, roots: dict[str, str]) -> tuple[dict, dict[st
             name = remote or re.split(r"[\\/]+", root.rstrip("\\/"))[-1] or project_id
             if not remote and name in projects and not projects[name].get("remote"):
                 name = f"{name}~{hashlib.sha256(root.encode()).hexdigest()[:6]}"
-            entry = projects.setdefault(name, {"remote": bool(remote), "roots": [], "renames": {}})
+            entry = projects.setdefault(
+                name,
+                {"remote": bool(remote), "roots": [], "renames": {}, "accounts": {}},
+            )
             entry["roots"] = [*entry["roots"], root]
             by_root[root] = name
         names[project_id] = name
     for entry in projects.values():
+        # Each folder's own account, kept by folder: one that is not there this time (a
+        # volume not mounted, a checkout removed) or that git cannot say anything of still
+        # speaks through what it said last, so an older clone that does answer never takes
+        # the project back. A folder read again replaces its own, whatever it now says.
+        accounts = {root: entry["accounts"][root] for root in entry["roots"]
+                    if root in entry["accounts"]}  # fmt: skip
         for root in entry["roots"]:
-            if Path(root).is_dir():
-                renames = skill_renames(Path(root))
-                if renames is not None:
-                    entry["renames"] = {**entry["renames"], **renames}
+            folder = Path(root)
+            doing("reading what the project holds in", folder)
+            if not folder.is_dir():
+                continue
+            try:
+                account = skill_inventory(folder, None if again else accounts.get(root))
+            except (GitError, ValueError):
+                continue  # git could not say: this folder says nothing this time
+            accounts[root] = account
+            entry["renames"] = {**entry["renames"], **account["renames"]}
+        entry["accounts"] = accounts
+        # the newest of them; and an entry all the same for a project no folder ever spoke
+        # for, so that a reader knows this was looked for
+        entry["skills"] = newest_inventory(list(accounts.values())) or dict(NOTHING_HELD)
     return projects, names
 
 
@@ -411,7 +614,7 @@ def _collect(  # noqa: C901, PLR0912, PLR0913, PLR0915 - one collection, start t
         claude = claude_code.read(transcripts, seen, found.natives | recorded, everything=rebuild)
 
     projects, names = _name_projects(
-        _mapping(state.get("projects")), {**found.projects, **claude.projects}
+        _mapping(state.get("projects")), {**found.projects, **claude.projects}, again=rebuild
     )
     # A session stays in the project it was filed under: its checkout may have been moved
     # or removed since, and where it ran is not where its folder leads today

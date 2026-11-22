@@ -18,11 +18,12 @@ import platform
 import re
 import sys
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 
 from botcore.commands.disk.settings import expand, load_machine_settings
 from botcore.commands.disk.steps import doing
-from botcore.commands.skill_usage.events import Event
+from botcore.commands.skill_usage.events import Event, is_skill_folder
 
 STATE_ENV = "BOTCORE_SKILL_USAGE_STATE"
 T3_STORE_ENV = "BOTCORE_SKILL_USAGE_T3_STORE"
@@ -333,13 +334,81 @@ def _renames(state: dict) -> dict[str, dict[str, str]]:
     projects = state.get("projects")
     for name, entry in projects.items() if isinstance(projects, dict) else []:
         renames = entry.get("renames") if isinstance(entry, dict) else None
-        pairs = {
-            old: new
-            for old, new in (renames.items() if isinstance(renames, dict) else [])
-            if isinstance(old, str) and isinstance(new, str)
-        }
+        pairs = _pairs(renames)
         if isinstance(name, str) and pairs:
             found[name] = pairs
+    return found
+
+
+def _pairs(renames: object) -> dict[str, str]:
+    """Renamed skills, old name to new: names a skill's folder can have, and no other text."""
+    return {
+        old: new
+        for old, new in (renames.items() if isinstance(renames, dict) else [])
+        if is_skill_folder(old) and is_skill_folder(new)
+    }
+
+
+_COMMIT = re.compile(r"[0-9a-f]{40}|[0-9a-f]{64}")
+
+
+def _moment(stamp: object) -> datetime | None:
+    try:
+        moment = datetime.fromisoformat(stamp) if isinstance(stamp, str) else None
+    except ValueError:
+        return None
+    if moment is None:
+        return None
+    return moment if moment.tzinfo else moment.replace(tzinfo=UTC)
+
+
+def as_inventory(value: object) -> dict | None:
+    """What a project holds, as a collection wrote it: `{"at", "commit", "held", "renames"}`.
+    `held` has each skill's SKILL.md size and what it adds to every session's skill listing;
+    `renames` is old name to new. `at` and `commit` say which commit of the project's
+    default branch both were read from, and are None for a folder read as it lay. None for
+    anything else.
+
+    Only what a collection could have written comes back, since it is shared: a commit that
+    is one with a time that is one, names a skill's folder can have, and counts. A file
+    changed by hand never puts a path or a sentence in another machine's hands."""
+    if not isinstance(value, dict) or not isinstance(value.get("held"), dict):
+        return None
+    moment, commit = _moment(value.get("at")), value.get("commit")
+    dated = moment is not None and isinstance(commit, str) and _COMMIT.fullmatch(commit)
+    return {
+        "at": moment.astimezone(UTC).isoformat() if dated else None,
+        "commit": commit if dated else None,
+        "held": {
+            name: list(facts)
+            for name, facts in value["held"].items()
+            if is_skill_folder(name) and isinstance(facts, list) and len(facts) == 2
+            and all(type(number) is int and number >= 0 for number in facts)
+        },
+        "renames": _pairs(value.get("renames")),
+    }  # fmt: skip
+
+
+def _read_at(inventory: dict) -> datetime:
+    return _moment(inventory.get("at")) or datetime.min.replace(tzinfo=UTC)
+
+
+def newest_inventory(found: list[dict]) -> dict | None:
+    """Of several accounts of what a project holds, the one read from the newest commit. A
+    folder read as it lay is older than any commit, and one that held nothing older still.
+    Of two as new, the first."""
+    return max(found, key=lambda one: (_read_at(one), bool(one["held"]))) if found else None
+
+
+def _skills(state: dict) -> dict[str, dict]:
+    """What each project holds, as a machine's state has it: the skills a report lists, their
+    sizes and their names now, known to a reader whatever its own checkout is at."""
+    found: dict[str, dict] = {}
+    projects = state.get("projects")
+    for name, entry in projects.items() if isinstance(projects, dict) else []:
+        inventory = as_inventory(entry.get("skills") if isinstance(entry, dict) else None)
+        if isinstance(name, str) and inventory is not None:
+            found[name] = inventory
     return found
 
 
@@ -362,6 +431,7 @@ def _earlier(folder: Path, events: list[Event], sessions: dict[str, dict]) -> bo
 # What a collection says it is doing while it reads or writes the shared folder: the hourly
 # job reads it to tell a shared folder that does not answer from a collection that did not run
 SHARING = "writing the shared folder"
+
 
 def publish(directory: Path, shared: Path, machine: str) -> bool:
     """Write this machine's record to its own folder in the shared one. Whether anything
@@ -416,6 +486,7 @@ def publish(directory: Path, shared: Path, machine: str) -> bool:
     shared_state["machine"] = machine
     shared_state["unreadable"] = unreadable
     shared_state["renames"] = _renames(state)
+    shared_state["skills"] = _skills(state)
     shared_state["files"] = {name: _digest(data) for name, data in files.items()}
     files[STATE_FILE] = json.dumps(shared_state, indent=2, sort_keys=True).encode("utf-8") + b"\n"
     doing(SHARING, shared)  # said before anything is written: a step that was left stops here
@@ -485,8 +556,11 @@ class Record:
     unreadable: dict[str, int] = field(default_factory=dict)  # machine -> lines not read
     partial: list[str] = field(default_factory=list)  # machines whose copy is not whole
     recognizer: int | None = None  # the oldest rules any machine's record began under
-    # project -> old skill name -> new, as every machine that holds the project knows them
+    # project -> old skill name -> new, as every machine that holds the project knows them;
+    # the machine whose account of the project is used (`skills`) has the last word
     renames: dict[str, dict[str, str]] = field(default_factory=dict)
+    # project -> what it holds (`as_inventory`), from the machine that read the newest commit
+    skills: dict[str, dict] = field(default_factory=dict)
     shared: Path | None = None
     missing: str | None = None  # why the shared folder was not read
 
@@ -534,6 +608,23 @@ def _merged(one: dict, other: dict) -> dict:
     return merged
 
 
+def _name_skills(record: Record, renames: dict[str, dict], skills: dict[str, dict]) -> None:
+    """Settle, from what each machine says, what every project holds and what its skills are
+    called now: the same whichever machine reads."""
+    for machine in sorted(renames, reverse=True):  # the first by name has the last word
+        for project, pairs in renames[machine].items():
+            record.renames.setdefault(project, {}).update(pairs)
+    held: dict[str, list[dict]] = {}
+    for machine in sorted(skills):  # of two machines at one commit, the first by name
+        for project, inventory in skills[machine].items():
+            held.setdefault(project, []).append(inventory)
+    record.skills = {project: newest_inventory(found) for project, found in held.items()}
+    for project, inventory in record.skills.items():
+        # a skill's name now and the list it is looked up in come from one commit: where two
+        # machines' histories say otherwise of a name, the one whose list is used is right
+        record.renames[project] = {**record.renames.get(project, {}), **inventory["renames"]}
+
+
 def load_record(directory: Path, here: Local) -> Record:
     """The record to report from: this machine's and each other machine's from the shared
     folder, every event and session once, and the same whichever machine reads it. This
@@ -546,6 +637,7 @@ def load_record(directory: Path, here: Local) -> Record:
     record.recognizer = record.state["recognizer"] if known else None
     machines: dict[str, tuple[list[Event], dict[str, dict]]] = {}
     renames = {here.machine: _renames(record.state)}
+    skills = {here.machine: _skills(record.state)}
     sessions = load_sessions(directory)
     if events or record.state or sessions:
         machines[here.machine] = (events, sessions)
@@ -583,6 +675,9 @@ def load_record(directory: Path, here: Local) -> Record:
             renames[machine] = _renames(
                 {"projects": {name: {"renames": pairs} for name, pairs in told.items()}}
             )
+            told = copy.state.get("skills")
+            told = told if isinstance(told, dict) else {}
+            skills[machine] = _skills({"projects": {n: {"skills": v} for n, v in told.items()}})
             record.collected[machine] = copy.state.get("collected_at")
             if copy.unreadable:
                 record.unreadable[machine] = copy.unreadable
@@ -591,9 +686,7 @@ def load_record(directory: Path, here: Local) -> Record:
             record.recognizer = (
                 rules if record.recognizer is None else min(record.recognizer, rules)
             )
-    for machine in sorted(renames, reverse=True):  # the first by name has the last word
-        for project, pairs in renames[machine].items():
-            record.renames.setdefault(project, {}).update(pairs)
+    _name_skills(record, renames, skills)
     seen: set[tuple[str, str]] = set()
     for machine in sorted(machines):  # by name, so that every reader merges alike
         theirs, entries = machines[machine]

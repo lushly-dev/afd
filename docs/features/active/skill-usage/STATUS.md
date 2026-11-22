@@ -14,6 +14,37 @@ Read this before the [proposal](skill-usage.proposal.md). Active since 2026-11-2
 
 ## Findings
 
+### One list of a project's skills, and Hero, 2026-11-22 (#1904, #1819)
+
+- **Why the totals differed (#1904).** A report took a project's skills from the folder on
+  the machine that read it. Random's folder of one repository was on a branch eleven days
+  old. The Air has one too: its folder of another repository is 73 commits behind the
+  remote, and holds 11 skills where the default branch has 14.
+- **What a project holds is now in the record.** A collection reads the skills at the tip
+  of each project's default branch from git, and shares them; a report reads the record and
+  no checkout. On the Air, for its nine projects, the read takes about a second, and for
+  eight of them it agrees with the folder; the ninth is the one above. No project there
+  keeps a skill out of git.
+- **A probe that calls the commands outside the test folder reads the real machine.** The
+  tests' isolation (no shared folder, no transcripts) is in `tests/conftest.py`. A
+  reviewer's probe under `/tmp` collected this machine's Claude Code transcripts as a machine
+  named `bench` and wrote them to the real shared folder, where every report would have
+  counted those loads twice. The folder was moved out within minutes. A probe sets
+  `BOTCORE_SKILL_USAGE_STATE`, `BOTCORE_SKILL_USAGE_SHARED`, `BOTCORE_SKILL_USAGE_T3_STORE`
+  and `BOTCORE_SKILL_USAGE_CLAUDE_DIR` itself.
+- **The collection ran out of its five minutes on both Macs in one hour** (08:40 UTC), both
+  while reading T3 Code's store, with load averages of 10 to 26 from other work. By hand a
+  collection on the Air took 20 seconds minutes later and added what was missed.
+- **Hero collects (#1819).** Its first collection read 3,822 events (3,303 loads, 519 edits)
+  from 427 sessions, 3,812 of them from T3 Code's store. Its scheduled task ran the job in
+  17 seconds. Over 30 days on that machine alone: 3,057 loads of 115 skills in 294 sessions,
+  of 427 seen; by harness codex 2,076, claude 754, antigravity 227.
+- **No skill name on Hero looks misread** (no quote, backslash, `$`, space, `.md` or more
+  than 60 characters). That does not show no load was lost to PowerShell quoting (#1847): a
+  lost load leaves no name.
+- **Not done.** Hero has no shared folder: the cloud drive's desktop app is not installed
+  there, which is the owner's to do. Its numbers are not in the other machines' reports.
+
 ### The shared folder on two machines, 2026-11-21 (#1819, #1903, #1904)
 
 The Air and Random name one shared folder, in a cloud drive (Google Drive for desktop). Each
@@ -221,9 +252,9 @@ skill for `lefthook.yml`, `ci.yml` and `scripts/check-*.mjs`), before Lushly dec
 
 - Collection with the hourly job, and one report across machines (#1818): merged in #1889.
 
-- Rollout to the Air, Random and Hero (#1819): the Air and Random run all four phases, collect hourly and share a folder since 2026-11-21 (see Findings); Hero to come.
+- Rollout to the Air, Random and Hero (#1819): the Air and Random run all four phases, collect hourly and share a folder since 2026-11-21; Hero collects hourly since 2026-11-22 and has no shared folder yet (see Findings).
 
-- A shared folder the hourly job cannot read (#1903): in this pull request.
+- A shared folder the hourly job cannot read (#1903): merged in #1923.
 
 ## Phase 4. Provider logs
 
@@ -233,7 +264,7 @@ skill for `lefthook.yml`, `ci.yml` and `scripts/check-*.mjs`), before Lushly dec
 
 - Codex session logs as a source (#1891): not started; 5 of 213 logs measured are outside T3 Code.
 
-- The same totals whichever machine reads, when checkouts differ (#1904): not started.
+- The same totals whichever machine reads, when checkouts differ (#1904): merged in #2050.
 
 - Whether a loaded skill prevents the mistakes it names (#1829): needs its design first.
 

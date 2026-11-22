@@ -28,35 +28,35 @@ from botcore.commands.disk.git import GitError, git_out
 from botcore.commands.disk.scan import compile_pattern
 from botcore.commands.disk.settings import SettingsError
 from botcore.commands.skill_usage.collect import (
+    DEFAULT_BRANCHES,
     GIT_SECONDS,
+    NOTHING_HELD,
     _strings,
     project_remote,
     settings_refused,
-    skill_renames,
+    skill_inventory,
 )
 from botcore.commands.skill_usage.events import DELEGATE, EDIT, MAIN, PATHS, RECOGNIZER, SUBAGENT
 from botcore.commands.skill_usage.report import (
     MAX_DAYS,
-    _inventory,
     _mapping,
     _parse,
     current_name,
     record_warnings,
-    skills_on_disk,
 )
-from botcore.commands.skill_usage.store import InvalidMachine, load_record, local, state_dir
+from botcore.commands.skill_usage.store import (
+    InvalidMachine,
+    load_record,
+    local,
+    newest_inventory,
+    state_dir,
+)
 from botcore.config import load_config
 from botcore.utils.workspace import find_workspace
 
-# The branch changes are merged to, where a checkout says which it is. Never the checked-out
-# commit: on a topic branch that would report unmerged work as merged.
-_DEFAULT_BRANCHES = (
-    "refs/remotes/origin/HEAD",
-    "refs/remotes/origin/main",
-    "refs/remotes/origin/master",
-    "refs/heads/main",
-    "refs/heads/master",
-)
+# Changes are read from the branch they are merged to (`DEFAULT_BRANCHES`), the first of
+# those names a checkout has. Never the checked-out commit: on a topic branch that would
+# report unmerged work as merged.
 # A pull request's number as a forge writes it: a number no forge would write is not one
 _NUMBER = r"\d{1,9}"
 _PULL_REQUEST = re.compile(rf"\(#({_NUMBER})\)\s*$|^Merge pull request #({_NUMBER})\b", re.ASCII)
@@ -108,7 +108,7 @@ def _number(subject: str) -> int | None:
 def merged_changes(root: Path, since: datetime) -> Merged:
     """The changes merged to the default branch since a moment, each with every path it
     touched: both sides of a rename, and names git would otherwise quote."""
-    for ref in _DEFAULT_BRANCHES:
+    for ref in DEFAULT_BRANCHES:
         try:
             git_out(root, "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}",
                     timeout=GIT_SECONDS)  # fmt: skip
@@ -376,15 +376,24 @@ async def skill_usage_triggers(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
             "Check that it is a git checkout this user can read, and run it again",
         )
 
-    # The checkout in hand says what its skills are called now, whether or not this machine
-    # ever collected in it; then this machine's collection; then the other machines'
-    renames, on_disk = _inventory(projects)
+    # What the project's skills are called now: as the newest commit of its default branch
+    # has them, in the checkout in hand (whether or not any machine ever collected in it) or
+    # in the record, whichever read the newer one. Never the checked-out files: on a topic
+    # branch those are unmerged work, and on an old one the project as it was. The list and
+    # the renames it is read with come from that one account; the others only add names it
+    # does not know.
+    try:
+        here_now = skill_inventory(root)
+    except (GitError, ValueError):  # git stopped answering since the changes were read
+        here_now = None
+    accounts = [here_now, record.skills.get(project)]
+    account = newest_inventory([one for one in accounts if one]) or NOTHING_HELD
     project_renames = {
+        **(here_now["renames"] if here_now else {}),
         **record.renames.get(project, {}),
-        **renames.get(project, {}),
-        **(skill_renames(root) or {}),
+        **account["renames"],
     }
-    held = skills_on_disk(str(root)) or on_disk.get(project, {})
+    held = account["held"]
 
     # A miss needs every machine's record up to the change's merge: a load made on another
     # machine, or after this one last collected, is a load all the same. Every machine is
