@@ -58,6 +58,7 @@ import type { OverlayStore } from './overlays.js';
 import { type AccessActorV1, type MembershipV1, personKey, personOf } from './scope/access.js';
 import { createScopeMiddleware, type LateScope, sessionActor } from './scope/middleware.js';
 import { personalRecordId, personalStore } from './scope/personal.js';
+import { type KernelPrincipalV1, NO_MEMBERS, type PrincipalInputV1 } from './scope/principal.js';
 import { CALL_MARK, createScopeRuntime, type QueuedTicket } from './scope/runtime.js';
 import { registerShellState } from './shell-state.js';
 import type {
@@ -513,7 +514,30 @@ export interface KernelParts {
 	runBoot(name: string, input: unknown): Promise<CommandResult>;
 	/** The limits the kernel enforces (phase 4 specification, section 11): for tests, and the notice's seam. */
 	readonly limits: KernelLimits;
+	/**
+	 * A principal-gated kernel's (phase 3 specification, 9.5): mint the principal of one request, which `credentialsGate`
+	 * puts on the call's context. Undefined on a session-gated kernel, which takes none.
+	 */
+	readonly admitPrincipal?: (input: PrincipalInputV1) => KernelPrincipalV1;
+	/** End a principal when its request ends (9.5): nothing made after it, a kept nested client included, runs under it. */
+	readonly retirePrincipal?: (principal: KernelPrincipalV1) => void;
 }
+
+/**
+ * `createKernelParts`' options: the kernel's, and which gate its chain opens with (phase 3 specification, 9.5).
+ * `'session'`, the default, is the browser's: afd-auth's middleware over the adapter's session. `'principal'` is the
+ * server's: every registry opens with `principalGate`, so every call, top-level or nested, runs under the request's
+ * principal and nothing reads the adapter; it needs `identity.mode` `provider`.
+ */
+export interface KernelPartsOptions extends KernelOptionsV5 {
+	gate?: 'session' | 'principal';
+}
+
+/**
+ * Marks the kernel's own calls on their context (9.5): boot's own work and the instance refresh, which a principal
+ * gate passes with no principal. A symbol, so no caller's input or `_meta` can carry it; `execute` sets it last.
+ */
+export const KERNEL_OWN = Symbol();
 
 /** What only `replayKernel` asks of a kernel. */
 export interface KernelPartsInternals {
@@ -558,7 +582,7 @@ export const QUEUED = Symbol();
 
 /** Build a kernel and expose its registries, for replay. Not part of the kernel interface. */
 export async function createKernelParts(
-	options: KernelOptionsV5,
+	options: KernelPartsOptions,
 	internals: KernelPartsInternals = {}
 ): Promise<KernelParts> {
 	const { environment, boot } = options;
@@ -568,28 +592,37 @@ export async function createKernelParts(
 			mode: 'local',
 		};
 	const provider = identity.mode === 'provider';
-	// A `provider` kernel decides with the probe's members, or none: never `local`'s, where all are owners.
-	const membership: MembershipV1 =
-		options.membership?.mode === identity.mode
+	// The server's gate (phase 3 specification, 9.5), loaded only here, so a browser's first paint holds none of it (13);
+	// it refuses anything but `provider` mode, so line 0 never reads everyone as a member.
+	const gated = options.gate === 'principal';
+	const server = gated ? await import('./server/principal-gate.js') : undefined;
+	server?.assertProvider(identity, LoamKernelError);
+	const principals = server?.createPrincipalRegistry();
+	// A `provider` kernel decides with the probe's members, or none: never `local`'s, where all are owners. A principal-
+	// gated one holds none kernel-wide: each decision reads its call's principal (9.5).
+	const membership: MembershipV1 = gated
+		? NO_MEMBERS
+		: options.membership?.mode === identity.mode
 			? options.membership
 			: { mode: identity.mode, members: new Map(), digest: '' };
 	// The kernel's clock: the registries', the auth middleware's and the Mock's, which the host gives it (4.4).
 	const clock = options.clock ? { now: options.clock } : undefined;
 	const random = options.random ? { next: options.random } : undefined;
 	/** The person the adapter reports now, on the kernel's clock (phase 3 specification, 4.4). */
-	const person = () => personKey(sessionActor(options.auth, clock));
+	// A principal-gated kernel is for no one person: it never reads the adapter (9.5).
+	const person = () => (gated ? undefined : personKey(sessionActor(options.auth, clock)));
 	// In `provider` mode a person's records are theirs, for whoever is signed in at each read and write (4.5).
-	const personal = provider ? personalStore(options.store, person) : undefined;
+	const personal = provider && !gated ? personalStore(options.store, person) : undefined;
 	const viewState = new ViewStateRegistry({ adapter: personal ?? options.store });
 	// Signed out in `provider` mode the page paints the profile's last appearance (phase 4 specification, 3.6).
 	const state = registerShellState(viewState, {
-		lastFirst: () => provider && person() === undefined,
+		lastFirst: () => provider && !gated && person() === undefined,
 	});
 	const workspace = boot?.workspace ??
 		options.deployment?.workspace ??
 		options.workspace ?? { id: 'personal', name: 'Personal' };
 	const generation = boot?.generation ?? options.deployment?.generation ?? 'empty';
-	const scope = createScopeRuntime(workspace, membership);
+	const scope = createScopeRuntime(workspace, membership, principals?.of);
 	/**
 	 * By person, the active persona's id when it is not `default` (phase 3 specification, 6.1, 6.2): the `persona`
 	 * context field of each call for that person. Stage A reads its person's; `late/` keeps it.
@@ -612,7 +645,8 @@ export async function createKernelParts(
 	/** `app-list`'s rows: the workspace's overrides, and whether each can open in the active scope (7.1). */
 	const summaries = (): AppSummaryV2[] => {
 		// Signed out in `provider` mode the rail is empty: `app-list` answers none (phase 3 specification, 2.1).
-		if (provider && person() === undefined) return [];
+		// The server holds no session: its `app-list` is the call's, decided by its chain (9.5).
+		if (provider && !gated && person() === undefined) return [];
 		const { project } = scope.active();
 		return apps
 			.summaries()
@@ -738,8 +772,13 @@ export async function createKernelParts(
 	 * signed-out and internal commands (phase 3 specification, 2.1); before, stage A's boot commands, all
 	 * signed-out ones. Scope is last, so every refusal it makes is journaled, with the effective scope.
 	 */
+	// The server's: one gate for every registry, so a port call, a nested call and a handler's client go through the
+	// same gate as the top-level call, and no afd-auth middleware reads the adapter (9.5).
+	const principalGate =
+		server && principals ? server.createPrincipalGate({ principals, own: KERNEL_OWN }) : undefined;
 	const chain = (held: readonly ZodCommandDefinition[]): CommandMiddleware[] => [
-		lateParts?.authGate(held) ??
+		principalGate ??
+			lateParts?.authGate(held) ??
 			createAuthMiddleware(options.auth, { exclude: held.map((command) => command.name), clock }),
 		journal,
 		// Right inside the journal, so the scope middleware's own writes are written through too (#861).
@@ -837,6 +876,10 @@ export async function createKernelParts(
 				noteReturned: (trace) => tracker.noteReturned(trace),
 				commandNames: () => [...(mutations?.keys() ?? [])],
 				disposed: () => disposed,
+				// The server's kernel (9.5): no session logic, and the kernel's own calls marked under `KERNEL_OWN`.
+				gated,
+				own: KERNEL_OWN,
+				instanceFields: INSTANCE_FIELDS,
 			});
 			// Disposed once the late parts were made, before this resumed: none of them is installed, the replay's callback
 			// among them (step 6 merged with step 7).
@@ -889,6 +932,11 @@ export async function createKernelParts(
 	 * which waits for stage B and would never drain.
 	 */
 	const BOOT_FIELDS: KernelCallFields = {};
+	/**
+	 * The fields of `startInstances`' refresh, compared by reference like `BOOT_FIELDS` (9.5): a principal gate passes
+	 * `app-instance-refresh` made with them, with no principal, and nothing else.
+	 */
+	const INSTANCE_FIELDS: KernelCallFields = {};
 	const runBoot = (name: string, input?: unknown) => run('palette', name, input, {}, BOOT_FIELDS);
 	/**
 	 * A palette call stage B makes itself, past the queue it holds, journaled as the person's (phase 4's 3.6), with the
@@ -1051,6 +1099,8 @@ export async function createKernelParts(
 			// Not truthiness: a frame's call may name its parent with an empty trace ID.
 			fields.parent !== undefined ||
 			fields === BOOT_FIELDS ||
+			// The instance refresh is the kernel's own too: queued, its fields would lose the mark the gate reads (9.5).
+			(gated && fields === INSTANCE_FIELDS) ||
 			// The agent interface waits for stage B, whose `late/` names its actor (phase 3 specification, 3.1).
 			!(queue || (!stageBEnded && (iface === 'agent' || !mutations.has(name))))
 		)
@@ -1116,7 +1166,7 @@ export async function createKernelParts(
 				: fields.parent !== undefined
 					? traces.get(fields.parent)
 					: undefined;
-		if (iface === 'agent' && !actor) {
+		if (iface === 'agent' && !actor && !gated) {
 			// `copilot` is reserved: only the kernel's own options name it (3.2).
 			const named = mine
 				? ({ kind: 'agent', id: 'copilot' } as Actor)
@@ -1142,9 +1192,17 @@ export async function createKernelParts(
 		// the active scope at this moment. No registry or connection holds it (3.2).
 		const asked = callOptions.scope;
 		scope.seen.set(traceId, {});
-		const context: CommandContext & KernelCallFields & { [CALL_MARK]: string } = {
+		// On the server (9.5): a nested call's principal from the actor it copied, the one value every path under a request
+		// carries, and only one this kernel minted for that very actor; a `principal` field is never read, so no path can
+		// pair one person's actor with another's principal (the step 5 review's B1, step 7's half). The kernel's own
+		// calls are marked last, so no field a caller passes can claim to be one.
+		const principal = gated ? principals?.of(actor) : undefined;
+		const own =
+			fields === BOOT_FIELDS ? 'boot' : fields === INSTANCE_FIELDS ? 'instance' : undefined;
+		const context: CommandContext & KernelCallFields & { [CALL_MARK]?: string } = {
 			traceId,
-			[CALL_MARK]: fields.scope || asked ? 'run' : 'active',
+			// A server's call holds no active scope, so it never moves one (phase 2's 3.3).
+			...(gated ? {} : { [CALL_MARK]: fields.scope || asked ? 'run' : 'active' }),
 			...(callOptions.signal !== undefined ? { signal: callOptions.signal } : {}),
 			...owned,
 			...fields,
@@ -1156,6 +1214,11 @@ export async function createKernelParts(
 				(asked === 'workspace' ? { workspace: workspace.id } : asked) ??
 				scope.active(),
 		};
+		if (gated) {
+			(context as unknown as Record<symbol, unknown>)[KERNEL_OWN] = own;
+			if (principal) context.principal = principal;
+			else delete context.principal;
+		} else delete context.principal;
 		// `BOOT_ONLY`, both ways (2.2): its names are in the boot registry alone, which `BOOT_FIELDS` reach and
 		// nothing else does, so a caller gets the palette's or the agent's own `COMMAND_NOT_FOUND`, and boot's
 		// fields reach no other command.
@@ -1220,6 +1283,11 @@ export async function createKernelParts(
 	 * a change is journaled in stage B, by `scope-set`.
 	 */
 	function chooseScope(slug?: string | null): void {
+		// The server sets the workspace without reading the adapter (9.5): it holds no active scope of anyone's.
+		if (gated) {
+			scope.setActive({ workspace: workspace.id });
+			return;
+		}
 		const actor = sessionActor(options.auth, clock);
 		// Stage A's person, whose records it read: `late/` settles from them (phase 3 specification, 4.4).
 		chosen = [actor];
@@ -1257,24 +1325,29 @@ export async function createKernelParts(
 		if (applying) await lateParts?.settle(runBoot);
 		await lateParts?.migrate(runNow);
 	}
-	// Stage A's person's active persona (6.1), so their first call carries it; a read that fails is `default`.
-	const who = personOf({ actor: sessionActor(options.auth, clock) });
-	const active = (
-		await options.store
-			.get<{ value?: { active?: unknown } }>('settings', `loam.persona~${who}`)
-			.catch(() => null)
-	)?.value?.active;
-	if (typeof active === 'string' && active !== 'default') personas.set(who, active);
-	// Phase 4's settings (its 3.6): stage A paints from the person's `loam.settings`, and in `provider` mode, signed out,
-	// from `loam.appearance.last`. Read as the persona is, from the view-state store's table; a read that fails is none.
-	const read = async (id: string) =>
-		(await options.store.get<{ value?: unknown }>('settings', id).catch(() => null))?.value;
-	const signedIn = person();
-	if (!provider || signedIn !== undefined) {
-		const id = provider ? personalRecordId('loam.settings', signedIn) : 'loam.settings';
-		state.setOwnAppearance(appearanceFrom(await read(id), true));
+	// Stage A's person's active persona (6.1), so their first call carries it; a read that fails is `default`. The server
+	// has no stage A person: it reads neither a persona nor an appearance (9.5).
+	const who = gated ? undefined : personOf({ actor: sessionActor(options.auth, clock) });
+	if (who !== undefined) {
+		const active = (
+			await options.store
+				.get<{ value?: { active?: unknown } }>('settings', `loam.persona~${who}`)
+				.catch(() => null)
+		)?.value?.active;
+		if (typeof active === 'string' && active !== 'default') personas.set(who, active);
+		// Phase 4's settings (its 3.6): stage A paints from the person's `loam.settings`, and in `provider` mode, signed
+		// out, from `loam.appearance.last`. Read as the persona is, from the view-state store's table; a read that fails is
+		// none.
+		const read = async (id: string) =>
+			(await options.store.get<{ value?: unknown }>('settings', id).catch(() => null))?.value;
+		const signedIn = person();
+		if (!provider || signedIn !== undefined) {
+			const id = provider ? personalRecordId('loam.settings', signedIn) : 'loam.settings';
+			state.setOwnAppearance(appearanceFrom(await read(id), true));
+		}
+		if (provider)
+			state.setLastAppearance(appearanceFrom(await read('loam.appearance.last'), false));
 	}
-	if (provider) state.setLastAppearance(appearanceFrom(await read('loam.appearance.last'), false));
 	chooseScope(options.initialScope?.project);
 	// The first frame has this project's layout: without it, a reload in a project paints the workspace's.
 	await state.scopedLayoutId(
@@ -1335,6 +1408,7 @@ export async function createKernelParts(
 			chooseScope();
 		},
 		runBoot,
+		...(principals ? { admitPrincipal: principals.admit, retirePrincipal: principals.retire } : {}),
 		// Phase 6's, so `late/` builds it: before that chunk has loaded, nothing is served. A server's call
 		// reaches this page's listeners as a call made here does (documents specification, 5.4).
 		mcpOptions: () => lateParts?.mcpOptions(current, listeners),

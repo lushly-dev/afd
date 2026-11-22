@@ -22,6 +22,7 @@ async function start(config: HostChildConfig): Promise<HostReady> {
 			await appendFile(config.mailPath, `${JSON.stringify(message)}\n`);
 		},
 	});
+	const clients = await registerClients(auth, config);
 	const server = createServer(toNodeHandler(auth));
 	await new Promise<void>((resolve) => server.listen(config.port, '127.0.0.1', resolve));
 	const close = () => {
@@ -31,7 +32,42 @@ async function start(config: HostChildConfig): Promise<HostReady> {
 	};
 	process.once('SIGTERM', close);
 	process.once('SIGINT', close);
-	return { ready: true, organizationId, people };
+	return { ready: true, organizationId, people, clients };
+}
+
+/** The deployer's pre-registration (9.4): an owner's session, through the server API, as `loam-host` will do it. */
+async function registerClients(
+	auth: Awaited<ReturnType<typeof createTestProvider>>['auth'],
+	config: HostChildConfig
+): Promise<Record<string, string>> {
+	const clients: Record<string, string> = {};
+	if (!config.clients?.length) return clients;
+	const owner = config.people.find((person) => person.role === 'owner' && person.password);
+	if (!owner) throw new Error('Pre-registering a client needs a seeded owner with a password');
+	const api = auth.api as unknown as Record<string, (input: unknown) => Promise<unknown>>;
+	const signedIn = (await api.signInEmail?.({
+		body: { email: owner.email, password: owner.password },
+		asResponse: true,
+	})) as Response;
+	const cookie = signedIn.headers
+		.getSetCookie()
+		.map((line) => line.split(';')[0])
+		.join('; ');
+	for (const client of config.clients) {
+		const made = (await api.adminCreateOAuthClient?.({
+			headers: new Headers({ cookie }),
+			body: {
+				client_name: client.name,
+				redirect_uris: [client.redirect],
+				token_endpoint_auth_method: 'none',
+				application_type: 'native',
+				grant_types: ['authorization_code', 'refresh_token'],
+				response_types: ['code'],
+			},
+		})) as { client_id: string };
+		clients[client.name] = made.client_id;
+	}
+	return clients;
 }
 
 try {

@@ -290,15 +290,16 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 
 	/** Whether `slug` is one a `workspace-app` record still listed names in `projects` (7.3). */
 	const listedSlug = (slug: string): boolean => teamListed(scope.workspaceApps.all(), slug);
+	// On the call's membership: on the server, its principal's alone (9.5).
 	const ownerOf = (context: CommandContext): boolean =>
-		isOwner(scope.membership, personKey(context.actor));
+		isOwner(scope.membershipOf(context), personKey(context.actor));
 	/**
 	 * An owner's exemptions from the members rules (D96): leaving themselves out of a restricted project, and finding
 	 * one they cannot see to add themselves. `provider` mode's: in `local` mode every actor is an owner, and phase 2's
 	 * rules stand unchanged (2.1, E12).
 	 */
 	const exemptOwner = (context: CommandContext): boolean =>
-		scope.membership.mode === 'provider' && ownerOf(context);
+		scope.membershipOf(context).mode === 'provider' && ownerOf(context);
 	/**
 	 * An agent's `project-create` of a listed slug, and any agent's `project-create` or `project-update` whose input has
 	 * `access`, is `HUMAN_REQUIRED` (3.4's fifth row): no agent changes who is in a project, however Q2 was answered.

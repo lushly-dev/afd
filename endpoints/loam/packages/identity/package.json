@@ -26,21 +26,26 @@
 		"test": "vitest run"
 	},
 	"dependencies": {
+		"@better-auth/cimd": "1.7.18",
+		"@better-auth/oauth-provider": "1.7.18",
 		"@better-auth/passkey": "1.7.18",
+		"@lushly-dev/afd-auth": "workspace:*",
+		"@lushly-dev/afd-core": "workspace:*",
+		"@lushly-dev/afd-server": "workspace:*",
+		"@lushly-dev/loam-kernel": "workspace:*",
 		"@lushly-dev/loam-manifest": "workspace:*",
 		"better-auth": "1.7.18"
 	},
 	"devDependencies": {
-		"@lushly-dev/afd-auth": "workspace:*",
-		"@lushly-dev/afd-core": "workspace:*",
-		"@lushly-dev/loam-kernel": "workspace:*",
+		"@lushly-dev/afd-client": "workspace:*",
 		"@lushly-dev/local-db": "workspace:*",
 		"@types/node": "^26.6.6",
 		"@vitest/coverage-v8": "^5.1.0",
 		"rimraf": "^6.1.4",
 		"tsx": "4.23.15",
 		"typescript": "^7.0.2",
-		"vitest": "^5.1.0"
+		"vitest": "^5.1.0",
+		"zod": "^4.6.7"
 	},
 	"repository": {
 		"type": "git",

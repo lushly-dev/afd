@@ -40,14 +40,24 @@ export {
 	LoamLinkPage,
 	mountLinkPage,
 } from './link-pages.js';
+export {
+	clientHostOf,
+	LoamOAuthPage,
+	mountOAuthPage,
+	type OAuthPageOptions,
+	type OAuthProviderV1,
+	redirectOf,
+	scopeWords,
+} from './oauth-pages.js';
 
-const TABS = ['profile', 'passkeys', 'sessions', 'members'] as const;
+const TABS = ['profile', 'passkeys', 'sessions', 'members', 'agents'] as const;
 type Tab = (typeof TABS)[number];
 const TAB_NAMES: Record<Tab, string> = {
 	profile: 'Profile',
 	passkeys: 'Passkeys',
 	sessions: 'Sessions',
 	members: 'Members',
+	agents: 'Agents',
 };
 
 /** `loam-account-section` (5.1): the person's account, at workspace level. */
@@ -148,7 +158,9 @@ export class LoamAccountSection extends AccountElement {
 					? await this.#sessions(kernel)
 					: this.tab === 'members'
 						? await this.#members(kernel)
-						: await this.#profile(kernel);
+						: this.tab === 'agents'
+							? await this.#agents(kernel)
+							: await this.#profile(kernel);
 		if (generation === this.#reads) panel.replaceChildren(...rendered);
 	}
 
@@ -380,6 +392,87 @@ export class LoamAccountSection extends AccountElement {
 				el('tbody', {}, ...rows)
 			),
 			el('div', { class: 'row' }, others),
+		];
+	}
+
+	/** The agents tab (5.3): the external agents the person connected over MCP, each with Disconnect (9.2). */
+	async #agents(kernel: LoamKernelV5): Promise<Node[]> {
+		type Row = {
+			agent: string;
+			name: string;
+			clientHost: string;
+			scopes: string[];
+			connectedAt: string;
+			status: 'active' | 'suspended';
+			suspended?: string;
+		};
+		const read = (await kernel.call<{ agents: Row[] }>('account-agent-list')) as Answer<{
+			agents: Row[];
+		}>;
+		if (!read.success || !read.data) return [el('p', {}, this.#failed(read))];
+		const intro = el(
+			'p',
+			{},
+			'Apps you connected over MCP act for you, within what you may do, and owners see each one. Disconnecting one ends its access within 10 minutes.'
+		);
+		if (read.data.agents.length === 0)
+			return [intro, el('p', {}, 'You have not connected any app.')];
+		const statusOf = (row: Row) =>
+			row.status === 'active'
+				? 'Connected'
+				: row.suspended === 'owner'
+					? 'Removed by an owner'
+					: 'Disconnected';
+		const rows = read.data.agents.map((row) => {
+			// One an owner removed stays removed until an owner allows it again (9.2): nothing to disconnect.
+			const removed = row.status === 'suspended' && row.suspended === 'owner';
+			const disconnect = button(`Disconnect ${row.name}`, async () => {
+				const sure = await confirmIn(
+					this.shadowRoot as ShadowRoot,
+					`Disconnect ${row.name}?`,
+					'It can no longer act for you. Its last access token still works for up to 10 minutes.',
+					'Disconnect'
+				);
+				if (!sure) return;
+				const answer = (await kernel.call('account-agent-disconnect', {
+					agent: row.agent,
+				})) as Answer;
+				this.#say(answer.success ? `${row.name} is disconnected.` : this.#failed(answer));
+				if (answer.success) await this.read();
+			});
+			return el(
+				'tr',
+				{},
+				el('th', { scope: 'row' }, `${row.name} (name given by the app)`),
+				el('td', {}, row.clientHost || 'Registered by the deployer'),
+				el('td', {}, row.scopes.includes('loam:write') ? 'Read and change' : 'Read'),
+				el('td', {}, dateText(row.connectedAt)),
+				el('td', {}, statusOf(row)),
+				el('td', {}, ...(removed ? ['Ask an owner to allow it again'] : [disconnect]))
+			);
+		});
+		return [
+			intro,
+			el(
+				'table',
+				{},
+				el('caption', {}, 'Connected apps'),
+				el(
+					'thead',
+					{},
+					el(
+						'tr',
+						{},
+						el('th', { scope: 'col' }, 'App'),
+						el('th', { scope: 'col' }, 'From'),
+						el('th', { scope: 'col' }, 'Access'),
+						el('th', { scope: 'col' }, 'Connected'),
+						el('th', { scope: 'col' }, 'Status'),
+						el('th', { scope: 'col' }, 'Actions')
+					)
+				),
+				el('tbody', {}, ...rows)
+			),
 		];
 	}
 

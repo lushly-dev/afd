@@ -13,6 +13,7 @@ import { createHash } from 'node:crypto';
 import type { AuthContext } from 'better-auth';
 import { createAuthEndpoint, createAuthMiddleware, getSessionFromCtx } from 'better-auth/api';
 import { deleteSessionCookie, setSessionCookie } from 'better-auth/cookies';
+import { type ConnectionAdapter, suspendConnections } from './connected-agents.js';
 import { consumeOnce, type LinkAdapter, linkRefusal, signOutFirst } from './enrolment.js';
 import { newToken, timeOf, tokenHash } from './tokens.js';
 
@@ -105,8 +106,8 @@ export async function readRecovery(
 
 /**
  * The recovery transaction's writes (5.7), through `adapter`, the transaction's: every session of the person but
- * `keep` deleted, `recoveredAt` set, every other outstanding recovery link of theirs cancelled. The person's OAuth consents and refresh tokens, and their connected agents' suspension, join
- * it with step 7, which makes them; none exists before (`REVOKES_CONSENTS`).
+ * `keep` deleted, `recoveredAt` set, every other outstanding recovery link of theirs cancelled, their connected agents suspended and their OAuth consents
+ * and refresh tokens ended (step 7).
  */
 export async function recoverPerson(
 	adapter: LinkAdapter,
@@ -127,6 +128,9 @@ export async function recoverPerson(
 		where: [{ field: 'id', value: userId }],
 		update: { recoveredAt: now, updatedAt: now },
 	});
+	// Their connected agents suspended and every OAuth consent and refresh token of theirs ended, in the same transaction
+	// (5.7, step 7): whoever held the account before the recovery keeps no agent's grant.
+	await suspendConnections(adapter as unknown as ConnectionAdapter, userId, now);
 	// Every other link of the person's still outstanding is cancelled in the same transaction, so at most one recovery
 	// link is ever used, whatever racing requests left outstanding (the final check's IMPROVEMENT 3).
 	await adapter.updateMany({

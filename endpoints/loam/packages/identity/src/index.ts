@@ -20,9 +20,33 @@ export {
 	type BootstrapResultV1,
 	bootstrapOrganization,
 } from './bootstrap.js';
+export {
+	CONNECTED_ACCESS,
+	type ConnectAgentInput,
+	type ConnectedAgentV1,
+	connectAgent,
+	endConnections,
+} from './connected-agents.js';
 export { JOIN_INVITATION_MS, joinLink } from './enrolment.js';
 export { createOrganizationHooks } from './hooks.js';
+export {
+	type AdmitPrincipal,
+	createMcpAuth,
+	credentialsGate,
+	type McpAuthConfig,
+	type McpProviderV1,
+	principalOf,
+	providerKeys,
+} from './mcp.js';
 export type { RecoveryV1 } from './members.js';
+export {
+	ACCESS_TOKEN_SECONDS,
+	LOAM_SCOPES,
+	type LoamOAuthConfig,
+	OAUTH_CONSENT_PATH,
+	OAUTH_LOGIN_PATH,
+	OAUTH_SCOPES,
+} from './oauth.js';
 export {
 	CLIENT_ADDRESS_HEADER,
 	createLoamAuthOptions,
@@ -35,3 +59,10 @@ export {
 export { type LoamProviderState, loamServerPlugin } from './plugin.js';
 export { RECOVERY_LINK_MS, recoveryLink } from './recovery.js';
 export { isOwnerRole, loamAccessControl, loamRole, loamRoles } from './roles.js';
+export {
+	createNoSessionAdapter,
+	createServerKernel,
+	type ServerKernel,
+	type ServerKernelOptions,
+	serverAccountAccess,
+} from './server.js';

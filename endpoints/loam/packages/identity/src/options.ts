@@ -4,8 +4,8 @@
  * person can call its endpoints directly, around Loam's commands.
  *
  * Passkey registration runs with `requireSession: false`, for the join and recovery pages, with every check that
- * removes restored at the provider (5.8, step 4); invitations send a join link (5.6). The seam left: the OAuth
- * provider, its JWT plugin and Client ID Metadata Documents (9.4, step 7).
+ * removes restored at the provider (5.8, step 4); invitations send a join link (5.6). The OAuth provider, its JWT
+ * plugin and Client ID Metadata Documents are `oauth.ts`'s (9.4, step 7).
  */
 
 import { passkey } from '@better-auth/passkey';
@@ -14,11 +14,18 @@ import type { BetterAuthOptions } from 'better-auth';
 import { APIError, createAuthMiddleware } from 'better-auth/api';
 import { genericOAuth } from 'better-auth/plugins/generic-oauth';
 import { organization } from 'better-auth/plugins/organization';
+import { membershipOf } from './binding.js';
 import { invitationMailer, JOIN_INVITATION_MS } from './enrolment.js';
 import { createOrganizationHooks } from './hooks.js';
-import { type LoamProviderState, loamServerPlugin } from './plugin.js';
+import {
+	type LoamOAuthConfig,
+	OAUTH_DISABLED_PATHS,
+	oauthPlugins,
+	refuseClientPolicy,
+} from './oauth.js';
+import { adapterOf, type LoamProviderState, loamServerPlugin } from './plugin.js';
 import { passkeyRegistration } from './registration.js';
-import { loamAccessControl, loamRoles } from './roles.js';
+import { isOwnerRole, loamAccessControl, loamRoles } from './roles.js';
 import {
 	FRESH_AGE_SECONDS,
 	methodOfPath,
@@ -71,6 +78,8 @@ export interface LoamAuthConfig {
 	 * limit, Better Auth's default and its stricter sign-in and mail rules alike; nothing turns the limiter off.
 	 */
 	rateLimit?: { window: number; max: number };
+	/** The authorization server's options (9.4): the MCP resource, the metadata documents' transport, registration. */
+	oauth?: LoamOAuthConfig;
 }
 
 /**
@@ -103,6 +112,8 @@ function refuseTrustedOriginsEnvironment(): void {
  */
 function originHook(origin: string) {
 	return createAuthMiddleware(async (ctx) => {
+		// No client turns PKCE off or skips consent, whichever route registers or changes it (9.4).
+		refuseClientPolicy(ctx);
 		const sent = ctx.request?.headers.get('origin');
 		if (sent !== null && sent !== undefined && sent !== origin) {
 			throw APIError.from('FORBIDDEN', {
@@ -206,6 +217,8 @@ export const LOAM_DISABLED_PATHS: readonly string[] = Object.freeze([
 	// sessions nor runs Loam's last-owner check (7.5). Loam's own leave endpoint, with both, comes with
 	// `member-leave` (phase 6's A4); until then a member leaves by being removed (the re-check of step 3's NEW-5).
 	'/organization/leave',
+	// A client is registered or changed only by the deployer, a metadata document or dynamic registration (9.4).
+	...OAUTH_DISABLED_PATHS,
 ]);
 
 export { FRESH_AGE_SECONDS };
@@ -386,6 +399,16 @@ export function createLoamAuthOptions(config: LoamAuthConfig): BetterAuthOptions
 						}),
 					]
 				: []),
+			// The authorization server (9.4, step 7): the JWT plugin, `oauthProvider` and Client ID Metadata Documents.
+			...oauthPlugins({
+				shell,
+				resource: config.oauth?.resource ?? `${shell}mcp`,
+				config: config.oauth ?? {},
+				isOwner: async (userId) => {
+					const membership = await membershipOf(adapterOf(state), state.workspace, userId);
+					return membership !== null && isOwnerRole(membership.role);
+				},
+			}),
 			loamServerPlugin(state),
 		],
 	};
