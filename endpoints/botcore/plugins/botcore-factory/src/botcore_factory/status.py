@@ -130,6 +130,8 @@ def lane_status(factory: Factory, limit: int | None, cursor: str | None) -> dict
         "running": bool(lane.get("running")),
         "paused": bool(lane.get("paused")),
         "pauseReason": lane.get("pauseReason"),
+        "waitingOnHostLock": lane.get("waitingOnHostLock"),
+        "hostLock": world.validation_lock.status() if world.validation_lock is not None else None,
         "foreman": lane.get("foreman"),
         "draining": bool(lane.get("draining")),
         "slots": {

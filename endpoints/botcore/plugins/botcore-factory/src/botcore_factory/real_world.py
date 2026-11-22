@@ -20,6 +20,7 @@ from pathlib import Path
 from botcore_factory.real_run import Run, make_runner, parse_json, resolve_program, run_process
 from botcore_factory.real_system import LocalMachine, OsProcesses, SystemClock, T3Plans
 from botcore_factory.squash import clean_message, fold_message, squash_body
+from botcore_factory.validation_lock import ValidationLock
 from botcore_factory.world import (
     Comment,
     FoldOutcome,
@@ -943,11 +944,13 @@ def real_world(target: Path, *, caches: Path | None = None) -> World:
     """The world for a repository checked out at ``target``."""
     run = make_runner(str(target))
     clock = SystemClock()
+    processes = OsProcesses()
     return World(
         github=GhGitHub(run),
         git=CliGit(run, str(target)),
         clock=clock,
         machine=LocalMachine(run),
         plans=T3Plans(clock, caches),
-        processes=OsProcesses(),
+        processes=processes,
+        validation_lock=ValidationLock(processes=processes, clock=clock),
     )

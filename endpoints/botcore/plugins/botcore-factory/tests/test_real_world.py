@@ -803,23 +803,29 @@ def test_terminate_kills_only_a_verified_process_and_its_whole_tree(tmp_path):
 
 
 def test_a_mac_start_time_comes_from_ps(monkeypatch):
-    """B3: on macOS a reused pid is told apart by its start time too."""
+    """B3: on macOS a reused pid is told apart by its UTC start time too."""
+    import calendar
     import time
 
     from botcore_factory import real_system
     from botcore_factory.world import Completed
 
     asked = []
+    envs = []
 
-    def ps(args, **_):
+    def ps(args, **kwargs):
         asked.append(list(args))
+        envs.append(kwargs.get("env"))
         return Completed(tuple(args), 0, "Fri Nov 13 09:30:05 2026\n", "")
 
     monkeypatch.setattr(real_system, "run_process", ps)
     monkeypatch.setattr(real_system.sys, "platform", "darwin")
-    expected = time.mktime(time.strptime("Fri Nov 13 09:30:05 2026", "%a %b %d %H:%M:%S %Y"))
+    expected = float(
+        calendar.timegm(time.strptime("Fri Nov 13 09:30:05 2026", "%a %b %d %H:%M:%S %Y"))
+    )
     assert OsProcesses().start_time(4242) == expected
     assert asked == [["ps", "-o", "lstart=", "-p", "4242"]]
+    assert envs[0]["TZ"] == "UTC" and envs[0]["LC_ALL"] == "C"
 
 
 def test_this_machine_s_programs_symlinks_and_versions():

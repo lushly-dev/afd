@@ -11,6 +11,18 @@ from typing import TYPE_CHECKING
 
 from botcore_factory.claims import parse_time
 from botcore_factory.failures import disk_full, failing_tests
+from botcore_factory.validation_lock import (
+    DEFAULT_LANE,
+    apply_check_available,
+    apply_reconcile,
+    apply_release,
+    apply_set_job,
+    apply_try_acquire,
+    apply_withdraw_waiter,
+    empty_lock_state,
+    prune_lock_state,
+    validate_lock_state,
+)
 from botcore_factory.world import (
     LANE_HOST_VARIABLE,
     TAIL_LINES,
@@ -702,6 +714,156 @@ class FixtureProcesses:
             result.get("returncode", 0),
             result.get("stdout", ""),
             result.get("stderr", ""),
+        )
+
+
+class FixtureValidationLock:
+    """In-memory/fixture-backed shared host validation lock, never touching ~/.cache."""
+
+    def __init__(self, store: FixtureWorld) -> None:
+        self.store = store
+
+    def _read(self) -> dict:
+        _fail(self.store, "hostLock")
+        raw = self.store.data.get("hostLock")
+        if raw is None:
+            return empty_lock_state()
+        return validate_lock_state(raw, "fixture hostLock")
+
+    def _write(self, state: dict) -> None:
+        self.store.data["hostLock"] = state
+        self.store.save()
+
+    def check_available(
+        self,
+        repository: str,
+        pid: int,
+        *,
+        register_waiter: bool = True,
+        lane: str = DEFAULT_LANE,
+    ) -> dict | None:
+        before = self._read()
+        after, blocker = apply_check_available(
+            before,
+            FixtureProcesses(self.store),
+            FixtureClock(self.store).now(),
+            repository=repository,
+            pid=pid,
+            register_waiter=register_waiter,
+            lane=lane,
+        )
+        if after != before:
+            self._write(after)
+        return blocker
+
+    def try_acquire(
+        self,
+        hold_id: str,
+        repository: str,
+        pid: int,
+        *,
+        lane: str = DEFAULT_LANE,
+    ) -> dict | None:
+        before = self._read()
+        after, blocker = apply_try_acquire(
+            before,
+            FixtureProcesses(self.store),
+            FixtureClock(self.store).now(),
+            hold_id=hold_id,
+            repository=repository,
+            pid=pid,
+            lane=lane,
+        )
+        if after != before:
+            self._write(after)
+        return blocker
+
+    def set_job(
+        self,
+        hold_id: str,
+        repository: str,
+        pid: int,
+        job_pid: int | None,
+        job_started_at: float | None,
+        *,
+        lane: str = DEFAULT_LANE,
+    ) -> None:
+        before = self._read()
+        after = apply_set_job(
+            before,
+            FixtureProcesses(self.store),
+            FixtureClock(self.store).now(),
+            hold_id=hold_id,
+            caller=(lane, repository, pid),
+            job=(job_pid, job_started_at),
+        )
+        if after != before:
+            self._write(after)
+
+    def release(
+        self,
+        hold_id: str,
+        repository: str,
+        pid: int,
+        *,
+        lane: str = DEFAULT_LANE,
+    ) -> None:
+        before = self._read()
+        after = apply_release(
+            before,
+            FixtureProcesses(self.store),
+            FixtureClock(self.store).now(),
+            hold_id=hold_id,
+            repository=repository,
+            pid=pid,
+            lane=lane,
+        )
+        if after != before:
+            self._write(after)
+
+    def reconcile(
+        self,
+        repository: str,
+        pid: int,
+        active_hold_ids: Sequence[str],
+        *,
+        lane: str = DEFAULT_LANE,
+    ) -> None:
+        before = self._read()
+        after = apply_reconcile(
+            before,
+            FixtureProcesses(self.store),
+            FixtureClock(self.store).now(),
+            repository=repository,
+            pid=pid,
+            active_hold_ids=active_hold_ids,
+            lane=lane,
+        )
+        if after != before:
+            self._write(after)
+
+    def withdraw_waiter(
+        self,
+        repository: str,
+        pid: int,
+        *,
+        lane: str = DEFAULT_LANE,
+    ) -> None:
+        before = self._read()
+        after = apply_withdraw_waiter(
+            before,
+            FixtureProcesses(self.store),
+            FixtureClock(self.store).now(),
+            repository=repository,
+            pid=pid,
+            lane=lane,
+        )
+        if after != before:
+            self._write(after)
+
+    def status(self) -> dict:
+        return prune_lock_state(
+            self._read(), FixtureProcesses(self.store), FixtureClock(self.store).now()
         )
 
 

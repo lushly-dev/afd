@@ -9,6 +9,7 @@ take the last seat or issue. ``lane-drop`` releases the claims and forgets the c
 
 from __future__ import annotations
 
+import contextlib
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -20,6 +21,7 @@ from botcore_factory.events import answer, emit
 from botcore_factory.intake import not_dispatchable_reasons, read_backlog
 from botcore_factory.labels import IN_PROGRESS, PLANNED
 from botcore_factory.lane_base import MERGE_QUEUED, counted_ejections
+from botcore_factory.lock import HostLock
 from botcore_factory.records import last_ejection
 from botcore_factory.runtime import Factory, Refusal
 from botcore_factory.world import Plan, WorldError
@@ -566,12 +568,33 @@ def drop(
                 )
         was_full = len(holding_seats(state)) >= dials.value(state["dials"], "cells.max")
         held_seat = cell in holding_seats(state)
+        dropped_slots = [
+            entry["slot"]
+            for entry in state["queue"]
+            if entry["branch"] == branch
+            and entry.get("state") == "validating"
+            and entry.get("slot")
+        ]
         for entry in [*state["queue"], *state["held"]]:
             if entry["branch"] == branch:
                 if entry.get("run"):
                     factory.world.processes.kill(entry["run"])
                 factory.world.git.delete_queue_ref(branch, entry["head"])
         released = _release(factory, cell, reason)
+        if dropped_slots and factory.world.validation_lock is not None:
+            lane_pid = state["lane"].get("pid")
+            if lane_pid is None:
+                holder = HostLock(
+                    factory.store.root.parent / "lane.lock", factory.world.processes
+                ).live_holder()
+                repo = factory.world.github.repository()
+                if holder is not None and holder.get("repository") in (None, repo):
+                    lane_pid = holder.get("pid")
+            if isinstance(lane_pid, int) and not isinstance(lane_pid, bool):
+                with contextlib.suppress(WorldError):
+                    repo = factory.world.github.repository()
+                    for slot in dropped_slots:
+                        factory.world.validation_lock.release(f"slot:{slot}", repo, lane_pid)
         now = format_time(factory.world.clock.now())
         state["cells"].remove(cell)
         for listing in (state["queue"], state["held"]):

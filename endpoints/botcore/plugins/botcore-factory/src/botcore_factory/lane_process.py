@@ -242,14 +242,24 @@ def ours(factory: Factory, holder: dict | None) -> bool:
 
 
 def _end_run(factory: Factory, state: dict, reason: str, *, kill: bool, pid: int | None) -> None:
-    """Close the run: with ``kill``, requeue what was validating and kill those jobs; without
-    (a status read), leave them to the next lane's ``resume``. Write the summary, release the
-    lock ``pid`` held."""
+    """Close the run: with ``kill``, requeue what was validating and kill those jobs (plus any
+    running coverage job); without (a status read), leave them to the next lane's ``resume``.
+    Write the summary, release the lock ``pid`` held."""
     lane, at = state["lane"], _now(factory)
+    release_pid = pid if pid is not None else lane.get("pid")
     if kill:
         cleanup = Step(factory, state)
         for entry in reversed([e for e in state["queue"] if e.get("state") == "validating"]):
             cleanup.requeue(entry, "restart")
+        cov = lane.pop("coverage", None)
+        if isinstance(cov, dict) and cov.get("run"):
+            with contextlib.suppress(WorldError):
+                factory.world.processes.kill(cov["run"])
+        if release_pid is not None and factory.world.validation_lock is not None:
+            with contextlib.suppress(WorldError):
+                repo = factory.world.github.repository()
+                factory.world.validation_lock.reconcile(repo, int(release_pid), [])
+                factory.world.validation_lock.withdraw_waiter(repo, int(release_pid))
     run_id = lane.get("runId")
     if run_id:
         factory.store.append_record(make("run-stopped", at, run_id, reason=reason))
@@ -257,6 +267,7 @@ def _end_run(factory: Factory, state: dict, reason: str, *, kill: bool, pid: int
         if run is not None:
             history = factory.store.read_records()
             run.update(summarize(history, run_id, run.get("startedAt"), at), stoppedAt=at)
+    lane.pop("waitingOnHostLock", None)
     lane.update(running=False, pid=None, stopRequested=None)
     if pid is not None:
         host_lock(factory).release(pid)
@@ -270,9 +281,10 @@ def lane_stop(factory: Factory, force: bool) -> dict:
         holder = None  # Another repository's lane: never this command's to stop or unlock.
     with factory.store.update("lane-stop") as state:
         validating = [e["branch"] for e in state["queue"] if e.get("state") == "validating"]
-        if holder is not None and validating and not force:
+        finishing = [*validating, *(["coverage"] if state["lane"].get("coverage") else [])]
+        if holder is not None and finishing and not force:
             state["lane"]["stopRequested"] = "after-validation"
-            return {"running": True, "stopping": True, "finishing": validating}
+            return {"running": True, "stopping": True, "finishing": finishing}
         pid = holder.get("pid") if holder else None
         if pid is not None and not factory.world.processes.terminate(pid, holder.get("startedAt")):
             raise Refusal(
@@ -284,7 +296,7 @@ def lane_stop(factory: Factory, force: bool) -> dict:
         if state["lane"].get("running") or holder is not None:
             pid = holder.get("pid") if holder else None if foreign else state["lane"].get("pid")
             _end_run(
-                factory, state, "forced" if force and validating else "stopped", kill=True, pid=pid
+                factory, state, "forced" if force and finishing else "stopped", kill=True, pid=pid
             )
     return {"running": False}
 
@@ -312,13 +324,24 @@ def check_lane(factory: Factory) -> None:
 
 def resume(factory: Factory) -> list[str]:
     """Take up where the last lane stopped: validations go back to the front (behind a branch
-    already merging), their orphaned jobs killed when pid and start time still match, and a PR
-    that merged meanwhile is landed, one that waited in GitHub's merge queue included (the first
-    step reads a queued one that has not merged)."""
+    already merging), their orphaned jobs (and any orphaned coverage job) killed when pid and
+    start time still match, and a PR that merged meanwhile is landed, one that waited in GitHub's
+    merge queue included (the first step reads a queued one that has not merged)."""
     with factory.store.update("lane resume") as state:
         resumed = Step(factory, state)
         for entry in reversed([e for e in state["queue"] if e.get("state") == "validating"]):
             resumed.requeue(entry, "restart")  # Kills its job: never two in one slot.
+        cov = state["lane"].pop("coverage", None)
+        if isinstance(cov, dict) and cov.get("run"):
+            with contextlib.suppress(WorldError):
+                factory.world.processes.kill(cov["run"])
+        state["lane"].pop("waitingOnHostLock", None)
+        if factory.world.validation_lock is not None:
+            with contextlib.suppress(WorldError):
+                repo = factory.world.github.repository()
+                pid = resumed.host_lock_pid()
+                factory.world.validation_lock.reconcile(repo, pid, [])
+                factory.world.validation_lock.withdraw_waiter(repo, pid)
         for entry in [e for e in state["queue"] if e.get("state") in AT_THE_FRONT]:
             with contextlib.suppress(WorldError):  # Read again by the first step.
                 progress = factory.world.github.merge_progress(entry["pr"])
@@ -365,7 +388,9 @@ def run_loop(
         count += 1
         state = factory.store.read()
         lane = state["lane"]
-        busy = any(e.get("state") == "validating" for e in state["queue"])
+        busy = any(e.get("state") == "validating" for e in state["queue"]) or bool(
+            lane.get("coverage")
+        )
         if lane.get("stopRequested") and not busy:
             break
         if not lane.get("running"):
