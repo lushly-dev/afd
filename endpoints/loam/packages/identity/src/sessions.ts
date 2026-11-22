@@ -15,6 +15,7 @@ import {
 	sessionMiddleware,
 } from 'better-auth/api';
 import { deleteSessionCookie } from 'better-auth/cookies';
+import { type ConnectionAdapter, suspendConnections } from './connected-agents.js';
 import { markedRecovery } from './recovery.js';
 
 /** `session.freshAge`: a session made within it may add or remove a passkey or revoke others (5.2). */
@@ -105,11 +106,10 @@ export interface FreshOptions {
 }
 
 /**
- * Whether `revoke-person` also revokes the person's OAuth consents and refresh tokens (4.6). Not until step 7, which
- * configures the OAuth provider (step 3's deviation 2): until then there are none, and a guard test refuses an OAuth
- * or consent plugin while this is `false`.
+ * Whether `revoke-person` also revokes the person's OAuth consents and refresh tokens (4.6): from step 7, which
+ * configures the OAuth provider, `all` ends every connection of the person's (step 3's deviation 2, closed).
  */
-export const REVOKES_CONSENTS = false;
+export const REVOKES_CONSENTS = true;
 
 /** A refusal the provider answers with Loam's code (section 15). */
 const refuse = (
@@ -214,8 +214,8 @@ export function freshSessionHook(context: () => AuthContext | undefined) {
  * - `GET <path>/loam/sessions`: the person's live sessions by handle, never by token, with this one marked.
  * - `POST <path>/loam/revoke-person { target }`: a handle, `others` or `all`. Revoking any session but the caller's
  *   own, by handle, `others` or `all`, needs a fresh session made by a passkey for a person who holds one (4.6, as
- *   amended by the review of step 3's B1); revoking the caller's own is a sign-out and needs nothing. Step 7 adds the person's OAuth consents and refresh tokens, which
- *   do not exist until it configures the OAuth provider (9.4).
+ *   amended by the review of step 3's B1); revoking the caller's own is a sign-out and needs nothing. `others` and
+ *   `all` also delete the person's OAuth consents, revoke their refresh tokens and suspend their connected agents (4.3).
  */
 export function sessionEndpoints(context: () => AuthContext | undefined) {
 	const sessionsOf = async (ctx: { context: AuthContext }, userId: string) => {
@@ -273,6 +273,13 @@ export function sessionEndpoints(context: () => AuthContext | undefined) {
 					await requireFreshPasskeySession(context() ?? ctx.context, found);
 				}
 				for (const row of revoked) await ctx.context.internalAdapter.deleteSession(row.token);
+				// `others` and `all` revoke more than sessions (4.3): every consent of the person's deleted, every refresh token
+				// revoked, and their connected agents suspended, which their own approval lifts.
+				if (target === 'others' || target === 'all')
+					await suspendConnections(
+						ctx.context.adapter as unknown as ConnectionAdapter,
+						found.user.id
+					);
 				const signedOut = revoked.some((row) => row.token === own);
 				if (signedOut) deleteSessionCookie(ctx);
 				return ctx.json({ revoked: revoked.length, signedOut });

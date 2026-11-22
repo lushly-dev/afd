@@ -1,0 +1,92 @@
+# Draft JTBD scenario for the Agent OS proposal. Commands and shapes are proposals; the data is invented.
+# The fake runtime plays a head whose tests try to send data to a host outside every policy. That
+# a real machine has no other route out is M1's exit test.
+name: Reach only what each step is allowed to reach
+description: >-
+  When the install step needs the package registries and the tests need nothing, I want each step
+  to run under a network policy the operator named, and every connection outside it refused and
+  listed, so that code under validation cannot send anything anywhere and I can see what it tried.
+job: reach-only-what-the-step-may
+tags: [m1]
+fixture:
+  file: fixtures/host.json
+steps:
+  - description: A machine for the branch
+    command: machine-create
+    input: { repository: example-repo, for: fix/telemetry }
+    expect:
+      success: true
+      data:
+        machine:
+          network: { default: none }
+  - description: Install runs under the registries policy; validate runs with no network
+    command: run-start
+    input:
+      machine: "${{ steps[0].data.machine.id }}"
+      head: 2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c
+      steps:
+        - label: install
+          args: [pnpm, install, "--frozen-lockfile"]
+          timeoutSeconds: 1800
+          network: registries
+        - label: validate
+          args: [pnpm, verify, "--keep-going"]
+          timeoutSeconds: 5400
+          network: none
+    expect:
+      success: true
+      data:
+        run:
+          state: running
+  - description: The result lists what the tests tried to reach, and that it was refused
+    command: run-wait
+    input: { id: "${{ steps[1].data.run.id }}", timeoutMs: 300000 }
+    expect:
+      success: true
+      data:
+        run:
+          state: failed
+          failed: validate
+          steps:
+            - label: install
+              network: registries
+              connections:
+                refused: { length: 0 }
+            - label: validate
+              network: none
+              code: 1
+              connections:
+                allowed: 0
+                refused:
+                  - { host: collector.example.net, port: 443 }
+  - description: A policy the operator did not name is refused
+    command: run-start
+    input:
+      machine: "${{ steps[0].data.machine.id }}"
+      head: 2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c
+      steps:
+        - label: validate
+          args: [pnpm, verify, "--keep-going"]
+          timeoutSeconds: 5400
+          network: everything
+    expect:
+      success: false
+      error:
+        code: POLICY_UNKNOWN
+        suggestion: { contains: host-status }
+  - description: A caller cannot bring its own list of hosts
+    command: run-start
+    input:
+      machine: "${{ steps[0].data.machine.id }}"
+      head: 2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c
+      steps:
+        - label: validate
+          args: [pnpm, verify, "--keep-going"]
+          timeoutSeconds: 5400
+          network:
+            hosts: [collector.example.net]
+    expect:
+      success: false
+      error:
+        code: VALIDATION_ERROR
+        suggestion: { contains: network }

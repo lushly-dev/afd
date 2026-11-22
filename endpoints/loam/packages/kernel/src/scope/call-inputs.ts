@@ -102,6 +102,9 @@ export const SHELL_INPUTS: Readonly<Record<string, unknown>> = {
 	'account-invitation-list': {},
 	'account-invitation-accept': { invitation: 'none' },
 	'account-invitation-reject': { invitation: 'none' },
+	// Step 7's connected agents (5.3): the person's own, from the provider's table.
+	'account-agent-list': {},
+	'account-agent-disconnect': { agent: 'agt_aaaaaaaaaaaaaaaaaaaa' },
 	'member-list': {},
 	'member-invite': { email: 'new@example.com', role: 'member' },
 	'member-invitation-list': {},

@@ -30,7 +30,11 @@ export interface LateScope {
 	 * by 13's rule for the kernel's row: stage A holds only boot commands, all signed-out ones, which line 0
 	 * exempts. A replay loads `late/` before its first entry.
 	 */
-	before(call: CommandContext & KernelFieldContext, name: string): CommandResult<never> | undefined;
+	before(
+		call: CommandContext & KernelFieldContext,
+		name: string,
+		input?: unknown
+	): CommandResult<never> | undefined;
 	/** Lines 2 to 6 of an owned command, the handler, and after an `auth-*` command, its actor (3.4). */
 	run(
 		name: string,
@@ -83,7 +87,7 @@ export function createScopeMiddleware(deps: ScopeMiddlewareDeps): CommandMiddlew
 		const call = context as CommandContext & KernelFieldContext;
 		const late = deps.late();
 		// Line 0 first, then a replay's actor and a change of actor, all `late/`'s (phase 3 specification, 3.3).
-		const refused = late?.before(call, name);
+		const refused = late?.before(call, name, input);
 		if (refused) return refused;
 		// Absent is the workspace: no server holds an active scope (3.3).
 		const requested: ScopeV1 = call.scope ?? { workspace: scope.workspace.id };

@@ -1,0 +1,91 @@
+# Draft JTBD scenario for the Agent OS proposal. Commands and shapes are proposals; the data is invented.
+# The fixture is a host that restarted two minutes ago with two runs active (fixtures/restart.json
+# over fixtures/host.json). The runtime kept one machine and each of its steps' exit codes; the
+# other machine is gone. The restart itself cannot happen inside a scenario.
+name: Restart the host without losing a machine or inventing a pass
+description: >-
+  When the host, or the computer it runs on, restarts during a run, I want every machine and run
+  still listed with what became of it, and a run whose end nobody observed reported as lost and
+  never as passed, so that the lane validates again instead of waiting for ever or merging on a
+  result that was not seen.
+job: restart-without-a-false-pass
+tags: [m1]
+fixture:
+  file: fixtures/restart.json
+  base: host.json
+steps:
+  - description: The host says when it restarted
+    command: host-status
+    expect:
+      success: true
+      data:
+        host:
+          restartedAt: { exists: true }
+        runtime: { reachable: true }
+  - description: Both machines are still listed, one of them broken
+    command: machine-list
+    input: { repository: example-repo }
+    expect:
+      success: true
+      data:
+        machines:
+          - { id: m-07, state: ready }
+          - { id: m-08, state: broken }
+  - description: The run whose exit codes the runtime kept is settled from them, and says so
+    command: run-get
+    input: { id: r-21 }
+    expect:
+      success: true
+      data:
+        run:
+          state: passed
+          recovered: true
+  - description: The run whose machine is gone is lost, not passed and not failed
+    command: run-get
+    input: { id: r-22 }
+    expect:
+      success: true
+      data:
+        run:
+          state: lost
+          reason: host-restarted
+  - description: Waiting on a lost run returns at once
+    command: run-wait
+    input: { id: r-22, timeoutMs: 300000 }
+    expect:
+      success: true
+      data:
+        waitExpired: false
+        run:
+          state: lost
+  - description: A broken machine takes no run
+    command: run-start
+    input:
+      machine: m-08
+      head: 7c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d
+      steps:
+        - label: validate
+          args: [pnpm, verify, "--keep-going"]
+          timeoutSeconds: 5400
+          network: none
+    expect:
+      success: false
+      error:
+        code: MACHINE_NOT_READY
+        suggestion: { contains: machine-destroy }
+  - description: It is destroyed
+    command: machine-destroy
+    input: { id: m-08, reason: Lost in a restart }
+    expect:
+      success: true
+      data:
+        destroyed: true
+  - description: And the lane makes a new one to validate again
+    command: machine-create
+    input: { repository: example-repo, for: fix/tokens }
+    expect:
+      success: true
+      data:
+        created: true
+        machine:
+          state: ready

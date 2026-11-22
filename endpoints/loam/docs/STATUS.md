@@ -446,7 +446,7 @@ Written when the session coordinating phase 2 ran out of account capacity. `main
   - 5, persona: merged in [#1182](https://github.com/lushly-dev/afd/pull/1182) at `381add98` (2026-11-13), after a review and a final check. The `persona-*` commands in `late-identity` (`persona-list` for a person or their agent; the four changes human), each person's active persona in `loam.persona~<person>`, read by stage A, and the journaled `persona` context field, which no decision reads; `persona-set` applies a persona's density and theme through `appearance-set` and moves nothing; at a `provider` sign-in its project and landing, through `decideAccess` and `canOpen`, refused silently; its emphasis first in the rail, marked, and first in the palette, hiding nothing; the announcement, the title bar's title and the account menu's switch. P3-E2's units, its sweep and its Chromium scenarios. First paint +1,842 and +553, over the step's allowance of 750 and 300, with four ceilings raised under D115; three coordinator decisions and ten deviations, and the independent review's fixes (an agent's calls carried the wrong persona; the sweep now runs in both modes and checks each path's persona), in the [specification's status](phases/3-identity/spec.md#status).
   - 6, agent members: merged in [#1269](https://github.com/lushly-dev/afd/pull/1269) at `39b03ea3` (2026-11-16 UTC), after the trust-boundary review, final check and coordinator verification of its fixes. The `agent-member-*` commands in `late-identity`: an owner adds, changes and removes one; it is `pending` until its sponsor confirms (or `active` when the owner sponsors it), and a new sponsor or wider access asks again (D111); the sponsor read at the provider before each add or change, journaled as `membership-settle`, so a replay decides the sponsor rules from the journal; line 4 on every command an agent member makes, on the stamped actor; a sponsor who leaves suspends what they sponsor, persisted by a top-level `agent-member-settle` (after `member-remove`, which now lists them); the rows filtered for the caller. The members tab lists each as "Agent · Sponsored by <name>", with the sponsor's confirm and decline and an owner's add and remove. No route at the provider: an agent member has no account. P3-E5's units, its provider units and its Chromium scenario. First paint +43 and +19, within its ceilings; `late-identity` and `account` raised under D115; fifteen deviations the trust-boundary review's fixes (one blocker: a `workspace: false` agent member ran workspace-level commands by naming a project) and the final check's (one blocker of the same class in `document-*` with `project: null`) in the [specification's status](phases/3-identity/spec.md#status).
 
-  - 7, identity over MCP, connecting an external agent: not started.
+  - 7, identity over MCP, connecting an external agent: in review in [#1908](https://github.com/lushly-dev/afd/pull/1908), after a trust-boundary review and a re-check; the record is in the [specification's status](phases/3-identity/spec.md#status).
 
   - 8, an app's account section: not started.
 
@@ -589,6 +589,7 @@ status changes.
 
 | Date | Raised by | Follow-up | Status |
 | --- | --- | --- | --- |
+| 2026-11-21 | Phase 3 step 7 | Seven rows dated 2026-11-21 in the [specification's follow-ups](phases/3-identity/spec.md#follow-ups), from the step and its review; six open | Open |
 
 ### Follow-ups: phase 4, settings, experiments, notifications, overlays
 
@@ -675,6 +676,7 @@ new row.
 
 | Date | Session | What changed |
 | --- | --- | --- |
+| 2026-11-21 | Phase 3 step 7, `lush/loam-p3-step7-mcp-identity` | Identity over MCP: the principal-gated server kernel, `createMcpAuth`, `credentialsGate`, `createServerKernel`, connected agents in `loam_connected_agent` with `connectAgent` on consent, `account-agent-*`, the authorization server and the OAuth login and consent pages; P3-E8 and P3-E20. The record is in the [specification's status](phases/3-identity/spec.md#status) |
 
 ### Sessions: phase 4, settings, experiments, notifications, overlays
 
