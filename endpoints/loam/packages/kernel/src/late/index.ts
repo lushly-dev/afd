@@ -1236,7 +1236,7 @@ export async function createLateParts(
 		],
 		copilot,
 		confirmations,
-		writeThrough: writeThrough(deps.viewState, deps.state),
+		writeThrough: writeThrough(deps.viewState, deps.state, quiet?.active),
 		// From `BOOT_ONLY` itself, so the boot registry can hold nothing else (2.2).
 		// The server registers two of the three settles (9.5), and `agent-member-settle` for the provider's hook (A4).
 		bootOnly: BOOT_ONLY.filter((name) => !(deps.gated && SERVER_UNSETTLED.includes(name))).flatMap(

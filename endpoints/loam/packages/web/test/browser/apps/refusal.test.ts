@@ -149,7 +149,8 @@ describe('D66: nothing an app does stops the shell', () => {
 		const opened = await openShell(browser, site.origin);
 		const { page } = opened;
 		await entryButton(page, 'hello').click();
-		await page.locator('loam-main loam-notice').waitFor();
+		// Wait for the activation failure notice, not the 400 ms "Opening…" notice that can appear first under load.
+		await page.locator('loam-main loam-notice p', { hasText: 'secret-activate-text' }).waitFor();
 		expect(await page.locator('loam-notice p').first().textContent()).toContain(
 			'secret-activate-text'
 		);
@@ -163,7 +164,9 @@ describe('D66: nothing an app does stops the shell', () => {
 			return JSON.stringify(await shell.journal.read());
 		});
 		expect(entries).not.toContain('secret-activate-text');
-		expect(opened.errors.join(' ')).toContain('secret-activate-text');
+		await expect
+			.poll(() => opened.errors.join(' '), { timeout: 5_000 })
+			.toContain('secret-activate-text');
 		await opened.context.close();
 		await site.close();
 	});
@@ -183,7 +186,12 @@ describe('D66: nothing an app does stops the shell', () => {
 		const opened = await openShell(browser, site.origin);
 		const { page } = opened;
 		await entryButton(page, 'hello').click();
-		await page.locator('loam-main loam-notice').waitFor();
+		// Wait for the import failure notice (not the 400 ms "Opening…" notice) and for Playwright to deliver the
+		// browser error reported by `reportError` (#1680).
+		await page.locator('loam-main loam-notice p', { hasText: 'APP_ACTIVATION_FAILED' }).waitFor();
+		await expect
+			.poll(() => entryButton(page, 'hello').getAttribute('aria-label'))
+			.toBe('Hello (unavailable)');
 		const entries = await page.evaluate(async () => {
 			const shell = document.querySelector('loam-shell') as unknown as {
 				journal: { read(): Promise<unknown[]> };
@@ -191,7 +199,9 @@ describe('D66: nothing an app does stops the shell', () => {
 			return JSON.stringify(await shell.journal.read());
 		});
 		expect(entries).not.toContain('secret-import-text');
-		expect(opened.errors.join(' ')).toContain('secret-import-text');
+		await expect
+			.poll(() => opened.errors.join(' '), { timeout: 5_000 })
+			.toContain('secret-import-text');
 		await opened.context.close();
 		await site.close();
 
