@@ -254,12 +254,13 @@ pub use pipeline::{
     is_eq_condition, is_exists_condition, is_gt_condition, is_gte_condition, is_lt_condition,
     is_lte_condition, is_ne_condition, is_not_condition, is_or_condition, is_pipeline_condition,
     is_pipeline_request, is_pipeline_result, is_pipeline_step, resolve_reference, resolve_variable,
-    resolve_variables, CommandExecutor, PipelineAlternative, PipelineCondition,
-    PipelineConditionAnd, PipelineConditionEq, PipelineConditionExists, PipelineConditionGt,
-    PipelineConditionGte, PipelineConditionLt, PipelineConditionLte, PipelineConditionNe,
-    PipelineConditionNot, PipelineConditionOr, PipelineContext, PipelineMetadata, PipelineOptions,
-    PipelineRequest, PipelineResult, PipelineSource, PipelineStep, PipelineWarning, StepConfidence,
-    StepMetadata, StepReasoning, StepResult, StepStatus, MAX_INPUT_DEPTH, MAX_REFERENCE_LENGTH,
+    resolve_variables, try_resolve_variables, CommandExecutor, PipelineAlternative,
+    PipelineCondition, PipelineConditionAnd, PipelineConditionEq, PipelineConditionExists,
+    PipelineConditionGt, PipelineConditionGte, PipelineConditionLt, PipelineConditionLte,
+    PipelineConditionNe, PipelineConditionNot, PipelineConditionOr, PipelineContext,
+    PipelineMetadata, PipelineOptions, PipelineRequest, PipelineResult, PipelineSource,
+    PipelineStep, PipelineWarning, StepConfidence, StepMetadata, StepReasoning, StepResult,
+    StepStatus, MAX_INPUT_DEPTH, MAX_REFERENCE_LENGTH, MAX_RESOLVED_CHARS, MAX_RESOLVED_NODES,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════

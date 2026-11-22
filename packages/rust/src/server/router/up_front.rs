@@ -11,7 +11,7 @@ use serde_json::{json, Value};
 
 use super::{Call, LEGACY_APPROVAL_ROUNDS};
 use crate::approval::relay::{ApprovalRelayChannel, RoundAnswers, UpFrontApproval, UpFrontStep};
-use crate::pipeline::{reads_step_data, resolve_variables, PipelineContext};
+use crate::pipeline::{reads_step_data, try_resolve_variables, PipelineContext};
 use crate::server::confirmations::{self, Round};
 use crate::{BatchRequest, CommandContext, CommandError, PipelineRequest};
 
@@ -141,9 +141,17 @@ impl Call<'_> {
                         input: None,
                         sent: None,
                     },
-                    Some(input) => {
-                        self.up_front_step(index, &step.command, resolve_variables(input, &context))
-                    }
+                    // An input over the limits fails when its step runs: nothing to approve.
+                    Some(input) => match try_resolve_variables(input, &context) {
+                        Ok(input) => self.up_front_step(index, &step.command, input),
+                        Err(_) => UpFrontStep {
+                            index,
+                            command: step.command.clone(),
+                            dynamic: false,
+                            input: None,
+                            sent: None,
+                        },
+                    },
                     None => self.up_front_step(index, &step.command, json!({})),
                 })
                 .collect(),

@@ -39,6 +39,24 @@ object or array is level 1)."""
 MAX_REFERENCE_LENGTH = 1024
 """Strings longer than this are never resolved as references."""
 
+MAX_RESOLVED_NODES = 100_000
+"""Maximum values (template nodes and charged copies) in one resolved step input."""
+
+MAX_RESOLVED_CHARS = 16 * 1024 * 1024
+"""Maximum string and key characters (UTF-16 code units) in one resolved step input."""
+
+
+class PipelineResolutionLimitError(ValueError):
+    """A step input exceeded the nesting depth or the expansion budget.
+
+    Attributes:
+        limit: ``"depth"``, ``"nodes"`` or ``"chars"``.
+    """
+
+    def __init__(self, message: str, limit: str) -> None:
+        super().__init__(message)
+        self.limit = limit
+
 
 class _Absent:
     """Sentinel for an unresolved reference."""
@@ -141,6 +159,77 @@ def json_view(value: Any) -> Any:
         return ABSENT
 
 
+class _Unviewable:
+    """Sentinel for data that has no JSON view: a cycle, or a value that cannot be converted."""
+
+    _instance: Optional["_Unviewable"] = None
+
+    def __new__(cls) -> "_Unviewable":
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+    def __repr__(self) -> str:
+        return "UNVIEWABLE"
+
+
+UNVIEWABLE: Any = _Unviewable()
+"""Marks a value with no JSON view: a reference that reaches it is absent, and copying it into a
+step input fails as too deep."""
+
+
+def pipeline_view(value: Any) -> Any:
+    """The JSON view references resolve against: :func:`json_view`, but data too deep for it, or
+    circular, is still viewed.
+
+    ``to_wire`` refuses data nested 255 levels or deeper, and circular data. TypeScript resolves
+    references into such data and fails only when a step input copies more than 64 levels of it
+    or a cycle, so the view keeps it: a walk that needs no recursion converts each container once
+    (a cycle stays a cycle), and a value that cannot be converted becomes :data:`UNVIEWABLE`.
+    """
+    try:
+        return to_wire(value)
+    except ValueError:
+        return _walk_view(value)
+
+
+def _walk_view(root: Any) -> Any:
+    def leaf(item: Any) -> Any:
+        try:
+            return to_wire(item)
+        except ValueError:
+            return UNVIEWABLE
+
+    def empty(item: Any) -> Any:
+        return {} if isinstance(item, dict) else []
+
+    if not isinstance(root, (dict, list, tuple)):
+        return leaf(root)
+    view = empty(root)
+    # The view of every container converted so far, by the id of its source: a container reached
+    # twice, or a cycle, shares one view, so the walk is linear and reuse counts once, as in
+    # TypeScript.
+    views: dict = {id(root): view}
+    stack: list = [(root, view)]
+    while stack:
+        source, target = stack.pop()
+        items = source.items() if isinstance(source, dict) else enumerate(source)
+        for key, item in items:
+            if not isinstance(item, (dict, list, tuple)):
+                child = leaf(item)
+            elif id(item) in views:
+                child = views[id(item)]
+            else:
+                child = empty(item)
+                views[id(item)] = child
+                stack.append((item, child))
+            if isinstance(target, dict):
+                target[key if isinstance(key, str) else str(key)] = child
+            else:
+                target.append(child)
+    return view
+
+
 def _index(current: Any, index: int) -> Any:
     if isinstance(current, list) and index < len(current):
         return current[index]
@@ -151,12 +240,15 @@ def follow_path(view: Any, path: Tuple[PathSegment, ...]) -> Any:
     """Follow path segments through JSON data (dicts, lists and scalars only).
 
     Returns:
-        The value at the path, or :data:`ABSENT`.
+        The value at the path, :data:`ABSENT`, or :data:`UNVIEWABLE` when the path reaches data
+        with no JSON view.
     """
     current = view
     for key, index in path:
         if key.startswith("__"):
             return ABSENT
+        if current is UNVIEWABLE:
+            return UNVIEWABLE
         if isinstance(current, dict):
             if key not in current:
                 return ABSENT
@@ -205,7 +297,11 @@ def unescape_literal(value: str) -> str:
 
 
 RootLookup = Callable[[VariableReference], Any]
-"""Returns the JSON view of a reference's root data, or :data:`ABSENT`."""
+"""Returns the JSON view of a reference's root data, or :data:`ABSENT`.
+
+:func:`resolve_input` recognizes a repeated expansion by the identity of the value a reference
+reaches, so a lookup should return the same view each time it is asked for the same root while
+one step input resolves (``resolve_variables`` caches them)."""
 
 
 def resolve_string(value: str, lookup: RootLookup) -> Any:
@@ -221,7 +317,8 @@ def resolve_string(value: str, lookup: RootLookup) -> Any:
     reference = parse_reference(value)
     if reference is None:
         return value
-    return _follow_reference(reference, lookup)
+    resolved = _follow_reference(reference, lookup)
+    return ABSENT if resolved is UNVIEWABLE else resolved
 
 
 def resolve_operand(value: Any, lookup: RootLookup) -> Any:
@@ -231,7 +328,8 @@ def resolve_operand(value: Any, lookup: RootLookup) -> Any:
     reference, ``$$``-escaped strings included) is :data:`ABSENT`.
     """
     reference = parse_reference(value) if isinstance(value, str) else None
-    return ABSENT if reference is None else _follow_reference(reference, lookup)
+    resolved = ABSENT if reference is None else _follow_reference(reference, lookup)
+    return ABSENT if resolved is UNVIEWABLE else resolved
 
 
 def _follow_reference(reference: VariableReference, lookup: RootLookup) -> Any:
@@ -241,28 +339,158 @@ def _follow_reference(reference: VariableReference, lookup: RootLookup) -> Any:
     return follow_path(root, reference.path)
 
 
+def _utf16_length(text: str) -> int:
+    """Length of a string in UTF-16 code units, as JavaScript's ``length``."""
+    if text.isascii():
+        return len(text)
+    return len(text.encode("utf-16-le", "surrogatepass")) // 2
+
+
+def _too_deep() -> PipelineResolutionLimitError:
+    return PipelineResolutionLimitError(
+        f"Pipeline step input is nested deeper than {MAX_INPUT_DEPTH} levels", "depth"
+    )
+
+
+class _Budget:
+    """The expansion budget of one step input (``spec/pipeline-variables.md``, Limits)."""
+
+    def __init__(self) -> None:
+        self.nodes = MAX_RESOLVED_NODES
+        self.chars = MAX_RESOLVED_CHARS
+        # Containers already expanded, by identity (held, so an id is never reused while
+        # resolving), and non-empty strings, by value.
+        self.seen_containers: dict = {}
+        self.seen_strings: set = set()
+
+    def node(self, charge: bool = True) -> None:
+        if not charge:
+            return
+        self.nodes -= 1
+        if self.nodes < 0:
+            raise PipelineResolutionLimitError(
+                "Pipeline variable expansion limit exceeded "
+                f"(more than {MAX_RESOLVED_NODES} values)",
+                "nodes",
+            )
+
+    def text(self, text: str, charge: bool = True) -> None:
+        if not charge:
+            return
+        # A string is at least as long in UTF-16 code units as in code points.
+        self.chars -= len(text) + 1 if len(text) > self.chars else _utf16_length(text)
+        if self.chars < 0:
+            raise PipelineResolutionLimitError(
+                "Pipeline variable expansion limit exceeded "
+                f"(more than {MAX_RESOLVED_CHARS} characters)",
+                "chars",
+            )
+
+    def first_expansion(self, value: Any) -> bool:
+        """Record a referenced value; True the first time this step input expands it."""
+        if isinstance(value, (dict, list)):
+            if id(value) in self.seen_containers:
+                return False
+            self.seen_containers[id(value)] = value
+            return True
+        if isinstance(value, str) and value:
+            if value in self.seen_strings:
+                return False
+            self.seen_strings.add(value)
+            return True
+        return False
+
+
+def _copy_resolved(
+    value: Any, depth: int, budget: _Budget, charge: bool, ancestors: Optional[set] = None
+) -> Any:
+    """Copy a referenced value, at most 64 levels deep, charging it when it is a repeat.
+
+    A cycle (``ancestors`` holds the containers being copied) fails as too deep, as in
+    TypeScript.
+    """
+    if value is UNVIEWABLE:
+        raise _too_deep()
+    budget.node(charge)
+    if isinstance(value, str):
+        budget.text(value, charge)
+        return value
+    if not isinstance(value, (dict, list)):
+        return value
+    ancestors = set() if ancestors is None else ancestors
+    if depth >= MAX_INPUT_DEPTH or id(value) in ancestors:
+        raise _too_deep()
+    ancestors.add(id(value))
+    try:
+        if isinstance(value, list):
+            return [_copy_resolved(item, depth + 1, budget, charge, ancestors) for item in value]
+        copied = {}
+        for key, item in value.items():
+            budget.text(key, charge)
+            copied[key] = _copy_resolved(item, depth + 1, budget, charge, ancestors)
+        return copied
+    finally:
+        ancestors.discard(id(value))
+
+
+def _resolve_bounded(value: Any, lookup: RootLookup, depth: int, budget: _Budget) -> Any:
+    if isinstance(value, str):
+        reference = (
+            parse_reference(value)
+            if value.startswith("$") and not value.startswith("$$")
+            else None
+        )
+        if reference is None:
+            literal = unescape_literal(value)
+            budget.node()
+            budget.text(literal)
+            return literal
+        resolved = _follow_reference(reference, lookup)
+        if resolved is ABSENT:
+            return ABSENT
+        # The first expansion of a value is not charged, so one large step output
+        # still flows through $prev; repeats are charged in full.
+        charge = not budget.first_expansion(resolved)
+        budget.node()
+        return _copy_resolved(resolved, 0, budget, charge)
+    budget.node()
+    if not isinstance(value, (dict, list, tuple)):
+        return value
+    if depth >= MAX_INPUT_DEPTH:
+        raise _too_deep()
+    if isinstance(value, dict):
+        resolved_object = {}
+        for key, item in value.items():
+            budget.text(str(key))
+            item_value = _resolve_bounded(item, lookup, depth + 1, budget)
+            if item_value is not ABSENT:
+                resolved_object[key] = item_value
+        return resolved_object
+    items = []
+    for item in value:
+        item_value = _resolve_bounded(item, lookup, depth + 1, budget)
+        if item_value is ABSENT:
+            budget.node()
+            item_value = None
+        items.append(item_value)
+    return items
+
+
 def resolve_input(value: Any, lookup: RootLookup) -> Any:
     """Resolve references anywhere in a step input.
 
     Unresolved references are omitted from objects and become ``None`` in lists.
-    A top-level unresolved reference returns :data:`ABSENT`.
+    A top-level unresolved reference returns :data:`ABSENT`. Referenced values
+    are copies.
+
+    Raises:
+        PipelineResolutionLimitError: The input, or a value copied into it, is
+            nested deeper than :data:`MAX_INPUT_DEPTH` levels, or the resolved
+            input exceeds :data:`MAX_RESOLVED_NODES` values or
+            :data:`MAX_RESOLVED_CHARS` characters. Only a repeated expansion of
+            the same referenced value is charged for its contents.
     """
-    if isinstance(value, str):
-        return resolve_string(value, lookup)
-    if isinstance(value, dict):
-        resolved = {}
-        for key, item in value.items():
-            item_value = resolve_input(item, lookup)
-            if item_value is not ABSENT:
-                resolved[key] = item_value
-        return resolved
-    if isinstance(value, (list, tuple)):
-        items = []
-        for item in value:
-            item_value = resolve_input(item, lookup)
-            items.append(None if item_value is ABSENT else item_value)
-        return items
-    return value
+    return _resolve_bounded(value, lookup, 0, _Budget())
 
 
 def exceeds_depth(value: Any, limit: int = MAX_INPUT_DEPTH) -> bool:

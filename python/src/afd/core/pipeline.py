@@ -43,12 +43,16 @@ from afd.core.pipeline_variables import (
     ABSENT,
     MAX_INPUT_DEPTH,
     MAX_REFERENCE_LENGTH,  # noqa: F401 - re-exported
+    MAX_RESOLVED_CHARS,  # noqa: F401 - re-exported
+    MAX_RESOLVED_NODES,  # noqa: F401 - re-exported
+    PipelineResolutionLimitError,
     VariableReference,
     exceeds_depth,
     get_nested_value,  # noqa: F401 - re-exported
     is_number,
     json_equals,
     json_view,
+    pipeline_view,
     resolve_input,
     resolve_operand,
     resolve_string,
@@ -59,6 +63,7 @@ from afd.core.result import (
     ResultMetadata,
     coerce_command_result,
     execution_failure,
+    failure,
 )
 from afd.core.wire import WIRE_MODEL_CONFIG, WireModel, json_number, omitted_not_null
 
@@ -506,7 +511,7 @@ def _step_view(step: Optional[StepResult], context: PipelineContext) -> Any:
     cached = context._views.get(id(step))
     if cached is not None and cached[0] is step:
         return cached[1]
-    view = json_view(step.data)
+    view = pipeline_view(step.data)
     context._views[id(step)] = (step, view)
     return view
 
@@ -520,7 +525,7 @@ def _lookup_root(reference: VariableReference, context: PipelineContext) -> Any:
     if reference.root == "input":
         if context.pipeline_input is None:
             return ABSENT
-        return json_view(context.pipeline_input)
+        return pipeline_view(context.pipeline_input)
     if reference.index is not None:
         if reference.index < len(context.steps):
             return _step_view(context.steps[reference.index], context)
@@ -550,13 +555,26 @@ def resolve_variables(input: Any, context: PipelineContext) -> Any:
     """Resolve every variable reference in a step input.
 
     Unresolved references are omitted from objects and become None in lists.
+    Referenced values are copies.
 
     Raises:
-        ValueError: If the input is nested deeper than MAX_INPUT_DEPTH levels.
+        PipelineResolutionLimitError: If the input, or a value copied into it,
+            is nested deeper than MAX_INPUT_DEPTH levels, or repeated expansion
+            exceeds the budget (``spec/pipeline-variables.md``, Limits). It is
+            a ValueError.
     """
-    if exceeds_depth(input):
-        raise ValueError(f"Input is nested deeper than {MAX_INPUT_DEPTH} levels")
-    value = resolve_input(input, lambda reference: _lookup_root(reference, context))
+    # One view of $input per step input, so repeated references to it are
+    # recognized as repeats.
+    input_view: List[Any] = []
+
+    def lookup(reference: VariableReference) -> Any:
+        if reference.root != "input":
+            return _lookup_root(reference, context)
+        if not input_view:
+            input_view.append(_lookup_root(reference, context))
+        return input_view[0]
+
+    value = resolve_input(input, lookup)
     return None if value is ABSENT else value
 
 
@@ -681,6 +699,24 @@ def _input_too_deep_error() -> CommandError:
         suggestion=f"Reduce the nesting of the pipeline input to at most {MAX_INPUT_DEPTH} levels",
         retryable=False,
         details={"maxDepth": MAX_INPUT_DEPTH},
+    )
+
+
+def resolution_limit_failure(
+    error: PipelineResolutionLimitError, step_index: int
+) -> CommandResult[Any]:
+    """The failed result of a step whose resolved input exceeded the limits."""
+    return failure(
+        CommandError(
+            code="VALIDATION_ERROR",
+            message=str(error),
+            suggestion=(
+                "Reduce pipeline input size, repeated reference fan-out, or nesting depth "
+                "so the resolved step input stays within the limits"
+            ),
+            retryable=False,
+            details={"stepIndex": step_index, "limit": error.limit},
+        )
     )
 
 
@@ -1050,16 +1086,23 @@ async def execute_pipeline(
                 pipeline_context.steps.append(step_result)
                 continue
 
-        # Resolve variable references in input
-        resolved_input = (
-            resolve_variables(step.input, pipeline_context) if step.input else {}
-        )
+        # Resolve variable references in input. A step input over the limits
+        # fails the step without running the command.
+        resolution_failure: Optional[CommandResult[Any]] = None
+        resolved_input: Any = {}
+        try:
+            if step.input:
+                resolved_input = resolve_variables(step.input, pipeline_context)
+        except PipelineResolutionLimitError as exc:
+            resolution_failure = resolution_limit_failure(exc, i)
 
         # Execute the command. _call_step never raises (except on cancellation),
         # so a TimeoutError here is always the pipeline deadline, never one
         # the command raised itself.
         try:
-            if options and options.timeout_ms is not None:
+            if resolution_failure is not None:
+                raw_result = resolution_failure
+            elif options and options.timeout_ms is not None:
                 elapsed_ms = (time.perf_counter() - total_start_time) * 1000
                 remaining_s = (options.timeout_ms - elapsed_ms) / 1000
                 if remaining_s <= 0:

@@ -80,6 +80,27 @@ absent operands are `false`.
   expansions; the first expansion of a single referenced value is not capped for size so a
   large single step output still flows through `$prev`). Exceeding the expansion limit fails
   that step with `VALIDATION_ERROR` (`retryable: false`) without invoking the command.
+- The budget is counted the same way in every implementation, per step input:
+  - **Template:** every value in the template costs one value: each object, array, number,
+    boolean, `null` and literal string (a `$$` literal after its escape is removed). A literal
+    string also costs its characters, and each template object key costs its characters.
+  - **References:** a resolved reference costs one value. An unresolved reference costs nothing
+    in an object and one value (its `null`) in an array.
+  - **Repeats:** the value a reference resolves to is charged in full, as if it were template,
+    only when the same step input has already expanded it. An object or array is the same when it
+    is the same location in the same step's data or the request `input`: `$prev` and
+    `$steps[N]` naming one step reach the same values. (TypeScript compares objects by identity,
+    so in-process step data that shares one object under two keys counts as one value there; data
+    that arrived as JSON shares nothing.) A non-empty string is the same when it is equal. A
+    referenced number, boolean, `null` or empty string is always charged: one value more.
+  - **Cycles:** a reference may pass through circular in-process step data, but copying a cycle
+    into a step input fails as nested too deep.
+  - **Characters** are UTF-16 code units, as for references.
+  - **Error:** the failure's `details` are `{ "stepIndex": <index>, "limit": "depth" | "nodes" |
+    "chars" }`, naming the first limit the resolution crossed. The order object keys are walked in
+    differs (Rust and C++ sort them, Python keeps insertion order, and TypeScript puts integer-like
+    keys first), so an input that crosses two limits can name a different one; every
+    implementation fails it.
 - A reference string longer than **1024** UTF-16 code units is a literal (it is never resolved).
   The unit follows TypeScript's `string.length` (decision D3 of the parity closure plan, #283).
 
@@ -92,5 +113,6 @@ Each implementation has tests for every rule above. At minimum, the tests cover:
 - an out-of-bounds index;
 - `$input` with and without a request `input`;
 - an unresolved alias;
-- 65-level nesting;
+- 65-level nesting, in the template and in a referenced value;
+- repeated fan-out of one referenced value over the value budget, and one large reference under it;
 - `when` over an unresolved path.
