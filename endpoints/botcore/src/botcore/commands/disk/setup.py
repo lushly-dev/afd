@@ -430,8 +430,12 @@ def _counted_warnings(
         if not isinstance(entry, dict) or not isinstance(entry.get("warning"), str):
             continue
         checkout = entry.get("checkout") or main
-        if registered and path_key(checkout) not in registered and path_key(main) not in registered:
-            continue  # no longer registered
+        if registered:
+            doing("resolving", checkout)
+            if path_key(checkout) not in registered:
+                doing("resolving", main)
+                if path_key(main) not in registered:
+                    continue  # no longer registered
         age = _age_hours(entry.get("at"))
         stale = age is None or age * 3600 > STALE_SECONDS
         warnings.append(entry["warning"] + (f" (counted {entry.get('at')})" if stale else ""))
@@ -476,10 +480,11 @@ def _live(settings: MachineSettings, status: dict) -> dict:
     return {**found, "cargo": cargo_check(settings)["problems"]}
 
 
-# The last read of the machine that has not come back, and the settings it was started
-# with: a status asked again of the same settings waits for that one and starts no other,
-# so a process that lives on holds one reader and not one a call.
-_LIVE: tuple[Step, MachineSettings] | None = None
+# The last read of the machine that has not come back, and what it was started with (the
+# settings, and the counts a reclaim wrote): a status asked again of the same waits for
+# that one and starts no other, so a process that lives on holds one reader and not one a
+# call.
+_LIVE: tuple[Step, tuple[MachineSettings, object]] | None = None
 
 
 async def disk_status() -> CommandResult[dict]:
@@ -516,11 +521,12 @@ async def disk_status() -> CommandResult[dict]:
     settings, path, found, status, check = files.outcome["result"]
     last_apply = status.get("last_apply") or {}
     age = _age_hours(last_apply.get("at"))
-    if _LIVE is not None and not _LIVE[0].done and _LIVE[1] == settings:
+    asked = (settings, status.get("worktree_warnings"))
+    if _LIVE is not None and not _LIVE[0].done and _LIVE[1] == asked:
         live = _LIVE[0]
     else:
         live = Step("disk-status", lambda: _live(settings, status))
-        _LIVE = (live, settings)
+        _LIVE = (live, asked)
     await _wait([live], spent)
     if "raised" in live.outcome:
         raise live.outcome["raised"]

@@ -194,7 +194,9 @@ def _unlink_path(path: str, info: os.stat_result, out: Removal) -> None:
         return
     except PermissionError:
         try:  # git marks pack files read-only; clear only that flag, keep the rest of the mode
+            doing("removing", path)  # the first try can have waited at the volume
             os.chmod(path, info.st_mode | stat.S_IWRITE)
+            doing("removing", path)
             os.unlink(path)
         except OSError as exc:
             out.fail(path, exc)

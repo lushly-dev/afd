@@ -714,6 +714,9 @@ def _reclaim(  # noqa: PLR0913 - the command's own arguments
         **_idle_after(data, run),
         "error": failure,
     }
+    # (the volumes and worktrees were read once more for this: a reclaim the job left while
+    # one of them waited is told here, and writes neither receipt nor status)
+    doing("writing its receipt in", state_path())
     receipt = write_receipt(payload)
     write_status(payload, receipt)
     payload["receipt"] = str(receipt)

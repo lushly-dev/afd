@@ -284,6 +284,16 @@ def _copy_bytes(path: Path) -> bytes:
     return path.read_bytes()
 
 
+def _write_bytes(path: Path, data: bytes) -> None:
+    """A file of a shared copy beside the one it will replace (a write the drive can hold)."""
+    path.write_bytes(data)
+
+
+def _leftovers(folder: Path) -> list[Path]:
+    """Temporary files a publish that was cut short left in a machine's shared folder."""
+    return list(folder.glob("*.tmp"))
+
+
 def _shared_link(link: object) -> dict | str | None:
     """A session's pull request as it is shared: its reference, when, and who opened it."""
     if isinstance(link, str):
@@ -410,7 +420,8 @@ def publish(directory: Path, shared: Path, machine: str) -> bool:
     files[STATE_FILE] = json.dumps(shared_state, indent=2, sort_keys=True).encode("utf-8") + b"\n"
     doing(SHARING, shared)  # said before anything is written: a step that was left stops here
     target.mkdir(exist_ok=True)
-    for left in target.glob("*.tmp"):  # what a write that was cut short left behind
+    for left in _leftovers(target):  # what a write that was cut short left behind
+        doing(SHARING, shared)
         left.unlink(missing_ok=True)
     written = False
     for name, data in files.items():
@@ -422,8 +433,9 @@ def publish(directory: Path, shared: Path, machine: str) -> bool:
             pass
         doing(SHARING, shared)  # after the copy was read, and before it is replaced
         temporary = destination.with_name(f"{name}.{os.getpid()}.tmp")
-        temporary.write_bytes(data)
-        os.replace(temporary, destination)
+        _write_bytes(temporary, data)
+        doing(SHARING, shared)  # the write can wait at the drive too: asked again before
+        os.replace(temporary, destination)  # the copy that lies there is replaced
         written = True
     return written
 

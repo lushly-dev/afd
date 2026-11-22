@@ -52,8 +52,8 @@ def doing(what: str, path: object = "", allow: float = 0.0) -> None:
     `command` gives one to a command that has a timeout.
 
     In a step the job has left, this raises `Left` instead: the thing is not begun. So it
-    is said right before anything that removes or writes, after whatever was read to
-    decide on it."""
+    is said right before each removal, and before a receipt, a record or a shared copy is
+    written, after whatever was read to decide on it."""
     step = getattr(_HERE, "step", None)
     if step is not None:
         step.say(what, str(path), allow)

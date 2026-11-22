@@ -39,8 +39,10 @@ writes its own folder there and reads the other's.
   hygiene status): no collection for as long as the disk work waited. The job now leaves a
   disk step that waits, and says of a shared folder that does not answer that the record was
   collected.
-- **Not done.** Hero. On Random the question for the external volume was still open when this
-  was written, so its hourly job had not run since.
+- **Since.** Random's question for the external volume was answered about three hours after
+  its job stalled. The run that had been waiting finished, and the next reclaimed on that
+  volume, collected and wrote the shared copy.
+- **Not done.** Hero.
 
 ### Rollout readings, 2026-11-21 (#1819)
 
@@ -219,7 +221,7 @@ skill for `lefthook.yml`, `ci.yml` and `scripts/check-*.mjs`), before Lushly dec
 
 - Collection with the hourly job, and one report across machines (#1818): merged in #1889.
 
-- Rollout to the Air, Random and Hero (#1819): the Air and Random run all four phases and share a folder since 2026-11-21; the Air collects hourly, Random once its owner has allowed the job to read its external volume (see Findings); Hero to come.
+- Rollout to the Air, Random and Hero (#1819): the Air and Random run all four phases, collect hourly and share a folder since 2026-11-21 (see Findings); Hero to come.
 
 - A shared folder the hourly job cannot read (#1903): in this pull request.
 

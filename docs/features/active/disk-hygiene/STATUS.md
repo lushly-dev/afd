@@ -38,12 +38,19 @@ Read this before the [proposal](disk-hygiene.proposal.md). Active since 2026-11-
   now left after five minutes, a working one is never cut short, and only the scheduler's
   own process leaves anything behind. The second pass found that a step left in a read
   could go on to remove things once the read came back, after the run had reported it as
-  waiting. A step that is left is now told so at its next word and starts nothing more.
+  waiting. A step that is left is now told so, right before each thing it would remove and
+  before it writes a receipt or a record, and starts nothing more. What a step says and
+  whether it was left belong to the step: they were kept by thread number at first, which
+  the next thread is given.
 - **Tried on Random with the question still open**, as a scheduled program with shortened
   waits and a reclaim that removes nothing: 20 seconds in, the status named `/Volumes/Dev`
   and what to allow; the collection ran and was shared; the run ended by itself. The first
   try blamed the git command that had just returned, since a command's allowance outlived
   it, and Cargo's settings were read from the worktrees before the worktrees were named.
+- **Once the owner had answered on Random**, the run that had waited three hours finished,
+  and the next scheduled run stripped 13 folders, some of them on the external volume. The
+  final code, started the same way with a reclaim that removes nothing, ran the folder pass,
+  the collection and the shared copy in 51 seconds.
 - **A dry run's `planned_gb` has no figure for `node_modules` and `.venv`.** On the Air a dry
   run planned 0.05 GB, and the scheduled run a quarter of an hour later removed 646 folders
   and freed 1.29 GB.

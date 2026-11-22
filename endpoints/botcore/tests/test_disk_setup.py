@@ -1490,6 +1490,105 @@ def test_every_removal_and_every_shared_write_asks_first_whether_the_step_was_le
     assert asyncio.run(collect.skill_usage_collect()).data["added"] == 1  # as it would have
 
 
+def test_a_left_step_writes_no_receipt_replaces_no_copy_and_retries_no_removal(
+    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path,  # noqa: F811
+) -> None:
+    import botcore.commands.disk.reclaim as reclaim
+    import botcore.commands.disk.remove as remove
+
+    held, release = threading.Event(), threading.Event()
+
+    def waits() -> None:
+        held.set()
+        release.wait(30)
+
+    def left_while(work) -> steps.Step:
+        held.clear()
+        release.clear()
+        step = steps.Step("test", work)
+        assert held.wait(10)
+        step.leave()
+        release.set()
+        assert step.wait(10) and isinstance(step.outcome.get("raised"), steps.Left), step.outcome
+        return step
+
+    # a reclaim left while the volumes are read one last time records nothing: a receipt and
+    # a status would say it ran, and put off the next one
+    idle_after = reclaim._idle_after
+    def read_once_more(data, run_):
+        found = idle_after(data, run_)
+        waits()
+        return found
+
+    with monkeypatch.context() as patch:
+        patch.setattr(reclaim, "_idle_after", read_once_more)
+        left_while(lambda: asyncio.run(reclaim.disk_reclaim(tier=1, apply=True)))
+    assert not list(state.glob("receipts/*.json")) and not (state / "status.json").exists()
+    assert asyncio.run(reclaim.disk_reclaim(tier=1, apply=True)).success  # the lock was let go
+
+    # a file of the shared copy written beside the one it replaces does not replace it
+    directory, shared = tmp_path / "record", tmp_path / "drive"
+    directory.mkdir()
+    shared.mkdir()
+    usage_store.save_state(directory, {"record_id": "r1", "collected_at": stamp(1)})
+    assert usage_store.publish(directory, shared, "bench") is True
+    usage_store.save_state(directory, {"record_id": "r1", "collected_at": stamp(2)})
+    before = (shared / "bench" / "state.json").read_bytes()
+    write_bytes = usage_store._write_bytes
+    with monkeypatch.context() as patch:
+        patch.setattr(usage_store, "_write_bytes",
+                      lambda path, data: (write_bytes(path, data), waits())[0])
+        left_while(lambda: usage_store.publish(directory, shared, "bench"))
+    assert (shared / "bench" / "state.json").read_bytes() == before
+    stale = list((shared / "bench").glob("*.tmp"))
+    assert len(stale) == 1  # what it had written beside it lies there
+
+    # nor is what an earlier publish left lying cleared away
+    leftovers = usage_store._leftovers
+    with monkeypatch.context() as patch:
+        patch.setattr(usage_store, "_leftovers", lambda folder: (leftovers(folder), waits())[0])
+        left_while(lambda: usage_store.publish(directory, shared, "bench"))
+    assert stale[0].exists()
+    assert usage_store.publish(directory, shared, "bench") is True and not stale[0].exists()
+
+    # a file that could not be removed at first is not tried again (Windows: read-only files)
+    file = tmp_path / "read-only"
+    file.write_text("x")
+    file.chmod(0o444)
+    info, mode = os.lstat(file), os.lstat(file).st_mode
+    unlink = os.unlink
+
+    def refused_after_a_wait(path, *args, **kwargs):
+        if str(path) == str(file):
+            waits()
+            raise PermissionError(13, "Permission denied")
+        return unlink(path, *args, **kwargs)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(remove.os, "unlink", refused_after_a_wait)
+        left_while(lambda: remove._unlink_path(str(file), info, remove.Removal(str(file))))
+    assert file.exists() and os.lstat(file).st_mode == mode  # nor was its mode changed
+
+    # nor after its mode was changed, when that is what waited
+    chmod = os.chmod
+
+    def refused(path, *args, **kwargs):
+        if str(path) == str(file):
+            raise PermissionError(13, "Permission denied")
+        return unlink(path, *args, **kwargs)
+
+    def mode_change_waits(path, *args, **kwargs):
+        chmod(path, *args, **kwargs)
+        if str(path) == str(file):
+            waits()
+
+    with monkeypatch.context() as patch:
+        patch.setattr(remove.os, "unlink", refused)
+        patch.setattr(remove.os, "chmod", mode_change_waits)
+        left_while(lambda: remove._unlink_path(str(file), info, remove.Removal(str(file))))
+    assert file.exists()
+
+
 def test_disk_work_that_speaks_again_as_the_job_decides_is_not_left(
     repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
 ) -> None:
@@ -1576,7 +1675,7 @@ def test_the_status_of_a_machine_that_does_not_answer_reads_no_path(
         "worktree_warnings": {"repos": {
             str(repo["main"]): {"at": now, "count": 30, "checkout": str(repo["main"]),
                                 "warning": "30 worktrees idle 3 days or more"},
-            str(gone): {"at": now, "count": 40, "checkout": str(gone),
+            str(gone): {"at": now, "count": 40, "checkout": str(gone / "checkout"),
                         "warning": "40 worktrees idle 3 days or more"},
         }},
     }))
@@ -1612,13 +1711,59 @@ def test_the_status_of_a_machine_that_does_not_answer_reads_no_path(
         status["warnings"])
     assert resolved == [] and alive("disk-status") == 1
 
+    # nor are counts a reclaim has written since: asked again while the old read still
+    # waits, the status starts another, and gives what is on file now
+    saved = json.loads((state / "status.json").read_text())
+    saved["worktree_warnings"]["repos"][str(repo["main"])]["warning"] = "50 worktrees idle"
+    (state / "status.json").write_text(json.dumps(saved))
+    monkeypatch.setattr(setup, "_live", live)
+    monkeypatch.setattr(setup, "STATUS_SECONDS", 20)
+    threading.Timer(0.3, release.set).start()  # the old read comes back during this call
+    status = run(setup.disk_status())
+    assert "50 worktrees idle" in status["warnings"]
+    assert "30 worktrees idle 3 days or more" not in status["warnings"]
+    until = time.monotonic() + 20  # the old read is let finish before anything else changes
+    while alive("disk-status") and time.monotonic() < until:
+        time.sleep(0.01)
+    assert alive("disk-status") == 0
+    release.clear()
+
+    # a path it resolves is named first, the recorded ones too: what does not answer is said
+    monkeypatch.setattr(setup, "path_key", path_key)
+    monkeypatch.setattr(setup, "_LIVE", None)
+
+    for recorded in (gone / "checkout", gone):  # the checkout it wrote down, and the main
+        def does_not_answer(path, recorded=recorded):
+            if str(path) == str(recorded):
+                at_once("STATUS_SECONDS")
+                release.wait(30)
+            return path_key(path)
+
+        release.clear()
+        monkeypatch.setattr(setup, "_LIVE", None)
+        monkeypatch.setattr(setup, "path_key", does_not_answer)
+        monkeypatch.setattr(setup, "STATUS_SECONDS", 20)
+        status = run(setup.disk_status())
+        assert f"resolving {recorded} " in status["problems"][0]
+        release.set()
+        until = time.monotonic() + 20
+        while alive("disk-status") and time.monotonic() < until:
+            time.sleep(0.01)
+    monkeypatch.setattr(setup, "path_key", path_key)
+    monkeypatch.setattr(setup, "_LIVE", None)
+    monkeypatch.setattr(setup, "_live", waits)
+    monkeypatch.setattr(setup, "STATUS_SECONDS", 20)
+    release.clear()
+    run(setup.disk_status())  # (a read that waits, for what follows)
+    assert alive("disk-status") >= 1
+
     # settings that changed are not answered from a read started with the old ones
     with repo["settings"].open("a", encoding="utf-8") as handle:
         handle.write("idle_worktree_limit = 5\n")
     monkeypatch.setattr(setup, "_live", live)
     monkeypatch.setattr(setup, "STATUS_SECONDS", 20)
     status = run(setup.disk_status())
-    assert status["schedule"] is not None and alive("disk-status") == 1  # the old one waits on
+    assert status["schedule"] is not None and alive("disk-status") >= 1  # the old one waits on
     release.set()
 
     # T3 Code's worktree folder is named before its path is resolved
