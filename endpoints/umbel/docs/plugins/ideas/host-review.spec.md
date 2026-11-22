@@ -16,7 +16,7 @@ Code paths are relative to `endpoints/umbel/`.
   and on his requirements of 2026-11-12: review in bulk with an agent's help, confirmed in a browser and not at a
   terminal, and authentication optional in Umbel. **The owner has not read this specification.** Every decision here
   stays open to him (the [Ideas status](../../../../../docs/features/active/ideas/STATUS.md), Q2). It decides D180.
-  Nothing is implemented. **Revised the same day after an independent review** (three blockers, nine improvements),
+  Steps H0 to H3 and `person.local.public_origin` are merged ([#1081](https://github.com/lushly-dev/afd/pull/1081), [#1097](https://github.com/lushly-dev/afd/pull/1097), [#1107](https://github.com/lushly-dev/afd/pull/1107), [#1137](https://github.com/lushly-dev/afd/pull/1137), [#1188](https://github.com/lushly-dev/afd/pull/1188)). **Revised the same day after an independent review** (three blockers, nine improvements),
   all taken: section 6.2 now specifies how a call reaches the gate at all in mode `none`; an unpaged preview stays
   exactly `{ preview }`; a `local` assurance gets envelope version 4; the form's fields, the local page's rules, the
   lifetime from the last page, `verified_levels`, and step H0 are added.
@@ -35,23 +35,9 @@ Code paths are relative to `endpoints/umbel/`.
   `:702`, `src/cli/preview.rs:14` to `:20` and `:85` to `:98`, `store/src/envelope.rs:183` to `:196`,
   `packages/rust/src/server/human_relay.rs:10` to `:22`, `confirmations.rs:66` to `:74`, and
   `.github/workflows/umbel.yml:378` to `:395`. **No Rust was built or run.**
-- **Step H0 is merged** (#1081). **Step H1, the shapes, is implemented** (2026-11-12) on the branch
-  `lush/ideas-h1-shapes`, amended below ([H1](#amendments-from-step-h1), A1 to A8): configuration version 7 with
-  `[person]`, `[person.local]` and a space's `verified_levels`, parsed and validated, and its schema; the person
-  decision version 2; `Assurance::local()`, a version-aware `is_valid` and envelope version 4; `CallContext.preview_page`;
-  `PersonDecision.excluded` and `level`. Nothing acts on them yet. **Step H2, the paged preview,
-  items, lifetime and the list on the hosted page, is implemented** (2026-11-13) on the branch
-  `lush/ideas-h2-paged`, amended below ([H2](#amendments-from-step-h2), A9 to A20), and resolves the
-  plugin's follow-up C1-3 (A19). **Step H3, the local page, is implemented** (2026-11-13) on the
-  branch `lush/ideas-h3-local`, amended below ([H3](#amendments-from-step-h3), A26 to A45, A41 to A45 from its security review): the local
-  registration, service and ledger, `for_of_local`, the plugin gate's local arm and the mark it hands
-  the handler, `attested` and `gate_proof`'s local arms, `umbel person page-serve` with 6.3's rules,
-  `verified_levels` in the 6.6 clause, and the doctor's `person.local`. It resolves the follow-ups
-  addressed to H3.
-- **A public origin behind a proxy** (2026-11-14), on the branch `lush/ideas-page-public-origin`, amended below
-  ([A46 to A50](#amendments-for-a-public-origin-behind-a-proxy)): `person.local.public_origin`, the host option the
-  plugin's first use asked for (its F-4). Not reviewed independently.
-- **Not done:** nothing of steps H0 to H3. **Follow-ups:** the [table at the end](#follow-ups).
+- **Step H0 is merged** ([#1081](https://github.com/lushly-dev/afd/pull/1081)). **Step H1, the shapes, is merged** (2026-11-13, [#1097](https://github.com/lushly-dev/afd/pull/1097)), amended below ([H1](#amendments-from-step-h1), A1 to A8): configuration version 7 with `[person]`, `[person.local]` and a space's `verified_levels`, parsed and validated, and its schema; the person decision version 2; `Assurance::local()`, a version-aware `is_valid` and envelope version 4; `CallContext.preview_page`; `PersonDecision.excluded` and `level`. **Step H2, the paged preview, items, lifetime and the list on the hosted page, is merged** (2026-11-13, [#1107](https://github.com/lushly-dev/afd/pull/1107)), amended below ([H2](#amendments-from-step-h2), A9 to A25), and resolves the plugin's follow-up C1-3 (A19). **Step H3, the local page, is merged** (2026-11-13, [#1137](https://github.com/lushly-dev/afd/pull/1137)), amended below ([H3](#amendments-from-step-h3), A26 to A45, A41 to A45 from its security review): the local registration, service and ledger, `for_of_local`, the plugin gate's local arm and the mark it hands the handler, `attested` and `gate_proof`'s local arms, `umbel person page-serve` with 6.3's rules, `verified_levels` in the 6.6 clause, and the doctor's `person.local`. It resolves the follow-ups addressed to H3.
+- **A public origin behind a proxy** (2026-11-14, merged in [#1188](https://github.com/lushly-dev/afd/pull/1188) and plugin README in [#1189](https://github.com/lushly-dev/afd/pull/1189)), amended below ([A46 to A50](#amendments-for-a-public-origin-behind-a-proxy)): `person.local.public_origin`, the host option the plugin's first use asked for (its F-4).
+- **Not done:** nothing of steps H0 to H3 or `public_origin`. **Follow-ups:** the [table at the end](#follow-ups).
 
 ## What this specification serves
 
@@ -471,5 +457,5 @@ adds one optional key; without it nothing changes. Mode `oauth`, mode `gateway` 
 | 2026-11-12 | Step H1's review | An event's envelope is capped at `PROVENANCE_VERSION`, 3 (`src/provenance.rs:432`), so `is_confirmation(.., 3)` would silently drop a journaled confirmation whose assurance is `local` from the event, where the store keeps it in version 4 | H3: done, refused (A35) |
 | 2026-11-13 | Step H3 | A raw compiled plugin's finished definition is admitted on the local page and told nothing (A26) | Open: no first-party plugin answers items that way. Give `CommandDefinition` a host wrapper in AFD, or refuse such a command a local registration |
 | 2026-11-13 | Step H3 | The doctor's `person.local` cannot see whether a `person-page-serve` is running, and nothing tells the agent's harness that the page is down beyond the refusal's suggestion | Open: a probe of `http://<bind>/d/` like `auth.person_listener`'s, if the owner wants one |
-| 2026-11-14 | The plugin's first use, F-4 | A host option to use the local page through a proxy on another of the deployer's computers | Done, A46 to A50 |
-| 2026-11-14 | The public origin's review | `first-party/tests/ideas_first_use.rs` reads only the README's first TOML block after "## A local instance", not the public origin snippet in "Reading the page from another computer" | Open: once `lush/ideas-page-public-origin` and `lush/ideas-page-public-origin-docs` are both merged, teach the test to open that block too |
+| 2026-11-14 | The plugin's first use, F-4 | A host option to use the local page through a proxy on another of the deployer's computers | Done 2026-11-14 (A46 to A50, merged in [#1188](https://github.com/lushly-dev/afd/pull/1188) and [#1189](https://github.com/lushly-dev/afd/pull/1189)) |
+| 2026-11-14 | The public origin's review | `first-party/tests/ideas_first_use.rs` reads only the README's first TOML block after "## A local instance", not the public origin snippet in "Reading the page from another computer" | Open ([#2008](https://github.com/lushly-dev/afd/issues/2008)): both [#1188](https://github.com/lushly-dev/afd/pull/1188) and [#1189](https://github.com/lushly-dev/afd/pull/1189) are merged; teach the test to open that block too |

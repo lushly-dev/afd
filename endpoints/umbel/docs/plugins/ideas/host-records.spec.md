@@ -39,8 +39,8 @@ Code paths are relative to `endpoints/umbel/`.
     word for word, a document that is the person's own now, which for an own collection means the host held it
     to its file on disk; and a call for verified content is given at most what the space's `verified_admits`
     names. The embedded schema is version 3.
-  - **Step B4, matching by words, is implemented** (2026-11-12) on the branch `lush/ideas-b4-matching`, amended
-    below ([B4](#amendments-from-step-b4), A41 to A54). It is in its pull request. **An independent review of
+  - **Step B4, matching by words, is implemented** (2026-11-12) and merged ([#1071](https://github.com/lushly-dev/afd/pull/1071), `2ce8229f`), amended
+    below ([B4](#amendments-from-step-b4), A41 to A54). **An independent review of
     step B4** (2026-11-12) found one blocker, which the coordinator ruled as a design change, and five
     improvements; all six are taken, in the table after its amendments (R25 to R30). **A focused review of the
     revision** (2026-11-12) found no blocker and six improvements, all taken (R31 to R36). `record_match` answers,
@@ -472,15 +472,16 @@ Code paths are relative to `endpoints/umbel/`.
   review**: embedded schema version 3 and its migration; `put_document_held`, `hold_document` and
   `unheld_documents`; `store-documents-hold`; the doctor's `records.own`; `StandingView.person`; the terminal
   proof's human-present mark; and the label's decider shown to the operator and the person only.
-- **In progress:** step B4, implemented and verified 2026-11-12 on `lush/ideas-b4-matching`, with its amendments
-  ([B4](#amendments-from-step-b4)); in its pull request, and not reviewed independently. It holds:
+  And step B4, merged 2026-11-12 ([#1071](https://github.com/lushly-dev/afd/pull/1071), `2ce8229f`), with its amendments
+  ([B4](#amendments-from-step-b4), A41 to A54) and independent plus focused review fixes (R25 to R36). It holds:
   `RecordMatch::plan` and `MatchText`; `DocumentStore::match_records`, on the embedded store in
   `lane/matching.rs` over `rank.rs`' `Scope`, `Counts` and `candidates`, which a ranked find now shares; the
-  host's `svc_record_match` and `record_match`; the suite's `matching` group, words only, with the fixture's
+  host's `svc_record_match` and `record_match`; embedded schema version 4's kind-level postings count and
+  4 000 000 postings bound; the suite's `matching` group, words only, with the fixture's
   three new texts; the `standing` group's match under each `admit` and its hit's `basis`; the withholding of who
   affirmed a hit; and the test of a person's identities, with section 3's sentence on a legacy `person`. All
   three follow-ups addressed to it are settled (A48, A49).
-- **Not done:** steps B5 and B6 of section [16](#16-implementation-plan). Step B4 leaves B5: a match that carries
+- **Not done:** steps B5 ([#2001](https://github.com/lushly-dev/afd/issues/2001)) and B6 ([#2003](https://github.com/lushly-dev/afd/issues/2003)) of section [16](#16-implementation-plan). Step B4 leaves B5: a match that carries
   vectors is refused until it serves them ([A44](#amendments-from-step-b4)); the three `matching` cases that need
   vectors ([A50](#amendments-from-step-b4)); the `words` of a record pooled by meaning alone, and whether the
   missing-vector check is held to a call's exclusions and keys (the [follow-ups](#follow-ups)). B5 also has
