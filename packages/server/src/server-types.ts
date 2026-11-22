@@ -98,8 +98,10 @@ export interface McpServerOptions {
 	allowedHosts?: string[];
 
 	/**
-	 * Exact additional browser origins, such as `http://localhost:5173`. Same-origin requests and
-	 * requests without an Origin are allowed by default; any other browser origin is refused with
+	 * Exact additional browser origins, such as `http://localhost:5173`: each a serialized http(s)
+	 * origin (`scheme://host[:port]`, no path or trailing slash; `*` and `null` throw). Same-origin
+	 * requests are allowed by default, and requests without an Origin unless their
+	 * `Sec-Fetch-Site` is `cross-site` or `same-site`; any other browser origin is refused with
 	 * HTTP 403, in `devMode` too.
 	 */
 	allowedOrigins?: string[];
@@ -169,9 +171,18 @@ export interface McpServerOptions {
 	 * Maximum live HTTP sessions when `contexts` are configured (default: 1000). Beyond it, an
 	 * `initialize` evicts the least recently used session of its own owner (with `auth`, the
 	 * verified issuer, subject and client), never another's; an owner with no session to give up
-	 * is refused with HTTP 503 and `Retry-After`. Without `auth` every caller is one owner.
+	 * is refused with HTTP 503, `Retry-After` and JSON-RPC `-32002`. Without `auth` every caller
+	 * is one owner.
 	 */
 	maxSessions?: number;
+
+	/**
+	 * With `auth`: maximum live HTTP sessions of one owner (default: 100, or `maxSessions` when
+	 * smaller; never more than `maxSessions`). At it, the owner's own least recently used session
+	 * is evicted, so one principal cannot fill the store. Without `auth` every caller is one
+	 * owner whose quota is `maxSessions`, and passing this option throws.
+	 */
+	maxSessionsPerOwner?: number;
 
 	/** Idle time in milliseconds after which an HTTP session expires (default: 1800000, 30 minutes). */
 	sessionIdleTimeoutMs?: number;

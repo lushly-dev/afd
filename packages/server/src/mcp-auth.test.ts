@@ -703,14 +703,20 @@ describe('P3-E9: HTTP sessions belong to the caller that created them', () => {
 		const first = (await open(alice)).headers['mcp-session-id'] as string;
 		const second = (await open(alice)).headers['mcp-session-id'] as string;
 
-		const refused = await open(mallory);
+		const refused = await send(`${base}/message`, {
+			body: { jsonrpc: '2.0', id: 'open-7', method: 'initialize', params: {} },
+			authorization: mallory,
+		});
 		expect(refused.status).toBe(503);
 		expect(refused.headers['mcp-session-id']).toBeUndefined();
 		expect(refused.headers['retry-after']).toBe('60');
-		expect(JSON.parse(refused.text).error).toMatchObject({
-			code: -32000,
-			message: 'Too many live MCP sessions',
-			data: { suggestion: expect.stringContaining('Mcp-Session-Id') },
+		expect(JSON.parse(refused.text)).toMatchObject({
+			id: 'open-7',
+			error: {
+				code: -32002,
+				message: 'Too many live MCP sessions',
+				data: { suggestion: expect.stringContaining('Retry-After') },
+			},
 		});
 		expect(await live(alice, first)).toBe(200);
 		expect(await live(alice, second)).toBe(200);
@@ -721,6 +727,51 @@ describe('P3-E9: HTTP sessions belong to the caller that created them', () => {
 		expect(await live(alice, first)).toBe(404);
 		expect(await live(alice, second)).toBe(200);
 		expect(await live(alice, third)).toBe(200);
+	});
+
+	it('holds one principal to maxSessionsPerOwner, so it never blocks another principal', async () => {
+		const { base } = await serve({
+			contexts: [{ name: 'edit', description: 'Editing' }],
+			maxSessions: 4,
+			maxSessionsPerOwner: 2,
+		});
+		const alice = `Bearer ${await as.issue()}`;
+		const bob = `Bearer ${await as.issue({ claims: { sub: 'user-2' } })}`;
+		const open = async (authorization: string) => {
+			const opened = await send(`${base}/message`, {
+				body: { jsonrpc: '2.0', id: 1, method: 'initialize', params: {} },
+				authorization,
+			});
+			expect(opened.status).toBe(200);
+			return opened.headers['mcp-session-id'] as string;
+		};
+		const live = async (authorization: string, session: string) =>
+			(
+				await send(`${base}/rpc`, {
+					body: rpc('afd-context-list'),
+					authorization,
+					headers: { 'Mcp-Session-Id': session },
+				})
+			).status;
+		const alices: string[] = [];
+		for (let i = 0; i < 6; i++) alices.push(await open(alice));
+		const live2 = [];
+		for (const id of alices) live2.push(await live(alice, id));
+		expect(live2).toEqual([404, 404, 404, 404, 200, 200]);
+		const bobs = [await open(bob), await open(bob)];
+		for (const id of bobs) expect(await live(bob, id)).toBe(200);
+	});
+
+	it('refuses maxSessionsPerOwner without auth, where every caller is one owner', () => {
+		expect(() =>
+			createMcpHandler({
+				name: 'no-auth',
+				version: '1',
+				commands: [whoami],
+				contexts: [{ name: 'edit', description: 'Editing' }],
+				maxSessionsPerOwner: 10,
+			})
+		).toThrow('maxSessionsPerOwner needs auth');
 	});
 });
 

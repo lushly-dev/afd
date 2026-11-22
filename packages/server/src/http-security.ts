@@ -26,6 +26,30 @@ export interface HttpSecurityOptions {
 	maxBodyBytes?: number;
 }
 
+/**
+ * Refuse an `allowedOrigins` entry that is not a serialized http(s) origin, as a browser sends it:
+ * `scheme://host[:port]`, lower case, with no path, no trailing slash and no default port. `*`
+ * and `null` are refused: neither names one origin.
+ */
+export function assertAllowedOrigins(origins: readonly unknown[] | undefined): void {
+	if (origins === undefined) return;
+	if (!Array.isArray(origins)) throw new Error('allowedOrigins must be an array of origins');
+	for (const origin of origins) {
+		let valid = false;
+		if (typeof origin === 'string') {
+			try {
+				const url = new URL(origin);
+				valid = (url.protocol === 'http:' || url.protocol === 'https:') && url.origin === origin;
+			} catch {}
+		}
+		if (!valid) {
+			throw new Error(
+				`allowedOrigins entry ${JSON.stringify(origin)} must be an exact http(s) origin such as http://localhost:5173: scheme, host and port only, with no path or trailing slash ("*" and "null" are not allowed)`
+			);
+		}
+	}
+}
+
 export function validateHttpRequest(req: IncomingMessage, options: HttpSecurityOptions): URL {
 	const host = req.headers.host;
 	if (!host || /[\s/@\\?#]/.test(host)) throw new HttpRequestError(400, 'Invalid Host header');

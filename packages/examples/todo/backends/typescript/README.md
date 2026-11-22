@@ -46,7 +46,7 @@ naming the file instead of being treated as empty.
 | `HOST` | `localhost` | HTTP server host |
 | `TRANSPORT` | `auto` | Transport mode: `auto`, `http`, or `stdio` |
 | `ALLOWED_ORIGINS` | (none) | Extra exact browser origins, comma-separated (`*` and `null` are refused) |
-| `NODE_ENV` | | `development` accepts any browser origin and returns verbose errors |
+| `NODE_ENV` | | `development` returns verbose errors; browser origins are still only those above |
 | `APPROVALS` | `agents` | `agents` holds `todo-clear` for any caller that is not a person; `off` holds nothing |
 | `TODO_APPROVAL_SECRET` | (random per process) | Key that signs approval tokens, at least 32 bytes; set it so several processes accept each other's tokens. Each process keeps its own record of spent tokens, so one approval can run the clear once on each |
 | `CONFIRMATIONS` | `off` | `enforce` or `require-human` to ask before `todo-clear` |

@@ -102,6 +102,12 @@ const JSON_RPC_CODES: Record<number, JsonRpcCodeMapping> = {
 		retryable: true,
 		suggestion: 'The MCP session is unknown or expired; reconnect to start a new session',
 	},
+	[-32002]: {
+		code: 'SESSION_LIMIT_REACHED',
+		retryable: true,
+		suggestion:
+			'The server holds as many MCP sessions as it allows; retry after the delay its Retry-After header gives',
+	},
 };
 
 function serverSuggestion(data: unknown): string | undefined {

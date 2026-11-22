@@ -41,9 +41,7 @@ async function main() {
 		console.error(`  MCP Server: chat-app v1.0.0`);
 		console.error(
 			`  Mode: ${
-				config.devMode
-					? '🔧 DEVELOPMENT (verbose errors, any browser origin)'
-					: '🔒 PRODUCTION (secure defaults)'
+				config.devMode ? '🔧 DEVELOPMENT (verbose errors)' : '🔒 PRODUCTION (secure defaults)'
 			}`
 		);
 		console.error(`  Commands: ${allCommands.length}`);

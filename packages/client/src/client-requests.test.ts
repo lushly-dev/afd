@@ -234,6 +234,7 @@ describe('McpClient.call() error mapping', () => {
 		[-32603, 200, 'INTERNAL_ERROR', true],
 		[-32000, 403, 'REQUEST_REJECTED', false],
 		[-32001, 404, 'SESSION_NOT_FOUND', true],
+		[-32002, 503, 'SESSION_LIMIT_REACHED', true],
 		[-32099, 200, 'JSON_RPC_ERROR', false],
 	])('maps JSON-RPC %i (HTTP %i) to %s', async (code, status, expected, retryable) => {
 		mockServer(rpcError(code, 'Server said no', undefined, status));
@@ -251,6 +252,17 @@ describe('McpClient.call() error mapping', () => {
 		});
 		expect(result.error?.suggestion).not.toMatch(/contact support/i);
 		expect(Object.getOwnPropertyNames(result.error)).not.toContain('stack');
+	});
+
+	it('tells a caller refused at the session limit to retry after Retry-After, not to fix headers', async () => {
+		mockServer(rpcError(-32002, 'Too many live MCP sessions', undefined, 503));
+		const client = await connect();
+
+		const result = await client.call('item-create', {});
+
+		expect(result.error).toMatchObject({ code: 'SESSION_LIMIT_REACHED', retryable: true });
+		expect(result.error?.suggestion).toContain('Retry-After');
+		expect(result.error?.suggestion).not.toMatch(/Host|Origin/);
 	});
 
 	it("prefers the server's suggestion", async () => {

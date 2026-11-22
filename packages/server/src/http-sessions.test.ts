@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { createSessionStore, DEFAULT_MAX_SESSIONS } from './http-sessions.js';
+import {
+	createSessionStore,
+	DEFAULT_MAX_SESSIONS,
+	DEFAULT_MAX_SESSIONS_PER_OWNER,
+} from './http-sessions.js';
 
 function clock(start = 0) {
 	let time = start;
@@ -77,6 +81,40 @@ describe('createSessionStore', () => {
 		expect(store.get(alice, 'alice')).toBeUndefined();
 		expect(store.get(next, 'alice')).toBeDefined();
 		expect(store.size).toBe(2);
+	});
+
+	it('holds one owner to its quota by evicting its own sessions, never blocking another owner', () => {
+		const store = createSessionStore({ maxSessions: 4, maxSessionsPerOwner: 2 });
+		const opened = Array.from({ length: 5 }, () => created(store.create('alice')));
+		// Alice keeps her quota: her two newest sessions, and the store has room left.
+		expect(store.size).toBe(2);
+		expect(opened.slice(0, 3).map((id) => store.get(id, 'alice'))).toEqual([
+			undefined,
+			undefined,
+			undefined,
+		]);
+		expect(store.get(opened[3] as string, 'alice')).toBeDefined();
+		expect(store.get(opened[4] as string, 'alice')).toBeDefined();
+		const bob = [created(store.create('bob')), created(store.create('bob'))];
+		expect(store.size).toBe(4);
+		for (const id of bob) expect(store.get(id, 'bob')).toBeDefined();
+		// The store is full: Carol, who holds nothing, is refused; Alice and Bob are untouched.
+		expect(store.create('carol')).toBeUndefined();
+		expect(store.size).toBe(4);
+	});
+
+	it('defaults the per-owner quota to 100, or maxSessions when smaller, and never above it', () => {
+		expect(DEFAULT_MAX_SESSIONS_PER_OWNER).toBe(100);
+		const store = createSessionStore();
+		for (let i = 0; i < 101; i++) created(store.create('alice'));
+		expect(store.size).toBe(100);
+		const small = createSessionStore({ maxSessions: 3 });
+		for (let i = 0; i < 4; i++) created(small.create('alice'));
+		expect(small.size).toBe(3);
+		expect(() => createSessionStore({ maxSessions: 3, maxSessionsPerOwner: 4 })).toThrow(
+			'maxSessionsPerOwner'
+		);
+		expect(() => createSessionStore({ maxSessionsPerOwner: 0 })).toThrow('maxSessionsPerOwner');
 	});
 
 	it('makes room from expired sessions of any owner before refusing', () => {

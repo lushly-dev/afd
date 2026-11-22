@@ -1,8 +1,8 @@
 ---
-"@lushly-dev/afd-server": patch
+"@lushly-dev/afd-server": minor
+"@lushly-dev/afd-client": patch
 ---
 
-HTTP sessions and browser origins:
+`devMode` no longer opens a server to every browser origin. It used to turn off the Origin and `Sec-Fetch-Site` checks and turn on CORS with `Access-Control-Allow-Origin: *`; now it only adds exception details to error responses, so a page you visit cannot call your dev server. If a browser app on another origin calls your local server (such as a Vite app on port 5173), restore that by listing it and turning on CORS: `allowedOrigins: ['http://localhost:5173'], cors: true`. `cors` now defaults to `false` instead of following `devMode`, and its header echoes the accepted origin, never `*`. `allowedOrigins` entries must be exact http(s) origins (`scheme://host[:port]`); `*`, `null`, a path or a trailing slash throws when the server is built.
 
-- **Sessions at the cap.** When `maxSessions` is reached, `initialize` evicts only the least recently used session of its own owner (with `auth`, the verified issuer, subject and client). An owner with no session to give up now gets HTTP 503 with `Retry-After` and a JSON-RPC `-32000` error whose suggestion is to reuse a session or retry later, instead of another caller's session being evicted. Without `auth` every caller is one owner, so behaviour there is unchanged. The README's "Sessions" section states the rule.
-- **`devMode` only adds error details.** It no longer turns off the Origin and `Sec-Fetch-Site` checks, and `cors` no longer defaults to it. A cross-origin browser request is refused in `devMode` as outside it, and CORS headers echo the accepted origin, never `*`. To call a server from a browser app on another origin, such as a dev server on another port, list it in `allowedOrigins` and set `cors: true`.
+HTTP sessions stay with the principal that created them. With `auth`, one principal holds at most `maxSessionsPerOwner` sessions (new option, default 100, never above `maxSessions`); at that quota, or at `maxSessions`, its `initialize` evicts its own least recently used session, never another principal's. Only when the store is full and the caller holds no session is `initialize` refused, with HTTP 503, `Retry-After` and JSON-RPC error `-32002` carrying the request's `id`, which `@lushly-dev/afd-client` reports as the retryable `SESSION_LIMIT_REACHED`. Without `auth` every caller is one owner, so session behaviour there is unchanged. The server README's "Sessions" section states the rule.

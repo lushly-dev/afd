@@ -31,6 +31,7 @@ import type { ConfirmationGate } from './confirmations.js';
 import { type ContextField, contextFieldValues } from './context-fields.js';
 import { bindContextState } from './context-scope.js';
 import {
+	assertAllowedOrigins,
 	HttpRequestError,
 	type HttpSecurityOptions,
 	readJsonBody,
@@ -56,6 +57,9 @@ import { requestContextValues } from './request-context.js';
 import { bindScopeView } from './scope-view.js';
 import type { CreateRequestContext } from './server-types.js';
 import { resultContent, type ToolCallResult } from './tool-router.js';
+
+/** Seconds a refused `initialize` is told to wait (`Retry-After`) when the session store is full. */
+const SESSION_RETRY_AFTER_S = 60;
 
 /** Routes whose errors are JSON-RPC error objects rather than AFD failures. */
 const JSON_RPC_PATHS = new Set(['/message', '/rpc', '/mcp']);
@@ -152,6 +156,7 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 	} = deps;
 	const unconfirmed = createHttpConfirmationCheck(confirmations);
 	const metaKeys = metaArgumentKeys(contextFields);
+	assertAllowedOrigins(deps.allowedOrigins);
 	const maxBodyBytes = deps.maxBodyBytes ?? 1024 * 1024;
 	if (!Number.isSafeInteger(maxBodyBytes) || maxBodyBytes <= 0)
 		throw new Error('maxBodyBytes must be a positive integer');
@@ -347,11 +352,18 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 			if (sessions) {
 				const id = sessions.create(sessionOwner(req));
 				if (id === undefined) {
-					res.setHeader('Retry-After', '60');
-					throw new HttpRequestError(503, 'Too many live MCP sessions', {
-						suggestion:
-							'Reuse an existing session by sending its Mcp-Session-Id, or retry after idle sessions expire',
-					});
+					res.setHeader('Retry-After', String(SESSION_RETRY_AFTER_S));
+					json(
+						res,
+						503,
+						jsonRpcError(
+							message.id,
+							JsonRpcErrorCode.SESSION_LIMIT_REACHED,
+							'Too many live MCP sessions',
+							`Retry after ${SESSION_RETRY_AFTER_S} seconds (Retry-After), when idle sessions have expired, or reuse a session you hold by sending its Mcp-Session-Id`
+						)
+					);
+					return;
 				}
 				res.setHeader('Mcp-Session-Id', id);
 			}

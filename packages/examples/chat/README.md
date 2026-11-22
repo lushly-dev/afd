@@ -46,8 +46,8 @@ does not work: a `file://` page sends `Origin: null`, which both servers refuse.
 The WebSocket server checks `Origin` itself on every upgrade, because CORS does
 not apply to WebSockets. The demo renders nicknames and messages with
 `textContent`, and the page is served with a Content-Security-Policy that
-forbids inline script. `NODE_ENV=development` makes the MCP server accept any
-origin and return verbose errors; do not use it on a shared network.
+forbids inline script. `NODE_ENV=development` makes the MCP server return
+verbose errors; it accepts the same browser origins in every mode.
 
 Other variables: `PORT` (MCP, 3100), `WS_PORT` (3001), `WS_BASE_URL` (the
 WebSocket URL `chat-connect` hands out), `TRANSPORT` (`auto`, `http` or `stdio`)

@@ -23,7 +23,7 @@ import { createStore, SqliteStore, setStore } from './store/index.js';
 const TRANSPORT = (process.env.TRANSPORT ?? 'auto') as 'auto' | 'http' | 'stdio';
 
 /**
- * Dev mode: enables verbose errors, stack traces and any browser origin.
+ * Dev mode: enables verbose errors and stack traces. Browser origins are the same in every mode.
  * Set NODE_ENV=development to enable, or NODE_ENV=production for secure defaults.
  */
 const DEV_MODE = process.env.NODE_ENV === 'development';
@@ -50,11 +50,7 @@ async function main() {
 		console.error(`  Name: todo-app`);
 		console.error(`  Version: 1.0.0`);
 		console.error(
-			`  Mode: ${
-				DEV_MODE
-					? '🔧 DEVELOPMENT (verbose errors, any browser origin)'
-					: '🔒 PRODUCTION (secure defaults)'
-			}`
+			`  Mode: ${DEV_MODE ? '🔧 DEVELOPMENT (verbose errors)' : '🔒 PRODUCTION (secure defaults)'}`
 		);
 		console.error(`  Commands: ${allCommands.length}`);
 		console.error('');

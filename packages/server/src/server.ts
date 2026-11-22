@@ -24,7 +24,7 @@ import { checkContextFields } from './context-fields.js';
 import { createContextState, resolveContextState } from './context-scope.js';
 import { createExecutionEngine } from './execution.js';
 import { createHttpHandler } from './http-handler.js';
-import { createSessionStore } from './http-sessions.js';
+import { createSessionStore, DEFAULT_MAX_SESSIONS } from './http-sessions.js';
 import {
 	createAuthLayer,
 	type PreDispatchCheck,
@@ -111,9 +111,18 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 	// state (or none), bound to their command context by the HTTP handler.
 	const contextState = contexts?.length ? createContextState() : undefined;
 	const { clock } = options;
+	if (options.maxSessionsPerOwner !== undefined && !options.auth) {
+		throw new Error(
+			'maxSessionsPerOwner needs auth: without it every HTTP caller is one owner, whose quota is maxSessions'
+		);
+	}
 	const sessions = contextState
 		? createSessionStore({
 				maxSessions: options.maxSessions,
+				// Without `auth` every caller is one owner, so its quota is the whole store.
+				maxSessionsPerOwner: options.auth
+					? options.maxSessionsPerOwner
+					: (options.maxSessions ?? DEFAULT_MAX_SESSIONS),
 				idleTimeoutMs: options.sessionIdleTimeoutMs,
 				...(clock ? { now: () => clock.now() } : {}),
 			})
