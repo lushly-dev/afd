@@ -89,8 +89,8 @@ export interface LoamAuthConfig {
 }
 
 /**
- * Better Auth 1.7.18 always adds `BETTER_AUTH_TRUSTED_ORIGINS` to the trusted origins, and reads it again on every
- * request (`context/helpers.mjs:83`, `auth/base.mjs:47`). The coordinator's decision of 2026-11-16 (the final check of
+ * Better Auth 1.7.26 always adds `BETTER_AUTH_TRUSTED_ORIGINS` to the trusted origins, and reads it again on every
+ * request (`context/helpers.mjs:83`, `auth/base.mjs:42`). The coordinator's decision of 2026-11-16 (the final check of
  * phase 6 step 3, IMPROVEMENT 1): building the options refuses while it is set, so a caller that skips `loam-host`'s
  * check is covered too; and `originHook` checks every request's `Origin` against the deployment's alone, so a value
  * set after start widens nothing.
@@ -130,12 +130,12 @@ function originHook(origin: string) {
 	});
 }
 
-/** Better Auth 1.7.18's default rate limit: 100 requests in 10 s per address and path. */
+/** Better Auth 1.7.26's default rate limit: 100 requests in 10 s per address and path. */
 const DEFAULT_RATE_LIMIT = Object.freeze({ window: 10, max: 100 });
 /** The most a test may raise `max` to (the final check's NIT 3): a limit, never one that reads as none. */
 const MAX_RAISED_RATE_LIMIT = 1_000_000;
 
-/** Better Auth's own stricter rules (1.7.18's `getDefaultSpecialRules`), which a test's higher limit raises too. */
+/** Better Auth's own stricter rules (1.7.26's `getDefaultSpecialRules`), which a test's higher limit raises too. */
 const SPECIAL_RATE_LIMIT_PATHS = [
 	'/sign-in/*',
 	'/sign-up/*',
@@ -283,11 +283,11 @@ export function createLoamAuthOptions(config: LoamAuthConfig): BetterAuthOptions
 		baseURL: url.origin,
 		basePath: url.pathname.replace(/\/$/, ''),
 		secret: config.secret,
-		// The secret given, never one from the environment: Better Auth 1.7.18 takes `BETTER_AUTH_SECRETS` over `secret`
+		// The secret given, never one from the environment: Better Auth 1.7.26 takes `BETTER_AUTH_SECRETS` over `secret`
 		// when no `secrets` are passed (B1 of step 3's review; the coordinator's decision of 2026-11-16). `loam-host`
 		// also refuses to start while that variable is set.
 		secrets: [{ version: 1, value: config.secret }],
-		// Off, and `loam-host` refuses `BETTER_AUTH_TELEMETRY`, which Better Auth 1.7.18 ORs with this option.
+		// Off, and `loam-host` refuses `BETTER_AUTH_TELEMETRY`, which Better Auth 1.7.26 ORs with this option.
 		telemetry: { enabled: false },
 		database: config.database,
 		trustedOrigins: [url.origin],
