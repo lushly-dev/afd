@@ -31,11 +31,17 @@ Missing, duplicate, or failing selections reject construction. Registration
 rejects duplicate command names and documentation topics, including collisions
 with core commands/docs. Plugins cannot override host branding. Every plugin
 command needs an explicit policy, and plugins must declare
-`host_context_safe = True` after a per-host state audit. The bundled optional
-LLM, agents, memory, connectors, and Teams distributions remain preserved;
-this change does not claim their stateful implementations are admitted to a
-managed multi-worktree host. In particular, their module-global configuration
-needs adapters before such admission. No optional plugin is auto-installed or
+`host_context_safe = True` after a per-host state audit. The connectors plugin
+has: its configuration, connectors and credential cache live on the instance each
+host discovers, and every GitHub command declares the `service` and `subprocess`
+effects (credential lookup may run `gh auth token`), so only a `trusted-local`
+host admits its calls. The bundled optional LLM, agents, memory and Teams
+distributions remain preserved; this change does not claim their stateful
+implementations are admitted to a managed multi-worktree host. In particular,
+their module-global configuration needs adapters before such admission. The LLM
+plugin is not itself served by a host, but the tools it bridges into a model's
+session are: every tool call enters a managed host's `execute` (see
+`botcore_llm`'s README). No optional plugin is auto-installed or
 auto-enabled by `build_host`. A host validates the `[plugins.<name>]` sections of
 the plugins it selects and leaves the others alone, without a warning: they
 configure other hosts' plugins, which may be installed in another environment.

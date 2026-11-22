@@ -40,8 +40,13 @@ class LlmConfig(BaseModel):
     # Bridged tools dispatch through a managed Botcore host over the current workspace:
     # its profile decides which declared effects a model's tool calls may have, and only
     # admitted core commands plus the commands of these (host-context-safe) plugins are served.
+    # ``None`` selects every installed plugin in DEFAULT_TOOL_PLUGINS.
     tool_profile: Literal["inspection", "remote-caller", "trusted-local"] = "inspection"
-    tool_plugins: list[str] = []
+    tool_plugins: list[str] | None = None
+
+
+#: Plugins a tool host selects by default when installed: their commands carry policies.
+DEFAULT_TOOL_PLUGINS: tuple[str, ...] = ("connectors",)
 
 
 def get_llm_config(plugin_config: dict[str, Any] | None = None) -> LlmConfig:

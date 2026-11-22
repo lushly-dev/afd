@@ -167,11 +167,11 @@
       "path": "botcore-connectors/src/botcore_connectors/plugin.py",
       "upstream_sha256": "1d0d0eb880fba09657132e7a3bdaca2e411d8466c69cfd785a012193b24e69fd",
       "staged_sha256": "1d0d0eb880fba09657132e7a3bdaca2e411d8466c69cfd785a012193b24e69fd",
-      "current_import_sha256": "1d0d0eb880fba09657132e7a3bdaca2e411d8466c69cfd785a012193b24e69fd",
+      "current_import_sha256": "d8bf45ade73448e8ed7109df02c8db0c80558604c2c71ceea954607b82487086",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in"
     },
     {
       "path": "botcore-connectors/src/botcore_connectors/validation.py",
@@ -277,11 +277,11 @@
       "path": "botcore-connectors/tests/test_plugin.py",
       "upstream_sha256": "4bc2e0435e9ec78857a393a08215ca4a12a56a5e77734f3a8c6fa46cb91bb456",
       "staged_sha256": "4bc2e0435e9ec78857a393a08215ca4a12a56a5e77734f3a8c6fa46cb91bb456",
-      "current_import_sha256": "4bc2e0435e9ec78857a393a08215ca4a12a56a5e77734f3a8c6fa46cb91bb456",
+      "current_import_sha256": "d56aeaab01a2cea86b293a3e6caa6cee26fea68d21fe5f08701102bc11e715f2",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in"
     },
     {
       "path": "botcore-connectors/tests/test_scope.py",
@@ -667,11 +667,11 @@
       "path": "docs/features/complete/per-agent-permissions/per-agent-permissions.plan.md",
       "upstream_sha256": "c2dddc8e03dfd56d77bca639183f11715305805f7b4a5ee0259f1726717bde9d",
       "staged_sha256": "c2dddc8e03dfd56d77bca639183f11715305805f7b4a5ee0259f1726717bde9d",
-      "current_import_sha256": "c2dddc8e03dfd56d77bca639183f11715305805f7b4a5ee0259f1726717bde9d",
+      "current_import_sha256": "8b265b09ab2ee8a47bfd74544f1f217872f78b0580a3813ef4ba8003f27bbd00",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in"
     },
     {
       "path": "docs/features/complete/teams-interface/00-overview.plan.md",
@@ -737,11 +737,11 @@
       "path": "docs/host-composition.md",
       "upstream_sha256": null,
       "staged_sha256": "770e808013d3d866493ed03690d48330a06ca076eec838f720449592103d53ce",
-      "current_import_sha256": "308b079d1d87c848629c74192889d82cab130caf43d991e45b794db0ba7466bb",
+      "current_import_sha256": "4f6e95058abb724ace0aac3532a68452ef3cdff62a1bdd582744cee48928cc85",
       "stage_classification": "added-in-staging",
       "stage_reason": "Document bounded host capabilities and compatibility limits",
       "import_classification": "modified-after-staging",
-      "import_reason": "Describe versioning, SDK compatibility, optional integration and the AFD publisher; describe plugin-declared policies, catalog input schemas and argument refusals; say a host leaves unselected plugin sections alone; describe command name spellings, kebab_names, typed inputs, the per-call context and the remote-caller profile; describe serving hosts over HTTP: routes, tokens, the bind guard and the client; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Refuse intermediate reparse points and hold the directory chain open through each token-store operation on Windows; Merge main's factory report plan counts; refuse ancestor write-attributes grants, recheck the held chain for reparse points and poll the Windows store lock"
+      "import_reason": "Describe versioning, SDK compatibility, optional integration and the AFD publisher; describe plugin-declared policies, catalog input schemas and argument refusals; say a host leaves unselected plugin sections alone; describe command name spellings, kebab_names, typed inputs, the per-call context and the remote-caller profile; describe serving hosts over HTTP: routes, tokens, the bind guard and the client; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Refuse intermediate reparse points and hold the directory chain open through each token-store operation on Windows; Merge main's factory report plan counts; refuse ancestor write-attributes grants, recheck the held chain for reparse points and poll the Windows store lock; Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in"
     },
     {
       "path": "docs/operations/model-routing.md",
@@ -938,6 +938,17 @@
       "import_reason": "Imported exact frozen staged-input bytes"
     },
     {
+      "path": "packages/botcore-agents/tests/test_connector_tool_host.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "15e153433e406ee1e58b9f1996f9d4f79971cd45dd13667f2616644017e20514",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in"
+    },
+    {
       "path": "packages/botcore-agents/tests/test_models.py",
       "upstream_sha256": "a1c18d15e78eac4870309d641566839dfce7fe33a55bca8c4fb2ef181e6e1f56",
       "staged_sha256": "a1c18d15e78eac4870309d641566839dfce7fe33a55bca8c4fb2ef181e6e1f56",
@@ -1019,6 +1030,17 @@
       "import_reason": "Imported exact frozen staged-input bytes"
     },
     {
+      "path": "packages/botcore-llm/README.md",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "f37fa1536f9ad8958c6f83052eb2b7f02b948b5d35276850a6e533f0f59f32b6",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in"
+    },
+    {
       "path": "packages/botcore-llm/pyproject.toml",
       "upstream_sha256": "1eaa81dcbc343ab8c29ffbed106c3a0cb74bb8f3c99508b567e4a3cd49b4d983",
       "staged_sha256": "1eaa81dcbc343ab8c29ffbed106c3a0cb74bb8f3c99508b567e4a3cd49b4d983",
@@ -1032,11 +1054,11 @@
       "path": "packages/botcore-llm/src/botcore_llm/__init__.py",
       "upstream_sha256": "81369746eba67af0c9c715bb50bea1eb2257926aeea841dc985e7a99794b60d1",
       "staged_sha256": "81369746eba67af0c9c715bb50bea1eb2257926aeea841dc985e7a99794b60d1",
-      "current_import_sha256": "289fc1977a658fbeed82d09e39f7067ffcda1b9aaccc8be51c2f465eb7ddd75d",
+      "current_import_sha256": "d7ce132abed3fd96b735404179142928ac8e11da0ff81048120eff4971dc3ca3",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact frozen staged-input bytes; Bridged LLM tools dispatch through a managed host under its policy; shell allowlist admits one simple command only"
+      "import_reason": "Imported exact frozen staged-input bytes; Bridged LLM tools dispatch through a managed host under its policy; shell allowlist admits one simple command only; Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in"
     },
     {
       "path": "packages/botcore-llm/src/botcore_llm/bridge.py",
@@ -1072,21 +1094,21 @@
       "path": "packages/botcore-llm/src/botcore_llm/commands.py",
       "upstream_sha256": "371568e111300b2d7b89e8ee4616219a6c04256decbd4a7c5a60387f7485f962",
       "staged_sha256": "371568e111300b2d7b89e8ee4616219a6c04256decbd4a7c5a60387f7485f962",
-      "current_import_sha256": "6f3cf9257cdc17ebc8df57760ef502928e022ee3e383d803c327dc2419e57bd8",
+      "current_import_sha256": "fa12508fb74351cb9107870d3fea2f6758291d1b1fd04134b0a6f45555f40834",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact frozen staged-input bytes; Bridged LLM tools dispatch through a managed host under its policy; shell allowlist admits one simple command only"
+      "import_reason": "Imported exact frozen staged-input bytes; Bridged LLM tools dispatch through a managed host under its policy; shell allowlist admits one simple command only; Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in"
     },
     {
       "path": "packages/botcore-llm/src/botcore_llm/config.py",
       "upstream_sha256": "91742133aeca2087f98eed0d0a51ec435dfd8356eb0553ea651ad3f750f32471",
       "staged_sha256": "91742133aeca2087f98eed0d0a51ec435dfd8356eb0553ea651ad3f750f32471",
-      "current_import_sha256": "bc7b981ac6b978a544ba66e874ebbaa87f611d145d3a6b8242d6b19a69a13ed5",
+      "current_import_sha256": "01eb70f05a8ceeab9bc455dabea108acc87f6820758a11e70bc6f32099088ae1",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact frozen staged-input bytes; Bridged LLM tools dispatch through a managed host under its policy; shell allowlist admits one simple command only"
+      "import_reason": "Imported exact frozen staged-input bytes; Bridged LLM tools dispatch through a managed host under its policy; shell allowlist admits one simple command only; Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in"
     },
     {
       "path": "packages/botcore-llm/src/botcore_llm/permissions.py",
@@ -2050,10 +2072,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "d36a97ede973d758baa0156bae618c48d2c107e3c50d8dcd747aff4adafb98de",
+      "current_import_sha256": "cf15313319b9871b813c4f9e387db69c8710d91c0b6e0101d64ed60aef549c4f",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356)"
+      "import_reason": "Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in"
     },
     {
       "path": "scripts/record_provenance.py",
@@ -3210,11 +3232,11 @@
       "path": "src/botcore/skills/agent-config/SKILL.md",
       "upstream_sha256": "a4f3d29da55f9ca7191c9507808812a6797db83bb4425f51d6be57ffe646343e",
       "staged_sha256": "a4f3d29da55f9ca7191c9507808812a6797db83bb4425f51d6be57ffe646343e",
-      "current_import_sha256": "eaf2b98f9507b0a52e7a6eb99c78eb416acec16c15fe1d802d6ac193ee34dc3f",
+      "current_import_sha256": "c7ed6ec6a23ff8f413529b11bd848cbdc39393955b8505d369f60045f673c116",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Rewrite to the agents plugin's verified fields; add the state block"
+      "import_reason": "Rewrite to the agents plugin's verified fields; add the state block; Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in"
     },
     {
       "path": "src/botcore/skills/agent-config/references/examples.md",

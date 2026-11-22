@@ -43,7 +43,7 @@ To combine every GitHub command with `research_query`, list them all in `connect
 
 | Field | Default | Behaviour |
 |---|---|---|
-| `allow_shell` | `false` | `shell_allowlist` narrows it with fnmatch patterns that every `&&`, `\|\|`, `;` or `\|` segment must match. Backticks and `$(` are denied. |
+| `allow_shell` | `false` | `shell_allowlist` narrows it with fnmatch patterns matched against the parsed command, its program exactly. Each command is approved on its own: `&&`, `\|\|`, `;`, `\|`, line breaks, redirections, backticks and `$` outside quotes are refused, even when every part would match. |
 | `allow_filesystem` | `false` | `filesystem_paths` narrows reads and writes. Paths resolve against the process's working directory. |
 | `allow_mcp` | `true` | All MCP servers or none, with no per-server scoping. |
 | `allow_custom_tools` | `true` | |

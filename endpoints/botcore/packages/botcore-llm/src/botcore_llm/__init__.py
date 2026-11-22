@@ -41,16 +41,19 @@ managed Botcore host, so every tool call enters `host.execute` under the host's 
 policies and profile, as a CLI or MCP `call` does. A call the policy refuses (for example
 `EFFECT_DENIED`) reaches the model as that error and its suggestion. By default the host
 covers the current workspace with the `inspection` profile and serves the admitted core
-commands; `tool_profile` and `tool_plugins` widen it, and a Python embedder can pass its
-own host to `botcore_llm.commands.set_tool_host`. A name the host does not serve is
-`UNKNOWN_COMMAND`.
+commands plus those of the connectors plugin when it is installed; `tool_profile` and
+`tool_plugins` change it, and a Python embedder can pass its own host to
+`botcore_llm.commands.set_tool_host`. A name the host does not serve is
+`UNKNOWN_COMMAND`. A local setup that should let the model lint, test, write or call
+connectors sets `tool_profile = "trusted-local"`.
 
 ## Shell permissions
 
-With `allow_shell` and a `shell_allowlist`, a shell request is approved only when its
-command line is one simple command: a line break, `;`, `&`, `&&`, `|`, `||`, a redirection,
-a subshell, `$` or backtick substitution, a backslash or a glob outside quotes refuses it,
-as does `$`, a backtick or a backslash inside double quotes. Quoted arguments may hold any
+With `allow_shell` and a `shell_allowlist`, each command is approved on its own: a shell
+request is approved only when its command line is one simple command. A line break, `;`,
+`&`, `&&`, `|`, `||`, a redirection, a subshell, `$` or backtick substitution, a backslash
+or a glob outside quotes refuses it, as does `$`, a backtick or a backslash inside double
+quotes. Quoted arguments may hold any
 other text. The program (the pattern's first word) must equal the command's, and the
 pattern is a glob over the parsed arguments. A refusal says why.
 
@@ -60,7 +63,7 @@ pattern is a glob over the parsed arguments. A refusal says why.
 [tool.botcore.plugins.llm]
 default_model = "<model-id>"  # required unless every call passes model=
 tool_profile = "inspection"   # or "remote-caller", "trusted-local"
-tool_plugins = []             # host-context-safe plugins whose commands may be bridged
+tool_plugins = ["connectors"] # default: installed host-context-safe plugins among these
 ```
 
 `default_model` has no built-in value. Model IDs are account-specific in the

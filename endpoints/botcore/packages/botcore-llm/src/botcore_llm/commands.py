@@ -16,7 +16,7 @@ from afd import CommandResult, error, success
 from .bridge import bridge_commands
 from .chat_stream import chat_result, llm_chat_stream
 from .client import CopilotClientManager
-from .config import LlmConfig, LlmPermissionsConfig, get_llm_config
+from .config import DEFAULT_TOOL_PLUGINS, LlmConfig, LlmPermissionsConfig, get_llm_config
 from .permissions import create_permission_handler
 from .session import get_session_registry
 
@@ -69,7 +69,21 @@ def _get_tool_host(config: LlmConfig) -> CommandHost:
 
     workspace = find_workspace() or Path.cwd()
     context = ExecutionContext(workspace, profile=config.tool_profile)
-    return build_host("llm", context, plugins=tuple(config.tool_plugins))
+    return build_host("llm", context, plugins=_tool_plugins(config))
+
+
+def _tool_plugins(config: LlmConfig) -> tuple[str, ...]:
+    """The plugins a tool host selects: ``tool_plugins``, or the installed defaults."""
+    if config.tool_plugins is not None:
+        return tuple(config.tool_plugins)
+    installed = _installed_plugin_names()
+    return tuple(name for name in DEFAULT_TOOL_PLUGINS if name in installed)
+
+
+def _installed_plugin_names() -> set[str]:
+    from importlib.metadata import entry_points
+
+    return {entry_point.name for entry_point in entry_points(group="botcore.plugins")}
 
 
 # ---------------------------------------------------------------------------
