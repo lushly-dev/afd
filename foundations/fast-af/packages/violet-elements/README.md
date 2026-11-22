@@ -55,12 +55,14 @@ import "@lushly-dev/violet-elements";
 - `@lushly-dev/violet-elements/theme-css` is the Node-safe theme-set helpers (`findVioletThemeSetGaps` and the types), side-effect free; see [Runtime Theme](#runtime-theme).
 - Element modules register themselves when imported, so the package declares `sideEffects: true`.
 
-## Storybook Review
+## Story Review
 
-Reusable components in this package should be reviewed in the root Storybook 10
-workspace before they are treated as reference-grade.
+Reusable components in this package should be reviewed through their stories
+before they are treated as reference-grade. The stories run on Specimen
+(`@lushly-dev/specimen`), which replaced Storybook here.
 
-- Run `pnpm storybook` from the repo root.
+- Run `pnpm test:stories` from the repo root: it typechecks the stories, runs
+  each one with its accessibility check and builds the review page.
 - New components should include co-located `*.stories.ts` files.
 - Stories are required as part of component creation, not a follow-up task.
 
@@ -224,8 +226,8 @@ applyVioletThemeRoot(panel, "dark");
 </violet-theme>
 ```
 
-Inside this repository (for example the root Storybook), the same functions are
-imported from `packages/violet-elements/src/theme`.
+Inside this repository (for example Specimen's preview, `specimen/preview.ts`),
+the same functions are imported from `packages/violet-elements/src/theme`.
 
 ## Gantt foundation
 
