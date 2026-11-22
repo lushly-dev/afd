@@ -2,6 +2,7 @@
 //! personal shell. The Rust side serves the site over two custom protocols, keeps one window, builds the
 //! menus, and carries mounted instances' messages over three commands and the copilot's model requests over two
 //! more (phase 5 specification, 4.2), the only IPC the webview is granted.
+pub mod logging;
 pub mod models;
 pub mod mounts;
 pub mod notify;
@@ -239,6 +240,7 @@ fn may_navigate(url: &tauri::Url) -> bool {
 }
 
 pub fn run() {
+    logging::init();
     let context = tauri::generate_context!();
     let app = tauri::Builder::default()
         // First, so a second launch exits before it opens anything, and the first window comes forward.

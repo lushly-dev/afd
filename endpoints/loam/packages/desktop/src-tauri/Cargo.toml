@@ -19,9 +19,11 @@ path = "src/main.rs"
 tauri-build = { version = "=2.7.4", features = [] }
 
 # Phase 6 specification, section 2: every crate exactly pinned. No `devtools` feature, and no plugin whose
-# JavaScript permissions could be granted.
+# JavaScript permissions could be granted. `tracing` is enabled on `tauri` (#1448) so `Webview::on_message`
+# routes its invoke-key mismatch through `tracing::error!` (handled by `logging::init`) instead of `eprintln!`.
 [dependencies]
-tauri = { version = "=2.12.5", features = [] }
+tauri = { version = "=2.12.5", features = ["tracing"] }
+tracing = "=0.1.44"
 tauri-plugin-single-instance = "=2.5.5"
 reqwest = { version = "=0.13.5", default-features = false, features = ["rustls", "stream", "http2"] }
 serde = { version = "1", features = ["derive"] }

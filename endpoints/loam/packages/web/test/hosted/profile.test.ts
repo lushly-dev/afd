@@ -22,22 +22,10 @@ import {
 	openShell,
 	packApp,
 } from '../browser/harness';
+import { COLD_STARTS, LOCAL_BOUNDS, SECTION_14_CEILINGS } from './budget';
 import { BIN, hosted, loamHost, writtenPolicy } from './support';
 
 const HTML = 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.8';
-
-/**
- * Section 14's ceilings, enforced only in `loam.yml`'s `Hosted development profile` job (`CI=true`), the
- * place section 14 measures. Resident memory: three `ubuntu-latest` samples of 93 MB, plus 25%, approved by
- * the coordinator 2026-11-10. Cold start: the median of `COLD_STARTS`, against an interim 750 ms, the worst
- * single start a runner has measured (585 ms) plus 25%, approved by the owner 2026-11-12 (#1062); about 20
- * runs' medians then set the row.
- */
-const SECTION_14_CEILINGS = { coldStartMs: 750, residentMb: 117 };
-/** Cold starts per run, each from its own empty directory; their median is section 14's sample (#1062). */
-const COLD_STARTS = 5;
-/** Elsewhere, a developer's machine under any load: the proposed bounds, with the measurement logged. */
-const LOCAL_BOUNDS = { coldStartMs: 3_000, residentMb: 300 };
 
 let host: DevHost;
 let browser: Browser;
