@@ -143,7 +143,10 @@ machine with neither source succeeds with nothing read.
   was read, with this module's fields only: session ids, project names and pull request
   numbers, and each project's renamed skills; never a folder of the machine or a line it
   could not read. Keep it private. A name is lower case and fit for a folder on any system;
-  the shared folder is a full path.
+  the shared folder is a full path. The hourly job must be able to read it: on macOS, a
+  folder in a cloud drive that fetches files on demand needs the owner's consent for the
+  job's program, once, at the screen (`disk-status` says so while the job waits, and that
+  the record itself was collected); a folder the drive keeps local copies of needs none.
 - `since_days`: re-read that many days of T3 Code's store instead
 - `t3_store`, `machine`: read a store copied from another machine, named by `machine`
 - `rebuild`: read everything and replace what an older botcore recognised, or the name a
@@ -366,7 +369,17 @@ idle-worktree warning from the last reclaim that counted it fully (older than 48
 says when) and Cargo output no `[[aged]]` folder clears, both of which Botcore Factory's
 `lane_status` shows to the foreman as `diskWarnings`; and a skill usage collection that has
 failed for less than a day. `skill_usage` is the job's last collection: `ok`, `ok_at`, and
-when it failed `error` and `failing_since`.
+when it failed `error` and `failing_since`. `disk_work` is the same for the disk work, with
+`waiting_on` (`what`, `path`) when it never came back: that is a problem at once, since only
+the owner's answer or the drive will change it; a disk step that came back failed is a
+warning. So is an installed job with no check on record, or none for three hours.
+
+Everything the status reads has 20 seconds in all: the settings and what the job wrote
+first, then the scheduler, the volumes and Cargo's settings as they are now. When the
+machine does not answer, `problems` says what the status was reading, `schedule` is null and
+`volumes` empty, and the rest is what the job last wrote, the idle-worktree warnings
+included. The read is left where it waits, and a status asked again waits for that one.
+When the job's own files do not answer the error is `DISK_STATE_UNANSWERED`.
 
 ## disk_keep(path, until=None, reason="") / disk_unkeep(path)
 Protect a linked worktree from every disk action with a `git worktree lock` whose reason starts
@@ -377,12 +390,40 @@ report lists it. disk_unkeep releases only a botcore keep, never another tool's 
 Recreate a worktree a tier 2 reclaim removed, at the same path and commit: on its branch if the
 branch still points there, on a recreated branch if it was deleted, else detached.
 
-## disk_run(force=False)
+## disk_run(force=False, own_process=False)
 What the job runs: checks free space and exits, unless a watched volume is low or the last
 applied run is a day old; then disk_reclaim(apply=True). Notifies once a day while space stays
-low. After the disk work it collects skill usage (`skill_usage_collect`), for at most five
-minutes: a failure, a wrong machine name or a collection that does not come back never fails
-or holds the job. `skill_usage_collect = false` in the machine settings turns it off.
+low. After the disk work it collects skill usage (`skill_usage_collect`). In the scheduler's
+run the collection has five minutes: a failure, a wrong machine name or a collection that
+does not come back never fails or holds the job. `skill_usage_collect = false` in the machine
+settings turns it off.
+
+The scheduler's run (`botcore disk-run`, which passes `own_process=True`) always ends. The
+disk work and the collection are steps that say what they are doing. The disk work is waited
+for while it works, however long, and is never cut short; once it has said nothing for five
+minutes beyond a command's own timeout it is waiting, and the run leaves it. A step that is
+left starts nothing more: it stops at its next word, or when the system lets go of the read
+it waits in, and the next hour's run starts again. `disk-status` then names what the disk
+work was doing (`disk_work.waiting_on`) as a problem. A disk step that came back failed is a
+warning; failures in a reclaim's receipt are the problem the receipt already raises. Errors:
+`DISK_RUN_STALLED` (the disk work only waits), `DISK_RUN_FAILED` (it raised),
+`DISK_STATE_UNANSWERED` (the job's own settings or state file did not answer in 30 seconds,
+or could not be written).
+
+Called with `own_process=False`, from a program that lives on, it waits for its steps however
+long they take and records what they wait for meanwhile. If that call is cancelled or fails,
+its steps are told to stop and given ten seconds. A command already under way (a `git`
+call, a cache prune) runs to its end, and a step the system holds in a read stays there
+until it is let go; either then stops before it removes anything more, and before a
+reclaim's receipt or a collection's record is written.
+
+On macOS a read that waits is most often the system asking the owner: a scheduled program is
+asked at the screen before it reads an external or network volume, files a cloud drive's app
+manages, or Desktop, Documents and Downloads, and the read is held for the answer. Allow the
+program the message names when asked. It is the Python botcore runs on, which other tools may
+share, so Full Disk Access for it reaches further than the one question. On macOS each run
+reads the folders the disk work will need before anything else, so that the question comes
+up in the run `disk-setup` starts.
 
 Settings: the repository's `[disk]` in botcore.toml, read from a landing branch (origin's HEAD,
 origin/main, then main; never a worktree's branch or the main checkout's HEAD), and the

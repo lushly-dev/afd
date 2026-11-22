@@ -361,6 +361,10 @@ skill_usage_machine = "laptop"
 skill_usage_shared = "~/Shared/skill-usage"
 ```
 
+On macOS the system asks, once and at the screen, before the hourly job reads a folder in a
+cloud drive that fetches files on demand. After a run that waited for that answer,
+`botcore disk-status` says the shared folder did not answer, and what to allow.
+
 ## Development
 
 ```bash

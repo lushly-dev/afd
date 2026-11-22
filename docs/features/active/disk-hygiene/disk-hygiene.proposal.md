@@ -333,17 +333,27 @@ Three rules keep configuration from becoming a way to delete the wrong thing:
 | Windows | Task Scheduler, hourly and at logon, as the current user, without elevation |
 | Linux | A systemd user timer, falling back to a crontab line |
 
-The hourly check reads free space and exits. A full run happens once a day, or at once when a
-volume is below its threshold. The job runs a persistent install
+The hourly check reads free space and exits (on macOS it first reads each folder the job
+needs, see below). A full run happens once a day, or at once when a volume is below its
+threshold. The job runs a persistent install
 (`uv tool install 'lushly-botcore==<version>'`), not `uvx`, whose environment lives in the
 cache the job prunes. Setup records absolute paths to `git`, `pnpm`, `uv` and `gh`, because
 scheduled jobs do not inherit a shell's `PATH`.
 
 Platform traps the implementation must handle and test:
 
-- **macOS privacy prompts.** A background job needs permission to read removable volumes and
-  some home folders. Setup triggers the prompt while the owner is present, and a denied run reports
-  "no permission".
+- **macOS privacy prompts.** A scheduled program needs the owner's consent to read removable
+  and network volumes, files a cloud drive's app manages, and some home folders. macOS asks at
+  the screen and holds the read until someone answers. So on macOS every run reads each
+  folder it will need once the volumes are checked and before it decides whether to reclaim:
+  the question then comes up in the run setup starts, with the owner present, and not in the
+  first reclaim the schedule runs alone. No scheduled run waits for ever. The disk work is a
+  step: the job waits for it while it says it is working and leaves it once it has said
+  nothing for five minutes. A step that is left starts nothing more, and `disk-status` names
+  the folder it waited for and the program to allow. A read the owner denied is an answer:
+  the hourly check goes on, and the reclaim that needs the folder reports "no permission".
+  The status itself gives everything it reads 20 seconds, so it cannot wait at the folder it
+  is asked about.
 - **Windows deletion.** Paths longer than 260 characters, read-only files (git marks pack files
   read-only) and files held open by another process all make a plain delete fail.
 - **Windows scheduling.** Tasks default to not running on battery and flash a console window;

@@ -13,6 +13,8 @@ import json
 import os
 import socket
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 
@@ -52,6 +54,27 @@ def _unlock(fd: int) -> None:
     import fcntl
 
     fcntl.flock(fd, fcntl.LOCK_UN)
+
+
+@contextmanager
+def waited_lock(path: Path, seconds: float) -> Iterator[bool]:
+    """Hold `path`'s lock around a short write, waiting up to `seconds` for another process
+    that has it. Yields whether it is held: after that long the writer goes on without it,
+    since what it waits for is another writer's few milliseconds, never a run."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o600)
+    held = False
+    try:
+        until = time.monotonic() + seconds
+        held = _try_lock(fd)
+        while not held and time.monotonic() < until:
+            time.sleep(0.02)
+            held = _try_lock(fd)
+        yield held
+    finally:
+        if held:
+            _unlock(fd)
+        os.close(fd)
 
 
 def record_path(path: Path) -> Path:

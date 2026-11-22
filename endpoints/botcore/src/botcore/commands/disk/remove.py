@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from botcore.commands.disk.scan import long_path
+from botcore.commands.disk.steps import doing, each
 
 REPARSE_POINT = 0x400  # FILE_ATTRIBUTE_REPARSE_POINT
 DIRECTORY = 0x10  # FILE_ATTRIBUTE_DIRECTORY
@@ -89,6 +90,7 @@ def _size(info: os.stat_result) -> int:
 
 
 def _unlink_at(name: str, dir_fd: int, info: os.stat_result, where: str, out: Removal) -> None:
+    doing("removing", where)  # right before it goes: a step that was left stops here
     try:
         os.unlink(name, dir_fd=dir_fd)
     except FileNotFoundError:
@@ -102,14 +104,16 @@ def _unlink_at(name: str, dir_fd: int, info: os.stat_result, where: str, out: Re
 
 def _clear_at(dir_fd: int, where: str, device: int, out: Removal) -> bool:
     """Delete everything in the open folder dir_fd. True when it is empty afterwards."""
+    doing("clearing", where)
     empty = True
     with os.scandir(dir_fd) as entries:
-        children = list(entries)
+        children = list(each("removing", where, entries))
     if any(child.name == ".git" for child in children):
         out.fail(where, "holds a git checkout; left in place")
         return False
     for child in children:
         here = os.path.join(where, child.name)
+        doing("looking at", here)  # every file: a folder of very many is work, not waiting
         try:
             info = child.stat(follow_symlinks=False)
         except FileNotFoundError:
@@ -147,6 +151,7 @@ def _remove_dir_at(name: str, parent_fd: int, where: str, device: int, out: Remo
         os.close(fd)
     if not empty:
         return False
+    doing("removing", where)
     try:
         os.rmdir(name, dir_fd=parent_fd)
     except FileNotFoundError:
@@ -182,13 +187,16 @@ def _remove_by_handle(path: Path, out: Removal) -> None:
 
 
 def _unlink_path(path: str, info: os.stat_result, out: Removal) -> None:
+    doing("removing", path)  # right before it goes: a step that was left stops here
     try:
         os.unlink(path)
     except FileNotFoundError:
         return
     except PermissionError:
         try:  # git marks pack files read-only; clear only that flag, keep the rest of the mode
+            doing("removing", path)  # the first try can have waited at the volume
             os.chmod(path, info.st_mode | stat.S_IWRITE)
+            doing("removing", path)
             os.unlink(path)
         except OSError as exc:
             out.fail(path, exc)
@@ -202,6 +210,7 @@ def _unlink_path(path: str, info: os.stat_result, out: Removal) -> None:
 
 def _remove_link_path(path: str, info: os.stat_result, out: Removal) -> None:
     """Remove a link without touching its target. A directory link or junction is rmdir'd."""
+    doing("removing", path)
     try:
         if getattr(info, "st_file_attributes", 0) & DIRECTORY or stat.S_ISDIR(info.st_mode):
             os.rmdir(path)
@@ -222,6 +231,7 @@ def _remove_dir_path(top: str, device: int, out: Removal) -> bool:
     ok = True
     while stack:
         current, visited, identity = stack.pop()
+        doing("removing", current)
         if visited:
             try:
                 os.rmdir(current)
@@ -240,7 +250,8 @@ def _remove_dir_path(top: str, device: int, out: Removal) -> bool:
             ok = False
             continue
         try:
-            names = os.listdir(current)
+            with os.scandir(current) as entries:
+                names = [entry.name for entry in each("removing", current, entries)]
         except OSError as exc:
             out.fail(current, exc)
             ok = False
@@ -252,6 +263,7 @@ def _remove_dir_path(top: str, device: int, out: Removal) -> bool:
         stack.append((current, True, identity))
         for name in names:
             child = os.path.join(current, name)
+            doing("removing", child)
             try:
                 child_info = os.lstat(child)
             except OSError:

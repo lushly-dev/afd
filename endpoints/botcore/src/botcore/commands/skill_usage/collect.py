@@ -19,10 +19,12 @@ from afd import CommandResult, error, success
 from botcore.commands.disk.git import GitError, git_out
 from botcore.commands.disk.lock import LockHeld, RunLock
 from botcore.commands.disk.settings import SettingsError
+from botcore.commands.disk.steps import doing
 from botcore.commands.skill_usage import claude_code, t3
 from botcore.commands.skill_usage.events import EDIT, RECOGNIZER, TYPED, Event
 from botcore.commands.skill_usage.store import (
     LOCK_FILE,
+    SHARING,
     InvalidMachine,
     Local,
     append_events,
@@ -161,6 +163,7 @@ def _name_projects(previous: dict, roots: dict[str, str]) -> tuple[dict, dict[st
 def _read_t3(
     path: Path, since: str | None, all_items: bool = False, natives: bool = False
 ) -> t3.T3Read:
+    doing("reading T3 Code's store", path)
     connection = t3.open_store(path)
     try:
         t3.check_schema(connection)
@@ -243,6 +246,7 @@ def _published(result: CommandResult[dict], directory: Path, here: Local) -> Com
     whole, and the next collection writes it there."""
     if not result.success or here.shared is None or result.data is None:
         return result
+    doing(SHARING, here.shared)
     shared: dict = {"path": str(here.shared), "exists": here.shared.is_dir()}
     try:
         shared["written"] = publish(directory, here.shared, here.machine)
@@ -403,6 +407,7 @@ def _collect(  # noqa: C901, PLR0912, PLR0913, PLR0915 - one collection, start t
             for event in stored
             if event.source == t3.SOURCE and event.native and event.harness == claude_code.HARNESS
         }
+        doing("reading Claude Code's transcripts in", transcripts)
         claude = claude_code.read(transcripts, seen, found.natives | recorded, everything=rebuild)
 
     projects, names = _name_projects(
@@ -449,6 +454,9 @@ def _collect(  # noqa: C901, PLR0912, PLR0913, PLR0915 - one collection, start t
 
     dropped = [event for event in stored if gone(event)]
     added = [event for event in events if event.id not in known_ids]
+    # everything is read: from here the record is written, events, sessions, then state.
+    # A collection the job has left stops before the first of them, never between two.
+    doing("writing this machine's record in", directory)
     if dropped or rebuild:
         lost = {event.id for event in dropped}
         kept = [event for event in stored if event.id not in lost]

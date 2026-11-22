@@ -18,6 +18,7 @@ from botcore.commands.disk.scan import (
     newest_mtime,
 )
 from botcore.commands.disk.settings import MachineSettings, expand
+from botcore.commands.disk.steps import command, doing, each
 
 
 def _tool_out(args: list[str], cwd: Path | None) -> str | None:
@@ -25,9 +26,11 @@ def _tool_out(args: list[str], cwd: Path | None) -> str | None:
     if exe is None:
         return None
     try:
-        done = subprocess.run(
-            [exe, *args[1:]], cwd=cwd, capture_output=True, text=True, timeout=60, check=False,
-        )
+        with command(f"running {args[0]} in", cwd or "", allow=60):
+            done = subprocess.run(
+                [exe, *args[1:]], cwd=cwd, capture_output=True, text=True, timeout=60,
+                check=False,
+            )
     except (OSError, subprocess.TimeoutExpired):
         return None
     out = done.stdout.strip()
@@ -44,7 +47,9 @@ def _sample_mode(checkout: Path) -> str:
     if not is_dir(store):
         return "unknown"
     seen = 0
+    doing("reading", store)
     for package_json in store.glob("*/node_modules/*/package.json"):
+        doing("reading", store)
         try:
             links = package_json.stat().st_nlink
         except OSError:
@@ -79,6 +84,7 @@ def pnpm_store_dir(checkouts: list[Path]) -> str | None:
 
 def _store_of(checkout: Path) -> str | None:
     manifest = checkout / "node_modules" / ".modules.yaml"
+    doing("reading", manifest)
     try:
         text = manifest.read_text(encoding="utf-8")
     except OSError:
@@ -221,7 +227,8 @@ def _aged_items(pattern: str, protected: list[Path]) -> tuple[list[Path], str | 
     if not wildcard:
         return ([base] if exists(base) else []), None
     try:
-        return sorted(Path(e.path) for e in os.scandir(base) if not e.is_symlink()), None
+        found = each("reading", base, os.scandir(base))
+        return sorted(Path(e.path) for e in found if not e.is_symlink()), None
     except OSError:
         return [], None
 

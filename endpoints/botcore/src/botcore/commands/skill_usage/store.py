@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from botcore.commands.disk.settings import expand, load_machine_settings
+from botcore.commands.disk.steps import doing
 from botcore.commands.skill_usage.events import Event
 
 STATE_ENV = "BOTCORE_SKILL_USAGE_STATE"
@@ -278,6 +279,21 @@ def _digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def _copy_bytes(path: Path) -> bytes:
+    """A file of a shared copy as it lies now (a read a cloud drive can hold)."""
+    return path.read_bytes()
+
+
+def _write_bytes(path: Path, data: bytes) -> None:
+    """A file of a shared copy beside the one it will replace (a write the drive can hold)."""
+    path.write_bytes(data)
+
+
+def _leftovers(folder: Path) -> list[Path]:
+    """Temporary files a publish that was cut short left in a machine's shared folder."""
+    return list(folder.glob("*.tmp"))
+
+
 def _shared_link(link: object) -> dict | str | None:
     """A session's pull request as it is shared: its reference, when, and who opened it."""
     if isinstance(link, str):
@@ -343,6 +359,10 @@ def _earlier(folder: Path, events: list[Event], sessions: dict[str, dict]) -> bo
     ) <= set(sessions)
 
 
+# What a collection says it is doing while it reads or writes the shared folder: the hourly
+# job reads it to tell a shared folder that does not answer from a collection that did not run
+SHARING = "writing the shared folder"
+
 def publish(directory: Path, shared: Path, machine: str) -> bool:
     """Write this machine's record to its own folder in the shared one. Whether anything
     was written: a file that did not change is left alone, so a sync has nothing to send.
@@ -356,6 +376,9 @@ def publish(directory: Path, shared: Path, machine: str) -> bool:
     not there, and a new folder in its place would hide that. Nor is another record's
     folder written over: two machines that took one name would each hide the other.
     """
+    # what the hourly job is told when this does not come back names the folder that was
+    # being read: the shared one, or this machine's own
+    doing(SHARING, shared)
     if not shared.is_dir():
         raise SharedUnavailable(f"{shared} is not a folder this machine can see")
     target = shared / machine
@@ -364,9 +387,11 @@ def publish(directory: Path, shared: Path, machine: str) -> bool:
             f"{target} is where this machine keeps its own record: name another folder as "
             "the shared one"
         )
+    doing("reading this machine's record in", directory)
     state = load_state(directory)
     events, unreadable = load_events(directory)
     sessions = load_sessions(directory)
+    doing(SHARING, shared)
     theirs = _load_json(target / STATE_FILE).get("record_id")
     if theirs and theirs != state.get("record_id") and not _earlier(target, events, sessions):
         raise SharedUnavailable(
@@ -393,20 +418,24 @@ def publish(directory: Path, shared: Path, machine: str) -> bool:
     shared_state["renames"] = _renames(state)
     shared_state["files"] = {name: _digest(data) for name, data in files.items()}
     files[STATE_FILE] = json.dumps(shared_state, indent=2, sort_keys=True).encode("utf-8") + b"\n"
+    doing(SHARING, shared)  # said before anything is written: a step that was left stops here
     target.mkdir(exist_ok=True)
-    for left in target.glob("*.tmp"):  # what a write that was cut short left behind
+    for left in _leftovers(target):  # what a write that was cut short left behind
+        doing(SHARING, shared)
         left.unlink(missing_ok=True)
     written = False
     for name, data in files.items():
         destination = target / name
         try:
-            if destination.read_bytes() == data:
+            if _copy_bytes(destination) == data:
                 continue
         except FileNotFoundError:
             pass
+        doing(SHARING, shared)  # after the copy was read, and before it is replaced
         temporary = destination.with_name(f"{name}.{os.getpid()}.tmp")
-        temporary.write_bytes(data)
-        os.replace(temporary, destination)
+        _write_bytes(temporary, data)
+        doing(SHARING, shared)  # the write can wait at the drive too: asked again before
+        os.replace(temporary, destination)  # the copy that lies there is replaced
         written = True
     return written
 

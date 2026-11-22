@@ -17,6 +17,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from botcore.commands.disk.steps import command, doing, each
 from botcore.config import DiskRegenerable
 
 DAY = 86400.0
@@ -89,10 +90,11 @@ def mount_point(path: Path) -> Path:
 
 def _darwin_volume_id(mount: Path) -> str | None:
     try:
-        done = subprocess.run(
-            ["diskutil", "info", "-plist", str(mount)],
-            capture_output=True, timeout=30, check=False,
-        )
+        with command("asking about the volume", mount, allow=30):
+            done = subprocess.run(
+                ["diskutil", "info", "-plist", str(mount)],
+                capture_output=True, timeout=30, check=False,
+            )
         if done.returncode != 0:
             return None
         info = plistlib.loads(done.stdout)
@@ -104,10 +106,11 @@ def _darwin_volume_id(mount: Path) -> str | None:
 
 def _linux_volume_id(mount: Path) -> str | None:
     try:
-        done = subprocess.run(
-            ["findmnt", "-n", "-o", "UUID", "--mountpoint", str(mount)],
-            capture_output=True, text=True, timeout=30, check=False,
-        )
+        with command("asking about the volume", mount, allow=30):
+            done = subprocess.run(
+                ["findmnt", "-n", "-o", "UUID", "--mountpoint", str(mount)],
+                capture_output=True, text=True, timeout=30, check=False,
+            )
     except (OSError, subprocess.TimeoutExpired):
         return None
     value = done.stdout.strip()
@@ -181,6 +184,7 @@ class VolumeState:
 
 def volume_state(mount: Path, expected_id: str | None, low_space_gb: float | None) -> VolumeState:
     """Free space and identity. A drive letter on Windows counts as mounted only if readable."""
+    doing("checking the volume", mount)
     mounted = os.path.ismount(mount)
     free = total = None
     found = None
@@ -225,10 +229,11 @@ class Processes:
 def _run_lines(args: list[str], timeout: float = 60, ok_codes: tuple[int, ...] = (0,)):
     """A command's output lines, or None when it could not run or failed."""
     try:
-        done = subprocess.run(
-            args, capture_output=True, text=True, encoding="utf-8",
-            errors="replace", timeout=timeout, check=False,
-        )
+        with command(f"running {args[0]}", allow=timeout):
+            done = subprocess.run(
+                args, capture_output=True, text=True, encoding="utf-8",
+                errors="replace", timeout=timeout, check=False,
+            )
     except (OSError, subprocess.TimeoutExpired):
         return None
     if done.returncode not in ok_codes:
@@ -366,6 +371,7 @@ def last_activity(
             if value is not None:
                 times.append(value)
     for rel in changed:
+        doing("reading", worktree)  # every file: very many changed files are work
         value = _mtime(worktree / rel)
         if value is not None:
             times.append(value)
@@ -456,12 +462,14 @@ def find_candidates(
         if time.monotonic() > deadline:
             return found, False
         folder, prefix, depth = stack.pop()
+        doing("reading", folder)
         try:
-            children = list(os.scandir(folder))
+            children = list(each("reading", folder, os.scandir(folder)))
         except OSError:
             complete = False
             continue
         for child in children:
+            doing("reading", folder)
             rel = f"{prefix}{child.name}"
             link = is_link(child)
             folder_like = not link and child.is_dir(follow_symlinks=False)
@@ -501,6 +509,7 @@ def allocated(path: Path, deadline: float) -> int | None:
         if time.monotonic() > deadline:
             return None
         current = stack.pop()
+        doing("measuring", current)
         try:
             info = current.lstat()
         except OSError:
@@ -511,7 +520,7 @@ def allocated(path: Path, deadline: float) -> int | None:
             if os.name == "nt" and getattr(info, "st_file_attributes", 0) & 0x400:
                 continue  # a junction
             try:
-                stack.extend(Path(e.path) for e in os.scandir(current))
+                stack.extend(Path(e.path) for e in each("measuring", current, os.scandir(current)))
             except OSError:
                 pass
             continue
@@ -536,11 +545,13 @@ def newest_mtime(path: Path, depth: int = 1) -> float | None:
     for _ in range(depth):
         below = []
         for folder in level:
+            doing("reading", folder)
             try:
-                entries = list(os.scandir(folder))
+                entries = list(each("reading", folder, os.scandir(folder)))
             except OSError:
                 continue
             for child in entries:
+                doing("reading", folder)
                 try:
                     times.append(child.stat(follow_symlinks=False).st_mtime)
                     if child.is_dir(follow_symlinks=False):

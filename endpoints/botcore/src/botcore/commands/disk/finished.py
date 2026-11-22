@@ -30,6 +30,7 @@ from pathlib import Path
 
 from botcore.commands.disk.git import GitError, git_out, path_key
 from botcore.commands.disk.scan import compile_pattern
+from botcore.commands.disk.steps import command, doing, each
 from botcore.config import DiskConfig
 
 KEEP_MARK = "botcore-keep until="
@@ -216,8 +217,9 @@ def _inside_rebuildable(
         current, here = stack.pop()
         if time.monotonic() > deadline or seen > WALK_ENTRIES:
             return f"{rel} is too large to check in time"
+        doing("reading", current)
         try:
-            entries = list(os.scandir(current))
+            entries = list(each("reading", current, os.scandir(current)))
         except OSError:
             return f"{here} cannot be read"
         seen += len(entries)
@@ -228,6 +230,7 @@ def _inside_rebuildable(
             continue  # a Cargo target: build output only
         for entry in entries:
             child = f"{here}/{entry.name}"
+            doing("reading", current)
             if entry.is_symlink():
                 continue
             if entry.is_dir(follow_symlinks=False):
@@ -303,12 +306,13 @@ def _merged_pr(worktree: Path, branch: str | None, head: str) -> bool:
     if not gh or not branch:
         return False
     try:
-        done = subprocess.run(
-            [gh, "pr", "list", "--state", "merged", "--head", branch, "--limit", "20",
-             "--json", "headRefOid"],
-            cwd=worktree, capture_output=True, text=True, timeout=30, check=False,
-            env={**os.environ, "GH_PROMPT_DISABLED": "1"},
-        )
+        with command("asking gh about", worktree, allow=30):
+            done = subprocess.run(
+                [gh, "pr", "list", "--state", "merged", "--head", branch, "--limit", "20",
+                 "--json", "headRefOid"],
+                cwd=worktree, capture_output=True, text=True, timeout=30, check=False,
+                env={**os.environ, "GH_PROMPT_DISABLED": "1"},
+            )
         pulls = json.loads(done.stdout) if done.returncode == 0 else []
     except (OSError, subprocess.TimeoutExpired, ValueError):
         return False

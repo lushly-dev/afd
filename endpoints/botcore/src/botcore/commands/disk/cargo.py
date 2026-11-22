@@ -29,6 +29,7 @@ from botcore.commands.disk.caches import unsafe_aged_root
 from botcore.commands.disk.git import GitError, list_worktrees, path_key
 from botcore.commands.disk.scan import is_dir, is_file
 from botcore.commands.disk.settings import MachineSettings, expand, t3_worktree_roots
+from botcore.commands.disk.steps import doing, each
 
 SUGGESTED_AGE_DAYS = 7
 KINDS = ("target-dir", "build-dir")
@@ -117,6 +118,7 @@ class _Configs:
         if key in self.files:
             return self.files[key]
         self.files[key] = {}  # a cycle reads as empty
+        doing("reading", path)
         try:
             data = tomllib.loads(path.read_text(encoding="utf-8"))
         except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError) as exc:
@@ -211,8 +213,9 @@ def _cargo_only(root: Path) -> bool:
         return False
     if not is_dir(root):
         return True  # nothing there yet: the setting was just made
+    doing("reading", root)
     try:
-        children = list(os.scandir(root))
+        children = list(each("reading", root, os.scandir(root)))
     except OSError:
         return False
     for child in children:

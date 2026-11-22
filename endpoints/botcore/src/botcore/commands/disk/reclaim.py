@@ -70,6 +70,7 @@ from botcore.commands.disk.settings import (
     state_path,
     t3_worktree_roots,
 )
+from botcore.commands.disk.steps import command, doing
 from botcore.config import DiskConfig
 
 STRIP_RECORD = "botcore-disk-strip.json"
@@ -349,10 +350,11 @@ def _run_cache(action: Action) -> None:
     if exe is None:
         action.outcome, action.detail = "skipped", f"{args[0]} not found"
         return
-    done = subprocess.run(
-        [exe, *args[1:]], cwd=action.root, capture_output=True, text=True, timeout=1800,
-        check=False,
-    )
+    with command(f"pruning the {action.target} cache", allow=1800):
+        done = subprocess.run(
+            [exe, *args[1:]], cwd=action.root, capture_output=True, text=True, timeout=1800,
+            check=False,
+        )
     action.outcome = "done" if done.returncode == 0 else "failed"
     lines = (done.stdout or done.stderr).strip().splitlines()
     action.detail = lines[-1] if lines else None
@@ -362,6 +364,7 @@ def carry_out(action: Action, run: Run) -> None:
     """Do one action, or record why not. Never raises for a filesystem or git problem."""
     if not run.apply:
         return
+    doing("reclaiming", action.target)
     try:
         if action.kind == "strip":
             reason = _recheck_strip(action, run)
@@ -692,6 +695,10 @@ def _reclaim(  # noqa: PLR0913 - the command's own arguments
         _plan_and_run(run, data, pressure, include_restorable)
     except Exception as exc:  # noqa: BLE001 - the receipt must be written whatever happened
         failure = f"{type(exc).__name__}: {exc}"
+    # (A reclaim the hourly job has left is told so by `steps.Left`, which is not an
+    # Exception and passes through here: like one that was killed, it writes no receipt and
+    # no status, so the next hour's run finds it still due. Writing them would read the
+    # volumes again, which a step that was left must not begin.)
     after = _free(ctx)
     reclaimed = {m: round((after.get(m, 0) - before.get(m, 0)) / 1024**3, 2) for m in before}
     payload = {
@@ -707,6 +714,9 @@ def _reclaim(  # noqa: PLR0913 - the command's own arguments
         **_idle_after(data, run),
         "error": failure,
     }
+    # (the volumes and worktrees were read once more for this: a reclaim the job left while
+    # one of them waited is told here, and writes neither receipt nor status)
+    doing("writing its receipt in", state_path())
     receipt = write_receipt(payload)
     write_status(payload, receipt)
     payload["receipt"] = str(receipt)

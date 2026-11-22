@@ -14,6 +14,47 @@ Read this before the [proposal](disk-hygiene.proposal.md). Active since 2026-11-
 
 ## Findings
 
+### The scheduled job and macOS consent, 2026-11-21 (#1902)
+
+- **The first reclaim the schedule ran alone never ended**, on the Air and on Random. On the
+  Air it began when `/` fell below its threshold and waited in a folder listing for 2 hours
+  22 minutes, until the process was ended. A scheduler starts no run while one is alive, so
+  there was no check and no reclaim in that time, and the volume went under 2 GB free. On
+  Random the same run came 23 hours after the reclaim run by hand.
+- **Cause.** macOS asks at the screen before a scheduled program reads a removable volume,
+  and holds the read for the answer (`tccd` logs `AUTHREQ_PROMPTING` for
+  `kTCCServiceSystemPolicyRemovableVolumes` and the job's Python). Both machines keep
+  worktrees on an external volume. Every reclaim before had been run from a terminal, which
+  has its own consent, and the run setup starts only checked free space: a reclaim had just
+  been run by hand, so none was due.
+- **What changed.** On macOS a run reads every folder it will need first, so the question
+  comes in the run setup starts. The disk work and the collection are steps: the scheduler's
+  run waits for the disk work while it says it is working, leaves it after five minutes of
+  silence, and `disk-status` names the folder it waited for and the program to allow.
+- **What review changed.** The first design kept a run waiting until it was 50 minutes old,
+  to keep the question on the screen. Both reviewers found what that cost: a reclaim still
+  working at that minute was recorded as waiting, a busy collection could hold the run, and
+  a host that called the command kept a thread running after it returned. A waiting step is
+  now left after five minutes, a working one is never cut short, and only the scheduler's
+  own process leaves anything behind. The second pass found that a step left in a read
+  could go on to remove things once the read came back, after the run had reported it as
+  waiting. A step that is left is now told so, right before each thing it would remove and
+  before it writes a receipt or a record, and starts nothing more. What a step says and
+  whether it was left belong to the step: they were kept by thread number at first, which
+  the next thread is given.
+- **Tried on Random with the question still open**, as a scheduled program with shortened
+  waits and a reclaim that removes nothing: 20 seconds in, the status named `/Volumes/Dev`
+  and what to allow; the collection ran and was shared; the run ended by itself. The first
+  try blamed the git command that had just returned, since a command's allowance outlived
+  it, and Cargo's settings were read from the worktrees before the worktrees were named.
+- **Once the owner had answered on Random**, the run that had waited three hours finished,
+  and the next scheduled run stripped 13 folders, some of them on the external volume. The
+  final code, started the same way with a reclaim that removes nothing, ran the folder pass,
+  the collection and the shared copy in 51 seconds.
+- **A dry run's `planned_gb` has no figure for `node_modules` and `.venv`.** On the Air a dry
+  run planned 0.05 GB, and the scheduled run a quarter of an hour later removed 646 folders
+  and freed 1.29 GB.
+
 ### After prevention, 2026-11-21 (#1693, #1687, #1814)
 
 - **Upgrade.** All three machines run main `cf8d067c5` (still reported as 0.7.0 until the release, #1692),
@@ -134,6 +175,8 @@ Read this before the [proposal](disk-hygiene.proposal.md). Active since 2026-11-
 - Adoption in Lushly ([lushly#2697](https://github.com/lushly-dev/lushly/issues/2697)): after the release.
 
 - Rollout to the Air, Random and Hero, and retiring the cleanup agent (#1693): rolled out 2026-11-20 (see Findings); a week of receipts, then the cleanup agent is retired.
+
+- A scheduled run that waits for ever (#1902): in this pull request.
 
 ## Phase 3. Removing finished worktrees
 

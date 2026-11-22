@@ -91,4 +91,7 @@ without `--apply` deletes nothing but writes a receipt. `disk-reclaim --apply`, 
 2. From inside each repository: `botcore disk-setup`. It registers the repository, records the
    volumes and installs the job (macOS LaunchAgent, Windows Task Scheduler as the user, Linux
    systemd user timer or crontab), then starts one run: approve any permission prompt then.
+   macOS asks before a scheduled program reads an external volume or a cloud drive's folder.
+   A run waits a few minutes for the answer, goes on without that step, and asks again the
+   next hour; after such a run `disk-status` names the folder and the program to allow.
 3. `botcore disk-status` after the first run. `botcore disk-setup --uninstall` removes the job.
