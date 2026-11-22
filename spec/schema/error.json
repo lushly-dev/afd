@@ -1,0 +1,37 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://afd.dev/spec/schema/error.json",
+	"title": "AFD CommandError",
+	"description": "Structured error carried by failed CommandResult, BatchResult, StepResult and ErrorChunk wire payloads (spec/schema/README.md).",
+	"type": "object",
+	"required": ["code", "message"],
+	"additionalProperties": false,
+	"properties": {
+		"code": {
+			"description": "Machine-readable error code, usually from the shared catalog in spec/error-codes.md.",
+			"type": "string",
+			"minLength": 1
+		},
+		"message": {
+			"description": "Human-readable description of what went wrong.",
+			"type": "string"
+		},
+		"suggestion": {
+			"description": "Actionable recovery guidance for the caller. Optional on the wire; commands and engines should always set it.",
+			"type": "string"
+		},
+		"retryable": {
+			"description": "Whether retrying the same call may succeed. Absence is read as false.",
+			"type": "boolean"
+		},
+		"details": {
+			"description": "Structured debugging context for the caller.",
+			"type": "object",
+			"additionalProperties": true
+		},
+		"cause": {
+			"description": "The CommandError that caused this error. Native exceptions never cross the wire.",
+			"$ref": "#"
+		}
+	}
+}

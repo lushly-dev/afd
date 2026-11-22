@@ -1,0 +1,27 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://afd.dev/spec/schema/output-envelope.json",
+	"title": "AFD MCP outputSchema envelope",
+	"description": "The standalone JSON Schema envelope advertised as a command tool's top-level MCP outputSchema (spec/command-metadata.md, Structured results). Each implementation substitutes the command's output schema for properties.data and hoists $defs/definitions to the envelope root unless data declares its own $id.",
+	"type": "object",
+	"properties": {
+		"success": {
+			"type": "boolean"
+		},
+		"data": {},
+		"error": {
+			"type": "object",
+			"properties": {
+				"code": { "type": "string" },
+				"message": { "type": "string" },
+				"suggestion": { "type": "string" },
+				"retryable": { "type": "boolean" }
+			},
+			"required": ["code", "message"]
+		},
+		"metadata": {
+			"type": "object"
+		}
+	},
+	"required": ["success"]
+}

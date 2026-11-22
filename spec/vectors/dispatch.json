@@ -1,0 +1,443 @@
+{
+	"description": "Single-command dispatch order (spec/dispatch.md): lookup, exposure, active context, confirmation, input validation, declared context fields, middleware, approval admission, handler, metadata stamping and observer hooks.",
+	"gaps": {
+		"python": {
+			"hooks": "https://github.com/lushly-dev/afd/issues/1551"
+		},
+		"rust": {
+			"approvalUnavailable": "https://github.com/lushly-dev/afd/issues/1886",
+			"stamping": "https://github.com/lushly-dev/afd/issues/546",
+			"hooks": "https://github.com/lushly-dev/afd/issues/546"
+		}
+	},
+	"setup": {
+		"contexts": ["planning", "combat"],
+		"contextFields": [
+			{
+				"name": "tenant",
+				"meta": "dev.example/tenant",
+				"schema": { "type": "string", "minLength": 1 },
+				"required": true
+			}
+		],
+		"commands": [
+			{
+				"name": "item-echo",
+				"description": "Echo validated input",
+				"version": "1.2.3",
+				"expose": { "mcp": true, "agent": true },
+				"contexts": ["planning"],
+				"input": {
+					"type": "object",
+					"properties": {
+						"text": { "type": "string" },
+						"count": { "type": "integer", "default": 1 }
+					},
+					"required": ["text"]
+				},
+				"behavior": "echo"
+			},
+			{
+				"name": "secret-rotate",
+				"description": "Private command not exposed to MCP",
+				"version": "1.0.0",
+				"expose": { "mcp": false, "agent": true },
+				"contexts": ["planning"],
+				"input": {
+					"type": "object",
+					"properties": { "reason": { "type": "string" } },
+					"required": ["reason"]
+				},
+				"behavior": "echo"
+			},
+			{
+				"name": "item-purge",
+				"description": "Confirm-gated command",
+				"version": "1.0.0",
+				"expose": { "mcp": true, "agent": true },
+				"confirmPrompt": "Delete every item?",
+				"input": {
+					"type": "object",
+					"properties": { "scope": { "type": "string" } },
+					"required": ["scope"]
+				},
+				"behavior": "echo"
+			},
+			{
+				"name": "item-approve",
+				"description": "Approval-gated command",
+				"version": "1.0.0",
+				"expose": { "mcp": true, "agent": true },
+				"approval": "required",
+				"input": {
+					"type": "object",
+					"properties": { "id": { "type": "string" } },
+					"required": ["id"]
+				},
+				"behavior": "echo"
+			},
+			{
+				"name": "item-throw",
+				"description": "Handler that throws",
+				"version": "1.0.0",
+				"expose": { "mcp": true, "agent": true },
+				"input": {
+					"type": "object",
+					"properties": {}
+				},
+				"behavior": "throw"
+			}
+		]
+	},
+	"cases": [
+		{
+			"id": "unknown-command",
+			"description": "Unknown command returns COMMAND_NOT_FOUND before any middleware or handler runs",
+			"surface": "registry",
+			"call": {
+				"command": "item-missing",
+				"input": {},
+				"interface": "mcp"
+			},
+			"expect": {
+				"success": false,
+				"code": "COMMAND_NOT_FOUND",
+				"hooks": [],
+				"onCommand": false,
+				"onError": false
+			}
+		},
+		{
+			"id": "unknown-before-validation",
+			"description": "Unknown command fails lookup before context or input validation",
+			"surface": "registry",
+			"call": {
+				"command": "item-missing",
+				"input": { "text": 42 },
+				"interface": "mcp",
+				"activeContext": "combat"
+			},
+			"expect": {
+				"success": false,
+				"code": "COMMAND_NOT_FOUND",
+				"hooks": [],
+				"onCommand": false,
+				"onError": false
+			}
+		},
+		{
+			"id": "unexposed-in-process",
+			"description": "In-process caller naming an interface gets COMMAND_NOT_EXPOSED for a private command",
+			"surface": "registry",
+			"call": {
+				"command": "secret-rotate",
+				"input": { "reason": "monthly" },
+				"interface": "mcp"
+			},
+			"expect": {
+				"success": false,
+				"code": "COMMAND_NOT_EXPOSED",
+				"retryable": false,
+				"hooks": [],
+				"onCommand": false,
+				"onError": false
+			}
+		},
+		{
+			"id": "unexposed-before-context-and-validation",
+			"description": "Exposure check runs before active context and input validation",
+			"surface": "registry",
+			"call": {
+				"command": "secret-rotate",
+				"input": {},
+				"interface": "mcp",
+				"activeContext": "combat"
+			},
+			"expect": {
+				"success": false,
+				"code": "COMMAND_NOT_EXPOSED",
+				"retryable": false,
+				"hooks": [],
+				"onCommand": false,
+				"onError": false
+			}
+		},
+		{
+			"id": "out-of-context",
+			"description": "Command outside active context returns COMMAND_NOT_IN_CONTEXT before middleware",
+			"surface": "registry",
+			"call": {
+				"command": "item-echo",
+				"input": { "text": "hello" },
+				"interface": "mcp",
+				"activeContext": "combat"
+			},
+			"expect": {
+				"success": false,
+				"code": "COMMAND_NOT_IN_CONTEXT",
+				"hooks": [],
+				"onCommand": false,
+				"onError": false
+			}
+		},
+		{
+			"id": "out-of-context-before-validation",
+			"description": "Active context check runs before input validation",
+			"surface": "registry",
+			"call": {
+				"command": "item-echo",
+				"input": {},
+				"interface": "mcp",
+				"activeContext": "combat"
+			},
+			"expect": {
+				"success": false,
+				"code": "COMMAND_NOT_IN_CONTEXT",
+				"hooks": [],
+				"onCommand": false,
+				"onError": false
+			}
+		},
+		{
+			"id": "invalid-input",
+			"description": "Invalid input fails with VALIDATION_ERROR before middleware or handler",
+			"surface": "registry",
+			"call": {
+				"command": "item-echo",
+				"input": { "text": 123 },
+				"interface": "mcp",
+				"activeContext": "planning"
+			},
+			"expect": {
+				"success": false,
+				"code": "VALIDATION_ERROR",
+				"message": "Input validation failed",
+				"hooks": [],
+				"onCommand": false,
+				"onError": false
+			}
+		},
+		{
+			"id": "invalid-input-before-context-fields",
+			"description": "Input validation runs before declared context-field validation",
+			"surface": "registry",
+			"withContextFields": true,
+			"call": {
+				"command": "item-echo",
+				"input": {},
+				"interface": "mcp",
+				"activeContext": "planning"
+			},
+			"expect": {
+				"success": false,
+				"code": "VALIDATION_ERROR",
+				"message": "Input validation failed",
+				"hooks": [],
+				"onCommand": false,
+				"onError": false
+			}
+		},
+		{
+			"id": "missing-required-context-field",
+			"description": "Missing required declared context field fails with VALIDATION_ERROR before middleware",
+			"surface": "registry",
+			"withContextFields": true,
+			"call": {
+				"command": "item-echo",
+				"input": { "text": "hello" },
+				"interface": "mcp",
+				"activeContext": "planning"
+			},
+			"expect": {
+				"success": false,
+				"code": "VALIDATION_ERROR",
+				"hooks": [],
+				"onCommand": false,
+				"onError": false
+			}
+		},
+		{
+			"id": "invalid-context-field",
+			"description": "Invalid declared context field value fails with VALIDATION_ERROR before middleware",
+			"surface": "registry",
+			"withContextFields": true,
+			"call": {
+				"command": "item-echo",
+				"input": { "text": "hello" },
+				"interface": "mcp",
+				"activeContext": "planning",
+				"contextFields": { "tenant": "" }
+			},
+			"expect": {
+				"success": false,
+				"code": "VALIDATION_ERROR",
+				"hooks": [],
+				"onCommand": false,
+				"onError": false
+			}
+		},
+		{
+			"id": "approval-required",
+			"description": "Approval middleware holds gated command without running the handler",
+			"surface": "registry",
+			"withApprovalMiddleware": true,
+			"call": {
+				"command": "item-approve",
+				"input": { "id": "doc-1" },
+				"interface": "agent"
+			},
+			"expect": {
+				"success": false,
+				"code": "APPROVAL_REQUIRED",
+				"hooks": ["mw1:before", "mw1:after"],
+				"onCommand": true,
+				"onError": false
+			}
+		},
+		{
+			"id": "approval-unavailable",
+			"description": "Declared approval policy without approval middleware fails closed with APPROVAL_UNAVAILABLE before handler",
+			"surface": "registry",
+			"gap": "approvalUnavailable",
+			"call": {
+				"command": "item-approve",
+				"input": { "id": "doc-1" },
+				"interface": "agent"
+			},
+			"expect": {
+				"success": false,
+				"code": "APPROVAL_UNAVAILABLE",
+				"retryable": false,
+				"hooks": ["mw1:before", "mw2:before", "mw2:after", "mw1:after"],
+				"onCommand": true,
+				"onError": false
+			}
+		},
+		{
+			"id": "throwing-middleware",
+			"description": "Throwing middleware is caught as redacted COMMAND_EXECUTION_ERROR; handler and onCommand do not run",
+			"surface": "registry",
+			"middleware": "throw",
+			"call": {
+				"command": "item-echo",
+				"input": { "text": "hello" },
+				"interface": "mcp",
+				"activeContext": "planning"
+			},
+			"expect": {
+				"success": false,
+				"code": "COMMAND_EXECUTION_ERROR",
+				"message": "An internal error occurred",
+				"hooks": ["mw1:before"],
+				"onCommand": false,
+				"onError": true
+			}
+		},
+		{
+			"id": "throwing-handler",
+			"description": "Throwing handler is caught as redacted COMMAND_EXECUTION_ERROR; onError runs and onCommand does not",
+			"surface": "registry",
+			"call": {
+				"command": "item-throw",
+				"input": {},
+				"interface": "mcp"
+			},
+			"expect": {
+				"success": false,
+				"code": "COMMAND_EXECUTION_ERROR",
+				"message": "An internal error occurred",
+				"hooks": ["mw1:before", "mw2:before", "handler"],
+				"onCommand": false,
+				"onError": true
+			}
+		},
+		{
+			"id": "happy-path",
+			"description": "Valid call applies defaults, strips unknown keys, runs middleware in onion order, stamps metadata and invokes onCommand with raw input",
+			"surface": "registry",
+			"withContextFields": true,
+			"call": {
+				"command": "item-echo",
+				"input": { "text": "hello", "extra": "dropped" },
+				"interface": "mcp",
+				"activeContext": "planning",
+				"contextFields": { "tenant": "acme" },
+				"traceId": "trace-dispatch-1",
+				"actorKind": "agent"
+			},
+			"expect": {
+				"success": true,
+				"data": { "text": "hello", "count": 1 },
+				"hooks": ["mw1:before", "mw2:before", "handler", "mw2:after", "mw1:after"],
+				"stamped": ["executionTimeMs", "commandVersion", "traceId", "actorKind"],
+				"onCommand": true,
+				"onCommandSeesRawInput": true,
+				"onError": false
+			}
+		},
+		{
+			"id": "throwing-on-command",
+			"description": "A throwing onCommand hook reports to onError without altering the completed CommandResult",
+			"surface": "registry",
+			"gap": "hooks",
+			"onCommandThrows": true,
+			"call": {
+				"command": "item-echo",
+				"input": { "text": "keep" },
+				"interface": "mcp",
+				"activeContext": "planning"
+			},
+			"expect": {
+				"success": true,
+				"data": { "text": "keep", "count": 1 },
+				"hooks": ["mw1:before", "mw2:before", "handler", "mw2:after", "mw1:after"],
+				"onCommand": true,
+				"onError": true
+			}
+		},
+		{
+			"id": "mcp-unexposed-hidden",
+			"description": "Remote MCP afd-call hides an unexposed command as COMMAND_NOT_FOUND (D4)",
+			"surface": "mcp",
+			"call": {
+				"command": "secret-rotate",
+				"input": { "reason": "monthly" }
+			},
+			"expect": {
+				"success": false,
+				"code": "COMMAND_NOT_FOUND",
+				"hooks": []
+			}
+		},
+		{
+			"id": "mcp-confirmation-required",
+			"description": "Remote MCP call to a confirm-gated command without confirmation fails with CONFIRMATION_REQUIRED before middleware or handler",
+			"surface": "mcp",
+			"call": {
+				"command": "item-purge",
+				"input": { "scope": "all" }
+			},
+			"expect": {
+				"success": false,
+				"code": "CONFIRMATION_REQUIRED",
+				"retryable": false,
+				"hooks": []
+			}
+		},
+		{
+			"id": "mcp-confirmation-acknowledged",
+			"description": "Remote MCP call with confirm: true passes the confirmation gate and runs middleware and handler",
+			"surface": "mcp",
+			"call": {
+				"command": "item-purge",
+				"input": { "scope": "all" },
+				"confirm": true
+			},
+			"expect": {
+				"success": true,
+				"data": { "scope": "all" },
+				"hooks": ["mw1:before", "mw2:before", "handler", "mw2:after", "mw1:after"]
+			}
+		}
+	]
+}

@@ -1,0 +1,224 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://afd.dev/spec/schema/result.json",
+	"title": "AFD CommandResult",
+	"description": "The wire shape of every single-command result (spec/schema/README.md).",
+	"type": "object",
+	"required": ["success"],
+	"additionalProperties": false,
+	"properties": {
+		"success": {
+			"description": "Whether the command succeeded.",
+			"type": "boolean"
+		},
+		"data": {
+			"description": "Primary result payload when success is true. May be any JSON value, including null."
+		},
+		"error": {
+			"description": "Structured error when success is false.",
+			"$ref": "error.json"
+		},
+		"confidence": {
+			"description": "Confidence in the result, from 0 to 1.",
+			"type": "number",
+			"minimum": 0,
+			"maximum": 1
+		},
+		"reasoning": {
+			"description": "Human-readable explanation of how or why the result was produced.",
+			"type": "string"
+		},
+		"sources": {
+			"description": "Information sources consulted to produce the result.",
+			"type": "array",
+			"items": { "$ref": "#/$defs/Source" }
+		},
+		"plan": {
+			"description": "Steps in a multi-step operation.",
+			"type": "array",
+			"items": { "$ref": "#/$defs/PlanStep" }
+		},
+		"alternatives": {
+			"description": "Other options considered alongside the chosen result.",
+			"type": "array",
+			"items": { "$ref": "#/$defs/Alternative" }
+		},
+		"warnings": {
+			"description": "Non-fatal issues surfaced alongside the result.",
+			"type": "array",
+			"items": { "$ref": "#/$defs/Warning" }
+		},
+		"suggestions": {
+			"description": "Helpful next steps for the caller.",
+			"type": "array",
+			"items": { "type": "string" }
+		},
+		"metadata": {
+			"description": "Execution metadata stamped by the engine or added by the command.",
+			"$ref": "#/$defs/ResultMetadata"
+		},
+		"undoCommand": {
+			"description": "Name of a command that reverses this operation.",
+			"type": "string"
+		},
+		"undoArgs": {
+			"description": "Arguments to pass to undoCommand.",
+			"type": "object",
+			"additionalProperties": true
+		}
+	},
+	"allOf": [
+		{
+			"if": {
+				"properties": { "success": { "const": true } },
+				"required": ["success"]
+			},
+			"then": {
+				"not": { "required": ["error"] }
+			}
+		},
+		{
+			"if": {
+				"properties": { "success": { "const": false } },
+				"required": ["success"]
+			},
+			"then": {
+				"required": ["error"],
+				"not": { "required": ["data"] }
+			}
+		}
+	],
+	"$defs": {
+		"ActorKind": {
+			"description": "Kind of principal that called the command. Only the kind crosses the wire.",
+			"type": "string",
+			"enum": ["human", "agent", "service", "script", "test"]
+		},
+		"ResultMetadata": {
+			"description": "Execution metadata. Additional host or command keys are allowed.",
+			"type": "object",
+			"additionalProperties": true,
+			"properties": {
+				"executionTimeMs": {
+					"type": "number",
+					"minimum": 0
+				},
+				"commandVersion": {
+					"type": "string"
+				},
+				"traceId": {
+					"type": "string"
+				},
+				"timestamp": {
+					"type": "string"
+				},
+				"actorKind": {
+					"$ref": "#/$defs/ActorKind"
+				}
+			}
+		},
+		"Source": {
+			"description": "An information source attributed by the command.",
+			"type": "object",
+			"required": ["type"],
+			"additionalProperties": false,
+			"properties": {
+				"type": {
+					"type": "string",
+					"minLength": 1
+				},
+				"id": { "type": "string" },
+				"title": { "type": "string" },
+				"url": { "type": "string" },
+				"location": { "type": "string" },
+				"accessedAt": { "type": "string" },
+				"relevance": {
+					"type": "number",
+					"minimum": 0,
+					"maximum": 1
+				}
+			}
+		},
+		"PlanStepStatus": {
+			"type": "string",
+			"enum": ["pending", "in_progress", "complete", "failed", "skipped"]
+		},
+		"PlanStepError": {
+			"type": "object",
+			"required": ["code", "message"],
+			"additionalProperties": false,
+			"properties": {
+				"code": {
+					"type": "string",
+					"minLength": 1
+				},
+				"message": { "type": "string" }
+			}
+		},
+		"PlanStep": {
+			"description": "One step in a CommandResult plan.",
+			"type": "object",
+			"required": ["id", "action", "status"],
+			"additionalProperties": false,
+			"properties": {
+				"id": { "type": "string" },
+				"action": { "type": "string" },
+				"status": { "$ref": "#/$defs/PlanStepStatus" },
+				"description": { "type": "string" },
+				"dependsOn": {
+					"type": "array",
+					"items": { "type": "string" }
+				},
+				"result": {},
+				"error": { "$ref": "#/$defs/PlanStepError" },
+				"progress": {
+					"type": "number",
+					"minimum": 0,
+					"maximum": 100
+				},
+				"estimatedTimeRemainingMs": {
+					"type": "number",
+					"minimum": 0
+				}
+			}
+		},
+		"Alternative": {
+			"description": "An alternative option considered alongside the primary result.",
+			"type": "object",
+			"required": ["data", "reason"],
+			"additionalProperties": false,
+			"properties": {
+				"data": {},
+				"reason": { "type": "string" },
+				"confidence": {
+					"type": "number",
+					"minimum": 0,
+					"maximum": 1
+				},
+				"label": { "type": "string" }
+			}
+		},
+		"WarningSeverity": {
+			"type": "string",
+			"enum": ["info", "warning", "caution"]
+		},
+		"Warning": {
+			"description": "A non-fatal warning surfaced in a result.",
+			"type": "object",
+			"required": ["code", "message"],
+			"additionalProperties": false,
+			"properties": {
+				"code": {
+					"type": "string",
+					"minLength": 1
+				},
+				"message": { "type": "string" },
+				"severity": { "$ref": "#/$defs/WarningSeverity" },
+				"details": {
+					"type": "object",
+					"additionalProperties": true
+				}
+			}
+		}
+	}
+}

@@ -18,13 +18,46 @@ import {
 	failure,
 	success,
 } from '@lushly-dev/afd-core';
+import { AjvJsonSchemaValidator } from '@modelcontextprotocol/client/validators/ajv';
 import { afterEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { defineCommand } from './schema.js';
 import { createMcpHandler } from './server.js';
 
 const FIXTURE_DIR = new URL('../../../spec/wire/', import.meta.url);
+const SCHEMA_DIR = new URL('../../../spec/schema/', import.meta.url);
 const UPDATE = process.env.UPDATE_WIRE_FIXTURES === '1';
+
+const SCHEMA_FILES = [
+	'error.json',
+	'result.json',
+	'output-envelope.json',
+	'batch.json',
+	'pipeline.json',
+	'stream.json',
+] as const;
+
+function buildSchemaRegistry() {
+	const validator = new AjvJsonSchemaValidator();
+	const validators = {} as Record<
+		(typeof SCHEMA_FILES)[number],
+		ReturnType<AjvJsonSchemaValidator['getValidator']>
+	>;
+	for (const file of SCHEMA_FILES) {
+		const schema = JSON.parse(readFileSync(new URL(file, SCHEMA_DIR), 'utf8')) as Parameters<
+			AjvJsonSchemaValidator['getValidator']
+		>[0];
+		validators[file] = validator.getValidator(schema);
+	}
+	return {
+		validate(schemaFile: (typeof SCHEMA_FILES)[number], value: unknown) {
+			const outcome = validators[schemaFile](value);
+			return { valid: outcome.valid, errors: outcome.valid ? '' : (outcome.errorMessage ?? '') };
+		},
+	};
+}
+
+const schemaRegistry = buildSchemaRegistry();
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -231,5 +264,52 @@ describe('golden wire fixtures (spec/wire)', () => {
 			}),
 			createErrorChunk({ code: 'STREAM_ERROR', message: 'Upstream closed', retryable: true }, 1),
 		]);
+	});
+
+	it('every golden wire fixture validates against spec/schema/ (JSON Schema 2020-12)', () => {
+		const fixtureSchemas: Array<[string, (typeof SCHEMA_FILES)[number]]> = [
+			['result-success-minimal.json', 'result.json'],
+			['result-success-full.json', 'result.json'],
+			['result-failure.json', 'result.json'],
+			['batch-result.json', 'batch.json'],
+			['pipeline-result.json', 'pipeline.json'],
+		];
+		for (const [fixture, schema] of fixtureSchemas) {
+			const payload: unknown = JSON.parse(readFileSync(new URL(fixture, FIXTURE_DIR), 'utf8'));
+			const check = schemaRegistry.validate(schema, payload);
+			expect(check.valid, `${fixture} against ${schema}: ${check.errors}`).toBe(true);
+		}
+		const chunks = JSON.parse(
+			readFileSync(new URL('stream-chunks.json', FIXTURE_DIR), 'utf8')
+		) as unknown[];
+		for (const [index, chunk] of chunks.entries()) {
+			const check = schemaRegistry.validate('stream.json', chunk);
+			expect(check.valid, `stream-chunks[${index}]: ${check.errors}`).toBe(true);
+		}
+	});
+
+	it('spec/schema/ rejects malformed results, errors and stream chunks', () => {
+		expect(schemaRegistry.validate('result.json', { success: true, confidence: 1.5 }).valid).toBe(
+			false
+		);
+		expect(
+			schemaRegistry.validate('result.json', {
+				success: true,
+				error: { code: 'E', message: 'bad' },
+			}).valid
+		).toBe(false);
+		expect(schemaRegistry.validate('result.json', { success: false }).valid).toBe(false);
+		expect(
+			schemaRegistry.validate('result.json', {
+				success: false,
+				data: {},
+				error: { code: 'E', message: 'bad' },
+			}).valid
+		).toBe(false);
+		expect(schemaRegistry.validate('result.json', { success: true, unknownField: 1 }).valid).toBe(
+			false
+		);
+		expect(schemaRegistry.validate('error.json', { message: 'missing code' }).valid).toBe(false);
+		expect(schemaRegistry.validate('stream.json', { type: 'unknown' }).valid).toBe(false);
 	});
 });

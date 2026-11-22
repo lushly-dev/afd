@@ -109,7 +109,14 @@ Json command_result_output_schema(const Json& data_schema) {
     }
     envelope["properties"] = Json{{"success", {{"type", "boolean"}}},
                                   {"data", std::move(data)},
-                                  {"error", {{"type", "object"}}},
+                                  {"error",
+                                   {{"type", "object"},
+                                    {"properties",
+                                     {{"code", {{"type", "string"}}},
+                                      {"message", {{"type", "string"}}},
+                                      {"suggestion", {{"type", "string"}}},
+                                      {"retryable", {{"type", "boolean"}}}}},
+                                    {"required", {"code", "message"}}}},
                                   {"metadata", {{"type", "object"}}}};
     envelope["required"] = Json::array({"success"});
     return envelope;

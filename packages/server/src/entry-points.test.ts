@@ -255,6 +255,11 @@ const HOST_IMPORTS =
  *   every step's admission must match, and an input changed while the step decides is refused)
  *   took those two to 57,006 and 119,121, and a fresh admission required from every step that
  *   admitted to 57,230 and 119,346; raised to 57,400 and 119,500.
+ *   Contract schemas and error-code metadata (#1733, #1740, under D115): typing `error` (`code`,
+ *   `message`, `suggestion`, `retryable`) in `commandResultOutputSchema` adds 364 bytes to the
+ *   tool-surface bundle (77,810 → 78,174; raised 78,100 → 78,500). `ERROR_CODE_CATALOG` lives in
+ *   its own `error-catalog.ts` module and `middleware.ts` imports `failure` statically, so host
+ *   and every-export `/direct` bundles tree-shake it out cleanly (every-export stays under 119,500).
  * - 48.0 KB for a host that also imports `createApprovalMiddleware`.
  * - 68.6 KB for a host that also imports `createDirectToolSurface`: the router, the tool
  *   list, the meta-tools, `lazy-tools` and `bootstrap/`.
@@ -277,7 +282,7 @@ const DIRECT_BUDGETS = [
 	{
 		what: 'a host with the tool surface',
 		imports: `${HOST_IMPORTS}, createDirectToolSurface`,
-		bytes: 78_100,
+		bytes: 78_500,
 	},
 	{ what: 'every export', imports: undefined, bytes: 119_500 },
 ];

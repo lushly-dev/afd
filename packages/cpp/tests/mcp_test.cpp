@@ -2,6 +2,10 @@
 #include "afd/mcp.hpp"
 #include "afd/schema.hpp"
 
+#include <fstream>
+#include <iterator>
+#include <string>
+
 #include <doctest.h>
 
 using afd::Json;
@@ -83,21 +87,30 @@ TEST_CASE("a bare command has no title, annotations or _meta") {
 }
 
 TEST_CASE("command_result_output_schema wraps data in the CommandResult envelope") {
+    std::ifstream in(std::string(AFD_SCHEMA_DIR) + "/output-envelope.json", std::ios::binary);
+    const std::string text{std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
+    const auto spec_envelope = afd::parse_bounded(text);
+    REQUIRE(spec_envelope.has_value());
+
     const Json envelope = afd::command_result_output_schema(
         Json{{"$schema", "https://json-schema.org/draft/2020-12/schema"},
              {"type", "object"},
              {"properties", {{"tag", {{"$ref", "#/$defs/Tag"}}}}},
              {"$defs", {{"Tag", {{"type", "string"}}}}}});
-    CHECK(
-        envelope ==
-        Json{{"type", "object"},
-             {"$defs", {{"Tag", {{"type", "string"}}}}},
-             {"properties",
-              {{"success", {{"type", "boolean"}}},
-               {"data", {{"type", "object"}, {"properties", {{"tag", {{"$ref", "#/$defs/Tag"}}}}}}},
-               {"error", {{"type", "object"}}},
-               {"metadata", {{"type", "object"}}}}},
-             {"required", {"success"}}});
+    Json expected_properties = spec_envelope->at("properties");
+    expected_properties["data"] =
+        Json{{"type", "object"}, {"properties", {{"tag", {{"$ref", "#/$defs/Tag"}}}}}};
+    CHECK(envelope == Json{{"type", spec_envelope->at("type")},
+                           {"$defs", {{"Tag", {{"type", "string"}}}}},
+                           {"properties", expected_properties},
+                           {"required", spec_envelope->at("required")}});
+    CHECK(envelope["properties"]["error"] == Json{{"type", "object"},
+                                                  {"properties",
+                                                   {{"code", {{"type", "string"}}},
+                                                    {"message", {{"type", "string"}}},
+                                                    {"suggestion", {{"type", "string"}}},
+                                                    {"retryable", {{"type", "boolean"}}}}},
+                                                  {"required", {"code", "message"}}});
     // Without $defs, data is the schema as given, less $schema.
     CHECK(afd::command_result_output_schema(Json{{"type", "string"}})["properties"]["data"] ==
           Json{{"type", "string"}});

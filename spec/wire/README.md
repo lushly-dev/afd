@@ -16,6 +16,9 @@ constructors that the stream route uses).
 
 ## Contract
 
+- **Every fixture validates against [`spec/schema/`](../schema/README.md).** Each language's test
+  suite validates every fixture (and its round-tripped output) against the JSON Schema 2020-12
+  definitions in `spec/schema/`.
 - **Every language round-trips every file.** Parse it into the language's native result types, serialize those
   types back to JSON, and the result must equal the file (object key order aside). This is enforced by:
   - TypeScript: `packages/server/src/wire-fixtures.test.ts`, which also regenerates the files;

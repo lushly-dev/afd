@@ -1,4 +1,6 @@
+import { readFileSync } from 'node:fs';
 import fs from 'node:fs/promises';
+import { AjvJsonSchemaValidator } from '@modelcontextprotocol/client/validators/ajv';
 
 /**
  * Conformance Test Runner
@@ -290,10 +292,26 @@ function isExistsMatcher(value: unknown): value is { exists: boolean } {
 /** Keys whose values are command payloads: their own keys and nulls are not checked. */
 const FREE_FORM_KEYS = new Set(['data', 'details', 'undoArgs']);
 
+const validateCommandResultSchema = (() => {
+	const validator = new AjvJsonSchemaValidator();
+	const errorSchema = JSON.parse(
+		readFileSync(new URL('../../../../spec/schema/error.json', import.meta.url), 'utf8')
+	) as Parameters<AjvJsonSchemaValidator['getValidator']>[0];
+	const resultSchema = JSON.parse(
+		readFileSync(new URL('../../../../spec/schema/result.json', import.meta.url), 'utf8')
+	) as Parameters<AjvJsonSchemaValidator['getValidator']>[0];
+	validator.getValidator(errorSchema);
+	const validate = validator.getValidator(resultSchema);
+	return (value: unknown): string | undefined => {
+		const outcome = validate(value);
+		return outcome.valid ? undefined : (outcome.errorMessage ?? 'invalid CommandResult');
+	};
+})();
+
 /**
- * Check a tool result against the cross-language wire format (spec/wire/README.md):
- * `isError` matches `!success`, envelope keys are camelCase, and unset fields are
- * omitted rather than `null`.
+ * Check a tool result against the cross-language wire format (`spec/wire/README.md`) and JSON
+ * Schema (`spec/schema/result.json`): `isError` matches `!success`, envelope keys are camelCase,
+ * unset fields are omitted rather than `null`, and the payload validates against `result.json`.
  */
 export function wireProblems(body: unknown, isError: boolean): string[] {
 	const problems: string[] = [];
@@ -302,6 +320,11 @@ export function wireProblems(body: unknown, isError: boolean): string[] {
 		if (typeof success === 'boolean' && isError === success) {
 			problems.push(`isError is ${isError} for a result with success: ${success}`);
 		}
+	}
+
+	const schemaError = validateCommandResultSchema(body);
+	if (schemaError) {
+		problems.push(`schema (spec/schema/result.json): ${schemaError}`);
 	}
 
 	const visit = (value: unknown, path: string): void => {

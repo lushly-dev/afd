@@ -97,6 +97,8 @@ export {
 // The AFD contract version this package implements (spec/VERSION)
 export { AFD_CONTRACT_VERSION } from './contract.js';
 // Error types
+export type { ErrorCodeInfo } from './error-catalog.js';
+export { ERROR_CODE_CATALOG, HOST_ERROR_CODE_PREFIX } from './error-catalog.js';
 export type { CommandError, ErrorCode } from './errors.js';
 export {
 	createError,

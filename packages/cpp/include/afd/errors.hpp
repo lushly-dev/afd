@@ -4,6 +4,7 @@
 #include "afd/expected.hpp"
 #include "afd/json.hpp"
 
+#include <array>
 #include <exception>
 #include <memory>
 #include <optional>
@@ -114,6 +115,71 @@ inline constexpr char TASK_TOKEN_EXPIRED[] = "TASK_TOKEN_EXPIRED";
 // App calls: not emitted by C++ yet (#1513); the shared catalog lists it
 inline constexpr char CALL_NOT_GRANTED[] = "CALL_NOT_GRANTED";
 } // namespace error_codes
+
+/// Reserved prefix for host-defined error codes (`spec/error-codes.md`).
+inline constexpr char host_error_code_prefix[] = "HOST_";
+
+/// Metadata for one entry in the shared error-code catalog (`spec/vectors/error-codes.json`).
+/// `retryable` is `true`, `false`, or `std::nullopt` when retryability varies by emitting site.
+struct ErrorCodeInfo {
+    std::string_view code;
+    std::optional<bool> retryable;
+    std::string_view profile;
+};
+
+/// The shared error-code catalog with retryability and contract profile, in catalog order.
+inline constexpr std::array<ErrorCodeInfo, 50> error_code_catalog = {{
+    {error_codes::VALIDATION_ERROR, false, "core"},
+    {error_codes::INVALID_INPUT, false, "core"},
+    {error_codes::MISSING_REQUIRED_FIELD, false, "core"},
+    {error_codes::INVALID_FORMAT, false, "core"},
+    {error_codes::NOT_FOUND, false, "core"},
+    {error_codes::ALREADY_EXISTS, false, "core"},
+    {error_codes::CONFLICT, false, "core"},
+    {error_codes::UNAUTHORIZED, false, "core"},
+    {error_codes::FORBIDDEN, false, "core"},
+    {error_codes::TOKEN_EXPIRED, false, "core"},
+    {error_codes::RATE_LIMITED, true, "core"},
+    {error_codes::QUOTA_EXCEEDED, false, "core"},
+    {error_codes::SERVICE_UNAVAILABLE, true, "core"},
+    {error_codes::TIMEOUT, true, "core"},
+    {error_codes::CONNECTION_ERROR, true, "core"},
+    {error_codes::INTERNAL_ERROR, std::nullopt, "core"},
+    {error_codes::NOT_IMPLEMENTED, false, "core"},
+    {error_codes::UNKNOWN_ERROR, true, "core"},
+    {error_codes::COMMAND_NOT_FOUND, false, "core"},
+    {error_codes::INVALID_COMMAND_ARGS, false, "core"},
+    {error_codes::COMMAND_CANCELLED, false, "core"},
+    {error_codes::COMMAND_EXECUTION_ERROR, false, "core"},
+    {error_codes::COMMAND_NOT_EXPOSED, false, "core"},
+    {error_codes::COMMAND_NOT_IN_CONTEXT, false, "contexts"},
+    {error_codes::COMMAND_NOT_ALLOWED, false, "core"},
+    {error_codes::UNKNOWN_TOOL, false, "core"},
+    {error_codes::AMBIGUOUS_ACTION, false, "core"},
+    {error_codes::INVALID_GROUPED_CALL, false, "core"},
+    {error_codes::SESSION_REQUIRED, false, "contexts"},
+    {error_codes::CONTEXT_NOT_FOUND, false, "contexts"},
+    {error_codes::CONTEXT_DEPTH_EXCEEDED, false, "contexts"},
+    {error_codes::INVALID_BATCH_REQUEST, false, "core"},
+    {error_codes::BATCH_TIMEOUT, true, "core"},
+    {error_codes::COMMAND_SKIPPED, false, "core"},
+    {error_codes::INVALID_PIPELINE_REQUEST, false, "core"},
+    {error_codes::PIPELINE_TIMEOUT, true, "core"},
+    {error_codes::UNSUPPORTED_OPTION, false, "core"},
+    {error_codes::STREAM_ABORTED, true, "streaming"},
+    {error_codes::STREAM_TIMEOUT, true, "streaming"},
+    {error_codes::STREAM_ERROR, std::nullopt, "streaming"},
+    {error_codes::STREAM_ENDED_UNEXPECTEDLY, true, "streaming"},
+    {error_codes::COMMAND_FAILED, false, "streaming"},
+    {error_codes::CONFIRMATION_REQUIRED, false, "confirmations"},
+    {error_codes::CONFIRMATION_DECLINED, false, "confirmations"},
+    {error_codes::APPROVAL_REQUIRED, false, "approvals"},
+    {error_codes::APPROVAL_UNAVAILABLE, false, "approvals"},
+    {error_codes::OUTPUT_BUDGET_EXCEEDED, false, "output-budgets"},
+    {error_codes::INSUFFICIENT_SCOPE, false, "authorization"},
+    {error_codes::TASK_TOKEN_EXPIRED, std::nullopt, "tasks"},
+    {error_codes::CALL_NOT_GRANTED, false, "app-calls"},
+}};
 
 /// `{code, message}` plus any of `options`.
 CommandError create_error(std::string code, std::string message, ErrorOptions options = {});

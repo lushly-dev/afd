@@ -44,12 +44,15 @@ looking at the UI.
   reports it as an error.
 - **Results**: `success(data, { reasoning, confidence, warnings, suggestions })` or
   `error(code, message, { suggestion, retryable, details })` (`failure()` takes a whole
-  `CommandError`); Python and Rust have equivalents. Every error carries a `suggestion` saying how
-  to recover: `Use todo-list to see available todos`.
-- **Error codes** come from the shared catalog first: `ErrorCodes` in
-  `packages/core/src/errors.ts`, with meaning and retryability in
-  [`spec/error-codes.md`](../../../spec/error-codes.md). Add an application code (the todo
-  example's `NO_CHANGES`) only when none fits.
+  `CommandError`); Python, Rust and C++ have equivalents. Normative JSON Schemas for
+  `CommandResult`, `CommandError`, `BatchResult`, `PipelineResult` and `StreamChunk` live in
+  [`spec/schema/`](../../../spec/schema/README.md). Every error emitted by a command or engine
+  should carry a `suggestion` saying how to recover: `Use todo-list to see available todos` (it is
+  optional in the wire schema so consumers tolerate compact errors).
+- **Error codes** come from the shared catalog first: `ErrorCodes` / `ERROR_CODE_CATALOG` in
+  `packages/core/src/errors.ts`, with meaning, retryability, profile and the reserved `HOST_`
+  host-code prefix in [`spec/error-codes.md`](../../../spec/error-codes.md). Add an application
+  code (the todo example's `NO_CHANGES`) only when none fits.
 - **Exposure**: a command is private to MCP until it sets `expose: { mcp: true }`. Over MCP a
   private command answers `COMMAND_NOT_FOUND`, exactly like an unknown name.
 - **`requires`** is planning metadata. Nothing enforces it at runtime.

@@ -35,7 +35,16 @@ function toResultEnvelope(id) {
 			properties: {
 				success: { type: 'boolean' },
 				data: { $id: id, ...rest.properties.data, $defs },
-				error: { type: 'object' },
+				error: {
+					type: 'object',
+					properties: {
+						code: { type: 'string' },
+						message: { type: 'string' },
+						suggestion: { type: 'string' },
+						retryable: { type: 'boolean' },
+					},
+					required: ['code', 'message'],
+				},
 				metadata: { type: 'object' },
 			},
 			required: ['success'],

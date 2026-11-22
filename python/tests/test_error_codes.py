@@ -14,7 +14,15 @@ import pytest
 
 from afd import ExposeOptions, success
 from afd.core.commands import CommandContext, CommandDefinition, create_command_registry
-from afd.core.errors import ErrorCodes
+from afd.core.errors import (
+    ERROR_CODE_CATALOG,
+    HOST_ERROR_CODE_PREFIX,
+    ErrorCodes,
+    not_found_error,
+    rate_limit_error,
+    timeout_error,
+    validation_error,
+)
 from afd.direct import DirectClient, SimpleRegistry
 from afd.server import create_server
 
@@ -22,11 +30,27 @@ CATALOG = Path(__file__).resolve().parents[2] / "spec" / "vectors" / "error-code
 
 
 def test_error_codes_is_the_shared_catalog():
-    codes = json.loads(CATALOG.read_text(encoding="utf-8"))["codes"]
+    data = json.loads(CATALOG.read_text(encoding="utf-8"))
+    entries = data["codes"]
+    codes = [entry["code"] for entry in entries]
     defined = [name for name in vars(ErrorCodes) if not name.startswith("_")]
     assert defined == codes
     for name in defined:
         assert getattr(ErrorCodes, name) == name
+
+    assert [
+        {"code": info.code, "retryable": info.retryable, "profile": info.profile}
+        for info in ERROR_CODE_CATALOG
+    ] == entries
+    assert data["hostPrefix"] == HOST_ERROR_CODE_PREFIX
+    for entry in entries:
+        assert not entry["code"].startswith(HOST_ERROR_CODE_PREFIX)
+
+    by_code = {entry["code"]: entry for entry in entries}
+    assert validation_error("bad").retryable is by_code["VALIDATION_ERROR"]["retryable"]
+    assert not_found_error("Doc", "1").retryable is by_code["NOT_FOUND"]["retryable"]
+    assert rate_limit_error(10).retryable is by_code["RATE_LIMITED"]["retryable"]
+    assert timeout_error("op", 100).retryable is by_code["TIMEOUT"]["retryable"]
 
 
 def _server():

@@ -15,6 +15,7 @@ add_executable(
     context_test.cpp
     contexts_test.cpp
     direct_client_test.cpp
+    dispatch_vectors_test.cpp
     handoff_test.cpp
     helpers_test.cpp
     journal_context_cap_vectors_test.cpp
@@ -41,6 +42,7 @@ target_link_libraries(afd_tests PRIVATE afd::afd afd_doctest)
 if(AFD_BUILD_MCP_STDIO)
     target_sources(afd_tests PRIVATE tool_strategies_vectors_test.cpp mcp_stdio_test.cpp mcp_tools_test.cpp)
     target_link_libraries(afd_tests PRIVATE afd::mcp_stdio)
+    target_compile_definitions(afd_tests PRIVATE AFD_HAS_MCP_STDIO=1)
 endif()
 # approval_test.cpp checks the private HMAC and base64url helpers (header-only) directly.
 target_include_directories(afd_tests PRIVATE ${PROJECT_SOURCE_DIR}/src)
@@ -52,6 +54,9 @@ afd_configure_target(afd_tests)
 # The golden wire fixtures every AFD implementation round-trips (spec/wire/README.md).
 cmake_path(SET afd_wire_dir NORMALIZE "${PROJECT_SOURCE_DIR}/../../spec/wire")
 target_compile_definitions(afd_tests PRIVATE AFD_WIRE_DIR="${afd_wire_dir}")
+# The JSON Schema 2020-12 definitions every implementation validates against (spec/schema/README.md).
+cmake_path(SET afd_schema_dir NORMALIZE "${PROJECT_SOURCE_DIR}/../../spec/schema")
+target_compile_definitions(afd_tests PRIVATE AFD_SCHEMA_DIR="${afd_schema_dir}")
 # Language-neutral behavior vectors, generated from the TypeScript implementation.
 cmake_path(SET afd_vectors_dir NORMALIZE "${PROJECT_SOURCE_DIR}/../../spec/vectors")
 target_compile_definitions(afd_tests PRIVATE AFD_VECTORS_DIR="${afd_vectors_dir}")

@@ -6,6 +6,7 @@ All notable changes to afd-cpp are documented here. The package is versioned ind
 
 ### Added
 
+- **`error_code_catalog`, `ErrorCodeInfo`, and `host_error_code_prefix`** (`spec/error-codes.md`, `spec/vectors/error-codes.json`, #1740): retryability (`true`, `false`, or `std::nullopt` for varies) and contract profile metadata for all 50 shared error codes, plus the reserved `"HOST_"` prefix. `wire_fixtures_test.cpp` validates every wire fixture against `spec/schema/*.json` (#1733), and `dispatch_vectors_test.cpp` runs `spec/vectors/dispatch.json` (#1736).
 - **`error_codes::APPROVAL_UNAVAILABLE`**, which joins the shared catalog (`spec/command-metadata.md`, "Approvals"): a server engine refuses a command whose declared approval policy is not `not-required` when no approval step admitted the call.
 - **A declared approval policy holds without the approval middleware** ([#1886](https://github.com/lushly-dev/afd/issues/1886)). `CommandRegistry::execute` gives each call its own admission record (`CommandContext::approval_admission`, replacing any the caller passes) and runs a command whose policy is neither unset nor `not_required` only when an approval step admitted that call on that record, once, for that command and the same canonical validated input. Otherwise it answers `APPROVAL_UNAVAILABLE` (`retryable: false`, `details.reason` `no-approval-step` or `admission-mismatch`) before the handler, without evaluating a policy function. An input `canonical_json` cannot encode is compared by value: the admission keeps a copy, so a call a policy let through runs, and an in-place change after the approval middleware is refused. Taking an admission is one synchronized step, so overlapping `next()` calls run the handler once. Each batch item, pipeline step and nested call is checked on its own, so `DirectClient` and `afd::mcp_stdio` refuse such calls too. `create_approval_middleware` decides from the policy and `confirm_prompt` of the command each call runs, so commands registered after it are covered, and `ApprovalMiddlewareOptions::commands` is optional. `StdioServer::create` refuses an `afd-context-list` that declares an approval policy, since it reads that handler at startup. The C++ todo backend serves its commands without their approval policies when `APPROVALS=off`, as TypeScript's does. The host-visible changes are under "Changed".
 
@@ -36,6 +37,7 @@ All notable changes to afd-cpp are documented here. The package is versioned ind
 
 ### Changed
 
+- **`command_result_output_schema` (`spec/schema/output-envelope.json`, #1733):** types `properties.error` with `code`, `message`, `suggestion`, and `retryable` (`required: ["code", "message"]`).
 - **Approval policies are enforced by the registry** ([#1886](https://github.com/lushly-dev/afd/issues/1886)); hosts that relied on the old behaviour need to change:
   - A registry without the approval middleware refuses a command whose policy is not `not_required` (`APPROVAL_UNAVAILABLE`): add the middleware, or register the command without its policy.
   - A command missing from `ApprovalMiddlewareOptions::commands` is now held by its own policy.

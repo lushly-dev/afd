@@ -4,6 +4,7 @@ advertise the CommandResult envelope as a top-level ``outputSchema``
 client, which validates ``structuredContent`` against ``outputSchema``."""
 
 import json
+from pathlib import Path
 
 import pytest
 from pydantic import BaseModel, ConfigDict, Field, computed_field
@@ -179,10 +180,29 @@ async def test_can_switch_the_top_level_output_schema_off():
 
 
 def test_envelope_keeps_a_schema_without_defs_unchanged():
+    spec_envelope = json.loads(
+        (
+            Path(__file__).resolve().parents[2] / "spec" / "schema" / "output-envelope.json"
+        ).read_text(encoding="utf-8")
+    )
     schema = command_result_output_schema(
         {"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object"}
     )
-    assert schema["properties"]["data"] == {"type": "object"}
+    assert schema == {
+        "type": spec_envelope["type"],
+        "properties": {**spec_envelope["properties"], "data": {"type": "object"}},
+        "required": spec_envelope["required"],
+    }
+    assert schema["properties"]["error"] == {
+        "type": "object",
+        "properties": {
+            "code": {"type": "string"},
+            "message": {"type": "string"},
+            "suggestion": {"type": "string"},
+            "retryable": {"type": "boolean"},
+        },
+        "required": ["code", "message"],
+    }
     assert "$defs" not in schema
 
 
