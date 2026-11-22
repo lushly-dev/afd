@@ -38,12 +38,16 @@ import {
 	CONFIRMATION_TTL_MS,
 	DECLINE_WINDOW_MS,
 	ENDED_KEPT,
+	ENFORCED,
+	type EnforcedV1,
+	enforcedFields,
 	ID,
 	jsonOf,
 	outcomeOf,
 	ownedBy,
 	PENDING_LIMIT,
 	PERSON_LIMIT,
+	RAISED,
 	REPLACES,
 	refusalsOf,
 	SLOT_KEPT,
@@ -88,6 +92,16 @@ export interface ConfirmationDeps {
 	isActive(instance: string): Promise<boolean>;
 	/** A command's `confirm_prompt`, or undefined for one that declares none. */
 	askedFor(command: string): AskedFor | undefined;
+	/** Phase 5's `ask` of a command that declares none (its 6.1): the shell's own words. Absent: none is asked. */
+	genericAsked?(command: string, enforced: EnforcedV1): AskedFor | undefined;
+	/**
+	 * Told, on the call's path, when a confirmation an agent raised is raised or ends (phase 5's 6.3 and 3.5): approval
+	 * health counts it, and the copilot's waiting turn hears it.
+	 */
+	observe?(
+		event: 'asked' | 'confirmed' | 'declined' | 'withdrawn',
+		row: StoredConfirmation
+	): void | Promise<void>;
 	/**
 	 * A command the palette lists now (7.1): its definition, whose schema checks the input, and its input's JSON Schema,
 	 * whose plain fields the prompt asks for; undefined for one it does not list here.
@@ -150,6 +164,8 @@ export interface ConfirmationDeps {
 	noteInbox(context: CommandContext): void;
 	/** SHA-256 of canonical JSON, as the copilot's input digest (phase 5's 3.4). */
 	digest(value: unknown): Promise<string>;
+	/** Phase 5's suggestion records (its 6.1), which `palette-run`'s "Run it" opens and runs once. */
+	suggestions?: import('./palette-run.js').SuggestionReader;
 	kit: SettingsKit;
 }
 
@@ -202,7 +218,7 @@ export interface Confirmations {
 		input: unknown,
 		context: CommandContext,
 		next: () => Promise<CommandResult>,
-		asked: AskedFor & { group?: string }
+		asked: AskedFor
 	): Promise<CommandResult>;
 }
 
@@ -299,8 +315,11 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 	): string {
 		const project = scope.project === undefined ? undefined : deps.projectName(scope.project);
 		if (opener.kind === 'agent') {
-			const agent = context.actor?.label ?? context.actor?.id ?? 'An agent';
 			const where = project === undefined ? '' : `, in ${project}`;
+			// The copilot's name is the kernel's alone (phase 5's 3.2), so its header is too (6.2).
+			if (opener.bucket.startsWith('copilot:'))
+				return `Copilot, for ${deps.personLabel() ?? 'you'}${where}`;
+			const agent = context.actor?.label ?? context.actor?.id ?? 'An agent';
 			return `Requested by ${agent} for ${deps.personLabel() ?? 'you'}${where}`;
 		}
 		const where = project === undefined ? '' : ` in ${project}`;
@@ -709,7 +728,7 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 		call: CommandContext & KernelFieldContext,
 		key: string,
 		opener: Exclude<Opener, { kind: 'shell' } | { kind: 'none' }>,
-		asked: AskedFor & { group?: string },
+		asked: AskedFor,
 		input: unknown,
 		person: string
 	): Promise<CommandResult> {
@@ -721,7 +740,20 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 			const now = kit.callNow(call);
 			const rows = await rowsOf(person);
 			const prior = await priorAnswer(rows, key, name, now);
-			if (prior) return prior;
+			if (prior) {
+				// The row this key holds pending, and no stored outcome that merely names one (re-check 2, B1).
+				const held = rows.find(
+					(row) =>
+						row.ckey === key &&
+						row.cslot === undefined &&
+						stateNow(row.confirmation, now) === 'pending'
+				);
+				const named = (prior.error?.details as { notification?: unknown } | undefined)
+					?.notification;
+				if (held && prior.error?.code === 'CONFIRMATION_PENDING' && named === held.id)
+					(call as Record<symbol, unknown>)[RAISED] = held.id;
+				return prior;
+			}
 			// R3: every confirmation a caller raised within its 10-minute life counts, answered or not, so asking and
 			// withdrawing at once fills nothing; and the person holds at most PERSON_LIMIT from every caller together.
 			const living = rows.filter(
@@ -754,7 +786,7 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 					command: name,
 					caller: opener.owner.id,
 					input: jsonOf(input),
-					...(asked.group !== undefined ? { group: asked.group } : {}),
+					...enforcedFields(asked.enforced),
 					header: headerOf(opener, asked.title, scope, call).slice(0, 200),
 					prompt: asked.prompt,
 					title: asked.title,
@@ -787,6 +819,9 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 			]);
 			if (summary.failed > 0)
 				throw new Error(`The store could not write the confirmation '${record.id}'`);
+			await deps.observe?.('asked', record);
+			// The id the copilot's port takes for this call alone (the re-checks' binding).
+			(call as Record<symbol, unknown>)[RAISED] = record.id;
 			return pending(record);
 		});
 	}
@@ -798,7 +833,7 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 		input: unknown,
 		context: CommandContext,
 		next: () => Promise<CommandResult>,
-		asked: AskedFor & { group?: string }
+		asked: AskedFor
 	): Promise<CommandResult> {
 		const call = context as CommandContext & KernelFieldContext & { confirmation?: string };
 		const opener = deps.openerOf(call);
@@ -812,7 +847,8 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 		const person = personOf(call);
 		if (person === undefined) return noPerson();
 		const caller = bucketOf(opener) as string;
-		const key = await keyOf(person, caller, name, input, scopeOf(call), asked.group);
+		// The copilot's key holds its session (phase 5's 6.2): two sessions never share a confirmation or a window.
+		const key = await keyOf(person, caller, name, input, scopeOf(call), asked.enforced?.session);
 		// A replay follows the route its entry recorded (fourth round, 5): a slot confirmation's id says it asked in the
 		// slot, whatever is active when the replay reaches it.
 		const slot =
@@ -909,7 +945,7 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 		approved.delete(id);
 		const key =
 			row && person !== undefined
-				? await keyOf(person, row.cbucket, name, input, scopeOf(call), row.confirmation.group)
+				? await keyOf(person, row.cbucket, name, input, scopeOf(call), row.confirmation.session)
 				: undefined;
 		// A replay's run needs a pending row too (fifth round, 3): a declined or withdrawn one never runs.
 		const allowed = deps.replaying()
@@ -969,9 +1005,20 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 				next
 			);
 		} else {
-			const asked = deps.askedFor(name);
-			if (asked) result = await ask(name, input, context, next, asked);
-			else if (call.confirmation !== undefined) {
+			// Phase 5's enforcement (its 6.1) asks whatever the command declares, and says why on the record (6.2).
+			const enforced = (call as Record<symbol, unknown>)[ENFORCED] as EnforcedV1 | undefined;
+			const declared =
+				deps.askedFor(name) ?? (enforced?.ask ? deps.genericAsked?.(name, enforced) : undefined);
+			const asked = declared && enforced ? { ...declared, enforced } : declared;
+			if (asked) {
+				result = await ask(name, input, context, next, asked);
+			} else if (enforced?.ask) {
+				result = fail(
+					'HUMAN_REQUIRED',
+					`'${name}' needs a person's confirmation, which the shell cannot ask for it`,
+					'Ask the person to run it themselves'
+				);
+			} else if (call.confirmation !== undefined) {
 				result = fail(
 					'HUMAN_REQUIRED',
 					`'${name}' asks for no confirmation`,
@@ -1150,6 +1197,8 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 				},
 				...(kept.readAt === undefined ? { readAt: now } : {}),
 			});
+			// Counted here, by the act's journaled end, so a replay that answers the run from its record counts it too (B14).
+			if (from === 'pending' || ended.state === 'confirmed') await deps.observe?.(ended.state, row);
 			return undefined;
 		});
 	}
@@ -1179,7 +1228,12 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 		const row =
 			person === undefined
 				? undefined
-				: (await rowsOf(person)).find((each) => each.id === notification && ownedBy(each, caller));
+				: (await rowsOf(person)).find(
+						(each) =>
+							each.id === notification &&
+							// The copilot's own session's alone (phase 5's 6.2): the one ownership rule.
+							ownedBy(each, caller, (context as { trace?: { session?: unknown } }).trace?.session)
+					);
 		if (!row || !deps.allows(context.actor as AccessActorV1, row.scope)) {
 			return fail(
 				'NOTIFICATION_NOT_FOUND',
@@ -1249,6 +1303,7 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 					confirmation: { ...stored.confirmation, state: 'withdrawn' },
 					...(stored.readAt === undefined ? { readAt: kit.callNow(context) } : {}),
 				});
+				await deps.observe?.('withdrawn', stored);
 				return kit.success({ state: 'withdrawn' as const });
 			});
 		},
@@ -1320,6 +1375,7 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 				}
 				if (given === 'decline') {
 					await putBack(marked({ state: 'declined', reason: 'person', answeredAt: now }));
+					await deps.observe?.('declined', row);
 					return { done: kit.success({ state: 'declined' as const }) };
 				}
 				// The re-check (7.2): the same chain as steps 2 and 3, for the actor that asked, in the confirmation's scope.
@@ -1329,6 +1385,7 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 					(caller !== undefined && deps.inputOver(row.confirmation.input ?? {}))
 				) {
 					await putBack(marked({ state: 'declined', reason: 'access', answeredAt: now }));
+					await deps.observe?.('declined', row);
 					return { done: kit.success({ state: 'declined' as const, reason: 'access' as const }) };
 				}
 				// Claimed before it runs, as a notice's action (step 5): in this page, and in the store, read back.
@@ -1359,6 +1416,8 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 					scope: row.scope,
 					confirmation: row.id,
 					origin: context.traceId ?? '',
+					// The copilot's call runs with its trace (phase 5's 6.2), so its nested calls carry it.
+					...(row.confirmation.trace !== undefined ? { trace: row.confirmation.trace } : {}),
 				}
 			);
 			approved.delete(row.id);
@@ -1426,6 +1485,7 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 						confirmation: { ...row.confirmation, state: 'withdrawn' },
 						...(row.readAt === undefined ? { readAt: now } : {}),
 					});
+					await deps.observe?.('withdrawn', row);
 					count++;
 				}
 				return count;

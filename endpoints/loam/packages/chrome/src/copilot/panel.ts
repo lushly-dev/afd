@@ -7,9 +7,11 @@
  *   palette interface; the client's own copy of the history is never sent (3.2). Stopping is `copilot-turn-stop`.
  * - **It draws only text and tool-call parts**, from the events the kernel's panel half forwards, which has already
  *   dropped every interrupt, `CUSTOM` event and approval state. A tool call is a line of text naming the command and
- *   its state, with no button: approval cards come from the kernel's records, in step 3. (`violet-tool-call-card`
- *   imports the settings icon first paint holds, which would part it into a chunk of its own, and bundles
- *   `violet-approval-card`; it returns with step 3's cards.)
+ *   its state, with no button. (`violet-tool-call-card` imports the settings icon first paint holds, which would part
+ *   it into a chunk of its own.)
+ * - **Approval and suggestion cards come from the kernel's records alone** (step 3, `cards.ts`): `copilot-session-get`
+ *   after each turn ends, after each answer, and while a turn waits on the person; their buttons answer a person's own
+ *   press, on the palette interface.
  * - **The model's text is text**: every value is set as a text node, never as markup.
  * - Lists are built with the DOM API, by id, so this chunk imports nothing of first paint but FAST's `css`, `html`
  *   and `observable`.
@@ -20,7 +22,10 @@ import '@lushly-dev/violet-elements/dist/conversation/violet-conversation-thread
 import '@lushly-dev/violet-elements/dist/conversation/violet-message.js';
 import '@lushly-dev/violet-elements/dist/conversation/violet-message-text.js';
 import '@lushly-dev/violet-elements/dist/conversation/violet-chat-composer.js';
+import '@lushly-dev/violet-elements/dist/conversation/violet-approval-card.js';
+import '@lushly-dev/violet-elements/dist/button/violet-button.js';
 import type { UIMessage } from '@tanstack/ai-client';
+import { renderCards, type SessionRecordsV1 } from './cards.js';
 import {
 	CopilotConversation,
 	type CopilotPanelHostV1,
@@ -61,6 +66,7 @@ const template = html<LoamCopilotPanel>`
 		>
 			<p slot="empty" class="empty">Ask the copilot to do something with Loam’s commands.</p>
 		</violet-conversation-thread>
+		<div class="cards" role="region" aria-label="Waiting for you" hidden></div>
 		<violet-chat-composer
 			class="composer"
 			label="Message the copilot"
@@ -97,9 +103,43 @@ const styles = css`
 	}
 	.notice,
 	.empty,
-	.tool {
+	.tool,
+	.taint {
 		margin: 0;
 		color: var(--color-text-secondary);
+	}
+	/* The cards wait below the thread, above the composer; a long set scrolls in a focusable region of its own. */
+	.cards {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-stack-sm);
+		max-block-size: 50%;
+		overflow-y: auto;
+	}
+	.card p {
+		margin: 0;
+		overflow-wrap: anywhere;
+	}
+	.card-title {
+		font-weight: var(--type-label-sm-weight);
+	}
+	.card-input {
+		white-space: pre-wrap;
+		font-family: var(--font-family-mono);
+	}
+	.card-why,
+	.card-ended {
+		color: var(--color-text-secondary);
+	}
+	.suggestion {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: var(--space-stack-xs);
+		padding: var(--space-stack-sm) var(--space-inline-md);
+		border: 1px solid var(--color-border-subtle);
+		border-radius: var(--radius-md);
+		background: var(--color-surface-card);
 	}
 	[hidden] {
 		display: none;
@@ -135,6 +175,7 @@ export class LoamCopilotPanel extends FASTElement {
 				messages: (messages) => this.render(messages),
 				status: (status) => {
 					this.status = status;
+					if (status === 'ready') void this.refresh();
 				},
 				notice: (text, unavailable) => {
 					this.notice = text;
@@ -149,6 +190,11 @@ export class LoamCopilotPanel extends FASTElement {
 		void this.#ensure()?.checkProviders();
 	}
 
+	override disconnectedCallback(): void {
+		super.disconnectedCallback();
+		clearTimeout(this.#timer);
+	}
+
 	async submit(text: string): Promise<void> {
 		await this.#ensure()?.submit(text);
 	}
@@ -157,9 +203,63 @@ export class LoamCopilotPanel extends FASTElement {
 		this.#conversation?.stop();
 	}
 
+	#reads = 0;
+	#polls = 0;
+	/** The turn the allowance is for. */
+	#polled = 0;
+	/** The one pending read: a new one replaces it, so reads never pile up. */
+	#timer: ReturnType<typeof setTimeout> | undefined;
+
+	/**
+	 * Read the session's records and draw its cards (6.2): the kernel's, never the runtime's word. While a turn waits on
+	 * the person or runs on after their answer, read again shortly, so its continuation's cards and end are drawn.
+	 */
+	async refresh(): Promise<void> {
+		const region = this.shadowRoot?.querySelector<HTMLElement>('.cards');
+		const session = this.session;
+		if (!region || !this.kernel) return;
+		const mine = ++this.#reads;
+		if (!session) {
+			renderCards(region, null, this.kernel, () => {});
+			return;
+		}
+		// The page that holds the latest turn (at most 20 a read): an older one's cards never hide a newer one's (B15).
+		const latest = this.#conversation?.turn ?? 0;
+		const read = await this.kernel.call<SessionRecordsV1>('copilot-session-get', {
+			session,
+			from: Math.max(1, latest - 19),
+		});
+		if (mine !== this.#reads || session !== this.session) return;
+		const records = read.success && read.data ? read.data : null;
+		renderCards(region, records, this.kernel, () => {
+			this.#polls = 0;
+			void this.refresh();
+		});
+		const last = records?.turns.at(-1);
+		// A fresh allowance for each turn (the re-check's improvement): a later turn's wait is read as long as its own.
+		if (last && last.seq !== this.#polled) {
+			this.#polled = last.seq;
+			this.#polls = 0;
+		}
+		const waiting = records?.confirmations.some((card) => card.state === 'pending') === true;
+		const live = last?.state === 'waiting' || last?.state === 'running' || waiting;
+		// For as long as a confirmation may wait, 10 minutes, and a little past (N3): an answer in the inbox shows here.
+		if (live && this.#polls < 330) {
+			this.#polls += 1;
+			clearTimeout(this.#timer);
+			this.#timer = setTimeout(() => void this.refresh(), 2_000);
+		}
+	}
+
 	/** Forget the session and its thread, as a change of person does: the next person never sees it (3.2). */
 	reset(): void {
 		this.#conversation?.reset();
+		this.#reads += 1;
+		this.#polls = 0;
+		this.#polled = 0;
+		clearTimeout(this.#timer);
+		const region = this.shadowRoot?.querySelector<HTMLElement>('.cards');
+		if (region && this.kernel) renderCards(region, null, this.kernel, () => {});
 		this.unavailable = false;
 		void this.#conversation?.checkProviders();
 	}

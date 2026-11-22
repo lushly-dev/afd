@@ -317,7 +317,8 @@ describe('P2-E13: E1 (kernel unit): every layout change goes through the shared 
 			code: 'VALIDATION_ERROR',
 			details: { field: 'inspector.open' },
 		});
-		const appearance = await k.agent.call('view-state-set', {
+		const appearance = await k.call('view-state-set', {
+			// The person's: an agent's write of the appearance asks first (phase 5's 6.1).
 			id: 'loam.appearance',
 			state: { theme: 'dark' },
 			replace: true,
@@ -422,7 +423,8 @@ describe('appearance', () => {
 
 	it('refuses an invalid appearance through view-state-set', async () => {
 		const { kernel: k } = await kernel();
-		const result = await k.agent.call('view-state-set', {
+		const result = await k.call('view-state-set', {
+			// The person's: an agent's write of the appearance asks first (phase 5's 6.1).
 			id: 'loam.appearance',
 			state: { density: 'tiny' },
 		});
@@ -538,7 +540,8 @@ describe('review findings', () => {
 
 	it('refuses inherited keys for the appearance as a validation error', async () => {
 		const { kernel: k } = await kernel();
-		const result = await k.agent.call('view-state-set', {
+		const result = await k.call('view-state-set', {
+			// The person's: an agent's write of the appearance asks first (phase 5's 6.1).
 			id: 'loam.appearance',
 			state: { constructor: 'dark' },
 		});

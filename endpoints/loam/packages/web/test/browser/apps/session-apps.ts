@@ -21,7 +21,14 @@ export async function runAppsSession(page: Page): Promise<void> {
 	};
 	await person('app-open', { instance: 'hello' });
 	await person('hello-greet', { name: 'Ada' });
-	await agent('hello-greet', { name: 'Bot' });
+	// The person's, since phase 5's step 3: an agent's change now asks (its 6.1), and a replay of an agent's write diverges
+	// (a follow-up in the phase 5 specification), so the session's second write is the person's, checked to land.
+	await person('hello-greet', { name: 'Bot' });
+	const listed = (await kernelCall(page, 'hello-list')) as {
+		data?: { items: Array<{ id: string }> };
+	};
+	if (!listed.data?.items.some((item) => item.id === 'Bot'))
+		throw new Error('The second greeting did not land');
 	await page.locator('loam-list violet-option').first().click();
 	await surfacesIdle(page);
 	await page.keyboard.press('ControlOrMeta+Shift+H');

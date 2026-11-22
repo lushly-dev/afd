@@ -2113,7 +2113,7 @@ describe('P2-D5: the editor area, native half', () => {
 				await framesGone(page, ['t1']);
 			}
 			// Signed out: the scope goes to the workspace, Vault out of reach, and only then the save writes.
-			await agentCall(page, 'auth-sign-out');
+			await kernelCall(page, 'auth-sign-out');
 			await editorIdle(page);
 			await settleSaves(page, 't1', 'pass');
 			await editorIdle(page);
@@ -2337,7 +2337,7 @@ describe('P2-D5: the editor area, native half', () => {
 		await settleOldest(page, 't1', 'fail');
 		await page.locator('loam-modal button', { hasText: 'Discard' }).waitFor();
 		// An agent signs the person out: the scope moves, and the kernel cancels the shell's modal.
-		await agentCall(page, 'auth-sign-out');
+		await kernelCall(page, 'auth-sign-out');
 		await editorIdle(page);
 		await settleSaves(page, 't1', 'fail');
 		await editorIdle(page);

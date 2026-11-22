@@ -84,6 +84,7 @@ interface Presented {
 
 import { landsInInbox, type OverlayOwner, SHELL } from '../overlays.js';
 import type { Confirmations } from './confirmations.js';
+import { confirmPromptFor, copilotPartsOf, genericAskedFor } from './copilot-wiring.js';
 import type { ActionVerdict } from './notifications.js';
 
 export { createOverlayStore } from '../overlays.js';
@@ -127,6 +128,8 @@ export type LateCommandDeps = ShellCommandDeps &
 		personas?: Map<string, string>;
 		/** The deployment's copilot providers and the host's runner (phase 5 specification, 3.2, 4.1). */
 		copilot?: CopilotOptionsV1 | undefined;
+		/** A registered command's definition, a host's own included (phase 5's 6.1 reads `destructive`). */
+		definitionOf?(name: string): ZodCommandDefinition | undefined;
 		/** The kernel's minted call as `copilot`, with the turn's trace: the only path that sets it (3.2). */
 		callAsCopilot?(
 			name: string,
@@ -411,34 +414,25 @@ export async function createLateParts(
 		if (deps.disposed?.()) throw new Error('The kernel was disposed');
 	};
 	endIfDisposed();
-	const copilot: CopilotParts = createCopilotParts({
-		store: deps.store,
-		workspace: deps.scope.workspace.id,
-		options: deps.copilot,
-		kit: DOCUMENT_KIT,
-		isMutation: deps.isMutation,
-		isMounted: (name) => deps.apps().owners.get(name)?.recorded === true,
-		instanceOf: (name) => deps.apps().owners.get(name)?.instance,
-		agentCommands: () => deps.agentCommands?.() ?? [],
-		// A kernel always gives it; a test of `late/` alone has no copilot, so its calls fail closed.
-		callAsCopilot: (name, input, trace, scope) =>
-			deps.callAsCopilot?.(name, input, trace, scope) ??
-			Promise.resolve(
-				DOCUMENT_KIT.kernelFailure(
-					'COPILOT_PORT_REFUSED',
-					'This kernel has no copilot',
-					'None: only the runtime uses the port'
-				)
-			),
-		runBoot: (name, input) => deps.runBoot(name, input) as Promise<CommandResult>,
-		humanOnly: (name) => HUMAN_COMMANDS.includes(name) || OWNER_COMMANDS.includes(name),
-		// A write whose own handler refuses every agent with its hand-off reaches that handler (phase 4's 3.2, F2).
-		handlerRefuses: (name, input) => settings?.refusesAgent(name, input) === true,
-		internal: (name) => INTERNAL_COMMANDS.includes(name),
+	const copilot: CopilotParts = copilotPartsOf(createCopilotParts, deps, {
+		settings: () => settings,
+		autonomy: () => autonomy,
+		confirmations: () => confirmations,
+		definitionOf: (name) => definitionOf(name),
+		confirmPromptOf: (name) => confirmPromptOf(name),
 		digest: (value) => sha256(canonical(value)),
-		now: () => deps.clock?.now() ?? Date.now(),
-		person: () => personOf({ actor: sessionActor(deps.auth, deps.clock) }),
+		humanOnly: (name) => HUMAN_COMMANDS.includes(name) || OWNER_COMMANDS.includes(name),
+		personSession: (name) => PERSON_SESSION.includes(name),
 	});
+	/** A command's definition, an app's or the shell's, for 6.1's destructive and approval-held bound. */
+	const definitionOf = (
+		name: string
+	): (ZodCommandDefinition & { approval?: unknown }) | undefined =>
+		(deps.apps().commands.find((each) => each.name === name) ??
+			byName.get(name) ??
+			deps.definitionOf?.(name)) as (ZodCommandDefinition & { approval?: unknown }) | undefined;
+	/** A native or view app's `confirm_prompt` (phase 4's 7.2); a mounted tool's is refused. */
+	const confirmPromptOf = (command: string) => confirmPromptFor(deps.apps(), command);
 	// The port reads its list from here, so `apps` does not hold it (2.4); set once both chunks have loaded,
 	// before any app, so a late load that fails sets nothing.
 	deps.scope.callable = appCallable;
@@ -887,23 +881,21 @@ export async function createLateParts(
 		overlays: deps.overlays,
 		openerOf: (context) => openerOf(context, isHumanGesture),
 		isActive: appActive,
-		askedFor(command) {
-			const owner = deps.apps().owners.get(command);
-			const definition = owner && deps.apps().commands.find((each) => each.name === command);
-			const prompt = (definition as { confirmPrompt?: string } | undefined)?.confirmPrompt;
-			if (!owner || !definition || typeof prompt !== 'string' || owner.recorded) return undefined;
-			return {
-				prompt,
-				instance: owner.instance,
-				title: definition.title ?? command,
-				danger: definition.destructive === true,
-			};
-		},
+		askedFor: confirmPromptOf,
+		// Phase 5's `ask` of a command that declares none (its 6.1, 6.2), in the shell's words.
+		genericAsked: (command, enforced) =>
+			genericAskedFor(definitionOf(command), deps.apps().owners.get(command)?.instance, enforced),
+		// Approval health and the copilot's waiting turn (phase 5's 6.3, 3.5).
+		observe: (event, row) => copilot.observe(event, row),
+		suggestions: copilot.suggestions,
 		paletteCommand(command) {
 			if (command === 'palette-run' || INTERNAL_COMMANDS.includes(command)) return undefined;
 			if (!deps.paletteRows().some((row) => row.name === command)) return undefined;
 			const definition =
-				byName.get(command) ?? deps.apps().commands.find((each) => each.name === command);
+				byName.get(command) ??
+				deps.apps().commands.find((each) => each.name === command) ??
+				// A host's own command, which the palette lists too (the re-check's B7).
+				deps.definitionOf?.(command);
 			const json = deps.paletteCommands?.().find((each) => each.name === command)?.inputSchema;
 			return definition ? { definition, json } : undefined;
 		},
@@ -917,6 +909,14 @@ export async function createLateParts(
 		// still the command's own (an app calls no other app's command in phase 4).
 		served(command, caller, scope) {
 			const owner = deps.apps().owners.get(command);
+			// A shell command an agent was asked for (phase 5's 6.1): the shell's own, which no app serves; access, re-checked
+			// beside this, is all it needs, and no app may call it.
+			if (
+				!owner &&
+				(byName.has(command) || deps.definitionOf?.(command) !== undefined) &&
+				!INTERNAL_COMMANDS.includes(command)
+			)
+				return caller === undefined ? undefined : `'${caller}' may not call it`;
 			if (!owner) return `'${command}' is no longer registered`;
 			const app = deps.summaries().find((each) => each.instance === owner.instance);
 			if (app?.state !== 'ready') return `'${owner.instance}' is not loaded`;

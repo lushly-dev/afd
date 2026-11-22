@@ -44,6 +44,9 @@ const hits: string[] = [];
 let targets: ProbeTargets;
 
 const SESSION = 'cps_0000000000000001';
+/** Section 16's row for a scripted turn of five tool calls, p95 over 20 (16): step 3 measured 75 ms in Chromium on a
+ * loaded machine; its measurement plus 25% is within a CI runner's noise, so the row is 150 ms, under D115. */
+const FIVE_CALL_TURN_P95_MS = 150;
 const FRAME_PATH = '/sandbox/copilot/index.html';
 
 beforeAll(async () => {
@@ -242,6 +245,20 @@ describe("P5-A2: the runtime's frame and its ports, in Chromium (phase 5 specifi
 		expect(seen.events.map((event) => event.type)).not.toContain('CUSTOM');
 		expect(text(seen.events)).toBe('Listed.');
 		expect(await call(page, 'refusals')).toEqual([]);
+	});
+
+	it('section 16: a scripted turn of five tool calls, end to end, p95 over 20 within its row', async () => {
+		const times: number[] = [];
+		for (let index = 0; index < 20; index += 1) {
+			const started = Date.now();
+			const runId = await call(page, 'turn', SESSION, 'script:five');
+			const seen = await call(page, 'settled', runId, 20_000);
+			times.push(Date.now() - started);
+			expect(seen.outcomes[0]).toMatchObject({ state: 'done', reply: 'Listed five times.' });
+			expect(seen.calls.filter((made) => made.startsWith('call note-list'))).toHaveLength(5);
+		}
+		const p95 = [...times].sort((a, b) => a - b)[Math.ceil(0.95 * times.length) - 1] as number;
+		expect(p95).toBeLessThan(FIVE_CALL_TURN_P95_MS);
 	});
 
 	it("P5-A2 (S3): aborting the run's signal cancels a running turn's model stream within 250 ms, nothing more of it reaches the panel, and the session's next turn runs", async () => {

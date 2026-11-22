@@ -226,9 +226,10 @@ export const SESSION_50: readonly SessionCall[] = Object.freeze([
 	agent('layout-set', { compact: { drawer: 'inspector' } }),
 	agent('layout-set', { compact: { sheet: true } }),
 	agent('layout-set', { compact: { drawer: null, sheet: false } }),
-	agent('appearance-set', { theme: 'high-contrast' }),
-	agent('view-state-set', { id: 'loam.appearance', state: { theme: 'sepia' } }),
-	agent('view-state-set', { id: 'loam.appearance', state: { theme: 'light' } }),
+	// The person's appearance is the person's: an agent's write of it asks first (phase 5's 6.1).
+	palette('appearance-set', { theme: 'high-contrast' }),
+	palette('view-state-set', { id: 'loam.appearance', state: { theme: 'sepia' } }),
+	palette('view-state-set', { id: 'loam.appearance', state: { theme: 'light' } }),
 	agent('shell-info-get'),
 	palette('layout-set', { sidebar: { open: true, width: 480 } }),
 	palette('layout-set', { sidebar: { width: 200 } }),

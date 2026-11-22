@@ -514,10 +514,11 @@ export async function openPage(
 export async function openShell(
 	browser: Browser,
 	origin: string,
-	options: BrowserContextOptions = {},
+	options: BrowserContextOptions & { agents?: 'act' | 'ask' } = {},
 	context?: BrowserContext
 ): Promise<ShellPage> {
-	const opened = await openPage(browser, origin, options, context);
+	const { agents = 'act', ...contextOptions } = options;
+	const opened = await openPage(browser, origin, contextOptions, context);
 	await opened.page.waitForFunction(() => document.documentElement.dataset.loamHost === 'web');
 	await opened.page.evaluate(async () => {
 		const shell = document.querySelector('loam-shell') as unknown as {
@@ -539,6 +540,11 @@ export async function openShell(
 		}
 		await shell.preparePalette();
 	});
+	// Phase 5's step 3 enforces autonomy on every agent's call (its 6.1), and these suites drive the shell through the
+	// agent interface: the person lets agents act, their own workspace row, as the kernel's and the app kit's tests do.
+	// `agents: 'ask'` keeps the default. A deployment that keeps no autonomy rows (a hosted `provider` one) refuses it.
+	if (agents === 'act')
+		await kernelCall(opened.page, 'autonomy-set', { level: 'workspace', mode: 'act' });
 	await settle(opened.page);
 	return opened;
 }

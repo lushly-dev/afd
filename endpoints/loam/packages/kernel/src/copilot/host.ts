@@ -476,6 +476,7 @@ export function createCopilotHost(options: CopilotHostOptionsV1): CopilotHostV1 
 			...outcome,
 			reply: state.reply,
 			usage: { ...state.usage },
+			rounds: state.rounds,
 		});
 	}
 
@@ -528,8 +529,9 @@ export function createCopilotHost(options: CopilotHostOptionsV1): CopilotHostV1 
 			state.run = run;
 			state.live = true;
 			state.reply = '';
-			state.usage = { inputTokens: 0, outputTokens: 0 };
-			state.rounds = 0;
+			// A continuation counts on from what its turn spent (3.5, 4.4).
+			state.usage = run.spent ? { ...run.spent.usage } : { inputTokens: 0, outputTokens: 0 };
+			state.rounds = run.spent?.rounds ?? 0;
 			state.refusals = 0;
 			state.modelCode = undefined;
 			state.events = 0;

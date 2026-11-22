@@ -4,6 +4,7 @@
  * `copilot.runner`. The commands themselves are in the kernel's `late-copilot` chunk, which this entry never loads.
  */
 
+export type { CopilotConfirmationCardV1, CopilotSuggestionCardV1 } from './commands.js';
 export {
 	type CopilotHostOptionsV1,
 	type CopilotHostV1,

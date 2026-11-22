@@ -604,7 +604,7 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 		row: StoredNotice,
 		body: boolean,
 		now: number,
-		reader: { bucket?: string; one: boolean; human: boolean }
+		reader: { bucket?: string; one: boolean; human: boolean; session?: unknown }
 	): NotificationV1 => {
 		const copy = structuredClone(row);
 		const raisedBy = (row as { cbucket?: string }).cbucket;
@@ -618,8 +618,9 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 			// alone, never another agent's or the copilot's (#1868). A list bounds its input; a read by id shows it whole
 			// to the person or raiser.
 			const isOwner = ownedBy(
-				{ cbucket: raisedBy, cslot: (row as { cslot?: unknown }).cslot },
-				reader.bucket
+				{ cbucket: raisedBy, cslot: (row as { cslot?: unknown }).cslot, confirmation: record },
+				reader.bucket,
+				reader.session
 			);
 			if (!isOwner) delete record.result;
 			if (!reader.human && !isOwner) delete record.input;
@@ -692,6 +693,7 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 			const reader = {
 				one: input.notification !== undefined,
 				human: deps.humanGesture(context),
+				session: (context as { trace?: { session?: unknown } }).trace?.session,
 				...((b) => (b === undefined ? {} : { bucket: b }))(deps.bucketOf?.(context)),
 			};
 			const page: NotificationV1[] = [];

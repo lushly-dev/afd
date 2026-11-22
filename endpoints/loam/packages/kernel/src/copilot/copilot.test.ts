@@ -15,7 +15,7 @@ import { createScopedWorkspace } from '../scope/fixtures.js';
 import { createFixedEnvironment } from '../testing.js';
 import { documentsDeployment, documentsPorts } from '../testing-documents.js';
 import type { LoamKernelV5 } from '../types.js';
-import { COPILOT_TURN_TABLE, createCopilotParts } from './commands.js';
+import { COPILOT_TURN_TABLE } from './commands.js';
 import {
 	type CopilotHostV1,
 	checkPortMessage,
@@ -193,7 +193,7 @@ describe('the copilot commands (3.5)', () => {
 		expect(got.turns.map((item) => [item.seq, item.state])).toEqual([[1, 'done']]);
 	});
 
-	it('runs reads as the copilot, records each call, and refuses every mutation AUTONOMY_UNAVAILABLE (6.1)', async () => {
+	it('runs reads as the copilot in act, records each call, and asks before a mutation by default (6.1)', async () => {
 		const { kernel, journal } = await setup({
 			scripts: {
 				reads: [
@@ -207,11 +207,15 @@ describe('the copilot commands (3.5)', () => {
 		const { turn } = data<{ turn: CopilotTurnV1 }>(
 			await kernel.call('copilot-message-send', { session, text: 'script:reads' })
 		);
-		expect(turn.state).toBe('done');
-		expect(turn.calls.map((call) => [call.command, call.mode, call.outcome, call.code])).toEqual([
-			['shell-info-get', 'act', 'ok', undefined],
-			['project-create', 'act', 'error', 'AUTONOMY_UNAVAILABLE'],
+		// D156's default asks before a change: the turn waits on the person (3.5).
+		expect(turn.state).toBe('waiting');
+		expect(
+			turn.calls.map((call) => [call.command, call.mode, call.reason, call.outcome, call.code])
+		).toEqual([
+			['shell-info-get', 'act', 'policy', 'ok', undefined],
+			['project-create', 'ask', 'policy', 'pending', 'CONFIRMATION_PENDING'],
 		]);
+		expect(turn.calls[1]?.notification).toMatch(/^ntf_/);
 		expect(turn.calls[0]?.inputDigest).toMatch(/^sha256:[0-9a-f]{64}$/);
 		const journaled = (await entries(journal)).filter(
 			(entry) => entry.command === 'shell-info-get' || entry.command === 'project-create'
@@ -231,13 +235,14 @@ describe('the copilot commands (3.5)', () => {
 			data<{ projects: unknown[] }>(await kernel.call('project-list', {})).projects
 		).toHaveLength(0);
 		// The tool result the model got is data in a result block (5.2).
-		const health = data<{ totals: { acted: number } }>(
+		const health = data<{ totals: { acted: number; asked: number } }>(
 			await kernel.call('approval-health-get', {})
 		);
-		expect(health.totals.acted).toBe(1);
+		// `acted` counts changes run without asking (the review's N4): the read is none.
+		expect(health.totals).toMatchObject({ acted: 0, asked: 1 });
 	});
 
-	it("hands a person's own writes back with HUMAN_REQUIRED from their handlers, never AUTONOMY_UNAVAILABLE (phase 4's 3.2)", async () => {
+	it("hands a person's own writes back with HUMAN_REQUIRED from their handlers, never asked (phase 4's 3.2, 6.1)", async () => {
 		const { kernel, journal } = await setup({
 			scripts: {
 				writes: [
@@ -276,8 +281,8 @@ describe('the copilot commands (3.5)', () => {
 			['autonomy-set', 'HUMAN_REQUIRED'],
 			['autonomy-set', 'HUMAN_REQUIRED'],
 			['setting-set', 'HUMAN_REQUIRED'],
-			// A person-level write an agent may make for its person stays closed until autonomy is enforced.
-			['setting-set', 'AUTONOMY_UNAVAILABLE'],
+			// A person-level write an agent may make for its person asks, by D156's default (6.1).
+			['setting-set', 'CONFIRMATION_PENDING'],
 		]);
 		const handed = (await entries(journal)).filter((entry) => entry.command === 'autonomy-set');
 		expect(handed.map((entry) => entry.result.error?.details)).toEqual([
@@ -1098,34 +1103,5 @@ describe('the pure parts', () => {
 			)
 		);
 		expect([openai.input, openai.output]).toEqual([4, 3]);
-	});
-
-	it('gates only the copilot’s own top-level calls: mutations and mounted commands (6.1)', async () => {
-		const parts = createCopilotParts({
-			store: new MemoryAdapter(),
-			workspace: 'personal',
-			kit: (await import('../late/document-kit.js')).DOCUMENT_KIT,
-			isMutation: (name) => name === 'note-create',
-			isMounted: (name) => name.startsWith('work-'),
-			instanceOf: () => undefined,
-			agentCommands: () => [],
-			callAsCopilot: async () => ({ success: true }),
-			runBoot: async () => ({ success: true }),
-			humanOnly: () => false,
-			internal: () => false,
-			digest: async () => 'sha256:0',
-			now: () => 0,
-			person: () => 'local',
-		});
-		const next = async () => ({ success: true }) as CommandResult;
-		const trace = { session: 'cps_0000000000000000', turn: 1, call: 'cpc_0001' };
-		const gate = (name: string, context: Record<string, unknown>) =>
-			parts.gate(name, {}, context as never, next);
-		expect((await gate('note-create', { trace })).error?.code).toBe('AUTONOMY_UNAVAILABLE');
-		expect((await gate('work-search', { trace })).error?.code).toBe('AUTONOMY_UNAVAILABLE');
-		expect((await gate('note-list', { trace })).success).toBe(true);
-		expect((await gate('note-create', {})).success).toBe(true);
-		expect((await gate('note-create', { trace, parent: 'loam-1' })).success).toBe(true);
-		expect((await gate('copilot-port-refuse', { trace })).success).toBe(true);
 	});
 });

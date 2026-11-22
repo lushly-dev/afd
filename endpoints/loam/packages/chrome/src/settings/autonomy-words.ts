@@ -5,8 +5,12 @@
 
 export type Mode = 'suggest' | 'ask' | 'act';
 
-/** The advisory notice above the rows (4.5), exactly as E13 checks it. */
-export const ADVISORY = 'Agents can read this. Loam enforces it from phase 5.';
+/**
+ * The notice above the rows (4.5), exactly as E13 checks it: advisory in phase 4, enforced from phase 5's step 3 (its
+ * 6.1), so it says what the modes do.
+ */
+export const ADVISORY =
+	'Loam holds every agent, the copilot included, to these rules: Act runs, Ask asks you first, Suggest only offers it to you.';
 
 /** Section 13's message in place of the cap's field on a hosted `provider` deployment. */
 export const HOSTED_CAP =

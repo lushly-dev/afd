@@ -38,6 +38,22 @@ interface Listed {
 	cursor: string | null;
 }
 
+/** `approval-health-get`'s answer, as the section reads it (phase 5 specification, 6.3). */
+interface HealthRead {
+	rows: Array<{
+		instance: string;
+		command: string;
+		reason: string;
+		acted: number;
+		asked: number;
+		confirmed: number;
+		declined: number;
+		expired: number;
+		suggested: number;
+	}>;
+	flags: Array<{ instance: string; command: string; message: string }>;
+}
+
 /** Why a part is not the caller's to change, in words. */
 const REASONS: Record<string, string> = {
 	OWNER_REQUIRED:
@@ -86,6 +102,8 @@ export class LoamAutonomySection extends SettingsElement {
 	#status = el('p', { class: 'status', role: 'status', 'aria-live': 'polite' });
 	#body = el('div', { class: 'fields' });
 	#explained = el('div', { class: 'section', id: 'autonomy-explained' });
+	/** Approval health for the scope shown (phase 5 specification, 6.3), read beside the rules. */
+	#health = el('div', { class: 'section', id: 'autonomy-health' });
 
 	connectedCallback(): void {
 		const root = this.shadowRoot as ShadowRoot;
@@ -200,7 +218,8 @@ export class LoamAutonomySection extends SettingsElement {
 			);
 		}
 		if (cursor) parts.push(button('Show more rules', () => this.#more(), { id: 'autonomy-more' }));
-		parts.push(this.#cap(cap, writable.cap, scope), this.#explain(scope));
+		parts.push(this.#cap(cap, writable.cap, scope), this.#explain(scope), this.#health);
+		void this.#readHealth();
 		this.#body.replaceChildren(
 			...(problem ? [el('p', { class: 'error', id: 'autonomy-read-error' }, problem)] : []),
 			...parts
@@ -214,6 +233,45 @@ export class LoamAutonomySection extends SettingsElement {
 			shown?.scrollIntoView({ block: 'nearest' });
 			shown?.focus();
 		}
+	}
+
+	/**
+	 * How often agents asked, per command, for the scope shown (6.3): each row's counts in words, and the flag where the
+	 * person approves nearly everything. Its own read, so a failure leaves the rules as they are.
+	 */
+	async #readHealth(): Promise<void> {
+		const generation = this.#reads;
+		const read = await this.#call<HealthRead>(
+			'approval-health-get',
+			this.project ? { project: this.project.id } : {},
+			this.scope
+		);
+		if (generation !== this.#reads) return;
+		const heading = el('h3', {}, 'How often agents asked');
+		if (!read.success || !read.data) {
+			this.#health.replaceChildren(heading, el('p', { class: 'note' }, 'It could not be read.'));
+			return;
+		}
+		const { rows, flags } = read.data;
+		const lines = rows.map((row) => {
+			const flag = flags.find(
+				(each) => each.instance === row.instance && each.command === row.command
+			);
+			return el(
+				'li',
+				{},
+				`${rowWords({ instance: row.instance, command: row.command }, this.#title)}${
+					row.reason === 'policy' ? '' : ` (asked for ${row.reason})`
+				}: ran without asking ${row.acted}, asked ${row.asked}, approved ${row.confirmed}, declined ${row.declined}, expired ${row.expired}, suggested ${row.suggested}`,
+				...(flag ? [el('p', { class: 'note', role: 'note' }, flag.message)] : [])
+			);
+		});
+		this.#health.replaceChildren(
+			heading,
+			lines.length === 0
+				? el('p', { class: 'note' }, 'No agent has called a command in the last 90 days.')
+				: el('ul', { class: 'health' }, ...lines)
+		);
 	}
 
 	/** Write, say how it went in words, and read again either way. */

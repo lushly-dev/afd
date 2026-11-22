@@ -545,6 +545,7 @@ The result is `{ mode, from, ceilings, cap, chain: Array<{ id; mode; as: 'mode' 
   - `act` runs;
   - `ask` raises a confirmation;
   - `suggest` returns a suggestion.
+- **Amended (phase 5's step 3, 2026-11-21):** enforced from that step, for every agent-interface caller; the notice above the rows now reads "Loam holds every agent, the copilot included, to these rules: Act runs, Ask asks you first, Suggest only offers it to you.", which E13 checks; P4-E2's twins both hold the workspace's mode `act`, since autonomy now decides whether an agent's call asks (never what it may do); and the job `agent-changes-setting` starts with the person's row letting agents change settings ([phase 5's step 3](../5-copilot/spec.md#step-3-2026-11-21)).
 
 ## 5. Experiments (D119)
 

@@ -62,6 +62,12 @@ export interface AppTestKernelOptions {
 	 * without a scope run there (phase 2 specification, 11.3). Both are journaled, so `replay` holds them.
 	 */
 	scope?: { project?: string };
+	/**
+	 * How agents' calls meet autonomy (phase 5 specification, 6.1): `act`, the default, lets them run, as the person's own
+	 * workspace row (`autonomy-set`, journaled, so `replay` holds it), so a test shows what the app's commands do; `ask`
+	 * keeps D156's default, under which an agent's change waits for a confirmation. A destructive command asks either way.
+	 */
+	agents?: 'act' | 'ask';
 }
 
 export interface AppTestKernel {
@@ -134,6 +140,9 @@ export async function createAppTestKernel(options: AppTestKernelOptions): Promis
 		clock: createSteppingClock(),
 		random: createSeededRandom(id),
 	});
+	// The kit's workspace is `local`, whose one person is an owner, so the row is always theirs to write.
+	if (options.agents !== 'ask')
+		await kernel.call('autonomy-set', { level: 'workspace', mode: 'act' });
 	if (options.scope?.project !== undefined) {
 		const slug = options.scope.project;
 		const created = await kernel.call<{ id: string }>('project-create', { name: slug, slug });

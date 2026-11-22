@@ -4,7 +4,8 @@
 # invented. Lists are asserted by index ('0'), and a single item by `'1': { notExists: true }`,
 # since AFD compares a YAML list whole.
 # The hand-off's details ({ route, section, key, level }) are P4-E1's to assert; a scenario
-# reaches only the suggestion.
+# reaches only the suggestion. From phase 5's step 3 autonomy is enforced (its 6.1): a change asks
+# an agent by default, so the person first lets agents change settings, which is their choice.
 name: Change my person's setting, and hand off what I may not
 description: >-
   When my person asks me to change a setting, I want to change their own and hand them the
@@ -13,6 +14,11 @@ description: >-
 job: agent-changes-setting
 tags: [loam-runner]
 steps:
+  - description: My person lets agents change settings without asking
+    command: autonomy-set
+    input: { level: workspace, instance: shell, command: setting-set, mode: act }
+    expect:
+      success: true
   - description: "[agent] I find the key and its levels"
     command: setting-schema-get
     input: { section: hello.general, key: greeting }

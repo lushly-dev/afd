@@ -522,6 +522,20 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * After step 7's sixth round (stage B and the late load end at each await once the kernel is disposed; a mounted
  * schema discovery replaced gets no chord; the failure's hints leave out an app's `when` bindings): first paint 317,362
  * and 99,692 gzip, within its rows; the kernel alone 125,000 to 125,500 (125,037); `late` 112,345 of 112,800.
+ * Phase 5's step 3 (enforcement and approval health), under D115, on macOS with Node 26, against `main` at
+ * `0ab76415`: `jsMinified` 326,800 to 327,500 (326,812, +12: a confirmed copilot call's trace and a host command's
+ * definition passed to `late/`); `kernelMinified` 137,400 to 138,000 (137,497); `lateMinified` 118,500 to 121,500
+ * (120,298: the enforcement's wiring, the inbox reads its cards and approval health take, and the members hand-off);
+ * `lateCopilotMinified` 13,900 to 24,000 (22,599, +8,699: the gate of 6.1, the suggestion records, approval health's
+ * daily counters, rates and flag, the waiting turn and its continuation); `lateSettingsMinified` 101,500 to 104,500
+ * (103,709: the confirmations' enforced record and "Run it" in `palette-run`). The `copilot-panel` chunk, with Violet's
+ * approval card, 64,287 gzip of its 72,800. After the trust review's fixes: `lateMinified` 121,500 to 122,500 (121,581:
+ * the held-by and mount checks, the members hand-off moved to `copilot-wiring.ts`); `settingsMinified` 47,400 to 48,500
+ * (48,162: approval health beside the autonomy rules, 6.3); `late-copilot` 23,823 of 24,000, `late-settings` 104,210 of
+ * 104,500 and the panel 64,427 gzip, within their rows. After the re-checks' fixes (the port's binding, withdrawal in
+ * the settle, dead suggestion prompts): `lateCopilotMinified` 24,000 to 25,000 (24,506); `lateSettingsMinified` 104,500
+ * to 105,000 (104,545). After the third and fourth re-checks (the late withdrawal by its call, the reader's access):
+ * `lateCopilotMinified` 25,000 to 25,800 (25,177).
  */
 export const CEILINGS = Object.freeze({
 	// Raised from 300,000 and 93,000 under D115 by AFD's port of Microsoft FAST Element 3.1.4 into
@@ -587,7 +601,9 @@ export const CEILINGS = Object.freeze({
 	// under D115.
 	// With phase 3's step 7 (`main` at `09f3b0c0`, 103,184) and the approval-admission follow-ups merged: 103,302; set
 	// to 103,700 under D115.
-	jsGzip: 103_700,
+	// Phase 5's step 3 with phase 3's step 8 merged (`main` at `46f7ab11`), the combined build: 103,724; set to 104,200
+	// under D115.
+	jsGzip: 104_200,
 	// Raised from 8,496 to 10,500 by AFD's theme, Refined (D159, D115): `loam-theme.css` 8,217 to 8,431 (+214, the
 	// longer shadows and the three font stacks), and the theme's typefaces' `@font-face` rules, 1,820, the first
 	// stylesheet `index.html` links; measured 10,251, plus a margin.
@@ -612,7 +628,10 @@ export const CEILINGS = Object.freeze({
 	// Phase 3's step 7, against `main` at `0ab76415`: 137,347 to 141,140 (+3,793): the principal gate's chunk, the
 	// connected agents in the member reads and `account-agent-*`; set to 141,700 under D115. Phase 4's step 9 merged on top,
 	// the combined build: 141,685; set to 142,200 under D115.
-	kernelMinified: 142_200,
+	// Phase 5's step 3 merged on top (`main` at `21374a6d`), the combined build: 142,194 (+509: a confirmed copilot
+	// call's trace and a host command's definition passed to `late/`); set to 142,300 under D115. First paint 328,926 of
+	// 329,300 and 103,421 gzip of 103,700; `late-copilot` 25,336 of 25,800.
+	kernelMinified: 142_300,
 	// Phase 4's steps 2 (+1,494) and 3 (+8,786) together: 92,316 measured with both merged; set to 93,000.
 	// Phase 4's step 5: 93,596, the inbox's wiring (above); set to 94,000.
 	// With step 8 merged beside them, 93,244; set to 94,000 (the header records it).
@@ -628,20 +647,24 @@ export const CEILINGS = Object.freeze({
 	// Phase 3's step 8's review: 118,490 to 118,602 (+112), `ownerTitle` moved into its own module, `owner-title`, which
 	// the account chunk shares; set to 119,000 under D115. Merged with phase 4's step 9 (`main` at `1832a444`): 120,450,
 	// within that step's 120,800, which stands.
-	lateMinified: 120_800,
+	// Phase 5's step 3 merged on top (`main` at `21374a6d`), the combined build: 124,575 (+4,300: enforcement's wiring,
+	// the cards' and health's reads, the members hand-off); set to 125,200 under D115.
+	lateMinified: 125_200,
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 16_400,
 	// Phase 3's step 7, against `main` at `0ab76415`: 62,702 to 64,976 (+2,274): `account-agent-list` and `-disconnect`,
 	// connected agents in `agent-member-list`, `-get` and `-remove`, the account read by the call's person; set to 65,500.
 	// After its review's fixes, 65,750 (an owner's removal kept, provider failures mapped); set to 66,300.
 	lateIdentityMinified: 66_300,
-	lateCopilotMinified: 13_900,
+	lateCopilotMinified: 25_800,
 	// Steps 5 and 8 together: 60,469; set to 61,500 (the header records it). Step 6: 78,180; set to 78,500; after its trust review 80,506, set to 81,000; after its second round 81,152, set to 81,500; after its third, 83,764, set to 84,500; merged with step 10, 90,579, set to 91,200; after its fourth round, 91,964, set to 92,500; after its fifth, 93,273, set to 94,000; merged with step 7, 100,819, set to 101,500.
 	// Phase 4's step 9, measured in one tree against `main` at `0ab76415`: 101,093 to 116,636 (+15,543: the four `experiment-*` commands and boot's settle, their
 	// rules, refusals and notices in words); set to 117,000 under D115. After its two reviews, 118,500 (removals kept,
 	// each person told, the boot withdrawal); set to 119,000. After its re-checks, 119,907 (each plugin's declared ids);
 	// set to 120,500.
-	lateSettingsMinified: 120_500,
+	// Phase 5's step 3 merged on top, the combined build: 123,388 (+3,481: the confirmations' enforced record and "Run
+	// it"); set to 124,000 under D115.
+	lateSettingsMinified: 124_000,
 	copilotPanelGzip: 72_800,
 	copilotRuntimeAnthropicGzip: 120_000,
 	copilotRuntimeOpenaiGzip: 120_000,
@@ -673,7 +696,9 @@ export const CEILINGS = Object.freeze({
 	appsMinified: 443_200,
 	// Steps 4 and 5 together: 94,868 (step 4's slot and dialogs beside the inbox's Open inbox and hidden toasts' timers);
 	// set to 95,500 under D115.
-	surfacesMinified: 97_000,
+	// Phase 5's step 3 with phase 3's step 8 merged (`main` at `46f7ab11`; step 8's `surface-calls`, shared with
+	// `surfaces`), the combined build: 97,007; set to 97,500 under D115.
+	surfacesMinified: 97_500,
 	// Raised from 25,105 to 25,900 by AFD #1190 (D115): `dev.loam/tokens` reads the contract's component
 	// ids, which grew from 108 to 115 with violet-elements' token interface; measured 25,793, plus a margin.
 	// Raised from 25,900 to 26,100 by the Refined design (D115): the interface's contract version 2 gives Loam's
@@ -702,7 +727,9 @@ export const CEILINGS = Object.freeze({
 	embedMinified: 6_096,
 	// Phase 4's step 9, measured in one tree against `main` at `0ab76415`: 47,028 to 50,336 (+3,308: `loam-experiments-section` and its words); set to 50,800 under
 	// D115.
-	settingsMinified: 50_800,
+	// Phase 5's step 3 merged on top, the combined build: 51,470 (+1,134: approval health beside the autonomy rules); set
+	// to 52,000 under D115.
+	settingsMinified: 52_000,
 	editorMoveMinified: 4_205,
 	overlaysMinified: 11_000,
 	inboxMinified: 12_000,

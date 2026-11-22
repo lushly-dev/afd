@@ -188,6 +188,27 @@ export interface ConfirmationRecordV1 {
 	answeredAt?: number;
 	/** How many calls on the same key the shell refused without asking, after the decline ("Declined automatically"). */
 	declinedAgain?: number;
+	/**
+	 * Why an agent was asked (phase 5 specification, 6.2): the mode the kernel resolved, why (`policy`, the person's
+	 * autonomy or a destructive command; `taint`; `unit`), the sources a taint names, and the chain of rows that decided
+	 * it, as `autonomy-get` gives it. Set by the kernel alone, for an agent's call.
+	 */
+	asked?: ConfirmationAskedV1;
+	/** A mounted command's preview, which the confirmation re-checks on confirm (phase 5 specification, 7.2). */
+	preview?: { command: string; digest: string };
+	/** The copilot session that raised it (phase 5 specification, 6.2): its key holds the session too. */
+	session?: string;
+	/** The copilot call's trace, which the shell's run carries (phase 5 specification, 3.2, 6.2). */
+	trace?: { session: string; turn: number; call: string };
+}
+
+/** Why the kernel asked an agent's call (phase 5 specification, 6.2). */
+export interface ConfirmationAskedV1 {
+	mode: 'ask';
+	reason: 'policy' | 'taint' | 'unit';
+	sources: string[];
+	/** The autonomy rows that decided the mode, a ceiling or the cap, and `destructive` when the command capped it. */
+	chain: Array<{ id: string; mode: 'suggest' | 'ask' | 'act'; as: 'mode' | 'ceiling' | 'cap' }>;
 }
 
 /** What `confirmation-get` answers its caller (7.2). An expired one's `result` is `CONFIRMATION_EXPIRED`. */

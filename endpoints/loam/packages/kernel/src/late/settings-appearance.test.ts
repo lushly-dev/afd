@@ -160,6 +160,13 @@ describe('P4-E3: local mode (R12)', () => {
 
 	it('keeps loam.appearance as an alias of its two keys, and loam.settings out of view-state-*', async () => {
 		const { kernel } = await kernelOn(new MemoryAdapter());
+		// The alias writes the person's appearance, so it asks an agent by default (phase 5's 6.1).
+		const asked = await kernel.agent.call('view-state-set', {
+			id: 'loam.appearance',
+			state: { theme: 'light' },
+		});
+		expect(asked.error?.code).toBe('CONFIRMATION_PENDING');
+		await kernel.call('autonomy-set', { level: 'workspace', mode: 'act' });
 		const set = await kernel.agent.call('view-state-set', {
 			id: 'loam.appearance',
 			state: { theme: 'light' },

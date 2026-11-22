@@ -114,6 +114,8 @@ export interface CopilotTurnOutcomeV1 {
 	usage: { inputTokens: number; outputTokens: number };
 	failure?: { code: string };
 	stoppedBy?: 'person' | 'limit' | 'session-changed';
+	/** The model rounds the turn has used, its earlier runs' included, counted on the trusted side (4.4). */
+	rounds?: number;
 }
 
 /** One turn for the host to run (3.5, 4.3). */
@@ -130,6 +132,11 @@ export interface CopilotRunV1 {
 	settle(outcome: CopilotTurnOutcomeV1): void;
 	/** Aborted when the person stops the turn, or the frame is removed. */
 	signal: AbortSignal;
+	/**
+	 * What the turn spent in its earlier runs, when this run continues a turn that waited (3.5): the host counts 4.4's
+	 * tokens and rounds on from it, so a continuation keeps the turn's limits.
+	 */
+	spent?: { usage: { inputTokens: number; outputTokens: number }; rounds: number };
 }
 
 /** The host that runs turns: the web host's frame, or an in-process runtime in tests. */
@@ -189,7 +196,7 @@ export const PANEL_PORT_KEYS: Readonly<Record<string, readonly string[]>> = Obje
  * The AG-UI events the panel port's half forwards to the panel, each with only these fields, each a string. Every
  * other type is dropped, and every other field: an interrupt (a `RUN_FINISHED` outcome), a `CUSTOM` event
  * (`ui-resource` included), a tool call's approval state and a state or messages snapshot never reach the panel
- * (3.2). A `CUSTOM` event named `loam-confirmation` is read for its notification id alone, and only from step 3.
+ * (3.2). A `CUSTOM` event named `loam-confirmation` only prompts the panel to read the session's records again.
  */
 export const PANEL_EVENT_FIELDS: Readonly<Record<string, readonly string[]>> = Object.freeze({
 	RUN_STARTED: Object.freeze(['runId', 'threadId']),

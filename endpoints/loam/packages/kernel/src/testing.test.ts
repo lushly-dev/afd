@@ -136,7 +136,8 @@ describe('P2-E13: E2: a replayed journal reproduces the layout', () => {
 		});
 		const commands = [reportsCreate as never];
 		const recorded = await recordSession(
-			[{ interface: 'agent', name: 'reports-create', input: { title: 'A' } }],
+			// The person's: an agent's would ask first (phase 5's 6.1), and this is about the host's command replaying.
+			[{ interface: 'palette', name: 'reports-create', input: { title: 'A' } }],
 			{ commands }
 		);
 		expect(recorded.entries).toHaveLength(1);

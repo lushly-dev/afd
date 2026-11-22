@@ -90,7 +90,10 @@ const admit = (
 		agent,
 	});
 
-/** A call as the MCP handler makes one: the kernel's chain over the registry, with the principal on its context. */
+/**
+ * The kernel's chain over the agent registry, with the principal on its context. The real MCP handler calls with
+ * `interface: 'mcp'`, which phase 5's enforcement does not gate (milestone C); this seam is the agent interface's.
+ */
 let traces = 0;
 const call = (name: string, input: unknown, context: Record<string, unknown>) =>
 	parts.registries.agent.execute(name, input, {

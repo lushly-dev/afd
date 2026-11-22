@@ -13,7 +13,14 @@ export const MODEL_SCRIPTS: Readonly<Record<string, ModelScriptV1>> = Object.fre
 	/** Have the copilot do it with commands: a project, then a note in it, then a one-line reply. */
 	'new-project-note': [
 		{ tools: [{ name: 'project-create', input: { name: 'Garden' } }] },
-		{ tools: [{ name: 'document-create', input: { type: 'notes', title: 'Seed order' } }] },
+		{
+			tools: [
+				{
+					name: 'document-create',
+					input: { type: 'checklist', title: 'Seed order', project: 'garden' },
+				},
+			],
+		},
 		{ text: 'Created the Garden project with a Seed order note.' },
 	],
 	/** Only suggest where I said so: `tally-reset`, which p5-base sets to suggest. */

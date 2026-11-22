@@ -604,9 +604,10 @@ describe("P4-E9: step 7's re-check", () => {
 });
 
 describe("P4-E9: step 7's third round", () => {
+	// The person's read: an agent's resolves its mode from the person's cap, which this test makes unreadable (phase 5's 6.1).
 	const stored = async (page: Page, document: string) =>
-		((await agentCall(page, 'notes-content-get', { document })) as { data?: { text: string } }).data
-			?.text;
+		((await kernelCall(page, 'notes-content-get', { document })) as { data?: { text: string } })
+			.data?.text;
 
 	it("B, R9: holds Mod+S while the person's settings cannot be read, saves nothing, and says the keys are not ready", async () => {
 		const context = await browser.newContext();

@@ -506,6 +506,12 @@ describe('setting-set, setting-get and setting-reset (3.2, 3.3, 3.9)', () => {
 describe('who writes (3.2): the agent interface, the hand-off and the owner', () => {
 	it("an agent writes its person's own value, as agent:<id>, and hands off a shared one", async () => {
 		const { kernel, scopes } = await workspace();
+		const input = { section: 'loam.appearance', key: 'theme', value: 'dark', level: 'person' };
+		// From phase 5's step 3 autonomy is enforced (its 6.1): a change asks by default, until the person lets agents act.
+		expect((await kernel.agent.call('setting-set', input)).error?.code).toBe(
+			'CONFIRMATION_PENDING'
+		);
+		await kernel.call('autonomy-set', { level: 'workspace', mode: 'act' });
 		const own = await kernel.agent.call('setting-set', {
 			section: 'loam.appearance',
 			key: 'theme',

@@ -1,16 +1,28 @@
 /**
  * @fileoverview The copilot's records and commands (phase 5 specification, 3.4 and 3.5), the agent port's kernel
- * half (3.2) and the gate that fails every copilot mutation closed until enforcement lands (6.1). In the
+ * half (3.2), autonomy enforced on the agent interface (6.1, `enforce.ts`), a turn that waits on the person and
+ * continues once they answer (3.5), and approval health (6.3, `health.ts`). In the
  * `late-copilot` chunk, which `late/` loads in stage B: it imports types alone, and every function it shares with
  * first paint or `late` reaches it through {@link CopilotDeps}' kit, as `late-documents`' does (2.4).
  */
 
 import type { CommandContext, CommandMiddleware, CommandResult } from '@lushly-dev/afd-core';
 import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
+import type { ConfirmationAskedV1 } from '@lushly-dev/loam-sdk';
 import type { DataAdapter } from '@lushly-dev/local-db';
 import type { DocumentKit } from '../late/document-kit.js';
 import type { ScopeV1 } from '../scope/records.js';
 import type { ContextFieldV2 } from '../types.js';
+import {
+	type AutonomyModeV1,
+	createEnforcement,
+	type DecisionV1,
+	type Enforcement,
+	SUGGESTION_ID,
+	SUGGESTION_TABLE,
+	type SuggestionV1,
+} from './enforce.js';
+import { type ApprovalHealthV1, createHealth, type HealthReasonV1 } from './health.js';
 import type {
 	CopilotAgentCapabilityV1,
 	CopilotCallV1,
@@ -92,8 +104,50 @@ const SUGGESTIONS = {
 	SESSION_NOT_FOUND: 'List your sessions with copilot-session-list',
 	TURN_RUNNING: 'Wait for the turn, or stop it with copilot-turn-stop',
 	PORT_REFUSED: 'None: only the runtime uses the port',
-	AUTONOMY_UNAVAILABLE: 'Agents can only read until autonomy is enforced',
 } as const;
+
+/**
+ * Never asked or suggested (6.1), beside the human, owner and person-session commands: what moves the person's own view
+ * and changes none of their records (a layout, a tab, a selection, an open document), like phase 2's person-session
+ * commands; and the overlays and the inbox, the agent's channels to the person, which phase 4 governs per path (its 6.1
+ * table, 10.2) with their own agent rates, and whose handlers refuse an agent what it may not do (a modal, an answer).
+ * Asking whether an agent may tell the person something would put the question in place of the message.
+ */
+const AGENT_CHANNELS: readonly string[] = [
+	'view-state-set',
+	'layout-set',
+	'layout-reset',
+	'app-selection-set',
+	'status-item-set',
+	'editor-activate',
+	'editor-close',
+	'editor-pin',
+	'editor-move',
+	'editor-dirty-set',
+	'document-open',
+	'toast-show',
+	'popover-open',
+	'dialog-open',
+	'modal-open',
+	'prompt-open',
+	'overlay-dismiss',
+	'notification-push',
+];
+
+/** The person's records an exempt command can still write: `view-state-set` of the appearance alias (3.6). */
+const writesRecords = (name: string, input: unknown): boolean =>
+	name === 'view-state-set' && (input as { id?: unknown } | null)?.id === 'loam.appearance';
+
+/**
+ * The confirmations' own reads and withdrawal, which only reach the caller's own (phase 4's 7.2), and the autonomy reads
+ * by which an agent learns its mode (phase 4's 4.5): a cap of `suggest` must not keep an agent from knowing it.
+ */
+const CONFIRMATION_OWN: readonly string[] = [
+	'confirmation-get',
+	'confirmation-withdraw',
+	'autonomy-get',
+	'autonomy-list',
+];
 
 /** What the copilot chunk needs from the kernel. */
 export interface CopilotDeps {
@@ -101,7 +155,12 @@ export interface CopilotDeps {
 	store: DataAdapter;
 	workspace: string;
 	options?: CopilotOptionsV1 | undefined;
-	kit: Pick<DocumentKit, 'define' | 'success' | 'kernelFailure' | 'personOf' | 'callNow' | 'z'>;
+	kit: Pick<
+		DocumentKit,
+		'define' | 'success' | 'kernelFailure' | 'personOf' | 'callNow' | 'z' | 'projectNotFound'
+	>;
+	/** Whether the call's actor may enter its scope (6.1's order: access before the mode). Absent: every scope. */
+	enterable?(context: CommandContext): boolean;
 	isMutation(name: string): boolean;
 	/** A mounted instance's command: its result is the server's, labelled `content` whole until step 4 (5.1). */
 	isMounted(name: string): boolean;
@@ -137,6 +196,75 @@ export interface CopilotDeps {
 	now(): number;
 	/** The person the kernel decides for now: a turn acts only while it is still its session's person (3.2). */
 	person(): string;
+	/** 4.2's resolution for one call (6.1), phase 4's `resolveAutonomy` over the rows and the person's cap. */
+	resolve?(
+		name: string,
+		context: CommandContext
+	): Promise<{ mode: AutonomyModeV1; chain: ConfirmationAskedV1['chain'] } | undefined>;
+	/** A destructive or approval-held command, at most `ask` for an agent (6.1), by which. */
+	heldBy?(name: string): 'destructive' | 'approval' | undefined;
+	/** A refusal a command's own path makes before it runs, which no question may precede (6.1's order). */
+	preflight?(name: string, context: CommandContext): CommandResult<never> | undefined;
+	/** Whether the journal records a call of `name` (approval health counts what a replay sees). Absent: all. */
+	journaled?(name: string): boolean;
+	/** A command that declares a `confirm_prompt` (phase 4's 7.2). */
+	declares?(name: string): boolean;
+	/** Never asked or suggested (6.1), beside `humanOnly`, `handlerRefuses` and `internal`: person-session commands. */
+	personSession?(name: string): boolean;
+	/** A confirmation of the person's, as a card draws it and the waiting turn reads its state (3.5, 6.2). */
+	confirmationOf?(
+		id: string,
+		person: string,
+		/** `reader`: a caller reading it, whose access to its scope is checked, an absent actor included. */
+		options?: { now?: number; reader?: { actor: unknown } }
+	): Promise<CopilotConfirmationCardV1 | undefined>;
+	/** `decideAccess` on a record's scope, for the actor reading it now (the inbox's rule). Absent: every scope. */
+	allows?(actor: unknown, scope: ScopeV1): boolean;
+	/** The person's confirmations an agent raised that still wait, for approval health's `expired` (6.3). */
+	pendingAsked?(
+		person: string
+	): Promise<Array<{ command: string; scope: ScopeV1; reason: HealthReasonV1; createdAt: number }>>;
+	/**
+	 * Withdraw the person's pending confirmations a turn raised, by the session and turn the kernel stored on them, or
+	 * one by id (3.5): on a stop's path, or with no call when a limit or a change of person ended the turn.
+	 */
+	withdraw?(
+		context: CommandContext | undefined,
+		match: { session: string; turn: number } | { id: string },
+		person: string
+	): Promise<number>;
+}
+
+/** A confirmation as the panel's card draws it (6.2): the kernel's record, never the runtime's word. */
+export interface CopilotConfirmationCardV1 {
+	id: string;
+	state: 'pending' | 'confirmed' | 'declined' | 'expired' | 'withdrawn';
+	title: string;
+	header: string;
+	prompt: string;
+	command: string;
+	/** The validated input as it will run, or its size past the list's bound. */
+	input: unknown;
+	scope: ScopeV1;
+	danger: boolean;
+	asked?: ConfirmationAskedV1;
+	expiresAt: number;
+	/** The copilot session that raised it: the port and the cards take only their own session's (6.2). */
+	session?: string;
+	/** The copilot call that raised it, by its turn and call id. */
+	raisedBy?: { turn: number; call: string };
+}
+
+/** A suggestion as the panel's card draws it: the kernel's record (6.1). */
+export interface CopilotSuggestionCardV1 {
+	id: string;
+	command: string;
+	input: unknown;
+	scope: ScopeV1;
+	reasons: SuggestionV1['reasons'];
+	sources: string[];
+	expiresAt: number;
+	ran: boolean;
 }
 
 /** One turn while it runs: what 3.4 records, kept in memory until it settles. */
@@ -148,6 +276,34 @@ interface Running {
 	settled: Promise<CopilotTurnV1>;
 	resolve(turn: CopilotTurnV1): void;
 	timer?: ReturnType<typeof setTimeout>;
+	/** What the turn spent before this run: a continuation keeps the turn's limits (3.5, 4.4). */
+	spent: Spent;
+	/** When this run started, on the kernel's clock. */
+	startedAt: number;
+	/** The confirmations this turn raised that may still wait, with their `expiresAt` (3.5). */
+	pending: Map<string, number>;
+	/** The reply before this run, which a continuation's text follows. */
+	replyBefore: string;
+}
+
+/** A turn's spending across its runs (4.4). */
+interface Spent {
+	calls: number;
+	rounds: number;
+	elapsedMs: number;
+	usage: { inputTokens: number; outputTokens: number };
+}
+
+/** A turn that waits on the person's answers: it continues, once, when every one of them has ended (3.5). */
+interface Waiting {
+	turn: CopilotTurnV1;
+	session: CopilotSessionV1;
+	pending: Map<string, number>;
+	spent: Spent;
+	timer?: ReturnType<typeof setTimeout>;
+	checking?: Promise<void>;
+	/** The write that made it `waiting`, which an end waits for, so its own write lands last. */
+	settling?: Promise<unknown>;
 }
 
 const turnId = (session: string, seq: number) => `${session}~${String(seq).padStart(6, '0')}`;
@@ -162,12 +318,25 @@ export interface CopilotParts {
 	/** `copilotSession`, `turn` and `trace`, declared on both registries from stage B (3.2). */
 	contextFields: ContextFieldV2[];
 	/**
-	 * Last in the kernel's chain (6.1's fifth line, after access): until phase 4's steps land, a copilot call to a
-	 * mutation, or to a mounted instance whose default mode is `ask`, is `AUTONOMY_UNAVAILABLE`, journaled.
+	 * After access, before the confirmations' gate (6.1's order): the mode of every top-level call on the agent interface,
+	 * the copilot's and any other agent's, from phase 4's `resolveAutonomy` (`enforce.ts`).
 	 */
 	gate: CommandMiddleware;
 	/** Stop every running turn, as a change of person or sign-out does (3.2). */
 	stopAll(stoppedBy: 'session-changed' | 'person'): Promise<void>;
+	/** Told by phase 4's confirmations when an agent's confirmation is raised or ends (6.3, 3.5). */
+	observe(
+		event: 'asked' | 'confirmed' | 'declined' | 'withdrawn',
+		row: {
+			id: string;
+			person: string;
+			scope: ScopeV1;
+			createdAt: number;
+			confirmation: { command: string; asked?: ConfirmationAskedV1; session?: string };
+		}
+	): Promise<void>;
+	/** The person's live suggestion, and its run, for `palette-run`'s "Run it" (6.1). */
+	suggestions: Pick<Enforcement, 'suggestion' | 'ran'>;
 }
 
 export function createCopilotParts(deps: CopilotDeps): CopilotParts {
@@ -179,6 +348,68 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 	const starting = new Set<string>();
 	/** Moved by every change of person: a turn whose start began before one never launches (step 2's trust review). */
 	let epoch = 0;
+	/** Turns that wait on the person's answers, by session (3.5). */
+	const waiting = new Map<string, Waiting>();
+	/** Waiting turns whose end is being written: their confirmations are still held (re-check 6). */
+	const ending = new Set<Waiting>();
+	/** What the gate decided for each copilot call, by its trace, until the port's half records it (3.4). */
+	const decisions = new Map<string, DecisionV1>();
+	const traceKey = (trace: CopilotTraceV1) => `${trace.session}/${trace.turn}/${trace.call}`;
+	const health = createHealth({ store, workspace: deps.workspace });
+	/** Never asked or suggested (6.1). */
+	const exempt = (name: string, input: unknown): boolean =>
+		name === COPILOT_PORT_REFUSE ||
+		deps.humanOnly(name) ||
+		// A person-session command moves the person's view; signing in or out is refused in the gate (6.1).
+		(deps.personSession?.(name) === true && !name.startsWith('auth-')) ||
+		deps.handlerRefuses?.(name, input) === true ||
+		deps.internal(name) ||
+		CONFIRMATION_OWN.includes(name) ||
+		(AGENT_CHANNELS.includes(name) && !writesRecords(name, input)) ||
+		CHROME_ONLY.includes(name);
+	const enforcement = createEnforcement({
+		store,
+		workspace: deps.workspace,
+		health,
+		resolve: (name, context) => deps.resolve?.(name, context) ?? Promise.resolve(undefined),
+		isMutation: deps.isMutation,
+		isMounted: deps.isMounted,
+		heldBy: (name) => deps.heldBy?.(name),
+		preflight: (name, context) => deps.preflight?.(name, context),
+		journaled: (name) => deps.journaled?.(name) ?? true,
+		// Marking read or archiving one notice that is a pending confirmation: refused as its handler refuses an agent
+		// (10.2), on the call's own clock, so nothing ends between the decision and a write (re-check 2, B3).
+		async handOff(name, input, context) {
+			if (name !== 'notification-read' && name !== 'notification-archive') return undefined;
+			const id = (input as { notification?: unknown } | null)?.notification;
+			if (typeof id !== 'string') return undefined;
+			// As the caller may read it now: one of a project they left is no answer at all (re-check 3).
+			const card = await deps.confirmationOf?.(id, kit.personOf(context), {
+				now: kit.callNow(context),
+				reader: { actor: context.actor },
+			});
+			return card?.state === 'pending'
+				? fail(
+						'HUMAN_REQUIRED',
+						'A confirmation waiting for the person is read or archived only by the person',
+						'Tell the person it is in their inbox'
+					)
+				: undefined;
+		},
+		declares: (name) => deps.declares?.(name) === true,
+		exempt,
+		instanceOf: deps.instanceOf,
+		personOf: (context) => kit.personOf(context),
+		now: (context) => kit.callNow(context),
+		decided(trace, decision) {
+			decisions.set(traceKey(trace), decision);
+			// Bounded: a decision the port never read (a nested or refused path) goes with the oldest.
+			if (decisions.size > 256) decisions.delete(decisions.keys().next().value as string);
+		},
+		kernelFailure: kit.kernelFailure,
+		enterable: (context) => deps.enterable?.(context) ?? true,
+		projectNotFound: () => kit.projectNotFound(),
+	});
 
 	const fail = (
 		code: Parameters<CopilotDeps['kit']['kernelFailure']>[0],
@@ -244,17 +475,225 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 		running.delete(session);
 		if (live.timer) clearTimeout(live.timer);
 		live.controller.abort();
+		const spent: Spent = {
+			calls: live.spent.calls,
+			rounds: outcome.rounds ?? live.spent.rounds,
+			elapsedMs: live.spent.elapsedMs + Math.max(0, deps.now() - live.startedAt),
+			usage: outcome.usage ?? live.turn.usage,
+		};
+		// A turn whose call is pending a confirmation waits, and continues once every one has ended (3.5).
+		const waits = outcome.state === 'done' && live.pending.size > 0;
+		const said = outcome.reply ?? '';
+		const reply =
+			live.replyBefore && said ? `${live.replyBefore}\n\n${said}` : live.replyBefore || said;
 		const turn: CopilotTurnV1 = {
 			...live.turn,
-			state: outcome.state,
-			reply: (outcome.reply ?? live.turn.reply).slice(0, REPLY_MAX),
-			usage: outcome.usage ?? live.turn.usage,
+			state: waits ? 'waiting' : outcome.state,
+			reply: (reply || live.turn.reply).slice(0, REPLY_MAX),
+			usage: spent.usage,
 			...(outcome.stoppedBy ? { stoppedBy: outcome.stoppedBy } : {}),
 			...(outcome.failure ? { failure: { code: outcome.failure.code } } : {}),
 		};
-		await deps.runBoot(COPILOT_TURN_SETTLE, { turn });
+		// Held as waiting from before the write, so a stop or a new message during it finds the turn (the review's gap).
+		const held: Waiting | undefined = waits
+			? { turn: copy(turn), session: live.session, pending: live.pending, spent }
+			: undefined;
+		if (held) waiting.set(session, held);
+		// Any other end withdraws the turn's pending confirmations (3.5): a stop, a limit, a failure, a change of person,
+		// in the settle's own journaled entry, so a replay withdraws the same (the re-check's I3).
+		const settling = deps.runBoot(COPILOT_TURN_SETTLE, {
+			turn,
+			...(waits ? {} : { withdraw: withdrawalOf(live.session, live.pending) }),
+		});
+		if (held) held.settling = settling;
+		await settling;
+		if (held && waiting.get(session) === held) void check(session);
 		live.resolve(turn);
 		return turn;
+	}
+
+	/** Withdraw what the turn raised that still waits, by the session and turn its records name (3.5). */
+	const withdrawalOf = (session: CopilotSessionV1, pending: ReadonlyMap<string, number>) => ({
+		person: session.person,
+		// Those the turn holds, a pending one found on an earlier turn's key among them (the re-check's B4).
+		ids: [...pending.keys()],
+	});
+
+	/** The outcome of each confirmation a waiting turn raised, once every one has ended; undefined while one waits. */
+	async function check(session: string): Promise<void> {
+		const held = waiting.get(session);
+		if (!held) return;
+		const run = async () => {
+			if (waiting.get(session) !== held) return;
+			const ended: Array<{ id: string; command: string; state: string }> = [];
+			let latest = 0;
+			for (const [id, expiresAt] of held.pending) {
+				const card = await deps.confirmationOf?.(id, held.session.person);
+				if (card?.state === 'pending') {
+					latest = Math.max(latest, card.expiresAt, expiresAt);
+					continue;
+				}
+				// A row that has gone ended long ago.
+				ended.push({
+					id,
+					command: card?.command ?? 'the command',
+					state: card?.state ?? 'expired',
+				});
+			}
+			if (waiting.get(session) !== held) return;
+			if (latest > 0) {
+				// Its expiry ends it with no call to say so: looked at again just after (7.2's 10 minutes).
+				if (held.timer) clearTimeout(held.timer);
+				held.timer = setTimeout(() => void check(session), Math.max(0, latest - deps.now()) + 50);
+				return;
+			}
+			waiting.delete(session);
+			if (held.timer) clearTimeout(held.timer);
+			await resume(held, ended);
+		};
+		held.checking = (held.checking ?? Promise.resolve()).then(run, run);
+		await held.checking;
+	}
+
+	/** The words a continuation starts with (3.5): Loam's, naming each confirmation's end, never its result. */
+	const continuation = (ended: ReadonlyArray<{ id: string; command: string; state: string }>) =>
+		[
+			'[Loam] The person has answered every confirmation this turn raised.',
+			...ended.map(({ id, command, state }) =>
+				state === 'confirmed'
+					? `- ${command} (${id}): confirmed, and the shell ran it once. Read its result with confirmation-get { "notification": "${id}" }.`
+					: state === 'declined'
+						? `- ${command} (${id}): declined. Do not call it again.`
+						: state === 'withdrawn'
+							? `- ${command} (${id}): withdrawn before the person answered.`
+							: `- ${command} (${id}): expired; no one answered it within 10 minutes.`
+			),
+			'Tell the person what happened.',
+		].join('\n');
+
+	/** Continue a waiting turn, once its confirmations have all ended, within the turn's limits (3.5, 4.4). */
+	async function resume(
+		held: Waiting,
+		ended: ReadonlyArray<{ id: string; command: string; state: string }>
+	): Promise<void> {
+		const { session } = held;
+		const provider = providers().find((entry) => entry.id === session.provider);
+		const runner = deps.options?.runner;
+		// A turn that cannot continue ends as it stands: done, its calls recorded.
+		if (
+			!provider ||
+			!runner ||
+			running.has(session.id) ||
+			starting.has(session.id) ||
+			deps.person() !== session.person
+		) {
+			await deps.runBoot(COPILOT_TURN_SETTLE, { turn: { ...held.turn, state: 'done' } });
+			return;
+		}
+		const seq = held.turn.seq;
+		const live = runningFor(session, { ...copy(held.turn), state: 'running' }, held.spent);
+		live.replyBefore = held.turn.reply;
+		running.set(session.id, live);
+		armTimer(live);
+		const previous = (await turnsOf(session.id)).filter((turn) => turn.seq < seq);
+		const history = [
+			...historyOf(previous),
+			{ role: 'user' as const, text: held.turn.text },
+			...(held.turn.reply ? [{ role: 'assistant' as const, text: held.turn.reply }] : []),
+		];
+		// Stopped, or the person changed, while the history was read: it never starts (the review's gap).
+		if (running.get(session.id) !== live || live.revoked || deps.person() !== session.person) {
+			await finish(session.id, seq, { state: 'stopped', stoppedBy: 'session-changed' });
+			return;
+		}
+		try {
+			runner.start({
+				session,
+				turn: seq,
+				runId: `run_${session.id}_${seq}_${held.spent.rounds}`,
+				provider: { id: provider.id, kind: provider.kind, model: provider.model },
+				history,
+				text: continuation(ended),
+				agent: capabilityFor(live),
+				settle: (outcome) => void finish(session.id, seq, outcome),
+				signal: live.controller.signal,
+				spent: { usage: { ...held.spent.usage }, rounds: held.spent.rounds },
+			});
+		} catch {
+			await finish(session.id, seq, {
+				state: 'failed',
+				failure: { code: 'COPILOT_RUNTIME_FAILED' },
+			});
+		}
+	}
+
+	/** A running turn's record in memory, with what it spent before (4.4). */
+	function runningFor(session: CopilotSessionV1, turn: CopilotTurnV1, spent: Spent): Running {
+		let resolve!: (turn: CopilotTurnV1) => void;
+		const settled = new Promise<CopilotTurnV1>((done) => {
+			resolve = done;
+		});
+		return {
+			turn,
+			session,
+			controller: new AbortController(),
+			revoked: false,
+			settled,
+			resolve,
+			spent: structuredClone(spent),
+			startedAt: deps.now(),
+			pending: new Map(),
+			replyBefore: '',
+		};
+	}
+
+	/** 4.4's seconds, less what the turn spent before: past them it stops with `stoppedBy: 'limit'`. */
+	function armTimer(live: Running): void {
+		const left = Math.max(0, TURN_LIMITS.seconds * 1000 - live.spent.elapsedMs);
+		live.timer = setTimeout(
+			() => void finish(live.session.id, live.turn.seq, { state: 'stopped', stoppedBy: 'limit' }),
+			left
+		);
+	}
+
+	const historyOf = (turns: readonly CopilotTurnV1[]) =>
+		turns.flatMap((earlier) => [
+			{ role: 'user' as const, text: earlier.text },
+			...(earlier.reply ? [{ role: 'assistant' as const, text: earlier.reply }] : []),
+		]);
+
+	/** Whether this session raised the confirmation: this turn's, or one a turn of it recorded (6.2). */
+	async function raisedBy(live: Running, notification: string): Promise<boolean> {
+		if (live.pending.has(notification)) return true;
+		return (await turnsOf(live.session.id)).some((turn) =>
+			turn.calls.some((call) => call.notification === notification)
+		);
+	}
+
+	/** End a waiting turn as `state`, and say whether there was one (3.5). */
+	async function endWaiting(
+		session: string,
+		seq: number | undefined,
+		state: 'done' | 'stopped',
+		stoppedBy?: 'person' | 'session-changed'
+	): Promise<CopilotTurnV1 | undefined> {
+		const held = waiting.get(session);
+		if (!held || (seq !== undefined && held.turn.seq !== seq)) return undefined;
+		waiting.delete(session);
+		// Its confirmations stay held while its end is written (re-check 6): a late call's cleanup must still see them.
+		ending.add(held);
+		if (held.timer) clearTimeout(held.timer);
+		try {
+			await held.settling;
+			const turn: CopilotTurnV1 = { ...held.turn, state, ...(stoppedBy ? { stoppedBy } : {}) };
+			await deps.runBoot(COPILOT_TURN_SETTLE, {
+				turn,
+				...(state === 'stopped' ? { withdraw: withdrawalOf(held.session, held.pending) } : {}),
+			});
+			return turn;
+		} finally {
+			ending.delete(held);
+		}
 	}
 
 	// ─── The agent port's kernel half (3.2) ───────────────────────────────────
@@ -264,7 +703,6 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 		const scope: ScopeV1 | 'workspace' = session.scope.project
 			? { workspace: deps.workspace, project: session.scope.project }
 			: 'workspace';
-		let calls = 0;
 		/**
 		 * Whether the person the kernel decides for is still the session's: on a change of person every turn stops, and
 		 * a call that races the change is refused rather than run for the next person (3.2).
@@ -295,9 +733,9 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 					deps.internal(name)
 				)
 					return refuse('Not a command the copilot calls', ['name']);
-				calls += 1;
-				const callId = `cpc_${String(calls).padStart(4, '0')}`;
-				if (calls > TURN_LIMITS.calls) {
+				live.spent.calls += 1;
+				const callId = `cpc_${String(live.spent.calls).padStart(4, '0')}`;
+				if (live.spent.calls > TURN_LIMITS.calls) {
 					void finish(session.id, live.turn.seq, {
 						state: 'stopped',
 						stoppedBy: 'limit',
@@ -305,58 +743,137 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 					return refuse('The turn reached its limit of calls', ['call']);
 				}
 				const trace = { session: session.id, turn: live.turn.seq, call: callId };
+				const inputDigest = await deps.digest(input ?? {});
+				// Again after the await, with none between this and the dispatch (the re-check's B2): a stop or a change of
+				// person while the digest was made sends nothing.
+				if (live.revoked) return refuse('The turn has ended', ['call']);
+				if (!samePerson()) return refuse('The person changed', ['call']);
 				const result = await deps.callAsCopilot(name, input, trace, scope);
+				const decided = decisions.get(traceKey(trace));
+				decisions.delete(traceKey(trace));
 				const instance = deps.instanceOf(name);
+				const code = result.success ? undefined : (result.error?.code ?? 'UNKNOWN');
+				// A result's own words never make a confirmation or a suggestion (the reviews' I1): only the id the
+				// confirmations' gate issued or found pending for this very call, read back to be this session's, or the
+				// suggestion the gate recorded for it.
+				const claimed =
+					code === 'CONFIRMATION_PENDING' && decided?.notification !== undefined
+						? await deps.confirmationOf?.(decided.notification, session.person)
+						: undefined;
+				const notification = claimed?.session === session.id ? claimed.id : undefined;
+				const suggestion = code === 'AUTONOMY_SUGGEST_ONLY' ? decided?.suggestion : undefined;
 				const entry: CopilotCallV1 = {
 					callId,
 					command: name,
 					...(instance ? { instance } : {}),
-					inputDigest: await deps.digest(input ?? {}),
-					mode: 'act',
-					outcome: result.success ? 'ok' : 'error',
-					...(result.success ? {} : { code: result.error?.code ?? 'UNKNOWN' }),
+					inputDigest,
+					// A command's own `confirm_prompt` asks in `act` too: what reached the person is an ask (3.4).
+					mode: notification !== undefined ? 'ask' : (decided?.mode ?? 'act'),
+					...(decided ? { reason: decided.reason } : {}),
+					outcome:
+						notification !== undefined
+							? 'pending'
+							: suggestion !== undefined
+								? 'suggested'
+								: result.success
+									? 'ok'
+									: 'error',
+					...(code !== undefined ? { code } : {}),
+					...(notification !== undefined ? { notification } : {}),
+					...(suggestion !== undefined ? { suggestion } : {}),
 					...(result.success && typeof result.undoCommand === 'string'
 						? { undo: result.undoCommand }
 						: {}),
 					// Before step 4 the copilot reaches no mounted instance, so every result it receives is trusted.
 					labels: { content: 0, server: 0, trusted: 1 },
 				};
-				if (!live.revoked) live.turn.calls.push(entry);
+				if (!live.revoked) {
+					live.turn.calls.push(entry);
+					if (notification !== undefined && claimed)
+						live.pending.set(notification, claimed.expiresAt);
+				} else if (
+					notification !== undefined &&
+					// Only one this very call raised, and no live turn of the session holds (re-check 4): a confirmation
+					// found pending on the key may be one another turn waits on.
+					claimed?.raisedBy?.turn === live.turn.seq &&
+					claimed.raisedBy.call === callId &&
+					!waiting.get(session.id)?.pending.has(notification) &&
+					!running.get(session.id)?.pending.has(notification) &&
+					![...ending].some(
+						(each) => each.session.id === session.id && each.pending.has(notification)
+					) &&
+					// Nor one a turn of the session recorded, an ended one too: a waiting turn a new message ended left its
+					// confirmations in the inbox on purpose (re-check 5).
+					!(await turnsOf(session.id)).some((turn) =>
+						turn.calls.some((each) => each.notification === notification)
+					)
+				) {
+					// The turn ended while this call asked: what it raised goes with the turn (3.5), through the settle's
+					// journaled entry again, with the turn as it was stored, so a replay withdraws it too (re-check 2).
+					// That id alone, and the turn's record left as it is (re-check 3): another of its confirmations may
+					// still be waiting for the person.
+					await deps.runBoot(COPILOT_TURN_SETTLE, {
+						withdraw: { person: session.person, ids: [notification] },
+					});
+				}
 				return result;
 			},
 			async listCommands() {
 				if (live.revoked || !samePerson()) return [];
 				return toolsFor();
 			},
-			async confirmation() {
-				// No confirmation is raised before step 3, so this session raised none to read (6.2).
-				return refuse('No confirmation of this session has that id', ['notification']);
+			async confirmation(notification) {
+				if (live.revoked) return refuse('The turn has ended', ['confirmation']);
+				if (!samePerson()) return refuse('The person changed', ['confirmation']);
+				// Only a confirmation this session raised (6.2); the kernel's own read checks the session again.
+				// A read is a call of the turn's, under its limit (4.4), charged before its lookup (the re-check's B6).
+				live.spent.calls += 1;
+				if (live.spent.calls > TURN_LIMITS.calls) {
+					void finish(session.id, live.turn.seq, { state: 'stopped', stoppedBy: 'limit' });
+					return refuse('The turn reached its limit of calls', ['confirmation']);
+				}
+				if (typeof notification !== 'string' || !(await raisedBy(live, notification)))
+					return refuse('No confirmation of this session has that id', ['notification']);
+				// Again after the lookup, with none between this and the read (re-check 2, B5).
+				if (live.revoked) return refuse('The turn has ended', ['confirmation']);
+				if (!samePerson()) return refuse('The person changed', ['confirmation']);
+				return deps.callAsCopilot(
+					'confirmation-get',
+					{ notification },
+					{ session: session.id, turn: live.turn.seq, call: 'confirmation' },
+					scope
+				);
 			},
 		};
 	}
 
 	/** 4.5's list: the agent interface's commands, less every one the copilot may not reach. */
 	function toolsFor(): ToolDescriptorV1[] {
-		return deps
-			.agentCommands()
-			.filter(
-				(command) =>
-					!deps.internal(command.name) &&
-					!deps.humanOnly(command.name) &&
-					// No mounted tool is listed until step 4, so no mounted content reaches a session before taint (4.5).
-					!deps.isMounted(command.name) &&
-					!command.name.startsWith('confirmation-') &&
-					!CHROME_ONLY.includes(command.name)
-			)
-			.slice(0, TOOLS_MAX)
-			.map((command) => ({
-				name: command.name,
-				description: command.description,
-				inputSchema:
-					command.inputSchema && typeof command.inputSchema === 'object'
-						? (command.inputSchema as Record<string, unknown>)
-						: { type: 'object' },
-			}));
+		return (
+			deps
+				.agentCommands()
+				.filter(
+					(command) =>
+						!deps.internal(command.name) &&
+						!deps.humanOnly(command.name) &&
+						// No mounted tool is listed until step 4, so no mounted content reaches a session before taint (4.5).
+						!deps.isMounted(command.name) &&
+						// Signing in or out is the person's alone (6.1).
+						!command.name.startsWith('auth-') &&
+						!command.name.startsWith('confirmation-') &&
+						!CHROME_ONLY.includes(command.name)
+				)
+				// One place is the runtime's own `confirmation-get` (4.5's 128 in all).
+				.slice(0, TOOLS_MAX - 1)
+				.map((command) => ({
+					name: command.name,
+					description: command.description,
+					inputSchema:
+						command.inputSchema && typeof command.inputSchema === 'object'
+							? (command.inputSchema as Record<string, unknown>)
+							: { type: 'object' },
+				}))
+		);
 	}
 
 	// ─── The commands (3.5) ───────────────────────────────────────────────────
@@ -468,6 +985,9 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 			const startedAt = epoch;
 			let previous: CopilotTurnV1[];
 			try {
+				// A new message while a turn waits starts a new turn: the waiting one ends as done, and its pending
+				// confirmations stay in the inbox (3.5).
+				await endWaiting(session.id, undefined, 'done');
 				previous = await turnsOf(session.id);
 			} catch (cause) {
 				starting.delete(session.id);
@@ -489,18 +1009,13 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 			} finally {
 				starting.delete(session.id);
 			}
-			let resolve!: (turn: CopilotTurnV1) => void;
-			const settled = new Promise<CopilotTurnV1>((done) => {
-				resolve = done;
+			const live = runningFor(session, copy(turn), {
+				calls: 0,
+				rounds: 0,
+				elapsedMs: 0,
+				usage: { inputTokens: 0, outputTokens: 0 },
 			});
-			const live: Running = {
-				turn: copy(turn),
-				session,
-				controller: new AbortController(),
-				revoked: false,
-				settled,
-				resolve,
-			};
+			const { settled } = live;
 			running.set(session.id, live);
 			// The person changed while the turn's record was written: it ends as the change of person, unlaunched.
 			if (epoch !== startedAt || deps.person() !== session.person) {
@@ -508,14 +1023,8 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 				return kit.success({ turn: copy(live.turn) });
 			}
 			// 4.4's seconds: a turn that runs past them stops with `stoppedBy: 'limit'`.
-			live.timer = setTimeout(
-				() => void finish(session.id, seq, { state: 'stopped', stoppedBy: 'limit' }),
-				TURN_LIMITS.seconds * 1000
-			);
-			const history = previous.flatMap((earlier) => [
-				{ role: 'user' as const, text: earlier.text },
-				...(earlier.reply ? [{ role: 'assistant' as const, text: earlier.reply }] : []),
-			]);
+			armTimer(live);
+			const history = historyOf(previous);
 			try {
 				deps.options.runner.start({
 					session,
@@ -571,10 +1080,10 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 		async handler(input, context) {
 			const session = await own(kit.personOf(context), input.session);
 			if (!session) return sessionNotFound(input.session);
-			const stopped = await finish(session.id, input.turn, {
-				state: 'stopped',
-				stoppedBy: 'person',
-			});
+			const stopped =
+				(await finish(session.id, input.turn, { state: 'stopped', stoppedBy: 'person' })) ??
+				(await endWaiting(session.id, input.turn, 'stopped', 'person'));
+			// Stopping withdrew the turn's pending confirmations (3.5), in `finish` or `endWaiting`.
 			if (stopped) return kit.success({ turn: stopped });
 			const found = (await turnsOf(session.id)).find((turn) => turn.seq === input.turn);
 			if (!found) {
@@ -638,7 +1147,12 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 	});
 	const sessionGet = kit.define<
 		typeof getInput,
-		{ session: CopilotSessionV1; turns: CopilotTurnV1[] }
+		{
+			session: CopilotSessionV1;
+			turns: CopilotTurnV1[];
+			confirmations: CopilotConfirmationCardV1[];
+			suggestions: CopilotSuggestionCardV1[];
+		}
 	>({
 		name: 'copilot-session-get',
 		title: 'Show a copilot session',
@@ -665,7 +1179,43 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 			const turns = (await turnsOf(session.id))
 				.filter((turn) => turn.seq >= from)
 				.slice(0, input.limit ?? 20);
-			return kit.success({ session, turns });
+			// The panel's cards, from the kernel's records alone, by the ids the agent port's half recorded (3.2, 6.2).
+			const confirmations: CopilotConfirmationCardV1[] = [];
+			const suggestions: CopilotSuggestionCardV1[] = [];
+			const now = kit.callNow(context);
+			const seen = new Set<string>();
+			for (const call of turns.flatMap((turn) => turn.calls)) {
+				// One card per confirmation, however many calls found it (re-check 2).
+				if (call.notification !== undefined && !seen.has(call.notification)) {
+					seen.add(call.notification);
+					// As the person may read it now (the inbox's rule): a project they left shows nothing (re-check 3).
+					const card = await deps.confirmationOf?.(call.notification, session.person, {
+						reader: { actor: context.actor },
+					});
+					if (card && card.session === session.id) confirmations.push(card);
+				}
+				if (call.suggestion !== undefined && SUGGESTION_ID.test(call.suggestion)) {
+					const row = await store.get<SuggestionV1>(SUGGESTION_TABLE, call.suggestion);
+					if (
+						row &&
+						row.person === session.person &&
+						row.session === session.id &&
+						deps.allows?.(context.actor, row.scope) !== false
+					) {
+						suggestions.push({
+							id: row.id,
+							command: row.command,
+							input: structuredClone(row.input),
+							scope: row.scope,
+							reasons: [...row.reasons],
+							sources: [...row.sources],
+							expiresAt: row.expiresAt,
+							ran: row.ranAt !== undefined || now >= row.expiresAt,
+						});
+					}
+				}
+			}
+			return kit.success({ session, turns, confirmations, suggestions });
 		},
 	});
 
@@ -723,45 +1273,20 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 		expose: COPILOT_EXPOSE,
 		async handler(input, context) {
 			const person = kit.personOf(context);
-			const listed = await store.list<CopilotSessionV1>(COPILOT_SESSION_TABLE, {
-				person,
-			} as never);
-			const sessions = listed.data.filter(
-				(row) =>
-					row.person === person &&
-					(input.project === undefined || row.scope.project === input.project)
+			// 6.3's daily counters, and the confirmations still waiting, so what expired is what was asked less the rest.
+			const pending = (await deps.pendingAsked?.(person)) ?? [];
+			const keys = pending.map((row) =>
+				enforcement.keyOf(person, row.command, row.scope, row.reason, row.createdAt)
 			);
-			// Before step 3 nothing asks or suggests, so every count but `acted` is 0: a call the copilot made in `act`
-			// that reached its command. Step 3 keeps 6.3's counters by day; this reads the turns.
-			const rows = new Map<string, ApprovalHealthRowV1>();
-			for (const session of sessions) {
-				if (input.since !== undefined && session.createdAt < input.since) continue;
-				for (const turn of await turnsOf(session.id)) {
-					for (const call of turn.calls) {
-						if (call.mode !== 'act' || call.code === 'AUTONOMY_UNAVAILABLE') continue;
-						const key = `${call.instance ?? ''}\u0000${call.command}`;
-						const row = rows.get(key) ?? {
-							...(call.instance ? { instance: call.instance } : {}),
-							command: call.command,
-							reason: 'policy' as const,
-							...zeroCounters(),
-						};
-						row.acted += 1;
-						rows.set(key, row);
-					}
-				}
-			}
-			const totals = zeroCounters();
-			for (const row of rows.values()) totals.acted += row.acted;
-			const rate = (top: number, bottom: number) => (bottom === 0 ? null : top / bottom);
-			return kit.success({
-				totals,
-				askRate: rate(totals.asked, totals.acted + totals.asked),
-				confirmRate: rate(totals.confirmed, totals.asked),
-				declineRate: rate(totals.declined, totals.asked),
-				rows: [...rows.values()],
-				flags: [],
-			});
+			const read = await health.read(
+				person,
+				{ project: input.project, since: input.since, now: kit.callNow(context) },
+				keys
+			);
+			// No setting removes a destructive or approval-held command's ask, or its own `confirm_prompt`'s: not flagged.
+			const fixed = (command: string) =>
+				deps.heldBy?.(command) !== undefined || deps.declares?.(command) === true;
+			return kit.success({ ...read, flags: read.flags.filter((flag) => !fixed(flag.command)) });
 		},
 	});
 
@@ -788,7 +1313,15 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 		},
 	});
 
-	const settleInput = z.strictObject({ turn: z.unknown() });
+	const settleInput = z.strictObject({
+		turn: z.optional(z.unknown()),
+		withdraw: z.optional(
+			z.strictObject({
+				person: z.string().check(z.minLength(1), z.maxLength(256)),
+				ids: z.array(z.string().check(z.maxLength(64))).check(z.maxLength(200)),
+			})
+		),
+	});
 	const turnSettle = kit.define<typeof settleInput, { turn: CopilotTurnV1 }>({
 		name: COPILOT_TURN_SETTLE,
 		description: 'The kernel’s record of how a copilot turn ended (boot-only)',
@@ -797,44 +1330,28 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 		executionTime: 'fast',
 		input: settleInput,
 		jsonSchema: { type: 'object' },
-		async handler(input) {
+		async handler(input, context) {
+			const ended = input.withdraw as { person: string; ids: string[] } | undefined;
+			// With no turn, a late call's own confirmation alone (its turn already ended and was written).
+			if (input.turn === undefined) {
+				for (const each of ended?.ids ?? [])
+					await deps.withdraw?.(context, { id: each }, ended?.person ?? '');
+				return kit.success({ turn: undefined as never });
+			}
 			const turn = input.turn as CopilotTurnV1;
 			const id = turnId(turn.session, turn.seq);
 			const row = { id, ...turn };
 			if (await store.get(COPILOT_TURN_TABLE, id)) await store.update(COPILOT_TURN_TABLE, id, row);
 			else await store.create(COPILOT_TURN_TABLE, row);
+			// An ended turn's pending confirmations go with it (3.5): those it raised, by the session and turn stored on
+			// them, and those it holds by id.
+			if (ended) {
+				await deps.withdraw?.(context, { session: turn.session, turn: turn.seq }, ended.person);
+				for (const each of ended.ids) await deps.withdraw?.(context, { id: each }, ended.person);
+			}
 			return kit.success({ turn });
 		},
 	});
-
-	// ─── The gate (6.1) ───────────────────────────────────────────────────────
-
-	const gate: CommandMiddleware = async (name, input, context, next) => {
-		const trace = (context as { trace?: CopilotTraceV1 }).trace;
-		// The copilot's own calls only, and only its top-level call: a nested call runs inside the call this gate let
-		// through, and its own checks (a handler's nested mutation is refused) still apply.
-		if (trace === undefined || context.parent !== undefined || context.caller !== undefined)
-			return next();
-		if (name === COPILOT_PORT_REFUSE) return next();
-		if (deps.handlerRefuses?.(name, input) === true) return next();
-		if (deps.isMutation(name)) {
-			return fail(
-				'AUTONOMY_UNAVAILABLE',
-				`'${name}' changes something, and the copilot can only read until autonomy is enforced`,
-				SUGGESTIONS.AUTONOMY_UNAVAILABLE
-			);
-		}
-		// A mounted tool's default mode is `ask` (phase 4's 4.2), and nothing can ask yet: refused, so no mounted
-		// content reaches a session before step 4's labels and taint, even by a name the copilot was not listed.
-		if (deps.isMounted(name)) {
-			return fail(
-				'AUTONOMY_UNAVAILABLE',
-				`'${name}' is a mounted server's command, which the copilot cannot call until autonomy is enforced`,
-				SUGGESTIONS.AUTONOMY_UNAVAILABLE
-			);
-		}
-		return next();
-	};
 
 	const contextFields: ContextFieldV2[] = [
 		// `session` is a name AFD sets itself (the auth session), so the copilot's session is `copilotSession`.
@@ -875,55 +1392,46 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 		internal: [portRefuse] as unknown as ZodCommandDefinition[],
 		bootOnly: [turnSettle] as unknown as ZodCommandDefinition[],
 		contextFields,
-		gate,
+		gate: enforcement.gate,
+		suggestions: { suggestion: enforcement.suggestion, ran: enforcement.ran },
+		async observe(event, row) {
+			const asked = row.confirmation.asked;
+			// Approval health counts an agent's confirmations alone, by the day it was raised (6.3).
+			if (asked !== undefined) {
+				await health.bump(
+					enforcement.keyOf(
+						row.person,
+						row.confirmation.command,
+						row.scope,
+						asked.reason,
+						row.createdAt
+					),
+					event
+				);
+			}
+			// A waiting turn hears its confirmation end, and continues once all have (3.5).
+			const session = row.confirmation.session;
+			if (event !== 'asked' && session !== undefined && waiting.get(session)?.pending.has(row.id))
+				void check(session);
+		},
 		async stopAll(stoppedBy) {
 			if (stoppedBy === 'session-changed') epoch += 1;
-			await Promise.all(
-				[...running.values()].map((live) =>
+			await Promise.all([
+				...[...running.values()].map((live) =>
 					finish(live.session.id, live.turn.seq, { state: 'stopped', stoppedBy })
-				)
-			);
+				),
+				...[...waiting.keys()].map((session) =>
+					endWaiting(session, undefined, 'stopped', stoppedBy)
+				),
+			]);
 			// A change of person also removes every runtime: the frame goes, with whatever it held (3.2).
 			if (stoppedBy === 'session-changed') deps.options?.runner?.reset?.();
 		},
 	};
 }
 
-/** 6.3's counters. */
-export interface ApprovalCountersV1 {
-	acted: number;
-	asked: number;
-	confirmed: number;
-	declined: number;
-	expired: number;
-	withdrawn: number;
-	suggested: number;
-	ranSuggestion: number;
-}
-
-export interface ApprovalHealthRowV1 extends ApprovalCountersV1 {
-	instance?: string;
-	command: string;
-	reason: 'policy' | 'taint' | 'unit';
-}
-
-/** `approval-health-get`'s answer (6.3). */
-export interface ApprovalHealthV1 {
-	totals: ApprovalCountersV1;
-	askRate: number | null;
-	confirmRate: number | null;
-	declineRate: number | null;
-	rows: ApprovalHealthRowV1[];
-	flags: Array<{ code: string; message: string }>;
-}
-
-const zeroCounters = (): ApprovalCountersV1 => ({
-	acted: 0,
-	asked: 0,
-	confirmed: 0,
-	declined: 0,
-	expired: 0,
-	withdrawn: 0,
-	suggested: 0,
-	ranSuggestion: 0,
-});
+export type {
+	ApprovalCountersV1,
+	ApprovalHealthRowV1,
+	ApprovalHealthV1,
+} from './health.js';

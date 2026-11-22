@@ -396,7 +396,7 @@ describe('P2-E3: two projects, and an app at each level', () => {
 		const list = page.locator('loam-rail loam-project-list');
 		await expect.poll(() => texts(list.locator('violet-option'))).toContain('Atlas');
 		// Signed out while it is open: Atlas, still listed, is now refused.
-		await agentCall(page, 'auth-sign-out');
+		await kernelCall(page, 'auth-sign-out');
 		await list.locator('violet-option', { hasText: 'Atlas' }).click();
 		const failure = list.locator('p.failure');
 		await expect.poll(() => failure.textContent()).toContain('No project with that name');

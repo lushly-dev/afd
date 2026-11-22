@@ -22,7 +22,7 @@ steps:
     input: {}
     expect:
       success: true
-      data: { count: 3 }
+      data: { total: 3 }
   - description: The refusal is recorded, naming who called
     command: event-list
     input: { kinds: [call-refused], limit: 1 }
@@ -37,4 +37,4 @@ steps:
     input: {}
     expect:
       success: true
-      data: { count: 3 }
+      data: { total: 3 }

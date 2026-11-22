@@ -500,7 +500,7 @@ Written when the session coordinating phase 2 ran out of account capacity. `main
   - 1, the copilot core: merged in [#1493](https://github.com/lushly-dev/afd/pull/1493) on 2026-11-17 ([its record](phases/5-copilot/spec.md#step-1-2026-11-17)): `@lushly-dev/loam-copilot` (the runtime adapter over TanStack AI, the ports' runtime halves, the context builder, the test provider and the runtime frame); kernel interface 5 (the copilot's trace, read only from the agent port's own options and inherited by nested calls; `copilot` reserved); the seven commands and two records of 3.4 and 3.5; the ports' trusted halves; mutations and mounted commands `AUTONOMY_UNAVAILABLE` for the copilot; the frame on the sandbox origin under its path-scoped policy on every host; the panel without approval cards; Loam's scenario runner, the seeds, the model scripts and `mailfix`; scenarios 6 and 8; P5-A2. What it decided, measured and left is in [its record](phases/5-copilot/spec.md#step-1-2026-11-17).
   - 2, model access on the desktop: merged in [#1531](https://github.com/lushly-dev/afd/pull/1531) on 2026-11-18 ([its record](phases/5-copilot/spec.md#step-2-2026-11-18)): version 4's `[copilot]` and the projection's `copilot` (ids, kinds and models, never a key or an endpoint), read whole by both stages; `deployment write --models-out`, owner-only, and the sandbox origin in `frame-src` whenever a provider is listed; `loam copilot key set`, which stores the key with the platform's own keychain tool and checks it, the development path; the Rust host's `model_send` and `model_cancel`, which resolve the key per request, check the body against the kind's allow-list, build the request themselves and stream `loam:model` events, behind `from_shell`; phase 6's 10.2, 10.4, 17, P6-D4 and D106 at six commands (five registered until step 11b); the panel turned on from the projection, beside an app's panel without axe's `scrollable-region-focusable`, and kept through app switches; a successful sign-in or sign-out stops the copilot in a `local` deployment; the desktop suite's stderr with Tauri's invoke key redacted (#1448's first item); P5-A3 on WebView2. Its trust review and what it left are in [its record](phases/5-copilot/spec.md#step-2-2026-11-18); #1507 is closed by it.
 
-  - 3, enforcement and approval health: not started.
+  - 3, enforcement and approval health: in review in [#1915](https://github.com/lushly-dev/afd/pull/1915), trust review answered over four rounds ([its record](phases/5-copilot/spec.md#step-3-2026-11-21)): autonomy enforced on every agent-interface call (`act`, `ask`, `suggest`, destructive and approval-held at most `ask`); suggestion records and "Run it"; the waiting turn and its continuation; stops that withdraw; approval health and its place in the autonomy section; the panel's cards; 10.8 amended for `loam-inbound`; jobs 1 and 5 run.
 
   - 4, labels, taint and grants to mounts: not started.
 
@@ -600,6 +600,9 @@ status changes.
 
 | Date | Raised by | Follow-up | Status |
 | --- | --- | --- | --- |
+| 2026-11-21 | Phase 5 step 3 | A shell command whose own handler refuses (a document of another scope) is asked before its handler runs; run the shell's resource checks before the mode ([phase 5's follow-ups](phases/5-copilot/spec.md#follow-ups)) | Open |
+| 2026-11-21 | Phase 5 step 3's re-checks | Replay parity for agents' calls under enforcement: a replay does not raise again, or count, an agent's confirmation for a command it answers from its journal entry, and a replay of an agent's write to an app diverges (a confirmed run's entry is journaled after an app read it caused) ([phase 5's follow-ups](phases/5-copilot/spec.md#follow-ups)) | Open: [#1936](https://github.com/lushly-dev/afd/issues/1936) |
+| 2026-11-21 | Phase 5 step 3 | P5-A8's cards and axe in the desktop suite (WebView2, WebKitGTK); step 3 ran them in Chromium only | Open |
 
 ### Follow-ups: phase 6, hosts and distribution
 
@@ -714,6 +717,7 @@ new row.
 
 | Date | Session | What changed |
 | --- | --- | --- |
+| 2026-11-21 | Phase 5 step 3 | [#1915](https://github.com/lushly-dev/afd/pull/1915): enforcement and approval health (phase 5 specification, step 3; [its record](phases/5-copilot/spec.md#step-3-2026-11-21)): the gate of 6.1 on every agent-interface call, the confirmation's `asked`, `session` and `trace`, suggestion records and "Run it", the continuation, approval health, the panel's cards, the autonomy section's notice and health, 10.8 amended; `p5-base` on `p4-base`, jobs 1 and 5 run; phase 4's P4-E2 sweep, `agent-changes-setting` and E13's notice amended; the app test kit lets agents act by default. Budget rows raised under D115. Trust review: four rounds by GPT-6.2 Astra and Claude Opus 5.5, every blocker fixed but one replay-parity gap, a follow-up. Verified on macOS with Node 26: the kernel's 1,435 units, chrome's 279, the runtime, the kit and the apps; Chromium's copilot, cards, autonomy, confirmations and inbox files; `budget`; the desktop crate's `cargo fmt`, `clippy` and `cargo test`; `pnpm verify`, all 21 steps, at `146b0769`. Not run: the desktop WebDriver suite (no macOS suite) |
 
 ### Sessions: phase 6, hosts and distribution
 

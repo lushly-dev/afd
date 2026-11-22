@@ -130,6 +130,14 @@ export interface Autonomy {
 	 * B's apply and after each catalog install or change of an instance (`app-instance-refresh`, `workspace-app-set`).
 	 */
 	orphanChanges(): Promise<{ orphaned: string[]; restored: string[] }>;
+	/**
+	 * Phase 5's enforcement (its 6.1): 4.2's resolution for one call, in the call's scope, with the person's cap; undefined
+	 * for a command neither the shell nor an enabled instance registers, which the gate then treats by its default.
+	 */
+	resolveFor(
+		name: string,
+		context: CommandContext
+	): Promise<(AutonomyResolutionV1 & { command: AutonomyCommandV1 }) | undefined>;
 }
 
 /** A row as the kernel holds it, with the workspace it belongs to. */
@@ -890,5 +898,13 @@ export function createAutonomy(deps: AutonomyDeps): Autonomy {
 		commands: [autonomyGet, autonomyList, autonomySet] as unknown as ZodCommandDefinition[],
 		settleCommand: settle as unknown as ZodCommandDefinition,
 		orphanChanges: changes,
+		async resolveFor(name, context) {
+			const command = commandOf(name);
+			if (!command) return undefined;
+			const project = (context as KernelFieldContext).scope?.project;
+			const rows = await readRows();
+			const cap = (await capOf(context))?.value as AutonomyModeV1 | undefined;
+			return { command, ...resolveAutonomy({ rows, command, project, cap }) };
+		},
 	};
 }

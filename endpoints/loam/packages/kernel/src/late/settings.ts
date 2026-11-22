@@ -1417,6 +1417,8 @@ export function createSettings(deps: SettingsDeps): Settings {
 			const asked =
 				typeof input === 'object' && input !== null ? (input as Record<string, unknown>) : {};
 			if (asked.level === 'workspace' || asked.level === 'project') return true;
+			// `migrated` is the shell's own move alone, which the handler refuses from anyone else (3.6).
+			if (asked.migrated !== undefined) return true;
 			return (
 				asked.level === 'person' &&
 				typeof asked.section === 'string' &&

@@ -229,7 +229,9 @@ function referenceQueries(
 function referenceCall(random: () => number, signedIn: { value: boolean }): SessionCall {
 	const iface: KernelInterfaceV0 = random() < 0.7 ? 'palette' : 'agent';
 	const call = (name: string, input: unknown = {}): SessionCall => ({
-		interface: iface,
+		// The person's own appearance and session are the person's (phase 5's 6.1): an agent's write of either asks or
+		// is refused, so the person makes them.
+		interface: name === 'appearance-set' || name.startsWith('auth-sign') ? 'palette' : iface,
 		name,
 		input,
 	});

@@ -1,7 +1,7 @@
 [
 	{
 		"seq": 1,
-		"timestamp": "2026-01-01T00:00:00.002Z",
+		"timestamp": "2026-01-01T00:00:00.004Z",
 		"traceId": "loam-mjuohs00-1",
 		"command": "shell-info-get",
 		"input": {},
@@ -40,13 +40,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600003, 1767225600004],
+			"clock": [1767225600005, 1767225600006],
 			"random": []
 		}
 	},
 	{
 		"seq": 2,
-		"timestamp": "2026-01-01T00:00:00.006Z",
+		"timestamp": "2026-01-01T00:00:00.009Z",
 		"traceId": "loam-mjuohs00-2",
 		"command": "layout-get",
 		"input": {},
@@ -88,13 +88,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600007, 1767225600008],
+			"clock": [1767225600010, 1767225600011],
 			"random": []
 		}
 	},
 	{
 		"seq": 3,
-		"timestamp": "2026-01-01T00:00:00.010Z",
+		"timestamp": "2026-01-01T00:00:00.014Z",
 		"traceId": "loam-mjuohs00-3",
 		"command": "appearance-get",
 		"input": {},
@@ -121,13 +121,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600011, 1767225600012],
+			"clock": [1767225600015, 1767225600016],
 			"random": []
 		}
 	},
 	{
 		"seq": 4,
-		"timestamp": "2026-01-01T00:00:00.014Z",
+		"timestamp": "2026-01-01T00:00:00.019Z",
 		"traceId": "loam-mjuohs00-4",
 		"command": "auth-session-get",
 		"input": {},
@@ -155,13 +155,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600015, 1767225600016],
+			"clock": [1767225600020, 1767225600021],
 			"random": []
 		}
 	},
 	{
 		"seq": 5,
-		"timestamp": "2026-01-01T00:00:00.018Z",
+		"timestamp": "2026-01-01T00:00:00.024Z",
 		"traceId": "loam-mjuohs00-5",
 		"command": "auth-sign-in",
 		"input": {
@@ -182,8 +182,8 @@
 			"data": {
 				"status": "authenticated",
 				"session": {
-					"id": "mock-session-1794281584109",
-					"expiresAt": "2026-11-10T04:33:04.109Z"
+					"id": "mock-session-1767225600026",
+					"expiresAt": "2026-01-01T01:00:00.026Z"
 				},
 				"user": {
 					"id": "mock-user-person@example.com",
@@ -193,19 +193,19 @@
 			},
 			"reasoning": "Signed in via credentials as person@example.com",
 			"metadata": {
-				"executionTimeMs": 1,
+				"executionTimeMs": 7,
 				"traceId": "loam-mjuohs00-5"
 			}
 		},
-		"durationMs": 3,
+		"durationMs": 13,
 		"tape": {
-			"clock": [1767225600019, 1767225600020],
+			"clock": [1767225600025, 1767225600032, 1767225600034],
 			"random": []
 		}
 	},
 	{
 		"seq": 6,
-		"timestamp": "2026-01-01T00:00:00.022Z",
+		"timestamp": "2026-01-01T00:00:00.041Z",
 		"traceId": "loam-mjuohs00-6",
 		"command": "layout-set",
 		"input": {
@@ -261,15 +261,15 @@
 				"actorKind": "human"
 			}
 		},
-		"durationMs": 3,
+		"durationMs": 5,
 		"tape": {
-			"clock": [1767225600023, 1767225600024],
+			"clock": [1767225600044, 1767225600045],
 			"random": []
 		}
 	},
 	{
 		"seq": 7,
-		"timestamp": "2026-01-01T00:00:00.026Z",
+		"timestamp": "2026-01-01T00:00:00.049Z",
 		"traceId": "loam-mjuohs00-7",
 		"command": "layout-set",
 		"input": {
@@ -325,15 +325,15 @@
 				"actorKind": "human"
 			}
 		},
-		"durationMs": 3,
+		"durationMs": 5,
 		"tape": {
-			"clock": [1767225600027, 1767225600028],
+			"clock": [1767225600052, 1767225600053],
 			"random": []
 		}
 	},
 	{
 		"seq": 8,
-		"timestamp": "2026-01-01T00:00:00.030Z",
+		"timestamp": "2026-01-01T00:00:00.057Z",
 		"traceId": "loam-mjuohs00-8",
 		"command": "layout-set",
 		"input": {
@@ -389,15 +389,15 @@
 				"actorKind": "human"
 			}
 		},
-		"durationMs": 3,
+		"durationMs": 5,
 		"tape": {
-			"clock": [1767225600031, 1767225600032],
+			"clock": [1767225600060, 1767225600061],
 			"random": []
 		}
 	},
 	{
 		"seq": 9,
-		"timestamp": "2026-01-01T00:00:00.034Z",
+		"timestamp": "2026-01-01T00:00:00.065Z",
 		"traceId": "loam-mjuohs00-9",
 		"command": "layout-set",
 		"input": {
@@ -453,15 +453,15 @@
 				"actorKind": "human"
 			}
 		},
-		"durationMs": 3,
+		"durationMs": 5,
 		"tape": {
-			"clock": [1767225600035, 1767225600036],
+			"clock": [1767225600068, 1767225600069],
 			"random": []
 		}
 	},
 	{
 		"seq": 10,
-		"timestamp": "2026-01-01T00:00:00.038Z",
+		"timestamp": "2026-01-01T00:00:00.073Z",
 		"traceId": "loam-mjuohs00-10",
 		"command": "layout-set",
 		"input": {
@@ -517,15 +517,15 @@
 				"actorKind": "human"
 			}
 		},
-		"durationMs": 3,
+		"durationMs": 5,
 		"tape": {
-			"clock": [1767225600039, 1767225600040],
+			"clock": [1767225600076, 1767225600077],
 			"random": []
 		}
 	},
 	{
 		"seq": 11,
-		"timestamp": "2026-01-01T00:00:00.042Z",
+		"timestamp": "2026-01-01T00:00:00.081Z",
 		"traceId": "loam-mjuohs00-11",
 		"command": "layout-set",
 		"input": {
@@ -581,15 +581,15 @@
 				"actorKind": "human"
 			}
 		},
-		"durationMs": 3,
+		"durationMs": 5,
 		"tape": {
-			"clock": [1767225600043, 1767225600044],
+			"clock": [1767225600084, 1767225600085],
 			"random": []
 		}
 	},
 	{
 		"seq": 12,
-		"timestamp": "2026-01-01T00:00:00.046Z",
+		"timestamp": "2026-01-01T00:00:00.089Z",
 		"traceId": "loam-mjuohs00-12",
 		"command": "layout-set",
 		"input": {
@@ -645,15 +645,15 @@
 				"actorKind": "human"
 			}
 		},
-		"durationMs": 3,
+		"durationMs": 5,
 		"tape": {
-			"clock": [1767225600047, 1767225600048],
+			"clock": [1767225600092, 1767225600093],
 			"random": []
 		}
 	},
 	{
 		"seq": 13,
-		"timestamp": "2026-01-01T00:00:00.050Z",
+		"timestamp": "2026-01-01T00:00:00.097Z",
 		"traceId": "loam-mjuohs00-13",
 		"command": "layout-set",
 		"input": {
@@ -695,15 +695,15 @@
 				"actorKind": "human"
 			}
 		},
-		"durationMs": 3,
+		"durationMs": 5,
 		"tape": {
-			"clock": [1767225600051, 1767225600052],
+			"clock": [1767225600100, 1767225600101],
 			"random": []
 		}
 	},
 	{
 		"seq": 14,
-		"timestamp": "2026-01-01T00:00:00.054Z",
+		"timestamp": "2026-01-01T00:00:00.105Z",
 		"traceId": "loam-mjuohs00-14",
 		"command": "layout-set",
 		"input": {
@@ -745,15 +745,15 @@
 				"actorKind": "human"
 			}
 		},
-		"durationMs": 3,
+		"durationMs": 5,
 		"tape": {
-			"clock": [1767225600055, 1767225600056],
+			"clock": [1767225600108, 1767225600109],
 			"random": []
 		}
 	},
 	{
 		"seq": 15,
-		"timestamp": "2026-01-01T00:00:00.058Z",
+		"timestamp": "2026-01-01T00:00:00.113Z",
 		"traceId": "loam-mjuohs00-15",
 		"command": "layout-set",
 		"input": {
@@ -794,15 +794,15 @@
 				"actorKind": "human"
 			}
 		},
-		"durationMs": 3,
+		"durationMs": 5,
 		"tape": {
-			"clock": [1767225600059, 1767225600060],
+			"clock": [1767225600116, 1767225600117],
 			"random": []
 		}
 	},
 	{
 		"seq": 16,
-		"timestamp": "2026-01-01T00:00:00.062Z",
+		"timestamp": "2026-01-01T00:00:00.121Z",
 		"traceId": "loam-mjuohs00-16",
 		"command": "palette-open",
 		"input": {},
@@ -831,15 +831,15 @@
 				"actorKind": "human"
 			}
 		},
-		"durationMs": 3,
+		"durationMs": 5,
 		"tape": {
-			"clock": [1767225600063, 1767225600064],
+			"clock": [1767225600124, 1767225600125],
 			"random": []
 		}
 	},
 	{
 		"seq": 17,
-		"timestamp": "2026-01-01T00:00:00.066Z",
+		"timestamp": "2026-01-01T00:00:00.129Z",
 		"traceId": "loam-mjuohs00-17",
 		"command": "palette-close",
 		"input": {},
@@ -868,15 +868,15 @@
 				"actorKind": "human"
 			}
 		},
-		"durationMs": 3,
+		"durationMs": 5,
 		"tape": {
-			"clock": [1767225600067, 1767225600068],
+			"clock": [1767225600132, 1767225600133],
 			"random": []
 		}
 	},
 	{
 		"seq": 18,
-		"timestamp": "2026-01-01T00:00:00.070Z",
+		"timestamp": "2026-01-01T00:00:00.137Z",
 		"traceId": "loam-mjuohs00-18",
 		"command": "palette-open",
 		"input": {
@@ -907,15 +907,15 @@
 				"actorKind": "human"
 			}
 		},
-		"durationMs": 3,
+		"durationMs": 5,
 		"tape": {
-			"clock": [1767225600071, 1767225600072],
+			"clock": [1767225600140, 1767225600141],
 			"random": []
 		}
 	},
 	{
 		"seq": 19,
-		"timestamp": "2026-01-01T00:00:00.074Z",
+		"timestamp": "2026-01-01T00:00:00.145Z",
 		"traceId": "loam-mjuohs00-19",
 		"command": "palette-close",
 		"input": {},
@@ -944,15 +944,15 @@
 				"actorKind": "human"
 			}
 		},
-		"durationMs": 3,
+		"durationMs": 5,
 		"tape": {
-			"clock": [1767225600075, 1767225600076],
+			"clock": [1767225600148, 1767225600149],
 			"random": []
 		}
 	},
 	{
 		"seq": 20,
-		"timestamp": "2026-01-01T00:00:00.078Z",
+		"timestamp": "2026-01-01T00:00:00.153Z",
 		"traceId": "loam-mjuohs00-20",
 		"command": "appearance-set",
 		"input": {
@@ -984,20 +984,20 @@
 				"theme": "system"
 			},
 			"metadata": {
-				"executionTimeMs": 1,
+				"executionTimeMs": 3,
 				"traceId": "loam-mjuohs00-20",
 				"actorKind": "human"
 			}
 		},
-		"durationMs": 3,
+		"durationMs": 7,
 		"tape": {
-			"clock": [1767225600079, 1767225600080],
+			"clock": [1767225600156, 1767225600157, 1767225600158, 1767225600159],
 			"random": []
 		}
 	},
 	{
 		"seq": 21,
-		"timestamp": "2026-01-01T00:00:00.082Z",
+		"timestamp": "2026-01-01T00:00:00.163Z",
 		"traceId": "loam-mjuohs00-21",
 		"command": "appearance-set",
 		"input": {
@@ -1029,20 +1029,20 @@
 				"density": "comfortable"
 			},
 			"metadata": {
-				"executionTimeMs": 1,
+				"executionTimeMs": 3,
 				"traceId": "loam-mjuohs00-21",
 				"actorKind": "human"
 			}
 		},
-		"durationMs": 3,
+		"durationMs": 7,
 		"tape": {
-			"clock": [1767225600083, 1767225600084],
+			"clock": [1767225600166, 1767225600167, 1767225600168, 1767225600169],
 			"random": []
 		}
 	},
 	{
 		"seq": 22,
-		"timestamp": "2026-01-01T00:00:00.086Z",
+		"timestamp": "2026-01-01T00:00:00.173Z",
 		"traceId": "loam-mjuohs00-22",
 		"command": "appearance-get",
 		"input": {},
@@ -1073,15 +1073,15 @@
 				"actorKind": "human"
 			}
 		},
-		"durationMs": 3,
+		"durationMs": 5,
 		"tape": {
-			"clock": [1767225600087, 1767225600088],
+			"clock": [1767225600176, 1767225600177],
 			"random": []
 		}
 	},
 	{
 		"seq": 23,
-		"timestamp": "2026-01-01T00:00:00.090Z",
+		"timestamp": "2026-01-01T00:00:00.181Z",
 		"traceId": "loam-mjuohs00-23",
 		"command": "layout-get",
 		"input": {},
@@ -1127,15 +1127,15 @@
 				"actorKind": "agent"
 			}
 		},
-		"durationMs": 3,
+		"durationMs": 6,
 		"tape": {
-			"clock": [1767225600091, 1767225600092],
+			"clock": [1767225600184, 1767225600185, 1767225600186],
 			"random": []
 		}
 	},
 	{
 		"seq": 24,
-		"timestamp": "2026-01-01T00:00:00.094Z",
+		"timestamp": "2026-01-01T00:00:00.190Z",
 		"traceId": "loam-mjuohs00-24",
 		"command": "view-state-get",
 		"input": {
@@ -1188,15 +1188,15 @@
 				"actorKind": "agent"
 			}
 		},
-		"durationMs": 3,
+		"durationMs": 6,
 		"tape": {
-			"clock": [1767225600095, 1767225600096],
+			"clock": [1767225600193, 1767225600194, 1767225600195],
 			"random": []
 		}
 	},
 	{
 		"seq": 25,
-		"timestamp": "2026-01-01T00:00:00.098Z",
+		"timestamp": "2026-01-01T00:00:00.199Z",
 		"traceId": "loam-mjuohs00-25",
 		"command": "view-state-set",
 		"input": {
@@ -1299,15 +1299,15 @@
 				"actorKind": "agent"
 			}
 		},
-		"durationMs": 3,
+		"durationMs": 5,
 		"tape": {
-			"clock": [1767225600099, 1767225600100],
+			"clock": [1767225600202, 1767225600203],
 			"random": []
 		}
 	},
 	{
 		"seq": 26,
-		"timestamp": "2026-01-01T00:00:00.102Z",
+		"timestamp": "2026-01-01T00:00:00.207Z",
 		"traceId": "loam-mjuohs00-26",
 		"command": "view-state-set",
 		"input": {
@@ -1352,15 +1352,15 @@
 				"actorKind": "agent"
 			}
 		},
-		"durationMs": 3,
+		"durationMs": 5,
 		"tape": {
-			"clock": [1767225600103, 1767225600104],
+			"clock": [1767225600210, 1767225600211],
 			"random": []
 		}
 	},
 	{
 		"seq": 27,
-		"timestamp": "2026-01-01T00:00:00.106Z",
+		"timestamp": "2026-01-01T00:00:00.215Z",
 		"traceId": "loam-mjuohs00-27",
 		"command": "view-state-set",
 		"input": {
@@ -1463,15 +1463,15 @@
 				"actorKind": "agent"
 			}
 		},
-		"durationMs": 3,
+		"durationMs": 5,
 		"tape": {
-			"clock": [1767225600107, 1767225600108],
+			"clock": [1767225600218, 1767225600219],
 			"random": []
 		}
 	},
 	{
 		"seq": 28,
-		"timestamp": "2026-01-01T00:00:00.110Z",
+		"timestamp": "2026-01-01T00:00:00.223Z",
 		"traceId": "loam-mjuohs00-28",
 		"command": "view-state-list",
 		"input": {},
@@ -1610,15 +1610,15 @@
 				"actorKind": "agent"
 			}
 		},
-		"durationMs": 3,
+		"durationMs": 6,
 		"tape": {
-			"clock": [1767225600111, 1767225600112],
+			"clock": [1767225600226, 1767225600227, 1767225600228],
 			"random": []
 		}
 	},
 	{
 		"seq": 29,
-		"timestamp": "2026-01-01T00:00:00.114Z",
+		"timestamp": "2026-01-01T00:00:00.232Z",
 		"traceId": "loam-mjuohs00-29",
 		"command": "layout-set",
 		"input": {
@@ -1674,15 +1674,15 @@
 				"actorKind": "agent"
 			}
 		},
-		"durationMs": 3,
+		"durationMs": 5,
 		"tape": {
-			"clock": [1767225600115, 1767225600116],
+			"clock": [1767225600235, 1767225600236],
 			"random": []
 		}
 	},
 	{
 		"seq": 30,
-		"timestamp": "2026-01-01T00:00:00.118Z",
+		"timestamp": "2026-01-01T00:00:00.240Z",
 		"traceId": "loam-mjuohs00-30",
 		"command": "layout-set",
 		"input": {
@@ -1738,15 +1738,15 @@
 				"actorKind": "agent"
 			}
 		},
-		"durationMs": 3,
+		"durationMs": 5,
 		"tape": {
-			"clock": [1767225600119, 1767225600120],
+			"clock": [1767225600243, 1767225600244],
 			"random": []
 		}
 	},
 	{
 		"seq": 31,
-		"timestamp": "2026-01-01T00:00:00.122Z",
+		"timestamp": "2026-01-01T00:00:00.248Z",
 		"traceId": "loam-mjuohs00-31",
 		"command": "layout-set",
 		"input": {
@@ -1802,15 +1802,15 @@
 				"actorKind": "agent"
 			}
 		},
-		"durationMs": 3,
+		"durationMs": 5,
 		"tape": {
-			"clock": [1767225600123, 1767225600124],
+			"clock": [1767225600251, 1767225600252],
 			"random": []
 		}
 	},
 	{
 		"seq": 32,
-		"timestamp": "2026-01-01T00:00:00.126Z",
+		"timestamp": "2026-01-01T00:00:00.256Z",
 		"traceId": "loam-mjuohs00-32",
 		"command": "layout-set",
 		"input": {
@@ -1868,28 +1868,28 @@
 				"actorKind": "agent"
 			}
 		},
-		"durationMs": 3,
+		"durationMs": 5,
 		"tape": {
-			"clock": [1767225600127, 1767225600128],
+			"clock": [1767225600259, 1767225600260],
 			"random": []
 		}
 	},
 	{
 		"seq": 33,
-		"timestamp": "2026-01-01T00:00:00.130Z",
+		"timestamp": "2026-01-01T00:00:00.264Z",
 		"traceId": "loam-mjuohs00-33",
 		"command": "appearance-set",
 		"input": {
 			"theme": "high-contrast"
 		},
 		"actor": {
-			"kind": "agent",
-			"id": "shell-agent",
-			"onBehalfOf": "mock-user-person@example.com"
+			"kind": "human",
+			"id": "mock-user-person@example.com",
+			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:d20f3806473794e5e8fa8dc02c694a280e52d05bd40051a5ff747854acc5b915",
-			"interface": "agent"
+			"hash": "sha256:73bffed7da6c54f9f9c2e6de3c2f8db735e7377b8accc7e8660e1f21be617359",
+			"interface": "palette"
 		},
 		"context": {
 			"scope": {
@@ -1908,20 +1908,20 @@
 				"theme": "dark"
 			},
 			"metadata": {
-				"executionTimeMs": 1,
+				"executionTimeMs": 3,
 				"traceId": "loam-mjuohs00-33",
-				"actorKind": "agent"
+				"actorKind": "human"
 			}
 		},
-		"durationMs": 3,
+		"durationMs": 7,
 		"tape": {
-			"clock": [1767225600131, 1767225600132],
+			"clock": [1767225600267, 1767225600268, 1767225600269, 1767225600270],
 			"random": []
 		}
 	},
 	{
 		"seq": 34,
-		"timestamp": "2026-01-01T00:00:00.134Z",
+		"timestamp": "2026-01-01T00:00:00.274Z",
 		"traceId": "loam-mjuohs00-34",
 		"command": "view-state-set",
 		"input": {
@@ -1931,13 +1931,13 @@
 			}
 		},
 		"actor": {
-			"kind": "agent",
-			"id": "shell-agent",
-			"onBehalfOf": "mock-user-person@example.com"
+			"kind": "human",
+			"id": "mock-user-person@example.com",
+			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:f213f9f51736f6aac9d18983daab6d19f9b9f2535636988ff7dea6e5cfb9711b",
-			"interface": "agent"
+			"hash": "sha256:9c4c0fac06944370945cf924c786624dde2130df6e62bb6d7fbbcf89d0f62522",
+			"interface": "palette"
 		},
 		"context": {
 			"scope": {
@@ -1958,18 +1958,18 @@
 			"metadata": {
 				"executionTimeMs": 1,
 				"traceId": "loam-mjuohs00-34",
-				"actorKind": "agent"
+				"actorKind": "human"
 			}
 		},
-		"durationMs": 3,
+		"durationMs": 5,
 		"tape": {
-			"clock": [1767225600135, 1767225600136],
+			"clock": [1767225600277, 1767225600278],
 			"random": []
 		}
 	},
 	{
 		"seq": 35,
-		"timestamp": "2026-01-01T00:00:00.138Z",
+		"timestamp": "2026-01-01T00:00:00.282Z",
 		"traceId": "loam-mjuohs00-35",
 		"command": "view-state-set",
 		"input": {
@@ -1979,13 +1979,13 @@
 			}
 		},
 		"actor": {
-			"kind": "agent",
-			"id": "shell-agent",
-			"onBehalfOf": "mock-user-person@example.com"
+			"kind": "human",
+			"id": "mock-user-person@example.com",
+			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:2def2da2bc8c2c4170ff3ac08e38a3778196e8100dd6b4cfbd804ff6f719f4b7",
-			"interface": "agent"
+			"hash": "sha256:06d0910ebe0b8a2db44b824e077fada5bb838319862b65ead502159e0af05bb6",
+			"interface": "palette"
 		},
 		"context": {
 			"scope": {
@@ -2017,20 +2017,20 @@
 				"replace": true
 			},
 			"metadata": {
-				"executionTimeMs": 1,
+				"executionTimeMs": 3,
 				"traceId": "loam-mjuohs00-35",
-				"actorKind": "agent"
+				"actorKind": "human"
 			}
 		},
-		"durationMs": 3,
+		"durationMs": 7,
 		"tape": {
-			"clock": [1767225600139, 1767225600140],
+			"clock": [1767225600285, 1767225600286, 1767225600287, 1767225600288],
 			"random": []
 		}
 	},
 	{
 		"seq": 36,
-		"timestamp": "2026-01-01T00:00:00.142Z",
+		"timestamp": "2026-01-01T00:00:00.292Z",
 		"traceId": "loam-mjuohs00-36",
 		"command": "shell-info-get",
 		"input": {},
@@ -2073,15 +2073,15 @@
 				"actorKind": "agent"
 			}
 		},
-		"durationMs": 3,
+		"durationMs": 6,
 		"tape": {
-			"clock": [1767225600143, 1767225600144],
+			"clock": [1767225600295, 1767225600296, 1767225600297],
 			"random": []
 		}
 	},
 	{
 		"seq": 37,
-		"timestamp": "2026-01-01T00:00:00.146Z",
+		"timestamp": "2026-01-01T00:00:00.301Z",
 		"traceId": "loam-mjuohs00-37",
 		"command": "layout-set",
 		"input": {
@@ -2139,15 +2139,15 @@
 				"actorKind": "human"
 			}
 		},
-		"durationMs": 3,
+		"durationMs": 5,
 		"tape": {
-			"clock": [1767225600147, 1767225600148],
+			"clock": [1767225600304, 1767225600305],
 			"random": []
 		}
 	},
 	{
 		"seq": 38,
-		"timestamp": "2026-01-01T00:00:00.150Z",
+		"timestamp": "2026-01-01T00:00:00.309Z",
 		"traceId": "loam-mjuohs00-38",
 		"command": "layout-set",
 		"input": {
@@ -2203,15 +2203,15 @@
 				"actorKind": "human"
 			}
 		},
-		"durationMs": 3,
+		"durationMs": 5,
 		"tape": {
-			"clock": [1767225600151, 1767225600152],
+			"clock": [1767225600312, 1767225600313],
 			"random": []
 		}
 	},
 	{
 		"seq": 39,
-		"timestamp": "2026-01-01T00:00:00.154Z",
+		"timestamp": "2026-01-01T00:00:00.317Z",
 		"traceId": "loam-mjuohs00-39",
 		"command": "layout-set",
 		"input": {
@@ -2267,15 +2267,15 @@
 				"actorKind": "human"
 			}
 		},
-		"durationMs": 3,
+		"durationMs": 5,
 		"tape": {
-			"clock": [1767225600155, 1767225600156],
+			"clock": [1767225600320, 1767225600321],
 			"random": []
 		}
 	},
 	{
 		"seq": 40,
-		"timestamp": "2026-01-01T00:00:00.158Z",
+		"timestamp": "2026-01-01T00:00:00.325Z",
 		"traceId": "loam-mjuohs00-40",
 		"command": "layout-reset",
 		"input": {},
@@ -2341,15 +2341,15 @@
 				"actorKind": "human"
 			}
 		},
-		"durationMs": 3,
+		"durationMs": 5,
 		"tape": {
-			"clock": [1767225600159, 1767225600160],
+			"clock": [1767225600328, 1767225600329],
 			"random": []
 		}
 	},
 	{
 		"seq": 41,
-		"timestamp": "2026-01-01T00:00:00.162Z",
+		"timestamp": "2026-01-01T00:00:00.333Z",
 		"traceId": "loam-mjuohs00-41",
 		"command": "layout-get",
 		"input": {},
@@ -2395,15 +2395,15 @@
 				"actorKind": "human"
 			}
 		},
-		"durationMs": 3,
+		"durationMs": 5,
 		"tape": {
-			"clock": [1767225600163, 1767225600164],
+			"clock": [1767225600336, 1767225600337],
 			"random": []
 		}
 	},
 	{
 		"seq": 42,
-		"timestamp": "2026-01-01T00:00:00.166Z",
+		"timestamp": "2026-01-01T00:00:00.341Z",
 		"traceId": "loam-mjuohs00-42",
 		"command": "layout-set",
 		"input": {
@@ -2461,15 +2461,15 @@
 				"actorKind": "human"
 			}
 		},
-		"durationMs": 3,
+		"durationMs": 5,
 		"tape": {
-			"clock": [1767225600167, 1767225600168],
+			"clock": [1767225600344, 1767225600345],
 			"random": []
 		}
 	},
 	{
 		"seq": 43,
-		"timestamp": "2026-01-01T00:00:00.170Z",
+		"timestamp": "2026-01-01T00:00:00.349Z",
 		"traceId": "loam-mjuohs00-43",
 		"command": "layout-set",
 		"input": {
@@ -2511,15 +2511,15 @@
 				"actorKind": "human"
 			}
 		},
-		"durationMs": 3,
+		"durationMs": 5,
 		"tape": {
-			"clock": [1767225600171, 1767225600172],
+			"clock": [1767225600352, 1767225600353],
 			"random": []
 		}
 	},
 	{
 		"seq": 44,
-		"timestamp": "2026-01-01T00:00:00.174Z",
+		"timestamp": "2026-01-01T00:00:00.357Z",
 		"traceId": "loam-mjuohs00-44",
 		"command": "appearance-set",
 		"input": {
@@ -2553,20 +2553,20 @@
 				"density": "compact"
 			},
 			"metadata": {
-				"executionTimeMs": 1,
+				"executionTimeMs": 4,
 				"traceId": "loam-mjuohs00-44",
 				"actorKind": "human"
 			}
 		},
-		"durationMs": 3,
+		"durationMs": 8,
 		"tape": {
-			"clock": [1767225600175, 1767225600176],
+			"clock": [1767225600360, 1767225600361, 1767225600362, 1767225600363, 1767225600364],
 			"random": []
 		}
 	},
 	{
 		"seq": 45,
-		"timestamp": "2026-01-01T00:00:00.178Z",
+		"timestamp": "2026-01-01T00:00:00.367Z",
 		"traceId": "loam-mjuohs00-45",
 		"command": "auth-session-get",
 		"input": {},
@@ -2589,8 +2589,8 @@
 			"data": {
 				"status": "authenticated",
 				"session": {
-					"id": "mock-session-1794281584109",
-					"expiresAt": "2026-11-10T04:33:04.109Z"
+					"id": "mock-session-1767225600026",
+					"expiresAt": "2026-01-01T01:00:00.026Z"
 				},
 				"user": {
 					"id": "mock-user-person@example.com",
@@ -2605,15 +2605,15 @@
 				"actorKind": "human"
 			}
 		},
-		"durationMs": 3,
+		"durationMs": 8,
 		"tape": {
-			"clock": [1767225600179, 1767225600180],
+			"clock": [1767225600370, 1767225600371],
 			"random": []
 		}
 	},
 	{
 		"seq": 46,
-		"timestamp": "2026-01-01T00:00:00.182Z",
+		"timestamp": "2026-01-01T00:00:00.378Z",
 		"traceId": "loam-mjuohs00-46",
 		"command": "auth-sign-out",
 		"input": {},
@@ -2636,20 +2636,20 @@
 			"data": null,
 			"reasoning": "Successfully signed out",
 			"metadata": {
-				"executionTimeMs": 1,
+				"executionTimeMs": 2,
 				"traceId": "loam-mjuohs00-46",
 				"actorKind": "human"
 			}
 		},
-		"durationMs": 3,
+		"durationMs": 7,
 		"tape": {
-			"clock": [1767225600183, 1767225600184],
+			"clock": [1767225600381, 1767225600383, 1767225600384],
 			"random": []
 		}
 	},
 	{
 		"seq": 47,
-		"timestamp": "2026-01-01T00:00:00.186Z",
+		"timestamp": "2026-01-01T00:00:00.387Z",
 		"traceId": "loam-mjuohs00-47",
 		"command": "auth-session-get",
 		"input": {},
@@ -2677,13 +2677,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600187, 1767225600188],
+			"clock": [1767225600388, 1767225600389],
 			"random": []
 		}
 	},
 	{
 		"seq": 48,
-		"timestamp": "2026-01-01T00:00:00.190Z",
+		"timestamp": "2026-01-01T00:00:00.392Z",
 		"traceId": "loam-mjuohs00-48",
 		"command": "view-state-set",
 		"input": {
@@ -2803,13 +2803,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600191, 1767225600192],
+			"clock": [1767225600393, 1767225600394],
 			"random": []
 		}
 	},
 	{
 		"seq": 49,
-		"timestamp": "2026-01-01T00:00:00.194Z",
+		"timestamp": "2026-01-01T00:00:00.397Z",
 		"traceId": "loam-mjuohs00-49",
 		"command": "layout-get",
 		"input": {},
@@ -2854,15 +2854,15 @@
 				"actorKind": "agent"
 			}
 		},
-		"durationMs": 3,
+		"durationMs": 4,
 		"tape": {
-			"clock": [1767225600195, 1767225600196],
+			"clock": [1767225600398, 1767225600399, 1767225600400],
 			"random": []
 		}
 	},
 	{
 		"seq": 50,
-		"timestamp": "2026-01-01T00:00:00.198Z",
+		"timestamp": "2026-01-01T00:00:00.403Z",
 		"traceId": "loam-mjuohs00-50",
 		"command": "appearance-get",
 		"input": {},
@@ -2889,7 +2889,7 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600199, 1767225600200],
+			"clock": [1767225600404, 1767225600405],
 			"random": []
 		}
 	}

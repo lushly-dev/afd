@@ -71,7 +71,7 @@ steps:
     input: {}
     expect:
       success: true
-      data: { count: 3 }
+      data: { total: 3 }
   - description: Archiving in mail itself still follows my mail setting
     command: copilot-message-send
     input: { session: "${{ steps[0].data.session.id }}", text: "script:archive-thr-2" }
