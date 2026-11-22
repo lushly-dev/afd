@@ -1,8 +1,9 @@
-# Draft JTBD scenario for the Pointing proposal. The commands and their shapes are proposals.
+# JTBD scenario for the Pointing feature (Slice 1).
 # The data is invented, as in scenario 01. The point `pt-5r8k2w9m4c1x` was made on the Share button of `example-toolbar`.
 # Since then `src/example-button.ts`, one of the files the specimen's page loaded, has changed.
-# Specimen cannot stop an agent's own file edit; it refuses its own commands on a stale point, and
-# the agent checks a point before editing (see the proposal's limits).
+# Specimen cannot stop an agent's own file edit; it refuses its own commands on a stale point
+# (`specimen-point-move` in Slice 1, plus `specimen-note-add`, `specimen-note-move`, and `specimen-impact`
+# in later slices), and the agent checks a point before editing (see the proposal's limits).
 
 name: Refuse a reference the code has moved past
 description: >-
@@ -26,24 +27,11 @@ steps:
         changed:
           includes: src/example-button.ts
 
-  - description: A correction previewed on the stale point is refused, with the way forward
-    command: specimen-impact
+  - description: Moving a stale point is refused in Slice 1, with the way forward
+    command: specimen-point-move
     input:
-      point: pt-5r8k2w9m4c1x
-      nodeId: example-dark
-      changes:
-        - { type: override, tokenId: color.accent.primary, value: "#1F6FEB" }
-    expect:
-      success: false
-      error:
-        code: POINT_STALE
-        suggestion: { contains: specimen-point }
-
-  - description: A note on the stale point is refused the same way
-    command: specimen-note-add
-    input:
-      point: pt-5r8k2w9m4c1x
-      text: The share icon is too small at this size
+      id: pt-5r8k2w9m4c1x
+      to: next
     expect:
       success: false
       error:
@@ -68,7 +56,7 @@ steps:
   - description: The new point checks as current
     command: specimen-point-check
     input:
-      id: "${{ steps[3].data.point.id }}"
+      id: "${{ steps[2].data.point.id }}"
     expect:
       success: true
       data:

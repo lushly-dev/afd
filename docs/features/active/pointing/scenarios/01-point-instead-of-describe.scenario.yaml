@@ -1,10 +1,9 @@
-# Draft JTBD scenario for the Pointing proposal. The commands and their shapes are proposals.
+# JTBD scenario for the Pointing feature (Slice 1).
 # The data is invented. The specimen `example-toolbar` renders a toolbar with a search field and
 # two buttons, "Share" and "Export", each an `example-button` whose shadow root holds a native
-# `<button>`; the accessibility tree gives that inner button the role and name. In the review
-# page the person
-# picks "Share" and copies the pointer the page shows; the click itself is page behaviour that a
-# scenario cannot show, so the first step starts from the copied pointer.
+# `<button>`; the accessibility tree gives that inner button the role and name. In the review page
+# the person picks "Share" and copies the pointer the page shows; the click itself is page behaviour
+# that a scenario cannot show, so the first step starts from the copied pointer.
 
 name: Point at an element instead of describing it
 description: >-

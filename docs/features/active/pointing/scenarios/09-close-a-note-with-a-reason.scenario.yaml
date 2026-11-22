@@ -1,4 +1,4 @@
-# Draft JTBD scenario for the Pointing proposal. The commands and their shapes are proposals.
+# JTBD scenario for the Pointing feature (Slice 2).
 # The data is invented. The open note `note-9v4b7n2k5m1c`, assigned to an agent, is the project's
 # only note.
 
@@ -34,11 +34,12 @@ steps:
     expect:
       success: true
       data:
-        note:
-          state: resolved
-          resolution:
-            outcome: fixed
-            reason: { contains: CSV and PDF }
+        resolved: { length: 1 }
+        resolved.0.id: note-9v4b7n2k5m1c
+        resolved.0.state: resolved
+        resolved.0.resolution.outcome: fixed
+        resolved.0.resolution.reason: { contains: CSV and PDF }
+        skipped: { length: 0 }
 
   - description: The open list no longer shows it
     command: specimen-note-list
@@ -83,7 +84,9 @@ steps:
           state: open
           history: { length: 2 }
           history.0.change: resolved
+          history.0.outcome: fixed
           history.0.reason: { contains: CSV and PDF }
+          history.0.evidence.revision: 4f2c9a1
           history.1.change: reopened
 
   - description: Reopening a note that is open is refused

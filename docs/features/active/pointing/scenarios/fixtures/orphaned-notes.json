@@ -1,0 +1,115 @@
+{
+	"app": "specimen",
+	"checkout": { "revision": "c9d2e85", "dirty": false },
+	"specimens": {
+		"example-toolbar": {
+			"module": "src/toolbar/toolbar.specimens.ts",
+			"exportName": "Toolbar",
+			"checkpoints": ["mount", "menu-open"],
+			"renders": [
+				"example-button:1 'Share link'",
+				"example-button:2 'Export'",
+				"at menu-open: menu with menuitem 'Archive'"
+			]
+		}
+	},
+	"points": {},
+	"notes": {
+		"note-7k2m9q4x1r8t": {
+			"id": "note-7k2m9q4x1r8t",
+			"state": "open",
+			"orphaned": false,
+			"text": "Archive button needs confirmation before moving items",
+			"subject": {
+				"specimen": "example-toolbar",
+				"context": { "theme": "dark", "viewport": "1280x800" },
+				"accessible": { "role": "button", "name": "Archive" },
+				"identity": {
+					"strongest": "role-name",
+					"roleName": { "role": "button", "name": "Archive" },
+					"componentPosition": { "tag": "example-button", "index": 3 },
+					"ref": "root/example-toolbar:1/shadow/example-button:3"
+				}
+			},
+			"pin": { "x": 0.5, "y": 0.5 },
+			"history": []
+		},
+		"note-3hd8w2c5n0vp": {
+			"id": "note-3hd8w2c5n0vp",
+			"state": "open",
+			"orphaned": false,
+			"text": "Tighten horizontal padding on Share",
+			"subject": {
+				"specimen": "example-toolbar",
+				"context": { "theme": "dark", "viewport": "1280x800" },
+				"accessible": { "role": "button", "name": "Share" },
+				"identity": {
+					"strongest": "role-name",
+					"roleName": { "role": "button", "name": "Share" },
+					"componentPosition": { "tag": "example-button", "index": 1 },
+					"ref": "root/example-toolbar:1/shadow/example-button:1"
+				}
+			},
+			"pin": { "x": 0.5, "y": 0.5 },
+			"history": []
+		},
+		"note-q4z1m6t9b2xe": {
+			"id": "note-q4z1m6t9b2xe",
+			"state": "open",
+			"orphaned": false,
+			"text": "Filter bar wraps awkwardly at narrow widths",
+			"subject": {
+				"specimen": "example-toolbar",
+				"context": { "theme": "dark", "viewport": "1280x800" },
+				"accessible": { "role": "group", "name": "Filters" },
+				"identity": {
+					"strongest": "role-name",
+					"roleName": { "role": "group", "name": "Filters" },
+					"componentPosition": { "tag": "example-filter-bar", "index": 1 },
+					"ref": "root/example-toolbar:1/shadow/example-filter-bar:1"
+				}
+			},
+			"pin": { "x": 0.5, "y": 0.5 },
+			"history": []
+		},
+		"note-w8c3r5y0k7aj": {
+			"id": "note-w8c3r5y0k7aj",
+			"state": "open",
+			"orphaned": false,
+			"text": "Clear filters should stay disabled when no filter is active",
+			"subject": {
+				"specimen": "example-toolbar",
+				"context": { "theme": "dark", "viewport": "1280x800" },
+				"accessible": { "role": "button", "name": "Clear filters" },
+				"identity": {
+					"strongest": "role-name",
+					"roleName": { "role": "button", "name": "Clear filters" },
+					"componentPosition": { "tag": "example-filter-bar", "index": 1 },
+					"ref": "root/example-toolbar:1/shadow/example-filter-bar:1/shadow/button:1"
+				}
+			},
+			"pin": { "x": 0.5, "y": 0.5 },
+			"history": []
+		},
+		"note-f5n2p8v1d6gs": {
+			"id": "note-f5n2p8v1d6gs",
+			"state": "open",
+			"orphaned": false,
+			"text": "Print button icon looks blurry",
+			"subject": {
+				"specimen": "example-legacy",
+				"context": { "theme": "dark", "viewport": "1280x800" },
+				"accessible": { "role": "button", "name": "Print" },
+				"identity": {
+					"strongest": "role-name",
+					"roleName": { "role": "button", "name": "Print" },
+					"componentPosition": { "tag": "example-button", "index": 1 },
+					"ref": "root/example-legacy:1/shadow/example-button:1"
+				}
+			},
+			"pin": { "x": 0.5, "y": 0.5 },
+			"history": []
+		}
+	},
+	"deleted": ["src/legacy/legacy.specimens.ts"]
+}

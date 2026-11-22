@@ -1,4 +1,4 @@
-# Draft JTBD scenario for the Pointing proposal. The commands and their shapes are proposals.
+# JTBD scenario for the Pointing feature (Slice 3).
 # The data is invented. In `example-toolbar`, `color.accent.primary` is read by the Share button,
 # the Export button and the focus ring of the search field. `button.share.background` is read
 # only by the Share button.

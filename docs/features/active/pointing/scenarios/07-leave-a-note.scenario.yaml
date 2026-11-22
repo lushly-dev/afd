@@ -1,4 +1,4 @@
-# Draft JTBD scenario for the Pointing proposal. The commands and their shapes are proposals.
+# JTBD scenario for the Pointing feature (Slice 2).
 # The data is invented, as in scenario 01. The project has no notes yet. Note ids are random, so
 # notes made on two branches cannot collide.
 
@@ -16,7 +16,7 @@ steps:
   - description: The note is made straight from the pointer the review page copied, and assigned to an agent
     command: specimen-note-add
     input:
-      pointer: "specimen:example-toolbar?theme=dark&viewport=1280x800#ref=root/example-toolbar:1/shadow/example-button:2&text=Export"
+      pointer: "specimen:example-toolbar?theme=dark&viewport=1280x800#ref=root/example-toolbar:1/shadow/example-button:2&text=Export&pin=0.4,0.6"
       text: Export should offer CSV and PDF, not only CSV
       assignee: agent
     expect:
@@ -33,8 +33,8 @@ steps:
               role: button
               name: Export
           pin:
-            x: { between: [0, 1] }
-            y: { between: [0, 1] }
+            x: 0.4
+            y: 0.6
 
   - description: An agent asking for its open notes finds it, one page at a time
     command: specimen-note-list
@@ -59,3 +59,14 @@ steps:
       error:
         code: NOTE_EMPTY
         suggestion: { contains: what }
+
+  - description: Leaving a note on a stale point is refused with POINT_STALE
+    command: specimen-note-add
+    input:
+      point: pt-2k7m9p4x8c1v
+      text: The share icon is too small at this size
+    expect:
+      success: false
+      error:
+        code: POINT_STALE
+        suggestion: { contains: specimen-point }

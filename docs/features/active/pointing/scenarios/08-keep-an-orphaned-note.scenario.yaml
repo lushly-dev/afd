@@ -1,4 +1,4 @@
-# Draft JTBD scenario for the Pointing proposal. The commands and their shapes are proposals.
+# JTBD scenario for the Pointing feature (Slice 2).
 # The data is invented, as in scenario 01. Open notes:
 # - `note-7k2m9q4x1r8t` on an "Archive" button in `example-toolbar`. The button has been removed
 #   and Archive is now an item in the toolbar's overflow menu (checkpoint `menu-open`).
