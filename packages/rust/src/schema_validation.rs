@@ -43,6 +43,7 @@ pub(crate) fn compile(schema: &Value) -> Result<(), String> {
 }
 
 fn inspect(schema: &Value, root: &Value, path: &str) -> Result<(), String> {
+    let root = resource(schema, root);
     let object = schema
         .as_object()
         .ok_or_else(|| format!("Schema at {path} must be an object"))?;
@@ -122,6 +123,16 @@ fn inspect(schema: &Value, root: &Value, path: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// The schema resource `schema` belongs to: itself when it has its own `$id` (Draft 2020-12),
+/// else `root`, the resource around it. A local `$ref` resolves against its resource.
+fn resource<'a>(schema: &'a Value, root: &'a Value) -> &'a Value {
+    if schema.get("$id").is_some_and(Value::is_string) {
+        schema
+    } else {
+        root
+    }
+}
+
 fn target<'a>(root: &'a Value, reference: &str) -> Option<&'a Value> {
     if reference == "#" {
         return Some(root);
@@ -184,6 +195,7 @@ fn default_value<'a>(schema: &'a Value, root: &'a Value, depth: usize) -> Option
     if depth > 128 {
         return None;
     }
+    let root = resource(schema, root);
     schema.get("default").or_else(|| {
         schema["$ref"]
             .as_str()
@@ -210,6 +222,7 @@ fn validate(
         );
         return None;
     }
+    let root = resource(schema, root);
     if value.is_none() {
         if let Some(default) = default_value(schema, root, 0) {
             return Some(default.clone());
@@ -602,4 +615,59 @@ pub(crate) fn execute(schema: &Value, input: Value) -> Result<Value, Box<Command
             .with_details(details)
             .with_suggestion(parts.join(". ")),
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The same `#/$defs/X` names one definition at the root and another inside a subschema
+    /// with its own `$id`, which starts a schema resource (spec/validation.md, "Annotations";
+    /// #1700).
+    fn two_resources() -> Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "outer": {"$ref": "#/$defs/X"},
+                "inner": {
+                    "$id": "urn:afd:inner",
+                    "type": "object",
+                    "properties": {"x": {"$ref": "#/$defs/X"}},
+                    "$defs": {"X": {"type": "string"}}
+                }
+            },
+            "$defs": {"X": {"type": "number"}}
+        })
+    }
+
+    fn paths(errors: Vec<Value>) -> Vec<Value> {
+        errors
+            .into_iter()
+            .map(|error| error["path"].clone())
+            .collect()
+    }
+
+    #[test]
+    fn a_ref_resolves_against_the_nearest_schema_resource() {
+        let schema = two_resources();
+        compile(&schema).unwrap();
+        let valid = json!({"outer": 1, "inner": {"x": "a"}});
+        assert_eq!(validate_value(&schema, &valid).unwrap(), valid);
+        let inner = validate_value(&schema, &json!({"outer": 1, "inner": {"x": 1}}));
+        assert_eq!(paths(inner.unwrap_err()), vec![json!("inner.x")]);
+        let outer = validate_value(&schema, &json!({"outer": "a"}));
+        assert_eq!(paths(outer.unwrap_err()), vec![json!("outer")]);
+    }
+
+    #[test]
+    fn a_ref_inside_a_resource_does_not_reach_the_root_definitions() {
+        let schema = json!({
+            "type": "object",
+            "properties": {"inner": {"$id": "urn:afd:inner", "$ref": "#/$defs/X"}},
+            "$defs": {"X": {"type": "string"}}
+        });
+        assert!(compile(&schema)
+            .unwrap_err()
+            .contains("Unresolved local $ref"));
+    }
 }

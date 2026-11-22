@@ -422,3 +422,44 @@ async def test_core_registry_validator_exception_cannot_invoke_handler():
     result = await registry.execute("recursive-check", {})
     assert result.error.code == "VALIDATION_ERROR"
     assert calls == []
+
+
+# The same `#/$defs/X` names one definition at the root and another inside a subschema with its
+# own `$id`, which starts a schema resource (spec/validation.md, "Annotations"; #1700).
+_TWO_RESOURCES = {
+    "type": "object",
+    "properties": {
+        "outer": {"$ref": "#/$defs/X"},
+        "inner": {
+            "$id": "urn:afd:inner",
+            "type": "object",
+            "properties": {"x": {"$ref": "#/$defs/X"}},
+            "$defs": {"X": {"type": "string"}},
+        },
+    },
+    "$defs": {"X": {"type": "number"}},
+}
+
+
+def test_a_ref_resolves_against_the_nearest_schema_resource():
+    from afd.core.schema_validation import SchemaValidationError, validate_schema
+
+    check_schema(_TWO_RESOURCES)
+    assert validate_schema(_TWO_RESOURCES, {"outer": 1, "inner": {"x": "a"}}) == {
+        "outer": 1,
+        "inner": {"x": "a"},
+    }
+    for value, path in (({"outer": 1, "inner": {"x": 1}}, "inner.x"), ({"outer": "a"}, "outer")):
+        with pytest.raises(SchemaValidationError) as raised:
+            validate_schema(_TWO_RESOURCES, value)
+        assert [issue["path"] for issue in raised.value.issues] == [path]
+
+
+def test_a_ref_inside_a_resource_does_not_reach_the_root_definitions():
+    schema = {
+        "type": "object",
+        "properties": {"inner": {"$id": "urn:afd:inner", "$ref": "#/$defs/X"}},
+        "$defs": {"X": {"type": "string"}},
+    }
+    with pytest.raises(ValueError, match="Unresolved"):
+        check_schema(schema)

@@ -5,7 +5,8 @@
 // enum, items, minItems, maxItems, minLength, maxLength (in Unicode code points), minimum,
 // maximum, exclusiveMinimum, exclusiveMaximum, additionalProperties (boolean or schema), and local
 // $ref into definitions/$defs. Annotations (title, description, examples, $schema, $id,
-// $comment, deprecated, readOnly, writeOnly) are allowed and ignored.
+// $comment, deprecated, readOnly, writeOnly) are allowed and ignored, except that a string $id
+// starts a schema resource: a local $ref inside that subschema resolves against it.
 //
 // Any other keyword (pattern, format, const, oneOf, anyOf, allOf, not, remote $ref, …) is rejected
 // by `CompiledSchema::compile`, so a schema is never silently under-enforced.

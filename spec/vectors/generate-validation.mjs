@@ -23,6 +23,21 @@ function toDefs(schema) {
 }
 
 /**
+ * Moves the definitions into `property`, which gets its own `$id` and so starts a schema resource:
+ * the shape of a structured-result envelope whose `data` schema has an `$id` (#1474, #1700).
+ */
+function toEmbeddedResource(property, id) {
+	return (schema) => {
+		const { $defs, ...rest } = toDefs(schema);
+		const inner = rest.properties[property];
+		return {
+			...rest,
+			properties: { ...rest.properties, [property]: { $id: id, ...inner, $defs } },
+		};
+	};
+}
+
+/**
  * The cases, built with the caller's Zod so the schemas share its classes. `rewrite`, when present,
  * changes the advertised JSON Schema into an equivalent form TypeScript does not emit.
  */
@@ -369,6 +384,25 @@ export function validationCases(z) {
 			tests: [
 				test('Valid', { id: 'a', related: ['b'] }),
 				test('The referenced constraints apply', { id: 'a', related: [''] }),
+			],
+		},
+		{
+			id: 'ref-embedded-resource',
+			section: 'keywords',
+			description:
+				'A $ref inside a subschema with its own $id resolves against that subschema, which holds the $defs. The schema is an envelope whose data schema has an $id.',
+			zod: z.object({
+				success: z.boolean(),
+				data: z.object({ id: TodoId, related: z.array(TodoId).optional() }),
+			}),
+			rewrite: toEmbeddedResource('data', 'https://afd.dev/schemas/todo-result'),
+			tests: [
+				test('Valid', { success: true, data: { id: 'a', related: ['b'] } }),
+				test('The referenced constraints apply', {
+					success: true,
+					data: { id: 'a', related: [''] },
+				}),
+				test('A referenced value of the wrong type', { success: true, data: { id: 1 } }),
 			],
 		},
 		{
