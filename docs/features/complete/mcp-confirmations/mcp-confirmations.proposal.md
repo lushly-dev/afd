@@ -102,7 +102,7 @@ Keys come from server options. A server with several instances needs a shared ke
 
 ## Out of scope
 
-Sampling and roots through MRTR, which AFD does not use. URL-mode elicitation, which is for secrets and authorization flows. Confirmations inside Tasks, which belong to the [Tasks proposal](../../active/mcp-tasks/mcp-tasks.proposal.md).
+Sampling and roots through MRTR, which AFD does not use. URL-mode elicitation, which is for secrets and authorization flows. Confirmations inside Tasks, which belong to the [Tasks proposal](../mcp-tasks/mcp-tasks.proposal.md).
 
 ## Sources
 

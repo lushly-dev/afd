@@ -3,7 +3,7 @@
 > **Disposition (2026-11-13): proposed, not implemented.** Rust now has
 > `CommandContext::report_progress` for a task's status message (#817), but it sends no MCP
 > progress notification. The notifications, `/stream` delivery and DirectClient callback
-> proposed here remain open; [MCP Tasks](../../active/mcp-tasks/STATUS.md) is separate.
+> proposed here remain open; [MCP Tasks](../../complete/mcp-tasks/STATUS.md) is separate.
 
 > **Goal**: Let a running command report progress, and deliver it to every caller: as MCP `notifications/progress` on the `tools/call` response stream, as `progress` chunks on `/stream`, and as callbacks in DirectClient.
 
@@ -13,7 +13,7 @@
 | Author | jasfalk (drafted with Claude) |
 | Spec | [Progress](https://modelcontextprotocol.io/specification/2026-07-28/basic/utilities/progress), [cancellation](https://modelcontextprotocol.io/specification/2026-07-28/basic/utilities/cancellation), [Streamable HTTP](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http) |
 | Packages | `spec/`, `packages/core`, `packages/server`, `packages/client`, `python/`, `packages/rust`, `packages/cpp` |
-| Related | `spec/wire/stream-chunks.json`, [MCP tasks](../../active/mcp-tasks/mcp-tasks.proposal.md) (tasks carry status messages instead of progress) |
+| Related | `spec/wire/stream-chunks.json`, [MCP tasks](../../complete/mcp-tasks/mcp-tasks.proposal.md) (tasks carry status messages instead of progress) |
 
 ## Why this is third
 
@@ -102,7 +102,7 @@ A command that reports progress may declare `reportsProgress: true`. The field i
 
 ## Out of scope
 
-Log notifications (`notifications/message`), partial results before completion, and progress on Tasks. The Tasks extension does not carry progress, so the [Tasks proposal](../../active/mcp-tasks/mcp-tasks.proposal.md) maps updates to the task's `statusMessage` instead.
+Log notifications (`notifications/message`), partial results before completion, and progress on Tasks. The Tasks extension does not carry progress, so the [Tasks proposal](../../complete/mcp-tasks/mcp-tasks.proposal.md) maps updates to the task's `statusMessage` instead.
 
 ## Sources
 

@@ -2165,7 +2165,7 @@ on another local branch and push to that remote name.
   0b and 0e, so `vectors/error-codes.json` is unchanged); `tool-strategies.md`, `protocol-conformance.md`,
   `CHANGELOG.md` (`VERSION` unchanged) and the language parity rows (Planned); the
   [MCP Authorization](../../../docs/features/active/mcp-authorization/mcp-authorization.proposal.md) and
-  [MCP Tasks](../../../docs/features/active/mcp-tasks/mcp-tasks.proposal.md) proposals moved to
+  [MCP Tasks](../../../docs/features/complete/mcp-tasks/mcp-tasks.proposal.md) proposals moved to
   `docs/features/active/` with A4, A5, T1 and T5 annotated. Fifteen choices the specification left open are in its
   [Amendments from step 0a](phases/5-auth-hosted/spec.md#amendments-from-step-0a), none on the trust model.
   Verified 2026-11-07: Rust's confirmation gate (`confirmations.rs:239-348`) and approval middleware
