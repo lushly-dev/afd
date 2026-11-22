@@ -8,6 +8,7 @@ import os
 import shutil
 import sqlite3
 import subprocess
+import threading
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -1344,6 +1345,72 @@ def test_a_repository_git_cannot_read_is_not_a_folder_with_no_branch(
         collect.default_tip(checkout)
     run(skill_usage_collect())
     assert held(state) == known  # nor is the folder read as it lies, draft and all
+
+
+def test_a_repository_git_refuses_is_read_as_it_lies(
+    state: Path, t3_store: T3Store, checkout: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Git refuses every command in a folder another account owns, for good. Its project
+    holds what its folder does, which is all there is to know, until git answers there."""
+    git(checkout, "init", "-q", "-b", "main")
+    git(checkout, "add", "-A")
+    git(checkout, "commit", "-q", "-m", "skills")
+    (checkout / ".claude" / "skills" / "plant-beds" / "SKILL.md").write_text(
+        skill_text("plant-beds", "Plant a bed, at length.", 900), encoding="utf-8"
+    )  # work under way: the folder says 900 where the commit says 200
+    t3_store.skill_tool(t3_store.thread("main-1"), "plant-beds", stamp(1))
+    real = collect.git_out
+
+    def refused(root: Path, *args: str, **more: object) -> str:
+        raise collect.GitError(f"git {args[0]}: fatal: detected dubious ownership in repository")
+
+    monkeypatch.setattr(collect, "git_out", refused)
+    run(skill_usage_collect())
+
+    data = run(skill_usage_report())
+    assert rows(data)["plant-beds"]["size_bytes"] == 900  # noqa: PLR2004
+    assert [entry["skill"] for entry in data["quiet"]] == ["prune-roses"]
+    assert (held(state)["at"], held(state)["commit"]) == (None, None)
+    draft = checkout / ".claude" / "skills" / "draft"
+    draft.mkdir()
+    (draft / "SKILL.md").write_text(skill_text("draft", "A draft.", 300), "utf-8")
+    run(skill_usage_collect())  # and again each time, while that is all it has said
+    assert sorted(held(state)["held"]) == ["draft", "plant-beds", "prune-roses"]
+
+    monkeypatch.setattr(collect, "git_out", real)  # the folder is made the owner's own
+    run(skill_usage_collect())
+    assert held(state)["commit"] and held(state)["held"]["plant-beds"][0] == 200  # noqa: PLR2004
+
+    known = held(state)
+    monkeypatch.setattr(collect, "git_out", refused)  # and a commit on record is kept,
+    run(skill_usage_collect())
+    assert known["commit"] and held(state) == known
+    run(skill_usage_collect(rebuild=True))  # though everything else is read again
+    assert held(state) == known
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="no named pipes here")
+def test_a_pipe_named_like_a_skill_file_is_not_read(checkout: Path) -> None:
+    """Opening one waits for a writer, and would hold the collection for as long."""
+    pipe = checkout / ".claude" / "skills" / "piped"
+    pipe.mkdir()
+    os.mkfifo(pipe / "SKILL.md")
+    found: list[dict] = []
+    reader = threading.Thread(target=lambda: found.append(collect.held_in_folder(checkout)))
+    reader.daemon = True
+
+    reader.start()
+    reader.join(10)
+
+    waiting = reader.is_alive()
+    if waiting:  # let it go: a writer that opens and closes ends the read
+        try:
+            os.close(os.open(pipe / "SKILL.md", os.O_WRONLY | os.O_NONBLOCK))
+        except OSError:
+            pass  # the reader had not opened it yet: the failure below says what happened
+        reader.join(10)
+    assert not waiting
+    assert sorted(found[0]) == ["plant-beds", "prune-roses"]
 
 
 def test_no_other_branch_speaks_for_the_default_one(

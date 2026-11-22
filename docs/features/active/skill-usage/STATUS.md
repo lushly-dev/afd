@@ -14,6 +14,30 @@ Read this before the [proposal](skill-usage.proposal.md). Active since 2026-11-2
 
 ## Findings
 
+### Two machines agree, and a folder git refuses, 2026-11-22 (#1904, #1819, #2051, #2052)
+
+- **The two Macs give the same report.** With #2050 on both, the 30-day report read on each
+  from the shared record is the same entry for entry: 175 skills, 4,722 loads, 691 sessions
+  that used one, 103 skills in `quiet`, no warnings. Before the update, from one record, the
+  Air gave 174 skills and 4,692 loads with 101 in `quiet`; Random gave 177 and 4,672 with 9,
+  and an audit session the Air did not see.
+- **A report read before a copy has synced still differs** by what has not arrived: the
+  first comparison was 30 seconds early and differed by one machine's last six loads.
+- **Hero runs the same build.** Its scheduled task ran in 30 seconds and is healthy. Five of
+  its nine projects have an account read from a commit (27, 31, 9, 1 and 1 skills); two
+  have no skills folder.
+- **Git refuses two of Hero's folders (#2051).** Another account owns them, and git stops
+  at `detected dubious ownership` for every command. With #2050 such a project held no
+  skills: Hero's `quiet` list went from 66 entries to 18. A repository git could not read,
+  with no commit on record, is now read as it lies.
+- **Such a project keeps its folder's name (#2052).** It was named when git could not read
+  its origin, and a name is given once. Making those folders the owner's own, or naming
+  them in git's `safe.directory`, is the owner's; it brings back the skill list from the
+  default branch, and leaves the loads under the folder's name, apart from the same
+  repository's on the other machines.
+- **Not done.** Hero has no shared folder: the cloud drive's desktop app is not installed
+  there.
+
 ### One list of a project's skills, and Hero, 2026-11-22 (#1904, #1819)
 
 - **Why the totals differed (#1904).** A report took a project's skills from the folder on
@@ -252,7 +276,7 @@ skill for `lefthook.yml`, `ci.yml` and `scripts/check-*.mjs`), before Lushly dec
 
 - Collection with the hourly job, and one report across machines (#1818): merged in #1889.
 
-- Rollout to the Air, Random and Hero (#1819): the Air and Random run all four phases, collect hourly and share a folder since 2026-11-21; Hero collects hourly since 2026-11-22 and has no shared folder yet (see Findings).
+- Rollout to the Air, Random and Hero (#1819): the Air and Random run all four phases, collect hourly and share a folder since 2026-11-21; Hero collects hourly since 2026-11-22, runs the same build as the two Macs, and has no shared folder yet (see Findings).
 
 - A shared folder the hourly job cannot read (#1903): merged in #1923.
 
@@ -265,6 +289,10 @@ skill for `lefthook.yml`, `ci.yml` and `scripts/check-*.mjs`), before Lushly dec
 - Codex session logs as a source (#1891): not started; 5 of 213 logs measured are outside T3 Code.
 
 - The same totals whichever machine reads, when checkouts differ (#1904): merged in #2050.
+
+- A repository git refuses lists the skills its folder holds (#2051): merged in #2053.
+
+- A project first seen while git could not read its origin keeps its folder name (#2052): not started.
 
 - Whether a loaded skill prevents the mistakes it names (#1829): needs its design first.
 
