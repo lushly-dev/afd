@@ -56,6 +56,7 @@ import type {
 	A11yRun,
 	BaselineRequest,
 	CaptureRequest,
+	ChannelDifference,
 	ContractRequest,
 	ContractRun,
 	CoverageRequest,
@@ -143,13 +144,21 @@ const diffInput = z
 		requireVisual: z.boolean().optional(),
 	})
 	.strict();
+const DIFF_CHANNELS = {
+	dom: 'dom',
+	a11y: 'a11y',
+	layout: 'layout',
+	styles: 'styles',
+	state: 'state',
+	events: 'events',
+} as const satisfies { [K in ChannelDifference['channel']]: K };
 const diffOutput = z
 	.object({
 		status: z.enum(['changed', 'no-change-observed', 'insufficient-evidence']),
 		differences: z.array(
 			z
 				.object({
-					channel: z.enum(['dom', 'a11y', 'layout', 'styles', 'state']),
+					channel: z.enum(DIFF_CHANNELS),
 					target: z.string().optional(),
 					property: z.string().optional(),
 					left: z.unknown(),

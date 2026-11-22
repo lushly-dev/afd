@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
 	createSpecimenCommands,
 	executeSpecimenCommand,
+	executeSpecimenDiff,
 	observationSchema,
 	type SpecimenCommandBench,
 } from './commands.js';
@@ -631,6 +632,36 @@ describe('specimen commands', () => {
 		right.manifest.checkpoint.name = 'different';
 		const mismatch = await executeSpecimenCommand(instance, 'specimen-diff', { left, right });
 		expect(mismatch.error?.code).toBe('SPECIMEN_DIFF_FAILED');
+	});
+	it('accepts its own diff result when recorded event histories differ', async () => {
+		const instance = bench();
+		const withEvents = (types: string[]) => {
+			const value = observation();
+			value.completeness.events = { status: 'complete', scope: 'declared events', reasons: [] };
+			value.channels.events.declared = [{ type: 'click' }];
+			value.channels.events.history = types.map((type) => ({
+				type,
+				target: 'root/button:1',
+				step: 'activate',
+				composed: true,
+				bubbles: true,
+				trusted: true,
+				detail: null,
+			}));
+			return value;
+		};
+		const left = withEvents(['click']);
+		const right = withEvents([]);
+		const expected = {
+			status: 'changed',
+			differences: [{ channel: 'events', left: 'click root/button:1 activate', right: '' }],
+		};
+		const viaCommand = await executeSpecimenCommand(instance, 'specimen-diff', { left, right });
+		expect(viaCommand.success).toBe(true);
+		expect(viaCommand.data).toMatchObject(expected);
+		const viaHelper = await executeSpecimenDiff({ left, right });
+		expect(viaHelper.success).toBe(true);
+		expect(viaHelper.data).toMatchObject(expected);
 	});
 	it('validates build results and fails unknown commands', async () => {
 		const instance = bench();
