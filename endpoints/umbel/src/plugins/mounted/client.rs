@@ -28,8 +28,8 @@ use rmcp::transport::streamable_http_client::{
     StreamableHttpClientTransport, StreamableHttpClientTransportConfig,
 };
 use serde_json::{Map, Value};
-use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::process::Command;
+use tokio::io::AsyncReadExt;
+use tokio::process::{Child, Command};
 use tokio::runtime::{Handle, Runtime};
 
 use super::result::map_tool_result;
@@ -40,6 +40,14 @@ use crate::plugins::PluginError;
 const MAX_RESPAWNS: usize = 3;
 /// See [`MAX_RESPAWNS`].
 const RESPAWN_WINDOW: Duration = Duration::from_secs(60);
+/// Maximum trailing bytes of a child's stderr kept for startup failure diagnostics.
+const STDERR_TAIL_BYTES: usize = 2048;
+/// Maximum bytes buffered for one stderr line forwarded to `tracing::debug!`.
+const STDERR_LOG_LINE_BYTES: usize = 4096;
+/// How long to wait for a stdio child that closed stdout to report its exit status.
+const EXIT_WAIT: Duration = Duration::from_millis(500);
+/// How long to wait for the stderr reader task to hit EOF after the child exits.
+const STDERR_DRAIN_WAIT: Duration = Duration::from_millis(200);
 
 /// A credential the deployer's environment holds. Never printed.
 #[derive(Clone)]
@@ -63,7 +71,8 @@ pub(crate) struct StdioSpec {
     pub program: OsString,
     pub args: Vec<String>,
     pub cwd: PathBuf,
-    /// The whole environment of the child: `PATH` and the configured variables, nothing else.
+    /// The whole environment of the child: `PATH` (plus `SystemRoot` on Windows) and the
+    /// configured variables, nothing else.
     pub env: Vec<(String, String)>,
 }
 
@@ -354,7 +363,7 @@ fn unavailable(instance: &str, problem: impl std::fmt::Display) -> CommandResult
 async fn open(spec: &MountSpec) -> Result<(Conn, Vec<Value>), String> {
     let timeout = spec.connect_timeout;
     tokio::time::timeout(timeout, async {
-        let (service, limit) =
+        let (service, limit, watch) =
             match handshake(spec, Handshake::Discover).await {
                 Ok(connected) => connected,
                 Err(Failure::Legacy) => handshake(spec, Handshake::Initialize).await.map_err(
@@ -365,11 +374,22 @@ async fn open(spec: &MountSpec) -> Result<(Conn, Vec<Value>), String> {
                 )?,
                 Err(Failure::Other(message)) => return Err(message),
             };
-        let tools = service
-            .peer()
-            .list_all_tools()
-            .await
-            .map_err(|error| format!("cannot list the server's tools: {error}"))?;
+        let tools = match service.peer().list_all_tools().await {
+            Ok(tools) => tools,
+            Err(error) => {
+                drop(service);
+                let wait_for_exit = !matches!(error, ServiceError::McpError(_));
+                let detail = match watch {
+                    Some(watch) => watch.diagnose(wait_for_exit).await,
+                    None => None,
+                };
+                return Err(append_diagnostics(
+                    format!("cannot list the server's tools: {error}"),
+                    detail,
+                ));
+            }
+        };
+        drop(watch);
         let tools = tools
             .iter()
             .map(serde_json::to_value)
@@ -414,6 +434,7 @@ async fn handshake(
     (
         RunningService<RoleClient, InitializeRequestParams>,
         Arc<Limit>,
+        Option<ChildWatch>,
     ),
     Failure,
 > {
@@ -425,32 +446,198 @@ async fn handshake(
         Handshake::Initialize => ClientLifecycleMode::Initialize,
     };
     let info = client_info(handshake);
-    let served = match &spec.endpoint {
+    let (served, watch) = match &spec.endpoint {
         Endpoint::Stdio(stdio) => {
-            let transport = spawn(spec, stdio, &limit).map_err(Failure::Other)?;
-            info.serve_with_lifecycle(transport, lifecycle).await
+            let (transport, watch) = spawn(spec, stdio, &limit).map_err(Failure::Other)?;
+            (
+                info.serve_with_lifecycle(transport, lifecycle).await,
+                Some(watch),
+            )
         }
         Endpoint::Http(http) => {
             let transport = http_transport(spec, http, &limit).map_err(Failure::Other)?;
-            info.serve_with_lifecycle(transport, lifecycle).await
+            (info.serve_with_lifecycle(transport, lifecycle).await, None)
         }
     };
     match served {
-        Ok(service) => Ok((service, limit)),
+        Ok(service) => Ok((service, limit, watch)),
         Err(ClientInitializeError::JsonRpcError(_)) if matches!(handshake, Handshake::Discover) => {
+            // Legacy server: drop `watch` without waiting so the first child dies immediately.
+            drop(watch);
             Err(Failure::Legacy)
         }
-        Err(error) => Err(Failure::Other(format!("the handshake failed: {error}"))),
+        Err(error) => {
+            let wait_for_exit = !matches!(error, ClientInitializeError::JsonRpcError(_));
+            let detail = match watch {
+                Some(watch) => watch.diagnose(wait_for_exit).await,
+                None => None,
+            };
+            Err(Failure::Other(append_diagnostics(
+                format!("the handshake failed: {error}"),
+                detail,
+            )))
+        }
     }
 }
 
-/// Start the child: environment cleared to `PATH` plus the configured variables, `kill_on_drop`,
-/// stdin and stdout for JSON-RPC, stderr forwarded line by line to the host log.
+/// Bounded trailing bytes of a stdio child's stderr, kept only during startup so a dead child's
+/// failure message names why it died.
+#[derive(Default)]
+struct StderrTail {
+    bytes: VecDeque<u8>,
+    truncated: bool,
+}
+
+impl StderrTail {
+    fn push(&mut self, chunk: &[u8]) {
+        if chunk.len() >= STDERR_TAIL_BYTES {
+            self.truncated |= !self.bytes.is_empty() || chunk.len() > STDERR_TAIL_BYTES;
+            self.bytes.clear();
+            let start = chunk.len() - STDERR_TAIL_BYTES;
+            self.bytes.extend(&chunk[start..]);
+            return;
+        }
+        let overflow = self
+            .bytes
+            .len()
+            .saturating_add(chunk.len())
+            .saturating_sub(STDERR_TAIL_BYTES);
+        if overflow > 0 {
+            self.bytes.drain(..overflow);
+            self.truncated = true;
+        }
+        self.bytes.extend(chunk);
+    }
+
+    fn format(&self) -> Option<String> {
+        if self.bytes.is_empty() {
+            return None;
+        }
+        let raw: Vec<u8> = self.bytes.iter().copied().collect();
+        let mut slice: &[u8] = &raw;
+        if self.truncated {
+            // Skip any UTF-8 continuation bytes left over after dropping the front of the buffer.
+            while let Some(&first) = slice.first()
+                && (first & 0b1100_0000) == 0b1000_0000
+            {
+                slice = &slice[1..];
+            }
+            // Start on a clean line boundary when printable text follows the first newline.
+            if let Some(newline) = slice.iter().position(|&b| b == b'\n') {
+                let after = &slice[newline + 1..];
+                if String::from_utf8_lossy(after)
+                    .chars()
+                    .any(|c| !c.is_control() && !c.is_whitespace())
+                {
+                    slice = after;
+                }
+            }
+        }
+        let text = String::from_utf8_lossy(slice);
+        let cleaned: String = text
+            .chars()
+            .filter(|&c| c == '\n' || c == '\t' || !c.is_control())
+            .collect();
+        let trimmed = cleaned.trim();
+        if trimmed.is_empty() {
+            return None;
+        }
+        if self.truncated {
+            Some(format!("...{trimmed}"))
+        } else {
+            Some(trimmed.to_owned())
+        }
+    }
+}
+
+/// Startup handle held beside `ChildTransport` until `open` finishes. Dropping it on success
+/// leaves `ChildTransport` as the sole owner of the child and lets the stderr task stop buffering
+/// `StderrTail`.
+struct ChildWatch {
+    child: Arc<Mutex<Option<Child>>>,
+    stderr_tail: Arc<Mutex<StderrTail>>,
+    stderr_done: tokio::sync::watch::Receiver<bool>,
+}
+
+impl ChildWatch {
+    async fn diagnose(mut self, wait_for_exit: bool) -> Option<String> {
+        let child = self
+            .child
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .take();
+        let status = match child {
+            Some(mut child) => match child.try_wait() {
+                Ok(Some(status)) => Some(status),
+                Ok(None) if wait_for_exit => {
+                    match tokio::time::timeout(EXIT_WAIT, child.wait()).await {
+                        Ok(Ok(status)) => Some(status),
+                        _ => None,
+                    }
+                }
+                _ => None,
+            },
+            None => None,
+        };
+        // `child` is dropped here: if it had not exited, `kill_on_drop(true)` kills it now.
+        if wait_for_exit || status.is_some() {
+            let _ =
+                tokio::time::timeout(STDERR_DRAIN_WAIT, self.stderr_done.wait_for(|done| *done))
+                    .await;
+        }
+        let stderr = self
+            .stderr_tail
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .format();
+        format_child_diagnostics(status, stderr.as_deref())
+    }
+}
+
+fn format_exit_status(status: std::process::ExitStatus) -> String {
+    if let Some(code) = status.code() {
+        return format!("exited with code {code}");
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::ExitStatusExt;
+        if let Some(signal) = status.signal() {
+            return format!("killed by signal {signal}");
+        }
+    }
+    format!("exited ({status})")
+}
+
+fn format_child_diagnostics(
+    status: Option<std::process::ExitStatus>,
+    stderr: Option<&str>,
+) -> Option<String> {
+    match (status, stderr) {
+        (Some(status), Some(stderr)) => Some(format!(
+            "child {}; stderr: {stderr}",
+            format_exit_status(status)
+        )),
+        (Some(status), None) => Some(format!("child {}", format_exit_status(status))),
+        (None, Some(stderr)) => Some(format!("stderr: {stderr}")),
+        (None, None) => None,
+    }
+}
+
+fn append_diagnostics(message: String, detail: Option<String>) -> String {
+    match detail {
+        Some(detail) => format!("{message} ({detail})"),
+        None => message,
+    }
+}
+
+/// Start the child: environment cleared to `PATH` (plus `SystemRoot` on Windows) and the
+/// configured variables, `kill_on_drop`, stdin and stdout for JSON-RPC, stderr forwarded line by
+/// line to the host log and tailed for startup diagnostics.
 fn spawn(
     spec: &MountSpec,
     stdio: &StdioSpec,
     limit: &Arc<Limit>,
-) -> Result<ChildTransport, String> {
+) -> Result<(ChildTransport, ChildWatch), String> {
     let mut command = Command::new(&stdio.program);
     command
         .args(&stdio.args)
@@ -472,14 +659,65 @@ fn spawn(
     else {
         return Err("the child has no stdio pipes".to_owned());
     };
+    let tail = Arc::new(Mutex::new(StderrTail::default()));
+    let tail_weak = Arc::downgrade(&tail);
+    let (stderr_done_tx, stderr_done_rx) = tokio::sync::watch::channel(false);
     let instance = spec.instance.clone();
     tokio::spawn(async move {
-        let mut lines = BufReader::new(stderr).lines();
-        while let Ok(Some(line)) = lines.next_line().await {
-            tracing::debug!(instance = %instance, "{line}");
+        let mut reader = stderr;
+        let mut buf = [0u8; 1024];
+        let mut line = Vec::new();
+        let mut line_truncated = false;
+        while let Ok(read) = reader.read(&mut buf).await {
+            if read == 0 {
+                break;
+            }
+            let chunk = &buf[..read];
+            if let Some(tail) = tail_weak.upgrade() {
+                tail.lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .push(chunk);
+            }
+            for &byte in chunk {
+                if byte == b'\n' {
+                    let text = String::from_utf8_lossy(&line);
+                    let text = text.trim_end_matches('\r');
+                    if !text.is_empty() || line_truncated {
+                        if line_truncated {
+                            tracing::debug!(instance = %instance, "{text}...");
+                        } else {
+                            tracing::debug!(instance = %instance, "{text}");
+                        }
+                    }
+                    line.clear();
+                    line_truncated = false;
+                } else if line.len() < STDERR_LOG_LINE_BYTES {
+                    line.push(byte);
+                } else {
+                    line_truncated = true;
+                }
+            }
         }
+        let text = String::from_utf8_lossy(&line);
+        let text = text.trim_end_matches('\r');
+        if !text.is_empty() || line_truncated {
+            if line_truncated {
+                tracing::debug!(instance = %instance, "{text}...");
+            } else {
+                tracing::debug!(instance = %instance, "{text}");
+            }
+        }
+        let _ = stderr_done_tx.send(true);
     });
-    Ok(ChildTransport::new(child, stdout, stdin, Arc::clone(limit)))
+    let shared_child = Arc::new(Mutex::new(Some(child)));
+    let transport =
+        ChildTransport::new(Arc::clone(&shared_child), stdout, stdin, Arc::clone(limit));
+    let watch = ChildWatch {
+        child: shared_child,
+        stderr_tail: tail,
+        stderr_done: stderr_done_rx,
+    };
+    Ok((transport, watch))
 }
 
 fn http_transport(
@@ -506,4 +744,80 @@ fn http_transport(
         BoundedHttp::new(client, Arc::clone(limit)),
         config,
     ))
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod tests {
+    use super::{STDERR_TAIL_BYTES, StderrTail, append_diagnostics, format_child_diagnostics};
+
+    #[test]
+    fn stderr_tail_keeps_short_output_and_strips_control_chars() {
+        let mut tail = StderrTail::default();
+        tail.push(b"line 1\r\n\x1b[31mline 2\twith\x00tab\r\n");
+        assert_eq!(
+            tail.format().as_deref(),
+            Some("line 1\n[31mline 2\twithtab")
+        );
+    }
+
+    #[test]
+    fn stderr_tail_ignores_empty_or_whitespace_only_output() {
+        let mut tail = StderrTail::default();
+        assert_eq!(tail.format(), None);
+        tail.push(b"   \r\n\t \n");
+        assert_eq!(tail.format(), None);
+    }
+
+    #[test]
+    fn stderr_tail_truncates_to_clean_line_tail_and_handles_utf8_boundaries() {
+        let mut tail = StderrTail::default();
+        // Multi-byte UTF-8 prefix followed by enough bytes to force truncation mid-codepoint.
+        tail.push("EARLY_MARKER\n".as_bytes());
+        tail.push("é".repeat(STDERR_TAIL_BYTES).as_bytes());
+        tail.push(b"\nFINAL_LINE\n\n");
+        let rendered = tail.format().expect("non-empty tail");
+        assert!(rendered.starts_with("..."), "{rendered}");
+        assert!(rendered.contains("FINAL_LINE"), "{rendered}");
+        assert!(!rendered.contains("EARLY_MARKER"), "{rendered}");
+        assert!(
+            rendered.len() <= STDERR_TAIL_BYTES + 3,
+            "{}",
+            rendered.len()
+        );
+    }
+
+    #[test]
+    fn stderr_tail_exact_budget_is_not_marked_truncated() {
+        let mut tail = StderrTail::default();
+        let exact = "a".repeat(STDERR_TAIL_BYTES);
+        tail.push(exact.as_bytes());
+        assert_eq!(tail.format().as_deref(), Some(exact.as_str()));
+    }
+
+    #[test]
+    fn stderr_tail_keeps_printable_line_when_only_controls_follow_newline() {
+        let mut tail = StderrTail::default();
+        tail.push("ignored ".as_bytes());
+        tail.push("x".repeat(STDERR_TAIL_BYTES - 4).as_bytes());
+        tail.push(b"\n\x00\x1b\r");
+        let rendered = tail.format().expect("printable text before control tail");
+        assert!(rendered.starts_with("..."), "{rendered}");
+        assert!(rendered.contains("xxx"), "{rendered}");
+    }
+
+    #[test]
+    fn append_diagnostics_keeps_plain_message_when_none() {
+        assert_eq!(
+            append_diagnostics("the handshake failed: eof".to_owned(), None),
+            "the handshake failed: eof"
+        );
+        assert_eq!(
+            append_diagnostics(
+                "the handshake failed: eof".to_owned(),
+                format_child_diagnostics(None, Some("boom"))
+            ),
+            "the handshake failed: eof (stderr: boom)"
+        );
+    }
 }

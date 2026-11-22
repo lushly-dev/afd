@@ -11,12 +11,71 @@ use std::sync::Mutex;
 /// `UMBEL_FIXTURE`: the fixture's configuration, a JSON object.
 pub const CONFIG_ENV: &str = "UMBEL_FIXTURE";
 
+/// Scripted process exit for testing startup failure diagnostics.
+#[derive(Clone)]
+pub struct ExitPlan {
+    pub code: i32,
+    pub prefix: String,
+    pub stderr: String,
+    pub repeat: usize,
+    pub suffix: String,
+}
+
+impl ExitPlan {
+    fn parse(value: Option<&Value>) -> Option<Self> {
+        let obj = value?.as_object()?;
+        let code = obj.get("code")?.as_i64()? as i32;
+        let prefix = obj
+            .get("prefix")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_owned();
+        let stderr = obj
+            .get("stderr")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_owned();
+        let repeat = obj.get("repeat").and_then(Value::as_u64).unwrap_or(1) as usize;
+        let suffix = obj
+            .get("suffix")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_owned();
+        Some(Self {
+            code,
+            prefix,
+            stderr,
+            repeat,
+            suffix,
+        })
+    }
+
+    fn execute(&self) -> ! {
+        let mut stderr = std::io::stderr();
+        if !self.prefix.is_empty() {
+            let _ = stderr.write_all(self.prefix.as_bytes());
+        }
+        for _ in 0..self.repeat {
+            let _ = stderr.write_all(self.stderr.as_bytes());
+        }
+        if !self.suffix.is_empty() {
+            let _ = stderr.write_all(self.suffix.as_bytes());
+        }
+        let _ = stderr.flush();
+        std::process::exit(self.code);
+    }
+}
+
 #[derive(Default)]
 pub struct Fixture {
     /// `legacy` answers `server/discover` with method-not-found and speaks `initialize`.
     pub legacy: bool,
     /// Never answers anything: a server that accepts the connection and says nothing.
     pub mute: bool,
+    /// Exit immediately on startup, before answering the handshake.
+    pub exit_on_start: Option<ExitPlan>,
+    /// Exit when `tools/list` arrives, after the handshake succeeded.
+    pub exit_on_list: Option<ExitPlan>,
     /// More tools than the standard ones, each `{ name, description?, inputSchema? }`.
     pub extra_tools: Vec<Value>,
     seen: Mutex<Value>,
@@ -34,6 +93,8 @@ impl Fixture {
         Self {
             legacy: config.get("era").and_then(Value::as_str) == Some("legacy"),
             mute: config.get("mute").and_then(Value::as_bool) == Some(true),
+            exit_on_start: ExitPlan::parse(config.get("exitOnStart")),
+            exit_on_list: ExitPlan::parse(config.get("exitOnList")),
             extra_tools: config
                 .get("extraTools")
                 .and_then(Value::as_array)
@@ -94,12 +155,17 @@ impl Fixture {
                 }))
             }
             "ping" => reply(json!({})),
-            "tools/list" => reply(json!({
-                "resultType": "complete",
-                "tools": self.tools(),
-                "ttlMs": 0,
-                "cacheScope": "public"
-            })),
+            "tools/list" => {
+                if let Some(plan) = &self.exit_on_list {
+                    plan.execute();
+                }
+                reply(json!({
+                    "resultType": "complete",
+                    "tools": self.tools(),
+                    "ttlMs": 0,
+                    "cacheScope": "public"
+                }))
+            }
             "tools/call" => self.call(&params, &reply),
             _ => error(-32601, "Method not found"),
         })
@@ -181,6 +247,9 @@ impl Fixture {
 
 /// Serve over stdin and stdout until stdin closes: one JSON-RPC message per line.
 pub fn serve_stdio(fixture: &Fixture) {
+    if let Some(plan) = &fixture.exit_on_start {
+        plan.execute();
+    }
     let stdin = std::io::stdin();
     let mut stdout = std::io::stdout();
     for line in stdin.lock().lines() {

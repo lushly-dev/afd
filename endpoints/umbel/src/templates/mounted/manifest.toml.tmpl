@@ -13,7 +13,7 @@ domains = ["{{id}}"]
 # Every tool the server lists becomes a command named <prefix>-<tool>.
 prefix = "{{id}}"
 transport = "stdio"
-# The command line the host starts, from this directory. The child sees only PATH and `env`.
+# The command line the host starts, from this directory. The child sees only PATH (plus SystemRoot on Windows) and `env`.
 command = ["bin/{{id}}-mcp"]
 
 # A tool's effects default to `external`: a mutation that writes an event. Say what each tool really

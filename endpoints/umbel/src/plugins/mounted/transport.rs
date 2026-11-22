@@ -118,15 +118,16 @@ impl<R: AsyncRead + Unpin> AsyncRead for LimitedRead<R> {
 }
 
 /// The child process and rmcp's line transport over its pipes. The child is owned by the
-/// transport, so it is killed (`kill_on_drop`) when the service that holds the transport ends.
+/// transport (shared only during startup so a failed handshake can read its exit status before
+/// `kill_on_drop` runs), so it is killed when the service that holds the transport ends.
 pub(crate) struct ChildTransport {
     transport: AsyncRwTransport<RoleClient, LimitedRead<ChildStdout>, ChildStdin>,
-    _child: Child,
+    _child: Arc<std::sync::Mutex<Option<Child>>>,
 }
 
 impl ChildTransport {
     pub(crate) fn new(
-        child: Child,
+        child: Arc<std::sync::Mutex<Option<Child>>>,
         stdout: ChildStdout,
         stdin: ChildStdin,
         limit: Arc<Limit>,
