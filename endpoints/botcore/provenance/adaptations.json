@@ -1035,10 +1035,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "39d6f89c888e0ad94321d7507693706006fb817d71d3c1fd1c282e5c4c897494",
+      "current_import_sha256": "5a4f74758cf6ea876e36c05618208fac13a817ee3c9d0562f6548b72af0c64c0",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing"
+      "import_reason": "Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing; Review follow-ups: session built-in tool list, refuse tool hosts with actors a model cannot act for, document that pinned patterns can still write"
     },
     {
       "path": "packages/botcore-llm/pyproject.toml",
@@ -1064,11 +1064,11 @@
       "path": "packages/botcore-llm/src/botcore_llm/bridge.py",
       "upstream_sha256": "8555b7087bb269c4f30f335d73e21cf4130744fe8fb9820be58798d2fd5b383a",
       "staged_sha256": "8555b7087bb269c4f30f335d73e21cf4130744fe8fb9820be58798d2fd5b383a",
-      "current_import_sha256": "436a148feb931ed2d91d3a02007e2b993bab14202ff0107351057929926bcbf0",
+      "current_import_sha256": "79514106cf549387ef7a3dd040a676121e3093b491ce9de98ef9ef9fd48ce5b1",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact frozen staged-input bytes; Bridged LLM tools dispatch through a managed host under its policy; shell allowlist admits one simple command only; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing"
+      "import_reason": "Imported exact frozen staged-input bytes; Bridged LLM tools dispatch through a managed host under its policy; shell allowlist admits one simple command only; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing; Review follow-ups: session built-in tool list, refuse tool hosts with actors a model cannot act for, document that pinned patterns can still write"
     },
     {
       "path": "packages/botcore-llm/src/botcore_llm/chat_stream.py",
@@ -1094,11 +1094,11 @@
       "path": "packages/botcore-llm/src/botcore_llm/commands.py",
       "upstream_sha256": "371568e111300b2d7b89e8ee4616219a6c04256decbd4a7c5a60387f7485f962",
       "staged_sha256": "371568e111300b2d7b89e8ee4616219a6c04256decbd4a7c5a60387f7485f962",
-      "current_import_sha256": "60797bfe19ae1b4cad5013b26c8296e603e22b7120716b2e8cb8d646e8743757",
+      "current_import_sha256": "562d4f5e632e3049f432bfe35ae1e62c563f4e2dd42e7bf4255c9451d54d71bd",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact frozen staged-input bytes; Bridged LLM tools dispatch through a managed host under its policy; shell allowlist admits one simple command only; Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing"
+      "import_reason": "Imported exact frozen staged-input bytes; Bridged LLM tools dispatch through a managed host under its policy; shell allowlist admits one simple command only; Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing; Review follow-ups: session built-in tool list, refuse tool hosts with actors a model cannot act for, document that pinned patterns can still write"
     },
     {
       "path": "packages/botcore-llm/src/botcore_llm/config.py",
@@ -1154,11 +1154,11 @@
       "path": "packages/botcore-llm/tests/test_bridge.py",
       "upstream_sha256": "81300dbfdac249c0e86787c1049a55eb8eb9dc46bb80c8ef08d76c9ed91c1f74",
       "staged_sha256": "81300dbfdac249c0e86787c1049a55eb8eb9dc46bb80c8ef08d76c9ed91c1f74",
-      "current_import_sha256": "dd1ed277389bd76db85dc5c04698fe9a1ee3631482de9f5f8e4441611d5cce0e",
+      "current_import_sha256": "67a29119683c47890bb630eea7dadc0bf2ce5530c2b3c219b4ad7fe9d901e4ee",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact frozen staged-input bytes; Bridged LLM tools dispatch through a managed host under its policy; shell allowlist admits one simple command only; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing"
+      "import_reason": "Imported exact frozen staged-input bytes; Bridged LLM tools dispatch through a managed host under its policy; shell allowlist admits one simple command only; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing; Review follow-ups: session built-in tool list, refuse tool hosts with actors a model cannot act for, document that pinned patterns can still write"
     },
     {
       "path": "packages/botcore-llm/tests/test_chat_stream.py",
@@ -1184,11 +1184,11 @@
       "path": "packages/botcore-llm/tests/test_commands.py",
       "upstream_sha256": "69d9ffd9e7c8bdbba9868e9f784f256507c2f9fdc105280a8fdc149e58695553",
       "staged_sha256": "69d9ffd9e7c8bdbba9868e9f784f256507c2f9fdc105280a8fdc149e58695553",
-      "current_import_sha256": "128f9d7443aa0556620b80126526af06d4a7bbba580bab62adcf9aee9b1c06fc",
+      "current_import_sha256": "29151c98c80c44481811ad78479dd8164dfe290ce18a5a4a4e95cec817234900",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact frozen staged-input bytes; Bridged LLM tools dispatch through a managed host under its policy; shell allowlist admits one simple command only; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing"
+      "import_reason": "Imported exact frozen staged-input bytes; Bridged LLM tools dispatch through a managed host under its policy; shell allowlist admits one simple command only; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing; Review follow-ups: session built-in tool list, refuse tool hosts with actors a model cannot act for, document that pinned patterns can still write"
     },
     {
       "path": "packages/botcore-llm/tests/test_permissions.py",

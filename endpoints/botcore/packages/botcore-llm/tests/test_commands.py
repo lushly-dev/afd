@@ -349,6 +349,40 @@ class TestLlmSessionCreateTools:
         assert "mcp:*" in available
         assert "builtin:bash" in available
         assert "builtin:view" not in available
+        assert "builtin:apply_patch" not in available
+        # No tool types input into a running process past the shell allowlist.
+        assert "builtin:write_bash" not in available
+        assert "builtin:write_powershell" not in available
+
+    @pytest.mark.asyncio
+    async def test_filesystem_offers_the_file_builtins_and_lsp_is_always_offered(
+        self, patch_client_manager, mock_copilot_client
+    ):
+        assert_success(await llm_session_create())
+        available = mock_copilot_client.create_session.call_args.kwargs["available_tools"]
+        assert "builtin:lsp" in available
+        assert "builtin:apply_patch" not in available
+
+        permissions = LlmPermissionsConfig(allow_filesystem=True)
+        assert_success(await llm_session_create(permissions=permissions))
+        available = mock_copilot_client.create_session.call_args.kwargs["available_tools"]
+        assert {"builtin:apply_patch", "builtin:view", "builtin:lsp"} <= set(available)
+
+    @pytest.mark.asyncio
+    async def test_host_with_a_service_actor_is_refused(
+        self, patch_client_manager, mock_copilot_client, tmp_path
+    ):
+        from afd import Actor
+
+        host = self._lane_host(tmp_path)
+        host.actor = Actor(kind="service", id="ci")
+        set_tool_host(host)
+
+        result = await llm_session_create(tools=["note"])
+
+        assert_error(result, "TOOL_HOST_ACTOR_REFUSED")
+        assert "human actor with an id" in result.error.suggestion
+        mock_copilot_client.create_session.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_destroy_closes_the_tool_host_the_session_built(

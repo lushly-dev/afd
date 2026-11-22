@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any
 from afd import CommandResult, error, success
 from copilot import BUILTIN_TOOLS_ISOLATED, ToolSet
 
-from .bridge import bridge_commands
+from .bridge import HostActorRefused, bridge_commands
 from .chat_stream import chat_result, llm_chat_stream
 from .client import CopilotClientManager
 from .config import DEFAULT_TOOL_PLUGINS, LlmConfig, LlmPermissionsConfig, get_llm_config
@@ -85,31 +85,42 @@ async def _close_owned(host: CommandHost | None, owned: bool) -> None:
 
 
 #: Copilot built-in tools that run shell commands; offered only with ``allow_shell``.
+#: No tool that types input into a running process is offered: such input would reach the
+#: process without passing the shell allowlist.
 SHELL_BUILTIN_TOOLS = (
     "bash",
     "read_bash",
-    "write_bash",
     "stop_bash",
     "list_bash",
     "powershell",
     "read_powershell",
-    "write_powershell",
     "stop_powershell",
-    "list_powershell",
 )
 #: Copilot built-in tools that read or write files; offered only with ``allow_filesystem``.
-FILESYSTEM_BUILTIN_TOOLS = ("view", "create", "edit", "str_replace_editor", "glob", "grep")
+#: ``apply_patch`` is the file-editing tool GPT-family models use.
+FILESYSTEM_BUILTIN_TOOLS = (
+    "view",
+    "create",
+    "edit",
+    "str_replace_editor",
+    "apply_patch",
+    "glob",
+    "grep",
+)
+#: Read-only built-ins offered in every session, besides the SDK's session-local set.
+READ_ONLY_BUILTIN_TOOLS = ("lsp",)
 
 
 def session_tool_allowlist(bridged: list[str], permissions: LlmPermissionsConfig) -> list[str]:
     """The ``available_tools`` filter of a session: every tool the model may see.
 
-    The bridged tools, the runtime's session-local built-ins, the shell and file built-ins
+    The bridged tools, the runtime's session-local and read-only built-ins, the shell and file
+    built-ins
     the permissions allow, and MCP tools only when ``allow_mcp`` names servers in
     ``mcp_servers`` (the permission handler then admits only those servers). Any other
     tool the runtime provides is hidden from the model.
     """
-    tool_set = ToolSet().add_builtin(BUILTIN_TOOLS_ISOLATED)
+    tool_set = ToolSet().add_builtin(BUILTIN_TOOLS_ISOLATED).add_builtin(READ_ONLY_BUILTIN_TOOLS)
     if permissions.allow_shell:
         tool_set.add_builtin(SHELL_BUILTIN_TOOLS)
     if permissions.allow_filesystem:
@@ -190,6 +201,9 @@ async def llm_session_create(
             )
         try:
             bridged_tools = bridge_commands(tool_names, tool_host)
+        except HostActorRefused as exc:
+            await _close_owned(tool_host, owned_host)
+            return error("TOOL_HOST_ACTOR_REFUSED", str(exc), suggestion=exc.suggestion)
         except KeyError as exc:
             await _close_owned(tool_host, owned_host)
             return error(

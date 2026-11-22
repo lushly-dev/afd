@@ -42,7 +42,9 @@ def botcore_command_to_copilot_tool(name: str, host: CommandHost) -> Tool:
 
     Raises:
         KeyError: If *host* serves no command called *name*.
+        HostActorRefused: If *host* names an actor a model's call cannot run as.
     """
+    actor = model_actor(host.actor)
     served = host.resolve(name)
     if served is None:
         raise KeyError(f"Command {name!r} is not served by host {host.name!r}")
@@ -50,7 +52,7 @@ def botcore_command_to_copilot_tool(name: str, host: CommandHost) -> Tool:
     parameters = input_schema if input_schema.get("properties") else None
 
     async def handler(invocation: ToolInvocation) -> ToolResult:
-        context = CommandContext(actor=model_actor(host.actor))
+        context = CommandContext(actor=actor)
         # Only a missing object defaults; anything else is the host's to validate.
         arguments = {} if invocation.arguments is None else invocation.arguments
         result = await host.execute(served, arguments, context)
@@ -64,19 +66,38 @@ def botcore_command_to_copilot_tool(name: str, host: CommandHost) -> Tool:
     )
 
 
+class HostActorRefused(ValueError):
+    """A host names an actor a model's tool calls cannot run as or on behalf of."""
+
+    suggestion = (
+        "Give the tool host no actor, an agent actor, or a human actor with an id "
+        "(the model then calls on that human's behalf)"
+    )
+
+
 def model_actor(host_actor: Actor | None) -> Actor:
     """The actor a model's tool call runs as: always an agent.
 
-    A host whose actor is an agent lends it. A host that names someone else (a human, a
-    service) keeps the agent as the caller and records that principal as ``on_behalf_of``,
-    so policy and journals never see a model's call as the human's own.
+    A host with no actor gives a plain agent, and one whose actor is an agent lends it. A
+    host whose actor is a human with an id keeps the agent as the caller and records that
+    human's id as ``on_behalf_of``, so policy and journals never see a model's call as the
+    human's own. Any other actor (a service, a script, a test, a human without an id) names
+    no one the model could act for, so the host is refused.
+
+    Raises:
+        HostActorRefused: For an actor the model cannot run as or for.
     """
     if host_actor is None:
         return Actor(kind="agent")
     if host_actor.kind == "agent":
         return host_actor
-    principal = host_actor.id or host_actor.label or host_actor.kind
-    return Actor(kind="agent", on_behalf_of=principal)
+    if host_actor.kind == "human" and host_actor.id:
+        return Actor(kind="agent", on_behalf_of=host_actor.id)
+    raise HostActorRefused(
+        f"The tool host's actor ({host_actor.kind}"
+        + (f" {host_actor.id!r}" if host_actor.id else ", no id")
+        + ") is not one a model's tool calls can run as or on behalf of"
+    )
 
 
 def bridge_commands(command_names: list[str], host: CommandHost) -> list[Tool]:

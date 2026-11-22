@@ -228,6 +228,25 @@ class TestHostPolicy:
 
         assert seen == [("agent", "owner")]
 
+    @pytest.mark.parametrize(
+        "actor",
+        [
+            {"kind": "service", "id": "ci"},
+            {"kind": "human"},
+            {"kind": "script", "id": "cron"},
+        ],
+    )
+    def test_host_naming_no_one_a_model_can_act_for_is_refused(self, tmp_path, actor):
+        from afd import Actor
+
+        from botcore_llm.bridge import HostActorRefused
+
+        host = _host(tmp_path)
+        host.actor = Actor(**actor)
+        with pytest.raises(HostActorRefused, match=actor["kind"]) as caught:
+            botcore_command_to_copilot_tool("greet", host)
+        assert "human actor with an id" in caught.value.suggestion
+
     @pytest.mark.asyncio
     async def test_non_object_arguments_reach_host_validation(self, tmp_path):
         tool = botcore_command_to_copilot_tool("no_args_command", _host(tmp_path))

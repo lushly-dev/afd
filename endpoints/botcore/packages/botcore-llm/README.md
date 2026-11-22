@@ -12,6 +12,11 @@ profile and path confinement apply. A call the host refuses reaches the model as
 error and suggestion, for example `EFFECT_DENIED`. A name the host does not serve is refused
 with `UNKNOWN_COMMAND` when the session is created.
 
+A model's calls always run as an agent. A supplied host with no actor or an agent actor is
+used as is; one whose actor is a human with an id makes the model call on that human's
+behalf (`on_behalf_of`); any other actor (a service, a script, a human without an id) is
+refused with `TOOL_HOST_ACTOR_REFUSED` when the session is created.
+
 The host covers the current workspace. Two settings shape it:
 
 | Setting | Default | Meaning |
@@ -54,8 +59,9 @@ for its owner to close.
 
 Each session sets the runtime's `available_tools`, so the model sees only the bridged
 tools, the runtime's session-local built-ins (`BUILTIN_TOOLS_ISOLATED`: `ask_user`, `task`
-and the like), the shell built-ins when `allow_shell` is set and the file built-ins when
-`allow_filesystem` is. Any other tool the runtime provides, such as one from an MCP server in
+and the like) and the read-only `lsp`, the shell built-ins when `allow_shell` is set (never
+one that types input into a running process) and the file built-ins, `apply_patch` among
+them, when `allow_filesystem` is. Any other tool the runtime provides, such as one from an MCP server in
 the user's Copilot configuration, is hidden. MCP tools are offered only when `allow_mcp`
 holds and `mcp_servers` names servers, and the permission handler then approves calls only
 to those servers:
@@ -89,6 +95,11 @@ allow_shell = true
 shell_allowlist = ["git status", "git status *", "git diff *", "pytest tests/*"]
 # "git status --short" yes; "git status && git diff" no; "git push" no
 ```
+
+Even these patterns can write: `git diff *` admits `git diff --output=<file>`, and
+`pytest tests/*` admits `--basetemp=<dir>` and runs the project's `conftest.py` code. Pin each
+pattern as tightly as the task allows (`git diff --stat`, `pytest tests/unit -q`), and treat
+any pattern ending in `*` as admitting every option of that subcommand.
 
 Botcore never runs the command: the Copilot runtime runs the approved text in its own shell,
 so the check judges that raw text. These checks bound what a model can ask for; they are not
