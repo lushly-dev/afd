@@ -942,9 +942,15 @@ titles in [`meta-tools.json`](./meta-tools.json), which every implementation lis
   ```
 
   Clients validate `structuredContent` against it, so a handler whose `data` does not match its
-  declared output schema fails on the client. To preserve local references, an output schema with
-  its own `$id` keeps that `$id`, `$defs` and `definitions` inside `data`, while a schema without
-  `$id` moves `$defs` and `definitions` to the envelope's root. A server MAY switch the top-level
+  declared output schema fails on the client. To preserve local references, an output schema that
+  starts a schema resource (a string `$id` that is not a bare fragment, the test of
+  [`validation.md`](./validation.md#annotations)) keeps its `$id`, `$defs` and `definitions` inside
+  `data`. Any other output schema moves `$defs` and `definitions` to the envelope's root, and each
+  `"$ref": "#"` in it that named its root, outside a nested schema resource and in a schema
+  position (not inside `const`, `enum`, `default` or `examples`), becomes
+  `"#/properties/data"`, since `#` now names the envelope.
+  [`vectors/output-schema.json`](./vectors/output-schema.json) holds the envelope each language
+  builds. A server MAY switch the top-level
   `outputSchema` off; `_meta.outputSchema` (the schema of `data` alone) is always reported.
 
 ### Implementation status

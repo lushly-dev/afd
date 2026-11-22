@@ -266,3 +266,14 @@ TEST_CASE("command validation matches every supported shared validation vector")
     CHECK(executed >= 94);
     CHECK(rejected_optional == 8);
 }
+
+// spec/vectors/output-schema.json: the CommandResult envelope a command tool advertises as its
+// top-level outputSchema (spec/command-metadata.md, "Structured results"; #1910).
+TEST_CASE("vectors: output-schema.json") {
+    const afd::Json vectors = load_vectors("output-schema.json");
+    REQUIRE(vectors["cases"].size() == 11);
+    for (const auto& vector : vectors["cases"]) {
+        CAPTURE(vector["description"].get<std::string>());
+        CHECK(afd::command_result_output_schema(vector["dataSchema"]) == vector["outputSchema"]);
+    }
+}

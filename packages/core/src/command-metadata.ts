@@ -74,21 +74,91 @@ export function commandToolAnnotations(
 	return undefined;
 }
 
+/** Keywords whose value is a schema, in the subset `spec/validation.md` names. */
+const SCHEMA_KEYWORDS = new Set([
+	'items',
+	'additionalProperties',
+	'not',
+	'if',
+	'then',
+	'else',
+	'contains',
+	'propertyNames',
+	'additionalItems',
+	'unevaluatedItems',
+	'unevaluatedProperties',
+]);
+/** Keywords whose value is an array of schemas. */
+const SCHEMA_LIST_KEYWORDS = new Set(['allOf', 'anyOf', 'oneOf', 'prefixItems', 'items']);
+/**
+ * Keywords whose value maps names to schemas. Draft-07 `dependencies` maps a name to a schema or to
+ * a list of property names; only a schema is walked.
+ */
+const SCHEMA_MAP_KEYWORDS = new Set([
+	'properties',
+	'patternProperties',
+	'$defs',
+	'definitions',
+	'dependentSchemas',
+	'dependencies',
+]);
+
+/**
+ * Whether a schema starts a schema resource: a string `$id` that is not a bare fragment
+ * (`spec/validation.md`), so its local references resolve against it.
+ */
+function startsResource(schema: unknown): boolean {
+	if (typeof schema !== 'object' || schema === null || Array.isArray(schema)) return false;
+	const id = (schema as { $id?: unknown }).$id;
+	return typeof id === 'string' && !id.startsWith('#');
+}
+
+/**
+ * A copy of `schema` in which every `"$ref": "#"` that names its root, outside any nested
+ * schema resource, names `target` instead. Annotations and values (`const`, `enum`, `default`,
+ * `examples`) are left as they are.
+ */
+function retargetRoot(schema: unknown, target: string, root = true): unknown {
+	if (Array.isArray(schema) || typeof schema !== 'object' || schema === null) return schema;
+	if (!root && startsResource(schema)) return schema;
+	const out: Record<string, unknown> = {};
+	for (const [key, value] of Object.entries(schema)) {
+		if (key === '$ref' && value === '#') out[key] = target;
+		else if (SCHEMA_LIST_KEYWORDS.has(key) && Array.isArray(value)) {
+			out[key] = value.map((item) => retargetRoot(item, target, false));
+		} else if (SCHEMA_KEYWORDS.has(key)) out[key] = retargetRoot(value, target, false);
+		else if (
+			SCHEMA_MAP_KEYWORDS.has(key) &&
+			typeof value === 'object' &&
+			value !== null &&
+			!Array.isArray(value)
+		) {
+			out[key] = Object.fromEntries(
+				Object.entries(value).map(([name, item]) => [name, retargetRoot(item, target, false)])
+			);
+		} else out[key] = value;
+	}
+	return out;
+}
+
 /**
  * The top-level MCP `outputSchema` of a command tool: the `CommandResult` envelope, with `data`
  * typed by the command's output schema (`spec/command-metadata.md`, "Structured results").
  *
- * `$schema` is dropped. Definitions move to the envelope unless `data` has its own `$id`,
- * which makes it the root for local references.
+ * `$schema` is dropped. When `data` starts a schema resource (a string `$id` that is not a bare
+ * fragment, the validators' test), its local references resolve against it, so its definitions
+ * stay inside it. Otherwise its definitions move to the envelope, and a `"$ref": "#"` that named
+ * `data` becomes `"#/properties/data"`, since `#` now names the envelope.
  */
 export function commandResultOutputSchema(dataSchema: JsonSchema): JsonSchema {
-	const { $schema: _dialect, ...data } = dataSchema as JsonSchema & {
-		$schema?: unknown;
-		$defs?: unknown;
-		definitions?: unknown;
-	};
+	const { $schema: _dialect, ...declared } = dataSchema as JsonSchema & { $schema?: unknown };
+	const resource = startsResource(declared);
+	const data = (resource ? declared : retargetRoot(declared, '#/properties/data')) as Record<
+		string,
+		unknown
+	>;
 	const hoisted: { $defs?: unknown; definitions?: unknown } = {};
-	if (!Object.hasOwn(data, '$id')) {
+	if (!resource) {
 		for (const key of ['$defs', 'definitions'] as const) {
 			if (data[key] !== undefined) hoisted[key] = data[key];
 			delete data[key];
@@ -98,7 +168,7 @@ export function commandResultOutputSchema(dataSchema: JsonSchema): JsonSchema {
 		type: 'object',
 		properties: {
 			success: { type: 'boolean' },
-			data,
+			data: data as unknown as JsonSchema,
 			error: {
 				type: 'object',
 				properties: {

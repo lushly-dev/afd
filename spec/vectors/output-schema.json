@@ -1,0 +1,983 @@
+{
+	"description": "The CommandResult envelope a command tool advertises as its top-level outputSchema (spec/command-metadata.md, \"Structured results\"), produced by TypeScript's commandResultOutputSchema. Regenerate with node spec/vectors/generate-output-schema.mjs.",
+	"cases": [
+		{
+			"description": "a schema without definitions is data as it is, without $schema",
+			"dataSchema": {
+				"$schema": "http://json-schema.org/draft-07/schema#",
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					}
+				},
+				"required": ["id"]
+			},
+			"outputSchema": {
+				"type": "object",
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"data": {
+						"type": "object",
+						"properties": {
+							"id": {
+								"type": "string"
+							}
+						},
+						"required": ["id"]
+					},
+					"error": {
+						"type": "object",
+						"properties": {
+							"code": {
+								"type": "string"
+							},
+							"message": {
+								"type": "string"
+							},
+							"suggestion": {
+								"type": "string"
+							},
+							"retryable": {
+								"type": "boolean"
+							}
+						},
+						"required": ["code", "message"]
+					},
+					"metadata": {
+						"type": "object"
+					}
+				},
+				"required": ["success"]
+			}
+		},
+		{
+			"description": "definitions of a schema without $id move to the envelope",
+			"dataSchema": {
+				"type": "object",
+				"properties": {
+					"a": {
+						"$ref": "#/$defs/A"
+					},
+					"b": {
+						"$ref": "#/definitions/B"
+					}
+				},
+				"$defs": {
+					"A": {
+						"type": "string"
+					}
+				},
+				"definitions": {
+					"B": {
+						"type": "number"
+					}
+				}
+			},
+			"outputSchema": {
+				"type": "object",
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"data": {
+						"type": "object",
+						"properties": {
+							"a": {
+								"$ref": "#/$defs/A"
+							},
+							"b": {
+								"$ref": "#/definitions/B"
+							}
+						}
+					},
+					"error": {
+						"type": "object",
+						"properties": {
+							"code": {
+								"type": "string"
+							},
+							"message": {
+								"type": "string"
+							},
+							"suggestion": {
+								"type": "string"
+							},
+							"retryable": {
+								"type": "boolean"
+							}
+						},
+						"required": ["code", "message"]
+					},
+					"metadata": {
+						"type": "object"
+					}
+				},
+				"required": ["success"],
+				"$defs": {
+					"A": {
+						"type": "string"
+					}
+				},
+				"definitions": {
+					"B": {
+						"type": "number"
+					}
+				}
+			}
+		},
+		{
+			"description": "a string $id starts a resource, which keeps its definitions and its #",
+			"dataSchema": {
+				"$id": "urn:afd:node",
+				"type": "object",
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"children": {
+						"type": "array",
+						"items": {
+							"$ref": "#"
+						}
+					},
+					"kind": {
+						"$ref": "#/$defs/Kind"
+					}
+				},
+				"required": ["name"],
+				"$defs": {
+					"Kind": {
+						"enum": ["leaf", "branch"]
+					}
+				}
+			},
+			"outputSchema": {
+				"type": "object",
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"data": {
+						"$id": "urn:afd:node",
+						"type": "object",
+						"properties": {
+							"name": {
+								"type": "string"
+							},
+							"children": {
+								"type": "array",
+								"items": {
+									"$ref": "#"
+								}
+							},
+							"kind": {
+								"$ref": "#/$defs/Kind"
+							}
+						},
+						"required": ["name"],
+						"$defs": {
+							"Kind": {
+								"enum": ["leaf", "branch"]
+							}
+						}
+					},
+					"error": {
+						"type": "object",
+						"properties": {
+							"code": {
+								"type": "string"
+							},
+							"message": {
+								"type": "string"
+							},
+							"suggestion": {
+								"type": "string"
+							},
+							"retryable": {
+								"type": "boolean"
+							}
+						},
+						"required": ["code", "message"]
+					},
+					"metadata": {
+						"type": "object"
+					}
+				},
+				"required": ["success"]
+			}
+		},
+		{
+			"description": "a bare fragment $id starts no resource, so its definitions move",
+			"dataSchema": {
+				"$id": "#node",
+				"type": "object",
+				"properties": {
+					"a": {
+						"$ref": "#/$defs/A"
+					}
+				},
+				"$defs": {
+					"A": {
+						"type": "string"
+					}
+				}
+			},
+			"outputSchema": {
+				"type": "object",
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"data": {
+						"$id": "#node",
+						"type": "object",
+						"properties": {
+							"a": {
+								"$ref": "#/$defs/A"
+							}
+						}
+					},
+					"error": {
+						"type": "object",
+						"properties": {
+							"code": {
+								"type": "string"
+							},
+							"message": {
+								"type": "string"
+							},
+							"suggestion": {
+								"type": "string"
+							},
+							"retryable": {
+								"type": "boolean"
+							}
+						},
+						"required": ["code", "message"]
+					},
+					"metadata": {
+						"type": "object"
+					}
+				},
+				"required": ["success"],
+				"$defs": {
+					"A": {
+						"type": "string"
+					}
+				}
+			}
+		},
+		{
+			"description": "a $id that is not a string starts no resource, so its definitions move",
+			"dataSchema": {
+				"$id": 7,
+				"type": "object",
+				"properties": {
+					"a": {
+						"$ref": "#/$defs/A"
+					}
+				},
+				"$defs": {
+					"A": {
+						"type": "string"
+					}
+				}
+			},
+			"outputSchema": {
+				"type": "object",
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"data": {
+						"$id": 7,
+						"type": "object",
+						"properties": {
+							"a": {
+								"$ref": "#/$defs/A"
+							}
+						}
+					},
+					"error": {
+						"type": "object",
+						"properties": {
+							"code": {
+								"type": "string"
+							},
+							"message": {
+								"type": "string"
+							},
+							"suggestion": {
+								"type": "string"
+							},
+							"retryable": {
+								"type": "boolean"
+							}
+						},
+						"required": ["code", "message"]
+					},
+					"metadata": {
+						"type": "object"
+					}
+				},
+				"required": ["success"],
+				"$defs": {
+					"A": {
+						"type": "string"
+					}
+				}
+			}
+		},
+		{
+			"description": "a # naming a recursive data schema names data in the envelope",
+			"dataSchema": {
+				"type": "object",
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"children": {
+						"type": "array",
+						"items": {
+							"$ref": "#"
+						}
+					}
+				},
+				"required": ["name"]
+			},
+			"outputSchema": {
+				"type": "object",
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"data": {
+						"type": "object",
+						"properties": {
+							"name": {
+								"type": "string"
+							},
+							"children": {
+								"type": "array",
+								"items": {
+									"$ref": "#/properties/data"
+								}
+							}
+						},
+						"required": ["name"]
+					},
+					"error": {
+						"type": "object",
+						"properties": {
+							"code": {
+								"type": "string"
+							},
+							"message": {
+								"type": "string"
+							},
+							"suggestion": {
+								"type": "string"
+							},
+							"retryable": {
+								"type": "boolean"
+							}
+						},
+						"required": ["code", "message"]
+					},
+					"metadata": {
+						"type": "object"
+					}
+				},
+				"required": ["success"]
+			}
+		},
+		{
+			"description": "a # inside moved definitions is retargeted too",
+			"dataSchema": {
+				"type": "object",
+				"properties": {
+					"tree": {
+						"$ref": "#/$defs/Tree"
+					}
+				},
+				"$defs": {
+					"Tree": {
+						"type": "object",
+						"properties": {
+							"up": {
+								"$ref": "#"
+							},
+							"kids": {
+								"type": "array",
+								"items": {
+									"$ref": "#/$defs/Tree"
+								}
+							}
+						}
+					}
+				}
+			},
+			"outputSchema": {
+				"type": "object",
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"data": {
+						"type": "object",
+						"properties": {
+							"tree": {
+								"$ref": "#/$defs/Tree"
+							}
+						}
+					},
+					"error": {
+						"type": "object",
+						"properties": {
+							"code": {
+								"type": "string"
+							},
+							"message": {
+								"type": "string"
+							},
+							"suggestion": {
+								"type": "string"
+							},
+							"retryable": {
+								"type": "boolean"
+							}
+						},
+						"required": ["code", "message"]
+					},
+					"metadata": {
+						"type": "object"
+					}
+				},
+				"required": ["success"],
+				"$defs": {
+					"Tree": {
+						"type": "object",
+						"properties": {
+							"up": {
+								"$ref": "#/properties/data"
+							},
+							"kids": {
+								"type": "array",
+								"items": {
+									"$ref": "#/$defs/Tree"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"description": "a # inside a nested resource names that resource and is kept",
+			"dataSchema": {
+				"type": "object",
+				"properties": {
+					"inner": {
+						"$id": "urn:afd:inner",
+						"type": "object",
+						"properties": {
+							"self": {
+								"$ref": "#"
+							}
+						}
+					},
+					"outer": {
+						"$ref": "#"
+					}
+				}
+			},
+			"outputSchema": {
+				"type": "object",
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"data": {
+						"type": "object",
+						"properties": {
+							"inner": {
+								"$id": "urn:afd:inner",
+								"type": "object",
+								"properties": {
+									"self": {
+										"$ref": "#"
+									}
+								}
+							},
+							"outer": {
+								"$ref": "#/properties/data"
+							}
+						}
+					},
+					"error": {
+						"type": "object",
+						"properties": {
+							"code": {
+								"type": "string"
+							},
+							"message": {
+								"type": "string"
+							},
+							"suggestion": {
+								"type": "string"
+							},
+							"retryable": {
+								"type": "boolean"
+							}
+						},
+						"required": ["code", "message"]
+					},
+					"metadata": {
+						"type": "object"
+					}
+				},
+				"required": ["success"]
+			}
+		},
+		{
+			"description": "a # in every schema position is retargeted, values and annotations are not",
+			"dataSchema": {
+				"type": "object",
+				"properties": {
+					"const": {
+						"anyOf": [
+							{
+								"$ref": "#"
+							},
+							{
+								"type": "string"
+							}
+						]
+					},
+					"list": {
+						"type": "array",
+						"prefixItems": [
+							{
+								"$ref": "#"
+							}
+						],
+						"items": {
+							"$ref": "#"
+						}
+					},
+					"pick": {
+						"oneOf": [
+							{
+								"$ref": "#"
+							}
+						],
+						"allOf": [
+							{
+								"not": {
+									"$ref": "#"
+								}
+							}
+						]
+					},
+					"when": {
+						"if": {
+							"$ref": "#"
+						},
+						"then": {
+							"$ref": "#"
+						},
+						"else": {
+							"$ref": "#"
+						}
+					},
+					"map": {
+						"type": "object",
+						"additionalProperties": {
+							"$ref": "#"
+						},
+						"patternProperties": {
+							"^x": {
+								"$ref": "#"
+							}
+						},
+						"propertyNames": {
+							"$ref": "#"
+						}
+					},
+					"fixed": {
+						"const": {
+							"$ref": "#"
+						},
+						"enum": [
+							{
+								"$ref": "#"
+							}
+						],
+						"default": {
+							"$ref": "#"
+						},
+						"examples": [
+							{
+								"$ref": "#"
+							}
+						]
+					}
+				},
+				"required": ["const"]
+			},
+			"outputSchema": {
+				"type": "object",
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"data": {
+						"type": "object",
+						"properties": {
+							"const": {
+								"anyOf": [
+									{
+										"$ref": "#/properties/data"
+									},
+									{
+										"type": "string"
+									}
+								]
+							},
+							"list": {
+								"type": "array",
+								"prefixItems": [
+									{
+										"$ref": "#/properties/data"
+									}
+								],
+								"items": {
+									"$ref": "#/properties/data"
+								}
+							},
+							"pick": {
+								"oneOf": [
+									{
+										"$ref": "#/properties/data"
+									}
+								],
+								"allOf": [
+									{
+										"not": {
+											"$ref": "#/properties/data"
+										}
+									}
+								]
+							},
+							"when": {
+								"if": {
+									"$ref": "#/properties/data"
+								},
+								"then": {
+									"$ref": "#/properties/data"
+								},
+								"else": {
+									"$ref": "#/properties/data"
+								}
+							},
+							"map": {
+								"type": "object",
+								"additionalProperties": {
+									"$ref": "#/properties/data"
+								},
+								"patternProperties": {
+									"^x": {
+										"$ref": "#/properties/data"
+									}
+								},
+								"propertyNames": {
+									"$ref": "#/properties/data"
+								}
+							},
+							"fixed": {
+								"const": {
+									"$ref": "#"
+								},
+								"enum": [
+									{
+										"$ref": "#"
+									}
+								],
+								"default": {
+									"$ref": "#"
+								},
+								"examples": [
+									{
+										"$ref": "#"
+									}
+								]
+							}
+						},
+						"required": ["const"]
+					},
+					"error": {
+						"type": "object",
+						"properties": {
+							"code": {
+								"type": "string"
+							},
+							"message": {
+								"type": "string"
+							},
+							"suggestion": {
+								"type": "string"
+							},
+							"retryable": {
+								"type": "boolean"
+							}
+						},
+						"required": ["code", "message"]
+					},
+					"metadata": {
+						"type": "object"
+					}
+				},
+				"required": ["success"]
+			}
+		},
+		{
+			"description": "a # in the remaining schema positions is retargeted, dependency lists are not",
+			"dataSchema": {
+				"type": "object",
+				"properties": {
+					"has": {
+						"type": "array",
+						"contains": {
+							"$ref": "#"
+						}
+					},
+					"tuple": {
+						"type": "array",
+						"items": [
+							{
+								"$ref": "#"
+							}
+						],
+						"additionalItems": {
+							"$ref": "#"
+						}
+					},
+					"rest": {
+						"unevaluatedItems": {
+							"$ref": "#"
+						},
+						"unevaluatedProperties": {
+							"$ref": "#"
+						}
+					},
+					"deps": {
+						"type": "object",
+						"dependentSchemas": {
+							"a": {
+								"$ref": "#"
+							}
+						},
+						"dependencies": {
+							"b": {
+								"$ref": "#"
+							},
+							"c": ["a", "b"]
+						}
+					},
+					"nested": {
+						"type": "object",
+						"$defs": {
+							"Inner": {
+								"properties": {
+									"up": {
+										"$ref": "#"
+									}
+								}
+							}
+						},
+						"properties": {
+							"inner": {
+								"$ref": "#/properties/data/properties/nested/$defs/Inner"
+							}
+						}
+					}
+				},
+				"definitions": {
+					"D": {
+						"not": {
+							"$ref": "#"
+						}
+					}
+				}
+			},
+			"outputSchema": {
+				"type": "object",
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"data": {
+						"type": "object",
+						"properties": {
+							"has": {
+								"type": "array",
+								"contains": {
+									"$ref": "#/properties/data"
+								}
+							},
+							"tuple": {
+								"type": "array",
+								"items": [
+									{
+										"$ref": "#/properties/data"
+									}
+								],
+								"additionalItems": {
+									"$ref": "#/properties/data"
+								}
+							},
+							"rest": {
+								"unevaluatedItems": {
+									"$ref": "#/properties/data"
+								},
+								"unevaluatedProperties": {
+									"$ref": "#/properties/data"
+								}
+							},
+							"deps": {
+								"type": "object",
+								"dependentSchemas": {
+									"a": {
+										"$ref": "#/properties/data"
+									}
+								},
+								"dependencies": {
+									"b": {
+										"$ref": "#/properties/data"
+									},
+									"c": ["a", "b"]
+								}
+							},
+							"nested": {
+								"type": "object",
+								"$defs": {
+									"Inner": {
+										"properties": {
+											"up": {
+												"$ref": "#/properties/data"
+											}
+										}
+									}
+								},
+								"properties": {
+									"inner": {
+										"$ref": "#/properties/data/properties/nested/$defs/Inner"
+									}
+								}
+							}
+						}
+					},
+					"error": {
+						"type": "object",
+						"properties": {
+							"code": {
+								"type": "string"
+							},
+							"message": {
+								"type": "string"
+							},
+							"suggestion": {
+								"type": "string"
+							},
+							"retryable": {
+								"type": "boolean"
+							}
+						},
+						"required": ["code", "message"]
+					},
+					"metadata": {
+						"type": "object"
+					}
+				},
+				"required": ["success"],
+				"definitions": {
+					"D": {
+						"not": {
+							"$ref": "#/properties/data"
+						}
+					}
+				}
+			}
+		},
+		{
+			"description": "an empty $id starts a resource under the validators test, so nothing moves",
+			"dataSchema": {
+				"$id": "",
+				"type": "object",
+				"properties": {
+					"self": {
+						"$ref": "#"
+					},
+					"a": {
+						"$ref": "#/$defs/A"
+					}
+				},
+				"$defs": {
+					"A": {
+						"type": "string"
+					}
+				}
+			},
+			"outputSchema": {
+				"type": "object",
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"data": {
+						"$id": "",
+						"type": "object",
+						"properties": {
+							"self": {
+								"$ref": "#"
+							},
+							"a": {
+								"$ref": "#/$defs/A"
+							}
+						},
+						"$defs": {
+							"A": {
+								"type": "string"
+							}
+						}
+					},
+					"error": {
+						"type": "object",
+						"properties": {
+							"code": {
+								"type": "string"
+							},
+							"message": {
+								"type": "string"
+							},
+							"suggestion": {
+								"type": "string"
+							},
+							"retryable": {
+								"type": "boolean"
+							}
+						},
+						"required": ["code", "message"]
+					},
+					"metadata": {
+						"type": "object"
+					}
+				},
+				"required": ["success"]
+			}
+		}
+	]
+}

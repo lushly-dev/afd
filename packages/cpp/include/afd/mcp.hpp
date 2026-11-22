@@ -40,8 +40,9 @@ Json command_to_mcp_tool(const CommandDefinition& command);
 
 /// The top-level MCP `outputSchema` of a command tool (spec/command-metadata.md, "Structured
 /// results"): the CommandResult envelope, with `data` typed by `data_schema`. `$schema` is
-/// dropped. Definitions move to the envelope unless `data` has its own `$id`, which makes it
-/// the root for local references.
+/// dropped. When `data` starts a schema resource (a string `$id` that is not a bare fragment, the
+/// validators' test), its definitions stay inside it. Otherwise they move to the envelope, and a
+/// `"$ref": "#"` that named `data` becomes `"#/properties/data"`.
 Json command_result_output_schema(const Json& data_schema);
 
 /// The MCP tools of the commands exposed to MCP, in the given order.

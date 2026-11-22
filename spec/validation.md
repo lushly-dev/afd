@@ -202,7 +202,7 @@ Every implementation supports these keywords, with the semantics below.
 | `minimum`, `maximum` | Inclusive bounds. |
 | `exclusiveMinimum`, `exclusiveMaximum` | Exclusive bounds, given as numbers (draft 6 and later). The draft-04 boolean form is not supported. |
 | `additionalProperties` | A boolean or a schema; see [Unknown keys](#unknown-keys). |
-| `$ref` | A local reference: `#`, `#/definitions/<name>` or `#/$defs/<name>`. References may be recursive. They resolve against the nearest schema resource around them: the closest subschema with its own `$id` (see [Annotations](#annotations)), or else the root schema. |
+| `$ref` | A local reference: `#`, `#/definitions/<name>` or `#/$defs/<name>`, where `<name>` is one JSON Pointer token (`~1` for `/`, `~0` for `~`). Any other pointer, such as `#/$defs/A/properties/x` or one into a nested `$id` subschema, fails at registration. References may be recursive. They resolve against the nearest schema resource around them: the closest subschema with its own `$id` (see [Annotations](#annotations)), or else the root schema. |
 | `definitions`, `$defs` | Containers for `$ref` targets. TypeScript emits `definitions`. |
 | `default` | See [Defaults](#defaults). |
 

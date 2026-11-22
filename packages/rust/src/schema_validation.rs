@@ -126,11 +126,16 @@ fn inspect(schema: &Value, root: &Value, path: &str) -> Result<(), String> {
 /// The schema resource `schema` belongs to: itself when it has its own string `$id` (Draft
 /// 2020-12) that is not a bare fragment, which draft-07 used as an anchor; else `root`, the
 /// resource around it. A local `$ref` resolves against its resource.
-fn resource<'a>(schema: &'a Value, root: &'a Value) -> &'a Value {
-    if schema["$id"]
+/// Whether `schema` starts a schema resource: a string `$id` that is not a bare fragment
+/// (`spec/validation.md`), so its local references resolve against it.
+pub(crate) fn starts_resource(schema: &Value) -> bool {
+    schema["$id"]
         .as_str()
         .is_some_and(|id| !id.starts_with('#'))
-    {
+}
+
+fn resource<'a>(schema: &'a Value, root: &'a Value) -> &'a Value {
+    if starts_resource(schema) {
         schema
     } else {
         root
