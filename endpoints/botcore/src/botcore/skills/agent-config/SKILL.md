@@ -43,9 +43,9 @@ To combine every GitHub command with `research_query`, list them all in `connect
 
 | Field | Default | Behaviour |
 |---|---|---|
-| `allow_shell` | `false` | `shell_allowlist` narrows it with fnmatch patterns that every `&&`, `\|\|`, `;` or `\|` segment must match. Backticks and `$(` are denied. |
+| `allow_shell` | `false` | `shell_allowlist` narrows it: each command is approved on its own (`&&`, `\|\|`, `;`, `\|`, line breaks, redirections, backticks and `$` outside quotes are refused). The program must equal the pattern's first word; the rest is an fnmatch glob over the arguments, so `git *` admits every git option and is effectively unrestricted. Pin patterns to subcommands: `git status *`, `git diff *`. |
 | `allow_filesystem` | `false` | `filesystem_paths` narrows reads and writes. Paths resolve against the process's working directory. |
-| `allow_mcp` | `true` | All MCP servers or none, with no per-server scoping. |
+| `allow_mcp` | `true` | Only with `mcp_servers` naming servers: the session then offers MCP tools and approves calls to those servers only. Default `[]` offers none. |
 | `allow_custom_tools` | `true` | |
 
 Allowlists only narrow, so `filesystem_paths` grants nothing without `allow_filesystem = true`. URL fetches and requests that need org-managed approval are always denied.

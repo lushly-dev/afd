@@ -413,11 +413,11 @@ fn refuse_cursor(cursor: Option<&String>) -> Result<(), ErrorData> {
 }
 
 /// Add the modern era's `resultType`, `ttlMs` and `cacheScope` to a result.
-fn with_hints(mut result: Value, modern: bool, ttl_ms: u64) -> Value {
+fn with_hints(mut result: Value, modern: bool, ttl_ms: u64, cache_scope: &str) -> Value {
     if modern {
         result["resultType"] = json!("complete");
         result["ttlMs"] = json!(ttl_ms);
-        result["cacheScope"] = json!("public");
+        result["cacheScope"] = json!(cache_scope);
     }
     result
 }
@@ -426,6 +426,16 @@ impl McpServer {
     /// Whether this server was given a resource provider, a skill catalog or both.
     pub(super) fn serves_resources(&self) -> bool {
         self.inner.resources.is_some() || self.inner.skills.is_some()
+    }
+
+    /// Whether responses from the resource provider may vary per caller, so `cacheScope` must be
+    /// `"private"` rather than `"public"`.
+    ///
+    /// Fails safe on authorized servers whenever any `ResourceProvider` is installed (including a
+    /// static `Vec<ResourceEntry>`), while static `SkillCatalog` reads remain `"public"`.
+    fn provider_is_private(&self, caller: &ResourceCaller) -> bool {
+        self.inner.resources.is_some()
+            && (super::authz::configured(self) || caller.credentials.is_some())
     }
 
     /// The `ttlMs` of resource results: the `tools/list` option, not lowered by contexts,
@@ -473,10 +483,16 @@ impl McpServer {
             if let Some(skills) = &self.inner.skills {
                 resources.extend(skills.resources().cloned());
             }
+            let cache_scope = if self.provider_is_private(caller) {
+                "private"
+            } else {
+                "public"
+            };
             serde_json::from_value(with_hints(
                 json!({ "resources": resources }),
                 confirmations::is_modern(context),
                 self.resources_ttl_ms(),
+                cache_scope,
             ))
             .map_err(internal)
         })
@@ -496,6 +512,7 @@ impl McpServer {
             json!({ "resourceTemplates": [] }),
             confirmations::is_modern(context),
             self.resources_ttl_ms(),
+            "public",
         ))
         .map_err(internal)
     }
@@ -511,11 +528,17 @@ impl McpServer {
         }
         panic_guard::guard_request(async {
             let uri = request.uri.as_str();
-            let item = self.read_item(uri, caller).await?;
+            let (item, from_provider) = self.read_item(uri, caller).await?;
+            let cache_scope = if from_provider && self.provider_is_private(caller) {
+                "private"
+            } else {
+                "public"
+            };
             let result: ReadResourceResult = serde_json::from_value(with_hints(
                 json!({ "contents": [item] }),
                 confirmations::is_modern(context),
                 self.resources_ttl_ms(),
+                cache_scope,
             ))
             .map_err(internal)?;
             Ok(ReadResourceResponse::Complete(result))
@@ -523,15 +546,23 @@ impl McpServer {
         .await
     }
 
-    /// The one `contents` item for `uri`.
-    async fn read_item(&self, uri: &str, caller: &ResourceCaller) -> Result<Value, ErrorData> {
+    /// The one `contents` item for `uri`, and whether it came from the resource provider rather
+    /// than the static skill catalog.
+    async fn read_item(
+        &self,
+        uri: &str,
+        caller: &ResourceCaller,
+    ) -> Result<(Value, bool), ErrorData> {
         if let Some(file) = self
             .inner
             .skills
             .as_ref()
             .and_then(|skills| skills.file(uri))
         {
-            return Ok(content_item(uri, Some(file.mime_type), &file.bytes, None));
+            return Ok((
+                content_item(uri, Some(file.mime_type), &file.bytes, None),
+                false,
+            ));
         }
         // The `skill://` scheme is the catalog's alone (R2): a provider is never asked for it.
         let skill_scheme =
@@ -542,11 +573,14 @@ impl McpServer {
         let entries = self.provider_entries(caller)?;
         let entry = entries.iter().find(|entry| entry.uri == uri);
         if let Some(content) = entry.and_then(|entry| entry.content.as_ref()) {
-            return Ok(content_item(
-                uri,
-                entry.and_then(|entry| entry.mime_type.as_deref()),
-                &content.bytes,
-                None,
+            return Ok((
+                content_item(
+                    uri,
+                    entry.and_then(|entry| entry.mime_type.as_deref()),
+                    &content.bytes,
+                    None,
+                ),
+                true,
             ));
         }
         let contents = provider
@@ -573,11 +607,9 @@ impl McpServer {
         let mime_type = entry
             .and_then(|entry| entry.mime_type.as_deref())
             .or(contents.mime_type.as_deref());
-        Ok(content_item(
-            uri,
-            mime_type,
-            &contents.bytes,
-            Some(&contents.meta),
+        Ok((
+            content_item(uri, mime_type, &contents.bytes, Some(&contents.meta)),
+            true,
         ))
     }
 
@@ -649,6 +681,7 @@ impl McpServer {
             json!({ "resources": children }),
             confirmations::is_modern(context),
             self.resources_ttl_ms(),
+            "public",
         ))
         .map_err(internal)
     }

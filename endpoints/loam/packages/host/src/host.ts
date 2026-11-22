@@ -42,7 +42,7 @@ import { bindServer, createHostServer, HOST_INTERNALS, type HostInternals } from
 import { acquireDataLock, type DataLock } from './lock.js';
 import type { HostProvider } from './provider.js';
 import type { ResolvedSecrets } from './secrets.js';
-import { type SiteAnswer, serveSite } from './site.js';
+import { type SiteAnswer, serveSite, sitePath } from './site.js';
 import { type BoundAddresses, recordAddresses, recordProvider } from './testing-only.js';
 
 export interface LoamHostConfig {
@@ -226,13 +226,20 @@ function sandboxApp(options: { site: string; origin: string; sandboxOrigin: stri
 	app.all('*', async (c) => {
 		const path = rawPath(c.env.incoming);
 		if (!path.startsWith('/sandbox/')) return notFound();
+		const rawRest = path.slice('/sandbox/'.length);
+		const requested = sitePath(rawRest);
+		if (requested === undefined) return notFound();
 		const answer = await site({
 			method: c.req.method,
-			path: path.slice('/sandbox/'.length),
+			path: rawRest,
 			accept: c.req.header('accept'),
 		});
 		if (answer.status !== 200) return notFound();
-		const own = isCopilotFramePath(`/sandbox/${answer.path}`)
+		const requestedCopilot = isCopilotFramePath(`/sandbox/${requested}`);
+		const resolvedCopilot = isCopilotFramePath(`/sandbox/${answer.path}`);
+		// Refuse any symlink or case variant crossing the copilot frame's boundary (#1866).
+		if (requestedCopilot !== resolvedCopilot) return notFound();
+		const own = resolvedCopilot
 			? copilot
 			: extname(answer.file).toLowerCase() === '.html'
 				? policy

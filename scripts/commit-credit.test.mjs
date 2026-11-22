@@ -14,6 +14,8 @@ import {
 	PUSH_EVENT_LIMIT,
 	problems,
 	pushedCommits,
+	queueMergeMethod,
+	rebaseProblems,
 } from './commit-credit.mjs';
 
 const owner = { name: 'Owner', email: 'owner@example.com' };
@@ -384,5 +386,156 @@ describe('--merge-group', () => {
 		assert.equal(noBase.status, 2);
 		assert.match(noBase.stderr, /BASE_REF must be the merge group's target branch/);
 		assert.deepEqual(noBase.requests, []);
+	});
+});
+
+describe('a pull request when the queue rebases', () => {
+	const script = fileURLToPath(new URL('./commit-credit.mjs', import.meta.url));
+	const answer = (body, status = 200) => ({
+		ok: status === 200,
+		status,
+		text: async () => 'nope',
+		json: async () => body,
+	});
+	const queue = (merge_method) => ({ type: 'merge_queue', parameters: { merge_method } });
+	const method = (rules, status) =>
+		queueMergeMethod({
+			repository: 'example/repo',
+			branch: 'main',
+			token: 'token',
+			fetchImpl: async (url) => {
+				assert.equal(
+					url,
+					'https://api.github.com/repos/example/repo/rules/branches/main?per_page=100'
+				);
+				return answer(rules, status);
+			},
+		});
+
+	it("reads the queue's merge method from the branch's rules", async () => {
+		assert.equal(await method([{ type: 'pull_request' }, queue('REBASE')]), 'REBASE');
+		assert.equal(await method([queue('SQUASH')]), 'SQUASH');
+		assert.equal(await method([{ type: 'pull_request' }]), null);
+	});
+	it('refuses rules it cannot read whole or that disagree, rather than guessing', async () => {
+		await assert.rejects(method([], 404), /404/);
+		await assert.rejects(method({ message: 'x' }), /not a whole list/);
+		await assert.rejects(
+			method(Array.from({ length: 100 }, () => ({ type: 'x' }))),
+			/not a whole list/
+		);
+		await assert.rejects(method([queue('REBASE'), queue('SQUASH')]), /method is unclear/);
+		await assert.rejects(method([queue(undefined)]), /method is unclear/);
+		await assert.rejects(
+			queueMergeMethod({ repository: 'example/repo', branch: '', token: 't', fetchImpl: () => {} }),
+			/GITHUB_BASE_REF must name/
+		);
+	});
+
+	const own = (sha, message, author = owner) => ({
+		sha,
+		message,
+		author,
+		committer: author,
+		parents: ['p'],
+	});
+	const merge = (sha, author = owner) => ({
+		...own(sha, 'Merge origin/main', author),
+		parents: ['p', 'q'],
+	});
+	it('passes one commit of its own beside merges of main, which the rebase drops', () => {
+		assert.deepEqual(
+			rebaseProblems([own('a1', 'feat: x\n\nAssisted-by: Claude Code\n'), merge('m1')]),
+			[]
+		);
+	});
+	it('counts the commits of its own, and checks each as main would', () => {
+		assert.deepEqual(
+			rebaseProblems([
+				own('a1', 'feat: x\n'),
+				merge('m1'),
+				own('a2', 'fix: y\n\nCo-authored-by: P <p@example.com>\n'),
+			]),
+			[
+				{ sha: 'a2', problem: 'has the line "Co-authored-by: P <p@example.com>"' },
+				{
+					problem:
+						'the pull request has 2 commits of its own, merges aside, and a rebase lands each on main',
+				},
+			]
+		);
+		assert.match(rebaseProblems([merge('m1')]).at(-1).problem, /has 0 commits of its own/);
+		const agent = { name: 'Claude', email: 'noreply@anthropic.com' };
+		assert.deepEqual(rebaseProblems([own('a1', 'feat: x\n'), merge('m1', agent)]), [
+			{ sha: 'm1', problem: 'author is Claude <noreply@anthropic.com>' },
+			{ sha: 'm1', problem: 'committer is Claude <noreply@anthropic.com>' },
+		]);
+	});
+
+	/** Runs the script in pull request mode against a local stand-in for GitHub's API. */
+	const run = async (rules, commits) => {
+		const requests = [];
+		const server = createServer((request, response) => {
+			requests.push(request.url);
+			response.setHeader('content-type', 'application/json');
+			response.end(JSON.stringify(request.url.includes('/rules/') ? rules : commits));
+		});
+		await new Promise((done) => server.listen(0, '127.0.0.1', done));
+		const child = spawn(process.execPath, [script], {
+			env: {
+				...process.env,
+				GITHUB_TOKEN: 'token',
+				GITHUB_REPOSITORY: 'example/repo',
+				GITHUB_API_URL: `http://127.0.0.1:${server.address().port}`,
+				GITHUB_BASE_REF: 'main',
+				PR_NUMBER: '7',
+			},
+		});
+		let stdout = '';
+		let stderr = '';
+		child.stdout.on('data', (chunk) => {
+			stdout += chunk;
+		});
+		child.stderr.on('data', (chunk) => {
+			stderr += chunk;
+		});
+		const status = await new Promise((done) => child.on('close', done));
+		await new Promise((done) => server.close(done));
+		return { status, stdout, stderr, requests };
+	};
+	const listed = (sha, message, parents = ['p']) => ({
+		sha,
+		parents: parents.map((parent) => ({ sha: parent })),
+		commit: { message, author: owner, committer: owner },
+	});
+	const two = [listed('a'.repeat(40), 'feat: x\n'), listed('b'.repeat(40), 'fix: y\n')];
+
+	it('fails a pull request of two commits once the queue rebases, naming the fix', async () => {
+		const done = await run([queue('REBASE')], two);
+		assert.equal(done.status, 1, done.stderr);
+		assert.match(done.stderr, /has 2 commits of its own/);
+		assert.match(done.stderr, /pnpm branch:squash folds the branch/);
+		assert.deepEqual(done.requests, [
+			'/repos/example/repo/rules/branches/main?per_page=100',
+			'/repos/example/repo/pulls/7/commits?per_page=100&page=1',
+		]);
+	});
+	it('passes one commit of its own and a merge once the queue rebases', async () => {
+		const done = await run(
+			[queue('REBASE')],
+			[two[0], listed('c'.repeat(40), 'Merge main', ['p', 'q'])]
+		);
+		assert.equal(done.status, 0, done.stderr);
+		assert.match(done.stdout, /one commit of its own, which credits only its author/);
+	});
+	it('leaves a pull request of several commits alone while the queue squashes', async () => {
+		const done = await run([queue('SQUASH')], two);
+		assert.equal(done.status, 0, done.stderr);
+		assert.match(done.stdout, /2 commit\(s\) credit only people/);
+	});
+	it('refuses when the rules cannot be read, rather than passing', async () => {
+		const done = await run({ message: 'Not Found' }, two);
+		assert.equal(done.status, 2);
+		assert.match(done.stderr, /not a whole list/);
 	});
 });

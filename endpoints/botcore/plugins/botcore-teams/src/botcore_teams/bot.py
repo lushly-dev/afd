@@ -35,14 +35,13 @@ class TeamsBot(TeamsActivityHandler):
         super().__init__()
         self._config = config
 
-    async def on_message_activity(self, turn_context: TurnContext) -> None:
-        activity = turn_context.activity
+    async def _authorize(self, turn_context: TurnContext) -> Any | None:
+        """Enforce tenant and allowed-groups checks; return identity or send error card."""
+        activity_dict = _activity_to_dict(turn_context.activity)
 
         # Tenant gate
-        activity_tenant = None
-        if activity.channel_data and isinstance(activity.channel_data, dict):
-            tenant_info = activity.channel_data.get("tenant", {})
-            activity_tenant = tenant_info.get("id") if isinstance(tenant_info, dict) else None
+        tenant_info = activity_dict["channelData"].get("tenant")
+        activity_tenant = tenant_info.get("id") if isinstance(tenant_info, dict) else None
 
         if not validate_tenant(activity_tenant, self._config.tenant_id):
             result = create_unauthorized_error()
@@ -53,17 +52,17 @@ class TeamsBot(TeamsActivityHandler):
                 attachments=[Attachment(**att)],
             )
             await turn_context.send_activity(reply)
-            return
+            return None
 
         # Extract identity
         identity = extract_identity(
-            _activity_to_dict(activity),
+            activity_dict,
             admin_groups=self._config.roles.admin_groups,
             user_groups=self._config.roles.user_groups,
         )
 
         # Optional group gate (Phase 1: reads group ids from channelData.groups)
-        user_group_ids = extract_group_ids(_activity_to_dict(activity))
+        user_group_ids = extract_group_ids(activity_dict)
         if not validate_allowed_groups(user_group_ids, self._config.allowed_groups):
             result = create_unauthorized_error(
                 message="You are not in an allowed group for this bot.",
@@ -76,7 +75,16 @@ class TeamsBot(TeamsActivityHandler):
                 attachments=[Attachment(**att)],
             )
             await turn_context.send_activity(reply)
+            return None
+
+        return identity
+
+    async def on_message_activity(self, turn_context: TurnContext) -> None:
+        identity = await self._authorize(turn_context)
+        if identity is None:
             return
+
+        activity = turn_context.activity
 
         # Dispatch
         text = activity.text or ""
@@ -94,15 +102,16 @@ class TeamsBot(TeamsActivityHandler):
         await turn_context.send_activity(reply)
 
     async def on_invoke_activity(self, turn_context: TurnContext) -> Any:
+        identity = await self._authorize(turn_context)
+        if identity is None:
+            return self._create_invoke_response()  # type: ignore[attr-defined]
+
         activity = turn_context.activity
         value = activity.value or {}
         action = value.get("action", "") if isinstance(value, dict) else ""
         data = value if isinstance(value, dict) else {}
 
-        from_field = activity.from_property
-        user_id = (from_field.aad_object_id or from_field.id) if from_field else ""
-
-        result = await teams_handle_card_action(action, data, user_id)
+        result = await teams_handle_card_action(action, data, identity.user_id)
         card = render_command_result(result)
         att = card_to_attachment(card)
         reply = Activity(
@@ -119,9 +128,9 @@ def _activity_to_dict(activity: Activity) -> dict[str, Any]:
     channel_data = activity.channel_data if isinstance(activity.channel_data, dict) else {}
     return {
         "from": {
-            "aadObjectId": from_prop.aad_object_id if from_prop else "",
-            "id": from_prop.id if from_prop else "",
-            "name": from_prop.name if from_prop else "",
+            "aadObjectId": (from_prop.aad_object_id or "") if from_prop else "",
+            "id": (from_prop.id or "") if from_prop else "",
+            "name": (from_prop.name or "") if from_prop else "",
         },
         "channelData": channel_data,
     }

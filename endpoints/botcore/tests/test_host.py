@@ -213,6 +213,35 @@ async def test_target_escape_rejected_before_writer(tmp_path):
         ExecutionContext(target, tmp_path)
 
 
+async def test_package_validation_rejects_windows_escapes(tmp_path):
+    """CommandHost rejects backslashes, drive prefixes, UNC paths, and NUL in package (#1873)."""
+    host = CommandHost("alfred", ExecutionContext(tmp_path))
+
+    async def pkg_cmd(package: str = ""):
+        return success({"package": package})
+
+    host.register("pkg_cmd", pkg_cmd, CommandPolicy())
+    for bad in (
+        "..\\escape",
+        "a\\..\\..\\b",
+        "C:foo",
+        "C:\\foo",
+        "\\\\server\\share",
+        "\\root",
+        "pkg\x00evil",
+        "../escape",
+        "/etc/passwd",
+        "-flag",
+    ):
+        result = await host.execute("pkg_cmd", {"package": bad})
+        assert result.error is not None, bad
+        assert result.error.code == "INVALID_TARGET_OR_INPUT", bad
+
+    ok = await host.execute("pkg_cmd", {"package": "@lushly-dev/afd-core"})
+    assert ok.success is True
+    assert ok.data == {"package": "@lushly-dev/afd-core"}
+
+
 async def test_native_checks_are_profiled_without_afd_policy(tmp_path):
     (tmp_path / "pyproject.toml").write_text('[project]\nname="plain"\nversion="0.1.0"')
     host = build_host("alfred", ExecutionContext(tmp_path, profile="trusted-local"))

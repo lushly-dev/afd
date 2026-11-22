@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 from afd.testing import assert_error, assert_success
@@ -100,20 +101,26 @@ async def test_check_coverage_python_no_data(tmp_path) -> None:
 
 
 async def test_check_coverage_typescript(tmp_path) -> None:
-    """TS coverage dispatches to vitest."""
+    """TS coverage dispatches to vitest and enforces threshold on parsed coverage."""
     (tmp_path / "pyproject.toml").write_text("[tool.botcore]\n")
+
+    async def _fake_vitest(_tool, args, **_kwargs):
+        for arg in args:
+            if arg.startswith("--coverage.reportsDirectory="):
+                report_dir = Path(arg.split("=", 1)[1])
+                (report_dir / "coverage-summary.json").write_text(
+                    '{"total": {"lines": {"pct": 50.0}}}',
+                    encoding="utf-8",
+                )
+        return {"success": True, "output": "", "error": None}
 
     with (
         patch("botcore.commands.dev.quality.find_workspace", return_value=tmp_path),
-        patch(
-            "botcore.commands.dev.quality.run_external_tool",
-            new_callable=AsyncMock,
-        ) as mock_tool,
+        patch("botcore.commands.dev.quality.run_external_tool", side_effect=_fake_vitest),
     ):
-        mock_tool.return_value = {"success": True, "output": "", "error": None}
         result = await dev_check_coverage(language="typescript")
 
-    assert_error(result, "COVERAGE_TOO_LOW")  # coverage=0 < 80 default
+    assert_error(result, "COVERAGE_TOO_LOW")  # 50.0 < 80 default
 
 
 async def test_check_coverage_typescript_not_available(tmp_path) -> None:
@@ -168,7 +175,8 @@ async def test_check_coverage_warning_zone(tmp_path) -> None:
 async def test_check_npm_deps_with_outdated(tmp_path) -> None:
     """npm deps check reports outdated packages."""
     with patch(
-        "botcore.commands.dev.quality.run_external_tool", new_callable=AsyncMock,
+        "botcore.commands.dev.quality.run_external_tool",
+        new_callable=AsyncMock,
     ) as mock_tool:
         mock_tool.return_value = {
             "success": True,
@@ -184,7 +192,8 @@ async def test_check_npm_deps_with_outdated(tmp_path) -> None:
 async def test_check_npm_deps_all_current(tmp_path) -> None:
     """npm deps check reports all current when no outdated."""
     with patch(
-        "botcore.commands.dev.quality.run_external_tool", new_callable=AsyncMock,
+        "botcore.commands.dev.quality.run_external_tool",
+        new_callable=AsyncMock,
     ) as mock_tool:
         mock_tool.return_value = {"success": True, "output": "{}", "error": None}
         result = await _check_npm_deps(tmp_path)
@@ -196,7 +205,8 @@ async def test_check_npm_deps_all_current(tmp_path) -> None:
 async def test_check_npm_deps_invalid_json(tmp_path) -> None:
     """npm deps handles invalid JSON output."""
     with patch(
-        "botcore.commands.dev.quality.run_external_tool", new_callable=AsyncMock,
+        "botcore.commands.dev.quality.run_external_tool",
+        new_callable=AsyncMock,
     ) as mock_tool:
         mock_tool.return_value = {"success": True, "output": "not json", "error": None}
         result = await _check_npm_deps(tmp_path)
@@ -210,13 +220,16 @@ async def test_check_npm_deps_invalid_json(tmp_path) -> None:
 
 async def test_check_cargo_deps_outdated(tmp_path) -> None:
     """Cargo deps check reports outdated crates."""
-    cargo_output = json.dumps({
-        "dependencies": [
-            {"name": "serde", "current": "1.0.0", "latest": "1.0.200"},
-        ],
-    })
+    cargo_output = json.dumps(
+        {
+            "dependencies": [
+                {"name": "serde", "current": "1.0.0", "latest": "1.0.200"},
+            ],
+        }
+    )
     with patch(
-        "botcore.commands.dev.quality.run_external_tool", new_callable=AsyncMock,
+        "botcore.commands.dev.quality.run_external_tool",
+        new_callable=AsyncMock,
     ) as mock_tool:
         mock_tool.return_value = {"success": True, "output": cargo_output, "error": None}
         result = await _check_cargo_deps(tmp_path)
@@ -228,7 +241,8 @@ async def test_check_cargo_deps_outdated(tmp_path) -> None:
 async def test_check_cargo_deps_not_found(tmp_path) -> None:
     """Cargo deps check errors when cargo-outdated not found."""
     with patch(
-        "botcore.commands.dev.quality.run_external_tool", new_callable=AsyncMock,
+        "botcore.commands.dev.quality.run_external_tool",
+        new_callable=AsyncMock,
     ) as mock_tool:
         mock_tool.return_value = None
         result = await _check_cargo_deps(tmp_path)

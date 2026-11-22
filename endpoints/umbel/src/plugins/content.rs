@@ -10,7 +10,7 @@
 
 use std::fs::{self, File};
 use std::io::{ErrorKind, Read, Write};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::Ordering;
 
 use umbel_sdk::{CollectionInfo, ContentEntry, HostError as ServiceError};
@@ -43,6 +43,12 @@ fn path_problem(path: &str) -> Option<&'static str> {
         .any(|part| part.is_empty() || part == "." || part == "..")
     {
         Some("must not hold an empty, `.` or `..` segment")
+    } else if path.contains(':')
+        || !Path::new(path)
+            .components()
+            .all(|component| matches!(component, Component::Normal(_)))
+    {
+        Some("must not hold a `:` (drive prefix or stream) or non-normal path component")
     } else {
         None
     }
@@ -308,9 +314,26 @@ impl CallServices {
 /// The file `path` under `root`, with every existing component checked not to be a symbolic
 /// link (`must_exist` says whether a missing one is an error here; the caller decides).
 fn confined(root: &Path, path: &str, _must_exist: bool) -> Result<PathBuf> {
+    if let Some(problem) = path_problem(path) {
+        return Err(ServiceError::Invalid(format!("`{path}` {problem}")));
+    }
     let mut at = root.to_path_buf();
     for part in path.split('/') {
+        let mut components = Path::new(part).components();
+        match (components.next(), components.next()) {
+            (Some(Component::Normal(_)), None) => {}
+            _ => {
+                return Err(ServiceError::Invalid(format!(
+                    "`{path}` holds an invalid path segment `{part}`"
+                )));
+            }
+        }
         at.push(part);
+        if !at.starts_with(root) {
+            return Err(ServiceError::Invalid(format!(
+                "`{path}` escapes the collection root"
+            )));
+        }
         match fs::symlink_metadata(&at) {
             Ok(meta) if meta.file_type().is_symlink() => {
                 return Err(ServiceError::Invalid(format!(
@@ -397,12 +420,33 @@ mod tests {
 
     #[test]
     fn paths_must_stay_relative_and_clean() {
-        for bad in ["", "/a", "a\\b", "a//b", "a/./b", "../a", "a/..", "a\nb"] {
+        for bad in [
+            "",
+            "/a",
+            "a\\b",
+            "a//b",
+            "a/./b",
+            "../a",
+            "a/..",
+            "a\nb",
+            "C:state/keys/http.token",
+            "c:secret.md",
+            "sub/D:secret.md",
+            "C:/Windows/win.ini",
+            "doc.md:Zone.Identifier",
+        ] {
             assert!(path_problem(bad).is_some(), "{bad:?}");
         }
         for good in ["a.md", "dir/a.md", ".hidden/x"] {
             assert!(path_problem(good).is_none(), "{good}");
         }
+    }
+
+    #[test]
+    fn confined_rejects_windows_drive_relative_escape() {
+        let dir = tempfile::tempdir().unwrap();
+        let err = confined(dir.path(), "C:state/keys/http.token", false).unwrap_err();
+        assert!(matches!(err, ServiceError::Invalid(_)), "{err:?}");
     }
 
     #[test]

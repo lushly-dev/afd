@@ -248,7 +248,11 @@ describe('createApprovalMiddleware', () => {
 			});
 			const result = await registry.execute('todo-purge', { pattern: '^tmp-' });
 			expect(result.success).toBe(false);
-			expect(result.error?.code).toBe('COMMAND_EXECUTION_ERROR');
+			expect(result.error).toMatchObject({
+				code: 'APPROVAL_UNAVAILABLE',
+				retryable: false,
+				details: { reason: 'input-not-canonical' },
+			});
 			expect(handled).not.toHaveBeenCalled();
 		});
 

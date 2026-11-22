@@ -33,8 +33,10 @@ import {
 import { dependencyOrder, verifyPublished } from './release-operations/prerequisites.mjs';
 import {
 	assertPackedContents,
+	excludesNodeModules,
 	notes,
 	packedManifest,
+	packSelected,
 	validatePacked,
 } from './release-operations/publish.mjs';
 import { reconcilePublication } from './release-operations/recovery.mjs';
@@ -1280,4 +1282,72 @@ test('reviewed intent accepts a validated supersedes record and fails closed on 
 	// Malformed supersedes fails closed even when the registry already has the version.
 	f.evidence[0].versions = ['1.0.0'];
 	assert.throws(() => intentStatus({ root: f.root, registry: registry(f) }), /supersedes/);
+});
+
+test('excludesNodeModules skips node_modules on Windows backslash, case-insensitive, and POSIX paths (#1882)', () => {
+	const winSrc = ['D:', 'repo', 'packages', 'core'].join('\\');
+	assert.equal(excludesNodeModules(winSrc, winSrc, 'win32'), true);
+	assert.equal(excludesNodeModules(winSrc, `${winSrc}\\dist\\index.js`, 'win32'), true);
+	assert.equal(excludesNodeModules(winSrc, `${winSrc}\\node_modules`, 'win32'), false);
+	assert.equal(
+		excludesNodeModules(winSrc, `${winSrc}\\NODE_MODULES\\dep\\index.js`, 'win32'),
+		false
+	);
+	assert.equal(excludesNodeModules(winSrc, `${winSrc}\\nested\\Node_Modules\\x`, 'win32'), false);
+
+	const posixSrc = '/tmp/node_modules/repo/packages/core';
+	assert.equal(excludesNodeModules(posixSrc, `${posixSrc}/dist/index.js`, 'linux'), true);
+	assert.equal(
+		excludesNodeModules(posixSrc, `${posixSrc}/node_modules/dep/index.js`, 'linux'),
+		false
+	);
+	assert.equal(
+		excludesNodeModules(posixSrc, `${posixSrc}/NODE_MODULES/dep/index.js`, 'linux'),
+		true
+	);
+});
+
+test('packSelected excludes existing source node_modules while preserving build output (#1882)', (t) => {
+	const f = fixture(t);
+	write(f.root, 'packages/a/dist/extra.js', 'export const built = 1;\n');
+	const nmName = process.platform === 'win32' ? 'NODE_MODULES' : 'node_modules';
+	write(f.root, `packages/a/${nmName}/stale/index.js`, 'export const stale = true;\n');
+	// Ignore build output and node_modules in git so they live only in the working tree.
+	write(f.root, '.gitignore', 'dist/\nnode_modules/\nNODE_MODULES/\n');
+	commit(f.root);
+
+	const outDir = join(dirname(f.root), 'packed');
+	const plan = {
+		distributions: [{ name: '@fixture/a', version: '1.0.0', manifest: 'packages/a/package.json' }],
+	};
+	let sawStale = null;
+	let sawBuilt = null;
+	const results = packSelected({
+		root: f.root,
+		plan,
+		outputDirectory: outDir,
+		pack: (directory, destination) => {
+			sawStale =
+				existsSync(join(directory, 'node_modules', 'stale')) ||
+				existsSync(join(directory, 'NODE_MODULES', 'stale'));
+			sawBuilt = existsSync(join(directory, 'dist', 'extra.js'));
+			const stage = join(destination, 'stage');
+			mkdirSync(join(stage, 'package'), { recursive: true });
+			writeFileSync(
+				join(stage, 'package', 'package.json'),
+				readFileSync(join(directory, 'package.json'))
+			);
+			writeFileSync(join(stage, 'package', 'index.js'), readFileSync(join(directory, 'index.js')));
+			execFileSync(tarCommand(), [
+				'-czf',
+				join(destination, 'fixture-a-1.0.0.tgz'),
+				'-C',
+				stage,
+				'package',
+			]);
+		},
+	});
+	assert.equal(results.length, 1);
+	assert.equal(sawBuilt, true);
+	assert.equal(sawStale, false);
 });

@@ -72,9 +72,15 @@ export function sourceDigest(root, exclude = [], include = []) {
 		)
 	);
 }
+/** Match a `node_modules` directory segment, case-insensitively on Windows. */
+export function isNodeModulesSegment(segment, platform = process.platform) {
+	return platform === 'win32'
+		? segment.toLowerCase() === 'node_modules'
+		: segment === 'node_modules';
+}
 export function tree(root, prefix = '', options = {}) {
 	return readdirSync(join(root, prefix), { withFileTypes: true }).flatMap((entry) => {
-		if (['.git', 'node_modules'].includes(entry.name)) return [];
+		if (entry.name === '.git' || isNodeModulesSegment(entry.name)) return [];
 		const file = prefix ? `${prefix}/${entry.name}` : entry.name;
 		const input = repositoryEntry(root, file, { allowRepositoryMirror: false, ...options });
 		if (entry.isDirectory()) return tree(root, file, options);

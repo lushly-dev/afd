@@ -30,7 +30,7 @@ import {
 	withContextDefaults,
 } from '@lushly-dev/afd-core';
 import { commandNotAllowed } from '@lushly-dev/afd-core/internal/direct-allow';
-import { beginAdmission, gates, takeAdmission } from './approval-admission.js';
+import { beginAdmission, needsAdmission, takeAdmission } from './approval-admission.js';
 import { filterAllowed, isCommandAllowed } from './command-allow.js';
 import {
 	filterByContext,
@@ -216,10 +216,12 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 		const runHandler = async (): Promise<CommandResult> => {
 			// A declared approval policy holds without the approval middleware: a command whose
 			// policy is not 'not-required' runs only when an approval step admitted this call. A
-			// policy function is not evaluated here; declaring one needs an approval step.
+			// policy function is not evaluated here; declaring one needs an approval step. The same
+			// holds for a policy given only in the middleware's `commands` list, once the middleware
+			// recorded that it gates this call.
 			// The admission must name this command and this validated input, and is taken here, so a
 			// second dispatch on the same context (a retry inside the chain) needs a second admission.
-			const admission = gates(command.approval)
+			const admission = needsAdmission(context)
 				? takeAdmission(context, commandName, data)
 				: 'admitted';
 			if (admission !== 'admitted') {

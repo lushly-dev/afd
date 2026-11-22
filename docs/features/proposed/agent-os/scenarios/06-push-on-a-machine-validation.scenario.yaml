@@ -1,0 +1,94 @@
+# Draft JTBD scenario for the Agent OS proposal. Commands and shapes are proposals; the data is invented.
+# The fake runtime plays a head that writes a 412-byte verify record and a 900 MB archive. Putting
+# the record into the slot's git directory and the pre-push check that reads it are the lane's own
+# steps, covered by the factory's tests.
+name: Push a head on a validation that ran in a machine
+description: >-
+  When a validation has passed in a machine, I want the files the lane's push needs named
+  before the run and handed back by reference, sized, hashed and labelled as the machine's own
+  word, so that the lane pushes the validated head without running the checks twice, never reads
+  a machine's disk and is never handed an unbounded pile.
+job: push-on-a-machine-validation
+tags: [m1]
+fixture:
+  file: fixtures/host.json
+steps:
+  - description: A machine for the branch
+    command: machine-create
+    input: { repository: example-repo, for: fix/tokens }
+    expect:
+      success: true
+      data:
+        created: true
+  - description: >-
+      The lane names the two files it wants before anything runs, and the base the verify record
+      is bound to
+    command: run-start
+    input:
+      machine: "${{ steps[0].data.machine.id }}"
+      head: 3f9a2c4e5b6d7081928374a5b6c7d8e9f0a1b2c3
+      base: 0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f
+      steps:
+        - label: validate
+          args: [pnpm, verify, "--keep-going"]
+          timeoutSeconds: 5400
+          network: none
+      outputs:
+        - { name: verify-record, path: .git/afd-verify-record.json }
+        - { name: screens, path: screens.zip }
+    expect:
+      success: true
+      data:
+        run:
+          state: running
+  - description: The small file comes back by reference; the large one is named and left behind
+    command: run-wait
+    input: { id: "${{ steps[1].data.run.id }}", timeoutMs: 300000 }
+    expect:
+      success: true
+      data:
+        run:
+          state: passed
+          outputs:
+            - name: verify-record
+              bytes: 412
+              sha256: { matches: '^[0-9a-f]{64}$' }
+              trust: content
+              location: { kind: file }
+            - name: screens
+              bytes: 943718400
+              omitted: too-large
+              location: { notExists: true }
+  - description: A path outside the workspace is refused before the run starts
+    command: run-start
+    input:
+      machine: "${{ steps[0].data.machine.id }}"
+      head: 3f9a2c4e5b6d7081928374a5b6c7d8e9f0a1b2c3
+      steps:
+        - label: validate
+          args: [pnpm, verify, "--keep-going"]
+          timeoutSeconds: 5400
+          network: none
+      outputs:
+        - { name: hostname, path: /etc/hostname }
+    expect:
+      success: false
+      error:
+        code: OUTPUT_OUTSIDE_WORKSPACE
+        suggestion: { contains: workspace }
+  - description: So is a path that climbs out of it
+    command: run-start
+    input:
+      machine: "${{ steps[0].data.machine.id }}"
+      head: 3f9a2c4e5b6d7081928374a5b6c7d8e9f0a1b2c3
+      steps:
+        - label: validate
+          args: [pnpm, verify, "--keep-going"]
+          timeoutSeconds: 5400
+          network: none
+      outputs:
+        - { name: build, path: ../build/secrets.txt }
+    expect:
+      success: false
+      error:
+        code: OUTPUT_OUTSIDE_WORKSPACE

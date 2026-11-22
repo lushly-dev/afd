@@ -71,8 +71,18 @@ function beforeRelease(path, bytes) {
 }
 
 test('Violet provenance records are bound by hash and every unit is admitted for the preview', () => {
-	for (const entry of Object.values(provenance.records))
+	const { adaptations: changing, ...frozen } = provenance.records;
+	for (const entry of Object.values(frozen))
 		assert.equal(sha(readFileSync(join(root, directory, entry.manifest))), entry.sha256);
+	// Each row's current_import_sha256 still binds the record to its file (below). The digest of
+	// adaptations.json, which changes with every edit, is not committed: its one line made any two
+	// branches that recorded different files conflict (#1610).
+	assert.equal(changing.manifest, 'adaptations.json');
+	assert(
+		!('sha256' in changing),
+		"do not commit adaptations.json's digest (#1610). A merge made by an older pnpm base:sync " +
+			`puts it back: delete records.adaptations.sha256 from ${directory}/provenance.json`
+	);
 	assert.equal(upstream.revision, provenance.source_revision);
 	assert.equal(adaptations.source_revision, provenance.source_revision);
 	// Handed over to AFD's release.yml on 2026-11-14 (violet-handoff.md), under the preview npm tag.

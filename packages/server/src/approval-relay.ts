@@ -236,7 +236,8 @@ export interface UpFrontApproval {
 		command: string,
 		input: unknown,
 		context: CommandContext,
-		next: () => Promise<CommandResult>
+		/** Lets the step through, admitting it on the canonical input it was decided on. */
+		next: (canonical: string | undefined) => Promise<CommandResult>
 	): Promise<CommandResult>;
 	/** The call's relay, which reads the human's answers and records the hold. */
 	relay: ApprovalRelay;

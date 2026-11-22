@@ -116,7 +116,7 @@ describe('resolve, against a real merge', () => {
 	};
 	/**
 	 * A unit's records for `files`, as its recorder writes them, with the mirror for Botcore.
-	 * `digest: false` is Botcore's and FAST-AF's shape since #1610: no committed adaptations digest.
+	 * `digest: false` is every unit's shape since #1610: no committed adaptations digest.
 	 */
 	const records = (dir, files, extra = {}, { digest = true } = {}) => {
 		const adaptations = encode({ kind: 'reviewed-import-adaptations', files });

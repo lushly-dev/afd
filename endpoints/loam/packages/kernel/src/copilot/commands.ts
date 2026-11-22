@@ -286,8 +286,14 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 			async call(name, input) {
 				if (live.revoked) return refuse('The turn has ended', ['call']);
 				if (!samePerson()) return refuse('The person changed', ['call']);
-				// The session's limit cannot be skipped: a confirmation is read through `confirmation` alone (3.2).
-				if (typeof name !== 'string' || name.startsWith('confirmation-'))
+				// The session's limit cannot be skipped: a confirmation is read through `confirmation` alone (3.2), and
+				// chrome-only or internal commands are never reachable through the copilot's port (4.5, #1869).
+				if (
+					typeof name !== 'string' ||
+					name.startsWith('confirmation-') ||
+					CHROME_ONLY.includes(name) ||
+					deps.internal(name)
+				)
 					return refuse('Not a command the copilot calls', ['name']);
 				calls += 1;
 				const callId = `cpc_${String(calls).padStart(4, '0')}`;

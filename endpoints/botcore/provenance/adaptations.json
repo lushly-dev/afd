@@ -37,11 +37,11 @@
       "path": "README.md",
       "upstream_sha256": "892db189b22b41214ab5637d9601beb0add2f9f2535c358c59cf5757e4d87979",
       "staged_sha256": "8ab2a275fdd389aca8353b3b2608698b30bc662d8a6612ce104319c1ee5fa781",
-      "current_import_sha256": "63aca2334fdbe3f3d1e0c19d4d3be9206a57b855b7c5edbf87360ae973598561",
+      "current_import_sha256": "d196ad961d14651982735522034e00a9fd55a31e86e2e8c808bf3b58b60635c3",
       "stage_classification": "modified-upstream",
       "stage_reason": "Link the new managed-host compatibility documentation",
       "import_classification": "modified-after-staging",
-      "import_reason": "List the bundled skills that remain; record ownership under metadata; point the release badge and the repository note at AFD; Add the gate-discipline skill and its scripts; list all eleven skills; Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); botcore serve refuses a network transport, since its run tool executes any Python its client sends; tests and README say so; botcore serve refuses a network transport, since its run tool executes any Python its client sends; points to botcore.host_http for HTTP; tests, README and the server docstring say so; Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818)"
+      "import_reason": "List the bundled skills that remain; record ownership under metadata; point the release badge and the repository note at AFD; Add the gate-discipline skill and its scripts; list all eleven skills; Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); botcore serve refuses a network transport, since its run tool executes any Python its client sends; tests and README say so; botcore serve refuses a network transport, since its run tool executes any Python its client sends; points to botcore.host_http for HTTP; tests, README and the server docstring say so; Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill-usage-collect also reads Claude Code's transcripts, for sessions T3 Code did not run (lushly-dev/afd#1820)"
     },
     {
       "path": "SETUP.md",
@@ -167,11 +167,11 @@
       "path": "botcore-connectors/src/botcore_connectors/plugin.py",
       "upstream_sha256": "1d0d0eb880fba09657132e7a3bdaca2e411d8466c69cfd785a012193b24e69fd",
       "staged_sha256": "1d0d0eb880fba09657132e7a3bdaca2e411d8466c69cfd785a012193b24e69fd",
-      "current_import_sha256": "1d0d0eb880fba09657132e7a3bdaca2e411d8466c69cfd785a012193b24e69fd",
+      "current_import_sha256": "d8bf45ade73448e8ed7109df02c8db0c80558604c2c71ceea954607b82487086",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in"
     },
     {
       "path": "botcore-connectors/src/botcore_connectors/validation.py",
@@ -277,11 +277,11 @@
       "path": "botcore-connectors/tests/test_plugin.py",
       "upstream_sha256": "4bc2e0435e9ec78857a393a08215ca4a12a56a5e77734f3a8c6fa46cb91bb456",
       "staged_sha256": "4bc2e0435e9ec78857a393a08215ca4a12a56a5e77734f3a8c6fa46cb91bb456",
-      "current_import_sha256": "4bc2e0435e9ec78857a393a08215ca4a12a56a5e77734f3a8c6fa46cb91bb456",
+      "current_import_sha256": "d56aeaab01a2cea86b293a3e6caa6cee26fea68d21fe5f08701102bc11e715f2",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in"
     },
     {
       "path": "botcore-connectors/tests/test_scope.py",
@@ -667,11 +667,11 @@
       "path": "docs/features/complete/per-agent-permissions/per-agent-permissions.plan.md",
       "upstream_sha256": "c2dddc8e03dfd56d77bca639183f11715305805f7b4a5ee0259f1726717bde9d",
       "staged_sha256": "c2dddc8e03dfd56d77bca639183f11715305805f7b4a5ee0259f1726717bde9d",
-      "current_import_sha256": "c2dddc8e03dfd56d77bca639183f11715305805f7b4a5ee0259f1726717bde9d",
+      "current_import_sha256": "8b265b09ab2ee8a47bfd74544f1f217872f78b0580a3813ef4ba8003f27bbd00",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in"
     },
     {
       "path": "docs/features/complete/teams-interface/00-overview.plan.md",
@@ -737,11 +737,11 @@
       "path": "docs/host-composition.md",
       "upstream_sha256": null,
       "staged_sha256": "770e808013d3d866493ed03690d48330a06ca076eec838f720449592103d53ce",
-      "current_import_sha256": "308b079d1d87c848629c74192889d82cab130caf43d991e45b794db0ba7466bb",
+      "current_import_sha256": "130b5b6593e99f40476e1d4156cb0eee72e473b3d74c4a919d6cd72bb2238b1c",
       "stage_classification": "added-in-staging",
       "stage_reason": "Document bounded host capabilities and compatibility limits",
       "import_classification": "modified-after-staging",
-      "import_reason": "Describe versioning, SDK compatibility, optional integration and the AFD publisher; describe plugin-declared policies, catalog input schemas and argument refusals; say a host leaves unselected plugin sections alone; describe command name spellings, kebab_names, typed inputs, the per-call context and the remote-caller profile; describe serving hosts over HTTP: routes, tokens, the bind guard and the client; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Refuse intermediate reparse points and hold the directory chain open through each token-store operation on Windows; Merge main's factory report plan counts; refuse ancestor write-attributes grants, recheck the held chain for reparse points and poll the Windows store lock"
+      "import_reason": "Describe versioning, SDK compatibility, optional integration and the AFD publisher; describe plugin-declared policies, catalog input schemas and argument refusals; say a host leaves unselected plugin sections alone; describe command name spellings, kebab_names, typed inputs, the per-call context and the remote-caller profile; describe serving hosts over HTTP: routes, tokens, the bind guard and the client; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Refuse intermediate reparse points and hold the directory chain open through each token-store operation on Windows; Merge main's factory report plan counts; refuse ancestor write-attributes grants, recheck the held chain for reparse points and poll the Windows store lock; Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing"
     },
     {
       "path": "docs/operations/model-routing.md",
@@ -840,11 +840,11 @@
       "path": "packages/botcore-agents/src/botcore_agents/config.py",
       "upstream_sha256": "2b0963bca6c3fc9b2e9d18397055205b4a55aa2294191885364ef482ff8e889e",
       "staged_sha256": "2b0963bca6c3fc9b2e9d18397055205b4a55aa2294191885364ef482ff8e889e",
-      "current_import_sha256": "2b0963bca6c3fc9b2e9d18397055205b4a55aa2294191885364ef482ff8e889e",
+      "current_import_sha256": "142464c1affbf214b82392ab841ebf512326d950c9de9315d7580880a2c412bc",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing"
     },
     {
       "path": "packages/botcore-agents/src/botcore_agents/models.py",
@@ -938,6 +938,17 @@
       "import_reason": "Imported exact frozen staged-input bytes"
     },
     {
+      "path": "packages/botcore-agents/tests/test_connector_tool_host.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "10a1c19b19832352f19a0f59a4b4db79ded7a1bb363409d97e17fe4d4e1374f9",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing"
+    },
+    {
       "path": "packages/botcore-agents/tests/test_models.py",
       "upstream_sha256": "a1c18d15e78eac4870309d641566839dfce7fe33a55bca8c4fb2ef181e6e1f56",
       "staged_sha256": "a1c18d15e78eac4870309d641566839dfce7fe33a55bca8c4fb2ef181e6e1f56",
@@ -1019,6 +1030,17 @@
       "import_reason": "Imported exact frozen staged-input bytes"
     },
     {
+      "path": "packages/botcore-llm/README.md",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "5a4f74758cf6ea876e36c05618208fac13a817ee3c9d0562f6548b72af0c64c0",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing; Review follow-ups: session built-in tool list, refuse tool hosts with actors a model cannot act for, document that pinned patterns can still write"
+    },
+    {
       "path": "packages/botcore-llm/pyproject.toml",
       "upstream_sha256": "1eaa81dcbc343ab8c29ffbed106c3a0cb74bb8f3c99508b567e4a3cd49b4d983",
       "staged_sha256": "1eaa81dcbc343ab8c29ffbed106c3a0cb74bb8f3c99508b567e4a3cd49b4d983",
@@ -1032,21 +1054,21 @@
       "path": "packages/botcore-llm/src/botcore_llm/__init__.py",
       "upstream_sha256": "81369746eba67af0c9c715bb50bea1eb2257926aeea841dc985e7a99794b60d1",
       "staged_sha256": "81369746eba67af0c9c715bb50bea1eb2257926aeea841dc985e7a99794b60d1",
-      "current_import_sha256": "81369746eba67af0c9c715bb50bea1eb2257926aeea841dc985e7a99794b60d1",
+      "current_import_sha256": "223985a56d6b48e71bb3e4f3ca5e8e6533fe45dbda960a6631bc242d00b1c773",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Bridged LLM tools dispatch through a managed host under its policy; shell allowlist admits one simple command only; Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing"
     },
     {
       "path": "packages/botcore-llm/src/botcore_llm/bridge.py",
       "upstream_sha256": "8555b7087bb269c4f30f335d73e21cf4130744fe8fb9820be58798d2fd5b383a",
       "staged_sha256": "8555b7087bb269c4f30f335d73e21cf4130744fe8fb9820be58798d2fd5b383a",
-      "current_import_sha256": "8555b7087bb269c4f30f335d73e21cf4130744fe8fb9820be58798d2fd5b383a",
+      "current_import_sha256": "79514106cf549387ef7a3dd040a676121e3093b491ce9de98ef9ef9fd48ce5b1",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Bridged LLM tools dispatch through a managed host under its policy; shell allowlist admits one simple command only; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing; Review follow-ups: session built-in tool list, refuse tool hosts with actors a model cannot act for, document that pinned patterns can still write"
     },
     {
       "path": "packages/botcore-llm/src/botcore_llm/chat_stream.py",
@@ -1072,41 +1094,41 @@
       "path": "packages/botcore-llm/src/botcore_llm/commands.py",
       "upstream_sha256": "371568e111300b2d7b89e8ee4616219a6c04256decbd4a7c5a60387f7485f962",
       "staged_sha256": "371568e111300b2d7b89e8ee4616219a6c04256decbd4a7c5a60387f7485f962",
-      "current_import_sha256": "371568e111300b2d7b89e8ee4616219a6c04256decbd4a7c5a60387f7485f962",
+      "current_import_sha256": "562d4f5e632e3049f432bfe35ae1e62c563f4e2dd42e7bf4255c9451d54d71bd",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Bridged LLM tools dispatch through a managed host under its policy; shell allowlist admits one simple command only; Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing; Review follow-ups: session built-in tool list, refuse tool hosts with actors a model cannot act for, document that pinned patterns can still write"
     },
     {
       "path": "packages/botcore-llm/src/botcore_llm/config.py",
       "upstream_sha256": "91742133aeca2087f98eed0d0a51ec435dfd8356eb0553ea651ad3f750f32471",
       "staged_sha256": "91742133aeca2087f98eed0d0a51ec435dfd8356eb0553ea651ad3f750f32471",
-      "current_import_sha256": "91742133aeca2087f98eed0d0a51ec435dfd8356eb0553ea651ad3f750f32471",
+      "current_import_sha256": "ec935074957aa30d1647af97037a880bcba885f5f4edd0471db274bfee385cb5",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Bridged LLM tools dispatch through a managed host under its policy; shell allowlist admits one simple command only; Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing"
     },
     {
       "path": "packages/botcore-llm/src/botcore_llm/permissions.py",
       "upstream_sha256": "8c564c035edc1b24b9e88fff026228142af9bbbcdbcdc454a4bcfb51a8bae7d4",
       "staged_sha256": "8c564c035edc1b24b9e88fff026228142af9bbbcdbcdc454a4bcfb51a8bae7d4",
-      "current_import_sha256": "8c564c035edc1b24b9e88fff026228142af9bbbcdbcdc454a4bcfb51a8bae7d4",
+      "current_import_sha256": "cf5a57e262520aaed37896f89fefaa759187dda5015e35f8b1e3e20c80488dc7",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Fix Batch 5 P0/P1 bugs (#1871-#1875); Bridged LLM tools dispatch through a managed host under its policy; shell allowlist admits one simple command only; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing"
     },
     {
       "path": "packages/botcore-llm/src/botcore_llm/session.py",
       "upstream_sha256": "6cb5dd55fad7c85c317df0b48fa30c512bb41e525a96ac0c039316819ca7e21e",
       "staged_sha256": "6cb5dd55fad7c85c317df0b48fa30c512bb41e525a96ac0c039316819ca7e21e",
-      "current_import_sha256": "6cb5dd55fad7c85c317df0b48fa30c512bb41e525a96ac0c039316819ca7e21e",
+      "current_import_sha256": "f1f1661f54fe471899c6b579036fd6bfb16726ff391ad0b2136767b857da4bc1",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing"
     },
     {
       "path": "packages/botcore-llm/tests/__init__.py",
@@ -1132,11 +1154,11 @@
       "path": "packages/botcore-llm/tests/test_bridge.py",
       "upstream_sha256": "81300dbfdac249c0e86787c1049a55eb8eb9dc46bb80c8ef08d76c9ed91c1f74",
       "staged_sha256": "81300dbfdac249c0e86787c1049a55eb8eb9dc46bb80c8ef08d76c9ed91c1f74",
-      "current_import_sha256": "81300dbfdac249c0e86787c1049a55eb8eb9dc46bb80c8ef08d76c9ed91c1f74",
+      "current_import_sha256": "67a29119683c47890bb630eea7dadc0bf2ce5530c2b3c219b4ad7fe9d901e4ee",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Bridged LLM tools dispatch through a managed host under its policy; shell allowlist admits one simple command only; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing; Review follow-ups: session built-in tool list, refuse tool hosts with actors a model cannot act for, document that pinned patterns can still write"
     },
     {
       "path": "packages/botcore-llm/tests/test_chat_stream.py",
@@ -1162,21 +1184,21 @@
       "path": "packages/botcore-llm/tests/test_commands.py",
       "upstream_sha256": "69d9ffd9e7c8bdbba9868e9f784f256507c2f9fdc105280a8fdc149e58695553",
       "staged_sha256": "69d9ffd9e7c8bdbba9868e9f784f256507c2f9fdc105280a8fdc149e58695553",
-      "current_import_sha256": "69d9ffd9e7c8bdbba9868e9f784f256507c2f9fdc105280a8fdc149e58695553",
+      "current_import_sha256": "29151c98c80c44481811ad78479dd8164dfe290ce18a5a4a4e95cec817234900",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Bridged LLM tools dispatch through a managed host under its policy; shell allowlist admits one simple command only; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing; Review follow-ups: session built-in tool list, refuse tool hosts with actors a model cannot act for, document that pinned patterns can still write"
     },
     {
       "path": "packages/botcore-llm/tests/test_permissions.py",
       "upstream_sha256": "0ba198ce07082c3a1c566cb5e66907bf6c45eeeb2fae790f3a621028add79eee",
       "staged_sha256": "0ba198ce07082c3a1c566cb5e66907bf6c45eeeb2fae790f3a621028add79eee",
-      "current_import_sha256": "0ba198ce07082c3a1c566cb5e66907bf6c45eeeb2fae790f3a621028add79eee",
+      "current_import_sha256": "b9a1a7c59513c09e0a78b7ae24b1b0b6b4162f7ecdbfd395748b0b825a6d53ec",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Fix Batch 5 P0/P1 bugs (#1871-#1875); Bridged LLM tools dispatch through a managed host under its policy; shell allowlist admits one simple command only; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing"
     },
     {
       "path": "packages/botcore-llm/tests/test_plugin.py",
@@ -1242,11 +1264,11 @@
       "path": "packages/botcore-memory/src/botcore_memory/local_store.py",
       "upstream_sha256": "f48611d7ba3c0d9de36f3338800d6102e525fd22472c24c113e166c4a1396999",
       "staged_sha256": "f48611d7ba3c0d9de36f3338800d6102e525fd22472c24c113e166c4a1396999",
-      "current_import_sha256": "f48611d7ba3c0d9de36f3338800d6102e525fd22472c24c113e166c4a1396999",
+      "current_import_sha256": "b547236cfa40521c846e6c454b3308a58924f98aa07d995e58a11722852c34b9",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Fix Batch 5 P0/P1 bugs (#1871-#1875)"
     },
     {
       "path": "packages/botcore-memory/src/botcore_memory/models.py",
@@ -1302,11 +1324,11 @@
       "path": "packages/botcore-memory/tests/test_local_store.py",
       "upstream_sha256": "625d063380858b3abc78445c0d9b7e03912288e26e79d24fd20eae5aa40bc583",
       "staged_sha256": "625d063380858b3abc78445c0d9b7e03912288e26e79d24fd20eae5aa40bc583",
-      "current_import_sha256": "625d063380858b3abc78445c0d9b7e03912288e26e79d24fd20eae5aa40bc583",
+      "current_import_sha256": "e6ff3df99e1e0c1f97b897ed14ed47ebbebe0ecc550146722ca269d17955f484",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Fix Batch 5 P0/P1 bugs (#1871-#1875)"
     },
     {
       "path": "packages/botcore-memory/tests/test_models.py",
@@ -1858,21 +1880,21 @@
       "path": "plugins/botcore-teams/src/botcore_teams/auth.py",
       "upstream_sha256": "ff5b40594a9f22d0de50379a2cc85ca803b5c0be11c09f23a9d9941a2239f627",
       "staged_sha256": "ff5b40594a9f22d0de50379a2cc85ca803b5c0be11c09f23a9d9941a2239f627",
-      "current_import_sha256": "ff5b40594a9f22d0de50379a2cc85ca803b5c0be11c09f23a9d9941a2239f627",
+      "current_import_sha256": "1533cf56b7b8b1ddb4a3e80c4e63d4b7a69297fc15e2b354a61eea6e766c3b0e",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Fix Batch 5 P0/P1 bugs (#1871-#1875)"
     },
     {
       "path": "plugins/botcore-teams/src/botcore_teams/bot.py",
       "upstream_sha256": "e82dec5eb4c20605ce6709419bd1de6bd68d9318242e0092a4ddec894a3c2176",
       "staged_sha256": "e82dec5eb4c20605ce6709419bd1de6bd68d9318242e0092a4ddec894a3c2176",
-      "current_import_sha256": "e82dec5eb4c20605ce6709419bd1de6bd68d9318242e0092a4ddec894a3c2176",
+      "current_import_sha256": "bfe94eb46cdfc39f62513d444b3d3bf82fe1c64f7df450cb66128c100272b177",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Fix Batch 5 P0/P1 bugs (#1871-#1875)"
     },
     {
       "path": "plugins/botcore-teams/src/botcore_teams/cards.py",
@@ -1978,11 +2000,11 @@
       "path": "plugins/botcore-teams/tests/test_bot.py",
       "upstream_sha256": "3fde0ec72dec44291ddce2143380ff7249909edb2e0b29fbc55a29d1c62a4f2a",
       "staged_sha256": "3fde0ec72dec44291ddce2143380ff7249909edb2e0b29fbc55a29d1c62a4f2a",
-      "current_import_sha256": "3fde0ec72dec44291ddce2143380ff7249909edb2e0b29fbc55a29d1c62a4f2a",
+      "current_import_sha256": "424021923120e8f162ad5c963a367daaba6d552cd04bb3a394de6349468d06a2",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Fix Batch 5 P0/P1 bugs (#1871-#1875)"
     },
     {
       "path": "plugins/botcore-teams/tests/test_cards.py",
@@ -2050,10 +2072,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "d36a97ede973d758baa0156bae618c48d2c107e3c50d8dcd747aff4adafb98de",
+      "current_import_sha256": "cf15313319b9871b813c4f9e387db69c8710d91c0b6e0101d64ed60aef549c4f",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356)"
+      "import_reason": "Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in"
     },
     {
       "path": "scripts/record_provenance.py",
@@ -2335,11 +2357,11 @@
       "path": "src/botcore/commands/dev/quality.py",
       "upstream_sha256": "219d9a8fecc0360b6b5320f5bcce49cb3fe1a296cf4f945cbbba4efffc5678c2",
       "staged_sha256": "219d9a8fecc0360b6b5320f5bcce49cb3fe1a296cf4f945cbbba4efffc5678c2",
-      "current_import_sha256": "c47229c0f20e5304cc8ffb4f3c1e056793c23beceabaa47ad97069e35eb84bdd",
+      "current_import_sha256": "a9eb838309189c8faf0ac1b9ea9718674073e7f91823282bbf7325e8d841966c",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact frozen staged-input bytes; Split modules over 500 lines with no behaviour change (lushly-dev/afd#514); Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356)"
+      "import_reason": "Imported exact frozen staged-input bytes; Split modules over 500 lines with no behaviour change (lushly-dev/afd#514); Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); Fix Batch 5 P0/P1 bugs (#1871-#1875)"
     },
     {
       "path": "src/botcore/commands/disk/__init__.py",
@@ -2669,15 +2691,26 @@
       "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817)"
     },
     {
+      "path": "src/botcore/commands/skill_usage/claude_code.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "0693846ba4e6b24f7c93f91f08c4f89d81bf8450afd37ec86bc234ffbf5d6b86",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "skill-usage-collect also reads Claude Code's transcripts, for sessions T3 Code did not run (lushly-dev/afd#1820)"
+    },
+    {
       "path": "src/botcore/commands/skill_usage/collect.py",
       "origin": "local-after-import",
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "5202996a383d9cbdf9e3e45665df8ac12da9cb9265212d0be8c8a377c9044bab",
+      "current_import_sha256": "f38672be3e0b5f5ec92d00ff47b5720e6cc976bc637f54c7b7c7bc784f10548b",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818)"
+      "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill-usage-collect also reads Claude Code's transcripts, for sessions T3 Code did not run (lushly-dev/afd#1820)"
     },
     {
       "path": "src/botcore/commands/skill_usage/events.py",
@@ -2718,10 +2751,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "54d0dfd4109172656160c542acf909573401836867fd59683feb6f42cb2c22f1",
+      "current_import_sha256": "e62779098a10231cec251f8ecd71593cf4f6632d50df684dd11bf604fc0097e4",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818)"
+      "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill-usage-collect also reads Claude Code's transcripts, for sessions T3 Code did not run (lushly-dev/afd#1820)"
     },
     {
       "path": "src/botcore/commands/skill_usage/triggers.py",
@@ -2778,21 +2811,21 @@
       "path": "src/botcore/docs.py",
       "upstream_sha256": "f70506d3447e2f5e5139f0380e840c84bea57834ce33b936c81ad4a868139871",
       "staged_sha256": "f70506d3447e2f5e5139f0380e840c84bea57834ce33b936c81ad4a868139871",
-      "current_import_sha256": "e0e27a85abc45f267bf359168539f240ab6f4f7cd15de5e6c6a45d5a5be2695e",
+      "current_import_sha256": "e435d83697467a53ba07d9698d8147d2d922e1f823becff2e78e2dbeffd169ca",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Document retired skills and the docs commands' real behaviour; Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); disk tier 2 first-review fixes: hidden edits, private state, pins, T3 and volume checks (lushly-dev/afd#1694); disk tier 2 docs; Disk hygiene prevention: idle-worktree warning, Cargo arrangement check, Factory slots managed (#1695); Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818)"
+      "import_reason": "Document retired skills and the docs commands' real behaviour; Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); disk tier 2 first-review fixes: hidden edits, private state, pins, T3 and volume checks (lushly-dev/afd#1694); disk tier 2 docs; Disk hygiene prevention: idle-worktree warning, Cargo arrangement check, Factory slots managed (#1695); Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill-usage-collect also reads Claude Code's transcripts, for sessions T3 Code did not run (lushly-dev/afd#1820)"
     },
     {
       "path": "src/botcore/host.py",
       "upstream_sha256": null,
       "staged_sha256": "d8ecdd977b3e243f030834d4508e8f60e9dd660d4d0ff9280a1f5b3b75b545ba",
-      "current_import_sha256": "6108ab56d184a7cad74b306745909d8f11ea280cba80a3c2685cd8d6a7257df8",
+      "current_import_sha256": "b7f55fbd1ca22b39b8fbdef21c8ec5c4e239ccc594c7204b657a1b7d7a1fe0bb",
       "stage_classification": "added-in-staging",
       "stage_reason": "Add shared dispatch, effects policy and quality-verdict adapters",
       "import_classification": "modified-after-staging",
-      "import_reason": "Map broken-link failures and typed infrastructure verdicts correctly; merge plugin-declared policies that a host may only narrow, carry input schemas and one-line descriptions in the catalog, refuse wrong argument names; load config as an explicit plugin selection; resolve either spelling of a command name with closest-name refusals, serve kebab-case names on request, validate typed inputs, build a context per call, admit effects by profile"
+      "import_reason": "Map broken-link failures and typed infrastructure verdicts correctly; merge plugin-declared policies that a host may only narrow, carry input schemas and one-line descriptions in the catalog, refuse wrong argument names; load config as an explicit plugin selection; resolve either spelling of a command name with closest-name refusals, serve kebab-case names on request, validate typed inputs, build a context per call, admit effects by profile; Fix Batch 5 P0/P1 bugs (#1871-#1875); Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing"
     },
     {
       "path": "src/botcore/host_surfaces.py",
@@ -3199,11 +3232,11 @@
       "path": "src/botcore/skills/agent-config/SKILL.md",
       "upstream_sha256": "a4f3d29da55f9ca7191c9507808812a6797db83bb4425f51d6be57ffe646343e",
       "staged_sha256": "a4f3d29da55f9ca7191c9507808812a6797db83bb4425f51d6be57ffe646343e",
-      "current_import_sha256": "eaf2b98f9507b0a52e7a6eb99c78eb416acec16c15fe1d802d6ac193ee34dc3f",
+      "current_import_sha256": "a9b9877d9dce64eb021199f858fd6446e179732365c889d415e2d16e3c19de39",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Rewrite to the agents plugin's verified fields; add the state block"
+      "import_reason": "Rewrite to the agents plugin's verified fields; add the state block; Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing"
     },
     {
       "path": "src/botcore/skills/agent-config/references/examples.md",
@@ -5966,11 +5999,11 @@
       "path": "tests/conftest.py",
       "upstream_sha256": "b89f851cf4cf0868f38cf73db9b014a09c42088cc7f27ca2461521780cbf3a3c",
       "staged_sha256": "b89f851cf4cf0868f38cf73db9b014a09c42088cc7f27ca2461521780cbf3a3c",
-      "current_import_sha256": "8e7c1ed773c6eadf8c56d716f4bd31b9e213a88fa433f3ba0e0e0d64f2adff07",
+      "current_import_sha256": "5b10916bd9c0b93dfb30451b5ffb118072800e36175ebdb0e0c953b44a8bfff9",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Clear inherited Git routing for child fixtures without changing caller state; Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818)"
+      "import_reason": "Clear inherited Git routing for child fixtures without changing caller state; Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill-usage-collect also reads Claude Code's transcripts, for sessions T3 Code did not run (lushly-dev/afd#1820)"
     },
     {
       "path": "tests/integration/__init__.py",
@@ -6176,21 +6209,21 @@
       "path": "tests/test_dev_quality.py",
       "upstream_sha256": "e5478a32ca25f040aeaf9eff58b9b924d3768b7ae5ce56669c719e6658947d94",
       "staged_sha256": "e5478a32ca25f040aeaf9eff58b9b924d3768b7ae5ce56669c719e6658947d94",
-      "current_import_sha256": "cdee8218db54c67a7141dd2a670f8d80310c7169107c0e4bee1ba4a2b6da7696",
+      "current_import_sha256": "913ad601efc270529ef1c2dc57c50eb634e4efc63a8a9570f2304bedb2161e34",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact frozen staged-input bytes; Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356)"
+      "import_reason": "Imported exact frozen staged-input bytes; Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); Fix Batch 5 P0/P1 bugs (#1871-#1875)"
     },
     {
       "path": "tests/test_dev_quality_extended.py",
       "upstream_sha256": "ef2056311e6358966ef456581bf926d4468bd4c9105d4eb56bc028605eb20dee",
       "staged_sha256": "ef2056311e6358966ef456581bf926d4468bd4c9105d4eb56bc028605eb20dee",
-      "current_import_sha256": "ef2056311e6358966ef456581bf926d4468bd4c9105d4eb56bc028605eb20dee",
+      "current_import_sha256": "363abb39b46a0f42f5d879853472696e9a8ab2a9850d229e91628aa137ccd539",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Fix Batch 5 P0/P1 bugs (#1871-#1875)"
     },
     {
       "path": "tests/test_discovery.py",
@@ -6263,10 +6296,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "ee8253b194f80223d82a394b923c5455de254ed8cf728de18ad70f60ec5ef0e8",
+      "current_import_sha256": "1d295701dc55e3ae1e5915fcc624781c7d0fcd47e537c738610a280b459bee8e",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818)"
+      "import_reason": "disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill-usage-collect also reads Claude Code's transcripts, for sessions T3 Code did not run (lushly-dev/afd#1820)"
     },
     {
       "path": "tests/test_disk_tier2.py",
@@ -6313,11 +6346,11 @@
       "path": "tests/test_host.py",
       "upstream_sha256": null,
       "staged_sha256": "f733296254d5b30e0c723330fc238748876afe0a43c8935ff9ad331959081621",
-      "current_import_sha256": "312dc6857e81657bce690d20ee0ff637e57883718dc5d4e9b758de2fa95f123e",
+      "current_import_sha256": "924b55c2f69d1612a10a9b1f96d87c9f668b2f095c1dd14ffc4ac6aaa39171ba",
       "stage_classification": "added-in-staging",
       "stage_reason": "Exercise context isolation, route parity, effects and protocol safety",
       "import_classification": "modified-after-staging",
-      "import_reason": "Test SDK 2 envelopes, real broken links, typed outcomes and raw aliases; expect a duplicate refusal for two spellings of one name"
+      "import_reason": "Test SDK 2 envelopes, real broken links, typed outcomes and raw aliases; expect a duplicate refusal for two spellings of one name; Fix Batch 5 P0/P1 bugs (#1871-#1875)"
     },
     {
       "path": "tests/test_host_http.py",
@@ -6540,6 +6573,17 @@
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818)"
+    },
+    {
+      "path": "tests/test_skill_usage_claude_code.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "ecb2a141b3f9fb3a88cc243405c6e38c3d49c0fe2001bc321fba5baa56fa2a3c",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "skill-usage-collect also reads Claude Code's transcripts, for sessions T3 Code did not run (lushly-dev/afd#1820)"
     },
     {
       "path": "tests/test_skill_usage_machines.py",

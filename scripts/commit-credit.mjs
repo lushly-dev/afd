@@ -13,8 +13,12 @@
  *   node scripts/commit-credit.mjs --message <file>   the commit-msg hook: this message, and the
  *                                                     author and committer git will record
  *   node scripts/commit-credit.mjs                    Actions (ci-ok): every commit in the pull
- *                                                     request; GITHUB_TOKEN, GITHUB_REPOSITORY
- *                                                     and PR_NUMBER set
+ *                                                     request; GITHUB_TOKEN, GITHUB_REPOSITORY,
+ *                                                     GITHUB_BASE_REF and PR_NUMBER set. When
+ *                                                     the base branch's merge queue rebases, its
+ *                                                     commits land on main as they are, so each
+ *                                                     is checked as main's are and it must have
+ *                                                     exactly one of its own (#1809)
  *   node scripts/commit-credit.mjs --push-event       Actions (main-credit.yml): every commit a
  *                                                     push to main brought, from the event at
  *                                                     GITHUB_EVENT_PATH; any Co-authored-by line
@@ -162,11 +166,11 @@ function ident(variable) {
 	return match ? { name: match[1], email: match[2] } : undefined;
 }
 
-async function pullRequestCommits() {
+async function pullRequestCommits(api) {
 	const { GITHUB_TOKEN, GITHUB_REPOSITORY, PR_NUMBER } = process.env;
 	const commits = [];
 	for (let page = 1; ; page++) {
-		const url = `https://api.github.com/repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/commits?per_page=100&page=${page}`;
+		const url = `${api}/repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/commits?per_page=100&page=${page}`;
 		const response = await fetch(url, {
 			headers: { authorization: `Bearer ${GITHUB_TOKEN}`, accept: 'application/vnd.github+json' },
 		});
@@ -178,6 +182,7 @@ async function pullRequestCommits() {
 				message: item.commit.message,
 				author: item.commit.author,
 				committer: item.commit.committer,
+				parents: (item.parents ?? []).map((parent) => parent.sha),
 			});
 		}
 		if (batch.length < 100) return commits;
@@ -263,15 +268,87 @@ export async function mergeGroupCommits({
 	return commits;
 }
 
+/**
+ * How the merge queue that guards `branch` lands a pull request, from the rules GitHub applies
+ * to it: `SQUASH`, `MERGE` or `REBASE`, or null when no queue guards it. A list that may be cut
+ * short, or queues that disagree, is refused rather than read in part.
+ */
+export async function queueMergeMethod({
+	repository,
+	branch,
+	token,
+	api = 'https://api.github.com',
+	fetchImpl = fetch,
+}) {
+	if (!branch) throw new Error("GITHUB_BASE_REF must name the pull request's base branch");
+	const url = `${api}/repos/${repository}/rules/branches/${encodeURIComponent(branch)}?per_page=100`;
+	const response = await fetchImpl(url, {
+		headers: { authorization: `Bearer ${token}`, accept: 'application/vnd.github+json' },
+	});
+	if (!response.ok) throw new Error(`${url}: ${response.status} ${await response.text()}`);
+	const rules = await response.json();
+	if (!Array.isArray(rules) || rules.length >= 100)
+		throw new Error(`${url}: not a whole list of the branch's rules`);
+	const methods = new Set(
+		rules.filter((rule) => rule.type === 'merge_queue').map((rule) => rule.parameters?.merge_method)
+	);
+	if (methods.size === 0) return null;
+	const [method] = methods;
+	if (methods.size > 1 || !['SQUASH', 'MERGE', 'REBASE'].includes(method))
+		throw new Error(`${url}: the merge queue's method is unclear (${[...methods].join(', ')})`);
+	return method;
+}
+
+/**
+ * Every way a pull request fails when the queue rebases it: GitHub replays each of its own
+ * commits onto main as it is and drops its merges (lushly#2811 on 2026-11-21). So each commit
+ * of its own is checked as a commit on main, any co-author line but its author's refused, a
+ * merge only for an agent's identity, and it must have exactly one commit of its own.
+ * @returns {{ sha?: string, problem: string }[]}
+ */
+export function rebaseProblems(commits) {
+	const found = [];
+	const own = commits.filter((commit) => (commit.parents?.length ?? 1) < 2);
+	for (const commit of commits) {
+		const check = own.includes(commit) ? mainProblems : agentIdentities;
+		for (const problem of check(commit)) found.push({ sha: commit.sha, problem });
+	}
+	if (own.length !== 1)
+		found.push({
+			problem: `the pull request has ${own.length} commits of its own, merges aside, and a rebase lands each on main`,
+		});
+	return found;
+}
+
+export const REBASE_FIX = [
+	"The merge queue rebases: it lands each of the pull request's own commits on main as it is, and",
+	'drops its merges of main. So it hands the queue one commit, which credits only its author:',
+	'  more than one: pnpm branch:squash folds the branch into one commit on the main it has merged,',
+	'  with the same tree, and prints the push',
+	'  a co-author line: main would receive it; replace it with an email-free "Assisted-by: <agent>"',
+	'  trailer (git commit --amend), and make the owner the author',
+].join('\n');
+
 async function main(argv) {
 	const at = argv.indexOf('--message');
 	const inQueue = argv.includes('--merge-group');
 	// Both read what main receives, so both refuse any co-author line, a person's included, but
 	// one naming the commit's own author.
 	const onMain = argv.includes('--push-event') || inQueue;
+	const inPullRequest = !onMain && at < 0;
 	let commits;
+	let method = null;
 	try {
-		const { GITHUB_TOKEN, GITHUB_REPOSITORY, GITHUB_API_URL, BASE_REF, HEAD_SHA } = process.env;
+		const { GITHUB_TOKEN, GITHUB_REPOSITORY, GITHUB_API_URL, GITHUB_BASE_REF, BASE_REF, HEAD_SHA } =
+			process.env;
+		const api = GITHUB_API_URL || 'https://api.github.com';
+		if (inPullRequest)
+			method = await queueMergeMethod({
+				repository: GITHUB_REPOSITORY,
+				branch: GITHUB_BASE_REF,
+				token: GITHUB_TOKEN,
+				api,
+			});
 		commits = inQueue
 			? await mergeGroupCommits({
 					repository: GITHUB_REPOSITORY,
@@ -290,10 +367,21 @@ async function main(argv) {
 								committer: ident('GIT_COMMITTER_IDENT'),
 							},
 						]
-					: await pullRequestCommits();
+					: await pullRequestCommits(api);
 	} catch (error) {
 		console.error(`commit-credit: ${error.message}`);
 		return 2;
+	}
+	if (method === 'REBASE') {
+		const found = rebaseProblems(commits);
+		for (const { sha, problem } of found)
+			console.error(`commit-credit: ${sha ? `${sha.slice(0, 8)} ` : ''}${problem}`);
+		if (found.length > 0) {
+			console.error(REBASE_FIX);
+			return 1;
+		}
+		console.log('commit-credit: one commit of its own, which credits only its author');
+		return 0;
 	}
 	let failed = false;
 	for (const commit of commits) {

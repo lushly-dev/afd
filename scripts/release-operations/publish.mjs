@@ -23,6 +23,7 @@ import { intentFile, readIntent } from './intent.mjs';
 import { dependencyOrder, readPublished, verifyPublished } from './prerequisites.mjs';
 import {
 	hash,
+	isNodeModulesSegment,
 	json,
 	readRegistry,
 	registryNames,
@@ -135,6 +136,21 @@ export function validatePacked({
 	}
 	return hash(JSON.stringify(fields.map((field) => [field, metadata[field] ?? {}])));
 }
+/** Exclude `node_modules` inside `source` on POSIX (`/`) and Windows (`\`, case-insensitive) paths. */
+export function excludesNodeModules(source, file, platform = process.platform) {
+	const base = source.replaceAll('\\', '/').replace(/\/+$/, '');
+	const target = file.replaceAll('\\', '/');
+	const matchesBase =
+		platform === 'win32' ? target.toLowerCase() === base.toLowerCase() : target === base;
+	const underBase =
+		platform === 'win32'
+			? target.toLowerCase().startsWith(`${base.toLowerCase()}/`)
+			: target.startsWith(`${base}/`);
+	// Fall back to scanning the full target path if `file` is ever outside `source` (fail-safe).
+	const rel = matchesBase ? '' : underBase ? target.slice(base.length + 1) : target;
+	return !rel.split('/').some((segment) => isNodeModulesSegment(segment, platform));
+}
+
 export function packSelected({
 	root,
 	plan,
@@ -152,7 +168,7 @@ export function packSelected({
 			// Built output is commonly ignored by git; retain it in the disposable pack candidate.
 			cpSync(source, directory, {
 				recursive: true,
-				filter: (file) => !file.split('/').includes('node_modules'),
+				filter: (file) => excludesNodeModules(source, file),
 			});
 			// pnpm resolves workspace: metadata through installed links when packing.
 			for (const dependency of all.filter((entry) => entry.registry === 'npm')) {

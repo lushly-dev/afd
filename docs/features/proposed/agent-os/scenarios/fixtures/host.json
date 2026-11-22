@@ -1,0 +1,241 @@
+{
+	"app": "agent-os",
+	"now": "2030-02-03T10:00:00Z",
+	"host": {
+		"name": "example-host",
+		"runtime": {
+			"kind": "docker",
+			"reachable": true
+		}
+	},
+	"journal": {
+		"mode": "required"
+	},
+	"repositories": [
+		{
+			"name": "example-repo",
+			"base": "main",
+			"image": "example-image"
+		}
+	],
+	"images": [
+		{
+			"name": "example-image",
+			"digest": "sha256:9b2d6c4e8f0a1b3c5d7e9f0a2b4c6d8e0f1a3b5c7d9e1f2a4b6c8d0e2f4a6b8c",
+			"toolchain": {
+				"node": "26.13.1",
+				"pnpm": "10.30.1",
+				"rust": "1.98.0",
+				"python": "3.12"
+			}
+		}
+	],
+	"sizes": [
+		{
+			"name": "small",
+			"cpus": 2,
+			"memoryGb": 4,
+			"diskGb": 20
+		},
+		{
+			"name": "standard",
+			"cpus": 6,
+			"memoryGb": 16,
+			"diskGb": 60
+		}
+	],
+	"policies": [
+		{
+			"name": "none",
+			"hosts": []
+		},
+		{
+			"name": "registries",
+			"hosts": [
+				"registry.npmjs.org",
+				"index.crates.io",
+				"static.crates.io",
+				"pypi.org",
+				"files.pythonhosted.org"
+			]
+		}
+	],
+	"capacity": {
+		"machines": {
+			"max": 4
+		},
+		"diskGb": 400
+	},
+	"ttlMinutes": {
+		"default": 120,
+		"max": 480
+	},
+	"outputs": {
+		"maxBytes": 104857600
+	},
+	"checkpoints": {
+		"keep": 3
+	},
+	"minFreeDiskGb": 20,
+	"retention": {
+		"recordsDays": 90,
+		"logsDays": 30
+	},
+	"steps": {
+		"maxTimeoutSeconds": 7200
+	},
+	"secretPatterns": ["EXAMPLE-SECRET-[0-9]+"],
+	"branches": {
+		"main": "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f"
+	},
+	"heads": {
+		"3f9a2c4e5b6d7081928374a5b6c7d8e9f0a1b2c3": {
+			"note": "Passes. Writes a verify record and a large archive of screenshots.",
+			"steps": [
+				{
+					"label": "install",
+					"code": 0,
+					"durationMs": 41000,
+					"connections": {
+						"allowed": 212,
+						"refused": []
+					}
+				},
+				{
+					"label": "validate",
+					"code": 0,
+					"durationMs": 612000,
+					"connections": {
+						"allowed": 0,
+						"refused": []
+					}
+				}
+			],
+			"files": {
+				".git/afd-verify-record.json": 412,
+				"screens.zip": 943718400
+			}
+		},
+		"7c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d": {
+			"note": "Fails one test in the validate step.",
+			"steps": [
+				{
+					"label": "install",
+					"code": 0,
+					"durationMs": 39000
+				},
+				{
+					"label": "validate",
+					"code": 1,
+					"durationMs": 187000,
+					"log": [
+						"RUN packages/example/src/parser.test.ts",
+						"FAIL packages/example/src/parser.test.ts > accepts empty input",
+						"AssertionError: expected an empty document, received an error",
+						"Test Files 1 failed | 41 passed",
+						"ELIFECYCLE Command failed with exit code 1."
+					]
+				}
+			]
+		},
+		"9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a2f1e0d": {
+			"note": "The validate step never ends.",
+			"steps": [
+				{
+					"label": "install",
+					"code": 0,
+					"durationMs": 40000
+				},
+				{
+					"label": "validate",
+					"hangs": true
+				}
+			]
+		},
+		"5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b": {
+			"note": "The validate step uses more memory than a small machine has.",
+			"steps": [
+				{
+					"label": "install",
+					"code": 0,
+					"durationMs": 40000
+				},
+				{
+					"label": "validate",
+					"exceeds": "memory"
+				}
+			]
+		},
+		"8f7e6d5c4b3a2f1e0d9c8b7a6f5e4d3c2b1a0f9e": {
+			"note": "The validate step writes more than a small machine's disk holds.",
+			"steps": [
+				{
+					"label": "install",
+					"code": 0,
+					"durationMs": 40000
+				},
+				{
+					"label": "validate",
+					"exceeds": "disk"
+				}
+			]
+		},
+		"6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d": {
+			"note": "A branch's new head. Passes.",
+			"steps": [
+				{
+					"label": "install",
+					"code": 0,
+					"durationMs": 38000
+				},
+				{
+					"label": "validate",
+					"code": 0,
+					"durationMs": 240000
+				}
+			]
+		},
+		"2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c": {
+			"note": "A test tries to send data to a host outside every policy.",
+			"steps": [
+				{
+					"label": "install",
+					"code": 0,
+					"durationMs": 40000,
+					"connections": {
+						"allowed": 212,
+						"refused": []
+					}
+				},
+				{
+					"label": "validate",
+					"code": 1,
+					"durationMs": 90000,
+					"connections": {
+						"allowed": 0,
+						"refused": [
+							{
+								"host": "collector.example.net",
+								"port": 443,
+								"count": 3
+							}
+						]
+					}
+				}
+			]
+		}
+	},
+	"machines": [
+		{
+			"id": "m-expired",
+			"repository": "example-repo",
+			"for": "fix/old",
+			"state": "destroyed",
+			"destroyedBy": {
+				"kind": "service",
+				"id": "reaper"
+			},
+			"reason": "expired"
+		}
+	]
+}

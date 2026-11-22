@@ -5,7 +5,7 @@ from __future__ import annotations
 from botcore.plugin import BotCorePlugin, PluginRegistry
 
 from botcore_connectors.config import ConnectorsConfig
-from botcore_connectors.plugin import ConnectorsPlugin
+from botcore_connectors.plugin import CONNECTOR_POLICY_EFFECTS, ConnectorsPlugin
 
 # ---------------------------------------------------------------------------
 # Protocol conformance
@@ -68,6 +68,30 @@ class TestRegister:
         registry = PluginRegistry()
         plugin.register(registry)
         assert len(registry.commands) == 8  # only GitHub implemented
+
+
+# ---------------------------------------------------------------------------
+# Managed-host admission
+# ---------------------------------------------------------------------------
+
+
+class TestHostAdmission:
+    def test_declares_host_context_safe(self) -> None:
+        assert ConnectorsPlugin.host_context_safe is True
+
+    def test_every_command_declares_a_policy(self) -> None:
+        plugin = ConnectorsPlugin(config=ConnectorsConfig(enabled=["github"]))
+        registry = PluginRegistry()
+        plugin.register(registry)
+        names = {command.__name__ for command in registry.commands}
+        assert set(registry.policies) == names
+        for policy in registry.policies.values():
+            assert policy.declared() == CONNECTOR_POLICY_EFFECTS
+
+    def test_no_config_declares_no_policies(self) -> None:
+        registry = PluginRegistry()
+        ConnectorsPlugin().register(registry)
+        assert registry.policies == {}
 
 
 # ---------------------------------------------------------------------------

@@ -32,7 +32,6 @@ test("FAST-AF provenance records are bound by hash and match each unit's release
 	// adaptations.json, which changes with every edit, is not committed: its one line made any two
 	// branches that recorded different files conflict (#1610).
 	assert.equal(changing.manifest, 'adaptations.json');
-	assert.equal(PROVENANCE_FAMILIES['fast-af'].commitsAdaptationsDigest, false);
 	assert(
 		!('sha256' in changing),
 		"do not commit adaptations.json's digest (#1610). A merge made by an older pnpm base:sync " +
