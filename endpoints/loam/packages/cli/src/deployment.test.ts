@@ -935,6 +935,18 @@ describe('deployment check', () => {
 				await warned('audience = "team"\nprojects = ["atlas"]\n', ['workspace', 'project'])
 			).toEqual([]);
 		});
+
+		it('warns INSTANCE_SPACE_UNLISTED for a pinned space with no `projects`: workspace-level calls are unpinned (phase 6, 8.3)', async () => {
+			expect(
+				await warned('audience = "person"\nspace = { atlas = "main" }\n', ['workspace', 'project'])
+			).toEqual([['INSTANCE_SPACE_UNLISTED', 'apps.work.space']]);
+			expect(
+				await warned('audience = "person"\nprojects = ["atlas"]\nspace = { atlas = "main" }\n', [
+					'workspace',
+					'project',
+				])
+			).toEqual([]);
+		});
 	});
 
 	const refusalCodes = async (toml: string, packages: Record<string, unknown>) => {

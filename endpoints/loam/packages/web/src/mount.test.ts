@@ -1,6 +1,12 @@
 import type { StreamableHttpTransportOptions } from '@lushly-dev/afd-client/streamable-http';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { boundedFetch, createMountTransport, RESPONSE_MAX_BYTES } from './mount.js';
+import {
+	boundedFetch,
+	createMountTransport,
+	MOUNT_FAILURE_CODES,
+	RESPONSE_MAX_BYTES,
+	refusalOf,
+} from './mount.js';
 
 /** What the AFD transport does, as far as the port reads it. */
 function fakeTransport(behaviour: {
@@ -195,5 +201,123 @@ describe('boundedFetch: a server is untrusted', () => {
 		const answer = await boundedFetch('u', { method: 'POST' });
 		await expect(answer.text()).rejects.toMatchObject({ code: 'MOUNT_RESULT_INVALID' });
 		expect(sent).toBeLessThan(RESPONSE_MAX_BYTES + 8 * chunk.byteLength);
+	});
+});
+
+describe("P6-E5: `mount.ts`'s mapping of the hosted relay's answers (8.1)", () => {
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
+	const marked = (status: number, body: unknown, mark = true) =>
+		new Response(typeof body === 'string' ? body : JSON.stringify(body), {
+			status,
+			headers: {
+				'content-type': 'application/json',
+				...(mark ? { 'loam-relay-refusal': '1' } : {}),
+			},
+		});
+
+	it("P6-E5: the transport's codes are the kernel's `MountFailureCode`s, exactly", async () => {
+		const { MOUNT_FAILURE_CODES: kernel } = await import('@lushly-dev/loam-kernel/mounted');
+		expect([...MOUNT_FAILURE_CODES].sort()).toEqual([...kernel].sort());
+	});
+
+	it('P6-E5: a body code is read only under `Loam-Relay-Refusal: 1`, and never its message or suggestion', async () => {
+		vi.stubGlobal('fetch', async () =>
+			marked(403, { code: 'MOUNT_SPACE_PINNED', message: 'relay words', suggestion: 'x' })
+		);
+		const refused = await boundedFetch('u', { method: 'POST' }).catch((error: Error) => error);
+		expect(refused).toMatchObject({ code: 'MOUNT_SPACE_PINNED', message: 'MOUNT_SPACE_PINNED' });
+		vi.stubGlobal('fetch', async () => marked(403, { code: 'MOUNT_SPACE_PINNED' }, false));
+		const passed = await boundedFetch('u', { method: 'POST' });
+		expect(passed.status).toBe(403);
+	});
+
+	it('P6-E5: a code outside the set, or a body that is not such JSON, under the mark is MOUNT_UNREACHABLE; at most 4 KiB is read', async () => {
+		for (const body of [
+			{ code: 'DROP_TABLES' },
+			'not json',
+			{ code: 7 },
+			`{"code":"${'x'.repeat(8192)}"}`,
+		]) {
+			vi.stubGlobal('fetch', async () => marked(400, body));
+			await expect(boundedFetch('u', { method: 'POST' })).rejects.toMatchObject({
+				code: 'MOUNT_UNREACHABLE',
+			});
+		}
+	});
+
+	it('P6-E5: a `MountRefusal` passes through `refusalOf` unchanged from anywhere on its `cause` chain', async () => {
+		vi.stubGlobal('fetch', async () => marked(404, { code: 'MOUNT_SESSION_UNKNOWN' }));
+		const refusal = await boundedFetch('u', { method: 'POST' }).catch((error: Error) => error);
+		const wrapped = new Error('HTTP 404', { cause: new Error('again', { cause: refusal }) });
+		Object.assign(wrapped, { data: { status: 404 } });
+		expect(refusalOf(wrapped)).toBe(refusal);
+		expect(refusalOf(httpError(401)).code).toBe('MOUNT_UNAUTHORIZED');
+	});
+
+	it('P6-E5: through the real SDK, a relay refusal of the connection arrives as its code', async () => {
+		vi.stubGlobal('fetch', async () => marked(403, { code: 'MOUNT_PROJECT_NOT_LISTED' }));
+		await expect(
+			createMountTransport('https://shell.test/mounts/work/mcp').connect()
+		).rejects.toMatchObject({
+			code: 'MOUNT_PROJECT_NOT_LISTED',
+		});
+	});
+
+	it('P6-E5: a relay 401 `UNAUTHORIZED` runs the session refresh; the same body without the header is MOUNT_UNAUTHORIZED, with no refresh', async () => {
+		const refreshSession = vi.fn();
+		vi.stubGlobal('fetch', async () => marked(401, { code: 'UNAUTHORIZED' }));
+		await expect(
+			createMountTransport('https://shell.test/mounts/work/mcp', undefined, {
+				refreshSession,
+			}).connect()
+		).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+		expect(refreshSession).toHaveBeenCalledOnce();
+		vi.stubGlobal('fetch', async () => marked(401, { code: 'AGENT_CANNOT_SIGN_IN' }));
+		await expect(
+			createMountTransport('https://shell.test/mounts/work/mcp', undefined, {
+				refreshSession,
+			}).connect()
+		).rejects.toMatchObject({ code: 'AGENT_CANNOT_SIGN_IN' });
+		expect(refreshSession).toHaveBeenCalledTimes(2);
+		vi.stubGlobal('fetch', async () => marked(401, { code: 'UNAUTHORIZED' }, false));
+		await expect(
+			createMountTransport('https://shell.test/mounts/work/mcp', undefined, {
+				refreshSession,
+			}).connect()
+		).rejects.toMatchObject({ code: 'MOUNT_UNAUTHORIZED' });
+		expect(refreshSession).toHaveBeenCalledTimes(2);
+	});
+
+	it('P6-E5: MOUNT_SESSION_UNKNOWN closes the transport, and `request` connects again before its next send', async () => {
+		let connects = 0;
+		let sends = 0;
+		const { seen, Fake } = fakeTransport({
+			connect: async () => {
+				connects++;
+			},
+			send: async () => {
+				sends++;
+				if (sends === 1)
+					throw new Error('Error POSTing', {
+						cause: await boundedFetch('u', { method: 'POST' }).catch((error: Error) => error),
+					});
+				return { result: { structuredContent: { success: true } } };
+			},
+		});
+		vi.stubGlobal('fetch', async () => marked(404, { code: 'MOUNT_SESSION_UNKNOWN' }));
+		const port = createMountTransport('u', Fake);
+		await port.connect();
+		await expect(port.callTool('hello-greet', {})).rejects.toMatchObject({
+			code: 'MOUNT_SESSION_UNKNOWN',
+		});
+		expect(seen.disconnects).toBe(1);
+		expect(connects).toBe(1);
+		await port.callTool('hello-greet', {});
+		expect(connects).toBe(2);
+		await port.callTool('hello-greet', {});
+		expect(connects).toBe(2);
 	});
 });

@@ -196,7 +196,15 @@ export type LoamKernelErrorCode =
 	| 'TRUST_RECORDS_TOO_LARGE'
 	| 'REQUEST_NOT_SAME_ORIGIN'
 	| 'REQUEST_TOO_LARGE'
-	| 'REQUEST_INVALID';
+	| 'REQUEST_INVALID'
+	// Phase 6's step 6 (its 8.1, section 16): the hosted relay's own refusals, which `mount.ts` carries to a mounted call.
+	| 'INSTANCE_UNKNOWN'
+	| 'MOUNT_BATCH_REFUSED'
+	| 'MOUNT_METHOD_REFUSED'
+	| 'MOUNT_COMMAND_NOT_EXPOSED'
+	| 'MOUNT_SESSION_UNKNOWN'
+	| 'MOUNT_LIMIT'
+	| 'UNAUTHORIZED';
 
 /**
  * In a failure's `details`: the page decided this and not a command, as an import or a frame's deadline

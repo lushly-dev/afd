@@ -5,8 +5,9 @@
  * servers it creates or is handed, rather than through `serve`, which binds as it creates. One process per
  * data directory, one deployment per process. It serves the written shell and, on the sandbox's origin, its
  * `sandbox/`; in a `provider` deployment, the provider at `<base><identity.path>` (3.7, step 3), and the server
- * kernel with AFD's MCP handler at `<base>mcp`, RFC 9728's metadata and A2's root metadata (3.6, step 4). The
- * trust-record transport and the relay come in later steps, and their paths answer 404 until then (3.3).
+ * kernel with AFD's MCP handler at `<base>mcp`, RFC 9728's metadata and A2's root metadata (3.6, step 4), the
+ * trust-record transport (6.2, step 5) and the hosted relay (section 8, step 6). In a `local` deployment those paths
+ * answer 404 (3.3).
  */
 
 import { readFileSync } from 'node:fs';
@@ -271,6 +272,11 @@ function shellApp(options: {
 			mcp.kernelCall(c.env.incoming, c.env.outgoing);
 			return RESPONSE_ALREADY_SENT;
 		}
+		// The hosted relay (section 8): every method reaches it, and its own gate refuses all but `POST` and `DELETE`.
+		if (rest.startsWith('mounts/') && mcp) {
+			mcp.relay(c.env.incoming, c.env.outgoing, rest);
+			return RESPONSE_ALREADY_SENT;
+		}
 		if (rest === 'api/kernel/call' || rest.startsWith('mounts/')) return notFound('no-store');
 		const answer = await site({ method, path: rest, accept: c.req.header('accept') });
 		if (answer.status !== 200) return notFound();
@@ -421,7 +427,7 @@ async function construct(
 	});
 	if (checked.refusals.length > 0) throw new HostError(checked.refusals);
 	// Held in memory only, never written (section 13, 3.3): the secrets, the limits, and the mounts with
-	// their bearers. The provider reads the auth secret (step 3); the relay will read the bearers.
+	// their bearers. The provider reads the auth secret (step 3); the relay reads the bearers (step 6).
 	const memory: {
 		secrets: ResolvedSecrets | undefined;
 		limits: ServerLimitsV1;
@@ -490,7 +496,8 @@ async function construct(
 				projection: written.projection,
 				identity,
 				provider,
-				maxBodyBytes: memory.limits.request_body_bytes,
+				limits: memory.limits,
+				mounts: memory.mounts,
 			});
 		}
 		origin = server.origin;

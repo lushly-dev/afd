@@ -115,6 +115,33 @@ export function requestOf(
 	};
 }
 
+/**
+ * The session the request's cookie names, read from the provider's database with the cookie cache off (6.2 row 3, 8.1
+ * step 3): its user, or `none`, `agent` for an agent's id (which never signs in), or `unavailable` when the read failed.
+ */
+export async function sessionOf(
+	provider: HostProvider,
+	incoming: IncomingMessage
+): Promise<{ user: { id: string; name?: string } } | 'none' | 'agent' | 'unavailable'> {
+	const headers = new Headers();
+	for (const [name, value] of Object.entries(incoming.headers))
+		if (typeof value === 'string') headers.set(name, value);
+	const api = provider.auth.api as unknown as {
+		getSession(input: {
+			headers: Headers;
+			query: { disableCookieCache: boolean };
+		}): Promise<{ user: { id: string; name?: string } } | null>;
+	};
+	let found: { user: { id: string; name?: string } } | null;
+	try {
+		found = await api.getSession({ headers, query: { disableCookieCache: true } });
+	} catch {
+		return 'unavailable';
+	}
+	if (!found) return 'none';
+	return found.user.id.startsWith(AGENT_PREFIX) ? 'agent' : found;
+}
+
 export interface KernelCallOptions {
 	/** `origin` of `loam.server.toml`. */
 	origin: string;
@@ -140,25 +167,14 @@ export function createKernelCall(options: KernelCallOptions) {
 		const request = requestOf(body.toString('utf8'));
 		if (!request) return refuse(outgoing, 400, 'REQUEST_INVALID', 'The request is not a call');
 		// 3. The session, read from the database (no cookie cache), and the principal: always the human.
-		const headers = new Headers();
-		for (const [name, value] of Object.entries(incoming.headers))
-			if (typeof value === 'string') headers.set(name, value);
-		const api = provider.auth.api as unknown as {
-			getSession(input: {
-				headers: Headers;
-				query: { disableCookieCache: boolean };
-			}): Promise<{ user: { id: string; name?: string } } | null>;
-		};
-		let found: { user: { id: string; name?: string } } | null;
-		try {
-			found = await api.getSession({ headers, query: { disableCookieCache: true } });
-		} catch {
+		const read = await sessionOf(provider, incoming);
+		if (read === 'unavailable')
 			// A read that failed is no answer about the session: retryable, never a sign-in prompt (step 5's review).
 			return refuse(outgoing, 503, 'SERVER_UNAVAILABLE', 'The sign-in provider did not answer');
-		}
-		if (!found) return refuse(outgoing, 401, 'UNAUTHORIZED', 'Authentication required');
-		if (found.user.id.startsWith(AGENT_PREFIX))
+		if (read === 'none') return refuse(outgoing, 401, 'UNAUTHORIZED', 'Authentication required');
+		if (read === 'agent')
 			return refuse(outgoing, 401, 'AGENT_CANNOT_SIGN_IN', 'An agent never signs in as a person');
+		const found = read;
 		// The person the shell made the call as, beside the body: a session now another's runs nothing, so a tab never writes
 		// as a person another tab signed in before it heard (step 5's trust review). The principal is the session's alone.
 		const expected = single(incoming, PERSON_HEADER);
