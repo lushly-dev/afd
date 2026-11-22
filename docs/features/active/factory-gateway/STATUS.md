@@ -155,14 +155,20 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   lane folds each merged slot into one commit on the base, same tree, authored and committed as
   the branch's own commits were, before it validates, so what it pushes and merges is one
   commit; a branch with no commit of its own, with two author addresses, or whose message
-  folds to nothing is ejected. **Step 3, the texts, in review and held for the switch:** the
-  skills, workflow comments and gateway docs are written for the rebasing queue, so they land
-  with step 4; `commit-credit.mjs` names a co-author's fix by how the queue merges, true either
-  way. **Step 4 waits on the owner's own go-ahead** (a relayed approval on 2026-11-22 could not
-  be verified). At the switch, check the first queue rebase for its committer, its signature and
-  whether its subject gains ` (#n)`: botcore's skill-usage audit
-  (`skill_usage/triggers.py`) reads pull request numbers only from subjects on `main`, and
-  without them every change reads `no_pull_request`. Direct rebase merges in Lushly added none,
+  folds to nothing is ejected. **Step 3, the texts, merged in
+  [#1956](https://github.com/lushly-dev/afd/pull/1956) just before the switch:** the skills,
+  workflow comments and gateway docs describe the rebasing queue; `commit-credit.mjs` names a
+  co-author's fix by how the queue merges. **Step 4, switched 2026-11-22 with the owner's
+  go-ahead and the queue empty:** AFD allows rebase merges only, and the "main merge queue"
+  ruleset's `merge_method` is `REBASE` (only that changed, from `SQUASH`; the repository
+  allowed squash merges only before). Still open: the deployed gateway's `mergeMethods` for AFD is still `squash`, where the
+  runbook says `rebase`. Until `reconfigure.sh` sets it, `pr-merge` there is refused
+  (`MERGE_METHOD_NOT_ALLOWED`) when it sets auto-merge on a pull request whose check is still
+  running; one whose check passed is enqueued, which sends no method. Check the first queue
+  rebase for its committer, its signature and whether its subject gains ` (#n)`: botcore's
+  skill-usage audit (`skill_usage/triggers.py`) reads pull request numbers only from subjects on
+  `main`, and without them every change reads `no_pull_request`. Direct rebase merges in Lushly
+  added none,
   so expect to give the audit another source: GitHub's `commits/{sha}/pulls`, or a subject the
   fold writes.
 
@@ -170,8 +176,9 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   claim's `status:in-progress` label on the closed issue, and `issue-release` then answers
   `changed: false` without removing it (removed by hand with `issue-label` on lushly#2706).
   Filed as [#1810](https://github.com/lushly-dev/afd/issues/1810).
-- **Next, in order:** G0's rate-limit replay; AFD's merge queue by rebase
-  ([#1809](https://github.com/lushly-dev/afd/issues/1809)); change 3 redesigned so the host is the only validator (held on
+- **Next, in order:** the rest of [#1809](https://github.com/lushly-dev/afd/issues/1809) (the
+  gateway's `mergeMethods` for AFD, and the first queue rebase checked); G0's rate-limit replay;
+  change 3 redesigned so the host is the only validator (held on
   `lush/botcore-command-tools`); the lane on `random`
   with its health in `gateway-status`; the factory plugin on the gateway (after
   `feat/factory-lane-loop` lands); Lushly's side ([lushly#2392](https://github.com/lushly-dev/lushly/issues/2392));
