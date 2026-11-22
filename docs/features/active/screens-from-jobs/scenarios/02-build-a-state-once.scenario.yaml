@@ -6,6 +6,8 @@
 # the headless run reaches every command's state but not the conflict notice itself.
 # `example/scenarios/untitled-steps.scenario.yaml` has a step 2 with no description.
 # `example-keep-a-draft-stale` points at a copy of the scenario in which step 3 was renamed.
+# `captures` accepts bare step numbers or `{ step, name?, before? }` objects (defaulting `name`
+# to a deterministic slug of the step's `description`).
 
 name: Build a state once
 description: >-
@@ -13,10 +15,10 @@ description: >-
   scenario that both run, the job entry written from it, and a capture point that no longer
   matches it refused, so that the commands cannot drift apart.
 job: build-a-state-once
-tags: [slice, refuse]
+tags: [slice-1, refuse]
 
 steps:
-  - description: The job entry is written from the scenario, with each step's description copied
+  - description: The job entry is written from the scenario with capture names and person actions
     command: specimen-job-create
     input:
       id: example-keep-a-draft
@@ -24,13 +26,39 @@ steps:
       module: ./app.specimens.ts
       exportName: NotesApp
       target: app
-      captures: [3, 4]
+      captures:
+        - step: 3
+          name: two-editors
+        - step: 4
+          name: conflict-notice
+          before:
+            - action:
+                fill: second-editor
+                value: ' draft'
     expect:
       success: true
       data:
         written: { matches: 'specimen\.config\.json$' }
         entry.job.captures.0.after: The note opens beside itself
+        entry.job.captures.0.name: two-editors
         entry.job.captures.1.after: Another writer saves the note
+        entry.job.captures.1.name: conflict-notice
+        entry.job.captures.1.before.0.action.fill: second-editor
+
+  - description: Bare step numbers default each capture name to a deterministic description slug
+    command: specimen-job-create
+    input:
+      id: example-export-a-note
+      scenario: example/scenarios/export-a-note.scenario.yaml
+      module: ./app.specimens.ts
+      exportName: NotesApp
+      target: app
+      captures: [3]
+    expect:
+      success: true
+      data:
+        written: { matches: 'specimen\.config\.json$' }
+        entry.job.captures.0.name: { matches: '^[a-z0-9]+(?:-[a-z0-9]+)*$' }
 
   - description: A step with no description cannot be marked, and the fix is named
     command: specimen-job-create

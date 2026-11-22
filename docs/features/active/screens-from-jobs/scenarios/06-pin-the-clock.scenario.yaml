@@ -2,14 +2,15 @@
 # proposals, and the data is invented. `example-due-dates` is a job specimen whose screen shows
 # "Due in 3 days" beside each task. Its entry pins the clock to 2026-03-02T09:00:00Z. Specimen
 # already seeds Math.random; the clock is real today. Sets are content-addressed, so two runs of
-# the same checkout that render the same screens give the same set.
+# the same checkout that render the same screens give the same set, verified via `specimen-diff`
+# (Design Decisions Phase 1) so Slice 1 does not wait on `specimen-review`.
 
 name: Pin the clock and random values
 description: >-
   When a job's screens show times or generated values, I want the clock and random values fixed
   for every run, so that a difference between two runs is the app's and not the clock's.
 job: pin-the-clock
-tags: [slice]
+tags: [slice-1]
 
 steps:
   - description: A first run states what it pinned
@@ -19,6 +20,7 @@ steps:
     expect:
       success: true
       data:
+        set: { matches: '^set-[0-9a-f]{12}$' }
         pinned.clock: '2026-03-02T09:00:00Z'
         pinned.random: seeded
 
@@ -29,15 +31,35 @@ steps:
     expect:
       success: true
       data:
+        set: { matches: '^set-[0-9a-f]{12}$' }
         status: passed
 
-  - description: The two runs show the same screens
-    command: specimen-review
+  - description: The first marked capture has no clock-driven difference between the two runs
+    command: specimen-diff
     input:
-      before: ${{ steps[0].data.set }}
-      after: ${{ steps[1].data.set }}
+      left:
+        set: ${{ steps[0].data.set }}
+        id: example-due-dates/1
+      right:
+        set: ${{ steps[1].data.set }}
+        id: example-due-dates/1
     expect:
       success: true
       data:
-        open: { length: 0 }
-        settled.unchanged: 2
+        status: no-change-observed
+        differences: { length: 0 }
+
+  - description: The second marked capture has no clock-driven difference between the two runs
+    command: specimen-diff
+    input:
+      left:
+        set: ${{ steps[0].data.set }}
+        id: example-due-dates/2
+      right:
+        set: ${{ steps[1].data.set }}
+        id: example-due-dates/2
+    expect:
+      success: true
+      data:
+        status: no-change-observed
+        differences: { length: 0 }

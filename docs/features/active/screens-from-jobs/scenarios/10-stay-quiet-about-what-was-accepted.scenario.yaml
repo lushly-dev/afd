@@ -1,16 +1,18 @@
 # Draft JTBD scenario for the Screens from Jobs proposal. The commands and their shapes are
 # proposals, and the data is invented. A set labelled `main` holds `example-keep-a-draft`'s
-# captures, and nothing has changed on the branch since.
+# captures. In the first part nothing has changed on `branch`; in the second part `branch-answered`
+# carries a padding change to step 4 that was already answered by a committed decision whose
+# fingerprint still matches.
 
 name: Stay quiet about what was accepted
 description: >-
   When a job step's screen is the same as on main, or a change to it was already answered, I want
   it left out of what I am shown and only counted, so that my attention goes only to what changed.
 job: stay-quiet-about-what-was-accepted
-tags: []
+tags: [slice-2, quiet]
 
 steps:
-  - description: The job runs on the branch
+  - description: The job runs on an unchanged branch
     command: specimen-job-run
     input:
       id: example-keep-a-draft
@@ -32,3 +34,17 @@ steps:
         open: { length: 0 }
         blocking: { length: 0 }
         settled.unchanged: 2
+
+  - description: A change that was already answered is also left out and only counted
+    command: specimen-review
+    input:
+      before: main
+      after: branch-answered
+      ids: [example-keep-a-draft]
+    expect:
+      success: true
+      data:
+        open: { length: 0 }
+        blocking: { length: 0 }
+        settled.unchanged: 1
+        settled.answered: 1

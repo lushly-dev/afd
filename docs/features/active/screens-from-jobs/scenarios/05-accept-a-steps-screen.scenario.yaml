@@ -9,7 +9,7 @@ description: >-
   When a step's screen changed as I meant it to, I want to accept it with a reason, and a screen
   that was never captured offered for nothing, so that the next review starts from what I agreed.
 job: accept-a-steps-screen
-tags: [slice, refuse]
+tags: [slice-2, refuse]
 
 steps:
   - description: The review puts the change to me
@@ -75,7 +75,7 @@ steps:
     input:
       question: Accept the second editor's screen?
       slug: second-editor
-      items: ['changed:keep-a-draft/3:main..broken']
+      items: ['changed:example-keep-a-draft-broken/3:main..broken']
       chosen: accept
       reason: Looks right.
     expect:

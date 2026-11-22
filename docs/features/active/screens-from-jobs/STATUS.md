@@ -4,7 +4,7 @@ Epic: [#1109](https://github.com/lushly-dev/afd/issues/1109). File new work for 
 
 Read this before the [proposal](screens-from-jobs.proposal.md). It records exactly what is done
 and what is not, so an agent never has to scan the code to learn what is current. It follows
-the shape of the [Patterns status](../patterns/STATUS.md).
+the shape of the [Patterns status](../../proposed/patterns/STATUS.md).
 
 ## How to keep this file
 
@@ -17,83 +17,93 @@ the shape of the [Patterns status](../patterns/STATUS.md).
 
 ## Status block
 
-- **State:** draft. The scaffold was filled in on 2026-11-13 against `main` at `f7ecbd43`. On
-  the same day one fresh reader walked it, an independent review of the three drafts followed,
-  and it was revised after each. It is not approved.
-- **Epic:** [#1109](https://github.com/lushly-dev/afd/issues/1109). Its checklist mirrors the
-  steps below; this file stays the source of truth.
-- **Done:**
-  - The design, with a recommendation for who drives: one render per run, with
-    `afd-testing`'s step loop inside the page.
-  - Two new commands and six extended ones. It also uses Design Decisions' `specimen-review` and
+- **State:** active (approved 2026-11-22). Promoted from `proposed/` after a three-pass owner
+  walkthrough (Q1–Q16) against `main` at `9e2aff93`.
+- **Epic:** [#1109](https://github.com/lushly-dev/afd/issues/1109). Work happens in its phased
+  sub-issues under [Phases](#phases); each phase owns its own line there so parallel pull
+  requests never conflict.
+- **Proposal design approved:**
+  - Architecture: one fresh render per run with `afd-testing`'s step loop inside the page,
+    private `integrations/specimen-afd-runner` (Specimen T11, [#1212](https://github.com/lushly-dev/afd/issues/1212)),
+    and person actions kept in Specimen `before` entries.
+  - Command design: two new commands and six extended ones (with `endpoints/specimen-server`
+    wiring designed for Phase 4), plus Design Decisions' `specimen-diff`, `specimen-review` and
     `decision-record` unchanged.
-  - Eleven jobs as scenario files, seven of them tagged as a tentative slice.
-  - Baselines and review moved onto Design Decisions' capture sets, under the coordinator's
-    shared conventions, which the owner has yet to confirm.
-  - The three scenario checks.
-  - One walk, covering all three seats, and the revision it led to.
-  - One independent review, and the revision it led to.
-  - A recommended answer to each open question.
-- **Not done:**
-  - The owner's confirmation of the shared conventions (proposal, section 12).
-  - The owner's ranking of the jobs and decisions on [For the owner](screens-from-jobs.proposal.md#12-for-the-owner).
-  - Any implementation.
-- **Order:** these proposals were scaffolded so that the owner could rank the jobs first. The
-  owner chose on 2026-11-13 to have them filled in as drafts first. That is the order of the
-  [jobs-first guide](../../../../.claude/skills/afd/references/jobs-first.md): draft, scenarios,
-  walks, then the owner's ranking.
-- **Last verified:** 2026-11-13, the checks below, with the tools built in this worktree at
-  `f7ecbd43` on Node 26.
+  - Scenarios: eleven jobs ranked into `slice-1` (Jobs 1, 2, 3, 6 via `specimen-diff`, 8, 9),
+    `slice-2` (Jobs 4, 5, 7, 10), and `slice-3` (Job 11).
+  - Shared conventions with Design Decisions confirmed (including `<id>/<step>` capture keys and
+    extending `endpoints/specimen-server` with `confirmations: 'require-human'`).
+  - Verification history: one fresh-reader walk (all three seats), one independent review across
+    the three drafts, owner walkthrough (Q1–Q16), and pre-PR independent review.
 - **Follow-ups:** the [table below](#follow-ups-not-yet-issues).
 
-## Steps
+## Phases
+
+Each phase owns one blank-separated line so concurrent pull requests never edit adjacent lines.
+
+- **Phase 1 ([#2036](https://github.com/lushly-dev/afd/issues/2036)) — `afd-testing` browser-safe entry and awaited hooks:** Planned (unblocked).
+
+- **Phase 2 ([#2037](https://github.com/lushly-dev/afd/issues/2037)) — Specimen multi-checkpoint sets (`<id>/<step>`), `pin.clock`, job config entries:** Open (blocked on Design Decisions Phase 1, [#1108](https://github.com/lushly-dev/afd/issues/1108)).
+
+- **Phase 3 ([#1212](https://github.com/lushly-dev/afd/issues/1212)) — Private `integrations/specimen-afd-runner` (Specimen T11, incl. minimal consuming scenario for dispatch/cancellation):** Open (blocked on [#2036](https://github.com/lushly-dev/afd/issues/2036), [#2037](https://github.com/lushly-dev/afd/issues/2037)).
+
+- **Phase 4 ([#2038](https://github.com/lushly-dev/afd/issues/2038)) — Job commands, CLI verbs, and `endpoints/specimen-server` wiring:** Open (blocked on [#1212](https://github.com/lushly-dev/afd/issues/1212)).
+
+- **Phase 5 ([#2039](https://github.com/lushly-dev/afd/issues/2039)) — Loam notes-conflict scenario, comfortable + compact job specimens, Slice 1 exit & measurement:** Open (blocked on [#2038](https://github.com/lushly-dev/afd/issues/2038)).
+
+- **Phase 5b ([#2040](https://github.com/lushly-dev/afd/issues/2040)) — Verify Slice 2 job review/acceptance scenarios against Design Decisions:** Open (blocked on [#2039](https://github.com/lushly-dev/afd/issues/2039), Design Decisions Phase 4 [#1108](https://github.com/lushly-dev/afd/issues/1108), `specimen-server` `require-human`).
+
+- **Phase 6 ([#2041](https://github.com/lushly-dev/afd/issues/2041)) — `jobs@1` coverage obligation set (Slice 3 exit):** Open (blocked on [#2038](https://github.com/lushly-dev/afd/issues/2038)).
+
+## Pre-approval steps (historical)
 
 | Step | State | Evidence |
 | --- | --- | --- |
 | Scaffold: problem, what exists, draft jobs | Done 2026-11-13 | [`screens-from-jobs.proposal.md`](screens-from-jobs.proposal.md) |
 | Open the epic | Done 2026-11-13 | Epic [#1109](https://github.com/lushly-dev/afd/issues/1109) |
-| Verify section 2 first-hand | Done 2026-11-13, at `f7ecbd43` | Proposal, section 2 |
-| Draft the design and the commands | Done 2026-11-13, uncommitted; revised after the walk | Proposal, sections 5 and 6 |
-| Write each job as a scenario | Done 2026-11-13, uncommitted | [`scenarios/`](scenarios/): eleven files, 39 steps, after the review |
-| Check the scenarios | Done 2026-11-13 | [How the jobs were checked](#how-the-jobs-were-checked) |
-| Decide how this relates to Specimen's T11 | Recommended: this becomes T11's design; the owner decides | Proposal, section 12, question 2 |
+| Verify section 2 first-hand | Done 2026-11-13 at `f7ecbd43`; re-checked 2026-11-22 at `9e2aff93` | Proposal, section 2 |
+| Draft the design and the commands | Done 2026-11-13; revised after walk, review and 2026-11-22 walkthrough | Proposal, sections 5 and 6 |
+| Write each job as a scenario | Done 2026-11-13; revised 2026-11-22 | [`scenarios/`](scenarios/): eleven files, 44 steps, split across `slice-1`/`slice-2`/`slice-3` |
+| Check the scenarios | Done 2026-11-13; rerun 2026-11-22 | [How the jobs were checked](#how-the-jobs-were-checked) |
+| Decide how this relates to Specimen's T11 | Done 2026-11-22: adopted as T11's design; [#1212](https://github.com/lushly-dev/afd/issues/1212) reparented under [#1109](https://github.com/lushly-dev/afd/issues/1109) as Phase 3 | Proposal, section 12 |
 | Walk the paths with readers who did not write them | Done 2026-11-13: one fresh reader, all three seats, verdict "revise"; every finding fixed | [The walk](#the-walk); proposal, section 4 |
 | Rerun the checks after the walk | Done 2026-11-13 | [How the jobs were checked](#how-the-jobs-were-checked) |
 | Independent review of the draft | Done 2026-11-13: one review of the three drafts; every finding fixed | [The review](#the-review); proposal, section 4 |
 | Rerun the checks after the review | Done 2026-11-13 | [How the jobs were checked](#how-the-jobs-were-checked) |
-| The owner confirms the shared conventions | Not started | Proposal, section 12 |
-| The owner cuts, adds and ranks the jobs and answers section 12 | Not started | Proposal, section 12 |
-| Phases 1 to 6 | Not started; needs the owner’s go | Proposal, section 9 |
+| Owner confirms shared conventions, ranks jobs, and answers section 12 | Done 2026-11-22 (Q1–Q16 walkthrough); promoted to `active/` | Proposal, section 12 |
 
 ## How the jobs were checked
 
-Run on 2026-11-13 on the `.nvmrc` Node, as [jobs first](../../../../.claude/skills/afd/references/jobs-first.md#checking-without-a-server)
+Rerun on 2026-11-22 at `9e2aff93` on Node `v26.13.1` (`.nvmrc` `26`) after the three-pass owner
+walkthrough and promotion to `active/`, as
+[jobs first](../../../../.claude/skills/afd/references/jobs-first.md#checking-without-a-server)
 describes.
 
-This is the rerun after the review.
-
 - **Earlier runs, all clean:**
-  - the first draft: 8 files and 17 steps;
-  - after the walk: 11 files, 38 steps, 10 commands and 5 errors.
+  - 2026-11-13 first draft: 8 files and 17 steps;
+  - 2026-11-13 after the walk: 11 files, 38 steps, 10 commands and 5 errors;
+  - 2026-11-13 after the review: 11 files, 39 steps, 11 commands and 6 errors.
 - **Commands:** `specimen-job-create`, `specimen-job-run`, `specimen-list`, `specimen-validate`,
-  `specimen-render`, `specimen-a11y`, `specimen-coverage`, `specimen-capture`,
+  `specimen-render`, `specimen-a11y`, `specimen-coverage`, `specimen-capture`, `specimen-diff`,
   `specimen-review`, `decision-record` and `scenario-evaluate`.
-- **Error codes:** `NOT_A_JOB`, `JOB_NEEDS_RUN`, `CAPTURE_STEP_UNKNOWN`,
-  `STEP_HAS_NO_DESCRIPTION`, `BROWSER_UNAVAILABLE` and `REVIEW_ITEM_NOT_FOUND`.
+- **Error codes (9 declared):** `NOT_A_JOB`, `JOB_NEEDS_RUN`, `CAPTURE_STEP_UNKNOWN`,
+  `CAPTURE_STEP_AMBIGUOUS`, `STEP_HAS_NO_DESCRIPTION`, `JOB_SCENARIO_INVALID`, `RUNNER_MISSING`,
+  `BROWSER_UNAVAILABLE` and `REVIEW_ITEM_NOT_FOUND` (6 tested; 3 static validation/refusal codes
+  explicitly deferred as "Errors no job shows yet" in proposal §6).
 - **Step references:** every `${{ steps[N] }}` was checked to sit under `input`, since the
   runner resolves none in `expect`.
 
 Parse:
 
 ```text
-$ node packages/cli/dist/bin.js scenario validate docs/features/proposed/screens-from-jobs/scenarios
+$ node packages/cli/dist/bin.js scenario validate docs/features/active/screens-from-jobs/scenarios
 ✓ All 11 scenario(s) are valid!
 ```
 
 The dry run with `checkFixtures: true` reported no errors for any file. Coverage:
 
 ```text
-{"totalScenarios":11,"totalSteps":39,"commands":{"tested":11,"known":11,"untested":[],"coverage":100},"errors":{"tested":6,"known":6,"untested":[],"coverage":100},"jobs":{"count":11,"names":["accept-a-steps-screen","build-a-state-once","check-a-state-where-it-occurs","find-what-no-job-reaches","pin-the-clock","refuse-a-capture-from-the-wrong-state","run-without-a-browser","see-a-jobs-states","see-what-changed-since-accepted","sort-a-bulk-change","stay-quiet-about-what-was-accepted"]}}
+{"totalScenarios":11,"totalSteps":44,"commands":{"tested":12,"known":12,"untested":[],"coverage":100},"errors":{"tested":6,"known":9,"untested":["CAPTURE_STEP_AMBIGUOUS","JOB_SCENARIO_INVALID","RUNNER_MISSING"],"coverage":66.66666666666666},"jobs":{"count":11,"names":["accept-a-steps-screen","build-a-state-once","check-a-state-where-it-occurs","find-what-no-job-reaches","pin-the-clock","refuse-a-capture-from-the-wrong-state","run-without-a-browser","see-a-jobs-states","see-what-changed-since-accepted","sort-a-bulk-change","stay-quiet-about-what-was-accepted"]}}
 not drafted: []
 ```
 
@@ -189,18 +199,20 @@ exactly. Every list is now asserted by a dotted index path.
 
 | Date | Raised by | Follow-up | Status |
 | --- | --- | --- | --- |
-| 2026-11-12 | First Patterns draft | Raised in the [Patterns status](../patterns/STATUS.md#follow-ups-not-yet-issues) as Specimen's application-command runner (T11) letting one scenario drive a screen to a state; this proposal is where it is now tracked | Moved here |
-| 2026-11-13 | Scaffold survey | `onStepComplete` in `packages/testing` is synchronous, not awaited, and fires for skipped steps | Addressed in the draft: phase 1 adds awaited `beforeStep` and `afterStep` hooks and leaves `onStepComplete` as it is |
+| 2026-11-12 | First Patterns draft | Raised in the [Patterns status](../../proposed/patterns/STATUS.md#follow-ups-not-yet-issues) as Specimen's application-command runner (T11) letting one scenario drive a screen to a state; this proposal is where it is now tracked | Moved here |
+| 2026-11-13 | Scaffold survey | `onStepComplete` in `packages/testing` is synchronous, not awaited, and fires for skipped steps | Addressed in the draft: Phase 1 ([#2036](https://github.com/lushly-dev/afd/issues/2036)) adds awaited `beforeStep` and `afterStep` hooks and leaves `onStepComplete` as it is |
 | 2026-11-13 | Review | Add `.specimen/` to the root `.gitignore`. Shared with Design Decisions, whose phase 1 adds it | Done 2026-11-21 ([#1132](https://github.com/lushly-dev/afd/issues/1132)), after the owner confirmed the convention |
-| 2026-11-13 | Draft | If the owner agrees that this is T11's design, link it from T11's row in the [Specimens status](../../complete/specimens/STATUS.md). That file is provenance-tracked, so run its provenance script | Open; waits on the owner |
+| 2026-11-13 | Draft | Link Screens from Jobs from T11's row in the [Specimens status](../../complete/specimens/STATUS.md). That file is provenance-tracked, so run its provenance script | Deferred to Phase 3 ([#1212](https://github.com/lushly-dev/afd/issues/1212)) per Q16 on 2026-11-22 |
+| 2026-11-22 | Walkthrough (Q10) | Align Design Decisions §6.5 (`specimen-review` ordering) to sort cause groups largest-first with specimen id as tie-breaker, matching Job 7 | Done 2026-11-22 in `docs/features/proposed/design-decisions/design-decisions.proposal.md` |
 
 ## Session log
 
 | Date | Session | What changed |
 | --- | --- | --- |
-| 2026-11-13 | Scaffold | After the [Patterns](../patterns/patterns.proposal.md) proposal, the owner agreed to four follow-on proposals from the same discussion: Design Decisions, Screens from Jobs, Pointing and Scales. This scaffold was written from a survey of the code, reviewed once by an independent reader, and committed with its epic |
+| 2026-11-13 | Scaffold | After the [Patterns](../../proposed/patterns/patterns.proposal.md) proposal, the owner agreed to four follow-on proposals from the same discussion: Design Decisions, Screens from Jobs, Pointing and Scales. This scaffold was written from a survey of the code, reviewed once by an independent reader, and committed with its epic |
 | 2026-11-13 | Scaffold | Correction: the discussion of 2026-11-12, and the Patterns follow-up above, said Loam's scenario files assert the same commands its screen specimens stub. Loam has no scenario files; its job tests are Vitest. The proposal's section 2 states it correctly |
 | 2026-11-13 | Review | An independent review of the three drafts. The coordinator set shared conventions, which the owner has yet to confirm:<br>- runs save Design Decisions capture sets keyed `<job>/<step>`;<br>- seeing what changed and accepting go through `specimen-review` and `decision-record`;<br>- `specimen-job-diff`, `specimen-job-accept` and the committed baseline are dropped;<br>- `.specimen/` is to be ignored;<br>- the MCP host is Design Decisions' phase 5.<br>Also fixed: the person-action limit is stated, `specimen-render` takes `id`, `STEP_HAS_NO_DESCRIPTION`, references in `input` only. Eight commands new or extended; checks rerun clean |
 | 2026-11-13 | Walk | One fresh reader walked the draft, taking all three seats; verdict "revise". Every finding was fixed:<br>- the step loop moved into the page;<br>- runs keep their captures;<br>- list assertions became dotted paths;<br>- `specimen-list` and the parser were extended;<br>- four jobs were added and three folded into job 1, for eleven in all;<br>- `specimen-job-create`, `-diff` and `-accept` were drafted;<br>- `specimen-cli` joined the units touched.<br>The checks were rerun clean |
 | 2026-11-13 | Draft | The owner asked for the proposals to be filled in and kept as drafts. Section 2 was verified first-hand. The design, five commands (one new) and eight jobs as scenarios were added, with the checks clean. Writing the jobs changed four things: capture points name a step by its description, person actions joined the design, no check command was needed, and job 5 was narrowed |
 | 2026-11-21 | Owner call | The owner confirmed `.specimen/` as the local data folder kept out of git, and [#1132](https://github.com/lushly-dev/afd/issues/1132) added it to the root `.gitignore`. The proposal's storage statements and the follow-up row now say so. The other shared conventions still wait on the owner. Checked with `git check-ignore -v` on a file under `.specimen/` |
+| 2026-11-22 | Owner walkthrough & promotion | Three-pass walkthrough (Q1–Q16) approved the proposal and promoted `docs/features/proposed/screens-from-jobs/` to `docs/features/active/screens-from-jobs/`. Confirmed all shared conventions (amending the MCP host convention to extend existing `endpoints/specimen-server`, #1320), adopted as Specimen T11's design (reparented #1212 as Phase 3 with a minimal consuming scenario for T11 exit), split the 11 jobs into `slice-1` (Jobs 1, 2, 3, 6 via `specimen-diff` on both captures, 8, 9), `slice-2` (Jobs 4, 5, 7, 10 with already-answered step), and `slice-3` (Job 11 with `{ key, name, step }` `reachedBy`), keyed job captures `<id>/<step>` so density variants on one scenario stay addressable, updated `docs/features/README.md` and sibling proposals (`design-decisions`, `pointing`, `agent-first-design`, `patterns`), moved editable phase entries to blank-separated list lines, and opened phased sub-issues #2036–#2041 under #1109 |

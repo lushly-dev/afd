@@ -9,7 +9,7 @@ description: >-
   When a capture at a job step fails a check, I want the failure reported against that job step,
   on the screen that was captured, so that I know which job is affected.
 job: check-a-state-where-it-occurs
-tags: [slice]
+tags: [slice-1]
 
 steps:
   - description: The job runs once

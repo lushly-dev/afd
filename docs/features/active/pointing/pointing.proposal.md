@@ -20,7 +20,7 @@
 | --- | --- |
 | Epic | [#1110](https://github.com/lushly-dev/afd/issues/1110) |
 | Units likely touched | `foundations/specimen` (the host and the review page), `integrations/specimen-afd`, `endpoints/specimen-cli`, `endpoints/specimen-server`; for Slice 3 preview, Specimen's Violet work (T09, [#1211](https://github.com/lushly-dev/afd/issues/1211)) and `integrations/violet-afd` |
-| Related | [Design Decisions](../../proposed/design-decisions/design-decisions.proposal.md), [Screens from Jobs](../../proposed/screens-from-jobs/screens-from-jobs.proposal.md), [Patterns](../../proposed/patterns/patterns.proposal.md), [Specimens status](../../complete/specimens/STATUS.md) (T09, T10) |
+| Related | [Design Decisions](../../proposed/design-decisions/design-decisions.proposal.md), [Screens from Jobs](../screens-from-jobs/screens-from-jobs.proposal.md), [Patterns](../../proposed/patterns/patterns.proposal.md), [Specimens status](../../complete/specimens/STATUS.md) (T09, T10) |
 | Rank among the four | Third. Pointing starts on Specimen's review page (Slice 1 ships independently of Design Decisions); Design Decisions' review adopts it later |
 
 ## 1. Problem
@@ -118,7 +118,7 @@ Notes: Jobs 7–9)** → **Slice 3 (`preview`, Preview: Jobs 5–6, with T09 [#1
 ### 4.0 Shared conventions (confirmed)
 
 Shared with [Design Decisions](../../proposed/design-decisions/design-decisions.proposal.md) and
-[Screens from Jobs](../../proposed/screens-from-jobs/screens-from-jobs.proposal.md); confirmed by
+[Screens from Jobs](../screens-from-jobs/screens-from-jobs.proposal.md); confirmed by
 the owner on 2026-11-21 (`#1132`) and 2026-11-22:
 
 - **Ids.** A record a person or an agent writes has a random id: `note-`, `pt-` or `dec-` and 12
@@ -499,7 +499,7 @@ optional `&pin=x,y` (default `0.5,0.5`); and `specimen-note-resolve` always retu
 ## 8. Owner decisions (2026-11-22)
 
 1. **Where pointing happens.** Specimen's review page first; defer a live-app development overlay
-   producing the same pointer URI until [Screens from Jobs](../../proposed/screens-from-jobs/screens-from-jobs.proposal.md)
+   producing the same pointer URI until [Screens from Jobs](../screens-from-jobs/screens-from-jobs.proposal.md)
    needs states no specimen reaches.
 2. **Source locations.** Zero-build mapping first: the specimen's `module` and `exportName` plus
    the component's `module` from the custom elements manifest. Defer file:line template stamping to

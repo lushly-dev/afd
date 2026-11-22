@@ -2,8 +2,9 @@
 # proposals, and the data is invented. A set labelled `main` holds three job specimens' captures.
 # On the branch, a token change raised the notice's block padding from 8 to 12 pixels, at five
 # captures across the three jobs. One of those five also lost a heading's margin by mistake.
-# `specimen-capture` runs job specimens through the runner (section 5.6). Grouping by cause is
-# Design Decisions' `specimen-review`: the capture with both changes appears in both items.
+# `specimen-capture` runs job specimens through the runner (section 5.3). Grouping by cause is
+# Design Decisions' `specimen-review` (largest group first, specimen-id tie-breaker): the capture
+# with both changes appears in both items.
 
 name: Sort a bulk change into groups
 description: >-
@@ -11,7 +12,7 @@ description: >-
   a group accepted at once without accepting anything else a screen in it changed, so that I
   judge each kind of change once and a mistake stands apart.
 job: sort-a-bulk-change
-tags: []
+tags: [slice-2]
 
 steps:
   - description: The three jobs are captured on the branch in one call

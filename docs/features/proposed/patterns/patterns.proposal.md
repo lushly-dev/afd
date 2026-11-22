@@ -33,7 +33,7 @@ records which hold, and Umbel serves the result.
 | --- | --- |
 | Epic | [#1073](https://github.com/lushly-dev/afd/issues/1073) |
 | Units touched | `foundations/specimen`, `integrations/specimen-afd`, `endpoints/specimen-cli`, `integrations/specimen-fast-af`, `foundations/fast-af/packages/violet-elements`, `endpoints/umbel` (its `components` plugin), `endpoints/loam` (its specimens and design record) |
-| Related | [Specimens status](../../complete/specimens/STATUS.md), [Component Briefs status](../../complete/component-briefs/STATUS.md), [Design Decisions](../design-decisions/design-decisions.proposal.md) ([#1108](https://github.com/lushly-dev/afd/issues/1108)), [Screens from Jobs](../screens-from-jobs/screens-from-jobs.proposal.md) ([#1109](https://github.com/lushly-dev/afd/issues/1109)), [Pointing](../../active/pointing/pointing.proposal.md) ([#1110](https://github.com/lushly-dev/afd/issues/1110)), [Scales](../scales/scales.proposal.md) ([#1111](https://github.com/lushly-dev/afd/issues/1111)), [pack format](../../../../foundations/specimen/docs/pack-format.md), [`components` plugin specification](../../../../endpoints/umbel/docs/plugins/components/spec.md), [Loam design skill](../../../../.claude/skills/loam-design/SKILL.md) |
+| Related | [Specimens status](../../complete/specimens/STATUS.md), [Component Briefs status](../../complete/component-briefs/STATUS.md), [Design Decisions](../design-decisions/design-decisions.proposal.md) ([#1108](https://github.com/lushly-dev/afd/issues/1108)), [Screens from Jobs](../../active/screens-from-jobs/screens-from-jobs.proposal.md) ([#1109](https://github.com/lushly-dev/afd/issues/1109)), [Pointing](../../active/pointing/pointing.proposal.md) ([#1110](https://github.com/lushly-dev/afd/issues/1110)), [Scales](../scales/scales.proposal.md) ([#1111](https://github.com/lushly-dev/afd/issues/1111)), [pack format](../../../../foundations/specimen/docs/pack-format.md), [`components` plugin specification](../../../../endpoints/umbel/docs/plugins/components/spec.md), [Loam design skill](../../../../.claude/skills/loam-design/SKILL.md) |
 
 ## 1. Problem and goal
 
@@ -319,7 +319,7 @@ flowchart LR
 
 Confirmed by the owner on 2026-11-21 to align Patterns with
 [Design Decisions](../design-decisions/design-decisions.proposal.md),
-[Screens from Jobs](../screens-from-jobs/screens-from-jobs.proposal.md) and
+[Screens from Jobs](../../active/screens-from-jobs/screens-from-jobs.proposal.md) and
 [Pointing](../../active/pointing/pointing.proposal.md):
 
 - **Committed records live under `specimens/`.** Pattern files and saved copies
@@ -747,7 +747,7 @@ Each is its own decision.
 - `specimen-matrix` with implementations as an axis, so a person compares
   two implementations of one pattern in the same setup.
 - Gates chosen for a token change, on Specimen's planned token impact (T09).
-- Setups that need an application's commands, on [Screens from Jobs](../screens-from-jobs/screens-from-jobs.proposal.md)
+- Setups that need an application's commands, on [Screens from Jobs](../../active/screens-from-jobs/screens-from-jobs.proposal.md)
   (T11, [#1109](https://github.com/lushly-dev/afd/issues/1109)). Until then a
   setup uses `shellFixture` or a stub client, as Loam's specimens do.
 - Implementations Specimen cannot run, listed with no evidence.

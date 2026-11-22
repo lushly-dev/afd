@@ -26,7 +26,7 @@
 | --- | --- |
 | Epic | [#1108](https://github.com/lushly-dev/afd/issues/1108) |
 | Units likely touched | `foundations/specimen` (capture sets, comparison, review, the review pages), `integrations/specimen-afd` (the commands), `endpoints/specimen-cli` (and an MCP host for it); later `integrations/violet-afd` and `endpoints/loam` |
-| Related | [Patterns](../patterns/patterns.proposal.md) (epic [#1073](https://github.com/lushly-dev/afd/issues/1073)), [Screens from Jobs](../screens-from-jobs/screens-from-jobs.proposal.md), [Pointing](../../active/pointing/pointing.proposal.md), [Scales](../scales/scales.proposal.md), [Specimens status](../../complete/specimens/STATUS.md) |
+| Related | [Patterns](../patterns/patterns.proposal.md) (epic [#1073](https://github.com/lushly-dev/afd/issues/1073)), [Screens from Jobs](../../active/screens-from-jobs/screens-from-jobs.proposal.md), [Pointing](../../active/pointing/pointing.proposal.md), [Scales](../scales/scales.proposal.md), [Specimens status](../../complete/specimens/STATUS.md) |
 | Rank among the four | First. It is where a person's time goes |
 
 ## 1. Problem
@@ -244,8 +244,10 @@ They are the owner's to confirm.
   ignores. The owner confirmed this convention on 2026-11-21, and
   [#1132](https://github.com/lushly-dev/afd/issues/1132) added the entry.
 - **One review system, this one.**
-  - A Screens from Jobs run saves its captures as an ordinary set, keyed `<job>/<step>`.
-  - `specimen-review` compares those sets like any other and groups changes by cause.
+  - A Screens from Jobs run saves its captures as an ordinary set, keyed `<id>/<step>` (the job
+    specimen's unique id plus step number).
+  - `specimen-review` compares those sets like any other and groups changes by cause (largest
+    group first, specimen id as tie-breaker).
   - Accepting a change is answering a review item, which needs a person's confirmation
     ([6.6](#66-who-decides)).
   - Screens from Jobs therefore drops its own accept and diff commands and its committed
@@ -254,7 +256,9 @@ They are the owner's to confirm.
   - Until the Screens from Jobs runner exists, `specimen-capture` with no ids skips job
     specimens and reports how many it skipped. Its result names `specimen-job-run`.
   - Once that runner lands, `specimen-capture` runs job specimens through it.
-- **One host.** Phase 5's Specimen MCP host is the host the other two proposals refer to.
+- **One host.** Phase 5 extends existing `endpoints/specimen-server`
+  ([#1320](https://github.com/lushly-dev/afd/pull/1320)) with `confirmations: 'require-human'`;
+  the other two proposals use the same host.
 - **Mutations.** Every command that writes files is declared a mutation.
 
 ## 6. Design
@@ -264,13 +268,13 @@ They are the owner's to confirm.
 A variant is a specimen. Each direction is its own specimen export, such as `Dense`, `Airy` and
 `Grouped` in one module, which is how the owner already keeps comparable versions. Whole screens
 are specimens too. A screen in a job's state waits for
-[Screens from Jobs](../screens-from-jobs/screens-from-jobs.proposal.md).
+[Screens from Jobs](../../active/screens-from-jobs/screens-from-jobs.proposal.md).
 
 ### 6.2 Capture sets
 
 `specimen-capture { ids? | filter?, context?, checkpoint?, label?, axe? }` captures many
 specimens in one context and checkpoint into a set under `.specimen/sets/`. A Screens from Jobs
-run writes the same kind of set, keyed `<job>/<step>`.
+run writes the same kind of set, keyed `<id>/<step>`.
 
 - **Axe runs by default,** as `specimen-a11y` runs it.
 - **The result holds ids and counts only.** No observation is returned. It gives:
@@ -417,7 +421,8 @@ with no set (`CAPTURE_SET_NOT_FOUND`).
     count the item as `answered`.
 - **An open `changed` item names the choice it touches** as `decision: { decision, reason }`,
   the same `decision` field that `decision-check` returns.
-- **Order:** groups by cause, then insufficient evidence, then checks, each by specimen id.
+- **Order:** groups by cause (largest group first, with specimen id as tie-breaker), then
+  insufficient evidence, then checks, each by specimen id.
 - **`page`** links to `review.html?before=&after=`, which shows only the open items.
 - **Theme outcomes** join once sets are captured across themes. They are not in the first slice.
 
@@ -425,9 +430,9 @@ with no set (`CAPTURE_SET_NOT_FOUND`).
 
 - **Commands that need a person's confirmation.** `decision-record`, `decision-discard` and
   `decision-restore` declare a `confirmPrompt` that names the decision and the choice.
-  - The Specimen MCP host, which does not exist yet and is part of this proposal, runs with
-    `confirmations: 'require-human'`. It is the host that Screens from Jobs and Pointing refer
-    to.
+  - Phase 5 extends existing `endpoints/specimen-server`
+    ([#1320](https://github.com/lushly-dev/afd/pull/1320)) with `confirmations: 'require-human'`.
+    It is the host that Screens from Jobs and Pointing refer to.
   - A decision recorded there has `decidedBy: { kind: 'person' }` only when the person accepted
     the elicitation.
 - **The CLI cannot give a person's answer.** It runs every call as a script, and AFD gates no
@@ -508,7 +513,8 @@ the owner ranks the jobs.
      superseding.
 4. **Review.** `specimen-review` over axe and the diff, grouping by cause, answers to items and
    `review.html`.
-5. **A person's answer.** The Specimen MCP host with `confirmations: 'require-human'`.
+5. **A person's answer.** Extend `endpoints/specimen-server` ([#1320](https://github.com/lushly-dev/afd/pull/1320))
+   with `confirmations: 'require-human'`.
 
 **Later:**
 

@@ -7,9 +7,11 @@
 #   3 "The note opens beside itself"    document-open, group beside   -> capture two-editors
 #   4 "Another writer saves the note"   notes-content-set             -> capture conflict-notice
 # Before step 4, the entry declares one person action: typing a draft into the second editor.
-# A run saves its captures as a Design Decisions capture set, each keyed `<job>/<step>`.
+# A run saves its captures as a Design Decisions capture set, each keyed `<id>/<step>` (the job
+# specimen's unique id plus step number), so density or mount variants sharing one scenario
+# (`example-keep-a-draft` and `example-keep-a-draft-compact`) stay individually addressable.
 # `example-export-a-note` marks a capture after an export, which changes nothing on the screen.
-# Lists are asserted by dotted index paths, because a list under `data` must match exactly.
+# Lists are asserted by dotted index paths where only specific items are checked.
 
 name: See a job's states
 description: >-
@@ -17,7 +19,7 @@ description: >-
   listed in step order, with steps I did not mark left alone and a marked step that changed
   nothing said, so that the job's states can be seen and checked without building them by hand.
 job: see-a-jobs-states
-tags: [slice]
+tags: [slice-1]
 
 steps:
   - description: The job runs once, and each marked step is captured into a set
@@ -34,15 +36,15 @@ steps:
         steps.0.step: 1
         steps.0.capture: { notExists: true }
         steps.1.capture: { notExists: true }
-        steps.2.capture.key: keep-a-draft/3
+        steps.2.capture.key: example-keep-a-draft/3
         steps.2.capture.status: captured
-        steps.3.capture.key: keep-a-draft/4
+        steps.3.capture.key: example-keep-a-draft/4
         steps.3.capture.name: conflict-notice
         steps.3.capture.actions: 1
         captures: { length: 2 }
-        captures.0.key: keep-a-draft/3
+        captures.0.key: example-keep-a-draft/3
         captures.0.screenshot: { matches: '\.png$' }
-        captures.1.key: keep-a-draft/4
+        captures.1.key: example-keep-a-draft/4
 
   - description: A kept capture opens without replaying the job, and says which step it is
     command: specimen-render
@@ -57,6 +59,32 @@ steps:
         manifest.job.name: keep-a-draft
         manifest.job.step: 4
         manifest.job.description: Another writer saves the note
+
+  - description: A second variant entry on the same scenario keeps its own capture keys
+    command: specimen-job-run
+    input:
+      id: example-keep-a-draft-compact
+    expect:
+      success: true
+      data:
+        set: { matches: '^set-[0-9a-f]{12}$' }
+        job: keep-a-draft
+        status: passed
+        captures.0.key: example-keep-a-draft-compact/3
+        captures.1.key: example-keep-a-draft-compact/4
+
+  - description: Each variant's capture is individually addressable when opened from its set
+    command: specimen-render
+    input:
+      id: example-keep-a-draft-compact
+      set: ${{ steps[2].data.set }}
+      checkpoint: conflict-notice
+    expect:
+      success: true
+      data:
+        manifest.checkpoint.name: conflict-notice
+        manifest.job.name: keep-a-draft
+        manifest.job.step: 4
 
   - description: Rendering a job specimen with no set is refused, with the way to get one
     command: specimen-render
@@ -76,7 +104,7 @@ steps:
       success: true
       data:
         status: passed
-        steps.2.capture.key: export-a-note/3
+        steps.2.capture.key: example-export-a-note/3
         steps.2.capture.status: unchanged
         steps.2.capture.reason: { contains: did not change }
 

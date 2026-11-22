@@ -2,27 +2,30 @@
 
 ## Status
 
-- **State:** draft. First written as a scaffold on 2026-11-13. It was filled in the same day
-  against `main` at `f7ecbd43`, with a design, drafted commands and jobs as scenario files.
-- **Walked, reviewed and revised.** One fresh reader walked it the same day, taking all three
+- **State:** active (approved 2026-11-22). First written as a scaffold on 2026-11-13 and filled
+  in the same day against `main` at `f7ecbd43`, with a design, drafted commands and jobs as
+  scenario files.
+- **Walked, reviewed and revised.** One fresh reader walked it on 2026-11-13, taking all three
   seats ([section 4](#4-what-the-walk-and-the-review-changed)). An independent review of the
-  three drafts followed. It was revised after each.
-- **Shared with Design Decisions.** It now uses that proposal's capture sets, review and answers
-  for baselines, under conventions the coordinator set across the proposals. These are for the
-  owner to confirm ([section 12](#12-for-the-owner)).
-- **Not approved.** [STATUS.md](STATUS.md) tracks progress.
+  three drafts followed, and it was revised after each. On 2026-11-22 the owner completed a
+  three-pass walkthrough (Q1–Q16), confirmed the shared conventions and slices, adopted this as
+  Specimen T11's design ([#1212](https://github.com/lushly-dev/afd/issues/1212)), promoted the
+  proposal to `active/`, and opened the phased sub-issues under [#1109](https://github.com/lushly-dev/afd/issues/1109).
+- **Shared with Design Decisions.** Uses that proposal's capture sets, review and answers for
+  baselines, under the shared conventions confirmed by the owner ([section 12](#12-owner-decisions)).
+- **Progress:** [STATUS.md](STATUS.md) is the source of truth.
 - **Verified:** the claims in [What exists today](#2-what-exists-today) were read first-hand at
-  `f7ecbd43` on 2026-11-13, except the Python claim, which was read at `e5d683a8`. The walk's
-  and the review's citations were checked first-hand as well. The three scenario checks pass;
-  their output is in [STATUS.md](STATUS.md#how-the-jobs-were-checked).
-- **Next:** the owner confirms the shared conventions, cuts, adds and ranks the jobs, and answers
-  [For the owner](#12-for-the-owner).
+  `f7ecbd43` on 2026-11-13 (Python at `e5d683a8`) and re-checked against `main` at `9e2aff93` on
+  2026-11-22 (`endpoints/specimen-server` added in [#1320](https://github.com/lushly-dev/afd/pull/1320);
+  T11 tracked in [#1212](https://github.com/lushly-dev/afd/issues/1212); `.specimen/` ignored in
+  [#1132](https://github.com/lushly-dev/afd/issues/1132)). The scenario checks pass; their output
+  is in [STATUS.md](STATUS.md#how-the-jobs-were-checked).
 
 | Field | Value |
 | --- | --- |
 | Epic | [#1109](https://github.com/lushly-dev/afd/issues/1109) |
-| Units likely touched | `foundations/specimen`, `integrations/specimen-afd`, `endpoints/specimen-cli`, a new integration for the `afd` runner, `packages/testing` (a browser-safe entry and two awaited hooks), `endpoints/loam` (the first consumer) |
-| Related | [Design Decisions](../design-decisions/design-decisions.proposal.md) (capture sets, review, answers and the MCP host this builds on), [Specimens status](../../complete/specimens/STATUS.md) (T11), [Patterns](../patterns/patterns.proposal.md), [Pointing](../../active/pointing/pointing.proposal.md) |
+| Units likely touched | `foundations/specimen`, `integrations/specimen-afd`, `endpoints/specimen-cli`, `endpoints/specimen-server`, a new private integration `integrations/specimen-afd-runner` (T11, [#1212](https://github.com/lushly-dev/afd/issues/1212)), `packages/testing` (a browser-safe entry and two awaited hooks), `endpoints/loam` (the first consumer) |
+| Related | [Design Decisions](../../proposed/design-decisions/design-decisions.proposal.md) (capture sets, review, answers and `confirmations: 'require-human'` on `specimen-server`), [Specimens status](../../complete/specimens/STATUS.md) (T11, [#1212](https://github.com/lushly-dev/afd/issues/1212)), [Patterns](../../proposed/patterns/patterns.proposal.md), [Pointing](../pointing/pointing.proposal.md) |
 | Rank among the four | Second. Reviewing at the level of a screen needs screens in real states |
 
 ## 1. Problem
@@ -44,7 +47,7 @@ about a screen, not a component.
 **Goal:** a job's scenario file is the one definition of the states it passes through.
 
 - Specimen runs it once in a browser and saves a capture at each step a person marks, as a
-  [Design Decisions](../design-decisions/design-decisions.proposal.md) capture set that every
+  [Design Decisions](../../proposed/design-decisions/design-decisions.proposal.md) capture set that every
   check reads.
 - A change to the app is shown through that proposal's review: what changed at each step, before
   and after, for a person to answer.
@@ -70,9 +73,10 @@ about a screen, not a component.
   - `RunConfig` takes an `AbortSignal`.
   - The package exports `parseScenarioFile`, `evaluateResult` and `applyFixture`. It does not
     export `resolveStepReferences`.
-- **Lists in expectations.** A list under `expect.data` is compared by deep equality: same
-  length, same keys (`runner/evaluator.ts:432`). A dotted path such as `steps.1.status` reaches
-  one element.
+- **Lists in expectations.** An expected array of objects requires equal array length and
+  matches each element recursively, allowing partial fields on object items; plain-value arrays
+  are compared whole (`runner/evaluator.ts:197-220`). A dotted path such as `steps.1.status`
+  reaches one element without stating the whole list length.
 - **Hooks.** `onStepComplete(step, result)` is declared at line 43 and called at line 411.
   - It returns `void`, and the runner does not await it.
   - It is called for skipped steps too.
@@ -118,7 +122,8 @@ about a screen, not a component.
 - **`.specimen/` is ignored by git.** The root `.gitignore` gained the entry on 2026-11-21
   ([#1132](https://github.com/lushly-dev/afd/issues/1132)).
 - **T11, the application-command runner,** is "Not started, optional"
-  ([status](../../complete/specimens/STATUS.md), line 23).
+  ([status](../../complete/specimens/STATUS.md), line 35; tracked in
+  [#1212](https://github.com/lushly-dev/afd/issues/1212), adopted as Phase 3 of this epic).
   - The plan asks it to "prove explicit application-command/view-state dispatch, structured
     results and cancellation" and to settle where it is distributed "without conflating the
     existing `specimen-afd` command bindings with this runner"
@@ -135,7 +140,10 @@ about a screen, not a component.
     `suggestion`.
   - `specimen-a11y` returns one report per entry and checkpoint, with `status` `passed`,
     `warning`, `failed` or `not-run` (`foundations/specimen/src/schema.ts:330-358`).
-- **Hosts.** Nothing serves Specimen over MCP in this repository: `.mcp.json` lists only `umbel`.
+- **Hosts.**
+  - `endpoints/specimen-server` ([#1320](https://github.com/lushly-dev/afd/pull/1320)) is a private
+    local stdio MCP endpoint serving `specimen-afd`'s 19 commands (without `confirmations:
+    'require-human'` yet); `.mcp.json` still lists only `umbel`.
   - `endpoints/specimen-cli` dispatches each command by hand and prints the whole result, with
     no budget (`src/cli.ts:549`).
   - A render returns every observed element's styles.
@@ -174,36 +182,41 @@ in [section 6](#6-drafted-commands).
 - **The data is invented.** It centres on a job specimen, `example-keep-a-draft`, in an example
   notes app, with a four-step scenario.
 - **Steps are numbered from 1,** as the scenario runner numbers them. A capture is keyed
-  `<job>/<step>`.
-- **Lists are asserted by dotted index paths,** because a list under `data` must match exactly.
+  `<id>/<step>` (the job specimen's unique `id` plus step number), so multiple specimen entries
+  sharing one scenario (such as comfortable and compact density variants) stay individually
+  addressable in bulk sets and `specimen-diff`.
+- **Lists are asserted by dotted index paths** where only selected items are checked.
 - **Step references appear only in `input`.**
-- **The `slice` tags are tentative** until the owner ranks the jobs.
+- **The slice tags are confirmed (2026-11-22):**
+  - `slice-1` (needs Design Decisions Phase 1 only): jobs 1, 2, 3, 6 (using `specimen-diff`), 8 and 9.
+  - `slice-2` (needs Design Decisions Phase 4 + `require-human` on `specimen-server`): jobs 4, 5, 7 and 10.
+  - `slice-3` (once multiple job specimens exist): job 11 (`jobs@1` coverage).
 
-Jobs 4, 5, 7 and 10 use Design Decisions' `specimen-review` and `decision-record`, and job 7
-also uses its `specimen-capture`. They are this proposal's jobs, served by that proposal's
-commands.
+Jobs 4, 5, 7 and 10 use Design Decisions' `specimen-review` and `decision-record`, job 6 uses
+`specimen-diff` (Design Decisions Phase 1), and job 7 also uses `specimen-capture`. They are
+this proposal's jobs, served by that proposal's commands.
 
 | # | Job | Sentence | Slice |
 | --- | --- | --- | --- |
-| 1 | `see-a-jobs-states` | When a job's scenario runs, I want the screen captured once at each step I mark, kept, and listed in step order, with steps I did not mark left alone and a marked step that changed nothing said, so that the job's states can be seen and checked without building them by hand | yes |
-| 2 | `build-a-state-once` | When a screen specimen and a job test need the same commands to reach a state, I want one scenario that both run, the job entry written from it, and a capture point that no longer matches it refused, so that the commands cannot drift apart | yes |
-| 3 | `check-a-state-where-it-occurs` | When a capture at a job step fails a check, I want the failure reported against that job step, on the screen that was captured, so that I know which job is affected | yes |
-| 4 | `see-what-changed-since-accepted` | When I change the app, I want each job step's screen compared with the one on main, before and after, so that I see what my change did to every state a job passes through | yes |
-| 5 | `accept-a-steps-screen` | When a step's screen changed as I meant it to, I want to accept it with a reason, and a screen that was never captured offered for nothing, so that the next review starts from what I agreed | yes |
-| 6 | `pin-the-clock` | When a job's screens show times or generated values, I want the clock and random values fixed for every run, so that a difference between two runs is the app's and not the clock's | yes |
-| 7 | `sort-a-bulk-change` | When one change alters many screens across jobs, I want the differences grouped by cause, and a group accepted at once without accepting anything else a screen in it changed, so that I judge each kind of change once and a mistake stands apart | no |
-| 8 | `refuse-a-capture-from-the-wrong-state` | When a step fails, or any step before it failed, I want no capture taken or checked as if the state were sound, and the reason given, so that a broken state is never reviewed as a screen | yes |
-| 9 | `run-without-a-browser` | When no browser is available, I want the job's scenario to run as it does today and only the captures refused, so that capture is something added, never required | no |
-| 10 | `stay-quiet-about-what-was-accepted` | When a job step's screen is the same as on main, or a change to it was already answered, I want it left out of what I am shown and only counted, so that my attention goes only to what changed | no |
-| 11 | `find-what-no-job-reaches` | When I ask which job states render a component, I want the list, the component states no job reaches, and the ones I already answered left answered, so that each gap is questioned once | no |
+| 1 | `see-a-jobs-states` | When a job's scenario runs, I want the screen captured once at each step I mark, kept, and listed in step order, with steps I did not mark left alone and a marked step that changed nothing said, so that the job's states can be seen and checked without building them by hand | slice-1 |
+| 2 | `build-a-state-once` | When a screen specimen and a job test need the same commands to reach a state, I want one scenario that both run, the job entry written from it, and a capture point that no longer matches it refused, so that the commands cannot drift apart | slice-1 |
+| 3 | `check-a-state-where-it-occurs` | When a capture at a job step fails a check, I want the failure reported against that job step, on the screen that was captured, so that I know which job is affected | slice-1 |
+| 4 | `see-what-changed-since-accepted` | When I change the app, I want each job step's screen compared with the one on main, before and after, so that I see what my change did to every state a job passes through | slice-2 |
+| 5 | `accept-a-steps-screen` | When a step's screen changed as I meant it to, I want to accept it with a reason, and a screen that was never captured offered for nothing, so that the next review starts from what I agreed | slice-2 |
+| 6 | `pin-the-clock` | When a job's screens show times or generated values, I want the clock and random values fixed for every run, so that a difference between two runs is the app's and not the clock's | slice-1 |
+| 7 | `sort-a-bulk-change` | When one change alters many screens across jobs, I want the differences grouped by cause, and a group accepted at once without accepting anything else a screen in it changed, so that I judge each kind of change once and a mistake stands apart | slice-2 |
+| 8 | `refuse-a-capture-from-the-wrong-state` | When a step fails, or any step before it failed, I want no capture taken or checked as if the state were sound, and the reason given, so that a broken state is never reviewed as a screen | slice-1 |
+| 9 | `run-without-a-browser` | When no browser is available, I want the job's scenario to run as it does today and only the captures refused, so that capture is something added, never required | slice-1 |
+| 10 | `stay-quiet-about-what-was-accepted` | When a job step's screen is the same as on main, or a change to it was already answered, I want it left out of what I am shown and only counted, so that my attention goes only to what changed | slice-2 |
+| 11 | `find-what-no-job-reaches` | When I ask which job states render a component, I want the list, the component states no job reaches, and the ones I already answered left answered, so that each gap is questioned once | slice-3 |
 
 - **Refusals:** jobs 2, 5, 8 and 9 carry them.
-- **Staying quiet:** job 10, and the unmarked steps in job 1.
+- **Staying quiet:** job 10 (covering both unchanged and already-answered screens), and the unmarked steps in job 1.
 - **Why jobs 8 and 9 stand alone.** Their situations differ from job 1's: a broken app and a
   machine with no browser. Each ends in a refusal that job 1 never reaches.
-- **Why the coverage job is outside the slice.** It answers a question across many jobs, so it
-  pays only once several job specimens exist. The slice proves one job end to end first. It is
-  the owner's original bullet, so the owner may move it up.
+- **Why the coverage job is Slice 3.** It answers a question across many jobs, so it pays once
+  several job specimens exist. Slice 1 proves one job end to end (and headless) first, without
+  waiting on Design Decisions Phase 4.
 
 **What writing them changed:**
 
@@ -302,8 +315,8 @@ An independent review of the three drafts followed, on 2026-11-13.
 `jobs/<id>/<capture>.json`, `specimen-job-accept` with no confirmation, and groups with no
 target. Design Decisions had capture sets, `specimen-review` and answers a person confirms.
 
-The coordinator settled the shared conventions across the proposals; the owner has yet to
-confirm them ([section 12](#12-for-the-owner)):
+The coordinator settled the shared conventions across the proposals, and the owner confirmed them
+on 2026-11-22 ([section 12](#12-owner-decisions)):
 
 - **Baselines and review belong to Design Decisions.**
   - A run saves its captures as an ordinary capture set: a content-addressed `set-` id of twelve
@@ -368,17 +381,23 @@ results, cancellation and one consuming scenario:
 - **Dispatch:** the `afd` runner.
 - **Structured results:** each step's `CommandResult`, evaluated by `afd-testing`.
 - **Cancellation:** the run's `AbortSignal`, tied to the render's deadline.
-- **The consuming scenario:** Loam's notes conflict.
+- **The consuming scenario:** Phase 3 lands with a minimal consuming application scenario
+  proving explicit dispatch, structured results and `AbortSignal` cancellation (satisfying T11's
+  exit); Phase 5 migrates Loam's notes conflict.
 
-T11 stays the Specimens task that tracks the build. Its row would link here once the owner
-agrees. That `STATUS.md` is provenance-tracked, so this draft does not edit it.
+T11 ([#1212](https://github.com/lushly-dev/afd/issues/1212)) stays the Specimens task that tracks
+the build, reparented under [#1109](https://github.com/lushly-dev/afd/issues/1109) as Phase 3.
+Adding the T11 back-link in provenance-tracked
+[complete/specimens/STATUS.md](../../complete/specimens/STATUS.md) is deferred to Phase 3's PR.
 
 ### 5.2 A job specimen
 
 A job specimen is an entry in `specimen.config.json` with a `job` key. `specimen-job-create`
-writes it from the scenario, copying the descriptions of the steps it is given by number. It
-refuses a step with no description (`STEP_HAS_NO_DESCRIPTION`). The configuration parser and
-`specimen-list`'s output schema both accept the key.
+writes it from the scenario, copying the descriptions of the steps it is given. Its `captures`
+input accepts either bare step numbers (`[3, 4]`) or `{ step, name?, before? }` objects,
+defaulting `name` to a deterministic slug of the step's `description`. It refuses a step with no
+description (`STEP_HAS_NO_DESCRIPTION`). The configuration parser and `specimen-list`'s output
+schema both accept the key.
 
 ```json
 {
@@ -435,14 +454,16 @@ refuses a step with no description (`STEP_HAS_NO_DESCRIPTION`). The configuratio
 ### 5.3 Runs are capture sets
 
 A run of `specimen-job-run` saves its captures as an ordinary capture set, as Design Decisions
-defines it ([its section 6.2](../design-decisions/design-decisions.proposal.md#62-capture-sets)).
+defines it ([its section 6.2](../../proposed/design-decisions/design-decisions.proposal.md#62-capture-sets)).
 The two proposals keep one baseline and review system.
 
 - **The set.**
   - Its id is `set-` and twelve hex digits, a hash over the context, the checkpoint and each
     capture's content. So two runs that render the same screens give the same set.
-  - Each capture is keyed `<job>/<step>` (for example `keep-a-draft/4`), and keeps its `name` as
-    the checkpoint name.
+  - Each capture is keyed `<id>/<step>` (the job specimen's unique `id` plus step number, for
+    example `example-keep-a-draft/4` and `example-keep-a-draft-compact/4`), and keeps its `name`
+    as the checkpoint name and its scenario's `job` in manifest metadata. Two specimen entries
+    sharing one scenario therefore never collide in a bulk set or `specimen-diff` `{ set, id }`.
   - A `label`, such as `main` or `branch`, is a local pointer to a set id.
   - Axe runs as each capture is taken, and a screenshot is kept for each capture.
 - **Where it is stored.** The set lives under `.specimen/sets/`. `.specimen/` is ignored by git.
@@ -452,19 +473,21 @@ The two proposals keep one baseline and review system.
     step let later steps run.
   - In the set, a capture that was not taken is `unavailable`, which the review counts as
     blocking, not as a question.
-  - A capture equal to the previous one (by `specimen-diff`'s structured channels) is
-    `unchanged`, with the reason. It is reported, not failed: an unchanged screen can be correct.
+  - A capture equal to the previous marked capture in the same run (by `specimen-diff`'s
+    structured channels) is `unchanged`, with the reason. The first marked capture in a run is
+    always `captured`. An unchanged screen is reported, not failed: it can be correct.
 - **Checks read the set.**
   - `specimen-a11y`, given `set`, reports the axe result recorded when each capture was taken.
   - `specimen-render`, given `id`, `set` and `checkpoint`, returns the kept observation.
   - Neither replays the job. A capture that was not taken is `not-run`, with its reason.
 - **Seeing what changed and accepting it** use Design Decisions' commands unchanged
-  ([its section 6.5](../design-decisions/design-decisions.proposal.md#65-review)).
+  ([its section 6.5](../../proposed/design-decisions/design-decisions.proposal.md#65-review)).
   - `specimen-review { before, after }` compares a set on `main` with one on the branch. It lists
     only the open items, each with its before and after captures, and counts the rest.
   - `decision-record { items, chosen, reason }` answers an item. It asks a person to confirm.
     While the item's fingerprint matches, later reviews count it as `answered`.
-- **Groups are by cause:** channel, target, property and the before and after values.
+- **Groups are by cause:** channel, target, property and the before and after values, ordered
+  largest group first with specimen id as tie-breaker.
   - A capture whose differences have several causes appears in one item per cause.
   - Accepting one cause settles only that cause's part. The capture stays in the review while any
     of its causes is open. So accepting a bulk change cannot also accept a mistake on the same
@@ -473,7 +496,7 @@ The two proposals keep one baseline and review system.
   ids skips job specimens. After that, it runs each one through the runner, as one capture per
   marked step.
 - **Coverage (`jobs@1`) reads the job captures in a named set,** such as `main`.
-  - For each component it lists `reachedBy` (capture keys) and `unreached`.
+  - For each component it lists `reachedBy` (`{ key, name, step }[]`) and `unreached`.
   - A component that no job renders gets an empty `reachedBy` and a `reason`.
   - Existing coverage waivers apply, with the obligation `unreached:<partition>`.
   - It is its own obligation set, so the results of `schema-partitions@1` and `guides@1` do not
@@ -488,9 +511,12 @@ The two proposals keep one baseline and review system.
 
 ### 5.5 Hosts and output size
 
-- **Today an agent reaches Specimen's commands through `endpoints/specimen-cli`.** The CLI
-  dispatches each command by hand, so each new command needs a verb there.
-- **The MCP host is Design Decisions' phase 5,** which a person's confirmation needs.
+- **CLI and local MCP server.** `endpoints/specimen-cli` dispatches each command by hand, so
+  each new command needs a verb there. `endpoints/specimen-server`
+  ([#1320](https://github.com/lushly-dev/afd/pull/1320)) serves `specimen-afd`'s commands over
+  stdio; Phase 4 wires the new and extended commands into it.
+- **Person confirmation** lives in Design Decisions' phase 5: extending
+  `endpoints/specimen-server` with `confirmations: 'require-human'`.
 - **The job commands return references,** never observations: set ids, capture keys, step
   numbers, statuses and screenshot paths.
 - **An observation is returned only when asked for,** by `specimen-render` with a set and a
@@ -498,28 +524,29 @@ The two proposals keep one baseline and review system.
 
 ## 6. Drafted commands
 
-These names, inputs and results are a draft to write jobs against. The exact contracts follow
-approval. This proposal adds two commands and extends six. It uses Design Decisions'
-`specimen-review` and `decision-record` unchanged.
+These names, inputs and results are confirmed at proposal level; exact schemas land in Phases 2
+to 6. This proposal adds two commands and extends six. It uses Design Decisions'
+`specimen-diff`, `specimen-review` and `decision-record` unchanged.
 
 | Command | Unit | New | Input | Result |
 | --- | --- | --- | --- | --- |
-| `specimen-job-create` | `specimen-afd` | Yes, mutation (writes the configuration) | `id`, `scenario`, `module`, `exportName`, `target`, `captures` (step numbers), optional `pin` | `written`, `entry` |
+| `specimen-job-create` | `specimen-afd` | Yes, mutation (writes the configuration) | `id`, `scenario`, `module`, `exportName`, `target`, `captures` (step numbers or `{ step, name?, before? }`, default `name` slugified from step `description`), optional `pin` | `written`, `entry` |
 | `specimen-job-run` | `specimen-afd` | Yes, mutation (writes a set) | `id`; optional `label`, `context`, `timeoutMs` | `set`, `label`, `id`, `job`, `scenario`, `status`, `pinned`, `steps[]` (`step`, `description`, `command`, `status`, optional `capture`: `key`, `name`, `status`, `reason`, `actions`), `captures[]` in step order (`key`, `name`, `step`, `status`, `screenshot`) |
 | `specimen-list` | `specimen-afd` | Extended | Optional `kind` (`job` or `component`) | Entries carry `kind` and, for a job specimen, `job` |
 | `specimen-validate` | `specimen-afd` | Extended | As today | Issues for job entries: `CAPTURE_STEP_UNKNOWN`, `CAPTURE_STEP_AMBIGUOUS`, `JOB_SCENARIO_INVALID`, `RUNNER_MISSING` |
 | `specimen-render` | `specimen-afd` | Extended | `id` as today; optional `set`; `checkpoint` may name a capture | The kept observation, whose manifest gains `job` and `set` |
 | `specimen-a11y` | `specimen-afd` | Extended | Optional `set` | One report per capture, read from the set, each with `job`; a capture that was not taken is `not-run` with the reason |
-| `specimen-coverage` | `specimen-afd` | Extended | Optional `obligations` (`jobs@1`) and `captures` (a set id or label) | `components[].jobs`: `reachedBy`, `unreached`, `reason`; `waived` as today |
+| `specimen-coverage` | `specimen-afd` | Extended | Optional `obligations` (`jobs@1`) and `captures` (a set id or label) | `components[].jobs`: `reachedBy` (`{ key, name, step }[]`), `unreached`, `reason`; `waived` as today |
 | `specimen-capture` | `specimen-afd` | Extended (drafted in Design Decisions) | As drafted there | Job specimens run through the runner once it exists; before then they are skipped with the reason |
-| `specimen-review` | `specimen-afd` | Design Decisions', unchanged | `before`, `after`, `ids` | Job captures appear in items by their keys |
-| `decision-record` | `specimen-afd` | Design Decisions', unchanged | `items`, `chosen`, `reason`, and the rest as drafted there | As drafted there |
+| `specimen-diff` | `specimen-afd` | Design Decisions Phase 1, unchanged | `left`, `right` (`{ set, id }`) | `status` (`no-change-observed` when identical), `differences` (used by job 6) |
+| `specimen-review` | `specimen-afd` | Design Decisions Phase 4, unchanged | `before`, `after`, `ids` | Job captures appear in items by their keys, grouped by cause (largest group first, specimen-id tie-breaker) |
+| `decision-record` | `specimen-afd` | Design Decisions Phase 3–4, unchanged | `items`, `chosen`, `reason`, and the rest as drafted there | As drafted there |
 | `scenario-evaluate` | `afd-testing` | Unchanged | | On the app's own server with its handler; used by jobs 2 and 9 |
 
 **What the descriptions say:**
 
 - **`specimen-job-run`:** "Run a job specimen's scenario once in a fresh browser context, and
-  save a capture at each marked step into a capture set, keyed `<job>/<step>`. A capture point
+  save a capture at each marked step into a capture set, keyed `<id>/<step>`. A capture point
   matches a step's description exactly. A capture is taken only when its step passed and no
   earlier step failed. A failed step is a successful command: read `data.status` and each step's
   `capture`. Compare sets with `specimen-review`."
@@ -556,10 +583,11 @@ approval. This proposal adds two commands and extends six. It uses Design Decisi
 | Specimen | Native actions, command steps, named checkpoints, checks, coverage sets and waivers, a seeded `Math.random` | Several kept checkpoints in one render, saved as a Design Decisions capture set; `pin.clock`; job entries in the configuration parser; the `unchanged` and `not-taken` states; `jobs@1` |
 | `specimen-afd` | The 19 command bindings | Two new commands and six extended ones |
 | `specimen-cli` | Hand-written dispatch, per command | Verbs for the two new commands, and the new inputs |
-| Design Decisions' work | Capture sets, `specimen-review`, `decision-record`, the MCP host (its phase 5) | Nothing beyond job captures keyed `<job>/<step>`, and `specimen-capture` running job specimens |
-| A new integration (working name `specimen-afd-runner`) | | The `afd` runner, the in-page step loop, and the scenario parsing that both `specimen-validate` and `specimen-job-run` use, through a plugin point. The foundation never reads a scenario. It is kept apart from `specimen-afd`, as T11 requires |
+| `specimen-server` | Private local stdio MCP endpoint over `specimen-afd` ([#1320](https://github.com/lushly-dev/afd/pull/1320)) | Exposes the new and extended commands (Phase 4); Design Decisions' phase 5 adds `confirmations: 'require-human'` |
+| Design Decisions' work | Capture sets, `specimen-diff` on sets, `specimen-review`, `decision-record`, `confirmations: 'require-human'` on `specimen-server` | Job captures keyed `<id>/<step>`, largest-first cause-group sort with specimen-id tie-breaker, and `specimen-capture` running job specimens |
+| `integrations/specimen-afd-runner` (private initially; T11, [#1212](https://github.com/lushly-dev/afd/issues/1212)) | | The `afd` runner, the in-page step loop, and the scenario parsing that both `specimen-validate` and `specimen-job-run` use, through a plugin point. The foundation never reads a scenario. Kept apart from `specimen-afd`, as T11 requires |
 | The repository | `.specimen/` in `.gitignore` ([#1132](https://github.com/lushly-dev/afd/issues/1132)) | Nothing |
-| Loam | Screen specimens, test kernels, browser tests | Its first job specimen: the notes conflict, written as a scenario file that its Vitest test also runs |
+| Loam | Screen specimens, test kernels, browser tests | Its first job specimen: the notes conflict (comfortable + compact entries), written as a scenario file that its Vitest test also runs |
 
 ## 8. Decisions made in this draft
 
@@ -578,41 +606,65 @@ approval. This proposal adds two commands and extends six. It uses Design Decisi
 
 ## 9. Phases
 
-These come after Design Decisions' phase 1 (capture sets) and phase 4 (review), which they build
-on.
+Phase 1 has no dependency on Design Decisions ([#1108](https://github.com/lushly-dev/afd/issues/1108))
+and can start immediately. Phases 2–5 (Slice 1) require Design Decisions Phase 1 (capture sets)
+and can run in parallel with Design Decisions Phases 2–4. Phase 5b (Slice 2) requires Design
+Decisions Phase 4 (review) and `confirmations: 'require-human'` on `endpoints/specimen-server`.
 
-1. **`afd-testing`.** The browser-safe entry and the two awaited hooks, with tests showing that
-   the hooks are awaited and are not called for skipped steps.
-2. **Specimen.** Several kept checkpoints in one render saved as a set, `pin.clock`, and job
-   entries in the parser and in `specimen-list`.
-3. **The runner integration.** The `afd` runner, the in-page step loop and validation of job
-   entries.
-4. **Commands.** `specimen-job-create`, `specimen-job-run` and the extended results, with their
-   CLI verbs. `specimen-capture` starts running job specimens.
-5. **Loam.** The notes conflict becomes a scenario file, a job specimen and a Vitest test that
-   runs the file. A `main` set is captured, and the hand-built `EditorConflict` specimens are
-   removed.
-6. **Coverage.** `jobs@1`.
+1. **`afd-testing` ([#2036](https://github.com/lushly-dev/afd/issues/2036), unblocked).** The
+   browser-safe entry and the two awaited hooks (`beforeStep`, `afterStep`), with tests showing
+   that the hooks are awaited and are not called for skipped steps.
+2. **Specimen ([#2037](https://github.com/lushly-dev/afd/issues/2037), needs DD Phase 1).**
+   Several kept checkpoints in one render saved as a capture set, `pin.clock`, `unchanged`
+   (against the previous marked capture only) and `not-taken` states, and job entries in the
+   parser and `specimen-list`.
+3. **The runner integration ([#1212](https://github.com/lushly-dev/afd/issues/1212), Specimen T11;
+   needs Phases 1–2).** Private `integrations/specimen-afd-runner`: the `afd` runner, the
+   in-page step loop, validation of job entries, a minimal consuming application scenario proving
+   dispatch, structured results and `AbortSignal` cancellation (satisfying T11's exit), and the
+   T11 back-link in provenance-tracked
+   [complete/specimens/STATUS.md](../../complete/specimens/STATUS.md).
+4. **Commands ([#2038](https://github.com/lushly-dev/afd/issues/2038), needs Phase 3).**
+   `specimen-job-create`, `specimen-job-run`, the six extended commands, CLI verbs in
+   `endpoints/specimen-cli`, wiring into `endpoints/specimen-server`, and `specimen-capture`
+   running job specimens.
+5. **Loam — Slice 1 exit ([#2039](https://github.com/lushly-dev/afd/issues/2039), needs Phase 4).**
+   The notes conflict becomes a scenario file, comfortable + compact job specimens pointing at
+   it, and a Vitest test running the file against `createTestKernel`. A `main` set is captured,
+   hand-built `EditorConflict` and `EditorConflictCompact` specimens are removed, and the
+   one-time exit measurement is recorded.
+5b. **Review & acceptance — Slice 2 exit ([#2040](https://github.com/lushly-dev/afd/issues/2040),
+    needs Phase 5, DD Phase 4 and `require-human` on `specimen-server`).** Verify Jobs 4, 5, 7
+    and 10 against `specimen-review` (largest-first cause-group ordering) and `decision-record`.
+6. **Coverage — Slice 3 exit ([#2041](https://github.com/lushly-dev/afd/issues/2041), needs
+   Phase 4; best validated after Phase 5).** `jobs@1` obligation set on `specimen-coverage` with
+   `{ key, name, step }` `reachedBy` and existing waivers.
 
 ## 10. Measurement and exit criteria
 
-Exit starts from the jobs: **every scenario tagged `slice` passes** against the built commands.
-Then:
+Exit is gated per slice:
 
-1. **The notes conflict's commands are defined once.** The hand-built conflict specimens are gone,
-   and the job specimen's capture at step 4 shows the notice.
-2. **Renaming a step** that a capture names fails `specimen-validate`.
-3. **The scenario passes headless,** with no browser, in TypeScript and in Python. This shows
-   that the commands run, not that the conflict state is reached: that state needs the person's
-   typing, which only the browser run performs ([5.2](#52-a-job-specimen)).
-4. **One a11y pass over a run's set** reads its captures and replays no step.
-5. **One measurement, taken once on Loam's notes job,** of the faults found at the capture
-   points that no isolated notes specimen shows:
-   - (a) the faults `specimen-a11y` reports;
-   - (b) the faults a person finds by looking at the captures in step order, recorded with the
-     step and a sentence each. This one can see layout and hierarchy, which axe cannot.
+- **Slice 1 exit (Phase 5):** every scenario tagged `slice-1` (Jobs 1, 2, 3, 6, 8 and 9) passes
+  against the built commands, plus all five criteria below:
+  1. **The notes conflict's commands are defined once.** Both hand-built conflict specimens
+     (`EditorConflict` and `EditorConflictCompact`) are gone, replaced by comfortable and compact
+     job specimen entries on the same scenario, and step 4 shows the notice.
+  2. **Renaming a step** that a capture names fails `specimen-validate`.
+  3. **The scenario passes headless,** with no browser, in TypeScript and in Python. This shows
+     that the commands run, not that the conflict state is reached: that state needs the person's
+     typing, which only the browser run performs ([5.2](#52-a-job-specimen)).
+  4. **One a11y pass over a run's set** reads its captures and replays no step.
+  5. **One measurement, taken once on Loam's notes job,** of the faults found at the capture
+     points that no isolated notes specimen shows:
+     - (a) the faults `specimen-a11y` reports;
+     - (b) the faults a person finds by looking at the captures in step order, recorded with the
+       step and a sentence each. This one can see layout and hierarchy, which axe cannot.
 
-   Report both counts, including zero.
+     Report both counts, including zero.
+- **Slice 2 exit (Phase 5b):** every scenario tagged `slice-2` (Jobs 4, 5, 7 and 10) passes
+  against `specimen-review` and `decision-record` over `endpoints/specimen-server`.
+- **Slice 3 exit (Phase 6):** the `slice-3` scenario (Job 11) passes against `specimen-coverage`
+  with `obligations: jobs@1`.
 
 **The limit:** no automated check here can judge layout or hierarchy. A review shows that a
 screen changed, not that it is wrong. Patterns' layout expectations and the Design Decisions
@@ -628,51 +680,68 @@ review are where such judgements would gain a check.
 | A job run is slower than a story | One run serves every check; only marked steps are captured; the headless run stays the quick path |
 | The app's data differs between the browser and headless runs | Both apply the scenario's own fixture through the same commands |
 | An agent reads a whole observation through the CLI | Job commands return references only. A budget for `specimen-render` is a separate follow-up |
-| Which interface a step calls through (Loam's agent or person interface) | A setting of the mount. Open whether a step ever needs to choose |
+| Which interface a step calls through (Loam's agent or person interface) | Kept mount-level in the specimen module until a real job needs mixed callers in one scenario (Q11) |
 | Pinning the clock can hide a fault that only appears at real times | Pinning is per entry, and the entry says the instant it uses |
-| This proposal depends on Design Decisions' sets and review | Its phases come after that proposal’s phases 1 and 4. Jobs 1, 2, 3, 8 and 9 need only its phase 1 (sets), not its review |
+| This proposal depends on Design Decisions' sets and review | Phase 1 is unblocked now; Phases 2–5 (Slice 1) need only DD Phase 1 (sets) and run in parallel with DD Phases 2–4; Phase 5b (Slice 2) waits on DD Phase 4 |
 
-## 12. For the owner
+## 12. Owner decisions
 
-**The coordinator's shared conventions,** set across Design Decisions, Screens from Jobs and
-Pointing, for the owner to confirm. Design Decisions states them in full
-([its section 5](../design-decisions/design-decisions.proposal.md#5-shared-conventions-the-owners-to-confirm)).
-The ones this proposal relies on are:
+Confirmed by the owner in a three-pass walkthrough on 2026-11-22 (Q1–Q16).
+
+**Shared conventions** across Design Decisions, Screens from Jobs and Pointing
+([Design Decisions §5](../../proposed/design-decisions/design-decisions.proposal.md#5-shared-conventions-the-owners-to-confirm)):
 
 1. Design Decisions owns the one baseline and review system. A job run saves a capture set,
-   keyed `<job>/<step>`, and is reviewed and answered there.
-2. Local data lives under `.specimen/`, which the root `.gitignore` ignores (confirmed by the
-   owner and added on 2026-11-21, [#1132](https://github.com/lushly-dev/afd/issues/1132)).
-   Committed records live under `specimens/`.
-3. `specimen-capture` skips job specimens until the runner exists, then runs them through it.
-4. The MCP host is Design Decisions' phase 5.
-5. A command that writes files is a mutation.
+   keyed `<id>/<step>` (the job specimen's unique id plus step number, so density or mount
+   variants on the same scenario stay individually addressable), and is reviewed and answered
+   there (Q1; refined in pre-PR review).
+2. Local data lives under `.specimen/`, ignored by the root `.gitignore` (confirmed 2026-11-21,
+   [#1132](https://github.com/lushly-dev/afd/issues/1132)). Committed records live under
+   `specimens/` (Q1).
+3. `specimen-capture` skips job specimens until the runner exists, then runs them through it (Q1).
+4. Extend existing `endpoints/specimen-server` ([#1320](https://github.com/lushly-dev/afd/pull/1320))
+   with `confirmations: 'require-human'` rather than building a second MCP host (Q1).
+5. Every command that writes files is a mutation (Q1).
 
-**Recommendations for this proposal,** each for the owner to decide:
+**Proposal decisions (2026-11-22):**
 
-1. **The jobs.** Cut, add and rank the eleven. The ranking decides the slice; jobs 1 to 6 and 8
-   are tagged tentatively.
-2. **Is this T11?** Recommended: yes. This becomes T11's design, and T11 stays the task that
-   tracks the build.
-3. **Who drives?** Recommended: one render per run, with `afd-testing`'s step loop inside the
-   page ([5.1](#51-who-drives)).
-4. **Parity.** Recommended: no format change, so Python is not affected. The browser-safe entry
-   and the two hooks are TypeScript `afd-testing` API, which no agent sees. A Python equivalent
-   waits until something in Python needs it.
-5. **Loam's job tests.** Recommended: Loam writes a scenario file only for a state it wants seen,
-   starting with the notes conflict. It runs that file in a Vitest test through `afd-testing`
-   against `createTestKernel`. Its other Vitest and browser tests stay as they are.
-6. **Data.** Recommended: the capture runs on the scenario's own fixture, applied through the
-   same runner. There is no separate specimen data.
-7. **Where the runner lives.** Recommended: a new integration, `specimen-afd-runner` as a
-   working name, kept apart from the `specimen-afd` command bindings as T11 requires.
-8. **Person actions.** Recommended: keep them in the Specimen entry, with the stated limit,
-   rather than adding application commands to type.
+1. **Design Decisions coupling (Q2):** Require DD Phase 1 (capture sets) first, then allow
+   Screens from Jobs Phases 1–4 (and Phase 5 / Slice 1) to proceed in parallel with DD Phases 2–4.
+   Phase 1 (`afd-testing`) is unblocked immediately.
+2. **Specimen T11 (Q3, Q16):** This proposal becomes T11's design. [#1212](https://github.com/lushly-dev/afd/issues/1212)
+   is reparented under [#1109](https://github.com/lushly-dev/afd/issues/1109) as Phase 3; the
+   provenance-tracked back-link in `docs/features/complete/specimens/STATUS.md` is deferred to
+   Phase 3's PR.
+3. **Execution driver (Q4):** One fresh render per run, with `afd-testing`'s `runScenario` loop
+   inside the page and awaited `beforeStep`/`afterStep` hooks ([5.1](#51-who-drives)).
+4. **Runner package & parity (Q5):** New private integration `integrations/specimen-afd-runner`,
+   kept apart from `integrations/specimen-afd`. No `.scenario.yaml` format change, so Python
+   `afd.testing` is unaffected.
+5. **Person actions (Q6):** Kept in the Specimen entry's `before` actions, with the stated
+   headless limit rather than adding test-only typing commands.
+6. **Jobs & slices (Q7, Q12):** Eleven jobs split into Slice 1 (Jobs 1, 2, 3, 6 via
+   `specimen-diff`, 8, 9), Slice 2 (Jobs 4, 5, 7, 10 with an already-answered step added), and
+   Slice 3 (Job 11).
+7. **Command & behavior details (Q8–Q11):**
+   - `specimen-job-create` `captures` accepts bare step numbers or `{ step, name?, before? }`,
+     defaulting `name` to a deterministic slug of the step's `description` (Q8).
+   - `unchanged` compares each marked capture only against the previous marked capture in the
+     same run; the first marked capture is always `captured` (Q9).
+   - 2 new + 6 extended commands and 8 job error/validation codes confirmed; `specimen-review`
+     cause groups sort largest-first with specimen-id tie-breaker; `jobs@1` `reachedBy` returns
+     `{ key, name, step }[]` (Q10).
+   - Caller interface (`kernel.call` vs. `kernel.agent.call`) stays mount-level until a real job
+     needs mixed callers in one scenario (Q11).
+8. **Phases, exit criteria & promotion (Q13–Q15):** Updated phase sequence (including
+   `endpoints/specimen-server` in Phase 4 and comfortable + compact Loam entries in Phase 5) and
+   per-slice exit criteria confirmed; promoted to `docs/features/active/screens-from-jobs/` with
+   phased sub-issues under [#1109](https://github.com/lushly-dev/afd/issues/1109).
 
 ## 13. Out of scope
 
 - Replacing isolated stories. They stay the cheap place to cover every value of every argument.
 - Pixel comparison. `unchanged` and the review use `specimen-diff`'s structured channels.
-- The MCP host, which is Design Decisions' phase 5, and a size budget for `specimen-render`.
+- Adding `confirmations: 'require-human'` to `endpoints/specimen-server` (Design Decisions'
+  phase 5) and a size budget for `specimen-render`.
 - A second baseline or review system. Both belong to Design Decisions.
 - Recording a person's session into a scenario.
