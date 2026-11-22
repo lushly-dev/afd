@@ -14,6 +14,7 @@ import {
 	addVirtualAuthenticator,
 	axe,
 	type DeploymentSite,
+	focused,
 	kernelCall,
 	launchForDevHost,
 	linkToken,
@@ -58,6 +59,8 @@ beforeAll(async () => {
 				{ email: 'cy@example.com', name: 'Cy', role: 'member', password: PASSWORD },
 				{ email: 'dee@example.com', name: 'Dee', role: null, password: PASSWORD },
 				{ email: 'eve@example.com', name: 'Eve', role: null, password: PASSWORD },
+				// Signed in by E11's keyboard revocation alone, on two devices, so its other session is known.
+				{ email: 'fay@example.com', name: 'Fay', role: 'member', password: PASSWORD },
 			],
 			// For the OAuth login page's single sign-on (E20).
 			clients: [{ name: 'Claude Code', redirect: 'http://127.0.0.1:9/callback' }],
@@ -333,7 +336,7 @@ describe('P3-E6: owners in Chromium', () => {
 		await kernelCall(ada.page, 'section-open', { section: 'account', path: 'members' });
 		const owned = shadow(ada.page, 'loam-main loam-account-section');
 		await owned.locator('#invite-email').waitFor();
-		expect(await owned.getByRole('button', { name: 'Remove Bea' }).count()).toBe(1);
+		await expect.poll(() => owned.getByRole('button', { name: 'Remove Bea' }).count()).toBe(1);
 		// An admin is an owner, but never offers the owner role in an invitation (7.1).
 		expect(await owned.locator('#invite-role option').allTextContents()).toEqual([
 			'Member',
@@ -468,6 +471,16 @@ describe('P3-E18: recovery, through a test-only auth host', () => {
 		await page.page.waitForFunction(() => document.documentElement.dataset.loamHost === 'web');
 		await expect.poll(() => accountOf(page.page)).toBe('Bea');
 		expect(linkedSent.codes).toBeGreaterThanOrEqual(1);
+		// The account section says the access was restored, as after a recovery by email.
+		await kernelCall(page.page, 'section-open', { section: 'account' });
+		await expect
+			.poll(() =>
+				shadow(page.page, 'loam-main loam-account-section')
+					.locator('[role="note"]')
+					.first()
+					.textContent()
+			)
+			.toContain('Your access was restored on');
 		await expectNoSecret([page, linked], {
 			links: [],
 			sent: [sent, linkedSent],
@@ -508,7 +521,147 @@ describe('P3-E19: a re-created organization grants nothing, through a test-only 
 	});
 });
 
+/** Press Tab until focus is on the element `matches` names, as a keyboard user would reach it; fails past `max`. */
+async function tabTo(
+	page: Page,
+	matches: (at: Awaited<ReturnType<typeof focused>> & { id: string }) => boolean,
+	what: string,
+	max = 40
+): Promise<void> {
+	for (let pressed = 0; pressed < max; pressed++) {
+		await page.keyboard.press('Tab');
+		const id = await page.evaluate(() => {
+			let element: Element | null = document.activeElement;
+			while (element?.shadowRoot?.activeElement) element = element.shadowRoot.activeElement;
+			return element?.id ?? '';
+		});
+		if (matches({ ...(await focused(page)), id })) return;
+	}
+	throw new Error(`${what} was not reached in ${max} presses of Tab`);
+}
+const named = (label: string) => (at: { label: string }) => at.label === label;
+
 describe('P3-E11: the account section by keyboard and under axe', () => {
+	it('P3-E11: signs in by keyboard: the dialog from main, the email and password typed, Enter', async () => {
+		const page = await open();
+		await tabTo(page.page, named('Sign in'), 'Main\'s "Sign in"');
+		await page.page.keyboard.press('Enter');
+		await shadow(page.page, 'loam-sign-in-dialog dialog[open]').waitFor();
+		expect((await focused(page.page)).label).toBe('Sign in with a passkey');
+		await tabTo(
+			page.page,
+			(at) => at.tag === 'input' && at.hosts.includes('loam-sign-in-dialog'),
+			'The email field'
+		);
+		await page.page.keyboard.type('ada@example.com');
+		await page.page.keyboard.press('Tab');
+		expect((await focused(page.page)).tag).toBe('input');
+		await page.page.keyboard.type(PASSWORD);
+		await page.page.keyboard.press('Enter');
+		await expect.poll(() => accountOf(page.page)).toBe('Ada');
+	});
+
+	it('P3-E11: adds a passkey and signs another device out by keyboard, confirming in the modal', async () => {
+		const elsewhere = await open();
+		await signIn(elsewhere.page, 'fay@example.com');
+		const page = await open();
+		await addVirtualAuthenticator(page.page, { userVerified: true });
+		await signIn(page.page, 'fay@example.com');
+		await kernelCall(page.page, 'section-open', { section: 'account' });
+		const section = shadow(page.page, 'loam-main loam-account-section');
+		// The tabs, not the heading: they fill in once the section's app list answers.
+		await expect.poll(() => section.getByRole('tab').count()).toBe(5);
+		await tabTo(page.page, named('Passkeys'), 'The Passkeys tab');
+		await page.page.keyboard.press('Enter');
+		await expect.poll(() => new URL(page.page.url()).pathname).toBe('/personal/~/account/passkeys');
+		// The panel's own content, before Tab looks for it.
+		await expect
+			.poll(() => section.locator('[role="tabpanel"]').textContent())
+			.toContain('Add a passkey');
+		await tabTo(page.page, named('Add a passkey'), '"Add a passkey"');
+		await page.page.keyboard.press('Enter');
+		await expect
+			.poll(() => section.locator('.status').textContent())
+			.toBe('Your passkey is added.');
+		await tabTo(page.page, named('Sessions'), 'The Sessions tab');
+		await page.page.keyboard.press('Enter');
+		await expect.poll(() => section.locator('td').allTextContents()).toContain('This device');
+		await tabTo(
+			page.page,
+			(at) =>
+				at.tag === 'button' && /^Sign out /.test(at.label) && at.label !== 'Sign out this device',
+			"The other device's sign-out"
+		);
+		// The status line's every text, from here on: the fresh sign-in's prompt shows only until the revocation's answer.
+		await page.page.evaluate(() => {
+			// The section, wherever the shell's shadow trees hold it.
+			const find = (root: Document | ShadowRoot): Element | null => {
+				const here = root.querySelector('loam-account-section');
+				if (here) return here;
+				for (const node of root.querySelectorAll('*'))
+					if (node.shadowRoot) {
+						const found = find(node.shadowRoot);
+						if (found) return found;
+					}
+				return null;
+			};
+			const status = find(document)?.shadowRoot?.querySelector('.status') as HTMLElement;
+			const said: string[] = [];
+			(globalThis as { said?: string[] }).said = said;
+			new MutationObserver(() => said.push(status.textContent ?? '')).observe(status, {
+				childList: true,
+				characterData: true,
+				subtree: true,
+			});
+		});
+		await page.page.keyboard.press('Enter');
+		// The modal says the consequence in words, with focus on Cancel; Tab reaches the confirmation.
+		await expect.poll(async () => (await focused(page.page)).label).toBe('Cancel');
+		expect(await section.locator('dialog[open]').textContent()).toContain(
+			'That device is signed out at once; it shows "Sign in" when it next checks.'
+		);
+		// The destructive action's modal is under axe too (14).
+		expect(await axe(page.page)).toEqual([]);
+		await tabTo(page.page, named('Sign out'), 'The confirmation');
+		await page.page.keyboard.press('Enter');
+		await expect.poll(() => section.locator('.status').textContent()).toMatch(/^Signed out /);
+		// `REAUTH_REQUIRED`'s prompt said why before the passkey ceremony (5.2, 14).
+		expect(await page.page.evaluate(() => (globalThis as { said?: string[] }).said)).toContain(
+			'This needs a fresh sign-in with a passkey. Confirm with your passkey to continue.'
+		);
+		// The other device, and only it, lost its session at the provider.
+		const knows = (shell: ShellPage) =>
+			shell.page.evaluate(async (url) => {
+				const response = await fetch(url, { credentials: 'same-origin' });
+				return (await response.json().catch(() => null)) !== null;
+			}, `${site.root}api/auth/loam/whoami`);
+		expect(await knows(elsewhere)).toBe(false);
+		expect(await knows(page)).toBe(true);
+		// Fay holds a passkey now, so her password session's first revocation is refused for freshness (5.8, a 401 the
+		// browser logs) and the section signs in with the passkey and asks again: nothing else.
+		expect(page.errors.filter((error) => !/status of 401/.test(error))).toEqual([]);
+	});
+
+	it('P3-E11: enrols from a join link by keyboard: the name typed, "Create a passkey" by Enter', async () => {
+		const owner = await open();
+		await signIn(owner.page, 'olu@example.com');
+		await kernelCall(owner.page, 'member-invite', {
+			email: 'keyboard@example.com',
+			role: 'member',
+		});
+		const invitee = await openLink(await mailedLink('keyboard@example.com'));
+		await addVirtualAuthenticator(invitee.page, { userVerified: true });
+		await expect.poll(() => link(invitee.page).locator('h1').textContent()).toBe('Join Acme');
+		const name = link(invitee.page).locator('#link-name');
+		await name.waitFor();
+		await tabTo(invitee.page, (at) => at.id === 'link-name', 'The name field');
+		await invitee.page.keyboard.type('Keyboard Person');
+		await expect.poll(() => name.inputValue()).toBe('Keyboard Person');
+		await tabTo(invitee.page, named('Create a passkey'), '"Create a passkey"');
+		await invitee.page.keyboard.press('Enter');
+		await expect.poll(() => link(invitee.page).locator('h1').textContent()).toBe('Welcome to Acme');
+	});
+
 	it('P3-E11: the account menu opens the account section, whose tabs are links and whose passkey add is reached by keyboard', async () => {
 		const page = await open();
 		await addVirtualAuthenticator(page.page, { userVerified: true });
@@ -516,15 +669,17 @@ describe('P3-E11: the account section by keyboard and under axe', () => {
 		await shadow(page.page, 'loam-titlebar .account').click();
 		await shadow(page.page, 'loam-account-menu').getByRole('menuitem', { name: 'Account' }).click();
 		const section = shadow(page.page, 'loam-main loam-account-section');
-		await section.locator('h1').waitFor();
-		expect(await section.getByRole('tab').allTextContents()).toEqual([
-			'Profile',
-			'Passkeys',
-			'Sessions',
-			'Members',
-			// Step 7's connected agents (5.3).
-			'Agents',
-		]);
+		// The heading is there when the section is built; its tabs only once `show()`'s app list answers: wait for them.
+		await expect
+			.poll(() => section.getByRole('tab').allTextContents())
+			.toEqual([
+				'Profile',
+				'Passkeys',
+				'Sessions',
+				'Members',
+				// Step 7's connected agents (5.3).
+				'Agents',
+			]);
 		expect(await axe(page.page)).toEqual([]);
 		await section.getByRole('tab', { name: 'Passkeys' }).click();
 		await expect.poll(() => new URL(page.page.url()).pathname).toBe('/personal/~/account/passkeys');

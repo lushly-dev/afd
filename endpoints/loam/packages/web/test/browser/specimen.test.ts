@@ -337,8 +337,26 @@ describe('P2-E13: E4: Specimen captures of each part and the whole shell', () =>
 	}, 60_000);
 });
 
-/** Phase 3's section 14 (P3-E11): the sign-in dialog, the account menu, and the join, recovery, login and consent pages. */
+/** Phase 3's section 14 (P3-E11): the account section's tabs, the sign-in dialog, the account menu, and the join, recovery, login and consent pages. */
 const IDENTITY_CAPTURES: [string, string[]][] = [
+	// The account section's every tab, over a kernel that answers as an owner's would (5.1 to 5.4, 7.2, 8.2).
+	[
+		'identity-account-profile',
+		['tab "Profile" [selected]', 'button "Save name"', 'table "Your organizations"'],
+	],
+	[
+		'identity-account-passkeys',
+		['table "Your passkeys"', 'button "Remove Laptop"', 'button "Add a passkey"'],
+	],
+	[
+		'identity-account-sessions',
+		['table "Where you are signed in"', 'button "Sign out Safari on iOS"'],
+	],
+	[
+		'identity-account-members',
+		['tab "Members" [selected]', 'Cy Park', 'Reviewer', 'Sponsored by Cy Park'],
+	],
+	['identity-account-agents', ['tab "Agents" [selected]', 'Claude Code']],
 	[
 		'identity-sign-in',
 		[
@@ -370,7 +388,7 @@ const IDENTITY_CAPTURES: [string, string[]][] = [
 
 describe("P3-E11: Specimen captures of phase 3's elements and pages", () => {
 	for (const theme of ['light', 'dark', 'high-contrast'] as const)
-		it(`P3-E11: captures the sign-in dialog, the account menu, and the join, recovery, login and consent pages in ${theme}`, async () => {
+		it(`P3-E11: captures the account section's every tab, the sign-in dialog, the account menu, and the join, recovery, login and consent pages in ${theme}`, async () => {
 			for (const [id, expected] of IDENTITY_CAPTURES) {
 				const observation = await bench.render({ id, context: { ...CONTEXT, theme } });
 				expectClean(observation);

@@ -142,7 +142,7 @@ const PATHS: Array<[string, Call]> = [
 // Each test runs every registered command against twin kernels; the count grows with every step, and a loaded
 // machine running all packages at once (a pre-push over a tooling change) took them past vitest's 5 s default.
 describe('P2-D6: the call scope on every command', { timeout: 30_000 }, () => {
-	it('decides an input for every shell command, and a reason for every command it does not call', async () => {
+	it('P3-E7: decides an input for every shell command, and a reason for every command it does not call', async () => {
 		const workspace = await createScopedWorkspace({
 			deployment: documentsDeployment(),
 			ports: documentsPorts(),

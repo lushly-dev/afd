@@ -6,6 +6,8 @@
  * prompt, which is outside the page, is not tested.
  */
 
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import type { JournalEntry } from '@lushly-dev/afd-core';
 import type { Browser, Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -209,6 +211,16 @@ describe('P3-E1: a person signs in with a passkey, through a test-only auth host
 			(entry) => entry.command === 'auth-sign-in' && entry.result.success
 		);
 		expect(passkey.at(-1)?.input).toEqual({ method: 'passkey' });
+		// The actor after the passkey sign-in is the provider's user id too.
+		const after = (await kernelCall(page.page, 'project-create', { name: 'Beacon' })) as {
+			success: boolean;
+			error?: unknown;
+		};
+		expect(after.success, JSON.stringify(after.error)).toBe(true);
+		const beacon = (await entriesOf(page.page)).filter(
+			(entry) => entry.command === 'project-create'
+		);
+		expect(beacon.at(-1)?.actor).toMatchObject({ kind: 'human', id: bea });
 		// E15: neither ceremony's bytes, the authenticator's key, the password, nor either session's cookie, token or
 		// address is held.
 		expect(sent.registrations).toBeGreaterThanOrEqual(1);
@@ -296,6 +308,45 @@ describe('P3-E1: a person signs in with a passkey, through a test-only auth host
 		expect(refused.at(-1)?.input).toEqual({ method: 'passkey' });
 	});
 
+	it('P3-E1: a cancelled ceremony is said in the dialog, keeps focus on its button, and signs no one in', async () => {
+		const page = await open();
+		// The browser's answer when the person dismisses its passkey prompt (WebAuthn: NotAllowedError), which the
+		// virtual authenticator cannot give: it always answers or times out.
+		await page.page.evaluate(() => {
+			const counted = globalThis as { ceremonies?: number };
+			counted.ceremonies = 0;
+			navigator.credentials.get = (options?: CredentialRequestOptions) => {
+				// The explicit ceremony only: an autofill's conditional one waits and never reaches this test's press.
+				if (options?.mediation !== 'conditional')
+					counted.ceremonies = (counted.ceremonies ?? 0) + 1;
+				return Promise.reject(
+					new DOMException('The operation either timed out or was not allowed.', 'NotAllowedError')
+				);
+			};
+		});
+		await shadow(page.page, 'loam-main .sign-in').click();
+		await shadow(page.page, 'loam-sign-in-dialog .passkey').click();
+		// The cancel's own words (`PASSKEY_CANCELLED`), after the explicit ceremony reached the browser once.
+		await expect
+			.poll(() => shadow(page.page, 'loam-sign-in-dialog .message').textContent())
+			.toBe('The passkey prompt was closed. Try again, or choose another way to sign in.');
+		expect(await page.page.evaluate(() => (globalThis as { ceremonies?: number }).ceremonies)).toBe(
+			1
+		);
+		expect(
+			await shadow(page.page, 'loam-sign-in-dialog dialog').evaluate(
+				(dialog) => (dialog as HTMLDialogElement).open
+			)
+		).toBe(true);
+		expect((await focused(page.page)).label).toBe('Sign in with a passkey');
+		expect(await accountOf(page.page)).toBe('');
+		const tried = (await entriesOf(page.page)).filter((entry) => entry.command === 'auth-sign-in');
+		expect(tried.at(-1)).toMatchObject({
+			input: { method: 'passkey' },
+			result: { success: false, error: { code: 'PASSKEY_CANCELLED' } },
+		});
+	});
+
 	it('P3-E1: a member of no workspace sees that they are not a member of it', async () => {
 		const page = await open();
 		await signInWithPassword(page.page, 'dee@example.com');
@@ -370,14 +421,21 @@ describe('P3-E11: the sign-in dialog and the account menu, under axe and by keyb
 });
 
 describe('P3-E2: the persona switch in the account menu (6.3, 14)', () => {
-	it('P3-E2: a group of menuitemradio, default checked; choosing one switches, announces it and titles the account button', async () => {
+	it('P3-E2: P3-E11: a group of menuitemradio, default checked; choosing one switches, announces it and titles the account button', async () => {
 		const page = await open();
 		await signInWithPassword(page.page, BEA);
 		const made = (await kernelCall(page.page, 'persona-create', { title: 'Reviewer' })) as {
 			data: { id: string };
 		};
 		const button = shadow(page.page, 'loam-titlebar .account');
-		await button.focus();
+		// Reached by Tab, as a keyboard user reaches the account button (14).
+		let reached = false;
+		for (let pressed = 0; pressed < 40 && !reached; pressed++) {
+			await page.page.keyboard.press('Tab');
+			const at = await focused(page.page);
+			reached = at.hosts.includes('loam-titlebar') && at.label === 'Bea';
+		}
+		expect(reached).toBe(true);
 		await page.page.keyboard.press('Enter');
 		const radios = shadow(page.page, 'loam-account-menu [role="menuitemradio"]');
 		await radios.first().waitFor();
@@ -415,28 +473,57 @@ describe('P3-E10: budgets in Chromium', () => {
 	it("P3-E10: a local shell's stage B loads `late-identity` beside `late-documents`, and never `auth`, `sign-in`, `account-menu` or `account`", async () => {
 		const local = await serveDist();
 		try {
+			// A plain page, every request it starts recorded from the navigation on, and no harness action after it.
+			const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+			opened.push({ context } as ShellPage);
+			const page = await context.newPage();
+			const requested: string[] = [];
+			page.on('request', (request) => requested.push(new URL(request.url()).pathname));
+			const errors: string[] = [];
+			page.on('pageerror', (error) => errors.push(error.message));
+			await page.goto(local.origin);
+			// Through stage B's end: the kernel's apps ready, which waits on `late` and its chunks.
+			await page.waitForFunction(() => Boolean(document.querySelector('loam-shell')));
+			await page.evaluate(async () => {
+				const shell = document.querySelector('loam-shell') as unknown as {
+					kernel?: { appsReady: Promise<void> };
+				};
+				while (!shell.kernel) await new Promise((resolve) => requestAnimationFrame(resolve));
+				await shell.kernel.appsReady;
+			});
+			const chunk = (name: string) => new RegExp(`/${name}-[\\w-]+\\.js$`);
+			expect(
+				['late-identity', 'late-documents'].filter((name) =>
+					requested.some((path) => chunk(name).test(path))
+				)
+			).toEqual(['late-identity', 'late-documents']);
+			expect(
+				requested.filter((path) => /\/(auth|sign-in|account-menu|account)-[\w-]+\.js$/.test(path))
+			).toEqual([]);
+			expect(errors).toEqual([]);
+		} finally {
+			await local.close();
+		}
+	});
+
+	it("P3-E10: an empty local shell's first paint requests exactly phase 2's chunks, as `budget` lists them", async () => {
+		// The list `budget` holds first paint to, read from its own source so the two cannot part.
+		const source = readFileSync(
+			fileURLToPath(new URL('../../../scripts/budget.mjs', import.meta.url)),
+			'utf8'
+		);
+		const listed = /const FIRST_PAINT_CHUNKS = \[([^\]]+)\]/.exec(source)?.[1] ?? '';
+		const expected = [...listed.matchAll(/'([\w-]+)'/g)].map((match) => match[1]).sort();
+		expect(expected.length).toBeGreaterThan(10);
+		const local = await serveDist();
+		try {
 			const plain = await openShell(browser, local.origin);
 			opened.push(plain);
-			const loaded = () =>
-				plain.page.evaluate(() =>
-					performance.getEntriesByType('resource').map((entry) => new URL(entry.name).pathname)
-				);
-			const chunk = (name: string) => new RegExp(`/${name}-[\\w-]+\\.js$`);
-			await expect
-				.poll(async () => {
-					const paths = await loaded();
-					return ['late-identity', 'late-documents'].filter((name) =>
-						paths.some((path) => chunk(name).test(path))
-					);
-				})
-				.toEqual(['late-identity', 'late-documents']);
-			await settle(plain.page);
-			expect(
-				(await loaded()).filter((path) =>
-					/\/(auth|sign-in|account-menu|account)-[\w-]+\.js$/.test(path)
-				)
-			).toEqual([]);
-			expect(plain.errors).toEqual([]);
+			const requested = (await measureFirstPaint(plain.page))
+				.filter((path) => /\/assets\/[\w.-]+\.js$/.test(path))
+				.map((path) => path.replace(/^.*\/assets\//, '').replace(/-[\w-]{8}\.js$/, ''))
+				.sort();
+			expect(requested).toEqual(expected);
 		} finally {
 			await local.close();
 		}
@@ -456,6 +543,10 @@ describe('P3-E10: budgets in Chromium', () => {
 				(path) => !before.has(path) && !/^(deployment\.json)?$/.test(path)
 			);
 			expect(added).toEqual(['api/auth/loam/whoami']);
+			// And no chunk of the local shell's is missing from the provider's first paint.
+			const scripts = (paths: Iterable<string>) =>
+				[...paths].filter((path) => /^assets\/[\w.-]+\.js$/.test(path)).sort();
+			expect(scripts(after)).toEqual(scripts(before));
 		} finally {
 			await local.close();
 		}

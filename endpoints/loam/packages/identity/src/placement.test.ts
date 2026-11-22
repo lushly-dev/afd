@@ -49,14 +49,22 @@ describe('P3-E13: placement and inputs', () => {
 		expect(importing).toEqual([]);
 	});
 
-	it("takes no secret in any command's input but `auth-sign-in`'s password", async () => {
+	it("takes no secret in any command's input, in any registry, but `auth-sign-in`'s password", async () => {
 		const workspace = await createScopedWorkspace({
 			deployment: documentsDeployment(),
 			ports: documentsPorts(),
 			empty: true,
 		});
 		try {
-			const commands = workspace.registries.palette.listCommands();
+			// Every registry: the person's, the agent's and boot's, whose journaled commands (`session-settle` among them)
+			// no other listing holds.
+			const boot = workspace.registries.boot.listCommands();
+			expect(boot.map(({ name }) => name)).toEqual(expect.arrayContaining(['session-settle']));
+			const commands = [
+				...workspace.registries.palette.listCommands(),
+				...workspace.registries.agent.listCommands(),
+				...boot,
+			];
 			expect(commands.length).toBeGreaterThan(80);
 			const found = commands.flatMap((command) => {
 				const schema =
@@ -66,7 +74,7 @@ describe('P3-E13: placement and inputs', () => {
 					.filter((name) => SECRET_NAMES.includes(name.toLowerCase()))
 					.map((name) => `${command.name}.${name}`);
 			});
-			expect(found).toEqual(['auth-sign-in.password']);
+			expect([...new Set(found)]).toEqual(['auth-sign-in.password']);
 		} finally {
 			await workspace.kernel.dispose();
 		}

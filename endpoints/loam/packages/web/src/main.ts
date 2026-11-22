@@ -15,6 +15,7 @@ import '@lushly-dev/loam-theme/loam-fonts.css';
 import { lazyCopilot } from './copilot-lazy.js';
 import { createHostKernel, mediaEnvironment, OTHER_TAB_NOTICE } from './host.js';
 import { type ProviderIdentity, probeIdentity } from './identity.js';
+import { applyPageAppearance } from './page-appearance.js';
 
 const CANNOT_START = 'Loam cannot start';
 
@@ -92,6 +93,8 @@ async function boot(): Promise<void> {
 			import('@lushly-dev/loam-chrome/account'),
 			import('./auth.js'),
 		]);
+		// The person's appearance where this profile knows it, else the system's, as the shell would show (R9).
+		await applyPageAppearance(document, window);
 		await mountOAuthPage(document.body, {
 			themeCss,
 			base,
@@ -124,6 +127,7 @@ async function boot(): Promise<void> {
 			import('@lushly-dev/loam-chrome/account'),
 			import('./auth.js'),
 		]);
+		await applyPageAppearance(document, window);
 		await mountLinkPage(document.body, {
 			themeCss,
 			base,

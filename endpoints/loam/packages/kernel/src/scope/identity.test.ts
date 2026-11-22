@@ -702,3 +702,45 @@ describe('the persona and agent-member tables (phase 3 specification, 12)', () =
 		});
 	});
 });
+
+describe("P3-E7: every command phase 3 adds is refused through a port (phase 2's 11.2)", () => {
+	it('P3-E7: an app port and a surface port answer CALL_NOT_GRANTED for each, whatever its domain', async () => {
+		const made = await providerWorkspace();
+		expect((await signIn(made.kernel, 'bea@example.com')).success).toBe(true);
+		// Phase 3's domains: sessions and passkeys, the account, members, personas, agent members and their settles.
+		const PHASE_3 = /^(session|account|member|persona|agent-member|membership)-/;
+		const listed = made.kernel
+			.listCommands()
+			.map(({ name }) => name)
+			.filter((name) => PHASE_3.test(name));
+		// The settles are boot-only, in a registry no port reaches: a port cannot even find them.
+		const settles = ['session-settle', 'agent-member-settle', 'membership-settle'];
+		expect(listed).toEqual(
+			expect.arrayContaining([
+				'session-list',
+				'session-revoke',
+				'account-get',
+				'account-passkey-add',
+				'member-list',
+				'member-invite',
+				'persona-set',
+				'agent-member-add',
+			])
+		);
+		expect(listed.length).toBeGreaterThan(20);
+		const port = made.kernel.appPort('dual');
+		const surface = port.surface({ scope: { workspace: 'personal' } });
+		for (const name of listed) {
+			expect((await port.call(name, {})).error?.code, `port ${name}`).toBe('CALL_NOT_GRANTED');
+			expect((await surface.call(name, {})).error?.code, `surface ${name}`).toBe(
+				'CALL_NOT_GRANTED'
+			);
+		}
+		for (const name of settles) {
+			expect((await port.call(name, {})).error?.code, `port ${name}`).toBe('COMMAND_NOT_FOUND');
+			expect((await surface.call(name, {})).error?.code, `surface ${name}`).toBe(
+				'COMMAND_NOT_FOUND'
+			);
+		}
+	});
+});

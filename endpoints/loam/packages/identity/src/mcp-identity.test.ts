@@ -24,6 +24,8 @@ import {
 	createFixedEnvironment,
 	createSeededRandom,
 	createSteppingClock,
+	HUMAN_COMMANDS,
+	OWNER_COMMANDS,
 	scopedDeployment,
 	scopedPorts,
 	seedProjects,
@@ -154,6 +156,9 @@ function foreignToken(claims: Record<string, unknown>): string {
 	return `${head}.${sign(null, Buffer.from(head), privateKey).toString('base64url')}`;
 }
 
+/** E15: every JSON-RPC answer any MCP client of this file received, results and errors, as each arrived. */
+const envelopes: unknown[] = [];
+
 /** One MCP client with a bearer token. */
 async function connect(bearer: string) {
 	const transport = new StreamableHttpTransport(url, {
@@ -164,11 +169,19 @@ async function connect(bearer: string) {
 	});
 	await transport.connect();
 	let id = 0;
-	const request = async (method: string, params: unknown) =>
-		(await transport.send({ jsonrpc: '2.0', id: ++id, method, params } as never)) as {
+	const request = async (method: string, params: unknown) => {
+		const answer = (await transport.send({
+			jsonrpc: '2.0',
+			id: ++id,
+			method,
+			params,
+		} as never)) as {
 			result?: Record<string, unknown>;
 			error?: { code: number; message: string };
 		};
+		envelopes.push(answer);
+		return answer;
+	};
 	return {
 		transport,
 		request,
@@ -514,18 +527,17 @@ describe("P3-E8: the right token runs as the connected agent, for the token's pe
 	});
 
 	it('P3-E8: human and owner commands are not served', async () => {
+		// Every one the kernel lists, not a sample: none in either token's tools, and each a name that does not exist.
+		const refused = [...new Set([...HUMAN_COMMANDS, ...OWNER_COMMANDS])].sort();
+		expect(refused.length).toBeGreaterThan(15);
 		const names = await bea.names();
-		for (const name of [
-			'member-remove',
-			'agent-member-add',
-			'account-agent-disconnect',
-			'session-revoke',
-		]) {
-			expect(names).not.toContain(name);
-		}
+		expect(names.filter((name) => refused.includes(name))).toEqual([]);
 		expect(names).toEqual(await cy.names());
-		const answer = await bea.call('member-remove', { member: 'x' });
-		expect(answer.success).toBe(false);
+		for (const name of refused) {
+			const answer = await bea.call(name, {});
+			expect(answer.success, name).toBe(false);
+			expect(answer.error?.code, name).toBe('COMMAND_NOT_FOUND');
+		}
 	});
 
 	it('P3-E8: no entry or result holds a token or `credentials`', async () => {
@@ -597,16 +609,18 @@ describe("P3-E8: what Loam refuses after a valid token (9.2's steps 3 to 6)", ()
 				.prepare('SELECT * FROM loam_connected_agent WHERE sponsor = ?')
 				.get(people['bea@example.com'] as string) as Record<string, unknown>;
 		const held = row();
-		const cyPage = await as('eve@example.com');
+		const evePage = await as('eve@example.com');
 		for (const body of [{ agent: held.agentId }, { agent: held.agentId, forget: true }]) {
-			const answer = await cyPage.call('/loam/connected-agents/remove', { body });
+			const answer = await evePage.call('/loam/connected-agents/remove', { body });
 			expect(answer.status).toBe(403);
 			expect((answer.body as { code?: string }).code).toBe('OWNER_REQUIRED');
 		}
-		const disconnect = await cyPage.call('/loam/connected-agents/disconnect', {
+		const disconnect = await evePage.call('/loam/connected-agents/disconnect', {
 			body: { agent: held.agentId },
 		});
 		expect(disconnect.status).toBe(403);
+		// Refused as the sponsor's alone (5.3): only an agent's own sponsor disconnects it, and the record is unchanged.
+		expect((disconnect.body as { code?: string }).code).toBe('AGENT_MEMBER_SPONSOR_ONLY');
 		expect(row()).toEqual(held);
 	});
 
@@ -817,14 +831,27 @@ describe("P3-E8: the server kernel's own calls and its construction (9.5)", () =
 
 // Last in the file, so it reads the journal and the store after every call of E8's session above.
 describe("P3-E15: no secret of E8's session in the journal or the store", () => {
-	it('P3-E15: no cookie value, PKCE verifier, code, access or refresh token, or password in any journal entry or store row', async () => {
+	it("P3-E8: after every call of the file, its refusals and the server kernel's own included, none read the adapter", () => {
+		expect(sessionReads).toBe(0);
+	});
+
+	it('P3-E15: no cookie value, PKCE verifier, code, access or refresh token, or password in any journal entry, store row or MCP answer', async () => {
 		const entries = await journal.read();
 		expect(entries.length).toBeGreaterThan(10);
 		expect(entries.some((entry) => entry.actor?.kind === 'agent')).toBe(true);
 		// MemoryAdapter keeps its rows in a private map; read whole, since a row of any table could hold one.
 		const tables = (store as unknown as { tables: Map<string, Map<string, unknown>> }).tables;
 		expect([...tables.values()].reduce((sum, table) => sum + table.size, 0)).toBeGreaterThan(0);
+		// The MCP answers the clients received, as well as what the kernel kept. No command's answer, its text content
+		// included, holds `credentials` (tool listings are left out: a description may name the word).
+		expect(envelopes.length).toBeGreaterThan(10);
+		const answers = envelopes.filter(
+			(envelope) => !(envelope as { result?: { tools?: unknown } }).result?.tools
+		);
+		expect(answers.length).toBeGreaterThan(10);
+		expect(JSON.stringify(answers)).not.toContain('credentials');
 		const held = JSON.stringify([
+			envelopes,
 			entries,
 			[...tables].map(([name, table]) => [name, [...table.values()]]),
 		]);
