@@ -233,8 +233,9 @@ did not author, and how it merges decides who authors the commit on `main`.
 - Where `main` merges through a merge queue, the queue merges by its own method, whatever
   `mergeMethods` says, though GitHub still refuses a `mergeMethods` value the repository does
   not allow. AFD's queue rebases and AFD allows nothing else
-  ([#1809](https://github.com/lushly-dev/afd/issues/1809)), so `mergeMethods` says `rebase` for
-  AFD.
+  ([#1809](https://github.com/lushly-dev/afd/issues/1809)), so `mergeMethods` must say `rebase`
+  for AFD: with another value, `pr-merge` is refused when it would set auto-merge on a pull
+  request whose check is still running.
 
 ## When something is wrong
 
