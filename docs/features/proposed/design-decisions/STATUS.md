@@ -30,7 +30,9 @@ shape of the [Patterns status](../patterns/STATUS.md).
   - One independent review of the three drafts together, with every finding applied.
 - **Not done:**
   - A second walk of the revision.
-  - The owner's confirmation of the shared conventions (proposal section 5).
+  - The owner's confirmation of the rest of the shared conventions (proposal section 5). The
+    owner confirmed `.specimen/` as the ignored local data folder on 2026-11-21, and
+    [#1132](https://github.com/lushly-dev/afd/issues/1132) added it to `.gitignore`.
   - The owner's ranking of the jobs and the owner's answers.
   - Anything built.
 - **Order:** the [jobs-first guide](../../../../.claude/skills/afd/references/jobs-first.md) puts
@@ -108,7 +110,8 @@ The dry-run script above also prints `REF IN EXPECT` for any step whose `expect`
   - random `dec-` ids;
   - `specimens/decisions/<id>.json` and `specimens/evidence/<set id>/`, written and never
     committed by a command;
-  - `.specimen/` to be added to `.gitignore`;
+  - `.specimen/` to be added to `.gitignore` (confirmed and added 2026-11-21,
+    [#1132](https://github.com/lushly-dev/afd/issues/1132));
   - one review system for job sets too;
   - job specimens skipped by `specimen-capture` until the runner exists;
   - one MCP host;
@@ -169,3 +172,4 @@ A coordinator note added after the walk: lists in scenarios are compared whole. 
 | 2026-11-13 | Draft | The owner asked for the proposals to be filled in and kept as drafts. Jobs tightened, eight scenarios written, commands drafted, the three checks run clean. Writing the scenarios added saved captures, a typed refusal for incompatible captures, review answers kept as decisions and a decision named on review items, and cut `decision-open`. Section 2 re-read first-hand |
 | 2026-11-13 | Walk and revision | One fresh reader walked the draft from three seats, with the verdict revise. All four blockers and ten improvements were applied, as the proposal's section 4 records. The jobs grew from eight to ten, the commands from eight to ten and the errors from nine to twelve. Partial-list assertions became dotted paths. The three checks were rerun clean |
 | 2026-11-13 | Review and revision | One independent reader reviewed the three drafts together and ran scenarios. Applied: no step references in `expect`, answers as their own kind, superseding by acceptance writes a choice, default subjects stated, and the coordinator's shared conventions (random decision ids, `specimens/` paths, the hashed fields, `.specimen/` to be ignored, one review system, the job-specimen skip, one host). The three checks were rerun clean, with a scan for references in `expect` |
+| 2026-11-21 | Owner call | The owner confirmed `.specimen/` as the local data folder kept out of git. [#1132](https://github.com/lushly-dev/afd/issues/1132) added it to the root `.gitignore` and updated the three proposals and their status files. The other conventions in section 5 still wait on the owner. Checked with `git check-ignore -v` on a file under `.specimen/` |

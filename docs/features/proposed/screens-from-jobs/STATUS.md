@@ -160,7 +160,9 @@ exactly. Every list is now asserted by a dotted index path.
     it go through `specimen-review` and `decision-record`, which a person confirms. Groups are by
     cause.
   - Local data lives under `.specimen/`, which must be added to `.gitignore`; it is not ignored
-    today. Committed records live under `specimens/`.
+    today. Committed records live under `specimens/`. (Superseded 2026-11-21: the owner
+    confirmed this convention and [#1132](https://github.com/lushly-dev/afd/issues/1132) added
+    `.specimen/` to `.gitignore`.)
   - `specimen-capture` skips job specimens until the runner exists, then runs them through it.
   - The MCP host is Design Decisions' phase 5.
   - A command that writes files is a mutation, so `specimen-job-run` is now one.
@@ -189,7 +191,7 @@ exactly. Every list is now asserted by a dotted index path.
 | --- | --- | --- | --- |
 | 2026-11-12 | First Patterns draft | Raised in the [Patterns status](../patterns/STATUS.md#follow-ups-not-yet-issues) as Specimen's application-command runner (T11) letting one scenario drive a screen to a state; this proposal is where it is now tracked | Moved here |
 | 2026-11-13 | Scaffold survey | `onStepComplete` in `packages/testing` is synchronous, not awaited, and fires for skipped steps | Addressed in the draft: phase 1 adds awaited `beforeStep` and `afterStep` hooks and leaves `onStepComplete` as it is |
-| 2026-11-13 | Review | Add `.specimen/` to the root `.gitignore`. Shared with Design Decisions, whose phase 1 adds it | Open; Design Decisions' phase 1 |
+| 2026-11-13 | Review | Add `.specimen/` to the root `.gitignore`. Shared with Design Decisions, whose phase 1 adds it | Done 2026-11-21 ([#1132](https://github.com/lushly-dev/afd/issues/1132)), after the owner confirmed the convention |
 | 2026-11-13 | Draft | If the owner agrees that this is T11's design, link it from T11's row in the [Specimens status](../../complete/specimens/STATUS.md). That file is provenance-tracked, so run its provenance script | Open; waits on the owner |
 
 ## Session log
@@ -201,3 +203,4 @@ exactly. Every list is now asserted by a dotted index path.
 | 2026-11-13 | Review | An independent review of the three drafts. The coordinator set shared conventions, which the owner has yet to confirm:<br>- runs save Design Decisions capture sets keyed `<job>/<step>`;<br>- seeing what changed and accepting go through `specimen-review` and `decision-record`;<br>- `specimen-job-diff`, `specimen-job-accept` and the committed baseline are dropped;<br>- `.specimen/` is to be ignored;<br>- the MCP host is Design Decisions' phase 5.<br>Also fixed: the person-action limit is stated, `specimen-render` takes `id`, `STEP_HAS_NO_DESCRIPTION`, references in `input` only. Eight commands new or extended; checks rerun clean |
 | 2026-11-13 | Walk | One fresh reader walked the draft, taking all three seats; verdict "revise". Every finding was fixed:<br>- the step loop moved into the page;<br>- runs keep their captures;<br>- list assertions became dotted paths;<br>- `specimen-list` and the parser were extended;<br>- four jobs were added and three folded into job 1, for eleven in all;<br>- `specimen-job-create`, `-diff` and `-accept` were drafted;<br>- `specimen-cli` joined the units touched.<br>The checks were rerun clean |
 | 2026-11-13 | Draft | The owner asked for the proposals to be filled in and kept as drafts. Section 2 was verified first-hand. The design, five commands (one new) and eight jobs as scenarios were added, with the checks clean. Writing the jobs changed four things: capture points name a step by its description, person actions joined the design, no check command was needed, and job 5 was narrowed |
+| 2026-11-21 | Owner call | The owner confirmed `.specimen/` as the local data folder kept out of git, and [#1132](https://github.com/lushly-dev/afd/issues/1132) added it to the root `.gitignore`. The proposal's storage statements and the follow-up row now say so. The other shared conventions still wait on the owner. Checked with `git check-ignore -v` on a file under `.specimen/` |

@@ -115,7 +115,8 @@ about a screen, not a component.
   (`src/schema.ts:582-589`).
 - **`specimen-render`'s input** requires `id`, and its `screenshot` is a path to write to
   (`src/schema.ts:33-39`).
-- **`.specimen/` is not ignored by git.** The root `.gitignore` has no entry for it.
+- **`.specimen/` is ignored by git.** The root `.gitignore` gained the entry on 2026-11-21
+  ([#1132](https://github.com/lushly-dev/afd/issues/1132)).
 - **T11, the application-command runner,** is "Not started, optional"
   ([status](../../complete/specimens/STATUS.md), line 23).
   - The plan asks it to "prove explicit application-command/view-state dispatch, structured
@@ -312,8 +313,10 @@ confirm them ([section 12](#12-for-the-owner)):
     which a person confirms.
   - Groups are by cause, and the way a capture with several causes is split is stated
     ([5.3](#53-runs-are-capture-sets)).
-- **Storage.** Local data lives under `.specimen/`, which must be added to `.gitignore`.
-  Committed records live under `specimens/`.
+- **Storage.** Local data lives under `.specimen/`, which the root `.gitignore` ignores. The
+  owner confirmed this convention on 2026-11-21
+  ([#1132](https://github.com/lushly-dev/afd/issues/1132)). Committed records live under
+  `specimens/`.
 - **Job specimens in a capture set.** `specimen-capture` with no ids skips job specimens until the
   runner exists, and then runs them through it.
 - **The MCP host** is Design Decisions' phase 5.
@@ -442,9 +445,8 @@ The two proposals keep one baseline and review system.
     the checkpoint name.
   - A `label`, such as `main` or `branch`, is a local pointer to a set id.
   - Axe runs as each capture is taken, and a screenshot is kept for each capture.
-- **Where it is stored.** The set lives under `.specimen/sets/`. `.specimen/` is not ignored by
-  git today, and it must be added to `.gitignore`. Committed records, such as decisions and their
-  evidence, live under `specimens/`.
+- **Where it is stored.** The set lives under `.specimen/sets/`. `.specimen/` is ignored by git.
+  Committed records, such as decisions and their evidence, live under `specimens/`.
 - **A capture is taken only when its step passed and no earlier step failed.**
   - Otherwise it is `not-taken`, with the reason. That holds even when a `continueOnFailure`
     step let later steps run.
@@ -556,7 +558,7 @@ approval. This proposal adds two commands and extends six. It uses Design Decisi
 | `specimen-cli` | Hand-written dispatch, per command | Verbs for the two new commands, and the new inputs |
 | Design Decisions' work | Capture sets, `specimen-review`, `decision-record`, the MCP host (its phase 5) | Nothing beyond job captures keyed `<job>/<step>`, and `specimen-capture` running job specimens |
 | A new integration (working name `specimen-afd-runner`) | | The `afd` runner, the in-page step loop, and the scenario parsing that both `specimen-validate` and `specimen-job-run` use, through a plugin point. The foundation never reads a scenario. It is kept apart from `specimen-afd`, as T11 requires |
-| The repository | | `.specimen/` added to `.gitignore` |
+| The repository | `.specimen/` in `.gitignore` ([#1132](https://github.com/lushly-dev/afd/issues/1132)) | Nothing |
 | Loam | Screen specimens, test kernels, browser tests | Its first job specimen: the notes conflict, written as a scenario file that its Vitest test also runs |
 
 ## 8. Decisions made in this draft
@@ -622,7 +624,7 @@ review are where such judgements would gain a check.
 | --- | --- |
 | Descriptions are optional free text, so a scenario may have none to name | `STEP_HAS_NO_DESCRIPTION` says to add one. Adding one does not change the format |
 | Part of a state lives in the Specimen entry, not the scenario | Stated in [5.2](#52-a-job-specimen). The headless run proves the commands only |
-| Sets fill the disk | They live under `.specimen/`, once it is ignored. Clearing it loses nothing committed: decisions and their evidence live under `specimens/` |
+| Sets fill the disk | They live under `.specimen/`, which git ignores. Clearing it loses nothing committed: decisions and their evidence live under `specimens/` |
 | A job run is slower than a story | One run serves every check; only marked steps are captured; the headless run stays the quick path |
 | The app's data differs between the browser and headless runs | Both apply the scenario's own fixture through the same commands |
 | An agent reads a whole observation through the CLI | Job commands return references only. A budget for `specimen-render` is a separate follow-up |
@@ -639,7 +641,8 @@ The ones this proposal relies on are:
 
 1. Design Decisions owns the one baseline and review system. A job run saves a capture set,
    keyed `<job>/<step>`, and is reviewed and answered there.
-2. Local data lives under `.specimen/`, which Design Decisions' phase 1 adds to `.gitignore`.
+2. Local data lives under `.specimen/`, which the root `.gitignore` ignores (confirmed by the
+   owner and added on 2026-11-21, [#1132](https://github.com/lushly-dev/afd/issues/1132)).
    Committed records live under `specimens/`.
 3. `specimen-capture` skips job specimens until the runner exists, then runs them through it.
 4. The MCP host is Design Decisions' phase 5.

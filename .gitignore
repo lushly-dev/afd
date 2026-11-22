@@ -84,3 +84,7 @@ foundations/specimen/packages/*/bin/
 
 # A factory cell's hand-off to the lane: its PR body and enqueue arguments (prepare-pr lane mode).
 .factory/
+
+# Specimen's local working data: capture sets, runs and points (Design Decisions proposal,
+# section 5). Records meant to be committed live under specimens/.
+.specimen/
