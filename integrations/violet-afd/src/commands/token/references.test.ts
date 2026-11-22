@@ -71,7 +71,22 @@ describe('token references', () => {
 	});
 
 	it('leaves strings that only contain braces alone', async () => {
-		await add('base', 'font.family', 'Fira {Code}, monospace');
+		// token.add now refuses braces inside a value (#1325); a store written before holds it
+		await context.db.addOperation({
+			id: 'braces',
+			nodeId: 'base',
+			sequence: 1,
+			type: 'add',
+			tokenId: 'font.family',
+			value: JSON.stringify('Fira {Code}, monospace'),
+			metadata: null,
+			fromNode: null,
+			asTokenId: null,
+			toAncestor: null,
+			reason: null,
+			author: null,
+			createdAt: '2026-01-01T00:00:00.000Z',
+		});
 		expect((await resolve('base')).byId.get('font.family')?.resolvedValue).toBe(
 			'Fira {Code}, monospace',
 		);

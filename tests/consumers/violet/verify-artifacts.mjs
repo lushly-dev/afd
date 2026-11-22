@@ -542,7 +542,7 @@ assert.equal(typeof worker.initializeWorkerCore, 'function');
 );
 run(integrationRoot, 'worker-cold.mjs');
 passed('cold import of violet-afd/worker loads no core root, Node store or driver');
-assert.equal(integrationFacts.commands, 46);
+assert.equal(integrationFacts.commands, 49);
 assert.equal(integrationFacts.afdCore, packedManifest(AFD_CORE).version);
 assert.match(integrationFacts.afdCore, /^2\./);
 passed(
@@ -677,13 +677,13 @@ const outputs = invocations.map((args) => {
 await writeFile(join(output, 'violet-cli-outputs.json'), `${JSON.stringify(outputs, null, 2)}\n`);
 // Upstream cli.ts hard-coded .version('0.1.0'); the CLI now reports its package version.
 assert.equal(outputs[0].stdout.trim(), VERSION);
-assert.equal(JSON.parse(outputs[1].stdout).data.commands.length, 46);
+assert.equal(JSON.parse(outputs[1].stdout).data.commands.length, 49);
 assert.equal(JSON.parse(outputs[2].stdout).success, true);
 assert.match(outputs[3].stdout, /--color-accent:\s*#4CC2FF/i);
 assert.equal(outputs[6].status, 1);
 assert.equal(JSON.parse(outputs[6].stdout).error.code, 'NODE_NOT_FOUND');
 passed(
-	`violet binary: --version (${VERSION}), 46 commands, --from resolve/export/validate, failure envelope and exit 1`
+	`violet binary: --version (${VERSION}), 49 commands, --from resolve/export/validate, failure envelope and exit 1`
 );
 if (baseline) {
 	const upstream = join(baseline, 'packages/cli/dist/bin.js');

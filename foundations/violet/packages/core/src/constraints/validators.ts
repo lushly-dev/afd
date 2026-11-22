@@ -235,10 +235,10 @@ export const contrastValidator: Validator<ContrastConfig> = {
 			};
 		}
 
-		const color1 = parseColor(String(value));
-		const color2 = parseColor(String(againstToken.resolvedValue));
+		const foreground = parseColorWithAlpha(String(value));
+		const background = parseColorWithAlpha(String(againstToken.resolvedValue));
 
-		if (!color1 || !color2) {
+		if (!foreground || !background) {
 			return {
 				constraintId,
 				constraintName,
@@ -249,7 +249,34 @@ export const contrastValidator: Validator<ContrastConfig> = {
 			};
 		}
 
-		const ratio = calculateContrastRatio(color1, color2);
+		// A translucent background shows what lies under it, so it is measured over
+		// its backdrop; a translucent foreground is then drawn over that (#1326)
+		let surface = background;
+		if (background.a < 1) {
+			const backdropToken = config.backdrop ? context.allTokens.get(config.backdrop) : undefined;
+			const backdrop = backdropToken
+				? parseColorWithAlpha(String(backdropToken.resolvedValue))
+				: null;
+			if (!backdrop || backdrop.a < 1) {
+				return {
+					constraintId,
+					constraintName,
+					severity: 'warning',
+					message: !config.backdrop
+						? `Cannot validate contrast: '${config.against}' is translucent; name the opaque surface under it as 'backdrop'`
+						: !backdropToken
+							? `Cannot validate contrast: backdrop token '${config.backdrop}' not found`
+							: !backdrop
+								? `Cannot validate contrast: backdrop token '${config.backdrop}' is not a color`
+								: `Cannot validate contrast: backdrop token '${config.backdrop}' must be opaque`,
+					expected: `contrast ratio >= ${config.min}`,
+					actual: 'unknown',
+				};
+			}
+			surface = compositeOver(background, backdrop);
+		}
+
+		const ratio = calculateContrastRatio(compositeOver(foreground, surface), surface);
 
 		if (ratio < config.min) {
 			return {
@@ -401,7 +428,7 @@ function hslToRgb(h: number, s: number, l: number): { r: number; g: number; b: n
 
 const NUMBER = '[+-]?(?:\\d+\\.?\\d*|\\.\\d+)';
 const SEPARATOR = '\\s*(?:,|\\s)\\s*';
-const ALPHA = `(?:\\s*[,/]\\s*${NUMBER}%?)?`;
+const ALPHA = `(?:\\s*[,/]\\s*(${NUMBER})(%?))?`;
 const RGB_PATTERN = new RegExp(
 	`^rgba?\\(\\s*(${NUMBER})(%?)${SEPARATOR}(${NUMBER})(%?)${SEPARATOR}(${NUMBER})(%?)${ALPHA}\\s*\\)$`,
 	'i',
@@ -413,7 +440,7 @@ const HSL_PATTERN = new RegExp(
 
 /**
  * Parse a CSS color to RGB. Supports #RGB, #RGBA, #RRGGBB, #RRGGBBAA (alpha is
- * ignored), rgb()/rgba() with 0-255 or percentage channels (clamped), and
+ * ignored here; parseColorWithAlpha keeps it), rgb()/rgba() with 0-255 or percentage channels (clamped), and
  * hsl()/hsla().
  */
 export function parseColor(value: string): { r: number; g: number; b: number } | null {
@@ -456,6 +483,52 @@ export function parseColor(value: string): { r: number; g: number; b: number } |
 	}
 
 	return null;
+}
+
+/** A color with its alpha, 0 (transparent) to 1 (opaque) */
+export interface RgbaColor {
+	r: number;
+	g: number;
+	b: number;
+	a: number;
+}
+
+/**
+ * Parse a CSS color with its alpha: the forms parseColor reads, keeping the
+ * alpha of #RGBA, #RRGGBBAA and rgba()/hsla() (a number or a percentage,
+ * clamped to 0-1). An opaque form has alpha 1.
+ */
+export function parseColorWithAlpha(value: string): RgbaColor | null {
+	const rgb = parseColor(value);
+	if (!rgb) return null;
+	return { ...rgb, a: parseAlphaChannel(value.trim()) };
+}
+
+/** The alpha of a color parseColor accepted */
+function parseAlphaChannel(input: string): number {
+	const hex = input.match(/^#([0-9A-Fa-f]{4}|[0-9A-Fa-f]{8})$/);
+	if (hex) {
+		const digits = hex[1].length === 4 ? hex[1][3].repeat(2) : hex[1].slice(6);
+		return Number.parseInt(digits, 16) / 255;
+	}
+	// The optional fourth argument of rgba()/hsla(), after a comma or a slash
+	const rgb = input.match(RGB_PATTERN);
+	const hsl = rgb ? null : input.match(HSL_PATTERN);
+	const [raw, percent] = rgb ? [rgb[7], rgb[8]] : hsl ? [hsl[4], hsl[5]] : [undefined, ''];
+	if (raw === undefined) return 1;
+	const parsed = Number.parseFloat(raw);
+	return Math.min(1, Math.max(0, percent ? parsed / 100 : parsed));
+}
+
+/**
+ * `top` drawn over `bottom` (source-over). The result keeps fractional channels,
+ * so a contrast measured on it is not rounded first.
+ */
+export function compositeOver(top: RgbaColor, bottom: RgbaColor): RgbaColor {
+	const a = top.a + bottom.a * (1 - top.a);
+	if (a === 0) return { r: 0, g: 0, b: 0, a: 0 };
+	const mix = (front: number, back: number) => (front * top.a + back * bottom.a * (1 - top.a)) / a;
+	return { r: mix(top.r, bottom.r), g: mix(top.g, bottom.g), b: mix(top.b, bottom.b), a };
 }
 
 /**

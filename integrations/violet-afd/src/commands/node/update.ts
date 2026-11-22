@@ -1,8 +1,8 @@
 import { findDependencyPath } from '@lushly-dev/violet-core/engine';
 import { NodeSchema, UpdateNodeInputSchema } from '@lushly-dev/violet-core/types';
-import { nanoid } from 'nanoid';
 import { z } from 'zod';
 import { ErrorCodes, failure, success } from '../../types/command-result.js';
+import { contextId, contextNow } from '../context-sources.js';
 import type { CommandContext, CommandDefinition } from '../registry.js';
 import { checkDeprecationPlan } from './deprecation.js';
 
@@ -110,7 +110,7 @@ export const nodeUpdateCommand: CommandDefinition<typeof InputSchema, Output> = 
 		const oldNode = { ...node };
 
 		// Apply updates
-		const now = new Date().toISOString();
+		const now = contextNow(context);
 		const updates: Partial<typeof node> = {
 			updatedAt: now,
 		};
@@ -205,7 +205,7 @@ export const nodeUpdateCommand: CommandDefinition<typeof InputSchema, Output> = 
 
 		// Log audit event
 		await db.addAuditEvent({
-			id: nanoid(),
+			id: contextId(context),
 			timestamp: now,
 			eventType: 'node_updated',
 			actor: actor || 'system',

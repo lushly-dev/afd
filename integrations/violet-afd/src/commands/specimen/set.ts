@@ -5,9 +5,9 @@ import {
 } from '@lushly-dev/violet-core/css';
 import { InheritanceResolutionError, resolveNodeTokenMap } from '@lushly-dev/violet-core/engine';
 import { type SpecimenMap, SpecimenMapSchema } from '@lushly-dev/violet-core/types';
-import { nanoid } from 'nanoid';
 import { z } from 'zod';
 import { ErrorCodes, type Warning, failure, success } from '../../types/command-result.js';
+import { contextId, contextNow } from '../context-sources.js';
 import type { CommandContext, CommandDefinition } from '../registry.js';
 import { KNOWN_COMPONENTS, treeRootOf, treeTokenIds } from './shared.js';
 
@@ -178,14 +178,14 @@ export const specimenSetCommand: CommandDefinition<typeof InputSchema, Output> =
 			if (!(error instanceof InheritanceResolutionError)) throw error;
 		}
 
-		const now = new Date().toISOString();
+		const now = contextNow(context);
 		const empty = Object.keys(after).length === 0;
 		await db.setSpecimenMap(
 			tree.rootId,
 			empty ? null : { rootId: tree.rootId, map: after, updatedAt: now, updatedBy: actor ?? null },
 		);
 		await db.addAuditEvent({
-			id: nanoid(),
+			id: contextId(context),
 			timestamp: now,
 			eventType: 'specimen_map_updated',
 			actor: actor || 'system',

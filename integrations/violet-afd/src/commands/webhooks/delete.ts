@@ -1,6 +1,6 @@
-import { nanoid } from 'nanoid';
 import { z } from 'zod';
 import { failure, success } from '../../types/command-result.js';
+import { contextId, contextNow } from '../context-sources.js';
 import type { CommandContext, CommandDefinition } from '../registry.js';
 import { redactWebhook } from './redact.js';
 
@@ -75,11 +75,11 @@ export const webhooksDeleteCommand: CommandDefinition<typeof InputSchema, Output
 		// Delete webhook (this should cascade to deliveries based on implementation)
 		await db.deleteWebhook(input.id);
 
-		const now = new Date().toISOString();
+		const now = contextNow(context);
 
 		// Log audit event
 		await db.addAuditEvent({
-			id: nanoid(),
+			id: contextId(context),
 			timestamp: now,
 			eventType: 'webhook_deleted',
 			actor: actor || 'system',

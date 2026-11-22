@@ -186,4 +186,14 @@ describe('webhooks.update command', () => {
 		expect(result.data?.description).toBe('New description');
 		expect(result.data?.active).toBe(false);
 	});
+
+	it('stamps the update with the context clock (#1324)', async () => {
+		const clocked: CommandContext = { ...context, now: () => Date.UTC(2026, 0, 1) };
+		const result = await webhooksUpdateCommand.handler(
+			{ id: webhookId, url: 'https://clocked.example.com/webhook' },
+			clocked,
+		);
+		expect(result.success).toBe(true);
+		expect((await db.getWebhook(webhookId))?.updatedAt).toBe('2026-01-01T00:00:00.000Z');
+	});
 });

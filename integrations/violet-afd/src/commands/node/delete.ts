@@ -1,6 +1,6 @@
-import { nanoid } from 'nanoid';
 import { z } from 'zod';
 import { ErrorCodes, failure, success } from '../../types/command-result.js';
+import { contextId, contextNow } from '../context-sources.js';
 import type { CommandContext, CommandDefinition } from '../registry.js';
 
 /**
@@ -83,7 +83,7 @@ export const nodeDeleteCommand: CommandDefinition<typeof InputSchema, Output> = 
 			);
 		}
 
-		const now = new Date().toISOString();
+		const now = contextNow(context);
 		const affectedNodes: string[] = [input.id];
 
 		// Soft delete the node
@@ -99,7 +99,7 @@ export const nodeDeleteCommand: CommandDefinition<typeof InputSchema, Output> = 
 
 		// Log audit event
 		await db.addAuditEvent({
-			id: nanoid(),
+			id: contextId(context),
 			timestamp: now,
 			eventType: 'node_deleted',
 			actor: actor || 'system',

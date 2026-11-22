@@ -60,6 +60,8 @@ export const ContrastConfigSchema = z.object({
 	type: z.literal('contrast'),
 	against: z.string().min(1), // Token ID to compare against
 	min: z.number().positive().default(4.5), // WCAG AA default
+	// Token ID of the opaque surface under a translucent `against` (#1326)
+	backdrop: z.string().min(1).optional(),
 });
 
 export type ContrastConfig = z.infer<typeof ContrastConfigSchema>;
@@ -103,6 +105,8 @@ export const ConstraintSchema = z.object({
 	severity: ConstraintSeveritySchema.default('error'),
 	applyTo: z.string().min(1), // Glob pattern for token IDs (e.g., "color.*")
 	enabled: z.boolean().default(true),
+	// Why a rule is disabled: a rule left failing on purpose says so (#1327)
+	disabledReason: z.string().min(1).max(1000).optional(),
 });
 
 export type Constraint = z.infer<typeof ConstraintSchema>;

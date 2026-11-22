@@ -4,10 +4,10 @@ import {
 	type CheckSnapshot,
 	CheckSnapshotSchema,
 } from '@lushly-dev/violet-core/types';
-import { nanoid } from 'nanoid';
 import { z } from 'zod';
 import type { CommandResult } from '../../types/command-result.js';
 import { ErrorCodes, failure, success } from '../../types/command-result.js';
+import { contextId, contextNow } from '../context-sources.js';
 import { selectSubtree } from '../node/scope.js';
 import type { CommandContext, CommandDefinition } from '../registry.js';
 import { analyzeViolationsCommand } from './violations.js';
@@ -84,7 +84,7 @@ export async function recordCheckSnapshot(
 	}
 	const { summary, violations } = checked.data;
 	const snapshot: CheckSnapshot = {
-		id: nanoid(),
+		id: contextId(context),
 		rootId: rootId ?? null,
 		takenAt,
 		nodes: scope.length,
@@ -149,7 +149,7 @@ export const analyzeSnapshotCommand: CommandDefinition<typeof InputSchema, Outpu
 
 	async handler(rawInput, context: CommandContext) {
 		const input = InputSchema.parse(rawInput);
-		return recordCheckSnapshot(context, input.rootId, new Date().toISOString());
+		return recordCheckSnapshot(context, input.rootId, contextNow(context));
 	},
 
 	examples: [

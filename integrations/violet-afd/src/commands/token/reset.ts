@@ -1,8 +1,9 @@
-import { nanoid } from 'nanoid';
 import { z } from 'zod';
 import { ErrorCodes, failure, success } from '../../types/command-result.js';
+import { contextId, contextNow } from '../context-sources.js';
 import type { CommandContext, CommandDefinition } from '../registry.js';
 import { resolvePreviousValue } from './previous-value.js';
+import { nextSequence } from './sequence.js';
 
 /**
  * Input schema for token.reset command
@@ -90,13 +91,13 @@ export const tokenResetCommand: CommandDefinition<typeof InputSchema, Output> = 
 
 		// Create the operation
 		const existingOps = await db.getOperations(input.nodeId);
-		const operationId = nanoid();
-		const now = new Date().toISOString();
+		const operationId = contextId(context);
+		const now = contextNow(context);
 
 		await db.addOperation({
 			id: operationId,
 			nodeId: input.nodeId,
-			sequence: existingOps.length + 1,
+			sequence: nextSequence(existingOps),
 			type: 'reset',
 			tokenId: input.tokenId,
 			value: null,
@@ -111,7 +112,7 @@ export const tokenResetCommand: CommandDefinition<typeof InputSchema, Output> = 
 
 		// Log audit event
 		await db.addAuditEvent({
-			id: nanoid(),
+			id: contextId(context),
 			timestamp: now,
 			eventType: 'token_updated',
 			actor: actor || 'system',

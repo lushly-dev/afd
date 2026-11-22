@@ -1,3 +1,4 @@
+import { UnsafeCssValueError, checkCssToken } from '../../css/token-value.js';
 import type { ResolvedToken } from '../../types/token.js';
 import type { TransformOptions, Transformer } from '../transformer.js';
 import { groupByCategory, tokenIdToKebab } from '../transformer.js';
@@ -25,10 +26,17 @@ export const cssTransformer: Transformer = {
 		const varNameOf = (tokenId: string) => `--${prefixPart}${tokenIdToKebab(tokenId)}`;
 		// Only point at variables this export defines; otherwise use the value.
 		const exported = new Set(tokens.map((token) => token.id));
-		const cssValue = (token: ResolvedToken) =>
-			outputReferences && token.aliasOf && exported.has(token.aliasOf)
-				? `var(${varNameOf(token.aliasOf)})`
-				: formatCssValue(token.resolvedValue);
+		// Every name and value is checked here, for stores written before writes were checked (#1325)
+		for (const token of tokens) {
+			const problem = checkCssToken(token, prefixPart);
+			if (problem) throw new UnsafeCssValueError(token.id, problem);
+		}
+		const cssValue = (token: ResolvedToken) => {
+			if (outputReferences && token.aliasOf && exported.has(token.aliasOf)) {
+				return `var(${varNameOf(token.aliasOf)})`;
+			}
+			return formatCssValue(token.resolvedValue);
+		};
 
 		const lines: string[] = [];
 
@@ -55,7 +63,7 @@ export const cssTransformer: Transformer = {
 					const value = cssValue(token);
 
 					if (includeComments && token.metadata?.description) {
-						lines.push(`  /* ${token.metadata.description} */`);
+						lines.push(`  /* ${commentText(token.metadata.description)} */`);
 					}
 
 					lines.push(`  ${varName}: ${value};`);
@@ -79,7 +87,7 @@ export const cssTransformer: Transformer = {
 				const value = cssValue(token);
 
 				if (includeComments && token.metadata?.description) {
-					lines.push(`  /* ${token.metadata.description} */`);
+					lines.push(`  /* ${commentText(token.metadata.description)} */`);
 				}
 
 				lines.push(`  ${varName}: ${value};`);
@@ -104,6 +112,16 @@ function formatCssValue(value: unknown): string {
 	}
 	// For complex values, stringify
 	return JSON.stringify(value);
+}
+
+/**
+ * Comment text that cannot close the comment it sits in
+ */
+function commentText(text: string): string {
+	return text
+		.replace(/\*\//g, '* /')
+		.replace(/[\r\n]+/g, ' ')
+		.replace(/[<>]/g, ' ');
 }
 
 /**

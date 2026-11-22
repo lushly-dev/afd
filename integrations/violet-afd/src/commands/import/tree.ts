@@ -1,8 +1,17 @@
-import { NodeTypeSchema } from '@lushly-dev/violet-core/types';
+import type { CssValueMetadata } from '@lushly-dev/violet-core/css';
+import { resolveNodeTokenMap } from '@lushly-dev/violet-core/engine';
+import { IncludePolicySchema, NodeTypeSchema } from '@lushly-dev/violet-core/types';
 import { z } from 'zod';
 import { ErrorCodes, failure, success } from '../../types/command-result.js';
 import { nodeCreateCommand } from '../node/create.js';
 import type { CommandContext, CommandDefinition } from '../registry.js';
+import {
+	type KnownToken,
+	importedTokenType,
+	unsafeImportValues,
+	unsafeValueSuggestion,
+} from '../value-checks.js';
+import { flattenTokenFile } from './flatten.js';
 import { importJsonCommand } from './json.js';
 
 /** Key under the root `$extensions` that holds a file's node settings */
@@ -18,6 +27,8 @@ const NodeExtensionSchema = z.object({
 	parent: z.string().min(1).nullable().optional(),
 	type: NodeTypeSchema.optional(),
 	includes: z.array(z.string()).optional(),
+	/** How included tokens meet the node's own: `merge` (default) or `override` */
+	includePolicy: IncludePolicySchema.optional(),
 	/** Read top-level global/semantic/component groups as token tiers (see import.json) */
 	tiers: z.boolean().optional(),
 });
@@ -60,6 +71,7 @@ interface PlannedNode {
 	parentId: string | null;
 	type?: z.infer<typeof NodeTypeSchema>;
 	includes: string[];
+	includePolicy?: z.infer<typeof IncludePolicySchema>;
 	tiers: boolean;
 	file: string;
 	content: string;
@@ -86,6 +98,7 @@ export const importTreeCommand: CommandDefinition<typeof InputSchema, Output> = 
 		try {
 			const planned = planNodes(input.files);
 			const ordered = await orderNodes(planned, context.db);
+			await refuseBeforeWriting(ordered, context);
 
 			const nodes: Output['nodes'] = [];
 			for (const node of ordered) {
@@ -164,7 +177,7 @@ function planNodes(files: Array<{ name: string; content: string }>): Map<string,
 					.map((issue) => `${issue.path.join('.')} ${issue.message}`)
 					.join('; ')}`,
 				suggestion:
-					'Expected { node?: string, parent?: string, type?: string, includes?: string[], tiers?: boolean }',
+					'Expected { node?: string, parent?: string, type?: string, includes?: string[], includePolicy?: "merge" | "override", tiers?: boolean }',
 			});
 		}
 
@@ -183,6 +196,7 @@ function planNodes(files: Array<{ name: string; content: string }>): Map<string,
 			parentId: extension.data.parent ?? null,
 			type: extension.data.type,
 			includes: extension.data.includes ?? [],
+			includePolicy: extension.data.includePolicy,
 			tiers: extension.data.tiers ?? false,
 			file: file.name,
 			content: file.content,
@@ -241,6 +255,79 @@ async function orderNodes(
 }
 
 /**
+ * Check the whole plan before any node is created, so a later file's failure
+ * leaves nothing behind: no planned node may exist yet, and every value must
+ * reach CSS safely for the type it will have (#1325). A token a file overrides
+ * keeps the type its parent gives it; one it adds over an included token takes
+ * the file's `$type`, or the included one's.
+ */
+async function refuseBeforeWriting(ordered: PlannedNode[], context: CommandContext): Promise<void> {
+	for (const node of ordered) {
+		if (await context.db.getNode(node.id)) {
+			throw new TreeImportError({
+				code: ErrorCodes.NODE_ALREADY_EXISTS,
+				message: `Node '${node.id}' (from '${node.file}') already exists, so no node was created`,
+				suggestion: `Import into an empty database, or delete '${node.id}' with 'node.delete' first`,
+			});
+		}
+	}
+
+	const typesByNode = new Map<string, Map<string, CssValueMetadata | undefined>>();
+	const typesOf = async (nodeId: string) =>
+		typesByNode.get(nodeId) ?? (await storedTypes(nodeId, context));
+	const unsafe: string[] = [];
+	for (const node of ordered) {
+		let parsed: Record<string, unknown>;
+		try {
+			parsed = JSON.parse(node.content);
+		} catch {
+			// import.json reports the file as invalid JSON when it reaches it
+			typesByNode.set(node.id, new Map());
+			continue;
+		}
+		const inherited = node.parentId === null ? new Map() : await typesOf(node.parentId);
+		const included = new Map<string, CssValueMetadata | undefined>();
+		for (const id of node.includes)
+			for (const [token, type] of await typesOf(id)) included.set(token, type);
+
+		const tokens = flattenTokenFile(parsed, undefined, { tiers: node.tiers });
+		const known = (id: string): KnownToken => ({
+			metadata: inherited.has(id) ? inherited.get(id) : included.get(id),
+			becomesOverride: inherited.has(id),
+		});
+		for (const problem of unsafeImportValues(tokens, known))
+			unsafe.push(`${node.file}: ${problem}`);
+
+		// Under `override` the included value (and type) wins over the inherited one
+		const resolved = new Map(
+			node.includePolicy === 'override' ? [...inherited, ...included] : [...included, ...inherited],
+		);
+		for (const token of tokens) {
+			if (!inherited.has(token.id))
+				resolved.set(token.id, importedTokenType(token, known(token.id)));
+		}
+		typesByNode.set(node.id, resolved);
+	}
+	if (unsafe.length > 0) {
+		throw new TreeImportError({
+			code: ErrorCodes.INVALID_TOKEN_VALUE,
+			message: `${unsafe.length} value(s) cannot be imported safely, so no node was created: ${unsafe.slice(0, 10).join('; ')}${unsafe.length > 10 ? '; …' : ''}`,
+			suggestion: unsafeValueSuggestion,
+		});
+	}
+}
+
+/** The types of the tokens a stored node resolves, for a file whose parent or include is not in the import */
+async function storedTypes(
+	nodeId: string,
+	context: CommandContext,
+): Promise<Map<string, CssValueMetadata | undefined>> {
+	if (!(await context.db.getNode(nodeId))) return new Map();
+	const resolved = await resolveNodeTokenMap(context.db, nodeId);
+	return new Map([...resolved].map(([id, token]) => [id, token.metadata]));
+}
+
+/**
  * Create one node and import its file's tokens
  */
 async function createNodeFromFile(
@@ -254,6 +341,7 @@ async function createNodeFromFile(
 			parentId: node.parentId,
 			type: node.type,
 			includes: node.includes,
+			...(node.includePolicy ? { includePolicy: node.includePolicy } : {}),
 		},
 		context,
 	);

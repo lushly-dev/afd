@@ -1,7 +1,7 @@
 /**
  * Token Commands
  *
- * Commands for managing tokens (add, override, subtract, reset, copy).
+ * Commands for managing tokens (add, override, subtract, reset, copy, remove).
  */
 
 export * from './add.js';
@@ -9,6 +9,7 @@ export * from './override.js';
 export * from './subtract.js';
 export * from './reset.js';
 export * from './copy.js';
+export * from './remove.js';
 export * from './resolve.js';
 export * from './lineage.js';
 export * from './matrix.js';
@@ -25,6 +26,7 @@ import { tokenCopyCommand } from './copy.js';
 import { tokenLineageCommand } from './lineage.js';
 import { tokensMatrixCommand } from './matrix.js';
 import { tokenOverrideCommand } from './override.js';
+import { tokenRemoveCommand } from './remove.js';
 import { tokenResetCommand } from './reset.js';
 import { tokensResolveCommand } from './resolve.js';
 import { tokenSubtractCommand } from './subtract.js';
@@ -38,6 +40,7 @@ export function registerTokenCommands(): void {
 	registry.register(tokenSubtractCommand);
 	registry.register(tokenResetCommand);
 	registry.register(tokenCopyCommand);
+	registry.register(tokenRemoveCommand);
 	registry.register(tokensResolveCommand);
 	registry.register(tokenLineageCommand);
 	registry.register(tokensMatrixCommand);

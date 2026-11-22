@@ -221,6 +221,7 @@ export class SQLiteDatabase implements IDatabase {
 				severity TEXT NOT NULL DEFAULT 'error',
 				apply_to TEXT NOT NULL,
 				enabled INTEGER NOT NULL DEFAULT 1,
+				disabled_reason TEXT,
 				PRIMARY KEY (node_id, id),
 				FOREIGN KEY (node_id) REFERENCES nodes(id)
 			);
@@ -289,6 +290,20 @@ export class SQLiteDatabase implements IDatabase {
 		`);
 		this.upgradeAuditSequence();
 		this.upgradeDeprecationPlan();
+		this.upgradeConstraintReason();
+	}
+
+	/**
+	 * Give a constraints table made before #1327 the column that says why a rule
+	 * is disabled. It is nullable, so existing rules simply have no reason.
+	 */
+	private upgradeConstraintReason(): void {
+		const columns = this.db.prepare('PRAGMA table_info(constraints)').all() as Array<{
+			name: string;
+		}>;
+		if (!columns.some((column) => column.name === 'disabled_reason')) {
+			this.db.exec('ALTER TABLE constraints ADD COLUMN disabled_reason TEXT');
+		}
 	}
 
 	/**
@@ -796,8 +811,8 @@ export class SQLiteDatabase implements IDatabase {
 
 		// Insert new constraints
 		const insert = this.db.prepare(
-			`INSERT INTO constraints (id, node_id, name, description, constraint_type, config, severity, apply_to, enabled)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			`INSERT INTO constraints (id, node_id, name, description, constraint_type, config, severity, apply_to, enabled, disabled_reason)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		);
 
 		for (const constraint of constraints) {
@@ -811,6 +826,7 @@ export class SQLiteDatabase implements IDatabase {
 				constraint.severity,
 				constraint.applyTo,
 				constraint.enabled ? 1 : 0,
+				constraint.disabledReason ?? null,
 			);
 		}
 	}
@@ -818,8 +834,8 @@ export class SQLiteDatabase implements IDatabase {
 	async addConstraint(nodeId: string, constraint: Constraint): Promise<void> {
 		this.db
 			.prepare(
-				`INSERT INTO constraints (id, node_id, name, description, constraint_type, config, severity, apply_to, enabled)
-				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				`INSERT INTO constraints (id, node_id, name, description, constraint_type, config, severity, apply_to, enabled, disabled_reason)
+				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			)
 			.run(
 				constraint.id,
@@ -831,6 +847,7 @@ export class SQLiteDatabase implements IDatabase {
 				constraint.severity,
 				constraint.applyTo,
 				constraint.enabled ? 1 : 0,
+				constraint.disabledReason ?? null,
 			);
 	}
 
@@ -907,7 +924,8 @@ export class SQLiteDatabase implements IDatabase {
 		if (setClauses.length === 0) return;
 
 		setClauses.push('updated_at = ?');
-		values.push(new Date().toISOString());
+		// The caller's clock when it gives one, so a replayed update stamps the same time
+		values.push(updates.updatedAt ?? new Date().toISOString());
 		values.push(id);
 
 		this.db.prepare(`UPDATE webhooks SET ${setClauses.join(', ')} WHERE id = ?`).run(...values);
@@ -1136,6 +1154,7 @@ interface ConstraintRow {
 	severity: string;
 	apply_to: string;
 	enabled: number;
+	disabled_reason: string | null;
 }
 
 function rowToNode(row: NodeRow): Node {
@@ -1198,6 +1217,7 @@ function rowToConstraint(row: ConstraintRow): Constraint {
 		severity: row.severity as Constraint['severity'],
 		applyTo: row.apply_to,
 		enabled: row.enabled === 1,
+		...(row.disabled_reason ? { disabledReason: row.disabled_reason } : {}),
 	};
 }
 
