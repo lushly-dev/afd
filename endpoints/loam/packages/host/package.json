@@ -40,7 +40,7 @@
 		"@lushly-dev/loam-manifest": "workspace:*",
 		"@lushly-dev/local-db": "workspace:*",
 		"@modelcontextprotocol/client": "2.4.0",
-		"better-auth": "1.7.18",
+		"better-auth": "1.7.26",
 		"hono": "4.13.17",
 		"zod": "^4.6.6"
 	},
