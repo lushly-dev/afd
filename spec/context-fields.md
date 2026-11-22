@@ -56,7 +56,7 @@ handler runs. The error's details name the field and its `_meta` key, and its su
 expected shape. No new error code is added.
 
 **Trusted code wins.** A value the host's own code sets for the same name (TypeScript
-`createContext`, Rust's context hook, or the in-process caller) is never overwritten by a value from
+`createContext`, Python `context_hook`, Rust's context hook, or the in-process caller) is never overwritten by a value from
 `_meta`. Declared fields are read from `_meta` only, never from HTTP headers.
 
 **Tool lists do not vary.** Unlike `_meta["dev.afd/context"]`, a declared field never changes
@@ -107,6 +107,6 @@ Other tools take no `meta` argument: a command's own input keeps a `meta` proper
 | Language | Declaration and in-process values | Journal | `_meta` delivery and discovery |
 |---|---|---|---|
 | TypeScript | `createMcpServer`, `createMcpHandler` and `createDirectRegistry` take `contextFields` | Recording middleware and `replayJournal` | Yes: both eras over Streamable HTTP and stdio, `/message`, `/rpc`, `/batch` and `/stream`; `server/discover` and `afd-help` |
-| Python | `create_server` takes `context_fields` (`afd.server.ContextField`) | `create_journal_middleware` and `replay_journal` | Yes: both eras over Streamable HTTP, SSE and stdio (no AFD-native HTTP lanes, no host-context hook); `server/discover` and `afd-help` |
+| Python | `create_server` takes `context_fields` (`afd.server.ContextField`) | `create_journal_middleware` and `replay_journal` | Yes: both eras over Streamable HTTP, SSE and stdio (no AFD-native HTTP lanes); `context_hook` wins; `server/discover` and `afd-help` |
 | Rust | `CommandRegistry::set_context_fields` (`afd::context_fields::ContextField`, JSON Schema) | The registry's journal recorder and `replay_journal` | Yes: both eras over Streamable HTTP and stdio; the context hook wins; `server/discover` and `afd-help` |
 | C++ | `CommandRegistryOptions::context_fields` and `CommandRegistry::create`, which reports a bad declaration | `create_journal_middleware` and `replay_journal` | `afd-help` (`register_bootstrap_commands`) lists them; `afd::mcp_stdio` does not read them from `_meta` or list them in `server/discover` |

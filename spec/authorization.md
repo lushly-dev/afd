@@ -645,8 +645,8 @@ Each binds it to confirmation state as integrity-protected input, never as reada
   answers alike), with the actor the commands run with and the `credentials` that `createContext`
   sets, which on a server with `auth` are the verified credentials (Loam phase 3 step 0a).
 - **Python:** the SDK's sealed `requestState`, through `RequestStateSecurity(bind_principal=...)`,
-  with the server's `actor` (Python has no per-request hook,
-  [#800](https://github.com/lushly-dev/afd/issues/800)) and the access token the SDK verified. The
+  with the call's `actor` (from `create_server(context_hook=...)`, [#800](https://github.com/lushly-dev/afd/issues/800),
+  or the server's default `actor`) and the access token the SDK verified. The
   SDK refuses a mismatch with `-32602` before any handler runs, as it refuses a tampered state.
 
 Credentials with a missing or empty `issuer`, `subject` or `clientId` (a host's own credentials in
