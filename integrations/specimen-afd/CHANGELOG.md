@@ -1,5 +1,11 @@
 # @lushly-dev/specimen-afd
 
+## 2.2.0-preview.5
+
+### Patch Changes
+
+- [#1919](https://github.com/lushly-dev/afd/pull/1919) [`3a7c1c5`](https://github.com/lushly-dev/afd/commit/3a7c1c5bb3a34e7c49f85cbf17926380e82a0ba6) Thanks [@Falkicon](https://github.com/Falkicon)! - Allow the `events` channel in `specimen-diff`'s output schema, constrained to `ChannelDifference['channel']`, so comparing two observations whose recorded event histories differ returns `status: 'changed'` instead of failing with `SPECIMEN_OUTPUT_INVALID` ([#1131](https://github.com/lushly-dev/afd/issues/1131)).
+
 ## 2.2.0-preview.4
 
 ### Patch Changes
