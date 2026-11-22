@@ -653,7 +653,7 @@
 					"maxLength": 500
 				},
 				"approval": {
-					"enum": ["none", "required"]
+					"enum": ["none", "required", "non-human"]
 				},
 				"first_class": {
 					"type": "boolean"
@@ -757,7 +757,7 @@
 					"type": "boolean"
 				},
 				"approval": {
-					"enum": ["none", "required"]
+					"enum": ["none", "required", "non-human"]
 				},
 				"execution_time": {
 					"enum": ["instant", "fast", "slow", "long-running"]
@@ -997,7 +997,7 @@
 								{
 									"properties": {
 										"approval": {
-											"const": "required"
+											"enum": ["required", "non-human"]
 										}
 									},
 									"required": ["approval"]

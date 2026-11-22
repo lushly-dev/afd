@@ -171,9 +171,14 @@ const MOUNT_FIXTURE = path.join(
  */
 async function startUmbel(
 	target: 'umbel' | 'umbel-mounted',
+	mode: Mode,
 	extraEnv: Record<string, string>
 ): Promise<Started> {
 	const confirmations = extraEnv.CONFIRMATIONS === 'enforce' ? 'enforce' : 'off';
+	const approvals = extraEnv.APPROVALS === 'agents' ? 'mcp-elicitation' : 'off';
+	// MCP 2025 form elicitation needs a stateful back channel (stdio); MCP 2026-07-28 carries
+	// elicitations statelessly over Streamable HTTP.
+	const useStdio = extraEnv.APPROVALS === 'agents' && mode !== 'modern';
 	const workspace = await mkdtemp(path.join(tmpdir(), 'umbel-todo-conformance-'));
 	const cleanups: Array<() => Promise<void>> = [
 		() => rm(workspace, { recursive: true, force: true }),
@@ -186,7 +191,8 @@ async function startUmbel(
 		let plugin = '';
 		if (target === 'umbel-mounted') {
 			// The mount renames tools one by one, so the backend lists one tool per command. Umbel
-			// calls it as an agent, so its own approval hold is off, as for the other backends.
+			// enforces todo-clear's approval policy itself (todo-http/umbel-plugin.toml), so the
+			// mounted backend's own approval hold is off.
 			const backend = await spawnRustServer({ TOOL_STRATEGY: 'individual', APPROVALS: 'off' });
 			cleanups.push(() => kill(backend.child));
 			await mkdir(path.join(workspace, 'plugins'));
@@ -195,13 +201,23 @@ async function startUmbel(
 		}
 		await writeFile(
 			path.join(workspace, 'umbel.toml'),
-			`config_version = 2\n\n[plugins]\nenabled = ["todo"]\n${plugin}\n[mcp]\nconfirmations = "${confirmations}"\n\n[http]\nbind = "127.0.0.1:${port}"\n`
+			`config_version = 7\n\n[plugins]\nenabled = ["todo"]\n${plugin}\n[mcp]\nconfirmations = "${confirmations}"\napprovals = "${approvals}"\n\n[http]\nbind = "127.0.0.1:${port}"\n`
 		);
-		const child = spawn(
-			umbelBinary(target === 'umbel' ? 'umbel-todo' : 'umbel'),
-			['--workspace', workspace, 'serve', '--http', '--print-token'],
-			{ env: process.env, stdio: ['ignore', 'pipe', 'inherit'] }
-		);
+		const bin = umbelBinary(target === 'umbel' ? 'umbel-todo' : 'umbel');
+		if (useStdio) {
+			return {
+				transport: new StdioClientTransport({
+					command: bin,
+					args: ['--workspace', workspace, 'serve', '--stdio'],
+					env: process.env as Record<string, string>,
+				}),
+				stop,
+			};
+		}
+		const child = spawn(bin, ['--workspace', workspace, 'serve', '--http', '--print-token'], {
+			env: process.env,
+			stdio: ['ignore', 'pipe', 'inherit'],
+		});
 		cleanups.push(() => kill(child));
 		const token = await readToken(child);
 		const headers = { Authorization: `Bearer ${token}` };
@@ -245,9 +261,13 @@ function readToken(child: ChildProcess): Promise<string> {
 }
 
 /** Start `target` (stdio, or HTTP for Umbel) with `extraEnv` added to its environment. */
-async function startBackend(target: Backend, extraEnv: Record<string, string>): Promise<Started> {
+async function startBackend(
+	target: Backend,
+	mode: Mode,
+	extraEnv: Record<string, string>
+): Promise<Started> {
 	if (target === 'umbel' || target === 'umbel-mounted') {
-		return startUmbel(target, extraEnv);
+		return startUmbel(target, mode, extraEnv);
 	}
 	// The todo and confirmation suites reset with a clear, which an agent's approval hold would
 	// stop, so they run with APPROVALS=off, as they set CONFIRMATIONS; the approvals suite turns
@@ -317,7 +337,7 @@ async function connect(
 	extraEnv: Record<string, string>,
 	answer?: Exclude<ConfirmationClient, 'acknowledge'>
 ): Promise<Session> {
-	const { transport, stop } = await startBackend(target, extraEnv);
+	const { transport, stop } = await startBackend(target, mode, extraEnv);
 	const client = new Client(
 		{ name: 'conformance-runner', version: '1.0.0' },
 		{
@@ -415,15 +435,6 @@ async function run() {
 	if (!isBackend(target) || !isMode(mode) || !SUITES.includes(suite)) {
 		console.error(
 			`Usage: tsx dx/run-conformance.ts --backend <${BACKENDS.join('|')}> [--mode <${MODES.join('|')}>] [--suite <${SUITES.join('|')}>]`
-		);
-		process.exit(1);
-	}
-
-	if (suite === 'approvals' && (target === 'umbel' || target === 'umbel-mounted')) {
-		// The cases are the Rust backend's, but Umbel serves todo-clear without its approval hold:
-		// a manifest cannot declare a per-caller approval yet.
-		console.error(
-			`The approvals suite does not run against ${target}: Umbel cannot hold todo-clear for agents yet (https://github.com/lushly-dev/afd/issues/1329)`
 		);
 		process.exit(1);
 	}

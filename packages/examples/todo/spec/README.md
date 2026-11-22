@@ -16,8 +16,8 @@ This directory contains the shared API contract for the Todo example. All four b
   used them while `todo-restore`, `todo-history` and `deleted` reached each language).
 - `test-cases.json`: Conformance test cases used to verify backend implementations.
 - `confirmation-cases.json`: Confirmation enforcement cases (`--suite confirmations`).
-- `approval-cases.json`: Approval hold cases (`--suite approvals`): every backend runs all four;
-  the Umbel modes do not run the suite ([#1329](https://github.com/lushly-dev/afd/issues/1329)).
+- `approval-cases.json`: Approval hold cases (`--suite approvals`): every backend and both Umbel
+  modes run all four.
 - `README.md`: This file.
 
 ## Conformance Test Cases
@@ -99,6 +99,8 @@ the reset before each case deletes the live todos with `todo-delete-batch` inste
 | Python | `pnpm test:conformance:py --suite approvals` | All 4, in both protocol modes (`relay="mcp-elicitation"`, [#1312](https://github.com/lushly-dev/afd/issues/1312)) |
 | Rust | `pnpm test:conformance:rs --suite approvals` | All 4, in both protocol modes |
 | C++ | `pnpm test:conformance:cpp --suite approvals` | All 4, in both protocol modes |
+| Umbel (compiled) | `pnpm test:conformance:umbel --suite approvals` | All 4, in both protocol modes (`approval = "non-human"`, `mcp.approvals = "mcp-elicitation"`) |
+| Umbel (mounted) | `pnpm test:conformance:umbel-mounted --suite approvals` | All 4, in both protocol modes (`approval = "non-human"`, `mcp.approvals = "mcp-elicitation"`) |
 
 The runner skips a client kind with no case for the backend's language, and fails a suite that
 leaves the language no case at all.

@@ -13,7 +13,8 @@ use jsonschema::Validator;
 use serde_json::{Value, json};
 use umbel::doctor::{self, CheckStatus};
 use umbel::workspace::{
-    AssuranceLevel, ConfigFile, DEFAULT_VERIFIED_LEVELS, PersonConfig, Workspace, WorkspaceError,
+    AssuranceLevel, ConfigFile, DEFAULT_VERIFIED_LEVELS, McpApprovals, PersonConfig, Workspace,
+    WorkspaceError,
 };
 
 fn workspace_with(text: &str) -> (tempfile::TempDir, PathBuf) {
@@ -123,6 +124,7 @@ fn every_key_has_a_default_and_earlier_versions_read_with_them() {
         let workspace = open(&text).unwrap_or_else(|error| panic!("{text}: {error}"));
         let config = workspace.config();
         assert_eq!(config.person, PersonConfig::default(), "{text}");
+        assert_eq!(config.mcp.approvals, McpApprovals::Enforce, "{text}");
         assert!(!config.person.local.enabled);
         assert_eq!(config.person.local.bind.to_string(), "127.0.0.1:7421");
         for space in &config.spaces {
@@ -691,4 +693,80 @@ fn the_schema_and_the_host_agree_on_the_journal() {
         assert!(opens(&instance).is_err(), "{instance}");
     }
     assert!(!self::validator(6).is_valid(&journal));
+}
+
+// ── mcp.approvals (D202, #1329) ────────────────────────────────────────────────────────────────
+
+#[test]
+fn mcp_approvals_parses_in_version_7_and_is_refused_earlier() {
+    for (value, expected) in [
+        ("enforce", McpApprovals::Enforce),
+        ("mcp-elicitation", McpApprovals::McpElicitation),
+        ("off", McpApprovals::Off),
+    ] {
+        let workspace = open(&format!(
+            "config_version = 7\n\n[mcp]\napprovals = \"{value}\"\n"
+        ))
+        .unwrap();
+        assert_eq!(workspace.config().mcp.approvals, expected);
+    }
+    for bad in ["\"agents\"", "\"none\"", "true", "1"] {
+        invalid(
+            &format!("config_version = 7\n\n[mcp]\napprovals = {bad}\n"),
+            "mcp.approvals",
+        );
+    }
+    for version in [1, 2, 3, 4, 5, 6] {
+        let error = invalid(
+            &format!("config_version = {version}\n\n[mcp]\napprovals = \"off\"\n"),
+            "mcp.approvals",
+        );
+        assert!(
+            error.message().contains("needs config_version = 7"),
+            "{version}: {error}"
+        );
+    }
+}
+
+#[test]
+#[cfg(feature = "auth")]
+fn mcp_approvals_relaxation_is_refused_in_hosted_modes_by_host_and_schema() {
+    let validator = validator(7);
+    for (label, base) in [("oauth", oauth("")), ("gateway", gateway(""))] {
+        // Explicit "enforce" is allowed in hosted modes.
+        let enforce = format!("{base}\n[mcp]\napprovals = \"enforce\"\n");
+        let parsed: toml::Table = enforce.parse().unwrap();
+        let json_val = serde_json::to_value(parsed).unwrap();
+        validator.validate(&json_val).unwrap();
+        let ws = open(&enforce).unwrap();
+        assert_eq!(ws.config().mcp.approvals, McpApprovals::Enforce, "{label}");
+
+        // Relaxing MCP approvals is refused in hosted modes by both host and schema.
+        for relaxed in ["mcp-elicitation", "off"] {
+            let text = format!("{base}\n[mcp]\napprovals = \"{relaxed}\"\n");
+            let error = invalid(&text, "mcp.approvals");
+            assert!(
+                error
+                    .message()
+                    .contains("must be \"enforce\" in a hosted mode"),
+                "{label}/{relaxed}: {error}"
+            );
+            let parsed: toml::Table = text.parse().unwrap();
+            let json_val = serde_json::to_value(parsed).unwrap();
+            assert!(
+                !validator.is_valid(&json_val),
+                "schema accepted {label} with mcp.approvals = {relaxed}"
+            );
+        }
+    }
+
+    // Mode `none` accepts all three values in both host and schema.
+    for value in ["enforce", "mcp-elicitation", "off"] {
+        let instance = json!({ "config_version": 7, "mcp": { "approvals": value } });
+        validator.validate(&instance).unwrap();
+        opens(&instance).unwrap();
+    }
+    let bad = json!({ "config_version": 7, "mcp": { "approvals": "agents" } });
+    assert!(!validator.is_valid(&bad));
+    assert!(opens(&bad).is_err());
 }

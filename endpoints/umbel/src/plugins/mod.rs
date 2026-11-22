@@ -55,8 +55,8 @@ pub(crate) use loader::{
 pub use loader::{ORIGIN_KEY, TRUST_NOTE};
 pub(crate) use manifest::to_json;
 pub use manifest::{
-    Assurance, Bearer, CommandDecl, ComponentDecl, ConfigDecl, ContextDecl, Effect, Expose,
-    GrantDecl, JournalDecl, JournalMode, MAX_AUTHORITY_PROMPT_CHARS, MAX_COMPONENT_BYTES,
+    ApprovalDecl, Assurance, Bearer, CommandDecl, ComponentDecl, ConfigDecl, ContextDecl, Effect,
+    Expose, GrantDecl, JournalDecl, JournalMode, MAX_AUTHORITY_PROMPT_CHARS, MAX_COMPONENT_BYTES,
     MAX_JOURNAL_KEEP, Manifest, MountDecl, MountTool, OutputBudget, PackDecl, PersonDecl,
     PipelineDecl, PipelineResult, PipelineStep, PluginInfo, PluginKind, SchemaRef, SkillDecl,
     TaskMode, Transport,

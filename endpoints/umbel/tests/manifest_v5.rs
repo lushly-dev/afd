@@ -441,6 +441,7 @@ fn task_is_refused_where_a_task_could_wait_for_someone_or_keep_content() {
             "confirm_prompt",
         ),
         ("task = \"optional\"\napproval = \"required\"", "approval"),
+        ("task = \"optional\"\napproval = \"non-human\"", "approval"),
         (
             "task = \"optional\"\nexpose = { mcp = false }",
             "expose.mcp",

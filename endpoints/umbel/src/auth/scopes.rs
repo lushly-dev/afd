@@ -152,8 +152,10 @@ impl ScopePolicy {
             if definition.mutation {
                 verbs.insert(ScopeVerb::Write);
             }
-            if definition.approval.is_some()
-                || definition.confirmation_mode.is_some()
+            if !matches!(
+                definition.approval,
+                None | Some(afd::ApprovalPolicy::NotRequired)
+            ) || definition.confirmation_mode.is_some()
                 || entry.is_some_and(|entry| entry.require_human)
             {
                 verbs.insert(ScopeVerb::Approve);
@@ -701,6 +703,10 @@ mod tests {
         let registry = CommandRegistry::new();
         let mut gated = command("x-gated", false);
         gated.approval = Some(afd::ApprovalPolicy::Required);
+        let mut conditional = command("x-conditional", false);
+        conditional.approval = crate::plugins::ApprovalDecl::NonHuman.policy();
+        let mut not_required = command("x-not-required", false);
+        not_required.approval = Some(afd::ApprovalPolicy::NotRequired);
         let mut hidden = command("x-hidden", true);
         hidden.expose.mcp = false;
         for command in [
@@ -711,6 +717,8 @@ mod tests {
             command("p-flow", false),
             command("x-erase", true),
             gated,
+            conditional,
+            not_required,
             command("x-plain", false),
             command("x-show", false),
             hidden,
@@ -815,6 +823,14 @@ mod tests {
         assert_eq!(
             decide(&policy, "x-gated", json!({}), &["umbel:write"]),
             missing(&["umbel:approve:main"])
+        );
+        assert_eq!(
+            decide(&policy, "x-conditional", json!({}), &["umbel:write"]),
+            missing(&["umbel:approve:main"])
+        );
+        assert_eq!(
+            decide(&policy, "x-not-required", json!({}), &["umbel:read:main"]),
+            Verdict::Allowed
         );
         assert_eq!(
             decide(&policy, "x-erase", json!({}), &["umbel:approve"]),

@@ -216,7 +216,9 @@ pub(super) fn command_task(
     } else if rules.confirm_prompt {
         Some("is refused beside confirm_prompt: a task never waits for a confirmation")
     } else if rules.approval {
-        Some("is refused beside approval = \"required\": a task never waits for an approval")
+        Some(
+            "is refused beside approval = \"required\" or \"non-human\": a task never waits for an approval",
+        )
     } else if rules.authority_prompt {
         Some("is refused beside authority_prompt: a task never waits for a person at a terminal")
     } else {

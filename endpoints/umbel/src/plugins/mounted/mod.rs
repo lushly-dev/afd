@@ -18,8 +18,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use afd::{
-    ApprovalPolicy, CommandContext, CommandDefinition, CommandHandler, CommandRegistry,
-    CommandResult, JsonSchema,
+    CommandContext, CommandDefinition, CommandHandler, CommandRegistry, CommandResult, JsonSchema,
 };
 use async_trait::async_trait;
 use serde_json::{Map, Value, json};
@@ -427,8 +426,8 @@ impl<'a> Plan<'a> {
         if over.is_some_and(|entry| entry.destructive) {
             definition = definition.with_destructive(true);
         }
-        if over.is_some_and(|entry| entry.approval_required) {
-            definition = definition.with_approval(ApprovalPolicy::Required);
+        if let Some(policy) = over.and_then(|entry| entry.approval.policy()) {
+            definition = definition.with_approval(policy);
         }
         if let Some(returns) = returns {
             definition = definition.with_returns(returns);

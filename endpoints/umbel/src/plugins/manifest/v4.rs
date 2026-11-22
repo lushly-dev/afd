@@ -152,7 +152,7 @@ impl Manifest {
                 Some("needs CLI exposure: the CLI calls it before the prompt")
             } else if preview.journal.is_none() {
                 Some("must declare a journal: it reads what the gated command decides on")
-            } else if preview.confirm_prompt.is_some() || preview.approval_required {
+            } else if preview.confirm_prompt.is_some() || preview.approval.is_gated() {
                 Some(
                     "must ask for no confirmation or approval of its own: the CLI calls it before the gated command's prompt, without the marks",
                 )

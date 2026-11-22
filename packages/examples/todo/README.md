@@ -296,11 +296,12 @@ caller gets `APPROVAL_REQUIRED` with a suggestion naming what would go. Over MCP
 counts as an agent, so the page's "clear completed" is held too: the page shows the approval and
 answers with the person's choice, in both frontends.
 
-The Rust and C++ command lines (`cargo run -- todo-clear '{}'` and the shell,
-`todo-server-cpp todo-clear '{}'`) run as the person at the terminal, so a clear there is not
-held. Under Umbel the clear is not held either: a plugin
-manifest declares only a fixed approval, so the todo plugin drops the per-caller policy and the
-clear keeps its confirmation prompt ([#1329](https://github.com/lushly-dev/afd/issues/1329)).
+The Rust, C++ and Umbel command lines (`cargo run -- todo-clear '{}'`, the shell,
+`todo-server-cpp todo-clear '{}'`, `umbel-todo todo clear`) run as the person at the terminal, so
+a clear there is not held for approval. Over MCP under Umbel, `todo-clear` declares
+`approval = "non-human"` ([#1329](https://github.com/lushly-dev/afd/issues/1329)), so non-human
+callers are held for approval (with `mcp.approvals = "enforce"` by default, or relayed via form
+elicitation under `mcp.approvals = "mcp-elicitation"`).
 `todo-clear`'s description says both: held for approval where the server holds clears, gated by
 its confirmation prompt elsewhere.
 

@@ -25,7 +25,7 @@ pub use config::{
     AccessConfig, AccessGroup, CONFIG_VERSION, CONFIG_VERSIONS, CollectionConfig, CollectionKind,
     Config, ConfigFile, Confirmations, DEFAULT_LOCAL_ID, DEFAULT_MAX_FILE_BYTES,
     DEFAULT_STORE_LOCK_TIMEOUT_MS, HttpConfig, JournalConfig, KeyScan, LogConfig, LogFormat,
-    McpConfig, Overrides, PrincipalConfig, SpaceConfig, StoreConfig,
+    McpApprovals, McpConfig, Overrides, PrincipalConfig, SpaceConfig, StoreConfig,
 };
 pub(crate) use config::{RootProblem, resolve_root};
 pub use discovery::{FoundBy, Located, WORKSPACE_ENV, discover, discover_from_process};

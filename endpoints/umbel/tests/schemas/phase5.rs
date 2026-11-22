@@ -387,6 +387,7 @@ fn the_version_5_manifest_schema_refuses_what_the_host_refuses() {
         with(&|m| m["commands"][5]["journal"] = json!({ "mode": "digest" })),
         with(&|m| m["commands"][5]["expose"] = json!({ "mcp": false })),
         with(&|m| m["commands"][5]["approval"] = json!("required")),
+        with(&|m| m["commands"][5]["approval"] = json!("non-human")),
         with(&|m| m["commands"][5]["confirm_prompt"] = json!("Sure?")),
         with(&|m| m["commands"][3]["task"] = json!("optional")),
         with(&|m| m["commands"][0]["task"] = json!("optional")),

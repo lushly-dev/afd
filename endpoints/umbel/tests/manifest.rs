@@ -5,7 +5,7 @@
 use std::fs;
 use std::path::Path;
 
-use umbel::plugins::{Effect, Manifest, PluginKind, SchemaRef, Transport};
+use umbel::plugins::{ApprovalDecl, Effect, Manifest, PluginKind, SchemaRef, Transport};
 
 const FILE: &str = "umbel-plugin.toml";
 
@@ -179,7 +179,8 @@ input_schema = { type = "object" }
     assert!(manifest.grants[0].required, "required defaults to true");
     let command = &manifest.commands[0];
     assert!(command.mutation());
-    assert!(!command.first_class && !command.destructive && !command.approval_required);
+    assert!(!command.first_class && !command.destructive);
+    assert_eq!(command.approval, ApprovalDecl::None);
     assert!(command.expose.mcp && command.expose.agent && command.expose.cli);
     assert!(!command.expose.palette, "palette is off by default");
 }
@@ -516,10 +517,25 @@ fn input_schemas_are_objects_the_afd_checker_accepts() {
 
 #[test]
 fn command_options_are_checked() {
-    invalid(
-        &edited("approval = \"none\"", "approval = \"always\""),
-        "commands[0].approval",
-    );
+    for (value, expected) in [
+        ("none", ApprovalDecl::None),
+        ("required", ApprovalDecl::Required),
+        ("non-human", ApprovalDecl::NonHuman),
+    ] {
+        let parsed = parse(&edited(
+            "approval = \"none\"",
+            &format!("approval = \"{value}\""),
+        ))
+        .unwrap();
+        assert_eq!(parsed.commands[0].approval, expected);
+        assert_eq!(parsed.commands[0].approval.as_str(), value);
+    }
+    for bad in ["always", "agents", "non_human"] {
+        invalid(
+            &edited("approval = \"none\"", &format!("approval = \"{bad}\"")),
+            "commands[0].approval",
+        );
+    }
     invalid(
         &edited(
             "execution_time = \"instant\"",
@@ -869,7 +885,19 @@ fn mount_tool_overrides_are_checked() {
     let tool = &ok.mount.unwrap().tools[0];
     assert_eq!(tool.name.as_deref(), Some("search"));
     assert_eq!(tool.effects.as_deref(), Some(&[Effect::Inspect][..]));
-    assert!(tool.bind_space && tool.first_class && tool.approval_required);
+    assert!(tool.bind_space && tool.first_class && tool.approval == ApprovalDecl::Required);
+    let non_human = parse(&with(
+        "[[mount.tools]]\ntool = \"a\"\napproval = \"non-human\"\n",
+    ))
+    .unwrap();
+    assert_eq!(
+        non_human.mount.unwrap().tools[0].approval,
+        ApprovalDecl::NonHuman
+    );
+    invalid(
+        &with("[[mount.tools]]\ntool = \"a\"\napproval = \"agents\"\n"),
+        "mount.tools[0].approval",
+    );
     invalid(&with("only = [\"a\", \"a\"]\n"), "mount.only");
     invalid(
         &with("[[mount.tools]]\nname = \"x\"\n"),
