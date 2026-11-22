@@ -11,8 +11,8 @@ const styles = css`
         display: block;
         --_media-max-width: var(--violet-media-max-width, 100%);
         --_media-max-height: var(--violet-media-max-height, 300px);
-        --_media-font-size: var(--violet-media-font-size, var(--_caption-size, 12px));
-        --_media-line-height: var(--violet-media-line-height, var(--_caption-line, 16px));
+        --_media-font-size: var(--violet-media-font-size, var(--_caption-size));
+        --_media-line-height: var(--violet-media-line-height, var(--_caption-line));
     }
 
     .root {
@@ -71,7 +71,7 @@ const styles = css`
     .file-name {
         font-size: var(--_media-font-size);
         line-height: var(--_media-line-height);
-        color: var(--_text-primary, #181b1a);
+        color: var(--_text-primary);
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
@@ -79,7 +79,7 @@ const styles = css`
 
     .file-type {
         font-size: calc(var(--_media-font-size) * 0.85);
-        color: var(--_text-secondary, #48534b);
+        color: var(--_text-secondary);
     }
 
     @media (forced-colors: active) {

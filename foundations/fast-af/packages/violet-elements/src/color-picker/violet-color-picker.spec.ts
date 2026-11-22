@@ -14,7 +14,7 @@ async function renderPicker(): Promise<VioletColorPicker> {
     const picker = document.createElement("violet-color-picker") as VioletColorPicker;
     picker.label = "Accent color";
     picker.name = "accent-color";
-    picker.value = "#c84f3b";
+    picker.value = "#146ba0";
     form.append(picker);
     document.body.append(form);
     await customElements.whenDefined("violet-color-picker");
@@ -79,7 +79,27 @@ describe("violet-color-picker", () => {
         const form = picker.closest("form") as HTMLFormElement;
 
         const formData = new FormData(form);
-        expect(formData.get("accent-color")).toBe("#c84f3b");
+        expect(formData.get("accent-color")).toBe("#146ba0");
+    });
+
+    it("exposes AFD Refined default presets and seeds empty sliders from AFD blue ink", async () => {
+        const picker = await renderEmptyPicker();
+
+        expect(picker.presets).toEqual([
+            "#181b1a",
+            "#2c5e4b",
+            "#a3ebcd",
+            "#146ba0",
+            "#c42a1a",
+            "#f96e5b",
+            "#92400e",
+            "#6b7d6e",
+        ]);
+        expect({ hue: picker.hue, saturation: picker.saturation, lightness: picker.lightness }).toEqual({
+            hue: 203,
+            saturation: 78,
+            lightness: 35,
+        });
     });
 
     it("accepts a valid hex color from the editor input", async () => {
@@ -87,20 +107,20 @@ describe("violet-color-picker", () => {
         const hexInput = picker.shadowRoot?.querySelector(".hex-input") as HTMLInputElement | null;
 
         expect(hexInput).toBeTruthy();
-        hexInput!.value = "#244635";
+        hexInput!.value = "#2c5e4b";
         hexInput!.dispatchEvent(new Event("input", { bubbles: true }));
         hexInput!.dispatchEvent(new Event("change", { bubbles: true }));
         await nextFrame();
 
-        expect(picker.value).toBe("#244635");
+        expect(picker.value).toBe("#2c5e4b");
     });
 
     it("applies a suggested swatch preset", async () => {
         const picker = await renderPicker();
-        picker.applyPreset("#244635");
+        picker.applyPreset("#2c5e4b");
         await nextFrame();
 
-        expect(picker.value).toBe("#244635");
+        expect(picker.value).toBe("#2c5e4b");
     });
 
     it("keeps the hex field in sync when channel sliders change the color", async () => {
@@ -115,7 +135,7 @@ describe("violet-color-picker", () => {
         hueInput!.dispatchEvent(new Event("input", { bubbles: true }));
         await nextFrame();
 
-        expect(picker.value).not.toBe("#c84f3b");
+        expect(picker.value).not.toBe("#146ba0");
         expect(hexInput!.value).toBe(picker.value);
     });
 
@@ -194,7 +214,7 @@ describe("violet-color-picker", () => {
         const input = await openEditor(picker);
         await userEvent.keyboard("#167");
         expect(input.value).toBe("#167");
-        expect(picker.value).toBe("#c84f3b");
+        expect(picker.value).toBe("#146ba0");
         await userEvent.keyboard("0ca");
         expect(input.value).toBe("#1670ca");
         expect(picker.value).toBe("#1670ca");
@@ -215,24 +235,24 @@ describe("violet-color-picker", () => {
         const events = trackEvents(picker);
 
         const input = await openEditor(picker);
-        await userEvent.keyboard("#244635{Enter}");
+        await userEvent.keyboard("#2c5e4b{Enter}");
         await userEvent.tab();
         expect(picker.shadowRoot?.activeElement).not.toBe(input);
 
         expect(events).toEqual([
-            { type: "input", value: "#244635" },
-            { type: "change", value: "#244635" },
+            { type: "input", value: "#2c5e4b" },
+            { type: "change", value: "#2c5e4b" },
         ]);
-        expect(picker.value).toBe("#244635");
+        expect(picker.value).toBe("#2c5e4b");
     });
 
     it("does not emit change when a preset matches the current color", async () => {
         const picker = await renderPicker();
-        picker.value = "#C84F3B";
+        picker.value = "#146BA0";
         await nextFrame();
         const events = trackEvents(picker);
 
-        picker.applyPreset("#c84f3b");
+        picker.applyPreset("#146ba0");
 
         expect(events).toEqual([]);
     });
@@ -246,8 +266,8 @@ describe("violet-color-picker", () => {
         input.dispatchEvent(new Event("change", { bubbles: true }));
         await nextFrame();
 
-        expect(picker.value).toBe("#c84f3b");
-        expect(input.value).toBe("#c84f3b");
+        expect(picker.value).toBe("#146ba0");
+        expect(input.value).toBe("#146ba0");
     });
 
     it("restores the initial color and visible hex draft together on form reset", async () => {
@@ -255,15 +275,15 @@ describe("violet-color-picker", () => {
         const form = picker.closest("form") as HTMLFormElement;
         const input = picker.shadowRoot?.querySelector(".hex-input") as HTMLInputElement;
 
-        picker.value = "#2f6b47";
+        picker.value = "#2c5e4b";
         await nextFrame();
         form.reset();
         await nextFrame();
 
-        expect(picker.value).toBe("#c84f3b");
-        expect(input.value).toBe("#c84f3b");
+        expect(picker.value).toBe("#146ba0");
+        expect(input.value).toBe("#146ba0");
         expect(picker.panelTitleText).toBe("Selected color");
-        expect(new FormData(form).get("accent-color")).toBe("#c84f3b");
+        expect(new FormData(form).get("accent-color")).toBe("#146ba0");
     });
 
     describe("closed panel", () => {

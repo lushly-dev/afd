@@ -134,7 +134,7 @@ const styles = css`
 
     .step-indicator {
         font-size: 11px;
-        color: var(--_text-secondary, #48534b);
+        color: var(--_text-secondary);
         margin-inline-end: auto;
     }
 

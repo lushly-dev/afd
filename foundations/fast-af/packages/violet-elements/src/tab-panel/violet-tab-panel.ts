@@ -8,7 +8,7 @@ const styles = css`
 
     :host {
         display: block;
-        color: var(--_text-primary, var(--color-text-primary, #181b1a));
+        color: var(--_text-primary);
         font-family: inherit;
         font-size: var(--_control-body-size);
         line-height: var(--_type-body-line);
@@ -21,7 +21,7 @@ const styles = css`
 
     .content {
         display: grid;
-        gap: var(--_space-md, 12px);
+        gap: var(--_space-md);
     }
 `;
 

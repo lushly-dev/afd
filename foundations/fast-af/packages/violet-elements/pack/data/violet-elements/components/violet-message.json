@@ -51,12 +51,12 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
-				"default": "var(--violet-message-body-line, var(--_body-line, 20px))",
+				"default": "var(--violet-message-body-line, var(--_body-line))",
 				"name": "--_msg-body-line"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-message-body-size, var(--_body-size, 14px))",
+				"default": "var(--violet-message-body-size, var(--_body-size))",
 				"name": "--_msg-body-size"
 			},
 			{
@@ -66,12 +66,12 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-message-meta-size, var(--_meta-size, 11px))",
+				"default": "var(--violet-message-meta-size, var(--_meta-size))",
 				"name": "--_msg-meta-size"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-message-system-size, var(--_caption-size, 12px))",
+				"default": "var(--violet-message-system-size, var(--_caption-size))",
 				"name": "--_msg-system-size"
 			}
 		],

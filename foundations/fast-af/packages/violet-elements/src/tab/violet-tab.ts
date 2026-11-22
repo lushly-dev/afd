@@ -52,7 +52,7 @@ const styles = css`
     }
 
     :host([aria-selected="true"]) {
-        color: var(--_text-primary, var(--color-text-primary, #181b1a));
+        color: var(--_text-primary);
     }
 
     :host([disabled]),
@@ -108,7 +108,7 @@ const styles = css`
     :host([data-appearance="open"]:not([aria-selected="true"]):not([aria-disabled="true"]):hover),
     :host([data-appearance="mixed"]:not([aria-selected="true"]):not([aria-disabled="true"]):hover) {
         background: var(--_tab-hover);
-        color: var(--_text-primary, var(--color-text-primary, #181b1a));
+        color: var(--_text-primary);
     }
 
     /* An open tab is a key: the one you are on is filled, as a pressed secondary button is. */
@@ -150,7 +150,7 @@ const styles = css`
 
     :host([data-appearance="closed"]:not([aria-selected="true"]):not([aria-disabled="true"]):hover) {
         background: color-mix(in srgb, var(--_surface-page) 90%, var(--_tab-closed-resting));
-        color: var(--_text-primary, var(--color-text-primary, #181b1a));
+        color: var(--_text-primary);
     }
 
     :host([data-appearance="closed"][aria-selected="true"]),

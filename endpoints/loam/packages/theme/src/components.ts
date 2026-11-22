@@ -105,6 +105,19 @@ export interface Fallback {
 }
 
 const VAR_START = /var\(\s*(--[A-Za-z0-9_-]+)\s*,/g;
+const PRIVATE_ALIAS_DECL = /(--_[A-Za-z0-9_-]+)\s*:\s*var\(\s*(--[A-Za-z0-9_-]+)/g;
+const TOKEN_DEFAULTS_BLOCK = /export const (\w+): ElementStyles = css`([\s\S]*?)`;/g;
+const VALUE_IMPORT = /import\s+(?!type\b)[^"';]+?\s+from\s+"\.\/([\w.-]+)"/g;
+
+/**
+ * Intentionally unbound hooks in `violet-elements` whose fallback is tied to a specific light
+ * token (mirrors `HOOKS` in `violet-private-properties.spec.ts`, tracked in #1436).
+ */
+const HOOK_TOKEN_TARGETS: Readonly<Record<string, string>> = {
+	'--_radius-round': '--radius-round',
+	'--_space-xs': '--space-stack-xs',
+	'--_text-link': '--color-focus-ring',
+};
 
 /**
  * Every `var(--x, <literal>)` in `text`. A fallback that is not a literal, because it holds
@@ -148,33 +161,170 @@ export function findFallbacks(text: string): Fallback[] {
 export interface FallbackMismatch extends Fallback {
 	path: string;
 	expected: string;
+	/** True when an alias binds to multiple distinct light values and needs manual review. */
+	ambiguous?: boolean;
 }
 
-/** Every fallback of a component id whose literal differs from its light value. */
+const stripComments = (text: string): string =>
+	text
+		.replace(/\/\*[\s\S]*?\*\//g, (match) => match.replace(/[^\n]/g, ' '))
+		.replace(/^[ \t]*\/\/.*$/gm, (match) => ' '.repeat(match.length));
+
+const fileDirectory = (path: string): string => {
+	const index = path.lastIndexOf('/');
+	return index < 0 ? '' : path.slice(0, index);
+};
+
+function addAliasTarget(map: Map<string, Set<string>>, alias: string, target: string): void {
+	let targets = map.get(alias);
+	if (!targets) {
+		targets = new Set<string>();
+		map.set(alias, targets);
+	}
+	targets.add(target);
+}
+
+/** Extracts `--_alias -> --target` definitions from a CSS-carrying TypeScript chunk. */
+function privateAliasTargets(text: string): Map<string, Set<string>> {
+	const targets = new Map<string, Set<string>>();
+	for (const match of stripComments(text).matchAll(PRIVATE_ALIAS_DECL)) {
+		addAliasTarget(targets, match[1] as string, match[2] as string);
+	}
+	return targets;
+}
+
+/** Resolves a private `--_*` alias to all underlying theme tokens' light values, if any. */
+function resolveAliasLightValues(
+	property: string,
+	aliases: ReadonlyMap<string, ReadonlySet<string>>,
+	lightValues: ReadonlyMap<string, string>
+): Set<string> {
+	const resolved = new Set<string>();
+	const seen = new Set<string>();
+	const queue = [property];
+	while (queue.length > 0) {
+		const current = queue.shift() as string;
+		if (seen.has(current)) continue;
+		seen.add(current);
+		const direct = lightValues.get(current);
+		if (direct !== undefined) {
+			resolved.add(direct);
+			continue;
+		}
+		for (const next of aliases.get(current) ?? []) {
+			if (!seen.has(next)) queue.push(next);
+		}
+	}
+	return resolved;
+}
+
+/**
+ * Every fallback of a component id — or of a private `--_*` alias bound to a component id
+ * (directly, through an included token-default block, through a sibling `.styles.ts` import, or
+ * via `HOOK_TOKEN_TARGETS`) — whose literal differs from its light value.
+ */
 export function scanFallbacks(
 	files: ReadonlyArray<{ path: string; text: string }>,
 	lightValues: ReadonlyMap<string, string>
 ): FallbackMismatch[] {
-	const mismatches: FallbackMismatch[] = [];
-	for (const { path, text } of files)
-		for (const fallback of findFallbacks(text)) {
-			const expected = lightValues.get(fallback.property);
-			if (expected === undefined) continue;
-			if (normalizeLiteral(fallback.literal) !== normalizeLiteral(expected))
-				mismatches.push({ ...fallback, path, expected });
+	const byPath = new Map(files.map((file) => [file.path, file.text]));
+	const defaultBlocks = new Map<string, Map<string, Set<string>>>();
+	const defaultsFile = files.find((file) => file.path.endsWith('violet-token-defaults.ts'));
+	if (defaultsFile) {
+		for (const match of stripComments(defaultsFile.text).matchAll(TOKEN_DEFAULTS_BLOCK)) {
+			defaultBlocks.set(match[1] as string, privateAliasTargets(match[2] as string));
 		}
+	}
+
+	const ownAliases = new Map<string, Map<string, Set<string>>>();
+	const styleImports = new Map<string, string[]>();
+	for (const { path, text } of files) {
+		const aliases = new Map<string, Set<string>>();
+		for (const [blockName, blockAliases] of defaultBlocks) {
+			if (text.includes(`\${${blockName}}`)) {
+				for (const [alias, targets] of blockAliases) {
+					for (const target of targets) addAliasTarget(aliases, alias, target);
+				}
+			}
+		}
+		for (const [alias, targets] of privateAliasTargets(text)) {
+			for (const target of targets) addAliasTarget(aliases, alias, target);
+		}
+		ownAliases.set(path, aliases);
+		const dir = fileDirectory(path);
+		styleImports.set(
+			path,
+			[...stripComments(text).matchAll(VALUE_IMPORT)]
+				.map((match) => (dir ? `${dir}/${match[1]}.ts` : `${match[1]}.ts`))
+				.filter((target) => target.endsWith('.styles.ts') && byPath.has(target))
+		);
+	}
+
+	const mismatches: FallbackMismatch[] = [];
+	for (const { path, text } of files) {
+		const aliases = new Map<string, Set<string>>();
+		for (const [alias, targets] of ownAliases.get(path) ?? []) {
+			aliases.set(alias, new Set(targets));
+		}
+		for (const target of styleImports.get(path) ?? []) {
+			for (const [alias, refs] of ownAliases.get(target) ?? []) {
+				for (const ref of refs) addAliasTarget(aliases, alias, ref);
+			}
+		}
+
+		for (const fallback of findFallbacks(stripComments(text))) {
+			const direct = lightValues.get(fallback.property);
+			if (direct !== undefined) {
+				if (normalizeLiteral(fallback.literal) !== normalizeLiteral(direct))
+					mismatches.push({ ...fallback, path, expected: direct });
+				continue;
+			}
+			if (!fallback.property.startsWith('--_')) continue;
+			const expectedSet = resolveAliasLightValues(fallback.property, aliases, lightValues);
+			if (expectedSet.size === 0) {
+				const hookToken = HOOK_TOKEN_TARGETS[fallback.property];
+				const hookValue = hookToken ? lightValues.get(hookToken) : undefined;
+				if (hookValue !== undefined) expectedSet.add(hookValue);
+			}
+			if (expectedSet.size === 0) continue;
+			const normalized = normalizeLiteral(fallback.literal);
+			const matchesAny = [...expectedSet].some((value) => normalizeLiteral(value) === normalized);
+			if (!matchesAny) {
+				mismatches.push({
+					...fallback,
+					path,
+					expected: [...expectedSet].join(' | '),
+					...(expectedSet.size > 1 ? { ambiguous: true } : {}),
+				});
+			}
+		}
+	}
 	return mismatches;
 }
 
-/** `text` with each mismatching fallback replaced by its normalized light value. */
-export function fixFallbacks(text: string, lightValues: ReadonlyMap<string, string>): string {
+/**
+ * `text` with each unambiguous mismatching fallback replaced by its normalized light value.
+ * Pass `mismatches` from `scanFallbacks` to also rewrite cross-file private-alias fallbacks.
+ */
+export function fixFallbacks(
+	text: string,
+	lightValues: ReadonlyMap<string, string>,
+	mismatches?: ReadonlyArray<FallbackMismatch>
+): string {
+	const edits =
+		mismatches !== undefined
+			? [...mismatches]
+					.filter((mismatch) => !mismatch.ambiguous)
+					.sort((left, right) => right.start - left.start)
+			: scanFallbacks([{ path: '', text }], lightValues)
+					.filter((mismatch) => !mismatch.ambiguous)
+					.sort((left, right) => right.start - left.start);
 	let fixed = text;
-	const fallbacks = findFallbacks(text).reverse();
-	for (const fallback of fallbacks) {
-		const expected = lightValues.get(fallback.property);
-		if (expected === undefined) continue;
-		if (normalizeLiteral(fallback.literal) === normalizeLiteral(expected)) continue;
-		fixed = fixed.slice(0, fallback.start) + normalizeLiteral(expected) + fixed.slice(fallback.end);
+	for (const mismatch of edits) {
+		fixed =
+			fixed.slice(0, mismatch.start) +
+			normalizeLiteral(mismatch.expected) +
+			fixed.slice(mismatch.end);
 	}
 	return fixed;
 }

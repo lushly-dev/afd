@@ -24,6 +24,7 @@ import {
 	checkTheme,
 	fixFallbacks,
 	lightValuesByProperty,
+	scanFallbacks,
 	sourceFiles,
 } from '../dist/index.js';
 
@@ -85,14 +86,32 @@ async function exportComponents(rewriteFallbacks) {
 	);
 	if (!rewriteFallbacks) return 0;
 	const lightValues = lightValuesByProperty(outputs.componentExport, outputs.contract);
+	const files = await sourceFiles(components.sourceDirectory);
+	const mismatches = scanFallbacks(files, lightValues);
+	const byPath = new Map();
+	for (const mismatch of mismatches) {
+		const list = byPath.get(mismatch.path) ?? [];
+		list.push(mismatch);
+		byPath.set(mismatch.path, list);
+	}
 	const edited = [];
-	for (const { path, text } of await sourceFiles(components.sourceDirectory)) {
-		const fixed = fixFallbacks(text, lightValues);
+	const manual = [];
+	for (const { path, text } of files) {
+		const fileMismatches = byPath.get(path);
+		if (!fileMismatches) continue;
+		for (const mismatch of fileMismatches) {
+			if (mismatch.ambiguous) manual.push(mismatch);
+		}
+		const fixed = fixFallbacks(text, lightValues, fileMismatches);
 		if (fixed === text) continue;
 		await writeFile(new URL(path, components.sourceDirectory), fixed);
 		edited.push(path);
 	}
 	for (const path of edited) console.log(`rewrote fallbacks in violet-elements/src/${path}`);
+	for (const mismatch of manual)
+		console.warn(
+			`skipped ambiguous fallback violet-elements/src/${mismatch.path}:${mismatch.line}: var(${mismatch.property}, ${mismatch.literal}) (expected one of ${mismatch.expected})`
+		);
 	console.log(
 		`${edited.length} files edited; run \`pnpm -F @lushly-dev/violet-elements cem:analyze\`, then record each changed file in foundations/fast-af/provenance/adaptations.json`
 	);

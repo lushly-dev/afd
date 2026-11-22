@@ -65,17 +65,17 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-tool-font-size, var(--_caption-size, 12px))",
+				"default": "var(--violet-tool-font-size, var(--_caption-size))",
 				"name": "--_tool-font-size"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-tool-name-size, var(--_body-size, 14px))",
+				"default": "var(--violet-tool-name-size, var(--_body-size))",
 				"name": "--_tool-icon-size"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-tool-line-height, var(--_caption-line, 16px))",
+				"default": "var(--violet-tool-line-height, var(--_caption-line))",
 				"name": "--_tool-line-height"
 			},
 			{

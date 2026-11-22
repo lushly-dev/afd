@@ -131,7 +131,7 @@
 		{
 			"basis": "observed",
 			"from": "components-card--horizontal",
-			"html": "<violet-card appearance=\"filled\" orientation=\"horizontal\" padding=\"none\" style=\"max-inline-size: 420px;\"><img alt=\"Sample thumbnail\" src=\"https://picsum.photos/seed/violet-card/160/160\" style=\"inline-size: 160px; block-size: 160px; object-fit: cover; flex-shrink: 0; display: block;\"><div style=\"padding: 16px; display: flex; flex-direction: column; justify-content: center; gap: 4px;\"><h3 style=\"margin: 0px; font-size: 14px; font-weight: 600;\">Article Title</h3><p style=\"margin: 0px; font-size: 13px; color: rgb(65, 70, 81);\">A horizontal card with a thumbnail image beside the content area.</p></div></violet-card>"
+			"html": "<violet-card appearance=\"filled\" orientation=\"horizontal\" padding=\"none\" style=\"max-inline-size: 420px;\"><img alt=\"Sample thumbnail\" src=\"https://picsum.photos/seed/violet-card/160/160\" style=\"inline-size: 160px; block-size: 160px; object-fit: cover; flex-shrink: 0; display: block;\"><div style=\"padding: 16px; display: flex; flex-direction: column; justify-content: center; gap: 4px;\"><h3 style=\"margin: 0px; font-size: 14px; font-weight: 600;\">Article Title</h3><p style=\"margin: 0px; font-size: 13px; color: var(--color-text-secondary);\">A horizontal card with a thumbnail image beside the content area.</p></div></violet-card>"
 		},
 		{
 			"basis": "observed",

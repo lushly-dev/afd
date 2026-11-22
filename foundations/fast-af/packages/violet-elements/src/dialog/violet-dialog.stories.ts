@@ -301,7 +301,7 @@ export const FormDialog: Story = {
         const output = document.createElement("p");
         output.style.marginBlockStart = "12px";
         output.style.fontSize = "13px";
-        output.style.color = "#414651";
+        output.style.color = "var(--color-text-secondary)";
         output.textContent = "Return value: (none)";
 
         const element = document.createElement("violet-dialog") as VioletDialog;

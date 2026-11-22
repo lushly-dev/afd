@@ -8,9 +8,9 @@ const styles = css`
     :host {
         display: block;
         --_danger-text: var(--color-state-danger-text, #c42a1a);
-        --_status-font-size: var(--violet-status-font-size, var(--_caption-size, 12px));
-        --_status-line-height: var(--violet-status-line-height, var(--_caption-line, 16px));
-        --_status-indicator-size: var(--violet-status-indicator-size, var(--_caption-line, 16px));
+        --_status-font-size: var(--violet-status-font-size, var(--_caption-size));
+        --_status-line-height: var(--violet-status-line-height, var(--_caption-line));
+        --_status-indicator-size: var(--violet-status-indicator-size, var(--_caption-line));
         --_status-dot-size: calc(var(--_status-indicator-size) * 0.375);
         --_status-streaming-dot-size: calc(var(--_status-indicator-size) * 0.25);
         --_status-streaming-gap: calc(var(--_status-streaming-dot-size) * 0.75);
@@ -23,7 +23,7 @@ const styles = css`
         padding: var(--_space-sm) 0;
         font-size: var(--_status-font-size);
         line-height: var(--_status-line-height);
-        color: var(--_text-secondary, #48534b);
+        color: var(--_text-secondary);
     }
 
     .indicator {
@@ -38,7 +38,7 @@ const styles = css`
     .dot {
         inline-size: var(--_status-dot-size);
         block-size: var(--_status-dot-size);
-        border-radius: var(--_radius-round, 9999px);
+        border-radius: var(--_radius-round);
         background: currentColor;
     }
 
@@ -55,7 +55,7 @@ const styles = css`
     .streaming-dot {
         inline-size: var(--_status-streaming-dot-size);
         block-size: var(--_status-streaming-dot-size);
-        border-radius: var(--_radius-round, 9999px);
+        border-radius: var(--_radius-round);
         background: currentColor;
         animation: bounce 1.2s ease-in-out infinite;
     }

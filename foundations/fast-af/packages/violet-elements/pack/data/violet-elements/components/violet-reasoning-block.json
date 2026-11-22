@@ -61,17 +61,17 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-reasoning-font-size, var(--_caption-size, 12px))",
+				"default": "var(--violet-reasoning-font-size, var(--_caption-size))",
 				"name": "--_reasoning-font-size"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-reasoning-line-height, var(--_caption-line, 16px))",
+				"default": "var(--violet-reasoning-line-height, var(--_caption-line))",
 				"name": "--_reasoning-line-height"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-reasoning-toggle-size, var(--_body-size, 14px))",
+				"default": "var(--violet-reasoning-toggle-size, var(--_body-size))",
 				"name": "--_reasoning-toggle-size"
 			},
 			{

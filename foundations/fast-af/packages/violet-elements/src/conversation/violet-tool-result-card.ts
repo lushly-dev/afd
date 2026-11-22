@@ -12,8 +12,8 @@ const styles = css`
 
     :host {
         display: block;
-        --_result-font-size: var(--violet-result-font-size, var(--_caption-size, 12px));
-        --_result-line-height: var(--violet-result-line-height, var(--_caption-line, 16px));
+        --_result-font-size: var(--violet-result-font-size, var(--_caption-size));
+        --_result-line-height: var(--violet-result-line-height, var(--_caption-line));
         --_success-text: var(--color-state-success-text, #2c5e4b);
     }
 
@@ -100,7 +100,7 @@ const styles = css`
         background: var(--_surface-subtle);
         font-size: var(--_result-font-size);
         line-height: var(--_result-line-height);
-        color: var(--_text-primary, #181b1a);
+        color: var(--_text-primary);
         white-space: pre-wrap;
         word-break: break-word;
     }
@@ -118,7 +118,7 @@ const styles = css`
         border-radius: var(--_radius-md);
         background: var(--_surface-subtle);
         font-size: var(--_result-font-size);
-        color: var(--_text-secondary, #48534b);
+        color: var(--_text-secondary);
     }
 
     .footer[hidden] {
@@ -135,8 +135,8 @@ const styles = css`
         inline-size: var(--_result-line-height);
         block-size: var(--_result-line-height);
         border: calc(var(--_result-line-height) * 0.125) solid var(--_border-subtle);
-        border-block-start-color: var(--_text-secondary, #48534b);
-        border-radius: var(--_radius-round, 9999px);
+        border-block-start-color: var(--_text-secondary);
+        border-radius: var(--_radius-round);
         animation: spin 0.8s linear infinite;
     }
 

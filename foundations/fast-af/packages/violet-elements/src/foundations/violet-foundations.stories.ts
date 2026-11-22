@@ -344,6 +344,25 @@ const fieldTokens = violetTokenRegistry.tokens
     return left.id.localeCompare(right.id);
   });
 
+const fontFamilyOrder = new Map([
+  ["font.family.body", 0],
+  ["font.family.heading", 1],
+  ["font.family.mono", 2],
+]);
+
+const fontFamilyTokens = violetTokenRegistry.tokens
+  .filter((token) => token.id.startsWith("font.family."))
+  .sort((left, right) => {
+    const leftRank = fontFamilyOrder.get(left.id) ?? Number.MAX_SAFE_INTEGER;
+    const rightRank = fontFamilyOrder.get(right.id) ?? Number.MAX_SAFE_INTEGER;
+
+    if (leftRank !== rightRank) {
+      return leftRank - rightRank;
+    }
+
+    return left.id.localeCompare(right.id);
+  });
+
 const fontScaleOrder = new Map([
   ["size.font.xs", 0],
   ["size.font.sm", 1],
@@ -431,7 +450,7 @@ function renderFoundationsOverview(): HTMLElement {
         display: grid;
         gap: 1.5rem;
         color: var(--color-text-primary, #181b1a);
-        font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+        font-family: var(--font-family-body);
       }
 
       .hero,
@@ -468,7 +487,7 @@ function renderFoundationsOverview(): HTMLElement {
       }
 
       h1 {
-        font: 600 clamp(2.3rem, 4vw, 3.6rem)/0.95 "Iowan Old Style", "Palatino Linotype", serif;
+        font: 600 clamp(2.3rem, 4vw, 3.6rem)/0.95 var(--font-family-heading);
       }
 
       .hero-copy,
@@ -741,7 +760,7 @@ function renderAppliedSystem(): HTMLElement {
       :host, [data-story="violet-foundations-applied"] {
         ${buildRegistryCssVars(violetTokenRegistry.tokens)}
         color: var(--color-text-primary, #181b1a);
-        font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+        font-family: var(--font-family-body);
         background: var(--color-surface-page, #f4f0ea);
       }
 
@@ -789,7 +808,7 @@ function renderAppliedSystem(): HTMLElement {
       }
 
       h1 {
-        font: 600 clamp(2rem, 4vw, 3rem)/0.95 "Iowan Old Style", "Palatino Linotype", serif;
+        font: 600 clamp(2rem, 4vw, 3rem)/0.95 var(--font-family-heading);
       }
 
       .panel-grid {
@@ -1086,7 +1105,7 @@ function renderRadiusLab(): HTMLElement {
       :host, [data-story="violet-radius-lab"] {
         ${buildRegistryCssVars(violetTokenRegistry.tokens)}
         color: var(--color-text-primary, #181b1a);
-        font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+        font-family: var(--font-family-body);
         background: #f8f9fa;
         display: block;
         min-block-size: 100vh;
@@ -1127,7 +1146,7 @@ function renderRadiusLab(): HTMLElement {
 
       .tool-title {
         margin: 0;
-        font: 600 0.75rem/1.3 "SFMono-Regular", "Consolas", monospace;
+        font: 600 0.75rem/1.3 var(--font-family-mono);
         text-transform: uppercase;
         letter-spacing: 0.06em;
         color: #57606a;
@@ -1172,7 +1191,7 @@ function renderRadiusLab(): HTMLElement {
       }
 
       .token-id {
-        font: 400 0.78rem/1.3 "SFMono-Regular", "Consolas", monospace;
+        font: 400 0.78rem/1.3 var(--font-family-mono);
         color: #24292f;
       }
 
@@ -1197,7 +1216,7 @@ function renderRadiusLab(): HTMLElement {
         border: 1px solid #c8d0db;
         background: #ffffff;
         color: #24292f;
-        font: 0.75rem/1.3 "SFMono-Regular", "Consolas", monospace;
+        font: 0.75rem/1.3 var(--font-family-mono);
         text-align: end;
         font-variant-numeric: tabular-nums;
       }
@@ -1225,7 +1244,7 @@ function renderRadiusLab(): HTMLElement {
         border: 1px solid #d0d7e2;
         background: #ffffff;
         color: #57606a;
-        font: 0.75rem/1.2 "IBM Plex Sans", "Segoe UI", sans-serif;
+        font: 0.75rem/1.2 var(--font-family-body);
         cursor: pointer;
       }
 
@@ -1250,7 +1269,7 @@ function renderRadiusLab(): HTMLElement {
         border-block-start: 1px solid #e1e4e8;
         background: #f6f8fa;
         color: #24292f;
-        font: 0.72rem/1.4 "SFMono-Regular", "Consolas", monospace;
+        font: 0.72rem/1.4 var(--font-family-mono);
         resize: vertical;
       }
 
@@ -1283,7 +1302,7 @@ function renderRadiusLab(): HTMLElement {
       }
 
       .section-title h3 {
-        font: 600 0.75rem/1.3 "SFMono-Regular", "Consolas", monospace;
+        font: 600 0.75rem/1.3 var(--font-family-mono);
         text-transform: uppercase;
         letter-spacing: 0.06em;
         color: #57606a;
@@ -1319,7 +1338,7 @@ function renderRadiusLab(): HTMLElement {
         border: 1px solid var(--color-border-subtle, rgba(24, 27, 26, 0.10));
         background: var(--color-surface-card, #f8f9f3);
         color: var(--color-text-primary, #181b1a);
-        font: 0.86rem/1.2 "IBM Plex Sans", "Segoe UI", sans-serif;
+        font: 0.86rem/1.2 var(--font-family-body);
       }
 
       .button.primary {
@@ -1371,7 +1390,7 @@ function renderRadiusLab(): HTMLElement {
         border: 1px solid var(--color-border-subtle, rgba(24, 27, 26, 0.10));
         background: var(--color-surface-selected, #dfeae3);
         color: var(--color-text-primary, #181b1a);
-        font: 600 0.74rem/1 "IBM Plex Sans", "Segoe UI", sans-serif;
+        font: 600 0.74rem/1 var(--font-family-body);
       }
 
       .shape-set {
@@ -1385,7 +1404,7 @@ function renderRadiusLab(): HTMLElement {
       }
 
       .shape-row h3 {
-        font: 600 0.75rem/1.3 "SFMono-Regular", "Consolas", monospace;
+        font: 600 0.75rem/1.3 var(--font-family-mono);
         text-transform: uppercase;
         letter-spacing: 0.06em;
         color: #57606a;
@@ -1646,7 +1665,7 @@ function renderSpacingLab(): HTMLElement {
       :host, [data-story="violet-spacing-lab"] {
         ${buildRegistryCssVars(violetTokenRegistry.tokens)}
         color: var(--color-text-primary, #181b1a);
-        font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+        font-family: var(--font-family-body);
         background: #f8f9fa;
         display: block;
         min-block-size: 100vh;
@@ -1687,7 +1706,7 @@ function renderSpacingLab(): HTMLElement {
       .section-title h3,
       .shape-row h3 {
         margin: 0;
-        font: 600 0.75rem/1.3 "SFMono-Regular", "Consolas", monospace;
+        font: 600 0.75rem/1.3 var(--font-family-mono);
         text-transform: uppercase;
         letter-spacing: 0.06em;
         color: #57606a;
@@ -1732,7 +1751,7 @@ function renderSpacingLab(): HTMLElement {
       }
 
       .token-id {
-        font: 400 0.78rem/1.3 "SFMono-Regular", "Consolas", monospace;
+        font: 400 0.78rem/1.3 var(--font-family-mono);
         color: #24292f;
       }
 
@@ -1757,7 +1776,7 @@ function renderSpacingLab(): HTMLElement {
         border: 1px solid #c8d0db;
         background: #ffffff;
         color: #24292f;
-        font: 0.75rem/1.3 "SFMono-Regular", "Consolas", monospace;
+        font: 0.75rem/1.3 var(--font-family-mono);
         text-align: end;
         font-variant-numeric: tabular-nums;
       }
@@ -1785,7 +1804,7 @@ function renderSpacingLab(): HTMLElement {
         border: 1px solid #d0d7e2;
         background: #ffffff;
         color: #57606a;
-        font: 0.75rem/1.2 "IBM Plex Sans", "Segoe UI", sans-serif;
+        font: 0.75rem/1.2 var(--font-family-body);
         cursor: pointer;
       }
 
@@ -1805,7 +1824,7 @@ function renderSpacingLab(): HTMLElement {
         border-block-start: 1px solid #e1e4e8;
         background: #f6f8fa;
         color: #24292f;
-        font: 0.72rem/1.4 "SFMono-Regular", "Consolas", monospace;
+        font: 0.72rem/1.4 var(--font-family-mono);
         resize: vertical;
       }
 
@@ -1859,7 +1878,7 @@ function renderSpacingLab(): HTMLElement {
         border: 1px solid var(--color-border-subtle, rgba(24, 27, 26, 0.10));
         background: var(--color-surface-card, #f8f9f3);
         color: var(--color-text-primary, #181b1a);
-        font: 0.84rem/1.2 "IBM Plex Sans", "Segoe UI", sans-serif;
+        font: 0.84rem/1.2 var(--font-family-body);
       }
 
       .button.primary {
@@ -1902,7 +1921,7 @@ function renderSpacingLab(): HTMLElement {
       }
 
       .mini-label {
-        font: 600 0.72rem/1.25 "IBM Plex Sans", "Segoe UI", sans-serif;
+        font: 600 0.72rem/1.25 var(--font-family-body);
         color: var(--color-text-secondary, #48534b);
       }
 
@@ -2124,7 +2143,7 @@ function renderDensityLab(): HTMLElement {
       :host, [data-story="violet-density-lab"] {
         ${buildRegistryCssVars(violetTokenRegistry.tokens)}
         color: var(--color-text-primary, #181b1a);
-        font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+        font-family: var(--font-family-body);
         background: #f8f9fa;
         display: block;
         min-block-size: 100vh;
@@ -2166,7 +2185,7 @@ function renderDensityLab(): HTMLElement {
       .shape-row h3,
       .density-label {
         margin: 0;
-        font: 600 0.75rem/1.3 "SFMono-Regular", "Consolas", monospace;
+        font: 600 0.75rem/1.3 var(--font-family-mono);
         text-transform: uppercase;
         letter-spacing: 0.06em;
         color: #57606a;
@@ -2207,7 +2226,7 @@ function renderDensityLab(): HTMLElement {
       }
 
       .token-id {
-        font: 400 0.78rem/1.3 "SFMono-Regular", "Consolas", monospace;
+        font: 400 0.78rem/1.3 var(--font-family-mono);
         color: #24292f;
       }
 
@@ -2232,7 +2251,7 @@ function renderDensityLab(): HTMLElement {
         border: 1px solid #c8d0db;
         background: #ffffff;
         color: #24292f;
-        font: 0.75rem/1.3 "SFMono-Regular", "Consolas", monospace;
+        font: 0.75rem/1.3 var(--font-family-mono);
         text-align: end;
         font-variant-numeric: tabular-nums;
       }
@@ -2260,7 +2279,7 @@ function renderDensityLab(): HTMLElement {
         border: 1px solid #d0d7e2;
         background: #ffffff;
         color: #57606a;
-        font: 0.75rem/1.2 "IBM Plex Sans", "Segoe UI", sans-serif;
+        font: 0.75rem/1.2 var(--font-family-body);
         cursor: pointer;
       }
 
@@ -2280,7 +2299,7 @@ function renderDensityLab(): HTMLElement {
         border-block-start: 1px solid #e1e4e8;
         background: #f6f8fa;
         color: #24292f;
-        font: 0.72rem/1.4 "SFMono-Regular", "Consolas", monospace;
+        font: 0.72rem/1.4 var(--font-family-mono);
         resize: vertical;
       }
 
@@ -2328,7 +2347,7 @@ function renderDensityLab(): HTMLElement {
         display: grid;
         gap: 0.6rem;
         padding: 0.8rem;
-        border: 1px solid rgba(28, 26, 13, 0.08);
+        border: 1px solid rgba(24, 27, 26, 0.08);
         border-radius: var(--radius-md, 8px);
         background: var(--color-surface-card, #f8f9f3);
       }
@@ -2380,7 +2399,7 @@ function renderDensityLab(): HTMLElement {
         display: grid;
         gap: 0.5rem;
         padding: 0.8rem;
-        border: 1px dashed rgba(28, 26, 13, 0.16);
+        border: 1px dashed rgba(24, 27, 26, 0.16);
         border-radius: var(--radius-md, 8px);
         background: rgba(255, 255, 255, 0.55);
       }
@@ -2399,7 +2418,7 @@ function renderDensityLab(): HTMLElement {
         border-radius: var(--radius-round, 9999px);
         background: var(--color-surface-subtle, #e9e5de);
         color: var(--color-text-secondary, #48534b);
-        font: 500 0.75rem/1.2 Montserrat, sans-serif;
+        font: 500 0.75rem/1.2 var(--font-family-body);
       }
 
       @container (min-width: 56rem) {
@@ -2603,28 +2622,20 @@ function renderTypographyLab(): HTMLElement {
   const root = document.createElement("section");
   root.setAttribute("data-story", "violet-typography-lab");
 
+  const typographyTokens = [...fontFamilyTokens, ...fontScaleTokens, ...lineScaleTokens, ...weightTokens];
   const initialValues = Object.fromEntries(
-    [...fontScaleTokens, ...lineScaleTokens, ...weightTokens].map((token) => [
+    typographyTokens.map((token) => [
       token.id,
       String(token.value),
     ]),
   );
 
-  const fontFamilyDefaults = {
-    body: '"Montserrat", "Segoe UI", sans-serif',
-    title: '"Bitter", Georgia, serif',
-    eyebrow: '"Montserrat", "Segoe UI", sans-serif',
-    mono: '"Space Mono", monospace',
-  };
-
   root.innerHTML = `
     <style>
       :host, [data-story="violet-typography-lab"] {
         ${buildRegistryCssVars(violetTokenRegistry.tokens)}
-        --font-family-body: ${fontFamilyDefaults.body};
-        --font-family-title: ${fontFamilyDefaults.title};
-        --font-family-eyebrow: ${fontFamilyDefaults.eyebrow};
-        --font-family-mono: ${fontFamilyDefaults.mono};
+        --font-family-title: var(--font-family-heading);
+        --font-family-eyebrow: var(--font-family-body);
         color: var(--color-text-primary, #181b1a);
         font-family: var(--font-family-body);
         background: #f8f9fa;
@@ -2774,7 +2785,7 @@ function renderTypographyLab(): HTMLElement {
         border: 1px solid #d0d7e2;
         background: #ffffff;
         color: #57606a;
-        font: 0.75rem/1.2 "IBM Plex Sans", "Segoe UI", sans-serif;
+        font: 0.75rem/1.2 var(--font-family-body);
         cursor: pointer;
       }
 
@@ -3035,13 +3046,14 @@ dtm: 78</p>
   }
 
   const currentValues = new Map<string, string>(
-    [...fontScaleTokens, ...lineScaleTokens, ...weightTokens].map((token) => [
+    typographyTokens.map((token) => [
       token.id,
       initialValues[token.id] ?? String(token.value),
     ]),
   );
 
   const groups = [
+    { title: "Font family", tokens: fontFamilyTokens },
     { title: "Font size", tokens: fontScaleTokens },
     { title: "Line height", tokens: lineScaleTokens },
     { title: "Weight", tokens: weightTokens },
@@ -3049,7 +3061,7 @@ dtm: 78</p>
 
   const writeOutput = (): string => {
     const snapshot = Object.fromEntries(
-      [...fontScaleTokens, ...lineScaleTokens, ...weightTokens].map((token) => [
+      typographyTokens.map((token) => [
         token.id,
         currentValues.get(token.id) ?? String(token.value),
       ]),
@@ -3085,7 +3097,6 @@ dtm: 78</p>
               id="${inputId}"
               class="tool-input"
               type="text"
-              value="${currentValues.get(token.id) ?? String(token.value)}"
               data-token-id="${token.id}"
               title="${token.metadata.cssProperty}"
             />
@@ -3095,6 +3106,7 @@ dtm: 78</p>
 
       const input = row.querySelector("input");
       if (input) {
+        input.value = currentValues.get(token.id) ?? String(token.value);
         input.addEventListener("input", (event) => {
           const nextValue = (event.target as HTMLInputElement).value;
           applyValue(token.id, nextValue);
@@ -3124,7 +3136,7 @@ dtm: 78</p>
   });
 
   resetButton.addEventListener("click", () => {
-    for (const token of [...fontScaleTokens, ...lineScaleTokens, ...weightTokens]) {
+    for (const token of typographyTokens) {
       const value = initialValues[token.id] ?? String(token.value);
       currentValues.set(token.id, value);
       root.style.setProperty(tokenIdToCssVar(token.id), value);
@@ -3155,7 +3167,7 @@ function renderSurfaceLab(): HTMLElement {
       :host, [data-story="violet-surface-lab"] {
         ${buildRegistryCssVars(violetTokenRegistry.tokens)}
         color: var(--color-text-primary, #181b1a);
-        font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+        font-family: var(--font-family-body);
         background: #ffffff;
         display: block;
         min-block-size: 100vh;
@@ -3196,7 +3208,7 @@ function renderSurfaceLab(): HTMLElement {
       .section-title h3,
       .shape-row h3 {
         margin: 0;
-        font: 600 0.75rem/1.3 "SFMono-Regular", "Consolas", monospace;
+        font: 600 0.75rem/1.3 var(--font-family-mono);
         text-transform: uppercase;
         letter-spacing: 0.06em;
         color: #57606a;
@@ -3240,7 +3252,7 @@ function renderSurfaceLab(): HTMLElement {
       }
 
       .token-id {
-        font: 400 0.78rem/1.3 "SFMono-Regular", "Consolas", monospace;
+        font: 400 0.78rem/1.3 var(--font-family-mono);
         color: #24292f;
       }
 
@@ -3273,7 +3285,7 @@ function renderSurfaceLab(): HTMLElement {
         border: 1px solid #c8d0db;
         background: #ffffff;
         color: #24292f;
-        font: 0.75rem/1.3 "SFMono-Regular", "Consolas", monospace;
+        font: 0.75rem/1.3 var(--font-family-mono);
       }
 
       .tool-input:focus-visible {
@@ -3299,7 +3311,7 @@ function renderSurfaceLab(): HTMLElement {
         border: 1px solid #d0d7e2;
         background: #ffffff;
         color: #57606a;
-        font: 0.75rem/1.2 "IBM Plex Sans", "Segoe UI", sans-serif;
+        font: 0.75rem/1.2 var(--font-family-body);
         cursor: pointer;
       }
 
@@ -3319,7 +3331,7 @@ function renderSurfaceLab(): HTMLElement {
         border-block-start: 1px solid #e1e4e8;
         background: #f6f8fa;
         color: #24292f;
-        font: 0.72rem/1.4 "SFMono-Regular", "Consolas", monospace;
+        font: 0.72rem/1.4 var(--font-family-mono);
         resize: vertical;
       }
 
@@ -3414,7 +3426,7 @@ function renderSurfaceLab(): HTMLElement {
       }
 
       .mini-label {
-        font: 600 0.72rem/1.25 "IBM Plex Sans", "Segoe UI", sans-serif;
+        font: 600 0.72rem/1.25 var(--font-family-body);
         color: var(--color-text-secondary, #48534b);
       }
 
@@ -3621,10 +3633,8 @@ function renderTextAndStructureLab(): HTMLElement {
     <style>
       :host, [data-story="violet-text-structure-lab"] {
         ${buildRegistryCssVars(violetTokenRegistry.tokens)}
-        --font-family-body: "Montserrat", "Segoe UI", sans-serif;
-        --font-family-title: "Bitter", Georgia, serif;
-        --font-family-eyebrow: "Montserrat", "Segoe UI", sans-serif;
-        --font-family-mono: "Space Mono", monospace;
+        --font-family-title: var(--font-family-heading);
+        --font-family-eyebrow: var(--font-family-body);
         color: var(--color-text-primary, #181b1a);
         font-family: var(--font-family-body);
         background: #f8f9fa;
@@ -3778,7 +3788,7 @@ function renderTextAndStructureLab(): HTMLElement {
         border: 1px solid #d0d7e2;
         background: #ffffff;
         color: #57606a;
-        font: 0.75rem/1.2 "IBM Plex Sans", "Segoe UI", sans-serif;
+        font: 0.75rem/1.2 var(--font-family-body);
         cursor: pointer;
       }
 
@@ -4167,8 +4177,7 @@ function renderElevationLab(): HTMLElement {
     <style>
       :host, [data-story="violet-elevation-lab"] {
         ${buildRegistryCssVars(violetTokenRegistry.tokens)}
-        --font-family-body: "Montserrat", "Segoe UI", sans-serif;
-        --font-family-title: "Bitter", Georgia, serif;
+        --font-family-title: var(--font-family-heading);
         color: var(--color-text-primary, #181b1a);
         font-family: var(--font-family-body);
         background: #f8f9fa;
@@ -4313,7 +4322,7 @@ function renderElevationLab(): HTMLElement {
         border: 1px solid #d0d7e2;
         background: #ffffff;
         color: #57606a;
-        font: 0.75rem/1.2 "IBM Plex Sans", "Segoe UI", sans-serif;
+        font: 0.75rem/1.2 var(--font-family-body);
         cursor: pointer;
       }
 
@@ -4377,7 +4386,7 @@ function renderElevationLab(): HTMLElement {
         padding: 1rem;
         border-radius: var(--radius-md, 8px);
         background: var(--color-surface-page, #f4f0ea);
-        background: linear-gradient(180deg, rgba(255, 254, 250, 1) 0%, rgba(240, 239, 230, 0.85) 100%);
+        background: linear-gradient(180deg, var(--color-surface-card, #f8f9f3) 0%, var(--color-surface-page, #f4f0ea) 100%);
       }
 
       .elevation-card,
@@ -4477,7 +4486,7 @@ function renderElevationLab(): HTMLElement {
         block-size: 1.15rem;
         border-radius: 999px;
         background: #fff;
-        box-shadow: 0 1px 1px rgba(28, 26, 13, 0.16);
+        box-shadow: 0 1px 1px rgba(24, 27, 26, 0.16);
         transform: translateX(1.2rem);
       }
 
@@ -4679,8 +4688,7 @@ function renderMotionLab(): HTMLElement {
     <style>
       :host, [data-story="violet-motion-lab"] {
         ${buildRegistryCssVars(violetTokenRegistry.tokens)}
-        --font-family-body: "Montserrat", "Segoe UI", sans-serif;
-        --font-family-title: "Bitter", Georgia, serif;
+        --font-family-title: var(--font-family-heading);
         color: var(--color-text-primary, #181b1a);
         font-family: var(--font-family-body);
         background: #f8f9fa;
@@ -4825,7 +4833,7 @@ function renderMotionLab(): HTMLElement {
         border: 1px solid #d0d7e2;
         background: #ffffff;
         color: #57606a;
-        font: 0.75rem/1.2 "IBM Plex Sans", "Segoe UI", sans-serif;
+        font: 0.75rem/1.2 var(--font-family-body);
         cursor: pointer;
       }
 
@@ -5023,7 +5031,7 @@ function renderMotionLab(): HTMLElement {
         justify-content: space-between;
         padding: 0.7rem 0.85rem;
         background: color-mix(in srgb, var(--color-surface-card) 92%, white);
-        border-bottom: 1px solid rgba(28, 26, 13, 0.06);
+        border-bottom: 1px solid rgba(24, 27, 26, 0.06);
         transition:
           transform var(--duration-base, 180ms) var(--easing-emphasized, cubic-bezier(0.16, 1, 0.3, 1)),
           box-shadow var(--duration-base, 180ms) var(--easing-emphasized, cubic-bezier(0.16, 1, 0.3, 1)),
@@ -5381,9 +5389,7 @@ function renderActionAndStateLab(): HTMLElement {
     <style>
       :host, [data-story="violet-action-state-lab"] {
         ${buildRegistryCssVars(violetTokenRegistry.tokens)}
-        --font-family-body: "Montserrat", "Segoe UI", sans-serif;
-        --font-family-title: "Bitter", Georgia, serif;
-        --font-family-mono: "Space Mono", monospace;
+        --font-family-title: var(--font-family-heading);
         color: var(--color-text-primary, #181b1a);
         font-family: var(--font-family-body);
         background: #f8f9fa;
@@ -5507,7 +5513,7 @@ function renderActionAndStateLab(): HTMLElement {
         border: 1px solid #d0d7e2;
         background: #ffffff;
         color: #57606a;
-        font: 0.75rem/1.2 "IBM Plex Sans", "Segoe UI", sans-serif;
+        font: 0.75rem/1.2 var(--font-family-body);
         cursor: pointer;
       }
 
@@ -5556,7 +5562,7 @@ function renderActionAndStateLab(): HTMLElement {
         gap: var(--space-layout-sm, 12px);
         padding: 1rem;
         border-radius: var(--radius-md, 8px);
-        background: linear-gradient(180deg, rgba(255, 254, 250, 1) 0%, rgba(240, 239, 230, 0.9) 100%);
+        background: linear-gradient(180deg, var(--color-surface-card, #f8f9f3) 0%, var(--color-surface-page, #f4f0ea) 100%);
       }
 
       .action-stack,
@@ -5577,7 +5583,7 @@ function renderActionAndStateLab(): HTMLElement {
         min-block-size: 2.1rem;
         padding: 0 0.8rem;
         border-radius: var(--radius-md, 8px);
-        font: 500 var(--type-label-sm-size, 13px)/var(--type-label-sm-line, 16px) "Montserrat", "Segoe UI", sans-serif;
+        font: 500 var(--type-label-sm-size, 13px)/var(--type-label-sm-line, 16px) var(--font-family-body);
         border: 1px solid transparent;
       }
 
@@ -5624,14 +5630,14 @@ function renderActionAndStateLab(): HTMLElement {
       }
 
       .text-heading {
-        font-family: "Bitter", Georgia, serif;
+        font-family: var(--font-family-heading);
         font-size: var(--type-title-sm-size, 18px);
         line-height: var(--type-title-sm-line, 24px);
         font-weight: var(--type-title-sm-weight, 600);
       }
 
       .text-body {
-        font-family: "Montserrat", "Segoe UI", sans-serif;
+        font-family: var(--font-family-body);
         font-size: var(--type-body-md-size, 14px);
         line-height: var(--type-body-md-line, 20px);
       }
@@ -5856,7 +5862,6 @@ function renderFormInputLab(): HTMLElement {
     <style>
       :host, [data-story="violet-form-input-lab"] {
         ${buildRegistryCssVars(violetTokenRegistry.tokens)}
-        --font-family-body: "Montserrat", "Segoe UI", sans-serif;
         color: var(--color-text-primary, #181b1a);
         font-family: var(--font-family-body);
         background: #f8f9fa;
@@ -5978,7 +5983,7 @@ function renderFormInputLab(): HTMLElement {
         border: 1px solid #d0d7e2;
         background: #ffffff;
         color: #57606a;
-        font: 0.75rem/1.2 "IBM Plex Sans", "Segoe UI", sans-serif;
+        font: 0.75rem/1.2 var(--font-family-body);
         cursor: pointer;
       }
 
@@ -6027,7 +6032,7 @@ function renderFormInputLab(): HTMLElement {
         gap: var(--space-layout-sm, 12px);
         padding: 1rem;
         border-radius: var(--radius-md, 8px);
-        background: linear-gradient(180deg, rgba(255, 254, 250, 1) 0%, rgba(240, 239, 230, 0.9) 100%);
+        background: linear-gradient(180deg, var(--color-surface-card, #f8f9f3) 0%, var(--color-surface-page, #f4f0ea) 100%);
       }
 
       .field-stack { gap: var(--space-layout-sm, 12px); }
@@ -6038,7 +6043,7 @@ function renderFormInputLab(): HTMLElement {
       }
 
       .field-label {
-        font: 500 var(--type-label-sm-size, 13px)/var(--type-label-sm-line, 16px) "Montserrat", "Segoe UI", sans-serif;
+        font: 500 var(--type-label-sm-size, 13px)/var(--type-label-sm-line, 16px) var(--font-family-body);
         color: var(--color-text-secondary, #48534b);
       }
 
@@ -6048,7 +6053,7 @@ function renderFormInputLab(): HTMLElement {
         background: var(--color-field-background);
         color: var(--color-field-text);
         border: 1px solid var(--color-field-border);
-        font: 400 var(--type-body-md-size, 14px)/var(--type-body-md-line, 20px) "Montserrat", "Segoe UI", sans-serif;
+        font: 400 var(--type-body-md-size, 14px)/var(--type-body-md-line, 20px) var(--font-family-body);
       }
 
       .field-control {
@@ -6088,7 +6093,7 @@ function renderFormInputLab(): HTMLElement {
       }
 
       .field-note {
-        font: 400 var(--type-caption-xs-size, 12px)/var(--type-caption-xs-line, 16px) "Montserrat", "Segoe UI", sans-serif;
+        font: 400 var(--type-caption-xs-size, 12px)/var(--type-caption-xs-line, 16px) var(--font-family-body);
         color: var(--color-text-muted);
       }
 
@@ -6321,7 +6326,7 @@ function renderPaletteLab(): HTMLElement {
         padding: 0;
         background: #fff;
         color: var(--color-text-primary);
-        font-family: Montserrat, sans-serif;
+        font-family: var(--font-family-body);
       }
 
       .palette-lab *, .palette-lab *::before, .palette-lab *::after {
@@ -6339,7 +6344,7 @@ function renderPaletteLab(): HTMLElement {
         min-inline-size: 0;
         overflow-x: hidden;
         background: #f8f9fa;
-        border-inline-end: 1px solid rgba(28, 26, 13, 0.08);
+        border-inline-end: 1px solid rgba(24, 27, 26, 0.08);
       }
 
       .palette-header,
@@ -6364,7 +6369,7 @@ function renderPaletteLab(): HTMLElement {
       .palette-title {
         margin: 0.15rem 0 0;
         color: var(--color-text-primary);
-        font-family: Bitter, serif;
+        font-family: var(--font-family-heading);
         font-size: 1.25rem;
         line-height: 1.1;
       }
@@ -6378,7 +6383,7 @@ function renderPaletteLab(): HTMLElement {
       .token-row {
         display: block;
         padding: 0 0 0.7rem;
-        border-bottom: 1px solid rgba(28, 26, 13, 0.08);
+        border-bottom: 1px solid rgba(24, 27, 26, 0.08);
       }
 
       .token-main {
@@ -6412,7 +6417,7 @@ function renderPaletteLab(): HTMLElement {
         inline-size: 1.4rem;
         block-size: 1.4rem;
         border-radius: 999px;
-        border: 1px solid rgba(28, 26, 13, 0.16);
+        border: 1px solid rgba(24, 27, 26, 0.16);
         box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.45);
       }
 
@@ -6426,7 +6431,7 @@ function renderPaletteLab(): HTMLElement {
         inline-size: 100%;
         min-inline-size: 0;
         padding: 0.42rem 0.55rem;
-        border: 1px solid rgba(28, 26, 13, 0.16);
+        border: 1px solid rgba(24, 27, 26, 0.16);
         border-radius: 0.28rem;
         background: #fff;
         color: var(--color-text-primary);
@@ -6447,12 +6452,12 @@ function renderPaletteLab(): HTMLElement {
       }
 
       .tool-button {
-        border: 1px solid rgba(28, 26, 13, 0.16);
+        border: 1px solid rgba(24, 27, 26, 0.16);
         border-radius: 0.28rem;
         padding: 0.42rem 0.68rem;
         background: #fff;
         color: var(--color-text-primary);
-        font: 500 0.94rem Montserrat, sans-serif;
+        font: 500 0.94rem var(--font-family-body);
         cursor: pointer;
       }
 
@@ -6484,7 +6489,7 @@ function renderPaletteLab(): HTMLElement {
       }
 
       .preview-panel {
-        border: 1px solid rgba(28, 26, 13, 0.1);
+        border: 1px solid rgba(24, 27, 26, 0.1);
         border-radius: var(--radius-md);
         background: #fff;
         overflow: hidden;
@@ -6501,7 +6506,7 @@ function renderPaletteLab(): HTMLElement {
       }
 
       .swatch-card {
-        border: 1px solid rgba(28, 26, 13, 0.1);
+        border: 1px solid rgba(24, 27, 26, 0.1);
         border-radius: var(--radius-md);
         background: #fff;
         overflow: hidden;
@@ -6509,7 +6514,7 @@ function renderPaletteLab(): HTMLElement {
 
       .swatch-tone {
         block-size: 4.6rem;
-        border-bottom: 1px solid rgba(28, 26, 13, 0.08);
+        border-bottom: 1px solid rgba(24, 27, 26, 0.08);
       }
 
       .swatch-meta {
@@ -6542,7 +6547,7 @@ function renderPaletteLab(): HTMLElement {
         min-block-size: 8rem;
         padding: 0.9rem;
         border-radius: var(--radius-md);
-        border: 1px solid rgba(28, 26, 13, 0.08);
+        border: 1px solid rgba(24, 27, 26, 0.08);
       }
 
       .mapping-label {
@@ -6574,7 +6579,7 @@ function renderPaletteLab(): HTMLElement {
         min-block-size: 3.25rem;
         padding: 0.6rem 0.75rem;
         border-radius: var(--radius-round);
-        border: 1px solid rgba(28, 26, 13, 0.08);
+        border: 1px solid rgba(24, 27, 26, 0.08);
         font-size: 0.92rem;
         font-weight: 500;
       }
@@ -6625,21 +6630,21 @@ function renderPaletteLab(): HTMLElement {
             <div class="preview-stage">
               <div class="preview-eyebrow">Semantic mapping</div>
               <div class="mapping-grid">
-                <article class="mapping-card" style="background: var(--raw-oat-blossom); color: var(--raw-black-pitch);">
+                <article class="mapping-card" style="background: var(--raw-paper); color: var(--raw-ink);">
                   <p class="mapping-label">Surface page</p>
-                  <p class="mapping-copy">Broad warm canvas anchored by oat-blossom and kept light enough for quiet reading surfaces.</p>
+                  <p class="mapping-copy">Broad warm paper canvas anchored by paper for quiet reading surfaces.</p>
                 </article>
-                <article class="mapping-card" style="background: color-mix(in srgb, var(--raw-oat-blossom) 45%, white); color: var(--raw-black-pitch);">
+                <article class="mapping-card" style="background: var(--raw-paper-bright); color: var(--raw-ink);">
                   <p class="mapping-label">Surface card</p>
-                  <p class="mapping-copy">Card surfaces should step brighter than the page without breaking the warm neutral family.</p>
+                  <p class="mapping-copy">Card surfaces step brighter than the page without leaving the paper family.</p>
                 </article>
-                <article class="mapping-card" style="background: var(--raw-dry-sage); color: var(--raw-black-pitch);">
+                <article class="mapping-card" style="background: var(--raw-paper-200); color: var(--raw-ink);">
                   <p class="mapping-label">Surface subtle</p>
-                  <p class="mapping-copy">Recessed or quieter structural zones can borrow the dry-sage family for gentle definition.</p>
+                  <p class="mapping-copy">Recessed bands, tinted rows and slider tracks use paper-200.</p>
                 </article>
-                <article class="mapping-card" style="background: color-mix(in srgb, var(--raw-rain-mint) 18%, white); color: var(--raw-black-pitch);">
+                <article class="mapping-card" style="background: var(--raw-mint-wash); color: var(--raw-ink);">
                   <p class="mapping-label">Surface selected</p>
-                  <p class="mapping-copy">Selection can feel related to the green family without competing with the main action accent.</p>
+                  <p class="mapping-copy">Selected rows and success messages use the greyed mint-wash tint.</p>
                 </article>
               </div>
             </div>
@@ -6649,11 +6654,12 @@ function renderPaletteLab(): HTMLElement {
             <div class="preview-stage">
               <div class="preview-eyebrow">Accent and ink family</div>
               <div class="ink-grid">
-                <div class="ink-chip" style="background: var(--raw-ripe-tomato); color: var(--raw-black-pitch);">Ripe-tomato action</div>
-                <div class="ink-chip" style="background: color-mix(in srgb, var(--raw-rain-mint) 28%, white); color: var(--raw-black-pitch);">Rain-mint accent</div>
-                <div class="ink-chip" style="background: #fff; color: var(--raw-pine-teal);">Pine-teal ink</div>
-                <div class="ink-chip" style="background: #fff; color: var(--raw-chestnut);">Chestnut ink</div>
-                <div class="ink-chip" style="background: #fff; color: var(--raw-black-pitch);">Black-pitch body</div>
+                <div class="ink-chip" style="background: var(--raw-ink); color: var(--raw-paper);">Ink primary action</div>
+                <div class="ink-chip" style="background: var(--raw-mint-soft); color: var(--raw-ink);">Mint-soft selection</div>
+                <div class="ink-chip" style="background: #fff; color: var(--raw-blue-ink);">Blue-ink focus</div>
+                <div class="ink-chip" style="background: #fff; color: var(--raw-mint-ink);">Mint-ink selection</div>
+                <div class="ink-chip" style="background: #fff; color: var(--raw-red-ink);">Red-ink danger</div>
+                <div class="ink-chip" style="background: #fff; color: var(--raw-ink);">Ink body</div>
               </div>
             </div>
           </section>
@@ -6788,7 +6794,7 @@ function renderReferenceKitLab(): HTMLElement {
         padding: 0;
         background: #fff;
         color: var(--color-text-primary);
-        font-family: Montserrat, sans-serif;
+        font-family: var(--font-family-body);
       }
 
       .reference-kit-lab *, .reference-kit-lab *::before, .reference-kit-lab *::after {
@@ -6806,7 +6812,7 @@ function renderReferenceKitLab(): HTMLElement {
         min-inline-size: 0;
         padding: 1rem;
         background: #f8f9fa;
-        border-inline-end: 1px solid rgba(28, 26, 13, 0.08);
+        border-inline-end: 1px solid rgba(24, 27, 26, 0.08);
       }
 
       .kit-kicker,
@@ -6824,7 +6830,7 @@ function renderReferenceKitLab(): HTMLElement {
 
       .kit-title {
         margin: 0.16rem 0 0.3rem;
-        font-family: Bitter, serif;
+        font-family: var(--font-family-heading);
         font-size: 1.24rem;
         line-height: 1.12;
       }
@@ -6846,7 +6852,7 @@ function renderReferenceKitLab(): HTMLElement {
         display: grid;
         gap: 0.45rem;
         padding: 0.8rem 0;
-        border-bottom: 1px solid rgba(28, 26, 13, 0.08);
+        border-bottom: 1px solid rgba(24, 27, 26, 0.08);
       }
 
       .kit-item-header {
@@ -6891,7 +6897,7 @@ function renderReferenceKitLab(): HTMLElement {
       }
 
       .kit-panel {
-        border: 1px solid rgba(28, 26, 13, 0.1);
+        border: 1px solid rgba(24, 27, 26, 0.1);
         border-radius: var(--radius-md);
         background: var(--color-surface-page);
         overflow: hidden;
@@ -6927,7 +6933,7 @@ function renderReferenceKitLab(): HTMLElement {
         padding: 0.58rem 0.92rem;
         border-radius: var(--radius-md);
         border: 1px solid transparent;
-        font: 500 var(--type-body-md-size)/var(--type-body-md-line) Montserrat, sans-serif;
+        font: 500 var(--type-body-md-size)/var(--type-body-md-line) var(--font-family-body);
       }
 
       .demo-button.primary {
@@ -7108,7 +7114,7 @@ function renderReferenceKitLab(): HTMLElement {
       .demo-card h4,
       .demo-menu h4 {
         margin: 0;
-        font: var(--type-title-sm-weight) var(--type-title-sm-size)/var(--type-title-sm-line) Bitter, serif;
+        font: var(--type-title-sm-weight) var(--type-title-sm-size)/var(--type-title-sm-line) var(--font-family-heading);
         color: var(--color-text-primary);
       }
 
@@ -7329,8 +7335,9 @@ export const PaletteLab: Story = {
     const output = canvasElement.querySelector(
       "[data-output]",
     ) as HTMLTextAreaElement | null;
-    await expect(output?.value).toContain("oat-blossom");
-    await expect(output?.value).toContain("ripe-tomato");
+    const parsed = JSON.parse(output?.value ?? "{}") as Record<string, string>;
+    await expect(parsed.paper).toBe("#f4f0ea");
+    await expect(parsed["mint-ink"]).toBe("#2c5e4b");
 
     const previewTitle = canvasElement.querySelector(".section-title h3");
     await expect(previewTitle?.textContent).toContain("Raw palette and semantic cues");
@@ -7398,6 +7405,7 @@ export const TypographyLab: Story = {
     const output = canvasElement.querySelector(
       "[data-output]",
     ) as HTMLTextAreaElement | null;
+    await expect(output?.value).toContain("font.family.body");
     await expect(output?.value).toContain("size.font.xs");
     await expect(output?.value).toContain("weight.semibold");
 

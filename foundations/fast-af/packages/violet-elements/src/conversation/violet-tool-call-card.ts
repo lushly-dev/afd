@@ -11,10 +11,10 @@ const styles = css`
 
     :host {
         display: block;
-        --_tool-font-size: var(--violet-tool-font-size, var(--_caption-size, 12px));
-        --_tool-line-height: var(--violet-tool-line-height, var(--_caption-line, 16px));
+        --_tool-font-size: var(--violet-tool-font-size, var(--_caption-size));
+        --_tool-line-height: var(--violet-tool-line-height, var(--_caption-line));
         --_tool-name-size: var(--violet-tool-name-size, var(--type-label-sm-size, 13px));
-        --_tool-icon-size: var(--violet-tool-name-size, var(--_body-size, 14px));
+        --_tool-icon-size: var(--violet-tool-name-size, var(--_body-size));
         --_warning-bg: var(--color-state-warning-background, #f3e8d2);
         --_warning-text: var(--color-state-warning-text, #92400e);
         --_success-bg: var(--color-state-success-background, #dfeae3);
@@ -59,7 +59,7 @@ const styles = css`
         font-family: var(--font-family-mono, "IBM Plex Mono", ui-monospace, Consolas, monospace);
         font-size: var(--_tool-name-size);
         font-weight: 500;
-        color: var(--_text-primary, #181b1a);
+        color: var(--_text-primary);
         min-inline-size: 0;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -78,8 +78,8 @@ const styles = css`
 
     :host([state="pending"]) .badge,
     :host([state="executing"]) .badge {
-        background: var(--_surface-subtle, rgba(24, 27, 26, 0.04));
-        color: var(--_text-secondary, #48534b);
+        background: var(--_surface-subtle);
+        color: var(--_text-secondary);
     }
 
     :host([state="approval-requested"]) .badge {
@@ -98,8 +98,8 @@ const styles = css`
     }
 
     :host([state="cancelled"]) .badge {
-        background: var(--_surface-subtle, rgba(24, 27, 26, 0.04));
-        color: var(--_text-secondary, #48534b);
+        background: var(--_surface-subtle);
+        color: var(--_text-secondary);
     }
 
     .body {
@@ -108,7 +108,7 @@ const styles = css`
         padding: var(--_space-sm) var(--_space-md);
         font-size: var(--_tool-font-size);
         line-height: var(--_tool-line-height);
-        color: var(--_text-secondary, #48534b);
+        color: var(--_text-secondary);
     }
 
     .body:empty,
@@ -151,9 +151,9 @@ const styles = css`
         block-size: var(--_tool-line-height);
         border-radius: var(--_radius-sm);
         background: linear-gradient(90deg,
-            var(--_surface-subtle, rgba(24, 27, 26, 0.04)) 25%,
-            var(--_surface-hover, rgba(24, 27, 26, 0.06)) 50%,
-            var(--_surface-subtle, rgba(24, 27, 26, 0.04)) 75%);
+            var(--_surface-subtle) 25%,
+            var(--_surface-hover) 50%,
+            var(--_surface-subtle) 75%);
         background-size: 200% 100%;
         animation: shimmer 1.5s ease-in-out infinite;
     }
@@ -167,8 +167,8 @@ const styles = css`
         inline-size: var(--_tool-line-height);
         block-size: var(--_tool-line-height);
         border: calc(var(--_tool-line-height) * 0.125) solid var(--_border-subtle);
-        border-block-start-color: var(--_text-secondary, #48534b);
-        border-radius: var(--_radius-round, 9999px);
+        border-block-start-color: var(--_text-secondary);
+        border-radius: var(--_radius-round);
         animation: spin 0.8s linear infinite;
     }
 

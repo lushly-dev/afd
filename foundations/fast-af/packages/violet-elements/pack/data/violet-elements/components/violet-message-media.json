@@ -61,12 +61,12 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
-				"default": "var(--violet-media-font-size, var(--_caption-size, 12px))",
+				"default": "var(--violet-media-font-size, var(--_caption-size))",
 				"name": "--_media-font-size"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-media-line-height, var(--_caption-line, 16px))",
+				"default": "var(--violet-media-line-height, var(--_caption-line))",
 				"name": "--_media-line-height"
 			},
 			{

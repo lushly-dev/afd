@@ -44,7 +44,7 @@ function renderTabs(args: VioletTabsStoryArgs): HTMLElement {
 
         const panel = document.createElement("violet-tab-panel") as VioletTabPanel;
         panel.innerHTML = `
-            <h3 style="margin:0;font:600 1rem/1.2 Montserrat, 'Segoe UI', sans-serif;">${entry.label}</h3>
+            <h3 style="margin:0;font:600 1rem/1.2 var(--font-family-heading);">${entry.label}</h3>
             <p style="margin:0;">${entry.body}</p>
         `;
         tabs.append(panel);

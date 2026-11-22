@@ -40,7 +40,7 @@ const meta = {
                     size="${args.size}"
                     label="Selected color ${args.value}"
                 ></violet-color-swatch>
-                <span style="font: 500 14px/20px Montserrat, 'Segoe UI', sans-serif;">${args.value}</span>
+                <span style="font: 500 14px/20px var(--font-family-body);">${args.value}</span>
             </div>
         `;
     },
@@ -52,7 +52,7 @@ type Story = StoryObj<VioletColorSwatchStoryArgs>;
 
 export const Overview: Story = {
     args: {
-        value: "#c84f3b",
+        value: "#146ba0",
         shape: "square",
         size: "natural",
     },
@@ -61,16 +61,16 @@ export const Overview: Story = {
         const swatch = host?.shadowRoot?.querySelector(".swatch");
 
         expect(swatch?.getAttribute("role")).toBe("img");
-        expect(swatch?.getAttribute("aria-label")).toBe("Selected color #c84f3b");
+        expect(swatch?.getAttribute("aria-label")).toBe("Selected color #146ba0");
     },
 };
 
 export const Shapes: Story = {
     render: () => `
         <div style="display:flex;gap:16px;align-items:center;">
-            <violet-color-swatch value="#244635" size="comfortable" label="Evergreen swatch"></violet-color-swatch>
-            <violet-color-swatch value="#c84f3b" shape="circle" size="comfortable" label="Coral swatch"></violet-color-swatch>
-            <violet-color-swatch value="#d2b062" shape="circle" size="comfortable" label="Ochre swatch"></violet-color-swatch>
+            <violet-color-swatch value="#2c5e4b" size="comfortable" label="Mint ink swatch"></violet-color-swatch>
+            <violet-color-swatch value="#c42a1a" shape="circle" size="comfortable" label="Red ink swatch"></violet-color-swatch>
+            <violet-color-swatch value="#146ba0" shape="circle" size="comfortable" label="Blue ink swatch"></violet-color-swatch>
         </div>
     `,
 };

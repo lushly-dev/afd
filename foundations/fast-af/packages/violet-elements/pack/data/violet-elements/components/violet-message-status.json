@@ -41,17 +41,17 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-status-font-size, var(--_caption-size, 12px))",
+				"default": "var(--violet-status-font-size, var(--_caption-size))",
 				"name": "--_status-font-size"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-status-indicator-size, var(--_caption-line, 16px))",
+				"default": "var(--violet-status-indicator-size, var(--_caption-line))",
 				"name": "--_status-indicator-size"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-status-line-height, var(--_caption-line, 16px))",
+				"default": "var(--violet-status-line-height, var(--_caption-line))",
 				"name": "--_status-line-height"
 			},
 			{

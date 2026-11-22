@@ -1,7 +1,17 @@
 import { describe, expect, it } from "vitest";
 
+import { violetThemeBuiltInSet } from "./generated/violet-theme.generated";
+import { violetTokenProperty } from "./violet-theme-css";
+
 // Every source file the package ships: specs, stories and the generated theme data set no styles.
 const sources = import.meta.glob(["../**/*.ts", "!../**/*.spec.ts", "!../**/*.stories.ts", "!./generated/**"], {
+    query: "?raw",
+    import: "default",
+    eager: true,
+}) as Record<string, string>;
+
+// Stories also carry CSS with token fallbacks; keep them free of drifted theme literals too.
+const storySources = import.meta.glob(["../**/*.stories.ts"], {
     query: "?raw",
     import: "default",
     eager: true,
@@ -16,7 +26,7 @@ const TOKEN_DEFAULTS = "./violet-token-defaults.ts";
  * one a decision. A hook or a reader that is not listed fails the spec, as does an entry or a
  * reader nothing needs any more.
  */
-const HOOKS: Readonly<Record<string, { readers: readonly string[]; why: string }>> = {
+const HOOKS: Readonly<Record<string, { readers: readonly string[]; why: string; token?: string }>> = {
     // Inherited on purpose: a violet-card sets it on its host, so what sits inside a card draws
     // its rules at the card's border width. These take 1px anywhere else.
     "--_card-border-width": {
@@ -51,6 +61,7 @@ const HOOKS: Readonly<Record<string, { readers: readonly string[]; why: string }
     "--_radius-round": {
         readers: ["../color-picker/violet-color-picker.ts", "../date-picker/violet-date-picker.ts"],
         why: "the pickers' round controls: always 9999px",
+        token: "--radius-round",
     },
     "--_space-xs": {
         readers: [
@@ -59,10 +70,12 @@ const HOOKS: Readonly<Record<string, { readers: readonly string[]; why: string }
             "../conversation/violet-tool-call-card.ts",
         ],
         why: "the conversation components' smallest gap: always 4px",
+        token: "--space-stack-xs",
     },
     "--_text-link": {
         readers: ["../conversation/violet-source-citation.ts"],
         why: "the citation's link colour: always #146ba0, AFD's blue ink; the interface has no link colour",
+        token: "--color-focus-ring",
     },
 };
 
@@ -83,6 +96,9 @@ const SET_FROM_SCRIPT = /setProperty\(\s*["'`](--_[a-z0-9-]+)["'`]/g;
 const READ = /var\(\s*(--_[a-z0-9-]+)\s*([,)])/g;
 const BLOCK = /export const (\w+): ElementStyles = css`([\s\S]*?)`;/g;
 const VALUE_IMPORT = /import\s+(?!type\b)[^"';]+?\s+from\s+"\.\/([\w.-]+)"/g;
+const VAR_WITH_FALLBACK = /var\(\s*(--[A-Za-z0-9_-]+)\s*,/g;
+const PRIVATE_ALIAS_TARGET = /(--_[A-Za-z0-9_-]+)\s*:\s*var\(\s*(--[A-Za-z0-9_-]+)/g;
+const COLOR_LITERAL = /#[0-9a-fA-F]{3,8}\b|\brgba?\(|\bhsla?\(/i;
 
 interface PrivateRead {
     path: string;
@@ -91,7 +107,195 @@ interface PrivateRead {
     fallback: boolean;
 }
 
-const withoutComments = (text: string): string => text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+interface LiteralFallback {
+    property: string;
+    literal: string;
+    line: number;
+}
+
+interface FallbackViolation {
+    path: string;
+    line: number;
+    property: string;
+    literal: string;
+    expected: string;
+}
+
+const withoutComments = (text: string): string =>
+    text.replace(/\/\*[\s\S]*?\*\//g, match => match.replace(/[^\n]/g, " ")).replace(/^[ \t]*\/\/.*$/gm, "");
+
+const normalizeLiteral = (value: string): string =>
+    value
+        .trim()
+        .replace(/\s+/g, " ")
+        .replace(/#[0-9a-fA-F]{3,8}\b/g, hex => hex.toLowerCase());
+
+const lightValuesByProperty: ReadonlyMap<string, string> = new Map(
+    violetThemeBuiltInSet.presets.light.map(token => [violetTokenProperty(token.id), token.value]),
+);
+
+function findLiteralFallbacks(text: string): LiteralFallback[] {
+    const found: LiteralFallback[] = [];
+    for (const match of text.matchAll(VAR_WITH_FALLBACK)) {
+        const property = match[1] as string;
+        const start = match.index + match[0].length;
+        let depth = 0;
+        let end = -1;
+        for (let index = start; index < text.length; index++) {
+            const char = text[index];
+            if (char === "(") depth++;
+            else if (char === ")") {
+                if (depth === 0) {
+                    end = index;
+                    break;
+                }
+                depth--;
+            }
+        }
+        if (end < 0) continue;
+        const raw = text.slice(start, end);
+        if (raw.includes("var(") || raw.includes("${")) continue;
+        const leading = raw.length - raw.trimStart().length;
+        const literal = raw.trim();
+        found.push({
+            property,
+            literal,
+            line: text.slice(0, start + leading).split("\n").length,
+        });
+    }
+    return found;
+}
+
+function addAliasTarget(map: Map<string, Set<string>>, alias: string, target: string): void {
+    let targets = map.get(alias);
+    if (!targets) {
+        targets = new Set<string>();
+        map.set(alias, targets);
+    }
+    targets.add(target);
+}
+
+function aliasTargets(text: string): Map<string, Set<string>> {
+    const map = new Map<string, Set<string>>();
+    for (const match of text.matchAll(PRIVATE_ALIAS_TARGET)) {
+        addAliasTarget(map, match[1] as string, match[2] as string);
+    }
+    return map;
+}
+
+function resolveLightValues(
+    property: string,
+    aliases: ReadonlyMap<string, ReadonlySet<string>>,
+    lightValues: ReadonlyMap<string, string>,
+): Set<string> {
+    const resolved = new Set<string>();
+    const seen = new Set<string>();
+    const queue = [property];
+    while (queue.length > 0) {
+        const current = queue.shift() as string;
+        if (seen.has(current)) continue;
+        seen.add(current);
+        const direct = lightValues.get(current);
+        if (direct !== undefined) {
+            resolved.add(direct);
+            continue;
+        }
+        for (const next of aliases.get(current) ?? []) {
+            if (!seen.has(next)) queue.push(next);
+        }
+    }
+    return resolved;
+}
+
+/**
+ * Every literal fallback in `files` that disagrees with the light preset of the built-in export:
+ * - any `var(--<token>, <literal>)` where `<token>` is in the export and `<literal>` differs;
+ * - any `var(--_<alias>, <literal>)` where `--_<alias>` resolves to one or more export tokens
+ *   (from an included token-default block, the file itself, its `.styles.ts`, or a `HOOKS` token
+ *   target) and `<literal>` matches none of their light values;
+ * - any `var(--_<alias>, <literal>)` whose `<literal>` is a color not present in the light export.
+ */
+function driftedLiteralFallbacks(
+    files: Readonly<Record<string, string>>,
+    lightValues: ReadonlyMap<string, string> = lightValuesByProperty,
+    tokenDefaults = TOKEN_DEFAULTS,
+): FallbackViolation[] {
+    const code = new Map(Object.entries(files).map(([path, text]) => [path, withoutComments(text)]));
+    const exportLightSet = new Set([...lightValues.values()].map(normalizeLiteral));
+
+    const blockAliases = new Map<string, Map<string, Set<string>>>();
+    for (const match of (code.get(tokenDefaults) ?? "").matchAll(BLOCK)) {
+        blockAliases.set(match[1] as string, aliasTargets(match[2] as string));
+    }
+
+    const ownAliases = new Map<string, Map<string, Set<string>>>();
+    const imports = new Map<string, string[]>();
+    for (const [path, text] of code) {
+        const map = new Map<string, Set<string>>();
+        for (const [blockName, targets] of blockAliases) {
+            if (text.includes(`\${${blockName}}`)) {
+                for (const [alias, refs] of targets) {
+                    for (const ref of refs) addAliasTarget(map, alias, ref);
+                }
+            }
+        }
+        for (const [alias, refs] of aliasTargets(text)) {
+            for (const ref of refs) addAliasTarget(map, alias, ref);
+        }
+        ownAliases.set(path, map);
+        imports.set(
+            path,
+            [...text.matchAll(VALUE_IMPORT)].map(match => `${directory(path)}/${match[1]}.ts`).filter(target => code.has(target)),
+        );
+    }
+
+    const violations: FallbackViolation[] = [];
+    for (const [path, text] of code) {
+        const aliases = new Map<string, Set<string>>();
+        for (const [alias, refs] of ownAliases.get(path) ?? []) {
+            aliases.set(alias, new Set(refs));
+        }
+        for (const target of imports.get(path) ?? []) {
+            if (target.endsWith(".styles.ts")) {
+                for (const [alias, refs] of ownAliases.get(target) ?? []) {
+                    for (const ref of refs) addAliasTarget(aliases, alias, ref);
+                }
+            }
+        }
+        for (const fallback of findLiteralFallbacks(text)) {
+            const directExpected = lightValues.get(fallback.property);
+            if (directExpected !== undefined) {
+                if (normalizeLiteral(fallback.literal) !== normalizeLiteral(directExpected)) {
+                    violations.push({ path, ...fallback, expected: directExpected });
+                }
+                continue;
+            }
+            if (!fallback.property.startsWith("--_")) continue;
+            const expectedSet = resolveLightValues(fallback.property, aliases, lightValues);
+            if (expectedSet.size === 0) {
+                const hookToken = HOOKS[fallback.property]?.token;
+                const hookValue = hookToken ? lightValues.get(hookToken) : undefined;
+                if (hookValue !== undefined) expectedSet.add(hookValue);
+            }
+            if (expectedSet.size > 0) {
+                const normalized = normalizeLiteral(fallback.literal);
+                const matchesAny = [...expectedSet].some(value => normalizeLiteral(value) === normalized);
+                if (!matchesAny) {
+                    violations.push({ path, ...fallback, expected: [...expectedSet].join(" | ") });
+                }
+                continue;
+            }
+            if (COLOR_LITERAL.test(fallback.literal) && !exportLightSet.has(normalizeLiteral(fallback.literal))) {
+                violations.push({
+                    path,
+                    ...fallback,
+                    expected: "a light value from tokens/violet-theme.export.json",
+                });
+            }
+        }
+    }
+    return violations;
+}
 
 /** Every `--_x:` declaration (in a rule or an inline style) and every `setProperty("--_x"`. */
 function declarations(text: string): Set<string> {
@@ -200,6 +404,19 @@ describe("private properties (--_*)", () => {
             listed,
         );
     });
+
+    it("keeps every literal fallback on a theme token or private alias aligned with the light export", () => {
+        const format = (violation: FallbackViolation) =>
+            `${violation.path}:${violation.line}: var(${violation.property}, ${violation.literal}) differs from ${violation.expected}`;
+        const componentViolations = driftedLiteralFallbacks(sources).map(format);
+        const storyViolations = driftedLiteralFallbacks({ [TOKEN_DEFAULTS]: sources[TOKEN_DEFAULTS] ?? "", ...storySources })
+            .filter(violation => violation.path !== TOKEN_DEFAULTS)
+            .map(format);
+        expect(
+            [...componentViolations, ...storyViolations],
+            "update the fallback to the light export value, or drop the redundant fallback on a defined private alias",
+        ).toEqual([]);
+    });
 });
 
 describe("undefinedPrivateReads", () => {
@@ -284,5 +501,118 @@ describe("undefinedPrivateReads", () => {
                 "../chart/violet-chart-helpers.ts": 'export const swatch = () => "var(--_swatch)";',
             }),
         ).toEqual([{ path: "../chart/violet-chart-helpers.ts", property: "--_swatch", fallback: false }]);
+    });
+});
+
+describe("driftedLiteralFallbacks", () => {
+    const DOLLAR = "$";
+    const defaults = [
+        'import { css, type ElementStyles } from "@lushly-dev/fast-element";',
+        "export const violetSurfaceTokenDefaults: ElementStyles = css`",
+        "    :host {",
+        "        --_text-primary: var(--color-text-primary, #181b1a);",
+        "        --_surface-subtle: var(--color-surface-subtle, #e9e5de);",
+        "        --_radius-lg: var(--radius-lg, 12px);",
+        "    }",
+        "`;",
+    ].join("\n");
+    const lightValues = new Map<string, string>([
+        ["--color-text-primary", "#181b1a"],
+        ["--color-surface-subtle", "#e9e5de"],
+        ["--color-focus-ring", "#146ba0"],
+        ["--color-action-danger-background", "#c42a1a"],
+        ["--radius-lg", "12px"],
+        ["--radius-round", "9999px"],
+        ["--space-stack-xs", "4px"],
+        ["--size-target-compact", "24px"],
+        ["--size-target-natural", "32px"],
+        ["--size-target-comfortable", "44px"],
+    ]);
+    const scan = (files: Record<string, string>) =>
+        driftedLiteralFallbacks({ "./violet-token-defaults.ts": defaults, ...files }, lightValues);
+
+    it("flags drifted theme-token, private-alias, hook, and non-export color fallbacks with exact line numbers", () => {
+        expect(
+            scan({
+                "../card/violet-card.ts": [
+                    "const styles = css`",
+                    `    ${DOLLAR}{violetSurfaceTokenDefaults}`,
+                    "    :host { --_local-ink: var(--_text-primary); }",
+                    "",
+                    "    // comment after a blank line must not shift reported line numbers",
+                    "    .a { color: var(--color-text-primary, #1c1a0d); }",
+                    "    .b { color: var(--_text-primary, #1c1a0d); }",
+                    "    .c { background: var(--_surface-subtle, rgba(28, 26, 13, 0.04)); }",
+                    "    .d { border-radius: var(--_radius-lg, 6px); }",
+                    "    .e { color: var(--_local-ink, #1c1a0d); }",
+                    "    .f { color: var(--_text-link, #c42a1a); }",
+                    "    .g { border-radius: var(--_radius-round, 6px); }",
+                    "    .h { color: var(--_unmapped-link, #c84f3b); }",
+                    "`;",
+                ].join("\n"),
+            }),
+        ).toEqual([
+            { path: "../card/violet-card.ts", line: 6, property: "--color-text-primary", literal: "#1c1a0d", expected: "#181b1a" },
+            { path: "../card/violet-card.ts", line: 7, property: "--_text-primary", literal: "#1c1a0d", expected: "#181b1a" },
+            {
+                path: "../card/violet-card.ts",
+                line: 8,
+                property: "--_surface-subtle",
+                literal: "rgba(28, 26, 13, 0.04)",
+                expected: "#e9e5de",
+            },
+            { path: "../card/violet-card.ts", line: 9, property: "--_radius-lg", literal: "6px", expected: "12px" },
+            { path: "../card/violet-card.ts", line: 10, property: "--_local-ink", literal: "#1c1a0d", expected: "#181b1a" },
+            { path: "../card/violet-card.ts", line: 11, property: "--_text-link", literal: "#c42a1a", expected: "#146ba0" },
+            { path: "../card/violet-card.ts", line: 12, property: "--_radius-round", literal: "6px", expected: "9999px" },
+            {
+                path: "../card/violet-card.ts",
+                line: 13,
+                property: "--_unmapped-link",
+                literal: "#c84f3b",
+                expected: "a light value from tokens/violet-theme.export.json",
+            },
+        ]);
+    });
+
+    it("handles multi-binding aliases against all bound light values without false positives", () => {
+        expect(
+            scan({
+                "../grid/violet-grid.ts": [
+                    "const styles = css`",
+                    "    :host { --_row-size: var(--size-target-natural); }",
+                    '    :host([density="compact"]) { --_row-size: var(--size-target-compact); }',
+                    '    :host([density="comfortable"]) { --_row-size: var(--size-target-comfortable); }',
+                    "    .default { block-size: var(--_row-size, 32px); }",
+                    "    .compact { block-size: var(--_row-size, 24px); }",
+                    "    .wrong { block-size: var(--_row-size, 18px); }",
+                    "`;",
+                ].join("\n"),
+            }),
+        ).toEqual([
+            {
+                path: "../grid/violet-grid.ts",
+                line: 7,
+                property: "--_row-size",
+                literal: "18px",
+                expected: "32px | 24px | 44px",
+            },
+        ]);
+    });
+
+    it("accepts matching export fallbacks, non-color hook defaults, and matching hook tokens", () => {
+        expect(
+            scan({
+                "../card/violet-card.ts": [
+                    "const styles = css`",
+                    `    ${DOLLAR}{violetSurfaceTokenDefaults}`,
+                    "    .ok { color: var(--_text-primary); border-width: var(--_card-border-width, 1px); }",
+                    "    .link { color: var(--_text-link, #146ba0); border-radius: var(--_radius-round, 9999px); gap: var(--_space-xs, 4px); }",
+                    "    .panel { inline-size: var(--_panel-inline-size, auto); }",
+                    "    .swatch { background: var(--_swatch-color, transparent); }",
+                    "`;",
+                ].join("\n"),
+            }),
+        ).toEqual([]);
     });
 });

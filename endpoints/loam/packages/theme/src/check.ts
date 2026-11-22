@@ -165,10 +165,10 @@ export interface ComponentPaths {
 	sourceDirectory: URL;
 }
 
-/** Every `.ts` file under `directory`, as paths relative to it, in code-point order. */
+/** Every shipped or story `.ts` file under `directory` (excluding `.spec.ts`), in code-point order. */
 export async function sourceFiles(directory: URL): Promise<{ path: string; text: string }[]> {
 	const paths = (await readdir(directory, { recursive: true }))
-		.filter((path) => path.endsWith('.ts'))
+		.filter((path) => path.endsWith('.ts') && !path.endsWith('.spec.ts'))
 		.map((path) => path.split('\\').join('/'))
 		.sort();
 	return Promise.all(
@@ -208,10 +208,15 @@ async function checkComponents(built: ThemeOutputs, paths: ComponentPaths): Prom
 		errors.push(
 			`violet-elements/src/${mismatch.path}:${mismatch.line}: var(${mismatch.property}, ${mismatch.literal}) differs from the light value ${mismatch.expected}`
 		);
-	if (mismatches.length > 0)
+	if (mismatches.length > 0) {
+		const hasAmbiguous = mismatches.some((mismatch) => mismatch.ambiguous);
+		const manualNote = hasAmbiguous
+			? ' (aliases with multiple bound tokens must be updated by hand)'
+			: '';
 		errors.push(
-			`${mismatches.length} fallbacks differ from the light theme; run \`pnpm -F @lushly-dev/loam-theme theme:export-components --fallbacks\` to rewrite them, then \`pnpm -F @lushly-dev/violet-elements cem:analyze\` (the manifest records the style defaults), and record every edited file in foundations/fast-af/provenance/adaptations.json`
+			`${mismatches.length} fallbacks differ from the light theme; run \`pnpm -F @lushly-dev/loam-theme theme:export-components --fallbacks\` to rewrite them${manualNote}, then \`pnpm -F @lushly-dev/violet-elements cem:analyze\` (the manifest records the style defaults), and record every edited file in foundations/fast-af/provenance/adaptations.json`
 		);
+	}
 	return errors;
 }
 

@@ -35,12 +35,12 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
-				"default": "var(--violet-result-font-size, var(--_caption-size, 12px))",
+				"default": "var(--violet-result-font-size, var(--_caption-size))",
 				"name": "--_result-font-size"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-result-line-height, var(--_caption-line, 16px))",
+				"default": "var(--violet-result-line-height, var(--_caption-line))",
 				"name": "--_result-line-height"
 			},
 			{
