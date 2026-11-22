@@ -684,11 +684,12 @@ impl Store {
     /// recorded place, `validity` and `provider_id`, may have gone since: a
     /// later change moved it away and back, and the provider gave it a new
     /// id. The recorded place while the store still shows it there; else the
-    /// one place the store shows the message in that mailbox that it first
-    /// saw after `after`, when the operation began, so that a copy that was
-    /// there before the operation is never taken for one it made; else
-    /// `None`, and the undo finds it missing. Two such places are not chosen
-    /// between.
+    /// one place the store shows the message in that mailbox and generation
+    /// (`validity`) that it first saw after `after`, when the operation began,
+    /// so that a copy that was there before the operation — even after a new
+    /// `UIDVALIDITY` renumbers the mailbox — is never taken for one it made;
+    /// else `None`, and the undo finds it missing. Two such places are not
+    /// chosen between.
     ///
     /// # Errors
     /// When the database refuses.
@@ -702,7 +703,9 @@ impl Store {
     ) -> Result<Option<(String, String)>, StoreError> {
         // When the store first saw each place: a place's observation is
         // ended and made again when its flags change, so its current row's
-        // time is not when it was first seen.
+        // time is not when it was first seen. Only the recorded validity is
+        // considered: a message moved away and back keeps its validity, while
+        // a new UIDVALIDITY makes every existing copy look newly seen.
         let mut statement = self.connection.prepare_cached(
             "SELECT current.validity, current.provider_id,
                     (SELECT min(first.seen_at) FROM observation AS first
@@ -712,10 +715,10 @@ impl Store {
                        AND first.message_id = current.message_id)
              FROM observation AS current
              WHERE current.message_id = ?1 AND current.mailbox_id = ?2
-               AND current.ended_at IS NULL",
+               AND current.validity = ?3 AND current.ended_at IS NULL",
         )?;
         let places: Vec<(String, String, i64)> = statement
-            .query_map(params![message, mailbox], |row| {
+            .query_map(params![message, mailbox, validity], |row| {
                 Ok((row.get(0)?, row.get(1)?, row.get(2)?))
             })?
             .collect::<Result<_, _>>()?;

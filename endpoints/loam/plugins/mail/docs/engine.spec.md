@@ -1715,10 +1715,10 @@ holds is reported `missing` rather than failing the undo. Gmail's date, and
 now. A later change that moved a message away and back (an archive and its undo) leaves it in the
 same mailbox under a new id, so undoing the changes in reverse order found each earlier one
 `missing`. Each place an undo would act on, when the store no longer shows the message there, is
-taken from the one place the store shows that message in the same mailbox, by its identity
-([4.2](#42-what-makes-two-messages-the-same)), among the places it first saw after the operation
-began, so that a copy of the same message that was there before is never taken for one the
-operation made. Two such places, and a place another of the undo's items holds already, are not
+taken from the one place the store shows that message in the same mailbox and generation
+(`UIDVALIDITY`), by its identity ([4.2](#42-what-makes-two-messages-the-same)), among the
+places it first saw after the operation began, so that a copy of the same message that was
+there before is never taken for one the operation made. Two such places, and a place another of the undo's items holds already, are not
 guessed at: the undo acts on the place it recorded, and finds the message `missing` there, as
 before. A message the provider never returned has no identity, so it is only ever looked for at
 the place recorded. The message a removed copy was made from, which an undo checks before it removes the copy,
