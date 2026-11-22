@@ -14,10 +14,17 @@ import { lineSplitter, readChildLine } from './protocol.js';
 const CHILD = fileURLToPath(new URL('./dev-child.js', import.meta.url));
 const READY_TIMEOUT_MS = 60_000;
 
-export const childLauncher: Launcher = (deployment, env, logs, rateLimit) => {
+export const childLauncher: Launcher = (deployment, env, logs, rateLimit, limits) => {
 	const child = spawn(
 		process.execPath,
-		[CHILD, JSON.stringify({ deployment, ...(rateLimit ? { rateLimit } : {}) })],
+		[
+			CHILD,
+			JSON.stringify({
+				deployment,
+				...(rateLimit ? { rateLimit } : {}),
+				...(limits ? { limits } : {}),
+			}),
+		],
 		{
 			env: { ...process.env, ...env },
 			stdio: ['ignore', 'pipe', 'pipe'],

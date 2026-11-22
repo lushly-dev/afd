@@ -29,6 +29,7 @@
 		"@lushly-dev/loam-manifest": "workspace:*",
 		"@lushly-dev/loam-theme": "workspace:*",
 		"@lushly-dev/local-db": "workspace:*",
+		"@modelcontextprotocol/client": "2.4.0",
 		"zod": "^4.6.6",
 		"@lushly-dev/loam-copilot": "workspace:*"
 	},

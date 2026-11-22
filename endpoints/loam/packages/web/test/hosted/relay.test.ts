@@ -13,7 +13,9 @@
  */
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { createServer, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StreamableHttpTransport } from '@lushly-dev/afd-client/streamable-http';
@@ -35,20 +37,35 @@ import {
 	openShell,
 	type ShellPage,
 } from '../browser/harness';
-import { packUmbel, untilInstance } from '../mounted/support';
+import { createMountRelay } from '../mounted/mount-relay';
+import { type ScopeServer, startScopeServer } from '../mounted/scope-server';
+import { untilInstance } from '../mounted/support';
 import { type Fixture, type Logged, startAfdFixture, startLegacyFixture } from './relay-fixtures';
+import {
+	bodyOf,
+	codeOf,
+	cookieOf,
+	fixtureEntry,
+	modern,
+	type Result,
+	relayAs,
+	rpc,
+	scoped,
+	toolCall,
+	WORKSPACE,
+} from './relay-support';
 import { type Answer, hosted } from './support';
 
 const BASE = '/loam/';
 const REDIRECT = 'http://127.0.0.1:9/callback';
 const CLIENT = 'P6 relay agent';
-const WORKSPACE = 'acme';
 const PASSWORD = 'correct horse battery staple';
 const TOKENS = {
 	team: 'team-bearer-0123456789abcdef',
 	grouped: 'grouped-bearer-0123456789abcdef',
 	hostile: 'hostile-bearer-0123456789abcdef',
 	legacy: 'legacy-bearer-0123456789abcdef',
+	scopes: 'scopes-bearer-0123456789abcdef',
 };
 
 let host: DevHost;
@@ -58,6 +75,8 @@ let team: Fixture;
 let grouped: Fixture;
 let hostile: Fixture;
 let legacy: Awaited<ReturnType<typeof startLegacyFixture>>;
+/** Phase 2's Node fixture server (P2-E6), stateless, mounted over `http` as the row names it. */
+let scopes: ScopeServer;
 let olu: ShellPage;
 let bea: ShellPage;
 const ids = { atlas: '', vault: '', bea: '' };
@@ -66,26 +85,8 @@ const opened: ShellPage[] = [];
 const seenSecrets = new Set<string>();
 
 /** A deployment table for a fixture mounted as `umbel`, with its bearer in a file only the owner reads. */
-async function entry(
-	instance: string,
-	fixture: Fixture,
-	token: string,
-	extra: string[] = []
-): Promise<string> {
-	const file = join(directory, `${instance}.token`);
-	await writeFile(file, token, { mode: 0o600 });
-	await chmod(file, 0o600);
-	return [
-		`[apps.${instance}]`,
-		'app = "umbel"',
-		`package = ${JSON.stringify(await packUmbel())}`,
-		'transport = "http"',
-		`prefix = ${JSON.stringify(instance)}`,
-		`url = ${JSON.stringify(fixture.url)}`,
-		`bearer_file = ${JSON.stringify(file)}`,
-		...extra,
-	].join('\n');
-}
+const entry = (instance: string, fixture: { url: string }, token: string, extra: string[] = []) =>
+	fixtureEntry(directory, instance, fixture.url, token, extra);
 
 beforeAll(async () => {
 	directory = await mkdtemp(join(tmpdir(), 'loam-relay-'));
@@ -93,6 +94,7 @@ beforeAll(async () => {
 	grouped = await startAfdFixture('grouped');
 	hostile = await startAfdFixture('hybrid');
 	legacy = await startLegacyFixture();
+	scopes = await startScopeServer();
 	host = await startDevHost({
 		config: hostedProviderDeployment(
 			['passkey', 'password'],
@@ -104,7 +106,8 @@ beforeAll(async () => {
 			await entry('vaulted', team, TOKENS.team, ['audience = "team"', 'projects = ["vault"]']),
 			await entry('grouped', grouped, TOKENS.grouped, ['audience = "team"']),
 			await entry('hostile', hostile, TOKENS.hostile, ['audience = "team"']),
-			await entry('legacy', legacy, TOKENS.legacy, ['audience = "team"', 'projects = ["atlas"]'])
+			await entry('legacy', legacy, TOKENS.legacy, ['audience = "team"', 'projects = ["atlas"]']),
+			await entry('scopes', scopes, TOKENS.scopes, ['audience = "team"'])
 		),
 		basePath: BASE,
 		clients: [{ name: CLIENT, redirect: REDIRECT }],
@@ -147,7 +150,7 @@ afterAll(async () => {
 	await Promise.all(opened.splice(0).map((page) => page.context.close()));
 	await browser?.close();
 	await host?.close();
-	await Promise.all([team, grouped, hostile, legacy].map((fixture) => fixture?.close()));
+	await Promise.all([team, grouped, hostile, legacy, scopes].map((fixture) => fixture?.close()));
 	if (directory) await rm(directory, { recursive: true, force: true });
 });
 
@@ -170,14 +173,7 @@ async function signedIn(email: string): Promise<ShellPage> {
 	return page;
 }
 
-const INSTANCES = ['team', 'vaulted', 'grouped', 'hostile', 'legacy'] as const;
-
-interface Result<T = unknown> {
-	success: boolean;
-	data?: T;
-	error?: { code: string; message?: string; suggestion?: string; retryable?: boolean };
-	metadata?: Record<string, unknown>;
-}
+const INSTANCES = ['team', 'vaulted', 'grouped', 'hostile', 'legacy', 'scopes'] as const;
 
 const call = async <T = unknown>(page: ShellPage, name: string, input: unknown = {}) =>
 	(await kernelCall(page.page, name, input)) as Result<T>;
@@ -194,48 +190,15 @@ const callIn = (page: Page, name: string, input: unknown, project?: string) =>
 		{ name, input, scope: project ? { workspace: WORKSPACE, project } : { workspace: WORKSPACE } }
 	) as Promise<Result>;
 
-const cookieOf = async (page: ShellPage) =>
-	(await page.context.cookies(host.origin)).map(({ name, value }) => `${name}=${value}`).join('; ');
-
 /** A person's raw request to the relay, as the shell's transport sends it: same origin, JSON, the session cookie. */
-async function relay(
+const relay = (
 	page: ShellPage | undefined,
 	instance: string,
 	body: unknown,
 	options: { method?: string; headers?: Record<string, string> } = {}
-): Promise<Answer> {
-	return hosted(host, `${BASE}mounts/${instance}/mcp`, {
-		method: options.method ?? 'POST',
-		...(body !== undefined ? { body: typeof body === 'string' ? body : JSON.stringify(body) } : {}),
-		headers: {
-			origin: host.origin,
-			...(body !== undefined ? { 'content-type': 'application/json' } : {}),
-			...(page ? { cookie: await cookieOf(page) } : {}),
-			...options.headers,
-		},
-	});
-}
+): Promise<Answer> => relayAs(host, page?.context, instance, body, options);
 
-const rpc = (method: string, params?: unknown, id: number | string | null = 1) => ({
-	jsonrpc: '2.0',
-	...(id === null ? {} : { id }),
-	method,
-	...(params !== undefined ? { params } : {}),
-});
-const toolCall = (name: string, args: unknown = {}, meta?: unknown, id: number | string = 1) =>
-	rpc('tools/call', { name, arguments: args, ...(meta ? { _meta: meta } : {}) }, id);
-const scoped = (project: string) => ({ 'dev.loam/scope': { workspace: WORKSPACE, project } });
-const modern = {
-	'io.modelcontextprotocol/protocolVersion': '2026-07-28',
-	'io.modelcontextprotocol/clientInfo': { name: 'test', version: '1' },
-};
-const codeOf = (answer: Answer) => ({
-	status: answer.status,
-	code: (JSON.parse(answer.body || '{}') as { code?: string }).code,
-	marked: answer.headers['loam-relay-refusal'],
-});
 const posts = (fixture: Fixture) => fixture.log.filter((request) => request.method === 'POST');
-const bodyOf = (request: Logged | undefined) => JSON.parse(request?.body ?? '{}');
 
 describe('P6-H6: the hosted relay', () => {
 	it("P6-H6: a member's call reaches the instance with its scope in `_meta`, the pinned space, the deployer's bearer and only the relay's headers", async () => {
@@ -279,6 +242,77 @@ describe('P6-H6: the hosted relay', () => {
 			'io.modelcontextprotocol/protocolVersion',
 		]);
 		expect(message.params._meta['io.modelcontextprotocol/clientCapabilities']).toEqual({});
+	});
+
+	it("P6-H6: against phase 2's Node fixture server (`scope-server.ts`, stateless, over `http`), a member's call reaches it with the scope in `_meta`, and a non-member of the project is refused before forwarding, her kernel showing PROJECT_NOT_FOUND", async () => {
+		await untilInstance(bea.page, 'scopes', 'ready', 30_000);
+		const from = scopes.seen.length;
+		const reached = scopes.ingress.length;
+		for (const command of ['scope-echo', 'scope-whisper']) {
+			const answered = await callIn(bea.page, `scopes-${command}`, {}, ids.atlas);
+			expect(answered.success, JSON.stringify(answered.error)).toBe(true);
+		}
+		// What its handlers read from `_meta` (the field it declares), and the two requests that carried it.
+		expect(scopes.seen.slice(from)).toEqual([
+			{ tool: 'scope-echo', scope: { workspace: WORKSPACE, project: ids.atlas } },
+			{ tool: 'scope-whisper', scope: { workspace: WORKSPACE, project: ids.atlas } },
+		]);
+		expect(scopes.ingress.slice(reached)).toEqual([
+			{ method: 'POST', mcpMethod: 'tools/call', mcpName: 'afd-call' },
+			{ method: 'POST', mcpMethod: 'tools/call', mcpName: 'afd-call' },
+		]);
+		// A project closed to Bea on the server after her copy settled: her kernel lets the call through, and the relay
+		// refuses it, by its journal, with nothing reaching the server.
+		const annex = (await call<{ id: string }>(olu, 'project-create', { name: 'Annex' })).data
+			?.id as string;
+		await bea.page.evaluate(() => window.dispatchEvent(new Event('online')));
+		await expect
+			.poll(async () =>
+				(
+					(await call<{ projects: Array<{ id: string }> }>(bea, 'project-list')).data?.projects ??
+					[]
+				).map((project) => project.id)
+			)
+			.toContain(annex);
+		const oluId = (await call<{ id: string }>(olu, 'account-get')).data?.id as string;
+		const closed = await call(olu, 'project-update', {
+			project: annex,
+			access: { mode: 'restricted', members: [oluId] },
+		});
+		expect(closed.success, JSON.stringify(closed.error)).toBe(true);
+		const before = scopes.ingress.length;
+		const journaled = (await host.journal()).length;
+		const refused = await callIn(bea.page, 'scopes-scope-echo', {}, annex);
+		expect(refused.error?.code).toBe('PROJECT_NOT_FOUND');
+		await expect
+			.poll(async () =>
+				(await host.journal())
+					.slice(journaled)
+					.filter(
+						(entry) =>
+							entry.command === 'mount-relay' &&
+							(entry.input as { command?: string }).command === 'scope-echo'
+					)
+					.map((entry) => (entry.result as { error?: { code?: string } }).error?.code)
+			)
+			.toEqual(['PROJECT_NOT_FOUND']);
+		// And Bea's raw requests in the restricted Vault: refused, marked, and no request reaches the server.
+		expect(
+			codeOf(
+				await relay(bea, 'scopes', toolCall('scope-echo', {}, { ...modern, ...scoped(ids.vault) }))
+			)
+		).toEqual({ status: 403, code: 'PROJECT_NOT_FOUND', marked: '1' });
+		expect(
+			codeOf(
+				await relay(
+					bea,
+					'scopes',
+					toolCall('afd-call', { command: 'scope-whisper' }, { ...modern, ...scoped(ids.vault) })
+				)
+			).code
+		).toBe('PROJECT_NOT_FOUND');
+		expect(scopes.ingress.length).toBe(before);
+		expect(scopes.seen.length).toBe(from + 2);
 	});
 
 	it('P6-H6: a member of a listed project discovers a project-listed instance: `server/discover`, `afd-help` and `afd-detail` pass on the modern era, with no scope', async () => {
@@ -712,6 +746,94 @@ describe('P6-H6: the hosted relay', () => {
 		if (process.env.CI === 'true') expect(added).toBeLessThan(20);
 	});
 
+	it("P6-H6: the era negotiated through the hosted relay equals the test-only relay's, with `server/discover` answered", async () => {
+		// Phase 1's test-only relay (`mounted/mount-relay.ts`), in front of the same two instances, beside the hosted one.
+		const testOnly = createMountRelay([
+			{ instance: 'scopes', url: scopes.url },
+			{ instance: 'legacy', url: legacy.url, bearer: TOKENS.legacy },
+		]);
+		const server: Server = createServer((incoming, outgoing) => {
+			if (!testOnly.handle(incoming, outgoing)) outgoing.writeHead(404).end();
+		});
+		await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
+		const testOnlyUrl = (instance: string) =>
+			`http://127.0.0.1:${(server.address() as AddressInfo).port}/mounts/${instance}/mcp`;
+		const cookie = await cookieOf(host, bea.context);
+		/** The page's transport (`mount.ts` connects in `mode: 'auto'`), and what its handshake negotiated. */
+		const negotiate = async (url: string, hosted: boolean) => {
+			const transport = new StreamableHttpTransport(url, {
+				clientName: 'loam',
+				clientVersion: '1',
+				mode: 'auto',
+				...(hosted
+					? {
+							headers: { origin: host.origin, cookie },
+							fetch: trustingFetch(readFileSync(host.certificate)),
+						}
+					: {}),
+			});
+			await transport.connect();
+			try {
+				const initialized = await transport.send({ jsonrpc: '2.0', id: 1, method: 'initialize' });
+				return {
+					version: transport.protocolVersion,
+					era: transport.protocolEra,
+					result: initialized.result,
+				};
+			} finally {
+				transport.disconnect();
+			}
+		};
+		try {
+			for (const [instance, era, server] of [
+				['scopes', 'modern', 'loam-scope-fixture'],
+				['legacy', 'legacy', 'relay-legacy-fixture'],
+			] as const) {
+				const through = await negotiate(`${host.root}mounts/${instance}/mcp`, true);
+				expect(through.era, instance).toBe(era);
+				expect(through.result, instance).toMatchObject({ serverInfo: { name: server } });
+				expect(through, instance).toEqual(await negotiate(testOnlyUrl(instance), false));
+			}
+			// `server/discover` answered through both: the same result, which the modern era was negotiated from.
+			// As the SDK sends it: the test-only relay passes it unchanged, and the hosted relay rebuilds it.
+			const discover = rpc('server/discover', {
+				_meta: { ...modern, 'io.modelcontextprotocol/clientCapabilities': {} },
+			});
+			const accept = 'application/json, text/event-stream';
+			const hostedDiscover = await relay(bea, 'scopes', discover, { headers: { accept } });
+			// The test-only relay forwards the page's headers as they are, so they are the SDK's, as the hosted relay sets them.
+			const direct = await fetch(testOnlyUrl('scopes'), {
+				method: 'POST',
+				headers: {
+					'content-type': 'application/json',
+					accept,
+					'mcp-protocol-version': '2026-07-28',
+					'mcp-method': 'server/discover',
+				},
+				body: JSON.stringify(discover),
+			});
+			expect(hostedDiscover.status).toBe(200);
+			expect(direct.status, await direct.clone().text()).toBe(200);
+			const resultOf = (text: string) =>
+				(JSON.parse(text.startsWith('data:') ? text.slice(5).trim() : text) as { result?: unknown })
+					.result;
+			const hostedResult = resultOf(hostedDiscover.body.trim());
+			expect(hostedResult).toMatchObject({ supportedVersions: expect.any(Array) });
+			expect(hostedResult).toEqual(resultOf((await direct.text()).trim()));
+			expect(
+				testOnly.log.some(
+					(entry) => entry.rpc?.method === 'server/discover' && entry.status === 200
+				)
+			).toBe(true);
+		} finally {
+			testOnly.abort();
+			await new Promise<void>((done) => {
+				server.closeAllConnections();
+				server.close(() => done());
+			});
+		}
+	});
+
 	it('P6-H6: after a restart no binding exists: the next call is MOUNT_SESSION_UNKNOWN, retryable, and the shell reconnects to a working new session', async () => {
 		expect(
 			(await callIn(bea.page, 'legacy-legacy-echo', { text: 'before' }, ids.atlas)).success
@@ -750,7 +872,7 @@ describe('P6-H6: the hosted relay', () => {
 });
 
 describe('P6-H7: no secret anywhere', () => {
-	it('P6-H7: no bearer, cookie value, MCP token or session id in the served files, the projection, either journal, the logs, any store row or `localStorage`; no `mounts.json` under the data directory', async () => {
+	it('P6-H6: P6-H7: no bearer, cookie value, MCP token or session id in the served files, the projection, either journal, the logs, any store row or `localStorage`; no `mounts.json` under the data directory', async () => {
 		// This host's own MCP token, issued and used here, beside its sign-ins, transport and relay calls.
 		const send: HostSend = (path, options) =>
 			hosted(host, path, {

@@ -16,6 +16,11 @@ import {
 } from '@lushly-dev/afd-client/streamable-http';
 import type { McpTool, McpToolCallResult, MountTransportV2 } from '@lushly-dev/loam-kernel';
 import type { MountFailureCode } from '@lushly-dev/loam-kernel/mounted';
+import {
+	isJSONRPCErrorResponse,
+	isJSONRPCResultResponse,
+	parseJSONRPCMessage,
+} from '@modelcontextprotocol/client';
 
 export { createDesktopMountTransport } from './mount-desktop.js';
 
@@ -101,11 +106,199 @@ async function markedRefusal(response: Response): Promise<MountRefusal> {
 }
 
 /**
+ * The codes of the streams {@link watchStream} ended without their response, by the nonce it put in the JSON-RPC error
+ * it wrote in their place. A nonce is never sent anywhere, so an instance cannot name one and choose a code. Each is
+ * read once, when its call fails; one never read (the call was abandoned first) is dropped after {@link CUT_NONCE_MS}.
+ */
+const CUT_STREAMS = new Map<string, MountFailureCode>();
+
+/** As long as a mounted call's own deadline: past it, no call is left to read its stream's nonce. */
+const CUT_NONCE_MS = 60_000;
+
+/**
+ * The id of a body that is one `tools/call`, whose stream must end in its response. Only a call's: the SDK reads a
+ * JSON-RPC error to `server/discover` or `initialize` as the era's answer, and a connection has its own deadline.
+ */
+function callIdOf(body: unknown): string | number | undefined {
+	if (typeof body !== 'string') return undefined;
+	try {
+		const { id, method } = JSON.parse(body) as { id?: unknown; method?: unknown };
+		return method === 'tools/call' && (typeof id === 'string' || typeof id === 'number')
+			? id
+			: undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * What a whole event is to the call whose id is `id`, read **with the SDK's own guards**, as its stream reader reads an
+ * event: only a `message` event (or one with no type) is read; its data must parse as the SDK's `JSONRPCMessageSchema`
+ * and be a result or an error response by `isJSONRPCResultResponse` and `isJSONRPCErrorResponse`. Such a response is
+ * `own` when its id is the call's, and `foreign` otherwise: the SDK settles a response by a client-wide map of pending
+ * requests, so another id's would settle another call. Anything else passes as it came, and the SDK reads it as before.
+ */
+function responseOf(
+	type: string,
+	data: string[],
+	id: string | number
+): 'own' | 'foreign' | undefined {
+	if ((type !== '' && type !== 'message') || data.length === 0) return undefined;
+	let message: unknown;
+	try {
+		message = parseJSONRPCMessage(JSON.parse(data.join('\n')));
+	} catch {
+		return undefined;
+	}
+	if (!isJSONRPCResultResponse(message) && !isJSONRPCErrorResponse(message)) return undefined;
+	return (message as { id?: unknown }).id === id ? 'own' : 'foreign';
+}
+
+/**
+ * A call's event stream, read up to {@link RESPONSE_MAX_BYTES}, which ends in its response. **Only whole events pass,
+ * each ending in `\n`**: an event is held until the blank line that ends it, and its lines are passed on with `\n`
+ * whatever ended them, so the SDK reads exactly the events read here and never part of one. A response to another id
+ * never passes, nor a second one. **A stream that ends, breaks or passes the limit before its response** drops the event
+ * it was in the middle of (WHATWG never dispatches an unended event) and ends here with one JSON-RPC error for the
+ * request's id instead, so the SDK, which waits for a response on a stream that ends without one, fails the call at
+ * once: `MOUNT_RESULT_INVALID` past the limit, `MOUNT_UNREACHABLE` for a cut stream (phase 6 specification, 8.1 step 15;
+ * the relay cuts a stream past its own limit or deadline). Lines are split as WHATWG's server-sent events define them:
+ * on `\r\n`, `\r` or `\n`, a `\n` after a `\r` that ended a chunk belonging to it. Each piece of text is searched
+ * once, so a long line costs what its length does.
+ */
+function watchStream(
+	body: ReadableStream<Uint8Array>,
+	id: string | number
+): ReadableStream<Uint8Array> {
+	const reader = body.getReader();
+	const decoder = new TextDecoder();
+	const encoder = new TextEncoder();
+	const lineEnd = /\r|\n/g;
+	let read = 0;
+	/** The line being read, in the pieces that arrived; `afterCr` when the last piece ended a line on a `\r`. */
+	let parts: string[] = [];
+	let afterCr = false;
+	/** The event being read: its lines, its `data` values and its type. */
+	let lines: string[] = [];
+	let data: string[] = [];
+	let type = '';
+	let answered = false;
+	/** Set once the consumer cancels: nothing more is passed on, and no cut is recorded. */
+	let cancelled = false;
+	const ended = (): string => {
+		const response = responseOf(type, data, id);
+		const whole = lines;
+		lines = [];
+		data = [];
+		type = '';
+		if (whole.length === 0) return '';
+		if (response === 'foreign' || (response === 'own' && answered)) return '';
+		if (response === 'own') answered = true;
+		return `${whole.join('\n')}\n\n`;
+	};
+	const line = (text: string): string => {
+		if (text === '') return ended();
+		lines.push(text);
+		const colon = text.indexOf(':');
+		const field = colon === -1 ? text : text.slice(0, colon);
+		let value = colon === -1 ? '' : text.slice(colon + 1);
+		if (value.startsWith(' ')) value = value.slice(1);
+		if (field === 'data') data.push(value);
+		else if (field === 'event') type = value;
+		return '';
+	};
+	/** The whole events `text` completes, as text to pass on; the rest is held. */
+	const scan = (text: string): string => {
+		let out = '';
+		let at = 0;
+		// An empty piece (a zero-length chunk) keeps a `\r` waiting for its `\n`.
+		if (afterCr && text.length > 0) {
+			afterCr = false;
+			if (text.startsWith('\n')) at = 1;
+		}
+		for (;;) {
+			lineEnd.lastIndex = at;
+			const end = lineEnd.exec(text);
+			if (!end) {
+				if (at < text.length) parts.push(text.slice(at));
+				return out;
+			}
+			parts.push(text.slice(at, end.index));
+			const whole = parts.join('');
+			parts = [];
+			at = end.index + 1;
+			if (end[0] === '\r') {
+				if (at === text.length) afterCr = true;
+				else if (text[at] === '\n') at++;
+			}
+			out += line(whole);
+		}
+	};
+	const finish = (
+		controller: ReadableStreamDefaultController<Uint8Array>,
+		code: MountFailureCode
+	) => {
+		if (cancelled) return;
+		// The event the stream was in the middle of is never passed on, so nothing here completes an instance's event.
+		// `crypto.randomUUID` needs a secure context, which the shell always is (`https:`, or `localhost`); without it the
+		// stream just ends, and the call waits for its own deadline as it did before.
+		const nonce = answered ? undefined : globalThis.crypto?.randomUUID?.();
+		if (nonce !== undefined) {
+			CUT_STREAMS.set(nonce, code);
+			setTimeout(() => CUT_STREAMS.delete(nonce), CUT_NONCE_MS);
+			const error = { code: -32000, message: code, data: { 'dev.loam/cut': nonce } };
+			controller.enqueue(
+				encoder.encode(`data: ${JSON.stringify({ jsonrpc: '2.0', id, error })}\n\n`)
+			);
+		}
+		controller.close();
+	};
+	return new ReadableStream<Uint8Array>({
+		async pull(controller) {
+			for (;;) {
+				let chunk: ReadableStreamReadResult<Uint8Array>;
+				try {
+					chunk = await reader.read();
+				} catch {
+					return finish(controller, 'MOUNT_UNREACHABLE');
+				}
+				if (chunk.done) {
+					const rest = scan(decoder.decode());
+					if (rest) controller.enqueue(encoder.encode(rest));
+					return finish(controller, 'MOUNT_UNREACHABLE');
+				}
+				read += chunk.value.byteLength;
+				if (read > RESPONSE_MAX_BYTES) {
+					await reader.cancel().catch(() => {});
+					return finish(controller, 'MOUNT_RESULT_INVALID');
+				}
+				const whole = scan(decoder.decode(chunk.value, { stream: true }));
+				if (whole) return controller.enqueue(encoder.encode(whole));
+			}
+		},
+		async cancel(reason) {
+			cancelled = true;
+			await reader.cancel(reason).catch(() => {});
+		},
+	});
+}
+
+/** The code of a JSON-RPC error {@link watchStream} wrote for a cut stream, once; none for an instance's own error. */
+function cutCode(error: { data?: unknown }): MountFailureCode | undefined {
+	const nonce = (error.data as { 'dev.loam/cut'?: unknown } | undefined)?.['dev.loam/cut'];
+	if (typeof nonce !== 'string') return undefined;
+	const code = CUT_STREAMS.get(nonce);
+	CUT_STREAMS.delete(nonce);
+	return code;
+}
+
+/**
  * Every request of the transport. A server is untrusted, and the SDK reads each response whole, and after
  * `initialize` holds an event stream open with no deadline: a server could fill the tab's memory with no
  * person or command asking. So nothing reads past the limit, and phase 1, which uses no server push, opens
  * no such stream: 405 is how a server says it has none, and the SDK goes on without it (9.9). An answer the relay
- * marked as its own refusal is thrown as its code (8.1); its `message` and `suggestion` are never read.
+ * marked as its own refusal is thrown as its code (8.1); its `message` and `suggestion` are never read. A
+ * call's event stream that ends without its response fails the call at once ({@link watchStream}).
  */
 export async function boundedFetch(
 	input: Parameters<typeof fetch>[0],
@@ -115,6 +308,13 @@ export async function boundedFetch(
 	const response = await fetch(input, init);
 	if (response.headers.get(RELAY_REFUSAL) === '1') throw await markedRefusal(response);
 	if (!response.body) return response;
+	const id = callIdOf(init?.body);
+	const type = response.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase();
+	if (id !== undefined && response.ok && response.status !== 202 && type === 'text/event-stream')
+		return new Response(watchStream(response.body, id), {
+			status: response.status,
+			headers: response.headers,
+		});
 	let read = 0;
 	const limited = response.body.pipeThrough(
 		new TransformStream<Uint8Array, Uint8Array>({
@@ -241,8 +441,9 @@ export function createMountTransport(
 		} catch (cause) {
 			throw refused(cause);
 		}
-		// A JSON-RPC error is an answer, and not a `CommandResult`. The server's text stays out of it.
-		if (response.error) throw new MountRefusal('MOUNT_RESULT_INVALID');
+		// A JSON-RPC error is an answer, and not a `CommandResult`. The server's text stays out of it. One that
+		// `watchStream` wrote for a stream that ended without its response carries that stream's code.
+		if (response.error) throw new MountRefusal(cutCode(response.error) ?? 'MOUNT_RESULT_INVALID');
 		return response.result;
 	}
 

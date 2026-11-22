@@ -820,6 +820,9 @@ importers:
       '@lushly-dev/local-db':
         specifier: workspace:*
         version: link:../../../../packages/local-db
+      '@modelcontextprotocol/client':
+        specifier: 2.4.0
+        version: 2.4.0
       zod:
         specifier: ^4.6.6
         version: 4.6.7

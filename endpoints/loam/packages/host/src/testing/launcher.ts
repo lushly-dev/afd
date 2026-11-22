@@ -3,6 +3,7 @@
  * (`child-launcher.ts`), so a test can kill it; in this package's units, in-process.
  */
 
+import type { ServerConfigV1 } from '@lushly-dev/loam-manifest/server';
 import type { ChildReady } from './protocol.js';
 
 export interface Launched {
@@ -17,5 +18,7 @@ export type Launcher = (
 	env: Record<string, string>,
 	logs: string[],
 	/** Tests only: the provider's rate limit, raised for a suite's many requests from one address (never off). */
-	rateLimit?: { window: number; max: number }
+	rateLimit?: { window: number; max: number },
+	/** Tests only: the server configuration's `[limits]`, such as P6-H6's short relay limits. */
+	limits?: ServerConfigV1['limits']
 ) => Promise<Launched>;
