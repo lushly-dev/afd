@@ -130,7 +130,7 @@ base64 = { version = "0.22", optional = true }
 # The gateway assertion's signature (section 4.4, step 4), checked as AFD checks an access
 # token's: `jsonwebtoken`'s `aws-lc-rs` provider called directly, never `decode` or a
 # `Validation`, so no library default applies. AFD's version, already in the lock.
-jsonwebtoken = { version = "11.1", default-features = false, features = ["aws_lc_rs"], optional = true }
+jsonwebtoken = { version = "12.0", default-features = false, features = ["aws_lc_rs"], optional = true }
 # The person page reads its provider's answer and its own form as `application/x-www-form-urlencoded`
 # with `url`'s parser (phase 5 step 5), already in the lock through `reqwest`.
 url = { version = "2.5", optional = true }

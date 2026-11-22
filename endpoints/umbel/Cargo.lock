@@ -35,7 +35,7 @@ dependencies = [
  "http",
  "http-body",
  "http-body-util",
- "jsonwebtoken",
+ "jsonwebtoken 11.1.0",
  "regex",
  "rmcp",
  "ryu-js",
@@ -1912,7 +1912,23 @@ dependencies = [
  "js-sys",
  "serde",
  "serde_json",
- "signature",
+ "signature 2.2.0",
+ "zeroize",
+]
+
+[[package]]
+name = "jsonwebtoken"
+version = "12.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f347a975eb5fa8f5c4eadce6c1152c11c326cf32cf839fb64ff12d5cb8f4ce8b"
+dependencies = [
+ "aws-lc-rs",
+ "base64 0.23.1",
+ "getrandom 0.4.3",
+ "js-sys",
+ "serde",
+ "serde_json",
+ "signature 3.0.0",
  "zeroize",
 ]
 
@@ -3205,6 +3221,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "signature"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "28d567dcbaf0049cb8ac2608a76cd95ff9e4412e1899d389ee400918ca7537f5"
+dependencies = [
+ "rand_core 0.10.1",
+]
+
+[[package]]
 name = "simd_cesu8"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3979,7 +4004,7 @@ dependencies = [
  "hyper",
  "hyper-util",
  "jsonschema",
- "jsonwebtoken",
+ "jsonwebtoken 12.0.0",
  "rand 0.10.4",
  "rcgen",
  "reqwest",
@@ -4358,7 +4383,7 @@ dependencies = [
  "base64 0.22.1",
  "hyper",
  "hyper-util",
- "jsonwebtoken",
+ "jsonwebtoken 12.0.0",
  "rcgen",
  "reqwest",
  "serde",
