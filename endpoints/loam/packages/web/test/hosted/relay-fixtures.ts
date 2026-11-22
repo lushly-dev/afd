@@ -27,6 +27,8 @@ export interface Logged {
 	method: string;
 	headers: IncomingHttpHeaders;
 	body: string;
+	/** When the request arrived whole (`Date.now()`). */
+	at: number;
 	/** The connection closed before the instance answered it whole: the relay aborted it. */
 	closedEarly?: boolean;
 }
@@ -62,6 +64,7 @@ async function listen(
 				method: incoming.method ?? 'GET',
 				headers: incoming.headers,
 				body: await readAll(incoming),
+				at: Date.now(),
 			};
 			fixture.log.push(logged);
 			outgoing.on('close', () => {
@@ -140,7 +143,7 @@ const result = (value: unknown) => ({
  * or a test releases it. `server/discover` is refused with a JSON-RPC error, as a server of the legacy era answers it.
  */
 export async function startLegacyFixture(): Promise<
-	Fixture & { release(): void; openSessions(): string[] }
+	Fixture & { release(): void; openSessions(): string[]; endSession(id: string): Promise<void> }
 > {
 	const fixture: Omit<Fixture, 'url' | 'close'> = { log: [], ran: [], answer: undefined };
 	const sessions = new Map<string, WebStandardStreamableHTTPServerTransport>();
@@ -283,9 +286,20 @@ export async function startLegacyFixture(): Promise<
 			releaseSlow?.();
 		},
 		openSessions: () => [...owners.values()],
+		/** Ends a session here, as an instance that restarted or expired it: its id is then answered `404`. */
+		async endSession(id: string) {
+			const transport = sessions.get(id);
+			sessions.delete(id);
+			owners.delete(id);
+			await transport?.close();
+		},
 		async close() {
 			await Promise.all([...sessions.values()].map((transport) => transport.close()));
 			await stop(server);
 		},
-	}) as Fixture & { release(): void; openSessions(): string[] };
+	}) as Fixture & {
+		release(): void;
+		openSessions(): string[];
+		endSession(id: string): Promise<void>;
+	};
 }

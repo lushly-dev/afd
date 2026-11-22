@@ -475,3 +475,323 @@ describe("P6-E5: an instance's own `UNAUTHORIZED` in a tool result (8.1's last r
 		}
 	});
 });
+
+describe("P6-E5: a call's event stream that ends without its response fails the call at once (8.1 step 15)", () => {
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
+	const encoder = new TextEncoder();
+	const event = (message: unknown) => `data: ${JSON.stringify(message)}\n\n`;
+	const notice = event({ jsonrpc: '2.0', method: 'notifications/progress', params: {} });
+
+	/**
+	 * A stream of `parts`, one on each read, then its end, a break, or more bytes than the limit. A break comes on the read
+	 * after the last part, so every part has reached the reader first.
+	 */
+	const streamOf = (parts: string[], end: 'close' | 'break' | 'flood' = 'close') => {
+		let next = 0;
+		return new ReadableStream<Uint8Array>({
+			pull(controller) {
+				const part = parts[next++];
+				if (part !== undefined) return controller.enqueue(encoder.encode(part));
+				if (end === 'close') controller.close();
+				else if (end === 'break') controller.error(new TypeError('network error'));
+				else controller.enqueue(new Uint8Array(1024 * 1024));
+			},
+		});
+	};
+	const sse = (body: ReadableStream<Uint8Array>, status = 200) =>
+		new Response(body, { status, headers: { 'content-type': 'text/event-stream' } });
+	const call = (id: number | string) =>
+		JSON.stringify({ jsonrpc: '2.0', id, method: 'tools/call', params: { name: 'x' } });
+	const cutOf = (text: string) => JSON.parse(text.trim().slice('data: '.length));
+
+	it("P6-E5: a stream that ends with no response gains one JSON-RPC error for its id; one with its response is unchanged; another id's response never passes", async () => {
+		const response = event({ jsonrpc: '2.0', id: 7, result: { content: [] } });
+		vi.stubGlobal('fetch', async () => sse(streamOf([notice, response])));
+		const whole = await boundedFetch('u', { method: 'POST', body: call(7) });
+		expect(await whole.text()).toBe(notice + response);
+		// Another id's response is dropped, so it can settle no other call; the stream still ends without this one's.
+		const other = event({ jsonrpc: '2.0', id: 8, result: {} });
+		vi.stubGlobal('fetch', async () => sse(streamOf([notice, other])));
+		const cut = await (await boundedFetch('u', { method: 'POST', body: call(7) })).text();
+		expect(cut.startsWith(notice)).toBe(true);
+		expect(cutOf(cut.slice(notice.length))).toMatchObject({
+			jsonrpc: '2.0',
+			id: 7,
+			error: { code: -32000 },
+		});
+		// Any `2xx` stream but a `202`, not only a `200`.
+		vi.stubGlobal('fetch', async () => sse(streamOf([notice]), 201));
+		const created = await (await boundedFetch('u', { method: 'POST', body: call(7) })).text();
+		expect(cutOf(created.slice(notice.length))).toMatchObject({ id: 7 });
+		// Only a call's stream: an `initialize` answered on a stream is passed as it came.
+		vi.stubGlobal('fetch', async () => sse(streamOf([notice])));
+		const body = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
+		expect(await (await boundedFetch('u', { method: 'POST', body })).text()).toBe(notice);
+	});
+
+	it('P6-E5: a `\\r`, then a chunk of no bytes, then its `\\n` is one line end: the event is not split, and its response passes', async () => {
+		const parts = ['data: {"jsonrpc":"2.0",\r', '', '\ndata: "id":7,"result":{"content":[]}}\n\n'];
+		vi.stubGlobal('fetch', async () => sse(streamOf(parts)));
+		const text = await (await boundedFetch('u', { method: 'POST', body: call(7) })).text();
+		// The two `data` lines are one event (joined by `\n`, JSON whitespace), so no cut is added after it.
+		expect(text).toBe('data: {"jsonrpc":"2.0",\ndata: "id":7,"result":{"content":[]}}\n\n');
+	});
+
+	it('P6-E5: a line of 4 MiB in 1 KiB pieces is read in time linear in its length', async () => {
+		const piece = 'x'.repeat(1024);
+		const pieces = ['data: ', ...Array.from({ length: 4 * 1024 - 1 }, () => piece)];
+		vi.stubGlobal('fetch', async () => sse(streamOf(pieces)));
+		const started = Date.now();
+		const text = await (await boundedFetch('u', { method: 'POST', body: call(3) })).text();
+		expect(Date.now() - started).toBeLessThan(2_000);
+		expect(cutOf(text)).toMatchObject({ id: 3, error: { code: -32000 } });
+	});
+
+	/**
+	 * The real SDK on a legacy server: `server/discover` refused, `initialize` answered, and each `tools/call` answered
+	 * by `answer`, so the call's failure is the SDK's own reading of what the stream gave it.
+	 */
+	function legacyServer(answer: (id: number | string) => Response | Promise<Response>) {
+		return async (_input: unknown, init?: RequestInit) => {
+			const message = JSON.parse(String(init?.body ?? '{}')) as { id?: number; method?: string };
+			const json = (status: number, value: unknown) =>
+				new Response(JSON.stringify(value), {
+					status,
+					headers: { 'content-type': 'application/json' },
+				});
+			if (message.method === 'server/discover')
+				return json(400, {
+					jsonrpc: '2.0',
+					id: message.id,
+					error: { code: -32601, message: 'Method not found' },
+				});
+			if (message.method === 'initialize')
+				return json(200, {
+					jsonrpc: '2.0',
+					id: message.id,
+					result: {
+						protocolVersion: '2025-11-25',
+						capabilities: { tools: {} },
+						serverInfo: { name: 'legacy', version: '1' },
+					},
+				});
+			if (message.method === 'tools/call') return answer(message.id as number);
+			return new Response(null, { status: 202 });
+		};
+	}
+
+	it.each([
+		['ends with no response', 'close', 'MOUNT_UNREACHABLE'],
+		['breaks', 'break', 'MOUNT_UNREACHABLE'],
+		['passes the limit', 'flood', 'MOUNT_RESULT_INVALID'],
+	] as const)(
+		'P6-E5: through the real SDK, a stream that %s fails the call at once as %s',
+		async (_what, end, code) => {
+			vi.stubGlobal(
+				'fetch',
+				legacyServer(() => sse(streamOf([notice], end)))
+			);
+			const port = createMountTransport('https://shell.test/mounts/work/mcp');
+			await port.connect();
+			const started = Date.now();
+			await expect(port.callTool('hello-greet', {})).rejects.toMatchObject({ code });
+			expect(Date.now() - started).toBeLessThan(2_000);
+			await port.close();
+		}
+	);
+
+	/** The real SDK's call against a stream of `parts` for its id, then `end`: its code, and how long it took. */
+	async function callAgainst(
+		parts: (id: number | string) => string[],
+		end: 'close' | 'break' = 'close'
+	) {
+		vi.stubGlobal(
+			'fetch',
+			legacyServer((id) => sse(streamOf(parts(id), end)))
+		);
+		const port = createMountTransport('https://shell.test/mounts/work/mcp');
+		await port.connect();
+		const started = Date.now();
+		try {
+			return await port.callTool('hello-greet', {}).then(
+				(result) => ({ result, ms: Date.now() - started }),
+				(error: { code?: string }) => ({ code: error.code, ms: Date.now() - started })
+			);
+		} finally {
+			await port.close();
+		}
+	}
+
+	const answer = (id: number | string) =>
+		`data: ${JSON.stringify({ jsonrpc: '2.0', id, result: { content: [], structuredContent: { planted: true } } })}`;
+
+	it.each([
+		['no blank line', ''],
+		['one line ending', '\n'],
+		['a `\\r` that may start `\\r\\n`', '\r'],
+		['a `\\r\\n`', '\r\n'],
+	])(
+		'P6-E5: through the real SDK, a response whose event never ended (%s) is no answer: the call fails at once',
+		async (_what, tail) => {
+			for (const end of ['close', 'break'] as const) {
+				const answered = await callAgainst((id) => [notice, `${answer(id)}${tail}`], end);
+				expect(answered, end).toMatchObject({ code: 'MOUNT_UNREACHABLE' });
+				expect(answered.ms, end).toBeLessThan(2_000);
+			}
+		}
+	);
+
+	it.each([
+		['`\\n\\n`', '\n\n'],
+		['`\\r\\n\\r\\n`', '\r\n\r\n'],
+		['`\\r\\r`, the last `\\r` at the end of the stream', '\r\r'],
+	])(
+		'P6-E5: through the real SDK, a response whose event ends in %s answers the call, the stream then ending',
+		async (_what, tail) => {
+			for (const end of ['close', 'break'] as const) {
+				const answered = await callAgainst((id) => [notice, `${answer(id)}${tail}`], end);
+				expect(answered, end).toMatchObject({ result: { structuredContent: { planted: true } } });
+			}
+		}
+	);
+
+	it('P6-E5: through the real SDK, a whole response split across chunks still answers the call', async () => {
+		const answered = await callAgainst((id) => {
+			const whole = `${answer(id)}\r\n\r\n`;
+			return [notice, whole.slice(0, 9), whole.slice(9, -3), whole.slice(-3, -1), whole.slice(-1)];
+		});
+		expect(answered).toMatchObject({ result: { structuredContent: { planted: true } } });
+	});
+
+	it.each([
+		['a scalar `result`', (id: number | string) => event({ jsonrpc: '2.0', id, result: 5 })],
+		['an array `result`', (id: number | string) => event({ jsonrpc: '2.0', id, result: [] })],
+		[
+			'a `result._meta` that is no object',
+			(id: number | string) => event({ jsonrpc: '2.0', id, result: { content: [], _meta: 5 } }),
+		],
+		[
+			'an `error` with no integer code',
+			(id: number | string) => event({ jsonrpc: '2.0', id, error: { code: 'x', message: 'm' } }),
+		],
+		[
+			'an `error.code` past a safe integer',
+			(id: number | string) =>
+				`data: {"jsonrpc":"2.0","id":${JSON.stringify(id)},"error":{"code":1e300,"message":"m"}}\n\n`,
+		],
+		[
+			'both `result` and `error`',
+			(id: number | string) =>
+				event({ jsonrpc: '2.0', id, result: {}, error: { code: 1, message: 'm' } }),
+		],
+		[
+			'a `method` beside its `result`',
+			(id: number | string) => event({ jsonrpc: '2.0', id, method: 'x', result: { content: [] } }),
+		],
+		[
+			'a key outside the envelope',
+			(id: number | string) => event({ jsonrpc: '2.0', id, result: { content: [] }, extra: 1 }),
+		],
+		['no `jsonrpc`', (id: number | string) => event({ id, result: { content: [] } })],
+		[
+			'an event of another type',
+			(id: number | string) =>
+				`event: other\n${event({ jsonrpc: '2.0', id, result: { content: [] } })}`,
+		],
+	])(
+		'P6-E5: through the real SDK, a response the SDK rejects (%s) fails the call at once, not at its deadline',
+		async (_what, response) => {
+			const answered = await callAgainst((id) => [notice, response(id)]);
+			expect(answered).toMatchObject({
+				code: 'MOUNT_UNREACHABLE',
+			});
+			expect(answered.ms).toBeLessThan(2_000);
+		}
+	);
+
+	it("P6-E5: through the real SDK, two calls at once each settle with their own answer: one stream's response to the other's id never reaches it", async () => {
+		let calls = 0;
+		let second: (() => void) | undefined;
+		const secondArrived = new Promise<void>((done) => {
+			second = done;
+		});
+		vi.stubGlobal(
+			'fetch',
+			legacyServer(async (id) => {
+				calls++;
+				if (calls === 2) {
+					second?.();
+					// Answered later than the first stream's planted answer for it.
+					return sse(
+						new ReadableStream<Uint8Array>({
+							async pull(controller) {
+								await new Promise((done) => setTimeout(done, 100));
+								controller.enqueue(
+									encoder.encode(
+										event({
+											jsonrpc: '2.0',
+											id,
+											result: { content: [], structuredContent: { own: 2 } },
+										})
+									)
+								);
+								controller.close();
+							},
+						})
+					);
+				}
+				// The first call's stream answers the second call's id first, once that call is pending, then its own.
+				await secondArrived;
+				const other = typeof id === 'number' ? id + 1 : id;
+				return sse(
+					streamOf([
+						event({
+							jsonrpc: '2.0',
+							id: other,
+							result: { content: [], structuredContent: { planted: true } },
+						}),
+						event({ jsonrpc: '2.0', id, result: { content: [], structuredContent: { own: 1 } } }),
+					])
+				);
+			})
+		);
+		const port = createMountTransport('https://shell.test/mounts/work/mcp');
+		await port.connect();
+		try {
+			const [first, next] = await Promise.all([
+				port.callTool('hello-greet', {}),
+				port.callTool('hello-greet', {}),
+			]);
+			expect(first).toMatchObject({ structuredContent: { own: 1 } });
+			expect(next).toMatchObject({ structuredContent: { own: 2 } });
+		} finally {
+			await port.close();
+		}
+	});
+
+	it("P6-E5: an instance's own JSON-RPC error naming the mark is MOUNT_RESULT_INVALID: no instance chooses the code", async () => {
+		vi.stubGlobal(
+			'fetch',
+			legacyServer((id) =>
+				sse(
+					streamOf([
+						event({
+							jsonrpc: '2.0',
+							id,
+							error: { code: -32000, message: 'x', data: { 'dev.loam/cut': 'guessed' } },
+						}),
+					])
+				)
+			)
+		);
+		const port = createMountTransport('https://shell.test/mounts/work/mcp');
+		await port.connect();
+		await expect(port.callTool('hello-greet', {})).rejects.toMatchObject({
+			code: 'MOUNT_RESULT_INVALID',
+		});
+		await port.close();
+	});
+});

@@ -51,6 +51,11 @@ export interface DevOptions {
 	dist?: string;
 	/** Tests only, from `startDevHost`: the provider's rate limit, raised (never off). The bin passes none. */
 	rateLimit?: { window: number; max: number };
+	/**
+	 * Tests only, from `startDevHost`: the server configuration's `[limits]` (3.2), such as a short
+	 * `relay_session_idle_ms` for P6-H6. Read and checked as `loam.server.toml`'s are. The bin passes none.
+	 */
+	limits?: ServerConfigV1['limits'];
 }
 
 export interface DevProfile {
@@ -115,6 +120,8 @@ export function devServerConfig(options: {
 	certificate: string;
 	key: string;
 	secret: string;
+	/** Tests only: `[limits]`, from `runDev`'s option. */
+	limits?: ServerConfigV1['limits'];
 }): { server: ServerConfigV1; origin: string; sandboxOrigin: string | null } {
 	const { data, ports } = options;
 	const origin = `https://localhost:${ports.port}`;
@@ -127,6 +134,7 @@ export function devServerConfig(options: {
 		tls: { cert_file: options.certificate, key_file: options.key },
 		auth: { secret_file: options.secret },
 		mail: { transport: 'sink' },
+		...(options.limits ? { limits: options.limits } : {}),
 		...(sandboxOrigin
 			? { sandbox: { origin: sandboxOrigin, listen: `127.0.0.1:${ports.sandboxPort}` } }
 			: {}),
@@ -211,6 +219,7 @@ export async function runDev(options: DevOptions): Promise<DevProfile> {
 			certificate: tls.certificate,
 			key: tls.key,
 			secret,
+			...(options.limits ? { limits: options.limits } : {}),
 		});
 		handedOver = true;
 		const host = await createLoamHost({

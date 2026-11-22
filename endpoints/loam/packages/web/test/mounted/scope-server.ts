@@ -24,9 +24,19 @@ export interface ScopeSeen {
 	scope: unknown;
 }
 
+/** One HTTP request as it arrived, before the handler read it: what reached the server, run or not. */
+export interface ScopeIngress {
+	method: string;
+	/** The `Mcp-Method` and `Mcp-Name` headers a client sets from its message, when it set them. */
+	mcpMethod?: string;
+	mcpName?: string;
+}
+
 export interface ScopeServer {
 	url: string;
 	seen: ScopeSeen[];
+	/** Every request that reached it, so a test can hold that a refused call never did (P6-H6). */
+	ingress: ScopeIngress[];
 	close(): Promise<void>;
 }
 
@@ -46,6 +56,7 @@ const echo = (name: string, seen: ScopeSeen[]) =>
 
 export async function startScopeServer(): Promise<ScopeServer> {
 	const seen: ScopeSeen[] = [];
+	const ingress: ScopeIngress[] = [];
 	const handler = createMcpHandler({
 		name: 'loam-scope-fixture',
 		version: '0.0.0',
@@ -56,12 +67,26 @@ export async function startScopeServer(): Promise<ScopeServer> {
 		firstClassTools: ['scope-echo'],
 		bootstrap: true,
 	});
-	const server: Server = createServer(handler);
+	const server: Server = createServer((incoming, outgoing) => {
+		const header = (name: string) => {
+			const value = incoming.headers[name];
+			return typeof value === 'string' ? value : undefined;
+		};
+		const mcpMethod = header('mcp-method');
+		const mcpName = header('mcp-name');
+		ingress.push({
+			method: incoming.method ?? 'GET',
+			...(mcpMethod !== undefined ? { mcpMethod } : {}),
+			...(mcpName !== undefined ? { mcpName } : {}),
+		});
+		return handler(incoming, outgoing);
+	});
 	await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
 	const { port } = server.address() as AddressInfo;
 	return {
 		url: `http://127.0.0.1:${port}/mcp`,
 		seen,
+		ingress,
 		close: () =>
 			new Promise((done) => {
 				handler.dispose();

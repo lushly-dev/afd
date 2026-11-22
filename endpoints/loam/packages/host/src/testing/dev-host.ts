@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { seedTestPeople } from '@lushly-dev/loam-identity/testing';
+import type { ServerConfigV1 } from '@lushly-dev/loam-manifest/server';
 import { runBootstrap, withBootstrapProvider } from '../bootstrap.js';
 import { DEV_DATA_DIRECTORY } from '../dev.js';
 import {
@@ -81,6 +82,11 @@ export interface StartDevHostOptions {
 	 * P6-H3's 500 `whoami` reads. It raises the limit only: the limiter is on in every mode.
 	 */
 	rateLimit?: { window: number; max: number };
+	/**
+	 * The server configuration's `[limits]` (3.2), test-only as `rateLimit` is: small relay limits, so P6-H6 sees an idle
+	 * binding expire, a slot count reached or a deadline pass in seconds. Checked as `loam.server.toml`'s are.
+	 */
+	limits?: ServerConfigV1['limits'];
 	/** The child process's environment additions. */
 	env?: Record<string, string>;
 }
@@ -186,7 +192,7 @@ export async function createDevHost(
 			throw new Error("startDevHost's `clients` are registered in its `organization`.");
 		}
 		const env = { ...options.env, NODE_EXTRA_CA_CERTS: certificate };
-		running = await launch(deployment, env, logs, options.rateLimit);
+		running = await launch(deployment, env, logs, options.rateLimit, options.limits);
 		const basePath = options.basePath ?? '/';
 		const current = (): Launched => {
 			if (!running) throw new Error('The development profile is not running.');
@@ -250,7 +256,7 @@ export async function createDevHost(
 				const before = current().ready.origin;
 				await current().stop('SIGTERM');
 				running = undefined;
-				running = await launch(deployment, env, logs, options.rateLimit);
+				running = await launch(deployment, env, logs, options.rateLimit, options.limits);
 				if (running.ready.origin !== before)
 					throw new Error(
 						`The origin changed across a restart: ${before} to ${running.ready.origin}.`

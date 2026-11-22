@@ -5,15 +5,11 @@
  * only in a child, so `vitest.config.ts` leaves it out of the units' coverage; the hosted suite runs it.
  */
 
-import { runDev } from '../dev.js';
+import { type DevOptions, runDev } from '../dev.js';
 import { type ChildReady, FAILED, READY } from './protocol.js';
 
 async function main(): Promise<void> {
-	const options = JSON.parse(process.argv[2] ?? '{}') as {
-		deployment: string;
-		data?: string;
-		rateLimit?: { window: number; max: number };
-	};
+	const options = JSON.parse(process.argv[2] ?? '{}') as DevOptions;
 	try {
 		const profile = await runDev(options);
 		const { origin, sandboxOrigin, spki, certificate, mail, data } = profile;
