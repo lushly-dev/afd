@@ -573,11 +573,11 @@ The exit check passes: every job a success, every row passing where it names.
 
   - 3, enforcement and approval health: merged in [#1915](https://github.com/lushly-dev/afd/pull/1915) at `bdea1bbb` (2026-11-22), trust review answered over four rounds ([its record](phases/5-copilot/spec.md#step-3-2026-11-21)): autonomy enforced on every agent-interface call (`act`, `ask`, `suggest`, destructive and approval-held at most `ask`); suggestion records and "Run it"; the waiting turn and its continuation; stops that withdraw; approval health and its place in the autonomy section; the panel's cards; 10.8 amended for `loam-inbound`; jobs 1 and 5 run.
 
-  - 4, labels, taint and grants to mounts: in review in [#2058](https://github.com/lushly-dev/afd/pull/2058), trust review answered over four rounds ([its record](phases/5-copilot/spec.md#step-4-2026-11-22)): `labels` and a command's `expose.apps` in the instance entry; `[[calls]]` grants to mounted callees; labels per part and the runtime's blocks; mounted tools listed; taint from every traced call and stored outcome; taint's lowering, nested calls included; a worker per session; jobs 2 and 7 run.
+  - 4, labels, taint and grants to mounts: merged in [#2058](https://github.com/lushly-dev/afd/pull/2058) at `06dde692` (2026-11-22), trust review answered over four rounds ([its record](phases/5-copilot/spec.md#step-4-2026-11-22)): `labels` and a command's `expose.apps` in the instance entry; `[[calls]]` grants to mounted callees; labels per part and the runtime's blocks; mounted tools listed; taint from every traced call and stored outcome; taint's lowering, nested calls included; a worker per session; jobs 2 and 7 run.
 
   - 5, mounted approvals: not started.
 
-  - 6, units: in review in [#2067](https://github.com/lushly-dev/afd/pull/2067) ([its record](phases/5-copilot/spec.md#step-6-2026-11-22)): a `per-part` instance's unit composed in a fresh context the kernel builds and the model port checks; the parent told only `{ unit, state }`, as the server's claim; the submit at `act` by default, refused rather than asked or suggested; nothing of a unit in a confirmation, the store or the journal; composer rounds and output counted toward the unit; scenario 4 runs.
+  - 6, units: merged in [#2067](https://github.com/lushly-dev/afd/pull/2067) at `7260f8d1` (2026-11-22) ([its record](phases/5-copilot/spec.md#step-6-2026-11-22)): a `per-part` instance's unit composed in a fresh context the kernel builds and the model port checks; the parent told only `{ unit, state }`, as the server's claim; the submit at `act` by default, refused rather than asked or suggested; nothing of a unit in a confirmation, the store or the journal; composer rounds and output counted toward the unit; scenario 4 runs.
 
   - 7, mail on the desktop: not started.
 
@@ -627,9 +627,9 @@ The exit check passes: every job a success, every row passing where it names.
 
   - 4, the server kernel and MCP: merged in [#2022](https://github.com/lushly-dev/afd/pull/2022) at `ca795ce1` (2026-11-22), its record in the [specification's status](phases/6-hosts/spec.md#status): `createServerKernel` on `SqliteAdapter`, `FileJournalSink` and the lock; `HOSTED_MCP_COMMANDS`; AFD's handler at `<base>mcp` with its headers; RFC 9728's and A2's metadata; P6-E3's list half, P6-H3's OAuth pages case and P6-H4. Trust review (Claude Opus 5.5 and GPT-6.2 Astra, both `high`), a re-check, a final check and a focused check of the last commits: approvable.
 
-  - 5, the trust-record transport: in review in [#2055](https://github.com/lushly-dev/afd/pull/2055) (2026-11-22), its record in the [specification's status](phases/6-hosts/spec.md#status): `POST <base>api/kernel/call` running `SERVER_COMMANDS` on the server kernel as the session's person, the browser's `late-hosted` routing and copy through `trust-record-settle`, A4's and A8's removal hook, S4's `leave` and `member-leave`.
+  - 5, the trust-record transport: merged in [#2055](https://github.com/lushly-dev/afd/pull/2055) at `2b304beb` (2026-11-22), its record in the [specification's status](phases/6-hosts/spec.md#status): `POST <base>api/kernel/call` running `SERVER_COMMANDS` on the server kernel as the session's person, the browser's `late-hosted` routing and copy through `trust-record-settle`, A4's and A8's removal hook, S4's `leave` and `member-leave`.
 
-  - 6, the hosted relay: in review in [#2063](https://github.com/lushly-dev/afd/pull/2063) (2026-11-22, [#2060](https://github.com/lushly-dev/afd/issues/2060)), its record in the [specification's status](phases/6-hosts/spec.md#status): `<base>mounts/<instance>/mcp` on `loam-host`, parse, decide and rebuild against the server's records and its own discovery, every command forwarded as `afd-call`, `Loam-Relay-Refusal` and `mount.ts`'s codes, `@lushly-dev/loam-kernel/mounted`; P6-E5, P6-H6 (its unit-only rows a follow-up) and P6-H7.
+  - 6, the hosted relay: merged in [#2063](https://github.com/lushly-dev/afd/pull/2063) at `c274ddaa` (2026-11-22; [#2060](https://github.com/lushly-dev/afd/issues/2060)), its record in the [specification's status](phases/6-hosts/spec.md#status): `<base>mounts/<instance>/mcp` on `loam-host`, parse, decide and rebuild against the server's records and its own discovery, every command forwarded as `afd-call`, `Loam-Relay-Refusal` and `mount.ts`'s codes, `@lushly-dev/loam-kernel/mounted`; P6-E5, P6-H6 (its unit-only rows a follow-up) and P6-H7.
 
   - 7, M1, the development profile: not started.
 
@@ -642,7 +642,7 @@ The exit check passes: every job a success, every row passing where it names.
 
   - 12, M3 and M4 (installers and the updater): not started.
 
-  - 11b, inbound MCP and the CLI: in review in [#2062](https://github.com/lushly-dev/afd/pull/2062) (`lush/loam-p6-step11b-inbound-mcp`, [#2057](https://github.com/lushly-dev/afd/issues/2057)); its record is in the [specification's status](phases/6-hosts/spec.md#status).
+  - 11b, inbound MCP and the CLI: merged in [#2062](https://github.com/lushly-dev/afd/pull/2062) at `d74ab7be` (2026-11-22; [#2057](https://github.com/lushly-dev/afd/issues/2057)); its record is in the [specification's status](phases/6-hosts/spec.md#status).
 
   - 13, the exit: not started.
 - **Follow-ups:** in the [specification](phases/6-hosts/spec.md#follow-ups).
