@@ -43,7 +43,7 @@ import {
 	holdDirectApproval,
 	takeDirectApproval,
 } from '@lushly-dev/afd-core/internal/direct-approval';
-import { admitApproval, gates, liveCommand } from './approval-admission.js';
+import { admitApproval, gates, liveCommand, markListedGate } from './approval-admission.js';
 import {
 	type ApprovalKey,
 	type ApprovalSecret,
@@ -51,10 +51,13 @@ import {
 	base64url,
 	base64urlText,
 	canonicalJson,
+	canonicalOrUndefined,
 	createMemoryNonceStore,
 	decodeBase64urlText,
 	digest,
 	hmac,
+	inputChanged,
+	inputNotCanonical,
 	randomBytes,
 	safeEqualText,
 	toKeys,
@@ -491,11 +494,31 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 		return `${signingInput}.${base64url(await hmac(keys[0] as ApprovalKey, signingInput))}`;
 	}
 
+	// This approval step, as the admission records name it.
+	const self = {};
+
 	return async (commandName, input, context, outerNext) => {
-		// Every way this middleware lets the call through admits this command on this input, which
-		// the engine checks, and takes, before it dispatches a command that declares an approval policy.
-		const next = () => {
-			admitApproval(context, commandName, input, canonicalOrUndefined);
+		// Every way this middleware lets a call it may gate through admits this command on the
+		// canonical input it decided on, computed before any await, which the engine checks, and
+		// takes, before it dispatches a command that its own or its listed policy gates. A call no
+		// policy here gates is not admitted: an admission from another approval step stands alone,
+		// and a retry placed after that step is still refused.
+		const listedGate = gates(commands.get(commandName)?.approval);
+		// The command the engine runs, which a middleware before this one may have called it under
+		// another name: its listed gate holds at dispatch either way, and a renamed call is refused.
+		const live = liveCommand(context);
+		if (live && gates(commands.get(live.name)?.approval)) markListedGate(context);
+		const mayGate = policiesFor(commandName, context).some(gates);
+		const next = (canonical: string | undefined) => {
+			if (!mayGate) return outerNext();
+			admitApproval(context, {
+				step: self,
+				commandName,
+				canonical,
+				input,
+				listedGate,
+				canonicalize: canonicalOrUndefined,
+			});
 			return outerNext();
 		};
 		// An approver client's call (spec/command-metadata.md, "Approval evidence from an approver
@@ -512,11 +535,21 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 		// A step of an afd-batch or afd-pipe that can ask: the whole call is approved up front.
 		const upFront = relays ? upFrontApproval(context) : undefined;
 		if (upFront) return upFront.run(upFrontDeps, commandName, input, context, next);
+		// Only when a policy may gate the call, and before any await: an ungated call does not need
+		// it.
+		const decidedOn = mayGate ? canonicalOrUndefined(input) : undefined;
+		// Whether the input still has the canonical form decided on, after an await.
+		const changed = () => canonicalOrUndefined(input) !== decidedOn;
 		// The policy of the command this call runs, and the one the `commands` option lists for it.
-		if (!(await holds(commandName, input, context))) return next();
+		if (!(await holds(commandName, input, context))) return next(decidedOn);
 
+		// No token or relayed approval can bind an input with no canonical form, so nobody is asked.
+		if (decidedOn === undefined) return failure(inputNotCanonical(commandName));
+		// A policy function that changed the input would show the person one input and bind another.
+		if (changed()) return failure(inputChanged(commandName));
+		const summary = summarize(commandName, input, context);
 		const now = clock.now();
-		const inputBinding = canonicalJson(input);
+		const inputBinding = decidedOn;
 		const actorBinding = actorJson(context.actor);
 		const who: Binding = approver
 			? {
@@ -538,14 +571,12 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 		if (evidence !== undefined) {
 			const verdict = await verify(evidence, commandName, inputBinding, who, now);
 			if (verdict.ok) {
-				if (await spend(verdict.nonce, verdict.expiresAt, now)) return next();
+				if (await spend(verdict.nonce, verdict.expiresAt, now)) return next(inputBinding);
 				rejected = 'already-used';
 			} else {
 				rejected = verdict.reason;
 			}
 		}
-
-		const summary = summarize(commandName, input, context);
 
 		if (relay) {
 			const bindings = await relayBindings(commandName, inputBinding, actorBinding);
@@ -561,7 +592,7 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 				});
 			}
 			if (answer.kind === 'accept' && (await relayedApprovalHolds(answer, bindings, now))) {
-				return next();
+				return next(inputBinding);
 			}
 			// An expired, spent or invalid approval is asked again, saying why.
 			const binding = bindings[0] as string;
@@ -598,6 +629,8 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 		// An approver always gets its token; anyone else as the option says.
 		const includeToken =
 			!directExchange && (!!approver || (options.includeToken ?? context.interface !== 'mcp'));
+		// Checked again after the awaits since the first check, before anyone is told of the call.
+		if (changed()) return failure(inputChanged(commandName));
 		if (directExchange) {
 			holdDirectApproval(context, {
 				approvalToken,
@@ -642,15 +675,6 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 			},
 		});
 	};
-}
-
-/** The canonical JSON of `value`, or undefined for a value canonical JSON refuses. */
-function canonicalOrUndefined(value: unknown): string | undefined {
-	try {
-		return canonicalJson(value);
-	} catch {
-		return undefined;
-	}
 }
 
 function parsePayload(encoded: string): TokenPayload | undefined {

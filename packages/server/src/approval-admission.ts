@@ -4,9 +4,13 @@
  * The execution engine records each call's declared approval policy on the call's own context
  * object before any middleware runs. The approval middleware decides from that record (the
  * command's own policy) and, when it lets the call through, records what it decided on: the
- * command name and the canonical JSON of the input. The engine dispatches a call whose policy is
- * not `'not-required'` only when such an admission matches the command and validated input it is
- * about to run, and it takes the admission as it dispatches, so one admission runs one handler.
+ * command name, the canonical JSON of the input it decided on, and whether the policy its
+ * `commands` option lists for the command gates it. The engine dispatches a call whose own or
+ * listed policy is not `'not-required'` only when every such admission matches the command and
+ * validated input it is about to run, and it takes them as it dispatches, so one admission runs
+ * one handler. An input with no canonical form, which only a policy that let the call through
+ * admits (the middleware refuses to hold one), is compared by identity, so a change inside it is
+ * not seen.
  *
  * Every call gets a fresh context object (`withContextDefaults` copies), so a batch item, a
  * pipeline step or a command run from inside another command's handler has its own record and
@@ -34,8 +38,10 @@ export type Canonicalize = (value: unknown) => string | undefined;
 
 /** What an approval step admitted: the command and input it decided on. */
 interface Admitted {
+	/** The approval step (one middleware instance) that admitted it. */
+	step: object;
 	name: string;
-	/** The canonical JSON of the input, or undefined when it has none (compared by identity). */
+	/** The canonical JSON of the input it decided on, or undefined when it has none (compared by identity). */
 	canonical: string | undefined;
 	input: unknown;
 	/**
@@ -47,15 +53,33 @@ interface Admitted {
 
 interface Admission {
 	command: AdmissionCommand;
-	admitted: Admitted | undefined;
+	/**
+	 * What each approval step admitted since the last dispatch. Two approval middlewares on one
+	 * engine each admit, and the dispatch must match them all, so a later one never replaces or
+	 * weakens an earlier one's binding.
+	 */
+	admitted: Admitted[];
+	/**
+	 * Every approval step that ever admitted this call. A dispatch needs a fresh admission from
+	 * each, so a retry that reruns only the steps after one of them is refused.
+	 */
+	steps: Set<object>;
 	/** Set once a dispatch took an admission, so a second dispatch reads as a mismatch. */
 	taken?: boolean;
+	/**
+	 * Set by the approval step when the policy its `commands` option lists for the command gates
+	 * it, so the engine takes and checks the admission as it does for the command's own policy.
+	 * Never cleared: a later dispatch on the same context is checked too.
+	 */
+	listedGate?: boolean;
 }
 
 const KEY = Symbol.for('dev.afd/approval-admission');
 // Captured once, so later changes to WeakMap.prototype do not reach these records.
 const weakGet = WeakMap.prototype.get;
 const weakSet = WeakMap.prototype.set;
+const setAdd = Set.prototype.add;
+const setHas = Set.prototype.has;
 
 /**
  * The shared map on `holder` (`globalThis`) when another copy installed it as this module does,
@@ -105,29 +129,62 @@ export function beginAdmission(context: CommandContext, command: AdmissionComman
 			approval: command.approval,
 			confirmPrompt: command.confirmPrompt,
 		},
-		admitted: undefined,
+		admitted: [],
+		steps: new Set(),
+	});
+}
+
+/** What an approval step decided on when it let a call through. */
+export interface Admit {
+	/** The approval step (one middleware instance) admitting it. */
+	step: object;
+	commandName: string;
+	/**
+	 * The canonical JSON of the input it decided on (verified a token against, or found not to
+	 * need approval), computed before any await, or undefined when it has none.
+	 */
+	canonical: string | undefined;
+	/** The input it decided on, compared by identity when it has no canonical form. */
+	input: unknown;
+	/** Whether the policy its `commands` option lists for the command gates it. */
+	listedGate: boolean;
+	/** Its canonical JSON, for the engine to compare the input it dispatches. */
+	canonicalize: Canonicalize;
+}
+
+/** Record that an approval step admitted the call of `context`. A no-op outside the engine. */
+export function admitApproval(context: CommandContext, admit: Admit): void {
+	const found = record(context);
+	if (!found) return;
+	if (admit.listedGate) found.listedGate = true;
+	setAdd.call(found.steps, admit.step);
+	found.admitted.push({
+		step: admit.step,
+		name: admit.commandName,
+		canonical: admit.canonical,
+		input: admit.input,
+		canonicalize: admit.canonicalize,
 	});
 }
 
 /**
- * Record that an approval step admitted the call of `context` to run `commandName` on `input`.
- * The input's canonical form (`canonicalize`) is computed only for a command that declares a
- * gating policy. A no-op outside the engine.
+ * Record that the policy an approval step's `commands` option lists for the command the call of
+ * `context` runs gates it, whatever name the step was called with, so a call renamed on its way
+ * to the step is still checked at dispatch. A no-op outside the engine.
  */
-export function admitApproval(
-	context: CommandContext,
-	commandName: string,
-	input: unknown,
-	canonicalize: Canonicalize
-): void {
+export function markListedGate(context: CommandContext): void {
 	const found = record(context);
-	if (!found) return;
-	found.admitted = {
-		name: commandName,
-		canonical: gates(found.command.approval) ? canonicalize(input) : undefined,
-		input,
-		canonicalize,
-	};
+	if (found) found.listedGate = true;
+}
+
+/**
+ * Whether the engine must take and check an admission before it dispatches the call of
+ * `context`: its command's own policy gates it, or an approval step recorded that its listed
+ * policy does.
+ */
+export function needsAdmission(context: CommandContext): boolean {
+	const found = record(context);
+	return found !== undefined && (gates(found.command.approval) || found.listedGate === true);
 }
 
 /** Whether a declared policy needs an approval step: anything but unset or `'not-required'`. */
@@ -136,10 +193,11 @@ export function gates(policy: ApprovalPolicy<never> | undefined): boolean {
 }
 
 /**
- * Take the admission of the call of `context`: `admitted` when it admitted `commandName` on
- * `input`: the same name, and the same canonical input (the same value, when the input has no
- * canonical form), `missing` with none, `mismatch` otherwise. Taken whatever the answer, so a
- * second dispatch needs a second admission.
+ * Take the admissions of the call of `context`: `admitted` when every approval step that ever
+ * admitted it admitted it again since the last dispatch, each on `commandName` and `input`: the
+ * same name, and the same canonical input (the same value, by `Object.is`, when the input has no
+ * canonical form; a change inside such a value is not seen), `missing` with none, `mismatch`
+ * otherwise. Taken whatever the answer, so a second dispatch needs a second admission from each.
  */
 export function takeAdmission(
 	context: CommandContext,
@@ -147,17 +205,21 @@ export function takeAdmission(
 	input: unknown
 ): 'admitted' | 'missing' | 'mismatch' {
 	const found = record(context);
-	const admitted = found?.admitted;
 	if (!found) return 'missing';
-	if (!admitted) return found.taken ? 'mismatch' : 'missing';
-	found.admitted = undefined;
+	const admitted = found.admitted;
+	if (admitted.length === 0) return found.taken ? 'mismatch' : 'missing';
+	found.admitted = [];
 	found.taken = true;
-	if (admitted.name !== commandName) return 'mismatch';
-	const canonical = admitted.canonicalize(input);
-	const same =
-		admitted.canonical === undefined
-			? admitted.input === input && canonical === undefined
-			: canonical === admitted.canonical;
+	const fresh = new Set<object>();
+	for (const step of admitted) setAdd.call(fresh, step.step);
+	for (const step of found.steps) if (!setHas.call(fresh, step)) return 'mismatch';
+	const same = admitted.every((step) => {
+		if (step.name !== commandName) return false;
+		const canonical = step.canonicalize(input);
+		return step.canonical === undefined
+			? Object.is(step.input, input) && canonical === undefined
+			: canonical === step.canonical;
+	});
 	return same ? 'admitted' : 'mismatch';
 }
 

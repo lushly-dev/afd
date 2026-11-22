@@ -559,6 +559,10 @@ export const CEILINGS = Object.freeze({
 	// Approval admission in afd-server (the engine records each call's approval policy and admission and refuses an
 	// unadmitted gated call), measured in one tree against `main` at `2700c62e`: 325,057 to 326,342 (+1,285); set to
 	// 326,800 under D115. Gzip 102,213 to 102,675, within its row.
+	// The approval-admission follow-ups, in one tree against `main` at `d6764276`: 326,696 to 326,777 (+81) and gzip
+	// 102,795 to 102,827, within both rows. Their review fixes (an approval step admits only a call it may gate, every
+	// step's admission must match, an input changed while the step decides is refused): 326,961 and gzip 102,905; set
+	// to 327,300 under D115.
 	// Phase 3's step 7 (identity over MCP), measured in one tree against `main` at `0ab76415`: 326,696 to 328,238
 	// (+1,542): the kernel's principal gate hook (the `gate` option, `KERNEL_OWN`, the server's own call marks and the
 	// scope runtime's `membershipOf`/`agentOf`) and the OAuth pages' route in `main.ts`; the gate itself is its own lazy
@@ -571,7 +575,9 @@ export const CEILINGS = Object.freeze({
 	// With step 8 merged too (`main` at `254249c3`, 309,128 and 96,461): 309,329 and 96,551, within both rows.
 	// afd-server's approval admission with its refusal reasons, against `main` at `2700c62e`: 102,213 to 102,795 gzip
 	// (+582); set to 103,200 under D115.
-	jsGzip: 103_200,
+	// With phase 3's step 7 (`main` at `09f3b0c0`, 103,184) and the approval-admission follow-ups merged: 103,302; set
+	// to 103,700 under D115.
+	jsGzip: 103_700,
 	// Raised from 8,496 to 10,500 by AFD's theme, Refined (D159, D115): `loam-theme.css` 8,217 to 8,431 (+214, the
 	// longer shadows and the three font stacks), and the theme's typefaces' `@font-face` rules, 1,820, the first
 	// stylesheet `index.html` links; measured 10,251, plus a margin.
@@ -590,6 +596,8 @@ export const CEILINGS = Object.freeze({
 	// Raised under D115 by #1701 and #1704: measured 135,309 against `main` at `e6395319`; set to 136,000.
 	// Approval admission in afd-server, against `main` at `2700c62e`: 135,309 to 136,945 (+1,636); set to 137,400 under
 	// D115.
+	// Its follow-ups (a listed policy's gate, the canonical input decided on, the middleware's `input-not-canonical`
+	// answer), against `main` at `d6764276`: 137,347 to 137,446 (+99); set to 137,800 under D115.
 	// Phase 3's step 7, against `main` at `0ab76415`: 137,347 to 141,140 (+3,793): the principal gate's chunk, the
 	// connected agents in the member reads and `account-agent-*`; set to 141,700 under D115.
 	kernelMinified: 141_700,

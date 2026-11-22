@@ -247,6 +247,14 @@ const HOST_IMPORTS =
  *   middleware, so a host without it does not bundle it. A second refusal reason (an approval step
  *   ran, but not for this dispatch) took them to 43,305 / 55,719 / 77,729 / 117,836; raised to
  *   43,700 / 56,100 / 78,100 / 118,200.
+ *   The approval-admission follow-ups (a listed policy's gate recorded on the admission, the
+ *   canonical input decided on carried into it, and the middleware's `input-not-canonical` answer,
+ *   under D115): measured on `main` at `d6764276` 43,305 / 55,719 / 77,729 / 117,836 bytes and
+ *   43,386 / 56,431 / 77,810 / 118,549 after, with esbuild 0.28.2; the two it exceeds are raised
+ *   to 56,500 and 118,600. Their review fixes (an approval step admits only a call it may gate,
+ *   every step's admission must match, and an input changed while the step decides is refused)
+ *   took those two to 57,006 and 119,121, and a fresh admission required from every step that
+ *   admitted to 57,230 and 119,346; raised to 57,400 and 119,500.
  * - 48.0 KB for a host that also imports `createApprovalMiddleware`.
  * - 68.6 KB for a host that also imports `createDirectToolSurface`: the router, the tool
  *   list, the meta-tools, `lazy-tools` and `bootstrap/`.
@@ -264,14 +272,14 @@ const DIRECT_BUDGETS = [
 	{
 		what: 'the same host with the approval middleware',
 		imports: `${HOST_IMPORTS}, createApprovalMiddleware`,
-		bytes: 56_100,
+		bytes: 57_400,
 	},
 	{
 		what: 'a host with the tool surface',
 		imports: `${HOST_IMPORTS}, createDirectToolSurface`,
 		bytes: 78_100,
 	},
-	{ what: 'every export', imports: undefined, bytes: 118_200 },
+	{ what: 'every export', imports: undefined, bytes: 119_500 },
 ];
 
 /** The modules only the tool surface needs. */

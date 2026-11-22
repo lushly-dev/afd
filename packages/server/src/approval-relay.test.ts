@@ -790,6 +790,122 @@ const BATCH_QUESTION = [
 	'Input: {"id":2}',
 ].join('\n');
 
+describe('a held call on an input with no canonical form', () => {
+	/** todo-tag needs approval, and its validated input holds a Set, which canonical JSON refuses. */
+	const tagged = (calls: string[]) =>
+		[
+			defineCommand({
+				name: 'todo-tag',
+				description: 'Tag a todo',
+				mutation: true,
+				approval: 'required',
+				expose: { mcp: true },
+				input: z.object({ tags: z.array(z.string()).transform((tags) => new Set(tags)) }),
+				handler: async () => {
+					calls.push('tag');
+					return success({ tagged: true });
+				},
+			}),
+		] as unknown as ReturnType<typeof commands>;
+
+	function expectNotCanonical(refused: { code: string; details?: object } | undefined) {
+		expect(refused).toMatchObject({
+			code: 'APPROVAL_UNAVAILABLE',
+			retryable: false,
+			details: { reason: 'input-not-canonical' },
+		});
+	}
+
+	it('is answered on its own without asking the client', async () => {
+		const { url, calls, requests } = await serve({ extra: tagged });
+		const prompts: string[] = [];
+		const client = await connect(url, 'accept', prompts);
+		const result = await client.callTool({ name: 'todo-tag', arguments: { tags: ['a'] } });
+		expectNotCanonical(error(result));
+		expect(prompts).toEqual([]);
+		expect(requests).toEqual([]);
+		expect(calls).toEqual([]);
+	});
+
+	it('refuses an afd-batch with such a step up front, running nothing', async () => {
+		const { url, calls } = await serve({ extra: tagged });
+		const prompts: string[] = [];
+		const client = await connect(url, 'accept', prompts);
+		const result = await client.callTool({
+			name: 'afd-batch',
+			arguments: {
+				commands: [
+					{ command: 'todo-list', input: {} },
+					{ command: 'todo-tag', input: { tags: ['a'] } },
+				],
+			},
+		});
+		expectNotCanonical(refusal(result));
+		expect(prompts).toEqual([]);
+		expect(calls).toEqual([]);
+	});
+
+	it('refuses an afd-pipe with such a step up front, running nothing', async () => {
+		const { url, calls } = await serve({ extra: tagged });
+		const prompts: string[] = [];
+		const client = await connect(url, 'accept', prompts);
+		const result = await client.callTool({
+			name: 'afd-pipe',
+			arguments: {
+				steps: [{ command: 'todo-list' }, { command: 'todo-tag', input: { tags: ['a'] } }],
+			},
+		});
+		expectNotCanonical(refusal(result));
+		expect(prompts).toEqual([]);
+		expect(calls).toEqual([]);
+	});
+});
+
+describe('an up-front step whose policy changes its input', () => {
+	/** todo-tag needs approval, and its policy function changes the input it decides on. */
+	const changing = (calls: string[]) =>
+		[
+			defineCommand({
+				name: 'todo-tag',
+				description: 'Tag a todo',
+				mutation: true,
+				approval: (input: { tag: string }) => {
+					input.tag = 'changed';
+					return 'required' as const;
+				},
+				expose: { mcp: true },
+				input: z.object({ tag: z.string() }),
+				handler: async () => {
+					calls.push('tag');
+					return success({ tagged: true });
+				},
+			}),
+		] as unknown as ReturnType<typeof commands>;
+
+	it('refuses the afd-batch up front, asking nobody and running nothing', async () => {
+		const { url, calls, requests } = await serve({ extra: changing });
+		const prompts: string[] = [];
+		const client = await connect(url, 'accept', prompts);
+		const result = await client.callTool({
+			name: 'afd-batch',
+			arguments: {
+				commands: [
+					{ command: 'todo-list', input: {} },
+					{ command: 'todo-tag', input: { tag: 'a' } },
+				],
+			},
+		});
+		expect(refusal(result)).toMatchObject({
+			code: 'APPROVAL_UNAVAILABLE',
+			retryable: false,
+			details: { reason: 'admission-mismatch' },
+		});
+		expect(prompts).toEqual([]);
+		expect(requests).toEqual([]);
+		expect(calls).toEqual([]);
+	});
+});
+
 describe('one up-front approval for afd-batch and afd-pipe (#459)', () => {
 	it('asks once for every gated step of a batch, then runs it', async () => {
 		const { url, calls, requests } = await serve();
