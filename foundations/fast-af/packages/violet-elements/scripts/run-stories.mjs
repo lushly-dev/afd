@@ -34,11 +34,33 @@ try {
   ])
     for (const path of paths) console.error(`pack: ${kind}: ${path}`);
   for (const { code, path, message } of pack.problems) console.error(`pack: ${code}: ${path}: ${message}`);
+  const changedTags = new Set(
+    pack.changed
+      .map((path) => /^data\/[^/]+\/components\/([^/]+)\.json$/.exec(path)?.[1])
+      .filter(Boolean),
+  );
+  for (const { tag, from, reason } of pack.examples.leftOut) {
+    if (changedTags.has(tag)) console.error(`pack: example left out: ${tag} (${from}): ${reason}`);
+  }
+  const drifted = pack.changed.length + pack.added.length + pack.removed.length;
+  const hasErrors = pack.cases.failed.length > 0 || pack.problems.length > 0;
+  const problemLabel = pack.problems.length === 1 ? "problem" : "problems";
+  const errorSuffix = hasErrors ? ` (${pack.cases.failed.length} failed, ${pack.problems.length} ${problemLabel})` : "";
+  const packSummary = pack.valid
+    ? `${pack.components.length} records match the committed pack`
+    : drifted > 0
+      ? `${drifted} ${drifted === 1 ? "file differs" : "files differ"} from the committed pack (across ${pack.components.length} records)${errorSuffix}`
+      : `failed${errorSuffix} across ${pack.components.length} records`;
   console.log(
-    `pack-check: ${pack.components.length} records ${pack.valid ? "match" : "differ from"} the committed pack; ${pack.cases.passed} of ${pack.cases.total} cases the same in both passes, ${pack.cases.unstable.length} unstable, ${pack.cases.retried.length} retried; in ${seconds(pack.elapsedMs)}`,
+    `pack-check: ${packSummary}; ${pack.cases.passed} of ${pack.cases.total} cases the same in both passes, ${pack.cases.unstable.length} unstable, ${pack.cases.retried.length} retried; in ${seconds(pack.elapsedMs)}`,
   );
   if (!pack.valid) {
-    console.error("Rebuild the records with `specimen pack` (see the package README) and commit them.");
+    if (hasErrors) {
+      console.error("Fix the failed cases or pack problems above before rebuilding the pack.");
+    }
+    if (drifted > 0) {
+      console.error("Rebuild the records with `specimen pack` (see the package README) and commit them.");
+    }
     process.exitCode = 1;
   }
   try {

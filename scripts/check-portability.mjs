@@ -22,7 +22,8 @@
  * - vite/vitest config localhost references
  *
  * Excluded directories: alfred/, python/, packages/rust/ (own tooling),
- * and the C++ CMake build trees packages/cpp/build/ and packages/examples/todo/backends/cpp/build/
+ * Cargo target/ build outputs, and the C++ CMake build trees
+ * packages/cpp/build/ and packages/examples/todo/backends/cpp/build/
  */
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -39,7 +40,15 @@ const CHECK_EXTENSIONS = new Set([
 	'.yaml',
 	'.yml',
 ]);
-const SKIP_DIRS = new Set(['node_modules', 'dist', '.git', 'coverage', 'alfred', 'python']);
+const SKIP_DIRS = new Set([
+	'node_modules',
+	'dist',
+	'.git',
+	'coverage',
+	'alfred',
+	'python',
+	'target',
+]);
 const CPP_BUILD_DIR = /\/(?:packages\/cpp|packages\/examples\/todo\/backends\/cpp)\/build\//;
 const ESCAPE_HATCH = /portability-ok\s*:/i;
 const SCRIPT_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.mjs', '.cjs']);
@@ -130,7 +139,16 @@ function getInputFiles() {
 	}
 
 	const files = [];
-	const roots = ['packages', 'scripts', 'tests', 'docs', '.github'];
+	const roots = [
+		'packages',
+		'foundations',
+		'integrations',
+		'endpoints',
+		'scripts',
+		'tests',
+		'docs',
+		'.github',
+	];
 	for (const root of roots) {
 		collectFiles(resolve(root), files);
 	}
@@ -170,15 +188,166 @@ function report(filePath, lineNum, severity, message, excerpt, suggestion) {
 	console.warn(`    💡 ${suggestion}\n`);
 }
 
+const FALSY_SHELL = /^(?:false|undefined|null|0|!1|!true|''|""|``)$/;
+
+/**
+ * Extracts one balanced `(...)` call starting at `openParen`, masking comments to spaces and
+ * replacing non-empty string literals with `'_'` (and empty ones with `''`) so `shell:` inside
+ * comments or CLI argument strings cannot mask a missing shell option.
+ */
+function maskCallExpression(content, openParen) {
+	let out = '';
+	let depth = 0;
+	for (let i = openParen; i < content.length; i++) {
+		const ch = content[i];
+		const next = content[i + 1];
+		if (ch === '/' && next === '/') {
+			while (i < content.length && content[i] !== '\n') i++;
+			out += '\n';
+			continue;
+		}
+		if (ch === '/' && next === '*') {
+			i += 2;
+			while (i < content.length && !(content[i] === '*' && content[i + 1] === '/')) {
+				if (content[i] === '\n') out += '\n';
+				i++;
+			}
+			i++;
+			out += ' ';
+			continue;
+		}
+		if (ch === "'" || ch === '"' || ch === '`') {
+			const quote = ch;
+			let bodyLen = 0;
+			i++;
+			while (i < content.length && content[i] !== quote) {
+				if (content[i] === '\\' && i + 1 < content.length) {
+					i += 2;
+					bodyLen += 2;
+					continue;
+				}
+				i++;
+				bodyLen++;
+			}
+			out += bodyLen === 0 ? `${quote}${quote}` : `${quote}_${quote}`;
+			continue;
+		}
+		out += ch;
+		if (ch === '(') depth++;
+		else if (ch === ')') {
+			depth--;
+			if (depth === 0) return out;
+		}
+	}
+	return out;
+}
+
+/** Strips redundant balanced outer parentheses around a masked JS expression. */
+function unwrapOuterParens(expr) {
+	let text = expr.trim();
+	while (text.startsWith('(') && text.endsWith(')')) {
+		let depth = 0;
+		let wrapsAll = true;
+		for (let i = 0; i < text.length; i++) {
+			if (text[i] === '(') depth++;
+			else if (text[i] === ')') {
+				depth--;
+				if (depth === 0 && i < text.length - 1) {
+					wrapsAll = false;
+					break;
+				}
+			}
+		}
+		if (!wrapsAll || depth !== 0) break;
+		text = text.slice(1, -1).trim();
+	}
+	return text;
+}
+
+/**
+ * Checks only top-level `shell:` properties of an options object literal passed to the spawn call
+ * (parenDepth === 1, braceDepth === 1, bracketDepth === 0), ignoring nested objects like `env`.
+ */
+function hasEnabledShellOption(maskedCall) {
+	let matched = false;
+	let parenDepth = 0;
+	let braceDepth = 0;
+	let bracketDepth = 0;
+	for (let i = 0; i < maskedCall.length; i++) {
+		const ch = maskedCall[i];
+		if (ch === '(') {
+			parenDepth++;
+			continue;
+		}
+		if (ch === ')') {
+			parenDepth--;
+			continue;
+		}
+		if (ch === '[') {
+			bracketDepth++;
+			continue;
+		}
+		if (ch === ']') {
+			bracketDepth--;
+			continue;
+		}
+		if (ch === '{') {
+			braceDepth++;
+			continue;
+		}
+		if (ch === '}') {
+			braceDepth--;
+			continue;
+		}
+		if (parenDepth !== 1 || braceDepth !== 1 || bracketDepth !== 0) continue;
+		if (ch !== 's') continue;
+		const rest = maskedCall.slice(i);
+		const propMatch = rest.match(/^shell\s*:/);
+		if (!propMatch) continue;
+		// Ensure `shell:` is a property key (preceded by `{` or `,`, not part of an identifier or value).
+		const before = maskedCall.slice(0, i).trimEnd();
+		const prevChar = before[before.length - 1];
+		if (prevChar !== '{' && prevChar !== ',') continue;
+		let j = i + propMatch[0].length;
+		let valParen = 0;
+		let valBrace = 0;
+		let valBracket = 0;
+		for (; j < maskedCall.length; j++) {
+			const c = maskedCall[j];
+			if (c === '(') valParen++;
+			else if (c === ')') {
+				if (valParen === 0) break;
+				valParen--;
+			} else if (c === '{') valBrace++;
+			else if (c === '}') {
+				if (valBrace === 0) break;
+				valBrace--;
+			} else if (c === '[') valBracket++;
+			else if (c === ']') {
+				if (valBracket === 0) break;
+				valBracket--;
+			} else if (c === ',' && valParen === 0 && valBrace === 0 && valBracket === 0) {
+				break;
+			}
+		}
+		const value = unwrapOuterParens(maskedCall.slice(i + propMatch[0].length, j));
+		matched = !FALSY_SHELL.test(value);
+		i = j - 1;
+	}
+	return matched;
+}
+
 function scanShimSpawns(filePath, content, lines) {
 	for (const match of content.matchAll(BARE_SHIM_SPAWN)) {
 		const index = content.slice(0, match.index).split('\n').length - 1;
 		const line = lines[index];
 		const prev = index > 0 ? lines[index - 1] : '';
 		if (COMMENT_LINE.test(line) || ESCAPE_HATCH.test(line) || ESCAPE_HATCH.test(prev)) continue;
-		// A call that sets `shell` (as `shell: process.platform === 'win32'`) starts the shim.
-		const call = content.slice(match.index, content.indexOf(');', match.index));
-		if (/\bshell\s*:/.test(call)) continue;
+		const openParen = content.indexOf('(', match.index);
+		const call = maskCallExpression(content, openParen);
+		// A call that sets a truthy `shell` (such as `shell: process.platform === 'win32'` or
+		// `shell: true`) starts the shim; explicit `shell: false` (or falsy) fails like omitted.
+		if (hasEnabledShellOption(call)) continue;
 		report(
 			filePath,
 			index + 1,

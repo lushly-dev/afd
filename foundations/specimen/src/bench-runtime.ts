@@ -657,7 +657,13 @@ export async function createInProcessBench(
 				),
 			render: (id, checkpoint, timeoutMs, observe) => render(id, checkpoint, timeoutMs, observe),
 			capture: (id, { timeoutMs, observe, remount }) =>
-				render(id, 'after-run', timeoutMs, observe, remount),
+				render(
+					id,
+					'after-run',
+					timeoutMs ?? config.config.test?.timeoutMs ?? DEFAULT_STORY_TIMEOUT_MS,
+					observe,
+					remount
+				),
 		};
 	};
 	const api: BenchRuntime = {

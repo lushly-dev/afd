@@ -520,12 +520,14 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 				}
 				if (entry.remount) {
 					// Markup taken from a case, mounted again: its module registers the components, and
-					// the markup alone has to reproduce what the case showed. Settling waits for them.
+					// the markup alone has to reproduce what the case showed. Settling waits for them,
+					// plus one extra frame for deferred writes (matching `mountAndRun` with `settled`).
 					await load();
 					declaredClaims = [];
 					story = undefined;
 					mountRoot.innerHTML = entry.remount;
 					await settle();
+					await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 					return unscripted();
 				}
 				const module = await load();

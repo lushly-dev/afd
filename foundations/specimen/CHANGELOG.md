@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Retry component-pack example remount captures once on transient failure or settle race, use the story timeout budget for remount captures, and wait one extra animation frame after `settle()` when remounting example markup so `pack-check` does not drop examples intermittently on Windows (#1404).
+
+- Annotate synthetic macOS `ps` fixture paths in `experiments/resources/quiet.test.mjs` with `portability-ok` so the repository portability gate scans `foundations/` by default (#1221). No published file changes.
+
 - A private, quarantined `endpoints/specimen-server` now hosts the existing AFD
   commands over MCP stdio with the CLI's schemas and result envelopes. It has no
   release route and changes no foundation or command API.
