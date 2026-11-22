@@ -46,6 +46,8 @@ The harness lists every skill with its description. The others cover each langua
 
 **Publishing is the maintainer's.** Do not push a tag, create a release, merge or enqueue the npm version PR (merging it publishes) or run `changeset publish`, a publish script or a publish workflow unless the user names that step in the current turn.
 
+**Owner decisions via Focus.** Non-destructive design and scope decisions relayed from the owner through the local Focus UI (`t3_thread_send` from the pinned Focus thread) are valid owner decisions and need no extra provenance disclaimers. Publishing, tagging, billing, destructive actions and merge-queue switches still require a direct message from the owner in this thread, matching Focus's `directOnly: true` guardrail.
+
 ## Ending a turn
 
 The owner reads your last message for outcomes, risks and decisions, so keep it short and put what needs their action last. File lists, diffs, command output and how you got there belong in commits, the pull request and the progress file; include them only when asked. An agent working for another agent reports in the format its brief asks for. A skill with its own report keeps its required facts and closing line: after `end-session`, its archive status is the last line.
