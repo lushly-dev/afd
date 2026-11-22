@@ -1,0 +1,41 @@
+# Draft JTBD scenario for the Scales proposal. Command extensions and ramp constraint shapes are
+# proposals; the data is invented (`studio` fixture). Lists in expect.data use dotted index paths.
+# In the studio fixture, ref.space.12, ref.space.16, ref.space.24, ref.type.100.*, ref.type.400.*,
+# ref.radius.4, ref.radius.12, ref.target.24 and ref.target.44 are unused on studio/light.
+
+name: Stay quiet on compliant tokens, unique reasoned off-ramps and unused ramp steps
+description: >-
+  When semantic tokens point to their family's ramp, an off-ramp value has a unique reason, and
+  some ramp steps are unused, I want checks to report nothing, so that only real drift draws
+  attention.
+job: stay-quiet-when-compliant
+tags: [slice, quiet]
+
+fixture:
+  file: fixtures/studio.json
+
+steps:
+  - description: Add one unique off-ramp literal with a reason
+    command: token.add
+    input:
+      nodeId: studio
+      tokenId: radius.pill.tab
+      value: 6px
+      reason: Matches native macOS segmented control corner radius
+      metadata: { type: dimension, category: radius, tier: semantic }
+    expect:
+      success: true
+      data:
+        tokenId: radius.pill.tab
+
+  - description: Full node validation reports zero errors, zero warnings and zero infos despite unused ramp steps
+    command: constraints.validate
+    input:
+      nodeId: studio/light
+    expect:
+      success: true
+      data:
+        valid: true
+        summary.errors: 0
+        summary.warnings: 0
+        summary.infos: 0

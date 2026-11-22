@@ -90,7 +90,7 @@ Cross-language gaps (TypeScript, Python, Rust, C++) are tracked in [Language Par
 | [Plugin Discovery](./proposed/plugin-discovery/) | Auto-discovery of AFD plugins |
 | [Rust Distribution](./proposed/rust-distribution/) | Rust-based distribution layer |
 | [Rust Support](./proposed/rust-support/) | Core crate published as 0.1.0; broader MCP transport and distribution proposal remains open |
-| [Scales](./proposed/scales/scales.proposal.md) | Sizes limited by a rule, named by purpose and derived from one another, in place of names by position, with Violet's reference transforms to be built. Scaffold 2026-11-13: problem, what exists and six draft jobs, waiting on the owner's answer to the direction; status in [STATUS.md](./proposed/scales/STATUS.md) |
+| [Scales](./proposed/scales/scales.proposal.md) | Two-stage size system — hand-picked `ref.*` ramps (spacing, paired type size/line, radius, target) plus purpose-named semantic tokens with governed off-ramp reasons and a coordinated `contractVersion: 3` cutover across `violet-elements` and Loam (derived-value transforms dropped). Drafted, walked across three seats, and reviewed by two independent reviewers on 2026-11-22 under [#1111](https://github.com/lushly-dev/afd/issues/1111) with eight jobs as scenarios (7 in Slice 1, 1 optional in Slice 2); held in `proposed/` until implementation is scheduled; status in [STATUS.md](./proposed/scales/STATUS.md) |
 | [Skill Knowledge Layer](./proposed/skill-knowledge-layer/) | Skills as structured knowledge for agents |
 | [Zero Chat Tools](./proposed/zero-chat-tools/) | Canvas-aware AFD commands for Zero chat agent |
 

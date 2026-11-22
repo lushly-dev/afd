@@ -1,0 +1,123 @@
+# Draft JTBD scenario for the Scales proposal. Command extensions and ramp constraint shapes are
+# proposals; the data is invented (`studio` fixture). Lists in expect.data use dotted index paths.
+
+name: Expose only purpose-named semantic tokens and reject positional names
+description: >-
+  When an agent or author picks a size, I want only purpose-named semantic tokens exposed on
+  semantic queries and filtered exports (never ref.* steps or positional xs-xl names), so that
+  every choice explains what it is for.
+job: choose-by-purpose
+tags: [slice]
+
+fixture:
+  file: fixtures/studio.json
+
+steps:
+  - description: Attach an opt-in pattern constraint rejecting leading, middle or trailing positional size segments
+    command: constraints.set
+    input:
+      nodeId: studio
+      merge: true
+      constraints:
+        - id: no-positional-names
+          name: Semantic token ids must not use positional size segments
+          applyTo: "*"
+          severity: error
+          config:
+            type: pattern
+            target: id
+            pattern: "^(?!(?:xs|sm|md|lg|xl)(?:\\.|$))(?!.*\\.(?:xs|sm|md|lg|xl)(?:\\.|$)).+$"
+    expect:
+      success: true
+      data:
+        nodeId: studio
+        constraintsSet: 1
+
+  - description: Adding a suffix-positional semantic token succeeds on write (non-blocking)
+    command: token.add
+    input:
+      nodeId: studio
+      tokenId: space.stack.sm
+      value: { ref: ref.space.8 }
+      metadata: { type: dimension, category: spacing, tier: semantic }
+    expect:
+      success: true
+      data:
+        tokenId: space.stack.sm
+
+  - description: Adding a leading-positional semantic token also succeeds on write (non-blocking)
+    command: token.add
+    input:
+      nodeId: studio
+      tokenId: sm.stack
+      value: { ref: ref.space.8 }
+      metadata: { type: dimension, category: spacing, tier: semantic }
+    expect:
+      success: true
+      data:
+        tokenId: sm.stack
+
+  - description: Validation flags the suffix-positional token id
+    command: constraints.validate
+    input:
+      nodeId: studio/light
+      filter: space.stack.sm
+    expect:
+      success: true
+      data:
+        valid: false
+        summary.errors: 1
+        results.0.tokenId: space.stack.sm
+        results.0.violations.0.constraintId: no-positional-names
+
+  - description: Validation also flags the leading-positional token id
+    command: constraints.validate
+    input:
+      nodeId: studio/light
+      filter: sm.stack
+    expect:
+      success: true
+      data:
+        valid: false
+        summary.errors: 1
+        results.0.tokenId: sm.stack
+        results.0.violations.0.constraintId: no-positional-names
+
+  - description: Remove the suffix-positional token
+    command: token.remove
+    input:
+      nodeId: studio
+      tokenId: space.stack.sm
+    expect:
+      success: true
+
+  - description: Remove the leading-positional token so only purpose-named semantics remain
+    command: token.remove
+    input:
+      nodeId: studio
+      tokenId: sm.stack
+    expect:
+      success: true
+
+  - description: An agent browsing sizes with excludePrefixes sees only the 9 purpose-named semantic tokens with resolved values
+    command: tokens.resolve
+    input:
+      nodeId: studio/light
+      excludePrefixes: [ref.]
+    expect:
+      success: true
+      data:
+        total: 9
+
+  - description: Exporting CSS with excludePrefixes omits all ref.* ramp steps and keeps only the 9 purpose-named semantic tokens
+    command: export
+    input:
+      nodeId: studio/light
+      format: css
+      excludePrefixes: [ref.]
+    expect:
+      success: true
+      data:
+        format: css
+        content: { contains: "--space-inline-group: 8px;" }
+        tokenCount: 9

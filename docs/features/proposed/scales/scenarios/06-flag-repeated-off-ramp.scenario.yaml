@@ -1,0 +1,101 @@
+# Draft JTBD scenario for the Scales proposal. Command extensions and ramp constraint shapes are
+# proposals; the data is invented (`studio` fixture). Lists in expect.data use dotted index paths.
+
+name: Warn when two or more semantic tokens share an off-ramp literal
+description: >-
+  When two or more semantic tokens in a family share the same off-ramp literal, I want checks to
+  warn and list them, so that I see when the ramp is missing a step and can promote it to clear
+  the warning.
+job: flag-repeated-off-ramp
+tags: [slice]
+
+fixture:
+  file: fixtures/studio.json
+
+steps:
+  - description: Add a first semantic token with a reasoned 13px off-ramp literal
+    command: token.add
+    input:
+      nodeId: studio
+      tokenId: type.label.size
+      value: 13px
+      reason: Optical weight between caption and body for form labels
+      metadata: { type: dimension, category: typography, tier: semantic }
+    expect:
+      success: true
+      data:
+        tokenId: type.label.size
+
+  - description: Add a second semantic token in the same family with the same 13px off-ramp literal
+    command: token.add
+    input:
+      nodeId: studio
+      tokenId: type.tab.size
+      value: 13px
+      reason: Matches form labels in compact navigation tabs
+      metadata: { type: dimension, category: typography, tier: semantic }
+    expect:
+      success: true
+      data:
+        tokenId: type.tab.size
+
+  - description: Validation stays valid (non-blocking) but emits a warning naming both sharing tokens
+    command: constraints.validate
+    input:
+      nodeId: studio/light
+      filter: type.label.size
+    expect:
+      success: true
+      data:
+        valid: true
+        summary.errors: 0
+        summary.warnings: 1
+        results.0.tokenId: type.label.size
+        results.0.violations.0.severity: warning
+        results.0.violations.0.message: { contains: "type.tab.size" }
+
+  - description: Promote 13px onto the type ramp as step 250
+    command: token.add
+    input:
+      nodeId: studio
+      tokenId: ref.type.250.size
+      value: 13px
+      metadata: { type: dimension, category: typography, tier: global }
+    expect:
+      success: true
+      data:
+        tokenId: ref.type.250.size
+
+  - description: Point the first semantic token at the promoted ramp step
+    command: token.override
+    input:
+      nodeId: studio
+      tokenId: type.label.size
+      value: { ref: ref.type.250.size }
+    expect:
+      success: true
+      data:
+        tokenId: type.label.size
+
+  - description: Point the second semantic token at the promoted ramp step
+    command: token.override
+    input:
+      nodeId: studio
+      tokenId: type.tab.size
+      value: { ref: ref.type.250.size }
+    expect:
+      success: true
+      data:
+        tokenId: type.tab.size
+
+  - description: Promoting the step clears the repeated off-ramp warning
+    command: constraints.validate
+    input:
+      nodeId: studio/light
+      filter: type.*.size
+    expect:
+      success: true
+      data:
+        valid: true
+        summary.errors: 0
+        summary.warnings: 0
