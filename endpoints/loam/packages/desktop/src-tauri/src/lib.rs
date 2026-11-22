@@ -1,7 +1,11 @@
 //! Loam's desktop host (phase 6 specification, section 10): the same `web` build in Tauri 2's webview, as a
 //! personal shell. The Rust side serves the site over two custom protocols, keeps one window, builds the
-//! menus, and carries mounted instances' messages over three commands and the copilot's model requests over two
-//! more (phase 5 specification, 4.2), the only IPC the webview is granted.
+//! menus, and carries mounted instances' messages over three commands, the copilot's model requests over two more
+//! (phase 5 specification, 4.2), and the kernel's answers to the inbound endpoint over a sixth (10.8), the only IPC
+//! the webview is granted. `loam-desktop mcp` is the stdio bridge to that endpoint (`bridge`).
+pub mod bridge;
+pub mod connection;
+pub mod inbound;
 pub mod logging;
 pub mod models;
 pub mod mounts;
@@ -14,14 +18,16 @@ use serde_json::Value;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
-use tauri::{AppHandle, Manager, RunEvent, Runtime, State, WebviewUrl, WebviewWindowBuilder};
+use tauri::{
+    AppHandle, Manager, RunEvent, Runtime, State, WebviewUrl, WebviewWindowBuilder, WindowEvent,
+};
 
 /// The one webview the capability file names.
 pub const MAIN: &str = "main";
 
 /// Tests and a deployer's second profile point the app at another data directory; nothing in the webview
 /// can set it.
-const DATA_DIRECTORY: &str = "LOAM_DESKTOP_DATA_DIR";
+pub(crate) const DATA_DIRECTORY: &str = "LOAM_DESKTOP_DATA_DIR";
 
 struct SiteState(Arc<site::Site>);
 
@@ -92,7 +98,7 @@ fn emitter<R: Runtime>(app: AppHandle<R>) -> Emit {
     })
 }
 
-/// The five commands, and no other (10.4, and phase 5's 4.2): what the app registers, and what P6-D4's IPC test
+/// The six commands, and no other (10.4, phase 5's 4.2 and 10.8): what the app registers, and what P6-D4's IPC test
 /// drives.
 pub fn handler<R: Runtime>() -> impl Fn(tauri::ipc::Invoke<R>) -> bool + Send + Sync + 'static {
     tauri::generate_handler![
@@ -100,8 +106,90 @@ pub fn handler<R: Runtime>() -> impl Fn(tauri::ipc::Invoke<R>) -> bool + Send + 
         mount_send,
         mount_close,
         model_send,
-        model_cancel
+        model_cancel,
+        inbound_reply
     ]
+}
+
+/// The inbound endpoint while it serves (10.8): its state, and the switch that stops its listener. `None` when the
+/// deployer turned it off, `mounts.json` was missing or refused, or `inbound.json` could not be made owner-only.
+#[derive(Default)]
+pub struct InboundState(
+    std::sync::Mutex<Option<(Arc<inbound::Inbound>, tokio::sync::watch::Sender<bool>)>>,
+);
+
+impl InboundState {
+    /// A state serving `endpoint`, as the app's start makes one: for the IPC tests on Tauri's mock runtime.
+    #[doc(hidden)]
+    pub fn serving(endpoint: Arc<inbound::Inbound>) -> Self {
+        let (stop, _) = tokio::sync::watch::channel(false);
+        Self(std::sync::Mutex::new(Some((endpoint, stop))))
+    }
+
+    fn get(&self) -> Option<Arc<inbound::Inbound>> {
+        self.0
+            .lock()
+            .expect("inbound state")
+            .as_ref()
+            .map(|(inbound, _)| inbound.clone())
+    }
+
+    /// Stops the listener and deletes `inbound.json`: the window closed, or the app is exiting.
+    fn stop(&self, data: &std::path::Path) {
+        if let Some((_, stop)) = self.0.lock().expect("inbound state").take() {
+            let _ = stop.send(true);
+            connection::remove(data);
+        }
+    }
+}
+
+/// The data directory, for the exit's clean-up.
+struct DataDirectory(PathBuf);
+
+/// Binds `127.0.0.1` on a free port, writes `inbound.json` owner-only with a new token, and serves until stopped. Any
+/// failure serves nothing and says why without the token.
+fn start_inbound<R: Runtime>(
+    app: &AppHandle<R>,
+    data: &std::path::Path,
+) -> Option<(Arc<inbound::Inbound>, tokio::sync::watch::Sender<bool>)> {
+    let listener = match std::net::TcpListener::bind(("127.0.0.1", 0)).and_then(|listener| {
+        listener.set_nonblocking(true)?;
+        Ok(listener)
+    }) {
+        Ok(listener) => listener,
+        Err(error) => {
+            eprintln!(
+                "loam-desktop: the inbound endpoint could not listen ({error}); nothing is served inbound"
+            );
+            return None;
+        }
+    };
+    let port = listener.local_addr().ok()?.port();
+    let token = inbound::token();
+    if let Err(code) = connection::write(data, &connection::Connection::new(port, token.clone())) {
+        eprintln!(
+            "loam-desktop: inbound.json could not be made owner-only ({code}); nothing is served inbound"
+        );
+        return None;
+    }
+    let handle = app.clone();
+    let deliver: inbound::Deliver = Arc::new(move |statement| {
+        if let Some(window) = handle.get_webview_window(MAIN) {
+            let _ = window.eval(statement);
+        }
+    });
+    let endpoint = inbound::Inbound::new(port, &token, deliver);
+    let (stop, stopped) = tokio::sync::watch::channel(false);
+    let serving = endpoint.clone();
+    tauri::async_runtime::spawn(async move {
+        match tokio::net::TcpListener::from_std(listener) {
+            Ok(listener) => inbound::serve(listener, serving, stopped).await,
+            Err(_) => eprintln!(
+                "loam-desktop: the inbound endpoint could not listen; nothing is served inbound"
+            ),
+        }
+    });
+    Some((endpoint, stop))
 }
 
 #[tauri::command]
@@ -177,6 +265,36 @@ async fn model_cancel<R: Runtime>(
     from_shell(&webview, &request)?;
     models.cancel(stream).await;
     Ok(())
+}
+
+/// `inbound_reply` (10.8): the kernel's answer to a request the Rust host issued, `{ id, message }`, or `{ ready: true }`
+/// once stage B has loaded, answered `false` when it is refused (a page load under way), so the page asks again. An
+/// answer is `true` only when it reached a request still waiting: an id the host did not issue, or one already
+/// answered, does nothing and answers `false`. With no endpoint, `true`: there is nothing to wait for.
+#[tauri::command]
+async fn inbound_reply<R: Runtime>(
+    webview: tauri::Webview<R>,
+    request: tauri::ipc::Request<'_>,
+    inbound: State<'_, InboundState>,
+    id: Option<u64>,
+    message: Option<Value>,
+    ready: Option<bool>,
+) -> Result<bool, String> {
+    from_shell(&webview, &request)?;
+    // With no endpoint there is nothing to be ready for: `true`, so the page stops asking.
+    let Some(endpoint) = inbound.get() else {
+        return Ok(true);
+    };
+    if ready == Some(true) {
+        // `false` while a page load is under way: the page asks again (10.8).
+        return Ok(endpoint.set_ready());
+    }
+    // `true` only when the answer reached a request still waiting: an id the host did not issue, one already
+    // answered, or a call with neither field does nothing and says so (10.8).
+    Ok(match (id, message) {
+        (Some(id), Some(message)) => endpoint.reply(id, &message),
+        _ => false,
+    })
 }
 
 /// "Command palette" answers as Mod+K does, through the shell's own `openPalette`, which calls `palette-open`. A
@@ -283,12 +401,18 @@ pub fn run() {
                         .map(|(_, bytes)| bytes.to_vec())
                 }),
             ))));
-            // Read once: nothing in the webview can write it, and no command reaches it (10.3).
-            let entries = mounts::read(&data.join("mounts.json"));
-            if let Err(code) = &entries {
+            // Read once: nothing in the webview can write it, and no command reaches it (10.3). The inbound switch is
+            // in it too (10.8), so a file missing or refused serves nothing inbound.
+            let deployed = mounts::read_deployed(&data.join("mounts.json"));
+            if let Err(code) = &deployed {
                 eprintln!("loam-desktop: mounts.json refused ({code}); no instance is mounted");
             }
-            app.manage(Arc::new(Mounts::new(entries)));
+            let inbound_on = deployed.as_ref().is_ok_and(|deployed| deployed.inbound);
+            app.manage(Arc::new(Mounts::new(
+                deployed.map(|deployed| deployed.mounts),
+            )));
+            app.manage(InboundState::default());
+            app.manage(DataDirectory(data.clone()));
             // The copilot's providers (phase 5 specification, 4.2): read once, beside `mounts.json`, under its rule.
             let providers = models::read(&data.join("models.json"));
             if let Err(code) = &providers {
@@ -313,6 +437,25 @@ pub fn run() {
                     _ => {}
                 }
             });
+            // `SIGTERM` (a logout, a shutdown, a test) exits as "Quit" does, so `inbound.json` is deleted and every child
+            // stopped (10.8, 10.4), rather than the process ending with them behind it.
+            #[cfg(unix)]
+            {
+                let quitting = handle.clone();
+                tauri::async_runtime::spawn(async move {
+                    use tokio::signal::unix::{SignalKind, signal};
+                    if let Ok(mut terminate) = signal(SignalKind::terminate()) {
+                        terminate.recv().await;
+                        quitting.exit(0);
+                    }
+                });
+            }
+            // The listener starts with the window and stops when it closes (10.8); it answers `503` until the page
+            // says it is ready, so starting it first loses no `ready`.
+            if inbound_on {
+                *app.state::<InboundState>().0.lock().expect("inbound state") =
+                    start_inbound(&handle, &data);
+            }
             let url = format!("{}/", site::shell_origin())
                 .parse()
                 .expect("the shell's origin");
@@ -330,15 +473,38 @@ pub fn run() {
                         let models = window.state::<Arc<Models>>().inner().clone();
                         models.leave_page();
                         tauri::async_runtime::spawn(async move { models.cancel_all().await });
+                        // Not ready until the new page says so, and every waiting request answered `503` (10.8).
+                        if let Some(endpoint) = window.state::<InboundState>().get() {
+                            endpoint.page_started();
+                        }
+                    } else if let Some(endpoint) = window.state::<InboundState>().get() {
+                        endpoint.page_finished();
                     }
                 })
                 .build()?;
             Ok(())
         })
+        .on_window_event(|window, event| {
+            if window.label() == MAIN && matches!(event, WindowEvent::Destroyed) {
+                let app = window.app_handle();
+                if let (Some(inbound), Some(data)) = (
+                    app.try_state::<InboundState>(),
+                    app.try_state::<DataDirectory>(),
+                ) {
+                    inbound.stop(&data.0);
+                }
+            }
+        })
         .build(context)
         .expect("Loam's desktop host");
     app.run(|app, event| {
         if let RunEvent::Exit = event {
+            if let (Some(inbound), Some(data)) = (
+                app.try_state::<InboundState>(),
+                app.try_state::<DataDirectory>(),
+            ) {
+                inbound.stop(&data.0);
+            }
             let mounts = app.state::<Arc<Mounts>>().inner().clone();
             let models = app.state::<Arc<Models>>().inner().clone();
             tauri::async_runtime::block_on(async {
@@ -378,7 +544,7 @@ mod tests {
     }
 
     #[test]
-    fn the_capability_file_grants_the_five_commands_to_the_main_webview_only() {
+    fn the_capability_file_grants_the_six_commands_to_the_main_webview_only() {
         let file: Value = serde_json::from_str(include_str!("../capabilities/main.json")).unwrap();
         assert_eq!(file["local"], true);
         assert_eq!(file["webviews"], serde_json::json!([MAIN]));
@@ -394,7 +560,8 @@ mod tests {
                 "allow-mount-send",
                 "allow-mount-close",
                 "allow-model-send",
-                "allow-model-cancel"
+                "allow-model-cancel",
+                "allow-inbound-reply"
             ])
         );
     }

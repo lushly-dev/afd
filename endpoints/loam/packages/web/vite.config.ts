@@ -83,7 +83,10 @@ export default defineConfig({
 							// Phase 3's step 3: afd-auth's modules that first paint's Mock and the `auth` chunk's adapter share,
 							// and FAST's `ref`, which the bundler would otherwise part into first-paint chunks of their own once
 							// the `sign-in`, `account-menu` and `auth` chunks exist (13, E10).
-							test: /(preload-helper|chrome[\\/]dist[\\/]elements[\\/](events|entry-styles|app-entry|notice-loader)\.js|packages[\\/]auth[\\/]dist[\\/](errors|listeners|session-state|types)\.js|fast-element[\\/]dist[\\/]esm[\\/]templating[\\/]ref\.js)/,
+							// Phase 6's step 11b (10.8): the direct registry, its engine and the kernel's scope field, which
+							// first paint's kernel and the desktop's `inbound` chunk share, and which the bundler would otherwise
+							// part into first-paint chunks of their own (`define-core`, `direct-registry`, `field`).
+							test: /(preload-helper|chrome[\\/]dist[\\/]elements[\\/](events|entry-styles|app-entry|notice-loader)\.js|packages[\\/]auth[\\/]dist[\\/](errors|listeners|session-state|types)\.js|fast-element[\\/]dist[\\/]esm[\\/]templating[\\/]ref\.js|packages[\\/]core[\\/]dist[\\/](result|commands|clock|actor|pipeline-variables|request-validation|batch|streaming|command-execution|similarity|pipeline|pipeline-executor|direct-allow|direct-approval)\.js|packages[\\/]server[\\/]dist[\\/](issue-message|validation|define-core|command-allow|context-fields|context-scope|approval-admission|command-routing|execution|direct-registry)\.js|kernel[\\/]dist[\\/]scope[\\/]field\.js|zod[\\/]v4[\\/]mini[\\/]schemas\.js)/,
 						},
 					],
 				},

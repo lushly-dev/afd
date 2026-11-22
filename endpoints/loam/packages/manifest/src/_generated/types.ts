@@ -1240,6 +1240,7 @@ export interface DeploymentV4 {
 	};
 	host?: {
 		kind?: 'static' | 'hosted' | 'desktop';
+		inbound?: boolean;
 	};
 	copilot?: {
 		default?: string;

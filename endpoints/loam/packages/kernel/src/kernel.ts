@@ -41,7 +41,7 @@ import {
 	runtimeUnavailable,
 } from './apps-runtime.js';
 import { createBootCommands, takesProject } from './boot-commands.js';
-import { INTERNAL_COMMANDS, SHELL_EXPOSE } from './commands.js';
+import { INTERNAL_COMMANDS, type InboundParts, inboundCache, SHELL_EXPOSE } from './commands.js';
 import { KERNEL_CONTEXT_FIELDS, type KernelCallFields } from './context-fields.js';
 import { kernelFailure, LoamKernelError } from './errors.js';
 import { createJournalOrder } from './journal-order.js';
@@ -493,7 +493,7 @@ function reportKernelError(error: unknown): void {
 }
 
 /** What {@link createKernelParts} builds; `createKernel` and `replayKernel` share it. */
-export interface KernelParts {
+export interface KernelParts extends InboundParts {
 	kernel: LoamKernelV5;
 	/**
 	 * The current registries; {@link KernelParts.setAppCommands} replaces them. `boot` holds `BOOT_ONLY`'s
@@ -1479,6 +1479,7 @@ export async function createKernelParts(
 		// Phase 6's, so `late/` builds it: before that chunk has loaded, nothing is served. A server's call
 		// reaches this page's listeners as a call made here does (documents specification, 5.4).
 		mcpOptions: () => lateParts?.mcpOptions(current, listeners),
+		inboundCommands: inboundCache(() => [commandSet, current.commands, registries, apps]),
 	};
 }
 

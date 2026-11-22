@@ -3,7 +3,10 @@
  * and their exposure. The boot commands are in `boot-commands.ts`, and the rest in `late/`.
  */
 
-import type { ExposeOptions } from '@lushly-dev/afd-server/define';
+import type { ExposeOptions, ZodCommandDefinition } from '@lushly-dev/afd-server/define';
+import type { DirectCommandRegistry } from '@lushly-dev/afd-server/direct';
+import type { CommandOwner } from './apps-runtime.js';
+import type { InboundCommandsV1 } from './inbound/index.js';
 
 /**
  * Every shell command's exposure in phase 0 and 1: no CLI or MCP surface until phase 6. Never `apps`:
@@ -70,3 +73,52 @@ export const INTERNAL_COMMANDS: readonly string[] = Object.freeze([
 
 /** Most results `palette-search` returns, and its default. */
 export const PALETTE_SEARCH_LIMIT = { max: 50, default: 20 } as const;
+
+// ─── The desktop's inbound dispatcher (phase 6 specification, 10.8) ─────────────
+
+/*
+ * `KernelParts.inboundCommands()`: the definitions behind the agent interface's commands, split into the shell's and
+ * each app's own (native or view). A mounted instance's command is in neither, since an agent reaches it at the
+ * instance, nor is an internal command.
+ */
+
+/** What `KernelParts` gains for the desktop's inbound dispatcher (10.8). */
+export interface InboundParts {
+	/** The definitions behind the agent interface's commands; the same object until the command set changes. */
+	inboundCommands(): InboundCommandsV1;
+}
+
+/**
+ * The answer, made again only when the kernel's command-set counter has moved. `read` gives the counter, the current
+ * commands, the registries (the agent's says what is exposed to it) and the apps (whose owners say whose each is).
+ */
+export function inboundCache(
+	read: () => readonly [
+		set: number,
+		commands: readonly ZodCommandDefinition[],
+		registries: { agent: Pick<DirectCommandRegistry, 'hasCommand'> },
+		apps: { owners: ReadonlyMap<string, CommandOwner> },
+	]
+): () => InboundCommandsV1 {
+	let held: { set: number; commands: InboundCommandsV1 } | undefined;
+	return () => {
+		const [set, commands, registries, apps] = read();
+		if (held?.set !== set) {
+			const served = commands.filter(
+				(command) =>
+					registries.agent.hasCommand(command.name) && !INTERNAL_COMMANDS.includes(command.name)
+			);
+			held = {
+				set,
+				commands: {
+					shell: served.filter((command) => apps.owners.get(command.name) === undefined),
+					apps: served.filter((command) => {
+						const found = apps.owners.get(command.name);
+						return found !== undefined && found.recorded !== true;
+					}),
+				},
+			};
+		}
+		return held.commands;
+	};
+}

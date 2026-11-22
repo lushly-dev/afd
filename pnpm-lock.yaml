@@ -450,6 +450,9 @@ importers:
 
   endpoints/loam/packages/desktop:
     devDependencies:
+      '@lushly-dev/afd-cli':
+        specifier: workspace:*
+        version: link:../../../../packages/cli
       '@lushly-dev/afd-core':
         specifier: workspace:*
         version: link:../../../../packages/core

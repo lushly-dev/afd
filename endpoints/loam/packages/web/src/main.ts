@@ -257,6 +257,18 @@ async function boot(): Promise<void> {
 		// With no provider named, the shell's panel part keeps its empty state.
 		...(copilot ? { copilot: { host: copilot.panel } } : {}),
 	});
+	// The desktop's inbound endpoint (phase 6 specification, 10.8): its dispatcher in a chunk of its own, once stage B
+	// has loaded, and only where Tauri's IPC is in the page; a browser never loads it.
+	if (
+		typeof (window as { __TAURI_INTERNALS__?: { invoke?: unknown } }).__TAURI_INTERNALS__
+			?.invoke === 'function'
+	) {
+		const ready = host;
+		void host.kernel.appsReady
+			.then(() => import('./inbound.js'))
+			.then(({ startInbound }) => startInbound(window, ready))
+			.catch(reportError);
+	}
 	// Stage B loads Better Auth's client in `provider` mode only (4.2).
 	if (provider)
 		void host.kernel.appsReady

@@ -123,10 +123,14 @@
 		},
 		"host": {
 			"type": "object",
-			"description": "Which host serves the deployment (phase 6 specification, 3.3): static (the default, as versions 1 to 3 read), the hosted server, or the desktop.",
+			"description": "Which host serves the deployment (phase 6 specification, 3.3): static (the default, as versions 1 to 3 read), the hosted server, or the desktop; and, for the desktop, whether its inbound endpoint serves (10.8).",
 			"properties": {
 				"kind": {
 					"enum": ["static", "hosted", "desktop"]
+				},
+				"inbound": {
+					"type": "boolean",
+					"description": "The desktop's inbound MCP endpoint (phase 6 specification, 10.8; D137): on unless false. `deployment write --host desktop` writes it to `mounts.json`, which the desktop's Rust host alone reads; no other host serves one."
 				}
 			},
 			"additionalProperties": false

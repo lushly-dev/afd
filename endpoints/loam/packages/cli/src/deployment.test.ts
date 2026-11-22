@@ -1416,6 +1416,35 @@ describe('P6-E1: deployment write --host, and the version 4 projection (phase 6 
 		).toEqual([undefined, 'mounts/work/mcp']);
 	});
 
+	it('P6-D6: [host] inbound reaches mounts.json for the desktop alone, on unless false, and never the projection', async () => {
+		const written = async (host: string, inbound?: boolean) => {
+			const file = withHost(host).replace(
+				`kind = "${host}"`,
+				`kind = "${host}"${inbound === undefined ? '' : `\ninbound = ${inbound}`}`
+			);
+			const made = await layout(file);
+			const mountsOut = join(made.root, 'private/mounts.json');
+			expect((await writeDeployment({ ...made, mountsOut, platform: process.platform })).ok).toBe(
+				true
+			);
+			return {
+				mounts: JSON.parse(readFileSync(mountsOut, 'utf8')) as Record<string, unknown>,
+				projection: projectionOf(made.out),
+			};
+		};
+		expect((await written('desktop')).mounts).toEqual({ mounts: [], inbound: true });
+		expect((await written('desktop', true)).mounts.inbound).toBe(true);
+		const off = await written('desktop', false);
+		expect(off.mounts).toEqual({ mounts: [], inbound: false });
+		expect(off.projection.host).toEqual({ kind: 'desktop' });
+		// Another host's file has no switch: no other host serves one.
+		expect((await written('static', false)).mounts).toEqual({ mounts: [] });
+		expect(
+			readDeployment({ deployment_version: 4, host: { kind: 'desktop', inbound: 'no' }, apps: {} })
+				.ok
+		).toBe(false);
+	});
+
 	it("P6-E1: the generation takes a version 4 projection's host, so a change of kind is applied; an earlier one's is unchanged", async () => {
 		const statics = await layout(withHost('static'));
 		const hosted = await layout(withHost('hosted'));
