@@ -8,21 +8,22 @@ runs is the software factory's validation of a branch. "Agent OS" is a working n
 
 ## Status
 
-- **State:** proposed. A first draft, written 2026-11-21 against `main` at `a91acface`, and
-  revised the same day after five readers walked its jobs in three passes and the owner
-  answered three of its questions. Not approved. Nothing is built.
+- **State:** proposed. A first draft, written 2026-11-21 against `main` at `a91acface`, revised the
+  same day after five readers walked its jobs in three passes, the owner answered three of its
+  questions and two independent reviewers read it, and revised again on 2026-11-22 after a fresh
+  end-to-end review against `main` at `39ca857fd`. Not approved. Nothing is built.
 - **Origin:** a conversation with the owner on 2026-11-21 about an operating system built on AFD
   from its core, starting as a headless runner for agents in a container image, with
   [Omarchy](https://omarchy.org/) as the example of an opinionated system built on an existing
   distribution.
 - **Relation to the [Software Factory](../../active/software-factory/software-factory.proposal.md)
   and the [Factory Gateway](../../active/factory-gateway/factory-gateway.proposal.md):** the first
-  milestone moves a branch's install, its tests and the push's hook out of reach of the lane's
-  credentials, which is most of the validation half of the gateway's G4 ("code under validation
-  cannot reach a credential") by another means. [The problem](#the-problem) names what stays on
-  the lane host.
+  milestone moves a branch's install and its tests (and, if the owner approves question 10, the
+  push's hook) out of reach of the lane's credentials, which is most of the validation half of
+  the gateway's G4 ("code under validation cannot reach a credential") by another means.
+  [The problem](#the-problem) names what stays on the lane host.
 - **Verified:** the facts in [What exists today](#what-exists-today) were read on `main` at
-  `a91acface`. No code was built or run except the scenario checks.
+  `a91acface` and re-checked on `39ca857fd`. No code was built or run except the scenario checks.
 - **Not verified:** which container runtime the lane host can run and what it costs there;
   whether this repository's suites pass in a Linux machine on that host's processor; whether a
   proxy can be the only way out for pnpm, cargo, uv and Playwright; whether `pnpm verify` can run
@@ -180,7 +181,7 @@ already has.
 |---|---|
 | A lane job is a list of steps, each an argument list with a label; the install step has a timeout; a step's `env` (the slot's `CARGO_TARGET_DIR`) "is set over the inherited environment" and its `path` puts the checkout's Node first; a failed step ends the job with its code, 124 when it timed out | `endpoints/botcore/plugins/botcore-factory/src/botcore_factory/job.py`, `lane_coverage.py` |
 | The lane's `step` "never waits": the lane process calls it every 5 seconds. A restarted lane kills its orphaned jobs and validates those branches again. A validated branch gives up its slot when the branch at the front needs it, and its checkout is kept aside with its record. An install step that timed out, or whose output matches the lane's infrastructure patterns, is the lane's own trouble: the branch is queued again and the lane pauses until `lane-resume` | `botcore_factory/lane.py`, `lane_process.py`, `lane_base.py` (`POLL_SECONDS`, `resume`, `release_slot`, `trouble`) |
-| A slot is a git worktree at `<repository>.factory-slots/<slot>`. The lane merges `main` into the branch there and validates the slot's head after the merge: a merge commit that exists only in the lane's repository, or the branch's own head when `main` was already in it. AFD's `install` is `pnpm install --frozen-lockfile`, its `validate` is `pnpm verify --keep-going` and its `coverage` is `pnpm check:all` | `botcore_factory/real_world.py` (`prepare_slot`, `merge_main`), `lane.py`; the factory proposal, [The repository adapter](../../active/software-factory/software-factory.proposal.md#the-repository-adapter) |
+| A slot is a git worktree at `<repository>.factory-slots/<slot>`. The lane merges `main` into the branch there, folds the branch into one commit on `main` (`validatedHead`, via `git commit-tree` with no hooks; `#1809`), and validates that folded commit (ejecting `FOLD_REFUSED` before validation starts). That commit exists only in the lane's repository unless the branch was already a single clean commit on `main`. AFD's `install` is `pnpm install --frozen-lockfile`, its `validate` is `pnpm verify --keep-going` and its `coverage` is `pnpm check:all` | `botcore.toml`, `botcore_factory/real_world.py` (`prepare_slot`, `merge_main`, `fold`), `lane.py`; the factory proposal, [The repository adapter](../../active/software-factory/software-factory.proposal.md#the-repository-adapter) |
 | `pnpm verify` writes a record for the exact commit into the worktree's own git directory, bound to the commit, its tree and its merge base with `main`. Pre-push accepts it while those are unchanged, the checkout is clean and the record is under a day old | `scripts/verify-record.mjs` |
 | One branch that touched every unit took 35 to 40 minutes for each validation | The factory's [status](../../active/software-factory/STATUS.md), the entry for #1369 |
 | G4 has agents run "as an operating-system user, or on a machine, where no gateway token of another class and no `gh` sign-in is readable", and the lane run a validation "as a user with no token at all" | The gateway proposal, [G4](../../active/factory-gateway/factory-gateway.proposal.md#g4-no-credential-outside-the-door) |
@@ -247,7 +248,11 @@ scopes for each repository are M3's question.
 The operator's configuration names everything a caller may ask for: repositories and where their
 commits come from, images by digest, sizes, network policies, the number of machines, the disk
 they may use and how long records are kept. A caller chooses among those names and can add none.
-Umbel's `workspace-doctor` checks the file, with the plugin's own checks added.
+Umbel validates the plugin's configuration against its JSON Schema, and `workspace-doctor` runs
+the plugin's semantic checks (repository-to-image references, runtime reachability, capacity
+bounds) through the plugin doctor hook listed in
+[What Umbel and AFD need](#what-umbel-and-afd-need), or in `host-status` if Umbel declines the
+hook.
 
 The MCP surface lists eight tools for the ordinary path (`host-status`, `machine-create`,
 `machine-get`, `machine-destroy`, `run-start`, `run-get`, `run-wait`, `run-stop`) and leaves the
@@ -260,8 +265,10 @@ branch.
 `machine-create` makes one for a repository and a branch, on the repository's pinned image, in a
 named size. Asking again for the same branch returns the machine it has (`created: false`), so a
 retry never makes two; a `broken` machine is not returned but destroyed and replaced. A machine
-has three mounts, all volumes the host made: `work` (the
-checkout, made fresh for every run), `build` (build output, kept while the machine lives, so a
+has three mounts, all volumes the host made: `work` (the checkout, made fresh for every run on a
+cold machine; on a checkpointed machine in M2, the first run updates the checkpoint's private
+`work` layer to `head` so its installed dependencies and workspace build outputs stay in place,
+and any later run replaces it), `build` (build output, kept while the machine lives, so a
 second run of the same branch is incremental) and `downloads` (package caches). It runs as an
 ordinary user, without added privileges and without the runtime's socket.
 
@@ -280,28 +287,42 @@ because that would let a caller change what a validation is judged on.
 ### A run
 
 `run-start` takes the machine, a full commit id, optionally the base commit, and the steps.
-Before the first step the host fetches the commit from the repository's configured source into
-its own bare mirror. In M1 that source is the lane's own repository on the same computer, so the
-commit the lane made in its slot is there. The host then makes a clone in the machine's `work`
-volume with a git directory and an object store of its own, holding only what `head` and `base`
-reach, and sets the base branch and its remote-tracking ref (`origin/main`) to `base`, so tools
-that compare with `main`, the verify record among them, see what the lane sees. The mirror is
-never mounted in a machine, so a run cannot read another branch's commits. The `head`, `base`
-and `tree` in the result are what the host checked out. Once a run's first step has started the
-host runs no `git` command in that checkout, because the code there can write hooks and settings
-into its git directory; the volume's contents are replaced for the next run, not cleaned.
+When `base` is omitted, the host resolves it to the mirror's current head of the repository's
+configured base branch and records that commit on the run. Before the first step the host fetches
+the commit from the repository's configured source into its own bare mirror. In M1 that source is
+the lane's own repository on the same computer, so the commit the lane folded in its slot is
+there. On a cold machine, and on any run after the first in a machine, the host then makes a
+fresh clone in the machine's `work` volume with a git directory and an object store of its own,
+holding only what `head` and `base` reach. On the first run of a machine created from an M2
+checkpoint—where no branch code has run yet—the host uses the warm path only when the
+checkpoint's base commit is an ancestor of (or equal to) `base`, so the checkpoint's git object
+store holds no commit outside `head` and `base`; it then fetches only `head` and `base` into the
+private copy-on-write `work` layer and checks out `head` in place without removing ignored
+dependencies and workspace build outputs (`node_modules`, Python `.venv`s, TypeScript `dist/`
+and CMake build directories). When the checkpoint's history is newer than or incompatible with
+`base`, the host falls back to a fresh cold clone in `work`. On every run—cold or warm—the host
+sets both the base branch (`main`) and its remote-tracking ref (`origin/main`) to `base`, so
+tools that compare with `main`, `scripts/affected/scope.mjs` and the verify record among them,
+see what the lane sees. The mirror is never mounted in a machine, so a run cannot read another
+branch's commits. The `head`, `base` and `tree` in the result are what the host checked out.
+Once a run's first step has started the host runs no `git` command in that checkout, because the
+code there can write hooks and settings into its git directory; any later run in the same
+machine replaces the `work` volume's contents instead of cleaning them.
 
 Every step names its network policy; there is no default to forget. A step's timeout is its own
 or the host's maximum.
 
 A run ends in one state: `passed`, `failed`, `timed-out`, `over-limit`, `cancelled` or `lost`.
 A run that failed, timed out, went over a limit or was lost says where the `fault` lay, as far
-as the host can see: the `host` for a lost run; the `network` when a step failed while a host
-its policy allows could not be reached; otherwise the `branch`. A step can fail to reach an
-allowed host on purpose, so `network` is a hint the lane takes once and no verdict. A `passed`
-or `cancelled` run has no `fault`. `run-stop` kills the run's processes from outside:
-the code is not asked to stop (job 07). `run-wait` returns at the end or at its timeout, for a
-caller that can block.
+as the host can see: the `host` for a lost run or when host storage runs out during a run while
+the machine stays within its own `size.diskGb` quota (`over-limit` with `limit: "disk"`,
+`fault: "host"`, `reason: "host-disk-full"`); the `network` when a step failed while a host its
+policy allows could not be reached; otherwise the `branch` (including when the machine breaches
+its own `size.diskGb` quota: `over-limit` with `limit: "disk"`, `fault: "branch"`). A step can
+fail to reach an allowed host on purpose, so `network` is a hint the lane takes once and no
+verdict. A `passed` or `cancelled` run has no `fault`. `run-stop` kills the run's processes from
+outside: the code is not asked to stop (job 07). `run-wait` returns at the end or at its timeout,
+for a caller that can block.
 
 Results are bounded. The last lines of the failing step's log come with the result, `run-log`
 pages through the rest, and for a caller on the same computer `log.location` is the file (job
@@ -395,9 +416,15 @@ This repository's validation is heavy: a machine that starts from nothing downlo
 dependency and compiles every Rust crate before it tests anything, and M0 measures how long that
 takes. A checkpoint is a machine's state after a passing run of the steps the operator's
 configuration names for it, on the head of the base branch, in a machine that has run nothing
-else. The lane asks for one when `main` moves. A machine made from one starts with dependencies
-installed and built, and every mount is a private layer over the checkpoint that goes when the
-machine does (job 12). The host keeps the newest few for each repository.
+else. The lane asks for one when `main` moves. Because machines are keyed one per `(repository, for)`, the lane destroys any existing
+`for: main` machine (waiting for an active `coverage` run to settle first) before creating the
+fresh `for: main` machine that builds a checkpoint. A machine made from one starts with
+dependencies installed and built in its private layers over the checkpoint: its first
+`run-start` updates `work` to `head` and resets `main` and `origin/main` to `base` in place
+(when the checkpoint's base commit is an ancestor of `base`; otherwise it falls back to a fresh
+clone), keeping ignored workspace dependencies and build outputs intact, while every mount stays
+a private layer that goes when the machine does (job 12). The host keeps the newest few for each
+repository.
 
 A checkpoint is made only from the base branch, only from a passing run, and only when that run
 is the machine's one run and its steps are the configured ones (job 13). A caller can ask for a
@@ -409,11 +436,15 @@ store and Cargo registry have today. M2 removes it.
 
 ### What Umbel and AFD need
 
-Read in the code on 2026-11-21 by the reader in the calling agent's seat, and spot-checked.
+Read in the code on 2026-11-21 by the reader in the calling agent's seat, and re-verified on
+2026-11-22 against `main` at `39ca857fd`.
 
 | Need | Today | Change | When |
 |---|---|---|---|
-| An entry written before the effect, for commands that start something | AFD's journal writes one entry after the command, with its result. D66 names a write-ahead journal in AFD as the cost; the journal's lifecycle is [#1770](https://github.com/lushly-dev/afd/issues/1770) | AFD's journal, and a required mode in Umbel that leaves its default as it is. Allowed by the owner, 2026-11-21 | M1 |
+| An entry written before the effect, for commands that start something, plus three per-command failure policies (fail-closed starts, buffered stops, dropped reads/refusals) | AFD's journal (`spec/journal.md`) writes one entry after the command with required `result` and `durationMs`, fail-open. D66 names a write-ahead journal in AFD as the cost; the journal's lifecycle is [#1770](https://github.com/lushly-dev/afd/issues/1770) | AFD's journal and a required mode in Umbel leaving its default as it is. M0 settles whether the pre-effect record changes the cross-language `spec/journal.md` schema (two-phase intent/settled entries) or stays a Rust/Umbel sink-level durable write-ahead log; either design must persist an identifiable intent entry on disk before the effect starts (a writability probe alone leaves a crash window). Allowed by the owner, 2026-11-21 | M1 |
+| Journal health and buffer counts (`writable`, `pending`, `dropped`) for `host-status` | `HostBuilder::seal` installs `ProjectingSink` privately with no health or buffer handle exposed to plugins | In M0, `host-status` reports Umbel's default journal mode (`best-effort`, `pending: 0`, `dropped: 0`); M1 exposes the live `writable`, `pending` and `dropped` handle from Umbel's host to the plugin | M1 |
+| Plugin semantic configuration checks in `workspace-doctor` | `CompiledPlugin` exposes only `check_pack` (space pack overrides, D172), and `workspace-doctor` runs a closed check list; JSON Schema (`[config] schema`) checks shape only | Add a plugin doctor hook in Umbel (`CompiledPlugin` / `HostBuilder`), or keep semantic host-config checks in `host-status` if Umbel declines the hook | M0 |
+| Custom MCP server name and version for the embedding binary | `surfaces/mcp.rs` hardcodes `"umbel"` and Umbel's package version in `McpServer::new` | Allow `HostBuilder` to set the MCP server name and version | M0 |
 | Work that lives as long as the host | A compiled plugin has no hook for it. The embedding binary can hold the started host, though `cli::run` does not hand it back | None in Umbel: the binary builds the host itself | M1 |
 | The host's own calls, as a `service` actor | `Host::registry` and `Host::context` give the embedding binary this | None | M1 |
 | A command line that reaches the running host | Umbel's command line opens the workspace in its own process | None in Umbel: the binary's command line forwards to its server | M1 |
@@ -424,9 +455,9 @@ Read in the code on 2026-11-21 by the reader in the calling agent's seat, and sp
 | The `secrets` and `http` grants, for a credential held at the proxy | Named and refused | Umbel | M3 |
 | Bytes in and out for callers on other computers: a bundle in, an output out | No route. The gateway added an upload route for the same reason | The binary's server | M3 |
 
-The owner allowed the first and sixth rows on 2026-11-21, so Umbel bends in those two places for
-this binary. If M0 finds that either cannot be built, the fallback is a small host on the `afd`
-crate that reuses Umbel's patterns.
+The owner allowed the journal mode and principle 11 exception on 2026-11-21, so Umbel bends in
+those places for this binary. If M0 finds that either cannot be built, the fallback is a small
+host on the `afd` crate that reuses Umbel's patterns.
 
 ### How the lane uses it
 
@@ -437,14 +468,20 @@ host's MCP endpoint on loopback.
 - **Steps.** The lane translates its own: `timeout` becomes `timeoutSeconds`, each step gets its
   policy from the adapter, and `path` and the slot's `CARGO_TARGET_DIR` are dropped, because the
   image carries the tools and the host places the build output.
-- **The commit.** The lane keeps its slot for merging `main` in and for the push. It passes the
-  slot's head after the merge as `head` and the `main` it merged as `base`.
-- **The push.** The lane no longer lets the branch's own pre-push hook run on the lane host. It
-  checks the verify record itself with `main`'s copy of the record check, against the slot's
-  commit, tree and base and the host's result, and pushes with the hook off. A record it
-  refuses means validating again or ejecting, and never running the checks in the slot, which
-  is what the hook does today. `main`'s script reads the checkout it stands in, so reading a
-  slot's record is a change to it.
+- **The commit.** The lane keeps its slot for merging `main` in, folding the branch into one
+  commit on `base` (`validatedHead`, `#1809`), and pushing. It passes `validatedHead` as `head`
+  and the `main` it folded onto as `base`.
+- **The push.** If the owner approves question 10, the lane no longer lets the branch's own
+  pre-push hook run on the lane host. Instead, the lane performs a two-part check before pushing
+  with the hook off: (1) verify that the host's own observed `run` has `state: "passed"` and
+  `head`, `tree` and `base` matching the slot's checkout identity, and (2) parse the verify
+  record file at `output.location` and call `main`'s `acceptRecord({ record, identity, updates })`
+  (`scripts/verify-record.mjs`) with the slot's identity and the actual intended ref update. A
+  disagreement or refusal means validating again or ejecting, and never running the checks in the
+  slot, which is what the hook does today. `main`'s CLI script reads the checkout it stands in,
+  so invoking `acceptRecord` on a slot's identity and external record path is a small M1 adapter
+  seam. If the owner declines question 10, the branch's pre-push hook stays on (and on refusal
+  runs `pre-push-checks` on the lane host).
 - **Waiting.** The lane's loop never blocks, so it reads `run-get` on each pass, on a slower beat
   than its 5 seconds. A lane that restarts finds its branch's machine and run with `machine-get`
   and takes the run up again; it does not stop it.
@@ -455,9 +492,16 @@ host's MCP endpoint on loopback.
   refuses when the host's machines are fewer than `lane.slots` plus the one kept for a cell's
   own runs. A host that serves several lanes needs the sum of their slots plus one, which is
   the operator's to set.
-- **The verify record.** Until the gateway's G1 is the lane's path, the lane's push needs the
-  verify record in the slot's git directory. The lane names it as an output and installs it,
-  which trusts the machine's word exactly as far as the slot does today. With G1,
+- **The verify record.** Until the gateway's G1 is the lane's path, the lane names
+  `.git/afd-verify-record.json` as an output. With hook-free push (question 10), the lane first
+  checks the host's observed passing run (`state`, `head`, `tree`, `base`) against the slot, and
+  then parses the output file at `output.location` and calls `main`'s `acceptRecord` with the
+  slot's identity and actual ref update—it does not install the file into the slot's git
+  directory. M1 requires a factory integration test for reading that external output and
+  rejecting a push whenever the host result or `acceptRecord` disagrees. If the owner declines
+  question 10 and keeps the branch's pre-push hook on, the lane installs the output into the
+  slot's git directory for the hook to read, which trusts the machine's word as far as the slot
+  does today (and lets a rejected record trigger `pre-push-checks` on the lane host). With G1,
   `verification-record` is written from the host's result and the file is no longer needed.
 - **A cell's own runs.** From M1 a cell repairing an ejected branch may repeat the lane's failed
   run in a machine itself, through the same commands on the host's command line, when the
@@ -497,11 +541,12 @@ What the lane does with each answer:
 | `failed` in the install step, with `fault: branch`, that did not time out and matches none of the lane's infrastructure patterns | The branch's, as today | Ejects as `entry-invalid`, with the log and the run's id |
 | An install step that timed out or whose log matches the lane's infrastructure patterns | The lane's side, as today | Queues the branch again without counting an ejection and pauses with a `lane-error` |
 | `fault: network` | The lane's side, once | Once for each attempt it queues the branch again without counting an ejection and pauses with a `lane-error`. The next one on that attempt is the branch's and ejects, as the lane treats a full disk today, because a step can fail to reach an allowed host on purpose |
-| `over-limit` on disk | The branch's, within its size | As the factory treats a full disk today: validates once more without counting an ejection, then ejects |
+| `over-limit` on disk, with `fault: branch` | The branch's, within its size | Ejects with the failing step, the log and the run's id: the branch breached its own machine's `size.diskGb` quota |
+| `over-limit` on disk, with `fault: host` (`reason: "host-disk-full"`) | The host's | Requeues the branch without counting an ejection and pauses with a `lane-error` for operator disk cleanup, matching `lane.py`'s current mid-job disk-full recovery |
 | `lost`, `MACHINE_NOT_READY`, a `cancelled` it did not ask for | The host's | Validates again in a new machine; no ejection is counted |
 | `HOST_FULL`, `RUNTIME_UNAVAILABLE`, `JOURNAL_UNAVAILABLE` | The host's | Holds the branch and asks again on a later pass. A hold that outlasts a set time raises a `lane-error`, so a host that stays down or full is seen |
-| `CHECKPOINT_STALE`, `NOT_FOUND` for a checkpoint (M2) | The image changed | Makes the machine without a checkpoint. For a new one the lane makes a machine for `main`, runs the repository's `checkpointSteps` in it and calls `checkpoint-create` |
-| `ALREADY_EXISTS` | Configuration changed under a live machine | Destroys the branch's machine and makes it again |
+| `CHECKPOINT_STALE`, `NOT_FOUND` for a checkpoint (M2) | The image changed | Makes the machine without a checkpoint. For a new one the lane waits for any active `coverage` run on `for: main` to settle, destroys any existing `for: main` machine, makes a fresh machine for `main`, runs the repository's `checkpointSteps` in it and calls `checkpoint-create` |
+| `ALREADY_EXISTS` | Configuration changed under a live machine, or a cell left one of another size or image | Finds the branch's existing machine via `machine-list` (or `details.machineId`), destroys it with `force` and makes it again |
 | `created: false` from `machine-create` for a branch the lane has just seated | A cell left its own machine for the branch | Destroys it with `force` and makes a new one |
 | `HEAD_NOT_FOUND` | The lane's own repository lacks the commit | Queues the branch again, and pauses with a `lane-error` if it repeats |
 | `IMAGE_UNKNOWN`, `SIZE_UNKNOWN`, `POLICY_UNKNOWN`, `REPOSITORY_NOT_ALLOWED` | Configuration | Pauses with a `lane-error` for a person |
@@ -531,13 +576,13 @@ catalog's `QUOTA_EXCEEDED` is not.
 |---|---|---|---|---|
 | `host-status` | — | `host { name, version, restartedAt? }`, `runtime { kind, version, reachable }`, `journal { mode, writable, pending, dropped }`, `repositories[] { name, base, image, checkpointSteps[]? }`, `images[] { name, digest, toolchain }`, `sizes[] { name, cpus, memoryGb, diskGb }`, `policies[] { name, hosts[] }`, `capacity { machines { max, active }, diskGb, usedGb }`, `unlisted { containers, volumes }`, `retention { recordsDays, logsDays }` | — | M0 |
 | `host-prune` | `dryRun?` | `orphans[] { kind, name, sizeGb }`, `expired { runs, logs, checkpoints }`, `removed { orphans, runs, logs, checkpoints }`, `freedGb`, `changed` | — | M1 |
-| `machine-create` | `repository`, `for` (the branch), `image?`, `size?`, `ttlMinutes?`, `checkpoint?` (an id or `current`; M2) | `machine { id, state, repository, for, image { name, digest }, size, limits, network { default }, mounts[] { name, kind, access }, credentials[], from? { checkpoint, head }, expiresAt }`, `created` | `REPOSITORY_NOT_ALLOWED`, `IMAGE_UNKNOWN`, `SIZE_UNKNOWN`, `ALREADY_EXISTS` (the branch has a machine of another image or size), `HOST_FULL` (machines or disk; `retryable`), `CHECKPOINT_STALE`, `NOT_FOUND` (the checkpoint) | M1 |
+| `machine-create` | `repository`, `for` (the branch), `image?`, `size?`, `ttlMinutes?`, `checkpoint?` (an id or `current`; M2) | `machine { id, state, repository, for, image { name, digest }, size, limits, network { default }, mounts[] { name, kind, access }, credentials[], from? { checkpoint, head }, expiresAt }`, `created` | `REPOSITORY_NOT_ALLOWED`, `IMAGE_UNKNOWN`, `SIZE_UNKNOWN`, `ALREADY_EXISTS` (the branch has a machine of another image or size; names it in `details.machineId` or via `machine-list`), `HOST_FULL` (machines or disk; `retryable`), `CHECKPOINT_STALE`, `NOT_FOUND` (the checkpoint) | M1 |
 | `machine-get` | `id` | `machine`, with `state` (`ready`, `busy`, `broken`, `destroyed`), `processCount`, `usage { diskGb, peakMemoryGb }`, the last ten `runs[] { id, state }` with `runsTotal` and, once destroyed, `destroyedBy` and `reason` | `NOT_FOUND` | M1 |
 | `machine-list` | `repository?`, `for?`, `state?` (`active` is every state but `destroyed`), `limit?`, `cursor?` | `machines[]`, `nextCursor?` | — | M1 |
 | `machine-inspect` | `id` | `trust`, `run? { id, step, elapsedSeconds }`, the twenty busiest `processes[] { pid, command, cpuPercent, memoryMb, elapsedSeconds }` with `processesTotal`, `mounts[] { name, usedGb }` | `NOT_FOUND`, `MACHINE_NOT_READY` | M1 |
 | `machine-destroy` | `id`, `reason?`, `force?` | `destroyed`, `changed`, `freedGb`, `removed { volumes[] }` | `NOT_FOUND`, `RUN_ACTIVE` (without `force`) | M1 |
-| `run-start` | `machine`, `head` (a full commit id), `base?` (a full commit id), `steps[] { label, args[], network, timeoutSeconds?, env? }`, `outputs[]? { name, path }` | `run { id, machine, for, head, base?, state, startedAt }` | `NOT_FOUND`, `MACHINE_NOT_READY`, `RUN_ACTIVE`, `HEAD_NOT_FOUND`, `POLICY_UNKNOWN`, `SECRET_IN_INPUT`, `OUTPUT_OUTSIDE_WORKSPACE` | M1 |
-| `run-get` | `id` | `run { id, machine, for, head, base?, tree, state, ended, fault?, failed?, limit?, reason?, recovered?, image, size, from?, steps[] { label, args[], env?, timeoutSeconds?, code?, timedOut?, durationMs?, network, connections { allowed, refused[] { host, port, count }, refusedTotal } }, log { trust, bytes, tail[], location }, outputs[] { name, bytes, sha256?, trust, location?, omitted? }, startedAt, endedAt? }` | `NOT_FOUND` | M1 |
+| `run-start` | `machine`, `head` (a full commit id), `base?` (a full commit id; defaults to the mirror's head of `repository.base`), `steps[] { label, args[], network, timeoutSeconds?, env? }`, `outputs[]? { name, path }` | `run { id, machine, for, head, base, state, startedAt }` | `NOT_FOUND`, `MACHINE_NOT_READY`, `RUN_ACTIVE`, `HEAD_NOT_FOUND`, `POLICY_UNKNOWN`, `SECRET_IN_INPUT`, `OUTPUT_OUTSIDE_WORKSPACE` | M1 |
+| `run-get` | `id` | `run { id, machine, for, head, base, tree, state, ended, fault?, failed?, limit?, reason?, recovered?, image, size, from?, steps[] { label, args[], env?, timeoutSeconds?, code?, timedOut?, durationMs?, network, connections { allowed, refused[] { host, port, count }, refusedTotal } }, log { trust, bytes, tail[], location }, outputs[] { name, bytes, sha256?, trust, location?, omitted? }, startedAt, endedAt? }` | `NOT_FOUND` | M1 |
 | `run-wait` | `id`, `timeoutMs?` | `run` as `run-get` returns it, and `waitExpired` | `NOT_FOUND` | M1 |
 | `run-stop` | `id`, `reason?` | `run`, `changed` | `NOT_FOUND` | M1 |
 | `run-log` | `id`, `step?`, `limit?`, `cursor?` | `trust`, `lines[]`, `nextCursor?` | `NOT_FOUND` | M1 |
@@ -565,37 +610,47 @@ and an exit, before it starts.
 ### M0: stand it up
 
 - **Builds:** a container file for this repository's session image, built from `main` and pinned
-  by digest (operator work, with a runbook that also covers installing the host as a service and
-  moving to a new image); the host binary with `host-status` and the configuration checks; a fake
-  runtime for tests.
-- **Settles:** the items under "Not verified" in [Status](#status), and whether the first and
-  sixth rows of [What Umbel and AFD need](#what-umbel-and-afd-need) can be built as the owner
-  allowed them. It writes both into Umbel's decisions. Only if either cannot be built does the
-  host move to the fallback.
-- **Exit:** `host-status` answers on the lane host and names the image by digest, and `pnpm
-  verify --all` on `main` passes in a container started from that image, with its duration
-  recorded.
+  by digest (carrying Node, pnpm, Rust with the `wasm32-wasip2` target, Python/uv, CMake/C++,
+  OpenSSL, Playwright Chromium and the Linux native libraries `loam-desktop` needs for
+  WebKitGTK/GTK; operator work, with a runbook that also covers installing the host as a service
+  and moving to a new image); the host binary with `host-status` and the configuration checks; a
+  fake runtime for tests.
+- **Settles:** the items under "Not verified" in [Status](#status), whether Umbel's required
+  journal mode (including its `spec/journal.md` vs sink-level durable write-ahead scope, with
+  an identifiable intent entry persisted before the effect) and principle 11 exception can be
+  built as the owner allowed them, and whether Umbel adds the plugin doctor hook and
+  server-identity option. It writes the Umbel outcomes into Umbel's decisions. Only if the
+  journal mode or principle 11 exception cannot be built does the host move to the fallback.
+- **Exit:** `host-status` answers on the lane host (reporting Umbel's default journal mode until
+  M1 wires required mode and live counts) and names the image by digest, and `pnpm verify --all`
+  on `main` passes in a container started from that image, with its duration recorded.
 
 ### M1 (MVP): validation in a machine
 
-- **Builds:** every M1 command; the supervisor, reaper, proxy and mirror; the journal changes;
-  the factory adapter's `validate_in`, the lane's rules for each answer, its push without the
-  branch's hook, and a cell's instructions for a run of its own.
+- **Builds:** every M1 command; the supervisor, reaper, proxy and mirror; the journal changes
+  (durable pre-effect intent entry and live health/buffer counts); the factory adapter's
+  `validate_in`, the lane's rules for each answer, its two-part verify-record check and
+  hook-free push (subject to question 10) with factory integration tests covering external output
+  validation and mismatch rejection, and a cell's instructions for a run of its own.
 - **Jobs:** `m1` (01 to 11 and 14 to 18).
 - **Process:** the factory's `factory` docs topic and `run-fleet`, `SETUP.md`, and a runbook in
   `docs/operations/`. The cell brief in `run-fleet`'s runbook keeps a cell from whole suites and
   reproduction loops today, because the lane's validation shares the host; it gains what a cell
   may run in a machine instead. The gateway's G4 is amended to say which part of its validation
-  half is met here.
+  half is met here (question 9).
 - **Exit:** every `m1` scenario passes against the fake runtime, and 01, 03, 04, 08 and 16
-  against a real one. In one fleet run every validation ran in a machine. A test branch whose
-  tests try to read the lane's token, the `gh` sign-in and a file outside the workspace, and to
-  reach a host outside every policy, gets none of them, and its own pre-push hook does not run
-  on the lane host. A cell given a planted branch, whose test fails in the image and passes on
-  the lane host's own system, repeats the failed run in a machine of its own and destroys the
-  machine. After the run the host's disk use is back at its level before it, and `host-status`
-  shows nothing unlisted. The report gives validation time against the slot's, the journal's
-  growth, and the number of times an operator used the runtime's own tools during the run.
+  against a real one. Unit/integration tests verify crash recovery at the pre-effect journal
+  boundary (no machine or run starts without a persisted intent entry) and the lane's external
+  verify-record check (including rejection when the host's observed `state`, `head`, `tree` or
+  `base` disagrees with the output or slot). In one fleet run every validation ran in a machine.
+  A test branch whose tests try to read the lane's token, the `gh` sign-in and a file outside the
+  workspace, and to reach a host outside every policy, gets none of them, and (if question 10 is
+  approved) its own pre-push hook does not run on the lane host. A cell given a planted branch,
+  whose test fails in the image and passes on the lane host's own system, repeats the failed run
+  in a machine of its own and destroys the machine. After the run the host's disk use is back at
+  its level before it, and `host-status` shows nothing unlisted. The report gives validation time
+  against the slot's, the journal's growth, and the number of times an operator used the
+  runtime's own tools during the run.
 
 ### M2: warm starts
 
@@ -668,16 +723,16 @@ Loam is the candidate shell. Nothing about it is specified here.
 | Threat | Answer |
 |---|---|
 | Code under validation reads a credential | A machine holds none of the host's. No input passes a host path, a host variable or a host credential through, and its mounts are the host's own volumes. A value a caller supplies itself does go into the machine: the secret rules refuse what they recognise (`SECRET_IN_INPUT`), which is detection and no guarantee. M1's exit tests it with a branch that looks |
-| A branch changes the push's hook, or a generator the lane runs | From M1 the lane pushes with the branch's hook off, after `main`'s copy of the check. The adapter's `regenerate` commands still run in the slot, which M3 or G4 closes |
-| One branch's run reads another branch's code | Each checkout has an object store of its own with only what its commit and base reach. The mirror is never mounted |
+| A branch changes the push's hook, or a generator the lane runs | If question 10 is approved, from M1 the lane pushes with the branch's hook off after checking the host's observed run and `main`'s `acceptRecord`. If question 10 is declined, the branch's pre-push hook (and `pre-push-checks` on record refusal) remains branch-controlled code on the lane host with lane-host access alongside `regenerate`, which M3 or G4 closes |
+| One branch's run reads another branch's code | Each checkout has an object store of its own with only what its commit and base reach; on an M2 warm machine, the host uses the checkpoint's `work` layer only when the checkpoint's base commit is an ancestor of `base` and falls back to a fresh clone otherwise. The mirror is never mounted |
 | Code under validation sends data out | No network without a named policy, policies named by the operator, and the proxy as the only route. Refused connections are listed in the result |
-| One branch changes what the next builds on | A fresh checkout for every run and a build volume for each machine. The shared `downloads` cache remains until M2, as the lane host's shared caches do today; M2's checkpoints are made only from `main` and every machine writes to its own layer |
+| One branch changes what the next builds on | A fresh checkout for every run on cold machines, private copy-on-write layers over a `main`-only checkpoint in M2, and a build volume for each machine. The shared `downloads` cache remains until M2, as the lane host's shared caches do today; M2's checkpoints are made only from `main` and every machine writes to its own layer |
 | Code escapes the container | The machine runs as an ordinary user without added privileges or the runtime's socket. Container isolation is the boundary in M0 to M4, and a kernel fault is outside what it promises. On macOS and Windows the runtime's virtual machine is a second boundary; M5 can give each machine its own |
 | A caller asks for more than it should have | No command takes a host path, a privilege or a list of hosts; images, sizes and policies are the operator's names |
 | A local process pretends to be the lane | A caller needs the token in the host's state directory, which any process of the same user can read, so in M1 nothing else prevents it. What it can reach is machines that hold no credential. M3 verifies callers |
 | The host removes something that is not its own | The host labels what it makes, and counts and prunes only what carries its label |
 | An output is a link to a file on the host | The host copies only a regular file whose path holds no link, and lists anything else as omitted |
-| Code under validation plants a git hook or setting for the host to run | The host runs no git command in a checkout once its run has started, and replaces the volume's contents for the next run |
+| Code under validation plants a git hook or setting for the host to run | On a checkpointed machine's first run only `main`'s checkpointed state is in `work` before branch code starts; once a run's first step starts, the host runs no git command in that checkout and replaces the volume's contents for any later run |
 | Code under validation makes its failure look like the network's | The lane takes `fault: network` as its own side once for each attempt and as the branch's after that |
 | A caller plants build output in a machine the lane will run in again | The lane makes a new machine when the machine's runs include one it did not start. What the same branch's own earlier runs left in `build` is trusted as a slot's is today |
 | A caller chooses what later machines start from | A checkpoint is made only from the machine's one run of the steps the operator named, on the base's head (M2) |
@@ -685,7 +740,7 @@ Loam is the candidate shell. Nothing about it is specified here.
 | A misled caller makes machines without end | The host's machine count and disk minimum, each machine's time limit, and the reaper |
 | A machine reports a false result | The host records the exit codes, the commit and the image it observed. Logs, process names and outputs are labelled as content |
 | A caller changes a validation while it runs | No command runs anything in a machine beside its run; `machine-inspect` only reads |
-| A secret is passed in and reaches the machine or the journal | Every input is checked against secret rules first (`SECRET_IN_INPUT`), and `run-start` journals no argument or environment value. An accepted run's steps are kept in its record, which is not the journal, and went into the machine in any case |
+| A secret is passed in and reaches the machine or the journal | Every `run-start` input (arguments and environment) is checked against secret rules first (`SECRET_IN_INPUT`), and `run-start` journals no argument or environment value. An accepted run's steps are kept in its record, which is not the journal, and went into the machine in any case |
 | The image is changed under a branch | Images are pinned by digest in the operator's configuration, a branch cannot choose one that is not there, and an image is used only after `main` passed in it |
 | Something happens that the record does not hold | Nothing starts without its journal entry; the host's own actions are commands; after a restart an unobserved run is `lost` |
 
@@ -823,8 +878,8 @@ the cell brief. The job's first form had the cell run its own head with steps it
 What changed:
 
 - **The cell repeats the lane's run.** An ejection gave a cell no run, commit, base or steps,
-  and the lane validates a merge commit the cell never had. The `ejected` event now names the
-  run, and a run's record keeps its steps and size, which `run-get` returns.
+  and the lane validates a folded commit (`validatedHead`) the cell never had. The `ejected` event
+  now names the run, and a run's record keeps its steps and size, which `run-get` returns.
 - **Where a cell's commits are.** The first form said they were already in the lane's
   repository. The lane fetches a queued head from origin, so that holds for the commit the lane
   ran, and is M0's to check for a repair that is not queued.
@@ -859,6 +914,38 @@ Astra, both at high effort). They added no job and no command. What changed:
 - **Smaller corrections:** the adapter's exact commands, a commit that need not be a merge, a
   `cancelled` run's `fault`, two machines for one branch in a fixture, the decision that names
   compiled plugins as trusted, and that M3 to M5 are direction and not scope.
+
+A fresh end-to-end review on 2026-11-22 against `main` at `39ca857fd` (Gemini 4 Neon, high effort)
+followed by a two-model independent review of the revision (GPT-6.2 Astra, high effort, and a
+fresh read-only Gemini 4 Neon pass) added no job and no command, and caught and resolved:
+
+- **M2 warm starts keep checkpointed `work` artifacts safely.** Replacing `work` with a fresh
+  clone before every run would wipe `node_modules`, `.venv`, `dist/` and CMake builds from a
+  checkpoint. The first run on a checkpointed machine now checks out `head` in place in its
+  private layer only when the checkpoint's base commit is an ancestor of `base` (falling back to
+  a fresh clone otherwise), resets both `main` and `origin/main` to `base` on every run, and
+  adds a base-advance warm case to job 12.
+- **Verify record and hook-free push reconciled.** Under hook-free push the lane checks the
+  host's observed passing run (`state`, `head`, `tree`, `base`) and validates the external output
+  at `output.location` via `main`'s `acceptRecord` (requiring an M1 factory integration test,
+  including mismatch rejection). Status, Security, G4 and M1 exit criteria are conditional on
+  Question 10, stating explicitly what stays on the lane host if the hook remains on.
+- **Umbel and AFD rows completed.** Added plugin doctor checks for `workspace-doctor` (with the
+  `host-status` fallback), journal health/buffer exposure (`HostBuilder::seal`, with M0 reporting
+  Umbel's default mode), custom MCP server name/version, and a durable pre-effect intent
+  requirement (with M1 crash-recovery testing) regardless of `spec/journal.md` vs sink-level
+  format.
+- **`botcore-factory` alignment.** Updated `What exists today` and `How the lane uses it` for
+  `lane.py`'s pre-validation `fold` (`validatedHead`, `#1809`), kept immediate ejection for
+  per-machine disk quota `over-limit` (`fault: branch`), and added an explicit mid-run host disk
+  exhaustion outcome (`fault: host`, `reason: "host-disk-full"`) matching `lane.py`'s pause and
+  requeue recovery.
+- **Smaller clarifications:** destroying any existing `for: main` machine (waiting for an active
+  `coverage` run to settle first) before building a checkpoint, defaulting omitted
+  `run-start.base` to the mirror's `repository.base` head (making `run-get.base` always set),
+  `ALREADY_EXISTS` id lookup and `force` destroy, M0 native image dependencies (`wasm32-wasip2`,
+  OpenSSL, `loam-desktop` WebKitGTK/GTK, CMake/C++), and scoping `SECRET_IN_INPUT` to
+  `run-start`.
 
 Declined, with the reason:
 
@@ -898,11 +985,13 @@ Declined, with the reason:
   job 18 cannot show that its caller is a cell. Which caller may run which command is M3's, with
   unit tests.
 - Several scenarios run a single `validate` step for brevity. A real run of this repository
-  installs first, because every run's checkout is fresh (job 18 runs both steps).
+  installs first on a cold machine (where every run's checkout is fresh; job 18 runs both steps).
 - `expect` cannot read `retryable`, so job 17 shows the refusal codes and the draft says which
   are worth retrying.
-- Putting the verify record into the slot and the pre-push check that reads it (06) are the
-  lane's steps, covered by the factory's tests.
+- Checking the host's observed run (`state`, `head`, `tree`, `base`) and validating the external
+  verify record output with `main`'s `acceptRecord` (or installing it into the slot if the
+  branch's pre-push hook stays on) (06) are M1 lane steps that require new factory integration
+  tests (including rejection when the host result disagrees).
 - Writing held journal entries once the journal returns (14), the reaper's schedule (16) and
   that log text stays out of the journal (11) happen between commands and need unit tests.
 - Whether a machine is fast enough, what a cold and a warm validation cost, what the lane's
@@ -910,16 +999,16 @@ Declined, with the reason:
 
 ### Checks
 
-Run 2026-11-21, last after the independent reviews' revision
+Run 2026-11-22, after the end-to-end review revision
 ([jobs first](../../../../.claude/skills/afd/references/jobs-first.md)): `afd scenario validate`
-and the dry-run check pass all 18 files (128 steps) with fixtures resolved. The coverage report
+and the dry-run check pass all 18 files (131 steps) with fixtures resolved. The coverage report
 uses 15 of the 16 commands the scenarios may call (the 15 drafted here and Umbel's `event-list`):
 all but `run-settle`, explained above. It uses all 19 error codes, and no scenario calls an
 undrafted command. The output:
 
 ```
 ✓ All 18 scenario(s) are valid!
-files 18, steps 128, files with problems 0
+files 18, steps 131, files with problems 0
 commands { tested: 15, known: 16, untested: [ 'run-settle' ], coverage: 93.75 }
 errors { tested: 19, known: 19, untested: [], coverage: 100 }
 not drafted: []
@@ -937,12 +1026,13 @@ not drafted: []
 
 - M0: `host-status` on the lane host names the image by digest, `pnpm verify --all` on `main`
   passes in that image, and the open items are settled in writing.
-- M1: every `m1` scenario passes; one fleet run with every validation in a machine; the test
-  branch finds no credential, no file outside its workspace and no route out, and its hook does
-  not run on the lane host; a cell repeats a
-  planted branch's failed run in a machine of its own; disk use returns to
-  its level and nothing unlisted remains; validation time, the journal's growth and the count of
-  operator uses of the runtime's own tools are reported.
+- M1: every `m1` scenario passes; crash recovery at the pre-effect journal boundary and the
+  lane's external verify-record check (including mismatch rejection) pass their tests; one fleet
+  run with every validation in a machine; the test branch finds no credential, no file outside
+  its workspace and no route out, and (if question 10 is approved) its hook does not run on the
+  lane host; a cell repeats a planted branch's failed run in a machine of its own; disk use
+  returns to its level and nothing unlisted remains; validation time, the journal's growth and
+  the count of operator uses of the runtime's own tools are reported.
 - M2: the `warm` scenarios pass; one branch's file is absent from the next machine; warm
   validation time is reported.
 - M3 to M5 have no exit yet. Each gets one in its own specification: M3's is written when M1
@@ -971,9 +1061,14 @@ happens on Linux. These remain.
 8. **The container runtime.** Any runtime with Docker's interface would do. Whether the owner has
    a preference for the lane hosts, before M0 measures them.
 9. **G4.** When M1 exits, amend the gateway's G4 to say which part of its validation half is met
-   here (a branch's install, its tests and the push's hook) and which remains (regeneration
-   during a merge), and keep its half about agents' own users until M3.
+   here (a branch's install, its tests, and—if question 10 is approved—the push's hook) and
+   which remains (regeneration during a merge, plus the push's hook and `pre-push-checks` if
+   question 10 is declined), and keep its half about agents' own users until M3.
 10. **The lane's push without the branch's hook.** The repository's rule is that a push skips
     its hook only with the owner's approval and separate evidence for that commit. Recommended
-    for the lane from M1: the evidence is `main`'s copy of the same check and the host's result,
-    and the hook it skips is code the branch could have changed.
+    for the lane from M1: the evidence is the host's observed passing run and `main`'s
+    `acceptRecord` check on the output file, and the hook it skips is code the branch could have
+    changed. If declined, the branch's pre-push hook (and `pre-push-checks` on record refusal)
+    stays on the lane host with lane-host access alongside `regenerate`, the lane installs the
+    verify record output into the slot's git directory, and the hook-free clause is removed from
+    G4's M1 amendment, the security claim and M1's exit criteria.

@@ -17,9 +17,10 @@ not, so an agent never has to scan the code to learn what is current. It follows
 
 ## Status block
 
-- **State:** proposed. A first draft, written 2026-11-21 against `main` at `a91acface` and revised
+- **State:** proposed. A first draft, written 2026-11-21 against `main` at `a91acface`, revised
   the same day after five readers walked its jobs in three passes, the owner answered three of
-  its questions and two independent reviewers read it. Not approved.
+  its questions and two independent reviewers read it, and revised again on 2026-11-22 after a
+  fresh end-to-end review against `main` at `39ca857fd`. Not approved.
 - **Epic:** none. It is opened when the feature moves to `active/`.
 - **Decided by the owner, 2026-11-21:** commands first with no interface; a machine per session as
   the first form; authority outside the machine; a separate binary on Umbel's host library; a
@@ -28,17 +29,15 @@ not, so an agent never has to scan the code to learn what is current. It follows
   failed run in a machine of its own. The proposal's
   [Decisions](agent-os.proposal.md#decisions) has the table.
 - **Built:** nothing. Nothing is implemented and nothing is measured.
-- **Last verified:** 2026-11-21, the scenario checks below, on `main` at `8f59df5e7` with the
-  tools built at `a91acface` (neither the CLI nor the testing package changed between the two),
-  on Node 26.13.1.
+- **Last verified:** 2026-11-22, the scenario checks below, on `main` at `d91d228a5` on Node 26.13.1.
 
 ## Steps
 
 | Step | State | Evidence |
 | --- | --- | --- |
 | Draft the proposal | Merged in [#1912](https://github.com/lushly-dev/afd/pull/1912) | [`agent-os.proposal.md`](agent-os.proposal.md) |
-| Write the jobs as scenarios | Merged in [#1912](https://github.com/lushly-dev/afd/pull/1912) | [`scenarios/`](scenarios/), 18 files, 128 steps |
-| Check the scenarios | Run 2026-11-21, last after the independent reviews' revision | [How the jobs were checked](#how-the-jobs-were-checked) |
+| Write the jobs as scenarios | Merged in [#1912](https://github.com/lushly-dev/afd/pull/1912) | [`scenarios/`](scenarios/), 18 files, 131 steps |
+| Check the scenarios | Run 2026-11-22, after the end-to-end review revision | [How the jobs were checked](#how-the-jobs-were-checked) |
 | Walk the paths with readers who did not write them | Walked 2026-11-21 by three readers, one in each seat, a second pass by a fourth after the revision, and a walk of job 18 by a fifth | Proposal, [Walking the paths](agent-os.proposal.md#walking-the-paths) |
 | Independent review of the proposal | Reviewed 2026-11-21 by two reviewers and revised; a focused pass then checked the fixes | [How it was reviewed](#how-it-was-reviewed) |
 | The owner cuts, adds and ranks the jobs, and answers the proposal's [For the owner](agent-os.proposal.md#for-the-owner) | Three questions answered 2026-11-21; the ranking and nine questions remain | Proposal, [Decisions](agent-os.proposal.md#decisions) |
@@ -50,12 +49,13 @@ not, so an agent never has to scan the code to learn what is current. It follows
 ## How the jobs were checked
 
 On 2026-11-21, after `pnpm -F "@lushly-dev/afd-cli..." build`, again after the walks' revision,
-after job 18 was added and revised, and last after the independent reviews' revision:
+after job 18 was added and revised, after the independent reviews' revision, and again on
+2026-11-22 after the end-to-end review revision (adding the warm base-advance case to job 12):
 
 - `node packages/cli/dist/bin.js scenario validate docs/features/proposed/agent-os/scenarios`:
   all 18 files parse.
 - The dry-run check of [jobs first](../../../../.claude/skills/afd/references/jobs-first.md#checking-without-a-server)
-  (`validateScenario` with `checkFixtures: true`): no errors in 18 files and 128 steps.
+  (`validateScenario` with `checkFixtures: true`): no errors in 18 files and 131 steps.
 - The coverage report (`scenarioCoverage`), given the 15 drafted commands, Umbel's `event-list`
   and the 19 error codes: 15 of 16 commands used (`run-settle` is called only by the host's own
   supervisor), all 19 error codes used, and no scenario calls an undrafted command.
@@ -96,20 +96,31 @@ focused pass by Opus 5.5 at high effort then checked the fixes. Its verdict was 
 sixteen of seventeen findings were settled, two passages still gave the old checkpoint rule, and
 it raised five smaller notes. All were corrected, and the same reviewer confirmed that.
 
+On 2026-11-22 a fresh end-to-end review (Gemini 4 Neon, high effort) against `main` at
+`39ca857fd` found four blockers and five improvements, which were applied and then independently
+reviewed by GPT-6.2 Astra (`high`), whose five blockers and two improvements (warm base/ref
+update and ancestor guard, two-part verify-record check and M1 integration test, conditional
+hook-on fallback across G4/Security/M1 exit, durable pre-effect journal intent requirement,
+mid-run host disk exhaustion fault, waiting for active `coverage`, and contract/status alignment)
+were applied. A fresh read-only Gemini 4 Neon reviewer then verified the updated diff against the
+repository and approved it with four minor polish improvements, all applied.
+
 ## What is not verified
 
 The proposal's [Status](agent-os.proposal.md#status) lists what nobody has measured, and M0
 settles it. The rows of [What Umbel and AFD need](agent-os.proposal.md#what-umbel-and-afd-need)
-come from one reader's reading of Umbel's code, spot-checked and not built against.
+were read from Umbel's code on 2026-11-21 and re-verified on 2026-11-22 against `main` at
+`39ca857fd`, and have not been built against yet.
 
 ## Follow-ups not yet issues
 
 | Date | Raised by | Follow-up |
 | --- | --- | --- |
-| 2026-11-21 | The drafting session | Readers of the repository for this proposal reported eleven stale statements in READMEs, the parity document, a changelog and a proposal. Corrected the same day, at the owner's request: each was checked against the code and status files, with seven more places that stated the same facts. The ones under `docs/` merged with this proposal in [#1912](https://github.com/lushly-dev/afd/pull/1912); the ones inside units are in a second pull request. Left as it is: a completed feature's archive (`complete/declared-context-fields/STATUS.md`). The owner kept host-verified confirmation for C++ at N/A in the parity document, 2026-11-21 |
+| 2026-11-21 | The drafting session | Readers of the repository for this proposal reported eleven stale statements in READMEs, the parity document, a changelog and a proposal. Corrected the same day, at the owner's request: each was checked against the code and status files, with seven more places that stated the same facts. The ones under `docs/` merged with this proposal in [#1912](https://github.com/lushly-dev/afd/pull/1912); the ones inside units merged in [#1918](https://github.com/lushly-dev/afd/pull/1918) (`6e290b781`). Left as it is: a completed feature's archive (`complete/declared-context-fields/STATUS.md`). The owner kept host-verified confirmation for C++ at N/A in the parity document, 2026-11-21 |
 
 ## Session log
 
 | Date | Session | What |
 | --- | --- | --- |
 | 2026-11-21 | The drafting session | Drafted the proposal and its jobs from the owner's decisions, had them walked in two passes and revised. Wrote the owner's three further answers in, added job 18 and had it walked. Two independent reviews and their revision. Corrected the stale statements found on the way |
+| 2026-11-22 | Fresh review session | Conducted a fresh end-to-end review against `main` at `39ca857fd` (4 blockers, 5 improvements), addressed GPT-6.2 Astra's review (5 blockers, 2 improvements), and applied 4 polish improvements from the approving read-only review |

@@ -103,3 +103,51 @@ steps:
               code: 0
               connections: { allowed: 0 }
             - { label: validate, code: 0 }
+  - description: >-
+      A second branch starts from an earlier checkpoint (c-main, at 0f0f...) while main has moved
+      to 1e1e...
+    command: machine-create
+    input: { repository: example-repo, for: fix/ahead, checkpoint: c-main }
+    expect:
+      success: true
+      data:
+        created: true
+        machine:
+          state: ready
+          from:
+            checkpoint: c-main
+            head: 0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f
+  - description: >-
+      Its run asks for the newer base; the host updates main and origin/main to base instead of
+      leaving the checkpoint's older base
+    command: run-start
+    input:
+      machine: "${{ steps[7].data.machine.id }}"
+      head: 4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e
+      base: 1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e
+      steps:
+        - label: install
+          args: [pnpm, install, "--frozen-lockfile"]
+          timeoutSeconds: 1800
+          network: registries
+        - label: validate
+          args: [pnpm, verify, "--keep-going"]
+          timeoutSeconds: 5400
+          network: none
+    expect:
+      success: true
+      data:
+        run:
+          state: running
+          base: 1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e
+  - description: The run passes against the requested base while recording the checkpoint it started from
+    command: run-wait
+    input: { id: "${{ steps[8].data.run.id }}", timeoutMs: 300000 }
+    expect:
+      success: true
+      data:
+        run:
+          state: passed
+          base: 1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e
+          from:
+            checkpoint: c-main

@@ -1,7 +1,8 @@
 # Draft JTBD scenario for the Agent OS proposal. Commands and shapes are proposals; the data is invented.
-# The fake runtime plays a head that writes a 412-byte verify record and a 900 MB archive. Putting
-# the record into the slot's git directory and the pre-push check that reads it are the lane's own
-# steps, covered by the factory's tests.
+# The fake runtime plays a head that writes a 412-byte verify record and a 900 MB archive. Verifying
+# the host's observed passing run and validating the external output with main's acceptRecord (or
+# installing it into the slot if the pre-push hook stays on) are M1 lane steps requiring factory
+# integration tests (including rejection when the host result disagrees).
 name: Push a head on a validation that ran in a machine
 description: >-
   When a validation has passed in a machine, I want the files the lane's push needs named
