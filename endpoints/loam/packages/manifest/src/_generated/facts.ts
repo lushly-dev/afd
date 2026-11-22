@@ -119,7 +119,8 @@ export const ADMITTED_KEYS: Record<string, Record<string, readonly string[]>> = 
 			"project_summary",
 			"documents",
 			"new",
-			"settings"
+			"settings",
+			"experiments"
 		],
 		"/ui/surfaces": [
 			"rail",
@@ -140,11 +141,13 @@ export const ADMITTED_KEYS: Record<string, Record<string, readonly string[]>> = 
 			"shape",
 			"command",
 			"element",
-			"title"
+			"title",
+			"requires_experiment"
 		],
 		"/ui/surfaces/header": [
 			"title",
-			"actions"
+			"actions",
+			"requires_experiment"
 		],
 		"/ui/surfaces/header/actions": [],
 		"/ui/surfaces/header/actions/*": [
@@ -158,10 +161,12 @@ export const ADMITTED_KEYS: Record<string, Record<string, readonly string[]>> = 
 		],
 		"/ui/surfaces/inspector": [
 			"element",
-			"title"
+			"title",
+			"requires_experiment"
 		],
 		"/ui/surfaces/panel": [
-			"views"
+			"views",
+			"requires_experiment"
 		],
 		"/ui/surfaces/panel/views": [],
 		"/ui/surfaces/panel/views/*": [
@@ -170,7 +175,8 @@ export const ADMITTED_KEYS: Record<string, Record<string, readonly string[]>> = 
 			"element"
 		],
 		"/ui/surfaces/status": [
-			"items"
+			"items",
+			"requires_experiment"
 		],
 		"/ui/surfaces/status/items": [],
 		"/ui/surfaces/status/items/*": [
@@ -292,7 +298,8 @@ export const ADMITTED_KEYS: Record<string, Record<string, readonly string[]>> = 
 			"title",
 			"description",
 			"levels",
-			"schema"
+			"schema",
+			"requires_experiment"
 		],
 		"/ui/settings/*/levels": [],
 		"/ui/settings/*/schema": [
@@ -324,6 +331,14 @@ export const ADMITTED_KEYS: Record<string, Record<string, readonly string[]>> = 
 			"enum"
 		],
 		"/ui/settings/*/schema/properties/*/items/enum": [],
+		"/ui/experiments": [],
+		"/ui/experiments/*": [
+			"id",
+			"title",
+			"changes",
+			"ends",
+			"stage"
+		],
 		"/native": [
 			"entry"
 		],
@@ -332,7 +347,8 @@ export const ADMITTED_KEYS: Record<string, Record<string, readonly string[]>> = 
 		],
 		"/app": [
 			"scope_levels",
-			"resource_keys"
+			"resource_keys",
+			"requires_experiment"
 		],
 		"/app/scope_levels": [],
 		"/app/resource_keys": []

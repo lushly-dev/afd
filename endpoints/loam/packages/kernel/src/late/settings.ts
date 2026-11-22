@@ -33,6 +33,7 @@ import type { DocumentKit } from './document-kit.js';
 import { enforcedLimits, LIMIT_KEY_ORDER, LIMITS_SECTION_ID } from './limit-commands.js';
 import { createOverridesReader } from './setting-overrides.js';
 import {
+	AGENT_REFUSED,
 	checkKnownValue,
 	isHumanGesture,
 	isHumanKey,
@@ -52,6 +53,7 @@ import type { SettingRows } from './shell-commands.js';
 export { createAutonomy } from './autonomy.js';
 export { resolveAutonomy } from './autonomy-rules.js';
 export { bucketOf, createConfirmations, KERNEL_ONLY_FIELDS, stateNow } from './confirmations.js';
+export { createExperiments } from './experiments.js';
 export { createKeybindingCommands } from './keybinding-commands.js';
 export { KEYBINDING_RESOLVER } from './keybinding-resolve.js';
 export { createLimitCommands, limitNotice } from './limit-commands.js';
@@ -165,6 +167,8 @@ export interface SettingsDeps {
 	limits?: KernelLimits;
 	/** The kernel's keybindings, given the person's overrides once read (8.3); absent, nothing is set. */
 	keybindings?: KeybindingRegistry;
+	/** Whether an experiment is on for the person the shell is for (5.3): a gated section is absent while it is off. */
+	experimentOpen?(experiment: string): boolean;
 	kit: SettingsKit;
 }
 
@@ -229,6 +233,8 @@ export interface Settings {
 		entry: StoredSettingV1 | undefined,
 		context: CommandContext
 	): Promise<StoredSettingV1 | undefined>;
+	/** One section's entries of `person`'s record, read from the store (the experiments' enablements, 5.2). */
+	ownSection(person: string | undefined, section: string): Promise<Record<string, StoredSettingV1>>;
 }
 
 /** The person's `loam.notifications` (3.7), as the inbox reads it. */
@@ -324,6 +330,12 @@ export function createSettings(deps: SettingsDeps): Settings {
 			}
 			for (const section of (manifest.ui?.settings ?? []) as unknown as SettingSectionV1[]) {
 				const fullId = `${manifest.plugin.id}.${section.id}`;
+				// A gated section is absent while its experiment is off for the person (5.3).
+				if (
+					section.requires_experiment !== undefined &&
+					deps.experimentOpen?.(section.requires_experiment) !== true
+				)
+					continue;
 				// The shell's own namespace is never an app's, and a second instance of an app shares its sections.
 				// A second ready instance of one native or view app cannot exist (`APP_DOMAIN_CONFLICT`), and a mounted app
 				// declares no section, so the first is the one that opens wherever the section can.
@@ -1350,6 +1362,8 @@ export function createSettings(deps: SettingsDeps): Settings {
 		// The autonomy section (4.5), whose own commands write it: its route, and the cap's key (3.2's hand-off).
 		if (to === 'loam.autonomy' || to === 'loam.autonomy.cap')
 			return { path: to === 'loam.autonomy' ? to : 'loam.autonomy/cap' };
+		// The experiments list (5.4), whose own commands write it: its route, as the hand-off names it.
+		if (to === 'loam.experiments') return { path: to };
 		const known = sections().find(
 			(entry) => to === entry.fullId || to.startsWith(`${entry.fullId}.`)
 		);
@@ -1398,7 +1412,7 @@ export function createSettings(deps: SettingsDeps): Settings {
 		writeAppearance: (patch, context) => serial(() => writeAppearance(patch, context)),
 		readLimits,
 		refusesAgent(name, input) {
-			if (name === 'autonomy-set' || name === 'limit-usage-get') return true;
+			if (AGENT_REFUSED.includes(name)) return true;
 			if (name !== 'setting-set' && name !== 'setting-reset') return false;
 			const asked =
 				typeof input === 'object' && input !== null ? (input as Record<string, unknown>) : {};
@@ -1410,6 +1424,8 @@ export function createSettings(deps: SettingsDeps): Settings {
 				isHumanKey(asked.section, asked.key)
 			);
 		},
+		// `readRecord` keeps only the entries `storedOf` reads, so each is a whole stored value.
+		ownSection: async (person, section) => (await readRecord(deps.recordId(person)))[section] ?? {},
 		async ownValue(section, key, context) {
 			return storedOf((await readRecord(deps.recordId(personKeyOf(context))))[section]?.[key]);
 		},

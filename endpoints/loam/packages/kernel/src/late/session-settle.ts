@@ -97,7 +97,10 @@ export const needsMembershipRead = (name: string, input: unknown): boolean => {
 		(name === 'project-update' && 'access' in asked) ||
 		((name === 'setting-set' || name === 'setting-reset') && asked.level === 'workspace') ||
 		// Phase 4's step 8 (4.3): a workspace or project autonomy row is an owner's (a project's creator's too).
-		(name === 'autonomy-set' && (asked.level === 'workspace' || asked.level === 'project'))
+		(name === 'autonomy-set' && (asked.level === 'workspace' || asked.level === 'project')) ||
+		// Phase 4's step 9 (5.2): a workspace enablement is an owner's.
+		((name === 'experiment-enable' || name === 'experiment-disable') &&
+			asked.audience === 'workspace')
 	);
 };
 

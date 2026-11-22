@@ -228,6 +228,9 @@
 						"type": "string",
 						"minLength": 1
 					}
+				},
+				"requires_experiment": {
+					"$ref": "#/$defs/experimentRef"
 				}
 			},
 			"unevaluatedProperties": false
@@ -370,6 +373,12 @@
 					"items": {
 						"$ref": "#/$defs/settingSection"
 					}
+				},
+				"experiments": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/experiment"
+					}
 				}
 			},
 			"unevaluatedProperties": false
@@ -396,6 +405,9 @@
 				},
 				"schema": {
 					"$ref": "#/$defs/settingSchema"
+				},
+				"requires_experiment": {
+					"$ref": "#/$defs/experimentRef"
 				}
 			},
 			"required": ["id", "title", "levels", "schema"],
@@ -515,6 +527,39 @@
 			},
 			"required": ["type", "enum"],
 			"unevaluatedProperties": false
+		},
+		"experiment": {
+			"type": "object",
+			"properties": {
+				"id": {
+					"type": "string",
+					"pattern": "^[a-z0-9][a-z0-9-]{0,39}$"
+				},
+				"title": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 60
+				},
+				"changes": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 400
+				},
+				"ends": {
+					"type": "string",
+					"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+				},
+				"stage": {
+					"enum": ["hidden", "visible", "graduated", "removed"]
+				}
+			},
+			"required": ["id", "title", "changes", "ends", "stage"],
+			"unevaluatedProperties": false
+		},
+		"experimentRef": {
+			"type": "string",
+			"pattern": "^[a-z0-9][a-z0-9-]*\\.[a-z0-9][a-z0-9-]{0,39}$",
+			"maxLength": 105
 		},
 		"projectSummary": {
 			"type": "object",
@@ -750,6 +795,9 @@
 					"type": "string",
 					"minLength": 1,
 					"maxLength": 80
+				},
+				"requires_experiment": {
+					"$ref": "#/$defs/experimentRef"
 				}
 			},
 			"required": ["shape"],
@@ -807,6 +855,9 @@
 					"items": {
 						"$ref": "#/$defs/headerAction"
 					}
+				},
+				"requires_experiment": {
+					"$ref": "#/$defs/experimentRef"
 				}
 			},
 			"unevaluatedProperties": false
@@ -854,6 +905,9 @@
 					"type": "string",
 					"minLength": 1,
 					"maxLength": 80
+				},
+				"requires_experiment": {
+					"$ref": "#/$defs/experimentRef"
 				}
 			},
 			"required": ["element"],
@@ -868,6 +922,9 @@
 					"items": {
 						"$ref": "#/$defs/panelView"
 					}
+				},
+				"requires_experiment": {
+					"$ref": "#/$defs/experimentRef"
 				}
 			},
 			"required": ["views"],
@@ -901,6 +958,9 @@
 					"items": {
 						"$ref": "#/$defs/statusItem"
 					}
+				},
+				"requires_experiment": {
+					"$ref": "#/$defs/experimentRef"
 				}
 			},
 			"required": ["items"],

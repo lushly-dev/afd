@@ -106,13 +106,6 @@ const KEY_ROWS: Readonly<Record<string, Row>> = {
 		suggestion: 'Remove `panel`. A later version adds it when a type asks.',
 	},
 	'/ui/account': later('ui.account', 3),
-	'/ui/settings/*/requires_experiment': {
-		code: 'MANIFEST_SURFACE_UNAVAILABLE',
-		message:
-			'`ui.settings[].requires_experiment` arrives with `ui.experiments`, in step 9 of phase 4.',
-		suggestion: 'Remove `requires_experiment` until experiments are served.',
-	},
-	'/ui/experiments': later('ui.experiments', 4),
 	'/ui/menus': later('ui.menus', 4),
 	'/ui/automations': later('ui.automations', 7),
 	'/commands/*/output_budget': {

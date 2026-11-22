@@ -196,3 +196,11 @@ export const settingRoute = (fullId: string, key: string): string => `~/settings
 /** A writer's name in `updatedBy` (3.2): the person's id, or `agent:<id>` for an agent acting for them. */
 export const writerOf = (actor: CommandContext['actor'], person: string): string =>
 	actor?.kind === 'agent' ? `agent:${actor.id}` : person;
+
+/** The writes whose own handler refuses every agent, at every level, with its hand-off (3.2, F2; 4.3; 5.4; 11). */
+export const AGENT_REFUSED: readonly string[] = Object.freeze([
+	'autonomy-set',
+	'limit-usage-get',
+	'experiment-enable',
+	'experiment-disable',
+]);

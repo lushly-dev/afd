@@ -10,6 +10,7 @@ import {
 	deploymentEntry,
 	deploymentFile,
 	journal,
+	kernelCall,
 	openApp,
 	openShell,
 	packApp,
@@ -127,6 +128,11 @@ describe('P2-E13: E1: hello loads native', () => {
 	it('reaches main and the inspector with a selection', async () => {
 		const opened = await openShell(browser, site.origin);
 		const { page } = opened;
+		// Amended by phase 4's step 9 (P4-E14): hello's inspector is present only while `hello.inspector-v2` is on (5.3).
+		await kernelCall(page, 'experiment-enable', {
+			experiment: 'hello.inspector-v2',
+			audience: 'person',
+		});
 		await openApp(page, 'hello');
 		await agentCall(page, 'hello-greet', { name: 'Ada' });
 		await page.locator('loam-list violet-option').first().waitFor();

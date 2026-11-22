@@ -12,7 +12,7 @@
  *   (no project disables an app), loaded from their sources through fixture ports (`apps.ts` says why);
  * - the file's documents, written to the store before the kernel starts, as the projects are, so their ids are fixed,
  *   and its calls, run after sign-in: the specification's count of 3 and its document in Atlas;
- * - **not yet**: hello's experiment `hello.inspector-v2`, step 9's.
+ * - hello's experiment `hello.inspector-v2`, `visible`, ending `2027-03-01`, from hello's own manifest (step 9).
  *
  * The seed file names the apps, so this file names none: the shell's sources name no app or document type.
  *

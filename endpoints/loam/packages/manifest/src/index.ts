@@ -19,6 +19,15 @@ export {
 	type SurfaceEntry,
 	TRUST_LINES_V1,
 } from './catalogs.js';
+// Phase 4's experiments (its 5.1, 5.3): the declaration, the gated surfaces and every gate a manifest declares.
+export {
+	type ExperimentStageV1,
+	type ExperimentV1,
+	GATED_SURFACES_V1,
+	gatesOf,
+	isExperimentDate,
+	MANIFEST_EXPERIMENTS_MAX,
+} from './experiments.js';
 export { LAYOUT_DEFAULTS_V0, type LayoutDefaultsV0 } from './layout-defaults.js';
 export { needsInputShape } from './needs-input.js';
 // Stage A's reader, in first paint: it holds no validator (phase 2 specification, 2.2).

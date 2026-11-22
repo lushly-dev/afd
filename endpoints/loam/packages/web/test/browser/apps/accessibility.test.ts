@@ -38,6 +38,11 @@ afterAll(async () => {
 });
 
 async function helloWithEverything(page: Page) {
+	// Amended by phase 4's step 9 (P4-E14): hello's inspector is present only while `hello.inspector-v2` is on (5.3).
+	await kernelCall(page, 'experiment-enable', {
+		experiment: 'hello.inspector-v2',
+		audience: 'person',
+	});
 	await openApp(page, 'hello');
 	await agentCall(page, 'hello-greet', { name: 'Ada' });
 	await agentCall(page, 'layout-set', { inspector: { open: true } });
@@ -174,7 +179,12 @@ describe('P2-E13: E11: the keyboard with apps', () => {
 		await page.keyboard.press('Tab');
 		expect((await focused(page)).label).toContain('Settings');
 
-		// F6 goes on, for what is present, through every part hello declares.
+		// F6 goes on, for what is present, through every part hello declares. Amended by phase 4's step 9 (P4-E14): its
+		// inspector is present once `hello.inspector-v2` is on.
+		await kernelCall(page, 'experiment-enable', {
+			experiment: 'hello.inspector-v2',
+			audience: 'person',
+		});
 		await agentCall(page, 'layout-set', { inspector: { open: true } });
 		await page.locator('hello-inspector').waitFor();
 		const order: (string | null)[] = [];

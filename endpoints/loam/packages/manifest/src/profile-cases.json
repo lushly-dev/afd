@@ -1979,7 +1979,9 @@
 		{
 			"id": "title-reserved",
 			"base": "native",
-			"set": { "/plugin/title": "Loam Notes" },
+			"set": {
+				"/plugin/title": "Loam Notes"
+			},
 			"accepted": false,
 			"code": "MANIFEST_TITLE_RESERVED",
 			"key": "plugin.title"
@@ -1987,7 +1989,9 @@
 		{
 			"id": "title-loam-inside-a-word",
 			"base": "native",
-			"set": { "/plugin/title": "Loamy notes" },
+			"set": {
+				"/plugin/title": "Loamy notes"
+			},
 			"accepted": true
 		},
 		{
@@ -5863,7 +5867,7 @@
 			]
 		},
 		{
-			"id": "ui-settings-requires-experiment",
+			"id": "ui-settings-requires-experiment-unknown",
 			"base": "native",
 			"set": {
 				"/manifest_version": 2,
@@ -5889,9 +5893,9 @@
 				]
 			},
 			"accepted": false,
-			"code": "MANIFEST_SURFACE_UNAVAILABLE",
+			"code": "MANIFEST_EXPERIMENT_UNKNOWN",
 			"key": "ui.settings[0].requires_experiment",
-			"suggestion": "experiments are served"
+			"suggestion": "hello.<id>"
 		},
 		{
 			"id": "closed-settingSection",
@@ -6021,7 +6025,93 @@
 			"suggestion": "settings subset"
 		},
 		{
-			"id": "later-ui-experiments",
+			"id": "ui-experiments",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/experiments": [
+					{
+						"id": "inspector-v2",
+						"title": "The new inspector",
+						"changes": "Hello's inspector shows each greeting's history.",
+						"ends": "2027-03-01",
+						"stage": "visible"
+					}
+				],
+				"/ui/surfaces/inspector/requires_experiment": "hello.inspector-v2"
+			},
+			"accepted": true
+		},
+		{
+			"id": "ui-experiments-gates-everywhere",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/experiments": [
+					{
+						"id": "inspector-v2",
+						"title": "The new inspector",
+						"changes": "Hello's inspector shows each greeting's history.",
+						"ends": "2027-03-01",
+						"stage": "visible"
+					}
+				],
+				"/app/requires_experiment": "hello.inspector-v2",
+				"/ui/surfaces/sidebar/requires_experiment": "hello.inspector-v2",
+				"/ui/surfaces/header/requires_experiment": "hello.inspector-v2",
+				"/ui/surfaces/status": {
+					"items": [
+						{
+							"id": "count",
+							"label": "Greetings"
+						}
+					],
+					"requires_experiment": "hello.inspector-v2"
+				},
+				"/ui/settings": [
+					{
+						"id": "general",
+						"title": "General",
+						"levels": ["workspace"],
+						"schema": {
+							"type": "object",
+							"properties": {
+								"greeting": {
+									"type": "string",
+									"title": "Greeting",
+									"maxLength": 40,
+									"default": "Hello"
+								}
+							},
+							"additionalProperties": false
+						},
+						"requires_experiment": "hello.inspector-v2"
+					}
+				]
+			},
+			"accepted": true
+		},
+		{
+			"id": "version-keys-ui-experiments",
+			"base": "native",
+			"set": {
+				"/ui/experiments": [
+					{
+						"id": "inspector-v2",
+						"title": "The new inspector",
+						"changes": "Hello's inspector shows each greeting's history.",
+						"ends": "2027-03-01",
+						"stage": "visible"
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_UNAVAILABLE",
+			"key": "ui.experiments",
+			"suggestion": "Set manifest_version = 2."
+		},
+		{
+			"id": "version-keys-ui-experiments-malformed",
 			"base": "native",
 			"set": {
 				"/ui/experiments": {}
@@ -6029,7 +6119,244 @@
 			"accepted": false,
 			"code": "MANIFEST_SURFACE_UNAVAILABLE",
 			"key": "ui.experiments",
-			"suggestion": "phase 4"
+			"suggestion": "Set manifest_version = 2."
+		},
+		{
+			"id": "version-keys-requires-experiment",
+			"base": "native",
+			"set": {
+				"/app/requires_experiment": "hello.inspector-v2"
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_UNAVAILABLE",
+			"key": "app.requires_experiment",
+			"suggestion": "Set manifest_version = 2."
+		},
+		{
+			"id": "closed-experiment",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/experiments": [
+					{
+						"id": "inspector-v2",
+						"title": "The new inspector",
+						"changes": "Hello's inspector shows each greeting's history.",
+						"ends": "2027-03-01",
+						"stage": "visible",
+						"bogus": 1
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_KEY",
+			"key": "ui.experiments[0].bogus",
+			"suggestion": "Admitted keys"
+		},
+		{
+			"id": "ui-experiments-limit",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/experiments": [
+					{
+						"id": "e0",
+						"title": "The new inspector",
+						"changes": "Hello's inspector shows each greeting's history.",
+						"ends": "2027-03-01",
+						"stage": "visible"
+					},
+					{
+						"id": "e1",
+						"title": "The new inspector",
+						"changes": "Hello's inspector shows each greeting's history.",
+						"ends": "2027-03-01",
+						"stage": "visible"
+					},
+					{
+						"id": "e2",
+						"title": "The new inspector",
+						"changes": "Hello's inspector shows each greeting's history.",
+						"ends": "2027-03-01",
+						"stage": "visible"
+					},
+					{
+						"id": "e3",
+						"title": "The new inspector",
+						"changes": "Hello's inspector shows each greeting's history.",
+						"ends": "2027-03-01",
+						"stage": "visible"
+					},
+					{
+						"id": "e4",
+						"title": "The new inspector",
+						"changes": "Hello's inspector shows each greeting's history.",
+						"ends": "2027-03-01",
+						"stage": "visible"
+					},
+					{
+						"id": "e5",
+						"title": "The new inspector",
+						"changes": "Hello's inspector shows each greeting's history.",
+						"ends": "2027-03-01",
+						"stage": "visible"
+					},
+					{
+						"id": "e6",
+						"title": "The new inspector",
+						"changes": "Hello's inspector shows each greeting's history.",
+						"ends": "2027-03-01",
+						"stage": "visible"
+					},
+					{
+						"id": "e7",
+						"title": "The new inspector",
+						"changes": "Hello's inspector shows each greeting's history.",
+						"ends": "2027-03-01",
+						"stage": "visible"
+					},
+					{
+						"id": "e8",
+						"title": "The new inspector",
+						"changes": "Hello's inspector shows each greeting's history.",
+						"ends": "2027-03-01",
+						"stage": "visible"
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_EXPERIMENTS_LIMIT",
+			"key": "ui.experiments[8]",
+			"suggestion": "Graduate or remove"
+		},
+		{
+			"id": "ui-experiments-date",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/experiments": [
+					{
+						"id": "inspector-v2",
+						"title": "The new inspector",
+						"changes": "Hello's inspector shows each greeting's history.",
+						"ends": "2027-02-30",
+						"stage": "visible"
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_EXPERIMENT_DATE",
+			"key": "ui.experiments[0].ends",
+			"suggestion": "YYYY-MM-DD"
+		},
+		{
+			"id": "ui-experiments-duplicate",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/experiments": [
+					{
+						"id": "inspector-v2",
+						"title": "The new inspector",
+						"changes": "Hello's inspector shows each greeting's history.",
+						"ends": "2027-03-01",
+						"stage": "visible"
+					},
+					{
+						"id": "inspector-v2",
+						"title": "The new inspector",
+						"changes": "Hello's inspector shows each greeting's history.",
+						"ends": "2027-03-01",
+						"stage": "visible"
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_DUPLICATE",
+			"key": "ui.experiments[1].id",
+			"suggestion": "its own id"
+		},
+		{
+			"id": "ui-experiments-text",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/experiments": [
+					{
+						"id": "inspector-v2",
+						"title": "New‮inspector",
+						"changes": "Hello's inspector shows each greeting's history.",
+						"ends": "2027-03-01",
+						"stage": "visible"
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_TEXT_INVALID",
+			"key": "ui.experiments[0].title",
+			"suggestion": "control character"
+		},
+		{
+			"id": "ui-experiments-mounted",
+			"base": "mounted",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/experiments": [
+					{
+						"id": "inspector-v2",
+						"title": "The new inspector",
+						"changes": "Hello's inspector shows each greeting's history.",
+						"ends": "2027-03-01",
+						"stage": "visible"
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_SETTINGS_MOUNTED",
+			"key": "ui.experiments",
+			"suggestion": "Remove"
+		},
+		{
+			"id": "requires-experiment-unknown",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/experiments": [
+					{
+						"id": "inspector-v2",
+						"title": "The new inspector",
+						"changes": "Hello's inspector shows each greeting's history.",
+						"ends": "2027-03-01",
+						"stage": "visible"
+					}
+				],
+				"/ui/surfaces/inspector/requires_experiment": "other.inspector-v2"
+			},
+			"accepted": false,
+			"code": "MANIFEST_EXPERIMENT_UNKNOWN",
+			"key": "ui.surfaces.inspector.requires_experiment",
+			"suggestion": "hello.<id>"
+		},
+		{
+			"id": "requires-experiment-main",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/experiments": [
+					{
+						"id": "inspector-v2",
+						"title": "The new inspector",
+						"changes": "Hello's inspector shows each greeting's history.",
+						"ends": "2027-03-01",
+						"stage": "visible"
+					}
+				],
+				"/ui/surfaces/main/requires_experiment": "hello.inspector-v2"
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_KEY",
+			"key": "ui.surfaces.main.requires_experiment",
+			"suggestion": "Admitted keys"
 		},
 		{
 			"id": "later-ui-menus",
@@ -6135,7 +6462,9 @@
 			"set": {
 				"/manifest_version": 2,
 				"/commands/0/confirm_prompt": "Greet them?",
-				"/commands/0/input_schema/properties/confirm": { "type": "boolean" }
+				"/commands/0/input_schema/properties/confirm": {
+					"type": "boolean"
+				}
 			},
 			"accepted": false,
 			"code": "MANIFEST_CONFIRM_UNAVAILABLE",

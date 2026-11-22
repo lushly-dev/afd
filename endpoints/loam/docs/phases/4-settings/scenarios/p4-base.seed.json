@@ -25,6 +25,21 @@
 	"checks": [
 		{ "command": "tally-get", "input": {}, "data": { "total": 3 } },
 		{
+			"command": "experiment-list",
+			"input": { "experiment": "hello.inspector-v2" },
+			"data": {
+				"experiments": [
+					{
+						"fullId": "hello.inspector-v2",
+						"owner": "hello",
+						"stage": "visible",
+						"ends": "2027-03-01",
+						"on": false
+					}
+				]
+			}
+		},
+		{
 			"command": "checklist-get",
 			"input": { "document": "doc_checklist0000001" },
 			"project": "prj_atlas",

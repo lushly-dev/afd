@@ -346,7 +346,8 @@ export const APP_CALLABLE_SHELL_COMMANDS_V1 = [
 	'shell-info-get',
 ] as const;
 
-export type AppStateV1 = 'ready' | 'loading' | 'failed' | 'refused';
+/** `gated` (phase 4 specification, 5.3): ready, but held out by its app's experiment, with no command registered. */
+export type AppStateV1 = 'ready' | 'loading' | 'failed' | 'refused' | 'gated';
 
 export type AppKindV1 = 'native' | 'view' | 'mounted';
 
@@ -377,6 +378,11 @@ export interface AppDetailV1 extends Omit<AppSummaryV2, 'state'> {
 	notices: Array<{ code: string; message: string }>;
 	/** Each status item's value, for the ones the app has set (9.5). */
 	statusItems: Record<string, string>;
+	/**
+	 * Each gate the manifest declares on the app or a surface, with whether it is open for the person (phase 4
+	 * specification, 5.3; A-P1-2). A closed surface is left out of `surfaces`, so the chrome never creates it.
+	 */
+	gates: Record<string, { experiment: string; open: boolean }>;
 }
 
 /** Never a location, a credential or a command line. */
@@ -665,6 +671,8 @@ export const APP_CALLABLE_SHELL_COMMANDS_V2 = [
 	// Step 6's confirmations (7.2): an app reads and withdraws the ones it raised.
 	'confirmation-get',
 	'confirmation-withdraw',
+	// Step 9's experiments (5.4): an app checks its own.
+	'experiment-check',
 ] as const;
 
 /**
@@ -692,6 +700,11 @@ export interface KernelEventV4 extends KernelEventV3 {
 	 * answered `CONFIRMATION_PENDING` has (7.2): the Inbox count reads again.
 	 */
 	inbox?: true;
+	/**
+	 * An experiment's state for the person changed (5.3, `experimentsChanged`): the chrome renders the apps, their
+	 * surfaces and the settings tree again, as gates decide what is present.
+	 */
+	experiments?: true;
 }
 
 /** What `shell-info-get` returns from version 4. */

@@ -774,7 +774,7 @@ one version that warns (R6).
 | agent | `contexts[]`, `skills[]`; later `agent` | Listed in phase 1; served in phase 5 |
 | documents, new, editor, embed, project-summary | `ui.documents` (with its editor and embed), `ui.new`, `ui.project_summary` | Phase 2 |
 | account | `ui.account` | Phase 3 |
-| settings, experiments, menus | `ui.settings`, `ui.experiments`, `ui.menus` | Phase 4 |
+| settings, experiments, menus | `ui.settings`, `ui.experiments`, `ui.menus` | Phase 4. **Amended by phase 4 (A-P1-2):** `ui.menus` is served by a later specification, not phase 4 (its section 9) |
 | notifications | Commands, no key | Phase 4 |
 | automations | `ui.automations` | Phase 7 |
 
@@ -1748,7 +1748,7 @@ export interface KernelOptionsV1 extends Omit<KernelOptionsV0, 'commands'> {
 | Command | Kind | Input | Result data |
 | --- | --- | --- | --- |
 | `app-list` | query | `{}` | `{ active: string \| null, apps: AppSummaryV1[] }` |
-| `app-get` | query | `{ instance }` | `AppDetailV1` |
+| `app-get` | query | `{ instance }` | `AppDetailV1`. **Amended by phase 4's step 9 (A-P1-2):** with `gates: { [place]: { experiment, open } }`, one per gate on the app (`app`) or a surface, and a closed surface left out of `surfaces`; a gated app's `state` is `gated` |
 | `app-open` | mutation | `{ instance }` | `{ active, previous }`; undo is `app-open` with `previous`, or `app-close` |
 | `app-close` | mutation | `{}` | `{ active: null, previous }`; undo is `app-open` |
 | `app-command-list` | query | `{ instance }` | `{ commands: Array<CommandSummaryV1 & { inputSchema; destructive?; replay?: 'recorded' }>, hidden: number }` |

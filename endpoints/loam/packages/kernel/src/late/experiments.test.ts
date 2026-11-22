@@ -1,0 +1,775 @@
+/**
+ * P4-E5's units (phase 4 specification, section 5 and 19; D119, D155): the experiment commands in the kernel, on the
+ * scoped workspace's apps and a document app whose whole app, inspector and one settings section are gated. The jobs
+ * `opt-into-experiment` and `workspace-experiment-opt-out` run in `scenarios.test.ts` on hello's `hello.inspector-v2`;
+ * the pure rules are in `experiment-rules.test.ts`; P4-E2's sweep in `scope/settings-sweep.test.ts`.
+ */
+
+import { MemoryJournalSink } from '@lushly-dev/afd-core';
+import type { IdentityV1, ManifestV2, ProjectionV3, ProjectionV4 } from '@lushly-dev/loam-manifest';
+import { type DataAdapter, MemoryAdapter } from '@lushly-dev/local-db';
+import { afterEach, describe, expect, it } from 'vitest';
+import type { MembershipV1 } from '../scope/access.js';
+import {
+	createScopedWorkspace,
+	type ScopedWorkspace,
+	type ScopedWorkspaceOptions,
+	scopedDeployment,
+	scopedPackages,
+} from '../scope/fixtures.js';
+import { createFixturePorts, replayKernel } from '../testing.js';
+import { PROBE_DOCUMENTS_DEFINITION, PROBE_DOCUMENTS_MANIFEST } from '../testing-documents.js';
+import type { AppDetailV1, AppSummaryV2, LoamKernelV5 } from '../types.js';
+import { EXPERIMENT_TABLE } from './experiments.js';
+import { NOTIFICATION_TABLE } from './notifications.js';
+
+const kernels: LoamKernelV5[] = [];
+afterEach(async () => {
+	await Promise.all(kernels.splice(0).map((kernel) => kernel.dispose()));
+});
+
+const BETA = 'probe.beta';
+const PANE = 'probe.pane';
+
+type Experiment = { id: string; title: string; changes: string; ends: string; stage: string };
+const experiment = (id: string, extra: Partial<Experiment> = {}): Experiment => ({
+	id,
+	title: id === 'beta' ? 'Probe beta' : 'Probe pane',
+	changes: id === 'beta' ? 'Shows Probe and its notes.' : 'Adds a pane beside a probe note.',
+	ends: '2027-03-01',
+	stage: 'visible',
+	...extra,
+});
+
+/** The probe document app, held out whole by `probe.beta`, its inspector and one section gated by `probe.pane`. */
+const gatedProbe = (experiments: Experiment[] = [experiment('beta'), experiment('pane')]) =>
+	({
+		...PROBE_DOCUMENTS_MANIFEST,
+		app: { ...PROBE_DOCUMENTS_MANIFEST.app, requires_experiment: BETA },
+		commands: (PROBE_DOCUMENTS_MANIFEST.commands as Array<{ name: string }>).map((each) =>
+			each.name === 'probe-content-set' ? { ...each, confirm_prompt: 'Replace the text?' } : each
+		),
+		ui: {
+			...PROBE_DOCUMENTS_MANIFEST.ui,
+			surfaces: {
+				...PROBE_DOCUMENTS_MANIFEST.ui?.surfaces,
+				inspector: { element: 'probe-pane', requires_experiment: PANE },
+			},
+			experiments,
+			settings: [
+				{
+					id: 'pane',
+					title: 'Pane',
+					levels: ['person'],
+					requires_experiment: PANE,
+					schema: {
+						type: 'object',
+						properties: {
+							wide: { type: 'boolean', title: 'Wide', default: false },
+						},
+						additionalProperties: false,
+					},
+				},
+			],
+		},
+	}) as unknown as ManifestV2;
+
+const deployment = (extra: Partial<ProjectionV4> = {}) =>
+	({
+		...scopedDeployment(),
+		generation: 'experiments',
+		apps: [
+			...scopedDeployment().apps,
+			{ instance: 'probe', app: 'probe', package: 'fixtures/probe/' },
+		],
+		...extra,
+	}) as unknown as ProjectionV3;
+
+const ports = (manifest: ManifestV2 = gatedProbe()) =>
+	createFixturePorts({
+		...scopedPackages(),
+		'fixtures/probe/': { manifest, definition: PROBE_DOCUMENTS_DEFINITION },
+	});
+
+async function workspace(
+	options: ScopedWorkspaceOptions & { manifest?: ManifestV2 } = {}
+): Promise<ScopedWorkspace> {
+	const { manifest, ...rest } = options;
+	const made = await createScopedWorkspace({
+		deployment: deployment(),
+		ports: ports(manifest),
+		...rest,
+	});
+	kernels.push(made.kernel);
+	return made;
+}
+
+type Row = Record<string, unknown> & { fullId: string; on: boolean };
+const list = async (kernel: LoamKernelV5, input: Record<string, unknown> = {}) =>
+	((await kernel.call<{ experiments: Row[] }>('experiment-list', input)).data?.experiments ??
+		[]) as Row[];
+const detail = async (kernel: LoamKernelV5, instance = 'probe') =>
+	(await kernel.call<AppDetailV1>('app-get', { instance })).data as AppDetailV1;
+const stateOf = async (kernel: LoamKernelV5, instance = 'probe') =>
+	(await kernel.call<{ apps: AppSummaryV2[] }>('app-list')).data?.apps.find(
+		(app) => app.instance === instance
+	)?.state;
+/** The table's enablements and removals, without each plugin's declared ids (5.1). */
+const tableOf = async (store: DataAdapter) =>
+	(await store.list<{ kind?: string }>(EXPERIMENT_TABLE)).data.filter(
+		(row) => row.kind !== 'declared'
+	);
+const notices = async (store: DataAdapter) =>
+	(await store.list<{ source: string; title: string; kind?: string }>(NOTIFICATION_TABLE)).data
+		.filter((row) => row.source === 'shell' && row.kind !== 'confirmation')
+		.map((row) => row.title);
+
+const PROVIDER: IdentityV1 = {
+	mode: 'provider',
+	organization: 'acme',
+	path: 'api/auth',
+	methods: ['passkey', 'password'],
+};
+const BEA = 'mock-user-bea@example.com';
+const OLU = 'mock-user-olu@example.com';
+const ACME = (): MembershipV1 => ({
+	mode: 'provider',
+	members: new Map([
+		[BEA, 'member'],
+		[OLU, 'owner'],
+	]),
+	digest: 'd1',
+});
+const signIn = (kernel: LoamKernelV5, email: string) =>
+	kernel.call('auth-sign-in', { method: 'credentials', email, password: 'x' });
+
+describe('a person turns an experiment on for themselves (5.2, 5.3)', () => {
+	it('lists it with what may change and when it ends, off, and every gate closed', async () => {
+		const { kernel } = await workspace();
+		const [beta] = await list(kernel, { experiment: BETA });
+		expect(beta).toEqual({
+			fullId: BETA,
+			owner: 'probe',
+			title: 'Probe beta',
+			changes: 'Shows Probe and its notes.',
+			ends: '2027-03-01',
+			stage: 'visible',
+			on: false,
+			by: null,
+			workspace: false,
+			changed: false,
+			overdue: false,
+		});
+		// The app is listed `gated`, its commands are not registered, and app-get names each gate (A-P1-2).
+		expect(await stateOf(kernel)).toBe('gated');
+		const shown = await detail(kernel);
+		expect(shown.gates).toEqual({
+			app: { experiment: BETA, open: false },
+			inspector: { experiment: PANE, open: false },
+		});
+		expect(shown.surfaces).not.toContain('inspector');
+		expect((await kernel.call('probe-content-get', { document: 'doc_x' })).success).toBe(false);
+		expect(
+			(await kernel.listCommands()).some((command) => command.name === 'probe-content-get')
+		).toBe(false);
+		// A gated section is absent (3.5).
+		const sections = await kernel.call<{ sections: Array<{ section: string }> }>(
+			'setting-schema-get',
+			{ outline: true }
+		);
+		expect(sections.data?.sections.map(({ section }) => section)).not.toContain('probe.pane');
+	});
+
+	it('opens each gate it decides, and nothing it does not', async () => {
+		const { kernel } = await workspace();
+		const events: Array<{ command: string; experiments?: true }> = [];
+		kernel.subscribe((event) => {
+			events.push(event as { command: string; experiments?: true });
+		});
+		const on = await kernel.call('experiment-enable', { experiment: BETA, audience: 'person' });
+		expect(on.data).toEqual({ on: true, by: 'person' });
+		// `experimentsChanged`: the chrome renders the gates again (5.3).
+		expect(events.find(({ command }) => command === 'experiment-enable')?.experiments).toBe(true);
+		expect(await stateOf(kernel)).toBe('ready');
+		expect((await detail(kernel)).gates).toEqual({
+			app: { experiment: BETA, open: true },
+			inspector: { experiment: PANE, open: false },
+		});
+		const made = await kernel.call<{ id: string }>('document-create', { type: 'probe' });
+		expect(made.success).toBe(true);
+		await kernel.call('experiment-enable', { experiment: PANE, audience: 'person' });
+		const shown = await detail(kernel);
+		expect(shown.gates.inspector).toEqual({ experiment: PANE, open: true });
+		expect(shown.surfaces).toContain('inspector');
+		const sections = await kernel.call<{ sections: Array<{ section: string }> }>(
+			'setting-schema-get',
+			{ outline: true }
+		);
+		expect(sections.data?.sections.map(({ section }) => section)).toContain('probe.pane');
+		// Off again: the app is held out again, with nothing dirty to keep it.
+		expect(
+			(await kernel.call('experiment-disable', { experiment: BETA, audience: 'person' })).data
+		).toEqual({ on: false, by: 'person' });
+		expect(await stateOf(kernel)).toBe('gated');
+	});
+
+	it('keeps the gates over a reload of the same store, and replays a session with no difference', async () => {
+		const store = new MemoryAdapter();
+		const journal = new MemoryJournalSink();
+		const first = await workspace({ store, journal });
+		await first.kernel.call('experiment-enable', { experiment: BETA, audience: 'person' });
+		await first.kernel.call('experiment-enable', { experiment: PANE, audience: 'workspace' });
+		await first.kernel.call('experiment-disable', { experiment: PANE, audience: 'person' });
+		await first.kernel.dispose();
+		const second = await workspace({ store, empty: true });
+		expect(await stateOf(second.kernel)).toBe('ready');
+		expect((await detail(second.kernel)).gates.inspector?.open).toBe(false);
+		const { report } = await replayKernel(await journal.read(), {
+			deployment: deployment() as never,
+			ports: ports(),
+		});
+		expect(report.entries.filter(({ status }) => status !== 'same')).toEqual([]);
+	});
+});
+
+describe('an owner turns one on for the workspace, and a person steps out (5.2, D155)', () => {
+	it('is on for everyone until a person opts out, and tells them', async () => {
+		const { kernel, store } = await workspace();
+		expect(
+			(await kernel.call('experiment-enable', { experiment: PANE, audience: 'workspace' })).data
+		).toEqual({ on: true, by: 'workspace' });
+		expect(await tableOf(store)).toEqual([
+			expect.objectContaining({ id: `personal/${PANE}`, experiment: PANE, updatedBy: 'local' }),
+		]);
+		expect(await notices(store)).toEqual(['Probe pane is on for the workspace']);
+		expect(
+			(await kernel.call('experiment-disable', { experiment: PANE, audience: 'person' })).data
+		).toEqual({ on: false, by: 'person' });
+		expect((await kernel.call('experiment-check', { experiment: PANE })).data).toEqual({
+			on: false,
+			by: 'person',
+		});
+		const [pane] = await list(kernel, { experiment: PANE });
+		expect(pane).toMatchObject({ workspace: true, on: false, by: 'person' });
+		// The opt-out holds when the owner turns it off and on again (D155).
+		await kernel.call('experiment-disable', { experiment: PANE, audience: 'workspace' });
+		await kernel.call('experiment-enable', { experiment: PANE, audience: 'workspace' });
+		expect((await kernel.call('experiment-check', { experiment: PANE })).data).toEqual({
+			on: false,
+			by: 'person',
+		});
+		// Told once; a person who stepped out is told nothing more of it (5.2).
+		expect(await notices(store)).toEqual(['Probe pane is on for the workspace']);
+	});
+
+	it('with two people, an owner and a member: OWNER_REQUIRED, the workspace for both, the opt-out for one', async () => {
+		const { kernel } = await workspace({ identity: PROVIDER, membership: ACME(), empty: true });
+		await signIn(kernel, 'bea@example.com');
+		const refused = await kernel.call('experiment-enable', {
+			experiment: PANE,
+			audience: 'workspace',
+		});
+		expect(refused.error?.code).toBe('OWNER_REQUIRED');
+		expect(refused.error?.suggestion).toBeTruthy();
+		expect(
+			(await kernel.call('experiment-enable', { experiment: BETA, audience: 'person' })).data
+		).toEqual({ on: true, by: 'person' });
+		expect(await stateOf(kernel)).toBe('ready');
+		await kernel.call('auth-sign-out');
+		await signIn(kernel, 'olu@example.com');
+		// Bea's own enablement is hers: Olu's shell holds the app out.
+		expect(await stateOf(kernel)).toBe('gated');
+		expect(
+			(await kernel.call('experiment-enable', { experiment: PANE, audience: 'workspace' })).data
+		).toEqual({ on: true, by: 'workspace' });
+		await kernel.call('auth-sign-out');
+		await signIn(kernel, 'bea@example.com');
+		expect((await kernel.call('experiment-check', { experiment: PANE })).data).toEqual({
+			on: true,
+			by: 'workspace',
+		});
+		await kernel.call('experiment-disable', { experiment: PANE, audience: 'person' });
+		expect((await kernel.call('experiment-check', { experiment: PANE })).data?.valueOf()).toEqual({
+			on: false,
+			by: 'person',
+		});
+		await kernel.call('auth-sign-out');
+		await signIn(kernel, 'olu@example.com');
+		expect((await kernel.call('experiment-check', { experiment: PANE })).data).toEqual({
+			on: true,
+			by: 'workspace',
+		});
+	});
+});
+
+describe('who may call, and the codes (5.4, 3.2, 16)', () => {
+	it("hands an agent off to the person's place, with details (F2)", async () => {
+		const { kernel } = await workspace();
+		for (const audience of ['person', 'workspace'] as const) {
+			for (const name of ['experiment-enable', 'experiment-disable']) {
+				const refused = await kernel.agent.call(name, { experiment: BETA, audience });
+				expect(refused.error?.code).toBe('HUMAN_REQUIRED');
+				expect(refused.error?.details).toEqual({
+					route: '~/settings/loam.experiments',
+					section: 'loam.experiments',
+					key: BETA,
+					level: audience,
+				});
+				expect(refused.error?.suggestion).toContain('~/settings/loam.experiments');
+			}
+		}
+		// An agent reads them, as a person does.
+		expect((await kernel.agent.call('experiment-check', { experiment: BETA })).data).toEqual({
+			on: false,
+			by: null,
+		});
+		expect(await list(kernel)).toHaveLength(2);
+	});
+
+	it('lets an app check only its own experiments, and no app write one', async () => {
+		const { kernel } = await workspace();
+		await kernel.call('experiment-enable', { experiment: BETA, audience: 'person' });
+		const port = kernel.appPort('probe');
+		expect((await port.call('experiment-check', { experiment: BETA })).data).toEqual({
+			on: true,
+			by: 'person',
+		});
+		for (const experiment of ['dual.anything', 'tasks.beta']) {
+			const refused = await port.call('experiment-check', { experiment });
+			expect(refused.error?.code).toBe('EXPERIMENT_NOT_OWNED');
+			expect(refused.error?.suggestion).toBeTruthy();
+		}
+		expect(
+			(await port.call('experiment-enable', { experiment: BETA, audience: 'person' })).error?.code
+		).toBe('CALL_NOT_GRANTED');
+	});
+
+	it('answers an unknown and a hidden id the same, and refuses to turn either on', async () => {
+		const { kernel } = await workspace({
+			manifest: gatedProbe([
+				experiment('beta'),
+				experiment('pane'),
+				experiment('secret', { stage: 'hidden' }),
+				experiment('gone', { stage: 'removed' }),
+				experiment('done', { stage: 'graduated' }),
+			]),
+		});
+		const unknown = await kernel.call('experiment-check', { experiment: 'probe.nothing' });
+		for (const id of ['probe.secret', 'probe.gone'])
+			expect(JSON.stringify((await kernel.call('experiment-check', { experiment: id })).data)).toBe(
+				JSON.stringify(unknown.data)
+			);
+		expect((await kernel.call('experiment-check', { experiment: 'probe.done' })).data).toEqual({
+			on: true,
+			by: 'stage',
+		});
+		for (const id of ['probe.nothing', 'probe.secret', 'probe.gone']) {
+			const refused = await kernel.call('experiment-enable', {
+				experiment: id,
+				audience: 'person',
+			});
+			expect(refused.error?.code, id).toBe('EXPERIMENT_NOT_FOUND');
+			expect(refused.error?.suggestion).toContain('experiment-list');
+		}
+		expect((await list(kernel)).map(({ fullId }) => fullId)).toEqual([BETA, PANE, 'probe.done']);
+		// An author in `local` lists the hidden one too.
+		expect((await list(kernel, { hidden: true })).map(({ fullId }) => fullId)).toContain(
+			'probe.secret'
+		);
+		const bad = await kernel.call('experiment-check', { experiment: 'probe/../x' });
+		expect(bad.error?.code).toBe('VALIDATION_ERROR');
+	});
+
+	it('warns of an experiment past its end, and turns nothing off', async () => {
+		const { kernel } = await workspace({
+			manifest: gatedProbe([experiment('beta', { ends: '2025-12-31' }), experiment('pane')]),
+		});
+		const listed = await kernel.call<{ experiments: Row[] }>('experiment-list');
+		expect(listed.data?.experiments[0]).toMatchObject({ fullId: BETA, overdue: true });
+		expect(listed.warnings).toEqual([
+			expect.objectContaining({
+				code: 'EXPERIMENT_OVERDUE',
+				message: expect.stringContaining(BETA),
+			}),
+		]);
+		expect(
+			(await kernel.call('experiment-enable', { experiment: BETA, audience: 'person' })).data
+		).toEqual({ on: true, by: 'person' });
+	});
+
+	it('refuses a workspace enablement on a hosted provider deployment, journaled, and keeps the person’s (P4-E17)', async () => {
+		const hosted = {
+			...deployment(),
+			deployment_version: 4,
+			generation: 'hosted',
+			host: { kind: 'hosted', kernel: 'api/kernel' },
+		} as unknown as ProjectionV3;
+		const { kernel, store, journal } = await workspace({
+			identity: PROVIDER,
+			membership: ACME(),
+			empty: true,
+			deployment: hosted,
+		});
+		await signIn(kernel, 'olu@example.com');
+		for (const name of ['experiment-enable', 'experiment-disable']) {
+			const refused = await kernel.call(name, { experiment: PANE, audience: 'workspace' });
+			expect(refused.error?.code, name).toBe('SHARED_RECORD_UNAVAILABLE');
+		}
+		expect(await tableOf(store)).toEqual([]);
+		expect(
+			(await journal.read())
+				.filter(
+					({ command }) => command.startsWith('experiment-') && command !== 'experiment-settle'
+				)
+				.map(({ result }) => result?.error?.code)
+		).toEqual(['SHARED_RECORD_UNAVAILABLE', 'SHARED_RECORD_UNAVAILABLE']);
+		expect(
+			(await kernel.call('experiment-enable', { experiment: PANE, audience: 'person' })).data
+		).toEqual({ on: true, by: 'person' });
+		// Hidden experiments are an author's, in a local deployment.
+		expect((await kernel.call('experiment-list', { hidden: true })).error?.code).toBe(
+			'VALIDATION_ERROR'
+		);
+	});
+});
+
+describe('the changes digest and experiment-settle at the manifest’s apply (5.1, 5.2, I6)', () => {
+	it('counts an enablement made for other changes as off, tells once, and turns on again', async () => {
+		const store = new MemoryAdapter();
+		const first = await workspace({ store });
+		await first.kernel.call('experiment-enable', { experiment: PANE, audience: 'person' });
+		await first.kernel.call('experiment-enable', { experiment: BETA, audience: 'workspace' });
+		await first.kernel.dispose();
+		const changed = gatedProbe([
+			experiment('beta', { changes: 'Shows Probe, its notes and its exports.' }),
+			experiment('pane', { changes: 'Adds a wider pane beside a probe note.' }),
+		]);
+		const second = await workspace({ store, empty: true, manifest: changed });
+		const rows = await list(second.kernel);
+		expect(rows.map(({ fullId, on, changed: was }) => ({ fullId, on, was }))).toEqual([
+			{ fullId: BETA, on: false, was: true },
+			{ fullId: PANE, on: false, was: true },
+		]);
+		expect(await stateOf(second.kernel)).toBe('gated');
+		// The person's own enablement, and the workspace's, each told once (5.2).
+		const told = (await notices(store)).filter((title) => title.includes('changed'));
+		expect(told.sort()).toEqual(['Probe beta has changed', 'Probe pane has changed']);
+		await second.kernel.dispose();
+		// Told once: the next boot under the same changes tells nothing more.
+		const third = await workspace({ store, empty: true, manifest: changed });
+		expect((await notices(store)).filter((title) => title.includes('changed'))).toHaveLength(2);
+		expect(
+			(await third.kernel.call('experiment-enable', { experiment: PANE, audience: 'person' })).data
+		).toEqual({ on: true, by: 'person' });
+		expect((await list(third.kernel, { experiment: PANE }))[0]).toMatchObject({ changed: false });
+	});
+
+	it('deletes a removed experiment’s enablements before any enable, and a re-shipped id revives nothing', async () => {
+		const store = new MemoryAdapter();
+		const journal = new MemoryJournalSink();
+		const first = await workspace({ store });
+		await first.kernel.call('experiment-enable', { experiment: PANE, audience: 'person' });
+		await first.kernel.call('experiment-enable', { experiment: PANE, audience: 'workspace' });
+		await first.kernel.dispose();
+		const removed = gatedProbe([experiment('beta'), experiment('pane', { stage: 'removed' })]);
+		const second = await workspace({ store, journal, empty: true, manifest: removed });
+		// Its enablements are gone, and its removal is kept as the time it happened (5.1).
+		expect(await tableOf(store)).toEqual([
+			expect.objectContaining({
+				id: `personal/~removed/${PANE}`,
+				kind: 'removed',
+				experiment: PANE,
+			}),
+		]);
+		const commands = (await journal.read()).map(({ command }) => command);
+		const settled = commands.indexOf('experiment-settle');
+		expect(settled).toBeGreaterThanOrEqual(0);
+		expect(commands.slice(0, settled)).not.toContain('experiment-enable');
+		expect((await notices(store)).filter((title) => title.includes('ended'))).toEqual([
+			'Probe pane has ended',
+		]);
+		expect((await second.kernel.call('experiment-list', { experiment: PANE })).data).toEqual({
+			experiments: [],
+		});
+		await second.kernel.dispose();
+		const third = await workspace({ store, empty: true });
+		expect((await third.kernel.call('experiment-check', { experiment: PANE })).data).toEqual({
+			on: false,
+			by: null,
+		});
+	});
+
+	it('keeps the enablements of an app whose package could not be read', async () => {
+		const store = new MemoryAdapter();
+		const first = await workspace({ store });
+		await first.kernel.call('experiment-enable', { experiment: PANE, audience: 'workspace' });
+		await first.kernel.dispose();
+		await workspace({
+			store,
+			empty: true,
+			ports: createFixturePorts(scopedPackages()),
+		});
+		expect(await tableOf(store)).toHaveLength(1);
+	});
+});
+
+describe("the reviews' cases (step 9)", () => {
+	it('refuses to open an app its experiment holds out, from the palette and an agent (5.3)', async () => {
+		const { kernel } = await workspace();
+		for (const call of [kernel.call.bind(kernel), kernel.agent.call.bind(kernel.agent)]) {
+			const refused = await call('app-open', { instance: 'probe' });
+			expect(refused.error?.code).toBe('APP_NOT_READY');
+			expect(refused.error?.suggestion).toContain('experiment');
+		}
+		await kernel.call('experiment-enable', { experiment: BETA, audience: 'person' });
+		expect((await kernel.call('app-open', { instance: 'probe' })).success).toBe(true);
+	});
+
+	it("voids another person's enablement at a removal, so a re-shipped id revives it for no one (5.1)", async () => {
+		const store = new MemoryAdapter();
+		// One clock across the three shells, as a browser's is: each kernel's own would start again.
+		let tick = Date.parse('2026-03-01T00:00:00Z');
+		const options = {
+			store,
+			identity: PROVIDER,
+			membership: ACME(),
+			empty: true,
+			clock: () => tick++,
+		} as const;
+		const first = await workspace(options);
+		await signIn(first.kernel, 'bea@example.com');
+		await first.kernel.call('experiment-enable', { experiment: PANE, audience: 'person' });
+		await first.kernel.dispose();
+		// Olu's shell applies the removal; Bea's own record is not this shell's to read.
+		const second = await workspace({
+			...options,
+			manifest: gatedProbe([experiment('beta'), experiment('pane', { stage: 'removed' })]),
+		});
+		await signIn(second.kernel, 'olu@example.com');
+		await second.kernel.dispose();
+		// Re-shipped with the same id and changes: Bea's old choice counts for nothing.
+		const third = await workspace(options);
+		await signIn(third.kernel, 'bea@example.com');
+		expect((await third.kernel.call('experiment-check', { experiment: PANE })).data).toEqual({
+			on: false,
+			by: null,
+		});
+		expect(
+			(await third.kernel.call('experiment-enable', { experiment: PANE, audience: 'person' })).data
+		).toEqual({ on: true, by: 'person' });
+	});
+
+	it("voids another person's enablement of an id dropped with no removed stage, seen by any shell (5.1)", async () => {
+		const store = new MemoryAdapter();
+		let tick = Date.parse('2026-03-01T00:00:00Z');
+		const options = {
+			store,
+			identity: PROVIDER,
+			membership: ACME(),
+			empty: true,
+			clock: () => tick++,
+		} as const;
+		// A third experiment, which no gate names, so the version that drops it is still a valid manifest.
+		const all = [experiment('beta'), experiment('pane'), experiment('extra')];
+		const first = await workspace({ ...options, manifest: gatedProbe(all) });
+		await signIn(first.kernel, 'bea@example.com');
+		await first.kernel.call('experiment-enable', { experiment: 'probe.extra', audience: 'person' });
+		await first.kernel.dispose();
+		// The next version drops it from `ui.experiments` altogether; Olu's shell, which holds no enablement, boots.
+		const second = await workspace({ ...options, manifest: gatedProbe() });
+		await signIn(second.kernel, 'olu@example.com');
+		await second.kernel.dispose();
+		const third = await workspace({ ...options, manifest: gatedProbe(all) });
+		await signIn(third.kernel, 'bea@example.com');
+		expect(
+			(await third.kernel.call('experiment-check', { experiment: 'probe.extra' })).data
+		).toEqual({
+			on: false,
+			by: null,
+		});
+	});
+
+	it('removes an id dropped a second time, after a re-ship Bea turned on, whoever boots (5.1)', async () => {
+		const store = new MemoryAdapter();
+		let tick = Date.parse('2026-04-01T00:00:00Z');
+		const options = {
+			store,
+			identity: PROVIDER,
+			membership: ACME(),
+			empty: true,
+			clock: () => tick++,
+		} as const;
+		const all = gatedProbe([experiment('beta'), experiment('pane'), experiment('extra')]);
+		const boot = async (
+			manifest: ManifestV2,
+			email: string,
+			work?: (kernel: LoamKernelV5) => Promise<unknown>
+		) => {
+			const made = await workspace({ ...options, manifest });
+			await signIn(made.kernel, email);
+			await work?.(made.kernel);
+			await made.kernel.dispose();
+		};
+		await boot(all, 'olu@example.com');
+		await boot(gatedProbe(), 'olu@example.com');
+		await boot(all, 'bea@example.com', (kernel) =>
+			kernel.call('experiment-enable', { experiment: 'probe.extra', audience: 'person' })
+		);
+		await boot(gatedProbe(), 'olu@example.com');
+		const last = await workspace({ ...options, manifest: all });
+		await signIn(last.kernel, 'bea@example.com');
+		expect(
+			(await last.kernel.call('experiment-check', { experiment: 'probe.extra' })).data
+		).toEqual({ on: false, by: null });
+	});
+
+	it('removes the experiments of an app the deployment no longer lists', async () => {
+		const store = new MemoryAdapter();
+		const first = await workspace({ store });
+		await first.kernel.call('experiment-enable', { experiment: PANE, audience: 'workspace' });
+		await first.kernel.dispose();
+		await workspace({ store, empty: true, deployment: scopedDeployment() });
+		expect((await tableOf(store)).map(({ kind }) => kind)).toEqual(['removed', 'removed']);
+	});
+
+	it('tells each affected person of a workspace change on their own next call (5.2)', async () => {
+		const { kernel, store } = await workspace({
+			identity: PROVIDER,
+			membership: ACME(),
+			empty: true,
+		});
+		await signIn(kernel, 'olu@example.com');
+		await kernel.call('experiment-enable', { experiment: PANE, audience: 'workspace' });
+		await kernel.call('auth-sign-out');
+		await signIn(kernel, 'bea@example.com');
+		const toBea = (
+			await store.list<{ person: string; title: string; source: string }>(NOTIFICATION_TABLE)
+		).data.filter((row) => row.person === BEA && row.source === 'shell');
+		expect(toBea.map(({ title }) => title)).toEqual(['Probe pane is on for the workspace']);
+	});
+
+	it("withdraws a held-out app's pending confirmation at boot (R14)", async () => {
+		const store = new MemoryAdapter();
+		const first = await workspace({ store });
+		await first.kernel.call('experiment-enable', { experiment: BETA, audience: 'person' });
+		const created = await first.kernel.call<{ id: string }>('document-create', { type: 'probe' });
+		const document = (created.data as { id: string }).id;
+		const asked = await first.kernel.agent.call('probe-content-set', { document, text: 'agent' });
+		expect(asked.error?.code).toBe('CONFIRMATION_PENDING');
+		const notification = (asked.error?.details as { notification?: string } | undefined)
+			?.notification;
+		await first.kernel.dispose();
+		// The experiment's changes changed before the reload, so the app is held out from the first read.
+		const second = await workspace({
+			store,
+			empty: true,
+			manifest: gatedProbe([
+				experiment('beta', { changes: 'Shows Probe anew.' }),
+				experiment('pane'),
+			]),
+		});
+		expect(await stateOf(second.kernel)).toBe('gated');
+		expect(
+			(await second.kernel.agent.call<{ state: string }>('confirmation-get', { notification })).data
+				?.state
+		).toBe('withdrawn');
+	});
+
+	it('counts a dirty tab whose document cannot be read as the app’s, so no unload loses it (R14)', async () => {
+		const { kernel, store } = await workspace();
+		await kernel.call('experiment-enable', { experiment: BETA, audience: 'person' });
+		const created = await kernel.call<{ id: string }>('document-create', { type: 'probe' });
+		const document = (created.data as { id: string }).id;
+		await kernel.call('document-open', { document });
+		await kernel.call('editor-dirty-set', { tab: 't1', dirty: true });
+		const get = store.get.bind(store);
+		store.get = (async (table: string, id: string) => {
+			if (table === 'document') throw new Error('The store is away');
+			return get(table, id);
+		}) as typeof store.get;
+		const refused = await kernel.call('experiment-disable', {
+			experiment: BETA,
+			audience: 'person',
+		});
+		expect(refused.error?.code).toBe('EDITOR_TAB_DIRTY');
+		store.get = get;
+	});
+});
+
+describe('R14: an unload never loses a dirty tab', () => {
+	async function dirtyProbe(options: ScopedWorkspaceOptions = {}) {
+		const made = await workspace(options);
+		const { kernel } = made;
+		await kernel.call('experiment-enable', { experiment: BETA, audience: 'workspace' });
+		const created = await kernel.call<{ id: string }>('document-create', { type: 'probe' });
+		const document = (created.data as { id: string }).id;
+		expect((await kernel.call('document-open', { document })).success).toBe(true);
+		expect((await kernel.call('editor-dirty-set', { tab: 't1', dirty: true })).success).toBe(true);
+		return { ...made, document };
+	}
+
+	it("refuses the person's own turning off with EDITOR_TAB_DIRTY, naming the tab", async () => {
+		const { kernel, document } = await dirtyProbe();
+		const refused = await kernel.call('experiment-disable', {
+			experiment: BETA,
+			audience: 'person',
+		});
+		expect(refused.error?.code).toBe('EDITOR_TAB_DIRTY');
+		expect(refused.error?.details).toMatchObject({ tab: 't1', document, instance: 'probe' });
+		expect(refused.error?.suggestion).toBeTruthy();
+		expect(await stateOf(kernel)).toBe('ready');
+		expect((await kernel.call('experiment-check', { experiment: BETA })).data).toEqual({
+			on: true,
+			by: 'workspace',
+		});
+	});
+
+	it("defers an owner's turning off until the tab is saved, tells the person, and withdraws the app's pending confirmations", async () => {
+		const { kernel, store, document } = await dirtyProbe();
+		const asked = await kernel.agent.call('probe-content-set', { document, text: 'agent' });
+		expect(asked.error?.code).toBe('CONFIRMATION_PENDING');
+		const off = await kernel.call('experiment-disable', {
+			experiment: BETA,
+			audience: 'workspace',
+		});
+		expect(off.data).toEqual({ on: false, by: null });
+		// Deferred: still loaded, its commands still there, and the person told.
+		expect(await stateOf(kernel)).toBe('ready');
+		expect((await kernel.call('probe-content-get', { document })).success).toBe(true);
+		expect(await notices(store)).toContain('Probe stays open until your changes are saved');
+		// Saved: the app unloads, its pending confirmation ends `withdrawn`, and the person is told.
+		expect((await kernel.call('editor-dirty-set', { tab: 't1', dirty: false })).success).toBe(true);
+		expect(await stateOf(kernel)).toBe('gated');
+		expect((await kernel.call('probe-content-get', { document })).success).toBe(false);
+		const notification = (asked.error?.details as { notification?: string } | undefined)
+			?.notification;
+		expect(
+			(await kernel.agent.call<{ state: string }>('confirmation-get', { notification })).data?.state
+		).toBe('withdrawn');
+		expect(await notices(store)).toContain('Probe has closed');
+	});
+
+	it("cancels the app's open dialogs when it unloads", async () => {
+		const { kernel } = await workspace();
+		await kernel.call('experiment-enable', { experiment: BETA, audience: 'person' });
+		await kernel.call('app-open', { instance: 'probe' });
+		const port = kernel.appPort('probe');
+		const opened = await port.call<{ overlayId: string }>('dialog-open', {
+			title: 'Pick',
+			body: 'Which one?',
+		});
+		const id = opened.data?.overlayId;
+		const listed = async () =>
+			(
+				(await kernel.call<{ overlays: Array<{ overlayId: string }> }>('overlay-list')).data
+					?.overlays ?? []
+			).map(({ overlayId }) => overlayId);
+		expect(await listed()).toContain(id);
+		await kernel.call('experiment-disable', { experiment: BETA, audience: 'person' });
+		expect(await listed()).not.toContain(id);
+		expect(await stateOf(kernel)).toBe('gated');
+		expect(
+			(await kernel.call<{ active: string | null }>('app-get', { instance: 'probe' })).success
+		).toBe(true);
+	});
+});

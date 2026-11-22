@@ -72,6 +72,8 @@ interface HeldApp {
 	deactivate?: () => void | Promise<void>;
 	sidebar?: Parked;
 	panel?: Parked;
+	/** The surfaces its experiments hold out, as `app-get`'s `gates` last said (phase 4 specification, 5.3). */
+	closed?: ReadonlySet<string>;
 	/** A `list` or `tree` sidebar's lists: two, at each level, for a dual-scope app in a project (7.4). */
 	lists?: SidebarList[];
 }
@@ -338,6 +340,12 @@ export class AppSurfaces implements ShellApps {
 			if (switched || rescoped || (event as KernelEventV3).mainChanged) this.#missedSwitch = true;
 			return;
 		}
+		// An experiment's change opens or closes a gate (phase 4 specification, 5.3): the apps are read again and the
+		// showing app's surfaces made again, so a gated surface comes or goes and a gated app leaves the rail.
+		if ((event as KernelEventV4).experiments) {
+			this.#enqueue(() => this.#sync(true, true));
+			return;
+		}
 		// From anyone: an agent's, or the automatic one. The console says what it found (7.3).
 		if (command === 'app-instance-refresh') {
 			this.#enqueue(() => this.#sync());
@@ -580,7 +588,8 @@ export class AppSurfaces implements ShellApps {
 			}
 			return;
 		}
-		if (detail.state === 'failed' || detail.state === 'refused') {
+		// A gated app is not present (phase 4 specification, 5.3): explained, never activated.
+		if (detail.state === 'failed' || detail.state === 'refused' || detail.state === 'gated') {
 			this.#setEmptyStates(true);
 			this.#explain(
 				detail.title,
@@ -708,7 +717,15 @@ export class AppSurfaces implements ShellApps {
 			project !== undefined && manifest.app?.scope_levels?.includes('project')
 				? { workspace, project }
 				: { workspace };
-		const surfaces = manifest.ui?.surfaces ?? {};
+		// A surface whose experiment is off is not created (phase 4 specification, 5.3): the kernel's `gates` say which.
+		held.closed = new Set(
+			Object.entries(detail.gates ?? {}).flatMap(([name, gate]) => (gate.open ? [] : [name]))
+		);
+		const surfaces = Object.fromEntries(
+			Object.entries(manifest.ui?.surfaces ?? {}).filter(
+				([name]) => detail.gates?.[name]?.open !== false
+			)
+		) as NonNullable<NonNullable<typeof manifest.ui>['surfaces']>;
 		const main = this.#part<HTMLElement>('main');
 		const needsInput = this.#needsInput();
 		if (surfaces.header) {
@@ -1047,7 +1064,10 @@ export class AppSurfaces implements ShellApps {
 			this.#kernel,
 			this.#part('statusbar'),
 			instance,
-			this.#held.get(instance)?.port.manifest.ui?.surfaces?.status?.items ?? [],
+			// A held-out status bar shows no item (5.3), on every read, not only the first render's.
+			this.#held.get(instance)?.closed?.has('status')
+				? []
+				: (this.#held.get(instance)?.port.manifest.ui?.surfaces?.status?.items ?? []),
 			() => this.#showing === instance
 		);
 	}

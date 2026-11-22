@@ -31,6 +31,11 @@ import {
 	type LoamRailOrderEditor,
 } from './editors.js';
 import {
+	defineExperimentsSection,
+	EXPERIMENTS_SECTION_ELEMENT,
+	type LoamExperimentsSection,
+} from './experiments.js';
+import {
 	LIMIT_KEYS,
 	type LimitKey,
 	type LimitUsageRow,
@@ -92,6 +97,21 @@ const AUTONOMY: SectionOutline = {
 	levels: [],
 	keys: [],
 };
+
+/**
+ * The experiments list (5.4), the shell's, after Autonomy as 3.5 orders the tree: only `experiment-*` writes it, so it
+ * is no section `setting-schema-get` lists, and its panel is `loam-experiments-section`, not fields.
+ */
+const EXPERIMENTS: SectionOutline = {
+	section: 'loam.experiments',
+	title: 'Experiments',
+	description: 'New things the apps offer to try, with what each may change and when it ends.',
+	levels: [],
+	keys: [],
+};
+
+/** The sections whose panel is their own element, with no fields and no level switcher. */
+const OWN_PANELS: readonly SectionOutline[] = [AUTONOMY, EXPERIMENTS];
 
 /** The Limits section (3.7, section 11), whose fields show what each app uses of them. */
 const LIMITS = 'loam.limits';
@@ -156,6 +176,8 @@ export class LoamSettingsSection extends SettingsElement {
 	 * control left from before a change of scope writes where it shows, never in the new scope.
 	 */
 	#current = new Map<string, { row: ValueRow; level: Level; scope: PanelScope }>();
+	/** The path last shown, read again when an experiment's change adds or takes away a section (5.3). */
+	#shown: string | undefined;
 	/** Whether the route's key is still to be given to the autonomy section, once per navigation (`#cap`). */
 	#targetPending = false;
 	/** A link within the section, `#<key>`, by Back or a person's link with no route change (3.5). */
@@ -214,8 +236,14 @@ export class LoamSettingsSection extends SettingsElement {
 		// A change from elsewhere, another tab's or an agent's, reads the shown section again.
 		this.#unsubscribe ??=
 			this.kernel?.subscribe((event) => {
-				const changed = (event as { settings?: string[] }).settings;
-				if (this.#selected && changed?.includes(this.#selected.section)) void this.#readPanel();
+				const { settings: changed, experiments } = event as {
+					settings?: string[];
+					experiments?: true;
+				};
+				// An experiment's change adds or takes away a gated section (5.3): the tree is read again, at the same place.
+				if (experiments && this.#shown !== undefined) void this.show(this.#shown);
+				else if (this.#selected && changed?.includes(this.#selected.section))
+					void this.#readPanel();
 			}) ?? null;
 	}
 
@@ -237,6 +265,7 @@ export class LoamSettingsSection extends SettingsElement {
 	async show(path: string): Promise<void> {
 		const kernel = this.kernel;
 		if (!kernel) return;
+		this.#shown = path;
 		const generation = ++this.#reads;
 		// The tree from an outline, which fits the budget however large one section is; the shown section on its own.
 		const read = await this.#call<{ sections: SectionOutline[] }>('setting-schema-get', {
@@ -255,7 +284,7 @@ export class LoamSettingsSection extends SettingsElement {
 		const keybindings = this.#sections.findIndex(
 			(section) => section.section === 'loam.keybindings'
 		);
-		this.#sections.splice(keybindings + 1, 0, AUTONOMY);
+		this.#sections.splice(keybindings + 1, 0, AUTONOMY, EXPERIMENTS);
 		const [id = '', key] = path.split('/');
 		const outline = this.#sections.find((section) => section.section === id) ?? this.#sections[0];
 		const target = outline?.section === id ? key : undefined;
@@ -263,8 +292,8 @@ export class LoamSettingsSection extends SettingsElement {
 			this.#say(`There is no section ${id} here. Showing ${outline?.title ?? 'none'}.`);
 		}
 		const selected =
-			outline === AUTONOMY
-				? { ...AUTONOMY, schema: { properties: {} } }
+			outline && OWN_PANELS.includes(outline)
+				? { ...outline, schema: { properties: {} } }
 				: outline
 					? await this.#schemaOf(outline)
 					: undefined;
@@ -473,7 +502,7 @@ export class LoamSettingsSection extends SettingsElement {
 			header.replaceChildren(el('p', { class: 'note' }, 'No settings to show.'));
 			return;
 		}
-		if (section.section === AUTONOMY.section) {
+		if (OWN_PANELS.some((own) => own.section === section.section)) {
 			// Its levels are its own panel's parts, so no switcher.
 			header.replaceChildren(
 				el('h2', { id: 'settings-section-title' }, section.title),
@@ -561,6 +590,19 @@ export class LoamSettingsSection extends SettingsElement {
 		const section = this.#selected;
 		const level = this.shownLevel;
 		if (!kernel || !panel) return;
+		if (section?.section === EXPERIMENTS.section) {
+			defineExperimentsSection();
+			const held = panel.querySelector<LoamExperimentsSection>(EXPERIMENTS_SECTION_ELEMENT);
+			const shown =
+				held ?? (document.createElement(EXPERIMENTS_SECTION_ELEMENT) as LoamExperimentsSection);
+			shown.kernel = kernel;
+			shown.scope = this.scope;
+			shown.apps = this.apps.map(({ instance, title }) => ({ instance, title }));
+			if (!held) panel.replaceChildren(shown);
+			this.#current.clear();
+			await shown.read();
+			return;
+		}
 		if (section?.section === AUTONOMY.section) {
 			defineAutonomySection();
 			const held = panel.querySelector<LoamAutonomySection>(AUTONOMY_SECTION_ELEMENT);

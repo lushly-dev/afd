@@ -78,7 +78,10 @@ async function browserInputs(file: string): Promise<string[]> {
 	return Object.keys(result.metafile?.inputs ?? {});
 }
 
-describe('entries', () => {
+// Each case bundles an entry with esbuild, the validators' generated code included, which grew with phase 4's step 9
+// (`ui.experiments` and the gates): under a parallel run on a loaded machine it took past vitest's 5 s default, though
+// it asserts the import graph, not a time.
+describe('entries', { timeout: 20_000 }, () => {
 	it.each([
 		['.', 'index.ts'],
 		['./validate', 'validate.ts'],

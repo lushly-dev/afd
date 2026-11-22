@@ -438,10 +438,11 @@ sequenceDiagram
   kind and the lifetime, and resolves with the result when the overlay
   closes; the policy table above is enforced by the manager.
 - **Settings and experiments records.** A setting has an id, a scope, a
-  schema and a value; an experiment has an id, an owner app, a state
-  (hidden, visible, enabled, graduated, removed), an audience (person,
-  workspace), what may change, and a graduation date. A surface or an app
-  may `require` an experiment.
+  schema and a value; an experiment has an id, an owner app, a state that
+  is its author's stage (hidden, visible, graduated, removed) plus its
+  enablement for a person or the workspace (phase 4's 5.2), what may
+  change, and an end date. A surface, a settings section or an app may
+  require one (`requires_experiment`).
 - **Identity.** The session and the actor come from the auth adapter; the
   account is a record with profile, credentials inventory, sessions,
   memberships and agent credentials; a persona is a record with

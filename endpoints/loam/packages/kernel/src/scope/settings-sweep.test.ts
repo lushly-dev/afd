@@ -4,6 +4,8 @@
  * own theme is light, an app's declared section holds a workspace value and a project value, `loam.documents.trashDays`
  * is 7, the `setting` table also holds stray rows of a section no app declares, and the `autonomy` table holds the
  * workspace's mode and ceiling, a command row and the restricted project's row, beside the person's own cap (step 8);
+ * and by experiments (step 9): the workspace has one on, the person another, and an app held out whole is on, whose
+ * commands are exempt entirely, as section 19 says; the twins' clocks are levelled after each command;
  * in the other each declared value
  * is written at its default. The theme differs until the sweep's own `appearance-set`, which sets the same theme in
  * both, and the rest throughout. Every registered command, through a person and through an agent, in both modes, must
@@ -55,6 +57,11 @@ const DATA_EXEMPT: ReadonlySet<string> = new Set([
 	'autonomy-get',
 	'autonomy-list',
 	'autonomy-set',
+	// Step 9's: experiments' states are what the twins differ by (5.4).
+	'experiment-list',
+	'experiment-check',
+	'experiment-enable',
+	'experiment-disable',
 	'appearance-get',
 	'app-list',
 	'app-get',
@@ -86,6 +93,18 @@ const PREFS: ManifestV2 = {
 	],
 	ui: {
 		surfaces: { main: { element: 'prefs-main' } },
+		// Step 9's (P4-E2): one experiment the workspace has on in one twin, and one the person has.
+		experiments: [
+			{
+				id: 'beta',
+				title: 'Beta',
+				changes: 'Tries something.',
+				ends: '2027-03-01',
+				stage: 'visible',
+			},
+			{ id: 'trial', title: 'Trial', changes: 'Tries more.', ends: '2027-03-01', stage: 'visible' },
+			{ id: 'other', title: 'Other', changes: 'Tries else.', ends: '2027-03-01', stage: 'visible' },
+		],
 		settings: [
 			{
 				id: 'general',
@@ -108,11 +127,30 @@ const PREFS: ManifestV2 = {
 	},
 } as unknown as ManifestV2;
 
+/** Step 9's (P4-E2): an app held out whole by its own experiment, on in one twin, so its commands are exempt entirely. */
+const GATED: ManifestV2 = {
+	...PREFS,
+	plugin: { ...PREFS.plugin, id: 'gated', title: 'Gated', domains: ['gated'] },
+	app: { scope_levels: ['workspace', 'project'], requires_experiment: 'gated.on' },
+	grants: [],
+	commands: [{ ...(PREFS.commands?.[0] as object), name: 'gated-ping' }],
+	ui: {
+		surfaces: { main: { element: 'gated-main' } },
+		experiments: [
+			{ id: 'on', title: 'Gated', changes: 'Shows the app.', ends: '2027-03-01', stage: 'visible' },
+		],
+	},
+} as unknown as ManifestV2;
+
 const sweepDeployment = () => {
 	const base = documentsDeployment();
 	return {
 		...base,
-		apps: [...base.apps, { instance: 'prefs', app: 'prefs', package: 'fixtures/prefs/' }],
+		apps: [
+			...base.apps,
+			{ instance: 'prefs', app: 'prefs', package: 'fixtures/prefs/' },
+			{ instance: 'gated', app: 'gated', package: 'fixtures/gated/' },
+		],
 	};
 };
 const sweepPorts = () =>
@@ -127,6 +165,13 @@ const sweepPorts = () =>
 			definition: defineApp({
 				sdk: 1,
 				handlers: { 'prefs-ping': (async () => success({})) as never },
+			}),
+		},
+		'fixtures/gated/': {
+			manifest: GATED,
+			definition: defineApp({
+				sdk: 1,
+				handlers: { 'gated-ping': (async () => success({})) as never },
 			}),
 		},
 	});
@@ -156,6 +201,9 @@ const ACME: MembershipV1 = {
 type Mode = 'local' | 'provider';
 
 interface Twin extends ScopedWorkspace {
+	/** The twin's clock, and its setting forward (step 9). */
+	ticks(): number;
+	level(to: number): void;
 	document: string;
 	link: string;
 	at: ScopeV1;
@@ -166,7 +214,10 @@ const signIn = (twin: ScopedWorkspace) =>
 
 /** One twin: the person's document, link and tab in Citadel; with `set`, their settings and the shared rows. */
 async function twin(set: boolean, mode: Mode): Promise<Twin> {
+	// Each twin's own stepping clock, which the sweep brings level after each command (step 9, below).
+	let tick = Date.parse('2026-01-01T00:00:00Z');
 	const workspace = await createScopedWorkspace({
+		clock: () => tick++,
 		deployment: sweepDeployment(),
 		ports: sweepPorts(),
 		...(mode === 'provider' ? { identity: PROVIDER, membership: ACME, empty: true } : {}),
@@ -211,6 +262,12 @@ async function twin(set: boolean, mode: Mode): Promise<Twin> {
 		{ section: 'prefs.general', key: 'mode', value: set ? 'room' : 'solo', level: 'project' },
 		at
 	);
+	// Step 9's: the person is out of the workspace's experiment in both twins first, so neither is told of it (5.2).
+	const experiment = async (on: boolean, input: Record<string, unknown>) => {
+		const written = await kernel.call(on ? 'experiment-enable' : 'experiment-disable', input);
+		expect(written.success, JSON.stringify(written.error)).toBe(true);
+	};
+	await experiment(false, { experiment: set ? 'prefs.beta' : 'prefs.other', audience: 'person' });
 	// The workspace's values are an owner's: in `provider` mode the sweep's person is no owner, so Olu sets them.
 	if (mode === 'provider') {
 		await kernel.call('auth-sign-in', {
@@ -244,7 +301,12 @@ async function twin(set: boolean, mode: Mode): Promise<Twin> {
 		command: 'dual-put',
 		mode: set ? 'act' : null,
 	});
+	// Step 9's: the workspace's enablement, an owner's; the other twin turns another on, so both write a row alike.
+	await experiment(true, { experiment: set ? 'prefs.beta' : 'prefs.other', audience: 'workspace' });
 	if (mode === 'provider') await signIn(workspace);
+	// And the person's own: one on, and the app held out whole on, in one twin only.
+	await experiment(set, { experiment: 'prefs.trial', audience: 'person' });
+	await experiment(set, { experiment: 'gated.on', audience: 'person' });
 	// Citadel's own row, its creator's (D154), and the person's own cap.
 	await autonomy({ level: 'project', project: citadel, mode: set ? 'act' : null });
 	await autonomy({ level: 'person', cap: set ? 'act' : null });
@@ -266,6 +328,10 @@ async function twin(set: boolean, mode: Mode): Promise<Twin> {
 		}
 	}
 	return Object.assign(workspace, {
+		ticks: () => tick,
+		level: (to: number) => {
+			tick = to;
+		},
 		document,
 		link: linked.data?.id as string,
 		at: at.scope,
@@ -351,11 +417,37 @@ describe('P4-E2: settings grant nothing', { timeout: 30_000 }, () => {
 				(await held.kernel.call<{ rows: unknown[]; cap: string | null }>('autonomy-list')).data;
 			expect(await rows(first)).toMatchObject({ rows: { length: 3 }, cap: 'act' });
 			expect(await rows(second)).toMatchObject({ rows: [], cap: null });
+			// And by experiments: the workspace's, the person's, and an app held out in one twin alone (step 9).
+			const on = async (held: Twin, experiment: string) =>
+				(await held.kernel.call<{ on: boolean }>('experiment-check', { experiment })).data?.on;
+			for (const id of ['prefs.trial', 'gated.on'])
+				expect([await on(first, id), await on(second, id)], id).toEqual([true, false]);
+			const forWorkspace = async (held: Twin) =>
+				(
+					await held.kernel.call<{ experiments: Array<{ workspace: boolean }> }>(
+						'experiment-list',
+						{
+							experiment: 'prefs.beta',
+						}
+					)
+				).data?.experiments[0]?.workspace;
+			expect([await forWorkspace(first), await forWorkspace(second)]).toEqual([true, false]);
+			const gatedState = async (held: Twin) =>
+				(
+					await held.kernel.call<{ apps: Array<{ instance: string; state: string }> }>('app-list')
+				).data?.apps.find((app) => app.instance === 'gated')?.state;
+			expect([await gatedState(first), await gatedState(second)]).toEqual(['ready', 'gated']);
 			const commands = first.registries.palette.listCommands();
+			// Level from the start: boot reads a held-out app's confirmations, in one twin alone.
+			const start = Math.max(first.ticks(), second.ticks());
+			first.level(start);
+			second.level(start);
+			// The app gated in one twin is exempt entirely (section 19's P4-E2): its commands exist in the other alone.
+			const exempt = commands.filter((command) => command.name.startsWith('gated-')).length;
 			const shell = new Set<string>(SHELL_COMMAND_NAMES);
 			let called = 0;
 			for (const command of commands) {
-				if (NOT_CALLED[command.name]) continue;
+				if (NOT_CALLED[command.name] || command.name.startsWith('gated-')) continue;
 				const template = shell.has(command.name)
 					? SWEEP_INPUTS[command.name]
 					: appInput(
@@ -370,13 +462,19 @@ describe('P4-E2: settings grant nothing', { timeout: 30_000 }, () => {
 				expect(compared(command.name, answers[0]), command.name).toEqual(
 					compared(command.name, answers[1])
 				);
+				// The clocks level: the app gated in one twin lists one more row, so a list that reads the clock per row
+				// (`palette-search`) moves one twin's further. The sweep compares answers, not how often a clock is read.
+				const top = Math.max(first.ticks(), second.ticks());
+				first.level(top);
+				second.level(top);
 				if (command.name === 'auth-sign-out') {
 					await signIn(first);
 					await signIn(second);
 				}
 				called += 1;
 			}
-			expect(called).toBe(commands.length - Object.keys(NOT_CALLED).length);
+			expect(exempt).toBe(1);
+			expect(called).toBe(commands.length - Object.keys(NOT_CALLED).length - exempt);
 		}
 	);
 });
@@ -402,7 +500,7 @@ describe('P4-E2: the type and the scan (section 19)', () => {
 			'late/auth-gate.ts': read('../late/auth-gate.ts'),
 			// The port's list names the two commands an app may call with the grant, and nothing else of settings.
 			'late/port-callable.ts': read('../late/port-callable.ts').replace(
-				/'setting-(get|list)'|grants\.has\('settings'\)/g,
+				/'setting-(get|list)'|'experiment-check'|grants\.has\('settings'\)/g,
 				''
 			),
 		};
@@ -413,7 +511,7 @@ describe('P4-E2: the type and the scan (section 19)', () => {
 		for (const [path, source] of Object.entries(sources)) {
 			expect(source.length, path).toBeGreaterThan(0);
 			expect(source, path).not.toMatch(
-				/setting|SETTING_|loam\.settings|resolveSetting|autonomy|AUTONOMY_|resolveAutonomy/i
+				/setting|SETTING_|loam\.settings|resolveSetting|autonomy|AUTONOMY_|resolveAutonomy|experiment|EXPERIMENT_|experimentOn/i
 			);
 		}
 	});

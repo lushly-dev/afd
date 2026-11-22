@@ -12,6 +12,7 @@ import {
 } from './catalogs.js';
 import { type Finding, needsInput } from './core-rules.js';
 import { documentRules } from './document-rules.js';
+import { experimentRules } from './experiments.js';
 import { keyOf, valueAt } from './pointers.js';
 import { settingRules } from './settings.js';
 import type { ManifestRefusalCode, ManifestV2 } from './types.js';
@@ -77,6 +78,15 @@ export const VERSION_TWO_KEYS: readonly VersionKey[] = [
 	{ pointer: '/ui/settings' },
 	// Phase 4's step 6: a command's `confirm_prompt` (7.2), each command's; `*` is an index.
 	{ pointer: '/commands/*/confirm_prompt' },
+	// Phase 4's step 9: experiments (5.1) and the gates that name one (5.3).
+	{ pointer: '/ui/experiments' },
+	{ pointer: '/app/requires_experiment' },
+	{ pointer: '/ui/settings/*/requires_experiment' },
+	{ pointer: '/ui/surfaces/sidebar/requires_experiment' },
+	{ pointer: '/ui/surfaces/header/requires_experiment' },
+	{ pointer: '/ui/surfaces/inspector/requires_experiment' },
+	{ pointer: '/ui/surfaces/panel/requires_experiment' },
+	{ pointer: '/ui/surfaces/status/requires_experiment' },
 ];
 
 /** The concrete pointers of `key` a document holds: one at most, or one per item where the key has a `*`. */
@@ -754,6 +764,7 @@ export function loamRules(manifest: ManifestV2): { refusals: Finding[]; warnings
 	summaryRules(manifest, found);
 	newRules(manifest, found);
 	settingRules(manifest, found.refuse.bind(found), found.warnings);
+	experimentRules(manifest, found.refuse.bind(found), found.warnings);
 	documentRules(manifest, found.refuse.bind(found), elementCheck(found));
 	textRules(manifest, found);
 	confirmRules(manifest, found);
