@@ -448,6 +448,11 @@ export const SUITES = [
 				tools: ['uv'],
 				run: 'pnpm --dir packages/examples/todo test:conformance:py --suite approvals',
 			},
+			{
+				gate: 'todo',
+				tools: ['uv'],
+				run: 'pnpm --dir packages/examples/todo test:conformance:py --suite tasks --mode modern',
+			},
 			// Both backends on one SQLite database (dx/run-interop.ts).
 			{ gate: 'todo', tools: ['uv'], run: 'pnpm --dir packages/examples/todo test:interop' },
 			{

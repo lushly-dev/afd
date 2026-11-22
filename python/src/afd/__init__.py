@@ -130,6 +130,7 @@ from afd.core.commands import (
     ExposeOptions,
     DEFAULT_EXPOSE,
     JsonSchema,
+    TaskSupport,
     command_result_output_schema,
     command_to_mcp_tool,
     command_tool_annotations,
@@ -316,8 +317,11 @@ from afd.handoff_client import (
 if TYPE_CHECKING:
     from afd.client import (
         ClientStatus,
+        DetailedTask,
         McpClient,
         McpClientConfig,
+        TaskInfo,
+        TaskProgressCallback,
         create_client,
     )
     from afd.transports.streamable_http import (
@@ -332,6 +336,9 @@ _LAZY_EXPORTS = {
     "McpClient": "afd.client",
     "McpClientConfig": "afd.client",
     "ClientStatus": "afd.client",
+    "TaskInfo": "afd.client",
+    "DetailedTask": "afd.client",
+    "TaskProgressCallback": "afd.client",
     "create_client": "afd.client",
     "ElicitationHandler": "afd.client",
     "ElicitationRequest": "afd.client",
@@ -480,6 +487,7 @@ __all__ = [
     "DEFAULT_EXPOSE",
     "CommandExample",
     "JsonSchema",
+    "TaskSupport",
     "command_result_output_schema",
     "command_to_mcp_tool",
     "command_tool_annotations",
@@ -573,6 +581,9 @@ __all__ = [
     "McpClient",
     "McpClientConfig",
     "ClientStatus",
+    "TaskInfo",
+    "DetailedTask",
+    "TaskProgressCallback",
     "create_client",
     "ElicitationHandler",
     "ElicitationRequest",

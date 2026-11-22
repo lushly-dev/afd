@@ -46,6 +46,7 @@ def batch_commands(store: Store) -> list[Callable[..., Any]]:
         mutation=True,
         undoable=True,
         approval="not-required",
+        task="optional",
         version="1.0.0",
         contexts=EDIT_CONTEXTS,
         expose=MCP,

@@ -22,6 +22,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Any, AsyncIterator, Awaitable, Callable, Dict, List, Literal, Optional, Union
 
+from afd.transports.base import TransportError, _TaskSeed
 from afd.transports.sse import SseTransport, _EndOfStreamSignal
 
 ProtocolMode = Literal["auto", "legacy", "modern"]
@@ -34,6 +35,19 @@ ProtocolMode = Literal["auto", "legacy", "modern"]
 """
 
 MODERN_PROTOCOL_VERSION = "2026-07-28"
+TASKS_EXTENSION_ID = "io.modelcontextprotocol/tasks"
+
+
+@dataclass
+class _CapturedTaskSlot:
+    """Captures a claimed ``resultType='task'`` payload when ``mcp.Client.call_tool`` runs."""
+
+    payload: Optional[Dict[str, Any]] = None
+
+
+_CAPTURED_TASK: ContextVar[Optional[_CapturedTaskSlot]] = ContextVar(
+    "afd_client_captured_task", default=None
+)
 
 
 @dataclass
@@ -119,6 +133,7 @@ class StreamableHttpTransport(SseTransport):
         client_version: str = "0.2.0",
         mode: ProtocolMode = "auto",
         on_elicitation: Optional[ElicitationHandler] = None,
+        tasks: bool = False,
         on_close: Optional[Callable[[], None]] = None,
         on_error: Optional[Callable[[Exception], None]] = None,
     ) -> None:
@@ -137,6 +152,7 @@ class StreamableHttpTransport(SseTransport):
         self._message_url = url
         self._mode = mode
         self._on_elicitation = on_elicitation
+        self._tasks = bool(tasks)
         self._protocol_version: Optional[str] = None
         self._session_id: Optional[str] = None
 
@@ -182,6 +198,7 @@ class StreamableHttpTransport(SseTransport):
 
         # A pinned version skips server/discover (and with it the server's identity),
         # so "modern" negotiates like "auto" and then insists on 2026-07-28.
+        extensions = [_tasks_client_extension()] if self._tasks else None
         client = Client(
             streams(),
             mode="legacy" if self._mode == "legacy" else "auto",
@@ -192,6 +209,7 @@ class StreamableHttpTransport(SseTransport):
             elicitation_callback=(
                 _elicitation_callback(self._answer) if self._on_elicitation else None
             ),
+            extensions=extensions,
         )
         await stack.enter_async_context(client)
         self._protocol_version = client.protocol_version
@@ -204,7 +222,7 @@ class StreamableHttpTransport(SseTransport):
             )
         return client, client.server_info, client.server_capabilities
 
-    async def _bounded(self, operation: Any) -> Any:
+    async def _bounded(self, operation: Any, *, timeout: Optional[float] = None) -> Any:
         """:meth:`SseTransport._bounded`, except that time a person spends answering
         this call's elicitations does not count against its deadline: a confirmation
         can take longer than a request, and a timeout here reads as a lost connection.
@@ -214,6 +232,7 @@ class StreamableHttpTransport(SseTransport):
         server's ``elicitation/create`` arrives outside it, so nothing is paused there,
         and the SDK's own request clock keeps running too.
         """
+        effective_timeout = self._timeout if timeout is None else timeout
         loop = asyncio.get_running_loop()
         record = _Answering()
         token = _ANSWERING.set(record)
@@ -231,7 +250,7 @@ class StreamableHttpTransport(SseTransport):
                     idle.cancel()
                     idle = None
                 else:
-                    remaining = start + self._timeout + record.seconds - loop.time()
+                    remaining = start + effective_timeout + record.seconds - loop.time()
                     if remaining <= 0:
                         break
                     await asyncio.wait({task}, timeout=remaining)
@@ -245,7 +264,7 @@ class StreamableHttpTransport(SseTransport):
                 task.add_done_callback(
                     lambda finished: finished.cancelled() or finished.exception()
                 )
-        raise asyncio.TimeoutError(f"MCP request timed out after {self._timeout}s")
+        raise asyncio.TimeoutError(f"MCP request timed out after {effective_timeout}s")
 
     async def _answer(self, request: ElicitationRequest) -> ElicitationResponse:
         """Run the handler, pausing the deadline of the call it answers."""
@@ -266,13 +285,29 @@ class StreamableHttpTransport(SseTransport):
                 record.idle.set()
 
     async def _call_tool_payload(
-        self, session: Any, name: str, arguments: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self,
+        session: Any,
+        name: str,
+        arguments: Dict[str, Any],
+        *,
+        timeout: Optional[float] = None,
+    ) -> Any:
+        effective_timeout = self._timeout if timeout is None else timeout
         if self._on_elicitation is not None:
-            return await super()._call_tool_payload(session, name, arguments)
+            slot = _CapturedTaskSlot()
+            token = _CAPTURED_TASK.set(slot)
+            try:
+                payload = await super()._call_tool_payload(
+                    session, name, arguments, timeout=effective_timeout
+                )
+            finally:
+                _CAPTURED_TASK.reset(token)
+            if slot.payload is not None and self._tasks:
+                return _TaskSeed(slot.payload)
+            return payload
         import anyio
         from mcp import MCPError
-        from mcp.types import HEADER_MISMATCH, InputRequiredResult
+        from mcp.types import HEADER_MISMATCH, CallToolResult, InputRequiredResult
         from mcp_types.version import MODERN_PROTOCOL_VERSIONS
         from pydantic import ValidationError
 
@@ -282,8 +317,9 @@ class StreamableHttpTransport(SseTransport):
             return await session.session.call_tool(
                 name,
                 arguments,
-                read_timeout_seconds=float(self._timeout),
+                read_timeout_seconds=float(effective_timeout),
                 allow_input_required=True,
+                allow_claimed=self._tasks,
             )
 
         try:
@@ -294,7 +330,7 @@ class StreamableHttpTransport(SseTransport):
             if mismatch.code != HEADER_MISMATCH or session.protocol_version not in MODERN_PROTOCOL_VERSIONS:
                 raise
             try:
-                with anyio.fail_after(self._timeout):
+                with anyio.fail_after(effective_timeout):
                     await _relist_tool(session, name)
             except (MCPError, TimeoutError, ValidationError) as relist_error:
                 raise mismatch from relist_error
@@ -302,7 +338,185 @@ class StreamableHttpTransport(SseTransport):
         if isinstance(result, InputRequiredResult):
             asked = result.model_dump(by_alias=True, mode="json", exclude_none=True)
             return input_required_result(asked.get("inputRequests"))
+        if self._tasks and not isinstance(result, CallToolResult):
+            return _TaskSeed(result.model_dump(by_alias=True, mode="json", exclude_none=True))
         return result.model_dump(by_alias=True, mode="json", exclude_none=True)
+
+    async def validate_tool_result(
+        self, name: str, result_payload: Dict[str, Any]
+    ) -> None:
+        """Validate a completed task's ``CallToolResult`` against the tool's output schema."""
+        from mcp.types import CallToolResult
+        from pydantic import ValidationError
+
+        try:
+            call_result = CallToolResult.model_validate(result_payload)
+        except ValidationError as exc:
+            raise TransportError(
+                f"Invalid CallToolResult returned by completed task for '{name}': {exc}",
+                cause=exc,
+            ) from exc
+        if not call_result.is_error and self._session is not None:
+            try:
+                await self._session.session.validate_tool_result(name, call_result)
+            except RuntimeError as exc:
+                raise TransportError(str(exc), cause=exc) from exc
+
+    async def get_task(
+        self, task_id: str, *, timeout: Optional[float] = None
+    ) -> Dict[str, Any]:
+        """Fetch an MCP task's current state via ``tasks/get`` (SEP-2663)."""
+        if self._session is None:
+            raise RuntimeError("Transport not connected. Call connect() first.")
+        session = self._session
+        effective_timeout = self._timeout if timeout is None else timeout
+        TaskIdParams, GetTaskRequest, _, DetailedTaskResult = _client_task_models()
+        try:
+            result = await self._bounded(
+                session.session.send_request(
+                    GetTaskRequest(params=TaskIdParams(taskId=task_id)),
+                    DetailedTaskResult,
+                    request_read_timeout_seconds=float(effective_timeout),
+                ),
+                timeout=effective_timeout,
+            )
+            return result.model_dump(by_alias=True, mode="json", exclude_none=True)
+        except Exception as exc:
+            if _is_task_request_timeout(exc):
+                # A per-call deadline expiring while polling tasks/get is not a connection loss.
+                raise asyncio.TimeoutError(str(exc) or f"tasks/get timed out after {effective_timeout}s") from exc
+            self._raise_operation_error(exc, session)
+            raise  # unreachable
+
+    async def cancel_task(
+        self, task_id: str, *, timeout: Optional[float] = None
+    ) -> None:
+        """Request cooperative cancellation of an MCP task via ``tasks/cancel`` (SEP-2663)."""
+        if self._session is None:
+            raise RuntimeError("Transport not connected. Call connect() first.")
+        session = self._session
+        effective_timeout = self._timeout if timeout is None else timeout
+        from mcp_types import EmptyResult
+
+        TaskIdParams, _, CancelTaskRequest, _ = _client_task_models()
+        try:
+            await self._bounded(
+                session.session.send_request(
+                    CancelTaskRequest(params=TaskIdParams(taskId=task_id)),
+                    EmptyResult,
+                    request_read_timeout_seconds=float(effective_timeout),
+                ),
+                timeout=effective_timeout,
+            )
+        except Exception as exc:
+            if _is_task_request_timeout(exc):
+                raise asyncio.TimeoutError(str(exc) or f"tasks/cancel timed out after {effective_timeout}s") from exc
+            self._raise_operation_error(exc, session)
+
+
+def _is_task_request_timeout(exc: Exception) -> bool:
+    """Whether ``exc`` is a per-request timeout from ``_bounded``, ``send_request`` (408) or ``httpx2``."""
+    if isinstance(exc, asyncio.TimeoutError):
+        return True
+    try:
+        from mcp import MCPError
+
+        if isinstance(exc, MCPError) and exc.code == 408:
+            return True
+    except ImportError:
+        pass
+    try:
+        import httpx2
+
+        if isinstance(exc, httpx2.TimeoutException):
+            return True
+    except ImportError:
+        pass
+    return False
+
+
+_CLIENT_TASK_MODELS: Optional[tuple[Any, ...]] = None
+
+
+def _client_task_models() -> tuple[Any, Any, Any, Any]:
+    global _CLIENT_TASK_MODELS
+    if _CLIENT_TASK_MODELS is None:
+        from mcp_types import Request, RequestParams, Result
+        from pydantic import ConfigDict, Field
+
+        class _TaskIdParams(RequestParams):
+            model_config = ConfigDict(populate_by_name=True, extra="ignore")
+            task_id: str = Field(alias="taskId")
+
+        class _GetTaskRequest(Request[_TaskIdParams, Literal["tasks/get"]]):
+            method: Literal["tasks/get"] = "tasks/get"
+            params: _TaskIdParams
+            name_param = "taskId"
+
+        class _CancelTaskRequest(Request[_TaskIdParams, Literal["tasks/cancel"]]):
+            method: Literal["tasks/cancel"] = "tasks/cancel"
+            params: _TaskIdParams
+            name_param = "taskId"
+
+        class _DetailedTaskResult(Result):
+            model_config = ConfigDict(populate_by_name=True, extra="allow")
+            task_id: str = Field(alias="taskId")
+            status: str
+            status_message: Optional[str] = Field(default=None, alias="statusMessage")
+            created_at: str = Field(alias="createdAt")
+            last_updated_at: str = Field(alias="lastUpdatedAt")
+            ttl_ms: int = Field(alias="ttlMs")
+            poll_interval_ms: Optional[int] = Field(default=None, alias="pollIntervalMs")
+            result: Optional[Dict[str, Any]] = None
+            error: Optional[Dict[str, Any]] = None
+
+        _CLIENT_TASK_MODELS = (
+            _TaskIdParams,
+            _GetTaskRequest,
+            _CancelTaskRequest,
+            _DetailedTaskResult,
+        )
+    return _CLIENT_TASK_MODELS
+
+
+def _tasks_client_extension() -> Any:
+    """Build the ``mcp.client.extension.ClientExtension`` for ``io.modelcontextprotocol/tasks``."""
+    from mcp.client.extension import ClientExtension, ResultClaim
+    from mcp.types import CallToolResult
+    from mcp_types import Result
+    from pydantic import ConfigDict, Field
+
+    class _WireCreateTaskResult(Result):
+        model_config = ConfigDict(populate_by_name=True, extra="allow")
+        result_type: Literal["task"] = Field(alias="resultType")
+        task_id: str = Field(alias="taskId")
+        status: str
+        status_message: Optional[str] = Field(default=None, alias="statusMessage")
+        created_at: str = Field(alias="createdAt")
+        last_updated_at: str = Field(alias="lastUpdatedAt")
+        ttl_ms: int = Field(alias="ttlMs")
+        poll_interval_ms: Optional[int] = Field(default=None, alias="pollIntervalMs")
+
+    async def _capture_task(claimed: _WireCreateTaskResult, _ctx: Any) -> CallToolResult:
+        slot = _CAPTURED_TASK.get()
+        if slot is not None:
+            slot.payload = claimed.model_dump(by_alias=True, mode="json", exclude_none=True)
+        # is_error=True skips mcp.Client's outputSchema check on this discarded placeholder.
+        return CallToolResult(content=[], is_error=True)
+
+    class _AfdTasksClientExtension(ClientExtension):
+        identifier = TASKS_EXTENSION_ID
+
+        def claims(self) -> tuple[ResultClaim[Any], ...]:
+            return (
+                ResultClaim(
+                    result_type="task",
+                    model=_WireCreateTaskResult,
+                    resolve=_capture_task,
+                ),
+            )
+
+    return _AfdTasksClientExtension()
 
 
 _RELIST_PAGE_CAP = 100

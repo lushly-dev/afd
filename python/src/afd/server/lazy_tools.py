@@ -285,6 +285,7 @@ def execute_detail(
             "confirmPrompt": command.confirm_prompt,
             "undoable": command.undoable,
             "approval": approval_mode(command.approval),
+            "task": command.task,
         }
         # Wire format: unset fields are omitted, never null.
         entries.append({key: value for key, value in entry.items() if value is not None})

@@ -237,6 +237,9 @@ jobs:
       - name: Approvals (Python backend, MCP 2026-07-28)
         run: pnpm --dir packages/examples/todo test:conformance:py --suite approvals --mode modern
 
+      - name: Tasks (Python backend, MCP 2026-07-28)
+        run: pnpm --dir packages/examples/todo test:conformance:py --suite tasks --mode modern
+
       # Both backends at once on one SQLite database: each reads what the other wrote.
       - name: Shared database (TypeScript and Python backends)
         run: pnpm --dir packages/examples/todo test:interop

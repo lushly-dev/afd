@@ -18,6 +18,7 @@ Example:
     ... ))
 """
 
+import asyncio
 from dataclasses import dataclass, field
 import logging
 import re
@@ -43,6 +44,47 @@ from afd.core.schema_registration import starts_resource
 logger = logging.getLogger("afd.core")
 
 COMMAND_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9]*(-[a-z][a-z0-9]*)+$")
+
+TaskSupport = Literal["never", "optional", "required"]
+"""Whether an MCP ``tools/call`` to a command may run as a task (``spec/command-metadata.md``, "Tasks")."""
+
+_VALID_TASK_SUPPORTS = frozenset({"never", "optional", "required"})
+
+
+def validate_task_declaration(
+    name: str,
+    task: Optional[TaskSupport],
+    *,
+    confirm_prompt: Optional[str] = None,
+    approval: Optional[ApprovalPolicy] = None,
+    confirmation_mode: Optional[str] = None,
+) -> None:
+    """Validate ``task`` metadata against ``spec/command-metadata.md`` ("Tasks").
+
+    Refuses unknown values and refuses ``"optional"`` / ``"required"`` beside
+    ``confirm_prompt``, an ``approval`` other than ``"not-required"``, or
+    ``confirmation_mode``.
+    """
+    if task is None:
+        return
+    if not isinstance(task, str) or task not in _VALID_TASK_SUPPORTS:
+        raise ValueError(
+            f"command '{name}': invalid task support {task!r} "
+            "(expected 'never', 'optional' or 'required')"
+        )
+    if task not in ("optional", "required"):
+        return
+    conflicts: list[str] = []
+    if confirm_prompt is not None:
+        conflicts.append("confirm_prompt")
+    if approval is not None and approval != "not-required":
+        conflicts.append("approval")
+    if confirmation_mode is not None:
+        conflicts.append("confirmation_mode")
+    if conflicts:
+        raise ValueError(
+            f"command '{name}': task='{task}' cannot be combined with {', '.join(conflicts)}"
+        )
 
 
 @dataclass(frozen=True)
@@ -145,6 +187,8 @@ class CommandContext:
     clock: Optional[Clock] = None
     random: Optional[RandomSource] = None
     approval: Optional[str] = None
+    report_progress: Optional[Callable[[str], None]] = None
+    cancel: Optional[asyncio.Event] = None
     _direct_approval: Any = field(default=None, repr=False, compare=False)
     _direct_allow: Any = field(default=None, repr=False, compare=False)
 
@@ -242,6 +286,7 @@ class CommandDefinition:
     undoable: Optional[bool] = None
     approval: Optional[ApprovalPolicy] = None
     title: Optional[str] = None
+    task: Optional[TaskSupport] = None
 
 
 class CommandRegistry(Protocol):
@@ -336,6 +381,13 @@ class _CommandRegistryImpl:
             from afd.core.schema_validation import check_schema
 
             check_schema(command.input_schema)
+        validate_task_declaration(
+            command.name,
+            command.task,
+            confirm_prompt=command.confirm_prompt,
+            approval=command.approval,
+            confirmation_mode=getattr(command, "confirmation_mode", None),
+        )
         self._commands[command.name] = command
 
     def get(self, name: str) -> Optional[CommandDefinition]:
@@ -569,6 +621,8 @@ def command_to_mcp_tool(command: CommandDefinition) -> dict[str, Any]:
         meta["outputSchema"] = command.returns
     if command.contexts:
         meta["contexts"] = list(command.contexts)
+    if command.task is not None:
+        meta["task"] = command.task
 
     if meta:
         tool["_meta"] = meta

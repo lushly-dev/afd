@@ -7,8 +7,8 @@ import dataclasses
 import json
 import logging
 import os
-from collections.abc import Callable, Iterator, Mapping, Sequence
-from contextlib import contextmanager
+from collections.abc import AsyncIterator, Callable, Iterator, Mapping, Sequence
+from contextlib import asynccontextmanager, contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import (
@@ -36,7 +36,9 @@ from afd.core.commands import (
     CommandExample,
     CommandRegistry,
     ExposeOptions,
+    TaskSupport,
     create_command_registry,
+    validate_task_declaration,
 )
 from afd.core.errors import CommandError, ErrorCodes
 from afd.core.pipeline import (
@@ -108,6 +110,18 @@ from afd.server.elicitation import MAX_IN_BAND_ROUNDS, ElicitationRound
 from afd.server.session_context import (
     SessionContextState,
     UnknownContextError,
+    is_modern_protocol,
+)
+from afd.server.tasks import (
+    TASKS_EXTENSION_ID,
+    TaskOptions,
+    TaskStore,
+    assert_valid_task_commands,
+)
+from afd.server.tasks_runtime import (
+    TaskRuntime,
+    composite_task_error,
+    is_created_task_sentinel,
 )
 from afd.server.tool_router import (
     NOT_IN_CONTEXT_SUGGESTION,
@@ -187,6 +201,10 @@ class ServerConfig:
     bootstrap: bool = False
     """Register ``afd-help``, ``afd-docs`` and ``afd-schema``, as TypeScript's ``bootstrap: true``
     does (parity decision D5). Off by default; the context tools do not depend on it."""
+    task_store: TaskStore | None = None
+    """Pluggable :class:`~afd.server.tasks.TaskStore` for MCP Tasks (default: bounded in-memory)."""
+    task_options: TaskOptions | None = None
+    """MCP Tasks runtime options (TTL, polling interval, concurrency and caller identification)."""
 
 
 DEFAULT_TOOLS_LIST_TTL_MS = 300_000
@@ -243,6 +261,8 @@ class MCPServer:
             raise ValueError("max_batch_size and max_batch_parallelism must be at least 1")
         if config.context_hook is not None and not callable(config.context_hook):
             raise TypeError("context_hook must be callable")
+        if config.task_options is not None and not isinstance(config.task_options, TaskOptions):
+            raise TypeError("task_options must be a TaskOptions instance")
         # The set's options are checked here; its entries once the commands are registered.
         first_class = normalize_first_class_tools(config.tool_strategy, config.first_class_tools)
         config.first_class_tools = first_class
@@ -261,6 +281,20 @@ class MCPServer:
         self._command_index: dict[str, CommandDefinition] | None = None
         self._router: Callable[[str, Any], Any] | None = None
         self._first_class_checked = False
+        self._task_runtime = TaskRuntime(
+            get_exposed_commands=lambda: self.list_exposed_commands(
+                interface="mcp", include_bootstrap=False, context_filtered=False
+            ),
+            execute_command=self._execute_command,
+            store=config.task_store,
+            options=config.task_options,
+            clock=config.clock,
+            actor=config.actor,
+            has_context_hook=config.context_hook is not None,
+            run_context_hook=(
+                self._run_context_hook if config.context_hook is not None else None
+            ),
+        )
 
     @property
     def name(self) -> str:
@@ -283,6 +317,15 @@ class MCPServer:
         """The declared context fields, so ``replay_journal`` can tell which recorded values
         still apply."""
         return tuple(self.config.context_fields)
+
+    @property
+    def task_store(self) -> TaskStore:
+        """The :class:`~afd.server.tasks.TaskStore` backing MCP Tasks on this server."""
+        return self._task_runtime.store
+
+    def stop_tasks(self) -> None:
+        """Stop all locally running MCP tasks without overwriting shared store state."""
+        self._task_runtime.dispose()
 
     def list_contexts(self) -> list[ContextConfig]:
         return list(self.config.contexts)
@@ -310,6 +353,7 @@ class MCPServer:
         execution_time: Literal["instant", "fast", "slow", "long-running"] | None = None,
         handoff: bool = False,
         handoff_protocol: str | None = None,
+        task: TaskSupport | None = None,
     ) -> Callable:
         """Decorator to register a command with this server (arguments as ``define_command``)."""
 
@@ -336,6 +380,7 @@ class MCPServer:
                 execution_time=execution_time,
                 handoff=handoff,
                 handoff_protocol=handoff_protocol,
+                task=task,
                 # Point a name warning at the user's @server.command line.
                 _stacklevel=3,
             )(func)
@@ -374,6 +419,13 @@ class MCPServer:
         reserved = self._reserved_name_error(definition.name)
         if reserved is not None:
             raise ValueError(reserved)
+        validate_task_declaration(
+            definition.name,
+            definition.task,
+            confirm_prompt=definition.confirm_prompt,
+            approval=definition.approval,
+            confirmation_mode=getattr(definition, "confirmation_mode", None),
+        )
 
         first_class = self.config.first_class_tools or []
         if definition.name in first_class and not self._is_exposed_to(definition, "mcp"):
@@ -435,6 +487,7 @@ class MCPServer:
     def _check_before_request(self) -> None:
         """The registration checks that must hold before the server answers a request."""
         self._check_reserved_names()
+        assert_valid_task_commands(self._registry.list())
         self._check_first_class_tools()
 
     def _invalidate_caches(self) -> None:
@@ -796,7 +849,26 @@ class MCPServer:
         def fixed(*args: Any, **kwargs: Any) -> Any:
             capabilities = get_capabilities(*args, **kwargs)
             if capabilities.tools is not None:
-                capabilities.tools = capabilities.tools.model_copy(update={"list_changed": False})
+                capabilities = capabilities.model_copy(
+                    update={"tools": capabilities.tools.model_copy(update={"list_changed": False})}
+                )
+            req_ctx = _CURRENT_REQUEST.get()
+            protocol_version = kwargs.get("protocol_version")
+            if protocol_version is None and req_ctx is not None:
+                protocol_version = getattr(req_ctx, "protocol_version", None)
+            if is_modern_protocol(protocol_version) and self._task_runtime.declares_tasks_for(
+                req_ctx
+            ):
+                exts = dict(capabilities.extensions or {})
+                exts[TASKS_EXTENSION_ID] = {}
+                capabilities = capabilities.model_copy(update={"extensions": exts})
+            elif capabilities.extensions and TASKS_EXTENSION_ID in capabilities.extensions:
+                exts = {
+                    key: value
+                    for key, value in capabilities.extensions.items()
+                    if key != TASKS_EXTENSION_ID
+                }
+                capabilities = capabilities.model_copy(update={"extensions": exts or None})
             return capabilities
 
         lowlevel.get_capabilities = fixed
@@ -884,6 +956,8 @@ class MCPServer:
                 try:
                     return await server._serve_tool_call(name, arguments or {}, context)
                 except Exception as exc:
+                    if _is_mcp_error(exc):
+                        raise
                     return _tool_call_result(server._internal_error(name, exc))
 
             return await original_call_tool(
@@ -958,6 +1032,8 @@ class MCPServer:
                     confirmations=ConfirmationGate(self.config.confirmations, commands),
                     can_run=self._step_can_run,
                     validate_step=self._validate_step,
+                    dispatch_task=self._task_runtime.dispatch_command,
+                    refuse_composite_task=composite_task_error,
                 )
             )
         return self._router
@@ -1079,6 +1155,8 @@ class MCPServer:
             try:
                 return await self._serve_tool_call(tool_name, payload, afd_ctx)
             except Exception as exc:
+                if _is_mcp_error(exc):
+                    raise
                 return _tool_call_result(self._internal_error(tool_name, exc))
 
         return Tool(
@@ -1113,13 +1191,22 @@ class MCPServer:
         if round is None:
             # Nothing an enclosing call bound may answer for this one.
             with bind_confirmation_channel(None), bind_approval_relay(None):
-                return _tool_call_result(await self.route_tool_call(tool_name, payload))
+                result = await self.route_tool_call(tool_name, payload)
+                if is_created_task_sentinel(result):
+                    from mcp.types import CallToolResult
+
+                    return CallToolResult(content=[])
+                return _tool_call_result(result)
         for _ in range(MAX_IN_BAND_ROUNDS):
             relay = round.relay() if round.can_elicit else None
             with bind_confirmation_channel(round), bind_approval_relay(relay):
                 result = await self.route_tool_call(tool_name, payload)
             if _is_input_required(result):
                 return result
+            if is_created_task_sentinel(result):
+                from mcp.types import CallToolResult
+
+                return CallToolResult(content=[])
             held = relay.held if relay is not None else None
             if held is None:
                 return _tool_call_result(result)
@@ -1155,6 +1242,20 @@ class MCPServer:
         if isinstance(ttl_ms, bool) or not isinstance(ttl_ms, int) or ttl_ms < 0:
             raise ValueError("tools_list_ttl_ms must be a non-negative integer")
         hint = CacheHint(ttl_ms=ttl_ms, scope="public")
+        # When task advertisement can vary by verified credentials on HTTP, discovery must
+        # not be cached publicly across anonymous and authenticated callers.
+        discover_hint = (
+            CacheHint(ttl_ms=ttl_ms, scope="private")
+            if self._task_runtime.serves_tasks and not self._task_runtime._hook_identifies_callers
+            else hint
+        )
+
+        @asynccontextmanager
+        async def _server_lifespan(_app: Any) -> AsyncIterator[dict[str, Any]]:
+            try:
+                yield {}
+            finally:
+                server.stop_tasks()
 
         async def capture_request(ctx: Any, call_next: Any) -> Any:
             token = _CURRENT_REQUEST.set(ctx)
@@ -1237,8 +1338,10 @@ class MCPServer:
                 self.config.bootstrap,
             ),
             version=self.config.version,
-            cache_hints={"tools/list": hint, "server/discover": hint},
+            cache_hints={"tools/list": hint, "server/discover": discover_hint},
             middleware=[capture_request],
+            extensions=[self._task_runtime.create_extension()],
+            lifespan=_server_lifespan,
             # The requestState of confirmation elicitations is sealed (AES-256-GCM) and bound
             # by the SDK to the request, the audience (the server name) and the call's principal
             # binding (spec/authorization.md, M8; #532): this server's actor and the verified
@@ -1393,7 +1496,10 @@ class MCPServer:
         self._stateless_http = transport == "streamable-http" and bool(
             options.get("stateless_http", False)
         )
-        mcp.run(transport=transport, **options)
+        try:
+            mcp.run(transport=transport, **options)
+        finally:
+            self.stop_tasks()
 
     async def run_async(self, transport: str = "stdio", **options: Any) -> None:
         """Run the server in the current event loop; see :meth:`run` for ``options``."""
@@ -1403,12 +1509,15 @@ class MCPServer:
         self._stateless_http = transport == "streamable-http" and bool(
             options.get("stateless_http", False)
         )
-        if transport == "stdio":
-            await mcp.run_stdio_async(**options)
-        elif transport == "sse":
-            await mcp.run_sse_async(**options)
-        else:
-            await mcp.run_streamable_http_async(**options)
+        try:
+            if transport == "stdio":
+                await mcp.run_stdio_async(**options)
+            elif transport == "sse":
+                await mcp.run_sse_async(**options)
+            else:
+                await mcp.run_streamable_http_async(**options)
+        finally:
+            self.stop_tasks()
 
 
 def _request_meta(request: Any) -> Any:
@@ -1499,6 +1608,14 @@ def _is_input_required(result: Any) -> bool:
     return type(result).__name__ == "InputRequiredResult"
 
 
+def _is_mcp_error(exc: BaseException) -> bool:
+    try:
+        from mcp import MCPError
+    except ImportError:  # pragma: no cover - optional dependency
+        return False
+    return isinstance(exc, MCPError)
+
+
 def _unanswered_approval(tool_name: str) -> CommandResult[Any]:
     """The result when a 2025 client asked in band gave no answer."""
     return failure(
@@ -1549,6 +1666,8 @@ def create_server(
     context_fields: Sequence[ContextField | dict[str, Any]] | None = None,
     advertise_output_schema: bool = True,
     bootstrap: bool = False,
+    task_store: TaskStore | None = None,
+    task_options: TaskOptions | None = None,
 ) -> MCPServer:
     """Create a new AFD MCP server.
 
@@ -1606,8 +1725,10 @@ def create_server(
             Direct ``server.execute()`` calls get no default actor.
         context_hook: Per-request hook ``(request, context) -> CommandContext | CommandError``
             (sync or async; see ``afd.server.context_hook``) invoked once per MCP
-            ``tools/call`` before the request-state boundary, confirmation gate and
-            command lookup, on every route. Receives a :class:`ContextHookRequest`
+            ``tools/call`` (before the request-state boundary, confirmation gate and
+            command lookup, on every route) and on ``tasks/get``, ``tasks/update``
+            and ``tasks/cancel`` (with ``request.tool`` set to the method name,
+            before task owner lookup). Receives a :class:`ContextHookRequest`
             (the tool name, SDK ``ServerRequestContext``, and Starlette HTTP request
             when present) and a base ``CommandContext`` with server defaults (no
             ``_meta`` context fields). Trust identity only from what a verified
@@ -1684,5 +1805,7 @@ def create_server(
         bootstrap=bootstrap,
         # MCPServer checks the declarations and converts mappings.
         context_fields=[] if context_fields is None else context_fields,  # type: ignore[arg-type]
+        task_store=task_store,
+        task_options=task_options,
     )
     return MCPServer(config)

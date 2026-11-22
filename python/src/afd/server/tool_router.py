@@ -55,6 +55,9 @@ class ToolRouterDeps:
     # an MCP caller can run a command, and one step's validated input as it will run.
     can_run: Callable[[str], bool] | None = None
     validate_step: Callable[[str, Any], tuple[bool, Any]] | None = None
+    # MCP Tasks (spec/command-metadata.md, "Tasks"): single-command dispatch and composite refusal.
+    dispatch_task: Callable[[CommandDefinition, Any, CommandContext], Awaitable[Any]] | None = None
+    refuse_composite_task: Callable[[Literal["afd-batch", "afd-pipe"], str], Any] | None = None
 
 NOT_IN_CONTEXT_SUGGESTION = (
     "Use afd-context-list to see available contexts, or afd-context-enter to switch."
@@ -245,10 +248,15 @@ def create_tool_router(deps: ToolRouterDeps):
                 return refused
 
             routed(command_name)
+            ctx = mcp_context("afd-call", active_context)
+            if deps.dispatch_task is not None:
+                task_result = await deps.dispatch_task(command, command_input, ctx)
+                if task_result is not None:
+                    return task_result
             return await deps.execute_command(
                 command_name,
                 command_input,
-                mcp_context("afd-call", active_context),
+                ctx,
             )
 
         if tool_name == "afd-discover":
@@ -268,6 +276,12 @@ def create_tool_router(deps: ToolRouterDeps):
             return execute_detail(visible_all_commands, exposed_command_names, {} if args is None else args)
 
         if tool_name == "afd-batch":
+            if deps.refuse_composite_task is not None:
+                required_task = _first_required_task(args, "commands", commands_by_name)
+                if required_task is not None:
+                    return create_failed_batch_result(
+                        deps.refuse_composite_task("afd-batch", required_task)
+                    )
             refused = await unconfirmed(
                 _steps(args, "commands"),
                 named_acknowledgement(args.get("confirm") if isinstance(args, dict) else None),
@@ -285,6 +299,12 @@ def create_tool_router(deps: ToolRouterDeps):
             )
 
         if tool_name == "afd-pipe":
+            if deps.refuse_composite_task is not None:
+                required_task = _first_required_task(args, "steps", commands_by_name)
+                if required_task is not None:
+                    return create_pipeline_failure(
+                        deps.refuse_composite_task("afd-pipe", required_task)
+                    )
             refused = await unconfirmed(
                 _steps(args, "steps"),
                 named_acknowledgement(args.get("confirm") if isinstance(args, dict) else None),
@@ -381,10 +401,15 @@ def create_tool_router(deps: ToolRouterDeps):
                 if refused is not None:
                     return refused
                 routed(command.name)
+                ctx = mcp_context("trace", active_context)
+                if deps.dispatch_task is not None:
+                    task_result = await deps.dispatch_task(command, params, ctx)
+                    if task_result is not None:
+                        return task_result
                 return await deps.execute_command(
                     command.name,
                     params,
-                    mcp_context("trace", active_context),
+                    ctx,
                 )
 
         command = commands_by_name.get(tool_name)
@@ -408,13 +433,37 @@ def create_tool_router(deps: ToolRouterDeps):
             return refused
 
         routed(tool_name)
+        ctx = mcp_context("trace", active_context)
+        if command is not None and deps.dispatch_task is not None:
+            task_result = await deps.dispatch_task(command, command_input, ctx)
+            if task_result is not None:
+                return task_result
         return await deps.execute_command(
             tool_name,
             command_input,
-            mcp_context("trace", active_context),
+            ctx,
         )
 
     return route_tool_call
+
+
+def _first_required_task(
+    args: Any, key: str, commands_by_name: dict[str, CommandDefinition]
+) -> str | None:
+    """First MCP-exposed command in an ``afd-batch`` or ``afd-pipe`` that declares ``task='required'``."""
+    items = args.get(key) if isinstance(args, dict) else None
+    if not isinstance(items, list):
+        return None
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        name = item.get("command")
+        if not isinstance(name, str):
+            continue
+        cmd = commands_by_name.get(name)
+        if cmd is not None and cmd.task == "required":
+            return cmd.name
+    return None
 
 
 def _steps(args: Any, key: str) -> list[ConfirmationStep]:

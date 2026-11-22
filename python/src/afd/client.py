@@ -17,6 +17,7 @@ Example:
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 import logging
 from dataclasses import dataclass, field
@@ -36,12 +37,15 @@ from pydantic import ValidationError
 
 from afd.core.result import CommandResult, error as result_error, success
 from afd.transports.base import (
+    JsonRpcError,
     ToolExecutionError,
     ToolNotFoundError,
     ToolInfo,
     TransportError,
     TransportState,
+    _TaskSeed,
 )
+from afd.transports._mcp_protocol import _HttpBasedTransport
 
 from afd.transports.streamable_http import (  # noqa: F401 - re-exported
     ElicitationHandler,
@@ -58,6 +62,31 @@ logger = logging.getLogger("afd.client")
 # ═══════════════════════════════════════════════════════════════════════════════
 # CONFIG / STATUS
 # ═══════════════════════════════════════════════════════════════════════════════
+
+
+@dataclass
+class TaskInfo:
+    """Summary of an MCP task returned by ``tools/call`` or progress updates (SEP-2663)."""
+
+    task_id: str
+    status: Literal["working", "completed", "failed", "cancelled"]
+    created_at: str
+    last_updated_at: str
+    ttl_ms: int
+    status_message: Optional[str] = None
+    poll_interval_ms: Optional[int] = None
+
+
+@dataclass
+class DetailedTask(TaskInfo):
+    """Detailed MCP task state returned by ``tasks/get`` (SEP-2663)."""
+
+    result: Optional[Dict[str, Any]] = None
+    error: Optional[Dict[str, Any]] = None
+
+
+TaskProgressCallback = Callable[[TaskInfo], None]
+"""Called when a polled MCP task changes ``status`` or ``status_message``."""
 
 
 @dataclass
@@ -92,6 +121,8 @@ class McpClientConfig:
             does, so give a person enough ``timeout`` to answer.
         max_stream_event_bytes: The largest ``stream()`` event accepted; a larger one
             ends the stream with ``STREAM_EVENT_TOO_LARGE``. Default 1 MiB.
+        tasks: Declare ``io.modelcontextprotocol/tasks`` on Streamable HTTP and
+            automatically poll returned tasks to completion. Default ``False``.
     """
 
     url: str = ""
@@ -108,6 +139,7 @@ class McpClientConfig:
     debug: bool = False
     on_elicitation: Optional[ElicitationHandler] = None
     max_stream_event_bytes: int = 1024 * 1024
+    tasks: bool = False
 
     @property
     def resolved_url(self) -> str:
@@ -201,6 +233,7 @@ class McpClient:
         self._generation = 0
         self._active = False
         self._reconnect_task: Optional[asyncio.Task] = None
+        self._active_task_polls: set[asyncio.Event] = set()
         self._state = TransportState.DISCONNECTED
 
     # ── Lifecycle ─────────────────────────────────────────────────────────
@@ -252,12 +285,18 @@ class McpClient:
         """Disconnect and cancel any pending reconnect delay or handshake."""
         self._active = False
         self._generation += 1
+        self._abort_task_polls()
         await self._stop_reconnect()
         if self._transport:
             await self._transport.disconnect()
         self._clear_connection()
         self._set_state(TransportState.DISCONNECTED)
         self._emit("disconnected", "Manual disconnect")
+
+    def _abort_task_polls(self) -> None:
+        for abort_event in list(self._active_task_polls):
+            abort_event.set()
+        self._active_task_polls.clear()
 
     def is_connected(self) -> bool:
         """Check if the client and transport are connected."""
@@ -281,10 +320,35 @@ class McpClient:
 
     # ── Call operations ───────────────────────────────────────────────────
 
+    async def get_task(
+        self,
+        task_id: str,
+        *,
+        timeout: Optional[float] = None,
+    ) -> DetailedTask:
+        """Fetch the current state of an MCP task via ``tasks/get``."""
+        self._require_connected()
+        raw = await self._request_with_timeout("get_task", task_id, timeout=timeout)
+        return _parse_detailed_task(raw)
+
+    async def cancel_task(
+        self,
+        task_id: str,
+        *,
+        timeout: Optional[float] = None,
+    ) -> None:
+        """Request cooperative cancellation of an MCP task via ``tasks/cancel``."""
+        self._require_connected()
+        await self._request_with_timeout("cancel_task", task_id, timeout=timeout)
+
     async def call(
         self,
         name: str,
         args: Optional[Dict[str, Any]] = None,
+        *,
+        timeout: Optional[float] = None,
+        cancel: Optional[asyncio.Event] = None,
+        on_task_progress: Optional[TaskProgressCallback] = None,
     ) -> CommandResult:
         """Call a command and return a ``CommandResult``.
 
@@ -294,9 +358,18 @@ class McpClient:
         fields, including a failure sent with ``isError: true``; otherwise it
         is wrapped in ``success()``.
 
+        When ``McpClientConfig.tasks`` is ``True`` and the server responds with
+        an MCP task (``resultType: "task"``), polls ``tasks/get`` to completion
+        within ``timeout`` (defaulting to ``config.timeout``) and returns the
+        final ``CommandResult``.
+
         Args:
             name: Tool/command name.
             args: Command arguments.
+            timeout: Optional total timeout in seconds (covering task polling).
+            cancel: Optional ``asyncio.Event`` to cancel a running task.
+            on_task_progress: Optional callback invoked when a task's status or
+                ``status_message`` changes.
 
         Returns:
             CommandResult (success or failure).
@@ -304,7 +377,13 @@ class McpClient:
         self._require_connected()
 
         try:
-            data = await self._request("call_tool", name, args or {})
+            data = await self.call_tool(
+                name,
+                args or {},
+                timeout=timeout,
+                cancel=cancel,
+                on_task_progress=on_task_progress,
+            )
 
             # A CommandResult-shaped dict keeps every field it carries
             if isinstance(data, dict) and isinstance(data.get("success"), bool):
@@ -317,6 +396,34 @@ class McpClient:
                 code="TOOL_ERROR",
                 message=str(exc),
                 suggestion="Check the command input and try again",
+            )
+        except JsonRpcError as exc:
+            if exc.code == -32021:
+                return result_error(
+                    code="MISSING_CLIENT_CAPABILITY",
+                    message=exc.rpc_message,
+                    suggestion="Enable the required MCP client capability (for example tasks=True) and retry",
+                    retryable=False,
+                    details=exc.data if isinstance(exc.data, dict) else None,
+                )
+            if exc.code == -32603:
+                return result_error(
+                    code="INTERNAL_ERROR",
+                    message=exc.rpc_message,
+                    suggestion="Retry the call later or contact the server operator",
+                    retryable=True,
+                )
+            return result_error(
+                code="TRANSPORT_ERROR",
+                message=str(exc),
+                suggestion="Check the server connection and try again",
+            )
+        except asyncio.TimeoutError as exc:
+            return result_error(
+                code="TIMEOUT",
+                message=str(exc) or "MCP request timed out",
+                suggestion="Retry with a larger timeout",
+                retryable=True,
             )
         except TransportError as exc:
             return result_error(
@@ -335,18 +442,241 @@ class McpClient:
         self,
         name: str,
         args: Optional[Dict[str, Any]] = None,
+        *,
+        timeout: Optional[float] = None,
+        cancel: Optional[asyncio.Event] = None,
+        on_task_progress: Optional[TaskProgressCallback] = None,
     ) -> Any:
         """Call a tool and return the raw result (no CommandResult wrapping).
+
+        If the server responds with an MCP task (``resultType: "task"``), polls
+        ``tasks/get`` until the task finishes and returns the extracted tool result.
 
         Args:
             name: Tool name.
             args: Tool arguments.
+            timeout: Optional total timeout in seconds.
+            cancel: Optional cancellation event for polled tasks.
+            on_task_progress: Optional progress callback for polled tasks.
 
         Returns:
             Raw tool result.
         """
         self._require_connected()
-        return await self._request("call_tool", name, args or {})
+        total_timeout = self._config.timeout if timeout is None else timeout
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + total_timeout
+        raw = await self._request_with_timeout(
+            "call_tool", name, args or {}, timeout=timeout
+        )
+        if isinstance(raw, _TaskSeed) and self._config.tasks:
+            return await self._poll_task(
+                raw.payload,
+                tool_name=name,
+                deadline=deadline,
+                total_timeout=total_timeout,
+                cancel=cancel,
+                on_task_progress=on_task_progress,
+            )
+        return raw
+
+    async def _poll_task(
+        self,
+        initial: Dict[str, Any],
+        *,
+        tool_name: str,
+        deadline: float,
+        total_timeout: float,
+        cancel: Optional[asyncio.Event],
+        on_task_progress: Optional[TaskProgressCallback],
+    ) -> Any:
+        import math
+
+        loop = asyncio.get_running_loop()
+        disconnect_abort = asyncio.Event()
+        self._active_task_polls.add(disconnect_abort)
+
+        info = _parse_task_info(initial)
+        task_id = info.task_id
+        poll_interval_s = _normalize_poll_interval(info.poll_interval_ms)
+        last_status = info.status
+        last_message = info.status_message
+
+        def cancelled_payload() -> Dict[str, Any]:
+            return {
+                "success": False,
+                "error": {
+                    "code": "COMMAND_CANCELLED",
+                    "message": "Task was cancelled",
+                    "suggestion": "Start the command again if the work is still needed",
+                    "retryable": False,
+                },
+            }
+
+        def cancel_best_effort() -> None:
+            if not self.is_connected():
+                return
+
+            async def _send_cancel() -> None:
+                try:
+                    await self.cancel_task(task_id, timeout=5.0)
+                except Exception:
+                    pass
+
+            task = asyncio.create_task(_send_cancel())
+            task.add_done_callback(lambda done: done.cancelled() or done.exception())
+
+        def _cleanup_tasks(tasks: Sequence[asyncio.Task[Any]]) -> None:
+            for item in tasks:
+                if not item.done():
+                    item.cancel()
+                    item.add_done_callback(lambda done: done.cancelled() or done.exception())
+                elif not item.cancelled():
+                    try:
+                        item.exception()
+                    except Exception:
+                        pass
+
+        try:
+            if on_task_progress is not None:
+                on_task_progress(info)
+
+            while True:
+                if disconnect_abort.is_set():
+                    raise TransportError("Client disconnected")
+                if cancel is not None and cancel.is_set():
+                    cancel_best_effort()
+                    return cancelled_payload()
+
+                remaining_before_wait = deadline - loop.time()
+                if remaining_before_wait <= 0:
+                    cancel_best_effort()
+                    raise asyncio.TimeoutError(
+                        f"MCP task '{task_id}' timed out after {total_timeout}s"
+                    )
+
+                wait_s = min(poll_interval_s, remaining_before_wait)
+                waiters = [asyncio.create_task(disconnect_abort.wait())]
+                if cancel is not None:
+                    waiters.append(asyncio.create_task(cancel.wait()))
+                try:
+                    await asyncio.wait(
+                        waiters, timeout=wait_s, return_when=asyncio.FIRST_COMPLETED
+                    )
+                finally:
+                    _cleanup_tasks(waiters)
+
+                if disconnect_abort.is_set():
+                    raise TransportError("Client disconnected")
+                if cancel is not None and cancel.is_set():
+                    cancel_best_effort()
+                    return cancelled_payload()
+
+                remaining = deadline - loop.time()
+                if remaining <= 0:
+                    cancel_best_effort()
+                    raise asyncio.TimeoutError(
+                        f"MCP task '{task_id}' timed out after {total_timeout}s"
+                    )
+
+                poll_task: asyncio.Task[DetailedTask] = asyncio.create_task(
+                    self.get_task(task_id, timeout=remaining)
+                )
+                abort_waiter = asyncio.create_task(disconnect_abort.wait())
+                cancel_waiter = (
+                    asyncio.create_task(cancel.wait()) if cancel is not None else None
+                )
+                race: list[asyncio.Task[Any]] = [poll_task, abort_waiter]
+                if cancel_waiter is not None:
+                    race.append(cancel_waiter)
+                done: set[asyncio.Task[Any]] = set()
+                try:
+                    done, _ = await asyncio.wait(
+                        race, timeout=remaining, return_when=asyncio.FIRST_COMPLETED
+                    )
+                finally:
+                    to_clean = [w for w in (abort_waiter, cancel_waiter) if w is not None]
+                    if poll_task not in done:
+                        to_clean.append(poll_task)
+                    _cleanup_tasks(to_clean)
+
+                if poll_task not in done:
+                    if cancel is not None and cancel.is_set():
+                        cancel_best_effort()
+                        return cancelled_payload()
+                    if disconnect_abort.is_set():
+                        raise TransportError("Client disconnected")
+                    cancel_best_effort()
+                    raise asyncio.TimeoutError(
+                        f"MCP task '{task_id}' timed out after {total_timeout}s"
+                    )
+
+                try:
+                    detailed = poll_task.result()
+                except asyncio.TimeoutError:
+                    cancel_best_effort()
+                    raise asyncio.TimeoutError(
+                        f"MCP task '{task_id}' timed out after {total_timeout}s"
+                    ) from None
+                except TransportError as exc:
+                    if isinstance(exc.cause, asyncio.TimeoutError):
+                        cancel_best_effort()
+                        raise asyncio.TimeoutError(
+                            f"MCP task '{task_id}' timed out after {total_timeout}s"
+                        ) from exc
+                    if cancel is not None and cancel.is_set():
+                        cancel_best_effort()
+                        return cancelled_payload()
+                    if disconnect_abort.is_set():
+                        raise TransportError("Client disconnected") from exc
+                    raise
+
+                if detailed.status != last_status or detailed.status_message != last_message:
+                    last_status = detailed.status
+                    last_message = detailed.status_message
+                    if on_task_progress is not None:
+                        on_task_progress(
+                            TaskInfo(
+                                task_id=detailed.task_id,
+                                status=detailed.status,
+                                status_message=detailed.status_message,
+                                created_at=detailed.created_at,
+                                last_updated_at=detailed.last_updated_at,
+                                ttl_ms=detailed.ttl_ms,
+                                poll_interval_ms=detailed.poll_interval_ms,
+                            )
+                        )
+
+                if detailed.status == "completed":
+                    if not isinstance(detailed.result, dict):
+                        raise TransportError(
+                            f"MCP task '{task_id}' completed without a valid tool result"
+                        )
+                    validator = getattr(self._transport, "validate_tool_result", None)
+                    if callable(validator):
+                        await validator(tool_name, detailed.result)
+                    return _HttpBasedTransport._extract_content(detailed.result)
+                if detailed.status == "failed":
+                    err = detailed.error or {}
+                    code = err.get("code", -32603)
+                    message = err.get("message", "Task failed")
+                    raise JsonRpcError(
+                        code if isinstance(code, int) and not isinstance(code, bool) else -32603,
+                        str(message),
+                        err.get("data"),
+                    )
+                if detailed.status == "cancelled":
+                    return cancelled_payload()
+
+                if (
+                    isinstance(detailed.poll_interval_ms, (int, float))
+                    and not isinstance(detailed.poll_interval_ms, bool)
+                    and math.isfinite(detailed.poll_interval_ms)
+                    and detailed.poll_interval_ms > 0
+                ):
+                    poll_interval_s = max(0.01, detailed.poll_interval_ms / 1000.0)
+        finally:
+            self._active_task_polls.discard(disconnect_abort)
 
     # ── Batch / Pipeline ──────────────────────────────────────────────────
 
@@ -536,6 +866,7 @@ class McpClient:
     def _connection_lost(self, transport: Any, exc: Optional[Exception] = None) -> None:
         if not self._active or transport is not self._transport or self._state != TransportState.CONNECTED:
             return
+        self._abort_task_polls()
         self._clear_connection()
         self._set_state(TransportState.DISCONNECTED)
         self._emit("disconnected", str(exc) if exc else "Connection closed")
@@ -547,11 +878,32 @@ class McpClient:
 
     async def _request(self, method: str, *args: Any) -> Any:
         """Report lost connections without replaying a possibly executed mutation."""
+        return await self._request_kw(method, *args)
+
+    async def _request_with_timeout(
+        self, method: str, *args: Any, timeout: Optional[float] = None
+    ) -> Any:
+        """Invoke a transport method, enforcing ``timeout`` even on transports that omit it."""
         transport = self._transport
+        fn = getattr(transport, method, None)
+        if fn is None:
+            raise TransportError(f"Transport does not support '{method}'")
+        if timeout is None:
+            return await self._request_kw(method, *args)
+        if _accepts_keyword(fn, "timeout"):
+            return await self._request_kw(method, *args, timeout=timeout)
+        return await asyncio.wait_for(self._request_kw(method, *args), timeout=timeout)
+
+    async def _request_kw(self, method: str, *args: Any, **kwargs: Any) -> Any:
+        """Invoke a transport method with optional keyword arguments."""
+        transport = self._transport
+        fn = getattr(transport, method, None)
+        if fn is None:
+            raise TransportError(f"Transport does not support '{method}'")
         try:
-            return await getattr(transport, method)(*args)
+            return await fn(*args, **kwargs)
         except TransportError as exc:
-            if not isinstance(exc, (ToolExecutionError, ToolNotFoundError)) and transport.state != TransportState.CONNECTED:
+            if not isinstance(exc, (ToolExecutionError, ToolNotFoundError, JsonRpcError)) and transport.state != TransportState.CONNECTED:
                 self._connection_lost(transport, exc)
             raise
 
@@ -670,6 +1022,63 @@ def _parse_command_result(data: Dict[str, Any]) -> CommandResult:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
+def _accepts_keyword(fn: Any, keyword: str) -> bool:
+    """Whether callable ``fn`` accepts ``keyword`` (explicitly or via ``**kwargs``)."""
+    try:
+        params = inspect.signature(fn).parameters.values()
+    except (TypeError, ValueError):
+        return False
+    for param in params:
+        if param.kind == inspect.Parameter.VAR_KEYWORD:
+            return True
+        if param.name == keyword and param.kind in (
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            inspect.Parameter.KEYWORD_ONLY,
+        ):
+            return True
+    return False
+
+
+def _normalize_poll_interval(poll_interval_ms: Optional[int]) -> float:
+    import math
+
+    if (
+        isinstance(poll_interval_ms, (int, float))
+        and not isinstance(poll_interval_ms, bool)
+        and math.isfinite(poll_interval_ms)
+        and poll_interval_ms > 0
+    ):
+        return max(0.01, poll_interval_ms / 1000.0)
+    return 0.25
+
+
+def _parse_task_info(raw: Dict[str, Any]) -> TaskInfo:
+    return TaskInfo(
+        task_id=str(raw.get("taskId") or raw.get("task_id") or ""),
+        status=raw.get("status", "working"),
+        status_message=raw.get("statusMessage", raw.get("status_message")),
+        created_at=str(raw.get("createdAt") or raw.get("created_at") or ""),
+        last_updated_at=str(raw.get("lastUpdatedAt") or raw.get("last_updated_at") or ""),
+        ttl_ms=int(raw.get("ttlMs") if raw.get("ttlMs") is not None else raw.get("ttl_ms", 0)),
+        poll_interval_ms=raw.get("pollIntervalMs", raw.get("poll_interval_ms")),
+    )
+
+
+def _parse_detailed_task(raw: Dict[str, Any]) -> DetailedTask:
+    base = _parse_task_info(raw)
+    return DetailedTask(
+        task_id=base.task_id,
+        status=base.status,
+        status_message=base.status_message,
+        created_at=base.created_at,
+        last_updated_at=base.last_updated_at,
+        ttl_ms=base.ttl_ms,
+        poll_interval_ms=base.poll_interval_ms,
+        result=raw.get("result"),
+        error=raw.get("error"),
+    )
+
+
 def _create_transport(config: McpClientConfig) -> Any:
     """Create a transport instance from config."""
     url = config.resolved_url
@@ -688,6 +1097,7 @@ def _create_transport(config: McpClientConfig) -> Any:
             client_version=config.client_version,
             mode=config.protocol_mode,
             on_elicitation=config.on_elicitation,
+            tasks=config.tasks,
         )
     if transport == "http":
         from afd.transports.http import HttpTransport
@@ -715,20 +1125,26 @@ def create_client(
     url: str,
     *,
     transport: Optional[Literal["streamable-http", "sse", "http"]] = None,
+    protocol_mode: Literal["auto", "legacy", "modern"] = "auto",
     auto_reconnect: bool = True,
     headers: Optional[Dict[str, str]] = None,
     timeout: float = 30.0,
     debug: bool = False,
+    on_elicitation: Optional[ElicitationHandler] = None,
+    tasks: bool = False,
 ) -> McpClient:
     """Create an McpClient with sensible defaults.
 
     Args:
         url: Server URL.
         transport: Transport type; inferred from the URL when omitted.
+        protocol_mode: Protocol negotiation mode (``"auto"``, ``"legacy"`` or ``"modern"``).
         auto_reconnect: Enable auto-reconnect.
         headers: Custom HTTP headers.
         timeout: Request timeout in seconds.
         debug: Enable debug logging.
+        on_elicitation: Optional form elicitation callback.
+        tasks: Declare ``io.modelcontextprotocol/tasks`` and poll returned tasks to completion.
 
     Returns:
         Configured McpClient instance.
@@ -741,8 +1157,11 @@ def create_client(
     return McpClient(McpClientConfig(
         url=url,
         transport=transport,
+        protocol_mode=protocol_mode,
         auto_reconnect=auto_reconnect,
         headers=headers or {},
         timeout=timeout,
         debug=debug,
+        on_elicitation=on_elicitation,
+        tasks=tasks,
     ))

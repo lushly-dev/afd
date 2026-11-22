@@ -884,8 +884,8 @@ NAME_GAP_BUDGET = {
     # TypeScript and Rust (approvalDisplay, ApprovalDisplayRefusal, APPROVAL_DISPLAY_LIMITS,
     # hidesCharacters, isHiddenCodePoint). Parity tracked in #1466; lower both when it closes.
     # Python 93 → 94, C++ 76 → 77 (#1971): TaskSupport in TypeScript (matching Rust's TaskSupport).
-    # Python parity tracked in #1972 (lower when it closes); MCP Tasks are N/A for C++.
-    "missing_from_python": 94,
+    # Python 94 → 93 (#1972): TaskSupport exported from afd; MCP Tasks are N/A for C++.
+    "missing_from_python": 93,
     "missing_from_rust": 9,
     # 73 at first measurement (Phase 5 of the C++ plan). The deferred groups: MCP JSON-RPC
     # types and helpers; the typed pipeline-condition structs and their guards (C++ keeps
