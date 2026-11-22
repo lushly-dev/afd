@@ -7,7 +7,8 @@
  * in validation behavior fails here until the vectors are regenerated.
  */
 import { readFileSync } from 'node:fs';
-import { success } from '@lushly-dev/afd-core';
+import { commandResultOutputSchema, type JsonSchema, success } from '@lushly-dev/afd-core';
+import { Ajv } from '@modelcontextprotocol/client/validators/ajv';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { createDirectRegistry } from './direct-registry.js';
@@ -217,6 +218,16 @@ describe('validation vectors', () => {
 				declared.filter((keyword) => !used.has(keyword) || !OPTIONAL.includes(keyword)),
 				vector.id
 			).toEqual([]);
+		}
+	});
+
+	it('ref-embedded-resource is the advertised envelope, and Ajv agrees with every test (#1700)', () => {
+		const vector = vectors.cases.find((entry) => entry.id === 'ref-embedded-resource');
+		const schema = vector?.schema as { properties: { data: JsonSchema } };
+		expect(schema).toEqual(commandResultOutputSchema(schema.properties.data));
+		const validate = new Ajv().compile(schema);
+		for (const test of vector?.tests ?? []) {
+			expect(validate(test.input), test.description).toBe(test.valid);
 		}
 	});
 

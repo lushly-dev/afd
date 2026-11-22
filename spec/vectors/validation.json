@@ -2196,6 +2196,120 @@
 			]
 		},
 		{
+			"id": "ref-embedded-resource",
+			"section": "keywords",
+			"description": "A $ref inside a subschema with its own $id resolves against that subschema, which holds the $defs. The schema is the CommandResult envelope advertised for a data schema with an $id.",
+			"schema": {
+				"type": "object",
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"data": {
+						"$id": "https://afd.dev/schemas/todo-result",
+						"type": "object",
+						"properties": {
+							"id": {
+								"$ref": "#/$defs/TodoId"
+							},
+							"related": {
+								"type": "array",
+								"items": {
+									"$ref": "#/$defs/TodoId"
+								}
+							}
+						},
+						"required": ["id"],
+						"$defs": {
+							"TodoId": {
+								"type": "string",
+								"minLength": 1
+							}
+						}
+					},
+					"error": {
+						"type": "object"
+					},
+					"metadata": {
+						"type": "object"
+					}
+				},
+				"required": ["success"]
+			},
+			"tests": [
+				{
+					"description": "Valid",
+					"input": {
+						"success": true,
+						"data": {
+							"id": "a",
+							"related": ["b"]
+						}
+					},
+					"valid": true,
+					"data": {
+						"success": true,
+						"data": {
+							"id": "a",
+							"related": ["b"]
+						}
+					}
+				},
+				{
+					"description": "The referenced constraints apply",
+					"input": {
+						"success": true,
+						"data": {
+							"id": "a",
+							"related": [""]
+						}
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "data.related.0: Too small: expected string to have >=1 characters. Expected fields: success, data, error, metadata",
+						"details": {
+							"errors": [
+								{
+									"path": "data.related.0",
+									"message": "Too small: expected string to have >=1 characters",
+									"code": "too_small"
+								}
+							],
+							"expectedFields": ["success", "data", "error", "metadata"]
+						}
+					}
+				},
+				{
+					"description": "A referenced value of the wrong type",
+					"input": {
+						"success": true,
+						"data": {
+							"id": 1
+						}
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "data.id: Invalid input: expected string, received number. Expected fields: success, data, error, metadata",
+						"details": {
+							"errors": [
+								{
+									"path": "data.id",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								}
+							],
+							"expectedFields": ["success", "data", "error", "metadata"]
+						}
+					}
+				}
+			]
+		},
+		{
 			"id": "ref-recursive",
 			"section": "keywords",
 			"description": "A recursive $ref. Unknown keys are removed inside referenced objects, at any depth.",

@@ -60,6 +60,50 @@ TEST_CASE("compile checks referenced definitions and ignores unreferenced ones")
     CHECK(afd::CompiledSchema::compile(tree).has_value());
 }
 
+// The same `#/$defs/X` names one definition at the root and another inside a subschema with its
+// own `$id`, which starts a schema resource (spec/validation.md, "Annotations"; #1700).
+TEST_CASE("a $ref resolves against the nearest schema resource") {
+    const afd::Json two = afd::Json::parse(R"({"type":"object","properties":{
+        "outer":{"$ref":"#/$defs/X"},
+        "inner":{"$id":"urn:afd:inner","type":"object","properties":{"x":{"$ref":"#/$defs/X"}},
+                 "$defs":{"X":{"type":"string"}}}},
+        "$defs":{"X":{"type":"number"}}})");
+    const auto schema = afd::CompiledSchema::compile(two);
+    REQUIRE(schema.has_value());
+    const afd::Json valid = {{"outer", 1}, {"inner", {{"x", "a"}}}};
+    const auto parsed = schema->validate(valid);
+    REQUIRE(parsed.has_value());
+    CHECK(*parsed == valid);
+    const auto inner = schema->validate({{"outer", 1}, {"inner", {{"x", 1}}}});
+    REQUIRE_FALSE(inner.has_value());
+    REQUIRE(inner.error().errors.size() == 1);
+    CHECK(inner.error().errors[0].path == "inner.x");
+    const auto outer = schema->validate({{"outer", "a"}});
+    REQUIRE_FALSE(outer.has_value());
+    REQUIRE(outer.error().errors.size() == 1);
+    CHECK(outer.error().errors[0].path == "outer");
+
+    // Each resource's definition is checked, though both references have the same text: `inner`
+    // is checked first (keys are sorted), so the root's definition is the one a check keyed by
+    // the reference text would skip.
+    afd::Json unsupported = two;
+    unsupported["$defs"]["X"]["format"] = "date-time";
+    CHECK_FALSE(afd::CompiledSchema::compile(unsupported).has_value());
+    // A bare fragment `$id`, a draft-07 anchor, starts no resource.
+    const auto fragment = afd::CompiledSchema::compile(afd::Json::parse(
+        R"({"type":"object","properties":{"inner":{"$id":"#inner","$ref":"#/$defs/X"}},
+            "$defs":{"X":{"type":"string"}}})"));
+    REQUIRE(fragment.has_value());
+    CHECK_FALSE(fragment->validate({{"inner", 1}}).has_value());
+    // A reference inside a resource does not reach the root's definitions.
+    CHECK_FALSE(
+        afd::CompiledSchema::compile(
+            afd::Json::parse(
+                R"({"type":"object","properties":{"inner":{"$id":"urn:afd:inner","$ref":"#/$defs/X"}},
+                        "$defs":{"X":{"type":"string"}}})"))
+            .has_value());
+}
+
 TEST_CASE("compile rejects broken and remote references") {
     CHECK_FALSE(afd::CompiledSchema::compile({{"$ref", "#/definitions/Missing"}}).has_value());
     CHECK_FALSE(afd::CompiledSchema::compile({{"$ref", "https://example.com/schema"}}).has_value());

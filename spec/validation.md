@@ -202,7 +202,7 @@ Every implementation supports these keywords, with the semantics below.
 | `minimum`, `maximum` | Inclusive bounds. |
 | `exclusiveMinimum`, `exclusiveMaximum` | Exclusive bounds, given as numbers (draft 6 and later). The draft-04 boolean form is not supported. |
 | `additionalProperties` | A boolean or a schema; see [Unknown keys](#unknown-keys). |
-| `$ref` | A local reference: `#`, `#/definitions/<name>` or `#/$defs/<name>`. References may be recursive, and they resolve against the root schema. |
+| `$ref` | A local reference: `#`, `#/definitions/<name>` or `#/$defs/<name>`. References may be recursive. They resolve against the nearest schema resource around them: the closest subschema with its own `$id` (see [Annotations](#annotations)), or else the root schema. |
 | `definitions`, `$defs` | Containers for `$ref` targets. TypeScript emits `definitions`. |
 | `default` | See [Defaults](#defaults). |
 
@@ -219,7 +219,13 @@ Those bounds apply like any others.
 ### Annotations
 
 These keywords are accepted and have no effect: `title`, `description`, `examples`, `deprecated`,
-`readOnly`, `writeOnly`, `$comment`, `$schema` and `$id`. `$id` does not change how `$ref` resolves.
+`readOnly`, `writeOnly`, `$comment` and `$schema`.
+
+`$id` adds no constraint, but a string `$id` starts a schema resource, as in Draft 2020-12: a
+`$ref` in that subschema, or in the subschema itself, resolves against it, so a structured-result
+envelope whose `data` schema has its own `$id` and `$defs` validates as written. A bare fragment
+such as `"#node"`, which draft-07 used as an anchor, starts no resource. The `$id` value is never
+resolved as a URI, and a `$ref` naming one is not part of the subset.
 
 ### Optional keywords
 

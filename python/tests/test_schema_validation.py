@@ -422,3 +422,107 @@ async def test_core_registry_validator_exception_cannot_invoke_handler():
     result = await registry.execute("recursive-check", {})
     assert result.error.code == "VALIDATION_ERROR"
     assert calls == []
+
+
+# The same `#/$defs/X` names one definition at the root and another inside a subschema with its
+# own `$id`, which starts a schema resource (spec/validation.md, "Annotations"; #1700).
+_TWO_RESOURCES = {
+    "type": "object",
+    "properties": {
+        "outer": {"$ref": "#/$defs/X"},
+        "inner": {
+            "$id": "urn:afd:inner",
+            "type": "object",
+            "properties": {"x": {"$ref": "#/$defs/X"}},
+            "$defs": {"X": {"type": "string"}},
+        },
+    },
+    "$defs": {"X": {"type": "number"}},
+}
+
+
+def test_a_ref_resolves_against_the_nearest_schema_resource():
+    from afd.core.schema_validation import SchemaValidationError, validate_schema
+
+    check_schema(_TWO_RESOURCES)
+    assert validate_schema(_TWO_RESOURCES, {"outer": 1, "inner": {"x": "a"}}) == {
+        "outer": 1,
+        "inner": {"x": "a"},
+    }
+    for value, path in (({"outer": 1, "inner": {"x": 1}}, "inner.x"), ({"outer": "a"}, "outer")):
+        with pytest.raises(SchemaValidationError) as raised:
+            validate_schema(_TWO_RESOURCES, value)
+        assert [issue["path"] for issue in raised.value.issues] == [path]
+
+
+def test_a_ref_inside_a_resource_does_not_reach_the_root_definitions():
+    schema = {
+        "type": "object",
+        "properties": {"inner": {"$id": "urn:afd:inner", "$ref": "#/$defs/X"}},
+        "$defs": {"X": {"type": "string"}},
+    }
+    with pytest.raises(ValueError, match="Unresolved"):
+        check_schema(schema)
+
+
+@pytest.mark.parametrize(
+    "schema",
+    [
+        # A `$ref` beside the recursion: the referenced `required` applies at every level.
+        {
+            "$id": "urn:afd:list",
+            "type": "object",
+            "$ref": "#/$defs/Base",
+            "properties": {"kind": {"type": "string"}, "next": {"$ref": "#"}},
+            "$defs": {"Base": {"type": "object", "required": ["kind"]}},
+        },
+        # An `anyOf` beside the recursion: the branch applies at every level.
+        {
+            "$id": "urn:afd:list",
+            "anyOf": [{"type": "object", "required": ["kind"]}],
+            "properties": {"kind": {"type": "string"}, "next": {"$ref": "#"}},
+        },
+    ],
+)
+def test_a_recursive_ref_beside_a_keyword_keeps_the_whole_resource(schema):
+    from afd.core.schema_validation import SchemaValidationError, validate_schema
+
+    check_schema(schema)
+    with pytest.raises(SchemaValidationError) as raised:
+        validate_schema(schema, {"kind": "a", "next": {"next": {}}})
+    assert raised.value.issues[0]["path"].startswith("next")
+
+
+def test_a_fragment_id_starts_no_resource():
+    from afd.core.schema_validation import SchemaValidationError, validate_schema
+
+    schema = {
+        "type": "object",
+        "properties": {"inner": {"$id": "#inner", "$ref": "#/$defs/X"}},
+        "$defs": {"X": {"type": "string"}},
+    }
+    check_schema(schema)
+    with pytest.raises(SchemaValidationError):
+        validate_schema(schema, {"inner": 1})
+
+
+def test_the_output_schema_reads_nullable_definitions_in_their_own_resource():
+    from afd.core.commands import command_result_output_schema
+
+    data = {
+        "type": "object",
+        "properties": {
+            "inner": {
+                "$id": "urn:afd:inner",
+                "type": "object",
+                "properties": {"x": {"$ref": "#/$defs/X"}},
+                "required": ["x"],
+                "$defs": {"X": {"type": ["string", "null"]}},
+            }
+        },
+        "required": ["inner"],
+        "$defs": {"X": {"type": "string"}},
+    }
+    inner = command_result_output_schema(data)["properties"]["data"]["properties"]["inner"]
+    # `x` accepts null, which the wire form omits, so it is no longer required.
+    assert "required" not in inner

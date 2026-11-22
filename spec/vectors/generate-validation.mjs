@@ -23,6 +23,27 @@ function toDefs(schema) {
 }
 
 /**
+ * The CommandResult envelope a tool advertises as its `outputSchema` when its `data` schema has its
+ * own `$id`: the definitions stay inside `data`, which starts a schema resource (#1474, #1700).
+ * packages/server/src/validation-vectors.test.ts checks it equals `commandResultOutputSchema`.
+ */
+function toResultEnvelope(id) {
+	return (schema) => {
+		const { $defs, ...rest } = toDefs(schema);
+		return {
+			type: 'object',
+			properties: {
+				success: { type: 'boolean' },
+				data: { $id: id, ...rest.properties.data, $defs },
+				error: { type: 'object' },
+				metadata: { type: 'object' },
+			},
+			required: ['success'],
+		};
+	};
+}
+
+/**
  * The cases, built with the caller's Zod so the schemas share its classes. `rewrite`, when present,
  * changes the advertised JSON Schema into an equivalent form TypeScript does not emit.
  */
@@ -369,6 +390,27 @@ export function validationCases(z) {
 			tests: [
 				test('Valid', { id: 'a', related: ['b'] }),
 				test('The referenced constraints apply', { id: 'a', related: [''] }),
+			],
+		},
+		{
+			id: 'ref-embedded-resource',
+			section: 'keywords',
+			description:
+				'A $ref inside a subschema with its own $id resolves against that subschema, which holds the $defs. The schema is the CommandResult envelope advertised for a data schema with an $id.',
+			zod: z.object({
+				success: z.boolean(),
+				data: z.object({ id: TodoId, related: z.array(TodoId).optional() }).optional(),
+				error: z.record(z.string(), z.unknown()).optional(),
+				metadata: z.record(z.string(), z.unknown()).optional(),
+			}),
+			rewrite: toResultEnvelope('https://afd.dev/schemas/todo-result'),
+			tests: [
+				test('Valid', { success: true, data: { id: 'a', related: ['b'] } }),
+				test('The referenced constraints apply', {
+					success: true,
+					data: { id: 'a', related: [''] },
+				}),
+				test('A referenced value of the wrong type', { success: true, data: { id: 1 } }),
 			],
 		},
 		{

@@ -50,6 +50,15 @@ _KEYWORDS = _ANNOTATIONS | {
 _FORMATS = {"email", "uuid", "date-time", "date", "time"}
 
 
+def starts_resource(schema: Any) -> bool:
+    """Whether ``schema`` starts a schema resource: it has its own string ``$id`` (Draft
+    2020-12) that is not a bare fragment, which draft-07 used as an anchor."""
+    if not isinstance(schema, dict):
+        return False
+    value = schema.get("$id")
+    return isinstance(value, str) and not value.startswith("#")
+
+
 def _reference(root: dict[str, Any], ref: str) -> dict[str, Any]:
     if ref == "#":
         return root
@@ -71,9 +80,13 @@ def check_schema(schema: dict[str, Any]) -> None:
     if not isinstance(schema, dict):
         raise TypeError("input_schema must be a JSON Schema object or a Pydantic model class")
 
-    def visit(node: Any, path: str) -> None:
+    def visit(node: Any, path: str, resource: dict[str, Any]) -> None:
         if not isinstance(node, dict):
             raise ValueError(f"Schema at {path} must be an object")
+        # A subschema with its own `$id` starts a schema resource (Draft 2020-12), and a local
+        # `$ref` inside it resolves against it.
+        if starts_resource(node):
+            resource = node
         for key, value in node.items():
             here = f"{path}/{key}"
             if key not in _KEYWORDS:
@@ -82,21 +95,21 @@ def check_schema(schema: dict[str, Any]) -> None:
                 if not isinstance(value, dict):
                     raise ValueError(f"Schema keyword {key!r} at {here} must be an object")
                 for name, child in value.items():
-                    visit(child, f"{here}/{name}")
+                    visit(child, f"{here}/{name}", resource)
             elif key in {"items", "not"}:
-                visit(value, here)
+                visit(value, here, resource)
             elif key == "additionalProperties":
                 if not isinstance(value, bool):
-                    visit(value, here)
+                    visit(value, here, resource)
             elif key in {"anyOf", "oneOf", "allOf"}:
                 if not isinstance(value, list) or not value:
                     raise ValueError(f"Schema keyword {key!r} at {here} must be a nonempty array")
                 for index, child in enumerate(value):
-                    visit(child, f"{here}/{index}")
+                    visit(child, f"{here}/{index}", resource)
             elif key == "$ref":
                 if not isinstance(value, str):
                     raise ValueError(f"$ref at {here} must be a string")
-                _reference(schema, value)
+                _reference(resource, value)
             elif key == "format" and value not in _FORMATS:
                 raise ValueError(f"Unsupported format {value!r} at {here}")
             elif key == "pattern":
@@ -139,7 +152,7 @@ def check_schema(schema: dict[str, Any]) -> None:
                 ):
                     raise ValueError(f"{key} at {here} must be a nonnegative integer")
 
-    visit(schema, "#")
+    visit(schema, "#", schema)
 
 
 def _utf16(value: str) -> str:

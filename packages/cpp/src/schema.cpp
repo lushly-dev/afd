@@ -97,13 +97,29 @@ const Json* resolve_pointer(const Json& root, std::string_view ref) {
     }
 }
 
-// Follows $ref until a schema without one. Returns nullptr on a broken or cyclic chain.
-const Json* follow_refs(const Json& root, const Json& schema) {
+// The schema resource `schema` belongs to: itself when it has its own string `$id` (Draft
+// 2020-12) that is not a bare fragment, which draft-07 used as an anchor; else `base`, the
+// resource around it. A local `$ref` resolves against its resource.
+const Json& resource_of(const Json& base, const Json& schema) {
+    if (schema.is_object()) {
+        if (const auto id = schema.find("$id");
+            id != schema.end() && id->is_string() &&
+            !id->get_ref<const std::string&>().starts_with('#')) {
+            return schema;
+        }
+    }
+    return base;
+}
+
+// Follows $ref until a schema without one. Returns nullptr on a broken or cyclic chain. `base`
+// is the resource of `schema` on entry and is left as the resource of the schema returned.
+const Json* follow_refs(const Json*& base, const Json& schema) {
     const Json* current = &schema;
     for (int hops = 0; hops < max_ref_chain; ++hops) {
         if (!current->is_object()) {
             return current;
         }
+        base = &resource_of(*base, *current);
         const auto ref = current->find("$ref");
         if (ref == current->end()) {
             return current;
@@ -111,7 +127,7 @@ const Json* follow_refs(const Json& root, const Json& schema) {
         if (!ref->is_string()) {
             return nullptr;
         }
-        current = resolve_pointer(root, ref->get_ref<const std::string&>());
+        current = resolve_pointer(*base, ref->get_ref<const std::string&>());
         if (current == nullptr) {
             return nullptr;
         }
@@ -156,7 +172,9 @@ int compare_size(std::size_t size, const Json& bound) {
 // Checks what validation can reach from `schema`: its own keywords, and each referenced schema
 // once. Definitions nothing references are ignored, as in JSON Schema, so a shared contract may
 // carry output-only definitions that use keywords outside the subset.
-using VisitedRefs = std::set<std::string>;
+// The $ref targets already checked, by address, since the same reference text names a
+// different target in each schema resource.
+using VisitedRefs = std::set<const Json*>;
 
 bool check_schema(const Json& root, const Json& schema, const std::string& path, int depth,
                   std::string& error, VisitedRefs& visited);
@@ -176,8 +194,9 @@ bool check_schema_map(const Json& root, const Json& map, const std::string& path
     return true;
 }
 
-bool check_schema(const Json& root, const Json& schema, const std::string& path, int depth,
+bool check_schema(const Json& outer, const Json& schema, const std::string& path, int depth,
                   std::string& error, VisitedRefs& visited) {
+    const Json& root = resource_of(outer, schema);
     if (depth > max_schema_depth) {
         error = schema_path(path) + ": schema is nested deeper than " +
                 std::to_string(max_schema_depth) + " levels";
@@ -269,13 +288,14 @@ bool check_schema(const Json& root, const Json& schema, const std::string& path,
                 error = schema_path(here) + ": only local references (\"#/...\") are supported";
                 return false;
             }
-            const Json* target = follow_refs(root, schema);
+            const Json* base = &root;
+            const Json* target = follow_refs(base, schema);
             if (target == nullptr) {
                 error = schema_path(here) + ": reference '" + ref + "' does not resolve";
                 return false;
             }
-            if (visited.insert(ref).second &&
-                !check_schema(root, *target, ref.size() > 2 ? ref.substr(2) : std::string(),
+            if (visited.insert(target).second &&
+                !check_schema(*base, *target, ref.size() > 2 ? ref.substr(2) : std::string(),
                               depth + 1, error, visited)) {
                 return false;
             }
@@ -357,7 +377,8 @@ const Json* default_of(const Json& root, const Json& property) {
             return &*own;
         }
     }
-    const Json* resolved = follow_refs(root, property);
+    const Json* base = &root;
+    const Json* resolved = follow_refs(base, property);
     if (resolved != nullptr && resolved->is_object()) {
         if (const auto inherited = resolved->find("default"); inherited != resolved->end()) {
             return &*inherited;
@@ -369,7 +390,7 @@ const Json* default_of(const Json& root, const Json& property) {
 class Validator {
 public:
     Validator(const Json& root, std::vector<ValidationIssue>& issues)
-        : root_(root), issues_(issues) {}
+        : resource_(&root), issues_(issues) {}
 
     Json run(const Json& raw_schema, const Json& value, const std::string& path,
              bool absent = false, int depth = 0) {
@@ -380,7 +401,9 @@ public:
                 "too_deep");
             return nullptr;
         }
-        const Json* schema = follow_refs(root_, raw_schema);
+        // The resource of the schema being walked, restored when this level returns.
+        const Restore restore{resource_, resource_};
+        const Json* schema = follow_refs(resource_, raw_schema);
         if (schema == nullptr || schema->is_boolean()) {
             if (schema != nullptr && !schema->get<bool>()) {
                 add(path, "Invalid input", "invalid_value");
@@ -552,7 +575,7 @@ private:
                         run(it.value(), *present, join_path(path, it.key()), false, depth + 1);
                     continue;
                 }
-                if (const Json* fallback = default_of(root_, it.value())) {
+                if (const Json* fallback = default_of(*resource_, it.value())) {
                     parsed[it.key()] = *fallback;
                 }
             }
@@ -608,13 +631,20 @@ private:
         return parsed;
     }
 
-    const Json& root_;
+    struct Restore {
+        const Json*& slot;
+        const Json* saved;
+        ~Restore() { slot = saved; }
+    };
+
+    const Json* resource_;
     std::vector<ValidationIssue>& issues_;
 };
 
 // TypeScript's extractSchemaInfo, for the top-level object shape.
 void describe_fields(const Json& root, const Json& input, ValidationFailure& failure) {
-    const Json* schema = follow_refs(root, root);
+    const Json* base = &root;
+    const Json* schema = follow_refs(base, root);
     if (schema == nullptr || !schema->is_object()) {
         return;
     }
@@ -643,7 +673,7 @@ void describe_fields(const Json& root, const Json& input, ValidationFailure& fai
         }
         const bool is_required = std::any_of(required->begin(), required->end(),
                                              [&](const Json& name) { return name == field; });
-        const bool has_default = default_of(root, (*properties)[field]) != nullptr;
+        const bool has_default = default_of(*base, (*properties)[field]) != nullptr;
         if (is_required && !has_default) {
             failure.missing_fields.push_back(field);
         }
