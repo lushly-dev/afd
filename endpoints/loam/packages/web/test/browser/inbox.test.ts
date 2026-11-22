@@ -23,6 +23,7 @@ import {
 	packApp,
 	serveDeployment,
 	serveDist,
+	setTheme,
 	settle,
 } from './harness';
 
@@ -73,7 +74,7 @@ const announced = (page: Page) =>
 		);
 
 describe('P4-E6: the inbox', () => {
-	it('lands a sticky toast, counts it on the Inbox button, and opens the inbox at it', async () => {
+	it('P4-E13: P4-E6: lands a sticky toast, counts it on the Inbox button, and opens the inbox at it', async () => {
 		const { page, errors } = await openShell(browser, site.origin);
 		await openApp(page, 'hello');
 		await expect.poll(() => inboxButton(page).getAttribute('aria-label')).toBe('Inbox');
@@ -107,7 +108,7 @@ describe('P4-E6: the inbox', () => {
 		await page.context().close();
 	});
 
-	it("runs a notice's action as the person from the inbox, opened from the palette, and ends it done", async () => {
+	it("P4-E13: P4-E6: runs a notice's action as the person from the inbox, opened from the palette, and ends it done", async () => {
 		const { page, errors } = await openShell(browser, site.origin);
 		await openApp(page, 'hello');
 		const pushed = await helloCall(page, 'notification-push', {
@@ -159,7 +160,7 @@ describe('P4-E6: the inbox', () => {
 		await page.context().close();
 	});
 
-	it("announces a new notice with the keyboard path to it, but never a muted app's", async () => {
+	it("P4-E13: P4-E6: announces a new notice with the keyboard path to it, but never a muted app's", async () => {
 		const { page, errors } = await openShell(browser, site.origin);
 		await openApp(page, 'hello');
 		await helloCall(page, 'notification-push', { title: 'Bea left a note' });
@@ -188,7 +189,7 @@ describe('P4-E6: the inbox', () => {
 		await page.context().close();
 	});
 
-	it('passes axe in three themes with notices of every kind shown', async () => {
+	it('P4-E13: P4-E6: passes axe in three themes with notices of every kind shown', async () => {
 		const { page } = await openShell(browser, site.origin);
 		await openApp(page, 'hello');
 		await helloCall(page, 'notification-push', {
@@ -205,10 +206,60 @@ describe('P4-E6: the inbox', () => {
 		await kernelCall(page, 'section-open', { section: 'inbox' });
 		await expect.poll(() => inbox(page).locator('.notice').count()).toBe(3);
 		for (const theme of ['light', 'dark', 'high-contrast'] as const) {
-			await kernelCall(page, 'appearance-set', { theme });
-			await settle(page);
+			await setTheme(page, theme);
+			await expect.poll(() => inbox(page).locator('.notice').count(), { message: theme }).toBe(3);
 			expect(await axe(page), theme).toEqual([]);
 		}
+		await page.context().close();
+	});
+});
+
+describe("P4-E13: the inbox's keyboard path from an announcement (15)", () => {
+	it("P4-E13: P4-E6: Tab, pressed from the title bar's name, reaches the bell in a few presses, and it opens the inbox", async () => {
+		const { page, errors } = await openShell(browser, site.origin);
+		await openApp(page, 'hello');
+		await helloCall(page, 'notification-push', { title: 'Bea left a note' });
+		await expect.poll(() => announced(page)).toContain('Open it from Inbox in the title bar');
+		// From a known point, the title bar's name, by real Tab presses alone, never a script's focus(): a press on text
+		// sets where sequential focus starts, so the path is the title bar's own controls before the bell.
+		// Off the rail, where `openApp`'s click left the pointer, so no rail tooltip is open.
+		await page.mouse.move(700, 500);
+		await page.locator('loam-titlebar .name').click();
+		const path: string[] = [];
+		for (let press = 0; press < 6; press++) {
+			await page.keyboard.press('Tab');
+			const now = await focused(page);
+			path.push(now.label);
+			if (now.hosts.includes('loam-titlebar') && now.label.startsWith('Inbox')) break;
+		}
+		// Short: New and Search, then the bell.
+		expect(path.length, path.join(' > ')).toBeLessThanOrEqual(3);
+		const bell = await focused(page);
+		expect(bell.hosts, path.join(' > ')).toContain('loam-titlebar');
+		expect(bell.label).toBe('Inbox 1 unread');
+		await page.keyboard.press('Enter');
+		await expect.poll(() => inbox(page).count()).toBe(1);
+		expect(errors).toEqual([]);
+		await page.context().close();
+	});
+
+	it('P4-E13: P4-E6: Mod+K and "Open inbox" lists a row labelled "Open inbox", which opens the inbox', async () => {
+		const { page, errors } = await openShell(browser, site.origin);
+		await openApp(page, 'hello');
+		await helloCall(page, 'notification-push', { title: 'Bea left a note' });
+		await expect.poll(() => announced(page)).toContain('or from the palette');
+		await page.keyboard.press('ControlOrMeta+K');
+		// The palette's input has focus before a key is typed into it.
+		await expect.poll(async () => (await focused(page)).tag).toBe('input');
+		expect((await focused(page)).hosts).toContain('loam-palette');
+		await page.keyboard.type('Open inbox');
+		expect(await page.locator('loam-palette input').inputValue()).toBe('Open inbox');
+		const row = page.locator('loam-palette violet-option').first();
+		await expect.poll(() => row.getAttribute('data-command')).toBe('inbox:open');
+		expect((await row.locator('.result-name').textContent())?.trim()).toBe('Open inbox');
+		await page.keyboard.press('Enter');
+		await expect.poll(() => inbox(page).count()).toBe(1);
+		expect(errors).toEqual([]);
 		await page.context().close();
 	});
 });

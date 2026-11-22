@@ -1,15 +1,23 @@
-import { type Browser, chromium } from 'playwright';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { type Browser, type BrowserContext, chromium, type Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
 	agentCall,
+	type DeploymentSite,
 	deploymentEntry,
 	deploymentFile,
 	journal,
+	kernelCall,
+	measureFirstPaint,
+	openApp,
 	openPage,
 	openShell,
 	packApp,
 	serveDeployment,
 	serveDist,
+	settle,
+	surfacesIdle,
 } from './harness';
 
 let browser: Browser;
@@ -118,7 +126,7 @@ describe('the built shell', () => {
 
 	// Amended by phase 4's step 7 (its 8.3, R9): a chord pressed before the person's overrides are known runs nothing,
 	// so the palette opens on a fresh press once they are, never on the early one.
-	it('paints with the late chunk held, runs no chord pressed before it answers, and one pressed after', async () => {
+	it('P4-E12: paints with the late chunk held, runs no chord pressed before it answers, and one pressed after', async () => {
 		const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
 		let release: () => void = () => {};
 		const held = new Promise<void>((resolve) => {
@@ -242,5 +250,154 @@ describe('the built shell', () => {
 		expect(await main()).toEqual({ heading: 'Could not load. Reload to try again.', busy: null });
 		await context.close();
 		await hello.close();
+	});
+});
+
+/** A built chunk's path by its name, with Vite's eight-character hash. */
+const chunk = (name: string) => new RegExp(`/assets/${name}-[\\w-]{8}\\.js$`);
+/** Which of `names` a page has requested, in `names`' order. */
+const requestedOf = (requested: readonly string[], names: readonly string[]) =>
+	names.filter((name) => requested.some((path) => chunk(name).test(path)));
+const LAZY = ['settings', 'inbox', 'overlays'] as const;
+
+/** Through stage B's end: its mark taken, then the kernel's apps ready, which waits on `late` and its chunks. */
+const stageB = async (page: Page) => {
+	await page.waitForFunction(() => performance.getEntriesByName('loam-stage-b').length > 0);
+	await page.evaluate(async () => {
+		const shell = document.querySelector('loam-shell') as unknown as {
+			kernel: { appsReady: Promise<void> };
+		};
+		await shell.kernel.appsReady;
+	});
+};
+
+/** A fresh context whose every request is recorded from the navigation on, by path. */
+async function recorded(): Promise<{ context: BrowserContext; requested: string[] }> {
+	const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+	const requested: string[] = [];
+	context.on('request', (request) => requested.push(new URL(request.url()).pathname));
+	return { context, requested };
+}
+
+describe("P4-E12: phase 4's chunks in Chromium", () => {
+	let hello: DeploymentSite;
+	beforeAll(async () => {
+		hello = await serveDeployment({
+			config: deploymentFile(deploymentEntry('hello', await packApp('hello'))),
+		});
+	});
+	afterAll(async () => {
+		await hello?.close();
+	});
+
+	it("P4-E12: an empty local shell's stage B requests `late-settings`, and none of `settings`, `inbox` or `overlays`", async () => {
+		const { context, requested } = await recorded();
+		try {
+			// A plain page, and no command run on it: `late-settings` is stage B's own load, never a call's.
+			const { page, errors } = await openPage(browser, site.origin, {}, context);
+			await page.waitForFunction(() => document.documentElement.dataset.loamHost === 'web');
+			await stageB(page);
+			const atStageB = [...requested];
+			expect(requestedOf(atStageB, ['late-settings'])).toEqual(['late-settings']);
+			expect(requestedOf(atStageB, LAZY)).toEqual([]);
+			// Nor once the surfaces are idle.
+			await surfacesIdle(page);
+			expect(requestedOf(requested, LAZY)).toEqual([]);
+			expect(errors).toEqual([]);
+		} finally {
+			await context.close();
+		}
+	});
+
+	/**
+	 * A shell over hello in a fresh context, at stage B's end with no lazy chunk requested, `before` run, and then the
+	 * paths requested from `trigger` on.
+	 */
+	async function requestedSince(
+		trigger: (page: Page) => Promise<void>,
+		before: (page: Page) => Promise<void> = async () => {}
+	): Promise<string[]> {
+		const { context, requested } = await recorded();
+		try {
+			// `agents: 'ask'` runs no `autonomy-set`, so the shell opens with no command of `late-settings`.
+			const { page, errors } = await openShell(browser, hello.origin, { agents: 'ask' }, context);
+			await stageB(page);
+			await surfacesIdle(page);
+			await before(page);
+			expect(requestedOf(requested, LAZY)).toEqual([]);
+			const checkpoint = requested.length;
+			await trigger(page);
+			// Let the trigger's loads finish, so a second chunk requested a moment later is counted too.
+			await surfacesIdle(page);
+			await settle(page);
+			expect(errors).toEqual([]);
+			return requested.slice(checkpoint);
+		} finally {
+			await context.close();
+		}
+	}
+
+	it('P4-E12: opening the settings section requests `settings` alone of the three', async () => {
+		const since = await requestedSince(async (page) => {
+			await kernelCall(page, 'section-open', { section: 'settings' });
+			await expect
+				.poll(() => page.locator('loam-main loam-settings-section [role="tree"]').count())
+				.toBe(1);
+		});
+		expect(requestedOf(since, LAZY)).toEqual(['settings']);
+	});
+
+	it("P4-E12: pressing the title bar's Inbox requests `inbox` alone of the three", async () => {
+		const since = await requestedSince(async (page) => {
+			await page.locator('loam-titlebar button.inbox').click();
+			await expect.poll(() => page.locator('loam-main loam-inbox h1').count()).toBe(1);
+		});
+		expect(requestedOf(since, LAZY)).toEqual(['inbox']);
+	});
+
+	it("P4-E12: an app's dialog requests `overlays` alone of the three", async () => {
+		const since = await requestedSince(
+			async (page) => {
+				const opened = (await page.evaluate(() => {
+					const shell = document.querySelector('loam-shell') as unknown as {
+						kernel: {
+							appPort(instance: string): { call(name: string, input: unknown): Promise<unknown> };
+						};
+					};
+					return shell.kernel.appPort('hello').call('dialog-open', { title: 'A card', body: 'B' });
+				})) as { success: boolean };
+				expect(opened.success).toBe(true);
+				await expect.poll(() => page.locator('loam-modal dialog[open]').count()).toBe(1);
+			},
+			// Hello opens first, and requests none of the three itself.
+			async (page) => {
+				await openApp(page, 'hello');
+				await surfacesIdle(page);
+			}
+		);
+		expect(requestedOf(since, LAZY)).toEqual(['overlays']);
+	});
+
+	it("P4-E12: an empty local shell's first paint requests exactly `budget`'s first-paint chunks", async () => {
+		// The list `budget` holds first paint to, read from its own source so the two cannot part (as P3-E10's).
+		const source = readFileSync(
+			fileURLToPath(new URL('../../scripts/budget.mjs', import.meta.url)),
+			'utf8'
+		);
+		const listed = /const FIRST_PAINT_CHUNKS = \[([^\]]+)\]/.exec(source)?.[1] ?? '';
+		const expected = [...listed.matchAll(/'([\w-]+)'/g)].map((match) => match[1]).sort();
+		expect(expected.length).toBeGreaterThan(10);
+		const opened = await openShell(browser, site.origin);
+		try {
+			const requested = (await measureFirstPaint(opened.page))
+				.filter((path) => /\/assets\/[\w.-]+\.js$/.test(path))
+				.map((path) => path.replace(/^.*\/assets\//, '').replace(/-[\w-]{8}\.js$/, ''))
+				.sort();
+			expect(requested).toEqual(expected);
+			// None of phase 4's chunks is among them.
+			expect(requested.filter((name) => ['late-settings', ...LAZY].includes(name))).toEqual([]);
+		} finally {
+			await opened.context.close();
+		}
 	});
 });

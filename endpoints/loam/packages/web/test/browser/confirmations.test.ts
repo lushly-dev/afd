@@ -26,6 +26,7 @@ import {
 	openShell,
 	packApp,
 	serveDeployment,
+	setTheme,
 	settle,
 } from './harness';
 
@@ -91,7 +92,7 @@ const announced = (page: Page) =>
 		);
 
 describe('P4-E8: confirmations', () => {
-	it("R9: an agent's reset waits in the inbox, announced, and runs once the person confirms it there", async () => {
+	it("P4-E13: P4-E8: R9: an agent's reset waits in the inbox, announced, and runs once the person confirms it there", async () => {
 		const { page, errors } = await openShell(browser, site.origin);
 		await openApp(page, 'tally');
 		await kernelCall(page, 'tally-add', { by: 3 });
@@ -145,7 +146,7 @@ describe('P4-E8: confirmations', () => {
 		await page.context().close();
 	});
 
-	it("R7: a person's own reset asks in the slot, signed out, Decline focused, and runs on their Confirm", async () => {
+	it("P4-E13: P4-E8: R7: a person's own reset asks in the slot, signed out, Decline focused, and runs on their Confirm", async () => {
 		const { page, errors } = await openShell(browser, site.origin);
 		await openApp(page, 'hello');
 		await kernelCall(page, 'tally-add', { by: 4 });
@@ -164,7 +165,11 @@ describe('P4-E8: confirmations', () => {
 			'Set the total back to zero'
 		);
 		expect(await dialog.locator('.details').textContent()).toBe('No input');
-		// The header is the dialog's name (15); focus is on Decline, never Confirm (step 4's record).
+		// The header is the dialog's name (15): the role's own name, not only the heading's text.
+		expect(
+			await page.getByRole('dialog', { name: 'Run Reset the tally?', exact: true }).count()
+		).toBe(1);
+		// Focus is on Decline, never Confirm (step 4's record).
 		await expect.poll(async () => (await focused(page)).label).toBe('Decline');
 		await dialog.locator('button', { hasText: 'Confirm' }).click();
 		await expect.poll(() => slot(page).count()).toBe(0);
@@ -173,13 +178,18 @@ describe('P4-E8: confirmations', () => {
 		await page.context().close();
 	});
 
-	it("the active app's port asks with the shell's header, and its decline holds the port back", async () => {
+	it("P4-E13: P4-E8: the active app's port asks with the shell's header, and its decline holds the port back", async () => {
 		const { page, errors } = await openShell(browser, site.origin);
 		await openApp(page, 'tally');
 		await kernelCall(page, 'tally-add', { by: 5 });
 		await start(page, 'tally-reset', {}, 'tally');
 		await expect.poll(() => slot(page).count()).toBe(1);
 		expect(await slot(page).locator('h2').textContent()).toBe('Tally asks to run Reset the tally');
+		expect(
+			await page
+				.getByRole('dialog', { name: 'Tally asks to run Reset the tally', exact: true })
+				.count()
+		).toBe(1);
 		await slot(page).locator('button', { hasText: 'Decline' }).click();
 		await expect.poll(async () => (await settled(page))?.error?.code).toBe('CONFIRMATION_DECLINED');
 		// R16: held by the window, without asking again.
@@ -405,30 +415,22 @@ describe('P4-E8: confirmations', () => {
 		await context.close();
 	});
 
-	it('passes axe in three themes with a confirmation in the slot and one in the inbox', async () => {
+	it('P4-E13: P4-E8: passes axe in three themes with a confirmation in the slot and one in the inbox', async () => {
 		const { page } = await openShell(browser, site.origin);
 		await openApp(page, 'hello');
 		await agentCall(page, 'tally-reset', {});
 		await kernelCall(page, 'section-open', { section: 'inbox' });
 		await expect.poll(() => inbox(page).locator('.notice').count()).toBe(1);
 		for (const theme of ['light', 'dark', 'high-contrast'] as const) {
-			await kernelCall(page, 'appearance-set', { theme });
-			await settle(page);
+			await setTheme(page, theme);
+			await expect.poll(() => inbox(page).locator('.notice').count(), { message: theme }).toBe(1);
 			expect(await axe(page), theme).toEqual([]);
 		}
 		await start(page, 'tally-reset', {}, 'person');
 		await expect.poll(() => slot(page).count()).toBe(1);
 		for (const theme of ['light', 'dark', 'high-contrast'] as const) {
-			await page.evaluate(
-				(theme) =>
-					(
-						document.querySelector('loam-shell') as unknown as {
-							kernel: { call(name: string, input: unknown): Promise<unknown> };
-						}
-					).kernel.call('appearance-set', { theme }),
-				theme
-			);
-			await settle(page);
+			await setTheme(page, theme);
+			await expect.poll(() => slot(page).count(), { message: theme }).toBe(1);
 			expect(await axe(page), theme).toEqual([]);
 		}
 		await page.context().close();

@@ -755,6 +755,54 @@
 			"title": "Loam/Identity/AccountAgents",
 			"module": "./identity.specimens.ts",
 			"exportName": "IdentityAccountAgents"
+		},
+		{
+			"id": "settings-section",
+			"title": "Loam/Settings/Section",
+			"module": "./settings.specimens.ts",
+			"exportName": "SettingsSection"
+		},
+		{
+			"id": "settings-keybinding-shadowed",
+			"title": "Loam/Settings/KeybindingShadowed",
+			"module": "./settings.specimens.ts",
+			"exportName": "SettingsKeybindingShadowed"
+		},
+		{
+			"id": "settings-autonomy",
+			"title": "Loam/Settings/Autonomy",
+			"module": "./settings.specimens.ts",
+			"exportName": "SettingsAutonomy"
+		},
+		{
+			"id": "settings-inbox",
+			"title": "Loam/Settings/Inbox",
+			"module": "./settings.specimens.ts",
+			"exportName": "SettingsInbox"
+		},
+		{
+			"id": "settings-popover-menu",
+			"title": "Loam/Settings/PopoverMenu",
+			"module": "./settings.specimens.ts",
+			"exportName": "SettingsPopoverMenu"
+		},
+		{
+			"id": "settings-dialog",
+			"title": "Loam/Settings/Dialog",
+			"module": "./settings.specimens.ts",
+			"exportName": "SettingsDialog"
+		},
+		{
+			"id": "settings-prompt",
+			"title": "Loam/Settings/Prompt",
+			"module": "./settings.specimens.ts",
+			"exportName": "SettingsPrompt"
+		},
+		{
+			"id": "settings-confirmation",
+			"title": "Loam/Settings/Confirmation",
+			"module": "./settings.specimens.ts",
+			"exportName": "SettingsConfirmation"
 		}
 	]
 }

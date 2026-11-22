@@ -18,6 +18,7 @@ import {
 	openShell,
 	packApp,
 	serveDeployment,
+	setTheme,
 	settle,
 } from './harness';
 
@@ -180,11 +181,13 @@ describe('P4-E10: the limits', () => {
 		await page.close();
 	});
 
-	it('passes axe in three themes', async () => {
+	it('P4-E13: P4-E10: passes axe in three themes', async () => {
 		const page = await openLimits();
 		for (const theme of ['light', 'dark', 'high-contrast'] as const) {
-			await kernelCall(page, 'appearance-set', { theme });
-			await settle(page);
+			await setTheme(page, theme);
+			await expect
+				.poll(() => section(page).locator('#field-callsPerSecond').count(), { message: theme })
+				.toBe(1);
 			expect(await axe(page), theme).toEqual([]);
 		}
 		await page.close();

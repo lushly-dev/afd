@@ -20,6 +20,7 @@ import {
 	openShell,
 	packApp,
 	serveDeployment,
+	setTheme,
 	settle,
 } from './harness';
 
@@ -169,7 +170,7 @@ describe('P4-E1: an app’s setting, from the palette, scoped per project', () =
 });
 
 describe('P4-E1: the settings section by keyboard, and under axe (15)', () => {
-	it('moves through the tree and the level switcher, and passes axe in three themes', async () => {
+	it('P4-E13: P4-E1: moves through the tree and the level switcher, and passes axe in three themes', async () => {
 		const { page } = await inAtlas();
 		await kernelCall(page, 'section-open', { section: 'settings' });
 		const view = section(page);
@@ -222,14 +223,72 @@ describe('P4-E1: the settings section by keyboard, and under axe (15)', () => {
 		expect((await focused(page)).role).toBe('tab');
 
 		for (const theme of ['light', 'dark', 'high-contrast'] as const) {
-			await kernelCall(page, 'appearance-set', { theme });
-			await settle(page);
-			for (const target of ['loam.appearance', 'hello.general', 'loam.keybindings']) {
-				await kernelCall(page, 'section-open', { section: 'settings', target });
+			await setTheme(page, theme);
+			for (const [target, title] of [
+				['loam.appearance', 'Appearance'],
+				['hello.general', 'General'],
+				['loam.keybindings', 'Keybindings'],
+			] as const) {
+				expect(
+					await kernelCall(page, 'section-open', { section: 'settings', target }),
+					`${theme} ${target}`
+				).toMatchObject({ success: true });
+				// The intended section shows, its tree item selected and its heading in, before the scan.
+				await expect
+					.poll(() => view.locator('[role="treeitem"][aria-selected="true"]').textContent())
+					.toBe(title);
+				await expect.poll(() => view.locator('#settings-section-title').textContent()).toBe(title);
 				await settle(page);
 				expect(await axe(page), `${theme} ${target}`).toEqual([]);
 			}
 		}
+		await page.close();
+	});
+});
+
+describe("P4-E13: the settings section's roles and names (15)", () => {
+	it('P4-E13: is a tree, a tab list of its levels ("You, everywhere", "Workspace", "Project <name>"), and a panel of labelled fields', async () => {
+		const { page } = await inAtlas();
+		const view = section(page);
+		// A person's section: one level, "You, everywhere".
+		await kernelCall(page, 'section-open', { section: 'settings', target: 'loam.appearance' });
+		await expect.poll(() => view.getByRole('tree', { name: 'Settings sections' }).count()).toBe(1);
+		const people = view.getByRole('tablist', { name: 'Where Appearance applies' });
+		await expect.poll(() => people.count()).toBe(1);
+		expect(await people.getByRole('tab').allTextContents()).toEqual(['You, everywhere']);
+		expect(
+			await people
+				.getByRole('tab', { name: 'You, everywhere', exact: true, selected: true })
+				.count()
+		).toBe(1);
+		// The fields' panel is named by its tab, and each field by its key's title.
+		expect(await view.getByRole('tabpanel', { name: 'You, everywhere', exact: true }).count()).toBe(
+			1
+		);
+		// A section of the workspace and the project: "Workspace" and "Project Atlas", the project's chosen.
+		await kernelCall(page, 'section-open', { section: 'settings', target: 'hello.general' });
+		const levels = view.getByRole('tablist', { name: 'Where General applies' });
+		await expect
+			.poll(() => levels.getByRole('tab').allTextContents())
+			.toEqual(['Workspace', 'Project Atlas']);
+		expect(
+			await levels.getByRole('tab', { name: 'Project Atlas', exact: true, selected: true }).count()
+		).toBe(1);
+		const panel = view.getByRole('tabpanel', { name: 'Project Atlas', exact: true });
+		expect(await panel.count()).toBe(1);
+		expect(await panel.getByRole('textbox', { name: 'Greeting', exact: true }).count()).toBe(1);
+		expect(await view.getByRole('button', { name: 'Reset Greeting', exact: true }).count()).toBe(1);
+		// A custom editor's form, named (3.7).
+		await kernelCall(page, 'section-open', {
+			section: 'settings',
+			target: 'loam.keybindings.overrides',
+		});
+		const form = view
+			.locator('loam-keybinding-editor')
+			.getByRole('form', { name: 'Add an override' });
+		await expect.poll(() => form.count()).toBe(1);
+		expect(await form.getByRole('combobox', { name: 'Command', exact: true }).count()).toBe(1);
+		expect(await form.getByRole('button', { name: 'Add', exact: true }).count()).toBe(1);
 		await page.close();
 	});
 });

@@ -20,6 +20,7 @@ import {
 	openShell,
 	packApp,
 	serveDeployment,
+	setTheme,
 	surfacesIdle,
 } from '../harness';
 
@@ -157,7 +158,7 @@ describe('P4-E7: dialogs (6.1 to 6.4)', () => {
 });
 
 describe('P4-E7: prompts and the slot (6.1, 6.4, 6.5, section 15)', () => {
-	it('opens a prompt aria-modal, shows a refused value in place, and answers with the value', async () => {
+	it('P4-E13: P4-E7: opens a prompt aria-modal, shows a refused value in place, and answers with the value', async () => {
 		const { page, errors } = await openShell(browser, site.origin);
 		const opened = (await kernelCall(page, 'prompt-open', {
 			title: 'How many?',
@@ -240,6 +241,78 @@ describe('P4-E7: prompts and the slot (6.1, 6.4, 6.5, section 15)', () => {
 	});
 });
 
+describe('P4-E13: modals and dialogs, their roles and axe in three themes (15)', () => {
+	it("P4-E13: P4-E7: an app's own modal is aria-modal, named by its title", async () => {
+		const { page, errors } = await openShell(browser, site.origin);
+		await openApp(page, 'hello');
+		const opened = await portCall(page, 'hello', 'modal-open', {
+			title: 'Keep the guest book?',
+			body: 'Hello asks.',
+		});
+		expect(opened.success).toBe(true);
+		await expect
+			.poll(() => questions(page))
+			.toEqual([
+				expect.objectContaining({
+					modal: true,
+					ariaModal: 'true',
+					from: 'From Hello',
+					title: 'Keep the guest book?',
+				}),
+			]);
+		const dialog = page.getByRole('dialog', { name: 'Keep the guest book?', exact: true });
+		expect(await dialog.count()).toBe(1);
+		expect(await dialog.getAttribute('aria-modal')).toBe('true');
+		await page.keyboard.press('Escape');
+		await expect.poll(() => overlays(page)).toEqual([]);
+		expect(errors).toEqual([]);
+		await page.context().close();
+	});
+
+	it("P4-E13: P4-E7: an app's dialog with actions and the shell's prompt pass axe in light, dark and high contrast", async () => {
+		const { page, errors } = await openShell(browser, site.origin);
+		await openApp(page, 'hello');
+		for (const theme of ['light', 'dark', 'high-contrast'] as const) {
+			await setTheme(page, theme);
+			await surfacesIdle(page);
+			const shown = await portCall(page, 'hello', 'dialog-open', {
+				title: 'A card',
+				body: 'From the app.',
+				actions: [
+					{ id: 'later', label: 'Later' },
+					{ id: 'keep', label: 'Keep', default: true },
+				],
+			});
+			expect(shown.success).toBe(true);
+			const dialog = page.getByRole('dialog', { name: 'A card', exact: true });
+			await expect.poll(() => dialog.count()).toBe(1);
+			expect(await dialog.getAttribute('aria-modal')).toBeNull();
+			expect(await dialog.getByRole('button').allTextContents()).toEqual([
+				'Cancel',
+				'Later',
+				'Keep',
+			]);
+			expect(await axe(page), `${theme} dialog`).toEqual([]);
+			expect(await press(page, 'A card', 'Keep')).toBe(true);
+			await expect.poll(() => overlays(page)).toEqual([]);
+
+			const prompt = (await kernelCall(page, 'prompt-open', {
+				title: 'How many?',
+				schema: { type: 'integer', title: 'Count', minimum: 1, maximum: 9 },
+			})) as Result;
+			expect(prompt.success).toBe(true);
+			const asked = page.getByRole('dialog', { name: 'How many?', exact: true });
+			await expect.poll(() => asked.count()).toBe(1);
+			expect(await asked.getAttribute('aria-modal')).toBe('true');
+			expect(await axe(page), `${theme} prompt`).toEqual([]);
+			await page.keyboard.press('Escape');
+			await expect.poll(() => overlays(page)).toEqual([]);
+		}
+		expect(errors).toEqual([]);
+		await page.context().close();
+	});
+});
+
 describe('P4-E7: the global strip (6.1)', () => {
 	it('shows a status under the title bar, keeps it across a switch, and closes it with its condition', async () => {
 		const { page } = await openShell(browser, site.origin);
@@ -282,6 +355,35 @@ describe('P4-E7: the global strip (6.1)', () => {
 		await kernelCall(page, 'overlay-global-set', { id: 'offline' });
 		await surfacesIdle(page);
 		await expect.poll(async () => (await strip()).hidden).toBe(true);
+	});
+});
+
+describe('P4-E13: the global strip under axe in three themes (15)', () => {
+	it('P4-E13: P4-E7: a status under the title bar, a polite region, passes axe in light, dark and high contrast', async () => {
+		const { page, errors } = await openShell(browser, site.origin);
+		await openApp(page, 'hello');
+		expect(
+			(
+				(await kernelCall(page, 'overlay-global-set', {
+					id: 'offline',
+					message: 'You are offline',
+					tone: 'warning',
+				})) as Result
+			).success
+		).toBe(true);
+		const strip = page.locator('loam-global');
+		await expect.poll(() => strip.locator('p').textContent()).toBe('You are offline');
+		expect(await strip.getAttribute('role')).toBe('status');
+		expect(await strip.getAttribute('aria-live')).toBe('polite');
+		for (const theme of ['light', 'dark', 'high-contrast'] as const) {
+			await setTheme(page, theme);
+			await surfacesIdle(page);
+			// The strip still shows through the change of theme, before the scan.
+			expect(await strip.locator('p').textContent(), theme).toBe('You are offline');
+			expect(await axe(page), theme).toEqual([]);
+		}
+		expect(errors).toEqual([]);
+		await page.context().close();
 	});
 });
 

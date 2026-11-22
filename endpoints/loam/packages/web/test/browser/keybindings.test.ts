@@ -22,6 +22,7 @@ import {
 	openShell,
 	packApp,
 	serveDeployment,
+	setTheme,
 	settle,
 } from './harness';
 
@@ -229,7 +230,7 @@ describe('P4-E9: keybindings', () => {
 		await page.close();
 	});
 
-	it('records a sequence in the editor, warns before it shadows or begins on a reserved chord, and passes axe', async () => {
+	it('P4-E13: P4-E9: records a sequence in the editor, warns before it shadows or begins on a reserved chord, and passes axe', async () => {
 		const { page } = await openShell(browser, site.origin);
 		await kernelCall(page, 'section-open', {
 			section: 'settings',
@@ -248,6 +249,13 @@ describe('P4-E9: keybindings', () => {
 			.toBe(
 				"Recorded Mod+Shift+H. Mod+Shift+H runs hello-greet, the app's; this binding would shadow it."
 			);
+		// Said by the editor's live region (15): a `status`, polite, that holds the chord and the shadowing.
+		const region = keys.getByRole('status');
+		expect(await region.count()).toBe(1);
+		expect(await region.getAttribute('aria-live')).toBe('polite');
+		expect(await region.textContent()).toBe(
+			"Recorded Mod+Shift+H. Mod+Shift+H runs hello-greet, the app's; this binding would shadow it."
+		);
 		// A sequence: a second key pressed at once after the Mod chord.
 		await keys.locator('#override-record').click();
 		await page.keyboard.press('ControlOrMeta+KeyG');
@@ -282,6 +290,29 @@ describe('P4-E9: keybindings', () => {
 			.toBe('F6 moves focus between the parts: it is never rebound or unbound.');
 		await settle(page);
 		expect(await axe(page)).toEqual([]);
+		await page.close();
+	});
+
+	it('P4-E13: P4-E9: the editor with a shadowing warning passes axe in light, dark and high contrast', async () => {
+		const { page } = await openShell(browser, site.origin);
+		await kernelCall(page, 'section-open', {
+			section: 'settings',
+			target: 'loam.keybindings.overrides',
+		});
+		const keys = page.locator('loam-main loam-settings-section loam-keybinding-editor');
+		await keys.locator('#override-command').fill('section-open');
+		await keys.locator('#override-target').fill('projects');
+		await keys.locator('#override-record').click();
+		await page.keyboard.press('ControlOrMeta+Shift+KeyH');
+		const warning =
+			"Recorded Mod+Shift+H. Mod+Shift+H runs hello-greet, the app's; this binding would shadow it.";
+		await expect.poll(() => keys.getByRole('status').textContent()).toBe(warning);
+		for (const theme of ['light', 'dark', 'high-contrast'] as const) {
+			await setTheme(page, theme);
+			// The warning stays through a change of theme, which writes no override.
+			expect(await keys.getByRole('status').textContent(), theme).toBe(warning);
+			expect(await axe(page), theme).toEqual([]);
+		}
 		await page.close();
 	});
 
