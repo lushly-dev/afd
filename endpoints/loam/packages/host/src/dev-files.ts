@@ -12,6 +12,7 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { restrictAcls } from './acl.js';
 import { HostError } from './errors.js';
+import { accessFindings } from './secrets.js';
 
 export const DEV_FILE = 'dev.json';
 export const MAIL_FILE = 'mail.jsonl';
@@ -100,12 +101,21 @@ export async function ensureCertificate(data: string): Promise<DevCertificate> {
 		}
 	})();
 	if (!valid) {
+		// A key someone loosened is refused before a renewal would replace it, as the host's check refuses it when it
+		// is kept: it may have been read meanwhile.
+		if (existsSync(key)) {
+			const loose = accessFindings([{ path: key, key: 'tls.key_file', kind: 'file' }])[0];
+			if (loose) throw new HostError([loose]);
+		}
 		await rm(certificate, { force: true });
 		await rm(key, { force: true });
 		await makeCertificate(certificate, key);
+		// The key exactly 0600 once made, whatever the umask; never re-moded later, so a key someone loosened since
+		// refuses the start (`HOST_SECRET_PERMISSIONS`) rather than being tightened silently.
+		await chmod(key, 0o600);
 	}
+	// The certificate is no secret: it is made 0600 on every run, as every file the profile writes is (5.1).
 	await chmod(certificate, 0o600);
-	await chmod(key, 0o600);
 	return { certificate, key, spki: spkiOf(await readFile(certificate)) };
 }
 
@@ -152,13 +162,20 @@ async function makeCertificate(certificate: string, key: string): Promise<void> 
 	}
 }
 
-/** The generated 32-byte auth secret, kept until the directory goes; base64url, so 43 characters. */
+/**
+ * The generated 32-byte auth secret, kept until the directory goes; base64url, so 43 characters. Made exactly
+ * 0600 (a restrictive umask could leave it tighter, and unreadable) and never re-moded: a secret someone loosened
+ * since refuses the start (`HOST_SECRET_PERMISSIONS`, P6-H7) rather than being tightened silently, since it may
+ * have been read meanwhile.
+ */
 export async function ensureAuthSecret(data: string): Promise<string> {
 	const directory = join(data, SECRETS_DIRECTORY);
 	await privateDirectory(directory);
 	const path = join(directory, 'auth');
-	if (!existsSync(path)) await writePrivate(path, `${randomBytes(32).toString('base64url')}\n`);
-	await chmod(path, 0o600);
+	if (!existsSync(path)) {
+		await writePrivate(path, `${randomBytes(32).toString('base64url')}\n`);
+		await chmod(path, 0o600);
+	}
 	return path;
 }
 

@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync } from 'node:fs';
-import { chmod, mkdir, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
@@ -14,7 +14,8 @@ import {
 	writeDevPorts,
 } from './dev-files.js';
 import { HostError } from './errors.js';
-import { expectMode, temporaryDirectory } from './test-support.js';
+import { resolveSecrets } from './secrets.js';
+import { expectMode, loosen, serverConfig, temporaryDirectory } from './test-support.js';
 
 describe("the development profile's files (5.1)", () => {
 	it('makes the certificate once, 0600 in a 0700 directory, and reuses it', async () => {
@@ -47,6 +48,76 @@ describe("the development profile's files (5.1)", () => {
 		expectMode(path, 0o600);
 		await ensureAuthSecret(data);
 		expect(readFileSync(path, 'utf8')).toBe(secret);
+	});
+
+	it('P6-H7: never re-modes a loosened auth secret or TLS key, so the host refuses each as HOST_SECRET_PERMISSIONS', async () => {
+		const data = join(await temporaryDirectory(), 'data');
+		await mkdir(data, { mode: 0o700 });
+		const secret = await ensureAuthSecret(data);
+		const { certificate, key } = await ensureCertificate(data);
+		const server = serverConfig(data, {
+			auth: { secret_file: secret },
+			tls: { cert_file: certificate, key_file: key },
+		});
+		expect(resolveSecrets(server).refusals).toEqual([]);
+		for (const path of [secret, key]) {
+			await chmod(path, 0o644);
+			// Windows keeps no mode bits: there a group or other bit is a grant to BUILTIN\Users.
+			if (process.platform === 'win32') loosen(path);
+		}
+		await ensureAuthSecret(data);
+		await ensureCertificate(data);
+		expectMode(secret, 0o644);
+		expectMode(key, 0o644);
+		expect(
+			resolveSecrets(server).refusals.map(({ code, key: named }) => `${code} ${named}`)
+		).toEqual(['HOST_SECRET_PERMISSIONS auth', 'HOST_SECRET_PERMISSIONS tls.key_file']);
+	});
+
+	it('P6-H7: refuses to renew a certificate whose loosened key it would replace, as HOST_SECRET_PERMISSIONS', async () => {
+		for (const renewal of ['missing', 'unreadable'] as const) {
+			const data = join(await temporaryDirectory(), 'data');
+			await mkdir(data, { mode: 0o700 });
+			const { certificate, key } = await ensureCertificate(data);
+			const held = readFileSync(key, 'utf8');
+			await chmod(key, 0o644);
+			if (process.platform === 'win32') loosen(key);
+			if (renewal === 'missing') await rm(certificate);
+			else await writeFile(certificate, 'not a certificate');
+			const refused = await ensureCertificate(data).catch((cause: unknown) => cause);
+			expect(refused, renewal).toBeInstanceOf(HostError);
+			expect(
+				(refused as HostError).refusals.map(({ code, key: named }) => `${code} ${named}`),
+				renewal
+			).toEqual(['HOST_SECRET_PERMISSIONS tls.key_file']);
+			// Neither replaced nor tightened: the key is as it was left.
+			expect(readFileSync(key, 'utf8'), renewal).toBe(held);
+			expectMode(key, 0o644);
+		}
+	});
+
+	it('reuses a valid certificate loosened to 0644, made 0600 again with its fingerprint unchanged', async () => {
+		const data = await temporaryDirectory();
+		const first = await ensureCertificate(data);
+		await chmod(first.certificate, 0o644);
+		const second = await ensureCertificate(data);
+		expectMode(second.certificate, 0o600);
+		expect(second.spki).toBe(first.spki);
+		expect(readFileSync(second.certificate, 'utf8')).toBe(readFileSync(first.certificate, 'utf8'));
+	});
+
+	it('makes the auth secret and the TLS key exactly 0600 under a restrictive umask', async () => {
+		const data = await temporaryDirectory();
+		const before = process.umask(0o477);
+		try {
+			const secret = await ensureAuthSecret(data);
+			const { certificate, key } = await ensureCertificate(data);
+			expectMode(secret, 0o600);
+			expectMode(certificate, 0o600);
+			expectMode(key, 0o600);
+		} finally {
+			process.umask(before);
+		}
 	});
 
 	it('keeps mail in mail.jsonl, 0600, one line a message, and drops a line cut short', async () => {
