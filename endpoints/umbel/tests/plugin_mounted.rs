@@ -1297,3 +1297,41 @@ async fn pipelines_suggestions_and_contexts_work_over_mounted_commands() {
     assert_eq!(error.code(), "PLUGIN_MANIFEST_INVALID");
     assert!(error.to_string().contains("does not cover"), "{error}");
 }
+
+#[tokio::test]
+async fn a_mounted_tool_with_non_human_approval_runs_for_humans_and_holds_agents() {
+    let tools =
+        "[[mount.tools]]\ntool = \"echo\"\neffects = [\"inspect\"]\napproval = \"non-human\"\n";
+    let dir = fx_stdio("", tools, "");
+    let host = open(dir.path()).unwrap();
+
+    // Non-human callers (Test from `call(...)` and MCP agent lanes) are held with APPROVAL_REQUIRED.
+    let test_held = call(&host, "fx-echo", json!({"value": "hi"})).await;
+    assert!(!test_held.success, "{test_held:?}");
+    assert_eq!(code(&test_held), "APPROVAL_REQUIRED");
+
+    for mut client in support::mcp::Client::lanes(&host).await {
+        let label = client.label();
+        let held = client
+            .afd_call("fx-echo", json!({"value": "hi", "confirm": true}))
+            .await;
+        assert_eq!(held["success"], false, "{label}: {held}");
+        assert_eq!(
+            held["error"]["code"], "APPROVAL_REQUIRED",
+            "{label}: {held}"
+        );
+        assert!(
+            !held.to_string().contains("approvalToken"),
+            "{label}: {held}"
+        );
+    }
+
+    // A human caller reaches the mounted server without an approval hold.
+    let human = host.context(Actor::new(ActorKind::Human).with_id("ada"));
+    let ok = host
+        .registry()
+        .execute("fx-echo", json!({"value": "hi"}), Some(human))
+        .await;
+    assert!(ok.success, "{ok:?}");
+    assert_eq!(ok.data.unwrap(), json!({"args": {"value": "hi"}}));
+}

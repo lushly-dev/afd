@@ -225,7 +225,7 @@ test('every required and refused key of the core has a case', () => {
 
 test("the core's vocabularies and defaults are the page's", () => {
 	const { command, effects, grant, mount, mountTool } = core.$defs;
-	const approval = { enum: ['none', 'required'], default: 'none' };
+	const approval = { enum: ['none', 'required', 'non-human'], default: 'none' };
 	assert.deepEqual(effects.items.enum, [
 		'inspect',
 		'plugin-state',

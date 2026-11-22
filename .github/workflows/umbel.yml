@@ -383,6 +383,10 @@ jobs:
       # so the accept and decline cases need MCP 2026-07-28 (as for the Rust backend).
       - name: Confirmations (umbel-todo, MCP 2026-07-28)
         run: pnpm --filter @afd/example-todo test:conformance:umbel --suite confirmations --mode modern
+      - name: Approvals (umbel-todo)
+        run: pnpm --filter @afd/example-todo test:conformance:umbel --suite approvals
+      - name: Approvals (umbel-todo, MCP 2026-07-28)
+        run: pnpm --filter @afd/example-todo test:conformance:umbel --suite approvals --mode modern
       # Run 4: the stock umbel binary, with no plugin compiled in, mounts the Rust todo
       # backend over Streamable HTTP from plugins/todo in the workspace.
       - name: Todo conformance (stock umbel, mounted Rust backend)
@@ -392,6 +396,10 @@ jobs:
       # Modern only, as for umbel-todo: the mount reaches the Rust backend over Streamable HTTP.
       - name: Confirmations (stock umbel, mounted Rust backend, MCP 2026-07-28)
         run: pnpm --filter @afd/example-todo test:conformance:umbel-mounted --suite confirmations --mode modern
+      - name: Approvals (stock umbel, mounted Rust backend)
+        run: pnpm --filter @afd/example-todo test:conformance:umbel-mounted --suite approvals
+      - name: Approvals (stock umbel, mounted Rust backend, MCP 2026-07-28)
+        run: pnpm --filter @afd/example-todo test:conformance:umbel-mounted --suite approvals --mode modern
       # `afd validate --surface --strict` and the todo JTBD scenarios against umbel-todo with
       # hello and todo enabled.
       - name: AFD clients (afd validate --surface, afd scenario run)

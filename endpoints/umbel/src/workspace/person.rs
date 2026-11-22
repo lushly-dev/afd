@@ -329,6 +329,8 @@ pub(super) fn is_v7_key(key: &str) -> bool {
         ["spaces", _, added] => SPACE_ADDED_V7.contains(added),
         // The component journal specification, section 1 (D196).
         ["plugins", _, "journal", ..] => true,
+        // Per-caller approvals and MCP approval relay (D202).
+        ["mcp", "approvals"] => true,
         _ => false,
     }
 }

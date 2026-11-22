@@ -6,8 +6,12 @@
 use std::path::Path;
 use std::sync::Arc;
 
+use afd::{Actor, ActorKind, ApprovalPolicy};
 use serde_json::{Value, json};
+use umbel::cli::{Console, Environment};
 use umbel::testkit::TestHost;
+use umbel::testkit::mcp::Client;
+use umbel::workspace::Overrides;
 use umbel_plugin_todo::{MANIFEST, plugin};
 
 const NAMES: [&str; 13] = [
@@ -52,8 +56,19 @@ async fn the_thirteen_commands_are_the_todo_plugins_with_clears_confirmation_pro
         Some("Delete these todos? This cannot be undone.")
     );
     assert_eq!(clear.destructive, Some(true));
-    // The backend's per-call approval has no manifest form, so the plugin drops it.
-    assert!(clear.approval.is_none());
+    assert!(
+        matches!(clear.approval, Some(ApprovalPolicy::Conditional(_))),
+        "todo-clear must enforce non-human approval"
+    );
+    assert!(
+        NAMES
+            .iter()
+            .filter(|name| **name != "todo-clear")
+            .all(|name| matches!(
+                registry.get(name).unwrap().approval,
+                None | Some(ApprovalPolicy::NotRequired)
+            ))
+    );
     assert_eq!(
         registry.get("todo-create").unwrap().contexts.as_deref(),
         Some(&["todo-editing".to_owned()][..])
@@ -121,6 +136,19 @@ fn the_manifests_schemas_and_effects_equal_the_backends_definitions() {
             definition.destructive.unwrap_or(false),
             "{name}"
         );
+        let expected_approval = match &definition.approval {
+            None | Some(ApprovalPolicy::NotRequired) => "none",
+            Some(ApprovalPolicy::Required) => "required",
+            Some(ApprovalPolicy::Conditional(_)) => "non-human",
+        };
+        assert_eq!(
+            declared
+                .get("approval")
+                .and_then(toml::Value::as_str)
+                .unwrap_or("none"),
+            expected_approval,
+            "{name}"
+        );
         let contexts: Vec<&str> = declared["contexts"]
             .as_array()
             .unwrap()
@@ -181,12 +209,26 @@ async fn each_command_answers_one_call() {
         ("todo-delete", json!({"id": id})),
         ("todo-restore", json!({"ids": [id]})),
         ("todo-history", json!({"todoId": id})),
-        ("todo-clear", json!({"all": true, "confirm": true})),
     ];
     for (name, input) in calls {
         let result = host.call(name, input).await;
         assert!(result.success, "{name}: {result:?}");
     }
+    // `todo-clear` holds non-human callers (TestHost::call uses ActorKind::Test), so run it as a
+    // person here; the regression tests below assert the hold for non-human and MCP callers.
+    let human = host
+        .host()
+        .context(Actor::new(ActorKind::Human).with_id("ada"));
+    let cleared = host
+        .host()
+        .registry()
+        .execute(
+            "todo-clear",
+            json!({"all": true, "confirm": true}),
+            Some(human),
+        )
+        .await;
+    assert!(cleared.success, "todo-clear: {cleared:?}");
     // The backend's commands record their own changes, so the history works under Umbel too.
     let history = host
         .call("todo-history", json!({"todoId": id, "limit": 100}))
@@ -227,9 +269,9 @@ fn the_mounted_fixture_declares_the_same_effects_prompt_and_destructive_as_the_c
     umbel::plugins::Manifest::parse(&text, "todo-http").expect("the fixture is a valid manifest");
     let mounted: toml::Table = text.parse().unwrap();
     let compiled = manifest();
-    // (name, effect, confirmation prompt, destructive) of every command, sorted.
+    // (name, effect, confirmation prompt, destructive, approval) of every command, sorted.
     let declared = |entries: &toml::Value, key: &str| {
-        let mut found: Vec<(String, String, Option<String>, bool)> = entries
+        let mut found: Vec<(String, String, Option<String>, bool, String)> = entries
             .as_array()
             .unwrap()
             .iter()
@@ -245,6 +287,11 @@ fn the_mounted_fixture_declares_the_same_effects_prompt_and_destructive_as_the_c
                         .get("destructive")
                         .and_then(toml::Value::as_bool)
                         .unwrap_or(false),
+                    entry
+                        .get("approval")
+                        .and_then(toml::Value::as_str)
+                        .unwrap_or("none")
+                        .to_owned(),
                 )
             })
             .collect();
@@ -255,4 +302,182 @@ fn the_mounted_fixture_declares_the_same_effects_prompt_and_destructive_as_the_c
         declared(&mounted["mount"]["tools"], "tool"),
         declared(&compiled["commands"], "name")
     );
+}
+
+#[tokio::test]
+async fn mcp_agents_cannot_bypass_todo_clear_even_with_confirm_true() {
+    let host = host();
+    let created = host.call("todo-create", json!({"title": "Keep me"})).await;
+    assert!(created.success, "{created:?}");
+
+    for mut client in Client::lanes(host.host()).await {
+        let label = client.label();
+        // Without `confirm: true`, default confirmation stops the call first.
+        let unconfirmed = client.afd_call("todo-clear", json!({"all": true})).await;
+        assert_eq!(unconfirmed["success"], false, "{label}: {unconfirmed}");
+        assert_eq!(
+            unconfirmed["error"]["code"], "CONFIRMATION_REQUIRED",
+            "{label}: {unconfirmed}"
+        );
+
+        // Passing `confirm: true` cannot bypass `todo-clear`'s non-human approval gate.
+        let held = client
+            .call(
+                "afd-call",
+                json!({ "command": "todo-clear", "input": {"all": true}, "confirm": true }),
+            )
+            .await;
+        assert_eq!(held["success"], false, "{label}: {held}");
+        assert_eq!(
+            held["error"]["code"], "APPROVAL_REQUIRED",
+            "{label}: {held}"
+        );
+        assert!(
+            !held.to_string().contains("approvalToken"),
+            "{label}: {held}"
+        );
+        let batch = client
+            .call(
+                "afd-batch",
+                json!({
+                    "commands": [{
+                        "command": "todo-clear",
+                        "input": { "all": true }
+                    }],
+                    "confirm": ["todo-clear"],
+                }),
+            )
+            .await;
+        assert_eq!(
+            batch["results"][0]["result"]["error"]["code"], "APPROVAL_REQUIRED",
+            "{label}: {batch}"
+        );
+        assert!(
+            !batch.to_string().contains("approvalToken"),
+            "{label}: {batch}"
+        );
+        let piped = client
+            .call(
+                "afd-pipe",
+                json!({
+                    "steps": [{
+                        "command": "todo-clear",
+                        "input": { "all": true }
+                    }],
+                    "confirm": ["todo-clear"],
+                }),
+            )
+            .await;
+        assert_eq!(piped["steps"][0]["status"], "failure", "{label}: {piped}");
+        assert_eq!(piped["metadata"]["completedSteps"], 0, "{label}: {piped}");
+        assert_eq!(
+            piped["steps"][0]["error"]["code"], "APPROVAL_REQUIRED",
+            "{label}: {piped}"
+        );
+        assert!(
+            !piped.to_string().contains("approvalToken"),
+            "{label}: {piped}"
+        );
+    }
+
+    let stats = host.call("todo-stats", json!({})).await.data.unwrap();
+    assert_eq!(stats["total"], 1, "todos must remain intact: {stats}");
+}
+
+#[tokio::test]
+async fn non_human_callers_are_held_on_todo_clear_while_human_callers_succeed() {
+    let host = host();
+    let created = host
+        .call("todo-create", json!({"title": "Protected"}))
+        .await;
+    assert!(created.success, "{created:?}");
+
+    let non_human_actors = [
+        Actor::new(ActorKind::Agent).with_id("agent-1"),
+        Actor::new(ActorKind::Service).with_id("svc-1"),
+        Actor::new(ActorKind::Script).with_id("script-1"),
+        Actor::new(ActorKind::Test).with_id("test-1"),
+        Actor::new(ActorKind::Agent)
+            .with_id("agent-1")
+            .with_on_behalf_of("human:ada"),
+    ];
+    for actor in non_human_actors {
+        let context = host.host().context(actor.clone());
+        let held = host
+            .host()
+            .registry()
+            .execute(
+                "todo-clear",
+                json!({"all": true, "confirm": true}),
+                Some(context),
+            )
+            .await;
+        assert!(!held.success, "{actor:?}: {held:?}");
+        assert_eq!(
+            held.error.as_ref().unwrap().code,
+            "APPROVAL_REQUIRED",
+            "{actor:?}: {held:?}"
+        );
+    }
+    let stats = host.call("todo-stats", json!({})).await.data.unwrap();
+    assert_eq!(stats["total"], 1, "{stats}");
+
+    // A direct human caller clears the todos without an approval hold.
+    let human = host
+        .host()
+        .context(Actor::new(ActorKind::Human).with_id("ada"));
+    let cleared = host
+        .host()
+        .registry()
+        .execute(
+            "todo-clear",
+            json!({"all": true, "confirm": true}),
+            Some(human),
+        )
+        .await;
+    assert!(cleared.success, "{cleared:?}");
+    let stats = host.call("todo-stats", json!({})).await.data.unwrap();
+    assert_eq!(stats["total"], 0, "{stats}");
+}
+
+struct YesConsole;
+
+impl Console for YesConsole {
+    fn is_interactive(&self) -> bool {
+        true
+    }
+
+    fn ask(&self, _text: &str) -> bool {
+        true
+    }
+}
+
+#[tokio::test]
+async fn human_cli_caller_runs_todo_clear_without_approval_hold() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("umbel.toml"),
+        "config_version = 2\n\n[plugins]\nenabled = [\"todo\"]\n\n[plugins.todo]\nsource = \"compiled:todo\"\n",
+    )
+    .unwrap();
+    let env = Environment {
+        cwd: dir.path().to_path_buf(),
+        workspace: None,
+        overrides: Overrides::default(),
+        console: Arc::new(YesConsole),
+        vars: Default::default(),
+        clock: None,
+    };
+    let mut stdout = Vec::new();
+    let code = umbel::cli::run(
+        ["umbel-todo", "todo", "clear", "all=true"],
+        &env,
+        &mut stdout,
+        |builder| builder.with_compiled(plugin()),
+    )
+    .await;
+    let out = String::from_utf8(stdout).unwrap();
+    assert_eq!(code, 0, "{out}");
+    let reply: Value = serde_json::from_str(&out).unwrap();
+    assert_eq!(reply["success"], true, "{reply}");
 }

@@ -413,7 +413,7 @@ contexts = ["hello"]          # optional; AFD contexts this command belongs to
 first_class = true            # optional, default false; a suggestion (section 8.4)
 confirm_prompt = "..."        # optional
 destructive = false           # optional
-approval = "none"             # optional: none (default) | required
+approval = "none"             # optional: none (default) | required | non-human (D202)
 execution_time = "instant"    # optional: instant | fast | slow | long-running
 expose = { mcp = true, agent = true, cli = true, palette = false }   # optional; these are the plugin defaults
 examples = [{ title = "Greet Ada", input = { name = "Ada" } }]       # optional
@@ -963,7 +963,7 @@ effects = ["inspect"]         # default for every tool: ["external"]
 bind_space = false            # default false; true makes the tool's `space` argument the Umbel space
 confirm_prompt = "..."        # optional
 destructive = true            # optional, default false; sent to MCP clients as destructiveHint
-approval = "required"         # optional
+approval = "required"         # optional: none (default) | required | non-human (D202)
 first_class = true            # optional suggestion
 ```
 
@@ -1675,10 +1675,10 @@ on `todo-delete`, `todo-delete-batch` and `todo-clear`, the backend's
 `todo-reading` and `todo-editing` contexts, effects
 `["plugin-state"]` on the nine that change the store and `["inspect"]` on
 `todo-get`, `todo-list`, `todo-stats` and `todo-history`, `domains = ["todo"]` and no grants.
-(Thirteen since the to-do reference plan's phase 5, 2026-11-16; eleven before.) The backend
-holds `todo-clear` for any caller that is not a person, a per-call policy a manifest cannot
-declare, so the plugin drops it and under Umbel the clear is gated by its confirmation prompt
-alone ([#1329](https://github.com/lushly-dev/afd/issues/1329)).
+(Thirteen since the to-do reference plan's phase 5, 2026-11-16; eleven before.) `todo-clear`
+declares `approval = "non-human"` (D202, [#1329](https://github.com/lushly-dev/afd/issues/1329)),
+matching the backend's per-caller policy so non-human callers (including MCP agents) wait for
+approval while a person on the command line runs without an approval hold.
 Its `umbel-todo` binary calls `umbel::cli::run` with a `configure` hook
 that adds the plugin through `with_compiled`.
 Because the store is in memory, several host processes on one workspace each

@@ -839,9 +839,73 @@ fn install_middleware(
     ));
 
     let key = workspace.approval_key()?;
-    let options =
-        ApprovalMiddlewareOptions::new(key, commands.iter().map(|command| command.as_ref()))
-            .with_include_token(false);
+    let mcp_approvals = workspace.config().mcp.approvals;
+    let gated: Vec<afd::CommandDefinition>;
+    let options = if mcp_approvals == crate::workspace::McpApprovals::Off {
+        // `mcp.approvals = "off"` (auth.mode none only, D202) disables approval holds only on MCP
+        // calls to ordinary commands; CLI calls, library calls, host-verified (`confirmation_mode`)
+        // commands and `require-human` commands keep their approval policies untouched.
+        // `ApprovalMiddlewareOptions::new` reads only `name`, `approval` and `confirm_prompt`.
+        struct NoopHandler;
+        #[async_trait::async_trait]
+        impl afd::CommandHandler for NoopHandler {
+            async fn execute(
+                &self,
+                _input: serde_json::Value,
+                _context: CommandContext,
+            ) -> afd::CommandResult<serde_json::Value> {
+                afd::success(serde_json::Value::Null)
+            }
+        }
+        gated = commands
+            .iter()
+            .map(|command| {
+                let mut definition = afd::CommandDefinition::new(
+                    &command.name,
+                    &command.description,
+                    vec![],
+                    NoopHandler,
+                );
+                definition
+                    .confirm_prompt
+                    .clone_from(&command.confirm_prompt);
+                let keep_enforced = command.confirmation_mode.is_some()
+                    || loaded
+                        .gate
+                        .get(&command.name)
+                        .is_some_and(|entry| entry.require_human);
+                definition.approval = match (&command.approval, keep_enforced) {
+                    (Some(policy), false) => {
+                        let policy = policy.clone();
+                        Some(afd::ApprovalPolicy::when_async(move |input, context| {
+                            let input = input.clone();
+                            let context = context.clone();
+                            let policy = policy.clone();
+                            Box::pin(async move {
+                                if context.interface == Some(CommandInterface::Mcp) {
+                                    afd::ApprovalDecision::NotRequired
+                                } else {
+                                    policy.decide(&input, &context).await
+                                }
+                            })
+                        }))
+                    }
+                    (policy, _) => policy.clone(),
+                };
+                definition
+            })
+            .collect();
+        ApprovalMiddlewareOptions::new(key, gated.iter()).with_include_token(false)
+    } else {
+        let options =
+            ApprovalMiddlewareOptions::new(key, commands.iter().map(|command| command.as_ref()))
+                .with_include_token(false);
+        if mcp_approvals == crate::workspace::McpApprovals::McpElicitation {
+            options.with_relay(afd::ApprovalRelay::McpElicitation)
+        } else {
+            options
+        }
+    };
     // In a hosted mode, approval nonces and relay evidence (`relay:<decisionId>`) are spent once
     // across every process behind one URL (phase 5 section 10.2), not once per process; a failed
     // spend is reported as the shared store's, not as a spent token. Mode `none` keeps AFD's store

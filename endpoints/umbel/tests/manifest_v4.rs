@@ -208,6 +208,13 @@ fn the_preview_is_an_inspect_command_with_cli_exposure_and_a_journal() {
         preview(SPACE_AND_CHANGE, &format!("{all}\napproval = \"required\"")),
         "no confirmation or approval",
     );
+    case(
+        preview(
+            SPACE_AND_CHANGE,
+            &format!("{all}\napproval = \"non-human\""),
+        ),
+        "no confirmation or approval",
+    );
     // Its exposure elsewhere is its own: MCP and agents may also call it.
     parse(&v4(&format!(
         "{}{}",

@@ -11,7 +11,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::path::Path;
 
-use afd::{CommandContext, CommandDefinition, CommandHandler, CommandRegistry, CommandResult};
+use afd::{
+    ActorKind, ApprovalDecision, ApprovalPolicy, CommandContext, CommandDefinition, CommandHandler,
+    CommandRegistry, CommandResult,
+};
 use async_trait::async_trait;
 use serde_json::Value;
 use toml::{Table, Value as Toml};
@@ -367,6 +370,56 @@ impl Default for Expose {
     }
 }
 
+/// Whether a command or mounted tool needs approval (`approval` in `umbel-plugin.toml`, D37, D202).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ApprovalDecl {
+    /// Never held for approval (`"none"`, the default).
+    #[default]
+    None,
+    /// Always held for approval (`"required"`).
+    Required,
+    /// Held for any caller that is not a person (`"non-human"`, D202): `ActorKind::Human` runs
+    /// without approval, and every other actor (`Agent`, `Service`, `Script`, `Test`, an agent
+    /// acting `on_behalf_of` a human, or an absent actor) is held.
+    NonHuman,
+}
+
+impl ApprovalDecl {
+    /// The manifest spelling: `"none"`, `"required"` or `"non-human"`.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Required => "required",
+            Self::NonHuman => "non-human",
+        }
+    }
+
+    /// Whether the command can ever be held for approval.
+    pub fn is_gated(self) -> bool {
+        !matches!(self, Self::None)
+    }
+
+    /// The AFD [`ApprovalPolicy`] this declaration enforces, or `None` for `"none"`.
+    pub fn policy(self) -> Option<ApprovalPolicy> {
+        match self {
+            Self::None => None,
+            Self::Required => Some(ApprovalPolicy::Required),
+            Self::NonHuman => Some(non_human_approval_policy()),
+        }
+    }
+}
+
+/// The host's canonical AFD approval policy for `approval = "non-human"` (D202): allows
+/// `ActorKind::Human` without holding and holds every other caller (including absent actors).
+pub(crate) fn non_human_approval_policy() -> ApprovalPolicy {
+    ApprovalPolicy::when(
+        |_input, context| match context.actor.as_ref().map(|actor| actor.kind) {
+            Some(ActorKind::Human) => ApprovalDecision::NotRequired,
+            _ => ApprovalDecision::Required,
+        },
+    )
+}
+
 /// `[[commands]]`.
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
@@ -395,8 +448,8 @@ pub struct CommandDecl {
     pub confirm_prompt: Option<String>,
     /// Whether the command destroys data.
     pub destructive: bool,
-    /// Whether an approval is required.
-    pub approval_required: bool,
+    /// Approval policy (`"none"`, `"required"` or `"non-human"`).
+    pub approval: ApprovalDecl,
     /// `confirm = "require-human"` (manifest version 2): only a person at a terminal confirms.
     pub require_human: bool,
     /// `output_budget` (manifest version 2).
@@ -607,8 +660,8 @@ pub struct MountTool {
     /// Whether the tool deletes data, which MCP clients see as `destructiveHint`. The deployer
     /// declares it, as the effects: the server's own annotations are not trusted (D43).
     pub destructive: bool,
-    /// Whether an approval is required.
-    pub approval_required: bool,
+    /// Approval policy (`"none"`, `"required"` or `"non-human"`).
+    pub approval: ApprovalDecl,
     /// A suggestion for the first-class tool set.
     pub first_class: bool,
 }
@@ -1462,11 +1515,7 @@ fn command(
         .effects("effects", true)?
         .ok_or_else(|| table.bad("effects", "is required"))?;
     check_effect_grants(table, &effects, grants)?;
-    let approval = match table.string("approval")?.as_deref() {
-        None | Some("none") => false,
-        Some("required") => true,
-        Some(_) => return Err(table.bad("approval", "must be \"none\" or \"required\"")),
-    };
+    let approval = parse_approval(table)?;
     let execution_time = table.string("execution_time")?;
     if let Some(time) = &execution_time
         && !["instant", "fast", "slow", "long-running"].contains(&time.as_str())
@@ -1512,7 +1561,7 @@ fn command(
             expose: &expose,
             journal: journal.as_ref(),
             confirm_prompt: confirm_prompt.is_some(),
-            approval,
+            approval: approval.is_gated(),
             authority_prompt: authority_prompt.is_some(),
         },
     )?;
@@ -1552,7 +1601,7 @@ fn command(
         first_class: table.boolean("first_class")?.unwrap_or(false),
         confirm_prompt,
         destructive: table.boolean("destructive")?.unwrap_or(false),
-        approval_required: approval,
+        approval,
         require_human,
         output_budget: output_budget(table)?,
         journal,
@@ -2070,11 +2119,7 @@ fn mount_tools(table: &Tbl<'_>, prefix: &str) -> Result<Vec<MountTool>, PluginEr
                 )
             })?;
         }
-        let approval = match entry.string("approval")?.as_deref() {
-            None | Some("none") => false,
-            Some("required") => true,
-            Some(_) => return Err(entry.bad("approval", "must be \"none\" or \"required\"")),
-        };
+        let approval = parse_approval(&entry)?;
         if tools
             .iter()
             .any(|t| t.tool == tool || (name.is_some() && t.name == name))
@@ -2088,11 +2133,23 @@ fn mount_tools(table: &Tbl<'_>, prefix: &str) -> Result<Vec<MountTool>, PluginEr
             bind_space: entry.boolean("bind_space")?.unwrap_or(false),
             confirm_prompt: entry.optional_text("confirm_prompt", 500)?,
             destructive: entry.boolean("destructive")?.unwrap_or(false),
-            approval_required: approval,
+            approval,
             first_class: entry.boolean("first_class")?.unwrap_or(false),
         });
     }
     Ok(tools)
+}
+
+fn parse_approval(table: &Tbl<'_>) -> Result<ApprovalDecl, PluginError> {
+    match table.string("approval")?.as_deref() {
+        None | Some("none") => Ok(ApprovalDecl::None),
+        Some("required") => Ok(ApprovalDecl::Required),
+        Some("non-human") => Ok(ApprovalDecl::NonHuman),
+        Some(_) => Err(table.bad(
+            "approval",
+            "must be \"none\", \"required\" or \"non-human\"",
+        )),
+    }
 }
 
 fn is_env_name(name: &str) -> bool {

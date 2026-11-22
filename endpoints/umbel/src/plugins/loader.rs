@@ -1515,8 +1515,8 @@ fn definitions(
                 if command.destructive {
                     definition = definition.with_destructive(true);
                 }
-                if command.approval_required {
-                    definition = definition.with_approval(ApprovalPolicy::Required);
+                if let Some(policy) = command.approval.policy() {
+                    definition = definition.with_approval(policy);
                 }
                 if let Some(time) = &command.execution_time
                     && let Ok(time) =
@@ -1548,7 +1548,13 @@ fn definitions(
                 if let Some(problem) = mismatch(command, &definition, &given, schema) {
                     return Err(bad(key, problem));
                 }
-                *definition
+                let mut definition = *definition;
+                // Enforce the host's canonical policy for `non-human` (D202), so no plugin
+                // closure can bypass approval based on input values or hidden state.
+                if let Some(policy) = command.approval.policy() {
+                    definition = definition.with_approval(policy);
+                }
+                definition
             }
         };
         let mut definition = definition
@@ -1608,9 +1614,7 @@ fn mismatch(
             "`{name}`: the definition's confirm_prompt differs from the manifest's"
         ));
     }
-    let approval_required = matches!(definition.approval, Some(ApprovalPolicy::Required));
-    let approval_other = matches!(definition.approval, Some(ApprovalPolicy::Conditional(_)));
-    if approval_other || approval_required != command.approval_required {
+    if !approval_matches(command.approval, definition.approval.as_ref()) {
         return Some(format!(
             "`{name}`: the definition's approval differs from the manifest's"
         ));
@@ -1622,6 +1626,58 @@ fn mismatch(
         ));
     }
     None
+}
+
+/// Whether `actual` equals the manifest's `declared` approval policy (D202).
+///
+/// For `non-human`, `actual` must be a synchronous conditional policy that returns `NotRequired`
+/// for `ActorKind::Human` and `Required` for every other [`afd::ActorKind`] (including an agent
+/// acting `on_behalf_of` a human) and for an absent actor. A policy that yields `Pending` or
+/// panics during probing is refused.
+fn approval_matches(
+    declared: super::manifest::ApprovalDecl,
+    actual: Option<&ApprovalPolicy>,
+) -> bool {
+    use super::manifest::ApprovalDecl;
+    match declared {
+        ApprovalDecl::None => matches!(actual, None | Some(ApprovalPolicy::NotRequired)),
+        ApprovalDecl::Required => matches!(actual, Some(ApprovalPolicy::Required)),
+        ApprovalDecl::NonHuman => {
+            let Some(policy @ ApprovalPolicy::Conditional(_)) = actual else {
+                return false;
+            };
+            let input = Value::Object(serde_json::Map::new());
+            let probe = |actor: Option<afd::Actor>, expected: afd::ApprovalDecision| -> bool {
+                let mut context = CommandContext::new();
+                context.actor = actor;
+                let decision = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    let mut future = Box::pin(policy.decide(&input, &context));
+                    let waker = std::task::Waker::noop();
+                    let mut cx = std::task::Context::from_waker(waker);
+                    match future.as_mut().poll(&mut cx) {
+                        std::task::Poll::Ready(decision) => Some(decision),
+                        std::task::Poll::Pending => None,
+                    }
+                }));
+                matches!(decision, Ok(Some(actual)) if actual == expected)
+            };
+            afd::ACTOR_KINDS.into_iter().all(|kind| {
+                let expected = if kind == afd::ActorKind::Human {
+                    afd::ApprovalDecision::NotRequired
+                } else {
+                    afd::ApprovalDecision::Required
+                };
+                probe(Some(afd::Actor::new(kind).with_id("probe")), expected)
+            }) && probe(
+                Some(
+                    afd::Actor::new(afd::ActorKind::Agent)
+                        .with_id("probe")
+                        .with_on_behalf_of("human"),
+                ),
+                afd::ApprovalDecision::Required,
+            ) && probe(None, afd::ApprovalDecision::Required)
+        }
+    }
 }
 
 #[cfg(test)]

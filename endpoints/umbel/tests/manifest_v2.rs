@@ -9,7 +9,7 @@ mod support;
 
 use serde_json::{Value, json};
 use support::plugins::{leak, seal};
-use umbel::plugins::{Asset, Effect, Manifest, PluginError, sdk};
+use umbel::plugins::{ApprovalDecl, Asset, Effect, Manifest, PluginError, sdk};
 use umbel_sdk::{Cx, Outcome, Plugin, success};
 
 const FILE: &str = "umbel-plugin.toml";
@@ -317,7 +317,7 @@ fn require_human_needs_a_prompt_and_cli_only_exposure() {
     let manifest = parse(&human_only("")).unwrap();
     let command = &manifest.commands[0];
     assert!(command.require_human);
-    assert!(command.approval_required);
+    assert_eq!(command.approval, ApprovalDecl::Required);
     assert_eq!(
         command.confirm_prompt.as_deref(),
         Some("Apply this change?")

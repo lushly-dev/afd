@@ -114,9 +114,10 @@ only the hold itself is tested (`src/server/tests.rs`: a client that declares no
 `APPROVAL_REQUIRED` and no token); asking the person over MCP 2026-07-28 HTTP is the library's
 behaviour but not exercised here.
 
-Under Umbel the clear is not held: a plugin manifest cannot yet declare a per-caller approval, so
-the todo plugin drops it and the clear is gated by its confirmation prompt alone
-([#1329](https://github.com/lushly-dev/afd/issues/1329)). The command's description says so.
+Under Umbel, `todo-clear` declares `approval = "non-human"`
+([#1329](https://github.com/lushly-dev/afd/issues/1329)), matching this backend's per-caller
+policy: non-human callers (including MCP agents) are held for approval while a person on the
+command line runs without an approval hold.
 
 | Variable | Default | Description |
 |----------|---------|-------------|

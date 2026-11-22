@@ -228,6 +228,10 @@
 				"confirmations": {
 					"enum": ["enforce", "require-human", "off"]
 				},
+				"approvals": {
+					"description": "How the MCP surface handles AFD approval holds (D202): enforce (default, holds without form relay), mcp-elicitation (asks MCP clients that declare form elicitation; auth.mode none only) or off (disables MCP holds on non-require-human commands; auth.mode none only, never weakens CLI or require-human).",
+					"enum": ["enforce", "mcp-elicitation", "off"]
+				},
 				"instructions": {
 					"type": "string"
 				}
@@ -1882,6 +1886,37 @@
 					}
 				},
 				"required": ["person"]
+			},
+			"then": {
+				"not": {
+					"properties": {
+						"auth": {
+							"properties": {
+								"mode": {
+									"enum": ["oauth", "gateway"]
+								}
+							},
+							"required": ["mode"]
+						}
+					},
+					"required": ["auth"]
+				}
+			}
+		},
+		{
+			"description": "mcp.approvals other than enforce is only admitted in auth.mode none (D202).",
+			"if": {
+				"properties": {
+					"mcp": {
+						"properties": {
+							"approvals": {
+								"enum": ["mcp-elicitation", "off"]
+							}
+						},
+						"required": ["approvals"]
+					}
+				},
+				"required": ["mcp"]
 			},
 			"then": {
 				"not": {

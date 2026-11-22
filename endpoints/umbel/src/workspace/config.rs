@@ -106,6 +106,14 @@ const MCP_KEYS: &[&str] = &[
     "confirmations",
     "instructions",
 ];
+/// `[mcp]` of version 7 (D202): adds `approvals`.
+const MCP_KEYS_V7: &[&str] = &[
+    "first_class_tools",
+    "tools_list_ttl_ms",
+    "confirmations",
+    "approvals",
+    "instructions",
+];
 const HTTP_KEYS: &[&str] = &[
     "bind",
     "path",
@@ -254,6 +262,20 @@ pub struct StoreConfig {
     pub exclude_memory_from_machine_backup: bool,
 }
 
+/// How the MCP surface handles AFD approval holds (`mcp.approvals`, version 7, D202).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum McpApprovals {
+    /// Approvals are enforced without form elicitation relay (the default).
+    #[default]
+    Enforce,
+    /// Held MCP calls ask clients that declare form elicitation (`ApprovalRelay::McpElicitation`);
+    /// refused in hosted modes (`auth.mode` `oauth` or `gateway`).
+    McpElicitation,
+    /// Disable MCP approval holds on non-`require-human` commands; refused in hosted modes, and
+    /// never weakens CLI calls or `require-human` commands.
+    Off,
+}
+
 /// `[mcp]`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
@@ -264,6 +286,8 @@ pub struct McpConfig {
     pub tools_list_ttl_ms: u64,
     /// Confirmation policy.
     pub confirmations: Confirmations,
+    /// MCP approval policy (version 7, D202); `Enforce` by default.
+    pub approvals: McpApprovals,
     /// Replacement for AFD's default instructions; empty keeps them.
     pub instructions: String,
 }
@@ -516,7 +540,7 @@ impl ConfigFile {
             PRINCIPAL_KEYS
         };
         let mut sections: Vec<(&str, &[&str], &[&str])> = vec![
-            ("mcp", MCP_KEYS, &[]),
+            ("mcp", if v7 { MCP_KEYS_V7 } else { MCP_KEYS }, &[]),
             ("http", if v5 { HTTP_KEYS_V5 } else { HTTP_KEYS }, &[]),
             ("journal", JOURNAL_KEYS, &[]),
             ("events", EVENTS_KEYS, EVENTS_RESERVED),
@@ -968,12 +992,28 @@ impl ConfigFile {
                 ));
             }
         };
+        let approvals = if self.version >= 7 {
+            match mcp.string("approvals")?.as_deref() {
+                None | Some("enforce") => McpApprovals::Enforce,
+                Some("mcp-elicitation") => McpApprovals::McpElicitation,
+                Some("off") => McpApprovals::Off,
+                Some(_) => {
+                    return Err(WorkspaceError::config_invalid(
+                        "mcp.approvals",
+                        "must be \"enforce\", \"mcp-elicitation\" or \"off\"",
+                    ));
+                }
+            }
+        } else {
+            McpApprovals::Enforce
+        };
         let mcp = McpConfig {
             first_class_tools,
             tools_list_ttl_ms: mcp
                 .integer("tools_list_ttl_ms", 0, i64::MAX)?
                 .unwrap_or(300_000),
             confirmations,
+            approvals,
             instructions: mcp.string("instructions")?.unwrap_or_default(),
         };
 
@@ -1217,6 +1257,12 @@ struct Rest {
 impl Rest {
     /// Section 2.2's rules across `[auth]`, `[http]`, `[principal]`, `[access]` and `[usage]`.
     fn check_hosted(&self, http: &HttpConfig) -> Result<(), WorkspaceError> {
+        if self.auth.mode.is_hosted() && self.mcp.approvals != McpApprovals::Enforce {
+            return Err(WorkspaceError::config_invalid(
+                "mcp.approvals",
+                "must be \"enforce\" in a hosted mode: hosted deployments prove a person on the person page, never through form elicitation or with approvals off",
+            ));
+        }
         check_hosted(
             &self.auth,
             http,

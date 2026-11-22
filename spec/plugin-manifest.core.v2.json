@@ -316,8 +316,8 @@
 					"type": "boolean"
 				},
 				"approval": {
-					"description": "none maps to AFD's not-required.",
-					"enum": ["none", "required"],
+					"description": "none maps to AFD's not-required; non-human holds any caller that is not a person (ActorKind::Human).",
+					"enum": ["none", "required", "non-human"],
 					"default": "none"
 				},
 				"execution_time": {
@@ -519,7 +519,7 @@
 					"maxLength": 500
 				},
 				"approval": {
-					"enum": ["none", "required"],
+					"enum": ["none", "required", "non-human"],
 					"default": "none"
 				},
 				"first_class": {

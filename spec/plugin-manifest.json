@@ -2220,6 +2220,20 @@
 			"suggestion": "Use true or false."
 		},
 		{
+			"id": "command-approval-non-human",
+			"against": "core#/$defs/command",
+			"fragment": {
+				"name": "hello-greet",
+				"description": "Greet someone.",
+				"effects": ["inspect"],
+				"input_schema": {
+					"type": "object"
+				},
+				"approval": "non-human"
+			},
+			"accepted": true
+		},
+		{
 			"id": "command-approval-afd-spelling",
 			"against": "core#/$defs/command",
 			"fragment": {
@@ -2234,7 +2248,7 @@
 			"accepted": false,
 			"key": "commands[].approval",
 			"pointer": "/approval",
-			"suggestion": "Use none, which AFD reads as not-required, or required."
+			"suggestion": "Use none (which AFD reads as not-required), required, or non-human."
 		},
 		{
 			"id": "command-execution-time-unknown",
@@ -3000,6 +3014,15 @@
 			"suggestion": "Use lowercase words joined by hyphens, relative to the prefix."
 		},
 		{
+			"id": "mount-tool-approval-non-human",
+			"against": "core#/$defs/mountTool",
+			"fragment": {
+				"tool": "greet",
+				"approval": "non-human"
+			},
+			"accepted": true
+		},
+		{
 			"id": "mount-tool-approval",
 			"against": "core#/$defs/mountTool",
 			"fragment": {
@@ -3009,7 +3032,7 @@
 			"accepted": false,
 			"key": "mount.tools[].approval",
 			"pointer": "/approval",
-			"suggestion": "Use none or required."
+			"suggestion": "Use none, required, or non-human."
 		},
 		{
 			"id": "mount-tool-effects-empty",

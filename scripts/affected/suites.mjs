@@ -356,10 +356,18 @@ export const SUITES = [
 			{
 				run: 'pnpm --filter @afd/example-todo test:conformance:umbel --suite confirmations --mode modern',
 			},
+			{ run: 'pnpm --filter @afd/example-todo test:conformance:umbel --suite approvals' },
+			{
+				run: 'pnpm --filter @afd/example-todo test:conformance:umbel --suite approvals --mode modern',
+			},
 			{ run: 'pnpm --filter @afd/example-todo test:conformance:umbel-mounted' },
 			{ run: 'pnpm --filter @afd/example-todo test:conformance:umbel-mounted --mode modern' },
 			{
 				run: 'pnpm --filter @afd/example-todo test:conformance:umbel-mounted --suite confirmations --mode modern',
+			},
+			{ run: 'pnpm --filter @afd/example-todo test:conformance:umbel-mounted --suite approvals' },
+			{
+				run: 'pnpm --filter @afd/example-todo test:conformance:umbel-mounted --suite approvals --mode modern',
 			},
 			// The script resolves CARGO_TARGET_DIR inside Bash, including on Windows' cmd.exe.
 			{

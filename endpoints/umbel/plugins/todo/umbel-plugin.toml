@@ -86,6 +86,7 @@ version = "1.0.0"
 contexts = ["todo-editing"]
 confirm_prompt = "Delete these todos? This cannot be undone."
 destructive = true
+approval = "non-human"
 
 [[commands]]
 name = "todo-stats"

@@ -173,7 +173,9 @@ names the AFD field of each key. `name`, `description`, `effects` and `input_sch
 
 - `input_schema` and `returns` are a JSON Schema object or the path of a JSON file, relative to the
   plugin root.
-- `approval` is `none` (the default, AFD's `not-required`) or `required`. A function cannot be data.
+- `approval` is `none` (the default, AFD's `not-required`), `required`, or `non-human` (held for any
+  caller that is not a person, mapped to AFD's conditional policy). An arbitrary function cannot be
+  data.
 - `requires`, `undoable`, `title`, `errors` and `tool_meta` are AFD's fields of the same meaning.
 - `first_class` is a suggestion to a hybrid host, which may decline it.
 - `mutation` is never declared, and the core refuses it: the host derives it, `true` unless `effects`
@@ -304,7 +306,7 @@ Words that mean different things in the two hosts' documents, each resolved here
 | C4 | "Pack". Umbel's pack is a plugin's data, and `pack` is also an Umbel kind. Loam's agent pack is skills, connectors, commands and sub-agents | `packs` and the kind `pack` stay Umbel's. Loam's agent packs go in its `agent` section, and a pack-only Loam app takes another kind name |
 | C5 | Exposure defaults. AFD: palette and agent on, MCP and CLI off. Umbel's manifest: MCP, agent and CLI on, palette off | The meanings are shared, and the default for a flag left out is the profile's. A host's check command reports the effective flags. A manifest meant for more than one tool sets every flag |
 | C6 | Confirmation. AFD's `confirmations` is server-wide. Umbel's per-command `confirm = "require-human"` makes a command CLI-only | `confirm_prompt` is in the core. `confirm` stays Umbel's, since its rule is tied to Umbel's CLI |
-| C7 | `approval` values. Umbel: `none`, `required`. AFD: `not-required`, `required`, or a function | The core keeps `none`, which maps to `not-required`. A function cannot be data |
+| C7 | `approval` values. Umbel: `none`, `required`, `non-human`. AFD: `not-required`, `required`, or a function | The core keeps `none` (`not-required`), `required`, and `non-human` (a fixed per-caller conditional policy). An arbitrary function cannot be data |
 | C8 | The kind `mounted` | One meaning: an MCP server whose tools become commands under an instance prefix. Each profile closes the transports it admits |
 | C9 | "Mount". The top-level `mount` is the MCP mount. Loam's "mount" is the element an app renders into | `mount` is the MCP mount. Loam's surface keys name the app's element (`element`), not a `mount` |
 | C10 | "View". Loam's kind `view`, its `[view]` section, sandboxed resources and sidebar views | The kind and section are `view`. The resources are `ui.resources`. The sidebar key is Loam's |
@@ -328,7 +330,7 @@ invents a field AFD already defines.
 | `contexts` | `contexts` | `_meta.contexts` |
 | `destructive`, `undoable` | Same | `_meta` |
 | `confirm_prompt` | `confirmPrompt` | afd-detail, never `_meta` |
-| `approval` | `approval` (`none` becomes `not-required`) | `_meta.approval` |
+| `approval` | `approval` (`none` becomes `not-required`, `non-human` becomes a conditional policy holding non-human callers) | `_meta.approval` (`conditional` for `non-human`) |
 | `execution_time` | `executionTime` | afd-detail |
 | `expose` | `expose` | Which surfaces list the command |
 | `output_budget` | `outputBudget` | `_meta["dev.afd/outputBudget"]` |

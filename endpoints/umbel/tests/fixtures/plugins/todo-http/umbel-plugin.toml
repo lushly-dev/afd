@@ -56,6 +56,7 @@ tool = "todo-clear"
 effects = ["plugin-state"]
 confirm_prompt = "Delete these todos? This cannot be undone."
 destructive = true
+approval = "non-human"
 
 [[mount.tools]]
 tool = "todo-create-batch"

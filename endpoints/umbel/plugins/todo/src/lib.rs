@@ -7,15 +7,13 @@
 //! each command with the backend's schema and contexts, and the host refuses a plugin whose
 //! definitions disagree with it.
 //!
-//! One difference: the backend holds `todo-clear` for any caller that is not a person, a policy
-//! decided per call, and a manifest declares only a fixed approval (`approval = "required"`). The
-//! plugin drops that policy, so under Umbel a clear is gated by its confirmation prompt alone
-//! (<https://github.com/lushly-dev/afd/issues/1329>). The command's description says so.
+//! `todo-clear` declares `approval = "non-human"` (D202), matching the backend's per-caller
+//! approval policy: any caller that is not a person (`ActorKind::Human`) waits for approval, so an
+//! MCP agent cannot clear todos with `confirm: true` alone.
 #![forbid(unsafe_code)]
 
 use std::sync::Arc;
 
-use afd::ApprovalPolicy;
 use todo_backend_rust::TodoStore;
 use umbel::plugins::{Asset, CompiledPlugin, PluginCommand, PluginError, Services};
 
@@ -49,13 +47,7 @@ impl CompiledPlugin for Todo {
     fn commands(&self, _services: Services) -> Result<Vec<PluginCommand>, PluginError> {
         Ok(todo_backend_rust::commands(Arc::clone(&self.store))
             .into_iter()
-            .map(|(mut definition, schema)| {
-                // A per-call policy has no manifest form (see the module documentation).
-                if matches!(definition.approval, Some(ApprovalPolicy::Conditional(_))) {
-                    definition.approval = None;
-                }
-                PluginCommand::definition(definition, schema)
-            })
+            .map(|(definition, schema)| PluginCommand::definition(definition, schema))
             .collect())
     }
 }
