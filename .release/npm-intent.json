@@ -1,86 +1,38 @@
 {
 	"schemaVersion": 1,
-	"selectedUnits": ["specimen", "specimen-afd", "violet-elements", "violet-npm"],
-	"inventoryHash": "d72a317e86db95e0a9d2cb39d473979380e1342ce25039ffe9229fded8a73b33",
-	"sourceDigest": "865deee4b190396a98afd3ae76017976aa18d5cd344a30a02c0da1bee3c77af0",
+	"selectedUnits": ["violet-npm"],
+	"inventoryHash": "ddbe98a47898f3f9b1257003ca1a4b2d1d22cd4d249200e25ce9697c1b4ba84a",
+	"sourceDigest": "ad72a9b07e7ddce8538537012fa7f5763d60c62a1fe0c86460a28c9aa538d4b0",
 	"distributions": [
 		{
-			"name": "@lushly-dev/specimen",
-			"version": "2.2.0-preview.8",
-			"manifest": "foundations/specimen/package.json",
-			"manifestHash": "b72872ccd86b8e49980d1c614798c4ed11df939eb2e85553b640af66acffc412"
-		},
-		{
-			"name": "@lushly-dev/specimen-host-darwin-arm64",
-			"version": "2.2.0-preview.8",
-			"manifest": "foundations/specimen/packages/host-darwin-arm64/package.json",
-			"manifestHash": "f7090ec5205a6bbe4e8e5bb79246dc7d33f71f6a1357b7fba532edc12a32d277"
-		},
-		{
-			"name": "@lushly-dev/specimen-host-darwin-x64",
-			"version": "2.2.0-preview.8",
-			"manifest": "foundations/specimen/packages/host-darwin-x64/package.json",
-			"manifestHash": "6035e864c262063e913e71f5122f3ff3ae66c2c9b7774f3131d025655b71e673"
-		},
-		{
-			"name": "@lushly-dev/specimen-host-linux-arm64-gnu",
-			"version": "2.2.0-preview.8",
-			"manifest": "foundations/specimen/packages/host-linux-arm64-gnu/package.json",
-			"manifestHash": "34a184d40000e6fd4565f17290ac0cde620b6cfe35c4b0afd6aeb3721227324b"
-		},
-		{
-			"name": "@lushly-dev/specimen-host-linux-x64-gnu",
-			"version": "2.2.0-preview.8",
-			"manifest": "foundations/specimen/packages/host-linux-x64-gnu/package.json",
-			"manifestHash": "d3489f49af516e7436aea394be1a172135722a7c680fa83962b7d4a0c52d7102"
-		},
-		{
-			"name": "@lushly-dev/specimen-host-win32-x64",
-			"version": "2.2.0-preview.8",
-			"manifest": "foundations/specimen/packages/host-win32-x64/package.json",
-			"manifestHash": "7b7d3f8422d27219e9843cb88a573d0e4b26f2cab3eaf0bac0222399f5b9ced0"
-		},
-		{
-			"name": "@lushly-dev/specimen-afd",
-			"version": "2.2.0-preview.5",
-			"manifest": "integrations/specimen-afd/package.json",
-			"manifestHash": "45b3fbc1e49995eccd760532f33c8273a8168f18f15953d1a6999dba39b840ee"
-		},
-		{
-			"name": "@lushly-dev/violet-elements",
-			"version": "0.2.0-preview.4",
-			"manifest": "foundations/fast-af/packages/violet-elements/package.json",
-			"manifestHash": "51d7482691a3c9578ff29bdb1524209c8605a2b2a52c15d10eaf2116c047f5a9"
-		},
-		{
 			"name": "@lushly-dev/violet-core",
-			"version": "0.3.0-preview.3",
+			"version": "0.3.0-preview.4",
 			"manifest": "foundations/violet/packages/core/package.json",
-			"manifestHash": "5d21bf363247217ee62b2aefc41048338abb4eaf8b2ccb96b3a60b615ed62a72"
+			"manifestHash": "822b9ae0bdb894d5534d3191f98dbde404500b2bea122621fdefaed6a7e01e97"
 		},
 		{
 			"name": "@lushly-dev/violet-runtime",
-			"version": "0.3.0-preview.3",
+			"version": "0.3.0-preview.4",
 			"manifest": "foundations/violet/packages/runtime/package.json",
-			"manifestHash": "5ad778aad89733b30c3d8ec292c7cae47e3f27cc1ef272d095ba3bc640735ed3"
+			"manifestHash": "344c364a5b271d4f7d6bfe4b0a2849bf556f40a9e988043cfdd1ec2aa4d7ffd7"
 		},
 		{
 			"name": "@lushly-dev/violet-cli",
-			"version": "0.3.0-preview.3",
+			"version": "0.3.0-preview.4",
 			"manifest": "endpoints/violet-cli/package.json",
-			"manifestHash": "53d24548ab7b230471af1f99e7191568e72186653c8fbf250a5c8cd400d49a51"
+			"manifestHash": "a6efcc3feb524829407df64486c42dd6a74c23a63b7d50d88d4df0cc897d74dc"
 		},
 		{
 			"name": "@lushly-dev/violet-server",
-			"version": "0.3.0-preview.3",
+			"version": "0.3.0-preview.4",
 			"manifest": "endpoints/violet-server/package.json",
-			"manifestHash": "febd6b0a7a9884abee2a5b601af78dd3977443c827988d8877b0c5063a78fbd4"
+			"manifestHash": "a55bfe5d43bc4f79306f4b8e02b6b65ad329ce3127d456c1024eae2dff58c35b"
 		},
 		{
 			"name": "@lushly-dev/violet-afd",
-			"version": "0.3.0-preview.3",
+			"version": "0.3.0-preview.4",
 			"manifest": "integrations/violet-afd/package.json",
-			"manifestHash": "b0d39975efc282cc3dec320eceb729de10357e430dff923a33cb244739ffe842"
+			"manifestHash": "c7a08302c4a8f63c2c9912a3033243a4dffd74a482f21b9373ca6b261f546d88"
 		}
 	]
 }
