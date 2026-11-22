@@ -109,6 +109,17 @@ export const OAUTH_DISABLED_PATHS: readonly string[] = Object.freeze([
 	'/oauth2/delete-consent',
 ]);
 
+/**
+ * The plugins `oauthPlugins` returns. Named rather than inferred: the inferred type reaches `jose`'s
+ * `JWTPayload` through the JWT plugin's types, which this package cannot name in its declarations (TS2883 from
+ * better-auth 1.7.26 on).
+ */
+export type OAuthPlugins = [
+	ReturnType<typeof jwt>,
+	ReturnType<typeof oauthProvider>,
+	ReturnType<typeof cimd>,
+];
+
 /** The plugins that make the provider Loam's authorization server (9.4), in order: the JWT plugin first. */
 export function oauthPlugins(options: {
 	shell: string;
@@ -116,7 +127,7 @@ export function oauthPlugins(options: {
 	config: LoamOAuthConfig;
 	/** Whether a person is an owner of the bound organization: only an owner's session manages clients. */
 	isOwner(userId: string): Promise<boolean>;
-}) {
+}): OAuthPlugins {
 	const { shell, resource, config } = options;
 	return [
 		jwt({ jwks: { keyPairConfig: { alg: 'EdDSA', crv: 'Ed25519' } } }),
