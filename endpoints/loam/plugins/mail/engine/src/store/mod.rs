@@ -16,6 +16,7 @@ mod operations;
 mod parts;
 mod policy;
 mod read;
+mod records;
 mod remove;
 mod schema;
 mod screening;
@@ -46,6 +47,10 @@ pub use operations::{
 };
 pub use policy::{MOST_ASK_ABOVE, MOST_PER_CALL, MOST_PER_DAY, Policy, PolicyRow};
 pub use read::{Evidence, LinkRow, MessageListed, PartRow, Shown};
+pub use records::{
+    NewRecord, ProposerFilter, RecordProposed, RecordQuery, RecordRow, RecordState, RecordType,
+    WithdrawOutcome,
+};
 pub use remove::{RemovalPreview, Removed};
 pub use screening::{Grouping, RECURRING, ScreeningCounts, ScreeningReport};
 pub use selections::{

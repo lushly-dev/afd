@@ -257,6 +257,9 @@ async fn a_persons_command_is_neither_listed_nor_callable_over_mcp() {
         "mail-policy-show",
         "mail-operation-dismiss",
         "mail-unsubscribe-show",
+        "mail-record-list",
+        "mail-record-propose",
+        "mail-record-withdraw",
     ] {
         assert!(listed.contains(agents), "{agents} is not listed: {listed}");
     }

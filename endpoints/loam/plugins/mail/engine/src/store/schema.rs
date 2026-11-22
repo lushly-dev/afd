@@ -913,6 +913,45 @@ pub(super) const MIGRATIONS: &[&str] = &[
     CREATE INDEX outbound_state ON outbound (state, started_at DESC, id DESC);
     CREATE INDEX outbound_account ON outbound (account_id);
     ",
+    // 17: proposed records attached to messages (step E1; the specification's 10.1).
+    // Not derived: survives a rebuild.
+    "
+    -- Structured records proposed by callers and grounded in verbatim visible passages of a
+    -- message. Records are never edited: a newer proposal from the same proposer for the same
+    -- message and type atomically supersedes the prior active row.
+    CREATE TABLE record (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        message_id INTEGER NOT NULL REFERENCES message (id),
+        record_type TEXT NOT NULL CHECK (record_type IN (
+            'request', 'commitment', 'deadline', 'order', 'booking',
+            'bill', 'code', 'category', 'priority'
+        )),
+        fields TEXT NOT NULL,
+        passages TEXT NOT NULL,
+        content_hash BLOB NOT NULL CHECK (length(content_hash) = 32),
+        proposer_kind TEXT NOT NULL,
+        proposer_id TEXT CHECK (proposer_id IS NULL OR proposer_id <> ''),
+        state TEXT NOT NULL CHECK (state IN ('active', 'superseded', 'withdrawn')),
+        superseded_by INTEGER REFERENCES record (id) CHECK (superseded_by <> id),
+        proposed_at INTEGER NOT NULL,
+        ended_at INTEGER,
+        CHECK ((state = 'active') = (ended_at IS NULL)),
+        CHECK ((state = 'superseded') = (superseded_by IS NOT NULL))
+    ) STRICT;
+    CREATE UNIQUE INDEX record_active_slot
+        ON record (message_id, record_type, proposer_kind, coalesce(proposer_id, ''))
+        WHERE state = 'active';
+    CREATE INDEX record_message ON record (message_id, state, proposed_at DESC, id DESC);
+    CREATE INDEX record_type_active ON record (record_type, proposed_at DESC, id DESC)
+        WHERE state = 'active';
+    CREATE INDEX record_proposer_active ON record (proposer_kind, proposer_id, id)
+        WHERE state = 'active';
+    CREATE INDEX record_proposer_id ON record (proposer_id, proposed_at DESC, id DESC)
+        WHERE proposer_id IS NOT NULL;
+    CREATE INDEX record_active_order ON record (proposed_at DESC, id DESC)
+        WHERE state = 'active';
+    CREATE INDEX record_order ON record (proposed_at DESC, id DESC);
+    ",
 ];
 
 /// Brings `connection` to the newest schema, one migration and one

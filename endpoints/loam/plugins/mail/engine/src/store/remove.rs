@@ -190,7 +190,11 @@ impl Store {
         transaction.execute_batch(
             "UPDATE draft SET answers_message_id = NULL, revision = revision + 1
                  WHERE answers_message_id IN (SELECT id FROM removing_message);
-             DELETE FROM snooze WHERE message_id IN (SELECT id FROM removing_message);",
+             DELETE FROM snooze WHERE message_id IN (SELECT id FROM removing_message);
+             UPDATE record SET superseded_by = NULL, state = 'withdrawn'
+                 WHERE message_id IN (SELECT id FROM removing_message)
+                   AND superseded_by IS NOT NULL;
+             DELETE FROM record WHERE message_id IN (SELECT id FROM removing_message);",
         )?;
         transaction.execute_batch(
             "DELETE FROM message WHERE id IN (SELECT id FROM removing_message);
@@ -246,6 +250,7 @@ const HANDLED: &[(&str, &str)] = &[
     ("draft", "message"),
     ("outbound", "account"),
     ("snooze", "message"),
+    ("record", "message"),
     // Twice: where the message was, and where it goes.
     ("operation_item", "mailbox"),
     ("operation_item", "mailbox"),

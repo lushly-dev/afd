@@ -2030,6 +2030,23 @@ decided by step E1.
 - A record is superseded by a later one from the same proposer for the same message and type,
   and withdrawn by `mail-record-withdraw`. None is edited.
 
+**As step E1 built it** (`engine/src/store/records.rs`, `engine/src/records.rs`, migration 17):
+
+- **Closed record vocabulary and strict per-type fields (9 types):**
+  - `request`: required `summary`; optional `dueAt`, `urgency` (`low` | `normal` | `high`).
+  - `commitment`: required `summary`, `by` (`person` | `sender` | `other`); optional `dueAt`.
+  - `deadline`: required `summary`, `dueAt`; optional `timezone`.
+  - `order`: required `merchant`; optional `orderNumber`, `status`, `amount`, `currency`, `trackingNumber`, `expectedAt`.
+  - `booking`: required `title`, `startsAt`; optional `endsAt`, `location`, `confirmationCode`, `provider`.
+  - `bill`: required `vendor`, `amount`, `currency`; optional `dueAt`, `invoiceNumber`, `autopay` (bool).
+  - `code`: required `service`, `code`; optional `expiresAt`.
+  - `category`: required `category`; optional `reason`.
+  - `priority`: required `level` (`low` | `normal` | `high` | `urgent`); optional `rank` (integer 1–100), `reason`.
+  Unknown field keys are refused with `INVALID_INPUT` without repeating the caller's key; string fields are non-empty, at most 500 characters, and forbid control and invisible formatting/bidi characters (allowing `U+200D` and `U+FE0F`). Serialized canonical `fields` JSON is capped at 4 KiB.
+- **Passage verification and size caps:** `mail-record-propose` requires 1 to 8 non-blank passages of at most 1 000 characters each. It reads the message's held bytes from the log (returning retryable `NOT_HELD` if the body is not held yet; never contacting a provider) and verifies each passage verbatim against the message's visible body text (`derive::reading`, hidden HTML and invisible characters removed per [6.2](#62-hidden-text)) or decoded `Subject` (invisible characters removed). Any missing passage or hidden-only passage refuses the entire proposal with non-retryable `PASSAGE_NOT_FOUND` naming only the passage index.
+- **Storage, supersession and limits (migration 17):** `record` is a non-derived `STRICT` table that survives `mail-rebuild` and stores the 32-byte SHA-256 `content_hash` over canonical `{ message, type, fields, passages }`. A unique partial index enforces at most one `active` row per `(message_id, record_type, proposer_kind, proposer_id)`; a newer proposal from the same proposer atomically marks the prior active row `superseded` (`superseded_by` and `ended_at` set). Each proposer may hold at most 10 000 active records (`POLICY_LIMIT`; superseding an existing slot is allowed at the cap). `mail-record-withdraw` marks an active row `withdrawn` for the person at a terminal or its own proposer (`FORBIDDEN` otherwise; `RECORD_NOT_FOUND` if missing; non-destructive per M29). `mail-account-remove` clears records for removed messages.
+- **Content labels, listing and journal:** `mail-record-list` (`cli, mcp`, cursor-paged, `limit` 1–200, default 50, `LIST_BUDGET`..`MOST_BUDGET`) filters by `message`, `thread`, `type`, `proposer` (actor kind or token id) and `includeEnded` (default false). Every record's `fields` and `passages` are returned inside `"content": { "trust": "content", ... }` ([12.1](#121-content-labels)), `mail-message-open` reports the message's active record count (`records`), and `journal.jsonl` keeps `mail-record-propose`'s input while stripping `content` from its journaled result ([13.1](#131-the-journal)). Because every passage is already in the message's indexed visible text, tantivy is unchanged in E1.
+
 ### 10.2 Situation and cohort stories
 
 A caller proposes a story and its members with `mail-story-propose`. Each membership carries an
@@ -2091,8 +2108,8 @@ says otherwise.
 | `mail-unsubscribe` | D | Remote, destructive; a person | cli | Step D3's third part ([9.5](#95-drafts-and-sending)): names the previewed `digest`, sends RFC 8058 one-click HTTPS POST (no redirects) or RFC 2369 `mailto:` over SMTP, and records `outbound` |
 | `mail-policy-show` | D | Read | cli, mcp | Step D1 ([9.4](#94-the-policy)) |
 | `mail-policy-set` | D | Local; a person | cli | Step D1: held for approval, its summary in numbers alone; returns the numbers before |
-| `mail-record-list` | E | Read | cli, mcp | |
-| `mail-record-propose`, `mail-record-withdraw` | E | Local | cli, mcp | |
+| `mail-record-list` | E | Read | cli, mcp | Step E1 ([10.1](#101-records)): newest first, cursor-paged (`proposedAt.record`), filters by `message`, `thread`, `type`, `proposer` and `includeEnded`; `fields` and `passages` labelled as content |
+| `mail-record-propose`, `mail-record-withdraw` | E | Local | cli, mcp | Step E1 ([10.1](#101-records)): 9 closed types with strict fields, verbatim visible-text/subject passage verification (`NOT_HELD`/`PASSAGE_NOT_FOUND`), 10 000 active/proposer cap, atomic supersession; withdrawal by person or proposer (`FORBIDDEN` otherwise; non-destructive per M29) |
 | `mail-story-propose`, `mail-story-dismiss` | E | Local | cli, mcp | Dismissing is the person's or the proposer's |
 | `mail-replyset-create`, `mail-replyset-next` | E | Local | cli, mcp | |
 | `mail-replyset-show` | E | Read | cli, mcp | |
@@ -2168,14 +2185,15 @@ Beside the crate's own codes:
 | `ONE_COMMAND_PER_CALL` | `afd-batch` or `afd-pipe` called on a server ([3.2](#32-modes)) |
 | `TOKEN_NOT_FOUND` | No agent's token has the id named |
 | `PERSON_REQUIRED` | A person's command with no terminal |
-| `POLICY_LIMIT` | More proposals or suggestions waiting than the policy allows this caller |
+| `POLICY_LIMIT` | More proposals, suggestions waiting, or active records than the policy allows this caller (10 000 active records per proposer in step E1) |
 | `PROPOSAL_NOT_OPEN` | The proposal or suggestion named was already approved, dismissed or expired, or there is none with that id |
 | `SCREENING_NOT_READY` | Classes or stories are read while messages wait to be derived again or a rebuild is under way ([7.1](#71-senders)); retryable |
 | `SELECTION_MISMATCH` | The count stated is not the selection's count, or the selection has expired |
 | `RECIPIENT_NOT_ALLOWED` | A recipient the rule does not allow |
 | `SEND_OUTCOME_UNKNOWN` | The send may or may not have gone |
 | `UNDO_NOT_POSSIBLE` | The provider no longer holds what an undo needs |
-| `PASSAGE_NOT_FOUND` | A proposed record's passage is not in the message |
+| `PASSAGE_NOT_FOUND` | A proposed record's passage is not in the message's visible text or subject (step E1) |
+| `RECORD_NOT_FOUND` | No record has the id named (step E1) |
 | `DRAFT_NOT_FOUND` | No draft has the id named; a discarded draft goes after 30 days (step D3) |
 | `DRAFT_CHANGED` | A change names a revision the draft is no longer at (step D3) |
 | `PREVIEW_CHANGED` | A send or unsubscribe names a revision or digest that is no longer current since its preview was read (step D3) |
@@ -2213,7 +2231,7 @@ It is in the data directory and is as private as the mail.
   command input, and are journaled. That is what makes those changes replayable and auditable,
   and it means the journal must never be shared or uploaded as a log. A draft's text stays in it
   after the draft is discarded and gone; a draft command's result is journaled without the text
-  (step D3).
+  (step D3), and `mail-record-propose`'s result is journaled without its `content` part (step E1).
 - **It does not hold what was read.** Read commands are left out by the recorder's filter, so
   opening and searching mail copies nothing into it.
 - **It holds no secret.** No command takes one. `mail-token-create` returns one, and the
