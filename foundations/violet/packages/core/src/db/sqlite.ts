@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { createRequire } from 'node:module';
 import type Database from 'better-sqlite3';
 import type { Database as IDatabase } from '../storage.js';
@@ -38,6 +39,47 @@ function loadBetterSqlite3(): typeof Database {
 	}
 }
 
+interface TxFrame {
+	active: boolean;
+	root: TxFrame;
+	childQueue: Promise<void>;
+	childPending: number;
+}
+
+const GUARDED_DB_METHODS: ReadonlyArray<Exclude<keyof IDatabase, 'transaction'>> = [
+	'getNode',
+	'createNode',
+	'updateNode',
+	'deleteNode',
+	'listNodes',
+	'getAncestryChain',
+	'getDescendants',
+	'getOperations',
+	'addOperation',
+	'removeOperation',
+	'addAuditEvent',
+	'getAuditEvents',
+	'queryAuditEvents',
+	'addCheckSnapshot',
+	'listCheckSnapshots',
+	'getSpecimenMap',
+	'setSpecimenMap',
+	'getConstraints',
+	'setConstraints',
+	'addConstraint',
+	'removeConstraint',
+	'createWebhook',
+	'getWebhook',
+	'updateWebhook',
+	'deleteWebhook',
+	'listWebhooks',
+	'createDelivery',
+	'getDelivery',
+	'updateDelivery',
+	'listDeliveries',
+	'getPendingDeliveries',
+];
+
 /**
  * SQLite database implementation
  *
@@ -45,11 +87,72 @@ function loadBetterSqlite3(): typeof Database {
  */
 export class SQLiteDatabase implements IDatabase {
 	private db: Database.Database;
+	private readonly txContext = new AsyncLocalStorage<TxFrame>();
+	private txQueue: Promise<void> = Promise.resolve();
+	private txPending = 0;
+	private activeTopTx: TxFrame | null = null;
+	private activeFrame: TxFrame | null = null;
+	private savepointSeq = 0;
 
 	constructor(filename = ':memory:') {
 		this.db = new (loadBetterSqlite3())(filename);
 		this.db.pragma('journal_mode = WAL');
 		this.initSchema();
+		this.guardConnectionMethods();
+	}
+
+	/**
+	 * Ensure ordinary database methods wait for connection ownership when a
+	 * transaction is active in another async context, preventing unrelated writes
+	 * from being folded into (or rolled back with) another caller's transaction.
+	 */
+	private guardConnectionMethods(): void {
+		const self = this as unknown as Record<string, (...args: unknown[]) => Promise<unknown>>;
+		for (const name of GUARDED_DB_METHODS) {
+			const original = self[name].bind(this);
+			self[name] = (...args: unknown[]) => this.withConnection(() => original(...args));
+		}
+	}
+
+	private async withConnection<T>(op: () => Promise<T>): Promise<T> {
+		const frame = this.txContext.getStore();
+		if (frame?.active && frame === this.activeFrame) {
+			return op();
+		}
+		if (frame?.active && frame.root === this.activeTopTx) {
+			const prior = frame.childQueue;
+			let release!: () => void;
+			frame.childPending++;
+			frame.childQueue = new Promise<void>((resolve) => {
+				release = resolve;
+			});
+			await prior;
+			try {
+				if (!frame.active || frame.root !== this.activeTopTx || !this.db.inTransaction) {
+					throw new Error('Transaction has already ended');
+				}
+				return await op();
+			} finally {
+				frame.childPending--;
+				release();
+			}
+		}
+		if (this.activeTopTx === null && this.txPending === 0) {
+			return op();
+		}
+		const prior = this.txQueue;
+		let release!: () => void;
+		this.txPending++;
+		this.txQueue = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		await prior;
+		try {
+			return await op();
+		} finally {
+			this.txPending--;
+			release();
+		}
 	}
 
 	private initSchema(): void {
@@ -504,7 +607,101 @@ export class SQLiteDatabase implements IDatabase {
 	}
 
 	async transaction<T>(fn: () => Promise<T>): Promise<T> {
-		return this.db.transaction(() => fn())();
+		const parent = this.txContext.getStore();
+		if (parent?.active && parent.root === this.activeTopTx && this.db.inTransaction) {
+			const prior = parent.childQueue;
+			let release!: () => void;
+			parent.childPending++;
+			parent.childQueue = new Promise<void>((resolve) => {
+				release = resolve;
+			});
+			await prior;
+			if (!parent.active || parent.root !== this.activeTopTx || !this.db.inTransaction) {
+				parent.childPending--;
+				release();
+				throw new Error('Parent transaction has already ended');
+			}
+			const childFrame: TxFrame = {
+				active: true,
+				root: parent.root,
+				childQueue: Promise.resolve(),
+				childPending: 0,
+			};
+			const previousFrame = this.activeFrame;
+			this.activeFrame = childFrame;
+			const sp = `violet_sp_${++this.savepointSeq}`;
+			try {
+				this.db.exec(`SAVEPOINT ${sp}`);
+				try {
+					const result = await this.txContext.run(childFrame, fn);
+					childFrame.active = false;
+					await childFrame.childQueue;
+					this.db.exec(`RELEASE SAVEPOINT ${sp}`);
+					return result;
+				} catch (err) {
+					childFrame.active = false;
+					await childFrame.childQueue;
+					try {
+						if (this.db.inTransaction) {
+							this.db.exec(`ROLLBACK TO SAVEPOINT ${sp}`);
+							this.db.exec(`RELEASE SAVEPOINT ${sp}`);
+						}
+					} catch {
+						// Preserve the original callback error if rollback fails (e.g. closed DB).
+					}
+					throw err;
+				}
+			} finally {
+				childFrame.active = false;
+				this.activeFrame = previousFrame;
+				parent.childPending--;
+				release();
+			}
+		}
+
+		const prior = this.txQueue;
+		let release!: () => void;
+		this.txPending++;
+		this.txQueue = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+
+		await prior;
+		const topFrame = {
+			active: true,
+			childQueue: Promise.resolve(),
+			childPending: 0,
+		} as TxFrame;
+		topFrame.root = topFrame;
+		this.activeTopTx = topFrame;
+		this.activeFrame = topFrame;
+		try {
+			this.db.exec('BEGIN IMMEDIATE');
+			try {
+				const result = await this.txContext.run(topFrame, fn);
+				topFrame.active = false;
+				await topFrame.childQueue;
+				this.db.exec('COMMIT');
+				return result;
+			} catch (err) {
+				topFrame.active = false;
+				await topFrame.childQueue;
+				try {
+					if (this.db.inTransaction) {
+						this.db.exec('ROLLBACK');
+					}
+				} catch {
+					// Preserve the original callback error if rollback fails (e.g. closed DB).
+				}
+				throw err;
+			}
+		} finally {
+			topFrame.active = false;
+			this.activeTopTx = null;
+			this.activeFrame = null;
+			this.txPending--;
+			release();
+		}
 	}
 
 	// =============================================================================

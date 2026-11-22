@@ -9,6 +9,7 @@ import type { Actor } from '@lushly-dev/afd-core';
 import type { DirectRegistryOptions } from '@lushly-dev/afd-server/direct';
 import * as z from 'zod/mini';
 import { id, SCOPE_FIELD } from './scope/field.js';
+import type { KernelPrincipalV1 } from './scope/principal.js';
 import type { ScopeV1 } from './scope/records.js';
 
 export const KERNEL_CONTEXT_FIELDS: NonNullable<DirectRegistryOptions['contextFields']> =
@@ -45,6 +46,13 @@ export interface KernelCallFields {
 	 * and the agent, the outer call was for. Absent: the session's person, or the agent interface's agent.
 	 */
 	actor?: Actor;
+	/**
+	 * The request's principal on a principal-gated kernel (phase 3 specification, 9.5): never declared to a server, never
+	 * journaled (the journal keeps `actor`) and never on an app handler's context. `execute` fills a nested call's from
+	 * its copied actor alone, never from this field, so every path a call can take under a request carries it; the gate
+	 * trusts only one its kernel minted, and stamps the actor from it.
+	 */
+	principal?: KernelPrincipalV1;
 	/** Stage B's own move of an old appearance record (phase 4 specification, 3.6): the kernel's alone. */
 	migration?: true;
 }

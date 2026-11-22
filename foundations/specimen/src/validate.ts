@@ -519,6 +519,25 @@ function testTags(value: unknown): NonNullable<BenchConfig['test']> {
 	return result;
 }
 
+/** Validate a `staticDirs[].to` mount path: rooted at `/`, with no traversal or platform escapes. */
+export function isSafeStaticMount(to: string): boolean {
+	if (!to.startsWith('/') || to.includes('\\')) return false;
+	for (let i = 0; i < to.length; i++) {
+		const code = to.charCodeAt(i);
+		if (code <= 0x1f || code === 0x7f) return false;
+	}
+	if (to === '/') return true;
+	const trimmed = to.endsWith('/') ? to.slice(1, -1) : to.slice(1);
+	if (!trimmed) return false;
+	const segments = trimmed.split('/');
+	for (let i = 0; i < segments.length; i++) {
+		const segment = segments[i];
+		if (!segment || segment === '.' || segment === '..') return false;
+		if (i === 0 && /^[a-zA-Z]:/.test(segment)) return false;
+	}
+	return true;
+}
+
 function staticDirs(value: unknown): NonNullable<BenchConfig['staticDirs']> {
 	if (!Array.isArray(value)) fail('configuration.staticDirs', 'expected an array of directories');
 	return value.map((item, index) => {
@@ -527,6 +546,8 @@ function staticDirs(value: unknown): NonNullable<BenchConfig['staticDirs']> {
 		const fields = record(item, path, ['from', 'to']);
 		const to = text(fields.to, `${path}.to`);
 		if (!to.startsWith('/')) fail(`${path}.to`, 'expected a path starting with /');
+		if (!isSafeStaticMount(to))
+			fail(`${path}.to`, 'must be a normalized mount path without traversal segments');
 		return { from: text(fields.from, `${path}.from`), to };
 	});
 }

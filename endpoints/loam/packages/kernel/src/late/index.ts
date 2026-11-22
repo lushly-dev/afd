@@ -13,6 +13,7 @@ import type { DataAdapter } from '@lushly-dev/local-db';
 import * as z from 'zod/mini';
 import { APPEARANCE_DENSITIES, APPEARANCE_THEMES } from '../appearance.js';
 import { BOOT_ONLY, INTERNAL_COMMANDS } from '../commands.js';
+import type { KernelCallFields } from '../context-fields.js';
 import type { CopilotParts } from '../copilot/commands.js';
 import type { CopilotOptionsV1, CopilotTraceV1 } from '../copilot/types.js';
 import type { KeybindingRegistry } from '../keybindings.js';
@@ -38,6 +39,7 @@ import { type AppCommandDeps, createAppCommands } from './app-commands.js';
 import {
 	agentActor,
 	createAuthGate,
+	KERNEL_SETTLE_COMMANDS,
 	membershipUnavailable,
 	SIGNED_OUT_COMMANDS,
 	sessionChanged,
@@ -153,6 +155,16 @@ export type LateCommandDeps = ShellCommandDeps &
 		 * once (step 7's fifth round, 1).
 		 */
 		disposed?(): boolean;
+		/**
+		 * The server's kernel (phase 3 specification, 9.5): its chain opens with `principalGate`, so nothing here reads the
+		 * adapter's session; `session-settle`, `membership-settle` and `agent-member-settle` are not registered, the
+		 * kernel hears no adapter, and `mcpOptions()` has no page-event middleware.
+		 */
+		gated?: boolean;
+		/** The symbol `execute` marks the kernel's own calls under, for line 0's exemption of them on the server (9.5). */
+		own?: symbol;
+		/** `startInstances`' refresh's fields, which the principal gate passes for `app-instance-refresh` alone (9.5). */
+		instanceFields?: KernelCallFields;
 	} & Pick<ProjectSummaryDeps, 'summaries' | 'run' | 'deadlineMs'> &
 	/** What stage B reads of the apps, from the kernel's options (phase 2 specification, 2.2). */
 	Pick<KernelOptionsV5, 'boot' | 'appsLoader' | 'deployment' | 'identityPorts' | 'overlayAnchors'>;
@@ -170,6 +182,14 @@ export const PERSON_SESSION: readonly string[] = Object.freeze([
 	'auth-sign-in',
 	'auth-sign-out',
 ]);
+
+/**
+ * A page's own state, which a server's kernel would hold as one record set for every principal (9.5; step 7's
+ * re-check): the layout, the appearance, the palette, the view-state records, the overlays and the status and
+ * selection values. Not served over MCP by a principal-gated kernel, so no principal reads or builds on another's.
+ */
+const PAGE_STATE_COMMANDS =
+	/^(layout-|appearance-|palette-|view-state-|overlay-|modal-|toast-|popover-|dialog-|prompt-|status-item-|app-selection-)/;
 
 /** The shell's inbox commands (phase 4 specification, 10.2), none served over MCP (its section 13). */
 const SHELL_NOTIFICATION_COMMANDS: ReadonlySet<string> = new Set(
@@ -434,6 +454,8 @@ export async function createLateParts(
 	let settings: Settings | undefined;
 	/** The person the shell is for: the last settle's once there is one, the adapter's until then (4.4, B2). */
 	const shellPerson = (): string | undefined => {
+		// The server's kernel is for no one person and reads no adapter (9.5).
+		if (deps.gated) return undefined;
 		const settledFor = sessions?.person();
 		return settledFor === undefined
 			? personKey(sessionActor(deps.auth, deps.clock))
@@ -446,6 +468,7 @@ export async function createLateParts(
 	// (3.3), and its commands. Boot's own `runBoot` journals the sponsor's read and the suspensions, top-level (4.4).
 	const agentMembers = createAgentMembers({
 		auth: deps.auth,
+		gated: deps.gated === true,
 		identity: deps.identity,
 		store: deps.store,
 		scope: deps.scope,
@@ -489,7 +512,8 @@ export async function createLateParts(
 		auth: deps.auth,
 		identity: deps.identity,
 		kit: { ...DOCUMENT_KIT, personKey, isOwner },
-		membership: () => deps.scope.membership,
+		membership: (context) => deps.scope.membershipOf(context),
+		gated: deps.gated === true,
 		agents: agentMembers,
 		// Step 5's persona, built below: what other members see, and the active persona's id (step 5's deviation 8).
 		personas: {
@@ -517,10 +541,14 @@ export async function createLateParts(
 	const lateScope = createLateScope({
 		...deps,
 		recorded: PROVIDER_COMMANDS,
+		recordedCall: agentMembers.recordedCall,
 		session: () => sessions,
 		prepare: agentMembers.prepare,
 		documents,
 		async settle(name, call) {
+			// A page's own state after a call: the editor owner, the person's settings, the inspector. The server holds no
+			// page, and none of it may read the adapter there (9.5).
+			if (deps.gated) return;
 			await editor?.settle(name, call);
 			// The person's settings, and so the appearance the shell paints, follow a change of person (phase 4's 3.6).
 			await settings?.follow();
@@ -543,32 +571,35 @@ export async function createLateParts(
 		DOCUMENT_KIT
 	);
 	editor = editorParts;
-	sessions = createSessionSettle({
-		...deps,
-		ports: deps.identityPorts ?? deps.ports,
-		identityCommands,
-		persona,
-		agents: agentMembers,
-		lateScope,
-		drafts,
-		ensureEditor: (project) => editorParts.ensure(project),
-		// Phase 4's 7.2: a change of person withdraws the leaving person's pending confirmations, built below.
-		personLeft: (person, context) => confirmations.withdraw(context, () => true, person),
-		kit: {
-			define: DOCUMENT_KIT.define,
-			success: DOCUMENT_KIT.success,
-			z: DOCUMENT_KIT.z,
-			actor: () => sessionActor(deps.auth, deps.clock),
-			personKey,
-			ticket: (call) => (call as unknown as Record<symbol, QueuedTicket | undefined>)[deps.queued],
-			sessionChanged,
-			membershipUnavailable,
-			marked: DOCUMENT_KIT.marked,
-			internal: INTERNAL_COMMANDS,
-		},
-		...(quiet ? { quiet } : {}),
-	});
-	if (deps.disposed?.()) sessions.stop();
+	// The server reads each person's membership per request and hears no adapter (9.5): no session logic at all.
+	if (!deps.gated)
+		sessions = createSessionSettle({
+			...deps,
+			ports: deps.identityPorts ?? deps.ports,
+			identityCommands,
+			persona,
+			agents: agentMembers,
+			lateScope,
+			drafts,
+			ensureEditor: (project) => editorParts.ensure(project),
+			// Phase 4's 7.2: a change of person withdraws the leaving person's pending confirmations, built below.
+			personLeft: (person, context) => confirmations.withdraw(context, () => true, person),
+			kit: {
+				define: DOCUMENT_KIT.define,
+				success: DOCUMENT_KIT.success,
+				z: DOCUMENT_KIT.z,
+				actor: () => sessionActor(deps.auth, deps.clock),
+				personKey,
+				ticket: (call) =>
+					(call as unknown as Record<symbol, QueuedTicket | undefined>)[deps.queued],
+				sessionChanged,
+				membershipUnavailable,
+				marked: DOCUMENT_KIT.marked,
+				internal: INTERNAL_COMMANDS,
+			},
+			...(quiet ? { quiet } : {}),
+		});
+	if (deps.disposed?.()) sessions?.stop();
 	// The kernel's `dispose` destroys the view state last: the listener and the timer stop with it.
 	const destroy = deps.viewState.destroy.bind(deps.viewState);
 	deps.viewState.destroy = () => {
@@ -983,6 +1014,7 @@ export async function createLateParts(
 				anchorFound: (owner, anchor) =>
 					owner.kind !== 'agent' &&
 					(deps.overlayAnchors?.resolve?.({ kind: owner.kind, id: owner.id }, anchor) ?? false),
+				allows: (actor, scope) => deps.scope.allows(actor, scope),
 			}),
 			...scoped,
 			createProjectSummaryCommand(deps),
@@ -993,7 +1025,7 @@ export async function createLateParts(
 			...createLinkCommands({ ...deps, check: documents, index }),
 			...editor.commands,
 			created.command,
-			sessions.command,
+			...(sessions ? [sessions.command] : []),
 			...identityCommands.commands,
 			...memberCommands.commands,
 			...persona.commands,
@@ -1162,7 +1194,10 @@ export async function createLateParts(
 		confirmations,
 		writeThrough: writeThrough(deps.viewState, deps.state),
 		// From `BOOT_ONLY` itself, so the boot registry can hold nothing else (2.2).
-		bootOnly: BOOT_ONLY.flatMap((name) => byName.get(name) ?? []),
+		// The server registers none of the three settles (9.5): no person's session or membership is held there.
+		bootOnly: BOOT_ONLY.filter(
+			(name) => !(deps.gated && (KERNEL_SETTLE_COMMANDS as readonly string[]).includes(name))
+		).flatMap((name) => byName.get(name) ?? []),
 		lateScope,
 		authGate: (held) =>
 			createAuthGate(deps.auth, held, {
@@ -1206,6 +1241,7 @@ export async function createLateParts(
 				(command) =>
 					!INTERNAL_COMMANDS.includes(command.name) &&
 					!PERSON_SESSION.includes(command.name) &&
+					!(deps.gated && PAGE_STATE_COMMANDS.test(command.name)) &&
 					!HUMAN_COMMANDS.includes(command.name) &&
 					!OWNER_COMMANDS.includes(command.name) &&
 					// The copilot's commands are served to no agent (phase 5 specification, 3.3).
@@ -1219,45 +1255,49 @@ export async function createLateParts(
 					!command.name.startsWith('confirmation-') &&
 					!MCP_UNSERVED_OVERLAYS.has(command.name)
 			),
-			middleware: [
-				async (command, _input, context, next) => {
-					const trace = context.traceId as string;
-					// Before and after: a call that takes the page's actor out of a scope is heard too.
-					const before = deps.scope.allows(
-						sessionActor(deps.auth, deps.clock),
-						(context as { scope?: ScopeV1 }).scope ?? { workspace: deps.scope.workspace.id }
-					);
-					deps.scope.seen.set(trace, {});
-					const result = await next();
-					const seen = deps.scope.seen.get(trace);
-					deps.scope.seen.delete(trace);
-					// Only of a scope the page's actor may enter: of any other, the page has nothing to render.
-					if (
-						result.success &&
-						deps.isMutation(command) &&
-						(before ||
-							!seen?.scope ||
-							deps.scope.allows(sessionActor(deps.auth, deps.clock), seen.scope))
-					) {
-						const event = {
-							command,
-							interface: 'agent',
-							success: true,
-							mutation: true,
-							...seen,
-						} as const;
-						for (const listener of [...listeners]) {
-							try {
-								listener(event);
-							} catch (cause) {
-								reportLate(cause);
+			// The server's chain alone (9.5): the page-event middleware reads the adapter's session, which a server's kernel
+			// holds none of.
+			middleware: deps.gated
+				? [...middleware]
+				: [
+						async (command, _input, context, next) => {
+							const trace = context.traceId as string;
+							// Before and after: a call that takes the page's actor out of a scope is heard too.
+							const before = deps.scope.allows(
+								sessionActor(deps.auth, deps.clock),
+								(context as { scope?: ScopeV1 }).scope ?? { workspace: deps.scope.workspace.id }
+							);
+							deps.scope.seen.set(trace, {});
+							const result = await next();
+							const seen = deps.scope.seen.get(trace);
+							deps.scope.seen.delete(trace);
+							// Only of a scope the page's actor may enter: of any other, the page has nothing to render.
+							if (
+								result.success &&
+								deps.isMutation(command) &&
+								(before ||
+									!seen?.scope ||
+									deps.scope.allows(sessionActor(deps.auth, deps.clock), seen.scope))
+							) {
+								const event = {
+									command,
+									interface: 'agent',
+									success: true,
+									mutation: true,
+									...seen,
+								} as const;
+								for (const listener of [...listeners]) {
+									try {
+										listener(event);
+									} catch (cause) {
+										reportLate(cause);
+									}
+								}
 							}
-						}
-					}
-					return result;
-				},
-				...middleware,
-			],
+							return result;
+						},
+						...middleware,
+					],
 			contextFields: MCP_CONTEXT_FIELDS,
 		}),
 		hidden: (apps) => new Set(apps.filter((app) => !app.available).map((app) => app.instance)),
@@ -1344,7 +1384,8 @@ export async function createLateParts(
 			// Dirty tabs and selections are memory alone, lost as an unsaved change is (5.2).
 			editor?.reset();
 		},
-		begin: () => (sessions as SessionSettle).begin(),
+		// The server hears no adapter (9.5): nothing to begin.
+		begin: async () => sessions?.begin(),
 		async readApps() {
 			try {
 				const listed = deps.deployment;
@@ -1377,7 +1418,9 @@ export async function createLateParts(
 				deps
 					.apps()
 					.mountedInstances()
-					.map((instance) => deps.run('palette', 'app-instance-refresh', { instance }, {}, {}))
+					.map((instance) =>
+						deps.run('palette', 'app-instance-refresh', { instance }, {}, deps.instanceFields ?? {})
+					)
 			);
 		},
 	};

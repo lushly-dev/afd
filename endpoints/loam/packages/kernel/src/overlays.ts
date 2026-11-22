@@ -270,7 +270,8 @@ export function createOverlayStore(): OverlayStore {
 		if (options.for && owner.kind === 'shell' && kind === 'prompt') {
 			fors.set(ref.overlayId, detached(options.for));
 		}
-		if (options.scope && owner.kind === 'app') scopes.set(ref.overlayId, { ...options.scope });
+		if (options.scope && (owner.kind === 'app' || owner.kind === 'agent'))
+			scopes.set(ref.overlayId, { ...options.scope });
 		return { ...ref };
 	}
 
@@ -437,6 +438,7 @@ export function createOverlayStore(): OverlayStore {
 		closeOutOfScope(to) {
 			let count = 0;
 			for (const [overlayId, scope] of [...scopes]) {
+				if (owners.get(overlayId)?.kind !== 'app') continue;
 				const same =
 					scope.workspace === to.workspace &&
 					(scope.project === undefined || scope.project === to.project);

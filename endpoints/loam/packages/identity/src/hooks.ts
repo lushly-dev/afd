@@ -4,6 +4,7 @@
  */
 
 import { readBinding } from './binding.js';
+import { type ConnectionAdapter, suspendConnections } from './connected-agents.js';
 import { adapterOf, type LoamProviderState, memberOf, ownerRequired, refusal } from './plugin.js';
 import { rolesOf } from './roles.js';
 
@@ -95,8 +96,7 @@ export function createOrganizationHooks(state: LoamProviderState) {
 		},
 		/**
 		 * A removed person's sessions go at once (7.5), so no tab of theirs keeps a session the provider
-		 * would still accept. `revoke-person` (step 3) adds their OAuth consents and refresh tokens, which
-		 * exist from step 7.
+		 * would still accept, and with them their OAuth consents, refresh tokens and connected agents.
 		 */
 		async afterRemoveMember({
 			user,
@@ -105,8 +105,12 @@ export function createOrganizationHooks(state: LoamProviderState) {
 			user: { id: string };
 			organization: { id: string; slug: string };
 		}) {
-			if (await isBound(organization.id, organization.slug))
-				await state.context?.internalAdapter.deleteUserSessions(user.id);
+			if (!(await isBound(organization.id, organization.slug))) return;
+			await state.context?.internalAdapter.deleteUserSessions(user.id);
+			// Their OAuth grants and connected agents end too (7.5, 9.2): a refresh token left would be useful again if they
+			// rejoined. The kernel's own settle of it is A4's, on the hosted server.
+			const adapter = state.context?.adapter as unknown as ConnectionAdapter | undefined;
+			if (adapter) await suspendConnections(adapter, user.id);
 		},
 	};
 }

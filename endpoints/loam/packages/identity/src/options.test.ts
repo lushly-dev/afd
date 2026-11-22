@@ -93,8 +93,12 @@ describe('createLoamAuthOptions (2.6)', () => {
 		expect(options.advanced.useSecureCookies).toBe(true);
 		// A7: the client's address only from the header the hosted server sets from the socket.
 		expect(options.advanced.ipAddress).toEqual({ ipAddressHeaders: ['x-loam-client-ip'] });
+		// Step 7: the authorization server, its JWT plugin and Client ID Metadata Documents (9.4).
 		expect(options.plugins.map((plugin) => plugin.id).sort()).toEqual([
+			'cimd',
+			'jwt',
 			'loam',
+			'oauth-provider',
 			'organization',
 			'passkey',
 		]);
@@ -203,7 +207,11 @@ describe("step 3's deviation 2: no OAuth consents before revocation revokes them
 		const serving = ids.filter((id) => /oauth-provider|oidc-provider|consent|mcp|jwt/i.test(id));
 		if (!REVOKES_CONSENTS)
 			expect(serving, 'step 7 makes revoke-person revoke consents first').toEqual([]);
-		expect(new Set(ids)).toEqual(new Set(['organization', 'passkey', 'generic-oauth', 'loam']));
+		// Step 7: the authorization server, now that `revoke-person` ends a person's connections too.
+		expect(REVOKES_CONSENTS).toBe(true);
+		expect(new Set(ids)).toEqual(
+			new Set(['organization', 'passkey', 'generic-oauth', 'jwt', 'oauth-provider', 'cimd', 'loam'])
+		);
 	});
 });
 
@@ -271,7 +279,23 @@ describe('P3-E6: the organization hooks (7.1, 7.5), as units', () => {
 			})),
 			loamBinding: [{ id: 'b', workspace: 'acme', organizationId: 'org_1', boundAt: new Date(1) }],
 		});
-	const hooksOver = (adapter: BindingAdapter, deleted: string[] = []) => {
+	const hooksOver = (adapter: BindingAdapter, deleted: string[] = [], ended: string[] = []) => {
+		// The connections' writes (step 7): which person's grants and connected agents a removal ended.
+		const writes = {
+			updateMany: async (query: { model: string; where: { field: string; value: unknown }[] }) => {
+				const person = query.where.find(
+					(clause) => clause.field === 'sponsor' || clause.field === 'userId'
+				);
+				ended.push(`${query.model}:${String(person?.value)}`);
+				return 0;
+			},
+			deleteMany: async (query: { model: string; where: { field: string; value: unknown }[] }) => {
+				const person = query.where.find((clause) => clause.field === 'userId');
+				ended.push(`${query.model}:${String(person?.value)}`);
+				return 0;
+			},
+		};
+		adapter = Object.assign(Object.create(adapter), adapter, writes);
 		const state: LoamProviderState = {
 			workspace: 'acme',
 			organization: 'acme',
@@ -364,9 +388,10 @@ describe('P3-E6: the organization hooks (7.1, 7.5), as units', () => {
 		).toBe(fixed);
 	});
 
-	it('revokes the sessions of a person removed from the bound organization only', async () => {
+	it('revokes the sessions and connections of a person removed from the bound organization only', async () => {
 		const deleted: string[] = [];
-		const hooks = hooksOver(owners(['owner']), deleted);
+		const ended: string[] = [];
+		const hooks = hooksOver(owners(['owner']), deleted, ended);
 		await hooks.afterRemoveMember({
 			user: { id: 'u5' },
 			organization: { id: 'org_1', slug: 'acme' },
@@ -376,6 +401,12 @@ describe('P3-E6: the organization hooks (7.1, 7.5), as units', () => {
 			organization: { id: 'org_2', slug: 'other' },
 		});
 		expect(deleted).toEqual(['u5']);
+		// Their connected agents suspended, their consents deleted and refresh tokens revoked; nobody else's (step 7).
+		expect(ended.sort()).toEqual([
+			'loamConnectedAgent:u5',
+			'oauthConsent:u5',
+			'oauthRefreshToken:u5',
+		]);
 	});
 });
 

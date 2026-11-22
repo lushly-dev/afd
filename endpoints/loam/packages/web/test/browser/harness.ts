@@ -346,6 +346,16 @@ export async function serveDeployment(options: {
 	const site = await serveDirectory(out, {
 		relay: () => relay,
 		fallback: true,
+		// The four account pages' response policy, as the hosted lane serves them (phase 3 specification, 9.4; phase 6's
+		// 3.5): never framed, and a form posts only to the deployment's own origin.
+		...(tls
+			? {
+					headers: (path: string): Record<string, string> =>
+						/\/~\/(oauth\/(login|consent)|join|recover)\/?$/.test(path.split('?')[0] ?? '')
+							? { 'content-security-policy': "frame-ancestors 'none'; form-action 'self'" }
+							: {},
+				}
+			: {}),
 		...(options.basePath ? { base: options.basePath } : {}),
 		...(tls ? { tls: { cert: tls.cert, key: tls.key } } : {}),
 		...(tls ? { handle: authProxy(`${options.basePath ?? '/'}api/auth/`, () => authHost) } : {}),

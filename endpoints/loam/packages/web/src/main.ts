@@ -71,6 +71,41 @@ async function boot(): Promise<void> {
 	const link = /^~\/(join|recover)$/.exec(
 		new URL(location.href).pathname.slice(new URL(base).pathname.length)
 	)?.[1];
+	// The OAuth login and consent pages (phase 3 specification, 9.4): a page of their own over the provider, as above.
+	const oauth = /^~\/oauth\/(login|consent)$/.exec(
+		new URL(location.href).pathname.slice(new URL(base).pathname.length)
+	)?.[1];
+	if (oauth) {
+		const authBase =
+			identity?.mode === 'provider' && AUTH_PATH.test(String(identity.path))
+				? new URL(identity.path, base).href
+				: undefined;
+		if (!authBase) {
+			await renderNotice(document.body, {
+				themeCss,
+				heading: 'This page does not work here',
+				message: 'This deployment has no sign-in provider, so no app can connect to it.',
+			});
+			return;
+		}
+		const [{ mountOAuthPage }, { createOAuthProvider }] = await Promise.all([
+			import('@lushly-dev/loam-chrome/account'),
+			import('./auth.js'),
+		]);
+		await mountOAuthPage(document.body, {
+			themeCss,
+			base,
+			query: new URL(location.href).searchParams,
+			kind: oauth as 'login' | 'consent',
+			provider: createOAuthProvider(authBase),
+			methods:
+				identity?.mode === 'provider' && Array.isArray(identity.methods)
+					? identity.methods.map(String)
+					: ['passkey'],
+		});
+		document.documentElement.dataset.loamHost = 'oauth';
+		return;
+	}
 	if (link) {
 		const authBase =
 			identity?.mode === 'provider' && AUTH_PATH.test(String(identity.path))

@@ -19,6 +19,8 @@ class SessionEntry:
     agent_name: str = ""
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     config: dict[str, Any] = field(default_factory=dict)
+    # The tool host this session built, closed when the session is destroyed.
+    tool_host: Any = None
 
     def summary(self) -> dict[str, Any]:
         """Return a JSON-serialisable summary."""
@@ -48,6 +50,7 @@ class SessionRegistry:
         tools: list[str] | None = None,
         config: dict[str, Any] | None = None,
         agent_name: str = "",
+        tool_host: Any = None,
     ) -> None:
         """Register a new session.
 
@@ -58,6 +61,7 @@ class SessionRegistry:
             tools: List of bridged tool names.
             config: Raw session config dict for reference.
             agent_name: Agent name for audit logging.
+            tool_host: The tool host this session owns, closed on destroy.
         """
         self._sessions[session_id] = SessionEntry(
             session=session,
@@ -65,6 +69,7 @@ class SessionRegistry:
             tools=tools or [],
             agent_name=agent_name,
             config=config or {},
+            tool_host=tool_host,
         )
 
     def get(self, session_id: str) -> SessionEntry | None:

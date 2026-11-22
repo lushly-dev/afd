@@ -70,8 +70,16 @@ export interface LateScopeDeps {
 	 * answers each from its entry, and one it does not hold stops as `REPLAY_NOT_RECORDED`.
 	 */
 	recorded?: readonly string[];
+	/**
+	 * A call recorded by what it names, not by its command alone (3.4): `agent-member-remove` of a connected agent, one
+	 * the kernel's own `agent-member` table does not hold, writes the provider's table, so a replay answers it from its
+	 * entry. Decided on the kernel's table, never the entry.
+	 */
+	recordedCall?(name: string, input: unknown): boolean;
 	/** The kernel's clock, which a session's expiry is read on (phase 3 specification, 4.4). */
 	clock?: { now(): number } | undefined;
+	/** The symbol the server kernel marks its own calls under, which line 0 lets through (9.5). */
+	own?: symbol;
 	/**
 	 * What only a replay sets (10): its recorded actor by trace ID, undefined when the journal has no such
 	 * entry, and `replaying`.
@@ -262,7 +270,7 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 			return undefined;
 		// Acting for no member: line 0 refuses a gated command in its own words; a signed-out or member-exempt one, which
 		// line 0 lets through, an agent member is refused here (step 6's final check).
-		if (!isMemberOf(scope.membership, actor)) {
+		if (!isMemberOf(scope.membershipOf(call), actor)) {
 			return gatedByLineZero(name) ? undefined : projectNotFound();
 		}
 		const requested = call.scope as ScopeV1;
@@ -299,7 +307,7 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 		 * asked for the active scope it was made in, so when this leaves it, it runs where it lands, and a
 		 * person's `layout-get` keeps working.
 		 */
-		before(call, name) {
+		before(call, name, input) {
 			// The journal's actor, whatever the replay's one Mock holds, so a refusal stays one (10); then line 0
 			// on that actor, before line 1 (phase 3 specification, 3.3; the step 1 review's I9).
 			const recorded = deps.internals?.actorOf?.(call.traceId);
@@ -317,10 +325,10 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 				((call.scope as ScopeV1 | undefined)?.workspace ?? scope.workspace.id) ===
 					scope.workspace.id;
 			const refused =
-				session?.refuse(call, name) ?? (waits ? undefined : lineZero(scope, call, name));
+				session?.refuse(call, name) ?? (waits ? undefined : lineZero(scope, call, name, deps.own));
 			if (refused) return refused;
 			// The kernel's own mark, journaled with the entry: a replay answers it from the record (3.4).
-			if (deps.recorded?.includes(name))
+			if (deps.recorded?.includes(name) || deps.recordedCall?.(name, input))
 				(call as CommandContext & KernelFieldContext).replay = 'recorded';
 			// A person's or an agent's calls, and a replay's: a server's call has no active scope to move. A
 			// change of person by `session-settle` moves it there.
@@ -346,6 +354,7 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 				deps.internals?.replaying &&
 				(name === 'app-instance-refresh' ||
 					deps.recorded?.includes(name) ||
+					deps.recordedCall?.(name, input) ||
 					deps.apps().owners.get(name)?.recorded)
 			) {
 				return kernelFailure(
@@ -373,7 +382,7 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 				const refused =
 					(await session.reread(name, input)) ??
 					session.refuse(call, name) ??
-					lineZero(scope, call, name);
+					lineZero(scope, call, name, deps.own);
 				if (refused) return refused;
 			}
 			const requested = call.scope as ScopeV1;

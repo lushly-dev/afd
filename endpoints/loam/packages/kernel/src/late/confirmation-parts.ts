@@ -304,6 +304,12 @@ export function settleInputOf(z: SettingsKit['z']) {
 				header: z.string().check(z.minLength(1), z.maxLength(200)),
 				prompt: z.string().check(z.minLength(1), z.maxLength(200)),
 				danger: z.boolean(),
+				scope: z.optional(
+					z.strictObject({
+						workspace: z.string().check(z.minLength(1), z.maxLength(128)),
+						project: z.optional(z.string().check(z.minLength(1), z.maxLength(128))),
+					})
+				),
 				input: z.unknown(),
 			})
 		),

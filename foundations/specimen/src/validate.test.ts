@@ -1,3 +1,6 @@
+import { mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { defaultContext } from './config.js';
@@ -28,6 +31,7 @@ import {
 	parseSuiteRequest,
 	parseThemesRequest,
 } from './validate.js';
+import { copyStaticTree, staticDestination } from './vite.js';
 
 // The configuration rules as Zod expresses them; validation itself does not load Zod.
 const configSchema = z
@@ -107,7 +111,23 @@ const configSchema = z
 			.array(
 				z.union([
 					z.string().min(1),
-					z.object({ from: z.string().min(1), to: z.string().regex(/^\//) }).strict(),
+					z
+						.object({
+							from: z.string().min(1),
+							to: z.string().refine((value) => {
+								if (value === '/') return true;
+								if (!/^\/[^\\/]+(?:\/[^\\/]+)*\/?$/.test(value)) return false;
+								for (let i = 0; i < value.length; i++) {
+									const code = value.charCodeAt(i);
+									if (code <= 0x1f || code === 0x7f) return false;
+								}
+								const parts = value.slice(1).replace(/\/$/, '').split('/');
+								return (
+									parts.every((p) => p !== '.' && p !== '..') && !/^[a-zA-Z]:/.test(parts[0] ?? '')
+								);
+							}),
+						})
+						.strict(),
 				])
 			)
 			.optional(),
@@ -279,6 +299,15 @@ describe('bench validation matches the Zod schemas', () => {
 			{ specimens: [entry], coverage: { other: 1 } },
 			{ specimens: [entry], staticDirs: './public' },
 			{ specimens: [entry], staticDirs: [{ from: './site', to: 'site' }] },
+			{ specimens: [entry], staticDirs: [{ from: './site', to: '/' }] },
+			{ specimens: [entry], staticDirs: [{ from: './site', to: '/assets/v1/' }] },
+			{ specimens: [entry], staticDirs: [{ from: './site', to: '/../evil' }] },
+			{ specimens: [entry], staticDirs: [{ from: './site', to: '/a/../../evil' }] },
+			{ specimens: [entry], staticDirs: [{ from: './site', to: '/a/./b' }] },
+			{ specimens: [entry], staticDirs: [{ from: './site', to: '/a\\b' }] },
+			{ specimens: [entry], staticDirs: [{ from: './site', to: '//evil' }] },
+			{ specimens: [entry], staticDirs: [{ from: './site', to: '/C:/evil' }] },
+			{ specimens: [entry], staticDirs: [{ from: './site', to: '/a\0b' }] },
 			{ specimens: [entry], staticDirs: [{ from: './site' }] },
 			{ specimens: [entry], plugins: [] },
 			{ specimens: [entry], plugins: [''] },
@@ -308,6 +337,44 @@ describe('bench validation matches the Zod schemas', () => {
 			'capture request.timeoutMs'
 		);
 		expect(() => parseContext({ ...defaultContext, locale: 'not a locale' })).toThrow('BCP 47');
+	});
+
+	it('confines staticDestination to the build output directory (#1877)', () => {
+		expect(staticDestination('/tmp/out', '/')).toMatch(/out$/);
+		expect(staticDestination('/tmp/out', '/site')).toMatch(/site$/);
+		for (const bad of ['/../escape', '/a/../../escape', '/a\\b', '/C:/escape', '//escape']) {
+			expect(() => staticDestination('/tmp/out', bad)).toThrow(/escapes/);
+		}
+	});
+
+	it('rejects escaping symlinks and materializes in-root links in copyStaticTree (#1877)', async () => {
+		const root = await mkdtemp(join(tmpdir(), 'specimen-static-copy-'));
+		const outside = join(root, 'outside.txt');
+		const src = join(root, 'src');
+		const out = join(root, 'out');
+		await writeFile(outside, 'secret');
+		const { mkdir } = await import('node:fs/promises');
+		await mkdir(src, { recursive: true });
+		await mkdir(out, { recursive: true });
+		await writeFile(join(src, 'ok.txt'), 'hello');
+		// Overlapping source and destination trees must be rejected before recursion
+		const nestedOut = join(src, 'nested-out');
+		await mkdir(nestedOut, { recursive: true });
+		await expect(copyStaticTree(src, nestedOut, '/assets')).rejects.toThrow(/overlap/);
+		await rm(nestedOut, { recursive: true, force: true });
+		try {
+			await symlink(join(src, 'ok.txt'), join(src, 'alias.txt'));
+			await copyStaticTree(src, out, '/assets');
+			expect(await readFile(join(out, 'assets', 'alias.txt'), 'utf8')).toBe('hello');
+
+			await symlink(outside, join(src, 'escape.txt'));
+			await expect(copyStaticTree(src, out, '/assets2')).rejects.toThrow(/escapes/);
+		} catch (error) {
+			// On unprivileged Windows environments where file symlinks require developer mode
+			if ((error as NodeJS.ErrnoException).code !== 'EPERM') throw error;
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
 	});
 });
 

@@ -39,7 +39,9 @@ def extract_group_ids(activity: dict[str, Any]) -> set[str]:
       }
     }
     """
-    channel_data = activity.get("channelData", {})
+    channel_data = activity.get("channelData")
+    if not isinstance(channel_data, dict):
+        return set()
     raw_groups = channel_data.get("groups", [])
     if not isinstance(raw_groups, list):
         return set()
@@ -66,14 +68,17 @@ def extract_identity(
     Phase 1: roles are always ["user"]. Graph API group lookup
     for admin_groups / user_groups is deferred to Phase 2.
     """
-    from_field = activity.get("from", {})
-    channel_data = activity.get("channelData", {})
-    tenant = channel_data.get("tenant", {})
+    raw_from = activity.get("from")
+    from_field = raw_from if isinstance(raw_from, dict) else {}
+    raw_channel = activity.get("channelData")
+    channel_data = raw_channel if isinstance(raw_channel, dict) else {}
+    raw_tenant = channel_data.get("tenant")
+    tenant = raw_tenant if isinstance(raw_tenant, dict) else {}
 
     return TeamsIdentity(
-        user_id=from_field.get("aadObjectId", from_field.get("id", "")),
-        user_name=from_field.get("name", ""),
-        tenant_id=tenant.get("id", ""),
+        user_id=from_field.get("aadObjectId") or from_field.get("id") or "",
+        user_name=from_field.get("name") or "",
+        tenant_id=tenant.get("id") or "",
     )
 
 

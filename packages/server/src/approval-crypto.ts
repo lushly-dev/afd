@@ -7,10 +7,50 @@
  * `node:crypto` implementation issued: `spec/vectors/approval-tokens.json` checks it.
  */
 
-import type { Actor } from '@lushly-dev/afd-core';
+import type { Actor, CommandError } from '@lushly-dev/afd-core';
 import { canonicalJson } from '@lushly-dev/afd-core/internal/canonical-json';
 
 export { canonicalJson };
+
+/**
+ * The answer to a call that needs approval on an input with no canonical form: no token can bind
+ * it, so the person is not asked.
+ */
+export function inputNotCanonical(commandName: string): CommandError {
+	return {
+		code: 'APPROVAL_UNAVAILABLE',
+		message: `${commandName} needs a person's approval, and this input cannot be bound to one`,
+		suggestion:
+			"Do not retry with this input: it has no exact canonical form, so an approval cannot be bound to it. Send the input in a form canonical JSON accepts (for example, an integer a JavaScript number cannot hold exactly, such as 2^53 + 1, as a string). If the command's schema itself produces such a value (a Set, Map, bigint or class instance), tell the user: the operator must change the schema.",
+		retryable: false,
+		details: { reason: 'input-not-canonical' },
+	};
+}
+
+/**
+ * The answer when a call's input changed while the approval step was deciding on it (inside a
+ * policy function or a store it awaited), so what a person would be shown is not what a token
+ * would bind.
+ */
+export function inputChanged(commandName: string): CommandError {
+	return {
+		code: 'APPROVAL_UNAVAILABLE',
+		message: `${commandName}'s input changed while its approval was being decided`,
+		suggestion:
+			'Do not retry: this call is not the one the approval step decided on. The operator fixes the policy function or middleware that changes the input.',
+		retryable: false,
+		details: { reason: 'admission-mismatch' },
+	};
+}
+
+/** The canonical JSON of `value`, or undefined for a value canonical JSON refuses. */
+export function canonicalOrUndefined(value: unknown): string | undefined {
+	try {
+		return canonicalJson(value);
+	} catch {
+		return undefined;
+	}
+}
 
 const MIN_SECRET_BYTES = 32;
 const encoder = new TextEncoder();

@@ -1,0 +1,82 @@
+# Draft JTBD scenario for the Agent OS proposal. Commands and shapes are proposals; the data is invented.
+# The fake runtime plays a head whose validation never ends, so there is a live run to look at.
+# machine-inspect reads what the runtime reports from outside; no command runs anything in a
+# machine beside its run.
+name: See inside a machine that misbehaves, without touching it
+description: >-
+  When a run hangs or a machine grows, I want to see its processes, what each mount holds and the
+  log so far, read from outside, so that I can tell what is wrong without the runtime's own tools
+  and without changing anything a validation could be judged on.
+job: see-inside-without-touching
+tags: [m1]
+fixture:
+  file: fixtures/host.json
+steps:
+  - description: A machine for the branch
+    command: machine-create
+    input: { repository: example-repo, for: fix/slow }
+    expect:
+      success: true
+      data:
+        created: true
+  - description: A run that hangs in its validate step
+    command: run-start
+    input:
+      machine: "${{ steps[0].data.machine.id }}"
+      head: 9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a2f1e0d
+      steps:
+        - label: install
+          args: [pnpm, install, "--frozen-lockfile"]
+          timeoutSeconds: 1800
+          network: registries
+        - label: validate
+          args: [pnpm, verify, "--keep-going"]
+          timeoutSeconds: 5400
+          network: none
+    expect:
+      success: true
+      data:
+        run:
+          state: running
+  - description: What is running, how long it has run and what each mount holds, as the runtime reports it
+    command: machine-inspect
+    input: { id: "${{ steps[0].data.machine.id }}" }
+    expect:
+      success: true
+      data:
+        trust: content
+        run:
+          step: validate
+          elapsedSeconds: { gte: 0 }
+        processes: { exists: true }
+        processesTotal: { gte: 1 }
+        mounts:
+          - { name: work, usedGb: { gte: 0 } }
+          - { name: build, usedGb: { gte: 0 } }
+          - { name: downloads, usedGb: { gte: 0 } }
+  - description: The hung step's log so far can be read while the run is still going
+    command: run-log
+    input: { id: "${{ steps[1].data.run.id }}", step: validate, limit: 20 }
+    expect:
+      success: true
+      data:
+        trust: content
+        lines: { exists: true }
+  - description: Looking changed nothing; the run is still running
+    command: run-get
+    input: { id: "${{ steps[1].data.run.id }}" }
+    expect:
+      success: true
+      data:
+        run:
+          state: running
+          ended: false
+  - description: The operator stops it
+    command: run-stop
+    input: { id: "${{ steps[1].data.run.id }}", reason: Hung in validate }
+    expect:
+      success: true
+      data:
+        changed: true
+        run:
+          state: cancelled

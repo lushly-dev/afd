@@ -38,7 +38,12 @@ export {
 export {
 	COMMAND_NAME_SUGGESTION,
 	createKernel,
+	// The server's kernel (phase 3 specification, 9.5): `loam-identity`'s `createServerKernel` builds it with
+	// `gate: 'principal'`; a browser builds its kernel with `createKernel`.
+	createKernelParts,
 	type KernelInterfaceV0,
+	type KernelParts,
+	type KernelPartsOptions,
 	kernelJournalOptions,
 	NEEDS_STAGE_B,
 	redactJournalRecord,
@@ -68,6 +73,7 @@ export type {
 	AccountV1,
 	AgentMemberRowV1,
 	LoamAccountAccessV1,
+	LoamAuthAdapter,
 	MemberInvitationV1,
 	MemberV1,
 	OwnInvitationV1,
@@ -107,6 +113,7 @@ export {
 } from './scope/access.js';
 export { MCP_CONTEXT_FIELDS, SCOPE_V1 } from './scope/field.js';
 export { personalRecordId } from './scope/personal.js';
+export type { KernelPrincipalV1, PrincipalInputV1 } from './scope/principal.js';
 export { SHELL_COMMAND_NAMES } from './shell-command-names.js';
 export { APPS_VIEW_STATE_ID, type MainStateV2, SCOPE_VIEW_STATE_ID } from './shell-state.js';
 export {

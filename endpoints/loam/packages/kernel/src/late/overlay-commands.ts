@@ -36,6 +36,8 @@ import {
 	TOAST_CAP,
 	unanswered,
 } from '../overlays.js';
+import type { AccessActorV1 } from '../scope/access.js';
+import type { ScopeV1 } from '../scope/records.js';
 import { ACTION_ID, createOverlaySlotCommands, promptValueFault } from './overlay-slot.js';
 import { AGENT_PUSH_RATE, type PushRate } from './push-rate.js';
 
@@ -182,6 +184,8 @@ export interface OverlayCommandDeps {
 	 * resolves: a test or a replay gives a resolver of its own, and a replay answers a refusal from the record.
 	 */
 	anchorFound?(owner: OverlayOwner, anchor: OverlayAnchorV1): boolean;
+	/** `decideAccess` on a scope: whether a non-shell caller may see or dismiss a scoped overlay (#1867). */
+	allows?(actor: AccessActorV1, scope: ScopeV1): boolean;
 }
 
 /** What an owner line shows when no name of the app's may be shown (6.6). */
@@ -233,6 +237,7 @@ export function answerRule(
 	answers: boolean
 ): undefined | 'withdrawn' | 'HUMAN_REQUIRED' | 'OVERLAY_NOT_OWNER' {
 	if (opener.kind === 'shell') return undefined;
+	if (opener.kind === 'none') return 'HUMAN_REQUIRED';
 	if (owner.kind === 'shell') {
 		return caller !== undefined && raisedBy === caller && !answers ? 'withdrawn' : 'HUMAN_REQUIRED';
 	}
@@ -267,6 +272,15 @@ export function createOverlayCommands(deps: OverlayCommandDeps): ZodCommandDefin
 		title: deps.appTitle?.(owner.id) ?? owner.id,
 	});
 	const human = (context: CommandContext) => deps.humanGesture?.(context) ?? false;
+	const scopeOf = (context: CommandContext): ScopeV1 | undefined => {
+		const scope = (context as KernelFieldContext).scope;
+		if (!scope) return undefined;
+		return scope.project === undefined
+			? { workspace: scope.workspace }
+			: { workspace: scope.workspace, project: scope.project };
+	};
+	const scopeAllowed = (context: CommandContext, scope: ScopeV1 | undefined): boolean =>
+		scope === undefined || (deps.allows?.(context.actor as AccessActorV1, scope) ?? false);
 
 	/**
 	 * A full region's wait (F7): until the soonest timed toast times out, on the call's clock; a minute when every one
@@ -334,16 +348,14 @@ export function createOverlayCommands(deps: OverlayCommandDeps): ZodCommandDefin
 				...(input as ToastInputV1),
 				durationMs: input.durationMs ?? TOAST_DEFAULT_MS,
 			};
+			const scope = scopeOf(context);
 			if (opener.kind !== 'agent') {
 				return success(
-					overlays.open(
-						opener.owner,
-						'toast',
-						shown,
-						opener.kind === 'app'
-							? { from: appLine(opener.owner), openedAt: now(context) }
-							: { openedAt: now(context) }
-					)
+					overlays.open(opener.owner, 'toast', shown, {
+						...(opener.kind === 'app' ? { from: appLine(opener.owner) } : {}),
+						...(opener.kind === 'app' && scope ? { scope } : {}),
+						openedAt: now(context),
+					})
 				);
 			}
 			// An agent's toast (6.1, F7): its rate of 5 a minute, then a place that pushes off no shell or `danger` toast.
@@ -364,6 +376,7 @@ export function createOverlayCommands(deps: OverlayCommandDeps): ZodCommandDefin
 					agent: context.actor?.label ?? context.actor?.id ?? 'agent',
 					person: deps.personLabel?.() ?? null,
 				},
+				...(scope ? { scope } : {}),
 				openedAt: at,
 			});
 			if (!ref) {
@@ -489,8 +502,14 @@ export function createOverlayCommands(deps: OverlayCommandDeps): ZodCommandDefin
 			if (!(deps.anchorFound?.(owner, given.anchor) ?? false)) {
 				return anchorMissing(given.anchor, 'the page has no such element in that surface', true);
 			}
+			const scope = scopeOf(context);
 			return success(
-				overlays.open(owner, 'popover', given, owner.kind === 'app' ? { from: appLine(owner) } : {})
+				overlays.open(
+					owner,
+					'popover',
+					given,
+					owner.kind === 'app' ? { from: appLine(owner), ...(scope ? { scope } : {}) } : {}
+				)
 			);
 		},
 	});
@@ -518,7 +537,9 @@ export function createOverlayCommands(deps: OverlayCommandDeps): ZodCommandDefin
 		},
 		async handler(input, context) {
 			const overlay = overlays.get(input.overlayId);
-			if (!overlay) {
+			const opener = openerOf(context, human);
+			const overlayScope = overlay?.scope ?? overlay?.for?.scope;
+			if (!overlay || (opener.kind !== 'shell' && !scopeAllowed(context, overlayScope))) {
 				return kernelFailure(
 					'OVERLAY_NOT_FOUND',
 					`Overlay '${input.overlayId}' is not open`,
@@ -527,7 +548,6 @@ export function createOverlayCommands(deps: OverlayCommandDeps): ZodCommandDefin
 			}
 			const { caller } = context as KernelFieldContext;
 			const owner = overlays.ownerOf(input.overlayId) as OverlayOwner;
-			const opener = openerOf(context, human);
 			const result = input.result ?? unanswered(overlay.kind);
 			const answers = result !== 'cancel' && result !== 'dismissed';
 			// 6.5: who may answer and who may only cancel; the shell's own closes only by a person or its raiser (F6).
@@ -671,7 +691,33 @@ export function createOverlayCommands(deps: OverlayCommandDeps): ZodCommandDefin
 		input: emptyInput,
 		jsonSchema: EMPTY_INPUT_JSON,
 		async handler(_input, context) {
-			return success({ overlays: overlays.list((context as KernelFieldContext).caller) });
+			const opener = openerOf(context, human);
+			if (opener.kind === 'shell') {
+				return success({ overlays: overlays.list() });
+			}
+			if (opener.kind === 'app') {
+				return success({ overlays: overlays.list(opener.owner.id) });
+			}
+			if (opener.kind === 'none') {
+				return success({ overlays: [] });
+			}
+			// Agents and the copilot see only their own overlays within scopes they may enter, never
+			// other apps' overlays, shell confirmation prompts, or shell-only fields (#1867).
+			const visible = overlays
+				.list()
+				.filter((overlay) => {
+					const owner = overlays.ownerOf(overlay.overlayId);
+					if (owner?.kind !== 'agent' || owner.id !== opener.owner.id) return false;
+					const overlayScope = overlay.scope ?? overlay.for?.scope;
+					return scopeAllowed(context, overlayScope);
+				})
+				.map((overlay) => {
+					delete overlay.hidden;
+					if (!(overlay.input as ToastInputV1).sticky) delete overlay.notification;
+					if (overlay.for) delete overlay.for.input;
+					return overlay;
+				});
+			return success({ overlays: visible });
 		},
 	});
 

@@ -143,6 +143,15 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   subject carries no pull request number. AFD is not done: its merge queue squashes every pull
   request, so the gateway must not merge in AFD until
   [#1809](https://github.com/lushly-dev/afd/issues/1809) moves the queue to rebase.
+
+- **#1809 step 1, the probe (2026-11-21):** GitHub's rebase merge drops a branch's merges of
+  `main` and lands each of its own commits as it is, author kept, unsigned (lushly#2811 into a
+  throwaway base). **Step 2, one commit per pull request: merged in
+  [#1901](https://github.com/lushly-dev/afd/pull/1901)** for sessions: `pnpm branch:squash`
+  folds a branch into one commit on the `main` it merged, same tree, and carries the
+  `pnpm verify` record; `prepare-pr` pushes one commit; and `ci-ok` refuses more than one once
+  `main`'s queue rebases (dormant while it squashes). The lane's half is still open.
+
 - **Follow-up (2026-11-20, this session):** a merge that closes a claimed issue leaves the
   claim's `status:in-progress` label on the closed issue, and `issue-release` then answers
   `changed: false` without removing it (removed by hand with `issue-label` on lushly#2706).

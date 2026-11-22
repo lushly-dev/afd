@@ -1,0 +1,77 @@
+# Draft JTBD scenario for the Agent OS proposal. Commands and shapes are proposals; the data is invented.
+# The fake runtime plays a head with one failing test and a five-line log for the failing step.
+name: Read a failure without reading the whole log
+description: >-
+  When a validation fails, I want the failing step, its exit code, the last lines of its log and
+  a way to page through the rest, so that an ejection carries the cause and no result is megabytes
+  long.
+job: read-a-failure-in-brief
+tags: [m1]
+fixture:
+  file: fixtures/host.json
+steps:
+  - description: A machine for the branch
+    command: machine-create
+    input: { repository: example-repo, for: fix/parser }
+    expect:
+      success: true
+      data:
+        created: true
+  - description: The head with a failing test
+    command: run-start
+    input:
+      machine: "${{ steps[0].data.machine.id }}"
+      head: 7c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d
+      steps:
+        - label: install
+          args: [pnpm, install, "--frozen-lockfile"]
+          timeoutSeconds: 1800
+          network: registries
+        - label: validate
+          args: [pnpm, verify, "--keep-going"]
+          timeoutSeconds: 5400
+          network: none
+    expect:
+      success: true
+      data:
+        run:
+          state: running
+  - description: The result names the step and its exit code, and carries the end of its log
+    command: run-wait
+    input: { id: "${{ steps[1].data.run.id }}", timeoutMs: 300000 }
+    expect:
+      success: true
+      data:
+        run:
+          state: failed
+          failed: validate
+          steps:
+            - { label: install, code: 0 }
+            - { label: validate, code: 1 }
+          log:
+            trust: content
+            bytes: { gte: 1 }
+            location: { exists: true }
+            tail: { includes: "FAIL packages/example/src/parser.test.ts > accepts empty input" }
+  - description: The full log is read a page at a time, labelled as content from the machine
+    command: run-log
+    input: { id: "${{ steps[1].data.run.id }}", step: validate, limit: 2 }
+    expect:
+      success: true
+      data:
+        trust: content
+        lines: { length: 2 }
+        nextCursor: { exists: true }
+  - description: The next page follows from the cursor
+    command: run-log
+    input:
+      id: "${{ steps[1].data.run.id }}"
+      step: validate
+      limit: 2
+      cursor: "${{ steps[3].data.nextCursor }}"
+    expect:
+      success: true
+      data:
+        lines:
+          - "AssertionError: expected an empty document, received an error"
+          - "Test Files 1 failed | 41 passed"

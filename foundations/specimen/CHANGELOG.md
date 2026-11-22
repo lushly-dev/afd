@@ -6,6 +6,18 @@
   commands over MCP stdio with the CLI's schemas and result envelopes. It has no
   release route and changes no foundation or command API.
 
+## 2.2.0-preview.7
+
+### Patch Changes
+
+- [#1897](https://github.com/lushly-dev/afd/pull/1897) [`5d5febd`](https://github.com/lushly-dev/afd/commit/5d5febdf2330ec95f9b3b270d577ea0f71776963) Thanks [@Falkicon](https://github.com/Falkicon)! - ### Security
+  - Confine Specimen host static file serving (`serve.rs`) by percent-decoding strictly before validating path segments and verifying `canonicalize()` containment inside the configured `staticDirs` root; symlinks pointing outside `staticDirs` are now refused while in-root aliases keep their requested MIME type ([#1876](https://github.com/lushly-dev/afd/issues/1876)).
+  - Reject traversal, backslash, control-character, and drive-prefixed `staticDirs[].to` mount paths in Specimen config validation and confine static directory copies and build-report writes inside `outDir`, rejecting escaping symlinks and materializing in-root links ([#1877](https://github.com/lushly-dev/afd/issues/1877)).
+  - Escape keys, string literals (using `\x00` for NUL), non-hex color values, comments (including nested Kotlin `/*`), reserved/colliding identifiers, and case-insensitive/Windows-reserved filenames in Violet's Tailwind, TypeScript, Kotlin, and Dart token exporters ([#1878](https://github.com/lushly-dev/afd/issues/1878)).
+
+  ### Fixed
+  - Implement `SQLiteDatabase.transaction()` using explicit async `BEGIN IMMEDIATE`/`COMMIT`/`ROLLBACK` with serialized top-level execution, `AsyncLocalStorage`-backed `SAVEPOINT` serialization for nested transactions, and connection-ownership gating for ordinary database methods so outside writes and expired async contexts cannot be folded into or rolled back with another transaction ([#1879](https://github.com/lushly-dev/afd/issues/1879)).
+
 ## 2.2.0-preview.6
 
 ### Minor Changes

@@ -9,6 +9,7 @@ import base from './vitest.config.js';
 export const databaseSuites = [
 	'src/db/audit.contract.test.ts',
 	'src/db/audit-sequence.test.ts',
+	'src/db/sqlite-transaction.test.ts',
 	'src/db/webhooks.contract.test.ts',
 ];
 

@@ -164,4 +164,29 @@ describe('tailwind transformer', () => {
 
 		expect(js).toContain("'2xl': '32px',");
 	});
+
+	it('escapes quotes, backslashes, NUL+digit and newlines in keys and values to prevent code injection (#1878)', () => {
+		const js = tailwindTransformer.transform([
+			token("color.bad'key\n//", "red', injected: (() => { throw new Error('pwn'); })(), a: '"),
+			token('spacing.quote\\test', "10px';\nprocess.exit(1);//"),
+			token('color.nul', 'a\u00001'),
+		]);
+
+		const extend = extendOf(js);
+		expect(extend.colors).toEqual({
+			"bad'key\n//": "red', injected: (() => { throw new Error('pwn'); })(), a: '",
+			nul: 'a\u00001',
+		});
+		expect(extend.spacing).toEqual({
+			'quote\\test': "10px';\nprocess.exit(1);//",
+		});
+
+		// Strict-mode ESM output must also parse NUL followed by digit cleanly.
+		const esm = tailwindTransformer.transform([token('color.nul', 'a\u00001')], { esm: true });
+		expect(esm).toContain("'a\\x001'");
+		const strictEval = new Function(
+			`"use strict"; return (${esm.replace(/^[\s\S]*?export default /, '').replace(/;\s*$/, '')});`,
+		)() as { theme: { extend: { colors: { nul: string } } } };
+		expect(strictEval.theme.extend.colors.nul).toBe('a\u00001');
+	});
 });

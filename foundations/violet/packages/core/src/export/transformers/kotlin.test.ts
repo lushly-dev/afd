@@ -143,4 +143,29 @@ describe('kotlin transformer', () => {
 		expect(without).not.toContain('Default gap');
 		expect(without).toContain('    object Spacings {\n        val Md = 16.dp');
 	});
+
+	it('neutralizes non-hex colors, reserved/colliding identifiers, decimal units and nested KDoc (#1878)', () => {
+		const kotlin = kotlinTransformer.transform(
+			[
+				token('color.inject', '00); Runtime.getRuntime().exec("id"); //', 'Length /* width */ pwn'),
+				token('spacing.bad-unit', '12; pwn() px'),
+				token('spacing.half-rem', '.5rem'),
+				token('spacing.dup-a', '4px'),
+				token('spacing.dup_a', '8px'),
+				token('spacing._', '2px'),
+			],
+			{ packageName: 'com.in.evil\nimport java.io.*', className: 'object' },
+		);
+
+		expect(kotlin).not.toContain('Color(0x');
+		expect(kotlin).toContain('val Inject = "00); Runtime.getRuntime().exec(\\"id\\"); //"');
+		expect(kotlin).toContain('val BadUnit = "12; pwn() px"');
+		expect(kotlinValue(kotlin, 'HalfRem')).toBe('8.dp');
+		expect(kotlin).toContain('val DupA = 4.dp');
+		expect(kotlin).toContain('val DupA_2 = 8.dp');
+		expect(kotlin).toContain('val token = 2.dp');
+		expect(kotlin).toContain('/** Length /\\* width *\\/ pwn */');
+		expect(kotlin).toContain('package com._in.evil_import_java.io.token');
+		expect(kotlin).toContain('object _object {');
+	});
 });

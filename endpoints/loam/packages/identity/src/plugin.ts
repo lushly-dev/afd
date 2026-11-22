@@ -2,7 +2,7 @@
  * @fileoverview `loamServerPlugin` (phase 3 specification, 1, 2.3, 4.2, 5.6, 5.7 and 7.5): Better Auth endpoints and
  * hooks of Loam's own: `whoami`, the binding and the hooks that keep the provider's own organization endpoints within
  * Loam's rules (step 1); sessions and `revoke-person` (step 3); the join and recovery links, the account and the
- * members (step 4).
+ * members (step 4); the connected agents and the consent page's approval (step 7).
  */
 
 import type { AuthContext, BetterAuthPlugin } from 'better-auth';
@@ -20,6 +20,12 @@ import {
 	readBinding,
 	statusOf,
 } from './binding.js';
+import {
+	CONNECTED_AGENT_FIELDS,
+	CONNECTED_AGENT_MODEL,
+	connectedAgentEndpoints,
+	consentHooks,
+} from './connected-agents.js';
 import { enrolmentEndpoints, JOIN_FIELDS, JOIN_MODEL } from './enrolment.js';
 import { memberEndpoints } from './members.js';
 import {
@@ -198,6 +204,8 @@ export function loamServerPlugin(state: LoamProviderState) {
 		context: () => state.context,
 	};
 	state.announcer ??= createRecoveryAnnouncer(recovery);
+	// The consent page's approval: refused before a code for a non-member or an owner's removal, written after one (9.2).
+	const consent = consentHooks({ workspace: state.workspace, context: () => state.context });
 	const announcer = state.announcer;
 	const plugin = {
 		id: 'loam',
@@ -212,6 +220,11 @@ export function loamServerPlugin(state: LoamProviderState) {
 				fields: {
 					recoveredAt: { type: 'date', required: false, input: false },
 				},
+			},
+			// A person's connected agents over MCP (9.2): authoritative here, in every phase.
+			[CONNECTED_AGENT_MODEL]: {
+				modelName: 'loam_connected_agent',
+				fields: { ...CONNECTED_AGENT_FIELDS },
 			},
 			[BINDING_MODEL]: {
 				modelName: 'loam_binding',
@@ -271,6 +284,7 @@ export function loamServerPlugin(state: LoamProviderState) {
 			...enrolmentEndpoints({ password: state.password }),
 			...recoveryEndpoints(recovery),
 			...memberEndpoints({ workspace: state.workspace, oidc: state.oidc }),
+			...connectedAgentEndpoints({ workspace: state.workspace }),
 			/**
 			 * `GET <path>/loam/whoami` (4.2): the session, read from the database since there is no cookie cache,
 			 * and the person's membership of the bound organization by its id, or `null` signed out. A session
@@ -310,6 +324,7 @@ export function loamServerPlugin(state: LoamProviderState) {
 		hooks: {
 			after: [
 				announcer.hook,
+				consent.after,
 				{
 					/**
 					 * `/get-session` answers the session without its token (NEW-3): the session cookie is HttpOnly, and
@@ -324,6 +339,7 @@ export function loamServerPlugin(state: LoamProviderState) {
 			],
 			before: [
 				freshSessionHook(() => state.context),
+				consent.before,
 				{
 					/**
 					 * The provider's own role endpoints, called directly around Loam's commands (7.1, 7.5): only an

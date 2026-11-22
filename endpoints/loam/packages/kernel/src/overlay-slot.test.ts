@@ -587,7 +587,192 @@ describe("6.5's answer rule, and F6's cancels (P4-E7)", () => {
 		expect(answerRule({ kind: 'none' }, undefined, appOwner('probe'), undefined, true)).toBe(
 			'HUMAN_REQUIRED'
 		);
+		expect(answerRule({ kind: 'none' }, undefined, appOwner('probe'), undefined, false)).toBe(
+			'HUMAN_REQUIRED'
+		);
 		expect(answerRule({ kind: 'none' }, undefined, SHELL, undefined, false)).toBe('HUMAN_REQUIRED');
+	});
+
+	it('isolates overlay-list and overlay-dismiss for agents and unauthenticated callers (#1867)', async () => {
+		const overlays = createOverlayStore();
+		const allowedScope = { workspace: 'w', project: 'atlas' };
+		const forbiddenScope = { workspace: 'w', project: 'secret' };
+		const commands = createOverlayCommands({
+			overlays,
+			activeApp: () => 'probe',
+			humanGesture: isHumanGesture,
+			anchorFound: () => true,
+			allows: (_actor, scope) => scope.project !== 'secret',
+		});
+		const byName = (name: string) =>
+			commands.find((command) => command.name === name) as unknown as {
+				handler(
+					input: unknown,
+					context: unknown
+				): Promise<{
+					success: boolean;
+					data?: Record<string, unknown>;
+					error?: { code: string };
+				}>;
+			};
+		const toastShow = byName('toast-show');
+		const popoverOpen = byName('popover-open');
+		const overlayList = byName('overlay-list');
+		const overlayDismiss = byName('overlay-dismiss');
+
+		// Open real app toast and popover through the commands in a forbidden project scope,
+		// plus an in-scope app dialog, a confirmation prompt, and the agent's own toast.
+		const secretToast = (
+			await toastShow.handler(
+				{ message: 'Secret project note' },
+				{ interface: 'palette', caller: 'probe', scope: forbiddenScope }
+			)
+		).data as unknown as OverlayRefV1;
+		const secretPopover = (
+			await popoverOpen.handler(
+				{ anchor: { surface: 'main', anchor: 'more' }, kind: 'info', body: 'Secret popover' },
+				{ interface: 'palette', caller: 'probe', scope: forbiddenScope }
+			)
+		).data as unknown as OverlayRefV1;
+		const allowedDialog = overlays.open(
+			appOwner('probe'),
+			'dialog',
+			{ title: 'In-scope app dialog' },
+			{ scope: allowedScope }
+		);
+		const confirmPrompt = overlays.open(
+			SHELL,
+			'prompt',
+			{ title: 'Run Delete in Secret?' },
+			{
+				for: {
+					command: 'doc-delete',
+					caller: 'probe',
+					kind: 'confirmation',
+					scope: forbiddenScope,
+					input: { token: 'top-secret' },
+				},
+			}
+		);
+		const agentCtx = {
+			interface: 'agent',
+			actor: { kind: 'agent', id: 'copilot' },
+			scope: allowedScope,
+		};
+		const otherAgentCtx = {
+			interface: 'agent',
+			actor: { kind: 'agent', id: 'helper' },
+			scope: allowedScope,
+		};
+		const ownToast = (await toastShow.handler({ message: 'My toast' }, agentCtx))
+			.data as unknown as OverlayRefV1;
+		overlays.land(ownToast.overlayId, 'ntf_1111111111111111');
+		const otherAgentToast = (
+			await toastShow.handler({ message: 'Other agent toast' }, otherAgentCtx)
+		).data as unknown as OverlayRefV1;
+		const noneCtx = { interface: 'mcp' };
+		const humanCtx = { interface: 'palette' };
+
+		// Unauthenticated / no-path caller sees no overlays and cannot dismiss.
+		expect((await overlayList.handler({}, noneCtx)).data?.overlays).toEqual([]);
+		expect(
+			(
+				await overlayDismiss.handler(
+					{ overlayId: allowedDialog.overlayId, result: 'cancel' },
+					noneCtx
+				)
+			).error?.code
+		).toBe('HUMAN_REQUIRED');
+
+		// Agent sees only its own in-scope overlays — never other apps' overlays (even in-scope),
+		// other agents' overlays, or shell confirmation prompts.
+		const agentSeen = ((await overlayList.handler({}, agentCtx)).data?.overlays ??
+			[]) as OverlayV1[];
+		expect(agentSeen.map((item) => item.overlayId)).toEqual([ownToast.overlayId]);
+		expect(agentSeen[0]).not.toHaveProperty('hidden');
+		expect(agentSeen[0]).not.toHaveProperty('notification');
+		expect(agentSeen.map((item) => item.overlayId)).not.toContain(otherAgentToast.overlayId);
+		expect(agentSeen.map((item) => item.overlayId)).not.toContain(allowedDialog.overlayId);
+		expect(agentSeen.map((item) => item.overlayId)).not.toContain(confirmPrompt.overlayId);
+
+		// Agent cannot dismiss out-of-scope app toasts or popovers opened through toast-show/popover-open.
+		for (const id of [secretToast.overlayId, secretPopover.overlayId]) {
+			expect(
+				(await overlayDismiss.handler({ overlayId: id, result: 'dismissed' }, agentCtx)).error
+					?.code,
+				id
+			).toBe('OVERLAY_NOT_FOUND');
+		}
+		// Phase 4 6.5: an agent may still cancel an in-scope app dialog by id, never answer it.
+		expect(
+			(
+				await overlayDismiss.handler(
+					{ overlayId: allowedDialog.overlayId, result: 'confirm' },
+					agentCtx
+				)
+			).error?.code
+		).toBe('HUMAN_REQUIRED');
+		expect(
+			(
+				await overlayDismiss.handler(
+					{ overlayId: allowedDialog.overlayId, result: 'cancel' },
+					agentCtx
+				)
+			).success
+		).toBe(true);
+
+		// Human/shell still sees all overlays including confirmation for.input and out-of-scope records.
+		const humanSeen = ((await overlayList.handler({}, humanCtx)).data?.overlays ??
+			[]) as OverlayV1[];
+		expect(
+			humanSeen.find((item) => item.overlayId === confirmPrompt.overlayId)?.for?.input
+		).toEqual({ token: 'top-secret' });
+		expect(humanSeen.map((item) => item.overlayId)).toContain(secretToast.overlayId);
+		expect(humanSeen.map((item) => item.overlayId)).toContain(secretPopover.overlayId);
+
+		// Fail-closed when `allows` is omitted on a scoped overlay.
+		const noAllows = createOverlayCommands({
+			overlays,
+			activeApp: () => 'probe',
+			humanGesture: isHumanGesture,
+		});
+		const dismissNoAllows = noAllows.find(
+			(command) => command.name === 'overlay-dismiss'
+		) as unknown as {
+			handler(input: unknown, context: unknown): Promise<{ error?: { code: string } }>;
+		};
+		expect(
+			(
+				await dismissNoAllows.handler(
+					{ overlayId: secretToast.overlayId, result: 'dismissed' },
+					agentCtx
+				)
+			).error?.code
+		).toBe('OVERLAY_NOT_FOUND');
+	});
+
+	it('isolates overlay-list through the real kernel for agents and apps (#1867)', async () => {
+		const { kernel, probe } = await boot();
+		await kernel.call('app-open', { instance: 'probe' });
+		const appToast = await probe.call<OverlayRefV1>('toast-show', { message: 'App private note' });
+		const appDialog = await probe.call<OverlayRefV1>('dialog-open', { title: 'App question' });
+		const agentToast = await kernel.agent.call<OverlayRefV1>('toast-show', {
+			message: 'Agent own toast',
+		});
+		expect(appToast.success && appDialog.success && agentToast.success).toBe(true);
+
+		// Agent sees only its own toast via overlay-list, never the app's toast or dialog.
+		const agentListed =
+			(await kernel.agent.call<{ overlays: OverlayV1[] }>('overlay-list')).data?.overlays ?? [];
+		expect(agentListed.map((item) => item.overlayId)).toEqual([agentToast.data?.overlayId]);
+
+		// Human/shell sees all three.
+		const shellListed = await list(kernel);
+		expect(shellListed.map((item) => item.overlayId)).toEqual([
+			appToast.data?.overlayId,
+			appDialog.data?.overlayId,
+			agentToast.data?.overlayId,
+		]);
 	});
 });
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from botcore.host import CommandPolicy
 from botcore.plugin import PluginRegistry
 from pydantic import BaseModel
 
@@ -38,6 +39,12 @@ github_token_env = "GH_TOKEN"
 """
 
 
+# Every connector command calls an external service. Resolving a GitHub credential may run
+# ``gh auth token`` when the token variable is unset, so the commands also declare a
+# subprocess: only a trusted-local host admits them, and an inspection host refuses them.
+CONNECTOR_POLICY_EFFECTS = ("service", "subprocess")
+
+
 class ConnectorsPlugin:
     """Connectors plugin for botcore.
 
@@ -46,7 +53,14 @@ class ConnectorsPlugin:
        MCP name + docs but zero commands (safe for entry-point discovery).
     2. ``configure()`` injects validated config later → enables command
        filtering based on ``enabled`` list.
+
+    It is host-context safe: its configuration, connectors and credential cache live on
+    the instance, which every host discovers afresh, and its commands read no workspace,
+    working directory or module-global state. Each registered command declares its
+    managed-host policy (:data:`CONNECTOR_POLICY_EFFECTS`).
     """
+
+    host_context_safe = True
 
     def __init__(self, config: ConnectorsConfig | None = None) -> None:
         self._config = config
@@ -81,6 +95,9 @@ class ConnectorsPlugin:
                 commands = self._get_commands_for(name)
                 if commands:
                     registry.add_commands(commands)
+                    registry.add_policies(
+                        {c.__name__: CommandPolicy(CONNECTOR_POLICY_EFFECTS) for c in commands}
+                    )
 
     def config_schema(self) -> type[BaseModel]:
         """Return Pydantic model for config validation."""

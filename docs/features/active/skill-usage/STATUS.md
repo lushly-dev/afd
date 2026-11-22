@@ -14,6 +14,20 @@ Read this before the [proposal](skill-usage.proposal.md). Active since 2026-11-2
 
 ## Findings
 
+### Rollout readings, 2026-11-21 (#1819)
+
+Both machines run the build of all four phases (commit `a30d79879`), installed from git by
+commit, and collect every hour.
+
+- **MacBook Air (`air`):** 6,248 events from 911 sessions. Claude Code's transcripts gave
+  3,055 of them, from 712 transcripts. Over a year, 653 of the 911 sessions used a skill:
+  4,024 loads by Claude and 1,797 by Codex, across 203 skills.
+- **Random (`random`):** 1,996 events from 334 sessions. Its transcripts gave 555, from 297.
+  Over a year, 212 of its 364 sessions used a skill: 1,060 loads by Claude and 444 by Codex,
+  across 101 skills.
+- **Not done.** Hero was switched off. No shared folder is named, so each record is read on
+  its own machine, and the triggers report sees one machine's sessions.
+
 ### Sessions outside T3 Code, and the rollout, 2026-11-21 (#1820, #1819)
 
 - **Most skill loads before November never passed through T3 Code.** Of 708 Claude Code
@@ -177,7 +191,7 @@ skill for `lefthook.yml`, `ci.yml` and `scripts/check-*.mjs`), before Lushly dec
 
 - Collection with the hourly job, and one report across machines (#1818): merged in #1889.
 
-- Rollout to the Air, Random and Hero (#1819): the Air and Random collect hourly since 2026-11-21 (see Findings); Hero, and the shared folder on all three, to come.
+- Rollout to the Air, Random and Hero (#1819): the Air and Random run all four phases and collect hourly since 2026-11-21 (see Findings); Hero, and the shared folder on all three, to come.
 
 ## Phase 4. Provider logs
 

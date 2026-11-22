@@ -53,8 +53,9 @@ runs, and a server with no approval step refuses it, as [Approvals](#approvals) 
   Consumers read an absent boolean as its default. An explicit `false` is reported as `false`.
 - **Two exceptions:** afd-detail always reports `mutation`, and afd-discover reports it when
   `includeMutation` is set. Both use `false` when it is unset.
-- **`_meta` and afd-detail omit empty arrays** (`requires`, `examples`, `contexts`, `scopes`, and
-  afd-detail's `tags` and `errors`).
+- **Empty command-metadata arrays are omitted:** from `_meta` (`requires`, `examples`, `contexts`,
+  `scopes`), from afd-detail (those, `tags` and `errors`) and from afd-help (`requires`, and in its
+  `full` format `tags` and `examples`).
 - **`_meta` carries planning signals, not display text.** It has `destructive` and `undoable` but
   not `confirmPrompt`, which is for a frontend's confirmation dialog. Agents get it from afd-detail.
 - **Grouped tools** (`toolStrategy: 'grouped'`) carry the per-command `_meta` fields on each entry
@@ -242,7 +243,39 @@ see the call, answers before the handler runs with:
 
 When an approval step ran but did not admit this dispatch (a retry, a different command or an
 input changed after it), `details.reason` is `admission-mismatch` and the suggestion tells the
-operator to move such middleware before the approval step.
+operator to move such middleware before the approval step. This holds whether the policy that
+gates the command is its own or one the approval middleware is given for it. The approval step
+answers the same way, without asking anyone, when the input changed while it was deciding (inside a
+policy function or a store it awaited), so a person is never shown one input while a token binds
+another.
+
+An approval step admits only a call a policy it holds may gate. Behind a second approval
+middleware that does not gate the command, the first one's admission still decides; neither can
+replace or restore the other's. One approval middleware per engine is the supported setup: two that
+both gate a command's own policy would each ask for it.
+
+When a call needs approval and its validated input has no canonical JSON form (rule 3 below), no
+token or relayed approval can bind it, so the approval step answers before the handler, without
+asking the person, for a single call and for a step of an `afd-batch` or `afd-pipe` approved up
+front alike:
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "APPROVAL_UNAVAILABLE",
+    "message": "todo-tag needs a person's approval, and this input cannot be bound to one",
+    "suggestion": "Do not retry with this input: it has no exact canonical form, so an approval cannot be bound to it. Send the input in a form canonical JSON accepts (for example, an integer a JavaScript number cannot hold exactly, such as 2^53 + 1, as a string).",
+    "retryable": false,
+    "details": { "reason": "input-not-canonical" }
+  }
+}
+```
+
+A call whose policy lets it through runs on such an input; the engine then compares the input it
+dispatches with the one admitted in the language's own way (the same object, or an equal copy), and
+a difference is `admission-mismatch`. Where the comparison is by identity, a change inside the same
+object is not seen.
 
 This check reads the declaration alone: a policy function is not evaluated, so a command that
 declares one needs an approval step even for calls the function would let through. The suggestion

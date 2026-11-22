@@ -1,0 +1,28 @@
+{
+	"host": {
+		"name": "example-host",
+		"runtime": {
+			"kind": "docker",
+			"reachable": false,
+			"reason": "The container runtime is not running."
+		}
+	},
+	"machines": [
+		{
+			"id": "m-03",
+			"repository": "example-repo",
+			"for": "fix/parser",
+			"size": "standard",
+			"state": "ready",
+			"runs": [
+				{
+					"id": "r-11",
+					"head": "7c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d",
+					"state": "failed",
+					"failed": "validate",
+					"note": "Ended before the runtime went away."
+				}
+			]
+		}
+	]
+}

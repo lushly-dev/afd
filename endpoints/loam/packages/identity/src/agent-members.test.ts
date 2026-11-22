@@ -105,6 +105,11 @@ describe('P3-E5: an agent member has no account at the provider (8.1)', () => {
 	const LOAM_ROUTES = [
 		'/loam/account',
 		'/loam/binding',
+		// Step 7's connected agents (9.2): a list, a person's disconnect and an owner's removal. None registers a
+		// credential or a session, and none makes an agent a user; the consent page's approval makes the record.
+		'/loam/connected-agents',
+		'/loam/connected-agents/disconnect',
+		'/loam/connected-agents/remove',
 		'/loam/invitations',
 		'/loam/join/check',
 		'/loam/join/name',
@@ -125,7 +130,11 @@ describe('P3-E5: an agent member has no account at the provider (8.1)', () => {
 			.map((endpoint) => endpoint.path)
 			.filter((path): path is string => typeof path === 'string');
 		expect(paths.filter((path) => path.startsWith('/loam/')).sort()).toEqual(LOAM_ROUTES);
-		expect(paths.filter((path) => /agent/i.test(path))).toEqual([]);
+		// No route signs an agent member in or gives it an account; step 7's connected-agent routes manage a person's
+		// own connections, listed above.
+		expect(
+			paths.filter((path) => /agent/i.test(path) && !path.startsWith('/loam/connected-agents'))
+		).toEqual([]);
 	});
 
 	it("P3-E5: no user row's id starts `agt_`, so the provider holds no account an agent member could sign in with", () => {

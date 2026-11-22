@@ -90,6 +90,8 @@ export const SHELL_COMMAND_NAMES = [
 	'account-invitation-list',
 	'account-invitation-accept',
 	'account-invitation-reject',
+	'account-agent-list',
+	'account-agent-disconnect',
 	'member-list',
 	'member-invite',
 	'member-invitation-list',

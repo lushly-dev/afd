@@ -11,6 +11,7 @@ import inspect
 import uuid
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
+from pathlib import PureWindowsPath
 from typing import Any
 
 from afd import Actor, CommandResult, DirectClient, error, system_clock, system_random
@@ -151,6 +152,17 @@ class CommandHost:
         self._policies: dict[str, CommandPolicy] = {}
         self.middleware: list[Callable] = []
         self.docs: dict[str, str] = {}
+        #: The plugin instances whose commands this host serves (set by ``build_host``).
+        self.plugins: dict[str, Any] = {}
+
+    async def aclose(self) -> None:
+        """Release what the host's plugins hold open, calling each plugin's ``close()``."""
+        for plugin in self.plugins.values():
+            close = getattr(plugin, "close", None)
+            if callable(close):
+                outcome = close()
+                if inspect.isawaitable(outcome):
+                    await outcome
 
     def register(self, name: str, handler: Callable, policy: CommandPolicy) -> None:
         if name in self._commands or _other_spelling(name) in self._commands:
@@ -296,9 +308,13 @@ class CommandHost:
             package = kwargs.get("package")
             if package and (
                 not isinstance(package, str)
-                or package.startswith("-")
+                or "\x00" in package
+                or "\\" in package
+                or ":" in package
+                or package.startswith(("-", "/"))
                 or ".." in package.split("/")
-                or package.startswith("/")
+                or PureWindowsPath(package).is_absolute()
+                or bool(PureWindowsPath(package).drive)
             ):
                 raise ValueError("Package must be a declared name inside the selected target")
             for key in policy.paths:
@@ -472,6 +488,7 @@ def build_host(
             plugin.register(registry)
             _refuse_foreign_policies(plugin_name, registry, *before)
     host = CommandHost(name, context)
+    host.plugins = dict(selected)
     host.docs = build_docs(registry)
     host.middleware = registry.middleware
     explicit = policies or {}

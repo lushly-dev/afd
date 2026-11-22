@@ -14,9 +14,9 @@ const MIRROR = 'endpoints/botcore/src/botcore/provenance';
 const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_')));
 
 /**
- * Botcore's records for `rows` ([path, hash, extra]), with the packaged mirror. The envelope
- * commits the adaptations digest, as Specimen's and Violet's do; `digest: false` is the shape
- * Botcore and FAST-AF have since #1610.
+ * Botcore's records for `rows` ([path, hash, extra]), with the packaged mirror. By default the
+ * envelope commits the adaptations digest, the shape every unit had before #1610, which a branch
+ * cut before it still carries; `digest: false` is every unit's shape since.
  */
 const records = (rows, { digest = true } = {}) => {
 	const files = rows.map(([path, current, extra = {}]) => ({

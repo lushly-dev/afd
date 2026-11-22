@@ -16,7 +16,7 @@ export const dartTransformer: Transformer = {
 		const { includeComments = true } = options;
 
 		// Use dart-specific options
-		const className = (options as DartOptions).className || 'VioletTokens';
+		const className = sanitizeDartIdentifier((options as DartOptions).className || 'VioletTokens');
 
 		const lines: string[] = [];
 
@@ -31,23 +31,24 @@ export const dartTransformer: Transformer = {
 		lines.push(`class ${className} {`);
 		lines.push(`  ${className}._();`);
 
-		// Group tokens by category
+		// Group tokens by category (reserve className so no member shares the enclosing class name)
 		const groups = groupByCategory(tokens);
+		const usedNames = new Set<string>([className]);
 
 		for (const [category, categoryTokens] of groups) {
 			lines.push('');
 
 			if (includeComments) {
-				lines.push(`  // ${capitalize(category)}`);
+				lines.push(`  // ${sanitizeLineComment(capitalize(category))}`);
 			}
 
 			for (const token of categoryTokens) {
 				const dartValue = toDartValue(token);
-				const constName = toCamelCase(token.id);
+				const constName = allocateDartIdentifier(toCamelCase(token.id), usedNames);
 				const dartType = getDartType(token);
 
 				if (includeComments && token.metadata?.description) {
-					lines.push(`  /// ${token.metadata.description}`);
+					lines.push(`  /// ${sanitizeLineComment(token.metadata.description)}`);
 				}
 
 				lines.push(`  static const ${dartType} ${constName} = ${dartValue};`);
@@ -106,23 +107,24 @@ function capitalize(str: string): string {
 /**
  * Get Dart type for a token
  */
+function formatDartDouble(num: number): string {
+	const str = String(num);
+	return str.includes('.') || str.includes('e') || str.includes('E') ? str : `${str}.0`;
+}
+
 function getDartType(token: ResolvedToken): string {
-	const category = token.id.split('.')[0];
 	const value = token.resolvedValue;
 
-	if (category === 'color' || isHexColor(value)) {
+	if (isHexColor(value)) {
 		return 'Color';
 	}
 
-	if (typeof value === 'number') {
+	if (typeof value === 'number' && Number.isFinite(value)) {
 		return 'double';
 	}
 
 	if (typeof value === 'string') {
-		if (value.endsWith('px') || value.endsWith('rem') || value.endsWith('em')) {
-			return 'double';
-		}
-		if (/^-?\d+(\.\d+)?$/.test(value)) {
+		if (/^-?(?:\d+\.?\d*|\.\d+)(?:px|rem|em)?$/.test(value)) {
 			return 'double';
 		}
 	}
@@ -134,38 +136,36 @@ function getDartType(token: ResolvedToken): string {
  * Convert token value to Dart literal
  */
 function toDartValue(token: ResolvedToken): string {
-	const category = token.id.split('.')[0];
 	const value = token.resolvedValue;
 
-	// Colors
-	if (category === 'color' || isHexColor(value)) {
+	// Colors (only emit Color(0x...) when value is a valid CSS hex color)
+	if (isHexColor(value)) {
 		return `Color(0x${toArgbHex(String(value))})`;
 	}
 
 	// Numbers with units
 	if (typeof value === 'string') {
 		// Pixel values → double
-		if (value.endsWith('px')) {
-			return `${Number.parseFloat(value)}.0`;
+		if (/^-?(?:\d+\.?\d*|\.\d+)px$/.test(value)) {
+			return formatDartDouble(Number.parseFloat(value));
 		}
 		// Rem values → double (assume 16px base)
-		if (value.endsWith('rem')) {
-			return `${Number.parseFloat(value) * 16}.0`;
+		if (/^-?(?:\d+\.?\d*|\.\d+)rem$/.test(value)) {
+			return formatDartDouble(Number.parseFloat(value) * 16);
 		}
 		// Em values → double
-		if (value.endsWith('em')) {
-			return `${Number.parseFloat(value) * 16}.0`;
+		if (/^-?(?:\d+\.?\d*|\.\d+)em$/.test(value)) {
+			return formatDartDouble(Number.parseFloat(value) * 16);
 		}
 		// Pure numbers
-		if (/^-?\d+(\.\d+)?$/.test(value)) {
-			const num = Number.parseFloat(value);
-			return Number.isInteger(num) ? `${num}.0` : `${num}`;
+		if (/^-?(?:\d+\.?\d*|\.\d+)$/.test(value)) {
+			return formatDartDouble(Number.parseFloat(value));
 		}
 	}
 
 	// Numbers
-	if (typeof value === 'number') {
-		return Number.isInteger(value) ? `${value}.0` : `${value}`;
+	if (typeof value === 'number' && Number.isFinite(value)) {
+		return formatDartDouble(value);
 	}
 
 	// Strings
@@ -179,14 +179,109 @@ const DART_ESCAPES: Record<string, string> = {
 	'\n': '\\n',
 	'\r': '\\r',
 	'\t': '\\t',
+	'\0': '\\u0000',
 };
+
+const DART_RESERVED = new Set([
+	'abstract',
+	'as',
+	'assert',
+	'async',
+	'await',
+	'base',
+	'break',
+	'case',
+	'catch',
+	'class',
+	'const',
+	'continue',
+	'covariant',
+	'default',
+	'deferred',
+	'do',
+	'dynamic',
+	'else',
+	'enum',
+	'export',
+	'extends',
+	'extension',
+	'external',
+	'factory',
+	'false',
+	'final',
+	'finally',
+	'for',
+	'Function',
+	'get',
+	'hide',
+	'if',
+	'implements',
+	'import',
+	'in',
+	'interface',
+	'is',
+	'late',
+	'library',
+	'mixin',
+	'new',
+	'null',
+	'of',
+	'on',
+	'operator',
+	'part',
+	'required',
+	'rethrow',
+	'return',
+	'sealed',
+	'set',
+	'show',
+	'static',
+	'super',
+	'switch',
+	'sync',
+	'this',
+	'throw',
+	'true',
+	'try',
+	'type',
+	'typedef',
+	'var',
+	'void',
+	'when',
+	'while',
+	'with',
+	'yield',
+]);
 
 /**
  * Escape a value for a single-quoted Dart string literal, including `$`
  * so it cannot start a string interpolation
  */
 function escapeDartString(str: string): string {
-	return str.replace(/[\\'$\n\r\t]/g, (c) => DART_ESCAPES[c]);
+	return str.replace(/[\\'$\n\r\t]/g, (c) => DART_ESCAPES[c]).replaceAll('\0', '\\u0000');
+}
+
+function sanitizeDartIdentifier(str: string): string {
+	let cleaned = str.replace(/[^a-zA-Z0-9_$]/g, '_');
+	if (!cleaned || /^\d/.test(cleaned) || DART_RESERVED.has(cleaned)) {
+		cleaned = `_${cleaned}`;
+	}
+	return cleaned;
+}
+
+function allocateDartIdentifier(raw: string, used: Set<string>): string {
+	const base = sanitizeDartIdentifier(raw);
+	let candidate = base;
+	let suffix = 2;
+	while (used.has(candidate)) {
+		candidate = `${base}_${suffix++}`;
+	}
+	used.add(candidate);
+	return candidate;
+}
+
+function sanitizeLineComment(str: string): string {
+	return str.replace(/[\r\n]+/g, ' ');
 }
 
 /**

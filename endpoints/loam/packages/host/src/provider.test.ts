@@ -164,12 +164,54 @@ const SERVED: Record<string, string> = {
 	'/organization/list-user-invitations': "Better Auth's: the caller's own",
 	'/organization/has-permission': "Better Auth's: the caller's own role",
 	'/organization/check-slug': "Better Auth's: whether a slug is taken",
+	// Step 7's authorization server (9.4) and connected agents (9.2).
+	'/.well-known/oauth-authorization-server': "RFC 8414's metadata: public, no session",
+	'/jwks': "the signing keys' public halves, which the MCP verifier reads",
+	'/oauth2/authorize':
+		'9.4: to the login page signed out, to the consent page signed in; PKCE for every client',
+	'/oauth2/consent':
+		"9.4: the person's approval; Loam's hooks refuse a non-member and an owner's removal",
+	'/oauth2/continue': "9.4: a session's continuation of the signed request",
+	'/oauth2/token': "9.4: `authorization_code` and `refresh_token` only; PKCE's verifier",
+	'/oauth2/introspect': "a client's own token, by the client's authentication",
+	'/oauth2/revoke': "a client's own token, by the client's authentication",
+	'/oauth2/userinfo': "a token's subject; no profile or email scope is served (9.3)",
+	'/oauth2/end-session': "RP-initiated sign-out, by the client's ID token",
+	'/oauth2/end-session/confirm': "RP-initiated sign-out's confirmation, by the session",
+	'/oauth2/register': '9.4: dynamic registration, refused unless the deployer turns it on',
+	'/oauth2/public-client': "a client's public name, to a session: the consent page's",
+	'/oauth2/public-client-prelogin': "a client's public name before sign-in, by the signed request",
+	'/oauth2/get-client': "a client's public fields, to a session",
+	'/oauth2/get-clients':
+		"the clients a session's person registered: none, since no page registers one",
+	'/oauth2/get-consent': "the person's own consent",
+	'/oauth2/get-consents': "the person's own consents",
+	'/loam/connected-agents':
+		"9.2: the workspace's connected agents, to a member; scopes only for their own",
+	'/loam/connected-agents/disconnect': "5.3: the sponsor's own, never one an owner removed",
+	'/loam/connected-agents/remove': "9.2: an owner's, kept `suspended: 'owner'` or forgotten",
 };
 
-/** 5.8's routes that are not served and that this instance builds (`/token` and `/forget-password/email-otp` it does not). */
-const NOT_SERVED = LOAM_DISABLED_PATHS.filter(
-	(path) => path !== '/token' && path !== '/forget-password/email-otp'
-);
+/**
+ * The authorization server's admin routes (9.4): `SERVER_ONLY`, so the deployer's pre-registration through the server
+ * API reaches them, by an owner's session, and no HTTP request does.
+ */
+const SERVER_ONLY = [
+	// Not an admin route, but answered 404 by the provider itself: no `openid` scope is served (9.3), so it is no OpenID
+	// provider, only an OAuth one.
+	'/.well-known/openid-configuration',
+	'/admin/oauth2/create-client',
+	'/admin/oauth2/update-client',
+	'/admin/oauth2/resources',
+	'/admin/oauth2/resources/:identifier',
+	'/admin/oauth2/resources/:identifier/clients/:client_id',
+];
+
+/**
+ * 5.8's routes that are not served and that this instance builds (`/forget-password/email-otp` it does not; the JWT
+ * plugin's `/token` it does from step 7, disabled).
+ */
+const NOT_SERVED = LOAM_DISABLED_PATHS.filter((path) => path !== '/forget-password/email-otp');
 
 /** The mounted instance's routes, with each one's methods. */
 function routesOf(profile: DevProfile): Map<string, string[]> {
@@ -193,7 +235,7 @@ describe("the provider mounted in loam-host: the routes are 5.8's, by the mounte
 		const { deployment, dist } = await setup();
 		const profile = await dev(deployment, dist);
 		const routes = [...routesOf(profile).keys()].sort();
-		expect(routes).toEqual([...Object.keys(SERVED), ...NOT_SERVED].sort());
+		expect(routes).toEqual([...Object.keys(SERVED), ...NOT_SERVED, ...SERVER_ONLY].sort());
 		for (const path of Object.keys(SERVED)) expect(LOAM_DISABLED_PATHS, path).not.toContain(path);
 	});
 
@@ -219,6 +261,25 @@ describe("the provider mounted in loam-host: the routes are 5.8's, by the mounte
 		}
 		// A disabled path with a parameter is refused for any value (the re-check of step 3's NEW-4).
 		expect((await call(profile, '/api/auth/reset-password/some-token')).status).toBe(404);
+	});
+
+	it('answers no HTTP request on a server-only admin route, nor OpenID discovery (9.3, 9.4)', async () => {
+		const { deployment, dist } = await setup();
+		await bootstrapped(deployment);
+		const profile = await dev(deployment, dist);
+		const cookie = cookieHeader(await signIn(profile));
+		const routes = routesOf(profile);
+		for (const path of SERVER_ONLY) {
+			for (const method of routes.get(path) ?? []) {
+				const answer = await call(profile, `/api/auth${concrete(path)}`, {
+					method,
+					headers: { cookie },
+					...(method === 'POST' || method === 'PATCH' ? { json: {} } : {}),
+				});
+				// Not reached at all, never reached and refused: Better Auth answers a server-only route 404 over HTTP.
+				expect(answer.status, `${method} ${path}`).toBe(404);
+			}
+		}
 	});
 
 	it("reaches every route 5.8 serves: none answers the router's 404", async () => {
