@@ -315,8 +315,8 @@ importers:
         specifier: workspace:*
         version: link:../../../../foundations/fast-af/packages/violet-elements
       '@tanstack/ai-client':
-        specifier: 1.1.0
-        version: 1.1.0(@opentelemetry/api@1.10.0)
+        specifier: 1.2.0
+        version: 1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
     devDependencies:
       '@lushly-dev/afd-core':
         specifier: workspace:*
@@ -4029,11 +4029,14 @@ packages:
       '@anthropic-ai/vertex-sdk':
         optional: true
 
-  '@tanstack/ai-client@1.1.0':
-    resolution: {integrity: sha512-XMTdKzB9JG851Sztd/ywaL9D9Mw5DS87nV2i+5/Yq9dT+JKMcGoXCriztyO+djwxHu5ZGY32o9o29zbMMBo9VQ==}
+  '@tanstack/ai-client@1.2.0':
+    resolution: {integrity: sha512-fwDe6AijLgScdEDq6Cy15U6V1i2GPBtxSmUhNGytGxuW1IQIFvufYMqSmVtJ4pd/CrZXvm43BoBo6jLogl574w==}
 
   '@tanstack/ai-event-client@1.0.1':
     resolution: {integrity: sha512-IURnn4oRKJbtbAuC3GcXRcuKHi8DrPmwuACqaTq6ApSGlyJyHhq0NTksKEmzql2Z12+njFjsKSXG9c7UbSHTxg==}
+
+  '@tanstack/ai-event-client@1.1.0':
+    resolution: {integrity: sha512-g4ctAzbvC1CuAjjTnp8iH5hlnFzVPJybVhuRMItUb5ISC4bQsrhUyhrsZ4QHW1brEpaAhfdss+MpdWux+7glUw==}
 
   '@tanstack/ai-openai@1.1.1':
     resolution: {integrity: sha512-IzieUf8FmAaZOVV4ADM3PrL0W7GQ+SPB1BOLHU/EG+cVGcg+KuunlflNrjJJB7pcvJTZUoOhgBn2ljn8NH4mdw==}
@@ -4045,6 +4048,15 @@ packages:
 
   '@tanstack/ai@1.4.0':
     resolution: {integrity: sha512-3f0D9gFCk8LUe9qAPCsRkjlXU2bqbIKKMGGo9P6Q6O0vR+5/0N/J3x1J2QWYY8L3LNvJliZBDnutudEIRzNU8w==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@opentelemetry/api': '>=1.9.0'
+    peerDependenciesMeta:
+      '@opentelemetry/api':
+        optional: true
+
+  '@tanstack/ai@1.7.0':
+    resolution: {integrity: sha512-aPk6DRAOF1+z6wxySyIw+5GdBJ/41qNLwVHr799WEiWcfW7b2pDP8VTMIsBzuHauMPOfCIn4nHCuP/paaWOL9w==}
     engines: {node: '>=18'}
     peerDependencies:
       '@opentelemetry/api': '>=1.9.0'
@@ -8709,10 +8721,10 @@ snapshots:
     transitivePeerDependencies:
       - zod
 
-  '@tanstack/ai-client@1.1.0(@opentelemetry/api@1.10.0)':
+  '@tanstack/ai-client@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7)':
     dependencies:
-      '@tanstack/ai': 1.4.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
-      '@tanstack/ai-event-client': 1.0.1
+      '@tanstack/ai': 1.7.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
+      '@tanstack/ai-event-client': 1.1.0
       '@tanstack/ai-utils': 1.1.0
       '@tanstack/store': 0.11.2
     transitivePeerDependencies:
@@ -8720,6 +8732,10 @@ snapshots:
       - zod
 
   '@tanstack/ai-event-client@1.0.1':
+    dependencies:
+      '@tanstack/devtools-event-client': 0.4.4
+
+  '@tanstack/ai-event-client@1.1.0':
     dependencies:
       '@tanstack/devtools-event-client': 0.4.4
 
@@ -8746,6 +8762,20 @@ snapshots:
       '@cfworker/json-schema': 4.1.6
       '@standard-schema/spec': 1.1.0
       '@tanstack/ai-event-client': 1.0.1
+      '@tanstack/ai-utils': 1.1.0
+      fast-json-patch: 3.1.1
+      partial-json: 0.1.7
+    optionalDependencies:
+      '@opentelemetry/api': 1.10.0
+    transitivePeerDependencies:
+      - zod
+
+  '@tanstack/ai@1.7.0(@opentelemetry/api@1.10.0)(zod@4.6.7)':
+    dependencies:
+      '@ag-ui/core': 1.0.0(zod@4.6.7)
+      '@cfworker/json-schema': 4.1.6
+      '@standard-schema/spec': 1.1.0
+      '@tanstack/ai-event-client': 1.1.0
       '@tanstack/ai-utils': 1.1.0
       fast-json-patch: 3.1.1
       partial-json: 0.1.7
