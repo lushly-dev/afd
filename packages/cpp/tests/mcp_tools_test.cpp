@@ -30,7 +30,9 @@ struct Fixture {
     std::shared_ptr<std::atomic<int>> removes = std::make_shared<std::atomic<int>>(0);
     std::vector<afd::ContextConfig> contexts{{.name = "reading"}, {.name = "editing"}};
 
-    explicit Fixture(bool with_contexts = false) {
+    /// `listed`: the approval middleware is given the commands list, else none (#1886).
+    /// `approvals`: install the approval middleware at all.
+    explicit Fixture(bool with_contexts = false, bool listed = true, bool approvals = true) {
         auto deleted = deletes;
         auto removed = removes;
         std::vector<afd::CommandDefinition> commands{
@@ -92,13 +94,21 @@ struct Fixture {
                            afd::CommandContext&) { return afd::success(Json::array()); },
              .expose = {.mcp = true}},
         };
+        std::vector<afd::ApprovalCommand> gated;
+        if (listed) {
+            gated.assign(commands.begin(), commands.end());
+        }
         auto approval =
             afd::create_approval_middleware({.secrets = {std::string(32, 's')},
-                                             .commands = {commands.begin(), commands.end()},
+                                             .commands = std::move(gated),
                                              .relay = afd::ApprovalRelay::mcp_elicitation});
         REQUIRE(approval);
+        std::vector<afd::CommandMiddleware> middleware;
+        if (approvals) {
+            middleware.push_back(*approval);
+        }
         registry = std::make_shared<afd::CommandRegistry>(
-            afd::CommandRegistryOptions{.middleware = {*approval}});
+            afd::CommandRegistryOptions{.middleware = std::move(middleware)});
         for (const auto& command : commands) {
             REQUIRE_FALSE(registry->register_command(command));
         }
@@ -798,6 +808,137 @@ TEST_CASE("2025: a batch is approved up front, once, before any step runs") {
     CHECK(silent["error"]["code"] == "APPROVAL_REQUIRED");
     CHECK_FALSE(silent["error"].contains("details"));
     CHECK(*fixture.removes == 1);
+}
+
+TEST_CASE("without a commands list, a batch is approved up front from the server's commands") {
+    Fixture fixture(false, false);
+    auto server = make_server(*fixture.registry);
+    Legacy client;
+    client.connect(*server);
+    const Json batch{{"commands",
+                      {{{"command", "note-create"}, {"input", {{"title", "first"}}}},
+                       {{"command", "tag-remove"}, {"input", {{"tag", "old"}}}}}}};
+    const Json ran = body(call(*server, "afd-batch", batch, client.requester()));
+    REQUIRE(client.asked.size() == 1);
+    CHECK(client.asked[0]["params"]["message"].get<std::string>().find("Step 2: Run tag-remove") !=
+          std::string::npos);
+    CHECK(ran["summary"]["successCount"] == 2);
+    CHECK(*fixture.removes == 1);
+
+    // A pipeline step whose input comes from an earlier one cannot be asked about up front.
+    const Json pipe{{"steps",
+                     {{{"command", "tag-list"}},
+                      {{"command", "tag-remove"}, {"input", {{"tag", "$prev.0"}}}}}}};
+    const Json refused = body(call(*server, "afd-pipe", pipe, client.requester()));
+    CHECK(client.asked.size() == 1);
+    CHECK(refused["steps"][0]["error"]["details"]["reason"] == "input-not-known");
+    CHECK(*fixture.removes == 1);
+}
+
+TEST_CASE("a step gated only by the commands list is approved up front, before any step runs") {
+    // note-create records each run; tag-purge declares no policy, and only the approval
+    // middleware's commands list gates it, which the server cannot see.
+    auto created = std::make_shared<std::atomic<int>>(0);
+    auto purged = std::make_shared<std::atomic<int>>(0);
+    auto approval = afd::create_approval_middleware(
+        {.secrets = {std::string(32, 's')},
+         .commands = {afd::ApprovalCommand("tag-purge", afd::ApprovalDecision::required)},
+         .relay = afd::ApprovalRelay::mcp_elicitation});
+    REQUIRE(approval);
+    afd::CommandRegistry registry(afd::CommandRegistryOptions{.middleware = {*approval}});
+    REQUIRE_FALSE(
+        registry.register_command({.name = "note-create",
+                                   .description = "Create a note",
+                                   .handler =
+                                       [created](const Json& input, afd::CommandContext&) {
+                                           ++*created;
+                                           return afd::success(input);
+                                       },
+                                   .mutation = true,
+                                   .expose = {.mcp = true}}));
+    REQUIRE_FALSE(registry.register_command({.name = "tag-purge",
+                                             .description = "Purge a tag",
+                                             .handler =
+                                                 [purged](const Json& input, afd::CommandContext&) {
+                                                     ++*purged;
+                                                     return afd::success(input);
+                                                 },
+                                             .mutation = true,
+                                             .expose = {.mcp = true}}));
+    REQUIRE_FALSE(afd::register_bootstrap_commands(registry));
+    auto server = make_server(registry);
+    Legacy client;
+    client.connect(*server);
+    const Json batch{{"commands",
+                      {{{"command", "note-create"}, {"input", {{"title", "first"}}}},
+                       {{"command", "tag-purge"}, {"input", {{"tag", "old"}}}}}}};
+    const Json pipe{{"steps",
+                     {{{"command", "note-create"}, {"input", {{"title", "first"}}}},
+                      {{"command", "tag-purge"}, {"input", {{"tag", "old"}}}}}}};
+
+    std::string tool;
+    Json arguments;
+    SUBCASE("afd-batch") {
+        tool = "afd-batch";
+        arguments = batch;
+    }
+    SUBCASE("afd-pipe") {
+        tool = "afd-pipe";
+        arguments = pipe;
+    }
+    // Declined: the human is asked once, before the earlier step runs, and nothing runs.
+    client.answer = Json{{"action", "decline"}};
+    const Json declined = body(call(*server, tool, arguments, client.requester()));
+    REQUIRE(client.asked.size() == 1);
+    CHECK(client.asked[0]["params"]["message"].get<std::string>().find("Step 2: Run tag-purge") !=
+          std::string::npos);
+    CHECK(declined.dump().find("\"reason\":\"declined\"") != std::string::npos);
+    CHECK(*created == 0);
+    CHECK(*purged == 0);
+
+    // Approved: each step runs once.
+    client.answer = approve;
+    body(call(*server, tool, arguments, client.requester()));
+    CHECK(client.asked.size() == 2);
+    CHECK(*created == 1);
+    CHECK(*purged == 1);
+}
+
+TEST_CASE("an up-front step whose input has no canonical form is refused before any step runs") {
+    Fixture fixture;
+    auto server = make_server(*fixture.registry);
+    Legacy client;
+    client.connect(*server);
+    const Json big = Json::parse(R"({"tag": 9007199254740993})");
+    const Json batch{{"commands",
+                      {{{"command", "note-create"}, {"input", {{"title", "first"}}}},
+                       {{"command", "tag-remove"}, {"input", big}}}}};
+    const Json batched = body(call(*server, "afd-batch", batch, client.requester()));
+    CHECK(batched["error"]["code"] == "APPROVAL_UNAVAILABLE");
+    CHECK(batched["error"]["details"]["reason"] == "input-not-canonical");
+    CHECK(batched["results"].empty());
+
+    const Json pipe{
+        {"steps", {{{"command", "tag-list"}}, {{"command", "tag-remove"}, {"input", big}}}}};
+    const Json piped = body(call(*server, "afd-pipe", pipe, client.requester()));
+    CHECK(piped["steps"][0]["error"]["code"] == "APPROVAL_UNAVAILABLE");
+    CHECK(piped["steps"][0]["error"]["details"]["reason"] == "input-not-canonical");
+    CHECK(client.asked.empty());
+    CHECK(*fixture.removes == 0);
+}
+
+TEST_CASE("without the approval middleware, a gated tool is refused before its handler") {
+    Fixture fixture(false, false, false);
+    auto server = make_server(*fixture.registry);
+    for (const auto& [name, arguments] : std::vector<std::pair<std::string, Json>>{
+             {"tag-remove", {{"tag", "old"}}},
+             {"afd-call", {{"command", "tag-remove"}, {"input", {{"tag", "old"}}}}}}) {
+        CAPTURE(name);
+        const Json result = body(call(*server, name, arguments));
+        CHECK(result["error"]["code"] == "APPROVAL_UNAVAILABLE");
+        CHECK(result["error"]["details"]["reason"] == "no-approval-step");
+    }
+    CHECK(*fixture.removes == 0);
 }
 
 TEST_CASE("2026-07-28: one input_required approves the whole batch, and a replay runs nothing") {

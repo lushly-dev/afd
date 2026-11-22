@@ -115,9 +115,11 @@ struct ApprovalMiddlewareOptions {
     /// The HMAC keys, as bytes: the first signs, any of them verifies (for key rotation).
     /// Required, with no default; each must be at least 32 bytes. Keep them out of source.
     std::vector<std::string> secrets;
-    /// The commands to gate: pass the same definitions given to the registry (a vector of them
-    /// converts with `{definitions.begin(), definitions.end()}`). A command that is not in this
-    /// list is never held, whatever its `approval` policy says.
+    /// Optional. The middleware decides from the policy and `confirm_prompt` of the command the
+    /// registry runs, so commands registered later are covered. A policy given here for a command
+    /// also holds it: a call is held when either the command's own policy or this list's entry
+    /// holds it, so a function policy given both ways may be called twice. A vector of
+    /// definitions converts with `{definitions.begin(), definitions.end()}`.
     std::vector<ApprovalCommand> commands;
     /// How long a token stays valid, in milliseconds. Default 300000 (5 minutes); at most 24
     /// hours.
@@ -162,13 +164,19 @@ struct ApprovalMiddlewareOptions {
 /// with exceptions) fails it. An input `canonical_json` cannot encode fails the call with
 /// `COMMAND_EXECUTION_ERROR`.
 ///
-/// Install it after any middleware that sets or refines `context.actor`, since tokens are bound
-/// to the actor. A registry may run calls concurrently: `summarize`, `on_approval_required`,
-/// `random_bytes` and a custom `nonce_store` must then be thread-safe. The built-in nonce store
-/// is.
+/// Every path that lets through a call one of its policies may gate (the command's own, or the
+/// one `commands` lists for it) admits it, and the registry runs a command whose declared or
+/// listed policy is not `not_required` only on every such admission: once, for that command and
+/// that validated input (`APPROVAL_UNAVAILABLE` otherwise). A call no policy here gates is not
+/// admitted. Install one approval middleware per registry: two that both gate a command's own
+/// policy each ask for it. Install middleware that retries or changes the input before this one,
+/// and this one after any middleware that sets or refines `context.actor`, since tokens are bound
+/// to the actor. A registry may run calls concurrently: `summarize`,
+/// `on_approval_required`, `random_bytes` and a custom `nonce_store` must then be thread-safe. The
+/// built-in nonce store is.
 ///
 ///     auto approval = afd::create_approval_middleware(
-///         {.secrets = {secret_from_environment}, .commands = {todo_delete, todo_list}});
+///         {.secrets = {secret_from_environment}});
 ///     if (!approval) { /* approval.error() says why */ }
 ///     registry.use(*approval);
 ///

@@ -24,6 +24,7 @@ struct DirectApprovalState;
 class McpApprovalRelay;
 class UpFrontApproval;
 struct JournaledContextFields;
+struct ApprovalAdmission;
 } // namespace detail
 
 /// A surface a command can be exposed to. TypeScript calls this the command's `interface`; C++
@@ -114,6 +115,9 @@ struct CommandContext {
     /// Set by the registry once the call's declared context fields validated: which of them the
     /// journal keeps. Leave it unset. Never recorded or hashed.
     std::shared_ptr<const detail::JournaledContextFields> journaled_fields;
+    /// Set by the registry for each call: the command it runs and whether an approval step
+    /// admitted it. The registry replaces whatever the caller passes; leave it unset.
+    std::shared_ptr<detail::ApprovalAdmission> approval_admission;
 };
 
 /// Defaults for `with_context_defaults`.
@@ -140,7 +144,9 @@ using ApprovalPolicyFunction =
     std::function<ApprovalDecision(const Json& input, const CommandContext& context)>;
 
 /// A command's approval policy: a fixed decision, or a function of the call. Unset means
-/// `not_required`. Enforced only where `create_approval_middleware` (approval.hpp) runs.
+/// `not_required`. `create_approval_middleware` (approval.hpp) asks for the approval; without
+/// it, the registry refuses a command whose policy is not `not_required` with
+/// `APPROVAL_UNAVAILABLE`, and a policy function is not evaluated.
 /// Converts implicitly from either, so `.approval = afd::ApprovalDecision::required` and
 /// `.approval = [](const afd::Json&, const afd::CommandContext&) { ... }` both work. (A class,
 /// not a `std::variant`: GCC reports a false `-Wmaybe-uninitialized` when a definition holding
@@ -232,7 +238,9 @@ struct CommandDefinition {
     std::vector<CommandExample> examples;
     std::optional<ExecutionTime> execution_time;
     /// Whether a call needs a human's approval before the handler runs. Unset means
-    /// `not_required`. Enforced by `create_approval_middleware`; reported as `_meta.approval`.
+    /// `not_required`. Asked for by `create_approval_middleware`; without it the registry refuses
+    /// a call with `APPROVAL_UNAVAILABLE` unless the policy is `not_required`. Reported as
+    /// `_meta.approval`.
     std::optional<ApprovalPolicy> approval;
 };
 

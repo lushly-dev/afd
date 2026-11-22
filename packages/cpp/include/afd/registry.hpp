@@ -153,7 +153,8 @@ private:
     [[nodiscard]] ExecutorOptions executor_options() const;
     [[nodiscard]] CommandExecutor executor() const;
     [[nodiscard]] CommandResult run_chain(const RegisteredCommand& command, const Json& input,
-                                          CommandContext& context) const;
+                                          CommandContext& context,
+                                          detail::ApprovalAdmission& admission) const;
     void report_error(std::string_view message) const;
 
     CommandRegistryOptions options_;

@@ -329,6 +329,12 @@ struct Attempt {
     std::optional<Json> input_required;
 };
 
+/// The definition of a registered command, sharing its ownership.
+std::shared_ptr<const CommandDefinition>
+definition_of(const std::shared_ptr<const RegisteredCommand>& command) {
+    return {command, &command->definition};
+}
+
 } // namespace
 
 struct StdioServer::State {
@@ -1205,10 +1211,14 @@ struct StdioServer::State {
     /// none when it names no command the caller can run or does not validate.
     [[nodiscard]] detail::UpFrontStep up_front_step(std::size_t index, const std::string& command,
                                                     const Json& input) const {
-        detail::UpFrontStep step{
-            .index = index, .command = command, .dynamic = false, .input = std::nullopt};
+        detail::UpFrontStep step{.index = index,
+                                 .command = command,
+                                 .dynamic = false,
+                                 .input = std::nullopt,
+                                 .definition = nullptr};
         const auto found = registry.get(command);
         if (found && is_exposed_to(found->definition.expose, Interface::mcp)) {
+            step.definition = definition_of(found);
             if (auto validated = found->input_schema.validate(input)) {
                 step.input = std::move(*validated);
             }
@@ -1216,19 +1226,13 @@ struct StdioServer::State {
         return step;
     }
 
-    /// Whether a batch or pipeline is approved up front: the request can carry a form elicitation
-    /// and a step names an exposed command with an approval policy.
-    [[nodiscard]] bool may_gate(const std::vector<std::pair<std::string, Json>>& steps,
-                                const RequestInfo& info, const ClientRequester& ask) const {
-        if (!declares_form_elicitation(info.client_capabilities) ||
-            !(info.modern || static_cast<bool>(ask))) {
-            return false;
-        }
-        return std::any_of(steps.begin(), steps.end(), [this](const auto& step) {
-            const auto command = registry.get(step.first);
-            return command && is_exposed_to(command->definition.expose, Interface::mcp) &&
-                   command->definition.approval.has_value();
-        });
+    /// Whether a batch or pipeline is approved up front: the request can carry a form
+    /// elicitation. Every such call is planned up front, gated or not, since a step may be gated
+    /// only by the approval middleware's `commands` list, which the server cannot see; the
+    /// middleware's plan runs every step when none is gated.
+    [[nodiscard]] static bool may_gate(const RequestInfo& info, const ClientRequester& ask) {
+        return declares_form_elicitation(info.client_capabilities) &&
+               (info.modern || static_cast<bool>(ask));
     }
 
     /// The approval answers a modern retry carries for the questions asked last round.
@@ -1383,7 +1387,7 @@ struct StdioServer::State {
             const BatchResult result = registry.execute_batch(*parsed, steps_context);
             return json_tool_result(Json(result), !result.success);
         };
-        if (!may_gate(steps, info, ask)) {
+        if (!may_gate(info, ask)) {
             return run(step_context(context, info, ask));
         }
         // Steps cannot ask mid-run: the whole batch is approved up front, or nothing runs.
@@ -1438,7 +1442,7 @@ struct StdioServer::State {
                 });
             return json_tool_result(Json(result), failed);
         };
-        if (!may_gate(steps, info, ask)) {
+        if (!may_gate(info, ask)) {
             return run(step_context(context, info, ask));
         }
         // Steps cannot ask mid-run: the whole pipeline is approved up front, or nothing runs. A
@@ -1454,18 +1458,26 @@ struct StdioServer::State {
             const auto command = registry.get(step.command);
             if (!command || !is_exposed_to(command->definition.expose, Interface::mcp)) {
                 // A command the caller cannot run is not one: it fails as a missing name.
-                up_front.push_back(
-                    {.index = i, .command = step.command, .dynamic = false, .input = std::nullopt});
+                up_front.push_back({.index = i,
+                                    .command = step.command,
+                                    .dynamic = false,
+                                    .input = std::nullopt,
+                                    .definition = nullptr});
             } else if (step.input && reads_step_data(*step.input)) {
-                up_front.push_back(
-                    {.index = i, .command = step.command, .dynamic = true, .input = std::nullopt});
+                up_front.push_back({.index = i,
+                                    .command = step.command,
+                                    .dynamic = true,
+                                    .input = std::nullopt,
+                                    .definition = definition_of(command)});
             } else {
                 auto resolved = resolve_variables(step.input.value_or(Json::object()), references);
-                up_front.push_back(resolved ? up_front_step(i, step.command, *resolved)
-                                            : detail::UpFrontStep{.index = i,
-                                                                  .command = step.command,
-                                                                  .dynamic = false,
-                                                                  .input = std::nullopt});
+                up_front.push_back(resolved
+                                       ? up_front_step(i, step.command, *resolved)
+                                       : detail::UpFrontStep{.index = i,
+                                                             .command = step.command,
+                                                             .dynamic = false,
+                                                             .input = std::nullopt,
+                                                             .definition = definition_of(command)});
             }
         }
         return run_up_front("afd-pipe", request, conditional, std::move(up_front), round, binding,
@@ -1800,10 +1812,19 @@ Expected<std::unique_ptr<StdioServer>> StdioServer::create(const CommandRegistry
                                   "afd::register_context_commands(registry, contexts) first");
             }
         }
-        // The server and the context tools must serve the same contexts.
+        // The server and the context tools must serve the same contexts. The handler is read
+        // directly, outside the registry, so only one that needs no approval is: the registry
+        // would refuse a gated one that no approval step admitted.
+        const auto context_list = registry.get("afd-context-list");
+        const auto mode = approval_mode(context_list->definition.approval);
+        if (mode && *mode != ApprovalMode::not_required) {
+            return unexpected(std::string(
+                "afd-context-list declares an approval policy, so the server cannot read the "
+                "contexts it serves: register the context commands without one "
+                "(afd::register_context_commands)"));
+        }
         CommandContext probe;
-        const Json listed(
-            registry.get("afd-context-list")->definition.handler(Json::object(), probe));
+        const Json listed(context_list->definition.handler(Json::object(), probe));
         std::set<std::string> registered;
         if (listed.contains("data") && listed["data"].contains("contexts")) {
             for (const auto& entry : listed["data"]["contexts"]) {

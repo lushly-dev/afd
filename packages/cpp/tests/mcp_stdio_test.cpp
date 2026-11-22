@@ -1056,6 +1056,30 @@ TEST_CASE("create refuses contexts whose commands are not registered") {
     CHECK_FALSE(StdioServer::create(*notes.registry, {.tools_list_ttl_ms = -1}));
 }
 
+TEST_CASE("create never runs a gated afd-context-list to check the contexts (#1886)") {
+    afd::CommandRegistry registry;
+    const std::vector<afd::ContextConfig> contexts{{.name = "reading"}};
+    auto listed = std::make_shared<int>(0);
+    for (auto command : afd::context_commands(contexts)) {
+        if (command.name == "afd-context-list") {
+            command.approval = afd::ApprovalDecision::required;
+            command.handler = [listed, inner = std::move(command.handler)](
+                                  const Json& input, afd::CommandContext& context) {
+                ++*listed;
+                return inner(input, context);
+            };
+        }
+        REQUIRE_FALSE(registry.register_command(std::move(command)));
+    }
+    auto refused = StdioServer::create(registry, {.contexts = contexts});
+    CHECK(*listed == 0);
+    REQUIRE_FALSE(refused);
+    if (!refused) {
+        CHECK(refused.error().find("afd-context-list declares an approval policy") !=
+              std::string::npos);
+    }
+}
+
 TEST_CASE("2025: the connection keeps a context stack that scopes tools/list and tools/call") {
     ScopedNotes notes;
     auto server = make_server(*notes.registry, {.confirmations = ConfirmationMode::require_human,

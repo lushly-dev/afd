@@ -535,7 +535,7 @@ TEST_CASE("approval policies") {
     }
 #endif
 
-    SUBCASE("an input that cannot be bound fails without running the handler") {
+    SUBCASE("an input that cannot be bound is APPROVAL_UNAVAILABLE without running the handler") {
         afd::CommandDefinition big{
             .name = "big-run",
             .description = "Takes any number",
@@ -550,8 +550,8 @@ TEST_CASE("approval policies") {
         const auto result =
             registry.execute("big-run", {{"n", std::uint64_t{18446744073709551615ULL}}});
         REQUIRE(result.error);
-        CHECK(result.error->code == "COMMAND_EXECUTION_ERROR");
-        CHECK(result.error->suggestion);
+        CHECK(result.error->code == "APPROVAL_UNAVAILABLE");
+        CHECK(afd::Json(result)["error"]["details"]["reason"] == "input-not-canonical");
     }
 }
 
@@ -567,9 +567,17 @@ TEST_CASE("approval middleware options") {
                         -> std::optional<std::string> { return std::string(); }});
         CHECK(empty.call({{"id", 42}}).error->details->at("summary") == "Delete the todo");
 
-        Gate plain(
+        // The confirm_prompt of the command the registry runs, though the list gives none.
+        Gate own(
             {.commands = {afd::ApprovalCommand("todo-delete", afd::ApprovalDecision::required)}});
-        CHECK(plain.call({{"id", 42}}).error->details->at("summary") == "Run todo-delete");
+        CHECK(own.call({{"id", 42}}).error->details->at("summary") == "Delete the todo");
+
+        Gate plain(
+            {.commands = {afd::ApprovalCommand("todo-list", afd::ApprovalDecision::required)}});
+        afd::CommandContext context;
+        context.actor = afd::Actor{.kind = afd::ActorKind::agent, .id = "u1"};
+        CHECK(plain.registry->execute("todo-list", afd::Json::object(), context)
+                  .error->details->at("summary") == "Run todo-list");
     }
 
     SUBCASE("can leave the token out of the result and hand it to on_approval_required") {
@@ -632,9 +640,11 @@ TEST_CASE("approval middleware options") {
         CHECK(gate.call({{"id", 42}}, token).success);
     }
 
-    SUBCASE("never holds a command that is not in its list") {
+    SUBCASE("holds a command that is not in its list by the command's own policy (#1886)") {
         Gate gate({.commands = {afd::ApprovalCommand("todo-list", std::nullopt)}});
-        CHECK(gate.call({{"id", 42}}).success);
+        const auto token = token_of(gate.call({{"id", 42}}));
+        CHECK(*gate.runs == 0);
+        CHECK(gate.call({{"id", 42}}, token).success);
     }
 }
 

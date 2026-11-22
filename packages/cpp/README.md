@@ -107,7 +107,7 @@ The raw registry example below is a trusted host API for out-of-band approval ha
 ```cpp
 afd::CommandDefinition remove{.name = "todo-delete", /* ... */ .approval = afd::ApprovalDecision::required};
 auto approval = afd::create_approval_middleware(
-    {.secrets = {secret_from_environment}, .commands = {remove}}); // at least 32 bytes, no default
+    {.secrets = {secret_from_environment}}); // at least 32 bytes, no default
 if (!approval) { /* approval.error() says why */ }
 afd::CommandRegistry registry({.middleware = {*approval}});
 
@@ -119,6 +119,8 @@ registry.execute("todo-delete", {{"id", 42}}, context); // runs once
 ```
 
 - **Rules** are [`spec/command-metadata.md`](../../spec/command-metadata.md#approvals) ("Approvals"). A policy is an `ApprovalDecision` or a function of the validated input and the context; anything but `not_required` holds the call.
+- **A declared policy holds without the middleware.** The registry runs a command whose policy is not `not_required`, or that the middleware's `commands` list gates, only when the approval middleware admitted that call, once, for that command and validated input; otherwise it answers `APPROVAL_UNAVAILABLE` (`details.reason` `no-approval-step` or `admission-mismatch`) before the handler. Each batch item, pipeline step and nested call is checked on its own. Install middleware that retries or changes input before the approval middleware. A gate given only in the `commands` list holds even when middleware before the approval middleware calls it under another name; middleware is host code, and one that replaces `context.approval_admission` is not something the gate defends against, any more than other code in the process.
+- **One approval middleware per registry** is the supported setup. A second admits only calls its own policies may gate, and every admission must match; two that both gate a command's own policy each ask for it. A call the middleware would hold whose input `canonical_json` cannot encode is answered `APPROVAL_UNAVAILABLE` with `details.reason` `input-not-canonical`, since no token can bind it. The middleware reads the policy of the command it runs; its `commands` option is optional, and a policy given there also holds.
 - **Evidence comes from trusted code.** Only the surface sets `CommandContext::approval`, after a human approved; never copy it from tool arguments.
 - **Tokens are TypeScript's**, byte for byte: HMAC-SHA256 over the command, keyed digests of `canonical_json(input)` and of the actor's kind, id and `on_behalf_of`, issue and expiry times and a random nonce. A token issued by a TypeScript server with the same secret verifies here, and the reverse. Single-use by default (`ApprovalReplay::within_ttl` allows reuse until expiry); share an `ApprovalNonceStore` between instances. Expiry uses the middleware's `clock`, never the context's.
 - **HMAC-SHA256** is self-contained (on the SHA-256 the journal uses) and checked against the RFC 4231 vectors, so there is no crypto dependency. Nonces come from `std::random_device` unless `random_bytes` is set.

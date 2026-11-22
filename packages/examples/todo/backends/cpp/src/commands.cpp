@@ -15,14 +15,4 @@ std::vector<afd::CommandDefinition> todo_commands(const std::shared_ptr<TodoStor
     return commands;
 }
 
-std::optional<std::string> register_todo_commands(afd::CommandRegistry& registry,
-                                                  const std::shared_ptr<TodoStore>& store) {
-    for (auto& definition : todo_commands(store)) {
-        if (auto error = registry.register_command(std::move(definition))) {
-            return error;
-        }
-    }
-    return std::nullopt;
-}
-
 } // namespace todo

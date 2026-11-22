@@ -14,6 +14,7 @@
 #include <random>
 #include <utility>
 
+#include "detail/approval_admission.hpp"
 #include "detail/approval_relay.hpp"
 #include "detail/direct_approval.hpp"
 #include "detail/hmac.hpp"
@@ -385,6 +386,27 @@ void system_random_bytes(std::uint8_t* out, std::size_t size) {
     }
 }
 
+/// What decides a call of one command: its own policy and confirmation prompt (the command the
+/// registry runs, or the server's definition of an up-front step), and the `commands` option's
+/// entry for it. The call is held when either policy holds it.
+struct Decider {
+    const CommandDefinition* own = nullptr;
+    const ApprovalCommand* listed = nullptr;
+};
+
+/// Whether `policy` holds a call. Fail closed: anything but an explicit `not_required` holds it.
+bool policy_holds(const std::optional<ApprovalPolicy>& policy, const Json& input,
+                  const CommandContext& context) {
+    if (!policy) {
+        return false;
+    }
+    const ApprovalPolicyFunction* decide = policy->function();
+    if (!decide) {
+        return policy->decision() != ApprovalDecision::not_required;
+    }
+    return !*decide || (*decide)(input, context) != ApprovalDecision::not_required;
+}
+
 struct ApprovalState {
     std::vector<std::string> keys;
     std::map<std::string, ApprovalCommand, std::less<>> commands;
@@ -394,17 +416,32 @@ struct ApprovalState {
     MemoryNonceStore memory_store;
     ApprovalMiddlewareOptions options;
 
-    bool requires_approval(const ApprovalCommand* command, const Json& input,
-                           const CommandContext& context) const {
-        if (!command || !command->approval) {
-            return false;
-        }
-        const ApprovalPolicyFunction* decide = command->approval->function();
-        if (!decide) {
-            return command->approval->decision() != ApprovalDecision::not_required;
-        }
-        // Fail closed: anything but an explicit not_required holds the call.
-        return !*decide || (*decide)(input, context) != ApprovalDecision::not_required;
+    /// What decides a call of `name` whose own definition is `own` (none outside the registry).
+    [[nodiscard]] Decider decider(std::string_view name, const CommandDefinition* own) const {
+        const auto found = commands.find(name);
+        return {.own = own, .listed = found == commands.end() ? nullptr : &found->second};
+    }
+
+    /// What decides this call of `name`: the command the registry runs for it.
+    [[nodiscard]] Decider decider(std::string_view name, const CommandContext& context) const {
+        const detail::ApprovalAdmission* record = context.approval_admission.get();
+        const CommandDefinition* own = record && record->command && record->command->name == name
+                                           ? record->command.get()
+                                           : nullptr;
+        return decider(name, own);
+    }
+
+    /// Whether the call needs approval: its own policy or its listed one holds it.
+    static bool requires_approval(const Decider& decider, const Json& input,
+                                  const CommandContext& context) {
+        return (decider.own && policy_holds(decider.own->approval, input, context)) ||
+               (decider.listed && policy_holds(decider.listed->approval, input, context));
+    }
+
+    /// Whether the call may need approval, without evaluating a policy function.
+    static bool may_require_approval(const Decider& decider) {
+        return (decider.own && detail::gates(decider.own->approval)) ||
+               (decider.listed && detail::gates(decider.listed->approval));
     }
 
     Verdict verify_token(std::string_view evidence, std::string_view command,
@@ -576,14 +613,16 @@ struct ApprovalState {
 
     /// The summary of a held call: the host's, else the confirmation prompt, else "Run <name>".
     [[nodiscard]] std::string summary(std::string_view name, const Json& input,
-                                      const CommandContext& context,
-                                      const ApprovalCommand* command) const {
+                                      const CommandContext& context, const Decider& decider) const {
         std::string text;
         if (options.summarize) {
             text = options.summarize(name, input, context).value_or("");
         }
-        if (text.empty() && command && command->confirm_prompt) {
-            text = *command->confirm_prompt;
+        if (text.empty() && decider.own && decider.own->confirm_prompt) {
+            text = *decider.own->confirm_prompt;
+        }
+        if (text.empty() && decider.listed && decider.listed->confirm_prompt) {
+            text = *decider.listed->confirm_prompt;
         }
         return text.empty() ? "Run " + std::string(name) : text;
     }
@@ -644,6 +683,23 @@ CommandResult unbindable(std::string_view command, const std::string& reason) {
         .details = std::nullopt,
         .cause = nullptr,
     });
+}
+
+/// A call that needs approval whose input has no canonical JSON, so no approval can be bound to
+/// it (spec/command-metadata.md, "Approvals"). Nobody is asked.
+CommandError input_not_canonical(std::string_view command) {
+    return CommandError{
+        .code = error_codes::APPROVAL_UNAVAILABLE,
+        .message = std::string(command) +
+                   " needs a person's approval, and this input cannot be bound to one",
+        .suggestion = "Do not retry with this input: it has no exact canonical form, so an "
+                      "approval cannot be bound to it. Send the input in a form canonical JSON "
+                      "accepts (for example, an integer a JavaScript number cannot hold exactly, "
+                      "such as 2^53 + 1, as a string).",
+        .retryable = false,
+        .details = Json{{"reason", "input-not-canonical"}},
+        .cause = nullptr,
+    };
 }
 
 /// Longest input shown in a relayed approval's question, in UTF-16 code units as TypeScript
@@ -773,14 +829,18 @@ detail::UpFrontApproval::Plan decide(ApprovalState& state, detail::UpFrontApprov
                                      const CommandContext& context) {
     using Plan = detail::UpFrontApproval::Plan;
     const std::string what(noun(up.tool()));
+    // The server plans every batch and pipeline up front, since it cannot see the `commands`
+    // list: one with no step any policy here may gate runs as it would on its own.
+    if (std::none_of(up.steps().begin(), up.steps().end(), [&](const detail::UpFrontStep& step) {
+            return ApprovalState::may_require_approval(
+                state.decider(step.command, step.definition.get()));
+        })) {
+        return Plan{};
+    }
     // A gated pipeline step whose input comes from an earlier step cannot be shown up front.
     for (const auto& step : up.steps()) {
-        const auto found = state.commands.find(step.command);
-        if (!step.dynamic || found == state.commands.end() || !found->second.approval) {
-            continue;
-        }
-        const ApprovalPolicy& policy = *found->second.approval;
-        if (!policy.function() && policy.decision() == ApprovalDecision::not_required) {
+        if (!step.dynamic || !ApprovalState::may_require_approval(
+                                 state.decider(step.command, step.definition.get()))) {
             continue;
         }
         const std::string at = std::to_string(step.index);
@@ -813,29 +873,19 @@ detail::UpFrontApproval::Plan decide(ApprovalState& state, detail::UpFrontApprov
         if (step.dynamic || !step.input) {
             continue;
         }
-        const auto found = state.commands.find(step.command);
-        const ApprovalCommand* command = found == state.commands.end() ? nullptr : &found->second;
-        if (!state.requires_approval(command, *step.input, context)) {
+        const Decider decider = state.decider(step.command, step.definition.get());
+        if (!ApprovalState::requires_approval(decider, *step.input, context)) {
             continue;
         }
         const auto canonical = canonical_json(*step.input);
         if (!canonical) {
-            return Plan{.refusal =
-                            CommandError{.code = error_codes::COMMAND_EXECUTION_ERROR,
-                                         .message = "The input of " + step.command +
-                                                    " cannot be bound to an approval",
-                                         .suggestion = "Pass plain JSON input: integers within "
-                                                       "±2^53",
-                                         .retryable = false,
-                                         .details = std::nullopt,
-                                         .cause = nullptr},
-                        .approved = {}};
+            return Plan{.refusal = input_not_canonical(step.command), .approved = {}};
         }
         gated.push_back(
             GatedStep{.index = step.index,
                       .command = step.command,
                       .input = *canonical,
-                      .summary = state.summary(step.command, *step.input, context, command),
+                      .summary = state.summary(step.command, *step.input, context, decider),
                       .bindings = state.up_front_bindings(up, step.command, *canonical, *actor)});
         if (gated.size() > max_up_front_approvals) {
             const std::string limit = std::to_string(max_up_front_approvals);
@@ -939,14 +989,15 @@ CommandResult run_up_front(ApprovalState& state, detail::UpFrontApproval& up, st
     if (plan->refusal) {
         return failure(*plan->refusal);
     }
-    const auto found = state.commands.find(name);
-    const ApprovalCommand* command = found == state.commands.end() ? nullptr : &found->second;
-    if (!state.requires_approval(command, input, context)) {
+    if (!ApprovalState::requires_approval(state.decider(name, context), input, context)) {
         return next();
     }
     const auto canonical = canonical_json(input);
+    if (!canonical) {
+        return failure(input_not_canonical(name));
+    }
     const auto actor = actor_binding(context.actor);
-    if (canonical && actor && up.take(state.up_front_bindings(up, name, *canonical, *actor))) {
+    if (actor && up.take(state.up_front_bindings(up, name, *canonical, *actor))) {
         return next();
     }
     // A gated step the human was not asked about up front (its policy changed its mind).
@@ -989,6 +1040,95 @@ Expected<std::string> canonical_json(const Json& value) {
 }
 
 namespace detail {
+
+bool gates(const std::optional<ApprovalPolicy>& policy) noexcept {
+    return policy && (policy->function() || policy->decision() != ApprovalDecision::not_required);
+}
+
+void admit_approval(CommandContext& context, const void* step, std::string_view name,
+                    const Json& input, bool listed_gate) {
+    ApprovalAdmission* record = context.approval_admission.get();
+    if (!record) {
+        return;
+    }
+    AdmittedCall admitted{
+        .step = step, .name = std::string(name), .canonical = std::nullopt, .input = std::nullopt};
+    if (auto encoded = canonical_json(input)) {
+        admitted.canonical = std::move(*encoded);
+    } else {
+        // Only a policy that let the call through admits such an input: kept by value.
+        admitted.input = input;
+    }
+    const std::lock_guard lock(record->mutex);
+    if (listed_gate) {
+        record->listed_gate = true;
+    }
+    if (std::find(record->steps.begin(), record->steps.end(), step) == record->steps.end()) {
+        record->steps.push_back(step);
+    }
+    record->admitted.push_back(std::move(admitted));
+}
+
+void mark_listed_gate(CommandContext& context) {
+    ApprovalAdmission* record = context.approval_admission.get();
+    if (!record) {
+        return;
+    }
+    const std::lock_guard lock(record->mutex);
+    record->listed_gate = true;
+}
+
+bool needs_admission(ApprovalAdmission& record) {
+    if (record.command && gates(record.command->approval)) {
+        return true;
+    }
+    const std::lock_guard lock(record.mutex);
+    return record.listed_gate;
+}
+
+AdmissionCheck take_admission(ApprovalAdmission& record, const CommandContext& context,
+                              std::string_view name, const Json& input) {
+    std::vector<AdmittedCall> admitted;
+    {
+        const std::lock_guard lock(record.mutex);
+        if (record.admitted.empty()) {
+            return record.taken ? AdmissionCheck::mismatch : AdmissionCheck::missing;
+        }
+        admitted.swap(record.admitted);
+        record.taken = true;
+        // Every step that ever admitted the call must have admitted it again for this dispatch.
+        for (const void* step : record.steps) {
+            if (std::none_of(admitted.begin(), admitted.end(),
+                             [step](const AdmittedCall& call) { return call.step == step; })) {
+                return AdmissionCheck::mismatch;
+            }
+        }
+    }
+    // A middleware may have put another call's record on the context: the admission must be on
+    // the record the registry made for this dispatch, and that record must still be the call's.
+    if (context.approval_admission.get() != &record) {
+        return AdmissionCheck::mismatch;
+    }
+    std::optional<Expected<std::string>> canonical;
+    for (const auto& step : admitted) {
+        if (step.name != name) {
+            return AdmissionCheck::mismatch;
+        }
+        bool same = false;
+        if (step.canonical) {
+            if (!canonical) {
+                canonical = canonical_json(input);
+            }
+            same = *canonical && **canonical == *step.canonical;
+        } else if (step.input) {
+            same = *step.input == input;
+        }
+        if (!same) {
+            return AdmissionCheck::mismatch;
+        }
+    }
+    return AdmissionCheck::admitted;
+}
 
 Expected<std::string> canonical_json_as_read(const Json& value) {
     std::string out;
@@ -1038,7 +1178,33 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
     state->options = std::move(options);
 
     return CommandMiddleware([state](std::string_view name, const Json& input,
-                                     CommandContext& context, const Next& next) -> CommandResult {
+                                     CommandContext& context,
+                                     const Next& outer_next) -> CommandResult {
+        // The policy of the command this call runs, and the one the `commands` option lists.
+        const Decider decider = state->decider(name, context);
+        // Every way this middleware lets a call it may gate through admits this command on this
+        // input, which the registry checks, and takes, before it dispatches a command that its own
+        // or its listed policy gates. A call no policy here gates is not admitted: an admission
+        // from another approval step stands alone, and a retry placed after that step is still
+        // refused.
+        const bool may_gate = ApprovalState::may_require_approval(decider);
+        const bool listed_gate = decider.listed && detail::gates(decider.listed->approval);
+        // The command the registry runs, which a middleware before this one may have called it
+        // under another name: its listed gate holds at dispatch either way, and a renamed call is
+        // refused.
+        if (const detail::ApprovalAdmission* record = context.approval_admission.get();
+            record && record->command) {
+            const auto live = state->commands.find(record->command->name);
+            if (live != state->commands.end() && detail::gates(live->second.approval)) {
+                detail::mark_listed_gate(context);
+            }
+        }
+        const Next next = [&]() {
+            if (may_gate) {
+                detail::admit_approval(context, state.get(), name, input, listed_gate);
+            }
+            return outer_next();
+        };
         // A step of an afd-batch or afd-pipe approved up front. The step never sees the up-front
         // approval, so a command it runs falls back as a nested command does.
         if (context.up_front_approval) {
@@ -1055,16 +1221,14 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
             context.mcp_approval_relay->claim(name)) {
             relay = context.mcp_approval_relay.get();
         }
-        const auto found = state->commands.find(name);
-        const ApprovalCommand* command = found == state->commands.end() ? nullptr : &found->second;
-        if (!state->requires_approval(command, input, context)) {
+        if (!ApprovalState::requires_approval(decider, input, context)) {
             return next();
         }
         const ApprovalMiddlewareOptions& settings = state->options;
 
         const auto input_binding = canonical_json(input);
         if (!input_binding) {
-            return unbindable(name, input_binding.error());
+            return failure(input_not_canonical(name));
         }
         const auto actor = actor_binding(context.actor);
         if (!actor) {
@@ -1092,7 +1256,7 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
             }
         }
 
-        const std::string summary = state->summary(name, input, context, command);
+        const std::string summary = state->summary(name, input, context, decider);
 
         if (relay) {
             const auto bindings = state->relay_bindings(name, *input_binding, *actor);
