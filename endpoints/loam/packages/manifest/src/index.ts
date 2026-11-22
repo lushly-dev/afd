@@ -72,6 +72,7 @@ export type {
 	ManifestV2,
 	ProjectionAppV1,
 	ProjectionAppV2,
+	ProjectionAppV4,
 	ProjectionBootV2,
 	ProjectionMountedV1,
 	ProjectionRead,

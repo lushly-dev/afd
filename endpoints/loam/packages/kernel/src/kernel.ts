@@ -25,6 +25,12 @@ import {
 } from '@lushly-dev/afd-server/direct';
 import { ViewStateRegistry } from '@lushly-dev/afd-view-state';
 import { type BootProjectionV2, type IdentityV1, readBoot } from '@lushly-dev/loam-manifest';
+import {
+	appCallTwins,
+	createTraces,
+	type KernelRegistries,
+	registryFor,
+} from './app-call-registry.js';
 import { appearanceFrom } from './appearance.js';
 import {
 	type AppsRuntime,
@@ -37,7 +43,6 @@ import {
 import { createBootCommands, takesProject } from './boot-commands.js';
 import { INTERNAL_COMMANDS, SHELL_EXPOSE } from './commands.js';
 import { KERNEL_CONTEXT_FIELDS, type KernelCallFields } from './context-fields.js';
-import type { CopilotTraceV1 } from './copilot/types.js';
 import { kernelFailure, LoamKernelError } from './errors.js';
 import { createJournalOrder } from './journal-order.js';
 import {
@@ -494,7 +499,7 @@ export interface KernelParts {
 	 * The current registries; {@link KernelParts.setAppCommands} replaces them. `boot` holds `BOOT_ONLY`'s
 	 * commands alone, which only `BOOT_FIELDS` and a replay reach (phase 2 specification, 2.2).
 	 */
-	readonly registries: Record<KernelInterfaceV0 | 'boot', DirectCommandRegistry>;
+	readonly registries: KernelRegistries;
 	/**
 	 * Build two new registries with `commands` as the apps' commands, over the same journal. In-flight
 	 * calls finish on the old ones. Mounted discovery is what changes the set (phase 1 specification,
@@ -771,7 +776,7 @@ export async function createKernelParts(
 		}
 	);
 
-	let registries: Record<KernelInterfaceV0 | 'boot', DirectCommandRegistry>;
+	let registries: KernelParts['registries'];
 	let mutations: Map<string, boolean>;
 	/** `BOOT_ONLY`'s commands, once `late/` has loaded: never in the palette's or the agent's registry. */
 	let bootOnly: ZodCommandDefinition[] = [];
@@ -785,7 +790,7 @@ export async function createKernelParts(
 	 */
 	const minted = new WeakSet<object>();
 	/** By trace ID, the copilot's trace of a call while it runs, which every call nested in it carries (3.2, 5.3). */
-	const traces = new Map<string, CopilotTraceV1>();
+	const traces = createTraces();
 	/**
 	 * The kernel's chain over `held`. The auth middleware closes over its `exclude` list, so it is a new
 	 * instance each time: once `late/` has loaded, its auth gate, which in `provider` mode excludes only the
@@ -839,10 +844,13 @@ export async function createKernelParts(
 			[...commands, ...bootOnly].map((command) => [command.name, command.mutation === true])
 		);
 		const middleware = chain([...commands, ...bootOnly]);
+		// The app-call registry (phase 5's 7.5), reached by an app port's call alone (`app-call-registry.ts`).
+		const twins = appCallTwins(commands);
 		registries = {
 			palette: build('palette', commands, middleware),
 			agent: build('agent', commands, middleware),
 			boot: build('palette', bootOnly, middleware),
+			...(twins ? { apps: build('palette', twins, middleware) } : {}),
 		};
 		current = { commands, middleware };
 		commandSet += 1;
@@ -1199,7 +1207,8 @@ export async function createKernelParts(
 		}
 		// Only a call the caller's interface may make: one it is not exposed to runs, and is refused as it was live, so a
 		// replay never answers it from an entry its handler could not have reached (#859).
-		if (fields.parent !== undefined && registries[iface].hasCommand(name)) {
+		const runsOn = registryFor(registries, iface, fields.caller);
+		if (fields.parent !== undefined && runsOn.hasCommand(name)) {
 			const answered = internals.answerNested?.(fields.parent, name, input ?? {}, current.commands);
 			if (answered) return answered as CommandResult<T>;
 		}
@@ -1207,22 +1216,9 @@ export async function createKernelParts(
 		// specification, 3.1), named by `late/`, which has loaded since its calls wait for stage B; a port's or
 		// nested call as its outer call's actor, copied.
 		let actor = fields === PROVIDER_HOOK_FIELDS ? hookActor : fields.actor;
-		// The copilot's trace (phase 5 specification, 3.2): from the agent port's minted options alone, else the outer
-		// call's, which a nested call carries. A caller's own `trace` is never read.
+		// The copilot's trace (phase 5 specification, 3.2, 6.2): `app-call-registry.ts`'s `traces.of`.
 		const mine = minted.has(callOptions);
-		// A copilot call a person confirmed runs with the trace its confirmation stored (phase 5's 6.2): the shell's own
-		// run, a kernel path with a confirmation id, never a caller's options.
-		const confirmed = (fields as { confirmation?: unknown; trace?: CopilotTraceV1 }).trace;
-		const trace: CopilotTraceV1 | undefined =
-			iface === 'agent' && mine
-				? callOptions.trace
-				: iface === 'agent' &&
-						typeof (fields as { confirmation?: unknown }).confirmation === 'string' &&
-						confirmed !== undefined
-					? confirmed
-					: fields.parent !== undefined
-						? traces.get(fields.parent)
-						: undefined;
+		const trace = traces.of(iface, mine ? callOptions.trace : undefined, fields);
 		if (iface === 'agent' && !actor && !gated) {
 			// `copilot` is reserved: only the kernel's own options name it (3.2).
 			const named = mine
@@ -1231,6 +1227,9 @@ export async function createKernelParts(
 			if ('success' in named) return named;
 			actor = named;
 		}
+		// A handler's client kept past its traced call (phase 5's 5.3): refused, so none escapes taint.
+		const late = fields.parent === undefined ? undefined : traces.refusal(fields.parent);
+		if (late) return late as CommandResult<T>;
 		const traceId = `${traceBase}-${++calls}`;
 		if (trace) traces.set(traceId, trace);
 		const owned = apps.contextOf(name, input);
@@ -1285,7 +1284,7 @@ export async function createKernelParts(
 		// `BOOT_ONLY`, both ways (2.2): its names are in the boot registry alone, which `BOOT_FIELDS` reach and
 		// nothing else does, so a caller gets the palette's or the agent's own `COMMAND_NOT_FOUND`, and boot's
 		// fields reach no other command.
-		const registry = fields === BOOT_FIELDS || own === 'hook' ? registries.boot : registries[iface];
+		const registry = fields === BOOT_FIELDS || own === 'hook' ? registries.boot : runsOn;
 		// A running wrapper's child, started whether or not its entry is ever written (step 6's eighth round).
 		const origin = (fields as { origin?: unknown }).origin;
 		if (typeof origin === 'string') tracker.started(origin, 'origin');
@@ -1299,7 +1298,7 @@ export async function createKernelParts(
 			result = await registry.execute<T>(name, input ?? {}, context);
 		} finally {
 			order.end(traceId);
-			traces.delete(traceId);
+			traces.end(traceId);
 			if (wrapping) tracker.end(traceId);
 		}
 		const seq = seqs.get(traceId);

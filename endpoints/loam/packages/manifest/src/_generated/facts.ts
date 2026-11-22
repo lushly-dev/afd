@@ -23,7 +23,8 @@ export const ADMITTED_KEYS: Record<string, Record<string, readonly string[]>> = 
 			"ui",
 			"native",
 			"view",
-			"app"
+			"app",
+			"calls"
 		],
 		"/plugin": [
 			"id",
@@ -358,7 +359,13 @@ export const ADMITTED_KEYS: Record<string, Record<string, readonly string[]>> = 
 			"requires_experiment"
 		],
 		"/app/scope_levels": [],
-		"/app/resource_keys": []
+		"/app/resource_keys": [],
+		"/calls": [],
+		"/calls/*": [
+			"app",
+			"commands"
+		],
+		"/calls/*/commands": []
 	},
 	"deployment": {
 		"": [
@@ -499,6 +506,7 @@ export const ADMITTED_KEYS: Record<string, Record<string, readonly string[]>> = 
 			"route",
 			"projects",
 			"space",
+			"labels",
 			"expose",
 			"commands",
 			"boot"
@@ -521,7 +529,8 @@ export const ADMITTED_KEYS: Record<string, Record<string, readonly string[]>> = 
 			"agent",
 			"palette",
 			"mcp",
-			"cli"
+			"cli",
+			"apps"
 		],
 		"/apps/*/commands/*/effects": [],
 		"/apps/*/boot": [

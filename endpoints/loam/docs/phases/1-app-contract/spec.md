@@ -1506,6 +1506,10 @@ callee's declaration, which annotates D30.
   until phase 5.
 - **Trust.** Every result carries `dev.loam/trust: 'untrusted'`. The console labels it.
   The copilot's use of the label is phase 5.
+- **Amended by phase 5's step 4** ([its 5.1](../5-copilot/spec.md#51-labels-per-part), 2026-11-22): an entry's
+  `labels = "per-part"` vouches for its server's labels and for its own `mutation` and `destructive` reports, which
+  then decide 6.1's defaults and 5.3's exemption; for a `whole` entry they stay display only. A command's
+  `expose.apps`, under `commands` in a version 4 file, is the callee's declaration for a `calls` grant (D30, D65).
 
 ### 7.5 A mapped space is pinned
 

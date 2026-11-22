@@ -592,8 +592,16 @@ describe('parseMountedResult (7.3)', () => {
 			'dev.loam/trust': 'untrusted',
 			'dev.loam/instance': 'work',
 			'dev.loam/replay': 'recorded',
+			// Phase 5's 5.1: whether the server sent structured data, which only the kernel says.
+			'dev.loam/structured': true,
 		});
 		expect(error?.details).toEqual({ kept: 1 });
+		// A result read from its text duplicate says so: it is content whole, whatever its entry's labels.
+		const fromText = parseMountedResult(
+			{ content: [{ type: 'text', text: JSON.stringify({ success: true, data: {} }) }] },
+			'work'
+		);
+		expect(fromText.metadata?.['dev.loam/structured']).toBe(false);
 	});
 });
 

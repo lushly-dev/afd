@@ -35,6 +35,14 @@ export interface CommandOwner {
 	recorded?: true;
 	/** A mounted command whose advertised schema discovery replaced: no chord runs it (step 7's R11). */
 	replaced?: true;
+	/** A mounted command's labels, by its instance entry: `per-part` only when it says so (phase 5 specification, 5.1). */
+	labels?: 'whole' | 'per-part';
+	/** A mounted command the entry names under `commands`, the deployer's own choice (phase 5 specification, 4.5). */
+	named?: true;
+	/** A mounted command the entry lets other apps call, `expose.apps` (phase 5 specification, 7.5). */
+	apps?: true;
+	/** A mounted command its server holds for a person's approval (`approval: 'required'`), for 6.1's bound. */
+	approval?: 'required';
 	/**
 	 * Whether it needs input, by its shape and the validator's parse of `{}`, as New and a chord decide it:
 	 * the palette's flag reads it, and falls back to the shape alone for a command with none (documents

@@ -77,11 +77,14 @@ export interface SeedDeployment {
 }
 
 /** Read each app's manifest and import its definition, then serve them all, in the listed order. */
-export async function seedApps(listed: readonly SeedAppV1[]): Promise<SeedDeployment> {
+export async function seedApps(
+	listed: readonly SeedAppV1[],
+	extra: Parameters<typeof createFixturePorts>[0] = {}
+): Promise<SeedDeployment> {
 	const { readAppManifest } = await load<{
 		readAppManifest(dir: string, manifest?: string): Promise<ManifestV2>;
 	}>('packages/cli/src/app-check.ts');
-	const packages: Parameters<typeof createFixturePorts>[0] = {};
+	const packages: Parameters<typeof createFixturePorts>[0] = { ...extra };
 	const manifests: Record<string, ManifestV2> = {};
 	const apps: SeedDeployment['apps'] = [];
 	for (const [index, app] of listed.entries()) {

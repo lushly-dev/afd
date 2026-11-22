@@ -132,6 +132,9 @@
 						"minLength": 1
 					}
 				},
+				"labels": {
+					"enum": ["whole", "per-part"]
+				},
 				"expose": {
 					"$ref": "#/$defs/expose"
 				},
@@ -170,11 +173,32 @@
 			},
 			"additionalProperties": false
 		},
+		"commandExpose": {
+			"type": "object",
+			"properties": {
+				"agent": {
+					"type": "boolean"
+				},
+				"palette": {
+					"type": "boolean"
+				},
+				"mcp": {
+					"const": false
+				},
+				"cli": {
+					"const": false
+				},
+				"apps": {
+					"type": "boolean"
+				}
+			},
+			"additionalProperties": false
+		},
 		"commandOverride": {
 			"type": "object",
 			"properties": {
 				"expose": {
-					"$ref": "#/$defs/expose"
+					"$ref": "#/$defs/commandExpose"
 				},
 				"effects": {
 					"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/effects"

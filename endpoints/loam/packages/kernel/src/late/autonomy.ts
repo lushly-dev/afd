@@ -266,6 +266,7 @@ export function createAutonomy(deps: AutonomyDeps): Autonomy {
 			instance: at,
 			mutation: deps.isMutation(name),
 			mounted: at !== 'shell' && owner?.recorded === true,
+			...(owner?.recorded === true && owner.labels === 'per-part' ? { vouched: true } : {}),
 		};
 	}
 

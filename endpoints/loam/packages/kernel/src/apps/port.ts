@@ -8,6 +8,7 @@
 import { type Actor, type CommandResult, failure } from '@lushly-dev/afd-core';
 import type { ManifestV2 } from '@lushly-dev/loam-manifest';
 import type { AppDefinitionV1, LoamClientV1, OverlayResultV1, ScopeV1 } from '@lushly-dev/loam-sdk';
+import { mountCallGranted } from '../call-grant.js';
 import { BOOT_ONLY } from '../commands.js';
 import type { KernelCallFields } from '../context-fields.js';
 import { LoamKernelError } from '../errors.js';
@@ -92,6 +93,13 @@ export function createAppPort(options: AppPortOptions): {
 	// `late/`'s list, which loads before any app (phase 2 specification, 11.2); with none, nothing is callable.
 	const callable =
 		host.scope.callable?.(granted, APP_CALLABLE_SHELL_COMMANDS_V1) ?? new Set<string>();
+	/**
+	 * A mounted instance's command this app's `calls` grant names (phase 5 specification, 7.5; D30, D152): both the
+	 * grant and `[[calls]]` naming it by the callee's app, and the callee's entry setting its `expose.apps`. Read at each
+	 * call, since a mounted catalog is discovered after the port is made. Native callees wait for milestone B.
+	 */
+	const grantedMount = (command: string): boolean =>
+		mountCallGranted(host.owners().get(command), command, instance, granted, manifest.calls);
 	let modalRefusedUntil = 0;
 	/**
 	 * Set while this view's `modal-open` is in flight or the modal it opened is open, and cleared when both
@@ -106,7 +114,8 @@ export function createAppPort(options: AppPortOptions): {
 	 *
 	 * 1. A scope the app names: only `level: 'workspace'` widens, anything else is `SCOPE_NOT_GRANTED`.
 	 * 2. A boot-only command answers, here, as a name that does not exist, `COMMAND_NOT_FOUND`.
-	 * 3. Neither its own nor callable with its grants: `CALL_NOT_GRANTED`.
+	 * 3. Neither its own nor callable with its grants, nor a mounted command its `calls` grant names that the
+	 *    callee's entry exposes to apps (phase 5 specification, 7.5): `CALL_NOT_GRANTED`.
 	 * 4. A command that names an instance, naming another: `CALL_NOT_GRANTED`.
 	 * 5. A handler's nested mutation: `NESTED_MUTATION_REFUSED`.
 	 * 6. An embed's mutation: `EMBED_READ_ONLY`.
@@ -184,7 +193,7 @@ export function createAppPort(options: AppPortOptions): {
 			);
 		}
 		const own = host.owners().get(command)?.instance === instance;
-		if (!own && !callable.has(command)) return refuse('app-call-refuse');
+		if (!own && !callable.has(command) && !grantedMount(command)) return refuse('app-call-refuse');
 		if (
 			SCOPED_TO_CALLER.has(command) &&
 			(input as { instance?: unknown } | null | undefined)?.instance !== instance

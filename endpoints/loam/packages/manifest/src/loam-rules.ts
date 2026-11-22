@@ -205,7 +205,16 @@ function identityRules(manifest: ManifestV2, found: Findings): void {
 
 function grantRules(manifest: ManifestV2, found: Findings): void {
 	const grants = manifest.grants ?? [];
+	const calls = manifest.calls ?? [];
 	if (manifest.plugin.kind === 'mounted') {
+		calls.forEach((_call, index) => {
+			found.refuse(
+				'GRANT_NOT_APPLICABLE',
+				`/calls/${index}`,
+				'A mounted app calls no other app: `[[calls]]` would grant it nothing.',
+				'Remove `[[calls]]`. A mounted server keeps its own services.'
+			);
+		});
 		grants.forEach((grant, index) => {
 			found.refuse(
 				'GRANT_NOT_APPLICABLE',
@@ -237,6 +246,25 @@ function grantRules(manifest: ManifestV2, found: Findings): void {
 				`/grants/${index}/name`,
 				`The grant \`${grant.name}\` is served from ${when}.`,
 				`Set \`required = false\` to load without it, or wait for ${when}.`
+			);
+		}
+	});
+	// What a `calls` grant reaches is named in `[[calls]]` (phase 5 specification, 7.5): the one without the other is refused.
+	if (calls.length > 0 && !declared.has('calls')) {
+		found.refuse(
+			'GRANT_REQUIRED',
+			'/calls',
+			'`[[calls]]` needs the `calls` grant.',
+			'Declare `[[grants]] name = "calls"`, with the reason this app calls another.'
+		);
+	}
+	calls.forEach((call, index) => {
+		if (call.app === manifest.plugin.id) {
+			found.refuse(
+				'GRANT_NOT_APPLICABLE',
+				`/calls/${index}/app`,
+				'An app calls its own commands without a grant.',
+				'Name another app in `[[calls]]`, or remove the entry.'
 			);
 		}
 	});

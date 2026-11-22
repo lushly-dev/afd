@@ -27,6 +27,8 @@ export interface ToolDescriptorV1 {
 	name: string;
 	description: string;
 	inputSchema: Record<string, unknown>;
+	/** A `per-part` instance's description: its server's claim, given in a claim block (5.2). */
+	claim?: { source: string };
 }
 
 /** A command's result, as the agent port returns it. */

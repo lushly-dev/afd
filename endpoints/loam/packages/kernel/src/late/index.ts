@@ -92,7 +92,7 @@ interface Presented {
 
 import { landsInInbox, type OverlayOwner, SHELL } from '../overlays.js';
 import type { Confirmations } from './confirmations.js';
-import { confirmPromptFor, copilotPartsOf, genericAskedFor } from './copilot-wiring.js';
+import { badCaller, confirmPromptFor, copilotPartsOf, genericAskedFor } from './copilot-wiring.js';
 import type { ActionVerdict } from './notifications.js';
 
 export { createOverlayStore } from '../overlays.js';
@@ -923,8 +923,7 @@ export async function createLateParts(
 			if (app?.state !== 'ready') return `'${owner.instance}' is not loaded`;
 			const refused = canOpen(deps.apps(), deps.scope, owner.instance, scope.project);
 			if (refused) return refused.error?.message ?? `'${owner.instance}' cannot open here`;
-			if (caller !== undefined && caller !== owner.instance) return `'${caller}' may not call it`;
-			return undefined;
+			return badCaller(deps.apps(), caller, owner.instance, command);
 		},
 		appTitle: (instance) => ownerTitle(deps.summaries(), instance),
 		projectName: (project) => deps.scope.project(project)?.name,

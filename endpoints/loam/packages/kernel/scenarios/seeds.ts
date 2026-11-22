@@ -23,9 +23,13 @@
  * - the copilot on the test provider (`kind = "test"`), its scripts `model-scripts.ts`, run in this process over
  *   real `MessagePort`s through the kernel's own port halves;
  * - the autonomy rows (6.1): workspace `act` for the shell's `project-create` and `document-create` and for
- *   `tally-add`, and `suggest` for `tally-reset`;
- * - **not yet**: `mailfix` mounted, whose `labels` and `approvals` entry keys are steps 4 and 5's, its rows, and
- *   `mailfixapp` with its `calls` grant (step 4). The `mailfix` server itself is `mailfix.ts`.
+ *   `tally-add`, `suggest` for `tally-reset`, and from step 4 `act` for `mailfix-thread-archive` and
+ *   `mailfix-draft-create`;
+ * - from step 4, `mailfix` mounted in this process (`mailfix-mount.ts`) with `labels = "per-part"`, its reads acting by
+ *   6.1's default, and `mailfixapp` with its `calls` grant (7.5);
+ * - **not yet**: `mailfix`'s `approvals = "shell"`, step 5's. The `mailfix` server itself is `mailfix.ts`.
+ *
+ * `p5-two-mounts` is `p5-base` with a second `mailfix`, `mailfixb`, whose entry says `labels = "whole"` (P5-A4).
  *
  * `p5-no-provider` is `p5-base` with no `[copilot]` table.
  */
@@ -35,8 +39,12 @@ import { join } from 'node:path';
 import { MockAuthAdapter } from '@lushly-dev/afd-auth';
 import { MemoryJournalSink } from '@lushly-dev/afd-core';
 import { createInProcessLauncher } from '@lushly-dev/loam-copilot';
-import { createTestProvider, type TestProviderV1 } from '@lushly-dev/loam-copilot/test-provider';
-import type { ManifestV2 } from '@lushly-dev/loam-manifest';
+import {
+	createTestProvider,
+	type ModelScriptV1,
+	type TestProviderV1,
+} from '@lushly-dev/loam-copilot/test-provider';
+import type { ManifestV2, ProjectionV4 } from '@lushly-dev/loam-manifest';
 import { type DataAdapter, MemoryAdapter } from '@lushly-dev/local-db';
 import { type CopilotHostV1, createCopilotHost } from '../src/copilot/host.js';
 import type { CopilotOptionsV1, CopilotProviderV1 } from '../src/copilot/types.js';
@@ -45,13 +53,27 @@ import { DOCUMENT_TABLE, documentContentKey } from '../src/late/document-types.j
 import type { ProjectV1 } from '../src/scope/records.js';
 import { scopeKeyOf, storeRecordId } from '../src/scope/store-id.js';
 import { createFixedEnvironment } from '../src/testing.js';
-import type { LoamKernelV5 } from '../src/types.js';
+import type { KernelPortsV1, LoamKernelV5 } from '../src/types.js';
 import { LOAM, type SeedAppV1, seedApps } from './apps.js';
+import {
+	MAILFIX_MANIFEST,
+	MAILFIXAPP_DEFINITION,
+	MAILFIXAPP_MANIFEST,
+	mailfixEntry,
+	mountedMailfix,
+} from './mailfix-mount.js';
 import { MODEL_SCRIPTS } from './model-scripts.js';
 
 export interface SeededKernel {
 	kernel: LoamKernelV5;
 	journal: MemoryJournalSink;
+	/** `mailfix`, when the seed mounts it: its server and transport, for a test to read what it was sent. */
+	mailfix?: ReturnType<typeof mountedMailfix>;
+	/** The projection and ports the kernel was made with, for a replay of its journal. */
+	deployment?: ProjectionV4;
+	ports?: KernelPortsV1;
+	/** `mailfixb`, a second `mailfix` whose entry says `labels = "whole"`, when the seed mounts it. */
+	mailfixb?: ReturnType<typeof mountedMailfix>;
 	/** The copilot's host and the test provider, when the seed configures one. */
 	copilot?: { host: CopilotHostV1; provider: TestProviderV1 };
 	dispose(): Promise<void>;
@@ -169,8 +191,32 @@ function documentWrites(
 	];
 }
 
-async function p4Base(extra: { copilot?: CopilotOptionsV1 } = {}): Promise<SeededKernel> {
-	const served = await seedApps(P4_SEED.apps);
+async function p4Base(
+	extra: {
+		copilot?: CopilotOptionsV1;
+		mailfix?: ReturnType<typeof mountedMailfix>;
+		mailfixb?: ReturnType<typeof mountedMailfix>;
+	} = {}
+): Promise<SeededKernel> {
+	const { mailfix, mailfixb } = extra;
+	const served = await seedApps(P4_SEED.apps, {
+		...(mailfix ? MAILFIX_PACKAGES : {}),
+		...(mailfixb ? { 'apps/mailfixb/': { manifest: MAILFIX_MANIFEST } } : {}),
+	});
+	const mounts: Record<string, ReturnType<typeof mountedMailfix> | undefined> = {
+		mailfix,
+		mailfixb,
+	};
+	const ports = mailfix
+		? {
+				...served.ports,
+				async mountTransport(entry: { instance: string }) {
+					const mounted = mounts[entry.instance];
+					if (!mounted) throw new Error(`No transport for ${entry.instance}`);
+					return mounted.transport;
+				},
+			}
+		: served.ports;
 	const store: DataAdapter = new MemoryAdapter();
 	const { summary } = await store.batch([
 		...P4_PROJECTS.map((record) => ({
@@ -182,6 +228,27 @@ async function p4Base(extra: { copilot?: CopilotOptionsV1 } = {}): Promise<Seede
 	]);
 	if (summary.failed > 0) throw new Error('p4-base: the store refused the seed');
 	const journal = new MemoryJournalSink();
+	const deployment = {
+		deployment_version: 2,
+		generation: 'p4-base',
+		workspace: { id: 'personal', name: 'Personal' },
+		sandbox_origin: 'https://sandbox.loam.test',
+		apps: [
+			...served.apps,
+			...(mailfix
+				? [
+						mailfixEntry(900),
+						{
+							instance: 'mailfixapp',
+							app: 'mailfixapp',
+							package: 'apps/mailfixapp/',
+							order: 910,
+						},
+					]
+				: []),
+			...(mailfixb ? [mailfixEntry(920, 'whole', 'mailfixb')] : []),
+		] as never,
+	} as ProjectionV4;
 	const kernel = await createKernel({
 		store,
 		storeKind: 'memory',
@@ -190,14 +257,8 @@ async function p4Base(extra: { copilot?: CopilotOptionsV1 } = {}): Promise<Seede
 		environment: createFixedEnvironment(),
 		host: 'test',
 		...(extra.copilot ? { copilot: extra.copilot } : {}),
-		deployment: {
-			deployment_version: 2,
-			generation: 'p4-base',
-			workspace: { id: 'personal', name: 'Personal' },
-			sandbox_origin: 'https://sandbox.loam.test',
-			apps: served.apps,
-		},
-		ports: served.ports,
+		deployment,
+		ports,
 	});
 	const steps = [
 		{
@@ -210,8 +271,22 @@ async function p4Base(extra: { copilot?: CopilotOptionsV1 } = {}): Promise<Seede
 		const done = await kernel.call(command, input);
 		if (!done.success) throw new Error(`p4-base: ${command}: ${JSON.stringify(done.error)}`);
 	}
-	return { kernel, journal, dispose: () => kernel.dispose() };
+	return {
+		kernel,
+		journal,
+		...(mailfix ? { mailfix } : {}),
+		...(mailfixb ? { mailfixb } : {}),
+		deployment,
+		ports,
+		dispose: () => kernel.dispose(),
+	};
 }
+
+/** `mailfix`'s and `mailfixapp`'s packages, as the fixture ports serve them. */
+const MAILFIX_PACKAGES = {
+	'apps/mailfix/': { manifest: MAILFIX_MANIFEST },
+	'apps/mailfixapp/': { manifest: MAILFIXAPP_MANIFEST, definition: MAILFIXAPP_DEFINITION },
+};
 
 /**
  * `p5-base` from phase 5's step 3: `p4-base` (its workspace, person, projects, apps and documents) with the copilot on
@@ -219,8 +294,13 @@ async function p4Base(extra: { copilot?: CopilotOptionsV1 } = {}): Promise<Seede
  * workspace `act` for the shell's `project-create` and `document-create` and for `tally-add`, and `suggest` for
  * `tally-reset`, each the person's own write, in `local` mode an owner's.
  */
-async function p5Base(options: { provider: boolean }): Promise<SeededKernel> {
-	const provider = createTestProvider({ scripts: MODEL_SCRIPTS });
+export async function p5Base(options: {
+	provider: boolean;
+	mailfixb?: boolean;
+	/** A unit test's own scripts, beside the scenarios'. */
+	scripts?: Record<string, ModelScriptV1>;
+}): Promise<SeededKernel> {
+	const provider = createTestProvider({ scripts: { ...MODEL_SCRIPTS, ...options.scripts } });
 	const host = createCopilotHost({
 		launcher: createInProcessLauncher(),
 		transport: {
@@ -229,23 +309,32 @@ async function p5Base(options: { provider: boolean }): Promise<SeededKernel> {
 			},
 		},
 	});
-	const seeded = await p4Base(
-		options.provider
+	const seeded = await p4Base({
+		mailfix: mountedMailfix(),
+		...(options.mailfixb ? { mailfixb: mountedMailfix() } : {}),
+		...(options.provider
 			? {
 					copilot: {
 						providers: [TEST_PROVIDER],
 						default: TEST_PROVIDER.id,
 						runner: host,
-						takeRunId: (session) => host.takeRunId(session),
+						takeRunId: (session: string) => host.takeRunId(session),
 					},
 				}
-			: {}
-	);
+			: {}),
+	});
+	// `mailfix`'s discovery, as boot starts it, settled before its rows name its commands.
+	for (const instance of options.mailfixb ? ['mailfix', 'mailfixb'] : ['mailfix']) {
+		const found = await seeded.kernel.call('app-instance-refresh', { instance });
+		if (!found.success) throw new Error(`p5-base: ${instance}: ${JSON.stringify(found.error)}`);
+	}
 	for (const [instance, command, mode] of [
 		['shell', 'project-create', 'act'],
 		['shell', 'document-create', 'act'],
 		['tally', 'tally-add', 'act'],
 		['tally', 'tally-reset', 'suggest'],
+		['mailfix', 'mailfix-thread-archive', 'act'],
+		['mailfix', 'mailfix-draft-create', 'act'],
 	] as const) {
 		const set = await seeded.kernel.call('autonomy-set', {
 			level: 'workspace',
@@ -269,4 +358,5 @@ export const SEEDS: Readonly<Record<string, () => Promise<SeededKernel>>> = Obje
 	'p4-base': p4Base,
 	'p5-base': () => p5Base({ provider: true }),
 	'p5-no-provider': () => p5Base({ provider: false }),
+	'p5-two-mounts': () => p5Base({ provider: true, mailfixb: true }),
 });

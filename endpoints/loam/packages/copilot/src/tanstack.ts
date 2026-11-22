@@ -5,7 +5,13 @@
  */
 
 import { type AnyTextAdapter, chat, maxIterations } from '@tanstack/ai';
-import { messagesFor, SYSTEM_PROMPT, sessionNonce, toolResultText } from './context.js';
+import {
+	messagesFor,
+	SYSTEM_PROMPT,
+	serverClaimBlock,
+	sessionNonce,
+	toolResultText,
+} from './context.js';
 import type { AgUiEventV1, CopilotProviderV1, CopilotRuntimeV1 } from './types.js';
 
 /** Makes a provider kind's text adapter over the model port's `fetch`. */
@@ -45,7 +51,10 @@ export function createTanStackRuntime(adapterFor: AdapterFactory): CopilotRuntim
 			const tools = [
 				...input.tools.map((tool) => ({
 					name: tool.name,
-					description: tool.description,
+					// A `per-part` server's description is its claim (4.5, 5.2).
+					description: tool.claim
+						? serverClaimBlock(tool.claim.source, tool.description, blockValue)
+						: tool.description,
 					inputSchema: tool.inputSchema,
 					execute: async (args: unknown) =>
 						toolResultText(tool.name, await ports.agent.call(tool.name, args ?? {}), blockValue),

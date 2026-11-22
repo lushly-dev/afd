@@ -38,7 +38,7 @@ export interface CopilotSessionV1 {
 	provider: string;
 	/** 1 to 80 characters, the person's or "Untitled". */
 	title: string;
-	/** Instances or apps whose content entered (5.3). Always empty before step 4. */
+	/** Instances or apps whose content entered (5.3), each once, with when it first did. */
 	taint: Array<{ source: string; at: number }>;
 	createdAt: number;
 	endedAt?: number;
@@ -86,6 +86,8 @@ export interface ToolDescriptorV1 {
 	name: string;
 	description: string;
 	inputSchema: Record<string, unknown>;
+	/** A `per-part` instance's description: its server's claim, which the runtime blocks as one (5.2). */
+	claim?: { source: string };
 }
 
 /** A message of the history 5.2's builder gets: the kernel's records, never the client's copy. */

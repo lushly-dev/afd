@@ -28,7 +28,8 @@ import {
 /** Every version this reader reads. */
 type AnyDeployment = DeploymentV1 | DeploymentV2 | DeploymentV3 | DeploymentV4;
 
-type Instance = DeploymentV1['apps'][string];
+/** An instance entry of any version: version 4 adds `labels` (phase 5 specification, 5.1). */
+type Instance = DeploymentV1['apps'][string] & Pick<DeploymentV4['apps'][string], 'labels'>;
 
 /** What a version 1 file, or a version 2 file naming none, means (phase 2 specification, 4.2). */
 export const DEFAULT_WORKSPACE_V2: Readonly<DeploymentWorkspaceV2> = Object.freeze({
@@ -52,6 +53,7 @@ const MOUNTED_KEYS = [
 	'cwd',
 	'projects',
 	'space',
+	'labels',
 	'expose',
 	'commands',
 ] as const satisfies readonly (keyof Instance)[];

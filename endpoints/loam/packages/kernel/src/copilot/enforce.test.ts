@@ -254,14 +254,20 @@ describe('P5-A5: act, ask and suggest, in 6.1’s order', () => {
 		).toBe(true);
 	});
 
-	it('refuses the copilot a mounted command until step 4’s labels and taint (AUTONOMY_UNAVAILABLE)', async () => {
+	it('resolves the copilot’s mounted call as any agent’s, a per-part read acting and a whole one asking (6.1, 5.3)', async () => {
 		const parts = createCopilotParts({
 			store: new MemoryAdapter(),
 			workspace: 'personal',
 			kit: (await import('../late/document-kit.js')).DOCUMENT_KIT,
 			isMutation: () => false,
-			isMounted: (name) => name.startsWith('work-'),
-			instanceOf: () => 'work',
+			isMounted: (name) => name.startsWith('work-') || name.startsWith('mail-'),
+			instanceOf: (name) => name.split('-')[0],
+			mountOf: (name) => ({
+				instance: name.split('-')[0] as string,
+				labels: name.startsWith('mail-') ? 'per-part' : 'whole',
+				named: false,
+				deployerText: '',
+			}),
 			agentCommands: () => [],
 			callAsCopilot: async () => ({ success: true }),
 			runBoot: async () => ({ success: true }),
@@ -275,8 +281,14 @@ describe('P5-A5: act, ask and suggest, in 6.1’s order', () => {
 		const trace = { session: 'cps_0000000000000000', turn: 1, call: 'cpc_0001' };
 		const gate = (name: string, context: Record<string, unknown>) =>
 			parts.gate(name, {}, { interface: 'agent', ...context } as never, next);
-		expect((await gate('work-search', { trace })).error?.code).toBe('AUTONOMY_UNAVAILABLE');
-		// Another agent's call to it is resolved as any (the default asks a mounted tool), and nested calls pass.
+		// The copilot's call is no longer refused (step 4): a whole server's read asks by default, a per-part one acts.
+		const whole: Record<string | symbol, unknown> = { interface: 'agent', trace };
+		expect((await parts.gate('work-search', {}, whole as never, next)).success).toBe(true);
+		expect(whole[Symbol.for('dev.loam/enforced')]).toMatchObject({ ask: true });
+		const vouched: Record<string | symbol, unknown> = { interface: 'agent', trace };
+		expect((await parts.gate('mail-thread-open', {}, vouched as never, next)).success).toBe(true);
+		expect(vouched[Symbol.for('dev.loam/enforced')]).toMatchObject({ ask: false });
+		// Another agent's call to it is resolved as any, and an untainted nested call passes.
 		const marked: Record<string | symbol, unknown> = { interface: 'agent' };
 		expect((await parts.gate('work-search', {}, marked as never, next)).success).toBe(true);
 		expect(marked[Symbol.for('dev.loam/enforced')]).toMatchObject({ ask: true });

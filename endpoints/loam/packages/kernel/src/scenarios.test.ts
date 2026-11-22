@@ -71,9 +71,9 @@ const RUNS: Readonly<Record<string, string>> = Object.freeze({
 	'no-model-configured': 'now',
 	'copilot-drives-shell': 'now',
 	'copilot-suggests-only': 'now',
-	// Its counters are step 3's (P5-A5, `copilot/enforce.test.ts`); its script reads mailfix's thr_2 under taint.
-	'approval-health': 'step 4: mailfix mounted, labels and taint',
-	'mail-cannot-act-elsewhere': 'step 4: labels, taint and mounted tools listed',
+	// Step 4's: mailfix mounted, labels and taint, and mounted tools listed.
+	'approval-health': 'now',
+	'mail-cannot-act-elsewhere': 'now',
 	'approve-mail-send': 'step 5: mounted approvals',
 	'person-sends-mail': 'step 5: mounted approvals and the calls grant',
 	'reply-set-fresh-context': 'step 6: units',
@@ -122,6 +122,19 @@ async function runFile(
 				return (
 					scope ? port.surface({ scope }).call(command, input) : port.call(command, input)
 				) as Promise<CommandResult>;
+			}
+			// A person reads the copilot's answer before writing again: a message sent after they answered a confirmation,
+			// while the turn it follows still continues (3.5), waits for it, as `COPILOT_TURN_RUNNING`'s retryable
+			// suggestion says. Only then, so a file can still assert the code itself.
+			if (
+				command === 'copilot-message-send' &&
+				scenario.steps.slice(0, index).some((step) => step.command === 'notification-act')
+			) {
+				for (let attempt = 0; ; attempt += 1) {
+					const sent = await kernel.call(command, input, options);
+					if (sent.error?.code !== 'COPILOT_TURN_RUNNING' || attempt >= 200) return sent;
+					await new Promise((resolve) => setTimeout(resolve, 10));
+				}
 			}
 			return kernel.call(command, input, options);
 		},

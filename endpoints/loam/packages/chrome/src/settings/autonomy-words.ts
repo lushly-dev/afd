@@ -57,7 +57,7 @@ export function chainWords(
 	if (step.as === 'cap') return `Your own cap: ${mode}`;
 	const where =
 		step.id === 'default'
-			? 'the default (act on reads, ask before changes and before any mounted tool)'
+			? 'the default (act on reads, ask before changes and before a mounted server’s tools, but a vouched server’s reads)'
 			: placeWords(step.id, titleOf, projectName);
 	return step.as === 'mode' ? `${mode}, from ${where}` : `Bounded to ${mode} by ${where}`;
 }

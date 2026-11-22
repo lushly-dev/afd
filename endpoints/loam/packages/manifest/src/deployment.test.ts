@@ -265,10 +265,56 @@ describe('readDeployment', () => {
 			'DEPLOYMENT_EXPOSE_UNAVAILABLE',
 			'apps.work.expose.apps',
 		],
+		[
+			'expose.apps for a whole version 4 instance',
+			{ ...withEntry('work', { ...mounted, expose: { apps: true } }), deployment_version: 4 },
+			'DEPLOYMENT_EXPOSE_UNAVAILABLE',
+			'apps.work.expose.apps',
+		],
+		[
+			"a command's expose.apps before version 4",
+			withEntry('work', { ...mounted, commands: { 'work-a': { expose: { apps: true } } } }),
+			'DEPLOYMENT_EXPOSE_UNAVAILABLE',
+			'apps.work.commands["work-a"].expose.apps',
+		],
+		[
+			'labels before version 4',
+			withEntry('work', { ...mounted, labels: 'per-part' }),
+			'DEPLOYMENT_INVALID',
+			'apps.work.labels',
+		],
+		[
+			'labels of another value',
+			{ ...withEntry('work', { ...mounted, labels: 'trusted' }), deployment_version: 4 },
+			'DEPLOYMENT_INVALID',
+			'apps.work.labels',
+		],
 	])('refuses %s', (_name, json, code, key) => {
 		const refusal = refusalsOf(json).find((candidate) => candidate.key === key);
 		expect(refusal?.code).toBe(code);
 		expect(refusal?.suggestion).not.toBe('');
+	});
+
+	it("reads labels and a command's expose.apps in a version 4 mounted entry (phase 5 specification, 5.1, 7.5)", () => {
+		const read = readDeployment({
+			deployment_version: 4,
+			apps: {
+				work: {
+					...mounted,
+					labels: 'per-part',
+					commands: { 'work-a': { expose: { agent: true, apps: true } } },
+				},
+			},
+		});
+		expect(read.ok).toBe(true);
+		// A native entry with `labels` is a mounted one, and says whom it serves (phase 1's 4.2).
+		const native = readDeployment({
+			deployment_version: 4,
+			apps: { hello: { app: 'hello', package: './apps/hello', labels: 'whole' } },
+		});
+		expect(native.ok ? [] : native.refusals.map((each) => each.code)).toContain(
+			'DEPLOYMENT_AUDIENCE_REQUIRED'
+		);
 	});
 
 	it.each(['https://sandbox.example.com;script-src', 'https://Sandbox.example.com', 'https://a"b'])(
