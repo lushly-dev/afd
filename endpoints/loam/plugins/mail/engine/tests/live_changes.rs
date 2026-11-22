@@ -293,8 +293,13 @@ impl Run {
             } else {
                 self.finish(&json!(id));
                 let outcome = self.call("mail-operation-undo", json!({ "operation": id }));
-                if outcome["success"] == true && outcome["data"]["state"] != "done" {
-                    self.finish(&outcome["data"]["operation"])
+                let started = outcome["data"]["operation"]
+                    .as_i64()
+                    .or_else(|| outcome["error"]["details"]["operation"].as_i64());
+                if let Some(undo) = started
+                    && (outcome["success"] != true || outcome["data"]["state"] != "done")
+                {
+                    self.finish(&json!(undo))
                 } else {
                     outcome
                 }
@@ -659,6 +664,85 @@ fn a_copy_that_arrives_mid_run_stops_the_run_before_it_changes_anything() {
     assert!(archived.is_err());
     assert!(server.world().subjects("Archive").is_empty());
     assert_eq!(run.open.len(), 1);
+}
+
+/// An undo started by `put_back` that fails part-way (here the connection
+/// drops after `STORE` flags the copies in Archive) is finished from its
+/// `error.details.operation` rather than left stopped.
+#[test]
+fn an_undo_started_by_put_back_that_fails_part_way_is_finished() {
+    let server = scripted();
+    let before = server.world().contents("Loam run");
+    let directory = tempfile::tempdir().unwrap();
+    let Ready {
+        mut run,
+        messages,
+        inbox,
+        ..
+    } = ready(scripted_live(&server), directory.path());
+    let ids = json!(messages);
+    run.step(
+        "move",
+        "mail-label",
+        json!({ "messages": ids, "mailbox": inbox }),
+        &messages,
+        |_| true,
+    );
+    run.step(
+        "archive",
+        "mail-archive",
+        json!({ "messages": ids }),
+        &messages,
+        |_| true,
+    );
+    assert_eq!(run.open.len(), 2);
+    // Drop during the undo of the archive that `put_back` starts.
+    server.world().drop_after_doing = Some("STORE".to_string());
+    run.put_back();
+    assert!(
+        server.world().drop_after_doing.is_none(),
+        "the undo dropped after STORE"
+    );
+    assert!(run.open.is_empty());
+    let flags = |contents: Vec<(u32, Vec<String>)>| -> Vec<Vec<String>> {
+        let mut flags: Vec<Vec<String>> = contents.into_iter().map(|(_, flags)| flags).collect();
+        flags.sort();
+        flags
+    };
+    assert_eq!(flags(server.world().contents("Loam run")), flags(before));
+    assert!(server.world().subjects("Archive").is_empty());
+    assert_eq!(server.world().subjects("INBOX"), ["About i0"]);
+}
+
+/// The run refuses the inbox, archive or trash as its mailbox.
+#[test]
+fn the_run_refuses_the_inbox_archive_or_trash_as_its_mailbox() {
+    use support::synced::mail;
+    let server = scripted();
+    {
+        let mut world = server.world();
+        world.add("Archive", mail("E <e@example.net>", "a0", ""), &[]);
+        world.add("Deleted Messages", mail("F <f@example.net>", "d0", ""), &[]);
+    }
+    for forbidden in ["INBOX", "Archive", "Deleted Messages"] {
+        let directory = tempfile::tempdir().unwrap();
+        let mut live = scripted_live(&server);
+        live.mailbox = forbidden.to_string();
+        let err = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            ready(live, directory.path());
+        }))
+        .err()
+        .unwrap_or_else(|| panic!("{forbidden} must be refused"));
+        let message = err
+            .downcast_ref::<String>()
+            .map(String::as_str)
+            .or_else(|| err.downcast_ref::<&str>().copied())
+            .unwrap_or("");
+        assert!(
+            message.contains("not the inbox, the archive or the trash"),
+            "{forbidden} panicked with unexpected message: {message}"
+        );
+    }
 }
 
 /// Syncs the scoped account into a store at `directory`, then makes and

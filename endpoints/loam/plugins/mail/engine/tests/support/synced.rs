@@ -48,8 +48,23 @@ impl Fixture {
 
     /// [`Fixture::new`], with operations sized by `change`.
     pub fn with_changes(world: impl FnOnce(&mut World), change: ChangeOptions) -> Self {
+        Self::start(world, change, true, true)
+    }
+
+    /// [`Fixture::new`], with the scripted IMAP server's CONDSTORE and
+    /// QRESYNC extensions chosen by the test.
+    pub fn with_extensions(world: impl FnOnce(&mut World), condstore: bool, qresync: bool) -> Self {
+        Self::start(world, ChangeOptions::default(), condstore, qresync)
+    }
+
+    fn start(
+        world: impl FnOnce(&mut World),
+        change: ChangeOptions,
+        condstore: bool,
+        qresync: bool,
+    ) -> Self {
         let directory = tempfile::tempdir().unwrap();
-        let server = Server::start(true, true);
+        let server = Server::start(condstore, qresync);
         let smtp = SmtpServer::start();
         world(&mut server.world());
         let endpoint = Endpoint {
