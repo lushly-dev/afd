@@ -150,7 +150,12 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   [#1901](https://github.com/lushly-dev/afd/pull/1901)** for sessions: `pnpm branch:squash`
   folds a branch into one commit on the `main` it merged, same tree, and carries the
   `pnpm verify` record; `prepare-pr` pushes one commit; and `ci-ok` refuses more than one once
-  `main`'s queue rebases (dormant while it squashes). The lane's half is still open.
+  `main`'s queue rebases (dormant while it squashes). **The lane's half, in review in
+  [#1920](https://github.com/lushly-dev/afd/pull/1920):** the
+  lane folds each merged slot into one commit on the base, same tree, authored and committed as
+  the branch's own commits were, before it validates, so what it pushes and merges is one
+  commit; a branch with no commit of its own, with two author addresses, or whose message
+  folds to nothing is ejected.
 
 - **Follow-up (2026-11-20, this session):** a merge that closes a claimed issue leaves the
   claim's `status:in-progress` label on the closed issue, and `issue-release` then answers

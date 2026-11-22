@@ -11,21 +11,23 @@ a fixture world and a fake clock. Each step, in order:
    advances the branch; any other validates it again); a front branch GitHub queued instead of
    merging (a merge queue) is read again until it merged or left the queue;
 4. starts validations in free slots (``lane.slots``): the base's own review verifier first
-   checks the cell's review of the queued head (``review_evidence``, run from the ``review`` slot
-   at the base, never the branch's copy: lushly-dev/afd#1308; a refusal ejects as
-   ``review-unverified``), then each slot checks the queued head out,
-   merges the base's head in (a conflict ejects; it is never resolved, except that conflicts
-   only in files the adapter's ``regenerate`` names are written again by its command and the
-   merge committed: lushly-dev/afd#1410), then runs one background
-   job: the adapter's ``install`` (with a timeout) and ``validate``, on the Node the slot's
-   ``.nvmrc`` names (missing, it ejects the branch as ``node-missing`` when the branch changed
-   ``.nvmrc``, deleted it or left it blank, and is the lane's trouble when the ``.nvmrc`` is
-   the base's own); free disk at the slots below ``host.minFreeDiskGb`` is the lane's trouble
-   before any of it starts, so a full disk pauses the lane rather than ejecting a good branch,
-   and so is a job that fails on a full disk anyway (``ENOSPC``): it is validated again once
-   the lane resumes, and no ejection is counted (lushly-dev/afd#1641). Each slot's jobs build
-   Rust under its own ``CARGO_TARGET_DIR`` (``host.buildDir``), removed when the slot takes
-   another branch;
+   checks the cell's review of the queued head (``review_evidence``, run from the ``review``
+   slot at the base, never the branch's copy: lushly-dev/afd#1308; a refusal ejects as
+   ``review-unverified``), then each slot checks the queued head out, merges the base's head in
+   (a conflict ejects; it is never resolved, except that conflicts only in files the adapter's
+   ``regenerate`` names are written again by its command and the merge committed:
+   lushly-dev/afd#1410), folds the merged head into one commit of the branch's own on the base,
+   with the same tree (``fold``: a rebase merge lands each of a branch's own commits and drops
+   its merges, lushly-dev/afd#1809; a branch the fold refuses ejects as ``entry-invalid``), then
+   runs one background job: the adapter's ``install`` (with a timeout) and ``validate``, on the
+   Node the slot's ``.nvmrc`` names (missing, it ejects the branch as ``node-missing`` when the
+   branch changed ``.nvmrc``, deleted it or left it blank, and is the lane's trouble when the
+   ``.nvmrc`` is the base's own); free disk at the slots below ``host.minFreeDiskGb`` is the
+   lane's trouble before any of it starts, so a full disk pauses the lane rather than ejecting a
+   good branch, and so is a job that fails on a full disk anyway (``ENOSPC``): it is validated
+   again once the lane resumes, and no ejection is counted (lushly-dev/afd#1641). Each slot's
+   jobs build Rust under its own ``CARGO_TARGET_DIR`` (``host.buildDir``), removed when the slot
+   takes another branch;
 5. runs coverage on the base (``lane_coverage``);
 6. says ``queue-empty`` when nothing is queued, held, active or owed, and makes a drained move.
 
@@ -273,6 +275,15 @@ class Step(Merging, Coverage):
         if not merged.clean:
             self.eject(entry, "conflict", f"Conflicts with {base}: {', '.join(merged.conflicts)}")
             return False
+        # One commit of its own on the base, with the merged tree: what is validated, pushed
+        # and merged (lushly-dev/afd#1809).
+        try:
+            folded = self.world.git.fold(path, base)
+        except WorldError as exc:
+            raise LaneTrouble(f"Folding {branch} into one commit on {base} failed: {exc}") from exc
+        if folded.refused:
+            self.eject(entry, "entry-invalid", folded.refused)
+            return False
         steps = self.validation_steps(entry, path, base, slot)
         if steps is None:
             return False
@@ -284,7 +295,7 @@ class Step(Merging, Coverage):
             slot=slot,
             path=path,
             base=base,
-            validatedHead=merged.head,
+            validatedHead=folded.head,
             tree=self.world.git.tree(path),
             # What the branch changes against the base, read while the slot holds it.
             changed=self.world.git.changed_files(path, base),
@@ -296,7 +307,7 @@ class Step(Merging, Coverage):
             "validation-started",
             branch=branch,
             attempt=entry["attempt"],
-            head=merged.head,
+            head=folded.head,
             base=base,
             slot=slot,
             **({"regenerated": regenerated} if regenerated else {}),

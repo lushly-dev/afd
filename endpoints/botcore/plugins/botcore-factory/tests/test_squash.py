@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from botcore_factory.squash import squash_body
+from botcore_factory.squash import fold_message, squash_body
 
 
 def commit(message, parents=1):
@@ -24,3 +24,38 @@ def test_the_body_keeps_each_commits_own_message_and_credit():
 def test_a_branch_of_merges_alone_keeps_their_messages_so_the_body_is_never_blank():
     merge = commit("Merge origin/main\n\nCo-authored-by: botcore-factory <factory@localhost>", 2)
     assert squash_body([merge]) == "Merge origin/main"
+
+
+# lushly-dev/afd#1809: the message of the one commit the lane folds a branch into.
+
+
+def test_one_commit_keeps_its_own_message_as_git_stores_one():
+    assert fold_message(["feat: a\r\n\r\n#1809 is why.  \r\n\r\n\r\nAssisted-by: Codex\r\n"]) == (
+        "feat: a\n\n#1809 is why.\n\nAssisted-by: Codex\n"
+    )
+
+
+def test_later_commits_add_their_subjects_and_each_trailer_once():
+    messages = [
+        "feat: export\n\nWhy export.\n\nAssisted-by: Claude Code",
+        "fix: an edge\n\nIts body is dropped.\n\nassisted-by:   Claude Code\nRefs: #12\n  more",
+        "test: cover it",
+    ]
+    assert fold_message(messages) == (
+        "feat: export\n\nWhy export.\n\n- fix: an edge\n- test: cover it\n\n"
+        "Assisted-by: Claude Code\nRefs: #12\n  more\n"
+    )
+
+
+def test_a_fold_credits_no_co_author_and_reads_a_trailer_only_in_the_last_paragraph():
+    messages = [
+        "feat: a\n\nNote: this line is body text\nand so is this.\n\n"
+        "Co-authored-by: Agent <agent@example.org>\nAssisted-by: Codex",
+        "fix: b\n\nCO-AUTHORED-BY: Other <other@example.org>\nCo-authored-by : Spaced <s@x.org>",
+    ]
+    folded = fold_message(messages)
+    assert "co-authored-by" not in folded.lower()
+    assert folded == (
+        "feat: a\n\nNote: this line is body text\nand so is this.\n\n- fix: b\n\n"
+        "Assisted-by: Codex\n"
+    )
