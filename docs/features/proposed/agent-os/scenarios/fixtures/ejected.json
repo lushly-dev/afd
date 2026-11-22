@@ -1,0 +1,43 @@
+{
+	"machines": [
+		{
+			"id": "m-21",
+			"repository": "example-repo",
+			"for": "fix/parser",
+			"size": "standard",
+			"state": "destroyed",
+			"destroyedBy": {
+				"kind": "agent",
+				"id": "loopback"
+			},
+			"reason": "The branch was ejected",
+			"note": "The lane's machine for the branch, destroyed when the lane ejected it. The record of its run is kept.",
+			"runs": [
+				{
+					"id": "r-41",
+					"head": "7c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d",
+					"base": "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f",
+					"state": "failed",
+					"fault": "branch",
+					"failed": "validate",
+					"steps": [
+						{
+							"label": "install",
+							"args": ["pnpm", "install", "--frozen-lockfile"],
+							"timeoutSeconds": 1800,
+							"network": "registries",
+							"code": 0
+						},
+						{
+							"label": "validate",
+							"args": ["pnpm", "verify", "--keep-going"],
+							"timeoutSeconds": 5400,
+							"network": "none",
+							"code": 1
+						}
+					]
+				}
+			]
+		}
+	]
+}

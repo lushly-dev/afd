@@ -1,0 +1,37 @@
+{
+	"capacity": {
+		"machines": {
+			"max": 4
+		},
+		"diskGb": 400,
+		"usedGb": 395
+	},
+	"runtime": {
+		"note": "What the container runtime holds that carries the host's label and is in none of its records.",
+		"unlisted": [
+			{
+				"kind": "container",
+				"name": "example-leftover-1",
+				"sizeGb": 2
+			},
+			{
+				"kind": "volume",
+				"name": "example-leftover-build",
+				"sizeGb": 48
+			},
+			{
+				"kind": "volume",
+				"name": "example-leftover-work",
+				"sizeGb": 6
+			}
+		]
+	},
+	"records": {
+		"note": "Run records and logs older than the retention settings.",
+		"expired": {
+			"runs": 40,
+			"logs": 40,
+			"logsGb": 3
+		}
+	}
+}
