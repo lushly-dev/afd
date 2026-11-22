@@ -1,0 +1,26 @@
+# Architecture review: decisions
+
+Epic: [#1732](https://github.com/lushly-dev/afd/issues/1732). Progress is in [STATUS.md](STATUS.md).
+
+The owner's answers to the questions the 2026-11-21 architecture review put to him. A decision
+about one area is recorded in that area's own log and listed under
+[Recorded in an area's log](#recorded-in-an-areas-log); the rest are here. Amend by pull request:
+a superseded entry stays and points at its replacement.
+
+## The contract
+
+| ID | Date | Decision | Consequence |
+| --- | --- | --- | --- |
+| AR1 | 2026-11-21 | **Decided by the owner, 2026-11-21**, answering part 1 of [#1735](https://github.com/lushly-dev/afd/issues/1735) as the review recommended. **The contract is a stable core plus optional, versioned profiles.** The core is result, errors, dispatch, validation, batch, pipeline, exposure and the meta-tools. The profiles are authorization, tasks, output budgets, approvals, app calls, resources and skills, and the plugin manifest. Each profile has its own version and its list of implementing languages | An implementation of AFD implements the core; a profile is optional, and a language says which it implements. "Every implementation carries" is true of the core only. The registry of core and profiles in `spec/` is [#1925](https://github.com/lushly-dev/afd/issues/1925); error codes by profile are [#1740](https://github.com/lushly-dev/afd/issues/1740) and per-language capability files [#1738](https://github.com/lushly-dev/afd/issues/1738). The review also recommended that a profile be introduced with vectors that do not come from the first implementing language's output. That is the review's recommendation, not part of the owner's answer; #1925 proposes it with its approach |
+| AR2 | 2026-11-21 | **Decided by the owner, 2026-11-21**, answering part 2 of [#1735](https://github.com/lushly-dev/afd/issues/1735) and [#541](https://github.com/lushly-dev/afd/issues/541) as the review recommended. **Core 1.0 is declared now** | Answers #541 ("declare contract 1.0 now, or redefine the trigger and record why") by its first option, so no new trigger is set. With AR1, the version in `spec/VERSION` is the core's, and a profile's version is its own. The `1.0-rc` condition, every language loading every vector file, is retired with the declaration; the review found it met by construction, because a file some language does not load was kept outside `spec/vectors/`, and `spec/VERSION` had read `1.0-rc` since 2026-09-27. The declaration itself, `spec/VERSION`, the four constants and the text of `spec/CHANGELOG.md`, is [#1926](https://github.com/lushly-dev/afd/issues/1926); until it merges the files still read `1.0-rc`. It is no release: nothing is tagged or published by it |
+| AR3 | 2026-11-21 | **Decided by the owner, 2026-11-21**, answering part 3 of [#1735](https://github.com/lushly-dev/afd/issues/1735) as the review recommended. **A server advertises `{ version, profiles }`** on `server/discover` and `initialize`, under a `dev.afd/` `_meta` key | A client learns the core version without calling `afd-help`, the one place a server reports it today, and learns which profiles the server implements, which nothing reports. The key's name and exact shape are set in `spec/` by the work, [#1927](https://github.com/lushly-dev/afd/issues/1927), whose values come from the registry (#1925) |
+
+## Recorded in an area's log
+
+| Question | Decision | Where | Work |
+| --- | --- | --- | --- |
+| [#1804](https://github.com/lushly-dev/afd/issues/1804), 1: Loam's desktop store | A SQLite file the Rust host owns | [Loam's log](../../../../endpoints/loam/docs/decisions.md), D160 | [#1928](https://github.com/lushly-dev/afd/issues/1928) |
+| #1804, 2: Loam's size ceilings | D115 ends on a date, and first contentful paint has an asserted ceiling | Loam's log, D161 | [#1929](https://github.com/lushly-dev/afd/issues/1929) |
+| #1804, 3: Loam's hosted lane | Frozen behind its own CI job; the local `MockAuthAdapter` renamed | Loam's log, D162 | [#1930](https://github.com/lushly-dev/afd/issues/1930) |
+| #1804, 4: Umbel's pre-release versions | One version 1 of each shape at release; `architecture.json`'s surfaces generated from `versions.rs` | [Umbel's log](../../../../endpoints/umbel/docs/decisions.md), D200 | [#1931](https://github.com/lushly-dev/afd/issues/1931) |
+| #1804, 5: Umbel's unread decisions | The owner reviews them before phase 5's remaining steps | Umbel's log, D201 | [#1932](https://github.com/lushly-dev/afd/issues/1932) |
