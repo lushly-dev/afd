@@ -202,14 +202,14 @@
     "@webcomponents/scoped-custom-element-registry": "^0.0.10"
   },
   "devDependencies": {
-    "@ast-grep/cli": "^0.51.1",
-    "@biomejs/biome": "^2.6.6",
+    "@ast-grep/cli": "^0.51.3",
+    "@biomejs/biome": "^2.6.8",
     "@microsoft/api-extractor": "7.60.1",
     "@playwright/test": "1.64.1",
     "@rollup/plugin-terser": "1.0.2",
     "concurrently": "10.0.7",
     "esbuild": "0.28.2",
-    "rollup": "4.68.0",
+    "rollup": "4.68.7",
     "typescript": "^7.0.2",
     "vite": "8.3.5"
   },
