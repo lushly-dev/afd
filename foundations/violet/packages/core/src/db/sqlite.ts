@@ -10,6 +10,7 @@ import type {
 	AuditEventFilter,
 	AuditEventPage,
 	AuditEventQuery,
+	NewOperationRecord,
 	OperationRecord,
 } from '../types/operation.js';
 import type { CheckSnapshot, CheckSnapshotQuery } from '../types/snapshot.js';
@@ -56,6 +57,7 @@ const GUARDED_DB_METHODS: ReadonlyArray<Exclude<keyof IDatabase, 'transaction'>>
 	'getDescendants',
 	'getOperations',
 	'addOperation',
+	'appendOperation',
 	'removeOperation',
 	'addAuditEvent',
 	'getAuditEvents',
@@ -508,6 +510,31 @@ export class SQLiteDatabase implements IDatabase {
 				record.author,
 				record.createdAt,
 			);
+	}
+
+	async appendOperation(record: NewOperationRecord): Promise<OperationRecord> {
+		const row = this.db
+			.prepare(
+				`INSERT INTO operations (id, node_id, sequence, type, token_id, value, metadata, from_node, as_token_id, to_ancestor, reason, author, created_at)
+				 VALUES (?, ?, (SELECT COALESCE(MAX(sequence), 0) + 1 FROM operations WHERE node_id = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				 RETURNING sequence`,
+			)
+			.get(
+				record.id,
+				record.nodeId,
+				record.nodeId,
+				record.type,
+				record.tokenId,
+				record.value,
+				record.metadata,
+				record.fromNode,
+				record.asTokenId,
+				record.toAncestor,
+				record.reason,
+				record.author,
+				record.createdAt,
+			) as { sequence: number };
+		return { ...record, sequence: row.sequence };
 	}
 
 	async removeOperation(id: string): Promise<void> {

@@ -6,6 +6,7 @@ import type {
 	AuditEventFilter,
 	AuditEventPage,
 	AuditEventQuery,
+	NewOperationRecord,
 	OperationRecord,
 } from '../types/operation.js';
 import type { CheckSnapshot, CheckSnapshotQuery } from '../types/snapshot.js';
@@ -62,6 +63,20 @@ export class OverlayDatabase implements Database {
 	stagingView(): Database {
 		const view: Database = Object.create(this);
 		view.addOperation = async (record) => this.stage(record);
+		view.appendOperation = async (record) => {
+			const baseOps = await this.base.getOperations(record.nodeId);
+			const stagedOps = this.staged.get(record.nodeId) ?? [];
+			let maxSeq = 0;
+			for (const op of baseOps) {
+				if (op.sequence > maxSeq) maxSeq = op.sequence;
+			}
+			for (const op of stagedOps) {
+				if (op.sequence > maxSeq) maxSeq = op.sequence;
+			}
+			const stored: OperationRecord = { ...record, sequence: maxSeq + 1 };
+			this.stage(stored);
+			return { ...stored };
+		};
 		view.addAuditEvent = async () => {};
 		return view;
 	}
@@ -86,7 +101,19 @@ export class OverlayDatabase implements Database {
 
 	async getOperations(nodeId: string): Promise<OperationRecord[]> {
 		const stored = await this.base.getOperations(nodeId);
-		return [...stored, ...(this.staged.get(nodeId) ?? [])];
+		const staged = this.staged.get(nodeId) ?? [];
+		if (staged.length === 0) return stored;
+		let floor = 0;
+		for (const op of stored) {
+			if (op.sequence > floor) floor = op.sequence;
+		}
+		// Keep staged operations strictly above stored ones even if base changed concurrently
+		const reconciled = staged.map((op) => {
+			const sequence = op.sequence > floor ? op.sequence : floor + 1;
+			floor = sequence;
+			return sequence === op.sequence ? op : { ...op, sequence };
+		});
+		return [...stored, ...reconciled];
 	}
 
 	getConstraints(nodeId: string): Promise<Constraint[]> {
@@ -150,6 +177,10 @@ export class OverlayDatabase implements Database {
 
 	async addOperation(_record: OperationRecord): Promise<void> {
 		throw new OverlayWriteError('addOperation');
+	}
+
+	async appendOperation(_record: NewOperationRecord): Promise<OperationRecord> {
+		throw new OverlayWriteError('appendOperation');
 	}
 
 	async removeOperation(_id: string): Promise<void> {

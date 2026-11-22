@@ -10,6 +10,10 @@ import type { FlatToken } from './import/flatten.js';
 export const unsafeValueSuggestion =
 	"Give a plain value of the token's type (a colour, a length, a font list…) with no ';', braces, comments, '\\', '!' or url()";
 
+/** What to do about a token id refused as unsafe (#1957) */
+export const tokenIdSuggestion =
+	"Use non-empty dot-separated segments of letters, digits, '_' and '-' only (for example 'color.brand.primary'), avoiding '__proto__', 'constructor' and 'prototype'";
+
 /** What an import already knows of a token id on the node it writes to */
 export interface KnownToken {
 	/** The metadata the node resolves the token with */

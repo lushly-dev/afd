@@ -378,8 +378,11 @@ describe('OverlayDatabase', () => {
 		expect(overlay.stagedOperations()).toHaveLength(1);
 
 		const node = await db.getNode('global');
+		const staged = overlay.stagedOperations()[0];
+		const { sequence: _seq, ...newOp } = staged;
 		const writes: Array<() => Promise<unknown>> = [
-			() => overlay.addOperation(overlay.stagedOperations()[0]),
+			() => overlay.addOperation(staged),
+			() => overlay.appendOperation(newOp),
 			() => overlay.removeOperation('x'),
 			() => overlay.createNode(node as NonNullable<typeof node>),
 			() => overlay.updateNode('global', { name: 'x' }),
@@ -407,5 +410,38 @@ describe('OverlayDatabase', () => {
 		await expect(overlay.stagingView().deleteNode('global')).rejects.toBeInstanceOf(
 			OverlayWriteError,
 		);
+	});
+
+	it('allocates distinct sequences for concurrent stagingView and base appends (#1958)', async () => {
+		const db = createMemoryDatabase();
+		const context = { db, actor: 'test' };
+		await nodeCreateCommand.handler({ name: 'global', parentId: null, type: 'root' }, context);
+
+		const overlay = new OverlayDatabase(db);
+		const view = overlay.stagingView();
+		const makeOp = (id: string, tokenId: string) => ({
+			id,
+			nodeId: 'global',
+			type: 'add' as const,
+			tokenId,
+			value: JSON.stringify('#000000'),
+			metadata: null,
+			fromNode: null,
+			asTokenId: null,
+			toAncestor: null,
+			reason: null,
+			author: 'test',
+			createdAt: '2026-01-01T00:00:00.000Z',
+		});
+
+		await Promise.all([
+			db.appendOperation(makeOp('base-1', 'color.base')),
+			view.appendOperation(makeOp('staged-1', 'color.staged1')),
+			view.appendOperation(makeOp('staged-2', 'color.staged2')),
+		]);
+
+		const ops = await overlay.getOperations('global');
+		expect(ops.map((op) => op.sequence)).toEqual([1, 2, 3]);
+		expect(new Set(ops.map((op) => op.sequence)).size).toBe(ops.length);
 	});
 });

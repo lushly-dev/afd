@@ -3,7 +3,6 @@ import { ErrorCodes, failure, success } from '../../types/command-result.js';
 import { contextId, contextNow } from '../context-sources.js';
 import type { CommandContext, CommandDefinition } from '../registry.js';
 import { resolvePreviousValue } from './previous-value.js';
-import { nextSequence } from './sequence.js';
 
 /**
  * Input schema for token.reset command
@@ -90,14 +89,12 @@ export const tokenResetCommand: CommandDefinition<typeof InputSchema, Output> = 
 		const before = await resolvePreviousValue(db, input.nodeId, input.tokenId);
 
 		// Create the operation
-		const existingOps = await db.getOperations(input.nodeId);
 		const operationId = contextId(context);
 		const now = contextNow(context);
 
-		await db.addOperation({
+		await db.appendOperation({
 			id: operationId,
 			nodeId: input.nodeId,
-			sequence: nextSequence(existingOps),
 			type: 'reset',
 			tokenId: input.tokenId,
 			value: null,

@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { ErrorCodes, failure, success } from '../../types/command-result.js';
 import { contextId, contextNow } from '../context-sources.js';
 import type { CommandContext, CommandDefinition } from '../registry.js';
-import { unsafeImportValues, unsafeValueSuggestion } from '../value-checks.js';
+import { tokenIdSuggestion, unsafeImportValues, unsafeValueSuggestion } from '../value-checks.js';
 import { type FlatToken, findDuplicateTokenIds, flattenTokenFile } from './flatten.js';
 
 /**
@@ -103,6 +103,19 @@ export const importJsonCommand: CommandDefinition<typeof InputSchema, Output> = 
 			});
 		}
 
+		// Refuse the whole file when any token id is reserved or cannot form a CSS name (#1957)
+		const invalidIds = flatTokens.flatMap((token) => {
+			const idError = validateTokenId(token.id);
+			return idError ? [idError] : [];
+		});
+		if (invalidIds.length > 0) {
+			return failure({
+				code: ErrorCodes.VALIDATION_ERROR,
+				message: `${invalidIds.length} token id(s) cannot be imported: ${invalidIds.slice(0, 10).join('; ')}${invalidIds.length > 10 ? '; …' : ''}`,
+				suggestion: tokenIdSuggestion,
+			});
+		}
+
 		// Tokens the node inherits must be overridden: an 'add' for an inherited
 		// token is ignored by the resolver, so the imported value would never win.
 		const inheritedTokens = await resolveAncestorTokenMap(db, node.parentId);
@@ -135,12 +148,6 @@ export const importJsonCommand: CommandDefinition<typeof InputSchema, Output> = 
 
 		// Check each token
 		for (const token of flatTokens) {
-			const idError = validateTokenId(token.id);
-			if (idError) {
-				errors.push({ tokenId: token.id, error: idError });
-				continue;
-			}
-
 			if (existingTokenIds.has(token.id)) {
 				if (input.merge) {
 					// Will override
@@ -185,16 +192,24 @@ export const importJsonCommand: CommandDefinition<typeof InputSchema, Output> = 
 			});
 		}
 
+		if (typeof db.appendOperation !== 'function') {
+			return failure({
+				code: ErrorCodes.INTERNAL_ERROR,
+				message: 'The configured database adapter does not implement appendOperation()',
+				suggestion:
+					'Upgrade the Database adapter to implement appendOperation() for atomic operation sequencing, or use MemoryDatabase, SQLiteDatabase or PostgresDatabase',
+			});
+		}
+
 		// Import tokens
 		let imported = 0;
-		const maxSeq = existingOps.length > 0 ? Math.max(...existingOps.map((op) => op.sequence)) : 0;
 
 		for (const token of toImport) {
 			const opType =
 				existingTokenIds.has(token.id) || inheritedTokens.has(token.id) ? 'override' : 'add';
 
 			try {
-				await db.addOperation({
+				await db.appendOperation({
 					id: contextId(context),
 					nodeId: input.targetNode,
 					tokenId: token.id,
@@ -202,7 +217,6 @@ export const importJsonCommand: CommandDefinition<typeof InputSchema, Output> = 
 					value: JSON.stringify(token.value),
 					// The resolver only reads metadata from 'add' ops
 					metadata: opType === 'add' && token.metadata ? JSON.stringify(token.metadata) : null,
-					sequence: maxSeq + imported + 1,
 					createdAt: contextNow(context),
 					author: context.actor || 'import',
 					reason: 'Imported from JSON',

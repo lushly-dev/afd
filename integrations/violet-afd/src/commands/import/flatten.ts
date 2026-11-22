@@ -37,7 +37,10 @@ export function flattenTokenFile(
 	}
 
 	const rootType = typeof obj.$type === 'string' ? obj.$type : undefined;
-	const untiered: Record<string, unknown> = { $type: rootType };
+	// Null-prototype object so an untiered '__proto__' key stays an own property
+	// and reaches validateTokenId instead of mutating the prototype (#1957).
+	const untiered: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
+	if (rootType !== undefined) untiered.$type = rootType;
 	const result: FlatToken[] = [];
 
 	for (const [key, val] of Object.entries(obj)) {
