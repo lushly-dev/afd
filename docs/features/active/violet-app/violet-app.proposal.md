@@ -2,22 +2,24 @@
 
 ## Status
 
-- **State:** approved by the owner on 2026-11-16, with every recommendation in
+- **State:** active — approved by the owner on 2026-11-16, with every recommendation in
   [section 12](#12-for-the-owner) accepted. Written 2026-11-15 against `main` at `6eeb545d`:
   fifteen jobs as scenario files that pass the three checks, a recommended app kind, a document
   type, twenty-two drafted commands and the gaps they expose. Walked once by a fresh reader in
-  three seats, and revised ([section 8](#8-what-the-walk-changed)). Nothing is implemented, and
-  no Violet code is changed. [STATUS.md](STATUS.md) tracks progress.
+  three seats, and revised ([section 8](#8-what-the-walk-changed)). The seven `violet-afd` gaps
+  (#1322 to #1328) merged in [#1942](https://github.com/lushly-dev/afd/pull/1942); nothing in
+  `endpoints/loam/plugins/violet/` is built yet. [STATUS.md](STATUS.md) tracks progress.
 - **Verified:** every claim about existing code in [section 2](#2-what-exists-today) cites a file
   and line or a command name read first-hand on 2026-11-15 at `6eeb545d`. Anything inferred says
   so with *(inferred)*.
-- **Next:** the specification, in `endpoints/loam/plugins/violet/docs/`, once the slice's gaps
-  (#1322, #1323, #1324, #1325) land in `violet-afd`.
+- **Next:** moving Loam's tree from TypeScript to DTCG files
+  ([#1974](https://github.com/lushly-dev/afd/issues/1974)), then the specification in
+  `endpoints/loam/plugins/violet/docs/`.
 
 | Field | Value |
 | --- | --- |
 | Units likely touched | A new `endpoints/loam/plugins/violet/`; `integrations/violet-afd` for the engine gaps in [5.2](#52-gaps-in-violet); `.github/workflows/loam-plugins.yml` |
-| Related | [Loam](../../../../endpoints/loam/README.md) and its [status](../../../../endpoints/loam/docs/STATUS.md); [Mail](../../active/mail/mail.proposal.md), the first plugin; the [Violet foundation](../../../../foundations/violet/README.md); Lushly's token-tree plan, in the private Lushly repository, read for its jobs only |
+| Related | [Loam](../../../../endpoints/loam/README.md) and its [status](../../../../endpoints/loam/docs/STATUS.md); [Mail](../mail/mail.proposal.md), the first plugin; the [Violet foundation](../../../../foundations/violet/README.md); Lushly's token-tree plan, in the private Lushly repository, read for its jobs only |
 | Supersedes | The `violet` row of Loam's [first-party apps](../../../../endpoints/loam/docs/proposal.md#first-party-apps) (`proposal.md:674`: "Mounted, then native views", phase 5) |
 
 ## 1. Problem and goal
