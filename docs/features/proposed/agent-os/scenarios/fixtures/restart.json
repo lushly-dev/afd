@@ -1,0 +1,50 @@
+{
+	"host": {
+		"name": "example-host",
+		"restartedAt": "2030-02-03T09:58:00Z",
+		"runtime": {
+			"kind": "docker",
+			"reachable": true
+		}
+	},
+	"machines": [
+		{
+			"id": "m-07",
+			"repository": "example-repo",
+			"for": "fix/parser",
+			"size": "standard",
+			"note": "The runtime kept this machine across the restart, with the exit code of each step.",
+			"runtime": {
+				"present": true,
+				"exits": {
+					"install": 0,
+					"validate": 0
+				}
+			},
+			"runs": [
+				{
+					"id": "r-21",
+					"head": "3f9a2c4e5b6d7081928374a5b6c7d8e9f0a1b2c3",
+					"stateBeforeRestart": "running"
+				}
+			]
+		},
+		{
+			"id": "m-08",
+			"repository": "example-repo",
+			"for": "fix/tokens",
+			"size": "standard",
+			"note": "The machine the host runs on restarted, and the runtime no longer has this one.",
+			"runtime": {
+				"present": false
+			},
+			"runs": [
+				{
+					"id": "r-22",
+					"head": "7c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d",
+					"stateBeforeRestart": "running"
+				}
+			]
+		}
+	]
+}

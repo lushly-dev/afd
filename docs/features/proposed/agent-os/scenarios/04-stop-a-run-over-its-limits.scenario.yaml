@@ -1,0 +1,121 @@
+# Draft JTBD scenario for the Agent OS proposal. Commands and shapes are proposals; the data is invented.
+# The fake runtime plays one head that outgrows a small machine's memory, one whose tests never end
+# and one that outgrows the machine's disk. The clock cannot move between steps, so the time limit
+# is reached by the script, not by waiting.
+name: Stop a run that goes over its machine's limits
+description: >-
+  When a run uses more memory, time or disk than its machine was given, I want it stopped and
+  the result to say which limit and which step, so that one branch cannot take the host or the
+  other branches down with it.
+job: stop-a-run-over-its-limits
+tags: [m1]
+fixture:
+  file: fixtures/host.json
+steps:
+  - description: A small machine, with the limits its size carries
+    command: machine-create
+    input: { repository: example-repo, for: fix/cache, size: small }
+    expect:
+      success: true
+      data:
+        machine:
+          size: small
+          limits: { memoryGb: 4, diskGb: 20 }
+  - description: A head whose tests outgrow the machine's memory
+    command: run-start
+    input:
+      machine: "${{ steps[0].data.machine.id }}"
+      head: 5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b
+      steps:
+        - label: install
+          args: [pnpm, install, "--frozen-lockfile"]
+          timeoutSeconds: 1800
+          network: registries
+        - label: validate
+          args: [pnpm, verify, "--keep-going"]
+          timeoutSeconds: 5400
+          network: none
+    expect:
+      success: true
+      data:
+        run:
+          state: running
+  - description: The run is stopped, and the result names the limit and the step
+    command: run-wait
+    input: { id: "${{ steps[1].data.run.id }}", timeoutMs: 300000 }
+    expect:
+      success: true
+      data:
+        run:
+          state: over-limit
+          limit: memory
+          failed: validate
+  - description: A head whose tests never end, with one minute allowed
+    command: run-start
+    input:
+      machine: "${{ steps[0].data.machine.id }}"
+      head: 9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a2f1e0d
+      steps:
+        - label: install
+          args: [pnpm, install, "--frozen-lockfile"]
+          timeoutSeconds: 1800
+          network: registries
+        - label: validate
+          args: [pnpm, verify, "--keep-going"]
+          timeoutSeconds: 60
+          network: none
+    expect:
+      success: true
+      data:
+        run:
+          state: running
+  - description: The step is killed at its limit, with every process it started
+    command: run-wait
+    input: { id: "${{ steps[3].data.run.id }}", timeoutMs: 300000 }
+    expect:
+      success: true
+      data:
+        run:
+          state: timed-out
+          failed: validate
+          steps:
+            - { label: install, code: 0 }
+            - { label: validate, timedOut: true }
+  - description: A head whose build writes more than the machine's disk holds
+    command: run-start
+    input:
+      machine: "${{ steps[0].data.machine.id }}"
+      head: 8f7e6d5c4b3a2f1e0d9c8b7a6f5e4d3c2b1a0f9e
+      steps:
+        - label: install
+          args: [pnpm, install, "--frozen-lockfile"]
+          timeoutSeconds: 1800
+          network: registries
+        - label: validate
+          args: [pnpm, verify, "--keep-going"]
+          timeoutSeconds: 5400
+          network: none
+    expect:
+      success: true
+      data:
+        run:
+          state: running
+  - description: It is stopped at the machine's own disk limit
+    command: run-wait
+    input: { id: "${{ steps[5].data.run.id }}", timeoutMs: 300000 }
+    expect:
+      success: true
+      data:
+        run:
+          state: over-limit
+          limit: disk
+          failed: validate
+  - description: The machine is ready for another run; nothing of the stopped ones is still running
+    command: machine-get
+    input: { id: "${{ steps[0].data.machine.id }}" }
+    expect:
+      success: true
+      data:
+        machine:
+          state: ready
+          processCount: 0

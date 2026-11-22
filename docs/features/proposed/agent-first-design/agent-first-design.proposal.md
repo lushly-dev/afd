@@ -127,8 +127,10 @@ Read first-hand on 2026-11-14 at `545316f2`.
 
 - **Specimen** captures geometry, selected computed styles, control state, open shadow DOM and
   ARIA snapshots, and runs axe (`foundations/specimen/README.md`). It does not emulate forced
-  colors (line 37). Prebuilt hosts exist for Linux on glibc and for macOS; "musl and Windows are
-  not supported yet" (line 499). Its application-command runner, T11, is not started
+  colors (line 37). Prebuilt hosts exist for Linux on glibc and for macOS. Windows x64 is
+  supported in this checkout, with its host built from source until that host is first released;
+  "musl and Windows on arm64 are not supported yet" (lines 18 and 499; updated 2026-11-21). Its
+  application-command runner, T11, is not started
   (`docs/features/complete/specimens/STATUS.md:23`).
 - **Violet** is a hierarchical token engine: "nodes inherit tokens from their parents and add,
   override, subtract, reset or copy them" (`foundations/violet/packages/core/README.md:3`). It
@@ -141,7 +143,9 @@ Read first-hand on 2026-11-14 at `545316f2`.
 - **`violet-elements` has no component bound to a result.** It has alert, toast, snackbar,
   empty-state, progress, skeleton and dialog, among others
   (`foundations/fast-af/packages/violet-elements/src`).
-- **The component runtime carries an older command layer** (read 2026-11-16 at `a67433d7`).
+- **The component runtime carried an older command layer** (read 2026-11-16 at `a67433d7`;
+  removed on 2026-11-17 in [#1398](https://github.com/lushly-dev/afd/pull/1398), under epic
+  #1385, so the rest of this point describes the runtime before that change).
   `fast-element` has a `@command` decorator, an in-page command registry, confirm and undo
   behaviours, a confirm dialog, component-list and lint commands, and trust fields on emitted
   events (`foundations/fast-af/packages/element/packages/fast-element/src/command`, `src/trust`),
@@ -641,7 +645,7 @@ Four questions place a part:
 | Wording, which command a control calls, and what happens after | The application |
 | An agent seeing and setting interface state (an open panel, a selection, a tab) | `@lushly-dev/afd-view-state`, which Loam already uses with handlers it writes by hand; Lushly describes where the person is in a string it sets by hand. Proposed: a helper in that package that binds an element's properties and change events to a view-state id, and a rule Specimen can check, that a stateful component exposes its state as a settable property with a change event |
 | What an agent knows about a component | Specimen's pack and Umbel's `components-brief`, as now |
-| Scoped registries in the render path, the loader for their polyfill, and the opt-in definition schema Specimen reads | The component runtime (`fast-element`). Its scoped mixin and registry builders go, which is the plan's position, open until its step starts: Loam, the application that needs scoped registries, uses the browser's own API |
+| Scoped registries in the render path, the loader for their polyfill, and the opt-in definition schema Specimen reads | The component runtime (`fast-element`). Its scoped mixin and registry builders went with the command layer on 2026-11-17 ([#1398](https://github.com/lushly-dev/afd/pull/1398)): Loam, the application that needs scoped registries, uses the browser's own API |
 
 What this rules out:
 
@@ -654,8 +658,8 @@ What this rules out:
   registry, confirm and undo, the confirm dialog, the component-list and lint commands) and its
   trust fields on emitted events leave it, with Specimen's FAST-AF plugin losing the path that
   runs `@command` methods. AFD's direct registry, Specimen's pack and the library cover what
-  they meant to do. Removing `@command` entirely, rather than keeping it for interface
-  operations, is the plan's position, open until its step starts.
+  they meant to do. `@command` was removed entirely, rather than kept for interface
+  operations, on 2026-11-17 ([#1398](https://github.com/lushly-dev/afd/pull/1398)).
 - **A binding package between the runtime and AFD.** Components do not call commands in either
   application, so it would have little to do.
 
@@ -743,7 +747,7 @@ topic is served from Umbel with its reference deleted from the skill.
 | The loop fits its own reviewers | Held-out jobs, seeded faults, a sample of agreement, and the owner's blind review |
 | A brief grows. Loam's is already 88,400 bytes, over its target (Patterns, section 3) | A statement moves from a guide to a pattern and is sent once. Phase 0 measures it, as Patterns' step 0.4 does |
 | A copied pattern falls behind its source | The comparison is a command an agent can run in the loop, and taking a change is an agent's merge and a person's approval. One that nobody compares stays as it was; it never changes unasked |
-| Specimen does not run on Windows | The panel can drive a browser through Botcore's `cdp_*` commands. Gates and captures wait on a Windows host |
+| Specimen's Windows host is not released | Windows x64 runs in this checkout with the host built from source (updated 2026-11-21; this row first said Specimen does not run on Windows). Outside the checkout, the panel can drive a browser through Botcore's `cdp_*` commands, and gates and captures wait on the released host |
 | Non-web applications | Patterns' gates read Chromium's accessibility tree. Statements still apply to an engine or native interface; gates do not. Open ([question 8](#9-for-the-owner)) |
 | The skill is one more description in a full listing | One skill; a description under 300 characters; step 0.5 can cancel it |
 | Panel cost | One panel per cause, not per screen. The person sets the budget |
@@ -802,7 +806,8 @@ Each recommendation is for the owner to decide.
     ([#1385](https://github.com/lushly-dev/afd/issues/1385)). Three of its calls are the plan's
     position and stay open to change until their step starts: the runtime's `@command` goes
     entirely rather than staying for interface operations; its scoped mixin and registry
-    builders go; and the library's result-state pieces take plain properties.
+    builders go; and the library's result-state pieces take plain properties. The first two were
+    carried out on 2026-11-17 ([#1398](https://github.com/lushly-dev/afd/pull/1398)).
 
 ## 10. Out of scope
 
