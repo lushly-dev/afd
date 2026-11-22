@@ -87,16 +87,16 @@ describe("Loam's Violet tree", () => {
 		expect(value(light, 'color.text.muted')).toBe('#5e6460');
 		expect(value(light, 'color.border.strong')).toBe('#6b7d6e');
 		expect(value(light, 'font.family.body')).toBe('"Inter", system-ui, sans-serif');
-		expect(value(themeNode('dark'), 'color.surface.page')).toBe('#181b1a');
+		expect(value(themeNode('dark'), 'color.surface.page')).toBe('#141515');
 		expect(value(themeNode('dark'), 'color.action.primary.background')).toBe('#f4f0ea');
-		// Lighter than Refined's sage-500, to meet 3:1 with margin on the subtle surface.
-		expect(value(themeNode('dark'), 'color.border.strong')).toBe('#939c95');
+		// Neutral-400 meets 3:1 with margin on every dark surface.
+		expect(value(themeNode('dark'), 'color.border.strong')).toBe('#999e9b');
 	});
 
 	it('gives the field borders the values the design document decided', () => {
 		const expected: Record<ThemeName, [string, string, string]> = {
 			light: ['#869089', '#48534b', '#c42a1a'],
-			dark: ['#6b7d6e', '#adb6ab', '#ff897a'],
+			dark: ['#767b78', '#999e9b', '#ff897a'],
 			'high-contrast': ['#595959', '#000000', '#A30000'],
 		};
 		for (const theme of THEMES)
@@ -213,7 +213,7 @@ describe('exports', () => {
 		expect(light.match(/^\t--/gm)).toHaveLength(tokens(ROOT_NODE).size);
 		expect(light).not.toContain('--ref-');
 		const dark = rule('[data-loam-theme="dark"]');
-		expect(dark).toContain('\t--color-surface-page: #181b1a;');
+		expect(dark).toContain('\t--color-surface-page: #141515;');
 		expect(dark).not.toContain('--size-space-md');
 		expect(dark).not.toContain('--color-action-danger-background');
 		const contrast = rule('[data-loam-theme="high-contrast"]');

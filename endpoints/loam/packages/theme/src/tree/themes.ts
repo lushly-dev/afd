@@ -12,28 +12,26 @@ import { ref, type TreeToken } from './types.js';
 const c = (name: string) => ref(`ref.color.${name}`);
 
 export const DARK_OVERRIDES: readonly TreeToken[] = [
-	{ id: 'color.surface.page', value: c('ink') },
-	{ id: 'color.surface.card', value: c('ink.raised') },
-	{ id: 'color.surface.subtle', value: c('green.700') },
+	{ id: 'color.surface.page', value: c('charcoal.950') },
+	{ id: 'color.surface.card', value: c('charcoal.900') },
+	{ id: 'color.surface.subtle', value: c('charcoal.850') },
 	{ id: 'color.surface.selected', value: c('green.900') },
-	{ id: 'color.surface.floating', value: c('green.800') },
-	{ id: 'color.surface.highlight', value: c('stone.700') },
+	{ id: 'color.surface.floating', value: c('charcoal.800') },
+	{ id: 'color.surface.highlight', value: c('grey.800') },
 	{ id: 'color.surface.pressed', value: 'rgba(244, 240, 234, 0.14)' },
 	{ id: 'color.text.primary', value: c('paper') },
-	{ id: 'color.text.secondary', value: c('green.200') },
-	{ id: 'color.text.muted', value: c('stone.400') },
+	{ id: 'color.text.secondary', value: c('grey.200') },
+	{ id: 'color.text.muted', value: c('neutral.400') },
 	{ id: 'color.border.subtle', value: 'rgba(244, 240, 234, 0.10)' },
-	// Stone-450, lighter than the sage-500 Refined drew with (2.70 on the subtle surface), so a control's
-	// edge, a resize handle and a read-only field's line meet 3:1 with margin on every surface (the line
-	// on the read-only fill over subtle is 3.54).
-	{ id: 'color.border.strong', value: c('stone.450') },
+	// Neutral-400 meets 3:1 with margin on every dark surface (including read-only fills over subtle).
+	{ id: 'color.border.strong', value: c('neutral.400') },
 	{ id: 'color.focus.ring', value: c('mint') },
 	{ id: 'color.control.selected.background', value: c('green.900') },
 	{ id: 'color.control.selected.foreground', value: c('mint') },
 	{ id: 'color.control.selected.border', value: 'rgba(163, 235, 205, 0.45)' },
 	// The main action turns over: paper, with ink text.
 	{ id: 'color.action.primary.background', value: c('paper') },
-	{ id: 'color.action.primary.text', value: c('ink') },
+	{ id: 'color.action.primary.text', value: c('charcoal.950') },
 	{ id: 'color.action.primary.hover', value: c('stone.200') },
 	{ id: 'color.action.primary.pressed', value: c('stone.300') },
 	{ id: 'color.action.secondary.background', value: 'rgba(244, 240, 234, 0.09)' },
@@ -51,8 +49,8 @@ export const DARK_OVERRIDES: readonly TreeToken[] = [
 	{ id: 'color.state.danger.foreground', value: c('red.300') },
 	{ id: 'color.field.background', value: 'rgba(0, 0, 0, 0.26)' },
 	{ id: 'color.field.background.readonly', value: 'rgba(244, 240, 234, 0.06)' },
-	{ id: 'color.field.border', value: c('sage.500') },
-	{ id: 'color.field.border.hover', value: c('stone.400') },
+	{ id: 'color.field.border', value: c('neutral.500') },
+	{ id: 'color.field.border.hover', value: c('neutral.400') },
 	{ id: 'color.field.border.invalid', value: c('red.300') },
 	{
 		id: 'shadow.control',

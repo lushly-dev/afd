@@ -30,11 +30,17 @@ const COLORS: Record<string, string> = {
 	'stone.600': '#5e6460',
 	'stone.700': '#4d5b50',
 	'sage.500': '#6b7d6e',
-	// The dark surfaces.
-	'green.200': '#bdcfc1',
+	// The dark surfaces: neutral charcoal chrome so dark mode never casts green over app content.
+	'charcoal.950': '#141515',
+	'charcoal.900': '#1b1c1c',
+	'charcoal.850': '#202222',
+	'charcoal.800': '#252727',
+	'neutral.400': '#999e9b',
+	'neutral.500': '#767b78',
+	// Legacy deep-green accents kept for light primary hover/pressed and dark selection/success washes.
 	'green.700': '#2e3a33',
 	'green.800': '#252e29',
-	'green.900': '#20352c',
+	'green.900': '#1b2823',
 	// Selection and success. `mint.soft` and `mint.wash` are Refined's: mint with its saturation
 	// taken down, behind a tick or a switch key, and a greyed tint for a selected row or a success
 	// message on paper.

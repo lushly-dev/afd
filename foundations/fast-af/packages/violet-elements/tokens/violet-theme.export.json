@@ -503,7 +503,7 @@
 			},
 			{
 				"id": "color.action.primary.text",
-				"value": "#181b1a"
+				"value": "#141515"
 			},
 			{
 				"id": "color.action.secondary.background",
@@ -527,7 +527,7 @@
 			},
 			{
 				"id": "color.border.strong",
-				"value": "#939c95"
+				"value": "#999e9b"
 			},
 			{
 				"id": "color.border.subtle",
@@ -535,7 +535,7 @@
 			},
 			{
 				"id": "color.control.selected.background",
-				"value": "#20352c"
+				"value": "#1b2823"
 			},
 			{
 				"id": "color.control.selected.border",
@@ -555,7 +555,7 @@
 			},
 			{
 				"id": "color.field.border",
-				"value": "#6b7d6e"
+				"value": "#767b78"
 			},
 			{
 				"id": "color.field.border.focus",
@@ -563,7 +563,7 @@
 			},
 			{
 				"id": "color.field.border.hover",
-				"value": "#adb6ab"
+				"value": "#999e9b"
 			},
 			{
 				"id": "color.field.border.invalid",
@@ -571,7 +571,7 @@
 			},
 			{
 				"id": "color.field.placeholder",
-				"value": "#adb6ab"
+				"value": "#999e9b"
 			},
 			{
 				"id": "color.field.text",
@@ -599,7 +599,7 @@
 			},
 			{
 				"id": "color.state.success.background",
-				"value": "#20352c"
+				"value": "#1b2823"
 			},
 			{
 				"id": "color.state.success.border",
@@ -627,19 +627,19 @@
 			},
 			{
 				"id": "color.surface.card",
-				"value": "#222824"
+				"value": "#1b1c1c"
 			},
 			{
 				"id": "color.surface.floating",
-				"value": "#252e29"
+				"value": "#252727"
 			},
 			{
 				"id": "color.surface.highlight",
-				"value": "#4d5b50"
+				"value": "#333333"
 			},
 			{
 				"id": "color.surface.page",
-				"value": "#181b1a"
+				"value": "#141515"
 			},
 			{
 				"id": "color.surface.pressed",
@@ -647,15 +647,15 @@
 			},
 			{
 				"id": "color.surface.selected",
-				"value": "#20352c"
+				"value": "#1b2823"
 			},
 			{
 				"id": "color.surface.subtle",
-				"value": "#2e3a33"
+				"value": "#202222"
 			},
 			{
 				"id": "color.text.muted",
-				"value": "#adb6ab"
+				"value": "#999e9b"
 			},
 			{
 				"id": "color.text.primary",
@@ -663,7 +663,7 @@
 			},
 			{
 				"id": "color.text.secondary",
-				"value": "#bdcfc1"
+				"value": "#CCCCCC"
 			},
 			{
 				"id": "duration.base",

@@ -524,4 +524,29 @@ describe("violet-text-field number entry (#712)", () => {
         field.value = "";
         expect(input(field).value).toBe("");
     });
+
+    it("shrinks inside narrow CSS grid columns without overflowing its host", async () => {
+        document.body.innerHTML = `
+            <div style="display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:8px;width:240px">
+                <violet-text-field id="a" label="Glyph" placeholder="e.g. H"></violet-text-field>
+                <violet-text-field id="b" label="Master" placeholder="e.g. Regular"></violet-text-field>
+            </div>
+        `;
+        await customElements.whenDefined("violet-text-field");
+        await nextFrame();
+        const a = document.getElementById("a") as VioletTextField;
+        const b = document.getElementById("b") as VioletTextField;
+        const frameA = a.shadowRoot?.querySelector(".control-frame") as HTMLElement;
+        const frameB = b.shadowRoot?.querySelector(".control-frame") as HTMLElement;
+        expect(frameA.getBoundingClientRect().width).toBeLessThanOrEqual(
+            a.getBoundingClientRect().width + 0.5
+        );
+        expect(frameB.getBoundingClientRect().width).toBeLessThanOrEqual(
+            b.getBoundingClientRect().width + 0.5
+        );
+        const parent = b.parentElement as HTMLElement;
+        expect(frameB.getBoundingClientRect().right).toBeLessThanOrEqual(
+            parent.getBoundingClientRect().right + 0.5
+        );
+    });
 });
