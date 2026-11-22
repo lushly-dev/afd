@@ -116,8 +116,9 @@ confirm:
   content-addressed (`set-` and 12 hex characters).
 - **Storage.** Committed records live under `specimens/` (`specimens/notes/<id>.json`, and
   Design Decisions' `specimens/decisions/<id>.json`). Local working data lives under
-  `.specimen/`: points, impact screenshots and capture sets. `.specimen/` is not in `.gitignore`
-  today and must be added.
+  `.specimen/`: points, impact screenshots and capture sets. The owner confirmed this convention
+  on 2026-11-21, and [#1132](https://github.com/lushly-dev/afd/issues/1132) added `.specimen/`
+  to the root `.gitignore`.
 - **Mutation.** Every command that writes a file is a mutation.
 - **`SPECIMEN_NOT_FOUND`** names the nearest ids in its suggestion, rather than pointing at an
   unfiltered `specimen-list`, which runs to tens of thousands of tokens on a large project.

@@ -18,7 +18,8 @@
   - Everything in [Design](#6-design). It is a draft to write jobs against.
   - The revision has not been walked again.
   - The [shared conventions](#5-shared-conventions-the-owners-to-confirm) are the coordinator's
-    and await the owner.
+    and await the owner, except `.specimen/` as the ignored local data folder, which the owner
+    confirmed on 2026-11-21.
   - The owner has not cut, added or ranked the jobs.
 
 | Field | Value |
@@ -239,8 +240,9 @@ They are the owner's to confirm.
   Pointing's `specimens/notes/<id>.json`.
   - A command writes these files and never runs `git commit`. They reach `main` in the pull
     request like any other change.
-- **Local data** (sets, runs and points) lives under `.specimen/`. `.specimen/` is not in
-  `.gitignore` today, so phase 1 must add it.
+- **Local data** (sets, runs and points) lives under `.specimen/`, which the root `.gitignore`
+  ignores. The owner confirmed this convention on 2026-11-21, and
+  [#1132](https://github.com/lushly-dev/afd/issues/1132) added the entry.
 - **One review system, this one.**
   - A Screens from Jobs run saves its captures as an ordinary set, keyed `<job>/<step>`.
   - `specimen-review` compares those sets like any other and groups changes by cause.
@@ -493,7 +495,8 @@ The slice is the six scenarios tagged `slice`: jobs 1, 3, 4, 5, 7 and 10. It is 
 the owner ranks the jobs.
 
 1. **Capture sets.**
-   - `.specimen/` added to `.gitignore`.
+   - `.specimen/` added to `.gitignore` (done 2026-11-21,
+     [#1132](https://github.com/lushly-dev/afd/issues/1132)).
    - A content hash per capture, then `specimen-capture` with content-addressed set ids, labels,
      axe, and the job-specimen skip.
    - `specimen-diff` accepts `{ set, id }`, and `CAPTURES_INCOMPARABLE` is typed.
