@@ -26,6 +26,10 @@
 			"types": "./dist/palette-index.d.ts",
 			"import": "./dist/palette-index.js"
 		},
+		"./mounted": {
+			"types": "./dist/mounted.d.ts",
+			"import": "./dist/mounted.js"
+		},
 		"./owner-title": {
 			"types": "./dist/owner-title.d.ts",
 			"import": "./dist/owner-title.js"

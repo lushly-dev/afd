@@ -735,8 +735,12 @@ export const CEILINGS = Object.freeze({
 	// rules; set to 434,200 under D115, measured first as 5.5 asks. Nothing moved out: the branch is the validator's, and
 	// the validator is what `apps` holds. Merged with phase 4's step 9 (`main` at `1832a444`): 442,582, both steps'
 	// branches in the validator; set to 443,200 under D115.
+	// Phase 6's step 6, against `main` at `2b304beb`: 444,931, 1,731 over: the hosted relay's sixteen codes in
+	// `MountFailureCode`, each with the kernel's own message, suggestion and `retryable` (8.1), and `firstClass` read
+	// only under `hybrid`; set to 445,500 under D115.
 	// Phase 5's step 4: 449,455 after its review; merged on phase 6's step 5 and #1936, the combined build: 449,668.
-	appsMinified: 450_500,
+	// Phase 6's step 6 merged on it (`main` at `06dde692`), the combined build: 452,033; set to 452,600 under D115.
+	appsMinified: 452_600,
 	// Steps 4 and 5 together: 94,868 (step 4's slot and dialogs beside the inbox's Open inbox and hidden toasts' timers);
 	// set to 95,500 under D115.
 	// Phase 5's step 3 with phase 3's step 8 merged (`main` at `46f7ab11`; step 8's `surface-calls`, shared with

@@ -29,6 +29,7 @@ import {
 	DISCOVERY_LIMITS,
 	discoverInstance,
 	flagsOf,
+	type MountFailureCode,
 	parseMountedResult,
 	pinMountedInput,
 	RECORDED_RESULT_MAX_BYTES,
@@ -719,6 +720,76 @@ describe('a mounted call', () => {
 		expect(JSON.stringify(await journal.read())).not.toContain('http.token');
 		expect(JSON.stringify(result)).not.toContain('http.token');
 	});
+
+	it("P6-E5: `discoverInstance` sets `firstClass` only under `hybrid`: another strategy's first-class list is ignored", async () => {
+		const transport = fakeTransport(
+			{ 'a-first': { mutation: false } },
+			{
+				help: () => ({
+					structuredContent: {
+						success: true,
+						data: {
+							toolStrategy: 'grouped',
+							firstClassTools: ['a-first'],
+							commands: [{ name: 'a-first' }],
+						},
+					},
+				}),
+			}
+		);
+		const { kernel } = await boot({ work: () => transport });
+		await kernel.startInstances();
+		await kernel.call('work-a-first', { x: 1 });
+		expect(transport.calls.at(-1)).toEqual({
+			tool: 'afd-call',
+			args: { command: 'a-first', input: { x: 1 } },
+		});
+	});
+
+	it.each([
+		'REQUEST_NOT_SAME_ORIGIN',
+		'REQUEST_INVALID',
+		'REQUEST_TOO_LARGE',
+		'INSTANCE_UNKNOWN',
+		'MOUNT_BATCH_REFUSED',
+		'MOUNT_METHOD_REFUSED',
+		'MOUNT_COMMAND_NOT_EXPOSED',
+		'MOUNT_PROJECT_NOT_LISTED',
+		'MOUNT_SPACE_PINNED',
+		'MOUNT_SESSION_UNKNOWN',
+		'MOUNT_LIMIT',
+		'WORKSPACE_NOT_MEMBER',
+		'PROJECT_NOT_FOUND',
+		'PROJECT_ARCHIVED',
+		'UNAUTHORIZED',
+		'AGENT_CANNOT_SIGN_IN',
+	] satisfies MountFailureCode[])(
+		"P6-E5: the kernel's `MountFailureCode` holds the relay's %s, answered with the kernel's own words, never the transport's",
+		async (code) => {
+			const transport = fakeTransport(
+				{ 'a-read': { mutation: false } },
+				{
+					firstClass: ['a-read'],
+					answer: () =>
+						Promise.reject(
+							Object.assign(new Error('instance words at /srv/keys'), {
+								code,
+								suggestion: 'instance suggestion',
+							})
+						),
+				}
+			);
+			const { kernel } = await boot({ work: () => transport });
+			await kernel.startInstances();
+			const result = await kernel.call('work-a-read', {});
+			expect(result.error?.code).toBe(code);
+			expect(JSON.stringify(result)).not.toMatch(/instance words|instance suggestion|srv/);
+			expect(result.error?.suggestion).toEqual(expect.any(String));
+			expect(result.error?.retryable).toBe(
+				code === 'MOUNT_SESSION_UNKNOWN' || code === 'MOUNT_LIMIT'
+			);
+		}
+	);
 
 	it('discovers again once on COMMAND_NOT_FOUND, at most once in 30 seconds, and returns the failure', async () => {
 		let now = 1_000_000;

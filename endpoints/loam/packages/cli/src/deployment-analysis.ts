@@ -296,6 +296,17 @@ function projectWarnings(effect: InstanceEffect): DeploymentFinding[] {
 				'List the projects it serves under `projects`, if every member should not reach it.',
 		});
 	}
+	// Phase 6 specification, 8.3: with no `projects`, the instance also serves calls at workspace level, where no pin
+	// applies, so a pinned space would not keep its projects' calls to themselves.
+	if (entry.projects === undefined && entry.space && Object.keys(entry.space).length > 0) {
+		found.push({
+			code: 'INSTANCE_SPACE_UNLISTED',
+			key: appKey(id, '/space'),
+			message:
+				'This instance pins a space but lists no `projects`, so it also serves calls at workspace level, where no pin applies.',
+			suggestion: 'List the projects it serves under `projects`, the pinned ones among them.',
+		});
+	}
 	return found;
 }
 

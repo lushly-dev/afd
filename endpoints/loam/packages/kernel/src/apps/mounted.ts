@@ -58,6 +58,24 @@ export type MountFailureCode = Extract<
 	| 'MOUNT_NOT_AFD'
 	| 'MOUNT_TIMEOUT'
 	| 'MOUNT_RESULT_INVALID'
+	// The hosted relay's own refusals (phase 6 specification, 8.1), which a transport carries only when the relay marked
+	// the answer as its own (`Loam-Relay-Refusal: 1`), each with the kernel's words below and never the relay's.
+	| 'REQUEST_NOT_SAME_ORIGIN'
+	| 'REQUEST_INVALID'
+	| 'REQUEST_TOO_LARGE'
+	| 'INSTANCE_UNKNOWN'
+	| 'MOUNT_BATCH_REFUSED'
+	| 'MOUNT_METHOD_REFUSED'
+	| 'MOUNT_COMMAND_NOT_EXPOSED'
+	| 'MOUNT_PROJECT_NOT_LISTED'
+	| 'MOUNT_SPACE_PINNED'
+	| 'MOUNT_SESSION_UNKNOWN'
+	| 'MOUNT_LIMIT'
+	| 'WORKSPACE_NOT_MEMBER'
+	| 'PROJECT_NOT_FOUND'
+	| 'PROJECT_ARCHIVED'
+	| 'UNAUTHORIZED'
+	| 'AGENT_CANNOT_SIGN_IN'
 >;
 
 /** The kernel's own words for each failure: never a server's or a transport's. */
@@ -89,6 +107,86 @@ const MOUNT_FAILURES: Readonly<
 		suggestion: "Report this to the server's owner.",
 		retryable: false,
 	},
+	REQUEST_NOT_SAME_ORIGIN: {
+		message: 'The hosted server refused a request that did not come from the shell',
+		suggestion: 'Reload the shell; only its own page calls a mounted instance.',
+		retryable: false,
+	},
+	REQUEST_INVALID: {
+		message: 'The hosted server refused the request as malformed',
+		suggestion: 'Reload the shell; if it happens again, report it.',
+		retryable: false,
+	},
+	REQUEST_TOO_LARGE: {
+		message: 'The request is over the hosted server’s size limit',
+		suggestion: 'Send a smaller input.',
+		retryable: false,
+	},
+	INSTANCE_UNKNOWN: {
+		message: 'The hosted server serves no such instance',
+		suggestion: "Check the deployment's instances, and that this one is enabled.",
+		retryable: false,
+	},
+	MOUNT_BATCH_REFUSED: {
+		message: 'The hosted server takes one message per request',
+		suggestion: 'Send one message per request.',
+		retryable: false,
+	},
+	MOUNT_METHOD_REFUSED: {
+		message: 'The hosted server does not forward this method',
+		suggestion: 'The shell sends only the methods a mounted call needs.',
+		retryable: false,
+	},
+	MOUNT_COMMAND_NOT_EXPOSED: {
+		message: 'This command is not exposed to the shell',
+		suggestion: 'Ask the deployer to expose it.',
+		retryable: false,
+	},
+	MOUNT_PROJECT_NOT_LISTED: {
+		message: 'This instance does not serve this project',
+		suggestion: 'Switch to a project this instance serves.',
+		retryable: false,
+	},
+	MOUNT_SPACE_PINNED: {
+		message: 'This project is pinned to its own space on this instance',
+		suggestion: 'Switch project, or leave out `space` and `spaces`.',
+		retryable: false,
+	},
+	MOUNT_SESSION_UNKNOWN: {
+		message: 'The hosted server no longer knows this session',
+		suggestion: 'Run it again; the shell starts a new session.',
+		retryable: true,
+	},
+	MOUNT_LIMIT: {
+		message: 'Too many calls to mounted instances are in flight',
+		suggestion: 'Try again shortly.',
+		retryable: true,
+	},
+	WORKSPACE_NOT_MEMBER: {
+		message: 'You are not a member of this workspace',
+		suggestion: 'Ask an owner to invite you.',
+		retryable: false,
+	},
+	PROJECT_NOT_FOUND: {
+		message: 'No project with this id exists',
+		suggestion: 'Run project-list to see the projects you can enter.',
+		retryable: false,
+	},
+	PROJECT_ARCHIVED: {
+		message: 'This project is archived, so nothing in it changes',
+		suggestion: 'Restore the project with project-restore, or work in another project.',
+		retryable: false,
+	},
+	UNAUTHORIZED: {
+		message: 'Authentication required',
+		suggestion: 'Sign in again.',
+		retryable: false,
+	},
+	AGENT_CANNOT_SIGN_IN: {
+		message: 'An agent never signs in as a person',
+		suggestion: 'Sign in again as a person; an agent connects over MCP.',
+		retryable: false,
+	},
 };
 
 const mountError = (code: MountFailureCode): CommandError & { code: MountFailureCode } => ({
@@ -100,6 +198,10 @@ const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
 	typeof value === 'object' && value !== null && !Array.isArray(value);
 
 const CODES: ReadonlySet<string> = new Set(Object.keys(MOUNT_FAILURES));
+
+/** Every `MountFailureCode`: what a transport's rejection may carry, and the web host's `mount.ts` reads under the relay's mark. */
+export const MOUNT_FAILURE_CODES: ReadonlySet<MountFailureCode> =
+	CODES as ReadonlySet<MountFailureCode>;
 
 /** Whether a JSON value nests past `limit`, by a walk with no recursion, since it may nest past the stack. */
 function deeperThan(value: unknown, limit: number): boolean {
@@ -446,8 +548,8 @@ function advertisedSchema(
 	return { schema: { ...reported, type: 'object' }, replaced: false };
 }
 
-/** A tool's name for the filter: `AFD-call` and ` afd_help` are `afd-*` too. */
-const isMetaTool = (name: string): boolean => /^\s*afd[^a-z0-9]/i.test(name);
+/** A tool's name for the filter: `AFD-call` and ` afd_help` are `afd-*` too. The hosted relay refuses by it (8.1). */
+export const isMetaTool = (name: string): boolean => /^\s*afd[^a-z0-9]/i.test(name);
 
 /**
  * Connect, read the commands, name them and apply what the deployer said (7.3, steps 1 to 7). It registers
@@ -466,8 +568,10 @@ export async function discoverInstance(
 	const data = isRecord(help.data) ? help.data : {};
 	const rows = Array.isArray(data.commands) ? data.commands : undefined;
 	if (!rows) throw new MountFailure('MOUNT_NOT_AFD');
+	// A tool is first-class only on a `hybrid` server, the only strategy whose `afd-help` reports such tools and routes
+	// them by name: the hosted relay forwards a bare name on the same rule, so the two agree (phase 6 specification, 8.2).
 	const firstClass = new Set(
-		Array.isArray(data.firstClassTools)
+		data.toolStrategy === 'hybrid' && Array.isArray(data.firstClassTools)
 			? data.firstClassTools.filter((name) => typeof name === 'string')
 			: []
 	);

@@ -97,6 +97,22 @@ const KERNEL_ANSWERS: ReadonlySet<string> = new Set([
 	'KERNEL_DISPOSED',
 	'CONFIRMATION_EXPIRED',
 	'AUTONOMY_ABOVE_CEILING',
+	// The hosted relay's own refusals (phase 6 specification, 8.1): `mount.ts` carries only their code, under the relay's
+	// mark, and the kernel answers each in its own words, so none is the server's. An instance's own result with one of
+	// these codes carries `parseMountedResult`'s marks and stays the server's.
+	'REQUEST_NOT_SAME_ORIGIN',
+	'REQUEST_INVALID',
+	'REQUEST_TOO_LARGE',
+	'INSTANCE_UNKNOWN',
+	'MOUNT_BATCH_REFUSED',
+	'MOUNT_METHOD_REFUSED',
+	'MOUNT_COMMAND_NOT_EXPOSED',
+	'MOUNT_SESSION_UNKNOWN',
+	'MOUNT_LIMIT',
+	'WORKSPACE_NOT_MEMBER',
+	'PROJECT_ARCHIVED',
+	'UNAUTHORIZED',
+	'AGENT_CANNOT_SIGN_IN',
 ]);
 
 /** Set by phase 4's confirmations on a stored outcome answered again (`confirmation-parts.ts`'s `STORED`). */

@@ -501,6 +501,9 @@ importers:
       '@hono/node-server':
         specifier: 2.1.6
         version: 2.1.6(hono@4.13.17)
+      '@lushly-dev/afd-client':
+        specifier: workspace:*
+        version: link:../../../../packages/client
       '@lushly-dev/afd-core':
         specifier: workspace:*
         version: link:../../../../packages/core
@@ -522,6 +525,9 @@ importers:
       '@lushly-dev/local-db':
         specifier: workspace:*
         version: link:../../../../packages/local-db
+      '@modelcontextprotocol/client':
+        specifier: 2.4.0
+        version: 2.4.0
       better-auth:
         specifier: 1.7.18
         version: 1.7.18(@opentelemetry/api@1.10.0)(mongodb@7.1.0)(pg@8.23.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.1.1)
@@ -532,9 +538,6 @@ importers:
         specifier: ^4.6.6
         version: 4.6.7
     devDependencies:
-      '@lushly-dev/afd-client':
-        specifier: workspace:*
-        version: link:../../../../packages/client
       '@types/node':
         specifier: ^26.6.6
         version: 26.6.6
@@ -860,6 +863,9 @@ importers:
       '@modelcontextprotocol/ext-apps':
         specifier: 2.0.4
         version: 2.0.4(@modelcontextprotocol/client@2.4.0)(@modelcontextprotocol/core@2.4.0)(@modelcontextprotocol/server@2.4.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(zod@4.6.7)
+      '@modelcontextprotocol/server':
+        specifier: 2.4.0
+        version: 2.4.0
       '@types/node':
         specifier: ^26.6.6
         version: 26.6.6

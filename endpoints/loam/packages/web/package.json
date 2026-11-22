@@ -48,6 +48,7 @@
 		"@lushly-dev/specimen": "workspace:*",
 		"@lushly-dev/violet-runtime": "workspace:*",
 		"@modelcontextprotocol/ext-apps": "2.0.4",
+		"@modelcontextprotocol/server": "2.4.0",
 		"@types/node": "^26.6.6",
 		"@vitest/browser": "5.1.1",
 		"@vitest/browser-playwright": "^5.1.1",

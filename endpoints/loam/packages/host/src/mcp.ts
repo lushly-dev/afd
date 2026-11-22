@@ -27,19 +27,25 @@ import {
 	type McpHandler,
 	type ZodCommandDefinition,
 } from '@lushly-dev/afd-server';
+import type { MountAccess } from '@lushly-dev/loam-cli/deployment';
 import {
 	createServerKernel,
 	type McpProviderV1,
+	membershipOf,
 	providerKeys,
 	type ServerKernel,
 } from '@lushly-dev/loam-identity';
 import type { KernelEnvironmentV0, KernelPortsV1 } from '@lushly-dev/loam-kernel';
-import type { IdentityV1, ProjectionV4 } from '@lushly-dev/loam-manifest';
+import type { ProjectV1, WorkspaceAppV1 } from '@lushly-dev/loam-kernel/mounted';
+import type { IdentityV1, ManifestV2, ProjectionV4 } from '@lushly-dev/loam-manifest';
+import type { ServerLimitsV1 } from '@lushly-dev/loam-manifest/server';
+import { readManifest } from '@lushly-dev/loam-manifest/validate';
 import { SqliteAdapter } from '@lushly-dev/local-db/sqlite';
 import { originAllowed } from './gate.js';
 import { INERT_POLICY } from './headers.js';
-import { createKernelCall, createRemovalHook } from './kernel-call.js';
+import { createKernelCall, createRemovalHook, sessionOf } from './kernel-call.js';
 import type { HostProvider } from './provider.js';
+import { createRelay, type Relay, type RelayInstance } from './relay/route.js';
 import { serveSite } from './site.js';
 
 /** Served over MCP by the hosted server (7); in `@lushly-dev/loam-host`, never in a browser's graph. */
@@ -150,6 +156,10 @@ export interface HostedMcp {
 	readonly commands: readonly ZodCommandDefinition[];
 	/** `<base>api/kernel/call` (6.2): a browser's trust-record command, run as the session's person. */
 	kernelCall(incoming: IncomingMessage, outgoing: ServerResponse): void;
+	/** `<base>mounts/<instance>/mcp` (section 8): the hosted relay; `rest` is the raw path below `<base>`. */
+	relay(incoming: IncomingMessage, outgoing: ServerResponse, rest: string): void;
+	/** The relay itself, for the step's tests. */
+	readonly mountRelay: Relay;
 	/** `<base>mcp`: the request handed to AFD's handler at its own `/mcp`, its query kept. */
 	route(incoming: IncomingMessage, outgoing: ServerResponse, search: string): void;
 	/** RFC 9728's metadata, at one of the two paths the handler serves it from (`metadataPaths`). */
@@ -295,8 +305,10 @@ export async function openHostedMcp(options: {
 	projection: ProjectionV4;
 	identity: Extract<IdentityV1, { mode: 'provider' }>;
 	provider: HostProvider;
-	/** `[limits] request_body_bytes`. */
-	maxBodyBytes: number;
+	/** `[limits]`, with every default filled in. */
+	limits: ServerLimitsV1;
+	/** How the relay reaches each instance, with its bearer: held in memory, never written (section 13). */
+	mounts: readonly MountAccess[];
 }): Promise<HostedMcp> {
 	const { data, origin, basePath, provider } = options;
 	const resource = `${origin}${basePath}mcp`;
@@ -342,7 +354,7 @@ export async function openHostedMcp(options: {
 			allowedHosts: [new URL(origin).hostname],
 			// Behind a TLS proxy AFD reads the scheme as `http`, so the browser's `https` origin is named (3.6).
 			allowedOrigins: [origin],
-			maxBodyBytes: options.maxBodyBytes,
+			maxBodyBytes: options.limits.request_body_bytes,
 		});
 		const mounted = handler;
 		const held = kernel;
@@ -360,7 +372,7 @@ export async function openHostedMcp(options: {
 		// The trust-record transport (6.2, step 5) on the same kernel, tracked as the handler's requests are.
 		const call = createKernelCall({
 			origin,
-			maxBodyBytes: options.maxBodyBytes,
+			maxBodyBytes: options.limits.request_body_bytes,
 			kernel: held,
 			provider,
 		});
@@ -377,6 +389,18 @@ export async function openHostedMcp(options: {
 			void tracked.finally(() => inFlight.delete(tracked));
 			return work;
 		});
+		// The hosted relay (section 8) over the server's records and journal, reaching each mounted `http` instance.
+		const relay = openRelay({
+			origin,
+			basePath,
+			site: options.site,
+			projection: options.projection,
+			mounts: options.mounts,
+			limits: options.limits,
+			provider,
+			store,
+			journal,
+		});
 		const metadataPaths = Object.freeze([
 			`/.well-known/oauth-protected-resource${basePath}mcp`,
 			'/.well-known/oauth-protected-resource',
@@ -385,6 +409,16 @@ export async function openHostedMcp(options: {
 			kernel: held,
 			commands,
 			metadataPaths,
+			mountRelay: relay,
+			relay(incoming, outgoing, rest) {
+				if (closing) return refuse(outgoing, 503, 'Service Unavailable', 'no-store');
+				const request = relay.handle(incoming, outgoing, rest).catch(() => {
+					if (!outgoing.headersSent) refuse(outgoing, 500, 'Internal Server Error', 'no-store');
+					else outgoing.destroy();
+				});
+				inFlight.add(request);
+				void request.finally(() => inFlight.delete(request));
+			},
 			kernelCall(incoming, outgoing) {
 				if (closing) return refuse(outgoing, 503, 'Service Unavailable', 'no-store');
 				const request = call(incoming, outgoing).catch(() => {
@@ -412,6 +446,8 @@ export async function openHostedMcp(options: {
 			},
 			async close() {
 				closing = true;
+				// The relay's upstream requests are aborted and its bindings ended upstream before the store closes.
+				await relay.close().catch(() => {});
 				await commandsRunning.drain([...inFlight]);
 				provider.hearRemovals(undefined);
 				try {
@@ -431,4 +467,69 @@ export async function openHostedMcp(options: {
 		store.close();
 		throw cause;
 	}
+}
+
+/**
+ * The hosted relay over the server kernel's store and journal (section 8): each of the projection's mounted `http`
+ * entries with the URL and bearer only the server holds, its manifest read from the written site, the session read as
+ * the trust-record transport reads it, and membership and the records read for each request.
+ */
+function openRelay(options: {
+	origin: string;
+	basePath: string;
+	site: string;
+	projection: ProjectionV4;
+	mounts: readonly MountAccess[];
+	limits: ServerLimitsV1;
+	provider: HostProvider;
+	store: SqliteAdapter;
+	journal: FileJournalSink;
+}): Relay {
+	const { provider, store } = options;
+	const baseUrl = `${options.origin}${options.basePath}`;
+	const ports = serverPorts(options.site, baseUrl);
+	const access = new Map(options.mounts.map((mount) => [mount.instance, mount]));
+	const instances: RelayInstance[] = options.projection.apps.flatMap((entry): RelayInstance[] => {
+		const mount = access.get(entry.instance);
+		if (entry.transport !== 'http' || !mount) return [];
+		return [
+			{
+				entry,
+				url: mount.url,
+				...(mount.bearer !== undefined ? { bearer: mount.bearer } : {}),
+				async manifest(): Promise<ManifestV2> {
+					const url = new URL('app-manifest.json', new URL(entry.package, baseUrl)).href;
+					const read = readManifest(await ports.fetchJson(url));
+					if (!read.ok) throw new Error(`The manifest of ${entry.instance} is refused`);
+					return read.manifest;
+				},
+			},
+		];
+	});
+	const workspace = provider.workspace;
+	return createRelay({
+		origin: options.origin,
+		workspace,
+		limits: options.limits,
+		instances,
+		async session(incoming) {
+			const read = await sessionOf(provider, incoming);
+			if (read === 'none') return { refused: 'UNAUTHORIZED' };
+			if (read === 'agent') return { refused: 'AGENT_CANNOT_SIGN_IN' };
+			if (read === 'unavailable') return { refused: 'SERVER_UNAVAILABLE' };
+			return { person: read.user.id };
+		},
+		async membership(person) {
+			const adapter = (await provider.auth.$context).adapter as never;
+			const row = await membershipOf(adapter, workspace, person);
+			return {
+				mode: 'provider',
+				members: row ? new Map([[person, row.role]]) : new Map(),
+				digest: row?.digest ?? '',
+			};
+		},
+		workspaceApp: (instance) => store.get<WorkspaceAppV1>('workspace-app', instance),
+		projects: async () => (await store.list<ProjectV1>('project')).data,
+		journal: (record) => options.journal.append(record),
+	});
 }
