@@ -40,6 +40,9 @@ const MODAL = new Set([
 	'app-modal-danger-compact',
 	'app-project-switcher-dialog',
 	'app-project-switcher-dialog-compact',
+	// Phase 4's prompt and confirmation sit in the slot, modal.
+	'settings-prompt',
+	'settings-confirmation',
 ]);
 
 function expectClean(observation: Observation, id = observation.manifest.specimenId) {
@@ -393,6 +396,73 @@ describe("P3-E11: Specimen captures of phase 3's elements and pages", () => {
 				const observation = await bench.render({ id, context: { ...CONTEXT, theme } });
 				expectClean(observation);
 				for (const each of expected) expect(observation.channels.a11y.snapshot, id).toContain(each);
+			}
+		}, 300_000);
+});
+
+/**
+ * Phase 4's section 15 (P4-E13): the settings section (its tree, its level tab list, a custom editor's form), the
+ * keybinding editor's shadowing warning, the autonomy section's advisory notice, the inbox with a notice and a
+ * confirmation waiting, a popover menu, an app's dialog with actions, the shell's prompt and a confirmation. The modal
+ * two are read through their DOM, as `MODAL` says.
+ */
+const SETTINGS_CAPTURES: [string, string[]][] = [
+	[
+		'settings-section',
+		[
+			'tree "Settings sections"',
+			'treeitem "Keybindings"',
+			'tablist "Where Keybindings applies"',
+			'tab "You, everywhere" [selected]',
+			'form "Add an override"',
+		],
+	],
+	[
+		'settings-keybinding-shadowed',
+		['status', "Recorded Mod+B. Mod+B is the shell's own; this binding would shadow it."],
+	],
+	[
+		'settings-autonomy',
+		[
+			'treeitem "Autonomy" [level=2] [selected]',
+			'note: "Loam holds every agent, the copilot included, to these rules: Act runs, Ask asks you first, Suggest only offers it to you."',
+		],
+	],
+	[
+		'settings-inbox',
+		[
+			'heading "Inbox"',
+			'Requested by Claude Code for you',
+			'button "Confirm Clear the guest book"',
+			'button "Decline Clear the guest book"',
+			'Ada is waiting at the guest book',
+		],
+	],
+	[
+		'settings-popover-menu',
+		['menu "Greet, From Hello"', 'menuitem "Greet Ada"', 'menuitem "Greet Bo"'],
+	],
+	['settings-dialog', ['dialog "A card"', 'From Hello', 'button "Later"', 'button "Keep"']],
+	['settings-prompt', ['aria-modal="true"', 'How many?', 'Count']],
+	[
+		'settings-confirmation',
+		['aria-modal="true"', 'Run Clear the guest book?', 'No input', 'Decline'],
+	],
+];
+
+describe("P4-E13: Specimen captures of phase 4's parts", () => {
+	for (const theme of ['light', 'dark', 'high-contrast'] as const)
+		it(`P4-E13: captures the settings section, the keybinding editor's warning, the autonomy notice, the inbox, a popover menu, a dialog, a prompt and a confirmation in ${theme}`, async () => {
+			for (const [id, expected] of SETTINGS_CAPTURES) {
+				const observation = await bench.render({ id, context: { ...CONTEXT, theme } });
+				expectClean(observation);
+				expect(observation.manifest.context.theme).toBe(theme);
+				// The theme the page applied, not only the context the manifest echoes.
+				expect(observation.channels.dom.normalized, id).toContain(`data-theme-shown="${theme}"`);
+				const channel = MODAL.has(id)
+					? observation.channels.dom.normalized
+					: observation.channels.a11y.snapshot;
+				for (const each of expected) expect(channel, id).toContain(each);
 			}
 		}, 300_000);
 });

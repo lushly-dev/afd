@@ -18,6 +18,7 @@ import {
 	openShell,
 	packApp,
 	serveDeployment,
+	setTheme,
 	surfacesIdle,
 } from '../harness';
 
@@ -125,7 +126,7 @@ describe('P4-E7: toasts (6.1, 6.6, 6.7)', () => {
 });
 
 describe('P4-E7: popovers (6.1 to 6.7)', () => {
-	it('places an info popover beside its anchor, with the owner line, and light-dismisses it', async () => {
+	it('P4-E13: P4-E7: places an info popover beside its anchor, with the owner line, and light-dismisses it', async () => {
 		const { page, errors } = await openShell(browser, site.origin);
 		await openApp(page, 'hello');
 		await markAnchor(page);
@@ -171,7 +172,7 @@ describe('P4-E7: popovers (6.1 to 6.7)', () => {
 		await page.context().close();
 	});
 
-	it("runs a menu item, the app's own command, as the person, by keyboard", async () => {
+	it("P4-E13: P4-E7: runs a menu item, the app's own command, as the person, by keyboard", async () => {
 		const { page, errors } = await openShell(browser, site.origin);
 		await openApp(page, 'hello');
 		await markAnchor(page);
@@ -236,6 +237,100 @@ describe('P4-E7: popovers (6.1 to 6.7)', () => {
 		expect((await helloCall(page, 'popover-open', info)).error?.code).toBe(
 			'OVERLAY_OWNER_INACTIVE'
 		);
+		expect(errors).toEqual([]);
+		await page.context().close();
+	});
+});
+
+describe('P4-E13: popovers under axe in three themes (15)', () => {
+	it('P4-E13: P4-E7: an open menu and an open info popover pass axe in light, dark and high contrast', async () => {
+		const { page, errors } = await openShell(browser, site.origin);
+		await openApp(page, 'hello');
+		for (const theme of ['light', 'dark', 'high-contrast'] as const) {
+			await setTheme(page, theme);
+			await surfacesIdle(page);
+			await markAnchor(page);
+			await helloCall(page, 'popover-open', {
+				anchor: info.anchor,
+				kind: 'menu',
+				label: 'Greet',
+				items: [
+					{ command: 'hello-greet', label: 'Greet Ada', input: { name: 'Ada' } },
+					{ command: 'hello-greet', label: 'Greet Bo', input: { name: 'Bo' } },
+				],
+			});
+			const menu = page.getByRole('menu', { name: /^Greet, From \S/ });
+			await expect.poll(() => menu.count()).toBe(1);
+			expect(await menu.getByRole('menuitem').allTextContents()).toEqual([
+				expect.stringContaining('Greet Ada'),
+				expect.stringContaining('Greet Bo'),
+			]);
+			await expect.poll(async () => (await focused(page)).role).toBe('menuitem');
+			// A menu popover sits in the shell's shadow root outside every landmark, which axe's `region` rule (tagged
+			// best-practice alone, not WCAG) reports: #2136, filed for the chrome rather than fixed in a test-only change.
+			// Every WCAG 2.2 AA rule, and every other best-practice rule, still runs.
+			expect(await axe(page, ['region']), `${theme} menu`).toEqual([]);
+			// The exemption pinned to its one node, the open menu itself: it fails once the menu is in a landmark, or if
+			// any other element becomes an offender, and the exemption goes with #2136's fix.
+			expect(await axe(page), `${theme} menu, region`).toEqual([
+				expect.objectContaining({
+					id: 'region',
+					nodes: [{ target: [['loam-shell', 'loam-popover']] }],
+				}),
+			]);
+			expect(await page.locator('loam-popover').count()).toBe(1);
+			expect(await page.locator('loam-popover').getAttribute('role')).toBe('menu');
+			await page.keyboard.press('Escape');
+			await expect.poll(() => page.locator('loam-popover').count()).toBe(0);
+
+			await markAnchor(page);
+			await helloCall(page, 'popover-open', { ...info, title: 'About Greet' });
+			const about = page.getByRole('dialog', { name: /^About Greet, From \S/ });
+			await expect.poll(() => about.count()).toBe(1);
+			await expect.poll(async () => (await focused(page)).tag).toBe('loam-popover');
+			expect(await axe(page), `${theme} info`).toEqual([]);
+			await page.keyboard.press('Escape');
+			await expect.poll(() => page.locator('loam-popover').count()).toBe(0);
+		}
+		expect(errors).toEqual([]);
+		await page.context().close();
+	});
+});
+
+describe('P4-E13: toasts with their owner lines under axe in three themes (15)', () => {
+	it("P4-E13: P4-E7: an app's sticky toast and an agent's toast, each with its owner line, pass axe in light, dark and high contrast", async () => {
+		const { page, errors } = await openShell(browser, site.origin);
+		await openApp(page, 'hello');
+		for (const theme of ['light', 'dark', 'high-contrast'] as const) {
+			await setTheme(page, theme);
+			await surfacesIdle(page);
+			expect(
+				(
+					await helloCall(page, 'toast-show', {
+						message: `Hello counted in ${theme}`,
+						sticky: true,
+					})
+				).success
+			).toBe(true);
+			expect(
+				(
+					(await agentCall(page, 'toast-show', {
+						message: `The agent finished in ${theme}`,
+						durationMs: 30_000,
+					})) as Result
+				).success
+			).toBe(true);
+			const line = (message: string) =>
+				page
+					.locator(`loam-toast[message="${message}"]`)
+					.evaluate((toast) => toast.shadowRoot?.querySelector('.from')?.textContent?.trim() ?? '');
+			await expect.poll(() => line(`Hello counted in ${theme}`)).toMatch(/^From \S/);
+			await expect
+				.poll(() => line(`The agent finished in ${theme}`))
+				.toBe('From shell-agent, for you');
+			await surfacesIdle(page);
+			expect(await axe(page), theme).toEqual([]);
+		}
 		expect(errors).toEqual([]);
 		await page.context().close();
 	});

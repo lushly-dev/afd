@@ -18,6 +18,7 @@ import {
 	openShell,
 	packApp,
 	serveDeployment,
+	setTheme,
 	settle,
 } from './harness';
 
@@ -64,7 +65,7 @@ async function inAtlas(): Promise<{ page: Page; atlas: string }> {
 }
 
 describe('P4-E4: the autonomy section', () => {
-	it('sits after Keybindings, shows the notice above its rows, and sets and explains a mode per command', async () => {
+	it('P4-E13: P4-E4: sits after Keybindings, shows the notice above its rows, and sets and explains a mode per command', async () => {
 		const { page, atlas } = await inAtlas();
 		const view = page.locator('loam-main loam-settings-section');
 		expect(
@@ -274,7 +275,7 @@ describe('P4-E4: the autonomy section', () => {
 		await page.close();
 	});
 
-	it('moves by keyboard and passes axe in three themes', async () => {
+	it('P4-E13: P4-E4: moves by keyboard and passes axe in three themes', async () => {
 		const { page } = await inAtlas();
 		const panel = autonomy(page);
 		await panel.locator('#workspace-mode').focus();
@@ -288,8 +289,8 @@ describe('P4-E4: the autonomy section', () => {
 		).toBe('workspace-ceiling');
 		expect((await focused(page)).hosts).toContain('loam-autonomy-section');
 		for (const theme of ['light', 'dark', 'high-contrast'] as const) {
-			await kernelCall(page, 'appearance-set', { theme });
-			await settle(page);
+			await setTheme(page, theme);
+			await expect.poll(() => autonomy(page).count(), { message: theme }).toBe(1);
 			expect(await axe(page), theme).toEqual([]);
 		}
 		await page.close();

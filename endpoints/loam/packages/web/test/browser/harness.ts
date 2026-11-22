@@ -787,6 +787,23 @@ export function kernelCall(page: Page, name: string, input: unknown = {}) {
 	);
 }
 
+/**
+ * Set the theme as the person and wait until the document shows it, so an axe scan never runs on the theme before:
+ * `appearance-set` must succeed, and `data-loam-theme` must read `theme` (forced colours aside, which no test sets).
+ */
+export async function setTheme(
+	page: Page,
+	theme: 'light' | 'dark' | 'high-contrast'
+): Promise<void> {
+	const result = (await kernelCall(page, 'appearance-set', { theme })) as { success: boolean };
+	if (!result.success) throw new Error(`appearance-set ${theme} failed: ${JSON.stringify(result)}`);
+	await page.waitForFunction(
+		(theme) => document.documentElement.dataset.loamTheme === theme,
+		theme
+	);
+	await settle(page);
+}
+
 /** What the page's app surfaces have rendered of the kernel's events so far. */
 export async function surfacesIdle(page: Page): Promise<void> {
 	await page.evaluate(async () => {
