@@ -1,0 +1,6 @@
+{
+	"python/src/afd/__init__.py": {
+		"lines": 630,
+		"reason": "The afd package's public barrel: one import list and __all__ re-exporting the core, server and client names"
+	}
+}
