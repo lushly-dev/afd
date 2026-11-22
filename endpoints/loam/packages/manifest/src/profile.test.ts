@@ -131,6 +131,8 @@ describe("Loam's profile", () => {
 			'ui-settings',
 			// Phase 4's step 6: a command's `confirm_prompt` (its 7.2).
 			'confirm-prompt',
+			// Phase 3's step 8: an app's account section (its 5.5).
+			'ui-account',
 			// Phase 4's step 9: experiments (its 5.1).
 			'ui-experiments',
 		]) {
@@ -147,6 +149,58 @@ describe("Loam's profile", () => {
 		}
 	});
 
+	it("P3-E14: covers each branch of `ui.account`'s schema and each of its refusals (5.5)", () => {
+		const byId = new Map(cases.map((item) => [item.id, item]));
+		// Accepted: a native app's main, its inspector with a second section, a custom sidebar, a view's main.
+		for (const id of [
+			'ui-account-served',
+			'ui-account-inspector-served',
+			'ui-account-custom-sidebar-served',
+			'ui-account-view-served',
+		])
+			expect(byId.get(id)?.accepted, id).toBe(true);
+		const refused: Record<string, string> = {
+			'version-keys-ui-account': 'MANIFEST_SURFACE_UNAVAILABLE',
+			'closed-accountSection': 'MANIFEST_UNKNOWN_KEY',
+			'ui-account-not-array': 'MANIFEST_INVALID',
+			'ui-account-limit': 'MANIFEST_ACCOUNT_LIMIT',
+			'ui-account-id-required': 'MANIFEST_INVALID',
+			'ui-account-title-required': 'MANIFEST_INVALID',
+			'ui-account-surface-required': 'MANIFEST_INVALID',
+			'ui-account-id-pattern': 'MANIFEST_INVALID',
+			'ui-account-title-empty': 'MANIFEST_INVALID',
+			'ui-account-title-long': 'MANIFEST_INVALID',
+			'ui-account-surface-pattern': 'MANIFEST_INVALID',
+			'ui-account-surface-unknown': 'MANIFEST_ACCOUNT_SURFACE_UNKNOWN',
+			'ui-account-surface-list-sidebar': 'MANIFEST_ACCOUNT_SURFACE_UNKNOWN',
+			'ui-account-surface-undeclared': 'MANIFEST_ACCOUNT_SURFACE_UNKNOWN',
+			'ui-account-view-inspector': 'MANIFEST_ACCOUNT_SURFACE_UNKNOWN',
+			'ui-account-duplicate': 'MANIFEST_DUPLICATE',
+			'ui-account-title-control': 'MANIFEST_TEXT_INVALID',
+			'ui-account-mounted': 'MANIFEST_ACCOUNT_MOUNTED',
+			'ui-account-mounted-empty': 'MANIFEST_ACCOUNT_MOUNTED',
+			'ui-account-project-only': 'MANIFEST_ACCOUNT_LEVEL',
+		};
+		for (const [id, code] of Object.entries(refused)) {
+			const item = byId.get(id) as ProfileCase;
+			expect(item?.accepted, id).toBe(false);
+			const read = readManifest(manifestOf(item));
+			expect(read.ok, id).toBe(false);
+			if (read.ok) continue;
+			expect(read.refusals.find((refusal) => refusal.key === item.key)?.code, id).toBe(code);
+		}
+		// Every `ui.account` case is one of these: a new one is named here.
+		const named = new Set([
+			...Object.keys(refused),
+			'ui-account-served',
+			'ui-account-inspector-served',
+			'ui-account-custom-sidebar-served',
+			'ui-account-view-served',
+		]);
+		for (const item of cases.filter((candidate) => candidate.id.startsWith('ui-account')))
+			expect(named.has(item.id), item.id).toBe(true);
+	});
+
 	it('P2-E11: reads every document of version 1 as it did: valid under 1 is valid under 2, with the same errors otherwise (D76)', () => {
 		const ajv = new Ajv2020({ ...AJV_OPTIONS });
 		ajv.addSchema(readCore());
@@ -158,6 +212,8 @@ describe("Loam's profile", () => {
 			'/ui/new',
 			// Phase 4's step 1: `ui.settings` is a key of version 2 (its 12.1).
 			'/ui/settings',
+			// Phase 3's step 8: `ui.account` too (its 5.5).
+			'/ui/account',
 			// Phase 4's step 9: experiments and their gates (its 5.1, 5.3).
 			'/ui/experiments',
 			'/app/requires_experiment',

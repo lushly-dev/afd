@@ -625,6 +625,9 @@ export const CEILINGS = Object.freeze({
 	// Phase 4's step 9, measured in one tree against `main` at `0ab76415`: 117,980 to 119,597 (+1,617: the experiments' wiring, the unload of R14 and the gates the
 	// apps' detail reads); set to 120,000 under D115. After its two reviews, 120,275 (the per-person notices' wiring and
 	// R14's host); set to 120,800.
+	// Phase 3's step 8's review: 118,490 to 118,602 (+112), `ownerTitle` moved into its own module, `owner-title`, which
+	// the account chunk shares; set to 119,000 under D115. Merged with phase 4's step 9 (`main` at `1832a444`): 120,450,
+	// within that step's 120,800, which stands.
 	lateMinified: 120_800,
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 16_400,
@@ -650,14 +653,24 @@ export const CEILINGS = Object.freeze({
 	// Phase 3's step 7, against `main` at `0ab76415`: 25,727 to 30,973 (+5,246), the OAuth login and consent pages and the
 	// agents tab; set to 31,500 under D115. After its review's fixes, 31,705 (single sign-on on the login page, `prompt`
 	// honoured, only web addresses followed, an owner's removal shown as such); set to 32,300.
-	accountMinified: 32_300,
+	// Phase 3's step 8, against `main` at `09f3b0c0`: 31,835 to 34,627 (+2,792), an app's account sections (5.5): their
+	// tabs from `app-list`, a native surface through the surfaces' host, a view's frame from the view chunk. After its
+	// review's fixes and re-check 39,283 (+7,448 in all): each tab named by `ownerTitle` (its own `owner-title` chunk, with
+	// `shell-name`), the app's settings delivered through `surface-calls` (1,700, shared with `surfaces`), the change of
+	// person and main's gate, the view's teardown and the wait for the app surfaces; set to 39,900 under D115.
+	accountMinified: 39_900,
 	urlMinified: 6_400,
 	// Step 2 too: 396,210 of 395,700, the stage B reader of the projection's `copilot`; set to 397,000.
 	// Phase 4's step 1 on top: 417,099, the manifest validator's `ui.settings`; set to 417,500.
 	// Phase 4's step 5 on top: 417,629, the SDK's notices; set to 418,000. Step 4's own rows: 418,500 and 93,500.
 	// Phase 4's step 9, measured in one tree against `main` at `0ab76415`: 428,162 to 437,173 (+9,011: the manifest validator's `ui.experiments` and the gates, and
 	// `gatesOf`); set to 437,500 under D115.
-	appsMinified: 437_500,
+	// Phase 3's step 8, against `main` at `09f3b0c0`: 428,162 to 433,524 (+5,362), `ui.account` (5.5): its closed branch
+	// in the generated validator (Vite's `validate.generated` chunk, 245.62 kB to 249.25 kB before minification) and its
+	// rules; set to 434,200 under D115, measured first as 5.5 asks. Nothing moved out: the branch is the validator's, and
+	// the validator is what `apps` holds. Merged with phase 4's step 9 (`main` at `1832a444`): 442,582, both steps'
+	// branches in the validator; set to 443,200 under D115.
+	appsMinified: 443_200,
 	// Steps 4 and 5 together: 94,868 (step 4's slot and dialogs beside the inbox's Open inbox and hidden toasts' timers);
 	// set to 95,500 under D115.
 	surfacesMinified: 97_000,

@@ -25,6 +25,10 @@
 		"./palette": {
 			"types": "./dist/palette-index.d.ts",
 			"import": "./dist/palette-index.js"
+		},
+		"./owner-title": {
+			"types": "./dist/owner-title.d.ts",
+			"import": "./dist/owner-title.js"
 		}
 	},
 	"scripts": {

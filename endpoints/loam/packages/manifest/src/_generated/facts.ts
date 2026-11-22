@@ -120,6 +120,7 @@ export const ADMITTED_KEYS: Record<string, Record<string, readonly string[]>> = 
 			"documents",
 			"new",
 			"settings",
+			"account",
 			"experiments"
 		],
 		"/ui/surfaces": [
@@ -331,6 +332,12 @@ export const ADMITTED_KEYS: Record<string, Record<string, readonly string[]>> = 
 			"enum"
 		],
 		"/ui/settings/*/schema/properties/*/items/enum": [],
+		"/ui/account": [],
+		"/ui/account/*": [
+			"id",
+			"title",
+			"surface"
+		],
 		"/ui/experiments": [],
 		"/ui/experiments/*": [
 			"id",

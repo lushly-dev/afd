@@ -166,17 +166,31 @@ export class HelloMain extends FASTElement implements LoamSurfaceElementV1 {
 			: (result?.error?.message ?? 'Hello is not ready');
 	}
 
+	/** An overlay the shell refuses, as it does outside the active app (in the account section), says why here. */
+	#refused(cause: unknown): void {
+		this.answer = cause instanceof Error ? cause.message : String(cause);
+	}
+
 	toast(): void {
-		void this.context?.overlays.toast({ message: 'Hello from a toast', tone: 'success' });
+		this.context?.overlays.toast({ message: 'Hello from a toast', tone: 'success' }).then(
+			(result) => {
+				if (!result.success) this.answer = result.error?.message ?? 'The toast was refused';
+			},
+			(cause: unknown) => this.#refused(cause)
+		);
 	}
 
 	async modal(): Promise<void> {
-		const outcome = await this.context?.overlays.modal({
-			title: 'Say hello?',
-			body: 'This modal comes from the Hello app, and an app switch cancels it.',
-			confirmLabel: 'Say hello',
-		});
-		this.answer = outcome ? `The modal closed with ${outcome.result}` : '';
+		try {
+			const outcome = await this.context?.overlays.modal({
+				title: 'Say hello?',
+				body: 'This modal comes from the Hello app, and an app switch cancels it.',
+				confirmLabel: 'Say hello',
+			});
+			this.answer = outcome ? `The modal closed with ${outcome.result}` : '';
+		} catch (cause) {
+			this.#refused(cause);
+		}
 	}
 }
 observable(HelloMain.prototype, 'selection');

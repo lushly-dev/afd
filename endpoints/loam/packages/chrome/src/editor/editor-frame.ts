@@ -30,14 +30,15 @@ export interface SurfaceHostV1 {
 	/**
 	 * A mount of one of the plugin's elements, with a surface port fixed to `scope`, and its document; an
 	 * embed's port is read-only (9.2). `editor` marks a tab's own editor, the one mount of a document whose
-	 * popovers anchor in main (phase 4 specification, 6.3); an embed's and the inspector's details never do.
+	 * popovers anchor in main (phase 4 specification, 6.3); an embed's and the inspector's details never do. An
+	 * app's account section (phase 3 specification, 5.5) has no document, and a port fixed to the workspace.
 	 */
 	createMount(
 		instance: string,
 		element: string,
 		options: {
 			scope: DocumentRefV1['scope'];
-			document: DocumentRefV1;
+			document?: DocumentRefV1;
 			readOnly?: boolean;
 			editor?: boolean;
 		}

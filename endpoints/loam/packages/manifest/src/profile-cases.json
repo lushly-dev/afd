@@ -4922,15 +4922,442 @@
 			"suggestion": "Admitted keys"
 		},
 		{
-			"id": "later-ui-account",
+			"id": "ui-account-served",
 			"base": "native",
 			"set": {
-				"/ui/account": {}
+				"/manifest_version": 2,
+				"/ui/account": [
+					{
+						"id": "account",
+						"title": "Greetings",
+						"surface": "main"
+					}
+				]
+			},
+			"accepted": true
+		},
+		{
+			"id": "ui-account-inspector-served",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/account": [
+					{
+						"id": "account",
+						"title": "Greetings",
+						"surface": "inspector"
+					},
+					{
+						"id": "more",
+						"title": "More",
+						"surface": "main"
+					}
+				]
+			},
+			"accepted": true
+		},
+		{
+			"id": "ui-account-custom-sidebar-served",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/compositions": [],
+				"/ui/surfaces/sidebar": {
+					"shape": "custom",
+					"element": "hello-side"
+				},
+				"/ui/account": [
+					{
+						"id": "account",
+						"title": "Greetings",
+						"surface": "sidebar"
+					}
+				]
+			},
+			"accepted": true
+		},
+		{
+			"id": "ui-account-view-served",
+			"base": "view",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/account": [
+					{
+						"id": "account",
+						"title": "Greetings",
+						"surface": "main"
+					}
+				]
+			},
+			"accepted": true
+		},
+		{
+			"id": "version-keys-ui-account",
+			"base": "native",
+			"set": {
+				"/ui/account": [
+					{
+						"id": "account",
+						"title": "Greetings",
+						"surface": "main"
+					}
+				]
 			},
 			"accepted": false,
 			"code": "MANIFEST_SURFACE_UNAVAILABLE",
 			"key": "ui.account",
-			"suggestion": "phase 3"
+			"suggestion": "Set manifest_version = 2."
+		},
+		{
+			"id": "closed-accountSection",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/account": [
+					{
+						"id": "account",
+						"title": "Greetings",
+						"surface": "main",
+						"bogus": 1
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_KEY",
+			"key": "ui.account[0].bogus",
+			"suggestion": "Admitted keys"
+		},
+		{
+			"id": "ui-account-not-array",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/account": {}
+			},
+			"accepted": false,
+			"code": "MANIFEST_INVALID",
+			"key": "ui.account",
+			"suggestion": "Correct `ui.account`"
+		},
+		{
+			"id": "ui-account-limit",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/account": [
+					{
+						"id": "a",
+						"title": "Greetings",
+						"surface": "main"
+					},
+					{
+						"id": "b",
+						"title": "Greetings",
+						"surface": "main"
+					},
+					{
+						"id": "c",
+						"title": "Greetings",
+						"surface": "main"
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_ACCOUNT_LIMIT",
+			"key": "ui.account",
+			"suggestion": "Keep the two"
+		},
+		{
+			"id": "ui-account-id-required",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/account": [
+					{
+						"title": "Greetings",
+						"surface": "main"
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_INVALID",
+			"key": "ui.account[0].id",
+			"suggestion": "Correct `ui.account[0].id`"
+		},
+		{
+			"id": "ui-account-title-required",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/account": [
+					{
+						"id": "account",
+						"surface": "main"
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_INVALID",
+			"key": "ui.account[0].title",
+			"suggestion": "Correct `ui.account[0].title`"
+		},
+		{
+			"id": "ui-account-surface-required",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/account": [
+					{
+						"id": "account",
+						"title": "Greetings"
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_INVALID",
+			"key": "ui.account[0].surface",
+			"suggestion": "Correct `ui.account[0].surface`"
+		},
+		{
+			"id": "ui-account-id-pattern",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/account": [
+					{
+						"id": "Account",
+						"title": "Greetings",
+						"surface": "main"
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_INVALID",
+			"key": "ui.account[0].id",
+			"suggestion": "Correct `ui.account[0].id`"
+		},
+		{
+			"id": "ui-account-title-empty",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/account": [
+					{
+						"id": "account",
+						"title": "",
+						"surface": "main"
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_INVALID",
+			"key": "ui.account[0].title",
+			"suggestion": "Correct `ui.account[0].title`"
+		},
+		{
+			"id": "ui-account-title-long",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/account": [
+					{
+						"id": "account",
+						"title": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+						"surface": "main"
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_INVALID",
+			"key": "ui.account[0].title",
+			"suggestion": "Correct `ui.account[0].title`"
+		},
+		{
+			"id": "ui-account-surface-pattern",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/account": [
+					{
+						"id": "account",
+						"title": "Greetings",
+						"surface": "Main"
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_INVALID",
+			"key": "ui.account[0].surface",
+			"suggestion": "Correct `ui.account[0].surface`"
+		},
+		{
+			"id": "ui-account-surface-unknown",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/account": [
+					{
+						"id": "account",
+						"title": "Greetings",
+						"surface": "panel"
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_ACCOUNT_SURFACE_UNKNOWN",
+			"key": "ui.account[0].surface",
+			"suggestion": "Name `main`, `inspector` or a custom `sidebar`"
+		},
+		{
+			"id": "ui-account-surface-list-sidebar",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/account": [
+					{
+						"id": "account",
+						"title": "Greetings",
+						"surface": "sidebar"
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_ACCOUNT_SURFACE_UNKNOWN",
+			"key": "ui.account[0].surface",
+			"suggestion": "custom `sidebar`"
+		},
+		{
+			"id": "ui-account-surface-undeclared",
+			"base": "native",
+			"remove": ["/ui/surfaces/inspector"],
+			"set": {
+				"/manifest_version": 2,
+				"/ui/layout": {
+					"sidebar": {
+						"open": true,
+						"width": 260
+					}
+				},
+				"/ui/account": [
+					{
+						"id": "account",
+						"title": "Greetings",
+						"surface": "inspector"
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_ACCOUNT_SURFACE_UNKNOWN",
+			"key": "ui.account[0].surface",
+			"suggestion": "`inspector`"
+		},
+		{
+			"id": "ui-account-view-inspector",
+			"base": "view",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/account": [
+					{
+						"id": "account",
+						"title": "Greetings",
+						"surface": "inspector"
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_ACCOUNT_SURFACE_UNKNOWN",
+			"key": "ui.account[0].surface",
+			"suggestion": "`ui.surfaces.main.resource`"
+		},
+		{
+			"id": "ui-account-duplicate",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/account": [
+					{
+						"id": "account",
+						"title": "Greetings",
+						"surface": "main"
+					},
+					{
+						"id": "account",
+						"title": "Again",
+						"surface": "main"
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_DUPLICATE",
+			"key": "ui.account[1].id",
+			"suggestion": "its own id"
+		},
+		{
+			"id": "ui-account-title-control",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/account": [
+					{
+						"id": "account",
+						"title": "Greet‮ings",
+						"surface": "main"
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_TEXT_INVALID",
+			"key": "ui.account[0].title",
+			"suggestion": "control character"
+		},
+		{
+			"id": "ui-account-mounted",
+			"base": "mounted",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/account": [
+					{
+						"id": "account",
+						"title": "Greetings",
+						"surface": "main"
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_ACCOUNT_MOUNTED",
+			"key": "ui.account",
+			"suggestion": "Remove `ui.account`"
+		},
+		{
+			"id": "ui-account-mounted-empty",
+			"base": "mounted",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/account": []
+			},
+			"accepted": false,
+			"code": "MANIFEST_ACCOUNT_MOUNTED",
+			"key": "ui.account",
+			"suggestion": "Remove `ui.account`"
+		},
+		{
+			"id": "ui-account-project-only",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/app/scope_levels": ["project"],
+				"/ui/account": [
+					{
+						"id": "account",
+						"title": "Greetings",
+						"surface": "main"
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_ACCOUNT_LEVEL",
+			"key": "ui.account",
+			"suggestion": "Add `workspace`"
 		},
 		{
 			"id": "version-keys-ui-settings",

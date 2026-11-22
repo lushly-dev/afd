@@ -105,7 +105,6 @@ const KEY_ROWS: Readonly<Record<string, Row>> = {
 		message: '`ui.documents[].panel` is not served: no document type needs a panel yet.',
 		suggestion: 'Remove `panel`. A later version adds it when a type asks.',
 	},
-	'/ui/account': later('ui.account', 3),
 	'/ui/menus': later('ui.menus', 4),
 	'/ui/automations': later('ui.automations', 7),
 	'/commands/*/output_budget': {
@@ -276,6 +275,16 @@ function refusalFor(pointer: string, error: ValidatorError, document: unknown): 
 			break;
 		case '/ui/compositions/*':
 			return compositionRow(key, valueAt(document, pointer));
+		case '/ui/account':
+			// The schema's `maxItems` (phase 3 specification, 5.5).
+			if (error.keyword === 'maxItems') {
+				return {
+					code: 'MANIFEST_ACCOUNT_LIMIT',
+					message: 'An app declares at most two account sections.',
+					suggestion: 'Keep the two a person most needs, or show more inside one surface.',
+				};
+			}
+			break;
 	}
 	return {
 		code: 'MANIFEST_INVALID',

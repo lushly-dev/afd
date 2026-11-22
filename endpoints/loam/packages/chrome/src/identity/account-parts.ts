@@ -53,6 +53,9 @@ export const ROLE_NAMES: Record<string, string> = {
 
 /** The section's and pages' styles, tokens only; a constructable sheet, so this chunk needs nothing of FAST's. */
 export const STYLES = `
+	:host([hidden]) {
+		display: none;
+	}
 	:host {
 		display: block;
 		color: var(--color-text-primary);
@@ -101,6 +104,10 @@ export const STYLES = `
 		border-block-end-color: var(--color-focus-ring);
 		color: var(--color-text-primary);
 		font-weight: var(--weight-semibold);
+	}
+	/* The built-in tabs' content, laid out as the panel's own children; empty beside an app's section, it takes no gap. */
+	[role='tabpanel'] > .content {
+		display: contents;
 	}
 	[role='tabpanel'] {
 		display: grid;

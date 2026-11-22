@@ -78,6 +78,8 @@ export const VERSION_TWO_KEYS: readonly VersionKey[] = [
 	{ pointer: '/ui/settings' },
 	// Phase 4's step 6: a command's `confirm_prompt` (7.2), each command's; `*` is an index.
 	{ pointer: '/commands/*/confirm_prompt' },
+	// Phase 3's step 8: an app's account section (its 5.5), refused in version 1 by D76's rule.
+	{ pointer: '/ui/account' },
 	// Phase 4's step 9: experiments (5.1) and the gates that name one (5.3).
 	{ pointer: '/ui/experiments' },
 	{ pointer: '/app/requires_experiment' },
@@ -588,6 +590,9 @@ function textRules(manifest: ManifestV2, found: Findings): void {
 	(manifest.ui?.new ?? []).forEach((entry, index) => {
 		add(`/ui/new/${index}/title`, entry.title);
 	});
+	(manifest.ui?.account ?? []).forEach((section, index) => {
+		add(`/ui/account/${index}/title`, section.title);
+	});
 	(manifest.ui?.documents ?? []).forEach((type, index) => {
 		add(`/ui/documents/${index}/title`, type.title);
 		type.templates.forEach((template, at) => {
@@ -681,6 +686,84 @@ function summaryRules(manifest: ManifestV2, found: Findings): void {
 }
 
 /**
+ * What an account section's `surface` shows (phase 3 specification, 5.5): a native app's `main`, `inspector` or custom
+ * `sidebar` element, or a view app's `main` resource. Anything else, and every mounted app's, is undefined.
+ */
+export function accountSurfaceOf(
+	manifest: ManifestV2,
+	surface: string
+): { element: string } | { resource: string } | undefined {
+	const surfaces = manifest.ui?.surfaces;
+	const { kind } = manifest.plugin;
+	if (kind === 'view') {
+		const resource = surface === 'main' ? surfaces?.main?.resource : undefined;
+		return resource === undefined ? undefined : { resource };
+	}
+	if (kind !== 'native') return undefined;
+	const element =
+		surface === 'main'
+			? surfaces?.main?.element
+			: surface === 'inspector'
+				? surfaces?.inspector?.element
+				: surface === 'sidebar' && surfaces?.sidebar?.shape === 'custom'
+					? surfaces.sidebar.element
+					: undefined;
+	return element === undefined ? undefined : { element };
+}
+
+/**
+ * `ui.account` (phase 3 specification, 5.5): none for a mounted app; an app that runs at workspace level, since the
+ * section does; each `surface` one the app declares that shows something; each id once. The limit of two is the
+ * schema's `maxItems`, which `refusal-map.ts` refuses as `MANIFEST_ACCOUNT_LIMIT`; titles are `textRules`'.
+ */
+function accountRules(manifest: ManifestV2, found: Findings): void {
+	const sections = manifest.ui?.account;
+	if (sections === undefined) return;
+	// The key itself, empty or not: a mounted manifest has no account section to declare.
+	if (manifest.plugin.kind === 'mounted') {
+		found.refuse(
+			'MANIFEST_ACCOUNT_MOUNTED',
+			'/ui/account',
+			"A mounted app declares no account section: its surfaces are the server's, unknown until discovery.",
+			'Remove `ui.account`.'
+		);
+		return;
+	}
+	if (sections.length === 0) return;
+	if (!(manifest.app?.scope_levels ?? ['workspace']).includes('workspace')) {
+		found.refuse(
+			'MANIFEST_ACCOUNT_LEVEL',
+			'/ui/account',
+			'An account section runs at workspace level, and this app takes only projects.',
+			'Add `workspace` to `app.scope_levels`, or remove `ui.account`.'
+		);
+	}
+	const seen = new Set<string>();
+	sections.forEach((section, index) => {
+		const at = `/ui/account/${index}`;
+		if (seen.has(section.id)) {
+			found.refuse(
+				'MANIFEST_DUPLICATE',
+				`${at}/id`,
+				`The account section \`${section.id}\` is repeated.`,
+				'Give each account section its own id.'
+			);
+		}
+		seen.add(section.id);
+		if (!accountSurfaceOf(manifest, section.surface)) {
+			found.refuse(
+				'MANIFEST_ACCOUNT_SURFACE_UNKNOWN',
+				`${at}/surface`,
+				`\`${section.surface}\` is not a surface this app declares that an account section can show.`,
+				manifest.plugin.kind === 'view'
+					? 'Name `main`, with `ui.surfaces.main.resource` declared.'
+					: 'Name `main`, `inspector` or a custom `sidebar`, with its `element` declared under `ui.surfaces`.'
+			);
+		}
+	});
+}
+
+/**
  * `ui.new` (documents specification, 2.1), for every manifest, with surfaces or none: each creator names a
  * command of this manifest that needs no input, since New calls it with `{}` as the person, in levels the app
  * takes. A mounted manifest declares none: its commands are unknown until discovery, as for its types.
@@ -762,6 +845,7 @@ export function loamRules(manifest: ManifestV2): { refusals: Finding[]; warnings
 	compositionRules(manifest, found);
 	resourceKeyRules(manifest, found);
 	summaryRules(manifest, found);
+	accountRules(manifest, found);
 	newRules(manifest, found);
 	settingRules(manifest, found.refuse.bind(found), found.warnings);
 	experimentRules(manifest, found.refuse.bind(found), found.warnings);
