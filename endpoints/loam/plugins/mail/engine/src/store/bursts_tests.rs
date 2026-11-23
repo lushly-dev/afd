@@ -752,6 +752,11 @@ fn a_store_whose_mailboxes_migration_10_listed_late_counts_them_from_its_first_s
              DROP TABLE policy;
              DROP TABLE snooze;
              DROP TABLE record;
+             DROP TABLE replyset_event;
+             DROP TABLE replyset_question_reply;
+             DROP TABLE replyset_question;
+             DROP TABLE replyset_reply;
+             DROP TABLE replyset;
              DROP TABLE outbound;
              DROP TABLE draft;
              ALTER TABLE token DROP COLUMN role;

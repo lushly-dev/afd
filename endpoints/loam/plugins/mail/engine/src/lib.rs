@@ -42,6 +42,7 @@ pub mod policy;
 pub mod provider;
 pub mod read;
 pub mod records;
+pub mod replysets;
 pub mod rules;
 pub mod screening;
 pub mod secrets;
@@ -167,6 +168,11 @@ pub fn registry(engine: &Arc<Engine>) -> Result<Arc<CommandRegistry>, String> {
     registry.register(records::list(Arc::clone(engine)))?;
     registry.register(records::propose(Arc::clone(engine)))?;
     registry.register(records::withdraw(Arc::clone(engine)))?;
+    registry.register(replysets::create(Arc::clone(engine)))?;
+    registry.register(replysets::update(Arc::clone(engine)))?;
+    registry.register(replysets::next(Arc::clone(engine)))?;
+    registry.register(replysets::show(Arc::clone(engine)))?;
+    registry.register(replysets::send(Arc::clone(engine)))?;
     afd::register_bootstrap_commands(&registry)?;
     let broken = rules::check(&registry);
     if !broken.is_empty() {
@@ -240,8 +246,9 @@ fn strip_non_approver_token(engine: Arc<engine::Engine>) -> afd::CommandMiddlewa
     })
 }
 
-/// Checks preview digests before the approval middleware holds a call, so a
-/// missing/unusable target or stale digest fails without issuing a token.
+/// Checks preview digests and revisions before the approval middleware holds a
+/// call, so a missing/unusable/incomplete target or stale preview fails without
+/// issuing a token.
 fn pre_approval_check(engine: Arc<engine::Engine>) -> afd::CommandMiddleware {
     Arc::new(move |name, input, _context, next| {
         let engine = Arc::clone(&engine);
@@ -250,6 +257,11 @@ fn pre_approval_check(engine: Arc<engine::Engine>) -> afd::CommandMiddleware {
         Box::pin(async move {
             if name == unsubscribe::UNSUBSCRIBE
                 && let Some(error) = unsubscribe::pre_approval_check(&engine, &input)
+            {
+                return afd::failure(error);
+            }
+            if name == replysets::SEND
+                && let Some(error) = replysets::pre_approval_check(&engine, &input)
             {
                 return afd::failure(error);
             }
@@ -291,7 +303,7 @@ fn reply_limit(engine: Arc<engine::Engine>) -> afd::CommandMiddleware {
 /// The bytes a result takes in its reply: over MCP the result goes out as
 /// JSON text and again as structured content, so twice, the text escaped.
 /// The few bytes of the reply's envelope are left out.
-fn reply_size(
+pub(crate) fn reply_size(
     result: &afd::CommandResult<serde_json::Value>,
     interface: Option<afd::CommandInterface>,
 ) -> usize {

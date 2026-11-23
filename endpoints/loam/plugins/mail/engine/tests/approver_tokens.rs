@@ -426,7 +426,12 @@ fn migration_18_defaults_existing_tokens_to_agent() {
     {
         let conn = rusqlite::Connection::open(&db_path).unwrap();
         conn.execute_batch(
-            "DROP TABLE token;
+            "DROP TABLE replyset_event;
+             DROP TABLE replyset_question_reply;
+             DROP TABLE replyset_question;
+             DROP TABLE replyset_reply;
+             DROP TABLE replyset;
+             DROP TABLE token;
              CREATE TABLE token (
                  id TEXT PRIMARY KEY,
                  name TEXT NOT NULL,

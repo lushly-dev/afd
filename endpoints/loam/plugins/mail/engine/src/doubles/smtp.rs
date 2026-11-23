@@ -10,6 +10,7 @@
 
 #![allow(dead_code, missing_docs, clippy::expect_used, clippy::unwrap_used)]
 
+use std::collections::VecDeque;
 use std::io::Write;
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -66,6 +67,9 @@ pub struct SmtpWorld {
     pub received: Vec<ReceivedMail>,
     pub log: Vec<String>,
     pub fault: Option<SmtpFault>,
+    /// Optional per-connection fault queue; when non-empty, each new SMTP
+    /// connection pops one entry instead of reading `fault`.
+    pub faults: VecDeque<Option<SmtpFault>>,
     pub connections: usize,
     /// Optional path to a `received.jsonl` file appended on every received message.
     pub received_log: Option<PathBuf>,
@@ -79,6 +83,7 @@ impl Default for SmtpWorld {
             received: Vec::new(),
             log: Vec::new(),
             fault: None,
+            faults: VecDeque::new(),
             connections: 0,
             received_log: None,
         }
@@ -158,7 +163,14 @@ impl SmtpServer {
 async fn serve(stream: TcpStream, world: Arc<Mutex<SmtpWorld>>) {
     let (read, mut write) = stream.into_split();
     let mut reader = BufReader::new(read);
-    let initial_fault = world.lock().unwrap().fault.clone();
+    let queued_fault = world.lock().unwrap().faults.pop_front();
+    let current_fault = |world: &Arc<Mutex<SmtpWorld>>| -> Option<SmtpFault> {
+        match &queued_fault {
+            Some(f) => f.clone(),
+            None => world.lock().unwrap().fault.clone(),
+        }
+    };
+    let initial_fault = current_fault(&world);
     if initial_fault == Some(SmtpFault::NonUtf8Greeting) {
         let _ = write.write_all(&[0xff, 0xfe, 0x20, b'\r', b'\n']).await;
         let _ = write.shutdown().await;
@@ -188,7 +200,7 @@ async fn serve(stream: TcpStream, world: Arc<Mutex<SmtpWorld>>) {
 
         if upper.starts_with("EHLO ") || upper == "EHLO" {
             world.lock().unwrap().log.push("EHLO".to_string());
-            let fault = world.lock().unwrap().fault.clone();
+            let fault = current_fault(&world);
             let auth_line = if fault == Some(SmtpFault::AuthLoginOnly) {
                 "250-AUTH LOGIN\r\n"
             } else {
@@ -205,7 +217,7 @@ async fn serve(stream: TcpStream, world: Arc<Mutex<SmtpWorld>>) {
             }
         } else if upper == "STARTTLS" {
             world.lock().unwrap().log.push("STARTTLS".to_string());
-            let fault = world.lock().unwrap().fault.clone();
+            let fault = current_fault(&world);
             if fault == Some(SmtpFault::StartTlsInjectedBytes) {
                 let _ = write
                     .write_all(b"220 Ready to start TLS\r\n500 injected plaintext\r\n")
@@ -215,12 +227,11 @@ async fn serve(stream: TcpStream, world: Arc<Mutex<SmtpWorld>>) {
             }
             let _ = write.write_all(b"502 STARTTLS not supported\r\n").await;
         } else if upper.starts_with("AUTH PLAIN ") {
-            let (refuse, expected) = {
+            let refuse = current_fault(&world) == Some(SmtpFault::RefuseAuth);
+            let expected = {
                 let mut guard = world.lock().unwrap();
                 guard.log.push("AUTH PLAIN".to_string());
-                let refuse = guard.fault == Some(SmtpFault::RefuseAuth);
-                let expected = format!("\0{}\0{}", guard.user, guard.password).into_bytes();
-                (refuse, expected)
+                format!("\0{}\0{}", guard.user, guard.password).into_bytes()
             };
             let encoded = cmd[11..].trim();
             let decoded = base64_decode(encoded);
@@ -256,13 +267,10 @@ async fn serve(stream: TcpStream, world: Arc<Mutex<SmtpWorld>>) {
             if !matches!(reader.read_line(&mut p).await, Ok(n) if n > 0) {
                 return;
             }
-            let (refuse, expected_user, expected_pass) = {
+            let refuse = current_fault(&world) == Some(SmtpFault::RefuseAuth);
+            let (expected_user, expected_pass) = {
                 let guard = world.lock().unwrap();
-                (
-                    guard.fault == Some(SmtpFault::RefuseAuth),
-                    guard.user.clone(),
-                    guard.password.clone(),
-                )
+                (guard.user.clone(), guard.password.clone())
             };
             let ok_user = base64_decode(u.trim()).as_deref() == Some(expected_user.as_bytes());
             let ok_pass = base64_decode(p.trim()).as_deref() == Some(expected_pass.as_bytes());
@@ -288,7 +296,7 @@ async fn serve(stream: TcpStream, world: Arc<Mutex<SmtpWorld>>) {
                 let _ = write.write_all(b"530 Authentication required\r\n").await;
                 continue;
             }
-            let fault = world.lock().unwrap().fault.clone();
+            let fault = current_fault(&world);
             if let Some(SmtpFault::RefuseMailFrom(code)) = fault {
                 let _ = write
                     .write_all(format!("{code} refused\r\n").as_bytes())
@@ -316,7 +324,7 @@ async fn serve(stream: TcpStream, world: Arc<Mutex<SmtpWorld>>) {
             }
         } else if upper == "DATA" {
             world.lock().unwrap().log.push("DATA".to_string());
-            let drop_before = world.lock().unwrap().fault == Some(SmtpFault::DropBeforeData);
+            let drop_before = current_fault(&world) == Some(SmtpFault::DropBeforeData);
             if drop_before {
                 let _ = write.shutdown().await;
                 return;
@@ -344,7 +352,7 @@ async fn serve(stream: TcpStream, world: Arc<Mutex<SmtpWorld>>) {
                     body.extend_from_slice(&data_line);
                 }
             }
-            let fault = world.lock().unwrap().fault.clone();
+            let fault = current_fault(&world);
             match fault {
                 Some(SmtpFault::DropAfterHandover) => {
                     let _ = world.lock().unwrap().record(ReceivedMail {

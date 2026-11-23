@@ -109,13 +109,25 @@ pub fn redact(mut record: JournalRecord) -> Option<JournalRecord> {
 }
 
 /// Removes content payloads from the result of `command`, when its input
-/// already carries them or the result would copy them in (13.1): ids,
+/// already carries them or the result would copy mail text in (13.1): ids,
 /// revision, and metadata stay.
 fn drop_draft_text(command: &str, data: &mut serde_json::Value) {
-    if (crate::drafts::RESULTS_WITH_TEXT.contains(&command) || command == crate::records::PROPOSE)
+    if (crate::drafts::RESULTS_WITH_TEXT.contains(&command)
+        || command == crate::records::PROPOSE
+        || crate::replysets::RESULTS_WITH_TEXT.contains(&command))
         && let serde_json::Value::Object(data) = data
     {
         data.remove("content");
+        if let Some(serde_json::Value::Object(set)) = data.get_mut("replyset") {
+            set.remove("content");
+            if let Some(serde_json::Value::Array(replies)) = set.get_mut("replies") {
+                for reply in replies {
+                    if let serde_json::Value::Object(reply) = reply {
+                        reply.remove("content");
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -174,6 +186,34 @@ mod tests {
         });
         drop_draft_text(crate::records::PROPOSE, &mut record_res);
         assert_eq!(record_res, json!({ "record": 5, "message": 1 }));
+        let mut replyset_res = json!({
+            "replyset": {
+                "id": 3,
+                "revision": 1,
+                "content": { "trust": "content", "sharedText": "secret" },
+                "replies": [
+                    { "reply": 1, "content": { "trust": "content", "text": "hello" } }
+                ]
+            }
+        });
+        drop_draft_text(crate::replysets::CREATE, &mut replyset_res);
+        assert_eq!(
+            replyset_res,
+            json!({
+                "replyset": {
+                    "id": 3,
+                    "revision": 1,
+                    "replies": [{ "reply": 1 }]
+                }
+            })
+        );
+        let mut next_res = json!({
+            "replyset": 3,
+            "reply": 1,
+            "content": { "trust": "content", "message": { "text": "private body" } },
+        });
+        drop_draft_text(crate::replysets::NEXT, &mut next_res);
+        assert_eq!(next_res, json!({ "replyset": 3, "reply": 1 }));
         let mut other = json!({ "content": { "body": "kept" } });
         drop_draft_text("mail-sync", &mut other);
         assert_eq!(other["content"]["body"], "kept");
