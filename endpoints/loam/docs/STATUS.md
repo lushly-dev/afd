@@ -126,7 +126,7 @@ should never have to scan the codebase to learn what is current.
   - Serving MCP resources, the Skills extension, `ui://` resources with
     `_meta.ui` and extra tool `_meta` from the TypeScript server, on `/mcp`
     and stdio in both eras (step 2 of
-    [MCP resources and skills](../../../docs/features/active/mcp-resources-skills/STATUS.md),
+    [MCP resources and skills](../../../docs/features/complete/mcp-resources-skills/STATUS.md),
     [#615](https://github.com/lushly-dev/afd/pull/615), merged 2026-11-01
     as `c80a9b4d`).
 - **Not done:**

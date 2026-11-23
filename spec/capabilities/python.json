@@ -541,23 +541,26 @@
 			"note": "([#1981](https://github.com/lushly-dev/afd/issues/1981): `resources` option on `create_server`, Streamable HTTP and stdio in both eras; unused `prompts` and opt-out `resources` capabilities removed)",
 			"views": {
 				"res-core": "(`resources` option; Streamable HTTP and stdio, both eras; #1981)",
-				"res-vectors": "(`tests/test_resources.py` and `test_tool_meta.py`, over Streamable HTTP and stdio; #1981)",
-				"pc-res": "(`tests/test_resources.py`, Streamable HTTP and stdio, both eras; #1981)"
+				"res-vectors": "(`tests/test_mcp_resources_vectors.py` and `test_tool_meta.py`, over Streamable HTTP and stdio; #1981)",
+				"pc-res": "(`tests/test_mcp_resources_vectors.py`, Streamable HTTP and stdio, both eras; #1981)"
 			},
-			"evidence": ["python/src/afd/server/resources.py", "python/tests/test_resources.py"]
+			"evidence": [
+				"python/src/afd/server/resources.py",
+				"python/tests/test_mcp_resources_vectors.py"
+			]
 		},
 		"mcp.skills": {
 			"status": "yes",
 			"note": "([#1981](https://github.com/lushly-dev/afd/issues/1981): `skills=SkillCatalog(...)`, `skill_from_directory`, optional `directory_read`; YAML 1.2 core frontmatter via `pyyaml`)",
 			"views": {
 				"res-skills": "(`skills=SkillCatalog`, `skill_from_directory`, optional `directory_read`; #1981)",
-				"pc-skills": "(`tests/test_resources.py`, loads `mcp-resources.json`; #1981)"
+				"pc-skills": "(`tests/test_mcp_resources_vectors.py`, loads `vectors/mcp-resources.json`; #1981)"
 			},
 			"evidence": [
 				"python/src/afd/server/skills.py",
 				"python/src/afd/server/frontmatter.py",
 				"python/tests/test_skills.py",
-				"python/tests/test_resources.py"
+				"python/tests/test_mcp_resources_vectors.py"
 			]
 		},
 		"mcp.tool-meta": {

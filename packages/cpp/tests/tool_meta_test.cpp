@@ -1,5 +1,5 @@
 // Extra tool _meta (T1-T3) and advertised input schemas (V1-V2) in afd::afd
-// (spec/mcp-resources.md, spec/mcp-resources.json).
+// (spec/mcp-resources.md, spec/vectors/mcp-resources.json).
 #include "afd/afd.hpp"
 
 #include <cmath>
@@ -22,20 +22,22 @@ afd::CommandResult ok_handler(const Json& input, afd::CommandContext&) {
     return afd::success(input);
 }
 
+Json load_vectors(const char* name) {
+    const std::string path = std::string(AFD_VECTORS_DIR) + "/" + name;
+    std::ifstream in(path, std::ios::binary);
+    REQUIRE_MESSAGE(in.good(), "could not open " << path);
+    const std::string text{std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
+    auto parsed = afd::parse_bounded(text);
+    REQUIRE_MESSAGE(parsed.has_value(), parsed.error().message);
+    return std::move(*parsed);
+}
+
 const Json& spec_cases() {
-    static const Json data = [] {
-        std::ifstream in(AFD_MCP_RESOURCES_FILE, std::ios::binary);
-        REQUIRE_MESSAGE(in.good(), "could not open " << AFD_MCP_RESOURCES_FILE);
-        const std::string text{std::istreambuf_iterator<char>(in),
-                               std::istreambuf_iterator<char>()};
-        auto parsed = afd::parse_bounded(text);
-        REQUIRE_MESSAGE(parsed.has_value(), parsed.error().message);
-        return std::move(*parsed);
-    }();
+    static const Json data = load_vectors("mcp-resources.json");
     return data;
 }
 
-TEST_CASE("tool_meta enforces every toolMetaKeys case in spec/mcp-resources.json") {
+TEST_CASE("tool_meta enforces every toolMetaKeys case in spec/vectors/mcp-resources.json") {
     const Json& cases = spec_cases().at("toolMetaKeys");
     REQUIRE(cases.is_array());
     REQUIRE_FALSE(cases.empty());

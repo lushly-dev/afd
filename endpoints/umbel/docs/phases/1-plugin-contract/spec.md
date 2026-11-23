@@ -67,7 +67,7 @@
   [#583](https://github.com/lushly-dev/afd/pull/583) as `880779ff`; the
   state line above is kept as written and superseded by this one.
 - **Step 0a done 2026-11-01** (documents only): the AFD proposal
-  [MCP resources and skills](../../../../../docs/features/active/mcp-resources-skills/mcp-resources-skills.proposal.md),
+  [MCP resources and skills](../../../../../docs/features/complete/mcp-resources-skills/mcp-resources-skills.proposal.md),
   approved under the owner's delegation of 2026-10-31 and placed in
   `docs/features/active/` (not `proposed/`, as step 0a first said), with
   [`spec/mcp-resources.md`](../../../../../spec/mcp-resources.md), its cases
@@ -75,7 +75,7 @@
   `protocol-conformance.md` and `CHANGELOG.md` amendments and parity rows
   marked Planned. Verified against `main` at `880779ff`. It made the choices
   this plan left open, listed in the proposal's
-  [choices](../../../../../docs/features/active/mcp-resources-skills/mcp-resources-skills.proposal.md#choices-this-proposal-made);
+  [choices](../../../../../docs/features/complete/mcp-resources-skills/mcp-resources-skills.proposal.md#choices-this-proposal-made);
   one changes this document: a resource's digest goes under AFD's
   `_meta["dev.afd/digest"]` as `sha256:<hex>`, the Skills extension's format,
   so section 8.3 no longer mints `dev.umbel/sha256` (see

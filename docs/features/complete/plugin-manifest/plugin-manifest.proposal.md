@@ -17,7 +17,7 @@
 | Author | jasfalk (drafted with Claude) |
 | Requested by | [Loam](../../../../endpoints/loam/docs/STATUS.md), in two places: the follow-up of 2026-10-30, "Write the `docs/features` proposal for the shared plugin manifest, reconciled with Umbel's manifest and Plugin Discovery, before phase 1", and the prerequisites row of [Loam's architecture](../../../../endpoints/loam/docs/architecture.md#afd-prerequisites) (line 774). Also the owner, on 2026-11-01: Umbel instances as first-class headless apps in Loam. Loam D10 and Umbel D37 both name this manifest |
 | Packages | Step 1: `spec/`. Step 2, Loam's phase 1: Loam's packages under `endpoints/loam/packages/`. Step 3, at Umbel's choice: `endpoints/umbel/`. Step 7: `packages/rust` and `endpoints/umbel` for CORS, only if open question U1 is answered yes. Step 6: `packages/server`, only when Plugin Discovery is implemented |
-| Related | [Plugin Discovery](../../proposed/plugin-discovery/plugin-discovery.proposal.md) and its [spec](../../proposed/plugin-discovery/plugin-discovery.spec.md); [MCP resources and skills](../../active/mcp-resources-skills/mcp-resources-skills.proposal.md); [Output budgets](../../active/output-budgets/output-budgets.proposal.md); [Hybrid tool strategy](../hybrid-tool-strategy/hybrid-tool-strategy.proposal.md); [`spec/command-metadata.md`](../../../../spec/command-metadata.md); [`spec/tool-strategies.md`](../../../../spec/tool-strategies.md); section 2 of Umbel's [phase 1 specification](../../../../endpoints/umbel/docs/phases/1-plugin-contract/spec.md#2-the-manifest) |
+| Related | [Plugin Discovery](../../proposed/plugin-discovery/plugin-discovery.proposal.md) and its [spec](../../proposed/plugin-discovery/plugin-discovery.spec.md); [MCP resources and skills](../mcp-resources-skills/mcp-resources-skills.proposal.md); [Output budgets](../../active/output-budgets/output-budgets.proposal.md); [Hybrid tool strategy](../hybrid-tool-strategy/hybrid-tool-strategy.proposal.md); [`spec/command-metadata.md`](../../../../spec/command-metadata.md); [`spec/tool-strategies.md`](../../../../spec/tool-strategies.md); section 2 of Umbel's [phase 1 specification](../../../../endpoints/umbel/docs/phases/1-plugin-contract/spec.md#2-the-manifest) |
 
 Decision numbers carry their unit: "Umbel D37", "Loam D10". Both logs use D1 upward.
 
@@ -130,7 +130,7 @@ endpoints/umbel/schemas/plugin-manifest.vN.json             Umbel's profile (exi
 endpoints/loam/packages/<pkg>/schemas/app-manifest.v1.json  Loam's profile (Loam's phase 1, closed)
 ```
 
-The cases sit at `spec/`'s root, as `spec/mcp-resources.json` and `spec/output-budgets.json` do.
+The cases sit at `spec/`'s root, as `spec/output-budgets.json` does (and `spec/mcp-resources.json` did before step 5 promoted it into `spec/vectors/`).
 They are not in `spec/vectors/`, whose README says every language loads every file there.
 
 **The core** defines the keys both hosts use, each with one meaning. Its objects are left open

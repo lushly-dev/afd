@@ -1,5 +1,5 @@
 //! MCP resources and the Skills extension (`spec/mcp-resources.md`, R1 to R6 and S1 to S7):
-//! every case of the shared `spec/mcp-resources.json` over Streamable HTTP and a stdio-shaped
+//! every case of the shared `spec/vectors/mcp-resources.json` over Streamable HTTP and a stdio-shaped
 //! connection, in both MCP eras, plus the rules the cases cannot express (capabilities, cache
 //! hints, cursors, headers, templates, subscriptions, directory reads, providers).
 #![cfg(feature = "server")]
@@ -20,8 +20,9 @@ use common::{modern_post, Stdio};
 use serde_json::{json, Value};
 
 fn cases() -> Value {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../spec/mcp-resources.json");
-    serde_json::from_str(&std::fs::read_to_string(path).expect("spec/mcp-resources.json"))
+    let path =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../spec/vectors/mcp-resources.json");
+    serde_json::from_str(&std::fs::read_to_string(path).expect("spec/vectors/mcp-resources.json"))
         .expect("valid JSON")
 }
 
