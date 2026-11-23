@@ -946,3 +946,64 @@ export const packExportRunSchema = z.strictObject({
 	files: z.array(z.string()),
 	keptPackToml: z.boolean(),
 });
+
+const captureEntryKindSchema = z.enum(['component', 'story', 'job', 'gate']);
+const captureLabelSchema = z
+	.string()
+	.regex(/^[a-zA-Z0-9][a-zA-Z0-9._/-]{0,127}$/, 'Label must be a safe identifier')
+	.refine(
+		(value) => !/^set-[0-9a-f]{12}$/.test(value),
+		'Label must not match a capture set id (set-<12 hex>)'
+	)
+	.refine(
+		(value) =>
+			!value.split('/').some((segment) => segment === '' || segment === '.' || segment === '..'),
+		'Label must not contain empty or traversal path segments'
+	);
+export const captureFilterSchema = z.strictObject({
+	ids: z.array(z.string().min(1)).optional(),
+	file: z.string().min(1).optional(),
+	tags: z.array(z.string().min(1)).optional(),
+	match: z.string().min(1).optional(),
+	kind: z.array(captureEntryKindSchema).min(1).optional(),
+});
+export const captureSetRequestSchema = z
+	.strictObject({
+		ids: z.array(z.string().min(1)).min(1).optional(),
+		filter: captureFilterSchema.optional(),
+		context: captureRequestSchema.shape.context,
+		checkpoint: z.string().min(1).optional(),
+		label: captureLabelSchema.optional(),
+		axe: z.boolean().optional(),
+		timeoutMs: captureRequestSchema.shape.timeoutMs,
+		workers: suiteRequestSchema.shape.workers,
+	})
+	.refine((value) => !(value.ids !== undefined && value.filter !== undefined), {
+		message: 'Give ids or filter, not both.',
+	});
+export const captureRefSchema = z.strictObject({
+	set: z.string().min(1),
+	id: z.string().min(1),
+});
+export const captureSetRunSchema = z.strictObject({
+	set: z.string().regex(/^set-[0-9a-f]{12}$/),
+	label: z.string().nullable(),
+	revision: z.string().nullable(),
+	dirty: z.boolean().nullable(),
+	counts: z.strictObject({
+		captured: z.number().int().nonnegative(),
+		unavailable: z.number().int().nonnegative(),
+		axe: z.strictObject({
+			passed: z.number().int().nonnegative(),
+			failed: z.number().int().nonnegative(),
+			incomplete: z.number().int().nonnegative(),
+		}),
+	}),
+	unavailable: z.array(z.strictObject({ id: z.string(), reason: z.string() })),
+	skipped: z.strictObject({
+		jobs: z.number().int().nonnegative(),
+		gates: z.number().int().nonnegative(),
+		next: z.literal('specimen-job-run').optional(),
+		gatesNext: z.literal('specimen-run').optional(),
+	}),
+});

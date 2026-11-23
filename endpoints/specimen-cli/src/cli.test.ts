@@ -181,6 +181,24 @@ function harness() {
 		render: vi.fn(async () => {
 			throw new Error('No render configured');
 		}),
+		captureSet: vi.fn(async (request) => ({
+			set: 'set-4f1c0a9e2b7d',
+			label: request?.label ?? null,
+			revision: 'a1b2c3d',
+			dirty: false,
+			counts: {
+				captured: 142,
+				unavailable: 0,
+				axe: { passed: 142, failed: 0, incomplete: 0 },
+			},
+			unavailable: [],
+			skipped: { jobs: 0, gates: 0 },
+		})),
+		diff: vi.fn(async () => ({
+			status: 'no-change-observed' as const,
+			differences: [],
+			limitations: [],
+		})),
 		build: vi.fn(async (outDir) => ({
 			directory: outDir,
 			shellBytes: 1000,
@@ -704,5 +722,268 @@ describe('specimen CLI', () => {
 			stdout.mockRestore();
 			stderr.mockRestore();
 		}
+	});
+
+	it('dispatches capture with labels, filters, --no-axe and keeps 142-entry stdout under 4 KB with no observation', async () => {
+		const h = harness();
+		const root = await directory();
+		expect(
+			await runCli(['--root', root, 'capture', '--label', 'main', '--theme', 'light'], h.io)
+		).toBe(0);
+		expect(h.bench.captureSet).toHaveBeenLastCalledWith({
+			label: 'main',
+			context: { theme: 'light' },
+		});
+		const stdoutJson = h.output[0] ?? '';
+		expect(Buffer.byteLength(stdoutJson, 'utf8')).toBeLessThan(4096);
+		expect(stdoutJson).not.toContain('channels');
+		expect(JSON.parse(stdoutJson)).toMatchObject({
+			success: true,
+			data: { set: 'set-4f1c0a9e2b7d', label: 'main', counts: { captured: 142 } },
+		});
+
+		expect(
+			await runCli(
+				[
+					'--root',
+					root,
+					'capture',
+					'toolbar--dense',
+					'toolbar--airy',
+					'--no-axe',
+					'--checkpoint',
+					'mount',
+				],
+				h.io
+			)
+		).toBe(0);
+		expect(h.bench.captureSet).toHaveBeenLastCalledWith({
+			ids: ['toolbar--dense', 'toolbar--airy'],
+			axe: false,
+			checkpoint: 'mount',
+		});
+
+		expect(
+			await runCli(['--root', root, 'capture', '--kind', 'gate', '--workers', '4'], h.io)
+		).toBe(0);
+		expect(h.bench.captureSet).toHaveBeenLastCalledWith({
+			filter: { kind: ['gate'] },
+			workers: 4,
+		});
+
+		expect(await runCli(['--root', root, 'capture', '--ids', 'a', '--file', './a.ts'], h.io)).toBe(
+			1
+		);
+	});
+
+	it('dispatches set-backed diff without starting a bench and validates paired set/id options', async () => {
+		const h = harness();
+		const root = await directory();
+		expect(
+			await runCli(
+				[
+					'--root',
+					root,
+					'diff',
+					'--left-set',
+					'main',
+					'--left-id',
+					'toolbar--dense',
+					'--right-set',
+					'dark',
+					'--right-id',
+					'toolbar--dense',
+				],
+				h.io
+			)
+		).toBe(1);
+		expect(h.createBench).not.toHaveBeenCalled();
+		expect(JSON.parse(h.output[0] ?? '').error.code).toBe('CAPTURE_SET_NOT_FOUND');
+
+		expect(await runCli(['--root', root, 'diff', '--left-set', 'main', 'right.json'], h.io)).toBe(
+			1
+		);
+		expect(JSON.parse(h.output[1] ?? '').error.code).toBe('SPECIMEN_CLI_ERROR');
+
+		// Happy path: set-to-set refusal, --allow-context override, and mixed set + file diff.
+		const { CAPTURE_VERSION, NORMALIZATION_VERSION, writeCaptureSet } = await import(
+			'@lushly-dev/specimen'
+		);
+		const baseContext = {
+			viewport: { width: 1280, height: 720 },
+			theme: 'light' as const,
+			locale: 'en-US',
+			reducedMotion: 'no-preference' as const,
+			motion: 'natural' as const,
+		};
+		const makeObs = (theme: 'light' | 'dark', dom: string) => ({
+			manifest: {
+				captureVersion: CAPTURE_VERSION,
+				normalizationVersion: NORMALIZATION_VERSION,
+				specimenId: 'toolbar--dense',
+				capturedUtc: '2026-11-23T00:00:00.000Z',
+				bench: { name: 'specimen', version: '0.1.0', plugins: [] },
+				driver: { name: 'host' as const, emulates: ['viewport', 'color-scheme'] },
+				checkpoint: {
+					name: 'mount',
+					actionMode: 'none' as const,
+					ready: {
+						steps: ['upgrade', 'fonts', 'frame'],
+						outcome: 'ready' as const,
+						deadlineMs: 10000,
+					},
+					baseline: {
+						clock: 'real' as const,
+						random: { source: 'seeded' as const, seed: 0x5b3c1a2d },
+						storage: 'empty' as const,
+					},
+				},
+				source: { revision: 'a1b2c3d', dirty: false, digest: 'abc' },
+				dependencies: 'lock-1',
+				browser: { name: 'chromium', version: '130.0', platform: 'win32-x64', build: 'b1' },
+				context: {
+					...baseContext,
+					theme,
+					pixelRatio: 1,
+					observed: {
+						width: 1280,
+						height: 720,
+						media: true,
+						colorScheme: theme === 'dark' ? ('dark' as const) : ('light' as const),
+						contrast: 'no-preference' as const,
+						reducedMotion: 'no-preference' as const,
+						language: 'en-US',
+						devicePixelRatio: 1,
+					},
+					resources: { fonts: [], remote: [] },
+				},
+			},
+			channels: {
+				dom: { raw: dom, normalized: dom },
+				a11y: { snapshot: 'toolbar', axe: 'not-run' as const },
+				events: { declared: [], history: [] },
+				evidence: {
+					expectations: [],
+					claims: [],
+					commands: [],
+					formData: [],
+					validity: [],
+					attributesSet: [],
+				},
+				elements: [],
+				console: { errors: [], warnings: [] },
+				visual: { path: null },
+			},
+			completeness: {
+				dom: { status: 'complete' as const, scope: 'dom', reasons: [] },
+				a11y: { status: 'partial' as const, scope: 'a11y', reasons: ['AXE_NOT_RUN'] },
+				layout: { status: 'complete' as const, scope: 'layout', reasons: [] },
+				styles: { status: 'complete' as const, scope: 'styles', reasons: [] },
+				tokens: { status: 'unsupported' as const, scope: 'tokens', reasons: [] },
+				events: { status: 'not-requested' as const, scope: 'events', reasons: [] },
+				visual: { status: 'not-requested' as const, scope: 'visual', reasons: [] },
+			},
+		});
+		const lightObs = makeObs('light', '<div>light</div>');
+		const darkObs = makeObs('dark', '<div>dark</div>');
+		await writeCaptureSet(root, {
+			kind: 'capture',
+			context: baseContext,
+			checkpoint: {
+				name: 'mount',
+				actionMode: 'none',
+				baseline: lightObs.manifest.checkpoint.baseline,
+			},
+			browser: { name: 'chromium', version: '130.0' },
+			axe: false,
+			revision: 'a1b2c3d',
+			dirty: false,
+			label: 'main',
+			entries: [
+				{ key: 'toolbar--dense', id: 'toolbar--dense', status: 'captured', observation: lightObs },
+			],
+			skipped: { jobs: 0, gates: 0 },
+		});
+		await writeCaptureSet(root, {
+			kind: 'capture',
+			context: { ...baseContext, theme: 'dark' },
+			checkpoint: {
+				name: 'mount',
+				actionMode: 'none',
+				baseline: darkObs.manifest.checkpoint.baseline,
+			},
+			browser: { name: 'chromium', version: '130.0' },
+			axe: false,
+			revision: 'a1b2c3d',
+			dirty: false,
+			label: 'dark',
+			entries: [
+				{ key: 'toolbar--dense', id: 'toolbar--dense', status: 'captured', observation: darkObs },
+			],
+			skipped: { jobs: 0, gates: 0 },
+		});
+
+		expect(
+			await runCli(
+				[
+					'--root',
+					root,
+					'diff',
+					'--left-set',
+					'main',
+					'--left-id',
+					'toolbar--dense',
+					'--right-set',
+					'dark',
+					'--right-id',
+					'toolbar--dense',
+				],
+				h.io
+			)
+		).toBe(1);
+		expect(JSON.parse(h.output[2] ?? '').error).toMatchObject({
+			code: 'CAPTURES_INCOMPARABLE',
+			message: expect.stringContaining('context.theme'),
+			suggestion: expect.stringContaining('allowContextDifferences'),
+		});
+
+		expect(
+			await runCli(
+				[
+					'--root',
+					root,
+					'diff',
+					'--left-set',
+					'main',
+					'--left-id',
+					'toolbar--dense',
+					'--right-set',
+					'dark',
+					'--right-id',
+					'toolbar--dense',
+					'--allow-context',
+					'theme',
+				],
+				h.io
+			)
+		).toBe(0);
+		expect(JSON.parse(h.output[3] ?? '')).toMatchObject({
+			success: true,
+			data: { status: 'changed' },
+		});
+
+		const rightFile = join(root, 'right-light.json');
+		await writeFile(rightFile, JSON.stringify(lightObs), 'utf8');
+		expect(
+			await runCli(
+				['--root', root, 'diff', '--left-set', 'main', '--left-id', 'toolbar--dense', rightFile],
+				h.io
+			)
+		).toBe(0);
+		expect(JSON.parse(h.output[4] ?? '')).toMatchObject({
+			success: true,
+			data: { status: 'no-change-observed' },
+		});
+		expect(h.createBench).not.toHaveBeenCalled();
 	});
 });

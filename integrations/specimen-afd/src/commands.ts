@@ -6,13 +6,16 @@ import {
 	success,
 	type ZodCommandDefinition,
 } from '@lushly-dev/afd-server/define';
-import { diffObservations } from '@lushly-dev/specimen';
+import { diffCaptures } from '@lushly-dev/specimen';
 import {
 	a11yRequestSchema,
 	a11yRunSchema,
 	baselineRequestSchema,
 	buildOutputSchema,
+	captureRefSchema,
 	captureRequestSchema,
+	captureSetRequestSchema,
+	captureSetRunSchema,
 	contractRequestSchema,
 	contractRunSchema,
 	coverageRequestSchema,
@@ -56,11 +59,14 @@ import type {
 	A11yRun,
 	BaselineRequest,
 	CaptureRequest,
+	CaptureSetRequest,
+	CaptureSetRun,
 	ChannelDifference,
 	ContractRequest,
 	ContractRun,
 	CoverageRequest,
 	CoverageRun,
+	DiffRequest,
 	InspectRequest,
 	InspectResult,
 	MatrixRequest,
@@ -68,6 +74,7 @@ import type {
 	MigrateRequest,
 	MigrationReport,
 	Observation,
+	ObservationDiff,
 	PackCheckRun,
 	PackExportRequest,
 	PackExportRun,
@@ -164,10 +171,11 @@ const validateOutput = z
 	.strict();
 const renderInput = captureRequestSchema;
 const contextAxis = z.enum(['viewport', 'container', 'theme', 'locale', 'reducedMotion', 'motion']);
+const diffSide = z.union([observationSchema, captureRefSchema]);
 const diffInput = z
 	.object({
-		left: observationSchema,
-		right: observationSchema,
+		left: diffSide,
+		right: diffSide,
 		allowContextDifferences: z.array(contextAxis).optional(),
 		requireVisual: z.boolean().optional(),
 	})
@@ -202,6 +210,8 @@ export interface SpecimenCommandBench {
 	list(): SpecimenEntry[];
 	validate(target?: ValidationTarget): ValidationReport;
 	render(request: CaptureRequest): Promise<Observation>;
+	captureSet(request?: CaptureSetRequest): Promise<CaptureSetRun>;
+	diff(request: DiffRequest): Promise<ObservationDiff>;
 	run(request: RunRequest): Promise<StoryRun>;
 	runSuite(request?: SuiteRequest): Promise<SuiteRun>;
 	a11y(request?: A11yRequest): Promise<A11yRun>;
@@ -278,26 +288,29 @@ async function result<T>(
 	}
 }
 
-function createDiffCommand() {
+function createDiffCommand(runDiff: (request: DiffRequest) => Promise<ObservationDiff>) {
 	return defineCommand({
 		category: 'specimen',
 		expose: { mcp: true, cli: true },
 		version: '0.1.0',
 		name: 'specimen-diff',
-		description: 'Compare compatible structured specimen observations',
+		description:
+			'Compare compatible structured specimen observations or { set, id } references from saved capture sets. Refuses incompatible conditions with CAPTURES_INCOMPARABLE unless allowContextDifferences names the intended context axis.',
 		mutation: false,
 		input: diffInput,
 		output: diffOutput,
 		handler: async (input) =>
 			result(
 				() =>
-					diffObservations(input.left, input.right, {
+					runDiff({
+						left: input.left,
+						right: input.right,
 						allowContextDifferences: input.allowContextDifferences,
 						requireVisual: input.requireVisual,
 					}),
 				diffOutput,
 				'SPECIMEN_DIFF_FAILED',
-				'Capture both sides with compatible browser, context, checkpoint, and observation versions, or declare the intended context axis.'
+				'Capture both sides with compatible browser, context, checkpoint, and observation versions, or pass allowContextDifferences for the intended context axis.'
 			),
 	});
 }
@@ -538,7 +551,23 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 				'Preview without apply first; check the stories specifiers and the manifest path in the configuration.'
 			),
 	});
-	const diff = createDiffCommand();
+	const capture = defineCommand({
+		...common,
+		name: 'specimen-capture',
+		description:
+			'Capture specimens in one context and checkpoint into a content-addressed capture set under .specimen/sets/, with axe enabled by default. Returns set id, revision, counts, unavailable ids and skipped counts only (never observations). A label is a local name for a set, not a git ref; capture main from a checkout of main.',
+		mutation: true,
+		input: captureSetRequestSchema,
+		output: captureSetRunSchema,
+		handler: async (input) =>
+			result(
+				() => bench.captureSet(input),
+				captureSetRunSchema,
+				'SPECIMEN_CAPTURE_FAILED',
+				'Use specimen-list to check ids or filters, then verify the specimen modules and browser installation.'
+			),
+	});
+	const diff = createDiffCommand((request) => bench.diff(request));
 	const build = defineCommand({
 		...common,
 		name: 'specimen-build',
@@ -605,6 +634,7 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 	return [
 		list,
 		render,
+		capture,
 		diff,
 		build,
 		validate,
@@ -648,6 +678,7 @@ export async function executeSpecimenCommand(
 	const [
 		list,
 		render,
+		capture,
 		diff,
 		build,
 		validate,
@@ -671,6 +702,8 @@ export async function executeSpecimenCommand(
 			return execute(list, input);
 		case 'specimen-render':
 			return execute(render, input);
+		case 'specimen-capture':
+			return execute(capture, input);
 		case 'specimen-diff':
 			return execute(diff, input);
 		case 'specimen-build':
@@ -710,12 +743,18 @@ export async function executeSpecimenCommand(
 				code: 'COMMAND_NOT_FOUND',
 				message: `Unknown command: ${name}`,
 				suggestion:
-					'Use specimen list, validate, inspect, render, run, themes, migrate, diff, or build.',
+					'Use specimen list, validate, inspect, render, capture, run, themes, migrate, diff, or build.',
 			});
 	}
 }
 
 /** Compare captures through the shared AFD command without creating a browser bench. */
-export async function executeSpecimenDiff(input: unknown): Promise<CommandResult<unknown>> {
-	return execute(createDiffCommand(), input);
+export async function executeSpecimenDiff(
+	input: unknown,
+	options: { root?: string } = {}
+): Promise<CommandResult<unknown>> {
+	return execute(
+		createDiffCommand((request) => diffCaptures(options.root ?? process.cwd(), request)),
+		input
+	);
 }

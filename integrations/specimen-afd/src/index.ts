@@ -1,6 +1,9 @@
 export {
 	a11yRunSchema,
 	buildOutputSchema,
+	captureRefSchema,
+	captureSetRequestSchema,
+	captureSetRunSchema,
 	contextSchema,
 	contractRunSchema,
 	coverageRunSchema,

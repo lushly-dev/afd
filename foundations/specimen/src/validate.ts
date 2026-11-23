@@ -2,7 +2,10 @@ import type {
 	A11yRequest,
 	BaselineRequest,
 	BenchConfig,
+	CaptureEntryKind,
+	CaptureFilter,
 	CaptureRequest,
+	CaptureSetRequest,
 	ContractRequest,
 	CoverageRequest,
 	ImplementationContexts,
@@ -438,6 +441,70 @@ export function parseCaptureRequest(value: unknown): CaptureRequest {
 		request.screenshot = text(fields.screenshot, 'capture request.screenshot');
 	if (fields.timeoutMs !== undefined)
 		request.timeoutMs = integer(fields.timeoutMs, 'capture request.timeoutMs', 1, 60_000);
+	return request;
+}
+
+const CAPTURE_KINDS: readonly CaptureEntryKind[] = ['component', 'story', 'job', 'gate'];
+const CAPTURE_LABEL = /^[a-zA-Z0-9][a-zA-Z0-9._/-]{0,127}$/;
+const CAPTURE_SET_ID = /^set-[0-9a-f]{12}$/;
+
+function captureFilter(value: unknown, path: string): CaptureFilter {
+	const filter = record(value, path, ['ids', 'file', 'tags', 'match', 'kind']);
+	let kind: CaptureEntryKind[] | undefined;
+	if (filter.kind !== undefined) {
+		if (!Array.isArray(filter.kind) || filter.kind.length < 1)
+			fail(`${path}.kind`, 'expected at least one kind');
+		kind = filter.kind.map((item, index) => choice(item, `${path}.kind[${index}]`, CAPTURE_KINDS));
+	}
+	return {
+		...(filter.ids === undefined ? {} : { ids: tagList(filter.ids, `${path}.ids`) }),
+		...(filter.file === undefined ? {} : { file: text(filter.file, `${path}.file`) }),
+		...(filter.tags === undefined ? {} : { tags: tagList(filter.tags, `${path}.tags`) }),
+		...(filter.match === undefined ? {} : { match: text(filter.match, `${path}.match`) }),
+		...(kind === undefined ? {} : { kind }),
+	};
+}
+
+export function parseCaptureSetRequest(value: unknown): CaptureSetRequest {
+	const path = 'capture set request';
+	const fields = record(value, path, [
+		'ids',
+		'filter',
+		'context',
+		'checkpoint',
+		'label',
+		'axe',
+		'timeoutMs',
+		'workers',
+	]);
+	const request: CaptureSetRequest = {};
+	if (fields.ids !== undefined) {
+		if (!Array.isArray(fields.ids) || fields.ids.length < 1)
+			fail(`${path}.ids`, 'expected at least one specimen id');
+		request.ids = fields.ids.map((item, index) => text(item, `${path}.ids[${index}]`));
+	}
+	if (fields.filter !== undefined) request.filter = captureFilter(fields.filter, `${path}.filter`);
+	if (request.ids !== undefined && request.filter !== undefined)
+		fail(path, 'give ids or filter, not both');
+	if (fields.context !== undefined)
+		request.context = parseContext(fields.context, `${path}.context`, true);
+	if (fields.checkpoint !== undefined)
+		request.checkpoint = text(fields.checkpoint, `${path}.checkpoint`);
+	if (fields.label !== undefined) {
+		const label = text(fields.label, `${path}.label`, CAPTURE_LABEL);
+		if (CAPTURE_SET_ID.test(label)) fail(`${path}.label`, 'must not match a capture set id');
+		if (label.split('/').some((segment) => segment === '' || segment === '.' || segment === '..'))
+			fail(`${path}.label`, 'must not contain empty or traversal path segments');
+		request.label = label;
+	}
+	if (fields.axe !== undefined) {
+		if (typeof fields.axe !== 'boolean') fail(`${path}.axe`, 'expected a boolean');
+		request.axe = fields.axe;
+	}
+	if (fields.timeoutMs !== undefined)
+		request.timeoutMs = integer(fields.timeoutMs, `${path}.timeoutMs`, 1, 60_000);
+	if (fields.workers !== undefined)
+		request.workers = integer(fields.workers, `${path}.workers`, 1, MAX_SUITE_WORKERS);
 	return request;
 }
 

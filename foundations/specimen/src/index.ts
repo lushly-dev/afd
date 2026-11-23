@@ -25,7 +25,7 @@ export type {
 	CoverageLevel,
 	CoverageObligation,
 } from './coverage.js';
-export { diffObservations } from './diff.js';
+export { canonicalJson, diffObservations } from './diff.js';
 export {
 	defineGuideSource,
 	type GuideSource,
@@ -60,6 +60,34 @@ export {
 	parsePointer,
 	type SpecimenPointer,
 } from './pointer.js';
+export {
+	CAPTURE_LABELS_FILE,
+	CAPTURE_SETS_DIR,
+	captureContentHash,
+	captureLabelsPath,
+	captureSetsDir,
+	computeSetId,
+	diffCaptures,
+	entryKind,
+	isCaptureRef,
+	isValidLabel,
+	LABEL_PATTERN,
+	nearestSpecimenIds,
+	readCaptureSetManifest,
+	readSetCapture,
+	resolveCaptureSetId,
+	runCaptureSet,
+	SET_ID_PATTERN,
+	SPECIMEN_DATA_DIR,
+	selectCaptureEntries,
+	specimenDataDir,
+	summarizeCaptureAxe,
+	themeAvailabilityReason,
+	updateCaptureSetLabel,
+	type WriteCaptureSetItem,
+	type WriteCaptureSetOptions,
+	writeCaptureSet,
+} from './sets.js';
 export {
 	DEFAULT_STORY_FILES,
 	type Discovery,

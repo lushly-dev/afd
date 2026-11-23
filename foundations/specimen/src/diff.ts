@@ -1,3 +1,4 @@
+import type { SpecimenHostError } from './host.js';
 import { normalizeDom } from './normalize.js';
 import { normalizeElements } from './normalize-ids.js';
 import {
@@ -13,21 +14,41 @@ import {
 	type RecordedContext,
 } from './types.js';
 
-function canonical(value: unknown): string {
-	if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
+function compareCodeUnits(a: string, b: string): number {
+	return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/** Deterministic key-sorted JSON serialization independent of process locale. */
+export function canonicalJson(value: unknown): string {
+	if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
 	if (typeof value === 'object' && value !== null) {
 		return `{${Object.entries(value)
-			.sort(([a], [b]) => a.localeCompare(b))
-			.map(([key, child]) => `${JSON.stringify(key)}:${canonical(child)}`)
+			.filter(([, child]) => child !== undefined)
+			.sort(([a], [b]) => compareCodeUnits(a, b))
+			.map(([key, child]) => `${JSON.stringify(key)}:${canonicalJson(child)}`)
 			.join(',')}}`;
 	}
 	return JSON.stringify(value) ?? 'undefined';
 }
 
+function incomparableError(
+	message: string,
+	suggestion: string,
+	details: Record<string, unknown>
+): SpecimenHostError {
+	const error: SpecimenHostError = new Error(message);
+	error.code = 'CAPTURES_INCOMPARABLE';
+	error.suggestion = suggestion;
+	error.details = details;
+	return error;
+}
+
 function requireEqual(label: string, left: unknown, right: unknown): void {
-	if (canonical(left) !== canonical(right)) {
-		throw new Error(
-			`Incompatible captures: ${label} differs. Capture both sides with the same ${label}, or explicitly allow a supported context axis.`
+	if (canonicalJson(left) !== canonicalJson(right)) {
+		throw incomparableError(
+			`Incompatible captures: ${label} differs. Capture both sides with the same ${label}, or pass allowContextDifferences for a supported context axis.`,
+			'Capture both sides under the same conditions with specimen-capture, or pass allowContextDifferences for the intended context axis.',
+			{ field: label }
 		);
 	}
 }
@@ -35,13 +56,25 @@ function requireEqual(label: string, left: unknown, right: unknown): void {
 function validateCompatibility(left: Observation, right: Observation, options: DiffOptions): void {
 	for (const observation of [left, right]) {
 		if (observation.manifest.captureVersion !== CAPTURE_VERSION) {
-			throw new Error(
-				`Unsupported capture version ${observation.manifest.captureVersion}; recapture with version ${CAPTURE_VERSION}.`
+			throw incomparableError(
+				`Unsupported capture version ${observation.manifest.captureVersion}; recapture with version ${CAPTURE_VERSION}.`,
+				'Recapture both sides with specimen-capture on the current version.',
+				{
+					field: 'captureVersion',
+					expected: CAPTURE_VERSION,
+					found: observation.manifest.captureVersion,
+				}
 			);
 		}
 		if (observation.manifest.normalizationVersion !== NORMALIZATION_VERSION) {
-			throw new Error(
-				`Unsupported normalization version ${observation.manifest.normalizationVersion}; recapture with version ${NORMALIZATION_VERSION}.`
+			throw incomparableError(
+				`Unsupported normalization version ${observation.manifest.normalizationVersion}; recapture with version ${NORMALIZATION_VERSION}.`,
+				'Recapture both sides with specimen-capture on the current version.',
+				{
+					field: 'normalizationVersion',
+					expected: NORMALIZATION_VERSION,
+					found: observation.manifest.normalizationVersion,
+				}
 			);
 		}
 	}
@@ -78,8 +111,8 @@ function evidenceLimitations(
 		'Structured comparison covers DOM, ARIA snapshots, layout, selected styles and live state; it does not establish visual equivalence.',
 	];
 	if (
-		canonical(left.manifest.context.resources.fonts) !==
-		canonical(right.manifest.context.resources.fonts)
+		canonicalJson(left.manifest.context.resources.fonts) !==
+		canonicalJson(right.manifest.context.resources.fonts)
 	)
 		limitations.push(
 			'The two captures loaded different fonts, which can change layout without any change to the component.'
@@ -129,7 +162,7 @@ function compareRecord(
 ): void {
 	const keys = new Set([...Object.keys(left), ...Object.keys(right)]);
 	for (const property of [...keys].sort()) {
-		if (canonical(left[property]) !== canonical(right[property])) {
+		if (canonicalJson(left[property]) !== canonicalJson(right[property])) {
 			differences.push({
 				channel,
 				target,

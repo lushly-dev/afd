@@ -11,6 +11,7 @@ import {
 	writePackIndex,
 } from './pack-files.js';
 import { withPatterns } from './patterns.js';
+import { diffCaptures, selectCaptureEntries } from './sets.js';
 import { migrateStories, validateDiscovery } from './stories.js';
 import type {
 	A11yRequest,
@@ -18,10 +19,13 @@ import type {
 	BaselineRequest,
 	BenchOptions,
 	CaptureRequest,
+	CaptureSetRequest,
+	CaptureSetRun,
 	ContractRequest,
 	ContractRun,
 	CoverageRequest,
 	CoverageRun,
+	DiffRequest,
 	InspectRequest,
 	InspectResult,
 	MatrixRequest,
@@ -29,6 +33,7 @@ import type {
 	MigrateRequest,
 	MigrationReport,
 	Observation,
+	ObservationDiff,
 	PackBuildRequest,
 	PackBuildRun,
 	PackCheckRun,
@@ -54,6 +59,7 @@ import {
 	parseA11yRequest,
 	parseBaselineRequest,
 	parseCaptureRequest,
+	parseCaptureSetRequest,
 	parseContractRequest,
 	parseCoverageRequest,
 	parseMatrixRequest,
@@ -85,6 +91,13 @@ export interface SpecimenBench {
 	 */
 	validate(target?: ValidationTarget): ValidationReport;
 	render(request: CaptureRequest): Promise<Observation>;
+	/**
+	 * Capture many specimens in one context and checkpoint into a content-addressed capture set
+	 * under `.specimen/sets/`, returning ids and counts only.
+	 */
+	captureSet(request?: CaptureSetRequest): Promise<CaptureSetRun>;
+	/** Compare two observations or `{ set, id }` set references against `.specimen/sets/`. */
+	diff(request: DiffRequest): Promise<ObservationDiff>;
 	/**
 	 * Run a retained story as Storybook's Vitest addon runs it: render, play, then the
 	 * accessibility check under its effective policy. A story that fails to render fails its run.
@@ -171,7 +184,7 @@ export interface SpecimenBench {
 /** What runs a bench's browser work, in this process or a worker: the bench without its file work. */
 export type BenchRuntime = Omit<
 	SpecimenBench,
-	'validate' | 'migrate' | 'pack' | 'packCheck' | 'packExport'
+	'validate' | 'migrate' | 'pack' | 'packCheck' | 'packExport' | 'diff'
 > & {
 	/** Build the configured pack from two passes over every case, and write nothing. */
 	packBuild(request?: PackBuildRequest): Promise<PackBuildRun>;
@@ -238,6 +251,7 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 		BenchRuntime,
 		| 'packBuild'
 		| 'render'
+		| 'captureSet'
 		| 'run'
 		| 'runSuite'
 		| 'a11y'
@@ -318,6 +332,17 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 			// Resolve context here too: invalid requests never start a runtime.
 			resolveContext(request.context);
 			return enqueue((client) => client.render(request));
+		},
+		async captureSet(rawRequest = {}) {
+			const snapshot = ensureDiscovered();
+			const request = parseCaptureSetRequest(rawRequest);
+			selectCaptureEntries(snapshot.entries, request, snapshot.root);
+			resolveContext(request.context);
+			return enqueue((client) => client.captureSet(request));
+		},
+		async diff(request) {
+			const snapshot = ensureOpen();
+			return diffCaptures(snapshot.root, request);
 		},
 		async run(rawRequest) {
 			const snapshot = ensureDiscovered();

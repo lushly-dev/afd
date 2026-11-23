@@ -9,6 +9,8 @@ import type {
 	A11yRun,
 	BaselineRequest,
 	CaptureRequest,
+	CaptureSetRequest,
+	CaptureSetRun,
 	ContractRequest,
 	ContractRun,
 	CoverageRequest,
@@ -35,6 +37,7 @@ import type {
 type WorkerOperation =
 	| { operation: 'initialize'; config: LoadedConfig; executablePath?: string }
 	| { operation: 'render'; request: CaptureRequest }
+	| { operation: 'captureSet'; request: CaptureSetRequest }
 	| { operation: 'run'; request: RunRequest }
 	| { operation: 'runSuite'; request: SuiteRequest }
 	| { operation: 'a11y'; request: A11yRequest }
@@ -263,6 +266,10 @@ export class BenchWorkerClient {
 			{ operation: 'render', request },
 			(request.timeoutMs ?? 10_000) + 15_000
 		)) as Observation;
+	}
+	async captureSet(request: CaptureSetRequest = {}): Promise<CaptureSetRun> {
+		await this.ready;
+		return (await this.request({ operation: 'captureSet', request }, 3_600_000)) as CaptureSetRun;
 	}
 	async run(request: RunRequest): Promise<StoryRun> {
 		await this.ready;
