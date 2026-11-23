@@ -830,3 +830,91 @@ class TestNullStepData:
         )
 
         assert result.final.data == {"item": None, "when": None}
+
+
+class TestKeyWhitespace:
+    """Keys and aliases use JavaScript's \\s (25 code points; spec/pipeline-variables.md, #1962)."""
+
+    JS_WHITESPACE = frozenset(
+        [
+            0x0009,
+            0x000A,
+            0x000B,
+            0x000C,
+            0x000D,
+            0x0020,
+            0x00A0,
+            0x1680,
+            *range(0x2000, 0x200B),
+            0x2028,
+            0x2029,
+            0x202F,
+            0x205F,
+            0x3000,
+            0xFEFF,
+        ]
+    )
+
+    def test_exact_js_whitespace_set_across_all_unicode_scalar_values(self):
+        # `.` splits segments (`a.b` is two valid segments), so check it separately from
+        # characters that invalidate a key or alias.
+        forbidden = self.JS_WHITESPACE | {ord("["), ord("]")}
+        assert len(self.JS_WHITESPACE) == 25
+        for cp in range(0x110000):
+            if 0xD800 <= cp <= 0xDFFF or cp == ord("."):
+                continue
+            ch = chr(cp)
+            key_ref = parse_reference(f"$prev.a{ch}b")
+            alias_ref = parse_reference(f"$steps.a{ch}b")
+            if cp in forbidden:
+                assert key_ref is None, f"U+{cp:04X} must be rejected in key"
+                assert alias_ref is None, f"U+{cp:04X} must be rejected in alias"
+            else:
+                assert key_ref is not None and key_ref.path == ((f"a{ch}b", None),), (
+                    f"U+{cp:04X} must be allowed in key"
+                )
+                assert alias_ref is not None and alias_ref.alias == f"a{ch}b", (
+                    f"U+{cp:04X} must be allowed in alias"
+                )
+
+    @pytest.mark.parametrize("cp", [0x001C, 0x001D, 0x001E, 0x001F, 0x0085])
+    def test_non_js_unicode_whitespace_resolves_in_keys_aliases_and_limits(self, cp: int):
+        from afd.core.pipeline_variables import get_nested_value
+        from afd.server.approval_relay import reads_step_data
+
+        ch = chr(cp)
+        key = f"a{ch}b"
+        alias = f"step{ch}alias"
+        deep = _nested(MAX_INPUT_DEPTH + 1)
+        context = _context(_step(0, {key: "ok", f"deep{ch}k": deep}, alias=alias))
+
+        assert resolve_variable(f"$prev.{key}", context) == "ok"
+        assert resolve_variable(f"$steps.{alias}.{key}", context) == "ok"
+        assert get_nested_value({key: "ok"}, key) == "ok"
+        assert evaluate_condition({"$exists": f"$prev.{key}"}, context) is True
+        assert reads_step_data({"x": f"$prev.{key}"}) is True
+        assert reads_step_data({"x": f"$steps.{alias}"}) is True
+        with pytest.raises(PipelineResolutionLimitError) as raised:
+            resolve_variables({"x": f"$prev.deep{ch}k"}, context)
+        assert raised.value.limit == "depth"
+
+    @pytest.mark.parametrize("cp", [0x00A0, 0xFEFF])
+    def test_js_unicode_whitespace_is_literal_even_when_key_exists(self, cp: int):
+        from afd.core.pipeline_variables import get_nested_value
+        from afd.server.approval_relay import reads_step_data
+
+        ch = chr(cp)
+        key = f"a{ch}b"
+        alias = f"step{ch}alias"
+        deep = _nested(MAX_INPUT_DEPTH + 1)
+        context = _context(_step(0, {key: "should-not-resolve", f"deep{ch}k": deep}, alias=alias))
+
+        assert resolve_variable(f"$prev.{key}", context) == f"$prev.{key}"
+        assert resolve_variable(f"$steps.{alias}", context) == f"$steps.{alias}"
+        assert get_nested_value({key: "should-not-resolve"}, key) is None
+        assert evaluate_condition({"$exists": f"$prev.{key}"}, context) is False
+        assert reads_step_data({"x": f"$prev.{key}"}) is False
+        assert reads_step_data({"x": f"$steps.{alias}"}) is False
+        assert resolve_variables({"x": f"$prev.deep{ch}k"}, context) == {
+            "x": f"$prev.deep{ch}k"
+        }

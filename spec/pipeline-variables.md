@@ -59,9 +59,13 @@ absent operands are `false`.
 ## Resolution details
 
 - `$prev` is the `data` of the most recent **successful** step, not simply the previous step.
-- A key contains any characters except `.`, `[`, `]` and whitespace. Each segment has at most one
-  `[N]` suffix. A string using any other syntax is a literal: for example `$prev.a b`,
-  `$steps[0][1]` and `$steps.user[0]`.
+- A key or step alias contains any characters except `.`, `[`, `]` and whitespace, where
+  whitespace is JavaScript's `\s` (ECMAScript `WhiteSpace` and `LineTerminator`, the 25 code
+  points `U+0009`–`U+000D`, `U+0020`, `U+00A0`, `U+1680`, `U+2000`–`U+200A`, `U+2028`, `U+2029`,
+  `U+202F`, `U+205F`, `U+3000` and `U+FEFF`). Characters outside this set (such as
+  `U+001C`–`U+001F` and `U+0085`) are allowed in keys and aliases; `U+00A0` and `U+FEFF` are
+  whitespace. Each segment has at most one `[N]` suffix. A string using any other syntax is a
+  literal: for example `$prev.a b`, `$steps[0][1]` and `$steps.user[0]`.
 - A purely numeric segment is an own-key lookup on an object and an index on an array.
 - The `__` rule applies to aliases too: `$steps.__proto__` is unresolved.
 - `$$` unescaping applies at any string length. The 1024-unit limit applies only to strings

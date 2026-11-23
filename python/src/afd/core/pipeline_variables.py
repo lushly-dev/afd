@@ -78,8 +78,15 @@ class _Absent:
 ABSENT: Any = _Absent()
 """The value of a reference that cannot be resolved."""
 
-# A key is any non-empty run of characters other than '.', '[', ']' and whitespace.
-_KEY = r"[^.\[\]\s]+"
+# JavaScript's `\s` (ECMAScript WhiteSpace and LineTerminator, 25 code points;
+# `spec/pipeline-variables.md`, #1962). Enumerated explicitly because Python's Unicode `\s`
+# treats U+001C–U+001F and U+0085 as whitespace and omits U+FEFF.
+_JS_WHITESPACE = (
+    "\u0009\u000a\u000b\u000c\u000d\u0020\u00a0\u1680"
+    "\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff"
+)
+# A key or alias is any non-empty run of characters other than '.', '[', ']' and JS whitespace.
+_KEY = rf"[^.\[\]{_JS_WHITESPACE}]+"
 _SEGMENT_RE = re.compile(rf"({_KEY})(?:\[([0-9]+)\])?")
 _REFERENCE_RE = re.compile(
     rf"\$(?:(?P<root>prev|first|input)|steps\[(?P<index>[0-9]+)\]|steps\.(?P<alias>{_KEY}))"
