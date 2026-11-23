@@ -136,6 +136,12 @@ export const EXTRA_INPUTS = [
 		packages: ['@lushly-dev/specimen-fast-af'],
 		ownTests: true,
 	},
+	// violet-afd's interface.test.ts reads violet-elements' published token interface by path.
+	{
+		prefix: 'foundations/fast-af/packages/violet-elements/tokens/interface.json',
+		packages: ['@lushly-dev/violet-afd'],
+		ownTests: true,
+	},
 ];
 
 export const DEFAULT_BASES = ['origin/main', 'main'];

@@ -43,6 +43,29 @@ export function decide({ updates, git, read = readRecord, now = Date.now() }) {
 	}
 }
 
+/**
+ * Strip Git's hook environment (`GIT_DIR`, `GIT_INDEX_FILE`, `GIT_WORK_TREE`, etc.) before
+ * starting suites: a test that runs `git init` or `git config` in a temporary directory without
+ * clearing those variables would otherwise write to AFD's own repository (#2257).
+ */
+export function cleanHookEnvironment(environment = process.env) {
+	return Object.fromEntries(Object.entries(environment).filter(([name]) => !/^git_/i.test(name)));
+}
+
+/** Run the `pre-push-checks` lefthook group without Git's hook environment. */
+export function runPrePushChecks({
+	cwd = root,
+	env = process.env,
+	lefthook = join(root, 'node_modules/.bin/lefthook'),
+	stdio = 'inherit',
+} = {}) {
+	execTool(lefthook, ['run', 'pre-push-checks'], {
+		cwd,
+		env: cleanHookEnvironment(env),
+		stdio,
+	});
+}
+
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
 	const git = (args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' });
 	let updates = '';
@@ -55,10 +78,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
 	} else {
 		console.log(`pre-push: running the checks (${reason})`);
 		try {
-			execTool(join(root, 'node_modules/.bin/lefthook'), ['run', 'pre-push-checks'], {
-				cwd: root,
-				stdio: 'inherit',
-			});
+			runPrePushChecks();
 		} catch (error) {
 			process.exitCode = error.status || 1;
 		}

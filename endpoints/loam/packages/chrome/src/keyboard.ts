@@ -246,8 +246,13 @@ export function nextPart(
 	return order[(index + step + order.length) % order.length];
 }
 
-/** Whether the platform's `Mod` is Command. */
+/**
+ * Whether the platform's `Mod` is Command. Prefer `navigator.platform` when present, because
+ * non-macOS WebKit builds (Playwright on Windows/Linux) spoof `Macintosh` in `userAgent` while
+ * keeping `platform` truthful (`Win32`, `Linux x86_64`).
+ */
 export function isMacPlatform(nav: { platform?: string; userAgent?: string } | undefined): boolean {
-	const text = `${nav?.platform ?? ''} ${nav?.userAgent ?? ''}`;
+	const platform = nav?.platform?.trim();
+	const text = platform || (nav?.userAgent ?? '');
 	return /Mac|iPhone|iPad|iPod/.test(text);
 }

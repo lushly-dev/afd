@@ -13,6 +13,9 @@ on:
       - 'pnpm-workspace.yaml'
       - '.github/actions/playwright-install/**'
       - 'tests/consumers/violet/**'
+      - 'tests/consumers/pnpm.mjs'
+      - 'scripts/release/exec-tool.mjs'
+      - 'foundations/fast-af/packages/violet-elements/tokens/interface.json'
       - '.github/workflows/violet.yml'
       - '.github/workflows/queue.yml'
       - '.github/actions/setup-node-pnpm/**'
@@ -30,6 +33,9 @@ on:
       - 'pnpm-workspace.yaml'
       - '.github/actions/playwright-install/**'
       - 'tests/consumers/violet/**'
+      - 'tests/consumers/pnpm.mjs'
+      - 'scripts/release/exec-tool.mjs'
+      - 'foundations/fast-af/packages/violet-elements/tokens/interface.json'
       - '.github/workflows/violet.yml'
       - '.github/workflows/queue.yml'
       - '.github/actions/setup-node-pnpm/**'
@@ -69,7 +75,7 @@ jobs:
           fetch-depth: 0
           filter: blob:none
       - id: run
-        run: node scripts/affected.mjs gate --package @lushly-dev/violet-core --package @lushly-dev/violet-runtime --package @lushly-dev/violet-afd --package @lushly-dev/violet-cli --package @lushly-dev/violet-server --path tests/consumers/violet/ --path .github/workflows/violet.yml --path .github/actions/setup-node-pnpm/ --path .github/actions/playwright-install/
+        run: node scripts/affected.mjs gate --package @lushly-dev/violet-core --package @lushly-dev/violet-runtime --package @lushly-dev/violet-afd --package @lushly-dev/violet-cli --package @lushly-dev/violet-server --path tests/consumers/violet/ --path tests/consumers/pnpm.mjs --path scripts/release/exec-tool.mjs --path foundations/fast-af/packages/violet-elements/tokens/interface.json --path .github/workflows/violet.yml --path .github/actions/setup-node-pnpm/ --path .github/actions/playwright-install/
 
   suites-and-consumers:
     name: Violet full suites, upstream lint and packed consumers

@@ -16,6 +16,8 @@ on:
       - 'foundations/fast-af/packages/element/packages/fast-element/**'
       - 'foundations/fast-af/packages/violet-elements/**'
       - 'tests/consumers/specimen/**'
+      - 'tests/consumers/pnpm.mjs'
+      - 'scripts/release/exec-tool.mjs'
       - '.github/workflows/specimen.yml'
       - '.github/workflows/queue.yml'
       - '.github/actions/setup-node-pnpm/**'
@@ -36,6 +38,8 @@ on:
       - 'foundations/fast-af/packages/element/packages/fast-element/**'
       - 'foundations/fast-af/packages/violet-elements/**'
       - 'tests/consumers/specimen/**'
+      - 'tests/consumers/pnpm.mjs'
+      - 'scripts/release/exec-tool.mjs'
       - '.github/workflows/specimen.yml'
       - '.github/workflows/queue.yml'
       - '.github/actions/setup-node-pnpm/**'
@@ -78,11 +82,11 @@ jobs:
           fetch-depth: 0
           filter: blob:none
       - id: run
-        run: node scripts/affected.mjs gate --package @lushly-dev/specimen --package @lushly-dev/specimen-afd --package @lushly-dev/specimen-cli --package @lushly-dev/specimen-fast-af --path tests/consumers/specimen/ --path .github/workflows/specimen.yml --path .github/actions/setup-node-pnpm/ --path .github/actions/playwright-install/
+        run: node scripts/affected.mjs gate --package @lushly-dev/specimen --package @lushly-dev/specimen-afd --package @lushly-dev/specimen-cli --package @lushly-dev/specimen-fast-af --path tests/consumers/specimen/ --path tests/consumers/pnpm.mjs --path scripts/release/exec-tool.mjs --path .github/workflows/specimen.yml --path .github/actions/setup-node-pnpm/ --path .github/actions/playwright-install/
       - id: host
         run: node scripts/affected.mjs gate --path foundations/specimen/host/ --path .cargo/config.toml --path .github/workflows/specimen.yml
       - id: hosts
-        run: node scripts/affected.mjs gate --path foundations/specimen/host/ --path foundations/specimen/packages/ --path foundations/specimen/src/host.ts --path tests/consumers/specimen/ --path .cargo/config.toml --path .github/workflows/specimen.yml --path .github/actions/setup-node-pnpm/ --path .github/actions/playwright-install/
+        run: node scripts/affected.mjs gate --path foundations/specimen/host/ --path foundations/specimen/packages/ --path foundations/specimen/src/host.ts --path tests/consumers/specimen/ --path tests/consumers/pnpm.mjs --path scripts/release/exec-tool.mjs --path .cargo/config.toml --path .github/workflows/specimen.yml --path .github/actions/setup-node-pnpm/ --path .github/actions/playwright-install/
       - id: stories
         run: node scripts/affected.mjs gate --package @lushly-dev/violet-elements --path .github/workflows/specimen.yml --path .github/actions/setup-node-pnpm/ --path .github/actions/playwright-install/
 

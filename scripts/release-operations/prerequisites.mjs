@@ -47,31 +47,48 @@ export function registryNames(root, selectedUnits) {
 	}
 	return [...names].sort();
 }
-export function dependencyOrder(root, artifacts, metadataFor) {
-	const inventory = loadInventory(root),
-		ordered = [],
-		active = new Set(),
-		visited = new Set();
-	function visit(artifact) {
-		if (visited.has(artifact.name)) return;
+/**
+ * Group artifacts into topological waves so every prerequisite appears in an earlier wave than its
+ * dependents. Independent packages share a wave and can overlap their registry readback waits (#952).
+ */
+export function dependencyWaves(root, artifacts, metadataFor) {
+	const inventory = loadInventory(root);
+	const byName = new Map(artifacts.map((artifact) => [artifact.name, artifact]));
+	const active = new Set();
+	const depths = new Map();
+	const visited = [];
+	function depthOf(artifact) {
+		if (depths.has(artifact.name)) return depths.get(artifact.name);
 		if (active.has(artifact.name))
 			throw new Error(`Cyclic publication prerequisite: ${artifact.name}`);
 		active.add(artifact.name);
+		let level = 0;
 		for (const prerequisite of requirements(
 			metadataFor(artifact.file),
 			inventory.units.find((unit) => unit.id === artifact.unit)
 		)) {
 			if (prerequisite.registry !== 'npm')
 				throw new Error(`Unsupported registry evidence adapter: ${prerequisite.registry}`);
-			const dependency = artifacts.find((entry) => entry.name === prerequisite.name);
-			if (dependency) visit(dependency);
+			const dependency = byName.get(prerequisite.name);
+			if (dependency) level = Math.max(level, depthOf(dependency) + 1);
 		}
 		active.delete(artifact.name);
-		visited.add(artifact.name);
-		ordered.push(artifact);
+		depths.set(artifact.name, level);
+		visited.push(artifact);
+		return level;
 	}
-	for (const artifact of artifacts) visit(artifact);
-	return ordered;
+	for (const artifact of artifacts) depthOf(artifact);
+	const waves = [];
+	for (const artifact of visited) {
+		const level = depths.get(artifact.name);
+		waves[level] ??= [];
+		waves[level].push(artifact);
+	}
+	return waves;
+}
+
+export function dependencyOrder(root, artifacts, metadataFor) {
+	return dependencyWaves(root, artifacts, metadataFor).flat();
 }
 const lookupPublished = (artifact, { timeoutMs }) =>
 	JSON.parse(
@@ -99,9 +116,12 @@ export const READBACK_MAX_ATTEMPTS = 60;
 const firstWaitMs = 5000;
 const longestWaitMs = 60_000;
 
-/** Retry only an absent version after a successful upload; never retry an upload. */
-export function readPublished(
-	artifact,
+/**
+ * Poll a wave of artifacts together so their registry propagation waits overlap (#952).
+ * Retries only absent versions (`notVisible: true`); any other error fails immediately.
+ */
+export function readPublishedBatch(
+	artifacts,
 	{
 		lookup = lookupPublished,
 		now = () => performance.now(),
@@ -109,20 +129,60 @@ export function readPublished(
 			Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds),
 	} = {}
 ) {
+	const results = new Map();
+	let pending = [...artifacts];
 	const deadline = now() + READBACK_DEADLINE_MS;
 	let pause = firstWaitMs;
-	for (let attempt = 0; attempt < READBACK_MAX_ATTEMPTS && now() < deadline; attempt++) {
-		const metadata = lookup(artifact, {
-			timeoutMs: Math.max(1, Math.ceil(Math.min(10000, deadline - now()))),
-		});
-		if (metadata?.notVisible !== true) return metadata;
+	for (
+		let attempt = 0;
+		attempt < READBACK_MAX_ATTEMPTS && pending.length > 0 && now() < deadline;
+		attempt++
+	) {
+		const stillPending = [];
+		for (let index = 0; index < pending.length; index++) {
+			const artifact = pending[index];
+			const remaining = deadline - now();
+			if (remaining <= 0) {
+				stillPending.push(artifact);
+				continue;
+			}
+			let metadata;
+			try {
+				metadata = lookup(artifact, {
+					timeoutMs: Math.max(1, Math.ceil(Math.min(10000, remaining))),
+				});
+			} catch (error) {
+				const unverified = [artifact, ...stillPending, ...pending.slice(index + 1)];
+				if (error && typeof error === 'object') {
+					error.artifact = artifact.name;
+					error.pending = unverified;
+					error.results = results;
+				}
+				throw error;
+			}
+			if (metadata?.notVisible === true) stillPending.push(artifact);
+			else results.set(artifact.name, metadata);
+		}
+		pending = stillPending;
 		const remaining = deadline - now();
-		if (attempt < READBACK_MAX_ATTEMPTS - 1 && remaining > 0) {
+		if (pending.length > 0 && attempt < READBACK_MAX_ATTEMPTS - 1 && remaining > 0) {
 			wait(Math.min(pause, remaining));
 			pause = Math.min(pause * 2, longestWaitMs);
 		}
 	}
-	throw new Error(`Registry version is still not visible: ${artifact.name}@${artifact.version}`);
+	if (pending.length > 0) {
+		const names = pending.map((artifact) => `${artifact.name}@${artifact.version}`).join(', ');
+		throw Object.assign(new Error(`Registry version is still not visible: ${names}`), {
+			results,
+			pending,
+		});
+	}
+	return artifacts.map((artifact) => results.get(artifact.name));
+}
+
+/** Retry only an absent version after a successful upload; never retry an upload. */
+export function readPublished(artifact, options = {}) {
+	return readPublishedBatch([artifact], options)[0];
 }
 export function verifyPublished(artifact, readback) {
 	const bytes = readFileSync(artifact.file);

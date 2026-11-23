@@ -26,13 +26,15 @@ on:
       - 'packages/rust/**'
       - 'packages/cpp/**'
       - 'python/**'
-      - 'spec/protocol-conformance.json'
-      - 'spec/schema/**'
+      - 'spec/**'
+      - '!spec/**/*.md'
       - 'pnpm-lock.yaml'
       - '.cargo/config.toml'
       - '.github/actions/playwright-install/**'
       - '.github/actions/cpp-dependencies/**'
       - 'tests/consumers/afd/**'
+      - 'tests/consumers/pnpm.mjs'
+      - 'scripts/release/exec-tool.mjs'
       - '.github/workflows/conformance.yml'
       - '.github/workflows/queue.yml'
       - '.github/actions/setup-node-pnpm/**'
@@ -54,13 +56,15 @@ on:
       - 'packages/rust/**'
       - 'packages/cpp/**'
       - 'python/**'
-      - 'spec/protocol-conformance.json'
-      - 'spec/schema/**'
+      - 'spec/**'
+      - '!spec/**/*.md'
       - 'pnpm-lock.yaml'
       - '.cargo/config.toml'
       - '.github/actions/playwright-install/**'
       - '.github/actions/cpp-dependencies/**'
       - 'tests/consumers/afd/**'
+      - 'tests/consumers/pnpm.mjs'
+      - 'scripts/release/exec-tool.mjs'
       - '.github/workflows/conformance.yml'
       - '.github/workflows/queue.yml'
       - '.github/actions/setup-node-pnpm/**'
@@ -103,11 +107,11 @@ jobs:
           fetch-depth: 0
           filter: blob:none
       - id: todo
-        run: node scripts/affected.mjs gate --package @afd/example-todo-ts --package @afd/example-todo --package @afd/example-todo-ui --package @afd/example-todo-fast-af --package @afd/example-todo-react --package @afd/example-todo-directclient --package @afd/example-todo-directclient-page --path python/ --path packages/cli/ --path spec/protocol-conformance.json --path spec/schema/ --path tests/consumers/afd/ --path .github/workflows/conformance.yml --path .github/actions/setup-node-pnpm/ --path .github/actions/playwright-install/
+        run: node scripts/affected.mjs gate --package @afd/example-todo-ts --package @afd/example-todo --package @afd/example-todo-ui --package @afd/example-todo-fast-af --package @afd/example-todo-react --package @afd/example-todo-directclient --package @afd/example-todo-directclient-page --path python/ --path packages/cli/ --path spec/ --path tests/consumers/afd/ --path tests/consumers/pnpm.mjs --path scripts/release/exec-tool.mjs --path .github/workflows/conformance.yml --path .github/actions/setup-node-pnpm/ --path .github/actions/playwright-install/
       - id: rust
-        run: node scripts/affected.mjs gate --path packages/rust/ --path packages/examples/todo/backends/rust/ --path packages/examples/todo/spec/ --path packages/examples/todo/dx/ --path packages/examples/todo/package.json --path spec/protocol-conformance.json --path spec/schema/ --path .cargo/config.toml --path .github/workflows/conformance.yml --path .github/actions/setup-node-pnpm/
+        run: node scripts/affected.mjs gate --path packages/rust/ --path packages/examples/todo/backends/rust/ --path packages/examples/todo/spec/ --path packages/examples/todo/dx/ --path packages/examples/todo/package.json --path spec/ --path .cargo/config.toml --path .github/workflows/conformance.yml --path .github/actions/setup-node-pnpm/
       - id: cpp
-        run: node scripts/affected.mjs gate --path packages/cpp/ --path packages/examples/todo/backends/cpp/ --path packages/examples/todo/spec/ --path packages/examples/todo/dx/ --path packages/examples/todo/package.json --path spec/protocol-conformance.json --path spec/schema/ --path .github/workflows/conformance.yml --path .github/actions/setup-node-pnpm/ --path .github/actions/cpp-dependencies/
+        run: node scripts/affected.mjs gate --path packages/cpp/ --path packages/examples/todo/backends/cpp/ --path packages/examples/todo/spec/ --path packages/examples/todo/dx/ --path packages/examples/todo/package.json --path spec/ --path .github/workflows/conformance.yml --path .github/actions/setup-node-pnpm/ --path .github/actions/cpp-dependencies/
 
   todo:
     name: Todo conformance (TypeScript + Python)
