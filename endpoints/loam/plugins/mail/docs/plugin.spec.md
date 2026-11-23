@@ -10,10 +10,13 @@ first.
 
 ## Status
 
-- **State:** reviewed, not approved. Two independent first reviews (GPT-6.2 Astra high, Claude
-  Opus 5.5) and four focused passes on 2026-11-19, each pass's blockers fixed, the last checked by
-  the session; the record is in the review section at the end. The owner's answers to Q1 to Q5 are
-  open. F0 and F1 do not depend on them, and are built next; a step that does waits for its answer.
+- **State:** approved. The owner answered Q1 to Q5 on 2026-11-23 UTC
+  ([#1980](https://github.com/lushly-dev/afd/issues/1980)), approving all five recommended options
+  and M30 to M40 ([Questions for the owner](#questions-for-the-owner)), unblocking F2b's recipient
+  rule and F4. Earlier: two independent first reviews (GPT-6.2 Astra high, Claude Opus 5.5) and
+  four focused passes on 2026-11-19, each pass's blockers fixed, the last checked by the session
+  ([Review 2026-11-19](#review-2026-11-19)); merged reviewed as
+  [#1652](https://github.com/lushly-dev/afd/pull/1652).
 - **Written:** 2026-11-19, against `main` at `d890d02d`. **Revised** the same day after two
   independent reviews (both "revise"; [Review 2026-11-19](#review-2026-11-19)), with `main` merged
   in at `5a631f89`, and again after a focused re-review of `8c44d05c` (three new blockers, N1 to
@@ -39,11 +42,12 @@ first.
   `tests/proposals.rs`; Loam's `kernel/src/apps/mounted.ts` (discovery) and
   `web/src/mount-desktop.ts` (the desktop's MCP protocol version); AFD's scenario runner
   (`packages/testing/src/runner/scenario-runner.ts`, `evaluator.ts`).
-- **Not verified:** everything about drafts, sending, unsubscribing and reply sets as built. Step
-  D3's first part (drafts, migration 15, `DRAFT_CHANGED` for an update from a stale revision) is
-  in review on another branch, and E3 is not started. Where this document names a field of
-  theirs, it states what step F needs, and the step F pull request that touches it aligns with
-  what merged.
+- **Not verified (as written on 2026-11-19):** everything about drafts, sending, unsubscribing and
+  reply sets as built. On 2026-11-19, step D3's first part (drafts, migration 15, `DRAFT_CHANGED`
+  for an update from a stale revision) was in review on another branch and E3 was not started; D3
+  (#1663, #1727, #2071) and E3 (#2199) have since merged (see `STATUS.md`). Where this document
+  names a field of theirs, it states what step F needs, and the step F pull request that touches it
+  aligns with what merged.
 - **Scenario files:** five, in [`scenarios/`](scenarios/), checked with AFD's parser, the dry-run
   validation and the coverage report on 2026-11-19 ([section 3](#3-jobs-and-scenarios)).
 
@@ -63,7 +67,9 @@ Terms follow the engine's specification and phase 5's.
 
 ## 1. Decisions of this specification
 
-They continue the engine's M15 to M29. All are proposed, for review.
+They continue the engine's M15 to M29. The owner approved M30 to M40 on 2026-11-23 UTC
+([#1980](https://github.com/lushly-dev/afd/issues/1980)), settling M36 as option (c) of
+[Q1](#q1-taint-per-account).
 
 | | Decision | Why |
 | --- | --- | --- |
@@ -73,7 +79,7 @@ They continue the engine's M15 to M29. All are proposed, for review.
 | M33 | A draft and a reply set carry a revision; an unsubscribe target and a proposal carry a digest. Each released command names it in its input, and so does its preview. It is checked by the preview Loam shows, before the call is held, and again before anything is sent; a mismatch is `PREVIEW_CHANGED` | Phase 5's 7.2, item 4, and the reviews' B1 and N1: what Loam shows is exactly what the token binds |
 | M34 | A held command runs only on evidence from the terminal or from an approver, which the engine treats as the person's | Phase 5's 7.2, item 5. The engine cannot tell a person's approval from an approver that did not ask one (section 17, F8) |
 | M35 | `mail-replyset-next` becomes a read that returns one unit with a single-use claim; a new `mail-replyset-submit` stores text only against a current claim and records what it was written from, without claiming how it was composed | Phase 5's 7.3, and the proposal's 4.8 |
-| M36 | Taint per account: **pending [Q1](#q1-taint-per-account)**. Section 10 weighs four options and recommends one | The residual risk of phase 5's 5.3 |
+| M36 | Taint per account: keep one engine, add per-account agent limits (an optional policy row per account, falling back to the default), and refuse any agent or script change, resume or undo whose selection spans accounts with `SELECTION_SPANS_ACCOUNTS` ([Q1](#q1-taint-per-account), option (c)) | The residual risk of phase 5's 5.3; keeps one unified inbox and sender knowledge while letting the person guard any account by setting its agent limits to 0 |
 | M37 | Over MCP, a held result to a caller that is not an approver carries no approval token, and its suggestion says where the person runs it | The crate's default includes the token for every MCP caller (section 5.2) |
 | M39 | Bounds on what a preview shows: a draft at most 100 recipients, a reply set at most 50 replies, and any draft or set whose preview, measured as a budget and as an MCP reply, would not fit is refused when it is built (section 6) | A whole preview must fit one call; measuring the rendered preview covers the worst escapes |
 | M40 | An approver token does not expire; it lasts until revoked | Loam has no way to make a new one without a terminal before its step 9, and an expiry would silently stop the mount. Revocation, `mail-status`'s count and section 4.3's guidance are the controls. Step 9's amendment may add expiry with its no-terminal pairing |
@@ -90,9 +96,9 @@ item, and 7.3's unit:
 | Exactly four person-only commands listed over MCP, held for every caller; the others not listed | [Section 5](#5-the-four-released-commands) |
 | A preview read for each released command, its target in labelled parts | [Section 6](#6-previews) |
 | Each released command's input names a revision or the preview's digest, checked by the engine | [Section 7](#7-revisions-and-digests) |
-| A call carrying an approver's evidence counts as the person's against the agent limits; "a person's own bulk change through Loam is therefore not counted as an agent's" | [Section 8](#8-a-held-command-acts-as-the-persons). **Partly met:** held calls only. A person's own change through Loam that is not held is charged to Loam's one agent ([Q4](#q4-a-persons-own-changes-through-loam)) |
+| A call carrying an approver's evidence counts as the person's against the agent limits; "a person's own bulk change through Loam is therefore not counted as an agent's" | [Section 8](#8-a-held-command-acts-as-the-persons). **Partly met (accepted for step F, [Q4](#q4-a-persons-own-changes-through-loam) (a)):** held calls only; a person's own change through Loam that is not held shares Loam's agent budget |
 | A reply set that returns units (7.3; step 7 waits for it) | [Section 9](#9-units-from-a-reply-set) |
-| Per-account taint sources, left to mail's step F (5.3, section 17) | [Section 10](#10-taint-per-account), [Q1](#q1-taint-per-account) |
+| Per-account taint sources, left to mail's step F (5.3, section 17) | [Section 10](#10-taint-per-account), M36 ([Q1](#q1-taint-per-account) (c)): one engine with per-account agent limits and no cross-account agent changes |
 | The engine mounted by hand (7.4), and P5-A9's runs against the real engine | Sections [12](#12-mounting-by-hand-until-loams-step-9) and [13](#13-the-native-app) |
 
 **What exists in AFD.** Phase 5's step 0c is merged ([#1475](https://github.com/lushly-dev/afd/pull/1475)).
@@ -120,14 +126,14 @@ In the `afd` crate the engine builds on (0.2.1, by path):
 
 - **Discovery** calls `afd-help { format: "full" }` first and fails with `MOUNT_NOT_AFD` when it
   gives no command list (`kernel/src/apps/mounted.ts`). The engine must answer it (section 12.1).
-- **The desktop's mount transport speaks MCP `2025-06-18`** (`web/src/mount-desktop.ts`,
-  `DESKTOP_PROTOCOL_VERSION`). On that protocol the crate refuses approval evidence, so **no
-  approval can be redeemed through Loam's desktop until its transport speaks MCP 2026-07-28.**
-  That is a dependency of phase 5's step 5 that its specification does not name (section 20,
-  item 12), and of step F's acceptance (F-T12).
+- **The desktop's mount transport (as of 2026-11-19) spoke MCP `2025-06-18`**
+  (`web/src/mount-desktop.ts`, `DESKTOP_PROTOCOL_VERSION`). On that protocol the crate refuses
+  approval evidence; Loam's phase 5 step 5 (stdio) and `#2137` (HTTP, 2026-11-22) have since added
+  MCP `2026-07-28` approval support for `approvals = "shell"` mounts (section 20, item 12).
 
-So the engine waits on nothing in AFD. It waits on its own steps D3 (drafts, send and unsubscribe)
-and E3 (reply sets), and on Loam's phase 5 steps 4 and 5 and its desktop transport (section 12).
+So the engine waits on nothing in AFD. Its own steps D3 (drafts, send, unsubscribe) and E3 (reply
+sets) and Loam's phase 5 steps 4 to 6 and HTTP `2026-07-28` mount support (`#2137`) have merged;
+step F's remaining pull requests and Loam's step 7 acceptance run (P5-A9) are listed in section 18.
 
 ## 3. Jobs and scenarios
 
@@ -135,8 +141,8 @@ The jobs are written as scenario files, one per job, in [`scenarios/`](scenarios
 `jobs-first.md` asks. Phase 5 already holds the jobs as Loam serves them, against its `mailfix`
 fixture (`approve-mail-send`, `person-sends-mail`, `reply-set-fresh-context`,
 `mail-cannot-act-elsewhere`); these are the engine's side of the same jobs, run against
-`loam-mail serve` itself. Ranked by what they protect, sends first; the owner ranks them in
-[Q5](#q5-the-jobs-and-their-order).
+`loam-mail serve` itself. Ranked by what they protect, sends first; the owner confirmed the five
+jobs and this ranking on 2026-11-23 UTC ([Q5](#q5-the-jobs-and-their-order)).
 
 | # | Job | When … I want … so that … | File |
 | --- | --- | --- | --- |
@@ -160,7 +166,7 @@ the codes it adds:
 - **Commands no job uses:** `mail-token-list`, a terminal read a scenario over MCP cannot reach,
   and `mail-status`, whose only change is two counts of tokens (F-T2).
 - **Codes no job shows:** `PREVIEW_TOO_LARGE`, which needs a target larger than a seed should hold
-  (F-T6), and `SELECTION_SPANS_ACCOUNTS`, which exists only if Q1 is answered (c). A stale revision
+  (F-T6), and `SELECTION_SPANS_ACCOUNTS` (M36, F-T11), which guards cross-account agent changes. A stale revision
   or digest is shown before the hold (section 7), so `PREVIEW_CHANGED` is shown by jobs 2 to 5, each refusing a preview, and jobs 2 to 4 a call, that names a value which is not current.
 - **Commands the files call that this document does not draft** are earlier steps':
   `mail-draft-create`, `mail-draft-update`, `mail-policy-set`, `mail-selection-create` and
@@ -509,7 +515,9 @@ does not need to see which; it knows the handler is held. For the policy of
   agent, its trash to Loam's day; over a limit it becomes a proposal, whose approval in Loam then
   runs it as the person's. So phase 5's sentence "a person's own bulk change through Loam is
   therefore not counted as an agent's" is met for the change over a limit, once approved, and not
-  for one within the limits. Whether that is acceptable is [Q4](#q4-a-persons-own-changes-through-loam).
+  for one within the limits. The owner accepted this shared agent budget for step F on 2026-11-23
+  UTC ([Q4](#q4-a-persons-own-changes-through-loam), option (a)); phase 5's sentence is to be
+  amended to say "once approved".
 
 ### 8.2 Recipients
 
@@ -524,9 +532,10 @@ else, so the engine cannot tell the person's typing from the copilot's.
   address a stranger put in a header of a message in that thread. A steered copilot can therefore
   add a stranger's address that is marked `thread`, not `new`. The preview labels every address as
   content, and Loam shows it.
-- **Whether a send released by an approver's evidence may include `new` recipients** is
-  [Q2](#q2-new-recipients-from-loam). Until it is answered, F2 refuses them with
-  `RECIPIENT_NOT_ALLOWED`, as the terminal rule does for an address not typed there.
+- **`new` recipients on an approver-released send are allowed** ([Q2](#q2-new-recipients-from-loam),
+  option (a), approved 2026-11-23 UTC): a send released by an approver's evidence may include `new`
+  addresses, each marked `"basis": "new"` in `mail-draft-show`'s preview so it stands out before
+  the person confirms in Loam.
 - At the terminal the rule is unchanged: the command line asks the person to type a new address.
 - A send from any caller still never takes a recipient from a message's text: `Reply-To` is
   flagged as now, and a reply set's recipients are set by the engine.
@@ -546,7 +555,8 @@ therefore reach the engine as one agent, the approver token's actor. That means:
   through Loam, so the engine cannot tell the person's words from the copilot's. Loam's journal
   records which of them called.
 
-These are the costs [Q4](#q4-a-persons-own-changes-through-loam) weighs.
+These are the costs the owner accepted for step F in [Q4](#q4-a-persons-own-changes-through-loam)
+(option (a)).
 
 ## 9. Units from a reply set
 
@@ -669,7 +679,8 @@ to answer it:
 | (c) | **Keep one source, and limit in the engine:** per-account agent limits, and no agent's or script's change across accounts | A migration: the policy gains an optional row per account (each number of 9.4, falling back to the default row); `mail-policy-set` takes `account`. A change, a resume or an undo by an agent or a script whose set spans accounts fails with `SELECTION_SPANS_ACCOUNTS` before anything is asked of the provider, **whether or not any account is guarded**, so an agent that works across accounts makes one selection per account | None | Protection is opt-in: with the default limits the risk is as 5.3 states. Limits of 0 cover archive, label, mark and trash; an agent can still cancel a running operation, which stops a change rather than making one, and edit a local draft, which a person's send must still approve |
 | (d) | **One engine, a token per account, two instances in Loam:** a token gains an optional set of accounts; every command a token runs sees and changes only those accounts. Loam mounts the one engine twice, one entry per account, each with its own token | The largest: every read and change filtered by the token's accounts (lists, search, threads, senders, stories, proposals, operations, status), with tests that nothing of another account leaks; senders and stories, which span accounts, must be split or hidden per token | As (a): two instances, two prefixes, reads of the other instance lowered under taint | Less than (a): one store, one sync, one identity of a message. A sender's knowledge is still one store's, but each instance sees only its accounts' side of it |
 
-**Recommended: (c),** with (a) open to anyone who wants the hard boundary today. Reasons:
+**Decided: (c) (M36),** approved by the owner on 2026-11-23 UTC ([Q1](#q1-taint-per-account)), with
+(a) open to anyone who wants the hard boundary today. Reasons:
 
 - (b) asks Loam's kernel to trust a server's account report for the boundary it enforces, and is
   the most work on both sides for one server's shape.
@@ -682,8 +693,7 @@ to answer it:
   steered. A change in the account the content came from stays within the policy, as it does
   today for one account.
 
-The choice is the owner's: [Q1](#q1-taint-per-account). M36 records it when he answers. Reads
-carry nothing out of the machine under any option, and a draft goes nowhere until a person
+Reads carry nothing out of the machine under any option, and a draft goes nowhere until a person
 approves its send.
 
 ## 11. Labels per part
@@ -933,8 +943,9 @@ commands = [
   token. A changed draft gives `PREVIEW_CHANGED`, and the app shows the draft again.
 - **What the person cannot do in the app,** under phase 5's 7.2: decide on a sender
   (`mail-sender-screen`, `mail-sender-accept`), change the policy, or manage accounts and tokens.
-  The app can suggest a decision on a sender, which the person then accepts at the terminal. This
-  falls short of "the owner's only mail client" (D135) for screening: [Q3](#q3-sender-decisions-in-the-app).
+  The app can suggest a decision on a sender, which the person then accepts at the terminal. The
+  owner confirmed keeping sender decisions at the terminal for step F, to revisit after Loam's
+  milestone A ([Q3](#q3-sender-decisions-in-the-app), option (a)).
 
 ## 14. What remains for Loam's step 9
 
@@ -968,11 +979,11 @@ Applied by the pull request that builds each, so as not to collide with D3 and E
 | M18 | Section 5.4's text | F2a |
 | 3.3 | Tokens have a role; an approver token's form; the `with_approver` mapping; `--out` | F1 |
 | 3.5 | Four commands also listed over MCP; what a non-approver gets; the check before the hold; the command line fills a revision or digest | F2a, F2b, F3 |
-| 9.4 | A held command acts as the person's; one caller for Loam; a proposal's generation; per-account limits and single-account changes, if Q1 is answered (c) | F2a, F4 |
-| 9.5 | Recipients' `basis`; the draft's size cap; `new` recipients as Q2 is answered | F2b |
+| 9.4 | A held command acts as the person's; one caller for Loam; a proposal's generation; per-account limits and single-account changes (M36, Q1 (c)) | F2a, F4 |
+| 9.5 | Recipients' `basis`; the draft's size cap; `new` recipients allowed on approver-released sends and marked `new` in preview (Q2 (a)) | F2b |
 | 10.3 | Reply sets' revision, size cap and stored recipients; units, claims and `mail-replyset-submit`; what is recorded per reply | F3 |
 | 11 | Exposure of the four; `mail-unsubscribe-show`, `mail-replyset-submit`; `mail-replyset-next` a read; `mail-token-create`'s `role`; AFD's bootstrap commands | F1 to F3 |
-| 12.3 | `PREVIEW_CHANGED`, `PREVIEW_TOO_LARGE`, `UNIT_NOT_OPEN`, and `SELECTION_SPANS_ACCOUNTS` if Q1 is answered (c) | F2a to F4 |
+| 12.3 | `PREVIEW_CHANGED`, `PREVIEW_TOO_LARGE`, `UNIT_NOT_OPEN`, and `SELECTION_SPANS_ACCOUNTS` (M36) | F2a to F4 |
 | 14 | Phase B's "a person's command is not listed or callable over MCP" becomes "only the four are listed, and none runs without evidence from the terminal or an approver" | F2a |
 
 ## 16. Error codes
@@ -984,7 +995,7 @@ Added to the engine's 12.3. Each failure carries a suggestion in the engine's wo
 | `PREVIEW_CHANGED` | A released command names a revision or digest that does not match its target, before the hold or after the approval (section 7) | No: read the preview again and ask the person again |
 | `PREVIEW_TOO_LARGE` | A draft or reply set would grow past what its preview shows whole, or a preview would exceed the read budget (section 6) | No: shorten the text, or split the set |
 | `UNIT_NOT_OPEN` | `mail-replyset-submit` names a unit or claim that is not the reply's current one (section 9.2) | No: call `mail-replyset-next` again |
-| `SELECTION_SPANS_ACCOUNTS` | Only if Q1 is answered (c): an agent's or a script's change, resume or undo whose set spans accounts | No: make one selection per account |
+| `SELECTION_SPANS_ACCOUNTS` | An agent's or a script's change, resume or undo whose set spans accounts (M36) | No: make one selection per account |
 
 `APPROVAL_REQUIRED`, `VALIDATION_ERROR` and `COMMAND_NOT_FOUND` keep the crate's meanings;
 `RECIPIENT_NOT_ALLOWED`, `POLICY_LIMIT`, `PROPOSAL_NOT_OPEN` and `SCREENING_NOT_READY` keep the
@@ -1001,10 +1012,10 @@ wrote.
 | F2 | To become an approver | `mail-token-create` over MCP | Not listed; made only at the terminal, with a summary that names the power | F-T1 |
 | F3 | To redeem another caller's token | A token from a log or another approver | Bound to the approver's actor, single use, 30 minutes; removed from the journal and from every non-approver's result | F-T3, F-T4 |
 | F4 | To send what the person did not see | A change to the draft, the set, the target or the proposal after the preview, or a call naming a revision ahead of the draft's | The revision or digest, checked before the hold and again in the act's transaction; a proposal's generation; `PREVIEW_CHANGED`; Loam's hold and re-read besides, and Loam showing nothing for a failed preview, provided phase 5 adopts section 20's item 14 | F-T7 |
-| F5 | To add a stranger's address to a send | Content steering the copilot to edit a draft | A `new` address is refused through Loam until Q2 is answered; a `thread` address a stranger forged into the thread is shown, labelled, in the preview the person approves | F-T8, Q2 |
+| F5 | To add a stranger's address to a send | Content steering the copilot to edit a draft | Under Q2 (a), a `new` address is allowed on an approver-released send and marked `"basis": "new"` in `mail-draft-show`'s preview; a `thread` address a stranger forged into the thread is shown, labelled, in the preview the person approves | F-T8 |
 | F6 | To carry one sender's text into another's reply | A reply set | Each unit holds one reply's inputs; a submit needs the reply's current unit and its claim, which the parent never sees; an edit or a submit spends it; the preview marks replies that differ | F-T9, F-T10 |
-| F7 | To change the guarded account through content from the other | The copilot under taint from one account | With Q1's (c): per-account agent limits and no change across accounts; with (a) or (d): separate instances | F-T11 |
-| F8 | To act as the person with Loam's bearer | A program running as the person reads the token file or Loam's `mounts.json` | **Not stopped.** The approver token carries the person's authority for the four commands, with no person asked: it can draft a reply and send it (to `new` addresses too, if Q2 allows them through Loam), propose a change as an agent and approve it itself, lifting every limit, and unsubscribe. It lasts until revoked, unlike `cli.token`. The same boundary as `cli.token` today (the engine's 3.5) and phase 5's T15. Mitigations: files private to the person, `--out` refused where they cannot be made so, `mail-status`'s count of approvers, and revoking (section 4.3) | Documented; F-T1 for the file |
+| F7 | To change the guarded account through content from the other | The copilot under taint from one account | Per-account agent limits and no agent or script change across accounts (M36, Q1 (c)); separate instances (option (a)) stay open for a hard wall | F-T11 |
+| F8 | To act as the person with Loam's bearer | A program running as the person reads the token file or Loam's `mounts.json` | **Not stopped.** The approver token carries the person's authority for the four commands, with no person asked: it can draft a reply and send it (to `new` addresses too, under Q2 (a)), propose a change as an agent and approve it itself, lifting every limit, and unsubscribe. It lasts until revoked, unlike `cli.token`. The same boundary as `cli.token` today (the engine's 3.5) and phase 5's T15. Mitigations: files private to the person, `--out` refused where they cannot be made so, `mail-status`'s count of approvers, and revoking (section 4.3) | Documented; F-T1 for the file |
 
 ## 18. Implementation plan
 
@@ -1018,17 +1029,18 @@ specification (section 15) and adds its own line to the status file before it st
 | F0 | **Test doubles as a program** (section 12.4). The `test-doubles` feature and its `compile_error!` without debug assertions: the file store for sign-ins, the endpoints file with its rule of loopback IP literals, both variables or neither, the scripted IMAP server moved into the crate, `loam-mail test-world` with the `mail-f-base` seed so far as the engine has its records, its agent's and approver tokens in `--out` (F1's roles; until F1 merges, the agent's token alone), its release of the store and `received.jsonl`, the start-up line and `mail-status`'s `build`, `--version`'s features, and `loam-plugins.yml`'s runs with and without the feature and its release check. F2b adds D3's scripted SMTP server and the drafts to the seed; F3 adds the reply set | Step B5 only |
 | F1 | **Approver tokens and discovery.** The `role` column (the next free migration); `mail-token-create`'s `role` and summary; `--out`, refused on Windows; `mail-token-list`'s role; `mail-status`'s token counts; `with_approver`; the middleware that strips a held result's token for a non-approver over MCP and gives the engine's suggestion; AFD's bootstrap commands and `rules.rs`'s exemption for them; an AFD issue for `include_token`'s default (section 20, item 6). Tests F-T1 to F-T4 on a held test command listed over MCP, in a test registry built without `rules::check`, since `rules.rs` refuses such a command until F2a changes the rule; and F-T13 | Step B5 only |
 | F2a | **Approving proposals released.** `mail-operation-approve` listed over MCP; the proposal's generation (a migration); `mail-operation-show`'s `proposal` and `digest`, and its preview-only form; the check before the hold and in the transaction; `PREVIEW_CHANGED`; the command line filling the digest; M18 and the phase B exit test amended; the new registry rule of section 5.1. Scenario file 3 with the `mail-f-base` seed, run in the workflow. Tests F-T5 to F-T7 for it. This proves the approval path before any send exists | F1; D1 (merged) |
-| F2b | **Sends and unsubscribes released.** `mail-draft-send` and `mail-unsubscribe` listed; `mail-unsubscribe-show`; the draft's revision checks, recipients' `basis` and size cap; `PREVIEW_TOO_LARGE`; `new` recipients as Q2 is answered. Scenario files 1, 2 and 4. Tests F-T3 to F-T8 for both | F2a; **D3** (drafts, send, unsubscribe) |
-| F3 | **Reply sets released, and units.** `mail-replyset-send` listed, with the set's revision, size cap and stored recipients; `mail-replyset-show` as the preview; `mail-replyset-next` as a read returning the unit and its claim; `mail-replyset-submit`; the claim's key; the per-reply records (migration); `UNIT_NOT_OPEN`. Scenario file 5. Tests F-T3, F-T4, F-T6 and F-T7 rerun for the set's send; F-T9 and F-T10 | F2a; **E3** (reply sets) |
-| F4 | **Taint per account,** as the owner answers Q1. For (c): per-account agent limits (migration), `mail-policy-set`'s `account`, `SELECTION_SPANS_ACCOUNTS`; F-T11. For (a): documentation of two instances, and step 9's amendment notes an install per account. For (b) or (d): this specification is amended first | D1 (merged); Q1's answer |
-| F5 | **The mount package.** `endpoints/loam/plugins/mail/mount/` with its manifest, and the plugin's README section with section 12's steps; `loam-desktop.yml`'s paths and `scripts/affected.mjs`'s desktop gate gain the engine and `packages/rust/**` (section 12.4) | F1; Loam's phase 5 steps 4 and 5, for `labels`, `approvals`, `preview` and `expose.apps` in the entry |
-| F6 | **`mailapp`'s send slice** (section 13.1) | F2b, F5; Loam's phase 5 step 4 (`calls` grants to mounts) |
+| F2b | **Sends and unsubscribes released.** `mail-draft-send` and `mail-unsubscribe` listed; `mail-unsubscribe-show`; the draft's revision checks, recipients' `basis` and size cap; `PREVIEW_TOO_LARGE`; `new` recipients allowed on approver-released sends and marked `new` in preview (Q2 (a)). Scenario files 1, 2 and 4. Tests F-T3 to F-T8 for both | F2a; D3 (merged) |
+| F3 | **Reply sets released, and units.** `mail-replyset-send` listed, with the set's revision, size cap and stored recipients; `mail-replyset-show` as the preview; `mail-replyset-next` as a read returning the unit and its claim; `mail-replyset-submit`; the claim's key; the per-reply records (migration); `UNIT_NOT_OPEN`. Scenario file 5. Tests F-T3, F-T4, F-T6 and F-T7 rerun for the set's send; F-T9 and F-T10 | F2a; E3 (merged) |
+| F4 | **Taint per account (M36, Q1 (c)).** Per-account agent limits (migration), `mail-policy-set`'s `account`, `SELECTION_SPANS_ACCOUNTS`; F-T11 | D1 (merged) |
+| F5 | **The mount package.** `endpoints/loam/plugins/mail/mount/` with its manifest, and the plugin's README section with section 12's steps; `loam-desktop.yml`'s paths and `scripts/affected.mjs`'s desktop gate gain the engine and `packages/rust/**` (section 12.4) | F1; Loam's phase 5 steps 4 and 5 (merged) |
+| F6 | **`mailapp`'s send slice** (section 13.1) | F2b, F5; Loam's phase 5 step 4 (merged) |
 
-**Order.** F0 and F1 now; F2a after F1; F4 once Q1 is answered; F2b after D3; F3 after E3; F5 when Loam's
-step 5 merges; F6 after F2b and F5. Loam's step 7 (P5-A9) mounts the engine after F3, F5 and F6, and
-needs phase 5 amended by section 20's items 14 (a failed preview shows nothing) and 15 (a preview
-takes the held call's revision or digest), and
-and needs Loam's desktop transport on MCP 2026-07-28 (F-T12). **Trust review** for F1, F2a, F2b
+**Order.** F0 and F1; F2a after F1; F4 unblocked (D1 merged, Q1 answered); F2b after F2a (D3
+merged); F3 after F2a (E3 merged); F5 after F1 (Loam phase 5 steps 4 and 5 merged); F6 after F2b
+and F5. Loam's step 7 (P5-A9) mounts the engine after F3, F5 and F6; phase 5 step 5 already
+enforces section 20's item 14 (a failed preview asks nothing) and `#2137` upgraded the desktop
+HTTP lane to MCP 2026-07-28, leaving section 20's item 15 (giving `mailfix`'s preview the held
+call's revision) and step 7's real-engine acceptance run (F-T12). **Trust review** for F1, F2a, F2b
 and F3, which change who can send.
 
 **The rest of the native app** is not in this plan. Its amendment, with its jobs and views, follows
@@ -1045,10 +1057,10 @@ Loam's step 7.
 | F-T5 | Exposure | The registry rule of section 5.1, by a registry built with a fifth command that breaks it; the eight of section 5.1 stay `cli` only; `tools/list` over HTTP agrees; M29's test still passes |
 | F-T6 | Previews | Each preview gives its whole target in labelled parts and nothing from mail outside them; two reads of an unchanged target are equal in canonical JSON; each preview declares its default output budget equal to its largest, so a call with no budget, as Loam's, gets the whole target; the largest draft and the largest set that pass the build-time measure, written in worst-case text (quotes, backslashes, control characters), are shown whole over HTTP within the read budget, within 3.5 MiB as `reply_size` measures it, and through Loam's desktop transport within its 4 MiB; one larger is refused when built with `PREVIEW_TOO_LARGE`; a 101st recipient and a 51st reply are refused; `mail-operation-show` called as a preview returns `command`, `asked`, the labelled `query` and the proposer beside `preview`, and no page of items and no `refused` message; an unsubscribe target over 2,048 characters is not offered; `mail-unsubscribe-show` contacts nothing (the scripted HTTP target records no request) |
 | F-T7 | Revisions and digests | For each released command: its preview given a revision or digest that is not current fails with `PREVIEW_CHANGED`, and given the current one shows exactly that revision or target; a call naming a revision one ahead of the draft gets no preview, so a second token raising the draft to it after Loam's last re-read cannot have it sent; a call naming a revision ahead of or behind the target, or another digest, fails with `PREVIEW_CHANGED` before any hold, and no token is issued; a target changed between the hold and the approved retry (the draft updated by another token, the unsubscribe target re-derived to another URL, the proposal dismissed and proposed again under the same id, by its proposer and by another) fails with `PREVIEW_CHANGED` and sends, contacts or changes nothing (no `outbound` row, no request to either scripted target, the proposal still waiting); an unchanged target runs and uses the target that was checked; a dismissed or expired proposal is `PROPOSAL_NOT_OPEN`, as now; the command line fills a missing revision or digest from the preview |
-| F-T8 | The person's | An approved `mail-operation-approve` from an approver runs past every limit and counts against no day; the approver token's own trash below the call's limit runs and is charged to its day, and above it becomes a proposal; a `new` recipient on an approver's send follows Q2's answer; the same draft at the terminal asks for the address |
+| F-T8 | The person's | An approved `mail-operation-approve` from an approver runs past every limit and counts against no day; the approver token's own trash below the call's limit runs and is charged to its day, and above it becomes a proposal; a `new` recipient on an approver's send is allowed and marked `"basis": "new"` in `mail-draft-show`'s preview (Q2 (a)); the same draft at the terminal asks for the address |
 | F-T9 | Units | `mail-replyset-next` is a read and not journaled; its result has the marker with `submit.command` `mail-replyset-submit`, `field` `text`, the claim in `submit.input` and instructions within 4,096 characters; the returned `unit` and `claim` equal the marker's exactly, and the unit stored with a submission equals the one handed out; `mail-replyset-submit` is a non-destructive mutation with no approval; a guessed claim, another reply's claim, a spent claim, a claim from before the reply's answers changed and a composer's late result after a person's edit are each `UNIT_NOT_OPEN`; a text over 32,768 characters is refused; the input cannot set a recipient; each submission is recorded with its inputs; the set's revision rises |
 | F-T10 | Units hold one reply's inputs | In a set of two senders, each unit's parts hold only its own sender's message and the answers to their questions, by search of the result for the other sender's text and address |
-| F-T11 | Per account (Q1's (c)) | An agent's limits of 0 on one account make its change there a proposal while the other account keeps the default; an agent's selection over two accounts cannot be changed, guarded or not; the person's can |
+| F-T11 | Per account (M36, Q1 (c)) | An agent's limits of 0 on one account make its change there a proposal while the other account keeps the default; an agent's or a script's change, resume or undo whose selection spans two accounts is refused (`SELECTION_SPANS_ACCOUNTS`), whether or not either account is guarded; the person's can |
 | F-T12 | One real confirmation, one send | In Loam's desktop suite (phase 5's step 7), with the real engine mounted by section 12's entry: on Linux, with the engine built with `test-doubles` (section 12.4), a person's confirmation of a send produces exactly one line in `received.jsonl` (section 12.4); Loam's transport on MCP 2025-06-18 cannot redeem the token, and the engine refuses it |
 | F-T13 | Discovery | Loam's `discoverInstance` against `loam-mail serve`, with an ordinary token and with an approver token, lists the engine's commands with the four released ones and no terminal-only one; `rules.rs` passes with the bootstrap commands registered |
 | F-T14 | Test doubles | A build without `test-doubles` has no `test-world`, ignores both variables and reports no feature; a release build with it fails to compile; a test build with an endpoints file naming `localhost`, a name, or an address outside `127.0.0.0/8` and `::1` refuses to start, and so does one with only one of the two variables; with neither it uses the keychain; `test-world` writes an agent's token and an approver token to new private files in `--out`, the first refused as an approver and the second marked one, both listed by `mail-token-list` with their roles; `test-world` releases the store, so `serve` starts on its `--home`; a message sent through the scripted SMTP server appears once in `received.jsonl`; `mail-account-add` writes the file store; `test-world` builds `mail-f-base` and `serve` reads it; the release profile's check fails when the feature is on |
@@ -1071,7 +1083,8 @@ owner can confirm or amend them.
 3. **"Counts as the person's against its agent limits."** Evidence exists only on a held call, and
    of the four held commands only `mail-operation-approve` is under 9.4's limits, which it already
    escapes. A person's own change through Loam that is not held is an agent's (section 8.1;
-   [Q4](#q4-a-persons-own-changes-through-loam)).
+   accepted for step F in [Q4](#q4-a-persons-own-changes-through-loam) (a), phase 5's sentence to
+   be amended to "once approved").
 4. **One caller for everything Loam does.** Phase 5 does not say that the copilot, its apps and the
    person's gestures share the engine's per-caller limits, its day and the five proposals, nor that
    a draft's authorship cannot tell them apart (section 8.3).
@@ -1093,11 +1106,12 @@ owner can confirm or amend them.
 10. **The `calls` key for a mounted callee.** 7.5 says a native app's `[[calls]]` "names an instance";
     section 9 writes `[[calls]] app = …`. Section 13 writes `instance`, for phase 5's step 4 to fix.
 11. **Taint per account** is listed in 5.3 and section 17 as "a follow-up for mail's step F", but
-    taint's source is Loam's to define: only option (b) changes it, and that would be Loam's
-    amendment, not mail's.
-12. **The desktop transport's protocol.** Loam's desktop mount transport speaks MCP 2025-06-18, and
-    AFD's carrier accepts approval evidence only from 2026-07-28 requests. Phase 5's step 5 needs
-    the transport moved first; it is not listed among the step's needs.
+    taint's source is Loam's to define: only option (b) would have changed it. Option (c) (M36,
+    [Q1](#q1-taint-per-account)) stays wholly inside the engine and requires no Loam amendment.
+12. **The desktop transport's protocol.** On 2026-11-19, Loam's desktop mount transport spoke MCP
+    2025-06-18, and AFD's carrier accepts approval evidence only from 2026-07-28 requests. Done on
+    2026-11-22: phase 5 step 5 moved stdio `approvals = "shell"` mounts to 2026-07-28, and `#2137`
+    moved the desktop HTTP lane as well.
 13. **A unit's submit outside the composer.** 7.3 says a unit's submit runs under the copilot's actor
     with `act` by default. The kernel should refuse, or always ask for, a copilot call to an entry's
     unit-submit command that does not come from the composer, so the parent cannot write a reply
@@ -1109,9 +1123,10 @@ owner can confirm or amend them.
     under the hold would return the same failure, the digests would match, and a token raising the
     draft to the revision the call names before step 4 would have it sent. So: **any preview
     failure, `PREVIEW_CHANGED`, `PREVIEW_TOO_LARGE` or another, means no confirmation is shown and
-    nothing is released, and a failed re-read under the hold runs nothing.** Phase 5's P5-A6
-    should test it with `mailfix`, once item 15 gives `mailfix`'s preview the held call's revision,
-    so that it fails on a stale revision as the engine's does.
+    nothing is released, and a failed re-read under the hold runs nothing.** Phase 5 step 5
+    (2026-11-22) enforces this ("one that cannot be read, or a call lacking a key it reads by, asks
+    nothing"); P5-A6 should still exercise it with `mailfix` once item 15 gives `mailfix`'s preview
+    the held call's revision.
 15. **A preview's input.** 7.2's sketch and phase 5's `mailfix` fixture give the send's preview
     `input = ["draft"]`. With the draft alone, Loam's last re-read can match while another token
     raises the draft to the revision the held call names, which is then sent. Each preview here
@@ -1192,11 +1207,18 @@ seed's description and F0 named in the N2 row.
 
 ## Questions for the owner
 
+Answered by the owner on 2026-11-23 UTC ([#1980](https://github.com/lushly-dev/afd/issues/1980)):
+all five recommended options approved (Q1 (c), Q2 (a), Q3 (a), Q4 (a), Q5 confirmed), approving
+this specification and unblocking F2b's recipient rule and F4.
+
 ### Q1. Taint per account
 
-Blocks F4. If the copilot reads a message in your personal account, can it then archive or trash in
-your work account without asking? Today, yes, within mail's limits (500 archived or 50 trashed a
-call, 200 trashed a day), because Loam sees one mail engine.
+**Decision (2026-11-23 UTC, [#1980](https://github.com/lushly-dev/afd/issues/1980)):** **(c)** —
+one engine with per-account agent limits and no cross-account agent changes (M36). Unblocks F4.
+
+Blocked F4 (now unblocked). If the copilot reads a message in your personal account, can it then
+archive or trash in your work account without asking? Today, yes, within mail's limits (500
+archived or 50 trashed a call, 200 trashed a day), because Loam sees one mail engine.
 
 - **(a) Run one mail engine per account.** Separate processes, stores and entries; Loam then asks
   before the copilot changes, or even reads, the other account after reading one.
@@ -1206,9 +1228,9 @@ call, 200 trashed a day), because Loam sees one mail engine.
 - **(b) Teach Loam to track accounts inside one engine.**
   - Tradeoff: Loam would rely on the engine's report of which accounts a call touches.
   - Cost: the most: a change to Loam's taint rule and the engine's results.
-- **(c) Keep one engine, and let you guard an account (recommended).** You can set an account's
-  agent limits to 0, so any agent change there becomes a proposal you approve in Loam, shown with
-  its account; and an agent's change may never span two accounts.
+- **(c) Keep one engine, and let you guard an account (recommended; approved).** You can set an
+  account's agent limits to 0, so any agent change there becomes a proposal you approve in Loam,
+  shown with its account; and an agent's change may never span two accounts.
   - Tradeoff: you must choose to guard an account; with the defaults the risk stays as it is today.
     Agents working across accounts make one selection per account.
   - Cost: one engine pull request (F4).
@@ -1224,12 +1246,16 @@ the first guarded, at the cost of more proposals to approve.
 
 ### Q2. New recipients from Loam
 
-Blocks F2b's recipient rule. At the terminal, mail sends only to people in the thread, people you
-have written to, or an address you type. In Loam you type into the mail app, which the engine cannot
-tell from the copilot.
+**Decision (2026-11-23 UTC, [#1980](https://github.com/lushly-dev/afd/issues/1980)):** **(a)** —
+allow `new` addresses on approved Loam sends, marked `new` in preview. Unblocks F2b's recipient
+rule.
+
+Blocked F2b's recipient rule (now unblocked). At the terminal, mail sends only to people in the
+thread, people you have written to, or an address you type. In Loam you type into the mail app,
+which the engine cannot tell from the copilot.
 
 - **(a) Allow a new address on a send you approve in Loam, marked "new" in what you approve
-  (recommended).**
+  (recommended; approved).**
   - Tradeoff: if a message steers the copilot to add an address, the only check is that you notice
     the "new" mark before approving. An address a stranger wrote into the thread is not marked new.
   - Cost: in F2b.
@@ -1243,16 +1269,21 @@ tell from the copilot.
   - Cost: Loam's work, and (a) in the engine.
 
 **Recommendation:** (a). Every send is already a decision you make with the recipients in front of
-you, and the mark makes a new one stand out; (c) adds little that the mark does not. Until you
-answer, F2b refuses new addresses through Loam. **Confidence:** medium.
+you, and the mark makes a new one stand out; (c) adds little that the mark does not. The draft
+specification proposed refusing new addresses through Loam until decided; under (a) they are
+allowed on approver-released sends and marked `new` in preview. **Confidence:** medium.
 
 ### Q3. Sender decisions in the app
+
+**Decision (2026-11-23 UTC, [#1980](https://github.com/lushly-dev/afd/issues/1980)):** **(a)** —
+keep sender decisions at the terminal for step F, and revisit after Loam's milestone A.
 
 Not blocking step F. Phase 5 keeps your decisions on senders (screen in or out, accept a suggestion)
 and the policy at the engine's terminal. So in Loam's mail app you can only suggest a decision and
 then accept it at the terminal.
 
-- **(a) Keep them at the terminal for step F, and revisit after Loam's milestone A (recommended).**
+- **(a) Keep them at the terminal for step F, and revisit after Loam's milestone A (recommended;
+  approved).**
   - Tradeoff: screening needs a terminal for now.
   - Cost: none now; later, an amendment to phase 5's list and one engine pull request.
 - **(b) Release `mail-sender-screen` and `mail-sender-accept` through Loam's approval now,** as the
@@ -1266,14 +1297,17 @@ surface Loam has not decided (its L4). **Confidence:** medium.
 
 ### Q4. A person's own changes through Loam
 
+**Decision (2026-11-23 UTC, [#1980](https://github.com/lushly-dev/afd/issues/1980)):** **(a)** —
+accept the shared agent budget for a person's own non-held changes through Loam for step F.
+
 Not blocking F1 to F3. When you archive or trash from Loam's mail app, the engine sees Loam's token,
 the same one the copilot uses. So your own small changes count against the agent limits, your trash
 against the agent's 200 a day, and a copilot steered by a message could use up that day so that your
 own trash becomes a proposal you then approve. Phase 5 says your own bulk change through Loam is not
 counted as an agent's; today that holds only once you approve a proposal.
 
-- **(a) Accept it for step F (recommended).** Your change still happens: within the limits at once,
-  over them after one approval in Loam.
+- **(a) Accept it for step F (recommended; approved).** Your change still happens: within the limits
+  at once, over them after one approval in Loam.
   - Tradeoff: the copilot and you share one budget; a steered copilot can make you approve changes
     you would otherwise make directly.
   - Cost: none; phase 5's sentence is amended to say "once approved".
@@ -1293,13 +1327,18 @@ reached, and (b) puts an unlimited credential on disk for a convenience. **Confi
 
 ### Q5. The jobs and their order
 
+**Decision (2026-11-23 UTC, [#1980](https://github.com/lushly-dev/afd/issues/1980)):** Confirmed —
+keep the five jobs and their ranking (`an agent cannot send`, `only what I saw is sent`, `approve
+exactly what an agent proposed`, `see what an unsubscribe will contact`, `hand out each reply with
+only its own inputs`).
+
 The five jobs in [section 3](#3-jobs-and-scenarios) are ranked: an agent cannot send; only what I
 saw is sent; approve exactly what an agent proposed; see what an unsubscribe will contact; hand out
 each reply with only its own inputs.
 
 - **Recommendation:** keep them and the ranking. The first two guard every send, the third guards the
   one release that lifts every limit, and the last two follow the order of the plan (F2b, F3).
-- Cut, add or reorder as you see fit; the ranking decides what is built first after F1.
+- The confirmed ranking decides what is built first after F1.
 - Not a job here, since it is Loam's: approving in Loam's own dialog, which phase 5's
   `approve-mail-send` and `person-sends-mail` hold.
 
