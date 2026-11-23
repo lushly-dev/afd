@@ -1,0 +1,9 @@
+{
+  "$extensions": {
+    "dev.lushly.violet": {
+      "node": "loam/light",
+      "parent": "loam",
+      "type": "theme"
+    }
+  }
+}

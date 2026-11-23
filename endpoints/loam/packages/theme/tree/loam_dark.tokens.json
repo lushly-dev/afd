@@ -1,0 +1,164 @@
+{
+  "$extensions": {
+    "dev.lushly.violet": {
+      "node": "loam/dark",
+      "parent": "loam",
+      "type": "theme"
+    }
+  },
+  "color": {
+    "action": {
+      "primary": {
+        "background": {
+          "$value": "{ref.color.paper}"
+        },
+        "hover": {
+          "$value": "{ref.color.stone.200}"
+        },
+        "pressed": {
+          "$value": "{ref.color.stone.300}"
+        },
+        "text": {
+          "$value": "{ref.color.charcoal.950}"
+        }
+      },
+      "secondary": {
+        "background": {
+          "$value": "rgba(244, 240, 234, 0.09)"
+        },
+        "hover": {
+          "$value": "rgba(244, 240, 234, 0.13)"
+        },
+        "pressed": {
+          "$value": "rgba(244, 240, 234, 0.17)"
+        },
+        "text": {
+          "$value": "{color.text.primary}"
+        }
+      }
+    },
+    "border": {
+      "strong": {
+        "$value": "{ref.color.neutral.400}"
+      },
+      "subtle": {
+        "$value": "rgba(244, 240, 234, 0.10)"
+      }
+    },
+    "control": {
+      "selected": {
+        "background": {
+          "$value": "{ref.color.green.900}"
+        },
+        "border": {
+          "$value": "rgba(163, 235, 205, 0.45)"
+        },
+        "foreground": {
+          "$value": "{ref.color.mint}"
+        }
+      }
+    },
+    "field": {
+      "background": {
+        "$value": "rgba(0, 0, 0, 0.26)"
+      },
+      "background.readonly": {
+        "$value": "rgba(244, 240, 234, 0.06)"
+      },
+      "border": {
+        "$value": "{ref.color.neutral.500}"
+      },
+      "border.hover": {
+        "$value": "{ref.color.neutral.400}"
+      },
+      "border.invalid": {
+        "$value": "{ref.color.red.300}"
+      }
+    },
+    "focus": {
+      "ring": {
+        "$value": "{ref.color.mint}"
+      }
+    },
+    "state": {
+      "danger": {
+        "background": {
+          "$value": "{ref.color.red.950}"
+        },
+        "foreground": {
+          "$value": "{ref.color.red.300}"
+        },
+        "text": {
+          "$value": "{ref.color.red.200}"
+        }
+      },
+      "success": {
+        "background": {
+          "$value": "{ref.color.green.900}"
+        },
+        "foreground": {
+          "$value": "{ref.color.mint}"
+        },
+        "text": {
+          "$value": "{ref.color.mint}"
+        }
+      },
+      "warning": {
+        "background": {
+          "$value": "{ref.color.amber.950}"
+        },
+        "text": {
+          "$value": "{ref.color.amber.200}"
+        }
+      }
+    },
+    "surface": {
+      "card": {
+        "$value": "{ref.color.charcoal.900}"
+      },
+      "floating": {
+        "$value": "{ref.color.charcoal.800}"
+      },
+      "highlight": {
+        "$value": "{ref.color.grey.800}"
+      },
+      "page": {
+        "$value": "{ref.color.charcoal.950}"
+      },
+      "pressed": {
+        "$value": "rgba(244, 240, 234, 0.14)"
+      },
+      "selected": {
+        "$value": "{ref.color.green.900}"
+      },
+      "subtle": {
+        "$value": "{ref.color.charcoal.850}"
+      }
+    },
+    "text": {
+      "muted": {
+        "$value": "{ref.color.neutral.400}"
+      },
+      "primary": {
+        "$value": "{ref.color.paper}"
+      },
+      "secondary": {
+        "$value": "{ref.color.grey.200}"
+      }
+    }
+  },
+  "shadow": {
+    "card": {
+      "$value": "0 0 0 1px rgba(244, 240, 234, 0.07), 0 1px 2px rgba(0, 0, 0, 0.32), 0 6px 14px -2px rgba(0, 0, 0, 0.30)"
+    },
+    "control": {
+      "$value": "0 0 0 1px rgba(244, 240, 234, 0.07), 0 1px 2px rgba(0, 0, 0, 0.40)"
+    },
+    "floating": {
+      "$value": "0 0 0 1px rgba(244, 240, 234, 0.13), 0 6px 16px -2px rgba(0, 0, 0, 0.45), 0 22px 48px -8px rgba(0, 0, 0, 0.60)"
+    },
+    "well": {
+      "$value": "inset 0 2px 3px -1px rgba(0, 0, 0, 0.28)"
+    }
+  }
+}

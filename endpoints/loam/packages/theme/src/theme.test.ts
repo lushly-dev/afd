@@ -1,18 +1,29 @@
 import { readFileSync } from 'node:fs';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import {
+	exportTreeCommand,
+	importTreeCommand,
+	tokenOverrideCommand,
+	tokensCatalogCommand,
+} from '@lushly-dev/violet-afd/commands';
+import { createMemoryDatabase } from '@lushly-dev/violet-core';
 import { describe, expect, it } from 'vitest';
 import { checkTheme, compareContract, compareLayoutDefaults, compareNodeIds } from './check.js';
 import { contrastRatio, parseColor } from './contrast.js';
 import { buildOutputs, cssProperty, type ResolvedTree, renderContract } from './outputs.js';
 import { CONTRAST_FLOORS, CONTRAST_PAIRS } from './pairs.js';
 import {
-	COMPONENT_TOKENS,
+	buildLoamTree,
 	compactNode,
+	contractTypeOf,
+	isPrimitive,
 	NODE_IDS,
 	ROOT_NODE,
-	SHELL_TOKENS,
+	readLoamTreeFiles,
 	TARGET_IDS,
 	THEMES,
 	type ThemeName,
+	TREE_DIR,
 	themeNode,
 } from './tree/index.js';
 
@@ -53,8 +64,12 @@ describe("Loam's Violet tree", () => {
 	it('resolves, less ref.*, to exactly the contract in every node', () => {
 		const contractIds = Object.keys(committed.tokens).sort();
 		for (const nodeId of NODE_IDS) expect([...tokens(nodeId).keys()].sort()).toEqual(contractIds);
-		expect(Object.keys(committed.tokens)).toHaveLength(117 + SHELL_TOKENS.length);
-		expect(COMPONENT_TOKENS).toHaveLength(117);
+		const entries = Object.values<{ kind: string }>(committed.tokens);
+		const componentCount = entries.filter((entry) => entry.kind === 'component').length;
+		const shellCount = entries.filter((entry) => entry.kind === 'shell').length;
+		expect(componentCount).toBe(117);
+		expect(shellCount).toBe(19);
+		expect(contractIds).toHaveLength(componentCount + shellCount);
 		for (const id of contractIds) expect(id.startsWith('ref.')).toBe(false);
 	});
 
@@ -333,5 +348,143 @@ describe('theme:check', () => {
 		};
 		const report = await checkTheme(contractUrl, { outputs: { ...outputs, resolved: broken } });
 		expect(report.errors[0]).toBe('color.x in loam: not found');
+	});
+});
+
+describe('DTCG tree files (#1974)', () => {
+	const INSTANCE_COMMAND_INPUT_LIMIT = 256 * 1024;
+
+	it('carries $type and preserves all original Violet token categories so export.tree drops nothing', async () => {
+		const tree = await buildLoamTree();
+		const rootTokens = await tree.resolve(ROOT_NODE);
+		expect(rootTokens.length).toBeGreaterThan(0);
+		for (const token of rootTokens) {
+			const expectedType = isPrimitive(token.id)
+				? token.id.startsWith('ref.color.')
+					? 'color'
+					: 'dimension'
+				: contractTypeOf(token.id);
+			expect(token.metadata.type, `${token.id} $type`).toBe(expectedType);
+		}
+		const catalog = await tokensCatalogCommand.handler({}, { db: tree.db, actor: 'test' });
+		expect(catalog.success).toBe(true);
+		expect(catalog.data?.summary.categories).toEqual({
+			color: 106,
+			motion: 5,
+			typography: 32,
+			radius: 4,
+			spacing: 40,
+			shadow: 4,
+			'z-index': 7,
+		});
+		const spacing = await tokensCatalogCommand.handler(
+			{ category: 'spacing' },
+			{ db: tree.db, actor: 'test' }
+		);
+		expect(spacing.data?.tokens.map((token) => token.id)).toContain('space.inline.md');
+		const radius = await tokensCatalogCommand.handler(
+			{ category: 'radius' },
+			{ db: tree.db, actor: 'test' }
+		);
+		expect(radius.data?.tokens.map((token) => token.id)).toContain('radius.md');
+		const zIndex = await tokensCatalogCommand.handler(
+			{ category: 'z-index' },
+			{ db: tree.db, actor: 'test' }
+		);
+		expect(zIndex.data?.tokens.map((token) => token.id)).toContain('z-index.modal');
+
+		const exported = await exportTreeCommand.handler({}, { db: tree.db, actor: 'test' });
+		expect(exported.success).toBe(true);
+		expect(exported.data?.dropped).toEqual([]);
+	});
+
+	it('reads tree files from a directory URL without a trailing slash', async () => {
+		const withoutSlash = pathToFileURL(fileURLToPath(TREE_DIR).replace(/[\\/]+$/, ''));
+		expect(await readLoamTreeFiles(withoutSlash)).toEqual(await readLoamTreeFiles());
+	});
+
+	it('round-trips byte-identically through import.tree and export.tree without edits', async () => {
+		const sourceFiles = await readLoamTreeFiles();
+		expect(sourceFiles).toHaveLength(NODE_IDS.length);
+
+		const db = createMemoryDatabase();
+		const context = { db, actor: 'test' };
+		const imported = await importTreeCommand.handler({ files: sourceFiles }, context);
+		expect(imported.success).toBe(true);
+
+		const exported = await exportTreeCommand.handler({}, context);
+		expect(exported.success).toBe(true);
+		expect(exported.data?.dropped).toEqual([]);
+		expect(exported.data?.files.map(({ name, content }) => ({ name, content }))).toEqual(
+			sourceFiles
+		);
+	});
+
+	it('produces a one-line diff after one token.override and export.tree', async () => {
+		const sourceFiles = await readLoamTreeFiles();
+		const db = createMemoryDatabase();
+		const context = { db, actor: 'test' };
+
+		const imported = await importTreeCommand.handler({ files: sourceFiles }, context);
+		expect(imported.success).toBe(true);
+
+		const overridden = await tokenOverrideCommand.handler(
+			{
+				nodeId: themeNode('dark'),
+				tokenId: 'color.surface.page',
+				value: '#101212',
+				reason: 'Verify one-line diff on round-trip',
+			},
+			context
+		);
+		expect(overridden.success).toBe(true);
+
+		const exported = await exportTreeCommand.handler({}, context);
+		expect(exported.success).toBe(true);
+		expect(exported.data?.dropped).toEqual([]);
+
+		const exportedByName = new Map(
+			(exported.data?.files ?? []).map((file) => [file.name, file.content])
+		);
+		const changedFiles: string[] = [];
+		for (const file of sourceFiles) {
+			const after = exportedByName.get(file.name);
+			expect(after).toBeDefined();
+			if (after !== file.content) changedFiles.push(file.name);
+		}
+		expect(changedFiles).toEqual(['loam_dark.tokens.json']);
+
+		const beforeLines = (
+			sourceFiles.find((file) => file.name === 'loam_dark.tokens.json')?.content ?? ''
+		).split('\n');
+		const afterLines = (exportedByName.get('loam_dark.tokens.json') ?? '').split('\n');
+		expect(afterLines).toHaveLength(beforeLines.length);
+		const diffs = beforeLines
+			.map((line, index) => ({ line: index + 1, before: line, after: afterLines[index] }))
+			.filter((entry) => entry.before !== entry.after);
+		expect(diffs).toHaveLength(1);
+		expect(diffs[0]?.before).toContain('"$value": "{ref.color.charcoal.950}"');
+		expect(diffs[0]?.after).toContain('"$value": "#101212"');
+	});
+
+	it('fits comfortably within the 256 KiB bound on an instance command input', async () => {
+		const sourceFiles = await readLoamTreeFiles();
+		const rawBytes = sourceFiles.reduce(
+			(total, file) => total + Buffer.byteLength(file.content, 'utf8'),
+			0
+		);
+		const payloadBytes = Buffer.byteLength(
+			JSON.stringify({ content: { files: sourceFiles } }),
+			'utf8'
+		);
+		expect(rawBytes).toBeGreaterThan(0);
+		expect(payloadBytes).toBeLessThan(INSTANCE_COMMAND_INPUT_LIMIT);
+	});
+
+	it('refuses an empty file list and invalid DTCG input clearly', async () => {
+		await expect(buildLoamTree([])).rejects.toThrow(/No \.tokens\.json files found/);
+		await expect(
+			buildLoamTree([{ name: 'broken.tokens.json', content: '{not json' }])
+		).rejects.toThrow(/Failed to import Loam's token tree: VALIDATION_ERROR/);
 	});
 });

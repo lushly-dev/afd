@@ -13,11 +13,15 @@ import {
 	scanFallbacks,
 } from './components.js';
 import { buildOutputs } from './outputs.js';
-import { COMPONENT_TOKENS, THEMES, themeNode } from './tree/index.js';
+import { THEMES, themeNode } from './tree/index.js';
 
 const outputs = await buildOutputs();
 const contractUrl = new URL('../contract/tokens.json', import.meta.url);
 const lightValues = lightValuesByProperty(outputs.componentExport, outputs.contract);
+const componentIds = Object.entries(outputs.contract.tokens)
+	.filter(([, entry]) => entry.kind === 'component')
+	.map(([id]) => id)
+	.sort();
 
 /** A token interface listing `ids` as the contract has them. */
 const interfaceOf = (ids: string[]) => ({
@@ -44,7 +48,6 @@ describe('the component token export (2.4)', () => {
 		expect(componentExport.contractVersion).toBe(1);
 		expect(componentExport.source).toBe('loam');
 		expect(Object.keys(componentExport.presets)).toEqual([...THEMES]);
-		const componentIds = COMPONENT_TOKENS.map((token) => token.id).sort();
 		for (const theme of THEMES) {
 			const tokens = componentExport.presets[theme];
 			expect(tokens.map((token) => token.id)).toEqual(componentIds);
@@ -55,7 +58,7 @@ describe('the component token export (2.4)', () => {
 	});
 
 	it('maps each custom property to its light value', () => {
-		expect(lightValues.size).toBe(COMPONENT_TOKENS.length);
+		expect(lightValues.size).toBe(componentIds.length);
 		expect(lightValues.get('--color-text-muted')).toBe('#5e6460');
 		expect(lightValues.has('--shell-size-titlebar')).toBe(false);
 	});

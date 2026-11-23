@@ -1,5 +1,8 @@
 import type { TokenCategory, TokenMetadata, TokenTier } from '@lushly-dev/violet-core/types';
-import { TokenTierSchema } from '@lushly-dev/violet-core/types';
+import { TokenCategorySchema, TokenTierSchema } from '@lushly-dev/violet-core/types';
+
+/** Key under `$extensions` that holds Violet-specific node or token metadata */
+export const VIOLET_EXTENSION_KEY = 'dev.lushly.violet';
 
 /**
  * A token read from an import file
@@ -127,8 +130,17 @@ function readDtcgMetadata(
 ): Partial<TokenMetadata> | undefined {
 	const type = typeof node.$type === 'string' ? node.$type : groupType;
 	const description = typeof node.$description === 'string' ? node.$description : undefined;
+	const rawVioletExtension =
+		typeof node.$extensions === 'object' && node.$extensions !== null
+			? (node.$extensions as Record<string, unknown>)[VIOLET_EXTENSION_KEY]
+			: undefined;
+	const parsedCategory =
+		typeof rawVioletExtension === 'object' && rawVioletExtension !== null
+			? TokenCategorySchema.safeParse((rawVioletExtension as Record<string, unknown>).category)
+			: undefined;
+	const explicitCategory = parsedCategory?.success ? parsedCategory.data : undefined;
 
-	if (!type && !description) {
+	if (!type && !description && !explicitCategory) {
 		return undefined;
 	}
 
@@ -136,6 +148,9 @@ function readDtcgMetadata(
 	if (type) {
 		metadata.type = type;
 		metadata.category = dtcgTypeToCategory(type);
+	}
+	if (explicitCategory) {
+		metadata.category = explicitCategory;
 	}
 	if (description) {
 		metadata.description = description;

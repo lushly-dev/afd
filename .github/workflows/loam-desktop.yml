@@ -11,9 +11,10 @@ on:
       - 'endpoints/loam/**'
       - '!endpoints/loam/docs/**'
       - '!endpoints/loam/plugins/**'
-      # The foundations and AFD packages the shell builds on, as loam.yml lists them.
+      # The foundations, integrations and AFD packages the shell builds on, as loam.yml lists them.
       - 'foundations/fast-af/**'
       - 'foundations/violet/**'
+      - 'integrations/violet-afd/**'
       - 'packages/core/**'
       - 'packages/server/**'
       - 'packages/view-state/**'
@@ -34,6 +35,7 @@ on:
       - '!endpoints/loam/plugins/**'
       - 'foundations/fast-af/**'
       - 'foundations/violet/**'
+      - 'integrations/violet-afd/**'
       - 'packages/core/**'
       - 'packages/server/**'
       - 'packages/view-state/**'

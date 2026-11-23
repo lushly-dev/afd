@@ -9,7 +9,8 @@ Private and quarantined. The design is in the
 
 | Path | What |
 | --- | --- |
-| `src/tree/` | The tree, built with `@lushly-dev/violet-core` in a memory database (Node only): `loam` (product) holds the primitives under `ref.*` and every contract id with its light value; `loam/light`, `loam/dark` and `loam/high-contrast` (themes) hold overrides; `loam/<theme>/compact` (custom) holds compact density |
+| `tree/` | The DTCG token files (one per node, carrying `$type` and non-derivable Violet categories under `$extensions["dev.lushly.violet"].category`): `loam.tokens.json` (`loam`, product) holds the primitives under `global.ref.*` and every contract id with its light value; `loam_light.tokens.json`, `loam_dark.tokens.json` and `loam_high-contrast.tokens.json` (themes) hold overrides; `loam_<theme>_compact.tokens.json` (custom) holds compact density |
+| `src/tree/` | Loads `tree/*.tokens.json` into a Violet memory database via `@lushly-dev/violet-afd`'s `import.tree` (Node only, at build time). Exports `TREE_DIR`, `readLoamTreeFiles()` and `buildLoamTree()` in place of the retired TypeScript token arrays (`PRIMITIVES`, `COMPONENT_TOKENS`, `SHELL_TOKENS`, `DARK_OVERRIDES`, `HIGH_CONTRAST_OVERRIDES`, `COMPACT_OVERRIDES`, `ref`, `TreeToken`, `TreeValue`) |
 | `src/pairs.ts` | The color pairs and their contrast floors per theme, checked by the tests |
 | `src/outputs.ts` | Renders the contract, `loam-theme.css` and `loam-theme.json` |
 | `src/components.ts` | The shared components' token export and the fallback scan (2.4) |
@@ -51,7 +52,7 @@ It owns the list of custom properties its components read,
 `foundations/fast-af/packages/violet-elements/tokens/interface.json`; Loam's tree
 supplies a value for each, and `theme:check` fails when the contract lacks an
 interface id as a `component` id with the same property and type. To add one:
-write its value in `src/tree/components.ts`, run `theme:check --write` and
+write its value in `tree/loam.tokens.json`, run `theme:check --write` and
 `theme:export-components`, then `violet-elements`' `theme:build`. Loam's other
 shared ids (the type ramp, for example) are exported too.
 

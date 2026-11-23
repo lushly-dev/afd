@@ -1,6 +1,6 @@
 /**
- * Loam's Violet tree (2.2), built in a Violet memory database through `@lushly-dev/violet-core`'s
- * public API. Node only, at build time.
+ * Loam's Violet tree (2.2), loaded from DTCG token files in `tree/` into a Violet memory database
+ * via `@lushly-dev/violet-afd`'s `import.tree` command. Node only, at build time.
  *
  *   loam (product)                  every contract id with its light value, and the primitives
  *   ├── loam/light (theme)          nothing more: every theme is a named node
@@ -10,27 +10,16 @@
  *   └── loam/high-contrast (theme)  7:1 text, 3:1 non-text, 3px focus, borders for shadows
  *       └── loam/high-contrast/compact
  */
+import { readdir, readFile } from 'node:fs/promises';
+import { type CommandContext, importTreeCommand } from '@lushly-dev/violet-afd/commands';
 import {
 	createMemoryDatabase,
 	type Database,
-	NodeSchema,
-	type NodeType,
-	type OperationRecord,
 	type ResolvedToken,
 	resolveTokens,
 } from '@lushly-dev/violet-core';
-import { COMPONENT_TOKENS } from './components.js';
-import { COMPACT_OVERRIDES } from './density.js';
-import { PRIMITIVES } from './primitives.js';
-import { SHELL_TOKENS } from './shell.js';
-import { DARK_OVERRIDES, HIGH_CONTRAST_OVERRIDES } from './themes.js';
-import { type ContractType, isPrimitive, type TreeToken } from './types.js';
+import type { ContractType } from './types.js';
 
-export { COMPONENT_TOKENS } from './components.js';
-export { COMPACT_OVERRIDES, TARGET_IDS } from './density.js';
-export { PRIMITIVES } from './primitives.js';
-export { LAYOUT_DEFAULT_TOKENS, SHELL_TOKENS } from './shell.js';
-export { DARK_OVERRIDES, HIGH_CONTRAST_OVERRIDES } from './themes.js';
 export * from './types.js';
 
 export const THEMES = ['light', 'dark', 'high-contrast'] as const;
@@ -47,14 +36,70 @@ export const NODE_IDS: readonly string[] = [
 	...THEMES.map(compactNode),
 ];
 
-/** Fixed, so two builds of the same tree are byte-identical. */
-const STAMP = '2026-11-01T00:00:00.000Z';
+/**
+ * Where each number of the kernel's `LAYOUT_DEFAULTS_V0` (5.2) lives in the tree, keyed by its
+ * path in that constant. `theme:check` fails when a resolved value and the kernel disagree.
+ */
+export const LAYOUT_DEFAULT_TOKENS = {
+	'sidebar.default': 'shell.size.sidebar.default',
+	'sidebar.min': 'shell.size.sidebar.min',
+	'sidebar.max': 'shell.size.sidebar.max',
+	'inspector.default': 'shell.size.inspector.default',
+	'inspector.min': 'shell.size.inspector.min',
+	'inspector.max': 'shell.size.inspector.max',
+	'panel.default': 'shell.size.panel.default',
+	'panel.min': 'shell.size.panel.min',
+	mainMin: 'shell.size.main.min',
+} as const;
 
-const THEME_OVERRIDES: Record<ThemeName, readonly TreeToken[]> = {
-	light: [],
-	dark: DARK_OVERRIDES,
-	'high-contrast': HIGH_CONTRAST_OVERRIDES,
-};
+/** The ids compact must keep at or above 24px: targets and the shell's bars. */
+export const TARGET_IDS: readonly string[] = [
+	'size.target.compact',
+	'size.target.natural',
+	'size.target.comfortable',
+	'shell.size.titlebar',
+	'shell.size.statusbar',
+	'shell.size.rail',
+	'shell.size.tabbar',
+];
+
+/** Directory holding Loam's committed DTCG token files (one per node). */
+export const TREE_DIR = new URL('../../tree/', import.meta.url);
+
+/** One DTCG token file as `import.tree` and `export.tree` exchange it. */
+export interface TreeFile {
+	name: string;
+	content: string;
+}
+
+const byCodePoint = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+
+/** Read every `*.tokens.json` file from `directory` (defaults to `TREE_DIR`) in code-point order. */
+export async function readLoamTreeFiles(directory: URL = TREE_DIR): Promise<TreeFile[]> {
+	const dir = directory.href.endsWith('/') ? directory : new URL(`${directory.href}/`);
+	const names = (await readdir(dir))
+		.filter((name) => name.endsWith('.tokens.json'))
+		.sort(byCodePoint);
+	return Promise.all(
+		names.map(async (name) => ({
+			name,
+			content: await readFile(new URL(name, dir), 'utf8'),
+		}))
+	);
+}
+
+/** Fixed clock and deterministic PRNG, so two builds of the same tree produce identical records. */
+const STAMP_MS = Date.parse('2026-11-01T00:00:00.000Z');
+
+function deterministicRandom(): () => number {
+	let state = 0x6d2b79f5;
+	return () => {
+		state = (state + 0x6d2b79f5) | 0;
+		let mixed = Math.imul(state ^ (state >>> 15), 1 | state);
+		mixed = (mixed + Math.imul(mixed ^ (mixed >>> 7), 61 | mixed)) ^ mixed;
+		return ((mixed ^ (mixed >>> 14)) >>> 0) / 4294967296;
+	};
+}
 
 export interface LoamTree {
 	db: Database;
@@ -62,77 +107,33 @@ export interface LoamTree {
 	resolve(nodeId: string): Promise<ResolvedToken[]>;
 }
 
-export async function buildLoamTree(): Promise<LoamTree> {
-	const db = createMemoryDatabase();
-	let sequence = 0;
-
-	const node = (id: string, parentId: string | null, type: NodeType) =>
-		db.createNode(
-			NodeSchema.parse({ id, name: id, parentId, type, createdAt: STAMP, updatedAt: STAMP })
-		);
-	const write = async (nodeId: string, type: 'add' | 'override', tokens: readonly TreeToken[]) => {
-		for (const token of tokens) {
-			sequence++;
-			const record: OperationRecord = {
-				id: `op-${sequence}`,
-				nodeId,
-				sequence,
-				type,
-				tokenId: token.id,
-				value: JSON.stringify(token.value),
-				metadata: type === 'add' ? JSON.stringify(metadataFor(token.id)) : null,
-				fromNode: null,
-				asTokenId: null,
-				toAncestor: null,
-				reason: null,
-				author: '@lushly-dev/loam-theme',
-				createdAt: STAMP,
-			};
-			await db.addOperation(record);
-		}
-	};
-
-	await node(ROOT_NODE, null, 'product');
-	await write(ROOT_NODE, 'add', [...PRIMITIVES, ...COMPONENT_TOKENS, ...SHELL_TOKENS]);
-	for (const theme of THEMES) {
-		await node(themeNode(theme), ROOT_NODE, 'theme');
-		await write(themeNode(theme), 'override', THEME_OVERRIDES[theme]);
-		await node(compactNode(theme), themeNode(theme), 'custom');
-		await write(compactNode(theme), 'override', COMPACT_OVERRIDES);
+/**
+ * Load Loam's DTCG token files into a fresh Violet memory database via `import.tree`.
+ * Pass `files` to load an alternate set of files (for tests or previews).
+ */
+export async function buildLoamTree(files?: readonly TreeFile[]): Promise<LoamTree> {
+	const treeFiles = files ? [...files] : await readLoamTreeFiles();
+	if (treeFiles.length === 0) {
+		throw new Error("No .tokens.json files found in Loam's token tree");
 	}
-
+	const db = createMemoryDatabase();
+	const context: CommandContext = {
+		db,
+		actor: '@lushly-dev/loam-theme',
+		now: () => STAMP_MS,
+		random: deterministicRandom(),
+	};
+	const imported = await importTreeCommand.handler({ files: treeFiles }, context);
+	if (!imported.success) {
+		const detail = imported.error
+			? `${imported.error.code}: ${imported.error.message}`
+			: 'unknown error';
+		throw new Error(`Failed to import Loam's token tree: ${detail}`);
+	}
 	return {
 		db,
 		resolve: async (nodeId) => (await resolveTokens(db, nodeId)).tokens,
 	};
-}
-
-/** Violet metadata for an id: its contract type, Violet category and tier. */
-function metadataFor(id: string): { type: string; category: string; tier: string } {
-	if (isPrimitive(id)) {
-		const color = id.startsWith('ref.color.');
-		return {
-			type: color ? 'color' : 'dimension',
-			category: color ? 'color' : 'spacing',
-			tier: 'global',
-		};
-	}
-	return { type: contractTypeOf(id), category: categoryOf(id), tier: 'semantic' };
-}
-
-function categoryOf(id: string): string {
-	const family = id.split('.')[0] ?? '';
-	if (family === 'color' || id.startsWith('shell.color.')) return 'color';
-	if (family === 'shadow' || family === 'radius' || family === 'z-index') return family;
-	if (family === 'duration' || family === 'easing') return 'motion';
-	if (
-		family === 'weight' ||
-		family === 'type' ||
-		family === 'font' ||
-		/^size\.(font|line)\./.test(id)
-	)
-		return 'typography';
-	return 'spacing';
 }
 
 /**

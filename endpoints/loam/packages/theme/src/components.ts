@@ -44,7 +44,7 @@ export interface TokenInterface {
 }
 
 const INTERFACE_FIX =
-	'add the id to src/tree/components.ts, run `pnpm -F @lushly-dev/loam-theme theme:check --write` and `theme:export-components`, then `pnpm -F @lushly-dev/violet-elements theme:build`';
+	'add the id to tree/loam.tokens.json, run `pnpm -F @lushly-dev/loam-theme theme:check --write` and `theme:export-components`, then `pnpm -F @lushly-dev/violet-elements theme:build`';
 
 /**
  * Every id of the components' token interface that Loam's contract does not hold as a component

@@ -12,11 +12,10 @@ import {
 	unsafeImportValues,
 	unsafeValueSuggestion,
 } from '../value-checks.js';
-import { flattenTokenFile } from './flatten.js';
+import { VIOLET_EXTENSION_KEY, flattenTokenFile } from './flatten.js';
 import { importJsonCommand } from './json.js';
 
-/** Key under the root `$extensions` that holds a file's node settings */
-export const VIOLET_EXTENSION_KEY = 'dev.lushly.violet';
+export { VIOLET_EXTENSION_KEY };
 
 /**
  * Node settings read from a file's root `$extensions["dev.lushly.violet"]`
