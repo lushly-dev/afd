@@ -527,8 +527,23 @@ def protocol_server(*args, **kwargs):
     return serve(*args, **kwargs)
 
 
+def _text(output: bytes) -> str:
+    """Decode a subprocess stream with ``\n`` line endings on every platform.
+
+    Windows writes ``\r\n`` to a piped stdout, and the assertions below match
+    multi-line output with ``\n`` (#2172).
+    """
+    return output.decode().replace("\r\n", "\n")
+
+
+def test_text_normalizes_windows_line_endings():
+    assert _text(b'Final Result:\r\n{\r\n  "rows": 2\r\n}\r\n') == (
+        'Final Result:\n{\n  "rows": 2\n}\n'
+    )
+
+
 async def afd(*args, home):
-    """Run the CLI in a subprocess; return (exit code, stdout)."""
+    """Run the CLI in a subprocess; return (exit code, stdout and stderr)."""
     env = dict(os.environ, PYTHONPATH=str(ROOT / "src"), HOME=str(home), NO_COLOR="1")
     process = await asyncio.create_subprocess_exec(
         sys.executable, "-c", "from afd.cli.main import main; main()", *args,
@@ -536,7 +551,7 @@ async def afd(*args, home):
         stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
     )
     stdout, stderr = await asyncio.wait_for(process.communicate(), 60)
-    return process.returncode, stdout.decode() + stderr.decode()
+    return process.returncode, _text(stdout) + _text(stderr)
 
 
 async def test_batch_runs_against_a_python_server(tmp_path):
