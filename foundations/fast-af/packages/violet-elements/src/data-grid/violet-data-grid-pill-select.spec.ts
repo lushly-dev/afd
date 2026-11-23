@@ -1,7 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
+import "../theme/violet-theme";
+import { loadVioletBuiltInTheme } from "../theme/violet-theme-runtime";
+import "./violet-data-grid-multi-picker";
+import "./violet-data-grid-persona-picker";
 import "./violet-data-grid-pill-select";
+import "./violet-data-grid-reference-picker";
 import type { VioletDataGridEditorOption } from "./violet-data-grid";
 import type { VioletDataGridPillSelect } from "./violet-data-grid-pill-select";
 
@@ -421,4 +426,92 @@ describe("violet-data-grid-pill-select", () => {
 
         expect(hostile).toBe("background:var(--_surface-subtle);color:var(--_text-primary);border-color:transparent;");
     });
+
+    it.each(["light", "dark", "high-contrast"])(
+        "keeps picker search resting and focus borders at >= 3:1 across all four data-grid pickers in %s (#657)",
+        async preset => {
+            await loadVioletBuiltInTheme();
+            const parseRgba = (color: string): [number, number, number, number] => {
+                const nums = (color.match(/[\d.]+/g) ?? []).map(Number);
+                return [nums[0] ?? 0, nums[1] ?? 0, nums[2] ?? 0, nums[3] ?? 1];
+            };
+            const composite = (fg: [number, number, number, number], bg: [number, number, number, number]): [number, number, number] => [
+                fg[0] * fg[3] + bg[0] * (1 - fg[3]),
+                fg[1] * fg[3] + bg[1] * (1 - fg[3]),
+                fg[2] * fg[3] + bg[2] * (1 - fg[3]),
+            ];
+            const luminance = (rgb: [number, number, number]): number => {
+                const [r = 0, g = 0, b = 0] = rgb.map(v => {
+                    const c = v / 255;
+                    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+                });
+                return r * 0.2126 + g * 0.7152 + b * 0.0722;
+            };
+            const contrast = (fgColor: string, bgColor: string, backdropColor: string): number => {
+                const bg = composite(parseRgba(bgColor), parseRgba(backdropColor));
+                const fg = composite(parseRgba(fgColor), [bg[0], bg[1], bg[2], 1]);
+                const l1 = luminance(fg);
+                const l2 = luminance(bg);
+                return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+            };
+
+            const tags = [
+                "violet-data-grid-pill-select",
+                "violet-data-grid-reference-picker",
+                "violet-data-grid-persona-picker",
+                "violet-data-grid-multi-picker",
+            ] as const;
+
+            for (const tag of tags) {
+                document.body.innerHTML = "";
+                const theme = document.createElement("violet-theme");
+                theme.setAttribute("preset", preset);
+                const picker = document.createElement(tag) as HTMLElement & {
+                    options: Array<{ value: string; label: string }>;
+                    open: boolean;
+                };
+                picker.options = [{ value: "alpha", label: "Alpha" }];
+                theme.append(picker);
+                document.body.append(theme);
+                await customElements.whenDefined(tag);
+                await nextFrame();
+
+                const trigger = picker.shadowRoot?.querySelector(".trigger") as HTMLButtonElement;
+                trigger.focus();
+                await userEvent.keyboard("{Enter}");
+                await nextFrame();
+                await nextFrame();
+
+                const panel = picker.shadowRoot?.querySelector(".panel") as HTMLElement;
+                const search = picker.shadowRoot?.querySelector(".search") as HTMLInputElement;
+                expect(search, `${tag} search input`).toBeTruthy();
+                search.style.transition = "none";
+                const panelBg = getComputedStyle(panel).backgroundColor;
+
+                // Keyboard open focuses the search input (:focus-visible).
+                expect(picker.shadowRoot?.activeElement, `${tag} activeElement`).toBe(search);
+                expect(search.matches(":focus-visible"), `${tag} :focus-visible`).toBe(true);
+                const focused = getComputedStyle(search);
+                const focusedBorder = focused.borderTopColor;
+                expect(contrast(focusedBorder, focused.backgroundColor, panelBg), `${tag} focused (${preset})`).toBeGreaterThanOrEqual(3);
+
+                // Move focus to the trigger inside the same component so the panel stays open while
+                // `.search` returns to its resting border state.
+                trigger.focus();
+                await nextFrame();
+                expect(getComputedStyle(panel).display).not.toBe("none");
+                const resting = getComputedStyle(search);
+                const restingBorder = resting.borderTopColor;
+                expect(restingBorder, `${tag} focus vs resting (${preset})`).not.toBe(focusedBorder);
+                expect(contrast(restingBorder, resting.backgroundColor, panelBg), `${tag} resting (${preset})`).toBeGreaterThanOrEqual(3);
+
+                await userEvent.hover(search);
+                await nextFrame();
+                expect(search.matches(":hover"), `${tag} :hover`).toBe(true);
+                const hovered = getComputedStyle(search);
+                expect(contrast(hovered.borderTopColor, hovered.backgroundColor, panelBg), `${tag} hover (${preset})`).toBeGreaterThanOrEqual(3);
+                await userEvent.unhover(search);
+            }
+        },
+    );
 });

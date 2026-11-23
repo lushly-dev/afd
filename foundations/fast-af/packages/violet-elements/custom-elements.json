@@ -24462,6 +24462,16 @@
               "default": "false"
             },
             {
+              "kind": "method",
+              "name": "dragActiveChanged",
+              "privacy": "public",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
+            },
+            {
               "kind": "field",
               "name": "dropzoneMessage",
               "type": {
@@ -29418,6 +29428,16 @@
           "kind": "class",
           "description": "Violet reusable option primitive.",
           "name": "VioletOption",
+          "cssProperties": [
+            {
+              "description": "Background color of the active option row.",
+              "name": "--violet-option-active-background"
+            },
+            {
+              "description": "Inset ring color of the active option row when keyboard navigation is active.",
+              "name": "--violet-option-active-ring"
+            }
+          ],
           "cssParts": [
             {
               "description": "Trailing slot wrapper.",
@@ -29497,7 +29517,9 @@
                 "text": "boolean"
               },
               "privacy": "public",
-              "default": "false"
+              "default": "false",
+              "attribute": "active",
+              "reflects": true
             },
             {
               "kind": "field",
@@ -29693,6 +29715,14 @@
               },
               "default": "false",
               "fieldName": "selected"
+            },
+            {
+              "name": "active",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "fieldName": "active"
             },
             {
               "name": "disabled",

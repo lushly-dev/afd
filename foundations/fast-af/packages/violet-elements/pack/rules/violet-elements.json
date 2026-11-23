@@ -412,6 +412,16 @@
 		{
 			"appliesTo": {
 				"attributes": [
+					"active"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.active",
+			"text": "Indicates that an option within a composite list is the active keyboard descendant. Not for: committed selection state (use selected); navigation location (use current); overlay visibility (use open)."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
 					"active-index"
 				]
 			},

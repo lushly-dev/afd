@@ -44,14 +44,11 @@ const styles = css`
     }
 
     .control:focus-visible {
+        /* The keys are in this list while it has focus, so its active row draws its ring at >= 3:1. */
+        --_option-active-ring: var(--_focus-ring);
         box-shadow:
             var(--_shadow-card),
             0 0 0 2px var(--_focus-ring);
-    }
-
-    /* The keys are in this list while it has focus, so its active row draws its ring. */
-    .control:focus-visible ::slotted(violet-option) {
-        --violet-option-active-ring: color-mix(in srgb, var(--_focus-ring) 55%, transparent);
     }
 
     :host([disabled]) .control {

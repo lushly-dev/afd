@@ -550,3 +550,34 @@ describe("violet-text-field number entry (#712)", () => {
         );
     });
 });
+
+describe("violet-text-field narrow column layout (#1587)", () => {
+    afterEach(() => {
+        document.body.innerHTML = "";
+    });
+
+    it("shrinks inside 1fr grid tracks and a 120px column without overflowing", async () => {
+        document.body.innerHTML = `
+            <div id="grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;width:296px">
+                <violet-text-field id="first" label="First name"></violet-text-field>
+                <violet-text-field id="last" label="Last name"></violet-text-field>
+            </div>
+            <div id="narrow" style="width:120px;display:grid;grid-template-columns:1fr">
+                <violet-text-field id="single" label="Code"></violet-text-field>
+            </div>
+        `;
+        await customElements.whenDefined("violet-text-field");
+        await nextFrame();
+
+        const grid = document.getElementById("grid") as HTMLElement;
+        const first = document.getElementById("first") as VioletTextField;
+        const last = document.getElementById("last") as VioletTextField;
+        const single = document.getElementById("single") as VioletTextField;
+
+        expect(first.getBoundingClientRect().width).toBeLessThanOrEqual(144.5);
+        expect(last.getBoundingClientRect().right).toBeLessThanOrEqual(grid.getBoundingClientRect().right + 0.5);
+        expect(single.getBoundingClientRect().width).toBeLessThanOrEqual(120.5);
+        const singleFrame = single.shadowRoot?.querySelector(".control-frame") as HTMLElement;
+        expect(singleFrame.getBoundingClientRect().width).toBeLessThanOrEqual(120.5);
+    });
+});

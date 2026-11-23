@@ -917,4 +917,29 @@ describe("violet-combobox", () => {
             await vi.waitFor(() => expect(document.activeElement).toBe(after));
         });
     });
+
+    it("shrinks inside 1fr grid tracks and a 120px column without overflowing (#1587)", async () => {
+        document.body.innerHTML = `
+            <div id="grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;width:296px">
+                <violet-combobox id="first" label="First"></violet-combobox>
+                <violet-combobox id="last" label="Last"></violet-combobox>
+            </div>
+            <div style="width:120px;display:grid;grid-template-columns:1fr">
+                <violet-combobox id="single" label="Source"></violet-combobox>
+            </div>
+        `;
+        await customElements.whenDefined("violet-combobox");
+        await nextFrame();
+
+        const grid = document.getElementById("grid") as HTMLElement;
+        const first = document.getElementById("first") as VioletCombobox;
+        const last = document.getElementById("last") as VioletCombobox;
+        const single = document.getElementById("single") as VioletCombobox;
+
+        expect(first.getBoundingClientRect().width).toBeLessThanOrEqual(144.5);
+        expect(last.getBoundingClientRect().right).toBeLessThanOrEqual(grid.getBoundingClientRect().right + 0.5);
+        expect(single.getBoundingClientRect().width).toBeLessThanOrEqual(120.5);
+        const singleFrame = single.shadowRoot?.querySelector(".control-frame") as HTMLElement;
+        expect(singleFrame.getBoundingClientRect().width).toBeLessThanOrEqual(120.5);
+    });
 });

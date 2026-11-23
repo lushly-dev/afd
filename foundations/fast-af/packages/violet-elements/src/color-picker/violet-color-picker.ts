@@ -244,12 +244,16 @@ const styles = css`
         padding-inline: max(var(--_space-inline-md), 0.75rem);
         border: 1px solid var(--_field-border);
         border-radius: var(--_radius-md);
-        background: var(--_surface-page);
-        color: inherit;
+        background: var(--_field-background);
+        color: var(--_field-text);
         font: inherit;
         font-size: var(--_control-body-size);
         line-height: var(--_type-body-line);
         box-shadow: var(--_shadow-control);
+    }
+
+    .hex-input:hover {
+        border-color: var(--_field-border-hover);
     }
 
     .hex-input:focus {
@@ -257,8 +261,8 @@ const styles = css`
     }
 
     .hex-input:focus-visible {
-        border-color: color-mix(in srgb, var(--_focus-ring) 48%, var(--_border-subtle));
-        box-shadow: 0 0 0 2px var(--_focus-ring);
+        border-color: var(--_field-border-focus);
+        box-shadow: var(--_field-shadow-focus);
     }
 
     .hex-hint {

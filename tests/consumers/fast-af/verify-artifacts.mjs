@@ -276,7 +276,9 @@ const freePort = () =>
 let browser = { status: 'not-run' };
 if (browserName !== 'none') {
 	const tools = createRequire(join(repository, componentSource, 'package.json'));
-	const { createServer } = await import(pathToFileURL(tools.resolve('vite')).href);
+	const { build: viteBuild, createServer } = await import(
+		pathToFileURL(tools.resolve('vite')).href
+	);
 	const playwright = (await import(pathToFileURL(tools.resolve('playwright')).href)).default;
 	await writeFile(
 		join(components.root, 'index.html'),
@@ -290,6 +292,40 @@ if (browserName !== 'none') {
 			'(globalThis as Record<string, unknown>).__consumer = { components, cem };',
 			'',
 		].join('\n')
+	);
+	// Single-file bundle regression (#2072): pre-existing <violet-theme> in the DOM upgrades
+	// synchronously during the first awaited FASTElement.define while a second element registration
+	// runs before the inlined violet-theme-builtin module finishes initializing.
+	await writeFile(
+		join(components.root, 'single-file-entry.js'),
+		[
+			`import ${JSON.stringify(`${componentName}/dist/theme/violet-theme.js`)};`,
+			`import ${JSON.stringify(`${componentName}/dist/text/violet-text.js`)};`,
+			'globalThis.__singleFileReady = true;',
+			'',
+		].join('\n')
+	);
+	await viteBuild({
+		root: components.root,
+		configFile: false,
+		logLevel: 'silent',
+		build: {
+			outDir: 'single-file-dist',
+			emptyOutDir: true,
+			minify: false,
+			rollupOptions: {
+				input: join(components.root, 'single-file-entry.js'),
+				output: {
+					format: 'es',
+					codeSplitting: false,
+					entryFileNames: 'bundle.js',
+				},
+			},
+		},
+	});
+	await writeFile(
+		join(components.root, 'single-file.html'),
+		'<!doctype html><html><body><violet-theme preset="dark"><violet-text>Bundled</violet-text></violet-theme><script type="module" src="/single-file-dist/bundle.js"></script></body></html>\n'
 	);
 	const server = await createServer({
 		root: components.root,
@@ -350,6 +386,53 @@ if (browserName !== 'none') {
 		browser = { status: 'passed', name: browserName, version: launched.version(), ...result };
 		passed(
 			`components (${browserName} ${launched.version()}): ${result.tags} tags registered and exported, ${result.exports} root exports, render/value/selection`
+		);
+
+		const singleFilePage = await launched.newPage();
+		const singleFileErrors = [];
+		singleFilePage.on('pageerror', (error) => singleFileErrors.push(error.message));
+		singleFilePage.on('console', (msg) => {
+			if (msg.type() === 'error') singleFileErrors.push(msg.text());
+		});
+		await singleFilePage.goto(`${server.resolvedUrls.local[0]}single-file.html`);
+		await singleFilePage.waitForFunction(
+			() =>
+				globalThis.__singleFileReady === true &&
+				Boolean(
+					document
+						.querySelector('style[data-violet-theme="runtime"]')
+						?.textContent?.includes('--color-surface-page')
+				),
+			null,
+			{ timeout: 30000 }
+		);
+		const singleFileResult = await singleFilePage.evaluate(() => {
+			const theme = document.querySelector('violet-theme');
+			return {
+				themeDefined: Boolean(customElements.get('violet-theme')),
+				textDefined: Boolean(customElements.get('violet-text')),
+				surfacePage: theme
+					? getComputedStyle(theme).getPropertyValue('--color-surface-page').trim()
+					: '',
+			};
+		});
+		const exportedTheme = JSON.parse(
+			await readFile(
+				resolveFrom.resolve(`${componentName}/tokens/violet-theme.export.json`),
+				'utf8'
+			)
+		);
+		const expectedDarkSurface = exportedTheme.presets.dark.find(
+			(token) => token.id === 'color.surface.page'
+		)?.value;
+		assert(expectedDarkSurface, 'dark color.surface.page token exists in violet-theme.export.json');
+		assert.deepEqual(singleFileErrors, []);
+		assert.equal(singleFileResult.themeDefined, true);
+		assert.equal(singleFileResult.textDefined, true);
+		assert.equal(singleFileResult.surfacePage, expectedDarkSurface);
+		await singleFilePage.close();
+		passed(
+			`components (${browserName}): single-file bundle upgrades pre-existing violet-theme without TDZ`
 		);
 	} finally {
 		await launched.close();

@@ -127,6 +127,12 @@ export const CONTRAST_PAIRS: readonly ContrastPair[] = [
 			'non-text'
 		)
 	),
+	// Inputs nested in card or floating panels (color-picker hex input, data-grid picker searches).
+	...on(
+		['color.field.border', 'color.field.border.hover', 'color.field.border.focus'],
+		[CARD, FLOATING],
+		'non-text'
+	),
 	// A read-only field's fill is a wash of the text color, too light behind the resting border, so
 	// its top line is `color.border.strong` (violet-text-field, violet-text-area; D159).
 	...overSurfaces(

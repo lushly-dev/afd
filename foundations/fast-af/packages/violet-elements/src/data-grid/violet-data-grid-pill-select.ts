@@ -131,19 +131,23 @@ const styles = css`
         inline-size: 100%;
         min-inline-size: 0;
         padding: 0.5rem 0.625rem;
-        border: 1px solid var(--_border-subtle);
+        border: 1px solid var(--_field-border);
         border-radius: calc(var(--_radius-md) - 2px);
-        background: var(--_surface-page);
-        color: var(--_text-primary);
+        background: var(--_field-background);
+        color: var(--_field-text);
         font: inherit;
         font-size: var(--_size-font-md);
         outline: none;
         box-sizing: border-box;
     }
 
+    .search:hover {
+        border-color: var(--_field-border-hover);
+    }
+
     .search:focus-visible {
-        border-color: color-mix(in srgb, var(--_focus-ring) 55%, transparent);
-        box-shadow: 0 0 0 2px color-mix(in srgb, var(--_focus-ring) 25%, transparent);
+        border-color: var(--_field-border-focus);
+        box-shadow: var(--_field-shadow-focus);
     }
 
     .options {

@@ -27,6 +27,13 @@
     {
       "id": "option.hidden",
       "text": "Inside a combobox, do not set hidden on options yourself: the combobox overwrites every option's hidden attribute while filtering."
+    },
+    {
+      "id": "option.active",
+      "text": "The parent sets active on the keyboard-active row. Style it with [active], --violet-option-active-background and --violet-option-active-ring.",
+      "members": [
+        "active"
+      ]
     }
   ],
   "a11y": [

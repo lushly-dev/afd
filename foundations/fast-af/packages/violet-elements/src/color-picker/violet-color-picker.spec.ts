@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import "./violet-color-picker";
+import "../theme/violet-theme";
+import { loadVioletBuiltInTheme } from "../theme/violet-theme-runtime";
 import type { VioletColorPicker } from "./violet-color-picker";
 
 function nextFrame(): Promise<void> {
@@ -325,4 +327,73 @@ describe("violet-color-picker", () => {
             expect(style.transitionBehavior).toContain("allow-discrete");
         });
     });
+
+    it.each(["light", "dark", "high-contrast"])(
+        "keeps the hex input resting and focus borders at >= 3:1 in %s (#657)",
+        async preset => {
+            await loadVioletBuiltInTheme();
+            document.body.innerHTML = "";
+            const theme = document.createElement("violet-theme");
+            theme.setAttribute("preset", preset);
+            const picker = document.createElement("violet-color-picker") as VioletColorPicker;
+            picker.label = "Accent color";
+            picker.value = "#146ba0";
+            theme.append(picker);
+            document.body.append(theme);
+            await customElements.whenDefined("violet-color-picker");
+            await nextFrame();
+            await nextFrame();
+
+            const parseRgba = (color: string): [number, number, number, number] => {
+                const nums = (color.match(/[\d.]+/g) ?? []).map(Number);
+                return [nums[0] ?? 0, nums[1] ?? 0, nums[2] ?? 0, nums[3] ?? 1];
+            };
+            const composite = (fg: [number, number, number, number], bg: [number, number, number, number]): [number, number, number] => [
+                fg[0] * fg[3] + bg[0] * (1 - fg[3]),
+                fg[1] * fg[3] + bg[1] * (1 - fg[3]),
+                fg[2] * fg[3] + bg[2] * (1 - fg[3]),
+            ];
+            const luminance = (rgb: [number, number, number]): number => {
+                const [r = 0, g = 0, b = 0] = rgb.map(v => {
+                    const c = v / 255;
+                    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+                });
+                return r * 0.2126 + g * 0.7152 + b * 0.0722;
+            };
+            const contrast = (fgColor: string, bgColor: string, backdropColor: string): number => {
+                const bg = composite(parseRgba(bgColor), parseRgba(backdropColor));
+                const fg = composite(parseRgba(fgColor), [bg[0], bg[1], bg[2], 1]);
+                const l1 = luminance(fg);
+                const l2 = luminance(bg);
+                return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+            };
+
+            const hexInput = await openEditor(picker);
+            const panel = picker.shadowRoot?.querySelector(".panel") as HTMLElement;
+            const panelBg = getComputedStyle(panel).backgroundColor;
+            hexInput.style.transition = "none";
+
+            // Focused via keyboard openEditor() -> :focus-visible matches.
+            expect(hexInput.matches(":focus-visible")).toBe(true);
+            const focused = getComputedStyle(hexInput);
+            const focusedBorder = focused.borderTopColor;
+            expect(contrast(focusedBorder, focused.backgroundColor, panelBg)).toBeGreaterThanOrEqual(3);
+
+            // Blur to check resting border.
+            hexInput.blur();
+            await nextFrame();
+            const resting = getComputedStyle(hexInput);
+            const restingBorder = resting.borderTopColor;
+            expect(restingBorder).not.toBe(focusedBorder);
+            expect(contrast(restingBorder, resting.backgroundColor, panelBg)).toBeGreaterThanOrEqual(3);
+
+            // Hover over resting input.
+            await userEvent.hover(hexInput);
+            await nextFrame();
+            expect(hexInput.matches(":hover")).toBe(true);
+            const hovered = getComputedStyle(hexInput);
+            expect(contrast(hovered.borderTopColor, hovered.backgroundColor, panelBg)).toBeGreaterThanOrEqual(3);
+            await userEvent.unhover(hexInput);
+        },
+    );
 });

@@ -22,16 +22,22 @@ const styles = css`
     :host {
         position: relative;
         display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        min-inline-size: 0;
     }
 
     .field {
         display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        min-inline-size: 0;
         gap: 0;
     }
 
     .control-shell {
         position: relative;
         display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        min-inline-size: 0;
     }
 
     .control-shell.open {
@@ -52,6 +58,7 @@ const styles = css`
         align-items: center;
         gap: var(--_space-inline-sm);
         inline-size: 100%;
+        min-inline-size: 0;
         min-block-size: var(--_target-size);
         padding-inline: max(var(--_space-inline-md), calc(var(--_target-size) * 0.375));
         border: 1px solid var(--_border-subtle);
@@ -135,15 +142,12 @@ const styles = css`
     }
 
     .listbox {
+        /* The keys are in this list while it is open, so its active row draws its ring at >= 3:1. */
+        --_option-active-ring: var(--_focus-ring);
         display: grid;
         gap: 2px;
         max-block-size: inherit;
         overflow: auto;
-    }
-
-    /* The keys are in this list while it is open, so its active row draws its ring. */
-    .listbox ::slotted(violet-option) {
-        --violet-option-active-ring: color-mix(in srgb, var(--_focus-ring) 55%, transparent);
     }
 
     .empty {

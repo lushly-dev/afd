@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Fix four `violet-elements` bugs (#657, #1582, #1587, #2072):
+  - Draw resting, hover and focus borders from `color.field.border`, `color.field.border.hover` and `color.field.border.focus` over `color.field.background` on the color-picker hex input, the four data-grid picker search inputs (`pill-select`, `reference-picker`, `persona-picker`, `multi-picker`) and `violet-file-upload` (also syncing `dragActive` to `data-drag-active` via `dragActiveChanged()`) so all field borders meet WCAG 1.4.11 (>= 3:1) in light, dark and high-contrast themes (#657).
+  - Reflect `active` as a boolean host attribute on `violet-option`, expose `--violet-option-active-background` (taking precedence over selected and hover fills when set) and host-overridable `--violet-option-active-ring`, set the default active ring in `violet-select`, `violet-combobox` and `violet-listbox` via `--_option-active-ring` to full `color.focus.ring` at `--size-focus-ring-width` (inheriting through `violet-option-group`), and sync the active option on `VioletSelect.show()` so active rows meet 3:1 and can be styled independently (#1582).
+  - Set `grid-template-columns: minmax(0, 1fr)` and `min-inline-size: 0` on `:host`, `.field`, `.control-shell` and `.trigger`/`.control-frame` in `violet-select` and `violet-combobox` (matching `violet-text-field` and `violet-text-area`) so narrow CSS grid columns shrink without horizontal overflow (#1587).
+  - Defer `import("./violet-theme-builtin")` by a microtask inside `loadVioletBuiltInTheme()`, with a one-shot macrotask retry when an inlined single-file bundle's built-in module is still uninitialized across multiple top-level `await FASTElement.define(...)` calls (`inlineDynamicImports: true` / `codeSplitting: false`) (#2072).
+
 - Name the `violet-tabs` tab list with a new `label` attribute (#1585). The tab list is in the shadow root, so nothing named it before, and an `aria-label` on the host does not reach it.
 
 - Fix four accessibility defects: a subtle or outline `violet-badge` now takes the system colours under forced colours (#1576); under reduced motion the indeterminate `violet-progress` stops sliding and only its opacity eases, and `violet-skeleton` stops shimmering (#1583); a focused `violet-tab-panel` shows the focus ring (#1584); and the first `violet-alert` of a tone draws its own icon, since the alert registers its icons before it renders and `violet-icon` updates when its icon is registered later (#1588).

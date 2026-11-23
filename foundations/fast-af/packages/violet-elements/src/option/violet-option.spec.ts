@@ -1,8 +1,17 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import "./violet-option";
+import "../option-group/violet-option-group";
+import "../select/violet-select";
+import "../combobox/violet-combobox";
+import "../listbox/violet-listbox";
 import "../theme/violet-theme";
+import { loadVioletBuiltInTheme } from "../theme/violet-theme-runtime";
 import { VioletOption } from "./violet-option";
+import type { VioletSelect } from "../select/violet-select";
+import type { VioletCombobox } from "../combobox/violet-combobox";
+import type { VioletListbox } from "../listbox/violet-listbox";
 
 function nextFrame(): Promise<void> {
     return new Promise(resolve => {
@@ -165,7 +174,7 @@ describe("violet-option", () => {
         expect(option.isDisabled).toBe(true);
     });
 
-    // The two tests below rely on @observable change callbacks / bindings, which are inert when
+    // The test below relies on @observable change callbacks / bindings, which are inert when
     // the vite/esbuild test transform does not apply experimentalDecorators.
     it("reflects group-disabled state to aria-disabled", async () => {
         const option = await renderOption({ text: "Apple" });
@@ -177,14 +186,209 @@ describe("violet-option", () => {
         expect(control(option).classList.contains("disabled")).toBe(true);
     });
 
-    it("marks the control active", async () => {
+    it("reflects active as a host attribute and marks the control active", async () => {
         const option = await renderOption({ text: "Apple" });
 
         option.active = true;
         await nextFrame();
 
+        expect(option.hasAttribute("active")).toBe(true);
         expect(control(option).classList.contains("active")).toBe(true);
+
+        option.active = false;
+        await nextFrame();
+
+        expect(option.hasAttribute("active")).toBe(false);
+        expect(control(option).classList.contains("active")).toBe(false);
     });
+
+    it("allows styling active rows independently of hover and selected states through [active] and CSS custom properties (#1582)", async () => {
+        await loadVioletBuiltInTheme();
+        const option = await renderOption({ text: "Apple" });
+        const style = document.createElement("style");
+        style.textContent = `
+            violet-option[active] {
+                --violet-option-active-background: rgb(12, 34, 56);
+                --violet-option-active-ring: rgb(200, 10, 20);
+            }
+        `;
+        document.body.append(style);
+
+        option.active = true;
+        await nextFrame();
+        control(option).style.transition = "none";
+
+        let computed = getComputedStyle(control(option));
+        expect(computed.backgroundColor).toBe("rgb(12, 34, 56)");
+        expect(computed.boxShadow).toContain("rgb(200, 10, 20)");
+
+        // Hovering the active row preserves the explicit active fill rather than replacing it with hover.
+        await userEvent.hover(control(option));
+        await nextFrame();
+        computed = getComputedStyle(control(option));
+        expect(computed.backgroundColor).toBe("rgb(12, 34, 56)");
+        await userEvent.unhover(control(option));
+
+        // Reopening a populated select makes its selected option active: default preserves selected fill,
+        // while explicit --violet-option-active-background and --violet-option-active-ring on the host win.
+        document.body.innerHTML = "";
+        const theme = document.createElement("violet-theme");
+        theme.setAttribute("preset", "light");
+        const select = document.createElement("violet-select") as VioletSelect;
+        select.label = "Size";
+        const optSmall = document.createElement("violet-option") as VioletOption;
+        optSmall.value = "small";
+        optSmall.textContent = "Small";
+        const optMedium = document.createElement("violet-option") as VioletOption;
+        optMedium.value = "medium";
+        optMedium.textContent = "Medium";
+        select.append(optSmall, optMedium);
+        theme.append(select);
+        document.body.append(theme);
+        await customElements.whenDefined("violet-select");
+        select.value = "medium";
+        await nextFrame();
+        select.show();
+        await nextFrame();
+        await nextFrame();
+
+        expect(optMedium.hasAttribute("selected")).toBe(true);
+        expect(optMedium.hasAttribute("active")).toBe(true);
+        control(optMedium).style.transition = "none";
+        const probe = document.createElement("span");
+        probe.style.backgroundColor = "var(--color-surface-selected)";
+        theme.append(probe);
+        expect(getComputedStyle(control(optMedium)).backgroundColor).toBe(getComputedStyle(probe).backgroundColor);
+
+        // Author overrides on the host select propagate through the shadow listbox without being clobbered.
+        select.style.setProperty("--violet-option-active-background", "rgb(12, 34, 56)");
+        select.style.setProperty("--violet-option-active-ring", "rgb(200, 10, 20)");
+        await nextFrame();
+        computed = getComputedStyle(control(optMedium));
+        expect(computed.backgroundColor).toBe("rgb(12, 34, 56)");
+        expect(computed.boxShadow).toContain("rgb(200, 10, 20)");
+    });
+
+    it.each(["light", "dark", "high-contrast"])(
+        "marks the active row at >= 3:1 in open select, combobox and focused listbox in %s (#1582)",
+        async preset => {
+            await loadVioletBuiltInTheme();
+            document.body.innerHTML = "";
+            const theme = document.createElement("violet-theme");
+            theme.setAttribute("preset", preset);
+            const canvas = document.createElement("div");
+            canvas.style.background = "var(--color-surface-page)";
+            theme.append(canvas);
+            document.body.append(theme);
+
+            const parseRgba = (color: string): [number, number, number, number] => {
+                const nums = (color.match(/[\d.]+/g) ?? []).map(Number);
+                if (color.startsWith("color(srgb")) {
+                    return [(nums[0] ?? 0) * 255, (nums[1] ?? 0) * 255, (nums[2] ?? 0) * 255, nums[3] ?? 1];
+                }
+                return [nums[0] ?? 0, nums[1] ?? 0, nums[2] ?? 0, nums[3] ?? 1];
+            };
+            const composite = (fg: [number, number, number, number], bg: [number, number, number, number]): [number, number, number] => [
+                fg[0] * fg[3] + bg[0] * (1 - fg[3]),
+                fg[1] * fg[3] + bg[1] * (1 - fg[3]),
+                fg[2] * fg[3] + bg[2] * (1 - fg[3]),
+            ];
+            const luminance = (rgb: [number, number, number]): number => {
+                const [r = 0, g = 0, b = 0] = rgb.map(value => {
+                    const channel = value / 255;
+                    return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+                });
+                return r * 0.2126 + g * 0.7152 + b * 0.0722;
+            };
+            const ringMetrics = (opt: VioletOption, backdropColor: string) => {
+                control(opt).style.transition = "none";
+                const computed = getComputedStyle(control(opt));
+                const shadow = computed.boxShadow;
+                const colorMatch = shadow.match(/color\(srgb[^)]+\)|rgba?\([^)]+\)/);
+                const spreadMatch = shadow.match(/(\d+(?:\.\d+)?)px\s+inset/);
+                const backdrop = parseRgba(backdropColor);
+                const rowBg = composite(parseRgba(computed.backgroundColor), backdrop);
+                const ringRgba = parseRgba(colorMatch?.[0] ?? "rgba(0, 0, 0, 0)");
+                const ringRgb = composite(ringRgba, [rowBg[0], rowBg[1], rowBg[2], 1]);
+                const l1 = luminance(ringRgb);
+                const l2 = luminance(rowBg);
+                return {
+                    hasInset: shadow.includes("inset"),
+                    spreadPx: Number(spreadMatch?.[1] ?? 0),
+                    alpha: ringRgba[3],
+                    contrast: (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05),
+                };
+            };
+            const assertActiveRing = (opt: VioletOption, backdropColor: string) => {
+                expect(opt.hasAttribute("active")).toBe(true);
+                const metrics = ringMetrics(opt, backdropColor);
+                expect(metrics.hasInset).toBe(true);
+                expect(metrics.spreadPx).toBeGreaterThanOrEqual(2);
+                expect(metrics.alpha).toBeGreaterThan(0);
+                expect(metrics.contrast).toBeGreaterThanOrEqual(3);
+            };
+
+            const pageBg = getComputedStyle(canvas).backgroundColor;
+
+            // Select with grouped options (verifies inheritance through violet-option-group too).
+            const select = document.createElement("violet-select") as VioletSelect;
+            select.label = "Size";
+            const group = document.createElement("violet-option-group");
+            group.setAttribute("label", "Sizes");
+            const optSmall = document.createElement("violet-option") as VioletOption;
+            optSmall.textContent = "Small";
+            const optMedium = document.createElement("violet-option") as VioletOption;
+            optMedium.textContent = "Medium";
+            group.append(optSmall, optMedium);
+            select.append(group);
+            canvas.append(select);
+            await customElements.whenDefined("violet-select");
+            await nextFrame();
+            select.show();
+            await nextFrame();
+            await nextFrame();
+            const selectPanel = select.shadowRoot?.querySelector(".panel") as HTMLElement;
+            assertActiveRing(optSmall, getComputedStyle(selectPanel).backgroundColor);
+
+            // Combobox.
+            const combobox = document.createElement("violet-combobox") as VioletCombobox;
+            combobox.label = "Fruit";
+            const optApple = document.createElement("violet-option") as VioletOption;
+            optApple.textContent = "Apple";
+            combobox.append(optApple);
+            canvas.append(combobox);
+            await customElements.whenDefined("violet-combobox");
+            await nextFrame();
+            combobox.show();
+            await nextFrame();
+            await nextFrame();
+            const comboPanel = combobox.shadowRoot?.querySelector(".panel") as HTMLElement;
+            assertActiveRing(optApple, getComputedStyle(comboPanel).backgroundColor);
+
+            // Listbox at rest draws no visible ring; focused via keyboard (:focus-visible) meets >= 3:1.
+            const listbox = document.createElement("violet-listbox") as VioletListbox;
+            listbox.label = "Choices";
+            const optOne = document.createElement("violet-option") as VioletOption;
+            optOne.textContent = "One";
+            listbox.append(optOne);
+            canvas.append(listbox);
+            await customElements.whenDefined("violet-listbox");
+            await nextFrame();
+            const lbControl = listbox.shadowRoot?.querySelector(".control") as HTMLElement;
+            const lbBg = getComputedStyle(lbControl).backgroundColor || pageBg;
+            optOne.active = true;
+            await nextFrame();
+            const restingMetrics = ringMetrics(optOne, lbBg);
+            expect(restingMetrics.alpha).toBe(0);
+            expect(restingMetrics.contrast).toBe(1);
+
+            await userEvent.tab();
+            lbControl.focus();
+            await userEvent.keyboard("{ArrowDown}");
+            await nextFrame();
+            assertActiveRing(optOne, lbBg);
+        },
+    );
 
     it.each(["light", "dark", "high-contrast"])("keeps active text readable in %s without a palette override", async preset => {
         const option = await renderOption({ text: "Apple" });

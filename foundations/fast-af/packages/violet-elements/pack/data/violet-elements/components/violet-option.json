@@ -31,6 +31,16 @@
 			{
 				"basis": "observed",
 				"default": false,
+				"name": "active",
+				"property": "active",
+				"rules": [
+					"taxonomy.active"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": false,
 				"name": "disabled",
 				"property": "disabled",
 				"rules": [
@@ -78,6 +88,11 @@
 			},
 			{
 				"basis": "declared",
+				"default": "var(--size-focus-ring-width, 2px)",
+				"name": "--_focus-ring-width"
+			},
+			{
+				"basis": "declared",
 				"default": "var(--color-control-selected-foreground, #2c5e4b)",
 				"name": "--_option-mark"
 			},
@@ -115,6 +130,16 @@
 				"basis": "declared",
 				"default": "var(--type-caption-xs-line, 16px)",
 				"name": "--_type-caption-line"
+			},
+			{
+				"basis": "declared",
+				"description": "Background color of the active option row.",
+				"name": "--violet-option-active-background"
+			},
+			{
+				"basis": "declared",
+				"description": "Inset ring color of the active option row when keyboard navigation is active.",
+				"name": "--violet-option-active-ring"
 			}
 		],
 		"events": [
@@ -152,6 +177,16 @@
 			"basis": "observed",
 			"from": "components-option--disabled",
 			"html": "<div aria-label=\"Sowing methods\" role=\"listbox\"><violet-option aria-disabled=\"true\" aria-selected=\"false\" disabled id=\"violet-option-1\" label=\"Hydroponic setup\" role=\"option\" value=\"hydroponic-setup\">Hydroponic setup<span slot=\"description\">Temporarily unavailable for this season.</span></violet-option></div>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-option--overview",
+			"html": "<div aria-label=\"Sowing methods\" role=\"listbox\"><violet-option active aria-selected=\"false\" id=\"violet-option-1\" label=\"Direct sowing\" role=\"option\" value=\"direct-sowing\">Direct sowing<span slot=\"description\">Best for fast field prep and broad coverage.</span></violet-option></div>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-option--selected",
+			"html": "<div aria-label=\"Sowing methods\" role=\"listbox\"><violet-option active aria-selected=\"true\" id=\"violet-option-1\" label=\"Broadcast sowing\" role=\"option\" selected value=\"broadcast-sowing\">Broadcast sowing<span slot=\"description\">Used when broad bed coverage matters most.</span></violet-option></div>"
 		}
 	],
 	"format": 1,
@@ -160,6 +195,7 @@
 	"rules": [
 		"a11y.managed",
 		"import.root",
+		"taxonomy.active",
 		"taxonomy.disabled",
 		"taxonomy.label",
 		"taxonomy.selected",
@@ -194,6 +230,11 @@
 			"basis": "authored",
 			"id": "option.hidden",
 			"text": "Inside a combobox, do not set hidden on options yourself: the combobox overwrites every option's hidden attribute while filtering."
+		},
+		{
+			"basis": "authored",
+			"id": "option.active",
+			"text": "The parent sets active on the keyboard-active row. Style it with [active], --violet-option-active-background and --violet-option-active-ring."
 		}
 	]
 }

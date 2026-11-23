@@ -75,19 +75,41 @@ function activeCssText(): string {
  * next call, or the next install, tries again.
  */
 export function loadVioletBuiltInTheme(): Promise<string> {
-    builtInLoad ??= importBuiltIn()
-        .then(module => {
-            const cssText = module.violetThemeCssText;
-            builtInCssText = cssText;
-            if (product === null) {
-                refreshInstalledStyles();
+    // Defer the dynamic import by a microtask so single-file bundles finish initializing
+    // `violet-theme-builtin` when a pre-existing `<violet-theme>` upgrades synchronously during
+    // `FASTElement.define`. When a single-file bundle also awaits further element registrations
+    // before the inlined built-in module runs, its hoisted `var` namespace is still `undefined`
+    // (or its `const` bindings are still in TDZ) after one microtask; yield one macrotask so all
+    // registration microtasks drain, then retry once (#2072).
+    const load = async (): Promise<string> => {
+        await Promise.resolve();
+        let cssText: string | undefined;
+        try {
+            const module = await importBuiltIn();
+            cssText = module?.violetThemeCssText;
+        } catch (error) {
+            if (!(error instanceof ReferenceError)) {
+                throw error;
             }
-            return cssText;
-        })
-        .catch((error: unknown) => {
-            builtInLoad = undefined;
-            throw error;
-        });
+        }
+        if (cssText === undefined) {
+            await new Promise<void>(resolve => setTimeout(resolve, 0));
+            const module = await importBuiltIn();
+            if (module?.violetThemeCssText === undefined) {
+                throw new TypeError("violet-theme: built-in theme module did not export violetThemeCssText");
+            }
+            cssText = module.violetThemeCssText;
+        }
+        builtInCssText = cssText;
+        if (product === null) {
+            refreshInstalledStyles();
+        }
+        return cssText;
+    };
+    builtInLoad ??= load().catch((error: unknown) => {
+        builtInLoad = undefined;
+        throw error;
+    });
     return builtInLoad;
 }
 
