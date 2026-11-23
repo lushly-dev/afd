@@ -129,3 +129,39 @@ async fn the_stdio_actor_is_the_configured_local_principal() {
         );
     }
 }
+
+/// Windows debug builds run `main` on a 1 MiB stack (#2309). Polling both `cli::run` and an
+/// MCP stdio session on a 1 MiB thread catches stack-frame regressions on Linux/macOS CI too.
+#[test]
+fn cli_and_legacy_stdio_session_fit_on_a_1mib_thread_stack() {
+    let handle = std::thread::Builder::new()
+        .name("umbel-1mib-stack".to_owned())
+        .stack_size(1024 * 1024)
+        .spawn(|| {
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            runtime.block_on(async {
+                let dir = minimal();
+                let host = host(dir.path());
+                let mut client = Client::connect(&host, Transport::Stdio, Era::Legacy).await;
+                let result = client.call("workspace-show", json!({})).await;
+                assert_eq!(result["success"], true, "{result}");
+                let mut out = Vec::<u8>::new();
+                let mut env = umbel::cli::Environment::from_process();
+                env.cwd = dir.path().to_path_buf();
+                env.workspace = Some(dir.path().as_os_str().to_os_string());
+                let code = Box::pin(umbel::cli::run(
+                    ["umbel", "workspace", "show"],
+                    &env,
+                    &mut out,
+                    |builder| builder,
+                ))
+                .await;
+                assert_eq!(code, 0, "{}", String::from_utf8_lossy(&out));
+            });
+        })
+        .unwrap();
+    handle.join().unwrap();
+}

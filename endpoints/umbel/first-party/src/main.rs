@@ -27,12 +27,15 @@ async fn main() {
     // Not `.lock()`: `umbel serve --stdio` writes JSON-RPC through the same stdout from another
     // thread (the same reasoning as the stock binary's `main`).
     let mut stdout = std::io::stdout();
-    let code = if is_serve(std::env::args_os()) {
-        run(std::env::args_os(), &environment, &mut stdout, catalog).await
-    } else {
-        tokio::select! {
-            code = run(std::env::args_os(), &environment, &mut stdout, catalog) => code,
-            _ = tokio::signal::ctrl_c() => 130,
+    let code = {
+        let mut work = Box::pin(run(std::env::args_os(), &environment, &mut stdout, catalog));
+        if is_serve(std::env::args_os()) {
+            work.await
+        } else {
+            tokio::select! {
+                code = &mut work => code,
+                _ = tokio::signal::ctrl_c() => 130,
+            }
         }
     };
     let _ = stdout.flush();

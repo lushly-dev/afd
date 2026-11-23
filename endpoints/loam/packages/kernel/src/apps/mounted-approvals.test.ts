@@ -226,6 +226,99 @@ describe('P5-A6: one confirmation with the preview, and the token never leaves t
 		expect(data<{ state: string }>(draft as CommandResult).state).toBe('draft');
 	});
 
+	it('keeps the waiting copilot turn waiting on the replacement confirmation until the person answers it (#2307)', async () => {
+		const scripts: Record<string, ModelScriptV1> = {
+			'reply-thr-1-read': [
+				{ tools: [{ name: 'mailfix-thread-open', input: { thread: 'thr_1' } }] },
+				{
+					tools: [
+						{
+							name: 'mailfix-draft-create',
+							input: { thread: 'thr_1', body: 'Thanks, Thursday works.' },
+						},
+					],
+				},
+				{ tools: [{ name: 'mailfix-draft-send', input: { draft: 'drf_1', revision: 1 } }] },
+				{ text: 'The reply is waiting for your approval.' },
+				{ answered: true },
+				{ tools: [{ name: 'confirmation-get', input: { notification: '$replacement' } }] },
+				{ text: 'Checked the replacement outcome.' },
+			],
+		};
+		const made = await seed({ scripts });
+		const { kernel } = made;
+		const { turn, session } = await send(kernel, 'script:reply-thr-1-read');
+		expect(turn.state).toBe('waiting');
+		const [row] = await confirmations(kernel);
+		if (!row) throw new Error('expected pending confirmation');
+		data(
+			await mailfixOf(made).server.execute('mailfix-draft-update', {
+				draft: 'drf_1',
+				body: 'Changed.',
+			})
+		);
+		const bodiesBefore = made.copilot?.provider.bodies.length ?? 0;
+		const answered = data<{ state: string; changed: true; notification: string }>(
+			await kernel.call('notification-act', { notification: row.id, answer: 'confirm' })
+		);
+		expect(answered).toMatchObject({ state: 'pending', changed: true });
+		(scripts['reply-thr-1-read'] as unknown as Array<Record<string, unknown>>)[5] = {
+			tools: [{ name: 'confirmation-get', input: { notification: answered.notification } }],
+		};
+		// Let any background copilot check/resume settle (as happens under host load): the turn must
+		// still be waiting on the replacement, expose the replacement card in `copilot-session-get`,
+		// and never resume on the withdrawn first card.
+		for (let tick = 0; tick < 50; tick++) await new Promise((resolve) => setTimeout(resolve, 1));
+		const before = data<{
+			turns: Array<{ state: string; calls: Array<{ notification?: string }> }>;
+			confirmations: Array<{ id: string; state: string }>;
+		}>(await kernel.call('copilot-session-get', { session }));
+		expect(before.turns[0]?.state).toBe('waiting');
+		expect(before.turns[0]?.calls.some((call) => call.notification === answered.notification)).toBe(
+			true
+		);
+		expect(before.confirmations).toContainEqual(
+			expect.objectContaining({ id: answered.notification, state: 'pending' })
+		);
+		expect(made.copilot?.provider.bodies.length).toBe(bodiesBefore);
+		expect(
+			data(
+				await kernel.call('notification-act', {
+					notification: answered.notification,
+					answer: 'confirm',
+				})
+			)
+		).toEqual({ state: 'confirmed' });
+		// Once the replacement is confirmed, the waiting turn resumes with the replacement's id,
+		// reads its outcome through `confirmation-get`, and settles as done.
+		let turnState: string | undefined;
+		for (let tries = 0; tries < 200 && turnState !== 'done'; tries++) {
+			const got = data<{ turns: Array<{ state: string }> }>(
+				await kernel.call('copilot-session-get', { session })
+			);
+			turnState = got.turns[0]?.state;
+			if (turnState !== 'done') await new Promise((resolve) => setTimeout(resolve, 5));
+		}
+		expect(turnState).toBe('done');
+		const continuation = JSON.stringify(made.copilot?.provider.bodies.slice(bodiesBefore) ?? []);
+		expect(continuation).toContain(answered.notification);
+		expect(continuation).not.toContain(row.id);
+		const lastBody = JSON.stringify(made.copilot?.provider.bodies.at(-1));
+		expect(lastBody).toContain('confirmation-get');
+		expect(lastBody).toContain('\\"state\\":\\"confirmed\\"');
+		expect(lastBody).toContain('Draft drf_1 is at revision 2, not 1');
+		expect(lastBody).not.toContain('COPILOT_PORT_REFUSED');
+		const final = data<{
+			turns: Array<{ reply: string; calls: Array<{ notification?: string }> }>;
+		}>(await kernel.call('copilot-session-get', { session }));
+		expect(final.turns[0]?.reply).toBe(
+			'The reply is waiting for your approval.\n\nChecked the replacement outcome.'
+		);
+		expect(final.turns[0]?.calls.some((call) => call.notification === answered.notification)).toBe(
+			true
+		);
+	});
+
 	it("holds the instance from the confirm to the outcome: an agent's and an app's calls wait; the preview passes", async () => {
 		const made = await seed();
 		const { kernel } = made;

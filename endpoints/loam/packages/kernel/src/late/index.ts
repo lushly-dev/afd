@@ -875,7 +875,7 @@ export async function createLateParts(
 			genericAsked: (command, enforced) =>
 				genericAskedFor(definitionOf(command), deps.apps().owners.get(command)?.instance, enforced),
 			// Approval health and the copilot's waiting turn (phase 5's 6.3, 3.5).
-			observe: (event, row) => copilot.observe(event, row),
+			observe: (event, row, replacedBy) => copilot.observe(event, row, replacedBy),
 			suggestions: copilot.suggestions,
 			paletteCommand(command) {
 				if (command === 'palette-run' || INTERNAL_COMMANDS.includes(command)) return undefined;

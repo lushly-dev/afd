@@ -26,6 +26,15 @@ import {
 import { copilotContextFields } from './fields.js';
 import { type ApprovalHealthV1, createHealth, type HealthReasonV1 } from './health.js';
 import { forRuntime, listTools } from './labels.js';
+import {
+	AGENT_CHANNELS,
+	CHROME_ONLY,
+	CONFIRMATION_OWN,
+	continuation,
+	createConfirmationTracker,
+	SUGGESTIONS,
+	writesRecords,
+} from './pending.js';
 import { createTaint } from './taint.js';
 import type {
 	CopilotAgentCapabilityV1,
@@ -92,12 +101,6 @@ export const TURN_LIMITS = Object.freeze({
 	outputTokens: 16_384,
 });
 
-/**
- * The chrome's own commands, which move the person's palette or record their editor selection: never the copilot's
- * tools (4.5).
- */
-const CHROME_ONLY: readonly string[] = ['palette-open', 'palette-close', 'editor-selection-set'];
-
 /** 4.5: at most this many tool definitions. */
 export const TOOLS_MAX = 128;
 
@@ -105,58 +108,6 @@ const TEXT_MAX = 32_768;
 const REPLY_MAX = 65_536;
 const TITLE_MAX = 80;
 const SESSION_ID = /^cps_[0-9a-f]{16}$/;
-
-const SUGGESTIONS = {
-	PROVIDER_MISSING:
-		'Add a provider under [copilot] in loam.deployment.toml, then run deployment write',
-	PROVIDER_UNKNOWN: 'Start a new session; the provider is not in this desktop’s configuration',
-	SESSION_NOT_FOUND: 'List your sessions with copilot-session-list',
-	TURN_RUNNING: 'Wait for the turn, or stop it with copilot-turn-stop',
-	PORT_REFUSED: 'None: only the runtime uses the port',
-} as const;
-
-/**
- * Never asked or suggested (6.1), beside the human, owner and person-session commands: what moves the person's own view
- * and changes none of their records (a layout, a tab, a selection, an open document), like phase 2's person-session
- * commands; and the overlays and the inbox, the agent's channels to the person, which phase 4 governs per path (its 6.1
- * table, 10.2) with their own agent rates, and whose handlers refuse an agent what it may not do (a modal, an answer).
- * Asking whether an agent may tell the person something would put the question in place of the message.
- */
-const AGENT_CHANNELS: readonly string[] = [
-	'view-state-set',
-	'layout-set',
-	'layout-reset',
-	'app-selection-set',
-	'status-item-set',
-	'editor-activate',
-	'editor-close',
-	'editor-pin',
-	'editor-move',
-	'editor-dirty-set',
-	'document-open',
-	'toast-show',
-	'popover-open',
-	'dialog-open',
-	'modal-open',
-	'prompt-open',
-	'overlay-dismiss',
-	'notification-push',
-];
-
-/** The person's records an exempt command can still write: `view-state-set` of the appearance alias (3.6). */
-const writesRecords = (name: string, input: unknown): boolean =>
-	name === 'view-state-set' && (input as { id?: unknown } | null)?.id === 'loam.appearance';
-
-/**
- * The confirmations' own reads and withdrawal, which only reach the caller's own (phase 4's 7.2), and the autonomy reads
- * by which an agent learns its mode (phase 4's 4.5): a cap of `suggest` must not keep an agent from knowing it.
- */
-const CONFIRMATION_OWN: readonly string[] = [
-	'confirmation-get',
-	'confirmation-withdraw',
-	'autonomy-get',
-	'autonomy-list',
-];
 
 /** What the copilot chunk needs from the kernel. */
 export interface CopilotDeps {
@@ -332,6 +283,10 @@ export interface CopilotParts {
 			scope: ScopeV1;
 			createdAt: number;
 			confirmation: { command: string; asked?: ConfirmationAskedV1; session?: string };
+		},
+		replacedBy?: {
+			id: string;
+			confirmation: { expiresAt: number };
 		}
 	): Promise<void>;
 	/** The person's live suggestion, and its run, for `palette-run`'s "Run it" (6.1). */
@@ -351,6 +306,8 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 	const waiting = new Map<string, Waiting>();
 	/** Waiting turns whose end is being written: their confirmations are still held (re-check 6). */
 	const ending = new Set<Waiting>();
+	/** Kernel-verified confirmations raised per session and reshow replacement mappings (#2307). */
+	const tracker = createConfirmationTracker();
 	/** What the gate decided for each copilot call, by its trace, until the port's half records it (3.4). */
 	const decisions = new Map<string, DecisionV1>();
 	const traceKey = (trace: CopilotTraceV1) => `${trace.session}/${trace.turn}/${trace.call}`;
@@ -479,10 +436,10 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 			.filter((row) => row.session === session)
 			.map(({ id: _id, ...turn }) => turn as CopilotTurnV1)
 			.sort((a, b) => a.seq - b.seq);
-		// A running turn's calls are in memory until it settles.
-		const live = running.get(session);
-		return live
-			? turns.map((turn) => (turn.seq === live.turn.seq ? copy(live.turn) : turn))
+		// A running or waiting turn's in-memory calls (including reshow replacements) lead the stored copy.
+		const active = running.get(session) ?? waiting.get(session);
+		return active
+			? turns.map((turn) => (turn.seq === active.turn.seq ? copy(active.turn) : turn))
 			: turns;
 	}
 
@@ -570,22 +527,35 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 		if (!held) return;
 		const run = async () => {
 			if (waiting.get(session) !== held) return;
-			const ended: Array<{ id: string; command: string; state: string }> = [];
+			let ended: Array<{ id: string; command: string; state: string }> = [];
 			let latest = 0;
-			for (const [id, expiresAt] of held.pending) {
-				const card = await deps.confirmationOf?.(id, held.session.person);
-				if (card?.state === 'pending') {
-					latest = Math.max(latest, card.expiresAt, expiresAt);
-					continue;
+			let replaced = false;
+			// Re-scan if a changed-preview reshow swaps `held.pending` while a read is in flight (#2307).
+			for (let scan = 0; scan < 16; scan += 1) {
+				ended = [];
+				latest = 0;
+				replaced = false;
+				for (const [id, expiresAt] of [...held.pending]) {
+					const card = await deps.confirmationOf?.(id, held.session.person);
+					if (waiting.get(session) !== held) return;
+					if (!held.pending.has(id)) {
+						replaced = true;
+						break;
+					}
+					if (card?.state === 'pending') {
+						latest = Math.max(latest, card.expiresAt, expiresAt);
+						continue;
+					}
+					// A row that has gone ended long ago.
+					ended.push({
+						id,
+						command: card?.command ?? 'the command',
+						state: card?.state ?? 'expired',
+					});
 				}
-				// A row that has gone ended long ago.
-				ended.push({
-					id,
-					command: card?.command ?? 'the command',
-					state: card?.state ?? 'expired',
-				});
+				if (!replaced) break;
 			}
-			if (waiting.get(session) !== held) return;
+			if (waiting.get(session) !== held || replaced) return;
 			if (latest > 0) {
 				// Its expiry ends it with no call to say so: looked at again just after (7.2's 10 minutes).
 				if (held.timer) clearTimeout(held.timer);
@@ -599,22 +569,6 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 		held.checking = (held.checking ?? Promise.resolve()).then(run, run);
 		await held.checking;
 	}
-
-	/** The words a continuation starts with (3.5): Loam's, naming each confirmation's end, never its result. */
-	const continuation = (ended: ReadonlyArray<{ id: string; command: string; state: string }>) =>
-		[
-			'[Loam] The person has answered every confirmation this turn raised.',
-			...ended.map(({ id, command, state }) =>
-				state === 'confirmed'
-					? `- ${command} (${id}): confirmed, and the shell ran it once. Read its result with confirmation-get { "notification": "${id}" }.`
-					: state === 'declined'
-						? `- ${command} (${id}): declined. Do not call it again.`
-						: state === 'withdrawn'
-							? `- ${command} (${id}): withdrawn before the person answered.`
-							: `- ${command} (${id}): expired; no one answered it within 10 minutes.`
-			),
-			'Tell the person what happened.',
-		].join('\n');
 
 	/** Continue a waiting turn, once its confirmations have all ended, within the turn's limits (3.5, 4.4). */
 	async function resume(
@@ -713,7 +667,9 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 
 	/** Whether this session raised the confirmation: this turn's, or one a turn of it recorded (6.2). */
 	async function raisedBy(live: Running, notification: string): Promise<boolean> {
-		if (live.pending.has(notification)) return true;
+		if (live.pending.has(notification) || tracker.hasRaised(live.session.id, notification))
+			return true;
+		if (live.turn.calls.some((call) => call.notification === notification)) return true;
 		return (await turnsOf(live.session.id)).some((turn) =>
 			turn.calls.some((call) => call.notification === notification)
 		);
@@ -819,11 +775,16 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 					code === 'CONFIRMATION_PENDING' && decided?.notification !== undefined
 						? decided.notification
 						: inner[0];
+				const resolvedId = raisedId !== undefined ? tracker.latest(raisedId).id : undefined;
 				const claimed =
-					raisedId !== undefined
-						? await deps.confirmationOf?.(raisedId, session.person)
+					resolvedId !== undefined
+						? await deps.confirmationOf?.(resolvedId, session.person)
 						: undefined;
-				const notification = claimed?.session === session.id ? claimed.id : undefined;
+				const currentClaim =
+					claimed?.session === session.id
+						? tracker.latest(claimed.id, claimed.expiresAt)
+						: undefined;
+				const notification = currentClaim?.id;
 				const suggestion = code === 'AUTONOMY_SUGGEST_ONLY' ? decided?.suggestion : undefined;
 				const entry: CopilotCallV1 = {
 					callId,
@@ -857,12 +818,18 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 				};
 				if (!live.revoked) {
 					live.turn.calls.push(entry);
-					if (notification !== undefined && claimed)
-						live.pending.set(notification, claimed.expiresAt);
+					if (currentClaim !== undefined) {
+						live.pending.set(currentClaim.id, currentClaim.expiresAt);
+						tracker.noteRaised(session.id, currentClaim.id);
+					}
 					// The rest a nested call raised wait too, each this session's (B8).
 					for (const id of inner.slice(1)) {
-						const card = await deps.confirmationOf?.(id, session.person);
-						if (card?.session === session.id) live.pending.set(id, card.expiresAt);
+						const card = await deps.confirmationOf?.(tracker.latest(id).id, session.person);
+						if (card?.session === session.id) {
+							const latest = tracker.latest(card.id, card.expiresAt);
+							live.pending.set(latest.id, latest.expiresAt);
+							tracker.noteRaised(session.id, latest.id);
+						}
 					}
 				} else if (
 					notification !== undefined &&
@@ -1450,7 +1417,19 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 		gate: (name, input, context, next) =>
 			taint.record(name, input, context, () => enforcement.gate(name, input, context, next)),
 		suggestions: { suggestion: enforcement.suggestion, ran: enforcement.ran },
-		async observe(event, row) {
+		async observe(event, row, replacedBy) {
+			// A changed preview replaces the confirmation in place (7.2): swap the tracked id before any
+			// await so a concurrent check never sees the withdrawn original, resumes the turn early and
+			// withdraws the replacement when settling (#2307).
+			const session = row.confirmation.session;
+			if (event === 'withdrawn' && replacedBy !== undefined && session !== undefined) {
+				tracker.replace(
+					session,
+					row.id,
+					{ id: replacedBy.id, expiresAt: replacedBy.confirmation.expiresAt },
+					[running.get(session), waiting.get(session)]
+				);
+			}
 			const asked = row.confirmation.asked;
 			// Approval health counts an agent's confirmations alone, by the day it was raised (6.3).
 			if (asked !== undefined) {
@@ -1466,7 +1445,10 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 				);
 			}
 			// A waiting turn hears its confirmation end, and continues once all have (3.5).
-			const session = row.confirmation.session;
+			if (event === 'withdrawn' && replacedBy !== undefined && session !== undefined) {
+				if (waiting.get(session)?.pending.has(replacedBy.id)) void check(session);
+				return;
+			}
 			if (event !== 'asked' && session !== undefined && waiting.get(session)?.pending.has(row.id))
 				void check(session);
 		},
@@ -1481,7 +1463,10 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 				),
 			]);
 			// A change of person also removes every runtime: the frame goes, with whatever it held (3.2).
-			if (stoppedBy === 'session-changed') deps.options?.runner?.reset?.();
+			if (stoppedBy === 'session-changed') {
+				tracker.clear();
+				deps.options?.runner?.reset?.();
+			}
 		},
 	};
 }
