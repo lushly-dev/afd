@@ -121,19 +121,35 @@ def confirmation_binding(steps: Sequence[ConfirmationStep]) -> str:
     return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
 
 
-def declares_confirm_input(command: CommandDefinition) -> bool:
-    """Whether a command's own input schema declares a ``confirm`` property."""
-    schema = command.input_schema
+def _schema_declares_confirm(schema: Any) -> bool:
     if isinstance(schema, dict):
         properties = schema.get("properties")
-        if isinstance(properties, dict):
-            return "confirm" in properties
+        if isinstance(properties, dict) and "confirm" in properties:
+            return True
+    return False
+
+
+def declares_confirm_input(command: CommandDefinition) -> bool:
+    """Whether a command's validation schema declares a ``confirm`` property."""
+    if command.input_schema is not None:
+        return _schema_declares_confirm(command.input_schema)
     return any(parameter.name == "confirm" for parameter in command.parameters)
+
+
+def advertises_confirm_input(command: CommandDefinition) -> bool:
+    """Whether a command's advertised schema already declares a ``confirm`` property."""
+    if command.advertised_input_schema is not None:
+        return _schema_declares_confirm(command.advertised_input_schema)
+    return declares_confirm_input(command)
 
 
 def accepts_confirm(command: CommandDefinition, mode: str) -> bool:
     """Whether the command's tool advertises the ``confirm`` acknowledgement (``enforce`` only)."""
-    return mode == "enforce" and bool(command.confirm_prompt) and not declares_confirm_input(command)
+    return (
+        mode == "enforce"
+        and bool(command.confirm_prompt)
+        and not advertises_confirm_input(command)
+    )
 
 
 CONFIRM_PROPERTY: dict[str, Any] = {
@@ -284,6 +300,7 @@ __all__ = [
     "ConfirmationOutcome",
     "ConfirmationStep",
     "accepts_confirm",
+    "advertises_confirm_input",
     "bind_confirmation_channel",
     "confirmation_binding",
     "current_confirmation_channel",

@@ -123,10 +123,11 @@ async def _afd_docs_handler(
                     lines.append(_json_block(example.input if isinstance(example.input, dict) else {"value": example.input}))
                     lines.append("")
 
-            if command.input_schema:
+            shown_schema = command.advertised_input_schema or command.input_schema
+            if shown_schema:
                 lines.append("**Input Schema:**")
                 lines.append("")
-                lines.append(_json_block(command.input_schema))
+                lines.append(_json_block(shown_schema))
                 lines.append("")
 
             if command.returns:

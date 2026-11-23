@@ -54,6 +54,7 @@ from afd.core.commands import (
     validate_task_declaration,
     warn_invalid_command_name,
 )
+from afd.core.meta_keys import assert_advertised_input_schema, assert_tool_meta
 from afd.core.output_budget import OutputBudget, validate_output_budget_declaration
 from afd.core.result import CommandResult
 from afd.core.schema_validation import SchemaValidationError, check_schema, validate_schema
@@ -100,6 +101,8 @@ class CommandMetadata:
     errors: Optional[List[str]] = None
     execution_time: Optional[Literal["instant", "fast", "slow", "long-running"]] = None
     task: Optional[TaskSupport] = None
+    tool_meta: Optional[Dict[str, Any]] = None
+    advertised_input_schema: Optional[Dict[str, Any]] = None
     output_budget: Optional[OutputBudget] = None
     scopes: List[str] = field(default_factory=list)
 
@@ -127,6 +130,8 @@ def define_command(
     errors: Optional[List[str]] = None,
     execution_time: Optional[Literal["instant", "fast", "slow", "long-running"]] = None,
     task: Optional[TaskSupport] = None,
+    tool_meta: Optional[Dict[str, Any]] = None,
+    advertised_input_schema: Optional[Dict[str, Any]] = None,
     output_budget: Optional[Union[OutputBudget, Dict[str, Any]]] = None,
     scopes: Optional[Sequence[str]] = None,
     _stacklevel: int = 2,
@@ -193,6 +198,8 @@ def define_command(
         confirm_prompt=confirm_prompt,
         approval=approval,
     )
+    checked_tool_meta = assert_tool_meta(name, tool_meta)
+    checked_advertised = assert_advertised_input_schema(name, advertised_input_schema)
     normalized_output_budget = validate_output_budget_declaration(name, output_budget)
     normalized_scopes = validate_command_scopes(name, scopes)
     if input_schema is not None:
@@ -234,6 +241,8 @@ def define_command(
             errors=list(errors) if errors is not None else None,
             execution_time=execution_time,
             task=task,
+            tool_meta=checked_tool_meta,
+            advertised_input_schema=checked_advertised,
             output_budget=normalized_output_budget,
         )
         
@@ -336,15 +345,37 @@ def command_to_definition(func: Callable) -> Optional[CommandDefinition]:
     if not metadata:
         return None
     
-    # Generate parameters from input schema
+    # Generate parameters from the advertised schema when given, else the validation schema (V1).
     parameters = []
-    if metadata.input_schema:
-        schema = _advertised_schema(metadata.input_schema)
-        properties = schema.get("properties", {})
-        required = set(schema.get("required", []))
-        
+    param_source = (
+        metadata.advertised_input_schema
+        if metadata.advertised_input_schema is not None
+        else (_advertised_schema(metadata.input_schema) if metadata.input_schema is not None else None)
+    )
+    if param_source:
+        raw_properties = param_source.get("properties")
+        properties = raw_properties if isinstance(raw_properties, dict) else {}
+        raw_required = param_source.get("required")
+        required = set(raw_required) if isinstance(raw_required, list) else set()
+
         for prop_name, prop_schema in properties.items():
-            json_type = _json_schema_type(prop_schema.get("type", "string"))
+            if isinstance(prop_schema, bool):
+                parameters.append(
+                    CommandParameter(
+                        name=prop_name,
+                        type="any" if prop_schema else "never",
+                        description=f"Parameter {prop_name}",
+                        required=prop_name in required,
+                    )
+                )
+                continue
+            if not isinstance(prop_schema, dict):
+                continue
+            raw_type = prop_schema.get("type", "string")
+            if isinstance(raw_type, list):
+                json_type = " | ".join(_json_schema_type(item) for item in raw_type) or "string"
+            else:
+                json_type = _json_schema_type(raw_type)
             parameters.append(CommandParameter(
                 name=prop_name,
                 type=json_type,
@@ -388,6 +419,8 @@ def command_to_definition(func: Callable) -> Optional[CommandDefinition]:
         errors=metadata.errors,
         execution_time=metadata.execution_time,
         task=metadata.task,
+        tool_meta=metadata.tool_meta,
+        advertised_input_schema=metadata.advertised_input_schema,
         output_budget=metadata.output_budget,
     )
 

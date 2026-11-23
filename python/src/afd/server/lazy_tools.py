@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+import copy
 import math
 from typing import Any, Sequence
 
@@ -287,6 +288,7 @@ def execute_detail(
             "undoable": command.undoable,
             "approval": approval_mode(command.approval),
             "task": command.task,
+            "toolMeta": copy.deepcopy(command.tool_meta) if command.tool_meta else None,
             "outputBudget": (
                 command.output_budget.to_wire_dict()
                 if command.output_budget is not None

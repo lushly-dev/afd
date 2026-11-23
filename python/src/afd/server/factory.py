@@ -42,6 +42,7 @@ from afd.core.commands import (
     validate_task_declaration,
 )
 from afd.core.errors import CommandError, ErrorCodes
+from afd.core.meta_keys import assert_advertised_input_schema, assert_tool_meta
 from afd.core.output_budget import (
     OutputBudget,
     apply_output_budget,
@@ -134,11 +135,18 @@ from afd.server.confirmations import (
     bind_confirmation_channel,
 )
 from afd.server.elicitation import MAX_IN_BAND_ROUNDS, ElicitationRound
+from afd.server.resources import (
+    ResourceService,
+    ResourcesOption,
+    create_resource_service,
+    strip_unused_sdk_handlers,
+)
 from afd.server.session_context import (
     SessionContextState,
     UnknownContextError,
     is_modern_protocol,
 )
+from afd.server.skills import SKILLS_EXTENSION_ID, SkillCatalog
 from afd.server.tasks import (
     TASKS_EXTENSION_ID,
     TaskOptions,
@@ -234,6 +242,10 @@ class ServerConfig:
     """MCP Tasks runtime options (TTL, polling interval, concurrency and caller identification)."""
     auth: McpAuthOptions | None = None
     """OAuth 2.1 protected-resource authorization on HTTP (``spec/authorization.md``, M1–M7)."""
+    resources: ResourcesOption | None = None
+    """Opt-in MCP resource provider or static entries (``spec/mcp-resources.md``, R1–R6)."""
+    skills: SkillCatalog | None = None
+    """Opt-in Agent Skills catalog served through ``io.modelcontextprotocol/skills`` (S1–S6)."""
 
 
 DEFAULT_TOOLS_LIST_TTL_MS = 300_000
@@ -292,11 +304,28 @@ class MCPServer:
             raise TypeError("context_hook must be callable")
         if config.task_options is not None and not isinstance(config.task_options, TaskOptions):
             raise TypeError("task_options must be a TaskOptions instance")
+        if config.tools_list_ttl_ms is not None and (
+            isinstance(config.tools_list_ttl_ms, bool)
+            or not isinstance(config.tools_list_ttl_ms, int)
+            or config.tools_list_ttl_ms < 0
+        ):
+            raise ValueError("tools_list_ttl_ms must be a non-negative integer")
+        resources_ttl_ms = (
+            config.tools_list_ttl_ms
+            if config.tools_list_ttl_ms is not None
+            else DEFAULT_TOOLS_LIST_TTL_MS
+        )
         # The set's options are checked here; its entries once the commands are registered.
         first_class = normalize_first_class_tools(config.tool_strategy, config.first_class_tools)
         config.first_class_tools = first_class
         config.context_fields = check_context_fields(config.context_fields)
         self.config = config
+        self._resource_service: ResourceService | None = create_resource_service(
+            config.resources,
+            config.skills,
+            ttl_ms=resources_ttl_ms,
+            dev_mode=config.dev_mode,
+        )
         self._registry = create_command_registry()
         self._commands: dict[str, Callable] = {}
         self._metadata: dict[str, CommandMetadata] = {}
@@ -508,6 +537,8 @@ class MCPServer:
         handoff: bool = False,
         handoff_protocol: str | None = None,
         task: TaskSupport | None = None,
+        tool_meta: dict[str, Any] | None = None,
+        advertised_input_schema: dict[str, Any] | None = None,
         output_budget: OutputBudget | dict[str, Any] | None = None,
         scopes: Sequence[str] | None = None,
     ) -> Callable:
@@ -538,6 +569,8 @@ class MCPServer:
                 handoff=handoff,
                 handoff_protocol=handoff_protocol,
                 task=task,
+                tool_meta=tool_meta,
+                advertised_input_schema=advertised_input_schema,
                 output_budget=output_budget,
                 # Point a name warning at the user's @server.command line.
                 _stacklevel=3,
@@ -637,6 +670,9 @@ class MCPServer:
         if key != self._names_key:
             self._bootstrap_commands = None
             self._invalidate_caches()
+            for command in commands:
+                assert_tool_meta(command.name, command.tool_meta)
+                assert_advertised_input_schema(command.name, command.advertised_input_schema)
             self._names_key = key
         if not (self.config.bootstrap or self.config.contexts):
             return
@@ -680,7 +716,9 @@ class MCPServer:
     def _get_bootstrap_commands(self) -> list[CommandDefinition]:
         if self._bootstrap_commands is None:
             options: dict[str, Any] = {
-                "get_json_schema": lambda command: command.input_schema or {},
+                "get_json_schema": lambda command: (
+                    command.advertised_input_schema or command.input_schema or {}
+                ),
             }
             options["tool_strategy"] = self.config.tool_strategy
             if self.config.tool_strategy == "hybrid":
@@ -1071,10 +1109,17 @@ class MCPServer:
 
         def fixed(*args: Any, **kwargs: Any) -> Any:
             capabilities = get_capabilities(*args, **kwargs)
+            updates: dict[str, Any] = {}
             if capabilities.tools is not None:
-                capabilities = capabilities.model_copy(
-                    update={"tools": capabilities.tools.model_copy(update={"list_changed": False})}
+                updates["tools"] = capabilities.tools.model_copy(update={"list_changed": False})
+            if capabilities.prompts is not None:
+                updates["prompts"] = None
+            if capabilities.resources is not None:
+                updates["resources"] = capabilities.resources.model_copy(
+                    update={"subscribe": False, "list_changed": False}
                 )
+            if updates:
+                capabilities = capabilities.model_copy(update=updates)
             req_ctx = _CURRENT_REQUEST.get()
             protocol_version = kwargs.get("protocol_version")
             if protocol_version is None and req_ctx is not None:
@@ -1507,7 +1552,23 @@ class MCPServer:
         async def capture_request(ctx: Any, call_next: Any) -> Any:
             token = _CURRENT_REQUEST.set(ctx)
             try:
-                return await call_next(ctx)
+                result = await call_next(ctx)
+                # S1: declare `io.modelcontextprotocol/skills` in `initialize` capabilities on
+                # the 2025 era too (the SDK's 2025-11-25 wire sieve strips `extensions` inside
+                # `_inner`, before returning to middleware).
+                if (
+                    getattr(ctx, "method", None) == "initialize"
+                    and server._resource_service is not None
+                    and server._resource_service.has_skills
+                    and isinstance(result, Mapping)
+                    and isinstance(result.get("capabilities"), Mapping)
+                ):
+                    caps = dict(result["capabilities"])
+                    exts = dict(caps.get("extensions") or {})
+                    exts[SKILLS_EXTENSION_ID] = server._resource_service.skills_extension_settings()
+                    caps["extensions"] = exts
+                    return {**result, "capabilities": caps}
+                return result
             finally:
                 _CURRENT_REQUEST.reset(token)
 
@@ -1650,6 +1711,20 @@ class MCPServer:
                         return await self._dispatch_tool_call(name, arguments, context, outcome)
                 return await self._dispatch_tool_call(name, arguments, context, outcome)
 
+        cache_hints: dict[str, Any] = {
+            "tools/list": hint,
+            "server/discover": discover_hint,
+        }
+        extensions: list[Any] = [self._task_runtime.create_extension()]
+        if self._resource_service is not None:
+            res_hint = CacheHint(ttl_ms=self._resource_service.ttl_ms, scope="public")
+            cache_hints["resources/list"] = res_hint
+            cache_hints["resources/templates/list"] = res_hint
+            cache_hints["resources/read"] = res_hint
+            skills_ext = self._resource_service.create_skills_extension()
+            if skills_ext is not None:
+                extensions.append(skills_ext)
+
         self._mcp_server = SessionMCPServer(
             self.config.name,
             description=self.config.description,
@@ -1663,9 +1738,9 @@ class MCPServer:
                 self.config.bootstrap,
             ),
             version=self.config.version,
-            cache_hints={"tools/list": hint, "server/discover": discover_hint},
+            cache_hints=cache_hints,
             middleware=[capture_request],
-            extensions=[self._task_runtime.create_extension()],
+            extensions=extensions,
             lifespan=_server_lifespan,
             # The requestState of confirmation elicitations is sealed (AES-256-GCM) and bound
             # by the SDK to the request, the audience (the server name) and the call's principal
@@ -1682,6 +1757,10 @@ class MCPServer:
                 bind_principal=lambda _ctx: self._request_principal(),
             ),
         )
+        lowlevel = getattr(self._mcp_server, "_lowlevel_server", None)
+        strip_unused_sdk_handlers(lowlevel, serve_resources=self._resource_service is not None)
+        if self._resource_service is not None:
+            self._resource_service.install_handlers(lowlevel)
         self._install_pre_boundary_middleware()
         self._sync_mcp_tool_definitions()
         self._install_fastmcp_context_error_translation()
@@ -2068,6 +2147,8 @@ def create_server(
     task_store: TaskStore | None = None,
     task_options: TaskOptions | None = None,
     auth: McpAuthOptions | None = None,
+    resources: ResourcesOption | None = None,
+    skills: SkillCatalog | None = None,
 ) -> MCPServer:
     """Create a new AFD MCP server.
 
@@ -2208,5 +2289,7 @@ def create_server(
         task_store=task_store,
         task_options=task_options,
         auth=auth,
+        resources=resources,
+        skills=skills,
     )
     return MCPServer(config)
