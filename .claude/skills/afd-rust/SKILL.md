@@ -20,7 +20,7 @@ The `afd` crate lives in `packages/rust`. It is an in-process library: a validat
 
 | Feature | Default | What it adds |
 |---|---|---|
-| `native` | yes | Deadlines (`CommandContext::timeout_ms`, batch `timeout`, pipeline `timeoutMs`) through `tokio::time::timeout`. Only Tokio's `time` feature is enabled; the application provides the runtime. Without it, a deadline returns `UNSUPPORTED_OPTION`. |
+| `native` | yes | Deadlines (`CommandContext::timeout_ms`, batch `timeout`, pipeline `timeoutMs`) through `tokio::time::timeout`, and the retry middleware's default wait. Only Tokio's `time` feature is enabled; the application provides the runtime. Without it, a deadline returns `UNSUPPORTED_OPTION` and the retry middleware needs `RetryOptions::sleep`. |
 | `journal-file` | yes | `FileJournalSink`, through blocking `std::fs`. The rest of the journal works without it. |
 | `approval` | yes | `create_approval_middleware`, `ApprovalMiddlewareOptions`, `canonical_json`: HMAC-SHA256 tokens and OS-random nonces. Policies (`with_approval`, `_meta.approval`) need no feature. |
 | `journal-file-shared` | no | `FileJournalSink::shared` and `JournalFileLock`: several sinks and processes append to one file under an exclusive OS lock. Local file systems only. |
@@ -68,7 +68,7 @@ let result = registry
 7. **Middleware, then the handler.** With `timeout_ms`, a late finish is `TIMEOUT`. A panic becomes `COMMAND_EXECUTION_ERROR`, "An internal error occurred", and the payload is never shown, since Rust has no dev mode.
 
 - **The handler isn't called when any check fails.** `CommandDefinition::execute` calls it directly and skips every check, so call commands through the registry.
-- **No stream executor and no stock middleware.** Rust has batch and pipeline executors only, and no default, retry, rate-limit or tracing middleware; see the Middleware rows of `docs/language-parity.md`.
+- **No stream executor.** Rust has batch and pipeline executors only. Stock middleware is in `afd::middleware`: `default_middleware` (trace ID, logging, timing), retry (add it before the approval middleware), rate limit, telemetry and `compose_middleware`; there is no tracing middleware.
 - **Middleware** (`add_middleware`; the first added is outermost) gets the name, the validated input (an `Arc<Value>`, shared by every layer), the context and `next`. Call `next(context)`: the context passed is the one the later layers and the handler see, so a middleware may refine it (a trace ID, an actor). Clone it only to read it after `next` or to call `next` again. The input cannot be changed.
 - **Context defaults.** Handlers always get `context.clock()` and `context.random()`; use `with_clock(fixed_clock(ms))` and `with_random(seeded_random(seed))` in tests. An actor (`with_actor(ActorKind::Human)`) is reported as `metadata.actorKind`, never its id.
 

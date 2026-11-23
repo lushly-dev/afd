@@ -30,7 +30,7 @@ use crate::time::Instant;
 
 mod context;
 
-use context::CallState;
+pub(crate) use context::CallState;
 pub use context::CommandContext;
 // The MCP server sets these on a request's context.
 #[cfg(feature = "server")]

@@ -37,7 +37,8 @@
 //! ## Features
 //!
 //! - `native` (default): command, batch and pipeline deadlines through
-//!   `tokio::time::timeout` (Tokio's `time` feature only; the application
+//!   `tokio::time::timeout`, and the retry middleware's default wait through
+//!   `tokio::time::sleep` (Tokio's `time` feature only; the application
 //!   provides the runtime)
 //! - `wasm`: browser WebAssembly (`wasm32-unknown-unknown`), measuring
 //!   durations with `web-time`
@@ -92,6 +93,7 @@ pub mod journal;
 pub mod mcp;
 mod meta_keys;
 pub mod metadata;
+pub mod middleware;
 pub mod output_budget;
 pub mod pipeline;
 pub mod result;

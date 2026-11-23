@@ -19,8 +19,9 @@ categories = ["development-tools", "api-bindings"]
 
 [features]
 default = ["native", "journal-file", "approval"]
-# Command, batch and pipeline deadlines through `tokio::time::timeout`. The
-# host application provides the Tokio runtime (with its time driver enabled).
+# Command, batch and pipeline deadlines through `tokio::time::timeout`, and the retry
+# middleware's default wait (`tokio::time::sleep`). The host application provides the Tokio
+# runtime (with its time driver enabled).
 native = ["dep:tokio"]
 # Browser WebAssembly (`wasm32-unknown-unknown`): measures durations with
 # `web-time`, because `std::time::Instant::now()` traps on that target.

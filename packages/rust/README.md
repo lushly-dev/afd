@@ -217,7 +217,8 @@ assert_eq!(request.steps[1].alias, None);
 - **Middleware.** `add_middleware` wraps every execution; the first middleware added is the
   outermost. A middleware receives the validated input (an `Arc<Value>` every layer shares) and
   the context, and calls `next(context)`: the layers after it and the handler see the context it
-  passes.
+  passes. `afd::middleware` has the stock ones: `default_middleware` (trace ID, logging,
+  timing), retry, rate limit, telemetry and `compose_middleware`.
 - **Actor, clock and random.** Middleware and the handler always see a clock and a random source
   on the context: `context.clock().now()` (epoch milliseconds) and `context.random().next()` (in
   `[0, 1)`), the system ones unless the caller set `with_clock` or `with_random`. Tests and replays
