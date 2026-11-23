@@ -111,8 +111,11 @@ beforeEach(() => {
 	setStore(store);
 });
 
-async function openPage(): Promise<Page> {
-	const context = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+async function openPage(colorScheme: 'light' | 'dark' = 'light'): Promise<Page> {
+	const context = await browser.newContext({
+		viewport: { width: 1400, height: 900 },
+		colorScheme,
+	});
 	const page = await context.newPage();
 	const errors: string[] = [];
 	page.on('pageerror', (error) => errors.push(error.message));
@@ -243,6 +246,48 @@ describe('the copilot page', () => {
 		expect(await page.locator('.copilot-entry[data-seen="yes"]').count()).toBe(1);
 		expect(await focusInPanel()).toBe(true);
 		await expect.poll(() => page.locator('.copilot-status').innerText()).toBe('Cleared.');
+		await page.context().close();
+	});
+
+	it('separates the copilot panel with a surface step instead of border dividers', async () => {
+		const page = await openPage('light');
+		const readPanel = () =>
+			page.evaluate(() => {
+				const panelEl = document.querySelector('todo-copilot');
+				if (!panelEl) throw new Error('Expected todo-copilot');
+				const panel = getComputedStyle(panelEl);
+				const body = getComputedStyle(document.body);
+				return {
+					bodyBg: body.backgroundColor,
+					panelBg: panel.backgroundColor,
+					borderLeftWidth: panel.borderLeftWidth,
+					borderTopWidth: panel.borderTopWidth,
+				};
+			});
+
+		const wide = await readPanel();
+		expect(wide.bodyBg).toBe('rgb(244, 240, 234)');
+		expect(wide.panelBg).toBe('rgb(248, 249, 243)');
+		expect(wide.borderLeftWidth).toBe('0px');
+		expect(wide.borderTopWidth).toBe('0px');
+
+		await page.emulateMedia({ forcedColors: 'active' });
+		const wideForced = await readPanel();
+		expect(wideForced.borderLeftWidth).toBe('1px');
+		expect(wideForced.borderTopWidth).toBe('0px');
+
+		await page.emulateMedia({ forcedColors: 'none' });
+		await page.setViewportSize({ width: 900, height: 900 });
+		const narrow = await readPanel();
+		expect(narrow.bodyBg).toBe('rgb(244, 240, 234)');
+		expect(narrow.panelBg).toBe('rgb(248, 249, 243)');
+		expect(narrow.borderLeftWidth).toBe('0px');
+		expect(narrow.borderTopWidth).toBe('0px');
+
+		await page.emulateMedia({ forcedColors: 'active' });
+		const narrowForced = await readPanel();
+		expect(narrowForced.borderLeftWidth).toBe('0px');
+		expect(narrowForced.borderTopWidth).toBe('1px');
 		await page.context().close();
 	});
 
