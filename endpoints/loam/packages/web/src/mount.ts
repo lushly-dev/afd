@@ -14,7 +14,7 @@ import {
 	StreamableHttpTransport,
 	type StreamableHttpTransportOptions,
 } from '@lushly-dev/afd-client/streamable-http';
-import type { McpTool, McpToolCallResult, MountTransportV2 } from '@lushly-dev/loam-kernel';
+import type { McpTool, McpToolCallResult, MountTransport } from '@lushly-dev/loam-kernel';
 import type { MountFailureCode } from '@lushly-dev/loam-kernel/mounted';
 import {
 	isJSONRPCErrorResponse,
@@ -397,7 +397,7 @@ export function createMountTransport(
 	url: string,
 	Transport: TransportClass = StreamableHttpTransport,
 	options: MountTransportOptions = {}
-): MountTransportV2 {
+): MountTransport {
 	const transport = new Transport(url, CLIENT);
 	let id = 0;
 	/** The relay ended this session (`MOUNT_SESSION_UNKNOWN`): the next request connects again before it sends (8.1, 16). */

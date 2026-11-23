@@ -14,13 +14,13 @@ import type { KernelCallFields } from '../context-fields.js';
 import { LoamKernelError } from '../errors.js';
 import { measureJson } from '../limits.js';
 import {
-	APP_CALLABLE_SHELL_COMMANDS_V1,
-	type AppPortV2,
-	type CallOptionsV1,
-	type KernelPortsV1,
-	type SurfaceOptionsV2,
-	type SurfacePortV2,
-	type ViewBrokerV1,
+	APP_CALLABLE_SHELL_COMMANDS_BASE,
+	type AppPort,
+	type CallOptions,
+	type KernelPorts,
+	type SurfaceOptions,
+	type SurfacePort,
+	type ViewBroker,
 } from '../types.js';
 import { takeCall } from './call-rate.js';
 import type { AppRecord } from './operations.js';
@@ -35,7 +35,7 @@ const SCOPED_TO_CALLER: ReadonlySet<string> = new Set([
 ]);
 
 /** A call's options as an app may give them: a signal, and `level: 'workspace'`, the only widening. */
-export type AppCallOptions = CallOptionsV1 & { level?: unknown; scope?: unknown };
+export type AppCallOptions = CallOptions & { level?: unknown; scope?: unknown };
 
 export interface AppPortOptions {
 	record: AppRecord;
@@ -43,7 +43,7 @@ export interface AppPortOptions {
 	config: Readonly<Record<string, unknown>>;
 	packageUrl: string;
 	host: AppsHost;
-	ports: KernelPortsV1;
+	ports: KernelPorts;
 	granted: ReadonlySet<string>;
 	load(): Promise<AppDefinitionV1>;
 	/** A view's broker, closed over one caller's `call`: the port's, or a surface's (3.6). */
@@ -53,7 +53,7 @@ export interface AppPortOptions {
 		readResource: (uri: string) => Promise<string>,
 		scope?: ScopeV1,
 		waitOverlay?: (overlayId: string) => Promise<OverlayResultV1>
-	): ViewBrokerV1;
+	): ViewBroker;
 }
 
 /**
@@ -85,14 +85,14 @@ interface Binding {
 }
 
 export function createAppPort(options: AppPortOptions): {
-	port: AppPortV2;
+	port: AppPort;
 	nestedClient(parent: string, scope: ScopeV1, actor: Actor | undefined): LoamClientV1;
 } {
 	const { record, manifest, config, packageUrl, host, ports, granted } = options;
 	const { instance } = record;
 	// `late/`'s list, which loads before any app (phase 2 specification, 11.2); with none, nothing is callable.
 	const callable =
-		host.scope.callable?.(granted, APP_CALLABLE_SHELL_COMMANDS_V1) ?? new Set<string>();
+		host.scope.callable?.(granted, APP_CALLABLE_SHELL_COMMANDS_BASE) ?? new Set<string>();
 	/**
 	 * A mounted instance's command this app's `calls` grant names (phase 5 specification, 7.5; D30, D152): both the
 	 * grant and `[[calls]]` naming it by the callee's app, and the callee's entry setting its `expose.apps`. Read at each
@@ -267,7 +267,7 @@ export function createAppPort(options: AppPortOptions): {
 	const call: LoamClientV1['call'] = (name, input, callOptions) =>
 		checkedCall(name, input, callOptions, {});
 
-	const port: AppPortV2 = {
+	const port: AppPort = {
 		instance,
 		manifest,
 		config,
@@ -302,7 +302,7 @@ export function createAppPort(options: AppPortOptions): {
 			}
 			return held.settled;
 		},
-		surface(surfaceOptions: SurfaceOptionsV2): SurfacePortV2 {
+		surface(surfaceOptions: SurfaceOptions): SurfacePort {
 			// Copied, so a caller that keeps the object cannot move the surface afterwards.
 			const scope: ScopeV1 = {
 				workspace: surfaceOptions.scope.workspace,
@@ -311,7 +311,7 @@ export function createAppPort(options: AppPortOptions): {
 					: {}),
 			};
 			const readOnly = surfaceOptions.readOnly === true;
-			const surfaceCall: SurfacePortV2['call'] = (name, input, callOptions) =>
+			const surfaceCall: SurfacePort['call'] = (name, input, callOptions) =>
 				checkedCall(name, input, callOptions, { scope, readOnly });
 			return Object.freeze({
 				scope,

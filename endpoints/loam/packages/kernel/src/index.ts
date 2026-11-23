@@ -1,8 +1,8 @@
 /**
- * @lushly-dev/loam-kernel: the registries with name refusal, kernel interface version 2, the shell
- * and app commands, the layout model, the palette index and the journal options (phase 0
- * specification, endpoints/loam/docs/phases/0-kernel-chrome/spec.md, sections 5 and 6; phase 1
- * specification, section 9). Replay, the journal diff and the reference workspace are in
+ * @lushly-dev/loam-kernel: the registries with name refusal, current kernel interface (version 5),
+ * shell and domain commands organized by domain (`scope/`, `overlays/`, `apps/`, `documents/`,
+ * `identity/`, `settings/`, `copilot/`, `inbound/`, `server/`), the layout model, the palette index
+ * and the journal options. Replay, the journal diff and the reference workspace are in
  * `@lushly-dev/loam-kernel/testing`. No DOM dependency.
  */
 
@@ -35,13 +35,22 @@ export {
 	type LoamKernelErrorCode,
 	type LoamKernelErrorInit,
 } from './errors.js';
+export type {
+	AccountV1,
+	AgentMemberRowV1,
+	LoamAccountAccessV1,
+	LoamAuthAdapter,
+	MemberInvitationV1,
+	MemberV1,
+	OwnInvitationV1,
+} from './identity/member-commands.js';
 export {
 	COMMAND_NAME_SUGGESTION,
 	createKernel,
 	// The server's kernel (phase 3 specification, 9.5): `loam-identity`'s `createServerKernel` builds it with
 	// `gate: 'principal'`; a browser builds its kernel with `createKernel`.
 	createKernelParts,
-	type KernelInterfaceV0,
+	type KernelInterface,
 	type KernelParts,
 	type KernelPartsOptions,
 	kernelJournalOptions,
@@ -67,17 +76,6 @@ export {
 	SHELL_KEYBINDINGS_V0,
 	type ShellKeybindingV0,
 } from './keybindings.js';
-// The account and member commands' shapes (phase 3 specification, 5.1, 5.3, 7.2), and Loam's account capability,
-// which the web host's `auth` chunk gives its adapter. Types only: nothing here reaches first paint.
-export type {
-	AccountV1,
-	AgentMemberRowV1,
-	LoamAccountAccessV1,
-	LoamAuthAdapter,
-	MemberInvitationV1,
-	MemberV1,
-	OwnInvitationV1,
-} from './late/member-commands.js';
 export {
 	appLayoutId,
 	createDefaultLayout,
@@ -91,16 +89,15 @@ export {
 	validateLayoutPatch,
 	validateLayoutState,
 } from './layout.js';
-export { SHELL_OWNER, TOAST_CAP } from './overlays.js';
-// The index's values are late-only, so they are `@lushly-dev/loam-kernel/palette`'s, out of the root's graph
-// (phase 2 specification, 2.4); its types stay here.
+export { SHELL_OWNER, TOAST_CAP } from './overlays/store.js';
+// The index's values are late-only, so they are `@lushly-dev/loam-kernel/palette`'s, out of the root's graph;
+// its types stay here.
 export type {
 	PaletteEntry,
 	PaletteField,
 	PaletteIndex,
 	PaletteItem,
 } from './palette-index.js';
-// What only `late/` reads stays out of the kernel's own row (phase 3 specification, 13).
 export {
 	type AccessActorV1,
 	type AccessDecisionV2,
@@ -116,7 +113,7 @@ export { personalRecordId } from './scope/personal.js';
 export type { KernelPrincipalV1, PrincipalInputV1 } from './scope/principal.js';
 export { SHELL_COMMAND_NAMES } from './shell-command-names.js';
 export { APPS_VIEW_STATE_ID, type MainStateV2, SCOPE_VIEW_STATE_ID } from './shell-state.js';
-// Phase 6's trust records (its section 6): the routed list and the transport's shapes, for the hosts.
+// Phase 6's trust records: the routed list and the transport's shapes, for the hosts.
 export {
 	canonicalJson,
 	SERVER_COMMANDS,
@@ -130,74 +127,49 @@ export {
 } from './trust-records.js';
 export {
 	type AgentMemberV1,
-	APP_CALLABLE_SHELL_COMMANDS_V1,
-	APP_CALLABLE_SHELL_COMMANDS_V2,
-	type AppDetailV1,
-	type AppInstanceV1,
-	type AppKindV1,
-	type AppPortV1,
-	type AppPortV2,
-	type AppStateV1,
-	type AppStateV2,
-	type AppSummaryV1,
-	type AppSummaryV2,
-	type AppsLoadV2,
-	type CallOptionsV0,
-	type CallOptionsV1,
-	type CallOptionsV2,
-	type CallOptionsV3,
-	type CallOptionsV5,
-	type CommandSummaryV0,
-	type CommandSummaryV1,
-	type FrameAdmitV1,
-	type FrameRefusalV1,
-	type HandlerFrameV1,
+	APP_CALLABLE_SHELL_COMMANDS,
+	APP_CALLABLE_SHELL_COMMANDS_BASE,
+	type AppBaseState,
+	type AppDetail,
+	type AppInstance,
+	type AppKind,
+	type AppPort,
+	type AppSelection,
+	type AppState,
+	type AppSummary,
+	type AppsLoad,
+	type CallOptions,
+	type CommandSummary,
+	type ContextField,
+	type FrameAdmit,
+	type FrameRefusal,
+	type HandlerFrame,
 	type IdentityV1,
 	KERNEL_INTERFACE_VERSION,
-	type KernelEnvironmentV0,
-	type KernelEventV0,
-	type KernelEventV1,
-	type KernelEventV2,
-	type KernelEventV3,
-	type KernelEventV4,
+	type KernelEnvironment,
+	type KernelEvent,
 	type KernelMcpOptions,
-	type KernelOptionsV0,
-	type KernelOptionsV1,
-	type KernelOptionsV2,
-	type KernelOptionsV3,
-	type KernelOptionsV5,
-	type KernelPortsV1,
-	type LinkedCallV1,
-	type LoamKernelV0,
-	type LoamKernelV1,
-	type LoamKernelV2,
-	type LoamKernelV3,
-	type LoamKernelV4,
-	type LoamKernelV5,
+	type KernelOptions,
+	type KernelPorts,
+	type LinkedCall,
+	type LoamKernel,
 	type McpTool,
 	type McpToolCallResult,
-	type MountTransportV1,
-	type MountTransportV2,
-	type OverlayAnchorsV1,
+	type MountTransport,
+	type OverlayAnchors,
 	type PersonaV1,
 	type ProjectAccessV1,
-	type ProjectSummaryResultV1,
-	type ProjectSummaryRowV1,
+	type ProjectSummaryResult,
+	type ProjectSummaryRow,
 	type ProjectSummaryV1,
 	type ProjectV1,
 	type ResourceLinkV1,
 	type ScopeChangeV2,
 	type ScopeV1,
-	type SelectionV2,
-	type ShellInfoV0,
-	type ShellInfoV1,
-	type ShellInfoV2,
-	type ShellInfoV3,
-	type ShellInfoV4,
-	type ShellInfoV5,
-	type SurfaceOptionsV2,
-	type SurfacePortV2,
-	type ViewBrokerV1,
+	type ShellInfo,
+	type SurfaceOptions,
+	type SurfacePort,
+	type ViewBroker,
 	type WorkspaceAppV1,
 	type WorkspaceV1,
 } from './types.js';

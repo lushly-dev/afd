@@ -9,7 +9,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { type Browser, chromium, type Page } from 'playwright';
+import { type Browser, chromium, type Locator, type Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
 	agentCall,
@@ -228,6 +228,12 @@ const newButton = (page: Page) => page.locator('loam-titlebar .new > button');
 const menuItems = (page: Page) => page.locator('loam-new-menu violet-menu-item');
 const tree = (page: Page) => page.locator('loam-sidebar loam-documents-sidebar loam-tree');
 const row = (page: Page, id: string) => tree(page).locator(`violet-tree-item[data-id="${id}"]`);
+
+const chooseStatus = async (section: Locator, value: 'active' | 'archived' | 'trashed') => {
+	const status = section.locator('violet-select[data-ref="status"]');
+	await status.locator('button.trigger').click();
+	await status.locator(`violet-option[value="${value}"]`).click();
+};
 
 async function documentsSection(page: Page, project?: string): Promise<void> {
 	if (project !== undefined) await kernelCall(page, 'scope-set', { project });
@@ -588,9 +594,28 @@ describe('P2-D8: the documents section', () => {
 		await expect.poll(titles).toEqual(['Roadmap']);
 		await expect.poll(() => section.locator('.said').textContent()).toBe('1 document');
 		await section.locator('input[type="search"]').fill('');
+		await expect.poll(titles).toEqual(expect.arrayContaining(['Roadmap', 'Ideas']));
+		// #1484: Type and Tag violet-select pickers filter and clear back to All types / Any tag.
+		await kernelCall(page, 'document-update', { document: roadmap, tags: ['q4'] });
+		await expect
+			.poll(() => section.locator('violet-select[data-ref="tag"] violet-option').allTextContents())
+			.toContain('q4');
+		const choosePicker = async (ref: 'type' | 'tag', optionText: string) => {
+			const picker = section.locator(`violet-select[data-ref="${ref}"]`);
+			await picker.locator('button.trigger').click();
+			await picker.locator('violet-option', { hasText: optionText }).click();
+		};
+		await choosePicker('type', 'Memo');
+		await expect.poll(titles).toEqual([]);
+		await choosePicker('type', 'All types');
+		await expect.poll(titles).toEqual(expect.arrayContaining(['Roadmap', 'Ideas']));
+		await choosePicker('tag', 'q4');
+		await expect.poll(titles).toEqual(['Roadmap']);
+		await choosePicker('tag', 'Any tag');
+		await expect.poll(titles).toEqual(expect.arrayContaining(['Roadmap', 'Ideas']));
 		await kernelCall(page, 'document-trash', { document: roadmap });
 		await expect.poll(titles).toEqual(['Ideas']);
-		await section.locator('select[data-ref="status"]').selectOption('trashed');
+		await chooseStatus(section, 'trashed');
 		await expect.poll(() => section.locator('h1').textContent()).toBe('Trash');
 		await expect.poll(titles).toEqual(['Roadmap']);
 		expect(await section.locator('tbody tr').first().textContent()).toMatch(
@@ -777,7 +802,7 @@ describe('P2-D8: the reviews of step 11', () => {
 		await kernelCall(page, 'document-trash', { document: first });
 		await kernelCall(page, 'document-trash', { document: second });
 		const section = page.locator('loam-main loam-documents-section');
-		await section.locator('select[data-ref="status"]').selectOption('trashed');
+		await chooseStatus(section, 'trashed');
 		// One read of the Trash view's own buttons: the rows of the Active table can still be showing,
 		// and can paint empty, between a count of them and a read of them.
 		let restores: Array<string | null> = [];
@@ -833,26 +858,25 @@ describe('P2-D8: the reviews of step 11', () => {
 		await kernelCall(page, 'document-trash', { document: second });
 		await documentsSection(page);
 		const section = page.locator('loam-main loam-documents-section');
-		const status = section.locator('select[data-ref="status"]');
-		await status.selectOption('trashed');
+		const status = section.locator('violet-select[data-ref="status"]');
+		await chooseStatus(section, 'trashed');
 		await expect.poll(() => section.locator('tbody tr').count()).toBe(2);
 		// Restore pressed, and the view left in the same moment, before the restore has answered.
 		await section.evaluate((element) => {
 			const root = element.shadowRoot as ShadowRoot;
 			root.querySelector<HTMLButtonElement>('tbody button')?.click();
-			const select = root.querySelector<HTMLSelectElement>(
-				'select[data-ref="status"]'
-			) as HTMLSelectElement;
-			select.value = 'active';
-			select.dispatchEvent(new Event('change'));
+			const select = root.querySelector<HTMLElement & { selectValue(value: string): void }>(
+				'violet-select[data-ref="status"]'
+			);
+			select?.selectValue('active');
 		});
 		await expect.poll(() => section.locator('h1').textContent()).toBe('Documents');
 		await settle(page);
-		await status.focus();
-		await status.selectOption('trashed');
+		await status.locator('button.trigger').focus();
+		await chooseStatus(section, 'trashed');
 		await expect.poll(() => section.locator('tbody tr').count()).toBe(1);
 		await settle(page);
-		expect((await deepFocus(page)).tag).toBe('select');
+		expect(await deepFocus(page)).toMatchObject({ tag: 'button', label: 'Trash' });
 		expect(opened.errors).toEqual([]);
 		await opened.context.close();
 	});
@@ -967,18 +991,16 @@ describe('P2-D8: the reviews of step 11', () => {
 		await section.evaluate((element) => {
 			const root = element.shadowRoot as ShadowRoot;
 			root.querySelector<HTMLButtonElement>('.more button')?.click();
-			const select = root.querySelector<HTMLSelectElement>(
-				'select[data-ref="status"]'
-			) as HTMLSelectElement;
-			select.focus();
-			select.value = 'archived';
-			select.dispatchEvent(new Event('change'));
+			const select = root.querySelector<HTMLElement & { selectValue(value: string): void }>(
+				'violet-select[data-ref="status"]'
+			);
+			select?.selectValue('archived');
 		});
 		await expect.poll(() => section.locator('.empty').textContent()).toBe('No archived documents');
 		await settle(page);
-		expect((await deepFocus(page)).tag).toBe('select');
+		expect(await deepFocus(page)).toMatchObject({ tag: 'button', label: 'Archived' });
 		// Back to the active list; Show more, while two rows go: no row 201, so focus goes to the heading.
-		await section.locator('select[data-ref="status"]').selectOption('active');
+		await chooseStatus(section, 'active');
 		await expect.poll(() => section.locator('tbody tr').count()).toBe(200);
 		await section.evaluate(
 			async (element, gone) => {

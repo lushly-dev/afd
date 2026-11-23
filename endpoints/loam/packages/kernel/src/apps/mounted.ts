@@ -20,7 +20,7 @@ import { z } from 'zod';
 import type { CommandOwner } from '../apps-runtime.js';
 import type { KernelFieldContext } from '../context-fields.js';
 import { kernelFailure, type LoamKernelErrorCode, PAGE_DECIDED } from '../errors.js';
-import type { KernelPortsV1, McpToolCallResult, MountTransportV2 } from '../types.js';
+import type { KernelPorts, McpToolCallResult, MountTransport } from '../types.js';
 import {
 	APPROVAL_META_KEY,
 	createInstanceHold,
@@ -531,7 +531,7 @@ class MountFailure extends Error {
 
 /** A meta-tool's result. A tool error or anything else is `MOUNT_NOT_AFD`: 7.3's third step. */
 async function metaTool(
-	transport: MountTransportV2,
+	transport: MountTransport,
 	name: string,
 	args: unknown,
 	signal: AbortSignal | undefined
@@ -593,7 +593,7 @@ export const isMetaTool = (name: string): boolean => /^\s*afd[^a-z0-9]/i.test(na
 export async function discoverInstance(
 	entry: Pick<ProjectionAppV1, 'instance' | 'prefix' | 'expose' | 'commands'>,
 	manifest: ManifestV2,
-	transport: MountTransportV2,
+	transport: MountTransport,
 	signal?: AbortSignal
 ): Promise<InstanceCatalogV1> {
 	const { protocolVersion, approvals } = await transport.connect(signal);
@@ -785,7 +785,7 @@ export interface MountedHostOptions {
 	entry: ProjectionAppV1;
 	manifest: ManifestV2;
 	host: AppsHost;
-	ports: KernelPortsV1;
+	ports: KernelPorts;
 	/** The runtime's live list and map, which the kernel's registries read from. */
 	commands: ZodCommandDefinition[];
 	owners: Map<string, CommandOwner>;
@@ -803,7 +803,7 @@ const looseInput = z.looseObject({}).refine((input) => !holdsApprovalKey(input),
 export function createMountedHost(options: MountedHostOptions): MountedHost {
 	const { record, entry, manifest, host, ports, commands, owners } = options;
 	const { instance, app } = record;
-	let transport: MountTransportV2 | undefined;
+	let transport: MountTransport | undefined;
 	let running: Promise<CommandResult> | undefined;
 	/** Set by `dispose`: a refresh that waited behind a hold opens nothing after it (#2137). */
 	let disposed = false;
@@ -1156,7 +1156,7 @@ export function createMountedHost(options: MountedHostOptions): MountedHost {
 
 	async function discover(): Promise<CommandResult> {
 		const signal = AbortSignal.timeout(DISCOVERY_DEADLINE_MS);
-		let next: MountTransportV2 | undefined;
+		let next: MountTransport | undefined;
 		try {
 			const route = entry.route;
 			if (route === undefined) throw new MountFailure('MOUNT_UNREACHABLE');

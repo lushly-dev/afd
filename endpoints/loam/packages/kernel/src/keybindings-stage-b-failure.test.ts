@@ -22,7 +22,7 @@ const failing = vi.hoisted(() => ({
 		| undefined,
 }));
 
-vi.mock('./late/session-settle.js', async (importOriginal) => {
+vi.mock('./identity/session-settle.js', async (importOriginal) => {
 	const real = (await importOriginal()) as Record<string, unknown> & {
 		createSessionSettle: (...args: unknown[]) => Record<string, unknown>;
 	};

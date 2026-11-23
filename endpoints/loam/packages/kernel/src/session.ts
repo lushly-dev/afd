@@ -9,14 +9,14 @@ import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
 import type { ProjectionV4 } from '@lushly-dev/loam-manifest';
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import type { AppearanceV0 } from './appearance.js';
-import { createKernelParts, type KernelInterfaceV0 } from './kernel.js';
+import { createKernelParts, type KernelInterface } from './kernel.js';
 import type { LayoutStateV0 } from './layout.js';
-import type { KernelEnvironmentV0, KernelOptionsV5, KernelPortsV1, LoamKernelV5 } from './types.js';
+import type { KernelEnvironment, KernelOptions, KernelPorts, LoamKernel } from './types.js';
 
 // ─── Environment ────────────────────────────────────────────────────────────────
 
 /** An environment whose media queries match exactly the ones given, and never change. */
-export function createFixedEnvironment(matching: readonly string[] = []): KernelEnvironmentV0 {
+export function createFixedEnvironment(matching: readonly string[] = []): KernelEnvironment {
 	const set = new Set(matching);
 	return {
 		matches: (query) => set.has(query),
@@ -28,20 +28,20 @@ export function createFixedEnvironment(matching: readonly string[] = []): Kernel
 
 /** One scripted call: the interface it runs on, the command and its input. */
 export interface SessionCall {
-	interface: KernelInterfaceV0;
+	interface: KernelInterface;
 	name: string;
 	input?: unknown;
 }
 
 export interface RecordSessionOptions {
-	environment?: KernelEnvironmentV0;
+	environment?: KernelEnvironment;
 	commands?: ZodCommandDefinition[];
 	/** First clock reading, in epoch milliseconds. Default: 2026-01-01T00:00:00Z. */
 	start?: number;
 	/** Random seed. Default: `'loam'`. */
 	seed?: string;
 	deployment?: ProjectionV4;
-	ports?: KernelPortsV1;
+	ports?: KernelPorts;
 }
 
 export interface RecordedSession {
@@ -54,25 +54,25 @@ const SESSION_START = Date.UTC(2026, 0, 1);
 
 export interface TestKernelOptions {
 	/** The page's anchors for `popover-open` (phase 4's 6.3). Absent: none resolves, as in a live kernel with no page. */
-	overlayAnchors?: KernelOptionsV5['overlayAnchors'];
+	overlayAnchors?: KernelOptions['overlayAnchors'];
 	/** Default: one that matches no media query. */
-	environment?: KernelEnvironmentV0;
+	environment?: KernelEnvironment;
 	commands?: ZodCommandDefinition[];
 	clock?: () => number;
 	random?: () => number;
 	deployment?: ProjectionV4;
-	ports?: KernelPortsV1;
+	ports?: KernelPorts;
 	/** Resolve after stage A, as the web host does (phase 2 specification, 2.2). */
-	boot?: KernelOptionsV5['boot'];
-	appsLoader?: KernelOptionsV5['appsLoader'];
+	boot?: KernelOptions['boot'];
+	appsLoader?: KernelOptions['appsLoader'];
 	/** Default: a new `MemoryAdapter`. Share one to stand for a reload, which keeps the store. */
-	store?: KernelOptionsV5['store'];
+	store?: KernelOptions['store'];
 	/** Default: a new `MockAuthAdapter` on `clock`, the kernel's (phase 3 specification, 4.4). */
-	auth?: KernelOptionsV5['auth'];
+	auth?: KernelOptions['auth'];
 }
 
 export interface TestKernel {
-	kernel: LoamKernelV5;
+	kernel: LoamKernel;
 	journal: MemoryJournalSink;
 }
 
@@ -134,7 +134,7 @@ export async function recordSession(
 ): Promise<RecordedSession> {
 	const journal = new MemoryJournalSink();
 	const clock = createSteppingClock(options.start);
-	const kernelOptions: KernelOptionsV5 = {
+	const kernelOptions: KernelOptions = {
 		store: new MemoryAdapter(),
 		storeKind: 'memory',
 		journal,
@@ -166,10 +166,7 @@ export async function recordSession(
 }
 
 /** Run `calls` in order on `kernel`, each on its interface. */
-export async function runSession(
-	kernel: LoamKernelV5,
-	calls: readonly SessionCall[]
-): Promise<void> {
+export async function runSession(kernel: LoamKernel, calls: readonly SessionCall[]): Promise<void> {
 	for (const call of calls) {
 		const target = call.interface === 'agent' ? kernel.agent : kernel;
 		await target.call(call.name, call.input ?? {});

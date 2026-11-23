@@ -5,7 +5,7 @@
  * against them, so it needs no project list of its own.
  */
 
-import type { AppSummaryV2 } from '@lushly-dev/loam-kernel';
+import type { AppSummary } from '@lushly-dev/loam-kernel';
 
 export type RailBand = 'top' | 'bottom';
 
@@ -17,7 +17,7 @@ export interface RailPlacement {
 
 /** Where `entry` goes with `project` active, or `null` when it has no entry. */
 export function bandFor(
-	entry: Pick<AppSummaryV2, 'scopeLevels' | 'available' | 'rail' | 'state'>,
+	entry: Pick<AppSummary, 'scopeLevels' | 'available' | 'rail' | 'state'>,
 	project: string | undefined
 ): RailPlacement | null {
 	// A gated app is not present while its experiment is off (phase 4 specification, 5.3).
@@ -37,8 +37,8 @@ export function bandFor(
  * 3.7), then `order`, then the instance. Emphasis and the person's order arrange and never hide.
  */
 export const railOrder = (
-	a: Pick<AppSummaryV2, 'order' | 'instance' | 'railRank'>,
-	b: Pick<AppSummaryV2, 'order' | 'instance' | 'railRank'>,
+	a: Pick<AppSummary, 'order' | 'instance' | 'railRank'>,
+	b: Pick<AppSummary, 'order' | 'instance' | 'railRank'>,
 	emphasis: readonly string[] = []
 ): number => {
 	// An emphasized app's place in the list, and every other's after them all.

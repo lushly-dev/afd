@@ -6,7 +6,7 @@
  */
 
 import { type AuthAdapter, type AuthSessionState, UNAUTHENTICATED } from '@lushly-dev/afd-auth';
-import type { KernelOptionsV5, LoamAccountAccessV1 } from '@lushly-dev/loam-kernel';
+import type { KernelOptions, LoamAccountAccessV1 } from '@lushly-dev/loam-kernel';
 
 /** Stage A waits at most this long for the probe, then paints signed out (4.2). */
 export const PROBE_WAIT_MS = 1_500;
@@ -168,8 +168,8 @@ export class DeferredAuthAdapter implements AuthAdapter {
 export interface ProviderIdentity {
 	adapter: DeferredAuthAdapter;
 	/** Stage A's membership, from the probe (4.2). */
-	membership: NonNullable<KernelOptionsV5['membership']>;
-	ports: NonNullable<KernelOptionsV5['identityPorts']>;
+	membership: NonNullable<KernelOptions['membership']>;
+	ports: NonNullable<KernelOptions['identityPorts']>;
 	/** The last answer `whoami` gave: what main shows of membership and the binding. */
 	last(): WhoamiV1;
 	/** Ask the kernel to read membership again, as a refresh finds it may have changed (4.3). */

@@ -7,7 +7,7 @@
 
 import type { CommandResult } from '@lushly-dev/afd-core';
 import { LIMIT_DEFAULTS, measureJson } from '../limits.js';
-import type { FrameAdmitV1, FrameRefusalV1 } from '../types.js';
+import type { FrameAdmit, FrameRefusal } from '../types.js';
 import { takeCall } from './call-rate.js';
 import type { AppsHost } from './types.js';
 
@@ -16,7 +16,7 @@ export type LimitReasonV1 = 'json' | 'reads';
 
 export interface LimitGuard {
 	/** The gate the chrome's channel calls on each message, first. */
-	admit: FrameAdmitV1;
+	admit: FrameAdmit;
 	/** Charge one call of the instance's rate, for a `tools/call` refused before it reached the port. */
 	charge(): void;
 	/** Refuse through the journaled `app-limit-refuse`, as the instance, counted for `limit-usage-get`. */
@@ -58,7 +58,7 @@ export function createLimitGuard(
 			void guard
 				.refuse(command, 'messageBytes', limit, measured.unserializable ? { reason: 'json' } : {})
 				.catch(() => undefined);
-			const refusal: FrameRefusalV1 = measured.unserializable
+			const refusal: FrameRefusal = measured.unserializable
 				? {
 						code: 'VALIDATION_ERROR',
 						rpcCode: -32602,

@@ -16,7 +16,7 @@ import {
 	settingsOver,
 } from '@lushly-dev/loam-sdk';
 import { kernelFailure, LoamKernelError } from '../errors.js';
-import type { KernelPortsV1 } from '../types.js';
+import type { KernelPorts } from '../types.js';
 import { HANDLER_CALL_TIMEOUT_MS } from './handler-frame.js';
 import type { AppRecord } from './operations.js';
 import { createAppStore } from './store.js';
@@ -44,7 +44,7 @@ class NativeDeadline extends Error {}
 export interface NativeHostOptions {
 	record: AppRecord;
 	host: AppsHost;
-	ports: KernelPortsV1;
+	ports: KernelPorts;
 	/** The entry's absolute URL, or undefined when it would leave the package. */
 	entryUrl: string | undefined;
 	config: Readonly<Record<string, unknown>>;

@@ -12,10 +12,10 @@ import { type JournalEntry, MemoryJournalSink } from '@lushly-dev/afd-core';
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { createKernelParts, type KernelParts } from '../kernel.js';
-import { DOCUMENT_KIT } from '../late/document-kit.js';
-import { sha256 } from '../late/experiment-host.js';
+import { DOCUMENT_KIT } from '../late/command-kit.js';
 import { SCOPED_PROJECTS, scopedDeployment, scopedPorts, seedProjects } from '../scope/fixtures.js';
 import { createFixedEnvironment, createSeededRandom, createSteppingClock } from '../session.js';
+import { sha256 } from '../settings/experiment-host.js';
 import { canonicalJson, SERVER_COMMANDS, type TrustRecordSnapshotV1 } from '../trust-records.js';
 import { createTrustSnapshot } from './trust-records.js';
 

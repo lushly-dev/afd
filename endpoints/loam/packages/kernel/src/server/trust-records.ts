@@ -6,7 +6,7 @@
 
 import type { CommandContext, CommandResult } from '@lushly-dev/afd-core';
 import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
-import type { DocumentKit } from '../late/document-kit.js';
+import type { DocumentKit } from '../scope/command-kit.js';
 import type { ProjectV1, WorkspaceAppV1 } from '../scope/records.js';
 import {
 	canonicalJson,

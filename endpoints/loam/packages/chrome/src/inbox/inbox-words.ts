@@ -4,7 +4,7 @@
  * the inbox's.
  */
 
-import type { KernelEventV4 } from '@lushly-dev/loam-kernel';
+import type { KernelEvent } from '@lushly-dev/loam-kernel';
 import type { NotificationV1 } from '@lushly-dev/loam-sdk';
 
 /** Whose a notice is, in words (6.6): the kernel's owner line, as a toast's reads; nothing for the shell's own. */
@@ -19,7 +19,7 @@ export const ownerWords = (from: NotificationV1['from']): string =>
  * A change of person, or of what they may enter (the reviews' item 4): the inbox and its count are read again, and
  * nothing read before stays on screen meanwhile.
  */
-export const accessChanged = (event: KernelEventV4): boolean =>
+export const accessChanged = (event: KernelEvent): boolean =>
 	event.actorChanged === true ||
 	(event.success &&
 		event.mutation &&

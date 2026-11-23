@@ -1,13 +1,13 @@
 /**
  * @fileoverview A view app's handler frame in a page (phase 1 specification, 6.3; D61): a hidden proxy and
- * inner iframe, which the kernel reaches through `HandlerFrameV1`. The kernel decides everything: this
+ * inner iframe, which the kernel reaches through `HandlerFrame`. The kernel decides everything: this
  * only carries messages.
  */
 
-import type { FrameAdmitV1, HandlerFrameV1 } from '@lushly-dev/loam-kernel';
+import type { FrameAdmit, HandlerFrame } from '@lushly-dev/loam-kernel';
 import { ChannelError, ProxyChannel } from './channel.js';
 
-type HandlerResult = Awaited<ReturnType<HandlerFrameV1['call']>>;
+type HandlerResult = Awaited<ReturnType<HandlerFrame['call']>>;
 
 export interface HandlerFrameOptions {
 	document: Document;
@@ -15,10 +15,10 @@ export interface HandlerFrameOptions {
 	title: string;
 	html: string;
 	/** The kernel's gate on every message the frame sends (phase 4 specification, section 11). */
-	admit?: FrameAdmitV1;
+	admit?: FrameAdmit;
 }
 
-export function openHandlerFrame(options: HandlerFrameOptions): HandlerFrameV1 {
+export function openHandlerFrame(options: HandlerFrameOptions): HandlerFrame {
 	const channel = new ProxyChannel(options);
 	const { frame } = channel;
 	frame.hidden = true;

@@ -27,6 +27,7 @@ import * as z from 'zod/mini';
 import type { AppearanceV0 } from './appearance.js';
 import { oversizedInput } from './apps/mounted.js';
 import { BOOT_ONLY } from './commands.js';
+import { DOCUMENT_INPUT_MAX_BYTES } from './documents/document-types.js';
 import { LoamKernelError, PAGE_DECIDED } from './errors.js';
 import { type NestedRerunV1, RECORDED_ANSWER, type RecordedAnswerV1 } from './journal-order.js';
 import {
@@ -36,26 +37,22 @@ import {
 	type KernelPartsInternals,
 	redactJournalRecord,
 } from './kernel.js';
-import { DOCUMENT_INPUT_MAX_BYTES } from './late/document-types.js';
 import type { LayoutStateV0 } from './layout.js';
 import type { LimitKeyV1 } from './limits.js';
 import type { MembershipV1 } from './scope/access.js';
 import { CALL_MARK } from './scope/runtime.js';
 import { createFixedEnvironment } from './session.js';
-import type { KernelEnvironmentV0, KernelPortsV1, LoamKernelV5 } from './types.js';
+import type { KernelEnvironment, KernelPorts, LoamKernel } from './types.js';
 
+/** The link index, which A4 builds from the reference workspace's links (documents specification, 9.3). */
+export { createDocumentIndex, type DocumentIndex, LINK_TABLE } from './documents/links.js';
 /**
  * The commands no server serves over MCP (phase 3 specification, 3.4 and 9.5; phase 2's `PERSON_SESSION`), for the
  * hosted server's unit that holds its served list clear of them (phase 6 specification, 7).
  */
-export { HUMAN_COMMANDS } from './late/identity-commands.js';
-/** The resolver's collision rule and the overrides' check, which the chrome's settings chunk repeats (step 7). */
-export { keysCollide } from './late/keybinding-resolve.js';
-/** The link index, which A4 builds from the reference workspace's links (documents specification, 9.3). */
-export { createDocumentIndex, type DocumentIndex, LINK_TABLE } from './late/links.js';
-export { OWNER_COMMANDS } from './late/member-commands.js';
-export { PERSON_SESSION } from './late/person-session.js';
-export { overridesProblem } from './late/setting-sections.js';
+export { HUMAN_COMMANDS } from './identity/identity-commands.js';
+export { OWNER_COMMANDS } from './identity/member-commands.js';
+export { PERSON_SESSION } from './identity/person-session.js';
 export {
 	createReferenceWorkspace,
 	type ReferenceDocumentType,
@@ -92,6 +89,9 @@ export {
 	type TestKernel,
 	type TestKernelOptions,
 } from './session.js';
+/** The resolver's collision rule and the overrides' check, which the chrome's settings chunk repeats (step 7). */
+export { keysCollide } from './settings/keybinding-resolve.js';
+export { overridesProblem } from './settings/setting-sections.js';
 export {
 	documentsDeployment,
 	documentsPorts,
@@ -143,7 +143,7 @@ function withoutUnsavedWarning(entry: JournalEntry): JournalEntry {
 
 export interface ReplayKernelOptions {
 	/** The environment of the fresh kernel. Default: one that matches no media query. */
-	environment?: KernelEnvironmentV0;
+	environment?: KernelEnvironment;
 	/** Extra commands the recording kernel had (its `options.commands`). */
 	commands?: ZodCommandDefinition[];
 	/** Result paths left out besides {@link REPLAY_IGNORE}. */
@@ -156,7 +156,7 @@ export interface ReplayKernelOptions {
 	/** The recording kernel's deployment. */
 	deployment?: ProjectionV4;
 	/** Ports that serve the deployment's packages in process, so a view replays with no iframe. */
-	ports?: KernelPortsV1;
+	ports?: KernelPorts;
 	/** The recording kernel's identity (phase 3 specification, 2.1). */
 	identity?: IdentityV1;
 	/** Which auth gate the recording kernel used (`'session'` for browser, `'principal'` for hosted server). */
@@ -181,7 +181,7 @@ export interface ReplayKernelResult {
 	/** `appearance-get` after the last entry. */
 	appearance: AppearanceV0;
 	/** The replayed kernel, when `keep` was set; the caller disposes it. */
-	kernel?: LoamKernelV5;
+	kernel?: LoamKernel;
 }
 
 /**

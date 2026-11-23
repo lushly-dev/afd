@@ -15,15 +15,15 @@ import {
 import { createDefaultLayout, type LayoutStateV0 } from './layout.js';
 import { SHELL_COMMAND_NAMES } from './shell-command-names.js';
 import { createFixedEnvironment, createSteppingClock } from './testing.js';
-import type { KernelEventV1, KernelOptionsV5, LoamKernelV5 } from './types.js';
+import type { KernelEvent, KernelOptions, LoamKernel } from './types.js';
 
-const kernels: LoamKernelV5[] = [];
+const kernels: LoamKernel[] = [];
 
 afterEach(async () => {
 	await Promise.all(kernels.splice(0).map((kernel) => kernel.dispose()));
 });
 
-function options(overrides: Partial<KernelOptionsV5> = {}): KernelOptionsV5 {
+function options(overrides: Partial<KernelOptions> = {}): KernelOptions {
 	return {
 		store: new MemoryAdapter(),
 		storeKind: 'memory',
@@ -36,7 +36,7 @@ function options(overrides: Partial<KernelOptionsV5> = {}): KernelOptionsV5 {
 	};
 }
 
-async function kernel(overrides: Partial<KernelOptionsV5> = {}) {
+async function kernel(overrides: Partial<KernelOptions> = {}) {
 	const opts = options(overrides);
 	const created = await createKernel(opts);
 	kernels.push(created);
@@ -136,7 +136,7 @@ describe('registries and exposure', () => {
 
 	it('returns COMMAND_NOT_FOUND for an unknown name, with a mutation-free event', async () => {
 		const { kernel: k } = await kernel();
-		const events: KernelEventV1[] = [];
+		const events: KernelEvent[] = [];
 		k.subscribe((event) => events.push(event));
 		expect((await k.call('nothing-here')).error?.code).toBe('COMMAND_NOT_FOUND');
 		expect(events).toEqual([
@@ -169,7 +169,7 @@ describe('the journal', () => {
 	it('gives both registries one sequence, and events carry seq', async () => {
 		const { kernel: k, journal } = await kernel();
 		const scope = { workspace: 'personal' };
-		const events: KernelEventV1[] = [];
+		const events: KernelEvent[] = [];
 		const unsubscribe = k.subscribe((event) => events.push(event));
 		await k.call('layout-set', { sidebar: { open: false } });
 		await k.agent.call('layout-get');
@@ -269,7 +269,7 @@ describe('the journal', () => {
 
 	it('keeps a throwing listener from changing the result or the other listeners', async () => {
 		const { kernel: k } = await kernel();
-		const events: KernelEventV1[] = [];
+		const events: KernelEvent[] = [];
 		const reportError = vi.fn();
 		vi.stubGlobal('reportError', reportError);
 		try {
@@ -561,7 +561,7 @@ describe('review findings', () => {
 
 	it('gives concurrent calls on both interfaces distinct seqs', async () => {
 		const { kernel: k } = await kernel();
-		const events: KernelEventV1[] = [];
+		const events: KernelEvent[] = [];
 		k.subscribe((event) => events.push(event));
 		await Promise.all(
 			Array.from({ length: 20 }, (_, i) =>
@@ -584,7 +584,7 @@ describe('review findings', () => {
 				read: async () => [],
 			};
 			const { kernel: k } = await kernel({ journal: failing as never });
-			const events: KernelEventV1[] = [];
+			const events: KernelEvent[] = [];
 			k.subscribe((event) => events.push(event));
 			expect((await k.call('layout-get')).success).toBe(true);
 			expect(events[0]?.seq).toBeUndefined();

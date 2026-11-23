@@ -7,7 +7,7 @@
  * the light, dark and high-contrast contexts (D53); the web package's Chromium suite captures them.
  */
 
-import type { LoamKernelV5 } from '@lushly-dev/loam-kernel';
+import type { LoamKernel } from '@lushly-dev/loam-kernel';
 import type {
 	NotificationV1,
 	OverlayV1,
@@ -241,7 +241,7 @@ export const SettingsPopoverMenu = part(
 		const kernel = { call: () => Promise.resolve({ success: true, data: {} }) };
 		const layer = createPopoverLayer(
 			host as unknown as LoamShell,
-			kernel as unknown as LoamKernelV5,
+			kernel as unknown as LoamKernel,
 			() => anchor,
 			{
 				ownerLine,

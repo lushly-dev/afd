@@ -16,12 +16,12 @@ import { fromJsonSchema, stripOwnProto } from '@lushly-dev/loam-manifest/validat
 import type { ZodType } from 'zod';
 import type { LoamKernelErrorCode } from '../errors.js';
 import { firstLayoutOf, type LayoutPart, type LayoutStateV0 } from '../layout.js';
-import type { AppKindV1 } from '../types.js';
+import type { AppKind } from '../types.js';
 import type { AppRecord } from './operations.js';
 
 const SERVED_GRANTS: ReadonlySet<string> = new Set(SERVED_GRANTS_V2);
 const PARTS: readonly LayoutPart[] = ['sidebar', 'inspector', 'panel'];
-const TRUST: Readonly<Record<AppKindV1, AppRecord['detail']['trust']>> = {
+const TRUST: Readonly<Record<AppKind, AppRecord['detail']['trust']>> = {
 	native: 'trusted',
 	view: 'sandboxed',
 	mounted: 'external',
@@ -61,7 +61,7 @@ export function baseRecord(
 ): AppRecord {
 	const rail = manifest?.ui?.surfaces?.rail;
 	const hasMountedKey = MOUNTED_KEYS.some((key) => entry[key] !== undefined);
-	const kind: AppKindV1 =
+	const kind: AppKind =
 		manifest?.plugin.kind ??
 		(rawKind === 'native' || rawKind === 'view' || rawKind === 'mounted'
 			? rawKind

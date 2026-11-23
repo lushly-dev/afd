@@ -1,4 +1,4 @@
-import type { HandlerFrameV1 } from '@lushly-dev/loam-kernel';
+import type { HandlerFrame } from '@lushly-dev/loam-kernel';
 import { describe, expect, it, vi } from 'vitest';
 import { readOrNotice } from './deployment.js';
 import { webPorts } from './ports.js';
@@ -58,7 +58,7 @@ describe('readOrNotice', () => {
 
 describe('webPorts', () => {
 	it('opens a handler frame from the view chunk, on the sandbox origin, only when asked', async () => {
-		const frame = {} as HandlerFrameV1;
+		const frame = {} as HandlerFrame;
 		const openHandlerFrame = vi.fn(() => frame);
 		const loadView = vi.fn(async () => ({ openHandlerFrame }));
 		const ports = webPorts(page, BASE, 'https://sandbox.example', loadView, noMount);
@@ -73,7 +73,7 @@ describe('webPorts', () => {
 	});
 
 	it("forwards the kernel's frame gate to the view chunk (phase 4's section 11)", async () => {
-		const frame = {} as HandlerFrameV1;
+		const frame = {} as HandlerFrame;
 		const openHandlerFrame = vi.fn(() => frame);
 		const ports = webPorts(
 			page,

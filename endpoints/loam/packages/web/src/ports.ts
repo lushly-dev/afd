@@ -7,10 +7,10 @@
  */
 
 import type {
-	FrameAdmitV1,
-	HandlerFrameV1,
-	KernelPortsV1,
-	MountTransportV2,
+	FrameAdmit,
+	HandlerFrame,
+	KernelPorts,
+	MountTransport,
 } from '@lushly-dev/loam-kernel';
 
 /** What the chrome's view chunk gives this port. */
@@ -20,15 +20,15 @@ export interface ViewChunk {
 		sandboxOrigin: string;
 		title: string;
 		html: string;
-		admit?: FrameAdmitV1;
-	}): HandlerFrameV1;
+		admit?: FrameAdmit;
+	}): HandlerFrame;
 }
 
 /** What the `mount` chunk gives this port. */
 export interface MountChunk {
-	createMountTransport(url: string): MountTransportV2;
+	createMountTransport(url: string): MountTransport;
 	/** The desktop's, over the Rust host by instance (phase 6 specification, 10.4). */
-	createDesktopMountTransport(instance: string, options?: { era?: 'modern' }): MountTransportV2;
+	createDesktopMountTransport(instance: string, options?: { era?: 'modern' }): MountTransport;
 }
 
 async function ok(url: string): Promise<Response> {
@@ -45,14 +45,14 @@ export function webPorts(
 	loadView: () => Promise<ViewChunk>,
 	loadMount: () => Promise<MountChunk>,
 	desktop = false
-): KernelPortsV1 {
+): KernelPorts {
 	return {
 		baseUrl: base,
 		fetchJson: async (url) => (await ok(url)).json(),
 		fetchText: async (url) => (await ok(url)).text(),
 		async importNative(url) {
 			const module = (await import(/* @vite-ignore */ url)) as {
-				default: Awaited<ReturnType<KernelPortsV1['importNative']>>;
+				default: Awaited<ReturnType<KernelPorts['importNative']>>;
 			};
 			return module.default;
 		},

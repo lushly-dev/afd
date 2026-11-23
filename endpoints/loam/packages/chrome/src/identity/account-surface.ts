@@ -3,7 +3,7 @@
  * Node. The manifest's `accountSurfaceOf` decides the same table at install time; this reads it again in the page.
  */
 
-import type { AppPortV2, AppSummaryV2, LoamKernelV5 } from '@lushly-dev/loam-kernel';
+import type { AppPort, AppSummary, LoamKernel } from '@lushly-dev/loam-kernel';
 import { ownerTitle } from '@lushly-dev/loam-kernel/owner-title';
 import type { AccountSectionV1 } from '@lushly-dev/loam-sdk';
 
@@ -21,7 +21,7 @@ export interface AppAccountTab {
  * element, or a view app's `main` resource. The manifest's `accountSurfaceOf` holds the same table.
  */
 export function surfaceOf(
-	port: Pick<AppPortV2, 'manifest'>,
+	port: Pick<AppPort, 'manifest'>,
 	surface: string
 ): { element: string } | { resource: string; command?: string } | undefined {
 	const { manifest } = port;
@@ -45,9 +45,9 @@ export function surfaceOf(
 
 /** Each ready native or view app's `ui.account` sections, in `app-list`'s order: no mounted, failed or disabled app's. */
 export async function appTabs(
-	kernel: Pick<LoamKernelV5, 'call' | 'appPort'>
+	kernel: Pick<LoamKernel, 'call' | 'appPort'>
 ): Promise<AppAccountTab[]> {
-	const listed = await kernel.call<{ apps: AppSummaryV2[] }>('app-list');
+	const listed = await kernel.call<{ apps: AppSummary[] }>('app-list');
 	const apps = listed.data?.apps ?? [];
 	const tabs: AppAccountTab[] = [];
 	for (const app of apps) {

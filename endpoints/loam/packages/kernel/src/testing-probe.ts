@@ -17,7 +17,7 @@ import {
 import { mulberry32 } from '@lushly-dev/loam-sdk/view';
 import type { LoamKernelError } from './errors.js';
 import type { SessionCall } from './session.js';
-import type { HandlerFrameV1, KernelPortsV1 } from './types.js';
+import type { HandlerFrame, KernelPorts } from './types.js';
 
 const EMPTY_INPUT = { type: 'object', properties: {}, additionalProperties: false };
 
@@ -227,7 +227,7 @@ export interface FixturePackage {
 	files?: Record<string, string>;
 }
 
-export interface FixturePorts extends KernelPortsV1 {
+export interface FixturePorts extends KernelPorts {
 	/** The URLs imported, in order: a test's check that a module loads lazily. */
 	readonly imports: string[];
 	/** The handler frames opened, by instance. */
@@ -299,7 +299,7 @@ interface FrameCallContext {
 }
 
 /** What `serveHandlers` does over `postMessage`, in process. */
-export function inProcessFrame(definition: AppDefinitionV1): HandlerFrameV1 {
+export function inProcessFrame(definition: AppDefinitionV1): HandlerFrame {
 	let answer: (method: string, params: unknown) => Promise<unknown> = () =>
 		Promise.reject(new Error('No request handler'));
 	return {

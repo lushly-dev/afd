@@ -9,8 +9,10 @@
  */
 
 import { css, FASTElement, html, observable, Updates, when } from '@lushly-dev/fast-element';
-import type { LoamKernelV5 } from '@lushly-dev/loam-kernel';
+import type { LoamKernel } from '@lushly-dev/loam-kernel';
 import type { DocumentRecordV1, DocumentTypeV1 } from '@lushly-dev/loam-sdk';
+import '@lushly-dev/violet-elements/dist/select/violet-select.js';
+import type { VioletSelect } from '@lushly-dev/violet-elements/dist/select/violet-select.js';
 import { formatRoute } from '../route-format.js';
 import { documentsStyles } from './documents-styles.js';
 import { changesDocuments, dateOf, el, isoOf, numberOf } from './dom.js';
@@ -18,6 +20,13 @@ import { changesDocuments, dateOf, el, isoOf, numberOf } from './dom.js';
 const DAY_MS = 86_400_000;
 /** How many rows the list reads at a time. */
 const PAGE = 200;
+/**
+ * Collision-free encoding for optional filter values in `<violet-option>`: `VioletOption` replaces an empty
+ * `value=""` with its label text, so the unfiltered choice uses `'*'` and every real value is prefixed with `'v:'`.
+ */
+const ANY_FILTER = '*';
+const encodeFilter = (value: string): string => (value ? `v:${value}` : ANY_FILTER);
+const decodeFilter = (value: string): string => (value.startsWith('v:') ? value.slice(2) : '');
 
 type Status = 'active' | 'archived' | 'trashed';
 
@@ -38,25 +47,26 @@ const template = html<LoamDocumentsSection>`
 					autocomplete="off"
 					@input="${(x, c) => x.setQuery((c.event.target as HTMLInputElement).value)}"
 			/></label>
-			<label
-				>Type
-				<select data-ref="type" @change="${(x, c) => x.setType((c.event.target as HTMLSelectElement).value)}"></select
-			></label>
-			<label
-				>Tag
-				<select data-ref="tag" @change="${(x, c) => x.setTag((c.event.target as HTMLSelectElement).value)}"></select
-			></label>
-			<label
-				>Show
-				<select
-					data-ref="status"
-					@change="${(x, c) => x.setStatus((c.event.target as HTMLSelectElement).value as Status)}"
-				>
-					<option value="active">Active</option>
-					<option value="archived">Archived</option>
-					<option value="trashed">Trash</option>
-				</select></label
+			<violet-select
+				data-ref="type"
+				label="Type"
+				@change="${(x, c) => x.setType(decodeFilter((c.event.target as VioletSelect).value))}"
+			></violet-select>
+			<violet-select
+				data-ref="tag"
+				label="Tag"
+				@change="${(x, c) => x.setTag(decodeFilter((c.event.target as VioletSelect).value))}"
+			></violet-select>
+			<violet-select
+				data-ref="status"
+				label="Show"
+				value="${(x) => x.status}"
+				@change="${(x, c) => x.setStatus((c.event.target as VioletSelect).value as Status)}"
 			>
+				<violet-option value="active">Active</violet-option>
+				<violet-option value="archived">Archived</violet-option>
+				<violet-option value="trashed">Trash</violet-option>
+			</violet-select>
 			<label class="check"
 				><input
 					type="checkbox"
@@ -86,13 +96,13 @@ const template = html<LoamDocumentsSection>`
 
 /** What the section reads of the shell, so it imports nothing first paint holds but FAST (2.4). */
 export interface DocumentsHost {
-	readonly kernel: LoamKernelV5 | null;
+	readonly kernel: LoamKernel | null;
 	readonly shadowRoot: ShadowRoot | null;
 	readonly ownerDocument: Document;
 }
 
 export class LoamDocumentsSection extends FASTElement {
-	kernel: LoamKernelV5 | null = null;
+	kernel: LoamKernel | null = null;
 	/** The shell, which the inline New items create through. */
 	host: DocumentsHost | null = null;
 	base = '';
@@ -171,7 +181,7 @@ export class LoamDocumentsSection extends FASTElement {
 	}
 
 	/** The first `#limit` rows, 200 a read, as `document-list` bounds one (4.1). */
-	async #list(kernel: LoamKernelV5): Promise<{
+	async #list(kernel: LoamKernel): Promise<{
 		success: boolean;
 		error?: { message?: string };
 		data?: { documents: DocumentRecordV1[]; total: number };
@@ -404,13 +414,16 @@ export class LoamDocumentsSection extends FASTElement {
 	/** The type and tag pickers, from the types and the tags of what is listed, the choice kept. */
 	#paintFilters(): void {
 		const fill = (name: string, any: string, values: Array<[string, string]>, chosen: string) => {
-			const select = this.#ref<HTMLSelectElement>(name);
+			const select = this.#ref<VioletSelect>(name);
 			if (!select) return;
 			select.replaceChildren(
-				el('option', { value: '' }, any),
-				...values.map(([value, label]) => el('option', { value }, label))
+				el('violet-option', { value: ANY_FILTER }, any),
+				...values.map(([value, label]) =>
+					el('violet-option', { value: encodeFilter(value) }, label)
+				)
 			);
-			select.value = chosen;
+			select.value = encodeFilter(chosen);
+			select.handleSlotChange();
 		};
 		fill(
 			'type',

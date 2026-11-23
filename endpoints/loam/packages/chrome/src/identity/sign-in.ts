@@ -8,7 +8,7 @@
  */
 
 import { css, FASTElement, html, observable, when } from '@lushly-dev/fast-element';
-import type { LoamKernelV5 } from '@lushly-dev/loam-kernel';
+import type { LoamKernel } from '@lushly-dev/loam-kernel';
 import { actionButton } from '../apps/action-styles.js';
 import { deepActiveElement } from '../elements/events.js';
 import { trapTab } from '../elements/focus.js';
@@ -97,6 +97,7 @@ const styles = [
 		}
 		h2 {
 			margin: 0;
+			font-family: var(--font-family-heading);
 			font-size: var(--type-title-sm-size);
 			line-height: var(--type-title-sm-line);
 			font-weight: var(--type-title-sm-weight);
@@ -114,14 +115,26 @@ const styles = [
 			box-sizing: border-box;
 			min-block-size: var(--size-target-natural);
 			padding-inline: var(--size-space-md);
-			border: 1px solid var(--color-border-strong);
+			border: 1px solid var(--color-border-subtle);
 			border-radius: var(--radius-md);
-			background: var(--color-surface-page);
-			color: var(--color-text-primary);
+			background: var(--color-field-background);
+			color: var(--color-field-text);
+			box-shadow:
+				inset 0 1px 0 var(--color-field-border),
+				var(--shadow-well);
 			font: inherit;
 			font-size: var(--type-body-md-size);
+			transition:
+				border-color var(--duration-fast) var(--easing-standard),
+				box-shadow var(--duration-base) var(--easing-standard);
+		}
+		input:hover {
+			box-shadow:
+				inset 0 1px 0 var(--color-field-border-hover),
+				var(--shadow-well);
 		}
 		input:focus-visible {
+			border-color: var(--color-field-border-focus);
 			outline: var(--shell-size-focus) solid var(--color-focus-ring);
 			outline-offset: var(--size-space-xs);
 		}
@@ -157,12 +170,23 @@ const styles = [
 			display: flex;
 			justify-content: flex-end;
 		}
+		@media (prefers-reduced-motion: reduce) {
+			input {
+				transition: none;
+			}
+		}
 		@media (forced-colors: active) {
 			dialog {
 				border: 1px solid CanvasText;
 			}
 			input {
-				border-color: CanvasText;
+				border-color: ButtonText;
+				background: Field;
+				color: FieldText;
+				box-shadow: none;
+			}
+			input:focus-visible {
+				outline-color: Highlight;
 			}
 		}
 	`,
@@ -183,7 +207,7 @@ export class LoamSignInDialog extends FASTElement {
 	declare busy: boolean;
 	organization = '';
 	methods: readonly string[] = [];
-	kernel: LoamKernelV5 | null = null;
+	kernel: LoamKernel | null = null;
 	/** Recovery's request and the single sign-on ceremony's start (5.7), the host's. */
 	recover: ((email: string) => Promise<void>) | undefined;
 	recoverWith: ((provider: string) => Promise<void>) | undefined;

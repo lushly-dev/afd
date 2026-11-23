@@ -4,7 +4,7 @@
  * `navigate` or modal is refused as its client's calls are.
  */
 
-import type { AppPortV2 } from '@lushly-dev/loam-kernel';
+import type { AppPort } from '@lushly-dev/loam-kernel';
 import {
 	type AppContextV1,
 	type CommandResult,
@@ -35,7 +35,7 @@ function refusal(result: CommandResult<unknown>, fallback: string): Error {
  * grant allows, within the surface's scope; `open` rejects with its refusal, `DOCUMENT_OPEN_NOT_ACTIVE` among
  * them, and the reads answer null or nothing.
  */
-export function documentsOver(call: AppPortV2['call']): DocumentsV1 {
+export function documentsOver(call: AppPort['call']): DocumentsV1 {
 	const read = async <T>(name: string, input: unknown) => {
 		const result = await call<T>(name, input);
 		return result.success ? result.data : undefined;
@@ -58,8 +58,8 @@ export function documentsOver(call: AppPortV2['call']): DocumentsV1 {
 }
 
 export function surfaceCalls(
-	port: Pick<AppPortV2, 'instance' | 'waitOverlay' | 'manifest'>,
-	call: AppPortV2['call']
+	port: Pick<AppPort, 'instance' | 'waitOverlay' | 'manifest'>,
+	call: AppPort['call']
 ): Pick<
 	AppContextV1,
 	'client' | 'navigate' | 'overlays' | 'documents' | 'settings' | 'notifications' | 'confirmations'
@@ -105,7 +105,7 @@ export function surfaceCalls(
  * and only the sections it declares itself, by full id.
  */
 export function settingsHeard(
-	manifest: AppPortV2['manifest'] | undefined,
+	manifest: AppPort['manifest'] | undefined,
 	sections: readonly string[]
 ): string[] {
 	if (!manifest?.grants?.some((grant) => grant.name === 'settings')) return [];

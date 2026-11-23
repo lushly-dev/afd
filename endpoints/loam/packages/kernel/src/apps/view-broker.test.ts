@@ -2,7 +2,7 @@ import { success } from '@lushly-dev/afd-core';
 import type { ManifestV1 } from '@lushly-dev/loam-manifest';
 import { describe, expect, it, vi } from 'vitest';
 import { createKernelLimits, LIMIT_DEFAULTS } from '../limits.js';
-import type { LinkedCallV1 } from '../types.js';
+import type { LinkedCall } from '../types.js';
 import { createLimitGuard } from './limit-guard.js';
 import { createViewBroker, READS_IN_FLIGHT } from './view-broker.js';
 
@@ -115,7 +115,7 @@ describe('the view broker', () => {
 
 	it('tells only the listeners of the resource a finished command links to', () => {
 		const { broker, notifyCall } = setup();
-		const heard: LinkedCallV1[] = [];
+		const heard: LinkedCall[] = [];
 		const stop = broker.onLinkedCall(RESOURCE, (call) => heard.push(call));
 		const other = vi.fn();
 		broker.onLinkedCall('ui://probe/other', other);

@@ -23,10 +23,10 @@ import type { CommandContext, CommandMiddleware, CommandResult } from '@lushly-d
 import type { MountReleaseV1 } from '../apps/mounted-release.js';
 import type { AppsRuntime } from '../apps-runtime.js';
 import { kernelFailure } from '../errors.js';
+import type { AskedFor, AskedPreviewV1 } from '../settings/confirmation-parts.js';
+import type { Confirmations } from '../settings/confirmations.js';
+import { RESHOW, type ReshowV1 } from '../settings/reshow.js';
 import { canonicalJson } from '../trust-records.js';
-import type { AskedFor, AskedPreviewV1 } from './confirmation-parts.js';
-import type { Confirmations } from './confirmations.js';
-import { RESHOW, type ReshowV1 } from './reshow.js';
 
 /** The mounted chunk's `RELEASING`, by `Symbol.for`, so `late` imports nothing of that chunk. */
 const RELEASING = Symbol.for('dev.loam/releasing');

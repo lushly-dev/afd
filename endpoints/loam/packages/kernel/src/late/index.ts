@@ -12,65 +12,65 @@ import { ICONS_V1 } from '@lushly-dev/loam-manifest';
 import type { DataAdapter } from '@lushly-dev/local-db';
 import * as z from 'zod/mini';
 import { APPEARANCE_DENSITIES, APPEARANCE_THEMES } from '../appearance.js';
+import { type AppCommandDeps, createAppCommands } from '../apps/app-commands.js';
+import { appCallable } from '../apps/port-callable.js';
+import { createPortRefusals } from '../apps/port-refusals.js';
 import { BOOT_ONLY, INTERNAL_COMMANDS } from '../commands.js';
 import type { KernelCallFields } from '../context-fields.js';
 import type { CopilotParts } from '../copilot/commands.js';
 import type { CopilotOptionsV1, CopilotTraceV1 } from '../copilot/types.js';
-import type { StoreOrderV1 } from '../journal-order.js';
-import type { KeybindingRegistry } from '../keybindings.js';
-import { createDefaultLayout } from '../layout.js';
-import type { KernelLimits } from '../limits.js';
-import { createPaletteIndex } from '../palette-index.js';
-import { type AccessActorV1, decideAccess, personKey, personOf } from '../scope/access.js';
-import { MCP_CONTEXT_FIELDS } from '../scope/field.js';
-import { type LateScope, sessionActor } from '../scope/middleware.js';
-import type { PersonalStore } from '../scope/personal.js';
-import type { ScopeV1 } from '../scope/records.js';
-import type { QueuedTicket } from '../scope/runtime.js';
-import { SHELL_COMMAND_NAMES } from '../shell-command-names.js';
-import { canonicalJson } from '../trust-records.js';
-import type {
-	AppSummaryV2,
-	AppsLoadV2,
-	KernelEventV4,
-	KernelMcpOptions,
-	KernelOptionsV5,
-	KernelPortsV1,
-} from '../types.js';
-import { type AppCommandDeps, createAppCommands } from './app-commands.js';
+import { createDocumentCheck, DOCUMENT_TABLE } from '../documents/document-types.js';
+import type { EditorParts } from '../documents/editor-commands.js';
+import type { EditorDraftsV1 } from '../documents/editor-state.js';
+import { createDocumentIndex, createLinkCommands, expireLinks } from '../documents/links.js';
+import { createNewParts } from '../documents/new-list.js';
+import { createDocumentRows, type DocumentRows } from '../documents/palette-documents.js';
 import {
 	agentActor,
 	createAuthGate,
 	membershipUnavailable,
 	SIGNED_OUT_COMMANDS,
 	sessionChanged,
-} from './auth-gate.js';
-import { DOCUMENT_KIT } from './document-kit.js';
-import { createDocumentCheck, DOCUMENT_TABLE } from './document-types.js';
-import type { EditorParts } from './editor-commands.js';
-import type { EditorDraftsV1 } from './editor-state.js';
-import { emptyMeets } from './empty-meets.js';
-import { experimentHost, isManifestTypeGated, sha256 } from './experiment-host.js';
-import type { Experiments } from './experiments.js';
-import { createDocumentIndex, createLinkCommands, expireLinks } from './links.js';
-import { archivedRefusal, canOpen, setMain, writeThrough } from './main-state.js';
-import { createNewParts } from './new-list.js';
-import { createOverlayCommands, openerOf, ownerTitle } from './overlay-commands.js';
-import { isOwner, teamListed } from './owners.js';
-import { createDocumentRows, type DocumentRows } from './palette-documents.js';
-import { PERSON_SESSION } from './person-session.js';
-import { personalWrites } from './personal-writes.js';
-import { appCallable } from './port-callable.js';
-import { createPortRefusals } from './port-refusals.js';
-import { createProjectSummaryCommand, type ProjectSummaryDeps } from './project-summary.js';
-import { AGENT_PUSH_RATE, APP_PUSH_RATE, createPushRate } from './push-rate.js';
+} from '../identity/auth-gate.js';
+import { PERSON_SESSION } from '../identity/person-session.js';
+import { personalWrites } from '../identity/personal-writes.js';
+import type { SessionSettle } from '../identity/session-settle.js';
+import type { StoreOrderV1 } from '../journal-order.js';
+import type { KeybindingRegistry } from '../keybindings.js';
+import { createDefaultLayout } from '../layout.js';
+import type { KernelLimits } from '../limits.js';
+import { createOverlayCommands, openerOf, ownerTitle } from '../overlays/commands.js';
+import { AGENT_PUSH_RATE, APP_PUSH_RATE, createPushRate } from '../overlays/push-rate.js';
+import { createPaletteIndex } from '../palette-index.js';
+import { type AccessActorV1, decideAccess, personKey, personOf } from '../scope/access.js';
+import { MCP_CONTEXT_FIELDS } from '../scope/field.js';
+import { archivedRefusal, canOpen, setMain, writeThrough } from '../scope/main-state.js';
+import { type LateScope, sessionActor } from '../scope/middleware.js';
+import { isOwner, teamListed } from '../scope/owners.js';
+import type { PersonalStore } from '../scope/personal.js';
+import { createProjectSummaryCommand, type ProjectSummaryDeps } from '../scope/project-summary.js';
+import type { ScopeV1 } from '../scope/records.js';
+import type { QueuedTicket } from '../scope/runtime.js';
+import { createScopeCommands, UNAPPLIED } from '../scope/scope-commands.js';
+import { createShellStores, type ShellStores } from '../scope/stores.js';
+import { emptyMeets } from '../settings/empty-meets.js';
+import { experimentHost, isManifestTypeGated, sha256 } from '../settings/experiment-host.js';
+import type { Experiments } from '../settings/experiments.js';
+import type { Settings } from '../settings/settings.js';
+import { type TabSync, wireTabSync } from '../settings/tab-sync.js';
+import { SHELL_COMMAND_NAMES } from '../shell-command-names.js';
+import { canonicalJson } from '../trust-records.js';
+import type {
+	AppSummary,
+	AppsLoad,
+	KernelEvent,
+	KernelMcpOptions,
+	KernelOptions,
+	KernelPorts,
+} from '../types.js';
+import { DOCUMENT_KIT } from './command-kit.js';
 import { createLateScope, documentChainOf, type LateScopeDeps } from './scope-change.js';
-import { createScopeCommands, UNAPPLIED } from './scope-commands.js';
-import type { SessionSettle } from './session-settle.js';
-import type { Settings } from './settings.js';
 import { createShellCommands, paletteGroupOf, type ShellCommandDeps } from './shell-commands.js';
-import { createShellStores, type ShellStores } from './stores.js';
-import { type TabSync, wireTabSync } from './tab-sync.js';
 import {
 	preparedUnlessRouted,
 	SERVER_UNSETTLED,
@@ -92,14 +92,14 @@ interface Presented {
 	compact: { drawer: string | null };
 }
 
-import { landsInInbox, type OverlayOwner, SHELL } from '../overlays.js';
-import type { Confirmations } from './confirmations.js';
+import { landsInInbox, type OverlayOwner, SHELL } from '../overlays/store.js';
+import type { Confirmations } from '../settings/confirmations.js';
+import { overBound } from '../settings/input-bound.js';
+import type { ActionVerdict } from '../settings/notifications.js';
 import { badCaller, confirmPromptFor, copilotPartsOf, genericAskedFor } from './copilot-wiring.js';
-import { overBound } from './input-bound.js';
 import { createMountedApprovals } from './mounted-approvals.js';
-import type { ActionVerdict } from './notifications.js';
 
-export { createOverlayStore } from '../overlays.js';
+export { createOverlayStore } from '../overlays/store.js';
 export { withBootActions } from './boot-actions.js';
 
 export type LateCommandDeps = ShellCommandDeps &
@@ -129,7 +129,7 @@ export type LateCommandDeps = ShellCommandDeps &
 		/** Boot's own: never queued, top-level and journaled, which `session-settle` runs as (4.4). */
 		runBoot(name: string, input: unknown): Promise<{ success: boolean }>;
 		/** The host's ports: the expiry timer's `schedule` and `readMembership` (4.4). */
-		ports?: KernelPortsV1 | undefined;
+		ports?: KernelPorts | undefined;
 		/** `run`'s `auth-*` call queued last on each interface, which this chunk clears as it ends (4.4). */
 		pending: Partial<Record<string, QueuedTicket>>;
 		/** The symbol `run` keeps a queued call's ticket under: the kernel's own, so first paint shares no new one. */
@@ -186,10 +186,10 @@ export type LateCommandDeps = ShellCommandDeps &
 		/** Drop pre-wait reads when a call suspends for human confirmation (#2117). */
 		suspendOrder?(traceId: string): void;
 		/** Emit a kernel event to subscribers (cross-tab sync, #2108). */
-		emit?(event: KernelEventV4): void;
+		emit?(event: KernelEvent): void;
 	} & Pick<ProjectSummaryDeps, 'summaries' | 'run' | 'deadlineMs'> &
 	/** What stage B reads of the apps, from the kernel's options (phase 2 specification, 2.2). */
-	Pick<KernelOptionsV5, 'boot' | 'appsLoader' | 'deployment' | 'identityPorts' | 'overlayAnchors'>;
+	Pick<KernelOptions, 'boot' | 'appsLoader' | 'deployment' | 'identityPorts' | 'overlayAnchors'>;
 
 export { PERSON_SESSION };
 
@@ -300,14 +300,14 @@ export interface LateParts {
 			commands: readonly ZodCommandDefinition[];
 			middleware: readonly CommandMiddleware[];
 		},
-		listeners: ReadonlySet<(event: KernelEventV4) => void>
+		listeners: ReadonlySet<(event: KernelEvent) => void>
 	): KernelMcpOptions;
 	/** A reload, for a replay: forgets session state (10). */
 	reload(): Promise<void>;
 	/** Stage B's first act before queued calls: first `session-settle`, adapter listener and expiry timer (4.4). */
 	begin(): Promise<void>;
 	/** Stage B's app loader (phase 3 spec 13). */
-	readApps(): Promise<AppsLoadV2 | { unavailable: string }>;
+	readApps(): Promise<AppsLoad | { unavailable: string }>;
 	/** `app-instance-refresh` for each mounted instance (13). */
 	startInstances(): Promise<void>;
 	/** Stage B's journaled boot work (deployment apply, trash expiry, settles; skipped in replay). */
@@ -319,7 +319,7 @@ export interface LateParts {
 	/** Boot's `app-settle` after hydration/apply; skipped in replay (F3). */
 	settle(run: (name: string, input: unknown) => Promise<{ success: boolean }>): Promise<void>;
 	/** Instances hidden from palette and `listCommands` (11.2). */
-	hidden(apps: readonly AppSummaryV2[]): ReadonlySet<string>;
+	hidden(apps: readonly AppSummary[]): ReadonlySet<string>;
 	/** Whether an experiment is on for the shell's person (5.3). */
 	experimentOpen(experiment: string): boolean;
 	/** Whether an instance's app gate holds it out (5.3, R14). */
@@ -378,10 +378,10 @@ export async function createLateParts(
 			orphanRecipients,
 		},
 	] = await Promise.all([
-		import('./documents.js'),
-		import('./editor-commands.js'),
-		import('./session-settle.js'),
-		import('./settings.js'),
+		import('../documents/documents.js'),
+		import('../documents/editor-commands.js'),
+		import('../identity/session-settle.js'),
+		import('../settings/settings.js'),
 	]);
 	// The copilot's records and commands, `late-copilot`, beside them (phase 5 specification, 2 and 3.5).
 	const { createCopilotParts } = await import('../copilot/commands.js');
@@ -1467,7 +1467,7 @@ export async function createLateParts(
 						: ({
 								deployment: listed,
 								...(deps.ports !== undefined ? { ports: deps.ports } : {}),
-							} as AppsLoadV2);
+							} as AppsLoad);
 				// The projection's host, whatever its apps do next (phase 4 specification, 13).
 				if (loaded && 'deployment' in loaded) {
 					hostKind =

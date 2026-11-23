@@ -10,7 +10,7 @@
  * announced again, since the toast region announced the toast.
  */
 
-import type { KernelEventV4, LoamKernelV5 } from '@lushly-dev/loam-kernel';
+import type { KernelEvent, LoamKernel } from '@lushly-dev/loam-kernel';
 import type { NotificationV1 } from '@lushly-dev/loam-sdk';
 import { accessChanged, ownerWords } from '../inbox/inbox-words.js';
 
@@ -19,7 +19,7 @@ export const INBOX_KEYBOARD_PATH = 'Open it from Inbox in the title bar, or from
 
 /** What the watch reads and writes of the shell. */
 export interface InboxBellShell {
-	readonly kernel: LoamKernelV5 | null;
+	readonly kernel: LoamKernel | null;
 	unread: number;
 	announcement: string;
 }
@@ -28,20 +28,20 @@ export interface InboxBellShell {
  * Whether a call may have changed the person's unread count: a mutation, never the list's own read, which would read
  * again for ever; or a call that raised or ended a confirmation, which may itself have failed (phase 4's 7.2).
  */
-export const touchesInbox = (event: KernelEventV4): boolean =>
+export const touchesInbox = (event: KernelEvent): boolean =>
 	event.inbox === true ||
 	(event.success &&
 		event.mutation &&
 		(event.command.startsWith('notification-') || event.command === 'toast-show'));
 
 /** Keep `shell.unread` and announce new notices; returns its stop. */
-export function watchInbox(shell: InboxBellShell, kernel: LoamKernelV5): () => void {
+export function watchInbox(shell: InboxBellShell, kernel: LoamKernel): () => void {
 	let reads = 0;
 	/** The newest notice seen, so each is announced once, and none present when the watch began. */
 	let newest: string | undefined;
 	let started = false;
 
-	async function read(event?: KernelEventV4): Promise<void> {
+	async function read(event?: KernelEvent): Promise<void> {
 		const mine = ++reads;
 		const listed = await kernel.call<{ notifications: NotificationV1[]; unread: number }>(
 			'notification-list',

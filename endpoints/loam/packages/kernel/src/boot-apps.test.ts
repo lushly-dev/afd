@@ -12,9 +12,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LoamKernelError } from './errors.js';
 import { createKernelParts, NEEDS_STAGE_B } from './kernel.js';
 import { createFixedEnvironment, createTestKernel } from './testing.js';
-import type { AppDetailV1, AppSummaryV2, AppsLoadV2, LoamKernelV5 } from './types.js';
+import type { AppDetail, AppSummary, AppsLoad, LoamKernel } from './types.js';
 
-const kernels: LoamKernelV5[] = [];
+const kernels: LoamKernel[] = [];
 afterEach(async () => {
 	vi.unstubAllGlobals();
 	await Promise.all(kernels.splice(0).map((kernel) => kernel.dispose()));
@@ -41,7 +41,7 @@ const bootOf = (apps: BootAppV2[]): BootProjectionV2 => ({
 	apps,
 });
 
-async function boot(apps: BootAppV2[], appsLoader?: () => Promise<AppsLoadV2>) {
+async function boot(apps: BootAppV2[], appsLoader?: () => Promise<AppsLoad>) {
 	vi.stubGlobal('reportError', vi.fn());
 	const { kernel, journal } = await createTestKernel({
 		boot: bootOf(apps),
@@ -51,7 +51,7 @@ async function boot(apps: BootAppV2[], appsLoader?: () => Promise<AppsLoadV2>) {
 	return { kernel, journal };
 }
 
-async function partsOf(apps: BootAppV2[], appsLoader: () => Promise<AppsLoadV2>) {
+async function partsOf(apps: BootAppV2[], appsLoader: () => Promise<AppsLoad>) {
 	const parts = await createKernelParts({
 		store: new MemoryAdapter(),
 		storeKind: 'memory',
@@ -66,12 +66,12 @@ async function partsOf(apps: BootAppV2[], appsLoader: () => Promise<AppsLoadV2>)
 	return parts;
 }
 
-const listOf = async (kernel: LoamKernelV5) =>
-	(await kernel.call<{ active: string | null; apps: AppSummaryV2[] }>('app-list')).data;
+const listOf = async (kernel: LoamKernel) =>
+	(await kernel.call<{ active: string | null; apps: AppSummary[] }>('app-list')).data;
 
 describe('stage A: the apps from their boot records', () => {
 	it('lists each in rail order, loading or refused, with its levels, and loads nothing', async () => {
-		const loader = vi.fn<() => Promise<AppsLoadV2>>(() => new Promise(() => {}));
+		const loader = vi.fn<() => Promise<AppsLoad>>(() => new Promise(() => {}));
 		const { kernel, journal } = await boot(
 			[
 				record('hello', { title: 'Hi', order: 2, scopeLevels: ['workspace', 'project'] }),
@@ -229,7 +229,7 @@ describe('stage B, when it cannot read the apps', () => {
 
 		const opened = await kernel.call('app-open', { instance: 'hello' });
 		expect(opened.data).toEqual({ active: 'hello', previous: null });
-		const detail = await kernel.call<AppDetailV1>('app-get', { instance: 'hello' });
+		const detail = await kernel.call<AppDetail>('app-get', { instance: 'hello' });
 		expect(detail.data?.state).toBe('failed');
 		// Its record is the boot record's, so its parts are the ones it declared.
 		expect(detail.data?.surfaces).toEqual(['sidebar', 'panel']);

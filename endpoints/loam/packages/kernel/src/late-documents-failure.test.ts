@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createKernel } from './kernel.js';
 import { createFixedEnvironment } from './testing.js';
 
-vi.mock('./late/documents.js', () => {
+vi.mock('./documents/documents.js', () => {
 	throw new Error('The documents chunk did not load');
 });
 

@@ -11,7 +11,7 @@
  */
 
 import { css, FASTElement, html, Observable, observable } from '@lushly-dev/fast-element';
-import type { LoamKernelV5 } from '@lushly-dev/loam-kernel';
+import type { LoamKernel } from '@lushly-dev/loam-kernel';
 import type { LoamEditorFrame } from './editor-frame.js';
 import type { LoamEditorGroup } from './editor-group.js';
 import type { Life, notSaved, place } from './editor-parts.js';
@@ -21,7 +21,7 @@ export interface ViewMove {
 	/** The group its frame is in, which its tab left. */
 	from: LoamEditorGroup;
 	life: Life;
-	kernel: LoamKernelV5;
+	kernel: LoamKernel;
 	/** Its save, which only the person's own move asks for: another's never saves the person's draft (T-S2). */
 	save(): Promise<boolean>;
 	/** Whether the person moved it, by the tab's menu, or chose Save in its placeholder. */
@@ -122,7 +122,12 @@ const template = html<LoamEditorHeld>`
 			<button class="action" type="button" ?disabled="${(x) => x.busy}" @click="${(x) => x.back()}">
 				Move back
 			</button>
-			<button class="action" type="button" ?disabled="${(x) => x.busy}" @click="${(x) => x.save()}">
+			<button
+				class="action primary"
+				type="button"
+				?disabled="${(x) => x.busy}"
+				@click="${(x) => x.save()}"
+			>
 				Save
 			</button>
 		</div>
@@ -155,8 +160,14 @@ const styles = css`
 		gap: var(--space-inline-sm);
 	}
 	.action {
+		box-sizing: border-box;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
 		min-block-size: var(--size-target-natural);
-		padding-inline: var(--space-inline-md);
+		min-inline-size: var(--size-target-natural);
+		padding-block: 0;
+		padding-inline: var(--size-space-lg);
 		border: 1px solid var(--color-action-secondary-border);
 		border-radius: var(--radius-md);
 		background: var(--color-action-secondary-background);
@@ -166,22 +177,72 @@ const styles = css`
 		line-height: var(--type-label-sm-line);
 		font-weight: var(--type-label-sm-weight);
 		cursor: pointer;
+		transition:
+			background-color var(--duration-fast) var(--easing-standard),
+			color var(--duration-fast) var(--easing-standard),
+			border-color var(--duration-fast) var(--easing-standard),
+			box-shadow var(--duration-fast) var(--easing-standard);
 	}
-	.action:hover {
+	.action:not(:disabled):hover {
 		background: var(--color-action-secondary-hover);
+	}
+	.action:not(:disabled):active {
+		background: var(--color-action-secondary-pressed);
+	}
+	.action.primary {
+		border-color: transparent;
+		background: var(--color-action-primary-background);
+		color: var(--color-action-primary-text);
+		box-shadow: var(--shadow-control);
+	}
+	.action.primary:not(:disabled):hover {
+		background: var(--color-action-primary-hover);
+	}
+	.action.primary:not(:disabled):active {
+		background: var(--color-action-primary-pressed);
+		box-shadow: none;
+	}
+	.action:disabled {
+		opacity: 0.55;
+		border-color: var(--color-action-secondary-border);
+		cursor: not-allowed;
+		background: var(--color-action-secondary-background);
+		color: var(--color-action-secondary-text);
+		box-shadow: none;
 	}
 	.action:focus-visible {
 		outline: var(--shell-size-focus) solid var(--color-focus-ring);
 		outline-offset: var(--size-space-xs);
 	}
-	@media (forced-colors: active) {
+	@media (prefers-reduced-motion: reduce) {
 		.action {
+			transition: none;
+		}
+	}
+	@media (forced-colors: active) {
+		.action,
+		.action.primary {
 			background: ButtonFace;
 			color: ButtonText;
+			box-shadow: none;
 			border-color: ButtonText;
+		}
+		.action:not(:disabled):hover,
+		.action:not(:disabled):active,
+		.action.primary:not(:disabled):hover,
+		.action.primary:not(:disabled):active {
+			border-color: Highlight;
+			background: Highlight;
+			color: HighlightText;
 		}
 		.action:focus-visible {
 			outline-color: Highlight;
+		}
+		.action:disabled,
+		.action.primary:disabled {
+			border-color: GrayText;
+			background: ButtonFace;
+			color: GrayText;
 		}
 	}
 `;

@@ -1,6 +1,6 @@
 /**
  * @fileoverview The tools the relay knows (phase 6 specification, 8.2): each enabled instance discovered exactly as the
- * browser's kernel discovers it, by the kernel's own `discoverInstance`, over a server-side `MountTransportV2` on AFD's
+ * browser's kernel discovers it, by the kernel's own `discoverInstance`, over a server-side `MountTransport` on AFD's
  * `StreamableHttpTransport` carrying the deployer's bearer. The catalog it returns decides 8.1's exposure and pinning.
  * At start and every 10 minutes; a command not in the catalog triggers one rediscovery, never more often than once per
  * 30 seconds an instance. Discovery is the relay's alone and is never answered to a browser (8.3).
@@ -12,7 +12,7 @@ import {
 	type InstanceCatalogV1,
 	type McpTool,
 	type McpToolCallResult,
-	type MountTransportV2,
+	type MountTransport,
 } from '@lushly-dev/loam-kernel/mounted';
 import type { ManifestV2, ProjectionAppV1 } from '@lushly-dev/loam-manifest';
 
@@ -56,7 +56,7 @@ export function serverTransport(
 	url: string,
 	bearer: string | undefined,
 	fetcher: typeof fetch = fetch
-): MountTransportV2 {
+): MountTransport {
 	const session: { id?: string } = {};
 	const transport = new StreamableHttpTransport(url, {
 		clientName: 'loam-host',

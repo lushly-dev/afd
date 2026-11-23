@@ -8,8 +8,8 @@ import { type DataAdapter, MemoryAdapter } from '@lushly-dev/local-db';
 import { IndexedDbAdapter } from '@lushly-dev/local-db/indexeddb';
 import { IDBFactory } from 'fake-indexeddb';
 import { describe, expect, it } from 'vitest';
-import { USAGE_RECOUNT_MS } from '../late/limit-commands.js';
 import { createKernelLimits, LIMIT_DEFAULTS } from '../limits.js';
+import { USAGE_RECOUNT_MS } from '../settings/limit-commands.js';
 import {
 	type AppStoreRecord,
 	createAppStore,

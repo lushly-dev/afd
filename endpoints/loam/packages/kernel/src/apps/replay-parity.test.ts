@@ -22,8 +22,8 @@ import { APPROVAL_HEALTH_TABLE } from '../copilot/health.js';
 import { PAGE_DECIDED } from '../errors.js';
 import type { NestedRerunV1 } from '../journal-order.js';
 import { createKernelParts } from '../kernel.js';
-import { NOTIFICATION_TABLE } from '../late/notifications.js';
 import { createScopedWorkspace, type ScopedWorkspace, scopedPackages } from '../scope/fixtures.js';
+import { NOTIFICATION_TABLE } from '../settings/notifications.js';
 import {
 	createFixedEnvironment,
 	createFixturePorts,
@@ -31,9 +31,9 @@ import {
 	replayKernel,
 } from '../testing.js';
 import { PROBE_DOCUMENTS_DEFINITION, PROBE_DOCUMENTS_MANIFEST } from '../testing-documents.js';
-import type { LoamKernelV5, McpToolCallResult, MountTransportV2 } from '../types.js';
+import type { LoamKernel, McpToolCallResult, MountTransport } from '../types.js';
 
-const kernels: LoamKernelV5[] = [];
+const kernels: LoamKernel[] = [];
 afterEach(async () => {
 	await Promise.all(kernels.splice(0).map((kernel) => kernel.dispose()));
 	listeners.clear();
@@ -504,7 +504,7 @@ interface Served {
 	calls?: { count: number };
 }
 
-function mountedTransport(served: Served = {}): MountTransportV2 {
+function mountedTransport(served: Served = {}): MountTransport {
 	const asResult = (body: unknown): McpToolCallResult => ({ structuredContent: body });
 	const tools = served.tools ?? (() => ['files-read', 'files-write']);
 	let writes = 0;
@@ -742,7 +742,7 @@ describe('#2117: kernel records, WAR ordering, kernel-run reads, and hosted MCP 
 		const origBatch = store.batch.bind(store);
 		let createdDocId: string | undefined;
 		let readPromise: Promise<unknown> | undefined;
-		let kernelRef: LoamKernelV5 | undefined;
+		let kernelRef: LoamKernel | undefined;
 		store.batch = (async (ops: Parameters<MemoryAdapter['batch']>[0]) => {
 			const res = await origBatch(ops);
 			if (!createdDocId && kernelRef) {
@@ -802,7 +802,7 @@ describe('#2117: kernel records, WAR ordering, kernel-run reads, and hosted MCP 
 		const store = new MemoryAdapter();
 		const origList = store.list.bind(store);
 		let writePromise: Promise<unknown> | undefined;
-		let kernelRef: LoamKernelV5 | undefined;
+		let kernelRef: LoamKernel | undefined;
 		let triggerWrite = false;
 		store.list = (async <T>(table: string, filter?: Parameters<MemoryAdapter['list']>[1]) => {
 			const res = await origList<T>(table, filter);
@@ -943,7 +943,7 @@ describe('#2117: kernel records, WAR ordering, kernel-run reads, and hosted MCP 
 		const delayedJournal = new DelayedJournal('project-list');
 		const store = new MemoryAdapter();
 		const origBatch = store.batch.bind(store);
-		let kernelRef: LoamKernelV5 | undefined;
+		let kernelRef: LoamKernel | undefined;
 		let readWhileWriting: Promise<unknown> | undefined;
 		let docListWhileWriting: Promise<unknown> | undefined;
 		let trigger = false;

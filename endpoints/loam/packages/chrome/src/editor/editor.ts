@@ -12,7 +12,7 @@
  */
 
 import { type FASTElement, Updates } from '@lushly-dev/fast-element';
-import type { KernelEventV4, LoamKernelV5 } from '@lushly-dev/loam-kernel';
+import type { KernelEvent, LoamKernel } from '@lushly-dev/loam-kernel';
 import type { DocumentTypeV1 } from '@lushly-dev/loam-sdk';
 import type { AskedClose } from '../elements/events.js';
 import type { LoamShell } from '../elements/shell.js';
@@ -81,7 +81,7 @@ export function editorOf(shell: LoamShell): EditorController | undefined {
 
 export class EditorController implements FrameListener {
 	readonly #shell: LoamShell;
-	readonly #kernel: LoamKernelV5;
+	readonly #kernel: LoamKernel;
 	readonly #area: LoamEditorArea;
 	readonly #groups = new Map<string, LoamEditorGroup>();
 	/** Each tab's frame, by tab id, in the scope that is rendered. */
@@ -134,7 +134,7 @@ export class EditorController implements FrameListener {
 
 	constructor(shell: LoamShell) {
 		this.#shell = shell;
-		this.#kernel = shell.kernel as LoamKernelV5;
+		this.#kernel = shell.kernel as LoamKernel;
 		this.#area = shell.ownerDocument.createElement(editorAreaDefinition.name) as LoamEditorArea;
 		const view = shell.ownerDocument.defaultView ?? window;
 		this.#kernel.subscribe((event) => this.#onEvent(event));
@@ -565,7 +565,7 @@ export class EditorController implements FrameListener {
 
 	// ─── What the kernel says ──────────────────────────────────────────────────────
 
-	#onEvent(event: KernelEventV4): void {
+	#onEvent(event: KernelEvent): void {
 		// The person's own move, from the tab's menu or an undo, may save a view editor before it (`editor-move.ts`).
 		if (event.command === 'editor-move' && event.success) {
 			this.#moved = event.interface === 'palette';

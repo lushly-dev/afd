@@ -25,7 +25,7 @@ import {
 	type DirectCommandRegistry,
 } from '@lushly-dev/afd-server/direct';
 import { SCOPE_FIELD } from '../scope/field.js';
-import type { CallOptionsV5, LoamKernelV5, ScopeV1 } from '../types.js';
+import type { CallOptions, LoamKernel, ScopeV1 } from '../types.js';
 
 /** The actor every inbound client runs as (10.8): one agent, which the journal records. */
 export const INBOUND_AGENT = 'loam-inbound';
@@ -92,7 +92,7 @@ export interface InboundCommandsV1 {
 
 export interface InboundSourceV1 {
 	/** The kernel's agent interface, which every proxy calls. */
-	agent: Pick<LoamKernelV5['agent'], 'call'>;
+	agent: Pick<LoamKernel['agent'], 'call'>;
 	/** The same object until the kernel's command set changes. */
 	commands(): InboundCommandsV1;
 }
@@ -158,7 +158,7 @@ function proxy(command: ZodCommandDefinition, source: InboundSourceV1): ZodComma
 		...command,
 		expose: { ...command.expose, mcp: true },
 		handler: async (input: unknown, context: { scope?: ScopeV1 }) => {
-			const options: CallOptionsV5 = {
+			const options: CallOptions = {
 				agent: INBOUND_AGENT,
 				// No scope in `_meta` is the workspace, as on the hosted server, never what the person has open.
 				scope: context.scope ?? 'workspace',

@@ -32,13 +32,13 @@ import {
 	PROBE_DOCUMENTS_MANIFEST,
 	type ScopedWorkspace,
 } from '../testing.js';
-import type { LoamKernelV5 } from '../types.js';
+import type { LoamKernel } from '../types.js';
 import type { AccessInputV2, MembershipV1 } from './access.js';
 import { appInput, filled, NOT_CALLED, SHELL_INPUTS } from './call-inputs.js';
 import { SOMEONE_ELSE, scopedPackages } from './fixtures.js';
 import type { ScopeV1 } from './records.js';
 
-const kernels: LoamKernelV5[] = [];
+const kernels: LoamKernel[] = [];
 afterEach(async () => {
 	await Promise.all(kernels.splice(0).map((kernel) => kernel.dispose()));
 });
@@ -553,17 +553,17 @@ describe('P4-E2: the type and the scan (section 19)', () => {
 		const sources: Record<string, string> = {
 			'scope/access.ts': read('./access.ts'),
 			'scope/middleware.ts': read('./middleware.ts'),
-			'late/port-refusals.ts': read('../late/port-refusals.ts'),
-			'late/owners.ts': read('../late/owners.ts'),
-			'late/auth-gate.ts': read('../late/auth-gate.ts'),
+			'apps/port-refusals.ts': read('../apps/port-refusals.ts'),
+			'scope/owners.ts': read('./owners.ts'),
+			'identity/auth-gate.ts': read('../identity/auth-gate.ts'),
 			// The port's list names the two commands an app may call with the grant, and nothing else of settings.
-			'late/port-callable.ts': read('../late/port-callable.ts').replace(
+			'apps/port-callable.ts': read('../apps/port-callable.ts').replace(
 				/'setting-(get|list)'|'experiment-check'|grants\.has\('settings'\)/g,
 				''
 			),
 		};
-		const identity = read('../late/identity-commands.ts');
-		sources['late/identity-commands.ts humanRequired'] = identity.slice(
+		const identity = read('../identity/identity-commands.ts');
+		sources['identity/identity-commands.ts humanRequired'] = identity.slice(
 			identity.indexOf('humanRequired(')
 		);
 		for (const [path, source] of Object.entries(sources)) {

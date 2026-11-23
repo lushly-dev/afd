@@ -15,16 +15,16 @@ import type { LoamKernelErrorCode } from '../errors.js';
 import type { StoreOrderV1 } from '../journal-order.js';
 import { appLayoutId } from '../layout.js';
 import type { KernelLimits } from '../limits.js';
-import type { OverlayStore } from '../overlays.js';
+import type { OverlayStore } from '../overlays/store.js';
 import type { ScopeRuntime } from '../scope/runtime.js';
 import type { ShellState } from '../shell-state.js';
-import type { CallOptionsV1, CommandSummaryV1, KernelPortsV1 } from '../types.js';
+import type { CallOptions, CommandSummary, KernelPorts } from '../types.js';
 import type { StoreQuota } from './store.js';
 
 export interface AppsHost {
 	deployment: ProjectionV4;
 	/** Absent when the host gave none: each app is then refused, and not the kernel. */
-	ports?: KernelPortsV1;
+	ports?: KernelPorts;
 	store: DataAdapter;
 	/** Every command name the shell and `options.commands` hold. */
 	taken: ReadonlySet<string>;
@@ -45,7 +45,7 @@ export interface AppsHost {
 	runAs<T>(
 		name: string,
 		input: unknown,
-		options: CallOptionsV1 | undefined,
+		options: CallOptions | undefined,
 		fields: KernelCallFields,
 		unqueued?: true
 	): Promise<CommandResult<T>>;
@@ -89,7 +89,7 @@ export interface AppsHost {
 export type AppsHostInput = Omit<AppsHost, 'commandRows'> & {
 	palette(): {
 		commands: ReadonlyArray<{ name: string; inputSchema: unknown; destructive?: boolean }>;
-		rows: readonly CommandSummaryV1[];
+		rows: readonly CommandSummary[];
 	};
 };
 

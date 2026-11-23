@@ -28,10 +28,10 @@ import {
 	seedProjects,
 } from '../testing.js';
 import { createFixturePorts } from '../testing-probe.js';
-import type { LoamKernelV5, ScopeV1, ViewBrokerV1 } from '../types.js';
+import type { LoamKernel, ScopeV1, ViewBroker } from '../types.js';
 import { createAppStore } from './store.js';
 
-const kernels: LoamKernelV5[] = [];
+const kernels: LoamKernel[] = [];
 afterEach(async () => {
 	await Promise.all(kernels.splice(0).map((kernel) => kernel.dispose()));
 });
@@ -479,7 +479,7 @@ describe("P2-E7: a view's broker is its surface's", () => {
 
 	it("runs a view's tools/call at its surface's scope, and ignores a scope in its `_meta`", async () => {
 		const { kernel, store } = await viewKernel();
-		const view = kernel.appPort('probev').surface({ scope: ATLAS }).view as ViewBrokerV1;
+		const view = kernel.appPort('probev').surface({ scope: ATLAS }).view as ViewBroker;
 		const answer = await view.toolsCall({
 			name: 'probev-note',
 			arguments: { text: 'atlas' },
@@ -507,7 +507,7 @@ describe("P2-E7: a view's broker is its surface's", () => {
 	it("7. refuses a view's modal within the cooldown, journaled", async () => {
 		const { kernel, journal } = await viewKernel();
 		await kernel.call('app-open', { instance: 'probev' });
-		const view = kernel.appPort('probev').surface({ scope: WORKSPACE }).view as ViewBrokerV1;
+		const view = kernel.appPort('probev').surface({ scope: WORKSPACE }).view as ViewBroker;
 		const modal = { name: 'modal-open', arguments: { title: 'Sure?', body: 'Say so.' } };
 		const opened = (await view.toolsCall(modal)).structuredContent as CommandResult<{
 			overlayId: string;
@@ -527,7 +527,7 @@ describe("P2-E7: a view's broker is its surface's", () => {
 	it("7. holds a view's modal sent while its modal is open, and refuses it once a person closes that one (#1054)", async () => {
 		const { kernel, journal } = await viewKernel();
 		await kernel.call('app-open', { instance: 'probev' });
-		const view = kernel.appPort('probev').surface({ scope: WORKSPACE }).view as ViewBrokerV1;
+		const view = kernel.appPort('probev').surface({ scope: WORKSPACE }).view as ViewBroker;
 		const modal = { name: 'modal-open', arguments: { title: 'Sure?', body: 'Say so.' } };
 		const opened = (await view.toolsCall(modal)).structuredContent as CommandResult<{
 			overlayId: string;
@@ -558,7 +558,7 @@ describe("P2-E7: a view's broker is its surface's", () => {
 	it("starts no cooldown when a view's modal closes with no person's dismissal, and takes no timeout from a caller", async () => {
 		const { kernel } = await viewKernel();
 		await kernel.call('app-open', { instance: 'probev' });
-		const view = kernel.appPort('probev').surface({ scope: WORKSPACE }).view as ViewBrokerV1;
+		const view = kernel.appPort('probev').surface({ scope: WORKSPACE }).view as ViewBroker;
 		const modal = { name: 'modal-open', arguments: { title: 'Sure?', body: 'Say so.' } };
 		const opened = (await view.toolsCall(modal)).structuredContent as CommandResult<{
 			overlayId: string;
@@ -594,7 +594,7 @@ describe("P2-E7: a view's broker is its surface's", () => {
 	it("answers a view its own prompt's result, and refuses another owner's id (the review's 7)", async () => {
 		const { kernel } = await viewKernel();
 		await kernel.call('app-open', { instance: 'probev' });
-		const view = kernel.appPort('probev').surface({ scope: WORKSPACE }).view as ViewBrokerV1;
+		const view = kernel.appPort('probev').surface({ scope: WORKSPACE }).view as ViewBroker;
 		const opened = (await view.toolsCall({ name: 'prompt-open', arguments: { title: 'Name?' } }))
 			.structuredContent as CommandResult<{ overlayId: string }>;
 		const answer = view.overlayResult?.({ overlayId: opened.data?.overlayId });
@@ -618,7 +618,7 @@ describe("P2-E7: a view's broker is its surface's", () => {
 	it("opens nothing for the next person: a view's question waiting at a change of person is refused", async () => {
 		const { kernel } = await viewKernel();
 		await kernel.call('app-open', { instance: 'probev' });
-		const view = kernel.appPort('probev').surface({ scope: WORKSPACE }).view as ViewBrokerV1;
+		const view = kernel.appPort('probev').surface({ scope: WORKSPACE }).view as ViewBroker;
 		const held = (
 			await view.toolsCall({
 				name: 'modal-open',
@@ -660,7 +660,7 @@ describe("P2-E7: a view's broker is its surface's", () => {
 });
 
 /** The probe app without its optional `projects` grant. */
-async function probeKernel(): Promise<LoamKernelV5> {
+async function probeKernel(): Promise<LoamKernel> {
 	const manifest = {
 		...PROBE_MANIFEST,
 		grants: PROBE_MANIFEST.grants?.filter((grant) => grant.name !== 'projects'),

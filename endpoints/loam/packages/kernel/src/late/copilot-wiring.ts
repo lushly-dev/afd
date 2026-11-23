@@ -16,14 +16,14 @@ import type { CopilotConfirmationCardV1, CopilotParts } from '../copilot/command
 import type { AccessActorV1 } from '../scope/access.js';
 import { personOf } from '../scope/access.js';
 import { sessionActor } from '../scope/middleware.js';
+import { teamListed } from '../scope/owners.js';
 import type { ScopeV1 } from '../scope/records.js';
 import type { ScopeRuntime } from '../scope/runtime.js';
-import type { Autonomy } from './autonomy.js';
-import type { Confirmations } from './confirmations.js';
-import { DOCUMENT_KIT } from './document-kit.js';
+import { slugOf } from '../scope/scope-commands.js';
+import type { Autonomy } from '../settings/autonomy.js';
+import type { Confirmations } from '../settings/confirmations.js';
+import { DOCUMENT_KIT } from './command-kit.js';
 import type { LateCommandDeps } from './index.js';
-import { teamListed } from './owners.js';
-import { slugOf } from './scope-commands.js';
 
 /** The inbox's table (phase 4's 10.1), where a confirmation is a row. */
 const TABLE = 'notification';

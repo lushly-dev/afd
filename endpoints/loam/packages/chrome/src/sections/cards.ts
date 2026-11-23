@@ -3,7 +3,7 @@
  * never markup (phase 2 specification, 7.7 and 13): what an app returned is always text.
  */
 
-import type { ProjectSummaryRowV1 } from '@lushly-dev/loam-kernel';
+import type { ProjectSummaryRow } from '@lushly-dev/loam-kernel';
 import { el, numberOf } from './dom.js';
 
 export { dateOf, el, isoOf, numberOf } from './dom.js';
@@ -30,7 +30,7 @@ export interface LinkView {
 
 /** One card, as the template shows it: text, and URLs the scheme formatted. */
 export interface CardView {
-	row: ProjectSummaryRowV1;
+	row: ProjectSummaryRow;
 	url: string | undefined;
 	recent: Array<LinkView & { updated: string; iso: string }>;
 	links: LinkView[];

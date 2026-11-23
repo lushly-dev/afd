@@ -27,4 +27,4 @@ export {
 } from './scope/access.js';
 export { SCOPE_V1 } from './scope/field.js';
 export type { ProjectV1, ScopeV1, WorkspaceAppV1 } from './scope/records.js';
-export type { McpTool, McpToolCallResult, MountTransportV2 } from './types.js';
+export type { McpTool, McpToolCallResult, MountTransport } from './types.js';

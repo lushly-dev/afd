@@ -12,10 +12,10 @@ import {
 } from '@lushly-dev/afd-core/journal-indexeddb';
 import {
 	createKernelParts,
-	type KernelEnvironmentV0,
-	type KernelOptionsV5,
+	type KernelEnvironment,
+	type KernelOptions,
 	type KernelParts,
-	type LoamKernelV5,
+	type LoamKernel,
 } from '@lushly-dev/loam-kernel';
 import { LocalAuthAdapter } from '@lushly-dev/loam-kernel/local-auth';
 
@@ -32,7 +32,7 @@ export const OTHER_TAB_NOTICE = {
 } as const;
 
 /** `window.matchMedia` as the kernel's environment. */
-export function mediaEnvironment(view: Pick<Window, 'matchMedia'>): KernelEnvironmentV0 {
+export function mediaEnvironment(view: Pick<Window, 'matchMedia'>): KernelEnvironment {
 	return {
 		matches: (query) => view.matchMedia(query).matches,
 		onChange(query, listener) {
@@ -44,7 +44,7 @@ export function mediaEnvironment(view: Pick<Window, 'matchMedia'>): KernelEnviro
 }
 
 export interface HostKernelOptions {
-	environment: KernelEnvironmentV0;
+	environment: KernelEnvironment;
 	/** Passed to the IndexedDB classes, for tests over `fake-indexeddb`. */
 	indexedDB?: IDBFactory;
 	/** The Web Locks API, for tests; the platform's by default. */
@@ -59,21 +59,21 @@ export interface HostKernelOptions {
 	 * What `readBoot` read of `deployment.json`, and what stage B reads: the kernel resolves after stage
 	 * A, the same for every deployment (phase 2 specification, 2.2).
 	 */
-	boot?: KernelOptionsV5['boot'];
-	appsLoader?: KernelOptionsV5['appsLoader'];
+	boot?: KernelOptions['boot'];
+	appsLoader?: KernelOptions['appsLoader'];
 	/** The URL's project, by slug, or `null` for workspace level (phase 2 specification, 6.3). */
-	initialScope?: KernelOptionsV5['initialScope'];
+	initialScope?: KernelOptions['initialScope'];
 	/**
 	 * A `provider` deployment's adapter, membership and ports, from the probe (phase 3 specification, 4.2). Absent:
 	 * `local`, with a `LocalAuthAdapter` per page (D162).
 	 */
 	auth?: AuthAdapter;
-	membership?: KernelOptionsV5['membership'];
-	identityPorts?: KernelOptionsV5['identityPorts'];
+	membership?: KernelOptions['membership'];
+	identityPorts?: KernelOptions['identityPorts'];
 	/** The deployment's copilot providers and the host's runner (phase 5 specification, 3.2 and 4.1). */
-	copilot?: KernelOptionsV5['copilot'];
+	copilot?: KernelOptions['copilot'];
 	/** What the shell answers for `popover-open`'s anchors once it renders (phase 4 specification, 6.3). */
-	overlayAnchors?: KernelOptionsV5['overlayAnchors'];
+	overlayAnchors?: KernelOptions['overlayAnchors'];
 }
 
 const LOCK_RETRY_MS = 100;
@@ -81,7 +81,7 @@ const LOCK_RETRY_MS = 100;
 export type HostKernel =
 	| {
 			kind: 'ready';
-			kernel: LoamKernelV5;
+			kernel: LoamKernel;
 			journal: IndexedDbJournalSink;
 			/** What the desktop's inbound dispatcher reads (phase 6 specification, 10.8). */
 			inboundCommands: KernelParts['inboundCommands'];

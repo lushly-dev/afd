@@ -29,7 +29,7 @@ import {
 	documentsPorts,
 	type ScopedWorkspace,
 } from './testing.js';
-import type { KernelEventV3 } from './types.js';
+import type { KernelEvent } from './types.js';
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -362,7 +362,7 @@ describe.each(['auto', 'legacy'] as const)('P2-E5: the scope over MCP (%s)', (mo
 		const mine = await create('Mine');
 		const theirs = await create('Theirs');
 		await kernel.call('document-open', { document: mine });
-		const heard: KernelEventV3[] = [];
+		const heard: KernelEvent[] = [];
 		kernel.subscribe((event) => heard.push(event));
 		const client = await connect(await serve(workspace), mode);
 		const at = { 'dev.loam/scope': { workspace: 'personal' } };
@@ -410,7 +410,7 @@ describe.each(['auto', 'legacy'] as const)('P2-E5: the scope over MCP (%s)', (mo
 		const note = (
 			await kernel.call<{ id: string }>('document-create', { type: 'probe', title: 'Only' })
 		).data?.id as string;
-		const heard: KernelEventV3[] = [];
+		const heard: KernelEvent[] = [];
 		kernel.subscribe((event) => heard.push(event));
 		const client = await connect(await serve(workspace), mode);
 		await client.call(
@@ -477,7 +477,7 @@ describe.each(['auto', 'legacy'] as const)('P2-E5: the scope over MCP (%s)', (mo
 			email: 'person@example.com',
 			password: 'x',
 		});
-		const heard: KernelEventV3[] = [];
+		const heard: KernelEvent[] = [];
 		kernel.subscribe((event) => heard.push(event));
 		const client = await connect(await serve(workspace), mode);
 		const made = await client.call<{ id: string }>(
@@ -511,7 +511,7 @@ describe.each(['auto', 'legacy'] as const)('P2-E5: the scope over MCP (%s)', (mo
 			email: 'person@example.com',
 			password: 'x',
 		});
-		const heard: KernelEventV3[] = [];
+		const heard: KernelEvent[] = [];
 		kernel.subscribe((event) => heard.push(event));
 		const client = await connect(await serve(workspace), mode);
 		const project = shared.data?.id as string;

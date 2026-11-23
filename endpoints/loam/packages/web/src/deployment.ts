@@ -4,7 +4,7 @@
  * explains a projection `readBoot` could not read at all, for "Loam cannot start".
  */
 
-import type { AppsLoadV2 } from '@lushly-dev/loam-kernel';
+import type { AppsLoad } from '@lushly-dev/loam-kernel';
 import { readProjection } from '@lushly-dev/loam-manifest/validate';
 import { type MountChunk, type ViewChunk, webPorts } from './ports.js';
 
@@ -15,7 +15,7 @@ export function readOrNotice(
 	base: string,
 	loadView: () => Promise<ViewChunk>,
 	loadMount: () => Promise<MountChunk>
-): AppsLoadV2 {
+): AppsLoad {
 	const read = readProjection(raw);
 	if (read.ok) {
 		const ports = webPorts(

@@ -5,13 +5,13 @@
  * Over a fake document and window, since the channel touches no more of them than this.
  */
 
-import type { FrameAdmitV1 } from '@lushly-dev/loam-kernel';
+import type { FrameAdmit } from '@lushly-dev/loam-kernel';
 import { describe, expect, it, vi } from 'vitest';
 import { ChannelError, ProxyChannel, rpcErrorOf } from './channel.js';
 
 const ORIGIN = 'https://sandbox.test';
 
-function open(admit?: FrameAdmitV1) {
+function open(admit?: FrameAdmit) {
 	const posted: unknown[] = [];
 	const contentWindow = { postMessage: (message: unknown) => posted.push(message) };
 	let listener: ((event: unknown) => void) | undefined;
@@ -45,7 +45,7 @@ const REFUSED = {
 
 describe('the channel gate (section 11)', () => {
 	it('calls admit first and answers a refused request with the refusal, never dispatching it', async () => {
-		const admit = vi.fn<FrameAdmitV1>((message) =>
+		const admit = vi.fn<FrameAdmit>((message) =>
 			JSON.stringify(message).length > 100 ? REFUSED : undefined
 		);
 		const { channel, posted, send } = open(admit);

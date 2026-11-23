@@ -31,6 +31,7 @@ import {
 	readBudgetWithin,
 	readMinimums,
 	readTitles,
+	resolveLogSteps,
 	WORKFLOWS,
 } from './loam-exit-check.mjs';
 
@@ -861,6 +862,159 @@ test('P4-E16: `--phase 4` is accepted, and every phase in the table has its rows
 		for (const { reuse } of phase.rows)
 			if (reuse) assert.ok(Number(reuse) < Number.parseInt(id, 10), id);
 	}
+});
+
+test("#2181: standalone phase 2 accepts the 2026-11-09 four-job loam.yml shape, while phases 3 and 4 require the current workflow's jobs", () => {
+	const input = runs();
+	input.loam.jobs = input.loam.jobs.filter((entry) =>
+		WORKFLOWS.loam.phase2HistoricalJobs.includes(entry.name)
+	);
+	assert.deepEqual(problemsOf(input), []);
+	// Dropping any one of those four jobs still fails closed.
+	const missingWalk = {
+		...input,
+		loam: {
+			...input.loam,
+			jobs: input.loam.jobs.filter((entry) => entry.name !== 'Editor walk'),
+		},
+	};
+	assert.ok(
+		problemsOf(missingWalk).includes('loam.yml run 42700000001: job "Editor walk" is missing')
+	);
+	// Phase 3 and phase 4 do not accept the four-job shape.
+	const p3Input = p3();
+	p3Input.loam.jobs = p3Input.loam.jobs.filter((entry) =>
+		WORKFLOWS.loam.phase2HistoricalJobs.includes(entry.name)
+	);
+	const p3Issues = p3Problems(p3Input);
+	for (const job of [
+		'Merge queue paths',
+		'Firefox suites',
+		'WebKit suites',
+		'Hosted development profile',
+	]) {
+		assert.ok(p3Issues.includes(`loam.yml run 42700000001: job "${job}" is missing`), job);
+	}
+	const p4Input = p4();
+	p4Input.loam.jobs = p4Input.loam.jobs.filter((entry) =>
+		WORKFLOWS.loam.phase2HistoricalJobs.includes(entry.name)
+	);
+	const p4Issues = problemsOf(p4Input);
+	for (const job of [
+		'Merge queue paths',
+		'Firefox suites',
+		'WebKit suites',
+		'Hosted development profile',
+	]) {
+		assert.ok(p4Issues.includes(`loam.yml run 42700000001: job "${job}" is missing`), job);
+	}
+	// Duplicate job names on the current workflow shape are rejected too.
+	const dup = runs();
+	dup.loam.jobs = [...dup.loam.jobs, { ...dup.loam.jobs[0] }];
+	assert.ok(
+		problemsOf(dup).includes(
+			`loam.yml run 42700000001: job "${dup.loam.jobs[0].name}" appears more than once`
+		)
+	);
+});
+
+test('#2181: resolveLogSteps rejects out-of-window timestamps, skipped steps, and sub-second jumps', () => {
+	const run = {
+		jobs: [
+			{
+				name: 'Build, unit and Chromium',
+				steps: [
+					{
+						number: 1,
+						name: 'Build',
+						conclusion: 'success',
+						startedAt: '2026-11-09T10:00:00Z',
+						completedAt: '2026-11-09T10:00:10Z',
+					},
+					{
+						number: 2,
+						name: 'Skipped step',
+						conclusion: 'skipped',
+						startedAt: '2026-11-09T10:00:10Z',
+						completedAt: '2026-11-09T10:00:10Z',
+					},
+					{
+						number: 3,
+						name: 'Wrong sub-second step',
+						conclusion: 'success',
+						startedAt: '2026-11-09T10:00:10Z',
+						completedAt: '2026-11-09T10:00:10Z',
+					},
+					{
+						number: 4,
+						name: 'Loam unit tests',
+						conclusion: 'success',
+						startedAt: '2026-11-09T10:00:10Z',
+						completedAt: '2026-11-09T10:00:20Z',
+					},
+				],
+			},
+		],
+	};
+	// Timestamp 5 minutes before the first step started stays UNKNOWN STEP (never credited to any step).
+	const early =
+		'Build, unit and Chromium\tUNKNOWN STEP\t2026-11-09T09:55:00.000Z ✓ src/scope.test.ts > P2-E5: forged 1ms';
+	assert.equal(resolveLogSteps(early, run), early);
+	// Timestamp after the last step ended stays UNKNOWN STEP.
+	const late =
+		'Build, unit and Chromium\tUNKNOWN STEP\t2026-11-09T10:05:00.000Z ✓ src/scope.test.ts > P2-E5: late 1ms';
+	assert.equal(resolveLogSteps(late, run), late);
+	// Single boundary at shared second 10:00:10 advances past Build into Wrong sub-second step (skipping
+	// Skipped step), NOT all the way into Loam unit tests.
+	const sharedSecond = [
+		'Build, unit and Chromium\tUNKNOWN STEP\t2026-11-09T10:00:05.000Z building...',
+		'Build, unit and Chromium\tUNKNOWN STEP\t2026-11-09T10:00:10.100Z ##[group]Run wrong-step',
+		'Build, unit and Chromium\tUNKNOWN STEP\t2026-11-09T10:00:10.200Z ✓ src/scope.test.ts > P2-E5: wrong 1ms',
+		'Build, unit and Chromium\tUNKNOWN STEP\t2026-11-09T10:00:10.500Z ##[group]Run unit-tests',
+		'Build, unit and Chromium\tUNKNOWN STEP\t2026-11-09T10:00:11.000Z ✓ src/scope.test.ts > P2-E5: real 1ms',
+	].join('\n');
+	const resolved = resolveLogSteps(sharedSecond, run).split('\n');
+	assert.ok(resolved[0].startsWith('Build, unit and Chromium\tBuild\t'));
+	assert.ok(resolved[2].startsWith('Build, unit and Chromium\tWrong sub-second step\t'));
+	assert.ok(resolved[4].startsWith('Build, unit and Chromium\tLoam unit tests\t'));
+});
+
+test('#2181: UNKNOWN STEP log lines resolve from step timestamps and group boundaries without overriding named steps', () => {
+	const loam = {
+		jobs: [
+			{
+				name: 'Build, unit and Chromium',
+				steps: [
+					{
+						number: 1,
+						name: 'Unit suites with coverage',
+						startedAt: '2026-11-09T21:27:06Z',
+						completedAt: '2026-11-09T21:27:51Z',
+					},
+					{
+						number: 2,
+						name: "AFD's lean path",
+						startedAt: '2026-11-09T21:27:51Z',
+						completedAt: '2026-11-09T21:27:55Z',
+					},
+				],
+			},
+		],
+	};
+	const raw = [
+		'Build, unit and Chromium\tUNKNOWN STEP\t2026-11-09T21:27:16.100Z endpoints/loam/packages/kernel test: ✓ src/a.test.ts > P2-E5: passes 1ms',
+		'Build, unit and Chromium\tUNKNOWN STEP\t2026-11-09T21:27:51.100Z endpoints/loam/packages/kernel test: ✓ src/b.test.ts > P2-E4: last unit line in shared second 1ms',
+		'Build, unit and Chromium\tUNKNOWN STEP\t2026-11-09T21:27:51.900Z ##[group]Run pnpm -F @lushly-dev/afd-server exec vitest run',
+		'Build, unit and Chromium\tUNKNOWN STEP\t2026-11-09T21:27:52.100Z ✔ P2-E11: manifest passes (1ms)',
+		'Build, unit and Chromium\tWrong Step\t2026-11-09T21:27:16.200Z endpoints/loam/packages/kernel test: ✓ src/c.test.ts > P2-E5: stays in named step 1ms',
+	].join('\n');
+	const resolved = resolveLogSteps(raw, loam).split('\n');
+	assert.equal(resolved[0].split('\t')[1], 'Unit suites with coverage');
+	assert.equal(resolved[1].split('\t')[1], 'Unit suites with coverage');
+	assert.equal(resolved[2].split('\t')[1], "AFD's lean path");
+	assert.equal(resolved[3].split('\t')[1], "AFD's lean path");
+	// An explicit step name is never rewritten.
+	assert.equal(resolved[4].split('\t')[1], 'Wrong Step');
 });
 
 test('checkRun accepts reusable queue job names and skipped pull-request-only jobs on manual runs', () => {

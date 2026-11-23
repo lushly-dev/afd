@@ -18,8 +18,8 @@ import {
 	keysCollide,
 	resolveKeybindings,
 	whenHolds,
-} from './late/keybinding-resolve.js';
-import { RESERVED_CHORDS } from './late/setting-sections.js';
+} from './settings/keybinding-resolve.js';
+import { RESERVED_CHORDS } from './settings/setting-sections.js';
 
 const APPS: AppKeybinding[] = [
 	{ chord: 'Mod+Shift+H', command: 'hello-greet', instance: 'hello' },

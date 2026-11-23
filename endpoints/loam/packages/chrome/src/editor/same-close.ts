@@ -3,7 +3,7 @@
  * round, H), and the close prompt a tab's close asks, apart from the editor's elements so a unit reaches both.
  */
 
-import type { LoamKernelV5 } from '@lushly-dev/loam-kernel';
+import type { LoamKernel } from '@lushly-dev/loam-kernel';
 import type { AskedClose } from '../elements/events.js';
 
 /** The tab a close holds: its id, the scope it is shown in, and its document, as the page knows them. */
@@ -49,7 +49,7 @@ export const CLOSE_PROMPT = {
  * save ran, is asked the same in the shell's own modal, the person's gesture's, which only they answer (6.5).
  */
 export async function askClose(
-	kernel: LoamKernelV5,
+	kernel: LoamKernel,
 	modals: Map<string, (result: string, asked?: AskedClose) => void>,
 	tab: string,
 	scope: { scope: { workspace: string; project?: string } } | undefined,

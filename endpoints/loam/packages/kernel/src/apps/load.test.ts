@@ -15,9 +15,9 @@ import {
 	probeDeployment,
 	probeViewManifest,
 } from '../testing.js';
-import type { AppDetailV1, AppInstanceV1, AppSummaryV1, LoamKernelV5 } from '../types.js';
+import type { AppDetail, AppInstance, AppSummary, LoamKernel } from '../types.js';
 
-const kernels: LoamKernelV5[] = [];
+const kernels: LoamKernel[] = [];
 afterEach(async () => {
 	await Promise.all(kernels.splice(0).map((kernel) => kernel.dispose()));
 });
@@ -78,8 +78,8 @@ const mountedManifest = (id = 'umbel', transport: 'http' | 'stdio' = 'http') =>
 		mount: { prefix: id, transport },
 	});
 
-async function statusOf(kernel: LoamKernelV5, instance: string): Promise<AppSummaryV1 | undefined> {
-	const { data } = await kernel.call<{ apps: AppSummaryV1[] }>('app-list');
+async function statusOf(kernel: LoamKernel, instance: string): Promise<AppSummary | undefined> {
+	const { data } = await kernel.call<{ apps: AppSummary[] }>('app-list');
 	return data?.apps.find((app) => app.instance === instance);
 }
 
@@ -144,7 +144,7 @@ describe('P2-E13: E8: grants', () => {
 				},
 			},
 		});
-		const detail = (await kernel.call<AppDetailV1>('app-get', { instance: 'opt' })).data;
+		const detail = (await kernel.call<AppDetail>('app-get', { instance: 'opt' })).data;
 		expect(detail?.state).toBe('ready');
 		expect(detail?.grants).toEqual([
 			{ name: 'events', required: false, served: false, reason: 'Later.' },
@@ -237,9 +237,9 @@ describe('section 10: a bad app is reported and never stops the kernel', () => {
 		expect(status?.error?.suggestion).toContain('sidebar');
 		const opened = await kernel.call('app-open', { instance: 'probe' });
 		expect(opened.success).toBe(true);
-		expect(
-			(await kernel.call<AppDetailV1>('app-get', { instance: 'probe' })).data?.error?.code
-		).toBe('MANIFEST_UNKNOWN_SURFACE');
+		expect((await kernel.call<AppDetail>('app-get', { instance: 'probe' })).data?.error?.code).toBe(
+			'MANIFEST_UNKNOWN_SURFACE'
+		);
 		expect(() => kernel.appPort('probe')).toThrow(/no port/);
 	});
 
@@ -350,7 +350,7 @@ describe('mounted instances before discovery', () => {
 			[mounted('work', { prefix: 'work', audience: 'team' })],
 			{ 'apps/work/': { manifest: mountedManifest() } }
 		);
-		const { data } = await kernel.call<{ instances: AppInstanceV1[] }>('app-instance-list');
+		const { data } = await kernel.call<{ instances: AppInstance[] }>('app-instance-list');
 		expect(data?.instances).toEqual([
 			expect.objectContaining({
 				instance: 'work',
@@ -507,7 +507,7 @@ describe('app-list and app-get', () => {
 				'apps/beta/': { manifest: manifest('beta') },
 			}
 		);
-		const { data } = await kernel.call<{ active: null; apps: AppSummaryV1[] }>('app-list');
+		const { data } = await kernel.call<{ active: null; apps: AppSummary[] }>('app-list');
 		expect(data?.active).toBeNull();
 		expect(data?.apps.map((app) => [app.instance, app.order, app.title, app.icon])).toEqual([
 			['zeta', 5, 'Last name', 'system/folder'],
@@ -521,7 +521,7 @@ describe('app-list and app-get', () => {
 		const { kernel } = await boot([entry('probe')], {
 			'apps/probe/': { manifest: PROBE_MANIFEST, definition: probeDefinition() },
 		});
-		const detail = (await kernel.call<AppDetailV1>('app-get', { instance: 'probe' })).data;
+		const detail = (await kernel.call<AppDetail>('app-get', { instance: 'probe' })).data;
 		expect(detail?.version).toBe('1.2.3');
 		expect(detail?.trust).toBe('trusted');
 		expect(detail?.trustLine).toContain('Trusted, not sandboxed');
@@ -600,7 +600,7 @@ describe('the keybindings registry', () => {
 			'apps/one/': { manifest: manifest('one', chord('one')) },
 			'apps/two/': { manifest: manifest('two', chord('two')) },
 		});
-		const two = (await kernel.call<AppDetailV1>('app-get', { instance: 'two' })).data;
+		const two = (await kernel.call<AppDetail>('app-get', { instance: 'two' })).data;
 		expect(two?.state).toBe('ready');
 		expect(two?.notices).toEqual([expect.objectContaining({ code: 'KEYBINDING_CONFLICT' })]);
 		await kernel.call('app-open', { instance: 'two' });
@@ -625,7 +625,7 @@ describe('the keybindings registry', () => {
 			ui: { surfaces: { keybindings: [{ chord: 'Mod+Shift+N', command: 'needy-run' }] } },
 		});
 		const { kernel } = await boot([entry('needy')], { 'apps/needy/': { manifest: app } });
-		const detail = (await kernel.call<AppDetailV1>('app-get', { instance: 'needy' })).data;
+		const detail = (await kernel.call<AppDetail>('app-get', { instance: 'needy' })).data;
 		expect(detail?.notices).toEqual([expect.objectContaining({ code: 'KEYBINDING_NEEDS_INPUT' })]);
 		await kernel.call('app-open', { instance: 'needy' });
 		expect(kernel.listKeybindings().map((binding) => binding.chord)).not.toContain('Mod+Shift+N');

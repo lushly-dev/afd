@@ -5,7 +5,7 @@
  */
 
 import type { CommandError } from '@lushly-dev/afd-core';
-import type { KernelEnvironmentV0 } from './types.js';
+import type { KernelEnvironment } from './types.js';
 
 export const APPEARANCE_THEMES = ['system', 'light', 'dark', 'high-contrast'] as const;
 export const APPEARANCE_DENSITIES = ['comfortable', 'compact'] as const;
@@ -45,7 +45,7 @@ export function createDefaultAppearance(): AppearanceStateV0 {
  */
 export function resolveTheme(
 	theme: AppearanceThemeV0,
-	environment: KernelEnvironmentV0
+	environment: KernelEnvironment
 ): ResolvedThemeV0 {
 	if (theme !== 'system') return theme;
 	if (

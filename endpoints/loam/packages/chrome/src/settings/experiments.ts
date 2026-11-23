@@ -7,7 +7,7 @@
  * the switches, and the list is read again either way. Native controls, as the settings section's.
  */
 
-import type { LoamKernelV5 } from '@lushly-dev/loam-kernel';
+import type { LoamKernel } from '@lushly-dev/loam-kernel';
 import { type ExperimentRow, endWords, stateWords } from './experiments-words.js';
 import { el, SettingsElement } from './parts.js';
 
@@ -25,7 +25,7 @@ const failed = (answer: Answer): string =>
 		.join('. ');
 
 export class LoamExperimentsSection extends SettingsElement {
-	kernel: LoamKernelV5 | null = null;
+	kernel: LoamKernel | null = null;
 	scope: { workspace: string; project?: string } = { workspace: '' };
 	apps: ReadonlyArray<{ instance: string; title: string }> = [];
 	#reads = 0;

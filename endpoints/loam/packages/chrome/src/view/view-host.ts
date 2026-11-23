@@ -4,7 +4,7 @@
  * the port's `view` broker; everything from a view is untrusted (D54).
  */
 
-import type { ViewBrokerV1 } from '@lushly-dev/loam-kernel';
+import type { ViewBroker } from '@lushly-dev/loam-kernel';
 import type { DocumentRefV1 } from '@lushly-dev/loam-sdk';
 import type { ProxyChannel } from './channel.js';
 
@@ -34,7 +34,7 @@ export interface ViewHostContext {
 
 export interface ViewHostOptions {
 	channel: ProxyChannel;
-	broker: ViewBrokerV1;
+	broker: ViewBroker;
 	instance: string;
 	/** The kernel's interface version, as `hostInfo.version`. */
 	hostVersion: string;

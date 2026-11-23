@@ -4,7 +4,7 @@
  * commands only where the state differs; the URL holds only what the state names, and never a project the
  * actor may not see.
  */
-import type { AppSummaryV2, KernelEventV3, LoamKernelV5 } from '@lushly-dev/loam-kernel';
+import type { AppSummary, KernelEvent, LoamKernel } from '@lushly-dev/loam-kernel';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { RouterV1, RouteV1 } from './router.js';
 import { createUrlSync, type MainStateV1, routeOf, type UrlHostV1 } from './url-sync.js';
@@ -34,9 +34,9 @@ afterEach(async () => {
 
 const app = (
 	instance: string,
-	scopeLevels: AppSummaryV2['scopeLevels'],
-	state: AppSummaryV2['state'] = 'ready'
-) => ({ instance, scopeLevels, state }) as AppSummaryV2;
+	scopeLevels: AppSummary['scopeLevels'],
+	state: AppSummary['state'] = 'ready'
+) => ({ instance, scopeLevels, state }) as AppSummary;
 
 interface FixtureOptions {
 	/** `loam.scope`'s project id, which `view-state-get` answers. */
@@ -120,7 +120,7 @@ async function fixture(
 		},
 	};
 	const host: UrlHostV1 = {
-		kernel: kernel as unknown as LoamKernelV5,
+		kernel: kernel as unknown as LoamKernel,
 		base: BASE,
 		ownerDocument: {
 			defaultView: {
@@ -159,14 +159,14 @@ async function fixture(
 	return { calls, commands, moves, host, kernel, sync, timers };
 }
 
-const event = (extra: Partial<KernelEventV3>): KernelEventV3 =>
+const event = (extra: Partial<KernelEvent>): KernelEvent =>
 	({
 		command: 'scope-set',
 		interface: 'agent',
 		success: true,
 		mutation: true,
 		...extra,
-	}) as KernelEventV3;
+	}) as KernelEvent;
 
 describe('P6-D3: the desktop on a custom scheme', () => {
 	it('P6-D3: leaves the address where it is, since a loam: document cannot rewrite its path', async () => {

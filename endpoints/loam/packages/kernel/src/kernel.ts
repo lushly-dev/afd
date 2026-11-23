@@ -66,7 +66,7 @@ import {
 import type { LateParts } from './late/index.js';
 import { firstLayoutOf } from './layout.js';
 import { createKernelLimits, type KernelLimits } from './limits.js';
-import type { OverlayStore } from './overlays.js';
+import type { OverlayStore } from './overlays/store.js';
 import { type AccessActorV1, type MembershipV1, personKey, personOf } from './scope/access.js';
 import { createScopeMiddleware, type LateScope, sessionActor } from './scope/middleware.js';
 import { personalRecordId, personalStore } from './scope/personal.js';
@@ -75,18 +75,18 @@ import type { ScopeV1 } from './scope/records.js';
 import { CALL_MARK, createScopeRuntime, type QueuedTicket } from './scope/runtime.js';
 import { registerShellState } from './shell-state.js';
 import type {
-	AppSummaryV2,
-	CallOptionsV5,
-	CommandSummaryV1,
-	ContextFieldV2,
-	KernelEventV4,
+	AppSummary,
+	CallOptions,
+	CommandSummary,
+	ContextField,
+	KernelEvent,
 	KernelMcpOptions,
-	KernelOptionsV5,
-	LoamKernelV5,
+	KernelOptions,
+	LoamKernel,
 } from './types.js';
 
 /** The kernel's two interfaces, one registry each. */
-export type KernelInterfaceV0 = 'palette' | 'agent';
+export type KernelInterface = 'palette' | 'agent';
 
 /** Suggestion for a refused name (phase 0 specification, 6.1). */
 export const COMMAND_NAME_SUGGESTION = 'Rename it domain-action, e.g. reports-create';
@@ -501,7 +501,7 @@ function reportKernelError(error: unknown): void {
 
 /** What {@link createKernelParts} builds; `createKernel` and `replayKernel` share it. */
 export interface KernelParts extends InboundParts {
-	kernel: LoamKernelV5;
+	kernel: LoamKernel;
 	/**
 	 * The current registries; {@link KernelParts.setAppCommands} replaces them. `boot` holds `BOOT_ONLY`'s
 	 * commands alone, which only `BOOT_FIELDS` and a replay reach (phase 2 specification, 2.2).
@@ -544,7 +544,7 @@ export interface KernelParts extends InboundParts {
  * server's: every registry opens with `principalGate`, so every call, top-level or nested, runs under the request's
  * principal and nothing reads the adapter; it needs `identity.mode` `provider`.
  */
-export interface KernelPartsOptions extends KernelOptionsV5 {
+export interface KernelPartsOptions extends KernelOptions {
 	gate?: 'session' | 'principal';
 }
 
@@ -625,14 +625,14 @@ export async function createKernelParts(
 	let commandSet = 0;
 
 	/** `app-list`'s rows: the workspace's overrides, and whether each can open in the active scope (7.1). */
-	const summaries = (): AppSummaryV2[] => {
+	const summaries = (): AppSummary[] => {
 		// Signed out in `provider` mode the rail is empty: `app-list` answers none (phase 3 specification, 2.1).
 		// The server holds no session: its `app-list` is the call's, decided by its chain (9.5).
 		if (provider && !gated && person() === undefined) return [];
 		const { project } = scope.active();
 		return apps
 			.summaries()
-			.map((app): AppSummaryV2 => {
+			.map((app): AppSummary => {
 				const {
 					title = app.title,
 					order = app.order,
@@ -649,7 +649,7 @@ export async function createKernelParts(
 			.sort(byOrder);
 	};
 
-	const summarize = (registry: DirectCommandRegistry): CommandSummaryV1[] => {
+	const summarize = (registry: DirectCommandRegistry): CommandSummary[] => {
 		// A command of an app that cannot open here stays callable by name, and is left out (11.2).
 		const hidden = lateParts?.hidden(summaries());
 		return registry
@@ -758,7 +758,7 @@ export async function createKernelParts(
 	let current: { commands: ZodCommandDefinition[]; middleware: CommandMiddleware[] };
 	const scopeMiddleware = createScopeMiddleware({ scope, late: () => lateScope });
 	/** The declared context fields: the kernel's own, and from stage B the copilot's `copilotSession`, `turn` and `trace`. */
-	let contextFields: readonly ContextFieldV2[] = KERNEL_CONTEXT_FIELDS;
+	let contextFields: readonly ContextField[] = KERNEL_CONTEXT_FIELDS;
 	/**
 	 * The options objects the kernel made for the copilot's agent port (phase 5 specification, 3.2): the only ones whose
 	 * `trace` it reads, and whose call runs as the reserved agent `copilot`. A caller's own options never are.
@@ -799,7 +799,7 @@ export async function createKernelParts(
 		order.handler,
 	];
 	const build = (
-		iface: KernelInterfaceV0,
+		iface: KernelInterface,
 		held: readonly ZodCommandDefinition[],
 		middleware = chain(held)
 	) =>
@@ -884,7 +884,7 @@ export async function createKernelParts(
 				pending,
 				personas,
 				callAsCopilot(name, input, trace, asScope) {
-					const made: CallOptionsV5 = { agent: 'copilot', scope: asScope, trace };
+					const made: CallOptions = { agent: 'copilot', scope: asScope, trace };
 					minted.add(made);
 					return run('agent', name, input, made);
 				},
@@ -954,7 +954,7 @@ export async function createKernelParts(
 	/** The actor stage A chose the scope for, undefined in it signed out; none before it has (4.4). */
 	let chosen: [AccessActorV1] | undefined;
 	/** By interface, the `auth-*` call queued last, until `late/` sees it end (phase 3 specification, 4.4). */
-	const pending: Partial<Record<KernelInterfaceV0, QueuedTicket>> = {};
+	const pending: Partial<Record<KernelInterface, QueuedTicket>> = {};
 	/**
 	 * The fields of boot's own journaled work, an object no caller can name (phase 2 specification, 2.2).
 	 * Step 4 runs `workspace-deployment-apply` with them from inside stage B, so they never join the queue,
@@ -1117,8 +1117,8 @@ export async function createKernelParts(
 		return stageB;
 	}
 
-	const listeners = new Set<(event: KernelEventV4) => void>();
-	const emit = (event: KernelEventV4): void => {
+	const listeners = new Set<(event: KernelEvent) => void>();
+	const emit = (event: KernelEvent): void => {
 		for (const listener of [...listeners]) {
 			try {
 				listener(event);
@@ -1143,10 +1143,10 @@ export async function createKernelParts(
 	 * (phase 3 specification, 4.4).
 	 */
 	function run<T>(
-		iface: KernelInterfaceV0,
+		iface: KernelInterface,
 		name: string,
 		input: unknown,
-		callOptions: CallOptionsV5 = {},
+		callOptions: CallOptions = {},
 		fields: KernelCallFields = {}
 	): Promise<CommandResult<T>> {
 		const go = () => execute<T>(iface, name, input, callOptions, fields);
@@ -1180,10 +1180,10 @@ export async function createKernelParts(
 	}
 
 	async function execute<T>(
-		iface: KernelInterfaceV0,
+		iface: KernelInterface,
 		name: string,
 		input: unknown,
-		callOptions: CallOptionsV5,
+		callOptions: CallOptions,
 		fields: KernelCallFields,
 		/** The provider hook's actor (A8), read only with `PROVIDER_HOOK_FIELDS`. */
 		hookActor?: Actor
@@ -1311,7 +1311,7 @@ export async function createKernelParts(
 		if (fields.parent !== undefined && seq !== undefined)
 			internals.nestedUnrecorded?.(fields.parent, name);
 		rerun?.done(result);
-		const event: KernelEventV4 = {
+		const event: KernelEvent = {
 			command: name,
 			interface: iface,
 			success: result.success,
@@ -1417,7 +1417,7 @@ export async function createKernelParts(
 		takesProject(() => apps)
 	);
 
-	const kernel: LoamKernelV5 = {
+	const kernel: LoamKernel = {
 		version: 5,
 		call: (name, input, callOptions) => run('palette', name, input, callOptions),
 		listCommands: () => summarize(registries.palette),
@@ -1490,6 +1490,6 @@ export async function createKernelParts(
  * @throws LoamKernelError `COMMAND_NAME_INVALID` for a name that is not domain-action kebab-case,
  *   `COMMAND_NAME_DUPLICATE` for a name given twice
  */
-export async function createKernel(options: KernelOptionsV5): Promise<LoamKernelV5> {
+export async function createKernel(options: KernelOptions): Promise<LoamKernel> {
 	return (await createKernelParts(options)).kernel;
 }

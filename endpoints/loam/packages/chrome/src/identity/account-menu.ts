@@ -8,7 +8,7 @@
  */
 
 import { css, FASTElement, html, observable } from '@lushly-dev/fast-element';
-import type { LoamKernelV5 } from '@lushly-dev/loam-kernel';
+import type { LoamKernel } from '@lushly-dev/loam-kernel';
 import type { LoamShell } from '../elements/shell.js';
 
 const template = html<LoamAccountMenu>`
@@ -38,9 +38,9 @@ const styles = css`
 	.menu {
 		display: grid;
 		min-inline-size: var(--shell-size-sidebar-min);
-		padding-block: var(--size-space-sm);
-		border: 1px solid var(--color-border-subtle);
-		border-radius: var(--radius-md);
+		padding: var(--size-space-xs);
+		border: 1px solid transparent;
+		border-radius: var(--radius-lg);
 		background: var(--color-surface-floating);
 		box-shadow: var(--shadow-floating);
 		color: var(--color-text-primary);
@@ -65,12 +65,16 @@ const styles = css`
 		min-block-size: var(--size-target-natural);
 		padding-inline: var(--size-space-md);
 		border: 0;
+		border-radius: var(--radius-md);
 		background: transparent;
 		color: var(--color-text-primary);
 		font: inherit;
 		font-size: var(--type-label-sm-size);
 		text-align: start;
 		cursor: pointer;
+		transition:
+			background-color var(--duration-fast) var(--easing-standard),
+			color var(--duration-fast) var(--easing-standard);
 	}
 	.personas {
 		display: grid;
@@ -91,9 +95,17 @@ const styles = css`
 	.item:hover {
 		background: var(--color-action-secondary-hover);
 	}
+	.item:active {
+		background: var(--color-action-secondary-pressed);
+	}
 	.item:focus-visible {
 		outline: var(--shell-size-focus) solid var(--color-focus-ring);
 		outline-offset: calc(-1 * var(--shell-size-focus));
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.item {
+			transition: none;
+		}
 	}
 	@media (forced-colors: active) {
 		.menu {
@@ -117,7 +129,7 @@ export class LoamAccountMenu extends FASTElement {
 	}
 	declare name: string;
 	declare email: string;
-	kernel: LoamKernelV5 | null = null;
+	kernel: LoamKernel | null = null;
 	/** The person's personas, `default` first, and the active one's id (6.3). */
 	personas: { id: string; title: string }[] = [];
 	active = 'default';

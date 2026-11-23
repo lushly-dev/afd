@@ -49,12 +49,12 @@ import type { ManifestV2, ProjectionV4 } from '@lushly-dev/loam-manifest';
 import { type DataAdapter, MemoryAdapter } from '@lushly-dev/local-db';
 import { type CopilotHostV1, createCopilotHost } from '../src/copilot/host.js';
 import type { CopilotOptionsV1, CopilotProviderV1 } from '../src/copilot/types.js';
+import { DOCUMENT_TABLE, documentContentKey } from '../src/documents/document-types.js';
 import { createKernel } from '../src/kernel.js';
-import { DOCUMENT_TABLE, documentContentKey } from '../src/late/document-types.js';
 import type { ProjectV1 } from '../src/scope/records.js';
 import { scopeKeyOf, storeRecordId } from '../src/scope/store-id.js';
 import { createFixedEnvironment } from '../src/testing.js';
-import type { KernelPortsV1, LoamKernelV5 } from '../src/types.js';
+import type { KernelPorts, LoamKernel } from '../src/types.js';
 import { LOAM, type SeedAppV1, seedApps } from './apps.js';
 import {
 	MAILFIX_MANIFEST,
@@ -66,7 +66,7 @@ import {
 import { MODEL_SCRIPTS, UNIT_SCRIPTS } from './model-scripts.js';
 
 export interface SeededKernel {
-	kernel: LoamKernelV5;
+	kernel: LoamKernel;
 	journal: MemoryJournalSink;
 	/** The workspace's store, for a test to read what was kept. */
 	store?: DataAdapter;
@@ -74,7 +74,7 @@ export interface SeededKernel {
 	mailfix?: ReturnType<typeof mountedMailfix>;
 	/** The projection and ports the kernel was made with, for a replay of its journal. */
 	deployment?: ProjectionV4;
-	ports?: KernelPortsV1;
+	ports?: KernelPorts;
 	/** `mailfixb`, a second `mailfix` whose entry says `labels = "whole"`, when the seed mounts it. */
 	mailfixb?: ReturnType<typeof mountedMailfix>;
 	/** The copilot's host and the test provider, when the seed configures one. */

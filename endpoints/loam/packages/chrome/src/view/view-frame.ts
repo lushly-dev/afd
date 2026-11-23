@@ -5,7 +5,7 @@
  */
 
 import { attr, css, FASTElement, html, observable, when } from '@lushly-dev/fast-element';
-import type { AppPortV2, ViewBrokerV1 } from '@lushly-dev/loam-kernel';
+import type { AppPort, ViewBroker } from '@lushly-dev/loam-kernel';
 import type { DocumentChangeV1, DocumentRefV1 } from '@lushly-dev/loam-sdk';
 import { ProxyChannel } from './channel.js';
 import { viewFonts } from './fonts.js';
@@ -23,7 +23,7 @@ export interface ViewSource {
 }
 
 /** Phase 1's source: a file of the app's package. */
-export const packageViewSource = (port: AppPortV2): ViewSource => ({
+export const packageViewSource = (port: AppPort): ViewSource => ({
 	read: async (uri) => ({ html: await port.readResource(uri) }),
 });
 
@@ -37,7 +37,7 @@ export interface DocumentViewSource extends ViewSource {
 }
 
 export const documentViewSource = (
-	port: AppPortV2,
+	port: AppPort,
 	document: DocumentRefV1,
 	resource: string
 ): DocumentViewSource => ({
@@ -65,12 +65,12 @@ const EDITOR_EVENTS = {
 } as const;
 
 export interface ViewFrameOptions {
-	port: AppPortV2;
+	port: AppPort;
 	/**
 	 * The surface's own broker, closed over its scope (phase 2 specification, 3.6). Required, with no fallback
 	 * to the port's unbound broker, which hears no linked call and is for tests alone (T4).
 	 */
-	view: ViewBrokerV1 | undefined;
+	view: ViewBroker | undefined;
 	source: ViewSource;
 	/** The app's title: the frame's name. */
 	heading: string;

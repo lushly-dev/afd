@@ -812,7 +812,9 @@ export const CEILINGS = Object.freeze({
 	// Phase 3's step 7, against `main` at `0ab76415`: 71,703 to 72,707 (+1,004), the OAuth pages' provider client and the
 	// connected agents' requests; set to 73,200 under D115.
 	authMinified: 73_200,
-	signInMinified: 10_500,
+	// #1484 (Refined field well in `sign-in.ts` and Refined key shadows/transitions in `action-styles.ts`):
+	// measured 11,129 against `main` at `a5e79aab`; set to 11,600 under D115.
+	signInMinified: 11_600,
 	accountMenuMinified: 5_400,
 	// Phase 3's step 7, against `main` at `0ab76415`: 25,727 to 30,973 (+5,246), the OAuth login and consent pages and the
 	// agents tab; set to 31,500 under D115. After its review's fixes, 31,705 (single sign-on on the login page, `prompt`
@@ -863,7 +865,9 @@ export const CEILINGS = Object.freeze({
 	// #2137 (step 5's follow-ups): 98,610 against `main` at `e28d5629` (the preview's escapes and key steps), within the
 	// row; merged on `main` at `2e29283a` (FAST-AF's violet borders and options, #2164, and Violet's Loam token tree,
 	// #2166), the combined build: 99,063; set to 99,600 under D115.
-	surfacesMinified: 99_600,
+	// #1484 (Refined key shadows and transitions in `action-styles.ts`, imported by `surfaces`):
+	// measured 99,613 against `main` at `a5e79aab`; set to 100,100 under D115.
+	surfacesMinified: 100_100,
 	// Raised from 25,105 to 25,900 by AFD #1190 (D115): `dev.loam/tokens` reads the contract's component
 	// ids, which grew from 108 to 115 with violet-elements' token interface; measured 25,793, plus a margin.
 	// Raised from 25,900 to 26,100 by the Refined design (D115): the interface's contract version 2 gives Loam's
@@ -904,7 +908,9 @@ export const CEILINGS = Object.freeze({
 	sectionsMinified: 52_100,
 	// Phase 4's step 5: 35,479, a failed save's toast sticky when unseen (above); set to 35,600.
 	editorMinified: 36_500,
-	documentsMinified: 56_314,
+	// #1484 (`violet-select` replacing native `<select>` in `documents-section.ts`, plus Refined field/button styles):
+	// measured 72,452 against `main` at `a5e79aab` (vs 54,560 before #1484); set to 73,000 under D115.
+	documentsMinified: 73_000,
 	newMinified: 17_366,
 	embedMinified: 6_096,
 	// Phase 4's step 9, measured in one tree against `main` at `0ab76415`: 47,028 to 50,336 (+3,308: `loam-experiments-section` and its words); set to 50,800 under
@@ -913,7 +919,9 @@ export const CEILINGS = Object.freeze({
 	// to 52,000 under D115.
 	// Bug batch #2097/#2098: 52,214 (separate read counters, `#showing` commit guard, atomic chrome paint, and stale-safe `settingsHashTarget`); set to 52,500 under D115.
 	settingsMinified: 52_500,
-	editorMoveMinified: 4_205,
+	// #1484 (Refined primary/secondary `.action` key styles and transitions in `LoamEditorHeld`):
+	// measured 5,476 against `main` at `a5e79aab`; set to 5,900 under D115.
+	editorMoveMinified: 5_900,
 	overlaysMinified: 11_000,
 	// Phase 5's step 5: 12,050 (the preview's lines), set to 12,300 under D115.
 	inboxMinified: 12_300,

@@ -11,7 +11,7 @@
  * constructable sheet, tokens only, as the settings section's are, so the chunk needs nothing of FAST's.
  */
 
-import type { KernelEventV4, LoamKernelV5 } from '@lushly-dev/loam-kernel';
+import type { KernelEvent, LoamKernel } from '@lushly-dev/loam-kernel';
 import type { NotificationV1 } from '@lushly-dev/loam-sdk';
 import type { LoamShell } from '../elements/shell.js';
 import { previewWords } from '../preview-words.js';
@@ -222,7 +222,7 @@ const STYLES = `
 
 /** `loam-inbox` (10.3): the person's notices, newest first, a waiting confirmation first. */
 export class LoamInbox extends HTMLElement {
-	kernel: LoamKernelV5 | null = null;
+	kernel: LoamKernel | null = null;
 	/** The shell's base, for a notice's link (documents specification, 9.1). */
 	base = '/';
 	#notices: NotificationV1[] = [];
@@ -280,7 +280,7 @@ export class LoamInbox extends HTMLElement {
 
 	connectedCallback(): void {
 		this.#unsubscribe ??=
-			this.kernel?.subscribe((event: KernelEventV4) => {
+			this.kernel?.subscribe((event: KernelEvent) => {
 				// A change of person or of what they may enter (the reviews' item 4): nothing read before shows, then the
 				// list is read again for whoever it is now.
 				if (accessChanged(event)) {
@@ -598,7 +598,7 @@ const MAIN_WITH_INBOX = `
 
 /** Follow the state: show, update or remove the inbox in main (10.3). */
 export async function syncInbox(shell: LoamShell): Promise<void> {
-	const kernel = shell.kernel as LoamKernelV5;
+	const kernel = shell.kernel as LoamKernel;
 	const main = shell.shadowRoot?.querySelector<HTMLElement>('loam-main');
 	if (!kernel || !main) return;
 	const state = await shell.readState();
