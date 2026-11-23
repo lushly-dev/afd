@@ -21,7 +21,7 @@ use afd::{
 use async_trait::async_trait;
 use serde_json::{Value, json};
 use std::sync::{Arc, OnceLock};
-use umbel_store::lane::{LANE_DESIGN_RECORDS, LaneState, LaneStatus, RecordDecl};
+use umbel_store::lane::{LANE_DESIGN_RECORDS, LaneState, LaneStatus, MATCH_POSTINGS, RecordDecl};
 
 /// The command's name.
 pub(crate) const REINDEX: &str = "store-records-reindex";
@@ -548,27 +548,59 @@ fn declared_check(found: &[Found], failed: &[String]) -> Check {
     )
 }
 
-/// `records.size`: no kind holds more than `bound` records in a space.
-fn size_check(found: &[Found], bound: u64) -> Check {
+/// `records.size`: no kind holds more than `record_bound` records or `postings_bound` postings in
+/// a space (records host specification, section 12.3 and step B4 review follow-up).
+fn size_check(found: &[Found], record_bound: u64, postings_bound: u64) -> Check {
     const ID: &str = "records.size";
     let large: Vec<String> = found
         .iter()
-        .filter(|kind| kind.status.records > bound)
-        .map(|kind| format!("{}: {} ({})", kind.space, kind.name, kind.status.records))
+        .filter_map(|kind| {
+            let over_records = kind.status.records > record_bound;
+            let over_postings = kind.status.postings > postings_bound;
+            match (over_records, over_postings) {
+                (false, false) => None,
+                (true, true) => Some(format!(
+                    "{}: {} ({} records, {} postings)",
+                    kind.space, kind.name, kind.status.records, kind.status.postings
+                )),
+                (true, false) => Some(format!(
+                    "{}: {} ({} records)",
+                    kind.space, kind.name, kind.status.records
+                )),
+                (false, true) => Some(format!(
+                    "{}: {} ({} postings)",
+                    kind.space, kind.name, kind.status.postings
+                )),
+            }
+        })
         .collect();
     if large.is_empty() {
         Check::pass(
             ID,
-            format!("no declared record kind holds more than {bound} records in a space"),
+            format!(
+                "no declared record kind holds more than {record_bound} records or {postings_bound} postings in a space"
+            ),
         )
     } else {
+        let any_over_postings = found
+            .iter()
+            .any(|kind| kind.status.postings > postings_bound);
+        let suggestion = if any_over_postings {
+            format!(
+                "Past {postings_bound} postings a match or ranked find of the kind is refused for every reader (RECORD_QUERY_TOO_BROAD); past {record_bound} records vector scans and rebuilds take longer. Split the kind, or move the records a plugin no longer needs."
+            )
+        } else {
+            format!(
+                "Past {record_bound} records vector scans and rebuilds take longer (matching and ranked finds stay served until {postings_bound} postings, when they answer RECORD_QUERY_TOO_BROAD). Split the kind, or move the records a plugin no longer needs."
+            )
+        };
         Check::warn(
             ID,
             format!(
-                "declared record kinds past the lane's design size of {bound} records: {}",
+                "declared record kinds past the lane's bounds ({record_bound} records or {postings_bound} postings): {}",
                 large.join("; ")
             ),
-            "Past this size a match or a ranked find of the kind can be refused for every reader (RECORD_QUERY_TOO_BROAD) and a rebuild takes longer; split the kind, or move the records a plugin no longer needs.",
+            &suggestion,
         )
     }
 }
@@ -904,7 +936,7 @@ pub(crate) fn checks(
         standing_check(&standing_spaces(workspace, loaded)),
         meaning_check(workspace, loaded, meaning, &found),
         own_check(&unheld, &own_failed, own_collections),
-        size_check(&found, LANE_DESIGN_RECORDS),
+        size_check(&found, LANE_DESIGN_RECORDS, MATCH_POSTINGS),
     ]
 }
 
@@ -938,6 +970,7 @@ mod tests {
                 records: 12,
                 unindexed: 0,
                 with_match: 0,
+                postings: 80,
                 vectors: std::collections::BTreeMap::new(),
             },
         }
@@ -1106,18 +1139,53 @@ mod tests {
     fn a_kind_past_the_bound_warns_naming_it_and_its_count() {
         let ready = decl(false, &["/statement"]);
         let kinds = [found(ready.clone(), LaneState::Ready, Some(&ready))];
-        assert_eq!(size_check(&kinds, 12).status, CheckStatus::Pass);
-        let check = size_check(&kinds, 11);
+        // At both exact bounds: passes.
+        assert_eq!(size_check(&kinds, 12, 80).status, CheckStatus::Pass);
+        // Past record bound only: warns with record count and clarifies matching stays served.
+        let check = size_check(&kinds, 11, 80);
         assert_eq!(check.status, CheckStatus::Warn);
         assert!(
-            check.message.contains("garden: notes.note (12)"),
+            check.message.contains("garden: notes.note (12 records)"),
+            "{check:?}"
+        );
+        assert!(
+            check
+                .suggestion
+                .as_deref()
+                .unwrap()
+                .contains("stay served until 80 postings"),
+            "{check:?}"
+        );
+        // Past postings bound only (long records, few rows): warns with postings count and refusal.
+        let check = size_check(&kinds, 12, 79);
+        assert_eq!(check.status, CheckStatus::Warn);
+        assert!(
+            check.message.contains("garden: notes.note (80 postings)"),
+            "{check:?}"
+        );
+        assert!(
+            check
+                .suggestion
+                .as_deref()
+                .unwrap()
+                .contains("Past 79 postings a match or ranked find of the kind is refused"),
+            "{check:?}"
+        );
+        // Past both bounds: names both counts.
+        let check = size_check(&kinds, 11, 79);
+        assert_eq!(check.status, CheckStatus::Warn);
+        assert!(
+            check
+                .message
+                .contains("garden: notes.note (12 records, 80 postings)"),
             "{check:?}"
         );
         assert_eq!(
-            size_check(&kinds, LANE_DESIGN_RECORDS).status,
+            size_check(&kinds, LANE_DESIGN_RECORDS, MATCH_POSTINGS).status,
             CheckStatus::Pass
         );
         assert_eq!(LANE_DESIGN_RECORDS, 100_000);
+        assert_eq!(MATCH_POSTINGS, 4_000_000);
     }
 
     #[test]

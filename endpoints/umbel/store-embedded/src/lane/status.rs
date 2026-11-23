@@ -3,7 +3,7 @@
 
 use std::collections::BTreeMap;
 
-use rusqlite::params;
+use rusqlite::{OptionalExtension, params};
 use umbel_store::StoreError;
 use umbel_store::lane::{LaneStatus, RecordDecl};
 
@@ -42,6 +42,15 @@ impl SqliteStore {
             let with_match = count(
                 "SELECT COUNT(*) FROM record_lane WHERE ns = ?1 AND kind = ?2 AND match_digest IS NOT NULL",
             )?;
+            let postings: i64 = tx
+                .query_row(
+                    "SELECT postings FROM record_postings WHERE ns = ?1 AND kind = ?2",
+                    params![ns, kind],
+                    |row| row.get(0),
+                )
+                .optional()?
+                .unwrap_or(0);
+            let postings = to_u64(postings)?;
             let mut vectors = BTreeMap::new();
             {
                 let mut statement = tx.prepare(
@@ -61,6 +70,7 @@ impl SqliteStore {
                 records,
                 unindexed,
                 with_match,
+                postings,
                 vectors,
             })
         })

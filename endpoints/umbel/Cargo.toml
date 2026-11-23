@@ -208,6 +208,8 @@ umbel-testkit-idp = { path = "testkit-idp" }
 rusqlite = { version = "0.43", features = ["bundled"] }
 # The store tests build documents and chunks with the conformance suite's own samples.
 umbel-store = { path = "store", features = ["conformance"] }
+# `records_scale.rs` times match parts, rebuild chunks and SQLite query plans through `testkit`.
+umbel-store-embedded = { path = "store-embedded", features = ["testkit"] }
 
 # Cranelift and wasmtime dominate test time when unoptimized, and the tests compile components.
 # The test profile inherits these from dev. (The component loader, specification section 1.)

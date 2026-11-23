@@ -921,6 +921,8 @@ pub struct LaneStatus {
     pub unindexed: u64,
     /// Records with a match value.
     pub with_match: u64,
+    /// Postings held by the kind across all its text fields.
+    pub postings: u64,
     /// Vectors, by model id.
     pub vectors: BTreeMap<String, u64>,
 }

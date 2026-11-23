@@ -583,6 +583,11 @@ fn the_put_and_the_rebuild_keep_each_kinds_count_of_postings() {
     };
     rebuild(&decl);
     assert_eq!(holds("after a rebuild under the same declaration"), 6);
+    assert_eq!(
+        store.lane_status("notes", &decl).expect("status").postings,
+        6,
+        "lane_status reports the kept postings count"
+    );
     // `why` is a number, which a declaration with `/why` as a text field refuses: n1 is left
     // without lane rows, and its postings leave the count.
     let wider = RecordDecl {
@@ -616,6 +621,11 @@ fn the_put_and_the_rebuild_keep_each_kinds_count_of_postings() {
     assert_eq!(postings(&raw, "note"), Some(3), "and the count drifted");
     rebuild(&decl);
     assert_eq!(holds("after a rebuild following the drift"), 1);
+    assert_eq!(
+        store.lane_status("notes", &decl).expect("status").postings,
+        1,
+        "lane_status reflects the repaired postings count after rebuild"
+    );
 }
 
 #[test]

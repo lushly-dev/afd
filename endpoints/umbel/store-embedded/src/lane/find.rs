@@ -29,7 +29,7 @@ pub(super) fn select(what: &str, ns: &str, kind: &str) -> Sql {
 /// ` AND <every filter of the find>`: the key filters, the text as an exact filter (the record
 /// holds at least one of the query's terms in a searched field), the reader clause and the
 /// standing clause.
-fn and_filters(
+pub(super) fn and_filters(
     sql: &mut Sql,
     decl: &RecordDecl,
     plan: &FindPlan,

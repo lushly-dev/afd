@@ -312,6 +312,14 @@ fn declared_and_undeclared(env: &Env<'_>) -> CaseResult {
         (1, 0, 1),
         "the record has its lane row",
     )?;
+    let mut distinct_terms = tokens(statement);
+    distinct_terms.sort();
+    distinct_terms.dedup();
+    ensure_eq(
+        status.postings,
+        distinct_terms.len() as u64,
+        "lane_status reports the kind's postings count",
+    )?;
     ensure_eq(
         (status.affirmed, status.evidence, status.vectors.len()),
         (0, 0, 0),

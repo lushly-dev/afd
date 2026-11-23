@@ -267,6 +267,20 @@ pub(super) fn and_admitted(sql: &mut Sql, decl: &RecordDecl, view: &StandingView
     }
 }
 
+/// The SQL statement that reads the decision affirming each of `lanes`.
+pub(super) fn affirmations_sql(lanes: &[i64], view: &StandingView, reader: &ReaderFilter) -> Sql {
+    let mut sql = Sql::new(
+        "SELECT l.lane, c.by, c.at, c.assurance FROM record_lane l \
+         JOIN record_decisions c ON c.seq = l.affirmed_seq AND c.decision = 'affirm' \
+         AND c.wording_hash = l.wording_hash WHERE l.lane IN ",
+    );
+    sql.bind_list(lanes.iter().copied());
+    sql.push(" AND ");
+    push_by_person(&mut sql, "c.by", view);
+    sql.and_readable("record_access", LANE_ACCESS, reader);
+    sql
+}
+
 /// The decision that affirms each of `lanes` now, by lane: one statement over `record_lane l`
 /// and `record_decisions`, under the reader clause as every statement of a read is, with
 /// [`push_affirmed`]'s conditions: an affirmation, of the wording the lane row holds, by the
@@ -277,15 +291,7 @@ fn affirmations(
     view: &StandingView,
     reader: &ReaderFilter,
 ) -> Result<BTreeMap<i64, Affirmation>, Fail> {
-    let mut sql = Sql::new(
-        "SELECT l.lane, c.by, c.at, c.assurance FROM record_lane l \
-         JOIN record_decisions c ON c.seq = l.affirmed_seq AND c.decision = 'affirm' \
-         AND c.wording_hash = l.wording_hash WHERE l.lane IN ",
-    );
-    sql.bind_list(lanes.iter().copied());
-    sql.push(" AND ");
-    push_by_person(&mut sql, "c.by", view);
-    sql.and_readable("record_access", LANE_ACCESS, reader);
+    let sql = affirmations_sql(lanes, view, reader);
     let mut statement = conn.prepare_cached(&sql.text)?;
     let mut rows = statement.query(params_from_iter(&sql.params))?;
     let mut found = BTreeMap::new();
@@ -306,15 +312,8 @@ fn affirmations(
     Ok(found)
 }
 
-/// The source that attests each of `lanes` now, by lane, as `reader` may see it: one statement
-/// over `record_evidence` and `documents` for a page's lanes, with section 6.3's condition, and
-/// `doc_access` deciding whether anything but the basis is shown.
-fn sources(
-    conn: &Connection,
-    lanes: &[i64],
-    view: &StandingView,
-    reader: &ReaderFilter,
-) -> Result<BTreeMap<i64, LabelSource>, Fail> {
+/// The SQL statement that reads the attesting source for each of `lanes`.
+pub(super) fn sources_sql(lanes: &[i64], view: &StandingView, reader: &ReaderFilter) -> Sql {
     let mut sql = Sql::new("SELECT l.lane, e.doc, e.doc_hash, e.units, e.rule, e.speaker, ");
     push_by_collection(&mut sql, view);
     sql.push(", ")
@@ -331,6 +330,19 @@ fn sources(
     sql.push(" AND e.verbatim = 1 AND ");
     push_own(&mut sql, view, false);
     sql.and_readable("record_access", LANE_ACCESS, reader);
+    sql
+}
+
+/// The source that attests each of `lanes` now, by lane, as `reader` may see it: one statement
+/// over `record_evidence` and `documents` for a page's lanes, with section 6.3's condition, and
+/// `doc_access` deciding whether anything but the basis is shown.
+fn sources(
+    conn: &Connection,
+    lanes: &[i64],
+    view: &StandingView,
+    reader: &ReaderFilter,
+) -> Result<BTreeMap<i64, LabelSource>, Fail> {
+    let sql = sources_sql(lanes, view, reader);
     let mut statement = conn.prepare_cached(&sql.text)?;
     let mut rows = statement.query(params_from_iter(&sql.params))?;
     let mut found = BTreeMap::new();

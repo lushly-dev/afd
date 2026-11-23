@@ -77,10 +77,8 @@ impl Scope<'_> {
         }
     }
 
-    /// `N` and `L` of the reader's admitted records: how many there are, and their tokens in
-    /// the searched fields. One statement over `record_lane`, with the reader, standing and
-    /// exclude clauses and no key filter.
-    pub(super) fn corpus(&self) -> Result<Corpus, Fail> {
+    /// The statement of `N` and `L` of the reader's admitted records.
+    pub(super) fn corpus_sql(&self) -> Sql {
         let mut sql = Sql::new("SELECT COUNT(*), COALESCE(SUM(");
         sql.push(&self.lengths())
             .push("), 0) FROM record_lane l WHERE l.ns = ")
@@ -88,6 +86,14 @@ impl Scope<'_> {
             .push(" AND l.kind = ")
             .bind(self.decl.kind.as_str());
         self.and_counted(&mut sql);
+        sql
+    }
+
+    /// `N` and `L` of the reader's admitted records: how many there are, and their tokens in
+    /// the searched fields. One statement over `record_lane`, with the reader, standing and
+    /// exclude clauses and no key filter.
+    pub(super) fn corpus(&self) -> Result<Corpus, Fail> {
+        let sql = self.corpus_sql();
         let (records, tokens): (i64, i64) =
             self.conn
                 .query_row(&sql.text, params_from_iter(&sql.params), |row| {
@@ -99,15 +105,14 @@ impl Scope<'_> {
         })
     }
 
-    /// The lanes that hold one of `terms` in a searched field and pass every clause (the key
-    /// filters, the reader, the view and the exclusions), in lane order, at most `limit` of
-    /// them.
-    fn gather(
+    /// The gather statement: lanes that hold one of `terms` in a searched field and pass every
+    /// clause, in lane order, optionally limited.
+    pub(super) fn gather_sql(
         &self,
         keys: &[(u8, Vec<String>)],
         terms: &[&str],
         limit: Option<u64>,
-    ) -> Result<Vec<i64>, Fail> {
+    ) -> Result<Sql, StoreError> {
         let mut sql = Sql::new(
             "SELECT DISTINCT t.lane FROM record_terms t JOIN record_lane l ON l.lane = t.lane WHERE t.ns = ",
         );
@@ -123,6 +128,19 @@ impl Scope<'_> {
         if let Some(limit) = limit {
             sql.push(" LIMIT ").bind(limit_of(limit)?);
         }
+        Ok(sql)
+    }
+
+    /// The lanes that hold one of `terms` in a searched field and pass every clause (the key
+    /// filters, the reader, the view and the exclusions), in lane order, at most `limit` of
+    /// them.
+    fn gather(
+        &self,
+        keys: &[(u8, Vec<String>)],
+        terms: &[&str],
+        limit: Option<u64>,
+    ) -> Result<Vec<i64>, Fail> {
+        let sql = self.gather_sql(keys, terms, limit)?;
         let mut statement = self.conn.prepare_cached(&sql.text)?;
         let lanes = statement
             .query_map(params_from_iter(&sql.params), |row| row.get(0))?
@@ -221,6 +239,12 @@ impl Counts {
     /// `df0` of a term this call has counted; 0 for one it has not, or that no record holds.
     pub(super) fn df0(&self, term: &str) -> u64 {
         self.df0.get(term).copied().unwrap_or(0)
+    }
+
+    /// Distinct terms counted so far in this call.
+    #[cfg(feature = "testkit")]
+    pub(super) fn counted_len(&self) -> usize {
+        self.df0.len()
     }
 
     /// Count each of `terms` this call has not counted yet: one statement for at most
