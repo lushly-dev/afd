@@ -1082,6 +1082,7 @@ and enums only.
 | `tests/archive.rs` | Section 10: export in pages; import into an empty second host restores every record and affirmation, `restored` added; the second host's export has the same manifest digest and counts; import again adds nothing; an import refused at its first affirmation leaves records unaffirmed, and run again as the person adds nothing and affirms |
 | `tests/journal.rs` | No statement, reason or question in the journal of any command, nor in an event |
 | `tests/instructions.rs` | 11.2's paragraph starts with AFD's default for the hybrid strategy; the README holds it, and 11.4's settings (C5-2, C5-5) |
+| `tests/hosted.rs` | Section 9's hosted row in mode `oauth`, over real sockets with `umbel-testkit-idp`, before a cloud host is chosen (#2007): a call with no token gets the challenge naming the protected-resource metadata, which names the authorization server; a signed-in harness gets 11.2's paragraph and the first-class tools; two OAuth clients capture and ask against one instance over stateless MCP, each in one call; a review of 150 in three groups staged with no login and confirmed on the person page, one login a group, after D181's passkey login (`acr` `phr`, `amr` `mfa`), applied at level `verified`; a password or unverified-key login refused with `PERSON_VERIFICATION_INSUFFICIENT` and nothing applied; a client without URL-mode elicitation refused with `url-elicitation-required` |
 | `first-party/tests/ideas_first_use.rs` | The README's local instance walked as written, on invented content (C5-3), with both confirmation routes (F-2); every README command run through the binary's parser (F-1); staging 500 and applying 250 timed (C5-7) |
 | `tests/surfaces.rs` | The three first-class suggestions; the preview, export and import off MCP; the skill served |
 | `tests/scenarios.rs` | 14.3 |
@@ -1093,9 +1094,10 @@ and enums only.
 | --- | --- |
 | 1, matching | Recorded, not gated: B6's rates on phase 0's pairs, then the report's `duplicates` from use |
 | 12, an export restores | `tests/archive.rs` |
-| 13, a review of 150 decisions | `tests/review_page.rs` stages 150 in three groups and confirms each in one decision |
+| 11, two harnesses on one hosted instance | `tests/hosted.rs`, with the test identity provider; by hand on real harnesses once the instance is hosted (#2007) |
+| 13, a review of 150 decisions | `tests/review_page.rs` stages 150 in three groups and confirms each in one decision on the local page; `tests/hosted.rs` does the same on the hosted person page at level `verified` |
 | 17, a write sent twice | `tests/capture.rs` and `review_stage.rs` |
-| 14, an agent with no skill | Phase 0.10 on paper; on real harnesses, by hand, once C5 lands |
+| 14, an agent with no skill | Phase 0.10 on paper; `tests/hosted.rs` shows a signed-in hosted harness gets the same paragraph and tools; on real harnesses, by hand, once the instance is hosted (#2007) |
 
 ### 14.3 The scenarios
 

@@ -29,10 +29,25 @@ umbel-store = { path = "../../store" }
 umbel-sdk = { path = "../../sdk" }
 
 [dev-dependencies]
-afd = { path = "../../../../packages/rust", default-features = false }
+# `server-auth` for the host's hosted test support that `tests/hosted.rs` includes by path
+# (`tests/support/hosted.rs`): its token verifier types.
+afd = { path = "../../../../packages/rust", default-features = false, features = ["server-auth"] }
+# `tests/hosted.rs`: an instance in mode `oauth` over real sockets, with the kit as its
+# authorization server and identity provider, as the memory plugin's hosted tests do (the plan's
+# measures 11, 13 and 14, #2007). Every crate below was already in the workspace's lock.
+async-trait = "0.1"
+bytes = "1"
+http = "1"
+http-body-util = "0.1"
+hyper = { version = "1", features = ["client", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio", "http1"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["aws_lc_rs", "tls12"] }
+umbel-testkit-idp = { path = "../../testkit-idp" }
+url = "2"
 tempfile = "3"
-# `net` and `io-util` for `tests/review_page.rs`, which speaks HTTP to the local person page.
-tokio = { version = "1", features = ["io-util", "macros", "net", "rt-multi-thread"] }
+# `net` and `io-util` for `tests/review_page.rs`, which speaks HTTP to the local person page;
+# `sync` and `time` for the hosted test support.
+tokio = { version = "1", features = ["io-util", "macros", "net", "rt-multi-thread", "sync", "time"] }
 # The tests boot a host with the plugin and its grants, with no loader (so no wasmtime), and run
 # the command line in process for the person-gated import. `auth` serves the local person page
 # `tests/review_page.rs` confirms on (the review host specification, step H3).
