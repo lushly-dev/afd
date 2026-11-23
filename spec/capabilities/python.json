@@ -455,10 +455,10 @@
 		},
 		"mcp.auth.scopes": {
 			"status": "yes",
-			"note": "([#2155](https://github.com/lushly-dev/afd/issues/2155), #2193): command `scopes`, `required_scopes`, `ScopeResolver` (`resolve`, `visible`, `known`), pre-dispatch 403 and `INSUFFICIENT_SCOPE`, `filter_tools_by_scope` (`cacheScope: \"private\"`), hidden commands unknown on every route and `tasks/*`, `server.admit`, `server.pre_dispatch_check`, `ScopeChallenge`; loads `staticScopes` and `batches`",
+			"note": "([#2155](https://github.com/lushly-dev/afd/issues/2155), #2193, [#2266](https://github.com/lushly-dev/afd/issues/2266)): command `scopes`, `required_scopes`, `ScopeResolver` (`resolve`, `visible`, `known`), pre-dispatch 403 and `INSUFFICIENT_SCOPE`, `filter_tools_by_scope` (`cacheScope: \"private\"`), hidden commands unknown on every route and `tasks/*`, `server.admit`, `server.pre_dispatch_check`, `ScopeChallenge`, per-caller `ResourceProvider` (`ResourceCaller`, `cacheScope: \"private\"`); loads `staticScopes` and `batches`",
 			"views": {
 				"command-metadata": "([#2155](https://github.com/lushly-dev/afd/issues/2155): `scopes` on `CommandDefinition`, `@define_command` and `@server.command`, checked at registration, in `_meta`, grouped `_meta.actions`, `afd-detail` and `afd-help`; enforced with `auth`)",
-				"auth-m6": "([#2155](https://github.com/lushly-dev/afd/issues/2155); `scopes`, `required_scopes`, `ScopeResolver`, `filter_tools_by_scope`, `static_decision`, `request_decision`)",
+				"auth-m6": "([#2155](https://github.com/lushly-dev/afd/issues/2155), [#2266](https://github.com/lushly-dev/afd/issues/2266); `scopes`, `required_scopes`, `ScopeResolver`, `filter_tools_by_scope`, `static_decision`, `request_decision`, per-caller `ResourceProvider`)",
 				"auth-m6-host": "([#2155](https://github.com/lushly-dev/afd/issues/2155); `server.admit`, `server.pre_dispatch_check`, `PreDispatchCheck`, `ScopeChallenge`; `test_mcp_auth_scopes.py`)",
 				"auth-m6-hidden": "([#2155](https://github.com/lushly-dev/afd/issues/2155); `ScopeResolver.known`, `tasks/*` included; `test_mcp_auth_scopes.py`)"
 			},
@@ -466,16 +466,19 @@
 				"python/src/afd/server/auth_scopes.py",
 				"python/src/afd/server/auth_dispatch.py",
 				"python/src/afd/server/auth_view.py",
-				"python/tests/test_mcp_auth_scopes.py"
+				"python/src/afd/server/resources.py",
+				"python/tests/test_mcp_auth_scopes.py",
+				"python/tests/test_mcp_auth_resources.py"
 			]
 		},
 		"mcp.auth.combined": {
 			"status": "yes",
-			"note": "(`test_mcp_auth.py`, `test_auth_verifier.py`, `test_mcp_auth_scopes.py`, `test_authorization_cases.py`, [#2154](https://github.com/lushly-dev/afd/issues/2154), [#2155](https://github.com/lushly-dev/afd/issues/2155))",
+			"note": "(`test_mcp_auth.py`, `test_auth_verifier.py`, `test_mcp_auth_scopes.py`, `test_mcp_auth_resources.py`, `test_authorization_cases.py`, [#2154](https://github.com/lushly-dev/afd/issues/2154), [#2155](https://github.com/lushly-dev/afd/issues/2155), [#2266](https://github.com/lushly-dev/afd/issues/2266))",
 			"evidence": [
 				"python/tests/test_mcp_auth.py",
 				"python/tests/test_auth_verifier.py",
 				"python/tests/test_mcp_auth_scopes.py",
+				"python/tests/test_mcp_auth_resources.py",
 				"python/tests/test_authorization_cases.py"
 			]
 		},
@@ -546,15 +549,16 @@
 		},
 		"mcp.resources": {
 			"status": "yes",
-			"note": "([#1981](https://github.com/lushly-dev/afd/issues/1981): `resources` option on `create_server`, Streamable HTTP and stdio in both eras; unused `prompts` and opt-out `resources` capabilities removed)",
+			"note": "([#1981](https://github.com/lushly-dev/afd/issues/1981), [#2266](https://github.com/lushly-dev/afd/issues/2266): `resources` option on `create_server`, Streamable HTTP, SSE and stdio in both eras; per-caller `ResourceCaller` and `\"private\"` `cacheScope` under `auth`; unused `prompts` and opt-out `resources` capabilities removed)",
 			"views": {
-				"res-core": "(`resources` option; Streamable HTTP and stdio, both eras; #1981)",
+				"res-core": "(`resources` option; Streamable HTTP, SSE and stdio, both eras; per-caller `ResourceCaller` and `\"private\"` `cacheScope` under `auth`, #2266; #1981)",
 				"res-vectors": "(`tests/test_mcp_resources_vectors.py` and `test_tool_meta.py`, over Streamable HTTP and stdio; #1981)",
-				"pc-res": "(`tests/test_mcp_resources_vectors.py`, Streamable HTTP and stdio, both eras; #1981)"
+				"pc-res": "(`tests/test_mcp_resources_vectors.py`, `tests/test_mcp_auth_resources.py`, Streamable HTTP, SSE and stdio, both eras; #1981, #2266)"
 			},
 			"evidence": [
 				"python/src/afd/server/resources.py",
-				"python/tests/test_mcp_resources_vectors.py"
+				"python/tests/test_mcp_resources_vectors.py",
+				"python/tests/test_mcp_auth_resources.py"
 			]
 		},
 		"mcp.skills": {

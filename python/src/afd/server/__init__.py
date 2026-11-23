@@ -57,6 +57,7 @@ from afd.server.factory import (
 from afd.server.frontmatter import FrontmatterError, parse_frontmatter
 from afd.server.resources import (
     MCP_APP_MIME_TYPE,
+    ResourceCaller,
     ResourceContents,
     ResourceEntry,
     ResourceProvider,
@@ -478,6 +479,7 @@ __all__ = [
     "SKILLS_EXTENSION_ID",
     "MAX_SKILL_FILES",
     "MAX_SKILL_BYTES",
+    "ResourceCaller",
     "ResourceEntry",
     "ResourceContents",
     "ResourceProvider",

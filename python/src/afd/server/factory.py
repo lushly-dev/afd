@@ -1801,10 +1801,7 @@ class MCPServer:
         }
         extensions: list[Any] = [self._task_runtime.create_extension()]
         if self._resource_service is not None:
-            res_hint = CacheHint(ttl_ms=self._resource_service.ttl_ms, scope="public")
-            cache_hints["resources/list"] = res_hint
-            cache_hints["resources/templates/list"] = res_hint
-            cache_hints["resources/read"] = res_hint
+            cache_hints.update(self._resource_service.cache_hints(auth_configured=self._auth_layer is not None))
             skills_ext = self._resource_service.create_skills_extension()
             if skills_ext is not None:
                 extensions.append(skills_ext)
@@ -1844,7 +1841,7 @@ class MCPServer:
         lowlevel = getattr(self._mcp_server, "_lowlevel_server", None)
         strip_unused_sdk_handlers(lowlevel, serve_resources=self._resource_service is not None)
         if self._resource_service is not None:
-            self._resource_service.install_handlers(lowlevel)
+            self._resource_service.install_handlers(lowlevel, get_admitted_credentials=self._current_admitted_credentials, auth_configured=self._auth_layer is not None)
         self._install_pre_boundary_middleware()
         self._sync_mcp_tool_definitions()
         self._install_fastmcp_context_error_translation()
