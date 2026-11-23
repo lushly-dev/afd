@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { cdp } from "vitest/browser";
 
 import "./violet-carousel";
 import type { VioletCarousel } from "./violet-carousel";
@@ -136,6 +137,58 @@ describe("violet-carousel", () => {
             expect(press("Tab").defaultPrevented).toBe(false);
             expect(press("a").defaultPrevented).toBe(false);
             expect(press("ArrowRight").defaultPrevented).toBe(true);
+        });
+    });
+
+    describe("coarse pointer sizing (#1569)", () => {
+        async function emulateCoarsePointer(coarse: boolean): Promise<void> {
+            const session = cdp() as unknown as { send(method: string, params?: object): Promise<unknown> };
+            if (coarse) {
+                await session.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
+                await session.send("Emulation.setDeviceMetricsOverride", {
+                    width: 390,
+                    height: 844,
+                    deviceScaleFactor: 2,
+                    mobile: true,
+                });
+            } else {
+                await session.send("Emulation.setTouchEmulationEnabled", { enabled: false });
+                await session.send("Emulation.clearDeviceMetricsOverride");
+            }
+        }
+
+        afterEach(async () => {
+            await emulateCoarsePointer(false);
+        });
+
+        it("grows the carousel controls to the comfortable target size on coarse pointers", async () => {
+            const carousel = await renderCarousel();
+            const dot = carousel.shadowRoot?.querySelector(".dot") as HTMLButtonElement;
+            const nextControl = carousel.shadowRoot
+                ?.querySelector(".next-button")
+                ?.shadowRoot?.querySelector("button") as HTMLButtonElement;
+
+            expect(matchMedia("(any-pointer: coarse)").matches).toBe(false);
+            expect(getComputedStyle(carousel).getPropertyValue("--_target-size").trim()).toBe("32px");
+            expect(dot.getBoundingClientRect().width).toBeCloseTo(24, 0);
+            expect(dot.getBoundingClientRect().height).toBeCloseTo(24, 0);
+            expect(nextControl.getBoundingClientRect().height).toBeCloseTo(32, 0);
+
+            await emulateCoarsePointer(true);
+            await nextFrame();
+
+            expect(matchMedia("(any-pointer: coarse)").matches).toBe(true);
+            expect(getComputedStyle(carousel).getPropertyValue("--_target-size").trim()).toBe("44px");
+            expect(dot.getBoundingClientRect().width).toBeCloseTo(44, 0);
+            expect(dot.getBoundingClientRect().height).toBeCloseTo(44, 0);
+            expect(nextControl.getBoundingClientRect().height).toBeCloseTo(44, 0);
+
+            // An explicit --violet-target-size override still wins on coarse pointers.
+            carousel.style.setProperty("--violet-target-size", "24px");
+            await nextFrame();
+            expect(getComputedStyle(carousel).getPropertyValue("--_target-size").trim()).toBe("24px");
+            expect(dot.getBoundingClientRect().width).toBeCloseTo(24, 0);
+            expect(dot.getBoundingClientRect().height).toBeCloseTo(24, 0);
         });
     });
 });

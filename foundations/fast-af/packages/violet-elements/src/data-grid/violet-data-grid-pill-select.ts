@@ -20,7 +20,7 @@ const styles = css`
         min-inline-size: 0;
         max-inline-size: 100%;
         color: var(--_text-primary);
-        font-family: var(--violet-data-grid-font-family, var(--font-family-body, "Inter", system-ui, sans-serif));
+        font-family: var(--violet-data-grid-font-family, var(--violet-font-family, var(--font-family-body)));
 
         --_surface-page: var(--color-surface-page, #f4f0ea);
         --_surface-card: var(--color-surface-card, #f8f9f3);

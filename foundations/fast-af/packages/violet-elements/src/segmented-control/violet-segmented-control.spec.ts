@@ -294,6 +294,8 @@ describe("violet-segmented-control", () => {
                 expect(Number.parseFloat(style.paddingRight)).toBeGreaterThan(0);
                 expect(Number.isNaN(Number.parseFloat(style.minHeight))).toBe(false);
                 expect(Number.parseFloat(style.minHeight)).toBe(Number.parseFloat(target) - 4);
+                const track = group.shadowRoot?.querySelector(".group") as HTMLElement;
+                expect(Number.parseFloat(getComputedStyle(track).borderTopLeftRadius)).toBeGreaterThan(0);
                 expect(group.getBoundingClientRect().height).toBeCloseTo(button.getBoundingClientRect().height, 0);
             }
         });

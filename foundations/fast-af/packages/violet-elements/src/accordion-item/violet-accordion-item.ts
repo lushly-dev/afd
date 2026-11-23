@@ -10,7 +10,10 @@ const styles = css`
     :host {
         display: block;
 
-        --_target-size: var(--violet-target-size, var(--size-target-natural, 32px));
+        --_target-size-natural: var(--size-target-natural, 32px);
+        --_target-size-comfortable: var(--size-target-comfortable, 44px);
+        --_auto-target-size: var(--_target-size-natural);
+        --_target-size: var(--violet-target-size, var(--_auto-target-size));
         --_control-body-size: var(--violet-control-body-size, var(--_body-size));
         --_accordion-item-border-width: var(--violet-accordion-item-border-width, 1px);
         --_accordion-item-border-color: var(--violet-accordion-item-border-color, var(--_border-subtle));
@@ -116,6 +119,12 @@ const styles = css`
         color: var(--_text-secondary);
         font-size: var(--_control-body-size);
         line-height: var(--_body-line);
+    }
+
+    @media (any-pointer: coarse) {
+        :host {
+            --_auto-target-size: var(--_target-size-comfortable);
+        }
     }
 
     @media (forced-colors: active) {

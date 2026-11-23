@@ -74,7 +74,7 @@ const styles = css`
     /* Headings keep the display face. */
     :host([variant="title-sm"]) .root,
     :host([variant="title-md"]) .root {
-        font-family: var(--font-family-heading, var(--font-family-body, "Inter", system-ui, sans-serif));
+        font-family: var(--font-family-heading, var(--violet-font-family, var(--font-family-body)));
         letter-spacing: -0.01em;
     }
 

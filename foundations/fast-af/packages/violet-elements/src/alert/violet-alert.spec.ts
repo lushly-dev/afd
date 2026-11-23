@@ -97,7 +97,7 @@ describe("violet-alert", () => {
         it("lets slotted content take the system colours while the frame keeps its own", async () => {
             await emulateForcedColors(true);
             const alert = await renderAlert(`
-                <violet-alert tone="danger">
+                <violet-alert tone="danger" dismissible>
                     <span slot="title">Could not save</span>
                     <span class="body">The file is locked.</span>
                     <a slot="actions" href="#retry" style="color: rgb(24, 27, 26)">Retry</a>
@@ -119,10 +119,16 @@ describe("violet-alert", () => {
             const card = alert.shadowRoot?.querySelector(".frame") as HTMLElement;
             const root = card.shadowRoot?.querySelector(".root") as HTMLElement;
             const leading = alert.shadowRoot?.querySelector(".leading") as HTMLElement;
+            const dismiss = alert.shadowRoot?.querySelector(".dismiss") as HTMLElement;
+            const dismissControl = dismiss.shadowRoot?.querySelector("button") as HTMLElement;
+            const dismissIcon = dismiss.querySelector("violet-icon") as HTMLElement;
+            const buttonText = systemColor("ButtonText");
             expect(getComputedStyle(root).forcedColorAdjust).toBe("none");
             expect(getComputedStyle(root).backgroundColor).toBe(systemColor("Canvas"));
             expect(getComputedStyle(leading).forcedColorAdjust).toBe("none");
-            expect(getComputedStyle(leading).color).toBe(systemColor("ButtonText"));
+            expect(getComputedStyle(leading).color).toBe(buttonText);
+            expect(getComputedStyle(dismissControl).color).toBe(buttonText);
+            expect(getComputedStyle(dismissIcon).color).toBe(buttonText);
         });
     });
 

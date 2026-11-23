@@ -139,6 +139,22 @@ const styles = css`
     ::slotted(img) {
         object-fit: cover;
     }
+
+    @media (forced-colors: active) {
+        .control[data-appearance="quiet"],
+        .control[data-appearance="transparent"] {
+            color: ButtonText;
+        }
+
+        .control:focus-visible {
+            outline-color: Highlight;
+        }
+
+        .control[disabled] {
+            color: GrayText;
+            opacity: 1;
+        }
+    }
 `;
 
 const template = html<VioletIconButton>`

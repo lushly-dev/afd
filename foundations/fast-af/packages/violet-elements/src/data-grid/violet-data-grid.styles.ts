@@ -5,7 +5,7 @@ export const styles = css`
         display: block;
         container-type: inline-size;
         color: var(--color-text-primary, #181b1a);
-        font-family: var(--violet-data-grid-font-family, var(--font-family-body, "Inter", system-ui, sans-serif));
+        font-family: var(--violet-data-grid-font-family, var(--violet-font-family, var(--font-family-body)));
 
         --_surface-page: var(--color-surface-page, #f4f0ea);
         --_surface-card: var(--color-surface-card, #f8f9f3);

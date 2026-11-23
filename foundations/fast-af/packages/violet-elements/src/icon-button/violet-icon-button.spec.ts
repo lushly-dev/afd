@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cdp, userEvent } from "vitest/browser";
 
 import "./violet-icon-button";
 import type { VioletIconButton } from "./violet-icon-button";
@@ -151,5 +151,68 @@ describe("violet-icon-button", () => {
 
         expect(slot.assignedElements()).toHaveLength(1);
         expect(slot.assignedElements()[0]?.textContent).toBe("+");
+    });
+
+    describe("under forced colours", () => {
+        async function emulateForcedColors(active: boolean): Promise<void> {
+            const session = cdp() as unknown as { send(method: string, params?: object): Promise<unknown> };
+            await session.send("Emulation.setEmulatedMedia", {
+                features: [
+                    { name: "forced-colors", value: active ? "active" : "none" },
+                    { name: "prefers-color-scheme", value: active ? "dark" : "light" },
+                    { name: "prefers-reduced-motion", value: "no-preference" },
+                    { name: "prefers-contrast", value: "no-preference" },
+                ],
+            });
+        }
+
+        function systemColor(name: string): string {
+            const probe = document.createElement("span");
+            probe.style.color = name;
+            document.body.append(probe);
+            const value = getComputedStyle(probe).color;
+            probe.remove();
+            return value;
+        }
+
+        afterEach(async () => {
+            await emulateForcedColors(false);
+        });
+
+        it.each(["quiet", "transparent"] as const)(
+            "paints %s buttons with ButtonText inside a forced-color-adjust: none region (#1602)",
+            async appearance => {
+                await emulateForcedColors(true);
+                document.body.innerHTML = "";
+                const surface = document.createElement("div");
+                surface.style.forcedColorAdjust = "none";
+                surface.style.background = "Canvas";
+
+                const button = document.createElement("violet-icon-button") as VioletIconButton;
+                button.appearance = appearance;
+                button.label = "Close";
+                const glyph = document.createElement("span");
+                glyph.textContent = "×";
+                button.append(glyph);
+                surface.append(button);
+                document.body.append(surface);
+
+                await customElements.whenDefined("violet-icon-button");
+                await nextFrame();
+
+                const buttonText = systemColor("ButtonText");
+                expect(matchMedia("(forced-colors: active)").matches).toBe(true);
+                expect(getComputedStyle(control(button)).color).toBe(buttonText);
+                expect(getComputedStyle(glyph).color).toBe(buttonText);
+
+                button.disabled = true;
+
+                const grayText = systemColor("GrayText");
+                await vi.waitFor(() => {
+                    expect(getComputedStyle(control(button)).color).toBe(grayText);
+                });
+                expect(getComputedStyle(control(button)).opacity).toBe("1");
+            },
+        );
     });
 });
