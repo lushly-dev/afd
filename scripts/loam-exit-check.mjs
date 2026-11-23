@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Loam's exit check: `node scripts/loam-exit-check.mjs <loam run id> <ci run id> [--phase 3]`. Phase 2's, by
+ * Loam's exit check: `node scripts/loam-exit-check.mjs <loam run id> <ci run id> [--phase 2|3|4]`. Phase 2's, by
  * default, as below; `--phase 3` is phase 3's local part, after this comment's list.
  *
  * Step 14 of the phase 2 specification (endpoints/loam/docs/phases/2-scope-projects/spec.md, section 16)
@@ -36,6 +36,13 @@
  * figure; each row the specification names must be printed, at or under its own ceiling, and no row OVER. Once
  * D161 names the date D115 ends, this reading goes back to holding the figures the specification names.
  * The hosted part, P3-H1 to P3-H5, is step 10's.
+ *
+ * `--phase 4` is step 11 of the phase 4 specification (endpoints/loam/docs/phases/4-settings/spec.md, section
+ * 20), its whole exit, which is local (D126). It checks the same two runs by condition 1, then each `P4-E<n>:`
+ * row of section 19 in the places its row names, against loam-exit-check.p4.minimums.json, with condition 3
+ * over `P4-` titles. E11 is withdrawn (menus are deferred, section 9) and has no count. P4-E14 reuses phase 3's
+ * rows and minimums, and through P3-E12 phase 2's, each with condition 3 over its own prefix. E12's budget is
+ * section 14's rows under D115, as above: each printed, at or under its own ceiling, and none OVER.
  */
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -208,6 +215,49 @@ export const P3_BUDGET_ROWS = [
 ];
 
 /**
+ * Phase 4's exit rows: section 19 of endpoints/loam/docs/phases/4-settings/spec.md, by its "Place" column.
+ * E11 is withdrawn (menus are deferred); E14 reuses phase 3's local rows, which reuse phase 2's (`reuse`);
+ * E16 is `scenarios.test.ts` in Units, then this check. Change a row here only with its spec row.
+ */
+export const P4_ROWS = [
+	{ row: 'E1', in: ['chromium', 'units'] },
+	{ row: 'E2', in: ['units'] },
+	{ row: 'E3', in: ['units', 'chromium'] },
+	{ row: 'E4', in: ['units', 'chromium'] },
+	{ row: 'E5', in: ['chromium', 'units'] },
+	{ row: 'E6', in: ['chromium', 'units'] },
+	{ row: 'E7', in: ['chromium', 'units'] },
+	{ row: 'E8', in: ['chromium', 'units'] },
+	{ row: 'E9', in: ['chromium', 'units'] },
+	{ row: 'E10', in: ['chromium', 'units'] },
+	// "Withdrawn": menus are deferred (section 9, D127), so the row has no place and no title.
+	{ row: 'E11', in: [], withdrawn: true },
+	{ row: 'E12', in: ['budget', 'chromium'] },
+	{ row: 'E13', in: ['chromium'] },
+	// "Earlier phases' places": phase 3's local rows, whose E12 is phase 2's, each at its own minimums.
+	{ row: 'E14', in: [], reuse: 3 },
+	{ row: 'E15', in: ['units'] },
+	// "Units; the exit step": the scenario runner's titles, then this check.
+	{ row: 'E16', in: ['units'] },
+	{ row: 'E17', in: ['units'] },
+];
+
+/**
+ * The rows of phase 4's section 14, by the start of the label the budget script prints: first paint's two, then
+ * each chunk row the section names. Under D115, as phase 3's: printed once, at or under its own ceiling.
+ */
+export const P4_BUDGET_ROWS = [
+	'JavaScript, minified',
+	'JavaScript, gzip',
+	"The kernel's `late` chunk",
+	"The kernel's `late-settings` chunk",
+	'The `settings` chunk',
+	"The chrome's `inbox` chunk",
+	"The chrome's `overlays` chunk",
+	"The kernel's `apps` chunks",
+];
+
+/**
  * ANSI escapes, as the escape character or in caret notation (`^[[32m`), which `gh run view --log` prints
  * in place of it since November 2026: neither is ever part of a title.
  */
@@ -223,7 +273,11 @@ const VITEST_RESULT =
 /** A node spec result, in the lean-path step only: a mark, the title, its duration, and any directive. */
 const NODE_RESULT = /^\s*([^\w\s])\s+(.*?) \(\d+(?:\.\d+)?ms\)(?: # (.+))?$/u;
 /** A row title starts a title segment: `P2-E2: `, or several, as `P2-E2: P2-D9: `; phase 3's `P3-E8: `. */
-const ROW_TITLES = { P2: /^(?:P2-[ED]\d+: )+/, P3: /^(?:P3-E\d+: )+/ };
+const ROW_TITLES = {
+	P2: /^(?:P2-[ED]\d+: )+/,
+	P3: /^(?:P3-E\d+: )+/,
+	P4: /^(?:P4-E\d+: )+/,
+};
 const VITEST_STATUS = { '✓': 'pass', '×': 'fail', '↓': 'skip', '□': 'todo' };
 const NODE_STATUS = { '✔': 'pass', '✖': 'fail', '﹣': 'skip' };
 const RETRIED = /\(retry x\d+\)/;
@@ -246,8 +300,8 @@ function claimedRows(segments, rowTitle) {
  * whose title claims a row, with its job, step, status and rows. Only a result line counts: Vitest's verbose
  * shape anywhere, node's spec shape in the lean-path step. A status is `pass` only for a passing mark with
  * no retry and no node directive (`# SKIP`, `# TODO`, `# EXPECTED FAILURE`); an unknown mark is its own
- * status, so a change of format fails closed. `prefix` is the phase whose titles it reads, `P2` or `P3`; each
- * is read alone, so phase 2's reading is the same with phase 3's titles in the log.
+ * status, so a change of format fails closed. `prefix` is the phase whose titles it reads, `P2`, `P3` or `P4`;
+ * each is read alone, so an earlier phase's reading is the same with a later phase's titles in the log.
  */
 export function readTitles(log, prefix = 'P2') {
 	const rowTitle = ROW_TITLES[prefix];
@@ -405,6 +459,8 @@ function checkStep(run, location) {
 export const MINIMUMS_FILE = 'loam-exit-check.minimums.json';
 /** Phase 3's, in the same shape; E12 reads phase 2's file. */
 export const P3_MINIMUMS_FILE = 'loam-exit-check.p3.minimums.json';
+/** Phase 4's, in the same shape; E14 reads phase 3's file, and through it phase 2's. */
+export const P4_MINIMUMS_FILE = 'loam-exit-check.p4.minimums.json';
 export function readMinimums(file = MINIMUMS_FILE) {
 	return JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), file), 'utf8'))
 		.minimums;
@@ -421,16 +477,69 @@ function titleProblems(titles, prefix) {
 }
 
 /**
- * Condition 2 over one phase's rows: each row's passing titles counted in each place it names, against its
- * minimums. Returns the problems, the report's lines and the counts observed.
+ * Each phase the check reads, by its number: its title prefix, its rows, its minimums file, and its budget.
+ * A phase with `budgetRows` reads them under D115 (`readBudgetWithin`); phase 2 holds its own figures
+ * (`readBudget`) when checked as itself, and D115's first-paint rows when another phase reuses it. A row with
+ * `reuse: <n>` is phase n's whole check, nested under it; `line` is what a row with no place prints. Phase 6's
+ * milestones add their own entries here.
  */
-function checkRows({ rows, prefix, titles, minimums, minimumsFile, budget }) {
+export const PHASES = {
+	2: { prefix: 'P2', rows: ROWS, minimumsFile: MINIMUMS_FILE, line: {} },
+	3: {
+		prefix: 'P3',
+		rows: P3_ROWS,
+		minimumsFile: P3_MINIMUMS_FILE,
+		budgetRows: P3_BUDGET_ROWS,
+		line: { E16: 'this check, the local part' },
+	},
+	4: {
+		prefix: 'P4',
+		rows: P4_ROWS,
+		minimumsFile: P4_MINIMUMS_FILE,
+		budgetRows: P4_BUDGET_ROWS,
+		line: { E11: 'withdrawn, menus are deferred (section 9)' },
+	},
+};
+
+/** Every place a phase's rows name, its reused phases' included. */
+function placesOf(id) {
+	return PHASES[id].rows.flatMap((row) => (row.reuse ? placesOf(row.reuse) : row.in));
+}
+
+/**
+ * Conditions 2 and 3 over one phase's rows: each row's passing titles counted in each place it names, against
+ * its minimums; a reused phase checked whole, its row problems prefixed with the row that reuses it. Returns
+ * the title problems (condition 3, this phase's and each reused phase's, in that order), the row problems,
+ * the report's lines and the counts observed for this phase's own rows.
+ */
+function checkPhase(id, { log, minimumsOf, reused = false }) {
+	const { prefix, rows, minimumsFile, budgetRows, line } = PHASES[id];
+	const titles = readTitles(log, prefix);
+	const titleIssues = titleProblems(titles, prefix);
+	// D115: a ceiling is the one the budget script holds, so phase 2's figures are read only as itself.
+	const budget = budgetRows
+		? readBudgetWithin(log, budgetRows)
+		: reused
+			? readBudgetWithin(log, P3_BUDGET_ROWS.slice(0, 2))
+			: readBudget(log);
+	const minimums = minimumsOf(id);
 	const problems = [];
+	const nested = [];
 	const report = [];
 	const observed = {};
-	for (const { row, in: places } of rows) {
+	for (const { row, in: places, reuse } of rows) {
+		if (reuse) {
+			const inner = checkPhase(reuse, { log, minimumsOf, reused: true });
+			titleIssues.push(...inner.titleIssues);
+			nested.push(...inner.problems.map((problem) => `${prefix}-${row}: ${problem}`));
+			report.push(
+				`${prefix}-${row}: phase ${reuse}'s rows, in their places, at ${PHASES[reuse].minimumsFile}'s counts:`,
+				...inner.report.map((entry) => `  ${entry}`)
+			);
+			continue;
+		}
 		if (places.length === 0) {
-			report.push(`${prefix}-${row}: this check`);
+			report.push(`${prefix}-${row}: ${line[row] ?? 'this check'}`);
 			continue;
 		}
 		const counts = places.map((key) => {
@@ -463,25 +572,32 @@ function checkRows({ rows, prefix, titles, minimums, minimumsFile, budget }) {
 		});
 		report.push(`${prefix}-${row}: ${counts.join('; ')}`);
 	}
-	return { problems, report, observed };
+	return { titleIssues, problems: [...problems, ...nested], report, observed };
 }
 
 /**
  * The whole check over the two runs and the Loam run's log. Returns the problems, each naming what is
- * wrong, the report's lines, and the counts observed, in the minimums file's shape. `phase` 3 checks phase
- * 3's rows against `minimums` (its own file by default), and E12 against `phase2Minimums`.
+ * wrong, the report's lines, and the counts observed for the phase's own rows, in the minimums file's shape.
+ * `minimums` is the phase's own (its file by default), `phase2Minimums` phase 2's when another phase reuses
+ * it, and `minimumsByPhase` any phase's, by number; each defaults to the committed file.
  */
 export function checkExit({
 	loam,
 	ci,
 	log,
 	phase = 2,
-	minimums = readMinimums(phase === 3 ? P3_MINIMUMS_FILE : MINIMUMS_FILE),
-	phase2Minimums = phase === 3 ? readMinimums(MINIMUMS_FILE) : minimums,
+	minimums,
+	phase2Minimums,
+	minimumsByPhase = {},
 	allowRerun = false,
 }) {
 	// A phase this check has no rows for is refused, never read as phase 2's: phase 6's milestones add their own.
-	if (phase !== 2 && phase !== 3) throw new Error(`The exit check has no rows for phase ${phase}`);
+	if (!Object.hasOwn(PHASES, phase))
+		throw new Error(`The exit check has no rows for phase ${phase}`);
+	const given = { ...minimumsByPhase };
+	if (phase2Minimums !== undefined) given[2] = phase2Minimums;
+	if (minimums !== undefined) given[phase] = minimums;
+	const minimumsOf = (id) => given[id] ?? readMinimums(PHASES[id].minimumsFile);
 	const problems = [
 		...checkRun(loam, WORKFLOWS.loam, { allowRerun }),
 		...checkRun(ci, WORKFLOWS.ci, { allowRerun }),
@@ -491,59 +607,11 @@ export function checkExit({
 			`the runs are of different commits: loam.yml ${loam.headSha}, ci.yml ${ci.headSha}`
 		);
 
-	const rows = phase === 3 ? [...P3_ROWS, ...ROWS] : ROWS;
-	const used = new Set(rows.flatMap((row) => row.in));
-	for (const key of used) problems.push(...checkStep(loam, LOCATIONS[key]));
+	for (const key of new Set(placesOf(phase))) problems.push(...checkStep(loam, LOCATIONS[key]));
 
-	const report = [];
-	let observed;
-	if (phase === 3) {
-		const p2Titles = readTitles(log, 'P2');
-		const p3Titles = readTitles(log, 'P3');
-		problems.push(...titleProblems(p3Titles, 'P3'), ...titleProblems(p2Titles, 'P2'));
-		// D115: a ceiling is the one the budget script holds, so phase 2's figures are not read here.
-		const firstPaint = readBudgetWithin(log, P3_BUDGET_ROWS.slice(0, 2));
-		const own = checkRows({
-			rows: P3_ROWS,
-			prefix: 'P3',
-			titles: p3Titles,
-			minimums,
-			minimumsFile: P3_MINIMUMS_FILE,
-			budget: readBudgetWithin(log, P3_BUDGET_ROWS),
-		});
-		const reused = checkRows({
-			rows: ROWS,
-			prefix: 'P2',
-			titles: p2Titles,
-			minimums: phase2Minimums,
-			minimumsFile: MINIMUMS_FILE,
-			budget: firstPaint,
-		});
-		problems.push(...own.problems, ...reused.problems.map((problem) => `P3-E12: ${problem}`));
-		for (const line of own.report)
-			if (line.startsWith('P3-E12: '))
-				report.push(
-					`P3-E12: phase 2's rows, in their places, at ${MINIMUMS_FILE}'s counts:`,
-					...reused.report.map((entry) => `  ${entry}`)
-				);
-			else if (line.startsWith('P3-E16: ')) report.push('P3-E16: this check, the local part');
-			else report.push(line);
-		observed = own.observed;
-	} else {
-		const titles = readTitles(log);
-		problems.push(...titleProblems(titles, 'P2'));
-		const own = checkRows({
-			rows: ROWS,
-			prefix: 'P2',
-			titles,
-			minimums,
-			minimumsFile: MINIMUMS_FILE,
-			budget: readBudget(log),
-		});
-		problems.push(...own.problems);
-		report.push(...own.report);
-		observed = own.observed;
-	}
+	const own = checkPhase(phase, { log, minimumsOf });
+	problems.push(...own.titleIssues, ...own.problems);
+	const { report, observed } = own;
 
 	const header = (run, workflow) =>
 		`${workflow.file} run ${run.databaseId}, attempt ${run.attempt} (${run.event} on ${run.headBranch} at ${String(run.headSha).slice(0, 8)}), ${run.url}: ${run.jobs.map((job) => `${job.name} ${job.conclusion || job.status}`).join(', ')}`;
@@ -589,7 +657,7 @@ export function fetchRuns(loamId, ciId) {
 }
 
 const USAGE =
-	'usage: node scripts/loam-exit-check.mjs <loam run id> <ci run id> [--phase 2|3] [--allow-rerun] [--print-minimums]';
+	'usage: node scripts/loam-exit-check.mjs <loam run id> <ci run id> [--phase 2|3|4] [--allow-rerun] [--print-minimums]';
 
 /** The arguments, or null when they are not the usage's: two run ids, and each flag at most once. */
 export function parseArgs(argv) {
@@ -598,7 +666,7 @@ export function parseArgs(argv) {
 	const at = rest.indexOf('--phase');
 	if (at !== -1) {
 		const value = rest[at + 1];
-		if (value !== '2' && value !== '3') return null;
+		if (!['2', '3', '4'].includes(value)) return null;
 		phase = Number(value);
 		rest.splice(at, 2);
 		if (rest.includes('--phase')) return null;
@@ -630,7 +698,7 @@ function main(argv) {
 	console.log(report.join('\n'));
 	if (parsed.printMinimums)
 		console.log(
-			`\nThe counts observed, for ${parsed.phase === 3 ? P3_MINIMUMS_FILE : MINIMUMS_FILE}:\n${JSON.stringify(observed, null, '\t')}`
+			`\nThe counts observed, for ${PHASES[parsed.phase].minimumsFile}:\n${JSON.stringify(observed, null, '\t')}`
 		);
 	if (problems.length > 0) {
 		console.error(`\nThe exit check fails, ${problems.length} problem(s):`);
