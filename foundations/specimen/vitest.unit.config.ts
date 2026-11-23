@@ -26,6 +26,7 @@ export const browserSuites = [
 	'src/pack-run.test.ts',
 	'src/pick.test.ts',
 	'src/targets.test.ts',
+	'src/network.test.ts',
 ];
 
 export default defineConfig({

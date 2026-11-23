@@ -6105,11 +6105,11 @@
       "upstream_sha256": "0eadebbfada7faabfe0714e1e6fe8ca2273274ed06b171bf9ac04c3c22af7a8c",
       "staged_path": "packages/violet-elements/src/card/violet-card.stories.ts",
       "staged_sha256": "0eadebbfada7faabfe0714e1e6fe8ca2273274ed06b171bf9ac04c3c22af7a8c",
-      "current_import_sha256": "60ff064a45808c8955e2adcc6ba80b75aebec7b801ff228a4d898bf29bbcc9fb",
+      "current_import_sha256": "9d302f5a7b88803393b86dd76c9acf4028928f4866582c5da353b007843d95a1",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories; Remove Lushly look outside tokens (story labs, color-picker defaults, alias fallbacks) (#1492)"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories; Remove Lushly look outside tokens (story labs, color-picker defaults, alias fallbacks) (#1492); Violet's card, persona and message-media stories use inline SVG images instead of remote ones, since Specimen pages reach only the bench's origin; pack records rebuilt"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/card/violet-card.ts",
@@ -6477,11 +6477,11 @@
       "upstream_sha256": "59f75d485c997a38e0588bd13ec096ee44a300ca707b6a1a8c57dc72f4127ff9",
       "staged_path": "packages/violet-elements/src/conversation/violet-message-media.stories.ts",
       "staged_sha256": "59f75d485c997a38e0588bd13ec096ee44a300ca707b6a1a8c57dc72f4127ff9",
-      "current_import_sha256": "ce47b659a73e0fea269eb09adaaffa89929feee4c6212a9ff9d74339602d67f8",
+      "current_import_sha256": "feb67ea02b30e16eccaf071076a69031178054308124f5e52d2151d3144597e7",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #232) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact upstream bytes (fast-af #232); T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
+      "import_reason": "Imported exact upstream bytes (fast-af #232); T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories; Violet's card, persona and message-media stories use inline SVG images instead of remote ones, since Specimen pages reach only the bench's origin; pack records rebuilt"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/conversation/violet-message-media.ts",
@@ -8673,11 +8673,11 @@
       "upstream_sha256": "02e886bd8571cb93d89e0ba7ae5d3256ffaa0a28091ca9029a362d34f74650be",
       "staged_path": "packages/violet-elements/src/persona/violet-persona.stories.ts",
       "staged_sha256": "02e886bd8571cb93d89e0ba7ae5d3256ffaa0a28091ca9029a362d34f74650be",
-      "current_import_sha256": "c20eeb1d0784c376ff29748bba3d90361e238211e41c9c0b21a9f90fbcf44b09",
+      "current_import_sha256": "076c2ac55dc386d4f15360664a61530e364c8b6d7b6c74e573412ff01bf5f293",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Label in name (WCAG 2.5.3, #971), which axe-core 4.14 checks: the color picker, date range picker and the four data-grid pickers name their trigger by its label and then by the text it shows; the file explorer keeps a row's visible name and metadata together in its name; the persona draws its initials through CSS, as they are decorative; the attachment cell's thumbnail falls back to an icon; specs, a story and the custom elements manifest follow; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Label in name (WCAG 2.5.3, #971), which axe-core 4.14 checks: the color picker, date range picker and the four data-grid pickers name their trigger by its label and then by the text it shows; the file explorer keeps a row's visible name and metadata together in its name; the persona draws its initials through CSS, as they are decorative; the attachment cell's thumbnail falls back to an icon; specs, a story and the custom elements manifest follow; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories; Violet's card, persona and message-media stories use inline SVG images instead of remote ones, since Specimen pages reach only the bench's origin; pack records rebuilt"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/persona/violet-persona.ts",
@@ -9945,11 +9945,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "220c4890a160876db9d77a62842dd20f1470ba62d8fdd8ae8bc2368651ce8f37",
+      "current_import_sha256": "e966186c06a6a038ca5a28c4bb8cf43d782dafd4d467df86e18a7ff7cae70f07",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs B4: violet-elements' component pack: guide files for 46 components and shared rules, the attribute taxonomy as a guide source (allowed-origins' definition shortened to fit a 240-character rule), the pack key, the committed records and their gap report, pack-check in test:stories, and guide claims on the checkbox and switch overviews, which now put their component back after the form check; Component Briefs B4: violet-elements' records rebuilt with each example's attributes in name order; Component Briefs C4: the pack's records rebuilt in format 1; violet-file-upload's guide gives one role for its selected state; violet-data-grid-pill-select's error-announcement takes the manifest's attribute description; The Refined design in the components' own styles (#1430): token interface version 2 (font.family.heading, shadow.well, five color.field ids; font.family.mono read), the built-in theme regenerated from Loam's export, fallbacks rewritten to Loam's light values, private aliases defined and a spec for them (#1436), guides, manifest and pack rebuilt; Remove Lushly look outside tokens (story labs, color-picker defaults, alias fallbacks) (#1492)"
+      "import_reason": "Component Briefs B4: violet-elements' component pack: guide files for 46 components and shared rules, the attribute taxonomy as a guide source (allowed-origins' definition shortened to fit a 240-character rule), the pack key, the committed records and their gap report, pack-check in test:stories, and guide claims on the checkbox and switch overviews, which now put their component back after the form check; Component Briefs B4: violet-elements' records rebuilt with each example's attributes in name order; Component Briefs C4: the pack's records rebuilt in format 1; violet-file-upload's guide gives one role for its selected state; violet-data-grid-pill-select's error-announcement takes the manifest's attribute description; The Refined design in the components' own styles (#1430): token interface version 2 (font.family.heading, shadow.well, five color.field ids; font.family.mono read), the built-in theme regenerated from Loam's export, fallbacks rewritten to Loam's light values, private aliases defined and a spec for them (#1436), guides, manifest and pack rebuilt; Remove Lushly look outside tokens (story labs, color-picker defaults, alias fallbacks) (#1492); Violet's card, persona and message-media stories use inline SVG images instead of remote ones, since Specimen pages reach only the bench's origin; pack records rebuilt"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/pack/data/violet-elements/components/violet-carousel.json",
@@ -10389,11 +10389,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "31992c37f0b5260dac5816ab1158f6d93b7fb37323640317cf1ff539c9f1b104",
+      "current_import_sha256": "94041ce45277e4cd10d33b251b8d85ae99757b0e82626bb2075f3e4d9cba5da0",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs B4: violet-elements' component pack: guide files for 46 components and shared rules, the attribute taxonomy as a guide source (allowed-origins' definition shortened to fit a 240-character rule), the pack key, the committed records and their gap report, pack-check in test:stories, and guide claims on the checkbox and switch overviews, which now put their component back after the form check; Component Briefs B4: violet-elements' records rebuilt with each example's attributes in name order; Component Briefs C4: the pack's records rebuilt in format 1; violet-file-upload's guide gives one role for its selected state; violet-data-grid-pill-select's error-announcement takes the manifest's attribute description; Records take a component's role from its shadow tree (#1146); The Refined design in the components' own styles (#1430): token interface version 2 (font.family.heading, shadow.well, five color.field ids; font.family.mono read), the built-in theme regenerated from Loam's export, fallbacks rewritten to Loam's light values, private aliases defined and a spec for them (#1436), guides, manifest and pack rebuilt"
+      "import_reason": "Component Briefs B4: violet-elements' component pack: guide files for 46 components and shared rules, the attribute taxonomy as a guide source (allowed-origins' definition shortened to fit a 240-character rule), the pack key, the committed records and their gap report, pack-check in test:stories, and guide claims on the checkbox and switch overviews, which now put their component back after the form check; Component Briefs B4: violet-elements' records rebuilt with each example's attributes in name order; Component Briefs C4: the pack's records rebuilt in format 1; violet-file-upload's guide gives one role for its selected state; violet-data-grid-pill-select's error-announcement takes the manifest's attribute description; Records take a component's role from its shadow tree (#1146); The Refined design in the components' own styles (#1430): token interface version 2 (font.family.heading, shadow.well, five color.field ids; font.family.mono read), the built-in theme regenerated from Loam's export, fallbacks rewritten to Loam's light values, private aliases defined and a spec for them (#1436), guides, manifest and pack rebuilt; Violet's card, persona and message-media stories use inline SVG images instead of remote ones, since Specimen pages reach only the bench's origin; pack records rebuilt"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/pack/data/violet-elements/components/violet-popover.json",

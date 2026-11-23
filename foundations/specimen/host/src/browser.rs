@@ -2,11 +2,13 @@
 //! the environment Playwright 1.64 gives headless Chromium pages: the same launch switches,
 //! default font families, locale, media and metrics emulation. Scenario actions use real
 //! input after Playwright's actionability checks. The ARIA snapshot comes from Chromium's own
-//! accessibility tree.
+//! accessibility tree. Unlike Playwright's defaults, Chromium keeps its sandbox where it can
+//! start, and a context reaches only the origins `isolation::Network` lets through.
 
 use crate::aria;
 use crate::cdp::{self, Cdp};
 use crate::console::{Collector, Messages};
+use crate::isolation::{Network, SANDBOX_VARIABLE, Sandbox, StartFailure};
 use crate::keyboard::Keyboard;
 use crate::page::{Page, Viewport, emulate, prepare};
 use crate::process::{self, Child};
@@ -39,8 +41,10 @@ const DISABLED_FEATURES: &[&str] = &[
     "msEdgeUpdateLaunchServicesPreferredVersion",
 ];
 
-/// Playwright 1.64's headless Chromium switches, so pages see the same browser environment.
-fn switches(user_data: &str) -> Vec<String> {
+/// Playwright 1.64's headless Chromium switches, so pages see the same browser environment,
+/// with two exceptions: `--no-sandbox` only when the sandbox is off, and WebRTC kept to the
+/// context's proxy, which refuses it, so UDP cannot reach a host the proxy would block.
+fn switches(user_data: &str, sandbox: bool) -> Vec<String> {
     let mut args: Vec<String> = [
         "--disable-field-trial-config",
         "--disable-background-networking",
@@ -90,7 +94,15 @@ fn switches(user_data: &str) -> Vec<String> {
             "--hide-scrollbars",
             "--mute-audio",
             "--blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4",
-            "--no-sandbox",
+        ]
+        .map(String::from),
+    );
+    if !sandbox {
+        args.push("--no-sandbox".into());
+    }
+    args.extend(
+        [
+            "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
             "--remote-debugging-pipe",
             "--no-startup-window",
         ]
@@ -105,22 +117,40 @@ pub struct Browser {
     child: Mutex<Option<Child>>,
     /// The browser's process id: on Unix also its process group; on Windows, in its own job.
     pub pid: u32,
+    /// Whether Chromium runs in its sandbox.
+    pub sandbox: bool,
     user_data: PathBuf,
-    /// The handshake's outcome: the browser version, or why it did not start.
-    version: tokio::sync::watch::Receiver<Option<Result<String, String>>>,
+    /// The handshake's outcome: the browser version, or why it did not start and how.
+    version: tokio::sync::watch::Receiver<Option<Result<String, (String, StartFailure)>>>,
 }
 
 impl Browser {
     /// Start Chromium now; the CDP handshake completes in the background. Closing never
     /// depends on the handshake, so a browser that never answers is still stopped.
-    pub fn spawn(executable: &str, work: &std::path::Path) -> Result<Arc<Browser>> {
+    pub fn spawn(
+        executable: &str,
+        work: &std::path::Path,
+        sandbox: &Sandbox,
+    ) -> Result<Arc<Browser>> {
         let user_data = work.join(format!("profile-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&user_data)?;
-        let (child, cdp) = cdp::launch(executable, &switches(&user_data.display().to_string()))?;
+        let (child, cdp) = cdp::launch(
+            executable,
+            &switches(&user_data.display().to_string(), sandbox.enabled),
+        )?;
+        // A container can withhold what the Linux sandbox needs in ways the host cannot see.
+        let hint = if sandbox.enabled && cfg!(target_os = "linux") {
+            format!(
+                "; if this system cannot run Chromium's sandbox, such as a container without user namespaces, set {SANDBOX_VARIABLE}=0"
+            )
+        } else {
+            String::new()
+        };
         let (report, version) = tokio::sync::watch::channel(None);
         let browser = Arc::new(Browser {
             cdp,
             pid: child.id(),
+            sandbox: sandbox.enabled,
             child: Mutex::new(Some(child)),
             user_data,
             version,
@@ -140,12 +170,33 @@ impl Browser {
                         .map_or(product, |(_, version)| version)
                         .to_string())
                 }
-                Ok(Err(error)) => Err(format!("Chromium did not start: {error:#}")),
-                Err(_) => Err("Chromium did not start within 10000ms".to_string()),
+                Ok(Err(error)) => {
+                    let message = format!("{error:#}");
+                    let failure = if message.contains("Browser connection closed") {
+                        StartFailure::Closed
+                    } else {
+                        StartFailure::Other
+                    };
+                    Err((format!("Chromium did not start: {message}{hint}"), failure))
+                }
+                Err(_) => Err((
+                    format!("Chromium did not start within 10000ms{hint}"),
+                    StartFailure::Other,
+                )),
             };
             let _ = report.send(Some(outcome));
         });
         Ok(browser)
+    }
+
+    /// How the handshake failed, once it has finished, or `None` if Chromium started.
+    pub async fn start_failure(&self) -> Option<StartFailure> {
+        let mut version = self.version.clone();
+        let outcome = version.wait_for(Option::is_some).await.ok()?.clone();
+        match outcome {
+            Some(Err((_, failure))) => Some(failure),
+            _ => None,
+        }
     }
 
     /// The browser version once the handshake succeeds.
@@ -157,8 +208,8 @@ impl Browser {
             .map_err(|_| anyhow!("Chromium did not start"))?;
         outcome
             .clone()
-            .unwrap_or_else(|| Err("Chromium did not start".into()))
-            .map_err(|error| anyhow!(error))
+            .unwrap_or_else(|| Err(("Chromium did not start".into(), StartFailure::Other)))
+            .map_err(|(message, _)| anyhow!(message))
     }
 
     pub async fn close(&self) {
@@ -353,6 +404,7 @@ impl Browser {
     pub async fn render(
         &self,
         url: &str,
+        network: &Network,
         request: &RenderRequest,
     ) -> Result<RenderOutcome, RenderFailure> {
         // Startup has its own bound, as the browser launch does in Playwright.
@@ -360,7 +412,7 @@ impl Browser {
         let attempt = Attempt::default();
         let outcome = match timeout(
             Duration::from_millis(request.timeout_ms),
-            self.attempt(&attempt, url, request),
+            self.attempt(&attempt, url, network, request),
         )
         .await
         {
@@ -453,6 +505,7 @@ impl Browser {
         &self,
         attempt: &Attempt,
         url: &str,
+        network: &Network,
         request: &RenderRequest,
     ) -> Result<Attempted> {
         attempt.enter("opening the page");
@@ -461,7 +514,11 @@ impl Browser {
             .send(
                 None,
                 "Target.createBrowserContext",
-                json!({ "disposeOnDetach": true }),
+                json!({
+                    "disposeOnDetach": true,
+                    "proxyServer": network.proxy_server,
+                    "proxyBypassList": network.bypass_list,
+                }),
             )
             .await?
             .get("browserContextId")
@@ -800,7 +857,7 @@ async fn screenshot(page: &Page<'_>, path: &str, viewport: &Viewport) -> Result<
 
 #[cfg(test)]
 mod tests {
-    use super::RenderFailure;
+    use super::{RenderFailure, switches};
     use crate::page::TargetError;
     use anyhow::{Context, anyhow};
     use serde_json::json;
@@ -839,6 +896,26 @@ mod tests {
             structured.details,
             json!({ "count": 4, "target": "action" })
         );
+    }
+
+    #[test]
+    fn chromium_keeps_its_sandbox_unless_it_is_off() {
+        let sandboxed = switches("/profile", true);
+        assert!(!sandboxed.iter().any(|switch| switch == "--no-sandbox"));
+        let unsandboxed = switches("/profile", false);
+        assert_eq!(
+            unsandboxed
+                .iter()
+                .filter(|switch| *switch == "--no-sandbox")
+                .count(),
+            1
+        );
+        for args in [sandboxed, unsandboxed] {
+            assert!(args.iter().any(
+                |switch| switch == "--force-webrtc-ip-handling-policy=disable_non_proxied_udp"
+            ));
+            assert_eq!(args.last().unwrap(), "--user-data-dir=/profile");
+        }
     }
 
     #[test]

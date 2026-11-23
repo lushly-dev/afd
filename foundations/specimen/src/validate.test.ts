@@ -135,6 +135,28 @@ const configSchema = z
 				])
 			)
 			.optional(),
+		network: z
+			.strictObject({
+				allow: z
+					.array(
+						z
+							.string()
+							.refine(
+								(value) =>
+									/^https?:\/\/[^/?#@*\s]+\/?$/i.test(value) &&
+									URL.canParse(value) &&
+									!new URL(value).hostname.startsWith('.')
+							)
+							// The effective port is kept, never dropped for being the default.
+							.transform((value) => {
+								const url = new URL(value);
+								const implied = url.protocol === 'https:' ? ':443' : ':80';
+								return `${url.protocol}//${url.host}${url.port ? '' : implied}`;
+							})
+					)
+					.optional(),
+			})
+			.optional(),
 		plugins: z.array(z.string().min(1)).optional(),
 		manifest: z.string().min(1).optional(),
 		profile: z.strictObject({ baselines: z.string().min(1).optional() }).optional(),
@@ -350,6 +372,33 @@ describe('bench validation matches the Zod schemas', () => {
 			{ specimens: [entry], staticDirs: [{ from: './site', to: '/C:/evil' }] },
 			{ specimens: [entry], staticDirs: [{ from: './site', to: '/a\0b' }] },
 			{ specimens: [entry], staticDirs: [{ from: './site' }] },
+			{ specimens: [entry], network: {} },
+			{ specimens: [entry], network: { allow: [] } },
+			{
+				specimens: [entry],
+				network: {
+					allow: [
+						'https://fonts.example.com',
+						'HTTP://Example.COM:80/',
+						'http://127.0.0.1:4000',
+						'http://[::1]:8080',
+					],
+				},
+			},
+			{ specimens: [entry], network: { allow: 'https://fonts.example.com' } },
+			{ specimens: [entry], network: { allow: [''] } },
+			{ specimens: [entry], network: { allow: ['fonts.example.com'] } },
+			{ specimens: [entry], network: { allow: ['https:fonts.example.com'] } },
+			{ specimens: [entry], network: { allow: ['ws://example.com'] } },
+			{ specimens: [entry], network: { allow: ['file:///tmp'] } },
+			{ specimens: [entry], network: { allow: ['https://*.example.com'] } },
+			{ specimens: [entry], network: { allow: ['https://example.com/fonts'] } },
+			{ specimens: [entry], network: { allow: ['https://example.com?a'] } },
+			{ specimens: [entry], network: { allow: ['https://user@example.com'] } },
+			{ specimens: [entry], network: { allow: ['https://example.com:99999'] } },
+			{ specimens: [entry], network: { allow: ['http://.localhost:4000'] } },
+			{ specimens: [entry], network: { allow: ['https://.example.com'] } },
+			{ specimens: [entry], network: { block: [] } },
 			{ specimens: [entry], plugins: [] },
 			{ specimens: [entry], plugins: [''] },
 			{ specimens: [entry], plugins: './plugins.ts' },
@@ -372,6 +421,32 @@ describe('bench validation matches the Zod schemas', () => {
 			{ specimens: [entry], patternSources: '../violet/pack' },
 		];
 		for (const value of configs) agrees(configSchema, parseConfig, value);
+	});
+
+	it('keeps each allowed origin’s effective port, so no rule matches every port', () => {
+		const entry = { id: 'probe', title: 'Probe', module: './p.ts', exportName: 'Probe' };
+		const parsed = parseConfig({
+			specimens: [entry],
+			network: {
+				allow: [
+					'https://fonts.example.com',
+					'HTTP://Example.COM:80/',
+					'https://example.com:443',
+					'http://[::1]',
+					'http://localhost:4000',
+				],
+			},
+		});
+		expect(parsed.network?.allow).toEqual([
+			'https://fonts.example.com:443',
+			'http://example.com:80',
+			'https://example.com:443',
+			'http://[::1]:80',
+			'http://localhost:4000',
+		]);
+		expect(() =>
+			parseConfig({ specimens: [entry], network: { allow: ['http://.localhost:4000'] } })
+		).toThrow('every subdomain');
 	});
 
 	it('validates manifest-less app packs, localElements, patternSetup, and contexts in parity with Zod', () => {

@@ -4,6 +4,11 @@ import { expect } from "@lushly-dev/specimen/test";
 import "./violet-persona";
 import type { VioletPersona } from "./violet-persona";
 
+// An inline SVG portrait, so the story loads no remote image: Specimen's pages reach only the bench's origin.
+const AVATAR_IMAGE = `data:image/svg+xml,${encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96"><rect width="96" height="96" fill="#badecf"/><circle cx="48" cy="38" r="18" fill="#2c5e4b"/><path d="M14 96c4-22 18-32 34-32s30 10 34 32z" fill="#2c5e4b"/></svg>',
+)}`;
+
 type VioletPersonaStoryArgs = {
     label: string;
     src: string;
@@ -74,7 +79,7 @@ export const Overview: Story = {
 export const Image: Story = {
     args: {
         label: "Katri Athokas",
-        src: "https://fabricweb.azureedge.net/fabric-website/assets/images/avatar/KatriAthokas.jpg",
+        src: AVATAR_IMAGE,
         initials: "",
         decorative: false,
         size: "md",

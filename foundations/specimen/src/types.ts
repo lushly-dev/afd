@@ -243,6 +243,14 @@ export interface BenchConfig {
 	 */
 	staticDirs?: (string | { from: string; to: string })[];
 	/**
+	 * What a rendered page may reach. By default only the bench's own origin, with `data:` and
+	 * `blob:` URLs: every other request, loopback included, is refused. `allow` lists further
+	 * `http` or `https` origins, such as `https://fonts.example.com`. Each admits its scheme,
+	 * host and effective port alone (`:443` here), WebSockets to it included. A host starting
+	 * with `.` and wildcards are refused.
+	 */
+	network?: { allow?: string[] };
+	/**
 	 * Which retained stories run, as the Storybook Vitest addon's `tags` option selects them:
 	 * `include` defaults to `['test']`; `skip` reports a story skipped without running it.
 	 */

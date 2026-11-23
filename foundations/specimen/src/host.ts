@@ -80,6 +80,27 @@ export function browserRuntimePath(moduleUrl = import.meta.url): string {
 	return existsSync(compiled) ? compiled : fileURLToPath(new URL('./browser/index.ts', moduleUrl));
 }
 
+/**
+ * The Playwright release Specimen is built against, pinned exactly in its manifest. The host
+ * mirrors this release's headless Chromium switches, and the bench reads its browser registry
+ * (`playwright-core/browsers.json`) to find the shell, so another release could launch a
+ * browser build the host was never checked against.
+ */
+export const PLAYWRIGHT_VERSION = '1.64.1';
+
+/** Throw unless `name`, found at `directory`, is the pinned Playwright release. */
+export function checkPlaywrightVersion(name: string, version: string, directory: string): void {
+	if (version === PLAYWRIGHT_VERSION) return;
+	const suggestion = `Install ${name}@${PLAYWRIGHT_VERSION}, or remove the override or resolution that replaces the version Specimen pins`;
+	const error: SpecimenHostError = new Error(
+		`Specimen needs ${name} ${PLAYWRIGHT_VERSION}, the release whose Chromium build and launch switches it mirrors, but ${name} ${version} is installed at ${directory}. ${suggestion}.`
+	);
+	error.code = 'PLAYWRIGHT_VERSION_MISMATCH';
+	error.suggestion = suggestion;
+	error.details = { package: name, expected: PLAYWRIGHT_VERSION, found: version, directory };
+	throw error;
+}
+
 const SHELL_DIRECTORIES: Record<string, string> = {
 	'darwin-arm64': 'chrome-headless-shell-mac-arm64',
 	'darwin-x64': 'chrome-headless-shell-mac-x64',
@@ -98,6 +119,15 @@ export function chromiumExecutable(): string {
 	const core = dirname(
 		createRequire(join(playwright, 'package.json')).resolve('playwright-core/package.json')
 	);
+	for (const [name, directory] of [
+		['playwright', playwright],
+		['playwright-core', core],
+	] as const) {
+		const { version } = JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8')) as {
+			version: string;
+		};
+		checkPlaywrightVersion(name, version, directory);
+	}
 	const browsers = JSON.parse(readFileSync(join(core, 'browsers.json'), 'utf8')) as {
 		browsers: { name: string; revision: string }[];
 	};
@@ -122,15 +152,39 @@ export function chromiumExecutable(): string {
 		process.platform === 'win32' ? 'chrome-headless-shell.exe' : 'chrome-headless-shell'
 	);
 	if (!existsSync(executable)) {
-		// The project resolves Specimen's Playwright range itself, so name that exact version.
-		const { version } = JSON.parse(readFileSync(join(playwright, 'package.json'), 'utf8')) as {
-			version: string;
-		};
+		const version = PLAYWRIGHT_VERSION;
 		throw new Error(
 			`Chromium headless shell ${shell.revision}, for Playwright ${version}, is missing at ${executable}; install it with \`npx playwright@${version} install --only-shell chromium\` (in the AFD repository, \`pnpm -F @lushly-dev/specimen exec playwright install chromium\`)`
 		);
 	}
 	return executable;
+}
+
+/**
+ * The version of the sandbox and network rules the host must apply, which its `open` reply
+ * reports (`ISOLATION` in `host/src/main.rs`). A host built before them ignores `network`, so
+ * it is refused rather than used.
+ */
+export const HOST_ISOLATION = 1;
+
+/**
+ * Throw unless the host's `open` reply reports at least the isolation rules this client needs:
+ * a newer host applies them too, so it keeps working.
+ */
+export function checkHostIsolation(opened: { isolation?: unknown }, binary: string): void {
+	const { isolation } = opened;
+	if (typeof isolation === 'number' && Number.isInteger(isolation) && isolation >= HOST_ISOLATION)
+		return;
+	const suggestion =
+		'In a source checkout, rebuild it with `pnpm -F @lushly-dev/specimen build:host && pnpm -F @lushly-dev/specimen stage:host`; otherwise reinstall @lushly-dev/specimen so its host package matches, or point SPECIMEN_HOST_BINARY at a current build';
+	const found = opened.isolation === undefined ? 'none' : String(opened.isolation);
+	const error: SpecimenHostError = new Error(
+		`The Specimen host at ${binary} is older than this bench: it reports isolation ${found}, below ${HOST_ISOLATION}, so it would not apply the sandbox and network rules. ${suggestion}.`
+	);
+	error.code = 'HOST_OUTDATED';
+	error.suggestion = suggestion;
+	error.details = { binary, expected: HOST_ISOLATION, found: opened.isolation ?? null };
+	throw error;
 }
 
 export interface HostFailure {
@@ -195,6 +249,21 @@ export function hostError(failure: HostFailure): SpecimenHostError {
 
 const CLOSE_TIMEOUT = 10_000;
 const STDERR_LIMIT = 8_192;
+/** The prefix of the host's log lines, such as the one saying Chromium runs without its sandbox. */
+export const HOST_LOG_PREFIX = 'specimen-host: ';
+
+/**
+ * A stderr listener that passes the host's log lines on to `write` as they complete; the rest
+ * of stderr stays in the failure message only.
+ */
+export function hostLogLines(write: (line: string) => void): (chunk: string) => void {
+	let partial = '';
+	return (chunk) => {
+		const lines = (partial + chunk).split('\n');
+		partial = lines.pop() ?? '';
+		for (const line of lines) if (line.startsWith(HOST_LOG_PREFIX)) write(`${line}\n`);
+	};
+}
 
 /** One owned `specimen-host` process speaking its JSON-lines protocol. */
 export class HostProcess {
@@ -213,7 +282,7 @@ export class HostProcess {
 	/** Chromium's process group, reported by `open`: the last-resort cleanup handle. */
 	browserGroup: number | undefined;
 
-	constructor(binary = hostBinaryPath()) {
+	constructor(readonly binary = hostBinaryPath()) {
 		const child = spawn(binary, [], { stdio: ['pipe', 'pipe', 'pipe'] });
 		this.child = child;
 		this.exited = new Promise((resolveExit) => {
@@ -248,6 +317,10 @@ export class HostProcess {
 		child.stderr?.on('data', (chunk: string) => {
 			this.stderr = (this.stderr + chunk).slice(-STDERR_LIMIT);
 		});
+		child.stderr?.on(
+			'data',
+			hostLogLines((line) => process.stderr.write(line))
+		);
 		if (child.stdout)
 			createInterface({ input: child.stdout }).on('line', (line) => {
 				let reply: Reply;

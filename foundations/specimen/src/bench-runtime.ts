@@ -17,7 +17,7 @@ import {
 import { runContract } from './contract.js';
 import { runCoverage } from './coverage-run.js';
 import { diffObservations } from './diff.js';
-import { browserRuntimePath, chromiumExecutable, HostProcess } from './host.js';
+import { browserRuntimePath, checkHostIsolation, chromiumExecutable, HostProcess } from './host.js';
 import { type PackHost, runPack } from './pack-run.js';
 import {
 	BASELINE_RUNNER,
@@ -185,10 +185,13 @@ export async function createInProcessBench(
 						executable,
 						work: tmpdir(),
 						staticDirs: config.staticDirs,
+						// Pages reach the bench's own origin and these, nothing else.
+						network: { allow: config.config.network?.allow ?? [] },
 					},
 					HOST_GRACE
-				)) as { browserPid: number };
+				)) as { browserPid: number; isolation?: unknown };
 				process.browserGroup = opened.browserPid;
+				checkHostIsolation(opened, process.binary);
 				return process;
 			} catch (error) {
 				await process.close();

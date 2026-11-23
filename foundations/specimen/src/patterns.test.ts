@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,7 +19,9 @@ async function makeProject(
 	config: Record<string, unknown> = {},
 	files: Record<string, string | Uint8Array> = {}
 ): Promise<string> {
-	const root = await mkdtemp(join(tmpdir(), 'specimen-patterns-'));
+	// The resolved path: on macOS `tmpdir()` is under `/var`, a link to `/private/var`, and the
+	// pattern loader resolves links before checking that a path stays inside the root.
+	const root = await realpath(await mkdtemp(join(tmpdir(), 'specimen-patterns-')));
 	roots.push(root);
 	await writeFile(
 		join(root, 'example.specimen.js'),
