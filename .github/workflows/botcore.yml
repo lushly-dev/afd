@@ -83,9 +83,11 @@ jobs:
       - name: Lint
         run: uv run --frozen ruff check src/ tests/ scripts/ packages/ botcore-connectors/src/ botcore-connectors/tests/ plugins/botcore-teams/
       - name: Core tests
-        # Stateful optional plugin integration scenarios are preserved but not admitted here.
+        # The integration scenarios drive the sibling packages, so they run with them below.
         run: uv run --frozen pytest tests/ --ignore=tests/integration -q
-      - name: Sibling package tests
+      - name: Sibling packages, plugins and integration scenarios
+        # packages/*, botcore-connectors and every plugin but botcore-factory (its own workflow),
+        # then the scenarios with a mocked LLM.
         run: uv run --frozen python scripts/package_tests.py
       - name: Build all distributions and smoke-test isolated wheel assets
         run: uv run --frozen python scripts/package_smoke.py

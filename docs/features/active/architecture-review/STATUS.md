@@ -179,7 +179,7 @@ These keep their own work; this review only cross-references them.
 
 - [#1792](https://github.com/lushly-dev/afd/issues/1792) botcore: every capability on the managed surface, and the CLI generated from the host catalog
 
-- [#1793](https://github.com/lushly-dev/afd/issues/1793) botcore: CI runs every package's tests, the factory on macOS and Windows, and a multi-process lock test
+- [#1793](https://github.com/lushly-dev/afd/issues/1793) botcore: CI runs every package's tests, the factory on macOS and Windows, and a multi-process lock test; merged in #2220
 
 - [#1794](https://github.com/lushly-dev/afd/issues/1794) botcore: blocking work off the event loop, and process groups killed on timeout
 

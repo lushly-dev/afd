@@ -12,6 +12,7 @@ takes the lock and hands it to the detached process it starts; that process adop
 from __future__ import annotations
 
 import contextlib
+import errno
 import json
 import os
 import time
@@ -24,6 +25,7 @@ from botcore_factory.world import Processes
 
 #: How long an empty or unreadable lock counts as being written rather than abandoned.
 WRITING_GRACE_SECONDS = 5
+_WINDOWS = os.name == "nt"
 _WINDOWS_UNLINK_ATTEMPTS = 20
 _BREAK_GUARD_TIMEOUT = 5.0
 
@@ -165,9 +167,44 @@ def unlink_if_unchanged(path: Path, expected: LockSnapshot) -> bool:
     return False
 
 
+def _name_exists(path: Path) -> bool:
+    """Whether ``path`` names anything, a file being deleted on Windows included (CPython's
+    ``lstat`` falls back to the directory listing when the file itself refuses access)."""
+    return os.path.lexists(path)
+
+
+def _create_exclusive(path: Path) -> int:
+    """``os.open`` with ``O_CREAT | O_EXCL``, raising ``FileExistsError`` while ``path`` exists.
+
+    Windows refuses to create a name whose previous file is still being deleted (delete
+    pending) with access denied. While the name is still there the lock counts as held; once it
+    is gone the create is retried, and access still denied then is a real permission problem,
+    raised as it is.
+    """
+    flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
+    for attempt in range(_WINDOWS_UNLINK_ATTEMPTS):
+        try:
+            return os.open(path, flags)
+        except PermissionError as exc:
+            if not _WINDOWS:
+                raise
+            if _name_exists(path):
+                raise FileExistsError(
+                    errno.EEXIST, "a lock file is being deleted", str(path)
+                ) from exc
+            if attempt == _WINDOWS_UNLINK_ATTEMPTS - 1:
+                raise
+            time.sleep(0.05)
+    raise AssertionError("unreachable")  # pragma: no cover
+
+
 def write_exclusive_lock(path: Path, raw: bytes) -> LockSnapshot:
-    """Create ``path`` exclusively, write and fsync ``raw`` and parent dir, clean up on error."""
-    descriptor = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    """Create ``path`` exclusively, write and fsync ``raw`` and parent dir, clean up on error.
+
+    Raises ``FileExistsError`` while ``path`` exists, a Windows file still being deleted
+    included (``_create_exclusive``): callers wait or retry as for any held lock.
+    """
+    descriptor = _create_exclusive(path)
     created_dev: int | None = None
     created_ino: int | None = None
     try:

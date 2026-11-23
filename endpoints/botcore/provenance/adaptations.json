@@ -7,11 +7,11 @@
       "path": "AGENTS.md",
       "upstream_sha256": "f5450e1ba56adb4b95452b6700a3799cd614be00d3dfa7919778586c29121741",
       "staged_sha256": null,
-      "current_import_sha256": "66e40302339ea63992706e241b3df2c913684b3f7d4cbc839885e3a4863cb51f",
+      "current_import_sha256": "3c10caf1e8efe29c1fc04b4a2458ddc4597f5602f637d22719222d716a26127b",
       "stage_classification": "not-in-staging",
       "stage_reason": "Not selected in the frozen staged-input payload",
       "import_classification": "added-after-staging",
-      "import_reason": "Provide current AFD endpoint gates and authority instructions; Make the diff-scoped quality gate pass on main: portability markers, lint scope, format decision (lushly-dev/afd#513); Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356)"
+      "import_reason": "Provide current AFD endpoint gates and authority instructions; Make the diff-scoped quality gate pass on main: portability markers, lint scope, format decision (lushly-dev/afd#513); Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); Run every sibling package's, plugin's and mock integration scenario's tests in CI, the factory on macOS and Windows, and a multi-process lock test (lushly-dev/afd#1793)"
     },
     {
       "path": "CHANGELOG.md",
@@ -1632,10 +1632,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "a27a12a726efa13e687b2d89d2a2b8e09ad4148001f9393f23fe274e5b5ae220",
+      "current_import_sha256": "0ac6ce17aa2ec607ea7e778d6283749c11d4f1c47894eeb07820e54e23306cd7",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Fix botcore bug batch: factory state durability (#1796), teams missing-command errors (#1797), provenance archive member hardening (#1671), and ignored-only tier-2 disk classification (#1933)"
+      "import_reason": "Fix botcore bug batch: factory state durability (#1796), teams missing-command errors (#1797), provenance archive member hardening (#1671), and ignored-only tier-2 disk classification (#1933); Run every sibling package's, plugin's and mock integration scenario's tests in CI, the factory on macOS and Windows, and a multi-process lock test; a lock file being deleted on Windows counts as held (lushly-dev/afd#1793)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/machines.py",
@@ -1935,6 +1935,17 @@
       "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352)"
     },
     {
+      "path": "plugins/botcore-factory/tests/test_lock_processes.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "787054f186319a40c10f17add2004c806f8059fea02155c67efee9ce35518d51",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Run every sibling package's, plugin's and mock integration scenario's tests in CI, the factory on macOS and Windows, and a multi-process lock test (lushly-dev/afd#1793); Run every sibling package's, plugin's and mock integration scenario's tests in CI, the factory on macOS and Windows, and a multi-process lock test; a lock file being deleted on Windows counts as held (lushly-dev/afd#1793)"
+    },
+    {
       "path": "plugins/botcore-factory/tests/test_queue.py",
       "origin": "local-after-import",
       "upstream_sha256": null,
@@ -1995,10 +2006,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "c798347614a54568b258e9036007fb200950bfd39619efe867a0daa5bea3e2f2",
+      "current_import_sha256": "31f55de7386c0009ffc619c2e86118045337f182c65c5ace004b05dd96ba4e57",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Fix botcore bug batch: factory state durability (#1796), teams missing-command errors (#1797), provenance archive member hardening (#1671), and ignored-only tier-2 disk classification (#1933)"
+      "import_reason": "Fix botcore bug batch: factory state durability (#1796), teams missing-command errors (#1797), provenance archive member hardening (#1671), and ignored-only tier-2 disk classification (#1933); Run every sibling package's, plugin's and mock integration scenario's tests in CI, the factory on macOS and Windows, and a multi-process lock test; a lock file being deleted on Windows counts as held (lushly-dev/afd#1793)"
     },
     {
       "path": "plugins/botcore-factory/tests/test_test_changes.py",
@@ -2021,6 +2032,17 @@
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Add shared host validation lock (botcore_factory.validation_lock) and coverage stop/resume handling for #1309 (Phase A: AFD)"
+    },
+    {
+      "path": "plugins/botcore-factory/uv.lock",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "ec2947dd8fee13393ab281f7421003e6aa55644a26e525a45271bd56d6a75069",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Run every sibling package's, plugin's and mock integration scenario's tests in CI, the factory on macOS and Windows, and a multi-process lock test (lushly-dev/afd#1793)"
     },
     {
       "path": "plugins/botcore-teams/LICENSE",
@@ -2226,11 +2248,11 @@
       "path": "pyproject.toml",
       "upstream_sha256": "0db2afb97d025f6b29d935402ce8656a7c288f4a111b74d9348649af9fddfef2",
       "staged_sha256": "0db2afb97d025f6b29d935402ce8656a7c288f4a111b74d9348649af9fddfef2",
-      "current_import_sha256": "a9e09543b9fd69eae871491fa34aa1bef8634f9b43dcbf7c32376f698d4f87e9",
+      "current_import_sha256": "111bcc296ee9ad1994ed76f0e2c6a765affad58325d707f53874c93c9cf6461b",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Set root version 0.7.0, provenance, the AFD bootstrap override and AFD project URLs; pytest-asyncio's fixture loop scope set to function, its next default, so the tests do not warn that it is unset; ship skill scripts in the wheel; Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); Stamp the adaptations digest into the wheel and sdist at build, not in the repository (lushly-dev/afd#1610); Versioned by pnpm version-track botcore (lushly-botcore 0.8.0)"
+      "import_reason": "Set root version 0.7.0, provenance, the AFD bootstrap override and AFD project URLs; pytest-asyncio's fixture loop scope set to function, its next default, so the tests do not warn that it is unset; ship skill scripts in the wheel; Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); Stamp the adaptations digest into the wheel and sdist at build, not in the repository (lushly-dev/afd#1610); Versioned by pnpm version-track botcore (lushly-botcore 0.8.0); Run every sibling package's, plugin's and mock integration scenario's tests in CI, the factory on macOS and Windows, and a multi-process lock test (lushly-dev/afd#1793)"
     },
     {
       "path": "scripts/package_smoke.py",
@@ -2248,10 +2270,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "cf15313319b9871b813c4f9e387db69c8710d91c0b6e0101d64ed60aef549c4f",
+      "current_import_sha256": "313ce7500614fdb6a92681cc08dcb0c1387f94d468d07e9c6f94d33ac1d3666a",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in"
+      "import_reason": "Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in; Run every sibling package's, plugin's and mock integration scenario's tests in CI, the factory on macOS and Windows, and a multi-process lock test (lushly-dev/afd#1793); Run every sibling package's, plugin's and mock integration scenario's tests in CI, the factory on macOS and Windows, and a multi-process lock test; a lock file being deleted on Windows counts as held (lushly-dev/afd#1793)"
     },
     {
       "path": "scripts/record_provenance.py",
@@ -6613,6 +6635,17 @@
       "import_reason": "Prove child Git fixtures cannot alter the caller index; Normalize Git fixture paths and use the same case-sensitive skill ordering on Windows"
     },
     {
+      "path": "tests/test_package_tests.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "7fa38032721850da9691d19743b151220221240f0f4199324d32c51e1e529896",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Run every sibling package's, plugin's and mock integration scenario's tests in CI, the factory on macOS and Windows, and a multi-process lock test (lushly-dev/afd#1793); Run every sibling package's, plugin's and mock integration scenario's tests in CI, the factory on macOS and Windows, and a multi-process lock test; a lock file being deleted on Windows counts as held (lushly-dev/afd#1793)"
+    },
+    {
       "path": "tests/test_pipeline.py",
       "upstream_sha256": "5d593cba30a2df73d38d685912b863ab6d1d8e1c53932c5285bb6ee59ec795c5",
       "staged_sha256": "5d593cba30a2df73d38d685912b863ab6d1d8e1c53932c5285bb6ee59ec795c5",
@@ -6872,11 +6905,11 @@
       "path": "uv.lock",
       "upstream_sha256": "de195f74ec7cf4a8bc26f1d03a89ece63b7607f23433c23b86ab342dc335cd95",
       "staged_sha256": "de195f74ec7cf4a8bc26f1d03a89ece63b7607f23433c23b86ab342dc335cd95",
-      "current_import_sha256": "0e13b927224b132195b60a66b27ae590679d7aa67724820b77f4c210b438f941",
+      "current_import_sha256": "b6c56347a5effd422eed2b109e1faede02c58ee3e39c3137d6617976d910281e",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Lock local AFD 0.10 and MCP 2.3; refresh dependencies within declared constraints; Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); Lock the editable afd source at 0.11.0; Versioned by pnpm version-track botcore (lushly-botcore 0.8.0); Versioned by pnpm version-track python (afd-python 0.12.0); Refresh uv.lock after promoting pyyaml to afd[server] (#1981)"
+      "import_reason": "Lock local AFD 0.10 and MCP 2.3; refresh dependencies within declared constraints; Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); Lock the editable afd source at 0.11.0; Versioned by pnpm version-track botcore (lushly-botcore 0.8.0); Versioned by pnpm version-track python (afd-python 0.12.0); Refresh uv.lock after promoting pyyaml to afd[server] (#1981); Run every sibling package's, plugin's and mock integration scenario's tests in CI, the factory on macOS and Windows, and a multi-process lock test (lushly-dev/afd#1793)"
     }
   ]
 }

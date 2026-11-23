@@ -234,6 +234,83 @@ def test_lock_acquisition_cleans_up_if_fsync_fails(tmp_path, monkeypatch):
     assert not hlock.path.exists()
 
 
+def _refuse_exclusive_creates(monkeypatch, times=1, *, pending=True):
+    """Make the next ``times`` exclusive creates fail as Windows fails them: access denied.
+
+    With ``pending`` the refused name still shows (a file being deleted) until the next look.
+    """
+    from botcore_factory import lock as lock_mod
+
+    real_open = os.open
+    refused = []
+    showing = []
+
+    def fake_open(path, flags, *args, **kwargs):
+        if flags & os.O_EXCL and len(refused) < times:
+            refused.append(path)
+            if pending:
+                showing.append(path)
+            raise PermissionError(13, "Access is denied", str(path))
+        return real_open(path, flags, *args, **kwargs)
+
+    def fake_exists(path):
+        if showing:
+            showing.clear()
+            return True
+        return os.path.lexists(path)
+
+    monkeypatch.setattr(lock_mod.os, "open", fake_open)
+    monkeypatch.setattr(lock_mod, "_name_exists", fake_exists)
+    monkeypatch.setattr(lock_mod, "_WINDOWS", True)
+    return refused
+
+
+def test_a_lock_being_deleted_on_windows_counts_as_held_and_is_retried(tmp_path, monkeypatch):
+    from botcore_factory import lock as lock_mod
+    from botcore_factory.lock import HostLock
+
+    refused = _refuse_exclusive_creates(monkeypatch)
+    with pytest.raises(FileExistsError):
+        lock_mod.write_exclusive_lock(tmp_path / "x.lock", b"{}")
+    assert refused
+
+    refused = _refuse_exclusive_creates(monkeypatch)
+    hlock = HostLock(tmp_path / "lane.lock", Processes())
+    hlock.acquire(os.getpid(), repository="o/r")
+    assert refused and hlock.holder()["pid"] == os.getpid()
+
+    lane = store(tmp_path, timeout=5)
+    refused = _refuse_exclusive_creates(monkeypatch)
+    with lane.update("after a refused create") as state:
+        state["touched"] = True
+    assert refused and lane.read()["touched"] is True
+    assert not lane.lock_path.exists()
+
+
+def test_a_windows_refusal_after_the_name_is_gone_is_retried(tmp_path, monkeypatch):
+    from botcore_factory import lock as lock_mod
+
+    refused = _refuse_exclusive_creates(monkeypatch, times=2, pending=False)
+    lock_mod.write_exclusive_lock(tmp_path / "x.lock", b"{}")
+    assert len(refused) == 2 and (tmp_path / "x.lock").read_bytes() == b"{}"
+
+
+def test_access_denied_for_good_is_not_mistaken_for_a_held_lock(tmp_path, monkeypatch):
+    from botcore_factory import lock as lock_mod
+
+    monkeypatch.setattr(lock_mod.time, "sleep", lambda _s: None)
+    refused = _refuse_exclusive_creates(monkeypatch, times=10**6, pending=False)
+    with pytest.raises(PermissionError):
+        lock_mod.write_exclusive_lock(tmp_path / "x.lock", b"{}")
+    assert len(refused) == lock_mod._WINDOWS_UNLINK_ATTEMPTS
+
+    refused = _refuse_exclusive_creates(monkeypatch)
+    monkeypatch.setattr(lock_mod, "_WINDOWS", False)
+    with pytest.raises(PermissionError):
+        lock_mod.write_exclusive_lock(tmp_path / "y.lock", b"{}")
+    assert len(refused) == 1
+
+
 def test_unreadable_existing_lock_honors_timeout_instead_of_spinning(tmp_path, monkeypatch):
     from botcore_factory import lock as lock_mod
     from botcore_factory import state as state_mod

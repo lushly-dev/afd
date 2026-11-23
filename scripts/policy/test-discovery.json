@@ -3,28 +3,16 @@
 	"runners": [
 		{
 			"script": "endpoints/botcore/scripts/package_tests.py",
-			"include": ["endpoints/botcore/packages/*/tests/**"]
+			"include": [
+				"endpoints/botcore/packages/*/tests/**",
+				"endpoints/botcore/botcore-connectors/tests/**",
+				"endpoints/botcore/plugins/*/tests/**",
+				"endpoints/botcore/tests/integration/**"
+			],
+			"exclude": ["endpoints/botcore/plugins/botcore-factory/tests/**"]
 		}
 	],
 	"unrun": [
-		{
-			"path": "endpoints/botcore/botcore-connectors/tests",
-			"owner": "Falkicon",
-			"reason": "botcore.yml lints botcore-connectors but does not yet run its pytest suite",
-			"issue": "#1793"
-		},
-		{
-			"path": "endpoints/botcore/plugins/botcore-teams/tests",
-			"owner": "Falkicon",
-			"reason": "botcore.yml lints botcore-teams but does not yet run its pytest suite",
-			"issue": "#1793"
-		},
-		{
-			"path": "endpoints/botcore/tests/integration/test_scenarios.py",
-			"owner": "Falkicon",
-			"reason": "Stateful optional plugin integration scenarios excluded from core gate via --ignore=tests/integration (endpoints/botcore/AGENTS.md)",
-			"issue": "#1793"
-		},
 		{
 			"path": "foundations/fast-af/packages/element/packages/fast-element/src/declarative/attribute-map.spec.ts",
 			"owner": "Falkicon",
