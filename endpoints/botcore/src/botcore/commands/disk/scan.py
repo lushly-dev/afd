@@ -16,6 +16,7 @@ import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+from xml.parsers.expat import ExpatError
 
 from botcore.commands.disk.steps import command, doing, each
 from botcore.config import DiskRegenerable
@@ -88,7 +89,7 @@ def mount_point(path: Path) -> Path:
     return current
 
 
-def _darwin_volume_id(mount: Path) -> str | None:
+def _darwin_diskutil_info(mount: Path) -> dict | None:
     try:
         with command("asking about the volume", mount, allow=30):
             done = subprocess.run(
@@ -98,10 +99,69 @@ def _darwin_volume_id(mount: Path) -> str | None:
         if done.returncode != 0:
             return None
         info = plistlib.loads(done.stdout)
-    except (OSError, subprocess.TimeoutExpired, plistlib.InvalidFileException):
+    except (
+        OSError,
+        subprocess.TimeoutExpired,
+        plistlib.InvalidFileException,
+        ExpatError,
+        ValueError,
+    ):
         return None
+    return info if isinstance(info, dict) else None
+
+
+def _darwin_snapshot_group_id(info: dict) -> str | None:
+    """Stable identifier for a macOS sealed APFS boot snapshot (`/`).
+
+    On macOS 11+, `/` mounts a read-only APFS snapshot whose `VolumeUUID` equals
+    `APFSSnapshotUUID` and changes on every OS update. `APFSVolumeGroupID` is the
+    persistent volume-group UUID shared with `/System/Volumes/Data` (lushly-dev/afd#2267).
+    """
+    if info.get("APFSSnapshot") and info.get("APFSVolumeGroupID"):
+        return str(info["APFSVolumeGroupID"])
+    return None
+
+
+def _darwin_volume_ids(mount: Path) -> tuple[str | None, tuple[str, ...]]:
+    """Return `(preferred_id, legacy_ids)` from one `diskutil info -plist` observation.
+
+    For an APFS boot snapshot, `preferred_id` is `APFSVolumeGroupID` and `legacy_ids` holds the
+    current snapshot's `VolumeUUID` / `APFSSnapshotUUID` so upgrading botcore does not break
+    verification before `disk-setup` migrates `disk.toml`.
+    """
+    info = _darwin_diskutil_info(mount)
+    if not info:
+        return None, ()
+    group_id = _darwin_snapshot_group_id(info)
+    if group_id:
+        legacy = tuple(
+            dict.fromkeys(
+                str(info[k])
+                for k in ("VolumeUUID", "APFSSnapshotUUID")
+                if info.get(k) and str(info[k]) != group_id
+            )
+        )
+        return group_id, legacy
     value = info.get("VolumeUUID")
-    return str(value) if value else None
+    return (str(value) if value else None), ()
+
+
+def _darwin_volume_id(mount: Path) -> str | None:
+    return _darwin_volume_ids(mount)[0]
+
+
+def snapshot_volume_group_id(mount: Path) -> str | None:
+    """Persistent APFS volume-group UUID for an internal macOS APFS boot snapshot.
+
+    Requires `Internal is True` so booting macOS from an external drive never triggers automatic
+    volume-ID migration in `disk-setup`.
+    """
+    if sys.platform != "darwin" or not os.path.ismount(mount):
+        return None
+    info = _darwin_diskutil_info(mount)
+    if not info or info.get("Internal") is not True:
+        return None
+    return _darwin_snapshot_group_id(info)
 
 
 def _linux_volume_id(mount: Path) -> str | None:
@@ -139,6 +199,9 @@ def volume_id(mount: Path) -> str | None:
     if sys.platform == "win32":
         return _windows_volume_id(mount)
     return _linux_volume_id(mount)
+
+
+_default_volume_id = volume_id
 
 
 @dataclass
@@ -200,7 +263,12 @@ def volume_state(mount: Path, expected_id: str | None, low_space_gb: float | Non
             problem = f"not readable: {exc.strerror or exc}"
             mounted = False
     if mounted and expected_id is not None:
-        found = volume_id(mount)
+        if sys.platform == "darwin" and volume_id is _default_volume_id:
+            found, legacy = _darwin_volume_ids(mount)
+            if found is not None and found != expected_id and expected_id in legacy:
+                found = expected_id
+        else:
+            found = volume_id(mount)
     state = VolumeState(str(mount), mounted, expected_id, found, free, total, low_space_gb, problem)
     return state
 

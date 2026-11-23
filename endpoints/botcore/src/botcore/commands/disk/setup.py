@@ -30,7 +30,13 @@ from botcore.commands.disk import schedule
 from botcore.commands.disk.cargo import cargo_check, cargo_roots
 from botcore.commands.disk.git import GitError, list_worktrees, path_key
 from botcore.commands.disk.lock import waited_lock
-from botcore.commands.disk.scan import exists, mount_point, volume_id, volume_state
+from botcore.commands.disk.scan import (
+    exists,
+    mount_point,
+    snapshot_volume_group_id,
+    volume_id,
+    volume_state,
+)
 from botcore.commands.disk.settings import (
     MachineSettings,
     SettingsError,
@@ -140,6 +146,24 @@ def default_low_space_gb(mount: Path) -> float:
     """10% of the volume, between 20 and 100 GB."""
     total = shutil.disk_usage(mount).total / 1024**3
     return float(round(min(100, max(20, total * 0.10))))
+
+
+def _migrate_snapshot_volumes(settings: MachineSettings) -> dict[str, dict[str, str]]:
+    """Replace an ephemeral macOS APFS boot-snapshot UUID recorded for an internal `/` volume
+    with its persistent `APFSVolumeGroupID` (lushly-dev/afd#2267). External drives (including an
+    external macOS boot volume), non-root mounts and `id=None` entries are never touched."""
+    updated: dict[str, dict[str, str]] = {}
+    for vol in settings.volume:
+        if vol.id is None:
+            continue
+        mount = expand(vol.mount)
+        if mount != Path("/"):
+            continue
+        group_id = snapshot_volume_group_id(mount)
+        if group_id and vol.id != group_id:
+            updated[vol.mount] = {"was": vol.id, "now": group_id}
+            vol.id = group_id
+    return updated
 
 
 def _watch_volumes(settings: MachineSettings) -> list[str]:
@@ -369,6 +393,7 @@ async def disk_setup(
         if main is not None and str(main) not in {str(expand(r)) for r in settings.repos}:
             settings.repos.append(str(main))
             added_repos.append(str(main))
+    updated_volumes = _migrate_snapshot_volumes(settings)
     added_volumes = _watch_volumes(settings)
     before_tools = dict(settings.tools)
     record_tools(settings)
@@ -389,12 +414,16 @@ async def disk_setup(
     path.write_text(settings_toml(settings), encoding="utf-8")
     cargo = cargo_check(settings)
     data: dict = {"settings": str(path), "added_repos": added_repos,
-                  "added_volumes": added_volumes, "repos": settings.repos,
+                  "added_volumes": added_volumes, "updated_volumes": updated_volumes,
+                  "repos": settings.repos,
                   "tools": settings.tools, "changed_tools": changed_tools,
                   "remove_landed": settings.remove_landed,
                   "cargo": cargo}
     if not install_schedule:
         return success(data=data, suggestions=cargo["problems"])
+    err_details: dict[str, Any] = {"settings": str(path), "changed_tools": changed_tools}
+    if updated_volumes:
+        err_details["updated_volumes"] = updated_volumes
     checkouts: list[Path] = []
     for repo in settings.repos:
         try:
@@ -406,7 +435,7 @@ async def disk_setup(
         return error(
             "DISK_TOOL_NOT_INSTALLED", why or "botcore is not installed",
             suggestion="Install it as a tool first: uv tool install 'lushly-botcore==<version>'",
-            details={"settings": str(path), "changed_tools": changed_tools},
+            details=err_details,
         )
     state = schedule.install(exe, state_path(), job_path(settings))
     data["schedule"] = state.as_dict()
@@ -414,7 +443,7 @@ async def disk_setup(
         return error(
             "DISK_SCHEDULE_FAILED", state.detail or "the scheduler refused the job",
             suggestion="Read the detail, fix it, and run disk-setup again",
-            details={"settings": str(path), "changed_tools": changed_tools},
+            details=err_details,
         )
     schedule.run_now()
     return success(data=data, suggestions=[
