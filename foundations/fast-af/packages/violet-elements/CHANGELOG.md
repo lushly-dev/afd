@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Fix two `violet-elements` bugs (#2252, #2236):
+  - `violet-button` now forwards `aria-keyshortcuts` (and the `ariaKeyShortcuts` property) to the inner `<button>` and clears it when removed, so assistive technology announces keyboard shortcuts on the control (#2252).
+  - `violet-date-picker` and `violet-date-range-picker` now open their popup calendar panels in the top layer (`popover="manual"`, `margin: 0`, `overflow: visible`, `color: inherit`) via `showPopover()`/`hidePopover()` so containing, transformed or clipping ancestors no longer offset or clip them (#2236).
+
 - Fix five component defects (#1577, #1578, #1579, #1377, #1197):
   - **Breaking: token interface version 3 (#1577).** `tokens/interface.json` has `contractVersion` 3, adding `color.accent.background` (`--color-accent-background`) and `color.accent.text` (`--color-accent-text`) so `<violet-badge color="accent">` uses a distinct blue hue across light, dark and high-contrast presets instead of matching `success` mint. Product theme sets should add both ids (on the preview line this ships as a minor; `findVioletThemeSetGaps` names missing ids and components fall back to the built-in light blue values until supplied).
   - `violet-checkbox` now associates its slotted label with the native input through `<label for>` instead of copying it into `aria-label` or wrapping the `supporting` slot inside `<label>`, so assistive technology announces the label once and keeps supporting text as the description (#1578).

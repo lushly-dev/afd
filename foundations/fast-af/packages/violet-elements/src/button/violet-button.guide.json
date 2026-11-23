@@ -45,13 +45,14 @@
     },
     {
       "id": "button.idrefs",
-      "text": "aria-labelledby, aria-describedby, aria-errormessage and aria-controls name ids in the host's tree; the inner button gets those elements, found when set and on connect. aria-description is forwarded.",
+      "text": "aria-labelledby, aria-describedby, aria-errormessage and aria-controls name ids in the host's tree; the inner button gets those elements, found when set and on connect. aria-description and aria-keyshortcuts are forwarded.",
       "members": [
         "aria-labelledby",
         "aria-describedby",
         "aria-errormessage",
         "aria-controls",
-        "aria-description"
+        "aria-description",
+        "aria-keyshortcuts"
       ]
     }
   ]

@@ -1108,7 +1108,7 @@
                 {
                   "name": "value",
                   "type": {
-                    "text": "string | null"
+                    "text": "string | null | undefined"
                   }
                 }
               ]
@@ -1338,6 +1338,41 @@
             },
             {
               "kind": "field",
+              "name": "ariaKeyShortcuts",
+              "type": {
+                "text": "string | null"
+              },
+              "privacy": "public",
+              "description": "Optional keyboard shortcut description forwarded to the inner button.",
+              "attribute": "aria-keyshortcuts",
+              "reflects": true
+            },
+            {
+              "kind": "method",
+              "name": "ariaKeyShortcutsChanged",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "_previous",
+                  "type": {
+                    "text": "string | null"
+                  }
+                },
+                {
+                  "name": "next",
+                  "type": {
+                    "text": "string | null"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "field",
               "name": "ariaLabel",
               "type": {
                 "text": "string"
@@ -1529,6 +1564,14 @@
                 "text": "string | null"
               },
               "fieldName": "ariaHasPopup"
+            },
+            {
+              "name": "aria-keyshortcuts",
+              "description": "Optional keyboard shortcut description forwarded to the inner button.",
+              "type": {
+                "text": "string | null"
+              },
+              "fieldName": "ariaKeyShortcuts"
             },
             {
               "name": "aria-pressed",
@@ -20296,6 +20339,15 @@
               "description": "A pointer press began inside the picker and its click has not arrived yet. Pressing a\nnon-focusable part of the panel (the month heading, a weekday, a disabled day) moves focus\nto the nearest focusable ancestor, such as a scrolling dialog body, which reads as focus\nleaving the picker; the focus-out close ignores that until the press ends. A touch tap\nmoves focus on its compatibility mousedown, after pointerup, so the press ends at the\nclick (or pointercancel), not at pointerup. A keydown also ends it, so a keyboard exit always\ncloses even when no click follows, and the next pointerdown resets it."
             },
             {
+              "kind": "field",
+              "name": "#stopDialogObserver",
+              "privacy": "private",
+              "type": {
+                "text": "(() => void) | null"
+              },
+              "default": "null"
+            },
+            {
               "kind": "method",
               "name": "#syncFormState",
               "privacy": "private",
@@ -21093,6 +21145,15 @@
                   "text": "void"
                 }
               }
+            },
+            {
+              "kind": "field",
+              "name": "#stopDialogObserver",
+              "privacy": "private",
+              "type": {
+                "text": "(() => void) | null"
+              },
+              "default": "null"
             },
             {
               "kind": "field",
@@ -25668,6 +25729,153 @@
           "declaration": {
             "name": "isDisabledByFieldset",
             "module": "src/foundations/violet-form-disabled.ts"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "src/foundations/violet-popover-layer.ts",
+      "declarations": [
+        {
+          "kind": "function",
+          "name": "findEnclosingDialog",
+          "return": {
+            "type": {
+              "text": "HTMLElement | null"
+            }
+          },
+          "parameters": [
+            {
+              "name": "element",
+              "type": {
+                "text": "Element"
+              }
+            }
+          ],
+          "description": "Walks up through shadow boundaries to find the nearest enclosing `<dialog>` or `<violet-dialog>`."
+        },
+        {
+          "kind": "function",
+          "name": "hideManualPopover",
+          "return": {
+            "type": {
+              "text": "void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "panel",
+              "type": {
+                "text": "HTMLElement"
+              }
+            }
+          ]
+        },
+        {
+          "kind": "function",
+          "name": "isDialogOpen",
+          "return": {
+            "type": {
+              "text": "boolean"
+            }
+          },
+          "parameters": [
+            {
+              "name": "dialog",
+              "type": {
+                "text": "HTMLElement"
+              }
+            }
+          ],
+          "description": "Reports whether an enclosing `<dialog>` or `<violet-dialog>` is currently open."
+        },
+        {
+          "kind": "function",
+          "name": "observeEnclosingDialog",
+          "return": {
+            "type": {
+              "text": "() => void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "dialog",
+              "type": {
+                "text": "HTMLElement"
+              }
+            },
+            {
+              "name": "onStateChange",
+              "type": {
+                "text": "(open: boolean) => void"
+              }
+            }
+          ],
+          "description": "Watches an enclosing `<dialog>` or `<violet-dialog>` for open/close transitions so an open\nmanual popover stays hidden while its dialog is closed and is promoted above the modal dialog\nonce that dialog opens."
+        },
+        {
+          "kind": "function",
+          "name": "showManualPopover",
+          "return": {
+            "type": {
+              "text": "void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "panel",
+              "type": {
+                "text": "HTMLElement"
+              }
+            },
+            {
+              "name": "repromote",
+              "default": "false"
+            }
+          ],
+          "description": "Promotes a `popover=\"manual\"` panel into the top layer. When `repromote` is true and the panel\nis already open, hides and re-shows it so it stacks above an enclosing modal dialog that entered\nthe top layer after it."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "findEnclosingDialog",
+          "declaration": {
+            "name": "findEnclosingDialog",
+            "module": "src/foundations/violet-popover-layer.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "hideManualPopover",
+          "declaration": {
+            "name": "hideManualPopover",
+            "module": "src/foundations/violet-popover-layer.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "isDialogOpen",
+          "declaration": {
+            "name": "isDialogOpen",
+            "module": "src/foundations/violet-popover-layer.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "observeEnclosingDialog",
+          "declaration": {
+            "name": "observeEnclosingDialog",
+            "module": "src/foundations/violet-popover-layer.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "showManualPopover",
+          "declaration": {
+            "name": "showManualPopover",
+            "module": "src/foundations/violet-popover-layer.ts"
           }
         }
       ]
