@@ -1266,3 +1266,110 @@ def test_the_build_dir_is_never_the_slots_own_directory(make_run):
     root = build_dir(run.factory(), {"host.buildDir": "/Volumes/Dev"}, "1")
     assert root == str(PurePath("/Volumes/Dev/slots-build/1"))
     assert PurePath("/Volumes/Dev/slots") not in PurePath(root).parents
+
+
+def test_slot_clean_paths_are_cleaned_on_recycle_and_kept_for_same_branch(make_run):
+    """lushly-dev/afd#1659: Specimen's build:host writes ignored output inside the slot checkout;
+    slot_clean_paths cleans it on first use, branch change and dial move, but keeps it when the
+    same branch re-validates."""
+    from botcore_factory.lane import Step
+
+    rel = "foundations/specimen/host/target"
+    run = make_run("running")
+    factory = run.factory()
+    factory.config = factory.config.model_copy(update={"slot_clean_paths": [rel]})
+    with factory.store.update("test") as state:
+        slots = Step(factory, state)
+        slots.slot_build("1", "fix/a")
+        slots.slot_build("1", "fix/a")  # Same branch, same dial: kept.
+        slots.slot_build("1", "fix/b")  # Different branch: cleaned.
+        state["dials"]["host.buildDir"] = "/Volumes/Dev"
+        slots.slot_build("1", "fix/b")  # Dial moved: cleaned.
+    assert run.world_data()["cleanedSlotPaths"] == [
+        {"slot": "1", "path": rel},
+        {"slot": "1", "path": rel},
+        {"slot": "1", "path": rel},
+    ]
+
+
+def test_slot_clean_paths_are_swept_for_free_slots_and_not_double_cleaned(make_run):
+    """lushly-dev/afd#1659: sweep_builds cleans configured paths before free disk is read, both
+    for slots tracked in slotBuilds and for pre-upgrade slots with no slotBuilds entry, without
+    cleaning the same slot twice in one step."""
+    rel = "foundations/specimen/host/target"
+    run = make_run("running")
+    run.change_world(
+        slotOutputs={"1": [rel]}, outcomes={"validate": {"feat/export-csv": "running"}}
+    )
+    actions = run_steps(run, slot_clean_paths=[rel])
+    assert f"cleaned slot 1's build output ({rel})" in actions
+    assert run.world_data()["slotOutputs"]["1"] == []
+    # Slot 1 is cleaned once in sweep_builds; slot_build in the same step does not duplicate it.
+    slot1_cleans = [entry for entry in run.world_data()["cleanedSlotPaths"] if entry["slot"] == "1"]
+    assert slot1_cleans == [{"slot": "1", "path": rel}]
+
+
+def test_slot_clean_paths_are_cleaned_when_a_free_slot_s_branch_leaves_the_queue(lane):
+    rel = "foundations/specimen/host/target"
+    with lane.store.update("a slot that built a merged branch") as state:
+        state["lane"]["slotBuilds"] = {"1": {"branch": "fix/merged", "path": "slots/.build/1"}}
+    actions = run_steps(lane, slot_clean_paths=[rel])
+    assert actions[0] == "removed slot 1's build output for fix/merged"
+    slot1_cleans = [
+        entry for entry in lane.world_data()["cleanedSlotPaths"] if entry["slot"] == "1"
+    ]
+    assert slot1_cleans == [{"slot": "1", "path": rel}]
+
+
+def test_coverage_cleans_slot_clean_paths_on_start_completion_and_second_run(make_run):
+    from botcore_factory.lane import Step
+
+    rel = "foundations/specimen/host/target"
+    run = make_run(
+        "running",
+        queue=[],
+        held=[],
+        lane={"mergedSinceCoverage": [1, 2, 3, 4, 5]},
+    )
+    config = {"coverage": ["pnpm", "test:coverage"], "slot_clean_paths": [rel]}
+    run_steps(run, **config)  # Starts coverage (cleans coverage once before disk_short).
+    run_steps(run, **config)  # Polls coverage pass (cleans coverage on completion).
+    # A second coverage run with slotBuilds["coverage"] already set still cleans on slot_build.
+    factory = run.factory()
+    factory.config = factory.config.model_copy(update={"slot_clean_paths": [rel]})
+    with factory.store.update("second coverage run") as state:
+        Step(factory, state).slot_build("coverage", "")
+    coverage_cleans = [
+        entry for entry in run.world_data()["cleanedSlotPaths"] if entry["slot"] == "coverage"
+    ]
+    assert coverage_cleans == [
+        {"slot": "coverage", "path": rel},
+        {"slot": "coverage", "path": rel},
+        {"slot": "coverage", "path": rel},
+    ]
+
+
+def test_coverage_deferred_slot_cleanup_retries_before_disk_check_without_losing_result(make_run):
+    rel = "foundations/specimen/host/target"
+    run = make_run(
+        "running",
+        queue=[],
+        held=[],
+        lane={"mergedSinceCoverage": [1, 2, 3, 4, 5]},
+    )
+    config = {"coverage": ["pnpm", "test:coverage"], "slot_clean_paths": [rel]}
+    run_steps(run, **config)
+    run.change_world(outcomes={"cleanSlotPaths": "fail: busy"}, slotOutputs={"coverage": [rel]})
+    actions = run_steps(run, **config)
+    assert "coverage passed" in actions
+    assert any("coverage slot cleanup deferred: busy" in action for action in actions)
+    assert run.state()["lane"]["mergedSinceCoverage"] == []
+    assert run.world_data()["slotOutputs"]["coverage"] == [rel]
+    # Next step retries inactive coverage cleanup BEFORE disk_short checks free disk.
+    run.change_world(outcomes={"cleanSlotPaths": "ok"}, host={"freeDiskGb": 5})
+    with run.store.update("queue next coverage") as state:
+        state["lane"]["mergedSinceCoverage"] = [6, 7, 8, 9, 10]
+    actions = run_steps(run, **config)
+    assert f"cleaned coverage slot's build output ({rel})" in actions
+    assert run.world_data()["slotOutputs"]["coverage"] == []
+    assert run.state()["lane"]["paused"] is True  # Paused on disk_short AFTER cleanup ran.

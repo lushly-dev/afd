@@ -389,6 +389,18 @@ class Git(Protocol):
         deletion: it is moved aside at once and deleted in the background; absent is done."""
         ...
 
+    def clean_slot_paths(self, slot: str, paths: Sequence[str]) -> list[str]:
+        """Remove configured ignored build directories inside ``slot``'s checkout (such as a
+        tool that overrides ``CARGO_TARGET_DIR``, lushly-dev/afd#1659) without waiting on
+        deletion.
+
+        Each entry in ``paths`` is a literal relative path inside the slot checkout; symlinks
+        and paths escaping the slot root are never followed or removed. Returns the relative
+        paths that existed and were moved aside for background deletion; missing paths are
+        skipped.
+        """
+        ...
+
     def merge_main(
         self, path: str, main: str, keep_open: Callable[[tuple[str, ...]], bool] | None = None
     ) -> MergeOutcome:

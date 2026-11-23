@@ -91,17 +91,40 @@ class Coverage(StepBase):
         steps.append({"label": label, "args": command})
         return [{**s, "env": env, **({"path": [node]} if node else {})} for s in steps]
 
+    def clean_slot_paths(self, slot: str) -> list[str]:
+        """Remove configured ignored build output inside ``slot``'s checkout (lushly-dev/afd#1659).
+        No-op when ``slot_clean_paths`` is empty or ``slot`` was already cleaned earlier in this
+        step."""
+        paths = self.config.slot_clean_paths
+        if not paths or slot in self._cleaned_slots:
+            return []
+        removed = self.world.git.clean_slot_paths(slot, paths)
+        self._cleaned_slots.add(slot)
+        return removed
+
     def sweep_builds(self, free: list[str]) -> None:
         """Remove the build output of free slots whose branch left the queue (merged, ejected or
-        dropped) before free disk is read, so what they kept does not pause the lane."""
+        dropped) before free disk is read, so what they kept does not pause the lane. Also cleans
+        configured in-slot build paths on free slots with no queued owner (lushly-dev/afd#1659)."""
         builds = self.lane.get("slotBuilds") or {}
         queued = {entry["branch"] for entry in self.state["queue"]}
         for slot in free:
             last = builds.get(slot)
             if last is not None and last.get("branch") not in queued:
                 self.world.git.remove_build(last["path"])
+                self.clean_slot_paths(slot)
                 builds.pop(slot)
                 self.actions.append(f"removed slot {slot}'s build output for {last['branch']}")
+            elif last is None:
+                cleaned = self.clean_slot_paths(slot)
+                if cleaned:
+                    self.actions.append(
+                        f"cleaned slot {slot}'s build output ({', '.join(cleaned)})"
+                    )
+        if not self.lane.get("coverage"):
+            cleaned = self.clean_slot_paths("coverage")
+            if cleaned:
+                self.actions.append(f"cleaned coverage slot's build output ({', '.join(cleaned)})")
 
     def slot_build(self, slot: str, branch: str) -> str:
         """The slot's build directory (lushly-dev/afd#1641), under ``host.buildDir``. A slot that
@@ -115,8 +138,13 @@ class Coverage(StepBase):
             self.world.git.remove_build(last["path"])
         if last is None or last.get("branch") != branch or last.get("path") != path:
             self.world.git.remove_build(path)
+            self.clean_slot_paths(slot)
             if last is not None:
                 self.actions.append(f"recycled slot {slot}'s build output for {branch or 'main'}")
+        elif slot == "coverage":
+            self.clean_slot_paths(slot)
+        # This slot is now being handed to a build; a later recycle on the same Step cleans again.
+        self._cleaned_slots.discard(slot)
         builds[slot] = {"branch": branch, "path": path}
         return path
 
@@ -228,6 +256,10 @@ class Coverage(StepBase):
         self.lane.pop("coverage")
         with contextlib.suppress(WorldError):
             self.release_host_hold("coverage")
+        try:
+            self.clean_slot_paths("coverage")
+        except WorldError as exc:
+            self.actions.append(f"coverage slot cleanup deferred: {exc}")
         passed = done.returncode == 0
         full = None if passed else done.disk_full
         if full is not None and running.get("main") != self.lane.get("diskFullCoverage"):

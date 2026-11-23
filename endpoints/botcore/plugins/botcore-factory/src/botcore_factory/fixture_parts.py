@@ -393,6 +393,25 @@ class FixtureGit:
         self.store.data.setdefault("removedBuilds", []).append(path)
         self.store.save()
 
+    def clean_slot_paths(self, slot: str, paths: Sequence[str]) -> list[str]:
+        """Cleaned in-slot build paths are recorded in ``cleanedSlotPaths``;
+        ``outcomes.cleanSlotPaths`` fails it. When ``slotOutputs`` lists existing relative paths
+        for ``slot``, only those are popped and returned."""
+        if not paths:
+            return []
+        _fail(self.store, "cleanSlotPaths")
+        log = self.store.data.setdefault("cleanedSlotPaths", [])
+        outputs = self.store.data.get("slotOutputs")
+        slot_items = outputs.get(slot) if isinstance(outputs, dict) else None
+        removed: list[str] = []
+        for rel in paths:
+            log.append({"slot": slot, "path": rel})
+            if isinstance(slot_items, list) and rel in slot_items:
+                slot_items.remove(rel)
+                removed.append(rel)
+        self.store.save()
+        return removed
+
     def merge_main(self, path: str, main: str, keep_open=None) -> MergeOutcome:
         slot = self._slot(path)
         result = _outcome(self.store, "merge", slot["branch"], "clean")

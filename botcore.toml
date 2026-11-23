@@ -161,6 +161,10 @@ main_checks = [
     "!workflow: Publish *",
 ]
 ignore_branches = ["changeset-release/*"]
+# Ignored build output that stays inside a slot checkout (such as Specimen's build:host, which
+# pins --target-dir target over CARGO_TARGET_DIR), removed when a slot is recycled or swept
+# (lushly-dev/afd#1659).
+slot_clean_paths = ["foundations/specimen/host/target"]
 # The cheap stages of pnpm check, run before a branch joins the queue.
 prequeue = [
     { name = "lint", run = ["pnpm", "lint"] },

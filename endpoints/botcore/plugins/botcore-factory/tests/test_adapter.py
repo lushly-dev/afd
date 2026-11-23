@@ -67,6 +67,7 @@ def test_afd_s_botcore_toml_states_its_labels_cheap_checks_and_gates():
     assert not matches("endpoints/botcore/src/botcore/server.py", records.paths)
     assert matches("scripts/provenance-merge.mjs", adapter.gate_paths)
     assert matches("scripts/release/provenance.mjs", adapter.gate_paths)
+    assert adapter.slot_clean_paths == ["foundations/specimen/host/target"]
 
 
 @pytest.mark.parametrize(
@@ -105,6 +106,10 @@ def test_every_key_of_the_proposal_parses():
         screens=["node", "capture.mjs"],
         preview=["node", "preview.mjs"],
         ignore_branches=["changeset-release/*"],
+        slot_clean_paths=[
+            "foundations\\specimen\\host\\target\\",
+            "./foundations/specimen/host/target",
+        ],
         measure_paths=["endpoints/botcore/plugins/botcore-factory/**"],
         trend_issue=1098,
         base_branch="develop",
@@ -113,6 +118,7 @@ def test_every_key_of_the_proposal_parses():
     assert config.prequeue[1].name == "file-size"
     assert config.base_branch == "develop" and FactoryConfig().base_branch == "main"
     assert config.prequeue[1].run == ["node", "scripts/check-file-size.mjs"]
+    assert config.slot_clean_paths == ["foundations/specimen/host/target"]
 
 
 @pytest.mark.parametrize(
@@ -130,6 +136,20 @@ def test_every_key_of_the_proposal_parses():
         ({"labels": "../labels.json"}, "inside the repository"),
         ({"labels": "C:/labels.json"}, "inside the repository"),
         ({"gate_paths": [" "]}, "non-empty"),
+        ({"slot_clean_paths": [""]}, "non-empty"),
+        ({"slot_clean_paths": ["/etc/target"]}, "inside the repository"),
+        ({"slot_clean_paths": ["../target"]}, "inside the repository"),
+        ({"slot_clean_paths": ["C:/target"]}, "inside the repository"),
+        ({"slot_clean_paths": ["."]}, "not its root"),
+        ({"slot_clean_paths": ["./"]}, "not its root"),
+        ({"slot_clean_paths": [".git"]}, r"\.git"),
+        ({"slot_clean_paths": [".GIT"]}, r"\.git"),
+        ({"slot_clean_paths": ["foo/.Git/objects"]}, r"\.git"),
+        ({"slot_clean_paths": [".git."]}, r"\.git"),
+        ({"slot_clean_paths": ["foo/.git "]}, r"\.git"),
+        ({"slot_clean_paths": ["foo/.git/objects"]}, r"\.git"),
+        ({"slot_clean_paths": ["foundations/specimen\x00/target"]}, "NUL"),
+        ({"slot_clean_paths": ["foundations/specimen/**/target"]}, "not globs"),
         ({"trend_issue": 0}, "greater than 0"),
         ({"base_branch": "main; rm -rf"}, "pattern"),
         ({"unknown": True}, "Extra inputs"),
