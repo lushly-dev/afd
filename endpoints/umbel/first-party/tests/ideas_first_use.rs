@@ -36,6 +36,16 @@ fn readme_instance() -> String {
     rest.split_once("```").unwrap().0.to_owned()
 }
 
+/// The README's `[person.local]` table naming a public origin, its first TOML block after
+/// "Reading the page from another computer", as written.
+fn readme_public_origin() -> String {
+    let (_, rest) = README
+        .split_once("### Reading the page from another computer")
+        .unwrap();
+    let (_, rest) = rest.split_once("```toml\n").unwrap();
+    rest.split_once("```").unwrap().0.to_owned()
+}
+
 /// The README's local instance, open, its page served on a free loopback port.
 struct Instance {
     _dir: TempDir,
@@ -47,10 +57,14 @@ struct Instance {
 
 impl Instance {
     async fn start() -> Self {
+        Self::start_with(readme_instance()).await
+    }
+
+    /// The instance `config`, an edit of the README's, open the same way.
+    async fn start_with(config: String) -> Self {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let bind = listener.local_addr().unwrap();
         listener.set_nonblocking(true).unwrap();
-        let config = readme_instance();
         assert!(config.contains(README_BIND), "{config}");
         let config = config.replace(README_BIND, &format!("bind = \"{bind}\""));
         let dir = tempfile::tempdir().unwrap();
@@ -145,11 +159,18 @@ impl Instance {
         ids
     }
 
-    async fn http(&self, method: &str, path: &str, headers: &[(&str, &str)], body: &str) -> Reply {
+    /// A request to the page with `Host: host`: the bind, or what a proxy in front of it passes on.
+    async fn http_to(
+        &self,
+        host: &str,
+        method: &str,
+        path: &str,
+        headers: &[(&str, &str)],
+        body: &str,
+    ) -> Reply {
         let mut stream = tokio::net::TcpStream::connect(self.bind).await.unwrap();
         let mut request = format!(
-            "{method} {path} HTTP/1.1\r\nhost: {}\r\nconnection: close\r\ncontent-length: {}\r\n",
-            self.bind,
+            "{method} {path} HTTP/1.1\r\nhost: {host}\r\nconnection: close\r\ncontent-length: {}\r\n",
             body.len()
         );
         for (name, value) in headers {
@@ -167,13 +188,25 @@ impl Instance {
     /// leaves unchecked each item whose text holds one of `pull`, and approves on the last page.
     /// The pages shown, each as its items' texts.
     async fn read_and_approve(&self, id: &str, pull: &[&str]) -> Vec<Vec<String>> {
-        let origin = format!("http://{}", self.bind);
+        let bind = self.bind.to_string();
+        self.read_and_approve_at(&bind, &format!("http://{bind}"), id, pull)
+            .await
+    }
+
+    /// `read_and_approve`, with the browser at `origin` and the proxy passing `Host: host`.
+    async fn read_and_approve_at(
+        &self,
+        host: &str,
+        origin: &str,
+        id: &str,
+        pull: &[&str],
+    ) -> Vec<Vec<String>> {
         let mut pages = Vec::new();
         let mut path = format!("/d/{id}");
         let mut site = "none";
         loop {
             let page = self
-                .http("GET", &path, &[("sec-fetch-site", site)], "")
+                .http_to(host, "GET", &path, &[("sec-fetch-site", site)], "")
                 .await;
             assert_eq!(page.status, 200, "{path}: {}", page.text);
             let items = items(&page.text);
@@ -191,12 +224,13 @@ impl Instance {
             }
             pages.push(items);
             let posted = self
-                .http(
+                .http_to(
+                    host,
                     "POST",
                     &format!("/d/{id}"),
                     &[
                         ("content-type", "application/x-www-form-urlencoded"),
-                        ("origin", &origin),
+                        ("origin", origin),
                     ],
                     &form,
                 )
@@ -539,6 +573,64 @@ async fn staging_500_and_applying_250_on_the_page_are_timed() {
     let applying = started.elapsed();
     assert_eq!(data(&applied)["applied"]["affirm"], 250, "{applied}");
     eprintln!("staged 500 in {staging:?}; applied 250 in one decision in {applying:?}");
+}
+
+/// The README's "Reading the page from another computer" (host-review A46 to A50): its
+/// `[person.local]` table, with `public_origin`, put in place of the local instance's, opens as
+/// written; the link the agent gives names the public origin, and the page answers a request
+/// whose `Host` is that origin's, as the proxy passes it on, and takes a form posted from it.
+#[tokio::test]
+async fn the_readme_public_origin_opens_and_serves_the_page() {
+    let table = readme_public_origin();
+    let configured: toml::Table = table.parse().unwrap();
+    let origin = configured["person"]["local"]["public_origin"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert!(table.contains(README_BIND), "{table}");
+    let instance = readme_instance();
+    let local = format!("[person.local]\nenabled = true\n{README_BIND}\n");
+    assert!(instance.contains(&local), "{instance}");
+    let mut garden = Instance::start_with(instance.replace(&local, &table)).await;
+
+    let ids = garden.capture(&beds(0, 1)).await;
+    let staged = garden
+        .call(
+            "ideas-review-stage",
+            json!({ "proposals": [affirm(&ids[0], "east")] }),
+        )
+        .await;
+    let staged = data(&staged).clone();
+    let input = json!({ "review": staged["review"], "part": "*", "digest": staged["digest"] });
+    let begun = garden.apply(&input).await;
+    assert_eq!(begun["error"]["code"], "CONFIRMATION_REQUIRED", "{begun}");
+    let id = begun["error"]["details"]["decision"].as_str().unwrap();
+    assert_eq!(begun["error"]["details"]["url"], format!("{origin}/d/{id}"));
+
+    let host = origin.strip_prefix("https://").unwrap();
+    let page = garden
+        .http_to(
+            host,
+            "GET",
+            &format!("/d/{id}"),
+            &[("sec-fetch-site", "none")],
+            "",
+        )
+        .await;
+    assert_eq!(page.status, 200, "{}", page.text);
+    assert!(
+        page.text
+            .contains(&format!("It is also served at {origin}")),
+        "{}",
+        page.text
+    );
+
+    // The person reads and approves from the public origin: the page takes its form, and the
+    // same call then applies the review.
+    let pages = garden.read_and_approve_at(host, &origin, id, &[]).await;
+    assert_eq!(pages.len(), 1);
+    let applied = garden.apply(&input).await;
+    assert_eq!(data(&applied)["applied"]["affirm"], 1, "{applied}");
 }
 
 /// Every `umbel-first-party` command in the README's `sh` blocks, split into words as a shell
