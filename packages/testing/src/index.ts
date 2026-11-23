@@ -109,7 +109,31 @@ export {
 	createVerboseReporter,
 	TerminalReporter,
 } from './runner/reporter.js';
-export { isAssertionMatcher } from './types/matchers.js';
+// Scenario run loop
+export type {
+	ExecutedStepOutcome,
+	ExecutedStepResult,
+	RunConfig,
+	ScenarioHooks,
+	SetupOutcome,
+} from './runner/scenario-runner.js';
+export {
+	createTimeoutReason,
+	determineOutcome,
+	evaluateStep,
+	runScenario,
+} from './runner/scenario-runner.js';
+// Step references
+export {
+	getValueAtPath,
+	resolveStepReferences,
+	StepReferenceError,
+} from './runner/step-references.js';
+export {
+	findExpectationProblems,
+	InvalidExpectationError,
+	isAssertionMatcher,
+} from './types/matchers.js';
 // Report types
 export type {
 	AssertionResult,
@@ -142,7 +166,7 @@ export type {
 	Step,
 	Verification,
 } from './types/scenario.js';
-export { isScenario } from './types/scenario.js';
+export { isScenario, UNSUPPORTED_SCENARIO_FIELDS } from './types/scenario.js';
 
 // ============================================================================
 // App Adapters (Phase 4)

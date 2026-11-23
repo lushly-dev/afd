@@ -9,14 +9,16 @@
 
 import { dirname } from 'node:path';
 import { type CommandResult, failure } from '@lushly-dev/afd-core';
-import type { ScenarioResult, StepResult } from '../types/report.js';
+import type { ScenarioResult } from '../types/report.js';
 import type { Scenario, Step } from '../types/scenario.js';
 import { type CliConfig, CliWrapper } from './cli-wrapper.js';
 import { applyFixture, loadFixture } from './fixture-loader.js';
 import {
+	type ExecutedStepResult,
 	type ExecuteScenarioOptions,
 	evaluateStep,
 	runScenario,
+	type ScenarioHooks,
 	type SetupOutcome,
 } from './scenario-runner.js';
 
@@ -24,7 +26,7 @@ import {
 // Executor Configuration
 // ============================================================================
 
-export interface ExecutorConfig extends CliConfig {
+export interface ExecutorConfig extends CliConfig, ScenarioHooks {
 	/** Stop execution on first failure (default: true unless step has continueOnFailure) */
 	stopOnFailure?: boolean;
 
@@ -34,15 +36,6 @@ export interface ExecutorConfig extends CliConfig {
 	 * against their own directory.
 	 */
 	basePath?: string;
-
-	/** Callback for step completion */
-	onStepComplete?: (step: Step, result: StepResult) => void;
-
-	/** Callback for scenario start */
-	onScenarioStart?: (scenario: Scenario) => void;
-
-	/** Callback for scenario complete */
-	onScenarioComplete?: (result: ScenarioResult) => void;
 }
 
 // ============================================================================
@@ -80,6 +73,8 @@ export class ScenarioExecutor {
 		return runScenario(scenario, {
 			stopOnFailure: this.config.stopOnFailure ?? true,
 			signal: options.signal,
+			beforeStep: this.config.beforeStep,
+			afterStep: this.config.afterStep,
 			onStepComplete: this.config.onStepComplete,
 			onScenarioStart: this.config.onScenarioStart,
 			onScenarioComplete: this.config.onScenarioComplete,
@@ -91,7 +86,11 @@ export class ScenarioExecutor {
 	/**
 	 * Execute a single step through the CLI.
 	 */
-	private async runStep(step: Step, stepId: string, signal: AbortSignal): Promise<StepResult> {
+	private async runStep(
+		step: Step,
+		stepId: string,
+		signal: AbortSignal
+	): Promise<ExecutedStepResult> {
 		const executeResult = await this.cli.execute(step.command, step.input, { signal });
 
 		if (!executeResult.success) {
@@ -167,6 +166,12 @@ export class ScenarioExecutor {
 		}
 		if (config.basePath !== undefined) {
 			this.config.basePath = config.basePath;
+		}
+		if (config.beforeStep !== undefined) {
+			this.config.beforeStep = config.beforeStep;
+		}
+		if (config.afterStep !== undefined) {
+			this.config.afterStep = config.afterStep;
 		}
 		if (config.onStepComplete !== undefined) {
 			this.config.onStepComplete = config.onStepComplete;
