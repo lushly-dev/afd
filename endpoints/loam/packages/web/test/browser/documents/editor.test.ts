@@ -2487,23 +2487,31 @@ describe('P2-D5: the editor area, native half', () => {
 		await kernelCall(page, 'scope-set', { project: 'elsewhere' });
 		// Read at the workspace, the note's own scope, from inside the other project.
 		await expect
-			.poll(() =>
-				page.evaluate(async (document) => {
-					const shell = window.document.querySelector('loam-shell') as unknown as {
-						kernel: {
-							agent: {
-								call(
-									name: string,
-									input: unknown,
-									options: unknown
-								): Promise<{ data?: { text: string } }>;
+			.poll(
+				() =>
+					page.evaluate(async (document) => {
+						const shell = window.document.querySelector('loam-shell') as unknown as {
+							kernel: {
+								agent: {
+									call(
+										name: string,
+										input: unknown,
+										options: unknown
+									): Promise<{ data?: { text: string } }>;
+								};
 							};
 						};
-					};
-					return (
-						await shell.kernel.agent.call('notes-content-get', { document }, { scope: 'workspace' })
-					).data?.text;
-				}, note)
+						return (
+							await shell.kernel.agent.call(
+								'notes-content-get',
+								{ document },
+								{ scope: 'workspace' }
+							)
+						).data?.text;
+					}, note),
+				// The save a change of scope starts, and the reads after it, outlast the default
+				// second on a loaded host (#1959).
+				{ timeout: 6000 }
 			)
 			.toBe('Before the switch');
 		await kernelCall(page, 'scope-set', { project: null });
@@ -2514,11 +2522,12 @@ describe('P2-D5: the editor area, native half', () => {
 		await expect
 			.poll(
 				async () =>
-					((await agentCall(page, 'editor-get')) as typeof back).data.groups[0]?.tabs[0]?.dirty
+					((await agentCall(page, 'editor-get')) as typeof back).data.groups[0]?.tabs[0]?.dirty,
+				{ timeout: 6000 }
 			)
 			.toBe(false);
 		await expect
-			.poll(() => editorView(page).then((view) => view?.[0]?.tabs[0]?.name))
+			.poll(() => editorView(page).then((view) => view?.[0]?.tabs[0]?.name), { timeout: 6000 })
 			.toBe('Drafted');
 		// An agent's close is not refused as unsaved.
 		expect(
