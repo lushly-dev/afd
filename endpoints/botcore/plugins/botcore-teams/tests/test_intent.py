@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from botcore_teams.intent import parse_intent
 
 
@@ -34,11 +36,53 @@ class TestParseIntent:
     def test_task_status(self) -> None:
         result = parse_intent("status of task-001")
         assert result.command == "task_status"
-        assert "query" in result.args
+        assert result.args == {"task_id": "task-001"}
 
-    def test_how_going(self) -> None:
-        result = parse_intent("how is the research going")
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "status 3f2a9c1e-0b4d-4e8a-9f1c-2d3e4f5a6b7c",
+            "progress on 3f2a9c1e-0b4d-4e8a-9f1c-2d3e4f5a6b7c",
+            "status for task 3f2a9c1e-0b4d-4e8a-9f1c-2d3e4f5a6b7c",
+            "Status: 3f2a9c1e-0b4d-4e8a-9f1c-2d3e4f5a6b7c",
+            "what's the progress on 3f2a9c1e-0b4d-4e8a-9f1c-2d3e4f5a6b7c?",
+            "status of 3f2a9c1e-0b4d-4e8a-9f1c-2d3e4f5a6b7c.",
+        ],
+    )
+    def test_task_status_reads_the_task_id(self, text: str) -> None:
+        result = parse_intent(text)
         assert result.command == "task_status"
+        assert result.args == {"task_id": "3f2a9c1e-0b4d-4e8a-9f1c-2d3e4f5a6b7c"}
+
+    @pytest.mark.parametrize(
+        ("text", "command"),
+        [
+            ("run status checks", "task_assign"),
+            ("run status 5", "task_assign"),
+            ("assign fix status 3", "task_assign"),
+            ("execute build status v1.2", "task_assign"),
+            ("stop progress on task-001", "task_cancel"),
+            ("cancel status task-001", "task_cancel"),
+            ("abort progress on task-7", "task_cancel"),
+            ("queue status 3", "task_list"),
+            ("list tasks status 3", "task_list"),
+            ("agents status 2", "team_status"),
+            ("status of agent-007", "team_status"),
+            ("status of queue-2", "task_list"),
+        ],
+    )
+    def test_other_verbs_with_a_status_keep_their_command(self, text: str, command: str) -> None:
+        assert parse_intent(text).command == command
+
+    def test_an_uppercase_uuid_is_read_as_the_lowercase_id(self) -> None:
+        result = parse_intent("status of 3F2A9C1E-0B4D-4E8A-9F1C-2D3E4F5A6B7C")
+        assert result.args == {"task_id": "3f2a9c1e-0b4d-4e8a-9f1c-2d3e4f5a6b7c"}
+
+    @pytest.mark.parametrize("text", ["how is the research going", "status", "status of the docs"])
+    def test_task_status_without_an_id_has_no_args(self, text: str) -> None:
+        result = parse_intent(text)
+        assert result.command == "task_status"
+        assert result.args == {}
 
     def test_cancel(self) -> None:
         result = parse_intent("cancel task-001")

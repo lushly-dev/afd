@@ -778,6 +778,8 @@ def test_a_record_folder_that_cannot_be_used_is_an_error_with_a_way_forward(
 
     assert fail(skill_usage_collect()).code == "RECORD_UNAVAILABLE"
     assert fail(skill_usage_report()).code == "RECORD_UNAVAILABLE"
+    monkeypatch.setenv(store.STATE_ENV, str(blocked / "record"))  # a path through the file
+    assert fail(skill_usage_report()).code == "RECORD_UNAVAILABLE"
 
 
 def test_a_damaged_record_file_is_refused_or_survived(state: Path, t3_store: T3Store) -> None:

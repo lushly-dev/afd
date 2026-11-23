@@ -59,7 +59,7 @@ class TestHandleMessage:
             )
         data = assert_success(result)
         assert data["status"] == "in_progress"
-        client.call.assert_awaited_once_with("task_status", {"query": "of task-001"})
+        client.call.assert_awaited_once_with("task_status", {"task_id": "task-001"})
 
     async def test_cancel_routing(self) -> None:
         client = _mock_client({"cancelled": True, "query": "task-001"})
@@ -86,6 +86,19 @@ class TestHandleMessage:
         data = assert_success(result)
         assert "tasks" in data
         client.call.assert_awaited_once_with("task_list", {})
+
+    async def test_task_status_without_an_id_asks_for_one(self) -> None:
+        client = _mock_client({})
+        with patch("botcore.registry.get_client", return_value=client):
+            result = await teams_handle_message(
+                "how is the research going",
+                user_id="u1",
+                user_name="Alice",
+                conversation_id="c1",
+            )
+        err = assert_error(result, "MISSING_TASK_ID")
+        assert err.suggestion and "status of" in err.suggestion
+        client.call.assert_not_awaited()
 
     async def test_unknown_intent_error(self) -> None:
         result = await teams_handle_message(
@@ -252,3 +265,29 @@ class TestRealDispatchPath:
         err = assert_error(result, "DISPATCH_UNAVAILABLE")
         assert err.suggestion
         assert err.retryable is False
+
+
+class TestShippedTaskStatus:
+    """The status intent reaches botcore-agents' own task_status (lushly-dev/afd#2174)."""
+
+    async def test_status_message_runs_the_shipped_handler(self) -> None:
+        from afd import SimpleRegistry, create_direct_client
+        from botcore_agents import commands as agents_commands
+
+        registry = SimpleRegistry()
+        registry.command("task_status")(agents_commands.task_status)
+        orchestrator = MagicMock()
+        orchestrator.get_task.return_value = success({"id": "task-001", "status": "running"})
+        with (
+            patch.object(agents_commands, "_get_orch", return_value=orchestrator),
+            patch("botcore.registry.get_client", return_value=create_direct_client(registry)),
+        ):
+            result = await teams_handle_message(
+                "status of task-001",
+                user_id="u1",
+                user_name="Alice",
+                conversation_id="c1",
+            )
+        data = assert_success(result)
+        assert data["status"] == "running"
+        orchestrator.get_task.assert_called_once_with("task-001")

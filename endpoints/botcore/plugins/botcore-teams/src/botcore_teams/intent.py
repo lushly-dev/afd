@@ -9,6 +9,21 @@ from typing import Any
 # Each pattern: (compiled regex, command name, capture group names)
 # Order matters — first match wins.
 INTENT_PATTERNS: list[tuple[re.Pattern[str], str, list[str]]] = [
+    # botcore-agents' task_status takes a task_id: a message that opens with the request
+    # and ends in a task id ("status of task-001?", "what's the progress on <uuid>"). It is
+    # anchored at the start, so "stop progress on task-1" stays a cancel, and it takes only
+    # an id shaped as one (botcore-agents' UUIDs, or task-<n>), so "status of agent-007"
+    # stays team_status. It comes first so "status for task <id>" is not an assignment.
+    (
+        re.compile(
+            r"^(?:(?:what(?:'s|\s+is)|show(?:\s+me)?|check|get)\s+)?(?:the\s+)?"
+            r"(?:status|progress):?\s+(?:(?:of|for|on)\s+)?(?:task\s+)?"
+            r"(task[-_][\w-]*\d[\w-]*|[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})[?.!]*\s*$",
+            re.IGNORECASE,
+        ),
+        "task_status",
+        ["task_id"],
+    ),
     (
         re.compile(
             r"(?:assign|task|run|execute|work\s+on)\s+(.+?)(?:\s+to\s+@?(\w+))$",
@@ -38,11 +53,13 @@ INTENT_PATTERNS: list[tuple[re.Pattern[str], str, list[str]]] = [
         [],
     ),
     (
-        re.compile(r"(?:status|progress|how.+going)\s*(.*)", re.IGNORECASE),
+        re.compile(r"(?:status|progress|how.+going)", re.IGNORECASE),
         "task_status",
-        ["query"],
+        [],
     ),
 ]
+
+_UUID_RE = re.compile(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", re.IGNORECASE)
 
 # Matches Teams bot mention tags: <at>BotName</at>
 _AT_MENTION_RE = re.compile(r"<at>[^<]*</at>\s*", re.IGNORECASE)
@@ -79,6 +96,8 @@ def parse_intent(text: str) -> ParsedIntent:
                 value = m.group(i + 1) if i + 1 <= len(m.groups()) else ""
                 if value:
                     args[name] = value.strip()
+            if _UUID_RE.fullmatch(args.get("task_id", "")):
+                args["task_id"] = args["task_id"].lower()  # botcore-agents' ids are lowercase
             return ParsedIntent(
                 command=command,
                 args=args,

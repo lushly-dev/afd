@@ -405,7 +405,10 @@ def test_a_transcript_that_cannot_be_read_whole_is_left_as_it_was(
             raise PermissionError(13, "not allowed", str(path))
         return real_open(path, *args, **more)
 
-    for broken in ("unreadable", "a folder", "a pipe", "a loop"):
+    # Windows has no named pipe in a folder (os.mkfifo); the other three are on every system
+    kinds = ("unreadable", "a folder", "a pipe", "a loop") if hasattr(os, "mkfifo") else (
+        "unreadable", "a folder", "a loop")
+    for broken in kinds:
         agent.unlink()
         if broken == "unreadable":
             agent.write_bytes(kept + b"\n")

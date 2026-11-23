@@ -2123,11 +2123,11 @@
       "path": "plugins/botcore-teams/src/botcore_teams/__init__.py",
       "upstream_sha256": "f7c84e0622a54c4ff4dcb476d07f85234d7976aa77b3292e7d9fab600cc969dc",
       "staged_sha256": "f7c84e0622a54c4ff4dcb476d07f85234d7976aa77b3292e7d9fab600cc969dc",
-      "current_import_sha256": "f7c84e0622a54c4ff4dcb476d07f85234d7976aa77b3292e7d9fab600cc969dc",
+      "current_import_sha256": "5a304604a831a284bf13dde5fa5f24b91d1ad975ba8c243b52ccae1b909668f0",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Fix Windows disk-walk words, skill usage record line endings and file-as-folder handling (#2173); Teams task_status passes task_id (#2174)"
     },
     {
       "path": "plugins/botcore-teams/src/botcore_teams/auth.py",
@@ -2163,11 +2163,11 @@
       "path": "plugins/botcore-teams/src/botcore_teams/commands.py",
       "upstream_sha256": "1465b12dce904f15efbe19c0d69cc5f1e1649fc97c9e50e99be477d38e9f4467",
       "staged_sha256": "1465b12dce904f15efbe19c0d69cc5f1e1649fc97c9e50e99be477d38e9f4467",
-      "current_import_sha256": "94bd967998a6b449a989027b81bd0bb620230c7abce7383d4b8262831293dc52",
+      "current_import_sha256": "1345e98ba93ca6f3705e941ef69296d0cd4d3ccf8315d1b953b364c4a088f519",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact frozen staged-input bytes; Fix botcore bug batch: factory state durability (#1796), teams missing-command errors (#1797), provenance archive member hardening (#1671), and ignored-only tier-2 disk classification (#1933)"
+      "import_reason": "Imported exact frozen staged-input bytes; Fix botcore bug batch: factory state durability (#1796), teams missing-command errors (#1797), provenance archive member hardening (#1671), and ignored-only tier-2 disk classification (#1933); Fix Windows disk-walk words, skill usage record line endings and file-as-folder handling (#2173); Teams task_status passes task_id (#2174)"
     },
     {
       "path": "plugins/botcore-teams/src/botcore_teams/config.py",
@@ -2183,11 +2183,11 @@
       "path": "plugins/botcore-teams/src/botcore_teams/intent.py",
       "upstream_sha256": "101ab0e6f9ce739cf20b7a2c8416dd680b068d8ff61a6540cc3072cc65f92f6c",
       "staged_sha256": "101ab0e6f9ce739cf20b7a2c8416dd680b068d8ff61a6540cc3072cc65f92f6c",
-      "current_import_sha256": "101ab0e6f9ce739cf20b7a2c8416dd680b068d8ff61a6540cc3072cc65f92f6c",
+      "current_import_sha256": "b1ed602656ca061dbafc8dabe9d459c305512e0553f676fc9c79d385c8bb14ac",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Fix Windows disk-walk words, skill usage record line endings and file-as-folder handling (#2173); Teams task_status passes task_id (#2174)"
     },
     {
       "path": "plugins/botcore-teams/tests/__init__.py",
@@ -2273,21 +2273,21 @@
       "path": "plugins/botcore-teams/tests/test_commands.py",
       "upstream_sha256": "92951fa373406fd3fbdee8752a67a5e5ed23c5c188038b764eb3550ad2982262",
       "staged_sha256": "92951fa373406fd3fbdee8752a67a5e5ed23c5c188038b764eb3550ad2982262",
-      "current_import_sha256": "dccf452e3989f639b241b2646f80d3d65fe767dee9965a1ca1d5d95f7186239a",
+      "current_import_sha256": "e8d0e87e5721973608c95998a6cdbf505be3622b787a4978017392919fbfed7c",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact frozen staged-input bytes; Fix botcore bug batch: factory state durability (#1796), teams missing-command errors (#1797), provenance archive member hardening (#1671), and ignored-only tier-2 disk classification (#1933)"
+      "import_reason": "Imported exact frozen staged-input bytes; Fix botcore bug batch: factory state durability (#1796), teams missing-command errors (#1797), provenance archive member hardening (#1671), and ignored-only tier-2 disk classification (#1933); Fix Windows disk-walk words, skill usage record line endings and file-as-folder handling (#2173); Teams task_status passes task_id (#2174)"
     },
     {
       "path": "plugins/botcore-teams/tests/test_intent.py",
       "upstream_sha256": "8f52d0e561362d1be5a0ba8b6cc3b29d93d788133cb70b9ba51c976937a2fd07",
       "staged_sha256": "8f52d0e561362d1be5a0ba8b6cc3b29d93d788133cb70b9ba51c976937a2fd07",
-      "current_import_sha256": "8f52d0e561362d1be5a0ba8b6cc3b29d93d788133cb70b9ba51c976937a2fd07",
+      "current_import_sha256": "035d8d3c0235634eabdaf29cb6861e324cdb3bbe2453d2585bb805d2a6cf99e5",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Fix Windows disk-walk words, skill usage record line endings and file-as-folder handling (#2173); Teams task_status passes task_id (#2174)"
     },
     {
       "path": "plugins/botcore-teams/tests/test_plugin.py",
@@ -2721,10 +2721,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "23896e1e9e3f6d07292cc58a41279b2f573fa09f5a44c21926ec2e85ff57a7b7",
+      "current_import_sha256": "8a3bc185420e286ec36d38da0572e04e702172691607514a280eb1ac729f1506",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); disk hygiene: last review nits (lushly-dev/afd#1688, #1689); The hourly job always ends and says what it waited for (#1902, #1903)"
+      "import_reason": "disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); disk hygiene: last review nits (lushly-dev/afd#1688, #1689); The hourly job always ends and says what it waited for (#1902, #1903); Fix Windows disk-walk words, skill usage record line endings and file-as-folder handling (#2173); Teams task_status passes task_id (#2174)"
     },
     {
       "path": "src/botcore/commands/disk/report.py",
@@ -3004,10 +3004,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "491828da5ca183ff9e044a603f73ed0d7ed11e1d2dcdfd9fc22d0103b17c3f3a",
+      "current_import_sha256": "7492e5cbafc4dc0ba3ac8721f292e44a41e92744fdbee4f65f62e1593cfaed63",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); The hourly job always ends and says what it waited for (#1902, #1903); skill usage reads what a project holds from its default branch (lushly-dev/afd#1904)"
+      "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); The hourly job always ends and says what it waited for (#1902, #1903); skill usage reads what a project holds from its default branch (lushly-dev/afd#1904); Fix Windows disk-walk words, skill usage record line endings and file-as-folder handling (#2173); Teams task_status passes task_id (#2174)"
     },
     {
       "path": "src/botcore/commands/skill_usage/t3.py",
@@ -6582,10 +6582,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "f8fb64fd69b7eddbafd2abf0bc3a39f645bea20d8f31379e2bd29a2b9170b90e",
+      "current_import_sha256": "1458728e33111d7599b07e60efa3401574738bcb9fc064fcfe379fbb14654249",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill-usage-collect also reads Claude Code's transcripts, for sessions T3 Code did not run (lushly-dev/afd#1820); The hourly job always ends and says what it waited for (#1902, #1903); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims (#1810), keep usable [tools] entries on disk-setup rerun (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims and retries (#1810), keep usable [tools] entries on disk-setup rerun and report changed_tools (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Fix botcore bug batch: refuse lane-drop when GitHub holds merging PR (#1628), strip build info before output and align file activity (#1939), collapse/mark truncated unclassified folders with plain-text summary (#1955), and report SQLite/transcript progress so busy hourly collections finish (#2160); Fix Botcore bugs #1628, #1939, #1955, #2160 and review findings"
+      "import_reason": "disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill-usage-collect also reads Claude Code's transcripts, for sessions T3 Code did not run (lushly-dev/afd#1820); The hourly job always ends and says what it waited for (#1902, #1903); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims (#1810), keep usable [tools] entries on disk-setup rerun (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims and retries (#1810), keep usable [tools] entries on disk-setup rerun and report changed_tools (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Fix botcore bug batch: refuse lane-drop when GitHub holds merging PR (#1628), strip build info before output and align file activity (#1939), collapse/mark truncated unclassified folders with plain-text summary (#1955), and report SQLite/transcript progress so busy hourly collections finish (#2160); Fix Botcore bugs #1628, #1939, #1955, #2160 and review findings; Fix Windows disk-walk words, skill usage record line endings and file-as-folder handling (#2173); Teams task_status passes task_id (#2174)"
     },
     {
       "path": "tests/test_disk_tier2.py",
@@ -6866,10 +6866,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "82a888d81b40da55292a480f34ae5fc4084bcb16985a4d60be9b231cae206a3a",
+      "current_import_sha256": "8bf98b255ab4920edd9df15f56c95dc7202da3261e7ed98b174e57c19ceff70d",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill usage reads what a project holds from its default branch (lushly-dev/afd#1904); a folder git refuses is read as it lies (lushly-dev/afd#2051); a removed folder's account is dropped (lushly-dev/afd#2123); Fix botcore bug batch: refuse lane-drop when GitHub holds merging PR (#1628), strip build info before output and align file activity (#1939), collapse/mark truncated unclassified folders with plain-text summary (#1955), and report SQLite/transcript progress so busy hourly collections finish (#2160); Fix Botcore bugs #1628, #1939, #1955, #2160 and review findings; Fix PowerShell quoting in the skill-usage shell reader (#1847)"
+      "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill usage reads what a project holds from its default branch (lushly-dev/afd#1904); a folder git refuses is read as it lies (lushly-dev/afd#2051); a removed folder's account is dropped (lushly-dev/afd#2123); Fix botcore bug batch: refuse lane-drop when GitHub holds merging PR (#1628), strip build info before output and align file activity (#1939), collapse/mark truncated unclassified folders with plain-text summary (#1955), and report SQLite/transcript progress so busy hourly collections finish (#2160); Fix Botcore bugs #1628, #1939, #1955, #2160 and review findings; Fix PowerShell quoting in the skill-usage shell reader (#1847); Fix Windows disk-walk words, skill usage record line endings and file-as-folder handling (#2173); Teams task_status passes task_id (#2174)"
     },
     {
       "path": "tests/test_skill_usage_claude_code.py",
@@ -6877,10 +6877,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "d7dcdcba886a7915056b0c4fced163eff864fc5a33ca9b5346e93c53558aec02",
+      "current_import_sha256": "b60cba536acc812c81da3d860ceea6410793f53b99da18836e4968330137558d",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "skill-usage-collect also reads Claude Code's transcripts, for sessions T3 Code did not run (lushly-dev/afd#1820); Fix Botcore bugs #1628, #1939, #1955, #2160 and review findings"
+      "import_reason": "skill-usage-collect also reads Claude Code's transcripts, for sessions T3 Code did not run (lushly-dev/afd#1820); Fix Botcore bugs #1628, #1939, #1955, #2160 and review findings; Fix Windows disk-walk words, skill usage record line endings and file-as-folder handling (#2173); Teams task_status passes task_id (#2174)"
     },
     {
       "path": "tests/test_skill_usage_machines.py",
