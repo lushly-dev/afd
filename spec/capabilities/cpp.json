@@ -554,13 +554,13 @@
 			"note": "([#1983](https://github.com/lushly-dev/afd/issues/1983): `StdioServerOptions::resources` on `afd::mcp_stdio`, both eras)",
 			"views": {
 				"res-core": "(`StdioServerOptions::resources` on `afd::mcp_stdio`, both eras; #1983)",
-				"res-vectors": "(`tests/resources_test.cpp` and `tests/tool_meta_test.cpp`, over stdio in both eras; #1983)",
-				"pc-res": "(`packages/cpp/tests/resources_test.cpp`, stdio, both eras; #1983)"
+				"res-vectors": "(`tests/mcp_resources_vectors_test.cpp` and `tests/tool_meta_test.cpp`, over stdio in both eras; #1983)",
+				"pc-res": "(`packages/cpp/tests/mcp_resources_vectors_test.cpp`, stdio, both eras; #1983)"
 			},
 			"evidence": [
 				"packages/cpp/include/afd/mcp_stdio.hpp",
 				"packages/cpp/src/mcp_stdio/resources.cpp",
-				"packages/cpp/tests/resources_test.cpp"
+				"packages/cpp/tests/mcp_resources_vectors_test.cpp"
 			]
 		},
 		"mcp.skills": {
@@ -568,13 +568,13 @@
 			"note": "([#1983](https://github.com/lushly-dev/afd/issues/1983): `StdioServerOptions::skills`, `SkillCatalog`, `skill_from_directory`, optional `directory_read`; zero-dep YAML 1.2 core frontmatter parser)",
 			"views": {
 				"res-skills": "(`StdioServerOptions::skills`, `skill_from_directory`, optional `directory_read`; #1983)",
-				"pc-skills": "(`packages/cpp/tests/resources_test.cpp`, loads `mcp-resources.json`, both eras; #1983)"
+				"pc-skills": "(`packages/cpp/tests/mcp_resources_vectors_test.cpp`, loads `vectors/mcp-resources.json`, both eras; #1983)"
 			},
 			"evidence": [
 				"packages/cpp/src/mcp_stdio/resources.cpp",
 				"packages/cpp/src/mcp_stdio/frontmatter.cpp",
 				"packages/cpp/tests/frontmatter_test.cpp",
-				"packages/cpp/tests/resources_test.cpp"
+				"packages/cpp/tests/mcp_resources_vectors_test.cpp"
 			]
 		},
 		"mcp.tool-meta": {
@@ -583,7 +583,7 @@
 			"views": {
 				"command-metadata": "(`CommandDefinition::tool_meta`, `advertised_input_schema`; #1983)",
 				"res-meta": "(`CommandDefinition::tool_meta`; #1983)",
-				"pc-meta": "(`packages/cpp/tests/tool_meta_test.cpp`, `resources_test.cpp`; #1983)"
+				"pc-meta": "(`packages/cpp/tests/tool_meta_test.cpp`, `mcp_resources_vectors_test.cpp`; #1983)"
 			},
 			"evidence": [
 				"packages/cpp/src/meta_keys.cpp",
@@ -596,7 +596,7 @@
 			"note": "([#1983](https://github.com/lushly-dev/afd/issues/1983): `CommandDefinition::advertised_input_schema`; `input_schema` still validates)",
 			"views": {
 				"res-adv": "(`CommandDefinition::advertised_input_schema`; #1983)",
-				"pc-adv": "(`packages/cpp/tests/tool_meta_test.cpp`, `resources_test.cpp`; #1983)"
+				"pc-adv": "(`packages/cpp/tests/tool_meta_test.cpp`, `mcp_resources_vectors_test.cpp`; #1983)"
 			},
 			"evidence": [
 				"packages/cpp/include/afd/command.hpp",

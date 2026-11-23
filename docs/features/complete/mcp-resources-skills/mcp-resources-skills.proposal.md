@@ -7,11 +7,11 @@
 
 | Field | Value |
 |---|---|
-| Status | Approved 2026-11-01 under the owner's delegation of 2026-10-31: the owner approved this direction with the [Umbel phase 1 specification](../../../../endpoints/umbel/docs/phases/1-plugin-contract/spec.md#step-0-afd-first) (decision D47), merged in [#583](https://github.com/lushly-dev/afd/pull/583). Spec step done; Rust (step 1) and TypeScript (step 2) implement it. Progress is in [STATUS.md](STATUS.md) |
+| Status | Complete 2026-11-22 (approved 2026-11-01 under the owner's delegation of 2026-10-31; D47, [#583](https://github.com/lushly-dev/afd/pull/583)). Steps 0 to 5 are done across Rust, TypeScript, Python, C++ and `spec/vectors/mcp-resources.json`. Evidence is in [STATUS.md](STATUS.md) |
 | Author | jasfalk (drafted with Claude) |
 | Requested by | [Umbel](../../../../endpoints/umbel/docs/STATUS.md), decision [D47](../../../../endpoints/umbel/docs/decisions.md) and step 0a of its [phase 1 plan](../../../../endpoints/umbel/docs/phases/1-plugin-contract/spec.md#step-0-afd-first); [Loam](../../../../endpoints/loam/docs/architecture.md#afd-prerequisites), which needs `ui://` resources and MCP Apps' `_meta.ui.resourceUri` from the same mechanism. Under Umbel's D25 it lands in AFD, spec first, for every language |
 | Packages | `spec/`, `packages/server`, `python/`, `packages/rust`, `packages/cpp` (with the todo backends) |
-| Related | [Skill Knowledge Layer](../../proposed/skill-knowledge-layer/skill-knowledge-layer.proposal.md) (reconciled below); [Hybrid tool strategy](../../complete/hybrid-tool-strategy/hybrid-tool-strategy.proposal.md), whose shape this follows; [MCP 2026-07-28 upgrade](../../complete/mcp-2026-07-28/proposal.md); [MCP authorization](../mcp-authorization/mcp-authorization.proposal.md), which per-caller resources wait for; [Language parity](../../../language-parity.md) item D2 (C++ `afd::mcp_stdio`, [#341](https://github.com/lushly-dev/afd/issues/341)) |
+| Related | [Skill Knowledge Layer](../../proposed/skill-knowledge-layer/skill-knowledge-layer.proposal.md) (reconciled below); [Hybrid tool strategy](../hybrid-tool-strategy/hybrid-tool-strategy.proposal.md), whose shape this follows; [MCP 2026-07-28 upgrade](../mcp-2026-07-28/proposal.md); [MCP authorization](../../active/mcp-authorization/mcp-authorization.proposal.md), which per-caller resources wait for; [Language parity](../../../language-parity.md) item D2 (C++ `afd::mcp_stdio`, [#341](https://github.com/lushly-dev/afd/issues/341)) |
 
 ## Problem
 
@@ -62,7 +62,7 @@ What follows for the spec:
 - **`server/discover` and `tools/list` cache hints exist in every language**, so R3's rule, reusing
   the `tools/list` TTL option, adds no new option.
 - **No `spec/` page yet said that `Mcp-Name` carries `params.uri` or that lists must not vary per
-  connection**; both were recorded only in the [MCP 2026-07-28 proposal](../../complete/mcp-2026-07-28/proposal.md).
+  connection**; both were recorded only in the [MCP 2026-07-28 proposal](../mcp-2026-07-28/proposal.md).
   R3 and R5 now state them.
 
 ## Proposal
@@ -162,7 +162,7 @@ This pull request:
 | File | Change |
 |---|---|
 | New [`spec/mcp-resources.md`](../../../../spec/mcp-resources.md) | R1 to R6, S1 to S8, T1 to T3, V1 and V2, conformance and implementation status |
-| New [`spec/mcp-resources.json`](../../../../spec/mcp-resources.json) | Hand-written cases: 28 `_meta` keys, a two-skill catalog with its `skills/list`, `resources/list`, reads, a `skills/get` and six errors, and nine catalogs that must fail. Beside `tool-strategies.json`, not in `vectors/`, until all four languages load it |
+| New [`spec/vectors/mcp-resources.json`](../../../../spec/vectors/mcp-resources.json) | Hand-written cases (originally `spec/mcp-resources.json`): 28 `_meta` keys, a two-skill catalog with its `skills/list`, `resources/list`, reads, a `skills/get` and six errors, and twelve catalogs that must fail (nine initial plus three S2 RFC 3986 cases from `#1984`). Promoted into `vectors/` in step 5 once all four languages loaded it |
 | [`spec/command-metadata.md`](../../../../spec/command-metadata.md) | `toolMeta` field and the advertised schema in [Fields](../../../../spec/command-metadata.md#fields); the [reporting rules](../../../../spec/command-metadata.md#reporting-rules) and [Surfaces](../../../../spec/command-metadata.md#surfaces) |
 | [`spec/protocol-conformance.md`](../../../../spec/protocol-conformance.md) | Four acceptance rows, all Planned |
 | [`spec/CHANGELOG.md`](../../../../spec/CHANGELOG.md) | An entry under `1.0-rc`, written as an `afd-spec` fragment in `.changeset/`, and the new page in the scope. `spec/VERSION` stays `1.0-rc`: additive changes during the release candidate are recorded under it, as the hybrid strategy's were |
@@ -187,7 +187,7 @@ Steps 1, 2 and 3 can run in parallel. Step 1 is the one Umbel needs.
 
 ## Acceptance
 
-- Each language loads `spec/mcp-resources.json` and matches it.
+- Each language loads `spec/vectors/mcp-resources.json` and matches it.
 - A server with neither option declares no `resources` capability and lists the same tools as
   before, byte for byte.
 - On each language's server, over stdio and Streamable HTTP in both eras: `resources/list` and

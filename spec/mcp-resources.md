@@ -7,9 +7,9 @@ the registry validates with. All four are opt-in; a server that uses none of the
 Which languages serve them is in [Implementation status](#implementation-status).
 
 Every rule here is new and normative. **MUST**, **MUST NOT**, **SHOULD** and **MAY** are used as in
-RFC 2119. The [MCP resources and skills proposal](../docs/features/active/mcp-resources-skills/mcp-resources-skills.proposal.md)
+RFC 2119. The [MCP resources and skills proposal](../docs/features/complete/mcp-resources-skills/mcp-resources-skills.proposal.md)
 explains why, records the choices this page makes, and tracks progress in its
-[status](../docs/features/active/mcp-resources-skills/STATUS.md). Prompts are not specified yet; the
+[status](../docs/features/complete/mcp-resources-skills/STATUS.md). Prompts are not specified yet; the
 proposal records them as the next step.
 
 The rules follow the MCP specification [2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28)
@@ -44,9 +44,7 @@ era, it holds on both.
 | Extra tool `_meta` | `defineCommand({ toolMeta })` | `@server.command(tool_meta=...)` | `CommandDefinition::with_tool_meta(key, value)` | `CommandDefinition::tool_meta` |
 | Advertised schema | `defineCommand({ advertisedInputSchema })` | `advertised_input_schema=` | `CommandRegistry::register_with_schemas(command, validation, advertised)` | `CommandDefinition::advertised_input_schema` |
 
-The Rust names are binding: Umbel's [phase 1 plan](../endpoints/umbel/docs/phases/1-plugin-contract/spec.md#step-0-afd-first)
-builds on them. The other languages' names are proposed; each language's step may adjust the
-idiom, never the behavior.
+All four languages implement these options.
 
 ## Resources
 
@@ -59,9 +57,9 @@ capability, in the `server/discover` result and in the `initialize` result. It M
 
 A server given neither MUST NOT declare `resources`. No AFD server serves prompts yet, so none may
 declare `prompts`. How a server without resources answers a `resources/*` request is not specified:
-today some answer `-32601` and some answer an empty list, and either conforms. (Python's SDK declares
-empty `resources` and `prompts` capabilities today; its step removes them. See the proposal's
-[current behavior](../docs/features/active/mcp-resources-skills/mcp-resources-skills.proposal.md#how-servers-behave-today).)
+today some answer `-32601` and some answer an empty list, and either conforms. (Python's SDK
+declared empty `resources` and `prompts` capabilities by default; step 3 removed them. See the
+proposal's [current behavior](../docs/features/complete/mcp-resources-skills/mcp-resources-skills.proposal.md#how-servers-behave-today).)
 
 ### R2. Resource entries
 
@@ -354,16 +352,12 @@ is required by one schema and absent from the other.
 
 ## Conformance
 
-[`mcp-resources.json`](./mcp-resources.json) pins the rules a language can get subtly wrong: the key
+[`vectors/mcp-resources.json`](./vectors/mcp-resources.json) pins the rules a language can get subtly wrong: the key
 rule (accepted and refused keys), the skill manifest, the skill files as resources and their reads
 (digests, sizes, MIME types, `text` or `blob`), the catalog checks that must fail, and the read and
 get errors. It is written by hand from this page; its digests were computed with `shasum -a 256` over
-the exact bytes in the file (each `text` encoded as UTF-8, each `base64` decoded). Each language's
-step adds its loader.
-
-It sits in `spec/`, not in [`vectors/`](./vectors/README.md),
-because `alfred parity` requires every file in `vectors/` to be loaded by all four languages. It moves
-to `vectors/` in the pull request that makes the fourth language load it.
+the exact bytes in the file (each `text` encoded as UTF-8, each `base64` decoded). It sits in
+[`vectors/`](./vectors/README.md), where `alfred parity` verifies that all four languages load it.
 
 The file's sections and what a loader checks:
 
@@ -395,7 +389,7 @@ Cache hints and `resultType` are not part of the expected results; R3 and S3 sta
 | Skills extension (S1 to S6) | Yes (`skills: SkillCatalog`) | Yes (`skills=SkillCatalog`, `skill_from_directory`, optional `directory_read`; #1981) | Yes (step 0b) | Yes (`StdioServerOptions::skills`, `skill_from_directory`, optional `directory_read`; #1983) |
 | Extra tool `_meta` (T1 to T3) | Yes (`defineCommand({ toolMeta })`) | Yes (`tool_meta` on `@server.command`/`define_command`/`CommandDefinition`; #1981) | Yes (step 0b) | Yes (`CommandDefinition::tool_meta`; #1983) |
 | Advertised and validation schemas (V1, V2) | Yes (`advertisedInputSchema`) | Yes (`advertised_input_schema`; #1981) | Yes (step 0b) | Yes (`CommandDefinition::advertised_input_schema`; #1983) |
-| Loads [`mcp-resources.json`](./mcp-resources.json) | Yes (`resources.test.ts`, over Streamable HTTP and stdio) | Yes (`tests/test_resources.py` and `test_tool_meta.py`, over Streamable HTTP and stdio; #1981) | Yes (step 0b: `tests/server_resources.rs`) | Yes (`tests/resources_test.cpp` and `tests/tool_meta_test.cpp`, over stdio in both eras; #1983) |
+| Loads [`vectors/mcp-resources.json`](./vectors/mcp-resources.json) | Yes (`mcp-resources-vectors.test.ts`, over Streamable HTTP and stdio) | Yes (`tests/test_mcp_resources_vectors.py` and `test_tool_meta.py`, over Streamable HTTP and stdio; #1981) | Yes (step 0b: `tests/mcp_resources_vectors.rs`) | Yes (`tests/mcp_resources_vectors_test.cpp` and `tests/tool_meta_test.cpp`, over stdio in both eras; #1983) |
 <!-- generated:capabilities:spec.mcp-resources.status:end -->
 
 All four languages — Rust (`packages/rust`, Umbel phase 1 step 0b), TypeScript (`packages/server`,
@@ -411,7 +405,7 @@ while keeping static `SkillCatalog` reads `"public"` (#1880). TypeScript's and P
 yet caller-scoped (both servers still enforce authorization fail-closed under `auth`), and C++'s
 `afd::mcp_stdio` is stdio-only with no HTTP authorization layer, so their
 resource results carry `cacheScope: "public"`. The proposal's
-[current behavior](../docs/features/active/mcp-resources-skills/mcp-resources-skills.proposal.md#how-servers-behave-today)
+[current behavior](../docs/features/complete/mcp-resources-skills/mcp-resources-skills.proposal.md#how-servers-behave-today)
 records the pre-implementation baseline.
 
 One rule depends on the SDK: Rust's `skills/get` omits `data` for a URI that is not a `SKILL.md`
@@ -421,5 +415,5 @@ and C++ send
 in `packages/server/src/skills.ts`), Python (`SkillCatalog` in `python/src/afd/server/skills.py`),
 and C++ (`ResourceService` in `packages/cpp/src/mcp_stdio/resources.cpp`) — enforce the S2 RFC 3986
 manifest boundary when the catalog is built, and all four run every case in
-[`mcp-resources.json`](./mcp-resources.json). Progress is recorded in the
-[status](../docs/features/active/mcp-resources-skills/STATUS.md).
+[`vectors/mcp-resources.json`](./vectors/mcp-resources.json). Progress is recorded in the
+[status](../docs/features/complete/mcp-resources-skills/STATUS.md).

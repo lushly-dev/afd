@@ -1,6 +1,6 @@
 """Conformance and protocol tests for MCP resources & skills (``spec/mcp-resources.md``).
 
-Loads ``spec/mcp-resources.json`` and runs every vector over Streamable HTTP (modern 2026-07-28
+Loads ``spec/vectors/mcp-resources.json`` and runs every vector over Streamable HTTP (modern 2026-07-28
 and legacy 2025-11-25) and over in-process MCP streams (stdio transport wire format, both eras).
 """
 
@@ -37,7 +37,7 @@ from afd.server import (  # noqa: E402
 
 MODERN = "2026-07-28"
 LEGACY = "2025-11-25"
-SPEC_VECTORS = Path(__file__).resolve().parents[2] / "spec" / "mcp-resources.json"
+SPEC_VECTORS = Path(__file__).resolve().parents[2] / "spec" / "vectors" / "mcp-resources.json"
 
 
 def _load_vectors() -> dict[str, Any]:

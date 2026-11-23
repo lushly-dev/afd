@@ -559,19 +559,25 @@
 			"note": "(`resources` option: a `ResourceProvider` or static entries, on `/mcp` and stdio; not the deprecated `/sse` lane)",
 			"views": {
 				"res-core": "(`resources` option; `/mcp` and stdio, not the deprecated `/sse` lane)",
-				"res-vectors": "(`resources.test.ts`, over Streamable HTTP and stdio)",
-				"pc-res": "(`resources.test.ts`, Streamable HTTP and stdio, both eras)"
+				"res-vectors": "(`mcp-resources-vectors.test.ts`, over Streamable HTTP and stdio)",
+				"pc-res": "(`mcp-resources-vectors.test.ts`, Streamable HTTP and stdio, both eras)"
 			},
-			"evidence": ["packages/server/src/resources.ts", "packages/server/src/resources.test.ts"]
+			"evidence": [
+				"packages/server/src/resources.ts",
+				"packages/server/src/mcp-resources-vectors.test.ts"
+			]
 		},
 		"mcp.skills": {
 			"status": "yes",
 			"note": "(`skills: new SkillCatalog(...)`, `skillFromDirectory`, optional `directoryRead`)",
 			"views": {
 				"res-skills": "(`skills: SkillCatalog`)",
-				"pc-skills": "(`resources.test.ts`, loads `mcp-resources.json`)"
+				"pc-skills": "(`mcp-resources-vectors.test.ts`, loads `vectors/mcp-resources.json`)"
 			},
-			"evidence": ["packages/server/src/skills.ts", "packages/server/src/resources.test.ts"]
+			"evidence": [
+				"packages/server/src/skills.ts",
+				"packages/server/src/mcp-resources-vectors.test.ts"
+			]
 		},
 		"mcp.tool-meta": {
 			"status": "yes",
@@ -579,9 +585,12 @@
 			"views": {
 				"command-metadata": "(`toolMeta`, `advertisedInputSchema`)",
 				"res-meta": "(`defineCommand({ toolMeta })`)",
-				"pc-meta": "(`tool-meta.test.ts`, `resources.test.ts` key rule)"
+				"pc-meta": "(`tool-meta.test.ts`, `mcp-resources-vectors.test.ts` key rule)"
 			},
-			"evidence": ["packages/server/src/tool-meta.test.ts", "packages/server/src/resources.test.ts"]
+			"evidence": [
+				"packages/server/src/tool-meta.test.ts",
+				"packages/server/src/mcp-resources-vectors.test.ts"
+			]
 		},
 		"mcp.advertised-schema": {
 			"status": "yes",

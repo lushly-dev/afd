@@ -521,11 +521,11 @@
 			"note": "(`McpServer::with_resources`, `ResourceProvider`, `server` feature)",
 			"views": {
 				"res-core": "(Umbel phase 1 step 0b; per-caller `list_for`/`read_for` and `\"private\"` `cacheScope` under `server-auth`, #1880)",
-				"res-vectors": "(step 0b: `tests/server_resources.rs`)",
-				"pc-res": "(Umbel phase 1 step 0b: `tests/server_resources.rs`; per-caller `cacheScope: \"private\"` in `tests/server_auth_hardening.rs`, #1880)"
+				"res-vectors": "(step 0b: `tests/mcp_resources_vectors.rs`)",
+				"pc-res": "(Umbel phase 1 step 0b: `tests/mcp_resources_vectors.rs`; per-caller `cacheScope: \"private\"` in `tests/server_auth_hardening.rs`, #1880)"
 			},
 			"evidence": [
-				"packages/rust/tests/server_resources.rs",
+				"packages/rust/tests/mcp_resources_vectors.rs",
 				"packages/rust/tests/server_auth_hardening.rs"
 			]
 		},
@@ -534,9 +534,9 @@
 			"note": "(`McpServer::with_skills`, `SkillCatalog`, optional `with_directory_read`)",
 			"views": {
 				"res-skills": "(step 0b)",
-				"pc-skills": "(step 0b)"
+				"pc-skills": "(step 0b: `tests/mcp_resources_vectors.rs`)"
 			},
-			"evidence": ["packages/rust/tests/server_resources.rs"]
+			"evidence": ["packages/rust/tests/mcp_resources_vectors.rs"]
 		},
 		"mcp.tool-meta": {
 			"status": "yes",

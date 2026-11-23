@@ -1,6 +1,6 @@
 // MCP resources (R1-R6), Skills extension (S1-S7), extra tool _meta (T1-T3), and advertised
 // input schemas (V1-V2) over afd::mcp::StdioServer in both MCP eras (2026-07-28 and 2025-11-25),
-// loading every case of spec/mcp-resources.json.
+// loading every case of spec/vectors/mcp-resources.json.
 #include "afd/afd.hpp"
 #include "afd/mcp_stdio.hpp"
 
@@ -39,16 +39,18 @@ using afd::mcp::ToolStrategy;
 constexpr const char* modern_ver = "2026-07-28";
 constexpr const char* legacy_ver = "2025-11-25";
 
+Json load_vectors(const char* name) {
+    const std::string path = std::string(AFD_VECTORS_DIR) + "/" + name;
+    std::ifstream in(path, std::ios::binary);
+    REQUIRE_MESSAGE(in.good(), "could not open " << path);
+    const std::string text{std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
+    auto parsed = afd::parse_bounded(text);
+    REQUIRE_MESSAGE(parsed.has_value(), parsed.error().message);
+    return std::move(*parsed);
+}
+
 const Json& spec_cases() {
-    static const Json data = [] {
-        std::ifstream in(AFD_MCP_RESOURCES_FILE, std::ios::binary);
-        REQUIRE_MESSAGE(in.good(), "could not open " << AFD_MCP_RESOURCES_FILE);
-        const std::string text{std::istreambuf_iterator<char>(in),
-                               std::istreambuf_iterator<char>()};
-        auto parsed = afd::parse_bounded(text);
-        REQUIRE_MESSAGE(parsed.has_value(), parsed.error().message);
-        return std::move(*parsed);
-    }();
+    static const Json data = load_vectors("mcp-resources.json");
     return data;
 }
 
@@ -138,7 +140,7 @@ TEST_CASE("R1 opt-in: default server declares neither resources nor skills nor p
     }
 }
 
-TEST_CASE("spec/mcp-resources.json catalog conformance over stdio in both MCP eras") {
+TEST_CASE("spec/vectors/mcp-resources.json catalog conformance over stdio in both MCP eras") {
     const Json& catalog_spec = spec_cases().at("catalog");
     afd::CommandRegistry registry;
 
@@ -187,7 +189,7 @@ TEST_CASE("spec/mcp-resources.json catalog conformance over stdio in both MCP er
             CHECK(rl["result"]["cacheScope"] == "public");
         }
 
-        // R4: every read case in spec/mcp-resources.json.
+        // R4: every read case in spec/vectors/mcp-resources.json.
         int rpc_id = 10;
         for (const auto& read_case : catalog_spec.at("reads")) {
             const std::string uri = read_case.at("uri").get<std::string>();
@@ -200,7 +202,7 @@ TEST_CASE("spec/mcp-resources.json catalog conformance over stdio in both MCP er
             }
         }
 
-        // S4: every skillsGet case in spec/mcp-resources.json.
+        // S4: every skillsGet case in spec/vectors/mcp-resources.json.
         for (const auto& get_case : catalog_spec.at("skillsGet")) {
             const std::string uri = get_case.at("uri").get<std::string>();
             const std::size_t idx = get_case.at("skillsListIndex").get<std::size_t>();
@@ -213,7 +215,7 @@ TEST_CASE("spec/mcp-resources.json catalog conformance over stdio in both MCP er
             }
         }
 
-        // R4 / S4: every error case in spec/mcp-resources.json.
+        // R4 / S4: every error case in spec/vectors/mcp-resources.json.
         for (const auto& err_case : catalog_spec.at("errors")) {
             const std::string method = err_case.at("method").get<std::string>();
             const std::string uri = err_case.at("uri").get<std::string>();
@@ -260,7 +262,8 @@ TEST_CASE("spec/mcp-resources.json catalog conformance over stdio in both MCP er
     }
 }
 
-TEST_CASE("spec/mcp-resources.json catalogFailures all fail at server startup naming entry") {
+TEST_CASE(
+    "spec/vectors/mcp-resources.json catalogFailures all fail at server startup naming entry") {
     const Json& failures = spec_cases().at("catalogFailures");
     REQUIRE(failures.is_array());
     REQUIRE_FALSE(failures.empty());

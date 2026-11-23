@@ -1,15 +1,13 @@
 /**
  * `spec/mcp-resources.md` against a real `@modelcontextprotocol/client` over Streamable HTTP, in
  * both MCP eras (2025-11-25 `legacy` and 2026-07-28 `modern`), and over dual-era stdio: every
- * case of `spec/mcp-resources.json`, plus the rules the cases do not pin (capabilities, cache
- * hints, `Mcp-Name`, provider entries, `ui://` views, directory reads).
+ * case of `spec/vectors/mcp-resources.json`, plus the rules the cases do not pin (capabilities,
+ * cache hints, `Mcp-Name`, provider entries, `ui://` views, directory reads).
  */
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { success } from '@lushly-dev/afd-core';
 import {
 	Client,
@@ -33,7 +31,6 @@ import { createMcpHandler } from './server.js';
 import type { McpHandlerOptions } from './server-types.js';
 import { type Skill, SkillCatalog } from './skills.js';
 
-const here = dirname(fileURLToPath(import.meta.url));
 interface SpecFile {
 	toolMetaKeys: Array<{ key: string; value: unknown; allowed: boolean }>;
 	catalog: {
@@ -50,7 +47,7 @@ interface SpecFile {
 	catalogFailures: Array<{ name: string; skills: SpecFile['catalog']['skills']; entry: string }>;
 }
 const spec = JSON.parse(
-	readFileSync(resolve(here, '../../../spec/mcp-resources.json'), 'utf8')
+	readFileSync(new URL('../../../spec/vectors/mcp-resources.json', import.meta.url), 'utf8')
 ) as SpecFile;
 
 /** The spec's skills as the catalog takes them: `text` as a string, `base64` as bytes. */
@@ -167,7 +164,7 @@ async function modernPost(
 
 const catalogSkills = toSkills(spec.catalog.skills);
 
-describe('tool _meta keys (spec/mcp-resources.json toolMetaKeys)', () => {
+describe('tool _meta keys (spec/vectors/mcp-resources.json toolMetaKeys)', () => {
 	const escaped = (key: string) => key.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
 	const define = (key: string, value: unknown) =>
 		defineCommand({
@@ -188,7 +185,7 @@ describe('tool _meta keys (spec/mcp-resources.json toolMetaKeys)', () => {
 	});
 });
 
-describe('catalog checks (spec/mcp-resources.json catalogFailures)', () => {
+describe('catalog checks (spec/vectors/mcp-resources.json catalogFailures)', () => {
 	it.each(spec.catalogFailures)('refuses $name', ({ skills, entry }) => {
 		expect(() => new SkillCatalog(toSkills(skills))).toThrow(entry);
 	});

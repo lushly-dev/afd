@@ -581,8 +581,8 @@ test('every renaming case gets its name from the reference rule', () => {
 	}
 });
 
-test("the reference key rule agrees with spec/mcp-resources.json's cases", () => {
-	for (const { key, value, allowed } of json('spec/mcp-resources.json').toolMetaKeys) {
+test("the reference key rule agrees with spec/vectors/mcp-resources.json's cases", () => {
+	for (const { key, value, allowed } of json('spec/vectors/mcp-resources.json').toolMetaKeys) {
 		assert.equal(toolMetaAllowed(key, value), allowed, key);
 	}
 });

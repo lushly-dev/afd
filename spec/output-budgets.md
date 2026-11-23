@@ -253,7 +253,7 @@ batch, and the journal field. It is written by hand from this page; every `bytes
 with Node's `Buffer.byteLength(JSON.stringify(value))` over the parsed value, which is the canonical
 length because key order does not change it. Each language's step adds its loader.
 
-It sits beside [`mcp-resources.json`](./mcp-resources.json), not in [`vectors/`](./vectors/README.md),
+It sits in `spec/`, not in [`vectors/`](./vectors/README.md),
 because `alfred parity` requires every file in `vectors/` to be loaded by all four languages. It moves
 to `vectors/` in the pull request that makes the fourth language load it.
 

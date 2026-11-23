@@ -15,7 +15,7 @@ from afd.server import create_server, define_command
 
 MCP = ExposeOptions(mcp=True)
 
-SPEC_VECTORS = Path(__file__).resolve().parents[2] / "spec" / "mcp-resources.json"
+SPEC_VECTORS = Path(__file__).resolve().parents[2] / "spec" / "vectors" / "mcp-resources.json"
 
 
 def _load_vectors() -> dict[str, Any]:
@@ -306,7 +306,7 @@ async def test_advertised_schema_confirmations_and_direct_client():
 
 
 async def test_tool_meta_and_advertised_schema_over_real_mcp_transports():
-    from tests.test_resources import (
+    from tests.test_mcp_resources_vectors import (
         LEGACY,
         _http_client,
         _legacy_http,

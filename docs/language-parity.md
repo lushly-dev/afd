@@ -55,6 +55,7 @@ Versions below describe repository manifests. Registry checks independently conf
 | `spec/vectors/journal-context-cap.json`, 19 cases | The journal's 4096-byte cap on a declared context field's value, measured with JavaScript's number spelling (#578) | Yes (generator) | Yes | Yes | Yes |
 | `spec/vectors/execution-controls.json`, 10 cases (#1737) | Deadlines, cancellation and batch limits (`spec/execution-controls.md`) | Yes | Yes | Yes | Yes |
 | `spec/vectors/validation.json`, 35 cases / 133 tests | Required schema subset and AFD validation issue codes (#1734); unsupported optional keywords must reject registration | Yes | Yes | Yes | Yes |
+| `spec/vectors/mcp-resources.json`, 28 `_meta` keys, two-skill catalog and 12 catalog failures (#1986) | MCP resources, the Skills extension (`io.modelcontextprotocol/skills`), extra tool `_meta` key rules and catalog validation (`spec/mcp-resources.md`) | Yes (`mcp-resources-vectors.test.ts`, HTTP and stdio, both eras) | Yes (`test_mcp_resources_vectors.py`, HTTP and stdio, both eras) | Yes (`mcp_resources_vectors.rs`, `server` feature, HTTP and stdio, both eras) | Yes (`mcp_resources_vectors_test.cpp`, `AFD_BUILD_MCP_STDIO`, stdio, both eras) |
 | [AFD protocol conformance tier](../spec/protocol-conformance.md) | Both MCP eras over real transports: `spec/protocol-conformance.json` (27 tests + 1 stream case, #1739), discovery, `_meta`, headers, exposure, contexts, cache hints, tool fields | `/mcp` and stdio, both eras | Streamable HTTP and stdio, both eras | `server` feature over Streamable HTTP and stdio | `afd::mcp_stdio` (todo backend) |
 | Todo conformance, 50 shared cases (`conformance.yml`) | Domain results through MCP `tools/call` | Yes (plus confirmations, approvals and tasks suites) | Yes (plus confirmations, approvals and tasks suites) | Yes (plus confirmations, approvals and tasks suites) | Yes (plus confirmations and approvals suites) |
 | `alfred parity` name budget (`alfred/tests/test_parity.py`) | Historical name measurement; current configured upper budgets | Reference | Budget 93 | Budget 9 | Budget 74 |
@@ -64,7 +65,7 @@ Limits of these checks:
 
 - **The todo conformance suite tests the todo domain; `spec/protocol-conformance.json` tests the AFD protocol.** The 50 todo cases call todo commands and check result fields; `--suite protocol` (27 tests + 1 stream case, #1739) now exercises discovery, D4 exposure hiding, batch, pipeline and contexts in both MCP eras across all four backends.
 - **Name parity is not behavioral parity.** Rust is 9 names short of TypeScript but has no stream executor. Python is 93 names short, but 56 of those exist and are just not exported (see [Name parity](#name-parity-alfred-parity)).
-- **The behavior vectors cover pipeline references, conditions, executor controls, validation, single-command dispatch and the error-code catalog (all loaded by all four implementations).** Streams have no behavior vectors yet, so a change there can still drift unnoticed.
+- **The behavior vectors cover pipeline references, conditions, executor controls, validation, single-command dispatch, MCP resources/skills/`toolMeta`, and the error-code catalog (all loaded by all four implementations).** Streams have no behavior vectors yet, so a change there can still drift unnoticed.
 
 ## Capability matrix
 

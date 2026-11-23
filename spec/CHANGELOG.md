@@ -24,7 +24,7 @@ version is separate from each implementation's own package version.
   [`vectors/tool-strategies.json`](./vectors/tool-strategies.json).
 - [`mcp-resources.md`](./mcp-resources.md): MCP resources, the Skills over MCP extension, extra
   `_meta` entries on a command's tool, and advertised input schemas apart from validation schemas,
-  with the cases in [`mcp-resources.json`](./mcp-resources.json).
+  with the cases in [`vectors/mcp-resources.json`](./vectors/mcp-resources.json).
 - [`output-budgets.md`](./output-budgets.md): per-command output budgets, a declaration, a per-call
   ask in `_meta["dev.afd/outputBudget"]` and the check after the handler, with the cases in
   [`output-budgets.json`](./output-budgets.json).

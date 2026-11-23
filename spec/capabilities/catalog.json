@@ -1006,7 +1006,7 @@
 				},
 				{
 					"capability": "mcp.skills",
-					"label": "Skills extension (S1 to S6): `extensions[\"io.modelcontextprotocol/skills\"]` declared; `skills/list`, `skills/get` and the skill files as resources equal [`mcp-resources.json`](./mcp-resources.json); an unknown `skills/get` URI → `-32602`",
+					"label": "Skills extension (S1 to S6): `extensions[\"io.modelcontextprotocol/skills\"]` declared; `skills/list`, `skills/get` and the skill files as resources equal [`vectors/mcp-resources.json`](./vectors/mcp-resources.json); an unknown `skills/get` URI → `-32602`",
 					"view": "pc-skills"
 				},
 				{
@@ -1142,7 +1142,7 @@
 				},
 				{
 					"capability": "mcp.resources",
-					"label": "Loads [`mcp-resources.json`](./mcp-resources.json)",
+					"label": "Loads [`vectors/mcp-resources.json`](./vectors/mcp-resources.json)",
 					"view": "res-vectors"
 				}
 			]

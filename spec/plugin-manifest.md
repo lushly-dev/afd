@@ -393,8 +393,7 @@ to know:
 
 ## Conformance
 
-[`plugin-manifest.json`](./plugin-manifest.json) sits beside
-[`mcp-resources.json`](./mcp-resources.json), not in [`vectors/`](./vectors/README.md), because
+[`plugin-manifest.json`](./plugin-manifest.json) sits in `spec/`, not in [`vectors/`](./vectors/README.md), because
 `alfred parity` requires every file in `vectors/` to be loaded by all four languages, and Python and C++
 have no reader. Every reader runs it. Its sections:
 

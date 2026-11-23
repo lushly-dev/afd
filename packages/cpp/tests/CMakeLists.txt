@@ -43,7 +43,7 @@ if(AFD_JOURNAL_FILE)
 endif()
 target_link_libraries(afd_tests PRIVATE afd::afd afd_doctest)
 if(AFD_BUILD_MCP_STDIO)
-    target_sources(afd_tests PRIVATE frontmatter_test.cpp resources_test.cpp
+    target_sources(afd_tests PRIVATE frontmatter_test.cpp mcp_resources_vectors_test.cpp
                                      tool_strategies_vectors_test.cpp mcp_stdio_test.cpp
                                      mcp_tools_test.cpp)
     target_link_libraries(afd_tests PRIVATE afd::mcp_stdio)
@@ -74,9 +74,6 @@ target_compile_definitions(afd_tests PRIVATE AFD_META_TOOLS_FILE="${afd_meta_too
 # The output-budgets conformance cases (spec/output-budgets.md, B1 to B8).
 cmake_path(SET afd_output_budgets_file NORMALIZE "${PROJECT_SOURCE_DIR}/../../spec/output-budgets.json")
 target_compile_definitions(afd_tests PRIVATE AFD_OUTPUT_BUDGETS_FILE="${afd_output_budgets_file}")
-# The MCP resources, skills and tool _meta conformance cases (spec/mcp-resources.md).
-cmake_path(SET afd_mcp_resources_file NORMALIZE "${PROJECT_SOURCE_DIR}/../../spec/mcp-resources.json")
-target_compile_definitions(afd_tests PRIVATE AFD_MCP_RESOURCES_FILE="${afd_mcp_resources_file}")
 # The todo example's shared contract, whose input schemas the validator must accept.
 cmake_path(SET afd_todo_spec_dir NORMALIZE "${PROJECT_SOURCE_DIR}/../examples/todo/spec")
 target_compile_definitions(afd_tests PRIVATE AFD_TODO_SPEC_DIR="${afd_todo_spec_dir}")
