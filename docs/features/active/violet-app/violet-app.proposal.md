@@ -7,14 +7,17 @@
   fifteen jobs as scenario files that pass the three checks, a recommended app kind, a document
   type, twenty-two drafted commands and the gaps they expose. Walked once by a fresh reader in
   three seats, and revised ([section 8](#8-what-the-walk-changed)). The seven `violet-afd` gaps
-  (#1322 to #1328) merged in [#1942](https://github.com/lushly-dev/afd/pull/1942); nothing in
-  `endpoints/loam/plugins/violet/` is built yet. [STATUS.md](STATUS.md) tracks progress.
+  (#1322 to #1328) merged in [#1942](https://github.com/lushly-dev/afd/pull/1942), write-path
+  hardening (#1957, #1958, #1973) in [#2090](https://github.com/lushly-dev/afd/pull/2090), and
+  Loam's tree moved to DTCG files ([#1974](https://github.com/lushly-dev/afd/issues/1974)) in
+  [#2166](https://github.com/lushly-dev/afd/pull/2166); nothing in `endpoints/loam/plugins/violet/`
+  is built yet. [STATUS.md](STATUS.md) tracks progress.
 - **Verified:** every claim about existing code in [section 2](#2-what-exists-today) cites a file
   and line or a command name read first-hand on 2026-11-15 at `6eeb545d`. Anything inferred says
   so with *(inferred)*.
-- **Next:** moving Loam's tree from TypeScript to DTCG files
-  ([#1974](https://github.com/lushly-dev/afd/issues/1974)), then the specification in
-  `endpoints/loam/plugins/violet/docs/`.
+- **Next:** the specification in `endpoints/loam/plugins/violet/docs/`
+  ([#2205](https://github.com/lushly-dev/afd/issues/2205)), then building the first slice
+  ([#2207](https://github.com/lushly-dev/afd/issues/2207)).
 
 | Field | Value |
 | --- | --- |
