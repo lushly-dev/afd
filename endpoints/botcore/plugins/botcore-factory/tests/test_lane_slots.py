@@ -95,3 +95,24 @@ def test_a_kept_checkout_that_cannot_be_removed_is_tried_again(released):
     released.change_world(outcomes={"remove": "ok"})
     run_steps(released)
     assert released.state()["lane"]["keptCheckouts"] == []
+
+
+def test_parking_a_validated_slot_cleans_slot_clean_paths_and_keeps_validation(make_run):
+    """lushly-dev/afd#1659: parking moves the slot checkout to kept-*, so configured in-slot
+    build output is cleaned before parking while the validation record survives."""
+    rel = "foundations/specimen/host/target"
+    run = make_run("running")
+    run.change_world(outcomes={"checks": {FRONT: "pending"}})
+    run_steps(run, 2, slot_clean_paths=[rel])
+    # Simulate build output created inside slot 1 while BEHIND validated.
+    run.change_world(
+        main={"head": "main-human"},
+        outcomes={"checks": {FRONT: "success"}},
+        slotOutputs={"1": [rel]},
+    )
+    actions = run_steps(run, slot_clean_paths=[rel])
+    assert f"released slot 1 from {BEHIND}; its validation is kept" in actions
+    assert entry_of(run, BEHIND)["state"] == "validated"
+    assert entry_of(run, BEHIND)["path"] == KEPT
+    assert run.world_data()["slotOutputs"]["1"] == []
+    assert {"slot": "1", "path": rel} in run.world_data()["cleanedSlotPaths"]

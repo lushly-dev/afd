@@ -97,8 +97,10 @@ own commits have more than one author address, or whose message folds to nothing
 adapter's `install`, bounded by a timeout, and `validate` in the background, with
 `CARGO_TARGET_DIR` at the slot's own build directory,
 `<host.buildDir>/<slots directory's name>-build/<slot>` or `.build/<slot>` in the slots'
-directory, over any `CARGO_TARGET_DIR` the lane host sets, removed when the slot takes another
-branch, the dial moves, or the slot is free and its branch has left the queue), merges serially in
+directory, over any `CARGO_TARGET_DIR` the lane host sets, removed along with any configured
+`slot_clean_paths` inside the slot checkout when the slot takes another
+branch, is parked, the dial moves, the slot is free and its branch has left the queue, or a
+coverage run starts or finishes), merges serially in
 queue order (the base is read again before the push and just before the merge; when it moved,
 the branch advances to it without a new validation, a `base-advanced` record, only if main's
 changes touch no `shared_paths` or `gate_paths`, merge cleanly with the validated head, and
@@ -339,5 +341,7 @@ every unit reads), `revalidate_paths` (lockfiles, dependency manifests and toolc
 may not change for the required check to stand in past `lane.maxBaseReruns`; unset,
 `gate_paths`), `main_checks` (check-run names on main, globs, `!` excludes; empty: all),
 `receipt`, `ui_paths`, `screens`, `preview`,
-`ignore_branches`, `measure_paths`, `trend_issue`. Commands are argument lists, never shell strings.
+`ignore_branches`, `slot_clean_paths` (literal relative paths inside a slot checkout whose ignored
+build output is moved aside into the slots parent directory and deleted when a slot is recycled or
+swept), `measure_paths`, `trend_issue`. Commands are argument lists, never shell strings.
 """

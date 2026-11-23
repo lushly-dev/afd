@@ -1056,3 +1056,145 @@ def test_local_machine_reads_botcore_disk_warnings(tmp_path, monkeypatch):
     assert LocalMachine().disk_warnings() == ["/repo: too many idle"]
     (state / "status.json").write_text("not json")
     assert LocalMachine().disk_warnings() == []
+
+
+def test_clean_slot_paths_moves_ignored_dir_outside_worktree_and_skips_tracked_or_files(tmp_path):
+    """lushly-dev/afd#1659: only ignored directories with no tracked files are renamed into the
+    slots parent and deleted detached; tracked, non-ignored and file paths are left intact."""
+    repo = tmp_path / "afd"
+    (repo / ".git").mkdir(parents=True)
+    slots_parent = tmp_path / "afd.factory-slots"
+    slot = slots_parent / "1"
+    ignored_dir = slot / "foundations" / "specimen" / "host" / "target"
+    (ignored_dir / "release").mkdir(parents=True)
+    (ignored_dir / "release" / "specimen-host").write_bytes(b"binary")
+    tracked_dir = slot / "tracked-build"
+    tracked_dir.mkdir(parents=True)
+    (tracked_dir / "keep.txt").write_text("tracked", encoding="utf-8")
+    unignored_dir = slot / "unignored-build"
+    unignored_dir.mkdir(parents=True)
+    ignored_file = slot / "ignored-file.txt"
+    ignored_file.write_text("file", encoding="utf-8")
+
+    def run(args, stdin=None, check=True):
+        if args[:3] == ["git", "rev-parse", "--path-format=absolute"]:
+            return str(repo / ".git") + "\n"
+        if args[3:5] == ["ls-files", "--"] and args[5] == "tracked-build":
+            return "tracked-build/keep.txt\n"
+        if args[3:5] == ["check-ignore", "--"] and args[5] in (
+            "foundations/specimen/host/target",
+            "ignored-file.txt",
+        ):
+            return args[5] + "\n"
+        return ""
+
+    git = CliGit(run, str(repo))
+
+    removed = git.clean_slot_paths(
+        "1",
+        [
+            "foundations/specimen/host/target",
+            "tracked-build",
+            "unignored-build",
+            "ignored-file.txt",
+            "does/not/exist",
+        ],
+    )
+    assert removed == ["foundations/specimen/host/target"]
+    assert not ignored_dir.exists()
+    assert tracked_dir.exists() and (tracked_dir / "keep.txt").read_text("utf-8") == "tracked"
+    assert unignored_dir.exists()
+    assert ignored_file.exists()
+    # Nothing renamed aside inside the slot checkout itself.
+    assert [p.name for p in ignored_dir.parent.iterdir()] == []
+    # Detached remover deletes the renamed directory in the slots parent.
+    assert wait_for(lambda: not list(slots_parent.glob(".removing-*")))
+
+
+def test_clean_slot_paths_skips_symlinks_junctions_and_rejects_escaping_paths(tmp_path):
+    """Symlinks/junctions at the slot root, parent or target must never redirect cleanup."""
+    from types import SimpleNamespace
+
+    from botcore_factory.real_world import REPARSE_POINT, _is_link_stat
+
+    # Python 3.11 Windows reparse-point check (Path.is_junction was added in 3.12).
+    assert _is_link_stat(SimpleNamespace(st_mode=0o040755, st_file_attributes=REPARSE_POINT))
+    assert not _is_link_stat(SimpleNamespace(st_mode=0o040755, st_file_attributes=0))
+
+    repo = tmp_path / "afd"
+    (repo / ".git").mkdir(parents=True)
+    slots_parent = tmp_path / "afd.factory-slots"
+    slot = slots_parent / "1"
+    outside = tmp_path / "outside-secret"
+    (outside / "sub").mkdir(parents=True)
+    sentinel = outside / "sub" / "keep.txt"
+    sentinel.write_text("safe", encoding="utf-8")
+
+    # Symlink/junction at target itself, at an intermediate parent, and at the slot root.
+    (slot / "foundations" / "specimen" / "host").mkdir(parents=True)
+    linked_target = slot / "foundations" / "specimen" / "host" / "target"
+    linked_parent = slot / "linked-parent"
+    linked_root = slots_parent / "2"
+    if sys.platform == "win32":
+        import _winapi
+
+        _winapi.CreateJunction(str(outside), str(linked_target))
+        _winapi.CreateJunction(str(outside), str(linked_parent))
+        _winapi.CreateJunction(str(outside), str(linked_root))
+    else:
+        linked_target.symlink_to(outside, target_is_directory=True)
+        linked_parent.symlink_to(outside, target_is_directory=True)
+        linked_root.symlink_to(outside, target_is_directory=True)
+
+    def run(args, stdin=None, check=True):
+        if args[:3] == ["git", "rev-parse", "--path-format=absolute"]:
+            return str(repo / ".git") + "\n"
+        if args[3:5] == ["check-ignore", "--"]:
+            return args[5] + "\n"
+        return ""
+
+    git = CliGit(run, str(repo))
+
+    assert (
+        git.clean_slot_paths("1", ["foundations/specimen/host/target", "linked-parent/sub"]) == []
+    )
+    assert git.clean_slot_paths("2", ["sub"]) == []
+    assert sentinel.read_text(encoding="utf-8") == "safe"
+
+    for bad in ("../outside", "/abs/path", ".", ".git", ".GIT", ".git.", "a\x00b", "a/**/b"):
+        with pytest.raises(WorldError, match="Invalid slot_clean_paths"):
+            git.clean_slot_paths("1", [bad])
+
+
+def test_clean_slot_paths_with_real_git_enforces_gitignore_and_index(tmp_path):
+    """End-to-end against real git: ignored directory is cleaned, tracked or non-ignored is not."""
+    repo = tmp_path / "afd"
+    repo.mkdir()
+    run = make_runner(str(repo))
+    run(["git", "init", "-b", "main"])
+    run(["git", "config", "user.name", "Test"])
+    run(["git", "config", "user.email", "test@example.com"])
+    (repo / ".gitignore").write_text("target/\n", encoding="utf-8")
+    (repo / "tracked-target").mkdir()
+    (repo / "tracked-target" / "a.txt").write_text("keep", encoding="utf-8")
+    run(["git", "add", ".gitignore", "tracked-target/a.txt"])
+    run(["git", "commit", "-m", "init"])
+    head = run(["git", "rev-parse", "HEAD"]).strip()
+
+    git = CliGit(run, str(repo))
+    slot = Path(git.prepare_slot("1", "", head))
+    ignored = slot / "foundations" / "specimen" / "host" / "target"
+    (ignored / "release").mkdir(parents=True)
+    (ignored / "release" / "bin").write_bytes(b"ok")
+    unignored = slot / "unignored"
+    unignored.mkdir()
+
+    removed = git.clean_slot_paths(
+        "1", ["foundations/specimen/host/target", "tracked-target", "unignored"]
+    )
+    assert removed == ["foundations/specimen/host/target"]
+    assert not ignored.exists()
+    assert (slot / "tracked-target" / "a.txt").read_text(encoding="utf-8") == "keep"
+    assert unignored.exists()
+    assert run(["git", "-C", str(slot), "status", "--porcelain", "--untracked-files=no"]) == ""
+    assert wait_for(lambda: not list(slot.parent.glob(".removing-*")))

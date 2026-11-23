@@ -29,6 +29,32 @@ plugin's tests.
 
 The queue, validation, base moves, merges, ejections and repairs.
 
+#### Configured in-slot build directories cleaned on recycle and sweep, 2026-11-23
+
+Pull request [#2304](https://github.com/lushly-dev/afd/pull/2304), for
+[#1659](https://github.com/lushly-dev/afd/issues/1659) (attached as a sub-issue of
+[#1549](https://github.com/lushly-dev/afd/issues/1549)). Supersedes the `#1659` note in the
+2026-11-19 build-directory entry below:
+
+- **Adapter key:** `[plugins.factory]` gains `slot_clean_paths`, a list of literal relative paths
+  inside a slot checkout (rejecting absolute paths, `..`, `.`, `.git` case-insensitively including
+  trailing dots/spaces, NUL bytes, drive letters and glob wildcards). AFD's `botcore.toml` sets
+  `slot_clean_paths = ["foundations/specimen/host/target"]`, keeping Specimen's deliberate
+  `3ee8c66b` worktree-isolation pin and foundation boundary intact.
+- **Safe non-blocking cleanup:** `Git.clean_slot_paths` verifies each path is an ignored directory
+  with no tracked files (`git ls-files` and `git check-ignore`), walks it with `O_NOFOLLOW`
+  directory fds on POSIX (and `lstat` reparse-point + identity checks on Windows, including Python
+  3.11 junctions), skips symlinks/junctions/mount crossings, renames existing directories aside
+  into the slots parent directory (never inside the worktree, so git and linters never see
+  `.removing-*`), and removes them in a detached background process.
+- **Lifecycle:** `sweep_builds` cleans `slot_clean_paths` on free numeric slots with no queued
+  owner and on an inactive `coverage` slot (retrying any deferred or interrupted coverage cleanup)
+  before `disk_short` reads free disk; `release_slot` cleans `slot_clean_paths` before parking a
+  validated checkout to `kept-*`; `slot_build` cleans them on first use, branch change,
+  `host.buildDir` move, or coverage start (deduplicated per step); `poll_coverage` cleans the
+  coverage slot once finished. Same-branch re-validation keeps both `CARGO_TARGET_DIR` and in-slot
+  build output.
+
 #### Test-change reports attached to cell records and Phase 5 `gate-change` hold, 2026-11-22
 
 Step 5 of [#1387](https://github.com/lushly-dev/afd/issues/1387), pull request

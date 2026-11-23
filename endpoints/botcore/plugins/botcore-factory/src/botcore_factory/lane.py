@@ -297,6 +297,11 @@ class Step(Merging, Coverage):
         given up as before (``rerun``, ``slot-needed``).
         """
         slot, branch = entry["slot"], entry["branch"]
+        try:
+            self.clean_slot_paths(slot)
+        except WorldError as exc:
+            self.actions.append(f"slot {slot} cleanup deferred before parking: {exc}")
+        self._cleaned_slots.discard(slot)
         # A short hash of the branch keeps a/b and a-b apart.
         digest = hashlib.sha256(branch.encode("utf-8")).hexdigest()[:8]
         name = f"kept-{re.sub(r'[^A-Za-z0-9._-]+', '-', branch).strip('-')}-{digest}"

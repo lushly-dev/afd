@@ -9,14 +9,18 @@ for ``gh`` and ``git`` without calling them.
 
 from __future__ import annotations
 
+import errno
 import json
 import os
+import re
+import stat
 import subprocess
 import sys
 import time
 from collections.abc import Callable, Sequence
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
+from botcore_factory.adapter import _slot_clean_path
 from botcore_factory.real_run import Run, make_runner, parse_json, resolve_program, run_process
 from botcore_factory.real_system import LocalMachine, OsProcesses, SystemClock, T3Plans
 from botcore_factory.squash import clean_message, fold_message, squash_body
@@ -709,6 +713,61 @@ class CliGit:
             raise WorldError(f"Cannot move {path} aside to remove it: {exc}") from exc
         _remove_detached(self.target, trash, checkout=False)
 
+    def clean_slot_paths(self, slot: str, paths: Sequence[str]) -> list[str]:
+        """Remove configured ignored build directories inside ``slot``'s checkout by renaming
+        each aside into the slots parent directory (never inside the worktree, where git or
+        linters would see untracked ``.removing-*`` files) and deleting it in a detached process
+        (lushly-dev/afd#1659).
+
+        Only ignored directories containing no tracked files are removed; symlinks, Windows
+        junctions/reparse points, mount crossings and escaping paths are never followed or
+        deleted. On POSIX the walk and rename are anchored to opened ``O_NOFOLLOW`` directory
+        file descriptors; on Windows each directory's reparse status and identity are verified.
+        """
+        if not paths:
+            return []
+        slot_root = Path(self._slot_path(slot))
+        try:
+            root_info = os.lstat(slot_root)
+        except FileNotFoundError:
+            return []
+        except OSError as exc:
+            raise WorldError(f"Cannot inspect slot checkout {slot_root}: {exc}") from exc
+        if (
+            _is_link_stat(root_info)
+            or _is_junction(slot_root)
+            or not stat.S_ISDIR(root_info.st_mode)
+        ):
+            return []
+        safe_slot = re.sub(r"[^A-Za-z0-9._-]+", "-", slot).strip("-") or "slot"
+        removed: list[str] = []
+        for index, raw in enumerate(paths):
+            try:
+                rel = _slot_clean_path(raw)
+            except ValueError as exc:
+                raise WorldError(f"Invalid slot_clean_paths entry {raw!r}: {exc}") from exc
+            parts = PurePosixPath(rel).parts
+            # Verify the path is ignored and holds no tracked files before touching disk.
+            if self.run(["git", "-C", str(slot_root), "ls-files", "--", rel]).strip():
+                continue
+            if not self.run(
+                ["git", "-C", str(slot_root), "check-ignore", "--", rel], None, False
+            ).strip():
+                continue
+            trash_name = (
+                f".removing-slot-{safe_slot}-{index}-{parts[-1]}-{os.getpid()}-{time.time_ns()}"
+            )
+            trash = (
+                _rename_slot_dir_posix(slot_root, parts, trash_name)
+                if _DIR_FD_RENAME
+                else _rename_slot_dir_windows(slot_root, parts, trash_name)
+            )
+            if trash is None:
+                continue
+            _remove_detached(self.target, trash, checkout=False)
+            removed.append(rel)
+        return removed
+
     #: The lane commits as itself. ``committer.*`` is set too: it outranks ``user.*``, so a
     #: host that configures it would otherwise commit the lane's merges as someone else.
     _IDENTITY = (
@@ -912,6 +971,156 @@ class CliGit:
         self.run([*args, "origin", f"{head}:refs/heads/{branch}"])
 
 
+#: Windows ``FILE_ATTRIBUTE_REPARSE_POINT`` flag: identifies NTFS junctions and symlinks on 3.11+.
+REPARSE_POINT = 0x400
+_DIR_FD_RENAME = (
+    os.name != "nt"
+    and os.open in os.supports_dir_fd
+    and os.stat in os.supports_dir_fd
+    and os.rename in os.supports_dir_fd
+    and hasattr(os, "O_NOFOLLOW")
+)
+
+
+def _is_link_stat(info: os.stat_result) -> bool:
+    if stat.S_ISLNK(info.st_mode):
+        return True
+    return bool(getattr(info, "st_file_attributes", 0) & REPARSE_POINT)
+
+
+def _is_junction(path: Path) -> bool:
+    """True for Windows NTFS directory junctions/reparse points on Python 3.11+."""
+    try:
+        if _is_link_stat(os.lstat(path)):
+            return True
+    except OSError:
+        return False
+    check = getattr(path, "is_junction", None)
+    try:
+        return bool(check()) if check is not None else False
+    except OSError:
+        return False
+
+
+def _rename_slot_dir_posix(slot_root: Path, parts: tuple[str, ...], trash_name: str) -> Path | None:
+    """Walk ``parts`` inside ``slot_root`` using opened ``O_NOFOLLOW`` directory fds and
+    atomically rename the final directory into ``slot_root.parent``."""
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    parent_fd: int | None = None
+    cur_fd: int | None = None
+    try:
+        try:
+            parent_fd = os.open(slot_root.parent, flags)
+            cur_fd = os.open(slot_root.name, flags, dir_fd=parent_fd)
+        except FileNotFoundError:
+            return None
+        except OSError as exc:
+            if exc.errno in (errno.ELOOP, errno.ENOTDIR):
+                return None
+            raise WorldError(f"Cannot open slot checkout {slot_root}: {exc}") from exc
+        parent_dev = os.fstat(parent_fd).st_dev
+        root_dev = os.fstat(cur_fd).st_dev
+        if parent_dev != root_dev:
+            return None
+        for part in parts[:-1]:
+            try:
+                next_fd = os.open(part, flags, dir_fd=cur_fd)
+            except FileNotFoundError:
+                return None
+            except OSError as exc:
+                if exc.errno in (errno.ELOOP, errno.ENOTDIR):
+                    return None
+                raise WorldError(f"Cannot open {part} in {slot_root}: {exc}") from exc
+            os.close(cur_fd)
+            cur_fd = next_fd
+            if os.fstat(cur_fd).st_dev != root_dev:
+                return None
+        leaf = parts[-1]
+        try:
+            info = os.stat(leaf, dir_fd=cur_fd, follow_symlinks=False)
+        except FileNotFoundError:
+            return None
+        except OSError as exc:
+            raise WorldError(f"Cannot inspect {leaf} in {slot_root}: {exc}") from exc
+        if _is_link_stat(info) or not stat.S_ISDIR(info.st_mode) or info.st_dev != root_dev:
+            return None
+        try:
+            os.rename(leaf, trash_name, src_dir_fd=cur_fd, dst_dir_fd=parent_fd)
+        except FileNotFoundError:
+            return None
+        except OSError as exc:
+            raise WorldError(f"Cannot move {slot_root.joinpath(*parts)} aside: {exc}") from exc
+        return slot_root.parent / trash_name
+    finally:
+        if cur_fd is not None:
+            os.close(cur_fd)
+        if parent_fd is not None:
+            os.close(parent_fd)
+
+
+def _rename_slot_dir_windows(
+    slot_root: Path, parts: tuple[str, ...], trash_name: str
+) -> Path | None:
+    """Verify non-reparse status, containment and parent identity along ``parts`` inside
+    ``slot_root`` before renaming into ``slot_root.parent``."""
+    try:
+        root_info = os.lstat(slot_root)
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        raise WorldError(f"Cannot inspect slot checkout {slot_root}: {exc}") from exc
+    if _is_link_stat(root_info) or _is_junction(slot_root) or not stat.S_ISDIR(root_info.st_mode):
+        return None
+    try:
+        resolved_root = slot_root.resolve()
+    except (OSError, RuntimeError) as exc:
+        raise WorldError(f"Cannot resolve slot checkout {slot_root}: {exc}") from exc
+    cur = slot_root
+    parent_id = (root_info.st_dev, root_info.st_ino)
+    for index, part in enumerate(parts):
+        cur = cur / part
+        try:
+            info = os.lstat(cur)
+        except FileNotFoundError:
+            return None
+        except OSError as exc:
+            raise WorldError(f"Cannot inspect {cur}: {exc}") from exc
+        if _is_link_stat(info) or _is_junction(cur) or not stat.S_ISDIR(info.st_mode):
+            return None
+        if index < len(parts) - 1:
+            parent_id = (info.st_dev, info.st_ino)
+    try:
+        resolved_target = cur.resolve()
+    except (OSError, RuntimeError) as exc:
+        raise WorldError(f"Cannot resolve {cur}: {exc}") from exc
+    if resolved_target == resolved_root or not resolved_target.is_relative_to(resolved_root):
+        return None
+    try:
+        parent_now = os.lstat(cur.parent)
+        target_now = os.lstat(cur)
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        raise WorldError(f"Cannot re-verify {cur}: {exc}") from exc
+    if (
+        (parent_now.st_dev, parent_now.st_ino) != parent_id
+        or _is_link_stat(parent_now)
+        or _is_junction(cur.parent)
+        or _is_link_stat(target_now)
+        or _is_junction(cur)
+        or not stat.S_ISDIR(target_now.st_mode)
+    ):
+        return None
+    trash = slot_root.parent / trash_name
+    try:
+        cur.rename(trash)
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        raise WorldError(f"Cannot move {cur} aside to remove it: {exc}") from exc
+    return trash
+
+
 def _remove_detached(repository: str, path: Path, *, checkout: bool = True) -> None:
     """``git worktree remove --force`` the checkout at ``path`` (only a ``checkout``) in a
     process of its own that outlives the lane step, then delete whatever is left (best effort:
@@ -922,11 +1131,45 @@ def _remove_detached(repository: str, path: Path, *, checkout: bool = True) -> N
         else {"start_new_session": True}
     )
     code = (
-        "import shutil, subprocess, sys\n"
+        "import os, shutil, stat, subprocess, sys\n"
+        "path = sys.argv[2]\n"
         "if sys.argv[3] == 'checkout':\n"
         "    subprocess.run(['git', '-C', sys.argv[1], 'worktree', 'remove', '--force',"
-        " sys.argv[2]], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)\n"
-        "shutil.rmtree(sys.argv[2], ignore_errors=True)\n"
+        " path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)\n"
+        "def _unlink_reparse(p):\n"
+        "    try:\n"
+        "        info = os.lstat(p)\n"
+        "    except OSError:\n"
+        "        return False\n"
+        "    is_link = stat.S_ISLNK(info.st_mode) or bool(\n"
+        "        getattr(info, 'st_file_attributes', 0) & 0x400\n"
+        "    )\n"
+        "    if not is_link:\n"
+        "        return False\n"
+        "    try:\n"
+        "        os.rmdir(p) if stat.S_ISDIR(info.st_mode) else os.unlink(p)\n"
+        "    except OSError:\n"
+        "        pass\n"
+        "    return True\n"
+        "def _rm(root):\n"
+        "    if _unlink_reparse(root):\n"
+        "        return\n"
+        "    if os.path.isfile(root):\n"
+        "        try:\n"
+        "            os.unlink(root)\n"
+        "        except OSError:\n"
+        "            pass\n"
+        "        return\n"
+        "    if os.name == 'nt':\n"
+        "        for cur, dirs, _files in os.walk(root, topdown=True, followlinks=False):\n"
+        "            keep = []\n"
+        "            for d in dirs:\n"
+        "                full = os.path.join(cur, d)\n"
+        "                if not _unlink_reparse(full):\n"
+        "                    keep.append(d)\n"
+        "            dirs[:] = keep\n"
+        "    shutil.rmtree(root, ignore_errors=True)\n"
+        "_rm(path)\n"
     )
     try:
         subprocess.Popen(  # noqa: S603 - an argument list, no shell

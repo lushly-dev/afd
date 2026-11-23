@@ -199,6 +199,7 @@ class StepBase:
         self.actions: list[str] = []
         self._base: str | None = None
         self._blocked_on_host_lock: dict | None = None
+        self._cleaned_slots: set[str] = set()
         for entry in [*state["queue"], *state["held"]]:  # Entries a fixture or recovery wrote.
             entry.setdefault("attempt", 1)
             entry.setdefault("state", "queued" if entry in state["queue"] else "held")

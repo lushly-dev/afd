@@ -63,6 +63,7 @@ WORLD_KEYS = frozenset(
         "nextPr",
         "pushed",
         "checkouts",
+        "slotOutputs",
         "hostLock",
     }
 )

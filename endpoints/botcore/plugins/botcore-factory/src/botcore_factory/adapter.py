@@ -39,6 +39,22 @@ def _relative(value: str, key: str) -> str:
     return str(path)
 
 
+def _slot_clean_path(value: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError("slot_clean_paths entries must be non-empty relative paths")
+    if "\x00" in value:
+        raise ValueError("slot_clean_paths entries must not contain NUL bytes")
+    normalized = _relative(value.strip(), "slot_clean_paths")
+    path = PurePosixPath(normalized)
+    if normalized == "." or not path.parts:
+        raise ValueError("slot_clean_paths must name a path inside the repository, not its root")
+    if any(part.rstrip(". ").lower() == ".git" for part in path.parts):
+        raise ValueError("slot_clean_paths must not target .git")
+    if any(ch in normalized for ch in "*?[]"):
+        raise ValueError("slot_clean_paths entries must be literal relative paths, not globs")
+    return normalized
+
+
 class Stage(BaseModel):
     """One cheap check run before a branch joins the queue."""
 
@@ -179,6 +195,14 @@ class FactoryConfig(BaseModel):
     screens: Argv | None = Field(default=None, description="Captures before and after screens")
     preview: Argv | None = Field(default=None, description="Serves the app for a commit")
     ignore_branches: list[str] = Field(default_factory=list, description="Never the lane's")
+    slot_clean_paths: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Literal relative paths inside a slot checkout whose ignored build output (such as a"
+            " tool that overrides CARGO_TARGET_DIR) the lane removes when recycling or sweeping"
+            " a slot (lushly-dev/afd#1659)"
+        ),
+    )
     measure_paths: list[str] = Field(default_factory=list, description="The loop's own measures")
     trend_issue: int | None = Field(default=None, gt=0, description="The trend issue")
 
@@ -209,6 +233,11 @@ class FactoryConfig(BaseModel):
         if len(set(names)) != len(names):
             raise ValueError("prequeue stage names must be unique")
         return value
+
+    @field_validator("slot_clean_paths")
+    @classmethod
+    def _clean_paths(cls, value: list[str]) -> list[str]:
+        return list(dict.fromkeys(_slot_clean_path(item) for item in value))
 
     @field_validator(
         "gate_paths",
