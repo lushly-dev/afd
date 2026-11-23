@@ -959,6 +959,106 @@ pub(super) const MIGRATIONS: &[&str] = &[
     ALTER TABLE token ADD COLUMN role TEXT NOT NULL DEFAULT 'agent'
         CHECK (role IN ('agent', 'approver'));
     ",
+    // 19: reply sets (step E3; the specification's 10.3 and plugin.spec.md sections 7 and 9).
+    // Not derived: survives a rebuild.
+    "
+    -- A batch of replies answering a cohort of messages, reviewed together and sent under
+    -- one approval. `revision` rises on every change so a preview and send stay bound.
+    CREATE TABLE replyset (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        account_id INTEGER NOT NULL REFERENCES account (id),
+        story_id INTEGER,
+        shared_text TEXT NOT NULL DEFAULT '',
+        revision INTEGER NOT NULL CHECK (revision > 0),
+        state TEXT NOT NULL DEFAULT 'open'
+            CHECK (state IN ('open', 'sending', 'partial', 'sent', 'unknown')),
+        creator_kind TEXT NOT NULL,
+        creator_id TEXT CHECK (creator_id IS NULL OR creator_id <> ''),
+        creator_name TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+    ) STRICT;
+    CREATE INDEX replyset_account ON replyset (account_id, updated_at DESC, id DESC);
+    CREATE INDEX replyset_state ON replyset (state, updated_at DESC, id DESC);
+
+    -- One reply in a reply set. `recipient_address` and `recipient_name` are derived by the
+    -- engine from the source message at creation and cannot be set by any caller (10.3,
+    -- plugin.spec.md 9.4). `generation` rises whenever the reply's text or linked answers
+    -- change, invalidating any open unit `rsu_<set>_<reply>_<generation>`.
+    CREATE TABLE replyset_reply (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        replyset_id INTEGER NOT NULL REFERENCES replyset (id) ON DELETE CASCADE,
+        ordinal INTEGER NOT NULL CHECK (ordinal >= 0),
+        message_id INTEGER REFERENCES message (id),
+        recipient_address TEXT NOT NULL,
+        recipient_name TEXT NOT NULL DEFAULT '',
+        reply_to_differs INTEGER NOT NULL DEFAULT 0 CHECK (reply_to_differs IN (0, 1)),
+        subject TEXT NOT NULL,
+        text TEXT,
+        source TEXT CHECK (source IS NULL OR source IN ('submitted', 'edited')),
+        generation INTEGER NOT NULL DEFAULT 1 CHECK (generation > 0),
+        author_kind TEXT,
+        author_id TEXT CHECK (author_id IS NULL OR author_id <> ''),
+        author_name TEXT,
+        source_unit TEXT,
+        source_text_digest TEXT,
+        answers_snapshot TEXT,
+        handed_unit TEXT,
+        handed_source_text_digest TEXT,
+        handed_answers_snapshot TEXT,
+        text_digest TEXT,
+        updated_at INTEGER NOT NULL,
+        send_state TEXT NOT NULL DEFAULT 'none'
+            CHECK (send_state IN ('none', 'sending', 'sent', 'failed', 'unknown')),
+        outbound_id INTEGER REFERENCES outbound (id) ON DELETE SET NULL,
+        UNIQUE (replyset_id, ordinal),
+        UNIQUE (replyset_id, message_id)
+    ) STRICT;
+    CREATE INDEX replyset_reply_set ON replyset_reply (replyset_id, ordinal);
+    CREATE INDEX replyset_reply_message ON replyset_reply (message_id) WHERE message_id IS NOT NULL;
+
+    -- Distinct questions asked by the cohort, each answered once.
+    CREATE TABLE replyset_question (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        replyset_id INTEGER NOT NULL REFERENCES replyset (id) ON DELETE CASCADE,
+        ordinal INTEGER NOT NULL CHECK (ordinal >= 0),
+        question TEXT NOT NULL,
+        answer TEXT,
+        revision INTEGER NOT NULL DEFAULT 1 CHECK (revision > 0),
+        answered_by_kind TEXT,
+        answered_by_id TEXT CHECK (answered_by_id IS NULL OR answered_by_id <> ''),
+        answered_by_name TEXT,
+        updated_at INTEGER NOT NULL,
+        UNIQUE (replyset_id, ordinal)
+    ) STRICT;
+    CREATE INDEX replyset_question_set ON replyset_question (replyset_id, ordinal);
+
+    -- Which replies ask each question (drives per-reply unit isolation and the `individual`
+    -- flag when only one reply asks a question).
+    CREATE TABLE replyset_question_reply (
+        question_id INTEGER NOT NULL REFERENCES replyset_question (id) ON DELETE CASCADE,
+        reply_id INTEGER NOT NULL REFERENCES replyset_reply (id) ON DELETE CASCADE,
+        PRIMARY KEY (question_id, reply_id)
+    ) STRICT, WITHOUT ROWID;
+    CREATE INDEX replyset_question_reply_reply ON replyset_question_reply (reply_id);
+
+    -- Audit trail of every submission and edit per reply (plugin.spec.md 9.4).
+    CREATE TABLE replyset_event (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        reply_id INTEGER NOT NULL REFERENCES replyset_reply (id) ON DELETE CASCADE,
+        kind TEXT NOT NULL CHECK (kind IN ('submitted', 'edited')),
+        unit_id TEXT,
+        source_message_id INTEGER,
+        source_text_digest TEXT,
+        answers_snapshot TEXT,
+        actor_kind TEXT NOT NULL,
+        actor_id TEXT CHECK (actor_id IS NULL OR actor_id <> ''),
+        actor_name TEXT,
+        text_digest TEXT NOT NULL,
+        at INTEGER NOT NULL
+    ) STRICT;
+    CREATE INDEX replyset_event_reply ON replyset_event (reply_id, id);
+    ",
 ];
 
 /// Brings `connection` to the newest schema, one migration and one

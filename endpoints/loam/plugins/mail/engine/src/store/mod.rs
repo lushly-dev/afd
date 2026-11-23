@@ -18,6 +18,7 @@ mod policy;
 mod read;
 mod records;
 mod remove;
+mod replysets;
 mod schema;
 mod screening;
 mod selections;
@@ -52,6 +53,12 @@ pub use records::{
     WithdrawOutcome,
 };
 pub use remove::{RemovalPreview, Removed};
+pub use replysets::{
+    AnswerRef, AnswerUpdate, NewQuestion, NewReplySet, QuestionRow, ReplyEdit, ReplyRow,
+    ReplySendState, ReplySetChange, ReplySetDetail, ReplySetRefusal, ReplySetRow,
+    ReplySetSendRefusal, ReplySetState, ReplySource, ReplySubmission, ResolvedSource,
+    SourceRefusal,
+};
 pub use screening::{Grouping, RECURRING, ScreeningCounts, ScreeningReport};
 pub use selections::{
     MOST_SELECTIONS, SELECTION_LIFETIME, Selected, SelectionItem, SelectionQuery, SelectionRow,
@@ -382,6 +389,7 @@ impl Store {
             // process before did: whether it went is unknown, and it is never
             // retried (section 9.5).
             Self::mark_interrupted_outbound(&connection, wall_clock())?;
+            Self::mark_interrupted_replysets(&connection, wall_clock())?;
             // A proposal that waited its seven days while no process ran
             // goes now.
             Self::expire_proposals_on(&connection, wall_clock())?;

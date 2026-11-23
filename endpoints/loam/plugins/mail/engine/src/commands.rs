@@ -646,6 +646,14 @@ pub fn approval_summary(
                     counted(preview.drafts, "draft", "drafts")
                 )
             };
+            let replysets = if preview.replysets == 0 {
+                String::new()
+            } else {
+                format!(
+                    ", and its {}, which are kept nowhere else and go for good",
+                    counted(preview.replysets, "reply set", "reply sets")
+                )
+            };
             let unknown_sends = if preview.unknown_sends == 0 {
                 String::new()
             } else {
@@ -655,7 +663,7 @@ pub fn approval_summary(
                 )
             };
             Some(format!(
-                "Remove the {provider} account {}: delete its {} and the {} only it has shown from the store on this computer{drafts}{unknown_sends}, and its sign-in from the keychain. Nothing changes at {provider}; adding the account again syncs its mail again",
+                "Remove the {provider} account {}: delete its {} and the {} only it has shown from the store on this computer{drafts}{replysets}{unknown_sends}, and its sign-in from the keychain. Nothing changes at {provider}; adding the account again syncs its mail again",
                 preview.account.address,
                 counted(preview.mailboxes, "mailbox", "mailboxes"),
                 counted(preview.messages, "message", "messages"),
@@ -665,6 +673,7 @@ pub fn approval_summary(
         crate::policy::SET => crate::policy::approval_summary(engine, input),
         crate::operations::APPROVE => crate::operations::approval_summary(engine, input, now),
         crate::drafts::SEND => crate::drafts::approval_summary(engine, input),
+        crate::replysets::SEND => crate::replysets::approval_summary(engine, input),
         crate::unsubscribe::UNSUBSCRIBE => crate::unsubscribe::approval_summary(engine, input),
         _ => crate::tokens::approval_summary(command, input),
     }

@@ -134,7 +134,7 @@ waits for Gmail has a line of its own.
 
 - E2: Proposed stories. Not started.
 
-- E3: Reply sets. Not started.
+- E3: Reply sets (`mail-replyset-create`, `mail-replyset-update`, `mail-replyset-next`, `mail-replyset-show`, `mail-replyset-send`, migration 19). Merged as [#2199](https://github.com/lushly-dev/afd/pull/2199) ([#1977](https://github.com/lushly-dev/afd/issues/1977)).
 
 - F: The Loam plugin: the mount and the native app. In progress: its [specification](../../../../endpoints/loam/plugins/mail/docs/plugin.spec.md) is reviewed and merged as [#1652](https://github.com/lushly-dev/afd/pull/1652), not approved: the owner's answers to its Q1 to Q5 are open. Its pull requests get their own lines when each starts (its section 18). The native app waits for Loam's phase 5 (D132).
 
@@ -156,6 +156,7 @@ the top of its phase's list, and a phase that starts adds its heading above the 
 
 ### Verified: phase E
 
+- 2026-11-22 UTC for step E3 ([#1977](https://github.com/lushly-dev/afd/issues/1977)), on `t3/mail-reply-sets-e3` from `main` at `2e29283a`: `cargo fmt --check`, `cargo clippy --locked --all-targets -- -D warnings` and `cargo test --no-fail-fast --locked` (without and with `--features test-doubles`) verified on Windows with Rust 1.100.0 (migration 19, engine-derived `From` recipients stored at creation, cohort isolation via `mail-replyset-next`, `mail-replyset-show` `MOST_BUDGET` canonical preview & `PREVIEW_CHANGED`, `mail-replyset-send` CLI-only/M18/M29/incomplete/revision/post-approval guards, partial recovery & `SEND_OUTCOME_UNKNOWN`, atomic `PREVIEW_TOO_LARGE` rollback, interrupted-sending reopen recovery, account-removal cleanup, journal redaction, `SENT_COPY_FAILED` warning, stalled-SMTP drop guard, `/mcp` exposure). Nothing live was run.
 - 2026-11-22 UTC for step E1 ([#1976](https://github.com/lushly-dev/afd/issues/1976)), on `t3/mail-records` from `main` at `2ba52efc`: `cargo fmt --check`, `cargo clippy --locked --all-targets -- -D warnings` and `cargo test --no-fail-fast --locked` passed on macOS with Rust 1.98.0 (migration 17, all 9 closed record types and strict field/size caps, visible-text and decoded-`Subject` passage verification, hidden HTML and unheld-body `NOT_HELD`/`PASSAGE_NOT_FOUND` refusals, atomic supersession, proposer cap, withdrawal authorization, cursor paging, `/mcp` exposure, `mail-rebuild` persistence and `mail-account-remove` cleanup). Nothing live was run.
 
 ### Verified: phase D
@@ -312,6 +313,7 @@ A session adds its row at the end of its area's table. The last table holds ever
 | Date | Session | What changed |
 | --- | --- | --- |
 | 2026-11-22 UTC | Step E1 ([#1976](https://github.com/lushly-dev/afd/issues/1976)) | Added migration 17 (`record` table) and `mail-record-list`, `mail-record-propose` and `mail-record-withdraw` on the owner-approved 9-type closed schema with strict per-type fields, verbatim visible-text/decoded-`Subject` passage verification (`NOT_HELD`/`PASSAGE_NOT_FOUND`), 10 000 active/proposer cap, atomic supersession, person/proposer withdrawal (`FORBIDDEN` otherwise, non-destructive per M29), `"trust": "content"` wrapping, `mail-message-open` active record count, journal result redaction and account-removal cleanup. |
+| 2026-11-22 UTC | Step E3 ([#1977](https://github.com/lushly-dev/afd/issues/1977)) | Added migration 19 (`replyset`, `replyset_reply`, `replyset_question`, `replyset_question_reply`, `replyset_event`) and `mail-replyset-create`, `mail-replyset-update`, `mail-replyset-next`, `mail-replyset-show` and `mail-replyset-send`: engine-derived `From` recipients stored at creation, cohort-isolated drafting, `MOST_BUDGET` canonical preview with `revision` (`PREVIEW_CHANGED`), person-only/destructive/CLI-only send with per-reply `outbound` tracking, partial recovery without resending sent/unknown replies, `WORK_RUNNING`/account-removal/reopen guards, journal redaction and `engine.spec.md` updates. |
 
 ### Sessions: phase F, the Loam plugin
 

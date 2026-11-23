@@ -2074,6 +2074,59 @@ engine from the source message and cannot be set by the caller; and `mail-replys
 person's command whose preview lists every recipient and marks every reply whose text differs
 from the shared text.
 
+**As step E3 built it** (`engine/src/store/replysets.rs`, `engine/src/replysets.rs`, migration 19):
+
+- **Storage and immutable recipients (migration 19):** `replyset`, `replyset_reply`,
+  `replyset_question`, `replyset_question_reply` and `replyset_event` are non-derived `STRICT`
+  tables that survive `mail-rebuild`. `mail-replyset-create` accepts 1 to 50 unique source message
+  ids (shown outside junk and trash in one sending account, each with a valid bare-ASCII non-own
+  sender address), optional `story`, optional `sharedText` (up to 32 768 characters) and up to 50
+  cohort `questions` (`{ question, messages, answer? }`, marked `individual: true` when only one
+  message asks them). Each reply's recipient (`recipient_address` preserving local-part case from
+  the held `From` header, `recipient_name`), `replyToDiffers` flag and safe `Re:` subject (UTF-8
+  boundary-safe) are derived by the engine from the source message's `From` header (never
+  `Reply-To` and never caller input) and stored at creation so re-deriving mail never alters them.
+  Author and creator token names are captured at write time so later token revocation never changes
+  a preview under the same `revision`.
+- **Revisions, edits and size bounds:** every change raises `replyset.revision` (including clean
+  pre-handover send failures that update a reply's state and `outbound` id), and a reply's
+  `generation` rises whenever its text or linked answers change, invalidating any open unit
+  `rsu_<set>_<reply>_<gen>`. `mail-replyset-update` takes `{ replyset, revision }`
+  (`REPLYSET_CHANGED` on mismatch) to record question answers, update `sharedText`, or edit a
+  reply's text (`source: "edited"`). Every create, update and submit checks both the rendered
+  `mail-replyset-show` preview and its worst-case post-send metadata expansion inside its
+  transaction and refuses atomically with `PREVIEW_TOO_LARGE` if either exceeds `MOST_BUDGET`
+  (1.75 MiB) or 3.5 MiB as an MCP reply (step F's M39 and §6).
+- **Per-reply unit isolation (`mail-replyset-next`):** called with `{ replyset }`, returns only the
+  next unwritten reply's own source message visible text (hidden HTML excluded; retryable `NOT_HELD`
+  when the body is not held yet) and only the answers linked to that reply, with its `unit` id and
+  `inputs` (`message`, `sourceTextDigest`, `answers`), recording the exact handed-out unit,
+  budget-fitted source digest and answer snapshot on the reply, or `{ done: true }` when every
+  reply has text. Called with `{ replyset, reply, text, [unit] }`, verifies the reply still has an
+  open handout for its current generation and answers (`UNIT_NOT_OPEN` if never handed out, edited,
+  or answers changed since handout), records the composed text (`source: "submitted"`) with the
+  exact handed-out `inputs` snapshot, and appends a `replyset_event` audit row.
+- **Preview (`mail-replyset-show`) and send (`mail-replyset-send`):** `mail-replyset-show` (`cli, mcp`,
+  `MOST_BUDGET` default and max, optional `revision` check returning `PREVIEW_CHANGED`) returns the
+  whole set deterministically with `"trust": "content"` on shared text, questions, recipients, subjects
+  and reply texts, marking each reply's `differs` boolean against `sharedText` (every reply marked
+  differing when `sharedText` is empty). `mail-replyset-send` is person-only, destructive, held for
+  approval (`ApprovalPolicy::Required`), exposed to `cli` alone (M18, M29), with a content-free
+  summary. Pre-approval middleware and the send transaction both check `revision` (`PREVIEW_CHANGED`)
+  and completeness (`REPLYSET_INCOMPLETE`) before holding or sending. At a terminal the command line
+  fills an omitted `revision` from `mail-replyset-show`, prints the shared text once and every
+  recipient (labelling already-sent replies in a `partial` set while excluding them from SMTP) with
+  `[matches shared text]` or `[DIFFERS from shared text]` and `Reply-To` warnings. Each unsent
+  reply submits over SMTP to its stored recipient with threading headers, records `outbound`
+  (`kind = 'replyset'`) with an in-flight drop guard, and makes a best-effort `\Seen` Sent copy over
+  a reused IMAP session (`SENT_COPY_FAILED` warning on failure). Clean pre-handover failures leave
+  the set `partial` (when earlier replies sent) or `open` at a bumped revision so only unsent
+  replies send on re-approval; post-handover drops/timeouts/crashes mid-SMTP mark the reply,
+  `outbound` and set `unknown` (`SEND_OUTCOME_UNKNOWN`, shown in `mail-status`, never retried),
+  while restarts between replies or after the last acceptance recover cleanly from persisted child
+  states (`partial` or `sent`). `mail-account-remove` refuses `WORK_RUNNING` while sending and
+  removes the account's reply sets cleanly.
+
 ### 10.4 Extractors, deferred
 
 Not built. What is kept so they can come later without a change of design: the template
@@ -2125,9 +2178,9 @@ says otherwise.
 | `mail-record-list` | E | Read | cli, mcp | Step E1 ([10.1](#101-records)): newest first, cursor-paged (`proposedAt.record`), filters by `message`, `thread`, `type`, `proposer` and `includeEnded`; `fields` and `passages` labelled as content |
 | `mail-record-propose`, `mail-record-withdraw` | E | Local | cli, mcp | Step E1 ([10.1](#101-records)): 9 closed types with strict fields, verbatim visible-text/subject passage verification (`NOT_HELD`/`PASSAGE_NOT_FOUND`), 10 000 active/proposer cap, atomic supersession; withdrawal by person or proposer (`FORBIDDEN` otherwise; non-destructive per M29) |
 | `mail-story-propose`, `mail-story-dismiss` | E | Local | cli, mcp | Dismissing is the person's or the proposer's |
-| `mail-replyset-create`, `mail-replyset-next` | E | Local | cli, mcp | |
-| `mail-replyset-show` | E | Read | cli, mcp | |
-| `mail-replyset-send` | E | Remote, destructive; a person | cli | |
+| `mail-replyset-create`, `mail-replyset-update`, `mail-replyset-next` | E | Local | cli, mcp | Step E3 ([10.3](#103-reply-sets)): 1–50 source messages with engine-derived stored recipients, cohort questions/answers, isolated per-reply units (`NOT_HELD` if body missing), optimistic `revision` updates (`REPLYSET_CHANGED`), `PREVIEW_TOO_LARGE` guard |
+| `mail-replyset-show` | E | Read | cli, mcp | Step E3 ([10.3](#103-reply-sets)): whole deterministic preview (`MOST_BUDGET`), optional `revision` check (`PREVIEW_CHANGED`), marks every reply's `differs` against `sharedText` |
+| `mail-replyset-send` | E | Remote, destructive; a person | cli | Step E3 ([10.3](#103-reply-sets)): names previewed `revision`, refuses incomplete (`REPLYSET_INCOMPLETE`) or stale (`PREVIEW_CHANGED`) before hold, sends each unsent reply over SMTP with `outbound` (`kind = 'replyset'`) and Sent copy |
 | `afd-help`, `afd-docs`, `afd-schema` | F1 | Read (AFD bootstrap) | mcp | Registered via `afd::register_bootstrap_commands` for discovery (e.g. Loam's `afd-help { format: "full" }`); exempted by name in `rules.rs` |
 
 Differences from the proposal's draft list:
@@ -2211,7 +2264,12 @@ Beside the crate's own codes:
 | `RECORD_NOT_FOUND` | No record has the id named (step E1) |
 | `DRAFT_NOT_FOUND` | No draft has the id named; a discarded draft goes after 30 days (step D3) |
 | `DRAFT_CHANGED` | A change names a revision the draft is no longer at (step D3) |
-| `PREVIEW_CHANGED` | A send or unsubscribe names a revision or digest that is no longer current since its preview was read (step D3) |
+| `PREVIEW_CHANGED` | A send, unsubscribe or reply-set preview/send names a revision or digest that is no longer current since its preview was read (steps D3, E3) |
+| `PREVIEW_TOO_LARGE` | A reply set would grow past what `mail-replyset-show` can return whole within `MOST_BUDGET` and the 3.5 MiB MCP reply cap (step E3) |
+| `REPLYSET_NOT_FOUND` | No reply set has the id named (step E3) |
+| `REPLYSET_CHANGED` | `mail-replyset-update` names a revision the reply set is no longer at (step E3) |
+| `REPLYSET_INCOMPLETE` | `mail-replyset-send` attempted while one or more replies have no text (step E3) |
+| `UNIT_NOT_OPEN` | `mail-replyset-next` submission has no matching open handout (never handed out, already submitted, edited, or linked answers changed since handout; step E3) |
 | `UNSUBSCRIBE_NOT_AVAILABLE` | A message has no usable `List-Unsubscribe` / `List-Unsubscribe-Post` header (one-click HTTPS POST or valid `mailto:`); the engine never opens a browser link (step D3) |
 
 Each failure carries a suggestion in the engine's words.
@@ -2246,7 +2304,9 @@ It is in the data directory and is as private as the mail.
   command input, and are journaled. That is what makes those changes replayable and auditable,
   and it means the journal must never be shared or uploaded as a log. A draft's text stays in it
   after the draft is discarded and gone; a draft command's result is journaled without the text
-  (step D3), and `mail-record-propose`'s result is journaled without its `content` part (step E1).
+  (step D3), `mail-record-propose`'s result is journaled without its `content` part (step E1), and
+  `mail-replyset-create`, `-update` and `-next` results are journaled without their `content` parts
+  (step E3).
 - **It does not hold what was read.** Read commands are left out by the recorder's filter, so
   opening and searching mail copies nothing into it.
 - **It holds no secret.** No command takes one. `mail-token-create` returns one, and the

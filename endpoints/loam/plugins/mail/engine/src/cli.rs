@@ -403,6 +403,21 @@ fn run_command(
             DraftSendPrep::Stop => return Ok(EXIT_FAILED),
         }
     }
+    if let Caller::Terminal(_) = &mut caller
+        && name == crate::replysets::SEND
+    {
+        match prepare_replyset_send(&mut input, runner, &runtime, err)? {
+            DraftSendPrep::Ready(lines) => preloaded_preview = Some(lines),
+            DraftSendPrep::Reject(error) => {
+                let result: afd::CommandResult<serde_json::Value> = failure(error);
+                let rendered =
+                    serde_json::to_string_pretty(&result).map_err(std::io::Error::other)?;
+                writeln!(out, "{rendered}")?;
+                return Ok(EXIT_FAILED);
+            }
+            DraftSendPrep::Stop => return Ok(EXIT_FAILED),
+        }
+    }
     if let Caller::Terminal(person) = &mut caller
         && let Some(change) = large_change(name, &input, runner, &runtime)
     {
@@ -435,6 +450,8 @@ fn run_command(
                         "`mail-operation-show` with the operation"
                     } else if name == crate::drafts::SEND {
                         "`mail-draft-show` with the draft"
+                    } else if name == crate::replysets::SEND {
+                        "`mail-replyset-show` with the reply set"
                     } else if name == crate::unsubscribe::UNSUBSCRIBE {
                         "`mail-unsubscribe-show` with the message"
                     } else {
@@ -556,6 +573,11 @@ fn run_command(
                         writeln!(
                             err,
                             "Stopped. If the message was already handed over, check your Sent mailbox and mail-status before trying again."
+                        )?;
+                    } else if name == crate::replysets::SEND {
+                        writeln!(
+                            err,
+                            "Stopped. Check your Sent mailbox, mail-replyset-show, and mail-status before trying again."
                         )?;
                     } else if name == crate::unsubscribe::UNSUBSCRIBE {
                         writeln!(
@@ -1408,6 +1430,228 @@ fn prepare_unsubscribe(
     if !subject.is_empty() {
         lines.push(format!(
             "Message subject, as written by the sender: {subject}"
+        ));
+    }
+    Ok(DraftSendPrep::Ready(lines))
+}
+
+/// Reads the reply-set preview before a terminal send: fills in `revision`
+/// only when omitted, refuses non-sendable, incomplete, or stale sets before
+/// asking, shows the shared text once, lists every recipient derived from its
+/// source message, and marks every reply whose text differs from the shared
+/// text (the specification's 10.3 and 12.1).
+fn prepare_replyset_send(
+    input: &mut serde_json::Value,
+    runner: &(dyn Runner + Sync),
+    runtime: &tokio::runtime::Runtime,
+    err: &mut dyn Write,
+) -> std::io::Result<DraftSendPrep> {
+    let Some(set_id) = input.get("replyset").and_then(serde_json::Value::as_i64) else {
+        return Ok(DraftSendPrep::Ready(Vec::new()));
+    };
+    if let Some(raw_rev) = input.get("revision")
+        && !raw_rev.is_null()
+        && raw_rev.as_i64().is_none()
+    {
+        return Ok(DraftSendPrep::Ready(Vec::new()));
+    }
+    let mut show_input = serde_json::Map::new();
+    show_input.insert("replyset".to_string(), serde_json::json!(set_id));
+    if let Some(rev) = input.get("revision").and_then(serde_json::Value::as_i64) {
+        show_input.insert("revision".to_string(), serde_json::json!(rev));
+    }
+    let shown = runtime.block_on(runner.run(
+        crate::replysets::SHOW,
+        serde_json::Value::Object(show_input),
+        true,
+        None,
+    ));
+    let Some(data) = shown.data.filter(|_| shown.success) else {
+        if let Some(error) = shown.error {
+            return Ok(DraftSendPrep::Reject(error));
+        }
+        writeln!(
+            err,
+            "{PROGRAM}: reply set {set_id} could not be read; `mail-replyset-show` says why. Nothing was sent."
+        )?;
+        return Ok(DraftSendPrep::Stop);
+    };
+    let Some(set) = data.get("replyset") else {
+        return Ok(DraftSendPrep::Stop);
+    };
+    let state = set
+        .get("state")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("unknown");
+    if state != "open" && state != "partial" {
+        let error = match state {
+            "unknown" => CommandError::new(
+                "SEND_OUTCOME_UNKNOWN",
+                format!(
+                    "a previous send of reply set {set_id} ended with an unknown outcome and is never retried"
+                ),
+            )
+            .with_retryable(false)
+            .with_suggestion(
+                "Check your Sent mailbox and mail-status before deciding how to proceed.",
+            ),
+            "sending" => CommandError::new(
+                "WORK_RUNNING",
+                format!("reply set {set_id} is already being sent"),
+            )
+            .with_retryable(true)
+            .with_suggestion("Wait for the send to finish, then check mail-replyset-show."),
+            _ => CommandError::new(
+                "INVALID_INPUT",
+                format!("reply set {set_id} is {state} and cannot be sent"),
+            )
+            .with_suggestion("Inspect the reply set with mail-replyset-show."),
+        };
+        return Ok(DraftSendPrep::Reject(error));
+    }
+    let current_rev = set
+        .get("revision")
+        .and_then(serde_json::Value::as_i64)
+        .unwrap_or(0);
+    if input.get("revision").is_none_or(serde_json::Value::is_null)
+        && let Some(obj) = input.as_object_mut()
+    {
+        obj.insert("revision".to_string(), serde_json::json!(current_rev));
+    }
+    let replies = set
+        .get("replies")
+        .and_then(serde_json::Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let missing = replies
+        .iter()
+        .filter(|r| {
+            r.pointer("/content/text")
+                .and_then(serde_json::Value::as_str)
+                .is_none_or(|t| t.trim().is_empty())
+        })
+        .count();
+    if missing > 0 {
+        let phrase = if missing == 1 {
+            "1 reply has no text".to_string()
+        } else {
+            format!("{missing} replies have no text")
+        };
+        return Ok(DraftSendPrep::Reject(
+            CommandError::new(
+                "REPLYSET_INCOMPLETE",
+                format!("reply set {set_id} is not complete: {phrase}"),
+            )
+            .with_retryable(false)
+            .with_suggestion(
+                "Write every reply with mail-replyset-next or mail-replyset-update before sending.",
+            ),
+        ));
+    }
+    let account_id = set
+        .pointer("/account/id")
+        .and_then(serde_json::Value::as_i64)
+        .unwrap_or(0);
+    let from = set
+        .pointer("/account/address")
+        .and_then(serde_json::Value::as_str)
+        .map(printable)
+        .unwrap_or_default();
+    let mut lines = vec![format!(
+        "Reply set {set_id} (revision {current_rev}, state {state}), from account {account_id} ({from}):"
+    )];
+    let shared_text = set
+        .pointer("/content/sharedText")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default();
+    if !shared_text.is_empty() {
+        lines.push(format!(
+            "Shared text, as written in the reply set:\n{}",
+            printable_body(shared_text)
+        ));
+    }
+    let already_sent = replies
+        .iter()
+        .filter(|r| r.get("state").and_then(serde_json::Value::as_str) == Some("sent"))
+        .count();
+    if already_sent > 0 {
+        lines.push(format!(
+            "{already_sent} reply/replies already sent and will not be sent again."
+        ));
+    }
+    for reply in &replies {
+        let r_state = reply
+            .get("state")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("open");
+        let r_id = reply
+            .get("reply")
+            .and_then(serde_json::Value::as_i64)
+            .unwrap_or(0);
+        let msg_id = reply
+            .get("message")
+            .and_then(serde_json::Value::as_i64)
+            .unwrap_or(0);
+        let addr = reply
+            .pointer("/content/recipient/address")
+            .and_then(serde_json::Value::as_str)
+            .map(printable)
+            .unwrap_or_default();
+        let name = reply
+            .pointer("/content/recipient/name")
+            .and_then(serde_json::Value::as_str)
+            .map(printable)
+            .unwrap_or_default();
+        let recipient_desc = if name.is_empty() {
+            addr
+        } else {
+            format!("{name} <{addr}>")
+        };
+        if r_state == "sent" {
+            lines.push(format!(
+                "Reply {r_id} [already sent; will not be sent again] -> Recipient, derived from message {msg_id}: {recipient_desc}"
+            ));
+        } else {
+            lines.push(format!(
+                "Reply {r_id} -> Recipient, derived from message {msg_id}: {recipient_desc}"
+            ));
+        }
+        if reply.get("replyToDiffers") == Some(&serde_json::Value::Bool(true)) {
+            lines.push(format!(
+                "  Warning: message {msg_id} has a Reply-To header that differs from its sender; sending to the sender address above."
+            ));
+        }
+        let subject = reply
+            .pointer("/content/subject")
+            .and_then(serde_json::Value::as_str)
+            .map(printable)
+            .unwrap_or_default();
+        lines.push(format!(
+            "  Subject, derived from message {msg_id}: {subject}"
+        ));
+        let differs = reply.get("differs") == Some(&serde_json::Value::Bool(true));
+        let body = reply
+            .pointer("/content/text")
+            .and_then(serde_json::Value::as_str)
+            .map(printable_body)
+            .unwrap_or_default();
+        if differs {
+            lines.push(format!("  Text [DIFFERS from shared text]:\n{body}"));
+        } else {
+            lines.push("  Text [matches shared text].".to_string());
+        }
+        let source = reply
+            .get("source")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("unknown");
+        let unit = reply
+            .get("unit")
+            .and_then(serde_json::Value::as_str)
+            .map(printable)
+            .unwrap_or_else(|| "none".to_string());
+        lines.push(format!(
+            "  Written by: {source} by {} (unit {unit}).",
+            proposer_line(reply.get("author"))
         ));
     }
     Ok(DraftSendPrep::Ready(lines))

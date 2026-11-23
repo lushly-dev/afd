@@ -1195,7 +1195,8 @@ impl Store {
     /// When the database refuses.
     pub fn has_sending_outbound(&self, account: AccountId) -> Result<bool, StoreError> {
         let sending: bool = self.connection.query_row(
-            "SELECT EXISTS (SELECT 1 FROM outbound WHERE account_id = ?1 AND state = 'sending')",
+            "SELECT EXISTS (SELECT 1 FROM outbound WHERE account_id = ?1 AND state = 'sending')
+                 OR EXISTS (SELECT 1 FROM replyset WHERE account_id = ?1 AND state = 'sending')",
             [account.0],
             |row| row.get(0),
         )?;
