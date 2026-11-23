@@ -37,8 +37,8 @@ mod replay;
 pub use file::FileJournalSink;
 #[cfg(feature = "journal-file-shared")]
 pub use file_shared::{JournalFileLock, JournalLockError};
-pub(crate) use recorder::JournalContextState;
 pub use recorder::JournalRecorder;
+pub(crate) use recorder::{iso_timestamp, JournalContextState};
 pub use replay::{
     replay_journal, ReplayDifference, ReplayDifferenceKind, ReplayEntryReport,
     ReplayJournalOptions, ReplayReport, ReplayStatus,

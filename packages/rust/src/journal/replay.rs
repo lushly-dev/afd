@@ -475,6 +475,8 @@ fn replay_call(
     });
     context.random = Some(Arc::clone(&random) as Arc<dyn RandomSource>);
     context.journal_state.replaying = true;
+    // Middleware that times a call (the telemetry middleware) reads this, never the tape.
+    context.journal_state.untaped_clock = Some(Arc::new(fixed_clock(start)));
     Ok(ReplayCall {
         context,
         clock,

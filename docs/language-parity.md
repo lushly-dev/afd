@@ -141,9 +141,9 @@ Rendered from [`spec/capabilities/`](../spec/capabilities/README.md) (`typescrip
 | Capability | TypeScript | Python | Rust | C++ |
 | --- | --- | --- | --- | --- |
 | Middleware chain | Yes | Yes | Yes | Yes |
-| `defaultMiddleware()`: trace ID, logging, timing | Yes | Yes | No ([#546](https://github.com/lushly-dev/afd/issues/546)) | Yes |
-| Retry, rate limit, telemetry | Yes | Yes | No ([#546](https://github.com/lushly-dev/afd/issues/546)) | Yes (#547): `create_retry_middleware`, `create_rate_limit_middleware`, `create_telemetry_middleware` |
-| Tracing (OpenTelemetry-shaped), `composeMiddleware` | Yes | Yes | No ([#546](https://github.com/lushly-dev/afd/issues/546)) | Partial (#547): `compose_middleware`; tracing middleware is N/A (D6) |
+| `defaultMiddleware()`: trace ID, logging, timing | Yes | Yes | Yes (#1600): `default_middleware`, `create_auto_trace_id_middleware`, `create_logging_middleware`, `create_timing_middleware` | Yes |
+| Retry, rate limit, telemetry | Yes | Yes | Yes (#1600): `create_retry_middleware`, `create_rate_limit_middleware`, `create_telemetry_middleware` | Yes (#547): `create_retry_middleware`, `create_rate_limit_middleware`, `create_telemetry_middleware` |
+| Tracing (OpenTelemetry-shaped), `composeMiddleware` | Yes | Yes | Partial (#1600): `compose_middleware`; tracing middleware is N/A: a host wraps calls in `tracing` or OpenTelemetry spans in its own middleware | Partial (#547): `compose_middleware`; tracing middleware is N/A (D6) |
 | Auth middleware | Yes (`packages/auth`) | No (planned per D6) | No (planned per D6) | N/A: built by the host |
 | Approval middleware (`APPROVAL_REQUIRED`, signed tokens) | Yes (`createApprovalMiddleware`, on WebCrypto; also in browsers through `@lushly-dev/afd-server/direct`) | Yes (`create_approval_middleware`; tokens verify across languages) | Yes (`create_approval_middleware`, `approval` feature, default; tokens verify across languages) | Yes (#422): `create_approval_middleware` and `canonical_json`, evidence in `CommandContext::approval`; tokens match TS byte for byte; configuration errors return `Expected` |
 | Declared approval policy held without the middleware (`APPROVAL_UNAVAILABLE`, [`spec/command-metadata.md`](../spec/command-metadata.md#approvals)) | Yes (`createMcpServer`, `createDirectRegistry`; core's `createCommandRegistry` has no check) | Yes (`create_server`, `create_direct_registry`; core's `create_command_registry` has no check; [#1886](https://github.com/lushly-dev/afd/issues/1886)) | Yes ([#1886](https://github.com/lushly-dev/afd/issues/1886), #2029): `CommandRegistry::execute` refuses unadmitted calls; `ApprovalMiddlewareOptions::from_secret` makes the command list optional | Yes ([#1886](https://github.com/lushly-dev/afd/issues/1886)): `CommandRegistry::execute` refuses an unadmitted call, so `DirectClient`, batches, pipelines and `afd::mcp_stdio` do too; `ApprovalMiddlewareOptions::commands` is optional |
@@ -177,7 +177,7 @@ Rendered from [`spec/capabilities/`](../spec/capabilities/README.md) (`typescrip
 | `HandoffResult`, `createHandoff`, default reconnect policy (3 attempts, 1000 ms) | Yes | Yes (#545 candidate): fresh shared default policy | Partial: `is_handoff_protocol` and `is_handoff_command` mean different things; `handoff:<p>` tags are ignored | Yes |
 | Handoff client: WebSocket and SSE handlers, reconnect | Yes: reconnect falls back to the default policy | Yes (#545 candidate): metadata then shared default; explicit options win | No (no remote client) | No: not declared |
 | `TelemetryEvent`, `TelemetrySink` | Yes | Partial: the core event serializes snake_case, and the middleware defines a second copy | Partial: `durationMs` is an integer | Yes (#547): `afd/telemetry.hpp` (`TelemetryEvent`, `TelemetrySink`, `create_telemetry_event`, `is_telemetry_event`, `ConsoleTelemetrySink`) |
-| Telemetry middleware | Yes | Yes | No ([#546](https://github.com/lushly-dev/afd/issues/546)) | Yes (#547): `create_telemetry_middleware` |
+| Telemetry middleware | Yes | Yes | Yes (#1600): `create_telemetry_middleware` | Yes (#547): `create_telemetry_middleware` |
 | `calculateSimilarity`, `findSimilarTools` (128 cap, 0.4 threshold) | Yes | Yes (not exported from `afd`) | Yes (counts chars, not UTF-16 units) | Yes |
 <!-- generated:capabilities:parity.handoff-telemetry-similarity:end -->
 
@@ -268,7 +268,7 @@ These gaps are planned. They are listed so the name budgets stay honest. D1/D2/D
 **Accepted role decisions (D6).** Native MCP clients, CLIs, testing toolkits and handoff clients are N/A; Python auth is planned. Remaining implementation gaps include:
 
 - **C++:** tracing middleware is N/A (`compose_middleware` and retry/rate-limit/telemetry middleware landed in #547).
-- **Rust:** planned stream executor, built-in middleware and optional server feature.
+- **Rust:** planned stream executor ([#1601](https://github.com/lushly-dev/afd/issues/1601)); the tracing middleware is N/A, as in C++ (a host wraps calls in `tracing` or OpenTelemetry spans in its own middleware).
 - **Python:** planned auth adapter.
 
 ## Unintended gaps
@@ -299,8 +299,7 @@ Ordered by how much an agent or a security boundary is affected.
 10. **Add a stream executor to Python and Rust,** and a public batch executor to Python. Python consolidation across the core registry, SimpleRegistry, MockServer and DirectClient.pipe is tracked in [#1535](https://github.com/lushly-dev/afd/issues/1535), split from #545.
 11. **Rust single-command engine:**
     - result metadata stamping;
-    - `onCommand` and `onError` hooks;
-    - the built-in middleware bundle.
+    - `onCommand` and `onError` hooks.
 12. **Validation alignment in the candidate.** [`spec/validation.md`](../spec/validation.md) and 35 cases / 133 tests cover the required subset and AFD's own validation issue codes (#1734) in all four languages. Unsupported optional keywords reject registration as conformance to the subset contract, not skipped tests.
     - Python validates advertised raw/Pydantic schemas before handlers and rejects coercible numeric strings and booleans as numbers. Pydantic conversion still supports valid UUID/date strings.
     - Rust's additive `register_with_schema(command, Value)` supports the full required subset without changing legacy public schema fields. `get_tool`, `afd-schema` and `afd-docs` use the authoritative schema; standalone `command_to_mcp_tool` only converts legacy definitions.

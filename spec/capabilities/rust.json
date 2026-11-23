@@ -224,22 +224,19 @@
 			"evidence": ["packages/rust/src/commands.rs"]
 		},
 		"middleware.default-bundle": {
-			"status": "no",
-			"note": "([#546](https://github.com/lushly-dev/afd/issues/546))",
-			"issue": "#546",
-			"evidence": ["packages/rust/src/commands.rs"]
+			"status": "yes",
+			"note": "(#1600): `default_middleware`, `create_auto_trace_id_middleware`, `create_logging_middleware`, `create_timing_middleware`",
+			"evidence": ["packages/rust/src/middleware.rs", "packages/rust/src/middleware/tests.rs"]
 		},
 		"middleware.retry-ratelimit-telemetry": {
-			"status": "no",
-			"note": "([#546](https://github.com/lushly-dev/afd/issues/546))",
-			"issue": "#546",
-			"evidence": ["packages/rust/src/commands.rs"]
+			"status": "yes",
+			"note": "(#1600): `create_retry_middleware`, `create_rate_limit_middleware`, `create_telemetry_middleware`",
+			"evidence": ["packages/rust/src/middleware.rs", "packages/rust/src/middleware/tests.rs"]
 		},
 		"middleware.tracing-compose": {
-			"status": "no",
-			"note": "([#546](https://github.com/lushly-dev/afd/issues/546))",
-			"issue": "#546",
-			"evidence": ["packages/rust/src/commands.rs"]
+			"status": "partial",
+			"note": "(#1600): `compose_middleware`; tracing middleware is N/A: a host wraps calls in `tracing` or OpenTelemetry spans in its own middleware",
+			"evidence": ["packages/rust/src/middleware.rs", "packages/rust/src/middleware/tests.rs"]
 		},
 		"middleware.auth": {
 			"status": "no",
@@ -369,10 +366,9 @@
 			"evidence": ["packages/rust/src/telemetry.rs"]
 		},
 		"hts.telemetry-middleware": {
-			"status": "no",
-			"note": "([#546](https://github.com/lushly-dev/afd/issues/546))",
-			"issue": "#546",
-			"evidence": ["packages/rust/src/telemetry.rs"]
+			"status": "yes",
+			"note": "(#1600): `create_telemetry_middleware`",
+			"evidence": ["packages/rust/src/middleware.rs", "packages/rust/src/middleware/tests.rs"]
 		},
 		"hts.similarity": {
 			"status": "yes",

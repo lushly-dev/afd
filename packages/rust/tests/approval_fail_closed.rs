@@ -355,6 +355,67 @@ async fn a_retry_with_a_new_context_keeps_the_admission() {
     expect_unavailable(&result, "todo-wipe", "admission-mismatch");
 }
 
+/// `todo-wipe`, declaring no policy, gated by the approval middleware's list, with the stock retry
+/// middleware before or after the approval middleware.
+async fn stock_retry_around_approval(retry_first: bool) -> (CommandResult<Value>, usize) {
+    let calls = Arc::new(Mutex::new(0));
+    let flaky = || {
+        CommandDefinition::new(
+            "todo-wipe",
+            "Fails once with a transient error",
+            vec![CommandParameter::required_number("id", "ID")],
+            Flaky {
+                calls: Arc::clone(&calls),
+            },
+        )
+    };
+    let registry = registry_with(vec![flaky()]);
+    let listed = flaky().with_approval(ApprovalPolicy::Required);
+    let approval = create_approval_middleware(ApprovalMiddlewareOptions::new(SECRET, [listed]));
+    let retry = afd::middleware::create_retry_middleware(afd::middleware::RetryOptions {
+        sleep: Some(Arc::new(|_| Box::pin(std::future::ready(())))),
+        ..afd::middleware::RetryOptions::default()
+    })
+    .unwrap();
+    if retry_first {
+        registry.add_middleware(retry);
+        registry.add_middleware(approval.unwrap());
+    } else {
+        registry.add_middleware(approval.unwrap());
+        registry.add_middleware(retry);
+    }
+    // The held call's token, presented with the retried call: it holds for every attempt.
+    let held = registry.execute("todo-wipe", json!({"id": 1}), None).await;
+    let token = held.error.as_ref().unwrap().details.as_ref().unwrap()["approvalToken"]
+        .as_str()
+        .expect("a token")
+        .to_owned();
+    let context = CommandContext::new().with_approval(token);
+    let result = registry
+        .execute("todo-wipe", json!({"id": 1}), Some(context))
+        .await;
+    let calls = *calls.lock().unwrap();
+    (result, calls)
+}
+
+#[tokio::test]
+async fn the_stock_retry_before_the_approval_middleware_asks_again_for_a_retry() {
+    // A token works once: the retry reaches the approval step again, which holds it for a new
+    // approval instead of running the gated handler a second time on the first one.
+    let (result, calls) = stock_retry_around_approval(true).await;
+    assert_eq!(calls, 1, "the handler ran once");
+    let error = result.error.expect("held");
+    assert_eq!(error.code, "APPROVAL_REQUIRED");
+    assert_eq!(error.details.unwrap()["reason"], "already-used");
+}
+
+#[tokio::test]
+async fn the_stock_retry_after_the_approval_middleware_is_refused() {
+    let (result, calls) = stock_retry_around_approval(false).await;
+    assert_eq!(calls, 1, "the handler ran once");
+    expect_unavailable(&result, "todo-wipe", "admission-mismatch");
+}
+
 /// The command `todo-wipe`, which declares no policy, and the approval middleware whose list gates
 /// it.
 fn list_gated(handler: impl CommandHandler + 'static) -> (Arc<CommandRegistry>, CommandMiddleware) {
