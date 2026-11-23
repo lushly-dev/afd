@@ -25,6 +25,7 @@ export const browserSuites = [
 	'src/themes-bench.test.ts',
 	'src/pack-run.test.ts',
 	'src/pick.test.ts',
+	'src/portable-gates.test.ts',
 	'src/targets.test.ts',
 	'src/network.test.ts',
 	'src/sets-bench.test.ts',

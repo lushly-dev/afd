@@ -1,8 +1,11 @@
 import type {
+	A11yExpectation,
 	CoverageClaim,
 	EventDeclaration,
+	FocusExpectation,
 	FormExpectation,
 	ImplementationContexts,
+	LayoutExpectation,
 	NativeAccessibility,
 	PatternSetupBinding,
 	ScenarioStep,
@@ -179,15 +182,39 @@ function targets(value: unknown): Record<string, Target> {
 			fields(target, new Set(['selector']), path);
 			result[name] = { selector: text(target.selector, `${path}.selector`) };
 		} else {
-			fields(target, new Set(['role', 'name']), path);
-			const role = text(target.role, `${path}.role`);
-			if (!roles.has(role)) throw new Error(`Unsupported role '${role}' at ${path}.role.`);
-			if (target.name !== undefined && typeof target.name !== 'string') {
-				throw new Error(`${path}.name must be a string.`);
+			fields(target, new Set(['role', 'name', 'nameStartsWith', 'nameContains']), path);
+			let role: string | string[];
+			if (Array.isArray(target.role)) {
+				if (target.role.length === 0 || target.role.length > 8)
+					throw new Error(`${path}.role must list 1 to 8 roles.`);
+				const seen = new Set<string>();
+				role = target.role.map((item, index) => {
+					const value = text(item, `${path}.role[${index}]`);
+					if (!roles.has(value))
+						throw new Error(`Unsupported role '${value}' at ${path}.role[${index}].`);
+					if (seen.has(value)) throw new Error(`Duplicate role '${value}' at ${path}.role.`);
+					seen.add(value);
+					return value;
+				});
+			} else {
+				const value = text(target.role, `${path}.role`);
+				if (!roles.has(value)) throw new Error(`Unsupported role '${value}' at ${path}.role.`);
+				role = value;
 			}
+			const matchers = ['name', 'nameStartsWith', 'nameContains'].filter(
+				(key) => target[key] !== undefined
+			);
+			if (matchers.length > 1)
+				throw new Error(`${path} accepts at most one of name, nameStartsWith, or nameContains.`);
+			if (target.name !== undefined && typeof target.name !== 'string')
+				throw new Error(`${path}.name must be a string.`);
+			const nameStartsWith = optionalText(target.nameStartsWith, `${path}.nameStartsWith`);
+			const nameContains = optionalText(target.nameContains, `${path}.nameContains`);
 			result[name] = {
 				role,
 				...(target.name === undefined ? {} : { name: target.name as string }),
+				...(nameStartsWith === undefined ? {} : { nameStartsWith }),
+				...(nameContains === undefined ? {} : { nameContains }),
 			};
 		}
 	}
@@ -273,8 +300,11 @@ function scenario(
 					`${path}.expect expects event '${event}'${target ? ` on '${target}'` : ''}, which specimen.events does not declare.`
 				);
 			const timeoutMs = expectation.timeoutMs;
-			if (timeoutMs !== undefined && (typeof timeoutMs !== 'number' || timeoutMs < 0))
-				throw new Error(`${path}.expect.timeoutMs must be a number of milliseconds.`);
+			if (
+				timeoutMs !== undefined &&
+				(typeof timeoutMs !== 'number' || !Number.isFinite(timeoutMs) || timeoutMs < 0)
+			)
+				throw new Error(`${path}.expect.timeoutMs must be a finite number of milliseconds.`);
 			if (expectation.absent !== undefined && typeof expectation.absent !== 'boolean')
 				throw new Error(`${path}.expect.absent must be a boolean.`);
 			if (id) ids.add(id);
@@ -315,10 +345,26 @@ function scenario(
 		if (id && ids.has(id)) throw new Error(`Duplicate scenario step id '${id}'.`);
 		if (id) ids.add(id);
 		const action = record(step.action, `${path}.action`);
+		const identifier = id === undefined ? {} : { id };
+		if (Object.hasOwn(action, 'press')) {
+			fields(action, new Set(['press', 'target']), `${path}.action`);
+			if (
+				typeof action.press !== 'string' ||
+				action.press.length === 0 ||
+				/[\r\n]/.test(action.press) ||
+				(action.press !== ' ' && !action.press.trim())
+			)
+				throw new Error(`${path}.action.press must be a non-empty key or chord.`);
+			const press = action.press;
+			const target = optionalText(action.target, `${path}.action.target`);
+			if (target !== undefined && !Object.hasOwn(availableTargets, target))
+				throw new Error(`${path}.action.target refers to undeclared target '${target}'.`);
+			return { ...identifier, action: { press, ...(target === undefined ? {} : { target }) } };
+		}
 		const keys = Object.keys(action).filter((key) => key !== 'value');
 		if (keys.length !== 1 || !['click', 'focus', 'hover', 'fill'].includes(keys[0] ?? '')) {
 			throw new Error(
-				`${path}.action must contain exactly one supported action: click, focus, hover or fill.`
+				`${path}.action must contain exactly one supported action: click, focus, hover, fill or press.`
 			);
 		}
 		const kind = keys[0];
@@ -328,7 +374,6 @@ function scenario(
 		if (!Object.hasOwn(availableTargets, target)) {
 			throw new Error(`${path}.action.${kind} refers to undeclared target '${target}'.`);
 		}
-		const identifier = id === undefined ? {} : { id };
 		if (kind === 'fill') {
 			if (typeof action.value !== 'string')
 				throw new Error(`${path}.action.value must be a string.`);
@@ -381,7 +426,13 @@ export interface ScenarioValidation {
 		expectation: Record<string, unknown>,
 		availableTargets: Record<string, unknown>,
 		path: string
-	): StateExpectation | FormExpectation | ValidityExpectation;
+	):
+		| StateExpectation
+		| FormExpectation
+		| ValidityExpectation
+		| (A11yExpectation & { id?: string })
+		| (FocusExpectation & { id?: string })
+		| (LayoutExpectation & { id?: string });
 	claims(
 		value: unknown,
 		availableTargets: Record<string, unknown>,

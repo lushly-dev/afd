@@ -209,19 +209,31 @@ describe('native specimen feasibility in Chromium', () => {
 		// Per element too: the inert paragraph behind it has no role.
 		expect(roles(modal)).toEqual({
 			'root/div:1/div:1/shadow/dialog:1': { role: 'dialog', name: '' },
-			'root/div:1/div:1/shadow/dialog:1/h2:1': { role: 'heading', name: 'Palette' },
+			'root/div:1/div:1/shadow/dialog:1/h2:1': {
+				role: 'heading',
+				name: 'Palette',
+				states: { level: 2 },
+			},
 			'root/div:1/div:1/shadow/dialog:1/button:1': { role: 'button', name: 'Run' },
 		});
 	});
 
 	it('records each accessible element\u2019s computed role and name, ElementInternals included', async () => {
 		const captured = await bench.render({ id: 'roles' });
-		expect(captured.manifest.captureVersion).toBe('0.9');
+		expect(captured.manifest.captureVersion).toBe('0.10');
 		expect(roles(captured)).toEqual({
 			// No attribute shows this role: only the accessibility tree has it.
-			'root/div:1/specimen-probe-switch:1': { role: 'switch', name: 'Wi-Fi' },
+			'root/div:1/specimen-probe-switch:1': {
+				role: 'switch',
+				name: 'Wi-Fi',
+				states: { checked: true },
+			},
 			'root/div:1/specimen-probe:1/shadow/button:1': { role: 'button', name: 'Save' },
-			'root/div:1/label:1/input:1': { role: 'checkbox', name: 'Accept terms' },
+			'root/div:1/label:1/input:1': {
+				role: 'checkbox',
+				name: 'Accept terms',
+				states: { checked: false },
+			},
 		});
 		// Hidden from the tree, inside a closed shadow root, or generic: no role is recorded.
 		expect(element(captured, 'specimen-probe-switch').attributes).toEqual({});

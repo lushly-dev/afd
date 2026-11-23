@@ -321,7 +321,7 @@ assert.equal(pack.packComponentSchema.safeParse({ format: 0 }).success, false);
 assert.equal(evidence.claim({}, 'default', 'an-expectation'), undefined);
 const { setCustomElementsManifest } = await import('@lushly-dev/specimen/preview');
 setCustomElementsManifest({ modules: [] });
-assert.equal(CAPTURE_VERSION, '0.9');
+assert.equal(CAPTURE_VERSION, '0.10');
 assert.equal(NORMALIZATION_VERSION, '0.2');
 assert.equal(typeof normalizeDom('<div> hello </div>'), 'string');
 assert.equal(parsePointer(formatPointer({ specimen: 'example', ref: 'root/div:1' })).specimen, 'example');

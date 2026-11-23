@@ -58,7 +58,7 @@ describe('a specimen\u2019s claims and expectations', () => {
 		[{ target: 'one', state: { equals: '' } }, 'a property or an attribute'],
 		[{ target: 'one', state: { property: 'a', attribute: 'b', equals: '' } }, 'not both'],
 		[{ target: 'one', state: { property: 'a' } }, 'needs equals'],
-		[{ target: 'one' }, 'one of event, state, form or validity'],
+		[{ target: 'one' }, 'one of event, state, form, validity, a11y, focus or layout'],
 		[{ target: 'one', form: { name: 'a', value: 1 } }, 'a string, or null'],
 		[{ target: 'one', validity: { valid: 'yes' } }, 'must be a boolean'],
 	])('refuses the expectation %j', (bad, message) => {

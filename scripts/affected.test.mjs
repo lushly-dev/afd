@@ -251,6 +251,20 @@ test("the bench's results and tasks reach the seed library, and its other prose 
 	assert.deepEqual(scope([`${bench}/seed-library.md`]).affected, []);
 });
 
+test("violet-elements sources reach specimen-fast-af's own tests via EXTRA_INPUTS", () => {
+	const root = join(import.meta.dirname, '..');
+	const scope = (files) => resolveScope({ root, files, git: () => '' });
+	const result = scope(['foundations/fast-af/packages/violet-elements/src/violet-select.ts']);
+	assert.ok(result.changed.includes('@lushly-dev/specimen-fast-af'));
+	assert.ok(result.affected.includes('@lushly-dev/specimen-fast-af'));
+	// Prose beside the sources does not select specimen-fast-af through EXTRA_INPUTS.
+	assert.ok(
+		!scope(['foundations/fast-af/packages/violet-elements/src/README.md']).changed.includes(
+			'@lushly-dev/specimen-fast-af'
+		)
+	);
+});
+
 test('a test file reaches its package and not the dependents', (t) => {
 	const { root } = fixture(t);
 	const scope = (files) => resolveScope({ root, files, git: () => '' });

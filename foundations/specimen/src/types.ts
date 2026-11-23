@@ -2,7 +2,7 @@ import type { ComponentCoverage, CoverageLevel } from './coverage.js';
 import type { ComponentSchema } from './plugin.js';
 
 /** Public contracts: native specimens, retained stories and their plugins. */
-export const CAPTURE_VERSION = '0.9' as const;
+export const CAPTURE_VERSION = '0.10' as const;
 export const NORMALIZATION_VERSION = '0.2' as const;
 
 export type { Args, Decorator, Meta, Preview, StoryContext, StoryObj } from './csf-types.js';
@@ -10,7 +10,13 @@ export type * from './pack-types.js';
 export type * from './pattern-types.js';
 
 import type { PackConfig } from './pack-types.js';
-import type { ImplementationContexts, PatternSetupBinding } from './pattern-types.js';
+import type {
+	A11yExpectation,
+	FocusExpectation,
+	ImplementationContexts,
+	LayoutExpectation,
+	PatternSetupBinding,
+} from './pattern-types.js';
 
 export interface SpecimenContext {
 	viewport: { width: number; height: number };
@@ -42,7 +48,14 @@ export interface ThemeSupport {
 	/** Why, in a line: "matches the marketing site". */
 	reason?: string;
 }
-export type Target = { selector: string } | { role: string; name?: string };
+export type Target =
+	| { selector: string }
+	| {
+			role: string | string[];
+			name?: string;
+			nameStartsWith?: string;
+			nameContains?: string;
+	  };
 export type ScenarioStep =
 	| {
 			id?: string;
@@ -50,7 +63,8 @@ export type ScenarioStep =
 				| { click: string }
 				| { focus: string }
 				| { hover: string }
-				| { fill: string; value: string };
+				| { fill: string; value: string }
+				| { press: string; target?: string };
 	  }
 	| {
 			id?: string;
@@ -105,7 +119,10 @@ export type Expectation =
 	| EventExpectation
 	| StateExpectation
 	| FormExpectation
-	| ValidityExpectation;
+	| ValidityExpectation
+	| (A11yExpectation & { id?: string })
+	| (FocusExpectation & { id?: string })
+	| (LayoutExpectation & { id?: string });
 /**
  * A specimen's claim that named expectations prove an obligation, on a declared target at a
  * checkpoint. Coverage checks it against the run: a claim asserts nothing it does not show.
@@ -121,7 +138,7 @@ export interface CoverageClaim {
 /** An expectation that ran and held, or a play's report of one. */
 export interface ExpectationRecord {
 	id: string;
-	kind: 'event' | 'state' | 'form' | 'validity' | 'play';
+	kind: 'event' | 'state' | 'form' | 'validity' | 'a11y' | 'focus' | 'layout' | 'play';
 	target: string | null;
 	event?: string;
 	/** What it found: the property, form entry or validity. */
@@ -599,6 +616,18 @@ export interface Completeness {
 	scope: string;
 	reasons: string[];
 }
+/** Structured ARIA states reported by Chromium's `Accessibility.getFullAXTree` (capture 0.10). */
+export interface ElementAccessibilityStates {
+	checked?: boolean | 'mixed';
+	pressed?: boolean | 'mixed';
+	selected?: boolean;
+	expanded?: boolean;
+	disabled?: boolean;
+	invalid?: boolean | 'grammar' | 'spelling';
+	readonly?: boolean;
+	required?: boolean;
+	level?: number;
+}
 export interface ElementObservation {
 	ref: string;
 	tag: string;
@@ -608,13 +637,13 @@ export interface ElementObservation {
 	styles: Record<string, string>;
 	state: Record<string, string | number | boolean | null>;
 	/**
-	 * The element's computed role and accessible name, from Chromium's accessibility tree, when
-	 * it is accessible: a role set through `ElementInternals` included; an ignored element, or
-	 * one whose role is generic, none or presentation, has none, and so does the mount root. When
-	 * the page changed between its capture and the tree's, no element has one. Only the native
-	 * host reads it.
+	 * The element's computed role, accessible name, and non-default ARIA states from Chromium's
+	 * accessibility tree, when it is accessible: a role set through `ElementInternals` included;
+	 * an ignored element, or one whose role is generic, none or presentation, has none, and so
+	 * does the mount root. When the page changed between its capture and the tree's, no element
+	 * has one. Only the native host reads it.
 	 */
-	accessibility?: { role: string; name: string };
+	accessibility?: { role: string; name: string; states?: ElementAccessibilityStates };
 }
 export interface BrowserObservation {
 	dom: string;
@@ -1155,7 +1184,7 @@ export interface BrowserRuntime {
 	bindEventTarget(name: string, element: Element): void;
 	stepStarted(id: string | null): void;
 	/** Hold an expectation; the host resolves an element expectation's target first. */
-	expect(expectation: Expectation, element?: Element): Promise<void>;
+	expect(expectation: Expectation, element?: Element, detail?: unknown): Promise<void>;
 	/** What a profile reads from the page at its checkpoint. */
 	profileMetrics(): Promise<Record<string, number | null>>;
 	/**

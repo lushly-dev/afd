@@ -1,12 +1,15 @@
 //! One page's CDP session: its environment, scenario targets and actions with Playwright's
 //! actionability checks, and evaluation.
 
+use crate::aria::{self, AccessibleStates, InvalidState, TriState};
 use crate::cdp::Cdp;
 use crate::console::exception_text;
+use crate::keyboard::Keyboard;
 use anyhow::{Result, anyhow};
 use serde::Deserialize;
 use serde_json::{Value, json};
-use std::time::Duration;
+use std::collections::HashSet;
+use std::time::{Duration, Instant};
 use tokio::time::sleep;
 
 /// Playwright's headless default font families (`Page.setFontFamilies`) for this platform.
@@ -357,34 +360,32 @@ impl Page<'_> {
             };
             (count, object)
         } else {
-            // Chromium names ARIA's `img` role `image`. Names compare as Playwright's role
-            // engine compares them, after whitespace normalization.
-            let role = target
-                .get("role")
-                .and_then(Value::as_str)
-                .unwrap_or("")
-                .to_ascii_lowercase();
-            let role = if role == "img" {
-                "image".to_string()
-            } else {
-                role
-            };
-            let wanted = target
-                .get("name")
-                .and_then(Value::as_str)
-                .map(normalize_name);
+            // Chromium names ARIA's `img` role `image`. Names compare after whitespace normalization.
+            let roles = target_cdp_roles(target);
+            let name_match = NameMatch::from_target(target);
             let root = self.root_backend_id().await?;
-            let found = self
-                .send(
+            let queries = futures::future::try_join_all(roles.iter().map(|role| {
+                self.send(
                     "Accessibility.queryAXTree",
                     json!({ "backendNodeId": root, "role": role }),
                 )
-                .await?;
-            let nodes = filter_ax_nodes(
-                found.get("nodes").and_then(Value::as_array),
-                root,
-                wanted.as_deref(),
-            );
+            }))
+            .await?;
+            let mut seen = HashSet::new();
+            let mut nodes = Vec::new();
+            for found in &queries {
+                for node in filter_ax_nodes(
+                    found.get("nodes").and_then(Value::as_array),
+                    root,
+                    &name_match,
+                ) {
+                    if let Some(backend) = node.get("backendDOMNodeId").and_then(Value::as_i64)
+                        && seen.insert(backend)
+                    {
+                        nodes.push(node);
+                    }
+                }
+            }
             let object = if nodes.len() == 1 {
                 match nodes[0].get("backendDOMNodeId") {
                     Some(backend) => self
@@ -555,7 +556,30 @@ impl Page<'_> {
         Ok(())
     }
 
-    async fn act(&self, action: &Value, targets: &Value) -> Result<()> {
+    async fn act(&self, action: &Value, targets: &Value, keyboard: &mut Keyboard) -> Result<()> {
+        if let Some(chord) = action.get("press").and_then(Value::as_str) {
+            if let Some(name) = action.get("target").and_then(Value::as_str) {
+                let target = targets
+                    .get(name)
+                    .ok_or_else(|| anyhow!("Scenario action refers to an undeclared target"))?;
+                let object = self.target(name, target).await?;
+                let focused = self
+                    .call(
+                        &object,
+                        "function () { this.focus(); for (let active = document.activeElement; active; active = active.shadowRoot?.activeElement ?? null) { if (active === this) return true; } return false; }",
+                        json!([]),
+                    )
+                    .await?;
+                if focused != Value::Bool(true) {
+                    return Err(anyhow!(
+                        "Target '{name}' could not receive focus before pressing \"{chord}\""
+                    ));
+                }
+            }
+            keyboard.press_chord(self, chord).await?;
+            self.evaluate(FRAME).await?;
+            return Ok(());
+        }
         let (kind, name) = ["click", "focus", "hover", "fill"]
             .iter()
             .find_map(|kind| {
@@ -610,6 +634,52 @@ impl Page<'_> {
         Ok(())
     }
 
+    /// Evaluate a portable `a11y` expectation against Chromium's accessibility tree, polling up
+    /// to `timeoutMs` (default 1000 ms).
+    async fn expect_a11y(
+        &self,
+        name: &str,
+        target: &Value,
+        expectation: &Value,
+    ) -> Result<(String, Value)> {
+        let a11y = expectation
+            .get("a11y")
+            .ok_or_else(|| anyhow!("a11y expectation is missing its assertions"))?;
+        let timeout_ms = expectation
+            .get("timeoutMs")
+            .and_then(Value::as_u64)
+            .unwrap_or(1000);
+        let deadline = Instant::now() + Duration::from_millis(timeout_ms);
+        loop {
+            let object = self.target(name, target).await?;
+            let partial = self
+                .send(
+                    "Accessibility.getPartialAXTree",
+                    json!({ "objectId": object, "fetchRelatives": false }),
+                )
+                .await?;
+            let node = partial
+                .pointer("/nodes/0")
+                .ok_or_else(|| anyhow!("Target '{name}' has no accessibility node"))?;
+            let raw_role = node
+                .pointer("/role/value")
+                .and_then(Value::as_str)
+                .unwrap_or("");
+            let observed_role = aria::normalize_role(raw_role);
+            let observed_name = normalize_name(
+                node.pointer("/name/value")
+                    .and_then(Value::as_str)
+                    .unwrap_or(""),
+            );
+            let observed_states = aria::extract_states(node).unwrap_or_default();
+            match check_a11y_node(name, a11y, &observed_role, &observed_name, &observed_states) {
+                Ok(detail) => return Ok((object, detail)),
+                Err(message) if Instant::now() >= deadline => return Err(anyhow!(message)),
+                Err(_) => sleep(Duration::from_millis(10)).await,
+            }
+        }
+    }
+
     /// Give the page the declared event targets that exist now. One that does not exist yet may
     /// by a later step; one that never does is reported with the capture.
     async fn bind_event_targets(&self, mounted: &Value, targets: &Value) -> Result<()> {
@@ -658,6 +728,7 @@ impl Page<'_> {
         {
             return Err(anyhow!("Checkpoint not found: {checkpoint}"));
         }
+        let mut keyboard = Keyboard::default();
         for step in steps {
             if let Some(capture) = step.get("capture").and_then(Value::as_str) {
                 if capture == checkpoint {
@@ -665,8 +736,30 @@ impl Page<'_> {
                 }
                 continue;
             }
+            if events_declared {
+                let id = step.get("id").cloned().unwrap_or(Value::Null);
+                self.bind_event_targets(mounted, &targets).await?;
+                self.evaluate(&format!("window.__specimen.stepStarted({id})"))
+                    .await?;
+            }
             if let Some(expectation) = step.get("expect") {
-                // An event expectation reads the history; any other reads its target.
+                // An event expectation reads the history; an a11y expectation reads CDP's AX tree;
+                // any other reads its target in the page.
+                if expectation.get("a11y").is_some() {
+                    let name = expectation
+                        .get("target")
+                        .and_then(Value::as_str)
+                        .ok_or_else(|| anyhow!("a11y expectation names no target"))?;
+                    let target = targets.get(name).cloned().unwrap_or(Value::Null);
+                    let (object, detail) = self.expect_a11y(name, &target, expectation).await?;
+                    self.call(
+                        &object,
+                        "function (expectation, detail) { return window.__specimen.expect(expectation, this, detail); }",
+                        json!([{ "value": expectation }, { "value": detail }]),
+                    )
+                    .await?;
+                    continue;
+                }
                 match expectation
                     .get("target")
                     .and_then(Value::as_str)
@@ -689,18 +782,16 @@ impl Page<'_> {
                 }
                 continue;
             }
-            if events_declared {
-                let id = step.get("id").cloned().unwrap_or(Value::Null);
-                self.bind_event_targets(mounted, &targets).await?;
-                self.evaluate(&format!("window.__specimen.stepStarted({id})"))
-                    .await?;
-            }
             if let Some(command) = step.get("command") {
                 self.command(command, &targets).await?;
                 continue;
             }
-            self.act(step.get("action").unwrap_or(&Value::Null), &targets)
-                .await?;
+            self.act(
+                step.get("action").unwrap_or(&Value::Null),
+                &targets,
+                &mut keyboard,
+            )
+            .await?;
         }
         Ok(())
     }
@@ -891,20 +982,99 @@ impl std::fmt::Display for TargetError {
 
 impl std::error::Error for TargetError {}
 
+fn cdp_role_name(role: &str) -> String {
+    let lower = role.to_ascii_lowercase();
+    if lower == "img" {
+        "image".to_string()
+    } else {
+        lower
+    }
+}
+
+/// Extract deduplicated CDP role names from `{ role: string | string[] }`.
+fn target_cdp_roles(target: &Value) -> Vec<String> {
+    let mut roles = Vec::new();
+    match target.get("role") {
+        Some(Value::String(role)) if !role.is_empty() => {
+            roles.push(cdp_role_name(role));
+        }
+        Some(Value::Array(items)) => {
+            for item in items {
+                if let Some(role) = item.as_str()
+                    && !role.is_empty()
+                {
+                    let mapped = cdp_role_name(role);
+                    if !roles.contains(&mapped) {
+                        roles.push(mapped);
+                    }
+                }
+            }
+        }
+        _ => {}
+    }
+    roles
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum NameMatch {
+    Any,
+    Exact(String),
+    StartsWith(String),
+    Contains(String),
+}
+
+impl NameMatch {
+    fn from_target(target: &Value) -> Self {
+        if let Some(name) = target.get("name").and_then(Value::as_str) {
+            Self::Exact(normalize_name(name))
+        } else if let Some(prefix) = target.get("nameStartsWith").and_then(Value::as_str) {
+            Self::StartsWith(prefix.to_string())
+        } else if let Some(substr) = target.get("nameContains").and_then(Value::as_str) {
+            Self::Contains(substr.to_string())
+        } else {
+            Self::Any
+        }
+    }
+
+    fn matches(&self, observed: &str) -> bool {
+        let normalized = normalize_name(observed);
+        match self {
+            Self::Any => true,
+            Self::Exact(wanted) => normalized == *wanted,
+            Self::StartsWith(prefix) => normalized.starts_with(prefix.as_str()),
+            Self::Contains(substr) => normalized.contains(substr.as_str()),
+        }
+    }
+}
+
 fn describe_target(target: &Value) -> String {
     if let Some(selector) = target.get("selector").and_then(Value::as_str) {
         return format!("selector {selector:?}");
     }
-    if let Some(role) = target.get("role").and_then(Value::as_str) {
-        return match target.get("name").and_then(Value::as_str) {
-            Some(name) => format!("role {role:?}, name {name:?}"),
-            None => format!("role {role:?}"),
-        };
+    let role_part = match target.get("role") {
+        Some(Value::String(role)) => Some(format!("role {role:?}")),
+        Some(Value::Array(items)) => {
+            let names: Vec<&str> = items.iter().filter_map(Value::as_str).collect();
+            Some(format!("role {names:?}"))
+        }
+        _ => None,
+    };
+    if let Some(role_part) = role_part {
+        if let Some(name) = target.get("name").and_then(Value::as_str) {
+            return format!("{role_part}, name {name:?}");
+        }
+        if let Some(prefix) = target.get("nameStartsWith").and_then(Value::as_str) {
+            return format!("{role_part}, nameStartsWith {prefix:?}");
+        }
+        if let Some(substr) = target.get("nameContains").and_then(Value::as_str) {
+            return format!("{role_part}, nameContains {substr:?}");
+        }
+        return role_part;
     }
     "unspecified target".to_string()
 }
 
-fn filter_ax_nodes(nodes: Option<&Vec<Value>>, root: i64, wanted: Option<&str>) -> Vec<Value> {
+fn filter_ax_nodes(nodes: Option<&Vec<Value>>, root: i64, matcher: &NameMatch) -> Vec<Value> {
     nodes
         .into_iter()
         .flatten()
@@ -920,16 +1090,223 @@ fn filter_ax_nodes(nodes: Option<&Vec<Value>>, root: i64, wanted: Option<&str>) 
                 .is_some_and(|id| id != root)
         })
         .filter(|node| {
-            wanted.is_none_or(|wanted| {
-                let name = node
-                    .pointer("/name/value")
-                    .and_then(Value::as_str)
-                    .unwrap_or("");
-                normalize_name(name) == wanted
-            })
+            let name = node
+                .pointer("/name/value")
+                .and_then(Value::as_str)
+                .unwrap_or("");
+            matcher.matches(name)
         })
         .cloned()
         .collect()
+}
+
+/// Evaluate a portable `a11y` expectation against an observed ARIA role, accessible name, and
+/// capture-0.10 structured states (`spec.md` §3.2).
+fn check_a11y_node(
+    target: &str,
+    expected: &Value,
+    observed_role: &str,
+    observed_name: &str,
+    observed_states: &AccessibleStates,
+) -> std::result::Result<Value, String> {
+    const ALLOWED: &[&str] = &[
+        "role",
+        "name",
+        "nameNonEmpty",
+        "nameContains",
+        "expanded",
+        "selected",
+        "checked",
+        "pressed",
+        "disabled",
+        "invalid",
+        "readonly",
+        "required",
+        "level",
+    ];
+    let Some(map) = expected.as_object() else {
+        return Err(format!(
+            "Expected '{target}' a11y assertion to be an object."
+        ));
+    };
+    if map.is_empty() {
+        return Err(format!(
+            "Expected '{target}' a11y assertion to specify at least one property."
+        ));
+    }
+    for key in map.keys() {
+        if !ALLOWED.contains(&key.as_str()) {
+            return Err(format!(
+                "Unsupported a11y assertion field '{key}' on '{target}'."
+            ));
+        }
+    }
+    if let Some(want_role) = map.get("role") {
+        let matched = match want_role {
+            Value::String(role) => observed_role.eq_ignore_ascii_case(role),
+            Value::Array(roles) if !roles.is_empty() && roles.iter().all(Value::is_string) => roles
+                .iter()
+                .filter_map(Value::as_str)
+                .any(|role| observed_role.eq_ignore_ascii_case(role)),
+            _ => {
+                return Err(format!(
+                    "Invalid a11y.role assertion on '{target}': expected string or non-empty string array."
+                ));
+            }
+        };
+        if !matched {
+            return Err(format!(
+                "Expected '{target}' a11y.role to be {want_role}; it is {observed_role:?}."
+            ));
+        }
+    }
+    if let Some(raw_name) = map.get("name") {
+        let Some(want_name) = raw_name.as_str() else {
+            return Err(format!(
+                "Invalid a11y.name assertion on '{target}': expected string."
+            ));
+        };
+        if observed_name != normalize_name(want_name) {
+            return Err(format!(
+                "Expected '{target}' a11y.name to be {want_name:?}; it is {observed_name:?}."
+            ));
+        }
+    }
+    if let Some(raw_non_empty) = map.get("nameNonEmpty") {
+        let Some(want_non_empty) = raw_non_empty.as_bool() else {
+            return Err(format!(
+                "Invalid a11y.nameNonEmpty assertion on '{target}': expected boolean."
+            ));
+        };
+        let non_empty = !observed_name.is_empty();
+        if non_empty != want_non_empty {
+            return Err(format!(
+                "Expected '{target}' a11y.nameNonEmpty to be {want_non_empty}; observed name is {observed_name:?}."
+            ));
+        }
+    }
+    if let Some(raw_contains) = map.get("nameContains") {
+        let Some(want_contains) = raw_contains.as_str() else {
+            return Err(format!(
+                "Invalid a11y.nameContains assertion on '{target}': expected string."
+            ));
+        };
+        if !observed_name.contains(want_contains) {
+            return Err(format!(
+                "Expected '{target}' a11y.name to contain {want_contains:?}; it is {observed_name:?}."
+            ));
+        }
+    }
+    if let Some(raw_expanded) = map.get("expanded") {
+        let Some(want) = raw_expanded.as_bool() else {
+            return Err(format!(
+                "Invalid a11y.expanded assertion on '{target}': expected boolean."
+            ));
+        };
+        if observed_states.expanded != Some(want) {
+            return Err(format!(
+                "Expected '{target}' a11y.expanded to be {want}; it is {:?}.",
+                observed_states.expanded
+            ));
+        }
+    }
+    if let Some(raw_selected) = map.get("selected") {
+        let Some(want) = raw_selected.as_bool() else {
+            return Err(format!(
+                "Invalid a11y.selected assertion on '{target}': expected boolean."
+            ));
+        };
+        if observed_states.selected != Some(want) {
+            return Err(format!(
+                "Expected '{target}' a11y.selected to be {want}; it is {:?}.",
+                observed_states.selected
+            ));
+        }
+    }
+    for (field, observed) in [
+        ("checked", observed_states.checked),
+        ("pressed", observed_states.pressed),
+    ] {
+        if let Some(want) = map.get(field) {
+            let expected_state = match want {
+                Value::Bool(b) => TriState::Bool(*b),
+                Value::String(s) if s == "mixed" => TriState::Mixed,
+                _ => {
+                    return Err(format!(
+                        "Invalid a11y.{field} assertion on '{target}': expected boolean or \"mixed\"."
+                    ));
+                }
+            };
+            if observed != Some(expected_state) {
+                return Err(format!(
+                    "Expected '{target}' a11y.{field} to be {want}; it is {observed:?}."
+                ));
+            }
+        }
+    }
+    for (field, observed) in [
+        ("disabled", observed_states.disabled),
+        ("readonly", observed_states.readonly),
+        ("required", observed_states.required),
+    ] {
+        if let Some(raw_flag) = map.get(field) {
+            let Some(want) = raw_flag.as_bool() else {
+                return Err(format!(
+                    "Invalid a11y.{field} assertion on '{target}': expected boolean."
+                ));
+            };
+            let actual = observed.unwrap_or(false);
+            if actual != want {
+                return Err(format!(
+                    "Expected '{target}' a11y.{field} to be {want}; it is {actual}."
+                ));
+            }
+        }
+    }
+    if let Some(want) = map.get("invalid") {
+        let ok = match want {
+            Value::Bool(true) => matches!(
+                observed_states.invalid,
+                Some(InvalidState::True | InvalidState::Grammar | InvalidState::Spelling)
+            ),
+            Value::Bool(false) => observed_states.invalid.is_none(),
+            Value::String(s) if s == "grammar" => {
+                observed_states.invalid == Some(InvalidState::Grammar)
+            }
+            Value::String(s) if s == "spelling" => {
+                observed_states.invalid == Some(InvalidState::Spelling)
+            }
+            _ => {
+                return Err(format!(
+                    "Invalid a11y.invalid assertion on '{target}': expected boolean, \"grammar\", or \"spelling\"."
+                ));
+            }
+        };
+        if !ok {
+            return Err(format!(
+                "Expected '{target}' a11y.invalid to be {want}; it is {:?}.",
+                observed_states.invalid
+            ));
+        }
+    }
+    if let Some(raw_level) = map.get("level") {
+        let Some(want) = raw_level.as_i64().filter(|&n| (1..=6).contains(&n)) else {
+            return Err(format!(
+                "Invalid a11y.level assertion on '{target}': expected integer 1..6."
+            ));
+        };
+        if observed_states.level != Some(want) {
+            return Err(format!(
+                "Expected '{target}' a11y.level to be {want}; it is {:?}.",
+                observed_states.level
+            ));
+        }
+    }
+    let mut detail = json!({ "role": observed_role, "name": observed_name });
+    if !observed_states.is_empty() {
+        detail["states"] = json!(observed_states);
+    }
+    Ok(detail)
 }
 
 fn check_target_match(
@@ -954,7 +1331,10 @@ fn check_target_match(
 
 #[cfg(test)]
 mod tests {
-    use super::{TargetError, check_target_match, filter_ax_nodes, normalize_name, theme_media};
+    use super::{
+        AccessibleStates, InvalidState, NameMatch, TargetError, TriState, check_a11y_node,
+        check_target_match, describe_target, filter_ax_nodes, target_cdp_roles, theme_media,
+    };
     use serde_json::json;
 
     #[test]
@@ -1003,8 +1383,8 @@ mod tests {
 
         // Zero matches for { role, name }
         let print_target = json!({ "role": "button", "name": "Print" });
-        let print_wanted = normalize_name("Print");
-        let print_nodes = filter_ax_nodes(Some(&ax_nodes), root, Some(&print_wanted));
+        let print_matcher = NameMatch::from_target(&print_target);
+        let print_nodes = filter_ax_nodes(Some(&ax_nodes), root, &print_matcher);
         assert_eq!(print_nodes.len(), 0);
         let not_found =
             check_target_match("print", &print_target, print_nodes.len() as u64, None).unwrap_err();
@@ -1022,8 +1402,8 @@ mod tests {
 
         // One match for { role, name } with whitespace/zero-width normalization
         let share_target = json!({ "role": "button", "name": "Share" });
-        let share_wanted = normalize_name("Share");
-        let share_nodes = filter_ax_nodes(Some(&ax_nodes), root, Some(&share_wanted));
+        let share_matcher = NameMatch::from_target(&share_target);
+        let share_nodes = filter_ax_nodes(Some(&ax_nodes), root, &share_matcher);
         assert_eq!(share_nodes.len(), 1);
         let one = check_target_match(
             "share",
@@ -1036,7 +1416,7 @@ mod tests {
 
         // Multiple matches for { role } without name
         let role_only = json!({ "role": "button" });
-        let all_buttons = filter_ax_nodes(Some(&ax_nodes), root, None);
+        let all_buttons = filter_ax_nodes(Some(&ax_nodes), root, &NameMatch::Any);
         assert_eq!(all_buttons.len(), 2);
         let ambiguous =
             check_target_match("action", &role_only, all_buttons.len() as u64, None).unwrap_err();
@@ -1078,9 +1458,9 @@ mod tests {
             "name": { "value": "Share" }
         })];
         let target = json!({ "role": "button", "name": "Share" });
-        let wanted = normalize_name("Share");
+        let matcher = NameMatch::from_target(&target);
 
-        let none = filter_ax_nodes(Some(&virtual_only), root, Some(&wanted));
+        let none = filter_ax_nodes(Some(&virtual_only), root, &matcher);
         assert_eq!(none.len(), 0);
         let not_found = check_target_match("share", &target, none.len() as u64, None).unwrap_err();
         assert_eq!(not_found.code(), "TARGET_NOT_FOUND");
@@ -1089,7 +1469,7 @@ mod tests {
             json!({ "ignored": false, "name": { "value": "Share" } }),
             json!({ "backendDOMNodeId": 12, "ignored": false, "name": { "value": "Share" } }),
         ];
-        let matched = filter_ax_nodes(Some(&mixed), root, Some(&wanted));
+        let matched = filter_ax_nodes(Some(&mixed), root, &matcher);
         assert_eq!(matched.len(), 1);
         let resolved = check_target_match(
             "share",
@@ -1099,5 +1479,121 @@ mod tests {
         )
         .unwrap();
         assert_eq!(resolved, "obj-share");
+    }
+
+    #[test]
+    fn supports_role_sets_and_prefix_or_substring_name_matchers() {
+        let root = 1;
+        let target = json!({ "role": ["combobox", "button", "img"], "nameStartsWith": "Fruit" });
+        assert_eq!(
+            target_cdp_roles(&target),
+            vec!["combobox", "button", "image"]
+        );
+        assert_eq!(
+            describe_target(&target),
+            "role [\"combobox\", \"button\", \"img\"], nameStartsWith \"Fruit\""
+        );
+
+        let nodes = vec![
+            json!({ "backendDOMNodeId": 2, "ignored": false, "name": { "value": "Fruit Direct seed" } }),
+            json!({ "backendDOMNodeId": 3, "ignored": false, "name": { "value": "fruit lowercase" } }),
+            json!({ "backendDOMNodeId": 4, "ignored": false, "name": { "value": "Choose Fruit" } }),
+        ];
+        let starts = filter_ax_nodes(Some(&nodes), root, &NameMatch::from_target(&target));
+        assert_eq!(starts.len(), 1);
+        assert_eq!(starts[0]["backendDOMNodeId"], json!(2));
+
+        let contains_target = json!({ "role": ["textbox", "searchbox"], "nameContains": "Fruit" });
+        assert_eq!(
+            describe_target(&contains_target),
+            "role [\"textbox\", \"searchbox\"], nameContains \"Fruit\""
+        );
+        let contains = filter_ax_nodes(
+            Some(&nodes),
+            root,
+            &NameMatch::from_target(&contains_target),
+        );
+        assert_eq!(contains.len(), 2);
+    }
+
+    #[test]
+    fn checks_portable_a11y_expectations() {
+        let states = AccessibleStates {
+            expanded: Some(true),
+            selected: Some(false),
+            checked: Some(TriState::Mixed),
+            pressed: Some(TriState::Bool(true)),
+            disabled: Some(true),
+            invalid: Some(InvalidState::Grammar),
+            readonly: Some(true),
+            required: Some(true),
+            level: Some(2),
+        };
+        let detail = check_a11y_node(
+            "control",
+            &json!({
+                "role": ["combobox", "button"],
+                "nameNonEmpty": true,
+                "nameContains": "Fruit",
+                "expanded": true,
+                "selected": false,
+                "checked": "mixed",
+                "pressed": true,
+                "disabled": true,
+                "invalid": true,
+                "readonly": true,
+                "required": true,
+                "level": 2
+            }),
+            "button",
+            "Fruit Apple",
+            &states,
+        )
+        .unwrap();
+        assert_eq!(detail["role"], json!("button"));
+        assert_eq!(detail["states"]["invalid"], json!("grammar"));
+
+        // Exact invalid mode match and false matching absent.
+        assert!(
+            check_a11y_node(
+                "c",
+                &json!({ "invalid": "grammar" }),
+                "textbox",
+                "Email",
+                &states
+            )
+            .is_ok()
+        );
+        assert!(
+            check_a11y_node(
+                "c",
+                &json!({ "invalid": "spelling" }),
+                "textbox",
+                "Email",
+                &states
+            )
+            .is_err()
+        );
+        assert!(
+            check_a11y_node(
+                "c",
+                &json!({ "invalid": false, "disabled": false, "readonly": false, "required": false }),
+                "textbox",
+                "Email",
+                &AccessibleStates::default()
+            )
+            .is_ok()
+        );
+        // expanded: false requires explicit false, not absent.
+        assert!(
+            check_a11y_node(
+                "c",
+                &json!({ "expanded": false }),
+                "button",
+                "Menu",
+                &AccessibleStates::default()
+            )
+            .is_err()
+        );
     }
 }
