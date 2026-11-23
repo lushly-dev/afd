@@ -21,7 +21,7 @@ describe('previewWords', () => {
 			'draft: drf_1',
 			'revision: 1',
 			'account: me@example.com',
-			'(written by others) content.recipients: "ada@example.com"',
+			'(written by others) content.recipients: ["ada@example.com"]',
 			'(written by others) content.body: <b>Hi</b>',
 		]);
 	});
@@ -72,6 +72,76 @@ describe('previewWords', () => {
 		});
 		expect(lines).toContain(`body: ${long}`);
 		expect(lines).toContain('part.trust: trusted');
+	});
+
+	it('shows no two values alike: an empty object or list, and a string that reads as another value (#2137)', () => {
+		const lines = previewWords({
+			command: 'x-show',
+			digest: 'd',
+			labels: 'per-part',
+			data: {
+				a: {},
+				b: '{}',
+				c: [],
+				d: '',
+				e: 42,
+				f: '42',
+				g: null,
+				h: 'null',
+				i: true,
+				j: 'true',
+				k: ['x', 'y'],
+				l: '"x", "y"',
+				m: ' 7',
+				n: 'plain words',
+				o: 'x ',
+			},
+		});
+		expect(lines.slice(1)).toEqual([
+			'a: {}',
+			'b: "{}"',
+			'c: []',
+			'd: ""',
+			'e: 42',
+			'f: "42"',
+			'g: null',
+			'h: "null"',
+			'i: true',
+			'j: "true"',
+			'k: ["x", "y"]',
+			'l: "x", "y"',
+			'm: " 7"',
+			'n: plain words',
+			'o: "x "',
+		]);
+		expect(new Set(lines).size).toBe(lines.length);
+	});
+
+	it('renders two different previews of the same field differently: escapes, dotted keys, and a lone value (re-review)', () => {
+		const words = (data: unknown) =>
+			previewWords({ command: 'x-show', digest: 'd', labels: 'per-part', data })
+				.slice(1)
+				.join('\n');
+		const pairs: Array<[unknown, unknown]> = [
+			[{ body: 'a\nb' }, { body: 'a\\u{A}b' }],
+			[{ body: 'a\\b' }, { body: 'a\\\\b' }],
+			[{ mail: { to: 'x' } }, { 'mail.to': 'x' }],
+			[{ list: ['x'] }, { 'list[0]': 'x' }],
+			[{ a: 'b: c' }, { 'a: b': 'c' }],
+			[1, { '(the preview)': 1 }],
+			[1, { value: 1 }],
+			[{ '': 'x' }, { '""': 'x' }],
+			[{ a: '\uD800' }, { a: '\uFFFD' }],
+			[{ a: 'x\u00A0y' }, { a: 'x y' }],
+			[{ 'a\u00A0b': 1 }, { 'a b': 1 }],
+		];
+		for (const [one, other] of pairs)
+			expect(words(one), JSON.stringify(one)).not.toBe(words(other));
+		expect(words({ 'mail.to': 'x', 'a b': 1 })).toBe('["mail.to"]: x\n["a b"]: 1');
+		expect(words({ mail: { 'to.cc': 'x' } })).toBe('mail["to.cc"]: x');
+		expect(words(1)).toBe('(the preview): 1');
+		expect(words({ a: 'x\u00A0y\uD800' })).toBe('a: x\\u{A0}y\\u{D800}');
+		expect(words({ body: 'a\\b' })).toBe('body: a\\\\b');
 	});
 
 	it('puts "Changed since you looked." first in the slot, before the input', () => {

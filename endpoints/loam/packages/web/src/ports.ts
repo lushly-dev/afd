@@ -72,10 +72,9 @@ export function webPorts(
 			return desktop
 				? chunk.createDesktopMountTransport(
 						entry.instance,
-						// The era that carries a person's approval, for an instance that releases commands over stdio (phase 5, 7.2).
-						(entry as { approvals?: unknown }).approvals === 'shell' && entry.transport === 'stdio'
-							? { era: 'modern' }
-							: {}
+						// The era that carries a person's approval, for an instance that releases commands, over `stdio` or `http`: the
+						// Rust host sends the era's headers on `http` (phase 5, 7.2; #2137).
+						(entry as { approvals?: unknown }).approvals === 'shell' ? { era: 'modern' } : {}
 					)
 				: chunk.createMountTransport(url);
 		},

@@ -182,4 +182,30 @@ mod tests {
         });
         assert!(lines.lock().unwrap().is_empty());
     }
+
+    /// Tauri's `tracing` feature records every IPC request's body on its `ipc::request` span and every response on
+    /// `ipc::request::response` (`ipc/protocol.rs`), so a `mount_send` message, which may carry an approval token in
+    /// `_meta["dev.afd/approval"]` or a server's held answer with one, is in a span's fields (#2137). This subscriber
+    /// enables no span, so those fields are never recorded, and it writes nothing but the fixed refusal line.
+    #[test]
+    fn no_span_is_enabled_so_an_ipc_bodys_token_is_never_recorded() {
+        let lines = Arc::new(Mutex::new(Vec::<String>::new()));
+        let captured = lines.clone();
+        let subscriber = InvokeKeyRedactingSubscriber::with_sink(move |line| {
+            captured.lock().unwrap().push(line.to_owned());
+        });
+        let token = "afdap1.never-recorded-2137";
+        tracing::subscriber::with_default(subscriber, || {
+            for span in [
+                tracing::trace_span!(target: "tauri::ipc::protocol", "ipc::request", kind = "custom-protocol", request = tracing::field::Empty),
+                tracing::error_span!(target: "tauri::ipc::protocol", "ipc::request::response", response = token),
+            ] {
+                assert!(span.is_disabled());
+                span.record("request", token);
+                let _entered = span.entered();
+                tracing::error!(target: "tauri::webview", "carried {token}");
+            }
+        });
+        assert!(lines.lock().unwrap().is_empty());
+    }
 }

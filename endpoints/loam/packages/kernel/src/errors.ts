@@ -58,6 +58,8 @@ export type LoamKernelErrorCode =
 	| 'HANDLER_RESULT_INVALID'
 	| 'HANDLER_THREW'
 	| 'HANDLER_TIMEOUT'
+	// A call to a disposed kernel (`kernel.ts`).
+	| 'KERNEL_DISPOSED'
 	| 'INSTANCE_OVERRIDE_UNKNOWN'
 	| 'INSTANCE_PREFIX_CONFLICT'
 	| 'INSTANCE_PREFIX_REQUIRED'

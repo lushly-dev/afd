@@ -514,8 +514,8 @@ export type ContextFieldV2 = NonNullable<DirectRegistryOptions['contextFields']>
 export interface MountTransportV2 extends Omit<MountTransportV1, 'callTool' | 'connect'> {
 	/**
 	 * The handshake. `approvals: true` is the transport's own word, never the server's, that this lane carries a person's
-	 * approval to the server (phase 5 specification, 7.2): only the desktop's `stdio` lane opened on MCP 2026-07-28 says
-	 * it. Without it the kernel releases nothing, whatever version the server answered.
+	 * approval to the server (phase 5 specification, 7.2): only the desktop's `stdio` and `http` lanes opened on MCP
+	 * 2026-07-28 say it. Without it the kernel releases nothing, whatever version the server answered.
 	 */
 	connect(signal?: AbortSignal): Promise<{ protocolVersion: string; approvals?: true }>;
 	callTool(

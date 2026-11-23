@@ -74,12 +74,12 @@ function unreleasable(release: MountReleaseV1 | undefined): CommandResult<never>
 	if (!blocked) return undefined;
 	return unavailable(
 		blocked === 'era'
-			? "This command needs a person's approval at its server, and this instance's lane carries none: only the desktop's `stdio` lane on MCP 2026-07-28 does"
+			? "This command needs a person's approval at its server, and this instance's lane carries none: only the desktop's lanes, `stdio` and `http`, on MCP 2026-07-28 do"
 			: blocked === 'preview'
 				? "This command needs a person's approval at its server, and its entry's preview names no read of this instance callable on its own, or reads by a key the command's input does not name"
 				: 'This command needs a person\'s approval at its server, and its entry does not say `approvals = "shell"` and give it a preview, so Loam does not present one',
 		blocked === 'era'
-			? 'Run the command at the server\'s own terminal, or mount it on the desktop over `stdio`, which speaks MCP 2026-07-28 for an `approvals = "shell"` instance.'
+			? 'Run the command at the server\'s own terminal, or mount it on the desktop, whose `stdio` and `http` lanes speak MCP 2026-07-28 for an `approvals = "shell"` instance.'
 			: blocked === 'preview'
 				? "Name a read of the same instance, not itself held, as the command's `preview.command`, and list under `preview.input` only keys of the command's own input."
 				: 'Run the command at the server\'s own terminal, or give its instance entry `approvals = "shell"` and the command a `preview` naming a read of the same instance, for a server that accepts Loam as an approver.'
@@ -115,10 +115,15 @@ export function createMountedApprovals(deps: MountedApprovalsDeps) {
 			return unavailable(
 				read.code === 'preview-input'
 					? `The call does not name every key the preview \`${release.preview.command}\` reads by, so the person could see another target; nothing was asked`
-					: `The preview \`${release.preview.command}\` could not be read (${read.code}), so nothing was asked`,
+					: read.code === 'server'
+						? // The server's own code is its choice, so it is never quoted in the shell's words (#2137).
+							`The preview \`${release.preview.command}\` was refused by its server, so nothing was asked`
+						: `The preview \`${release.preview.command}\` could not be read (${read.code}), so nothing was asked`,
 				read.code === 'preview-input'
 					? "Give the call every key its entry's `preview.input` lists, or correct that list in the deployment."
-					: 'Check that the instance is running and the preview names a read of it, then call again.'
+					: read.code === 'server'
+						? "Check at the server why it refused the preview's read, or name another read as the entry's preview."
+						: 'Check that the instance is running and the preview names a read of it, then call again.'
 			);
 		}
 		const { data, labels, command } = read.read;

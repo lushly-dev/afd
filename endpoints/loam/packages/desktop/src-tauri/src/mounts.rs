@@ -1,6 +1,7 @@
 //! The desktop's mount transport (phase 6 specification, 10.3 and 10.4): a transport only, with no MCP logic
-//! of its own. The webview names an instance; the address, the bearer and the command line stay here, read
-//! from `mounts.json`, and never cross IPC, not even in an error, which is a bare code.
+//! of its own but the MCP 2026-07-28 headers an `http` request needs, which `era` derives from the message
+//! itself (phase 5 specification, 7.2). The webview names an instance; the address, the bearer and the command
+//! line stay here, read from `mounts.json`, and never cross IPC, not even in an error, which is a bare code.
 use futures_util::StreamExt;
 use serde::Deserialize;
 use serde_json::Value;
@@ -771,6 +772,9 @@ async fn send_http(
     encoded: Vec<u8>,
     notify: Notify,
 ) -> Result<Value, &'static str> {
+    // MCP 2026-07-28's headers, from the message itself (`era`), for a request the page opened on that era; it is
+    // stateless, so it carries no session (phase 5 specification, 7.2; #2137).
+    let modern = crate::era::headers(message)?;
     let mut request = client
         .post(url)
         .header("Accept", "application/json, text/event-stream")
@@ -779,9 +783,16 @@ async fn send_http(
     if let Some(bearer) = bearer {
         request = request.bearer_auth(bearer);
     }
-    let held = session.lock().await.clone();
+    let held = if modern.is_some() {
+        None
+    } else {
+        session.lock().await.clone()
+    };
     if let Some(id) = &held {
         request = request.header("Mcp-Session-Id", id);
+    }
+    for (name, value) in modern.into_iter().flatten() {
+        request = request.header(name, value);
     }
     let response = request.send().await.map_err(|_| UNREACHABLE)?;
     let status = response.status();

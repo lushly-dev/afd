@@ -725,7 +725,9 @@ export const CEILINGS = Object.freeze({
 	// Phase 5's step 4 merged on phase 6's step 5 and #1936, the combined build: 129,416; set to 129,900 under D115.
 	// Phase 5's step 5, against `main` at `fa8ab4a5`: 134,203 (+4,787: the mounted approvals' gate, preview and release);
 	// set to 134,800 under D115.
-	lateMinified: 134_800,
+	// #2137 (step 5's follow-ups), against `main` at `e28d5629`: 134,928 (+604: the server's code kept out of the
+	// shell's words, the refused preview's own suggestion); set to 135,500 under D115.
+	lateMinified: 135_500,
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 16_400,
 	// Phase 3's step 7, against `main` at `0ab76415`: 62,702 to 64,976 (+2,274): `account-agent-list` and `-disconnect`,
@@ -793,14 +795,19 @@ export const CEILINGS = Object.freeze({
 	// Phase 6's steps 6 and 11b together (`main` at `c274ddaa`), the combined build: 452,358, within step 6's row.
 	// Phase 5's step 5, against `main` at `fa8ab4a5`: 460,678 (+11,010: the release, the hold, the token's strip and the
 	// lane's word); merged on phase 6's steps 6 and 11b (`main` at `49857af5`), the combined build: 463,368; 463,600 stands.
-	appsMinified: 463_600,
+	// #2137 (step 5's follow-ups), against `main` at `e28d5629`: 464,046 (+678: the preview's walk bound, the dispose
+	// checks, the era's words for `http`); set to 464,600 under D115.
+	appsMinified: 464_600,
 	// Steps 4 and 5 together: 94,868 (step 4's slot and dialogs beside the inbox's Open inbox and hidden toasts' timers);
 	// set to 95,500 under D115.
 	// Phase 5's step 3 with phase 3's step 8 merged (`main` at `46f7ab11`; step 8's `surface-calls`, shared with
 	// `surfaces`), the combined build: 97,007; set to 97,500 under D115.
 	// Phase 5's step 5, against `main` at `fa8ab4a5`: 98,225 (+1,218: the preview's words in the slot); set to 98,800
 	// under D115.
-	surfacesMinified: 98_800,
+	// #2137 (step 5's follow-ups): 98,610 against `main` at `e28d5629` (the preview's escapes and key steps), within the
+	// row; merged on `main` at `2e29283a` (FAST-AF's violet borders and options, #2164, and Violet's Loam token tree,
+	// #2166), the combined build: 99,063; set to 99,600 under D115.
+	surfacesMinified: 99_600,
 	// Raised from 25,105 to 25,900 by AFD #1190 (D115): `dev.loam/tokens` reads the contract's component
 	// ids, which grew from 108 to 115 with violet-elements' token interface; measured 25,793, plus a margin.
 	// Raised from 25,900 to 26,100 by the Refined design (D115): the interface's contract version 2 gives Loam's

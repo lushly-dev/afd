@@ -20,9 +20,11 @@ interface TauriInternals {
 export const DESKTOP_PROTOCOL_VERSION = '2025-06-18';
 
 /**
- * MCP 2026-07-28, which an `approvals = "shell"` instance over `stdio` is opened in (phase 5 specification, 7.2): the
- * only era on which AFD accepts an approver's `_meta["dev.afd/approval"]`. Each request carries these keys, and the
- * connection opens with `server/discover`; a server that does not speak it is opened as before, with `initialize`.
+ * MCP 2026-07-28, which an `approvals = "shell"` instance over `stdio` or `http` is opened in (phase 5 specification,
+ * 7.2): the only era on which AFD accepts an approver's `_meta["dev.afd/approval"]`. Each request carries these keys, and
+ * the connection opens with `server/discover`; a server that does not speak it is opened as before, with `initialize`.
+ * Over `http` the Rust host reads the era from these keys and sends its headers (`MCP-Protocol-Version`, `Mcp-Method`,
+ * `Mcp-Name`) with no session, as the era's stateless lane asks; the page sends no header itself.
  */
 export const DESKTOP_MODERN_VERSION = '2026-07-28';
 const MODERN_META = Object.freeze({
