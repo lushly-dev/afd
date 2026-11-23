@@ -132,7 +132,7 @@ sse-stream = { version = "0.2", optional = true }
 # Optional: the `auth` feature, the hosted HTTP surface. `rustls-pki-types`' `PemObject` reads the
 # PEM files; SQLite holds the limit counters every process behind one URL shares (section 10.2).
 # `base64` decodes a verified access token's claims for the mapping of section 4.1.
-base64 = { version = "0.22", optional = true }
+base64 = { version = "0.23", optional = true }
 # The gateway assertion's signature (section 4.4, step 4), checked as AFD checks an access
 # token's: `jsonwebtoken`'s `aws-lc-rs` provider called directly, never `decode` or a
 # `Validation`, so no library default applies. AFD's version, already in the lock.

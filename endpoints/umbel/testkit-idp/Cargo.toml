@@ -24,7 +24,7 @@ repository = "https://github.com/lushly-dev/afd"
 # backend `jsonwebtoken`, rcgen and rustls already use.
 aws-lc-rs = { version = "1.15", default-features = false, features = ["aws-lc-sys"] }
 axum = { version = "0.8", default-features = false, features = ["http1", "tokio"] }
-base64 = "0.22"
+base64 = "0.23"
 hyper = { version = "1", features = ["http1", "server"] }
 hyper-util = { version = "0.1", features = ["tokio"] }
 # Verification of the tokens the kit receives (ID tokens in a token exchange, ID-JAGs in a JWT
