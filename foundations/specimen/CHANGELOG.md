@@ -22,6 +22,10 @@
   commands over MCP stdio with the CLI's schemas and result envelopes. It has no
   release route and changes no foundation or command API.
 
+- The native host's `rust-toolchain.toml` pins Rust 1.100.0 instead of 1.98.0, the repository's
+  toolchain (#1805). The host's code and its `rust-version`, 1.97, are unchanged; of the published files, only the
+  README's build note changes.
+
 ## 2.2.0-preview.9
 
 ### Minor Changes

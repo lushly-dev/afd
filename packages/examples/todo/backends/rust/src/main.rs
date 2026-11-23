@@ -204,7 +204,8 @@ async fn run_shell(registry: &CommandRegistry) -> ExitCode {
         let (name, json) = input.split_once(' ').unwrap_or((input, "null"));
         match serde_json::from_str(json) {
             Ok(value) => {
-                run_command(registry, name, value).await;
+                // The shell keeps going whatever one command returns; its result is already printed.
+                let _ = run_command(registry, name, value).await;
             }
             Err(error) => println!("Invalid JSON: {error}"),
         }

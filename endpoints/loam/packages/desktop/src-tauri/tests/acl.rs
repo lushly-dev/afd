@@ -1,7 +1,7 @@
 //! P6-D4's pin on Tauri's framework transport (phase 6 specification, P6-D4, as amended 2026-11-16).
 //!
 //! "`invoke` of anything else from the main webview is refused" covers every command an app or plugin can
-//! register. Tauri exempts some of its own internals from the ACL check in `Webview::on_message`; in 2.12.5
+//! register. Tauri exempts some of its own internals from the ACL check in `Webview::on_message`; in 2.12.7
 //! that is exactly the channel-fetch command, which hands a webview data its own `Channel` queued under an
 //! identifier, and Loam uses no `Channel`. This test reads the Tauri source the build compiled and requires
 //! the exemptions to be exactly that list, so an upgrade that adds one fails here and is reviewed.

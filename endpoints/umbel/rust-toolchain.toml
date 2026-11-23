@@ -3,7 +3,7 @@
 # This is the repository's toolchain (packages/rust/rust-toolchain.toml); the
 # crate's minimum, `rust-version`, is 1.97.
 [toolchain]
-channel = "1.98.0"
+channel = "1.100.0"
 components = ["clippy", "rustfmt"]
 profile = "minimal"
 # The component loader's tests build the hello and fixture components for WASI 0.2.

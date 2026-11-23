@@ -171,7 +171,7 @@ jobs:
       - name: Build the components
         run: cargo build --locked --release --target wasm32-wasip2 -p umbel-fixture-behaviors -p umbel-fixture-imports -p umbel-fixture-sockets -p umbel-fixture-future -p umbel-fixture-budget -p umbel-plugin-hello -p umbel-plugin-components --features umbel-plugin-hello/component,umbel-plugin-components/component,umbel-fixture-budget/component
       # A host test cannot use another crate's CARGO_BIN_EXE_*: the mounted-loader tests find
-      # hello-mcp in the target directory, next to the test binaries.
+      # hello-mcp in target/debug/, under the parent of the tests' CARGO_TARGET_TMPDIR.
       - name: Build hello-mcp
         run: cargo build --locked -p umbel-plugin-hello --features mounted --bin hello-mcp
       # --no-fail-fast here and in the other test steps: one failing test binary must not hide the

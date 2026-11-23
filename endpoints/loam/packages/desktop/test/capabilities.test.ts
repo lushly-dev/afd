@@ -96,7 +96,7 @@ describe('P6-D4: the capabilities', () => {
 			'tauri-plugin-single-instance',
 			'tauri-plugin-updater',
 		]);
-		expect(cargo).toMatch(/^tauri = \{ version = "=2\.12\.5", features = \["tracing"\] \}$/m);
+		expect(cargo).toMatch(/^tauri = \{ version = "=2\.12\.7", features = \["tracing"\] \}$/m);
 		const configText = readFileSync(join(SRC_TAURI, 'tauri.conf.json'), 'utf8');
 		expect(configText).not.toMatch(
 			/dangerous[-_]?insecure[-_]?transport|dangerous[-_]?accept[-_]?invalid/i

@@ -308,6 +308,26 @@ sequenceDiagram
   `umbel:plugin/plugin@1.0.0` on WASI 0.2, with WASI 0.3 reserved for world
   2.0.0 ([D38](decisions.md)). World 1.1.0 adds the output budget and four
   error cases, and the host serves both ([D189, D190](decisions.md)).
+  *Planned 2026-11-23 ([#1805](https://github.com/lushly-dev/afd/issues/1805);
+  no decision yet, nothing built):* world 2.0.0 on WASI 0.3 is added beside the
+  1.x worlds on WASI 0.2, not in place of them. The host links both WASI
+  implementations and picks one by the component's export and import versions,
+  as D38 already identifies a world, so a 1.x component keeps loading
+  unchanged and its author chooses when to rebuild. Of D38's two
+  preconditions, the Rust target is met: `wasm32-wasip3` is Tier 2 from Rust
+  1.100, the repository's pinned toolchain since #1805. The runtime is not:
+  Umbel stays on wasmtime's 48 long-term line ([D39](decisions.md), #1851),
+  whose `component-model-async` is unsupported and whose WASI 0.3 is only the
+  opt-in `p3` feature. The work starts when a wasmtime long-term line supports
+  the async component model (expected with the 60 line, about 2027-08, but the
+  support is the condition, not the number), or earlier only on an owner
+  decision to leave the long-term line (watch row W17). It then needs a specification for the 2.0.0 world itself
+  (async `execute`, streams, and which of the six grants change shape), the
+  `p3` feature beside `p2`, `plugin check` accepting WASI 0.3.x for a 2.x
+  component (it now refuses any WASI other than 0.2.x), the `wasm32-wasip3`
+  target in Umbel's `rust-toolchain.toml`, and every fixture built for both
+  worlds. Retiring the 0.2 worlds is a later owner decision, not part of this
+  plan.
 - **Store traits.** Document store, index, graph, memory store, each with a
   conformance suite; the embedded backend is the reference implementation.
   Version 1 of the first three, per space and synchronous, with the suite in
@@ -456,7 +476,7 @@ sequenceDiagram
 | Observability | OpenTelemetry GenAI semantic conventions: tool-execution spans, trace context from request metadata, agent and session baggage carried into stored records | Debuggable inside harness traces | The conventions are in development; the schema is pinned |
 
 The Umbel workspace therefore declares Rust 1.97, above the `afd` crate's
-1.82 (1.88 with `server`); the repository's pinned toolchain, 1.98, covers
+1.85 (1.88 with `server`); the repository's pinned toolchain, 1.100, covers
 both.
 
 Deliberately absent from the host: any language-model client, any cloud

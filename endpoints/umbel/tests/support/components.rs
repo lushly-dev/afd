@@ -11,15 +11,13 @@
 use std::path::{Path, PathBuf};
 
 /// `<target>/wasm32-wasip2/release/<name>.wasm`, built by `umbel.yml` (and by the command in the
-/// failure message) before the tests. The path comes from the test binary's own location, so it
-/// follows `CARGO_TARGET_DIR`.
+/// failure message) before the tests. The directory is the parent of Cargo's `CARGO_TARGET_TMPDIR`,
+/// which is the target directory unless a separate `build-dir` is configured (then the tests need
+/// `build-dir` and `CARGO_TARGET_DIR` to name the same directory). The test binary's own location
+/// is no guide: Cargo 1.100 moved test binaries from `<target>/debug/deps/` to
+/// `<target>/debug/build/<package>/<hash>/out/`.
 pub fn wasm(name: &str) -> PathBuf {
-    let exe = std::env::current_exe().unwrap();
-    let target = exe
-        .parent()
-        .and_then(Path::parent)
-        .and_then(Path::parent)
-        .unwrap();
+    let target = Path::new(env!("CARGO_TARGET_TMPDIR")).parent().unwrap();
     let path = target
         .join("wasm32-wasip2/release")
         .join(format!("{name}.wasm"));

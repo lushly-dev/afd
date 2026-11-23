@@ -293,15 +293,11 @@ pub fn is_allowed_https_url(url: &Url) -> bool {
     match url.host() {
         Some(Host::Domain(domain)) => {
             let lower = domain.trim_end_matches('.').to_ascii_lowercase();
-            if lower.is_empty()
+            !(lower.is_empty()
                 || lower == "localhost"
                 || lower.ends_with(".localhost")
                 || lower.ends_with(".local")
-                || !lower.contains('.')
-            {
-                return false;
-            }
-            true
+                || !lower.contains('.'))
         }
         Some(Host::Ipv4(v4)) => is_global_v4(v4),
         Some(Host::Ipv6(v6)) => is_global_v6(v6),

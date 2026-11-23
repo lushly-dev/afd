@@ -69,6 +69,37 @@ test('a sweep evicts the builds no build has read, by hash, and incremental data
 	assert.ok(existsSync(join(root, 'debug/umbel')));
 });
 
+test("Cargo 1.100's layout is swept too: one build per build/<package>/<hash>/, and no deps/", (t) => {
+	const root = target(t, {
+		// Read today through its fingerprint: stays.
+		'debug/build/umbel/0123456789abcdef/fingerprint/invoked.timestamp': [0],
+		'debug/build/umbel/0123456789abcdef/out/libumbel-0123456789abcdef.rmeta': [9],
+		// Unread for a week: the whole <hash> directory goes.
+		'debug/build/umbel/fedcba9876543210/fingerprint/invoked.timestamp': [7],
+		'debug/build/umbel/fedcba9876543210/out/plugin_component-fedcba9876543210': [7],
+		'debug/incremental/umbel-1x2y3z/s-abc/dep-graph.bin': [0],
+		'wasm32-wasip2/release/build/hello/aaaaaaaaaaaaaaaa/out/hello-aaaaaaaaaaaaaaaa.wasm': [8],
+		// Integration tests' scratch (CARGO_TARGET_TMPDIR) is not a profile.
+		'tmp/scratch/build/x/bbbbbbbbbbbbbbbb/file': [9],
+		'debug/umbel': [7],
+	});
+	const result = sweepTarget(root, { days: 3, now: NOW });
+	assert.equal(result.evicted, 2);
+	assert.ok(existsSync(join(root, 'debug/build/umbel/0123456789abcdef/out')));
+	for (const gone of [
+		'debug/build/umbel/fedcba9876543210',
+		'debug/incremental',
+		'wasm32-wasip2/release/build/hello/aaaaaaaaaaaaaaaa',
+	])
+		assert.ok(!existsSync(join(root, gone)), gone);
+	assert.ok(existsSync(join(root, 'tmp/scratch/build/x/bbbbbbbbbbbbbbbb/file')));
+	assert.ok(existsSync(join(root, 'debug/umbel')));
+
+	const capped = target(t, { 'debug/build/afd/0123456789abcdef/out/libafd.rmeta': [0, 64 * 1024] });
+	assert.equal(sweepTarget(capped, { days: 3, maxGb: 0, now: NOW }).wiped, true);
+	assert.ok(!existsSync(join(capped, 'debug')), 'the wipe reaches a profile with no deps/');
+});
+
 test('a target directory still over the cap is wiped, keeping its tag', (t) => {
 	const root = target(t, { 'debug/deps/libafd-0123456789abcdef.rlib': [0, 64 * 1024] });
 	const result = sweepTarget(root, { days: 3, maxGb: 0, now: NOW });
