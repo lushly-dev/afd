@@ -626,6 +626,7 @@ class TaskRuntime:
                 credentials=task_credentials,
                 report_progress=report_progress,
                 cancel=running.cancel_event,
+                _output_budget_ask=getattr(context, "_output_budget_ask", None),
             )
             token_deadline_ms = (
                 expires_at_seconds * 1000 if expires_at_seconds is not None else None

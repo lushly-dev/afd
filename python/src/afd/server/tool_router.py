@@ -12,6 +12,7 @@ from typing import Any, Literal
 from afd.core.actor import Actor
 from afd.core.batch import create_failed_batch_result
 from afd.core.commands import CommandContext, CommandDefinition
+from afd.core.output_budget import current_output_budget_ask
 from afd.core.pipeline import create_pipeline_failure
 from afd.core.result import CommandResult, error, failure as command_failure
 from afd.server.approval_relay import (
@@ -130,6 +131,11 @@ def create_tool_router(deps: ToolRouterDeps):
         outcome = current_hook_outcome()
         hook_ctx = outcome.context if outcome is not None else None
         if hook_ctx is not None:
+            budget_ask = (
+                hook_ctx._output_budget_ask
+                if hook_ctx._output_budget_ask is not None
+                else current_output_budget_ask()
+            )
             return CommandContext(
                 trace_id=hook_ctx.trace_id or new_trace_id(prefix),
                 timeout=hook_ctx.timeout,
@@ -147,6 +153,7 @@ def create_tool_router(deps: ToolRouterDeps):
                 random=hook_ctx.random,
                 approval=hook_ctx.approval,
                 credentials=admitted,
+                _output_budget_ask=budget_ask,
             )
         return CommandContext(
             trace_id=new_trace_id(prefix),
@@ -158,6 +165,7 @@ def create_tool_router(deps: ToolRouterDeps):
             },
             actor=copy.copy(default_actor),
             credentials=admitted,
+            _output_budget_ask=current_output_budget_ask(),
         )
 
     def not_in_context(name: str, active_context: str | None) -> CommandResult[Any]:

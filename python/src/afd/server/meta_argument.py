@@ -18,6 +18,7 @@ from typing import Any
 
 from afd.core.builtin_names import AFD_META_TOOL_NAMES
 from afd.core.errors import CommandError
+from afd.core.output_budget import AFD_OUTPUT_BUDGET_META_KEY
 from afd.server.bootstrap.afd_context import AFD_CONTEXT_META_KEY
 from afd.server.context_fields import ContextField
 
@@ -37,7 +38,13 @@ META_ARGUMENT_DESCRIPTION = (
 
 def meta_argument_keys(fields: Sequence[ContextField] | None) -> frozenset[str]:
     """The keys a ``meta`` argument may carry on a server with these declared fields."""
-    return frozenset([AFD_CONTEXT_META_KEY, *(field.meta for field in fields or ())])
+    return frozenset(
+        [
+            AFD_CONTEXT_META_KEY,
+            AFD_OUTPUT_BUDGET_META_KEY,
+            *(field.meta for field in fields or ()),
+        ]
+    )
 
 
 @dataclass(frozen=True)

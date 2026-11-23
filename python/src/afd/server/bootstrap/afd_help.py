@@ -43,6 +43,7 @@ class CommandInfo(WireModel):
     contexts: Optional[List[str]] = None
     examples: Optional[List[dict[str, Any]]] = None
     output_schema: Optional[dict[str, Any]] = None
+    output_budget: Optional[dict[str, int]] = None
     first_class: Optional[bool] = None
 
 
@@ -118,6 +119,11 @@ async def _afd_help_handler(
             info.undoable = command.undoable
             info.examples = _serialize_examples(command.examples) if command.examples else None
             info.output_schema = command.returns
+            info.output_budget = (
+                command.output_budget.to_wire_dict()
+                if command.output_budget is not None
+                else None
+            )
 
         command_infos.append(info)
         category = command.category or "uncategorized"

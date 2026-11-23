@@ -52,8 +52,13 @@ def payload(result: Any) -> dict[str, Any]:
 
 
 def test_keys_are_the_context_key_and_the_declared_fields():
-    assert meta_argument_keys(FIELDS) == {"dev.afd/context", "dev.example/scope", "dev.example/locale"}
-    assert meta_argument_keys(None) == {"dev.afd/context"}
+    assert meta_argument_keys(FIELDS) == {
+        "dev.afd/context",
+        "dev.afd/outputBudget",
+        "dev.example/scope",
+        "dev.example/locale",
+    }
+    assert meta_argument_keys(None) == {"dev.afd/context", "dev.afd/outputBudget"}
 
 
 def test_other_tools_and_calls_without_meta_are_unchanged():

@@ -58,7 +58,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 | 0. `spec/` | Done (#630) | New [`spec/output-budgets.md`](../../../../spec/output-budgets.md) and [`spec/output-budgets.json`](../../../../spec/output-budgets.json); amendments to `command-metadata.md`, `context-fields.md`, `journal.md`, `error-codes.md`, `protocol-conformance.md`, `vectors/README.md` and `CHANGELOG.md`; parity rows Planned. `spec/VERSION` stays `1.0-rc` | Merged as `f1f8ff79` |
 | 1. Rust | Done (Umbel phase 2 step 0b) | `packages/rust` `src/output_budget.rs`, `tests/output_budget.rs`; the error code in all four languages | Merge |
 | 2. TypeScript | Not started | None | Step 1 is done: the error-code constant `ErrorCodes.OUTPUT_BUDGET_EXCEEDED` exists |
-| 3. Python | Not started | None | Step 1 is done: `ErrorCodes.OUTPUT_BUDGET_EXCEEDED` exists |
+| 3. Python | Done (#2186) | `python/src/afd/core/output_budget.py`, `python/tests/test_output_budget.py`, `python/tests/test_output_budget_mcp.py` (all cases of `spec/output-budgets.json` in process and over Streamable HTTP, SSE and stdio in both MCP eras); `#1990` | Merge |
 | 4. C++ | Not started | None | Step 1 is done: `error_codes::OUTPUT_BUDGET_EXCEEDED` exists; MCP after parity D2 ([#341](https://github.com/lushly-dev/afd/issues/341)) |
 | 5. Vectors, `meta-tools.json`, conformance rows, skills | Not started | None | Steps 1 to 4 |
 

@@ -19,6 +19,7 @@ Example:
 """
 
 import asyncio
+import dataclasses
 from dataclasses import dataclass, field
 import logging
 import re
@@ -38,6 +39,15 @@ from typing import (
 from afd.core.actor import Actor, with_context_defaults
 from afd.core.approval import ApprovalPolicy, approval_mode
 from afd.core.clock import Clock, RandomSource
+from afd.core.output_budget import (
+    AFD_OUTPUT_BUDGET_META_KEY,
+    OutputBudget,
+    apply_output_budget,
+    check_output_budget,
+    coerce_budgeted_result,
+    normalize_ask_option,
+    validate_output_budget_declaration,
+)
 from afd.core.result import CommandResult, execution_failure
 from afd.core.schema_registration import starts_resource
 
@@ -194,8 +204,14 @@ class CommandContext:
     report_progress: Optional[Callable[[str], None]] = None
     cancel: Optional[asyncio.Event] = None
     credentials: Optional[Any] = None
+    output_budget: Optional[int] = None
     _direct_approval: Any = field(default=None, repr=False, compare=False)
     _direct_allow: Any = field(default=None, repr=False, compare=False)
+    _output_budget_ask: Any = field(default=None, repr=False, compare=False)
+
+    def with_output_budget_ask(self, max_bytes: Any) -> "CommandContext":
+        """Return a copy of this context carrying an output budget ask (B2)."""
+        return dataclasses.replace(self, _output_budget_ask=normalize_ask_option(max_bytes))
 
 
 # Type alias for command handler functions
@@ -292,6 +308,7 @@ class CommandDefinition:
     approval: Optional[ApprovalPolicy] = None
     title: Optional[str] = None
     task: Optional[TaskSupport] = None
+    output_budget: Optional[OutputBudget] = None
 
 
 class CommandRegistry(Protocol):
@@ -354,6 +371,8 @@ class CommandRegistry(Protocol):
         name: str,
         input: Any,
         context: Optional[CommandContext] = None,
+        *,
+        output_budget: Any = None,
     ) -> CommandResult[Any]:
         """Execute a command by name.
         
@@ -393,6 +412,9 @@ class _CommandRegistryImpl:
             approval=command.approval,
             confirmation_mode=getattr(command, "confirmation_mode", None),
         )
+        command.output_budget = validate_output_budget_declaration(
+            command.name, command.output_budget
+        )
         self._commands[command.name] = command
 
     def get(self, name: str) -> Optional[CommandDefinition]:
@@ -412,6 +434,8 @@ class _CommandRegistryImpl:
         name: str,
         input: Any,
         context: Optional[CommandContext] = None,
+        *,
+        output_budget: Any = None,
     ) -> CommandResult[Any]:
         from afd.core.direct_allow import _is_allowed, _not_allowed
         from afd.core.result import failure
@@ -493,9 +517,20 @@ class _CommandRegistryImpl:
                     suggestion="Check the input against the command's registered schema and retry",
                 ))
 
+        # Handlers always get a context with a clock and a random source.
+        exec_context = with_context_defaults(context)
+        if output_budget is not None:
+            exec_context._output_budget_ask = normalize_ask_option(output_budget)
+        effective_budget, invalid_budget = apply_output_budget(command, exec_context)
+        if invalid_budget is not None:
+            return invalid_budget
+
         try:
-            # Handlers always get a context with a clock and a random source.
-            result = await command.handler(input, with_context_defaults(context))
+            result = await command.handler(input, exec_context)
+            if effective_budget is not None:
+                normalized = coerce_budgeted_result(result)
+                if normalized is not None:
+                    result = check_output_budget(command, effective_budget, normalized)
             return result
         except Exception as exc:
             logger.error("Command '%s' raised an unhandled exception", name, exc_info=exc)
@@ -628,6 +663,10 @@ def command_to_mcp_tool(command: CommandDefinition) -> dict[str, Any]:
         meta["contexts"] = list(command.contexts)
     if command.task is not None:
         meta["task"] = command.task
+    if command.output_budget is not None:
+        budget = validate_output_budget_declaration(command.name, command.output_budget)
+        if budget is not None:
+            meta[AFD_OUTPUT_BUDGET_META_KEY] = budget.to_wire_dict()
 
     if meta:
         tool["_meta"] = meta

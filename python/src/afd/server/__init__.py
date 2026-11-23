@@ -144,6 +144,11 @@ from afd.server.auth_rules import (
     is_verified_credentials,
     parse_scope_claim,
 )
+from afd.core.output_budget import (
+    AFD_OUTPUT_BUDGET_META_KEY,
+    MAX_OUTPUT_BUDGET_BYTES,
+    OutputBudget,
+)
 from afd.server.context_fields import (
     AFD_CONTEXT_FIELDS_META_KEY,
     ContextField,
@@ -319,6 +324,10 @@ __all__ = [
     "jwks_key_source",
     "names_access_token",
     "parse_scope_claim",
+    # Output budgets
+    "AFD_OUTPUT_BUDGET_META_KEY",
+    "MAX_OUTPUT_BUDGET_BYTES",
+    "OutputBudget",
     # Declared context fields
     "AFD_CONTEXT_FIELDS_META_KEY",
     "ContextField",

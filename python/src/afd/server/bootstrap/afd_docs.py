@@ -86,6 +86,13 @@ async def _afd_docs_handler(
                 lines.append(f"**Approval:** {approval}")
                 lines.append("")
 
+            if command.output_budget is not None:
+                lines.append(
+                    f"**Output budget:** default {command.output_budget.default_bytes} bytes, "
+                    f"max {command.output_budget.max_bytes} bytes"
+                )
+                lines.append("")
+
             if command.requires:
                 lines.append(f"**Requires:** {', '.join(f'`{name}`' for name in command.requires)}")
                 lines.append("")
