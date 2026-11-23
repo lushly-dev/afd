@@ -31,6 +31,7 @@
 #include "detail/hmac.hpp"
 #include "detail/output_budget.hpp"
 #include "detail/sha256.hpp"
+#include "mcp_stdio/resources.hpp"
 #include "tools.hpp"
 
 namespace afd::mcp {
@@ -140,9 +141,17 @@ Json confirm_property() {
                                 "The server asks for confirmation when it is missing."}};
 }
 
-/// Whether a command's own input schema declares a `confirm` property.
+/// Whether a command's validation input schema declares a `confirm` property.
 bool declares_confirm_input(const CommandDefinition& command) {
     const Json properties = object_member(command.input_schema, "properties");
+    return properties.contains("confirm");
+}
+
+/// Whether a command's advertised input schema already declares a `confirm` property.
+bool advertises_confirm_input(const CommandDefinition& command) {
+    const Json& schema =
+        command.advertised_input_schema ? *command.advertised_input_schema : command.input_schema;
+    const Json properties = object_member(schema, "properties");
     return properties.contains("confirm");
 }
 
@@ -350,9 +359,13 @@ struct StdioServer::State {
     SystemRandom random;
     // The 2025 connection's context stack (contexts configured).
     std::shared_ptr<ContextStack> session = std::make_shared<ContextStack>();
+    // Validated opt-in resources and Agent Skills catalog (R1-R6, S1-S7).
+    surface::ResourceService resource_service;
 
-    State(const CommandRegistry& source, StdioServerOptions settings, std::string secret)
-        : registry(source), options(std::move(settings)), key(std::move(secret)) {}
+    State(const CommandRegistry& source, StdioServerOptions settings, std::string secret,
+          surface::ResourceService resources)
+        : registry(source), options(std::move(settings)), key(std::move(secret)),
+          resource_service(std::move(resources)) {}
 
     [[nodiscard]] std::int64_t now() const { return options.clock->wall_ms(); }
 
@@ -376,6 +389,27 @@ struct StdioServer::State {
             !options.contexts.empty() && (options.tool_strategy == ToolStrategy::individual ||
                                           options.tool_strategy == ToolStrategy::grouped);
         return options.tools_list_ttl_ms.value_or(varies ? 0 : tools_list_ttl_ms);
+    }
+
+    /// Cache TTL for resources and skills results (spec/mcp-resources.md, R3): contexts do not
+    /// lower it to 0 because resources and skills never vary by AFD context.
+    [[nodiscard]] std::int64_t resources_ttl_ms() const {
+        return options.tools_list_ttl_ms.value_or(tools_list_ttl_ms);
+    }
+
+    [[nodiscard]] Json server_capabilities() const {
+        Json caps{{"tools", {{"listChanged", false}}}};
+        if (resource_service.has_resources()) {
+            caps["resources"] = Json::object();
+        }
+        if (resource_service.has_skills()) {
+            Json ext = Json::object();
+            if (resource_service.has_directory_read()) {
+                ext["directoryRead"] = true;
+            }
+            caps["extensions"] = Json{{std::string(skills_extension_id), std::move(ext)}};
+        }
+        return caps;
     }
 
     [[nodiscard]] std::string default_instructions() const {
@@ -457,7 +491,7 @@ struct StdioServer::State {
     [[nodiscard]] Json discover_result() const {
         return {{"resultType", "complete"},
                 {"supportedVersions", Json::array({std::string(modern_version)})},
-                {"capabilities", {{"tools", {{"listChanged", false}}}}},
+                {"capabilities", server_capabilities()},
                 {"_meta", {{std::string(server_info_key), server_info()}}},
                 {"instructions", options.instructions.value_or(default_instructions())},
                 {"ttlMs", ttl_ms()},
@@ -480,7 +514,7 @@ struct StdioServer::State {
         legacy_version = version;
         legacy_capabilities = object_member(params, "capabilities");
         return {{"protocolVersion", version},
-                {"capabilities", {{"tools", {{"listChanged", false}}}}},
+                {"capabilities", server_capabilities()},
                 {"serverInfo", server_info()}};
     }
 
@@ -495,7 +529,7 @@ struct StdioServer::State {
     /// Whether a command's tool advertises the `confirm` acknowledgement.
     [[nodiscard]] bool accepts_confirm(const CommandDefinition& command) const {
         return options.confirmations == ConfirmationMode::enforce && command.confirm_prompt &&
-               !declares_confirm_input(command);
+               !advertises_confirm_input(command);
     }
 
     /// The command tool of `command`, as the individual strategy lists it.
@@ -505,6 +539,9 @@ struct StdioServer::State {
             Json& schema = tool["inputSchema"];
             if (!schema.is_object()) {
                 schema = Json{{"type", "object"}};
+            }
+            if (!schema.contains("properties") || !schema["properties"].is_object()) {
+                schema["properties"] = Json::object();
             }
             schema["properties"]["confirm"] = confirm_property();
         }
@@ -1692,6 +1729,78 @@ struct StdioServer::State {
                     call_tool(routed, info, modern ? ClientRequester{} : ask, cancellation, scope);
                 return response(id, modern ? modern_result(std::move(result)) : std::move(result));
             }
+            const auto resource_reply = [&](surface::RpcOutcome outcome) -> std::string {
+                if (!outcome.ok) {
+                    return error_response(id, outcome.error_code, std::move(outcome.error_message),
+                                          std::move(outcome.error_data));
+                }
+                if (!modern) {
+                    return response(id, std::move(outcome.result));
+                }
+                outcome.result["ttlMs"] = resources_ttl_ms();
+                outcome.result["cacheScope"] = "public";
+                return response(id, modern_result(std::move(outcome.result)));
+            };
+            const auto reject_cursor = [&]() -> std::optional<std::string> {
+                if (!params.is_null() && !params.is_object()) {
+                    return error_response(id, -32602, "Invalid params: expected an object");
+                }
+                if (params.is_object() && params.contains("cursor")) {
+                    return error_response(id, -32602, "Pagination cursors are not supported");
+                }
+                return std::nullopt;
+            };
+            const auto require_uri = [&]() -> Expected<std::string_view, std::string> {
+                if (!params.is_object()) {
+                    return unexpected(error_response(
+                        id, -32602, "Invalid params: expected an object with 'uri'"));
+                }
+                const auto uri_it = params.find("uri");
+                if (uri_it == params.end() || !uri_it->is_string()) {
+                    return unexpected(
+                        error_response(id, -32602, "Invalid params: 'uri' must be a string"));
+                }
+                return std::string_view(uri_it->get_ref<const std::string&>());
+            };
+            if (method == "resources/list" && resource_service.has_resources()) {
+                if (auto err = reject_cursor()) {
+                    return err;
+                }
+                return resource_reply(resource_service.list_resources());
+            }
+            if (method == "resources/read" && resource_service.has_resources()) {
+                auto uri = require_uri();
+                if (!uri) {
+                    return std::move(uri.error());
+                }
+                return resource_reply(resource_service.read_resource(*uri));
+            }
+            if (method == "resources/templates/list" && resource_service.has_resources()) {
+                if (auto err = reject_cursor()) {
+                    return err;
+                }
+                return resource_reply(resource_service.list_templates());
+            }
+            if (method == "skills/list" && resource_service.has_skills()) {
+                if (auto err = reject_cursor()) {
+                    return err;
+                }
+                return resource_reply(resource_service.list_skills());
+            }
+            if (method == "skills/get" && resource_service.has_skills()) {
+                auto uri = require_uri();
+                if (!uri) {
+                    return std::move(uri.error());
+                }
+                return resource_reply(resource_service.get_skill(*uri));
+            }
+            if (method == "resources/directory/read" && resource_service.has_directory_read()) {
+                auto uri = require_uri();
+                if (!uri) {
+                    return std::move(uri.error());
+                }
+                return resource_reply(resource_service.read_directory(*uri));
+            }
             return error_response(id, -32601, "Method not found: " + method);
         };
 #if AFD_HAS_EXCEPTIONS
@@ -1855,12 +1964,19 @@ Expected<std::unique_ptr<StdioServer>> StdioServer::create(const CommandRegistry
                 "same list to both"));
         }
     }
+    auto resource_service =
+        surface::ResourceService::create(std::move(options.resources), std::move(options.skills));
+    if (!resource_service) {
+        return unexpected(resource_service.error());
+    }
+    options.resources.reset();
+    options.skills.reset();
     if (!options.clock) {
         options.clock = std::make_shared<SystemClock>();
     }
     options.state_secret.clear();
-    return std::unique_ptr<StdioServer>(
-        new StdioServer(std::make_unique<State>(registry, std::move(options), std::move(secret))));
+    return std::unique_ptr<StdioServer>(new StdioServer(std::make_unique<State>(
+        registry, std::move(options), std::move(secret), std::move(*resource_service))));
 }
 
 StdioServer::StdioServer(std::unique_ptr<State> state) : state_(std::move(state)) {}

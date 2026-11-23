@@ -101,6 +101,88 @@ using GroupBy = std::function<std::optional<std::string>(const CommandDefinition
 /// The `_meta` key a client sets to `true` to acknowledge a confirm-gated call.
 inline constexpr std::string_view confirm_meta_key = "dev.afd/confirm";
 
+/// The `_meta` key the server sets on a resource entry to carry its SHA-256 digest
+/// (spec/mcp-resources.md, R6).
+inline constexpr std::string_view digest_meta_key = "dev.afd/digest";
+
+/// The MCP Skills extension identifier (spec/mcp-resources.md, S1; SEP-2640).
+inline constexpr std::string_view skills_extension_id = "io.modelcontextprotocol/skills";
+
+/// One entry of `resources/list` (spec/mcp-resources.md, R2).
+struct ResourceEntry {
+    /// Required absolute RFC 3986 URI (scheme, no whitespace or control characters).
+    std::string uri;
+    /// Required non-empty display name.
+    std::string name;
+    std::optional<std::string> title;
+    std::optional<std::string> description;
+    std::optional<std::string> mime_type;
+    /// Raw byte length; required when content bytes are supplied up front.
+    std::optional<std::uint64_t> size;
+    /// Optional MCP `icons` array, passed through unchanged.
+    std::optional<Json> icons;
+    /// Optional MCP `annotations` object, passed through unchanged.
+    std::optional<Json> annotations;
+    /// Optional extra `_meta` entries (T2 key rule; `ui` is not allowed on resource entries).
+    std::optional<Json> meta;
+};
+
+/// Content returned by a `ResourceProvider::read` callback (spec/mcp-resources.md, R4).
+struct ResourceContents {
+    /// Raw bytes; emitted as `text` if valid UTF-8, otherwise padded RFC 4648 base64 `blob`.
+    std::string bytes;
+    /// Optional fallback MIME type (used when the listed entry omits `mime_type`).
+    std::optional<std::string> mime_type;
+    /// Optional `_meta` on the read content item (T2 key rule; `ui` is allowed here).
+    std::optional<Json> meta;
+};
+
+/// A static resource with its content bytes supplied up front (`size` and `dev.afd/digest` are
+/// computed automatically and checked at startup).
+struct StaticResource {
+    ResourceEntry entry;
+    std::string bytes;
+    /// Optional `_meta` on the `resources/read` content item (`ui` is allowed here).
+    std::optional<Json> content_meta;
+};
+
+/// Resource provider for `StdioServerOptions::resources` (spec/mcp-resources.md, R1-R6).
+struct ResourceProvider {
+    /// Static resources whose bytes are known up front.
+    std::vector<StaticResource> static_resources;
+    /// Optional dynamic listing callback; validated at startup and on every `resources/list`.
+    std::function<Expected<std::vector<ResourceEntry>>()> list;
+    /// Optional dynamic read callback; returns `std::nullopt` when the URI is not found.
+    std::function<Expected<std::optional<ResourceContents>>(std::string_view uri)> read;
+};
+
+/// One file inside a skill (spec/mcp-resources.md, S2).
+struct SkillFile {
+    /// Relative `/`-separated UTF-8 path (for example `"SKILL.md"`, `"references/STYLE.md"`).
+    std::string path;
+    /// Raw file bytes.
+    std::string bytes;
+};
+
+/// One Agent Skill in a `SkillCatalog` (spec/mcp-resources.md, S2).
+struct Skill {
+    /// `/`-separated skill path whose last segment equals frontmatter `name`.
+    std::string path;
+    /// The skill's files (must include `"SKILL.md"`).
+    std::vector<SkillFile> files;
+};
+
+/// Loads a skill from a directory on disk (spec/mcp-resources.md, S2): refuses symbolic links
+/// that leave the skill directory, non-regular files, and enforces the 512-file and 16 MiB caps.
+Expected<Skill> skill_from_directory(std::string_view skill_path, std::string_view directory);
+
+/// An ordered, fixed catalog of Agent Skills (spec/mcp-resources.md, S1-S7).
+struct SkillCatalog {
+    std::vector<Skill> skills;
+    /// Enable `resources/directory/read` and advertise `directoryRead: true` (S6). Off by default.
+    bool directory_read = false;
+};
+
 /// The request a `tools/call` context is built for, as `StdioServerOptions::context_hook` sees it.
 struct RequestInfo {
     /// The negotiated (2025) or requested (2026-07-28) protocol version.
@@ -165,6 +247,14 @@ struct StdioServerOptions {
     /// fails), so a host using a blocking input stream can close or unblock `in` before the
     /// reader thread is joined.
     std::function<void()> on_shutdown;
+    /// Optional resource provider (spec/mcp-resources.md, R1-R6). When set (or when `skills` is
+    /// set), the server declares `resources` and serves `resources/*`.
+    std::optional<ResourceProvider> resources;
+    /// Optional Agent Skills catalog (spec/mcp-resources.md, S1-S7). When set, the server
+    /// declares `resources` and `extensions["io.modelcontextprotocol/skills"]`, validates every
+    /// skill at startup, and serves `skills/list`, `skills/get`, skill files as resources, and
+    /// (when `directory_read` is true) `resources/directory/read`.
+    std::optional<SkillCatalog> skills;
 };
 
 /// Sends a request (`{"method", "params"}`) to the client and returns its `result`, or

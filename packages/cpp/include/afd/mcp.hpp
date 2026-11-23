@@ -22,12 +22,13 @@ bool is_mcp_exposed(const CommandDefinition& command) noexcept;
 std::string_view execution_time_name(ExecutionTime time) noexcept;
 
 /// The per-command `_meta` of a tool (spec/command-metadata.md, "Surfaces";
-/// spec/output-budgets.md, B1): `category`, `requires`, `mutation`, `destructive`, `undoable`,
-/// `approval`, `examples`, `outputSchema`, `contexts` and `dev.afd/outputBudget`, each only when
-/// the command sets it (meta-tools and `afd-context-*` tools never emit `dev.afd/outputBudget`).
-/// C++ booleans have no unset state, so `mutation`, `destructive` and `undoable` are reported when
-/// true. Never `confirmPrompt` or `title`, which are display text. `std::nullopt` when nothing is
-/// set.
+/// spec/output-budgets.md, B1; spec/mcp-resources.md, T1): extra `tool_meta` entries (validated
+/// against T2 and omitted on meta-tools and `afd-context-*` tools), plus `category`, `requires`,
+/// `mutation`, `destructive`, `undoable`, `approval`, `examples`, `outputSchema`, `contexts` and
+/// `dev.afd/outputBudget`, each only when the command sets it (meta-tools and `afd-context-*`
+/// tools never emit `dev.afd/outputBudget`). C++ booleans have no unset state, so `mutation`,
+/// `destructive` and `undoable` are reported when true. Never `confirmPrompt` or `title`, which
+/// are display text. `std::nullopt` when nothing is set.
 std::optional<Json> command_tool_meta(const CommandDefinition& command);
 
 /// MCP tool annotations (spec/command-metadata.md, "Annotations"): a mutation reports
@@ -36,8 +37,9 @@ std::optional<Json> command_tool_meta(const CommandDefinition& command);
 /// `readOnlyHint: true`.
 std::optional<Json> command_tool_annotations(const CommandDefinition& command);
 
-/// The MCP tool for `command`: `name`, `title` (only when set), `description`, `inputSchema`,
-/// `annotations` and `_meta` (each only when there is one).
+/// The MCP tool for `command`: `name`, `title` (only when set), `description`, `inputSchema`
+/// (`advertised_input_schema` when set, else `input_schema`), `annotations` and `_meta` (each
+/// only when there is one).
 Json command_to_mcp_tool(const CommandDefinition& command);
 
 /// The top-level MCP `outputSchema` of a command tool (spec/command-metadata.md, "Structured

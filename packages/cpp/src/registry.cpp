@@ -10,6 +10,7 @@
 #include "detail/approval_admission.hpp"
 #include "detail/context_fields.hpp"
 #include "detail/exceptions.hpp"
+#include "detail/meta_keys.hpp"
 #include "detail/output_budget.hpp"
 
 namespace afd {
@@ -212,6 +213,18 @@ std::optional<std::string> CommandRegistry::register_command(CommandDefinition c
     if (command.output_budget) {
         if (auto problem = command.output_budget->validate()) {
             return "Command '" + command.name + "' has an invalid outputBudget: " + *problem;
+        }
+    }
+    if (command.tool_meta) {
+        if (auto problem = detail::validate_meta_object("Command '" + command.name + "'",
+                                                        *command.tool_meta, true)) {
+            return problem;
+        }
+    }
+    if (command.advertised_input_schema) {
+        if (auto problem = detail::validate_advertised_input_schema(
+                command.name, *command.advertised_input_schema)) {
+            return problem;
         }
     }
     auto schema = CompiledSchema::compile(command.input_schema);

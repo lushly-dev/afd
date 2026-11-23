@@ -271,7 +271,8 @@ void document(std::vector<std::string>& lines, const CommandDefinition& command)
         lines.push_back("**Approval:** " + std::string(approval_mode_name(*mode)));
         lines.emplace_back();
     }
-    const auto parameters = parameters_of(command.input_schema);
+    const auto parameters = parameters_of(
+        command.advertised_input_schema ? *command.advertised_input_schema : command.input_schema);
     if (!parameters.empty()) {
         lines.emplace_back("**Parameters:**");
         lines.emplace_back();
@@ -341,7 +342,9 @@ CommandResult afd_schema(const CommandRegistry& registry, const Json& input,
     for (const auto& command : describable(registry, context)) {
         schemas.push_back(Json{{"name", command->definition.name},
                                {"description", command->definition.description},
-                               {"inputSchema", command->definition.input_schema}});
+                               {"inputSchema", command->definition.advertised_input_schema
+                                                   ? *command->definition.advertised_input_schema
+                                                   : command->definition.input_schema}});
     }
     const std::size_t count = schemas.size();
     if (string_or_empty(input, "format") == "typescript") {
