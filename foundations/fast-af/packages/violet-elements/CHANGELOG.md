@@ -33,6 +33,17 @@
 - Type-check component specs in CI and local verify; type segment queries correctly. Stories are excluded from this check and type-checked separately by Specimen.
 - Run four stories at once in `test:stories` (Specimen's `test.workers`, default 2), for both the story contract and the pack check. No published file changes.
 
+## 0.2.0-preview.5
+
+### Minor Changes
+
+- [#2164](https://github.com/lushly-dev/afd/pull/2164) [`ea643eb`](https://github.com/lushly-dev/afd/commit/ea643eb8ac14adabfd1901d95080ee45607bf940) Thanks [@Falkicon](https://github.com/Falkicon)! - Fix four `violet-elements` bugs:
+
+  - **Remaining field borders >= 3:1 ([#657](https://github.com/lushly-dev/afd/issues/657)):** draw resting, hover and focus borders from `color.field.border`, `color.field.border.hover` and `color.field.border.focus` over `color.field.background` in the color-picker hex input, the four data-grid picker search inputs (`pill-select`, `reference-picker`, `persona-picker`, `multi-picker`) and the `violet-file-upload` surface/dropzone (and reflect `dragActive` to `data-drag-active` via `dragActiveChanged()`).
+  - **Active option row styling and contrast ([#1582](https://github.com/lushly-dev/afd/issues/1582)):** reflect `active` as a boolean host attribute on `violet-option`, expose `--violet-option-active-background` (taking precedence over selected and hover fills when set) and `--violet-option-active-ring` (inheritable from host/ancestors via an internal `--_option-active-ring` default hook), raise the active row ring in `violet-select`, `violet-combobox` and `violet-listbox` to full `color.focus.ring` at `--size-focus-ring-width` (inherited through `violet-option-group` too), and sync the active option on `VioletSelect.show()` so active rows meet WCAG 1.4.11 (>= 3:1) in every preset.
+  - **Narrow column shrink ([#1587](https://github.com/lushly-dev/afd/issues/1587)):** set `grid-template-columns: minmax(0, 1fr)` and `min-inline-size: 0` on `:host`, `.field`, `.control-shell` and `.trigger`/`.control-frame` in `violet-select` and `violet-combobox` (matching `violet-text-field` and `violet-text-area`) so all four fields shrink inside narrow CSS grid columns without overflowing.
+  - **Single-file bundle TDZ ([#2072](https://github.com/lushly-dev/afd/issues/2072)):** defer `import("./violet-theme-builtin")` by a microtask inside `loadVioletBuiltInTheme()`, with a one-shot macrotask retry when an inlined single-file bundle's built-in module is still uninitialized across multiple top-level `await FASTElement.define(...)` calls (`inlineDynamicImports: true` / `codeSplitting: false`).
+
 ## 0.2.0-preview.4
 
 ### Minor Changes
