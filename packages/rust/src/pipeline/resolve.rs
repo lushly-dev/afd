@@ -7,16 +7,21 @@ use std::sync::OnceLock;
 
 use super::*;
 
+/// JavaScript's `\s` (ECMAScript WhiteSpace and LineTerminator, 25 code points;
+/// `spec/pipeline-variables.md`, #1962). Enumerated explicitly because Rust `regex`'s
+/// Unicode `\s` includes U+0085 (NEL) and omits U+FEFF (BOM).
+const JS_WHITESPACE: &str = r"\t\n\x0B\x0C\r \u{00A0}\u{1680}\u{2000}-\u{200A}\u{2028}\u{2029}\u{202F}\u{205F}\u{3000}\u{FEFF}";
+
 /// The complete reference grammar; compiled once.
 ///
 /// Groups: 1 = `prev`/`first`/`input`, 2 = step index, 3 = step alias, 4 = path.
 fn reference_pattern() -> &'static Regex {
     static PATTERN: OnceLock<Regex> = OnceLock::new();
     PATTERN.get_or_init(|| {
-        Regex::new(
-            r"^\$(?:(prev|first|input)|steps\[([0-9]+)\]|steps\.([^.\[\]\s]+))((?:\.[^.\[\]\s]+(?:\[[0-9]+\])?)*)$",
-        )
-        .expect("reference regex should be valid")
+        let pattern = format!(
+            r"^\$(?:(prev|first|input)|steps\[([0-9]+)\]|steps\.([^.\[\]{JS_WHITESPACE}]+))((?:\.[^.\[\]{JS_WHITESPACE}]+(?:\[[0-9]+\])?)*)$"
+        );
+        Regex::new(&pattern).expect("reference regex should be valid")
     })
 }
 
@@ -24,7 +29,8 @@ fn reference_pattern() -> &'static Regex {
 fn path_segment_pattern() -> &'static Regex {
     static PATTERN: OnceLock<Regex> = OnceLock::new();
     PATTERN.get_or_init(|| {
-        Regex::new(r"^([^.\[\]\s]+)(?:\[([0-9]+)\])?$").expect("path segment regex should be valid")
+        let pattern = format!(r"^([^.\[\]{JS_WHITESPACE}]+)(?:\[([0-9]+)\])?$");
+        Regex::new(&pattern).expect("path segment regex should be valid")
     })
 }
 

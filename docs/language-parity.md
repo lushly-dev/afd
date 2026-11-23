@@ -45,7 +45,7 @@ Versions below describe repository manifests. Registry checks independently conf
 | Check | What it proves | TS | Python | Rust | C++ |
 |---|---|---|---|---|---|
 | `spec/wire` round-trip, 6 fixtures, validated against `spec/schema/*.json` (#1733) | Wire shapes and JSON Schema 2020-12 conformance (plus `output-envelope.json` parity) | Yes (generator) | Yes | Yes | Yes |
-| `spec/vectors/pipeline-variables.json`, 51 references and 27 conditions | Pipeline reference and `when` behavior | Yes (generator) | Yes | Yes | Yes |
+| `spec/vectors/pipeline-variables.json`, 59 references and 35 conditions | Pipeline reference and `when` behavior | Yes (generator) | Yes | Yes | Yes |
 | `spec/vectors/batch-controls.json`, 24 batch and 25 pipeline cases | `stopOnError`, `parallelism`, deadlines, `continueOnFailure`, `UNSUPPORTED_OPTION` and envelope validation in the batch and pipeline executors | Yes (generator) | Yes, through `afd-batch` and `afd-pipe` | Yes | Yes |
 | `spec/vectors/error-codes.json`, 50 codes (`{ code, retryable, profile }`, `hostPrefix: "HOST_"`; #1740) | The shared `ErrorCodes` and `ERROR_CODE_CATALOG` of `spec/error-codes.md` (33 core + 17 profile codes) | Yes | Yes | Yes | Yes |
 | `spec/vectors/dispatch.json`, 19 cases (16 registry + 3 MCP; #1736) | Single-command dispatch order (`spec/dispatch.md`): lookup, exposure, context, confirmation, input/context-field validation, middleware, approval, handler, stamping and hooks | Yes | Yes (skips `hooks` gap #1551) | Yes (skips `stamping`/`hooks` #546; MCP cases with `server` feature) | Yes (MCP cases with `AFD_BUILD_MCP_STDIO`) |

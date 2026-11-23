@@ -278,3 +278,52 @@ TEST_CASE("public resolver leaves indices outside the platform range unresolved"
         CHECK_FALSE(afd::resolve_variable("$steps[" + index + "]", context).has_value());
     }
 }
+
+TEST_CASE("keys and aliases match JavaScript whitespace (spec/pipeline-variables.md, #1962)") {
+    afd::Json deep = afd::Json::object();
+    for (int i = 0; i < 64; ++i) {
+        deep = afd::Json{{"a", deep}};
+    }
+
+    // U+001C..U+001F and U+0085 (NEL) are not JavaScript whitespace, so they resolve and enforce
+    // expansion limits.
+    for (const std::string ch : {"\x1C", "\x1D", "\x1E", "\x1F", "\xC2\x85"}) {
+        const std::string key = "a" + ch + "b";
+        const std::string deep_key = "deep" + ch + "k";
+        const std::string alias = "step" + ch + "alias";
+        afd::PipelineContext context;
+        context.steps.push_back(
+            step(0, afd::StepStatus::success, afd::Json{{key, "ok"}, {deep_key, deep}}, alias));
+        context.previous_success = 0;
+
+        CHECK(afd::resolve_variable("$prev." + key, context) == afd::Json("ok"));
+        CHECK(afd::resolve_variable("$steps." + alias + "." + key, context) == afd::Json("ok"));
+        CHECK(afd::evaluate_condition(afd::Json{{"$exists", "$prev." + key}}, context));
+        CHECK(afd::reads_step_data(afd::Json{{"x", "$prev." + key}}));
+        CHECK(afd::reads_step_data(afd::Json{{"x", "$steps." + alias}}));
+        CHECK(limit_of(afd::Json{{"x", "$prev." + deep_key}}, context) ==
+              afd::ResolutionLimit::depth);
+    }
+
+    // U+00A0 (NBSP) and U+FEFF (BOM) are JavaScript whitespace, so they stay literals even when
+    // the key exists.
+    for (const std::string ch : {"\xC2\xA0", "\xEF\xBB\xBF"}) {
+        const std::string key = "a" + ch + "b";
+        const std::string deep_key = "deep" + ch + "k";
+        const std::string alias = "step" + ch + "alias";
+        afd::PipelineContext context;
+        context.steps.push_back(
+            step(0, afd::StepStatus::success, afd::Json{{key, "nope"}, {deep_key, deep}}, alias));
+        context.previous_success = 0;
+
+        CHECK(afd::resolve_variable("$prev." + key, context) == afd::Json("$prev." + key));
+        CHECK(afd::resolve_variable("$steps." + alias, context) == afd::Json("$steps." + alias));
+        CHECK_FALSE(afd::evaluate_condition(afd::Json{{"$exists", "$prev." + key}}, context));
+        CHECK_FALSE(afd::reads_step_data(afd::Json{{"x", "$prev." + key}}));
+        CHECK_FALSE(afd::reads_step_data(afd::Json{{"x", "$steps." + alias}}));
+        const auto resolved =
+            afd::resolve_variables(afd::Json{{"x", "$prev." + deep_key}}, context);
+        REQUIRE(resolved.has_value());
+        CHECK(*resolved == afd::Json{{"x", "$prev." + deep_key}});
+    }
+}

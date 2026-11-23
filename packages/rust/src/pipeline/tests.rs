@@ -1443,3 +1443,144 @@ fn reads_step_data_only_for_references_to_earlier_steps() {
         assert!(!reads_step_data(&json!({ "value": literal })), "{literal}");
     }
 }
+
+fn is_js_whitespace(c: char) -> bool {
+    matches!(
+        c,
+        '\u{0009}'..='\u{000D}'
+            | '\u{0020}'
+            | '\u{00A0}'
+            | '\u{1680}'
+            | '\u{2000}'..='\u{200A}'
+            | '\u{2028}'
+            | '\u{2029}'
+            | '\u{202F}'
+            | '\u{205F}'
+            | '\u{3000}'
+            | '\u{FEFF}'
+    )
+}
+
+#[test]
+fn test_key_and_alias_whitespace_matches_javascript_across_all_chars() {
+    let mut js_whitespace_count = 0usize;
+    let empty = PipelineContext::default();
+    for ch in '\0'..=char::MAX {
+        let is_ws = is_js_whitespace(ch);
+        if is_ws {
+            js_whitespace_count += 1;
+        }
+        // `.` splits segments (`a.b` is two valid segments), so skip it here.
+        if ch == '.' {
+            continue;
+        }
+        let forbidden = is_ws || matches!(ch, '[' | ']');
+        let key_ref = format!("$prev.a{ch}b");
+        let alias_ref = format!("$steps.a{ch}b");
+        if forbidden {
+            assert_eq!(
+                resolve_variable(&key_ref, &empty),
+                Some(json!(key_ref)),
+                "U+{:04X} must be rejected in key",
+                ch as u32
+            );
+            assert_eq!(
+                resolve_variable(&alias_ref, &empty),
+                Some(json!(alias_ref)),
+                "U+{:04X} must be rejected in alias",
+                ch as u32
+            );
+        } else {
+            assert_eq!(
+                resolve_variable(&key_ref, &empty),
+                None,
+                "U+{:04X} must be allowed in key",
+                ch as u32
+            );
+            assert_eq!(
+                resolve_variable(&alias_ref, &empty),
+                None,
+                "U+{:04X} must be allowed in alias",
+                ch as u32
+            );
+        }
+    }
+    assert_eq!(js_whitespace_count, 25);
+}
+
+#[test]
+fn test_unicode_whitespace_edge_cases_in_keys_aliases_conditions_and_limits() {
+    // Non-JS Unicode whitespace (U+001C..=U+001F, U+0085) is allowed in keys and aliases (#1962).
+    for ch in ['\u{001C}', '\u{001D}', '\u{001E}', '\u{001F}', '\u{0085}'] {
+        let key = format!("a{ch}b");
+        let deep_key = format!("deep{ch}k");
+        let alias = format!("step{ch}alias");
+        let data = json!({
+            key.clone(): "ok",
+            deep_key.clone(): nested_object(MAX_INPUT_DEPTH + 1),
+        });
+        let mut context = PipelineContext::default();
+        context.push_step(ok_step(0, data.clone()).with_alias(&alias));
+
+        let key_ref = format!("$prev.{key}");
+        let alias_ref = format!("$steps.{alias}.{key}");
+        assert_eq!(resolve_variable(&key_ref, &context), Some(json!("ok")));
+        assert_eq!(resolve_variable(&alias_ref, &context), Some(json!("ok")));
+        assert_eq!(get_nested_value(&data, &key), Some(json!("ok")));
+        assert!(evaluate_condition(
+            &PipelineCondition::Exists {
+                exists: key_ref.clone()
+            },
+            &context
+        ));
+        assert_eq!(
+            limit_of(json!({ "x": format!("$prev.{deep_key}") }), &context),
+            ResolutionLimit::Depth
+        );
+        #[cfg(feature = "server")]
+        {
+            assert!(super::reads_step_data(&json!({ "x": key_ref })));
+            assert!(super::reads_step_data(
+                &json!({ "x": format!("$steps.{alias}") })
+            ));
+        }
+    }
+
+    // JS Unicode whitespace (U+00A0, U+FEFF) is rejected even when the key exists.
+    for ch in ['\u{00A0}', '\u{FEFF}'] {
+        let key = format!("a{ch}b");
+        let deep_key = format!("deep{ch}k");
+        let alias = format!("step{ch}alias");
+        let data = json!({
+            key.clone(): "should-not-resolve",
+            deep_key.clone(): nested_object(MAX_INPUT_DEPTH + 1),
+        });
+        let mut context = PipelineContext::default();
+        context.push_step(ok_step(0, data.clone()).with_alias(&alias));
+
+        let key_ref = format!("$prev.{key}");
+        let alias_ref = format!("$steps.{alias}");
+        let deep_ref = format!("$prev.{deep_key}");
+        assert_eq!(resolve_variable(&key_ref, &context), Some(json!(key_ref)));
+        assert_eq!(
+            resolve_variable(&alias_ref, &context),
+            Some(json!(alias_ref))
+        );
+        assert_eq!(get_nested_value(&data, &key), None);
+        assert!(!evaluate_condition(
+            &PipelineCondition::Exists {
+                exists: key_ref.clone()
+            },
+            &context
+        ));
+        assert_eq!(
+            try_resolve_variables(&json!({ "x": deep_ref }), &context).unwrap(),
+            json!({ "x": deep_ref })
+        );
+        #[cfg(feature = "server")]
+        {
+            assert!(!super::reads_step_data(&json!({ "x": key_ref })));
+            assert!(!super::reads_step_data(&json!({ "x": alias_ref })));
+        }
+    }
+}
