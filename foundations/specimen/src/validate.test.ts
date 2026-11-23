@@ -10,6 +10,7 @@ import {
 	a11yRequestSchema,
 	baselineRequestSchema,
 	captureRequestSchema,
+	captureSetRequestSchema,
 	contextSchema,
 	contractRequestSchema,
 	coverageRequestSchema,
@@ -23,6 +24,7 @@ import {
 	parseA11yRequest,
 	parseBaselineRequest,
 	parseCaptureRequest,
+	parseCaptureSetRequest,
 	parseConfig,
 	parseContext,
 	parseContractRequest,
@@ -786,5 +788,38 @@ describe('request parsing agrees with the public schemas', () => {
 			agrees(coverageRequestSchema, parseCoverageRequest, value);
 			agrees(contractRequestSchema, parseContractRequest, value);
 		}
+	});
+
+	it('agrees on capture set requests', () => {
+		const values = [
+			{},
+			{ label: 'main' },
+			{ label: 'feature/v1.0_dark' },
+			{ label: 'set-0123456789ab' },
+			{ label: '' },
+			{ label: '../escape' },
+			{ label: 'bad/../path' },
+			{ label: 'bad//path' },
+			{ ids: ['toolbar--dense', 'toolbar--airy'] },
+			{ ids: [] },
+			{ ids: [''] },
+			{ ids: 'toolbar--dense' },
+			{ filter: { file: './a.ts', kind: ['component', 'gate'] } },
+			{ filter: { kind: [] } },
+			{ filter: { kind: ['unknown'] } },
+			{ filter: { other: 1 } },
+			{ ids: ['a'], filter: { match: 'a' } },
+			{ checkpoint: 'mount' },
+			{ checkpoint: '' },
+			{ axe: true },
+			{ axe: false },
+			{ axe: 'yes' },
+			...contexts.map((context) => ({ context })),
+			...timeouts.map((timeoutMs) => ({ timeoutMs })),
+			...[1, 32, 33, 0].map((workers) => ({ workers })),
+			{ other: 1 },
+			null,
+		];
+		for (const value of values) agrees(captureSetRequestSchema, parseCaptureSetRequest, value);
 	});
 });

@@ -27,6 +27,7 @@ export const browserSuites = [
 	'src/pick.test.ts',
 	'src/targets.test.ts',
 	'src/network.test.ts',
+	'src/sets-bench.test.ts',
 ];
 
 export default defineConfig({
@@ -51,6 +52,7 @@ export default defineConfig({
 				'src/patterns.ts',
 				'src/png.ts',
 				'src/pointer.ts',
+				'src/sets.ts',
 				'src/themes.ts',
 				'src/validate.ts',
 			],

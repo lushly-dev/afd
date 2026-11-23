@@ -713,6 +713,104 @@ export interface ObservationDiff {
 	differences: ChannelDifference[];
 	limitations: string[];
 }
+/** What kind of specimen entry a capture filter can select or skip. */
+export type CaptureEntryKind = 'component' | 'story' | 'job' | 'gate';
+/** Filter for `specimen-capture`: extends `SuiteFilter` with optional entry kinds. */
+export interface CaptureFilter extends SuiteFilter {
+	kind?: CaptureEntryKind[];
+}
+/** Capture many specimens into a content-addressed capture set under `.specimen/sets/`. */
+export interface CaptureSetRequest {
+	ids?: string[];
+	filter?: CaptureFilter;
+	context?: Partial<SpecimenContext>;
+	/** Defaults to `mount`. */
+	checkpoint?: string;
+	/** Local pointer name (such as `main` or `branch`) updated to point to the resulting set id. */
+	label?: string;
+	/** Run axe accessibility checks on each capture; defaults to `true`. */
+	axe?: boolean;
+	timeoutMs?: number;
+	workers?: number;
+}
+/** Address one saved capture in a capture set by set id or local label plus capture key. */
+export interface CaptureRef {
+	set: string;
+	id: string;
+}
+/** One side of `specimen-diff`: a raw observation or a reference into a saved capture set. */
+export type DiffSide = Observation | CaptureRef;
+export interface DiffRequest extends DiffOptions {
+	left: DiffSide;
+	right: DiffSide;
+}
+/** Compact axe summary stored per capture in a set manifest. */
+export interface CaptureSetEntryAxe {
+	status: AxeOutcome['status'];
+	violations: string[];
+	incomplete: number;
+	incompleteChecks: { id: string; help: string; targets: string[] }[];
+}
+/** One entry recorded inside a saved capture set manifest. */
+export interface CaptureSetEntry {
+	key: string;
+	id: string;
+	status: 'captured' | 'unavailable';
+	hash: string | null;
+	reason?: string;
+	checkpoint?: string;
+	step?: number;
+	job?: string;
+	axe: CaptureSetEntryAxe | null;
+	observation: string | null;
+	screenshot: string | null;
+}
+/** Revision observation recorded beside a content-addressed set. */
+export interface CaptureSetRevision {
+	revision: string | null;
+	dirty: boolean | null;
+	capturedUtc: string;
+}
+/** On-disk manifest stored at `.specimen/sets/<setId>/manifest.json`. */
+export interface CaptureSetManifest {
+	version: 1;
+	set: string;
+	kind: 'capture' | 'compare' | 'job';
+	createdUtc: string;
+	context: SpecimenContext;
+	checkpoint: {
+		name: string;
+		actionMode: CaptureCheckpoint['actionMode'];
+		baseline: CaptureCheckpoint['baseline'];
+	};
+	browser: { name: string; version: string } | null;
+	captureVersion: string;
+	normalizationVersion: string;
+	axe: boolean;
+	revision: string | null;
+	dirty: boolean | null;
+	revisions: CaptureSetRevision[];
+	captures: Record<string, CaptureSetEntry>;
+}
+/** Compact response returned by `specimen-capture`: ids and counts only, never observations. */
+export interface CaptureSetRun {
+	set: string;
+	label: string | null;
+	revision: string | null;
+	dirty: boolean | null;
+	counts: {
+		captured: number;
+		unavailable: number;
+		axe: { passed: number; failed: number; incomplete: number };
+	};
+	unavailable: { id: string; reason: string }[];
+	skipped: {
+		jobs: number;
+		gates: number;
+		next?: 'specimen-job-run';
+		gatesNext?: 'specimen-run';
+	};
+}
 /** One axe rule's finding: a violation, or a check it could not complete. */
 export interface AxeFinding {
 	id: string;

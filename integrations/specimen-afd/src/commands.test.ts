@@ -1,8 +1,13 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createSpecimenBench } from '@lushly-dev/specimen';
-import type { Observation } from '@lushly-dev/specimen/types';
+import {
+	createSpecimenBench,
+	diffCaptures,
+	diffObservations,
+	runCaptureSet,
+} from '@lushly-dev/specimen';
+import type { Observation, SpecimenEntry } from '@lushly-dev/specimen/types';
 import { describe, expect, it, vi } from 'vitest';
 import {
 	createSpecimenCommands,
@@ -117,6 +122,28 @@ function bench(): SpecimenCommandBench {
 					: [],
 		})),
 		render: vi.fn(async () => observation()),
+		captureSet: vi.fn(async (request) => ({
+			set: 'set-4f1c0a9e2b7d',
+			label: request?.label ?? null,
+			revision: 'a1b2c3d',
+			dirty: false,
+			counts: {
+				captured: 2,
+				unavailable: 0,
+				axe: { passed: 2, failed: 0, incomplete: 0 },
+			},
+			unavailable: [],
+			skipped: { jobs: 0, gates: 0 },
+		})),
+		diff: vi.fn(async (request) => {
+			if ('manifest' in request.left && 'manifest' in request.right) {
+				return diffObservations(request.left, request.right, {
+					allowContextDifferences: request.allowContextDifferences,
+					requireVisual: request.requireVisual,
+				});
+			}
+			throw new Error('Set diff not configured on mock bench');
+		}),
 		migrate: vi.fn(async (request) => ({
 			mode: (request?.apply ? 'apply' : 'preview') as 'apply' | 'preview',
 			files: [],
@@ -332,6 +359,7 @@ describe('specimen commands', () => {
 		expect(commands.map((command) => command.name)).toEqual([
 			'specimen-list',
 			'specimen-render',
+			'specimen-capture',
 			'specimen-diff',
 			'specimen-build',
 			'specimen-validate',
@@ -804,7 +832,8 @@ describe('specimen commands', () => {
 		expect(result.data).toMatchObject({ status: 'changed' });
 		right.manifest.checkpoint.name = 'different';
 		const mismatch = await executeSpecimenCommand(instance, 'specimen-diff', { left, right });
-		expect(mismatch.error?.code).toBe('SPECIMEN_DIFF_FAILED');
+		expect(mismatch.error?.code).toBe('CAPTURES_INCOMPARABLE');
+		expect(mismatch.error?.suggestion).toContain('allowContextDifferences');
 	});
 	it('accepts its own diff result when recorded event histories differ', async () => {
 		const instance = bench();
@@ -849,5 +878,189 @@ describe('specimen commands', () => {
 		expect((await executeSpecimenCommand(instance, 'specimen-nope', {})).error?.code).toBe(
 			'COMMAND_NOT_FOUND'
 		);
+	});
+
+	it('exposes specimen-capture as a mutation and runs set-backed capture and diff scenarios end to end', async () => {
+		const root = await mkdtemp(join(tmpdir(), 'specimen-afd-sets-'));
+		try {
+			const entries: SpecimenEntry[] = [
+				{ id: 'toolbar--dense', title: 'Toolbar/Dense', module: './t.ts', exportName: 'Dense' },
+				{
+					id: 'toolbar--airy',
+					title: 'Toolbar/Airy',
+					module: './t.ts',
+					exportName: 'Airy',
+					themes: {
+						supported: ['light'],
+						basis: 'declared',
+						reason: 'Dark styles not written yet',
+					},
+				},
+				{
+					id: 'toolbar--grouped',
+					title: 'Toolbar/Grouped',
+					module: './t.ts',
+					exportName: 'Grouped',
+				},
+				{ id: 'list--empty', title: 'List/Empty', module: './l.ts', exportName: 'Empty' },
+				{
+					id: 'list--empty-plain',
+					title: 'List/EmptyPlain',
+					module: './l.ts',
+					exportName: 'EmptyPlain',
+				},
+				{ id: 'button--primary', title: 'Button/Primary', module: './b.ts', exportName: 'Primary' },
+				{ id: 'editor--shell', title: 'Editor/Shell', module: './e.ts', exportName: 'Shell' },
+			];
+			const instance = bench();
+			instance.captureSet = (request) =>
+				runCaptureSet(
+					{
+						root,
+						entries,
+						workers: 2,
+						prepare: async () => {},
+						sourceState: async () => ({ revision: 'a1b2c3d', dirty: false }),
+						render: async ({ entry, context }) => {
+							const obs = observation();
+							obs.manifest.specimenId = entry.id;
+							obs.manifest.context.theme = context.theme;
+							obs.manifest.context.viewport = context.viewport;
+							obs.channels.dom.raw = `<div data-id="${entry.id}" data-theme="${context.theme}"></div>`;
+							obs.channels.a11y.axe =
+								entry.id === 'toolbar--grouped'
+									? {
+											status: 'failed',
+											policy: 'error',
+											violations: [
+												{
+													id: 'color-contrast',
+													impact: 'serious',
+													help: 'contrast',
+													targets: ['span.group-label'],
+													details: [],
+												},
+											],
+											incomplete: 0,
+											incompleteChecks: [],
+											exceptions: [],
+										}
+									: entry.id === 'list--empty'
+										? {
+												status: 'passed',
+												policy: 'error',
+												violations: [],
+												incomplete: 1,
+												incompleteChecks: [
+													{
+														id: 'color-contrast',
+														impact: 'serious',
+														help: 'Text over a background image could not be measured',
+														targets: ['p.empty-hint'],
+														details: [],
+													},
+												],
+												exceptions: [],
+											}
+										: {
+												status: 'passed',
+												policy: 'error',
+												violations: [],
+												incomplete: 0,
+												incompleteChecks: [],
+												exceptions: [],
+											};
+							return obs;
+						},
+					},
+					request
+				);
+			instance.diff = (request) => diffCaptures(root, request);
+
+			const commands = createSpecimenCommands(instance);
+			const captureDef = commands.find((command) => command.name === 'specimen-capture');
+			expect(captureDef?.mutation).toBe(true);
+			expect(captureDef?.description).toContain('not a git ref');
+
+			// Scenario 10 step 1: capture all 7 specimens into label main.
+			const main = await executeSpecimenCommand(instance, 'specimen-capture', { label: 'main' });
+			expect(main.success).toBe(true);
+			expect(main.data).toMatchObject({
+				set: expect.stringMatching(/^set-[0-9a-f]{12}$/),
+				label: 'main',
+				revision: 'a1b2c3d',
+				dirty: false,
+				counts: {
+					captured: 7,
+					unavailable: 0,
+					axe: { passed: 6, failed: 1, incomplete: 1 },
+				},
+				unavailable: [],
+				skipped: { jobs: 0, gates: 0 },
+			});
+
+			// Scenario 10 step 2: dark subset marks light-only toolbar--airy unavailable.
+			const mainDark = await executeSpecimenCommand(instance, 'specimen-capture', {
+				ids: ['toolbar--dense', 'toolbar--airy'],
+				context: { theme: 'dark' },
+				label: 'main-dark',
+			});
+			expect(mainDark.success).toBe(true);
+			expect(mainDark.data).toMatchObject({
+				set: expect.stringMatching(/^set-[0-9a-f]{12}$/),
+				counts: { captured: 1, unavailable: 1 },
+				unavailable: [{ id: 'toolbar--airy', reason: expect.stringContaining('light') }],
+			});
+
+			// Scenario 07 steps 1-3: capture dark, refuse theme mismatch, allow with allowContextDifferences.
+			const dark = await executeSpecimenCommand(instance, 'specimen-capture', {
+				ids: ['toolbar--dense'],
+				context: { theme: 'dark' },
+				label: 'dark',
+			});
+			const darkSetId = (dark.data as { set: string }).set;
+			const refused = await executeSpecimenCommand(instance, 'specimen-diff', {
+				left: { set: 'main', id: 'toolbar--dense' },
+				right: { set: darkSetId, id: 'toolbar--dense' },
+			});
+			expect(refused.success).toBe(false);
+			expect(refused.error).toMatchObject({
+				code: 'CAPTURES_INCOMPARABLE',
+				message: expect.stringContaining('context.theme'),
+				suggestion: expect.stringContaining('allowContextDifferences'),
+			});
+
+			const allowed = await executeSpecimenCommand(instance, 'specimen-diff', {
+				left: { set: 'main', id: 'toolbar--dense' },
+				right: { set: darkSetId, id: 'toolbar--dense' },
+				allowContextDifferences: ['theme'],
+			});
+			expect(allowed.success).toBe(true);
+			expect(allowed.data).toMatchObject({ status: 'changed' });
+
+			// Helper without bench resolves sets under options.root and reports CAPTURE_SET_NOT_FOUND.
+			const viaHelper = await executeSpecimenDiff(
+				{
+					left: { set: 'main', id: 'toolbar--dense' },
+					right: { set: 'dark', id: 'toolbar--dense' },
+					allowContextDifferences: ['theme'],
+				},
+				{ root }
+			);
+			expect(viaHelper.success).toBe(true);
+			const missing = await executeSpecimenDiff(
+				{
+					left: { set: 'missing', id: 'toolbar--dense' },
+					right: { set: 'main', id: 'toolbar--dense' },
+				},
+				{ root }
+			);
+			expect(missing.error).toMatchObject({
+				code: 'CAPTURE_SET_NOT_FOUND',
+				suggestion: expect.stringContaining('specimen-capture'),
+			});
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
 	});
 });

@@ -60,7 +60,7 @@ describe('Specimen MCP endpoint', () => {
 		try {
 			const definitions = createSpecimenCommands(bench).filter((command) => command.expose?.mcp);
 			const { tools } = await client.listTools();
-			expect(tools).toHaveLength(19);
+			expect(tools).toHaveLength(20);
 			expect(tools).toEqual(
 				definitions.map((command) => ({
 					name: command.name,
@@ -69,6 +69,10 @@ describe('Specimen MCP endpoint', () => {
 					annotations: commandToolAnnotations(command),
 				}))
 			);
+			expect(tools.find((tool) => tool.name === 'specimen-capture')?.annotations).toEqual({
+				readOnlyHint: false,
+				destructiveHint: false,
+			});
 			expect(tools.find((tool) => tool.name === 'specimen-migrate')?.annotations).toEqual({
 				readOnlyHint: false,
 				destructiveHint: false,
@@ -115,6 +119,21 @@ describe('Specimen MCP endpoint', () => {
 		expect(envelope(unknown as CallToolResult)).toMatchObject({
 			success: false,
 			error: { code: 'COMMAND_NOT_FOUND', suggestion: expect.any(String) },
+		});
+		const missingSet = await client.callTool({
+			name: 'specimen-diff',
+			arguments: {
+				left: { set: 'main', id: 'cheap' },
+				right: { set: 'branch', id: 'cheap' },
+			},
+		});
+		expect(missingSet.isError).toBe(true);
+		expect(envelope(missingSet as CallToolResult)).toMatchObject({
+			success: false,
+			error: {
+				code: 'CAPTURE_SET_NOT_FOUND',
+				suggestion: expect.stringContaining('specimen-capture'),
+			},
 		});
 	});
 

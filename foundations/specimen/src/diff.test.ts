@@ -311,9 +311,17 @@ describe('diffObservations', () => {
 			'no-change-observed'
 		);
 		right.manifest.context.theme = 'dark';
-		expect(() => diffObservations(left, right, { allowContextDifferences: ['viewport'] })).toThrow(
-			'context.theme'
-		);
+		try {
+			diffObservations(left, right, { allowContextDifferences: ['viewport'] });
+			expect.unreachable('Expected incompatible context.theme to throw');
+		} catch (error) {
+			expect(error).toMatchObject({
+				code: 'CAPTURES_INCOMPARABLE',
+				message: expect.stringContaining('context.theme'),
+				suggestion: expect.stringContaining('allowContextDifferences'),
+				details: { field: 'context.theme' },
+			});
+		}
 	});
 
 	it('compares object-valued context axes independent of insertion order', () => {

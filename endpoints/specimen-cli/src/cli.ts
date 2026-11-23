@@ -42,6 +42,13 @@ const valueOptions = new Set([
 	'output',
 	'allow-context',
 	'id',
+	'ids',
+	'label',
+	'kind',
+	'left-set',
+	'left-id',
+	'right-set',
+	'right-id',
 	'file',
 	'files',
 	'tag',
@@ -57,7 +64,7 @@ const valueOptions = new Set([
 	'revision',
 	'threshold',
 ]);
-const flagOptions = new Set(['require-visual', 'apply', 'helpers', 'retry']);
+const flagOptions = new Set(['require-visual', 'apply', 'helpers', 'retry', 'no-axe']);
 function parseArguments(args: string[]): ParsedArguments {
 	const positionals: string[] = [];
 	const options = new Map<string, string>();
@@ -83,7 +90,7 @@ function parseArguments(args: string[]): ParsedArguments {
 	const action = positionals.shift();
 	if (!action)
 		throw new Error(
-			'Choose a command: list, validate, inspect, render, run, themes, diff, or build'
+			'Choose a command: list, validate, inspect, render, capture, run, themes, diff, or build'
 		);
 	return { action, positionals, options, flags };
 }
@@ -222,7 +229,36 @@ function validateOptions(parsed: ParsedArguments): void {
 			'runs',
 			'note',
 		]),
-		diff: new Set(['root', 'output', 'allow-context', 'require-visual']),
+		diff: new Set([
+			'root',
+			'output',
+			'allow-context',
+			'require-visual',
+			'left-set',
+			'left-id',
+			'right-set',
+			'right-id',
+		]),
+		capture: new Set([
+			'root',
+			'config',
+			'output',
+			'ids',
+			'label',
+			'checkpoint',
+			'no-axe',
+			'viewport',
+			'container',
+			'theme',
+			'locale',
+			'reduced-motion',
+			'motion',
+			'file',
+			'tag',
+			'match',
+			'kind',
+			'workers',
+		]),
 		build: new Set(['root', 'config', 'output']),
 		pack: new Set(['root', 'config', 'output', 'workers', 'allow-failed']),
 		'pack-check': new Set(['root', 'config', 'output', 'workers', 'allow-failed']),
@@ -234,12 +270,34 @@ function validateOptions(parsed: ParsedArguments): void {
 		if (!known.has(option))
 			throw new Error(`Option --${option} does not apply to ${parsed.action}`);
 	}
+	if (parsed.action === 'diff') {
+		const hasLeftSet = parsed.options.has('left-set');
+		const hasLeftId = parsed.options.has('left-id');
+		const hasRightSet = parsed.options.has('right-set');
+		const hasRightId = parsed.options.has('right-id');
+		if (hasLeftSet !== hasLeftId) throw new Error('Pass both --left-set and --left-id together.');
+		if (hasRightSet !== hasRightId)
+			throw new Error('Pass both --right-set and --right-id together.');
+		const expectedFiles = 2 - (hasLeftSet ? 1 : 0) - (hasRightSet ? 1 : 0);
+		if (parsed.positionals.length !== expectedFiles)
+			throw new Error(
+				`diff expects ${expectedFiles} positional argument${expectedFiles === 1 ? '' : 's'}`
+			);
+		return;
+	}
+	if (parsed.action === 'capture') {
+		if (parsed.options.has('ids') && parsed.positionals.length > 0)
+			throw new Error('Give specimen ids positionally or with --ids, not both.');
+		const hasIds = parsed.options.has('ids') || parsed.positionals.length > 0;
+		if (hasIds) {
+			for (const option of ['file', 'tag', 'match', 'kind'])
+				if (parsed.options.has(option))
+					throw new Error(`Option --${option} cannot be combined with explicit specimen ids`);
+		}
+		return;
+	}
 	const expected =
-		parsed.action === 'list' || parsed.action === 'validate' || parsed.action === 'migrate'
-			? 0
-			: parsed.action === 'diff'
-				? 2
-				: 1;
+		parsed.action === 'list' || parsed.action === 'validate' || parsed.action === 'migrate' ? 0 : 1;
 	const selects = ['run', 'a11y', 'profile', 'baseline', 'themes'].includes(parsed.action);
 	const suite =
 		(selects && parsed.positionals.length === 0) ||
@@ -324,16 +382,32 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 		output = parsed.options.get('output');
 		if (output) output = resolve(root, output);
 		if (parsed.action === 'diff') {
-			const [left, right] = parsed.positionals;
-			if (!left || !right) throw new Error('diff requires two capture files');
-			result = await executeSpecimenDiff({
-				left: await readCapture(resolve(root, left)),
-				right: await readCapture(resolve(root, right)),
-				...(parsed.options.has('allow-context')
-					? { allowContextDifferences: parsed.options.get('allow-context')?.split(',') }
-					: {}),
-				...(parsed.flags.has('require-visual') ? { requireVisual: true } : {}),
-			});
+			const files = [...parsed.positionals];
+			const left =
+				parsed.options.has('left-set') && parsed.options.has('left-id')
+					? {
+							set: parsed.options.get('left-set') as string,
+							id: parsed.options.get('left-id') as string,
+						}
+					: await readCapture(resolve(root, files.shift() ?? ''));
+			const right =
+				parsed.options.has('right-set') && parsed.options.has('right-id')
+					? {
+							set: parsed.options.get('right-set') as string,
+							id: parsed.options.get('right-id') as string,
+						}
+					: await readCapture(resolve(root, files.shift() ?? ''));
+			result = await executeSpecimenDiff(
+				{
+					left,
+					right,
+					...(parsed.options.has('allow-context')
+						? { allowContextDifferences: parsed.options.get('allow-context')?.split(',') }
+						: {}),
+					...(parsed.flags.has('require-visual') ? { requireVisual: true } : {}),
+				},
+				{ root }
+			);
 		} else {
 			bench = await (io.createBench ?? createSpecimenBench)({
 				root,
@@ -376,7 +450,34 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 					const value = parsed.options.get(option);
 					if (value && !(parsed.action === 'themes' && option === 'theme')) raw[field] = value;
 				}
-				if (parsed.action === 'themes') {
+				if (parsed.action === 'capture') {
+					const ids = parsed.options.has('ids')
+						? (parsed.options.get('ids') ?? '').split(',').filter(Boolean)
+						: parsed.positionals.length > 0
+							? parsed.positionals
+							: undefined;
+					const suite = suiteInput(parsed);
+					const baseFilter = (suite.filter as Record<string, unknown> | undefined) ?? {};
+					const kind = parsed.options.has('kind')
+						? (parsed.options.get('kind') ?? '').split(',').filter(Boolean)
+						: undefined;
+					const filter =
+						Object.keys(baseFilter).length > 0 || kind !== undefined
+							? { ...baseFilter, ...(kind !== undefined ? { kind } : {}) }
+							: undefined;
+					const mergedContext = { ...context, ...raw };
+					result = await executeSpecimenCommand(bench, 'specimen-capture', {
+						...(ids !== undefined ? { ids } : {}),
+						...(filter !== undefined ? { filter } : {}),
+						...(Object.keys(mergedContext).length > 0 ? { context: mergedContext } : {}),
+						...(parsed.options.has('checkpoint')
+							? { checkpoint: parsed.options.get('checkpoint') }
+							: {}),
+						...(parsed.options.has('label') ? { label: parsed.options.get('label') } : {}),
+						...(parsed.flags.has('no-axe') ? { axe: false } : {}),
+						...(suite.workers !== undefined ? { workers: suite.workers } : {}),
+					});
+				} else if (parsed.action === 'themes') {
 					// The command's schema refuses a share outside 0 to 1, and a word, which is NaN.
 					const threshold = parsed.options.get('threshold');
 					result = await executeSpecimenCommand(bench, 'specimen-themes', {
@@ -529,7 +630,7 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 			code: 'SPECIMEN_CLI_ERROR',
 			message,
 			suggestion:
-				'Use specimen list, validate [--id ID | --file PATH], inspect ID, render ID, run ID, themes [ID] [--theme light,dark] [--threshold 0.02], migrate [--files A,B] [--helpers] [--apply], diff LEFT.json RIGHT.json, build OUTDIR, pack [TAG], pack-check [TAG] or pack-export DIR; check option values and file paths.',
+				'Use specimen list, validate [--id ID | --file PATH], inspect ID, render ID, capture [IDS...] [--label NAME], run ID, themes [ID] [--theme light,dark] [--threshold 0.02], migrate [--files A,B] [--helpers] [--apply], diff LEFT RIGHT, build OUTDIR, pack [TAG], pack-check [TAG] or pack-export DIR; check option values and file paths.',
 		});
 	} finally {
 		if (bench) {

@@ -30,6 +30,7 @@ import {
 	withBaseline,
 } from './profile.js';
 import { dependencyIdentity, sourceState } from './provenance.js';
+import { runCaptureSet } from './sets.js';
 import { suggestSpecimens } from './suggest.js';
 import {
 	DEFAULT_FLAKE_CAP,
@@ -52,6 +53,8 @@ import {
 	type BrowserObservation,
 	CAPTURE_VERSION,
 	type CaptureCheckpoint,
+	type CaptureSetRequest,
+	type CaptureSetRun,
 	type Completeness,
 	type ContractRequest,
 	type ContractRun,
@@ -89,6 +92,7 @@ import {
 	parseA11yRequest,
 	parseBaselineRequest,
 	parseCaptureRequest,
+	parseCaptureSetRequest,
 	parseContractRequest,
 	parseCoverageRequest,
 	parseMatrixRequest,
@@ -277,7 +281,10 @@ export async function createInProcessBench(
 			if (!rendered.captured)
 				return { observation: null, outcome: rendered.outcome ?? null, accessibility, profile };
 			// The capture is of the settled page, so it records the settled check when one ran.
-			const axe = accessibility ?? rendered.outcome?.settled ?? rendered.outcome?.a11y;
+			const axe =
+				options.accessibility === false
+					? undefined
+					: (accessibility ?? rendered.outcome?.settled ?? rendered.outcome?.a11y);
 			const [source, dependencies] =
 				identity ??
 				(await Promise.all([sourceState(config.root), dependencyIdentity(config.root)]));
@@ -687,6 +694,37 @@ export async function createInProcessBench(
 		async render(rawRequest) {
 			ensureOpen();
 			return (await capture(parseCaptureRequest(rawRequest))).observation as Observation;
+		},
+		async captureSet(rawRequest: CaptureSetRequest = {}): Promise<CaptureSetRun> {
+			ensureOpen();
+			const request = parseCaptureSetRequest(rawRequest);
+			return runCaptureSet(
+				{
+					root: config.root,
+					entries: config.entries,
+					workers: config.config.test?.workers ?? DEFAULT_SUITE_WORKERS,
+					prepare: async () => {
+						const runtime = await ensureHost();
+						await runtime.request('prepare', {}, BUNDLE_GRACE);
+					},
+					sourceState: () => sourceState(config.root),
+					render: async ({ entry, context, checkpoint, axe, screenshot, timeoutMs }) => {
+						const { observation } = await capture(
+							{
+								id: entry.id,
+								checkpoint,
+								context,
+								screenshot,
+								...(timeoutMs !== undefined ? { timeoutMs } : {}),
+							},
+							{ reuseBundle: true, accessibility: axe }
+						);
+						if (!observation) throw new Error('The render captured no observation.');
+						return observation;
+					},
+				},
+				request
+			);
 		},
 		async inspect(rawRequest: InspectRequest): Promise<InspectResult> {
 			ensureOpen();
