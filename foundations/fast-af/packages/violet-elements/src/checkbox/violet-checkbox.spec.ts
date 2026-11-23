@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { cdp, userEvent } from "vitest/browser";
+import { cdp, page, userEvent } from "vitest/browser";
 
 import "./violet-checkbox";
 import type { VioletCheckbox } from "./violet-checkbox";
@@ -194,7 +194,8 @@ describe("violet-checkbox", () => {
         await nextFrame();
         expect(checkbox.checked).toBe(true);
 
-        await userEvent.click(checkbox.shadowRoot!.querySelector(".box") as HTMLElement);
+        // The box takes no pointer events (#1424); a click at its centre lands on the input in its shell.
+        await userEvent.click(checkbox.shadowRoot!.querySelector(".control-shell") as HTMLElement);
         await nextFrame();
         expect(checkbox.checked).toBe(false);
 
@@ -248,6 +249,78 @@ describe("violet-checkbox", () => {
         expect(checkbox.indeterminate).toBe(false);
         expect(input(checkbox).indeterminate).toBe(false);
         expect(checkbox.checked).toBe(true);
+    });
+
+    // #1424: the aria-hidden box paints over the native input, so a role-based click landed on
+    // the box, which a pointer hit-test reports as intercepting the click.
+    describe("hit area", () => {
+        function centerOf(target: Element): { x: number; y: number } {
+            const rect = target.getBoundingClientRect();
+            return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+        }
+
+        it("toggles from a role-based click without force", async () => {
+            const { checkbox } = await renderCheckbox({ label: "Accept terms" });
+            const changes: boolean[] = [];
+            checkbox.addEventListener("change", () => changes.push(checkbox.checked));
+
+            await page.getByRole("checkbox", { name: "Accept terms" }).click();
+            expect(checkbox.checked).toBe(true);
+            expect(input(checkbox).checked).toBe(true);
+
+            await page.getByRole("checkbox", { name: "Accept terms" }).click();
+            expect(checkbox.checked).toBe(false);
+            expect(changes).toEqual([true, false]);
+        });
+
+        it("toggles an inline checkbox named only by aria-label from a role-based click", async () => {
+            const { checkbox } = await renderCheckbox({
+                configure: el => {
+                    el.inline = true;
+                    el.setAttribute("aria-label", "Select row");
+                },
+            });
+
+            await page.getByRole("checkbox", { name: "Select row" }).click();
+            expect(checkbox.checked).toBe(true);
+        });
+
+        it("hit-tests the visible box to the native input and toggles exactly once", async () => {
+            const { checkbox } = await renderCheckbox({ label: "Accept terms" });
+            const box = checkbox.shadowRoot?.querySelector(".box") as HTMLElement;
+            const changes: boolean[] = [];
+            checkbox.addEventListener("change", () => changes.push(checkbox.checked));
+
+            const { x, y } = centerOf(box);
+            expect(checkbox.shadowRoot?.elementFromPoint(x, y)).toBe(input(checkbox));
+
+            // A real pointer at the box's centre: the shell contains the input, so Playwright's
+            // hit-test accepts it and the click lands where a person's would.
+            await userEvent.click(checkbox.shadowRoot?.querySelector(".control-shell") as HTMLElement);
+            expect(checkbox.checked).toBe(true);
+            expect(changes).toEqual([true]);
+        });
+
+        it("toggles from the keyboard after a role-based focus", async () => {
+            const { checkbox } = await renderCheckbox({ label: "Accept terms" });
+            input(checkbox).focus();
+
+            await userEvent.keyboard(" ");
+            expect(checkbox.checked).toBe(true);
+        });
+
+        it("does not toggle a disabled checkbox from a role-based click", async () => {
+            const { checkbox } = await renderCheckbox({
+                label: "Accept terms",
+                configure: el => {
+                    el.disabled = true;
+                },
+            });
+
+            await expect(page.getByRole("checkbox", { name: "Accept terms" })).toBeDisabled();
+            await page.getByRole("checkbox", { name: "Accept terms" }).click({ force: true });
+            expect(checkbox.checked).toBe(false);
+        });
     });
 
     describe("accessible name", () => {

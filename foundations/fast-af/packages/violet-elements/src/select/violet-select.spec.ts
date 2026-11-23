@@ -83,6 +83,62 @@ describe("violet-select", () => {
         expect(select.selectedLabel).toBe("Direct");
     });
 
+    // #712: a position: fixed panel is placed against a containing ancestor (contain, transform),
+    // not the viewport, so the list opened away from its trigger inside one.
+    it("opens its list beside the trigger inside a contained, transformed ancestor", async () => {
+        document.body.innerHTML = "";
+        const mount = document.createElement("div");
+        mount.style.cssText = "contain: content; transform: translateX(0); margin: 120px 0 0 80px; padding: 40px; overflow: hidden; block-size: 60px;";
+        document.body.append(mount);
+        const select = document.createElement("violet-select") as VioletSelect;
+        select.label = "Propagation";
+        select.append(createOption("Broadcast", "broadcast"), createOption("Direct", "direct"));
+        mount.append(select);
+        await customElements.whenDefined("violet-select");
+        await nextFrame();
+
+        select.show();
+        const trigger = select.shadowRoot?.querySelector(".trigger") as HTMLElement;
+        const panel = select.shadowRoot?.querySelector(".panel") as HTMLElement;
+        // Placed as it opens, before any frame.
+        expect(Math.abs(panel.getBoundingClientRect().left - trigger.getBoundingClientRect().left)).toBeLessThanOrEqual(1);
+        await nextFrame();
+        await nextFrame();
+        await nextFrame();
+
+        const triggerRect = trigger.getBoundingClientRect();
+        const panelRect = panel.getBoundingClientRect();
+        expect(Math.abs(panelRect.top - triggerRect.bottom)).toBeLessThanOrEqual(2);
+        expect(Math.abs(panelRect.left - triggerRect.left)).toBeLessThanOrEqual(1);
+        // Above the mount's clip: a pointer on the list reaches the select's options.
+        const hit = document.elementFromPoint(panelRect.left + 12, panelRect.top + 16);
+        expect(hit?.closest("violet-select")).toBe(select);
+        expect(panel.matches(":popover-open")).toBe(true);
+
+        select.hide();
+        await nextFrame();
+        expect(panel.matches(":popover-open")).toBe(false);
+        expect(panel.hidden).toBe(true);
+    });
+
+    // #712: show() did not resync the options, so a reopened list kept the row last made active.
+    it("makes the chosen option active again when the list reopens", async () => {
+        const select = await renderSelect();
+        select.show();
+        select.handleListboxKeydown(new KeyboardEvent("keydown", { key: "ArrowDown" }));
+        await nextFrame();
+        expect(select.activeValue).toBe("transplant");
+        select.handleListboxKeydown(new KeyboardEvent("keydown", { key: "Escape" }));
+        await nextFrame();
+        expect(select.open).toBe(false);
+
+        select.show();
+        await nextFrame();
+        const options = Array.from(select.querySelectorAll("violet-option"));
+        expect(select.activeValue).toBe("direct");
+        expect(options.map(option => option.hasAttribute("active"))).toEqual([false, true, false]);
+    });
+
     it("commits the active option and closes", async () => {
         const select = await renderSelect();
         select.show();

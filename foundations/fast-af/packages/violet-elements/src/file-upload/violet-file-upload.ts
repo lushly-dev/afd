@@ -332,10 +332,43 @@ const styles = css`
             background: Canvas;
             border-color: ButtonText;
             box-shadow: none;
+            color: CanvasText;
+        }
+
+        /* The opt-out is inherited, so the copy inside would keep its author colours. */
+        :is(.surface, .file-item) :where(p, span, strong, small) {
+            color: CanvasText;
+        }
+
+        /* It reaches into the embedded buttons' shadow roots too: give them back their own forced colours. */
+        :is(.surface, .file-item) :is(violet-button, violet-icon-button) {
+            forced-color-adjust: auto;
+        }
+
+        .surface:hover {
+            border-color: ButtonText;
+            background: Canvas;
+        }
+
+        .surface:focus-within {
+            border-color: Highlight;
+            box-shadow: none;
+        }
+
+        :host([invalid]) .surface,
+        :host([data-invalid]) .surface {
+            border-color: LinkText;
+        }
+
+        :host([disabled]) .surface,
+        :host(:disabled) .surface {
+            border-color: GrayText;
         }
 
         :host([data-drag-active]) .surface.dropzone {
             background: Canvas;
+            border-color: Highlight;
+            box-shadow: none;
             outline: 2px solid Highlight;
         }
 

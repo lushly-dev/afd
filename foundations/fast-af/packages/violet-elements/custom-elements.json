@@ -20365,7 +20365,13 @@
                 "type": {
                   "text": "void"
                 }
-              }
+              },
+              "parameters": [
+                {
+                  "name": "force",
+                  "default": "false"
+                }
+              ]
             },
             {
               "kind": "field",
@@ -28423,6 +28429,15 @@
               ]
             },
             {
+              "kind": "field",
+              "name": "#pressing",
+              "privacy": "private",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false"
+            },
+            {
               "kind": "method",
               "name": "#queueTypeahead",
               "privacy": "private",
@@ -28562,6 +28577,17 @@
                   }
                 }
               ]
+            },
+            {
+              "kind": "method",
+              "name": "handlePointerDown",
+              "privacy": "public",
+              "return": {
+                "type": {
+                  "text": "boolean"
+                }
+              },
+              "description": "Marks the focus a press on the list is about to give, so `handleFocus` does not scroll."
             },
             {
               "kind": "method",
@@ -28904,7 +28930,8 @@
                 "text": "Element"
               }
             }
-          ]
+          ],
+          "description": "The options a select, combobox or listbox owns, each upgraded. Parsed markup upgrades in tree\norder, so the host's attribute and connected callbacks run before its options are upgraded and\nwould read a label or value they do not have yet (#1172)."
         },
         {
           "kind": "function",
@@ -40454,7 +40481,7 @@
           "type": {
             "text": "ElementStyles"
           },
-          "default": "css` :host { color: var(--color-text-primary, #181b1a); font-family: var(--violet-font-family, var(--font-family-body)); --_surface-page: var(--color-surface-page, #f4f0ea); --_surface-subtle: var(--color-surface-subtle, #e9e5de); --_text-secondary: var(--color-text-secondary, #48534b); --_text-muted: var(--color-text-muted, #5e6460); --_border-subtle: var(--color-border-subtle, rgba(24, 27, 26, 0.10)); --_field-border: var(--color-field-border, #869089); /* A read-only field's line: its fill is too light behind the resting border for 3:1. */ --_field-border-readonly: var(--color-border-strong, #6b7d6e); --_field-border-hover: var(--color-field-border-hover, #48534b); --_field-border-focus: var(--color-field-border-focus, var(--_focus-ring)); --_field-background: var(--color-field-background, #ffffff); --_field-background-readonly: var(--color-field-background-readonly, var(--_surface-subtle)); --_field-text: var(--color-field-text, var(--color-text-primary, #181b1a)); --_field-placeholder: var(--color-field-placeholder, var(--_text-muted)); --_focus-ring: var(--color-focus-ring, #146ba0); --_danger-border: var(--color-field-border-invalid, #c42a1a); --_surface-card: var(--color-surface-card, #f8f9f3); --_surface-floating: var(--color-surface-floating, #ffffff); --_radius-md: var(--radius-md, 8px); --_radius-lg: var(--radius-lg, 12px); --_shadow-control: var(--shadow-control, 0 0 0 1px rgba(24, 27, 26, 0.05), 0 1px 2px rgba(24, 27, 26, 0.10)); --_shadow-floating: var(--shadow-floating, 0 0 0 1px rgba(24, 27, 26, 0.08), 0 4px 12px -2px rgba(24, 27, 26, 0.12), 0 18px 40px -8px rgba(24, 27, 26, 0.20)); /* * A field is a well let into the page. Its edge is an inner cut: a hairline border all * round and, inside it along the top, the 3:1 rule that finds the control, with a soft * shadow under it. The rule is an inset shadow, not a border colour, so it thins to * nothing round the corners. The full outline comes back for focus and an invalid value. */ --_shadow-well: var(--shadow-well, inset 0 2px 3px -1px rgba(0, 0, 0, 0.1)); --_field-shadow: inset 0 1px 0 var(--_field-border), var(--_shadow-well); --_field-shadow-hover: inset 0 1px 0 var(--_field-border-hover), var(--_shadow-well); --_field-shadow-focus: 0 0 0 calc(var(--size-focus-ring-width, 2px) - 1px) var(--_field-border-focus), 0 0 0 4px color-mix(in srgb, var(--_focus-ring) 20%, transparent); --_layer-base: var(--z-index-base, 0); --_layer-raised: var(--z-index-raised, 1); --_layer-sticky: var(--z-index-sticky, 10); --_layer-overlay: var(--z-index-overlay, 100); --_layer-popover: var(--z-index-popover, 200); --_layer-modal: var(--z-index-modal, 300); --_layer-toast: var(--z-index-toast, 400); --_space-stack-xs: var(--space-stack-xs, 4px); --_space-stack-sm: var(--space-stack-sm, 8px); --_space-stack-2xs: calc(var(--_space-stack-xs) / 2); /* One gap above a control, under its label, and one below it, over its supporting text. */ --_space-field-gap: calc(var(--_space-stack-xs) + var(--_space-stack-2xs)); --_space-inline-sm: var(--space-inline-sm, 4px); --_space-inline-md: var(--space-inline-md, 8px); --_type-label-size: var(--type-label-sm-size, 13px); --_type-label-line: var(--type-label-sm-line, 16px); --_type-label-weight: var(--type-label-sm-weight, 500); --_type-body-size: var(--type-body-md-size, 14px); --_type-body-line: var(--type-body-md-line, 20px); --_type-caption-size: var(--type-caption-xs-size, 12px); --_type-caption-line: var(--type-caption-xs-line, 16px); --_type-label-size-compact: calc(var(--_type-label-size) - 1px); --_type-body-size-compact: calc(var(--_type-body-size) - 1px); --_type-caption-size-compact: calc(var(--_type-caption-size) - 1px); --_target-size-compact: var(--size-target-compact, 24px); --_target-size-natural: var(--size-target-natural, 32px); --_target-size-comfortable: var(--size-target-comfortable, 44px); --_auto-target-size: var(--_target-size-natural); --_target-size: var(--violet-target-size, var(--_auto-target-size)); --_control-label-size: var(--violet-control-label-size, var(--_type-label-size)); --_control-body-size: var(--violet-control-body-size, var(--_type-body-size)); --_control-caption-size: var(--violet-control-caption-size, var(--_type-caption-size)); --_duration-fast: var(--duration-fast, 120ms); --_duration-base: var(--duration-base, 180ms); --_easing-standard: var(--easing-standard, cubic-bezier(0.2, 0, 0, 1)); } @media (any-pointer: coarse) { :host { --_auto-target-size: var(--_target-size-comfortable); } } @media (prefers-reduced-motion: reduce) { :host { --_duration-fast: 0.01ms; --_duration-base: 0.01ms; } } `"
+          "default": "css` :host { color: var(--color-text-primary, #181b1a); font-family: var(--violet-font-family, var(--font-family-body)); --_surface-page: var(--color-surface-page, #f4f0ea); --_surface-subtle: var(--color-surface-subtle, #e9e5de); --_text-secondary: var(--color-text-secondary, #48534b); --_text-muted: var(--color-text-muted, #5e6460); --_border-subtle: var(--color-border-subtle, rgba(24, 27, 26, 0.10)); --_field-border: var(--color-field-border, #869089); /* A read-only field's line: its fill is too light behind the resting border for 3:1. */ --_field-border-readonly: var(--color-border-strong, #6b7d6e); --_field-border-hover: var(--color-field-border-hover, #48534b); --_field-border-focus: var(--color-field-border-focus, var(--_focus-ring)); --_field-background: var(--color-field-background, #ffffff); --_field-background-readonly: var(--color-field-background-readonly, var(--_surface-subtle)); --_field-text: var(--color-field-text, var(--color-text-primary, #181b1a)); --_field-placeholder: var(--color-field-placeholder, var(--_text-muted)); --_focus-ring: var(--color-focus-ring, #146ba0); --_danger-border: var(--color-field-border-invalid, #c42a1a); --_surface-card: var(--color-surface-card, #f8f9f3); --_surface-floating: var(--color-surface-floating, #ffffff); --_radius-md: var(--radius-md, 8px); --_radius-lg: var(--radius-lg, 12px); --_radius-round: var(--radius-round, 9999px); --_shadow-control: var(--shadow-control, 0 0 0 1px rgba(24, 27, 26, 0.05), 0 1px 2px rgba(24, 27, 26, 0.10)); --_shadow-floating: var(--shadow-floating, 0 0 0 1px rgba(24, 27, 26, 0.08), 0 4px 12px -2px rgba(24, 27, 26, 0.12), 0 18px 40px -8px rgba(24, 27, 26, 0.20)); /* * A field is a well let into the page. Its edge is an inner cut: a hairline border all * round and, inside it along the top, the 3:1 rule that finds the control, with a soft * shadow under it. The rule is an inset shadow, not a border colour, so it thins to * nothing round the corners. The full outline comes back for focus and an invalid value. */ --_shadow-well: var(--shadow-well, inset 0 2px 3px -1px rgba(0, 0, 0, 0.1)); --_field-shadow: inset 0 1px 0 var(--_field-border), var(--_shadow-well); --_field-shadow-hover: inset 0 1px 0 var(--_field-border-hover), var(--_shadow-well); --_field-shadow-focus: 0 0 0 calc(var(--size-focus-ring-width, 2px) - 1px) var(--_field-border-focus), 0 0 0 4px color-mix(in srgb, var(--_focus-ring) 20%, transparent); --_layer-base: var(--z-index-base, 0); --_layer-raised: var(--z-index-raised, 1); --_layer-sticky: var(--z-index-sticky, 10); --_layer-overlay: var(--z-index-overlay, 100); --_layer-popover: var(--z-index-popover, 200); --_layer-modal: var(--z-index-modal, 300); --_layer-toast: var(--z-index-toast, 400); --_space-stack-xs: var(--space-stack-xs, 4px); --_space-stack-sm: var(--space-stack-sm, 8px); --_space-stack-2xs: calc(var(--_space-stack-xs) / 2); /* One gap above a control, under its label, and one below it, over its supporting text. */ --_space-field-gap: calc(var(--_space-stack-xs) + var(--_space-stack-2xs)); --_space-inline-sm: var(--space-inline-sm, 4px); --_space-inline-md: var(--space-inline-md, 8px); --_type-label-size: var(--type-label-sm-size, 13px); --_type-label-line: var(--type-label-sm-line, 16px); --_type-label-weight: var(--type-label-sm-weight, 500); --_type-body-size: var(--type-body-md-size, 14px); --_type-body-line: var(--type-body-md-line, 20px); --_type-caption-size: var(--type-caption-xs-size, 12px); --_type-caption-line: var(--type-caption-xs-line, 16px); --_type-label-size-compact: calc(var(--_type-label-size) - 1px); --_type-body-size-compact: calc(var(--_type-body-size) - 1px); --_type-caption-size-compact: calc(var(--_type-caption-size) - 1px); --_target-size-compact: var(--size-target-compact, 24px); --_target-size-natural: var(--size-target-natural, 32px); --_target-size-comfortable: var(--size-target-comfortable, 44px); --_auto-target-size: var(--_target-size-natural); --_target-size: var(--violet-target-size, var(--_auto-target-size)); --_control-label-size: var(--violet-control-label-size, var(--_type-label-size)); --_control-body-size: var(--violet-control-body-size, var(--_type-body-size)); --_control-caption-size: var(--violet-control-caption-size, var(--_type-caption-size)); --_duration-fast: var(--duration-fast, 120ms); --_duration-base: var(--duration-base, 180ms); --_easing-standard: var(--easing-standard, cubic-bezier(0.2, 0, 0, 1)); } @media (any-pointer: coarse) { :host { --_auto-target-size: var(--_target-size-comfortable); } } @media (prefers-reduced-motion: reduce) { :host { --_duration-fast: 0.01ms; --_duration-base: 0.01ms; } } `"
         },
         {
           "kind": "variable",
@@ -40544,7 +40571,13 @@
                 "type": {
                   "text": "void"
                 }
-              }
+              },
+              "parameters": [
+                {
+                  "name": "force",
+                  "default": "false"
+                }
+              ]
             },
             {
               "kind": "method",

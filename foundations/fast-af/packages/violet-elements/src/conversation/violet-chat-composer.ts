@@ -78,7 +78,7 @@ const styles = css`
     .input-field::part(control) {
         min-block-size: calc(var(--_composer-line-height) * var(--_composer-min-rows));
         max-block-size: calc(var(--_composer-line-height) * var(--_composer-max-rows));
-        padding-block: var(--_space-xs, 4px);
+        padding-block: var(--_space-stack-xs);
         resize: none;
         overflow-y: auto;
         field-sizing: content;
@@ -96,7 +96,7 @@ const styles = css`
     }
 
     .footer {
-        padding: var(--_space-xs, 4px) var(--_space-md);
+        padding: var(--_space-stack-xs) var(--_space-md);
         border-block-start: var(--_card-border-width, 1px) solid transparent;
         font-size: var(--_caption-size);
         color: var(--_text-muted);

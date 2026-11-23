@@ -152,6 +152,72 @@ describe("violet-combobox", () => {
         expect(combobox.value).toBe("Greenhouse reserve");
     });
 
+    // #1172: parsed markup upgrades in tree order, so the combobox connected before its options
+    // were upgraded and read their label text while it was undefined.
+    it("connects from parsed markup without errors and selects the option its value names", async () => {
+        const errors: unknown[] = [];
+        const onError = (event: ErrorEvent) => {
+            errors.push(event.error ?? event.message);
+            event.preventDefault();
+        };
+        window.addEventListener("error", onError);
+        try {
+            document.body.innerHTML = `
+                <violet-combobox label="Site" value="reserve">
+                    <violet-option value="coop">Community co-op</violet-option>
+                    <violet-option value="reserve">North reserve</violet-option>
+                </violet-combobox>`;
+            await nextFrame();
+        } finally {
+            window.removeEventListener("error", onError);
+        }
+        const combobox = document.querySelector("violet-combobox") as VioletCombobox;
+        const input = combobox.shadowRoot?.querySelector("input") as HTMLInputElement;
+
+        expect(errors).toEqual([]);
+        expect(combobox.selectedOptionValue).toBe("reserve");
+        expect(input.value).toBe("North reserve");
+
+        await typeText(combobox, "co-op");
+        expect(combobox.visibleOptions.map(option => option.value)).toEqual(["coop"]);
+    });
+
+    // #712: a position: fixed panel is placed against a containing ancestor, not the viewport.
+    it("opens its list beside the field inside a contained, transformed ancestor", async () => {
+        document.body.innerHTML = "";
+        const mount = document.createElement("div");
+        mount.style.cssText = "contain: content; transform: translateX(0); margin: 120px 0 0 80px; padding: 40px; overflow: hidden; block-size: 60px;";
+        document.body.append(mount);
+        const combobox = document.createElement("violet-combobox") as VioletCombobox;
+        combobox.label = "Site";
+        combobox.append(createOption("Community co-op", "coop"), createOption("North reserve", "reserve"));
+        mount.append(combobox);
+        await customElements.whenDefined("violet-combobox");
+        await nextFrame();
+
+        combobox.show();
+        const frame = combobox.shadowRoot?.querySelector(".control-shell") as HTMLElement;
+        const panel = combobox.shadowRoot?.querySelector(".panel") as HTMLElement;
+        // Placed as it opens, before any frame.
+        expect(Math.abs(panel.getBoundingClientRect().left - frame.getBoundingClientRect().left)).toBeLessThanOrEqual(4);
+        await nextFrame();
+        await nextFrame();
+        await nextFrame();
+
+        const frameRect = frame.getBoundingClientRect();
+        const panelRect = panel.getBoundingClientRect();
+        expect(panelRect.top).toBeGreaterThanOrEqual(frameRect.top);
+        expect(panelRect.top - frameRect.bottom).toBeLessThanOrEqual(8);
+        expect(Math.abs(panelRect.left - frameRect.left)).toBeLessThanOrEqual(4);
+        const hit = document.elementFromPoint(panelRect.left + 12, panelRect.top + 16);
+        expect(hit?.closest("violet-combobox")).toBe(combobox);
+        expect(panel.matches(":popover-open")).toBe(true);
+
+        combobox.hide(false);
+        await nextFrame();
+        expect(panel.matches(":popover-open")).toBe(false);
+    });
+
     describe("rendering and ARIA", () => {
         it("renders a closed combobox input wired to its label and listbox", async () => {
             const combobox = await renderCombobox();

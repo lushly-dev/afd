@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { cdp, userEvent } from "vitest/browser";
 
 import "./violet-file-upload";
 import "../theme/violet-theme";
@@ -25,6 +25,30 @@ async function renderUpload(): Promise<VioletFileUpload> {
     await customElements.whenDefined("violet-file-upload");
     await nextFrame();
     return upload;
+}
+
+/**
+ * Emulates a dark forced-colours theme (Windows "Night sky"), or restores the media Playwright
+ * emulates by default, so later spec files on the page do not follow the host.
+ */
+async function emulateForcedColors(active: boolean): Promise<void> {
+    const session = cdp() as unknown as { send(method: string, params?: object): Promise<unknown> };
+    await session.send("Emulation.setEmulatedMedia", {
+        features: [
+            { name: "forced-colors", value: active ? "active" : "none" },
+            { name: "prefers-color-scheme", value: active ? "dark" : "light" },
+        ],
+    });
+}
+
+/** What a system colour resolves to in the current colour scheme. */
+function systemColor(name: string): string {
+    const probe = document.createElement("span");
+    probe.style.color = name;
+    document.body.append(probe);
+    const value = getComputedStyle(probe).color;
+    probe.remove();
+    return value;
 }
 
 describe("violet-file-upload", () => {
@@ -235,4 +259,81 @@ describe("violet-file-upload", () => {
             expect(contrast(dragActive.borderTopColor, dragActive.backgroundColor, pageBg)).toBeGreaterThanOrEqual(3);
         },
     );
+
+    describe("under forced colours", () => {
+        afterEach(async () => {
+            await emulateForcedColors(false);
+        });
+
+        // #2183: the surface opts out of colour adjustment, so the drag-active rule's author border
+        // and focus shadow outranked the forced-colours rule for the surface.
+        it("paints the drag-active, focused, invalid and disabled dropzone in system colours", async () => {
+            await loadVioletBuiltInTheme();
+            await emulateForcedColors(true);
+            document.body.innerHTML = "";
+            const theme = document.createElement("violet-theme");
+            const upload = document.createElement("violet-file-upload") as VioletFileUpload;
+            upload.appearance = "dropzone";
+            upload.label = "Upload files";
+            theme.append(upload);
+            document.body.append(theme);
+            await customElements.whenDefined("violet-file-upload");
+            await nextFrame();
+            await nextFrame();
+
+            expect(matchMedia("(forced-colors: active)").matches).toBe(true);
+            const surface = upload.shadowRoot?.querySelector(".surface") as HTMLElement;
+            surface.style.transition = "none";
+            const resting = getComputedStyle(surface);
+            expect(resting.forcedColorAdjust).toBe("none");
+            expect(resting.borderTopColor).toBe(systemColor("ButtonText"));
+            expect(resting.boxShadow).toBe("none");
+            const title = upload.shadowRoot?.querySelector(".dropzone-title") as HTMLElement;
+            const message = upload.shadowRoot?.querySelector(".dropzone-message") as HTMLElement;
+            expect(getComputedStyle(title).color).toBe(systemColor("CanvasText"));
+            expect(getComputedStyle(message).color).toBe(systemColor("CanvasText"));
+            const browse = upload.shadowRoot?.querySelector("violet-button")?.shadowRoot?.querySelector("button") as HTMLElement;
+            expect(getComputedStyle(browse).forcedColorAdjust).toBe("auto");
+            expect(getComputedStyle(browse).color).toBe(systemColor("ButtonText"));
+
+            await userEvent.hover(surface);
+            await nextFrame();
+            expect(surface.matches(":hover")).toBe(true);
+            const hovered = getComputedStyle(surface);
+            expect(hovered.borderTopColor).toBe(systemColor("ButtonText"));
+            expect(hovered.backgroundColor).toBe(systemColor("Canvas"));
+            await userEvent.unhover(surface);
+            await nextFrame();
+
+            upload.dragActive = true;
+            await nextFrame();
+            expect(upload.hasAttribute("data-drag-active")).toBe(true);
+            const dragActive = getComputedStyle(surface);
+            expect(dragActive.backgroundColor).toBe(systemColor("Canvas"));
+            expect(dragActive.borderTopColor).toBe(systemColor("Highlight"));
+            expect(dragActive.boxShadow).toBe("none");
+            expect(dragActive.outlineColor).toBe(systemColor("Highlight"));
+            upload.dragActive = false;
+            await nextFrame();
+
+            const browseButton = upload.shadowRoot?.querySelector("violet-button")?.shadowRoot?.querySelector("button") as HTMLButtonElement;
+            browseButton.focus();
+            await nextFrame();
+            expect(surface.matches(":focus-within")).toBe(true);
+            const focused = getComputedStyle(surface);
+            expect(focused.borderTopColor).toBe(systemColor("Highlight"));
+            expect(focused.boxShadow).toBe("none");
+            browseButton.blur();
+            await nextFrame();
+
+            upload.setAttribute("invalid", "");
+            await nextFrame();
+            expect(getComputedStyle(surface).borderTopColor).toBe(systemColor("LinkText"));
+            upload.removeAttribute("invalid");
+
+            upload.setAttribute("disabled", "");
+            await nextFrame();
+            expect(getComputedStyle(surface).borderTopColor).toBe(systemColor("GrayText"));
+        });
+    });
 });

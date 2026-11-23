@@ -164,6 +164,73 @@ describe("violet-tabs", () => {
         expect(tabs.activeid).toBe(tabItems[0]?.id);
     });
 
+    // #1172: parsed markup upgrades in tree order, so violet-tabs connects before its violet-tab
+    // children are upgraded and called methods they did not have yet.
+    describe("mounted from parsed markup", () => {
+        async function renderMarkup(): Promise<{ tabs: VioletTabs; tabItems: VioletTab[]; panels: VioletTabPanel[]; errors: unknown[] }> {
+            const errors: unknown[] = [];
+            const onError = (event: ErrorEvent) => {
+                errors.push(event.error ?? event.message);
+                event.preventDefault();
+            };
+            window.addEventListener("error", onError);
+            try {
+                document.body.innerHTML = `
+                    <violet-tabs appearance="mixed" label="Account settings">
+                        <violet-tab>Profile</violet-tab>
+                        <violet-tab>Security</violet-tab>
+                        <violet-tab disabled>Billing</violet-tab>
+                        <violet-tab>Notifications</violet-tab>
+                        <violet-tab-panel>Profile panel</violet-tab-panel>
+                        <violet-tab-panel>Security panel</violet-tab-panel>
+                        <violet-tab-panel>Billing panel</violet-tab-panel>
+                        <violet-tab-panel>Notifications panel</violet-tab-panel>
+                    </violet-tabs>`;
+                await nextFrame();
+                await nextFrame();
+            } finally {
+                window.removeEventListener("error", onError);
+            }
+            const tabs = document.querySelector("violet-tabs") as VioletTabs;
+            return {
+                tabs,
+                tabItems: Array.from(tabs.querySelectorAll("violet-tab")),
+                panels: Array.from(tabs.querySelectorAll("violet-tab-panel")),
+                errors,
+            };
+        }
+
+        it("connects without errors and presents every tab", async () => {
+            const { tabItems, panels, errors } = await renderMarkup();
+
+            expect(errors).toEqual([]);
+            expect(tabItems.map(tab => tab.getAttribute("data-appearance"))).toEqual(["mixed", "open", "open", "open"]);
+            expect(tabItems.map(tab => tab.getAttribute("aria-selected"))).toEqual(["true", "false", "false", "false"]);
+            expect(tabItems.map(tab => tab.tabIndex)).toEqual([0, -1, -1, -1]);
+            expect(tabItems[2]?.getAttribute("aria-disabled")).toBe("true");
+            expect(panels.map(panel => panel.hidden)).toEqual([false, true, true, true]);
+            expect(panels[0]?.getAttribute("aria-labelledby")).toBe(tabItems[0]?.id);
+        });
+
+        it("selects on click and moves past the disabled tab from the keyboard", async () => {
+            const { tabs, tabItems, panels } = await renderMarkup();
+
+            await userEvent.click(tabItems[1] as VioletTab);
+            await nextFrame();
+            expect(tabs.activeid).toBe(tabItems[1]?.id);
+            expect(panels[1]?.hidden).toBe(false);
+            expect(tabItems[1]?.getAttribute("data-appearance")).toBe("mixed");
+            expect(document.activeElement).toBe(tabItems[1]);
+
+            await userEvent.keyboard("{ArrowRight}");
+            await nextFrame();
+            expect(tabs.activeid).toBe(tabItems[3]?.id);
+            expect(document.activeElement).toBe(tabItems[3]);
+            expect(panels[3]?.hidden).toBe(false);
+            expect(panels[1]?.hidden).toBe(true);
+        });
+    });
+
     it("resolves mixed appearance so only the active tab gets the closed treatment", async () => {
         const { tabItems } = await renderTabs({
             appearance: "mixed",

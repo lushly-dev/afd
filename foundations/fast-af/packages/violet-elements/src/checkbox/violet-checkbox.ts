@@ -72,10 +72,12 @@ const styles = css`
         line-height: 0;
     }
 
+    /* Decorative: it paints over the input, so pointers pass through it to the input (#1424). */
     .box {
         box-sizing: border-box;
         position: relative;
         display: inline-grid;
+        pointer-events: none;
         place-items: center;
         inline-size: var(--_control-size);
         block-size: var(--_control-size);

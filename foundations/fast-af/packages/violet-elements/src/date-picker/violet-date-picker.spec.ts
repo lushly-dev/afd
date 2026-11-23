@@ -93,6 +93,49 @@ describe("violet-date-picker", () => {
         document.body.innerHTML = "";
     });
 
+    // The input reads "" while incomplete, as the default does, so a reset must write it anyway.
+    it("clears an incomplete entry on form reset", async () => {
+        document.body.innerHTML = `<form><violet-date-picker label="Due" name="when"></violet-date-picker></form>`;
+        await customElements.whenDefined("violet-date-picker");
+        await nextFrame();
+        const form = document.querySelector("form") as HTMLFormElement;
+        const picker = document.querySelector("violet-date-picker") as HTMLElement & { value: string };
+        const input = picker.shadowRoot?.querySelector("input") as HTMLInputElement;
+
+        await userEvent.click(input, { position: { x: 8, y: input.clientHeight / 2 } });
+        await userEvent.keyboard("04");
+        await nextFrame();
+        expect(picker.value).toBe("");
+        expect(input.validity.badInput).toBe(true);
+
+        form.reset();
+        await nextFrame();
+
+        expect(input.validity.badInput).toBe(false);
+        expect(input.value).toBe("");
+        expect(picker.value).toBe("");
+    });
+
+    // #712: the input reads "" while a segment is incomplete, and a :value binding wrote that "" back,
+    // erasing the segments already entered.
+    it("keeps the other segments while one is re-entered", async () => {
+        document.body.innerHTML = `<violet-date-picker label="Due" value="2026-03-15"></violet-date-picker>`;
+        await customElements.whenDefined("violet-date-picker");
+        await nextFrame();
+        const picker = document.querySelector("violet-date-picker") as VioletDatePicker;
+        const input = picker.shadowRoot?.querySelector("input") as HTMLInputElement;
+
+        await userEvent.click(input, { position: { x: 8, y: input.clientHeight / 2 } });
+        await userEvent.keyboard("{Backspace}");
+        await nextFrame();
+        expect(picker.value).toBe("");
+        await userEvent.keyboard("04");
+        await nextFrame();
+
+        expect(input.value).toBe("2026-04-15");
+        expect(picker.value).toBe("2026-04-15");
+    });
+
     it("syncs its native date input from the value property", async () => {
         const picker = await renderDatePicker();
         const input = picker.shadowRoot?.querySelector('input[type="date"]') as HTMLInputElement | null;

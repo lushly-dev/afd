@@ -144,7 +144,7 @@ const styles = css`
     .shimmer {
         display: flex;
         flex-direction: column;
-        gap: var(--_space-xs, 4px);
+        gap: var(--_space-stack-xs);
     }
 
     .shimmer-line {

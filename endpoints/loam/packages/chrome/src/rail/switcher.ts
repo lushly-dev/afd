@@ -284,7 +284,7 @@ export class LoamProjectList extends FASTElement {
 	}
 
 	/**
-	 * As the console does: the pressed row is the active one before `handleFocus` moves it (#712). A press on
+	 * The pressed row is the active one as the press focuses the list, which no longer scrolls on a press (#712). A press on
 	 * what takes no focus, as the popover's padding, leaves focus in the list, not on `body` (R3). A press
 	 * outside the pressed element's client area is on its scrollbar, as a modal list's when a long failure
 	 * makes the `dialog` scroll, and goes through, whatever overflows.

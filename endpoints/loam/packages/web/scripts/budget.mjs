@@ -643,7 +643,9 @@ export const CEILINGS = Object.freeze({
 	// `main.ts`), merged on `main` at `bfa42bff`: set to 344,000.
 	// Raised under D115 by #2128 (execution-controls batch limits in `afd-core` and validation issue cap in
 	// `afd-server/direct`): combined build against `main` at `88cd5f02b` measured 345,762; set to 346,200.
-	jsMinified: 346_200,
+	// Raised under D115 by the violet-elements bug sweep (#1436: `radius.round` in the field token block, which first
+	// paint's `violet-token-defaults` chunk carries): measured 346,220 against `main` at `bc316e8e`; set to 346,600.
+	jsMinified: 346_600,
 	// Raised from 96,500 to 97,000 under D115 by phase 4's step 4 with `main` at `8c3425d8` (phase 5's step 0b) merged,
 	// both measured from clean builds in one tree: 96,436 to 96,527 gzip (+91) and 309,074 to 309,275 minified (+201,
 	// within its row): the answer registry the `surfaces` and `editor` chunks share, in `events` (+180), and 21 in `layout`.

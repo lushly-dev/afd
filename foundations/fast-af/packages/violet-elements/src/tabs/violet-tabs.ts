@@ -1,5 +1,7 @@
 import { FASTElement, attr, css, html, observable } from "@lushly-dev/fast-element";
 
+import "../tab/violet-tab";
+import "../tab-panel/violet-tab-panel";
 import { violetFieldTokenDefaults, violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 import type { VioletTab } from "../tab/violet-tab";
 import type { VioletTabPanel } from "../tab-panel/violet-tab-panel";
@@ -258,6 +260,9 @@ export class VioletTabs extends FASTElement {
 
     public connectedCallback(): void {
         super.connectedCallback();
+        // Parsed markup upgrades in tree order, so the tabs and panels inside are not upgraded yet
+        // when this connects and lack the methods the state is applied through (#1172).
+        customElements.upgrade(this);
         this.#syncTabs();
         this.#syncPanels();
         this.#applyState(false);

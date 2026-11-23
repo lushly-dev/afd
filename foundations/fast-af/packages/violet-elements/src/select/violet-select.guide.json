@@ -31,6 +31,10 @@
       ]
     },
     {
+      "id": "select.layer",
+      "text": "The list opens in the top layer, as a manual popover, so a containing ancestor (contain, transform, filter) or a clipping one does not move or cut it. Style it through ::part(panel)."
+    },
+    {
       "id": "select.typeahead",
       "text": "Typing a character on the closed trigger selects the next option whose label starts with it and fires input and change without opening; while open, typing only moves the highlight."
     }

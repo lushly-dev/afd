@@ -82,6 +82,7 @@ const template = html<VioletListbox>`
         aria-disabled="${x => String(x.disabled)}"
         aria-multiselectable="${x => (x.multiple ? "true" : null)}"
         aria-label="${x => x.label || x.getAttribute("aria-label") || "Options"}"
+        @pointerdown="${x => x.handlePointerDown()}"
         @focus="${x => x.handleFocus()}"
         @keydown="${(x, c) => x.handleKeydown(c.event as KeyboardEvent)}"
     >
@@ -99,6 +100,8 @@ const template = html<VioletListbox>`
  * @csspart control - The focusable list element.
  */
 export class VioletListbox extends FASTElement {
+    #pressing = false;
+
     @observable
     declare public activeValue: string;
 
@@ -193,7 +196,25 @@ export class VioletListbox extends FASTElement {
         }
 
         this.#syncOptions();
-        this.#scrollActiveIntoView();
+        // Focus from a press on the list leaves the scroll alone: bringing the active row into view
+        // would move the row under the pointer before the press ends, and the click would miss it
+        // (#712). Focus from the keyboard or from script still brings it into view.
+        const pressed = this.#pressing;
+        this.#pressing = false;
+        if (!pressed) {
+            this.#scrollActiveIntoView();
+        }
+    }
+
+    /** Marks the focus a press on the list is about to give, so `handleFocus` does not scroll. */
+    public handlePointerDown(): boolean {
+        this.#pressing = true;
+        // A press on a list that already has focus gives no focus event, so clear the mark in a
+        // later task: the focus a press gives comes in this one, after the listeners have run.
+        window.setTimeout(() => {
+            this.#pressing = false;
+        });
+        return true;
     }
 
     public handleKeydown(event: KeyboardEvent): boolean {

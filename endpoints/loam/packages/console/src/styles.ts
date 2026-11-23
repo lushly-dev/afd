@@ -210,19 +210,6 @@ export const consoleStyles = css`
 		background: var(--color-control-selected-background);
 		color: var(--color-control-selected-foreground);
 	}
-	/*
-	 * violet-select places its list with position: fixed from viewport coordinates, and the mount's contain:
-	 * content makes the mount that containing block. So here it opens under its own trigger instead.
-	 */
-	violet-select::part(control-shell) {
-		position: relative;
-	}
-	violet-select::part(panel) {
-		position: absolute !important;
-		inset-block: 100% auto !important;
-		inset-inline: 0 auto !important;
-		inline-size: 100% !important;
-	}
 	.row-title {
 		font-size: var(--type-body-md-size);
 		line-height: var(--type-body-md-line);
