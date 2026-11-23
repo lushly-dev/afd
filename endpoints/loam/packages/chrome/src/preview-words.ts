@@ -12,27 +12,57 @@ import type { ConfirmationPreviewV1 } from '@lushly-dev/loam-sdk';
  * write, bidirectional and other invisible format characters, which reorder or hide what is read, and every control. Each is shown as its
  * code point instead (the trust review's B1, B6), so one value is always one visual line, read in order.
  */
-/** Control, format and line or paragraph separator characters, by their Unicode categories, but the tab. */
-const UNSAFE = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
-const unsafe = (char: string): boolean => char !== '\t' && UNSAFE.test(char);
+/**
+ * Control, format, line or paragraph separator and lone surrogate characters, by their Unicode categories, but the tab,
+ * and every space but U+0020, which would read as one (the re-check).
+ */
+const UNSAFE = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\p{Cs}\p{Zs}]/u;
+const unsafe = (char: string): boolean => char !== '\t' && char !== ' ' && UNSAFE.test(char);
 
-/** `text` with every unsafe character shown as `\u{…}`. */
+/**
+ * `text` with every unsafe character shown as `\u{…}`, and a backslash as `\\`, so a line break and the six characters
+ * `\u{A}` never read alike (#2137's re-review).
+ */
 export function visible(text: string): string {
 	let out = '';
 	for (const char of text) {
 		const code = char.codePointAt(0) ?? 0;
-		out += unsafe(char) ? `\\u{${code.toString(16).toUpperCase()}}` : char;
+		out += char === '\\' ? '\\\\' : unsafe(char) ? `\\u{${code.toString(16).toUpperCase()}}` : char;
 	}
 	return out;
+}
+
+/**
+ * A key as one step of a path: bare when it can read as nothing else, otherwise as JSON in brackets, so `mail.to` from
+ * `mail` and `to`, `[0]` from an index, `a: b` from a value and an empty key stay apart (#2137's re-review).
+ */
+function step(key: string): string {
+	return /^[^\s.[\]:"\\()]+$/u.test(key) ? key : `[${JSON.stringify(key)}]`;
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
 	typeof value === 'object' && value !== null && !Array.isArray(value);
 
+/**
+ * A value as text, so no two values read alike (#2137): a string as itself unless it would read as another value (a
+ * number, `true`, `null`, `{}`, `[]` or empty), then quoted as JSON; every other value as JSON.
+ */
+function textOf(value: unknown): string {
+	if (typeof value !== 'string') return JSON.stringify(value) ?? String(value);
+	// Empty, or padded, whose edges would not show (the re-review).
+	if (value.trim() !== value || value === '') return JSON.stringify(value);
+	try {
+		JSON.parse(value);
+		return JSON.stringify(value);
+	} catch {
+		return value;
+	}
+}
+
 /** One line: its path and its whole value as text, never cut (the kernel asks only for a preview it can show whole). */
-function lineOf(path: string, value: unknown, content: boolean): string {
-	const shown = typeof value === 'string' ? value : (JSON.stringify(value) ?? String(value));
-	return `${content ? '(written by others) ' : ''}${visible(path || 'value')}: ${visible(shown)}`;
+function lineOf(path: string, shown: string, content: boolean): string {
+	// A preview that is one value has no key, and is named by words no key's step can be.
+	return `${content ? '(written by others) ' : ''}${visible(path || '(the preview)')}: ${visible(shown)}`;
 }
 
 /** The preview's lines: what changed, whose words they are, then each value. */
@@ -49,14 +79,10 @@ export function previewWords(preview: ConfirmationPreviewV1 | undefined): string
 	const walk = (value: unknown, path: string, content: boolean) => {
 		if (Array.isArray(value)) {
 			if (value.every((item) => !isRecord(item) && !Array.isArray(item))) {
-				// Each item as JSON, so the boundaries between them, and `null` from `"null"`, stay visible.
-				lines.push(
-					lineOf(
-						path,
-						value.map((item) => JSON.stringify(item) ?? String(item)).join(', '),
-						content
-					)
-				);
+				// Each item as JSON, in brackets, so the boundaries between them, `null` from `"null"` and an empty list from
+				// an empty string stay visible.
+				const items = value.map((item) => JSON.stringify(item) ?? String(item));
+				lines.push(lineOf(path, `[${items.join(', ')}]`, content));
 				return;
 			}
 			value.forEach((item, index) => {
@@ -66,14 +92,24 @@ export function previewWords(preview: ConfirmationPreviewV1 | undefined): string
 		}
 		if (isRecord(value)) {
 			const inner = content || (!whole && value.trust === 'content');
+			// An empty object is a value too, never nothing (#2137).
+			if (Object.keys(value).length === 0) {
+				lines.push(lineOf(path, '{}', content));
+				return;
+			}
 			for (const [key, child] of Object.entries(value)) {
 				// The label itself, read as 5.1 reads it; any other `trust` value is the server's and shown.
 				if (key === 'trust' && child === 'content' && !whole) continue;
-				walk(child, path ? `${path}.${key}` : key, inner);
+				const next = step(key);
+				walk(
+					child,
+					path ? (next.startsWith('[') ? `${path}${next}` : `${path}.${next}`) : next,
+					inner
+				);
 			}
 			return;
 		}
-		lines.push(lineOf(path, value, content));
+		lines.push(lineOf(path, textOf(value), content));
 	};
 	walk(preview.data, '', false);
 	return [...head, ...lines];

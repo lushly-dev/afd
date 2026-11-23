@@ -11,8 +11,8 @@
  * it. A token from any other call is dropped unused.
  *
  * **Released.** A command is released when its instance entry says `approvals = "shell"`, the entry gives the command a
- * `preview` that names a read the instance reported, and the instance speaks MCP 2026-07-28, the only era on which AFD
- * accepts the key. Anything else held by its server answers `MOUNT_APPROVAL_UNAVAILABLE`.
+ * `preview` that names a read the instance reported, and the instance's lane carries an approval by its transport's own
+ * word (the desktop's `stdio` and `http` lanes opened on MCP 2026-07-28, the only era on which AFD accepts the key). Anything else held by its server answers `MOUNT_APPROVAL_UNAVAILABLE`.
  *
  * **The hold.** From a person's confirm until its outcome is stored, every other call to the instance waits; the
  * confirmation's own run and its preview reads pass, known by the confirmation's id on the call, never by a trace. A hold
@@ -63,7 +63,7 @@ export interface MountReleaseV1 {
 	/**
 	 * Why it cannot be released now, or undefined when it can: `preview`, the preview names no read the instance
 	 * reported that is callable on its own; `era`, the instance's lane does not carry an approval (only the desktop's
-	 * `stdio` lane opened on MCP 2026-07-28 does, by its transport's own word, never the server's).
+	 * `stdio` and `http` lanes opened on MCP 2026-07-28 do, by the transport's own word, never the server's).
 	 */
 	blocked(): 'preview' | 'era' | undefined;
 	/**
@@ -139,6 +139,34 @@ function holdsToken(value: unknown): boolean {
 		if (typeof item !== 'object' || item === null) continue;
 		if (!Array.isArray(item) && Object.hasOwn(item, 'approvalToken')) return true;
 		for (const child of Object.values(item)) stack.push(child);
+	}
+	return false;
+}
+
+/** 5.1's walk bounds (`copilot/labels.ts`'s `WALK_DEPTH` and `WALK_NODES`), which this chunk does not import. */
+const LABEL_WALK_DEPTH = 32;
+const LABEL_WALK_NODES = 10_000;
+
+/**
+ * Whether 5.1's walk could not read a preview's `data` whole, read as the label check reads a result: from the result's
+ * shown parts, so `data` and `error` are at level 1, every node counted and none past {@link LABEL_WALK_DEPTH}, and a part labelled
+ * `"trust": "content"` one node with everything beneath it (#2137: the bound is the label check's exactly).
+ */
+export function pastLabelWalk(data: unknown, error?: unknown): boolean {
+	// The shown parts' wrapper at level 0, its `data` and its `error`, as `labels.ts`'s `shownOf` gives them: a successful
+	// result may carry an `error` too.
+	const stack: Array<[unknown, number]> = [
+		[data, 1],
+		[error, 1],
+	];
+	let nodes = 1;
+	while (stack.length > 0) {
+		const [item, depth] = stack.pop() as [unknown, number];
+		nodes += 1;
+		if (nodes > LABEL_WALK_NODES || depth > LABEL_WALK_DEPTH) return true;
+		if (typeof item !== 'object' || item === null) continue;
+		if (isRecord(item) && item.trust === 'content') continue;
+		for (const child of Object.values(item)) stack.push([child, depth + 1]);
 	}
 	return false;
 }
@@ -266,6 +294,16 @@ export function releasableRead(
 	return read !== undefined && !read.mutation && !read.destructive && read.approval !== 'required';
 }
 
+/**
+ * The version a server answered, in the kernel's words only when it is a version's shape (`YYYY-MM-DD`): a server
+ * chooses the string, so any other is never quoted (#2137's re-review).
+ */
+function laneVersion(version: string): string {
+	return /^\d{4}-\d{2}-\d{2}$/.test(version)
+		? `MCP ${version}`
+		: 'an MCP version Loam does not know';
+}
+
 /** What discovery tells the deployer of an entry's releases (7.2): each is the instance's warning, with a fix. */
 export function releaseWarnings(
 	entry: ProjectionAppV1,
@@ -317,9 +355,9 @@ export function releaseWarnings(
 	if (!carries) {
 		found.push({
 			code: 'INSTANCE_APPROVALS_UNAVAILABLE',
-			message: `This instance's lane (MCP ${protocolVersion.slice(0, 32)}) carries no person's approval: only the desktop's \`stdio\` lane on ${APPROVER_PROTOCOL} does, so no command is released.`,
+			message: `This instance's lane (${laneVersion(protocolVersion)}) carries no person's approval: only the desktop's \`stdio\` and \`http\` lanes on ${APPROVER_PROTOCOL} do, so no command is released.`,
 			suggestion:
-				'Mount it on the desktop, whose stdio transport speaks MCP 2026-07-28 for an `approvals = "shell"` instance, or set `approvals = "none"`.',
+				'Mount it on the desktop, whose `stdio` and `http` lanes speak MCP 2026-07-28 for an `approvals = "shell"` instance, or set `approvals = "none"`.',
 		});
 	}
 	return found;

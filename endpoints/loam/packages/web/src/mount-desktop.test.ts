@@ -201,7 +201,7 @@ describe('DesktopMountTransport (phase 6 specification, 10.4)', () => {
 		expect(calls.filter(({ command }) => command === 'mount_open')).toHaveLength(1);
 	});
 
-	it('asks the modern era only of an approvals = "shell" instance over stdio', async () => {
+	it('asks the modern era only of an approvals = "shell" instance, over stdio or http (#2137)', async () => {
 		const made: unknown[] = [];
 		const chunk = {
 			createMountTransport: () => ({}) as never,
@@ -227,7 +227,7 @@ describe('DesktopMountTransport (phase 6 specification, 10.4)', () => {
 			await ports.mountTransport(entry as never, 'http://loam.localhost/mounts/x/mcp');
 		expect(made).toEqual([
 			['a', { era: 'modern' }],
-			['b', {}],
+			['b', { era: 'modern' }],
 			['c', {}],
 			['d', {}],
 		]);

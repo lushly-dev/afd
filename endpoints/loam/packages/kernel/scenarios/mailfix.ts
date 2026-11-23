@@ -33,8 +33,11 @@ import {
 	type ApprovalRequest,
 	type ApproverPredicate,
 	createApprovalMiddleware,
+	createMcpHandler,
 	createMcpServer,
 	defineCommand,
+	type McpHandler,
+	type McpHandlerOptions,
 	type McpServer,
 	type McpTransport,
 	type ZodCommandDefinition,
@@ -628,6 +631,26 @@ function mailfixCommands(state: State): ZodCommandDefinition[] {
  * is ignored, and in an input it is refused.
  */
 export function createMailfixServer(options: MailfixServerOptions = {}): McpServer {
+	return createMcpServer({ ...mailfixOptions(options), transport: options.transport ?? 'auto' });
+}
+
+/**
+ * `mailfix` as an HTTP handler, for a test to listen with (`node:http`'s `createServer`), on loopback: the same
+ * commands, hold and approver as {@link createMailfixServer}, with `createContext` setting each request's credentials,
+ * as a deployment's mail engine names the credential it gave Loam its approver (its 3.5). Serves MCP 2026-07-28 at
+ * `/mcp`, and the 2025 era beside it.
+ */
+export function createMailfixHandler(
+	options: Omit<MailfixServerOptions, 'transport'> & Pick<McpHandlerOptions, 'createContext'> = {}
+): McpHandler {
+	return createMcpHandler({
+		...mailfixOptions(options),
+		host: '127.0.0.1',
+		...(options.createContext ? { createContext: options.createContext } : {}),
+	});
+}
+
+function mailfixOptions(options: MailfixServerOptions): McpHandlerOptions {
 	const state = freshState();
 	const commands = mailfixCommands(state);
 	// A stale or sent draft is refused before the hold: nothing would be sent, so no person is asked.
@@ -635,7 +658,7 @@ export function createMailfixServer(options: MailfixServerOptions = {}): McpServ
 		if (name !== 'mailfix-draft-send') return next();
 		return sendRefusal(state, input as { draft: string; revision: number }) ?? next();
 	};
-	return createMcpServer({
+	return {
 		name: 'mailfix',
 		version: '1.0.0',
 		instructions:
@@ -651,10 +674,9 @@ export function createMailfixServer(options: MailfixServerOptions = {}): McpServ
 				...(options.onApprovalRequired ? { onApprovalRequired: options.onApprovalRequired } : {}),
 			}),
 		],
-		transport: options.transport ?? 'auto',
 		...(options.approver ? { approver: options.approver } : {}),
 		toolStrategy: 'individual',
 		// `afd-help` and `afd-detail`, which the kernel's discovery reads.
 		bootstrap: true,
-	});
+	};
 }

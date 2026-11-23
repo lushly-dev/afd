@@ -21,7 +21,7 @@ import { p5Base, type SeededKernel } from '../../scenarios/seeds.js';
 import { MOUNT_FAILURE_CODES, parseMountedResult } from '../apps/mounted.js';
 import type { LoamKernelV5 } from '../types.js';
 import { createCopilotParts } from './commands.js';
-import { contentParts, labelResult, mountedTool } from './labels.js';
+import { contentParts, KERNEL_ANSWERS, labelResult, mountedTool } from './labels.js';
 import { createTaint, OUTCOME_LABELS_TABLE } from './taint.js';
 import type { CopilotSessionV1, CopilotTurnV1 } from './types.js';
 
@@ -137,9 +137,12 @@ describe('P5-A4: labels per part (5.1)', () => {
 
 	it("P6-E5: the hosted relay's refusals are the kernel's answers, not the server's: they taint nothing, and an instance's own error with the same code still does", () => {
 		// Every code a transport's rejection may carry, which the kernel answers in its own words (`MOUNT_FAILURE_CODES`),
-		// but `MOUNT_UNAUTHORIZED`, which phase 5 left out of its kernel answers (a follow-up): held to the kernel's set.
-		const codes = [...MOUNT_FAILURE_CODES].filter((code) => code !== 'MOUNT_UNAUTHORIZED');
-		expect(codes).toEqual(expect.arrayContaining(['MOUNT_COMMAND_NOT_EXPOSED', 'UNAUTHORIZED']));
+		// `MOUNT_UNAUTHORIZED` among them (#2137): held to the kernel's set.
+		const codes = [...MOUNT_FAILURE_CODES];
+		expect(codes).toEqual(
+			expect.arrayContaining(['MOUNT_COMMAND_NOT_EXPOSED', 'UNAUTHORIZED', 'MOUNT_UNAUTHORIZED'])
+		);
+		expect(codes.filter((code) => !KERNEL_ANSWERS.has(code))).toEqual([]);
 		for (const code of codes) {
 			// As the kernel answers a refusal `mount.ts` carried: its own words, and no server's mark.
 			const refused = {

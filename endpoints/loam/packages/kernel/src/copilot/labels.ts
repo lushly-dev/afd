@@ -13,6 +13,7 @@
  */
 
 import type { CommandResult } from '@lushly-dev/afd-core';
+import type { LoamKernelErrorCode } from '../errors.js';
 
 /** The walk's bounds (5.1): past them a result is `content` whole. */
 export const WALK_DEPTH = 32;
@@ -69,11 +70,15 @@ export function contentParts(value: unknown): { parts: number; overflow: boolean
 	return { parts, overflow: false };
 }
 
+/** A code the kernel answers in its own words: its own, or AFD's registry's refusal of an unexposed command. */
+export type KernelAnswerCode = LoamKernelErrorCode | 'COMMAND_NOT_EXPOSED';
+
 /**
  * The kernel's own refusals and answers for a mounted command, which say nothing of its server's (the review's B9): any
- * other result of a mounted command is the server's, a stored outcome answered again or a cached one included.
+ * other result of a mounted command is the server's, a stored outcome answered again or a cached one included. Typed to
+ * the kernel's codes, so a code no kernel path answers cannot join it (#2137).
  */
-const KERNEL_ANSWERS: ReadonlySet<string> = new Set([
+export const KERNEL_ANSWERS: ReadonlySet<KernelAnswerCode> = new Set<KernelAnswerCode>([
 	'CONFIRMATION_PENDING',
 	'CONFIRMATION_DECLINED',
 	'AUTONOMY_SUGGEST_ONLY',
@@ -89,6 +94,8 @@ const KERNEL_ANSWERS: ReadonlySet<string> = new Set([
 	'COMMAND_NOT_FOUND',
 	'COMMAND_NOT_EXPOSED',
 	'MOUNT_UNREACHABLE',
+	// The kernel's own answer to an instance's 401 or 403, in its words alone (phase 6's step 6 follow-up, #2137).
+	'MOUNT_UNAUTHORIZED',
 	'MOUNT_TIMEOUT',
 	'MOUNT_RESULT_INVALID',
 	'MOUNT_NOT_AFD',
@@ -139,7 +146,7 @@ const fromServer = (result: CommandResult, instance: string | undefined): boolea
 	(serverOf(result) === instance ||
 		typeof (result as unknown as Record<symbol, unknown>)[STORED] === 'string' ||
 		result.success === true ||
-		!KERNEL_ANSWERS.has(String(result.error?.code ?? '')));
+		!(KERNEL_ANSWERS as ReadonlySet<string>).has(String(result.error?.code ?? '')));
 
 /**
  * The parts of a result the model is given: its data and error, never a server's metadata, which the agent port's half

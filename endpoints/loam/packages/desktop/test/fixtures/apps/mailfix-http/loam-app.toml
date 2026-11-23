@@ -1,0 +1,19 @@
+# P5-A6's `http` fixture app (#2137): its commands come from the instance, `mailfix` over HTTP (`test/fixtures/mailfix-http.ts`).
+manifest_version = 1
+protocol = 1
+afd_contract = "1.0"
+
+[plugin]
+id = "mailfix"
+title = "Mailfix"
+version = "0.1.0"
+description = "A fixture mail server, mounted over http, that names the bearer it gave Loam an approver."
+kind = "mounted"
+domains = ["mailfix"]
+
+[mount]
+prefix = "mailfix"
+transport = "http"
+
+[app]
+scope_levels = ["workspace", "project"]

@@ -27,6 +27,7 @@ import {
 	heldEnded,
 	holdsApprovalKey,
 	type MountReleaseV1,
+	pastLabelWalk,
 	previewInput,
 	previewSpecOf,
 	RELEASING,
@@ -789,6 +790,8 @@ export function createMountedHost(options: MountedHostOptions): MountedHost {
 	const { instance, app } = record;
 	let transport: MountTransportV2 | undefined;
 	let running: Promise<CommandResult> | undefined;
+	/** Set by `dispose`: a refresh that waited behind a hold opens nothing after it (#2137). */
+	let disposed = false;
 	let lastAutomatic = Number.NEGATIVE_INFINITY;
 	const approvals = new Map<string, 'required'>();
 	/** The instance's hold, and each command the shell may release with the read that previews it (7.2). */
@@ -806,7 +809,7 @@ export function createMountedHost(options: MountedHostOptions): MountedHost {
 				'its entry does not say `approvals = "shell"` and give the command a preview, so Loam does not present it',
 			preview:
 				"its entry's preview names no read of this instance callable on its own, or reads by a key the command's input does not name",
-			era: "this instance's lane carries no person's approval: only the desktop's `stdio` lane on MCP 2026-07-28 does",
+			era: "this instance's lane carries no person's approval: only the desktop's `stdio` and `http` lanes on MCP 2026-07-28 do",
 			approver: 'the server does not accept Loam as an approver, so it sent no approval to present',
 			refused: 'the server refused the approval Loam presented',
 			unconfirmed: 'no person confirmed this call in the shell, so Loam presents nothing',
@@ -850,8 +853,16 @@ export function createMountedHost(options: MountedHostOptions): MountedHost {
 				>;
 				delete own[RELEASING];
 				const result = await call(read, narrowed, own as unknown as CommandContext, holder);
+				// Only a kernel code is quoted in the kernel's words (#2137): a code the server answered is its choice, so it
+				// is named only as the server's refusal.
 				if (!result.success)
-					return { ok: false, code: result.error?.code ?? 'MOUNT_RESULT_INVALID' };
+					return {
+						ok: false,
+						code:
+							result.metadata?.['dev.loam/trust'] === 'untrusted'
+								? 'server'
+								: (result.error?.code ?? 'MOUNT_RESULT_INVALID'),
+					};
 				// Labelled as 5.1 reads the answer: content whole unless the entry vouches, the data is structured, nothing at
 				// its top is labelled content, and the walk reads it whole (the re-check's I1).
 				const top = result as unknown as { trust?: unknown; data?: { trust?: unknown } };
@@ -859,7 +870,7 @@ export function createMountedHost(options: MountedHostOptions): MountedHost {
 					result.metadata?.['dev.loam/structured'] === true &&
 					top.trust !== 'content' &&
 					top.data?.trust !== 'content' &&
-					!deeperThan(result.data, 32);
+					!pastLabelWalk(result.data, result.error);
 				return {
 					ok: true,
 					read: {
@@ -992,8 +1003,8 @@ export function createMountedHost(options: MountedHostOptions): MountedHost {
 		} finally {
 			leave();
 		}
-		// Not from a confirmed run: its own rediscovery would wait for the hold it holds.
-		if (result.error?.code === 'COMMAND_NOT_FOUND' && !releasing) {
+		// Not from a confirmed run or a preview read for one: its own rediscovery would wait for the hold it holds (#2137).
+		if (result.error?.code === 'COMMAND_NOT_FOUND' && !releasing && holder === undefined) {
 			// Once, and then the call's failure as it was: the instance may have restarted with other plugins.
 			const now = host.clock();
 			if (now - lastAutomatic >= AUTO_DISCOVERY_MS) {
@@ -1119,6 +1130,15 @@ export function createMountedHost(options: MountedHostOptions): MountedHost {
 		return { ...catalog, commands: admitted, warnings };
 	}
 
+	/** A refresh's answer once the host is disposed: it opened and installed nothing. */
+	const closedAnswer = (): CommandResult<never> =>
+		kernelFailure(
+			'MOUNT_UNREACHABLE',
+			'The instance was closed while it waited to be discovered again',
+			'Open the deployment again to mount it.',
+			{ retryable: false }
+		);
+
 	async function discover(): Promise<CommandResult> {
 		const signal = AbortSignal.timeout(DISCOVERY_DEADLINE_MS);
 		let next: MountTransportV2 | undefined;
@@ -1127,7 +1147,18 @@ export function createMountedHost(options: MountedHostOptions): MountedHost {
 			if (route === undefined) throw new MountFailure('MOUNT_UNREACHABLE');
 			const url = new URL(route, ports.baseUrl).href;
 			next = await raced(ports.mountTransport(entry as ProjectionMountedV1, url), signal);
-			const catalog = install(await raced(discoverInstance(entry, manifest, next, signal), signal));
+			// Disposed while the transport was made: it is closed before it connects (#2137's re-review).
+			if (disposed) {
+				await next.close().catch(() => {});
+				return closedAnswer();
+			}
+			const found = await raced(discoverInstance(entry, manifest, next, signal), signal);
+			// Disposed while it discovered: nothing is installed, and the new connection is closed (#2137).
+			if (disposed) {
+				await next.close().catch(() => {});
+				return closedAnswer();
+			}
+			const catalog = install(found);
 			const before = transport;
 			transport = next;
 			await before?.close().catch(() => {});
@@ -1167,6 +1198,7 @@ export function createMountedHost(options: MountedHostOptions): MountedHost {
 				.then(
 					async (leave) => {
 						try {
+							if (disposed) return closedAnswer();
 							return await discover();
 						} finally {
 							leave();
@@ -1192,6 +1224,7 @@ export function createMountedHost(options: MountedHostOptions): MountedHost {
 		},
 		approvalOf: (command) => approvals.get(command),
 		async dispose() {
+			disposed = true;
 			const before = transport;
 			transport = undefined;
 			await before?.close().catch(() => {});
