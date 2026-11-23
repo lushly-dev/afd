@@ -23,6 +23,7 @@ fn empty() -> tauri::http::Response<Cow<'static, [u8]>> {
 #[test]
 fn p6_d4_an_invoke_from_a_frame_is_refused_by_the_origin_check_itself() {
     let app = mock_builder()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .register_uri_scheme_protocol("loam", |_, _| empty())
         .register_uri_scheme_protocol("loam-sandbox", |_, _| empty())
         .invoke_handler(handler())
@@ -134,5 +135,21 @@ fn p6_d4_an_invoke_from_a_frame_is_refused_by_the_origin_check_itself() {
                 "{command} with Origin {origin:?}"
             );
         }
+    }
+
+    // `tauri-plugin-updater` is registered for Rust-only updates (10.6), with zero JavaScript permissions in
+    // `capabilities/main.json`: even the main webview with the shell's origin is refused every updater command.
+    for command in [
+        "plugin:updater|check",
+        "plugin:updater|download",
+        "plugin:updater|install",
+        "plugin:updater|download_and_install",
+    ] {
+        let err = call(command, shell_origin(), Some(shell_origin()), json!({})).unwrap_err();
+        let text = err.to_string().to_ascii_lowercase();
+        assert!(
+            text.contains("not allowed") || text.contains("denied"),
+            "expected ACL refusal for {command}, got: {text}"
+        );
     }
 }

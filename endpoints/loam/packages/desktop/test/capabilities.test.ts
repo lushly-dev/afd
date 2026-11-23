@@ -90,10 +90,17 @@ describe('P6-D4: the capabilities', () => {
 		expect(config.app.security.capabilities).toEqual(['main']);
 		expect(config.app.withGlobalTauri).toBe(false);
 		const cargo = readFileSync(join(SRC_TAURI, 'Cargo.toml'), 'utf8');
-		// No plugin but single instance, which has no JavaScript permission; no devtools in the build.
+		// Single instance and the Rust-only updater (10.6); neither has any JavaScript permission in `main.json`.
 		// Only `tracing` is enabled on `tauri` (#1448), compiling out Tauri's `eprintln!` of the invoke key.
-		expect(cargo.match(/^tauri-plugin-[a-z-]+/gm)).toEqual(['tauri-plugin-single-instance']);
+		expect(cargo.match(/^tauri-plugin-[a-z-]+/gm)).toEqual([
+			'tauri-plugin-single-instance',
+			'tauri-plugin-updater',
+		]);
 		expect(cargo).toMatch(/^tauri = \{ version = "=2\.12\.5", features = \["tracing"\] \}$/m);
+		const configText = readFileSync(join(SRC_TAURI, 'tauri.conf.json'), 'utf8');
+		expect(configText).not.toMatch(
+			/dangerous[-_]?insecure[-_]?transport|dangerous[-_]?accept[-_]?invalid/i
+		);
 	});
 
 	it('P6-D4: refuses invoke of every other command from the main webview, and the framework transport hands out nothing', async () => {
@@ -111,6 +118,9 @@ describe('P6-D4: the capabilities', () => {
 			'plugin:path|resolve_directory',
 			'plugin:single-instance|anything',
 			'plugin:updater|check',
+			'plugin:updater|download',
+			'plugin:updater|install',
+			'plugin:updater|download_and_install',
 			'not_a_command',
 		]) {
 			const answer = await invoke(command, {});

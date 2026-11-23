@@ -10,7 +10,7 @@ export default defineConfig({
 		// Each test's title in the log, which the exit check reads (phase 6 specification, 19).
 		reporters: process.env.GITHUB_ACTIONS === 'true' ? ['verbose', 'github-actions'] : ['verbose'],
 		include: ['test/**/*.test.ts'],
-		exclude: [...configDefaults.exclude, 'test/macos/**'],
+		exclude: [...configDefaults.exclude, 'test/macos/**', 'test/installers/**'],
 		environment: 'node',
 		testTimeout: 120_000,
 		hookTimeout: 180_000,

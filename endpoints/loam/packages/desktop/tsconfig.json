@@ -11,6 +11,11 @@
 		"declarationMap": false,
 		"sourceMap": false
 	},
-	"include": ["test/**/*", "vitest.desktop.config.ts", "vitest.macos.config.ts"],
+	"include": [
+		"test/**/*",
+		"vitest.desktop.config.ts",
+		"vitest.installers.config.ts",
+		"vitest.macos.config.ts"
+	],
 	"exclude": ["node_modules", "dist", "src-tauri"]
 }

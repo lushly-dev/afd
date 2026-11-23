@@ -11,9 +11,11 @@
 	"scripts": {
 		"build:site": "node scripts/build-site.mjs",
 		"build:app": "node scripts/build-app.mjs",
-		"clean": "rimraf dist coverage",
+		"build:installers": "node scripts/build-installers.mjs",
+		"clean": "rimraf dist dist-installers coverage",
 		"typecheck": "tsc -p tsconfig.json",
 		"test:desktop": "vitest run --config vitest.desktop.config.ts",
+		"test:installers": "vitest run --config vitest.installers.config.ts",
 		"test:macos": "vitest run --config vitest.macos.config.ts"
 	},
 	"devDependencies": {
@@ -24,6 +26,7 @@
 		"@lushly-dev/loam-kernel": "workspace:*",
 		"@lushly-dev/loam-web": "workspace:*",
 		"@lushly-dev/local-db": "workspace:*",
+		"@tauri-apps/cli": "2.12.4",
 		"@types/node": "^26.6.6",
 		"axe-core": "4.14.0",
 		"rimraf": "^6.1.4",

@@ -483,6 +483,9 @@ async function main() {
 		'plugin:path|resolve_directory',
 		'plugin:single-instance|anything',
 		'plugin:updater|check',
+		'plugin:updater|download',
+		'plugin:updater|install',
+		'plugin:updater|download_and_install',
 		'not_a_command',
 	]) {
 		disallowed[command] = await invoke(command, {});

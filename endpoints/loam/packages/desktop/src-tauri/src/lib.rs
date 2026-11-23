@@ -12,6 +12,7 @@ pub mod models;
 pub mod mounts;
 pub mod notify;
 pub mod site;
+pub mod updater;
 
 use models::{Emit, Models};
 use mounts::{Mounts, Notify};
@@ -372,6 +373,10 @@ pub fn run() {
                 }
             },
         ))
+        // Rust-only signed updates (10.6): no `updater:*` permission is granted to the webview, and
+        // `updater::start` stays off unless both `LOAM_UPDATER_PUBKEY` and `LOAM_UPDATER_ENDPOINT`
+        // were set at build time.
+        .plugin(tauri_plugin_updater::Builder::new().build())
         // Async protocol handlers move `canonicalize` + disk reads off the UI thread so WebView2's parallel
         // module fetches (and Windows real-time file scans) execute concurrently (#1396).
         .register_asynchronous_uri_scheme_protocol("loam", |context, request, responder| {
@@ -457,6 +462,7 @@ pub fn run() {
                 *app.state::<InboundState>().0.lock().expect("inbound state") =
                     start_inbound(&handle, &data);
             }
+            updater::start(&handle);
             let url = format!("{}/", site::shell_origin())
                 .parse()
                 .expect("the shell's origin");

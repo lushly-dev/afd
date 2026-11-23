@@ -5,6 +5,7 @@ package-lock.json
 
 # Build outputs
 dist/
+dist-installers/
 # setuptools writes build/lib when packaging the Health toolkit
 endpoints/health/build/
 *.tsbuildinfo

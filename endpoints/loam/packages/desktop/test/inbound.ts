@@ -2,7 +2,7 @@
  * The desktop suite's inbound helpers (phase 6 specification, 10.8): `inbound.json` read as the bridge reads it, and
  * raw HTTP to the endpoint through `node:http`, which, unlike `fetch`, sends any `Host` and `Origin` it is given.
  */
-import { type ChildProcessWithoutNullStreams, spawn } from 'node:child_process';
+import { type ChildProcessWithoutNullStreams, spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { request } from 'node:http';
@@ -165,13 +165,28 @@ export function alive(pid: number): boolean {
  * gone and the single-instance lock released, and fails if it does not within `timeoutMs`.
  */
 export async function quit(
-	desktop: { browser: { closeWindow(): Promise<unknown> } },
+	_desktop: { browser: { closeWindow(): Promise<unknown> } },
 	pid: number,
 	timeoutMs = 30_000
 ): Promise<void> {
-	// Closing the last window ends the app, and the driver may answer that with an error: the process is the oracle.
-	if (process.platform === 'win32') await desktop.browser.closeWindow().catch(() => {});
-	else process.kill(pid, 'SIGTERM');
+	// Graceful close so the host runs `WindowEvent::Destroyed` / `RunEvent::Exit` and deletes `inbound.json`.
+	// On Windows, `msedgedriver`'s `closeWindow()` hard-terminates the WebView2 host process; `taskkill /pid`
+	// without `/f` posts `WM_CLOSE` to the window, matching a user closing it.
+	if (process.platform === 'win32') {
+		const root = process.env.SystemRoot ?? process.env.windir;
+		if (!root) throw new Error('No SystemRoot: taskkill.exe cannot be found');
+		const result = spawnSync(join(root, 'System32', 'taskkill.exe'), ['/pid', String(pid)], {
+			windowsHide: true,
+			encoding: 'utf8',
+		});
+		if (result.error) throw result.error;
+		if (result.status !== 0) {
+			const detail = (result.stderr || result.stdout || '').trim();
+			throw new Error(`taskkill /pid ${pid} exited ${result.status}${detail ? `: ${detail}` : ''}`);
+		}
+	} else {
+		process.kill(pid, 'SIGTERM');
+	}
 	const until = Date.now() + timeoutMs;
 	while (alive(pid)) {
 		if (Date.now() > until) throw new Error(`the app (pid ${pid}) did not exit`);

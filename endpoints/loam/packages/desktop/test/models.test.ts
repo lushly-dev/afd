@@ -145,13 +145,13 @@ function restrict(path: string): void {
 		}).stdout.trim()
 	)?.[1];
 	if (!sid) throw new Error('whoami named no SID');
-	const done = spawnSync(join(system(), 'icacls.exe'), [
-		path,
-		'/inheritance:r',
-		'/grant:r',
-		`*${sid}:F`,
-	]);
+	const icacls = join(system(), 'icacls.exe');
+	const reset = spawnSync(icacls, [path, '/reset']);
+	if (reset.status !== 0) throw new Error('icacls /reset failed');
+	const done = spawnSync(icacls, [path, '/inheritance:r', '/grant:r', `*${sid}:F`]);
 	if (done.status !== 0) throw new Error('icacls failed');
+	const owned = spawnSync(icacls, [path, '/setowner', `*${sid}`]);
+	if (owned.status !== 0) throw new Error('icacls /setowner failed');
 }
 
 function copilotTable(keyFile: string): string {
