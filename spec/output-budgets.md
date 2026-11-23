@@ -280,13 +280,13 @@ The file's sections and what a loader checks:
 
 | Rule | TypeScript | Python | Rust | C++ |
 | --- | --- | --- | --- | --- |
-| Declaration and its surfaces (B1) | Planned | Planned | Yes (Umbel phase 2 step 0b) | Planned |
-| The ask over MCP and in process (B2, B3) | Planned | Planned | Yes (step 0b) | Planned (in process; MCP after [#341](https://github.com/lushly-dev/afd/issues/341)) |
-| Effective budget in the context (B4) | Planned | Planned | Yes (step 0b) | Planned |
-| Check, replacement, warning and report (B5, B6) | Planned | Planned | Yes (step 0b) | Planned |
-| Batches and pipelines (B7) | Planned | Planned | Yes (step 0b) | Planned |
-| Journal and replay (B8) | Planned | Planned | Yes (step 0b) | Planned |
-| Loads [`output-budgets.json`](./output-budgets.json) | Planned | Planned | Yes (step 0b) | Planned |
+| Declaration and its surfaces (B1) | Planned | Yes (#1990) | Yes (Umbel phase 2 step 0b) | Planned |
+| The ask over MCP and in process (B2, B3) | Planned | Yes (#1990) | Yes (step 0b) | Planned (in process; MCP after [#341](https://github.com/lushly-dev/afd/issues/341)) |
+| Effective budget in the context (B4) | Planned | Yes (#1990) | Yes (step 0b) | Planned |
+| Check, replacement, warning and report (B5, B6) | Planned | Yes (#1990) | Yes (step 0b) | Planned |
+| Batches and pipelines (B7) | Planned | Yes (#1990) | Yes (step 0b) | Planned |
+| Journal and replay (B8) | Planned | Yes (#1990) | Yes (step 0b) | Planned |
+| Loads [`output-budgets.json`](./output-budgets.json) | Planned | Yes (#1990) | Yes (step 0b) | Planned |
 
 Rust implements output budgets (Umbel phase 2 step 0b): `packages/rust` `src/output_budget.rs`, with
 `tests/output_budget.rs` loading every case of [`output-budgets.json`](./output-budgets.json) in

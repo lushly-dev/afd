@@ -45,6 +45,11 @@ from afd.core.journal import (
     create_context_digest,
     journal_actor,
 )
+from afd.core.output_budget import (
+    MAX_OUTPUT_BUDGET_BYTES,
+    ask_value,
+    normalize_ask_option,
+)
 from afd.core.result import CommandResult, coerce_command_result, execution_failure
 from afd.core.wire import to_wire
 from afd.server.context_fields import JOURNALED_CONTEXT_FIELDS
@@ -297,6 +302,14 @@ def create_journal_middleware(
         # This journal's own timing reads the clock under any outer journal's recorder.
         timing = _untaped(clock)
         start = timing.now()
+        raw_budget = getattr(context, "output_budget", None)
+        effective_budget = (
+            raw_budget
+            if isinstance(raw_budget, int)
+            and not isinstance(raw_budget, bool)
+            and 1 <= raw_budget <= MAX_OUTPUT_BUDGET_BYTES
+            else None
+        )
         result: Any = None
         thrown: BaseException | None = None
         try:
@@ -326,9 +339,12 @@ def create_journal_middleware(
                     command=command_name,
                     input=_input_json(input),
                     actor=journal_actor(getattr(context, "actor", None)),
-                    context_digest=create_context_digest(context, journaled),
+                    context_digest=create_context_digest(
+                        context, journaled, output_budget=effective_budget
+                    ),
                     context=journaled.context,
                     context_omitted=journaled.context_omitted,
+                    output_budget=effective_budget,
                     result=_to_json(recorded),
                     duration_ms=duration_ms,
                     tape=tape if has_tape else None,
@@ -604,11 +620,15 @@ def _replay_context(
     )
     if entry.context_digest.interface is not None:
         context.extra["interface"] = entry.context_digest.interface
+    if entry.output_budget is not None:
+        context._output_budget_ask = ask_value(entry.output_budget)
     # Copies, so a target that does not validate them cannot change the journal's objects.
     context.extra.update(copy.deepcopy(restored))
     for name, value in (extra or {}).items():
         if name in ("trace_id", "timeout", "actor", "clock", "random", "approval"):
             setattr(context, name, value)
+        elif name == "output_budget":
+            context._output_budget_ask = normalize_ask_option(value)
         elif name == "extra":
             context.extra.update(value)
         else:

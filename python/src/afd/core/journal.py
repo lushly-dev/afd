@@ -139,6 +139,7 @@ class JournalRecord:
     tape: JournalTape | None = None
     context: dict[str, Any] | None = None
     context_omitted: list[str] | None = None
+    output_budget: int | None = dataclasses.field(default=None, kw_only=True)
 
 
 @dataclass
@@ -174,6 +175,8 @@ class JournalEntry(JournalRecord):
             data["context"] = self.context
         if self.context_omitted is not None:
             data["contextOmitted"] = self.context_omitted
+        if self.output_budget is not None:
+            data["outputBudget"] = self.output_budget
         data["result"] = self.result
         data["durationMs"] = self.duration_ms
         if self.tape is not None:
@@ -208,6 +211,7 @@ class JournalEntry(JournalRecord):
             context_omitted=(
                 list(data["contextOmitted"]) if "contextOmitted" in data else None
             ),
+            output_budget=data.get("outputBudget"),
             result=data["result"],
             duration_ms=data["durationMs"],
             tape=(
@@ -289,8 +293,11 @@ class MemoryJournalSink:
 # CONTEXT DIGEST
 # ═══════════════════════════════════════════════════════════════════════════════
 
-# Context attributes a journal keeps the values of (the interface is in ``extra``).
-_ALLOWLISTED_ATTRIBUTES = frozenset({"actor", "trace_id", "interface"})
+# Context attributes a journal keeps the values of (the interface is in ``extra``),
+# plus the output budget fields handled separately by B8.
+_ALLOWLISTED_ATTRIBUTES = frozenset(
+    {"actor", "trace_id", "interface", "output_budget", "outputBudget", "_output_budget_ask"}
+)
 
 
 def _actor_to_dict(actor: Actor) -> dict[str, Any]:
@@ -388,8 +395,14 @@ class JournalContextFields:
     context_omitted: list[str] | None = None
 
 
+_UNSET: Any = object()
+
+
 def create_context_digest(
-    context: Any, journaled: JournalContextFields | None = None
+    context: Any,
+    journaled: JournalContextFields | None = None,
+    *,
+    output_budget: Any = _UNSET,
 ) -> JournalContextDigest:
     """The :class:`JournalContextDigest` of ``context``.
 
@@ -425,6 +438,20 @@ def create_context_digest(
         hashed["context"] = journaled.context
     if journaled.context_omitted is not None:
         hashed["contextOmitted"] = journaled.context_omitted
+    if output_budget is _UNSET:
+        raw_budget = (
+            values.get("output_budget")
+            if values.get("output_budget") is not None
+            else values.get("outputBudget")
+        )
+    else:
+        raw_budget = output_budget
+    if (
+        isinstance(raw_budget, int)
+        and not isinstance(raw_budget, bool)
+        and 1 <= raw_budget <= _MAX_SAFE_INTEGER
+    ):
+        hashed["outputBudget"] = raw_budget
     text = canonical_json(hashed)
     digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
     return JournalContextDigest(hash=f"sha256:{digest}", interface=interface)
@@ -550,6 +577,14 @@ def is_journal_entry(value: Any) -> bool:
             or (
                 isinstance(value["contextOmitted"], list)
                 and all(isinstance(name, str) for name in value["contextOmitted"])
+            )
+        )
+        and (
+            "outputBudget" not in value
+            or (
+                isinstance(value["outputBudget"], int)
+                and not isinstance(value["outputBudget"], bool)
+                and 1 <= value["outputBudget"] <= _MAX_SAFE_INTEGER
             )
         )
     )

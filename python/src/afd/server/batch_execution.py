@@ -192,6 +192,7 @@ async def execute_batch(
                     random=context.random,
                     approval=getattr(context, "approval", None),
                     credentials=getattr(context, "credentials", None),
+                    _output_budget_ask=getattr(context, "_output_budget_ask", None),
                 )
                 item = commands[index]
                 task = asyncio.ensure_future(run_command(item.command, item.input, item_context))
@@ -329,6 +330,7 @@ async def execute_pipeline_request(
                 step_context,
                 extra=copy_extra(step_context.extra),
                 actor=copy.copy(step_context.actor) if step_context.actor is not None else None,
+                output_budget=None,
             )
             if dataclasses.is_dataclass(step_context)
             else step_context

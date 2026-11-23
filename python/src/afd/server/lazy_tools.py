@@ -286,6 +286,11 @@ def execute_detail(
             "undoable": command.undoable,
             "approval": approval_mode(command.approval),
             "task": command.task,
+            "outputBudget": (
+                command.output_budget.to_wire_dict()
+                if command.output_budget is not None
+                else None
+            ),
         }
         # Wire format: unset fields are omitted, never null.
         entries.append({key: value for key, value in entry.items() if value is not None})

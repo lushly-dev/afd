@@ -60,7 +60,8 @@ def _public_context(context: Any) -> Any:
         key: getattr(context, key, None) for key in
         ("trace_id", "timeout", "actor", "clock", "random")
     }, extra=dict(getattr(context, "extra", {})),
-       _direct_allow=getattr(context, "_direct_allow", None))
+       _direct_allow=getattr(context, "_direct_allow", None),
+       _output_budget_ask=getattr(context, "_output_budget_ask", None))
 
 
 def _public_result(result: Any, command: str) -> Any:

@@ -75,8 +75,13 @@ _RESERVED_NAMES = frozenset(
         "signal",
         "timeout",
         "traceId",
+        "outputBudget",
         # CommandContext fields (afd.core.commands and afd.direct)
         "trace_id",
+        "output_budget",
+        "output_budget_ask",
+        "outputBudgetAsk",
+        "_output_budget_ask",
         "extra",
         "source",
         "_direct_approval",

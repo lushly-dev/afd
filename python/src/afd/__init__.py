@@ -148,6 +148,11 @@ from afd.core.actor import (
     with_context_defaults,
 )
 from afd.core.approval import ApprovalDecision, ApprovalPolicy, approval_mode
+from afd.core.output_budget import (
+    AFD_OUTPUT_BUDGET_META_KEY,
+    MAX_OUTPUT_BUDGET_BYTES,
+    OutputBudget,
+)
 from afd.core.clock import (
     Clock,
     ClockInstant,
@@ -383,6 +388,10 @@ __all__ = [
     "ApprovalDecision",
     "ApprovalPolicy",
     "approval_mode",
+    # Output budgets
+    "AFD_OUTPUT_BUDGET_META_KEY",
+    "MAX_OUTPUT_BUDGET_BYTES",
+    "OutputBudget",
     "Clock",
     "ClockInstant",
     "ManualClock",

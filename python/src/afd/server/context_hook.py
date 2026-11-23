@@ -89,6 +89,7 @@ from typing import Any, Union
 from afd.core.actor import Actor, ContextDefaults, is_actor, with_context_defaults
 from afd.core.commands import CommandContext
 from afd.core.errors import CommandError, ErrorCodes
+from afd.core.output_budget import normalize_ask_option
 from afd.core.result import CommandResult
 from afd.server.auth import credentials_actor
 from afd.server.auth_rules import (
@@ -329,6 +330,11 @@ async def run_context_hook(
         # (_direct_approval, _direct_allow) cannot be carried or forged, later
         # mutations to the returned object cannot alter the bound context, and the
         # server's verified credentials (M4) cannot be changed or forged by the hook.
+        hook_budget_ask = (
+            raw._output_budget_ask
+            if raw._output_budget_ask is not None
+            else (normalize_ask_option(raw.output_budget) if raw.output_budget is not None else None)
+        )
         clean = CommandContext(
             trace_id=raw.trace_id if raw.trace_id else trace_id,
             timeout=raw.timeout,
@@ -338,6 +344,7 @@ async def run_context_hook(
             random=raw.random,
             approval=raw.approval,
             credentials=credentials,
+            _output_budget_ask=hook_budget_ask,
         )
         normalized = with_context_defaults(clean, effective_defaults)
         actor_at_start = copy.copy(normalized.actor)

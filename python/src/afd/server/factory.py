@@ -41,6 +41,16 @@ from afd.core.commands import (
     validate_task_declaration,
 )
 from afd.core.errors import CommandError, ErrorCodes
+from afd.core.output_budget import (
+    OutputBudget,
+    apply_output_budget,
+    bind_output_budget_ask,
+    check_output_budget,
+    coerce_budgeted_result,
+    normalize_ask_option,
+    output_budget_ask_from_meta,
+    validate_output_budget_declaration,
+)
 from afd.core.pipeline import (
     PipelineResult,
     StepStatus,
@@ -419,6 +429,7 @@ class MCPServer:
         handoff: bool = False,
         handoff_protocol: str | None = None,
         task: TaskSupport | None = None,
+        output_budget: OutputBudget | dict[str, Any] | None = None,
     ) -> Callable:
         """Decorator to register a command with this server (arguments as ``define_command``)."""
 
@@ -446,6 +457,7 @@ class MCPServer:
                 handoff=handoff,
                 handoff_protocol=handoff_protocol,
                 task=task,
+                output_budget=output_budget,
                 # Point a name warning at the user's @server.command line.
                 _stacklevel=3,
             )(func)
@@ -490,6 +502,9 @@ class MCPServer:
             confirm_prompt=definition.confirm_prompt,
             approval=definition.approval,
             confirmation_mode=getattr(definition, "confirmation_mode", None),
+        )
+        definition.output_budget = validate_output_budget_declaration(
+            definition.name, definition.output_budget
         )
 
         first_class = self.config.first_class_tools or []
@@ -552,7 +567,12 @@ class MCPServer:
     def _check_before_request(self) -> None:
         """The registration checks that must hold before the server answers a request."""
         self._check_reserved_names()
-        assert_valid_task_commands(self._registry.list())
+        commands = self._registry.list()
+        assert_valid_task_commands(commands)
+        for command in commands:
+            command.output_budget = validate_output_budget_declaration(
+                command.name, command.output_budget
+            )
         self._check_first_class_tools()
 
     def _invalidate_caches(self) -> None:
@@ -757,8 +777,9 @@ class MCPServer:
         data: Any,
         context: CommandContext,
         record: Admission,
+        effective_budget: int | None = None,
     ) -> Any:
-        """Call the handler with validated input and stamp its result's metadata.
+        """Call the handler with validated input, run the B5 output-budget check, and stamp metadata.
 
         A declared approval policy holds without the approval middleware (#1886): a command whose
         policy is neither unset nor ``"not-required"`` runs only when an approval step admitted
@@ -775,6 +796,10 @@ class MCPServer:
         start = clock.now()
         handler = getattr(command.handler, "__afd_validated_handler__", command.handler)
         result = await handler(data, context)
+        if effective_budget is not None:
+            normalized = coerce_budgeted_result(result)
+            if normalized is not None:
+                result = check_output_budget(command, effective_budget, normalized)
         if isinstance(result, CommandResult):
             # Server metadata, as in TypeScript: executionTimeMs, commandVersion, traceId,
             # actorKind. Read the actor after the handler: middleware may have refined it.
@@ -815,6 +840,8 @@ class MCPServer:
         name: str,
         input: Any,
         context: CommandContext | None = None,
+        *,
+        output_budget: Any = None,
     ) -> Any:
         """Run a command (never a built-in tool) in the reference order.
 
@@ -834,6 +861,8 @@ class MCPServer:
         context = with_context_defaults(
             context, ContextDefaults(clock=self.config.clock, random=self.config.random)
         )
+        if output_budget is not None:
+            context._output_budget_ask = normalize_ask_option(output_budget)
         prepared = self._prepare_command(name, input, context)
         if isinstance(prepared, CommandResult):
             return prepared
@@ -856,13 +885,18 @@ class MCPServer:
         if invalid_field is not None:
             return invalid_field
 
+        # Output budget ask validated and effective budget set before middleware runs (B2-B4).
+        effective_budget, invalid_budget = apply_output_budget(command, context)
+        if invalid_budget is not None:
+            return invalid_budget
+
         # The command this call runs, for the approval middleware to decide from and the
         # handler's dispatch to check: this dispatch's own record, which the dispatch reads
         # directly, wherever the chain ran it.
         with admission_for(context, command) as record:
 
             async def run_handler() -> Any:
-                return await self._run_handler(command, data, context, record)
+                return await self._run_handler(command, data, context, record, effective_budget)
 
             next_fn: Callable[[], Any] = run_handler
             for middleware in reversed(self._middleware):
@@ -880,13 +914,39 @@ class MCPServer:
         name: str,
         input: Any,
         context: CommandContext | None = None,
+        *,
+        output_budget: Any = None,
     ) -> Any:
         """Execute a command or built-in tool by name."""
 
         self._check_before_request()
         if name in META_TOOL_NAMES:
-            return await self.route_tool_call(name, input)
-        return await self._execute_command(name, input, context)
+            meta_keys = meta_argument_keys(self.config.context_fields)
+            lifted = lift_meta_argument(name, input, None, meta_keys)
+            if lifted.error is not None:
+                return failure(lifted.error)
+            # Trusted in-process option / context wins over meta argument (B2).
+            explicit_ask: Any = None
+            if output_budget is not None:
+                explicit_ask = normalize_ask_option(output_budget)
+            elif context is not None:
+                ctx_ask = getattr(context, "_output_budget_ask", None)
+                if ctx_ask is not None:
+                    explicit_ask = ctx_ask
+                elif getattr(context, "output_budget", None) is not None:
+                    explicit_ask = normalize_ask_option(context.output_budget)
+            budget_ask = (
+                explicit_ask
+                if explicit_ask is not None
+                else output_budget_ask_from_meta(lifted.meta)
+            )
+            field_values = context_field_values(self.config.context_fields, lifted.meta)
+            with (
+                bind_context_field_values(field_values),
+                bind_output_budget_ask(budget_ask),
+            ):
+                return await self.route_tool_call(name, lifted.arguments)
+        return await self._execute_command(name, input, context, output_budget=output_budget)
 
     def _refresh_dynamic_tools(self, name: str, result: Any) -> None:
         """Refresh caches and live MCP tools after context-changing commands."""
@@ -1436,11 +1496,16 @@ class MCPServer:
                 )
                 if lifted.error is not None:
                     return _tool_call_result(failure(lifted.error))
-                # Declared context fields come from this request's _meta, on both eras and
-                # every transport; undeclared keys are dropped. The router puts them in
-                # context.extra (with hook values winning) and execution validates them.
+                # Declared context fields and output budget ask come from this request's _meta,
+                # on both eras and every transport; undeclared keys are dropped. The router puts
+                # them on the context (with hook values winning) and execution validates them.
                 values = context_field_values(server.config.context_fields, lifted.meta)
-                with bound_request(meta=lifted.meta), bind_context_field_values(values):
+                budget_ask = output_budget_ask_from_meta(lifted.meta)
+                with (
+                    bound_request(meta=lifted.meta),
+                    bind_context_field_values(values),
+                    bind_output_budget_ask(budget_ask),
+                ):
                     return await super().call_tool(name, lifted.arguments, context)
 
             async def call_tool(self, name, arguments, context=None):

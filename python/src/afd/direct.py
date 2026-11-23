@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import dataclasses
 import inspect
 import math
 import logging
@@ -76,6 +77,7 @@ from afd.direct_pipeline import (
 from afd.core.direct_approval import (
     DirectApprovalRequest, _DirectApprovalExchange, _public_result,
 )
+from afd.core.output_budget import ask_validation_failure, normalize_ask_option, parse_ask
 
 logger = logging.getLogger("afd.direct")
 
@@ -109,8 +111,14 @@ class CommandContext:
     clock: Optional[Clock] = None
     random: Optional[RandomSource] = None
     approval: Optional[str] = None
+    output_budget: Optional[int] = None
     _direct_approval: Any = field(default=None, repr=False, compare=False)
     _direct_allow: Any = field(default=None, repr=False, compare=False)
+    _output_budget_ask: Any = field(default=None, repr=False, compare=False)
+
+    def with_output_budget_ask(self, max_bytes: Any) -> "CommandContext":
+        """Return a copy of this context carrying an output budget ask (B2)."""
+        return dataclasses.replace(self, _output_budget_ask=normalize_ask_option(max_bytes))
 
 
 @dataclass
@@ -188,6 +196,8 @@ class DirectCallContext:
     """Random source for this call; wins over the client's."""
     approval: Optional[str] = None
     """Ignored on public calls; configure on_approval_needed to approve."""
+    output_budget: Optional[int] = None
+    """Per-call output budget ask in bytes (spec/output-budgets.md, B2)."""
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -405,6 +415,9 @@ class SimpleRegistry:
         cmd = self._commands.get(name)
         if not cmd:
             return failure(not_found_error("Command", name))
+        raw_ask = getattr(context, "_output_budget_ask", None) if context is not None else None
+        if raw_ask is not None and parse_ask(raw_ask) is None:
+            return ask_validation_failure()
         
         kwargs = dict(args or {})
         if _takes_context(cmd.handler):
@@ -524,6 +537,8 @@ class DirectClient:
         name: str,
         args: Optional[Dict[str, Any]] = None,
         context: Optional[DirectCallContext] = None,
+        *,
+        output_budget: Any = None,
     ) -> CommandResult:
         """Execute a command with zero transport overhead.
         
@@ -581,6 +596,14 @@ class DirectClient:
         # Clock and random are only set when configured, so a registry's own defaults
         # still apply.
         actor = (context.actor if context else None) or self.options.actor or _HUMAN_ACTOR
+        ask_source = (
+            output_budget
+            if output_budget is not None
+            else (context.output_budget if context is not None else None)
+        )
+        raw_ask = normalize_ask_option(ask_source)
+        if raw_ask is not None and parse_ask(raw_ask) is None:
+            return ask_validation_failure()
         cmd_context = CommandContext(
             trace_id=trace_id,
             source=self.options.source,
@@ -590,6 +613,7 @@ class DirectClient:
             clock=(context.clock if context else None) or self.options.clock,
             random=(context.random if context else None) or self.options.random,
             approval=None,
+            _output_budget_ask=raw_ask,
         )
         
         # The exchange survives context copies, but credentials never enter public contexts.
@@ -769,6 +793,7 @@ class DirectClient:
         context: Optional[DirectCallContext] = None,
         *,
         input: Optional[Dict[str, Any]] = None,
+        output_budget: Any = None,
     ) -> PipelineResult:
         """Execute a pipeline of commands with variable resolution.
 
@@ -806,9 +831,23 @@ class DirectClient:
         """
         start_time = time.perf_counter()
         trace_id = (context.trace_id if context else None) or _generate_trace_id()
+        ask_source = (
+            output_budget
+            if output_budget is not None
+            else (context.output_budget if context is not None else None)
+        )
+        raw_ask = normalize_ask_option(ask_source)
+        if raw_ask is not None and parse_ask(raw_ask) is None:
+            return PipelineResult(
+                success=False,
+                steps=[],
+                outputs={},
+                final=ask_validation_failure(),
+                total_duration_ms=(time.perf_counter() - start_time) * 1000,
+            )
 
         async def call(command: str, args: Optional[Dict[str, Any]]) -> Any:
-            return await self.call(command, args, context)
+            return await self.call(command, args, context, output_budget=output_budget)
 
         return await run_direct_pipeline(
             steps,
@@ -910,7 +949,8 @@ class DirectCommandRegistry:
         return name in self.list_command_names()
 
     async def execute(self, name: str, args: Any = None, context: Any = None, *,
-                      allow: Optional[Callable[[str], bool]] = None) -> CommandResult:
+                      allow: Optional[Callable[[str], bool]] = None,
+                      output_budget: Any = None) -> CommandResult:
         from afd.core.direct_approval import _exchange, _public_context
 
         context = _bind_allow(context or CommandContext(trace_id=_generate_trace_id()), allow)
@@ -938,7 +978,12 @@ class DirectCommandRegistry:
         clean.extra["interface"] = self._interface
         clean.extra.pop("remote", None)
         try:
-            return _public_result(await self._server.execute(name, {} if args is None else args, clean), name)
+            return _public_result(
+                await self._server.execute(
+                    name, {} if args is None else args, clean, output_budget=output_budget
+                ),
+                name,
+            )
         finally:
             if owned:
                 exchange.dispose()

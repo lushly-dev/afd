@@ -52,6 +52,7 @@ from afd.core.commands import (
     validate_task_declaration,
     warn_invalid_command_name,
 )
+from afd.core.output_budget import OutputBudget, validate_output_budget_declaration
 from afd.core.result import CommandResult
 from afd.core.schema_validation import SchemaValidationError, check_schema, validate_schema
 from afd.server.validation import _input_validation_failure
@@ -97,6 +98,7 @@ class CommandMetadata:
     errors: Optional[List[str]] = None
     execution_time: Optional[Literal["instant", "fast", "slow", "long-running"]] = None
     task: Optional[TaskSupport] = None
+    output_budget: Optional[OutputBudget] = None
 
 
 def define_command(
@@ -122,6 +124,7 @@ def define_command(
     errors: Optional[List[str]] = None,
     execution_time: Optional[Literal["instant", "fast", "slow", "long-running"]] = None,
     task: Optional[TaskSupport] = None,
+    output_budget: Optional[Union[OutputBudget, Dict[str, Any]]] = None,
     _stacklevel: int = 2,
 ) -> Callable:
     """Decorator to define a command with metadata.
@@ -186,6 +189,7 @@ def define_command(
         confirm_prompt=confirm_prompt,
         approval=approval,
     )
+    normalized_output_budget = validate_output_budget_declaration(name, output_budget)
     if input_schema is not None:
         check_schema(_advertised_schema(input_schema))
 
@@ -224,6 +228,7 @@ def define_command(
             errors=list(errors) if errors is not None else None,
             execution_time=execution_time,
             task=task,
+            output_budget=normalized_output_budget,
         )
         
         @wraps(func)
@@ -376,6 +381,7 @@ def command_to_definition(func: Callable) -> Optional[CommandDefinition]:
         errors=metadata.errors,
         execution_time=metadata.execution_time,
         task=metadata.task,
+        output_budget=metadata.output_budget,
     )
 
 
