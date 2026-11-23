@@ -1,0 +1,24 @@
+{
+	"extends": "../../../../../tsconfig.json",
+	"compilerOptions": {
+		"lib": ["ES2024", "DOM", "DOM.Iterable"],
+		"module": "ESNext",
+		"moduleResolution": "Bundler",
+		"resolveJsonModule": true,
+		"useDefineForClassFields": false,
+		"noEmit": true,
+		"declaration": false,
+		"declarationMap": false,
+		"sourceMap": false,
+		"types": ["node"]
+	},
+	"include": [
+		"specimens/**/*",
+		"src/**/*",
+		"test/**/*",
+		"vite.config.ts",
+		"vitest.config.ts",
+		"vitest.specimen.config.ts"
+	],
+	"exclude": ["node_modules", "dist"]
+}

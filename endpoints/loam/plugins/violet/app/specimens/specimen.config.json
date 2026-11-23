@@ -1,0 +1,124 @@
+{
+	"specimens": [
+		{
+			"id": "violet-tokens",
+			"title": "Loam/Violet/Tokens",
+			"module": "./violet.specimens.ts",
+			"exportName": "Tokens"
+		},
+		{
+			"id": "violet-tokens-compact",
+			"title": "Loam/Violet/TokensCompact",
+			"module": "./violet.specimens.ts",
+			"exportName": "TokensCompact"
+		},
+		{
+			"id": "violet-compare",
+			"title": "Loam/Violet/Compare",
+			"module": "./violet.specimens.ts",
+			"exportName": "Compare"
+		},
+		{
+			"id": "violet-compare-compact",
+			"title": "Loam/Violet/CompareCompact",
+			"module": "./violet.specimens.ts",
+			"exportName": "CompareCompact"
+		},
+		{
+			"id": "violet-compare-trees",
+			"title": "Loam/Violet/CompareTrees",
+			"module": "./violet.specimens.ts",
+			"exportName": "CompareTrees"
+		},
+		{
+			"id": "violet-compare-trees-compact",
+			"title": "Loam/Violet/CompareTreesCompact",
+			"module": "./violet.specimens.ts",
+			"exportName": "CompareTreesCompact"
+		},
+		{
+			"id": "violet-preview",
+			"title": "Loam/Violet/Preview",
+			"module": "./violet.specimens.ts",
+			"exportName": "Preview"
+		},
+		{
+			"id": "violet-preview-compact",
+			"title": "Loam/Violet/PreviewCompact",
+			"module": "./violet.specimens.ts",
+			"exportName": "PreviewCompact"
+		},
+		{
+			"id": "violet-preview-scoped",
+			"title": "Loam/Violet/PreviewScoped",
+			"module": "./violet.specimens.ts",
+			"exportName": "PreviewScoped"
+		},
+		{
+			"id": "violet-preview-scoped-compact",
+			"title": "Loam/Violet/PreviewScopedCompact",
+			"module": "./violet.specimens.ts",
+			"exportName": "PreviewScopedCompact"
+		},
+		{
+			"id": "violet-checks",
+			"title": "Loam/Violet/Checks",
+			"module": "./violet.specimens.ts",
+			"exportName": "Checks"
+		},
+		{
+			"id": "violet-checks-compact",
+			"title": "Loam/Violet/ChecksCompact",
+			"module": "./violet.specimens.ts",
+			"exportName": "ChecksCompact"
+		},
+		{
+			"id": "violet-history",
+			"title": "Loam/Violet/History",
+			"module": "./violet.specimens.ts",
+			"exportName": "History"
+		},
+		{
+			"id": "violet-history-compact",
+			"title": "Loam/Violet/HistoryCompact",
+			"module": "./violet.specimens.ts",
+			"exportName": "HistoryCompact"
+		},
+		{
+			"id": "violet-sidebar",
+			"title": "Loam/Violet/Sidebar",
+			"module": "./violet.specimens.ts",
+			"exportName": "Sidebar"
+		},
+		{
+			"id": "violet-sidebar-compact",
+			"title": "Loam/Violet/SidebarCompact",
+			"module": "./violet.specimens.ts",
+			"exportName": "SidebarCompact"
+		},
+		{
+			"id": "violet-inspector",
+			"title": "Loam/Violet/Inspector",
+			"module": "./violet.specimens.ts",
+			"exportName": "Inspector"
+		},
+		{
+			"id": "violet-inspector-compact",
+			"title": "Loam/Violet/InspectorCompact",
+			"module": "./violet.specimens.ts",
+			"exportName": "InspectorCompact"
+		},
+		{
+			"id": "violet-inspector-empty",
+			"title": "Loam/Violet/InspectorEmpty",
+			"module": "./violet.specimens.ts",
+			"exportName": "InspectorEmpty"
+		},
+		{
+			"id": "violet-inspector-empty-compact",
+			"title": "Loam/Violet/InspectorEmptyCompact",
+			"module": "./violet.specimens.ts",
+			"exportName": "InspectorEmptyCompact"
+		}
+	]
+}

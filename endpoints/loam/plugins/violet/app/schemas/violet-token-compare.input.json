@@ -1,0 +1,16 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["document", "nodes"],
+	"properties": {
+		"document": { "type": "string", "minLength": 1, "maxLength": 128 },
+		"nodes": {
+			"type": "array",
+			"minItems": 2,
+			"maxItems": 4,
+			"items": { "type": "string", "minLength": 1, "maxLength": 256 }
+		},
+		"filter": { "type": "string", "minLength": 1, "maxLength": 256 }
+	}
+}

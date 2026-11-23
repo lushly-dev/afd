@@ -156,26 +156,26 @@ anything in Loam does (section [4.3](#43-where-a-trees-truth-lives)).
 ## 3. Jobs
 
 Fifteen jobs, drawn from Violet's commands, the owner's brief and Lushly's plan, each a scenario
-file in [`scenarios/`](scenarios/). The ranking is a draft for the owner
+file in [`endpoints/loam/plugins/violet/app/scenarios/`](../../../../endpoints/loam/plugins/violet/app/scenarios/). The ranking is a draft for the owner
 ([question 1](#12-for-the-owner)). `slice` marks what the first slice must pass.
 
 | # | Job | Scenario | Slice | Source |
 | --- | --- | --- | --- | --- |
-| 1 | Browse a tree: nodes, kinds, customizations, a node's resolved tokens | [01](scenarios/01-browse-a-tree.scenario.yaml) | yes | `node.list`, `tokens.resolve` |
-| 2 | See where a value comes from: the lineage, and a node's own overrides | [03](scenarios/03-see-where-a-value-comes-from.scenario.yaml) | yes | `token.lineage`, `node.get` |
-| 3 | Compare themes in one tree, only what differs | [04](scenarios/04-compare-themes.scenario.yaml) | yes | `tokens.compare` |
-| 4 | Compare two trees: a product's theme beside the default's | [13](scenarios/13-compare-two-trees.scenario.yaml) | yes | The owner's brief ("compare trees"); Lushly's tree replaces the default |
-| 5 | See what a change does, then apply exactly that as one change | [05](scenarios/05-see-the-change-first.scenario.yaml) | yes | `changes.impact`; Lushly's plan asks that a change's consequences show in one place |
-| 6 | Change a token, and take it back to where it was | [06](scenarios/06-change-a-token-and-take-it-back.scenario.yaml) | yes | `token.override`, `token.reset` |
-| 7 | Preview a theme on real components; refuse a value unsafe to draw | [07](scenarios/07-preview-a-theme.scenario.yaml) | yes | `violet-runtime`; `violet-afd/css` validators |
-| 8 | Check contrast in every theme, and clear each failure | [08](scenarios/08-check-contrast-in-every-theme.scenario.yaml) | yes | `constraints.set`, `analyze.violations`; `loam-theme`'s pairs; Lushly's plan |
-| 9 | Bring a tree in from its files, write it back, take newer files in | [11](scenarios/11-bring-a-tree-in-and-out.scenario.yaml) | yes | `import.tree`; both trees are files ([2.2](#22-the-two-trees)) |
-| 10 | Export a theme, with its open checks stated | [10](scenarios/10-export-a-theme.scenario.yaml) | yes | `export`; Lushly's plan emits component data and CSS |
-| 11 | Fill every entry of the component interface | [09](scenarios/09-fill-the-component-interface.scenario.yaml) | | `interface.json`; Lushly's plan |
-| 12 | Start a product's tree from the default | [14](scenarios/14-start-from-the-default.scenario.yaml) | | Lushly's tree must fill all 89 entries from the start |
-| 13 | See what changed and why | [15](scenarios/15-see-what-changed-and-why.scenario.yaml) | | `audit.list`; the `reason` every write takes |
-| 14 | Find a token by what it is for | [02](scenarios/02-find-a-token.scenario.yaml) | | `tokens.catalog` |
-| 15 | Add a theme to a tree, and remove it | [12](scenarios/12-add-a-theme.scenario.yaml) | | `node.create`, `node.delete` |
+| 1 | Browse a tree: nodes, kinds, customizations, a node's resolved tokens | [01](../../../../endpoints/loam/plugins/violet/app/scenarios/01-browse-a-tree.scenario.yaml) | yes | `node.list`, `tokens.resolve` |
+| 2 | See where a value comes from: the lineage, and a node's own overrides | [03](../../../../endpoints/loam/plugins/violet/app/scenarios/03-see-where-a-value-comes-from.scenario.yaml) | yes | `token.lineage`, `node.get` |
+| 3 | Compare themes in one tree, only what differs | [04](../../../../endpoints/loam/plugins/violet/app/scenarios/04-compare-themes.scenario.yaml) | yes | `tokens.compare` |
+| 4 | Compare two trees: a product's theme beside the default's | [13](../../../../endpoints/loam/plugins/violet/app/scenarios/13-compare-two-trees.scenario.yaml) | yes | The owner's brief ("compare trees"); Lushly's tree replaces the default |
+| 5 | See what a change does, then apply exactly that as one change | [05](../../../../endpoints/loam/plugins/violet/app/scenarios/05-see-the-change-first.scenario.yaml) | yes | `changes.impact`; Lushly's plan asks that a change's consequences show in one place |
+| 6 | Change a token, and take it back to where it was | [06](../../../../endpoints/loam/plugins/violet/app/scenarios/06-change-a-token-and-take-it-back.scenario.yaml) | yes | `token.override`, `token.reset` |
+| 7 | Preview a theme on real components; refuse a value unsafe to draw | [07](../../../../endpoints/loam/plugins/violet/app/scenarios/07-preview-a-theme.scenario.yaml) | yes | `violet-runtime`; `violet-afd/css` validators |
+| 8 | Check contrast in every theme, and clear each failure | [08](../../../../endpoints/loam/plugins/violet/app/scenarios/08-check-contrast-in-every-theme.scenario.yaml) | yes | `constraints.set`, `analyze.violations`; `loam-theme`'s pairs; Lushly's plan |
+| 9 | Bring a tree in from its files, write it back, take newer files in | [11](../../../../endpoints/loam/plugins/violet/app/scenarios/11-bring-a-tree-in-and-out.scenario.yaml) | yes | `import.tree`; both trees are files ([2.2](#22-the-two-trees)) |
+| 10 | Export a theme, with its open checks stated | [10](../../../../endpoints/loam/plugins/violet/app/scenarios/10-export-a-theme.scenario.yaml) | yes | `export`; Lushly's plan emits component data and CSS |
+| 11 | Fill every entry of the component interface | [09](../../../../endpoints/loam/plugins/violet/app/scenarios/09-fill-the-component-interface.scenario.yaml) | | `interface.json`; Lushly's plan |
+| 12 | Start a product's tree from the default | [14](../../../../endpoints/loam/plugins/violet/app/scenarios/14-start-from-the-default.scenario.yaml) | | Lushly's tree must fill all 89 entries from the start |
+| 13 | See what changed and why | [15](../../../../endpoints/loam/plugins/violet/app/scenarios/15-see-what-changed-and-why.scenario.yaml) | | `audit.list`; the `reason` every write takes |
+| 14 | Find a token by what it is for | [02](../../../../endpoints/loam/plugins/violet/app/scenarios/02-find-a-token.scenario.yaml) | | `tokens.catalog` |
+| 15 | Add a theme to a tree, and remove it | [12](../../../../endpoints/loam/plugins/violet/app/scenarios/12-add-a-theme.scenario.yaml) | | `node.create`, `node.delete` |
 
 What each job refuses is written into it: an unknown node (1, 4) or token (2, 6), more than four
 nodes compared (3), a color value that would escape its declaration (7), a token added twice

@@ -1,0 +1,29 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"interface": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["contractVersion", "tokens"],
+			"properties": {
+				"contractVersion": { "type": "integer", "minimum": 1 },
+				"package": { "type": "string", "minLength": 1 },
+				"tokens": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": ["property", "type"],
+						"properties": {
+							"property": { "type": "string", "minLength": 1 },
+							"type": { "type": "string", "minLength": 1 },
+							"default": {}
+						}
+					}
+				}
+			}
+		}
+	}
+}

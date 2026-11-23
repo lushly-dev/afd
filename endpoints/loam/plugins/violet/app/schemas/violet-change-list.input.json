@@ -1,0 +1,12 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["document"],
+	"properties": {
+		"document": { "type": "string", "minLength": 1, "maxLength": 128 },
+		"node": { "type": "string", "minLength": 1, "maxLength": 256 },
+		"token": { "type": "string", "minLength": 1, "maxLength": 256 },
+		"limit": { "type": "integer", "minimum": 1, "maximum": 500 }
+	}
+}

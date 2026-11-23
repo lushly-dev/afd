@@ -392,8 +392,21 @@ test('the rule for test files holds in this repository', () => {
 	);
 	// A workflow whose jobs run a unit's suites names every package of the unit in its gates: a
 	// test-only change reaches no dependent, so a package left out would skip its own workflow.
-	const loam = workspace.filter((pkg) => pkg.dir.startsWith('endpoints/loam/'));
+	// Plugins under endpoints/loam/plugins/ are units of their own (D109) owned by loam-plugins.yml.
+	const loam = workspace.filter(
+		(pkg) => pkg.dir.startsWith('endpoints/loam/') && !pkg.dir.startsWith('endpoints/loam/plugins/')
+	);
 	assert.ok(loam.length >= 16);
+	const pluginPackages = workspace.filter((pkg) => pkg.dir.startsWith('endpoints/loam/plugins/'));
+	const pluginGates = readTrigger(
+		readFileSync(join(root, '.github/workflows/loam-plugins.yml'), 'utf8')
+	).gates;
+	const pluginNamed = [...pluginGates.values()].flatMap(
+		(args) => parseArgs(['gate', ...args], {}).packages
+	);
+	for (const pkg of pluginPackages) {
+		assert.equal(pluginNamed.includes(pkg.name), true, `loam-plugins.yml gate: ${pkg.name}`);
+	}
 	const gates = readTrigger(readFileSync(join(root, '.github/workflows/loam.yml'), 'utf8')).gates;
 	// The frozen hosted lane's packages are its own gate's, through `--lane`, and in no other (D162).
 	const lane = new Set(readLanes(root).flatMap((entry) => entry.packages));
@@ -1180,4 +1193,48 @@ test('stepExecution launches Windows bash steps directly via resolved non-WSL ba
 			}),
 		/Refusing to pass/
 	);
+});
+
+test('loam-plugins.yml violet gate opens on transitive workspace dependency changes and declares specimen tools', () => {
+	const repoRoot = dirname(import.meta.dirname);
+	const suite = SUITES.find((entry) => entry.workflow === 'loam-plugins.yml');
+	assert.ok(suite, 'loam-plugins.yml suite exists');
+	const trigger = readSuiteTrigger(repoRoot, suite);
+	assert.ok(trigger, 'loam-plugins.yml has pull_request trigger');
+
+	for (const depFile of ['packages/local-db/src/index.ts', 'packages/auth/src/index.ts']) {
+		const scope = resolveScope({ root: repoRoot, files: [depFile], git: () => '' });
+		assert.equal(workflowTrigger(scope, trigger).run, true, `${depFile} triggers loam-plugins.yml`);
+		const plan = planSuites(scope, { root: repoRoot, suites: [suite] });
+		assert.ok(
+			plan.some((entry) => entry.step.gate === 'violet'),
+			`${depFile} opens violet gate`
+		);
+		assert.equal(
+			plan.some((entry) => entry.step.gate === 'mail'),
+			false,
+			`${depFile} does not open mail gate`
+		);
+		const specimenStep = plan.find((entry) => entry.step.run.includes('test:specimen'));
+		assert.ok(specimenStep, 'violet plan includes test:specimen');
+		assert.deepEqual(specimenStep.step.tools, ['cargo', 'chromium']);
+		const nonSpecimen = plan.filter((entry) => !entry.step.run.includes('test:specimen'));
+		assert.deepEqual(
+			[...plannedTools(nonSpecimen).keys()],
+			[],
+			`non-specimen violet steps for ${depFile} need no cargo or chromium`
+		);
+		assert.deepEqual(
+			[...plannedTools(plan).keys()].sort(),
+			['cargo', 'chromium'],
+			`full violet plan for ${depFile} declares cargo and chromium for Specimen`
+		);
+	}
+
+	const docsOnly = resolveScope({
+		root: repoRoot,
+		files: ['endpoints/loam/plugins/violet/docs/spec.md'],
+		git: () => '',
+	});
+	assert.deepEqual(planSuites(docsOnly, { root: repoRoot, suites: [suite] }), []);
 });

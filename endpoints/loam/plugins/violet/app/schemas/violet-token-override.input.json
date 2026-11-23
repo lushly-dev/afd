@@ -1,0 +1,15 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["document", "node", "token", "value"],
+	"properties": {
+		"document": { "type": "string", "minLength": 1, "maxLength": 128 },
+		"node": { "type": "string", "minLength": 1, "maxLength": 256 },
+		"token": { "type": "string", "minLength": 1, "maxLength": 256 },
+		"value": {
+			"anyOf": [{ "type": "string" }, { "type": "number" }, { "type": "object" }]
+		},
+		"reason": { "type": "string", "minLength": 1, "maxLength": 500 }
+	}
+}

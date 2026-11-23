@@ -39,7 +39,7 @@ steps:
         own:
           - { token: color.field.border, operation: override, value: "#000000" }
           - { token: color.text.primary, operation: override, value: "#000000" }
-          - { token: size.focus.width, operation: override, value: 3px }
+          - { token: size.focus-ring.width, operation: override, value: 3px }
   - description: A token the tree does not define is refused, naming the search
     command: violet-token-lineage
     input: { document: "${{ steps[0].data.id }}", node: example/light, token: color.text.link }

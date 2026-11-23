@@ -1,0 +1,49 @@
+{
+	"name": "@lushly-dev/loam-app-violet",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Violet in Loam: native token-tree document plugin over @lushly-dev/violet-afd/worker",
+	"license": "MIT",
+	"type": "module",
+	"engines": {
+		"node": ">=24"
+	},
+	"scripts": {
+		"build": "vite build",
+		"clean": "rimraf dist coverage",
+		"typecheck": "tsc -p tsconfig.typecheck.json && tsc -p tsconfig.browser.json",
+		"test": "node templates/write.mjs --check && vitest run",
+		"test:specimen": "pnpm -F @lushly-dev/specimen build:host && vitest run --config vitest.specimen.config.ts",
+		"lint:tokens": "loam-lint-tokens \"src/**/*.ts\"",
+		"pack": "loam app pack . --out dist/package",
+		"templates:write": "node templates/write.mjs",
+		"templates:check": "node templates/write.mjs --check"
+	},
+	"dependencies": {
+		"@lushly-dev/fast-element": "workspace:*",
+		"@lushly-dev/loam-sdk": "workspace:*",
+		"@lushly-dev/violet-afd": "workspace:*",
+		"@lushly-dev/violet-core": "workspace:*",
+		"@lushly-dev/violet-elements": "workspace:*"
+	},
+	"devDependencies": {
+		"@lushly-dev/afd-testing": "workspace:*",
+		"@lushly-dev/loam-cli": "workspace:*",
+		"@lushly-dev/loam-testing": "workspace:*",
+		"@lushly-dev/loam-theme": "workspace:*",
+		"@lushly-dev/specimen": "workspace:*",
+		"@types/node": "^26.6.6",
+		"@vitest/coverage-v8": "^5.1.1",
+		"axe-core": "4.14.0",
+		"playwright": "^1.64.1",
+		"rimraf": "^6.1.4",
+		"typescript": "^7.0.2",
+		"vite": "^8.3.0",
+		"vitest": "^5.1.1"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/lushly-dev/afd.git",
+		"directory": "endpoints/loam/plugins/violet/app"
+	}
+}

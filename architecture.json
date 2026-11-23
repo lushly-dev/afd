@@ -34,6 +34,12 @@
 			]
 		}
 	],
+	"oneWay": [
+		{
+			"path": "endpoints/loam/plugins/",
+			"reason": "D109: a Loam plugin may import Loam's SDK and test kit; Loam's core and its own suite load no real plugin, and a plugin imports no other plugin"
+		}
+	],
 	"units": [
 		{
 			"manifest": "packages/core/package.json",
