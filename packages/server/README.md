@@ -1133,7 +1133,10 @@ on, `mcp` and `cli` off), so `expose: { mcp: true }` stays available to agents.
 Set `expose: { agent: false }` to keep a command away from in-app agents.
 Commands that are registered but not exposed are left out of
 `listCommands()`/`hasCommand()`, and `execute()` returns `COMMAND_NOT_EXPOSED`
-for them. Duplicate command names throw.
+for them. Duplicate command names throw. `listCommands()` returns each exposed
+command's summary including `title`, `category`, `mutation`, `destructive`,
+`confirmPrompt`, `undoable`, `requires`, `tags`, `examples`, and `inputSchema`
+when declared.
 
 ## Validation Utilities
 

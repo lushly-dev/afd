@@ -190,6 +190,40 @@ describe('DirectClient', () => {
 			expect(commands).toHaveLength(6);
 			expect(commands.map((c) => c.name)).toContain('todo-create');
 		});
+
+		it('preserves full command summary metadata from the registry', () => {
+			const richRegistry: DirectRegistry = {
+				execute: async () => ({ success: true }),
+				listCommandNames: () => ['todo-delete'],
+				listCommands: () => [
+					{
+						name: 'todo-delete',
+						title: 'Delete todo',
+						description: 'Delete a todo item',
+						category: 'todo',
+						mutation: true,
+						destructive: true,
+						confirmPrompt: 'Delete this todo permanently?',
+						undoable: false,
+						requires: ['todo-get'],
+						tags: ['cleanup', 'destructive'],
+						examples: [{ title: 'Delete by id', input: { id: 'todo-1' } }],
+					},
+				],
+				hasCommand: (name) => name === 'todo-delete',
+			};
+			const richClient = createDirectClient(richRegistry);
+			expect(richClient.listCommands()).toEqual([
+				expect.objectContaining({
+					name: 'todo-delete',
+					title: 'Delete todo',
+					confirmPrompt: 'Delete this todo permanently?',
+					requires: ['todo-get'],
+					tags: ['cleanup', 'destructive'],
+					examples: [{ title: 'Delete by id', input: { id: 'todo-1' } }],
+				}),
+			]);
+		});
 	});
 
 	describe('listCommandNames', () => {
@@ -369,6 +403,49 @@ describe('DirectTransport', () => {
 
 			expect(response.result).toHaveProperty('tools.length', 6);
 			expect(response.result).toHaveProperty('tools.0.name', 'todo-create');
+		});
+
+		it('puts title at tool top level and keeps confirmPrompt, tags, and undefined fields out of _meta', async () => {
+			const richTransport = new DirectTransport({
+				execute: async () => ({ success: true }),
+				listCommandNames: () => ['todo-delete'],
+				listCommands: () => [
+					{
+						name: 'todo-delete',
+						title: 'Delete todo',
+						description: 'Delete a todo',
+						category: undefined,
+						destructive: true,
+						confirmPrompt: 'Delete permanently?',
+						requires: ['todo-get'],
+						tags: ['cleanup'],
+						examples: [{ title: 'Delete one', input: { id: '1' } }],
+					},
+				],
+				hasCommand: (name) => name === 'todo-delete',
+			});
+			await richTransport.connect();
+			const response = await richTransport.send({
+				jsonrpc: '2.0',
+				id: 20,
+				method: 'tools/list',
+				params: {},
+			});
+			const tools = (response.result as { tools: Array<Record<string, unknown>> }).tools;
+			expect(tools[0]).toMatchObject({
+				name: 'todo-delete',
+				title: 'Delete todo',
+				description: 'Delete a todo',
+				_meta: {
+					destructive: true,
+					requires: ['todo-get'],
+					examples: [{ title: 'Delete one', input: { id: '1' } }],
+				},
+			});
+			expect(tools[0]?._meta).not.toHaveProperty('title');
+			expect(tools[0]?._meta).not.toHaveProperty('confirmPrompt');
+			expect(tools[0]?._meta).not.toHaveProperty('tags');
+			expect(tools[0]?._meta).not.toHaveProperty('category');
 		});
 	});
 

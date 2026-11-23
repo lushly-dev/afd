@@ -136,12 +136,16 @@ describe('surfaces', () => {
 		expect(listDocs.data?.markdown).not.toContain('**Undoable:**');
 	});
 
-	it('lists undoable in DirectRegistry.listCommands()', () => {
+	it('lists undoable and confirmPrompt in DirectRegistry.listCommands()', () => {
 		const registry = createDirectRegistry([archive, list]);
 		expect(registry.listCommands().find((c) => c.name === 'todo-archive')).toMatchObject({
 			destructive: true,
+			confirmPrompt: 'Archive this todo?',
 			undoable: true,
 		});
+		expect(registry.listCommands().find((c) => c.name === 'todo-list')).not.toHaveProperty(
+			'confirmPrompt'
+		);
 	});
 });
 

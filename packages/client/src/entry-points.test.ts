@@ -296,11 +296,15 @@ describe('@lushly-dev/afd-client/direct', () => {
 			'DirectTransport',
 			'createDirectClient',
 			'isUnknownToolError',
+			'loadingResultState',
+			'normalizeResultState',
 		]);
 		expect(direct.DirectClient).toBe(root.DirectClient);
 		expect(direct.createDirectClient).toBe(root.createDirectClient);
 		expect(direct.DirectTransport).toBe(root.DirectTransport);
 		expect(direct.isUnknownToolError).toBe(root.isUnknownToolError);
+		expect(direct.loadingResultState).toBe(root.loadingResultState);
+		expect(direct.normalizeResultState).toBe(root.normalizeResultState);
 	});
 
 	it('bundles without MCP, eventsource, Node builtins or unresolved imports', async () => {
@@ -314,10 +318,12 @@ describe('@lushly-dev/afd-client/direct', () => {
 		expect(Object.values(result.metafile?.outputs ?? {}).flatMap((o) => o.imports)).toEqual([]);
 		const text = new TextDecoder().decode(result.outputFiles?.[0]?.contents);
 		expect(text).not.toMatch(/\bprocess\.|\bBuffer\b|\brequire\(/);
-		// Whole public entry including pipeline and handoff: 37,490 bytes on 2026-11-17,
-		// with esbuild 0.28.2. The 42 KB ceiling leaves about 12% headroom.
+		// Whole public entry including pipeline, handoff, and result-state normalisation:
+		// 37,490 bytes on 2026-11-17 (esbuild 0.28.2); grew to 41,899 bytes without result-state
+		// on main at bc316e8e4, and 43,462 bytes with result-state.ts (+1,563 bytes, #2274).
+		// Raised 42_000 → 45_000 to cover the new browser-safe normaliser with ~3.5% headroom.
 		expect(
 			result.outputFiles?.[0]?.contents.length ?? Number.POSITIVE_INFINITY
-		).toBeLessThanOrEqual(42_000);
+		).toBeLessThanOrEqual(45_000);
 	});
 });

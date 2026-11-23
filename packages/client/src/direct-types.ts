@@ -208,6 +208,22 @@ export interface DirectListToolsOptions {
 }
 
 /**
+ * Command summary returned by `DirectRegistry.listCommands()` and `DirectClient.listCommands()`.
+ */
+export type DirectCommandSummary = NonNullable<McpTool['_meta']> & {
+	name: string;
+	/** Display label, when the command sets one. */
+	title?: string;
+	description: string;
+	/** Custom confirmation prompt for destructive commands, when set. */
+	confirmPrompt?: string;
+	/** Categorization tags, when declared. */
+	tags?: string[];
+	/** JSON Schema advertised by validating registries; optional for legacy registries. */
+	inputSchema?: JsonSchema;
+};
+
+/**
  * Interface for command registries that support direct execution.
  *
  * Prefer `createDirectRegistry(commands)` from `@lushly-dev/afd-server`: it
@@ -241,16 +257,7 @@ export interface DirectRegistry {
 	/**
 	 * List commands with metadata.
 	 */
-	listCommands(): Array<
-		NonNullable<McpTool['_meta']> & {
-			name: string;
-			/** Display label, when the command sets one. */
-			title?: string;
-			description: string;
-			/** JSON Schema advertised by validating registries; optional for legacy registries. */
-			inputSchema?: JsonSchema;
-		}
-	>;
+	listCommands(): DirectCommandSummary[];
 
 	/**
 	 * Check if a command exists. A registry with a tool surface also answers `true` for the tool

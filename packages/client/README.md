@@ -559,7 +559,11 @@ implement the following, and is then responsible for its own validation and
 exposure checks:
 
 ```typescript
-import type { CommandDefinition, DirectRegistry } from '@lushly-dev/afd-client';
+import type {
+  CommandDefinition,
+  DirectCommandSummary,
+  DirectRegistry,
+} from '@lushly-dev/afd-client';
 import type { CommandResult, CommandContext, McpTool } from '@lushly-dev/afd-core';
 
 class MyRegistry implements DirectRegistry {
@@ -572,7 +576,7 @@ class MyRegistry implements DirectRegistry {
   ): Promise<CommandResult<T>>;
 
   listCommandNames(): string[];
-  listCommands(): Array<{ name: string; description: string }>;
+  listCommands(): DirectCommandSummary[];
   hasCommand(name: string): boolean;
 
   // Optional - enables DirectClient's shallow input checks
@@ -581,6 +585,31 @@ class MyRegistry implements DirectRegistry {
   // Optional - enables DirectClient.listTools()
   listTools?(options?: { strategy?: string; activeContext?: string }): McpTool[];
 }
+```
+
+#### Normalising Results for UI State
+
+`@lushly-dev/afd-client/direct` (and the root entry) exports `normalizeResultState` and
+`loadingResultState` to turn a `CommandResult<T>` (or pending `null`/`undefined`) into a
+discriminated `'loading' | 'ready' | 'empty' | 'error'` state while preserving every
+`CommandResult` field (`confidence`, `reasoning`, `sources`, `plan`, `alternatives`,
+`warnings`, `suggestions`, `metadata`, `undoCommand`, `undoArgs`, and the original `result`):
+
+```typescript
+import {
+  loadingResultState,
+  type NormalizedResultState,
+  normalizeResultState,
+} from '@lushly-dev/afd-client/direct';
+
+let view: NormalizedResultState<Todo[]> = loadingResultState<Todo[]>();
+const result = await client.call<Todo[]>('todo-list', {});
+view = normalizeResultState(result);
+
+// For enveloped list shapes ({ items: Todo[], total: number }):
+const listView = normalizeResultState(envelopedResult, {
+  isEmpty: (data) => !data || data.items.length === 0,
+});
 ```
 
 ## Error Handling

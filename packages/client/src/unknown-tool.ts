@@ -6,7 +6,7 @@
  * Fuzzy matching comes from `@lushly-dev/afd-core`.
  */
 
-import type { CommandResult } from '@lushly-dev/afd-core';
+import type { CommandError, CommandResult } from '@lushly-dev/afd-core';
 import { findSimilarTools, truncateName } from '@lushly-dev/afd-core';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -24,6 +24,16 @@ export interface UnknownToolError {
 	available_tools: string[];
 	suggestions: string[];
 	hint: string | null;
+}
+
+/**
+ * Narrowed `CommandResult` returned when an agent calls a command name that does
+ * not exist in a direct registry (`success` is always `false`).
+ */
+export interface UnknownToolFailureResult extends CommandResult<UnknownToolError> {
+	success: false;
+	data: UnknownToolError;
+	error: CommandError;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -58,7 +68,7 @@ export function createUnknownToolError(
 export function unknownToolFailure(
 	requestedTool: string,
 	availableTools: string[]
-): CommandResult<UnknownToolError> {
+): UnknownToolFailureResult {
 	const unknownToolError = createUnknownToolError(requestedTool, availableTools);
 	return {
 		success: false,
@@ -81,7 +91,7 @@ export function unknownToolFailure(
  * Whether a `DirectClient.call()` result is the structured failure for an
  * unknown command.
  *
- * `call<T>()` returns `CommandResult<T> | CommandResult<UnknownToolError>`, so
+ * `call<T>()` returns `CommandResult<T> | UnknownToolFailureResult`, so
  * checking `result.success` alone does not tell TypeScript which one it has.
  * Rule out the unknown-tool case first; the result is then `CommandResult<T>`.
  *
@@ -100,7 +110,7 @@ export function unknownToolFailure(
  */
 export function isUnknownToolError<T>(
 	result: CommandResult<T> | CommandResult<UnknownToolError>
-): result is CommandResult<UnknownToolError> {
+): result is UnknownToolFailureResult {
 	if (result.success || result.error?.code !== 'UNKNOWN_TOOL') return false;
 	const data: unknown = result.data;
 	return (
