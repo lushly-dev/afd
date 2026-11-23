@@ -15,6 +15,7 @@ import {
 	plannedTools,
 	planSuites,
 	pnpmArgs,
+	stepExecution,
 	workflowTrigger,
 } from './affected.mjs';
 import { execTool } from './release/exec-tool.mjs';
@@ -928,5 +929,69 @@ jobs:
 			block.replace('  workflow_dispatch:\n', "\n  push:\n    paths:\n      - 'other/**'\n")
 		).paths,
 		['a/**', 'docs/**']
+	);
+});
+
+test('stepExecution launches Windows bash steps directly via resolved non-WSL bash (#2171)', () => {
+	const script = 'bash endpoints/umbel/tests/scripts/external-clients.sh';
+	assert.deepEqual(stepExecution(script, { platform: 'linux' }), {
+		kind: 'shell',
+		command: script,
+	});
+	assert.deepEqual(
+		stepExecution('pnpm test', {
+			platform: 'win32',
+			bash: () => {
+				throw new Error('should not resolve bash for non-bash steps');
+			},
+		}),
+		{ kind: 'shell', command: 'pnpm test' }
+	);
+	assert.deepEqual(
+		stepExecution('bashful --check', {
+			platform: 'win32',
+			bash: () => {
+				throw new Error('should not match prefix of another command');
+			},
+		}),
+		{ kind: 'shell', command: 'bashful --check' }
+	);
+	// Simple `bash <script>` launches bash.exe directly via execFileSync (never through cmd.exe),
+	// so spaces and cmd.exe metacharacters (`&`, `$`) in the resolved path are safe.
+	for (const resolved of [
+		'Program Files\\Git\\bin\\bash.exe',
+		'Git\\bin\\bash.exe',
+		'tools\\$&\\bash.exe',
+	]) {
+		assert.deepEqual(
+			stepExecution(script, {
+				platform: 'win32',
+				bash: () => resolved,
+			}),
+			{
+				kind: 'execFile',
+				file: resolved,
+				args: ['endpoints/umbel/tests/scripts/external-clients.sh'],
+			}
+		);
+	}
+	// Compound shell lines quote the resolved executable for cmd.exe and avoid `$&` replacement.
+	assert.deepEqual(
+		stepExecution(`${script} && echo ok`, {
+			platform: 'win32',
+			bash: () => 'tools\\$&\\bash.exe',
+		}),
+		{
+			kind: 'shell',
+			command: '"tools\\$&\\bash.exe" endpoints/umbel/tests/scripts/external-clients.sh && echo ok',
+		}
+	);
+	assert.throws(
+		() =>
+			stepExecution(`${script} && echo ok`, {
+				platform: 'win32',
+				bash: () => 'tools\\%TEMP%\\bash.exe',
+			}),
+		/Refusing to pass/
 	);
 });

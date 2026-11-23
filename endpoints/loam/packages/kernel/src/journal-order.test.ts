@@ -10,6 +10,13 @@ import { createJournalOrder, RECORDED_ANSWER, RECORDED_AUTONOMY } from './journa
 
 const ok: CommandResult = { success: true, data: {} };
 const tick = (ms = 5) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+function deferred() {
+	let resolve!: () => void;
+	const promise = new Promise<void>((res) => {
+		resolve = res;
+	});
+	return { promise, resolve };
+}
 
 interface Options {
 	mutation?: boolean;
@@ -76,6 +83,7 @@ describe('journal-order (#1936)', () => {
 
 	it('holds one that read on a later tick too, after the handler returned (Astra 1)', async () => {
 		const { log, call } = harness();
+		const readIssued = deferred();
 		let read: Promise<unknown> | undefined;
 		await call('w', {
 			mutation: true,
@@ -83,49 +91,72 @@ describe('journal-order (#1936)', () => {
 			handler: async (store) => {
 				store.wrote();
 				setTimeout(() => {
-					read = call('r', { handler: async (own) => own.read() });
+					read = call('r', {
+						handler: async (own) => {
+							own.read();
+							readIssued.resolve();
+						},
+					});
 				}, 0);
 			},
-			after: () => tick(10),
+			after: async () => {
+				await readIssued.promise;
+				await tick();
+			},
 		});
-		await tick(15);
 		await read;
 		expect(log).toEqual(['w', 'r']);
 	});
 
 	it('never holds a read that read before the write was issued (Opus 1)', async () => {
 		const { log, call } = harness();
+		const readIssued = deferred();
+		const releaseRead = deferred();
 		let read: Promise<unknown> | undefined;
 		await call('w', {
 			mutation: true,
 			name: 'book-sign',
 			handler: async (store) => {
-				// Told before it writes: the read lists first, then takes a while.
+				// Told before it writes: the read lists first, then stays open past the write's entry.
 				read = call('r', {
 					handler: async (own) => {
 						own.read();
-						await tick(15);
+						readIssued.resolve();
+						await releaseRead.promise;
 					},
 				});
-				await tick(1);
+				await readIssued.promise;
 				store.wrote();
 			},
 			after: tick,
 		});
+		releaseRead.resolve();
 		await read;
 		expect(log).toEqual(['w', 'r']);
 		const { log: second, call: again } = harness();
+		const earlyRead = deferred();
+		const writeIssued = deferred();
+		const releaseWrite = deferred();
 		const slowWrite = again('w', {
 			mutation: true,
 			name: 'book-sign',
 			handler: async (store) => {
-				await tick(1);
+				await earlyRead.promise;
 				store.wrote();
+				writeIssued.resolve();
 			},
-			after: () => tick(20),
+			after: () => releaseWrite.promise,
 		});
-		const early = again('r', { handler: async (own) => own.read() });
-		await Promise.all([slowWrite, early]);
+		const early = again('r', {
+			handler: async (own) => {
+				own.read();
+				earlyRead.resolve();
+				await writeIssued.promise;
+			},
+		});
+		await early;
+		releaseWrite.resolve();
+		await slowWrite;
 		expect(second).toEqual(['r', 'w']);
 	});
 

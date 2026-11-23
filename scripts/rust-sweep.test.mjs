@@ -3,7 +3,13 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync }
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { parseSweepArgs, rustBuildRunning, sweep, sweepTarget } from './rust-sweep.mjs';
+import {
+	parseSweepArgs,
+	processListCommand,
+	rustBuildRunning,
+	sweep,
+	sweepTarget,
+} from './rust-sweep.mjs';
 
 const DAY = 24 * 60 * 60 * 1000;
 const NOW = Date.parse('2026-11-08T12:00:00Z');
@@ -98,6 +104,33 @@ test('process names and options are read as Cargo and the command line give them
 		}),
 		null
 	);
+	assert.equal(
+		rustBuildRunning(() => ''),
+		null
+	);
+
+	// Windows tasklist /FO CSV /NH output (no header line, quoted image name with .exe, CRLF).
+	const tasklist = (names) => () =>
+		`${names.map((name, index) => `"${name}","${index + 1}","Console","1","10,000 K"`).join('\r\n')}\r\n`;
+	assert.equal(rustBuildRunning(tasklist(['System Idle Process', 'node.exe'])), false);
+	assert.equal(rustBuildRunning(tasklist(['cargo.exe'])), true);
+	assert.equal(rustBuildRunning(tasklist(['node.exe', 'RUSTC.EXE'])), true);
+	assert.equal(rustBuildRunning(tasklist(['clippy-driver.exe', 'node.exe'])), true);
+
+	assert.deepEqual(processListCommand('linux'), { file: 'ps', args: ['-Ao', 'comm'] });
+	// portability-ok: tests Windows SystemRoot path handling.
+	const systemRoot = `${'X:'}\\Windows`;
+	assert.deepEqual(processListCommand('win32', { SystemRoot: systemRoot }), {
+		file: `${systemRoot}\\System32\\tasklist.exe`,
+		args: ['/FO', 'CSV', '/NH'],
+	});
+	assert.deepEqual(processListCommand('win32', {}), {
+		file: 'tasklist.exe',
+		args: ['/FO', 'CSV', '/NH'],
+	});
+	// Live check on the host platform: must return a boolean, never null (catches ps -A failing on Windows).
+	assert.equal(typeof rustBuildRunning(), 'boolean');
+
 	const options = parseSweepArgs(['--dir', 'a', '--days', '1', '--max-gb', '20', '--dry-run']);
 	assert.equal(options.days, 1);
 	assert.equal(options.maxGb, 20);

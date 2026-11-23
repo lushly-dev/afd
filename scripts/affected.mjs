@@ -29,6 +29,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DEFAULT_BASES, resolveScope } from './affected/scope.mjs';
 import { matchesFilters, readSuiteTrigger, SUITES } from './affected/suites.mjs';
+import { bashCommand } from './release/exec-tool.mjs';
 import { defaultTargets, sweep } from './rust-sweep.mjs';
 import { buildRecord, currentIdentity, recordPath, writeRecord } from './verify-record.mjs';
 
@@ -191,6 +192,27 @@ export function plannedTools(plan) {
 	return needed;
 }
 
+const SHELL_META = /[&|;<>"'`$%^*?[\]{}()!\r\n]/;
+
+/**
+ * How a verify step is launched. On Windows, a leading `bash <script> [args...]` step resolves a
+ * non-WSL `bash.exe` (such as Git Bash) so `cmd.exe` does not invoke `System32\bash.exe` (the WSL
+ * relay) when it precedes Git Bash on PATH (#2171). Simple `bash <args...>` invocations launch
+ * `bash.exe` directly via `execFileSync` (avoiding `cmd.exe` metacharacter parsing on the resolved
+ * path); compound shell lines quote the resolved executable for `cmd.exe`.
+ */
+export function stepExecution(run, { platform = process.platform, bash = bashCommand } = {}) {
+	if (platform !== 'win32' || !/^bash(?:\s|$)/.test(run)) return { kind: 'shell', command: run };
+	const file = bash();
+	const rest = run.replace(/^bash\b/, '').trim();
+	if (!SHELL_META.test(rest)) {
+		return { kind: 'execFile', file, args: rest ? rest.split(/\s+/) : [] };
+	}
+	if (/["%\r\n]/.test(file))
+		throw new Error(`Refusing to pass ${JSON.stringify(file)} through cmd.exe`);
+	return { kind: 'shell', command: run.replace(/^bash\b/, () => `"${file}"`) };
+}
+
 function missingTools(plan) {
 	const needed = new Map([...plannedTools(plan)].filter(([tool]) => TOOLS[tool]));
 	const missing = [];
@@ -199,6 +221,19 @@ function missingTools(plan) {
 			execFileSync(windows ? 'where' : 'which', [TOOLS[tool]], { stdio: 'ignore' });
 		} catch {
 			missing.push(`${tool} (for ${workflows.join(', ')})`);
+		}
+	}
+	const bashWorkflows = [
+		...new Set(
+			plan.filter(({ step }) => /^bash(?:\s|$)/.test(step.run)).map(({ suite }) => suite.workflow)
+		),
+	];
+	if (bashWorkflows.length > 0) {
+		try {
+			if (windows) bashCommand();
+			else execFileSync('which', ['bash'], { stdio: 'ignore' });
+		} catch {
+			missing.push(`bash (for ${bashWorkflows.join(', ')})`);
 		}
 	}
 	return missing;
@@ -264,7 +299,10 @@ function verify(scope, options) {
 		for (const { suite, step } of plan)
 			record(`${suite.workflow}: ${step.run}`, () => {
 				console.error(`\n[verify] ${suite.workflow}: ${step.run}`);
-				execSync(step.run, { cwd: join(root, step.cwd ?? '.'), stdio: 'inherit' });
+				const exec = stepExecution(step.run);
+				const cwd = join(root, step.cwd ?? '.');
+				if (exec.kind === 'execFile') execFileSync(exec.file, exec.args, { cwd, stdio: 'inherit' });
+				else execSync(exec.command, { cwd, stdio: 'inherit' });
 			});
 	} finally {
 		console.error('\n[verify] summary');

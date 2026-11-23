@@ -23,7 +23,7 @@ EDIT = "edit"
 
 # The version of the rules in this module that recognised an event. A record holding events
 # of an older version can be rebuilt from what the harness still has.
-RECOGNIZER = 1
+RECOGNIZER = 2
 
 # Who loaded it. A session is a thread a person started or a task delegated to its own
 # agent; a subagent works inside one and reports back to it.
@@ -40,8 +40,17 @@ _SKILL_FOLDER = re.compile(rf"(?:^|[/\\])skills[/\\]+({_NAME})[/\\]+[^/\\]")
 _TYPED = re.compile(rf"^\s*[$/]({_NAME}(?::{_NAME})?)(?=\s|$)")
 
 _SHELLS = {"bash", "zsh", "sh", "dash", "ksh", "fish", "pwsh", "powershell", "cmd"}
+_POWERSHELL_SHELLS = {"pwsh", "powershell"}
+_POSIX_SHELLS = {"bash", "zsh", "sh", "dash", "ksh", "fish"}
 _SCRIPT_FLAG = re.compile(r"-[a-z]*c|-command|/c|/k", re.IGNORECASE)
 _HEREDOC = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
+_PS_ASSIGNMENT = re.compile(r"^\s*\$[A-Za-z_][A-Za-z0-9_:]*\s*=")
+_PS_CMDLET = re.compile(
+    r"^\s*(?:&\s*)?(?:Get|Set|Write|Out|Select|Measure|New|Remove|Copy|Move|Test|"
+    r"Join|Split|Invoke|ForEach|Where|Import|Export|ConvertFrom|ConvertTo|Start|Stop|"
+    r"Push|Pop|Add|Clear)-[A-Za-z]+\b",
+    re.IGNORECASE,
+)
 _ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 _ESCAPABLE_IN_QUOTES = '"\\$`'
 _ESCAPABLE = " \t\n\"';|&<>#"
@@ -165,19 +174,134 @@ class _Command:
     then: str  # the operator after it: "|", "&&", "||", ";", "&", a newline or ""
 
 
-def _without_here_documents(script: str) -> str:
+@dataclass
+class _ShellFeatures:
+    has_heredoc: bool = False
+    has_here_string: bool = False
+    has_ps_statement: bool = False
+    unclosed_quote: bool = False
+
+
+def _has_here_string_closer(lines: list[str], start: int, closer: str) -> bool:
+    return any(later.lstrip().startswith(closer) for later in lines[start:])
+
+
+def _scan_feature_line(  # noqa: C901, PLR0912, PLR0913 - single-line lexical scanner
+    line: str,
+    lines: list[str],
+    line_index: int,
+    *,
+    powershell: bool,
+    quote: str | None,
+    pending: list[str],
+    features: _ShellFeatures,
+) -> str | None:
+    escape = "`" if powershell else "\\"
+    trimmed = line.rstrip()
+    at_statement = quote is None
+    index = 0
+    while index < len(line):
+        char = line[index]
+        if quote:
+            if char == escape and quote == '"':
+                index += 1
+            elif char == quote:
+                quote = None
+            index += 1
+            continue
+        if at_statement:
+            rest = line[index:]
+            if _PS_ASSIGNMENT.match(rest) or _PS_CMDLET.match(rest):
+                features.has_ps_statement = True
+            if not char.isspace():
+                at_statement = False
+        if (
+            index == len(trimmed) - 2
+            and trimmed.endswith(('@"', "@'"))
+            and _has_here_string_closer(lines, line_index + 1, trimmed[-1] + "@")
+        ):
+            pending.append(trimmed[-1] + "@")
+            break
+        if char in "\"'":
+            quote = char
+        elif char == escape:
+            index += 1
+        elif char == "#" and (index == 0 or line[index - 1].isspace()):
+            break
+        elif char in ";|":
+            at_statement = True
+        elif char == "&" and line[index : index + 2] == "&&":
+            at_statement = True
+            index += 1
+        elif line.startswith("<<<", index):
+            features.has_heredoc = True
+            index += 2
+        elif line.startswith("<<", index):
+            marker = _HEREDOC.match(line, index)
+            if marker:
+                features.has_heredoc = True
+                if not powershell:
+                    pending.append(marker.group(2))
+                index = marker.end() - 1
+        index += 1
+    return quote
+
+
+def _scan_features(script: str, *, powershell: bool) -> _ShellFeatures:
+    """Scan a script under POSIX or PowerShell quoting for dialect indicators."""
+    lines = script.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    features = _ShellFeatures()
+    pending: list[str] = []
+    quote: str | None = None
+    for line_index, line in enumerate(lines):
+        if pending:
+            until = pending[0]
+            if line.strip() == until or (until.endswith("@") and line.lstrip().startswith(until)):
+                if until.endswith("@"):
+                    features.has_here_string = True
+                pending.pop(0)
+            continue
+        quote = _scan_feature_line(
+            line,
+            lines,
+            line_index,
+            powershell=powershell,
+            quote=quote,
+            pending=pending,
+            features=features,
+        )
+    features.unclosed_quote = quote is not None
+    return features
+
+
+def _is_powershell(script: str) -> bool:
+    """Whether an unwrapped script uses PowerShell quoting (backtick escapes, literal backslashes).
+
+    Scans unquoted operators and statement boundaries under POSIX quoting first so a bash
+    command writing a `.ps1` in a `<<` here-document or printing PowerShell text inside quotes
+    stays POSIX (#1847). Only an unquoted POSIX `<<` forces POSIX; `<<` inside PowerShell
+    strings or here-strings does not. If POSIX scanning sees PowerShell syntax or ends with an
+    unclosed quote (as `"C:\\dir\\"` or `"a`\"b"` does), re-scans under PowerShell quoting.
+    """
+    posix = _scan_features(script, powershell=False)
+    if posix.has_heredoc and not posix.unclosed_quote:
+        return False
+    if not posix.unclosed_quote and not posix.has_ps_statement and not posix.has_here_string:
+        return False
+    ps = _scan_features(script, powershell=True)
+    if ps.has_heredoc:
+        return False
+    return ps.has_here_string or ps.has_ps_statement
+
+
+def _without_here_documents(script: str, powershell: bool = False) -> str:
     """Drop the bodies of here-documents and PowerShell here-strings: they are data.
 
     Only an opener outside quotes starts one. A script handed to a shell in quotes keeps its
     here-documents, which are dropped when that script is read in turn; dropping them here
     would take the terminator with the body and leave the inner one open.
     """
-    lines = script.split("\n")
-    # A PowerShell script, by its here-string: there a backslash escapes nothing, so a quoted
-    # Windows path that ends in one (`"C:\dir\"`) is closed, not left open
-    powershell = any(line.rstrip().endswith(('@"', "@'")) for line in lines) and any(
-        line.lstrip().startswith(('"@', "'@")) for line in lines
-    )
+    lines = script.replace("\r\n", "\n").replace("\r", "\n").split("\n")
     kept: list[str] = []
     pending: list[str] = []  # the terminators of the bodies still to drop, in order
     quote: str | None = None
@@ -188,27 +312,28 @@ def _without_here_documents(script: str) -> str:
                 pending.pop(0)
             continue
         kept.append(line)
-        if quote is None and line.rstrip().endswith(('@"', "@'")):
-            pending.append(line.rstrip()[-1] + "@")
-            kept[-1] = line.rstrip()[:-2]  # the opener is not a quote left open
-            continue
+        trimmed = line.rstrip()
         index = 0
         while index < len(line):
             char = line[index]
             if quote:
-                if char == "\\" and quote == '"' and not powershell:
+                if char == ("`" if powershell else "\\") and quote == '"':
                     index += 1
                 elif char == quote:
                     quote = None
+            elif powershell and index == len(trimmed) - 2 and trimmed.endswith(('@"', "@'")):
+                pending.append(trimmed[-1] + "@")
+                kept[-1] = trimmed[:-2]  # the opener is not a quote left open
+                break
             elif char in "\"'":
                 quote = char
-            elif char == "\\" and not powershell:
+            elif char == ("`" if powershell else "\\"):
                 index += 1
             elif char == "#" and (index == 0 or line[index - 1].isspace()):
                 break
-            elif line.startswith("<<<", index):
+            elif not powershell and line.startswith("<<<", index):
                 index += 2  # a here-string: the word after it is data on the same line
-            elif line.startswith("<<", index):
+            elif not powershell and line.startswith("<<", index):
                 marker = _HEREDOC.match(line, index)
                 if marker:
                     pending.append(marker.group(2))
@@ -217,7 +342,7 @@ def _without_here_documents(script: str) -> str:
     return "\n".join(kept)
 
 
-def _commands(script: str) -> list[_Command]:  # noqa: C901, PLR0912, PLR0915 - one scanner
+def _commands(script: str, powershell: bool = False) -> list[_Command]:  # noqa: C901, PLR0912, PLR0915 - one scanner
     """Split a script into its simple commands, honouring quotes, comments and redirects."""
     commands: list[_Command] = []
     words: list[str] = []
@@ -249,7 +374,16 @@ def _commands(script: str) -> list[_Command]:  # noqa: C901, PLR0912, PLR0915 - 
         char = script[index]
         following = script[index + 1 : index + 2]
         if quote:
-            if char == "\\" and quote == '"' and following and following in _ESCAPABLE_IN_QUOTES:
+            if powershell and char == "`" and quote == '"' and following:
+                word.append(following)
+                index += 2
+            elif (
+                not powershell
+                and char == "\\"
+                and quote == '"'
+                and following
+                and following in _ESCAPABLE_IN_QUOTES
+            ):
                 word.append(following)
                 index += 2
             elif char == quote:
@@ -262,7 +396,12 @@ def _commands(script: str) -> list[_Command]:  # noqa: C901, PLR0912, PLR0915 - 
         if char in "\"'":
             quote, started = char, True
             index += 1
-        elif char == "\\" and following and following in _ESCAPABLE:
+        elif powershell and char == "`" and following:
+            if following != "\n":
+                word.append(following)
+                started = True
+            index += 2
+        elif not powershell and char == "\\" and following and following in _ESCAPABLE:
             # an escaped shell character; a Windows path's backslash is none of these
             if following != "\n":
                 word.append(following)
@@ -409,7 +548,7 @@ def _reaches_agent(commands: list[_Command], position: int) -> bool:
             return False
 
 
-def skills_read_by(command: str, depth: int = 0) -> list[str]:
+def skills_read_by(command: str, depth: int = 0, *, _powershell: bool | None = None) -> list[str]:
     """The skills whose SKILL.md a shell command shows the agent, in order, each once.
 
     Only a command that prints the file counts: `cat`, `sed`, `head`, `tail`, `nl`, `less`,
@@ -419,15 +558,24 @@ def skills_read_by(command: str, depth: int = 0) -> list[str]:
     here-document bodies are data, not commands. A script handed to a shell is read as that
     shell reads it.
     """
+    powershell = _is_powershell(command) if _powershell is None else _powershell
     found: list[str] = []
-    commands = _commands(_without_here_documents(command))
+    commands = _commands(
+        _without_here_documents(command, powershell=powershell), powershell=powershell
+    )
     for position, simple in enumerate(commands):
         if not _reaches_agent(commands, position):
             continue
         name, arguments = _program(simple.words)
         script = _script(name, arguments)
         if script is not None:
-            skills = skills_read_by(script, depth + 1) if depth < 3 else []
+            if depth < 3:
+                child_ps = (
+                    True if name in _POWERSHELL_SHELLS else False if name in _POSIX_SHELLS else None
+                )
+                skills = skills_read_by(script, depth + 1, _powershell=child_ps)
+            else:
+                skills = []
         else:
             skills = [skill_of_file(path) for path in _files_read(name, arguments)]
         for skill in skills:

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { win32 } from 'node:path';
 import test from 'node:test';
 import {
+	bashCommand,
 	execTool,
 	pythonCommand,
 	spawnTool,
@@ -127,4 +128,86 @@ test('native release Python discovery rejects 3.10 and reaches a 3.11+ launcher'
 		() => pythonCommand({ environment: { PYTHON: 'python' }, platform: 'win32', version }),
 		/PYTHON=python does not run Python 3.11 or newer/
 	);
+});
+
+test('bash skips Windows WSL relays in favour of Git Bash or a non-WSL bash (#2171)', () => {
+	const systemRoot = `${DRIVE}\\Windows`;
+	const wslSystem32 = `${systemRoot}\\System32\\bash.exe`;
+	const wslSyswow64 = `${systemRoot}\\SysWOW64\\bash.exe`;
+	const wslApps = `${DRIVE}\\Users\\u\\AppData\\Local\\Microsoft\\WindowsApps\\bash.exe`;
+	const gitBin = `${DRIVE}\\Program Files\\Git\\bin\\bash.exe`;
+	const gitUsr = `${DRIVE}\\Program Files\\Git\\usr\\bin\\bash.exe`;
+	const customBash = `${DRIVE}\\tools\\msys64\\usr\\bin\\bash.exe`;
+
+	assert.equal(bashCommand({ platform: 'linux', where: () => [] }), 'bash');
+
+	// Non-WSL bash on PATH wins after skipping WSL relays.
+	assert.equal(
+		bashCommand({
+			platform: 'win32',
+			environment: { SystemRoot: systemRoot },
+			where: (cmd) => (cmd === 'bash' ? [wslSystem32, wslApps, customBash] : []),
+			exists: (file) => [wslSystem32, wslApps, customBash].includes(file),
+		}),
+		customBash
+	);
+
+	// When only WSL relays are on PATH, find Git Bash beside git.exe (preferring bin\bash.exe).
+	assert.equal(
+		bashCommand({
+			platform: 'win32',
+			environment: { SystemRoot: systemRoot },
+			where: (cmd) =>
+				cmd === 'bash'
+					? [wslSystem32, wslSyswow64, wslApps]
+					: [`${DRIVE}\\Program Files\\Git\\cmd\\git.exe`],
+			exists: (file) => [wslSystem32, gitBin, gitUsr].includes(file),
+		}),
+		gitBin
+	);
+
+	// Also resolves from <Git>\mingw64\bin\git.exe (two levels below Git root).
+	assert.equal(
+		bashCommand({
+			platform: 'win32',
+			environment: { SystemRoot: systemRoot },
+			where: (cmd) =>
+				cmd === 'git' ? [`${DRIVE}\\Program Files\\Git\\mingw64\\bin\\git.exe`] : [],
+			exists: (file) => file === gitUsr,
+		}),
+		gitUsr
+	);
+
+	// Falls back to ProgramFiles / LOCALAPPDATA when git is not beside Git Bash.
+	assert.equal(
+		bashCommand({
+			platform: 'win32',
+			environment: {
+				SystemRoot: systemRoot,
+				ProgramFiles: `${DRIVE}\\Program Files`,
+			},
+			where: (cmd) => (cmd === 'bash' ? [wslSystem32] : []),
+			exists: (file) => file === gitBin,
+		}),
+		gitBin
+	);
+
+	// Throws a clear error when only WSL relays exist.
+	assert.throws(
+		() =>
+			bashCommand({
+				platform: 'win32',
+				environment: { SystemRoot: systemRoot },
+				where: (cmd) => (cmd === 'bash' ? [wslSystem32, wslApps] : []),
+				exists: (file) => [wslSystem32, wslApps].includes(file),
+			}),
+		/No non-WSL bash\.exe found on Windows/
+	);
+
+	// Live smoke check on Windows: resolves a working non-WSL bash.exe.
+	if (process.platform === 'win32') {
+		const resolved = bashCommand();
+		assert.doesNotMatch(resolved, /\\(?:system32|syswow64|sysnative|windowsapps)\\bash\.exe$/i);
+		assert.equal(execTool(resolved, ['-c', 'echo ok'], { encoding: 'utf8' }).trim(), 'ok');
+	}
 });
