@@ -15,7 +15,7 @@
 			{
 				"basis": "authored",
 				"id": "button.idrefs",
-				"text": "aria-labelledby, aria-describedby, aria-errormessage and aria-controls name ids in the host's tree; the inner button gets those elements, found when set and on connect. aria-description is forwarded."
+				"text": "aria-labelledby, aria-describedby, aria-errormessage and aria-controls name ids in the host's tree; the inner button gets those elements, found when set and on connect. aria-description and aria-keyshortcuts are forwarded."
 			}
 		]
 	},
@@ -103,6 +103,13 @@
 				"rules": [
 					"taxonomy.aria-haspopup"
 				],
+				"type": "string | null"
+			},
+			{
+				"basis": "declared",
+				"description": "Optional keyboard shortcut description forwarded to the inner button.",
+				"name": "aria-keyshortcuts",
+				"property": "ariaKeyShortcuts",
 				"type": "string | null"
 			},
 			{
@@ -222,6 +229,11 @@
 		{
 			"kind": "unobserved",
 			"name": "aria-description",
+			"section": "attributes"
+		},
+		{
+			"kind": "unobserved",
+			"name": "aria-keyshortcuts",
 			"section": "attributes"
 		},
 		{

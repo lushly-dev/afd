@@ -595,6 +595,161 @@ describe("violet-date-picker", () => {
             expect(getPanel(picker).style.top).not.toBe("");
             expect(getPanel(picker).style.left).not.toBe("");
         });
+
+        it("opens in the top layer under its field and receives pointer clicks inside a contained, transformed, clipping ancestor", async () => {
+            document.body.innerHTML = "";
+            const container = document.createElement("div");
+            container.style.cssText =
+                "position: relative; margin: 120px 0 0 32px; padding: 16px; contain: content; transform: translate(16px, 24px); overflow: hidden; block-size: 96px; inline-size: 260px;";
+            const picker = document.createElement("violet-date-picker") as VioletDatePicker;
+            picker.label = "Planting date";
+            picker.value = "2026-03-23";
+            picker.min = "2026-03-01";
+            picker.max = "2026-04-15";
+            container.append(picker);
+            document.body.append(container);
+            await customElements.whenDefined("violet-date-picker");
+            await nextFrame();
+
+            picker.show();
+            await nextFrame();
+
+            const panel = getPanel(picker);
+            const frameRect = picker.shadowRoot!.querySelector(".control-frame")!.getBoundingClientRect();
+            const panelRect = panel.getBoundingClientRect();
+            const containerRect = container.getBoundingClientRect();
+
+            expect(Math.abs(panelRect.top - (frameRect.bottom + 4))).toBeLessThanOrEqual(2);
+            expect(Math.abs(panelRect.left - frameRect.left)).toBeLessThanOrEqual(2);
+            expect(panelRect.bottom).toBeGreaterThan(containerRect.bottom);
+            expect(panel.getAttribute("popover")).toBe("manual");
+            expect(panel.matches(":popover-open")).toBe(true);
+
+            await userEvent.click(calendarDay(picker, "2026-03-25"));
+            await nextFrame();
+
+            expect(picker.value).toBe("2026-03-25");
+            expect(picker.open).toBe(false);
+            expect(panel.matches(":popover-open")).toBe(false);
+            expect(panel.hidden).toBe(true);
+        });
+
+        it("defers top-layer promotion for an initially open picker inside a closed violet-dialog until the dialog opens", async () => {
+            await import("../dialog/violet-dialog");
+            document.body.innerHTML = "";
+            const openButton = document.createElement("button");
+            openButton.textContent = "Open dialog";
+            const dialog = document.createElement("violet-dialog") as HTMLElement & { show(): void; hide(): void };
+            openButton.addEventListener("click", () => dialog.show());
+            const picker = document.createElement("violet-date-picker") as VioletDatePicker;
+            picker.label = "Planting date";
+            picker.value = "2026-03-23";
+            picker.min = "2026-03-01";
+            picker.max = "2026-04-15";
+            picker.open = true;
+            dialog.append(picker);
+            document.body.append(openButton, dialog);
+            await customElements.whenDefined("violet-dialog");
+            await customElements.whenDefined("violet-date-picker");
+            await nextFrame();
+
+            const panel = getPanel(picker);
+            expect(panel.matches(":popover-open")).toBe(false);
+            expect(panel.hidden).toBe(true);
+
+            // Clicking the trigger fires a capture-phase outside pointerdown before opening the dialog.
+            await userEvent.click(openButton);
+            await nextFrame();
+
+            const frameRect = picker.shadowRoot!.querySelector(".control-frame")!.getBoundingClientRect();
+            const panelRect = panel.getBoundingClientRect();
+            expect(picker.open).toBe(true);
+            expect(panel.matches(":popover-open")).toBe(true);
+            expect(Math.abs(panelRect.top - (frameRect.bottom + 4))).toBeLessThanOrEqual(2);
+            expect(Math.abs(panelRect.left - frameRect.left)).toBeLessThanOrEqual(2);
+
+            // Closing and reopening the dialog hides and re-promotes the open picker cleanly.
+            dialog.hide();
+            await nextFrame();
+            expect(picker.open).toBe(true);
+            expect(panel.matches(":popover-open")).toBe(false);
+            expect(panel.hidden).toBe(true);
+
+            dialog.show();
+            await nextFrame();
+            expect(panel.matches(":popover-open")).toBe(true);
+
+            await userEvent.click(calendarDay(picker, "2026-03-25"));
+            await nextFrame();
+
+            expect(picker.value).toBe("2026-03-25");
+            expect(picker.open).toBe(false);
+            expect(panel.matches(":popover-open")).toBe(false);
+        });
+
+        it("defers top-layer promotion inside a closed native dialog until showModal() and hides on close()", async () => {
+            document.body.innerHTML = "";
+            const dialog = document.createElement("dialog");
+            dialog.style.cssText = "margin: 40px 0 0 24px; inline-size: 320px;";
+            const picker = document.createElement("violet-date-picker") as VioletDatePicker;
+            picker.label = "Planting date";
+            picker.value = "2026-03-23";
+            picker.min = "2026-03-01";
+            picker.max = "2026-04-15";
+            picker.open = true;
+            dialog.append(picker);
+            document.body.append(dialog);
+            await customElements.whenDefined("violet-date-picker");
+            await nextFrame();
+
+            const panel = getPanel(picker);
+            expect(panel.matches(":popover-open")).toBe(false);
+            expect(panel.hidden).toBe(true);
+
+            dialog.showModal();
+            await nextFrame();
+
+            expect(panel.matches(":popover-open")).toBe(true);
+            const frameRect = picker.shadowRoot!.querySelector(".control-frame")!.getBoundingClientRect();
+            const panelRect = panel.getBoundingClientRect();
+            expect(Math.abs(panelRect.top - (frameRect.bottom + 4))).toBeLessThanOrEqual(2);
+            expect(Math.abs(panelRect.left - frameRect.left)).toBeLessThanOrEqual(2);
+
+            dialog.close();
+            await nextFrame();
+            expect(panel.matches(":popover-open")).toBe(false);
+            expect(panel.hidden).toBe(true);
+
+            dialog.showModal();
+            await nextFrame();
+            await userEvent.click(calendarDay(picker, "2026-03-25"));
+            await nextFrame();
+
+            expect(picker.value).toBe("2026-03-25");
+            expect(picker.open).toBe(false);
+        });
+
+        it("re-promotes an open panel to the top layer when reconnected", async () => {
+            const picker = await renderDatePicker();
+            picker.show();
+            await nextFrame();
+            const panel = getPanel(picker);
+            expect(panel.matches(":popover-open")).toBe(true);
+
+            picker.remove();
+            expect(panel.matches(":popover-open")).toBe(false);
+
+            const events: boolean[] = [];
+            picker.addEventListener("open-change", event =>
+                events.push((event as CustomEvent<{ open: boolean }>).detail.open),
+            );
+            document.body.append(picker);
+            await nextFrame();
+
+            expect(picker.open).toBe(true);
+            expect(panel.matches(":popover-open")).toBe(true);
+            expect(events).toEqual([]);
+        });
     });
 
     describe("selection", () => {

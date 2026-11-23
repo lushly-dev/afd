@@ -6,6 +6,13 @@ import "../icon/violet-icon";
 import { registerSystemCalendarIcon } from "../icon/generated/icons/system-calendar";
 import { formatDisplayDate } from "../date-time/violet-date-utils";
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
+import {
+    findEnclosingDialog,
+    hideManualPopover,
+    isDialogOpen,
+    observeEnclosingDialog,
+    showManualPopover,
+} from "../foundations/violet-popover-layer";
 
 export type VioletDateRangePickerSize = "compact" | "natural" | "comfortable";
 
@@ -137,12 +144,15 @@ const styles = css`
         box-sizing: border-box;
         position: fixed;
         inset: unset;
+        margin: 0;
         z-index: var(--_layer-popover);
         inline-size: var(--_panel-inline-size, auto);
         max-inline-size: calc(100vw - 8px);
         padding: 0;
         border: 0;
+        overflow: visible;
         background: transparent;
+        color: inherit;
         /* The calendar inside is the popup: it takes the floating surface and shadow. */
         --violet-calendar-background: var(--_surface-floating);
         --violet-calendar-shadow: var(--_shadow-floating);
@@ -225,6 +235,7 @@ const template = html<VioletDateRangePicker>`
                 id="${x => x.panelId}"
                 class="panel"
                 part="panel"
+                popover="manual"
                 hidden
                 @keydown="${(x, c) => x.handlePanelKeydown(c.event as KeyboardEvent)}"
             >
@@ -275,14 +286,16 @@ export class VioletDateRangePicker extends FASTElement {
     declare public invalid: boolean;
     declare public size: VioletDateRangePickerSize;
 
+    #stopDialogObserver: (() => void) | null = null;
+
     readonly #handleViewportChange = () => {
-        if (this.open) {
+        if (this.open && !this.panelElement?.hidden) {
             this.#positionPanel();
         }
     };
 
     readonly #handleDocumentPointerDown = (event: PointerEvent) => {
-        if (!this.open) {
+        if (!this.open || this.panelElement?.hidden) {
             return;
         }
 
@@ -332,6 +345,8 @@ export class VioletDateRangePicker extends FASTElement {
     }
 
     public disconnectedCallback(): void {
+        this.#stopDialogObserver?.();
+        this.#stopDialogObserver = null;
         this.ownerDocument.removeEventListener("pointerdown", this.#handleDocumentPointerDown, true);
         window.removeEventListener("resize", this.#handleViewportChange);
         window.removeEventListener("scroll", this.#handleViewportChange, true);
@@ -396,14 +411,43 @@ export class VioletDateRangePicker extends FASTElement {
             return;
         }
 
-        panel.hidden = !this.open;
+        this.#stopDialogObserver?.();
+        this.#stopDialogObserver = null;
+
         if (this.open) {
-            this.#positionPanel();
-            if (changed) {
-                requestAnimationFrame(() => {
-                    (this.calendarElement?.shadowRoot?.querySelector('[tabindex="0"]') as HTMLElement | null)?.focus();
+            const enclosingDialog = findEnclosingDialog(this);
+            const showAndPosition = (repromote: boolean): void => {
+                showManualPopover(panel, repromote);
+                this.#positionPanel();
+            };
+
+            if (enclosingDialog) {
+                this.#stopDialogObserver = observeEnclosingDialog(enclosingDialog, dialogOpen => {
+                    if (!this.open || !this.$fastController.isConnected) {
+                        return;
+                    }
+                    if (dialogOpen) {
+                        showAndPosition(true);
+                    } else {
+                        hideManualPopover(panel);
+                    }
                 });
             }
+
+            if (!enclosingDialog || isDialogOpen(enclosingDialog)) {
+                showAndPosition(false);
+                if (changed) {
+                    requestAnimationFrame(() => {
+                        if (this.open && !this.panelElement?.hidden) {
+                            (this.calendarElement?.shadowRoot?.querySelector('[tabindex="0"]') as HTMLElement | null)?.focus();
+                        }
+                    });
+                }
+            } else {
+                hideManualPopover(panel);
+            }
+        } else {
+            hideManualPopover(panel);
         }
 
         if (changed) {
@@ -515,7 +559,7 @@ export class VioletDateRangePicker extends FASTElement {
         const inlineSize = Math.max(rect.width, 320);
         panel.style.inlineSize = `${inlineSize}px`;
         panel.style.left = `${Math.max(4, Math.min(rect.left, window.innerWidth - inlineSize - 4))}px`;
-        panel.style.top = `${Math.min(rect.bottom + 4, window.innerHeight - 360)}px`;
+        panel.style.top = `${Math.max(4, Math.min(rect.bottom + 4, window.innerHeight - 360))}px`;
     }
 }
 

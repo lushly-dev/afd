@@ -159,6 +159,7 @@ const template = html<VioletButton>`
         aria-description="${x => x.ariaDescription || null}"
         aria-expanded="${x => x.ariaExpanded}"
         aria-haspopup="${x => x.ariaHasPopup}"
+        aria-keyshortcuts="${x => x.ariaKeyShortcuts}"
         aria-pressed="${x => x.ariaPressed}"
     >
         <slot name="before" part="before"></slot>
@@ -249,6 +250,11 @@ export class VioletButton extends FASTElement {
     declare public ariaHasPopup: string | null;
 
     /**
+     * Optional keyboard shortcut description forwarded to the inner button.
+     */
+    declare public ariaKeyShortcuts: string | null;
+
+    /**
      * Optional pressed state ("true", "false" or "mixed") forwarded to the inner button for toggle buttons.
      */
     declare public ariaPressed: string | null;
@@ -293,6 +299,10 @@ export class VioletButton extends FASTElement {
         this.#forwardAriaAttribute("aria-haspopup", next);
     }
 
+    private ariaKeyShortcutsChanged(_previous: string | null, next: string | null): void {
+        this.#forwardAriaAttribute("aria-keyshortcuts", next);
+    }
+
     private ariaPressedChanged(_previous: string | null, next: string | null): void {
         this.#forwardAriaAttribute("aria-pressed", next);
     }
@@ -317,13 +327,13 @@ export class VioletButton extends FASTElement {
         (control as unknown as ElementReferences)[REFERENCES[name]] = elements.length > 0 ? elements : null;
     }
 
-    #forwardAriaAttribute(name: string, value: string | null): void {
+    #forwardAriaAttribute(name: string, value: string | null | undefined): void {
         const control = this.shadowRoot?.querySelector("button");
         if (!control) {
             return;
         }
 
-        if (value === null) {
+        if (value == null) {
             control.removeAttribute(name);
         } else {
             control.setAttribute(name, value);
@@ -342,6 +352,7 @@ attr({ attribute: "aria-controls" })(VioletButton.prototype, "ariaControls");
 attr({ attribute: "aria-description" })(VioletButton.prototype, "ariaDescription");
 attr({ attribute: "aria-expanded" })(VioletButton.prototype, "ariaExpanded");
 attr({ attribute: "aria-haspopup" })(VioletButton.prototype, "ariaHasPopup");
+attr({ attribute: "aria-keyshortcuts" })(VioletButton.prototype, "ariaKeyShortcuts");
 attr({ attribute: "aria-pressed" })(VioletButton.prototype, "ariaPressed");
 
 if (!customElements.get("violet-button")) {

@@ -32,7 +32,7 @@ interface AxNode {
     role?: { value?: string };
     name?: { value?: string };
     description?: { value?: string };
-    properties?: { name: string; value: { relatedNodes?: { backendDOMNodeId: number }[] } }[];
+    properties?: { name: string; value: { value?: unknown; relatedNodes?: { backendDOMNodeId: number }[] } }[];
 }
 
 interface FrameTree {
@@ -292,6 +292,36 @@ describe("violet-button", () => {
         button.removeAttribute("aria-pressed");
         await nextFrame();
         expect(native.hasAttribute("aria-pressed")).toBe(false);
+    });
+
+    it("forwards aria-keyshortcuts to the native control and clears it when removed", async () => {
+        const button = await renderButton(el => {
+            el.setAttribute("aria-keyshortcuts", "Meta+K");
+        }, "Search");
+        const native = control(button);
+
+        expect(button.ariaKeyShortcuts).toBe("Meta+K");
+        expect(native.getAttribute("aria-keyshortcuts")).toBe("Meta+K");
+        await vi.waitFor(async () => {
+            const node = await accessibleNode("button", "Search");
+            expect(node.properties?.find(property => property.name === "keyshortcuts")?.value.value).toBe("Meta+K");
+        });
+
+        button.ariaKeyShortcuts = "Control+S";
+        await nextFrame();
+        expect(native.getAttribute("aria-keyshortcuts")).toBe("Control+S");
+
+        button.removeAttribute("aria-keyshortcuts");
+        await nextFrame();
+        expect(native.hasAttribute("aria-keyshortcuts")).toBe(false);
+
+        button.ariaKeyShortcuts = "Alt+Enter";
+        await nextFrame();
+        expect(native.getAttribute("aria-keyshortcuts")).toBe("Alt+Enter");
+
+        button.ariaKeyShortcuts = null;
+        await nextFrame();
+        expect(native.hasAttribute("aria-keyshortcuts")).toBe(false);
     });
 
     describe("danger appearance", () => {
