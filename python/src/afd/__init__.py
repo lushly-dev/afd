@@ -124,11 +124,13 @@ from afd.core.batch import (
 # names stay at afd.core: build definitions for create_command_registry() with
 # afd.core.CommandDefinition, and handlers receive afd.core.CommandContext.
 from afd.core.commands import (
+    CallGrant,
     CommandExample,
     CommandHandler,
     CommandMiddleware,
     CommandRegistry,
     NextFn,
+    call_not_granted,
     create_command_registry,
     ExposeOptions,
     DEFAULT_EXPOSE,
@@ -492,11 +494,13 @@ __all__ = [
     "is_batch_result",
     "is_batch_command",
     # Core command registry and middleware
+    "CallGrant",
     "CommandHandler",
     "CommandRegistry",
     "create_command_registry",
     "CommandMiddleware",
     "NextFn",
+    "call_not_granted",
     # Expose options
     "ExposeOptions",
     "DEFAULT_EXPOSE",

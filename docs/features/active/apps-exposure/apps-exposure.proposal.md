@@ -138,19 +138,17 @@ D30 fixed the rule. These details were left to this proposal:
   return: the command's data, or the exact `CALL_NOT_GRANTED` error.
 
 TypeScript runs the cases on the core registry and on `createAppCallRegistry`, Rust on
-`CommandRegistry`. Python and C++ load the file and skip every case as the documented gap, naming
-the parity issue, until they implement it.
+`CommandRegistry`, Python on `CommandRegistry` and `MCPServer`, and C++ on `CommandRegistry`. All
+four languages pass every case with `gaps: {}`.
 
 ## Parity
 
-Python and C++ get the same flag, interface and check, as AFD's parity rule requires:
-[#1513](https://github.com/lushly-dev/afd/issues/1513). Both define the `CALL_NOT_GRANTED` constant
-now, since the shared catalog lists it. Until they implement the check, an `apps` interface names no
-surface there, so their registries refuse every app call as any interface that names no surface:
-`COMMAND_NOT_FOUND` for a missing command, `COMMAND_NOT_EXPOSED` for one that exists (the error
-catalog's rules 2 and 3). Closed, but a caller can tell the two apart there until #1513. Their
-journal replay refuses an entry recorded with the `apps` interface, before any handler runs, so a
-target that ignores the interface cannot run it unchecked.
+All four implementations provide the same flag, `apps` interface, `callGrant` / `call_grant`
+predicate, `CALL_NOT_GRANTED` refusal before lookup and validation, and grant-checked journal
+replay (TypeScript and Rust initially; Python and C++ completed in
+[#1513](https://github.com/lushly-dev/afd/issues/1513)). Direct clients (`DirectClient`,
+`DirectCommandRegistry`, `SimpleRegistry`) refuse `apps` calls, and journal replay on targets that
+cannot check grants refuses recorded `apps` entries before any handler runs.
 
 ## Out of scope
 

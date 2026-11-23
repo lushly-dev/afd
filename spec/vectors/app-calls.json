@@ -1,9 +1,6 @@
 {
-	"description": "App-to-app calls and the apps exposure flag (spec/command-metadata.md, App-to-app calls; Loam phase 5 step 0b, D30). Written by hand; TypeScript and Rust run every case. See the README for how to build each case's registry.",
-	"gaps": {
-		"python": "https://github.com/lushly-dev/afd/issues/1513",
-		"cpp": "https://github.com/lushly-dev/afd/issues/1513"
-	},
+	"description": "App-to-app calls and the apps exposure flag (spec/command-metadata.md, App-to-app calls; Loam phase 5 step 0b, D30). Written by hand; TypeScript, Python, Rust and C++ run every case. See the README for how to build each case's registry.",
+	"gaps": {},
 	"refusal": {
 		"code": "CALL_NOT_GRANTED",
 		"message": "This app may not call that command",

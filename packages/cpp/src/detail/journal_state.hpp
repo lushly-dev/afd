@@ -42,6 +42,8 @@ inline std::string_view surface_wire_name(Interface surface) noexcept {
         return "agent";
     case Interface::cli:
         return "cli";
+    case Interface::apps:
+        return "apps";
     }
     return "agent";
 }
@@ -49,7 +51,7 @@ inline std::string_view surface_wire_name(Interface surface) noexcept {
 /// The surface named `name`, or `std::nullopt` if it names none.
 inline std::optional<Interface> parse_surface(std::string_view name) noexcept {
     for (const Interface surface :
-         {Interface::palette, Interface::mcp, Interface::agent, Interface::cli}) {
+         {Interface::palette, Interface::mcp, Interface::agent, Interface::cli, Interface::apps}) {
         if (surface_wire_name(surface) == name) {
             return surface;
         }

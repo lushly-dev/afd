@@ -26,6 +26,7 @@ from afd.server.approval_relay import (
     bind_approval_relay,
     current_approval_relay,
 )
+from afd.server.config import refuse_apps_tool_call
 from afd.server.confirmations import (
     ConfirmationGate,
     ConfirmationStep,
@@ -290,6 +291,12 @@ def create_tool_router(deps: ToolRouterDeps):
     async def route_tool_call(
         tool_name: str, args: Any, caller_context: CommandContext | None = None
     ) -> Any:
+        # App-to-app calls (spec/command-metadata.md, "App-to-app calls") are never routed
+        # through MCP tools or meta-tools, and must not be overwritten with interface="mcp".
+        refused = refuse_apps_tool_call(tool_name, caller_context)
+        if refused is not None:
+            return refused
+
         active_context = deps.context_state.get_active() if deps.context_state else None
         view = scope_view_of(caller_context) if caller_context is not None else None
         if view is None and deps.get_scope_view is not None:

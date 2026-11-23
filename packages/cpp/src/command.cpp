@@ -16,6 +16,8 @@ bool is_exposed_to(const ExposeOptions& expose, Interface surface) noexcept {
         return expose.agent;
     case Interface::cli:
         return expose.cli;
+    case Interface::apps:
+        return expose.apps;
     }
     return false;
 }

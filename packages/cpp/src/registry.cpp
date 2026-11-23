@@ -28,6 +28,8 @@ std::string interface_name(Interface surface) {
         return "agent";
     case Interface::cli:
         return "cli";
+    case Interface::apps:
+        return "apps";
     }
     return "agent";
 }
@@ -287,6 +289,14 @@ void CommandRegistry::use(CommandMiddleware middleware) {
     options_.middleware.push_back(std::move(middleware));
 }
 
+void CommandRegistry::set_call_grant(CallGrant grant) {
+    CallGrant previous;
+    {
+        const std::unique_lock lock(mutex_);
+        previous = std::exchange(options_.call_grant, std::move(grant));
+    }
+}
+
 std::shared_ptr<const RegisteredCommand> CommandRegistry::get(std::string_view name) const {
     const std::shared_lock lock(mutex_);
     const auto it = commands_.find(name);
@@ -383,16 +393,6 @@ CommandResult CommandRegistry::execute(std::string_view name, const Json& input,
 CommandResult CommandRegistry::execute_impl(std::string_view name, const Json& input,
                                             CommandContext context,
                                             bool check_output_budget) const {
-    // A registry whose context field declarations are invalid cannot validate a call: it runs
-    // none. `create` reports the problem before any call.
-    if (options_error_) {
-        return failure(create_error(
-            error_codes::INTERNAL_ERROR,
-            "The command registry is misconfigured: " + *options_error_,
-            {.suggestion = "Fix the invalid CommandRegistryOptions; CommandRegistry::create "
-                           "reports this error when the registry is created",
-             .retryable = false}));
-    }
     context = with_context_defaults(
         std::move(context),
         {.clock = options_.clock, .random = options_.random, .actor = options_.actor});
@@ -401,10 +401,51 @@ CommandResult CommandRegistry::execute_impl(std::string_view name, const Json& i
     if (context.context_scope) {
         context.active_context = context.context_scope->active();
     }
+    // 0. App-to-app calls (`spec/command-metadata.md`, "App-to-app calls"): check existence,
+    // `expose.apps` and `call_grant` BEFORE configuration diagnostics, lookup suggestions, active
+    // context, input/context-field validation, middleware and handler, so missing, unexposed and
+    // ungranted calls answer alike.
     std::shared_ptr<const RegisteredCommand> command;
+    if (context.surface == Interface::apps) {
+        CallGrant grant;
+        {
+            const std::shared_lock lock(mutex_);
+            if (const auto it = commands_.find(name); it != commands_.end()) {
+                command = it->second;
+            }
+            grant = options_.call_grant;
+        }
+        bool granted = false;
+        if (command && command->definition.expose.apps && grant) {
+#if AFD_HAS_EXCEPTIONS
+            try {
+                granted = grant(name, context);
+            } catch (...) {
+                granted = false;
+            }
+#else
+            granted = grant(name, context);
+#endif
+        }
+        if (!granted) {
+            return failure(call_not_granted());
+        }
+    }
+    // A registry whose context field declarations are invalid cannot validate a call: it runs
+    // none. `create` reports the problem before any call. Checked after an ungranted app refusal
+    // so configuration diagnostics never reach an ungranted app.
+    if (options_error_) {
+        return failure(create_error(
+            error_codes::INTERNAL_ERROR,
+            "The command registry is misconfigured: " + *options_error_,
+            {.suggestion = "Fix the invalid CommandRegistryOptions; CommandRegistry::create "
+                           "reports this error when the registry is created",
+             .retryable = false}));
+    }
+
     std::vector<std::string> candidates;
     std::vector<std::string> exposed_names;
-    {
+    if (!command) {
         const std::shared_lock lock(mutex_);
         if (const auto it = commands_.find(name); it != commands_.end()) {
             command = it->second;

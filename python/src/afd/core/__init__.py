@@ -47,6 +47,7 @@ from afd.core.metadata import (
     create_warning,
 )
 from afd.core.commands import (
+    CallGrant,
     CommandParameter,
     CommandDefinition,
     CommandExample,
@@ -59,6 +60,7 @@ from afd.core.commands import (
     DEFAULT_EXPOSE,
     JsonSchema,
     TaskSupport,
+    call_not_granted,
     command_result_output_schema,
     command_to_mcp_tool,
     command_tool_annotations,
@@ -293,6 +295,7 @@ __all__ = [
     "update_step_status",
     "create_warning",
     # Command types
+    "CallGrant",
     "CommandParameter",
     "CommandDefinition",
     "CommandExample",
@@ -305,6 +308,7 @@ __all__ = [
     "DEFAULT_EXPOSE",
     "JsonSchema",
     "TaskSupport",
+    "call_not_granted",
     "command_result_output_schema",
     "command_to_mcp_tool",
     "command_tool_annotations",

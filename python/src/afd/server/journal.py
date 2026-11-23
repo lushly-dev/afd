@@ -636,6 +636,29 @@ def _replay_context(
     return context
 
 
+def _target_checks_app_calls(registry: Any) -> bool:
+    """Return True only when ``registry.execute`` is the unoverridden grant-checking implementation."""
+    from afd.core.commands import _CommandRegistryImpl
+    from afd.server.factory import MCPServer
+
+    inst_dict = getattr(registry, "__dict__", {})
+    if isinstance(registry, MCPServer):
+        return (
+            type(registry).execute is MCPServer.execute
+            and type(registry)._execute_command is MCPServer._execute_command
+            and type(registry)._prepare_command is MCPServer._prepare_command
+            and "execute" not in inst_dict
+            and "_execute_command" not in inst_dict
+            and "_prepare_command" not in inst_dict
+        )
+    if isinstance(registry, _CommandRegistryImpl):
+        return (
+            type(registry).execute is _CommandRegistryImpl.execute
+            and "execute" not in inst_dict
+        )
+    return False
+
+
 async def replay_journal(
     registry: JournalReplayTarget,
     entries: Sequence[JournalEntry],
@@ -688,8 +711,13 @@ async def replay_journal(
     report = ReplayReport()
     fields = getattr(registry, "context_fields", None)
     declared = None if fields is None else {item.name for item in fields}
+    target_checks_app_calls = _target_checks_app_calls(registry)
 
     for index, entry in enumerate(ordered):
+        # Snapshot before calling a user context factory, which receives the mutable entry.
+        recorded_apps = (
+            entry.context_digest is not None and entry.context_digest.interface == "apps"
+        )
         tape = entry.tape
         field_notes: list[str] = []
         restored: dict[str, Any] = {}
@@ -726,16 +754,19 @@ async def replay_journal(
                     clock.end()
                 random.end()
 
-            # An app's call (spec/command-metadata.md, "App-to-app calls") needs the grant check
-            # Python does not have yet (#1513), and a target such as SimpleRegistry ignores the
-            # interface, so it is refused rather than run unchecked.
-            if (entry.context_digest and entry.context_digest.interface == "apps") or (
-                call_context.extra.get("interface") == "apps"
-            ):
-                raise ValueError(
-                    "the entry is an app's call (interface 'apps'), which Python cannot check "
-                    "against a grant yet; not replayed"
-                )
+            # An app's call (spec/command-metadata.md, "App-to-app calls") replays only on a
+            # target whose unoverridden execute checks call grants (CommandRegistry or MCPServer);
+            # any other target (or an overriding subclass) ignores or cannot check grants.
+            # Keyed on the recorded interface snapshot too, so the `context` option cannot replay
+            # it as another interface.
+            is_app_call = recorded_apps or (call_context.extra.get("interface") == "apps")
+            if is_app_call:
+                if not target_checks_app_calls:
+                    raise ValueError(
+                        "the entry is an app's call (interface 'apps'), which this replay target "
+                        "cannot check against a grant; not replayed"
+                    )
+                call_context.extra["interface"] = "apps"
 
             marker = _Marker(rewind, end)
             token = _JOURNAL_REPLAY.set(marker)

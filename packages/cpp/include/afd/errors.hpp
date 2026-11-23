@@ -111,7 +111,7 @@ inline constexpr char OUTPUT_BUDGET_EXCEEDED[] = "OUTPUT_BUDGET_EXCEEDED";
 inline constexpr char INSUFFICIENT_SCOPE[] = "INSUFFICIENT_SCOPE";
 // Tasks
 inline constexpr char TASK_TOKEN_EXPIRED[] = "TASK_TOKEN_EXPIRED";
-// App calls: not emitted by C++ yet (#1513); the shared catalog lists it
+// App calls (`spec/command-metadata.md`, "App-to-app calls")
 inline constexpr char CALL_NOT_GRANTED[] = "CALL_NOT_GRANTED";
 } // namespace error_codes
 
@@ -204,6 +204,10 @@ CommandError wrap_error(const CommandError& error);
 CommandError wrap_error(const std::exception& error);
 /// Any other failure as UNKNOWN_ERROR with `message`.
 CommandError wrap_error(std::string_view message);
+
+/// Fixed CALL_NOT_GRANTED refusal for app-to-app calls (`spec/command-metadata.md`,
+/// "App-to-app calls"). Names neither the command nor the reason.
+CommandError call_not_granted();
 
 /// Whether `value` has the shape of a CommandError: an object with string `code` and `message`.
 bool is_command_error(const Json& value);

@@ -50,6 +50,7 @@ from afd.core.result import (
 )
 from afd.core.actor import Actor, ContextDefaults, with_context_defaults
 from afd.core.clock import Clock, RandomSource
+from afd.core.commands import call_not_granted
 from afd.core.direct_allow import _bind_allow, _direct_allows, _is_allowed, _not_allowed
 from afd.core.errors import CommandError, not_found_error, validation_error
 from afd.core.similarity import find_similar_tools, truncate_name
@@ -421,6 +422,8 @@ class SimpleRegistry:
         context: Optional[CommandContext] = None,
     ) -> CommandResult:
         """Execute a command by name."""
+        if _is_apps_context(context):
+            return failure(call_not_granted())
         if not _is_allowed(context, name):
             return failure(_not_allowed(name))
         cmd = self._commands.get(name)
@@ -486,6 +489,12 @@ def _consume_execution(task: asyncio.Task) -> None:
     """Retrieve late failures after cancellation without delaying the deadline."""
     if not task.cancelled():
         task.exception()
+
+
+def _is_apps_context(context: Any) -> bool:
+    """Whether a direct call context names the ``apps`` interface."""
+    extra = getattr(context, "extra", None)
+    return bool(extra and extra.get("interface") == "apps")
 
 
 def _generate_trace_id() -> str:
@@ -565,6 +574,11 @@ class DirectClient:
         trace_id = (context.trace_id if context else None) or _generate_trace_id()
         
         self._debug(f"[{trace_id}] Calling {name}", args)
+
+        # App-to-app calls (spec/command-metadata.md, "App-to-app calls") go directly
+        # through CommandRegistry or MCPServer, never DirectClient or DirectCommandRegistry.
+        if _is_apps_context(context):
+            return failure(call_not_granted())
 
         if not self._is_allowed(name):
             return failure(_not_allowed(name))
@@ -842,6 +856,14 @@ class DirectClient:
         """
         start_time = time.perf_counter()
         trace_id = (context.trace_id if context else None) or _generate_trace_id()
+        if _is_apps_context(context):
+            return PipelineResult(
+                success=False,
+                steps=[],
+                outputs={},
+                final=failure(call_not_granted()),
+                total_duration_ms=(time.perf_counter() - start_time) * 1000,
+            )
         ask_source = (
             output_budget
             if output_budget is not None
@@ -946,6 +968,11 @@ class DirectCommandRegistry:
     """
 
     def __init__(self, server: Any, *, interface: str = "agent") -> None:
+        if interface == "apps":
+            raise ValueError(
+                "create_direct_registry cannot use interface='apps'; pass call_grant to "
+                "create_command_registry or create_server instead"
+            )
         self._server = server
         self._interface = interface
 
@@ -964,6 +991,8 @@ class DirectCommandRegistry:
                       output_budget: Any = None) -> CommandResult:
         from afd.core.direct_approval import _exchange, _public_context
 
+        if _is_apps_context(context):
+            return failure(call_not_granted())
         context = _bind_allow(context or CommandContext(trace_id=_generate_trace_id()), allow)
         if not _is_allowed(context, name):
             return failure(_not_allowed(name))

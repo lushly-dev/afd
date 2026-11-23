@@ -391,8 +391,9 @@ async def _record_session(*calls: tuple[str, dict[str, Any]]) -> list[JournalEnt
 class TestReplay:
     @pytest.mark.asyncio
     async def test_an_app_call_is_refused_not_replayed(self):
-        # spec/command-metadata.md, "App-to-app calls": Python has no grant check yet (#1513), so a
-        # recorded app call is an error, whatever the target, and no handler runs.
+        # spec/command-metadata.md, "App-to-app calls": a replay target that cannot check grants
+        # errors before running any handler; a server without a matching grant returns
+        # CALL_NOT_GRANTED without running the handler.
         [entry] = await _record_session(("note-add", {"text": "a"}))
         entry.context_digest.interface = "apps"
         ran: list[str] = []
@@ -402,11 +403,14 @@ class TestReplay:
                 ran.append(name)
                 return success({})
 
-        for target in (Counting(), _server()):
-            report = await replay_journal(target, [entry])
-            assert [item.status for item in report.entries] == ["error"]
-            assert "interface 'apps'" in report.entries[0].error
+        report = await replay_journal(Counting(), [entry])
+        assert [item.status for item in report.entries] == ["error"]
+        assert "interface 'apps'" in report.entries[0].error
         assert ran == []
+
+        server_report = await replay_journal(_server(), [entry])
+        assert [item.status for item in server_report.entries] == ["different"]
+        assert server_report.entries[0].replayed.error.code == "CALL_NOT_GRANTED"
 
     @pytest.mark.asyncio
     async def test_replays_tape_backed_random_values(self):

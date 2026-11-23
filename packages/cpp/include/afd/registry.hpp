@@ -82,6 +82,10 @@ struct CommandRegistryOptions {
     std::size_t max_batch_parallelism = default_max_batch_parallelism;
     /// Maximum validation issues reported per `VALIDATION_ERROR` (default: 100; must be >= 1).
     std::size_t max_validation_issues = default_max_validation_issues;
+    /// Host grant predicate for app-to-app calls (`context.surface == Interface::apps`;
+    /// `spec/command-metadata.md`, "App-to-app calls"). Without one, every app call is refused
+    /// with `CALL_NOT_GRANTED`.
+    CallGrant call_grant;
 };
 
 /// How `CommandRegistry::list_by_tags` matches a command's tags.
@@ -120,6 +124,9 @@ public:
     /// Adds middleware inside any already added.
     void use(CommandMiddleware middleware);
 
+    /// Installs or replaces the host grant check for app-to-app calls (`Interface::apps`).
+    void set_call_grant(CallGrant grant);
+
     [[nodiscard]] std::shared_ptr<const RegisteredCommand> get(std::string_view name) const;
     [[nodiscard]] bool has(std::string_view name) const;
     /// All commands, in registration order.
@@ -150,6 +157,10 @@ public:
 
     /// Executes one command, in the TypeScript engine's order:
     ///
+    /// 0. App-to-app calls (`context.surface == Interface::apps`): checks existence,
+    ///    `expose.apps`, and `call_grant` before lookup, configuration diagnostics, active
+    ///    context, validation, middleware and handler, returning the fixed `CALL_NOT_GRANTED`
+    ///    refusal on any failure or exception.
     /// 1. Lookup. An unknown name gives COMMAND_NOT_FOUND with up to three "did you mean"
     ///    matches; the name is never echoed untruncated.
     /// 2. Exposure, when `context.surface` is set: COMMAND_NOT_EXPOSED.
