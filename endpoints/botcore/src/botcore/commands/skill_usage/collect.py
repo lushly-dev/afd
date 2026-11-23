@@ -20,6 +20,7 @@ from afd import CommandResult, error, success
 
 from botcore.commands.disk.git import GitError, git_out
 from botcore.commands.disk.lock import LockHeld, RunLock
+from botcore.commands.disk.scan import volume_id
 from botcore.commands.disk.settings import SettingsError
 from botcore.commands.disk.steps import doing
 from botcore.commands.skill.frontmatter import split_frontmatter
@@ -212,21 +213,45 @@ def folder_there(path: Path) -> bool | None:
         mode = os.stat(path).st_mode
     except (FileNotFoundError, NotADirectoryError):
         return False
-    except OSError:
+    except (OSError, ValueError):
         return None
     return stat.S_ISDIR(mode)
 
 
-def storage_of(folder: Path) -> dict | None:
+def _valid_path(value: object) -> bool:
+    return isinstance(value, str) and bool(value) and "\x00" not in value
+
+
+def _volume_id(
+    mount: Path,
+    cache: dict[tuple[str, int], str | None] | None = None,
+    device: int | None = None,
+) -> str | None:
+    """A volume's stable identifier at `mount`. Cached by `(mount, device)` while recording
+    present folders in a collection; `storage_there` always queries live before dropping an
+    account so a disk swapped mid-collection is never mistaken for the one seen earlier."""
+    key = (str(mount), device) if cache is not None and device is not None else None
+    if key is not None and key in cache:
+        return cache[key]
+    found = volume_id(mount)
+    value = found if isinstance(found, str) and found else None
+    if key is not None:
+        cache[key] = value
+    return value
+
+
+def storage_of(
+    folder: Path, volume_ids: dict[tuple[str, int], str | None] | None = None
+) -> dict | None:
     """What a folder that is there is kept on, by which to tell later whether that is still
-    there: its volume's mount point with the volume's own number (`volume`, `device`), or,
-    inside a cloud drive's folder (`Library/CloudStorage/<drive>`), that drive's own folder
-    (`folder`), which the drive's app takes away when it is signed out. The folder is taken
-    as its links resolve: a link to a checkout on another volume is on that volume. None
-    where it cannot be told."""
+    there: its volume's mount point with the volume's own identifier (`volume`, `id`), or its
+    device number (`volume`, `device`) where the system gives no identifier; or, inside a cloud
+    drive's folder (`Library/CloudStorage/<drive>`), that drive's own folder (`folder`), which
+    the drive's app takes away when it is signed out. The folder is taken as its links resolve:
+    a link to a checkout on another volume is on that volume. None where it cannot be told."""
     try:
         real = Path(os.path.realpath(folder, strict=True))
-    except OSError:
+    except (OSError, ValueError):
         return None
     parts = real.parts
     for at in range(len(parts) - 2):
@@ -235,9 +260,13 @@ def storage_of(folder: Path) -> dict | None:
     for above in (real, *real.parents):
         if os.path.ismount(above):
             try:
-                return {"volume": str(above), "device": os.stat(above).st_dev}
-            except OSError:
+                device = os.stat(above).st_dev
+            except (OSError, ValueError):
                 return None
+            identifier = _volume_id(above, volume_ids, device)
+            if identifier is not None:
+                return {"volume": str(above), "id": identifier}
+            return {"volume": str(above), "device": device}
     return None
 
 
@@ -247,18 +276,31 @@ def storage_there(kept_on: dict) -> bool:
 
     The volume's root is looked at, not only asked after: Windows calls every drive letter
     and every share a mount point from its name alone, there or not. And it must be the
-    volume that was there, by its number: another disk at the same place is not it. One that
-    comes back under another number is taken as away, which only waits."""
+    volume that was there, by its identifier where one was recorded, else by its device
+    number: another disk at the same place is not it. A volume known by its identifier is
+    still recognised when it comes back under another device number; one known only by its
+    device number is taken as away when that number changes, which only waits."""
     folder, volume = kept_on.get("folder"), kept_on.get("volume")
     if isinstance(folder, str):
-        return folder_there(Path(folder)) is True
-    if not isinstance(volume, str):
+        return _valid_path(folder) and folder_there(Path(folder)) is True
+    if not _valid_path(volume):
         return False
     try:
         device = os.stat(volume).st_dev
-    except OSError:
+        mounted = os.path.ismount(volume)
+    except (OSError, ValueError):
         return False
-    return os.path.ismount(volume) and device == kept_on.get("device")
+    if not mounted:
+        return False
+    if "id" in kept_on:
+        identifier = kept_on["id"]
+        return (
+            isinstance(identifier, str)
+            and bool(identifier)
+            and _volume_id(Path(volume)) == identifier
+        )
+    expected = kept_on.get("device")
+    return type(expected) is int and device == expected
 
 
 def _storage(value: object) -> dict[str, dict]:
@@ -266,12 +308,15 @@ def _storage(value: object) -> dict[str, dict]:
     found: dict[str, dict] = {}
     for root, kept_on in _mapping(value).items():
         kept_on = _mapping(kept_on)
-        folder, volume, device = (kept_on.get(key) for key in ("folder", "volume", "device"))
+        folder, volume = kept_on.get("folder"), kept_on.get("volume")
+        identifier, device = kept_on.get("id"), kept_on.get("device")
         if not isinstance(root, str):
             continue
-        if isinstance(folder, str):
+        if _valid_path(folder):
             found[root] = {"folder": folder}
-        elif isinstance(volume, str) and type(device) is int:
+        elif _valid_path(volume) and isinstance(identifier, str) and identifier:
+            found[root] = {"volume": volume, "id": identifier}
+        elif _valid_path(volume) and "id" not in kept_on and type(device) is int:
             found[root] = {"volume": volume, "device": device}
     return found
 
@@ -437,6 +482,7 @@ def _name_projects(
             entry["roots"] = [*entry["roots"], root]
             by_root[root] = name
         names[project_id] = name
+    volume_ids: dict[tuple[str, int], str | None] = {}
     for entry in projects.values():
         # Each folder's own account, kept by folder: one whose volume is away this time
         # still speaks through what it said last, and so does one git cannot say anything
@@ -460,9 +506,19 @@ def _name_projects(
                     missing.pop(root, None)
                 continue
             missing.pop(root, None)
-            kept_on = storage_of(folder)
+            kept_on = storage_of(folder, volume_ids)
             if kept_on is not None:
-                storage[root] = kept_on
+                prior = storage.get(root)
+                # a transient volume_id failure (e.g. diskutil timeout) must not downgrade a
+                # previously recorded identifier on the same mount to a device number
+                if not (
+                    "id" not in kept_on
+                    and "volume" in kept_on
+                    and isinstance(prior, dict)
+                    and "id" in prior
+                    and prior.get("volume") == kept_on["volume"]
+                ):
+                    storage[root] = kept_on
             last = accounts.get(root)
             try:
                 account = skill_inventory(folder, None if again else last)
