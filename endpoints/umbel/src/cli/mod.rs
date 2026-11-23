@@ -219,7 +219,7 @@ where
                     ));
                 }
             };
-            return serve_host(
+            return Box::pin(serve_host(
                 &cli.workspace,
                 &cli.log,
                 (bind, person_bind),
@@ -227,7 +227,7 @@ where
                 configure,
                 mode,
                 writers.out,
-            )
+            ))
             .await;
         }
         Verb::Help { filter, full } => {
@@ -305,7 +305,7 @@ where
             else {
                 return 1;
             };
-            return run_batch(&host, request, &mut writers).await;
+            return Box::pin(run_batch(&host, request, &mut writers)).await;
         }
     };
 
@@ -335,7 +335,15 @@ where
     else {
         return 1;
     };
-    run_command(&host, &command, input, &flags, environment, &mut writers).await
+    Box::pin(run_command(
+        &host,
+        &command,
+        input,
+        &flags,
+        environment,
+        &mut writers,
+    ))
+    .await
 }
 
 /// Whether the arguments name the `serve` verb, loosely: a startup failure of `serve` is written
@@ -660,4 +668,67 @@ fn read_batch_request(argument: &str, cwd: &Path) -> Result<BatchRequest<Value>,
         return Err("A batch request is a JSON object: {\"commands\":[...]}".to_owned());
     }
     serde_json::from_value(value).map_err(|error| format!("Invalid batch request: {error}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    type ServeHostArgs<'a> = (
+        &'a Option<PathBuf>,
+        &'a Option<String>,
+        (Option<String>, Option<String>),
+        &'a Environment,
+        serve::Mode,
+        &'a mut Vec<u8>,
+    );
+
+    fn future_size_of<A, F: std::future::Future>(_: fn(A) -> F) -> usize {
+        std::mem::size_of::<F>()
+    }
+
+    /// Windows debug builds give the main thread a 1 MiB stack, so `cli::run` and its boxed
+    /// subcommand state machines must each stay small on the stack (#2309).
+    #[test]
+    fn cli_run_future_stays_small_enough_for_windows_main_stack() {
+        let environment = Environment::from_process();
+        let mut out = Vec::<u8>::new();
+        let run_future = run(
+            std::iter::empty::<OsString>(),
+            &environment,
+            &mut out,
+            |builder| builder,
+        );
+        let run_size = std::mem::size_of_val(&run_future);
+        let serve_host_size =
+            future_size_of(|(flag, log, bind, env, mode, out): ServeHostArgs<'_>| {
+                serve_host(flag, log, bind, env, |builder| builder, mode, out)
+            });
+        let run_command_size = future_size_of(
+            |(host, command, input, flags, env, writers): (
+                &Host,
+                &str,
+                Input,
+                &parse::Flags,
+                &Environment,
+                &mut Writers<'_>,
+            )| run_command(host, command, input, flags, env, writers),
+        );
+        let run_batch_size = future_size_of(
+            |(host, request, writers): (&Host, BatchRequest<Value>, &mut Writers<'_>)| {
+                run_batch(host, request, writers)
+            },
+        );
+        for (name, size) in [
+            ("cli::run", run_size),
+            ("cli::serve_host", serve_host_size),
+            ("cli::run_command", run_command_size),
+            ("cli::run_batch", run_batch_size),
+        ] {
+            assert!(
+                size <= 16 * 1024,
+                "{name} future is {size} bytes; box heavy subcommand futures so Windows debug builds do not overflow the 1 MiB main thread stack"
+            );
+        }
+    }
 }

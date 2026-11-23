@@ -25,6 +25,7 @@ import {
 	type AskedFor,
 	bucketOf,
 	CONFIRMATION_TTL_MS,
+	confirmationHeaderOf,
 	DECLINE_WINDOW_MS,
 	ENDED_KEPT,
 	ENFORCED,
@@ -41,6 +42,7 @@ import {
 	REPLACES,
 	RESHOW,
 	refusalsOf,
+	reshowRows,
 	SLOT_KEPT,
 	type StoredConfirmation,
 	settleInputOf,
@@ -209,44 +211,19 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 
 	// ─── The refusals of 7.2 and 16 ────────────────────────────────────────────────
 
-	const { pending, declined, asking, expired, slotBusy, closedPrompt, noPerson } = refusalsOf(fail);
+	const { pending, declined, asking, expired, slotBusy, closedPrompt, noPerson, reshown } =
+		refusalsOf(fail);
 	/** The confirmations a changed preview ended, and the new one that shows it (phase 5's 7.2), until the act reads it. */
 	const reshownAs = new Map<string, string>();
-	/** The kernel's answer for a confirmed run whose preview changed since the person looked (phase 5's 7.2). */
-	const reshown = (preview: { command: string }, notification?: string): CommandResult<never> =>
-		fail(
-			'MOUNT_PREVIEW_CHANGED',
-			'Changed since you looked, so nothing ran',
-			'Look at it again, then confirm or decline',
-			{
-				details: {
-					preview: preview.command,
-					...(notification !== undefined ? { notification } : {}),
-				},
-			}
+	const headerOf = (opener: Opener, title: string, scope: ScopeV1, context: CommandContext) =>
+		confirmationHeaderOf(
+			opener,
+			title,
+			scope.project === undefined ? undefined : deps.projectName(scope.project),
+			deps.personLabel(),
+			deps.appTitle,
+			context.actor
 		);
-
-	/** The header the shell draws (7.2): who asked, for whom, and where; never the app's own words. */
-	function headerOf(
-		opener: Opener,
-		title: string,
-		scope: ScopeV1,
-		context: CommandContext
-	): string {
-		const project = scope.project === undefined ? undefined : deps.projectName(scope.project);
-		if (opener.kind === 'agent') {
-			const where = project === undefined ? '' : `, in ${project}`;
-			// The copilot's name is the kernel's alone (phase 5's 3.2), so its header is too (6.2).
-			if (opener.bucket.startsWith('copilot:'))
-				return `Copilot, for ${deps.personLabel() ?? 'you'}${where}`;
-			const agent = context.actor?.label ?? context.actor?.id ?? 'An agent';
-			return `Requested by ${agent} for ${deps.personLabel() ?? 'you'}${where}`;
-		}
-		const where = project === undefined ? '' : ` in ${project}`;
-		if (opener.kind === 'app')
-			return `${deps.appTitle(opener.owner.id)} asks to run ${title}${where}`;
-		return `Run ${title}${where}?`;
-	}
 
 	/** The key of 7.2 (F4): one person's, in one workspace, by caller, command, input digest and scope. */
 	async function keyOf(
@@ -944,32 +921,20 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 		const fresh = newId(call, 'ntf');
 		await serial(row.person, async () => {
 			const stored = (await store.get<StoredConfirmation>(TABLE, id)) ?? row;
-			const { claim: _claim, ...kept } = stored;
-			await putBack(
-				{
-					...kept,
-					confirmation: { ...kept.confirmation, state: 'withdrawn' },
-					...(kept.readAt === undefined ? { readAt: now } : {}),
-				},
-				call
-			);
-			const { readAt: _readAt, ...unread } = kept;
-			await putBack(
-				{
-					...unread,
-					id: fresh,
-					createdAt: now,
-					confirmation: {
-						...kept.confirmation,
-						preview: released[RESHOW] as never,
-						expiresAt: now + CONFIRMATION_TTL_MS,
-					},
-				} as StoredConfirmation,
-				call
-			);
+			const { withdrawnRow, freshRow } = reshowRows(stored, fresh, released[RESHOW], now);
+			wroteOrder(call);
+			const oldPath = `/${TABLE}/${encodeURIComponent(withdrawnRow.id)}`;
+			const newPath = `/${TABLE}/${encodeURIComponent(freshRow.id)}`;
+			const { summary } = await store.batch([
+				{ method: 'DELETE', path: oldPath },
+				{ method: 'PUT', path: oldPath, body: withdrawnRow },
+				{ method: 'PUT', path: newPath, body: freshRow },
+			]);
+			if (summary.failed > 0)
+				throw new Error(`The store could not write the confirmation '${freshRow.id}'`);
+			await deps.observe?.('withdrawn', stored, freshRow);
+			await deps.observe?.('asked', freshRow);
 		});
-		await deps.observe?.('withdrawn', row);
-		await deps.observe?.('asked', { ...row, id: fresh });
 		reshownAs.set(id, fresh);
 		return reshown(released[RESHOW], fresh);
 	}

@@ -31,14 +31,15 @@ pub(super) async fn serve(host: &Host, mode: Mode, out: &mut dyn Write) -> Resul
     // with any request, so blocking here is brief.
     host.repair_events()?;
     match mode {
-        Mode::Stdio => serve_stdio(host, signals).await,
-        Mode::Http { print_token } => serve_http(host, print_token, signals, out).await,
+        Mode::Stdio => Box::pin(serve_stdio(host, signals)).await,
+        Mode::Http { print_token } => Box::pin(serve_http(host, print_token, signals, out)).await,
     }
 }
 
 async fn serve_stdio(host: &Host, signals: Signals) -> Result<(), HostError> {
+    let mut server = Box::pin(host.mcp_server().serve_stdio());
     tokio::select! {
-        result = host.mcp_server().serve_stdio() => {
+        result = &mut server => {
             result.map_err(|message| start_failed("MCP stdio server", message))
         }
         () = signals.wait() => Ok(()),
@@ -125,16 +126,14 @@ async fn serve_http(
     let until = |mut stopped: tokio::sync::watch::Receiver<bool>| async move {
         let _ = stopped.wait_for(|stop| *stop).await;
     };
-    let serving = server.serve(listener, until(stopped.clone()));
-    tokio::pin!(serving);
+    let mut serving = Box::pin(server.serve(listener, until(stopped.clone())));
     // The person listener beside it, stopped by the same signal; without one, never ending.
-    let page = async {
+    let mut page = Box::pin(async {
         match person {
             Some((server, listener, _, _)) => server.serve(listener, until(stopped)).await,
             None => std::future::pending().await,
         }
-    };
-    tokio::pin!(page);
+    });
     let interrupted = async {
         signals.wait().await;
         let _ = stop.send(true);
@@ -198,5 +197,37 @@ impl Signals {
     #[cfg(not(unix))]
     async fn wait(self) {
         let _ = tokio::signal::ctrl_c().await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn future_size_of<A, F: std::future::Future>(_: fn(A) -> F) -> usize {
+        std::mem::size_of::<F>()
+    }
+
+    #[test]
+    fn serve_futures_stay_small_enough_for_windows_main_stack() {
+        let serve_size =
+            future_size_of(|(host, mode, out): (&Host, Mode, &mut Vec<u8>)| serve(host, mode, out));
+        let stdio_size =
+            future_size_of(|(host, signals): (&Host, Signals)| serve_stdio(host, signals));
+        let http_size = future_size_of(
+            |(host, print_token, signals, out): (&Host, bool, Signals, &mut Vec<u8>)| {
+                serve_http(host, print_token, signals, out)
+            },
+        );
+        for (name, size) in [
+            ("serve::serve", serve_size),
+            ("serve::serve_stdio", stdio_size),
+            ("serve::serve_http", http_size),
+        ] {
+            assert!(
+                size <= 16 * 1024,
+                "{name} future is {size} bytes; keep inner serve futures boxed so Windows debug builds do not overflow the 1 MiB main thread stack"
+            );
+        }
     }
 }

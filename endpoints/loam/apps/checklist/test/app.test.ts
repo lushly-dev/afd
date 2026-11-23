@@ -120,6 +120,7 @@ describe('checklist', () => {
 		expect((await kernel.call<Read>('checklist-get', { document })).data).toEqual(before);
 	});
 
+	// 500 sequential kernel calls scale with host load, so vitest's 5 s default is too tight (#2293).
 	it(`holds at most ${MAX_ITEMS} items`, async () => {
 		const { kernel } = await kernelIn();
 		const document = await create(kernel);
@@ -130,7 +131,7 @@ describe('checklist', () => {
 		const full = await kernel.call('checklist-item-add', { document, text: 'One more' });
 		expect(full.error?.code).toBe('CHECKLIST_FULL');
 		expect(full.error?.suggestion).toContain('checklist-item-remove');
-	});
+	}, 30_000);
 
 	// Another type and another project are refused in Chromium, where the shell has both
 	// (`web/test/browser/documents/checklist.test.ts`); the test kit deploys this app alone, in one scope.

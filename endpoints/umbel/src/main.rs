@@ -9,17 +9,22 @@ async fn main() {
     // Not `.lock()`: `umbel serve --stdio` writes JSON-RPC through the same stdout from another
     // thread, which a lock held here for the whole run would block for good.
     let mut stdout = std::io::stdout();
-    let code = if is_serve(std::env::args_os()) {
-        // `serve` handles SIGINT and SIGTERM itself and exits 0.
-        run(std::env::args_os(), &environment, &mut stdout, |builder| {
-            builder
-        })
-        .await
-    } else {
-        tokio::select! {
-            code = run(std::env::args_os(), &environment, &mut stdout, |builder| builder) => code,
-            // A one-shot command interrupted with Ctrl+C.
-            _ = tokio::signal::ctrl_c() => 130,
+    let code = {
+        let mut work = Box::pin(run(
+            std::env::args_os(),
+            &environment,
+            &mut stdout,
+            |builder| builder,
+        ));
+        if is_serve(std::env::args_os()) {
+            // `serve` handles SIGINT and SIGTERM itself and exits 0.
+            work.await
+        } else {
+            tokio::select! {
+                code = &mut work => code,
+                // A one-shot command interrupted with Ctrl+C.
+                _ = tokio::signal::ctrl_c() => 130,
+            }
         }
     };
     let _ = stdout.flush();

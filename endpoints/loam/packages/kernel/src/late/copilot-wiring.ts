@@ -404,7 +404,7 @@ export function holdsGrant(apps: AppsRuntime, name: string, grant: string): bool
 export interface CopilotWiringRefs {
 	settings(): { refusesAgent(name: string, input: unknown): boolean } | undefined;
 	autonomy(): Pick<Autonomy, 'resolveFor'>;
-	confirmations(): Pick<Confirmations, 'withdraw'>;
+	confirmations(): Pick<Confirmations, 'withdraw' | 'chain'>;
 	definitionOf(name: string): (ZodCommandDefinition & { approval?: unknown }) | undefined;
 	confirmPromptOf(name: string): unknown;
 	digest(value: unknown): Promise<string>;
@@ -484,11 +484,17 @@ export function copilotPartsOf(
 				deps.recordOrder?.(options.traceId, 'record:confirmation')?.read();
 				if (options.reader) deps.recordOrder?.(options.traceId, 'record:project')?.read();
 			}
-			return readerCard(deps.store, deps.scope, () => deps.clock?.now() ?? Date.now())(
-				id,
-				person,
-				options
-			);
+			// Serialize with the person's confirmation writes so a reshow batch and its observe swap
+			// are never observed mid-transition (#2307).
+			return refs
+				.confirmations()
+				.chain(person, () =>
+					readerCard(deps.store, deps.scope, () => deps.clock?.now() ?? Date.now())(
+						id,
+						person,
+						options
+					)
+				);
 		},
 		allows: (actor, scope) => deps.scope.allows(actor as AccessActorV1, scope),
 		pendingAsked: (person, traceId) => {

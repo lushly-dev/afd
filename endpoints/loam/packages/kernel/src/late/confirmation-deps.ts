@@ -39,7 +39,8 @@ export interface ConfirmationDeps {
 	 */
 	observe?(
 		event: 'asked' | 'confirmed' | 'declined' | 'withdrawn',
-		row: StoredConfirmation
+		row: StoredConfirmation,
+		replacedBy?: StoredConfirmation
 	): void | Promise<void>;
 	/**
 	 * A command the palette lists now (7.1): its definition, whose schema checks the input, and its input's JSON Schema,

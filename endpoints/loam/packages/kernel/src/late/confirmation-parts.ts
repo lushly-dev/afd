@@ -324,7 +324,68 @@ export function refusalsOf(fail: Fail) {
 			'No one is signed in, so no one can confirm this',
 			'Sign in, then try again'
 		);
-	return { pending, declined, asking, expired, slotBusy, closedPrompt, noPerson };
+	/** The kernel's answer for a confirmed run whose preview changed since the person looked (phase 5's 7.2). */
+	const reshown = (preview: { command: string }, notification?: string) =>
+		fail(
+			'MOUNT_PREVIEW_CHANGED',
+			'Changed since you looked, so nothing ran',
+			'Look at it again, then confirm or decline',
+			{
+				details: {
+					preview: preview.command,
+					...(notification !== undefined ? { notification } : {}),
+				},
+			}
+		);
+	return { pending, declined, asking, expired, slotBusy, closedPrompt, noPerson, reshown };
+}
+
+/** Build the withdrawn original and fresh replacement rows for a changed-preview reshow (phase 5's 7.2). */
+export function reshowRows(
+	stored: StoredConfirmation,
+	freshId: string,
+	preview: unknown,
+	now: number
+): { withdrawnRow: StoredConfirmation; freshRow: StoredConfirmation } {
+	const { claim: _claim, ...kept } = stored;
+	const withdrawnRow: StoredConfirmation = {
+		...kept,
+		confirmation: { ...kept.confirmation, state: 'withdrawn' },
+		...(kept.readAt === undefined ? { readAt: now } : {}),
+	};
+	const { readAt: _readAt, ...unread } = kept;
+	const freshRow: StoredConfirmation = {
+		...unread,
+		id: freshId,
+		createdAt: now,
+		confirmation: {
+			...kept.confirmation,
+			preview: preview as never,
+			expiresAt: now + CONFIRMATION_TTL_MS,
+		},
+	};
+	return { withdrawnRow, freshRow };
+}
+
+/** The header the shell draws (7.2): who asked, for whom, and where; never the app's own words. */
+export function confirmationHeaderOf(
+	opener: Opener,
+	title: string,
+	project: string | undefined,
+	personLabel: string | null,
+	appTitle: (instance: string) => string,
+	actor?: { label?: string; id?: string }
+): string {
+	if (opener.kind === 'agent') {
+		const where = project === undefined ? '' : `, in ${project}`;
+		// The copilot's name is the kernel's alone (phase 5's 3.2), so its header is too (6.2).
+		if (opener.bucket.startsWith('copilot:')) return `Copilot, for ${personLabel ?? 'you'}${where}`;
+		const agent = actor?.label ?? actor?.id ?? 'An agent';
+		return `Requested by ${agent} for ${personLabel ?? 'you'}${where}`;
+	}
+	const where = project === undefined ? '' : ` in ${project}`;
+	if (opener.kind === 'app') return `${appTitle(opener.owner.id)} asks to run ${title}${where}`;
+	return `Run ${title}${where}?`;
 }
 
 /**

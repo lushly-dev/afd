@@ -935,4 +935,215 @@ describe('the trust review’s findings (step 3)', () => {
 		expect((await kernel.agent.call('note-keep', {})).data).toEqual({ kept: true });
 		expect(await confirmations(kernel)).toEqual([]);
 	});
+
+	it('tracks a reshow replacement raised before pending registration and lets a resumed turn read a replaced second nested confirmation (#2307)', async () => {
+		const store = new MemoryAdapter();
+		const { DOCUMENT_KIT } = await import('../late/document-kit.js');
+		const RAISED = Symbol.for('dev.loam/raised');
+		let sessionId = '';
+		const cards = new Map<
+			string,
+			{
+				id: string;
+				command: string;
+				state: 'pending' | 'withdrawn' | 'confirmed';
+				expiresAt: number;
+				session: string;
+			}
+		>();
+		const reads: string[] = [];
+		const runs: Array<{
+			text: string;
+			run: Parameters<NonNullable<import('./types.js').CopilotOptionsV1['runner']>['start']>[0];
+		}> = [];
+		let releaseOuter: (() => void) | undefined;
+		const outerGate = new Promise<void>((resolve) => {
+			releaseOuter = resolve;
+		});
+		let settledTurn: CopilotTurnV1 | undefined;
+		const parts = createCopilotParts({
+			store,
+			workspace: 'personal',
+			kit: DOCUMENT_KIT,
+			isMutation: () => true,
+			isMounted: () => false,
+			heldBy: () => 'approval',
+			instanceOf: () => undefined,
+			agentCommands: () => [],
+			async callAsCopilot(name, input, trace) {
+				if (name === 'confirmation-get') {
+					const id = (input as { notification: string }).notification;
+					reads.push(id);
+					return { success: true, data: { state: cards.get(id)?.state ?? 'confirmed' } };
+				}
+				if (name === 'outer-dual') {
+					// Raise two nested confirmations while the outer call is still open.
+					for (const id of ['ntf_nested_a', 'ntf_nested_b']) {
+						cards.set(id, {
+							id,
+							command: 'inner-act',
+							state: 'pending',
+							expiresAt: 600_000,
+							session: trace.session,
+						});
+						const nestedCtx: Record<string | symbol, unknown> = {
+							interface: 'agent',
+							parent: 'loam-1',
+							trace,
+						};
+						await parts.gate('inner-act', {}, nestedCtx as never, async () => {
+							nestedCtx[RAISED] = id;
+							return {
+								success: false,
+								error: { code: 'CONFIRMATION_PENDING', message: 'pending', suggestion: 'wait' },
+							};
+						});
+					}
+					await outerGate;
+					return { success: true, data: { queued: 2 } };
+				}
+				return { success: true };
+			},
+			async runBoot(_name, input) {
+				const turn = (input as { turn?: CopilotTurnV1 }).turn;
+				if (turn) {
+					settledTurn = turn;
+					const id = `${turn.session}~${String(turn.seq).padStart(6, '0')}`;
+					if (await store.get('copilot-turn', id))
+						await store.update('copilot-turn', id, { id, ...turn });
+					else await store.create('copilot-turn', { id, ...turn });
+				}
+				return { success: true };
+			},
+			humanOnly: () => false,
+			internal: () => false,
+			digest: async () => 'sha256:0',
+			now: () => 0,
+			person: () => 'local',
+			async confirmationOf(id) {
+				const card = cards.get(id);
+				if (!card) return undefined;
+				return {
+					id: card.id,
+					command: card.command,
+					header: 'Copilot',
+					title: 'Confirm',
+					prompt: 'Confirm',
+					danger: false,
+					input: {},
+					scope: { workspace: 'personal' },
+					state: card.state,
+					expiresAt: card.expiresAt,
+					session: card.session,
+				};
+			},
+			options: {
+				providers: [{ id: 'test', kind: 'test', model: 'scripted' }],
+				runner: {
+					start(run) {
+						runs.push({ text: run.text, run });
+					},
+				},
+			},
+		});
+		const startCmd = parts.commands.find((c) => c.name === 'copilot-session-start');
+		const sendCmd = parts.commands.find((c) => c.name === 'copilot-message-send');
+		const started = (await startCmd?.handler({}, {} as never)) as CommandResult<{
+			session: { id: string };
+		}>;
+		sessionId = started.data?.session.id as string;
+		const sending = sendCmd?.handler({ session: sessionId, text: 'go', wait: false }, {} as never);
+		await sending;
+		expect(runs).toHaveLength(1);
+		const firstEntry = runs[0];
+		if (!firstEntry) throw new Error('expected first run');
+		const firstRun = firstEntry.run;
+		const setState = (id: string, state: 'pending' | 'withdrawn' | 'confirmed') => {
+			const existing = cards.get(id);
+			if (!existing) throw new Error(`missing card ${id}`);
+			cards.set(id, { ...existing, state });
+		};
+		// Start outer call; it raises ntf_nested_a and ntf_nested_b, then waits on outerGate.
+		const outerCall = firstRun.agent.call('outer-dual', {});
+		await until(async () => cards.has('ntf_nested_b'));
+		// Replace ntf_nested_a BEFORE the outer call returns (so before live.pending registers it).
+		setState('ntf_nested_a', 'withdrawn');
+		cards.set('ntf_nested_a2', {
+			id: 'ntf_nested_a2',
+			command: 'inner-act',
+			state: 'pending',
+			expiresAt: 600_100,
+			session: sessionId,
+		});
+		await parts.observe(
+			'withdrawn',
+			{
+				id: 'ntf_nested_a',
+				person: 'local',
+				scope: { workspace: 'personal' },
+				createdAt: 0,
+				confirmation: { command: 'inner-act', session: sessionId },
+			},
+			{ id: 'ntf_nested_a2', confirmation: { expiresAt: 600_100 } }
+		);
+		releaseOuter?.();
+		await outerCall;
+		firstRun.settle({
+			state: 'done',
+			reply: 'Waiting.',
+			usage: { inputTokens: 0, outputTokens: 0 },
+		});
+		await until(async () => settledTurn?.state === 'waiting');
+		// Turn must stay waiting on ntf_nested_a2 and ntf_nested_b (never resume early on withdrawn ntf_nested_a).
+		for (let tick = 0; tick < 20; tick++) await new Promise((resolve) => setTimeout(resolve, 1));
+		expect(runs).toHaveLength(1);
+		// Now replace the SECOND nested confirmation (ntf_nested_b -> ntf_nested_b2) while waiting.
+		setState('ntf_nested_b', 'withdrawn');
+		cards.set('ntf_nested_b2', {
+			id: 'ntf_nested_b2',
+			command: 'inner-act',
+			state: 'pending',
+			expiresAt: 600_200,
+			session: sessionId,
+		});
+		await parts.observe(
+			'withdrawn',
+			{
+				id: 'ntf_nested_b',
+				person: 'local',
+				scope: { workspace: 'personal' },
+				createdAt: 0,
+				confirmation: { command: 'inner-act', session: sessionId },
+			},
+			{ id: 'ntf_nested_b2', confirmation: { expiresAt: 600_200 } }
+		);
+		for (let tick = 0; tick < 20; tick++) await new Promise((resolve) => setTimeout(resolve, 1));
+		expect(runs).toHaveLength(1);
+		// Confirm both replacements -> turn resumes and reads the replaced second nested confirmation's outcome.
+		setState('ntf_nested_a2', 'confirmed');
+		setState('ntf_nested_b2', 'confirmed');
+		await parts.observe('confirmed', {
+			id: 'ntf_nested_b2',
+			person: 'local',
+			scope: { workspace: 'personal' },
+			createdAt: 0,
+			confirmation: { command: 'inner-act', session: sessionId },
+		});
+		await until(async () => runs.length === 2);
+		const resumed = runs[1];
+		if (!resumed) throw new Error('expected resumed run');
+		expect(resumed.text).toContain('ntf_nested_a2');
+		expect(resumed.text).toContain('ntf_nested_b2');
+		expect(resumed.text).not.toContain('ntf_nested_a)');
+		expect(resumed.text).not.toContain('ntf_nested_b)');
+		const outcome = await resumed.run.agent.confirmation('ntf_nested_b2');
+		expect(outcome).toMatchObject({ success: true, data: { state: 'confirmed' } });
+		expect(reads).toEqual(['ntf_nested_b2']);
+		resumed.run.settle({
+			state: 'done',
+			reply: 'Done.',
+			usage: { inputTokens: 0, outputTokens: 0 },
+		});
+		await until(async () => settledTurn?.state === 'done');
+	});
 });
