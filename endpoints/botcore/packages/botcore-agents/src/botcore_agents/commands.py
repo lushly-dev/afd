@@ -165,6 +165,24 @@ async def task_status(task_id: str) -> CommandResult[dict]:
     return _get_orch().get_task(task_id)
 
 
+async def task_list(
+    status: str | None = None,
+    agent: str | None = None,
+) -> CommandResult[dict]:
+    """List tracked tasks, optionally filtered by status or assigned agent."""
+    return _get_orch().list_tasks(status=status, agent=agent)
+
+
+async def task_cancel(task_id: str) -> CommandResult[dict]:
+    """Cancel a pending, assigned, or running task by ID."""
+    return await _get_orch().cancel_task(task_id)
+
+
+async def team_status() -> CommandResult[dict]:
+    """Get a team-wide status overview across all agents and tasks."""
+    return _get_orch().get_team_status()
+
+
 async def state_save() -> CommandResult[dict]:
     """Persist orchestrator state to the configured backend."""
     return await _get_orch().save_state()
@@ -185,6 +203,9 @@ AGENT_COMMANDS: list = [
     task_assign,
     task_resume,
     task_status,
+    task_list,
+    task_cancel,
+    team_status,
     state_save,
     state_load,
 ]

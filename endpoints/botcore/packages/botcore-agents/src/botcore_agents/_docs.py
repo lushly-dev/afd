@@ -16,6 +16,9 @@ Single-agent lifecycle management with LLM-backed task execution.
 | `task_assign` | Assign a task to a running agent (sync execution) |
 | `task_resume` | Resume a pending restored task with a running agent |
 | `task_status` | Get task details by ID, with partial output while running |
+| `task_list` | List tracked tasks, optionally filtered by status or agent |
+| `task_cancel` | Cancel a pending, assigned, or running task by ID |
+| `team_status` | Get a team-wide overview of all agents and task counts |
 | `state_save` | Persist orchestrator state to configured backend |
 | `state_load` | Restore orchestrator state from configured backend |
 

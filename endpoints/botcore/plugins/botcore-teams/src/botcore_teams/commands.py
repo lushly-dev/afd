@@ -37,6 +37,14 @@ async def teams_handle_message(
             retryable=False,
         )
 
+    if intent.command == "task_cancel" and not intent.args.get("task_id"):
+        return error(
+            "MISSING_TASK_ID",
+            "Which task? A cancel request needs the task's id.",
+            suggestion="Say 'cancel <task id>', or 'list tasks' to find the id.",
+            retryable=False,
+        )
+
     return await _dispatch_command(intent.command, intent.args, user_id, user_name)
 
 

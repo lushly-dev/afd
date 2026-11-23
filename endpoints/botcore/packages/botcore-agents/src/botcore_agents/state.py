@@ -255,6 +255,8 @@ class OrchestratorPersistenceMixin:
     _agents: dict[str, AgentState]
     _tasks: dict[str, Task]
     _progress: dict[str, dict[str, str]]
+    _cancel_events: dict[str, asyncio.Event]
+    _active_runs: dict[str, asyncio.Task[None]]
     _backend: OrchestratorStateBackend | None
 
     def _autosave_enabled(self) -> bool:
@@ -301,6 +303,8 @@ class OrchestratorPersistenceMixin:
             tid: task_snapshot.to_task() for tid, task_snapshot in snapshot.tasks.items()
         }
         self._progress.clear()
+        self._cancel_events.clear()
+        self._active_runs.clear()
         self._agents = {
             name: agent_snapshot.to_state() for name, agent_snapshot in snapshot.agents.items()
         }

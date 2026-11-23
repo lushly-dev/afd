@@ -87,7 +87,44 @@ class TestParseIntent:
     def test_cancel(self) -> None:
         result = parse_intent("cancel task-001")
         assert result.command == "task_cancel"
-        assert result.args.get("query") == "task-001"
+        assert result.args == {"task_id": "task-001"}
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "cancel 3f2a9c1e-0b4d-4e8a-9f1c-2d3e4f5a6b7c",
+            "cancel task 3f2a9c1e-0b4d-4e8a-9f1c-2d3e4f5a6b7c",
+            "stop progress on 3f2a9c1e-0b4d-4e8a-9f1c-2d3e4f5a6b7c",
+            "abort: 3f2a9c1e-0b4d-4e8a-9f1c-2d3e4f5a6b7c!",
+            "please cancel task 3F2A9C1E-0B4D-4E8A-9F1C-2D3E4F5A6B7C.",
+        ],
+    )
+    def test_cancel_reads_the_task_id(self, text: str) -> None:
+        result = parse_intent(text)
+        assert result.command == "task_cancel"
+        assert result.args == {"task_id": "3f2a9c1e-0b4d-4e8a-9f1c-2d3e4f5a6b7c"}
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "cancel",
+            "stop",
+            "abort the current run",
+            "abort the current run now",
+            "cancel task assigned to @researcher",
+            "cancel the task assigned to @researcher",
+            "stop task 42",
+        ],
+    )
+    def test_cancel_without_an_id_has_no_args(self, text: str) -> None:
+        result = parse_intent(text)
+        assert result.command == "task_cancel"
+        assert result.args == {}
+
+    def test_assign_with_cancel_verb_in_description_stays_task_assign(self) -> None:
+        result = parse_intent("assign stop the server to @ops")
+        assert result.command == "task_assign"
+        assert result.args == {"description": "stop the server", "agent": "ops"}
 
     def test_list_tasks(self) -> None:
         result = parse_intent("list tasks")

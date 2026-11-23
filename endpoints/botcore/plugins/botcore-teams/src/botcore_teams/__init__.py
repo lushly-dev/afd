@@ -28,10 +28,11 @@ The Teams plugin connects Microsoft Teams to botcore commands via Azure Bot Serv
 
 Messages are matched against regex patterns (first match wins):
 - `status/progress [of|for|on] <task id>` → task_status (`task_id`)
+- `cancel/stop/abort [task] <task id>` → task_cancel (`task_id`)
 - `assign/task/run/execute <desc> to @agent` → task_assign
+- `cancel/stop/abort` without an id → `MISSING_TASK_ID`, asking for one
 - `status/progress/how going` without an id → `MISSING_TASK_ID`, asking for one
 - `team status/agents/who` → team_status
-- `cancel/stop/abort` → task_cancel
 - `list tasks/queue/backlog` → task_list
 
 ## Configuration

@@ -6,6 +6,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+_TASK_ID_PATTERN = r"task[-_][\w-]*\d[\w-]*|[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}"
+
 # Each pattern: (compiled regex, command name, capture group names)
 # Order matters — first match wins.
 INTENT_PATTERNS: list[tuple[re.Pattern[str], str, list[str]]] = [
@@ -18,11 +20,32 @@ INTENT_PATTERNS: list[tuple[re.Pattern[str], str, list[str]]] = [
         re.compile(
             r"^(?:(?:what(?:'s|\s+is)|show(?:\s+me)?|check|get)\s+)?(?:the\s+)?"
             r"(?:status|progress):?\s+(?:(?:of|for|on)\s+)?(?:task\s+)?"
-            r"(task[-_][\w-]*\d[\w-]*|[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})[?.!]*\s*$",
+            rf"({_TASK_ID_PATTERN})[?.!]*\s*$",
             re.IGNORECASE,
         ),
         "task_status",
         ["task_id"],
+    ),
+    # botcore-agents' task_cancel also takes a task_id. Anchored before task_assign so
+    # "cancel task <uuid>" is not swallowed by task_assign's "task <description>".
+    (
+        re.compile(
+            r"^(?:please\s+)?(?:cancel|stop|abort):?\s+"
+            r"(?:(?:the\s+)?(?:status|progress)\s+(?:(?:of|for|on)\s+)?)?"
+            r"(?:task\s+)?"
+            rf"({_TASK_ID_PATTERN})[?.!]*\s*$",
+            re.IGNORECASE,
+        ),
+        "task_cancel",
+        ["task_id"],
+    ),
+    # A cancel message without a valid task id (such as "cancel task assigned to @researcher"
+    # or "abort the current run now") must still route to task_cancel (returning MISSING_TASK_ID)
+    # rather than falling through to task_assign.
+    (
+        re.compile(r"^(?:please\s+)?(?:cancel|stop|abort)\b", re.IGNORECASE),
+        "task_cancel",
+        [],
     ),
     (
         re.compile(
@@ -38,9 +61,9 @@ INTENT_PATTERNS: list[tuple[re.Pattern[str], str, list[str]]] = [
         ["description"],
     ),
     (
-        re.compile(r"(?:cancel|stop|abort)\s*(.*)", re.IGNORECASE),
+        re.compile(r"\b(?:cancel|stop|abort)\b", re.IGNORECASE),
         "task_cancel",
-        ["query"],
+        [],
     ),
     (
         re.compile(r"(?:list\s+tasks|queue|backlog)", re.IGNORECASE),

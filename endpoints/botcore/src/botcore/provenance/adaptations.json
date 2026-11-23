@@ -809,11 +809,11 @@
       "path": "packages/botcore-agents/src/botcore_agents/_docs.py",
       "upstream_sha256": "ca87cca087f3f4eb72dd8bcddf64ee0e395ce224c9211b0c4ceb7cd9f534ad8d",
       "staged_sha256": "ca87cca087f3f4eb72dd8bcddf64ee0e395ce224c9211b0c4ceb7cd9f534ad8d",
-      "current_import_sha256": "ca87cca087f3f4eb72dd8bcddf64ee0e395ce224c9211b0c4ceb7cd9f534ad8d",
+      "current_import_sha256": "5959ddb08b4d724d0e247a5eff8faa818515852c2e7b2cb0f000131111312d31",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Implement team_status, task_list and task_cancel in botcore-agents and pass task_id from botcore-teams (#2234)"
     },
     {
       "path": "packages/botcore-agents/src/botcore_agents/capabilities.py",
@@ -830,11 +830,11 @@
       "path": "packages/botcore-agents/src/botcore_agents/commands.py",
       "upstream_sha256": "113666ae1f189754532f5254f3e5d73670bc6338e6cac33e4c34680cc153f0b5",
       "staged_sha256": "113666ae1f189754532f5254f3e5d73670bc6338e6cac33e4c34680cc153f0b5",
-      "current_import_sha256": "e44e9d688f006f06455261228be2b6c1e4074d196d70bb1ed99543cfafcc1c5b",
+      "current_import_sha256": "d8b0e423e09ecb817ee583643cf6db8aad6b0b9eabf17f3da4407a0a4953cd1a",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact frozen staged-input bytes; Resolving an agent's tools keeps the orchestrator (lushly-dev/afd#780)"
+      "import_reason": "Imported exact frozen staged-input bytes; Resolving an agent's tools keeps the orchestrator (lushly-dev/afd#780); Implement team_status, task_list and task_cancel in botcore-agents and pass task_id from botcore-teams (#2234)"
     },
     {
       "path": "packages/botcore-agents/src/botcore_agents/config.py",
@@ -860,21 +860,21 @@
       "path": "packages/botcore-agents/src/botcore_agents/orchestrator.py",
       "upstream_sha256": "633b1e7c3a0277b6389eaeb73c38502e56d716dcb9a86b227ee0710eb23f2dc4",
       "staged_sha256": "633b1e7c3a0277b6389eaeb73c38502e56d716dcb9a86b227ee0710eb23f2dc4",
-      "current_import_sha256": "aeda146397965e443012e3b9c14c1b617ccda8793f53e6d8003987cb9a6a1e1b",
+      "current_import_sha256": "fb948bb6579e6461e75821c9cce00a2cfce51bd576ba015e71d7dae77d14e9ac",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Return actionable unavailable integration before starting an LLM session; Split modules over 500 lines with no behaviour change (lushly-dev/afd#514)"
+      "import_reason": "Return actionable unavailable integration before starting an LLM session; Split modules over 500 lines with no behaviour change (lushly-dev/afd#514); Implement team_status, task_list and task_cancel in botcore-agents and pass task_id from botcore-teams (#2234)"
     },
     {
       "path": "packages/botcore-agents/src/botcore_agents/state.py",
       "upstream_sha256": "b20a8dc05d57fc15ccf8342e904d88ce0fdd04c518762ffbe77c79b3ec76a57c",
       "staged_sha256": "b20a8dc05d57fc15ccf8342e904d88ce0fdd04c518762ffbe77c79b3ec76a57c",
-      "current_import_sha256": "16ebfcf4f2cef7a6f8fd836f87c28ba077bee01b3944f272bb2706aba568005b",
+      "current_import_sha256": "53b7771b57175689b9d5d84394dc7ca4b0973d16139b0515fa0979534d480417",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Normalize imports under package Ruff rules; Split modules over 500 lines with no behaviour change (lushly-dev/afd#514)"
+      "import_reason": "Normalize imports under package Ruff rules; Split modules over 500 lines with no behaviour change (lushly-dev/afd#514); Implement team_status, task_list and task_cancel in botcore-agents and pass task_id from botcore-teams (#2234)"
     },
     {
       "path": "packages/botcore-agents/src/botcore_agents/targets.py",
@@ -888,14 +888,25 @@
       "import_reason": "Split modules over 500 lines with no behaviour change (lushly-dev/afd#514)"
     },
     {
+      "path": "packages/botcore-agents/src/botcore_agents/task_ops.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "3d30429dd76ce82598af16cdff80cab74119fd96958728dab30e59edf97fcf10",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Implement team_status, task_list and task_cancel in botcore-agents and pass task_id from botcore-teams (#2234)"
+    },
+    {
       "path": "packages/botcore-agents/src/botcore_agents/task_stream.py",
       "upstream_sha256": "d4cc5445734a0bb7f8d5a44c3d298fe630a033a353726b4d524b183bbd6f0897",
       "staged_sha256": "d4cc5445734a0bb7f8d5a44c3d298fe630a033a353726b4d524b183bbd6f0897",
-      "current_import_sha256": "d4cc5445734a0bb7f8d5a44c3d298fe630a033a353726b4d524b183bbd6f0897",
+      "current_import_sha256": "6a606eb012a30e6274bc0095cea675e368e8aa83a5fa662263c24c2af19a7c04",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Implement team_status, task_list and task_cancel in botcore-agents and pass task_id from botcore-teams (#2234)"
     },
     {
       "path": "packages/botcore-agents/tests/__init__.py",
@@ -921,11 +932,11 @@
       "path": "packages/botcore-agents/tests/test_commands.py",
       "upstream_sha256": "c47c539b3aa978f8e2c90e83c771c0ba1bb37df7c26f89f374ad3d4d2f172978",
       "staged_sha256": "c47c539b3aa978f8e2c90e83c771c0ba1bb37df7c26f89f374ad3d4d2f172978",
-      "current_import_sha256": "c47c539b3aa978f8e2c90e83c771c0ba1bb37df7c26f89f374ad3d4d2f172978",
+      "current_import_sha256": "f86940c903196725bc7e3bd8c08bdf27b081c9afbd223f7e3d2fac5ceae4f110",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Implement team_status, task_list and task_cancel in botcore-agents and pass task_id from botcore-teams (#2234)"
     },
     {
       "path": "packages/botcore-agents/tests/test_config.py",
@@ -983,11 +994,11 @@
       "path": "packages/botcore-agents/tests/test_plugin.py",
       "upstream_sha256": "53077382d715d1a120d8243cc97206227bf2790546b3b4fac60d659dcf82128f",
       "staged_sha256": "53077382d715d1a120d8243cc97206227bf2790546b3b4fac60d659dcf82128f",
-      "current_import_sha256": "53077382d715d1a120d8243cc97206227bf2790546b3b4fac60d659dcf82128f",
+      "current_import_sha256": "8664ce6bf3ce96f11693dd3ba9ef3e2703fb2e84ab5537f1510dc3a25d739410",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Implement team_status, task_list and task_cancel in botcore-agents and pass task_id from botcore-teams (#2234)"
     },
     {
       "path": "packages/botcore-agents/tests/test_resolve_connector_commands.py",
@@ -1013,11 +1024,11 @@
       "path": "packages/botcore-agents/tests/test_task_stream.py",
       "upstream_sha256": "60892b14b5e7cac016aceee9d8f02ca20fbb789fe5eb8ba131e0644df710c6d6",
       "staged_sha256": "60892b14b5e7cac016aceee9d8f02ca20fbb789fe5eb8ba131e0644df710c6d6",
-      "current_import_sha256": "60892b14b5e7cac016aceee9d8f02ca20fbb789fe5eb8ba131e0644df710c6d6",
+      "current_import_sha256": "fa13089cdc3a37d8e22906f79ee24318073831eb134438ec68329dc8d05c305e",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Implement team_status, task_list and task_cancel in botcore-agents and pass task_id from botcore-teams (#2234)"
     },
     {
       "path": "packages/botcore-llm/LICENSE",
@@ -2123,11 +2134,11 @@
       "path": "plugins/botcore-teams/src/botcore_teams/__init__.py",
       "upstream_sha256": "f7c84e0622a54c4ff4dcb476d07f85234d7976aa77b3292e7d9fab600cc969dc",
       "staged_sha256": "f7c84e0622a54c4ff4dcb476d07f85234d7976aa77b3292e7d9fab600cc969dc",
-      "current_import_sha256": "5a304604a831a284bf13dde5fa5f24b91d1ad975ba8c243b52ccae1b909668f0",
+      "current_import_sha256": "b9758117397597a8b730acd3b2efdfa58a77855e95599a2cdfe362b513027b3d",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact frozen staged-input bytes; Fix Windows disk-walk words, skill usage record line endings and file-as-folder handling (#2173); Teams task_status passes task_id (#2174)"
+      "import_reason": "Imported exact frozen staged-input bytes; Fix Windows disk-walk words, skill usage record line endings and file-as-folder handling (#2173); Teams task_status passes task_id (#2174); Implement team_status, task_list and task_cancel in botcore-agents and pass task_id from botcore-teams (#2234)"
     },
     {
       "path": "plugins/botcore-teams/src/botcore_teams/auth.py",
@@ -2153,21 +2164,21 @@
       "path": "plugins/botcore-teams/src/botcore_teams/cards.py",
       "upstream_sha256": "c9efc15d9e3ec6476295d4984a87fc52c3fd7f5437a148fe6f390ff456a575a8",
       "staged_sha256": "c9efc15d9e3ec6476295d4984a87fc52c3fd7f5437a148fe6f390ff456a575a8",
-      "current_import_sha256": "c9efc15d9e3ec6476295d4984a87fc52c3fd7f5437a148fe6f390ff456a575a8",
+      "current_import_sha256": "f8e1c6679521f686d0f858eee06e4ec816104b4b75c9e9fc93ec59dcef47ca88",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Implement team_status, task_list and task_cancel in botcore-agents and pass task_id from botcore-teams (#2234)"
     },
     {
       "path": "plugins/botcore-teams/src/botcore_teams/commands.py",
       "upstream_sha256": "1465b12dce904f15efbe19c0d69cc5f1e1649fc97c9e50e99be477d38e9f4467",
       "staged_sha256": "1465b12dce904f15efbe19c0d69cc5f1e1649fc97c9e50e99be477d38e9f4467",
-      "current_import_sha256": "1345e98ba93ca6f3705e941ef69296d0cd4d3ccf8315d1b953b364c4a088f519",
+      "current_import_sha256": "0869a66d596616edd17e2f90a25ec8c3d3c42a7f5eefcc4ee7710e07f7e8d7c5",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact frozen staged-input bytes; Fix botcore bug batch: factory state durability (#1796), teams missing-command errors (#1797), provenance archive member hardening (#1671), and ignored-only tier-2 disk classification (#1933); Fix Windows disk-walk words, skill usage record line endings and file-as-folder handling (#2173); Teams task_status passes task_id (#2174)"
+      "import_reason": "Imported exact frozen staged-input bytes; Fix botcore bug batch: factory state durability (#1796), teams missing-command errors (#1797), provenance archive member hardening (#1671), and ignored-only tier-2 disk classification (#1933); Fix Windows disk-walk words, skill usage record line endings and file-as-folder handling (#2173); Teams task_status passes task_id (#2174); Implement team_status, task_list and task_cancel in botcore-agents and pass task_id from botcore-teams (#2234)"
     },
     {
       "path": "plugins/botcore-teams/src/botcore_teams/config.py",
@@ -2183,11 +2194,11 @@
       "path": "plugins/botcore-teams/src/botcore_teams/intent.py",
       "upstream_sha256": "101ab0e6f9ce739cf20b7a2c8416dd680b068d8ff61a6540cc3072cc65f92f6c",
       "staged_sha256": "101ab0e6f9ce739cf20b7a2c8416dd680b068d8ff61a6540cc3072cc65f92f6c",
-      "current_import_sha256": "b1ed602656ca061dbafc8dabe9d459c305512e0553f676fc9c79d385c8bb14ac",
+      "current_import_sha256": "6b97162c47c7495855d8b9f650cfae3c450157a00f82e584fa161392cd7a75c2",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact frozen staged-input bytes; Fix Windows disk-walk words, skill usage record line endings and file-as-folder handling (#2173); Teams task_status passes task_id (#2174)"
+      "import_reason": "Imported exact frozen staged-input bytes; Fix Windows disk-walk words, skill usage record line endings and file-as-folder handling (#2173); Teams task_status passes task_id (#2174); Implement team_status, task_list and task_cancel in botcore-agents and pass task_id from botcore-teams (#2234)"
     },
     {
       "path": "plugins/botcore-teams/tests/__init__.py",
@@ -2263,31 +2274,31 @@
       "path": "plugins/botcore-teams/tests/test_cards.py",
       "upstream_sha256": "2bdd3960592622c496ff5fdd4419ddfdef7968a4d88525b6d9e219be930e8967",
       "staged_sha256": "2bdd3960592622c496ff5fdd4419ddfdef7968a4d88525b6d9e219be930e8967",
-      "current_import_sha256": "2bdd3960592622c496ff5fdd4419ddfdef7968a4d88525b6d9e219be930e8967",
+      "current_import_sha256": "07ba199a1fb8b320cd3dcb727c60d2fda941edbb8420c6ef827323d9299394a3",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Implement team_status, task_list and task_cancel in botcore-agents and pass task_id from botcore-teams (#2234)"
     },
     {
       "path": "plugins/botcore-teams/tests/test_commands.py",
       "upstream_sha256": "92951fa373406fd3fbdee8752a67a5e5ed23c5c188038b764eb3550ad2982262",
       "staged_sha256": "92951fa373406fd3fbdee8752a67a5e5ed23c5c188038b764eb3550ad2982262",
-      "current_import_sha256": "e8d0e87e5721973608c95998a6cdbf505be3622b787a4978017392919fbfed7c",
+      "current_import_sha256": "644ce93a307c88618579ee6d0d5b58cde6e9c658787aeae45090b04b525a2eeb",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact frozen staged-input bytes; Fix botcore bug batch: factory state durability (#1796), teams missing-command errors (#1797), provenance archive member hardening (#1671), and ignored-only tier-2 disk classification (#1933); Fix Windows disk-walk words, skill usage record line endings and file-as-folder handling (#2173); Teams task_status passes task_id (#2174)"
+      "import_reason": "Imported exact frozen staged-input bytes; Fix botcore bug batch: factory state durability (#1796), teams missing-command errors (#1797), provenance archive member hardening (#1671), and ignored-only tier-2 disk classification (#1933); Fix Windows disk-walk words, skill usage record line endings and file-as-folder handling (#2173); Teams task_status passes task_id (#2174); Implement team_status, task_list and task_cancel in botcore-agents and pass task_id from botcore-teams (#2234)"
     },
     {
       "path": "plugins/botcore-teams/tests/test_intent.py",
       "upstream_sha256": "8f52d0e561362d1be5a0ba8b6cc3b29d93d788133cb70b9ba51c976937a2fd07",
       "staged_sha256": "8f52d0e561362d1be5a0ba8b6cc3b29d93d788133cb70b9ba51c976937a2fd07",
-      "current_import_sha256": "035d8d3c0235634eabdaf29cb6861e324cdb3bbe2453d2585bb805d2a6cf99e5",
+      "current_import_sha256": "448b0c20641acaa0e1b7c236960bf37b8fc03b8b4ae448c4ed4862c5b2a7692a",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact frozen staged-input bytes; Fix Windows disk-walk words, skill usage record line endings and file-as-folder handling (#2173); Teams task_status passes task_id (#2174)"
+      "import_reason": "Imported exact frozen staged-input bytes; Fix Windows disk-walk words, skill usage record line endings and file-as-folder handling (#2173); Teams task_status passes task_id (#2174); Implement team_status, task_list and task_cancel in botcore-agents and pass task_id from botcore-teams (#2234)"
     },
     {
       "path": "plugins/botcore-teams/tests/test_plugin.py",

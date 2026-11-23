@@ -30,7 +30,7 @@ class TestAgentsPlugin:
         plugin.register(registry)
         registry.add_commands.assert_called_once()
         commands = registry.add_commands.call_args[0][0]
-        assert len(commands) == 11
+        assert len(commands) == 14
         names = {cmd.__name__ for cmd in commands}
         assert names == {
             "agent_create",
@@ -42,6 +42,9 @@ class TestAgentsPlugin:
             "task_assign",
             "task_resume",
             "task_status",
+            "task_list",
+            "task_cancel",
+            "team_status",
             "state_save",
             "state_load",
         }

@@ -12,6 +12,7 @@ helpers (``_resolve_execution_target``, ``_begin_task``, ``_finish_task``).
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import logging
 import time
@@ -55,51 +56,135 @@ def _terminal_chunk(
     )
 
 
+_DONE = object()
+
+
+async def _pump_chat(
+    session_id: str,
+    description: str,
+    queue: asyncio.Queue[object],
+) -> None:
+    """Drain ``llm_chat_stream`` into *queue* so cancellation can abort it immediately."""
+    try:
+        async with contextlib.aclosing(llm_chat_stream(session_id, description)) as chat:
+            async for chunk in chat:
+                await queue.put(chunk)
+    except Exception as exc:
+        await queue.put(("error", exc))
+    else:
+        await queue.put(_DONE)
+
+
+async def _get_or_cancel(
+    queue: asyncio.Queue[object],
+    cancel_event: asyncio.Event,
+) -> tuple[bool, object]:
+    """Wait for the next queued item, or return ``(True, _DONE)`` once *cancel_event* fires."""
+    if cancel_event.is_set():
+        return True, _DONE
+    next_item = asyncio.create_task(queue.get())
+    cancelled = asyncio.create_task(cancel_event.wait())
+    try:
+        done, _ = await asyncio.wait({next_item, cancelled}, return_when=asyncio.FIRST_COMPLETED)
+        if cancelled in done:
+            next_item.cancel()
+            with contextlib.suppress(BaseException):
+                await next_item
+            return True, _DONE
+        cancelled.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await cancelled
+        return False, next_item.result()
+    except BaseException:
+        for pending in (next_item, cancelled):
+            if not pending.done():
+                pending.cancel()
+            with contextlib.suppress(BaseException):
+                await pending
+        raise
+
+
 async def _run(orch: AgentOrchestrator, task: Task, agent: str) -> AsyncIterator[StreamChunk]:
     """Execute *task* on *agent*, forwarding the agent's chat stream."""
-    state = await orch._begin_task(task, agent)
-    # Hold this run's entry: after a state restore, the id may be reused by a new run.
-    progress = orch._progress[task.id]
+    # Register the cancel signal before the first await so cancellation during _begin_task's
+    # autosave is never missed and never leaves _run indexing a popped progress entry.
+    state = orch._agents[agent]
+    cancel_event = asyncio.Event()
+    orch._cancel_events[task.id] = cancel_event
+    pump: asyncio.Task[None] | None = None
     message_id = None
     started = time.monotonic()
     data_chunks = 0
     finished = False
     try:
+        state, progress = await orch._begin_task(task, agent)
+        if cancel_event.is_set() or task.status == "cancelled":
+            outcome = await orch._finish_task(task, state, "cancelled", "")
+            finished = True
+            yield _terminal_chunk(outcome, data_chunks, (time.monotonic() - started) * 1000)
+            return
+
         yield create_progress_chunk(
             0.0, message=f"Task {task.id} started on {agent}", phase="started"
         )
         status, result = "failed", "Chat stream ended without a result"
-        session_id = state.session_id
-        try:
-            async with contextlib.aclosing(llm_chat_stream(session_id, task.description)) as chat:
-                async for chunk in chat:
-                    if chunk.type == "progress":
-                        progress["progress_message"] = chunk.message or ""
-                        yield create_progress_chunk(0.0, message=chunk.message, phase=chunk.phase)
-                    elif chunk.type == "data":
-                        data_chunks += 1
-                        # Separate the messages of a tool-using turn.
-                        if message_id is not None and chunk.data.get("message_id") != message_id:
-                            progress["partial_result"] += "\n\n"
-                        message_id = chunk.data.get("message_id")
-                        progress["partial_result"] += chunk.data.get("text", "")
-                        yield create_data_chunk(
-                            {**chunk.data, "task_id": task.id},
-                            index=chunk.index,
-                            is_last=chunk.is_last,
-                        )
-                    elif is_complete_chunk(chunk):
-                        status, result = "completed", chunk.data.get("content", "")
-                    elif is_error_chunk(chunk):
-                        status, result = "failed", chunk.error.message
-        except Exception as exc:
-            status, result = "failed", str(exc)
-            logger.warning("Task %s execution error: %s", task.id, exc)
+        if cancel_event.is_set() or task.status == "cancelled":
+            status, result = "cancelled", ""
+        else:
+            session_id = state.session_id
+            queue: asyncio.Queue[object] = asyncio.Queue(maxsize=1)
+            pump = asyncio.create_task(_pump_chat(session_id, task.description, queue))
+            orch._active_runs[task.id] = pump
+            while True:
+                was_cancelled, item = await _get_or_cancel(queue, cancel_event)
+                if was_cancelled or task.status == "cancelled":
+                    status, result = "cancelled", ""
+                    break
+                if item is _DONE:
+                    break
+                if isinstance(item, tuple) and len(item) == 2 and item[0] == "error":
+                    exc = item[1]
+                    status, result = "failed", str(exc)
+                    logger.warning("Task %s execution error: %s", task.id, exc)
+                    break
+                chunk = item
+                if chunk.type == "progress":
+                    progress["progress_message"] = chunk.message or ""
+                    yield create_progress_chunk(0.0, message=chunk.message, phase=chunk.phase)
+                elif chunk.type == "data":
+                    data_chunks += 1
+                    # Separate the messages of a tool-using turn.
+                    if message_id is not None and chunk.data.get("message_id") != message_id:
+                        progress["partial_result"] += "\n\n"
+                    message_id = chunk.data.get("message_id")
+                    progress["partial_result"] += chunk.data.get("text", "")
+                    yield create_data_chunk(
+                        {**chunk.data, "task_id": task.id},
+                        index=chunk.index,
+                        is_last=chunk.is_last,
+                    )
+                elif is_complete_chunk(chunk):
+                    status, result = "completed", chunk.data.get("content", "")
+                elif is_error_chunk(chunk):
+                    status, result = "failed", chunk.error.message
+
+            if not pump.done():
+                pump.cancel()
+            with contextlib.suppress(BaseException):
+                await pump
 
         outcome = await orch._finish_task(task, state, status, result)
         finished = True
         yield _terminal_chunk(outcome, data_chunks, (time.monotonic() - started) * 1000)
     finally:
+        if pump is not None and not pump.done():
+            pump.cancel()
+            with contextlib.suppress(BaseException):
+                await pump
+        if orch._active_runs.get(task.id) is pump:
+            orch._active_runs.pop(task.id, None)
+        if orch._cancel_events.get(task.id) is cancel_event:
+            orch._cancel_events.pop(task.id, None)
         if not finished:
             # The consumer stopped early or was cancelled; the chat turn is already
             # aborted, so record the task as cancelled and free the agent.
@@ -158,6 +243,18 @@ async def stream_resume(
     resolved = await orch._resolve_execution_target(agent=agent, role=role)
     if not resolved.success:
         yield _error_chunk(resolved)
+        return
+
+    # Target resolution may await spawning a role agent; recheck that the same task is
+    # still resumable before mutating it or starting execution.
+    if orch._tasks.get(task_id) is not task or task.status not in {"pending", "assigned"}:
+        yield _error_chunk(
+            error(
+                "TASK_NOT_RESUMABLE",
+                f"Task {task_id!r} is {task.status} and cannot be resumed",
+                suggestion="Resume only pending or assigned tasks",
+            )
+        )
         return
 
     task.result = ""

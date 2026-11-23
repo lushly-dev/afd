@@ -453,3 +453,188 @@ class TestPartialOutput:
         assert status["status"] == "running"
         assert status["partial_result"] == "old"
         assert orchestrator._progress == {}
+
+
+class TestTaskCancelStream:
+    """cancel_task aborts an active task stream and frees the agent cleanly."""
+
+    async def test_cancel_task_aborts_hanging_stream(self, orchestrator, mock_llm):
+        await _started(orchestrator)
+        chat_ready = asyncio.Event()
+        chat_closed = []
+
+        async def hanging_chat(session_id, message, attachments=None, timeout=None):
+            try:
+                yield create_data_chunk(
+                    {"text": "working...", "message_id": "m1"}, index=0, is_last=False
+                )
+                chat_ready.set()
+                await asyncio.Event().wait()
+            finally:
+                chat_closed.append(True)
+
+        with (
+            patch("botcore_agents.task_stream.llm_chat_stream", hanging_chat),
+            patch.object(commands_mod, "_get_orch", return_value=orchestrator),
+        ):
+            assign = asyncio.create_task(commands_mod.task_assign("Long task", agent="researcher"))
+            await asyncio.wait_for(chat_ready.wait(), timeout=5)
+            (task_id,) = orchestrator.tasks
+            # Wait for the collector to ingest the first data chunk into progress.
+            for _ in range(100):
+                listed = assert_success(await commands_mod.task_list(status="running"))
+                if listed["count"] == 1 and listed["tasks"][0].get("partial_result"):
+                    break
+                await asyncio.sleep(0)
+
+            cancel_res = await asyncio.wait_for(commands_mod.task_cancel(task_id), timeout=5)
+            cancel_data = assert_success(cancel_res)
+            assert cancel_data["cancelled"] is True
+            assert cancel_data["status"] == "cancelled"
+
+            assign_res = await asyncio.wait_for(assign, timeout=5)
+
+        assert_error(assign_res, "TASK_CANCELLED")
+        assert chat_closed == [True]
+        assert orchestrator._progress == {}
+        assert orchestrator._cancel_events == {}
+        assert orchestrator._active_runs == {}
+        assert orchestrator.get_agent_status("researcher").data["status"] == "idle"
+        assert orchestrator.get_agent_status("researcher").data["current_task"] == ""
+
+    async def test_cancel_while_consumer_paused_aborts_chat_before_releasing_slot(
+        self, orchestrator, mock_llm
+    ):
+        await _started(orchestrator)
+        events: list[str] = []
+
+        async def hanging_chat(session_id, message, attachments=None, timeout=None):
+            try:
+                yield create_data_chunk(
+                    {"text": "partial", "message_id": "m1"}, index=0, is_last=False
+                )
+                await asyncio.Event().wait()
+            finally:
+                # Agent must still be busy until the chat turn finishes aborting.
+                assert orchestrator.get_agent_status("researcher").data["status"] == "busy"
+                events.append("chat_closed")
+
+        with patch("botcore_agents.task_stream.llm_chat_stream", hanging_chat):
+            stream = orchestrator.assign_task_stream("Long task", agent="researcher")
+            first_data = None
+            async for chunk in stream:
+                if chunk.type == "data":
+                    first_data = chunk
+                    break
+            assert first_data is not None
+            task_id = first_data.data["task_id"]
+
+            # Consumer stays paused at the yielded chunk while cancel_task runs.
+            cancel_res = await asyncio.wait_for(orchestrator.cancel_task(task_id), timeout=5)
+            assert_success(cancel_res)
+            assert events == ["chat_closed"]
+            assert orchestrator.get_agent_status("researcher").data["status"] == "idle"
+
+            remaining = [chunk async for chunk in stream]
+
+        assert remaining[-1].type == "error"
+        assert remaining[-1].error.code == "TASK_CANCELLED"
+        assert orchestrator._active_runs == {}
+        assert orchestrator._cancel_events == {}
+
+    async def test_cancel_during_begin_task_autosave_avoids_keyerror_and_llm_call(
+        self, sample_config, mock_llm
+    ):
+        from botcore_agents.config import AgentsStateConfig
+
+        save_entered = asyncio.Event()
+        release_save = asyncio.Event()
+        llm_called = []
+
+        class SlowBackend:
+            async def save(self, snapshot):
+                if any(t.status == "running" for t in snapshot.tasks.values()):
+                    save_entered.set()
+                    await release_save.wait()
+
+            async def load(self):
+                return None
+
+            async def clear(self):
+                pass
+
+        sample_config.state = AgentsStateConfig(enabled=True, autosave=True)
+        orch = AgentOrchestrator(sample_config, backend=SlowBackend())
+        await _started(orch)
+
+        async def unexpected_chat(session_id, message, attachments=None, timeout=None):
+            llm_called.append(True)
+            yield create_complete_chunk(total_chunks=0, total_duration_ms=0, data={"content": ""})
+
+        with patch("botcore_agents.task_stream.llm_chat_stream", unexpected_chat):
+            assign = asyncio.create_task(orch.assign_task("Race autosave", agent="researcher"))
+            await asyncio.wait_for(save_entered.wait(), timeout=5)
+            (task_id,) = orch.tasks
+            cancel_res = await asyncio.wait_for(orch.cancel_task(task_id), timeout=5)
+            assert_success(cancel_res)
+            release_save.set()
+            assign_res = await asyncio.wait_for(assign, timeout=5)
+
+        assert_error(assign_res, "TASK_CANCELLED")
+        assert llm_called == []
+        assert orch._progress == {}
+        assert orch._cancel_events == {}
+        assert orch._active_runs == {}
+        assert orch.get_agent_status("researcher").data["status"] == "idle"
+
+    async def test_cancel_during_resume_target_resolution_refuses_to_restart(
+        self, orchestrator, mock_llm
+    ):
+        spawn_entered = asyncio.Event()
+        release_spawn = asyncio.Event()
+        llm_called = []
+        original_create = mock_llm["session_create"].return_value
+
+        async def slow_session_create(**kwargs):
+            spawn_entered.set()
+            await release_spawn.wait()
+            return original_create
+
+        mock_llm["session_create"].side_effect = slow_session_create
+        task = Task(description="Resume race", status="pending")
+        orchestrator._tasks[task.id] = task
+
+        async def unexpected_chat(session_id, message, attachments=None, timeout=None):
+            llm_called.append(True)
+            yield create_complete_chunk(total_chunks=0, total_duration_ms=0, data={"content": ""})
+
+        with patch("botcore_agents.task_stream.llm_chat_stream", unexpected_chat):
+            resuming = asyncio.create_task(orchestrator.resume_task(task.id, role="coder"))
+            await asyncio.wait_for(spawn_entered.wait(), timeout=5)
+            assert_success(await orchestrator.cancel_task(task.id))
+            cancelled_at = orchestrator.tasks[task.id].completed_at
+            release_spawn.set()
+            resume_res = await asyncio.wait_for(resuming, timeout=5)
+
+        assert_error(resume_res, "TASK_NOT_RESUMABLE")
+        assert llm_called == []
+        assert orchestrator.tasks[task.id].status == "cancelled"
+        assert orchestrator.tasks[task.id].completed_at == cancelled_at
+
+    async def test_cancel_preserves_other_concurrent_task_on_agent(self, orchestrator, mock_llm):
+        await _started(orchestrator)
+        first = Task(description="First", assigned_agent="researcher", status="running")
+        second = Task(description="Second", assigned_agent="researcher", status="running")
+        orchestrator._tasks[first.id] = first
+        orchestrator._tasks[second.id] = second
+        state = orchestrator._agents["researcher"]
+        state.active_tasks.extend([first.id, second.id])
+        state.health.status = "busy"
+        state.health.current_task = first.id
+
+        assert_success(await orchestrator.cancel_task(first.id))
+
+        health = orchestrator.get_agent_status("researcher").data
+        assert health["status"] == "busy"
+        assert health["current_task"] == second.id
+        assert state.active_tasks == [second.id]
