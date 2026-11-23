@@ -4168,16 +4168,25 @@ name = "umbel-plugin-ideas"
 version = "0.1.0"
 dependencies = [
  "afd",
+ "async-trait",
+ "bytes",
+ "http",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
  "serde",
  "serde_json",
  "sha2 0.11.1",
  "tempfile",
  "tokio",
+ "tokio-rustls",
  "toml",
  "umbel",
  "umbel-scan",
  "umbel-sdk",
  "umbel-store",
+ "umbel-testkit-idp",
+ "url",
  "yaml-rust2",
 ]
 
