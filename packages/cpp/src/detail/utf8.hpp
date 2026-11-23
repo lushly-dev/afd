@@ -77,6 +77,53 @@ inline bool is_js_whitespace(char32_t c) {
            c == 0x202F || c == 0x205F || c == 0x3000 || c == 0xFEFF;
 }
 
+/// Strict RFC 3629 UTF-8 validity check: rejects overlong encodings, UTF-16 surrogates,
+/// code points past U+10FFFF, stray continuation bytes and truncated sequences.
+inline bool is_valid_utf8(std::string_view text) noexcept {
+    std::size_t i = 0;
+    while (i < text.size()) {
+        const auto lead = static_cast<unsigned char>(text[i]);
+        if (lead < 0x80U) {
+            ++i;
+            continue;
+        }
+        std::size_t length = 0;
+        char32_t code_point = 0;
+        char32_t minimum = 0;
+        if ((lead & 0xE0U) == 0xC0U) {
+            length = 2;
+            code_point = lead & 0x1FU;
+            minimum = 0x80U;
+        } else if ((lead & 0xF0U) == 0xE0U) {
+            length = 3;
+            code_point = lead & 0x0FU;
+            minimum = 0x800U;
+        } else if ((lead & 0xF8U) == 0xF0U) {
+            length = 4;
+            code_point = lead & 0x07U;
+            minimum = 0x10000U;
+        } else {
+            return false;
+        }
+        if (i + length > text.size()) {
+            return false;
+        }
+        for (std::size_t k = 1; k < length; ++k) {
+            const auto cont = static_cast<unsigned char>(text[i + k]);
+            if ((cont & 0xC0U) != 0x80U) {
+                return false;
+            }
+            code_point = (code_point << 6) | (cont & 0x3FU);
+        }
+        if (code_point < minimum || code_point > 0x10FFFFU ||
+            (code_point >= 0xD800U && code_point <= 0xDFFFU)) {
+            return false;
+        }
+        i += length;
+    }
+    return true;
+}
+
 /// Whether `text.trim()` would be empty in JavaScript.
 inline bool is_blank(std::string_view text) {
     for (std::size_t i = 0; i < text.size();) {

@@ -550,46 +550,59 @@
 			"evidence": ["packages/cpp/tests/tool_strategies_vectors_test.cpp"]
 		},
 		"mcp.resources": {
-			"status": "planned",
-			"note": "([#1983](https://github.com/lushly-dev/afd/issues/1983))",
+			"status": "yes",
+			"note": "([#1983](https://github.com/lushly-dev/afd/issues/1983): `StdioServerOptions::resources` on `afd::mcp_stdio`, both eras)",
 			"views": {
-				"res-core": "",
-				"res-vectors": "",
-				"pc-res": ""
+				"res-core": "(`StdioServerOptions::resources` on `afd::mcp_stdio`, both eras; #1983)",
+				"res-vectors": "(`tests/resources_test.cpp` and `tests/tool_meta_test.cpp`, over stdio in both eras; #1983)",
+				"pc-res": "(`packages/cpp/tests/resources_test.cpp`, stdio, both eras; #1983)"
 			},
-			"evidence": ["spec/mcp-resources.md"],
-			"issue": "#1983"
+			"evidence": [
+				"packages/cpp/include/afd/mcp_stdio.hpp",
+				"packages/cpp/src/mcp_stdio/resources.cpp",
+				"packages/cpp/tests/resources_test.cpp"
+			]
 		},
 		"mcp.skills": {
-			"status": "planned",
-			"note": "([#1983](https://github.com/lushly-dev/afd/issues/1983))",
+			"status": "yes",
+			"note": "([#1983](https://github.com/lushly-dev/afd/issues/1983): `StdioServerOptions::skills`, `SkillCatalog`, `skill_from_directory`, optional `directory_read`; zero-dep YAML 1.2 core frontmatter parser)",
 			"views": {
-				"res-skills": "",
-				"pc-skills": ""
+				"res-skills": "(`StdioServerOptions::skills`, `skill_from_directory`, optional `directory_read`; #1983)",
+				"pc-skills": "(`packages/cpp/tests/resources_test.cpp`, loads `mcp-resources.json`, both eras; #1983)"
 			},
-			"evidence": ["spec/mcp-resources.md"],
-			"issue": "#1983"
+			"evidence": [
+				"packages/cpp/src/mcp_stdio/resources.cpp",
+				"packages/cpp/src/mcp_stdio/frontmatter.cpp",
+				"packages/cpp/tests/frontmatter_test.cpp",
+				"packages/cpp/tests/resources_test.cpp"
+			]
 		},
 		"mcp.tool-meta": {
-			"status": "planned",
-			"note": "([#1983](https://github.com/lushly-dev/afd/issues/1983))",
+			"status": "yes",
+			"note": "([#1983](https://github.com/lushly-dev/afd/issues/1983): `CommandDefinition::tool_meta`, refused at registration under the key rule)",
 			"views": {
-				"command-metadata": "",
-				"res-meta": "",
-				"pc-meta": ""
+				"command-metadata": "(`CommandDefinition::tool_meta`, `advertised_input_schema`; #1983)",
+				"res-meta": "(`CommandDefinition::tool_meta`; #1983)",
+				"pc-meta": "(`packages/cpp/tests/tool_meta_test.cpp`, `resources_test.cpp`; #1983)"
 			},
-			"evidence": ["spec/mcp-resources.md"],
-			"issue": "#1983"
+			"evidence": [
+				"packages/cpp/src/meta_keys.cpp",
+				"packages/cpp/src/mcp.cpp",
+				"packages/cpp/tests/tool_meta_test.cpp"
+			]
 		},
 		"mcp.advertised-schema": {
-			"status": "planned",
-			"note": "([#1983](https://github.com/lushly-dev/afd/issues/1983))",
+			"status": "yes",
+			"note": "([#1983](https://github.com/lushly-dev/afd/issues/1983): `CommandDefinition::advertised_input_schema`; `input_schema` still validates)",
 			"views": {
-				"res-adv": "",
-				"pc-adv": ""
+				"res-adv": "(`CommandDefinition::advertised_input_schema`; #1983)",
+				"pc-adv": "(`packages/cpp/tests/tool_meta_test.cpp`, `resources_test.cpp`; #1983)"
 			},
-			"evidence": ["spec/mcp-resources.md"],
-			"issue": "#1983"
+			"evidence": [
+				"packages/cpp/include/afd/command.hpp",
+				"packages/cpp/src/mcp.cpp",
+				"packages/cpp/tests/tool_meta_test.cpp"
+			]
 		},
 		"mcp.raw-json-schema": {
 			"status": "na",

@@ -35,6 +35,7 @@ add_executable(
     similarity_test.cpp
     smoke_test.cpp
     stream_test.cpp
+    tool_meta_test.cpp
     vectors_test.cpp
     wire_fixtures_test.cpp)
 if(AFD_JOURNAL_FILE)
@@ -42,7 +43,9 @@ if(AFD_JOURNAL_FILE)
 endif()
 target_link_libraries(afd_tests PRIVATE afd::afd afd_doctest)
 if(AFD_BUILD_MCP_STDIO)
-    target_sources(afd_tests PRIVATE tool_strategies_vectors_test.cpp mcp_stdio_test.cpp mcp_tools_test.cpp)
+    target_sources(afd_tests PRIVATE frontmatter_test.cpp resources_test.cpp
+                                     tool_strategies_vectors_test.cpp mcp_stdio_test.cpp
+                                     mcp_tools_test.cpp)
     target_link_libraries(afd_tests PRIVATE afd::mcp_stdio)
     target_compile_definitions(afd_tests PRIVATE AFD_HAS_MCP_STDIO=1)
 endif()
@@ -71,6 +74,9 @@ target_compile_definitions(afd_tests PRIVATE AFD_META_TOOLS_FILE="${afd_meta_too
 # The output-budgets conformance cases (spec/output-budgets.md, B1 to B8).
 cmake_path(SET afd_output_budgets_file NORMALIZE "${PROJECT_SOURCE_DIR}/../../spec/output-budgets.json")
 target_compile_definitions(afd_tests PRIVATE AFD_OUTPUT_BUDGETS_FILE="${afd_output_budgets_file}")
+# The MCP resources, skills and tool _meta conformance cases (spec/mcp-resources.md).
+cmake_path(SET afd_mcp_resources_file NORMALIZE "${PROJECT_SOURCE_DIR}/../../spec/mcp-resources.json")
+target_compile_definitions(afd_tests PRIVATE AFD_MCP_RESOURCES_FILE="${afd_mcp_resources_file}")
 # The todo example's shared contract, whose input schemas the validator must accept.
 cmake_path(SET afd_todo_spec_dir NORMALIZE "${PROJECT_SOURCE_DIR}/../examples/todo/spec")
 target_compile_definitions(afd_tests PRIVATE AFD_TODO_SPEC_DIR="${afd_todo_spec_dir}")
@@ -99,6 +105,10 @@ if(AFD_MACRO_HYGIENE_CHECK)
     # Compiles every public header with the collisions defined; building it is the check.
     add_library(afd_macro_hygiene_check OBJECT macro_hygiene_check.cpp)
     target_link_libraries(afd_macro_hygiene_check PRIVATE afd::afd)
+    if(AFD_BUILD_MCP_STDIO)
+        target_link_libraries(afd_macro_hygiene_check PRIVATE afd::mcp_stdio)
+        target_compile_definitions(afd_macro_hygiene_check PRIVATE AFD_HAS_MCP_STDIO=1)
+    endif()
     afd_configure_target(afd_macro_hygiene_check)
     afd_apply_macro_hygiene(afd_macro_hygiene_check)
     add_dependencies(afd_tests afd_macro_hygiene_check)

@@ -87,6 +87,14 @@ std::string_view execution_time_name(ExecutionTime time) noexcept {
 
 std::optional<Json> command_tool_meta(const CommandDefinition& command) {
     Json meta = Json::object();
+    // Extra tool _meta entries (spec/mcp-resources.md, T1) go before the server's own fields so
+    // they can never replace one; the T2 key rule already forbids reserved and unprefixed keys.
+    if (command.tool_meta && command.tool_meta->is_object() && !command.tool_meta->empty() &&
+        !detail::omits_output_budget_surface(command.name)) {
+        for (auto it = command.tool_meta->begin(); it != command.tool_meta->end(); ++it) {
+            meta[it.key()] = it.value();
+        }
+    }
     if (command.category) {
         meta["category"] = *command.category;
     }
@@ -138,7 +146,8 @@ Json command_to_mcp_tool(const CommandDefinition& command) {
         tool["title"] = *command.title;
     }
     tool["description"] = command.description;
-    tool["inputSchema"] = command.input_schema;
+    tool["inputSchema"] =
+        command.advertised_input_schema ? *command.advertised_input_schema : command.input_schema;
     if (auto annotations = command_tool_annotations(command)) {
         tool["annotations"] = std::move(*annotations);
     }
@@ -210,7 +219,8 @@ Json to_json(const CommandDefinition& command) {
     if (!command.errors.empty()) {
         out["errors"] = command.errors;
     }
-    out["inputSchema"] = command.input_schema;
+    out["inputSchema"] =
+        command.advertised_input_schema ? *command.advertised_input_schema : command.input_schema;
     if (command.output_schema) {
         out["outputSchema"] = *command.output_schema;
     }
@@ -246,6 +256,10 @@ Json to_json(const CommandDefinition& command) {
     }
     if (command.output_budget && !detail::omits_output_budget_surface(command.name)) {
         out["outputBudget"] = *command.output_budget;
+    }
+    if (command.tool_meta && command.tool_meta->is_object() && !command.tool_meta->empty() &&
+        !detail::omits_output_budget_surface(command.name)) {
+        out["toolMeta"] = *command.tool_meta;
     }
     return out;
 }

@@ -261,6 +261,15 @@ struct CommandDefinition {
     /// Validated at registration; emitted in `_meta["dev.afd/outputBudget"]`, grouped actions,
     /// `afd-detail` and `afd-help` (full).
     std::optional<OutputBudget> output_budget;
+    /// Optional extra MCP tool `_meta` entries (spec/mcp-resources.md, T1-T3). Validated at
+    /// registration against the T2 key rule; emitted in `command_to_mcp_tool`, grouped
+    /// `_meta.actions`, and `afd-detail` (`toolMeta`). Never emitted on meta-tools, context tools,
+    /// or the grouped tool itself.
+    std::optional<Json> tool_meta;
+    /// Optional input schema advertised on MCP tools, grouped actions, `afd-detail`, `afd-schema`,
+    /// and `afd-docs`, while the registry validates calls against `input_schema`
+    /// (spec/mcp-resources.md, V1-V2). Must be a JSON object with `"type": "object"`.
+    std::optional<Json> advertised_input_schema;
 };
 
 /// The result of `validate_command_name`.

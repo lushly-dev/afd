@@ -5,3 +5,6 @@
 #if AFD_JOURNAL_FILE
 #include "afd/journal_file.hpp"
 #endif
+#if AFD_HAS_MCP_STDIO
+#include "afd/mcp_stdio.hpp"
+#endif

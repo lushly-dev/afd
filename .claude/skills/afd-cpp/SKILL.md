@@ -98,7 +98,7 @@ afd::CommandDefinition create{
 - **The input schema is a JSON Schema subset** (see `afd/schema.hpp`): `type`, `properties`, `required`, `default`, `enum`, `items`, min/max bounds, `additionalProperties`, and local `$ref`.
   - Any other keyword (`pattern`, `format`, `oneOf`, …) **fails registration**, so a schema is never silently under-enforced.
 - **`examples` are validated at registration.**
-- **Metadata fields:** `destructive`, `confirm_prompt`, `undoable`, `prerequisites`, `contexts`, `errors`, `handoff`, `handoff_protocol` and `execution_time`.
+- **Metadata fields:** `destructive`, `confirm_prompt`, `undoable`, `prerequisites`, `contexts`, `errors`, `handoff`, `handoff_protocol`, `execution_time`, `output_budget`, `tool_meta` (extra reverse-DNS or `ui` `_meta` entries validated against `spec/mcp-resources.md` T2), and `advertised_input_schema` (shown on tools, grouped actions, `afd-detail`, `afd-schema` and `afd-docs` while `input_schema` still validates calls).
 
 ## Command Registry
 
@@ -233,6 +233,7 @@ Engine and framework adapters (Unreal, Unity, Godot, Qt, …) are **not** part o
   - Approval elicitation needs the middleware's `relay = ApprovalRelay::mcp_elicitation`.
   - Contexts need both `afd::register_context_commands(registry, contexts)` and the same list in `StdioServerOptions::contexts`; `create` fails without the commands. Never set `CommandContext::context_scope` yourself: the server does, and in process the context tools answer `SESSION_REQUIRED`.
   - A command's `output_schema` becomes the tool's top-level `outputSchema`, which clients check `structuredContent` against, so `data` must match it; `advertise_output_schema = false` drops it.
+  - Opt-in resources and Agent Skills (`spec/mcp-resources.md`): set `StdioServerOptions::resources` (`ResourceProvider`) and/or `StdioServerOptions::skills` (`SkillCatalog`, optionally populated with `skill_from_directory` and `directory_read = true`). Capabilities declare `resources` and `extensions["io.modelcontextprotocol/skills"]` only when configured, and never `prompts`.
   - For another transport, wrap `CommandRegistry::execute` and use `command_to_mcp_tool` (`afd/mcp.hpp`) for the tool list.
 
 ## Testing
