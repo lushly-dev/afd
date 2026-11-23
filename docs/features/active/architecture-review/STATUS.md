@@ -35,7 +35,7 @@ These keep their own work; this review only cross-references them.
 
 - [#1737](https://github.com/lushly-dev/afd/issues/1737) spec: deadlines, cancellation and batch limits in execution-controls.md, with vectors; merged in #2142
 
-- [#1738](https://github.com/lushly-dev/afd/issues/1738) docs: one capability manifest per language, with the parity tables rendered from it
+- [#1738](https://github.com/lushly-dev/afd/issues/1738) docs: one capability manifest per language, with the parity tables rendered from it; merged in #2196
 
 - [#1739](https://github.com/lushly-dev/afd/issues/1739) conformance: a shared protocol case file every backend runs, checked against the result schema; merged in #2142
 

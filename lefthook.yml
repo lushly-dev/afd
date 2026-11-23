@@ -96,6 +96,9 @@ pre-push-checks:
     vector-drift:
       run: node scripts/check-vector-drift.mjs
 
+    capabilities:
+      run: node scripts/check-capabilities.mjs
+
     test-configs:
       run: node .claude/skills/maintain-gates/scripts/check-test-configs.mjs scripts/affected/
 
@@ -157,6 +160,9 @@ check:
 
     vector-drift:
       run: node scripts/check-vector-drift.mjs
+
+    capabilities:
+      run: node scripts/check-capabilities.mjs
 
     test-configs:
       run: node .claude/skills/maintain-gates/scripts/check-test-configs.mjs scripts/affected/

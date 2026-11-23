@@ -1,0 +1,724 @@
+{
+	"language": "python",
+	"displayName": "Python",
+	"capabilities": {
+		"wire.command-result": {
+			"status": "yes",
+			"evidence": ["python/src/afd/core/result.py", "python/tests/test_wire_fixtures.py"]
+		},
+		"wire.metadata-types": {
+			"status": "yes",
+			"evidence": ["python/src/afd/core/metadata.py", "python/tests/test_metadata.py"]
+		},
+		"wire.error-codes": {
+			"status": "yes",
+			"evidence": ["python/src/afd/core/errors.py", "python/tests/test_error_codes.py"]
+		},
+		"wire.result-constructors": {
+			"status": "yes",
+			"note": "(#545 candidate): every result option except success/data/error",
+			"evidence": ["python/src/afd/core/result.py", "python/tests/test_result.py"]
+		},
+		"wire.result-guards": {
+			"status": "yes",
+			"note": ", including `success(None)`",
+			"evidence": ["python/src/afd/core/result.py", "python/tests/test_result.py"]
+		},
+		"command.core-metadata": {
+			"status": "yes",
+			"note": "(#545 candidate): `errors`, `execution_time` and server handoff forwarding",
+			"evidence": ["python/src/afd/core/commands.py", "python/src/afd/server/decorators.py"]
+		},
+		"command.title": {
+			"status": "yes",
+			"note": "on `CommandDefinition` and `@server.command`; same surfaces as TypeScript, without `listCommands()`",
+			"views": {
+				"command-metadata": ""
+			},
+			"evidence": ["python/src/afd/core/commands.py", "python/tests/test_tool_titles.py"]
+		},
+		"command.safety-flags": {
+			"status": "yes",
+			"note": "on `CommandDefinition`, `define_command` and `@server.command`; same surfaces as TypeScript",
+			"evidence": ["python/src/afd/core/commands.py", "python/src/afd/server/decorators.py"]
+		},
+		"command.approval-policy": {
+			"status": "yes",
+			"note": "on `CommandDefinition`, `define_command` and `@server.command`; same surfaces as TypeScript, and `afd validate` warns on a mutation or destructive tool without one",
+			"views": {
+				"approvals": ""
+			},
+			"evidence": ["python/src/afd/core/approval.py", "python/tests/test_approval.py"]
+		},
+		"command.confirmations": {
+			"status": "yes",
+			"note": "`create_server(confirmations=...)`, elicitation on 2026-07-28 and stateful 2025 connections; client `on_elicitation`, CLI prompt",
+			"views": {
+				"command-metadata": "(`create_server(confirmations=..., confirmation_key=...)`; individual, grouped and meta-tools)"
+			},
+			"evidence": ["python/src/afd/server/confirmations.py", "python/tests/test_mcp_modern_live.py"]
+		},
+		"command.kebab-names": {
+			"status": "yes",
+			"note": "warns in `define_command` and in the core registry for a raw definition",
+			"evidence": ["python/src/afd/core/commands.py", "python/src/afd/server/decorators.py"]
+		},
+		"command.reserved-names": {
+			"status": "yes",
+			"note": "meta-tools always, bootstrap names with `bootstrap=True` and context names with `contexts` (#1731); duplicates too",
+			"evidence": ["python/src/afd/core/builtin_names.py", "python/src/afd/server/factory.py"]
+		},
+		"command.input-validation": {
+			"status": "yes",
+			"note": "advertised JSON Schema enforced before middleware, then Pydantic conversion where applicable",
+			"evidence": ["python/src/afd/server/validation.py", "python/tests/test_validation_vectors.py"]
+		},
+		"command.examples-validated": {
+			"status": "yes",
+			"evidence": ["python/src/afd/server/decorators.py"]
+		},
+		"command.output-schema": {
+			"status": "yes",
+			"note": "`_meta.outputSchema` and top-level `outputSchema` on individual and hybrid first-class tools (`advertise_output_schema=False` opts out)",
+			"views": {
+				"command-metadata": ", for commands with `returns` listed as their own tool, individual or first-class under hybrid (`create_server(advertise_output_schema=False)` opts out); the envelope does not require a property that accepts `null`, because Python's wire format omits model fields set to `None`"
+			},
+			"evidence": ["python/src/afd/server/tools.py", "python/tests/test_output_schema_vectors.py"]
+		},
+		"command.to-mcp-tool": {
+			"status": "yes",
+			"evidence": ["python/src/afd/server/tools.py", "python/tests/test_mcp_server_tools.py"]
+		},
+		"single.dispatch-order": {
+			"status": "partial",
+			"note": "matches through the stamp; no `onCommand` hook",
+			"views": {
+				"dispatch-suite": "`python/tests/test_dispatch_vectors.py`",
+				"dispatch-gaps": "`hooks` (`onCommand`/`onError`, [#1551](https://github.com/lushly-dev/afd/issues/1551))"
+			},
+			"evidence": ["python/src/afd/server/factory.py", "python/tests/test_dispatch_vectors.py"]
+		},
+		"single.did-you-mean": {
+			"status": "yes",
+			"evidence": ["python/src/afd/core/similarity.py", "python/tests/test_similarity.py"]
+		},
+		"single.exposure": {
+			"status": "yes",
+			"evidence": ["python/src/afd/server/factory.py", "python/tests/test_expose_options.py"]
+		},
+		"single.app-calls": {
+			"status": "planned",
+			"note": "([#1513](https://github.com/lushly-dev/afd/issues/1513)); `apps` names no surface, so `COMMAND_NOT_FOUND` or `COMMAND_NOT_EXPOSED`",
+			"views": {
+				"app-calls": "([#1513](https://github.com/lushly-dev/afd/issues/1513)): `apps` names no surface yet, so calls return `COMMAND_NOT_FOUND` or `COMMAND_NOT_EXPOSED` rather than one `CALL_NOT_GRANTED`"
+			},
+			"issue": "#1513",
+			"evidence": ["python/tests/test_app_calls_vectors.py"]
+		},
+		"single.active-context": {
+			"status": "yes",
+			"note": "trusted transport-session stacks, depth 16; stateless HTTP mutation returns `SESSION_REQUIRED`",
+			"evidence": [
+				"python/src/afd/server/session_context.py",
+				"python/tests/test_session_context.py"
+			]
+		},
+		"single.in-process-context": {
+			"status": "partial",
+			"note": "local calls use a deliberate default scope; no per-call active context",
+			"evidence": ["python/src/afd/direct.py", "python/tests/test_direct_contracts.py"]
+		},
+		"single.metadata-stamping": {
+			"status": "yes",
+			"evidence": ["python/src/afd/server/factory.py", "python/tests/test_dispatch_vectors.py"]
+		},
+		"single.observer-hooks": {
+			"status": "no",
+			"note": "([#1551](https://github.com/lushly-dev/afd/issues/1551))",
+			"issue": "#1551",
+			"evidence": ["python/tests/test_dispatch_vectors.py"]
+		},
+		"single.exception-redaction": {
+			"status": "yes",
+			"note": "(`dev_mode` shows detail in the server, `create_command_registry`, `execute_pipeline` and `SimpleRegistry`)",
+			"evidence": ["python/tests/test_exception_redaction.py"]
+		},
+		"single.cancellation": {
+			"status": "partial",
+			"note": "DirectClient enforces positive finite millisecond deadlines; server per-command timeout remains deferred",
+			"evidence": ["python/src/afd/direct.py", "python/tests/test_execution_controls_vectors.py"]
+		},
+		"single.clock-random": {
+			"status": "yes",
+			"note": "(`fixed_clock`, `seeded_random`, same sequence)",
+			"evidence": ["python/src/afd/core/clock.py", "python/tests/test_context_primitives.py"]
+		},
+		"single.actor": {
+			"status": "yes",
+			"note": "MCP `agent`, `DirectClient` `human`, testing `test`; `SimpleRegistry` keyword-only `context` receives actor/clock/random (#431); never taken from caller `_meta`; with `auth`, verified `credentials.client_id` populates `actor.id` (#2154)",
+			"evidence": [
+				"python/src/afd/core/actor.py",
+				"python/src/afd/server/auth.py",
+				"python/tests/test_context_primitives.py"
+			]
+		},
+		"single.context-fields": {
+			"status": "yes",
+			"note": "`create_server(context_fields=...)`, `afd.server.ContextField`",
+			"views": {
+				"cf-decl": "`create_server` takes `context_fields` (`afd.server.ContextField`)",
+				"cf-journal": "`create_journal_middleware` and `replay_journal`"
+			},
+			"evidence": ["python/src/afd/server/context_fields.py", "python/tests/test_context_fields.py"]
+		},
+		"single.context-fields-mcp": {
+			"status": "yes",
+			"note": "both eras over Streamable HTTP, SSE and stdio; `server/discover` and `afd-help` (no AFD-native HTTP lanes)",
+			"views": {
+				"cf-mcp": "both eras over Streamable HTTP, SSE and stdio (no AFD-native HTTP lanes); `context_hook` wins; `server/discover` and `afd-help`"
+			},
+			"evidence": [
+				"python/src/afd/server/context_fields.py",
+				"python/tests/test_context_fields_mcp.py"
+			]
+		},
+		"single.output-budgets": {
+			"status": "yes",
+			"note": "([#1990](https://github.com/lushly-dev/afd/issues/1990), #2186): `OutputBudget`, `output_budget` on `CommandDefinition`/`define_command`/`@server.command`, in-process & MCP asks, post-handler check, batches/pipelines and journal `outputBudget`; `test_output_budget.py` runs `spec/output-budgets.json`",
+			"views": {
+				"command-metadata": "([#1990](https://github.com/lushly-dev/afd/issues/1990), #2186)",
+				"ob-b1": "(#1990)",
+				"ob-b4": "(#1990)",
+				"ob-b5": "(#1990)",
+				"ob-b7": "(#1990)",
+				"ob-b8": "(#1990)",
+				"ob-vectors": "(#1990: `python/tests/test_output_budget.py`)",
+				"pc-ob-b1": "(`test_output_budget.py`, `test_output_budget_mcp.py`, #1990)",
+				"pc-ob-b2": "(`test_output_budget.py`, `test_output_budget_mcp.py`, #1990: `asks`/`checks`/`batch` over Streamable HTTP and stdio in both eras, plus an initialized-session SSE test)",
+				"pc-ob-b7": "(`test_output_budget.py`, `test_output_budget_mcp.py`, #1990)"
+			},
+			"evidence": [
+				"python/src/afd/core/output_budget.py",
+				"python/tests/test_output_budget.py",
+				"python/tests/test_output_budget_mcp.py"
+			]
+		},
+		"single.journal-replay": {
+			"status": "yes",
+			"note": "([#425](https://github.com/lushly-dev/afd/issues/425)): `MemoryJournalSink`, `FileJournalSink`, `create_journal_middleware` and `replay_journal`; reads, writes and replays `spec/wire/journal.jsonl`",
+			"evidence": [
+				"python/src/afd/core/journal.py",
+				"python/src/afd/server/journal.py",
+				"python/tests/test_journal_wire.py"
+			]
+		},
+		"single.journal-range-last": {
+			"status": "planned",
+			"note": "([#1597](https://github.com/lushly-dev/afd/issues/1597))",
+			"issue": "#1597",
+			"evidence": ["python/src/afd/core/journal.py"]
+		},
+		"single.journal-append-order": {
+			"status": "yes",
+			"note": "with the built-in sinks: the digest is synchronous and nothing is awaited before `append`; a custom async sink that awaits before assigning `seq` could reorder",
+			"evidence": ["python/src/afd/server/journal.py"]
+		},
+		"middleware.chain": {
+			"status": "yes",
+			"evidence": ["python/src/afd/server/middleware.py", "python/tests/test_middleware.py"]
+		},
+		"middleware.default-bundle": {
+			"status": "yes",
+			"evidence": ["python/src/afd/server/middleware.py"]
+		},
+		"middleware.retry-ratelimit-telemetry": {
+			"status": "yes",
+			"evidence": ["python/src/afd/server/middleware.py"]
+		},
+		"middleware.tracing-compose": {
+			"status": "yes",
+			"evidence": ["python/src/afd/server/middleware.py"]
+		},
+		"middleware.auth": {
+			"status": "no",
+			"note": "(planned per D6)",
+			"evidence": ["docs/features/active/parity-closure/parity-closure.plan.md"]
+		},
+		"middleware.approval": {
+			"status": "yes",
+			"note": "(`create_approval_middleware`; tokens verify across languages)",
+			"views": {
+				"approvals": "(`create_approval_middleware`)"
+			},
+			"evidence": ["python/src/afd/server/approval.py", "python/tests/test_approval_vectors.py"]
+		},
+		"middleware.approval-fail-closed": {
+			"status": "yes",
+			"note": "(`create_server`, `create_direct_registry`; core's `create_command_registry` has no check; [#1886](https://github.com/lushly-dev/afd/issues/1886))",
+			"views": {
+				"approvals": "(`create_server`, `create_direct_registry`; `create_approval_middleware`'s `commands` is optional; [#1886](https://github.com/lushly-dev/afd/issues/1886))"
+			},
+			"evidence": [
+				"python/src/afd/server/approval_admission.py",
+				"python/tests/test_approval_fail_closed.py"
+			]
+		},
+		"middleware.direct-approval": {
+			"status": "yes",
+			"note": "(#460): `on_approval_needed`, validating `create_direct_registry`, private CLI `--module`/`--approve`",
+			"views": {
+				"approvals": "(`on_approval_needed`)"
+			},
+			"evidence": ["python/src/afd/core/direct_approval.py", "python/tests/test_direct_approval.py"]
+		},
+		"middleware.cli-approval": {
+			"status": "yes",
+			"note": "(`--approve` or interactive prompt)",
+			"evidence": ["python/tests/test_cli_direct_approval.py"]
+		},
+		"middleware.approval-relay": {
+			"status": "yes",
+			"note": "(#1312): `create_approval_middleware(relay=\"mcp-elicitation\")`; one SDK-sealed, principal-bound `requestState` per call with the confirmation's answers; in band on a 2025 stdio or stateful HTTP connection",
+			"views": {
+				"approvals": "(`create_approval_middleware(relay=\"mcp-elicitation\")`; one SDK-sealed, principal-bound `requestState` per call carries confirmation and approval answers; in band on 2025 stdio or stateful HTTP)"
+			},
+			"evidence": ["python/src/afd/server/approval_relay.py", "python/tests/test_approval_relay.py"]
+		},
+		"middleware.approver-client": {
+			"status": "planned",
+			"note": "([#1466](https://github.com/lushly-dev/afd/issues/1466))",
+			"views": {
+				"approver": "([#1466](https://github.com/lushly-dev/afd/issues/1466))"
+			},
+			"issue": "#1466",
+			"evidence": ["python/tests/test_approver_client_vectors.py"]
+		},
+		"middleware.approval-display": {
+			"status": "planned",
+			"note": "([#1466](https://github.com/lushly-dev/afd/issues/1466))",
+			"views": {
+				"display": "([#1466](https://github.com/lushly-dev/afd/issues/1466))"
+			},
+			"issue": "#1466",
+			"evidence": ["python/tests/test_approver_client_vectors.py"]
+		},
+		"middleware.up-front-approval": {
+			"status": "yes",
+			"note": "(#1312): on 2026-07-28 and in band on a 2025 stdio or stateful HTTP connection; `requestState` keeps each gated step's validated input, as in TypeScript",
+			"views": {
+				"approvals": "(on 2026-07-28 and in band on a 2025 stdio or stateful HTTP connection)"
+			},
+			"evidence": ["python/src/afd/server/approval_relay.py", "python/tests/test_approval_relay.py"]
+		},
+		"exec.batch": {
+			"status": "partial",
+			"note": "private `MCPServer._execute_batch`, with limits of 500 commands and parallelism 16; observed failure stops new starts and drains running work normally",
+			"evidence": [
+				"python/src/afd/server/batch_execution.py",
+				"python/tests/test_batch_controls_vectors.py"
+			]
+		},
+		"exec.pipeline-variables": {
+			"status": "yes",
+			"note": "(core)",
+			"evidence": [
+				"python/src/afd/core/pipeline_variables.py",
+				"python/tests/test_pipeline_vectors.py"
+			]
+		},
+		"exec.pipeline-when": {
+			"status": "yes",
+			"evidence": [
+				"python/src/afd/core/pipeline_variables.py",
+				"python/tests/test_pipeline_vectors.py"
+			]
+		},
+		"exec.pipeline-aggregation": {
+			"status": "yes",
+			"evidence": ["python/tests/test_batch_pipeline_aggregation.py"]
+		},
+		"exec.single-pipeline-engine": {
+			"status": "no",
+			"note": "core `execute_pipeline` and `DirectClient.pipe` differ in options and result shape ([#1535](https://github.com/lushly-dev/afd/issues/1535))",
+			"issue": "#1535",
+			"evidence": ["python/src/afd/direct_pipeline.py"]
+		},
+		"exec.stream-types": {
+			"status": "yes",
+			"evidence": ["python/src/afd/core/streaming.py", "python/tests/test_streaming.py"]
+		},
+		"exec.stream-executor": {
+			"status": "no",
+			"note": "([#1535](https://github.com/lushly-dev/afd/issues/1535))",
+			"issue": "#1535",
+			"evidence": ["python/src/afd/core/streaming.py"]
+		},
+		"exec.timeout-progress": {
+			"status": "yes",
+			"note": ", with a Pythonic shape: `TimeoutController` is a deadline, not an `AbortController`; `run()` bounds an await by the time left, with `remaining_ms` and `is_expired`",
+			"evidence": ["python/src/afd/core/streaming.py"]
+		},
+		"hts.handoff": {
+			"status": "yes",
+			"note": "(#545 candidate): fresh shared default policy",
+			"evidence": ["python/src/afd/core/handoff.py", "python/tests/test_handoff.py"]
+		},
+		"hts.handoff-client": {
+			"status": "yes",
+			"note": "(#545 candidate): metadata then shared default; explicit options win",
+			"evidence": ["python/src/afd/handoff_client.py", "python/tests/test_handoff_client.py"]
+		},
+		"hts.telemetry-types": {
+			"status": "partial",
+			"note": "the core event serializes snake_case, and the middleware defines a second copy",
+			"evidence": ["python/src/afd/core/telemetry.py", "python/tests/test_telemetry.py"]
+		},
+		"hts.telemetry-middleware": {
+			"status": "yes",
+			"evidence": ["python/src/afd/server/middleware.py", "python/tests/test_telemetry.py"]
+		},
+		"hts.similarity": {
+			"status": "yes",
+			"note": "(not exported from `afd`)",
+			"evidence": ["python/src/afd/core/similarity.py", "python/tests/test_similarity.py"]
+		},
+		"mcp.server-library": {
+			"status": "yes",
+			"note": "(`mcp` 2.x `MCPServer`)",
+			"evidence": ["python/src/afd/server/factory.py"]
+		},
+		"mcp.dual-era": {
+			"status": "yes",
+			"note": "stdio and Streamable HTTP",
+			"views": {
+				"pc-modern": "(`tests/test_mcp_modern_live.py`; runner)",
+				"pc-legacy": "(`tests/test_mcp_protocol_live.py` SSE and Streamable HTTP; runner `legacy`)"
+			},
+			"evidence": ["python/tests/test_mcp_modern_live.py", "python/tests/test_mcp_protocol_live.py"]
+		},
+		"mcp.streamable-http": {
+			"status": "yes",
+			"note": ", through `run`, `run_async` and `streamable_http_app`",
+			"evidence": ["python/src/afd/server/factory.py", "python/tests/test_mcp_modern_live.py"]
+		},
+		"mcp.modern-contexts": {
+			"status": "yes",
+			"views": {
+				"pc-modern-ctx": "(`test_mcp_modern_live.py`)"
+			},
+			"evidence": [
+				"python/src/afd/server/session_context.py",
+				"python/tests/test_mcp_modern_live.py"
+			]
+		},
+		"mcp.tool-fields": {
+			"status": "yes",
+			"note": "annotations (`mutation: true` only), `structuredContent` on every route's result, and top-level `outputSchema` on individual and hybrid first-class tools (`advertise_output_schema=False` opts out); #465",
+			"views": {
+				"cm-annotations": "(`mutation: true` only, with `destructive`; [#1741](https://github.com/lushly-dev/afd/issues/1741))",
+				"cm-structured": "(every tool result of every route, meta-tools, batch and pipeline included)",
+				"pc-annotations": "(`tests/test_tool_annotations.py`)",
+				"pc-structured": "(`tests/test_structured_content.py`: SDK client, success and failure)"
+			},
+			"evidence": [
+				"python/src/afd/server/tools.py",
+				"python/tests/test_tool_annotations.py",
+				"python/tests/test_structured_content.py"
+			]
+		},
+		"mcp.transport-context": {
+			"status": "yes",
+			"note": "([#800](https://github.com/lushly-dev/afd/issues/800), [#2154](https://github.com/lushly-dev/afd/issues/2154)): `create_server(context_hook=...)` receives `ContextHookRequest` and base `CommandContext` (with verified `credentials` when `auth` is configured; cannot change them); its actor binds `requestState` and its `extra` wins over `_meta` fields",
+			"evidence": ["python/src/afd/server/context_hook.py", "python/tests/test_context_hook.py"]
+		},
+		"mcp.auth.verification": {
+			"status": "yes",
+			"note": "([#2154](https://github.com/lushly-dev/afd/issues/2154)): `create_server(..., auth=McpAuthOptions(...))` ASGI bearer layer on `streamable_http_app` and `sse_app` (fail-closed M1, `trusted_transport()`, stdio unaffected); `JwtVerifier` (`cryptography`), `KeySource`, `create_introspection_verifier`, frozen redacted `credentials`, 401/403 builders, RFC 9728 metadata; loads `spec/authorization.json`",
+			"views": {
+				"auth-m1-m4": "([#2154](https://github.com/lushly-dev/afd/issues/2154); `create_server(auth=McpAuthOptions(...))`, `JwtVerifier` on `cryptography`, `KeySource`, `jwks_key_source`, `create_introspection_verifier`, `TokenVerifier`, `context.credentials`, `is_verified_credentials`)",
+				"auth-m5": "([#2154](https://github.com/lushly-dev/afd/issues/2154), [#2155](https://github.com/lushly-dev/afd/issues/2155); 401 and 403 sent; rule codes to `auth.on_refusal`)",
+				"auth-m7": "([#2154](https://github.com/lushly-dev/afd/issues/2154); `create_protected_resource`, `ProtectedResource`)"
+			},
+			"evidence": [
+				"python/src/afd/server/auth.py",
+				"python/tests/test_mcp_auth.py",
+				"python/tests/test_authorization_cases.py"
+			]
+		},
+		"mcp.auth.scopes": {
+			"status": "yes",
+			"note": "([#2155](https://github.com/lushly-dev/afd/issues/2155), #2193): command `scopes`, `required_scopes`, `ScopeResolver` (`resolve`, `visible`, `known`), pre-dispatch 403 and `INSUFFICIENT_SCOPE`, `filter_tools_by_scope` (`cacheScope: \"private\"`), hidden commands unknown on every route and `tasks/*`, `server.admit`, `server.pre_dispatch_check`, `ScopeChallenge`; loads `staticScopes` and `batches`",
+			"views": {
+				"command-metadata": "([#2155](https://github.com/lushly-dev/afd/issues/2155): `scopes` on `CommandDefinition`, `@define_command` and `@server.command`, checked at registration, in `_meta`, grouped `_meta.actions`, `afd-detail` and `afd-help`; enforced with `auth`)",
+				"auth-m6": "([#2155](https://github.com/lushly-dev/afd/issues/2155); `scopes`, `required_scopes`, `ScopeResolver`, `filter_tools_by_scope`, `static_decision`, `request_decision`)",
+				"auth-m6-host": "([#2155](https://github.com/lushly-dev/afd/issues/2155); `server.admit`, `server.pre_dispatch_check`, `PreDispatchCheck`, `ScopeChallenge`; `test_mcp_auth_scopes.py`)",
+				"auth-m6-hidden": "([#2155](https://github.com/lushly-dev/afd/issues/2155); `ScopeResolver.known`, `tasks/*` included; `test_mcp_auth_scopes.py`)"
+			},
+			"evidence": [
+				"python/src/afd/server/auth_scopes.py",
+				"python/src/afd/server/auth_dispatch.py",
+				"python/src/afd/server/auth_view.py",
+				"python/tests/test_mcp_auth_scopes.py"
+			]
+		},
+		"mcp.auth.combined": {
+			"status": "yes",
+			"note": "(`test_mcp_auth.py`, `test_auth_verifier.py`, `test_mcp_auth_scopes.py`, `test_authorization_cases.py`, [#2154](https://github.com/lushly-dev/afd/issues/2154), [#2155](https://github.com/lushly-dev/afd/issues/2155))",
+			"evidence": [
+				"python/tests/test_mcp_auth.py",
+				"python/tests/test_auth_verifier.py",
+				"python/tests/test_mcp_auth_scopes.py",
+				"python/tests/test_authorization_cases.py"
+			]
+		},
+		"mcp.confirmation-principal-binding": {
+			"status": "yes",
+			"note": "(step 0c, [#800](https://github.com/lushly-dev/afd/issues/800), [#2154](https://github.com/lushly-dev/afd/issues/2154)): the SDK seals the state and binds the call's actor and verified credentials (from AFD's `auth` layer when configured, else the SDK token); a mismatch is `-32602`, as tampering is; incomplete token identity is an internal error",
+			"views": {
+				"command-metadata": "(step 0c, [#800](https://github.com/lushly-dev/afd/issues/800), [#2154](https://github.com/lushly-dev/afd/issues/2154)): the hook's actor (or server `actor`) and verified credentials (AFD `auth` or SDK token), through the SDK's `bind_principal`; a mismatch is `-32602` as tampering is",
+				"auth-m8": "(step 0c, [#800](https://github.com/lushly-dev/afd/issues/800), [#2154](https://github.com/lushly-dev/afd/issues/2154); `afd.server.principal_binding`, with AFD's verified credentials or the SDK token; loads `principalBindings`)",
+				"pc-m8": "(`test_principal_binding.py`, `test_mcp_auth.py`, step 0c)"
+			},
+			"evidence": ["python/src/afd/server/principal.py", "python/tests/test_principal_binding.py"]
+		},
+		"mcp.host-verified-confirmation": {
+			"status": "planned",
+			"note": "(specified in `spec/command-metadata.md`)",
+			"views": {
+				"approvals": "",
+				"command-metadata": "",
+				"pc-hv": ""
+			},
+			"evidence": ["spec/command-metadata.md"]
+		},
+		"mcp.tasks": {
+			"status": "yes",
+			"note": "([#1972](https://github.com/lushly-dev/afd/issues/1972)): `task: TaskSupport`, `TaskStore`, `InMemoryTaskStore`, `TaskOptions`, `tasks/*` (`mcp` 2.x `Extension`), `McpClient(McpClientConfig(tasks=True))`, todo `--suite tasks`",
+			"views": {
+				"command-metadata": "([#1972](https://github.com/lushly-dev/afd/issues/1972): `TaskSupport`, `TaskStore`, `InMemoryTaskStore` (32/owner, 256 total), `task_store`/`task_options`, `CommandContext.report_progress`/`cancel`, `McpClient(McpClientConfig(tasks=True))`; `test_tasks.py`, `test_tasks_client.py`, todo `--suite tasks`)",
+				"pc-tasks": "(`python/tests/test_tasks.py`, `test_tasks_client.py`, todo `--suite tasks`; [#1972](https://github.com/lushly-dev/afd/issues/1972))"
+			},
+			"evidence": [
+				"python/src/afd/server/tasks.py",
+				"python/tests/test_tasks.py",
+				"python/tests/test_tasks_client.py"
+			]
+		},
+		"mcp.auth.tasks": {
+			"status": "yes",
+			"note": "([#1972](https://github.com/lushly-dev/afd/issues/1972), [#2154](https://github.com/lushly-dev/afd/issues/2154), [#2155](https://github.com/lushly-dev/afd/issues/2155)): `tasks/*` fail closed, require `required_scopes`, bind AFD verified credentials as owner, stop at `credentials.expires_at`, preserve cloned verified credentials and `ScopeView`, enforce command scopes and hidden commands on `tasks/get` and `tasks/update` (not `tasks/cancel`)",
+			"evidence": [
+				"python/src/afd/server/tasks_runtime.py",
+				"python/tests/test_mcp_auth.py",
+				"python/tests/test_mcp_auth_scopes.py",
+				"python/tests/test_tasks.py"
+			]
+		},
+		"mcp.tool-strategies": {
+			"status": "yes",
+			"note": "(default `grouped`; the #533 lists, with `meta-tools.json`'s definitions)",
+			"views": {
+				"pc-strategies": "(`test_mcp_server_tools.py`, `test_mcp_unknown_tools.py`)"
+			},
+			"evidence": ["python/src/afd/server/tools.py", "python/tests/test_mcp_server_tools.py"]
+		},
+		"mcp.strategy-hybrid": {
+			"status": "yes",
+			"note": "(`first_class_tools`)",
+			"views": {
+				"command-metadata": "",
+				"pc-hybrid-order": "(`test_tool_strategies_vectors.py`, `test_mcp_protocol_live.py`, `test_mcp_modern_live.py`)",
+				"pc-hybrid-ctx": "(`test_tool_strategies_vectors.py`, `test_mcp_modern_live.py`)",
+				"pc-hybrid-scope": "(`test_tool_strategies_vectors.py`, `test_mcp_protocol_live.py`, `test_mcp_modern_live.py`)"
+			},
+			"evidence": [
+				"python/src/afd/server/first_class.py",
+				"python/tests/test_tool_strategies_vectors.py"
+			]
+		},
+		"mcp.resources": {
+			"status": "yes",
+			"note": "([#1981](https://github.com/lushly-dev/afd/issues/1981): `resources` option on `create_server`, Streamable HTTP and stdio in both eras; unused `prompts` and opt-out `resources` capabilities removed)",
+			"views": {
+				"res-core": "(`resources` option; Streamable HTTP and stdio, both eras; #1981)",
+				"res-vectors": "(`tests/test_resources.py` and `test_tool_meta.py`, over Streamable HTTP and stdio; #1981)",
+				"pc-res": "(`tests/test_resources.py`, Streamable HTTP and stdio, both eras; #1981)"
+			},
+			"evidence": ["python/src/afd/server/resources.py", "python/tests/test_resources.py"]
+		},
+		"mcp.skills": {
+			"status": "yes",
+			"note": "([#1981](https://github.com/lushly-dev/afd/issues/1981): `skills=SkillCatalog(...)`, `skill_from_directory`, optional `directory_read`; YAML 1.2 core frontmatter via `pyyaml`)",
+			"views": {
+				"res-skills": "(`skills=SkillCatalog`, `skill_from_directory`, optional `directory_read`; #1981)",
+				"pc-skills": "(`tests/test_resources.py`, loads `mcp-resources.json`; #1981)"
+			},
+			"evidence": [
+				"python/src/afd/server/skills.py",
+				"python/src/afd/server/frontmatter.py",
+				"python/tests/test_skills.py",
+				"python/tests/test_resources.py"
+			]
+		},
+		"mcp.tool-meta": {
+			"status": "yes",
+			"note": "([#1981](https://github.com/lushly-dev/afd/issues/1981): `tool_meta` on `@server.command`/`define_command`/`CommandDefinition`, refused at definition and registration under the key rule)",
+			"views": {
+				"command-metadata": "(`tool_meta`, `advertised_input_schema`; #1981)",
+				"res-meta": "(`tool_meta` on `@server.command`/`define_command`/`CommandDefinition`; #1981)",
+				"pc-meta": "(`tests/test_tool_meta.py`, key rule, strategies, `afd-detail`; #1981)"
+			},
+			"evidence": ["python/src/afd/core/meta_keys.py", "python/tests/test_tool_meta.py"]
+		},
+		"mcp.advertised-schema": {
+			"status": "yes",
+			"note": "([#1981](https://github.com/lushly-dev/afd/issues/1981): `advertised_input_schema` on `@server.command`/`define_command`/`CommandDefinition`; `input_schema` still validates)",
+			"views": {
+				"res-adv": "(`advertised_input_schema`; #1981)",
+				"pc-adv": "(`tests/test_tool_meta.py`; #1981)"
+			},
+			"evidence": ["python/src/afd/core/commands.py", "python/tests/test_tool_meta.py"]
+		},
+		"mcp.raw-json-schema": {
+			"status": "yes",
+			"note": "`input_schema` takes a JSON Schema dict as well as a Pydantic model",
+			"evidence": ["python/src/afd/server/decorators.py"]
+		},
+		"mcp.output-budgets": {
+			"status": "yes",
+			"note": "([#1990](https://github.com/lushly-dev/afd/issues/1990), #2186): `_meta[\"dev.afd/outputBudget\"]` on individual and hybrid first-class tools, grouped `_meta.actions`, `afd-detail`, `afd-help` (`full`) and `afd-docs`; per-call ask in `tools/call` `_meta` and meta-tools' `meta` over Streamable HTTP and stdio in both eras, plus initialized SSE",
+			"views": {
+				"ob-b2": "(#1990)"
+			},
+			"evidence": ["python/src/afd/core/output_budget.py", "python/tests/test_output_budget_mcp.py"]
+		},
+		"mcp.meta-tools": {
+			"status": "yes",
+			"evidence": ["python/src/afd/server/lazy_tools.py", "python/tests/test_mcp_server_tools.py"]
+		},
+		"mcp.meta-argument": {
+			"status": "yes",
+			"note": "every transport, both eras",
+			"evidence": ["python/src/afd/server/meta_argument.py", "python/tests/test_meta_argument.py"]
+		},
+		"mcp.bootstrap": {
+			"status": "yes",
+			"note": ", opt-in (`bootstrap=True`, #542)",
+			"evidence": ["python/tests/test_bootstrap.py"]
+		},
+		"mcp.context-tools": {
+			"status": "yes",
+			"note": "backed by trusted transport sessions, with a deliberate local/default scope",
+			"evidence": ["python/src/afd/server/session_context.py"]
+		},
+		"mcp.http-hardening": {
+			"status": "yes",
+			"note": "SDK `transport_security` defaults (foreign `Origin` refused); body cap through `max_request_body_size`",
+			"views": {
+				"pc-origin": "(SDK `transport_security` default)"
+			},
+			"evidence": ["python/tests/test_server_hardening.py"]
+		},
+		"mcp.jsonrpc-types": {
+			"status": "partial",
+			"note": "Pythonic names; no notification type or error-code constants",
+			"evidence": ["python/src/afd/core/mcp_types.py", "python/tests/test_mcp_types.py"]
+		},
+		"pc.version-negotiation": {
+			"status": "yes",
+			"note": "(SDK behaviour, `mcp` 2.x)",
+			"evidence": ["python/tests/test_mcp_modern_live.py"]
+		},
+		"pc.header-mismatch": {
+			"status": "yes",
+			"note": "(SDK behaviour)",
+			"evidence": ["python/tests/test_mcp_modern_live.py"]
+		},
+		"pc.get-405": {
+			"status": "partial",
+			"note": "not asserted (the SDK's 2025 stateless lane opens an SSE stream)",
+			"evidence": ["python/tests/test_mcp_modern_live.py"]
+		},
+		"pc.d4-hiding": {
+			"status": "yes",
+			"note": "(`test_mcp_modern_live.py`, `test_mcp_protocol_live.py`; runner)",
+			"evidence": ["python/tests/test_mcp_modern_live.py", "python/tests/test_mcp_protocol_live.py"]
+		},
+		"pc.legacy-context-stacks": {
+			"status": "yes",
+			"note": "(`test_mcp_protocol_live.py`)",
+			"evidence": ["python/tests/test_mcp_protocol_live.py"]
+		},
+		"pc.cache-hints": {
+			"status": "yes",
+			"note": "(`test_mcp_modern_live.py`)",
+			"evidence": ["python/tests/test_mcp_modern_live.py"]
+		},
+		"pc.client-negotiation": {
+			"status": "yes",
+			"note": "(`test_mcp_modern_live.py`)",
+			"evidence": ["python/tests/test_mcp_modern_live.py"]
+		},
+		"tooling.mcp-client": {
+			"status": "partial",
+			"note": "`StreamableHttpTransport` (`mcp.Client`, `protocol_mode`) by default; reconnect refreshes discovery without replaying calls; `stream` needs a server with `/stream` (#548). Deprecated `http` sends no session ID (see Intended differences)",
+			"evidence": ["python/src/afd/client.py", "python/src/afd/client_stream.py"]
+		},
+		"tooling.browser-transport": {
+			"status": "na",
+			"evidence": ["docs/language-parity.md"]
+		},
+		"tooling.direct-client": {
+			"status": "yes",
+			"note": "(#545 candidate): validating `create_direct_registry` enforces exposure; fail-closed `allow` (carried into nested calls), ordered middleware and millisecond deadlines on `DirectClient`; legacy registries remain host adapters",
+			"evidence": ["python/src/afd/direct.py", "python/tests/test_direct_contracts.py"]
+		},
+		"tooling.direct-interface": {
+			"status": "yes",
+			"note": "(`DirectCommandRegistry(server, interface=...)`)",
+			"evidence": ["python/src/afd/direct.py"]
+		},
+		"tooling.cli": {
+			"status": "partial",
+			"note": "`batch` and `stream` take TypeScript's arguments (#548); `call` and `shell` take JSON or `key=value`, and commands send `-H`/`AFD_HEADERS` (#1822); connection is `--server`; `stream` needs `/stream`. No `scenario`",
+			"evidence": ["python/src/afd/cli/main.py", "python/tests/test_cli.py"]
+		},
+		"tooling.auth-adapter": {
+			"status": "no",
+			"note": "(planned per D6)",
+			"evidence": ["docs/features/active/parity-closure/parity-closure.plan.md"]
+		},
+		"tooling.testing": {
+			"status": "yes",
+			"evidence": ["python/tests/test_scenarios.py", "python/tests/test_surface_rules.py"]
+		},
+		"tooling.ui-packages": {
+			"status": "na",
+			"evidence": ["docs/language-parity.md"]
+		},
+		"tooling.browser-stores": {
+			"status": "na",
+			"evidence": ["docs/language-parity.md"]
+		},
+		"tooling.platform-connectors": {
+			"status": "yes",
+			"evidence": ["python/src/afd/platform.py", "python/tests/test_platform.py"]
+		},
+		"single.context-fields-meta-delivery": {
+			"status": "yes",
+			"note": "(`test_context_fields_mcp.py`: Streamable HTTP, stdio and SSE, both eras)",
+			"evidence": [
+				"python/src/afd/server/context_fields.py",
+				"python/tests/test_context_fields_mcp.py"
+			]
+		},
+		"single.context-fields-discovery": {
+			"status": "yes",
+			"note": "(`test_context_fields_mcp.py`)",
+			"evidence": [
+				"python/src/afd/server/context_fields.py",
+				"python/tests/test_context_fields_mcp.py"
+			]
+		}
+	}
+}

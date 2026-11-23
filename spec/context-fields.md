@@ -104,9 +104,11 @@ Other tools take no `meta` argument: a command's own input keeps a `meta` proper
 
 ## Status
 
+<!-- generated:capabilities:spec.context-fields.status:start -->
 | Language | Declaration and in-process values | Journal | `_meta` delivery and discovery |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | TypeScript | `createMcpServer`, `createMcpHandler` and `createDirectRegistry` take `contextFields` | Recording middleware and `replayJournal` | Yes: both eras over Streamable HTTP and stdio, `/message`, `/rpc`, `/batch` and `/stream`; `server/discover` and `afd-help` |
 | Python | `create_server` takes `context_fields` (`afd.server.ContextField`) | `create_journal_middleware` and `replay_journal` | Yes: both eras over Streamable HTTP, SSE and stdio (no AFD-native HTTP lanes); `context_hook` wins; `server/discover` and `afd-help` |
 | Rust | `CommandRegistry::set_context_fields` (`afd::context_fields::ContextField`, JSON Schema) | The registry's journal recorder and `replay_journal` | Yes: both eras over Streamable HTTP and stdio; the context hook wins; `server/discover` and `afd-help` |
-| C++ | `CommandRegistryOptions::context_fields` and `CommandRegistry::create`, which reports a bad declaration | `create_journal_middleware` and `replay_journal` | `afd-help` (`register_bootstrap_commands`) lists them; `afd::mcp_stdio` does not read them from `_meta` or list them in `server/discover` |
+| C++ | `CommandRegistryOptions::context_fields` and `CommandRegistry::create`, which reports a bad declaration | `create_journal_middleware` and `replay_journal` | Partial: `afd-help` (`register_bootstrap_commands`) lists them; `afd::mcp_stdio` does not read them from `_meta` or list them in `server/discover` |
+<!-- generated:capabilities:spec.context-fields.status:end -->

@@ -1,0 +1,1239 @@
+{
+	"languages": [
+		{
+			"id": "typescript",
+			"displayName": "TypeScript"
+		},
+		{
+			"id": "python",
+			"displayName": "Python"
+		},
+		{
+			"id": "rust",
+			"displayName": "Rust"
+		},
+		{
+			"id": "cpp",
+			"displayName": "C++"
+		}
+	],
+	"capabilities": [
+		{
+			"id": "wire.command-result",
+			"label": "`CommandResult`, `CommandError`, metadata shapes (camelCase, unset omitted)"
+		},
+		{
+			"id": "wire.metadata-types",
+			"label": "`Warning`, `Source`, `PlanStep`, `Alternative`"
+		},
+		{
+			"id": "wire.error-codes",
+			"label": "`ErrorCodes` and `ERROR_CODE_CATALOG`: 50 shared codes (33 core + 17 profile) with `{ code, retryable, profile }` and `HOST_` prefix ([`spec/error-codes.md`](../spec/error-codes.md)), checked against `spec/vectors/error-codes.json` (#1740)"
+		},
+		{
+			"id": "wire.result-constructors",
+			"label": "`success` / `failure` / `error` constructors"
+		},
+		{
+			"id": "wire.result-guards",
+			"label": "`isSuccess` / `isFailure` test only `success`"
+		},
+		{
+			"id": "command.core-metadata",
+			"label": "Core metadata: name, description, category, tags, version, mutation, requires, contexts, expose, handoff, examples, executionTime"
+		},
+		{
+			"id": "command.title",
+			"label": "`title`, the MCP tool `title` ([`spec/command-metadata.md`](../spec/command-metadata.md#tool-titles), #466)"
+		},
+		{
+			"id": "command.safety-flags",
+			"label": "`destructive`, `confirmPrompt`, `undoable` ([`spec/command-metadata.md`](../spec/command-metadata.md))"
+		},
+		{
+			"id": "command.approval-policy",
+			"label": "`approval` policy, `_meta.approval` ([`spec/command-metadata.md`](../spec/command-metadata.md#approvals), #272)"
+		},
+		{
+			"id": "command.confirmations",
+			"label": "`confirmPrompt` enforcement ([`spec/command-metadata.md`](../spec/command-metadata.md#confirmations))"
+		},
+		{
+			"id": "command.kebab-names",
+			"label": "Kebab-case name rule"
+		},
+		{
+			"id": "command.reserved-names",
+			"label": "Duplicate and reserved names"
+		},
+		{
+			"id": "command.input-validation",
+			"label": "Input validated before the handler ([`spec/validation.md`](../spec/validation.md))"
+		},
+		{
+			"id": "command.examples-validated",
+			"label": "Examples validated at definition"
+		},
+		{
+			"id": "command.output-schema",
+			"label": "Output schema advertised (`_meta.outputSchema` and top-level `outputSchema`)"
+		},
+		{
+			"id": "command.to-mcp-tool",
+			"label": "Command to MCP tool with `_meta`"
+		},
+		{
+			"id": "single.dispatch-order",
+			"label": "Dispatch order: lookup, context, validation, middleware, handler, stamp, `onCommand`"
+		},
+		{
+			"id": "single.did-you-mean",
+			"label": "\"Did you mean\" on an unknown command"
+		},
+		{
+			"id": "single.exposure",
+			"label": "Exposure enforced"
+		},
+		{
+			"id": "single.app-calls",
+			"label": "App-to-app calls ([`spec/command-metadata.md`](../spec/command-metadata.md#app-to-app-calls), Loam phase 5 step 0b, D30): `expose.apps`, the `apps` interface and a host grant check, with one `CALL_NOT_GRANTED` before lookup"
+		},
+		{
+			"id": "single.active-context",
+			"label": "Active-context scoping"
+		},
+		{
+			"id": "single.in-process-context",
+			"label": "In-process context scoping and tool surface ([browser-safe direct registry](features/complete/browser-direct-registry/proposal.md), part 3)"
+		},
+		{
+			"id": "single.metadata-stamping",
+			"label": "Result metadata stamped (`executionTimeMs`, `commandVersion`, `traceId`)"
+		},
+		{
+			"id": "single.observer-hooks",
+			"label": "`onCommand` / `onError` hooks"
+		},
+		{
+			"id": "single.exception-redaction",
+			"label": "A thrown error becomes a redacted `COMMAND_EXECUTION_ERROR`"
+		},
+		{
+			"id": "single.cancellation",
+			"label": "Cancellation and deadlines"
+		},
+		{
+			"id": "single.clock-random",
+			"label": "`context.clock` and `context.random` (#274): injectable, `fixedClock`, `seededRandom`"
+		},
+		{
+			"id": "single.actor",
+			"label": "`context.actor` (#271), filled per surface; `metadata.actorKind`"
+		},
+		{
+			"id": "single.context-fields",
+			"label": "Declared context fields ([`spec/context-fields.md`](../spec/context-fields.md), #528): declaration checks, validation of in-process values, journal `context` and `contextOmitted`, replay restore"
+		},
+		{
+			"id": "single.context-fields-mcp",
+			"label": "`_meta` delivery and discovery of declared context fields"
+		},
+		{
+			"id": "single.context-fields-meta-delivery",
+			"label": "`tools/call` `_meta` delivery of declared context fields"
+		},
+		{
+			"id": "single.context-fields-discovery",
+			"label": "`server/discover` and `afd-help` discovery of declared context fields"
+		},
+		{
+			"id": "single.output-budgets",
+			"label": "Output budgets ([`spec/output-budgets.md`](../spec/output-budgets.md), Umbel D64): `outputBudget` declaration, effective budget in the context, post-handler check (`OUTPUT_BUDGET_EXCEEDED` on reads, warning on mutations), report, batches/pipelines and journal"
+		},
+		{
+			"id": "single.journal-replay",
+			"label": "Command journal and replay (#273): `JournalEntry`, memory and file sinks, recording middleware, `replayJournal` with tape-restored clock and random ([`spec/journal.md`](../spec/journal.md))"
+		},
+		{
+			"id": "single.journal-range-last",
+			"label": "`JournalRange.last` (#663): `read({ last: n })`, at most `n` entries from the end of the range, in `seq` order; a `RangeError` for one that is not a safe integer, 0 or more"
+		},
+		{
+			"id": "single.journal-append-order",
+			"label": "Journal append order for concurrent calls (#1650): entries appear in the order calls finished, whatever the sink's latency"
+		},
+		{
+			"id": "middleware.chain",
+			"label": "Middleware chain"
+		},
+		{
+			"id": "middleware.default-bundle",
+			"label": "`defaultMiddleware()`: trace ID, logging, timing"
+		},
+		{
+			"id": "middleware.retry-ratelimit-telemetry",
+			"label": "Retry, rate limit, telemetry"
+		},
+		{
+			"id": "middleware.tracing-compose",
+			"label": "Tracing (OpenTelemetry-shaped), `composeMiddleware`"
+		},
+		{
+			"id": "middleware.auth",
+			"label": "Auth middleware"
+		},
+		{
+			"id": "middleware.approval",
+			"label": "Approval middleware (`APPROVAL_REQUIRED`, signed tokens)"
+		},
+		{
+			"id": "middleware.approval-fail-closed",
+			"label": "Declared approval policy held without the middleware (`APPROVAL_UNAVAILABLE`, [`spec/command-metadata.md`](../spec/command-metadata.md#approvals))"
+		},
+		{
+			"id": "middleware.direct-approval",
+			"label": "Private DirectClient/registry approval exchange"
+		},
+		{
+			"id": "middleware.cli-approval",
+			"label": "CLI approval flow (`afd call --module`, in-process only)"
+		},
+		{
+			"id": "middleware.approval-relay",
+			"label": "Approval relay over MCP (form elicitation, #418)"
+		},
+		{
+			"id": "middleware.approver-client",
+			"label": "Approval evidence from an approver client ([`spec/command-metadata.md`](../spec/command-metadata.md#approval-evidence-from-an-approver-client), Loam phase 5 step 0c): a server-named approver gets `details.approvalToken`, never a form, and carries it back in `_meta[\"dev.afd/approval\"]` on one command; its tokens bind its principal binding; the key in tool arguments is refused"
+		},
+		{
+			"id": "middleware.approval-display",
+			"label": "Approval display rules ([`spec/command-metadata.md`](../spec/command-metadata.md#approval-display), D150): what a person must be able to read before approving"
+		},
+		{
+			"id": "middleware.up-front-approval",
+			"label": "Up-front approval of `afd-batch` and `afd-pipe` over the form relay (#459): one question for every gated step before any runs; a pipeline whose gated step reads an earlier step runs nothing (`input-not-known`). Approved steps run on the validated input shown up front (#1414)"
+		},
+		{
+			"id": "exec.batch",
+			"label": "Batch executor with the reference defaults (`stopOnError` false, parallelism 1, whole-batch deadline)"
+		},
+		{
+			"id": "exec.pipeline-variables",
+			"label": "Pipeline variables per `spec/pipeline-variables.md`: `$prev`, `$first`, `$steps`, `$input`, `$$`, the `__` guard, caps of 64 and 1024"
+		},
+		{
+			"id": "exec.pipeline-when",
+			"label": "`when` conditions"
+		},
+		{
+			"id": "exec.pipeline-aggregation",
+			"label": "Pipeline aggregation (confidence, reasoning, warnings, sources, alternatives)"
+		},
+		{
+			"id": "exec.single-pipeline-engine",
+			"label": "One pipeline engine"
+		},
+		{
+			"id": "exec.stream-types",
+			"label": "Stream chunk types, `consumeStream`, `collectStreamData`"
+		},
+		{
+			"id": "exec.stream-executor",
+			"label": "Stream executor"
+		},
+		{
+			"id": "exec.timeout-progress",
+			"label": "Timeout controller, progress-with-steps helpers"
+		},
+		{
+			"id": "hts.handoff",
+			"label": "`HandoffResult`, `createHandoff`, default reconnect policy (3 attempts, 1000 ms)"
+		},
+		{
+			"id": "hts.handoff-client",
+			"label": "Handoff client: WebSocket and SSE handlers, reconnect"
+		},
+		{
+			"id": "hts.telemetry-types",
+			"label": "`TelemetryEvent`, `TelemetrySink`"
+		},
+		{
+			"id": "hts.telemetry-middleware",
+			"label": "Telemetry middleware"
+		},
+		{
+			"id": "hts.similarity",
+			"label": "`calculateSimilarity`, `findSimilarTools` (128 cap, 0.4 threshold)"
+		},
+		{
+			"id": "mcp.server-library",
+			"label": "MCP server in the library"
+		},
+		{
+			"id": "mcp.dual-era",
+			"label": "MCP 2026-07-28 (stateless, per-request `_meta`, `server/discover`) and 2025 `initialize` on one endpoint or connection"
+		},
+		{
+			"id": "mcp.streamable-http",
+			"label": "MCP Streamable HTTP"
+		},
+		{
+			"id": "mcp.modern-contexts",
+			"label": "Contexts as request input (`_meta[\"dev.afd/context\"]`) on the modern era"
+		},
+		{
+			"id": "mcp.tool-fields",
+			"label": "MCP tool fields: annotations, `structuredContent`, CommandResult `outputSchema` ([`spec/command-metadata.md`](../spec/command-metadata.md#mcp-tool-fields-mcp-2026-07-28-tool-surface))"
+		},
+		{
+			"id": "mcp.transport-context",
+			"label": "Per-request context from the transport (actor and credentials) ([MCP authorization proposal](features/active/mcp-authorization/mcp-authorization.proposal.md))"
+		},
+		{
+			"id": "mcp.auth.verification",
+			"label": "MCP authorization: verification, credentials, 401 and metadata ([`spec/authorization.md`](../spec/authorization.md), M1–M5, M7)"
+		},
+		{
+			"id": "mcp.auth.scopes",
+			"label": "MCP authorization: scopes, resolver, 403 and hidden commands ([`spec/authorization.md`](../spec/authorization.md), M6)"
+		},
+		{
+			"id": "mcp.auth.combined",
+			"label": "MCP authorization ([`authorization.md`](./authorization.md), M1 to M7): no token → 401 with `resource_metadata`; each token rule → 401 and nothing runs; both RFC 9728 URLs serve one document; a missing scope on `tools/call`, `afd-call` or any `afd-batch` step → one 403 naming every missing scope before dispatch; `tools/list` filtered with `cacheScope: \"private\"`; no handler sees the token; stdio unchanged"
+		},
+		{
+			"id": "mcp.confirmation-principal-binding",
+			"label": "Confirmation and approval-relay `requestState` bound to the principal ([#532](https://github.com/lushly-dev/afd/issues/532); [`spec/command-metadata.md`](../spec/command-metadata.md#confirmations))"
+		},
+		{
+			"id": "mcp.host-verified-confirmation",
+			"label": "Host-verified confirmation mode, `HumanRelay` and relay evidence ([`spec/command-metadata.md`](../spec/command-metadata.md#host-verified-confirmation))"
+		},
+		{
+			"id": "mcp.tasks",
+			"label": "MCP Tasks ([`spec/command-metadata.md`](../spec/command-metadata.md#tasks)): `task`, `TaskStore`, `tasks/get`, `tasks/update` and `tasks/cancel` with an owner check"
+		},
+		{
+			"id": "mcp.auth.tasks",
+			"label": "`tasks/*` and task owners ([M6, other methods](#other-methods); M8; [tasks](./command-metadata.md#tasks))"
+		},
+		{
+			"id": "mcp.tool-strategies",
+			"label": "Tool strategies: individual, grouped, lazy ([`spec/tool-strategies.md`](../spec/tool-strategies.md)): the five meta-tools first, in the hybrid order; lazy adds the context tools (#533)"
+		},
+		{
+			"id": "mcp.strategy-hybrid",
+			"label": "Tool strategy: hybrid ([`spec/tool-strategies.md`](../spec/tool-strategies.md#hybrid)): meta-tools, context tools, then at most 8 first-class tools; `afd-help` reports `toolStrategy`"
+		},
+		{
+			"id": "mcp.resources",
+			"label": "MCP resources ([`spec/mcp-resources.md`](../spec/mcp-resources.md#resources)): `resources/list` and `resources/read` from a provider, digests in `_meta[\"dev.afd/digest\"]`"
+		},
+		{
+			"id": "mcp.skills",
+			"label": "Skills over MCP extension ([`spec/mcp-resources.md`](../spec/mcp-resources.md#skills)): `io.modelcontextprotocol/skills`, `skills/list`, `skills/get`, skill files as resources"
+		},
+		{
+			"id": "mcp.tool-meta",
+			"label": "Extra tool `_meta` (`toolMeta`, [`spec/mcp-resources.md`](../spec/mcp-resources.md#tool-_meta)): reverse-DNS keys or MCP Apps' `ui` on a command's tool and in `afd-detail`"
+		},
+		{
+			"id": "mcp.advertised-schema",
+			"label": "Advertised and validation schemas ([`spec/mcp-resources.md`](../spec/mcp-resources.md#advertised-and-validation-schemas))"
+		},
+		{
+			"id": "mcp.raw-json-schema",
+			"label": "A command whose JSON Schema is written out, with nothing converted at run time"
+		},
+		{
+			"id": "mcp.output-budgets",
+			"label": "Output budgets over MCP ([`spec/output-budgets.md`](../spec/output-budgets.md#b2-the-ask)): `_meta[\"dev.afd/outputBudget\"]` on budgeted tools and in `afd-detail`; the per-call ask in `tools/call` `_meta` and the meta-tools' `meta`"
+		},
+		{
+			"id": "mcp.meta-tools",
+			"label": "Meta-tools: `afd-call`, `afd-batch`, `afd-pipe`, `afd-discover`, `afd-detail`"
+		},
+		{
+			"id": "mcp.meta-argument",
+			"label": "The meta-tools' `meta` argument: `dev.afd/context` and declared fields for clients that cannot set `_meta` ([`spec/context-fields.md`](../spec/context-fields.md#clients-that-cannot-set-_meta), #466)"
+		},
+		{
+			"id": "mcp.bootstrap",
+			"label": "Bootstrap: `afd-help`, `afd-docs`, `afd-schema`"
+		},
+		{
+			"id": "mcp.context-tools",
+			"label": "Context tools: `afd-context-list`, `-enter`, `-exit`"
+		},
+		{
+			"id": "mcp.http-hardening",
+			"label": "HTTP hardening: Host/Origin checks, body cap"
+		},
+		{
+			"id": "mcp.jsonrpc-types",
+			"label": "MCP JSON-RPC types and helpers"
+		},
+		{
+			"id": "pc.version-negotiation",
+			"label": "Unsupported version → `-32022` with `data.supported`; missing `clientCapabilities` → `-32602`"
+		},
+		{
+			"id": "pc.header-mismatch",
+			"label": "Header/body mismatch or missing `Mcp-Name` → 400, `-32020`"
+		},
+		{
+			"id": "pc.get-405",
+			"label": "`GET` on the endpoint → 405"
+		},
+		{
+			"id": "pc.d4-hiding",
+			"label": "Only MCP-exposed commands listed; unknown and private tools → `COMMAND_NOT_FOUND` tool result"
+		},
+		{
+			"id": "pc.legacy-context-stacks",
+			"label": "Legacy sessions keep separate context stacks"
+		},
+		{
+			"id": "pc.cache-hints",
+			"label": "`tools/list` and `server/discover` cache hints (`ttlMs`, `cacheScope`)"
+		},
+		{
+			"id": "pc.client-negotiation",
+			"label": "AFD client negotiates each mode against an AFD server"
+		},
+		{
+			"id": "tooling.mcp-client",
+			"label": "MCP client: call, batch, pipe, stream"
+		},
+		{
+			"id": "tooling.browser-transport",
+			"label": "Browser-safe MCP transport (`StreamableHttpTransport` at `@lushly-dev/afd-client/streamable-http`, with no Node.js builtin or `eventsource` of ours and a 340,000-byte budget; Loam phase 1 step 0a)"
+		},
+		{
+			"id": "tooling.direct-client",
+			"label": "In-process client (`DirectClient`) with `allow`, exposure, timeout, `pipe`"
+		},
+		{
+			"id": "tooling.direct-interface",
+			"label": "`DirectClient` interface selection (the interface calls run as, default `agent`, so a CLI host calls CLI-exposed commands)"
+		},
+		{
+			"id": "tooling.cli",
+			"label": "CLI"
+		},
+		{
+			"id": "tooling.auth-adapter",
+			"label": "Auth adapter"
+		},
+		{
+			"id": "tooling.testing",
+			"label": "Testing: JTBD scenarios, surface validation (13 rules), assertions"
+		},
+		{
+			"id": "tooling.ui-packages",
+			"label": "UI: view-state, adapters, local-db, React hooks"
+		},
+		{
+			"id": "tooling.browser-stores",
+			"label": "Browser stores: `IndexedDbAdapter` (`@lushly-dev/local-db/indexeddb`) with the adapter contract suite (`@lushly-dev/local-db/testing`), and `IndexedDbJournalSink` with its Web Lock writer rule (`@lushly-dev/afd-core/journal-indexeddb`)"
+		},
+		{
+			"id": "tooling.platform-connectors",
+			"label": "Platform utilities and connectors (exec, GitHub, package manager)"
+		}
+	],
+	"tables": [
+		{
+			"id": "parity.wire",
+			"file": "docs/language-parity.md",
+			"firstColumn": "Capability",
+			"rows": [
+				{
+					"capability": "wire.command-result"
+				},
+				{
+					"capability": "wire.metadata-types"
+				},
+				{
+					"capability": "wire.error-codes"
+				},
+				{
+					"capability": "wire.result-constructors"
+				},
+				{
+					"capability": "wire.result-guards"
+				}
+			]
+		},
+		{
+			"id": "parity.command-definition",
+			"file": "docs/language-parity.md",
+			"firstColumn": "Capability",
+			"rows": [
+				{
+					"capability": "command.core-metadata"
+				},
+				{
+					"capability": "command.title"
+				},
+				{
+					"capability": "command.safety-flags"
+				},
+				{
+					"capability": "command.approval-policy"
+				},
+				{
+					"capability": "command.confirmations"
+				},
+				{
+					"capability": "command.kebab-names"
+				},
+				{
+					"capability": "command.reserved-names"
+				},
+				{
+					"capability": "command.input-validation"
+				},
+				{
+					"capability": "command.examples-validated"
+				},
+				{
+					"capability": "command.output-schema"
+				},
+				{
+					"capability": "command.to-mcp-tool"
+				}
+			]
+		},
+		{
+			"id": "parity.single-command",
+			"file": "docs/language-parity.md",
+			"firstColumn": "Capability",
+			"rows": [
+				{
+					"capability": "single.dispatch-order"
+				},
+				{
+					"capability": "single.did-you-mean"
+				},
+				{
+					"capability": "single.exposure"
+				},
+				{
+					"capability": "single.app-calls"
+				},
+				{
+					"capability": "single.active-context"
+				},
+				{
+					"capability": "single.in-process-context"
+				},
+				{
+					"capability": "single.metadata-stamping"
+				},
+				{
+					"capability": "single.observer-hooks"
+				},
+				{
+					"capability": "single.exception-redaction"
+				},
+				{
+					"capability": "single.cancellation"
+				},
+				{
+					"capability": "single.clock-random"
+				},
+				{
+					"capability": "single.actor"
+				},
+				{
+					"capability": "single.context-fields"
+				},
+				{
+					"capability": "single.context-fields-mcp"
+				},
+				{
+					"capability": "single.output-budgets"
+				},
+				{
+					"capability": "single.journal-replay"
+				},
+				{
+					"capability": "single.journal-range-last"
+				},
+				{
+					"capability": "single.journal-append-order"
+				}
+			]
+		},
+		{
+			"id": "parity.middleware",
+			"file": "docs/language-parity.md",
+			"firstColumn": "Capability",
+			"rows": [
+				{
+					"capability": "middleware.chain"
+				},
+				{
+					"capability": "middleware.default-bundle"
+				},
+				{
+					"capability": "middleware.retry-ratelimit-telemetry"
+				},
+				{
+					"capability": "middleware.tracing-compose"
+				},
+				{
+					"capability": "middleware.auth"
+				},
+				{
+					"capability": "middleware.approval"
+				},
+				{
+					"capability": "middleware.approval-fail-closed"
+				},
+				{
+					"capability": "middleware.direct-approval"
+				},
+				{
+					"capability": "middleware.approval-relay"
+				},
+				{
+					"capability": "middleware.approver-client"
+				},
+				{
+					"capability": "middleware.approval-display"
+				},
+				{
+					"capability": "middleware.up-front-approval"
+				}
+			]
+		},
+		{
+			"id": "parity.batch-pipeline-stream",
+			"file": "docs/language-parity.md",
+			"firstColumn": "Capability",
+			"rows": [
+				{
+					"capability": "exec.batch"
+				},
+				{
+					"capability": "exec.pipeline-variables"
+				},
+				{
+					"capability": "exec.pipeline-when"
+				},
+				{
+					"capability": "exec.pipeline-aggregation"
+				},
+				{
+					"capability": "exec.single-pipeline-engine"
+				},
+				{
+					"capability": "exec.stream-types"
+				},
+				{
+					"capability": "exec.stream-executor"
+				},
+				{
+					"capability": "exec.timeout-progress"
+				}
+			]
+		},
+		{
+			"id": "parity.handoff-telemetry-similarity",
+			"file": "docs/language-parity.md",
+			"firstColumn": "Capability",
+			"rows": [
+				{
+					"capability": "hts.handoff"
+				},
+				{
+					"capability": "hts.handoff-client"
+				},
+				{
+					"capability": "hts.telemetry-types"
+				},
+				{
+					"capability": "hts.telemetry-middleware"
+				},
+				{
+					"capability": "hts.similarity"
+				}
+			]
+		},
+		{
+			"id": "parity.mcp-server",
+			"file": "docs/language-parity.md",
+			"firstColumn": "Capability",
+			"rows": [
+				{
+					"capability": "mcp.server-library"
+				},
+				{
+					"capability": "mcp.dual-era"
+				},
+				{
+					"capability": "mcp.streamable-http"
+				},
+				{
+					"capability": "mcp.modern-contexts"
+				},
+				{
+					"capability": "mcp.tool-fields"
+				},
+				{
+					"capability": "mcp.transport-context"
+				},
+				{
+					"capability": "mcp.auth.verification"
+				},
+				{
+					"capability": "mcp.auth.scopes"
+				},
+				{
+					"capability": "mcp.confirmation-principal-binding"
+				},
+				{
+					"capability": "mcp.host-verified-confirmation"
+				},
+				{
+					"capability": "mcp.tasks"
+				},
+				{
+					"capability": "mcp.tool-strategies"
+				},
+				{
+					"capability": "mcp.strategy-hybrid"
+				},
+				{
+					"capability": "mcp.resources"
+				},
+				{
+					"capability": "mcp.skills"
+				},
+				{
+					"capability": "mcp.tool-meta"
+				},
+				{
+					"capability": "mcp.advertised-schema"
+				},
+				{
+					"capability": "mcp.raw-json-schema"
+				},
+				{
+					"capability": "mcp.output-budgets"
+				},
+				{
+					"capability": "mcp.meta-tools"
+				},
+				{
+					"capability": "mcp.meta-argument"
+				},
+				{
+					"capability": "mcp.bootstrap"
+				},
+				{
+					"capability": "mcp.context-tools"
+				},
+				{
+					"capability": "mcp.http-hardening"
+				},
+				{
+					"capability": "mcp.jsonrpc-types"
+				}
+			]
+		},
+		{
+			"id": "parity.clients-tooling",
+			"file": "docs/language-parity.md",
+			"firstColumn": "Capability",
+			"rows": [
+				{
+					"capability": "tooling.mcp-client"
+				},
+				{
+					"capability": "tooling.browser-transport"
+				},
+				{
+					"capability": "tooling.direct-client"
+				},
+				{
+					"capability": "tooling.direct-interface"
+				},
+				{
+					"capability": "tooling.cli"
+				},
+				{
+					"capability": "tooling.auth-adapter"
+				},
+				{
+					"capability": "tooling.testing"
+				},
+				{
+					"capability": "tooling.ui-packages"
+				},
+				{
+					"capability": "tooling.browser-stores"
+				},
+				{
+					"capability": "tooling.platform-connectors"
+				}
+			]
+		},
+		{
+			"id": "spec.command-metadata.approvals",
+			"file": "spec/command-metadata.md",
+			"firstColumn": "",
+			"rows": [
+				{
+					"capability": "command.approval-policy",
+					"label": "`approval` field and `_meta.approval`",
+					"view": "approvals"
+				},
+				{
+					"capability": "middleware.approval",
+					"label": "Approval middleware",
+					"view": "approvals"
+				},
+				{
+					"capability": "middleware.approval-fail-closed",
+					"label": "Declared policy held without the middleware (`APPROVAL_UNAVAILABLE`)",
+					"view": "approvals"
+				},
+				{
+					"capability": "middleware.direct-approval",
+					"label": "DirectClient approval hook and private exchange",
+					"view": "approvals"
+				},
+				{
+					"capability": "middleware.cli-approval",
+					"label": "CLI approval flow (`afd call --module`, in-process only)"
+				},
+				{
+					"capability": "middleware.approval-relay",
+					"label": "MCP relay (form elicitation)",
+					"view": "approvals"
+				},
+				{
+					"capability": "middleware.up-front-approval",
+					"label": "Up-front approval of `afd-batch` and `afd-pipe` (#459)",
+					"view": "approvals"
+				},
+				{
+					"capability": "mcp.host-verified-confirmation",
+					"label": "Relay evidence from a `HumanRelay` ([below](#relay-evidence))",
+					"view": "approvals"
+				}
+			]
+		},
+		{
+			"id": "spec.command-metadata.approver",
+			"file": "spec/command-metadata.md",
+			"firstColumn": "",
+			"rows": [
+				{
+					"capability": "middleware.approver-client",
+					"label": "Approver carrier (rules 1 to 5)",
+					"view": "approver"
+				}
+			]
+		},
+		{
+			"id": "spec.command-metadata.approval-display",
+			"file": "spec/command-metadata.md",
+			"firstColumn": "",
+			"rows": [
+				{
+					"capability": "middleware.approval-display",
+					"label": "Display rules",
+					"view": "display"
+				}
+			]
+		},
+		{
+			"id": "spec.command-metadata.app-calls",
+			"file": "spec/command-metadata.md",
+			"firstColumn": "",
+			"rows": [
+				{
+					"capability": "single.app-calls",
+					"label": "App-to-app calls (`expose.apps`, `apps` interface, `CALL_NOT_GRANTED`)",
+					"view": "app-calls"
+				}
+			]
+		},
+		{
+			"id": "spec.command-metadata.tool-fields",
+			"file": "spec/command-metadata.md",
+			"firstColumn": "",
+			"rows": [
+				{
+					"capability": "command.title",
+					"label": "Tool `title`",
+					"view": "command-metadata"
+				},
+				{
+					"capability": "mcp.tool-fields",
+					"label": "Annotations",
+					"view": "cm-annotations"
+				},
+				{
+					"capability": "command.confirmations",
+					"label": "Confirmations",
+					"view": "command-metadata"
+				},
+				{
+					"capability": "mcp.tool-fields",
+					"label": "`structuredContent`",
+					"view": "cm-structured"
+				},
+				{
+					"capability": "command.output-schema",
+					"label": "Top-level `outputSchema`",
+					"view": "command-metadata"
+				},
+				{
+					"capability": "mcp.tool-meta",
+					"label": "`toolMeta` and the advertised schema ([`mcp-resources.md`](./mcp-resources.md))",
+					"view": "command-metadata"
+				},
+				{
+					"capability": "single.output-budgets",
+					"label": "`outputBudget` and the check after the handler ([`output-budgets.md`](./output-budgets.md))",
+					"view": "command-metadata"
+				},
+				{
+					"capability": "mcp.strategy-hybrid",
+					"label": "Hybrid first-class tools: command tools with these fields, `confirm` and the single-command approval relay ([tool strategies](./tool-strategies.md#hybrid))",
+					"view": "command-metadata"
+				},
+				{
+					"capability": "mcp.auth.scopes",
+					"label": "`scopes` and its surfaces ([Scopes](#scopes))",
+					"view": "command-metadata"
+				},
+				{
+					"capability": "mcp.confirmation-principal-binding",
+					"label": "Confirmation state bound to the principal ([#532](https://github.com/lushly-dev/afd/issues/532))",
+					"view": "command-metadata"
+				},
+				{
+					"capability": "mcp.host-verified-confirmation",
+					"label": "`confirmationMode: \"host-verified\"` and `HumanRelay` ([Host-verified confirmation](#host-verified-confirmation))",
+					"view": "command-metadata"
+				},
+				{
+					"capability": "mcp.tasks",
+					"label": "`task`, `TaskStore` and the `tasks/*` handlers ([Tasks](#tasks))",
+					"view": "command-metadata"
+				}
+			]
+		},
+		{
+			"id": "spec.protocol-conformance.acceptance",
+			"file": "spec/protocol-conformance.md",
+			"firstColumn": "Criterion",
+			"rows": [
+				{
+					"capability": "mcp.dual-era",
+					"label": "Modern requests served without `initialize`; `server/discover` describes the server",
+					"view": "pc-modern"
+				},
+				{
+					"capability": "mcp.dual-era",
+					"label": "Legacy `initialize` clients served on the same endpoint or connection",
+					"view": "pc-legacy"
+				},
+				{
+					"capability": "pc.version-negotiation"
+				},
+				{
+					"capability": "pc.header-mismatch"
+				},
+				{
+					"capability": "pc.get-405"
+				},
+				{
+					"capability": "mcp.http-hardening",
+					"label": "Host and Origin validation before the SDK",
+					"view": "pc-origin"
+				},
+				{
+					"capability": "pc.d4-hiding"
+				},
+				{
+					"capability": "mcp.modern-contexts",
+					"label": "Contexts are request input on the modern era (`_meta[\"dev.afd/context\"]`), never stored",
+					"view": "pc-modern-ctx"
+				},
+				{
+					"capability": "pc.legacy-context-stacks"
+				},
+				{
+					"capability": "mcp.tool-strategies",
+					"label": "Tool strategies ([`tool-strategies.md`](./tool-strategies.md)) and meta-tools: the same tool lists, definitions, routing, D4 hiding, confirmations and approval on every route",
+					"view": "pc-strategies"
+				},
+				{
+					"capability": "mcp.strategy-hybrid",
+					"label": "Hybrid strategy: `tools/list` is the five meta-tools, then the context tools when contexts are configured, then the first-class tools in configured order ([H3](./tool-strategies.md#h3-the-tool-list-and-its-order)); each first-class tool equals its individual tool",
+					"view": "pc-hybrid-order"
+				},
+				{
+					"capability": "mcp.strategy-hybrid",
+					"label": "Hybrid strategy with contexts: `tools/list` identical with and without `_meta[\"dev.afd/context\"]`, with `ttlMs` 300,000 by default ([H4](./tool-strategies.md#h4-contexts-a-fixed-list-scoped-calls), [H6](./tool-strategies.md#h6-cache-hints-and-listchanged))",
+					"view": "pc-hybrid-ctx"
+				},
+				{
+					"capability": "mcp.strategy-hybrid",
+					"label": "Hybrid strategy: a first-class tool called outside the active context → `COMMAND_NOT_IN_CONTEXT` tool result ([H4](./tool-strategies.md#h4-contexts-a-fixed-list-scoped-calls))",
+					"view": "pc-hybrid-scope"
+				},
+				{
+					"capability": "single.context-fields-meta-delivery",
+					"label": "Declared context fields ([`context-fields.md`](./context-fields.md)): `tools/call` `_meta` values reach the handler on both eras; undeclared keys dropped; an invalid value is a `VALIDATION_ERROR` tool result naming the field; `createContext` wins; `tools/list` unchanged"
+				},
+				{
+					"capability": "single.context-fields-discovery",
+					"label": "`server/discover` lists declared context fields under `_meta[\"dev.afd/context-fields\"]`; `afd-help` returns them as `contextFields`"
+				},
+				{
+					"capability": "mcp.resources",
+					"label": "Resources ([`mcp-resources.md`](./mcp-resources.md), R1 to R6): `resources` declared only with a provider or catalog; `resources/list` in a stable order, one page, unchanged by `_meta[\"dev.afd/context\"]`, with `ttlMs` and `cacheScope` on the result; an unknown `resources/read` URI → `-32602` with `data.uri` on both eras; a modern `resources/read` without `Mcp-Name` → 400, `-32020`",
+					"view": "pc-res"
+				},
+				{
+					"capability": "mcp.skills",
+					"label": "Skills extension (S1 to S6): `extensions[\"io.modelcontextprotocol/skills\"]` declared; `skills/list`, `skills/get` and the skill files as resources equal [`mcp-resources.json`](./mcp-resources.json); an unknown `skills/get` URI → `-32602`",
+					"view": "pc-skills"
+				},
+				{
+					"capability": "mcp.tool-meta",
+					"label": "Extra tool `_meta` (T1 to T3): a command's `toolMeta` on its individual and hybrid first-class tool and in `afd-detail`; refused keys fail registration",
+					"view": "pc-meta"
+				},
+				{
+					"capability": "mcp.advertised-schema",
+					"label": "Advertised and validation schemas (V1, V2): tools list the advertised schema; calls are validated against the other",
+					"view": "pc-adv"
+				},
+				{
+					"capability": "single.output-budgets",
+					"label": "Output budgets ([`output-budgets.md`](./output-budgets.md), B1): a budgeted command's tool carries `_meta[\"dev.afd/outputBudget\"]` = `{ defaultBytes, maxBytes }` on individual and hybrid first-class tools and in grouped action entries; `afd-detail` returns `outputBudget`",
+					"view": "pc-ob-b1"
+				},
+				{
+					"capability": "single.output-budgets",
+					"label": "Output budgets (B2 to B6): `tools/call` `_meta[\"dev.afd/outputBudget\"]` and `afd-call`'s `meta` reach the handler as the effective budget on both eras; an invalid ask → `VALIDATION_ERROR` tool result naming the key; an over-budget read → `OUTPUT_BUDGET_EXCEEDED` tool result with `isError: true`; a mutation keeps its result with the warning; `tools/list` unchanged by an ask",
+					"view": "pc-ob-b2"
+				},
+				{
+					"capability": "single.output-budgets",
+					"label": "Output budgets per item (B7): one `afd-batch` ask checks each item against its own command's budget",
+					"view": "pc-ob-b7"
+				},
+				{
+					"capability": "mcp.auth.combined"
+				},
+				{
+					"capability": "mcp.confirmation-principal-binding",
+					"label": "Confirmation `requestState` presented by another principal ([#532](https://github.com/lushly-dev/afd/issues/532)) is refused as tampered",
+					"view": "pc-m8"
+				},
+				{
+					"capability": "mcp.host-verified-confirmation",
+					"label": "Host-verified confirmation: no form, no acknowledgement, a URL-mode `input_required` from the `HumanRelay`, pending retries, relay evidence accepted once with tokens off",
+					"view": "pc-hv"
+				},
+				{
+					"capability": "mcp.tasks",
+					"label": "Tasks: `-32021` for `task: \"required\"` without the extension; the record durable before `CreateTaskResult`; another principal's `tasks/get` answers as an unknown id",
+					"view": "pc-tasks"
+				},
+				{
+					"capability": "pc.cache-hints"
+				},
+				{
+					"capability": "mcp.tool-fields",
+					"label": "MCP annotations from command metadata",
+					"view": "pc-annotations"
+				},
+				{
+					"capability": "mcp.tool-fields",
+					"label": "`structuredContent` validated against the CommandResult `outputSchema`",
+					"view": "pc-structured"
+				},
+				{
+					"capability": "pc.client-negotiation"
+				}
+			]
+		},
+		{
+			"id": "spec.authorization.status",
+			"file": "spec/authorization.md",
+			"firstColumn": "Rule",
+			"rows": [
+				{
+					"capability": "mcp.auth.verification",
+					"label": "Bearer token, verification, audience, credentials (M1 to M4)",
+					"view": "auth-m1-m4"
+				},
+				{
+					"capability": "mcp.auth.verification",
+					"label": "401 and 403, rule codes (M5)",
+					"view": "auth-m5"
+				},
+				{
+					"capability": "mcp.auth.scopes",
+					"label": "Static scopes, the resolver, the 403 before dispatch, `INSUFFICIENT_SCOPE`, listing (M6)",
+					"view": "auth-m6"
+				},
+				{
+					"capability": "mcp.auth.scopes",
+					"label": "[A host's own layer](#before-dispatch-the-403) running the decision before dispatch (M6)",
+					"view": "auth-m6-host"
+				},
+				{
+					"capability": "mcp.auth.scopes",
+					"label": "[Hidden commands](#hidden-commands) (M6): unknown on every route before validation, `resolve` never asked about them, decided once per request, `requires` filtered, `tasks/*`",
+					"view": "auth-m6-hidden"
+				},
+				{
+					"capability": "mcp.auth.verification",
+					"label": "Protected-resource metadata (M7)",
+					"view": "auth-m7"
+				},
+				{
+					"capability": "mcp.confirmation-principal-binding",
+					"label": "The principal binding in confirmation state ([#532](https://github.com/lushly-dev/afd/issues/532), M8)",
+					"view": "auth-m8"
+				},
+				{
+					"capability": "mcp.auth.tasks"
+				}
+			]
+		},
+		{
+			"id": "spec.mcp-resources.status",
+			"file": "spec/mcp-resources.md",
+			"firstColumn": "Rule",
+			"rows": [
+				{
+					"capability": "mcp.resources",
+					"label": "Resources (R1 to R6)",
+					"view": "res-core"
+				},
+				{
+					"capability": "mcp.skills",
+					"label": "Skills extension (S1 to S6)",
+					"view": "res-skills"
+				},
+				{
+					"capability": "mcp.tool-meta",
+					"label": "Extra tool `_meta` (T1 to T3)",
+					"view": "res-meta"
+				},
+				{
+					"capability": "mcp.advertised-schema",
+					"label": "Advertised and validation schemas (V1, V2)",
+					"view": "res-adv"
+				},
+				{
+					"capability": "mcp.resources",
+					"label": "Loads [`mcp-resources.json`](./mcp-resources.json)",
+					"view": "res-vectors"
+				}
+			]
+		},
+		{
+			"id": "spec.output-budgets.status",
+			"file": "spec/output-budgets.md",
+			"firstColumn": "Rule",
+			"rows": [
+				{
+					"capability": "single.output-budgets",
+					"label": "Declaration and its surfaces (B1)",
+					"view": "ob-b1"
+				},
+				{
+					"capability": "mcp.output-budgets",
+					"label": "The ask over MCP and in process (B2, B3)",
+					"view": "ob-b2"
+				},
+				{
+					"capability": "single.output-budgets",
+					"label": "Effective budget in the context (B4)",
+					"view": "ob-b4"
+				},
+				{
+					"capability": "single.output-budgets",
+					"label": "Check, replacement, warning and report (B5, B6)",
+					"view": "ob-b5"
+				},
+				{
+					"capability": "single.output-budgets",
+					"label": "Batches and pipelines (B7)",
+					"view": "ob-b7"
+				},
+				{
+					"capability": "single.output-budgets",
+					"label": "Journal and replay (B8)",
+					"view": "ob-b8"
+				},
+				{
+					"capability": "single.output-budgets",
+					"label": "Loads [`output-budgets.json`](./output-budgets.json)",
+					"view": "ob-vectors"
+				}
+			]
+		},
+		{
+			"id": "spec.context-fields.status",
+			"file": "spec/context-fields.md",
+			"layout": "by-language",
+			"firstColumn": "Language",
+			"columns": [
+				{
+					"header": "Declaration and in-process values",
+					"capability": "single.context-fields",
+					"field": "view",
+					"view": "cf-decl"
+				},
+				{
+					"header": "Journal",
+					"capability": "single.context-fields",
+					"field": "view",
+					"view": "cf-journal"
+				},
+				{
+					"header": "`_meta` delivery and discovery",
+					"capability": "single.context-fields-mcp",
+					"field": "status",
+					"view": "cf-mcp"
+				}
+			]
+		},
+		{
+			"id": "spec.dispatch.conformance",
+			"file": "spec/dispatch.md",
+			"layout": "by-language",
+			"firstColumn": "Language",
+			"columns": [
+				{
+					"header": "Suite",
+					"capability": "single.dispatch-order",
+					"field": "evidence",
+					"view": "dispatch-suite"
+				},
+				{
+					"header": "Known gaps in `dispatch.json`",
+					"capability": "single.dispatch-order",
+					"field": "view",
+					"view": "dispatch-gaps"
+				}
+			]
+		}
+	]
+}

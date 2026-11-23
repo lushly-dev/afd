@@ -388,13 +388,15 @@ Cache hints and `resultType` are not part of the expected results; R3 and S3 sta
 
 ## Implementation status
 
+<!-- generated:capabilities:spec.mcp-resources.status:start -->
 | Rule | TypeScript | Python | Rust | C++ |
 | --- | --- | --- | --- | --- |
 | Resources (R1 to R6) | Yes (`resources` option; `/mcp` and stdio, not the deprecated `/sse` lane) | Yes (`resources` option; Streamable HTTP and stdio, both eras; #1981) | Yes (Umbel phase 1 step 0b; per-caller `list_for`/`read_for` and `"private"` `cacheScope` under `server-auth`, #1880) | Planned |
 | Skills extension (S1 to S6) | Yes (`skills: SkillCatalog`) | Yes (`skills=SkillCatalog`, `skill_from_directory`, optional `directory_read`; #1981) | Yes (step 0b) | Planned |
 | Extra tool `_meta` (T1 to T3) | Yes (`defineCommand({ toolMeta })`) | Yes (`tool_meta` on `@server.command`/`define_command`/`CommandDefinition`; #1981) | Yes (step 0b) | Planned |
 | Advertised and validation schemas (V1, V2) | Yes (`advertisedInputSchema`) | Yes (`advertised_input_schema`; #1981) | Yes (step 0b) | Planned |
-| Loads [`mcp-resources.json`](./mcp-resources.json) | Yes (`resources.test.ts`, over Streamable HTTP and stdio) | Yes (`tests/test_resources.py` and `test_tool_meta.py`, over Streamable HTTP and stdio; #1981) | Yes (step 0b) | Planned |
+| Loads [`mcp-resources.json`](./mcp-resources.json) | Yes (`resources.test.ts`, over Streamable HTTP and stdio) | Yes (`tests/test_resources.py` and `test_tool_meta.py`, over Streamable HTTP and stdio; #1981) | Yes (step 0b: `tests/server_resources.rs`) | Planned |
+<!-- generated:capabilities:spec.mcp-resources.status:end -->
 
 Today Rust (`packages/rust`, Umbel phase 1 step 0b), TypeScript (`packages/server`, #615) and Python
 (`python/`, #1981) serve resources,

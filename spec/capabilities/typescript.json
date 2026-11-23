@@ -1,0 +1,742 @@
+{
+	"language": "typescript",
+	"displayName": "TypeScript",
+	"capabilities": {
+		"wire.command-result": {
+			"status": "yes",
+			"evidence": ["packages/core/src/result.ts", "spec/wire"]
+		},
+		"wire.metadata-types": {
+			"status": "yes",
+			"evidence": ["packages/core/src/metadata.ts"]
+		},
+		"wire.error-codes": {
+			"status": "yes",
+			"evidence": ["packages/core/src/error-catalog.ts", "spec/vectors/error-codes.json"]
+		},
+		"wire.result-constructors": {
+			"status": "yes",
+			"evidence": ["packages/core/src/result.ts"]
+		},
+		"wire.result-guards": {
+			"status": "yes",
+			"evidence": ["packages/core/src/result.ts"]
+		},
+		"command.core-metadata": {
+			"status": "yes",
+			"evidence": ["packages/core/src/commands.ts", "packages/server/src/define-core.ts"]
+		},
+		"command.title": {
+			"status": "yes",
+			"note": "on core `CommandDefinition` and `defineCommand`; command tools, the meta-tools' fixed titles, afd-detail, afd-help (full), `listCommands()`",
+			"views": {
+				"command-metadata": ""
+			},
+			"evidence": ["packages/core/src/commands.ts", "packages/server/src/define-core.ts"]
+		},
+		"command.safety-flags": {
+			"status": "yes",
+			"note": "on core `CommandDefinition` and `defineCommand`; `_meta` has `destructive` and `undoable`, afd-detail all three",
+			"evidence": ["packages/core/src/command-metadata.ts", "packages/server/src/define-core.ts"]
+		},
+		"command.approval-policy": {
+			"status": "yes",
+			"note": "on core `CommandDefinition` and `defineCommand`; `_meta`, afd-detail and afd-docs",
+			"views": {
+				"approvals": ""
+			},
+			"evidence": ["packages/core/src/approval.ts", "packages/server/src/approval-metadata.test.ts"]
+		},
+		"command.confirmations": {
+			"status": "yes",
+			"note": "`confirmations` server option, elicitation on `/mcp` and stdio, acknowledgement fallback; client `onElicitation`, CLI prompt",
+			"views": {
+				"command-metadata": "(`confirmations`, `confirmationKey`; client `onElicitation`, CLI prompt)"
+			},
+			"evidence": [
+				"packages/server/src/confirmation-gate.ts",
+				"packages/server/src/confirmations.test.ts"
+			]
+		},
+		"command.kebab-names": {
+			"status": "yes",
+			"note": "warns in `defineCommand`",
+			"evidence": [
+				"packages/server/src/define-core.ts",
+				"packages/server/src/command-names.test.ts"
+			]
+		},
+		"command.reserved-names": {
+			"status": "yes",
+			"note": "throws for meta-tools, and for bootstrap and context names when enabled",
+			"evidence": [
+				"packages/server/src/command-names.ts",
+				"packages/server/src/command-names.test.ts"
+			]
+		},
+		"command.input-validation": {
+			"status": "yes",
+			"note": "Zod",
+			"evidence": ["packages/server/src/validation.ts", "spec/vectors/validation.json"]
+		},
+		"command.examples-validated": {
+			"status": "yes",
+			"evidence": ["packages/server/src/define-core.ts", "packages/server/src/define-core.test.ts"]
+		},
+		"command.output-schema": {
+			"status": "yes",
+			"note": "`_meta.outputSchema` and top-level `outputSchema` (`advertiseOutputSchema`)",
+			"views": {
+				"command-metadata": "(`advertiseOutputSchema`)"
+			},
+			"evidence": [
+				"packages/core/src/command-metadata.ts",
+				"packages/server/src/tools.ts",
+				"spec/vectors/output-schema.json"
+			]
+		},
+		"command.to-mcp-tool": {
+			"status": "yes",
+			"evidence": ["packages/core/src/command-metadata.ts", "packages/server/src/tools.ts"]
+		},
+		"single.dispatch-order": {
+			"status": "yes",
+			"note": "reference",
+			"views": {
+				"dispatch-suite": "`packages/server/src/dispatch-vectors.test.ts`",
+				"dispatch-gaps": "None"
+			},
+			"evidence": [
+				"packages/server/src/execution.ts",
+				"packages/server/src/dispatch-vectors.test.ts"
+			]
+		},
+		"single.did-you-mean": {
+			"status": "yes",
+			"evidence": ["packages/core/src/similarity.ts", "packages/server/src/execution.ts"]
+		},
+		"single.exposure": {
+			"status": "yes",
+			"note": "the remote engine holds only MCP-exposed commands",
+			"evidence": [
+				"packages/server/src/execution.ts",
+				"packages/server/src/command-routing.test.ts"
+			]
+		},
+		"single.app-calls": {
+			"status": "yes",
+			"note": "(`createCommandRegistry({ callGrant })`, `createAppCallRegistry`)",
+			"views": {
+				"app-calls": "(`ExposeOptions.apps`, `createCommandRegistry({ callGrant })` and `createAppCallRegistry` in `@lushly-dev/afd-server` and `/direct`)"
+			},
+			"evidence": [
+				"packages/core/src/app-calls.ts",
+				"packages/server/src/app-call-registry.ts",
+				"packages/server/src/app-calls-vectors.test.ts"
+			]
+		},
+		"single.active-context": {
+			"status": "yes",
+			"note": "a stack per session, depth 16",
+			"evidence": [
+				"packages/server/src/context-scope.ts",
+				"packages/server/src/context-scope.test.ts"
+			]
+		},
+		"single.in-process-context": {
+			"status": "yes",
+			"note": "`createDirectRegistry({ contexts })` takes `activeContext` per call (`DirectClient` `activeContext`), never as registry state; `tools: createDirectToolSurface()` mirrors the MCP server tool list and routes meta-tools",
+			"evidence": [
+				"packages/server/src/direct-registry.ts",
+				"packages/server/src/direct-tool-surface.ts",
+				"packages/server/src/direct-registry-contexts.test.ts"
+			]
+		},
+		"single.metadata-stamping": {
+			"status": "yes",
+			"evidence": [
+				"packages/server/src/execution.ts",
+				"packages/server/src/dispatch-vectors.test.ts"
+			]
+		},
+		"single.observer-hooks": {
+			"status": "yes",
+			"evidence": [
+				"packages/server/src/execution.ts",
+				"packages/server/src/dispatch-vectors.test.ts"
+			]
+		},
+		"single.exception-redaction": {
+			"status": "yes",
+			"note": "(`devMode` shows detail)",
+			"evidence": ["packages/server/src/execution.ts"]
+		},
+		"single.cancellation": {
+			"status": "yes",
+			"note": "`AbortSignal`; DirectClient and the server engine enforce positive finite `context.timeout` millisecond deadlines, returning `TIMEOUT` and aborting the signal (#543)",
+			"evidence": [
+				"packages/server/src/command-timeout.ts",
+				"packages/server/src/command-timeout.test.ts",
+				"packages/server/src/execution-controls-vectors.test.ts"
+			]
+		},
+		"single.clock-random": {
+			"status": "yes",
+			"evidence": ["packages/core/src/clock.ts"]
+		},
+		"single.actor": {
+			"status": "yes",
+			"evidence": ["packages/core/src/actor.ts"]
+		},
+		"single.context-fields": {
+			"status": "yes",
+			"note": "`contextFields` on `createMcpServer`, `createMcpHandler` and `createDirectRegistry`",
+			"views": {
+				"cf-decl": "`createMcpServer`, `createMcpHandler` and `createDirectRegistry` take `contextFields`",
+				"cf-journal": "Recording middleware and `replayJournal`"
+			},
+			"evidence": [
+				"packages/server/src/context-fields.ts",
+				"packages/server/src/context-fields.test.ts"
+			]
+		},
+		"single.context-fields-mcp": {
+			"status": "yes",
+			"note": "both eras over Streamable HTTP and stdio, the AFD HTTP lanes, `server/discover` and `afd-help`",
+			"views": {
+				"cf-mcp": "both eras over Streamable HTTP and stdio, `/message`, `/rpc`, `/batch` and `/stream`; `server/discover` and `afd-help`"
+			},
+			"evidence": [
+				"packages/server/src/context-fields-describe.ts",
+				"packages/server/src/context-fields-mcp.test.ts"
+			]
+		},
+		"single.output-budgets": {
+			"status": "yes",
+			"note": "([#1989](https://github.com/lushly-dev/afd/issues/1989), #2215): `OutputBudget`, `outputBudget` on `CommandDefinition`/`defineCommand`, `runHandler`, `DirectClient`, batches/pipelines and journal `outputBudget`; `output-budget.test.ts` runs `spec/output-budgets.json`",
+			"views": {
+				"command-metadata": "(`outputBudget`, #1989)",
+				"ob-b1": "(#1989)",
+				"ob-b4": "(#1989)",
+				"ob-b5": "(#1989)",
+				"ob-b7": "(#1989)",
+				"ob-b8": "(#1989)",
+				"ob-vectors": "(#1989: `packages/server/src/output-budget.test.ts`)",
+				"pc-ob-b1": "(`output-budget.test.ts`, #1989: Streamable HTTP and stdio, both eras)",
+				"pc-ob-b2": "(`output-budget.test.ts`, #1989: Streamable HTTP, stdio and AFD HTTP lanes)",
+				"pc-ob-b7": "(`output-budget.test.ts`, #1989: `afd-batch`, `afd-pipe`, `/batch`, in process)"
+			},
+			"evidence": [
+				"packages/core/src/output-budget.ts",
+				"packages/server/src/output-budget.ts",
+				"packages/server/src/output-budget.test.ts"
+			]
+		},
+		"single.journal-replay": {
+			"status": "yes",
+			"evidence": [
+				"packages/core/src/journal.ts",
+				"packages/server/src/journal.ts",
+				"packages/server/src/journal-replay.ts"
+			]
+		},
+		"single.journal-range-last": {
+			"status": "yes",
+			"note": "the memory, file and IndexedDB sinks; `IndexedDbJournalSink` walks back from the end",
+			"evidence": ["packages/core/src/journal.ts", "packages/core/src/journal-indexeddb.ts"]
+		},
+		"single.journal-append-order": {
+			"status": "yes",
+			"note": "`createJournalMiddleware` takes a turn as a command returns and appends after the call ahead, since its context digest is asynchronous",
+			"evidence": ["packages/server/src/journal.ts"]
+		},
+		"middleware.chain": {
+			"status": "yes",
+			"evidence": ["packages/server/src/middleware.ts"]
+		},
+		"middleware.default-bundle": {
+			"status": "yes",
+			"evidence": ["packages/server/src/middleware.ts"]
+		},
+		"middleware.retry-ratelimit-telemetry": {
+			"status": "yes",
+			"evidence": ["packages/server/src/middleware.ts"]
+		},
+		"middleware.tracing-compose": {
+			"status": "yes",
+			"evidence": ["packages/server/src/middleware.ts"]
+		},
+		"middleware.auth": {
+			"status": "yes",
+			"note": "(`packages/auth`)",
+			"evidence": ["packages/auth/src/middleware.ts"]
+		},
+		"middleware.approval": {
+			"status": "yes",
+			"note": "(`createApprovalMiddleware`, on WebCrypto; also in browsers through `@lushly-dev/afd-server/direct`)",
+			"views": {
+				"approvals": "(`createApprovalMiddleware`)"
+			},
+			"evidence": [
+				"packages/server/src/approval.ts",
+				"packages/server/src/approval-vectors.test.ts"
+			]
+		},
+		"middleware.approval-fail-closed": {
+			"status": "yes",
+			"note": "(`createMcpServer`, `createDirectRegistry`; core's `createCommandRegistry` has no check)",
+			"views": {
+				"approvals": "(`createMcpServer`, `createDirectRegistry`; the middleware's `commands` option is optional)"
+			},
+			"evidence": [
+				"packages/server/src/approval-admission.ts",
+				"packages/server/src/approval-fail-closed.test.ts"
+			]
+		},
+		"middleware.direct-approval": {
+			"status": "yes",
+			"note": "(credentials stay out of results; public approval context is stripped)",
+			"views": {
+				"approvals": ""
+			},
+			"evidence": [
+				"packages/client/src/direct-approval.ts",
+				"packages/server/src/direct-approval.integration.test.ts"
+			]
+		},
+		"middleware.cli-approval": {
+			"status": "yes",
+			"evidence": ["packages/cli/src/approval.ts"]
+		},
+		"middleware.approval-relay": {
+			"status": "yes",
+			"note": "(`relay: 'mcp-elicitation'`)",
+			"views": {
+				"approvals": "(`relay: 'mcp-elicitation'`)"
+			},
+			"evidence": [
+				"packages/server/src/approval-relay.ts",
+				"packages/server/src/approval-relay.test.ts"
+			]
+		},
+		"middleware.approver-client": {
+			"status": "yes",
+			"note": "(`createMcpServer({ approver })`, `AFD_APPROVAL_META_KEY`)",
+			"views": {
+				"approver": "(`createMcpServer({ approver })`; `AFD_APPROVAL_META_KEY`)"
+			},
+			"evidence": [
+				"packages/server/src/approver.ts",
+				"packages/server/src/approver.test.ts",
+				"packages/server/src/approver-client-vectors.test.ts"
+			]
+		},
+		"middleware.approval-display": {
+			"status": "yes",
+			"note": "(`approvalDisplay`, `hidesCharacters`, `isHiddenCodePoint`, `APPROVAL_DISPLAY_LIMITS` in `@lushly-dev/afd-core`)",
+			"views": {
+				"display": "(`@lushly-dev/afd-core`: `approvalDisplay`, `hidesCharacters`, `isHiddenCodePoint`, `APPROVAL_DISPLAY_LIMITS`)"
+			},
+			"evidence": [
+				"packages/core/src/approval-display.ts",
+				"packages/server/src/approver-client-vectors.test.ts"
+			]
+		},
+		"middleware.up-front-approval": {
+			"status": "yes",
+			"note": "; `requestState` keeps each gated step's validated input, so a schema with a random or time-based default runs what was approved",
+			"views": {
+				"approvals": ""
+			},
+			"evidence": [
+				"packages/server/src/approval-up-front.ts",
+				"packages/server/src/up-front-steps.ts"
+			]
+		},
+		"exec.batch": {
+			"status": "yes",
+			"evidence": ["packages/core/src/command-execution.ts", "spec/vectors/batch-controls.json"]
+		},
+		"exec.pipeline-variables": {
+			"status": "yes",
+			"evidence": [
+				"packages/core/src/pipeline-variables.ts",
+				"spec/vectors/pipeline-variables.json"
+			]
+		},
+		"exec.pipeline-when": {
+			"status": "yes",
+			"evidence": ["packages/core/src/pipeline-variables.ts"]
+		},
+		"exec.pipeline-aggregation": {
+			"status": "yes",
+			"evidence": ["packages/core/src/pipeline-executor.ts"]
+		},
+		"exec.single-pipeline-engine": {
+			"status": "yes",
+			"evidence": ["packages/core/src/pipeline-executor.ts"]
+		},
+		"exec.stream-types": {
+			"status": "yes",
+			"evidence": ["packages/core/src/streaming.ts"]
+		},
+		"exec.stream-executor": {
+			"status": "yes",
+			"note": "(runs to completion, then chunks)",
+			"evidence": ["packages/core/src/command-execution.ts"]
+		},
+		"exec.timeout-progress": {
+			"status": "yes",
+			"evidence": ["packages/core/src/streaming.ts"]
+		},
+		"hts.handoff": {
+			"status": "yes",
+			"evidence": ["packages/core/src/handoff.ts"]
+		},
+		"hts.handoff-client": {
+			"status": "yes",
+			"note": "reconnect falls back to the default policy",
+			"evidence": ["packages/client/src/handoff.ts"]
+		},
+		"hts.telemetry-types": {
+			"status": "yes",
+			"evidence": ["packages/core/src/telemetry.ts"]
+		},
+		"hts.telemetry-middleware": {
+			"status": "yes",
+			"evidence": ["packages/server/src/middleware.ts"]
+		},
+		"hts.similarity": {
+			"status": "yes",
+			"evidence": ["packages/core/src/similarity.ts"]
+		},
+		"mcp.server-library": {
+			"status": "yes",
+			"note": "(SDK v2)",
+			"evidence": ["packages/server/src/server.ts", "packages/server/src/mcp-modern.ts"]
+		},
+		"mcp.dual-era": {
+			"status": "yes",
+			"note": "`/mcp` and stdio",
+			"views": {
+				"pc-modern": "(`packages/server/src/mcp-modern.test.ts` HTTP and stdio; runner)",
+				"pc-legacy": "(`mcp-modern.test.ts` v2 client 2025 mode over HTTP and stdio; runner `legacy`)"
+			},
+			"evidence": ["packages/server/src/mcp-modern.ts", "packages/server/src/mcp-modern.test.ts"]
+		},
+		"mcp.streamable-http": {
+			"status": "yes",
+			"note": "`/mcp`; the 2024-11-05 `/sse` + `/message` lane is deprecated",
+			"evidence": ["packages/server/src/http-handler.ts", "packages/server/src/mcp-modern.ts"]
+		},
+		"mcp.modern-contexts": {
+			"status": "yes",
+			"views": {
+				"pc-modern-ctx": "(`mcp-modern.test.ts`)"
+			},
+			"evidence": ["packages/server/src/mcp-modern.ts", "packages/server/src/mcp-modern.test.ts"]
+		},
+		"mcp.tool-fields": {
+			"status": "yes",
+			"views": {
+				"cm-annotations": "",
+				"cm-structured": "",
+				"pc-annotations": "(`tool-surface.test.ts`)",
+				"pc-structured": "(`tool-surface.test.ts`; runner todo `output` schemas)"
+			},
+			"evidence": ["packages/server/src/tools.ts", "packages/server/src/tool-surface.test.ts"]
+		},
+		"mcp.transport-context": {
+			"status": "yes",
+			"note": "`createContext(req, { credentials })` on the HTTP handler merges values, including `actor`; not called for stdio. With `auth` it is given verified `credentials` and cannot change them",
+			"evidence": ["packages/server/src/http-handler.ts", "packages/server/src/request-context.ts"]
+		},
+		"mcp.auth.verification": {
+			"status": "yes",
+			"note": "(#934): `createMcpHandler({ auth })` on `/mcp`, `/sse`, `/message`, `/rpc`, `/batch`, `/stream`, `/health`; `JwtVerifier` (`jose`), `KeySource`, `jwksKeySource`, `createIntrospectionVerifier`, frozen branded `context.credentials`, 401 challenges, RFC 9728 metadata; loads `spec/authorization.json`",
+			"views": {
+				"auth-m1-m4": "(Loam phase 3 step 0a; `createMcpHandler({ auth })`, `JwtVerifier` on `jose`, `KeySource`, `jwksKeySource`, `createIntrospectionVerifier`, `TokenVerifier`, `context.credentials`)",
+				"auth-m5": "(step 0a; 401 and 403 challenges and bodies; rule codes to `auth.onRefusal`)",
+				"auth-m7": "(step 0a; `createProtectedResource`)"
+			},
+			"evidence": [
+				"packages/server/src/mcp-auth.ts",
+				"packages/server/src/mcp-auth.test.ts",
+				"packages/server/src/authorization-cases.test.ts"
+			]
+		},
+		"mcp.auth.scopes": {
+			"status": "yes",
+			"note": "(#1050): command `scopes`, `requiredScopes`, `ScopeResolver` before dispatch and at execution on validated input, pre-dispatch 403 and `INSUFFICIENT_SCOPE`, `filterToolsByScope` (`cacheScope: \"private\"`), hidden commands unknown on every route, `handler.admit`, `handler.preDispatchCheck`, `ScopeChallenge`; loads `staticScopes` and `batches`. No per-caller resource provider",
+			"views": {
+				"command-metadata": "(#1050: `defineCommand({ scopes })`, in `_meta`, grouped `_meta.actions` and `afd-detail`; enforced with `auth`)",
+				"auth-m6": "(Loam phase 3 step 0c; `scopes`, `requiredScopes`, `ScopeResolver`, `filterToolsByScope`, `staticDecision`, `requestDecision`)",
+				"auth-m6-host": "(step 0c; `handler.admit`, `handler.preDispatchCheck`, `ScopeChallenge`; `mcp-auth-host.test.ts`)",
+				"auth-m6-hidden": "(step 0c + #1971; `ScopeResolver.known`, including `tasks/*`; `mcp-auth-scopes.test.ts`, `tasks.test.ts`)"
+			},
+			"evidence": [
+				"packages/server/src/mcp-auth-scopes.ts",
+				"packages/server/src/mcp-auth-scopes.test.ts",
+				"packages/server/src/mcp-auth-host.test.ts"
+			]
+		},
+		"mcp.auth.combined": {
+			"status": "yes",
+			"note": "(`mcp-auth.test.ts`, `mcp-auth-verifier.test.ts`, `mcp-auth-scopes.test.ts`, `mcp-auth-host.test.ts`, `authorization-cases.test.ts`)",
+			"evidence": [
+				"packages/server/src/mcp-auth.test.ts",
+				"packages/server/src/mcp-auth-scopes.test.ts",
+				"packages/server/src/authorization-cases.test.ts"
+			]
+		},
+		"mcp.confirmation-principal-binding": {
+			"status": "yes",
+			"note": "(Umbel phase 5 step 0c): one HMAC bind tag over the method, `authInfo.clientId` and the principal binding (the actor and `createContext`'s `credentials`), for confirmation and approval answers alike; `principalBinding`",
+			"views": {
+				"command-metadata": "(Umbel phase 5 step 0c): confirmation and approval-relay state, the actor (`createContext`'s or the `actor` option) and `createContext`'s `credentials`, in the state's HMAC bind tag; `principalBinding`",
+				"auth-m8": "(step 0c; `principalBinding`, with `createContext`'s `actor` and `credentials`; loads `principalBindings`)",
+				"pc-m8": "(`confirmations.test.ts`, `approval-relay.test.ts`, Umbel phase 5 step 0c)"
+			},
+			"evidence": [
+				"packages/server/src/principal-binding.ts",
+				"packages/server/src/confirmations.test.ts",
+				"packages/server/src/approval-relay.test.ts"
+			]
+		},
+		"mcp.host-verified-confirmation": {
+			"status": "planned",
+			"note": "(specified in `spec/command-metadata.md`)",
+			"views": {
+				"approvals": "",
+				"command-metadata": "",
+				"pc-hv": ""
+			},
+			"evidence": ["spec/command-metadata.md"]
+		},
+		"mcp.tasks": {
+			"status": "yes",
+			"note": "([#1971](https://github.com/lushly-dev/afd/issues/1971)): `task?: TaskSupport`, `TaskStore`, `InMemoryTaskStore`, `TaskOptions`, `tasks/*`, `McpClient({ tasks: true })`, todo `--suite tasks`",
+			"views": {
+				"command-metadata": "([#1971](https://github.com/lushly-dev/afd/issues/1971): `TaskSupport`, `TaskStore`, `InMemoryTaskStore` (32/owner, 256 total), `taskStore`/`taskOptions`, `CommandContext.reportProgress`, `McpClient({ tasks: true })`; `tasks.test.ts`, `tasks-client.test.ts`, todo `--suite tasks`)",
+				"pc-tasks": "(`packages/server/src/tasks.test.ts`, `tasks-client.test.ts`, todo `--suite tasks`; [#1971](https://github.com/lushly-dev/afd/issues/1971))"
+			},
+			"evidence": [
+				"packages/server/src/tasks.ts",
+				"packages/server/src/tasks.test.ts",
+				"packages/server/src/tasks-client.test.ts"
+			]
+		},
+		"mcp.auth.tasks": {
+			"status": "yes",
+			"note": "([#1971](https://github.com/lushly-dev/afd/issues/1971)): `tasks/get`, `tasks/update` and `tasks/cancel` fail closed, bind verified credentials as owner, enforce M6 command scopes and hidden commands, preserve verified credentials inside running tasks, and stop at `credentials.expiresAt` (`TASK_TOKEN_EXPIRED`); `tasks.test.ts`",
+			"evidence": ["packages/server/src/tasks-runtime.ts", "packages/server/src/tasks.test.ts"]
+		},
+		"mcp.tool-strategies": {
+			"status": "yes",
+			"note": "(default grouped; the #533 lists)",
+			"views": {
+				"pc-strategies": "(`tool-surface.test.ts`, `grouped-tools.test.ts`, `lazy-tools.test.ts`, `meta-tools.test.ts` against `spec/meta-tools.json`)"
+			},
+			"evidence": [
+				"packages/server/src/tools.ts",
+				"packages/server/src/tool-router.ts",
+				"packages/server/src/grouped-tools.test.ts"
+			]
+		},
+		"mcp.strategy-hybrid": {
+			"status": "yes",
+			"note": "(`firstClassTools`, `createMcpServer` and `createMcpHandler`)",
+			"views": {
+				"command-metadata": "",
+				"pc-hybrid-order": "(`tool-strategies-vectors.test.ts`, both eras through `createMcpHandler`)",
+				"pc-hybrid-ctx": "(`tool-strategies-vectors.test.ts`)",
+				"pc-hybrid-scope": "(`tool-strategies-vectors.test.ts`)"
+			},
+			"evidence": ["packages/server/src/tool-strategies-vectors.test.ts"]
+		},
+		"mcp.resources": {
+			"status": "yes",
+			"note": "(`resources` option: a `ResourceProvider` or static entries, on `/mcp` and stdio; not the deprecated `/sse` lane)",
+			"views": {
+				"res-core": "(`resources` option; `/mcp` and stdio, not the deprecated `/sse` lane)",
+				"res-vectors": "(`resources.test.ts`, over Streamable HTTP and stdio)",
+				"pc-res": "(`resources.test.ts`, Streamable HTTP and stdio, both eras)"
+			},
+			"evidence": ["packages/server/src/resources.ts", "packages/server/src/resources.test.ts"]
+		},
+		"mcp.skills": {
+			"status": "yes",
+			"note": "(`skills: new SkillCatalog(...)`, `skillFromDirectory`, optional `directoryRead`)",
+			"views": {
+				"res-skills": "(`skills: SkillCatalog`)",
+				"pc-skills": "(`resources.test.ts`, loads `mcp-resources.json`)"
+			},
+			"evidence": ["packages/server/src/skills.ts", "packages/server/src/resources.test.ts"]
+		},
+		"mcp.tool-meta": {
+			"status": "yes",
+			"note": "(`defineCommand({ toolMeta })`, refused at server registration under the key rule)",
+			"views": {
+				"command-metadata": "(`toolMeta`, `advertisedInputSchema`)",
+				"res-meta": "(`defineCommand({ toolMeta })`)",
+				"pc-meta": "(`tool-meta.test.ts`, `resources.test.ts` key rule)"
+			},
+			"evidence": ["packages/server/src/tool-meta.test.ts", "packages/server/src/resources.test.ts"]
+		},
+		"mcp.advertised-schema": {
+			"status": "yes",
+			"note": "(`defineCommand({ advertisedInputSchema })`; Zod still validates)",
+			"views": {
+				"res-adv": "(`advertisedInputSchema`)",
+				"pc-adv": "(`tool-meta.test.ts`)"
+			},
+			"evidence": ["packages/server/src/define-core.ts", "packages/server/src/tool-meta.test.ts"]
+		},
+		"mcp.raw-json-schema": {
+			"status": "yes",
+			"note": "(`defineCommandWithSchema`, in `/define` and `/direct`, on classic Zod or Zod Mini)",
+			"evidence": ["packages/server/src/define-core.ts"]
+		},
+		"mcp.output-budgets": {
+			"status": "yes",
+			"note": "([#1989](https://github.com/lushly-dev/afd/issues/1989), #2215): `_meta[\"dev.afd/outputBudget\"]` on individual/hybrid tools and grouped `_meta.actions`, `afd-detail`, `afd-help` (`full`) and `afd-docs`; per-call ask in `tools/call` `_meta`, meta-tools' `meta` and AFD HTTP lanes (`/message`, `/rpc`, `/batch`, `/stream`), both eras over Streamable HTTP and stdio",
+			"views": {
+				"ob-b2": "(#1989)"
+			},
+			"evidence": [
+				"packages/server/src/output-budget.ts",
+				"packages/server/src/output-budget.test.ts"
+			]
+		},
+		"mcp.meta-tools": {
+			"status": "yes",
+			"evidence": ["packages/server/src/meta-tools.ts", "packages/server/src/meta-tools.test.ts"]
+		},
+		"mcp.meta-argument": {
+			"status": "yes",
+			"note": "`/mcp` (both eras), stdio, `/message`, and in process through a direct registry's tool surface",
+			"evidence": ["packages/server/src/meta-argument.ts"]
+		},
+		"mcp.bootstrap": {
+			"status": "yes",
+			"note": ", opt-in",
+			"evidence": ["packages/server/src/bootstrap-option.test.ts"]
+		},
+		"mcp.context-tools": {
+			"status": "yes",
+			"evidence": ["packages/server/src/context-scope.ts"]
+		},
+		"mcp.http-hardening": {
+			"status": "yes",
+			"views": {
+				"pc-origin": "(`mcp-modern.test.ts`)"
+			},
+			"evidence": ["packages/server/src/http-security.ts", "packages/server/src/mcp-modern.test.ts"]
+		},
+		"mcp.jsonrpc-types": {
+			"status": "yes",
+			"evidence": ["packages/core/src/mcp.ts", "packages/server/src/json-rpc.ts"]
+		},
+		"pc.version-negotiation": {
+			"status": "yes",
+			"note": "(`mcp-modern.test.ts`)",
+			"evidence": ["packages/server/src/mcp-modern.test.ts"]
+		},
+		"pc.header-mismatch": {
+			"status": "yes",
+			"note": "(`mcp-modern.test.ts`)",
+			"evidence": ["packages/server/src/mcp-modern.test.ts"]
+		},
+		"pc.get-405": {
+			"status": "yes",
+			"note": "(`mcp-modern.test.ts`)",
+			"evidence": ["packages/server/src/mcp-modern.test.ts"]
+		},
+		"pc.d4-hiding": {
+			"status": "yes",
+			"note": "(`mcp-modern.test.ts`, `mcp-modern-client.test.ts`; runner)",
+			"evidence": ["packages/server/src/mcp-modern.test.ts", "spec/protocol-conformance.json"]
+		},
+		"pc.legacy-context-stacks": {
+			"status": "yes",
+			"note": "(stdio `mcp-modern.test.ts`; `session-contexts.test.ts` `/message` lane)",
+			"evidence": ["packages/server/src/mcp-modern.test.ts"]
+		},
+		"pc.cache-hints": {
+			"status": "yes",
+			"note": "(`mcp-modern.test.ts`)",
+			"evidence": ["packages/server/src/mcp-modern.test.ts"]
+		},
+		"pc.client-negotiation": {
+			"status": "yes",
+			"note": "(`mcp-modern-client.test.ts`: call, batch, pipe, stream)",
+			"evidence": ["packages/client/src/streamable-http-transport.ts"]
+		},
+		"tooling.mcp-client": {
+			"status": "yes",
+			"note": "`streamable-http` (SDK v2, `protocolMode`) by default; `sse`/`http` deprecated",
+			"evidence": [
+				"packages/client/src/client.ts",
+				"packages/client/src/streamable-http-transport.ts"
+			]
+		},
+		"tooling.browser-transport": {
+			"status": "yes",
+			"evidence": ["packages/client/src/streamable-http.ts"]
+		},
+		"tooling.direct-client": {
+			"status": "yes",
+			"evidence": ["packages/client/src/direct.ts", "packages/server/src/direct-registry.ts"]
+		},
+		"tooling.direct-interface": {
+			"status": "yes",
+			"note": "(`createDirectRegistry({ interface })`)",
+			"evidence": ["packages/server/src/direct-registry.ts"]
+		},
+		"tooling.cli": {
+			"status": "yes",
+			"evidence": ["packages/cli/src/cli.ts"]
+		},
+		"tooling.auth-adapter": {
+			"status": "yes",
+			"evidence": ["packages/auth/src/index.ts"]
+		},
+		"tooling.testing": {
+			"status": "yes",
+			"evidence": ["packages/testing/src/index.ts", "packages/testing/src/validators.ts"]
+		},
+		"tooling.ui-packages": {
+			"status": "yes",
+			"evidence": ["packages/auth/src/react.ts"]
+		},
+		"tooling.browser-stores": {
+			"status": "yes",
+			"evidence": [
+				"packages/local-db/src/indexeddb-adapter.ts",
+				"packages/local-db/src/adapter-contract.test.ts",
+				"packages/core/src/journal-indexeddb.ts"
+			]
+		},
+		"tooling.platform-connectors": {
+			"status": "yes",
+			"note": "(subpath exports)",
+			"evidence": ["packages/core/src/platform.ts"]
+		},
+		"single.context-fields-meta-delivery": {
+			"status": "yes",
+			"note": "(`context-fields-mcp.test.ts`: Streamable HTTP and stdio, both eras)",
+			"evidence": [
+				"packages/server/src/context-fields.ts",
+				"packages/server/src/context-fields-mcp.test.ts"
+			]
+		},
+		"single.context-fields-discovery": {
+			"status": "yes",
+			"note": "(`context-fields-mcp.test.ts`)",
+			"evidence": [
+				"packages/server/src/context-fields-describe.ts",
+				"packages/server/src/context-fields-mcp.test.ts"
+			]
+		}
+	}
+}

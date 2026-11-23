@@ -104,9 +104,11 @@ every stage above, asserting the returned result, error code, metadata stamping 
 All four languages load it; known language gaps are declared in its top-level `gaps` object with
 their tracking issues and skipped by that language's suite until closed.
 
+<!-- generated:capabilities:spec.dispatch.conformance:start -->
 | Language | Suite | Known gaps in `dispatch.json` |
 | --- | --- | --- |
 | TypeScript | `packages/server/src/dispatch-vectors.test.ts` | None |
 | Python | `python/tests/test_dispatch_vectors.py` | `hooks` (`onCommand`/`onError`, [#1551](https://github.com/lushly-dev/afd/issues/1551)) |
-| Rust | `packages/rust/tests/dispatch_vectors.rs` | `approvalUnavailable` ([#1886](https://github.com/lushly-dev/afd/issues/1886)), `stamping` & `hooks` ([#546](https://github.com/lushly-dev/afd/issues/546)) |
+| Rust | `packages/rust/tests/dispatch_vectors.rs` | `stamping` & `hooks` ([#546](https://github.com/lushly-dev/afd/issues/546)) |
 | C++ | `packages/cpp/tests/dispatch_vectors_test.cpp` | None |
+<!-- generated:capabilities:spec.dispatch.conformance:end -->

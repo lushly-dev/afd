@@ -1,0 +1,746 @@
+{
+	"language": "cpp",
+	"displayName": "C++",
+	"capabilities": {
+		"wire.command-result": {
+			"status": "yes",
+			"evidence": [
+				"packages/cpp/include/afd/result.hpp",
+				"packages/cpp/tests/wire_fixtures_test.cpp"
+			]
+		},
+		"wire.metadata-types": {
+			"status": "yes",
+			"evidence": ["packages/cpp/include/afd/metadata.hpp"]
+		},
+		"wire.error-codes": {
+			"status": "yes",
+			"evidence": ["packages/cpp/include/afd/errors.hpp", "packages/cpp/tests/vectors_test.cpp"]
+		},
+		"wire.result-constructors": {
+			"status": "yes",
+			"evidence": ["packages/cpp/include/afd/result.hpp", "packages/cpp/tests/result_test.cpp"]
+		},
+		"wire.result-guards": {
+			"status": "yes",
+			"evidence": ["packages/cpp/include/afd/result.hpp", "packages/cpp/tests/result_test.cpp"]
+		},
+		"command.core-metadata": {
+			"status": "yes",
+			"note": "(`requires` is `prerequisites`)",
+			"evidence": ["packages/cpp/include/afd/command.hpp", "packages/cpp/tests/command_test.cpp"]
+		},
+		"command.title": {
+			"status": "yes",
+			"note": "on `CommandDefinition`; command tools and afd-help (full)",
+			"views": {
+				"command-metadata": "(`title` on `CommandDefinition`; `afd::mcp_stdio` tool lists)"
+			},
+			"evidence": ["packages/cpp/include/afd/command.hpp", "packages/cpp/tests/mcp_tools_test.cpp"]
+		},
+		"command.safety-flags": {
+			"status": "yes",
+			"evidence": ["packages/cpp/include/afd/command.hpp", "packages/cpp/include/afd/mcp.hpp"]
+		},
+		"command.approval-policy": {
+			"status": "yes",
+			"note": "(#422): `CommandDefinition::approval` (an `ApprovalDecision` or a function), `approval_mode`; `_meta.approval`, afd-detail and afd-docs",
+			"views": {
+				"approvals": "(`_meta.approval` from `command_to_mcp_tool`)"
+			},
+			"evidence": ["packages/cpp/include/afd/approval.hpp", "packages/cpp/tests/approval_test.cpp"]
+		},
+		"command.confirmations": {
+			"status": "yes",
+			"note": "`StdioServerOptions::confirmations` on `afd::mcp_stdio`: command and grouped tools, `afd-call`, and one question for every gated step of `afd-batch` and `afd-pipe` (`confirm` names); elicitation on 2026-07-28 and in band on 2025 stdio; todo backend reads `CONFIRMATIONS`",
+			"views": {
+				"command-metadata": "(`StdioServerOptions::confirmations` on `afd::mcp_stdio`: individual, grouped, `afd-call`, `afd-batch` and `afd-pipe` in both eras)"
+			},
+			"evidence": [
+				"packages/cpp/include/afd/mcp_stdio.hpp",
+				"packages/cpp/tests/mcp_stdio_test.cpp"
+			]
+		},
+		"command.kebab-names": {
+			"status": "yes",
+			"note": ", rejects at registration",
+			"evidence": ["packages/cpp/include/afd/registry.hpp", "packages/cpp/tests/registry_test.cpp"]
+		},
+		"command.reserved-names": {
+			"status": "partial",
+			"note": "meta-tools; `register_bootstrap_commands` and `register_context_commands` refuse when one of their commands is already registered",
+			"evidence": [
+				"packages/cpp/include/afd/builtin_names.hpp",
+				"packages/cpp/tests/bootstrap_test.cpp"
+			]
+		},
+		"command.input-validation": {
+			"status": "yes",
+			"note": "required subset; unsupported optional keywords reject registration",
+			"evidence": ["packages/cpp/include/afd/schema.hpp", "packages/cpp/tests/schema_test.cpp"]
+		},
+		"command.examples-validated": {
+			"status": "yes",
+			"evidence": ["packages/cpp/tests/registry_test.cpp"]
+		},
+		"command.output-schema": {
+			"status": "yes",
+			"note": "`_meta.outputSchema` from `command_to_mcp_tool` and top-level `outputSchema` on `afd::mcp_stdio` (`StdioServerOptions::advertise_output_schema`)",
+			"views": {
+				"command-metadata": ", for commands with `output_schema` (`StdioServerOptions::advertise_output_schema`)"
+			},
+			"evidence": [
+				"packages/cpp/include/afd/mcp.hpp",
+				"packages/cpp/include/afd/mcp_stdio.hpp",
+				"packages/cpp/tests/mcp_stdio_test.cpp"
+			]
+		},
+		"command.to-mcp-tool": {
+			"status": "yes",
+			"note": "`command_to_mcp_tool`, `commands_to_mcp_tools`, `command_tool_meta`, `command_tool_annotations`; `to_json` for afd-detail's shape. `mutation`, `destructive` and `undoable` are plain booleans, so only `true` is reported",
+			"evidence": ["packages/cpp/include/afd/mcp.hpp", "packages/cpp/tests/mcp_tools_test.cpp"]
+		},
+		"single.dispatch-order": {
+			"status": "yes",
+			"views": {
+				"dispatch-suite": "`packages/cpp/tests/dispatch_vectors_test.cpp`",
+				"dispatch-gaps": "None"
+			},
+			"evidence": [
+				"packages/cpp/include/afd/registry.hpp",
+				"packages/cpp/tests/dispatch_vectors_test.cpp"
+			]
+		},
+		"single.did-you-mean": {
+			"status": "yes",
+			"evidence": [
+				"packages/cpp/include/afd/similarity.hpp",
+				"packages/cpp/tests/similarity_test.cpp"
+			]
+		},
+		"single.exposure": {
+			"status": "yes",
+			"note": ", when `context.surface` is set",
+			"evidence": ["packages/cpp/include/afd/registry.hpp", "packages/cpp/tests/registry_test.cpp"]
+		},
+		"single.app-calls": {
+			"status": "planned",
+			"note": "([#1513](https://github.com/lushly-dev/afd/issues/1513)); no `Interface::apps`",
+			"views": {
+				"app-calls": "([#1513](https://github.com/lushly-dev/afd/issues/1513)): no `Interface::apps` yet; calls return `COMMAND_NOT_FOUND` or `COMMAND_NOT_EXPOSED`"
+			},
+			"issue": "#1513",
+			"evidence": ["packages/cpp/tests/app_calls_vectors_test.cpp"]
+		},
+		"single.active-context": {
+			"status": "partial",
+			"note": "`active_context` is supplied by the caller",
+			"evidence": ["packages/cpp/include/afd/contexts.hpp", "packages/cpp/tests/contexts_test.cpp"]
+		},
+		"single.in-process-context": {
+			"status": "partial",
+			"note": "`active_context` is supplied by the caller; no context tools or tool list",
+			"evidence": [
+				"packages/cpp/include/afd/direct_client.hpp",
+				"packages/cpp/tests/direct_client_test.cpp"
+			]
+		},
+		"single.metadata-stamping": {
+			"status": "yes",
+			"evidence": ["packages/cpp/tests/dispatch_vectors_test.cpp"]
+		},
+		"single.observer-hooks": {
+			"status": "yes",
+			"evidence": ["packages/cpp/tests/dispatch_vectors_test.cpp"]
+		},
+		"single.exception-redaction": {
+			"status": "yes",
+			"note": ", when built with exceptions",
+			"evidence": ["packages/cpp/tests/registry_test.cpp"]
+		},
+		"single.cancellation": {
+			"status": "yes",
+			"note": "cooperative `CancellationToken` and deadline",
+			"evidence": [
+				"packages/cpp/include/afd/runtime.hpp",
+				"packages/cpp/tests/execution_controls_vectors_test.cpp"
+			]
+		},
+		"single.clock-random": {
+			"status": "yes",
+			"note": "`context.clock` and `context.random` (`fixed_clock` epoch ms only); `SeededRandom` matches TS bit for bit; `executionTimeMs` uses steady clock",
+			"evidence": ["packages/cpp/tests/context_test.cpp"]
+		},
+		"single.actor": {
+			"status": "yes",
+			"note": "`std::optional<Actor>`; `DirectClient` defaults to `human`, `afd::mcp_stdio` sets `agent` (refinable in `context_hook`); typed `ResultMetadata::actor_kind`",
+			"evidence": ["packages/cpp/include/afd/actor.hpp", "packages/cpp/tests/context_test.cpp"]
+		},
+		"single.context-fields": {
+			"status": "yes",
+			"note": "`CommandRegistryOptions::context_fields`, `CommandRegistry::create`",
+			"views": {
+				"cf-decl": "`CommandRegistryOptions::context_fields` and `CommandRegistry::create`, which reports a bad declaration",
+				"cf-journal": "`create_journal_middleware` and `replay_journal`"
+			},
+			"evidence": [
+				"packages/cpp/include/afd/context_fields.hpp",
+				"packages/cpp/tests/context_fields_test.cpp"
+			]
+		},
+		"single.context-fields-mcp": {
+			"status": "partial",
+			"note": "`afd-help` lists them; `afd::mcp_stdio` neither reads them from `_meta` nor lists them in `server/discover`",
+			"views": {
+				"cf-mcp": "`afd-help` (`register_bootstrap_commands`) lists them; `afd::mcp_stdio` does not read them from `_meta` or list them in `server/discover`"
+			},
+			"evidence": [
+				"packages/cpp/include/afd/context_fields.hpp",
+				"packages/cpp/tests/context_fields_test.cpp"
+			]
+		},
+		"single.output-budgets": {
+			"status": "yes",
+			"note": "([#1991](https://github.com/lushly-dev/afd/issues/1991), #2187): `OutputBudget` on `CommandDefinition`, in-process & `DirectClient` asks, post-handler check, batches/pipelines and journal `outputBudget`; `output_budget_test.cpp` runs `spec/output-budgets.json` (except lone-surrogate measure)",
+			"views": {
+				"command-metadata": "([#1991](https://github.com/lushly-dev/afd/issues/1991), #2187)",
+				"ob-b1": "(#1991)",
+				"ob-b4": "(#1991)",
+				"ob-b5": "(#1991)",
+				"ob-b7": "(#1991)",
+				"ob-b8": "(#1991)",
+				"ob-vectors": "(#1991: `packages/cpp/tests/output_budget_test.cpp`)",
+				"pc-ob-b1": "(`output_budget_test.cpp`, #1991)",
+				"pc-ob-b2": "(`output_budget_test.cpp`, #1991: `afd::mcp_stdio`, both eras)",
+				"pc-ob-b7": "(`output_budget_test.cpp`, #1991)"
+			},
+			"evidence": [
+				"packages/cpp/include/afd/output_budget.hpp",
+				"packages/cpp/src/output_budget.cpp",
+				"packages/cpp/tests/output_budget_test.cpp"
+			]
+		},
+		"single.journal-replay": {
+			"status": "yes",
+			"note": "(#427): `create_journal_middleware`, `replay_journal`, `MemoryJournalSink` and `FileJournalSink` (`AFD_JOURNAL_FILE`); reads and replays `spec/wire/journal.jsonl`",
+			"evidence": [
+				"packages/cpp/include/afd/journal.hpp",
+				"packages/cpp/tests/journal_wire_test.cpp"
+			]
+		},
+		"single.journal-range-last": {
+			"status": "planned",
+			"note": "([#1597](https://github.com/lushly-dev/afd/issues/1597))",
+			"issue": "#1597",
+			"evidence": ["packages/cpp/include/afd/journal.hpp"]
+		},
+		"single.journal-append-order": {
+			"status": "yes",
+			"note": "synchronous",
+			"evidence": ["packages/cpp/include/afd/journal.hpp"]
+		},
+		"middleware.chain": {
+			"status": "yes",
+			"evidence": [
+				"packages/cpp/include/afd/middleware.hpp",
+				"packages/cpp/tests/middleware_test.cpp"
+			]
+		},
+		"middleware.default-bundle": {
+			"status": "yes",
+			"evidence": ["packages/cpp/include/afd/middleware.hpp"]
+		},
+		"middleware.retry-ratelimit-telemetry": {
+			"status": "yes",
+			"note": "(#547): `create_retry_middleware`, `create_rate_limit_middleware`, `create_telemetry_middleware`",
+			"evidence": [
+				"packages/cpp/include/afd/middleware.hpp",
+				"packages/cpp/src/middleware.cpp",
+				"packages/cpp/tests/middleware_test.cpp"
+			]
+		},
+		"middleware.tracing-compose": {
+			"status": "partial",
+			"note": "(#547): `compose_middleware`; tracing middleware is N/A (D6)",
+			"evidence": [
+				"packages/cpp/include/afd/middleware.hpp",
+				"packages/cpp/src/middleware.cpp",
+				"packages/cpp/tests/middleware_test.cpp"
+			]
+		},
+		"middleware.auth": {
+			"status": "na",
+			"note": "built by the host",
+			"evidence": ["docs/features/complete/cpp-support/proposal.md"]
+		},
+		"middleware.approval": {
+			"status": "yes",
+			"note": "(#422): `create_approval_middleware` and `canonical_json`, evidence in `CommandContext::approval`; tokens match TS byte for byte; configuration errors return `Expected`",
+			"views": {
+				"approvals": "(`create_approval_middleware`)"
+			},
+			"evidence": [
+				"packages/cpp/include/afd/approval.hpp",
+				"packages/cpp/tests/approval_vectors_test.cpp"
+			]
+		},
+		"middleware.approval-fail-closed": {
+			"status": "yes",
+			"note": "([#1886](https://github.com/lushly-dev/afd/issues/1886)): `CommandRegistry::execute` refuses an unadmitted call, so `DirectClient`, batches, pipelines and `afd::mcp_stdio` do too; `ApprovalMiddlewareOptions::commands` is optional",
+			"views": {
+				"approvals": "(`CommandRegistry::execute`, so `DirectClient`, batches, pipelines and `afd::mcp_stdio` too; `ApprovalMiddlewareOptions::commands` is optional, [#1886](https://github.com/lushly-dev/afd/issues/1886))"
+			},
+			"evidence": ["packages/cpp/tests/approval_fail_closed_test.cpp"]
+		},
+		"middleware.direct-approval": {
+			"status": "yes",
+			"note": "(#460): `on_approval_needed`, private call/pipe retries; raw registry remains a trusted host API, hooks use cooperative cancellation",
+			"views": {
+				"approvals": "(`on_approval_needed`)"
+			},
+			"evidence": [
+				"packages/cpp/include/afd/direct_client.hpp",
+				"packages/cpp/tests/direct_client_test.cpp"
+			]
+		},
+		"middleware.cli-approval": {
+			"status": "na",
+			"note": "no CLI",
+			"evidence": ["docs/language-parity.md"]
+		},
+		"middleware.approval-relay": {
+			"status": "yes",
+			"note": "`ApprovalMiddlewareOptions::relay = ApprovalRelay::mcp_elicitation` with `afd::mcp_stdio`; one principal-bound `requestState` per call with confirmation answers; in band on a 2025 stdio connection",
+			"views": {
+				"approvals": "(`ApprovalMiddlewareOptions::relay = ApprovalRelay::mcp_elicitation` with `afd::mcp_stdio`; one principal-bound `requestState` per call; in band on 2025 stdio)"
+			},
+			"evidence": ["packages/cpp/include/afd/approval.hpp", "packages/cpp/tests/mcp_stdio_test.cpp"]
+		},
+		"middleware.approver-client": {
+			"status": "planned",
+			"note": "([#1466](https://github.com/lushly-dev/afd/issues/1466))",
+			"views": {
+				"approver": "([#1466](https://github.com/lushly-dev/afd/issues/1466))"
+			},
+			"issue": "#1466",
+			"evidence": ["packages/cpp/tests/approver_client_vectors_test.cpp"]
+		},
+		"middleware.approval-display": {
+			"status": "planned",
+			"note": "([#1466](https://github.com/lushly-dev/afd/issues/1466))",
+			"views": {
+				"display": "([#1466](https://github.com/lushly-dev/afd/issues/1466))"
+			},
+			"issue": "#1466",
+			"evidence": ["packages/cpp/tests/approver_client_vectors_test.cpp"]
+		},
+		"middleware.up-front-approval": {
+			"status": "yes",
+			"note": "on 2026-07-28 and in band on a 2025 stdio connection (`afd::mcp_stdio`); validation computes no default, so the step runs the input shown",
+			"views": {
+				"approvals": "(on 2026-07-28 and in band on a 2025 stdio connection; `afd::mcp_stdio` with `ApprovalRelay::mcp_elicitation`)"
+			},
+			"evidence": ["packages/cpp/tests/mcp_stdio_test.cpp"]
+		},
+		"exec.batch": {
+			"status": "yes",
+			"evidence": [
+				"packages/cpp/include/afd/batch.hpp",
+				"packages/cpp/tests/batch_vectors_test.cpp"
+			]
+		},
+		"exec.pipeline-variables": {
+			"status": "yes",
+			"evidence": [
+				"packages/cpp/include/afd/pipeline.hpp",
+				"packages/cpp/tests/pipeline_variables_test.cpp"
+			]
+		},
+		"exec.pipeline-when": {
+			"status": "yes",
+			"note": "(as validated JSON)",
+			"evidence": ["packages/cpp/tests/pipeline_test.cpp"]
+		},
+		"exec.pipeline-aggregation": {
+			"status": "yes",
+			"note": "(internal helpers)",
+			"evidence": ["packages/cpp/tests/pipeline_test.cpp"]
+		},
+		"exec.single-pipeline-engine": {
+			"status": "yes",
+			"evidence": ["packages/cpp/include/afd/pipeline.hpp"]
+		},
+		"exec.stream-types": {
+			"status": "yes",
+			"evidence": ["packages/cpp/include/afd/streaming.hpp", "packages/cpp/tests/stream_test.cpp"]
+		},
+		"exec.stream-executor": {
+			"status": "yes",
+			"note": "(returns a vector)",
+			"evidence": ["packages/cpp/include/afd/execution.hpp", "packages/cpp/tests/stream_test.cpp"]
+		},
+		"exec.timeout-progress": {
+			"status": "na",
+			"note": "`CancellationSource` covers the timeout controller",
+			"evidence": ["packages/cpp/include/afd/runtime.hpp"]
+		},
+		"hts.handoff": {
+			"status": "yes",
+			"evidence": ["packages/cpp/include/afd/handoff.hpp", "packages/cpp/tests/handoff_test.cpp"]
+		},
+		"hts.handoff-client": {
+			"status": "no",
+			"note": "not declared",
+			"evidence": ["docs/language-parity.md"]
+		},
+		"hts.telemetry-types": {
+			"status": "yes",
+			"note": "(#547): `afd/telemetry.hpp` (`TelemetryEvent`, `TelemetrySink`, `create_telemetry_event`, `is_telemetry_event`, `ConsoleTelemetrySink`)",
+			"evidence": [
+				"packages/cpp/include/afd/telemetry.hpp",
+				"packages/cpp/src/telemetry.cpp",
+				"packages/cpp/tests/middleware_test.cpp"
+			]
+		},
+		"hts.telemetry-middleware": {
+			"status": "yes",
+			"note": "(#547): `create_telemetry_middleware`",
+			"evidence": [
+				"packages/cpp/include/afd/middleware.hpp",
+				"packages/cpp/src/middleware.cpp",
+				"packages/cpp/tests/middleware_test.cpp"
+			]
+		},
+		"hts.similarity": {
+			"status": "yes",
+			"evidence": [
+				"packages/cpp/include/afd/similarity.hpp",
+				"packages/cpp/tests/similarity_test.cpp"
+			]
+		},
+		"mcp.server-library": {
+			"status": "yes",
+			"note": "the opt-in `afd::mcp_stdio` target (`AFD_BUILD_MCP_STDIO`), stdio only; meta-tools, context tools and bootstrap commands by tool strategy (`individual`, `grouped`, `lazy`)",
+			"evidence": [
+				"packages/cpp/include/afd/mcp_stdio.hpp",
+				"packages/cpp/tests/mcp_stdio_test.cpp"
+			]
+		},
+		"mcp.dual-era": {
+			"status": "yes",
+			"note": "stdio (`afd::mcp_stdio`)",
+			"views": {
+				"pc-modern": "(`packages/cpp/tests/mcp_stdio_test.cpp`; runner)",
+				"pc-legacy": "(`mcp_stdio_test.cpp`; runner `legacy`)"
+			},
+			"evidence": ["packages/cpp/tests/mcp_stdio_test.cpp"]
+		},
+		"mcp.streamable-http": {
+			"status": "na",
+			"note": "no HTTP by design",
+			"evidence": ["docs/features/complete/cpp-support/proposal.md"]
+		},
+		"mcp.modern-contexts": {
+			"status": "yes",
+			"note": "(`StdioServerOptions::contexts`, #1425)",
+			"views": {
+				"pc-modern-ctx": "(`packages/cpp/tests/mcp_stdio_test.cpp`: `StdioServerOptions::contexts`)"
+			},
+			"evidence": [
+				"packages/cpp/include/afd/mcp_stdio.hpp",
+				"packages/cpp/tests/mcp_stdio_test.cpp"
+			]
+		},
+		"mcp.tool-fields": {
+			"status": "yes",
+			"note": "annotations (`mutation: true` only), `structuredContent` on every result, and top-level `outputSchema` (`advertise_output_schema` opts out) in `afd::mcp_stdio`; #465",
+			"views": {
+				"cm-annotations": "(`mutation: true` only, with `destructive`; [#1741](https://github.com/lushly-dev/afd/issues/1741))",
+				"cm-structured": "(`afd::mcp_stdio`, every tool result; the todo backend runs on it)",
+				"pc-annotations": "(`packages/cpp/tests/mcp_stdio_test.cpp`)",
+				"pc-structured": "(`mcp_stdio_test.cpp`: `CompiledSchema`, success and failure)"
+			},
+			"evidence": ["packages/cpp/include/afd/mcp.hpp", "packages/cpp/tests/mcp_stdio_test.cpp"]
+		},
+		"mcp.transport-context": {
+			"status": "na",
+			"note": "no HTTP server in the library",
+			"evidence": ["docs/features/complete/cpp-support/proposal.md"]
+		},
+		"mcp.auth.verification": {
+			"status": "na",
+			"note": "no HTTP server in the library",
+			"views": {
+				"auth-m1-m4": "no HTTP server",
+				"auth-m5": "",
+				"auth-m7": ""
+			},
+			"evidence": ["docs/features/complete/cpp-support/proposal.md"]
+		},
+		"mcp.auth.scopes": {
+			"status": "na",
+			"note": "no HTTP server in the library",
+			"views": {
+				"command-metadata": "no HTTP server",
+				"auth-m6": "",
+				"auth-m6-host": "",
+				"auth-m6-hidden": ""
+			},
+			"evidence": ["docs/features/complete/cpp-support/proposal.md"]
+		},
+		"mcp.auth.combined": {
+			"status": "na",
+			"note": "(no HTTP server)",
+			"evidence": ["docs/features/complete/cpp-support/proposal.md"]
+		},
+		"mcp.confirmation-principal-binding": {
+			"status": "partial",
+			"note": "`afd::mcp_stdio` signs a confirmation's `requestState` (HMAC) and binds it to the command, its input and the actor; stdio carries no credentials to bind",
+			"views": {
+				"command-metadata": "`afd::mcp_stdio` signs `requestState` (HMAC) bound to command, input and actor; stdio carries no HTTP credentials",
+				"auth-m8": "`afd::mcp_stdio` binds `requestState` to command, input and actor; stdio carries no HTTP credentials",
+				"pc-m8": "(`mcp_stdio_test.cpp`: HMAC-bound to command, input and actor; stdio carries no credentials)"
+			},
+			"evidence": [
+				"packages/cpp/include/afd/mcp_stdio.hpp",
+				"packages/cpp/tests/mcp_stdio_test.cpp"
+			]
+		},
+		"mcp.host-verified-confirmation": {
+			"status": "na",
+			"note": "`afd::mcp_stdio` has no host-verified mode and no `HumanRelay`",
+			"views": {
+				"approvals": "no `HumanRelay`",
+				"command-metadata": "`afd::mcp_stdio` has no `HumanRelay`",
+				"pc-hv": ""
+			},
+			"evidence": ["packages/cpp/include/afd/mcp_stdio.hpp"]
+		},
+		"mcp.tasks": {
+			"status": "na",
+			"note": "not planned for C++ ([MCP Tasks proposal](./features/complete/mcp-tasks/mcp-tasks.proposal.md))",
+			"views": {
+				"command-metadata": "not planned for C++ ([MCP Tasks proposal](../docs/features/complete/mcp-tasks/mcp-tasks.proposal.md))",
+				"pc-tasks": "not planned for C++"
+			},
+			"evidence": ["docs/features/complete/mcp-tasks/mcp-tasks.proposal.md"]
+		},
+		"mcp.auth.tasks": {
+			"status": "na",
+			"note": "not planned for C++",
+			"evidence": ["docs/features/complete/mcp-tasks/mcp-tasks.proposal.md"]
+		},
+		"mcp.tool-strategies": {
+			"status": "yes",
+			"note": "(`StdioServerOptions::tool_strategy`, default `grouped`, and `group_by`; the #533 lists)",
+			"views": {
+				"pc-strategies": "(`packages/cpp/tests/mcp_tools_test.cpp`: meta-tools against `meta-tools.json`, each strategy's list, grouped routing, D4, batch/pipe confirmations)"
+			},
+			"evidence": ["packages/cpp/tests/mcp_tools_test.cpp"]
+		},
+		"mcp.strategy-hybrid": {
+			"status": "yes",
+			"note": "(`ToolStrategy::hybrid` with `StdioServerOptions::first_class_tools`; checked by `create`; #1202)",
+			"views": {
+				"command-metadata": "",
+				"pc-hybrid-order": "(`tool_strategies_vectors_test.cpp`)",
+				"pc-hybrid-ctx": "(`tool_strategies_vectors_test.cpp`)",
+				"pc-hybrid-scope": "(`tool_strategies_vectors_test.cpp`)"
+			},
+			"evidence": ["packages/cpp/tests/tool_strategies_vectors_test.cpp"]
+		},
+		"mcp.resources": {
+			"status": "planned",
+			"note": "([#1983](https://github.com/lushly-dev/afd/issues/1983))",
+			"views": {
+				"res-core": "",
+				"res-vectors": "",
+				"pc-res": ""
+			},
+			"evidence": ["spec/mcp-resources.md"],
+			"issue": "#1983"
+		},
+		"mcp.skills": {
+			"status": "planned",
+			"note": "([#1983](https://github.com/lushly-dev/afd/issues/1983))",
+			"views": {
+				"res-skills": "",
+				"pc-skills": ""
+			},
+			"evidence": ["spec/mcp-resources.md"],
+			"issue": "#1983"
+		},
+		"mcp.tool-meta": {
+			"status": "planned",
+			"note": "([#1983](https://github.com/lushly-dev/afd/issues/1983))",
+			"views": {
+				"command-metadata": "",
+				"res-meta": "",
+				"pc-meta": ""
+			},
+			"evidence": ["spec/mcp-resources.md"],
+			"issue": "#1983"
+		},
+		"mcp.advertised-schema": {
+			"status": "planned",
+			"note": "([#1983](https://github.com/lushly-dev/afd/issues/1983))",
+			"views": {
+				"res-adv": "",
+				"pc-adv": ""
+			},
+			"evidence": ["spec/mcp-resources.md"],
+			"issue": "#1983"
+		},
+		"mcp.raw-json-schema": {
+			"status": "na",
+			"note": "a command's schema is JSON Schema already",
+			"evidence": ["packages/cpp/include/afd/schema.hpp"]
+		},
+		"mcp.output-budgets": {
+			"status": "yes",
+			"note": "([#1991](https://github.com/lushly-dev/afd/issues/1991), #2187): `_meta[\"dev.afd/outputBudget\"]` on individual and hybrid first-class tools, grouped `_meta.actions`, `afd-detail` and `afd-help` (`full`); per-call ask in `tools/call` `_meta` and meta-tools' `meta` on `afd::mcp_stdio` in both eras",
+			"views": {
+				"ob-b2": "(#1991)"
+			},
+			"evidence": [
+				"packages/cpp/include/afd/output_budget.hpp",
+				"packages/cpp/src/mcp_stdio/server.cpp",
+				"packages/cpp/tests/output_budget_test.cpp"
+			]
+		},
+		"mcp.meta-tools": {
+			"status": "yes",
+			"note": "definitions equal TypeScript's (`spec/meta-tools.json`, checked by `mcp_tools_test.cpp`)",
+			"evidence": ["packages/cpp/tests/mcp_tools_test.cpp"]
+		},
+		"mcp.meta-argument": {
+			"status": "partial",
+			"note": "`dev.afd/context` and `dev.afd/outputBudget`; `afd::mcp_stdio` reads no declared context fields from `_meta`",
+			"evidence": ["packages/cpp/tests/mcp_stdio_test.cpp"]
+		},
+		"mcp.bootstrap": {
+			"status": "yes",
+			"note": "(`register_bootstrap_commands`, `afd/bootstrap.hpp`); `afd-help` reports `toolStrategy` behind `afd::mcp_stdio`",
+			"evidence": [
+				"packages/cpp/include/afd/bootstrap.hpp",
+				"packages/cpp/tests/bootstrap_test.cpp"
+			]
+		},
+		"mcp.context-tools": {
+			"status": "yes",
+			"note": "(`register_context_commands` in `afd/contexts.hpp`; `afd::mcp_stdio` serves them through `StdioServerOptions::contexts`, #1425)",
+			"evidence": ["packages/cpp/include/afd/contexts.hpp", "packages/cpp/tests/mcp_stdio_test.cpp"]
+		},
+		"mcp.http-hardening": {
+			"status": "na",
+			"views": {
+				"pc-origin": ""
+			},
+			"evidence": ["docs/features/complete/cpp-support/proposal.md"]
+		},
+		"mcp.jsonrpc-types": {
+			"status": "deferred",
+			"note": "(C++ proposal scope)",
+			"evidence": ["docs/features/complete/cpp-support/proposal.md"]
+		},
+		"pc.version-negotiation": {
+			"status": "yes",
+			"note": "(`mcp_stdio_test.cpp`)",
+			"evidence": ["packages/cpp/tests/mcp_stdio_test.cpp"]
+		},
+		"pc.header-mismatch": {
+			"status": "na",
+			"note": "(stdio has no headers)",
+			"evidence": ["packages/cpp/include/afd/mcp_stdio.hpp"]
+		},
+		"pc.get-405": {
+			"status": "na",
+			"evidence": ["packages/cpp/include/afd/mcp_stdio.hpp"]
+		},
+		"pc.d4-hiding": {
+			"status": "yes",
+			"note": "(`mcp_stdio_test.cpp`; runner)",
+			"evidence": ["packages/cpp/tests/mcp_stdio_test.cpp"]
+		},
+		"pc.legacy-context-stacks": {
+			"status": "yes",
+			"note": "(`mcp_stdio_test.cpp`: one stack per stdio connection; in process the context tools are `SESSION_REQUIRED`)",
+			"evidence": ["packages/cpp/tests/mcp_stdio_test.cpp"]
+		},
+		"pc.cache-hints": {
+			"status": "yes",
+			"note": "(`mcp_stdio_test.cpp`)",
+			"evidence": ["packages/cpp/tests/mcp_stdio_test.cpp"]
+		},
+		"pc.client-negotiation": {
+			"status": "na",
+			"note": "(no C++ client)",
+			"evidence": ["docs/language-parity.md"]
+		},
+		"tooling.mcp-client": {
+			"status": "no",
+			"note": "not declared",
+			"evidence": ["docs/language-parity.md"]
+		},
+		"tooling.browser-transport": {
+			"status": "na",
+			"evidence": ["docs/language-parity.md"]
+		},
+		"tooling.direct-client": {
+			"status": "yes",
+			"note": "(see [defects](#defects-found-in-this-review))",
+			"evidence": [
+				"packages/cpp/include/afd/direct_client.hpp",
+				"packages/cpp/tests/direct_client_test.cpp"
+			]
+		},
+		"tooling.direct-interface": {
+			"status": "yes",
+			"note": "`DirectClientOptions::surface`",
+			"evidence": ["packages/cpp/include/afd/direct_client.hpp"]
+		},
+		"tooling.cli": {
+			"status": "na",
+			"evidence": ["docs/language-parity.md"]
+		},
+		"tooling.auth-adapter": {
+			"status": "na",
+			"note": "built by the host",
+			"evidence": ["docs/features/complete/cpp-support/proposal.md"]
+		},
+		"tooling.testing": {
+			"status": "no",
+			"note": "(N/A per D6)",
+			"evidence": ["docs/language-parity.md"]
+		},
+		"tooling.ui-packages": {
+			"status": "na",
+			"evidence": ["docs/language-parity.md"]
+		},
+		"tooling.browser-stores": {
+			"status": "na",
+			"evidence": ["docs/language-parity.md"]
+		},
+		"tooling.platform-connectors": {
+			"status": "deferred",
+			"note": "(connectors)",
+			"evidence": ["docs/features/complete/cpp-support/proposal.md"]
+		},
+		"single.context-fields-meta-delivery": {
+			"status": "no",
+			"note": "(`afd::mcp_stdio` does not read declared context fields from `_meta`)",
+			"evidence": [
+				"packages/cpp/include/afd/context_fields.hpp",
+				"packages/cpp/tests/context_fields_test.cpp"
+			]
+		},
+		"single.context-fields-discovery": {
+			"status": "partial",
+			"note": "(`afd-help` lists them; `afd::mcp_stdio` does not list them in `server/discover`)",
+			"evidence": [
+				"packages/cpp/include/afd/context_fields.hpp",
+				"packages/cpp/tests/context_fields_test.cpp"
+			]
+		}
+	}
+}

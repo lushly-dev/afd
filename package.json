@@ -34,6 +34,8 @@
 		"branch:squash": "node scripts/branch-squash.mjs",
 		"rust:sweep": "node scripts/rust-sweep.mjs",
 		"check:boundaries": "node scripts/check-boundaries.mjs",
+		"check:capabilities": "node scripts/check-capabilities.mjs",
+		"capabilities:sync": "node scripts/check-capabilities.mjs --write",
 		"check:skills": "node scripts/skill-profiles.mjs",
 		"skills:sync": "node scripts/skill-profiles.mjs --write",
 		"test:tooling": "node scripts/run-tooling-tests.mjs",

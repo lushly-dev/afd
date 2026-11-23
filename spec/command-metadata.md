@@ -516,16 +516,18 @@ so.
 
 The result is an ordinary failed `CommandResult`, so it needs no wire fixture of its own.
 
-| | TypeScript | Python | Rust | C++ |
+<!-- generated:capabilities:spec.command-metadata.approvals:start -->
+|  | TypeScript | Python | Rust | C++ |
 | --- | --- | --- | --- | --- |
 | `approval` field and `_meta.approval` | Yes | Yes | Yes | Yes (`_meta.approval` from `command_to_mcp_tool`) |
 | Approval middleware | Yes (`createApprovalMiddleware`) | Yes (`create_approval_middleware`) | Yes (`create_approval_middleware`) | Yes (`create_approval_middleware`) |
 | Declared policy held without the middleware (`APPROVAL_UNAVAILABLE`) | Yes (`createMcpServer`, `createDirectRegistry`; the middleware's `commands` option is optional) | Yes (`create_server`, `create_direct_registry`; `create_approval_middleware`'s `commands` is optional; [#1886](https://github.com/lushly-dev/afd/issues/1886)) | Yes (`CommandRegistry::execute`, [#1886](https://github.com/lushly-dev/afd/issues/1886); the middleware's list is optional: `ApprovalMiddlewareOptions::from_secret`) | Yes (`CommandRegistry::execute`, so `DirectClient`, batches, pipelines and `afd::mcp_stdio` too; `ApprovalMiddlewareOptions::commands` is optional, [#1886](https://github.com/lushly-dev/afd/issues/1886)) |
 | DirectClient approval hook and private exchange | Yes | Yes (`on_approval_needed`) | Yes (`with_on_approval_needed`) | Yes (`on_approval_needed`) |
 | CLI approval flow (`afd call --module`, in-process only) | Yes | Yes (`--approve` or interactive prompt) | N/A: no CLI | N/A: no CLI |
-| MCP relay (form elicitation) | Yes (`relay: 'mcp-elicitation'`) | Yes (`create_approval_middleware(relay="mcp-elicitation")`; one SDK-sealed, principal-bound `requestState` per call carries the confirmation and approval answers; a 2025 stdio or stateful HTTP connection is asked in band) | Yes (Umbel phase 5 step 0d: `ApprovalMiddlewareOptions::with_relay(ApprovalRelay::McpElicitation)`; one `requestState` per call carries the confirmation and approval answers, bound to the principal; a 2025 stdio connection is asked in band) | Yes (`ApprovalMiddlewareOptions::relay = ApprovalRelay::mcp_elicitation` with `afd::mcp_stdio`; one principal-bound `requestState` per call carries the confirmation and approval answers; a 2025 stdio connection is asked in band) |
+| MCP relay (form elicitation) | Yes (`relay: 'mcp-elicitation'`) | Yes (`create_approval_middleware(relay="mcp-elicitation")`; one SDK-sealed, principal-bound `requestState` per call carries confirmation and approval answers; in band on 2025 stdio or stateful HTTP) | Yes (Umbel phase 5 step 0d: `ApprovalMiddlewareOptions::with_relay(ApprovalRelay::McpElicitation)`; one principal-bound `requestState` per call; in band on 2025 stdio) | Yes (`ApprovalMiddlewareOptions::relay = ApprovalRelay::mcp_elicitation` with `afd::mcp_stdio`; one principal-bound `requestState` per call; in band on 2025 stdio) |
 | Up-front approval of `afd-batch` and `afd-pipe` (#459) | Yes | Yes (on 2026-07-28 and in band on a 2025 stdio or stateful HTTP connection) | Yes (on 2026-07-28 and in band on a 2025 stdio connection) | Yes (on 2026-07-28 and in band on a 2025 stdio connection; `afd::mcp_stdio` with `ApprovalRelay::mcp_elicitation`) |
 | Relay evidence from a `HumanRelay` ([below](#relay-evidence)) | Planned | Planned | Yes (step 0d): a crate-private `CommandContext` field the server sets after `Approved`, which `create_approval_middleware` checks in rule 3's order and spends once as `relay:<decisionId>`; removed before the handler runs | N/A: no `HumanRelay` |
+<!-- generated:capabilities:spec.command-metadata.approvals:end -->
 
 ### Relay evidence
 
@@ -623,9 +625,11 @@ the reasons.
 result has no `reason`. [`vectors/approver-client.json`](./vectors/approver-client.json) pins
 rules 2 to 5 in its `carrier` section, each token's payload included.
 
-| | TypeScript | Python | Rust | C++ |
+<!-- generated:capabilities:spec.command-metadata.approver:start -->
+|  | TypeScript | Python | Rust | C++ |
 | --- | --- | --- | --- | --- |
 | Approver carrier (rules 1 to 5) | Yes (`createMcpServer({ approver })`; `AFD_APPROVAL_META_KEY`) | Planned ([#1466](https://github.com/lushly-dev/afd/issues/1466)) | Yes (`McpServer::with_approver`; `AFD_APPROVAL_META_KEY`) | Planned ([#1466](https://github.com/lushly-dev/afd/issues/1466)) |
+<!-- generated:capabilities:spec.command-metadata.approver:end -->
 
 ### Approval display
 
@@ -661,9 +665,11 @@ U+E0000 to U+E0FFF.
 [`vectors/approver-client.json`](./vectors/approver-client.json)'s `display` section pins every
 rule and range.
 
-| | TypeScript | Python | Rust | C++ |
+<!-- generated:capabilities:spec.command-metadata.approval-display:start -->
+|  | TypeScript | Python | Rust | C++ |
 | --- | --- | --- | --- | --- |
 | Display rules | Yes (`@lushly-dev/afd-core`: `approvalDisplay`, `hidesCharacters`, `isHiddenCodePoint`, `APPROVAL_DISPLAY_LIMITS`) | Planned ([#1466](https://github.com/lushly-dev/afd/issues/1466)) | Yes (`approval_display`, `hides_characters`, `is_hidden_code_point`, `APPROVAL_DISPLAY_LIMITS`) | Planned ([#1466](https://github.com/lushly-dev/afd/issues/1466)) |
+<!-- generated:capabilities:spec.command-metadata.approval-display:end -->
 
 ## Tasks
 
@@ -844,11 +850,11 @@ does, records it where it receives the app's call.
 
 The shared plugin manifest carries the flag from [core version 2](./plugin-manifest.md#k5-exposure).
 
-| Implementation | Status |
-| --- | --- |
-| TypeScript | `ExposeOptions.apps`, `createCommandRegistry({ callGrant })` and `createAppCallRegistry` (`@lushly-dev/afd-server` and `/direct`) |
-| Rust | `ExposeOptions::apps`, `CommandInterface::Apps` and `CommandRegistry::set_call_grant` |
-| Python, C++ | Not yet ([#1513](https://github.com/lushly-dev/afd/issues/1513)). `apps` names no surface there, so a call naming it gets what any interface that names no surface gets ([D4](./error-codes.md#unknown-and-unexposed-commands-d4), rules 2 and 3): `COMMAND_NOT_FOUND` for a missing command and `COMMAND_NOT_EXPOSED` for one that exists. Refused, but the one answer does not hold there until #1513 |
+<!-- generated:capabilities:spec.command-metadata.app-calls:start -->
+|  | TypeScript | Python | Rust | C++ |
+| --- | --- | --- | --- | --- |
+| App-to-app calls (`expose.apps`, `apps` interface, `CALL_NOT_GRANTED`) | Yes (`ExposeOptions.apps`, `createCommandRegistry({ callGrant })` and `createAppCallRegistry` in `@lushly-dev/afd-server` and `/direct`) | Planned ([#1513](https://github.com/lushly-dev/afd/issues/1513)): `apps` names no surface yet, so calls return `COMMAND_NOT_FOUND` or `COMMAND_NOT_EXPOSED` rather than one `CALL_NOT_GRANTED` | Yes (`ExposeOptions::apps`, `CommandInterface::Apps` and `CommandRegistry::set_call_grant`) | Planned ([#1513](https://github.com/lushly-dev/afd/issues/1513)): no `Interface::apps` yet; calls return `COMMAND_NOT_FOUND` or `COMMAND_NOT_EXPOSED` |
+<!-- generated:capabilities:spec.command-metadata.app-calls:end -->
 
 The cases are in [`vectors/app-calls.json`](./vectors/app-calls.json).
 
@@ -958,18 +964,20 @@ Python's, Rust's and C++'s `mutation` is a plain boolean with no unset state, so
 annotations only for `mutation: true` and never claim `readOnlyHint: true`. `destructiveHint`
 follows `destructive`, `false` when it is unset.
 
-| | TypeScript | Python | Rust | C++ |
+<!-- generated:capabilities:spec.command-metadata.tool-fields:start -->
+|  | TypeScript | Python | Rust | C++ |
 | --- | --- | --- | --- | --- |
-| Tool `title` | Yes | Yes | Yes | Yes (`title` on the definition; todo backend tool lists) |
-| Annotations | Yes | `mutation: true` only, with `destructive` | `mutation: true` only, with `destructive`, from `CommandRegistry::get_tool` | `mutation: true` only, with `destructive` (todo backend) |
-| Confirmations | Yes (`confirmations`, `confirmationKey`; client `onElicitation`, CLI prompt) | Yes (`create_server(confirmations=..., confirmation_key=...)`); individual, grouped and meta-tools | Yes (`McpServer::with_confirmations`, `with_confirmations_key`); individual, grouped and meta-tools | Planned (todo backend) |
+| Tool `title` | Yes | Yes | Yes | Yes (`title` on `CommandDefinition`; `afd::mcp_stdio` tool lists) |
+| Annotations | Yes | Yes (`mutation: true` only, with `destructive`; [#1741](https://github.com/lushly-dev/afd/issues/1741)) | Yes (`mutation: true` only, with `destructive`, from `CommandRegistry::get_tool`; [#1741](https://github.com/lushly-dev/afd/issues/1741)) | Yes (`mutation: true` only, with `destructive`; [#1741](https://github.com/lushly-dev/afd/issues/1741)) |
+| Confirmations | Yes (`confirmations`, `confirmationKey`; client `onElicitation`, CLI prompt) | Yes (`create_server(confirmations=..., confirmation_key=...)`; individual, grouped and meta-tools) | Yes (`McpServer::with_confirmations`, `with_confirmations_key`; individual, grouped and meta-tools) | Yes (`StdioServerOptions::confirmations` on `afd::mcp_stdio`: individual, grouped, `afd-call`, `afd-batch` and `afd-pipe` in both eras) |
 | `structuredContent` | Yes | Yes (every tool result of every route, meta-tools, batch and pipeline included) | Yes (`McpServer`, every tool result of every route, meta-tools, batch and pipeline included) | Yes (`afd::mcp_stdio`, every tool result; the todo backend runs on it) |
-| Top-level `outputSchema` | Yes (`advertiseOutputSchema`) | Yes, for commands with `returns` listed as their own tool, individual or first-class under hybrid (`create_server(advertise_output_schema=False)` opts out); the envelope does not require a property that accepts `null`, because Python's wire format omits model fields set to `None` | Yes, for commands with `returns` under the individual strategy, as in TypeScript (`McpServer::with_advertise_output_schema`) | Yes, for commands with `output_schema` (`StdioServerOptions::advertise_output_schema`) |
-| `toolMeta` and the advertised schema ([`mcp-resources.md`](./mcp-resources.md)) | Yes (`toolMeta`, `advertisedInputSchema`) | Planned | Yes (`with_tool_meta`, `register_with_schemas`) | Planned |
-| `outputBudget` and the check after the handler ([`output-budgets.md`](./output-budgets.md)) | Planned | Planned | Yes (Umbel phase 2 step 0b) | Planned |
+| Top-level `outputSchema` | Yes (`advertiseOutputSchema`) | Yes, for commands with `returns` listed as their own tool, individual or first-class under hybrid (`create_server(advertise_output_schema=False)` opts out); the envelope does not require a property that accepts `null`, because Python's wire format omits model fields set to `None` | Yes, for commands with `returns` listed as their own tool, individual or first-class under hybrid (`McpServer::with_advertise_output_schema`) | Yes, for commands with `output_schema` (`StdioServerOptions::advertise_output_schema`) |
+| `toolMeta` and the advertised schema ([`mcp-resources.md`](./mcp-resources.md)) | Yes (`toolMeta`, `advertisedInputSchema`) | Yes (`tool_meta`, `advertised_input_schema`; #1981) | Yes (`with_tool_meta`, `register_with_schemas`) | Planned |
+| `outputBudget` and the check after the handler ([`output-budgets.md`](./output-budgets.md)) | Yes (`outputBudget`, #1989) | Yes ([#1990](https://github.com/lushly-dev/afd/issues/1990), #2186) | Yes (Umbel phase 2 step 0b) | Yes ([#1991](https://github.com/lushly-dev/afd/issues/1991), #2187) |
 | Hybrid first-class tools: command tools with these fields, `confirm` and the single-command approval relay ([tool strategies](./tool-strategies.md#hybrid)) | Yes | Yes | Yes | Yes |
-| `scopes` and its surfaces ([Scopes](#scopes)) | Yes (`scopes` on `CommandDefinition` and `defineCommand`, checked at registration, in `_meta`, grouped `_meta.actions` and `afd-detail`; enforced with `auth`) | Yes ([#2155](https://github.com/lushly-dev/afd/issues/2155): `scopes` on `CommandDefinition`, `@define_command` and `@server.command`, checked at registration, in `_meta`, grouped `_meta.actions`, `afd-detail` and `afd-help`; enforced with `auth`) | Yes (Umbel phase 5 step 0b: `CommandDefinition::with_scopes`, checked at registration, in `_meta`, grouped `_meta.actions` and `afd-detail`; enforced with `server-auth`) | Planned (declaration only) |
-| Confirmation state bound to the principal ([#532](https://github.com/lushly-dev/afd/issues/532)) | Yes (Umbel phase 5 step 0c): confirmation and approval-relay state, the actor (`createContext`'s or the `actor` option) and `createContext`'s `credentials`, in the state's HMAC bind tag; `principalBinding` | Yes (step 0c, [#800](https://github.com/lushly-dev/afd/issues/800)): the hook's actor (or the server's `actor`) and the SDK-verified token, through the SDK's `bind_principal`; a mismatch is `-32602` as tampering is | Yes (step 0c): the hook's actor and `CommandContext::credentials`, in the state's HMAC associated data; since step 0d the same state carries the form-mode approval relay's answers | N/A: no confirmation gate |
-| `confirmationMode: "host-verified"` and `HumanRelay` ([Host-verified confirmation](#host-verified-confirmation)) | Planned | Planned | Yes (Umbel phase 5 step 0d: `CommandDefinition::with_confirmation_mode(CommandConfirmationMode::HostVerified)`, `McpServer::with_human_relay`, `afd::input_digest`) | Planned (`afd::mcp_stdio` has no `HumanRelay`) |
-| `task`, `TaskStore` and the `tasks/*` handlers ([Tasks](#tasks)) | Yes ([#1971](https://github.com/lushly-dev/afd/issues/1971): `TaskSupport` on `CommandDefinition` and `defineCommand`, `TaskStore`, `InMemoryTaskStore` (32 tasks per owner, 256 in all), `taskStore` and `taskOptions` on `createMcpServer`/`createMcpHandler`, `CommandContext.reportProgress`, `McpClient({ tasks: true })` polling and `getTask`/`cancelTask`; `tasks.test.ts`, `tasks-client.test.ts`, todo `--suite tasks`) | Yes ([#1972](https://github.com/lushly-dev/afd/issues/1972): `TaskSupport` on `CommandDefinition`, `define_command` and `@server.command`, `TaskStore`, `InMemoryTaskStore` (32 per owner, 256 in all), `task_store` and `task_options` on `create_server`, `CommandContext.report_progress`/`cancel`, `McpClient(McpClientConfig(tasks=True))` polling and `get_task`/`cancel_task`; `test_tasks.py`, `test_tasks_client.py`, todo `--suite tasks`) | Yes (Umbel phase 5 step 0e: `CommandDefinition::with_task(TaskSupport)`, `afd::server::tasks` with `TaskStore`, `InMemoryTaskStore` (32 tasks per owner, 256 in all), `McpServer::with_task_store` and `with_task_options`, `CommandContext::report_progress` and `cancellation`; `tests/server_tasks.rs`, todo `--suite tasks`) | N/A: no MCP server |
+| `scopes` and its surfaces ([Scopes](#scopes)) | Yes (#1050: `defineCommand({ scopes })`, in `_meta`, grouped `_meta.actions` and `afd-detail`; enforced with `auth`) | Yes ([#2155](https://github.com/lushly-dev/afd/issues/2155): `scopes` on `CommandDefinition`, `@define_command` and `@server.command`, checked at registration, in `_meta`, grouped `_meta.actions`, `afd-detail` and `afd-help`; enforced with `auth`) | Yes (Umbel phase 5 step 0b: `CommandDefinition::with_scopes`, checked at registration, in `_meta`, grouped `_meta.actions` and `afd-detail`; enforced with `server-auth`) | N/A: no HTTP server |
+| Confirmation state bound to the principal ([#532](https://github.com/lushly-dev/afd/issues/532)) | Yes (Umbel phase 5 step 0c): confirmation and approval-relay state, the actor (`createContext`'s or the `actor` option) and `createContext`'s `credentials`, in the state's HMAC bind tag; `principalBinding` | Yes (step 0c, [#800](https://github.com/lushly-dev/afd/issues/800), [#2154](https://github.com/lushly-dev/afd/issues/2154)): the hook's actor (or server `actor`) and verified credentials (AFD `auth` or SDK token), through the SDK's `bind_principal`; a mismatch is `-32602` as tampering is | Yes (step 0c): the hook's actor and `CommandContext::credentials`, in the state's HMAC associated data; since step 0d the same state carries the form-mode approval relay's answers | Partial: `afd::mcp_stdio` signs `requestState` (HMAC) bound to command, input and actor; stdio carries no HTTP credentials |
+| `confirmationMode: "host-verified"` and `HumanRelay` ([Host-verified confirmation](#host-verified-confirmation)) | Planned | Planned | Yes (Umbel phase 5 step 0d: `CommandDefinition::with_confirmation_mode(CommandConfirmationMode::HostVerified)`, `McpServer::with_human_relay`, `afd::input_digest`) | N/A: `afd::mcp_stdio` has no `HumanRelay` |
+| `task`, `TaskStore` and the `tasks/*` handlers ([Tasks](#tasks)) | Yes ([#1971](https://github.com/lushly-dev/afd/issues/1971): `TaskSupport`, `TaskStore`, `InMemoryTaskStore` (32/owner, 256 total), `taskStore`/`taskOptions`, `CommandContext.reportProgress`, `McpClient({ tasks: true })`; `tasks.test.ts`, `tasks-client.test.ts`, todo `--suite tasks`) | Yes ([#1972](https://github.com/lushly-dev/afd/issues/1972): `TaskSupport`, `TaskStore`, `InMemoryTaskStore` (32/owner, 256 total), `task_store`/`task_options`, `CommandContext.report_progress`/`cancel`, `McpClient(McpClientConfig(tasks=True))`; `test_tasks.py`, `test_tasks_client.py`, todo `--suite tasks`) | Yes (Umbel phase 5 step 0e: `CommandDefinition::with_task(TaskSupport)`, `afd::server::tasks` (`TaskStore`, `InMemoryTaskStore` 32/owner, 256 total), `with_task_store`/`with_task_options`, `report_progress` and `cancellation`; `tests/server_tasks.rs`, todo `--suite tasks`) | N/A: not planned for C++ ([MCP Tasks proposal](../docs/features/complete/mcp-tasks/mcp-tasks.proposal.md)) |
+<!-- generated:capabilities:spec.command-metadata.tool-fields:end -->
 
