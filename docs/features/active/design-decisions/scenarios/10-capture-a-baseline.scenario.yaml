@@ -1,6 +1,5 @@
-# Draft JTBD scenario for the Design Decisions proposal. The commands and their shapes are proposals;
-# the data is invented. Lists are asserted with dotted index paths where only part of an item
-# matters, because a list under `expect.data` is compared whole.
+# JTBD scenario for Design Decisions (Slice 1). Lists are asserted with dotted index paths where
+# only part of an item matters, because a list under `expect.data` is compared whole.
 # The checkout is main at a1b2c3d, clean. A set named main already exists from it.
 
 name: Capture a set to review against
@@ -9,7 +8,7 @@ description: >-
   labelled set that answers with ids and counts only, so that a review has something to compare
   against without filling the agent's context.
 job: capture-a-baseline
-tags: [slice]
+tags: [slice-1]
 fixture:
   file: fixtures/toolbar.json
 
@@ -32,6 +31,7 @@ steps:
         counts.axe.incomplete: 1
         unavailable: { length: 0 }
         skipped.jobs: 0
+        skipped.gates: 0
 
   - description: A subset in another context gets its own set, so labels never mix contexts
     command: specimen-capture

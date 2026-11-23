@@ -1,8 +1,7 @@
-# Draft JTBD scenario for the Design Decisions proposal. The commands and their shapes are proposals;
-# the data is invented. Lists are asserted with dotted index paths where only part of an item
-# matters, because a list under `expect.data` is compared whole.
+# JTBD scenario for Design Decisions (Slice 1). Lists are asserted with dotted index paths where
+# only part of an item matters, because a list under `expect.data` is compared whole.
 # toolbar--grouped fails colour contrast when it renders. Step references are resolved in
-# `input` only, so `expect` uses matchers. No `subjects.specimens` is given in step 4, so it
+# `input` only, so `expect` uses matchers. No `subjects.specimens` is given in step 5, so it
 # defaults to the chosen variant.
 
 name: Record the choice with its reason and evidence
@@ -10,7 +9,7 @@ description: >-
   When I choose a variant, I want the choice, the reason and the captures it rested on recorded
   together and written beside the code, so that a later agent or I can find why it is the way it is.
 job: record-the-choice
-tags: [slice]
+tags: [slice-1]
 fixture:
   file: fixtures/toolbar.json
 
@@ -82,11 +81,11 @@ steps:
     expect:
       success: true
       data:
-        decision: { matches: '^dec-[a-z2-7]{12}$' }
+        decision: { matches: '^dec-[0-9a-hjkmnp-tv-z]{12}$' }
         kind: choice
         chosen: toolbar--dense
         kept: [toolbar--airy, toolbar--grouped]
-        path: { matches: '^specimens/decisions/dec-[a-z2-7]{12}\.json$' }
+        path: { matches: '^specimens/decisions/dec-[0-9a-hjkmnp-tv-z]{12}\.json$' }
         evidenceDir: { matches: '^specimens/evidence/set-[0-9a-f]{12}/$' }
 
   - description: Reading it back gives the reason and the captures it rested on

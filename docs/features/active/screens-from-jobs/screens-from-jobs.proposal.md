@@ -25,7 +25,7 @@
 | --- | --- |
 | Epic | [#1109](https://github.com/lushly-dev/afd/issues/1109) |
 | Units likely touched | `foundations/specimen`, `integrations/specimen-afd`, `endpoints/specimen-cli`, `endpoints/specimen-server`, a new private integration `integrations/specimen-afd-runner` (T11, [#1212](https://github.com/lushly-dev/afd/issues/1212)), `packages/testing` (a browser-safe entry and two awaited hooks), `endpoints/loam` (the first consumer) |
-| Related | [Design Decisions](../../proposed/design-decisions/design-decisions.proposal.md) (capture sets, review, answers and `confirmations: 'require-human'` on `specimen-server`), [Specimens status](../../complete/specimens/STATUS.md) (T11, [#1212](https://github.com/lushly-dev/afd/issues/1212)), [Patterns](../patterns/patterns.proposal.md), [Pointing](../pointing/pointing.proposal.md) |
+| Related | [Design Decisions](../design-decisions/design-decisions.proposal.md) (capture sets, review, answers and `confirmations: 'require-human'` on `specimen-server`), [Specimens status](../../complete/specimens/STATUS.md) (T11, [#1212](https://github.com/lushly-dev/afd/issues/1212)), [Patterns](../patterns/patterns.proposal.md), [Pointing](../pointing/pointing.proposal.md) |
 | Rank among the four | Second. Reviewing at the level of a screen needs screens in real states |
 
 ## 1. Problem
@@ -47,7 +47,7 @@ about a screen, not a component.
 **Goal:** a job's scenario file is the one definition of the states it passes through.
 
 - Specimen runs it once in a browser and saves a capture at each step a person marks, as a
-  [Design Decisions](../../proposed/design-decisions/design-decisions.proposal.md) capture set that every
+  [Design Decisions](../design-decisions/design-decisions.proposal.md) capture set that every
   check reads.
 - A change to the app is shown through that proposal's review: what changed at each step, before
   and after, for a person to answer.
@@ -454,7 +454,7 @@ schema both accept the key.
 ### 5.3 Runs are capture sets
 
 A run of `specimen-job-run` saves its captures as an ordinary capture set, as Design Decisions
-defines it ([its section 6.2](../../proposed/design-decisions/design-decisions.proposal.md#62-capture-sets)).
+defines it ([its section 6.2](../design-decisions/design-decisions.proposal.md#62-capture-sets)).
 The two proposals keep one baseline and review system.
 
 - **The set.**
@@ -481,11 +481,12 @@ The two proposals keep one baseline and review system.
   - `specimen-render`, given `id`, `set` and `checkpoint`, returns the kept observation.
   - Neither replays the job. A capture that was not taken is `not-run`, with its reason.
 - **Seeing what changed and accepting it** use Design Decisions' commands unchanged
-  ([its section 6.5](../../proposed/design-decisions/design-decisions.proposal.md#65-review)).
+  ([its section 6.5](../design-decisions/design-decisions.proposal.md#65-review)).
   - `specimen-review { before, after }` compares a set on `main` with one on the branch. It lists
     only the open items, each with its before and after captures, and counts the rest.
   - `decision-record { items, chosen, reason }` answers an item. It asks a person to confirm.
-    While the item's fingerprint matches, later reviews count it as `answered`.
+    While the item's fingerprint matches, an `accept` counts as `answered` and a `reject` routes
+    to `blocking` (`kind: 'rejected'`, carrying `reason`).
 - **Groups are by cause:** channel, target, property and the before and after values, ordered
   largest group first with specimen id as tie-breaker.
   - A capture whose differences have several causes appears in one item per cause.
@@ -689,7 +690,7 @@ review are where such judgements would gain a check.
 Confirmed by the owner in a three-pass walkthrough on 2026-11-22 (Q1–Q16).
 
 **Shared conventions** across Design Decisions, Screens from Jobs and Pointing
-([Design Decisions §5](../../proposed/design-decisions/design-decisions.proposal.md#5-shared-conventions-the-owners-to-confirm)):
+([Design Decisions §5](../design-decisions/design-decisions.proposal.md#5-shared-conventions)):
 
 1. Design Decisions owns the one baseline and review system. A job run saves a capture set,
    keyed `<id>/<step>` (the job specimen's unique id plus step number, so density or mount

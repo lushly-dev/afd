@@ -1,6 +1,5 @@
-# Draft JTBD scenario for the Design Decisions proposal. The commands and their shapes are proposals;
-# the data is invented. Lists are asserted with dotted index paths where only part of an item
-# matters, because a list under `expect.data` is compared whole.
+# JTBD scenario for Design Decisions (Slice 1). Lists are asserted with dotted index paths where
+# only part of an item matters, because a list under `expect.data` is compared whole.
 # branch-quiet matches main in every channel. The empty list's undecided contrast check was
 # answered on 2026-11-11 and its fingerprint still matches.
 
@@ -9,7 +8,7 @@ description: >-
   When the gates and earlier answers have settled everything in a change, I want the review to
   say so in one line and list nothing, so that a review with nothing to judge costs me nothing.
 job: stay-quiet-about-what-is-settled
-tags: [quiet]
+tags: [slice-1, quiet]
 fixture:
   file: fixtures/decided.json
   base: toolbar.json

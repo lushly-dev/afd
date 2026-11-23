@@ -5,7 +5,7 @@
 | Epic | [#1073](https://github.com/lushly-dev/afd/issues/1073) |
 | Phase A issue | [#2133](https://github.com/lushly-dev/afd/issues/2133) |
 | Proposal & status | [`patterns.proposal.md`](patterns.proposal.md), [`STATUS.md`](STATUS.md) |
-| Companion amendments | [Umbel `components` plugin spec (Amendment A31)](../../../../endpoints/umbel/docs/plugins/components/spec.md#amendment-a31-patterns-and-saved-copies-1073), [Design Decisions proposal (gate-case skip)](../../proposed/design-decisions/design-decisions.proposal.md) |
+| Companion amendments | [Umbel `components` plugin spec (Amendment A31)](../../../../endpoints/umbel/docs/plugins/components/spec.md#amendment-a31-patterns-and-saved-copies-1073), [Design Decisions proposal (gate-case skip)](../design-decisions/design-decisions.proposal.md) |
 | Normative baseline | `foundations/specimen/docs/pack-format.md` (format 1), `foundations/specimen/src/{types,schema,pack-types,pack-schema,guide-schema,guides,validate}.ts`, `integrations/specimen-afd/src/commands.ts` |
 | Elevation | Exact schemas, identifier forms, limits, wire contracts, error codes, and exit checks. Implementing agents in Phases B–D need no further design decisions; any gap stops and amends this specification by pull request |
 
@@ -35,7 +35,7 @@ Every adjustment proved in Phase 0 ([#1966](https://github.com/lushly-dev/afd/is
 | PA-5 | Walk / Review | Static validation codes `GATE_UNKNOWN` and `TARGET_UNKNOWN` alongside `GATE_NOT_PORTABLE`, `PATTERN_UNKNOWN`, `SETUP_UNKNOWN`, `DUPLICATE_ID` | [§2.6](#26-static-validation-specimen-validate) |
 | PA-6 | Walk / Review | Revision change notes (`changeNote`) on saved copies and facet key governance | [§2.1](#21-schema-patternjson), [§5.1](#51-specimen-pattern-save), [§6.5](#65-copy-record-datalibrarypatternspatternnamejson-slice-2) |
 | PA-7 | Walk / Review | Outdated-copy warnings in `components-check`, `out-of-context` vs `minimum_basis`, and `render: "text"` quoting | [Amendment A31](../../../../endpoints/umbel/docs/plugins/components/spec.md#amendment-a31-patterns-and-saved-copies-1073) |
-| PA-8 | Walk / Review | Unfiltered `specimen-capture` skips Pattern gate cases (`<case>--gate--<gate>`) | [Design Decisions §5, §6.2, §7](../../proposed/design-decisions/design-decisions.proposal.md) |
+| PA-8 | Walk / Review | Unfiltered `specimen-capture` skips Pattern gate cases (`<case>--gate--<gate>`) | [Design Decisions §5, §6.2, §7](../design-decisions/design-decisions.proposal.md) |
 
 ---
 

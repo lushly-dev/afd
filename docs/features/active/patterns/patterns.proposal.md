@@ -36,7 +36,7 @@ records which hold, and Umbel serves the result.
 | Epic | [#1073](https://github.com/lushly-dev/afd/issues/1073) |
 | Specification | [`spec.md`](spec.md), [Umbel Amendment A31](../../../../endpoints/umbel/docs/plugins/components/spec.md#amendment-a31-patterns-and-saved-copies-1073) |
 | Units touched | `foundations/specimen`, `integrations/specimen-afd`, `endpoints/specimen-cli`, `integrations/specimen-fast-af`, `foundations/fast-af/packages/violet-elements`, `endpoints/umbel` (its `components` plugin), `endpoints/loam` (its specimens and design record) |
-| Related | [Specimens status](../../complete/specimens/STATUS.md), [Component Briefs status](../../complete/component-briefs/STATUS.md), [Design Decisions](../../proposed/design-decisions/design-decisions.proposal.md) ([#1108](https://github.com/lushly-dev/afd/issues/1108)), [Screens from Jobs](../screens-from-jobs/screens-from-jobs.proposal.md) ([#1109](https://github.com/lushly-dev/afd/issues/1109)), [Pointing](../pointing/pointing.proposal.md) ([#1110](https://github.com/lushly-dev/afd/issues/1110)), [Scales](../scales/scales.proposal.md) ([#1111](https://github.com/lushly-dev/afd/issues/1111)), [pack format](../../../../foundations/specimen/docs/pack-format.md), [`components` plugin specification](../../../../endpoints/umbel/docs/plugins/components/spec.md), [Loam design skill](../../../../.claude/skills/loam-design/SKILL.md) |
+| Related | [Specimens status](../../complete/specimens/STATUS.md), [Component Briefs status](../../complete/component-briefs/STATUS.md), [Design Decisions](../design-decisions/design-decisions.proposal.md) ([#1108](https://github.com/lushly-dev/afd/issues/1108)), [Screens from Jobs](../screens-from-jobs/screens-from-jobs.proposal.md) ([#1109](https://github.com/lushly-dev/afd/issues/1109)), [Pointing](../pointing/pointing.proposal.md) ([#1110](https://github.com/lushly-dev/afd/issues/1110)), [Scales](../scales/scales.proposal.md) ([#1111](https://github.com/lushly-dev/afd/issues/1111)), [pack format](../../../../foundations/specimen/docs/pack-format.md), [`components` plugin specification](../../../../endpoints/umbel/docs/plugins/components/spec.md), [Loam design skill](../../../../.claude/skills/loam-design/SKILL.md) |
 
 ## 1. Problem and goal
 
@@ -80,7 +80,7 @@ writes the code and Git keeps the history. Pattern inheritance or nesting.
 Ranked search (the knowledge plugin's job, as Component Briefs decided).
 Replacing a component's own stories. Changing how tokens are named or scaled
 ([Scales](../scales/scales.proposal.md), [#1111](https://github.com/lushly-dev/afd/issues/1111)).
-A review surface for people: [Design Decisions](../../proposed/design-decisions/design-decisions.proposal.md)
+A review surface for people: [Design Decisions](../design-decisions/design-decisions.proposal.md)
 ([#1108](https://github.com/lushly-dev/afd/issues/1108)) owns the single
 Specimen review surface and confirmation-gated MCP host; Patterns adds neither.
 
@@ -321,7 +321,7 @@ flowchart LR
 ### 5.0 Shared conventions (aligned with sibling proposals)
 
 Confirmed by the owner on 2026-11-21 to align Patterns with
-[Design Decisions](../../proposed/design-decisions/design-decisions.proposal.md),
+[Design Decisions](../design-decisions/design-decisions.proposal.md),
 [Screens from Jobs](../screens-from-jobs/screens-from-jobs.proposal.md) and
 [Pointing](../pointing/pointing.proposal.md):
 
@@ -826,7 +826,7 @@ section-by-section walkthrough on 2026-11-21:
 
 Publishing any unit. Token names, scales or derived values ([Scales](../scales/scales.proposal.md),
 [#1111](https://github.com/lushly-dev/afd/issues/1111)). A person's review
-surface ([Design Decisions](../../proposed/design-decisions/design-decisions.proposal.md),
+surface ([Design Decisions](../design-decisions/design-decisions.proposal.md),
 [#1108](https://github.com/lushly-dev/afd/issues/1108)). Non-web
 implementations. Ranked search (the knowledge plugin). Automatic repair of a
 copy whose source changed: the marker makes it findable, and the repair is a

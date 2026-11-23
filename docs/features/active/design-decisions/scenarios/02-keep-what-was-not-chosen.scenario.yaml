@@ -1,6 +1,5 @@
-# Draft JTBD scenario for the Design Decisions proposal. The commands and their shapes are proposals;
-# the data is invented. Lists are asserted with dotted index paths where only part of an item
-# matters, because a list under `expect.data` is compared whole.
+# JTBD scenario for Design Decisions (Slice 2). Lists are asserted with dotted index paths where
+# only part of an item matters, because a list under `expect.data` is compared whole.
 # The toolbar density was decided on 2026-11-12; two variants were kept.
 
 name: Keep the variants that were not chosen
@@ -8,6 +7,7 @@ description: >-
   When I have chosen one variant, I want the others kept and retrievable until I discard them,
   so that I can go back to one without rebuilding it.
 job: keep-what-was-not-chosen
+tags: [slice-2]
 fixture:
   file: fixtures/decided.json
   base: toolbar.json

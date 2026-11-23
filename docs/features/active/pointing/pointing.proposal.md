@@ -20,7 +20,7 @@
 | --- | --- |
 | Epic | [#1110](https://github.com/lushly-dev/afd/issues/1110) |
 | Units likely touched | `foundations/specimen` (the host and the review page), `integrations/specimen-afd`, `endpoints/specimen-cli`, `endpoints/specimen-server`; for Slice 3 preview, Specimen's Violet work (T09, [#1211](https://github.com/lushly-dev/afd/issues/1211)) and `integrations/violet-afd` |
-| Related | [Design Decisions](../../proposed/design-decisions/design-decisions.proposal.md), [Screens from Jobs](../screens-from-jobs/screens-from-jobs.proposal.md), [Patterns](../patterns/patterns.proposal.md), [Specimens status](../../complete/specimens/STATUS.md) (T09, T10) |
+| Related | [Design Decisions](../design-decisions/design-decisions.proposal.md), [Screens from Jobs](../screens-from-jobs/screens-from-jobs.proposal.md), [Patterns](../patterns/patterns.proposal.md), [Specimens status](../../complete/specimens/STATUS.md) (T09, T10) |
 | Rank among the four | Third. Pointing starts on Specimen's review page (Slice 1 ships independently of Design Decisions); Design Decisions' review adopts it later |
 
 ## 1. Problem
@@ -117,7 +117,7 @@ Notes: Jobs 7–9)** → **Slice 3 (`preview`, Preview: Jobs 5–6, with T09 [#1
 
 ### 4.0 Shared conventions (confirmed)
 
-Shared with [Design Decisions](../../proposed/design-decisions/design-decisions.proposal.md) and
+Shared with [Design Decisions](../design-decisions/design-decisions.proposal.md) and
 [Screens from Jobs](../screens-from-jobs/screens-from-jobs.proposal.md); confirmed by
 the owner on 2026-11-21 (`#1132`) and 2026-11-22:
 
@@ -506,7 +506,7 @@ optional `&pin=x,y` (default `0.5,0.5`); and `specimen-note-resolve` always retu
    the live-app phase.
 3. **Storage.** Ephemeral points live in `.specimen/points/` (gitignored, `#1132`); Notes live as
    committed files under `specimens/notes/<id>.json`, matching
-   [Design Decisions](../../proposed/design-decisions/design-decisions.proposal.md).
+   [Design Decisions](../design-decisions/design-decisions.proposal.md).
 4. **Rendered preview.** Jobs 5–6 extend T09's `specimen-impact` ([#1211](https://github.com/lushly-dev/afd/issues/1211))
    with an optional `point` (token-only CSS custom-property overrides). No separate preview path.
 5. **Typed target errors.** Split the host's error into `TARGET_NOT_FOUND` and `TARGET_AMBIGUOUS`

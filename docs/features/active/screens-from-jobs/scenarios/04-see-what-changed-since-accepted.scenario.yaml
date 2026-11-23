@@ -2,7 +2,7 @@
 # proposals, and the data is invented. The first step runs in a checkout of `main` and the
 # second in the branch, where the notice's block padding grew from 8 to 12 pixels. Comparing
 # them is Design Decisions' `specimen-review`
-# (../../../proposed/design-decisions/design-decisions.proposal.md, section 6.5).
+# (../../design-decisions/design-decisions.proposal.md, section 6.5).
 
 name: See what changed at a step since it was accepted
 description: >-

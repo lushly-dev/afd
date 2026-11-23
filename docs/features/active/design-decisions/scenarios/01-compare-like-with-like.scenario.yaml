@@ -1,6 +1,5 @@
-# Draft JTBD scenario for the Design Decisions proposal. The commands and their shapes are proposals;
-# the data is invented. Lists are asserted with dotted index paths where only part of an item
-# matters, because a list under `expect.data` is compared whole.
+# JTBD scenario for Design Decisions (Slice 1). Lists are asserted with dotted index paths where
+# only part of an item matters, because a list under `expect.data` is compared whole.
 # toolbar--grouped fails colour contrast when it renders.
 
 name: Compare variants under the same conditions
@@ -8,7 +7,7 @@ description: >-
   When I am unsure between directions, I want several variants captured side by side under one
   context and checkpoint, with each one's checks, so that I compare the designs and not the setups.
 job: compare-like-with-like
-tags: [slice]
+tags: [slice-1]
 fixture:
   file: fixtures/toolbar.json
 
