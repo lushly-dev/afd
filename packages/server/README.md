@@ -732,8 +732,11 @@ createMcpServer({ name: 'todo', version: '1.0.0', commands: [clearTodos], confir
   `confirm: true` (on `afd-batch` and `afd-pipe`, `confirm: ['todo-clear']`; on the HTTP
   routes, the `Afd-Confirm: todo-clear` header). That acknowledgement comes from the agent, not
   the user. `confirmations: 'require-human'` refuses it and accepts only an elicitation.
-- **Several instances** behind one URL need the same `confirmationKey` (32 bytes or more), which
-  signs the confirmation's `requestState`.
+- **The `requestState` key is per process by default.** Without `confirmationKey` (a string or
+  bytes, 32 bytes or more, checked when the server is created), each process signs the
+  confirmation's `requestState` with its own random key, so the answer must reach the process
+  that asked. Several instances behind one URL need the same `confirmationKey`; see
+  [Several instances](#several-instances).
 
 `server.execute()` and DirectClient calls are never gated.
 
@@ -763,6 +766,10 @@ const server = createMcpServer({
   // Middleware — zero-config observability
   middleware: defaultMiddleware(),
 
+  // Several processes behind one URL (see "Several instances")
+  instances: 'multiple',
+  confirmationKey: process.env.AFD_CONFIRMATION_KEY!, // shared by every instance
+
   // Callbacks
   onCommand(command, input, result) {
     console.log(`Executed ${command}:`, result.success);
@@ -772,6 +779,25 @@ const server = createMcpServer({
   },
 });
 ```
+
+### Several instances
+
+Two things are kept per process unless you share them:
+
+| What | Default | Used when | Share it with |
+|------|---------|-----------|---------------|
+| The key that signs elicitation `requestState` | A random key per server or handler, so even two handlers in one process do not share it | `confirmations` is not `'off'`, or an approval middleware has `relay: 'mcp-elicitation'` | `confirmationKey` on every instance (32 bytes or more) |
+| Spent single-use approval tokens | In memory, per `createApprovalMiddleware` | An approval middleware with the default `replay: 'single-use'` | `nonceStore` on every instance's approval middleware |
+
+Behind one process the defaults are enough. Behind several (a load balancer, or several engines answering the same callers), a `requestState` signed by one process is unanswered on another, so the person is asked again, and a single-use token works once on each process. Say which you run with `instances`:
+
+- **`instances: 'multiple'`**: creating the server throws unless each default in use is supplied, naming what is missing.
+- **`instances: 'single'`**: one process serves every request; nothing is required or logged. A supplied `confirmationKey` is still checked (32 bytes or more).
+- **Left out**: as `'single'`, but a server served over HTTP (`start()` on the HTTP transport, or `createMcpHandler`) logs one warning to stderr when it relies on either default, once per process however many servers and handlers it creates. stdio logs nothing.
+
+The check sees approval middleware passed in `middleware` directly or inside `composeMiddleware`, made by any installed copy of this package from this version on (older copies do not mark theirs), but not one wrapped inside another middleware. A `taskStore` is shared separately.
+
+The `instances` check is TypeScript only for now. The Python server (`create_server(confirmation_key=...)`, else a random key per server, and the approval middleware's `nonce_store`, else memory) and the Rust server (`McpServer::with_confirmations_key`, else a random key, and `ApprovalMiddlewareOptions::with_nonce_store`, else memory) have the same defaults: share them yourself behind several processes.
 
 ## Middleware
 
@@ -937,7 +963,7 @@ To resume, retry the same command with the same input and `context.approval` set
 - **The token is the approval.** It is an HMAC-SHA256 over the command name, a keyed digest of the validated input (canonical JSON: sorted keys, so key order and defaults do not matter), a keyed digest of the actor's `kind`, `id` and `onBehalfOf`, an expiry and a random nonce. Tampered, expired, other-command, other-input and other-actor tokens are rejected, using constant-time comparisons; the new result's `details.reason` says why (which also tells a token's holder that its signature is valid).
 - **Only trusted code sets `context.approval`**, after a human approved: a surface such as `createContext(req)` or the application, never tool arguments. Whoever holds a token can use it, and the `APPROVAL_REQUIRED` result goes to the caller. So `includeToken` defaults to `false` when `context.interface` is `'mcp'` (every MCP lane, and the HTTP routes of `createMcpHandler`), whose caller is the agent: deliver the token to the human through `onApprovalRequired`. Elsewhere it defaults to `true`; set it explicitly to override either default. A DirectClient/DirectRegistry or in-process CLI exchange always suppresses the token regardless of this option.
 - **Plain JSON input only.** A validated input holding a `Map`, `Set`, `RegExp`, typed array, class instance, `bigint` or non-finite number cannot be bound without ambiguity, so such a call fails before the handler instead of being held.
-- **Single-use by default.** A token runs the command once (`reason: 'already-used'` after). `replay: 'within-ttl'` lets it run the same call as often as it is presented until it expires, so one approval also covers repeats such as duplicate batch items. Spent tokens are remembered in memory by this middleware instance: share one `nonceStore` (`consume(nonce, expiresAt)` returning `true` only for an unused nonce, atomically) between every instance that uses the secret, across processes or between a server and a `createDirectRegistry`.
+- **Single-use by default.** A token runs the command once (`reason: 'already-used'` after). `replay: 'within-ttl'` lets it run the same call as often as it is presented until it expires, so one approval also covers repeats such as duplicate batch items. Spent tokens are remembered in memory by this middleware instance, so by default a token works once per process: share one `nonceStore` (`consume(nonce, expiresAt)` returning `true` only for an unused nonce, atomically) between every instance that uses the secret, across processes or between a server and a `createDirectRegistry`. A server with `instances: 'multiple'` refuses single-use approval middleware without one ([Several instances](#several-instances)).
 - **Short-lived.** `ttlMs` defaults to 5 minutes, at most 24 hours. Time comes from the `clock` option, else the system clock; never from `context.clock`, which a caller can set.
 - **Key rotation:** pass `secret: [newKey, oldKey]`; the first signs, any verifies.
 - **WebCrypto.** The middleware uses `globalThis.crypto` (Node.js 22 and every current browser on a secure origin), so it also runs in a browser or webview through `@lushly-dev/afd-server/direct`. Tokens are byte for byte the same in TypeScript, Python, Rust and C++ (`spec/vectors/approval-tokens.json`).
@@ -998,7 +1024,7 @@ createMcpServer({
 - **Anyone else's key is ignored,** and the key in tool arguments (or the HTTP routes' input) is refused with `VALIDATION_ERROR`, from every caller.
 - **The approver promises** never to give the token to an agent or a model, and to present it only on a retry a person approved after seeing the action, shown by `approvalDisplay` from `@lushly-dev/afd-core`, which refuses input too large, too deep or hiding characters.
 
-The relay trusts the MCP client application to put the question to a person. The server cannot tell a human's click from client code that accepts on its own, so the relay is off by default. Leave it off where the agent's own code is the MCP client, for example an `McpClient` whose `onElicitation` answers automatically. Servers with several instances must share `confirmationKey` and `nonceStore`.
+The relay trusts the MCP client application to put the question to a person. The server cannot tell a human's click from client code that accepts on its own, so the relay is off by default. Leave it off where the agent's own code is the MCP client, for example an `McpClient` whose `onElicitation` answers automatically. The relay's `requestState` is signed with the server's `confirmationKey`, a random key per process when it is not set, and its nonces are spent in the middleware's `nonceStore`, in memory per process by default: servers with several instances must share both and set `instances: 'multiple'` ([Several instances](#several-instances)).
 
 `spec/command-metadata.md` ("Approvals") is the cross-language contract.
 
@@ -1204,6 +1230,9 @@ Create an MCP server from commands.
 | `toolsListTtlMs` | number | No | `ttlMs` freshness hint on MCP 2026-07-28 `tools/list` and `server/discover` results (default: 300000, or 0 when `contexts` are set); also the `ttlMs` of resource and skill results, which `contexts` never lower |
 | `resources` | `ResourceProvider \| ResourceEntry[]` | No | MCP resources served on `/mcp` and stdio; declares the `resources` capability |
 | `skills` | `SkillCatalog` | No | Agent Skills served through `skills/list`, `skills/get` and as `skill://` resources; declares `io.modelcontextprotocol/skills` |
+| `confirmations` | `'off' \| 'enforce' \| 'require-human'` | No | Enforce `confirmPrompt` on the MCP and HTTP surfaces (default: `'off'`) |
+| `confirmationKey` | `string \| Uint8Array` | No | Key (32 bytes or more) that signs elicitation `requestState` (default: a random key per process) |
+| `instances` | `'single' \| 'multiple'` | No | `'multiple'` refuses per-process defaults in use; left out, HTTP logs one warning when it relies on one ([Several instances](#several-instances)) |
 | `middleware` | array | No | Middleware functions |
 | `onCommand` | function | No | Command execution callback |
 | `onError` | function | No | Error callback |

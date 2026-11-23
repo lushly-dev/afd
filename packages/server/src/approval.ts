@@ -62,6 +62,7 @@ import {
 	safeEqualText,
 	toKeys,
 } from './approval-crypto.js';
+import { markApprovalProcessState } from './approval-process-state.js';
 import {
 	type AcceptedApproval,
 	approvalRelay,
@@ -497,7 +498,7 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 	// This approval step, as the admission records name it.
 	const self = {};
 
-	return async (commandName, input, context, outerNext) => {
+	const middleware: CommandMiddleware = async (commandName, input, context, outerNext) => {
 		// Every way this middleware lets a call it may gate through admits this command on the
 		// canonical input it decided on, computed before any await, which the engine checks, and
 		// takes, before it dispatches a command that its own or its listed policy gates. A call no
@@ -675,6 +676,11 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 			},
 		});
 	};
+	markApprovalProcessState(middleware, {
+		relay: relayMode === 'mcp-elicitation',
+		perProcessNonces: singleUse && !options.nonceStore,
+	});
+	return middleware;
 }
 
 function parsePayload(encoded: string): TokenPayload | undefined {

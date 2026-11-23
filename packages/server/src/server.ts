@@ -26,6 +26,7 @@ import { createContextState, resolveContextState } from './context-scope.js';
 import { createExecutionEngine } from './execution.js';
 import { createHttpHandler } from './http-handler.js';
 import { createSessionStore, DEFAULT_MAX_SESSIONS, sessionLimits } from './http-sessions.js';
+import { checkInstanceState, warnInstancesOnce } from './instance-state.js';
 import {
 	createAuthLayer,
 	type PreDispatchCheck,
@@ -99,6 +100,15 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		contexts,
 		bootstrap = false,
 	} = options;
+	// Checked first: a server that would depend on one process when told it has several does not
+	// start (`instances`).
+	const instanceState = checkInstanceState({
+		name,
+		instances: options.instances,
+		confirmationKey: options.confirmationKey,
+		confirmations: options.confirmations,
+		middleware,
+	});
 	// A copy: the set must not change while the server runs.
 	const firstClassTools = options.firstClassTools ? [...options.firstClassTools] : undefined;
 
@@ -281,7 +291,7 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		contextFields,
 		toolsListTtlMs: options.toolsListTtlMs,
 		toolStrategy,
-		confirmationKey: options.confirmationKey,
+		confirmationKey: instanceState.confirmationKey,
 		actor: options.actor ?? { kind: 'agent' },
 		approver: options.approver,
 		resources,
@@ -340,6 +350,7 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		modernDeps,
 		contextState,
 		auth,
+		httpWarning: instanceState.httpWarning,
 		url: `http://${host}:${port}`,
 	};
 }
@@ -354,6 +365,7 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 export function createMcpHandler(options: McpHandlerOptions): McpHandler {
 	const runtime = createSharedHttpRuntime(options);
 	const { auth } = runtime;
+	warnInstancesOnce(runtime.httpWarning);
 	const needsAuth = (what: string) =>
 		new Error(`[AFD] handler.${what} needs the auth option: this handler has no authorization`);
 	return Object.assign(runtime.handler, {
@@ -485,6 +497,7 @@ export function createMcpServer(options: McpServerOptions): McpServer {
 				console.error(
 					`[${name}] MCP transport: http at ${sharedRuntime.url}${autoDetected ? ' (auto-detected because stdin is a TTY)' : ''}`
 				);
+				warnInstancesOnce(sharedRuntime.httpWarning);
 			}
 		},
 

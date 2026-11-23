@@ -281,6 +281,11 @@ const HOST_IMPORTS =
  *   host, approval, tool-surface and every-export bundles on `main` at `11331eca6` (esbuild 0.28.2)
  *   from 43,852 / 57,532 / 79,726 / 104,974 bytes to 48,004 / 61,680 / 85,910 / 111,387 bytes
  *   (raised 44,000 → 48,400, 57,700 → 62,100, 79,900 → 86,300; every-export stays within 119,500).
+ *   The server's `instances` check (under D115): `createApprovalMiddleware` marks each middleware
+ *   it makes with what it keeps per process, under a registered symbol so a server from another
+ *   installed copy reads it, which brings the approval bundle to 57,719 bytes with esbuild 0.28.2
+ *   (57,532 at `e28d5629`); merged with the output budgets above it stays within their 62,100. The
+ *   other three stay within their ceilings.
  * - 48.0 KB for a host that also imports `createApprovalMiddleware`.
  * - 68.6 KB for a host that also imports `createDirectToolSurface`: the router, the tool
  *   list, the meta-tools, `lazy-tools` and `bootstrap/`.
