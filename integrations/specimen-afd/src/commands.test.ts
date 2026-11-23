@@ -21,7 +21,7 @@ function observation(): Observation {
 	const channel = { status: 'complete' as const, scope: 'declared targets', reasons: [] };
 	return {
 		manifest: {
-			captureVersion: '0.9',
+			captureVersion: '0.10',
 			normalizationVersion: '0.2',
 			specimenId: 'button',
 			capturedUtc: '2026-11-01T00:00:00.000Z',

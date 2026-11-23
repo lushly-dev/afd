@@ -417,18 +417,34 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 		stepStarted(id) {
 			eventRecorder?.stepStarted(id);
 		},
-		async expect(expectation, element) {
+		async expect(expectation, element, resolvedDetail) {
 			let detail: unknown;
 			let kind: ExpectationRecord['kind'] = 'event';
 			if ('event' in expectation) {
 				if (!eventRecorder) throw new Error('This specimen declares no events to expect.');
 				await eventRecorder.expect(expectation);
+			} else if ('a11y' in expectation) {
+				if (!element) throw new Error(`Target '${expectation.target}' did not resolve.`);
+				if (resolvedDetail === undefined)
+					throw new Error('a11y expectations require the native Specimen host.');
+				namedTargets.set(expectation.target, element);
+				detail = resolvedDetail;
+				kind = 'a11y';
 			} else {
 				if (!element) throw new Error(`Target '${expectation.target}' did not resolve.`);
 				namedTargets.set(expectation.target, element);
 				const { expectOf } = await import('./expectations.js');
-				detail = await expectOf(element, expectation);
-				kind = 'state' in expectation ? 'state' : 'form' in expectation ? 'form' : 'validity';
+				detail = await expectOf(element, expectation, mountRoot);
+				kind =
+					'state' in expectation
+						? 'state'
+						: 'form' in expectation
+							? 'form'
+							: 'validity' in expectation
+								? 'validity'
+								: 'focus' in expectation
+									? 'focus'
+									: 'layout';
 			}
 			if (expectation.id)
 				expectations.push({

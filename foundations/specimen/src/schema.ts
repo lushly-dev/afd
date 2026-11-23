@@ -45,6 +45,19 @@ const completeness = z
 		reasons: z.array(z.string()),
 	})
 	.strict();
+const elementAccessibilityStatesSchema = z
+	.object({
+		checked: z.union([z.boolean(), z.literal('mixed')]).optional(),
+		pressed: z.union([z.boolean(), z.literal('mixed')]).optional(),
+		selected: z.boolean().optional(),
+		expanded: z.boolean().optional(),
+		disabled: z.boolean().optional(),
+		invalid: z.union([z.boolean(), z.literal('grammar'), z.literal('spelling')]).optional(),
+		readonly: z.boolean().optional(),
+		required: z.boolean().optional(),
+		level: z.number().int().min(1).optional(),
+	})
+	.strict();
 const element = z
 	.object({
 		ref: z.string(),
@@ -61,7 +74,14 @@ const element = z
 			.strict(),
 		styles: z.record(z.string(), z.string()),
 		state: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
-		accessibility: z.object({ role: z.string(), name: z.string() }).strict().optional(),
+		accessibility: z
+			.object({
+				role: z.string(),
+				name: z.string(),
+				states: elementAccessibilityStatesSchema.optional(),
+			})
+			.strict()
+			.optional(),
 	})
 	.strict();
 const axeFindingSchema = z.strictObject({
@@ -203,7 +223,16 @@ export const observationSchema = z
 							z
 								.object({
 									id: z.string(),
-									kind: z.enum(['event', 'state', 'form', 'validity', 'play']),
+									kind: z.enum([
+										'event',
+										'state',
+										'form',
+										'validity',
+										'a11y',
+										'focus',
+										'layout',
+										'play',
+									]),
 									target: z.string().nullable(),
 									event: z.string().optional(),
 									detail: z.unknown().optional(),

@@ -115,6 +115,15 @@ export const EXTRA_INPUTS = [
 		prefix: 'docs/features/proposed/agent-first-design/bench/tasks/',
 		packages: ['@afd/example-seed-library'],
 	},
+	// specimen-fast-af's portable-gates browser test bundles real Violet elements directly by path
+	// (avoiding a cyclic workspace dependency with violet-elements); only its own tests read them,
+	// and never Violet's own test/spec files or prose.
+	{
+		prefix: 'foundations/fast-af/packages/violet-elements/src/',
+		except: /(?:\.md|\.(?:test|spec)\.[cm]?[jt]sx?)$/,
+		packages: ['@lushly-dev/specimen-fast-af'],
+		ownTests: true,
+	},
 ];
 
 export const DEFAULT_BASES = ['origin/main', 'main'];

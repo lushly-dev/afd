@@ -20,9 +20,27 @@ export interface EventRecorder {
 const DEFAULT_EXPECT_TIMEOUT_MS = 1000;
 const DEFAULT_ABSENT_WAIT_MS = 100;
 
+function enclosingFormHost(element: Element): Element | null {
+	if ((element as Element & { form?: HTMLFormElement | null }).form != null) return null;
+	for (
+		let root = element.getRootNode();
+		root instanceof ShadowRoot;
+		root = root.host.getRootNode()
+	) {
+		if (
+			root.host.localName.includes('-') &&
+			(root.host.constructor as { formAssociated?: boolean }).formAssociated === true
+		) {
+			return root.host;
+		}
+	}
+	return null;
+}
+
 export function recordEvents(root: Element, declared: EventDeclaration[]): EventRecorder {
 	const history: (EventRecord & { interval: number })[] = [];
 	const bound = new Map<string, Element>();
+	const hostFallback = new Map<string, Element>();
 	const intervals = new Map<string, number>();
 	const seen = new WeakSet<Event>();
 	const removers: (() => void)[] = [];
@@ -38,11 +56,21 @@ export function recordEvents(root: Element, declared: EventDeclaration[]): Event
 		seen.add(event);
 		const path = event.composedPath();
 		const declarations = declared.filter((item) => item.type === event.type);
-		const named =
+		const exact =
 			listeningFor ??
-			declarations.find(
-				(item) => item.target && path.includes(bound.get(item.target) as EventTarget)
-			)?.target ??
+			declarations.find((item) => {
+				const target = item.target ? bound.get(item.target) : undefined;
+				return target !== undefined && path.includes(target);
+			})?.target ??
+			null;
+		// Reserve form-associated host fallback for events originating on the host itself, so an
+		// event from a sibling control inside a shared shadow host cannot satisfy another target.
+		const named =
+			exact ??
+			declarations.find((item) => {
+				const host = item.target ? hostFallback.get(item.target) : undefined;
+				return host !== undefined && path[0] === host;
+			})?.target ??
 			null;
 		// An event on another target is not what was declared, once that target is known.
 		const counts =
@@ -67,11 +95,18 @@ export function recordEvents(root: Element, declared: EventDeclaration[]): Event
 		bind(name, element) {
 			if (bound.has(name)) return;
 			bound.set(name, element);
+			const host = enclosingFormHost(element);
+			if (host) hostFallback.set(name, host);
 			for (const item of declared)
 				if (item.target === name) {
 					observe(element, item.type, (event) => record(event, name));
 					if (element.shadowRoot)
 						observe(element.shadowRoot, item.type, (event) => record(event, name));
+					if (host) {
+						observe(host, item.type, (event) => record(event, null));
+						if (host.shadowRoot)
+							observe(host.shadowRoot, item.type, (event) => record(event, null));
+					}
 				}
 		},
 		stepStarted(id) {

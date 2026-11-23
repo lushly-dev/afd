@@ -17,6 +17,217 @@ use std::collections::{HashMap, HashSet};
 
 const FLATTENED: &[&str] = &["generic", "none", "presentation"];
 const VALUED: &[&str] = &["textbox", "searchbox", "combobox", "spinbutton", "slider"];
+const CHECKABLE_ROLES: &[&str] = &[
+    "checkbox",
+    "menuitemcheckbox",
+    "menuitemradio",
+    "option",
+    "radio",
+    "switch",
+    "treeitem",
+];
+const EXPANDABLE_ROLES: &[&str] = &[
+    "application",
+    "button",
+    "checkbox",
+    "columnheader",
+    "combobox",
+    "gridcell",
+    "link",
+    "menuitem",
+    "menuitemcheckbox",
+    "menuitemradio",
+    "row",
+    "rowheader",
+    "switch",
+    "tab",
+    "treeitem",
+];
+const SELECTABLE_ROLES: &[&str] = &[
+    "columnheader",
+    "gridcell",
+    "option",
+    "row",
+    "rowheader",
+    "tab",
+    "treeitem",
+];
+
+/// Normalize Chromium's internal role name `image` to WAI-ARIA's `img`.
+pub fn normalize_role(role: &str) -> String {
+    if role == "image" {
+        "img".to_string()
+    } else {
+        role.to_string()
+    }
+}
+
+/// A boolean or `"mixed"` ARIA state (`checked`, `pressed`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TriState {
+    Bool(bool),
+    Mixed,
+}
+
+impl serde::Serialize for TriState {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self {
+            Self::Bool(value) => serializer.serialize_bool(*value),
+            Self::Mixed => serializer.serialize_str("mixed"),
+        }
+    }
+}
+
+/// A non-default `aria-invalid` state (`true`, `"grammar"`, `"spelling"`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InvalidState {
+    True,
+    Grammar,
+    Spelling,
+}
+
+impl serde::Serialize for InvalidState {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self {
+            Self::True => serializer.serialize_bool(true),
+            Self::Grammar => serializer.serialize_str("grammar"),
+            Self::Spelling => serializer.serialize_str("spelling"),
+        }
+    }
+}
+
+/// Structured ARIA states extracted from a CDP `AXNode`'s `properties` array (capture 0.10).
+#[derive(Debug, Clone, PartialEq, Eq, Default, serde::Serialize)]
+pub struct AccessibleStates {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub checked: Option<TriState>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pressed: Option<TriState>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub selected: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expanded: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disabled: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub invalid: Option<InvalidState>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub readonly: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub required: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub level: Option<i64>,
+}
+
+impl AccessibleStates {
+    pub fn is_empty(&self) -> bool {
+        self.checked.is_none()
+            && self.pressed.is_none()
+            && self.selected.is_none()
+            && self.expanded.is_none()
+            && self.disabled.is_none()
+            && self.invalid.is_none()
+            && self.readonly.is_none()
+            && self.required.is_none()
+            && self.level.is_none()
+    }
+}
+
+fn parse_bool(value: Option<&Value>) -> Option<bool> {
+    match value {
+        Some(Value::Bool(b)) => Some(*b),
+        Some(Value::String(s)) if s == "true" => Some(true),
+        Some(Value::String(s)) if s == "false" => Some(false),
+        _ => None,
+    }
+}
+
+fn parse_tristate(value: Option<&Value>) -> Option<TriState> {
+    match value {
+        Some(Value::Bool(b)) => Some(TriState::Bool(*b)),
+        Some(Value::String(s)) if s == "true" => Some(TriState::Bool(true)),
+        Some(Value::String(s)) if s == "false" => Some(TriState::Bool(false)),
+        Some(Value::String(s)) if s == "mixed" => Some(TriState::Mixed),
+        _ => None,
+    }
+}
+
+/// Extract structured ARIA states from a CDP `AXNode`. Returns `None` when no non-default
+/// states are reported.
+pub fn extract_states(node: &Value) -> Option<AccessibleStates> {
+    let role = text(node, "role");
+    let properties = node.get("properties").and_then(Value::as_array)?;
+    let mut out = AccessibleStates::default();
+    for property in properties {
+        let name = property.get("name").and_then(Value::as_str).unwrap_or("");
+        let value = property.get("value").and_then(|entry| entry.get("value"));
+        match name {
+            "checked" => {
+                if let Some(state) = parse_tristate(value)
+                    && (state != TriState::Bool(false) || CHECKABLE_ROLES.contains(&role.as_str()))
+                {
+                    out.checked = Some(state);
+                }
+            }
+            "pressed" => {
+                if let Some(state) = parse_tristate(value)
+                    && (state != TriState::Bool(false) || role == "button")
+                {
+                    out.pressed = Some(state);
+                }
+            }
+            "selected" => {
+                if let Some(flag) = parse_bool(value)
+                    && (flag || SELECTABLE_ROLES.contains(&role.as_str()))
+                {
+                    out.selected = Some(flag);
+                }
+            }
+            "expanded" => {
+                if let Some(flag) = parse_bool(value)
+                    && (flag || EXPANDABLE_ROLES.contains(&role.as_str()))
+                {
+                    out.expanded = Some(flag);
+                }
+            }
+            "disabled" => {
+                if parse_bool(value) == Some(true) {
+                    out.disabled = Some(true);
+                }
+            }
+            "invalid" => match value {
+                Some(Value::Bool(true)) => out.invalid = Some(InvalidState::True),
+                Some(Value::String(s)) if s == "true" => out.invalid = Some(InvalidState::True),
+                Some(Value::String(s)) if s == "grammar" => {
+                    out.invalid = Some(InvalidState::Grammar)
+                }
+                Some(Value::String(s)) if s == "spelling" => {
+                    out.invalid = Some(InvalidState::Spelling)
+                }
+                _ => {}
+            },
+            "readonly" => {
+                if parse_bool(value) == Some(true) {
+                    out.readonly = Some(true);
+                }
+            }
+            "required" => {
+                if parse_bool(value) == Some(true) {
+                    out.required = Some(true);
+                }
+            }
+            "level" => {
+                if let Some(level) = value.and_then(Value::as_i64)
+                    && level > 0
+                {
+                    out.level = Some(level);
+                }
+            }
+            _ => {}
+        }
+    }
+    (!out.is_empty()).then_some(out)
+}
 
 fn text(value: &Value, key: &str) -> String {
     value
@@ -341,11 +552,13 @@ pub struct Roles {
     pub references: HashSet<String>,
 }
 
-/// One element's computed role and accessible name, as Chromium's accessibility tree has them.
+/// One element's computed role, accessible name, and non-default ARIA states from Chromium's accessibility tree.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct Accessible {
     pub role: String,
     pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub states: Option<AccessibleStates>,
 }
 
 /// Each accessible element under the mount root, by the reference the page's capture gives it
@@ -377,6 +590,7 @@ pub fn roles(tree: &Value, dom: &Value) -> Roles {
             by_backend.entry(backend).or_insert(Accessible {
                 role,
                 name: normalize(&text(node, "name")),
+                states: extract_states(node),
             });
         }
     }
@@ -599,6 +813,7 @@ mod tests {
         let accessible = |role: &str, name: &str| Accessible {
             role: role.into(),
             name: name.into(),
+            states: None,
         };
         assert_eq!(
             found.get("root/x-check:1"),
@@ -612,5 +827,163 @@ mod tests {
         assert_eq!(found.get("root/p:1/a:1"), Some(&accessible("link", "More")));
         // Generic, ignored, internal and closed-shadow nodes have no entry.
         assert_eq!(found.len(), 4);
+    }
+
+    #[test]
+    fn extract_states_surfaces_capture_010_aria_states_including_invalid() {
+        use super::{AccessibleStates, InvalidState, TriState, extract_states};
+
+        let invalid_textbox = node(
+            "1",
+            "textbox",
+            json!({
+                "name": { "value": "Email" },
+                "properties": [
+                    { "name": "invalid", "value": { "type": "token", "value": "true" } },
+                    { "name": "required", "value": { "type": "boolean", "value": true } },
+                    { "name": "readonly", "value": { "type": "boolean", "value": true } },
+                    { "name": "disabled", "value": { "type": "boolean", "value": false } }
+                ]
+            }),
+        );
+        let extracted = extract_states(&invalid_textbox).unwrap();
+        assert_eq!(
+            extracted,
+            AccessibleStates {
+                invalid: Some(InvalidState::True),
+                required: Some(true),
+                readonly: Some(true),
+                ..Default::default()
+            }
+        );
+        assert_eq!(
+            serde_json::to_value(&extracted).unwrap(),
+            json!({ "invalid": true, "readonly": true, "required": true })
+        );
+
+        let grammar_box = node(
+            "2",
+            "textbox",
+            json!({
+                "properties": [
+                    { "name": "invalid", "value": { "type": "token", "value": "grammar" } }
+                ]
+            }),
+        );
+        assert_eq!(
+            serde_json::to_value(extract_states(&grammar_box).unwrap()).unwrap(),
+            json!({ "invalid": "grammar" })
+        );
+
+        let spelling_box = node(
+            "3",
+            "textbox",
+            json!({
+                "properties": [
+                    { "name": "invalid", "value": { "type": "token", "value": "spelling" } }
+                ]
+            }),
+        );
+        assert_eq!(
+            serde_json::to_value(extract_states(&spelling_box).unwrap()).unwrap(),
+            json!({ "invalid": "spelling" })
+        );
+
+        // invalid="false" and disabled=false omit `states` entirely when no other state is set.
+        let valid_box = node(
+            "4",
+            "textbox",
+            json!({
+                "properties": [
+                    { "name": "invalid", "value": { "type": "token", "value": "false" } },
+                    { "name": "disabled", "value": { "type": "boolean", "value": false } }
+                ]
+            }),
+        );
+        assert_eq!(extract_states(&valid_box), None);
+
+        // Expandable, selectable, checkable, toggle and heading states.
+        let combobox = node(
+            "5",
+            "combobox",
+            json!({
+                "properties": [
+                    { "name": "expanded", "value": { "type": "boolean", "value": false } },
+                    { "name": "disabled", "value": { "type": "boolean", "value": true } }
+                ]
+            }),
+        );
+        assert_eq!(
+            serde_json::to_value(extract_states(&combobox).unwrap()).unwrap(),
+            json!({ "expanded": false, "disabled": true })
+        );
+
+        let mixed_checkbox = node(
+            "6",
+            "checkbox",
+            json!({
+                "properties": [
+                    { "name": "checked", "value": { "type": "tristate", "value": "mixed" } }
+                ]
+            }),
+        );
+        assert_eq!(
+            extract_states(&mixed_checkbox).unwrap().checked,
+            Some(TriState::Mixed)
+        );
+        assert_eq!(
+            serde_json::to_value(extract_states(&mixed_checkbox).unwrap()).unwrap(),
+            json!({ "checked": "mixed" })
+        );
+
+        let unchecked_box = node(
+            "7",
+            "checkbox",
+            json!({
+                "properties": [
+                    { "name": "checked", "value": { "type": "tristate", "value": "false" } }
+                ]
+            }),
+        );
+        assert_eq!(
+            extract_states(&unchecked_box).unwrap().checked,
+            Some(TriState::Bool(false))
+        );
+
+        let toggle_button = node(
+            "8",
+            "button",
+            json!({
+                "properties": [
+                    { "name": "pressed", "value": { "type": "tristate", "value": "false" } }
+                ]
+            }),
+        );
+        assert_eq!(
+            extract_states(&toggle_button).unwrap().pressed,
+            Some(TriState::Bool(false))
+        );
+
+        let heading = node(
+            "9",
+            "heading",
+            json!({
+                "properties": [
+                    { "name": "level", "value": { "type": "integer", "value": 3 } }
+                ]
+            }),
+        );
+        assert_eq!(extract_states(&heading).unwrap().level, Some(3));
+
+        let option = node(
+            "10",
+            "option",
+            json!({
+                "properties": [
+                    { "name": "selected", "value": { "type": "boolean", "value": false } }
+                ]
+            }),
+        );
+        assert_eq!(extract_states(&option).unwrap().selected, Some(false));
     }
 }

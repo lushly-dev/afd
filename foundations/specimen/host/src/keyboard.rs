@@ -235,6 +235,56 @@ fn parse(text: &str) -> Result<Vec<Action>> {
 
 const MODIFIERS: [(&str, u32); 4] = [("Alt", 1), ("Control", 2), ("Meta", 4), ("Shift", 8)];
 
+fn is_modifier_token(token: &str) -> bool {
+    matches!(
+        token,
+        "Alt" | "Control" | "Meta" | "Shift" | "ControlOrMeta"
+    )
+}
+
+/// Parse a portable `press` key or `+`-joined chord (e.g. `"Escape"`, `"Shift+Tab"`,
+/// `"Control+a"`, `"+"`, `"Shift++"`). Returns `(modifiers, key)`.
+pub fn parse_chord(chord: &str) -> Result<(Vec<String>, String)> {
+    if chord.is_empty() {
+        return Err(anyhow!("Press action requires a non-empty key or chord"));
+    }
+    if chord == "+" {
+        return Ok((Vec::new(), "+".to_string()));
+    }
+    // Preserve a literal trailing `+` key (e.g. `"Shift++"` -> modifiers=["Shift"], key="+").
+    let (prefix, trailing_plus) = if let Some(rest) = chord.strip_suffix("++") {
+        (rest, true)
+    } else {
+        (chord, false)
+    };
+    let mut parts: Vec<&str> = prefix.split('+').collect();
+    let key = if trailing_plus {
+        "+"
+    } else {
+        parts
+            .pop()
+            .ok_or_else(|| anyhow!("Press action requires a key in \"{chord}\""))?
+    };
+    if key.is_empty() {
+        return Err(anyhow!("Press action has an empty key in \"{chord}\""));
+    }
+    let mut modifiers = Vec::with_capacity(parts.len());
+    for token in parts {
+        if !is_modifier_token(token) {
+            return Err(anyhow!(
+                "Unknown modifier \"{token}\" in press chord \"{chord}\"; supported modifiers are Alt, Control, Meta, Shift, ControlOrMeta"
+            ));
+        }
+        if modifiers.iter().any(|existing| existing == token) {
+            return Err(anyhow!(
+                "Duplicate modifier \"{token}\" in press chord \"{chord}\""
+            ));
+        }
+        modifiers.push(token.to_string());
+    }
+    Ok((modifiers, key.to_string()))
+}
+
 /// One page's keyboard: what Vitest and Playwright each keep between calls.
 #[derive(Default)]
 pub struct Keyboard {
@@ -277,9 +327,90 @@ impl Keyboard {
         Ok(())
     }
 
+    /// Portable `press` action: press a W3C/CDP key or `+`-joined modifier chord (such as
+    /// `"Escape"`, `"ArrowDown"`, `"Enter"`, `"Tab"`, `"Shift+Tab"`, `"End"`), releasing every
+    /// held modifier on completion or error.
+    pub async fn press_chord(&mut self, page: &Page<'_>, chord: &str) -> Result<()> {
+        let (modifiers, key) = parse_chord(chord)?;
+        for modifier in &modifiers {
+            self.describe(modifier, true)?;
+        }
+        let in_layout = self.describe(&key, true).is_ok();
+        let single_printable = !in_layout
+            && key.chars().count() == 1
+            && key.chars().next().is_some_and(|ch| !ch.is_control());
+        if !in_layout && !single_printable {
+            return Err(anyhow!("Unknown key \"{key}\" in press chord \"{chord}\""));
+        }
+        let mut held: Vec<String> = Vec::with_capacity(modifiers.len());
+        let outcome: Result<()> = async {
+            for modifier in &modifiers {
+                self.down_with(page, modifier, true).await?;
+                held.push(modifier.clone());
+            }
+            if in_layout {
+                self.down_with(page, &key, true).await?;
+                self.up_with(page, &key, true).await?;
+            } else {
+                // Non-layout printable Unicode key (e.g. "é"): dispatch native CDP keyDown/keyUp
+                // so keyboard listeners and focused text inputs both observe the key press.
+                let shift_only = self.modifiers.is_empty()
+                    || (self.modifiers.len() == 1 && self.modifiers.contains("Shift"));
+                let text = if shift_only { key.as_str() } else { "" };
+                page.send(
+                    "Input.dispatchKeyEvent",
+                    json!({
+                        "type": if text.is_empty() { "rawKeyDown" } else { "keyDown" },
+                        "modifiers": self.mask(),
+                        "windowsVirtualKeyCode": 0,
+                        "nativeVirtualKeyCode": 0,
+                        "code": "",
+                        "key": key,
+                        "text": text,
+                        "unmodifiedText": text,
+                        "autoRepeat": false,
+                        "location": 0,
+                        "isKeypad": false,
+                    }),
+                )
+                .await?;
+                page.send(
+                    "Input.dispatchKeyEvent",
+                    json!({
+                        "type": "keyUp",
+                        "modifiers": self.mask(),
+                        "windowsVirtualKeyCode": 0,
+                        "nativeVirtualKeyCode": 0,
+                        "code": "",
+                        "key": key,
+                        "location": 0,
+                    }),
+                )
+                .await?;
+            }
+            Ok(())
+        }
+        .await;
+        let mut release_error: Option<anyhow::Error> = None;
+        for modifier in held.iter().rev() {
+            if let Err(err) = self.up_with(page, modifier, true).await
+                && release_error.is_none()
+            {
+                release_error = Some(err);
+            }
+        }
+        outcome?;
+        if let Some(err) = release_error {
+            return Err(err);
+        }
+        Ok(())
+    }
+
     /// Playwright's `_keyDescriptionForString`: shifted under Shift, with no text under a
-    /// modifier other than Shift.
-    fn describe(&self, key: &str) -> Result<Description> {
+    /// modifier other than Shift. Retained stories use `shift_code_fallback = false` to preserve
+    /// exact Playwright parity (`{Shift>}a{/Shift}` keeps `"a"`), while portable chords use `true`
+    /// so `Shift+a` resolves through `KeyA`'s shifted entry to `"A"`.
+    fn describe(&self, key: &str, shift_code_fallback: bool) -> Result<Description> {
         let name = if key == "ControlOrMeta" {
             if cfg!(target_os = "macos") {
                 "Meta"
@@ -292,11 +423,18 @@ impl Keyboard {
         let found = layout()
             .get(name)
             .ok_or_else(|| anyhow!("Unknown key: \"{name}\""))?;
-        let mut description = match (&found.shifted, self.modifiers.contains("Shift")) {
+        let shift = self.modifiers.contains("Shift");
+        let shifted_fallback = if shift_code_fallback && shift && found.shifted.is_none() {
+            layout()
+                .get(&found.code)
+                .and_then(|entry| entry.shifted.as_ref())
+        } else {
+            None
+        };
+        let mut description = match (found.shifted.as_ref().or(shifted_fallback), shift) {
             (Some(shifted), true) => (**shifted).clone(),
             _ => found.clone(),
         };
-        let shift = self.modifiers.contains("Shift");
         if self.modifiers.len() > 1 || (!shift && self.modifiers.len() == 1) {
             description.text = String::new();
         }
@@ -333,7 +471,16 @@ impl Keyboard {
     }
 
     async fn down(&mut self, page: &Page<'_>, key: &str) -> Result<()> {
-        let description = self.describe(key)?;
+        self.down_with(page, key, false).await
+    }
+
+    async fn down_with(
+        &mut self,
+        page: &Page<'_>,
+        key: &str,
+        shift_code_fallback: bool,
+    ) -> Result<()> {
+        let description = self.describe(key, shift_code_fallback)?;
         let auto_repeat = !self.pressed_codes.insert(description.code.clone());
         if MODIFIERS.iter().any(|(name, _)| *name == description.key) {
             self.modifiers.insert(description.key.clone());
@@ -359,7 +506,16 @@ impl Keyboard {
     }
 
     async fn up(&mut self, page: &Page<'_>, key: &str) -> Result<()> {
-        let description = self.describe(key)?;
+        self.up_with(page, key, false).await
+    }
+
+    async fn up_with(
+        &mut self,
+        page: &Page<'_>,
+        key: &str,
+        shift_code_fallback: bool,
+    ) -> Result<()> {
+        let description = self.describe(key, shift_code_fallback)?;
         self.modifiers.remove(&description.key);
         self.pressed_codes.remove(&description.code);
         page.send(
@@ -444,19 +600,52 @@ mod tests {
     #[test]
     fn describes_keys_as_playwright_does() {
         let mut keyboard = Keyboard::default();
-        let enter = keyboard.describe("Enter").unwrap();
+        let enter = keyboard.describe("Enter", false).unwrap();
         assert_eq!(
             (enter.code.as_str(), enter.key_code, enter.text.as_str()),
             ("Enter", 13, "\r")
         );
-        assert_eq!(keyboard.describe("a").unwrap().text, "a");
-        assert_eq!(keyboard.describe("A").unwrap().code, "KeyA");
+        assert_eq!(keyboard.describe("a", false).unwrap().text, "a");
+        assert_eq!(keyboard.describe("A", false).unwrap().code, "KeyA");
         keyboard.modifiers.insert("Shift".into());
-        let digit = keyboard.describe("Digit1").unwrap();
+        // Retained-play Playwright parity: explicit `"a"` keeps lowercase `"a"` under Shift,
+        // while portable chords resolve through `"KeyA"`'s shifted entry to `"A"`.
+        let retained_a = keyboard.describe("a", false).unwrap();
+        assert_eq!(
+            (retained_a.key.as_str(), retained_a.text.as_str()),
+            ("a", "a")
+        );
+        let chord_a = keyboard.describe("a", true).unwrap();
+        assert_eq!((chord_a.key.as_str(), chord_a.text.as_str()), ("A", "A"));
+        let digit = keyboard.describe("Digit1", false).unwrap();
         assert_eq!((digit.key.as_str(), digit.text.as_str()), ("!", "!"));
         keyboard.modifiers.insert("Control".into());
-        assert_eq!(keyboard.describe("a").unwrap().text, "");
+        assert_eq!(keyboard.describe("a", false).unwrap().text, "");
         assert_eq!(keyboard.mask(), 10);
-        assert!(keyboard.describe("NotAKey").is_err());
+        assert!(keyboard.describe("NotAKey", false).is_err());
+    }
+
+    #[test]
+    fn parses_portable_press_chords() {
+        assert_eq!(parse_chord("Escape").unwrap(), (vec![], "Escape".into()));
+        assert_eq!(parse_chord(" ").unwrap(), (vec![], " ".into()));
+        assert_eq!(parse_chord("é").unwrap(), (vec![], "é".into()));
+        assert_eq!(
+            parse_chord("Shift+Tab").unwrap(),
+            (vec!["Shift".into()], "Tab".into())
+        );
+        assert_eq!(
+            parse_chord("Control+Shift+End").unwrap(),
+            (vec!["Control".into(), "Shift".into()], "End".into())
+        );
+        assert_eq!(parse_chord("+").unwrap(), (vec![], "+".into()));
+        assert_eq!(
+            parse_chord("Shift++").unwrap(),
+            (vec!["Shift".into()], "+".into())
+        );
+        assert!(parse_chord("").is_err());
+        assert!(parse_chord("Shift+").is_err());
+        assert!(parse_chord("Bogus+Tab").is_err());
+        assert!(parse_chord("Shift+Shift+Tab").is_err());
     }
 }
