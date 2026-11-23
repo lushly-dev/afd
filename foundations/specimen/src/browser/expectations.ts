@@ -8,6 +8,7 @@ import type {
 	StateExpectation,
 	ValidityExpectation,
 } from '../types.js';
+import { realDelay } from './real-timers.js';
 import { fields, optionalText, record, text } from './validate.js';
 
 /** Scenario support: loaded only by a case with an element expectation or a claim. */
@@ -252,7 +253,7 @@ export async function expectOf(
 		const result = check();
 		if (result.ok) return result.detail;
 		if (performance.now() >= deadline) throw new Error(result.message);
-		await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+		await realDelay(POLL_MS);
 	}
 }
 

@@ -22,6 +22,7 @@ import {
 	coverageRunSchema,
 	inspectRequestSchema,
 	inspectResultSchema,
+	jobConfigSchema,
 	matrixRequestSchema,
 	matrixRunSchema,
 	migrateRequestSchema,
@@ -84,6 +85,7 @@ import type {
 	ProfileRun,
 	RunRequest,
 	SpecimenEntry,
+	SpecimenListFilter,
 	StoryRun,
 	SuggestRequest,
 	SuggestRun,
@@ -138,11 +140,18 @@ const entrySchema = z
 		title: z.string(),
 		module: z.string(),
 		exportName: z.string(),
+		kind: z.enum(['job', 'component']),
 		component: z.string().optional(),
 		story: storySchema.optional(),
+		job: jobConfigSchema.optional(),
 		themes: themeSupportSchema.optional(),
 		patternSetup: patternSetupSchema.optional(),
 		contexts: implementationContextsSchema.optional(),
+	})
+	.strict();
+const listInput = z
+	.object({
+		kind: z.enum(['job', 'component']).optional(),
 	})
 	.strict();
 const validateInput = z
@@ -207,7 +216,7 @@ const diffOutput = z
 	.strict();
 /** The command layer requires only these bench operations, allowing transport tests without a browser. */
 export interface SpecimenCommandBench {
-	list(): SpecimenEntry[];
+	list(filter?: SpecimenListFilter): SpecimenEntry[];
 	validate(target?: ValidationTarget): ValidationReport;
 	render(request: CaptureRequest): Promise<Observation>;
 	captureSet(request?: CaptureSetRequest): Promise<CaptureSetRun>;
@@ -321,13 +330,24 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 	const list = defineCommand({
 		...common,
 		name: 'specimen-list',
-		description: 'List registered specimens without executing their modules',
+		description:
+			'List registered specimens without executing their modules, optionally filtered by kind (job or component)',
 		mutation: false,
-		input: z.object({}).strict(),
+		input: listInput,
 		output: z.object({ specimens: z.array(entrySchema) }).strict(),
-		handler: async () =>
+		handler: async (input) =>
 			result(
-				() => ({ specimens: bench.list() }),
+				() => {
+					const raw = bench.list(input.kind ? { kind: input.kind } : undefined);
+					const normalized = raw.map((entry) => ({
+						...entry,
+						kind: (entry.kind ?? (entry.job ? 'job' : 'component')) as 'job' | 'component',
+					}));
+					const specimens = input.kind
+						? normalized.filter((entry) => entry.kind === input.kind)
+						: normalized;
+					return { specimens };
+				},
 				z.object({ specimens: z.array(entrySchema) }).strict(),
 				'SPECIMEN_LIST_FAILED',
 				'Check the specimen configuration and try specimen-list again.'

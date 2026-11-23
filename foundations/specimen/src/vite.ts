@@ -116,23 +116,25 @@ const ENTRY = '/__specimen_entry__.js';
 const CATALOG = '\0specimen-catalog';
 /**
  * The proposal's shell ceiling was 50,000. It moved to 52,000 in #1001 (49,793 bytes on the
- * fixtures), and to 68,000 in #2042 once the review page's Pick mode, shared two-step climb,
- * browser ARIA inference and pointer URI formatter took the fixtures' shell to 65,222 bytes
- * (leaving margin for consumer builds).
+ * fixtures), to 68,000 in #2042 (65,222 bytes on fixtures), and to 70,000 in #2037 after #2306's
+ * portable gate validators and #2037's real-timer / lazy job-runtime hooks took the packed
+ * native consumer shell to 68,248 bytes (67,790 on fixtures), restoring consumer-build margin.
  */
-const SHELL_BUDGET = 68_000;
+const SHELL_BUDGET = 70_000;
 /** The index and preview pages' own stylesheet, in minified UTF-8 bytes; a story's CSS is its own. */
 const STYLE_BUDGET = 8_000;
 /**
  * The proposal's category ceilings, in minified UTF-8 JavaScript bytes. Accessibility moved from
  * 650,000 to 680,000 for axe-core 4.14.0 (#1022, 659,293 bytes), leaving 1,510 bytes under the
- * original 1,300,000 total; #2042 moves total to 1,330,000 alongside the shell ceiling (68,000)
- * as Pick mode takes the fixtures' total to 1,313,919 bytes.
+ * original 1,300,000 total; #2042 moved total to 1,330,000 alongside the shell ceiling (68,000);
+ * #2037 moves interaction to 615,000 and total to 1,345,000 alongside the 70,000 shell ceiling
+ * after the lazy `job-runtime`/`clock` chunk (4,420 bytes) took compat interaction to 598,652 B
+ * on Windows / 600,210 B on Linux (total 1,325,796 B on Windows).
  */
-const TOTAL_BUDGET = 1_330_000;
+const TOTAL_BUDGET = 1_345_000;
 const CATEGORY_BUDGETS = {
 	shell: SHELL_BUDGET,
-	interaction: 600_000,
+	interaction: 615_000,
 	accessibility: 680_000,
 } as const;
 /**
@@ -434,9 +436,15 @@ async function buildStatic(
 	// runtime is interaction support and axe is the accessibility engine, each loaded only by
 	// the cases that need them and each counted against its own budget, never left out.
 	const runtimeDirectory = dirname(runtimeId);
-	const lazyRuntime = ['story-runtime', 'csf', 'vitest-browser', 'expectations'].map(
-		(name) => `${runtimeDirectory}/${name}`
-	);
+	const lazyRuntime = [
+		'story-runtime',
+		'csf',
+		'vitest-browser',
+		'expectations',
+		'clock',
+		'clock-parse',
+		'job-runtime',
+	].map((name) => `${runtimeDirectory}/${name}`);
 	const packageSource = dirname(runtimeDirectory);
 	// What a consumer's preview imports is a line of the consumer's own preview, wherever it lands.
 	const isBenchCode = (id: string) =>

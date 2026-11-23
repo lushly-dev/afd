@@ -1,8 +1,9 @@
 // One closure over the host process and its bundle: coverage, contracts and packs share its capture.
-import { readFile, rename, writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
-import { resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { RANDOM_SEED } from './baseline.js';
 import type { BenchRuntime } from './bench.js';
@@ -18,7 +19,16 @@ import { runContract } from './contract.js';
 import { runCoverage } from './coverage-run.js';
 import { diffObservations } from './diff.js';
 import { browserRuntimePath, checkHostIsolation, chromiumExecutable, HostProcess } from './host.js';
+import { loadJobSourceModule, parseJobScenarioWithSources } from './job-source.js';
+import {
+	type CheckpointCaptureInput,
+	finalizeCheckpointsRun,
+	finalizeJobRun,
+	resolveJobCapturePlan,
+	resolvePinnedBaseline,
+} from './jobs.js';
 import { type PackHost, runPack } from './pack-run.js';
+import type { JobDriverResult } from './plugin.js';
 import {
 	BASELINE_RUNNER,
 	compareProfile,
@@ -30,7 +40,7 @@ import {
 	withBaseline,
 } from './profile.js';
 import { dependencyIdentity, sourceState } from './provenance.js';
-import { runCaptureSet } from './sets.js';
+import { assertRealContained, runCaptureSet, specimenDataDir } from './sets.js';
 import { suggestSpecimens } from './suggest.js';
 import {
 	DEFAULT_FLAKE_CAP,
@@ -55,6 +65,8 @@ import {
 	type CaptureCheckpoint,
 	type CaptureSetRequest,
 	type CaptureSetRun,
+	type CheckpointsRequest,
+	type CheckpointsRun,
 	type Completeness,
 	type ContractRequest,
 	type ContractRun,
@@ -62,6 +74,8 @@ import {
 	type CoverageRun,
 	type InspectRequest,
 	type InspectResult,
+	type JobRun,
+	type JobRunRequest,
 	type MatrixCell,
 	type MatrixRequest,
 	type MatrixRun,
@@ -93,8 +107,10 @@ import {
 	parseBaselineRequest,
 	parseCaptureRequest,
 	parseCaptureSetRequest,
+	parseCheckpointsRequest,
 	parseContractRequest,
 	parseCoverageRequest,
+	parseJobRunRequest,
 	parseMatrixRequest,
 	parsePackRequest,
 	parseProfileRequest,
@@ -133,6 +149,17 @@ const BUNDLE_GRACE = 300_000;
 /** A sample's measurements, as the page and host report them, before its console counts. */
 type PageMeasurements = Omit<ProfileSample, 'consoleErrors' | 'consoleWarnings'>;
 
+interface HostCheckpointCapture {
+	key: string | null;
+	name: string;
+	step: number | null;
+	captured: BrowserObservation & { normalized: string };
+	snapshot: string;
+	screenshot: string | null;
+	accessibility?: AxeOutcome | null;
+	console?: { errors: string[]; warnings: string[] };
+}
+
 interface HostRender {
 	/** The page's capture, with its DOM normalized in the page by `normalizeDom`. */
 	/** `null` when a suite's capture mode left this story without one. */
@@ -151,6 +178,10 @@ interface HostRender {
 	accessibility?: AxeOutcome | null;
 	/** The page's measurements at the checkpoint, when the request asked for them. */
 	profile?: PageMeasurements | null;
+	/** Multiple kept checkpoints captured during a single fresh pass. */
+	captures?: HostCheckpointCapture[] | null;
+	/** Final step outcomes returned by an in-page job driver. */
+	jobOutcome?: JobDriverResult | null;
 }
 /**
  * The bench runtime. Rendering runs in the native host (`host/`): it bundles the bench with
@@ -202,6 +233,122 @@ export async function createInProcessBench(
 				throw error;
 			}
 		})());
+	function buildObservation(args: {
+		entry: SpecimenEntry;
+		context: SpecimenContext;
+		checkpointName: string;
+		actionMode: CaptureCheckpoint['actionMode'];
+		timeoutMs: number;
+		clockBaseline: CaptureCheckpoint['baseline']['clock'];
+		captured: BrowserObservation & { normalized: string };
+		snapshot: string;
+		screenshot: string | null;
+		axe: AxeOutcome | undefined;
+		console: { errors: string[]; warnings: string[] };
+		loaded: string[];
+		browser: string;
+		source: { revision: string | null; dirty: boolean | null };
+		dependencies: string;
+	}): Observation {
+		const limitations = args.captured.limitations;
+		const unstable = limitations.filter((value) => value.includes('time-dependent'));
+		const contextual = [
+			...unstable,
+			...limitations.filter((value) => value.startsWith('Context mismatch')),
+		];
+		return {
+			manifest: {
+				captureVersion: CAPTURE_VERSION,
+				normalizationVersion: NORMALIZATION_VERSION,
+				specimenId: args.entry.id,
+				capturedUtc: new Date().toISOString(),
+				bench: { name: bench.name, version: bench.version, plugins: args.captured.plugins },
+				driver: { name: 'host', emulates: HOST_EMULATES },
+				checkpoint: {
+					name: args.checkpointName,
+					actionMode: args.actionMode,
+					ready: { ...args.captured.ready, deadlineMs: args.timeoutMs },
+					baseline: {
+						clock: args.clockBaseline,
+						random: { source: 'seeded', seed: RANDOM_SEED },
+						storage: 'empty',
+					},
+				},
+				source: {
+					...args.source,
+					digest: digest([config.digest, ...args.loaded].join('\n')),
+				},
+				dependencies: args.dependencies,
+				browser: {
+					name: 'chromium',
+					version: args.browser,
+					platform: `${process.platform}-${process.arch}`,
+					build: browserBuild,
+				},
+				context: {
+					...args.context,
+					pixelRatio: 1,
+					observed: args.captured.viewport,
+					resources: args.captured.resources,
+				},
+			},
+			channels: {
+				dom: { raw: args.captured.dom, normalized: args.captured.normalized },
+				a11y: {
+					snapshot: args.snapshot,
+					axe: args.axe && args.axe.status !== 'not-run' ? args.axe : 'not-run',
+				},
+				events: {
+					declared: args.captured.events.declared,
+					history: args.captured.events.history,
+				},
+				evidence: args.captured.evidence,
+				elements: args.captured.elements,
+				console: args.console,
+				visual: { path: args.screenshot },
+			},
+			completeness: {
+				dom: coverage(
+					limitations.some((value) => value.toLowerCase().includes('closed'))
+						? 'partial'
+						: 'complete',
+					'light DOM and accessible open shadow roots',
+					limitations.filter((value) => value.toLowerCase().includes('closed'))
+				),
+				a11y:
+					args.axe && args.axe.status !== 'not-run'
+						? coverage('complete', 'ARIA snapshot and axe', [])
+						: coverage('partial', 'ARIA snapshot; axe not run', ['AXE_NOT_RUN']),
+				layout: coverage(
+					contextual.length ? 'partial' : 'complete',
+					'boxes and scroll extents of accessible elements; pseudo-element geometry excluded',
+					contextual
+				),
+				styles: coverage(
+					contextual.length ? 'partial' : 'complete',
+					'versioned selected computed CSS properties on accessible elements',
+					contextual
+				),
+				tokens: coverage('unsupported', 'token dependencies', ['TOKEN_DETECTOR_NOT_IMPLEMENTED']),
+				events: args.captured.events.declared.length
+					? coverage(
+							args.captured.events.unresolved.length ? 'partial' : 'complete',
+							'declared events on their targets and roots',
+							args.captured.events.unresolved.map(
+								(target) => `Declared event target '${target}' did not resolve.`
+							)
+						)
+					: coverage('not-requested', 'declared event history', ['NO_EVENTS_DECLARED']),
+				visual: coverage(args.screenshot ? 'partial' : 'not-requested', 'appearance', [
+					...limitations,
+					...(args.screenshot
+						? ['PIXEL_COMPARISON_NOT_IMPLEMENTED']
+						: ['SCREENSHOT_NOT_REQUESTED']),
+				]),
+			},
+		};
+	}
+
 	/** One capture through the host; a retained story's context comes back settled. */
 	async function capture(
 		parsed: ReturnType<typeof parseCaptureRequest>,
@@ -677,9 +824,14 @@ export async function createInProcessBench(
 		};
 	};
 	const api: BenchRuntime = {
-		list() {
+		list(filter) {
 			ensureOpen();
-			return config.entries.map((entry) => ({ ...entry }));
+			const entries = config.entries.map((entry) => ({
+				...entry,
+				kind: (entry.job ? 'job' : 'component') as 'job' | 'component',
+			}));
+			if (!filter?.kind) return entries;
+			return entries.filter((entry) => entry.kind === filter.kind);
 		},
 		async build(outDir) {
 			ensureOpen();
@@ -725,6 +877,212 @@ export async function createInProcessBench(
 				},
 				request
 			);
+		},
+		async captureCheckpoints(rawRequest: CheckpointsRequest): Promise<CheckpointsRun> {
+			ensureOpen();
+			const request = parseCheckpointsRequest(rawRequest);
+			const entry = config.entries.find((item) => item.id === request.id);
+			if (!entry) throw new Error(`Specimen not found: ${request.id}`);
+			if (entry.story) {
+				throw new Error(
+					`Multi-checkpoint capture applies to native specimens; '${entry.id}' is a retained story.`
+				);
+			}
+			const context = resolveContext(request.context);
+			const axe = request.axe ?? true;
+			const timeoutMs = request.timeoutMs ?? 30_000;
+			const pinned = resolvePinnedBaseline(request.pin);
+			const clockBaseline: CaptureCheckpoint['baseline']['clock'] =
+				pinned.clock === 'real' ? 'real' : { pinned: pinned.clock };
+			const stagingDir = join(specimenDataDir(config.root), 'tmp', randomUUID());
+			await assertRealContained(
+				config.root,
+				stagingDir,
+				`Staging directory escapes root: ${stagingDir}`
+			);
+			await mkdir(stagingDir, { recursive: true });
+			try {
+				const runtime = await ensureHost();
+				const checkpointsPayload = (request.checkpoints ?? []).map((name) => ({ name }));
+				const [rendered, [source, dependencies]] = await Promise.all([
+					runtime.request(
+						'render',
+						{
+							entry,
+							context,
+							checkpoint: 'mount',
+							timeoutMs,
+							screenshot: null,
+							accessibility: axe,
+							...(pinned.clock !== 'real' ? { pinClock: pinned.clock } : {}),
+							checkpoints: checkpointsPayload,
+							screenshotsDir: stagingDir,
+						},
+						timeoutMs + HOST_GRACE
+					) as Promise<HostRender>,
+					Promise.all([sourceState(config.root), dependencyIdentity(config.root)]),
+				]);
+				const rawCaptures = rendered.captures ?? [];
+				const captures: CheckpointCaptureInput[] = rawCaptures.map((point, index) => {
+					const step = point.step ?? index + 1;
+					const key = point.key ?? `${entry.id}/${step}`;
+					const obs = buildObservation({
+						entry,
+						context,
+						checkpointName: point.name,
+						actionMode: point.name === 'mount' ? 'none' : 'real-input',
+						timeoutMs,
+						clockBaseline,
+						captured: point.captured,
+						snapshot: point.snapshot,
+						screenshot: point.screenshot,
+						axe: axe ? (point.accessibility ?? undefined) : undefined,
+						console: point.console ?? rendered.console,
+						loaded: rendered.loaded,
+						browser: rendered.browser,
+						source,
+						dependencies,
+					});
+					return {
+						key,
+						name: point.name,
+						step,
+						observation: obs,
+						screenshotSource: point.screenshot,
+					};
+				});
+				return await finalizeCheckpointsRun({
+					root: config.root,
+					id: entry.id,
+					context,
+					axe,
+					...(request.pin ? { pin: request.pin } : {}),
+					...(request.label !== undefined ? { label: request.label } : {}),
+					revision: source.revision,
+					dirty: source.dirty,
+					captures,
+				});
+			} finally {
+				await rm(stagingDir, { recursive: true, force: true });
+			}
+		},
+		async runJob(rawRequest: JobRunRequest): Promise<JobRun> {
+			ensureOpen();
+			const request = parseJobRunRequest(rawRequest);
+			const entry = config.entries.find((item) => item.id === request.id);
+			if (!entry) throw new Error(`Specimen not found: ${request.id}`);
+			if (!entry.job) {
+				const error = new Error(`Specimen '${entry.id}' is not a job specimen.`) as Error & {
+					code?: string;
+					suggestion?: string;
+				};
+				error.code = 'NOT_A_JOB';
+				error.suggestion =
+					'Use specimen-list with kind: job to find job specimens, or specimen-render for a component specimen.';
+				throw error;
+			}
+			let scenario = request.scenario;
+			if (!scenario) {
+				const sources = [];
+				for (const modulePath of config.jobSourceModules) {
+					sources.push(...(await loadJobSourceModule(modulePath)));
+				}
+				scenario = await parseJobScenarioWithSources(sources, {
+					root: config.root,
+					base: dirname(config.file),
+					entry,
+				});
+			}
+			const capturePlan = resolveJobCapturePlan(entry, scenario);
+			const context = resolveContext(request.context);
+			const axe = request.axe ?? true;
+			const timeoutMs = request.timeoutMs ?? 30_000;
+			const effectivePin = request.pin ?? entry.job.pin;
+			const pinned = resolvePinnedBaseline(effectivePin);
+			const clockBaseline: CaptureCheckpoint['baseline']['clock'] =
+				pinned.clock === 'real' ? 'real' : { pinned: pinned.clock };
+			const stagingDir = join(specimenDataDir(config.root), 'tmp', randomUUID());
+			await assertRealContained(
+				config.root,
+				stagingDir,
+				`Staging directory escapes root: ${stagingDir}`
+			);
+			await mkdir(stagingDir, { recursive: true });
+			try {
+				const screenshots: Record<string, string> = {};
+				for (const cap of capturePlan) {
+					screenshots[cap.key] = join(stagingDir, `step-${cap.step}.png`);
+				}
+				const runtime = await ensureHost();
+				const [rendered, [source, dependencies]] = await Promise.all([
+					runtime.request(
+						'render',
+						{
+							entry,
+							context,
+							checkpoint: 'mount',
+							timeoutMs,
+							screenshot: null,
+							accessibility: axe,
+							...(pinned.clock !== 'real' ? { pinClock: pinned.clock } : {}),
+							jobRun: {
+								driver: entry.job.runner ?? 'afd',
+								target: entry.job.target,
+								scenario,
+								capturePlan,
+								screenshots,
+							},
+						},
+						timeoutMs + HOST_GRACE
+					) as Promise<HostRender>,
+					Promise.all([sourceState(config.root), dependencyIdentity(config.root)]),
+				]);
+				const driverResult = rendered.jobOutcome;
+				if (!driverResult) {
+					throw new Error(`Job driver returned no outcome for '${entry.id}'.`);
+				}
+				const capturedByKey = new Map<
+					string,
+					{ observation: Observation; screenshotSource: string | null }
+				>();
+				for (const point of rendered.captures ?? []) {
+					const key = point.key ?? (point.step !== null ? `${entry.id}/${point.step}` : point.name);
+					const obs = buildObservation({
+						entry,
+						context,
+						checkpointName: point.name,
+						actionMode: 'real-input',
+						timeoutMs,
+						clockBaseline,
+						captured: point.captured,
+						snapshot: point.snapshot,
+						screenshot: point.screenshot,
+						axe: axe ? (point.accessibility ?? undefined) : undefined,
+						console: point.console ?? rendered.console,
+						loaded: rendered.loaded,
+						browser: rendered.browser,
+						source,
+						dependencies,
+					});
+					capturedByKey.set(key, { observation: obs, screenshotSource: point.screenshot });
+				}
+				return await finalizeJobRun({
+					root: config.root,
+					entry,
+					scenario,
+					capturePlan,
+					driverResult,
+					capturedByKey,
+					context,
+					axe,
+					...(effectivePin ? { pin: effectivePin } : {}),
+					...(request.label !== undefined ? { label: request.label } : {}),
+					revision: source.revision,
+					dirty: source.dirty,
+				});
+			} finally {
+				await rm(stagingDir, { recursive: true, force: true });
+			}
 		},
 		async inspect(rawRequest: InspectRequest): Promise<InspectResult> {
 			ensureOpen();

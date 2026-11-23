@@ -11,9 +11,12 @@ import {
 	baselineRequestSchema,
 	captureRequestSchema,
 	captureSetRequestSchema,
+	checkpointsRequestSchema,
 	contextSchema,
 	contractRequestSchema,
 	coverageRequestSchema,
+	jobConfigSchema,
+	jobRunRequestSchema,
 	matrixRequestSchema,
 	profileRequestSchema,
 	suggestRequestSchema,
@@ -25,10 +28,12 @@ import {
 	parseBaselineRequest,
 	parseCaptureRequest,
 	parseCaptureSetRequest,
+	parseCheckpointsRequest,
 	parseConfig,
 	parseContext,
 	parseContractRequest,
 	parseCoverageRequest,
+	parseJobRunRequest,
 	parseMatrixRequest,
 	parseProfileRequest,
 	parseSuggestRequest,
@@ -69,10 +74,12 @@ const configSchema = z
 						.optional(),
 					patternSetup: patternSetupBindingSchema.optional(),
 					contexts: implementationContextsSchema.optional(),
+					job: jobConfigSchema.optional(),
 				})
 			)
 			.min(1)
 			.optional(),
+		jobSources: z.array(z.string().min(1)).optional(),
 		stories: z
 			.array(
 				z.union([
@@ -821,5 +828,135 @@ describe('request parsing agrees with the public schemas', () => {
 			null,
 		];
 		for (const value of values) agrees(captureSetRequestSchema, parseCaptureSetRequest, value);
+	});
+
+	it('agrees on checkpoints and job run requests and validates job config entries', () => {
+		const cpValues = [
+			{ id: 'counter' },
+			{ id: 'counter', checkpoints: ['initial', 'after-click'], label: 'main', axe: false },
+			{ id: 'counter', checkpoints: ['initial', 'initial'] },
+			{ id: 'counter', pin: { clock: '2026-03-02T09:00:00Z' } },
+			{ id: 'counter', pin: { clock: '2026-02-30T09:00:00Z' } },
+			{ id: 'counter', pin: { clock: 'not-a-timestamp' } },
+			{ id: 'counter', label: 'set-0123456789ab' },
+			{ id: 'counter', checkpoints: [] },
+			{ id: '' },
+			{ id: 'counter', extra: 1 },
+			null,
+		];
+		for (const value of cpValues) agrees(checkpointsRequestSchema, parseCheckpointsRequest, value);
+
+		const jobValues = [
+			{ id: 'example-keep-a-draft' },
+			{
+				id: 'example-keep-a-draft',
+				label: 'branch',
+				axe: true,
+				pin: { clock: '2026-03-02T09:00:00Z' },
+				scenario: {
+					job: 'keep-a-draft',
+					steps: [
+						{ step: 1, command: 'document-create', description: 'A note is created' },
+						{ step: 2, command: 'document-open', description: 'The note opens' },
+					],
+				},
+			},
+			{
+				id: 'example-keep-a-draft',
+				scenario: {
+					job: 'dup-steps',
+					steps: [
+						{ step: 1, command: 'a' },
+						{ step: 1, command: 'b' },
+					],
+				},
+			},
+			{
+				id: 'example-keep-a-draft',
+				scenario: {
+					job: 'gap-steps',
+					steps: [{ step: 2, command: 'a' }],
+				},
+			},
+			{ id: 'example-keep-a-draft', pin: { clock: '2026-02-30T09:00:00Z' } },
+			{ id: 'example-keep-a-draft', pin: { clock: '2026-03-02' } },
+			{ id: 'example-keep-a-draft', scenario: { job: 'x', steps: [] } },
+			{ id: 'example-keep-a-draft', extra: true },
+			null,
+		];
+		for (const value of jobValues) agrees(jobRunRequestSchema, parseJobRunRequest, value);
+
+		const jobConfigs = [
+			{
+				jobSources: ['./job-source.mjs'],
+				specimens: [
+					{
+						id: 'example-keep-a-draft',
+						title: 'Notes/Keep a draft',
+						module: './notes.ts',
+						exportName: 'NotesApp',
+						job: {
+							scenario: '../scenarios/keep-a-draft.scenario.yaml',
+							target: 'app',
+							pin: { clock: '2026-03-02T09:00:00Z' },
+							captures: [
+								{ after: 'The note opens beside itself', name: 'two-editors' },
+								{
+									after: 'Another writer saves the note',
+									name: 'conflict-notice',
+									before: [{ action: { fill: 'second-editor', value: ' draft' } }],
+								},
+							],
+						},
+					},
+				],
+			},
+			{
+				specimens: [
+					{
+						id: 'dup-capture',
+						title: 'Dup',
+						module: './a.ts',
+						exportName: 'A',
+						job: {
+							scenario: './s.yaml',
+							target: 'app',
+							captures: [
+								{ after: 'Step 1', name: 'same' },
+								{ after: 'Step 2', name: 'same' },
+							],
+						},
+					},
+				],
+			},
+			{
+				specimens: [
+					{
+						id: 'rollover-clock',
+						title: 'Rollover',
+						module: './a.ts',
+						exportName: 'A',
+						job: {
+							scenario: './s.yaml',
+							target: 'app',
+							pin: { clock: '2026-02-30T09:00:00Z' },
+							captures: [{ after: 'Step 1', name: 'one' }],
+						},
+					},
+				],
+			},
+			{
+				jobSources: [''],
+				specimens: [
+					{
+						id: 'bad-source',
+						title: 'Bad source',
+						module: './a.ts',
+						exportName: 'A',
+					},
+				],
+			},
+		];
+		for (const value of jobConfigs) agrees(configSchema, parseConfig, value);
 	});
 });

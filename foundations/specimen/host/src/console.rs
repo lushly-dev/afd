@@ -155,7 +155,7 @@ fn preview(argument: &Value) -> String {
     description.map_or_else(|| "JSHandle@object".into(), String::from)
 }
 
-#[derive(Default)]
+#[derive(Default, Clone, serde::Serialize)]
 pub struct Messages {
     pub errors: Vec<String>,
     pub warnings: Vec<String>,
@@ -175,6 +175,13 @@ impl Collector {
             events,
             messages: Messages::default(),
         }
+    }
+
+    pub fn snapshot(&mut self) -> Messages {
+        while let Ok(event) = self.events.try_recv() {
+            self.record(&event);
+        }
+        self.messages.clone()
     }
 
     pub fn take(&mut self) -> Messages {

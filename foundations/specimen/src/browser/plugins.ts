@@ -29,7 +29,11 @@ export async function installPlugins(
 	const ids = Object.keys(loaders)
 		.filter((id) => PLUGIN.test(id))
 		.sort((left, right) => Number(PLUGIN.exec(left)?.[1]) - Number(PLUGIN.exec(right)?.[1]));
-	const installed: InstalledPlugins = { plugins: [], runners: new Map(), themes: new Map() };
+	const installed: InstalledPlugins = {
+		plugins: [],
+		runners: new Map(),
+		themes: new Map(),
+	};
 	for (const id of ids) {
 		const module = (await (loaders[id] as () => Promise<{ default?: unknown }>)()) ?? {};
 		const exported = module.default;

@@ -3,6 +3,8 @@ import { existsSync, statSync } from 'node:fs';
 import { readFile, realpath } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { type LoadedGuides, loadGuides } from './guides.js';
+import { type JobSource, loadJobSourceModule } from './job-source.js';
+import { type JobValidationResult, validateJobEntries } from './jobs.js';
 import { readManifest } from './manifest.js';
 import { DEFAULT_PATTERNS_DIRECTORY, type LoadedPatterns, loadPatterns } from './patterns.js';
 import type { ComponentSchema } from './plugin.js';
@@ -44,6 +46,10 @@ export interface LoadedConfig {
 	guides?: LoadedGuides;
 	/** Local pattern files, offline `patternSources`, and static pattern validation findings. */
 	patterns?: LoadedPatterns;
+	/** Configured Node-side job source modules, resolved inside root. */
+	jobSourceModules: string[];
+	/** Precomputed static validation findings for job entries. */
+	jobValidation?: JobValidationResult;
 }
 export const digest = (value: string | Uint8Array): string =>
 	createHash('sha256').update(value).digest('hex');
@@ -178,6 +184,17 @@ export async function loadConfig(options: BenchOptions): Promise<LoadedConfig> {
 					: {}),
 			})
 		: undefined;
+	const jobSourceModules: string[] = [];
+	for (const source of config.jobSources ?? [])
+		jobSourceModules.push(inside(root, await realpath(resolve(dirname(file), source)), source));
+	const loadedJobSources: JobSource[] = [...(options.jobSources ?? [])];
+	for (const modulePath of jobSourceModules) {
+		loadedJobSources.push(...(await loadJobSourceModule(modulePath)));
+	}
+	const hasJobs = entries.some((entry) => entry.job !== undefined);
+	const jobValidation = hasJobs
+		? await validateJobEntries(entries, loadedJobSources, root, dirname(file))
+		: undefined;
 	const baselines = config.profile?.baselines;
 	return {
 		root,
@@ -199,8 +216,10 @@ export async function loadConfig(options: BenchOptions): Promise<LoadedConfig> {
 		schemas,
 		manifestDirectory,
 		staticDirs,
+		jobSourceModules,
 		...(stories ? { stories } : {}),
 		...(guides ? { guides } : {}),
 		...(patterns ? { patterns } : {}),
+		...(jobValidation ? { jobValidation } : {}),
 	};
 }

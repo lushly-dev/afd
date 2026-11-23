@@ -1,5 +1,6 @@
 import type { EventDeclaration, EventExpectation, EventRecord } from '../types.js';
 import { describe } from './plugins.js';
+import { realDelay } from './real-timers.js';
 
 /**
  * The declared events of a native specimen. The mount root's listener is installed before the
@@ -126,7 +127,7 @@ export function recordEvents(root: Element, declared: EventDeclaration[]): Event
 				);
 			if (absent) {
 				// Long enough for what it would have caused, not for a second per expectation.
-				await new Promise((resolve) => setTimeout(resolve, timeoutMs ?? DEFAULT_ABSENT_WAIT_MS));
+				await realDelay(timeoutMs ?? DEFAULT_ABSENT_WAIT_MS);
 				if (found())
 					throw new Error(
 						`Expected no event '${event}'${target ? ` on '${target}'` : ''} since step '${since}'; one fired.`
@@ -145,7 +146,7 @@ export function recordEvents(root: Element, declared: EventDeclaration[]): Event
 						}.`
 					);
 				}
-				await new Promise((resolve) => setTimeout(resolve, 10));
+				await realDelay(10);
 			}
 		},
 		read() {

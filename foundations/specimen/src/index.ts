@@ -33,6 +33,25 @@ export {
 	type GuideSourceRule,
 } from './guide-source.js';
 export type { SpecimenHostError } from './host.js';
+export {
+	defineJobSource,
+	type JobSource,
+	type JobSourceContext,
+	parseJobScenarioWithSources,
+} from './job-source.js';
+export {
+	type CheckpointCaptureInput,
+	type FinalizeCheckpointsOptions,
+	type FinalizeJobRunOptions,
+	finalizeCheckpointsRun,
+	finalizeJobRun,
+	isObservationUnchanged,
+	isValidClockPin,
+	resolveJobCapturePlan,
+	resolvePinnedBaseline,
+	validateJobEntries,
+	withJobValidation,
+} from './jobs.js';
 export { finiteValues, readManifest } from './manifest.js';
 export { normalizeDom } from './normalize.js';
 export {
@@ -41,6 +60,10 @@ export {
 	type ComposedTokens,
 	composeTokenMaps,
 	definePlugin,
+	type JobDriver,
+	type JobDriverHost,
+	type JobDriverResult,
+	type JobDriverStepOutcome,
 	type PropertySchema,
 	type SchemaValue,
 	type SpecimenPlugin,

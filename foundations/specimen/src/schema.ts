@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isValidIsoClock } from './browser/clock-parse.js';
 
 const recordedContextSchema = z.strictObject({
 	viewport: z.strictObject({
@@ -155,7 +156,7 @@ export const observationSchema = z
 							.strict(),
 						baseline: z
 							.object({
-								clock: z.literal('real'),
+								clock: z.union([z.literal('real'), z.strictObject({ pinned: z.string().min(1) })]),
 								random: z.object({ source: z.literal('seeded'), seed: z.number() }).strict(),
 								storage: z.literal('empty'),
 							})
@@ -178,6 +179,17 @@ export const observationSchema = z
 						build: z.string().min(1).nullable(),
 					})
 					.strict(),
+				job: z
+					.strictObject({
+						name: z.string().min(1),
+						step: z.number().int().positive(),
+						description: z.string(),
+					})
+					.optional(),
+				set: z
+					.string()
+					.regex(/^set-[0-9a-f]{12}$/)
+					.optional(),
 				context: recordedContextSchema.extend({
 					pixelRatio: z.number().positive(),
 					observed: z
@@ -1035,4 +1047,149 @@ export const captureSetRunSchema = z.strictObject({
 		next: z.literal('specimen-job-run').optional(),
 		gatesNext: z.literal('specimen-run').optional(),
 	}),
+});
+
+const isoClockSchema = z
+	.string()
+	.refine(isValidIsoClock, 'Clock pin must be a calendar-valid ISO-8601 timestamp with timezone');
+
+const specimenActionSchema = z.union([
+	z.strictObject({ click: z.string().min(1) }),
+	z.strictObject({ focus: z.string().min(1) }),
+	z.strictObject({ hover: z.string().min(1) }),
+	z.strictObject({ fill: z.string().min(1), value: z.string() }),
+	z.strictObject({ press: z.string().min(1), target: z.string().min(1).optional() }),
+]);
+
+export const jobPinSchema = z.strictObject({
+	clock: isoClockSchema.optional(),
+});
+
+export const jobCapturePointSchema = z.strictObject({
+	after: z.string().min(1),
+	name: z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/),
+	before: z
+		.array(z.strictObject({ action: specimenActionSchema }))
+		.min(1)
+		.optional(),
+});
+
+export const jobConfigSchema = z
+	.strictObject({
+		scenario: z.string().min(1),
+		target: z.string().min(1),
+		runner: z.string().min(1).optional(),
+		pin: jobPinSchema.optional(),
+		captures: z.array(jobCapturePointSchema).min(1),
+	})
+	.refine(
+		(value) => new Set(value.captures.map((c) => c.name)).size === value.captures.length,
+		'Job capture names must be unique'
+	)
+	.refine(
+		(value) => new Set(value.captures.map((c) => c.after)).size === value.captures.length,
+		'Job capture step descriptions must be unique'
+	);
+
+const pinnedBaselineSchema = z.strictObject({
+	clock: z.string().min(1),
+	random: z.literal('seeded'),
+});
+
+const jobCaptureStatusSchema = z.enum(['captured', 'unchanged', 'not-taken']);
+
+const jobCaptureSummarySchema = z.strictObject({
+	key: z.string().min(1),
+	name: z.string().min(1),
+	step: z.number().int().nonnegative(),
+	status: jobCaptureStatusSchema,
+	screenshot: z.string().min(1).nullable(),
+	reason: z.string().min(1).optional(),
+});
+
+export const checkpointsRequestSchema = z.strictObject({
+	id: z.string().min(1),
+	checkpoints: z
+		.array(z.string().min(1))
+		.min(1)
+		.refine((names) => new Set(names).size === names.length, 'Checkpoint names must be unique')
+		.optional(),
+	context: captureRequestSchema.shape.context,
+	label: captureLabelSchema.optional(),
+	axe: z.boolean().optional(),
+	timeoutMs: captureRequestSchema.shape.timeoutMs,
+	pin: jobPinSchema.optional(),
+});
+
+export const checkpointsRunSchema = z.strictObject({
+	set: z.string().regex(/^set-[0-9a-f]{12}$/),
+	label: z.string().nullable(),
+	id: z.string().min(1),
+	revision: z.string().nullable(),
+	dirty: z.boolean().nullable(),
+	pinned: pinnedBaselineSchema,
+	captures: z.array(jobCaptureSummarySchema),
+	counts: captureSetRunSchema.shape.counts,
+});
+
+const jobScenarioStepSchema = z.strictObject({
+	step: z.number().int().positive(),
+	command: z.string().min(1),
+	description: z.string().optional(),
+	input: z.record(z.string(), z.unknown()).optional(),
+	expect: z.unknown().optional(),
+	continueOnFailure: z.boolean().optional(),
+});
+
+const jobScenarioSchema = z
+	.strictObject({
+		job: z.string().min(1),
+		name: z.string().optional(),
+		description: z.string().optional(),
+		fixture: z.unknown().optional(),
+		steps: z.array(jobScenarioStepSchema).min(1),
+	})
+	.refine(
+		(value) => value.steps.every((step, index) => step.step === index + 1),
+		'Job scenario steps must be numbered sequentially starting at 1'
+	);
+
+export const jobRunRequestSchema = z.strictObject({
+	id: z.string().min(1),
+	context: captureRequestSchema.shape.context,
+	label: captureLabelSchema.optional(),
+	axe: z.boolean().optional(),
+	timeoutMs: captureRequestSchema.shape.timeoutMs,
+	pin: jobPinSchema.optional(),
+	scenario: jobScenarioSchema.optional(),
+});
+
+export const jobRunSchema = z.strictObject({
+	set: z.string().regex(/^set-[0-9a-f]{12}$/),
+	label: z.string().nullable(),
+	id: z.string().min(1),
+	job: z.string().min(1),
+	scenario: z.string().min(1),
+	status: z.enum(['passed', 'failed']),
+	pinned: pinnedBaselineSchema,
+	steps: z.array(
+		z.strictObject({
+			step: z.number().int().positive(),
+			description: z.string().optional(),
+			command: z.string().optional(),
+			status: z.enum(['passed', 'failed', 'skipped']),
+			error: z.string().optional(),
+			capture: z
+				.strictObject({
+					key: z.string().min(1),
+					name: z.string().min(1),
+					status: jobCaptureStatusSchema,
+					reason: z.string().min(1).optional(),
+					actions: z.number().int().nonnegative().optional(),
+				})
+				.optional(),
+		})
+	),
+	captures: z.array(jobCaptureSummarySchema),
+	counts: captureSetRunSchema.shape.counts,
 });

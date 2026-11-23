@@ -11,12 +11,16 @@ import type {
 	CaptureRequest,
 	CaptureSetRequest,
 	CaptureSetRun,
+	CheckpointsRequest,
+	CheckpointsRun,
 	ContractRequest,
 	ContractRun,
 	CoverageRequest,
 	CoverageRun,
 	InspectRequest,
 	InspectResult,
+	JobRun,
+	JobRunRequest,
 	MatrixRequest,
 	MatrixRun,
 	Observation,
@@ -38,6 +42,8 @@ type WorkerOperation =
 	| { operation: 'initialize'; config: LoadedConfig; executablePath?: string }
 	| { operation: 'render'; request: CaptureRequest }
 	| { operation: 'captureSet'; request: CaptureSetRequest }
+	| { operation: 'captureCheckpoints'; request: CheckpointsRequest }
+	| { operation: 'runJob'; request: JobRunRequest }
 	| { operation: 'run'; request: RunRequest }
 	| { operation: 'runSuite'; request: SuiteRequest }
 	| { operation: 'a11y'; request: A11yRequest }
@@ -270,6 +276,20 @@ export class BenchWorkerClient {
 	async captureSet(request: CaptureSetRequest = {}): Promise<CaptureSetRun> {
 		await this.ready;
 		return (await this.request({ operation: 'captureSet', request }, 3_600_000)) as CaptureSetRun;
+	}
+	async captureCheckpoints(request: CheckpointsRequest): Promise<CheckpointsRun> {
+		await this.ready;
+		return (await this.request(
+			{ operation: 'captureCheckpoints', request },
+			(request.timeoutMs ?? 30_000) + 30_000
+		)) as CheckpointsRun;
+	}
+	async runJob(request: JobRunRequest): Promise<JobRun> {
+		await this.ready;
+		return (await this.request(
+			{ operation: 'runJob', request },
+			(request.timeoutMs ?? 30_000) + 30_000
+		)) as JobRun;
 	}
 	async run(request: RunRequest): Promise<StoryRun> {
 		await this.ready;

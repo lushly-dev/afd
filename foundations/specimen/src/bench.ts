@@ -2,6 +2,8 @@ import { dirname, resolve } from 'node:path';
 import { BenchWorkerClient } from './bench-worker-client.js';
 import { type LoadedConfig, loadConfig, resolveContext } from './config.js';
 import { withGuides } from './guides.js';
+import { type JobSource, loadJobSourceModule, parseJobScenarioWithSources } from './job-source.js';
+import { resolveJobCapturePlan, resolvePinnedBaseline, withJobValidation } from './jobs.js';
 import {
 	checkCommitted,
 	exportPack,
@@ -21,6 +23,8 @@ import type {
 	CaptureRequest,
 	CaptureSetRequest,
 	CaptureSetRun,
+	CheckpointsRequest,
+	CheckpointsRun,
 	ContractRequest,
 	ContractRun,
 	CoverageRequest,
@@ -28,6 +32,8 @@ import type {
 	DiffRequest,
 	InspectRequest,
 	InspectResult,
+	JobRun,
+	JobRunRequest,
 	MatrixRequest,
 	MatrixRun,
 	MigrateRequest,
@@ -45,6 +51,7 @@ import type {
 	ProfileRun,
 	RunRequest,
 	SpecimenEntry,
+	SpecimenListFilter,
 	StoryRun,
 	SuggestRequest,
 	SuggestRun,
@@ -60,8 +67,10 @@ import {
 	parseBaselineRequest,
 	parseCaptureRequest,
 	parseCaptureSetRequest,
+	parseCheckpointsRequest,
 	parseContractRequest,
 	parseCoverageRequest,
+	parseJobRunRequest,
 	parseMatrixRequest,
 	parsePackExportRequest,
 	parsePackRequest,
@@ -83,7 +92,7 @@ export class DiscoveryError extends Error {
 
 export interface SpecimenBench {
 	/** Native specimens and discovered stories; throws a `DiscoveryError` if discovery failed. */
-	list(): SpecimenEntry[];
+	list(filter?: SpecimenListFilter): SpecimenEntry[];
 	/**
 	 * Static validation of discovered stories, optionally one story or file: identity, format
 	 * and annotation support, and what only running the module can settle. Never throws for
@@ -96,6 +105,16 @@ export interface SpecimenBench {
 	 * under `.specimen/sets/`, returning ids and counts only.
 	 */
 	captureSet(request?: CaptureSetRequest): Promise<CaptureSetRun>;
+	/**
+	 * Capture multiple named checkpoints of one native specimen in a single fresh render,
+	 * persisting a content-addressed capture set keyed `<id>/<step>` with axe and screenshots.
+	 */
+	captureCheckpoints(request: CheckpointsRequest): Promise<CheckpointsRun>;
+	/**
+	 * Run a job specimen once in a fresh browser context via its registered `JobDriver` plugin,
+	 * capturing marked steps into a content-addressed capture set keyed `<id>/<step>`.
+	 */
+	runJob(request: JobRunRequest): Promise<JobRun>;
 	/** Compare two observations or `{ set, id }` set references against `.specimen/sets/`. */
 	diff(request: DiffRequest): Promise<ObservationDiff>;
 	/**
@@ -247,11 +266,24 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 	Object.freeze(config);
 	const executablePath = options.executablePath;
 	const runtimeIsolation = options.runtimeIsolation ?? 'in-process';
+	const inlineJobSources: JobSource[] = [...(options.jobSources ?? [])];
+	let loadedJobSources: JobSource[] | undefined;
+	const getJobSources = async (snapshot: LoadedConfig): Promise<JobSource[]> => {
+		if (loadedJobSources) return loadedJobSources;
+		const sources: JobSource[] = [...inlineJobSources];
+		for (const modulePath of snapshot.jobSourceModules) {
+			sources.push(...(await loadJobSourceModule(modulePath)));
+		}
+		loadedJobSources = sources;
+		return sources;
+	};
 	type Backend = Pick<
 		BenchRuntime,
 		| 'packBuild'
 		| 'render'
 		| 'captureSet'
+		| 'captureCheckpoints'
+		| 'runJob'
 		| 'run'
 		| 'runSuite'
 		| 'a11y'
@@ -311,8 +343,13 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 		return { build, allowFailed };
 	};
 	return {
-		list() {
-			return ensureDiscovered().entries.map((entry) => ({ ...entry }));
+		list(filter?: SpecimenListFilter) {
+			const entries = ensureDiscovered().entries.map((entry) => ({
+				...entry,
+				kind: (entry.job ? 'job' : 'component') as 'job' | 'component',
+			}));
+			if (!filter?.kind) return entries;
+			return entries.filter((entry) => entry.kind === filter.kind);
 		},
 		validate(target) {
 			const snapshot = ensureOpen();
@@ -322,7 +359,13 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 				snapshot.root,
 				target
 			);
-			return withPatterns(withGuideIssues, snapshot.patterns, snapshot.root, target);
+			const withPatternIssues = withPatterns(
+				withGuideIssues,
+				snapshot.patterns,
+				snapshot.root,
+				target
+			);
+			return withJobValidation(withPatternIssues, snapshot.jobValidation, target, snapshot.root);
 		},
 		async render(rawRequest) {
 			const snapshot = ensureDiscovered();
@@ -339,6 +382,43 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 			selectCaptureEntries(snapshot.entries, request, snapshot.root);
 			resolveContext(request.context);
 			return enqueue((client) => client.captureSet(request));
+		},
+		async captureCheckpoints(rawRequest) {
+			const snapshot = ensureDiscovered();
+			const request = parseCheckpointsRequest(rawRequest);
+			if (!snapshot.entries.some((entry) => entry.id === request.id))
+				throw new Error(`Specimen not found: ${request.id}`);
+			resolveContext(request.context);
+			resolvePinnedBaseline(request.pin);
+			return enqueue((client) => client.captureCheckpoints(request));
+		},
+		async runJob(rawRequest) {
+			const snapshot = ensureDiscovered();
+			const request = parseJobRunRequest(rawRequest);
+			const entry = snapshot.entries.find((item) => item.id === request.id);
+			if (!entry) throw new Error(`Specimen not found: ${request.id}`);
+			if (!entry.job) {
+				const error = new Error(`Specimen '${entry.id}' is not a job specimen.`) as Error & {
+					code?: string;
+					suggestion?: string;
+				};
+				error.code = 'NOT_A_JOB';
+				error.suggestion =
+					'Use specimen-list with kind: job to find job specimens, or specimen-render for a component specimen.';
+				throw error;
+			}
+			const scenario =
+				request.scenario ??
+				(await parseJobScenarioWithSources(await getJobSources(snapshot), {
+					root: snapshot.root,
+					base: dirname(snapshot.file),
+					entry,
+				}));
+			// Validate capture step descriptions before starting Chromium or a worker.
+			resolveJobCapturePlan(entry, scenario);
+			resolveContext(request.context);
+			resolvePinnedBaseline(request.pin ?? entry.job.pin);
+			return enqueue((client) => client.runJob({ ...request, scenario }));
 		},
 		async diff(request) {
 			const snapshot = ensureOpen();
