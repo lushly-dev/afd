@@ -14,7 +14,7 @@ use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::Ordering;
 
 use umbel_sdk::{CollectionInfo, ContentEntry, HostError as ServiceError};
-use umbel_store::{ContentHash, Expect, Page};
+use umbel_store::{ContentHash, Expect, Page, RelativePathProblem, check_relative_path};
 
 use super::grants::CallServices;
 use crate::workspace::{CollectionConfig, CollectionKind, resolve_root};
@@ -32,25 +32,20 @@ fn io(error: &std::io::Error, what: &Path) -> ServiceError {
 
 /// Why `path` cannot name a file inside a root, if it cannot.
 fn path_problem(path: &str) -> Option<&'static str> {
-    if path.is_empty() {
-        Some("is empty")
-    } else if path.starts_with('/') || path.contains('\\') {
-        Some("must be relative with `/` separators")
-    } else if path.chars().any(char::is_control) {
-        Some("holds a control character")
-    } else if path
-        .split('/')
-        .any(|part| part.is_empty() || part == "." || part == "..")
-    {
-        Some("must not hold an empty, `.` or `..` segment")
-    } else if path.contains(':')
-        || !Path::new(path)
-            .components()
-            .all(|component| matches!(component, Component::Normal(_)))
-    {
-        Some("must not hold a `:` (drive prefix or stream) or non-normal path component")
-    } else {
-        None
+    match check_relative_path(path) {
+        Ok(()) => None,
+        Err(RelativePathProblem::Empty) => Some("is empty"),
+        Err(RelativePathProblem::LeadingSlash | RelativePathProblem::Backslash) => {
+            Some("must be relative with `/` separators")
+        }
+        Err(RelativePathProblem::Control) => Some("holds a control character"),
+        Err(RelativePathProblem::EmptySegment | RelativePathProblem::DotSegment) => {
+            Some("must not hold an empty, `.` or `..` segment")
+        }
+        Err(RelativePathProblem::Colon | RelativePathProblem::NonNormal) => {
+            Some("must not hold a `:` (drive prefix or stream) or non-normal path component")
+        }
+        Err(_) => Some("is not a valid relative path"),
     }
 }
 
@@ -437,9 +432,13 @@ mod tests {
         ] {
             assert!(path_problem(bad).is_some(), "{bad:?}");
         }
-        for good in ["a.md", "dir/a.md", ".hidden/x"] {
+        for good in ["a.md", "dir/a.md", ".hidden/x", ".umbel-access.toml"] {
             assert!(path_problem(good).is_none(), "{good}");
         }
+        assert_eq!(
+            path_problem("a//b:c"),
+            Some("must not hold an empty, `.` or `..` segment")
+        );
     }
 
     #[test]

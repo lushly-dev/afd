@@ -30,8 +30,9 @@ pub use canonical::{ContentHash, base64_decode, base64_encode, canonical_json};
 pub use document::{
     Change, ChangeKind, DocId, DocMeta, Document, DocumentWrite, Expect, Flag, ListQuery,
     MAX_CHANGES_LIMIT, MAX_DOC_ID_BYTES, MAX_DOCUMENT_BYTES, MAX_DOCUMENT_METADATA_BYTES,
-    MAX_LIST_LIMIT, MAX_RECORD_BYTES, Page, Record, RecordMeta, Rev, Status, Tier, Verification,
-    check_identifier, check_record, is_slug, record_target,
+    MAX_LIST_LIMIT, MAX_RECORD_BYTES, Page, Record, RecordMeta, RelativePathProblem, Rev, Status,
+    Tier, Verification, check_identifier, check_record, check_relative_path,
+    check_visible_relative_path, is_slug, record_target,
 };
 pub use embed::{EmbedError, Embedder, ModelId};
 pub use envelope::{

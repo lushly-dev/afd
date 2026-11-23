@@ -331,6 +331,99 @@ pub fn check_identifier(what: &str, text: &str) -> Result<()> {
     Ok(())
 }
 
+/// Why a relative collection path cannot safely name a file inside a collection root.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum RelativePathProblem {
+    /// The path is empty.
+    Empty,
+    /// The path starts with `/` (absolute).
+    LeadingSlash,
+    /// The path contains a `\` separator.
+    Backslash,
+    /// The path contains a control character.
+    Control,
+    /// The path contains `:` (a Windows drive prefix or NTFS alternate data stream).
+    Colon,
+    /// The path contains an empty segment (such as `a//b` or a trailing `/`).
+    EmptySegment,
+    /// The path contains a `.` or `..` traversal segment.
+    DotSegment,
+    /// The path contains a hidden segment starting with `.` (rejected by [`check_visible_relative_path`]).
+    HiddenSegment,
+    /// The path contains a non-normal [`std::path::Component`].
+    NonNormal,
+}
+
+fn check_relative_path_inner(
+    path: &str,
+    reject_hidden: bool,
+) -> std::result::Result<(), RelativePathProblem> {
+    if path.is_empty() {
+        return Err(RelativePathProblem::Empty);
+    }
+    if path.starts_with('/') {
+        return Err(RelativePathProblem::LeadingSlash);
+    }
+    if path.contains('\\') {
+        return Err(RelativePathProblem::Backslash);
+    }
+    if path.chars().any(char::is_control) {
+        return Err(RelativePathProblem::Control);
+    }
+    for segment in path.split('/') {
+        if segment.is_empty() {
+            return Err(RelativePathProblem::EmptySegment);
+        }
+        if segment == "." || segment == ".." {
+            return Err(RelativePathProblem::DotSegment);
+        }
+        if reject_hidden && segment.starts_with('.') {
+            return Err(RelativePathProblem::HiddenSegment);
+        }
+    }
+    if path.contains(':') {
+        return Err(RelativePathProblem::Colon);
+    }
+    for segment in path.split('/') {
+        let mut components = std::path::Path::new(segment).components();
+        match (components.next(), components.next()) {
+            (Some(std::path::Component::Normal(_)), None) => {}
+            _ => return Err(RelativePathProblem::NonNormal),
+        }
+    }
+    if !std::path::Path::new(path)
+        .components()
+        .all(|component| matches!(component, std::path::Component::Normal(_)))
+    {
+        return Err(RelativePathProblem::NonNormal);
+    }
+    Ok(())
+}
+
+/// Check that `path` is a clean relative path with `/` separators that stays inside its root:
+/// non-empty, not starting or ending with `/`, no empty, `.` or `..` segments, no control
+/// characters, no `\`, no `:` (blocking Windows drive prefixes and NTFS alternate data streams
+/// across all platforms), and every path and segment component is [`std::path::Component::Normal`].
+///
+/// Hidden segments such as `.hidden` or `.umbel-access.toml` are allowed here; use
+/// [`check_visible_relative_path`] when hidden segments must also be rejected.
+///
+/// # Errors
+/// The [`RelativePathProblem`] naming why `path` cannot be used.
+pub fn check_relative_path(path: &str) -> std::result::Result<(), RelativePathProblem> {
+    check_relative_path_inner(path, false)
+}
+
+/// Like [`check_relative_path`], and also rejects any segment starting with `.` as
+/// [`RelativePathProblem::HiddenSegment`].
+///
+/// # Errors
+/// The [`RelativePathProblem`] naming why `path` cannot be used.
+pub fn check_visible_relative_path(path: &str) -> std::result::Result<(), RelativePathProblem> {
+    check_relative_path_inner(path, true)
+}
+
 impl DocumentWrite {
     /// The checks every store makes before writing, so every backend refuses alike: version 1,
     /// identity, the bytes and their hash and size, the envelope, and that the envelope agrees
@@ -469,4 +562,87 @@ pub fn check_record(
 #[must_use]
 pub fn record_target(ns: &str, kind: &str, id: &str) -> String {
     format!("{ns}/{kind}/{id}")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn check_relative_path_accepts_clean_and_hidden_paths() {
+        for good in [
+            "a.md",
+            "dir/a.md",
+            ".hidden/x",
+            ".umbel-access.toml",
+            "dot.dot..md",
+        ] {
+            assert_eq!(check_relative_path(good), Ok(()), "{good:?}");
+        }
+        for visible in ["a.md", "dir/a.md", "dot.dot..md"] {
+            assert_eq!(check_visible_relative_path(visible), Ok(()), "{visible:?}");
+        }
+        for hidden in [".hidden/x", ".umbel-access.toml", "a/.b.md", ".md"] {
+            assert_eq!(
+                check_visible_relative_path(hidden),
+                Err(RelativePathProblem::HiddenSegment),
+                "{hidden:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn check_relative_path_classifies_rejected_paths() {
+        assert_eq!(check_relative_path(""), Err(RelativePathProblem::Empty));
+        assert_eq!(
+            check_relative_path("/a"),
+            Err(RelativePathProblem::LeadingSlash)
+        );
+        assert_eq!(
+            check_relative_path("a\\b"),
+            Err(RelativePathProblem::Backslash)
+        );
+        for control in ["a\nb", "a\tb", "a\0b"] {
+            assert_eq!(
+                check_relative_path(control),
+                Err(RelativePathProblem::Control),
+                "{control:?}"
+            );
+        }
+        for colon in [
+            "C:state/keys/http.token",
+            "c:secret.md",
+            "sub/D:secret.md",
+            "C:/Windows/win.ini",
+            "doc.md:Zone.Identifier",
+        ] {
+            assert_eq!(
+                check_relative_path(colon),
+                Err(RelativePathProblem::Colon),
+                "{colon:?}"
+            );
+        }
+        for empty_seg in ["a//b", "a/", "a//b:c", "bad:/"] {
+            assert_eq!(
+                check_relative_path(empty_seg),
+                Err(RelativePathProblem::EmptySegment),
+                "{empty_seg:?}"
+            );
+        }
+        for dot in [".", "..", "a/./b", "../a", "a/.."] {
+            assert_eq!(
+                check_relative_path(dot),
+                Err(RelativePathProblem::DotSegment),
+                "{dot:?}"
+            );
+        }
+        assert_eq!(
+            check_visible_relative_path(".hidden//a.md"),
+            Err(RelativePathProblem::HiddenSegment)
+        );
+        assert_eq!(
+            check_visible_relative_path("bad:/"),
+            Err(RelativePathProblem::EmptySegment)
+        );
+    }
 }

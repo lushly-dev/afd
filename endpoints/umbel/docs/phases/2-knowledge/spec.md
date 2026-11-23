@@ -835,7 +835,9 @@ Validation, each `WORKSPACE_CONFIG_INVALID` naming the key, at open:
   path relative to the collection root with `/` separators and the `.md`
   extension removed (code files keep their extension: `code/src/lib.rs`).
   This is OKF's "path as identity" within the collection. A path that is not
-  valid UTF-8, contains a control character, a backslash, or a segment
+  valid UTF-8, contains a control character, a backslash, a colon (`:`,
+  blocking Windows drive prefixes and NTFS alternate data streams across
+  every platform, including Linux), a non-normal path component, or a segment
   starting with `.` is skipped with the warning `SOURCE_PATH_INVALID`. Ids
   are case-sensitive and at most 512 bytes.
 - **Frontmatter** is read with AFD's public frontmatter reader (step 0b): a
