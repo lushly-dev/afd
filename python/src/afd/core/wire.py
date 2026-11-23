@@ -4,7 +4,10 @@ AFD results cross language boundaries as JSON, so every implementation
 serializes them the same way (see ``spec/wire/README.md``):
 
 - keys are camelCase (``executionTimeMs``, ``undoCommand``, ``successCount``);
-- optional fields that are not set are omitted, never ``null``.
+- optional fields that are not set are omitted, never ``null``. The one
+  exception is ``data`` on a result, a pipeline step or a pipeline result:
+  ``null`` is a value there, so ``data`` set to ``None`` is sent as
+  ``"data": null`` and only ``data`` never set is omitted, as in TypeScript.
 
 Python attribute names stay snake_case. The result models use
 :data:`WIRE_MODEL_CONFIG` (a camelCase alias generator), so they parse both
@@ -23,7 +26,13 @@ from __future__ import annotations
 import json
 from typing import Any, Optional
 
-from pydantic import BaseModel, ConfigDict, ValidationInfo
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    SerializationInfo,
+    SerializerFunctionWrapHandler,
+    ValidationInfo,
+)
 from pydantic.alias_generators import to_camel
 from pydantic_core import to_jsonable_python
 
@@ -73,11 +82,67 @@ def json_number(value: Any, info: ValidationInfo) -> Any:
     return omitted_not_null(value, info)
 
 
+def keep_null_data(
+    model: BaseModel, handler: SerializerFunctionWrapHandler, info: SerializationInfo
+) -> Any:
+    """Body of a wrap-mode model serializer: send ``data`` set to ``None`` as ``null``.
+
+    :func:`to_wire` drops ``None`` fields, but for ``data`` ``null`` is a value,
+    not "unset": TypeScript sends ``success(null)`` as ``{"success": true,
+    "data": null}``. A ``data`` field that was set (it is in
+    ``model_fields_set``) is therefore kept, and one never set is still
+    omitted (#2073).
+    """
+    dumped = handler(model)
+    if (
+        info.exclude_none
+        and isinstance(dumped, dict)
+        and "data" not in dumped
+        and "data" in model.model_fields_set
+        and getattr(model, "data", None) is None
+        and not info.exclude_defaults
+        and not _excluded(info.exclude, "data")
+        and (info.include is None or "data" in info.include)
+    ):
+        return _insert_in_field_order(model, dumped, info, "data", None)
+    return dumped
+
+
+def _insert_in_field_order(
+    model: BaseModel, dumped: dict, info: SerializationInfo, name: str, value: Any
+) -> dict:
+    """``dumped`` with ``name`` added where the model declares it, so key order matches."""
+    fields = type(model).model_fields
+    before = set()
+    for field_name, field in fields.items():
+        if field_name == name:
+            break
+        before.add(field.alias if info.by_alias and field.alias else field_name)
+    out: dict = {}
+    placed = False
+    for key, item in dumped.items():
+        if not placed and key not in before:
+            out[name] = value
+            placed = True
+        out[key] = item
+    if not placed:
+        out[name] = value
+    return out
+
+
+def _excluded(exclude: Any, name: str) -> bool:
+    """Whether a serializer's ``exclude`` drops the field ``name`` entirely."""
+    if isinstance(exclude, dict):
+        return exclude.get(name) is True
+    return bool(exclude) and name in exclude
+
+
 def to_wire(value: Any) -> Any:
     """Convert a value to its JSON wire representation.
 
     Pydantic models are dumped by alias (camelCase for AFD models) with fields
-    set to ``None`` omitted. ``None`` inside plain dicts and lists is kept, as
+    set to ``None`` omitted, except a result's ``data`` that was set to
+    ``None`` (see :func:`keep_null_data`). ``None`` inside plain dicts and lists is kept, as
     ``null`` is a real JSON value there. Values JSON cannot represent fall back
     to ``str()``.
 

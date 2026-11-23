@@ -13,7 +13,9 @@ import pytest
 from mcp import Client
 from pydantic import BaseModel, ConfigDict, Field
 
-from afd import ExposeOptions, ResultMetadata, Source, error, success
+from afd import CommandResult, ExposeOptions, ResultMetadata, Source, error, success
+from afd.core.pipeline import PipelineResult, StepResult, StepStatus
+from afd.core.wire import to_wire
 from afd.server import create_server
 
 MCP = ExposeOptions(mcp=True)
@@ -51,6 +53,14 @@ def _server():
     @server.command(name="todo-crash", description="Crash", expose=MCP)
     async def todo_crash(input):
         raise RuntimeError("db password=hunter2")
+
+    @server.command(name="todo-clear", description="Null data", expose=MCP)
+    async def todo_clear(input):
+        return success(None)
+
+    @server.command(name="todo-touch", description="No data", expose=MCP)
+    async def todo_touch(input):
+        return CommandResult(success=True)
 
     @server.command(name="user-set", description="Strict", input_schema=StrictInput, expose=MCP)
     async def user_set(input: StrictInput):
@@ -218,6 +228,79 @@ class TestResultWireFormat:
         assert body["steps"][1]["error"]["code"] == "NOT_FOUND"
         assert not {k for k in _keys(body) if "_" in k}
         assert _nulls(body) == []
+
+
+class TestNullData:
+    """``data`` set to ``None`` is sent as ``null``; ``data`` never set is omitted (#2073)."""
+
+    def test_result_and_step_keep_null_data_and_omit_unset_data(self):
+        assert to_wire(success(None)) == {"success": True, "data": None}
+        assert to_wire(CommandResult(success=True)) == {"success": True}
+        assert to_wire(error("X", "m")) == {"success": False, "error": {"code": "X", "message": "m"}}
+
+        def step(**data):
+            return StepResult(index=0, command="c", status=StepStatus.SUCCESS, **data)
+
+        assert to_wire(step(data=None))["data"] is None
+        assert "data" not in to_wire(step())
+        assert "data" in StepResult.model_validate(to_wire(step(data=None))).model_fields_set
+        assert "data" not in StepResult.model_validate(to_wire(step())).model_fields_set
+
+    def test_null_data_keeps_its_key_position_and_explicit_excludes(self):
+        assert list(to_wire(success(None, reasoning="r"))) == ["success", "data", "reasoning"]
+        assert success(None).model_dump(exclude_none=True, exclude={"data"}) == {"success": True}
+        assert success(None).model_dump(exclude_none=True, include={"success"}) == {"success": True}
+        assert "data" not in success(None).model_dump(exclude_none=True, exclude_defaults=True)
+        # A plain dump already keeps every None field.
+        assert success(None).model_dump()["data"] is None
+
+    def test_pipeline_result_keeps_null_data(self):
+        from afd.core.pipeline import PipelineMetadata
+
+        meta = PipelineMetadata()
+        assert to_wire(PipelineResult(data=None, metadata=meta, steps=[]))["data"] is None
+        assert "data" not in to_wire(PipelineResult(metadata=meta, steps=[]))
+
+        step = StepResult(index=0, command="c", status=StepStatus.SUCCESS, data=None)
+        nested = PipelineResult(data=None, metadata=meta, steps=[step])
+        dump = nested.model_dump(exclude_none=True, include={"steps": {0: {"index"}}})
+        assert dump == {"steps": [{"index": 0}]}
+        dump = nested.model_dump(exclude_none=True, include={"steps": {0: {"data"}}})
+        assert dump == {"steps": [{"data": None}]}
+
+    @pytest.mark.asyncio
+    async def test_a_null_result_reaches_the_client_as_null(self):
+        is_error, body = await _call(_server(), "todo-clear", {})
+        assert is_error is False
+        assert body["success"] is True
+        assert "data" in body and body["data"] is None
+
+        _, body = await _call(_server(), "todo-touch", {})
+        assert "data" not in body
+
+    @pytest.mark.asyncio
+    async def test_a_null_result_passes_through_an_afd_pipe_step(self):
+        is_error, body = await _call(
+            _server(), "afd-pipe", {"steps": [{"command": "todo-clear", "as": "cleared"}]}
+        )
+
+        assert is_error is False
+        assert body["steps"][0]["status"] == "success"
+        assert "data" in body["steps"][0] and body["steps"][0]["data"] is None
+        assert "data" in body and body["data"] is None
+
+    @pytest.mark.asyncio
+    async def test_a_result_without_data_gives_a_step_without_data(self):
+        _, body = await _call(_server(), "afd-pipe", {"steps": [{"command": "todo-touch"}]})
+        assert body["steps"][0]["status"] == "success"
+        assert "data" not in body["steps"][0]
+        assert "data" not in body
+
+    @pytest.mark.asyncio
+    async def test_a_failed_pipeline_sends_no_data(self):
+        _, body = await _call(_server(), "afd-pipe", {"steps": [{"command": "todo-get"}]})
+        assert "data" not in body
+        assert "data" not in body["steps"][0]
 
 
 class TestValidationBeforeAfd:

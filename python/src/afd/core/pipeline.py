@@ -30,11 +30,13 @@ from pydantic import (
     ConfigDict,
     Field,
     PrivateAttr,
+    SerializationInfo,
     SerializerFunctionWrapHandler,
     StrictBool,
     ValidationInfo,
     field_serializer,
     field_validator,
+    model_serializer,
 )
 
 from afd.core.errors import _omit_unset_cause
@@ -65,7 +67,13 @@ from afd.core.result import (
     execution_failure,
     failure,
 )
-from afd.core.wire import WIRE_MODEL_CONFIG, WireModel, json_number, omitted_not_null
+from afd.core.wire import (
+    WIRE_MODEL_CONFIG,
+    WireModel,
+    json_number,
+    keep_null_data,
+    omitted_not_null,
+)
 
 logger = logging.getLogger("afd.core")
 
@@ -359,6 +367,12 @@ class StepResult(WireModel):
     ) -> Any:
         return _omit_unset_cause(handler(value))
 
+    @model_serializer(mode="wrap")
+    def _serialize_null_data(
+        self, handler: SerializerFunctionWrapHandler, info: SerializationInfo
+    ) -> Any:
+        return keep_null_data(self, handler, info)
+
 
 class PipelineMetadata(ResultMetadata):
     """Aggregated metadata from pipeline execution.
@@ -387,6 +401,12 @@ class PipelineResult(WireModel, Generic[T]):
     data: Optional[T] = None
     metadata: PipelineMetadata
     steps: List[StepResult]
+
+    @model_serializer(mode="wrap")
+    def _serialize_null_data(
+        self, handler: SerializerFunctionWrapHandler, info: SerializationInfo
+    ) -> Any:
+        return keep_null_data(self, handler, info)
 
 
 class PipelineContext(WireModel):
@@ -762,7 +782,6 @@ def create_pipeline_failure(error: CommandError) -> "PipelineResult[Any]":
     failed pseudo-step with index -1 that carries the error.
     """
     return PipelineResult(
-        data=None,
         metadata=PipelineMetadata(confidence=0, execution_time_ms=0),
         steps=[
             StepResult(
@@ -1063,7 +1082,6 @@ async def execute_pipeline(
                 )
             )
         return PipelineResult(
-            data=None,
             metadata=build_pipeline_metadata(step_results, request.steps, 0),
             steps=step_results,
         )
@@ -1168,7 +1186,9 @@ async def execute_pipeline(
                 alias=step.as_,
                 command=step.command,
                 status=StepStatus.SUCCESS,
-                data=result.data,
+                # Data only when the result set some, so a result without data gives a step
+                # without data, as TypeScript's `undefined` (#2073).
+                **({"data": result.data} if "data" in result.model_fields_set else {}),
                 execution_time_ms=execution_time_ms,
                 metadata=ResultMetadata(**step_metadata),
             )
@@ -1206,11 +1226,13 @@ async def execute_pipeline(
     total_end_time = time.perf_counter()
     total_execution_time_ms = (total_end_time - total_start_time) * 1000
 
-    # Get the final data (from last successful step)
-    final_data = None
+    # The final data is the last successful step's: `null` when that step's data was set to
+    # None, and left unset when it has none, as TypeScript's `lastSuccessfulStep?.data` (#2073).
+    final_data: Dict[str, Any] = {}
     for step_result in reversed(step_results):
         if step_result.status == StepStatus.SUCCESS:
-            final_data = step_result.data
+            if "data" in step_result.model_fields_set:
+                final_data = {"data": step_result.data}
             break
 
     # Build aggregated metadata
@@ -1221,7 +1243,7 @@ async def execute_pipeline(
     )
 
     return PipelineResult(
-        data=final_data,
         metadata=metadata,
+        **final_data,
         steps=step_results,
     )

@@ -17,7 +17,14 @@ Example:
 
 from typing import Any, Generic, List, Optional, TypeVar
 
-from pydantic import ConfigDict, Field, SerializerFunctionWrapHandler, field_serializer
+from pydantic import (
+    ConfigDict,
+    Field,
+    SerializationInfo,
+    SerializerFunctionWrapHandler,
+    field_serializer,
+    model_serializer,
+)
 
 # CommandError is defined once, in afd.core.errors, and re-exported here so
 # ``afd.core.result.CommandError`` and ``afd.core.errors.CommandError`` are the
@@ -25,7 +32,7 @@ from pydantic import ConfigDict, Field, SerializerFunctionWrapHandler, field_ser
 from afd.core.errors import CommandError, _omit_unset_cause
 from afd.core.metadata import Alternative, PlanStep, Source, Warning
 from afd.core.similarity import truncate_name
-from afd.core.wire import WIRE_MODEL_CONFIG, WireModel
+from afd.core.wire import WIRE_MODEL_CONFIG, WireModel, keep_null_data
 
 T = TypeVar("T")
 
@@ -113,6 +120,12 @@ class CommandResult(WireModel, Generic[T]):
         self, value: Optional[CommandError], handler: SerializerFunctionWrapHandler
     ) -> Any:
         return _omit_unset_cause(handler(value))
+
+    @model_serializer(mode="wrap")
+    def _serialize_null_data(
+        self, handler: SerializerFunctionWrapHandler, info: SerializationInfo
+    ) -> Any:
+        return keep_null_data(self, handler, info)
 
 
 def success(

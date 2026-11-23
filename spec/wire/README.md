@@ -33,7 +33,9 @@ constructors that the stream route uses).
 - `metadata.actorKind` is the kind of the calling principal; the fixtures were produced by MCP calls, so it
   is `agent`. Only the kind crosses the wire, never the actor's id or label.
 - Keys are camelCase.
-- Optional fields that are not set are **omitted**, never `null`.
+- Optional fields that are not set are **omitted**, never `null`. The exception is `data` on a
+  `CommandResult`, a pipeline step and a pipeline result, where `null` is a value: `data` set to
+  `null` is sent as `"data": null`, and only `data` that was never set is omitted.
 - Run-dependent values are normalized in the files: durations (`*Ms`) are `0`, timestamps (`*At`) are
   `2026-01-01T00:00:00.000Z`, and `traceId` is `trace-fixture`.
 
