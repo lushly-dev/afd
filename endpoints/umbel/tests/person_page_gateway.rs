@@ -1478,7 +1478,7 @@ fn opened_with(
     text: &str,
     overrides: &umbel::workspace::Overrides,
 ) -> Result<umbel::Workspace, umbel::workspace::WorkspaceError> {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = support::tempdir();
     std::fs::write(dir.path().join("umbel.toml"), text).unwrap();
     umbel::Workspace::open_located(
         &umbel::workspace::Located {

@@ -74,16 +74,34 @@ impl CommandHandler for Wait {
 
 /// `job-hang`: blocks its runner's thread (it never awaits) until the gate lets it return, as a
 /// runner that hangs does.
+///
+/// It blocks through `block_in_place`, which hands the worker's other tasks to another thread
+/// first. Blocking a worker outright can strand the task in its LIFO slot, which no other worker
+/// steals (tokio 1.54): a task the runner's last poll woke there, such as a connection either
+/// process still needs, would wait for `unhang`, which the test sets only once that connection
+/// has answered. That is the likeliest cause of the CI hang in #2230.
 struct Hang(Arc<Gate>);
 
 #[async_trait]
 impl CommandHandler for Hang {
     async fn execute(&self, _input: Value, _context: CommandContext) -> CommandResult<Value> {
         self.0.started.fetch_add(1, Ordering::SeqCst);
-        while !self.0.unhang.load(Ordering::SeqCst) {
-            std::thread::sleep(Duration::from_millis(5));
-        }
+        tokio::task::block_in_place(|| {
+            while !self.0.unhang.load(Ordering::SeqCst) {
+                std::thread::sleep(Duration::from_millis(5));
+            }
+        });
         afd::success(json!({ "hung": true }))
+    }
+}
+
+/// Lets `job-hang` return when dropped, so a test that fails while it hangs still ends: the
+/// runtime's shutdown waits for a `block_in_place` closure.
+struct Unhang<'a>(&'a Gate);
+
+impl Drop for Unhang<'_> {
+    fn drop(&mut self) {
+        self.0.unhang.store(true, Ordering::SeqCst);
     }
 }
 
@@ -994,10 +1012,16 @@ async fn a_command_s_own_failure_with_a_notice_s_code_is_the_host_s_notice() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn a_live_runner_keeps_its_lease_across_clock_jumps_and_a_hung_one_loses_it() {
-    let world = World::start().await;
+    let world = within("the two processes' start", World::start()).await;
     let ada = bearer(&world.token("ada", "app"));
     let dir = world.dir.path();
-    let id = id_of(&call(&world.a.client, &ada, "job-wait", json!({}), true).await);
+    let id = id_of(
+        &within(
+            "the call",
+            call(&world.a.client, &ada, "job-wait", json!({}), true),
+        )
+        .await,
+    );
     eventually(|| world.gate.started.load(Ordering::SeqCst) == 1).await;
     let start = afd::Clock::now(&world.clock);
     assert_eq!(stored(dir, &id).1, Some(start + 10_000));
@@ -1007,29 +1031,52 @@ async fn a_live_runner_keeps_its_lease_across_clock_jumps_and_a_hung_one_loses_i
         world.clock.advance(9_999);
         let now = afd::Clock::now(&world.clock);
         eventually(|| stored(dir, &id).1 == Some(now + 10_000)).await;
-        let body = get(&world.b.client, &id, &ada).await;
+        let body = within(
+            "b's get of the renewed task",
+            get(&world.b.client, &id, &ada),
+        )
+        .await;
         assert_eq!(body["result"]["status"], json!("working"), "{body}");
     }
     world.gate.release.store(true, Ordering::SeqCst);
-    let done = settled(&world.b.client, &id, &ada).await;
+    let done = within("the released task", settled(&world.b.client, &id, &ada)).await;
     assert_eq!(task_result(&done)["success"], json!(true));
     // A runner that hangs in a live process renews nothing: a lease later, its task is lost.
-    let hung = id_of(&call(&world.a.client, &ada, "job-hang", json!({}), true).await);
+    let unhang = Unhang(&world.gate);
+    let hung = id_of(
+        &within(
+            "the hanging call",
+            call(&world.a.client, &ada, "job-hang", json!({}), true),
+        )
+        .await,
+    );
     eventually(|| world.gate.started.load(Ordering::SeqCst) == 2).await;
     let lease = stored(dir, &hung).1.unwrap();
     world.clock.advance(10_000);
-    let lost = get(&world.b.client, &hung, &ada).await;
+    let lost = within(
+        "b's get of the hung task",
+        get(&world.b.client, &hung, &ada),
+    )
+    .await;
     assert_eq!(
         task_result(&lost)["error"]["code"],
         json!("TASK_LOST"),
         "{lost}"
     );
     // When the runner wakes, its late result changes nothing.
-    world.gate.unhang.store(true, Ordering::SeqCst);
+    drop(unhang);
     tokio::time::sleep(Duration::from_millis(1_500)).await;
-    let again = get(&world.a.client, &hung, &ada).await;
+    let again = within("a's get after the wake", get(&world.a.client, &hung, &ada)).await;
     assert_eq!(again, lost);
     assert!(lease <= afd::Clock::now(&world.clock));
+}
+
+/// `future`, which must finish within a minute: a hang fails the test at `step` instead of
+/// running the job to its timeout (#2230).
+async fn within<T>(step: &str, future: impl std::future::Future<Output = T>) -> T {
+    tokio::time::timeout(Duration::from_secs(60), future)
+        .await
+        .unwrap_or_else(|_| panic!("{step}: no answer within 60 s"))
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

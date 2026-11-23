@@ -30,9 +30,56 @@ use umbel::cli::{Console, Environment};
 use umbel::workspace::Overrides;
 use umbel::{Host, HostBuilder, Workspace};
 
+/// A temporary directory. On Windows only this user, SYSTEM and Administrators may open it, as
+/// the doctor asks of a key's directory: `%TEMP%` can carry an inherited ACE wider than that
+/// (`CodexSandboxUsers` may read a profile on a host that runs Codex), and every key the test
+/// wrote under it would then be reported as too open (#2169).
+pub fn tempdir() -> TempDir {
+    let dir = tempfile::tempdir().unwrap();
+    #[cfg(windows)]
+    private(dir.path());
+    dir
+}
+
+/// Replace `path`'s ACL with full control for this user, SYSTEM and Administrators alone,
+/// inherited by what is created under it.
+#[cfg(windows)]
+pub fn private(path: &Path) {
+    let me = current_user();
+    let grants: Vec<String> = [me, "S-1-5-18", "S-1-5-32-544"]
+        .iter()
+        .map(|sid| format!("*{sid}:(OI)(CI)(F)"))
+        .collect();
+    let output = std::process::Command::new("icacls")
+        .arg(path)
+        .args(["/inheritance:r", "/grant:r"])
+        .args(&grants)
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{}: {output:?}", path.display());
+}
+
+/// The SID of the user the tests run as, asked of `whoami` once.
+#[cfg(windows)]
+fn current_user() -> &'static str {
+    static SID: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    SID.get_or_init(|| {
+        let whoami = std::process::Command::new("whoami")
+            .args(["/user", "/fo", "csv", "/nh"])
+            .output()
+            .unwrap();
+        assert!(whoami.status.success(), "{whoami:?}");
+        // `"host\name","S-1-5-21-..."`: the SID is the last field.
+        let text = String::from_utf8_lossy(&whoami.stdout);
+        let sid = text.trim().rsplit(',').next().unwrap().trim_matches('"');
+        assert!(sid.starts_with("S-1-"), "{text}");
+        sid.to_owned()
+    })
+}
+
 /// A workspace directory whose `umbel.toml` holds `config`.
 pub fn workspace(config: &str) -> TempDir {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = tempdir();
     std::fs::write(dir.path().join("umbel.toml"), config).unwrap();
     dir
 }

@@ -335,7 +335,7 @@ fn assert_no_key(report: &Report, key_pem: &str) {
 async fn gateway_mode_is_served_and_its_pinned_key_set_checked_as_the_gateway_layer_loads_it() {
     let kit = kit().await;
     let gateway = kit.gateway();
-    let dir = tempfile::tempdir().unwrap();
+    let dir = support::tempdir();
     let keys = dir.path().join("gw/jwks.json");
     std::fs::create_dir_all(dir.path().join("gw")).unwrap();
     let pinned = support::gateway::pinned_jwks(&kit);
