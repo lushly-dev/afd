@@ -243,6 +243,83 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  # #706: the mount and its scoped registry (E1), the sandboxed view (E2) and phase 4's I8 chord, in Firefox
+  # (`vitest.engines.config.ts`), beside the Chromium suite that runs them with the rest.
+  firefox:
+    name: Firefox suites
+    needs: scope
+    if: needs.scope.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: '.nvmrc'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build the web host and its dependencies
+        run: pnpm -F "@lushly-dev/loam-web..." build
+      - uses: ./.github/actions/playwright-install
+        with:
+          package: '@lushly-dev/loam-web'
+          browsers: firefox
+        timeout-minutes: 10
+      - name: The mount, the view and the chord in Firefox
+        run: pnpm -F @lushly-dev/loam-web test:firefox
+      - name: The run leaves tracked files unchanged
+        run: test -z "$(git status --porcelain)"
+      - name: Upload test results
+        if: ${{ always() }}
+        # A diagnostic: an outage of the artifact service must not fail a job whose suites passed.
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: loam-firefox-test-results
+          path: endpoints/loam/packages/web/test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # #706: the same suites in WebKit, on macOS: Apple's port, which has scoped custom element registries as Safari 26 does.
+  # Playwright's Linux WebKit is the GTK port, which has none, so E1 there takes D34's polyfill and fails (#2254), and
+  # the chord did not reach the page there (#2314); phase 1's 9.7 records both.
+  webkit:
+    name: WebKit suites
+    needs: scope
+    if: needs.scope.outputs.run == 'true'
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: '.nvmrc'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build the web host and its dependencies
+        run: pnpm -F "@lushly-dev/loam-web..." build
+      - uses: ./.github/actions/playwright-install
+        with:
+          package: '@lushly-dev/loam-web'
+          browsers: webkit
+        timeout-minutes: 10
+      - name: The mount, the view and the chord in WebKit
+        run: pnpm -F @lushly-dev/loam-web test:webkit
+      - name: The run leaves tracked files unchanged
+        run: test -z "$(git status --porcelain)"
+      - name: Upload test results
+        if: ${{ always() }}
+        # A diagnostic: an outage of the artifact service must not fail a job whose suites passed.
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: loam-webkit-test-results
+          path: endpoints/loam/packages/web/test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
   # Hello mounted and a real Umbel in the console, through a test-only relay (D64). The relay is not a hosted
   # server: this proves the stock `umbel`, its bearer layer, the browser's MCP client under the CSP, discovery,
   # the console and the journal. So an Umbel change runs this proof without running Loam's whole suite.

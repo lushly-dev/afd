@@ -29,9 +29,44 @@ import {
 	type BrowserContextOptions,
 	chromium,
 	type Frame,
+	firefox,
+	type LaunchOptions,
 	type Page,
+	webkit,
 } from 'playwright';
 import { createMountRelay, type MountRelay } from '../mounted/mount-relay';
+
+/** The engines a suite can launch (#706): Chromium for every suite, Firefox and WebKit for those `vitest.engines.config.ts` names. */
+export type Engine = 'chromium' | 'firefox' | 'webkit';
+
+/** The engine this run launches: `LOAM_ENGINE`, or Chromium when it is unset. Anything else fails the run at once. */
+export const ENGINE: Engine = (() => {
+	const named = process.env.LOAM_ENGINE ?? 'chromium';
+	if (named === 'chromium' || named === 'firefox' || named === 'webkit') return named;
+	throw new Error(`LOAM_ENGINE is "${named}"; it must be chromium, firefox or webkit`);
+})();
+
+/**
+ * Whether this run takes D34's polyfill branch on purpose: `LOAM_SCOPED_POLYFILL=1` in Firefox alone, the one engine
+ * here whose scoped registries can be turned off (#706, #2254). Every other run claims the platform's registries.
+ */
+export const SCOPED_POLYFILL = ENGINE === 'firefox' && process.env.LOAM_SCOPED_POLYFILL === '1';
+
+/**
+ * Firefox with scoped custom element registries on, as Firefox 159 ships them (phase 1's W3, D34): Playwright's Firefox
+ * is 157, which has them behind this preference. {@link SCOPED_POLYFILL} leaves it off.
+ */
+const FIREFOX_PREFS = { 'dom.scoped-custom-element-registries.enabled': !SCOPED_POLYFILL };
+
+/** Launch {@link ENGINE}. A suite that runs in more than one engine launches through this, never `chromium` itself. */
+export function launchEngine(options: LaunchOptions = {}): Promise<Browser> {
+	if (ENGINE === 'firefox')
+		return firefox.launch({
+			...options,
+			firefoxUserPrefs: { ...FIREFOX_PREFS, ...options.firefoxUserPrefs },
+		});
+	return { chromium, webkit }[ENGINE].launch(options);
+}
 
 export const DIST = resolve(fileURLToPath(new URL('../../dist', import.meta.url)));
 

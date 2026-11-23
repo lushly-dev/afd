@@ -133,6 +133,10 @@ export const SUITES = [
 			},
 			{ gate: 'run', run: 'pnpm -F @lushly-dev/loam-web test:browser' },
 			{ gate: 'run', run: 'pnpm -F @lushly-dev/loam-web test:walk' },
+			// #706: the mount, the view and the I8 chord in Firefox and WebKit (`playwright install firefox webkit`). CI runs
+			// WebKit on macOS: Linux's is the GTK port, where E1 and the chord fail (#2254, #2314).
+			{ gate: 'run', run: 'pnpm -F @lushly-dev/loam-web test:firefox' },
+			{ gate: 'run', run: 'pnpm -F @lushly-dev/loam-web test:webkit' },
 			{ gate: 'run', run: 'pnpm -F @lushly-dev/loam-web budget' },
 			{ gate: 'mounted', run: 'pnpm -F @lushly-dev/loam-web test:mounted' },
 			// Phase 6's hosted criterion against the development profile; `openssl` makes its certificate.

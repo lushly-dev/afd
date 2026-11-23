@@ -2552,7 +2552,7 @@ Fixes five Phase 4 follow-ups in one batch ([#2184](https://github.com/lushly-de
 | 2026-11-13 | Phase 4 specification | #708's screen-reader pass over the new overlays | Open; [#708](https://github.com/lushly-dev/afd/issues/708), commented by step 11 |
 | 2026-11-13 | Review (R1) | Phase 5's shell commands over MCP: section 13's seven obligations | Open; phase 5 |
 | 2026-11-13 | Review (#710) | The journal's total and origin budget, retention, and `QuotaExceededError`, together with D82 | Open; #710 |
-| 2026-11-13 | Review (I8) | Whether Firefox and WebKit pages receive `Mod+Alt+P` | Open; #706 |
+| 2026-11-13 | Review (I8) | Whether Firefox and WebKit pages receive `Mod+Alt+P` | Closed 2026-11-23 by #706 for Firefox and Apple's WebKit: both pages handle it and open the project switcher (`web/test/browser/engines/chord.test.ts`, Firefox 157.0 and WebKit 27.2 on macOS; Linux WebKit's did not, [#2314](https://github.com/lushly-dev/afd/issues/2314)); Playwright sends the keys to the page, so whether a desktop browser keeps the chord first is [#2268](https://github.com/lushly-dev/afd/issues/2268), by hand |
 | 2026-11-13 | Second round (R16) | Confirm or decline a whole run's confirmations by `group` | Open; phase 5 |
 | 2026-11-13 | Second round (job list) | The limit field for D41's "approval within limits", and the untrusted labels | Open; phase 5 |
 | 2026-11-13 | Second round | Menus: a specification of their own, with a job | Open; [#2095](https://github.com/lushly-dev/afd/issues/2095), filed by step 11 |

