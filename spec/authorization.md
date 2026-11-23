@@ -678,12 +678,19 @@ confirmations (`INSUFFICIENT_SCOPE`), and re-checks a resolver on validated inpu
 `afd-discover`, `afd-detail`, `afd-help`, `afd-docs`, `afd-schema`, grouped actions) omit unshown
 commands, strip hidden commands from `requires`, and answer hidden commands identically to unknown
 names across every route and `tasks/*`. Hosts with their own HTTP layer admit callers through
-`server.admit` and run the bearer layer's pre-dispatch decision through `server.pre_dispatch_check`.
+`server.admit` and run the bearer layer's pre-dispatch decision through `server.pre_dispatch_check`,
+and `resources/list` and `resources/read` forward verified credentials to `ResourceProvider.list`/`read`
+via `ResourceCaller` on Streamable HTTP (both eras), SSE and host-admitted requests, returning
+`-32602` (`Resource not found`) identically for unreadable and absent URIs and emitting
+`cacheScope: "private"` on modern-era `resources/list` and provider-backed `resources/read` while
+keeping static `SkillCatalog` reads `"public"` ([#2266](https://github.com/lushly-dev/afd/issues/2266)).
 `python/tests/test_authorization_cases.py` loads all eleven verification and scope sections of
 `spec/authorization.json`; `test_auth_verifier.py` covers every M3 rule with signed tokens;
 `test_mcp_auth.py` covers the HTTP bearer layer, header stripping, journal redaction, fail-closed
 M1, confirmation binding and MCP Tasks; `test_mcp_auth_scopes.py` covers M6 scopes, two-phase
-resolver checks, filtered listings, twin-server hidden-command parity, host admission and `tasks/*`.
+resolver checks, filtered listings, twin-server hidden-command parity, host admission and `tasks/*`;
+`test_mcp_auth_resources.py` covers per-caller `ResourceProvider` filtering, `-32602` parity,
+`cacheScope: "private"` vs `"public"`, SSE and host-admitted resource requests.
 
 Credentials with a missing or empty `issuer`, `subject` or `clientId` (a host's own credentials in
 Rust and TypeScript, a token verifier's incomplete answer in Python) fail closed in all three: no
@@ -699,7 +706,7 @@ Rust ask again, Python answers `-32602`.
 | --- | --- | --- | --- | --- |
 | Bearer token, verification, audience, credentials (M1 to M4) | Yes (Loam phase 3 step 0a; `createMcpHandler({ auth })`, `JwtVerifier` on `jose`, `KeySource`, `jwksKeySource`, `createIntrospectionVerifier`, `TokenVerifier`, `context.credentials`) | Yes ([#2154](https://github.com/lushly-dev/afd/issues/2154); `create_server(auth=McpAuthOptions(...))`, `JwtVerifier` on `cryptography`, `KeySource`, `jwks_key_source`, `create_introspection_verifier`, `TokenVerifier`, `context.credentials`, `is_verified_credentials`) | Yes (Umbel phase 5 step 0b; `server-auth`: `BearerLayer`, `JwtVerifier`, `KeySource`, `TokenVerifier`, `CommandContext::credentials`) | N/A: no HTTP server |
 | 401 and 403, rule codes (M5) | Yes (step 0a; 401 and 403 challenges and bodies; rule codes to `auth.onRefusal`) | Yes ([#2154](https://github.com/lushly-dev/afd/issues/2154), [#2155](https://github.com/lushly-dev/afd/issues/2155); 401 and 403 sent; rule codes to `auth.on_refusal`) | Yes (step 0b) | N/A |
-| Static scopes, the resolver, the 403 before dispatch, `INSUFFICIENT_SCOPE`, listing (M6) | Yes (Loam phase 3 step 0c, #2265; `scopes`, `requiredScopes`, `ScopeResolver`, `filterToolsByScope`, `staticDecision`, `requestDecision`, per-caller `ResourceProvider`) | Yes ([#2155](https://github.com/lushly-dev/afd/issues/2155); `scopes`, `required_scopes`, `ScopeResolver`, `filter_tools_by_scope`, `static_decision`, `request_decision`) | Yes (step 0b; `ScopeResolver`, `Authorization::with_filter_tools_by_scope`) | N/A |
+| Static scopes, the resolver, the 403 before dispatch, `INSUFFICIENT_SCOPE`, listing (M6) | Yes (Loam phase 3 step 0c, #2265; `scopes`, `requiredScopes`, `ScopeResolver`, `filterToolsByScope`, `staticDecision`, `requestDecision`, per-caller `ResourceProvider`) | Yes ([#2155](https://github.com/lushly-dev/afd/issues/2155), [#2266](https://github.com/lushly-dev/afd/issues/2266); `scopes`, `required_scopes`, `ScopeResolver`, `filter_tools_by_scope`, `static_decision`, `request_decision`, per-caller `ResourceProvider`) | Yes (step 0b; `ScopeResolver`, `Authorization::with_filter_tools_by_scope`) | N/A |
 | [A host's own layer](#before-dispatch-the-403) running the decision before dispatch (M6) | Yes (step 0c; `handler.admit`, `handler.preDispatchCheck`, `ScopeChallenge`; `mcp-auth-host.test.ts`) | Yes ([#2155](https://github.com/lushly-dev/afd/issues/2155); `server.admit`, `server.pre_dispatch_check`, `PreDispatchCheck`, `ScopeChallenge`; `test_mcp_auth_scopes.py`) | Yes (`McpServer::pre_dispatch_check`, `PreDispatchCheck`, `ScopeChallenge`; `tests/server_auth_pre_dispatch.rs`) | N/A |
 | [Hidden commands](#hidden-commands) (M6): unknown on every route before validation, `resolve` never asked about them, decided once per request, `requires` filtered, `tasks/*` | Yes (step 0c + #1971; `ScopeResolver.known`, including `tasks/*`; `mcp-auth-scopes.test.ts`, `tasks.test.ts`) | Yes ([#2155](https://github.com/lushly-dev/afd/issues/2155); `ScopeResolver.known`, `tasks/*` included; `test_mcp_auth_scopes.py`) | Yes (`ScopeResolver::known`; `tests/server_auth_hidden.rs`) | N/A |
 | Protected-resource metadata (M7) | Yes (step 0a; `createProtectedResource`) | Yes ([#2154](https://github.com/lushly-dev/afd/issues/2154); `create_protected_resource`, `ProtectedResource`) | Yes (step 0b; `ProtectedResource`) | N/A |

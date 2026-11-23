@@ -19,11 +19,12 @@ import inspect
 import logging
 import re
 import unicodedata
-from collections.abc import Awaitable, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Literal, Protocol, runtime_checkable
+from typing import Any, Literal, Protocol, TypeAlias, cast, get_args, runtime_checkable
 
 from afd.core.meta_keys import check_meta_entry
+from afd.server.auth_rules import Credentials
 from afd.server.session_context import is_modern_protocol
 from afd.server.skills import (
     DIGEST_META_KEY,
@@ -39,6 +40,7 @@ MCP_APP_MIME_TYPE = "text/html;profile=mcp-app"
 
 _SCHEME_RE = re.compile(r"\A([A-Za-z][A-Za-z0-9+.-]*):(.*)\Z", re.DOTALL | re.ASCII)
 _HEX_ESCAPE_RE = re.compile(r"\A[0-9A-Fa-f]{2}", re.ASCII)
+_CALLER_TYPE_RE = re.compile(r"\bResourceCaller\b")
 
 
 @dataclass(frozen=True)
@@ -70,22 +72,85 @@ class ResourceContents:
     meta: Mapping[str, Any] | None = None
 
 
-@runtime_checkable
-class ResourceProvider(Protocol):
-    """What a server is given to serve resources (``spec/mcp-resources.md``, "Terms")."""
+@dataclass(frozen=True)
+class ResourceCaller:
+    """Who is listing or reading resources: what a :class:`ResourceProvider` may gate on
+    (``spec/authorization.md``, M6 "Other methods"; ``spec/mcp-resources.md``, R3/R4).
 
-    def list(self) -> Sequence[ResourceEntry]:
-        """The entries, in the order ``resources/list`` returns them."""
-        ...
+    ``credentials`` is the verified :class:`~afd.server.auth_rules.Credentials` admitted for the
+    request on a server configured with MCP authorization, or ``None`` during server startup
+    validation, on unauthenticated servers, and on non-HTTP transports (such as ``stdio`` or
+    :meth:`~afd.server.MCPServer.trusted_transport`).
+    """
+
+    credentials: Credentials | None = None
+
+
+@runtime_checkable
+class _LegacyResourceProvider(Protocol):
+    def list(self) -> Sequence[ResourceEntry]: ...
 
     def read(
         self, uri: str
-    ) -> ResourceContents | None | Awaitable[ResourceContents | None]:
-        """The content at ``uri``, or ``None`` when the provider serves nothing there."""
-        ...
+    ) -> ResourceContents | None | Awaitable[ResourceContents | None]: ...
 
 
-ResourcesOption = ResourceProvider | Sequence[ResourceEntry]
+@runtime_checkable
+class _CallerResourceProvider(Protocol):
+    def list(self, caller: ResourceCaller, /) -> Sequence[ResourceEntry]: ...
+
+    def read(
+        self, uri: str, caller: ResourceCaller, /
+    ) -> ResourceContents | None | Awaitable[ResourceContents | None]: ...
+
+
+@runtime_checkable
+class _KwCallerResourceProvider(Protocol):
+    def list(self, *, caller: ResourceCaller) -> Sequence[ResourceEntry]: ...
+
+    def read(
+        self, uri: str, *, caller: ResourceCaller
+    ) -> ResourceContents | None | Awaitable[ResourceContents | None]: ...
+
+
+@runtime_checkable
+class _LegacyListProvider(Protocol):
+    def list(self) -> Sequence[ResourceEntry]: ...
+
+
+@runtime_checkable
+class _CallerListProvider(Protocol):
+    def list(self, caller: ResourceCaller, /) -> Sequence[ResourceEntry]: ...
+
+
+@runtime_checkable
+class _KwCallerListProvider(Protocol):
+    def list(self, *, caller: ResourceCaller) -> Sequence[ResourceEntry]: ...
+
+
+ResourceProvider: TypeAlias = (
+    _LegacyResourceProvider
+    | _CallerResourceProvider
+    | _KwCallerResourceProvider
+    | _LegacyListProvider
+    | _CallerListProvider
+    | _KwCallerListProvider
+)
+"""What a server is given to serve resources (``spec/mcp-resources.md``, "Terms").
+
+``list`` and ``read`` may keep their legacy signatures (``list()`` / ``read(uri)``) or accept
+a :class:`ResourceCaller` argument — positional (``list(caller)`` / ``read(uri, caller)``),
+optional, or keyword-only (``list(*, caller)`` / ``read(uri, *, caller)``) — so a provider can
+filter entries and reads per verified caller under MCP authorization. Note that
+:func:`create_resource_service` calls ``list`` once at server startup with
+``ResourceCaller(credentials=None)`` to validate static entries, so caller-aware providers
+should handle ``caller.credentials is None`` gracefully. Return ``None`` from ``read`` for a
+resource the caller may not read so that it answers ``-32602`` (``Resource not found``),
+identical to an absent URI.
+"""
+
+
+ResourcesOption: TypeAlias = ResourceProvider | Sequence[ResourceEntry]
 """What ``create_server`` and ``ServerConfig`` take as ``resources``: a provider or static entries."""
 
 
@@ -216,11 +281,97 @@ class _StaticProvider:
     def __init__(self, entries: Sequence[ResourceEntry]) -> None:
         self._entries = tuple(entries)
 
-    def list(self) -> Sequence[ResourceEntry]:
+    def list(self, caller: ResourceCaller | None = None) -> Sequence[ResourceEntry]:
         return self._entries
 
-    def read(self, uri: str) -> None:
+    def read(self, uri: str, caller: ResourceCaller | None = None) -> None:
         return None
+
+
+def _is_caller_annotation(annotation: Any) -> bool:
+    if annotation is inspect.Parameter.empty or annotation is None:
+        return False
+    if annotation is ResourceCaller:
+        return True
+    if isinstance(annotation, str):
+        return bool(_CALLER_TYPE_RE.search(annotation))
+    return any(_is_caller_annotation(arg) for arg in get_args(annotation))
+
+
+def _accepts_caller(fn: Any, *, positional_before: int) -> Literal["positional", "keyword", "none"]:
+    """Inspect ``fn`` to decide whether and how to pass a :class:`ResourceCaller` argument.
+
+    Rules, in precedence order:
+    1. An explicit ``caller`` parameter (keyword-only, or positional-or-keyword at or after
+       ``positional_before``) wins over ``*args`` and optional defaults (passed by keyword, or
+       positionally when declared positional-only at ``positional_before``).
+    2. A positional parameter at index ``positional_before`` that is required (cannot be called
+       with the legacy signature) or typed/named for ``ResourceCaller`` receives ``caller``
+       positionally; unrelated defaulted parameters (e.g. ``list(limit=1)``) are left untouched.
+    3. Otherwise, variadic ``*args`` receives ``caller`` positionally and ``**kwargs`` receives
+       ``caller=caller``. Legacy 0-arg ``list()`` and 1-arg ``read(uri)`` receive nothing extra.
+    """
+    try:
+        sig = inspect.signature(fn)
+    except (TypeError, ValueError):
+        return "none"
+    positional_params: list[inspect.Parameter] = []
+    has_var_positional = False
+    has_var_keyword = False
+    for param in sig.parameters.values():
+        if param.kind is inspect.Parameter.KEYWORD_ONLY:
+            if param.name == "caller":
+                return "keyword"
+        elif param.kind in (
+            inspect.Parameter.POSITIONAL_ONLY,
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        ):
+            idx = len(positional_params)
+            positional_params.append(param)
+            if idx >= positional_before and param.name == "caller":
+                if param.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD:
+                    return "keyword"
+                if idx == positional_before:
+                    return "positional"
+        elif param.kind is inspect.Parameter.VAR_POSITIONAL:
+            has_var_positional = True
+        elif param.kind is inspect.Parameter.VAR_KEYWORD:
+            has_var_keyword = True
+
+    if len(positional_params) > positional_before:
+        slot = positional_params[positional_before]
+        if (
+            slot.default is inspect.Parameter.empty
+            or slot.name == "_caller"
+            or _is_caller_annotation(slot.annotation)
+        ):
+            return "positional"
+        return "none"
+
+    if has_var_positional:
+        return "positional"
+    if has_var_keyword:
+        return "keyword"
+    return "none"
+
+
+def _call_list(provider: Any, caller: ResourceCaller) -> Sequence[ResourceEntry]:
+    list_fn = provider.list
+    mode = _accepts_caller(list_fn, positional_before=0)
+    if mode == "positional":
+        return cast(Sequence[ResourceEntry], list_fn(caller))
+    if mode == "keyword":
+        return cast(Sequence[ResourceEntry], list_fn(caller=caller))
+    return cast(Sequence[ResourceEntry], list_fn())
+
+
+def _call_read(read_fn: Any, uri: str, caller: ResourceCaller) -> Any:
+    mode = _accepts_caller(read_fn, positional_before=1)
+    if mode == "positional":
+        return read_fn(uri, caller)
+    if mode == "keyword":
+        return read_fn(uri, caller=caller)
+    return read_fn(uri)
 
 
 def _provider_of(option: ResourcesOption | None) -> Any | None:
@@ -323,6 +474,11 @@ class ResourceService:
         self._dev_mode = dev_mode
 
     @property
+    def has_provider(self) -> bool:
+        """Whether this service has a :class:`ResourceProvider` attached (as opposed to skills only)."""
+        return self._provider is not None
+
+    @property
     def has_skills(self) -> bool:
         return self._skills is not None
 
@@ -336,25 +492,45 @@ class ResourceService:
     def ttl_ms(self) -> int:
         return self._ttl_ms
 
-    def _entries_of(self) -> Sequence[ResourceEntry]:
+    def cache_hints(self, *, auth_configured: bool = False) -> dict[str, Any]:
+        """Default SDK ``CacheHint`` map for resource methods (R3/R4)."""
+        from mcp.server import CacheHint
+
+        public_hint = CacheHint(ttl_ms=self._ttl_ms, scope="public")
+        provider_hint = CacheHint(
+            ttl_ms=self._ttl_ms,
+            scope="private" if self.has_provider and auth_configured else "public",
+        )
+        return {
+            "resources/list": provider_hint,
+            "resources/templates/list": public_hint,
+            "resources/read": provider_hint,
+        }
+
+    def _provider_is_private(self, caller: ResourceCaller, *, auth_configured: bool) -> bool:
+        # R3/R4: fail safe to "private" whenever a provider is attached on an authorized server
+        # or a request carries verified credentials; static SkillCatalog reads stay "public".
+        return self._provider is not None and (auth_configured or caller.credentials is not None)
+
+    def _entries_of(self, caller: ResourceCaller) -> Sequence[ResourceEntry]:
         if self._provider is None:
             return ()
-        entries: Sequence[ResourceEntry] = self._provider.list()
+        entries: Sequence[ResourceEntry] = _call_list(self._provider, caller)
         check_entries(entries)
         return entries
 
-    async def _read_item(self, uri: str) -> Any:
+    async def _read_item(self, uri: str, caller: ResourceCaller) -> tuple[Any, bool]:
         if self._skills is not None:
             found = self._skills.file(uri)
             if found is not None:
                 data, mime_type = found
-                return _content_model(uri, mime_type, data)
+                return _content_model(uri, mime_type, data), False
         # The `skill://` scheme is the catalog's alone (R2): a provider is never asked for it,
         # even when the URI itself is malformed.
         if self._provider is None or uri[:6].lower() == "skill:":
             raise _not_found(uri)
 
-        entries = self._entries_of()
+        entries = self._entries_of(caller)
         entry = next((item for item in entries if item.uri == uri), None)
         if entry is not None and entry.content is not None:
             raw = (
@@ -362,12 +538,12 @@ class ResourceService:
                 if isinstance(entry.content, bytearray)
                 else entry.content
             )
-            return _content_model(uri, entry.mime_type, _bytes_of(raw))
+            return _content_model(uri, entry.mime_type, _bytes_of(raw)), True
 
         read_fn = getattr(self._provider, "read", None)
         if not callable(read_fn):
             raise _not_found(uri)
-        maybe = read_fn(uri)
+        maybe = _call_read(read_fn, uri, caller)
         contents = await maybe if inspect.isawaitable(maybe) else maybe
         if contents is None:
             raise _not_found(uri)
@@ -398,7 +574,7 @@ class ResourceService:
             if entry is not None and entry.mime_type is not None
             else contents.mime_type
         )
-        return _content_model(uri, resolved_mime, data, contents.meta)
+        return _content_model(uri, resolved_mime, data, contents.meta), True
 
     def create_skills_extension(self) -> Any | None:
         """Build the ``mcp.server.extension.Extension`` for ``io.modelcontextprotocol/skills``."""
@@ -513,24 +689,47 @@ class ResourceService:
 
         return _AfdSkillsExtension()
 
-    def install_handlers(self, lowlevel: Any) -> None:
+    def install_handlers(
+        self,
+        lowlevel: Any,
+        *,
+        get_admitted_credentials: Callable[[], Credentials | None] | None = None,
+        auth_configured: bool = False,
+    ) -> None:
         """Install ``resources/list``, ``resources/templates/list`` and ``resources/read`` handlers."""
         import mcp_types as types
         from mcp import MCPError
 
         service = self
 
+        def _current_caller() -> ResourceCaller:
+            creds = (
+                get_admitted_credentials()
+                if get_admitted_credentials is not None
+                else None
+            )
+            return ResourceCaller(credentials=creds)
+
         async def handle_list_resources(
             ctx: Any, params: types.PaginatedRequestParams | None
         ) -> types.ListResourcesResult:
             try:
                 _refuse_cursor(params)
+                caller = _current_caller()
                 items = [
-                    *(_entry_to_resource_dict(entry) for entry in service._entries_of()),
+                    *(_entry_to_resource_dict(entry) for entry in service._entries_of(caller)),
                     *(service._skills.resources() if service._skills is not None else []),
                 ]
+                extra: dict[str, Any] = {}
+                if is_modern_protocol(getattr(ctx, "protocol_version", None)):
+                    extra["cache_scope"] = (
+                        "private"
+                        if service._provider_is_private(caller, auth_configured=auth_configured)
+                        else "public"
+                    )
                 return types.ListResourcesResult(
-                    resources=[_resource_model(item) for item in items]
+                    resources=[_resource_model(item) for item in items],
+                    **extra,
                 )
             except MCPError:
                 raise
@@ -552,8 +751,17 @@ class ResourceService:
             ctx: Any, params: types.ReadResourceRequestParams
         ) -> types.ReadResourceResult:
             try:
-                item = await service._read_item(params.uri)
-                return types.ReadResourceResult(contents=[item])
+                caller = _current_caller()
+                item, from_provider = await service._read_item(params.uri, caller)
+                extra: dict[str, Any] = {}
+                if is_modern_protocol(getattr(ctx, "protocol_version", None)):
+                    extra["cache_scope"] = (
+                        "private"
+                        if from_provider
+                        and service._provider_is_private(caller, auth_configured=auth_configured)
+                        else "public"
+                    )
+                return types.ReadResourceResult(contents=[item], **extra)
             except MCPError:
                 raise
             except Exception as exc:
@@ -601,5 +809,5 @@ def create_resource_service(
     if provider is None and skills is None:
         return None
     if provider is not None:
-        check_entries(provider.list())
+        check_entries(_call_list(provider, ResourceCaller()))
     return ResourceService(provider, skills, ttl_ms=ttl_ms, dev_mode=dev_mode)
