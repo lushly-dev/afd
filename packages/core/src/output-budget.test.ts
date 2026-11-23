@@ -21,11 +21,11 @@ interface DeclarationCase {
 }
 
 const cases = JSON.parse(
-	readFileSync(new URL('../../../spec/output-budgets.json', import.meta.url), 'utf8')
+	readFileSync(new URL('../../../spec/vectors/output-budgets.json', import.meta.url), 'utf8')
 ) as { declarations: DeclarationCase[] };
 
 describe('output budget declarations (B1)', () => {
-	it('validates every declaration case from spec/output-budgets.json', () => {
+	it('validates every declaration case from spec/vectors/output-budgets.json', () => {
 		expect(cases.declarations.length).toBeGreaterThanOrEqual(12);
 		for (const testCase of cases.declarations) {
 			if (testCase.valid) {

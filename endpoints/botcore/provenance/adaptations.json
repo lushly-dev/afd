@@ -5135,11 +5135,11 @@
       "path": "src/botcore/skills/mcp-builder/SKILL.md",
       "upstream_sha256": "1ea861a24f1c0466a379136411d31277ae2cc2b1d3fdcf3090dc6604ff3ad3f6",
       "staged_sha256": "1ea861a24f1c0466a379136411d31277ae2cc2b1d3fdcf3090dc6604ff3ad3f6",
-      "current_import_sha256": "ed76918377ce81aaff25c6d7cd84865057e19ed8bbc5200d28375d6673f339cc",
+      "current_import_sha256": "f328c56bb44d3bf999d04e3c22dfe05c62497dd50502925b42a101368f3092fa",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Rewrite on the MCP SDK and managed raw Python; fix client config locations"
+      "import_reason": "Rewrite on the MCP SDK and managed raw Python; fix client config locations; Point mcp-builder at spec/output-budgets.md for structured AFD command budgets (#1993)"
     },
     {
       "path": "src/botcore/skills/mcp-builder/references/fastmcp-patterns.md",

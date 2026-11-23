@@ -5,7 +5,7 @@ Run as a script, it serves over a real transport (argv: port, strategy, transpor
 ``protocol_server.py``.
 
 Registers:
-- Every command in ``spec/output-budgets.json``'s ``batch`` section (``doc-search``,
+- Every command in ``spec/vectors/output-budgets.json``'s ``batch`` section (``doc-search``,
   ``doc-open``, ``doc-tag``) plus ``doc-mutate``.
 - One probe command per ``asks`` case (``ask-case-0`` .. ``ask-case-N``) declaring that
   case's budget and returning ``{"effective": context.output_budget}``.
@@ -25,7 +25,7 @@ from afd import CommandResult, ExposeOptions, OutputBudget, success
 from afd.core.commands import CommandContext
 from afd.server import MCPServer, create_server
 
-SPEC_CASES_PATH = Path(__file__).resolve().parents[3] / "spec" / "output-budgets.json"
+SPEC_CASES_PATH = Path(__file__).resolve().parents[3] / "spec" / "vectors" / "output-budgets.json"
 MCP = ExposeOptions(mcp=True)
 
 
@@ -34,7 +34,7 @@ def load_spec_cases() -> dict[str, Any]:
 
 
 def build_batch_server(strategy: str = "individual") -> MCPServer:
-    """Server implementing the ``batch``, ``asks`` and ``checks`` vectors of ``spec/output-budgets.json``."""
+    """Server implementing the ``batch``, ``asks`` and ``checks`` vectors of ``spec/vectors/output-budgets.json``."""
     spec_cases = load_spec_cases()
     case = spec_cases["batch"]
     table: dict[str, CommandResult[Any]] = {

@@ -213,7 +213,7 @@
 		},
 		"single.output-budgets": {
 			"status": "yes",
-			"note": "([#1989](https://github.com/lushly-dev/afd/issues/1989), #2215): `OutputBudget`, `outputBudget` on `CommandDefinition`/`defineCommand`, `runHandler`, `DirectClient`, batches/pipelines and journal `outputBudget`; `output-budget.test.ts` runs `spec/output-budgets.json`",
+			"note": "([#1989](https://github.com/lushly-dev/afd/issues/1989), #2215): `OutputBudget`, `outputBudget` on `CommandDefinition`/`defineCommand`, `runHandler`, `DirectClient`, batches/pipelines and journal `outputBudget`; `output-budget-vectors.test.ts` runs `spec/vectors/output-budgets.json`",
 			"views": {
 				"command-metadata": "(`outputBudget`, #1989)",
 				"ob-b1": "(#1989)",
@@ -221,15 +221,15 @@
 				"ob-b5": "(#1989)",
 				"ob-b7": "(#1989)",
 				"ob-b8": "(#1989)",
-				"ob-vectors": "(#1989: `packages/server/src/output-budget.test.ts`)",
-				"pc-ob-b1": "(`output-budget.test.ts`, #1989: Streamable HTTP and stdio, both eras)",
-				"pc-ob-b2": "(`output-budget.test.ts`, #1989: Streamable HTTP, stdio and AFD HTTP lanes)",
-				"pc-ob-b7": "(`output-budget.test.ts`, #1989: `afd-batch`, `afd-pipe`, `/batch`, in process)"
+				"ob-vectors": "(#1989: `packages/server/src/output-budget-vectors.test.ts`)",
+				"pc-ob-b1": "(`output-budget-vectors.test.ts`, #1989: Streamable HTTP and stdio, both eras)",
+				"pc-ob-b2": "(`output-budget-vectors.test.ts`, #1989: Streamable HTTP, stdio and AFD HTTP lanes)",
+				"pc-ob-b7": "(`output-budget-vectors.test.ts`, #1989: `afd-batch`, `afd-pipe`, `/batch`, in process)"
 			},
 			"evidence": [
 				"packages/core/src/output-budget.ts",
 				"packages/server/src/output-budget.ts",
-				"packages/server/src/output-budget.test.ts"
+				"packages/server/src/output-budget-vectors.test.ts"
 			]
 		},
 		"single.journal-replay": {
@@ -614,7 +614,7 @@
 			},
 			"evidence": [
 				"packages/server/src/output-budget.ts",
-				"packages/server/src/output-budget.test.ts"
+				"packages/server/src/output-budget-vectors.test.ts"
 			]
 		},
 		"mcp.meta-tools": {

@@ -27,7 +27,7 @@ version is separate from each implementation's own package version.
   with the cases in [`vectors/mcp-resources.json`](./vectors/mcp-resources.json).
 - [`output-budgets.md`](./output-budgets.md): per-command output budgets, a declaration, a per-call
   ask in `_meta["dev.afd/outputBudget"]` and the check after the handler, with the cases in
-  [`output-budgets.json`](./output-budgets.json).
+  [`vectors/output-budgets.json`](./vectors/output-budgets.json).
 - [`plugin-manifest.md`](./plugin-manifest.md): the shared plugin manifest, a host-neutral core
   ([`plugin-manifest.core.v1.json`](./plugin-manifest.core.v1.json), with its own version) and the
   contract a host's closed profile meets, with the cases in

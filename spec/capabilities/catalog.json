@@ -1184,7 +1184,7 @@
 				},
 				{
 					"capability": "single.output-budgets",
-					"label": "Loads [`output-budgets.json`](./output-budgets.json)",
+					"label": "Loads [`vectors/output-budgets.json`](./vectors/output-budgets.json)",
 					"view": "ob-vectors"
 				}
 			]

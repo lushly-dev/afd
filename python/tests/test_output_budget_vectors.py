@@ -1,6 +1,6 @@
 """Output budgets (``spec/output-budgets.md``, B1–B8) — in-process suite.
 
-Loads and verifies every case of ``spec/output-budgets.json`` in process
+Loads and verifies every case of ``spec/vectors/output-budgets.json`` in process
 (``MCPServer``, core ``CommandRegistry``, ``DirectCommandRegistry``,
 ``DirectClient``, batches, pipelines, journal and replay). MCP SDK and live
 transport coverage lives in ``tests/test_output_budget_mcp.py``.
@@ -51,7 +51,7 @@ from afd.server import (
     replay_journal,
 )
 
-SPEC_PATH = Path(__file__).resolve().parents[2] / "spec" / "output-budgets.json"
+SPEC_PATH = Path(__file__).resolve().parents[2] / "spec" / "vectors" / "output-budgets.json"
 SPEC_CASES = json.loads(SPEC_PATH.read_text(encoding="utf-8"))
 MCP = ExposeOptions(mcp=True)
 
@@ -165,9 +165,9 @@ def test_declarations_match_spec(case: dict[str, Any]) -> None:
         return success({})
 
     if valid:
-        decorated = define_command(
-            name="doc-search", description="Search", output_budget=value
-        )(noop)
+        decorated = define_command(name="doc-search", description="Search", output_budget=value)(
+            noop
+        )
         server = create_server("decl-test")
         server.register(decorated)
         registry = create_command_registry()
@@ -414,7 +414,9 @@ async def test_asks_in_process_server_and_core_registry(case: dict[str, Any]) ->
     # Also test core CommandRegistry directly with the same cases.
     core_seen: list[int | None] = []
     registry = create_command_registry()
-    budget = OutputBudget.from_value(case["declaration"]) if case["declaration"] is not None else None
+    budget = (
+        OutputBudget.from_value(case["declaration"]) if case["declaration"] is not None else None
+    )
 
     async def core_handler(input: Any, context: CommandContext | None = None) -> CommandResult[Any]:
         core_seen.append(context.output_budget if context is not None else None)
@@ -476,9 +478,7 @@ async def test_in_process_output_budget_kwarg_and_bool_rejection() -> None:
     assert res.success is True and seen[-1] == 80
 
     # Explicit output_budget kwarg wins over DirectCallContext.output_budget
-    res = await client.call(
-        "doc-search", {}, DirectCallContext(output_budget=80), output_budget=70
-    )
+    res = await client.call("doc-search", {}, DirectCallContext(output_budget=80), output_budget=70)
     assert res.success is True and seen[-1] == 70
 
     # Invalid ask on DirectClient fails with VALIDATION_ERROR
@@ -921,7 +921,9 @@ async def test_dict_envelope_results_are_checked_by_b5() -> None:
 
 
 @pytest.mark.asyncio
-async def test_direct_client_with_simple_registry_rejects_invalid_ask_before_middleware_and_handler() -> None:
+async def test_direct_client_with_simple_registry_rejects_invalid_ask_before_middleware_and_handler() -> (
+    None
+):
     registry = create_registry()
     ran: list[str] = []
 
@@ -1014,7 +1016,10 @@ async def test_in_process_meta_tools_lift_meta_argument_and_respect_option_prece
             "meta": {AFD_OUTPUT_BUDGET_META_KEY: {"maxBytes": 90}},
         },
     )
-    assert to_wire(via_batch.results[0].result)["metadata"][AFD_OUTPUT_BUDGET_META_KEY]["limitBytes"] == 90
+    assert (
+        to_wire(via_batch.results[0].result)["metadata"][AFD_OUTPUT_BUDGET_META_KEY]["limitBytes"]
+        == 90
+    )
 
     via_pipe = await server.execute(
         "afd-pipe",

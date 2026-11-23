@@ -1,5 +1,5 @@
-// Output budgets (spec/output-budgets.md, B1 to B8): every case of spec/output-budgets.json in
-// process (registry, batches, pipelines, streams, DirectClient, journal and replay) and, with
+// Output budgets (spec/output-budgets.md, B1 to B8): every case of spec/vectors/output-budgets.json
+// in process (registry, batches, pipelines, streams, DirectClient, journal and replay) and, with
 // AFD_BUILD_MCP_STDIO, over afd::mcp::StdioServer in both MCP eras.
 #include "afd/afd.hpp"
 
@@ -32,9 +32,10 @@ void register_ok(afd::CommandRegistry& registry, afd::CommandDefinition def) {
     REQUIRE_MESSAGE(!error, error.value_or(""));
 }
 
-Json load_cases() {
-    std::ifstream in(AFD_OUTPUT_BUDGETS_FILE, std::ios::binary);
-    REQUIRE_MESSAGE(in.good(), "could not open " << AFD_OUTPUT_BUDGETS_FILE);
+Json load_vectors(const char* name) {
+    const std::string path = std::string(AFD_VECTORS_DIR) + "/" + name;
+    std::ifstream in(path, std::ios::binary);
+    REQUIRE_MESSAGE(in.good(), "could not open " << path);
     const std::string text{std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
     auto parsed = afd::parse_bounded(text);
     REQUIRE_MESSAGE(parsed.has_value(), parsed.error().message);
@@ -42,7 +43,7 @@ Json load_cases() {
 }
 
 const Json& cases() {
-    static const Json data = load_cases();
+    static const Json data = load_vectors("output-budgets.json");
     return data;
 }
 

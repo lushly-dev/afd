@@ -49,9 +49,9 @@
   Relative links and anchors in this file resolve.
 - **Done:** this specification, merged in [#625](https://github.com/lushly-dev/afd/pull/625)
   as `e996aad1`. Step 0a, 2026-11-01: output budgets specified in AFD, the
-  [proposal](../../../../../docs/features/active/output-budgets/output-budgets.proposal.md)
+  [proposal](../../../../../docs/features/complete/output-budgets/output-budgets.proposal.md)
   and [`spec/output-budgets.md`](../../../../../spec/output-budgets.md) with
-  [`spec/output-budgets.json`](../../../../../spec/output-budgets.json), verified
+  [`spec/vectors/output-budgets.json`](../../../../../spec/vectors/output-budgets.json), verified
   against `main` at `e996aad1` (the four languages' engines read, MCP
   2026-07-28 checked, `pnpm check`, the alfred parity tests); see
   [Amendments from step 0a](#amendments-from-step-0a).
@@ -2119,7 +2119,7 @@ tree-sitter 0.27.1, tree-sitter-typescript 0.23.2); none was rejected.
 
 ## Amendments from step 0a
 
-Step 0a wrote the AFD [proposal](../../../../../docs/features/active/output-budgets/output-budgets.proposal.md)
+Step 0a wrote the AFD [proposal](../../../../../docs/features/complete/output-budgets/output-budgets.proposal.md)
 and [`spec/output-budgets.md`](../../../../../spec/output-budgets.md). It kept every rule of section
 14's 0a and made the choices that section left open; these change what 0b builds. The spec is
 binding where it and section 14 differ.

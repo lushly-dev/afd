@@ -185,7 +185,7 @@
 		},
 		"single.output-budgets": {
 			"status": "yes",
-			"note": "(Umbel phase 2 step 0b): `with_output_budget`, `with_output_budget_ask`, `output_budget()`, innermost `CommandRegistry::execute` check, journal `output_budget`; `tests/output_budget.rs` runs `spec/output-budgets.json`",
+			"note": "(Umbel phase 2 step 0b): `with_output_budget`, `with_output_budget_ask`, `output_budget()`, innermost `CommandRegistry::execute` check, journal `output_budget`; `tests/output_budget_vectors.rs` runs `spec/vectors/output-budgets.json`",
 			"views": {
 				"command-metadata": "(Umbel phase 2 step 0b)",
 				"ob-b1": "(Umbel phase 2 step 0b)",
@@ -193,12 +193,15 @@
 				"ob-b5": "(step 0b)",
 				"ob-b7": "(step 0b)",
 				"ob-b8": "(step 0b)",
-				"ob-vectors": "(step 0b: `packages/rust/tests/output_budget.rs`)",
-				"pc-ob-b1": "(`output_budget.rs`, Umbel phase 2 step 0b)",
-				"pc-ob-b2": "(`output_budget.rs`, step 0b)",
-				"pc-ob-b7": "(`output_budget.rs`, step 0b)"
+				"ob-vectors": "(step 0b: `packages/rust/tests/output_budget_vectors.rs`)",
+				"pc-ob-b1": "(`output_budget_vectors.rs`, Umbel phase 2 step 0b)",
+				"pc-ob-b2": "(`output_budget_vectors.rs`, step 0b)",
+				"pc-ob-b7": "(`output_budget_vectors.rs`, step 0b)"
 			},
-			"evidence": ["packages/rust/src/output_budget.rs", "packages/rust/tests/output_budget.rs"]
+			"evidence": [
+				"packages/rust/src/output_budget.rs",
+				"packages/rust/tests/output_budget_vectors.rs"
+			]
 		},
 		"single.journal-replay": {
 			"status": "yes",
@@ -568,7 +571,10 @@
 			"views": {
 				"ob-b2": "(step 0b)"
 			},
-			"evidence": ["packages/rust/src/output_budget.rs", "packages/rust/tests/output_budget.rs"]
+			"evidence": [
+				"packages/rust/src/output_budget.rs",
+				"packages/rust/tests/output_budget_vectors.rs"
+			]
 		},
 		"mcp.meta-tools": {
 			"status": "yes",

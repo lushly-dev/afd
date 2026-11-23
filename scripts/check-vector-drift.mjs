@@ -61,6 +61,7 @@ export const VECTOR_MANIFEST = Object.freeze({
 		],
 	},
 	'mcp-resources.json': { kind: 'authored' },
+	'output-budgets.json': { kind: 'authored' },
 	'output-schema.json': {
 		kind: 'reference-generated',
 		generator: 'generate-output-schema.mjs',

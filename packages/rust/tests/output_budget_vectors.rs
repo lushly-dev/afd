@@ -1,5 +1,5 @@
 //! Output budgets (`spec/output-budgets.md`, B1 to B8): every case of the shared
-//! `spec/output-budgets.json` in process (the registry, batches, pipelines, `DirectClient`, the
+//! `spec/vectors/output-budgets.json` in process (the registry, batches, pipelines, `DirectClient`, the
 //! journal and replay) and, with the `server` feature, over Streamable HTTP and a stdio-shaped
 //! connection in both MCP eras, plus the checks the cases cannot express (what the middleware and
 //! the journal see, the hook winning, tool lists, `afd-detail`, `afd-help`).
@@ -21,9 +21,10 @@ use serde_json::{json, Value};
 mod common;
 
 fn cases() -> Value {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../spec/output-budgets.json");
-    serde_json::from_str(&std::fs::read_to_string(path).expect("spec/output-budgets.json"))
-        .expect("spec/output-budgets.json is JSON")
+    let path =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../spec/vectors/output-budgets.json");
+    serde_json::from_str(&std::fs::read_to_string(path).expect("spec/vectors/output-budgets.json"))
+        .expect("spec/vectors/output-budgets.json is JSON")
 }
 
 fn section(name: &str) -> Vec<Value> {

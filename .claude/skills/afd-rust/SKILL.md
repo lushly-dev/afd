@@ -74,7 +74,7 @@ let result = registry
 
 ## Output budgets
 
-The contract is [spec/output-budgets.md](../../../spec/output-budgets.md). `tests/output_budget.rs` loads `spec/output-budgets.json`.
+The contract is [spec/output-budgets.md](../../../spec/output-budgets.md). `tests/output_budget_vectors.rs` loads `spec/vectors/output-budgets.json`.
 
 ```rust
 let search = CommandDefinition::new("doc-search", "Search documents", params, Search)

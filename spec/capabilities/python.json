@@ -184,7 +184,7 @@
 		},
 		"single.output-budgets": {
 			"status": "yes",
-			"note": "([#1990](https://github.com/lushly-dev/afd/issues/1990), #2186): `OutputBudget`, `output_budget` on `CommandDefinition`/`define_command`/`@server.command`, in-process & MCP asks, post-handler check, batches/pipelines and journal `outputBudget`; `test_output_budget.py` runs `spec/output-budgets.json`",
+			"note": "([#1990](https://github.com/lushly-dev/afd/issues/1990), #2186): `OutputBudget`, `output_budget` on `CommandDefinition`/`define_command`/`@server.command`, in-process & MCP asks, post-handler check, batches/pipelines and journal `outputBudget`; `test_output_budget_vectors.py` runs `spec/vectors/output-budgets.json`",
 			"views": {
 				"command-metadata": "([#1990](https://github.com/lushly-dev/afd/issues/1990), #2186)",
 				"ob-b1": "(#1990)",
@@ -192,14 +192,14 @@
 				"ob-b5": "(#1990)",
 				"ob-b7": "(#1990)",
 				"ob-b8": "(#1990)",
-				"ob-vectors": "(#1990: `python/tests/test_output_budget.py`)",
-				"pc-ob-b1": "(`test_output_budget.py`, `test_output_budget_mcp.py`, #1990)",
-				"pc-ob-b2": "(`test_output_budget.py`, `test_output_budget_mcp.py`, #1990: `asks`/`checks`/`batch` over Streamable HTTP and stdio in both eras, plus an initialized-session SSE test)",
-				"pc-ob-b7": "(`test_output_budget.py`, `test_output_budget_mcp.py`, #1990)"
+				"ob-vectors": "(#1990: `python/tests/test_output_budget_vectors.py`)",
+				"pc-ob-b1": "(`test_output_budget_vectors.py`, `test_output_budget_mcp.py`, #1990)",
+				"pc-ob-b2": "(`test_output_budget_vectors.py`, `test_output_budget_mcp.py`, #1990: `asks`/`checks`/`batch` over Streamable HTTP and stdio in both eras, plus an initialized-session SSE test)",
+				"pc-ob-b7": "(`test_output_budget_vectors.py`, `test_output_budget_mcp.py`, #1990)"
 			},
 			"evidence": [
 				"python/src/afd/core/output_budget.py",
-				"python/tests/test_output_budget.py",
+				"python/tests/test_output_budget_vectors.py",
 				"python/tests/test_output_budget_mcp.py"
 			]
 		},

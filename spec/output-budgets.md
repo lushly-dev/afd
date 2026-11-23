@@ -8,9 +8,9 @@ the work is done. **Nothing truncates structured output.** A command without a b
 Which languages implement it is in [Implementation status](#implementation-status).
 
 Every rule here is new and normative. **MUST**, **MUST NOT**, **SHOULD** and **MAY** are used as in
-RFC 2119. The [output budgets proposal](../docs/features/active/output-budgets/output-budgets.proposal.md)
+RFC 2119. The [output budgets proposal](../docs/features/complete/output-budgets/output-budgets.proposal.md)
 explains why, records the choices this page makes, and tracks progress in its
-[status](../docs/features/active/output-budgets/STATUS.md). Every AFD server is dual-era
+[status](../docs/features/complete/output-budgets/STATUS.md). Every AFD server is dual-era
 ([protocol conformance](./protocol-conformance.md#eras)): unless a rule names an era, it holds on
 both.
 
@@ -85,9 +85,9 @@ declared context field's value is. An invalid ask fails the call with `VALIDATIO
 `details` are `{ "field": "outputBudget", "meta": "dev.afd/outputBudget" }` and whose suggestion
 gives the expected shape, `{ "maxBytes": <positive integer> }`. No new error code is added for it.
 
-**Trusted code wins.** A value the host's own code sets (TypeScript `createContext`, Rust's context
-hook, or the in-process caller) is never overwritten by a value from `_meta`. The ask is never read
-from HTTP headers.
+**Trusted code wins.** A value the host's own code sets (TypeScript `createContext`, Python, Rust
+or C++ `context_hook`, or the in-process caller) is never overwritten by a value from `_meta`. The
+ask is never read from HTTP headers.
 
 **Lists do not vary.** An ask never changes `tools/list`, `server/discover` or their cache hints.
 
@@ -230,12 +230,10 @@ which case the replayed result can differ and the report shows why.
 | | TypeScript | Python | Rust | C++ |
 | --- | --- | --- | --- | --- |
 | Declaration | `defineCommand({ outputBudget: { defaultBytes, maxBytes } })` | `@server.command(output_budget=OutputBudget(default_bytes=..., max_bytes=...))` | `CommandDefinition::with_output_budget(default_bytes, max_bytes)` | `CommandDefinition::output_budget` |
-| In-process ask | `execute(name, input, context, { outputBudget: { maxBytes } })` on `createDirectRegistry`; `DirectClient` call option `outputBudget` | `DirectClient.call(..., output_budget=n)`; registry `execute(..., output_budget=n)` | `CommandContext::with_output_budget_ask(max_bytes)`; a `DirectClient` call option | `CommandContext::output_budget_ask` |
+| In-process ask | `execute(name, input, context, { outputBudget: { maxBytes } })` on `createDirectRegistry`; `DirectClient` call option `outputBudget` | `DirectClient.call(..., output_budget=n)`; registry `execute(..., output_budget=n)` | `CommandContext::with_output_budget_ask(max_bytes)` on `CommandRegistry::execute` and `DirectClient::call` | `CommandContext::output_budget_ask` |
 | Effective budget (B4) | `context.outputBudget` | `context.output_budget` | `CommandContext::output_budget()` | `context.output_budget` |
 
-The Rust names are binding: Umbel's [phase 2 plan](../endpoints/umbel/docs/phases/2-knowledge/spec.md#step-0-afd-first-d25-d64)
-builds on them. The other languages' names are proposed; each language's step may adjust the
-idiom, never the behavior.
+All four languages implement these names and the behavior on this page.
 
 ## Error code
 
@@ -246,16 +244,13 @@ engine (B5) as a failure for a read and as a warning for a mutation. It is part 
 
 ## Conformance
 
-[`output-budgets.json`](./output-budgets.json) pins what a language can get subtly wrong: which
-declarations and asks are refused, the effective budget, the measured size (number spelling,
-multibyte UTF-8, escapes, `metadata` left out), what B5 does with each result, the per-item rule in a
-batch, and the journal field. It is written by hand from this page; every `bytes` value was computed
-with Node's `Buffer.byteLength(JSON.stringify(value))` over the parsed value, which is the canonical
-length because key order does not change it. Each language's step adds its loader.
-
-It sits in `spec/`, not in [`vectors/`](./vectors/README.md),
-because `alfred parity` requires every file in `vectors/` to be loaded by all four languages. It moves
-to `vectors/` in the pull request that makes the fourth language load it.
+[`vectors/output-budgets.json`](./vectors/output-budgets.json) pins what a language can get subtly
+wrong: which declarations and asks are refused, the effective budget, the measured size (number
+spelling, multibyte UTF-8, escapes, `metadata` left out), what B5 does with each result, the
+per-item rule in a batch, and the journal field. It is specification-authored from this page; every
+`bytes` value was computed with Node's `Buffer.byteLength(JSON.stringify(value))` over the parsed
+value, which is the canonical length because key order does not change it. All four languages load
+it in [`vectors/`](./vectors/README.md).
 
 The file's sections and what a loader checks:
 
@@ -286,23 +281,23 @@ The file's sections and what a loader checks:
 | Check, replacement, warning and report (B5, B6) | Yes (#1989) | Yes (#1990) | Yes (step 0b) | Yes (#1991) |
 | Batches and pipelines (B7) | Yes (#1989) | Yes (#1990) | Yes (step 0b) | Yes (#1991) |
 | Journal and replay (B8) | Yes (#1989) | Yes (#1990) | Yes (step 0b) | Yes (#1991) |
-| Loads [`output-budgets.json`](./output-budgets.json) | Yes (#1989: `packages/server/src/output-budget.test.ts`) | Yes (#1990: `python/tests/test_output_budget.py`) | Yes (step 0b: `packages/rust/tests/output_budget.rs`) | Yes (#1991: `packages/cpp/tests/output_budget_test.cpp`) |
+| Loads [`vectors/output-budgets.json`](./vectors/output-budgets.json) | Yes (#1989: `packages/server/src/output-budget-vectors.test.ts`) | Yes (#1990: `python/tests/test_output_budget_vectors.py`) | Yes (step 0b: `packages/rust/tests/output_budget_vectors.rs`) | Yes (#1991: `packages/cpp/tests/output_budget_vectors_test.cpp`) |
 <!-- generated:capabilities:spec.output-budgets.status:end -->
 
 All four implementations — TypeScript (#1989 / #2215: `packages/core/src/output-budget.ts`,
-`packages/server/src/output-budget.ts`, `packages/server/src/output-budget.test.ts`), Rust (Umbel
-phase 2 step 0b: `packages/rust/src/output_budget.rs`, `packages/rust/tests/output_budget.rs`),
-Python (#1990 / #2186: `python/src/afd/core/output_budget.py`, `python/tests/test_output_budget.py`,
+`packages/server/src/output-budget.ts`, `packages/server/src/output-budget-vectors.test.ts`), Rust
+(Umbel phase 2 step 0b: `packages/rust/src/output_budget.rs`, `packages/rust/tests/output_budget_vectors.rs`),
+Python (#1990 / #2186: `python/src/afd/core/output_budget.py`, `python/tests/test_output_budget_vectors.py`,
 `python/tests/test_output_budget_mcp.py`) and C++ (#1991 / #2187: `packages/cpp/include/afd/output_budget.hpp`,
-`packages/cpp/src/output_budget.cpp`, `packages/cpp/tests/output_budget_test.cpp`) — implement output
-budgets B1 to B8. TypeScript loads every case of [`output-budgets.json`](./output-budgets.json) in
-process, over Streamable HTTP and stdio in both MCP eras, and on the AFD HTTP lanes. Rust loads every
-case in process and over Streamable HTTP and stdio in both MCP eras (skipping only the lone-surrogate
-measure case, which a Rust string cannot hold). Python loads every vector in process
-(`test_output_budget.py`), exercises the `asks`, `checks` and `batch` vectors over live Streamable
-HTTP and stdio in both MCP eras, and covers an initialized-session SSE round-trip
-(`test_output_budget_mcp.py`). C++ loads `output-budgets.json` in process and over `afd::mcp_stdio`
-in both MCP eras (skipping only the lone-surrogate measure case that `nlohmann::json` cannot
-represent). The proposal's
-[current behavior](../docs/features/active/output-budgets/output-budgets.proposal.md#how-engines-behave-today)
+`packages/cpp/src/output_budget.cpp`, `packages/cpp/tests/output_budget_vectors_test.cpp`) — implement
+output budgets B1 to B8. TypeScript loads every case of
+[`vectors/output-budgets.json`](./vectors/output-budgets.json) in process, over Streamable HTTP and
+stdio in both MCP eras, and on the AFD HTTP lanes. Rust loads every case in process and over
+Streamable HTTP and stdio in both MCP eras (skipping only the lone-surrogate measure case, which a
+Rust string cannot hold). Python loads every vector in process (`test_output_budget_vectors.py`),
+exercises the `asks`, `checks` and `batch` vectors over live Streamable HTTP and stdio in both MCP
+eras, and covers an initialized-session SSE round-trip (`test_output_budget_mcp.py`). C++ loads
+`vectors/output-budgets.json` in process and over `afd::mcp_stdio` in both MCP eras (skipping only
+the lone-surrogate measure case that `nlohmann::json` cannot represent). The proposal's
+[current behavior](../docs/features/complete/output-budgets/output-budgets.proposal.md#how-engines-behave-today)
 records the pre-implementation baseline.

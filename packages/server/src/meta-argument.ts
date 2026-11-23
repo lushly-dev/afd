@@ -3,11 +3,11 @@
  * the tool surface (#466)"; `spec/context-fields.md`, "Clients that cannot set `_meta`").
  *
  * `afd-call`, `afd-batch`, `afd-pipe`, `afd-discover` and `afd-detail` take an optional `meta`
- * object for clients that cannot set `_meta`. Its keys are `dev.afd/context` and the declared
- * context fields' `_meta` keys, and each surface applies them as if the request had sent them in
- * `_meta`, before it reads `_meta`. Other keys are dropped, as undeclared `_meta` keys are, and
- * `null` (for `meta` or a value) is no value. A key
- * sent both ways must agree, or the call fails with `VALIDATION_ERROR`.
+ * object for clients that cannot set `_meta`. Its keys are `dev.afd/context`,
+ * `dev.afd/outputBudget` and the declared context fields' `_meta` keys, and each surface applies
+ * them as if the request had sent them in `_meta`, before it reads `_meta`. Other keys are dropped,
+ * as undeclared `_meta` keys are, and `null` (for `meta` or a value) is no value. A key sent both
+ * ways must agree, or the call fails with `VALIDATION_ERROR`.
  */
 
 import type { CommandContext, CommandError } from '@lushly-dev/afd-core';

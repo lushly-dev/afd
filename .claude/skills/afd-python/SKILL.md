@@ -73,6 +73,7 @@ async def create_todo(input: CreateInput, context):
 - **In tests,** use `fixed_clock(...)` (epoch ms, an ISO string or a `datetime`) and `seeded_random("abc")`, both from `afd`. `seeded_random` gives the same sequence as TypeScript's `seededRandom`.
 - **`SimpleRegistry` handlers** get the context only through a keyword-only parameter: `async def roll(sides=6, *, context)`.
 - **Journal.** Add `create_journal_middleware(sink)` from `afd.server`, last in the middleware list. Use `MemoryJournalSink` or `FileJournalSink`, from `afd`. Replay with `replay_journal(fresh_server, parse_journal(text))`. Journal files are byte-compatible with TypeScript's ([spec/journal.md](../../../spec/journal.md)).
+- **Output budgets** ([spec/output-budgets.md](../../../spec/output-budgets.md), B1–B8). Declare `output_budget=OutputBudget(default_bytes=..., max_bytes=...)` on `@server.command` / `define_command`; callers ask via `_meta["dev.afd/outputBudget"] = {"maxBytes": n}`, meta-tool `meta`, or `output_budget=` on `server.execute` / `DirectCallContext`. Handlers read `context.output_budget` and fit results structurally (never truncate JSON). Over-budget reads return `OUTPUT_BUDGET_EXCEEDED`, mutations keep their result with a `caution` warning, within-budget successes carry `metadata["dev.afd/outputBudget"]`, and the journal records and replays the effective budget. `tests/test_output_budget_vectors.py` loads `spec/vectors/output-budgets.json`.
 
 ## Wire format
 
