@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Fix component defects (#2183, #1172, #1424, #712, #1436):
+  - `violet-tabs` upgrades its tabs and panels when it connects, and imports them itself, so tabs mounted from parsed markup no longer throw `tab.syncPresentation is not a function`; `violet-select`, `violet-combobox` and `violet-listbox` upgrade their options when they read them, so a combobox mounted from markup with a `value` no longer throws (#1172).
+  - `violet-select` and `violet-combobox` open their lists in the top layer as manual popovers, so a containing or clipping ancestor no longer moves or cuts them (#712).
+  - `violet-listbox` no longer scrolls the active row into view when a press on the list gives it focus, so the press lands on the row under the pointer; focus from the keyboard or script still scrolls (#712).
+  - `violet-date-picker` and `violet-time-picker` write their value to the native input only when it differs, so re-entering one segment keeps the others (#712).
+  - `violet-checkbox`'s decorative box takes no pointer events, so a role-based click reaches the native input (#1424).
+  - `violet-file-upload` draws its drag-active, focused, invalid, disabled and hover states, its copy and its Browse button in system colours under forced colours (#2183).
+  - `radius.round` reaches the color and date pickers, and `space.stack.xs` the conversation components (#1436).
+
 - Fix two `violet-elements` bugs (#2252, #2236):
   - `violet-button` now forwards `aria-keyshortcuts` (and the `ariaKeyShortcuts` property) to the inner `<button>` and clears it when removed, so assistive technology announces keyboard shortcuts on the control (#2252).
   - `violet-date-picker` and `violet-date-range-picker` now open their popup calendar panels in the top layer (`popover="manual"`, `margin: 0`, `overflow: visible`, `color: inherit`) via `showPopover()`/`hidePopover()` so containing, transformed or clipping ancestors no longer offset or clip them (#2236).

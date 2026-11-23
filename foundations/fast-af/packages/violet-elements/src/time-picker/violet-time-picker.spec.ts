@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import "./violet-time-picker";
 import type { VioletTimePicker } from "./violet-time-picker";
@@ -66,6 +67,48 @@ function customEventDetails(mock: ReturnType<typeof vi.fn>): unknown[] {
 describe("violet-time-picker", () => {
     afterEach(() => {
         document.body.innerHTML = "";
+    });
+
+    // The input reads "" while incomplete, as the default does, so a reset must write it anyway.
+    it("clears an incomplete entry on form reset", async () => {
+        document.body.innerHTML = `<form><violet-time-picker label="Start" name="when"></violet-time-picker></form>`;
+        await customElements.whenDefined("violet-time-picker");
+        await nextFrame();
+        const form = document.querySelector("form") as HTMLFormElement;
+        const picker = document.querySelector("violet-time-picker") as HTMLElement & { value: string };
+        const input = picker.shadowRoot?.querySelector("input") as HTMLInputElement;
+
+        await userEvent.click(input, { position: { x: 8, y: input.clientHeight / 2 } });
+        await userEvent.keyboard("1");
+        await nextFrame();
+        expect(picker.value).toBe("");
+        expect(input.validity.badInput).toBe(true);
+
+        form.reset();
+        await nextFrame();
+
+        expect(input.validity.badInput).toBe(false);
+        expect(input.value).toBe("");
+        expect(picker.value).toBe("");
+    });
+
+    // #712: the input reads "" while a segment is incomplete, and a :value binding wrote that "" back,
+    // erasing the segments already entered.
+    it("keeps the other segments while one is re-entered", async () => {
+        const picker = await renderTimePicker(element => {
+            element.value = "09:30";
+        });
+        const input = picker.shadowRoot?.querySelector("input") as HTMLInputElement;
+
+        await userEvent.click(input, { position: { x: 8, y: input.clientHeight / 2 } });
+        await userEvent.keyboard("{Backspace}");
+        await nextFrame();
+        expect(picker.value).toBe("");
+        await userEvent.keyboard("10");
+        await nextFrame();
+
+        expect(input.value).toBe("10:30");
+        expect(picker.value).toBe("10:30");
     });
 
     it("syncs native time input state from the value property", async () => {

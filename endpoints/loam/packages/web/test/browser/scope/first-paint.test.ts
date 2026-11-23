@@ -192,8 +192,9 @@ describe('P2-E1: one first paint', () => {
 		// (#2111/#2112 stage A `boot.gated` and layout reconciliation), #2117 (`journal-order.ts` cycle-free RAW/WAR
 		// DAG, `track`, `suspend`), #1045 / #1634 (WAW ordering and blocking writer-lock wait), and #2128
 		// (execution-controls batch limits in `afd-core` and validation issue cap in `afd-server/direct`, combined
-		// build measured 345,762 against `main` at `88cd5f02b`).
-		expect(javascript).toBeLessThanOrEqual(346_200);
+		// build measured 345,762 against `main` at `88cd5f02b`), and the violet-elements bug sweep (#1436's
+		// `radius.round` in the field token block, measured 346,220 against `main` at `bc316e8e`).
+		expect(javascript).toBeLessThanOrEqual(346_600);
 		expect(javascript).toBe(budgetRow());
 		// Stage B still runs in every deployment: `late` loads after the mark, on the empty shell too.
 		await expect

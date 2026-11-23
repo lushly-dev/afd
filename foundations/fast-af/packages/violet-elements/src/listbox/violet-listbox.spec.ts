@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import "../option-group/violet-option-group";
 import "../option/violet-option";
@@ -56,6 +57,70 @@ async function renderListbox(): Promise<VioletListbox> {
 describe("violet-listbox", () => {
     afterEach(() => {
         document.body.innerHTML = "";
+    });
+
+    // #712: focus entering on a press scrolled the active row into view, so the row under the
+    // pointer moved before the press ended and the click landed on another row.
+    describe("focus scrolling", () => {
+        async function renderLongListbox(): Promise<{ listbox: VioletListbox; scroller: HTMLElement }> {
+            document.body.innerHTML = "";
+            const listbox = document.createElement("violet-listbox") as VioletListbox;
+            listbox.style.setProperty("--violet-listbox-max-block-size", "8rem");
+            for (let index = 1; index <= 30; index++) {
+                listbox.append(createOption(`Row ${index}`, `row-${index}`));
+            }
+            listbox.value = "row-28";
+            document.body.append(listbox);
+            await customElements.whenDefined("violet-listbox");
+            await nextFrame();
+            const scroller = listbox.shadowRoot?.querySelector('[role="listbox"]') as HTMLElement;
+            scroller.scrollTop = 0;
+            return { listbox, scroller };
+        }
+
+        it("does not scroll the selected row into view when a press focuses the list", async () => {
+            const { listbox, scroller } = await renderLongListbox();
+            expect(scroller.scrollHeight).toBeGreaterThan(scroller.clientHeight);
+            const changes: string[] = [];
+            listbox.addEventListener("change", () => changes.push(listbox.value));
+
+            await userEvent.click(listbox.querySelector('violet-option[value="row-2"]') as HTMLElement);
+            await nextFrame();
+
+            expect(scroller.scrollTop).toBe(0);
+            expect(listbox.value).toBe("row-2");
+            expect(changes).toEqual(["row-2"]);
+        });
+
+        // Loam's project switcher sets the active row and focuses the list from a click handler.
+        it("scrolls the active row into view when script focuses the list after a press elsewhere", async () => {
+            const { listbox, scroller } = await renderLongListbox();
+            const opener = document.createElement("button");
+            opener.textContent = "Open";
+            opener.addEventListener("click", () => {
+                listbox.activeValue = "row-28";
+                listbox.focus();
+            });
+            document.body.prepend(opener);
+
+            await userEvent.click(opener);
+            await nextFrame();
+
+            expect(scroller.scrollTop).toBeGreaterThan(0);
+        });
+
+        it("scrolls the active row into view when focus arrives from the keyboard", async () => {
+            const { scroller } = await renderLongListbox();
+            const before = document.createElement("button");
+            before.textContent = "Before";
+            document.body.prepend(before);
+            before.focus();
+
+            await userEvent.keyboard("{Tab}");
+            await nextFrame();
+
+            expect(scroller.scrollTop).toBeGreaterThan(0);
+        });
     });
 
     it("syncs selected and active option state from the current value", async () => {

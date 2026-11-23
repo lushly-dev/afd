@@ -243,7 +243,6 @@ const template = html<VioletDatePicker>`
                     part="input"
                     type="date"
                     name="${x => x.name}"
-                    :value="${x => x.value}"
                     min="${x => x.min}"
                     max="${x => x.max}"
                     ?disabled="${x => x.effectiveDisabled}"
@@ -414,6 +413,7 @@ export class VioletDatePicker extends FASTElement {
         this.ownerDocument.addEventListener("keydown", this.#handleDocumentPressEnd, true);
         window.addEventListener("resize", this.#handleViewportChange);
         window.addEventListener("scroll", this.#handleViewportChange, true);
+        this.#syncInputElement();
         this.#defaultValue = this.value;
         this.#syncFormState();
         this.#applyOpenState(false);
@@ -672,6 +672,8 @@ export class VioletDatePicker extends FASTElement {
 
     public formResetCallback(): void {
         this.value = this.#defaultValue;
+        // Also when the value is unchanged: an incomplete entry reads as "" and must go too.
+        this.#syncInputElement(true);
         this.#syncFormState();
     }
 
@@ -695,9 +697,11 @@ export class VioletDatePicker extends FASTElement {
         return this.shadowRoot?.querySelector("violet-calendar") as VioletCalendar | null;
     }
 
-    #syncInputElement(): void {
+    // Writes `value` to the native input only when it differs, never through a binding. The input reads `""`
+    // while a segment is incomplete, so writing that `""` back erased the segments already entered (#712).
+    #syncInputElement(force = false): void {
         const input = this.inputElement;
-        if (input && input.value !== this.value) {
+        if (input && (force || input.value !== this.value)) {
             input.value = this.value;
         }
     }

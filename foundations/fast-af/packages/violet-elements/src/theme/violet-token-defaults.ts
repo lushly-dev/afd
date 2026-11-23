@@ -86,6 +86,7 @@ export const violetFieldTokenDefaults: ElementStyles = css`
         --_surface-floating: var(--color-surface-floating, #ffffff);
         --_radius-md: var(--radius-md, 8px);
         --_radius-lg: var(--radius-lg, 12px);
+        --_radius-round: var(--radius-round, 9999px);
         --_shadow-control: var(--shadow-control, 0 0 0 1px rgba(24, 27, 26, 0.05), 0 1px 2px rgba(24, 27, 26, 0.10));
         --_shadow-floating: var(--shadow-floating, 0 0 0 1px rgba(24, 27, 26, 0.08), 0 4px 12px -2px rgba(24, 27, 26, 0.12), 0 18px 40px -8px rgba(24, 27, 26, 0.20));
         /*

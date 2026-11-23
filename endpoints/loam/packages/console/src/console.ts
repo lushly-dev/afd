@@ -180,7 +180,6 @@ const template = html<LoamConsole>`
 					value="${(x) => x.selected?.name ?? ''}"
 					?hidden="${(x) => x.visible.length === 0}"
 					@change="${(x, c) => x.handleSelect(c.event as CustomEvent<{ value: string }>)}"
-					@mousedown="${(x, c) => x.handleListPress(c.event)}"
 				>
 					${repeat((x) => x.visible, rowTemplate, { recycle: false })}
 				</violet-listbox>
@@ -372,19 +371,6 @@ export class LoamConsole extends FASTElement {
 		for (const option of listbox?.options ?? []) {
 			option.toggleAttribute('data-active', option.value === listbox?.activeValue);
 		}
-	}
-
-	/**
-	 * A press focuses the list, which scrolls its active row into view, so with that row scrolled away the
-	 * row under the pointer moves before the click lands. So the pressed row becomes the active one first.
-	 */
-	handleListPress(event: Event): boolean {
-		const row = event
-			.composedPath()
-			.find((node) => (node as Element).localName === 'violet-option');
-		const listbox = this.#listbox;
-		if (row && listbox) listbox.activeValue = (row as HTMLElement & { value: string }).value;
-		return true;
 	}
 
 	handleSelect(event: CustomEvent<{ value: string }>): void {

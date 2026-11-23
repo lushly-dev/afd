@@ -61,23 +61,7 @@ const HOOKS: Readonly<Record<string, { readers: readonly string[]; why: string; 
         readers: ["../option/violet-option.ts"],
         why: "inherited from an open select/combobox or focused listbox; transparent at rest",
     },
-    // Constants written as hooks. The readers include a token-default block that does not carry
-    // the alias, so a theme's value does not reach them (#1436). Each renders its fallback, which
-    // is what the Refined design was approved with.
-    "--_radius-round": {
-        readers: ["../color-picker/violet-color-picker.ts", "../date-picker/violet-date-picker.ts"],
-        why: "the pickers' round controls: always 9999px",
-        token: "--radius-round",
-    },
-    "--_space-xs": {
-        readers: [
-            "../conversation/violet-chat-composer.ts",
-            "../conversation/violet-source-citation.ts",
-            "../conversation/violet-tool-call-card.ts",
-        ],
-        why: "the conversation components' smallest gap: always 4px",
-        token: "--space-stack-xs",
-    },
+    // The interface has no link colour, so the citation keeps AFD's blue ink until it does (#2237).
     "--_text-link": {
         readers: ["../conversation/violet-source-citation.ts"],
         why: "the citation's link colour: always #146ba0, AFD's blue ink; the interface has no link colour",
@@ -94,7 +78,7 @@ const KNOWN_DROPPED: Readonly<Record<string, string>> = {
     // item's label therefore take no background, and a selected item's ring is not drawn.
     // Defining the alias paints the page surface over the card the gantt's body shows today,
     // which is a change of design the Refined port did not make.
-    "../gantt/violet-gantt.styles.ts: var(--_surface-page)": "repaints the gantt's body; needs a design decision (#1436)",
+    "../gantt/violet-gantt.styles.ts: var(--_surface-page)": "repaints the gantt's body; needs a design decision (#2237)",
 };
 
 const DECLARED = /(--_[a-z0-9-]+)\s*:/g;
@@ -519,6 +503,7 @@ describe("driftedLiteralFallbacks", () => {
         "        --_text-primary: var(--color-text-primary, #181b1a);",
         "        --_surface-subtle: var(--color-surface-subtle, #e9e5de);",
         "        --_radius-lg: var(--radius-lg, 12px);",
+        "        --_radius-round: var(--radius-round, 9999px);",
         "    }",
         "`;",
     ].join("\n");

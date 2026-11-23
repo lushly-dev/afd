@@ -1596,7 +1596,8 @@ export const WidgetCells: Story = {
         const checkbox = shadowRoot?.querySelector(
       'td[data-row-id="romanesco"][data-column-id="tracked"] violet-checkbox[data-cell-widget="checkbox"]',
         ) as (HTMLElement & { checked?: boolean }) | null;
-        const checkboxControl = checkbox?.shadowRoot?.querySelector(".box") as HTMLElement | null;
+        // The box takes no pointer events (#1424); a press on its shell lands on the native input.
+        const checkboxControl = checkbox?.shadowRoot?.querySelector(".control-shell") as HTMLElement | null;
 
         if (!grid || !shadowRoot || !checkbox || !checkboxControl) {
             throw new Error("Expected widget checkbox cell to render.");

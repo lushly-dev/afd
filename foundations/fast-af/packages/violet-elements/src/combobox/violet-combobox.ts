@@ -119,10 +119,16 @@ const styles = css`
         pointer-events: none;
     }
 
+    /*
+     * The panel is a manual popover, so it opens in the top layer, which an ancestor's
+     * containment, transform or overflow does not reach (#712). The rules below replace the
+     * popover's UA defaults (inset: 0, margin: auto).
+     */
     .panel {
         box-sizing: border-box;
         position: fixed;
         inset: unset;
+        margin: 0;
         z-index: var(--_layer-popover);
         inline-size: var(--_panel-inline-size, auto);
         max-inline-size: calc(100vw - 8px);
@@ -234,7 +240,7 @@ const template = html<VioletCombobox>`
                 <span class="caret" part="caret" aria-hidden="true"></span>
             </div>
 
-            <div class="panel" part="panel" hidden>
+            <div class="panel" part="panel" popover="manual" hidden>
                 <div
                     id="${x => x.listboxId}"
                     class="listbox"
@@ -642,6 +648,13 @@ export class VioletCombobox extends FASTElement {
 
         shell?.classList.toggle("open", this.open);
         panel?.toggleAttribute("hidden", !this.open);
+        if (panel?.isConnected && panel.matches(":popover-open") !== this.open) {
+            this.open ? panel.showPopover() : panel.hidePopover();
+        }
+        // Placed as it opens, so nothing reads or paints it at the top layer's origin first.
+        if (this.open) {
+            this.#positionPanel();
+        }
         input?.setAttribute("aria-expanded", String(this.open));
 
         if (this.open) {

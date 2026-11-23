@@ -20,7 +20,7 @@ const styles = css`
     .root {
         display: inline-flex;
         align-items: center;
-        gap: var(--_space-xs, 4px);
+        gap: var(--_space-stack-xs);
         font-size: var(--_citation-font-size);
         line-height: var(--_citation-line-height);
     }
@@ -31,7 +31,7 @@ const styles = css`
         justify-content: center;
         min-inline-size: var(--_citation-badge-size);
         block-size: var(--_citation-badge-size);
-        padding-inline: var(--_space-xs, 4px);
+        padding-inline: var(--_space-stack-xs);
         border-radius: var(--_radius-sm);
         background: var(--_surface-subtle);
         font-size: var(--_citation-font-size);

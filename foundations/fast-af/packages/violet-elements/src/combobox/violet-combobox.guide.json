@@ -32,6 +32,10 @@
       "members": [
         "open"
       ]
+    },
+    {
+      "id": "combobox.layer",
+      "text": "The list opens in the top layer, as a manual popover, so a containing ancestor (contain, transform, filter) or a clipping one does not move or cut it. Style it through ::part(panel)."
     }
   ],
   "a11y": [

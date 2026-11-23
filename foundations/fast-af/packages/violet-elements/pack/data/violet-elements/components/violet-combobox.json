@@ -249,6 +249,11 @@
 			"basis": "authored",
 			"id": "combobox.open",
 			"text": "The list opens on focus, typing and arrow keys, and the open attribute reflects it. show() opens it; hide(true) closes it and resets the text to the chosen option's label, or empties it when nothing is chosen."
+		},
+		{
+			"basis": "authored",
+			"id": "combobox.layer",
+			"text": "The list opens in the top layer, as a manual popover, so a containing ancestor (contain, transform, filter) or a clipping one does not move or cut it. Style it through ::part(panel)."
 		}
 	]
 }

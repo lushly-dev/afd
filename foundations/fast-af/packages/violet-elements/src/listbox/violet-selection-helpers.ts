@@ -9,12 +9,24 @@ export function isOptionDisabled(option: VioletOption): boolean {
     return Boolean(option.disabled || group?.disabled);
 }
 
+/**
+ * The options a select, combobox or listbox owns, each upgraded. Parsed markup upgrades in tree
+ * order, so the host's attribute and connected callbacks run before its options are upgraded and
+ * would read a label or value they do not have yet (#1172).
+ */
 export function getOwnedOptions(host: Element): VioletOption[] {
     const selector = host.localName;
+    const definition = customElements.get("violet-option");
 
-    return Array.from(host.querySelectorAll("violet-option")).filter(
-        (option): option is VioletOption => option.closest(selector) === host
-    );
+    return Array.from(host.querySelectorAll("violet-option")).filter((option): option is VioletOption => {
+        if (option.closest(selector) !== host) {
+            return false;
+        }
+        if (definition && !(option instanceof definition)) {
+            customElements.upgrade(option);
+        }
+        return true;
+    });
 }
 
 export function getEnabledOptions(options: VioletOption[]): VioletOption[] {
