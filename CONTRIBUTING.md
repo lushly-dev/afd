@@ -7,7 +7,7 @@ This repository holds more than the AFD libraries. Specimen, FAST-AF, Violet, Um
 ## Prerequisites
 
 - **Node.js** >= 22.12.0 (development and CI use Node 26 LTS, pinned in `.nvmrc`)
-- **pnpm** 10.30.1 (pinned in `package.json`)
+- **pnpm** 12.22.0 (pinned in `package.json`)
 - **Lefthook** (auto-installed via `pnpm install`)
 
 Python, uv, Rust, CMake and Chromium are needed only for the areas that use them. [SETUP.md](SETUP.md) lists versions and what each is for.

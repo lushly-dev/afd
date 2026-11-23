@@ -34,6 +34,7 @@ import { dirname, extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import semver from 'semver';
 import { execTool, spawnTool, tarCommand } from '../../../scripts/release/exec-tool.mjs';
+import { assertOverridesApplied, peerIssue, writeConsumer } from '../pnpm.mjs';
 
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const argument = (name) => {
@@ -76,8 +77,6 @@ const CORE_PEER = workspaceManifest('integrations/violet-afd').peerDependencies[
 	/^workspace:([~^])$/,
 	`$1${VERSION}`
 );
-// pnpm quotes a peer range that contains spaces.
-const CORE_PEER_SPEC = CORE_PEER.includes(' ') ? `${CORE}@"${CORE_PEER}"` : `${CORE}@${CORE_PEER}`;
 const checks = [];
 const passed = (name) => {
 	checks.push(name);
@@ -120,11 +119,10 @@ async function install(
 		dependencies,
 	};
 	// Unpublished local units resolve to their tarballs wherever they are required.
-	if (overrides)
-		manifest.pnpm = {
-			overrides: Object.fromEntries(Object.keys(packs).map((key) => [key, file(key)])),
-		};
-	await writeFile(join(root, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+	const pins = overrides
+		? Object.fromEntries(Object.keys(packs).map((key) => [key, file(key)]))
+		: {};
+	await writeConsumer(root, manifest, pins);
 	const args = [
 		'install',
 		'--ignore-scripts',
@@ -137,6 +135,7 @@ async function install(
 	const log = `${result.stdout}${result.stderr}`;
 	await writeFile(join(root, 'install.log'), log);
 	assert.equal(result.status === 0, expected, `${name} install outcome:\n${log}`);
+	if (result.status === 0) assertOverridesApplied(root, pins);
 	return { root, log };
 }
 const run = (cwd, script) => execFileSync(process.execPath, [script], { cwd, stdio: 'inherit' });
@@ -600,7 +599,11 @@ const missingPeer = await install(
 	{ expected: false, overrides: false }
 );
 assert.match(missingPeer.log, /ERR_PNPM_PEER_DEP_ISSUES/);
-assert(missingPeer.log.includes(`missing peer ${CORE_PEER_SPEC}`), missingPeer.log);
+assert.deepEqual(
+	peerIssue(missingPeer.log, 'missing', CORE),
+	{ installed: null, wanted: { [CORE_PEER]: [`${AFD}@${packedManifest(AFD).version}`] } },
+	missingPeer.log
+);
 passed('integration without the core peer is rejected (missing peer)');
 const fakeCore = join(consumers, 'fake-core-9');
 await mkdir(fakeCore, { recursive: true });
@@ -614,7 +617,15 @@ const incompatible = await install(
 	{ expected: false, overrides: false }
 );
 assert.match(incompatible.log, /ERR_PNPM_PEER_DEP_ISSUES/);
-assert(incompatible.log.includes(`unmet peer ${CORE_PEER_SPEC}: found 9.0.0`), incompatible.log);
+// pnpm 12 names the installed peer by its specifier, here the 9.0.0 fake, not by its version.
+assert.deepEqual(
+	peerIssue(incompatible.log, 'unmet', CORE),
+	{
+		installed: 'file:../fake-core-9',
+		wanted: { [CORE_PEER]: [`${AFD}@${packedManifest(AFD).version}`] },
+	},
+	incompatible.log
+);
 passed('integration with violet-core 9.0.0 is rejected (unmet peer)');
 
 const { root: unavailableRoot } = await install('integration-afd-unavailable', {

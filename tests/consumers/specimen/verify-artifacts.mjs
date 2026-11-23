@@ -18,9 +18,10 @@ import { existsSync, realpathSync, rmSync } from 'node:fs';
 import { cp, mkdir, mkdtemp, readdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execTool, spawnTool, tarCommand } from '../../../scripts/release/exec-tool.mjs';
+import { assertOverridesApplied, peerIssue, writeConsumer } from '../pnpm.mjs';
 
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const outputIndex = process.argv.indexOf('--output');
@@ -114,20 +115,18 @@ async function install(
 	const root = join(consumers, name);
 	await mkdir(root, { recursive: true });
 	const manifest = { name, private: true, type: 'module', dependencies };
-	manifest.pnpm = {
-		overrides: {
-			...otherHosts,
-			...(overrides
-				? Object.fromEntries(Object.keys(packs).map((key) => [key, file(key)]))
-				: {
-						// Keep the server's dependency local before the candidate is published,
-						// while preserving the root peer versions tested by the negative cases.
-						'@lushly-dev/afd-server>@lushly-dev/afd-core': file('@lushly-dev/afd-core'),
-						[hostPackage]: file(hostPackage),
-					}),
-		},
+	const pins = {
+		...otherHosts,
+		...(overrides
+			? Object.fromEntries(Object.keys(packs).map((key) => [key, file(key)]))
+			: {
+					// Keep the server's dependency local before the candidate is published,
+					// while preserving the root peer versions tested by the negative cases.
+					'@lushly-dev/afd-server>@lushly-dev/afd-core': file('@lushly-dev/afd-core'),
+					[hostPackage]: file(hostPackage),
+				}),
 	};
-	await writeFile(join(root, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+	await writeConsumer(root, manifest, pins);
 	const result = spawnTool(
 		'pnpm',
 		[
@@ -143,6 +142,7 @@ async function install(
 	const log = `${result.stdout}${result.stderr}`;
 	await writeFile(join(root, 'install.log'), log);
 	assert.equal(result.status === 0, expected, `${name} install outcome:\n${log}`);
+	if (result.status === 0) assertOverridesApplied(root, pins);
 	if (result.status === 0) installBrowser(root);
 	return { root, log };
 }
@@ -554,10 +554,11 @@ const missing = await install(
 	{ expected: false }
 );
 assert.match(missing.log, /ERR_PNPM_PEER_DEP_ISSUES/);
+const wantedBy = `@lushly-dev/specimen-afd@${integration.version}`;
 for (const peer of ['@lushly-dev/specimen', '@lushly-dev/afd-core', '@lushly-dev/afd-server'])
-	assert(
-		missing.log.includes(`missing peer ${peer}@${packedPeers[peer]}`),
-		`expected missing ${peer}`
+	assert.ok(
+		peerIssue(missing.log, 'missing', peer)?.wanted[packedPeers[peer]]?.includes(wantedBy),
+		`expected missing ${peer}@${packedPeers[peer]}:\n${missing.log}`
 	);
 passed('integration without peers is rejected (missing peer)');
 
@@ -587,7 +588,13 @@ for (const [peer, version] of Object.entries(incompatible)) {
 		overrides: false,
 	});
 	assert.match(result.log, /ERR_PNPM_PEER_DEP_ISSUES/);
-	assert(result.log.includes(`unmet peer ${peer}@${packedPeers[peer]}: found 3.0.0`), result.log);
+	// pnpm 12 names the installed peer by its specifier, here the 3.0.0 fake, not by its version.
+	const issue = peerIssue(result.log, 'unmet', peer);
+	assert.ok(
+		issue?.installed === `file:../${basename(version)}` &&
+			issue.wanted[packedPeers[peer]]?.includes(wantedBy),
+		result.log
+	);
 	passed(`integration with ${peer}@3.0.0 is rejected (unmet peer)`);
 }
 

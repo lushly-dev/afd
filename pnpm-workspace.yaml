@@ -29,3 +29,27 @@ packages:
 minimumReleaseAge: 4320
 minimumReleaseAgeExclude:
   - "@lushly-dev/*"
+
+# Bounded fixes for vulnerable transitive ranges. pnpm 11 and later read overrides only here.
+overrides:
+  "@types/node": "^26.6.6"
+  "@auth/core": "^0.41.3"
+  "convex>ws": "^8.21.0"
+  "fast-uri@>=3.0.0 <3.1.9": "^3.1.9"
+  "brace-expansion@>=4.0.0 <5.0.12": "^5.0.12"
+  "smol-toml@<=1.8.0": "^1.9.0"
+  "source-map-js@>=1.0.0 <1.2.2": "^1.2.2"
+  "zod@>=4.0.0 <4.6.6": "^4.6.6"
+
+# No dependency's install script runs, as under pnpm 10's default (these eight were skipped there);
+# pnpm 12 fails an install that leaves one undecided. esbuild and lefthook take their binaries from
+# optional dependencies, and the root `prepare` script installs the hooks.
+allowBuilds:
+  "@ast-grep/cli": false
+  "@google/genai": false
+  edgedriver: false
+  esbuild: false
+  geckodriver: false
+  lefthook: false
+  protobufjs: false
+  rs-module-lexer: false

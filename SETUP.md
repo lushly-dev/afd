@@ -11,7 +11,7 @@ Everyone needs these:
 | Tool | Version | Check |
 |------|---------|-------|
 | Node.js | 26 LTS for development (`.nvmrc`); packages support 22.12+, Violet and the hosted fixtures need 24+ | `node -v` |
-| pnpm | 10.30.1 (pinned in `package.json`) | `pnpm -v` |
+| pnpm | 12.22.0 (pinned in `package.json`) | `pnpm -v` |
 | Git | Any recent | `git --version` |
 
 Add these for the area you touch:
