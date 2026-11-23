@@ -16,6 +16,8 @@ export const CheckIssueSchema = z.object({
 	tokenId: z.string(),
 	constraintId: z.string(),
 	severity: z.enum(['error', 'warning', 'info']),
+	/** Optional stable sub-check identifier (e.g. 'ramp:unreasoned', 'ramp:repeat') */
+	code: z.string().optional(),
 });
 
 export type CheckIssue = z.infer<typeof CheckIssueSchema>;

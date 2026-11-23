@@ -12,6 +12,8 @@ export interface FlatToken {
 	value: unknown;
 	/** Metadata read from `$type` / `$description` (DTCG only) and the tier group */
 	metadata?: Partial<TokenMetadata>;
+	/** Optional reason read from `$extensions["dev.lushly.violet"].reason` */
+	reason?: string;
 }
 
 interface FlattenOptions {
@@ -105,9 +107,20 @@ function flattenTokenTree(
 		const node = val as Record<string, unknown>;
 
 		if ('$value' in node) {
-			result.push({ id, value: node.$value, metadata: readDtcgMetadata(node, groupType) });
+			const reason = readDtcgReason(node);
+			result.push({
+				id,
+				value: node.$value,
+				metadata: readDtcgMetadata(node, groupType),
+				...(reason !== undefined ? { reason } : {}),
+			});
 		} else if (isStyleDictionaryLeaf(node)) {
-			result.push({ id, value: node.value });
+			const reason = readDtcgReason(node);
+			result.push({
+				id,
+				value: node.value,
+				...(reason !== undefined ? { reason } : {}),
+			});
 		} else {
 			result.push(...flattenTokenTree(node, prefix, path, groupType));
 		}
@@ -122,6 +135,20 @@ function flattenTokenTree(
  */
 function isStyleDictionaryLeaf(node: Record<string, unknown>): boolean {
 	return 'value' in node && (typeof node.value !== 'object' || node.value === null);
+}
+
+function readDtcgReason(node: Record<string, unknown>): string | undefined {
+	const rawVioletExtension =
+		typeof node.$extensions === 'object' && node.$extensions !== null
+			? (node.$extensions as Record<string, unknown>)[VIOLET_EXTENSION_KEY]
+			: undefined;
+	const rawReason =
+		typeof rawVioletExtension === 'object' && rawVioletExtension !== null
+			? (rawVioletExtension as Record<string, unknown>).reason
+			: undefined;
+	if (typeof rawReason !== 'string') return undefined;
+	const trimmed = rawReason.trim();
+	return trimmed.length > 0 ? trimmed : undefined;
 }
 
 function readDtcgMetadata(

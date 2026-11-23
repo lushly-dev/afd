@@ -34,6 +34,8 @@ const InputSchema = z.object({
 	interface: TokenInterfaceSchema,
 	/** Nodes to check; defaults to every theme node, or every node when the tree has none */
 	nodes: z.array(z.string().min(1)).min(1).max(200).optional(),
+	/** Token id prefixes forbidden in a public component interface (default: ['ref.']) */
+	privatePrefixes: z.array(z.string().min(1)).default(['ref.']),
 });
 
 /**
@@ -41,7 +43,7 @@ const InputSchema = z.object({
  */
 const OutputSchema = z.object({
 	interface: z.object({ version: z.number(), package: z.string().optional() }),
-	/** Every id resolves, to a value its type can hold, in every node checked */
+	/** Every id resolves, to a value its type can hold, with no leaked private/global tokens */
 	complete: z.boolean(),
 	nodes: z.array(z.string()),
 	/** Ids a node does not resolve, or resolves only through a broken reference */
@@ -55,6 +57,13 @@ const OutputSchema = z.object({
 	/** Ids a node resolves to a value the interface's type cannot hold */
 	invalid: z.array(
 		z.object({ node: z.string(), token: z.string(), type: z.string(), problem: z.string() }),
+	),
+	/** Private-prefix or global-tier tokens leaked into the public component interface */
+	leaked: z.array(
+		z.object({
+			token: z.string(),
+			reason: z.enum(['private-prefix', 'global-tier']),
+		}),
 	),
 });
 
@@ -101,6 +110,13 @@ export const interfaceCheckCommand: CommandDefinition<typeof InputSchema, Output
 		const ids = Object.keys(input.interface.tokens).sort();
 		const missing: Output['missing'] = [];
 		const invalid: Output['invalid'] = [];
+		const leakedByToken = new Map<string, 'private-prefix' | 'global-tier'>();
+
+		for (const id of ids) {
+			if (input.privatePrefixes.some((prefix) => id.startsWith(prefix))) {
+				leakedByToken.set(id, 'private-prefix');
+			}
+		}
 
 		for (const nodeId of nodeIds) {
 			let tokens: Awaited<ReturnType<typeof resolveNodeTokenMap>>;
@@ -122,6 +138,9 @@ export const interfaceCheckCommand: CommandDefinition<typeof InputSchema, Output
 					missing.push({ node: nodeId, token: id, reason: 'absent' });
 					continue;
 				}
+				if (token.metadata.tier === 'global' && !leakedByToken.has(id)) {
+					leakedByToken.set(id, 'global-tier');
+				}
 				if (token.referenceError) {
 					missing.push({ node: nodeId, token: id, reason: 'broken-reference' });
 					continue;
@@ -132,7 +151,10 @@ export const interfaceCheckCommand: CommandDefinition<typeof InputSchema, Output
 			}
 		}
 
-		const complete = missing.length === 0 && invalid.length === 0;
+		const leaked: Output['leaked'] = [...leakedByToken.entries()]
+			.sort(([a], [b]) => a.localeCompare(b))
+			.map(([token, reason]) => ({ token, reason }));
+		const complete = missing.length === 0 && invalid.length === 0 && leaked.length === 0;
 		return success(
 			{
 				interface: {
@@ -143,17 +165,23 @@ export const interfaceCheckCommand: CommandDefinition<typeof InputSchema, Output
 				nodes: nodeIds,
 				missing,
 				invalid,
+				leaked,
 			},
 			{
 				reasoning: complete
 					? `All ${ids.length} interface ids resolve in ${nodeIds.length} node(s)`
-					: `${missing.length} missing and ${invalid.length} invalid across ${nodeIds.length} node(s), of ${ids.length} interface ids`,
+					: `${missing.length} missing, ${invalid.length} invalid and ${leaked.length} leaked across ${nodeIds.length} node(s), of ${ids.length} interface ids`,
 				...(complete
 					? {}
 					: {
 							suggestions: [
 								"Add each missing id with 'token.add' on the node the themes share, or with 'token.override' in a theme that lacks it",
 								"Fix each invalid value with 'token.override' at the node that sets it (see token.lineage)",
+								...(leaked.length > 0
+									? [
+											'Replace leaked private-prefix or global-tier tokens in interface.json with purpose-named semantic tokens',
+										]
+									: []),
 							],
 						}),
 			},

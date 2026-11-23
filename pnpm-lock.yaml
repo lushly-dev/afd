@@ -1389,6 +1389,9 @@ importers:
       '@biomejs/biome':
         specifier: ^2.6.8
         version: 2.6.8
+      '@lushly-dev/afd-testing':
+        specifier: workspace:^
+        version: link:../../packages/testing
       '@lushly-dev/violet-core':
         specifier: workspace:^
         version: link:../../foundations/violet/packages/core

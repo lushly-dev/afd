@@ -77,14 +77,14 @@ Available command categories:
 - node.*: Manage nodes in the design token tree. A deprecated node can carry sunsetAt (YYYY-MM-DD, the day it goes away) and replacedBy (the node that replaces it); null clears either. A date without a replacement, or a deprecated replacement, comes back as a warning.
 - nodes.graph: The hierarchy as a graph (parent, include, copy edges, change counts, optional token trace)
 - token.*: Add, override, subtract, reset, and copy tokens
-- tokens.resolve: Get all resolved tokens for a node
+- tokens.resolve: Get all resolved tokens for a node (use excludePrefixes: ['ref.'] to omit private Stage 1 ramp steps while keeping resolved values)
 - tokens.matrix: Resolve tokens across many nodes and show how each value got there
 - tokens.compare: Put 2–4 nodes side by side and get only the tokens that differ (onlyDifferent: false for all), each cell flagged when it differs from the first node, with per-category counts and a similarity per pair. Use it for "why does X look different from Y?"
 - tokens.catalog: Find tokens by words, category, tier or status, and see where they are customized
-- export.*: Export tokens to JSON, CSS, SCSS, or TypeScript
+- export.*: Export tokens to JSON, CSS, SCSS, or TypeScript (use excludePrefixes: ['ref.'] to keep private ramp steps out of public exports)
 - import.*: Import tokens from JSON files
-- constraints.*: Define and validate design constraints
-- analyze.violations: Every constraint violation across a subtree, with node, rule, values, source and owner
+- constraints.*: Define and validate design constraints, including type: 'ramp' for two-stage ref.* ramp governance and pattern.target: 'id'. Pass merge: true to constraints.set so new rules add to existing constraints instead of replacing them. Pass onlyViolating: true to constraints.validate to omit passing tokens.
+- analyze.violations: Preferred multi-node check — lists every constraint violation across a subtree in one call, with node, rule, values, source and owner
 - analyze.health: Health per node for managers: own customizations by category, drift against a baseline ('parent' by default, 'root', or a node id), violations by severity, owner, status, coupling (mix-ins, borrows, borrowers), subtree totals, deprecation plans (sunset date, days left, replacement, usage), and flags for redundant overrides, sibling borrows, deprecated nodes with children, sunsets without a replacement, deprecated replacements and nodes kept past their sunset. Sort by drift, violations or customizations.
 - analyze.trends: Is it getting better or worse? Changes per UTC day for a node and its descendants (since defaults to 90d), and the rule issues open now spread over the days their failing values were last set, with a running count. Issues fixed since are not counted on earlier days; days with a check recorded by analyze.snapshot carry the true count (recorded), and summary.history counts the issues that appeared and were fixed from one recorded check to the next.
 - analyze.snapshot: Check the rules on a subtree (rootId) or every tree and store the results, for rule-check history in analyze.trends. Run it on a schedule, not on every read.

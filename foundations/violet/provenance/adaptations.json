@@ -407,9 +407,9 @@
       "path": "endpoints/violet-server/src/server.ts",
       "upstream_path": "packages/server/src/server.ts",
       "upstream_sha256": "4468c269a7a64ba554cfc39e69736d6da0570bb07c61b1b541678ad127fa261e",
-      "current_import_sha256": "4b08a59ea2d32feb6d9b0fbc854143c467b09970618e2165b0e4dbc7db07e301",
+      "current_import_sha256": "14664df7ca48e5f29bca297751ce9672c2ed0cb6c9aaba970b5d74531c583ea0",
       "classification": "adapted",
-      "reason": "Package specifier @lushly-dev/violet-afd instead of @lushly-dev/violet-core; reports its package version (src/version.ts) instead of the hard-coded upstream 0.1.0; The MCP instructions list the new component specimens (#498); its header says validate and doctor are not tools",
+      "reason": "Package specifier @lushly-dev/violet-afd instead of @lushly-dev/violet-core; reports its package version (src/version.ts) instead of the hard-coded upstream 0.1.0; The MCP instructions list the new component specimens (#498); its header says validate and doctor are not tools; Scales Phase 1 (#2195): two-stage ramp constraints, ResolvedToken.reason propagation, core validateConstraints, excludePrefixes, CheckIssue.code snapshot keying, interface.check leaked guard, changes.impact reason support, import reason hygiene, violet-server docs, and Slice 1 scenario adapter/scenarios",
       "candidate": {
         "path": "packages/server/src/server.ts",
         "sha256": "bf16ea771c8314732c6cd99128f775137aac7138bbdf626b7d6aca794e4216a9",
@@ -577,9 +577,9 @@
       "path": "foundations/violet/packages/core/src/constraints/index.ts",
       "upstream_path": "packages/core/src/constraints/index.ts",
       "upstream_sha256": "e13a38472a61f7db3c44502eb6740525d72d49ce8dd6ca11b09da088a857b229",
-      "current_import_sha256": "e13a38472a61f7db3c44502eb6740525d72d49ce8dd6ca11b09da088a857b229",
-      "classification": "unchanged",
-      "reason": "Upstream bytes",
+      "current_import_sha256": "84e1d25ebbface693b355e079a3e578db50a10108f125173634b7ac9d8a6dcf6",
+      "classification": "adapted",
+      "reason": "Scales Phase 1 (#2195): two-stage ramp constraints, ResolvedToken.reason propagation, core validateConstraints, excludePrefixes, CheckIssue.code snapshot keying, interface.check leaked guard, changes.impact reason support, import reason hygiene, violet-server docs, and Slice 1 scenario adapter/scenarios",
       "candidate": {
         "path": "packages/core/src/constraints/index.ts",
         "sha256": "e13a38472a61f7db3c44502eb6740525d72d49ce8dd6ca11b09da088a857b229",
@@ -600,12 +600,38 @@
       }
     },
     {
+      "path": "foundations/violet/packages/core/src/constraints/ramp.test.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "ac30234c440263754ed64b9252b797f72bba9541e8e7a7478ae920e1ef826e09",
+      "classification": "afd-authored",
+      "reason": "Scales Phase 1 (#2195): two-stage ramp constraints, ResolvedToken.reason propagation, core validateConstraints, excludePrefixes, CheckIssue.code snapshot keying, interface.check leaked guard, changes.impact reason support, import reason hygiene, violet-server docs, and Slice 1 scenario adapter/scenarios",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/constraints/ramp.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "9d890c45baf25e47e6c261803eac0009c28a246c2fa0e3df075809b6fd3c2c44",
+      "classification": "afd-authored",
+      "reason": "Scales Phase 1 (#2195): two-stage ramp constraints, ResolvedToken.reason propagation, core validateConstraints, excludePrefixes, CheckIssue.code snapshot keying, interface.check leaked guard, changes.impact reason support, import reason hygiene, violet-server docs, and Slice 1 scenario adapter/scenarios",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
       "path": "foundations/violet/packages/core/src/constraints/validators.ts",
       "upstream_path": "packages/core/src/constraints/validators.ts",
       "upstream_sha256": "840f18e0a290a092bf9afd98aab74322a46cd3b7d6a6e7ccf1949694785b3cf6",
-      "current_import_sha256": "75dd7e3f69ea26519f7f89a3a70715ef4749d74e134e5827bd900f70187ae3ac",
+      "current_import_sha256": "7b7d9e3b6576d07f51e72be2fb9efec9005d706f913f1b677e44d1aa5dae97d7",
       "classification": "adapted",
-      "reason": "Biome 2 lint and format (#599): import specifier order, formatter output and fixes for findings new in Biome 2 (Object.hasOwn, non-null assertions after optional chains in tests, optional chain, unused catch binding); Contrast composites translucent colours, with an optional backdrop (lushly-dev/afd#1326)",
+      "reason": "Biome 2 lint and format (#599): import specifier order, formatter output and fixes for findings new in Biome 2 (Object.hasOwn, non-null assertions after optional chains in tests, optional chain, unused catch binding); Contrast composites translucent colours, with an optional backdrop (lushly-dev/afd#1326); Scales Phase 1 (#2195): two-stage ramp constraints, ResolvedToken.reason propagation, core validateConstraints, excludePrefixes, CheckIssue.code snapshot keying, interface.check leaked guard, changes.impact reason support, import reason hygiene, violet-server docs, and Slice 1 scenario adapter/scenarios",
       "candidate": {
         "path": "packages/core/src/constraints/validators.ts",
         "sha256": "840f18e0a290a092bf9afd98aab74322a46cd3b7d6a6e7ccf1949694785b3cf6",
@@ -915,9 +941,9 @@
       "path": "foundations/violet/packages/core/src/engine/resolution-cache.ts",
       "upstream_path": "packages/core/src/commands/token/resolution-cache.ts",
       "upstream_sha256": "a1b4422016e2f6a6150d396218437850ae6d0d60b0c0117a1caff529be5048df",
-      "current_import_sha256": "0f85b02dc0f6a59f83355c682563251f5c95990b14f60a932a3bbb67fe2825b8",
+      "current_import_sha256": "39bc737bf978743ebd8a1b88fb0304725bacad46da6da42d5e80e50f68185934",
       "classification": "adapted",
-      "reason": "Moved from commands/token; scoped to a native ResolutionScope instead of CommandContext (generic withResolutionCache); imports re-sorted by upstream Biome",
+      "reason": "Moved from commands/token; scoped to a native ResolutionScope instead of CommandContext (generic withResolutionCache); imports re-sorted by upstream Biome; Scales Phase 1 (#2195): two-stage ramp constraints, ResolvedToken.reason propagation, core validateConstraints, excludePrefixes, CheckIssue.code snapshot keying, interface.check leaked guard, changes.impact reason support, import reason hygiene, violet-server docs, and Slice 1 scenario adapter/scenarios",
       "candidate": {
         "path": "packages/core/src/engine/resolution-cache.ts",
         "sha256": "2f2d616bbe6ffc7f98f760d6a554f95d0389601f83b2bf9c535d1bf9498473b0",
@@ -928,9 +954,9 @@
       "path": "foundations/violet/packages/core/src/engine/resolver.ts",
       "upstream_path": "packages/core/src/commands/token/resolver.ts",
       "upstream_sha256": "0569a19d78f57449516395fba4f60fd860cad31672f3210893f77cc03ee3c48e",
-      "current_import_sha256": "c66c8c92d4dde2abd24f0466a61889fb7c79a561e58d9fe67906b3b76a6d3ef2",
+      "current_import_sha256": "aea7a12862d9f30f281c6633aaa57d1d83978f9e30c0fab3568b255bed2b34a8",
       "classification": "adapted",
-      "reason": "Moved from commands/; CommandContext['db'] becomes the native Database type; imports re-sorted by upstream Biome",
+      "reason": "Moved from commands/; CommandContext['db'] becomes the native Database type; imports re-sorted by upstream Biome; Scales Phase 1 (#2195): two-stage ramp constraints, ResolvedToken.reason propagation, core validateConstraints, excludePrefixes, CheckIssue.code snapshot keying, interface.check leaked guard, changes.impact reason support, import reason hygiene, violet-server docs, and Slice 1 scenario adapter/scenarios",
       "candidate": {
         "path": "packages/core/src/engine/resolver.ts",
         "sha256": "7ea56186091c81b54732089d12cfa330b72abcfa9793fd3626bae8c107df6100",
@@ -1279,9 +1305,9 @@
       "path": "foundations/violet/packages/core/src/tokens.ts",
       "upstream_path": null,
       "upstream_sha256": null,
-      "current_import_sha256": "b7ed4dcd7661fe9bc63f682964e6d14a62113b542c65f2903723ed37581716e7",
+      "current_import_sha256": "8fd9a4a2e24ead33e7b5141027dcec11c2ee261bf7b0ae23910d8f6556b91bd1",
       "classification": "afd-authored",
-      "reason": "Native resolveTokens/exportTokens and TokenDomainError: the tokens.resolve and export steps without a registry or AFD envelope",
+      "reason": "Native resolveTokens/exportTokens and TokenDomainError: the tokens.resolve and export steps without a registry or AFD envelope; Scales Phase 1 (#2195): two-stage ramp constraints, ResolvedToken.reason propagation, core validateConstraints, excludePrefixes, CheckIssue.code snapshot keying, interface.check leaked guard, changes.impact reason support, import reason hygiene, violet-server docs, and Slice 1 scenario adapter/scenarios",
       "candidate": {
         "path": "packages/core/src/tokens.ts",
         "sha256": "48adc08f9af51a2eae74f4d170f2a70098b4e1284827ea2fa599f1da5325b774",
@@ -1292,9 +1318,9 @@
       "path": "foundations/violet/packages/core/src/types/constraint.ts",
       "upstream_path": "packages/core/src/types/constraint.ts",
       "upstream_sha256": "6f87e02fbb057c7bff8f6ce22df120dd9cb7b7105b10ce1122bd85861d0a0fcb",
-      "current_import_sha256": "6cba42edd4d272795b88de64d579a6e8dc3ccb552bb0a8254130283991ec5800",
+      "current_import_sha256": "138ffac2751d80b5b344a56fcb1312a4abca306e15fdd5d997f0b76476db8c4e",
       "classification": "adapted",
-      "reason": "Contrast takes an optional backdrop (lushly-dev/afd#1326); a constraint takes disabledReason (lushly-dev/afd#1327)",
+      "reason": "Contrast takes an optional backdrop (lushly-dev/afd#1326); a constraint takes disabledReason (lushly-dev/afd#1327); Scales Phase 1 (#2195): two-stage ramp constraints, ResolvedToken.reason propagation, core validateConstraints, excludePrefixes, CheckIssue.code snapshot keying, interface.check leaked guard, changes.impact reason support, import reason hygiene, violet-server docs, and Slice 1 scenario adapter/scenarios",
       "candidate": {
         "path": "packages/core/src/types/constraint.ts",
         "sha256": "6f87e02fbb057c7bff8f6ce22df120dd9cb7b7105b10ce1122bd85861d0a0fcb",
@@ -1357,9 +1383,9 @@
       "path": "foundations/violet/packages/core/src/types/snapshot.ts",
       "upstream_path": "packages/core/src/types/snapshot.ts",
       "upstream_sha256": "8ba0dc73a2961561f2149e7a75660f8c0b211c35307049e3f9e473f01f9e1abb",
-      "current_import_sha256": "8ba0dc73a2961561f2149e7a75660f8c0b211c35307049e3f9e473f01f9e1abb",
-      "classification": "unchanged",
-      "reason": "Upstream bytes",
+      "current_import_sha256": "e35f4e4a45e55065cf3e66fc026c4ad092d5f382181e12fe4f482e9d614150db",
+      "classification": "adapted",
+      "reason": "Scales Phase 1 (#2195): two-stage ramp constraints, ResolvedToken.reason propagation, core validateConstraints, excludePrefixes, CheckIssue.code snapshot keying, interface.check leaked guard, changes.impact reason support, import reason hygiene, violet-server docs, and Slice 1 scenario adapter/scenarios",
       "candidate": {
         "path": null,
         "sha256": null,
@@ -1409,9 +1435,9 @@
       "path": "foundations/violet/packages/core/src/types/token.ts",
       "upstream_path": "packages/core/src/types/token.ts",
       "upstream_sha256": "d7f3d3303d64a6a813c33e0e30b89bf556cb8675feba4858f54f1bdc42447556",
-      "current_import_sha256": "d7f3d3303d64a6a813c33e0e30b89bf556cb8675feba4858f54f1bdc42447556",
-      "classification": "unchanged",
-      "reason": "Upstream bytes",
+      "current_import_sha256": "a1c1b241a2b99bd7ee7838dffb2e8ff1a9bdb332d4de8fbe0f48bd4d4965ffe5",
+      "classification": "adapted",
+      "reason": "Scales Phase 1 (#2195): two-stage ramp constraints, ResolvedToken.reason propagation, core validateConstraints, excludePrefixes, CheckIssue.code snapshot keying, interface.check leaked guard, changes.impact reason support, import reason hygiene, violet-server docs, and Slice 1 scenario adapter/scenarios",
       "candidate": {
         "path": "packages/core/src/types/token.ts",
         "sha256": "d7f3d3303d64a6a813c33e0e30b89bf556cb8675feba4858f54f1bdc42447556",
@@ -1448,9 +1474,9 @@
       "path": "foundations/violet/packages/core/src/utils/glob.ts",
       "upstream_path": "packages/core/src/utils/glob.ts",
       "upstream_sha256": "e8b264293a961537af0fd52fa176bdcccf510847d73dfd24623a7e9f2988ed20",
-      "current_import_sha256": "e8b264293a961537af0fd52fa176bdcccf510847d73dfd24623a7e9f2988ed20",
-      "classification": "unchanged",
-      "reason": "Upstream bytes",
+      "current_import_sha256": "c6deb2ba8c4068d3d098a7abca776ceca78d6716fb5afb5dfdf6c0bc789b957c",
+      "classification": "adapted",
+      "reason": "Scales Phase 1 (#2195): two-stage ramp constraints, ResolvedToken.reason propagation, core validateConstraints, excludePrefixes, CheckIssue.code snapshot keying, interface.check leaked guard, changes.impact reason support, import reason hygiene, violet-server docs, and Slice 1 scenario adapter/scenarios",
       "candidate": {
         "path": "packages/core/src/utils/glob.ts",
         "sha256": "e8b264293a961537af0fd52fa176bdcccf510847d73dfd24623a7e9f2988ed20",
@@ -1839,14 +1865,157 @@
       "path": "integrations/violet-afd/package.json",
       "upstream_path": null,
       "upstream_sha256": null,
-      "current_import_sha256": "8ca1ea964be62e3367acac88026e9b5216379085712f8d49537bc2ac417156b0",
-      "manifest_shape_sha256": "656efd335578ab7fa2fe48e821ab78b99d2ed87181ddc6892cddca767b411696",
+      "current_import_sha256": "cca08065dd6012e454c83b5f18c8f9ff51255e0c70ddfd3cbdf56038486dbab4",
+      "manifest_shape_sha256": "04b35c62b1d694361a38dfc87d487592ae2e4c6c7feec42763cc7119d524f5ef",
       "classification": "afd-authored",
-      "reason": "New integration manifest: the pre-split core entry points, peer violet-core ^0.2.0 || ^0.3.0 (so the first 0.3.0 release keeps the fixed group on a minor bump), the workspace @lushly-dev/afd-core ^2.2.0, version 0.2.0 like its family Formatted as Changesets writes it (arrays expanded), so a version step changes only the version lines. @types/node aligned across the workspace on ^26.6.6 during the post-merge dependency hygiene pass, so every package and every optional peer resolves one copy. Vitest and @vitest/coverage-v8 move from ^3.2.7 to ^4.1.12, the version every other workspace unit uses. TypeScript moves from ^5.9.3 to ^7.0.2, the native compiler every other AFD-owned unit uses (lushly-dev/afd#594). Zod 4 (#599): zod-to-json-schema removed, Zod 4 converts schemas itself; Seeded at 0.3.0-preview for the preview prerelease the owner approved on 2026-11-14 (#1192); the core peer and development dependency are workspace:^, which no preview leaves",
+      "reason": "New integration manifest: the pre-split core entry points, peer violet-core ^0.2.0 || ^0.3.0 (so the first 0.3.0 release keeps the fixed group on a minor bump), the workspace @lushly-dev/afd-core ^2.2.0, version 0.2.0 like its family Formatted as Changesets writes it (arrays expanded), so a version step changes only the version lines. @types/node aligned across the workspace on ^26.6.6 during the post-merge dependency hygiene pass, so every package and every optional peer resolves one copy. Vitest and @vitest/coverage-v8 move from ^3.2.7 to ^4.1.12, the version every other workspace unit uses. TypeScript moves from ^5.9.3 to ^7.0.2, the native compiler every other AFD-owned unit uses (lushly-dev/afd#594). Zod 4 (#599): zod-to-json-schema removed, Zod 4 converts schemas itself; Seeded at 0.3.0-preview for the preview prerelease the owner approved on 2026-11-14 (#1192); the core peer and development dependency are workspace:^, which no preview leaves; Scales Phase 1 (#2195): two-stage ramp constraints, ResolvedToken.reason propagation, core validateConstraints, excludePrefixes, CheckIssue.code snapshot keying, interface.check leaked guard, changes.impact reason support, import reason hygiene, violet-server docs, and Slice 1 scenario adapter/scenarios",
       "candidate": {
         "path": "packages/afd/package.json",
         "sha256": "0007e820a3b32fb06d1ea01ae27cfff2ff4e539580b7f6fac5b9e46096b42a91",
         "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/scenarios/01-add-between-steps.scenario.yaml",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "116896b5483113ff9c7ebf9faf09a71ba1af93916b1dc549eb6eb09fb0999168",
+      "classification": "afd-authored",
+      "reason": "Scales Phase 1 (#2195): two-stage ramp constraints, ResolvedToken.reason propagation, core validateConstraints, excludePrefixes, CheckIssue.code snapshot keying, interface.check leaked guard, changes.impact reason support, import reason hygiene, violet-server docs, and Slice 1 scenario adapter/scenarios",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/scenarios/02-retune-ramp-step.scenario.yaml",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "78a3273c1bc8bf674cbdb5d5ae00a16685fa6225a7eaf13267d91f40c95f11fc",
+      "classification": "afd-authored",
+      "reason": "Scales Phase 1 (#2195): two-stage ramp constraints, ResolvedToken.reason propagation, core validateConstraints, excludePrefixes, CheckIssue.code snapshot keying, interface.check leaked guard, changes.impact reason support, import reason hygiene, violet-server docs, and Slice 1 scenario adapter/scenarios",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/scenarios/03-choose-by-purpose.scenario.yaml",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "c392de4d4550ef38546af0b9e839db5d6d08d4f9c0c1105a9e2515ee5aef8816",
+      "classification": "afd-authored",
+      "reason": "Scales Phase 1 (#2195): two-stage ramp constraints, ResolvedToken.reason propagation, core validateConstraints, excludePrefixes, CheckIssue.code snapshot keying, interface.check leaked guard, changes.impact reason support, import reason hygiene, violet-server docs, and Slice 1 scenario adapter/scenarios",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/scenarios/04-allow-reasoned-off-ramp.scenario.yaml",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "1f6b5a3a2afed5de82126c99f4fff5f874871b866a0ddcdc2398388f06e7d112",
+      "classification": "afd-authored",
+      "reason": "Scales Phase 1 (#2195): two-stage ramp constraints, ResolvedToken.reason propagation, core validateConstraints, excludePrefixes, CheckIssue.code snapshot keying, interface.check leaked guard, changes.impact reason support, import reason hygiene, violet-server docs, and Slice 1 scenario adapter/scenarios",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/scenarios/05-stay-quiet-when-compliant.scenario.yaml",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "ff4bc238c30e1b91c4a2798c5f49a46481b2d81d413d287a0da7ee53de61ac8e",
+      "classification": "afd-authored",
+      "reason": "Scales Phase 1 (#2195): two-stage ramp constraints, ResolvedToken.reason propagation, core validateConstraints, excludePrefixes, CheckIssue.code snapshot keying, interface.check leaked guard, changes.impact reason support, import reason hygiene, violet-server docs, and Slice 1 scenario adapter/scenarios",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/scenarios/06-flag-repeated-off-ramp.scenario.yaml",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "fbe5bf9592e8d3e242063c0a8b20331aa9cbade27dad94689501d567871e83a8",
+      "classification": "afd-authored",
+      "reason": "Scales Phase 1 (#2195): two-stage ramp constraints, ResolvedToken.reason propagation, core validateConstraints, excludePrefixes, CheckIssue.code snapshot keying, interface.check leaked guard, changes.impact reason support, import reason hygiene, violet-server docs, and Slice 1 scenario adapter/scenarios",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/scenarios/07-refuse-broken-or-leaked-ramp.scenario.yaml",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "134308385c261e2a08d37af02a26b72ccd1e4d24693bf2db31d4fa7310b0495c",
+      "classification": "afd-authored",
+      "reason": "Scales Phase 1 (#2195): two-stage ramp constraints, ResolvedToken.reason propagation, core validateConstraints, excludePrefixes, CheckIssue.code snapshot keying, interface.check leaked guard, changes.impact reason support, import reason hygiene, violet-server docs, and Slice 1 scenario adapter/scenarios",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/scenarios/fixtures/studio.json",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "95ce7f465bdbaa61bbd489cff7de7fb04b8780aefe2b36fddd2f0d87a59bec36",
+      "classification": "afd-authored",
+      "reason": "Scales Phase 1 (#2195): two-stage ramp constraints, ResolvedToken.reason propagation, core validateConstraints, excludePrefixes, CheckIssue.code snapshot keying, interface.check leaked guard, changes.impact reason support, import reason hygiene, violet-server docs, and Slice 1 scenario adapter/scenarios",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/scenarios/scales.scenarios.test.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "5b88213da2f7b6a3086f070f09071f4c5b520e4fb5cae8022e80430e32098f59",
+      "classification": "afd-authored",
+      "reason": "Scales Phase 1 (#2195): two-stage ramp constraints, ResolvedToken.reason propagation, core validateConstraints, excludePrefixes, CheckIssue.code snapshot keying, interface.check leaked guard, changes.impact reason support, import reason hygiene, violet-server docs, and Slice 1 scenario adapter/scenarios",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/scenarios/violet-adapter.test.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "aa8c0c2622248ffd27345eb022990148aa247e4ee3868f2b1bc41c512599b87c",
+      "classification": "afd-authored",
+      "reason": "Scales Phase 1 (#2195): two-stage ramp constraints, ResolvedToken.reason propagation, core validateConstraints, excludePrefixes, CheckIssue.code snapshot keying, interface.check leaked guard, changes.impact reason support, import reason hygiene, violet-server docs, and Slice 1 scenario adapter/scenarios",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/scenarios/violet-adapter.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "cba3ee5e1c7fdd40f51cd69ef19adcea916139995cca21f673be0ea351953c7a",
+      "classification": "afd-authored",
+      "reason": "Scales Phase 1 (#2195): two-stage ramp constraints, ResolvedToken.reason propagation, core validateConstraints, excludePrefixes, CheckIssue.code snapshot keying, interface.check leaked guard, changes.impact reason support, import reason hygiene, violet-server docs, and Slice 1 scenario adapter/scenarios",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
       }
     },
     {
@@ -1970,9 +2139,9 @@
       "path": "integrations/violet-afd/src/commands/analyze/interface.ts",
       "upstream_path": null,
       "upstream_sha256": null,
-      "current_import_sha256": "c8baca285b5d485deb9de33fe3470ff2d7dd93004fc0cd7378946757da66a453",
+      "current_import_sha256": "2a8f18077bd4d1af62a5b84e09146c1c84b05d9d719b0ce6c578b9878d40eeee",
       "classification": "afd-authored",
-      "reason": "interface.check (lushly-dev/afd#1323)",
+      "reason": "interface.check (lushly-dev/afd#1323); Scales Phase 1 (#2195): two-stage ramp constraints, ResolvedToken.reason propagation, core validateConstraints, excludePrefixes, CheckIssue.code snapshot keying, interface.check leaked guard, changes.impact reason support, import reason hygiene, violet-server docs, and Slice 1 scenario adapter/scenarios",
       "candidate": {
         "path": null,
         "sha256": null,
@@ -1996,9 +2165,9 @@
       "path": "integrations/violet-afd/src/commands/analyze/snapshot.ts",
       "upstream_path": "packages/core/src/commands/analyze/snapshot.ts",
       "upstream_sha256": "89e7b4bf95d1255175ff5cb2a38d6927d2c4aa9a2457f78235fd50af5d864533",
-      "current_import_sha256": "6ddfeb8c1c82b84e9d08b0fe8708c9ee418b793ec92d2646065579c3e0dbd767",
+      "current_import_sha256": "7150d74216ebf639438ff2514aafcb3832987e7921f57c0d6ec7f77b1f9b7069",
       "classification": "adapted",
-      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9; Biome 2 lint and format (#599): import specifier order, formatter output and fixes for findings new in Biome 2 (Object.hasOwn, non-null assertions after optional chains in tests, optional chain, unused catch binding); Context clock and ids (lushly-dev/afd#1324)",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9; Biome 2 lint and format (#599): import specifier order, formatter output and fixes for findings new in Biome 2 (Object.hasOwn, non-null assertions after optional chains in tests, optional chain, unused catch binding); Context clock and ids (lushly-dev/afd#1324); Scales Phase 1 (#2195): two-stage ramp constraints, ResolvedToken.reason propagation, core validateConstraints, excludePrefixes, CheckIssue.code snapshot keying, interface.check leaked guard, changes.impact reason support, import reason hygiene, violet-server docs, and Slice 1 scenario adapter/scenarios",
       "candidate": {
         "path": null,
         "sha256": null,
@@ -2048,9 +2217,9 @@
       "path": "integrations/violet-afd/src/commands/analyze/violations.ts",
       "upstream_path": "packages/core/src/commands/analyze/violations.ts",
       "upstream_sha256": "c0b2182f3be85a47dcb9d787ffdee19d0ade28c94f0fdba6525a83c89b0cdf9c",
-      "current_import_sha256": "13c52c1db226eeabe7a75e674ae0500e12029c80ade32a06b7bbfe664a13952e",
+      "current_import_sha256": "5b260c1e58d021ece092a7fce1638158b0bc199e16f146d915ec5ee4d5289b2f",
       "classification": "adapted",
-      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9; Biome 2 lint and format (#599): import specifier order, formatter output and fixes for findings new in Biome 2 (Object.hasOwn, non-null assertions after optional chains in tests, optional chain, unused catch binding)",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9; Biome 2 lint and format (#599): import specifier order, formatter output and fixes for findings new in Biome 2 (Object.hasOwn, non-null assertions after optional chains in tests, optional chain, unused catch binding); Scales Phase 1 (#2195): two-stage ramp constraints, ResolvedToken.reason propagation, core validateConstraints, excludePrefixes, CheckIssue.code snapshot keying, interface.check leaked guard, changes.impact reason support, import reason hygiene, violet-server docs, and Slice 1 scenario adapter/scenarios",
       "candidate": {
         "path": "packages/afd/src/commands/analyze/violations.ts",
         "sha256": "c0b2182f3be85a47dcb9d787ffdee19d0ade28c94f0fdba6525a83c89b0cdf9c",
@@ -2178,9 +2347,9 @@
       "path": "integrations/violet-afd/src/commands/changes/impact.ts",
       "upstream_path": "packages/core/src/commands/changes/impact.ts",
       "upstream_sha256": "35c265958572877caf93b3ef8e4a44a90d5757da7858983ae7f784fd581104cc",
-      "current_import_sha256": "db1443aed1f1bab6ec97d51847e4fe2ae4d393603093cde2be83f4ffcce4f365",
+      "current_import_sha256": "a10f9e93202b3d2a764e8d93b70ad604e1d318bcae22882c6981148acc990a64",
       "classification": "adapted",
-      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9; Biome 2 lint and format (#599): import specifier order, formatter output and fixes for findings new in Biome 2 (Object.hasOwn, non-null assertions after optional chains in tests, optional chain, unused catch binding)",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9; Biome 2 lint and format (#599): import specifier order, formatter output and fixes for findings new in Biome 2 (Object.hasOwn, non-null assertions after optional chains in tests, optional chain, unused catch binding); Scales Phase 1 (#2195): two-stage ramp constraints, ResolvedToken.reason propagation, core validateConstraints, excludePrefixes, CheckIssue.code snapshot keying, interface.check leaked guard, changes.impact reason support, import reason hygiene, violet-server docs, and Slice 1 scenario adapter/scenarios",
       "candidate": {
         "path": "packages/afd/src/commands/changes/impact.ts",
         "sha256": "35c265958572877caf93b3ef8e4a44a90d5757da7858983ae7f784fd581104cc",
@@ -2279,12 +2448,25 @@
       }
     },
     {
+      "path": "integrations/violet-afd/src/commands/constraints/scales-phase1.test.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "dfa56792d5d75f6ea865e0748db12be829e2ec9c1f5d08cc006c2f2d43f9eedf",
+      "classification": "afd-authored",
+      "reason": "Scales Phase 1 (#2195): two-stage ramp constraints, ResolvedToken.reason propagation, core validateConstraints, excludePrefixes, CheckIssue.code snapshot keying, interface.check leaked guard, changes.impact reason support, import reason hygiene, violet-server docs, and Slice 1 scenario adapter/scenarios",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
       "path": "integrations/violet-afd/src/commands/constraints/set.ts",
       "upstream_path": "packages/core/src/commands/constraints/set.ts",
       "upstream_sha256": "1bd7744a07927b154ec3797101ca37a391620c71df2b19cc7f4959f69f0e02b9",
-      "current_import_sha256": "f6dae6b11de9c36f3abb706b962374e7ce3c0f0ee4f72badfc4fd666ab28954b",
+      "current_import_sha256": "bd13893d9ad16d56c2b84fb6f01bcd0f2105553101353756de5c685dcfe93e2e",
       "classification": "adapted",
-      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9; Refuses disabledReason on an enabled rule (lushly-dev/afd#1327)",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9; Refuses disabledReason on an enabled rule (lushly-dev/afd#1327); Scales Phase 1 (#2195): two-stage ramp constraints, ResolvedToken.reason propagation, core validateConstraints, excludePrefixes, CheckIssue.code snapshot keying, interface.check leaked guard, changes.impact reason support, import reason hygiene, violet-server docs, and Slice 1 scenario adapter/scenarios",
       "candidate": {
         "path": "packages/afd/src/commands/constraints/set.ts",
         "sha256": "1bd7744a07927b154ec3797101ca37a391620c71df2b19cc7f4959f69f0e02b9",
@@ -2295,9 +2477,9 @@
       "path": "integrations/violet-afd/src/commands/constraints/validate.ts",
       "upstream_path": "packages/core/src/commands/constraints/validate.ts",
       "upstream_sha256": "f4dc0cbcd93231ac817638b35d4050fcf1379bd6e43ab0729d7d01f4e527768f",
-      "current_import_sha256": "4ac18febc4a5b981eb059fef80a3ac4303ceb9b96d291c6b739043c4b55d0a38",
+      "current_import_sha256": "befb7d9bdb06b3b41ffb6d9ec5366b0442baa2886863cdc82c311114fa5e4839",
       "classification": "adapted",
-      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9; Lists disabled rules with their reasons (lushly-dev/afd#1327)",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9; Lists disabled rules with their reasons (lushly-dev/afd#1327); Scales Phase 1 (#2195): two-stage ramp constraints, ResolvedToken.reason propagation, core validateConstraints, excludePrefixes, CheckIssue.code snapshot keying, interface.check leaked guard, changes.impact reason support, import reason hygiene, violet-server docs, and Slice 1 scenario adapter/scenarios",
       "candidate": {
         "path": "packages/afd/src/commands/constraints/validate.ts",
         "sha256": "f4dc0cbcd93231ac817638b35d4050fcf1379bd6e43ab0729d7d01f4e527768f",
@@ -2399,9 +2581,9 @@
       "path": "integrations/violet-afd/src/commands/export/export.ts",
       "upstream_path": "packages/core/src/commands/export/export.ts",
       "upstream_sha256": "76f5ed7ec593ddd38e36b1cfd72d742be67aefde1fd271fd109f777fc359b1d6",
-      "current_import_sha256": "e5dcfcd7f0916e4d35b2dfcfca26513f90cdacb600ce89a9e2037f35827a4da5",
+      "current_import_sha256": "267594691f4fd0f68da2333d999cc9b799b320922c793e9c2eb2c8c61d236ba7",
       "classification": "adapted",
-      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9; Biome 2 lint and format (#599): import specifier order, formatter output and fixes for findings new in Biome 2 (Object.hasOwn, non-null assertions after optional chains in tests, optional chain, unused catch binding); Refuses CSS and SCSS exports of unsafe values (lushly-dev/afd#1325)",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9; Biome 2 lint and format (#599): import specifier order, formatter output and fixes for findings new in Biome 2 (Object.hasOwn, non-null assertions after optional chains in tests, optional chain, unused catch binding); Refuses CSS and SCSS exports of unsafe values (lushly-dev/afd#1325); Scales Phase 1 (#2195): two-stage ramp constraints, ResolvedToken.reason propagation, core validateConstraints, excludePrefixes, CheckIssue.code snapshot keying, interface.check leaked guard, changes.impact reason support, import reason hygiene, violet-server docs, and Slice 1 scenario adapter/scenarios",
       "candidate": {
         "path": "packages/afd/src/commands/export/export.ts",
         "sha256": "6f0e58c1ad155f302effb3bc3954403646f8fe75a27dc6b9a9b9e398f0f1bcf5",
@@ -2451,9 +2633,9 @@
       "path": "integrations/violet-afd/src/commands/import/flatten.ts",
       "upstream_path": "packages/core/src/commands/import/flatten.ts",
       "upstream_sha256": "30264a7fe646c5b305dad2636c4b19c82b8e9553adac3e7a1d48679cb327d300",
-      "current_import_sha256": "11c43e3d8692992e3be34a4e271ce129bfedec3de992937aad589c65b85dd143",
+      "current_import_sha256": "b78436b8ae2c7fc77ec37d5ac6cedd5bc7a49a4fb33ad73952597e0bd2813a68",
       "classification": "adapted",
-      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9; Exports dtcgTypeToCategory for export.tree (lushly-dev/afd#1322); Use null-prototype object for untiered keys so top-level __proto__ reaches validateTokenId under tiers: true (#1957); Read optional token-level $extensions[\"dev.lushly.violet\"].category so non-derivable categories survive DTCG round-trip (#1974)",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9; Exports dtcgTypeToCategory for export.tree (lushly-dev/afd#1322); Use null-prototype object for untiered keys so top-level __proto__ reaches validateTokenId under tiers: true (#1957); Read optional token-level $extensions[\"dev.lushly.violet\"].category so non-derivable categories survive DTCG round-trip (#1974); Scales Phase 1 (#2195): two-stage ramp constraints, ResolvedToken.reason propagation, core validateConstraints, excludePrefixes, CheckIssue.code snapshot keying, interface.check leaked guard, changes.impact reason support, import reason hygiene, violet-server docs, and Slice 1 scenario adapter/scenarios",
       "candidate": {
         "path": "packages/afd/src/commands/import/flatten.ts",
         "sha256": "30264a7fe646c5b305dad2636c4b19c82b8e9553adac3e7a1d48679cb327d300",
@@ -2490,9 +2672,9 @@
       "path": "integrations/violet-afd/src/commands/import/json.ts",
       "upstream_path": "packages/core/src/commands/import/json.ts",
       "upstream_sha256": "089458b3352492e997cebeeba00593c97838d3e774e8e7da6564eed7b0b3afaf",
-      "current_import_sha256": "78e2f203c8dd3a0d0e5ea1559d74c3994c2b6e4d5d7c2c74ebb087e85e4bd70c",
+      "current_import_sha256": "72904fe23e0c834ddabbfe1f0c784e6576037263c798523c0f73eb645c43b80f",
       "classification": "adapted",
-      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9; Biome 2 lint and format (#599): import specifier order, formatter output and fixes for findings new in Biome 2 (Object.hasOwn, non-null assertions after optional chains in tests, optional chain, unused catch binding); Refuses unsafe values before writing (lushly-dev/afd#1325); takes its clock from the context (lushly-dev/afd#1324); Refuse files with unsafe token ids before writing (#1957) and use db.appendOperation (#1958); Refuse files with unsafe token ids before writing (#1957), use db.appendOperation and fail closed if adapter lacks it (#1958)",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9; Biome 2 lint and format (#599): import specifier order, formatter output and fixes for findings new in Biome 2 (Object.hasOwn, non-null assertions after optional chains in tests, optional chain, unused catch binding); Refuses unsafe values before writing (lushly-dev/afd#1325); takes its clock from the context (lushly-dev/afd#1324); Refuse files with unsafe token ids before writing (#1957) and use db.appendOperation (#1958); Refuse files with unsafe token ids before writing (#1957), use db.appendOperation and fail closed if adapter lacks it (#1958); Scales Phase 1 (#2195): two-stage ramp constraints, ResolvedToken.reason propagation, core validateConstraints, excludePrefixes, CheckIssue.code snapshot keying, interface.check leaked guard, changes.impact reason support, import reason hygiene, violet-server docs, and Slice 1 scenario adapter/scenarios",
       "candidate": {
         "path": "packages/afd/src/commands/import/json.ts",
         "sha256": "089458b3352492e997cebeeba00593c97838d3e774e8e7da6564eed7b0b3afaf",
@@ -3283,9 +3465,9 @@
       "path": "integrations/violet-afd/src/commands/token/resolve.ts",
       "upstream_path": "packages/core/src/commands/token/resolve.ts",
       "upstream_sha256": "6a31c6bbe91dfac887e4f9d331e4855ae103fcab18ecc791e122ffc5a3e3f290",
-      "current_import_sha256": "7f47effaff1ba09cd27c65891ba9b562a7fb70ea322176af916f4d2f5e3fb5d0",
+      "current_import_sha256": "e0077ec6e79e12b69b2dc7b288277d2aa5f6bf0b0f22c8d2940dd1a322abcacb",
       "classification": "adapted",
-      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9; Biome 2 lint and format (#599): import specifier order, formatter output and fixes for findings new in Biome 2 (Object.hasOwn, non-null assertions after optional chains in tests, optional chain, unused catch binding)",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9; Biome 2 lint and format (#599): import specifier order, formatter output and fixes for findings new in Biome 2 (Object.hasOwn, non-null assertions after optional chains in tests, optional chain, unused catch binding); Scales Phase 1 (#2195): two-stage ramp constraints, ResolvedToken.reason propagation, core validateConstraints, excludePrefixes, CheckIssue.code snapshot keying, interface.check leaked guard, changes.impact reason support, import reason hygiene, violet-server docs, and Slice 1 scenario adapter/scenarios",
       "candidate": {
         "path": "packages/afd/src/commands/token/resolve.ts",
         "sha256": "c031b203ddf7ec51af16aff45219860217d6305c046e0109f96a454fb721726c",
@@ -3946,9 +4128,9 @@
       "path": "integrations/violet-afd/vitest.config.ts",
       "upstream_path": "packages/core/vitest.config.ts",
       "upstream_sha256": "dd17e43e9613b203957535775e66cfe079fe12d5bc145931987d8e813d8034bd",
-      "current_import_sha256": "e98cae0a9f5974f4147fefd9c868c84c63bad58929472c22c0df216dd8db128d",
+      "current_import_sha256": "59aef64c0d1c7c69d3714e13756387f9f2a2717de9b830e6a2114e57a7883740",
       "classification": "adapted",
-      "reason": "Registers src/db/neon-local.test-support.ts as a setup file, so the Neon leg can run the real driver against local Postgres",
+      "reason": "Registers src/db/neon-local.test-support.ts as a setup file, so the Neon leg can run the real driver against local Postgres; Scales Phase 1 (#2195): two-stage ramp constraints, ResolvedToken.reason propagation, core validateConstraints, excludePrefixes, CheckIssue.code snapshot keying, interface.check leaked guard, changes.impact reason support, import reason hygiene, violet-server docs, and Slice 1 scenario adapter/scenarios",
       "candidate": {
         "path": "packages/afd/vitest.config.ts",
         "sha256": "dd17e43e9613b203957535775e66cfe079fe12d5bc145931987d8e813d8034bd",

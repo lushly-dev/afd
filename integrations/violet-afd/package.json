@@ -50,7 +50,7 @@
 	"scripts": {
 		"build": "tsc",
 		"dev": "tsc --watch",
-		"lint": "biome check src/",
+		"lint": "biome check src/ scenarios/",
 		"test": "vitest run --config vitest.unit.config.ts",
 		"test:db": "vitest run",
 		"test:watch": "vitest",
@@ -69,6 +69,7 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.6.8",
+		"@lushly-dev/afd-testing": "workspace:^",
 		"@lushly-dev/violet-core": "workspace:^",
 		"@types/better-sqlite3": "^9.6.0",
 		"@types/node": "^26.6.6",

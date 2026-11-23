@@ -6,6 +6,8 @@
  * message and suggestion those commands report.
  */
 
+import { buildRampRepeatGroups } from './constraints/ramp.js';
+import { validateConstraintForToken } from './constraints/validators.js';
 import {
 	InheritanceResolutionError,
 	type ResolveOptions,
@@ -15,6 +17,12 @@ import { initializeExport } from './export/index.js';
 import { transformerRegistry } from './export/registry.js';
 import type { TransformOptions } from './export/transformer.js';
 import type { Database } from './storage.js';
+import type {
+	ConstraintViolation,
+	ConstraintWithSource,
+	TokenValidationResult,
+	ValidationSummary,
+} from './types/constraint.js';
 import { type ErrorCode, ErrorCodes } from './types/error-codes.js';
 import type { ResolvedToken } from './types/token.js';
 import { matchesGlob } from './utils/glob.js';
@@ -49,6 +57,8 @@ export type ExportFormat = (typeof EXPORT_FORMATS)[number];
 export interface ResolveTokensOptions {
 	/** Glob over token ids, like "color.*" */
 	filter?: string;
+	/** Omit tokens whose id starts with any of these prefixes (e.g. ["ref."]), after full resolution */
+	excludePrefixes?: string[];
 	/** Keep inheritance chains and operation history on each token */
 	includeLineage?: boolean;
 	/** A cache shared by several resolutions of one unchanged store */
@@ -111,10 +121,15 @@ export async function resolveTokens(
 		'resolve',
 	);
 	const filter = options.filter;
+	const excludePrefixes = options.excludePrefixes;
+	let selected = filter ? tokens.filter((token) => matchesGlob(token.id, filter)) : tokens;
+	if (excludePrefixes && excludePrefixes.length > 0) {
+		selected = selected.filter((token) => !hasExcludedPrefix(token.id, excludePrefixes));
+	}
 	return {
 		nodeId,
 		ancestryChain,
-		tokens: filter ? tokens.filter((token) => matchesGlob(token.id, filter)) : tokens,
+		tokens: selected,
 	};
 }
 
@@ -123,6 +138,8 @@ export interface ExportTokensOptions extends Omit<TransformOptions, 'filter'> {
 	format: string;
 	/** Glob over token ids, like "color.*" */
 	filter?: string;
+	/** Omit tokens whose id starts with any of these prefixes (e.g. ["ref."]), after full resolution */
+	excludePrefixes?: string[];
 }
 
 export interface TokenExport {
@@ -151,7 +168,7 @@ export async function exportTokens(
 	nodeId: string,
 	options: ExportTokensOptions,
 ): Promise<TokenExport> {
-	const { format, filter, ...rest } = options;
+	const { format, filter, excludePrefixes, ...rest } = options;
 	const transform: TransformOptions = { ...EXPORT_DEFAULTS, ...dropUndefined(rest) };
 	if (!(await db.getNode(nodeId)))
 		throw new TokenDomainError(
@@ -177,7 +194,10 @@ export async function exportTokens(
 			`outputReferences is only supported for css exports, not ${format}`,
 			'Drop outputReferences to export resolved values',
 		);
-	const selected = filter ? tokens.filter((token) => matchesGlob(token.id, filter)) : tokens;
+	let selected = filter ? tokens.filter((token) => matchesGlob(token.id, filter)) : tokens;
+	if (excludePrefixes && excludePrefixes.length > 0) {
+		selected = selected.filter((token) => !hasExcludedPrefix(token.id, excludePrefixes));
+	}
 	const broken = selected.find((token) => token.referenceError);
 	if (broken?.referenceError) {
 		const { code, message } = broken.referenceError;
@@ -203,6 +223,135 @@ export async function exportTokens(
 		);
 	}
 	return { format, content, tokenCount: selected.length, nodeId };
+}
+
+export interface ValidateConstraintsOptions {
+	/** Glob over token ids, like "color.*" */
+	filter?: string;
+	/** Omit passing tokens (`violations: []`) from `results` (default: false) */
+	onlyViolating?: boolean;
+	/** A cache shared by several validations of one unchanged store */
+	cache?: ResolveOptions['cache'];
+}
+
+export interface DisabledConstraintSummary {
+	constraintId: string;
+	name: string;
+	source: string;
+	reason?: string;
+}
+
+export interface ConstraintValidationReport {
+	nodeId: string;
+	valid: boolean;
+	results: TokenValidationResult[];
+	summary: ValidationSummary;
+	disabled: DisabledConstraintSummary[];
+}
+
+/**
+ * Validate a node's resolved tokens against every enabled constraint inherited
+ * from its ancestry chain and defined on the node itself.
+ */
+export async function validateConstraints(
+	db: Database,
+	nodeId: string,
+	options: ValidateConstraintsOptions = {},
+): Promise<ConstraintValidationReport> {
+	const { ancestryChain, tokens: allTokens } = await resolveTokens(db, nodeId, {
+		cache: options.cache,
+	});
+	const tokenMap = new Map<string, ResolvedToken>(allTokens.map((token) => [token.id, token]));
+
+	const enabled: ConstraintWithSource[] = [];
+	const disabled: ConstraintWithSource[] = [];
+	for (const source of [...ancestryChain, nodeId]) {
+		for (const constraint of await db.getConstraints(source)) {
+			(constraint.enabled ? enabled : disabled).push({ ...constraint, source });
+		}
+	}
+
+	const checkedTokens = options.filter
+		? allTokens.filter((token) => matchesGlob(token.id, options.filter as string))
+		: allTokens;
+
+	// Precompute ramp repeat clusters once per ramp constraint across the full node (O(n))
+	const repeatGroupsByConstraint = new Map<ConstraintWithSource, Map<string, string[]>>();
+	for (const constraint of enabled) {
+		if (constraint.config.type === 'ramp') {
+			repeatGroupsByConstraint.set(constraint, buildRampRepeatGroups(constraint.applyTo, tokenMap));
+		}
+	}
+
+	const results: TokenValidationResult[] = [];
+	const counts = { validTokens: 0, errors: 0, warnings: 0, infos: 0 };
+
+	for (const token of checkedTokens) {
+		const violations: ConstraintViolation[] = [];
+		for (const constraint of enabled) {
+			violations.push(
+				...validateConstraintForToken(
+					token,
+					constraint,
+					tokenMap,
+					repeatGroupsByConstraint.get(constraint),
+				),
+			);
+		}
+
+		tallyViolations(violations, counts);
+
+		const valid = violations.every((violation) => violation.severity !== 'error');
+		if (valid) {
+			counts.validTokens++;
+		}
+
+		if (!options.onlyViolating || violations.length > 0) {
+			results.push({
+				tokenId: token.id,
+				value: token.resolvedValue,
+				valid,
+				violations,
+			});
+		}
+	}
+
+	return {
+		nodeId,
+		valid: counts.errors === 0,
+		results,
+		summary: {
+			totalTokens: checkedTokens.length,
+			validTokens: counts.validTokens,
+			errors: counts.errors,
+			warnings: counts.warnings,
+			infos: counts.infos,
+		},
+		disabled: disabled.map((constraint) => ({
+			constraintId: constraint.id,
+			name: constraint.name,
+			source: constraint.source,
+			...(constraint.disabledReason ? { reason: constraint.disabledReason } : {}),
+		})),
+	};
+}
+
+function tallyViolations(
+	violations: readonly ConstraintViolation[],
+	counts: { errors: number; warnings: number; infos: number },
+): void {
+	for (const violation of violations) {
+		if (violation.severity === 'error') counts.errors++;
+		else if (violation.severity === 'warning') counts.warnings++;
+		else counts.infos++;
+	}
+}
+
+function hasExcludedPrefix(
+	tokenId: string,
+	excludePrefixes: readonly string[] | undefined,
+): boolean {
+	return Boolean(excludePrefixes?.some((prefix) => tokenId.startsWith(prefix)));
 }
 
 function dropUndefined<T extends object>(value: T): Partial<T> {

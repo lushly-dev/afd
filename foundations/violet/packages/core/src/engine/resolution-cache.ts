@@ -17,6 +17,7 @@ export interface TokenStateEntry {
 	value: TokenValue;
 	metadata: TokenMetadata;
 	resolvedAt: string;
+	reason?: string;
 	history: Array<{
 		nodeId: string;
 		operation: string;

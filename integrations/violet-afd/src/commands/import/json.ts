@@ -219,7 +219,7 @@ export const importJsonCommand: CommandDefinition<typeof InputSchema, Output> = 
 					metadata: opType === 'add' && token.metadata ? JSON.stringify(token.metadata) : null,
 					createdAt: contextNow(context),
 					author: context.actor || 'import',
-					reason: 'Imported from JSON',
+					reason: token.reason ?? null,
 					fromNode: null,
 					asTokenId: null,
 					toAncestor: null,

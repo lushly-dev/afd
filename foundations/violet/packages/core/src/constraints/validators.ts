@@ -5,17 +5,22 @@
  */
 
 import type {
+	Constraint,
 	ConstraintConfig,
+	ConstraintSeverity,
 	ConstraintViolation,
 	ContrastConfig,
 	EnumConfig,
 	PatternConfig,
+	RampConfig,
 	RangeConfig,
 	ReferenceConfig,
 	ScaleConfig,
 } from '../types/constraint.js';
+import type { TokenReferenceError } from '../types/token.js';
 import { matchesGlob } from '../utils/glob.js';
 import { checkPattern } from './pattern-safety.js';
+import { ADVISORY_VIOLATION_CODES, evaluateRampConstraint } from './ramp.js';
 
 // =============================================================================
 // Minimal token type for validation context
@@ -24,6 +29,9 @@ import { checkPattern } from './pattern-safety.js';
 export interface ValidatorToken {
 	id: string;
 	resolvedValue: string | number;
+	aliasOf?: string;
+	referenceError?: TokenReferenceError;
+	reason?: string;
 }
 
 // =============================================================================
@@ -31,8 +39,16 @@ export interface ValidatorToken {
 // =============================================================================
 
 export interface ValidatorContext {
-	/** All resolved tokens (for reference/contrast validators) */
+	/** All resolved tokens (for reference/contrast/ramp validators) */
 	allTokens: Map<string, ValidatorToken>;
+	/** The token currently being validated (used by pattern.target: 'id' and ramp) */
+	token?: ValidatorToken;
+	/** The constraint's applyTo glob (used by ramp repeat clustering & pairWith) */
+	applyTo?: string;
+	/** The constraint's configured severity */
+	severity?: ConstraintSeverity;
+	/** Optional precomputed normalized off-ramp literal groups for O(n) ramp repeat checks */
+	rampRepeatGroups?: Map<string, string[]>;
 }
 
 export interface Validator<T extends ConstraintConfig = ConstraintConfig> {
@@ -41,7 +57,7 @@ export interface Validator<T extends ConstraintConfig = ConstraintConfig> {
 
 	/**
 	 * Validate a token value against the constraint config
-	 * @returns null if valid, or a violation object if invalid
+	 * @returns null if valid, or the first violation object if invalid
 	 */
 	validate(
 		value: unknown,
@@ -50,6 +66,18 @@ export interface Validator<T extends ConstraintConfig = ConstraintConfig> {
 		constraintName: string,
 		context: ValidatorContext,
 	): ConstraintViolation | null;
+
+	/**
+	 * Optional multi-violation entry point returning every violation emitted by this constraint.
+	 * Validators that omit it produce 0 or 1 violations via `validate()`.
+	 */
+	validateAll?(
+		value: unknown,
+		config: T,
+		constraintId: string,
+		constraintName: string,
+		context: ValidatorContext,
+	): ConstraintViolation[];
 }
 
 // =============================================================================
@@ -132,8 +160,9 @@ export const rangeValidator: Validator<RangeConfig> = {
 export const patternValidator: Validator<PatternConfig> = {
 	type: 'pattern',
 
-	validate(value, config, constraintId, constraintName) {
-		const strValue = String(value);
+	validate(value, config, constraintId, constraintName, context) {
+		const isIdTarget = (config.target ?? 'value') === 'id';
+		const strValue = isIdTarget ? (context.token?.id ?? String(value)) : String(value);
 
 		// Patterns are user supplied: compile through the safety check so invalid or
 		// catastrophic patterns (including ones stored before constraints.set validated
@@ -155,7 +184,9 @@ export const patternValidator: Validator<PatternConfig> = {
 				constraintId,
 				constraintName,
 				severity: 'error',
-				message: `Value must match pattern: ${config.pattern}`,
+				message: isIdTarget
+					? `Token ID must match pattern: ${config.pattern}`
+					: `Value must match pattern: ${config.pattern}`,
 				expected: config.pattern,
 				actual: strValue,
 			};
@@ -321,6 +352,38 @@ export const referenceValidator: Validator<ReferenceConfig> = {
 };
 
 // =============================================================================
+// Ramp Validator
+// =============================================================================
+
+export const rampValidator: Validator<RampConfig> = {
+	type: 'ramp',
+
+	validateAll(value, config, constraintId, constraintName, context) {
+		const token: ValidatorToken = context.token ?? {
+			id: '',
+			resolvedValue: typeof value === 'number' ? value : String(value),
+		};
+		return evaluateRampConstraint(
+			token,
+			{
+				id: constraintId,
+				name: constraintName,
+				applyTo: context.applyTo ?? '*',
+				severity: context.severity ?? 'error',
+				enabled: true,
+				config,
+			},
+			context.allTokens,
+			context.rampRepeatGroups,
+		);
+	},
+
+	validate(value, config, constraintId, constraintName, context) {
+		return this.validateAll?.(value, config, constraintId, constraintName, context)[0] ?? null;
+	},
+};
+
+// =============================================================================
 // Validator Registry
 // =============================================================================
 
@@ -332,10 +395,94 @@ const validators = new Map<string, Validator<any>>([
 	['scale', scaleValidator],
 	['contrast', contrastValidator],
 	['reference', referenceValidator],
+	['ramp', rampValidator],
 ]);
 
 export function getValidator(type: string): Validator | undefined {
 	return validators.get(type);
+}
+
+/**
+ * Evaluate a constraint config through the validator registry and return every violation.
+ */
+export function validateValues(
+	value: unknown,
+	config: ConstraintConfig,
+	constraintId: string,
+	constraintName: string,
+	context: ValidatorContext,
+): ConstraintViolation[] {
+	const validator = getValidator(config.type);
+
+	if (!validator) {
+		return [
+			{
+				constraintId,
+				constraintName,
+				severity: 'warning',
+				message: `Unknown constraint type: ${config.type}`,
+			},
+		];
+	}
+
+	if (validator.validateAll) {
+		return validator.validateAll(
+			value,
+			config as Parameters<typeof validator.validate>[1],
+			constraintId,
+			constraintName,
+			context,
+		);
+	}
+
+	const single = validator.validate(
+		value,
+		config as Parameters<typeof validator.validate>[1],
+		constraintId,
+		constraintName,
+		context,
+	);
+	return single ? [single] : [];
+}
+
+/**
+ * Evaluate one constraint against a token through the validator registry, returning all violations.
+ *
+ * Advisory sub-checks (such as `ramp:repeat`) keep `severity: 'warning'`
+ * instead of being overwritten by `constraint.severity`.
+ */
+export function validateConstraintForToken(
+	token: ValidatorToken,
+	constraint: Constraint,
+	allTokens: Map<string, ValidatorToken>,
+	rampRepeatGroups?: Map<string, string[]>,
+): ConstraintViolation[] {
+	if (constraint.config.type !== 'ramp' && !matchesPattern(token.id, constraint.applyTo)) {
+		return [];
+	}
+
+	const rawViolations = validateValues(
+		token.resolvedValue,
+		constraint.config,
+		constraint.id,
+		constraint.name,
+		{
+			allTokens,
+			token,
+			applyTo: constraint.applyTo,
+			severity: constraint.severity,
+			rampRepeatGroups,
+		},
+	);
+
+	return rawViolations.map((violation) => {
+		const preserveAdvisory =
+			violation.code !== undefined && ADVISORY_VIOLATION_CODES.has(violation.code);
+		return {
+			...violation,
+			severity: preserveAdvisory ? violation.severity : constraint.severity,
+		};
+	});
 }
 
 export function validateValue(
@@ -345,24 +492,7 @@ export function validateValue(
 	constraintName: string,
 	context: ValidatorContext,
 ): ConstraintViolation | null {
-	const validator = getValidator(config.type);
-
-	if (!validator) {
-		return {
-			constraintId,
-			constraintName,
-			severity: 'warning',
-			message: `Unknown constraint type: ${config.type}`,
-		};
-	}
-
-	return validator.validate(
-		value,
-		config as Parameters<typeof validator.validate>[1],
-		constraintId,
-		constraintName,
-		context,
-	);
+	return validateValues(value, config, constraintId, constraintName, context)[0] ?? null;
 }
 
 // =============================================================================

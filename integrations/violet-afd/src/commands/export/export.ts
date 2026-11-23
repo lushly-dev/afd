@@ -28,6 +28,7 @@ const InputSchema = z.object({
 	]),
 	output: z.string().optional(), // File path (not used in handler, for CLI)
 	filter: z.string().optional(), // Glob pattern
+	excludePrefixes: z.array(z.string().min(1)).optional(), // Omit tokens starting with any prefix (e.g. ["ref."])
 	prefix: z.string().optional(), // Variable prefix
 	selector: z.string().optional(), // CSS selector (default: :root)
 	pretty: z.boolean().default(true),
@@ -127,12 +128,17 @@ export const exportCommand: CommandDefinition<typeof InputSchema, Output> = {
 			});
 		}
 
-		// Apply filter if provided. References were already followed against the
-		// whole node, so a filtered token can still point at one left out.
+		// Apply filter and excludePrefixes. References were already followed against the
+		// whole node, so a kept token can still point at an excluded one (cssTransformer
+		// emits the resolved literal when an alias target is excluded).
 		let filteredTokens = tokens;
 		if (input.filter) {
 			const filter = input.filter;
-			filteredTokens = tokens.filter((t) => matchesGlob(t.id, filter));
+			filteredTokens = filteredTokens.filter((t) => matchesGlob(t.id, filter));
+		}
+		if (input.excludePrefixes && input.excludePrefixes.length > 0) {
+			const excluded = input.excludePrefixes;
+			filteredTokens = filteredTokens.filter((t) => !excluded.some((p) => t.id.startsWith(p)));
 		}
 
 		// Exports never emit unresolved aliases: fail on the first broken reference.
