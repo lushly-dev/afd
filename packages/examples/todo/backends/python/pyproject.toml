@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "afd-example-todo-python"
 version = "1.0.0"
 description = "Todo example - Python backend implementing AFD patterns"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     # The server extra brings in the MCP SDK's MCPServer, which serves the stdio transport.
     "afd[server]",
@@ -41,7 +41,7 @@ asyncio_default_fixture_loop_scope = "function"
 # The repository's rules (python/pyproject.toml). CI runs `uv run --locked ruff check src tests`.
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM"]

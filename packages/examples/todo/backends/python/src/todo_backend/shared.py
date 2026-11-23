@@ -8,7 +8,7 @@ from __future__ import annotations
 import math
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from afd import CommandResult, ExposeOptions, error
@@ -17,7 +17,7 @@ from afd.core.clock import Clock, RandomSource, system_clock, system_random
 # AFD commands are private to MCP clients by default: each one opts in.
 MCP = ExposeOptions(mcp=True)
 
-_EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
+_EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 _BASE36 = "0123456789abcdefghijklmnopqrstuvwxyz"
 
 

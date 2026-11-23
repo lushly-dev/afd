@@ -155,7 +155,7 @@ export const SUITES = [
 	{
 		workflow: 'python.yml',
 		tools: ['uv'],
-		remote: 'Python 3.10 and 3.11, and the wheel install smoke test per extra',
+		remote: 'Python 3.11 to 3.14, and the wheel install smoke test per extra',
 		steps: [
 			{ cwd: 'python', run: 'uv lock --check' },
 			{ cwd: 'python', run: 'uv sync --frozen --all-extras' },

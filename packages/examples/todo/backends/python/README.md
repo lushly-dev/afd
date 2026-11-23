@@ -12,7 +12,7 @@ the shared conformance suite in [`spec/`](../../spec).
 
 ## Quick Start
 
-Requires [uv](https://docs.astral.sh/uv/) and Python 3.10+.
+Requires [uv](https://docs.astral.sh/uv/) and Python 3.11+.
 
 ```bash
 cd packages/examples/todo/backends/python
