@@ -36,6 +36,17 @@ interface Verification {
 	expected: string[];
 }
 
+interface TokenDelivery {
+	description: string;
+	command: string;
+	input: unknown;
+	actor: string | null;
+	interface: CommandContext['interface'] | null;
+	includeToken?: boolean;
+	relay?: 'none' | 'mcp-elicitation';
+	expectedHasToken: boolean;
+}
+
 interface Vectors {
 	secrets: Record<string, string>;
 	now: number;
@@ -44,6 +55,7 @@ interface Vectors {
 	actors: Record<string, Actor>;
 	bindings: Binding[];
 	verify: Verification[];
+	tokenDelivery: TokenDelivery[];
 }
 
 const VECTORS_DIR = new URL('../../../spec/vectors/', import.meta.url);
@@ -55,17 +67,34 @@ const generator = (await import(new URL('generate-approval-tokens.mjs', VECTORS_
 };
 
 /** One middleware, as each case configures it, in front of a handler that reports it ran. */
-function gate(options: { now?: number; secrets?: string[]; replay?: Verification['replay'] } = {}) {
+function gate(
+	options: {
+		now?: number;
+		secrets?: string[];
+		replay?: Verification['replay'];
+		includeToken?: boolean;
+		relay?: TokenDelivery['relay'];
+	} = {}
+) {
 	const middleware = createApprovalMiddleware({
 		secret: (options.secrets ?? ['current']).map((name) => vectors.secrets[name] as string),
 		commands: vectors.commands.map((name) => ({ name, approval: 'required' as const })),
 		clock: fixedClock(options.now ?? vectors.now),
 		...(options.replay && { replay: options.replay }),
+		...(options.includeToken !== undefined && { includeToken: options.includeToken }),
+		...(options.relay && { relay: options.relay }),
 	});
-	return (command: string, input: unknown, actor: string | null, approval?: string) => {
+	return (
+		command: string,
+		input: unknown,
+		actor: string | null,
+		approval?: string,
+		iface?: CommandContext['interface'] | null
+	) => {
 		const context: CommandContext = {
 			...(actor !== null && { actor: vectors.actors[actor] }),
 			...(approval !== undefined && { approval }),
+			...(iface !== undefined && iface !== null && { interface: iface }),
 		};
 		return middleware(command, input, context, async () => ({ success: true, data: 'ran' }));
 	};
@@ -119,5 +148,28 @@ describe('approval token vectors', () => {
 			outcomes.push(outcome(await call(vector.command, vector.input, vector.actor, vector.token)));
 		}
 		expect(outcomes).toEqual(vector.expected);
+	});
+
+	it.each(vectors.tokenDelivery)('token delivery: $description', async (vector) => {
+		const call = gate({
+			...(vector.includeToken !== undefined && { includeToken: vector.includeToken }),
+			...(vector.relay && { relay: vector.relay }),
+		});
+		const result = await call(
+			vector.command,
+			vector.input,
+			vector.actor,
+			undefined,
+			vector.interface
+		);
+		expect(result.success).toBe(false);
+		expect(result.error?.code).toBe('APPROVAL_REQUIRED');
+		const details = result.error?.details as Record<string, unknown> | undefined;
+		expect(details).toBeDefined();
+		if (vector.expectedHasToken) {
+			expect(typeof details?.approvalToken).toBe('string');
+		} else {
+			expect(details).not.toHaveProperty('approvalToken');
+		}
 	});
 });

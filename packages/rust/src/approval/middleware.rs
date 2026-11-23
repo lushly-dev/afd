@@ -85,9 +85,9 @@ pub enum ApprovalRelay {
     /// gated step; a pipeline whose gated step takes its input from an earlier step runs nothing.
     /// Calls that cannot elicit (no form capability, a 2025 request over Streamable HTTP, a
     /// command run by another command's handler) still fail with
-    /// `APPROVAL_REQUIRED`, never with a token on MCP, whatever
-    /// [`ApprovalMiddlewareOptions::with_include_token`] says. A host-verified command is never
-    /// asked this way.
+    /// `APPROVAL_REQUIRED`, without a token on MCP by default (rule 6; call
+    /// [`ApprovalMiddlewareOptions::with_include_token`] with `true` to opt in). A host-verified
+    /// command is never asked this way.
     ///
     /// This trusts the MCP client application to show the question to a person: the server
     /// cannot tell a person's answer from client code that accepts on its own. Leave it off when
@@ -180,7 +180,7 @@ pub struct ApprovalMiddlewareOptions {
     replay: ApprovalReplay,
     nonce_store: Option<Arc<dyn ApprovalNonceStore>>,
     summarize: Option<Summarize>,
-    include_token: bool,
+    include_token: Option<bool>,
     on_approval_required: Option<OnApprovalRequired>,
     clock: Option<Arc<dyn Clock>>,
     relay: ApprovalRelay,
@@ -217,7 +217,7 @@ impl ApprovalMiddlewareOptions {
             replay: ApprovalReplay::default(),
             nonce_store: None,
             summarize: None,
-            include_token: true,
+            include_token: None,
             on_approval_required: None,
             clock: None,
             relay: ApprovalRelay::Off,
@@ -269,12 +269,17 @@ impl ApprovalMiddlewareOptions {
         self
     }
 
-    /// Whether the `APPROVAL_REQUIRED` result carries `details.approvalToken`. Default: `true`,
-    /// which is safe only while the gated caller cannot set [`CommandContext::approval`] itself
-    /// (true of MCP tool calls, whose arguments never reach the context). Set `false` when the
-    /// caller must not hold the token, and deliver it through `on_approval_required`.
+    /// Whether the `APPROVAL_REQUIRED` result carries `details.approvalToken`.
+    ///
+    /// When unset (the default), follows `spec/command-metadata.md`, "Approvals", rule 6:
+    /// omitted on calls whose [`CommandContext::interface`] is
+    /// [`CommandInterface::Mcp`](crate::CommandInterface::Mcp) (so non-approver MCP callers do
+    /// not receive the token) and included elsewhere. A server-named approver always receives its
+    /// token, and a `DirectClient` private exchange never does. Set `true` to opt in on MCP calls,
+    /// or `false` to omit the token on non-MCP calls and deliver it through
+    /// `on_approval_required`.
     pub fn with_include_token(mut self, include_token: bool) -> Self {
-        self.include_token = include_token;
+        self.include_token = Some(include_token);
         self
     }
 
@@ -653,13 +658,11 @@ impl Gate {
                 reason: rejected.map(|reason| reason.as_str().to_owned()),
             });
         }
-        // A server that relays approvals over MCP gives the agent no token on any fallback
-        // ("Asking the human over MCP": such calls fall back to `APPROVAL_REQUIRED` without one).
-        let relays_over_mcp = self.options.relay == ApprovalRelay::McpElicitation
-            && context.interface == Some(crate::CommandInterface::Mcp);
-        // An approver always gets its token; anyone else as the options say.
+        let on_mcp = context.interface == Some(crate::CommandInterface::Mcp);
+        // An approver always gets its token; anyone else as the options say, defaulting to off on
+        // MCP (spec/command-metadata.md, "Approvals", rule 6).
         let include_token = context.direct_approval.is_none()
-            && (approver.is_some() || (self.options.include_token && !relays_over_mcp));
+            && (approver.is_some() || self.options.include_token.unwrap_or(!on_mcp));
         let why = rejected
             .map(|reason| format!("The approval token was not accepted ({reason}). "))
             .unwrap_or_default();

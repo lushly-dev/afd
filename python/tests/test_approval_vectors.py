@@ -42,8 +42,21 @@ def _actor(name: Optional[str]) -> Optional[Actor]:
     )
 
 
-def _gate(now: Optional[int] = None, secrets: Optional[list[str]] = None, replay: Optional[str] = None):
+def _gate(
+    now: Optional[int] = None,
+    secrets: Optional[list[str]] = None,
+    replay: Optional[str] = None,
+    include_token: Optional[bool] = None,
+    relay: Optional[str] = None,
+):
     """One middleware, as a case configures it, in front of a handler that reports it ran."""
+    kwargs: dict[str, Any] = {}
+    if replay:
+        kwargs["replay"] = replay
+    if include_token is not None:
+        kwargs["include_token"] = include_token
+    if relay is not None:
+        kwargs["relay"] = relay
     middleware = create_approval_middleware(
         secret=[VECTORS["secrets"][name] for name in (secrets or ["current"])],
         commands=[
@@ -51,14 +64,21 @@ def _gate(now: Optional[int] = None, secrets: Optional[list[str]] = None, replay
             for name in VECTORS["commands"]
         ],
         clock=fixed_clock(VECTORS["now"] if now is None else now),
-        **({"replay": replay} if replay else {}),
+        **kwargs,
     )
 
-    async def call(command: str, input: Any, actor: Optional[str], token: Optional[str] = None):
+    async def call(
+        command: str,
+        input: Any,
+        actor: Optional[str],
+        token: Optional[str] = None,
+        interface: Optional[str] = None,
+    ):
         async def next_fn():
             return success("ran")
 
-        context = CommandContext(actor=_actor(actor), approval=token)
+        extra = {"interface": interface} if interface is not None else {}
+        context = CommandContext(actor=_actor(actor), approval=token, extra=extra)
         return await middleware(command, input, context, next_fn)
 
     return call
@@ -98,3 +118,22 @@ async def test_verify(vector):
         for _ in vector["expected"]
     ]
     assert outcomes == vector["expected"]
+
+
+@pytest.mark.parametrize("vector", VECTORS["tokenDelivery"], ids=lambda case: case["description"])
+async def test_token_delivery(vector):
+    call = _gate(include_token=vector.get("includeToken"), relay=vector.get("relay"))
+    result = await call(
+        vector["command"],
+        vector["input"],
+        vector["actor"],
+        None,
+        vector.get("interface"),
+    )
+    assert not result.success
+    assert result.error.code == "APPROVAL_REQUIRED"
+    details = result.error.details or {}
+    if vector["expectedHasToken"]:
+        assert isinstance(details.get("approvalToken"), str)
+    else:
+        assert "approvalToken" not in details

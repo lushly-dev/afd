@@ -27,4 +27,5 @@
 #include "afd/schema.hpp"
 #include "afd/similarity.hpp"
 #include "afd/streaming.hpp"
+#include "afd/telemetry.hpp"
 #include "afd/version.hpp"

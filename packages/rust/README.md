@@ -402,7 +402,11 @@ Dropping the call cancels the flow. Raw registry execution remains a trusted hos
 - `approval` (default) - The approval middleware (`create_approval_middleware`): a command whose
   `ApprovalPolicy` holds the call fails with `APPROVAL_REQUIRED` and an HMAC-SHA256 token bound to
   the command, the validated input and the actor, until trusted code retries it with
-  `CommandContext::with_approval(token)` (`spec/command-metadata.md`, "Approvals"). Tokens verify
+  `CommandContext::with_approval(token)` (`spec/command-metadata.md`, "Approvals"). By default
+  (rule 6), `APPROVAL_REQUIRED` leaves `details.approvalToken` out on MCP calls
+  (`CommandInterface::Mcp`) for non-approvers and includes it elsewhere; call
+  `with_include_token(true)` to opt in on MCP calls or `with_include_token(false)` to
+  omit it everywhere. Tokens verify
   across TypeScript and Rust. Policies themselves (`CommandDefinition::with_approval`,
   `_meta.approval`) need no feature, and hold without it: `CommandRegistry::execute` runs a
   command whose policy is neither unset nor `NotRequired` only when an approval step admitted that

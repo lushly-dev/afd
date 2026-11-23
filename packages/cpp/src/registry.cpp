@@ -282,6 +282,30 @@ CommandRegistry::list_by_category(std::string_view category) const {
 }
 
 std::vector<std::shared_ptr<const RegisteredCommand>>
+CommandRegistry::list_by_tags(const std::vector<std::string>& tags, TagMatchMode mode) const {
+    std::vector<std::shared_ptr<const RegisteredCommand>> out;
+    if (tags.empty()) {
+        return out;
+    }
+    for (const auto& command : list()) {
+        const auto& cmd_tags = command->definition.tags;
+        if (cmd_tags.empty()) {
+            continue;
+        }
+        const auto has_tag = [&](const std::string& tag) {
+            return std::find(cmd_tags.begin(), cmd_tags.end(), tag) != cmd_tags.end();
+        };
+        const bool matched = mode == TagMatchMode::all
+                                 ? std::all_of(tags.begin(), tags.end(), has_tag)
+                                 : std::any_of(tags.begin(), tags.end(), has_tag);
+        if (matched) {
+            out.push_back(command);
+        }
+    }
+    return out;
+}
+
+std::vector<std::shared_ptr<const RegisteredCommand>>
 CommandRegistry::list_by_exposure(Interface surface) const {
     std::vector<std::shared_ptr<const RegisteredCommand>> out;
     for (const auto& command : list()) {

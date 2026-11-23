@@ -834,8 +834,8 @@ mod approval_relay {
         assert_eq!(runs.load(Ordering::SeqCst), 0);
     }
 
-    /// With the default options (tokens included), a server that relays approvals over MCP still
-    /// gives the agent no token on a call that cannot be asked.
+    /// With the default options, a server that relays approvals over MCP gives the agent no token
+    /// on a call that cannot be asked (rule 6).
     #[tokio::test]
     async fn fallbacks_carry_no_token_even_when_tokens_are_included() {
         use afd::{

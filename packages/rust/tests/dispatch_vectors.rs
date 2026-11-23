@@ -2,7 +2,7 @@
 //!
 //! Runs every registry case through `CommandRegistry::execute` and, when the `server` feature is
 //! enabled, every MCP case through `McpServer::with_confirmations`. Known Rust gaps declared in
-//! `spec/vectors/dispatch.json`'s `gaps.rust` (`approvalUnavailable`, `stamping`, `hooks`) are
+//! `spec/vectors/dispatch.json`'s `gaps.rust` (`stamping`, `hooks`) are
 //! verified present and skipped until their tracking issues close.
 
 #[cfg(feature = "server")]
@@ -164,10 +164,6 @@ fn build_registry(
 fn rust_gaps_are_documented() {
     let vectors = vectors();
     let gaps = vectors["gaps"]["rust"].as_object().expect("gaps.rust");
-    assert_eq!(
-        gaps.get("approvalUnavailable").and_then(Value::as_str),
-        Some("https://github.com/lushly-dev/afd/issues/1886")
-    );
     assert_eq!(
         gaps.get("stamping").and_then(Value::as_str),
         Some("https://github.com/lushly-dev/afd/issues/546")

@@ -104,7 +104,6 @@ inline constexpr char CONFIRMATION_REQUIRED[] = "CONFIRMATION_REQUIRED";
 inline constexpr char CONFIRMATION_DECLINED[] = "CONFIRMATION_DECLINED";
 // Approvals
 inline constexpr char APPROVAL_REQUIRED[] = "APPROVAL_REQUIRED";
-// Not emitted by C++ yet; the shared catalog lists it
 inline constexpr char APPROVAL_UNAVAILABLE[] = "APPROVAL_UNAVAILABLE";
 // Output budgets
 inline constexpr char OUTPUT_BUDGET_EXCEEDED[] = "OUTPUT_BUDGET_EXCEEDED";

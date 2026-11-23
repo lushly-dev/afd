@@ -3,7 +3,7 @@
 #![cfg(all(feature = "server", feature = "approval"))]
 
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use afd::server::{HttpOptions, McpServer, ToolStrategy};
 use afd::{
@@ -27,8 +27,11 @@ impl CommandHandler for Delete {
     }
 }
 
-fn server() -> (McpServer, Arc<AtomicUsize>) {
+fn server_with_options(
+    configure: impl FnOnce(ApprovalMiddlewareOptions) -> ApprovalMiddlewareOptions,
+) -> (McpServer, Arc<AtomicUsize>, Arc<Mutex<Vec<String>>>) {
     let runs = Arc::new(AtomicUsize::new(0));
+    let issued = Arc::new(Mutex::new(Vec::<String>::new()));
     let registry = CommandRegistry::new();
     let mut delete = CommandDefinition::new(
         "todo-delete",
@@ -40,12 +43,27 @@ fn server() -> (McpServer, Arc<AtomicUsize>) {
     .with_approval(ApprovalPolicy::Required);
     delete.expose.mcp = true;
     registry.register(delete).unwrap();
-    let options = ApprovalMiddlewareOptions::new(SECRET, registry.list());
+    let captured = Arc::clone(&issued);
+    let options = configure(
+        ApprovalMiddlewareOptions::new(SECRET, registry.list()).with_on_approval_required(
+            move |request| {
+                let captured = Arc::clone(&captured);
+                Box::pin(async move {
+                    captured.lock().unwrap().push(request.approval_token);
+                })
+            },
+        ),
+    );
     registry.add_middleware(create_approval_middleware(options).unwrap());
     (
         McpServer::new(Arc::new(registry), "approval", "1.0.0"),
         runs,
+        issued,
     )
+}
+
+fn server() -> (McpServer, Arc<AtomicUsize>, Arc<Mutex<Vec<String>>>) {
+    server_with_options(|options| options)
 }
 
 async fn call(server: &McpServer, arguments: Value, meta: Value) -> Value {
@@ -86,7 +104,7 @@ async fn call_tool(server: &McpServer, name: &str, arguments: Value, meta: Value
 
 #[tokio::test]
 async fn lists_the_policy_in_tool_meta() {
-    let (server, _) = server();
+    let (server, _, _) = server();
     let tools = server
         .clone()
         .with_tool_strategy(ToolStrategy::Individual)
@@ -103,11 +121,28 @@ async fn lists_the_policy_in_tool_meta() {
 }
 
 #[tokio::test]
+async fn mcp_call_omits_approval_token_by_default_and_includes_on_opt_in() {
+    let (default_server, _, issued) = server();
+    let held = call(&default_server, json!({ "id": 1 }), json!({})).await;
+    assert_eq!(held["error"]["code"], "APPROVAL_REQUIRED");
+    // Rule 6: non-approver MCP callers do not get details.approvalToken by default.
+    assert!(held["error"]["details"].get("approvalToken").is_none());
+    assert_eq!(issued.lock().unwrap().len(), 1);
+
+    // Explicit opt-in includes the token on MCP calls.
+    let (opt_in_server, _, _) = server_with_options(|options| options.with_include_token(true));
+    let opted_in = call(&opt_in_server, json!({ "id": 1 }), json!({})).await;
+    assert_eq!(opted_in["error"]["code"], "APPROVAL_REQUIRED");
+    assert!(opted_in["error"]["details"]["approvalToken"].is_string());
+}
+
+#[tokio::test]
 async fn never_takes_approval_from_tool_arguments_or_request_meta() {
-    let (server, runs) = server();
+    let (server, runs, issued) = server();
     let held = call(&server, json!({ "id": 1 }), json!({})).await;
     assert_eq!(held["error"]["code"], "APPROVAL_REQUIRED");
-    let token = held["error"]["details"]["approvalToken"].as_str().unwrap();
+    assert!(held["error"]["details"].get("approvalToken").is_none());
+    let token = issued.lock().unwrap()[0].clone();
 
     let smuggled = [
         (json!({ "id": 1, "approval": token }), json!({})),
@@ -131,7 +166,7 @@ async fn never_takes_approval_from_tool_arguments_or_request_meta() {
 
 #[tokio::test]
 async fn meta_tools_go_through_the_approval_middleware() {
-    let (server, runs) = server();
+    let (server, runs, _) = server();
     let called = call_tool(
         &server,
         "afd-call",
@@ -140,6 +175,7 @@ async fn meta_tools_go_through_the_approval_middleware() {
     )
     .await;
     assert_eq!(called["error"]["code"], "APPROVAL_REQUIRED");
+    assert!(called["error"]["details"].get("approvalToken").is_none());
     let grouped = call_tool(
         &server,
         "todo",
@@ -148,6 +184,7 @@ async fn meta_tools_go_through_the_approval_middleware() {
     )
     .await;
     assert_eq!(grouped["error"]["code"], "APPROVAL_REQUIRED");
+    assert!(grouped["error"]["details"].get("approvalToken").is_none());
     let batch = call_tool(
         &server,
         "afd-batch",
@@ -172,13 +209,13 @@ async fn meta_tools_go_through_the_approval_middleware() {
 
 #[tokio::test]
 async fn a_first_class_tool_and_the_meta_tools_of_a_hybrid_server_hold_for_approval() {
-    let (server, runs) = server();
+    let (server, runs, issued) = server();
     let server = server
         .with_tool_strategy(ToolStrategy::Hybrid)
         .with_first_class_tools(["todo-delete"]);
     let held = call_tool(&server, "todo-delete", json!({ "id": 1 }), json!({})).await;
     assert_eq!(held["error"]["code"], "APPROVAL_REQUIRED");
-    assert!(held["error"]["details"]["approvalToken"].is_string());
+    assert!(held["error"]["details"].get("approvalToken").is_none());
     let called = call_tool(
         &server,
         "afd-call",
@@ -188,7 +225,7 @@ async fn a_first_class_tool_and_the_meta_tools_of_a_hybrid_server_hold_for_appro
     .await;
     assert_eq!(called["error"]["code"], "APPROVAL_REQUIRED");
     // Evidence in the arguments of a first-class tool is no evidence.
-    let token = held["error"]["details"]["approvalToken"].as_str().unwrap();
+    let token = issued.lock().unwrap()[0].clone();
     let smuggled = call_tool(
         &server,
         "todo-delete",

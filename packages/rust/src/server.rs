@@ -462,8 +462,8 @@ impl McpServer {
     ///
     /// When the command also has an approval policy, an approved decision is its approval too:
     /// the approval middleware accepts the relay evidence the server sets, once, and issues no
-    /// token (keep tokens off MCP with
-    /// [`ApprovalMiddlewareOptions::with_include_token(false)`](crate::ApprovalMiddlewareOptions::with_include_token)).
+    /// token (tokens are omitted on MCP by default; see
+    /// [`ApprovalMiddlewareOptions::with_include_token`](crate::ApprovalMiddlewareOptions::with_include_token)).
     pub fn with_human_relay(self, relay: impl HumanRelay + 'static) -> Self {
         let relay: Arc<dyn HumanRelay> = Arc::new(relay);
         self.with(|inner| inner.human_relay = Some(relay))

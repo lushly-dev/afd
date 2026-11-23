@@ -10,8 +10,9 @@ use std::sync::Arc;
 
 use afd::{
     canonical_json, create_approval_middleware, fixed_clock, success, Actor,
-    ApprovalMiddlewareOptions, ApprovalPolicy, ApprovalReplay, CommandContext, CommandDefinition,
-    CommandHandler, CommandMiddleware, CommandResult, MiddlewareNext,
+    ApprovalMiddlewareOptions, ApprovalPolicy, ApprovalRelay, ApprovalReplay, CommandContext,
+    CommandDefinition, CommandHandler, CommandInterface, CommandMiddleware, CommandResult,
+    MiddlewareNext,
 };
 use async_trait::async_trait;
 use serde_json::{json, Value};
@@ -66,6 +67,12 @@ fn gate(vectors: &Value, case: &Value) -> CommandMiddleware {
     if case["replay"] == "within-ttl" {
         options = options.with_replay(ApprovalReplay::WithinTtl);
     }
+    if let Some(include_token) = case.get("includeToken").and_then(Value::as_bool) {
+        options = options.with_include_token(include_token);
+    }
+    if case.get("relay").and_then(Value::as_str) == Some("mcp-elicitation") {
+        options = options.with_relay(ApprovalRelay::McpElicitation);
+    }
     create_approval_middleware(options).unwrap()
 }
 
@@ -76,6 +83,7 @@ async fn call(
     input: &Value,
     actor: &Value,
     token: Option<&str>,
+    interface: Option<&str>,
 ) -> CommandResult<Value> {
     let mut context = CommandContext::new();
     if let Some(name) = actor.as_str() {
@@ -84,6 +92,10 @@ async fn call(
     }
     if let Some(token) = token {
         context = context.with_approval(token);
+    }
+    if let Some(interface) = interface {
+        let iface: CommandInterface = serde_json::from_value(json!(interface)).unwrap();
+        context = context.with_interface(iface);
     }
     let next: MiddlewareNext = Arc::new(|| Box::pin(async { success(json!("ran")) }));
     middleware(
@@ -152,6 +164,7 @@ async fn bindings_canonicalize_issue_and_verify_as_the_vectors_do() {
             &binding["input"],
             &binding["actor"],
             None,
+            None,
         )
         .await;
         let token = held.error.as_ref().unwrap().details.as_ref().unwrap()["approvalToken"]
@@ -179,6 +192,7 @@ async fn bindings_canonicalize_issue_and_verify_as_the_vectors_do() {
             &binding["input"],
             &binding["actor"],
             binding["token"].as_str(),
+            None,
         )
         .await;
         if outcome(&accepted) != "accepted" {
@@ -203,12 +217,52 @@ async fn tokens_verify_as_the_vectors_expect() {
                 &case["input"],
                 &case["actor"],
                 case["token"].as_str(),
+                None,
             )
             .await;
             outcomes.push(Value::from(outcome(&result)));
         }
         if Value::from(outcomes.clone()) != case["expected"] {
             failures.push(format!("{}: {outcomes:?}", case["description"]));
+        }
+    }
+    assert!(failures.is_empty(), "{failures:#?}");
+}
+
+#[tokio::test]
+async fn token_delivery_follows_rule_6_as_the_vectors_expect() {
+    let vectors = load_vectors();
+    let mut failures = Vec::new();
+    for case in vectors["tokenDelivery"].as_array().unwrap() {
+        let middleware = gate(&vectors, case);
+        let result = call(
+            &vectors,
+            &middleware,
+            &case["command"],
+            &case["input"],
+            &case["actor"],
+            None,
+            case["interface"].as_str(),
+        )
+        .await;
+        let error = result.error.as_ref().expect("held call fails");
+        assert_eq!(error.code, "APPROVAL_REQUIRED");
+        let details = error.details.as_ref().expect("held error carries details");
+        let expected = case["expectedHasToken"].as_bool().unwrap();
+        if expected {
+            if !details.get("approvalToken").is_some_and(Value::is_string) {
+                failures.push(format!(
+                    "{}: expected string approvalToken, got {:?}",
+                    case["description"],
+                    details.get("approvalToken")
+                ));
+            }
+        } else if details.contains_key("approvalToken") {
+            failures.push(format!(
+                "{}: expected approvalToken key to be absent, got {:?}",
+                case["description"],
+                details.get("approvalToken")
+            ));
         }
     }
     assert!(failures.is_empty(), "{failures:#?}");
