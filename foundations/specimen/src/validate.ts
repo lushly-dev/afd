@@ -8,6 +8,7 @@ import type {
 	CaptureRequest,
 	CaptureSetRequest,
 	CheckpointsRequest,
+	CompareRequest,
 	ContractRequest,
 	CoverageRequest,
 	ImplementationContexts,
@@ -511,6 +512,25 @@ export function parseCaptureSetRequest(value: unknown): CaptureSetRequest {
 		if (typeof fields.axe !== 'boolean') fail(`${path}.axe`, 'expected a boolean');
 		request.axe = fields.axe;
 	}
+	if (fields.timeoutMs !== undefined)
+		request.timeoutMs = integer(fields.timeoutMs, `${path}.timeoutMs`, 1, 60_000);
+	if (fields.workers !== undefined)
+		request.workers = integer(fields.workers, `${path}.workers`, 1, MAX_SUITE_WORKERS);
+	return request;
+}
+
+export function parseCompareRequest(value: unknown): CompareRequest {
+	const path = 'compare request';
+	const fields = record(value, path, ['ids', 'context', 'checkpoint', 'timeoutMs', 'workers']);
+	if (!Array.isArray(fields.ids) || fields.ids.length < 2 || fields.ids.length > 8)
+		fail(`${path}.ids`, 'expected 2 to 8 specimen ids');
+	const ids = fields.ids.map((item, index) => text(item, `${path}.ids[${index}]`));
+	if (new Set(ids).size !== ids.length) fail(`${path}.ids`, 'variant ids must be unique');
+	const request: CompareRequest = { ids };
+	if (fields.context !== undefined)
+		request.context = parseContext(fields.context, `${path}.context`, true);
+	if (fields.checkpoint !== undefined)
+		request.checkpoint = text(fields.checkpoint, `${path}.checkpoint`);
 	if (fields.timeoutMs !== undefined)
 		request.timeoutMs = integer(fields.timeoutMs, `${path}.timeoutMs`, 1, 60_000);
 	if (fields.workers !== undefined)

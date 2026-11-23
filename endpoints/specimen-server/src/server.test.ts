@@ -60,7 +60,7 @@ describe('Specimen MCP endpoint', () => {
 		try {
 			const definitions = createSpecimenCommands(bench).filter((command) => command.expose?.mcp);
 			const { tools } = await client.listTools();
-			expect(tools).toHaveLength(20);
+			expect(tools).toHaveLength(21);
 			expect(tools).toEqual(
 				definitions.map((command) => ({
 					name: command.name,
@@ -70,6 +70,10 @@ describe('Specimen MCP endpoint', () => {
 				}))
 			);
 			expect(tools.find((tool) => tool.name === 'specimen-capture')?.annotations).toEqual({
+				readOnlyHint: false,
+				destructiveHint: false,
+			});
+			expect(tools.find((tool) => tool.name === 'specimen-compare')?.annotations).toEqual({
 				readOnlyHint: false,
 				destructiveHint: false,
 			});
@@ -133,6 +137,21 @@ describe('Specimen MCP endpoint', () => {
 			error: {
 				code: 'CAPTURE_SET_NOT_FOUND',
 				suggestion: expect.stringContaining('specimen-capture'),
+			},
+		});
+		const unknownCompare = await client.callTool({
+			name: 'specimen-compare',
+			arguments: {
+				ids: ['cheap', 'cheep'],
+			},
+		});
+		expect(unknownCompare.isError).toBe(true);
+		expect(envelope(unknownCompare as CallToolResult)).toMatchObject({
+			success: false,
+			error: {
+				code: 'SPECIMEN_NOT_FOUND',
+				message: expect.stringContaining('cheep'),
+				suggestion: expect.stringContaining('cheap'),
 			},
 		});
 	});

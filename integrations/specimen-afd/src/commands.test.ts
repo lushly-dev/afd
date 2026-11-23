@@ -6,6 +6,7 @@ import {
 	diffCaptures,
 	diffObservations,
 	runCaptureSet,
+	runCompare,
 } from '@lushly-dev/specimen';
 import type { Observation, SpecimenEntry } from '@lushly-dev/specimen/types';
 import { describe, expect, it, vi } from 'vitest';
@@ -134,6 +135,31 @@ function bench(): SpecimenCommandBench {
 			},
 			unavailable: [],
 			skipped: { jobs: 0, gates: 0 },
+		})),
+		compare: vi.fn(async (request) => ({
+			set: 'set-1a2b3c4d5e6f',
+			context: {
+				viewport: { width: 1280, height: 800 },
+				theme: 'light' as const,
+				locale: 'en-US',
+				reducedMotion: 'no-preference' as const,
+				motion: 'natural' as const,
+			},
+			checkpoint: request.checkpoint ?? 'mount',
+			captures: request.ids.map((id: string) => ({
+				id,
+				status: 'captured' as const,
+				axe: 'passed' as const,
+				violations: [],
+				screenshot: `.specimen/sets/set-1a2b3c4d5e6f/screenshots/${id}.png`,
+			})),
+			differences: request.ids.slice(1).map((id: string) => ({
+				id,
+				against: request.ids[0] as string,
+				status: 'changed' as const,
+				channels: ['layout' as const],
+			})),
+			page: 'compare.html?set=set-1a2b3c4d5e6f',
 		})),
 		diff: vi.fn(async (request) => {
 			if ('manifest' in request.left && 'manifest' in request.right) {
@@ -360,6 +386,7 @@ describe('specimen commands', () => {
 			'specimen-list',
 			'specimen-render',
 			'specimen-capture',
+			'specimen-compare',
 			'specimen-diff',
 			'specimen-build',
 			'specimen-validate',
@@ -1108,6 +1135,175 @@ describe('specimen commands', () => {
 			expect(missing.error).toMatchObject({
 				code: 'CAPTURE_SET_NOT_FOUND',
 				suggestion: expect.stringContaining('specimen-capture'),
+			});
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	it('exposes specimen-compare as a mutation and satisfies Scenarios 01 and 07 step 5 without returning observations', async () => {
+		const root = await mkdtemp(join(tmpdir(), 'specimen-afd-compare-'));
+		try {
+			const entries: SpecimenEntry[] = [
+				{ id: 'toolbar--dense', title: 'Toolbar/Dense', module: './t.ts', exportName: 'Dense' },
+				{
+					id: 'toolbar--airy',
+					title: 'Toolbar/Airy',
+					module: './t.ts',
+					exportName: 'Airy',
+					themes: {
+						supported: ['light'],
+						basis: 'declared',
+						reason: 'Dark styles not written yet',
+					},
+				},
+				{
+					id: 'toolbar--grouped',
+					title: 'Toolbar/Grouped',
+					module: './t.ts',
+					exportName: 'Grouped',
+				},
+			];
+			const instance = bench();
+			instance.compare = (request) =>
+				runCompare(
+					{
+						root,
+						entries,
+						workers: 2,
+						prepare: async () => {},
+						sourceState: async () => ({ revision: 'a1b2c3d', dirty: false }),
+						render: async ({ entry, context, screenshot }) => {
+							await writeFile(screenshot, 'png-bytes');
+							const obs = observation();
+							obs.manifest.specimenId = entry.id;
+							obs.manifest.context.theme = context.theme;
+							obs.manifest.context.viewport = context.viewport;
+							obs.channels.visual.path = screenshot;
+							obs.channels.dom.raw = `<div role="toolbar" data-variant="${entry.id}"></div>`;
+							obs.channels.elements = [
+								{
+									ref: 'root/div:1',
+									tag: 'div',
+									attributes: { role: 'toolbar' },
+									box: {
+										x: 0,
+										y: 0,
+										width: 320,
+										height: entry.id === 'toolbar--airy' ? 52 : 36,
+									},
+									scroll: { width: 320, height: 36, clientWidth: 320, clientHeight: 36 },
+									styles: { padding: entry.id === 'toolbar--airy' ? '12px' : '4px' },
+									state: { focused: false, value: '' },
+								},
+							];
+							obs.channels.a11y.axe =
+								entry.id === 'toolbar--grouped'
+									? {
+											status: 'failed',
+											policy: 'error',
+											violations: [
+												{
+													id: 'color-contrast',
+													impact: 'serious',
+													help: 'contrast',
+													targets: ['span.group-label'],
+													details: [],
+												},
+											],
+											incomplete: 0,
+											incompleteChecks: [],
+											exceptions: [],
+										}
+									: {
+											status: 'passed',
+											policy: 'error',
+											violations: [],
+											incomplete: 0,
+											incompleteChecks: [],
+											exceptions: [],
+										};
+							return obs;
+						},
+					},
+					request
+				);
+
+			const commands = createSpecimenCommands(instance);
+			const compareDef = commands.find((command) => command.name === 'specimen-compare');
+			expect(compareDef?.mutation).toBe(true);
+
+			// Input schema validation: rejects fewer than 2 or duplicate ids.
+			expect(
+				(await executeSpecimenCommand(instance, 'specimen-compare', { ids: ['toolbar--dense'] }))
+					.error?.code
+			).toBe('VALIDATION_ERROR');
+			expect(
+				(
+					await executeSpecimenCommand(instance, 'specimen-compare', {
+						ids: ['toolbar--dense', 'toolbar--dense'],
+					})
+				).error?.code
+			).toBe('VALIDATION_ERROR');
+
+			// Scenario 01 step 1: misspelled variant refused before capturing.
+			const typo = await executeSpecimenCommand(instance, 'specimen-compare', {
+				ids: ['toolbar--dense', 'toolbar--dence'],
+			});
+			expect(typo.success).toBe(false);
+			expect(typo.error).toMatchObject({
+				code: 'SPECIMEN_NOT_FOUND',
+				message: expect.stringContaining('toolbar--dence'),
+				suggestion: expect.stringContaining('toolbar--dense'),
+			});
+
+			// Scenario 01 step 2: 3 variants captured with axe and diffed against toolbar--dense.
+			const compared = await executeSpecimenCommand(instance, 'specimen-compare', {
+				ids: ['toolbar--dense', 'toolbar--airy', 'toolbar--grouped'],
+				context: { theme: 'light', viewport: { width: 1280, height: 800 } },
+			});
+			expect(compared.success).toBe(true);
+			expect(compared.data).toMatchObject({
+				set: expect.stringMatching(/^set-[0-9a-f]{12}$/),
+				context: { theme: 'light' },
+				checkpoint: 'mount',
+				captures: [
+					{ id: 'toolbar--dense', status: 'captured', axe: 'passed', violations: [] },
+					{ id: 'toolbar--airy', status: 'captured', axe: 'passed', violations: [] },
+					{
+						id: 'toolbar--grouped',
+						status: 'captured',
+						axe: 'failed',
+						violations: ['color-contrast'],
+					},
+				],
+				differences: [
+					{
+						id: 'toolbar--airy',
+						against: 'toolbar--dense',
+						status: 'changed',
+						channels: expect.arrayContaining(['layout']),
+					},
+					{
+						id: 'toolbar--grouped',
+						against: 'toolbar--dense',
+						status: 'changed',
+					},
+				],
+				page: expect.stringContaining('compare.html?set=set-'),
+			});
+			expect(JSON.stringify(compared)).not.toContain('"manifest"');
+
+			// Scenario 07 step 5: theme-excluded variant refused with VARIANT_UNAVAILABLE.
+			const unavailable = await executeSpecimenCommand(instance, 'specimen-compare', {
+				ids: ['toolbar--dense', 'toolbar--airy'],
+				context: { theme: 'dark' },
+			});
+			expect(unavailable.success).toBe(false);
+			expect(unavailable.error).toMatchObject({
+				code: 'VARIANT_UNAVAILABLE',
+				message: expect.stringContaining('toolbar--airy'),
+				suggestion: expect.stringContaining('light'),
 			});
 		} finally {
 			await rm(root, { recursive: true, force: true });

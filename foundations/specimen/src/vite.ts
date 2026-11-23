@@ -21,7 +21,9 @@ import {
 	type Rolldown,
 	type ViteDevServer,
 } from 'vite';
+import { renderComparePageHtml } from './compare-page.js';
 import { bundled, defaultContext, type LoadedConfig } from './config.js';
+import { assertRealFileContained, captureSetsDir, SET_ID_PATTERN } from './sets.js';
 import type { SpecimenEntry } from './types.js';
 import { isSafeStaticMount } from './validate.js';
 
@@ -214,7 +216,15 @@ export async function prepareBenchSite(config: LoadedConfig): Promise<BenchSite>
 		runtime,
 		plugin,
 		build: (outDir) =>
-			buildStatic(root, runtime, plugin, outDir, config.staticDirs, bundled(config).entries),
+			buildStatic(
+				root,
+				runtime,
+				plugin,
+				outDir,
+				config.staticDirs,
+				bundled(config).entries,
+				config.root
+			),
 		dispose: () => rm(root, { recursive: true, force: true }),
 	};
 }
@@ -323,11 +333,90 @@ export async function startBenchServer(
 			return { code: `${code}\n`, map };
 		},
 	};
+	const compareServe: Plugin = {
+		name: 'afd-specimen-compare',
+		apply: 'serve',
+		configureServer(devServer) {
+			const projectRoot = resolve(config.root);
+			const setsRoot = captureSetsDir(projectRoot);
+			devServer.middlewares.use((req, res, next) => {
+				if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+				let pathname: string;
+				try {
+					pathname = decodeURIComponent(new URL(req.url ?? '/', 'http://127.0.0.1').pathname);
+				} catch {
+					res.statusCode = 400;
+					res.end();
+					return;
+				}
+				if (pathname === '/compare.html') {
+					const body = renderComparePageHtml();
+					res.statusCode = 200;
+					res.setHeader('Content-Type', 'text/html; charset=utf-8');
+					res.end(req.method === 'HEAD' ? undefined : body);
+					return;
+				}
+				const isCompareAssetRoute =
+					pathname.startsWith('/sets/') || pathname.startsWith('/.specimen/sets/');
+				const touchesPrivateStore = /(?:^|\/)\.specimen(?:\/|$)/i.test(pathname);
+				if (!isCompareAssetRoute) {
+					if (touchesPrivateStore) {
+						res.statusCode = 404;
+						res.end();
+						return;
+					}
+					return next();
+				}
+				const match =
+					/^\/(?:\.specimen\/)?sets\/(set-[0-9a-f]{12})\/(compare\.json|screenshots\/[a-zA-Z0-9._-]+\.png)$/.exec(
+						pathname
+					);
+				if (!match) {
+					res.statusCode = 404;
+					res.end();
+					return;
+				}
+				const setId = match[1] as string;
+				const subPath = match[2] as string;
+				if (!SET_ID_PATTERN.test(setId)) {
+					res.statusCode = 404;
+					res.end();
+					return;
+				}
+				const filePath = join(setsRoot, setId, subPath);
+				void (async () => {
+					try {
+						await assertNoSymlinkPath(projectRoot, filePath);
+						await assertRealFileContained(
+							projectRoot,
+							filePath,
+							`Compare asset escapes project root: ${pathname}`
+						);
+						await assertRealFileContained(
+							setsRoot,
+							filePath,
+							`Compare asset escapes capture sets: ${pathname}`
+						);
+						const data = await readFile(filePath);
+						res.statusCode = 200;
+						res.setHeader(
+							'Content-Type',
+							subPath.endsWith('.png') ? 'image/png' : 'application/json; charset=utf-8'
+						);
+						res.end(req.method === 'HEAD' ? undefined : data);
+					} catch {
+						res.statusCode = 404;
+						res.end();
+					}
+				})();
+			});
+		},
+	};
 	const writes = optimizerWrites(root);
 	const server = await createServer({
 		configFile: false,
 		root,
-		plugins: [plugin, cachedDevMaps],
+		plugins: [plugin, compareServe, cachedDevMaps],
 		// The HTML references a virtual entry; scan its actual import roots before
 		// dynamic specimen loading can discover dependencies and reload the page.
 		optimizeDeps: {
@@ -342,7 +431,10 @@ export async function startBenchServer(
 			// source edit requests a reload. Interactive benches retain live updates.
 			hmr: options.automation ? false : undefined,
 			// The runtime's directory and its parent, which holds the lazily loaded normalizer.
-			fs: { allow: [root, config.root, dirname(dirname(runtime))] },
+			fs: {
+				allow: [root, config.root, dirname(dirname(runtime))],
+				deny: ['**/.specimen/**'],
+			},
 		},
 	});
 	try {
@@ -373,13 +465,78 @@ export async function startBenchServer(
 	};
 }
 
+/**
+ * Copy only safe viewer assets (`compare.json` and `screenshots/*.png`, never raw observations)
+ * from existing compare sets under `<projectRoot>/.specimen/sets/` into `<outRoot>/sets/`.
+ */
+async function copyCompareAssets(projectRoot: string, outRoot: string): Promise<string[]> {
+	const absProject = resolve(projectRoot);
+	const setsRoot = captureSetsDir(absProject);
+	try {
+		await assertNoSymlinkPath(absProject, setsRoot);
+		const info = await lstat(setsRoot);
+		if (!info.isDirectory() || info.isSymbolicLink()) return [];
+	} catch {
+		return [];
+	}
+	const copied: string[] = [];
+	const entries = await readdir(setsRoot).catch(() => [] as string[]);
+	for (const setId of entries) {
+		if (!SET_ID_PATTERN.test(setId)) continue;
+		const srcSetDir = join(setsRoot, setId);
+		const srcCompare = join(srcSetDir, 'compare.json');
+		try {
+			await assertNoSymlinkPath(absProject, srcCompare);
+			await assertRealFileContained(absProject, srcCompare, 'Compare asset escapes project root');
+			const info = await lstat(srcCompare);
+			if (!info.isFile() || info.isSymbolicLink()) continue;
+		} catch {
+			continue;
+		}
+		const dstSetDir = join(outRoot, 'sets', setId);
+		const dstCompare = join(dstSetDir, 'compare.json');
+		await assertNoSymlinkPath(outRoot, dstCompare);
+		await mkdir(dstSetDir, { recursive: true });
+		await copyFile(srcCompare, dstCompare);
+		copied.push(`sets/${setId}/compare.json`);
+
+		const srcShotsDir = join(srcSetDir, 'screenshots');
+		try {
+			await assertNoSymlinkPath(absProject, srcShotsDir);
+			const shotNames = await readdir(srcShotsDir);
+			const dstShotsDir = join(dstSetDir, 'screenshots');
+			for (const name of shotNames) {
+				if (!/^[a-zA-Z0-9._-]+\.png$/.test(name)) continue;
+				const srcShot = join(srcShotsDir, name);
+				try {
+					await assertNoSymlinkPath(absProject, srcShot);
+					await assertRealFileContained(absProject, srcShot, 'Screenshot escapes project root');
+					const shotStat = await lstat(srcShot);
+					if (!shotStat.isFile() || shotStat.isSymbolicLink()) continue;
+				} catch {
+					continue;
+				}
+				const dstShot = join(dstShotsDir, name);
+				await assertNoSymlinkPath(outRoot, dstShot);
+				await mkdir(dstShotsDir, { recursive: true });
+				await copyFile(srcShot, dstShot);
+				copied.push(`sets/${setId}/screenshots/${name}`);
+			}
+		} catch {
+			// Compare sets without screenshots still copy compare.json.
+		}
+	}
+	return copied;
+}
+
 async function buildStatic(
 	root: string,
 	runtime: string,
 	plugin: Plugin,
 	outDir: string,
 	staticDirs: LoadedConfig['staticDirs'],
-	entries: SpecimenEntry[]
+	entries: SpecimenEntry[],
+	projectRoot: string
 ): Promise<{ directory: string; shellBytes: number; budget: number; files: string[] }> {
 	const directory = resolve(outDir);
 	await mkdir(directory, { recursive: true });
@@ -494,7 +651,16 @@ async function buildStatic(
 		accessibility: bytesOf('accessibility'),
 	};
 	const total = Object.values(categoryBytes).reduce((sum, bytes) => sum + bytes, 0);
-	const files = result.output.map((output) => output.fileName);
+	const outRoot = await realpath(directory);
+	const comparePath = join(outRoot, 'compare.html');
+	await assertNoSymlinkPath(outRoot, comparePath);
+	await writeFile(comparePath, renderComparePageHtml(), 'utf8');
+	const copiedCompareAssets = await copyCompareAssets(projectRoot, outRoot);
+	const files = [
+		...result.output.map((output) => output.fileName),
+		'compare.html',
+		...copiedCompareAssets,
+	];
 	// Its emitted, minified file. A build without it would publish an unstyled index, so it fails.
 	const stylesheet = join(dirname(runtime), 'page.css');
 	const styles = result.output.find(
@@ -506,7 +672,6 @@ async function buildStatic(
 		throw new Error(`The bench pages' stylesheet was not emitted from ${stylesheet}`);
 	const styleBytes = Buffer.byteLength(styles.source);
 	const report = { directory, shellBytes, budget: SHELL_BUDGET, files };
-	const outRoot = await realpath(directory);
 	const reportPath = join(outRoot, 'specimen-build.json');
 	await assertNoSymlinkPath(outRoot, reportPath);
 	await writeFile(

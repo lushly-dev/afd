@@ -898,6 +898,71 @@ export interface CaptureSetRun {
 		gatesNext?: 'specimen-run';
 	};
 }
+/** Capture 2 to 8 variant specimens under one context and checkpoint and diff each against the first. */
+export interface CompareRequest {
+	ids: string[];
+	context?: Partial<SpecimenContext>;
+	/** Defaults to `mount`. */
+	checkpoint?: string;
+	timeoutMs?: number;
+	workers?: number;
+}
+/** Compact capture summary for one variant in a `specimen-compare` result. */
+export interface CompareCapture {
+	id: string;
+	status: 'captured' | 'unavailable';
+	axe: AxeOutcome['status'];
+	violations: string[];
+	screenshot: string | null;
+	reason?: string;
+}
+/** Structured difference summary comparing one variant against the first variant. */
+export interface CompareDifference {
+	id: string;
+	against: string;
+	status: ObservationDiff['status'];
+	channels: ChannelDifference['channel'][];
+}
+/** Compact response returned by `specimen-compare`: captures, difference channels, and compare page link (never observations). */
+export interface CompareRun {
+	set: string;
+	context: SpecimenContext;
+	checkpoint: string;
+	captures: CompareCapture[];
+	differences: CompareDifference[];
+	page: string;
+}
+/** Variant metadata persisted in `.specimen/sets/<setId>/compare.json` for `compare.html`. */
+export interface ComparePageCapture {
+	id: string;
+	title?: string;
+	status: 'captured' | 'unavailable';
+	axe: AxeOutcome['status'];
+	violations: string[];
+	incompleteChecks: { id: string; help: string; targets: string[] }[];
+	screenshot: string | null;
+	reason?: string;
+}
+/** Structured difference details persisted in `.specimen/sets/<setId>/compare.json` for `compare.html`. */
+export interface ComparePageDifference {
+	id: string;
+	against: string;
+	status: ObservationDiff['status'];
+	channels: ChannelDifference['channel'][];
+	items: ChannelDifference[];
+	limitations: string[];
+}
+/** Compact comparison payload rendered by `compare.html?set=<setId>` (contains no observations). */
+export interface ComparePageData {
+	version: 1;
+	set: string;
+	context: SpecimenContext;
+	checkpoint: string;
+	revision: string | null;
+	dirty: boolean | null;
+	captures: ComparePageCapture[];
+	differences: ComparePageDifference[];
+}
 /** One axe rule's finding: a violation, or a check it could not complete. */
 export interface AxeFinding {
 	id: string;

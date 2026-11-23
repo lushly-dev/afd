@@ -104,7 +104,7 @@ export async function assertRealContained(
 	}
 }
 
-async function assertRealFileContained(
+export async function assertRealFileContained(
 	baseDir: string,
 	targetPath: string,
 	message: string
@@ -130,7 +130,7 @@ function assertValidCaptureKey(key: string): void {
 }
 
 /** Case-insensitive-safe, single-segment filename stem for a capture key. */
-function captureStorageStem(key: string): string {
+export function captureStorageStem(key: string): string {
 	assertValidCaptureKey(key);
 	const slug =
 		key
@@ -256,6 +256,8 @@ export function captureContentHash(observation: Observation): string {
 
 /** Content-addressed set id (`set-` + 12 hex digits) over conditions and sorted capture hashes. */
 export function computeSetId(input: {
+	kind?: CaptureSetManifest['kind'];
+	order?: readonly string[];
 	context: SpecimenContext;
 	checkpoint: CaptureSetManifest['checkpoint'];
 	browser: { name: string; version: string } | null;
@@ -289,6 +291,8 @@ export function computeSetId(input: {
 			...(entry.checkpoint !== undefined ? { checkpoint: entry.checkpoint } : {}),
 		}));
 	const payload = {
+		...(input.kind === 'compare' ? { kind: input.kind } : {}),
+		...(input.order !== undefined ? { order: [...input.order] } : {}),
 		context,
 		checkpoint: {
 			name: input.checkpoint.name,
@@ -468,7 +472,7 @@ async function withFileLock<T>(lockPath: string, fn: () => Promise<T>): Promise<
 	}
 }
 
-async function writeFileAtomic(filePath: string, content: string): Promise<void> {
+export async function writeFileAtomic(filePath: string, content: string): Promise<void> {
 	await mkdir(dirname(filePath), { recursive: true });
 	const tmpPath = `${filePath}.${randomUUID()}.tmp`;
 	try {
@@ -565,6 +569,7 @@ export interface WriteCaptureSetItem {
 
 export interface WriteCaptureSetOptions {
 	kind: CaptureSetManifest['kind'];
+	order?: readonly string[];
 	context: SpecimenContext;
 	checkpoint: CaptureSetManifest['checkpoint'];
 	browser: { name: string; version: string } | null;
@@ -595,6 +600,8 @@ export async function writeCaptureSet(
 		return { item, hash: null as string | null };
 	});
 	const setId = computeSetId({
+		kind: options.kind,
+		...(options.order !== undefined ? { order: options.order } : {}),
 		context: options.context,
 		checkpoint: options.checkpoint,
 		browser: options.browser,

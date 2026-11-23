@@ -2,7 +2,7 @@
 
 **Preview,** like [Specimen](../../foundations/specimen/README.md): the commands can still change. Install it with `npm install @lushly-dev/specimen-cli@preview`, then Chromium's headless shell as [Specimen's install](../../foundations/specimen/README.md#install) describes.
 
-Install `@lushly-dev/specimen-cli` to obtain the `specimen` binary. The commands are `list`, `validate`, `inspect ID`, `render ID`, `run ID`, `themes [ID]`, `migrate`, `diff LEFT.json RIGHT.json`, `build OUTDIR`, `pack [TAG]`, `pack-check [TAG]` and `pack-export DIR`. Option validation, one CommandResult JSON value on stdout, atomic output files, and exit codes (0 success, 1 failure) are unchanged. `runCli` and `CliIO` are exported for embedding and testing. This endpoint composes Specimen and AFD through `@lushly-dev/specimen-afd`. The inspected application does not need those endpoint dependencies.
+Install `@lushly-dev/specimen-cli` to obtain the `specimen` binary. The commands are `list`, `validate`, `inspect ID`, `render ID`, `capture [IDS...]`, `compare ID1 ID2...`, `run ID`, `themes [ID]`, `migrate`, `diff LEFT.json RIGHT.json`, `build OUTDIR`, `pack [TAG]`, `pack-check [TAG]` and `pack-export DIR`. Option validation, one CommandResult JSON value on stdout, atomic output files, and exit codes (0 success, 1 failure) are unchanged. `runCli` and `CliIO` are exported for embedding and testing. This endpoint composes Specimen and AFD through `@lushly-dev/specimen-afd`. The inspected application does not need those endpoint dependencies.
 
 ```sh
 specimen list --root ./component-project

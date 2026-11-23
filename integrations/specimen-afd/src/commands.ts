@@ -16,6 +16,8 @@ import {
 	captureRequestSchema,
 	captureSetRequestSchema,
 	captureSetRunSchema,
+	compareRequestSchema,
+	compareRunSchema,
 	contractRequestSchema,
 	contractRunSchema,
 	coverageRequestSchema,
@@ -63,6 +65,8 @@ import type {
 	CaptureSetRequest,
 	CaptureSetRun,
 	ChannelDifference,
+	CompareRequest,
+	CompareRun,
 	ContractRequest,
 	ContractRun,
 	CoverageRequest,
@@ -220,6 +224,7 @@ export interface SpecimenCommandBench {
 	validate(target?: ValidationTarget): ValidationReport;
 	render(request: CaptureRequest): Promise<Observation>;
 	captureSet(request?: CaptureSetRequest): Promise<CaptureSetRun>;
+	compare(request: CompareRequest): Promise<CompareRun>;
 	diff(request: DiffRequest): Promise<ObservationDiff>;
 	run(request: RunRequest): Promise<StoryRun>;
 	runSuite(request?: SuiteRequest): Promise<SuiteRun>;
@@ -587,6 +592,22 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 				'Use specimen-list to check ids or filters, then verify the specimen modules and browser installation.'
 			),
 	});
+	const compare = defineCommand({
+		...common,
+		name: 'specimen-compare',
+		description:
+			'Capture 2 to 8 variant specimens with axe under one context and checkpoint into a compare capture set, diff each against the first, and return compact capture summaries, structured difference channels, and compare.html?set= (never observations). Refuses unknown ids (SPECIMEN_NOT_FOUND) and variants excluding the requested theme (VARIANT_UNAVAILABLE) before capturing.',
+		mutation: true,
+		input: compareRequestSchema,
+		output: compareRunSchema,
+		handler: async (input) =>
+			result(
+				() => bench.compare(input),
+				compareRunSchema,
+				'SPECIMEN_COMPARE_FAILED',
+				'Pass 2 to 8 known specimen ids compatible with the requested theme and verify the browser installation.'
+			),
+	});
 	const diff = createDiffCommand((request) => bench.diff(request));
 	const build = defineCommand({
 		...common,
@@ -655,6 +676,7 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 		list,
 		render,
 		capture,
+		compare,
 		diff,
 		build,
 		validate,
@@ -699,6 +721,7 @@ export async function executeSpecimenCommand(
 		list,
 		render,
 		capture,
+		compare,
 		diff,
 		build,
 		validate,
@@ -724,6 +747,8 @@ export async function executeSpecimenCommand(
 			return execute(render, input);
 		case 'specimen-capture':
 			return execute(capture, input);
+		case 'specimen-compare':
+			return execute(compare, input);
 		case 'specimen-diff':
 			return execute(diff, input);
 		case 'specimen-build':
@@ -763,7 +788,7 @@ export async function executeSpecimenCommand(
 				code: 'COMMAND_NOT_FOUND',
 				message: `Unknown command: ${name}`,
 				suggestion:
-					'Use specimen list, validate, inspect, render, capture, run, themes, migrate, diff, or build.',
+					'Use specimen list, validate, inspect, render, capture, compare, run, themes, migrate, diff, or build.',
 			});
 	}
 }

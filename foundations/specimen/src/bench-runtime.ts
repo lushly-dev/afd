@@ -7,6 +7,7 @@ import { dirname, join, resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { RANDOM_SEED } from './baseline.js';
 import type { BenchRuntime } from './bench.js';
+import { runCompare } from './compare.js';
 import {
 	bundled,
 	defaultContext,
@@ -67,6 +68,8 @@ import {
 	type CaptureSetRun,
 	type CheckpointsRequest,
 	type CheckpointsRun,
+	type CompareRequest,
+	type CompareRun,
 	type Completeness,
 	type ContractRequest,
 	type ContractRun,
@@ -108,6 +111,7 @@ import {
 	parseCaptureRequest,
 	parseCaptureSetRequest,
 	parseCheckpointsRequest,
+	parseCompareRequest,
 	parseContractRequest,
 	parseCoverageRequest,
 	parseJobRunRequest,
@@ -823,6 +827,44 @@ export async function createInProcessBench(
 				),
 		};
 	};
+	const captureSetHost = () => ({
+		root: config.root,
+		entries: config.entries,
+		workers: config.config.test?.workers ?? DEFAULT_SUITE_WORKERS,
+		prepare: async () => {
+			const runtime = await ensureHost();
+			await runtime.request('prepare', {}, BUNDLE_GRACE);
+		},
+		sourceState: () => sourceState(config.root),
+		render: async ({
+			entry,
+			context,
+			checkpoint,
+			axe,
+			screenshot,
+			timeoutMs,
+		}: {
+			entry: SpecimenEntry;
+			context: SpecimenContext;
+			checkpoint: string;
+			axe: boolean;
+			screenshot: string;
+			timeoutMs?: number;
+		}) => {
+			const { observation } = await capture(
+				{
+					id: entry.id,
+					checkpoint,
+					context,
+					screenshot,
+					...(timeoutMs !== undefined ? { timeoutMs } : {}),
+				},
+				{ reuseBundle: true, accessibility: axe }
+			);
+			if (!observation) throw new Error('The render captured no observation.');
+			return observation;
+		},
+	});
 	const api: BenchRuntime = {
 		list(filter) {
 			ensureOpen();
@@ -850,33 +892,12 @@ export async function createInProcessBench(
 		async captureSet(rawRequest: CaptureSetRequest = {}): Promise<CaptureSetRun> {
 			ensureOpen();
 			const request = parseCaptureSetRequest(rawRequest);
-			return runCaptureSet(
-				{
-					root: config.root,
-					entries: config.entries,
-					workers: config.config.test?.workers ?? DEFAULT_SUITE_WORKERS,
-					prepare: async () => {
-						const runtime = await ensureHost();
-						await runtime.request('prepare', {}, BUNDLE_GRACE);
-					},
-					sourceState: () => sourceState(config.root),
-					render: async ({ entry, context, checkpoint, axe, screenshot, timeoutMs }) => {
-						const { observation } = await capture(
-							{
-								id: entry.id,
-								checkpoint,
-								context,
-								screenshot,
-								...(timeoutMs !== undefined ? { timeoutMs } : {}),
-							},
-							{ reuseBundle: true, accessibility: axe }
-						);
-						if (!observation) throw new Error('The render captured no observation.');
-						return observation;
-					},
-				},
-				request
-			);
+			return runCaptureSet(captureSetHost(), request);
+		},
+		async compare(rawRequest: CompareRequest): Promise<CompareRun> {
+			ensureOpen();
+			const request = parseCompareRequest(rawRequest);
+			return runCompare(captureSetHost(), request);
 		},
 		async captureCheckpoints(rawRequest: CheckpointsRequest): Promise<CheckpointsRun> {
 			ensureOpen();
