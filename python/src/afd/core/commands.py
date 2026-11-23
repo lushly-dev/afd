@@ -19,9 +19,10 @@ Example:
 """
 
 import asyncio
+import copy
 import dataclasses
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 import logging
 import re
 import warnings
@@ -330,6 +331,8 @@ class CommandDefinition:
     approval: Optional[ApprovalPolicy] = None
     title: Optional[str] = None
     task: Optional[TaskSupport] = None
+    tool_meta: Optional[Dict[str, Any]] = None
+    advertised_input_schema: Optional[JsonSchema] = None
     output_budget: Optional[OutputBudget] = None
     scopes: List[str] = field(default_factory=list)
 
@@ -435,10 +438,27 @@ class _CommandRegistryImpl:
             approval=command.approval,
             confirmation_mode=getattr(command, "confirmation_mode", None),
         )
-        command.output_budget = validate_output_budget_declaration(
+        from afd.core.meta_keys import assert_advertised_input_schema, assert_tool_meta
+
+        clean_tool_meta = assert_tool_meta(command.name, command.tool_meta)
+        clean_advertised = assert_advertised_input_schema(
+            command.name, command.advertised_input_schema
+        )
+        normalized_budget = validate_output_budget_declaration(
             command.name, command.output_budget
         )
-        command.scopes = validate_command_scopes(command.name, command.scopes)
+        normalized_scopes = validate_command_scopes(command.name, command.scopes)
+        if command.tool_meta is not None or command.advertised_input_schema is not None:
+            command = replace(
+                command,
+                tool_meta=clean_tool_meta,
+                advertised_input_schema=clean_advertised,
+                output_budget=normalized_budget,
+                scopes=normalized_scopes,
+            )
+        else:
+            command.output_budget = normalized_budget
+            command.scopes = normalized_scopes
         self._commands[command.name] = command
 
     def get(self, name: str) -> Optional[CommandDefinition]:
@@ -631,8 +651,10 @@ def command_to_mcp_tool(command: CommandDefinition) -> dict[str, Any]:
         >>> tool["name"]
         'my-command'
     """
-    if command.input_schema is not None:
-        input_schema = command.input_schema
+    if command.advertised_input_schema is not None:
+        input_schema = copy.deepcopy(command.advertised_input_schema)
+    elif command.input_schema is not None:
+        input_schema = copy.deepcopy(command.input_schema)
     else:
         properties: Dict[str, Dict[str, Any]] = {}
         required: List[str] = []
@@ -666,8 +688,16 @@ def command_to_mcp_tool(command: CommandDefinition) -> dict[str, Any]:
     if annotations:
         tool["annotations"] = annotations
 
+    # Extra tool _meta entries (spec/mcp-resources.md, T1) go before the server's own fields so
+    # they can never replace one; the key rule already forbids reserved and unprefixed keys.
+    meta: Dict[str, Any] = (
+        {key: copy.deepcopy(val) for key, val in command.tool_meta.items()}
+        if command.tool_meta
+        else {}
+    )
     # spec/command-metadata.md: tools/list _meta leads with the category, as TypeScript's does.
-    meta: Dict[str, Any] = {} if command.category is None else {"category": command.category}
+    if command.category is not None:
+        meta["category"] = command.category
     meta["mutation"] = command.mutation
     # Planning signals only: title and confirm_prompt are display text and stay out of _meta.
     if command.destructive is not None:

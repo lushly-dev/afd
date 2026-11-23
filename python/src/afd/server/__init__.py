@@ -40,8 +40,34 @@ Bootstrap Commands:
     ... )
 """
 
+from afd.core.meta_keys import (
+    MCP_APPS_META_KEY,
+    assert_advertised_input_schema,
+    assert_tool_meta,
+    check_meta_entry,
+)
 from afd.server.decorators import define_command
 from afd.server.factory import create_server, MCPServer
+from afd.server.frontmatter import FrontmatterError, parse_frontmatter
+from afd.server.resources import (
+    MCP_APP_MIME_TYPE,
+    ResourceContents,
+    ResourceEntry,
+    ResourceProvider,
+    ResourcesOption,
+    check_entries,
+)
+from afd.server.skills import (
+    DIGEST_META_KEY,
+    MAX_SKILL_BYTES,
+    MAX_SKILL_FILES,
+    SKILLS_EXTENSION_ID,
+    Skill,
+    SkillCatalog,
+    sha256_digest,
+    skill_from_directory,
+    skill_mime_type,
+)
 from afd.server.bootstrap import (
     get_bootstrap_commands,
     ContextConfig,
@@ -430,4 +456,26 @@ __all__ = [
     "new_task_id",
     "is_task_id",
     "assert_valid_task_commands",
+    # MCP resources, skills and tool _meta (spec/mcp-resources.md)
+    "MCP_APPS_META_KEY",
+    "MCP_APP_MIME_TYPE",
+    "DIGEST_META_KEY",
+    "SKILLS_EXTENSION_ID",
+    "MAX_SKILL_FILES",
+    "MAX_SKILL_BYTES",
+    "ResourceEntry",
+    "ResourceContents",
+    "ResourceProvider",
+    "ResourcesOption",
+    "check_entries",
+    "Skill",
+    "SkillCatalog",
+    "skill_from_directory",
+    "sha256_digest",
+    "skill_mime_type",
+    "FrontmatterError",
+    "parse_frontmatter",
+    "check_meta_entry",
+    "assert_tool_meta",
+    "assert_advertised_input_schema",
 ]

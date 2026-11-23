@@ -178,6 +178,13 @@ from afd.core.batch import (
     is_batch_result,
     is_batch_command,
 )
+from afd.core.meta_keys import (
+    MCP_APPS_META_KEY,
+    assert_advertised_input_schema,
+    assert_tool_meta,
+    check_meta_entry,
+    is_json_value,
+)
 from afd.core.wire import WireModel, to_wire, to_wire_json
 from afd.core.streaming import (
     ProgressChunk,
@@ -389,6 +396,12 @@ __all__ = [
     "is_stream_chunk",
     "is_streamable_command",
     "parse_stream_chunk",
+    # Tool _meta key rule and advertised schema validation
+    "MCP_APPS_META_KEY",
+    "assert_advertised_input_schema",
+    "assert_tool_meta",
+    "check_meta_entry",
+    "is_json_value",
     # Wire format
     "WireModel",
     "to_wire",

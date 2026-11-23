@@ -64,8 +64,10 @@ def _build_schema_from_parameters(parameters: List[CommandParameter]) -> Dict[st
     }
 
 
-def _schema_to_typescript(schema: Dict[str, Any] | None) -> str:
-    if not schema:
+def _schema_to_typescript(schema: Dict[str, Any] | bool | None) -> str:
+    if schema is False:
+        return "never"
+    if schema is True or not schema or not isinstance(schema, dict):
         return "unknown"
 
     if schema.get("const") is not None:
@@ -144,7 +146,9 @@ async def _afd_schema_handler(
         input_schema = (
             get_json_schema(command)
             if get_json_schema is not None
-            else command.input_schema or _build_schema_from_parameters(command.parameters)
+            else command.advertised_input_schema
+            or command.input_schema
+            or _build_schema_from_parameters(command.parameters)
         )
         output_schema = command.returns
         typescript = None

@@ -390,31 +390,33 @@ Cache hints and `resultType` are not part of the expected results; R3 and S3 sta
 
 | Rule | TypeScript | Python | Rust | C++ |
 | --- | --- | --- | --- | --- |
-| Resources (R1 to R6) | Yes (`resources` option; `/mcp` and stdio, not the deprecated `/sse` lane) | Planned | Yes (Umbel phase 1 step 0b; per-caller `list_for`/`read_for` and `"private"` `cacheScope` under `server-auth`, #1880) | Planned |
-| Skills extension (S1 to S6) | Yes (`skills: SkillCatalog`) | Planned | Yes (step 0b) | Planned |
-| Extra tool `_meta` (T1 to T3) | Yes (`defineCommand({ toolMeta })`) | Planned | Yes (step 0b) | Planned |
-| Advertised and validation schemas (V1, V2) | Yes (`advertisedInputSchema`) | Planned | Yes (step 0b) | Planned |
-| Loads [`mcp-resources.json`](./mcp-resources.json) | Yes (`resources.test.ts`, over Streamable HTTP and stdio) | Planned | Yes (step 0b) | Planned |
+| Resources (R1 to R6) | Yes (`resources` option; `/mcp` and stdio, not the deprecated `/sse` lane) | Yes (`resources` option; Streamable HTTP and stdio, both eras; #1981) | Yes (Umbel phase 1 step 0b; per-caller `list_for`/`read_for` and `"private"` `cacheScope` under `server-auth`, #1880) | Planned |
+| Skills extension (S1 to S6) | Yes (`skills: SkillCatalog`) | Yes (`skills=SkillCatalog`, `skill_from_directory`, optional `directory_read`; #1981) | Yes (step 0b) | Planned |
+| Extra tool `_meta` (T1 to T3) | Yes (`defineCommand({ toolMeta })`) | Yes (`tool_meta` on `@server.command`/`define_command`/`CommandDefinition`; #1981) | Yes (step 0b) | Planned |
+| Advertised and validation schemas (V1, V2) | Yes (`advertisedInputSchema`) | Yes (`advertised_input_schema`; #1981) | Yes (step 0b) | Planned |
+| Loads [`mcp-resources.json`](./mcp-resources.json) | Yes (`resources.test.ts`, over Streamable HTTP and stdio) | Yes (`tests/test_resources.py` and `test_tool_meta.py`, over Streamable HTTP and stdio; #1981) | Yes (step 0b) | Planned |
 
-Today Rust (`packages/rust`, Umbel phase 1 step 0b) and TypeScript (`packages/server`) serve resources,
+Today Rust (`packages/rust`, Umbel phase 1 step 0b), TypeScript (`packages/server`, #615) and Python
+(`python/`, #1981) serve resources,
 the Skills extension and extra tool `_meta`, and keep an advertised schema apart from the validation
 schema. TypeScript serves them on `/mcp` and stdio, in both eras; its deprecated `/sse` and `/message`
 lane (MCP 2024-11-05, not an era this page governs) serves none of it and declares none of it.
 Rust supports per-caller `ResourceProvider::list_for`/`read_for` (`ResourceCaller`) and emits
 `cacheScope: "private"` on modern-era `resources/list` and provider-backed `resources/read` whenever
 a `ResourceProvider` is attached on an authorized server or a request carrying verified credentials,
-while keeping static `SkillCatalog` reads `"public"` (#1880). TypeScript's `ResourceProvider` is not
-yet caller-scoped (the server still enforces `requiredScopes` under `auth`, pre-dispatch and
-post-routing), so its resource results carry `cacheScope: "public"` until per-caller providers are
-added. Python's SDK declares empty `resources` and
-`prompts` capabilities, which R1 forbids. The proposal's
+while keeping static `SkillCatalog` reads `"public"` (#1880). TypeScript's and Python's
+`ResourceProvider` are not
+yet caller-scoped (both servers still enforce authorization fail-closed under `auth`), so their
+resource results carry `cacheScope: "public"` until per-caller providers are
+added. C++ (`packages/cpp`) is planned next (#1983). The proposal's
 [current behavior](../docs/features/active/mcp-resources-skills/mcp-resources-skills.proposal.md#how-servers-behave-today)
-records what each does instead.
+records the pre-implementation baseline.
 
 One rule depends on the SDK: Rust's `skills/get` omits `data` for a URI that is not a `SKILL.md`
-URI, because `rmcp` 3.9 refuses it before the server's handler runs (S4), whereas TypeScript sends
-`data.uri` there too. Both Rust (with `rmcp`'s own check) and TypeScript (`SkillCatalog` in
-`packages/server/src/skills.ts`) enforce the S2 RFC 3986 manifest boundary when the catalog is
-built, and both run the corresponding cases in [`mcp-resources.json`](./mcp-resources.json)
+URI, because `rmcp` 3.9 refuses it before the server's handler runs (S4), whereas TypeScript and Python send
+`data.uri` there too. Rust (with `rmcp`'s own check), TypeScript (`SkillCatalog` in
+`packages/server/src/skills.ts`) and Python (`SkillCatalog` in `python/src/afd/server/skills.py`)
+enforce the S2 RFC 3986 manifest boundary when the catalog is
+built, and all three run the corresponding cases in [`mcp-resources.json`](./mcp-resources.json)
 `catalogFailures`. Progress is recorded in the
 [status](../docs/features/active/mcp-resources-skills/STATUS.md).
