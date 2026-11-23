@@ -275,8 +275,11 @@ export function redactWrapped(
 					)
 				),
 			};
-		// An act's result is its action's (step 5; step 6's fifth and sixth rounds): as the action's own entry kept it, else
-		// by the action's own rule, else dropped (fail closed: Opus 4).
+		// An act's result is its action's, else dropped (fail closed: Opus 4): nested, with no provenance, it is (#1672).
+		if (command === 'notification-act' && depth > 0) {
+			const { result: _result, ...rest } = data;
+			return rest;
+		}
 		// Any other command's result is its own entry's, which no rule reads today.
 		return data;
 	};

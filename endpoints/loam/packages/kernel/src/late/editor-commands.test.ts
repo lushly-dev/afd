@@ -936,6 +936,101 @@ describe('P2-D5: the editor commands', () => {
 		expect(tabs()).toEqual([]);
 	});
 
+	it('P2-D5: ensure reads no document once the kernel is disposed, and drops no tab after it (#1673)', async () => {
+		/** Parts over a store whose first document read waits for `release`, disposed while it waits. */
+		async function held(documents: Array<{ id: string; workspace: string }>, first = false) {
+			const viewState = new ViewStateRegistry({ adapter: new MemoryAdapter() });
+			const inner = new MemoryAdapter();
+			for (const document of documents)
+				await inner.create(DOCUMENT_KIT.table, {
+					...document,
+					scope: { workspace: document.workspace },
+				});
+			const reads: string[] = [];
+			let release = () => {};
+			const waiting = new Promise<void>((resolve) => {
+				release = resolve;
+			});
+			let reading = () => {};
+			const started = new Promise<void>((resolve) => {
+				reading = resolve;
+			});
+			const store = Object.create(inner) as MemoryAdapter;
+			store.get = (async (table: string, id: string) => {
+				reads.push(id);
+				// Disposed first, a read is the failure, so it is never held: the case fails at once, not by timeout.
+				if (reads.length === 1 && !first) {
+					reading();
+					await waiting;
+				}
+				return inner.get(table, id);
+			}) as MemoryAdapter['get'];
+			let disposed = false;
+			const parts = createEditorParts(
+				{
+					scope: createScopeRuntime({ id: 'personal', name: 'Personal' }, LOCAL_MEMBERSHIP),
+					viewState,
+					state: registerShellState(viewState),
+					store,
+					overlays: {} as never,
+					apps: () => ({}) as never,
+					lateScope: {} as never,
+					check: {} as never,
+					isMutation: () => true,
+					drafts: { dirty: new Map(), selections: new Map() },
+					disposed: () => disposed,
+				},
+				DOCUMENT_KIT
+			);
+			await parts.ensure(undefined);
+			// What a read of the store would put there: the workspace's record naming each document, unread.
+			const naming: EditorStateV1 = {
+				...emptyEditorState(),
+				groups: [
+					{
+						id: 'g1',
+						active: 't1',
+						tabs: documents.map(({ id }, index) => ({
+							id: `t${index + 1}`,
+							document: id,
+							pinned: false,
+							preview: false,
+						})),
+					},
+				],
+				nextTab: documents.length + 1,
+			};
+			viewState.set('loam.editor', naming as never);
+			if (first) {
+				// Disposed before it reads at all.
+				disposed = true;
+				await parts.ensure(undefined);
+			} else {
+				const ensured = parts.ensure(undefined);
+				await started;
+				disposed = true;
+				release();
+				await ensured;
+			}
+			const tabs = (viewState.get('loam.editor') as unknown as EditorStateV1).groups.flatMap(
+				(group) => group.tabs.map((tab) => tab.document)
+			);
+			return { reads, tabs };
+		}
+		// Two unread documents: the first read is held while the kernel is disposed, and the second never starts.
+		const two = await held([
+			{ id: 'doc_a', workspace: 'personal' },
+			{ id: 'doc_b', workspace: 'personal' },
+		]);
+		expect(two.reads).toEqual(['doc_a']);
+		// One from another workspace, read as the kernel is disposed: its tab is not dropped after the disposal.
+		const foreign = await held([{ id: 'doc_c', workspace: 'elsewhere' }]);
+		expect(foreign.reads).toEqual(['doc_c']);
+		expect(foreign.tabs).toEqual(['doc_c']);
+		// Disposed before it starts: it reads nothing.
+		expect((await held([{ id: 'doc_d', workspace: 'personal' }], true)).reads).toEqual([]);
+	});
+
 	it('P2-D5: the late-editor chunk imports types alone, but its own state module, which imports types alone', () => {
 		// A runtime import of what first paint or `late` holds would part their chunks (scope and projects
 		// specification, 2.4): `late` hands the chunk what it runs with, in `DOCUMENT_KIT`.

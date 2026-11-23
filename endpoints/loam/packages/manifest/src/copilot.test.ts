@@ -179,6 +179,24 @@ describe('the projection’s `copilot` (4.1)', () => {
 			{ ...PROJECTED, extra: true },
 			{ ...PROJECTED, providers: [{ ...PROJECTED.providers[0], kind: 'gemini' }] },
 			{ ...PROJECTED, providers: [{ ...PROJECTED.providers[0], model: 'a b' }] },
+			// The two readers are copies (#1539): a kind that is not a string, an id that breaks its pattern, and an
+			// entry that is no object, each with a default naming the provider so the shape alone refuses it.
+			{ ...PROJECTED, providers: [{ ...PROJECTED.providers[0], kind: 1 }] },
+			{ ...PROJECTED, providers: [{ ...PROJECTED.providers[0], kind: ['anthropic'] }] },
+			{ default: 'Claude', providers: [{ ...PROJECTED.providers[0], id: 'Claude' }] },
+			{ default: '1claude', providers: [{ ...PROJECTED.providers[0], id: '1claude' }] },
+			{ default: 'a'.repeat(33), providers: [{ ...PROJECTED.providers[0], id: 'a'.repeat(33) }] },
+			// An array carrying a provider's keys, so only its being an array refuses it.
+			{
+				...PROJECTED,
+				providers: [PROJECTED.providers[0], Object.assign([], PROJECTED.providers[1])],
+			},
+			{ ...PROJECTED, providers: [PROJECTED.providers[0], null] },
+			// At the pattern's edge, admitted by both: 32 characters, digits and hyphens after a letter.
+			{
+				default: `a${'0-'.repeat(15)}z`,
+				providers: [{ ...PROJECTED.providers[0], id: `a${'0-'.repeat(15)}z` }],
+			},
 			{
 				default: 'p0',
 				providers: Array.from({ length: 17 }, (_, i) => ({
@@ -204,6 +222,11 @@ describe('the projection’s `copilot` (4.1)', () => {
 		expect(readProjection({ ...PROJECTION, copilot: { ...PROJECTED, default: 'other' } }).ok).toBe(
 			false
 		);
+		// The edge case is admitted, so the comparison above is not of two refusals alone.
+		const edge = `a${'0-'.repeat(15)}z`;
+		expect(
+			copilotOf({ default: edge, providers: [{ ...PROJECTED.providers[0], id: edge }] })
+		).toBeDefined();
 	});
 
 	it('stage A starts no copilot without a sandbox origin to load its frame from', () => {

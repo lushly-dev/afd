@@ -499,10 +499,11 @@ export interface CatalogCommandV1 extends CommandFlags {
 	description: string;
 	inputSchema: unknown;
 	/**
-	 * Discovery replaced the server's schema, whose root was not an object's, with `{ type: 'object' }`: whether `{}`
-	 * meets the server's own is not known, so no chord runs it (step 7's R11; the sixth round's 1).
+	 * Discovery replaced the server's schema, omitted or with a root not an object's, with `{ type: 'object' }`: whether
+	 * `{}` meets the server's own is not known, so no chord runs it (step 7's R11; the sixth and seventh rounds' 1).
+	 * Discovery always says, so a journaled command that does not predates the flag (#1673; {@link journaledReplaced}).
 	 */
-	replaced?: true;
+	replaced?: boolean;
 	undoable?: boolean;
 	approval?: 'required';
 }
@@ -566,6 +567,18 @@ function advertisedSchema(
 	if (deeperThan(reported, DISCOVERY_LIMITS.depth)) return undefined;
 	if (lengthOf(reported) > DISCOVERY_LIMITS.schemaBytes) return undefined;
 	return { schema: { ...reported, type: 'object' }, replaced: false };
+}
+
+/**
+ * A journaled command as discovery would mark it now (#1673). One journaled before step 7 carries no `replaced`, and its
+ * omitted schema, or a root not an object's, became `{ type: 'object' }` alone: such a schema is taken as replaced, since
+ * whether `{}` meets the server's own cannot be decided from the journal, and no chord runs it until a refresh.
+ */
+function journaledReplaced(command: unknown): unknown {
+	if (!isRecord(command) || typeof command.replaced === 'boolean') return command;
+	const schema = command.inputSchema;
+	const bare = isRecord(schema) && Object.keys(schema).length === 1 && schema.type === 'object';
+	return bare ? { ...command, replaced: true } : command;
 }
 
 /** A tool's name for the filter: `AFD-call` and ` afd_help` are `afd-*` too. The hosted relay refuses by it (8.1). */
@@ -709,11 +722,13 @@ export async function discoverInstance(
 					? detail.description.slice(0, DISCOVERY_LIMITS.descriptionChars)
 					: '',
 			inputSchema: advertised.schema,
-			...(advertised.replaced ? { replaced: true as const } : {}),
+			replaced: advertised.replaced,
 			...(detail.undoable === true ? { undoable: true } : {}),
 			...(detail.approval === 'required' ? { approval: 'required' as const } : {}),
 		};
-		catalogBytes += lengthOf(command);
+		// Counted as step 7 wrote it, so the explicit `replaced: false` takes no room from the cap (#1673).
+		const { replaced: _replaced, ...counted } = command;
+		catalogBytes += lengthOf(advertised.replaced ? command : counted);
 		if (catalogBytes > DISCOVERY_LIMITS.catalogBytes) {
 			warnings.push({
 				code: 'MOUNT_CATALOG_TOO_LARGE',
@@ -1219,7 +1234,10 @@ export function createMountedHost(options: MountedHostOptions): MountedHost {
 		},
 		applyCatalog(catalog) {
 			if (isRecord(catalog) && Array.isArray(catalog.commands)) {
-				install(catalog as unknown as InstanceCatalogV1);
+				install({
+					...catalog,
+					commands: catalog.commands.map(journaledReplaced),
+				} as unknown as InstanceCatalogV1);
 			}
 		},
 		approvalOf: (command) => approvals.get(command),
