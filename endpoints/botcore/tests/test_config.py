@@ -12,6 +12,7 @@ from botcore.config import (
     BotCoreConfig,
     LanguageConfig,
     PackageOverrideConfig,
+    PRConfig,
     SkillsConfig,
     SweepConfig,
     get_config_for_path,
@@ -317,3 +318,21 @@ def test_sweep_config_refuses_unknown_keys_and_bad_values() -> None:
         SweepConfig(trend_issue=0)
     with pytest.raises(ValidationError):
         SweepConfig(churn_days="90")  # type: ignore[arg-type]
+
+
+def test_pr_config_defaults_and_validation(tmp_path: Path) -> None:
+    assert BotCoreConfig().pr == PRConfig()
+    assert PRConfig().gating_bots == ["greptile", "macroscope"]
+    assert PRConfig().advisory_bots == ["coderabbit"]
+
+    (tmp_path / "botcore.toml").write_text(
+        "[pr]\ngating_bots = []\ndefault_interval = 10\n", encoding="utf-8"
+    )
+    loaded = load_config(workspace=tmp_path)
+    assert loaded.pr.gating_bots == []
+    assert loaded.pr.default_interval == 10
+
+    with pytest.raises(ValidationError):
+        PRConfig(unknown_key=1)  # type: ignore[call-arg]
+    with pytest.raises(ValidationError):
+        PRConfig(default_interval=1)

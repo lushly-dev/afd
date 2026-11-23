@@ -20,6 +20,7 @@ Rules:
   SK017  warning  `triggers` field, or a "Triggers:" list in the listed text
   SK018  warning  unsupported frontmatter fields
   SK019  warning  listing over the [skills] listing_budget (across the linted skills)
+  SK020  err/warn agents/openai.yaml (when present) is valid YAML with valid interface fields
 """
 
 from __future__ import annotations
@@ -28,6 +29,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+import yaml
 from afd import CommandResult, error, success
 
 from botcore.commands.skill._discovery import discover_local_skills
@@ -248,6 +250,114 @@ def _check_filename(skill_dir: Path) -> list[Issue]:
     return []
 
 
+_OPENAI_TOP_KEYS = frozenset({"interface", "dependencies", "policy"})
+_OPENAI_INTERFACE_KEYS = frozenset(
+    {
+        "display_name",
+        "short_description",
+        "default_prompt",
+        "icon_small",
+        "icon_large",
+        "brand_color",
+    }
+)
+_OPENAI_TEXT_FIELDS = ("display_name", "short_description", "default_prompt")
+
+
+def _check_openai_manifest(skill_dir: Path) -> list[Issue]:
+    """SK020: validate optional agents/openai.yaml manifest when present."""
+    manifest_path = skill_dir / "agents" / "openai.yaml"
+    if not manifest_path.exists():
+        return []
+    if not manifest_path.is_file():
+        return [_issue("SK020", "error", "agents/openai.yaml must be a regular file")]
+
+    try:
+        parsed = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
+        return [_issue("SK020", "error", f"agents/openai.yaml is not valid YAML: {exc}")]
+
+    if not isinstance(parsed, dict):
+        return [_issue("SK020", "error", "agents/openai.yaml must contain a YAML mapping")]
+
+    issues: list[Issue] = []
+    for key in sorted(parsed, key=str):
+        if not isinstance(key, str):
+            issues.append(
+                _issue(
+                    "SK020",
+                    "error",
+                    f"agents/openai.yaml has non-string top-level key {key!r}",
+                )
+            )
+        elif key not in _OPENAI_TOP_KEYS:
+            issues.append(
+                _issue(
+                    "SK020",
+                    "warning",
+                    f"agents/openai.yaml has unknown top-level key '{key}'",
+                )
+            )
+
+    interface = parsed.get("interface")
+    if not isinstance(interface, dict):
+        issues.append(
+            _issue("SK020", "error", "agents/openai.yaml must define an 'interface' mapping")
+        )
+        return issues
+
+    for key in sorted(interface, key=str):
+        if not isinstance(key, str):
+            issues.append(
+                _issue(
+                    "SK020",
+                    "error",
+                    f"agents/openai.yaml interface has non-string key {key!r}",
+                )
+            )
+        elif key not in _OPENAI_INTERFACE_KEYS:
+            issues.append(
+                _issue(
+                    "SK020",
+                    "warning",
+                    f"agents/openai.yaml interface has unknown key '{key}'",
+                )
+            )
+
+    for field in _OPENAI_TEXT_FIELDS:
+        if field in interface:
+            value = interface[field]
+            if not isinstance(value, str) or not value.strip():
+                issues.append(
+                    _issue(
+                        "SK020",
+                        "error",
+                        f"agents/openai.yaml interface.{field} must be a non-empty string",
+                    )
+                )
+
+    if not interface.get("display_name") and not interface.get("short_description"):
+        issues.append(
+            _issue(
+                "SK020",
+                "warning",
+                "agents/openai.yaml interface should set display_name or short_description",
+            )
+        )
+
+    short_desc = interface.get("short_description")
+    if isinstance(short_desc, str) and len(short_desc) > _TARGET_DESCRIPTION_LENGTH:
+        issues.append(
+            _issue(
+                "SK020",
+                "warning",
+                f"agents/openai.yaml interface.short_description is {len(short_desc)} "
+                f"characters (keep under {_TARGET_DESCRIPTION_LENGTH})",
+            )
+        )
+    return issues
+
+
 # ── Listing budget ───────────────────────────────────────────────────────────
 
 
@@ -352,6 +462,7 @@ def _lint_skill(skill_dir: Path) -> dict[str, Any]:
     violations.extend(_check_triggers(fm))
     violations.extend(_check_fields(fm))
     violations.extend(_check_ownership_types(fm))
+    violations.extend(_check_openai_manifest(skill_dir))
     return result
 
 
@@ -421,7 +532,7 @@ async def skill_lint(
     path: str | None = None,
     strict: bool = False,
 ) -> CommandResult[dict]:
-    """Lint the workspace's skills with rules SK001-SK019.
+    """Lint the workspace's skills with rules SK001-SK020.
 
     Args:
         path: A skill under the configured skills directory, or an absolute skill

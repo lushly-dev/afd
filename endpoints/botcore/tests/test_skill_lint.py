@@ -1,4 +1,4 @@
-"""Tests for the skill lint rules (SK001-SK019) and both entry points.
+"""Tests for the skill lint rules (SK001-SK020) and both entry points.
 
 ``skill_lint`` lints the workspace's skills directory; ``skill_lint_spec`` lints a path.
 """
@@ -571,3 +571,66 @@ async def test_mirrored_copy_is_listed_once(tmp_path: Path) -> None:
     data = assert_success(await skill_lint_spec(str(root)))
 
     assert data["listing"]["characters"] == len("Twelve chars")
+
+
+# ── SK020: optional agents/openai.yaml ──────────────────────────────────────
+
+
+async def test_lint_sk020_valid_openai_manifest_passes(tmp_path: Path) -> None:
+    ws = _setup_workspace(tmp_path)
+    skill = _make_valid_skill(_skills_dir(ws), "modernize")
+    agents_dir = skill / "agents"
+    agents_dir.mkdir()
+    (agents_dir / "openai.yaml").write_text(
+        'interface:\n  display_name: "Modernize PR"\n'
+        '  short_description: "Rebase and reassess an aging PR"\n'
+        '  default_prompt: "Use $modernize on this PR."\n',
+        encoding="utf-8",
+    )
+
+    assert await _rules(ws) == []
+
+
+async def test_lint_sk020_invalid_yaml_and_missing_interface_error(tmp_path: Path) -> None:
+    ws = _setup_workspace(tmp_path)
+    bad_yaml = _make_valid_skill(_skills_dir(ws), "bad-yaml")
+    (bad_yaml / "agents").mkdir()
+    (bad_yaml / "agents" / "openai.yaml").write_text("interface: [unclosed\n", encoding="utf-8")
+
+    no_iface = _make_valid_skill(_skills_dir(ws), "no-iface")
+    (no_iface / "agents").mkdir()
+    (no_iface / "agents" / "openai.yaml").write_text("policy:\n  foo: bar\n", encoding="utf-8")
+
+    assert ("SK020", "error") in await _rules(ws, "bad-yaml")
+    assert ("SK020", "error") in await _rules(ws, "no-iface")
+
+
+async def test_lint_sk020_unknown_keys_and_empty_fields(tmp_path: Path) -> None:
+    ws = _setup_workspace(tmp_path)
+    skill = _make_valid_skill(_skills_dir(ws), "bad-fields")
+    (skill / "agents").mkdir()
+    (skill / "agents" / "openai.yaml").write_text(
+        'extra_root: true\ninterface:\n  display_name: "  "\n  displayName: typo\n',
+        encoding="utf-8",
+    )
+
+    rules = await _rules(ws)
+    assert ("SK020", "error") in rules
+    assert ("SK020", "warning") in rules
+
+
+async def test_lint_sk020_non_string_keys_and_invalid_utf8_do_not_crash(tmp_path: Path) -> None:
+    ws = _setup_workspace(tmp_path)
+    int_key_skill = _make_valid_skill(_skills_dir(ws), "int-key")
+    (int_key_skill / "agents").mkdir()
+    (int_key_skill / "agents" / "openai.yaml").write_text(
+        '123: bad\ninterface:\n  display_name: "Ok"\n  456: also-bad\n',
+        encoding="utf-8",
+    )
+
+    bad_bytes_skill = _make_valid_skill(_skills_dir(ws), "bad-utf8")
+    (bad_bytes_skill / "agents").mkdir()
+    (bad_bytes_skill / "agents" / "openai.yaml").write_bytes(b"\xff\xfe\x00\x00")
+
+    assert ("SK020", "error") in await _rules(ws, "int-key")
+    assert ("SK020", "error") in await _rules(ws, "bad-utf8")

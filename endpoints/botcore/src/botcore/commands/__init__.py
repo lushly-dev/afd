@@ -18,6 +18,7 @@ from botcore.commands.dev import (
     dev_dep_graph,
     dev_lint,
     dev_skill_lint,
+    dev_snapshot,
     dev_test,
     dev_unused_deps,
 )
@@ -33,6 +34,7 @@ from botcore.commands.disk import (
 )
 from botcore.commands.docs import docs_check_agents, docs_check_changelog, docs_lint, docs_preflight
 from botcore.commands.info import info_env, info_scripts, info_workspace
+from botcore.commands.pr import pr_drift, pr_status, pr_wait
 from botcore.commands.research import research_query, research_stream
 from botcore.commands.skill import (
     skill_adopt,
@@ -70,6 +72,11 @@ __all__ = [
     "dev_unused_deps",
     "dev_dep_graph",
     "dev_check_paths",
+    "dev_snapshot",
+    # Pull request inspection
+    "pr_status",
+    "pr_wait",
+    "pr_drift",
     # Skill registry
     "skill_seed",
     "skill_list",

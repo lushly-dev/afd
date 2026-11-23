@@ -144,6 +144,26 @@ class DiskConfig(BaseModel):
         return [DiskRegenerable(path=v) if isinstance(v, str) else v for v in self.regenerable]
 
 
+class PRConfig(BaseModel):
+    """Settings for the pr-* commands (botcore.toml [pr])."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    # Review bots that pr_wait(until="ready") waits for (any one reviewing the current head
+    # satisfies the gate; empty list means checks and zero unresolved threads suffice).
+    gating_bots: list[str] = ["greptile", "macroscope"]
+    # Review bots surfaced in status/events without holding ready.
+    advisory_bots: list[str] = ["coderabbit"]
+    # CI/deploy bots whose PR comments are status reports already covered by checks.
+    status_bots: list[str] = ["github-actions", "vercel", "netlify", "railway", "cloudflare"]
+    # Optional directory for pr_wait lock and watermark state files (when persist_state=True).
+    state_dir: str | None = None
+    # Age in seconds after which a persisted watermark resets to a fresh baseline.
+    stale_state_seconds: int = Field(default=6 * 3600, gt=0, strict=True)
+    # Default poll interval in seconds for pr_wait.
+    default_interval: int = Field(default=20, ge=5, strict=True)
+
+
 class LanguageConfig(BaseModel):
     """Per-language tooling configuration."""
 
@@ -207,6 +227,7 @@ class BotCoreConfig(BaseModel):
     skills: SkillsConfig = SkillsConfig()
     sweep: SweepConfig = SweepConfig()
     disk: DiskConfig = DiskConfig()
+    pr: PRConfig = PRConfig()
     language_config: dict[str, LanguageConfig] = {}
     packages: dict[str, PackageOverrideConfig] = {}
     plugins: dict[str, dict[str, Any]] = {}

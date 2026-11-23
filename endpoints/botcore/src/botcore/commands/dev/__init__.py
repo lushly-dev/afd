@@ -7,6 +7,7 @@ Commands are split into modules:
 - analysis.py: dead-code, circular-imports, unused-deps, dep-graph
   (import_graph.py holds the Python import scanning)
 - portability.py: check-paths (cross-platform path detection)
+- snapshot.py: dev-snapshot (read-only checkout integrity snapshot & diff ratchet)
 """
 
 from botcore.commands.dev.analysis import (
@@ -29,6 +30,7 @@ from botcore.commands.dev.quality import (
     dev_check_lockfile,
     dev_check_size,
 )
+from botcore.commands.dev.snapshot import dev_snapshot
 
 __all__ = [
     # Core
@@ -49,4 +51,6 @@ __all__ = [
     "dev_dep_graph",
     # Portability
     "dev_check_paths",
+    # Snapshot
+    "dev_snapshot",
 ]

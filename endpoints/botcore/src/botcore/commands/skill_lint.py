@@ -52,7 +52,7 @@ def _listing_budget(target: Path) -> tuple[int, str | None]:
 async def skill_lint_spec(
     path: str | None = None,
 ) -> CommandResult[dict]:
-    """Lint SKILL.md files under a path with the shared skill rules (SK001-SK019).
+    """Lint SKILL.md files under a path with the shared skill rules (SK001-SK020).
 
     Args:
         path: Directory containing skills (or a single skill directory).
