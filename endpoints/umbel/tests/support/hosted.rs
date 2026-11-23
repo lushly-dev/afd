@@ -312,8 +312,9 @@ impl Client {
         &self.host
     }
 
-    /// Connect and, with TLS, finish the handshake and wait briefly for the server's verdict.
-    /// `Err` with the reason when either fails.
+    /// Connect and, with TLS, finish the handshake and wait up to 5 s for a post-handshake
+    /// rejection (alert or close). Intended for asserting handshake refusal rather than probing a
+    /// valid connection; returns `Err` with the reason when the handshake or verdict fails.
     pub async fn handshake(&self) -> Result<(), String> {
         let stream = self.open().await?;
         let Stream::Tls(mut stream) = stream else {
@@ -321,9 +322,10 @@ impl Client {
         };
         // TLS 1.3 sends the server's verdict on a client certificate after the client's
         // Finished: a refusal arrives as an alert, or as the connection closing. Nothing else
-        // comes before a request.
+        // comes before a request. Wait generously so a loaded single-threaded test runtime does
+        // not time out before reading an alert already in flight (#1640).
         let mut probe = [0u8; 1];
-        match tokio::time::timeout(Duration::from_millis(300), stream.read(&mut probe)).await {
+        match tokio::time::timeout(Duration::from_secs(5), stream.read(&mut probe)).await {
             Err(_) => Ok(()),
             Ok(Ok(0)) => Err("the server closed the connection after the handshake".to_owned()),
             Ok(Ok(_)) => Err("the server sent data before any request".to_owned()),
@@ -414,8 +416,8 @@ impl Client {
             .await
     }
 
-    /// Write `bytes` on a new connection and read the answer until the server closes it or a
-    /// second passes without data.
+    /// Write `bytes` on a new connection, wait for the first response bytes (returning an error on
+    /// timeout), then read until the server closes the connection or a second passes without data.
     pub async fn raw(&self, bytes: &[u8]) -> Result<String, String> {
         async fn run<S: AsyncRead + AsyncWrite + Unpin>(
             mut stream: S,
@@ -425,11 +427,24 @@ impl Client {
                 .write_all(bytes)
                 .await
                 .map_err(|error| error.to_string())?;
+            stream.flush().await.map_err(|error| error.to_string())?;
             let mut answer = Vec::new();
             let mut buffer = [0u8; 4096];
             loop {
-                match tokio::time::timeout(Duration::from_secs(1), stream.read(&mut buffer)).await {
-                    Ok(Ok(0)) | Err(_) => break,
+                // Wait generously for the first byte so a loaded runtime does not mistake a
+                // delayed response for an empty one; once bytes arrive, stop after a short idle
+                // pause if the peer leaves the connection open (#1640).
+                let wait = if answer.is_empty() {
+                    Duration::from_secs(10)
+                } else {
+                    Duration::from_secs(1)
+                };
+                match tokio::time::timeout(wait, stream.read(&mut buffer)).await {
+                    Ok(Ok(0)) => break,
+                    Err(_) if answer.is_empty() => {
+                        return Err("timed out waiting for a response".to_owned());
+                    }
+                    Err(_) => break,
                     Ok(Ok(read)) => answer.extend_from_slice(&buffer[..read]),
                     Ok(Err(error)) if answer.is_empty() => return Err(error.to_string()),
                     Ok(Err(_)) => break,
