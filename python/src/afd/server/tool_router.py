@@ -30,10 +30,18 @@ from afd.server.confirmations import (
 )
 from afd.core.similarity import truncate_name
 from afd.server.auth import credentials_actor
+from afd.server.auth_view import (
+    ScopeView,
+    known_only,
+    listed_commands,
+    scope_view_of,
+    select_grouped_call,
+    shown_only,
+)
 from afd.server.context_fields import current_context_field_values
 from afd.server.context_hook import copy_extra, current_hook_outcome
 from afd.server.lazy_tools import execute_detail, execute_discover, not_found_suggestion
-from afd.server.tools import derive_group_action, derive_group_name
+from afd.server.tools import derive_group_name
 
 
 @dataclass
@@ -60,8 +68,9 @@ class ToolRouterDeps:
     # MCP Tasks (spec/command-metadata.md, "Tasks"): single-command dispatch and composite refusal.
     dispatch_task: Callable[[CommandDefinition, Any, CommandContext], Awaitable[Any]] | None = None
     refuse_composite_task: Callable[[Literal["afd-batch", "afd-pipe"], str], Any] | None = None
-    # Verified credentials admitted by AFD's HTTP auth layer for the current request, if any.
+    # Verified credentials and per-request ScopeView admitted by AFD's HTTP auth layer, if any.
     get_admitted_credentials: Callable[[], Any] | None = None
+    get_scope_view: Callable[[], ScopeView | None] | None = None
 
 NOT_IN_CONTEXT_SUGGESTION = (
     "Use afd-context-list to see available contexts, or afd-context-enter to switch."
@@ -110,24 +119,65 @@ def create_tool_router(deps: ToolRouterDeps):
     commands_by_name = _index_by_name(deps.commands)
     get_group = deps.group_by_fn or derive_group_name
     commands_by_group: dict[str, list[CommandDefinition]] = {}
-    all_commands_by_group: dict[str, list[CommandDefinition]] = {}
     if deps.tool_strategy == "grouped":
         for command in deps.commands:
             commands_by_group.setdefault(get_group(command) or "general", []).append(command)
-        for command in all_commands:
-            all_commands_by_group.setdefault(get_group(command) or "general", []).append(command)
 
-    def mcp_context(prefix: str, active_context: str | None) -> CommandContext:
+    def mcp_context(
+        prefix: str,
+        active_context: str | None,
+        view: ScopeView | None = None,
+        caller_context: CommandContext | None = None,
+    ) -> CommandContext:
         # Precedence (spec/context-fields.md, "Trusted code wins"):
         # 1. Declared context fields from the request's _meta (caller claims)
         # 2. The host's context_hook values (trusted code wins over _meta)
-        # 3. The server's own invariants (interface, remote, active_context, credentials)
-        admitted = (
+        # 3. The server's own invariants (interface, remote, active_context, credentials, scope view)
+        ambient_creds = (
             deps.get_admitted_credentials() if deps.get_admitted_credentials is not None else None
+        )
+        # When a background task or nested call forwards its explicit CommandContext into a
+        # meta-tool, keep its credentials and ScopeView even after the HTTP request has closed.
+        admitted = (
+            caller_context.credentials
+            if caller_context is not None and caller_context.credentials is not None
+            else (
+                view.credentials
+                if caller_context is not None and view is not None
+                else ambient_creds
+            )
         )
         default_actor = (
             credentials_actor(admitted) if admitted is not None else (deps.actor or _MCP_ACTOR)
         )
+        if caller_context is not None:
+            caller_budget = (
+                current_output_budget_ask()
+                if current_output_budget_ask() is not None
+                else getattr(caller_context, "_output_budget_ask", None)
+            )
+            return CommandContext(
+                trace_id=caller_context.trace_id or new_trace_id(prefix),
+                timeout=caller_context.timeout,
+                extra={
+                    **current_context_field_values(),
+                    **copy_extra(caller_context.extra),
+                    "interface": "mcp",
+                    "remote": True,
+                    "active_context": active_context,
+                },
+                actor=copy.copy(caller_context.actor)
+                if caller_context.actor is not None
+                else copy.copy(default_actor),
+                clock=caller_context.clock,
+                random=caller_context.random,
+                approval=caller_context.approval,
+                credentials=admitted,
+                report_progress=caller_context.report_progress,
+                cancel=caller_context.cancel,
+                _output_budget_ask=caller_budget,
+                _scope_view=view,
+            )
         outcome = current_hook_outcome()
         hook_ctx = outcome.context if outcome is not None else None
         if hook_ctx is not None:
@@ -154,6 +204,7 @@ def create_tool_router(deps: ToolRouterDeps):
                 approval=hook_ctx.approval,
                 credentials=admitted,
                 _output_budget_ask=budget_ask,
+                _scope_view=view,
             )
         return CommandContext(
             trace_id=new_trace_id(prefix),
@@ -166,6 +217,7 @@ def create_tool_router(deps: ToolRouterDeps):
             actor=copy.copy(default_actor),
             credentials=admitted,
             _output_budget_ask=current_output_budget_ask(),
+            _scope_view=view,
         )
 
     def not_in_context(name: str, active_context: str | None) -> CommandResult[Any]:
@@ -225,8 +277,30 @@ def create_tool_router(deps: ToolRouterDeps):
             return refused(up_front.refusal)
         return result
 
-    async def route_tool_call(tool_name: str, args: Any) -> Any:
+    async def route_tool_call(
+        tool_name: str, args: Any, caller_context: CommandContext | None = None
+    ) -> Any:
         active_context = deps.context_state.get_active() if deps.context_state else None
+        view = scope_view_of(caller_context) if caller_context is not None else None
+        if view is None and deps.get_scope_view is not None:
+            view = deps.get_scope_view()
+
+        # M6: after routing (and context_hook) and before the confirmation gate, every call
+        # carrying credentials is decided again; a batch or pipeline fails as a whole.
+        if view is not None:
+            decision = view.decide_call(tool_name, args, active_context=active_context)
+            if decision != "proceed":
+                insufficient = view.insufficient_scope(decision.forbidden)
+                if tool_name == "afd-batch":
+                    return create_failed_batch_result(insufficient)
+                if tool_name == "afd-pipe":
+                    return create_pipeline_failure(insufficient)
+                return command_failure(insufficient)
+
+        # M6 ("Hidden commands"): commands the caller does not know do not exist on any route.
+        known_commands = known_only(deps.commands, view)
+        known_all_commands = known_only(all_commands, view)
+        known_by_name = commands_by_name if view is None else _index_by_name(known_commands)
 
         if tool_name == "afd-call":
             payload = {} if args is None else args
@@ -238,14 +312,13 @@ def create_tool_router(deps: ToolRouterDeps):
                     suggestion="Provide { command: 'command-name', input: {...} }.",
                 )
 
-            command = commands_by_name.get(command_name)
+            command = known_by_name.get(command_name)
             if command is None:
-                # An unexposed command gets the same answer as an unknown one, so a
-                # remote caller cannot learn that a private command exists
-                # (spec/error-codes.md, D4).
+                # An unexposed or hidden command gets the same answer as an unknown one, so a
+                # remote caller cannot learn that it exists (spec/error-codes.md, D4; M6).
                 callable_names = [
                     item.name
-                    for item in deps.commands
+                    for item in shown_only(known_commands, view)
                     if is_command_accessible(item, active_context)
                 ]
                 return error(
@@ -267,7 +340,7 @@ def create_tool_router(deps: ToolRouterDeps):
                 return refused
 
             routed(command_name)
-            ctx = mcp_context("afd-call", active_context)
+            ctx = mcp_context("afd-call", active_context, view, caller_context)
             if deps.dispatch_task is not None:
                 task_result = await deps.dispatch_task(command, command_input, ctx)
                 if task_result is not None:
@@ -279,30 +352,39 @@ def create_tool_router(deps: ToolRouterDeps):
             )
 
         if tool_name == "afd-discover":
-            visible_commands = [
-                command
-                for command in deps.commands
-                if is_command_accessible(command, active_context)
-            ]
+            visible_commands = listed_commands(
+                [
+                    command
+                    for command in known_commands
+                    if is_command_accessible(command, active_context)
+                ],
+                view,
+            )
             return execute_discover(visible_commands, {} if args is None else args)
 
         if tool_name == "afd-detail":
-            visible_all_commands = [
-                command
-                for command in all_commands
-                if is_command_accessible(command, active_context)
-            ]
+            visible_all_commands = listed_commands(
+                [
+                    command
+                    for command in known_all_commands
+                    if is_command_accessible(command, active_context)
+                ],
+                view,
+            )
             return execute_detail(visible_all_commands, exposed_command_names, {} if args is None else args)
 
         if tool_name == "afd-batch":
             if deps.refuse_composite_task is not None:
-                required_task = _first_required_task(args, "commands", commands_by_name)
+                required_task = _first_required_task(args, "commands", known_by_name)
                 if required_task is not None:
                     return create_failed_batch_result(
                         deps.refuse_composite_task("afd-batch", required_task)
                     )
+            batch_steps = [
+                step for step in _steps(args, "commands") if view is None or view.known(step.command)
+            ]
             refused = await unconfirmed(
-                _steps(args, "commands"),
+                batch_steps,
                 named_acknowledgement(args.get("confirm") if isinstance(args, dict) else None),
                 "repeat the afd-batch with confirm: [the command names]",
                 lambda failure: create_failed_batch_result(failure),
@@ -313,19 +395,24 @@ def create_tool_router(deps: ToolRouterDeps):
             return await approved_up_front(
                 "afd-batch",
                 request,
-                lambda: deps.execute_batch(request, mcp_context("batch", active_context)),
+                lambda: deps.execute_batch(
+                    request, mcp_context("batch", active_context, view, caller_context)
+                ),
                 create_failed_batch_result,
             )
 
         if tool_name == "afd-pipe":
             if deps.refuse_composite_task is not None:
-                required_task = _first_required_task(args, "steps", commands_by_name)
+                required_task = _first_required_task(args, "steps", known_by_name)
                 if required_task is not None:
                     return create_pipeline_failure(
                         deps.refuse_composite_task("afd-pipe", required_task)
                     )
+            pipe_steps = [
+                step for step in _steps(args, "steps") if view is None or view.known(step.command)
+            ]
             refused = await unconfirmed(
-                _steps(args, "steps"),
+                pipe_steps,
                 named_acknowledgement(args.get("confirm") if isinstance(args, dict) else None),
                 "repeat the afd-pipe with confirm: [the command names]",
                 lambda failure: create_pipeline_failure(failure),
@@ -336,81 +423,53 @@ def create_tool_router(deps: ToolRouterDeps):
             return await approved_up_front(
                 "afd-pipe",
                 request,
-                lambda: deps.execute_pipeline(request, mcp_context("pipeline", active_context)),
+                lambda: deps.execute_pipeline(
+                    request, mcp_context("pipeline", active_context, view, caller_context)
+                ),
                 create_pipeline_failure,
             )
 
         if deps.tool_strategy == "grouped":
             payload = {} if args is None else args
             action = payload.get("action") if isinstance(payload, dict) else None
-            all_group_commands = all_commands_by_group.get(tool_name, [])
-            group_commands = [
-                command
-                for command in commands_by_group.get(tool_name, [])
-                if is_command_accessible(command, active_context)
-            ]
-
-            if not group_commands and all_group_commands:
-                if isinstance(action, str):
-                    hidden_command = next(
-                        (
-                            item
-                            for item in all_group_commands
-                            if derive_group_action(item) == action
-                            and not is_command_accessible(item, active_context)
-                        ),
-                        None,
-                    )
-                    if hidden_command is not None:
-                        return not_in_context(hidden_command.name, active_context)
-
-                inaccessible_commands = [
-                    item for item in all_group_commands if not is_command_accessible(item, active_context)
-                ]
-                if inaccessible_commands:
-                    return error(
-                        "COMMAND_NOT_IN_CONTEXT",
-                        f"Grouped tool '{tool_name}' is not available in context '{active_context}'",
-                        suggestion=NOT_IN_CONTEXT_SUGGESTION,
-                    )
-
-            if group_commands and not isinstance(action, str):
-                available_actions = [derive_group_action(command) for command in group_commands]
+            members = known_only(commands_by_group.get(tool_name, []), view)
+            selection = select_grouped_call(
+                members,
+                active_context=active_context,
+                action=action,
+                is_shown=lambda cmd: view is None or view.shown(cmd.name),
+            )
+            if selection.kind == "not_in_context_action" and selection.command is not None:
+                return not_in_context(selection.command.name, active_context)
+            if selection.kind == "not_in_context_group":
+                return error(
+                    "COMMAND_NOT_IN_CONTEXT",
+                    f"Grouped tool '{tool_name}' is not available in context '{active_context}'",
+                    suggestion=NOT_IN_CONTEXT_SUGGESTION,
+                )
+            if selection.kind == "missing_action":
                 return error(
                     "INVALID_GROUPED_CALL",
                     f"Grouped tool '{tool_name}' requires an action parameter",
                     suggestion=(
                         "Provide { action: '<action>', params: {...} }. "
-                        f"Available actions: {', '.join(available_actions)}"
+                        f"Available actions: {', '.join(selection.available_actions)}"
                     ),
                 )
-
-            if group_commands and isinstance(action, str):
-                command = next(
-                    (
-                        item
-                        for item in group_commands
-                        if derive_group_action(item) == action
-                    ),
-                    None,
+            if selection.kind == "ambiguous":
+                return error(
+                    "AMBIGUOUS_ACTION",
+                    f"Action '{truncate_name(str(action))}' does not identify one command in group '{truncate_name(tool_name)}'",
+                    suggestion="Use afd-call with the full command name, or list tools to find a valid action.",
                 )
-                if command is None:
-                    hidden_command = next(
-                        (
-                            item
-                            for item in all_group_commands
-                            if derive_group_action(item) == action
-                            and not is_command_accessible(item, active_context)
-                        ),
-                        None,
-                    )
-                    if hidden_command is not None:
-                        return not_in_context(hidden_command.name, active_context)
-                    return error(
-                        "COMMAND_NOT_FOUND",
-                        f"Action '{action}' is not available for grouped tool '{tool_name}'",
-                        suggestion="Use afd-discover or afd-detail to inspect available actions.",
-                    )
+            if selection.kind == "unknown_action":
+                return error(
+                    "COMMAND_NOT_FOUND",
+                    f"Action '{action}' is not available for grouped tool '{tool_name}'",
+                    suggestion="Use afd-discover or afd-detail to inspect available actions.",
+                )
+            if selection.kind == "command" and selection.command is not None:
+                command = selection.command
                 params = payload.get("params", {})
                 refused = await unconfirmed(
                     [ConfirmationStep(command.name, params)],
@@ -420,7 +479,7 @@ def create_tool_router(deps: ToolRouterDeps):
                 if refused is not None:
                     return refused
                 routed(command.name)
-                ctx = mcp_context("trace", active_context)
+                ctx = mcp_context("trace", active_context, view, caller_context)
                 if deps.dispatch_task is not None:
                     task_result = await deps.dispatch_task(command, params, ctx)
                     if task_result is not None:
@@ -431,7 +490,7 @@ def create_tool_router(deps: ToolRouterDeps):
                     ctx,
                 )
 
-        command = commands_by_name.get(tool_name)
+        command = known_by_name.get(tool_name)
         if not is_command_accessible(command, active_context):
             return not_in_context(tool_name, active_context)
 
@@ -443,16 +502,17 @@ def create_tool_router(deps: ToolRouterDeps):
             acknowledged = command_input.get("confirm") is True
             if not declares_confirm_input(command):
                 command_input = without_confirm(command_input)
-        refused = await unconfirmed(
-            [ConfirmationStep(tool_name, command_input)],
-            acknowledged,
-            "repeat the call with confirm: true",
-        )
-        if refused is not None:
-            return refused
+        if command is not None:
+            refused = await unconfirmed(
+                [ConfirmationStep(tool_name, command_input)],
+                acknowledged,
+                "repeat the call with confirm: true",
+            )
+            if refused is not None:
+                return refused
 
         routed(tool_name)
-        ctx = mcp_context("trace", active_context)
+        ctx = mcp_context("trace", active_context, view, caller_context)
         if command is not None and deps.dispatch_task is not None:
             task_result = await deps.dispatch_task(command, command_input, ctx)
             if task_result is not None:

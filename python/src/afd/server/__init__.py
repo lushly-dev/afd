@@ -88,9 +88,23 @@ from afd.server.auth import (
     AuthLayer,
     AuthRefusal,
     McpAuthOptions,
+    PreDispatchCheck,
     create_auth_layer,
     credentials_actor,
 )
+from afd.server.auth_dispatch import PreDispatch
+from afd.server.auth_scopes import (
+    RequestDecision,
+    RequestForbidden,
+    ScopeChallenge,
+    ScopeDecision,
+    ScopeMissing,
+    ScopeResolver,
+    ScopeWarning,
+    request_decision,
+    static_decision,
+)
+from afd.server.auth_view import ScopeView
 from afd.server.auth_bearer import (
     BearerRefusal,
     BearerResult,
@@ -273,7 +287,7 @@ __all__ = [
     "PrincipalCredentials",
     "credentials_binding",
     "principal_binding",
-    # MCP authorization (spec/authorization.md, M1–M5 and M7)
+    # MCP authorization (spec/authorization.md, M1–M7)
     "AUTH_RULE_CODES",
     "AuthLayer",
     "AuthRefusal",
@@ -295,11 +309,21 @@ __all__ = [
     "MAX_CLOCK_SKEW_S",
     "McpAuthOptions",
     "PROTECTED_RESOURCE_WELL_KNOWN",
+    "PreDispatch",
+    "PreDispatchCheck",
     "ProtectedResource",
+    "RequestDecision",
+    "RequestForbidden",
     "RuleOk",
     "RuleRefusal",
     "RuleResult",
     "SIGNING_ALGORITHMS",
+    "ScopeChallenge",
+    "ScopeDecision",
+    "ScopeMissing",
+    "ScopeResolver",
+    "ScopeView",
+    "ScopeWarning",
     "SigningAlgorithm",
     "TokenRefused",
     "TokenRequest",
@@ -324,6 +348,8 @@ __all__ = [
     "jwks_key_source",
     "names_access_token",
     "parse_scope_claim",
+    "request_decision",
+    "static_decision",
     # Output budgets
     "AFD_OUTPUT_BUDGET_META_KEY",
     "MAX_OUTPUT_BUDGET_BYTES",

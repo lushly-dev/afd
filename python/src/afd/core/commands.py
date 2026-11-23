@@ -20,6 +20,7 @@ Example:
 
 import asyncio
 import dataclasses
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 import logging
 import re
@@ -59,6 +60,26 @@ TaskSupport = Literal["never", "optional", "required"]
 """Whether an MCP ``tools/call`` to a command may run as a task (``spec/command-metadata.md``, "Tasks")."""
 
 _VALID_TASK_SUPPORTS = frozenset({"never", "optional", "required"})
+_SCOPE_TOKEN_RE = re.compile(r"\A[\x21\x23-\x5B\x5D-\x7E]+\Z", re.ASCII)
+
+
+def validate_command_scopes(name: str, scopes: Any) -> List[str]:
+    """Validate and deduplicate ``scopes`` (OAuth scope tokens, RFC 6749 3.3)."""
+    if scopes is None:
+        return []
+    if isinstance(scopes, (str, bytes)) or not isinstance(scopes, Sequence):
+        raise ValueError(f"command '{name}': scopes must be a sequence of scope tokens")
+    kept: List[str] = []
+    seen: set[str] = set()
+    for scope in scopes:
+        if not isinstance(scope, str) or _SCOPE_TOKEN_RE.match(scope) is None:
+            raise ValueError(
+                f"command '{name}': scope {scope!r} is not an OAuth scope token"
+            )
+        if scope not in seen:
+            seen.add(scope)
+            kept.append(scope)
+    return kept
 
 
 def validate_task_declaration(
@@ -208,6 +229,7 @@ class CommandContext:
     _direct_approval: Any = field(default=None, repr=False, compare=False)
     _direct_allow: Any = field(default=None, repr=False, compare=False)
     _output_budget_ask: Any = field(default=None, repr=False, compare=False)
+    _scope_view: Any = field(default=None, repr=False, compare=False)
 
     def with_output_budget_ask(self, max_bytes: Any) -> "CommandContext":
         """Return a copy of this context carrying an output budget ask (B2)."""
@@ -309,6 +331,7 @@ class CommandDefinition:
     title: Optional[str] = None
     task: Optional[TaskSupport] = None
     output_budget: Optional[OutputBudget] = None
+    scopes: List[str] = field(default_factory=list)
 
 
 class CommandRegistry(Protocol):
@@ -415,6 +438,7 @@ class _CommandRegistryImpl:
         command.output_budget = validate_output_budget_declaration(
             command.name, command.output_budget
         )
+        command.scopes = validate_command_scopes(command.name, command.scopes)
         self._commands[command.name] = command
 
     def get(self, name: str) -> Optional[CommandDefinition]:
@@ -661,6 +685,8 @@ def command_to_mcp_tool(command: CommandDefinition) -> dict[str, Any]:
         meta["outputSchema"] = command.returns
     if command.contexts:
         meta["contexts"] = list(command.contexts)
+    if command.scopes:
+        meta["scopes"] = list(command.scopes)
     if command.task is not None:
         meta["task"] = command.task
     if command.output_budget is not None:

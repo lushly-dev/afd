@@ -276,6 +276,7 @@ def execute_detail(
             "callable": command.name in exposed_command_names,
             "requires": list(command.requires) if command.requires else None,
             "contexts": list(command.contexts) if command.contexts else None,
+            "scopes": list(command.scopes) if command.scopes else None,
             "examples": (
                 serialize_command_examples(list(command.examples)) if command.examples else None
             ),

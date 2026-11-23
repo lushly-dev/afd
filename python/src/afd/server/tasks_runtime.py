@@ -29,6 +29,7 @@ from afd.server.auth_rules import (
     _clone_verified_credentials,
     _unbrand_verified_credentials,
 )
+from afd.server.auth_view import ScopeView, scope_view_of
 from afd.server.confirmations import bind_confirmation_channel
 from afd.server.context_hook import HookOutcome, copy_extra, current_hook_outcome
 from afd.server.principal import (
@@ -429,6 +430,7 @@ class TaskRuntime:
         has_context_hook: bool = False,
         run_context_hook: Callable[[str, Any], Awaitable[HookOutcome]] | None = None,
         get_admitted_credentials: Callable[[], Credentials | None] | None = None,
+        get_scope_view: Callable[[], ScopeView | None] | None = None,
     ) -> None:
         self._get_exposed_commands = get_exposed_commands
         self._execute_command = execute_command
@@ -439,6 +441,7 @@ class TaskRuntime:
         self._has_context_hook = has_context_hook
         self._run_context_hook = run_context_hook
         self._get_admitted_credentials = get_admitted_credentials
+        self._get_scope_view = get_scope_view
         self._running: dict[str, _RunningTask] = {}
 
     @property
@@ -456,6 +459,9 @@ class TaskRuntime:
         return (
             self._get_admitted_credentials() if self._get_admitted_credentials is not None else None
         )
+
+    def _current_scope_view(self) -> ScopeView | None:
+        return self._get_scope_view() if self._get_scope_view is not None else None
 
     def identifies_caller(self, request_context: Any) -> bool:
         """Whether callers can be told apart on the transport of ``request_context``."""
@@ -615,6 +621,13 @@ class TaskRuntime:
             if admitted is not None:
                 task_credentials = _clone_verified_credentials(admitted) or admitted
 
+            call_view = scope_view_of(context) or self._current_scope_view()
+            task_view = (
+                call_view.with_credentials(task_credentials)
+                if call_view is not None and task_credentials is not None
+                else call_view
+            )
+
             task_context = CommandContext(
                 trace_id=context.trace_id,
                 timeout=context.timeout,
@@ -627,6 +640,7 @@ class TaskRuntime:
                 report_progress=report_progress,
                 cancel=running.cancel_event,
                 _output_budget_ask=getattr(context, "_output_budget_ask", None),
+                _scope_view=task_view,
             )
             token_deadline_ms = (
                 expires_at_seconds * 1000 if expires_at_seconds is not None else None
@@ -893,7 +907,9 @@ class TaskRuntime:
                 message=f"{MCP_NAME_HEADER} header does not match the request body's 'taskId' parameter",
             )
 
-    async def _resolve_caller(self, method: str, ctx: Any, task_id: str) -> str:
+    async def _resolve_caller(
+        self, method: str, ctx: Any, task_id: str
+    ) -> tuple[str, ScopeView | None]:
         from mcp import MCPError
         from mcp_types import INTERNAL_ERROR, INVALID_REQUEST
 
@@ -902,6 +918,22 @@ class TaskRuntime:
         self._check_mcp_name(ctx, task_id)
         if not request_declares_tasks(ctx):
             raise missing_tasks_capability()
+
+        view = self._current_scope_view()
+        if view is not None:
+            req_dec = view.decide_request()
+            if req_dec != "proceed":
+                err = view.insufficient_scope(req_dec.forbidden)
+                raise MCPError(
+                    code=INVALID_REQUEST,
+                    message=err.message,
+                    data={
+                        "code": err.code,
+                        "suggestion": err.suggestion,
+                        "scopes": list(req_dec.forbidden),
+                        "retryable": False,
+                    },
+                )
 
         admitted = self._admitted_credentials()
         default_actor = (
@@ -932,12 +964,19 @@ class TaskRuntime:
 
         try:
             credentials = admitted if admitted is not None else sdk_credentials()
-            return principal_binding(actor, credentials)
+            return principal_binding(actor, credentials), view
         except (IncompleteCredentials, TypeError):
             logger.warning("refusing %s: incomplete credentials", method)
             raise _internal_rpc_error() from None
 
-    async def _find_task(self, owner: str, task_id: str) -> TaskRecord:
+    async def _find_task(
+        self,
+        owner: str,
+        view: ScopeView | None,
+        task_id: str,
+        *,
+        needs_command: bool,
+    ) -> TaskRecord:
         if not is_task_id(task_id):
             raise _task_not_found()
         try:
@@ -952,27 +991,45 @@ class TaskRuntime:
             or not task_owner_matches(record.owner, owner)
             or is_task_expired(record, now)
             or record.command not in exposed_names
+            or (view is not None and not view.known(record.command))
         ):
             raise _task_not_found()
+        if needs_command and view is not None:
+            decision = view.decide_task(record.command)
+            if decision != "proceed":
+                from mcp import MCPError
+                from mcp_types import INVALID_REQUEST
+
+                err = view.insufficient_scope(decision.forbidden)
+                raise MCPError(
+                    code=INVALID_REQUEST,
+                    message=err.message,
+                    data={
+                        "code": err.code,
+                        "suggestion": err.suggestion,
+                        "scopes": list(decision.forbidden),
+                        "retryable": False,
+                    },
+                )
         return record
 
     async def handle_get(self, ctx: Any, params: Any) -> Any:
-        owner = await self._resolve_caller("tasks/get", ctx, params.task_id)
-        record = await self._find_task(owner, params.task_id)
+        owner, view = await self._resolve_caller("tasks/get", ctx, params.task_id)
+        record = await self._find_task(owner, view, params.task_id, needs_command=True)
         return _wire_detailed_task(record)
 
     async def handle_update(self, ctx: Any, params: Any) -> Any:
         from mcp_types import EmptyResult
 
-        owner = await self._resolve_caller("tasks/update", ctx, params.task_id)
-        await self._find_task(owner, params.task_id)
+        owner, view = await self._resolve_caller("tasks/update", ctx, params.task_id)
+        await self._find_task(owner, view, params.task_id, needs_command=True)
         return EmptyResult()
 
     async def handle_cancel(self, ctx: Any, params: Any) -> Any:
         from mcp_types import EmptyResult
 
-        owner = await self._resolve_caller("tasks/cancel", ctx, params.task_id)
-        record = await self._find_task(owner, params.task_id)
+        owner, view = await self._resolve_caller("tasks/cancel", ctx, params.task_id)
+        record = await self._find_task(owner, view, params.task_id, needs_command=False)
         if is_terminal_task_status(record.status):
             running = self._running.get(record.id)
             if running is not None:

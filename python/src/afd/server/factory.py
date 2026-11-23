@@ -38,6 +38,7 @@ from afd.core.commands import (
     ExposeOptions,
     TaskSupport,
     create_command_registry,
+    validate_command_scopes,
     validate_task_declaration,
 )
 from afd.core.errors import CommandError, ErrorCodes
@@ -113,7 +114,9 @@ from afd.server.approval_relay import bind_approval_relay, current_up_front_appr
 from afd.server.auth import (
     AuthLayer,
     McpAuthOptions,
+    PreDispatchCheck,
     admitted_credentials_for,
+    admitted_view_for,
     bind_trusted_transport,
     claim_admitted_dispatch,
     create_auth_layer,
@@ -122,6 +125,8 @@ from afd.server.auth import (
 )
 from afd.server.auth_resource import ProtectedResource
 from afd.server.auth_rules import Credentials
+from afd.server.auth_scopes import ScopeChallenge
+from afd.server.auth_view import ScopeAuthority, ScopeView, listed_commands, scope_view_of
 from afd.server.batch_execution import execute_batch, execute_pipeline_request
 from afd.server.confirmations import (
     CONFIRMATION_MODES,
@@ -228,7 +233,7 @@ class ServerConfig:
     task_options: TaskOptions | None = None
     """MCP Tasks runtime options (TTL, polling interval, concurrency and caller identification)."""
     auth: McpAuthOptions | None = None
-    """OAuth 2.1 protected-resource authorization on HTTP (``spec/authorization.md``, M1–M5, M7)."""
+    """OAuth 2.1 protected-resource authorization on HTTP (``spec/authorization.md``, M1–M7)."""
 
 
 DEFAULT_TOOLS_LIST_TTL_MS = 300_000
@@ -304,9 +309,16 @@ class MCPServer:
         # Per-call caches, rebuilt after register() or a context change.
         self._command_index: dict[str, CommandDefinition] | None = None
         self._router: Callable[[str, Any], Any] | None = None
+        self._scope_authority: ScopeAuthority | None = None
         self._first_class_checked = False
         self._auth_layer: AuthLayer | None = (
-            create_auth_layer(config.auth, clock=config.clock) if config.auth is not None else None
+            create_auth_layer(
+                config.auth,
+                clock=config.clock,
+                get_scope_authority=self._get_scope_authority,
+            )
+            if config.auth is not None
+            else None
         )
         self._task_runtime = TaskRuntime(
             get_exposed_commands=lambda: self.list_exposed_commands(
@@ -322,6 +334,7 @@ class MCPServer:
                 self._run_context_hook if config.context_hook is not None else None
             ),
             get_admitted_credentials=self._current_admitted_credentials,
+            get_scope_view=self._current_scope_view,
         )
 
     @property
@@ -361,10 +374,76 @@ class MCPServer:
         (``spec/authorization.md``, M1)."""
         return bind_trusted_transport(self._auth_layer)
 
+    def admit(self, request_or_scope: Any, credentials: Credentials) -> Any:
+        """Context manager admitting ``credentials`` that a host's own HTTP layer vouches for,
+        for this request alone (``spec/authorization.md``, M6)."""
+        if self._auth_layer is None:
+            raise ValueError("[AFD] admit needs the auth option")
+        return self._auth_layer.host_admit(request_or_scope, credentials)
+
+    def pre_dispatch_check(
+        self,
+        *,
+        challenge: ScopeChallenge | None = None,
+        scope_source: str | None = None,
+        max_body_bytes: int | None = None,
+    ) -> PreDispatchCheck:
+        """Build the pre-dispatch scope checker for a host's own HTTP layer
+        (``spec/authorization.md``, M6)."""
+        if self._auth_layer is None:
+            raise ValueError("[AFD] pre_dispatch_check needs the auth option")
+        self._check_before_request()
+        return self._auth_layer.pre_dispatch_check(
+            challenge=challenge,
+            scope_source=scope_source,
+            max_body_bytes=max_body_bytes,
+        )
+
+    def _get_scope_authority(self) -> ScopeAuthority:
+        assert self._auth_layer is not None
+        self._check_before_request()
+        if self._scope_authority is None:
+            commands = self.list_exposed_commands(
+                interface="mcp", include_bootstrap=True, context_filtered=False
+            )
+            self._scope_authority = ScopeAuthority(
+                required_scopes=self._auth_layer.required_scopes,
+                resolver=self._auth_layer.resolver,
+                filter_tools_by_scope=self._auth_layer.filter_tools_by_scope,
+                commands=commands,
+                tool_strategy=self.config.tool_strategy,
+                group_by_fn=self.config.group_by,
+                resource=self._auth_layer.protected_resource,
+            )
+        return self._scope_authority
+
     def _current_admitted_credentials(self) -> Credentials | None:
         if self._auth_layer is None:
             return None
         return admitted_credentials_for(self._auth_layer)
+
+    def _current_scope_view(self) -> ScopeView | None:
+        if self._auth_layer is None:
+            return None
+        return admitted_view_for(self._auth_layer)
+
+    def _insufficient_scope_rpc_error(
+        self, view: ScopeView, missing: Sequence[str]
+    ) -> Exception:
+        from mcp import MCPError
+        from mcp_types import INVALID_REQUEST
+
+        err = view.insufficient_scope(missing)
+        return MCPError(
+            code=INVALID_REQUEST,
+            message=err.message,
+            data={
+                "code": err.code,
+                "suggestion": err.suggestion,
+                "scopes": list(missing),
+                "retryable": False,
+            },
+        )
 
     def _is_auth_admitted(self) -> bool:
         """Whether the current MCP request may proceed under M1's fail-closed rule."""
@@ -430,6 +509,7 @@ class MCPServer:
         handoff_protocol: str | None = None,
         task: TaskSupport | None = None,
         output_budget: OutputBudget | dict[str, Any] | None = None,
+        scopes: Sequence[str] | None = None,
     ) -> Callable:
         """Decorator to register a command with this server (arguments as ``define_command``)."""
 
@@ -445,6 +525,7 @@ class MCPServer:
                 examples=examples,
                 requires=requires,
                 contexts=contexts,
+                scopes=scopes,
                 expose=expose,
                 destructive=destructive,
                 confirm_prompt=confirm_prompt,
@@ -573,11 +654,13 @@ class MCPServer:
             command.output_budget = validate_output_budget_declaration(
                 command.name, command.output_budget
             )
+            command.scopes = validate_command_scopes(command.name, command.scopes)
         self._check_first_class_tools()
 
     def _invalidate_caches(self) -> None:
         self._command_index = None
         self._router = None
+        self._scope_authority = None
         self._first_class_checked = False
 
     def _check_first_class_tools(self) -> None:
@@ -707,22 +790,27 @@ class MCPServer:
         interface = context.extra.get("interface") if context.extra else None
         active_context = self._context_state.get_active()
 
+        view = scope_view_of(context)
         command = self._find_command(name)
         # A remote caller (the MCP router) gets the unknown-command answer for a
         # command hidden from it, so it cannot learn that the command exists
-        # (spec/error-codes.md, D4). In-process callers get COMMAND_NOT_EXPOSED.
+        # (spec/error-codes.md, D4; spec/authorization.md, M6).
         remote = bool(context.extra.get("remote")) if context.extra else False
-        if command is not None and remote and not self._is_exposed_to(command, interface):
+        if command is not None and (
+            (remote and not self._is_exposed_to(command, interface))
+            or (view is not None and not view.known(command.name))
+        ):
             command = None
         if command is None:
             # Only names the caller could call: a few close matches, never the
-            # whole list, and never a command hidden from this interface.
+            # whole list, and never a command hidden from this interface or scope view.
             callable_names = [
                 candidate.name
                 for candidate in self._get_command_index().values()
                 if _in_context(candidate, active_context)
                 and _is_allowed(context, candidate.name)
                 and (not interface or self._is_exposed_to(candidate, interface))
+                and (view is None or view.shown(candidate.name))
             ]
             return error(
                 "COMMAND_NOT_FOUND",
@@ -880,6 +968,16 @@ class MCPServer:
         if approved is not None:
             data = approved[0]
 
+        # M6 ("At execution: the resolver again"): re-check validated input (defaults applied,
+        # pipeline references resolved) before any middleware or handler runs, and enforce static
+        # scopes on nested in-process calls that bypassed tool routing.
+        view = scope_view_of(context)
+        if view is not None:
+            exec_input = _validated_input_for_resolver(data) if view.has_resolver else None
+            exec_decision = view.decide_execution(command.name, exec_input)
+            if exec_decision != "proceed":
+                return failure(view.insufficient_scope(exec_decision.forbidden))
+
         # Declared context fields, validated in context.extra before any middleware runs.
         invalid_field = apply_context_fields(self.config.context_fields, context, command.name)
         if invalid_field is not None:
@@ -945,7 +1043,7 @@ class MCPServer:
                 bind_context_field_values(field_values),
                 bind_output_budget_ask(budget_ask),
             ):
-                return await self.route_tool_call(name, lifted.arguments)
+                return await self.route_tool_call(name, lifted.arguments, caller_context=context)
         return await self._execute_command(name, input, context, output_budget=output_budget)
 
     def _refresh_dynamic_tools(self, name: str, result: Any) -> None:
@@ -1054,24 +1152,25 @@ class MCPServer:
         ) -> Any:
             tool = tool_manager.get_tool(name)
             if tool is None:
-                active_context = server._context_state.get_active()
-                registered = server._find_command(name, include_bootstrap=True, context_filtered=False)
-                visible = server._find_command(name, include_bootstrap=True, context_filtered=True)
-                if (
-                    active_context
-                    and registered is not None
-                    and server._is_exposed_to(registered, "mcp")
-                    and visible is None
-                    and registered.contexts
-                    and active_context not in registered.contexts
-                ):
-                    return _tool_call_result(
-                        error(
-                            "COMMAND_NOT_IN_CONTEXT",
-                            f"Command '{name}' is not available in context '{active_context}'",
-                            suggestion=NOT_IN_CONTEXT_SUGGESTION,
+                if server._current_scope_view() is None:
+                    active_context = server._context_state.get_active()
+                    registered = server._find_command(name, include_bootstrap=True, context_filtered=False)
+                    visible = server._find_command(name, include_bootstrap=True, context_filtered=True)
+                    if (
+                        active_context
+                        and registered is not None
+                        and server._is_exposed_to(registered, "mcp")
+                        and visible is None
+                        and registered.contexts
+                        and active_context not in registered.contexts
+                    ):
+                        return _tool_call_result(
+                            error(
+                                "COMMAND_NOT_IN_CONTEXT",
+                                f"Command '{name}' is not available in context '{active_context}'",
+                                suggestion=NOT_IN_CONTEXT_SUGGESTION,
+                            )
                         )
-                    )
 
                 # FastMCP otherwise returns an unstructured ToolError. Route through AFD so
                 # unknown and private names share the D4 result, and so a command the strategy
@@ -1160,6 +1259,7 @@ class MCPServer:
                     dispatch_task=self._task_runtime.dispatch_command,
                     refuse_composite_task=composite_task_error,
                     get_admitted_credentials=self._current_admitted_credentials,
+                    get_scope_view=self._current_scope_view,
                 )
             )
         return self._router
@@ -1167,10 +1267,16 @@ class MCPServer:
     def _step_context(self) -> CommandContext:
         # No actor: validation does not read it, and a step that validates differently when it
         # runs fails closed (it was not asked about, so it is held).
-        return CommandContext(extra={"interface": "mcp", "remote": True})
+        return CommandContext(
+            extra={"interface": "mcp", "remote": True},
+            _scope_view=self._current_scope_view(),
+        )
 
     def _step_can_run(self, name: str) -> bool:
         """Whether an MCP caller can run ``name`` (for the up-front approval of ``afd-pipe``)."""
+        view = self._current_scope_view()
+        if view is not None and not view.known(name):
+            return False
         command = self._find_command(name)
         return (
             command is not None
@@ -1190,10 +1296,16 @@ class MCPServer:
         """Compatibility alias for :meth:`_get_router`."""
         return self._get_router()
 
-    async def route_tool_call(self, tool_name: str, args: Any = None) -> Any:
+    async def route_tool_call(
+        self,
+        tool_name: str,
+        args: Any = None,
+        *,
+        caller_context: CommandContext | None = None,
+    ) -> Any:
         """Route a tool call through the shared tool router."""
 
-        return await self._get_router()(tool_name, {} if args is None else args)
+        return await self._get_router()(tool_name, {} if args is None else args, caller_context)
 
     async def call_tool(self, tool_name: str, args: Any = None) -> Any:
         """Compatibility wrapper for invoking an MCP-visible tool directly."""
@@ -1204,8 +1316,12 @@ class MCPServer:
         """Return the MCP-visible tool definitions for the current strategy."""
 
         self._check_before_request()
+        exposed = self.list_exposed_commands(
+            interface="mcp", include_bootstrap=True, context_filtered=False
+        )
+        listed = listed_commands(exposed, self._current_scope_view())
         return get_tools_list(
-            self.list_exposed_commands(interface="mcp", include_bootstrap=True, context_filtered=False),
+            listed,
             self.config.tool_strategy,
             group_by_fn=self.config.group_by,
             active_context=self._context_state.get_active(),
@@ -1367,13 +1483,18 @@ class MCPServer:
             ttl_ms = 0 if varies else DEFAULT_TOOLS_LIST_TTL_MS
         if isinstance(ttl_ms, bool) or not isinstance(ttl_ms, int) or ttl_ms < 0:
             raise ValueError("tools_list_ttl_ms must be a non-negative integer")
-        hint = CacheHint(ttl_ms=ttl_ms, scope="public")
+        tools_list_scope: Literal["public", "private"] = (
+            "private"
+            if self._auth_layer is not None and self._auth_layer.filter_tools_by_scope
+            else "public"
+        )
+        hint = CacheHint(ttl_ms=ttl_ms, scope=tools_list_scope)
         # When task advertisement can vary by verified credentials on HTTP, discovery must
         # not be cached publicly across anonymous and authenticated callers.
         discover_hint = (
             CacheHint(ttl_ms=ttl_ms, scope="private")
             if self._task_runtime.serves_tasks and not self._task_runtime._hook_identifies_callers
-            else hint
+            else CacheHint(ttl_ms=ttl_ms, scope="public")
         )
 
         @asynccontextmanager
@@ -1417,7 +1538,9 @@ class MCPServer:
                 app = super().streamable_http_app(**options)
                 if server._auth_layer is not None:
                     return server._auth_layer.wrap_asgi_app(
-                        app, max_body_bytes=options.get("max_request_body_size")
+                        app,
+                        max_body_bytes=options.get("max_request_body_size"),
+                        decide_post_body=True,
                     )
                 return app
 
@@ -1427,6 +1550,7 @@ class MCPServer:
                     return server._auth_layer.wrap_asgi_app(
                         app,
                         max_body_bytes=options.get("max_request_body_size"),
+                        decide_post_body=False,
                     )
                 return app
 
@@ -1479,6 +1603,11 @@ class MCPServer:
 
                 if not server._is_auth_admitted():
                     raise server._unauthorized_rpc_error()
+                view = server._current_scope_view()
+                if view is not None:
+                    req_dec = view.decide_request()
+                    if req_dec != "proceed":
+                        raise server._insufficient_scope_rpc_error(view, req_dec.forbidden)
                 with bound_request():
                     return [MCPTool(**definition) for definition in server.get_tool_definitions()]
 
@@ -1629,6 +1758,18 @@ class MCPServer:
                             return await call_next(ctx)
                     raise server._unauthorized_rpc_error()
 
+                # M6: non-tool methods (tools/list, server/discover, resources/*, tasks/*, ...)
+                # require the server's required_scopes even when pre-dispatch could not decide.
+                view = server._current_scope_view()
+                if (
+                    view is not None
+                    and method != "tools/call"
+                    and not (isinstance(method, str) and method.startswith("notifications/"))
+                ):
+                    req_dec = view.decide_request()
+                    if req_dec != "proceed":
+                        raise server._insufficient_scope_rpc_error(view, req_dec.forbidden)
+
                 if server.config.context_hook is not None and method == "tools/call":
                     raw_name = params.get("name") if isinstance(params, Mapping) else None
                     tool_name = raw_name if isinstance(raw_name, str) else ""
@@ -1697,7 +1838,7 @@ class MCPServer:
         ``stateless_http``, ``json_response``, ``transport_security`` and
         ``max_request_body_size``. One app serves MCP 2026-07-28 statelessly and 2025
         clients that send ``initialize``. When ``auth`` is configured, the returned app
-        enforces bearer-token verification and serves RFC 9728 metadata (M1–M5, M7).
+        enforces bearer-token verification, scope enforcement and RFC 9728 metadata (M1–M7).
         """
         mcp = self._create_mcp_server()
         self._stateless_http = bool(options.get("stateless_http", False))
@@ -1706,8 +1847,8 @@ class MCPServer:
     def sse_app(self, **options: Any) -> Any:
         """The deprecated SSE ASGI app, for mounting in a host application.
 
-        When ``auth`` is configured, the returned app enforces bearer-token verification and
-        serves RFC 9728 metadata (M1–M5, M7).
+        When ``auth`` is configured, the returned app enforces bearer-token verification,
+        scope enforcement and RFC 9728 metadata (M1–M7).
         """
         mcp = self._create_mcp_server()
         self._stateless_http = False
@@ -1749,6 +1890,33 @@ class MCPServer:
                 await mcp.run_streamable_http_async(**options)
         finally:
             self.stop_tasks()
+
+
+def _validated_input_for_resolver(data: Any) -> Any:
+    """Build a plain dict of validated input fields using their input names (ignoring output
+    ``exclude``, ``serialization_alias``, and ``field_serializer``) so a :class:`ScopeResolver`
+    at execution sees the exact validated values the handler receives."""
+    if isinstance(data, BaseModel):
+        out: dict[str, Any] = {}
+        for field_name, field_info in type(data).model_fields.items():
+            key = field_name
+            if isinstance(field_info.validation_alias, str):
+                key = field_info.validation_alias
+            elif field_info.validation_alias is None and isinstance(field_info.alias, str):
+                key = field_info.alias
+            out[key] = _validated_input_for_resolver(getattr(data, field_name))
+        extras = data.__pydantic_extra__
+        if extras:
+            for extra_key, extra_val in extras.items():
+                out[extra_key] = _validated_input_for_resolver(extra_val)
+        return out
+    if isinstance(data, list):
+        return [_validated_input_for_resolver(item) for item in data]
+    if isinstance(data, tuple):
+        return tuple(_validated_input_for_resolver(item) for item in data)
+    if isinstance(data, dict):
+        return {k: _validated_input_for_resolver(v) for k, v in data.items()}
+    return data
 
 
 def _request_meta(request: Any) -> Any:
