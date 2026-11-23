@@ -1,0 +1,706 @@
+{
+	"language": "rust",
+	"displayName": "Rust",
+	"capabilities": {
+		"wire.command-result": {
+			"status": "yes",
+			"evidence": ["packages/rust/src/result.rs", "packages/rust/tests/wire_fixtures.rs"]
+		},
+		"wire.metadata-types": {
+			"status": "yes",
+			"evidence": ["packages/rust/src/metadata.rs"]
+		},
+		"wire.error-codes": {
+			"status": "yes",
+			"evidence": ["packages/rust/src/errors.rs", "packages/rust/tests/error_codes.rs"]
+		},
+		"wire.result-constructors": {
+			"status": "partial",
+			"note": "`FailureOptions` has no `alternatives` or `undo*`",
+			"evidence": ["packages/rust/src/result.rs"]
+		},
+		"wire.result-guards": {
+			"status": "yes",
+			"evidence": ["packages/rust/src/result.rs"]
+		},
+		"command.core-metadata": {
+			"status": "yes",
+			"evidence": ["packages/rust/src/commands.rs"]
+		},
+		"command.title": {
+			"status": "yes",
+			"note": "`CommandDefinition::with_title`; `get_tool`, the meta-tools, afd-detail, afd-help (full)",
+			"views": {
+				"command-metadata": ""
+			},
+			"evidence": ["packages/rust/src/commands.rs", "packages/rust/tests/tool_title.rs"]
+		},
+		"command.safety-flags": {
+			"status": "yes",
+			"note": "on `CommandDefinition` (`with_destructive`, `with_confirm_prompt`, `with_undoable`); grouped `_meta.actions` carries `destructive` and `undoable`, afd-detail all three; individual `_meta` omits them",
+			"evidence": ["packages/rust/src/commands.rs", "packages/rust/tests/tool_annotations.rs"]
+		},
+		"command.approval-policy": {
+			"status": "yes",
+			"note": "`CommandDefinition::with_approval` (`ApprovalPolicy::when` for a function); `_meta` on `get_tool`, `afd-help` (full) and afd-docs",
+			"views": {
+				"approvals": ""
+			},
+			"evidence": ["packages/rust/src/approval.rs", "packages/rust/tests/server_approval.rs"]
+		},
+		"command.confirmations": {
+			"status": "yes",
+			"note": "`McpServer::with_confirmations`, individual, grouped and meta-tools; elicitation on 2026-07-28 and 2025 stdio",
+			"views": {
+				"command-metadata": "(`McpServer::with_confirmations`, `with_confirmations_key`; individual, grouped and meta-tools)"
+			},
+			"evidence": ["packages/rust/src/server.rs", "packages/rust/tests/server_confirmations.rs"]
+		},
+		"command.kebab-names": {
+			"status": "yes",
+			"note": ", rejects at registration",
+			"evidence": ["packages/rust/src/commands.rs"]
+		},
+		"command.reserved-names": {
+			"status": "partial",
+			"note": "bootstrap names only",
+			"evidence": ["packages/rust/src/builtin_names.rs"]
+		},
+		"command.input-validation": {
+			"status": "yes",
+			"note": "legacy parameters or additive `register_with_schema`; use `get_tool` for authoritative discovery",
+			"evidence": [
+				"packages/rust/src/schema_validation.rs",
+				"packages/rust/tests/validation_vectors.rs"
+			]
+		},
+		"command.examples-validated": {
+			"status": "no",
+			"note": "stored only",
+			"evidence": ["packages/rust/src/commands.rs"]
+		},
+		"command.output-schema": {
+			"status": "yes",
+			"note": "top-level `outputSchema` on individual and hybrid first-class tools (`with_advertise_output_schema`) and `_meta.outputSchema` in `McpServer`; `returns` not surfaced by `afd-schema`",
+			"views": {
+				"command-metadata": ", for commands with `returns` listed as their own tool, individual or first-class under hybrid (`McpServer::with_advertise_output_schema`)"
+			},
+			"evidence": ["packages/rust/src/server.rs", "packages/rust/tests/output_schema_vectors.rs"]
+		},
+		"command.to-mcp-tool": {
+			"status": "partial",
+			"note": "`command_to_mcp_tool`, no plural helper",
+			"evidence": ["packages/rust/src/commands.rs"]
+		},
+		"single.dispatch-order": {
+			"status": "partial",
+			"note": "no stamping or hooks",
+			"views": {
+				"dispatch-suite": "`packages/rust/tests/dispatch_vectors.rs`",
+				"dispatch-gaps": "`stamping` & `hooks` ([#546](https://github.com/lushly-dev/afd/issues/546))"
+			},
+			"evidence": ["packages/rust/src/commands.rs", "packages/rust/tests/dispatch_vectors.rs"]
+		},
+		"single.did-you-mean": {
+			"status": "yes",
+			"note": "(points to `afd-help`, or `afd-discover` over MCP)",
+			"evidence": ["packages/rust/src/similarity.rs"]
+		},
+		"single.exposure": {
+			"status": "yes",
+			"evidence": ["packages/rust/src/commands.rs"]
+		},
+		"single.app-calls": {
+			"status": "yes",
+			"note": "(`ExposeOptions::apps`, `CommandInterface::Apps`, `CommandRegistry::set_call_grant`)",
+			"views": {
+				"app-calls": "(`ExposeOptions::apps`, `CommandInterface::Apps` and `CommandRegistry::set_call_grant`)"
+			},
+			"evidence": ["packages/rust/src/commands.rs", "packages/rust/tests/app_calls_vectors.rs"]
+		},
+		"single.active-context": {
+			"status": "yes",
+			"note": "`CommandRegistry::execute` enforces `with_active_context` or a `ContextStack` (depth 16), for batch items and pipeline steps too; MCP server keeps a stack per 2025 stdio connection, stateless HTTP mutation returns `SESSION_REQUIRED`",
+			"evidence": ["packages/rust/src/contexts.rs", "packages/rust/tests/server_contexts.rs"]
+		},
+		"single.in-process-context": {
+			"status": "yes",
+			"note": "(#526): `CommandContext::with_active_context` for one call, or `with_context_stack` for a session; no in-process tool list or meta-tools",
+			"evidence": ["packages/rust/src/contexts.rs"]
+		},
+		"single.metadata-stamping": {
+			"status": "no",
+			"note": "([#546](https://github.com/lushly-dev/afd/issues/546))",
+			"issue": "#546",
+			"evidence": ["packages/rust/tests/dispatch_vectors.rs"]
+		},
+		"single.observer-hooks": {
+			"status": "no",
+			"note": "([#546](https://github.com/lushly-dev/afd/issues/546))",
+			"issue": "#546",
+			"evidence": ["packages/rust/tests/dispatch_vectors.rs"]
+		},
+		"single.exception-redaction": {
+			"status": "yes",
+			"note": "a panic in `execute`, batch or pipeline (`execution_failure`), no dev mode; unwinding panics only (not `panic = \"abort\"` or wasm32); MCP server guards request panics with `INTERNAL_ERROR` (#531)",
+			"evidence": ["packages/rust/src/commands.rs", "packages/rust/tests/server_handler_panic.rs"]
+		},
+		"single.cancellation": {
+			"status": "partial",
+			"note": "per-command timeout drops the future; no signal",
+			"evidence": [
+				"packages/rust/src/cancellation.rs",
+				"packages/rust/tests/execution_controls_vectors.rs"
+			]
+		},
+		"single.clock-random": {
+			"status": "yes",
+			"note": "`fixed_clock`, `seeded_random` (same sequence as TypeScript); the registry fills both",
+			"evidence": ["packages/rust/src/clock.rs"]
+		},
+		"single.actor": {
+			"status": "yes",
+			"note": "typed `actor_kind`; MCP server fills `agent`, DirectClient fills `human`; no testing package; middleware `next` cannot refine context; pipelines take plain map context",
+			"evidence": ["packages/rust/src/actor.rs"]
+		},
+		"single.context-fields": {
+			"status": "yes",
+			"note": "`CommandRegistry::set_context_fields`, `afd::context_fields::ContextField` (JSON Schema)",
+			"views": {
+				"cf-decl": "`CommandRegistry::set_context_fields` (`afd::context_fields::ContextField`, JSON Schema)",
+				"cf-journal": "The registry's journal recorder and `replay_journal`"
+			},
+			"evidence": ["packages/rust/src/context_fields.rs", "packages/rust/tests/context_fields.rs"]
+		},
+		"single.context-fields-mcp": {
+			"status": "yes",
+			"note": "both eras over Streamable HTTP and stdio, after the context hook; `server/discover` and `afd-help`",
+			"views": {
+				"cf-mcp": "both eras over Streamable HTTP and stdio; the context hook wins; `server/discover` and `afd-help`"
+			},
+			"evidence": [
+				"packages/rust/src/context_fields.rs",
+				"packages/rust/tests/server_context_fields.rs"
+			]
+		},
+		"single.output-budgets": {
+			"status": "yes",
+			"note": "(Umbel phase 2 step 0b): `with_output_budget`, `with_output_budget_ask`, `output_budget()`, innermost `CommandRegistry::execute` check, journal `output_budget`; `tests/output_budget.rs` runs `spec/output-budgets.json`",
+			"views": {
+				"command-metadata": "(Umbel phase 2 step 0b)",
+				"ob-b1": "(Umbel phase 2 step 0b)",
+				"ob-b4": "(step 0b)",
+				"ob-b5": "(step 0b)",
+				"ob-b7": "(step 0b)",
+				"ob-b8": "(step 0b)",
+				"ob-vectors": "(step 0b: `packages/rust/tests/output_budget.rs`)",
+				"pc-ob-b1": "(`output_budget.rs`, Umbel phase 2 step 0b)",
+				"pc-ob-b2": "(`output_budget.rs`, step 0b)",
+				"pc-ob-b7": "(`output_budget.rs`, step 0b)"
+			},
+			"evidence": ["packages/rust/src/output_budget.rs", "packages/rust/tests/output_budget.rs"]
+		},
+		"single.journal-replay": {
+			"status": "yes",
+			"note": "(#426): `MemoryJournalSink`, `FileJournalSink` (`journal-file`, plus `journal-file-shared` OS lock), `CommandRegistry::set_journal` and `replay_journal`; matches `spec/wire/journal.jsonl` as JSON values",
+			"evidence": ["packages/rust/src/journal.rs", "packages/rust/tests/journal_wire.rs"]
+		},
+		"single.journal-range-last": {
+			"status": "planned",
+			"note": "([#1597](https://github.com/lushly-dev/afd/issues/1597)); `#[non_exhaustive]` with a constructor, one breaking 0.x minor",
+			"issue": "#1597",
+			"evidence": ["packages/rust/src/journal.rs"]
+		},
+		"single.journal-append-order": {
+			"status": "yes",
+			"note": "with the built-in sinks: the recorder awaits nothing before `append` and the sinks assign `seq` under a mutex; a custom async sink could reorder",
+			"evidence": ["packages/rust/src/journal.rs"]
+		},
+		"middleware.chain": {
+			"status": "yes",
+			"evidence": ["packages/rust/src/commands.rs"]
+		},
+		"middleware.default-bundle": {
+			"status": "no",
+			"note": "([#546](https://github.com/lushly-dev/afd/issues/546))",
+			"issue": "#546",
+			"evidence": ["packages/rust/src/commands.rs"]
+		},
+		"middleware.retry-ratelimit-telemetry": {
+			"status": "no",
+			"note": "([#546](https://github.com/lushly-dev/afd/issues/546))",
+			"issue": "#546",
+			"evidence": ["packages/rust/src/commands.rs"]
+		},
+		"middleware.tracing-compose": {
+			"status": "no",
+			"note": "([#546](https://github.com/lushly-dev/afd/issues/546))",
+			"issue": "#546",
+			"evidence": ["packages/rust/src/commands.rs"]
+		},
+		"middleware.auth": {
+			"status": "no",
+			"note": "(planned per D6)",
+			"evidence": ["docs/features/active/parity-closure/parity-closure.plan.md"]
+		},
+		"middleware.approval": {
+			"status": "yes",
+			"note": "(`create_approval_middleware`, `approval` feature, default; tokens verify across languages)",
+			"views": {
+				"approvals": "(`create_approval_middleware`)"
+			},
+			"evidence": ["packages/rust/src/approval.rs", "packages/rust/tests/approval_vectors.rs"]
+		},
+		"middleware.approval-fail-closed": {
+			"status": "yes",
+			"note": "([#1886](https://github.com/lushly-dev/afd/issues/1886), #2029): `CommandRegistry::execute` refuses unadmitted calls; `ApprovalMiddlewareOptions::from_secret` makes the command list optional",
+			"views": {
+				"approvals": "(`CommandRegistry::execute`, [#1886](https://github.com/lushly-dev/afd/issues/1886); the middleware's list is optional: `ApprovalMiddlewareOptions::from_secret`)"
+			},
+			"evidence": [
+				"packages/rust/src/approval/admission.rs",
+				"packages/rust/tests/approval_fail_closed.rs",
+				"packages/rust/tests/approval_without_middleware.rs"
+			]
+		},
+		"middleware.direct-approval": {
+			"status": "yes",
+			"note": "(#460): approval-aware `DirectClient.call` with async hook, one total deadline; raw registry remains a trusted host API",
+			"views": {
+				"approvals": "(`with_on_approval_needed`)"
+			},
+			"evidence": ["packages/rust/src/direct.rs", "packages/rust/tests/direct_approval.rs"]
+		},
+		"middleware.cli-approval": {
+			"status": "na",
+			"note": "no CLI",
+			"evidence": ["docs/language-parity.md"]
+		},
+		"middleware.approval-relay": {
+			"status": "yes",
+			"note": "(Umbel phase 5 step 0d): `ApprovalMiddlewareOptions::with_relay(ApprovalRelay::McpElicitation)`; one principal-bound `requestState` per call with confirmation answers; in band on a 2025 stdio connection",
+			"views": {
+				"approvals": "(Umbel phase 5 step 0d: `ApprovalMiddlewareOptions::with_relay(ApprovalRelay::McpElicitation)`; one principal-bound `requestState` per call; in band on 2025 stdio)"
+			},
+			"evidence": ["packages/rust/src/approval.rs", "packages/rust/tests/server_approval.rs"]
+		},
+		"middleware.approver-client": {
+			"status": "yes",
+			"note": "(`McpServer::with_approver`, `AFD_APPROVAL_META_KEY`)",
+			"views": {
+				"approver": "(`McpServer::with_approver`; `AFD_APPROVAL_META_KEY`)"
+			},
+			"evidence": [
+				"packages/rust/tests/server_approver.rs",
+				"packages/rust/tests/approver_client_vectors.rs"
+			]
+		},
+		"middleware.approval-display": {
+			"status": "yes",
+			"note": "(`approval_display`, `hides_characters`, `is_hidden_code_point`, `APPROVAL_DISPLAY_LIMITS`)",
+			"views": {
+				"display": "(`approval_display`, `hides_characters`, `is_hidden_code_point`, `APPROVAL_DISPLAY_LIMITS`)"
+			},
+			"evidence": [
+				"packages/rust/src/approval_display.rs",
+				"packages/rust/tests/approver_client_vectors.rs"
+			]
+		},
+		"middleware.up-front-approval": {
+			"status": "yes",
+			"note": "on 2026-07-28 and in band on a 2025 stdio connection; nothing is kept, since validation computes no default",
+			"views": {
+				"approvals": "(on 2026-07-28 and in band on a 2025 stdio connection)"
+			},
+			"evidence": ["packages/rust/tests/server_up_front_approval.rs"]
+		},
+		"exec.batch": {
+			"status": "yes",
+			"note": "`CommandRegistry::execute_batch`, no free function",
+			"evidence": ["packages/rust/src/batch.rs", "packages/rust/tests/batch_controls_vectors.rs"]
+		},
+		"exec.pipeline-variables": {
+			"status": "yes",
+			"evidence": ["packages/rust/src/pipeline.rs", "packages/rust/tests/pipeline_vectors.rs"]
+		},
+		"exec.pipeline-when": {
+			"status": "yes",
+			"evidence": ["packages/rust/src/pipeline.rs", "packages/rust/tests/pipeline_vectors.rs"]
+		},
+		"exec.pipeline-aggregation": {
+			"status": "yes",
+			"evidence": ["packages/rust/src/pipeline.rs"]
+		},
+		"exec.single-pipeline-engine": {
+			"status": "yes",
+			"evidence": ["packages/rust/src/pipeline.rs"]
+		},
+		"exec.stream-types": {
+			"status": "yes",
+			"note": "(`consume_stream` takes a synchronous iterator)",
+			"evidence": ["packages/rust/src/streaming.rs"]
+		},
+		"exec.stream-executor": {
+			"status": "no",
+			"note": "(planned per D6)",
+			"evidence": ["packages/rust/src/streaming.rs"]
+		},
+		"exec.timeout-progress": {
+			"status": "partial",
+			"note": "`TimeoutController` tracks elapsed time only",
+			"evidence": ["packages/rust/src/streaming.rs"]
+		},
+		"hts.handoff": {
+			"status": "partial",
+			"note": "`is_handoff_protocol` and `is_handoff_command` mean different things; `handoff:<p>` tags are ignored",
+			"evidence": ["packages/rust/src/handoff.rs"]
+		},
+		"hts.handoff-client": {
+			"status": "no",
+			"note": "(no remote client)",
+			"evidence": ["docs/language-parity.md"]
+		},
+		"hts.telemetry-types": {
+			"status": "partial",
+			"note": "`durationMs` is an integer",
+			"evidence": ["packages/rust/src/telemetry.rs"]
+		},
+		"hts.telemetry-middleware": {
+			"status": "no",
+			"note": "([#546](https://github.com/lushly-dev/afd/issues/546))",
+			"issue": "#546",
+			"evidence": ["packages/rust/src/telemetry.rs"]
+		},
+		"hts.similarity": {
+			"status": "yes",
+			"note": "(counts chars, not UTF-16 units)",
+			"evidence": ["packages/rust/src/similarity.rs"]
+		},
+		"mcp.server-library": {
+			"status": "yes",
+			"note": "`server` feature (`rmcp`), off by default, needs Rust 1.88",
+			"evidence": ["packages/rust/src/server.rs"]
+		},
+		"mcp.dual-era": {
+			"status": "yes",
+			"note": "Streamable HTTP and stdio",
+			"views": {
+				"pc-modern": "(`packages/rust/tests/server_http.rs`; todo backend `serves_mcp_2026_07_28_statelessly`; runner)",
+				"pc-legacy": "(`server_http.rs` `legacy_clients_initialize_on_the_same_endpoint`; runner `legacy`)"
+			},
+			"evidence": ["packages/rust/src/server.rs", "packages/rust/tests/server_http.rs"]
+		},
+		"mcp.streamable-http": {
+			"status": "yes",
+			"note": "(`streamable_http_service`)",
+			"evidence": ["packages/rust/src/server.rs", "packages/rust/tests/server_http.rs"]
+		},
+		"mcp.modern-contexts": {
+			"status": "yes",
+			"note": "(`McpServer::with_contexts`)",
+			"views": {
+				"pc-modern-ctx": "(`packages/rust/tests/server_contexts.rs`)"
+			},
+			"evidence": ["packages/rust/src/server.rs", "packages/rust/tests/server_contexts.rs"]
+		},
+		"mcp.tool-fields": {
+			"status": "yes",
+			"note": "annotations (`mutation: true` only), `structuredContent` on every route's result, and top-level `outputSchema` on individual and hybrid first-class tools (`with_advertise_output_schema` opts out); #465",
+			"views": {
+				"cm-annotations": "(`mutation: true` only, with `destructive`, from `CommandRegistry::get_tool`; [#1741](https://github.com/lushly-dev/afd/issues/1741))",
+				"cm-structured": "(`McpServer`, every tool result of every route, meta-tools, batch and pipeline included)",
+				"pc-annotations": "(`packages/rust/tests/tool_annotations.rs`)",
+				"pc-structured": "(`packages/rust/tests/server_structured.rs`, #523)"
+			},
+			"evidence": [
+				"packages/rust/src/server.rs",
+				"packages/rust/tests/tool_annotations.rs",
+				"packages/rust/tests/server_structured.rs"
+			]
+		},
+		"mcp.transport-context": {
+			"status": "yes",
+			"note": "`McpServer::with_context_hook`, async, sees HTTP request parts (none on stdio) and may refuse with a `CommandError`; runs once per call before confirmation gate; sees verified `credentials` with `server-auth` and cannot change them",
+			"evidence": ["packages/rust/src/server.rs", "packages/rust/tests/server_context_hook.rs"]
+		},
+		"mcp.auth.verification": {
+			"status": "yes",
+			"note": "(#798, `server-auth` feature, needs Rust 1.88): `McpServer::authorized_http_service` behind `BearerLayer`, `JwtVerifier` (`jsonwebtoken`/`aws-lc-rs`), `KeySource`, `TokenVerifier`, `check_introspection`, `ProtectedResource`, `CommandContext::credentials`, fail-closed M1; loads `spec/authorization.json`",
+			"views": {
+				"auth-m1-m4": "(Umbel phase 5 step 0b; `server-auth`: `BearerLayer`, `JwtVerifier`, `KeySource`, `TokenVerifier`, `CommandContext::credentials`)",
+				"auth-m5": "(step 0b)",
+				"auth-m7": "(step 0b; `ProtectedResource`)"
+			},
+			"evidence": [
+				"packages/rust/src/credentials.rs",
+				"packages/rust/tests/server_auth.rs",
+				"packages/rust/tests/authorization_cases.rs"
+			]
+		},
+		"mcp.auth.scopes": {
+			"status": "yes",
+			"note": "(#798, #835): command `scopes`, `ScopeResolver` (`resolve`, `visible`, `known`), pre-dispatch 403 on `tools/call`, `INSUFFICIENT_SCOPE` after routing and at execution, `filter_tools_by_scope`, hidden commands unknown on every route, `McpServer::pre_dispatch_check`, per-caller `ResourceProvider::list_for`/`read_for`; loads `staticScopes` and `batches`",
+			"views": {
+				"command-metadata": "(Umbel phase 5 step 0b: `CommandDefinition::with_scopes`, checked at registration, in `_meta`, grouped `_meta.actions` and `afd-detail`; enforced with `server-auth`)",
+				"auth-m6": "(step 0b; `ScopeResolver`, `Authorization::with_filter_tools_by_scope`)",
+				"auth-m6-host": "(`McpServer::pre_dispatch_check`, `PreDispatchCheck`, `ScopeChallenge`; `tests/server_auth_pre_dispatch.rs`)",
+				"auth-m6-hidden": "(`ScopeResolver::known`; `tests/server_auth_hidden.rs`)"
+			},
+			"evidence": [
+				"packages/rust/tests/command_scopes.rs",
+				"packages/rust/tests/server_auth_hidden.rs",
+				"packages/rust/tests/server_auth_pre_dispatch.rs"
+			]
+		},
+		"mcp.auth.combined": {
+			"status": "yes",
+			"note": "(Umbel phase 5 step 0b, `server-auth`: `tests/server_auth.rs`, `tests/server_auth_hardening.rs`, `tests/auth_verifier.rs`, `tests/authorization_cases.rs`, `tests/auth_canary.rs`)",
+			"evidence": [
+				"packages/rust/tests/server_auth.rs",
+				"packages/rust/tests/authorization_cases.rs"
+			]
+		},
+		"mcp.confirmation-principal-binding": {
+			"status": "yes",
+			"note": "(step 0c): HMAC associated data over the command, input and principal binding (the hook's actor and `CommandContext::credentials`); since step 0d the form-mode approval relay's answers share the state",
+			"views": {
+				"command-metadata": "(step 0c): the hook's actor and `CommandContext::credentials`, in the state's HMAC associated data; since step 0d the same state carries the form-mode approval relay's answers",
+				"auth-m8": "(step 0c; `afd::principal_binding` in the gate's associated data; step 0d: the approval-relay state, `RelayCall::principal_binding` and relay evidence too)",
+				"pc-m8": "(`server_confirmations.rs`, step 0c)"
+			},
+			"evidence": ["packages/rust/tests/server_confirmations.rs"]
+		},
+		"mcp.host-verified-confirmation": {
+			"status": "yes",
+			"note": "(Umbel phase 5 step 0d): `CommandDefinition::with_confirmation_mode(CommandConfirmationMode::HostVerified)`, `HumanRelay` trait on `McpServer::with_human_relay` (single-command 2026-07-28, validated input, URL-mode elicitation), relay evidence spent once by `create_approval_middleware`, `afd::input_digest`",
+			"views": {
+				"approvals": "(step 0d): a crate-private `CommandContext` field the server sets after `Approved`, which `create_approval_middleware` checks in rule 3's order and spends once as `relay:<decisionId>`; removed before the handler runs",
+				"command-metadata": "(Umbel phase 5 step 0d: `CommandDefinition::with_confirmation_mode(CommandConfirmationMode::HostVerified)`, `McpServer::with_human_relay`, `afd::input_digest`)",
+				"pc-hv": "(`server_confirmations.rs`, `server_human_relay.rs`, step 0d)"
+			},
+			"evidence": [
+				"packages/rust/tests/server_human_relay.rs",
+				"packages/rust/tests/server_confirmations.rs"
+			]
+		},
+		"mcp.tasks": {
+			"status": "yes",
+			"note": "(Umbel phase 5 step 0e): `CommandDefinition::with_task(TaskSupport)`, `afd::server::tasks` (`TaskStore`, `InMemoryTaskStore`, `TaskOptions`), principal-binding owner checks, caller guard, `TASK_TOKEN_EXPIRED`, `report_progress` and `cancellation`, todo `--suite tasks`",
+			"views": {
+				"command-metadata": "(Umbel phase 5 step 0e: `CommandDefinition::with_task(TaskSupport)`, `afd::server::tasks` (`TaskStore`, `InMemoryTaskStore` 32/owner, 256 total), `with_task_store`/`with_task_options`, `report_progress` and `cancellation`; `tests/server_tasks.rs`, todo `--suite tasks`)",
+				"pc-tasks": "(`server_tasks.rs`, step 0e: Streamable HTTP with and without bearer layer, and stdio; todo `--suite tasks`)"
+			},
+			"evidence": ["packages/rust/tests/server_tasks.rs"]
+		},
+		"mcp.auth.tasks": {
+			"status": "yes",
+			"note": "(Umbel phase 5 step 0e): `tasks/get`, `tasks/update` and `tasks/cancel` fail closed, need required scopes and run the context hook; owner is principal binding, checked by `TaskStore` and server; owner must still hold command `scopes` (`visible`/`known`); stops at `credentials.expiresAt`",
+			"evidence": ["packages/rust/tests/server_tasks.rs"]
+		},
+		"mcp.tool-strategies": {
+			"status": "yes",
+			"note": "(default grouped, `with_tool_strategy`, `with_group_by`; the #533 lists)",
+			"views": {
+				"pc-strategies": "(`packages/rust/tests/server_strategies.rs` against `spec/meta-tools.json`, `server_approval.rs`)"
+			},
+			"evidence": ["packages/rust/tests/server_strategies.rs"]
+		},
+		"mcp.strategy-hybrid": {
+			"status": "yes",
+			"note": "(`ToolStrategy::Hybrid` with `with_first_class_tools`; checked when the server starts)",
+			"views": {
+				"command-metadata": "",
+				"pc-hybrid-order": "(`packages/rust/tests/tool_strategies_vectors.rs`, Streamable HTTP and stdio, both eras)",
+				"pc-hybrid-ctx": "(`tool_strategies_vectors.rs`)",
+				"pc-hybrid-scope": "(`tool_strategies_vectors.rs`)"
+			},
+			"evidence": ["packages/rust/tests/tool_strategies_vectors.rs"]
+		},
+		"mcp.resources": {
+			"status": "yes",
+			"note": "(`McpServer::with_resources`, `ResourceProvider`, `server` feature)",
+			"views": {
+				"res-core": "(Umbel phase 1 step 0b; per-caller `list_for`/`read_for` and `\"private\"` `cacheScope` under `server-auth`, #1880)",
+				"res-vectors": "(step 0b: `tests/server_resources.rs`)",
+				"pc-res": "(Umbel phase 1 step 0b: `tests/server_resources.rs`; per-caller `cacheScope: \"private\"` in `tests/server_auth_hardening.rs`, #1880)"
+			},
+			"evidence": [
+				"packages/rust/tests/server_resources.rs",
+				"packages/rust/tests/server_auth_hardening.rs"
+			]
+		},
+		"mcp.skills": {
+			"status": "yes",
+			"note": "(`McpServer::with_skills`, `SkillCatalog`, optional `with_directory_read`)",
+			"views": {
+				"res-skills": "(step 0b)",
+				"pc-skills": "(step 0b)"
+			},
+			"evidence": ["packages/rust/tests/server_resources.rs"]
+		},
+		"mcp.tool-meta": {
+			"status": "yes",
+			"note": "(`CommandDefinition::with_tool_meta`, refused at registration under the key rule)",
+			"views": {
+				"command-metadata": "(`with_tool_meta`, `register_with_schemas`)",
+				"res-meta": "(step 0b)",
+				"pc-meta": "(step 0b: `tests/server_tool_meta.rs`)"
+			},
+			"evidence": ["packages/rust/tests/server_tool_meta.rs"]
+		},
+		"mcp.advertised-schema": {
+			"status": "yes",
+			"note": "(`CommandRegistry::register_with_schemas`)",
+			"views": {
+				"res-adv": "(step 0b)",
+				"pc-adv": "(step 0b)"
+			},
+			"evidence": ["packages/rust/src/commands.rs", "packages/rust/tests/server_tool_meta.rs"]
+		},
+		"mcp.raw-json-schema": {
+			"status": "na",
+			"note": "a command's schema is JSON Schema already",
+			"evidence": ["packages/rust/src/commands.rs"]
+		},
+		"mcp.output-budgets": {
+			"status": "yes",
+			"note": "(step 0b): `_meta[\"dev.afd/outputBudget\"]` on the tool, grouped `_meta.actions` entries, `afd-detail` and `afd-help` (`full`); the per-call ask in `tools/call` `_meta` and meta-tools' `meta`, both eras over Streamable HTTP and stdio",
+			"views": {
+				"ob-b2": "(step 0b)"
+			},
+			"evidence": ["packages/rust/src/output_budget.rs", "packages/rust/tests/output_budget.rs"]
+		},
+		"mcp.meta-tools": {
+			"status": "yes",
+			"note": "definitions equal TypeScript's (`spec/meta-tools.json`)",
+			"evidence": ["packages/rust/tests/server_strategies.rs"]
+		},
+		"mcp.meta-argument": {
+			"status": "yes",
+			"note": "every route, both eras",
+			"evidence": ["packages/rust/tests/server_meta_argument.rs"]
+		},
+		"mcp.bootstrap": {
+			"status": "yes",
+			"note": "(`register_bootstrap_commands`)",
+			"evidence": ["packages/rust/src/commands.rs"]
+		},
+		"mcp.context-tools": {
+			"status": "yes",
+			"note": "(`register_context_commands`; `McpServer::with_contexts`)",
+			"evidence": ["packages/rust/src/contexts.rs"]
+		},
+		"mcp.http-hardening": {
+			"status": "yes",
+			"note": "`HttpOptions` (unlisted origins refused)",
+			"views": {
+				"pc-origin": "(`server_http.rs` `enforce_origin_validation`; todo backend guard tests)"
+			},
+			"evidence": ["packages/rust/tests/server_http.rs"]
+		},
+		"mcp.jsonrpc-types": {
+			"status": "yes",
+			"evidence": ["packages/rust/src/mcp.rs"]
+		},
+		"pc.version-negotiation": {
+			"status": "yes",
+			"note": "(SDK behaviour, `rmcp`; `server_http.rs`)",
+			"evidence": ["packages/rust/tests/server_http.rs"]
+		},
+		"pc.header-mismatch": {
+			"status": "yes",
+			"note": "(`server_http.rs`; todo backend tests)",
+			"evidence": ["packages/rust/tests/server_http.rs"]
+		},
+		"pc.get-405": {
+			"status": "yes",
+			"note": "(todo backend `get_on_the_endpoint_is_405`)",
+			"evidence": ["packages/rust/tests/server_http.rs"]
+		},
+		"pc.d4-hiding": {
+			"status": "yes",
+			"note": "(`server_http.rs`; todo backend; runner)",
+			"evidence": ["packages/rust/tests/server_http.rs"]
+		},
+		"pc.legacy-context-stacks": {
+			"status": "yes",
+			"note": "(`server_contexts.rs`: one stack per 2025 connection; stateless HTTP is `SESSION_REQUIRED`)",
+			"evidence": ["packages/rust/tests/server_contexts.rs"]
+		},
+		"pc.cache-hints": {
+			"status": "yes",
+			"note": "(`server_http.rs`, `tool_strategies_vectors.rs`)",
+			"evidence": [
+				"packages/rust/tests/server_http.rs",
+				"packages/rust/tests/tool_strategies_vectors.rs"
+			]
+		},
+		"pc.client-negotiation": {
+			"status": "na",
+			"note": "(no Rust client)",
+			"evidence": ["docs/language-parity.md"]
+		},
+		"tooling.mcp-client": {
+			"status": "no",
+			"note": "(no remote client)",
+			"evidence": ["docs/language-parity.md"]
+		},
+		"tooling.browser-transport": {
+			"status": "na",
+			"evidence": ["docs/language-parity.md"]
+		},
+		"tooling.direct-client": {
+			"status": "partial",
+			"note": "approval-aware `DirectClient.call` with agent exposure and total deadline; no `pipe`, `allow` or unknown-tool helper",
+			"evidence": ["packages/rust/src/direct.rs"]
+		},
+		"tooling.direct-interface": {
+			"status": "yes",
+			"note": "(added in Rust crate Unreleased): `DirectClient::with_interface`",
+			"evidence": ["packages/rust/src/direct.rs"]
+		},
+		"tooling.cli": {
+			"status": "na",
+			"evidence": ["docs/language-parity.md"]
+		},
+		"tooling.auth-adapter": {
+			"status": "no",
+			"note": "(planned per D6)",
+			"evidence": ["docs/features/active/parity-closure/parity-closure.plan.md"]
+		},
+		"tooling.testing": {
+			"status": "no",
+			"note": "(N/A per D6)",
+			"evidence": ["docs/language-parity.md"]
+		},
+		"tooling.ui-packages": {
+			"status": "na",
+			"evidence": ["docs/language-parity.md"]
+		},
+		"tooling.browser-stores": {
+			"status": "na",
+			"evidence": ["docs/language-parity.md"]
+		},
+		"tooling.platform-connectors": {
+			"status": "partial",
+			"note": "types only",
+			"evidence": ["packages/rust/src/connectors.rs"]
+		},
+		"single.context-fields-meta-delivery": {
+			"status": "yes",
+			"note": "(`packages/rust/tests/server_context_fields.rs`: Streamable HTTP and stdio, both eras)",
+			"evidence": [
+				"packages/rust/src/context_fields.rs",
+				"packages/rust/tests/server_context_fields.rs"
+			]
+		},
+		"single.context-fields-discovery": {
+			"status": "yes",
+			"note": "(`server_context_fields.rs`: `server/discover` over Streamable HTTP and stdio; `afd-help` on both eras)",
+			"evidence": [
+				"packages/rust/src/context_fields.rs",
+				"packages/rust/tests/server_context_fields.rs"
+			]
+		}
+	}
+}

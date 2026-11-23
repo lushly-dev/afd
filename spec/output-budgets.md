@@ -239,11 +239,10 @@ idiom, never the behavior.
 
 ## Error code
 
-`OUTPUT_BUDGET_EXCEEDED` is new: retryable no, emitted by the engine (B5) as a failure for a
-read and as a warning for a mutation. It is listed in [`error-codes.md`](./error-codes.md#specified-not-yet-in-the-catalog)
-and joins the shared catalog and [`vectors/error-codes.json`](./vectors/error-codes.json), with its
-constant in all four languages, in the first pull request that implements this page, as
-[Changing this page](./error-codes.md#changing-this-page) requires.
+`OUTPUT_BUDGET_EXCEEDED` (`retryable: false`, `profile: "output-budgets"`) is emitted by the
+engine (B5) as a failure for a read and as a warning for a mutation. It is part of the shared
+50-code catalog in [`error-codes.md`](./error-codes.md) and
+[`vectors/error-codes.json`](./vectors/error-codes.json), with constants in all four languages.
 
 ## Conformance
 
@@ -278,21 +277,32 @@ The file's sections and what a loader checks:
 
 ## Implementation status
 
+<!-- generated:capabilities:spec.output-budgets.status:start -->
 | Rule | TypeScript | Python | Rust | C++ |
 | --- | --- | --- | --- | --- |
-| Declaration and its surfaces (B1) | Yes (#1989) | Yes (#1990) | Yes (Umbel phase 2 step 0b) | Yes ([#1991](https://github.com/lushly-dev/afd/issues/1991)) |
-| The ask over MCP and in process (B2, B3) | Yes (#1989) | Yes (#1990) | Yes (step 0b) | Yes (in process and `afd::mcp_stdio`, both eras; [#1991](https://github.com/lushly-dev/afd/issues/1991)) |
-| Effective budget in the context (B4) | Yes (#1989) | Yes (#1990) | Yes (step 0b) | Yes ([#1991](https://github.com/lushly-dev/afd/issues/1991)) |
-| Check, replacement, warning and report (B5, B6) | Yes (#1989) | Yes (#1990) | Yes (step 0b) | Yes ([#1991](https://github.com/lushly-dev/afd/issues/1991)) |
-| Batches and pipelines (B7) | Yes (#1989) | Yes (#1990) | Yes (step 0b) | Yes ([#1991](https://github.com/lushly-dev/afd/issues/1991)) |
-| Journal and replay (B8) | Yes (#1989) | Yes (#1990) | Yes (step 0b) | Yes ([#1991](https://github.com/lushly-dev/afd/issues/1991)) |
-| Loads [`output-budgets.json`](./output-budgets.json) | Yes (#1989) | Yes (#1990) | Yes (step 0b) | Yes (`tests/output_budget_test.cpp`; skips lone-surrogate measure case; [#1991](https://github.com/lushly-dev/afd/issues/1991)) |
+| Declaration and its surfaces (B1) | Yes (#1989) | Yes (#1990) | Yes (Umbel phase 2 step 0b) | Yes (#1991) |
+| The ask over MCP and in process (B2, B3) | Yes (#1989) | Yes (#1990) | Yes (step 0b) | Yes (#1991) |
+| Effective budget in the context (B4) | Yes (#1989) | Yes (#1990) | Yes (step 0b) | Yes (#1991) |
+| Check, replacement, warning and report (B5, B6) | Yes (#1989) | Yes (#1990) | Yes (step 0b) | Yes (#1991) |
+| Batches and pipelines (B7) | Yes (#1989) | Yes (#1990) | Yes (step 0b) | Yes (#1991) |
+| Journal and replay (B8) | Yes (#1989) | Yes (#1990) | Yes (step 0b) | Yes (#1991) |
+| Loads [`output-budgets.json`](./output-budgets.json) | Yes (#1989: `packages/server/src/output-budget.test.ts`) | Yes (#1990: `python/tests/test_output_budget.py`) | Yes (step 0b: `packages/rust/tests/output_budget.rs`) | Yes (#1991: `packages/cpp/tests/output_budget_test.cpp`) |
+<!-- generated:capabilities:spec.output-budgets.status:end -->
 
-Rust implements output budgets (Umbel phase 2 step 0b): `packages/rust` `src/output_budget.rs`, with
-`tests/output_budget.rs` loading every case of [`output-budgets.json`](./output-budgets.json) in
-process and over Streamable HTTP and stdio in both MCP eras. Its one skipped case is the measure
-case with a lone surrogate, which a Rust string cannot hold. TypeScript, Python and C++ implement
-nothing yet: none has a declaration, an ask, a size check or a truncation of command results. The
-proposal's
+All four implementations — TypeScript (#1989 / #2215: `packages/core/src/output-budget.ts`,
+`packages/server/src/output-budget.ts`, `packages/server/src/output-budget.test.ts`), Rust (Umbel
+phase 2 step 0b: `packages/rust/src/output_budget.rs`, `packages/rust/tests/output_budget.rs`),
+Python (#1990 / #2186: `python/src/afd/core/output_budget.py`, `python/tests/test_output_budget.py`,
+`python/tests/test_output_budget_mcp.py`) and C++ (#1991 / #2187: `packages/cpp/include/afd/output_budget.hpp`,
+`packages/cpp/src/output_budget.cpp`, `packages/cpp/tests/output_budget_test.cpp`) — implement output
+budgets B1 to B8. TypeScript loads every case of [`output-budgets.json`](./output-budgets.json) in
+process, over Streamable HTTP and stdio in both MCP eras, and on the AFD HTTP lanes. Rust loads every
+case in process and over Streamable HTTP and stdio in both MCP eras (skipping only the lone-surrogate
+measure case, which a Rust string cannot hold). Python loads every vector in process
+(`test_output_budget.py`), exercises the `asks`, `checks` and `batch` vectors over live Streamable
+HTTP and stdio in both MCP eras, and covers an initialized-session SSE round-trip
+(`test_output_budget_mcp.py`). C++ loads `output-budgets.json` in process and over `afd::mcp_stdio`
+in both MCP eras (skipping only the lone-surrogate measure case that `nlohmann::json` cannot
+represent). The proposal's
 [current behavior](../docs/features/active/output-budgets/output-budgets.proposal.md#how-engines-behave-today)
-records what each does instead.
+records the pre-implementation baseline.

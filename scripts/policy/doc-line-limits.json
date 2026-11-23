@@ -240,13 +240,6 @@
 			"reason": "One session-log entry from before the limit came down to 1,500, frozen at this revision; new entries go in an area table and stay within the limit"
 		},
 		{
-			"file": "docs/language-parity.md",
-			"startsWith": "| Command journal and replay (",
-			"length": 1773,
-			"sha256": "c5752a313a3d3759facdc2d9bb6f6610091a0a48620cf100a55333e00e9181f3",
-			"reason": "One feature's row across four languages, written before the limit came down to 1,500; split it when it next changes"
-		},
-		{
 			"file": "endpoints/loam/docs/STATUS.md",
 			"startsWith": "- **State:** exited 2026-11-09",
 			"length": 1557,
