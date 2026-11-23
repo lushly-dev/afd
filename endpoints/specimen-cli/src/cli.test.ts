@@ -194,6 +194,31 @@ function harness() {
 			unavailable: [],
 			skipped: { jobs: 0, gates: 0 },
 		})),
+		compare: vi.fn(async (request) => ({
+			set: 'set-1a2b3c4d5e6f',
+			context: {
+				viewport: request.context?.viewport ?? { width: 1280, height: 720 },
+				theme: request.context?.theme ?? ('light' as const),
+				locale: request.context?.locale ?? 'en-US',
+				reducedMotion: request.context?.reducedMotion ?? ('no-preference' as const),
+				motion: request.context?.motion ?? ('natural' as const),
+			},
+			checkpoint: request.checkpoint ?? 'mount',
+			captures: request.ids.map((id: string, index: number) => ({
+				id,
+				status: 'captured' as const,
+				axe: index === 2 ? ('failed' as const) : ('passed' as const),
+				violations: index === 2 ? ['color-contrast'] : [],
+				screenshot: `.specimen/sets/set-1a2b3c4d5e6f/screenshots/${id}.png`,
+			})),
+			differences: request.ids.slice(1).map((id: string) => ({
+				id,
+				against: request.ids[0] as string,
+				status: 'changed' as const,
+				channels: ['layout' as const],
+			})),
+			page: 'compare.html?set=set-1a2b3c4d5e6f',
+		})),
 		diff: vi.fn(async () => ({
 			status: 'no-change-observed' as const,
 			differences: [],
@@ -1023,5 +1048,78 @@ describe('specimen CLI', () => {
 
 		expect(await runCli(['--root', '.', 'list', '--kind', 'invalid'], h.io)).toBe(1);
 		expect(JSON.parse(h.output[2] ?? '')).toMatchObject({ success: false });
+	});
+
+	it('dispatches compare with positional or --ids variants and prints no observation to stdout', async () => {
+		const h = harness();
+		const root = await directory();
+		expect(
+			await runCli(
+				[
+					'--root',
+					root,
+					'compare',
+					'toolbar--dense',
+					'toolbar--airy',
+					'toolbar--grouped',
+					'--theme',
+					'light',
+					'--viewport',
+					'1280x800',
+				],
+				h.io
+			)
+		).toBe(0);
+		expect(h.bench.compare).toHaveBeenLastCalledWith({
+			ids: ['toolbar--dense', 'toolbar--airy', 'toolbar--grouped'],
+			context: { theme: 'light', viewport: { width: 1280, height: 800 } },
+		});
+		const rawStdout = h.output[0] ?? '';
+		const parsed = JSON.parse(rawStdout);
+		expect(parsed).toMatchObject({
+			success: true,
+			data: {
+				set: 'set-1a2b3c4d5e6f',
+				captures: [
+					{ id: 'toolbar--dense', axe: 'passed' },
+					{ id: 'toolbar--airy', axe: 'passed' },
+					{ id: 'toolbar--grouped', axe: 'failed', violations: ['color-contrast'] },
+				],
+				page: 'compare.html?set=set-1a2b3c4d5e6f',
+			},
+		});
+		// Exit criterion 1: CLI stdout prints no observation.
+		expect(rawStdout).not.toContain('"manifest"');
+		expect(rawStdout).not.toContain('"completeness"');
+
+		expect(
+			await runCli(
+				[
+					'--root',
+					root,
+					'compare',
+					'--ids',
+					'toolbar--dense,toolbar--airy',
+					'--checkpoint',
+					'after-run',
+					'--workers',
+					'2',
+				],
+				h.io
+			)
+		).toBe(0);
+		expect(h.bench.compare).toHaveBeenLastCalledWith({
+			ids: ['toolbar--dense', 'toolbar--airy'],
+			checkpoint: 'after-run',
+			workers: 2,
+		});
+
+		// Rejects mixing positional ids with --ids, or using --no-axe on compare.
+		expect(
+			await runCli(['--root', root, 'compare', 'toolbar--dense', '--ids', 'toolbar--airy'], h.io)
+		).toBe(1);
+		expect(
+			await runCli(['--root', root, 'compare', 'toolbar--dense', 'toolbar--airy', '--no-axe'], h.io)
+		).toBe(1);
 	});
 });

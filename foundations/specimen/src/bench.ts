@@ -1,5 +1,6 @@
 import { dirname, resolve } from 'node:path';
 import { BenchWorkerClient } from './bench-worker-client.js';
+import { selectCompareEntries } from './compare.js';
 import { type LoadedConfig, loadConfig, resolveContext } from './config.js';
 import { withGuides } from './guides.js';
 import { type JobSource, loadJobSourceModule, parseJobScenarioWithSources } from './job-source.js';
@@ -25,6 +26,8 @@ import type {
 	CaptureSetRun,
 	CheckpointsRequest,
 	CheckpointsRun,
+	CompareRequest,
+	CompareRun,
 	ContractRequest,
 	ContractRun,
 	CoverageRequest,
@@ -68,6 +71,7 @@ import {
 	parseCaptureRequest,
 	parseCaptureSetRequest,
 	parseCheckpointsRequest,
+	parseCompareRequest,
 	parseContractRequest,
 	parseCoverageRequest,
 	parseJobRunRequest,
@@ -105,6 +109,11 @@ export interface SpecimenBench {
 	 * under `.specimen/sets/`, returning ids and counts only.
 	 */
 	captureSet(request?: CaptureSetRequest): Promise<CaptureSetRun>;
+	/**
+	 * Capture 2 to 8 variant specimens with axe under one context and checkpoint into a `compare`
+	 * capture set, diff each against the first, and return compact summaries plus `compare.html?set=`.
+	 */
+	compare(request: CompareRequest): Promise<CompareRun>;
 	/**
 	 * Capture multiple named checkpoints of one native specimen in a single fresh render,
 	 * persisting a content-addressed capture set keyed `<id>/<step>` with axe and screenshots.
@@ -282,6 +291,7 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 		| 'packBuild'
 		| 'render'
 		| 'captureSet'
+		| 'compare'
 		| 'captureCheckpoints'
 		| 'runJob'
 		| 'run'
@@ -382,6 +392,13 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 			selectCaptureEntries(snapshot.entries, request, snapshot.root);
 			resolveContext(request.context);
 			return enqueue((client) => client.captureSet(request));
+		},
+		async compare(rawRequest) {
+			const snapshot = ensureDiscovered();
+			const request = parseCompareRequest(rawRequest);
+			const context = resolveContext(request.context);
+			selectCompareEntries(snapshot.entries, request, context);
+			return enqueue((client) => client.compare(request));
 		},
 		async captureCheckpoints(rawRequest) {
 			const snapshot = ensureDiscovered();

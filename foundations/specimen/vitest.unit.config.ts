@@ -29,6 +29,7 @@ export const browserSuites = [
 	'src/targets.test.ts',
 	'src/network.test.ts',
 	'src/sets-bench.test.ts',
+	'src/compare-bench.test.ts',
 	'src/jobs-bench.test.ts',
 ];
 
@@ -43,6 +44,8 @@ export default defineConfig({
 				'src/browser/clock.ts',
 				'src/browser/clock-parse.ts',
 				'src/climb.ts',
+				'src/compare.ts',
+				'src/compare-page.ts',
 				'src/diff.ts',
 				'src/evidence.ts',
 				'src/guide-coverage.ts',

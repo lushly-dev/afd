@@ -12,6 +12,7 @@ import {
 	captureRequestSchema,
 	captureSetRequestSchema,
 	checkpointsRequestSchema,
+	compareRequestSchema,
 	contextSchema,
 	contractRequestSchema,
 	coverageRequestSchema,
@@ -29,6 +30,7 @@ import {
 	parseCaptureRequest,
 	parseCaptureSetRequest,
 	parseCheckpointsRequest,
+	parseCompareRequest,
 	parseConfig,
 	parseContext,
 	parseContractRequest,
@@ -958,5 +960,32 @@ describe('request parsing agrees with the public schemas', () => {
 			},
 		];
 		for (const value of jobConfigs) agrees(configSchema, parseConfig, value);
+	});
+
+	it('accepts and rejects compare requests as compareRequestSchema does', () => {
+		const values: unknown[] = [
+			{ ids: ['a', 'b'] },
+			{
+				ids: ['a', 'b', 'c'],
+				context: { theme: 'light', viewport: { width: 1280, height: 800 } },
+				checkpoint: 'mount',
+				timeoutMs: 10_000,
+				workers: 2,
+			},
+			{ ids: ['1', '2', '3', '4', '5', '6', '7', '8'] },
+			{ ids: ['1', '2', '3', '4', '5', '6', '7', '8', '9'] },
+			{ ids: ['only-one'] },
+			{ ids: [] },
+			{ ids: ['dup', 'dup'] },
+			{ ids: ['a', ''] },
+			{ ids: ['a', 'b'], context: { theme: 'sepia' } },
+			{ ids: ['a', 'b'], checkpoint: '' },
+			{ ids: ['a', 'b'], timeoutMs: 0 },
+			{ ids: ['a', 'b'], workers: 0 },
+			{ ids: ['a', 'b'], extra: true },
+			{},
+			null,
+		];
+		for (const value of values) agrees(compareRequestSchema, parseCompareRequest, value);
 	});
 });

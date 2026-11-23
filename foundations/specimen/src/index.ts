@@ -19,6 +19,14 @@ export {
 	isMeaningfulNode,
 	observationClimbTree,
 } from './climb.js';
+export {
+	COMPARE_DATA_FILE,
+	COMPARE_PAGE_FILE,
+	readComparePageData,
+	runCompare,
+	selectCompareEntries,
+} from './compare.js';
+export { renderComparePageHtml } from './compare-page.js';
 export type {
 	ComponentCoverage,
 	CoverageEvidence,

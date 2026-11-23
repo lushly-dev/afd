@@ -13,6 +13,8 @@ import type {
 	CaptureSetRun,
 	CheckpointsRequest,
 	CheckpointsRun,
+	CompareRequest,
+	CompareRun,
 	ContractRequest,
 	ContractRun,
 	CoverageRequest,
@@ -42,6 +44,7 @@ type WorkerOperation =
 	| { operation: 'initialize'; config: LoadedConfig; executablePath?: string }
 	| { operation: 'render'; request: CaptureRequest }
 	| { operation: 'captureSet'; request: CaptureSetRequest }
+	| { operation: 'compare'; request: CompareRequest }
 	| { operation: 'captureCheckpoints'; request: CheckpointsRequest }
 	| { operation: 'runJob'; request: JobRunRequest }
 	| { operation: 'run'; request: RunRequest }
@@ -276,6 +279,10 @@ export class BenchWorkerClient {
 	async captureSet(request: CaptureSetRequest = {}): Promise<CaptureSetRun> {
 		await this.ready;
 		return (await this.request({ operation: 'captureSet', request }, 3_600_000)) as CaptureSetRun;
+	}
+	async compare(request: CompareRequest): Promise<CompareRun> {
+		await this.ready;
+		return (await this.request({ operation: 'compare', request }, 3_600_000)) as CompareRun;
 	}
 	async captureCheckpoints(request: CheckpointsRequest): Promise<CheckpointsRun> {
 		await this.ready;

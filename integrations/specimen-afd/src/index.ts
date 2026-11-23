@@ -4,6 +4,8 @@ export {
 	captureRefSchema,
 	captureSetRequestSchema,
 	captureSetRunSchema,
+	compareRequestSchema,
+	compareRunSchema,
 	contextSchema,
 	contractRunSchema,
 	coverageRunSchema,

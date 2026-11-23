@@ -1048,6 +1048,42 @@ export const captureSetRunSchema = z.strictObject({
 		gatesNext: z.literal('specimen-run').optional(),
 	}),
 });
+const compareDiffChannelSchema = z.enum(['dom', 'a11y', 'layout', 'styles', 'state', 'events']);
+export const compareRequestSchema = z.strictObject({
+	ids: z
+		.array(z.string().min(1))
+		.min(2, 'Provide 2 to 8 specimen ids to compare')
+		.max(8, 'Provide 2 to 8 specimen ids to compare')
+		.refine((ids) => new Set(ids).size === ids.length, 'Variant ids must be unique'),
+	context: captureRequestSchema.shape.context,
+	checkpoint: z.string().min(1).optional(),
+	timeoutMs: captureRequestSchema.shape.timeoutMs,
+	workers: suiteRequestSchema.shape.workers,
+});
+export const compareRunSchema = z.strictObject({
+	set: z.string().regex(/^set-[0-9a-f]{12}$/),
+	context: contextSchema,
+	checkpoint: z.string().min(1),
+	captures: z.array(
+		z.strictObject({
+			id: z.string().min(1),
+			status: z.enum(['captured', 'unavailable']),
+			axe: z.enum(['passed', 'warning', 'failed', 'not-run']),
+			violations: z.array(z.string()),
+			screenshot: z.string().min(1).nullable(),
+			reason: z.string().min(1).optional(),
+		})
+	),
+	differences: z.array(
+		z.strictObject({
+			id: z.string().min(1),
+			against: z.string().min(1),
+			status: z.enum(['changed', 'no-change-observed', 'insufficient-evidence']),
+			channels: z.array(compareDiffChannelSchema),
+		})
+	),
+	page: z.string().regex(/^compare\.html\?set=set-[0-9a-f]{12}$/),
+});
 
 const isoClockSchema = z
 	.string()

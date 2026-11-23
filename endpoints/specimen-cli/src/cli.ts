@@ -90,7 +90,7 @@ function parseArguments(args: string[]): ParsedArguments {
 	const action = positionals.shift();
 	if (!action)
 		throw new Error(
-			'Choose a command: list, validate, inspect, render, capture, run, themes, diff, or build'
+			'Choose a command: list, validate, inspect, render, capture, compare, run, themes, diff, or build'
 		);
 	return { action, positionals, options, flags };
 }
@@ -259,6 +259,20 @@ function validateOptions(parsed: ParsedArguments): void {
 			'kind',
 			'workers',
 		]),
+		compare: new Set([
+			'root',
+			'config',
+			'output',
+			'ids',
+			'checkpoint',
+			'viewport',
+			'container',
+			'theme',
+			'locale',
+			'reduced-motion',
+			'motion',
+			'workers',
+		]),
 		build: new Set(['root', 'config', 'output']),
 		pack: new Set(['root', 'config', 'output', 'workers', 'allow-failed']),
 		'pack-check': new Set(['root', 'config', 'output', 'workers', 'allow-failed']),
@@ -294,6 +308,11 @@ function validateOptions(parsed: ParsedArguments): void {
 				if (parsed.options.has(option))
 					throw new Error(`Option --${option} cannot be combined with explicit specimen ids`);
 		}
+		return;
+	}
+	if (parsed.action === 'compare') {
+		if (parsed.options.has('ids') && parsed.positionals.length > 0)
+			throw new Error('Give variant ids positionally or with --ids, not both.');
 		return;
 	}
 	const expected =
@@ -479,6 +498,20 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 						...(parsed.flags.has('no-axe') ? { axe: false } : {}),
 						...(suite.workers !== undefined ? { workers: suite.workers } : {}),
 					});
+				} else if (parsed.action === 'compare') {
+					const ids = parsed.options.has('ids')
+						? (parsed.options.get('ids') ?? '').split(',').filter(Boolean)
+						: parsed.positionals;
+					const suite = suiteInput(parsed);
+					const mergedContext = { ...context, ...raw };
+					result = await executeSpecimenCommand(bench, 'specimen-compare', {
+						ids,
+						...(Object.keys(mergedContext).length > 0 ? { context: mergedContext } : {}),
+						...(parsed.options.has('checkpoint')
+							? { checkpoint: parsed.options.get('checkpoint') }
+							: {}),
+						...(suite.workers !== undefined ? { workers: suite.workers } : {}),
+					});
 				} else if (parsed.action === 'themes') {
 					// The command's schema refuses a share outside 0 to 1, and a word, which is NaN.
 					const threshold = parsed.options.get('threshold');
@@ -632,7 +665,7 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 			code: 'SPECIMEN_CLI_ERROR',
 			message,
 			suggestion:
-				'Use specimen list, validate [--id ID | --file PATH], inspect ID, render ID, capture [IDS...] [--label NAME], run ID, themes [ID] [--theme light,dark] [--threshold 0.02], migrate [--files A,B] [--helpers] [--apply], diff LEFT RIGHT, build OUTDIR, pack [TAG], pack-check [TAG] or pack-export DIR; check option values and file paths.',
+				'Use specimen list, validate [--id ID | --file PATH], inspect ID, render ID, capture [IDS...] [--label NAME], compare ID1 ID2..., run ID, themes [ID] [--theme light,dark] [--threshold 0.02], migrate [--files A,B] [--helpers] [--apply], diff LEFT RIGHT, build OUTDIR, pack [TAG], pack-check [TAG] or pack-export DIR; check option values and file paths.',
 		});
 	} finally {
 		if (bench) {
