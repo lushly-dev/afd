@@ -19,6 +19,9 @@ import {
 	jobConfigSchema,
 	jobRunRequestSchema,
 	matrixRequestSchema,
+	pointCheckRequestSchema,
+	pointMoveRequestSchema,
+	pointRequestSchema,
 	profileRequestSchema,
 	suggestRequestSchema,
 	suiteRequestSchema,
@@ -37,6 +40,9 @@ import {
 	parseCoverageRequest,
 	parseJobRunRequest,
 	parseMatrixRequest,
+	parsePointCheckRequest,
+	parsePointMoveRequest,
+	parsePointRequest,
 	parseProfileRequest,
 	parseSuggestRequest,
 	parseSuiteRequest,
@@ -797,6 +803,94 @@ describe('request parsing agrees with the public schemas', () => {
 			agrees(coverageRequestSchema, parseCoverageRequest, value);
 			agrees(contractRequestSchema, parseContractRequest, value);
 		}
+	});
+
+	it('agrees on point, point-move, and point-check requests', () => {
+		const pointValues: unknown[] = [
+			{ pointer: 'specimen:toolbar#ref=root/div:1' },
+			{ pointer: '' },
+			{ pointer: 'specimen:toolbar#ref=root/div:1', timeoutMs: 5000 },
+			{ pointer: 'specimen:toolbar#ref=root/div:1', id: 'toolbar' },
+			{ pointer: 'specimen:toolbar#ref=root/div:1', target: { role: 'button' } },
+			{ pointer: 'specimen:toolbar#ref=root/div:1', context: { theme: 'dark' } },
+			{ pointer: 'specimen:toolbar#ref=root/div:1', checkpoint: 'mount' },
+			{ pointer: 123 },
+			{ id: 'toolbar', target: { role: 'button', name: 'Share' } },
+			{ id: 'toolbar', target: { role: 'button' } },
+			{ id: 'toolbar', target: { selector: 'button.primary' } },
+			{
+				id: 'toolbar',
+				context: { theme: 'dark', viewport: '1280x800' },
+				checkpoint: 'mount',
+				target: { role: 'button', name: 'Share' },
+			},
+			{
+				id: 'toolbar',
+				context: { theme: 'light', viewport: { width: 800, height: 600 }, container: '320' },
+				target: { selector: 'button' },
+			},
+			{
+				id: 'toolbar',
+				context: {
+					container: '320x480',
+					locale: 'en-US',
+					reducedMotion: 'reduce',
+					motion: 'settled',
+				},
+				target: { role: 'button' },
+			},
+			{ id: 'toolbar', context: { viewport: '0x800' }, target: { role: 'button' } },
+			{ id: 'toolbar', context: { viewport: '9000x800' }, target: { role: 'button' } },
+			{ id: 'toolbar', context: { viewport: 'wide' }, target: { role: 'button' } },
+			{ id: 'toolbar', context: { container: '0' }, target: { role: 'button' } },
+			{ id: 'toolbar', context: { theme: 'sepia' }, target: { role: 'button' } },
+			{ id: 'toolbar', context: { unknown: 'x' }, target: { role: 'button' } },
+			{ id: 'toolbar', target: { role: '' } },
+			{ id: 'toolbar', target: { selector: '' } },
+			{ id: 'toolbar', target: { selector: 'button', role: 'button' } },
+			{ id: 'toolbar', target: { role: 'button', name: 42 } },
+			{ id: 'toolbar' },
+			{ target: { role: 'button' } },
+			{},
+			{ id: '', target: { role: 'button' } },
+			{ id: 'toolbar', target: { role: 'button' }, timeoutMs: 0 },
+			{ id: 'toolbar', target: { role: 'button' }, extra: true },
+			null,
+		];
+		for (const value of pointValues) agrees(pointRequestSchema, parsePointRequest, value);
+
+		const moveValues: unknown[] = [
+			{ id: 'pt-5r8k2w9m4c1x', to: 'parent' },
+			{ id: 'pt-5r8k2w9m4c1x', to: 'child' },
+			{ id: 'pt-5r8k2w9m4c1x', to: 'child', index: 0 },
+			{ id: 'pt-5r8k2w9m4c1x', to: 'child', index: 3 },
+			{ id: 'pt-5r8k2w9m4c1x', to: 'next' },
+			{ id: 'pt-5r8k2w9m4c1x', to: 'previous' },
+			{ id: 'pt-5r8k2w9m4c1x', to: 'component' },
+			{ id: 'pt-5r8k2w9m4c1x', to: 'parent', index: 0 },
+			{ id: 'pt-5r8k2w9m4c1x', to: 'child', index: -1 },
+			{ id: 'pt-5r8k2w9m4c1x', to: 'child', index: 1.5 },
+			{ id: 'pt-5r8k2w9m4c1x', to: 'up' },
+			{ id: '', to: 'parent' },
+			{ to: 'parent' },
+			{ id: 'pt-5r8k2w9m4c1x', to: 'next', timeoutMs: 1000 },
+			{ id: 'pt-5r8k2w9m4c1x', to: 'next', timeoutMs: 0 },
+			{ id: 'pt-5r8k2w9m4c1x', to: 'next', extra: true },
+			null,
+		];
+		for (const value of moveValues) agrees(pointMoveRequestSchema, parsePointMoveRequest, value);
+
+		const checkValues: unknown[] = [
+			{ id: 'pt-5r8k2w9m4c1x' },
+			{ id: 'pt-5r8k2w9m4c1x', timeoutMs: 2000 },
+			{ id: '' },
+			{ id: 123 },
+			{ id: 'pt-5r8k2w9m4c1x', timeoutMs: 0 },
+			{ id: 'pt-5r8k2w9m4c1x', extra: true },
+			{},
+			null,
+		];
+		for (const value of checkValues) agrees(pointCheckRequestSchema, parsePointCheckRequest, value);
 	});
 
 	it('agrees on capture set requests', () => {

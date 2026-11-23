@@ -30,6 +30,7 @@ import {
 } from './jobs.js';
 import { type PackHost, runPack } from './pack-run.js';
 import type { JobDriverResult } from './plugin.js';
+import * as pointRun from './point-run.js';
 import {
 	BASELINE_RUNNER,
 	compareProfile,
@@ -164,7 +165,7 @@ interface HostCheckpointCapture {
 	console?: { errors: string[]; warnings: string[] };
 }
 
-interface HostRender {
+interface HostRender extends pointRun.PointRenderFields {
 	/** The page's capture, with its DOM normalized in the page by `normalizeDom`. */
 	/** `null` when a suite's capture mode left this story without one. */
 	captured: (BrowserObservation & { normalized: string }) | null;
@@ -364,12 +365,13 @@ export async function createInProcessBench(
 			observe?: SpecimenEntry['observe'];
 			/** Mount this markup, after loading the entry's module, in place of the entry. */
 			remount?: string;
-		} = {}
+		} & pointRun.PointCaptureOptions = {}
 	): Promise<{
 		observation: Observation | null;
 		outcome: StoryOutcome | null;
 		accessibility: AxeOutcome | null;
 		profile: PageMeasurements | null;
+		pointMeta: pointRun.PointCaptureMeta;
 	}> {
 		const request = {
 			...parsed,
@@ -412,6 +414,7 @@ export async function createInProcessBench(
 								...(options.reuseBundle ? { reuseBundle: true } : {}),
 								...(options.accessibility ? { accessibility: true } : {}),
 								...(options.profile ? { profile: true } : {}),
+								...pointRun.pointRequestFields(options),
 								...(entry.story && config.config.test?.settledAccessibility
 									? { settled: true }
 									: {}),
@@ -429,8 +432,15 @@ export async function createInProcessBench(
 			]);
 			const accessibility = rendered.accessibility ?? null;
 			const profile = rendered.profile ?? null;
+			const pointMeta = pointRun.extractPointMeta(rendered);
 			if (!rendered.captured)
-				return { observation: null, outcome: rendered.outcome ?? null, accessibility, profile };
+				return {
+					observation: null,
+					outcome: rendered.outcome ?? null,
+					accessibility,
+					profile,
+					pointMeta,
+				};
 			// The capture is of the settled page, so it records the settled check when one ran.
 			const axe =
 				options.accessibility === false
@@ -541,7 +551,13 @@ export async function createInProcessBench(
 					]),
 				},
 			} satisfies Observation;
-			return { observation, outcome: rendered.outcome ?? null, accessibility, profile };
+			return {
+				observation,
+				outcome: rendered.outcome ?? null,
+				accessibility,
+				profile,
+				pointMeta,
+			};
 		} finally {
 			await trace?.flush();
 		}
@@ -889,6 +905,7 @@ export async function createInProcessBench(
 			ensureOpen();
 			return (await capture(parseCaptureRequest(rawRequest))).observation as Observation;
 		},
+		...pointRun.createPointApi(ensureOpen, { config, capture }),
 		async captureSet(rawRequest: CaptureSetRequest = {}): Promise<CaptureSetRun> {
 			ensureOpen();
 			const request = parseCaptureSetRequest(rawRequest);

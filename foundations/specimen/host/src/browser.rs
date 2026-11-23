@@ -309,6 +309,12 @@ pub struct RenderRequest {
     /// Inspect instead of capturing: `{ schema }`, the component's schema from the manifest.
     #[serde(default)]
     pub inspect: Option<Value>,
+    /// Resolve a point target (`{ selector }` or `{ role, name? }`) to its positional ref.
+    #[serde(default)]
+    pub resolve_target: Option<Value>,
+    /// Collect normalized visible text (capped at 200 chars) per element ref for `specimen-point`.
+    #[serde(default)]
+    pub collect_texts: bool,
     /// Optional ISO-8601 instant pinning `Date` and positive-delay timers before any module loads.
     #[serde(default)]
     pub pin_clock: Option<String>,
@@ -337,6 +343,12 @@ pub struct RenderOutcome {
     pub accessibility: Option<Value>,
     /// The page's measurements at the checkpoint, when the request asked for them.
     pub profile: Option<Value>,
+    /// Positional ref resolved for `resolve_target`, when requested.
+    pub resolved_target_ref: Option<String>,
+    /// Normalized visible text per element ref, when `collect_texts` was requested.
+    pub element_texts: Option<Value>,
+    /// Slotted element -> assigned `<slot>` ref map, when `collect_texts` was requested.
+    pub slotted_parents: Option<Value>,
     /// Multiple kept checkpoints captured during a single fresh pass.
     pub captures: Option<Vec<CheckpointCapture>>,
     /// Final step outcomes returned by an in-page job driver.
@@ -352,6 +364,9 @@ struct Attempted {
     outcome: Option<Value>,
     accessibility: Option<Value>,
     profile: Option<Value>,
+    resolved_target_ref: Option<String>,
+    element_texts: Option<Value>,
+    slotted_parents: Option<Value>,
     captures: Option<Vec<CheckpointCapture>>,
     job_outcome: Option<Value>,
 }
@@ -571,6 +586,9 @@ impl Browser {
                 outcome: attempted.outcome,
                 accessibility: attempted.accessibility,
                 profile: attempted.profile,
+                resolved_target_ref: attempted.resolved_target_ref,
+                element_texts: attempted.element_texts,
+                slotted_parents: attempted.slotted_parents,
                 captures: attempted.captures,
                 job_outcome: attempted.job_outcome,
             }),
@@ -712,6 +730,9 @@ impl Browser {
                 outcome: None,
                 accessibility: None,
                 profile: None,
+                resolved_target_ref: None,
+                element_texts: None,
+                slotted_parents: None,
                 captures: None,
                 job_outcome: None,
             });
@@ -799,6 +820,9 @@ impl Browser {
                 outcome: None,
                 accessibility: None,
                 profile: None,
+                resolved_target_ref: None,
+                element_texts: None,
+                slotted_parents: None,
                 captures: Some(captures),
                 job_outcome: Some(job_outcome),
             });
@@ -954,6 +978,9 @@ impl Browser {
                 outcome: None,
                 accessibility: None,
                 profile: None,
+                resolved_target_ref: None,
+                element_texts: None,
+                slotted_parents: None,
                 captures: Some(captures),
                 job_outcome: None,
             });
@@ -1052,10 +1079,26 @@ impl Browser {
                 outcome,
                 accessibility,
                 profile,
+                resolved_target_ref: None,
+                element_texts: None,
+                slotted_parents: None,
                 captures: None,
                 job_outcome: None,
             });
         }
+        let resolved_target_ref = if let Some(target) = &request.resolve_target {
+            attempt.enter("resolving the point target");
+            Some(page.target_ref(target).await?)
+        } else {
+            None
+        };
+        let (element_texts, slotted_parents) = if request.collect_texts {
+            attempt.enter("collecting element text");
+            let (texts, slotted) = page.point_meta().await?;
+            (Some(texts), Some(slotted))
+        } else {
+            (None, None)
+        };
         attempt.enter("capturing the result");
         let capture_started = std::time::Instant::now();
         let viewport: Viewport =
@@ -1083,6 +1126,9 @@ impl Browser {
             outcome,
             accessibility,
             profile,
+            resolved_target_ref,
+            element_texts,
+            slotted_parents,
             captures: None,
             job_outcome: None,
         })

@@ -28,6 +28,11 @@ import type {
 	Observation,
 	PackBuildRequest,
 	PackBuildRun,
+	PointCheckRequest,
+	PointCheckResult,
+	PointMoveRequest,
+	PointRequest,
+	PointResult,
 	ProfileRequest,
 	ProfileRun,
 	RunRequest,
@@ -59,6 +64,9 @@ type WorkerOperation =
 	| { operation: 'matrix'; request: MatrixRequest }
 	| { operation: 'recordBaseline'; request: BaselineRequest }
 	| { operation: 'inspect'; request: InspectRequest }
+	| { operation: 'point'; request: PointRequest }
+	| { operation: 'pointMove'; request: PointMoveRequest }
+	| { operation: 'pointCheck'; request: PointCheckRequest }
 	| { operation: 'build'; outDir: string }
 	| { operation: 'close' }
 	| { operation: 'abort' };
@@ -354,6 +362,27 @@ export class BenchWorkerClient {
 			{ operation: 'inspect', request },
 			(request.timeoutMs ?? 10_000) + 15_000
 		)) as InspectResult;
+	}
+	async point(request: PointRequest): Promise<PointResult> {
+		await this.ready;
+		return (await this.request(
+			{ operation: 'point', request },
+			(request.timeoutMs ?? 10_000) + 15_000
+		)) as PointResult;
+	}
+	async pointMove(request: PointMoveRequest): Promise<PointResult> {
+		await this.ready;
+		return (await this.request(
+			{ operation: 'pointMove', request },
+			(request.timeoutMs ?? 10_000) + 15_000
+		)) as PointResult;
+	}
+	async pointCheck(request: PointCheckRequest): Promise<PointCheckResult> {
+		await this.ready;
+		return (await this.request(
+			{ operation: 'pointCheck', request },
+			(request.timeoutMs ?? 10_000) + 15_000
+		)) as PointCheckResult;
 	}
 	async build(outDir: string): ReturnType<SpecimenBench['build']> {
 		await this.ready;

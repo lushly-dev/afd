@@ -25,12 +25,18 @@ import type {
 	PackLocalElements,
 	PackRequest,
 	PatternSetupBinding,
+	PointCheckRequest,
+	PointContextInput,
+	PointMoveDirection,
+	PointMoveRequest,
+	PointRequest,
 	ProfileRequest,
 	SpecimenAction,
 	SpecimenContext,
 	SuggestRequest,
 	SuiteFilter,
 	SuiteRequest,
+	Target,
 	ThemeSupport,
 	ThemesRequest,
 } from './types.js';
@@ -1205,5 +1211,141 @@ function packConfig(value: unknown): NonNullable<BenchConfig['pack']> {
 		...(fields.themeStylesheet === undefined
 			? {}
 			: { themeStylesheet: text(fields.themeStylesheet, 'configuration.pack.themeStylesheet') }),
+	};
+}
+
+const POINT_MOVE_DIRECTIONS = ['parent', 'child', 'next', 'previous', 'component'] as const;
+
+function parseDimensionPairText(value: string, path: string, heightOptional: boolean): string {
+	const pattern = heightOptional ? /^([1-9]\d*)(?:x([1-9]\d*))?$/ : /^([1-9]\d*)x([1-9]\d*)$/;
+	const match = pattern.exec(value);
+	if (!match) fail(path, `expected ${heightOptional ? 'WIDTH or WIDTHxHEIGHT' : 'WIDTHxHEIGHT'}`);
+	const width = Number(match[1]);
+	const height = match[2] === undefined ? undefined : Number(match[2]);
+	if (!Number.isSafeInteger(width) || width < 1 || width > 8192)
+		fail(`${path}.width`, 'expected an integer from 1 to 8192');
+	if (height !== undefined && (!Number.isSafeInteger(height) || height < 1 || height > 8192))
+		fail(`${path}.height`, 'expected an integer from 1 to 8192');
+	return value;
+}
+
+function parsePointTarget(value: unknown, path: string): Target {
+	if (typeof value !== 'object' || value === null || Array.isArray(value))
+		fail(path, 'expected a selector or role target object');
+	const raw = value as Fields;
+	if ('selector' in raw) {
+		const fields = record(raw, path, ['selector']);
+		return { selector: text(fields.selector, `${path}.selector`) };
+	}
+	const fields = record(raw, path, ['role', 'name']);
+	const role = text(fields.role, `${path}.role`);
+	if (fields.name !== undefined && typeof fields.name !== 'string')
+		fail(`${path}.name`, 'expected a string');
+	return fields.name === undefined ? { role } : { role, name: fields.name };
+}
+
+function parsePointContextField(value: unknown, path: string): PointContextInput {
+	const fields = record(value, path, CONTEXT_KEYS);
+	const context: Fields = {};
+	for (const key of CONTEXT_KEYS) {
+		if (fields[key] === undefined) continue;
+		if (key === 'viewport' && typeof fields[key] === 'string') {
+			context.viewport = parseDimensionPairText(fields[key], `${path}.viewport`, false);
+		} else if (key === 'container' && typeof fields[key] === 'string') {
+			context.container = parseDimensionPairText(fields[key], `${path}.container`, true);
+		} else {
+			context[key] = contextField[key](fields[key], `${path}.${key}`);
+		}
+	}
+	return context as PointContextInput;
+}
+
+export function parsePointRequest(value: unknown): PointRequest {
+	const path = 'point request';
+	const fields = record(value, path, [
+		'pointer',
+		'id',
+		'context',
+		'checkpoint',
+		'target',
+		'timeoutMs',
+	]);
+	const timeoutMs =
+		fields.timeoutMs === undefined
+			? undefined
+			: integer(fields.timeoutMs, `${path}.timeoutMs`, 1, 60_000);
+	const hasPointer = fields.pointer !== undefined;
+	const hasNamed =
+		fields.id !== undefined ||
+		fields.target !== undefined ||
+		fields.context !== undefined ||
+		fields.checkpoint !== undefined;
+	if (hasPointer) {
+		if (hasNamed)
+			fail(
+				path,
+				'provide either pointer or id and target (with optional context and checkpoint), not both'
+			);
+		if (typeof fields.pointer !== 'string') fail(`${path}.pointer`, 'expected a string');
+		return {
+			pointer: fields.pointer,
+			...(timeoutMs === undefined ? {} : { timeoutMs }),
+		};
+	}
+	if (fields.id === undefined || fields.target === undefined)
+		fail(path, 'provide either pointer, or both id and target');
+	return {
+		id: text(fields.id, `${path}.id`),
+		...(fields.context === undefined
+			? {}
+			: { context: parsePointContextField(fields.context, `${path}.context`) }),
+		...(fields.checkpoint === undefined
+			? {}
+			: { checkpoint: text(fields.checkpoint, `${path}.checkpoint`) }),
+		target: parsePointTarget(fields.target, `${path}.target`),
+		...(timeoutMs === undefined ? {} : { timeoutMs }),
+	};
+}
+
+export function parsePointMoveRequest(value: unknown): PointMoveRequest {
+	const path = 'point move request';
+	const fields = record(value, path, ['id', 'to', 'index', 'timeoutMs']);
+	const id = text(fields.id, `${path}.id`);
+	const to = choice<PointMoveDirection>(fields.to, `${path}.to`, POINT_MOVE_DIRECTIONS);
+	let index: number | undefined;
+	if (fields.index !== undefined) {
+		if (
+			typeof fields.index !== 'number' ||
+			!Number.isSafeInteger(fields.index) ||
+			fields.index < 0
+		) {
+			fail(`${path}.index`, 'expected a non-negative integer');
+		}
+		if (to !== 'child') fail(`${path}.index`, 'index applies only when to is "child"');
+		index = fields.index;
+	}
+	const timeoutMs =
+		fields.timeoutMs === undefined
+			? undefined
+			: integer(fields.timeoutMs, `${path}.timeoutMs`, 1, 60_000);
+	return {
+		id,
+		to,
+		...(index === undefined ? {} : { index }),
+		...(timeoutMs === undefined ? {} : { timeoutMs }),
+	};
+}
+
+export function parsePointCheckRequest(value: unknown): PointCheckRequest {
+	const path = 'point check request';
+	const fields = record(value, path, ['id', 'timeoutMs']);
+	const id = text(fields.id, `${path}.id`);
+	const timeoutMs =
+		fields.timeoutMs === undefined
+			? undefined
+			: integer(fields.timeoutMs, `${path}.timeoutMs`, 1, 60_000);
+	return {
+		id,
+		...(timeoutMs === undefined ? {} : { timeoutMs }),
 	};
 }

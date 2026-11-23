@@ -63,6 +63,10 @@ const valueOptions = new Set([
 	'allow-failed',
 	'revision',
 	'threshold',
+	'role',
+	'name',
+	'selector',
+	'index',
 ]);
 const flagOptions = new Set(['require-visual', 'apply', 'helpers', 'retry', 'no-axe']);
 function parseArguments(args: string[]): ParsedArguments {
@@ -277,6 +281,23 @@ function validateOptions(parsed: ParsedArguments): void {
 		pack: new Set(['root', 'config', 'output', 'workers', 'allow-failed']),
 		'pack-check': new Set(['root', 'config', 'output', 'workers', 'allow-failed']),
 		'pack-export': new Set(['root', 'config', 'output', 'revision']),
+		point: new Set([
+			'root',
+			'config',
+			'output',
+			'checkpoint',
+			'viewport',
+			'container',
+			'theme',
+			'locale',
+			'reduced-motion',
+			'motion',
+			'role',
+			'name',
+			'selector',
+		]),
+		'point-move': new Set(['root', 'config', 'output', 'index']),
+		'point-check': new Set(['root', 'config', 'output']),
 	};
 	const known = allowed[parsed.action];
 	if (!known) throw new Error(`Unknown command: ${parsed.action}`);
@@ -316,7 +337,11 @@ function validateOptions(parsed: ParsedArguments): void {
 		return;
 	}
 	const expected =
-		parsed.action === 'list' || parsed.action === 'validate' || parsed.action === 'migrate' ? 0 : 1;
+		parsed.action === 'list' || parsed.action === 'validate' || parsed.action === 'migrate'
+			? 0
+			: parsed.action === 'point-move'
+				? 2
+				: 1;
 	const selects = ['run', 'a11y', 'profile', 'baseline', 'themes'].includes(parsed.action);
 	const suite =
 		(selects && parsed.positionals.length === 0) ||
@@ -618,6 +643,56 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 						directory: resolve(root, parsed.positionals[0] ?? ''),
 						...(parsed.options.has('revision') ? { revision: parsed.options.get('revision') } : {}),
 					});
+				} else if (parsed.action === 'point') {
+					const role = parsed.options.get('role');
+					const name = parsed.options.get('name');
+					const selector = parsed.options.get('selector');
+					if (role && selector) throw new Error('Give either --role or --selector, not both');
+					if (name !== undefined && !role) throw new Error('Option --name requires --role');
+					if (role || selector) {
+						const mergedContext = { ...context, ...raw };
+						const target = role ? { role, ...(name !== undefined ? { name } : {}) } : { selector };
+						result = await executeSpecimenCommand(bench, 'specimen-point', {
+							id: parsed.positionals[0],
+							...(Object.keys(mergedContext).length ? { context: mergedContext } : {}),
+							...(parsed.options.has('checkpoint')
+								? { checkpoint: parsed.options.get('checkpoint') }
+								: {}),
+							target,
+						});
+					} else {
+						const hasContextFlags =
+							Object.keys(context).length > 0 ||
+							Object.keys(raw).length > 0 ||
+							parsed.options.has('checkpoint');
+						if (hasContextFlags) {
+							throw new Error(
+								'Pointer URI carries its own context and checkpoint; omit context flags or pass --role / --selector'
+							);
+						}
+						result = await executeSpecimenCommand(bench, 'specimen-point', {
+							pointer: parsed.positionals[0],
+						});
+					}
+				} else if (parsed.action === 'point-move') {
+					const rawIndex = parsed.options.get('index');
+					let index: number | undefined;
+					if (rawIndex !== undefined) {
+						const parsedIndex = Number(rawIndex);
+						if (!rawIndex.trim() || !Number.isInteger(parsedIndex)) {
+							throw new Error('--index expects a whole number');
+						}
+						index = parsedIndex;
+					}
+					result = await executeSpecimenCommand(bench, 'specimen-point-move', {
+						id: parsed.positionals[0],
+						to: parsed.positionals[1],
+						...(index === undefined ? {} : { index }),
+					});
+				} else if (parsed.action === 'point-check') {
+					result = await executeSpecimenCommand(bench, 'specimen-point-check', {
+						id: parsed.positionals[0],
+					});
 				} else if (parsed.action === 'a11y') {
 					result = await executeSpecimenCommand(bench, 'specimen-a11y', {
 						...(parsed.positionals[0] ? { id: parsed.positionals[0] } : {}),
@@ -665,7 +740,7 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 			code: 'SPECIMEN_CLI_ERROR',
 			message,
 			suggestion:
-				'Use specimen list, validate [--id ID | --file PATH], inspect ID, render ID, capture [IDS...] [--label NAME], compare ID1 ID2..., run ID, themes [ID] [--theme light,dark] [--threshold 0.02], migrate [--files A,B] [--helpers] [--apply], diff LEFT RIGHT, build OUTDIR, pack [TAG], pack-check [TAG] or pack-export DIR; check option values and file paths.',
+				'Use specimen list, validate [--id ID | --file PATH], inspect ID, render ID, capture [IDS...] [--label NAME], compare ID1 ID2..., run ID, themes [ID] [--theme light,dark] [--threshold 0.02], migrate [--files A,B] [--helpers] [--apply], diff LEFT RIGHT, build OUTDIR, pack [TAG], pack-check [TAG], pack-export DIR, point POINTER | ID (--role ROLE [--name NAME] | --selector CSS), point-move POINT_ID DIRECTION [--index N] or point-check POINT_ID; check option values and file paths.',
 		});
 	} finally {
 		if (bench) {

@@ -1,9 +1,12 @@
 # Specimen MCP server
 
-A local stdio MCP endpoint over the 21 AFD commands in `@lushly-dev/specimen-afd`.
+A local stdio MCP endpoint over the 24 AFD commands in `@lushly-dev/specimen-afd`.
 It advertises each MCP-exposed command's JSON input schema and AFD mutation/destructive
 annotations, validates through the CLI's execution path, and returns its complete
 `CommandResult` as JSON text, with `isError` set when `success` is false.
+Because the server keeps one browser bench warm across calls, agents should prefer it
+over the one-shot CLI for interactive pointing and staleness checks (`specimen-point`,
+`specimen-point-move`, `specimen-point-check`).
 
 This package is private and quarantined, with no release route. Build and run it
 from this checkout on Node 26:

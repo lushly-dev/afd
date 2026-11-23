@@ -36,6 +36,10 @@ export interface LoadedConfig {
 	plugins: string[];
 	/** Component schemas from the configured custom elements manifest, by tag. */
 	schemas: Record<string, ComponentSchema>;
+	/** The configured custom elements manifest file, when present. */
+	manifestFile?: string | null;
+	/** SHA-256 hex digest of the manifest bytes loaded into `schemas`. */
+	manifestDigest?: string | null;
 	/** The directory a schema's `module` is relative to. */
 	manifestDirectory: string | null;
 	/** Directories served at the page's origin, as absolute paths and URL prefixes. */
@@ -131,6 +135,8 @@ export async function loadConfig(options: BenchOptions): Promise<LoadedConfig> {
 	for (const plugin of config.plugins ?? [])
 		plugins.push(inside(root, await realpath(resolve(dirname(file), plugin)), plugin));
 	let schemas: Record<string, ComponentSchema> = {};
+	let manifestFile: string | null = null;
+	let manifestDigest: string | null = null;
 	let manifestDirectory: string | null = null;
 	if (config.manifest) {
 		const manifest = inside(
@@ -138,7 +144,10 @@ export async function loadConfig(options: BenchOptions): Promise<LoadedConfig> {
 			await realpath(resolve(dirname(file), config.manifest)),
 			config.manifest
 		);
-		schemas = Object.fromEntries(readManifest(JSON.parse(await readFile(manifest, 'utf8'))));
+		const manifestText = await readFile(manifest, 'utf8');
+		schemas = Object.fromEntries(readManifest(JSON.parse(manifestText)));
+		manifestFile = manifest;
+		manifestDigest = digest(manifestText);
 		manifestDirectory = dirname(manifest);
 	}
 	const staticDirs: LoadedConfig['staticDirs'] = [];
@@ -214,6 +223,8 @@ export async function loadConfig(options: BenchOptions): Promise<LoadedConfig> {
 		digest: digest(text),
 		plugins,
 		schemas,
+		manifestFile,
+		manifestDigest,
 		manifestDirectory,
 		staticDirs,
 		jobSourceModules,

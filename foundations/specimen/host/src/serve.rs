@@ -12,6 +12,7 @@ use tokio::net::{TcpListener, TcpStream};
 struct Slot {
     generation: Arc<Generation>,
     loaded: BTreeSet<String>,
+    sources: BTreeSet<String>,
 }
 
 /// A directory served at the page's origin, as Storybook's `staticDirs`.
@@ -41,17 +42,23 @@ impl Renders {
             Slot {
                 generation,
                 loaded: BTreeSet::new(),
+                sources: BTreeSet::new(),
             },
         );
     }
 
-    /// End a render and return `file:digest` for every file it requested, sorted.
-    pub fn end(&self, token: &str) -> Vec<String> {
+    /// End a render and return (`file:digest` for every file it requested, source module paths loaded).
+    pub fn end(&self, token: &str) -> (Vec<String>, Vec<String>) {
         self.slots
             .lock()
             .unwrap()
             .remove(token)
-            .map(|slot| slot.loaded.into_iter().collect())
+            .map(|slot| {
+                (
+                    slot.loaded.into_iter().collect(),
+                    slot.sources.into_iter().collect(),
+                )
+            })
             .unwrap_or_default()
     }
 
@@ -63,6 +70,11 @@ impl Renders {
         let slot = renders.get_mut(token)?;
         let served = slot.generation.files.get(file)?.clone();
         slot.loaded.insert(format!("{file}:{}", served.digest));
+        if let Some(paths) = slot.generation.chunk_sources.get(file) {
+            for source in paths {
+                slot.sources.insert(source.to_string_lossy().into_owned());
+            }
+        }
         Some(served)
     }
 
@@ -106,9 +118,11 @@ impl Renders {
                 continue;
             };
             let served = crate::bundle::served(body, &served_name.to_string_lossy());
+            let resolved_source = resolved.to_string_lossy().into_owned();
             for slot in self.slots.lock().unwrap().values_mut() {
                 slot.loaded
                     .insert(format!("static:{path}:{}", served.digest));
+                slot.sources.insert(resolved_source.clone());
             }
             return Some(served);
         }

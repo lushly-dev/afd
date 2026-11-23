@@ -142,6 +142,19 @@ function accessibleOf<T>(
 }
 
 /**
+ * The accessibility node for an already-selected element: the element's own role/name when it has
+ * one, or the sole accessible descendant inside its shadow root when it is a custom element.
+ */
+export function nodeAccessible<T>(
+	node: ClimbNode<T>
+): { role?: string; name?: string; from: ClimbNode<T> } | undefined {
+	return (
+		accessibleOf(node) ??
+		(isCustomTag(node.tag) ? accessibleOf(soleAccessibleInShadow(node)) : undefined)
+	);
+}
+
+/**
  * Shared two-step meaningful-element climb (Proposal §4.1).
  * Both the static review page and `specimen-point` call this function so a click and a named
  * target select the exact same element.
@@ -184,11 +197,17 @@ export function climbSelection<T>(hit: ClimbNode<T>, options: ClimbOptions = {})
 
 /** Build a `ClimbNode` lookup map over captured `ElementObservation[]` (for `specimen-point`). */
 export function observationClimbTree(
-	elements: readonly ElementObservation[]
+	elements: readonly ElementObservation[],
+	slottedParents?: Readonly<Record<string, string>>
 ): Map<string, ClimbNode<ElementObservation>> {
+	const knownRefs = new Set<string>();
+	for (const obs of elements) {
+		if (obs.ref !== 'root') knownRefs.add(obs.ref);
+	}
 	const lightChildren = new Map<string, string[]>();
 	const shadowChildren = new Map<string, string[]>();
 	const parentMap = new Map<string, string | null>();
+	const composedParentMap = new Map<string, string | null>();
 	const shadowHostMap = new Map<string, string | null>();
 
 	for (const obs of elements) {
@@ -198,15 +217,19 @@ export function observationClimbTree(
 		const parentParts = parts.slice(0, -1);
 		const directShadow = parentParts[parentParts.length - 1] === 'shadow';
 		const parentRef = directShadow ? parentParts.slice(0, -1).join('/') : parentParts.join('/');
+		const domParent = parentRef && parentRef !== 'root' ? parentRef : null;
+		const assignedSlotRef = slottedParents?.[obs.ref];
 
-		if (parentRef && parentRef !== 'root') {
-			parentMap.set(obs.ref, parentRef);
+		parentMap.set(obs.ref, domParent);
+		composedParentMap.set(
+			obs.ref,
+			assignedSlotRef && knownRefs.has(assignedSlotRef) ? assignedSlotRef : domParent
+		);
+		if (domParent) {
 			const bucket = directShadow ? shadowChildren : lightChildren;
-			const list = bucket.get(parentRef) ?? [];
+			const list = bucket.get(domParent) ?? [];
 			list.push(obs.ref);
-			bucket.set(parentRef, list);
-		} else {
-			parentMap.set(obs.ref, null);
+			bucket.set(domParent, list);
 		}
 
 		const lastShadow = parentParts.lastIndexOf('shadow');
@@ -238,6 +261,10 @@ export function observationClimbTree(
 			presentational,
 			parent() {
 				const ref = parentMap.get(obs.ref);
+				return ref ? (nodes.get(ref) ?? null) : null;
+			},
+			composedParent() {
+				const ref = composedParentMap.get(obs.ref);
 				return ref ? (nodes.get(ref) ?? null) : null;
 			},
 			shadowHost() {

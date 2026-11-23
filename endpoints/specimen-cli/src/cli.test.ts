@@ -230,6 +230,9 @@ function harness() {
 			budget: 50000,
 			files: ['index.html'],
 		})),
+		point: vi.fn(async () => ({ point: cliSamplePoint })),
+		pointMove: vi.fn(async () => ({ point: { ...cliSamplePoint, id: 'pt-9w4m2c1x5r8k' } })),
+		pointCheck: vi.fn(async () => ({ status: 'current' as const, changed: [] })),
 		close: vi.fn(async () => {}),
 	};
 	const createBench = vi.fn(async () => bench);
@@ -245,6 +248,45 @@ function harness() {
 		},
 	};
 }
+
+const cliSamplePoint = {
+	id: 'pt-5r8k2w9m4c1x',
+	specimen: 'example-toolbar',
+	context: { theme: 'dark', viewport: '1280x800' },
+	element: {
+		ref: 'root/example-toolbar:1/shadow/example-button:1',
+		tag: 'example-button',
+		text: 'Share',
+		box: { x: 420, y: 12, width: 84, height: 32 },
+	},
+	accessible: {
+		role: 'button',
+		name: 'Share',
+		from: 'root/example-toolbar:1/shadow/example-button:1/shadow/button:1',
+	},
+	identity: {
+		strongest: 'role-name' as const,
+		roleName: { role: 'button', name: 'Share' },
+		componentPosition: { tag: 'example-button', index: 1 },
+		ref: 'root/example-toolbar:1/shadow/example-button:1',
+	},
+	source: {
+		specimen: { module: 'src/toolbar/toolbar.specimens.ts', exportName: 'Toolbar' },
+		digests: { 'src/example-button.ts': '4c1e9a071234abcd' },
+	},
+	ancestors: [],
+	neighbourhood: {
+		pageData: true as const,
+		siblings: [],
+		children: [],
+		omitted: { siblings: 0, children: 0 },
+	},
+	pin: { x: 0.5, y: 0.5 },
+	check: {
+		command: 'specimen-point-check' as const,
+		when: 'before editing source for this point' as const,
+	},
+};
 
 let packValid = true;
 const packReport = {
@@ -533,6 +575,82 @@ describe('specimen CLI', () => {
 		});
 		expect(await runCli(['--root', root, 'pack-export'], h.io)).toBe(1);
 		expect(await runCli(['--root', root, 'pack', '--revision', 'x'], h.io)).toBe(1);
+	});
+	it('dispatches point, point-move, and point-check with pointer URIs, role/selector targets, and index', async () => {
+		const h = harness();
+		const root = await directory();
+		const uri =
+			'specimen:example-toolbar?theme=dark&viewport=1280x800#ref=root/example-toolbar:1/shadow/example-button:1';
+		expect(await runCli(['--root', root, 'point', uri], h.io)).toBe(0);
+		expect(h.bench.point).toHaveBeenLastCalledWith({ pointer: uri });
+
+		expect(
+			await runCli(
+				[
+					'--root',
+					root,
+					'point',
+					'example-toolbar',
+					'--role',
+					'button',
+					'--name',
+					'Share',
+					'--theme',
+					'dark',
+					'--viewport',
+					'1280x800',
+				],
+				h.io
+			)
+		).toBe(0);
+		expect(h.bench.point).toHaveBeenLastCalledWith({
+			id: 'example-toolbar',
+			context: { theme: 'dark', viewport: { width: 1280, height: 800 } },
+			target: { role: 'button', name: 'Share' },
+		});
+
+		expect(
+			await runCli(['--root', root, 'point', 'example-toolbar', '--selector', 'button.share'], h.io)
+		).toBe(0);
+		expect(h.bench.point).toHaveBeenLastCalledWith({
+			id: 'example-toolbar',
+			target: { selector: 'button.share' },
+		});
+
+		expect(await runCli(['--root', root, 'point-move', 'pt-5r8k2w9m4c1x', 'next'], h.io)).toBe(0);
+		expect(h.bench.pointMove).toHaveBeenLastCalledWith({ id: 'pt-5r8k2w9m4c1x', to: 'next' });
+
+		expect(
+			await runCli(['--root', root, 'point-move', 'pt-5r8k2w9m4c1x', 'child', '--index', '2'], h.io)
+		).toBe(0);
+		expect(h.bench.pointMove).toHaveBeenLastCalledWith({
+			id: 'pt-5r8k2w9m4c1x',
+			to: 'child',
+			index: 2,
+		});
+
+		expect(await runCli(['--root', root, 'point-check', 'pt-5r8k2w9m4c1x'], h.io)).toBe(0);
+		expect(h.bench.pointCheck).toHaveBeenLastCalledWith({ id: 'pt-5r8k2w9m4c1x' });
+
+		// Invalid option combinations
+		expect(
+			await runCli(
+				['--root', root, 'point', 'example-toolbar', '--role', 'button', '--selector', 'button'],
+				h.io
+			)
+		).toBe(1);
+		expect(
+			await runCli(['--root', root, 'point', 'example-toolbar', '--name', 'Share'], h.io)
+		).toBe(1);
+		expect(await runCli(['--root', root, 'point', uri, '--theme', 'dark'], h.io)).toBe(1);
+		expect(
+			await runCli(
+				['--root', root, 'point-move', 'pt-5r8k2w9m4c1x', 'child', '--index', 'bad'],
+				h.io
+			)
+		).toBe(1);
+		expect(await runCli(['--root', root, 'point-move', 'pt-5r8k2w9m4c1x'], h.io)).toBe(1);
+		expect(await runCli(['--root', root, 'point-check'], h.io)).toBe(1);
 	});
 	it('dispatches suggest, and writes the proposal only where nothing is', async () => {
 		const h = harness();
