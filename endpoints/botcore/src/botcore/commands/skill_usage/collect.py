@@ -515,8 +515,11 @@ def _read_t3(
     doing("reading T3 Code's store", path)
     connection = t3.open_store(path)
     try:
-        t3.check_schema(connection)
-        return t3.read(connection, since=since, all_items=all_items, natives=natives)
+        with t3.progress(connection, path):
+            t3.check_schema(connection)
+            return t3.read(
+                connection, since=since, all_items=all_items, natives=natives, path=path
+            )
     except sqlite3.Error as exc:
         raise t3.StoreUnreadable(str(exc)) from exc
     finally:

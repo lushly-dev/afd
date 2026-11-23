@@ -337,7 +337,7 @@ def test_collection_never_holds_or_fails_the_disk_work(
     order.clear()
     waited = run(setup.disk_run(force=True, own_process=True))["skill_usage"]
     release.set()
-    assert "did not finish in 0.2 seconds" in waited["error"] and order == ["reclaim", "collect"]
+    assert "made no progress for 0.2 seconds" in waited["error"] and order == ["reclaim", "collect"]
     monkeypatch.setattr(setup, "USAGE_SECONDS", 300)
     monkeypatch.setattr(usage, "skill_usage_collect", collect)
 
@@ -581,23 +581,56 @@ def test_a_step_that_was_left_starts_nothing_more(
     assert "Left" not in work["error"] and "Left" not in result.error.message
 
 
-def test_a_collection_past_its_time_is_left_however_busy_it_is(
+def test_a_collection_that_reports_progress_finishes_past_usage_seconds(
     repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
-    at_once,
 ) -> None:
+    """lushly-dev/afd#2160: a collection that keeps reporting progress (e.g. reading a multi-GB
+    T3 store on a busy machine) runs past USAGE_SECONDS until it finishes instead of being cut
+    short by a flat wall-clock timeout."""
+    import botcore.commands.disk.reclaim as reclaim
+    import botcore.commands.skill_usage as usage
+
+    async def fake_reclaim(**_kwargs):
+        return SimpleNamespace(success=True, data={"still_low": []})
+
+    ticks = 0
+
+    async def slow_but_working():
+        nonlocal ticks
+        # Total ~0.40s, well past USAGE_SECONDS=0.25, speaking every 0.04s.
+        for _ in range(10):
+            steps.doing("reading T3 Code's store", "/stores/t3.sqlite")
+            ticks += 1
+            time.sleep(0.04)
+        return SimpleNamespace(success=True, data={"added": 7})
+
+    monkeypatch.setattr(reclaim, "disk_reclaim", fake_reclaim)
+    monkeypatch.setattr(usage, "skill_usage_collect", slow_but_working)
+    monkeypatch.setattr(setup, "USAGE_SECONDS", 0.25)
+    found = run(setup.disk_run(force=True, own_process=True))["skill_usage"]
+    assert ticks == 10
+    assert found["ok"] is True and found["added"] == 7
+    assert check_file(state)["skill_usage"] == found
+
+
+def test_a_collection_that_stops_making_progress_is_left_and_writes_nothing_more(
+    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+) -> None:
+    """lushly-dev/afd#2160: a collection that goes quiet for USAGE_SECONDS (truly waiting) is
+    left, recorded with what it was waiting on, and stopped at its next word."""
     import botcore.commands.disk.reclaim as reclaim
     import botcore.commands.skill_usage as usage
 
     release, told = threading.Event(), threading.Event()
     wrote: list[str] = []
-    Looks(monkeypatch)  # nothing held: the collection is seen working all along
+    looks = Looks(monkeypatch)
 
     async def fake_reclaim(**_kwargs):
         return SimpleNamespace(success=True, data={"still_low": []})
 
-    async def busy():
+    async def stalled():
         steps.doing("reading T3 Code's store", "/stores/t3.sqlite")
-        at_once("USAGE_SECONDS")
+        looks.held = {"skill-usage-collect"}
         release.wait(30)
         try:
             steps.doing("writing its record")
@@ -608,12 +641,12 @@ def test_a_collection_past_its_time_is_left_however_busy_it_is(
         return SimpleNamespace(success=True, data={"added": 0})
 
     monkeypatch.setattr(reclaim, "disk_reclaim", fake_reclaim)
-    monkeypatch.setattr(usage, "skill_usage_collect", busy)
+    monkeypatch.setattr(usage, "skill_usage_collect", stalled)
     monkeypatch.setattr(setup, "USAGE_SECONDS", 300)
     found = run(setup.disk_run(force=True, own_process=True))["skill_usage"]
     assert found["ok"] is False
     assert found["error"] == (
-        "it did not finish in 0 seconds: it was reading T3 Code's store /stores/t3.sqlite")
+        "it made no progress for 300 seconds: it was reading T3 Code's store /stores/t3.sqlite")
     assert check_file(state)["skill_usage"] == found  # what was returned is what was kept
     release.set()
     assert told.wait(20) and wrote == []  # left, it writes nothing more
@@ -621,7 +654,6 @@ def test_a_collection_past_its_time_is_left_however_busy_it_is(
 
 def test_in_a_process_that_lives_on_nothing_is_left_running(
     repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
-    at_once,
     alive,
 ) -> None:
     import botcore.commands.disk.reclaim as reclaim
@@ -638,7 +670,8 @@ def test_in_a_process_that_lives_on_nothing_is_left_running(
         return SimpleNamespace(success=True, data={"still_low": []})
 
     async def waits_too():
-        at_once("USAGE_SECONDS")
+        steps.doing("reading T3 Code's store", "/stores/t3.sqlite")
+        looks.held.add("skill-usage-collect")
         release.wait(30)
         return SimpleNamespace(success=True, data={"added": 1})
 

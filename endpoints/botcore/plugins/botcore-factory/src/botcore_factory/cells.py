@@ -625,7 +625,10 @@ def drop(
             guard(state)
         cell = find(state, branch)
         for entry in state["queue"]:
-            if entry["branch"] == branch and entry.get("state") == MERGE_QUEUED:
+            if entry["branch"] != branch:
+                continue
+            entry_state = entry.get("state")
+            if entry_state == MERGE_QUEUED:
                 raise Refusal(
                     "MERGE_QUEUED",
                     f"{branch} is in GitHub's merge queue as PR {entry.get('pr')}: it would "
@@ -635,6 +638,43 @@ def drop(
                     "GitHub, lane-resume if the lane is paused, wait for its `ejected` event "
                     "(a minute or two), then lane-drop",
                 )
+            if entry_state == "merging" and entry.get("pr"):
+                pr = entry["pr"]
+                progress = factory.world.github.merge_progress(pr)
+                settling_merged = (
+                    progress.state == "OPEN" and progress.removal_reason.strip().lower() == "merged"
+                )
+                if progress.state == "MERGED" or settling_merged:
+                    raise Refusal(
+                        "MERGE_QUEUED",
+                        f"{branch} has already merged (or is settling as merged) on GitHub as "
+                        f"PR {pr}: dropping it would lose its landing record and reopen its "
+                        "issues",
+                        "Wait for the lane to land it (lane-resume if paused); do not drop a "
+                        "merged pull request",
+                    )
+                if progress.pending:
+                    if progress.queued:
+                        why = (
+                            f"{branch} is in GitHub's merge queue as PR {pr}: it would merge "
+                            "there after the lane forgot it"
+                        )
+                        hint = (
+                            "Wait: the lane lands it when it merges and ejects it when it "
+                            "leaves the queue. To stop it, remove the pull request from the "
+                            "merge queue on GitHub, lane-resume if the lane is paused, wait "
+                            "for its `ejected` event (a minute or two), then lane-drop"
+                        )
+                    else:
+                        why = (
+                            f"{branch} has auto-merge enabled on GitHub as PR {pr}: GitHub "
+                            "could merge it after the lane forgot it"
+                        )
+                        hint = (
+                            "Wait for the lane to track it, or disable auto-merge on GitHub "
+                            "first, then lane-drop"
+                        )
+                    raise Refusal("MERGE_QUEUED", why, hint)
         was_full = len(holding_seats(state)) >= dials.value(state["dials"], "cells.max")
         held_seat = cell in holding_seats(state)
         dropped_slots = [

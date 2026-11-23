@@ -51,7 +51,9 @@ def plan_removals(data: dict, include_restorable: bool, due_days: float) -> list
                 "branch": row.get("branch"),
                 "head": row.get("head"),
                 "landed": verdict.get("landed"),
-                "outputs": [s["path"] for s in row.get("strip", []) if s["kind"] == "dir"],
+                "outputs": [
+                    s["path"] for s in row.get("strip", []) if s["kind"] in ("dir", "file")
+                ],
                 "due_days": due_days,
                 "bytes": row.get("strip_ready_bytes") or None,
             })
@@ -68,8 +70,8 @@ def recheck_removal(  # noqa: PLR0911, PLR0913 - each is a fact the recheck must
     """Why this worktree must not be removed now, or None. Read immediately before removing.
 
     Activity is read the way disk-report reads it: git's records for the worktree, its changed
-    files, and its declared build-output folders (not the worktree folder's own time, which
-    changes whenever anything directly inside it is created or deleted).
+    files, and its declared build-output files and folders (not the worktree folder's own time,
+    which changes whenever anything directly inside it is created or deleted).
     """
     for path in (target, main):
         problem = volume_problem(str(path)) if volume_problem else None

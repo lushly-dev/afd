@@ -760,6 +760,56 @@ async def test_a_branch_in_the_queue_cannot_be_dropped(lane):
     assert lane.snapshot() == before
 
 
+async def test_lane_drop_refuses_merging_entry_held_by_github(lane):
+    """lushly-dev/afd#1628: a merging entry whose PR is already queued, has auto-merge set,
+    is already merged, or cannot be read on GitHub must not be dropped."""
+    lane.change_world(outcomes={"checks": {BRANCH: "pending"}})
+    run_steps(lane, 2)
+    assert entry_of(lane, BRANCH)["state"] == "merging"
+
+    # Queued on GitHub (e.g. a person queued it or the lane died before recording merge-queued).
+    rewrite_pr(lane, "600", queue={"state": "QUEUED", "position": 1, "groupHead": GROUP})
+    before = lane.snapshot()
+    refused = await lane.call("lane_drop", branch=BRANCH, reason="Abandoned")
+    assert refused.error.code == "MERGE_QUEUED" and "PR 600" in refused.error.message
+    assert lane.snapshot() == before
+
+    # Auto-merge set on GitHub while the lane still reads the entry as merging.
+    rewrite_pr(lane, "600", queue=None, autoMerge=True)
+    before = lane.snapshot()
+    refused = await lane.call("lane_drop", branch=BRANCH, reason="Abandoned")
+    assert refused.error.code == "MERGE_QUEUED" and "auto-merge" in refused.error.message
+    assert lane.snapshot() == before
+
+    # Already merged on GitHub before the lane's next step landed it.
+    rewrite_pr(lane, "600", autoMerge=False, state="MERGED")
+    before = lane.snapshot()
+    refused = await lane.call("lane_drop", branch=BRANCH, reason="Abandoned")
+    assert refused.error.code == "MERGE_QUEUED" and "already merged" in refused.error.message
+    assert lane.snapshot() == before
+
+    # Settling as merged (queue removal says merged, PR still briefly reads OPEN).
+    rewrite_pr(lane, "600", state="OPEN", removalReason="merged")
+    before = lane.snapshot()
+    refused = await lane.call("lane_drop", branch=BRANCH, reason="Abandoned")
+    assert refused.error.code == "MERGE_QUEUED" and "already merged" in refused.error.message
+    assert lane.snapshot() == before
+
+    # Unreadable GitHub state fails closed (READ_FAILED) instead of dropping blindly.
+    rewrite_pr(lane, "600", removalReason="")
+    lane.change_world(outcomes={"checks": {BRANCH: "pending"}, "mergeProgress": "fail: offline"})
+    before = lane.snapshot()
+    failed = await lane.call("lane_drop", branch=BRANCH, reason="Abandoned")
+    assert failed.error.code == "READ_FAILED"
+    assert lane.snapshot() == before
+
+    # Open PR with neither queue nor auto-merge can still be dropped cleanly.
+    lane.change_world(outcomes={"checks": {BRANCH: "pending"}, "mergeProgress": None})
+    dropped = await lane.call("lane_drop", branch=BRANCH, reason="Abandoned")
+    assert dropped.success and dropped.data["dropped"] is True
+    assert BRANCH not in queue_states(lane)
+
+
 # The fixture world's queue.
 
 

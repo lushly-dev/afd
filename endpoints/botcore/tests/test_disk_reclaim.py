@@ -16,7 +16,7 @@ from click.testing import CliRunner
 
 from botcore.commands.disk import reclaim, report
 from botcore.commands.disk.lock import LockHeld, RunLock
-from botcore.commands.disk.remove import UnsafePath, remove_inside
+from botcore.commands.disk.remove import Removal, UnsafePath, remove_inside
 from botcore.commands.disk.scan import Processes, mount_point
 from tests.test_disk_report import age, age_worktree, git, repo  # noqa: F401
 
@@ -280,3 +280,87 @@ def test_report_and_reclaim_share_settings_errors(
     for command in (report.disk_report, reclaim.disk_reclaim):
         result = asyncio.run(command())
         assert not result.success and result.error.code == "DISK_SETTINGS_INVALID"
+
+
+def test_build_info_is_stripped_before_output_and_failed_build_info_keeps_output(
+    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+) -> None:
+    """lushly-dev/afd#1939: file candidates (such as *.tsbuildinfo) are stripped before folder
+    candidates (such as dist) within a worktree, and if build info cannot be removed its
+    output folder stays intact."""
+    main, old = repo["main"], repo["old"]
+    (main / "botcore.toml").write_text(
+        '[disk]\nregenerable = ["**/dist", "**/*.tsbuildinfo"]\n', encoding="utf-8",
+    )
+    (main / ".gitignore").write_text("dist/\n*.tsbuildinfo\n", encoding="utf-8")
+    git(main, "commit", "-q", "-am", "add tsbuildinfo rule")
+    git(old, "merge", "-q", "main")
+
+    # Package a: build info removal will fail -> dist must stay.
+    # Package b: build info removal succeeds -> dist is removed.
+    for pkg in ("a", "b"):
+        pkg_dir = old / "packages" / pkg
+        (pkg_dir / "dist").mkdir(parents=True)
+        (pkg_dir / "dist" / "index.js").write_bytes(b"z" * 4096)
+        (pkg_dir / "tsconfig.tsbuildinfo").write_text("{}", encoding="utf-8")
+    age_worktree(main, old)
+
+    # Dry run plans every file candidate before every folder candidate in the worktree.
+    dry = run_reclaim()
+    strips = [a for a in dry["actions"] if a["kind"] == "strip"]
+    kinds = [a["target_kind"] for a in strips]
+    assert kinds.index("dir") > max(i for i, k in enumerate(kinds) if k == "file")
+
+    # Simulate a locked build-info file in packages/a during apply.
+    locked_info = old / "packages" / "a" / "tsconfig.tsbuildinfo"
+    real_remove = reclaim.remove_inside
+    order: list[str] = []
+
+    def fail_locked_info(path: Path, root: Path):
+        order.append(path.relative_to(old).as_posix())
+        if path == locked_info:
+            res = Removal(str(path))
+            res.fail(str(path), "file is locked by another process")
+            return res
+        return real_remove(path, root)
+
+    monkeypatch.setattr(reclaim, "remove_inside", fail_locked_info)
+    data = run_reclaim(apply=True)
+    by_rel = {
+        Path(a["target"]).relative_to(old).as_posix(): a
+        for a in data["actions"]
+        if a["kind"] == "strip"
+    }
+    assert by_rel["packages/a/tsconfig.tsbuildinfo"]["outcome"] == "partial"
+    assert by_rel["packages/a/dist"]["outcome"] == "skipped"
+    assert "packages/a/tsconfig.tsbuildinfo" in by_rel["packages/a/dist"]["detail"]
+    assert (old / "packages" / "a" / "dist" / "index.js").exists()
+
+    assert by_rel["packages/b/tsconfig.tsbuildinfo"]["outcome"] == "done"
+    assert by_rel["packages/b/dist"]["outcome"] == "done"
+    assert not (old / "packages" / "b" / "dist").exists()
+    assert order.index("packages/b/tsconfig.tsbuildinfo") < order.index("packages/b/dist")
+
+    # A root-level build info that fails also protects nested dist folders in the worktree.
+    root_info = old / "tsconfig.tsbuildinfo"
+    root_info.write_text("{}", encoding="utf-8")
+    (old / "packages" / "c" / "dist").mkdir(parents=True)
+    (old / "packages" / "c" / "dist" / "index.js").write_bytes(b"z" * 4096)
+    age_worktree(main, old)
+
+    def fail_root_info(path: Path, root: Path):
+        if path == root_info:
+            res = Removal(str(path))
+            res.fail(str(path), "locked")
+            return res
+        return real_remove(path, root)
+
+    monkeypatch.setattr(reclaim, "remove_inside", fail_root_info)
+    second = run_reclaim(apply=True)
+    by_rel_2 = {
+        Path(a["target"]).relative_to(old).as_posix(): a
+        for a in second["actions"]
+        if a["kind"] == "strip"
+    }
+    assert by_rel_2["packages/c/dist"]["outcome"] == "skipped"
+    assert (old / "packages" / "c" / "dist" / "index.js").exists()

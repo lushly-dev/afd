@@ -447,6 +447,141 @@ def test_cli_prints_json(repo: dict[str, Path]) -> None:
     assert json.loads(out.output)["data"]["repos"][0]["main"] == str(repo["main"])
 
 
+def test_file_candidate_mtime_counts_toward_worktree_activity(repo: dict[str, Path]) -> None:
+    """lushly-dev/afd#1939: report.py counts file candidates (like *.tsbuildinfo) toward a
+    worktree's last activity so a recent typecheck agrees with reclaim's recheck."""
+    main, old = repo["main"], repo["old"]
+    (main / "botcore.toml").write_text(
+        '[disk]\nregenerable = ["dist", "**/*.tsbuildinfo"]\n', encoding="utf-8",
+    )
+    (main / ".gitignore").write_text(GITIGNORE + "*.tsbuildinfo\n", encoding="utf-8")
+    git(main, "commit", "-q", "-am", "add tsbuildinfo")
+    git(old, "merge", "-q", "main")
+    build_info = old / "tsconfig.tsbuildinfo"
+    build_info.write_text("{}", encoding="utf-8")
+    age_worktree(main, old)
+    assert rows(run_report())["old"]["tier"] == 1
+
+    # Touching only build info makes the worktree active again in disk-report.
+    os.utime(build_info, None)
+    row = rows(run_report())["old"]
+    assert row["tier"] == 3 and row["idle_days"] < 1
+    assert not any(item["ready"] for item in row["strip"])
+
+
+def test_unclassified_collapses_ignored_folders_and_marks_truncation(
+    repo: dict[str, Path],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """lushly-dev/afd#1955: ignored folders (including self-ignoring .pytest_cache) collapse to
+    one entry, truncated lists carry unclassified_truncated and unclassified_omitted, and
+    budget cutoffs mark unclassified_incomplete."""
+    from botcore.commands.disk import unclassified
+
+    main, old = repo["main"], repo["old"]
+    (main / ".gitignore").write_text(GITIGNORE + "glob_dir/*\nu_*.tmp\n", encoding="utf-8")
+    git(main, "commit", "-q", "-am", "add ignored patterns for unclassified test")
+    git(old, "merge", "-q", "main")
+
+    # Self-ignoring .pytest_cache (has its own `.gitignore` with `*` and CACHEDIR.TAG).
+    pytest_cache = old / ".pytest_cache"
+    (pytest_cache / "v" / "cache").mkdir(parents=True)
+    (pytest_cache / ".gitignore").write_text("*\n", encoding="utf-8")
+    (pytest_cache / "CACHEDIR.TAG").write_text("Signature: 8a477f597d28d172789f06886806bc55\n",
+                                               encoding="utf-8")
+    (pytest_cache / "v" / "cache" / "nodeids").write_text("[]\n", encoding="utf-8")
+
+    # Folder ignored with `glob_dir/*`.
+    glob_dir = old / "glob_dir"
+    glob_dir.mkdir()
+    (glob_dir / "a.bin").write_text("1", encoding="utf-8")
+    (glob_dir / "b.bin").write_text("2", encoding="utf-8")
+
+    listed = rows(run_report(unclassified=True))["old"]["unclassified"]
+    assert ".pytest_cache/" in listed
+    assert not any(e.startswith(".pytest_cache/") and e != ".pytest_cache/" for e in listed), listed
+    assert "glob_dir/" in listed
+    assert not any(e.startswith("glob_dir/") and e != "glob_dir/" for e in listed), listed
+
+    # Exceeding LIMIT sets unclassified_truncated and unclassified_omitted instead of silent cutoff.
+    for idx in range(5):
+        (old / f"u_{idx}.tmp").write_text("x", encoding="utf-8")
+    with monkeypatch.context() as mp:
+        mp.setattr(unclassified, "LIMIT", 3)
+        row = rows(run_report(unclassified=True))["old"]
+    assert len(row["unclassified"]) == 3
+    assert row["unclassified_truncated"] is True
+    assert row["unclassified_omitted"] == 4  # 7 total (.pytest_cache/, glob_dir/, 5 u_*.tmp) - 3
+
+    # Exhausting WALK_ENTRIES inside a collapsed folder also marks the scan incomplete.
+    nested = old / "nested_only" / "a" / "b"
+    nested.mkdir(parents=True)
+    (nested / "c.bin").write_text("c", encoding="utf-8")
+    (main / ".gitignore").write_text(
+        GITIGNORE + "glob_dir/*\nu_*.tmp\nnested_only/\n", encoding="utf-8"
+    )
+    git(main, "commit", "-q", "-am", "ignore nested_only")
+    git(old, "merge", "-q", "main")
+    with monkeypatch.context() as mp:
+        mp.setattr(unclassified, "WALK_ENTRIES", 1)
+        limited = run_report(unclassified=True)
+    assert limited["complete"] is False
+    assert rows(limited)["old"].get("unclassified_incomplete") is True
+    summary = unclassified.format_unclassified_summary(limited)
+    assert "Incomplete scans:" in summary
+    assert f"{old}: scan budget spent" in summary
+
+    # Expired budget marks the scan incomplete and sets report complete=False.
+    expired = run_report(unclassified=True, budget_seconds=-1)
+    assert expired["complete"] is False
+    assert rows(expired)["old"].get("unclassified_incomplete") is True
+
+
+def test_cli_disk_report_unclassified_prints_grouped_summary(
+    repo: dict[str, Path],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """lushly-dev/afd#1955: plain-text `disk-report --unclassified` prints a grouped summary
+    with worktree counts and incomplete scans, while `--json` keeps the full JSON result."""
+    from botcore.cli import cli
+    from botcore.commands.disk import unclassified
+
+    main, old, fresh = repo["main"], repo["old"], repo["fresh"]
+    (main / ".gitignore").write_text(GITIGNORE + "extra_*.tmp\n", encoding="utf-8")
+    git(main, "commit", "-q", "-am", "add extra tmp ignore")
+    git(old, "merge", "-q", "main")
+    git(fresh, "merge", "-q", "main")
+
+    for wt in (old, fresh):
+        (wt / ".cache").mkdir()
+        (wt / ".cache" / "x").write_text("x", encoding="utf-8")
+    pc = old / ".pytest_cache"
+    pc.mkdir()
+    (pc / ".gitignore").write_text("*\n", encoding="utf-8")
+    (pc / "CACHEDIR.TAG").write_text("tag\n", encoding="utf-8")
+    for idx in range(3):
+        (fresh / f"extra_{idx}.tmp").write_text("x", encoding="utf-8")
+
+    monkeypatch.setattr(unclassified, "LIMIT", 2)
+    plain = CliRunner().invoke(cli, ["disk-report", "--repo", str(main), "--unclassified"])
+    assert plain.exit_code == 0, plain.output
+    assert not plain.output.lstrip().startswith("{")
+    assert "2 worktrees  .cache/" in plain.output
+    assert "1 worktree   .pytest_cache/" in plain.output
+    assert "CACHEDIR.TAG" not in plain.output
+    assert "Incomplete scans:" in plain.output
+    assert f"{fresh}: truncated (2 omitted)" in plain.output
+
+    as_json = CliRunner().invoke(
+        cli, ["disk-report", "--repo", str(main), "--unclassified", "--json"]
+    )
+    assert as_json.exit_code == 0, as_json.output
+    parsed = json.loads(as_json.output)["data"]
+    fresh_row = rows(parsed)["fresh"]
+    assert fresh_row["unclassified_truncated"] is True
+    assert fresh_row["unclassified_omitted"] == 2
+
+
 # ── Processes, caches and aged folders ──────────────────────────────────────
 
 

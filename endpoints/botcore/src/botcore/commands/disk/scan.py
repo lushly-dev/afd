@@ -537,10 +537,17 @@ def allocated(path: Path, deadline: float) -> int | None:
 def newest_mtime(path: Path, depth: int = 1) -> float | None:
     """The newest modification time of path and of what lies up to `depth` folders below it
     (its immediate children by default). Links are not followed."""
-    times = []
-    value = _mtime(path)
-    if value is not None:
-        times.append(value)
+    try:
+        info = os.lstat(long_path(path))
+    except OSError:
+        return None
+    times = [info.st_mtime]
+    if not stat.S_ISDIR(info.st_mode):
+        return info.st_mtime
+    if os.name == "nt" and getattr(info, "st_file_attributes", 0) & getattr(
+        stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400
+    ):
+        return info.st_mtime
     level = [path]
     for _ in range(depth):
         below = []
@@ -554,7 +561,7 @@ def newest_mtime(path: Path, depth: int = 1) -> float | None:
                 doing("reading", folder)
                 try:
                     times.append(child.stat(follow_symlinks=False).st_mtime)
-                    if child.is_dir(follow_symlinks=False):
+                    if not is_link(child) and child.is_dir(follow_symlinks=False):
                         below.append(Path(child.path))
                 except OSError:
                     pass
