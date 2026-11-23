@@ -18,6 +18,7 @@ from datetime import UTC, datetime, timedelta
 from afd import CommandResult, error, success
 
 from botcore.commands.disk.settings import SettingsError
+from botcore.commands.disk.steps import run_blocking
 from botcore.commands.skill.renames import SKILL_RENAMES
 from botcore.commands.skill_usage.collect import UNKNOWN_PROJECT, settings_refused
 from botcore.commands.skill_usage.events import (
@@ -228,7 +229,7 @@ def _unknown(what: str, value: str, known: set[str]) -> CommandResult[dict]:
     return _invalid(f"The record has no {what} '{value}'", f"Use one of: {listed}")
 
 
-async def skill_usage_report(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915 - one pass
+async def skill_usage_report(  # noqa: PLR0913 - command parameters
     days: int = 30,
     project: str | None = None,
     harness: str | None = None,
@@ -254,6 +255,20 @@ async def skill_usage_report(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915 
         agent: Only loads by this agent: `main`, `delegate` or `subagent`.
         limit: At most this many skills, most used first; `more` says how many were cut.
     """
+    return await run_blocking(
+        _skill_usage_report_sync, days, project, harness, ending_days_ago, skill, agent, limit
+    )
+
+
+def _skill_usage_report_sync(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915 - one pass
+    days: int,
+    project: str | None,
+    harness: str | None,
+    ending_days_ago: int,
+    skill: str | None,
+    agent: str | None,
+    limit: int,
+) -> CommandResult[dict]:
     if not 1 <= days <= MAX_DAYS:
         return _invalid(
             f"days must be between 1 and {MAX_DAYS}",

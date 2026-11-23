@@ -7,6 +7,7 @@ harnesses already keep. Running it again adds only what is new.
 
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import os
 import re
@@ -22,7 +23,7 @@ from botcore.commands.disk.git import GitError, git_out
 from botcore.commands.disk.lock import LockHeld, RunLock
 from botcore.commands.disk.scan import volume_id
 from botcore.commands.disk.settings import SettingsError
-from botcore.commands.disk.steps import doing
+from botcore.commands.disk.steps import doing, run_blocking
 from botcore.commands.skill.frontmatter import split_frontmatter
 from botcore.commands.skill.lint import listing_characters
 from botcore.commands.skill_usage import claude_code, t3
@@ -46,6 +47,7 @@ from botcore.commands.skill_usage.store import (
     save_state,
     state_dir,
     t3_store_path,
+    unreadable_lines,
 )
 
 STATE_VERSION = 1
@@ -423,8 +425,66 @@ def project_remote(root: Path) -> str | None:
     return match.group(1) if match else None
 
 
+def _upgrade_remote_projects(projects: dict, refiled: dict[str, str] | None) -> None:
+    """Move folders on `remote: false` projects to `owner/name` once git can read their origin.
+
+    When every root of an unsplit old project moves to the same `owner/name`, drop the old
+    project and record `refiled[old_name] = remote` so historical events and sessions are
+    refiled too. If a multi-root project moves only part of its roots (or moves roots to
+    different origins), mark it `split` and keep its historical records under `old_name` so
+    later staged moves never misattribute them.
+    """
+    for old_name in list(projects):
+        old_entry = projects[old_name]
+        if old_entry["remote"]:
+            continue
+        moved_to: set[str] = set()
+        remaining_roots: list[str] = []
+        for root in old_entry["roots"]:
+            folder = Path(root)
+            if folder.is_absolute():
+                doing("reading what the project holds in", folder)
+                remote = project_remote(folder) if folder_there(folder) is True else None
+            else:
+                remote = None
+            if remote is None or remote == old_name:
+                remaining_roots.append(root)
+                continue
+            moved_to.add(remote)
+            target = projects.setdefault(
+                remote,
+                {
+                    "remote": True,
+                    "roots": [],
+                    "renames": {},
+                    "accounts": {},
+                    "storage": {},
+                    "missing": {},
+                },
+            )
+            target["remote"] = True
+            if root not in target["roots"]:
+                target["roots"] = [*target["roots"], root]
+            for field in ("accounts", "storage", "missing"):
+                if root in old_entry[field]:
+                    target[field].setdefault(root, old_entry[field].pop(root))
+            target["renames"] = {**old_entry["renames"], **target["renames"]}
+        old_entry["roots"] = remaining_roots
+        if moved_to and (remaining_roots or len(moved_to) > 1):
+            old_entry["split"] = True
+        if not remaining_roots and len(moved_to) == 1 and not old_entry.get("split"):
+            destination = next(iter(moved_to))
+            del projects[old_name]
+            if refiled is not None:
+                refiled[old_name] = destination
+
+
 def _name_projects(
-    previous: dict, roots: dict[str, str], again: bool = False, now: datetime | None = None
+    previous: dict,
+    roots: dict[str, str],
+    again: bool = False,
+    now: datetime | None = None,
+    refiled: dict[str, str] | None = None,
 ) -> tuple[dict, dict[str, str]]:
     """Name each workspace root, and return the projects to keep with project id to name.
     `again` reads what every folder holds once more, whether or not its branch has moved;
@@ -433,10 +493,17 @@ def _name_projects(
     A project is named after its origin, so two clones are one project and the name is the
     same on every machine. One with no origin takes its folder's name, and a second folder of
     that name with no origin gets a suffix, so two unrelated projects never share counts.
+
+    When a stored project with no origin on record (`remote: false`) has a folder whose origin
+    git can now read, that folder moves to the `owner/name` project. If no folders remain on
+    the old project and every moved folder went to the same `owner/name`, the old project is
+    removed and `refiled[old_name] = remote` is recorded so historical events and sessions can
+    be refiled to the canonical project name.
     """
     projects = {
         name: {
             "remote": bool(entry.get("remote")),
+            **({"split": True} if entry.get("split") else {}),
             "roots": _strings(entry.get("roots")),
             "renames": _renames(entry.get("renames")),
             "accounts": {
@@ -454,6 +521,7 @@ def _name_projects(
         for name, entry in previous.items()
         if isinstance(name, str) and isinstance(entry, dict)
     }
+    _upgrade_remote_projects(projects, refiled)
     by_root = {root: name for name, entry in projects.items() for root in entry["roots"]}
     names: dict[str, str] = {}
     for project_id, root in roots.items():
@@ -701,76 +769,93 @@ async def skill_usage_collect(  # noqa: PLR0911 - one refusal per way a source c
             "Pass machine with the name of the machine the store was copied from, or leave "
             "t3_store out to read this machine's own store",
         )  # fmt: skip
-    try:
-        here = local()
-        machine = checked_machine(machine) if machine else here.machine
-    except (SettingsError, InvalidMachine) as exc:
-        return settings_refused(exc)
-    directory = state_dir()
-    path = Path(t3_store).expanduser() if t3_store is not None else t3_store_path()
-    absent: list[dict] = []
-    if path is None:
-        absent.append({"source": t3.SOURCE, "status": "off"})
-    elif not path.is_file():
-        if t3_store is not None:
-            return _failure(
-                "SOURCE_NOT_FOUND", f"No T3 Code store at {path}",
-                "Pass the path of statev2.sqlite in T3 Code's user data folder, or leave "
-                "t3_store out to read this machine's",
-            )  # fmt: skip
-        absent.append({"source": t3.SOURCE, "status": "absent", "path": str(path)})
-        path = None
-    # a store copied from another machine is read alone: these transcripts are not its own
-    transcripts = None if t3_store is not None else claude_code.projects_dir()
-    if transcripts is None and t3_store is None:
-        absent.append({"source": claude_code.SOURCE, "status": "off"})
-    elif transcripts is not None and not transcripts.is_dir():
-        absent.append({"source": claude_code.SOURCE, "status": "absent", "path": str(transcripts)})
-        transcripts = None
-    if path is None and transcripts is None:
-        return success(
-            {"machine": machine, "state_dir": str(directory), "added": 0, "sources": absent},
-            reasoning="This machine has neither a T3 Code store nor Claude Code transcripts "
-            "to read; nothing was collected",
-        )
-    try:
-        with RunLock(directory / LOCK_FILE):
-            result = _collect(
-                directory, path, transcripts, since_days, machine, rebuild, here.machine
+    def _run_collect() -> CommandResult[dict]:  # noqa: PLR0911
+        try:
+            here = local()
+            resolved_machine = checked_machine(machine) if machine else here.machine
+        except (SettingsError, InvalidMachine) as exc:
+            return settings_refused(exc)
+        directory = state_dir()
+        path = Path(t3_store).expanduser() if t3_store is not None else t3_store_path()
+        absent: list[dict] = []
+        if path is None:
+            absent.append({"source": t3.SOURCE, "status": "off"})
+        elif not path.is_file():
+            if t3_store is not None:
+                return _failure(
+                    "SOURCE_NOT_FOUND", f"No T3 Code store at {path}",
+                    "Pass the path of statev2.sqlite in T3 Code's user data folder, or leave "
+                    "t3_store out to read this machine's",
+                )  # fmt: skip
+            absent.append({"source": t3.SOURCE, "status": "absent", "path": str(path)})
+            path = None
+        # a store copied from another machine is read alone: these transcripts are not its own
+        transcripts = None if t3_store is not None else claude_code.projects_dir()
+        if transcripts is None and t3_store is None:
+            absent.append({"source": claude_code.SOURCE, "status": "off"})
+        elif transcripts is not None and not transcripts.is_dir():
+            absent.append(
+                {"source": claude_code.SOURCE, "status": "absent", "path": str(transcripts)}
             )
-            if result.success and result.data is not None:
-                result.data["sources"] += absent
-            return _published(result, directory, here)
-    except LockHeld:
-        return _failure(
-            "COLLECT_RUNNING", "Another skill-usage-collect is running on this machine",
-            "Run it again in a moment; the scheduled collection may be under way",
-        )  # fmt: skip
-    except t3.SchemaChanged as exc:
-        return _failure(
-            "SOURCE_SCHEMA_CHANGED", f"T3 Code's store no longer has {', '.join(exc.missing)}",
-            "This botcore cannot read this T3 Code release's store: update botcore. Nothing "
-            "was collected, and what was collected before is kept",
-        )  # fmt: skip
-    except t3.StoreUnreadable as exc:
-        return _failure(
-            "SOURCE_UNREADABLE", f"T3 Code's store at {path} could not be read: {exc}",
-            "Run it again: T3 Code may have been writing. If it keeps failing, check that "
-            "the file can be read by this user",
-        )  # fmt: skip
-    except OSError as exc:
-        return _failure(
-            "RECORD_UNAVAILABLE", f"The skill usage record in {directory} could not be used: {exc}",
-            "Check that it is a folder this user can write, or set BOTCORE_SKILL_USAGE_STATE "
-            "to one that is",
-        )  # fmt: skip
+            transcripts = None
+        if path is None and transcripts is None:
+            return success(
+                {
+                    "machine": resolved_machine,
+                    "state_dir": str(directory),
+                    "added": 0,
+                    "sources": absent,
+                },
+                reasoning="This machine has neither a T3 Code store nor Claude Code transcripts "
+                "to read; nothing was collected",
+            )
+        try:
+            with RunLock(directory / LOCK_FILE):
+                result = _collect(
+                    directory,
+                    path,
+                    transcripts,
+                    since_days,
+                    resolved_machine,
+                    rebuild,
+                    here.machine,
+                )
+                if result.success and result.data is not None:
+                    result.data["sources"] += absent
+                return _published(result, directory, here)
+        except LockHeld:
+            return _failure(
+                "COLLECT_RUNNING", "Another skill-usage-collect is running on this machine",
+                "Run it again in a moment; the scheduled collection may be under way",
+            )  # fmt: skip
+        except t3.SchemaChanged as exc:
+            return _failure(
+                "SOURCE_SCHEMA_CHANGED", f"T3 Code's store no longer has {', '.join(exc.missing)}",
+                "This botcore cannot read this T3 Code release's store: update botcore. Nothing "
+                "was collected, and what was collected before is kept",
+            )  # fmt: skip
+        except t3.StoreUnreadable as exc:
+            return _failure(
+                "SOURCE_UNREADABLE", f"T3 Code's store at {path} could not be read: {exc}",
+                "Run it again: T3 Code may have been writing. If it keeps failing, check that "
+                "the file can be read by this user",
+            )  # fmt: skip
+        except OSError as exc:
+            return _failure(
+                "RECORD_UNAVAILABLE",
+                f"The skill usage record in {directory} could not be used: {exc}",
+                "Check that it is a folder this user can write, or set BOTCORE_SKILL_USAGE_STATE "
+                "to one that is",
+            )
+
+    return await run_blocking(_run_collect)
 
 
 def _collect(  # noqa: C901, PLR0912, PLR0913, PLR0915 - one collection, start to end
     directory: Path, path: Path | None, transcripts: Path | None, since_days: int | None,
     machine: str, rebuild: bool, this_machine: str,
 ) -> CommandResult[dict]:  # fmt: skip
-    stored, _ = load_events(directory)
+    stored, unreadable = load_events(directory)
     state = load_state(directory)
     sessions = load_sessions(directory)  # before anything is written: a damaged file refuses
     now = datetime.now(UTC)
@@ -818,12 +903,30 @@ def _collect(  # noqa: C901, PLR0912, PLR0913, PLR0915 - one collection, start t
         doing("reading Claude Code's transcripts in", transcripts)
         claude = claude_code.read(transcripts, seen, found.natives | recorded, everything=rebuild)
 
+    refiled: dict[str, str] = {}
     projects, names = _name_projects(
         _mapping(state.get("projects")),
         {**found.projects, **claude.projects},
         again=rebuild,
         now=now,
+        refiled=refiled,
     )
+    refiled_events = False
+    if refiled:
+        updated_stored: list[Event] = []
+        for event in stored:
+            target = refiled.get(event.project)
+            if target is not None:
+                updated_stored.append(dataclasses.replace(event, project=target))
+                refiled_events = True
+            else:
+                updated_stored.append(event)
+        stored = updated_stored
+        for entry in sessions.values():
+            target = refiled.get(entry.get("project") or "")
+            if target is not None:
+                entry["project"] = target
+        known_skills = {(event.project, event.skill) for event in stored}
     # A session stays in the project it was filed under: its checkout may have been moved
     # or removed since, and where it ran is not where its folder leads today
     for item in [*claude.loads, *claude.sessions]:
@@ -868,12 +971,17 @@ def _collect(  # noqa: C901, PLR0912, PLR0913, PLR0915 - one collection, start t
     # everything is read: from here the record is written, events, sessions, then state.
     # A collection the job has left stops before the first of them, never between two.
     doing("writing this machine's record in", directory)
-    if dropped or rebuild:
+    if dropped or rebuild or refiled_events:
         lost = {event.id for event in dropped}
         kept = [event for event in stored if event.id not in lost]
         current = {event.id: event for event in events}
         kept = [current.pop(event.id, event) for event in kept]  # read again: the new reading
-        rewrite_events(directory, sorted([*kept, *current.values()], key=lambda event: event.at))
+        preserved = unreadable_lines(directory) if (unreadable and not rebuild) else []
+        rewrite_events(
+            directory,
+            sorted([*kept, *current.values()], key=lambda event: event.at),
+            extra_lines=preserved,
+        )
         total = len(kept) + len(current)
     else:
         append_events(directory, added)

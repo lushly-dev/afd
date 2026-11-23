@@ -6,6 +6,7 @@ not adversarial confinement. Undeclared commands fail closed in every profile.
 
 from __future__ import annotations
 
+import asyncio
 import difflib
 import inspect
 import uuid
@@ -328,7 +329,14 @@ class CommandHost:
             )
 
         async def invoke():
-            return await handler(**kwargs)
+            if inspect.iscoroutinefunction(handler) or inspect.iscoroutinefunction(
+                getattr(handler, "__call__", None)
+            ):
+                return await handler(**kwargs)
+            outcome = await asyncio.to_thread(handler, **kwargs)
+            if inspect.isawaitable(outcome):
+                return await outcome
+            return outcome
 
         call = self.call_context(context)
         try:
@@ -394,6 +402,50 @@ CORE_POLICIES = {
         quality="execution",
         output_scope="target",
     ),
+}
+
+# Audited browser automation commands. Not included in `build_host`'s default `core_commands`
+# so non-browser hosts stay small; pass `core_commands=(*CORE_POLICIES, *CDP_POLICIES)` (or
+# individual names) to admit them with their declared `"browser"` effect and path confinement.
+CDP_POLICIES = {
+    **{
+        name: CommandPolicy(("browser",), capabilities=("browser",))
+        for name in (
+            "cdp_close",
+            "cdp_navigate",
+            "cdp_wait",
+            "cdp_click",
+            "cdp_hover",
+            "cdp_scroll",
+            "cdp_drag",
+            "cdp_type",
+            "cdp_press",
+            "cdp_inspect",
+            "cdp_query",
+            "cdp_snapshot",
+            "cdp_fill",
+            "cdp_fill_form",
+            "cdp_handle_dialog",
+            "cdp_list_pages",
+            "cdp_select_page",
+            "cdp_new_page",
+            "cdp_close_page",
+            "cdp_resize",
+            "cdp_console",
+            "cdp_get_console_message",
+            "cdp_eval",
+            "cdp_list_network",
+            "cdp_get_network",
+            "cdp_emulate",
+        )
+    },
+    "cdp_launch": CommandPolicy(("browser",), capabilities=("browser",), paths=("profile_dir",)),
+    "cdp_attach": CommandPolicy(("browser",), capabilities=("browser",), paths=("profile_dir",)),
+    "cdp_upload": CommandPolicy(("browser",), capabilities=("browser",), paths=("file_path",)),
+    "cdp_screenshot": CommandPolicy(("browser",), capabilities=("browser",), paths=("path",)),
+    "cdp_trace_capture": CommandPolicy(("browser",), capabilities=("browser",), paths=("path",)),
+    "cdp_trace_summary": CommandPolicy(("browser",), capabilities=("browser",), paths=("path",)),
+    "cdp_trace_query": CommandPolicy(("browser",), capabilities=("browser",), paths=("path",)),
 }
 
 
@@ -492,7 +544,7 @@ def build_host(
     host.docs = build_docs(registry)
     host.middleware = registry.middleware
     explicit = policies or {}
-    command_policies = {**CORE_POLICIES, **explicit}
+    command_policies = {**CORE_POLICIES, **CDP_POLICIES, **explicit}
     for command_name, declared in registry.policies.items():
         command_policies[command_name] = (
             narrow_policy(command_name, declared, explicit[command_name])

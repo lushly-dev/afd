@@ -2,8 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
+import ctypes
 import json
+import os
+import shutil
 import sys
+import time
+from pathlib import Path
 
 import pytest
 
@@ -11,6 +17,7 @@ from botcore.utils.runner import (
     MAX_OUTPUT_LENGTH,
     retry_async,
     run_command,
+    run_external_tool,
     run_python_module,
     smart_truncate,
 )
@@ -196,3 +203,137 @@ async def test_runner_distinguishes_unavailable_error_and_check_failure():
     assert timed_out["failure_kind"] == "error"
     failed = await run_command([sys.executable, "-c", "raise SystemExit(2)"])
     assert failed["failure_kind"] == "failed"
+
+
+def _pid_alive(pid: int) -> bool:
+    if sys.platform == "win32":
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.OpenProcess(0x1000, False, pid)
+        if not handle:
+            return False
+        try:
+            code = ctypes.c_ulong()
+            if not kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
+                return False
+            return code.value == 259  # STILL_ACTIVE
+        finally:
+            kernel32.CloseHandle(handle)
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+
+
+def _wait_pid_dead(pid: int, timeout_s: float = 3.0) -> bool:
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        if not _pid_alive(pid):
+            return True
+        time.sleep(0.05)
+    return not _pid_alive(pid)
+
+
+_SPAWN_GRANDCHILD = (
+    "import os, pathlib, subprocess, sys, time; "
+    "gc = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)']); "
+    "tmp = pathlib.Path(sys.argv[1] + '.tmp'); "
+    "tmp.write_text(str(gc.pid), encoding='utf-8'); "
+    "os.replace(tmp, sys.argv[1]); "
+    "time.sleep(60)"
+)
+
+_SPAWN_GRANDCHILD_AND_EXIT = (
+    "import os, pathlib, subprocess, sys; "
+    "gc = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)']); "
+    "tmp = pathlib.Path(sys.argv[1] + '.tmp'); "
+    "tmp.write_text(str(gc.pid), encoding='utf-8'); "
+    "os.replace(tmp, sys.argv[1])"
+)
+
+
+async def test_run_command_kills_process_group_on_timeout(tmp_path: Path) -> None:
+    """lushly-dev/afd#1794: timeout terminates both the child and its spawned grandchild."""
+    pid_file = tmp_path / "grandchild.pid"
+    result = await run_command(
+        [sys.executable, "-c", _SPAWN_GRANDCHILD, str(pid_file)],
+        timeout=2.5,
+    )
+    assert result["success"] is False
+    assert result["failure_kind"] == "error"
+    assert "timed out" in result["error"]
+    assert pid_file.exists(), "Child did not spawn grandchild before timeout"
+    grandchild_pid = int(pid_file.read_text(encoding="utf-8").strip())
+    assert _wait_pid_dead(grandchild_pid), f"Grandchild {grandchild_pid} survived timeout"
+
+
+async def test_run_command_kills_grandchild_even_when_parent_exits_early(tmp_path: Path) -> None:
+    """lushly-dev/afd#1794: timeout and cancellation kill grandchildren inheriting pipes even
+    after the direct child process has already exited."""
+    pid_file_timeout = tmp_path / "grandchild-timeout.pid"
+    result = await run_command(
+        [sys.executable, "-c", _SPAWN_GRANDCHILD_AND_EXIT, str(pid_file_timeout)],
+        timeout=2.5,
+    )
+    assert result["success"] is False
+    assert result["failure_kind"] == "error"
+    assert pid_file_timeout.exists()
+    gc_timeout_pid = int(pid_file_timeout.read_text(encoding="utf-8").strip())
+    assert _wait_pid_dead(gc_timeout_pid), f"Grandchild {gc_timeout_pid} survived timeout"
+
+    pid_file_cancel = tmp_path / "grandchild-cancel.pid"
+    task = asyncio.create_task(
+        run_command(
+            [sys.executable, "-c", _SPAWN_GRANDCHILD_AND_EXIT, str(pid_file_cancel)],
+            timeout=60,
+        )
+    )
+    deadline = time.monotonic() + 5.0
+    while not pid_file_cancel.exists() and time.monotonic() < deadline:
+        await asyncio.sleep(0.05)
+    assert pid_file_cancel.exists()
+    gc_cancel_pid = int(pid_file_cancel.read_text(encoding="utf-8").strip())
+    await asyncio.sleep(0.2)  # let parent exit while grandchild keeps stdout pipe open
+
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert _wait_pid_dead(gc_cancel_pid), f"Grandchild {gc_cancel_pid} survived cancellation"
+
+
+async def test_run_command_kills_process_group_on_cancellation(tmp_path: Path) -> None:
+    """lushly-dev/afd#1794: cancelling run_command kills the process group and re-raises."""
+    pid_file = tmp_path / "grandchild.pid"
+    task = asyncio.create_task(
+        run_command([sys.executable, "-c", _SPAWN_GRANDCHILD, str(pid_file)], timeout=60)
+    )
+    deadline = time.monotonic() + 5.0
+    while not pid_file.exists() and time.monotonic() < deadline:
+        await asyncio.sleep(0.05)
+    assert pid_file.exists(), "Child did not spawn grandchild before cancel"
+    grandchild_pid = int(pid_file.read_text(encoding="utf-8").strip())
+
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert _wait_pid_dead(grandchild_pid), f"Grandchild {grandchild_pid} survived cancellation"
+
+
+async def test_run_external_tool_executes_resolved_which_path(monkeypatch) -> None:
+    """lushly-dev/afd#1794: run_external_tool executes the resolved shutil.which path."""
+    resolved = r"C:\tools\demo.cmd" if sys.platform == "win32" else "/usr/local/bin/demo"
+    captured: dict[str, object] = {}
+
+    async def _fake_run(command: list[str], cwd=None):
+        captured["command"] = command
+        captured["cwd"] = cwd
+        return {"success": True, "output": "ok", "error": None, "truncated": False}
+
+    monkeypatch.setattr(shutil, "which", lambda tool: resolved if tool == "demo" else None)
+    monkeypatch.setattr("botcore.utils.runner.run_command", _fake_run)
+
+    result = await run_external_tool("demo", ["--check"], "install demo")
+    assert result is not None and result["success"] is True
+    assert captured["command"] == [resolved, "--check"]

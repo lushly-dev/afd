@@ -47,7 +47,14 @@ from botcore.commands.disk.settings import (
     state_path,
     t3_worktree_roots,
 )
-from botcore.commands.disk.steps import Step, consent_hint, describe, doing, raised_text
+from botcore.commands.disk.steps import (
+    Step,
+    consent_hint,
+    describe,
+    doing,
+    raised_text,
+    run_blocking,
+)
 
 FULL_RUN_SECONDS = 23 * 3600
 STALE_SECONDS = 48 * 3600
@@ -371,6 +378,15 @@ async def disk_setup(
     Safe to run again: it adds what is missing and never removes a repository or volume.
     `uninstall` removes the schedule only; settings and receipts stay where `disk-status` says.
     """
+    return await run_blocking(_disk_setup_sync, uninstall, repos, install_schedule, remove_landed)
+
+
+def _disk_setup_sync(
+    uninstall: bool,
+    repos: list[str] | None,
+    install_schedule: bool,
+    remove_landed: bool | None,
+) -> CommandResult[dict]:
     if uninstall:
         schedule.uninstall()
         state = schedule.current()

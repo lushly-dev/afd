@@ -333,7 +333,7 @@ skill for `lefthook.yml`, `ci.yml` and `scripts/check-*.mjs`), before Lushly dec
 
 - A repository git refuses lists the skills its folder holds (#2051): merged in #2053.
 
-- A project first seen while git could not read its origin keeps its folder name (#2052): not started.
+- A project first seen while git could not read its origin keeps its folder name (#2052): merged in #2337.
 
 - A change's pull request under a queue that rebases (#2023): `pnpm branch:squash` merged in #2088; the fleet lane waits for #1887, to be done with it (the owner, 2026-11-22).
 

@@ -2,15 +2,20 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
-from afd import CommandResult, error, success
+from afd import CommandResult, error
 
 from botcore.commands.cdp.core import (
     DEEP_QUERY_SINGLE_JS,
-    _connect_over_cdp_with_retry,
-    _load_session,
+    CdpSession,
+    _all_pages,
+    _apply_session_overrides,
+    _page_target_id,
     _session_root,
+    _update_session,
+    _with_session_browser,
     _with_session_page,
 )
 
@@ -97,111 +102,160 @@ async def cdp_handle_dialog(
 
 async def cdp_list_pages() -> CommandResult[dict]:
     """List all open pages/tabs in the browser."""
-    from playwright.async_api import async_playwright
 
-    root = _session_root()
-    session = _load_session(root)
-    if not session:
-        return error(
-            "CDP_NO_SESSION",
-            "No active CDP session.",
-            suggestion="Run 'botcore cdp launch' or 'botcore cdp attach' first",
-        )
-
-    async with async_playwright() as pw:
-        browser = await _connect_over_cdp_with_retry(pw, session.cdp_endpoint)
-        contexts = browser.contexts
+    async def _action(browser: Any, session: CdpSession, _root: Path) -> dict:
         pages_info = []
         idx = 0
-        for ctx_idx, context in enumerate(contexts):
+        selected_idx: int | None = None
+        for ctx_idx, context in enumerate(browser.contexts):
             for page in context.pages:
+                target_id = await _page_target_id(page)
+                is_selected = (
+                    target_id == session.selected_target_id
+                    if session.selected_target_id
+                    else idx == session.selected_page
+                )
+                if is_selected:
+                    selected_idx = idx
                 pages_info.append({
                     "index": idx,
                     "url": page.url,
                     "title": await page.title(),
                     "context": ctx_idx,
+                    "selected": is_selected,
                 })
                 idx += 1
-        return success({"pages": pages_info, "count": len(pages_info)})
+        return {
+            "pages": pages_info,
+            "count": len(pages_info),
+            "selected": selected_idx if selected_idx is not None else session.selected_page,
+        }
+
+    return await _with_session_browser(_action)
 
 
 async def cdp_select_page(index: int) -> CommandResult[dict]:
     """Select a page by index for subsequent commands."""
-    return success({
-        "selected": index,
-        "note": "Page selection stored. Subsequent commands will use this page.",
-    })
+
+    async def _action(browser: Any, _session: CdpSession, root: Path) -> Any:
+        all_pages = _all_pages(browser)
+        if not all_pages:
+            return error(
+                "CDP_NO_PAGES",
+                "No open pages found in browser.",
+                suggestion="Open a page with `botcore cdp new-page` first.",
+            )
+        if index < 0 or index >= len(all_pages):
+            return error(
+                "CDP_INVALID_INDEX",
+                f"Invalid page index {index}. Max: {len(all_pages) - 1}",
+                suggestion="Use `botcore cdp list-pages` to see valid indices.",
+            )
+        page = all_pages[index]
+        target_id = await _page_target_id(page)
+
+        def _apply(current: CdpSession) -> None:
+            current.selected_page = index
+            current.selected_target_id = target_id
+
+        _update_session(root, _apply)
+        return {
+            "selected": index,
+            "target_id": target_id,
+            "url": page.url,
+            "title": await page.title(),
+        }
+
+    return await _with_session_browser(_action)
 
 
 async def cdp_new_page(url: str | None = None) -> CommandResult[dict]:
     """Open a new page/tab in the browser."""
-    from playwright.async_api import async_playwright
 
-    root = _session_root()
-    session = _load_session(root)
-    if not session:
-        return error(
-            "CDP_NO_SESSION",
-            "No active CDP session.",
-            suggestion="Run 'botcore cdp launch' or 'botcore cdp attach' first",
-        )
-
-    async with async_playwright() as pw:
-        browser = await _connect_over_cdp_with_retry(pw, session.cdp_endpoint)
+    async def _action(browser: Any, session: CdpSession, _root: Path) -> dict:
         context = browser.contexts[0] if browser.contexts else await browser.new_context()
         page = await context.new_page()
+        await _apply_session_overrides(page, session)
         if url:
             await page.goto(url, wait_until="domcontentloaded")
-        return success({
+        return {
             "created": True,
             "url": page.url,
-            "pages_count": len(context.pages),
-        })
+            "pages_count": len(_all_pages(browser)),
+        }
+
+    return await _with_session_browser(_action)
 
 
 async def cdp_close_page(index: int = 0) -> CommandResult[dict]:
     """Close a page by index."""
-    from playwright.async_api import async_playwright
 
-    root = _session_root()
-    session = _load_session(root)
-    if not session:
-        return error(
-            "CDP_NO_SESSION",
-            "No active CDP session.",
-            suggestion="Run 'botcore cdp launch' or 'botcore cdp attach' first",
-        )
-
-    async with async_playwright() as pw:
-        browser = await _connect_over_cdp_with_retry(pw, session.cdp_endpoint)
-        contexts = browser.contexts
-        all_pages = []
-        for context in contexts:
-            all_pages.extend(context.pages)
-
+    async def _action(browser: Any, session: CdpSession, root: Path) -> Any:
+        all_pages = _all_pages(browser)
         if len(all_pages) <= 1:
             return error(
                 "CDP_CANNOT_CLOSE_LAST",
                 "Cannot close the last remaining page.",
-                suggestion="Open a new page with 'botcore cdp new-page' first",
+                suggestion="Open a new page with `botcore cdp new-page` first.",
             )
 
         if index < 0 or index >= len(all_pages):
             return error(
                 "CDP_INVALID_INDEX",
                 f"Invalid page index {index}. Max: {len(all_pages) - 1}",
-                suggestion="Use 'botcore cdp list-pages' to see valid indices",
+                suggestion="Use `botcore cdp list-pages` to see valid indices.",
             )
 
+        closed_target_id = await _page_target_id(all_pages[index])
         await all_pages[index].close()
-        return success({"closed": index, "remaining": len(all_pages) - 1})
+        remaining_pages = _all_pages(browser)
+        remaining = len(remaining_pages)
+
+        new_index = session.selected_page
+        new_target_id = session.selected_target_id
+        if session.selected_target_id and closed_target_id == session.selected_target_id:
+            new_index = max(0, min(index, remaining - 1))
+            new_target_id = (
+                await _page_target_id(remaining_pages[new_index]) if remaining_pages else None
+            )
+        elif session.selected_target_id:
+            for pos, remaining_page in enumerate(remaining_pages):
+                if await _page_target_id(remaining_page) == session.selected_target_id:
+                    new_index = pos
+                    break
+        elif index < session.selected_page:
+            new_index = session.selected_page - 1
+        elif session.selected_page >= remaining:
+            new_index = max(0, remaining - 1)
+
+        def _apply(current: CdpSession) -> None:
+            current.selected_page = new_index
+            current.selected_target_id = new_target_id
+
+        _update_session(root, _apply)
+        return {"closed": index, "remaining": remaining, "selected": new_index}
+
+    return await _with_session_browser(_action)
 
 
 async def cdp_resize(width: int, height: int) -> CommandResult[dict]:
-    """Resize the viewport to specified dimensions."""
+    """Resize the viewport to specified dimensions and persist it in the session."""
+    if width <= 0 or height <= 0:
+        return error(
+            "CDP_INVALID_VIEWPORT",
+            f"Viewport dimensions must be positive integers, got {width}x{height}.",
+            suggestion="Pass positive width and height, e.g. `botcore cdp resize 1280 720`.",
+        )
 
     async def _action(page: Any) -> dict:
-        await page.set_viewport_size({"width": width, "height": height})
-        return {"width": width, "height": height, "resized": True}
+        viewport = {"width": width, "height": height}
+        await page.set_viewport_size(viewport)
+        root = _session_root()
+
+        def _apply(current: CdpSession) -> None:
+            current.viewport = viewport
+
+        _update_session(root, _apply)
+        return {"width": width, "height": height, "resized": True, "persisted": True}
 
     return await _with_session_page(_action)

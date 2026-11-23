@@ -2439,3 +2439,167 @@ def test_t3_native_ids_finds_unicode_escaped_key(t3_store: T3Store) -> None:
         conn.commit()
         found = t3._native_ids(conn)
     assert found == {"toolu_escaped"}
+
+
+def test_project_upgrades_from_folder_name_once_git_answers(
+    state: Path, t3_store: T3Store, checkout: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """lushly-dev/afd#2052: a folder first seen while git refused it (e.g. dubious ownership)
+    moves from its folder name to owner/name once git answers, and refiles earlier loads and
+    sessions — even those T3 Code has since dropped."""
+    git(checkout, "init", "-q", "-b", "main")
+    git(checkout, "remote", "add", "origin", "git@example.com:acme/garden.git")
+    git(checkout, "add", "-A")
+    git(checkout, "commit", "-q", "-m", "skills", at="2026-04-01T10:00:00+00:00")
+    first_thread = t3_store.thread("main-1")
+    t3_store.skill_tool(first_thread, "plant-beds", stamp(1))
+
+    real = collect.git_out
+
+    def refused(root: Path, *args: str, **more: object) -> str:
+        if Path(root) == checkout:
+            raise collect.GitError("git: fatal: detected dubious ownership in repository")
+        return real(root, *args, **more)
+
+    monkeypatch.setattr(collect, "git_out", refused)
+    run(skill_usage_collect())
+    assert [event.project for event in collected(state)] == ["garden"]
+    assert store.load_sessions(state)[first_thread]["project"] == "garden"
+
+    # Drop the first thread from T3 Code's store before git becomes readable so refiling must
+    # preserve and move records T3 Code no longer holds.
+    with t3_store.connect() as conn:
+        conn.execute(f"delete from {t3.ITEMS} where thread_id = ?", (first_thread,))
+        conn.execute(f"delete from {t3.THREADS} where thread_id = ?", (first_thread,))
+        conn.commit()
+    second_thread = t3_store.thread("main-2")
+    t3_store.skill_tool(second_thread, "plant-beds", stamp(2))
+
+    monkeypatch.setattr(collect, "git_out", real)
+    run(skill_usage_collect())
+
+    saved = store.load_state(state)
+    assert "garden" not in saved["projects"]
+    assert saved["projects"]["acme/garden"]["remote"] is True
+    assert str(checkout) in saved["projects"]["acme/garden"]["roots"]
+    assert {event.project for event in collected(state)} == {"acme/garden"}
+    assert len(collected(state)) == 2
+    sessions = store.load_sessions(state)
+    assert sessions[first_thread]["project"] == "acme/garden"
+    assert sessions[second_thread]["project"] == "acme/garden"
+
+    report = run(skill_usage_report())
+    assert [(row["project"], row["skill"], row["sessions"]) for row in report["skills"]] == [
+        ("acme/garden", "plant-beds", 2)
+    ]
+    assert [(row["project"], row["skill"]) for row in report["quiet"]] == [
+        ("acme/garden", "prune-roses")
+    ]
+
+
+def test_second_checkout_that_timed_out_merges_into_remote_project(
+    state: Path, t3_store: T3Store, checkout: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """lushly-dev/afd#2052: when one of two clones of an origin times out on first collection,
+    it is named after its folder temporarily; once git answers, it merges into owner/name and
+    its duplicate quiet skills disappear."""
+    git(checkout, "init", "-q", "-b", "main")
+    git(checkout, "remote", "add", "origin", "git@example.com:acme/garden.git")
+    git(checkout, "add", "-A")
+    git(checkout, "commit", "-q", "-m", "skills", at="2026-04-01T10:00:00+00:00")
+    second = checkout.parent / "second" / "garden"
+    subprocess.run(["git", "clone", "-q", str(checkout), str(second)], check=True)
+    git(second, "remote", "set-url", "origin", "git@example.com:acme/garden.git")
+    t3_store.project("p2", second)
+    t3_store.skill_tool(t3_store.thread("main-1"), "plant-beds", stamp(1))
+    t3_store.skill_tool(t3_store.thread("main-2", project_id="p2"), "plant-beds", stamp(2))
+
+    real = collect.git_out
+
+    def timed_out(root: Path, *args: str, **more: object) -> str:
+        if Path(root) == second:
+            raise collect.GitError("git remote: timed out")
+        return real(root, *args, **more)
+
+    monkeypatch.setattr(collect, "git_out", timed_out)
+    run(skill_usage_collect())
+    before = run(skill_usage_report())
+    assert {(row["project"], row["skill"]) for row in before["quiet"]} == {
+        ("acme/garden", "prune-roses"),
+        ("garden", "prune-roses"),
+    }
+
+    monkeypatch.setattr(collect, "git_out", real)
+    run(skill_usage_collect())
+
+    saved = store.load_state(state)
+    assert "garden" not in saved["projects"]
+    assert set(saved["projects"]["acme/garden"]["roots"]) == {str(checkout), str(second)}
+    after = run(skill_usage_report())
+    assert [(row["project"], row["skill"], row["sessions"]) for row in after["skills"]] == [
+        ("acme/garden", "plant-beds", 2)
+    ]
+    assert [(row["project"], row["skill"]) for row in after["quiet"]] == [
+        ("acme/garden", "prune-roses")
+    ]
+
+
+def test_staged_multi_root_upgrade_does_not_misattribute_history(tmp_path: Path) -> None:
+    """lushly-dev/afd#2052: if a legacy remote:false project has two roots that upgrade to
+    different origins across separate collections, historical records are not blindly refiled
+    to the second destination."""
+    one = tmp_path / "one" / "shared"
+    two = tmp_path / "two" / "shared"
+    one.mkdir(parents=True)
+    two.mkdir(parents=True)
+    git(one, "init", "-q", "-b", "main")
+    git(one, "remote", "add", "origin", "git@example.com:acme/one.git")
+    git(two, "init", "-q", "-b", "main")
+
+    previous = {"shared": {"remote": False, "roots": [str(one), str(two)]}}
+    refiled_first: dict[str, str] = {}
+    projects, _ = collect._name_projects(previous, {}, refiled=refiled_first)
+    assert refiled_first == {}
+    assert projects["shared"].get("split") is True
+    assert projects["shared"]["roots"] == [str(two)]
+    assert str(one) in projects["acme/one"]["roots"]
+
+    git(two, "remote", "add", "origin", "git@example.com:acme/two.git")
+    refiled_second: dict[str, str] = {}
+    projects2, _ = collect._name_projects(projects, {}, refiled=refiled_second)
+    assert refiled_second == {}
+    assert str(two) in projects2["acme/two"]["roots"]
+    assert projects2["shared"]["roots"] == []
+
+
+def test_remote_upgrade_preserves_unreadable_event_lines(
+    state: Path, t3_store: T3Store, checkout: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """lushly-dev/afd#2052: automatic refiling during normal collection preserves unreadable
+    lines in events.jsonl so damage evidence is never silently dropped."""
+    git(checkout, "init", "-q", "-b", "main")
+    git(checkout, "remote", "add", "origin", "git@example.com:acme/garden.git")
+    git(checkout, "add", "-A")
+    git(checkout, "commit", "-q", "-m", "skills", at="2026-04-01T10:00:00+00:00")
+    t3_store.skill_tool(t3_store.thread("main-1"), "plant-beds", stamp(1))
+
+    real = collect.git_out
+
+    def refused(root: Path, *args: str, **more: object) -> str:
+        if Path(root) == checkout:
+            raise collect.GitError("git: fatal: detected dubious ownership")
+        return real(root, *args, **more)
+
+    monkeypatch.setattr(collect, "git_out", refused)
+    run(skill_usage_collect())
+    events_path = state / store.EVENTS_FILE
+    events_path.write_text(
+        events_path.read_text(encoding="utf-8") + "{corrupted-json-line\n", encoding="utf-8"
+    )
+
+    monkeypatch.setattr(collect, "git_out", real)
+    run(skill_usage_collect())
+
+    events, unreadable = store.load_events(state)
+    assert unreadable == 1
+    assert [event.project for event in events] == ["acme/garden"]

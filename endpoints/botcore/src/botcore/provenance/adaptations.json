@@ -2398,11 +2398,11 @@
       "path": "src/botcore/__init__.py",
       "upstream_sha256": "ecdb551f9b9774c5b2335e54eb9c7bf662cdf4e9fdbe4a557f5282cc08543edb",
       "staged_sha256": "44133242b17d6cad7515a5e9c9239ef053848114584c1cc3661b2aef6dc5612e",
-      "current_import_sha256": "7bfa4ae2c6b58bf870a5e8f40f2e71249de3815395374dd3e7b3303424c7e6d8",
+      "current_import_sha256": "2b17548ef70357db76bc316c325009fea71b0af45eb9e07d2560eafb445e7d50",
       "stage_classification": "modified-upstream",
       "stage_reason": "Export the additive managed-host API",
       "import_classification": "modified-after-staging",
-      "import_reason": "Set additive host API version to 0.7.0; Versioned by pnpm version-track botcore (lushly-botcore 0.8.0)"
+      "import_reason": "Set additive host API version to 0.7.0; Versioned by pnpm version-track botcore (lushly-botcore 0.8.0); Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778)"
     },
     {
       "path": "src/botcore/__main__.py",
@@ -2439,21 +2439,32 @@
       "path": "src/botcore/cli.py",
       "upstream_sha256": "3f9c4f20694615b01b8edabc920c26662d065e09365161a493b41131a3d4a77f",
       "staged_sha256": "3f9c4f20694615b01b8edabc920c26662d065e09365161a493b41131a3d4a77f",
-      "current_import_sha256": "cb22ee5467da1ee51304df8175399bb2e84219e4ce0805c11ab44d75f7223e24",
+      "current_import_sha256": "dae20df487475594a4eb7dc42c1e7a50d69a671021a02dba6e6f51cdbae8a5a9",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Describe skill-lint as the shared skill rule set; Add the host-token group for HTTP surface tokens; disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); botcore serve refuses a network transport, since its run tool executes any Python its client sends; tests and README say so; botcore serve refuses a network transport, since its run tool executes any Python its client sends; points to botcore.host_http for HTTP; tests, README and the server docstring say so; Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); The hourly job always ends and says what it waited for (#1902, #1903); Fix botcore bug batch: refuse lane-drop when GitHub holds merging PR (#1628), strip build info before output and align file activity (#1939), collapse/mark truncated unclassified folders with plain-text summary (#1955), and report SQLite/transcript progress so busy hourly collections finish (#2160); Fix Botcore bugs #1628, #1939, #1955, #2160 and review findings; Add read-only pr_status, pr_wait, pr_drift, dev_snapshot commands, [pr] config, and SK020 openai.yaml skill lint rule; Add read-only pr_status, pr_wait, pr_drift, dev_snapshot commands, [pr] config, SK020 openai.yaml lint, and RunLock label"
+      "import_reason": "Describe skill-lint as the shared skill rule set; Add the host-token group for HTTP surface tokens; disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); botcore serve refuses a network transport, since its run tool executes any Python its client sends; tests and README say so; botcore serve refuses a network transport, since its run tool executes any Python its client sends; points to botcore.host_http for HTTP; tests, README and the server docstring say so; Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); The hourly job always ends and says what it waited for (#1902, #1903); Fix botcore bug batch: refuse lane-drop when GitHub holds merging PR (#1628), strip build info before output and align file activity (#1939), collapse/mark truncated unclassified folders with plain-text summary (#1955), and report SQLite/transcript progress so busy hourly collections finish (#2160); Fix Botcore bugs #1628, #1939, #1955, #2160 and review findings; Add read-only pr_status, pr_wait, pr_drift, dev_snapshot commands, [pr] config, and SK020 openai.yaml skill lint rule; Add read-only pr_status, pr_wait, pr_drift, dev_snapshot commands, [pr] config, SK020 openai.yaml lint, and RunLock label; Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778)"
+    },
+    {
+      "path": "src/botcore/cli_cdp.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "5e0010a3f4fe3404febd67e50c71be25fdb4f9ff020858241acbd03189f1d8fb",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778)"
     },
     {
       "path": "src/botcore/commands/__init__.py",
       "upstream_sha256": "95b4a734dfe2263a6a1e65306f89685d97d809277c1dc07c12926442bb46ff0c",
       "staged_sha256": "95b4a734dfe2263a6a1e65306f89685d97d809277c1dc07c12926442bb46ff0c",
-      "current_import_sha256": "15098fbe38f59604e0a5f13cffe33cf37e89fb267d12cb11ad46956c0dd16e58",
+      "current_import_sha256": "2778abad22b1c642ed926e0660dee89cc3649e00ab54321e5aee71c272fae7ff",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact frozen staged-input bytes; disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); Add read-only pr_status, pr_wait, pr_drift, dev_snapshot commands, [pr] config, and SK020 openai.yaml skill lint rule; Add read-only pr_status, pr_wait, pr_drift, dev_snapshot commands, [pr] config, SK020 openai.yaml lint, and RunLock label"
+      "import_reason": "Imported exact frozen staged-input bytes; disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); Add read-only pr_status, pr_wait, pr_drift, dev_snapshot commands, [pr] config, and SK020 openai.yaml skill lint rule; Add read-only pr_status, pr_wait, pr_drift, dev_snapshot commands, [pr] config, SK020 openai.yaml lint, and RunLock label; Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778)"
     },
     {
       "path": "src/botcore/commands/cdp/__init__.py",
@@ -2469,31 +2480,31 @@
       "path": "src/botcore/commands/cdp/core.py",
       "upstream_sha256": "d7226f40a38974e3141d6aeb51e31de25999b65e2309185f6ebf8c3a85fe7b9f",
       "staged_sha256": "d7226f40a38974e3141d6aeb51e31de25999b65e2309185f6ebf8c3a85fe7b9f",
-      "current_import_sha256": "d7226f40a38974e3141d6aeb51e31de25999b65e2309185f6ebf8c3a85fe7b9f",
+      "current_import_sha256": "fce3048a6d9a3d64ddea6a2e28a0df946246636a80bb12823043bf3b4b06bf6d",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778)"
     },
     {
       "path": "src/botcore/commands/cdp/diagnostics.py",
       "upstream_sha256": "c4fe45de0ec3f37b7a8d84dcdcc31fc29a8180c07508932075c4258ec076f765",
       "staged_sha256": "c4fe45de0ec3f37b7a8d84dcdcc31fc29a8180c07508932075c4258ec076f765",
-      "current_import_sha256": "b43a7ee0f46a50dd3467544172673da4651b4763f37ee1b2255691ac8eefd3b1",
+      "current_import_sha256": "cd97f7b768405123a2b5d5e5c106d72a62669fbde8f0e45c84ec4319a6acb27b",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact frozen staged-input bytes; Split modules over 500 lines with no behaviour change (lushly-dev/afd#514)"
+      "import_reason": "Imported exact frozen staged-input bytes; Split modules over 500 lines with no behaviour change (lushly-dev/afd#514); Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778)"
     },
     {
       "path": "src/botcore/commands/cdp/forms.py",
       "upstream_sha256": "1ef45a6c74083d58c52dbb3335de08a9e054690d60c07202f436884c3e1d093b",
       "staged_sha256": "1ef45a6c74083d58c52dbb3335de08a9e054690d60c07202f436884c3e1d093b",
-      "current_import_sha256": "1ef45a6c74083d58c52dbb3335de08a9e054690d60c07202f436884c3e1d093b",
+      "current_import_sha256": "9b2d32658c7ede93b636b5b67990703bc8914460e1d7dab85b7d9bf962555741",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778)"
     },
     {
       "path": "src/botcore/commands/cdp/inspection.py",
@@ -2541,10 +2552,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "3003013cca3ba46dc99e11851983a228c7147bb6bb73e346e27fca293f90aa5e",
+      "current_import_sha256": "8a7ef8e5edbd32f63185db19c63992292d1e86a7c35fd49f0ad00515769c7660",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Split modules over 500 lines with no behaviour change (lushly-dev/afd#514)"
+      "import_reason": "Split modules over 500 lines with no behaviour change (lushly-dev/afd#514); Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778)"
     },
     {
       "path": "src/botcore/commands/cdp/tracing.py",
@@ -2552,20 +2563,20 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "d2152f8ebce0f0f390331aab6f35f9aac1bcf02b0889dfe91b7a6f4633809380",
+      "current_import_sha256": "5ab1b29dcfb1c0899a98988709a90c9f57435eb61986655290f9a75a712d7ac2",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Split modules over 500 lines with no behaviour change (lushly-dev/afd#514)"
+      "import_reason": "Split modules over 500 lines with no behaviour change (lushly-dev/afd#514); Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778)"
     },
     {
       "path": "src/botcore/commands/cdp_perf.py",
       "upstream_sha256": "30dce29b53c8dde3d69658407dcc3f02cb1b523eba6f67febb6a0ac6c1f5a524",
       "staged_sha256": "30dce29b53c8dde3d69658407dcc3f02cb1b523eba6f67febb6a0ac6c1f5a524",
-      "current_import_sha256": "30dce29b53c8dde3d69658407dcc3f02cb1b523eba6f67febb6a0ac6c1f5a524",
+      "current_import_sha256": "05332e0b1547e112b3add80e74ecf7ab41543ea6f209e342407224364ae7bc93",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778)"
     },
     {
       "path": "src/botcore/commands/changeset.py",
@@ -2732,10 +2743,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "9dba425dec475e7f2ec3035ebe97e40c5df9d4021f3cb16c1f3d1fc2f1a4986b",
+      "current_import_sha256": "e6ec5f90a0bea3918847fcf818e2848cd7f76786133bce73931b2c22b3a65e84",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); disk tier 2 first-review fixes: hidden edits, private state, pins, T3 and volume checks (lushly-dev/afd#1694)"
+      "import_reason": "disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); disk tier 2 first-review fixes: hidden edits, private state, pins, T3 and volume checks (lushly-dev/afd#1694); Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778)"
     },
     {
       "path": "src/botcore/commands/disk/lock.py",
@@ -2754,10 +2765,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "fa86862f47371f336b13d5d0593c92ebeb3097994fa9c4585ec391147ca1e816",
+      "current_import_sha256": "b84b20283900d8d7dfe787e50e65289d1294e645f05426d9974a8fd185170e47",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); disk hygiene verification fixes: lasting tool paths, git timeouts (lushly-dev/afd#1690); disk hygiene: last review nits (lushly-dev/afd#1688, #1689); disk hygiene: an unreadable lock marker counts as locked (lushly-dev/afd#1689); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); disk tier 2 first-review fixes: hidden edits, private state, pins, T3 and volume checks (lushly-dev/afd#1694); disk tier 2 verification fixes (lushly-dev/afd#1694); Disk hygiene prevention: idle-worktree warning, Cargo arrangement check, Factory slots managed (#1695); The hourly job always ends and says what it waited for (#1902, #1903); Fix botcore bug batch: refuse lane-drop when GitHub holds merging PR (#1628), strip build info before output and align file activity (#1939), collapse/mark truncated unclassified folders with plain-text summary (#1955), and report SQLite/transcript progress so busy hourly collections finish (#2160); Fix Botcore bugs #1628, #1939, #1955, #2160 and review findings"
+      "import_reason": "disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); disk hygiene verification fixes: lasting tool paths, git timeouts (lushly-dev/afd#1690); disk hygiene: last review nits (lushly-dev/afd#1688, #1689); disk hygiene: an unreadable lock marker counts as locked (lushly-dev/afd#1689); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); disk tier 2 first-review fixes: hidden edits, private state, pins, T3 and volume checks (lushly-dev/afd#1694); disk tier 2 verification fixes (lushly-dev/afd#1694); Disk hygiene prevention: idle-worktree warning, Cargo arrangement check, Factory slots managed (#1695); The hourly job always ends and says what it waited for (#1902, #1903); Fix botcore bug batch: refuse lane-drop when GitHub holds merging PR (#1628), strip build info before output and align file activity (#1939), collapse/mark truncated unclassified folders with plain-text summary (#1955), and report SQLite/transcript progress so busy hourly collections finish (#2160); Fix Botcore bugs #1628, #1939, #1955, #2160 and review findings; Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778)"
     },
     {
       "path": "src/botcore/commands/disk/removal.py",
@@ -2787,10 +2798,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "8b5a9c6437acee17b223f211ac0d92cb02c78d834d8c83cf62064e4b0a22a507",
+      "current_import_sha256": "56e18b17b0578b566875eff200ff4f35366aad730b6496633716f52b6baf931f",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); disk hygiene verification fixes: lasting tool paths, git timeouts (lushly-dev/afd#1690); disk hygiene: anchored session folders, case-folded copies (lushly-dev/afd#1690); disk hygiene: permission errors on Python 3.11 (lushly-dev/afd#1688); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); disk tier 2 first-review fixes: hidden edits, private state, pins, T3 and volume checks (lushly-dev/afd#1694); Disk hygiene prevention: idle-worktree warning, Cargo arrangement check, Factory slots managed (#1695); The hourly job always ends and says what it waited for (#1902, #1903); Fix botcore bug batch: refuse lane-drop when GitHub holds merging PR (#1628), strip build info before output and align file activity (#1939), collapse/mark truncated unclassified folders with plain-text summary (#1955), and report SQLite/transcript progress so busy hourly collections finish (#2160); Fix Botcore bugs #1628, #1939, #1955, #2160 and review findings"
+      "import_reason": "disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); disk hygiene verification fixes: lasting tool paths, git timeouts (lushly-dev/afd#1690); disk hygiene: anchored session folders, case-folded copies (lushly-dev/afd#1690); disk hygiene: permission errors on Python 3.11 (lushly-dev/afd#1688); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); disk tier 2 first-review fixes: hidden edits, private state, pins, T3 and volume checks (lushly-dev/afd#1694); Disk hygiene prevention: idle-worktree warning, Cargo arrangement check, Factory slots managed (#1695); The hourly job always ends and says what it waited for (#1902, #1903); Fix botcore bug batch: refuse lane-drop when GitHub holds merging PR (#1628), strip build info before output and align file activity (#1939), collapse/mark truncated unclassified folders with plain-text summary (#1955), and report SQLite/transcript progress so busy hourly collections finish (#2160); Fix Botcore bugs #1628, #1939, #1955, #2160 and review findings; Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778)"
     },
     {
       "path": "src/botcore/commands/disk/scan.py",
@@ -2831,10 +2842,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "c9f3e498f46f3b52e2e38b1f1c6735cdfe28f3f068c6d1496f4836d842826c12",
+      "current_import_sha256": "3b94ec404f90290f613515904a59cd6269c8f934c88e7073c24bad88aba8920a",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); disk hygiene verification fixes: lasting tool paths, git timeouts (lushly-dev/afd#1690); disk hygiene: anchored session folders, case-folded copies (lushly-dev/afd#1690); disk hygiene: permission errors on Python 3.11 (lushly-dev/afd#1688); disk hygiene: case probe past numbered folders, broad temp folders (lushly-dev/afd#1688); disk hygiene: last review nits (lushly-dev/afd#1688, #1689); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); Disk hygiene prevention: idle-worktree warning, Cargo arrangement check, Factory slots managed (#1695); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); The hourly job always ends and says what it waited for (#1902, #1903); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims (#1810), keep usable [tools] entries on disk-setup rerun (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims and retries (#1810), keep usable [tools] entries on disk-setup rerun and report changed_tools (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Fix botcore bug batch: refuse lane-drop when GitHub holds merging PR (#1628), strip build info before output and align file activity (#1939), collapse/mark truncated unclassified folders with plain-text summary (#1955), and report SQLite/transcript progress so busy hourly collections finish (#2160); Fix Botcore bugs #1628, #1939, #1955, #2160 and review findings; Count step words monotonically for Windows clock ticks; handle read-only git objects and JSON-escaped Windows paths in tests (#2258, #2176); Use APFSVolumeGroupID for macOS APFS boot snapshots and migrate / on disk-setup (lushly-dev/afd#2267)"
+      "import_reason": "disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); disk hygiene verification fixes: lasting tool paths, git timeouts (lushly-dev/afd#1690); disk hygiene: anchored session folders, case-folded copies (lushly-dev/afd#1690); disk hygiene: permission errors on Python 3.11 (lushly-dev/afd#1688); disk hygiene: case probe past numbered folders, broad temp folders (lushly-dev/afd#1688); disk hygiene: last review nits (lushly-dev/afd#1688, #1689); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); Disk hygiene prevention: idle-worktree warning, Cargo arrangement check, Factory slots managed (#1695); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); The hourly job always ends and says what it waited for (#1902, #1903); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims (#1810), keep usable [tools] entries on disk-setup rerun (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims and retries (#1810), keep usable [tools] entries on disk-setup rerun and report changed_tools (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Fix botcore bug batch: refuse lane-drop when GitHub holds merging PR (#1628), strip build info before output and align file activity (#1939), collapse/mark truncated unclassified folders with plain-text summary (#1955), and report SQLite/transcript progress so busy hourly collections finish (#2160); Fix Botcore bugs #1628, #1939, #1955, #2160 and review findings; Count step words monotonically for Windows clock ticks; handle read-only git objects and JSON-escaped Windows paths in tests (#2258, #2176); Use APFSVolumeGroupID for macOS APFS boot snapshots and migrate / on disk-setup (lushly-dev/afd#2267); Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778)"
     },
     {
       "path": "src/botcore/commands/disk/steps.py",
@@ -2842,10 +2853,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "c21479df33926088a8cfc7734800178a4d764bc90273608df23a2e57577fac32",
+      "current_import_sha256": "de8b53a405f0bad34bdcb9cac0932ff2a502ff68e14fe72e1f1f0c2bb47d8ab5",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "The hourly job always ends and says what it waited for (#1902, #1903); Count step words monotonically for Windows clock ticks; handle read-only git objects and JSON-escaped Windows paths in tests (#2258, #2176)"
+      "import_reason": "The hourly job always ends and says what it waited for (#1902, #1903); Count step words monotonically for Windows clock ticks; handle read-only git objects and JSON-escaped Windows paths in tests (#2258, #2176); Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778)"
     },
     {
       "path": "src/botcore/commands/disk/unclassified.py",
@@ -3081,10 +3092,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "7afa51d0df8f77f1ce54fda8670165f9c5188d37e3541eaa3f7a29d96411c79f",
+      "current_import_sha256": "2a7fe89daca465ca03a0c1b86648ddb4d9838631691d6fc66e2dbef29e1dc747",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill-usage-collect also reads Claude Code's transcripts, for sessions T3 Code did not run (lushly-dev/afd#1820); The hourly job always ends and says what it waited for (#1902, #1903); skill usage reads what a project holds from its default branch (lushly-dev/afd#1904); a folder git refuses is read as it lies (lushly-dev/afd#2051); a removed folder's account is dropped (lushly-dev/afd#2123); Fix botcore bug batch: refuse lane-drop when GitHub holds merging PR (#1628), strip build info before output and align file activity (#1939), collapse/mark truncated unclassified folders with plain-text summary (#1955), and report SQLite/transcript progress so busy hourly collections finish (#2160); Fix Botcore bugs #1628, #1939, #1955, #2160 and review findings; Know a folder's volume by its identifier, falling back to device number (lushly-dev/afd#2245)"
+      "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill-usage-collect also reads Claude Code's transcripts, for sessions T3 Code did not run (lushly-dev/afd#1820); The hourly job always ends and says what it waited for (#1902, #1903); skill usage reads what a project holds from its default branch (lushly-dev/afd#1904); a folder git refuses is read as it lies (lushly-dev/afd#2051); a removed folder's account is dropped (lushly-dev/afd#2123); Fix botcore bug batch: refuse lane-drop when GitHub holds merging PR (#1628), strip build info before output and align file activity (#1939), collapse/mark truncated unclassified folders with plain-text summary (#1955), and report SQLite/transcript progress so busy hourly collections finish (#2160); Fix Botcore bugs #1628, #1939, #1955, #2160 and review findings; Know a folder's volume by its identifier, falling back to device number (lushly-dev/afd#2245); Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778)"
     },
     {
       "path": "src/botcore/commands/skill_usage/events.py",
@@ -3103,10 +3114,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "c93feb46c5819d832319c118de556d5c90b68c80d5b4fc7de320ae535287f90a",
+      "current_import_sha256": "9d76f893ebe72c7f957ee3d1704b4d42ae5946348b8bcf6677026adcc3353de1",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill usage reads what a project holds from its default branch (lushly-dev/afd#1904)"
+      "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill usage reads what a project holds from its default branch (lushly-dev/afd#1904); Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778)"
     },
     {
       "path": "src/botcore/commands/skill_usage/store.py",
@@ -3114,10 +3125,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "7492e5cbafc4dc0ba3ac8721f292e44a41e92744fdbee4f65f62e1593cfaed63",
+      "current_import_sha256": "b4740059202ba9db89d54ecb04ddec85da06ecfe9f884fbbacc3bacf7de7f4d4",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); The hourly job always ends and says what it waited for (#1902, #1903); skill usage reads what a project holds from its default branch (lushly-dev/afd#1904); Fix Windows disk-walk words, skill usage record line endings and file-as-folder handling (#2173); Teams task_status passes task_id (#2174)"
+      "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); The hourly job always ends and says what it waited for (#1902, #1903); skill usage reads what a project holds from its default branch (lushly-dev/afd#1904); Fix Windows disk-walk words, skill usage record line endings and file-as-folder handling (#2173); Teams task_status passes task_id (#2174); Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778)"
     },
     {
       "path": "src/botcore/commands/skill_usage/t3.py",
@@ -3136,10 +3147,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "737fab96f15d9a592937c7eac097a4cd61e1c74439afb1248f830595ee221c0c",
+      "current_import_sha256": "0fefa0bfffa61be2ba4c4cd9790931ea510cc0c09e21f2a63f90dfb810c1167e",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill usage reads what a project holds from its default branch (lushly-dev/afd#1904)"
+      "import_reason": "Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill usage reads what a project holds from its default branch (lushly-dev/afd#1904); Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778)"
     },
     {
       "path": "src/botcore/commands/spec.py",
@@ -3185,21 +3196,21 @@
       "path": "src/botcore/docs.py",
       "upstream_sha256": "f70506d3447e2f5e5139f0380e840c84bea57834ce33b936c81ad4a868139871",
       "staged_sha256": "f70506d3447e2f5e5139f0380e840c84bea57834ce33b936c81ad4a868139871",
-      "current_import_sha256": "7ba2b507e16f341268d9b2dbff23200568cfd6e0d2251a771f259ddaa579f54a",
+      "current_import_sha256": "dfdaacbccf9dd64943080fa68500cf2eff34f1e8617d596450d2e490d7ad7337",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Document retired skills and the docs commands' real behaviour; Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); disk tier 2 first-review fixes: hidden edits, private state, pins, T3 and volume checks (lushly-dev/afd#1694); disk tier 2 docs; Disk hygiene prevention: idle-worktree warning, Cargo arrangement check, Factory slots managed (#1695); Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill-usage-collect also reads Claude Code's transcripts, for sessions T3 Code did not run (lushly-dev/afd#1820); The hourly job always ends and says what it waited for (#1902, #1903); skill usage reads what a project holds from its default branch (lushly-dev/afd#1904); a folder git refuses is read as it lies (lushly-dev/afd#2051); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims and retries (#1810), keep usable [tools] entries on disk-setup rerun and report changed_tools (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Fix botcore bug batch: refuse lane-drop when GitHub holds merging PR (#1628), strip build info before output and align file activity (#1939), collapse/mark truncated unclassified folders with plain-text summary (#1955), and report SQLite/transcript progress so busy hourly collections finish (#2160); Fix Botcore bugs #1628, #1939, #1955, #2160 and review findings; Add read-only pr_status, pr_wait, pr_drift, dev_snapshot commands, [pr] config, and SK020 openai.yaml skill lint rule; Add read-only pr_status, pr_wait, pr_drift, dev_snapshot commands, [pr] config, SK020 openai.yaml lint, and RunLock label"
+      "import_reason": "Document retired skills and the docs commands' real behaviour; Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); disk tier 2 first-review fixes: hidden edits, private state, pins, T3 and volume checks (lushly-dev/afd#1694); disk tier 2 docs; Disk hygiene prevention: idle-worktree warning, Cargo arrangement check, Factory slots managed (#1695); Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill-usage-collect also reads Claude Code's transcripts, for sessions T3 Code did not run (lushly-dev/afd#1820); The hourly job always ends and says what it waited for (#1902, #1903); skill usage reads what a project holds from its default branch (lushly-dev/afd#1904); a folder git refuses is read as it lies (lushly-dev/afd#2051); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims and retries (#1810), keep usable [tools] entries on disk-setup rerun and report changed_tools (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Fix botcore bug batch: refuse lane-drop when GitHub holds merging PR (#1628), strip build info before output and align file activity (#1939), collapse/mark truncated unclassified folders with plain-text summary (#1955), and report SQLite/transcript progress so busy hourly collections finish (#2160); Fix Botcore bugs #1628, #1939, #1955, #2160 and review findings; Add read-only pr_status, pr_wait, pr_drift, dev_snapshot commands, [pr] config, and SK020 openai.yaml skill lint rule; Add read-only pr_status, pr_wait, pr_drift, dev_snapshot commands, [pr] config, SK020 openai.yaml lint, and RunLock label; Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778)"
     },
     {
       "path": "src/botcore/host.py",
       "upstream_sha256": null,
       "staged_sha256": "d8ecdd977b3e243f030834d4508e8f60e9dd660d4d0ff9280a1f5b3b75b545ba",
-      "current_import_sha256": "b7f55fbd1ca22b39b8fbdef21c8ec5c4e239ccc594c7204b657a1b7d7a1fe0bb",
+      "current_import_sha256": "3d4522f59cc97e0789ae483df29fefa55664810e0280391eccbd9c8219db981a",
       "stage_classification": "added-in-staging",
       "stage_reason": "Add shared dispatch, effects policy and quality-verdict adapters",
       "import_classification": "modified-after-staging",
-      "import_reason": "Map broken-link failures and typed infrastructure verdicts correctly; merge plugin-declared policies that a host may only narrow, carry input schemas and one-line descriptions in the catalog, refuse wrong argument names; load config as an explicit plugin selection; resolve either spelling of a command name with closest-name refusals, serve kebab-case names on request, validate typed inputs, build a context per call, admit effects by profile; Fix Batch 5 P0/P1 bugs (#1871-#1875); Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing"
+      "import_reason": "Map broken-link failures and typed infrastructure verdicts correctly; merge plugin-declared policies that a host may only narrow, carry input schemas and one-line descriptions in the catalog, refuse wrong argument names; load config as an explicit plugin selection; resolve either spelling of a command name with closest-name refusals, serve kebab-case names on request, validate typed inputs, build a context per call, admit effects by profile; Fix Batch 5 P0/P1 bugs (#1871-#1875); Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing; Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778)"
     },
     {
       "path": "src/botcore/host_surfaces.py",
@@ -3889,11 +3900,11 @@
       "path": "src/botcore/skills/browser-automation/SKILL.md",
       "upstream_sha256": "2c5062ee74a9014f3f2914a65d74f41d56466f09e32fb3a02c914ccbaa6abb8c",
       "staged_sha256": "2c5062ee74a9014f3f2914a65d74f41d56466f09e32fb3a02c914ccbaa6abb8c",
-      "current_import_sha256": "444bcbb5f1fd95ac9cde98e0da72dce54384ee3694db710b9a57792ba9347b14",
+      "current_import_sha256": "3ac73ae1db4fa754d85457094a00c89368361172576615117f8a030433fe46bf",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Rewrite to the cdp commands' verified behaviour, including traces"
+      "import_reason": "Rewrite to the cdp commands' verified behaviour, including traces; Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778)"
     },
     {
       "path": "src/botcore/skills/browser-automation/references/diagnostics.md",
@@ -6398,11 +6409,11 @@
       "path": "src/botcore/utils/runner.py",
       "upstream_sha256": "7ba281e687b104eaa76f7a033880413553b68915912351d54efbe36048dc2a79",
       "staged_sha256": "7ba281e687b104eaa76f7a033880413553b68915912351d54efbe36048dc2a79",
-      "current_import_sha256": "80622cb594159fb5d26cc920bf03fb8a7344a3462fedd836aecc9c6032633cbb",
+      "current_import_sha256": "c6da97c4990f777538e330eda6282c2ffb5a07650a94ed9600b1c576b5e752ed",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Classify missing tool, timeout and failed checks; scale truncation with the budget"
+      "import_reason": "Classify missing tool, timeout and failed checks; scale truncation with the budget; Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778)"
     },
     {
       "path": "src/botcore/utils/workspace.py",
@@ -6528,11 +6539,11 @@
       "path": "tests/test_cdp_diagnostics.py",
       "upstream_sha256": "8b3e796fde33ae93e79b525c27e29c39de7d8d577048d72907fb334688a716ea",
       "staged_sha256": "8b3e796fde33ae93e79b525c27e29c39de7d8d577048d72907fb334688a716ea",
-      "current_import_sha256": "3a2a329fcd6fcb94b3bb0554fe64d0d316eadcf3ec371afc495515f4d1899f4a",
+      "current_import_sha256": "1c0388bb0a034c4cbe7437c869bf1d1ce037208489049f195607595f6917d6d6",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Normalize imports under selected Ruff rules; Split modules over 500 lines with no behaviour change (lushly-dev/afd#514)"
+      "import_reason": "Normalize imports under selected Ruff rules; Split modules over 500 lines with no behaviour change (lushly-dev/afd#514); Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778)"
     },
     {
       "path": "tests/test_cdp_inspection.py",
@@ -6548,11 +6559,11 @@
       "path": "tests/test_cdp_session.py",
       "upstream_sha256": "e4626cbae0d12a0f4590aff24f3a6447a70ca29cd8636097dc8fc877e02c60df",
       "staged_sha256": "e4626cbae0d12a0f4590aff24f3a6447a70ca29cd8636097dc8fc877e02c60df",
-      "current_import_sha256": "43ec2a3b2579c84b3d555b1d760c5818432dc9d16e13ef80a3be81dbd7de25ab",
+      "current_import_sha256": "4c93f724f8b37e47df63e892cbfe610711c7cdfbaf78a01e1e091be869246b31",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Assert the browser-automation skill names every exported cdp command"
+      "import_reason": "Assert the browser-automation skill names every exported cdp command; Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778)"
     },
     {
       "path": "tests/test_changeset.py",
@@ -6786,11 +6797,11 @@
       "path": "tests/test_host.py",
       "upstream_sha256": null,
       "staged_sha256": "f733296254d5b30e0c723330fc238748876afe0a43c8935ff9ad331959081621",
-      "current_import_sha256": "924b55c2f69d1612a10a9b1f96d87c9f668b2f095c1dd14ffc4ac6aaa39171ba",
+      "current_import_sha256": "0b9f65f546d5abbb83c55b2af476087d5bb049d2783ba100b28ca55a27db8b4c",
       "stage_classification": "added-in-staging",
       "stage_reason": "Exercise context isolation, route parity, effects and protocol safety",
       "import_classification": "modified-after-staging",
-      "import_reason": "Test SDK 2 envelopes, real broken links, typed outcomes and raw aliases; expect a duplicate refusal for two spellings of one name; Fix Batch 5 P0/P1 bugs (#1871-#1875)"
+      "import_reason": "Test SDK 2 envelopes, real broken links, typed outcomes and raw aliases; expect a duplicate refusal for two spellings of one name; Fix Batch 5 P0/P1 bugs (#1871-#1875); Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778)"
     },
     {
       "path": "tests/test_host_http.py",
@@ -6939,11 +6950,11 @@
       "path": "tests/test_runner.py",
       "upstream_sha256": "d65512203bbed369f21c5ae05af4c92100af738443ab7c2e8db6a7300a7903b7",
       "staged_sha256": "d65512203bbed369f21c5ae05af4c92100af738443ab7c2e8db6a7300a7903b7",
-      "current_import_sha256": "2f8ece53d6c082fb9dc00e3ca76371e15488df6ae2aea4758bec2f6fd2cbfca7",
+      "current_import_sha256": "751c66d27c6a122cef671dff723f4bd5785542c8b6431afc0b3c7b76e6a90c2d",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Prove missing executables/modules and timeout differ from failed checks; cover budgets"
+      "import_reason": "Prove missing executables/modules and timeout differ from failed checks; cover budgets; Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778)"
     },
     {
       "path": "tests/test_server.py",
@@ -7031,10 +7042,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "5fdefdea3d3b2b25b14a05b2300e8a3d883b884c5179a9a7fefb2e0df2a90bbd",
+      "current_import_sha256": "2a363385aa0e7d94cc892b61fe95d2349eaeea875a54e201c25215b8874802d9",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill usage reads what a project holds from its default branch (lushly-dev/afd#1904); a folder git refuses is read as it lies (lushly-dev/afd#2051); a removed folder's account is dropped (lushly-dev/afd#2123); Fix botcore bug batch: refuse lane-drop when GitHub holds merging PR (#1628), strip build info before output and align file activity (#1939), collapse/mark truncated unclassified folders with plain-text summary (#1955), and report SQLite/transcript progress so busy hourly collections finish (#2160); Fix Botcore bugs #1628, #1939, #1955, #2160 and review findings; Fix PowerShell quoting in the skill-usage shell reader (#1847); Fix Windows disk-walk words, skill usage record line endings and file-as-folder handling (#2173); Teams task_status passes task_id (#2174); Count step words monotonically for Windows clock ticks; handle read-only git objects and JSON-escaped Windows paths in tests (#2258, #2176); Know a folder's volume by its identifier, falling back to device number (lushly-dev/afd#2245)"
+      "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill usage reads what a project holds from its default branch (lushly-dev/afd#1904); a folder git refuses is read as it lies (lushly-dev/afd#2051); a removed folder's account is dropped (lushly-dev/afd#2123); Fix botcore bug batch: refuse lane-drop when GitHub holds merging PR (#1628), strip build info before output and align file activity (#1939), collapse/mark truncated unclassified folders with plain-text summary (#1955), and report SQLite/transcript progress so busy hourly collections finish (#2160); Fix Botcore bugs #1628, #1939, #1955, #2160 and review findings; Fix PowerShell quoting in the skill-usage shell reader (#1847); Fix Windows disk-walk words, skill usage record line endings and file-as-folder handling (#2173); Teams task_status passes task_id (#2174); Count step words monotonically for Windows clock ticks; handle read-only git objects and JSON-escaped Windows paths in tests (#2258, #2176); Know a folder's volume by its identifier, falling back to device number (lushly-dev/afd#2245); Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778)"
     },
     {
       "path": "tests/test_skill_usage_claude_code.py",

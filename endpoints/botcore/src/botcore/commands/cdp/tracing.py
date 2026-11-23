@@ -12,9 +12,12 @@ from afd import CommandResult, error, success
 
 from botcore.commands.cdp.core import (
     DEFAULT_TIMEOUT_MS,
+    SelectedPageClosedError,
+    _apply_session_overrides,
     _connect_over_cdp_with_retry,
     _default_traces_dir,
     _load_session,
+    _select_session_page,
     _session_root,
 )
 
@@ -72,8 +75,9 @@ async def cdp_trace_capture(  # noqa: PLR0913
     try:
         async with async_playwright() as playwright:
             browser = await _connect_over_cdp_with_retry(playwright, session.cdp_endpoint)
-            context = browser.contexts[0] if browser.contexts else await browser.new_context()
-            page = context.pages[0] if context.pages else await context.new_page()
+            page = await _select_session_page(browser, session)
+            await _apply_session_overrides(page, session)
+            context = getattr(page, "context", None) or browser.contexts[0]
             cdp_session = await context.new_cdp_session(page)
             loop = asyncio.get_running_loop()
             trace_future: asyncio.Future[str] = loop.create_future()
@@ -119,6 +123,15 @@ async def cdp_trace_capture(  # noqa: PLR0913
             trace_data = await asyncio.wait_for(trace_future, timeout=timeout_ms / 1000)
             trace_path.write_text(trace_data, encoding="utf-8")
             cdp_session.remove_listener("Tracing.tracingComplete", _handle_tracing_complete)
+    except SelectedPageClosedError as exc:
+        return error(
+            "CDP_SELECTED_PAGE_CLOSED",
+            str(exc),
+            suggestion=(
+                "Run `botcore cdp list-pages` and `botcore cdp select-page <index>` "
+                "to select an open tab."
+            ),
+        )
     except Exception as exc:
         return error(
             "CDP_TRACE_CAPTURE_FAILED",

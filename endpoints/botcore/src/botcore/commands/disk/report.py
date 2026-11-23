@@ -62,7 +62,7 @@ from botcore.commands.disk.settings import (
     read_repo_disk_config,
     t3_worktree_roots,
 )
-from botcore.commands.disk.steps import doing, each
+from botcore.commands.disk.steps import doing, each, run_blocking
 from botcore.config import DiskConfig
 
 MIN_GIT_SECONDS = 10.0
@@ -635,21 +635,30 @@ async def disk_report(
     directory. `unclassified` also lists ignored paths in each worktree that no [disk] pattern
     or declared copy covers, which is how a repository's list is finished.
     """
-    try:
-        settings, settings_file, settings_found = load_machine_settings()
-    except SettingsError as exc:
-        return settings_error(exc)
-    data, _pairs, _ctx = build_report(
-        settings, repo, unclassified=unclassified, budget_seconds=budget_seconds,
-    )
-    data["settings"] = {"path": str(settings_file), "found": settings_found}
-    suggestions = [*data["warnings"],
-                   "Run disk-reclaim to preview what a reclaim would do (a dry run by default)"]
-    if not settings_found:
-        suggestions.append(f"Run disk-setup, or create {settings_file}, to register repositories")
-    if not data["complete"]:
-        suggestions.append("Some worktrees or sizes were not covered in time; raise budget_seconds")
-    return success(data=data, suggestions=suggestions)
+    def _run_report() -> CommandResult[dict]:
+        try:
+            settings, settings_file, settings_found = load_machine_settings()
+        except SettingsError as exc:
+            return settings_error(exc)
+        data, _pairs, _ctx = build_report(
+            settings, repo, unclassified=unclassified, budget_seconds=budget_seconds,
+        )
+        data["settings"] = {"path": str(settings_file), "found": settings_found}
+        suggestions = [
+            *data["warnings"],
+            "Run disk-reclaim to preview what a reclaim would do (a dry run by default)",
+        ]
+        if not settings_found:
+            suggestions.append(
+                f"Run disk-setup, or create {settings_file}, to register repositories"
+            )
+        if not data["complete"]:
+            suggestions.append(
+                "Some worktrees or sizes were not covered in time; raise budget_seconds"
+            )
+        return success(data=data, suggestions=suggestions)
+
+    return await run_blocking(_run_report)
 
 
 def settings_error(exc: SettingsError) -> CommandResult[dict]:

@@ -70,7 +70,7 @@ from botcore.commands.disk.settings import (
     state_path,
     t3_worktree_roots,
 )
-from botcore.commands.disk.steps import command, doing
+from botcore.commands.disk.steps import command, doing, run_blocking
 from botcore.config import DiskConfig
 
 STRIP_RECORD = "botcore-disk-strip.json"
@@ -661,22 +661,27 @@ async def disk_reclaim(
     if include_restorable and tier < 2:
         return error("DISK_TIER_INVALID", "include_restorable needs tier=2",
                      suggestion="Pass tier=2 with include_restorable")
-    try:
-        settings, _path, _found = load_machine_settings()
-    except SettingsError as exc:
-        return settings_error(exc)
-    try:
-        with RunLock(state_path() / "run.lock"):
-            payload = _reclaim(settings, tier, apply, repo, pressure, budget_seconds,
-                               include_restorable)
-    except LockHeld as exc:
-        return error("DISK_RUN_IN_PROGRESS", str(exc),
-                     suggestion="Wait for the other run to finish, then run again")
-    if payload.get("error"):
-        return error("DISK_RECLAIM_FAILED", payload["error"],
-                     suggestion=f"Read the receipt {payload.get('receipt')}; the run stopped early")
-    suggestions = [] if apply else ["Run again with apply=True to carry out this plan"]
-    return success(data=payload, suggestions=suggestions)
+    def _run_reclaim() -> CommandResult[dict]:
+        try:
+            settings, _path, _found = load_machine_settings()
+        except SettingsError as exc:
+            return settings_error(exc)
+        try:
+            with RunLock(state_path() / "run.lock"):
+                payload = _reclaim(
+                    settings, tier, apply, repo, pressure, budget_seconds, include_restorable
+                )
+        except LockHeld as exc:
+            return error("DISK_RUN_IN_PROGRESS", str(exc),
+                         suggestion="Wait for the other run to finish, then run again")
+        if payload.get("error"):
+            return error("DISK_RECLAIM_FAILED", payload["error"],
+                         suggestion=f"Read the receipt {payload.get('receipt')}; "
+                                    "the run stopped early")
+        suggestions = [] if apply else ["Run again with apply=True to carry out this plan"]
+        return success(data=payload, suggestions=suggestions)
+
+    return await run_blocking(_run_reclaim)
 
 
 def _protected(data: dict, ctx: Context) -> list[Path]:

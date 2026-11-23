@@ -3,8 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import ctypes
 import importlib.util
+import os
 import shutil
+import signal
+import subprocess
 import sys
 import warnings
 from collections.abc import Awaitable, Callable
@@ -45,10 +50,120 @@ def smart_truncate(output: str, max_len: int = MAX_OUTPUT_LENGTH) -> str:
     return f"{head}\n\n... [{omitted:,} chars truncated] ...\n\n{tail}"
 
 
+def _subprocess_group_kwargs() -> dict[str, Any]:
+    """Start subprocesses in their own process group so timeouts/cancellations kill descendants."""
+    if sys.platform == "win32":
+        return {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
+    return {"start_new_session": True}
+
+
+def _attach_win32_job(pid: int) -> int | None:
+    """Assign *pid* to a fresh Win32 Job Object so descendants can be terminated even after
+    *pid* exits. Returns the job handle, or ``None`` if unavailable."""
+    if sys.platform != "win32":
+        return None
+    kernel32 = ctypes.windll.kernel32
+    kernel32.CreateJobObjectW.argtypes = [ctypes.c_void_p, ctypes.c_wchar_p]
+    kernel32.CreateJobObjectW.restype = ctypes.c_void_p
+    kernel32.OpenProcess.argtypes = [ctypes.c_uint32, ctypes.c_int, ctypes.c_uint32]
+    kernel32.OpenProcess.restype = ctypes.c_void_p
+    kernel32.AssignProcessToJobObject.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    kernel32.AssignProcessToJobObject.restype = ctypes.c_int
+    kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
+    kernel32.CloseHandle.restype = ctypes.c_int
+
+    job = kernel32.CreateJobObjectW(None, None)
+    if not job:
+        return None
+    # PROCESS_SET_QUOTA (0x0100) | PROCESS_TERMINATE (0x0001)
+    proc_handle = kernel32.OpenProcess(0x0101, False, pid)
+    if not proc_handle:
+        kernel32.CloseHandle(job)
+        return None
+    try:
+        if not kernel32.AssignProcessToJobObject(job, proc_handle):
+            kernel32.CloseHandle(job)
+            return None
+        return int(job)
+    finally:
+        kernel32.CloseHandle(proc_handle)
+
+
+def _terminate_win32_job(job: int | None) -> bool:
+    """Terminate all processes in a Win32 Job Object. Returns True when terminated."""
+    if sys.platform != "win32" or not job:
+        return False
+    kernel32 = ctypes.windll.kernel32
+    kernel32.TerminateJobObject.argtypes = [ctypes.c_void_p, ctypes.c_uint]
+    kernel32.TerminateJobObject.restype = ctypes.c_int
+    return bool(kernel32.TerminateJobObject(ctypes.c_void_p(job), 1))
+
+
+def _close_win32_job(job: int | None) -> None:
+    if sys.platform != "win32" or not job:
+        return
+    kernel32 = ctypes.windll.kernel32
+    kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
+    kernel32.CloseHandle.restype = ctypes.c_int
+    kernel32.CloseHandle(ctypes.c_void_p(job))
+
+
+async def _kill_process_group(
+    process: asyncio.subprocess.Process, job: int | None = None
+) -> None:
+    """Terminate *process* and any descendants it spawned (even if *process* already exited),
+    then reap it."""
+    pid = process.pid
+    if sys.platform == "win32":
+        terminated = _terminate_win32_job(job)
+        if not terminated and pid is not None:
+            taskkill = shutil.which("taskkill") or "taskkill"
+            try:
+                killer = await asyncio.create_subprocess_exec(
+                    taskkill,
+                    "/F",
+                    "/T",
+                    "/PID",
+                    str(pid),
+                    stdin=asyncio.subprocess.DEVNULL,
+                    stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.DEVNULL,
+                )
+                try:
+                    await asyncio.wait_for(killer.wait(), timeout=15)
+                except TimeoutError:
+                    with contextlib.suppress(ProcessLookupError, OSError):
+                        killer.kill()
+                    with contextlib.suppress(Exception):
+                        await killer.wait()
+            except OSError:
+                pass
+        if process.returncode is None:
+            with contextlib.suppress(ProcessLookupError, OSError):
+                process.kill()
+    else:
+        killed_group = False
+        if pid is not None:
+            with contextlib.suppress(ProcessLookupError, PermissionError, OSError):
+                os.killpg(pid, signal.SIGKILL)
+                killed_group = True
+        if not killed_group and process.returncode is None:
+            with contextlib.suppress(ProcessLookupError, OSError):
+                process.kill()
+    try:
+        await asyncio.wait_for(process.communicate(), timeout=5)
+    except TimeoutError:
+        if process.returncode is None:
+            with contextlib.suppress(ProcessLookupError, OSError):
+                process.kill()
+        with contextlib.suppress(Exception):
+            await asyncio.wait_for(process.wait(), timeout=5)
+
+
 async def run_command(
     command: list[str],
     cwd: Path | None = None,
-    timeout: int = 300,
+    timeout: float = 300,
     max_output: int | None = MAX_OUTPUT_LENGTH,
 ) -> dict[str, Any]:
     """Run a command asynchronously and return result.
@@ -63,6 +178,7 @@ async def run_command(
     Returns:
         Dict with success, output, error, and truncated keys.
     """
+    job: int | None = None
     try:
         process = await asyncio.create_subprocess_exec(
             *command,
@@ -70,21 +186,36 @@ async def run_command(
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             cwd=cwd,
+            **_subprocess_group_kwargs(),
         )
+        if process.pid is not None:
+            job = _attach_win32_job(process.pid)
 
         try:
             stdout_data, stderr_data = await asyncio.wait_for(
                 process.communicate(), timeout=timeout
             )
         except TimeoutError:
-            process.kill()
-            await process.communicate()
+            await _kill_process_group(process, job)
             return {
                 "success": False,
                 "error": f"Command timed out after {timeout}s",
                 "failure_kind": "error",
                 "truncated": False,
             }
+        except asyncio.CancelledError:
+            try:
+                await _kill_process_group(process, job)
+            finally:
+                if sys.platform == "win32":
+                    _terminate_win32_job(job)
+                elif process.pid is not None:
+                    with contextlib.suppress(ProcessLookupError, PermissionError, OSError):
+                        os.killpg(process.pid, signal.SIGKILL)
+                if process.returncode is None:
+                    with contextlib.suppress(ProcessLookupError, OSError):
+                        process.kill()
+            raise
 
         output = stdout_data.decode("utf-8", errors="replace")
         error_output = stderr_data.decode("utf-8", errors="replace")
@@ -114,6 +245,8 @@ async def run_command(
         }
     except Exception as exc:
         return {"success": False, "error": str(exc), "truncated": False, "failure_kind": "error"}
+    finally:
+        _close_win32_job(job)
 
 
 async def run_external_tool(
@@ -133,14 +266,15 @@ async def run_external_tool(
     Returns:
         Result dict from run_command, or None if tool not found.
     """
-    if not shutil.which(tool):
+    resolved = shutil.which(tool)
+    if not resolved:
         warnings.warn(
             f"{tool} not found. Install with: {install_hint}",
             UserWarning,
             stacklevel=2,
         )
         return None
-    return await run_command([tool, *args], cwd=cwd)
+    return await run_command([resolved, *args], cwd=cwd)
 
 
 async def run_python_module(

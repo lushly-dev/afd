@@ -7,6 +7,8 @@ from typing import Any
 
 from afd import CommandResult, error, success
 
+from botcore.commands.disk.steps import run_blocking
+
 DEFAULT_TRACE_QUERY_LIMIT = 100
 DEFAULT_TRACE_TOP_LIMIT = 10
 DEFAULT_LONG_TASK_THRESHOLD_MS = 50.0
@@ -78,12 +80,11 @@ def _is_browser_pipeline_slice(row: dict[str, Any]) -> bool:
     }
 
 
-async def cdp_trace_query(
+def _cdp_trace_query_sync(
     path: str,
     sql: str,
-    limit: int = DEFAULT_TRACE_QUERY_LIMIT,
+    limit: int,
 ) -> CommandResult[dict]:
-    """Run a PerfettoSQL query against a captured Chrome trace and return a compact row set."""
     if limit < 1 or limit > 5000:
         return error(
             "CDP_TRACE_QUERY_INVALID_LIMIT",
@@ -130,12 +131,31 @@ async def cdp_trace_query(
     )
 
 
+async def cdp_trace_query(
+    path: str,
+    sql: str,
+    limit: int = DEFAULT_TRACE_QUERY_LIMIT,
+) -> CommandResult[dict]:
+    """Run a PerfettoSQL query against a captured Chrome trace and return a compact row set."""
+    return await run_blocking(_cdp_trace_query_sync, path, sql, limit)
+
+
 async def cdp_trace_summary(
     path: str,
     top_slices_limit: int = DEFAULT_TRACE_TOP_LIMIT,
     long_task_threshold_ms: float = DEFAULT_LONG_TASK_THRESHOLD_MS,
 ) -> CommandResult[dict]:
     """Summarize a captured Chrome trace into a stable, automation-friendly structure."""
+    return await run_blocking(
+        _cdp_trace_summary_sync, path, top_slices_limit, long_task_threshold_ms
+    )
+
+
+def _cdp_trace_summary_sync(
+    path: str,
+    top_slices_limit: int = DEFAULT_TRACE_TOP_LIMIT,
+    long_task_threshold_ms: float = DEFAULT_LONG_TASK_THRESHOLD_MS,
+) -> CommandResult[dict]:
     if top_slices_limit < 1 or top_slices_limit > 50:
         return error(
             "CDP_TRACE_SUMMARY_INVALID_LIMIT",

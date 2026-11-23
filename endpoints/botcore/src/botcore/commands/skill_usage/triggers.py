@@ -27,6 +27,7 @@ from afd import CommandResult, error, success
 from botcore.commands.disk.git import GitError, git_out
 from botcore.commands.disk.scan import compile_pattern
 from botcore.commands.disk.settings import SettingsError
+from botcore.commands.disk.steps import run_blocking
 from botcore.commands.skill_usage.collect import (
     DEFAULT_BRANCHES,
     GIT_SECONDS,
@@ -268,7 +269,7 @@ def _fail(code: str, message: str, suggestion: str) -> CommandResult[dict]:
     return error(code, message, suggestion=suggestion)
 
 
-async def skill_usage_triggers(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one report
+async def skill_usage_triggers(
     days: int = 30, repo: str | None = None
 ) -> CommandResult[dict]:
     """For each skill a repository requires, the merged changes to its paths and whether the
@@ -287,6 +288,12 @@ async def skill_usage_triggers(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
         days: Length of the window in days.
         repo: The repository's checkout; the one holding the working directory when left out.
     """
+    return await run_blocking(_skill_usage_triggers_sync, days, repo)
+
+
+def _skill_usage_triggers_sync(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one report
+    days: int, repo: str | None
+) -> CommandResult[dict]:
     if not 1 <= days <= MAX_DAYS:
         return _fail(
             "INVALID_INPUT",

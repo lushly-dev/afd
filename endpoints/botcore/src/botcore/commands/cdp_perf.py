@@ -13,31 +13,26 @@ Commands:
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
+import asyncio
 from typing import Any
 
-from afd import error, success
+from afd import CommandResult, error
 
 from botcore.commands.cdp.core import _with_session_page
 
-# Module-level state for tracing
-_trace_cdp_session = None
-_trace_events: list[dict] = []
 
-
-async def perf_metrics() -> dict[str, Any]:
+async def perf_metrics() -> CommandResult[dict[str, Any]]:
     """Get runtime performance metrics."""
 
-    async def _action(page: Any) -> Any:
+    async def _action(page: Any) -> dict[str, Any]:
         cdp = await page.context.new_cdp_session(page)
         await cdp.send("Performance.enable")
         result = await cdp.send("Performance.getMetrics")
         metrics = {m["name"]: m["value"] for m in result.get("metrics", [])}
-        return success({
+        return {
             "metrics": metrics,
             "timestamp": metrics.get("Timestamp", 0),
-        })
+        }
 
     return await _with_session_page(_action)
 
@@ -46,96 +41,30 @@ async def perf_trace_start(
     categories: list[str] | None = None,
     buffer_size_mb: int = 200,
     screenshots: bool = False,
-) -> dict[str, Any]:
-    """Start performance trace recording."""
-    global _trace_cdp_session, _trace_events
-
-    if _trace_cdp_session is not None:
-        return error(
-            "TRACE_ACTIVE",
-            "Trace already in progress. Call perf_trace_stop first.",
-            suggestion="Run 'botcore cdp perf-trace-stop' to end the current trace",
-        )
-
-    default_categories = [
-        "devtools.timeline",
-        "v8.execute",
-        "blink.user_timing",
-        "blink.console",
-        "disabled-by-default-devtools.timeline",
-        "disabled-by-default-devtools.timeline.frame",
-    ]
-    if screenshots:
-        default_categories.append("disabled-by-default-devtools.screenshot")
-
-    async def _action(page: Any) -> Any:
-        global _trace_cdp_session, _trace_events
-
-        cdp = await page.context.new_cdp_session(page)
-        _trace_cdp_session = cdp
-        _trace_events = []
-
-        def on_data_collected(params: dict) -> None:
-            _trace_events.extend(params.get("value", []))
-
-        cdp.on("Tracing.dataCollected", on_data_collected)
-
-        await cdp.send(
-            "Tracing.start",
-            {
-                "traceConfig": {
-                    "includedCategories": categories or default_categories,
-                    "memoryDumpConfig": {},
-                },
-                "bufferUsageReportingInterval": 500,
-                "transferMode": "ReturnAsStream",
-            },
-        )
-
-        return success({
-            "status": "tracing_started",
-            "categories": categories or default_categories,
-        })
-
-    return await _with_session_page(_action)
+) -> CommandResult[dict[str, Any]]:
+    """Unsupported across stateless per-command CDP connections; use ``cdp_trace_capture``."""
+    del categories, buffer_size_mb, screenshots
+    return error(
+        "CDP_TRACE_UNSUPPORTED",
+        "perf_trace_start cannot hold a CDP tracing session open across separate commands.",
+        suggestion=(
+            "Use `cdp_trace_capture` (or `botcore cdp trace-capture`) to record a DevTools "
+            "trace in one call, then `cdp_trace_summary` or `cdp_trace_query` to analyze it."
+        ),
+    )
 
 
-async def perf_trace_stop(output_path: str | None = None) -> dict[str, Any]:
-    """Stop trace recording and return results."""
-    global _trace_cdp_session, _trace_events
-
-    if _trace_cdp_session is None:
-        return error(
-            "NO_TRACE",
-            "No trace in progress. Call perf_trace_start first.",
-            suggestion="Run 'botcore cdp perf-trace-start' to begin a trace",
-        )
-
-    try:
-        import asyncio
-
-        await _trace_cdp_session.send("Tracing.end")
-        await asyncio.sleep(0.5)
-
-        summary = _analyze_trace_events(_trace_events)
-
-        file_saved = None
-        if output_path:
-            path = Path(output_path)
-            path.parent.mkdir(parents=True, exist_ok=True)
-            with open(path, "w") as f:
-                json.dump({"traceEvents": _trace_events}, f)
-            file_saved = str(path)
-
-        return success({
-            "status": "trace_complete",
-            "event_count": len(_trace_events),
-            "summary": summary,
-            "file_saved": file_saved,
-        })
-    finally:
-        _trace_cdp_session = None
-        _trace_events = []
+async def perf_trace_stop(output_path: str | None = None) -> CommandResult[dict[str, Any]]:
+    """Unsupported across stateless per-command CDP connections; use ``cdp_trace_capture``."""
+    del output_path
+    return error(
+        "CDP_TRACE_UNSUPPORTED",
+        "perf_trace_stop cannot stop a trace from an earlier CDP connection.",
+        suggestion=(
+            "Use `cdp_trace_capture` (or `botcore cdp trace-capture`) to record a DevTools "
+            "trace in one call, then `cdp_trace_summary` or `cdp_trace_query` to analyze it."
+        ),
+    )
 
 
 def _analyze_trace_events(events: list[dict]) -> dict[str, Any]:
@@ -170,11 +99,10 @@ def _analyze_trace_events(events: list[dict]) -> dict[str, Any]:
     return summary
 
 
-async def perf_profile_cpu(duration_ms: int = 5000) -> dict[str, Any]:
+async def perf_profile_cpu(duration_ms: int = 5000) -> CommandResult[dict[str, Any]]:
     """Capture CPU profile for specified duration."""
-    import asyncio
 
-    async def _action(page: Any) -> Any:
+    async def _action(page: Any) -> dict[str, Any]:
         cdp = await page.context.new_cdp_session(page)
         await cdp.send("Profiler.enable")
         await cdp.send("Profiler.start")
@@ -205,22 +133,20 @@ async def perf_profile_cpu(duration_ms: int = 5000) -> dict[str, Any]:
 
         hot_functions.sort(key=lambda x: x["sample_count"], reverse=True)
 
-        return success({
+        return {
             "duration_ms": duration_ms,
             "total_samples": len(samples),
             "total_nodes": len(nodes),
             "hot_functions": hot_functions[:20],
-        })
+        }
 
     return await _with_session_page(_action)
 
 
-async def perf_profile_memory() -> dict[str, Any]:
+async def perf_profile_memory() -> CommandResult[dict[str, Any]]:
     """Capture heap snapshot summary."""
 
-    async def _action(page: Any) -> Any:
-        import asyncio
-
+    async def _action(page: Any) -> dict[str, Any]:
         cdp = await page.context.new_cdp_session(page)
         await cdp.send("HeapProfiler.enable")
         await cdp.send("HeapProfiler.startSampling")
@@ -232,19 +158,19 @@ async def perf_profile_memory() -> dict[str, Any]:
         samples = profile.get("samples", [])
         total_size = sum(s.get("size", 0) for s in samples)
 
-        return success({
+        return {
             "total_allocated_bytes": total_size,
             "sample_count": len(samples),
             "head_self_size": head.get("selfSize", 0),
-        })
+        }
 
     return await _with_session_page(_action)
 
 
-async def perf_coverage() -> dict[str, Any]:
+async def perf_coverage() -> CommandResult[dict[str, Any]]:
     """Get JavaScript code coverage report."""
 
-    async def _action(page: Any) -> Any:
+    async def _action(page: Any) -> dict[str, Any]:
         cdp = await page.context.new_cdp_session(page)
         await cdp.send("Profiler.enable")
         await cdp.send("Profiler.startPreciseCoverage", {
@@ -283,9 +209,9 @@ async def perf_coverage() -> dict[str, Any]:
 
         await cdp.send("Profiler.stopPreciseCoverage")
 
-        return success({
+        return {
             "scripts": scripts[:20],
             "total_scripts": len(scripts),
-        })
+        }
 
     return await _with_session_page(_action)
