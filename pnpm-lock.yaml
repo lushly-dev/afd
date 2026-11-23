@@ -765,6 +765,9 @@ importers:
 
   endpoints/loam/packages/theme:
     dependencies:
+      '@lushly-dev/violet-afd':
+        specifier: workspace:*
+        version: link:../../../../integrations/violet-afd
       '@lushly-dev/violet-core':
         specifier: workspace:*
         version: link:../../../../foundations/violet/packages/core

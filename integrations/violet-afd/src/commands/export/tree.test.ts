@@ -9,6 +9,7 @@ import { nodeCreateCommand } from '../node/create.js';
 import { nodeUpdateCommand } from '../node/update.js';
 import type { CommandContext } from '../registry.js';
 import { tokenAddCommand } from '../token/add.js';
+import { tokensCatalogCommand } from '../token/catalog.js';
 import { tokenCopyCommand } from '../token/copy.js';
 import { tokenOverrideCommand } from '../token/override.js';
 import { tokensResolveCommand } from '../token/resolve.js';
@@ -334,5 +335,64 @@ describe('export.tree command', () => {
 	it('refuses an unknown root', async () => {
 		const result = await exportTreeCommand.handler({ rootId: 'nope' }, context);
 		expect(result.error?.code).toBe('NODE_NOT_FOUND');
+	});
+
+	it('preserves non-derivable token categories through export.tree and import.tree (#1974)', async () => {
+		const addCategorized = (
+			tokenId: string,
+			value: string,
+			type: string,
+			category: 'spacing' | 'radius' | 'z-index' | 'typography' | 'color',
+		) =>
+			tokenAddCommand.handler(
+				{ nodeId: 'example', tokenId, value, metadata: { type, category } },
+				context,
+			);
+		await addCategorized('space.inline.md', '8px', 'dimension', 'spacing');
+		await addCategorized('radius.md', '8px', 'dimension', 'radius');
+		await addCategorized('z-index.modal', '300', 'number', 'z-index');
+		await addCategorized('size.font.md', '14px', 'dimension', 'typography');
+
+		const first = await exportFiles(context);
+		expect(first.dropped).toEqual([]);
+		const example = JSON.parse(first.files.find((file) => file.node === 'example')?.content ?? '');
+		expect(example.space.inline.md).toEqual({
+			$type: 'dimension',
+			$value: '8px',
+			$extensions: { 'dev.lushly.violet': { category: 'spacing' } },
+		});
+		expect(example.radius.md).toEqual({
+			$type: 'dimension',
+			$value: '8px',
+			$extensions: { 'dev.lushly.violet': { category: 'radius' } },
+		});
+		expect(example['z-index'].modal).toEqual({
+			$type: 'number',
+			$value: '300',
+			$extensions: { 'dev.lushly.violet': { category: 'z-index' } },
+		});
+		expect(example.size.font.md).toEqual({
+			$type: 'dimension',
+			$value: '14px',
+			$extensions: { 'dev.lushly.violet': { category: 'typography' } },
+		});
+		// Derivable categories omit $extensions
+		expect(example.color.text.primary.$extensions).toBeUndefined();
+
+		const imported = await importFiles(files(first));
+		const second = await exportFiles(imported);
+		expect(second.dropped).toEqual([]);
+		expect(second.files).toEqual(first.files);
+
+		for (const [category, expectedId] of [
+			['spacing', 'space.inline.md'],
+			['radius', 'radius.md'],
+			['z-index', 'z-index.modal'],
+			['typography', 'size.font.md'],
+		] as const) {
+			const catalog = await tokensCatalogCommand.handler({ category }, imported);
+			expect(catalog.success).toBe(true);
+			expect(catalog.data?.tokens.map((token) => token.id)).toContain(expectedId);
+		}
 	});
 });

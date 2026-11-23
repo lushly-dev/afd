@@ -1,6 +1,6 @@
 # Token reference
 
-Source of truth: `endpoints/loam/packages/theme/src/tree/` and
+Source of truth: `endpoints/loam/packages/theme/tree/` (DTCG token files) and
 `endpoints/loam/packages/theme/contract/tokens.json`. The design record is
 `endpoints/loam/docs/design.md`. Build the resolved values with
 `pnpm -F @lushly-dev/loam-theme theme:build` and read `dist/loam-theme.css`
@@ -30,7 +30,7 @@ or `dist/loam-theme.json`.
 
 AFD's theme, Refined (D159): the AFD site's design system. The primitives are
 the site's colors under its names (`--afd-ink-soft` is `ref.color.ink.soft`),
-with the tints and shades Refined added marked in `src/tree/primitives.ts`.
+with the tints and shades Refined added under `global.ref.color` in `tree/loam.tokens.json`.
 
 | Id | Light | Dark | High contrast |
 |----|-------|------|---------------|
@@ -140,7 +140,7 @@ The components also read four colors and a width the interface added late
 | `easing.standard` | `cubic-bezier(0.2, 0, 0, 1)` |
 | `easing.emphasized` | `cubic-bezier(0.16, 1, 0.3, 1)` |
 
-Dark shadows are darker and larger; see `src/tree/themes.ts`.
+Dark shadows are darker and larger; see `tree/loam_dark.tokens.json`.
 
 ## Shell ids
 

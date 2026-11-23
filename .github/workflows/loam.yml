@@ -10,10 +10,11 @@ on:
       - 'endpoints/loam/docs/phases/*/scenarios/**'
       # Plugins have their own workflow, loam-plugins.yml (L8).
       - '!endpoints/loam/plugins/**'
-      # The foundations and AFD packages Loam builds on.
+      # The foundations, integrations and AFD packages Loam builds on.
       - 'foundations/fast-af/**'
       - 'foundations/violet/**'
       - 'foundations/specimen/**'
+      - 'integrations/violet-afd/**'
       - 'packages/core/**'
       - 'packages/server/**'
       - 'packages/view-state/**'
@@ -46,6 +47,7 @@ on:
       - 'foundations/fast-af/**'
       - 'foundations/violet/**'
       - 'foundations/specimen/**'
+      - 'integrations/violet-afd/**'
       - 'packages/core/**'
       - 'packages/server/**'
       - 'packages/view-state/**'

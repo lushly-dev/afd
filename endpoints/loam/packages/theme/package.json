@@ -32,6 +32,7 @@
 		"lint:tokens": "node scripts/lint-tokens.mjs \"src/**/*.ts\" \"src/**/*.css\""
 	},
 	"dependencies": {
+		"@lushly-dev/violet-afd": "workspace:*",
 		"@lushly-dev/violet-core": "workspace:*"
 	},
 	"devDependencies": {

@@ -4,7 +4,7 @@
 | --- | --- |
 | Status | Living document; the design record for Loam's chrome and kit. Written 2026-11-01 as step 4 of the [phase 0 specification](phases/0-kernel-chrome/spec.md) (section 2.5, D26) |
 | Owner | Repository owner; any agent changing Loam's chrome, kit or theme proposes amendments by pull request |
-| Source of values | `@lushly-dev/loam-theme`: the tree in [`packages/theme/src/tree/`](../packages/theme/src/tree/), the contract in [`packages/theme/contract/tokens.json`](../packages/theme/contract/tokens.json), the contrast pairs in [`packages/theme/src/pairs.ts`](../packages/theme/src/pairs.ts) |
+| Source of values | `@lushly-dev/loam-theme`: the DTCG tree in [`packages/theme/tree/`](../packages/theme/tree/), the contract in [`packages/theme/contract/tokens.json`](../packages/theme/contract/tokens.json), the contrast pairs in [`packages/theme/src/pairs.ts`](../packages/theme/src/pairs.ts) |
 | Skill | [`loam-design`](../../../.claude/skills/loam-design/SKILL.md) carries the same rules for agents; where the two differ, this document is right and the skill is corrected |
 | Read first | [STATUS.md](STATUS.md), then the [phase 0 specification](phases/0-kernel-chrome/spec.md), sections 2 and 5 to 7 |
 
@@ -60,7 +60,7 @@ Three layers, read in one direction:
   property. The chrome's state properties are `--_sidebar-width`,
   `--_inspector-width` and `--_panel-height`, set through CSSOM from layout
   state; they are the only place pixel values from state enter CSS.
-- **Changing a value** is an edit to the tree (`src/tree/`), then
+- **Changing a value** is an edit to the DTCG tree (`tree/*.tokens.json`), then
   `theme:check` and `theme`'s `test`. A value never changes in component CSS.
 - **Adding, removing or retyping an id** changes the contract: regenerate it
   with `theme:check --write`, review the diff, and record it here. A new
@@ -121,7 +121,7 @@ the ids `<step>.size`, `<step>.line` and `<step>.weight` (for example
 
 Values, light / dark / high contrast. They are AFD's theme, Refined (D159),
 from the AFD site's design system: the primitives are the site's colors under
-its names, with the tints Refined added marked in `src/tree/primitives.ts`.
+its names, with the tints Refined added under `global.ref.color` in `tree/loam.tokens.json`.
 
 | Id | Light | Dark | High contrast |
 | --- | --- | --- | --- |

@@ -1,0 +1,190 @@
+{
+  "$extensions": {
+    "dev.lushly.violet": {
+      "node": "loam/high-contrast",
+      "parent": "loam",
+      "type": "theme"
+    }
+  },
+  "color": {
+    "action": {
+      "danger": {
+        "background": {
+          "$value": "{ref.color.contrast.red}"
+        },
+        "hover": {
+          "$value": "{ref.color.contrast.red.hover}"
+        },
+        "pressed": {
+          "$value": "{ref.color.contrast.red.pressed}"
+        },
+        "text": {
+          "$value": "{ref.color.white}"
+        }
+      },
+      "primary": {
+        "background": {
+          "$value": "{ref.color.black}"
+        },
+        "hover": {
+          "$value": "{ref.color.grey.800}"
+        },
+        "pressed": {
+          "$value": "{ref.color.grey.700}"
+        },
+        "text": {
+          "$value": "{ref.color.white}"
+        }
+      },
+      "secondary": {
+        "background": {
+          "$value": "{ref.color.white}"
+        },
+        "border": {
+          "$value": "{ref.color.black}"
+        },
+        "hover": {
+          "$value": "{ref.color.grey.100}"
+        },
+        "pressed": {
+          "$value": "{ref.color.grey.200}"
+        },
+        "text": {
+          "$value": "{ref.color.black}"
+        }
+      }
+    },
+    "border": {
+      "strong": {
+        "$value": "{ref.color.black}"
+      },
+      "subtle": {
+        "$value": "{ref.color.grey.650}"
+      }
+    },
+    "control": {
+      "selected": {
+        "background": {
+          "$value": "{ref.color.grey.150}"
+        },
+        "border": {
+          "$value": "{ref.color.black}"
+        },
+        "foreground": {
+          "$value": "{ref.color.black}"
+        }
+      }
+    },
+    "field": {
+      "background": {
+        "readonly": {
+          "$value": "{color.surface.subtle}"
+        }
+      },
+      "border": {
+        "$value": "{color.border.subtle}"
+      },
+      "border.hover": {
+        "$value": "{color.border.strong}"
+      }
+    },
+    "focus": {
+      "ring": {
+        "$value": "{ref.color.black}"
+      }
+    },
+    "state": {
+      "danger": {
+        "background": {
+          "$value": "{ref.color.white}"
+        },
+        "border": {
+          "$value": "{ref.color.contrast.red}"
+        },
+        "foreground": {
+          "$value": "{ref.color.contrast.red}"
+        },
+        "text": {
+          "$value": "{ref.color.contrast.red}"
+        }
+      },
+      "success": {
+        "background": {
+          "$value": "{ref.color.white}"
+        },
+        "border": {
+          "$value": "{ref.color.contrast.green}"
+        },
+        "foreground": {
+          "$value": "{ref.color.contrast.green}"
+        },
+        "text": {
+          "$value": "{ref.color.contrast.green}"
+        }
+      },
+      "warning": {
+        "background": {
+          "$value": "{ref.color.white}"
+        },
+        "border": {
+          "$value": "{ref.color.contrast.amber}"
+        },
+        "text": {
+          "$value": "{ref.color.contrast.amber}"
+        }
+      }
+    },
+    "surface": {
+      "card": {
+        "$value": "{ref.color.white}"
+      },
+      "floating": {
+        "$value": "{ref.color.white}"
+      },
+      "page": {
+        "$value": "{ref.color.white}"
+      },
+      "pressed": {
+        "$value": "{ref.color.grey.100}"
+      },
+      "selected": {
+        "$value": "{ref.color.grey.150}"
+      },
+      "subtle": {
+        "$value": "{ref.color.grey.50}"
+      }
+    },
+    "text": {
+      "muted": {
+        "$value": "{ref.color.grey.750}"
+      },
+      "primary": {
+        "$value": "{ref.color.black}"
+      },
+      "secondary": {
+        "$value": "{ref.color.grey.900}"
+      }
+    }
+  },
+  "shadow": {
+    "card": {
+      "$value": "0 0 0 1px #000000"
+    },
+    "control": {
+      "$value": "0 0 0 1px #000000"
+    },
+    "floating": {
+      "$value": "0 0 0 2px #000000"
+    },
+    "well": {
+      "$value": "inset 0 0 0 0 #000000"
+    }
+  },
+  "shell": {
+    "size": {
+      "focus": {
+        "$value": "3px"
+      }
+    }
+  }
+}

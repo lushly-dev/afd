@@ -76,7 +76,7 @@ pnpm -F "@lushly-dev/loam-web..." build && pnpm -F @lushly-dev/loam-web test:bro
 
 ## When the theme changes
 
-- [ ] The value changed in `src/tree/`, not in component CSS.
+- [ ] The value changed in `tree/*.tokens.json`, not in component CSS.
 - [ ] `theme:check` passes; a new, removed or retyped id was regenerated
       with `theme:check --write` and the contract diff reviewed.
 - [ ] `theme`'s `test` passes in all three themes.

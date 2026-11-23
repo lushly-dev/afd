@@ -20,23 +20,25 @@ not, so an agent never has to scan the code to learn what is current. It follows
 - **State:** active — approved by the owner on 2026-11-16, every recommendation accepted; moved from
   `proposed/` to `active/` on 2026-11-21 after the seven `violet-afd` gaps merged in
   [#1942](https://github.com/lushly-dev/afd/pull/1942). Epic
-  [#1556](https://github.com/lushly-dev/afd/issues/1556) remains open: none of the four exit
-  criteria in [section 10](violet-app.proposal.md#10-exit-criteria) are met yet
-  (`endpoints/loam/plugins/violet/` does not exist). Last verified 2026-11-21 against `main` at
-  `9e2aff93`. (Proposal written 2026-11-15 against `main` at `6eeb545d`.)
+  [#1556](https://github.com/lushly-dev/afd/issues/1556) remains open: exit criterion 3 is met by
+  [#1974](https://github.com/lushly-dev/afd/issues/1974), while the other three in
+  [section 10](violet-app.proposal.md#10-exit-criteria) are not met yet
+  (`endpoints/loam/plugins/violet/` does not exist). Last verified 2026-11-22 against `main` at
+  `b1f08138`. (Proposal written 2026-11-15 against `main` at `6eeb545d`.)
 - **Done:** what exists today, verified first-hand with file and line; fifteen jobs as scenario
   files that pass the three checks; a recommended app kind; the `violet-tree` document type;
   screens by part and layout class; twenty-two drafted commands; ten gaps (G1 to G10); the
   dependencies; the home and tests; five questions for the owner with recommendations; the seven
-  `violet-afd` gaps (#1322 to #1328, merged in [#1942](https://github.com/lushly-dev/afd/pull/1942)).
-- **Not done:** moving Loam's tree from TypeScript to DTCG files
-  ([#1974](https://github.com/lushly-dev/afd/issues/1974), question 3); then a specification in
-  `endpoints/loam/plugins/violet/docs/`, and building the first slice (`slice` scenarios) in
-  `endpoints/loam/plugins/violet/`.
+  `violet-afd` gaps (#1322 to #1328, merged in [#1942](https://github.com/lushly-dev/afd/pull/1942));
+  write-path hardening (#1957, #1958, #1973 in [#2090](https://github.com/lushly-dev/afd/pull/2090));
+  Loam's token tree moved from TypeScript to DTCG files ([#1974](https://github.com/lushly-dev/afd/issues/1974),
+  exit criterion 3 verified).
+- **Not done:** a specification in `endpoints/loam/plugins/violet/docs/`, and building the first
+  slice (`slice` scenarios) in `endpoints/loam/plugins/violet/`.
 - **Order:** the [jobs-first guide](../../../../.claude/skills/afd/references/jobs-first.md),
   steps 1 to 6 done, with one walk; step 9, the owner's ranking, done 2026-11-16; the `violet-afd`
-  gaps merged 2026-11-21; moving Loam's tree to DTCG files ([#1974](https://github.com/lushly-dev/afd/issues/1974))
-  and the specification next.
+  gaps merged 2026-11-21; Loam's tree moved to DTCG files ([#1974](https://github.com/lushly-dev/afd/issues/1974))
+  2026-11-22; the specification next.
 
 ## Steps
 
@@ -49,7 +51,7 @@ not, so an agent never has to scan the code to learn what is current. It follows
 | The owner ranks the jobs and answers section 12 | Done 2026-11-16 | Every recommendation accepted; proposal, [section 12](violet-app.proposal.md#12-for-the-owner) |
 | The seven gaps in `violet-afd`: G1 #1322, G2 #1323, G3 #1326, G4 #1327, G8 #1328, G9 #1324, G10 #1325 | Merged 2026-11-21 in [#1942](https://github.com/lushly-dev/afd/pull/1942) | `export.tree`, `interface.check`, `token.remove`, the context's `now()` and `random()`, `INVALID_TOKEN_VALUE` on write, import and CSS export, alpha in contrast, `disabledReason`; `pnpm -F @lushly-dev/violet-afd test` 780 passed and `pnpm -F @lushly-dev/violet-core test` (its unit config) 191 passed; Loam's tree round-trips through `export.tree` and `import.tree` with the same values and files (an ad hoc check against `buildLoamTree()`) |
 | Write-path hardening in `violet-core` and `violet-afd`: unsafe token ids (#1957), atomic operation sequence (#1958), `MemoryDatabase.transaction()` rollback (#1973) | Merged 2026-11-22 in [#2090](https://github.com/lushly-dev/afd/pull/2090) | `validateTokenId` refuses non-CSS and empty segments on `token.add`, `token.override`, `token.copy`, `import.json`, `import.tree`, `import.validate`, `export.tree` and CSS/SCSS export; `Database.appendOperation` allocates sequences atomically in Memory, SQLite, Postgres (`FOR UPDATE`) and `OverlayDatabase.stagingView()`; `MemoryDatabase.transaction()` snapshots, isolates and restores all mutable collections (including nested transactions); `pnpm verify` 24/24 local gates green on Node 26.13.1 |
-| Move Loam's tree from TypeScript to DTCG files (question 3) | Open ([#1974](https://github.com/lushly-dev/afd/issues/1974)) | Unblocked by [#1942](https://github.com/lushly-dev/afd/pull/1942); includes measuring Loam's DTCG payload against the 256 KiB bound |
+| Move Loam's tree from TypeScript to DTCG files (question 3) | Merged 2026-11-22 in [#2166](https://github.com/lushly-dev/afd/pull/2166) ([#1974](https://github.com/lushly-dev/afd/issues/1974)) | Seven DTCG files in `endpoints/loam/packages/theme/tree/` (`loam.tokens.json`, `loam_{light,dark,high-contrast}.tokens.json`, `loam_<theme>_compact.tokens.json`) carrying `$type` on every root token and `$extensions["dev.lushly.violet"].category` for the 71 non-derivable categories (`spacing`, `radius`, `z-index`, dimension `typography`), loaded by `buildLoamTree()` via `import.tree`; byte-identical generated outputs (`theme:check` passes); exit criterion 3 verified in `endpoints/loam/packages/theme/src/theme.test.ts` (round-trip without edits is byte-identical with `dropped: []` and all categories intact in `tokens.catalog`, and one `token.override` + `export.tree` yields a 1-line diff in `loam_dark.tokens.json`); payload size 39,674 B raw UTF-8 (38.74 KiB, 15.13% of 256 KiB) and 45,642 B as JSON-serialized `{ content: { files } }` input (44.57 KiB, 17.41% of Loam's 256 KiB bound) |
 | Specification, in the plugin's folder | Open, after [#1974](https://github.com/lushly-dev/afd/issues/1974) | |
 | Build: the first slice (`slice` scenarios) | Open | |
 
@@ -84,12 +86,12 @@ On 2026-11-15, at `6eeb545d`, on Node 26.13.1, after `pnpm install --frozen-lock
 | 2026-11-15 | This proposal | `violet-server` answers no `afd-help` or `afd-detail`, so Loam cannot discover it as an AFD server (G5 to G7). Partially covered by [#1781](https://github.com/lushly-dev/afd/issues/1781); full AFD-server rebuild stays here until the later mounted step |
 | 2026-11-15 | This proposal | Superseded 2026-11-16: the `violet` row of Loam's first-party apps is amended in #1314 |
 | 2026-11-16 | Owner (question 3) | Superseded 2026-11-21: Loam's tree filed as [#1974](https://github.com/lushly-dev/afd/issues/1974) (related to [#1786](https://github.com/lushly-dev/afd/issues/1786)); Lushly's tree stays in the private Lushly repository |
-| 2026-11-15 | This proposal | Measure Loam's tree, and later Lushly's, as DTCG files against the 256 KiB bound on an instance command's input. Loam's measurement folded into [#1974](https://github.com/lushly-dev/afd/issues/1974); Lushly's remains in Lushly's repository |
+| 2026-11-15 | This proposal | Measure Loam's tree, and later Lushly's, as DTCG files against the 256 KiB bound on an instance command's input. Loam measured 2026-11-22 in [#1974](https://github.com/lushly-dev/afd/issues/1974): 39,674 B raw UTF-8 across 7 files, 45,642 B as JSON `{ content: { files } }` payload (17.41% of 262,144 B); Lushly's remains in Lushly's repository |
 | 2026-11-21 | Gaps session | `export.tree` refuses a node's subtract, reset and copy operations, since `import.tree`'s files hold adds and overrides only; extend both if the app needs them. Reviewed 2026-11-21: no issue needed now (out of scope per [section 13](violet-app.proposal.md#13-out-of-scope); fails closed) |
 | 2026-11-21 | Gaps session | Superseded 2026-11-21: token ids refused at CSS/SCSS export but accepted on write filed as [#1957](https://github.com/lushly-dev/afd/issues/1957) |
 | 2026-11-21 | Gaps session | Superseded 2026-11-21: concurrent writes sharing a node operation sequence filed as [#1958](https://github.com/lushly-dev/afd/issues/1958) |
 | 2026-11-21 | Gaps session | Split 2026-11-21: memory store `transaction()` rollback filed as [#1973](https://github.com/lushly-dev/afd/issues/1973); webhook dispatcher wall clock and `Math.random()` stays here (server-only, outside Violet in Loam's scope and replay path) |
-| 2026-11-21 | Gaps session | `export.tree` lists a token's category as dropped when it has no `$type` (71 in Loam's tree); DTCG files with `$type` carry it. Reviewed 2026-11-21: resolved for Loam's tree by [#1974](https://github.com/lushly-dev/afd/issues/1974); no separate issue |
+| 2026-11-21 | Gaps session | `export.tree` lists a token's category as dropped when it has no `$type` (71 in Loam's tree); DTCG files with `$type` carry it. Resolved 2026-11-22 in [#1974](https://github.com/lushly-dev/afd/issues/1974): `export.tree` / `import.tree` now preserve non-derivable categories in `$extensions["dev.lushly.violet"].category` (`dropped: []` and all 71 categories intact in `tokens.catalog`, verified in `theme.test.ts` and `export/tree.test.ts`); no separate issue |
 | 2026-11-21 | Gaps session | The new commands reach the `violet` CLI through `violet call` only; no subcommands, and `violet-server`'s instructions text does not name them. Reviewed 2026-11-21: covered by [#1789](https://github.com/lushly-dev/afd/issues/1789) (generated CLI subcommands) and [#1781](https://github.com/lushly-dev/afd/issues/1781) (`violet-afd` on `defineCommand` and `violet-server` update); no separate issue |
 
 ## Session log
@@ -101,3 +103,4 @@ On 2026-11-15, at `6eeb545d`, on Node 26.13.1, after `pnpm install --frozen-lock
 | 2026-11-21 | Gaps | Built the seven gaps in `violet-afd` and `violet-core` (#1322 to #1328) in #1942 |
 | 2026-11-21 | Closeout check (#1556) | Verified #1556 exit criteria against `main` (`9e2aff93`): 0 of 4 met, so #1556 stays open (`endpoints/loam/plugins/violet/` not built yet). Moved feature folder from `proposed/` to `active/`, updated Dependencies, triaged #1957 and #1958, filed #1973 (`MemoryDatabase.transaction()` rollback) and #1974 (Loam's tree to DTCG files) under #1556, and recorded dispositions for every follow-up row |
 | 2026-11-22 | Write hardening (#1957, #1958, #1973) | Refused unsafe token ids on write/import/validate/export (#1957), added atomic `Database.appendOperation` across Memory/SQLite/Postgres/Overlay (#1958), and added snapshot/rollback and concurrency isolation to `MemoryDatabase.transaction()` (#1973) in [#2090](https://github.com/lushly-dev/afd/pull/2090) |
+| 2026-11-22 | Loam DTCG tree (#1974) | Moved Loam's token tree from TypeScript modules to seven DTCG `.tokens.json` files in `endpoints/loam/packages/theme/tree/` loaded via `import.tree`, preserved all 71 non-derivable Violet token categories via `$extensions["dev.lushly.violet"].category` in `violet-afd`, verified byte-identical generated outputs, zero dropped fields, byte-identical round-trip, 1-line override diff (exit criterion 3), and measured payload size (39,674 B raw / 45,642 B JSON input = 17.41% of 256 KiB bound) in [#2166](https://github.com/lushly-dev/afd/pull/2166) |

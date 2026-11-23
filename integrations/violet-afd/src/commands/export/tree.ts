@@ -76,12 +76,6 @@ function parseJson(text: string | null): unknown {
 function droppedMetadataFields(metadata: Partial<TokenMetadata>): string[] {
 	return Object.entries(metadata).flatMap(([field, value]) => {
 		if (value === undefined) return [];
-		if (field === 'category') {
-			// Reading `$type` back derives the category, so only a set one that differs is lost;
-			// the default reads back as the derived one
-			const derived = metadata.type ? dtcgTypeToCategory(metadata.type) : DEFAULT_METADATA.category;
-			return value === derived || value === DEFAULT_METADATA.category ? [] : ['category'];
-		}
 		if (WRITTEN_FIELDS.has(field)) return [];
 		const fallback = (DEFAULT_METADATA as Record<string, unknown>)[field];
 		return JSON.stringify(value) === JSON.stringify(fallback) ? [] : [field];
@@ -125,6 +119,7 @@ interface WrittenToken {
 	id: string;
 	value: unknown;
 	type?: string;
+	category?: string;
 	description?: string;
 	tier?: string;
 }
@@ -161,10 +156,20 @@ function ownTokens(
 		const metadata = (parseJson(op.metadata) ?? {}) as Partial<TokenMetadata>;
 		const fields = droppedMetadataFields(metadata);
 		if (fields.length > 0) dropped.push({ node: node.id, token: op.tokenId, fields });
+		const derivedCategory = metadata.type
+			? dtcgTypeToCategory(metadata.type)
+			: DEFAULT_METADATA.category;
+		const explicitCategory =
+			metadata.category &&
+			metadata.category !== derivedCategory &&
+			metadata.category !== DEFAULT_METADATA.category
+				? metadata.category
+				: undefined;
 		tokens.set(op.tokenId, {
 			id: op.tokenId,
 			value,
 			...(metadata.type ? { type: metadata.type } : {}),
+			...(explicitCategory ? { category: explicitCategory } : {}),
 			...(metadata.description ? { description: metadata.description } : {}),
 			...(metadata.tier && TIER_GROUPS.has(metadata.tier) ? { tier: metadata.tier } : {}),
 		});
@@ -227,6 +232,9 @@ function nestTokens(
 			...(token.type ? { $type: token.type } : {}),
 			$value: token.value,
 			...(token.description ? { $description: token.description } : {}),
+			...(token.category
+				? { $extensions: { [VIOLET_EXTENSION_KEY]: { category: token.category } } }
+				: {}),
 		};
 		leaves.add(leaf);
 		group[key] = leaf;

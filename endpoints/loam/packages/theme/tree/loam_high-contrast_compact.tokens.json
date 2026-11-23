@@ -1,0 +1,70 @@
+{
+  "$extensions": {
+    "dev.lushly.violet": {
+      "node": "loam/high-contrast/compact",
+      "parent": "loam/high-contrast",
+      "type": "custom"
+    }
+  },
+  "shell": {
+    "size": {
+      "rail": {
+        "$value": "40px"
+      },
+      "tabbar": {
+        "$value": "48px"
+      },
+      "titlebar": {
+        "$value": "32px"
+      }
+    }
+  },
+  "size": {
+    "space": {
+      "lg": {
+        "$value": "{ref.space.8}"
+      },
+      "md": {
+        "$value": "{ref.space.6}"
+      },
+      "sm": {
+        "$value": "{ref.space.2}"
+      },
+      "xl": {
+        "$value": "{ref.space.16}"
+      }
+    },
+    "target": {
+      "comfortable": {
+        "$value": "32px"
+      },
+      "natural": {
+        "$value": "28px"
+      }
+    }
+  },
+  "space": {
+    "inline": {
+      "lg": {
+        "$value": "{ref.space.8}"
+      },
+      "md": {
+        "$value": "{ref.space.6}"
+      },
+      "sm": {
+        "$value": "{ref.space.2}"
+      }
+    },
+    "stack": {
+      "md": {
+        "$value": "{ref.space.8}"
+      },
+      "sm": {
+        "$value": "{ref.space.4}"
+      },
+      "xs": {
+        "$value": "{ref.space.2}"
+      }
+    }
+  }
+}
