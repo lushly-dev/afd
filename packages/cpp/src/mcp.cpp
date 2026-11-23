@@ -6,6 +6,8 @@
 #include <string_view>
 #include <utility>
 
+#include "detail/output_budget.hpp"
+
 namespace afd {
 namespace {
 
@@ -111,6 +113,9 @@ std::optional<Json> command_tool_meta(const CommandDefinition& command) {
     }
     if (!command.contexts.empty()) {
         meta["contexts"] = command.contexts;
+    }
+    if (command.output_budget && !detail::omits_output_budget_surface(command.name)) {
+        meta[std::string(output_budget_meta_key)] = *command.output_budget;
     }
     if (meta.empty()) {
         return std::nullopt;
@@ -238,6 +243,9 @@ Json to_json(const CommandDefinition& command) {
     }
     if (!command.examples.empty()) {
         out["examples"] = examples_json(command.examples);
+    }
+    if (command.output_budget && !detail::omits_output_budget_surface(command.name)) {
+        out["outputBudget"] = *command.output_budget;
     }
     return out;
 }

@@ -26,6 +26,9 @@ struct JournalCallState {
     std::function<void()> rewind;
     /// The handler is done: later readings (by outer middleware) are not tape overruns.
     std::function<void()> end;
+    /// Set by `replay_entry` when the recorded call had an effective output budget and succeeded
+    /// without a B6 report (buffered `execute_stream`, B7), so registry replay preserves that mode.
+    bool skip_output_budget_check = false;
 };
 
 /// The wire name of `surface`, as TypeScript's `context.interface` holds it.

@@ -18,13 +18,14 @@ namespace {
 /// Context keys a declared field cannot take: TypeScript's reserved names, the snake_case and
 /// camelCase names of `CommandContext`'s own members (the digest uses the camelCase ones), and
 /// `source`, which `DirectClient` sets in `extra`.
-constexpr std::array<std::string_view, 24> reserved_context_field_names = {
+constexpr std::array<std::string_view, 28> reserved_context_field_names = {
     // TypeScript's.
     "actor", "approval", "auth", "clock", "credentials", "interface", "random", "session", "signal",
-    "timeout", "traceId",
+    "timeout", "traceId", "outputBudget",
     // CommandContext's own members, and the names the context digest gives them.
     "trace_id", "timeout_ms", "timeoutMs", "surface", "active_context", "activeContext",
     "cancellation", "extra", "journal", "direct_approval", "mcp_approval_relay", "journaled_fields",
+    "output_budget", "output_budget_ask", "output_budget_meta_ask",
     // DirectClient's `extra` key.
     "source"};
 

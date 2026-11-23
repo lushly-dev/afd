@@ -18,6 +18,8 @@
 #include <utility>
 #include <vector>
 
+#include "detail/output_budget.hpp"
+
 namespace afd {
 namespace {
 
@@ -115,6 +117,9 @@ Json help_entry(const CommandDefinition& command, bool full) {
         }
         if (!command.examples.empty()) {
             info["examples"] = examples_json(command.examples);
+        }
+        if (command.output_budget && !detail::omits_output_budget_surface(command.name)) {
+            info["outputBudget"] = *command.output_budget;
         }
     }
     return info;

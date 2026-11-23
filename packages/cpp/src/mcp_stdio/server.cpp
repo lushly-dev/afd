@@ -29,6 +29,7 @@
 #include "detail/canonical_json.hpp"
 #include "detail/exceptions.hpp"
 #include "detail/hmac.hpp"
+#include "detail/output_budget.hpp"
 #include "detail/sha256.hpp"
 #include "tools.hpp"
 
@@ -724,6 +725,17 @@ struct StdioServer::State {
         }
         context.approval.reset();
         context.mcp_approval_relay.reset();
+        context.output_budget_meta_ask.reset();
+        // The output budget ask (spec/output-budgets.md, B2): trusted code (`context_hook`) wins
+        // over `_meta`. `null` is no ask; an invalid value is kept so `CommandRegistry::execute`
+        // fails the call with VALIDATION_ERROR before middleware and the handler run.
+        if (!context.output_budget_ask.has_value()) {
+            const auto budget = info.meta.find(std::string(output_budget_meta_key));
+            if (budget != info.meta.end() && !budget->is_null()) {
+                context.output_budget_meta_ask = std::make_shared<const detail::RawOutputBudgetAsk>(
+                    detail::RawOutputBudgetAsk{*budget});
+            }
+        }
         // The server's: what the request named, or the connection's stack. The registry runs the
         // call in the scope's active context.
         context.context_scope = scope;
@@ -1528,10 +1540,10 @@ struct StdioServer::State {
 
     // --- dispatch -----------------------------------------------------------------------------
 
-    /// Moves a meta-tool's `meta` argument into `info.meta`: its `dev.afd/context`, the one key a
-    /// C++ server reads from `_meta` that a client may be unable to set. Other keys are dropped,
-    /// as undeclared `_meta` keys are. A failure when `meta` is not an object, or disagrees with
-    /// `_meta`.
+    /// Moves a meta-tool's `meta` argument into `info.meta`: `dev.afd/context` and
+    /// `dev.afd/outputBudget`, the keys `afd::mcp_stdio` reads from `_meta` that a client may be
+    /// unable to set. Other keys are dropped, as undeclared `_meta` keys are. A failure when
+    /// `meta` is not an object, or disagrees with `_meta`.
     static std::optional<CommandResult> lift_meta_argument(Json& params, RequestInfo& info) {
         const std::string tool = string_member(params, "name");
         const bool meta_tool =
@@ -1547,28 +1559,32 @@ struct StdioServer::State {
         if (argument.is_null()) {
             return std::nullopt;
         }
-        const std::string context_key(context_meta_key);
+        const std::array<std::string, 2> allowed_keys{std::string(context_meta_key),
+                                                      std::string(output_budget_meta_key)};
         if (!argument.is_object()) {
-            return failure(create_error(
-                error_codes::VALIDATION_ERROR,
-                "The meta argument of " + tool + " must be an object",
-                {.suggestion = "Send meta as an object whose keys are _meta keys: " + context_key,
-                 .details = Json{{"argument", "meta"}}}));
+            return failure(
+                create_error(error_codes::VALIDATION_ERROR,
+                             "The meta argument of " + tool + " must be an object",
+                             {.suggestion = "Send meta as an object whose keys are _meta keys: " +
+                                            allowed_keys[0] + ", " + allowed_keys[1],
+                              .details = Json{{"argument", "meta"}}}));
         }
-        const auto value = argument.find(context_key);
-        if (value == argument.end() || value->is_null()) {
-            return std::nullopt;
+        for (const std::string& key : allowed_keys) {
+            const auto value = argument.find(key);
+            if (value == argument.end() || value->is_null()) {
+                continue;
+            }
+            const auto sent = info.meta.find(key);
+            if (sent != info.meta.end() && !sent->is_null() && *sent != *value) {
+                return failure(create_error(
+                    error_codes::VALIDATION_ERROR,
+                    "_meta[\"" + key + "\"] and the meta argument of " + tool + " disagree",
+                    {.suggestion = "Send " + key +
+                                   " in _meta or in the meta argument, or the same value in both",
+                     .details = Json{{"meta", key}}}));
+            }
+            info.meta[key] = *value;
         }
-        const auto sent = info.meta.find(context_key);
-        if (sent != info.meta.end() && !sent->is_null() && *sent != *value) {
-            return failure(create_error(
-                error_codes::VALIDATION_ERROR,
-                "_meta[\"" + context_key + "\"] and the meta argument of " + tool + " disagree",
-                {.suggestion = "Send " + context_key +
-                               " in _meta or in the meta argument, or the same " + "value in both",
-                 .details = Json{{"meta", context_key}}}));
-        }
-        info.meta[context_key] = *value;
         return std::nullopt;
     }
 

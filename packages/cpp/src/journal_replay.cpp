@@ -508,6 +508,9 @@ ReplayEntryReport replay_entry(const CommandExecutor& execute, const JournalEntr
         outcome.notes.push_back("context field '" + name +
                                 "' was too large to journal; replayed without it");
     }
+    if (entry.output_budget) {
+        context.output_budget_ask = *entry.output_budget;
+    }
     context.clock = clock ? std::shared_ptr<const Clock>(clock) : fixed_clock(*start);
     context.random = random;
 
@@ -519,6 +522,13 @@ ReplayEntryReport replay_entry(const CommandExecutor& execute, const JournalEntr
         // middleware outside it does not shift the handler's readings.
         auto state = std::make_shared<detail::JournalCallState>();
         state->replaying = true;
+        // A budgeted command that succeeded without a B6 report ran via buffered `execute_stream`
+        // (B7); preserve that unchecked mode on replay so it does not falsely diverge.
+        const bool has_budget_report =
+            entry.result.metadata && entry.result.metadata->extra.is_object() &&
+            entry.result.metadata->extra.contains(std::string(output_budget_meta_key));
+        state->skip_output_budget_check =
+            entry.output_budget.has_value() && entry.result.success && !has_budget_report;
         state->rewind = [clock, random]() {
             if (clock) {
                 clock->rewind();
@@ -605,6 +615,7 @@ CommandMiddleware create_journal_middleware(std::shared_ptr<JournalSink> sink,
         state->recording = std::make_shared<RecordingClock>(clock, tape);
         auto recording_random = std::make_shared<RecordingRandom>(random, tape);
 
+        const std::optional<std::uint64_t> output_budget = context.output_budget;
         const std::int64_t started_at = timing->wall_ms();
         const double start = timing->steady_ms();
         CommandResult result;
@@ -616,6 +627,7 @@ CommandMiddleware create_journal_middleware(std::shared_ptr<JournalSink> sink,
                 context.clock = clock;
                 context.random = random;
                 context.journal = outer;
+                context.output_budget = output_budget;
             });
             context.clock = state->recording;
             context.random = std::move(recording_random);
@@ -653,7 +665,8 @@ CommandMiddleware create_journal_middleware(std::shared_ptr<JournalSink> sink,
                                      .result = result,
                                      .duration_ms = duration_ms,
                                      .tape = has_tape ? std::optional(std::move(recorded))
-                                                      : std::nullopt};
+                                                      : std::nullopt,
+                                     .output_budget = output_budget};
             });
         }
 #if AFD_HAS_EXCEPTIONS
@@ -703,7 +716,8 @@ ReplayReport replay_journal(const CommandRegistry& registry,
                             const ReplayJournalOptions& options) {
     const CommandExecutor execute = [&registry](std::string_view name, const Json& input,
                                                 CommandContext& context) {
-        return registry.execute(name, input, context);
+        const bool check_budget = !(context.journal && context.journal->skip_output_budget_check);
+        return registry.execute_impl(name, input, context, check_budget);
     };
     if (options.context_fields) {
         return replay_journal(execute, entries, options);

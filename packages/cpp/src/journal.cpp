@@ -9,12 +9,11 @@
 
 #include "detail/journal_state.hpp"
 #include "detail/json_io.hpp"
+#include "detail/output_budget.hpp"
 #include "detail/sha256.hpp"
 
 namespace afd {
 namespace {
-
-constexpr double max_safe_integer = 9007199254740991.0; // 2^53 - 1
 
 const Json* find_member(const Json& object, std::string_view key) {
     const auto it = object.find(key);
@@ -151,10 +150,8 @@ bool read_strings(const Json& value, const std::string& path, std::vector<std::s
 bool read_entry(const Json& value, JournalEntry& out, std::string& error) {
     EntryReader reader(value, std::string(), error);
     if (const Json* seq = reader.get("seq", true)) {
-        const bool integral =
-            is_finite_number(*seq) && std::trunc(seq->get<double>()) == seq->get<double>();
-        if (integral && seq->get<double>() >= 1 && seq->get<double>() <= max_safe_integer) {
-            out.seq = static_cast<std::int64_t>(seq->get<double>());
+        if (const auto parsed = detail::parse_positive_safe_integer(*seq)) {
+            out.seq = static_cast<std::int64_t>(*parsed);
         } else {
             reader.fail("seq", "expected an integer from 1 to 2^53 - 1");
         }
@@ -185,6 +182,13 @@ bool read_entry(const Json& value, JournalEntry& out, std::string& error) {
         std::vector<std::string> names;
         if (read_strings(*omitted, reader.at("contextOmitted"), names, error)) {
             out.context_omitted = std::move(names);
+        }
+    }
+    if (const Json* budget = reader.get("outputBudget", false)) {
+        if (const auto parsed = detail::parse_positive_safe_integer(*budget)) {
+            out.output_budget = *parsed;
+        } else {
+            reader.fail("outputBudget", "expected an integer from 1 to 2^53 - 1");
         }
     }
     if (const Json* result = reader.get("result", true)) {
@@ -275,6 +279,7 @@ void to_json(Json& out, const JournalEntry& entry) {
     out["contextDigest"] = entry.context_digest;
     detail::put(out, "context", entry.context);
     detail::put(out, "contextOmitted", entry.context_omitted);
+    detail::put(out, "outputBudget", entry.output_budget);
     out["result"] = entry.result;
     out["durationMs"] = wire::number(entry.duration_ms);
     detail::put(out, "tape", entry.tape);
@@ -380,6 +385,11 @@ JournalContextDigest create_context_digest(const CommandContext& context,
     }
     canonical["interface"] = surface ? Json(*surface) : Json(nullptr);
     canonical["keys"] = keys;
+    // Effective output budget (spec/output-budgets.md, B8): only present when the call had one,
+    // so entries without a budget hash identically to before.
+    if (context.output_budget) {
+        canonical["outputBudget"] = *context.output_budget;
+    }
     canonical["traceId"] = context.trace_id ? Json(*context.trace_id) : Json(nullptr);
     return {.hash = "sha256:" + detail::sha256_hex(wire::serialize(canonical)),
             .surface = std::move(surface)};
@@ -391,8 +401,8 @@ std::string serialize_journal_entry(const JournalEntry& entry) {
     // The spec's key order for the entry and its actor, so lines read the same across
     // implementations up to the result.
     return ordered_object(Json(entry), {"seq", "timestamp", "traceId", "command", "input", "actor",
-                                        "contextDigest", "context", "contextOmitted", "result",
-                                        "durationMs", "tape"});
+                                        "contextDigest", "context", "contextOmitted",
+                                        "outputBudget", "result", "durationMs", "tape"});
 }
 
 std::string serialize_journal(const std::vector<JournalEntry>& entries) {

@@ -19,6 +19,7 @@
 #include "afd/mcp.hpp"
 #include "afd/metadata.hpp"
 #include "afd/middleware.hpp"
+#include "afd/output_budget.hpp"
 #include "afd/pipeline.hpp"
 #include "afd/registry.hpp"
 #include "afd/result.hpp"

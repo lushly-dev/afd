@@ -77,6 +77,9 @@ struct JournalRecord {
     double duration_ms = 0;
     /// The clock and random values the handler read. Unset when it read none.
     std::optional<JournalTape> tape;
+    /// The call's effective output budget (spec/output-budgets.md, B8). Unset when the call had
+    /// none. Written on the wire between `contextOmitted` and `result`.
+    std::optional<std::uint64_t> output_budget;
 };
 
 /// One executed command in a journal.

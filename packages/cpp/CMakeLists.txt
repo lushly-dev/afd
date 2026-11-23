@@ -70,6 +70,7 @@ add_library(
     src/mcp.cpp
     src/metadata.cpp
     src/middleware.cpp
+    src/output_budget.cpp
     src/pipeline.cpp
     src/pipeline_execution.cpp
     src/registry.cpp
