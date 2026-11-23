@@ -581,3 +581,254 @@ describe("violet-text-field narrow column layout (#1587)", () => {
         expect(singleFrame.getBoundingClientRect().width).toBeLessThanOrEqual(120.5);
     });
 });
+
+describe("violet-text-field field errors", () => {
+    afterEach(() => {
+        document.body.innerHTML = "";
+    });
+
+    it("renders no error before invalid is set, even with required and error-text", async () => {
+        const { field } = await renderField({
+            configure: el => {
+                el.label = "Email";
+                el.supportingText = "We only use it to sign you in.";
+                el.errorText = "Enter a valid email address.";
+                el.required = true;
+            },
+        });
+
+        expect(field.shadowRoot?.querySelector(".error")).toBeNull();
+        expect(field.shadowRoot?.querySelector(".supporting")?.textContent?.trim()).toBe("We only use it to sign you in.");
+        expect(field.checkValidity()).toBe(false);
+    });
+
+    it("replaces supporting text with error-text while invalid, announces it, and links it as description", async () => {
+        const { field } = await renderField({
+            configure: el => {
+                el.label = "Email";
+                el.supportingText = "We only use it to sign you in.";
+                el.setAttribute("error-text", "Enter a valid email address.");
+            },
+        });
+        const hostHint = document.createElement("p");
+        hostHint.id = "email-host-hint";
+        hostHint.textContent = "Work email preferred.";
+        document.body.prepend(hostHint);
+        field.setAttribute("aria-describedby", "email-host-hint");
+
+        field.invalid = true;
+        await nextFrame();
+        await nextFrame();
+
+        const error = field.shadowRoot?.querySelector('[part~="error-message"]') as HTMLElement | null;
+        expect(error?.textContent?.trim()).toBe("Enter a valid email address.");
+        expect(error?.getAttribute("role")).toBe("alert");
+        expect(field.shadowRoot?.querySelector(".supporting")).toBeNull();
+        expect(Array.from(input(field).ariaDescribedByElements ?? [])).toEqual([hostHint, error]);
+        expect(field.validationMessage).toBe("Enter a valid email address.");
+
+        field.invalid = false;
+        await nextFrame();
+        await nextFrame();
+
+        const supporting = field.shadowRoot?.querySelector('[part~="supporting-text"]') as HTMLElement | null;
+        expect(field.shadowRoot?.querySelector(".error")).toBeNull();
+        expect(supporting?.textContent?.trim()).toBe("We only use it to sign you in.");
+        expect(Array.from(input(field).ariaDescribedByElements ?? [])).toEqual([hostHint, supporting]);
+
+        field.invalid = true;
+        await nextFrame();
+        await nextFrame();
+        field.removeAttribute("error-text");
+        await nextFrame();
+        await nextFrame();
+
+        expect(field.shadowRoot?.querySelector(".error")).toBeNull();
+        expect(field.shadowRoot?.querySelector(".supporting")?.textContent?.trim()).toBe("We only use it to sign you in.");
+    });
+
+    it("falls back to the browser validation message when invalid without error-text", async () => {
+        const { field } = await renderField({
+            configure: el => {
+                el.label = "Quantity";
+                el.type = "number";
+                el.min = "5";
+                el.value = "3";
+                el.supportingText = "Whole trays.";
+                el.invalid = true;
+            },
+        });
+        await nextFrame();
+
+        const error = field.shadowRoot?.querySelector('[part~="error-message"]') as HTMLElement | null;
+        expect(error?.textContent?.trim()).toBe(input(field).validationMessage);
+        expect(error?.textContent?.trim()).not.toBe("");
+        expect(error?.getAttribute("role")).toBe("alert");
+        expect(field.shadowRoot?.querySelector(".supporting")).toBeNull();
+    });
+
+    it("renders no error message when invalid has neither error-text nor a failing native constraint", async () => {
+        const { field } = await renderField({
+            configure: el => {
+                el.label = "Name";
+                el.supportingText = "Shown on your badge.";
+                el.invalid = true;
+            },
+        });
+        await nextFrame();
+
+        expect(field.shadowRoot?.querySelector(".error")).toBeNull();
+        expect(field.shadowRoot?.querySelector(".supporting")?.textContent?.trim()).toBe("Shown on your badge.");
+    });
+
+    it("suppresses the error message while disabled or readonly and restores it when editable", async () => {
+        const { field } = await renderField({
+            configure: el => {
+                el.label = "Email";
+                el.supportingText = "Helper.";
+                el.errorText = "Invalid email.";
+                el.invalid = true;
+                el.disabled = true;
+            },
+        });
+        await nextFrame();
+
+        expect(field.shadowRoot?.querySelector(".error")).toBeNull();
+        expect(field.shadowRoot?.querySelector(".supporting")?.textContent?.trim()).toBe("Helper.");
+
+        field.disabled = false;
+        field.readonly = true;
+        await nextFrame();
+        expect(field.shadowRoot?.querySelector(".error")).toBeNull();
+
+        field.readonly = false;
+        await nextFrame();
+        await nextFrame();
+        expect(field.shadowRoot?.querySelector(".error")?.textContent?.trim()).toBe("Invalid email.");
+        expect(field.shadowRoot?.querySelector(".supporting")).toBeNull();
+    });
+
+    it("suppresses the error message inside a disabled fieldset and restores it when re-enabled", async () => {
+        document.body.innerHTML = "";
+        const form = document.createElement("form");
+        const fieldset = document.createElement("fieldset");
+        fieldset.disabled = true;
+        const field = document.createElement("violet-text-field") as VioletTextField;
+        field.label = "Email";
+        field.supportingText = "Helper.";
+        field.errorText = "Invalid email.";
+        field.invalid = true;
+        fieldset.append(field);
+        form.append(fieldset);
+        document.body.append(form);
+        await customElements.whenDefined("violet-text-field");
+        await nextFrame();
+        await nextFrame();
+
+        expect(field.shadowRoot?.querySelector(".error")).toBeNull();
+        expect(field.shadowRoot?.querySelector(".supporting")?.textContent?.trim()).toBe("Helper.");
+
+        fieldset.disabled = false;
+        await nextFrame();
+        await nextFrame();
+
+        expect(field.shadowRoot?.querySelector(".error")?.textContent?.trim()).toBe("Invalid email.");
+        expect(field.shadowRoot?.querySelector(".supporting")).toBeNull();
+    });
+
+    it("falls back to the browser validation message when error-text is only whitespace", async () => {
+        const { field } = await renderField({
+            configure: el => {
+                el.label = "Email";
+                el.required = true;
+                el.errorText = "   ";
+                el.invalid = true;
+            },
+        });
+        await nextFrame();
+        await nextFrame();
+
+        const error = field.shadowRoot?.querySelector('[part~="error-message"]') as HTMLElement | null;
+        expect(error?.textContent?.trim()).toBe(input(field).validationMessage);
+        expect(error?.textContent?.trim()).not.toBe("");
+    });
+
+    it("does not manufacture an error caption when the browser has no validation message, and tolerates removing value", async () => {
+        const { field } = await renderField({
+            configure: el => {
+                el.label = "Name";
+                el.supportingText = "Helper.";
+                el.required = true;
+                el.value = " ";
+                el.invalid = true;
+            },
+        });
+        await nextFrame();
+        await nextFrame();
+
+        expect(input(field).validationMessage).toBe("");
+        expect(field.shadowRoot?.querySelector(".error")).toBeNull();
+        expect(field.shadowRoot?.querySelector(".supporting")?.textContent?.trim()).toBe("Helper.");
+
+        field.required = false;
+        field.minLength = 5;
+        field.value = "ab";
+        await nextFrame();
+        await nextFrame();
+
+        expect(input(field).validationMessage).toBe("");
+        expect(field.shadowRoot?.querySelector(".error")).toBeNull();
+
+        field.setAttribute("value", "abc");
+        expect(() => field.removeAttribute("value")).not.toThrow();
+        await nextFrame();
+        expect(field.shadowRoot?.querySelector(".error")).toBeNull();
+    });
+
+    it("updates number badInput errors on input and clears them on form reset", async () => {
+        const { field, form } = await renderField({
+            inForm: true,
+            configure: el => {
+                el.label = "Quantity";
+                el.type = "number";
+                el.supportingText = "Whole numbers.";
+                el.invalid = true;
+            },
+        });
+        await nextFrame();
+        await nextFrame();
+
+        expect(field.shadowRoot?.querySelector(".error")).toBeNull();
+
+        input(field).focus();
+        await userEvent.keyboard("-");
+        await nextFrame();
+        await nextFrame();
+
+        expect(field.value).toBe("");
+        expect(input(field).validity.badInput).toBe(true);
+        const error = field.shadowRoot?.querySelector('[part~="error-message"]') as HTMLElement | null;
+        expect(error?.textContent?.trim()).toBe(input(field).validationMessage);
+        expect(error?.textContent?.trim()).not.toBe("");
+        expect(field.shadowRoot?.querySelector(".supporting")).toBeNull();
+
+        (form as HTMLFormElement).reset();
+        await nextFrame();
+        await nextFrame();
+
+        expect(input(field).validity.badInput).toBe(false);
+        expect(field.shadowRoot?.querySelector(".error")).toBeNull();
+        expect(field.shadowRoot?.querySelector(".supporting")?.textContent?.trim()).toBe("Whole numbers.");
+    });
+
+    it("keeps displayErrorText read-only", async () => {
+        const { field } = await renderField({
+            configure: el => {
+                el.label = "Name";
+            },
+        });
+
+        const descriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(field), "displayErrorText");
+        expect(descriptor?.set).toBeUndefined();
+    });
+});

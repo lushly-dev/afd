@@ -12,6 +12,7 @@ type VioletTextAreaStoryArgs = {
     placeholder: string;
     value: string;
     supportingText: string;
+    errorText: string;
     rows: number;
     invalid: boolean;
     disabled: boolean;
@@ -32,6 +33,7 @@ function renderTextArea(args: VioletTextAreaStoryArgs): HTMLElement {
     element.placeholder = args.placeholder;
     element.value = args.value;
     element.supportingText = args.supportingText;
+    element.errorText = args.errorText;
     element.rows = args.rows;
     element.invalid = args.invalid;
     element.disabled = args.disabled;
@@ -85,6 +87,7 @@ export const Overview: Story = {
         placeholder: "Add observations for this bed...",
         value: "",
         supportingText: "Keep the most recent field notes with the current plan.",
+        errorText: "",
         rows: 4,
         invalid: false,
         disabled: false,
@@ -139,7 +142,8 @@ export const Invalid: Story = {
         label: "Harvest notes",
         placeholder: "Describe the issue...",
         value: "",
-        supportingText: "Required before submitting the crop review.",
+        supportingText: "Include date and bed number.",
+        errorText: "Required before submitting the crop review.",
         rows: 5,
         invalid: true,
         disabled: false,
@@ -156,6 +160,7 @@ export const Readonly: Story = {
         placeholder: "",
         value: "Mulched after irrigation and covered overnight.",
         supportingText: "Readonly areas should remain legible and structurally calm.",
+        errorText: "",
         rows: 4,
         invalid: false,
         disabled: false,
@@ -172,6 +177,7 @@ export const Disabled: Story = {
         placeholder: "Unavailable while sync is running",
         value: "",
         supportingText: "Disabled areas should still show their footprint in a dense form.",
+        errorText: "",
         rows: 5,
         invalid: false,
         disabled: true,
@@ -188,6 +194,7 @@ export const WithLeadingAffordance: Story = {
         placeholder: "Capture the latest observation...",
         value: "",
         supportingText: "Leading content can frame the entry purpose without replacing the label.",
+        errorText: "",
         rows: 4,
         invalid: false,
         disabled: false,

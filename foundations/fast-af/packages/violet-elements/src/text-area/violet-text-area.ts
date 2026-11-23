@@ -1,4 +1,4 @@
-import { FASTElement, attr, css, html, when } from "@lushly-dev/fast-element";
+import { FASTElement, Updates, attr, css, html, observable, when } from "@lushly-dev/fast-element";
 
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 import { installFormDisabled } from "../foundations/violet-form-disabled";
@@ -145,16 +145,20 @@ const styles = css`
         margin-inline-end: var(--_space-inline-sm);
     }
 
-    .supporting {
-        color: var(--_text-muted);
+    .supporting,
+    .error {
+        margin: 0;
         font-size: var(--_control-caption-size);
         line-height: var(--_type-caption-line);
         margin-block-start: var(--_space-field-gap);
     }
 
-    /* There is no error line here, so under an invalid value the supporting text is the reason. */
-    :host([invalid]) .supporting {
-        color: var(--color-state-danger-text, var(--_text-muted));
+    .supporting {
+        color: var(--_text-muted);
+    }
+
+    .error {
+        color: var(--_danger-text);
     }
 
     @media (forced-colors: active) {
@@ -192,8 +196,8 @@ const template = html<VioletTextArea>`
                 rows="${x => x.rows}"
                 placeholder="${x => x.placeholder}"
                 maxlength="${x => x.maxLength ?? void 0}"
-                aria-describedby="${x => (x.supportingText ? x.supportingId : void 0)}"
-                :value="${x => x.value}"
+                aria-describedby="${x => (x.displayErrorText ? x.errorId : x.supportingText ? x.supportingId : void 0)}"
+                :value="${x => x.value ?? ""}"
                 ?disabled="${x => x.effectiveDisabled}"
                 ?readonly="${x => x.readonly}"
                 ?required="${x => x.required}"
@@ -203,9 +207,15 @@ const template = html<VioletTextArea>`
             ></textarea>
         </div>
         ${when(
-            x => Boolean(x.supportingText),
+            x => !x.displayErrorText && Boolean(x.supportingText),
             html<VioletTextArea>`
                 <p id="${x => x.supportingId}" class="supporting" part="supporting-text">${x => x.supportingText}</p>
+            `,
+        )}
+        ${when(
+            x => Boolean(x.displayErrorText),
+            html<VioletTextArea>`
+                <p id="${x => x.errorId}" class="error" part="error-message" role="alert">${x => x.displayErrorText}</p>
             `,
         )}
     </div>
@@ -216,7 +226,7 @@ let violetTextAreaCount = 0;
 /**
  * Violet reusable text area primitive.
  *
- * @summary Token-driven multiline text area with built-in label and supporting text.
+ * @summary Token-driven multiline text area with built-in label, supporting text, and field errors.
  * @slot before - Leading inline content such as a note or search affordance.
  * @fires input - Emitted when the value changes while typing.
  * @fires change - Emitted when the value is committed.
@@ -226,11 +236,13 @@ let violetTextAreaCount = 0;
  * @csspart before - Leading slot for inline affordances.
  * @csspart control - Native textarea control.
  * @csspart supporting-text - Supporting text element.
+ * @csspart error-message - Error message element shown while invalid.
  */
 export class VioletTextArea extends FASTElement {
     public static readonly formAssociated = true;
 
     readonly #internals: ElementInternals;
+    #syncScheduled = false;
     #defaultValue: string;
 
     public readonly inputId: string;
@@ -239,6 +251,24 @@ export class VioletTextArea extends FASTElement {
      * Id of the supporting text, which describes the textarea.
      */
     public readonly supportingId: string;
+
+    /**
+     * Id of the error message, which describes the textarea while invalid.
+     */
+    public readonly errorId: string;
+
+    /**
+     * Backing state for `displayErrorText`.
+     */
+    @observable
+    private _displayErrorText = "";
+
+    /**
+     * Active error message rendered while the field is invalid.
+     */
+    public get displayErrorText(): string {
+        return this._displayErrorText;
+    }
 
     /**
      * Optional field label.
@@ -259,6 +289,11 @@ export class VioletTextArea extends FASTElement {
      * Optional supporting text shown below the field.
      */
     declare public supportingText: string;
+
+    /**
+     * Optional error message shown while the field is invalid.
+     */
+    declare public errorText: string;
 
     /**
      * Maximum number of characters, forwarded to the native textarea.
@@ -311,10 +346,12 @@ export class VioletTextArea extends FASTElement {
         violetTextAreaCount += 1;
         this.inputId = `violet-text-area-${violetTextAreaCount}`;
         this.supportingId = `${this.inputId}-supporting`;
+        this.errorId = `${this.inputId}-error`;
         this.label = "";
         this.placeholder = "";
         this.value = "";
         this.supportingText = "";
+        this.errorText = "";
         this.maxLength = null;
         this.rows = 4;
         this.disabled = false;
@@ -327,8 +364,9 @@ export class VioletTextArea extends FASTElement {
 
     public connectedCallback(): void {
         super.connectedCallback();
-        this.#defaultValue = this.getAttribute("value") ?? this.value;
+        this.#defaultValue = this.getAttribute("value") ?? this.value ?? "";
         this.#syncFormState();
+        this.#scheduleSync();
     }
 
     public handleInput(event: Event): void {
@@ -353,6 +391,8 @@ export class VioletTextArea extends FASTElement {
 
     public formResetCallback(): void {
         this.value = this.#defaultValue;
+        this.#syncFormState();
+        this.#scheduleSync();
     }
 
     public get form(): HTMLFormElement | null {
@@ -381,22 +421,53 @@ export class VioletTextArea extends FASTElement {
 
     public valueChanged(): void {
         this.#syncFormState();
+        this.#scheduleSync();
     }
 
     public disabledChanged(): void {
         this.#syncFormState();
+        this.#scheduleSync();
     }
 
     public invalidChanged(): void {
         this.#syncFormState();
+        this.#scheduleSync();
+    }
+
+    public errorTextChanged(): void {
+        this.#syncFormState();
+        this.#scheduleSync();
     }
 
     public readonlyChanged(): void {
         this.#syncFormState();
+        this.#scheduleSync();
     }
 
     public requiredChanged(): void {
         this.#syncFormState();
+        this.#scheduleSync();
+    }
+
+    #scheduleSync(): void {
+        if (this.#syncScheduled || !this.$fastController.isConnected) {
+            return;
+        }
+
+        this.#syncScheduled = true;
+        Updates.enqueue(() => {
+            Updates.enqueue(() => {
+                this.#syncScheduled = false;
+                this.#syncFormState();
+            });
+        });
+    }
+
+    #setDisplayErrorText(next: string): void {
+        if (this._displayErrorText === next) {
+            return;
+        }
+        this._displayErrorText = next;
     }
 
     #syncFormState(): void {
@@ -405,21 +476,31 @@ export class VioletTextArea extends FASTElement {
         }
 
         const control = this.shadowRoot?.querySelector("textarea") as HTMLTextAreaElement | null;
+        const value = this.value ?? "";
 
         this.#internals.ariaInvalid = this.invalid ? "true" : "false";
-        this.#internals.setFormValue(this.effectiveDisabled ? null : this.value);
+        this.#internals.setFormValue(this.effectiveDisabled ? null : value);
 
         if (this.effectiveDisabled || this.readonly) {
+            this.#setDisplayErrorText("");
             this.#internals.setValidity({});
             return;
         }
 
         if (this.invalid) {
-            this.#internals.setValidity({ customError: true }, "Please correct this field.", control ?? undefined);
+            const customError = (this.errorText ?? "").trim();
+            this.#setDisplayErrorText(customError || control?.validationMessage || "");
+            this.#internals.setValidity(
+                { customError: true },
+                customError || "Please correct this field.",
+                control ?? undefined,
+            );
             return;
         }
 
-        if (this.required && !this.value.trim()) {
+        this.#setDisplayErrorText("");
+
+        if (this.required && !value.trim()) {
             this.#internals.setValidity({ valueMissing: true }, "Please fill out this field.", control ?? undefined);
             return;
         }
@@ -433,6 +514,7 @@ attr(VioletTextArea.prototype, "placeholder");
 // fromView: typed text must not be reflected back into the DOM `value` attribute.
 attr({ mode: "fromView" })(VioletTextArea.prototype, "value");
 attr({ attribute: "supporting-text" })(VioletTextArea.prototype, "supportingText");
+attr({ attribute: "error-text" })(VioletTextArea.prototype, "errorText");
 attr({ attribute: "maxlength", converter: maxlengthConverter })(VioletTextArea.prototype, "maxLength");
 attr({ converter: rowConverter })(VioletTextArea.prototype, "rows");
 attr({ mode: "boolean" })(VioletTextArea.prototype, "disabled");

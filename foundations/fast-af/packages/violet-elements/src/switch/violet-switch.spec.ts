@@ -240,4 +240,139 @@ describe("violet-switch", () => {
             expect(getComputedStyle(track).boxShadow).not.toBe(before);
         });
     });
+
+    describe("field errors", () => {
+        it("renders no error before invalid is set, even with required and error-text", async () => {
+            const element = await renderSwitch({
+                label: "Enable alerts",
+                supporting: "Sends weather updates.",
+                required: true,
+            });
+            element.errorText = "Turn on alerts to continue.";
+            await nextFrame();
+
+            expect(element.shadowRoot?.querySelector(".error")).toBeNull();
+            expect(element.shadowRoot?.querySelector(".supporting")?.hasAttribute("hidden")).toBe(false);
+            expect(element.checkValidity()).toBe(false);
+        });
+
+        it("replaces supporting text with error-text while invalid, announces it, and links aria-describedby", async () => {
+            const element = await renderSwitch({
+                label: "Enable alerts",
+                supporting: "Sends weather updates.",
+            });
+            element.setAttribute("error-text", "Turn on alerts to continue.");
+            element.invalid = true;
+            await nextFrame();
+            await nextFrame();
+
+            const input = element.shadowRoot?.querySelector('input[type="checkbox"]') as HTMLInputElement;
+            const error = element.shadowRoot?.querySelector('[part~="error-message"]') as HTMLElement | null;
+            const supporting = element.shadowRoot?.querySelector('[part~="supporting-text"]') as HTMLElement | null;
+
+            expect(error?.textContent?.trim()).toBe("Turn on alerts to continue.");
+            expect(error?.getAttribute("role")).toBe("alert");
+            expect(supporting?.hasAttribute("hidden")).toBe(true);
+            expect(input.getAttribute("aria-describedby")).toBe(element.errorTextId);
+            expect(element.validationMessage).toBe("Turn on alerts to continue.");
+
+            element.invalid = false;
+            await nextFrame();
+            await nextFrame();
+
+            expect(element.shadowRoot?.querySelector(".error")).toBeNull();
+            expect(supporting?.hasAttribute("hidden")).toBe(false);
+            expect(input.getAttribute("aria-describedby")).toBe(element.supportingTextId);
+        });
+
+        it("falls back to the browser validation message when invalid and required without error-text", async () => {
+            const element = await renderSwitch({
+                label: "Enable alerts",
+                supporting: "Sends weather updates.",
+                required: true,
+            });
+            element.invalid = true;
+            await nextFrame();
+            await nextFrame();
+
+            const input = element.shadowRoot?.querySelector('input[type="checkbox"]') as HTMLInputElement;
+            const error = element.shadowRoot?.querySelector('[part~="error-message"]') as HTMLElement | null;
+            expect(error?.textContent?.trim()).toBe(input.validationMessage);
+            expect(error?.textContent?.trim()).not.toBe("");
+            expect(element.shadowRoot?.querySelector(".supporting")?.hasAttribute("hidden")).toBe(true);
+        });
+
+        it("suppresses the error message while disabled and reveals content for inline errors", async () => {
+            const element = await renderSwitch({
+                inline: true,
+                ariaLabel: "Compact switch",
+            });
+            element.errorText = "Turn on before saving.";
+            element.invalid = true;
+            await nextFrame();
+            await nextFrame();
+
+            expect(element.shadowRoot?.querySelector(".content")?.hasAttribute("hidden")).toBe(false);
+            expect(element.shadowRoot?.querySelector(".error")?.textContent?.trim()).toBe("Turn on before saving.");
+
+            element.disabled = true;
+            await nextFrame();
+
+            expect(element.shadowRoot?.querySelector(".error")).toBeNull();
+            expect(element.shadowRoot?.querySelector(".content")?.hasAttribute("hidden")).toBe(true);
+        });
+
+        it("falls back to the browser validation message when error-text is only whitespace", async () => {
+            const element = await renderSwitch({
+                label: "Enable alerts",
+                required: true,
+            });
+            element.errorText = "   ";
+            element.invalid = true;
+            await nextFrame();
+            await nextFrame();
+
+            const input = element.shadowRoot?.querySelector('input[type="checkbox"]') as HTMLInputElement;
+            const error = element.shadowRoot?.querySelector('[part~="error-message"]') as HTMLElement | null;
+            expect(error?.textContent?.trim()).toBe(input.validationMessage);
+            expect(error?.textContent?.trim()).not.toBe("");
+        });
+
+        it("suppresses the error message inside a disabled fieldset and restores it when re-enabled", async () => {
+            document.body.innerHTML = "";
+            const form = document.createElement("form");
+            const fieldset = document.createElement("fieldset");
+            fieldset.disabled = true;
+            const element = document.createElement("violet-switch") as VioletSwitch;
+            element.textContent = "Enable alerts";
+            const supporting = document.createElement("span");
+            supporting.slot = "supporting";
+            supporting.textContent = "Helper.";
+            element.append(supporting);
+            element.errorText = "Turn on alerts.";
+            element.invalid = true;
+            fieldset.append(element);
+            form.append(fieldset);
+            document.body.append(form);
+            await customElements.whenDefined("violet-switch");
+            await nextFrame();
+            await nextFrame();
+
+            expect(element.shadowRoot?.querySelector(".error")).toBeNull();
+            expect(element.shadowRoot?.querySelector(".supporting")?.hasAttribute("hidden")).toBe(false);
+
+            fieldset.disabled = false;
+            await nextFrame();
+            await nextFrame();
+
+            expect(element.shadowRoot?.querySelector(".error")?.textContent?.trim()).toBe("Turn on alerts.");
+            expect(element.shadowRoot?.querySelector(".supporting")?.hasAttribute("hidden")).toBe(true);
+        });
+
+        it("keeps displayErrorText read-only", async () => {
+            const element = await renderSwitch({ label: "Enable alerts" });
+            const descriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(element), "displayErrorText");
+            expect(descriptor?.set).toBeUndefined();
+        });
+    });
 });

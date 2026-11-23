@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add `error-text` field errors to `violet-text-field`, `violet-text-area`, `violet-checkbox`, `violet-switch` and `violet-radio` (#1385, #1586). An error renders only while `invalid` is set (and not while disabled or readonly), showing `error-text` or—on the four form-associated controls—falling back to the browser's validation message (`violet-radio` has no native input and displays only `error-text`), replacing supporting text, linking as the control's accessible description and announcing with `role="alert"`. Supporting text on `violet-text-field` and `violet-text-area` no longer turns the danger colour while `invalid`; move error wording from `supporting-text` to `error-text`.
+
 - Resolve five `violet-elements` and `fast-af` issues (#1589, #1581, #1580, #656, #510):
   - `violet-alert` now stretches a lone slotted action to fill the row below the `480px` breakpoint (with `.control` filling the host width on `violet-button`), while two or more actions keep wrapping side by side (#1589).
   - `violet-dialog` with `type="alert"` now sets `closedby="closerequest"` so pressing `Escape` fires a cancelable `request-close` (`source: "keyboard"`) for every dialog type; callers requiring a forced choice can call `event.preventDefault()` (#1581).

@@ -10,6 +10,7 @@ type VioletSwitchStoryArgs = {
     disabled: boolean;
     inline: boolean;
     invalid: boolean;
+    errorText: string;
     ariaLabel: string;
     label: string;
     supporting: string;
@@ -24,6 +25,7 @@ function renderSwitch(args: VioletSwitchStoryArgs): HTMLElement {
     element.disabled = args.disabled;
     element.inline = args.inline;
     element.invalid = args.invalid;
+    element.errorText = args.errorText;
     element.name = args.name;
     element.value = args.value;
     element.required = args.required;
@@ -77,6 +79,7 @@ export const Overview: Story = {
         disabled: false,
         inline: false,
         invalid: false,
+        errorText: "",
         ariaLabel: "",
         label: "Enable irrigation alerts",
         supporting: "Turns on weather-driven watering notifications for this bed.",
@@ -129,6 +132,7 @@ export const Checked: Story = {
         disabled: false,
         inline: false,
         invalid: false,
+        errorText: "",
         ariaLabel: "",
         label: "Auto-approve tray restocks",
         supporting: "Keeps replenishment requests moving without manual review.",
@@ -144,6 +148,7 @@ export const Disabled: Story = {
         disabled: true,
         inline: false,
         invalid: false,
+        errorText: "",
         ariaLabel: "",
         label: "Enable harvest sync",
         supporting: "Unavailable while the field audit is in progress.",
@@ -159,9 +164,10 @@ export const Invalid: Story = {
         disabled: false,
         inline: false,
         invalid: true,
+        errorText: "Turn this setting on before continuing.",
         ariaLabel: "",
         label: "Share bed availability",
-        supporting: "Present invalid styling for explicit review states.",
+        supporting: "Shares bed availability with the harvest schedule.",
         name: "shareBedAvailability",
         value: "enabled",
         required: false,
@@ -174,6 +180,7 @@ export const Inline: Story = {
         disabled: false,
         inline: true,
         invalid: false,
+        errorText: "",
         ariaLabel: "Compact irrigation alerts switch",
         label: "",
         supporting: "",

@@ -572,10 +572,10 @@
       "property": "errorText",
       "valueType": "string",
       "category": "validation",
-      "definition": "Provides explicit validation copy that a component renders when it is invalid or required validation fails.",
+      "definition": "Explicit validation copy rendered while invalid (older controls may also show it on required failure).",
       "useFor": ["form-associated controls that own their visible error-message presentation", "custom controls that own their accessible error-message presentation"],
       "doNotUseFor": ["helper copy", "browser-generated validation text passthrough without component-owned UI", "non-validation warnings"],
-      "usedBy": ["violet-radio-group", "violet-slider", "violet-range-slider", "violet-select", "violet-combobox", "violet-segmented-control", "violet-date-picker", "violet-time-picker", "violet-date-range-picker", "violet-file-upload", "violet-color-picker", "violet-tree", "violet-data-grid-pill-select"]
+      "usedBy": ["violet-checkbox", "violet-color-picker", "violet-combobox", "violet-data-grid-pill-select", "violet-date-picker", "violet-date-range-picker", "violet-file-upload", "violet-radio", "violet-radio-group", "violet-range-slider", "violet-segmented-control", "violet-select", "violet-slider", "violet-switch", "violet-text-area", "violet-text-field", "violet-time-picker", "violet-tree"]
     },
     {
       "name": "error-announcement",

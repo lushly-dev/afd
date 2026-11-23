@@ -12,6 +12,7 @@ type VioletTextFieldStoryArgs = {
     placeholder: string;
     value: string;
     supportingText: string;
+    errorText: string;
     invalid: boolean;
     disabled: boolean;
     readonly: boolean;
@@ -32,6 +33,7 @@ function renderTextField(args: VioletTextFieldStoryArgs): HTMLElement {
     element.placeholder = args.placeholder;
     element.value = args.value;
     element.supportingText = args.supportingText;
+    element.errorText = args.errorText;
     element.invalid = args.invalid;
     element.disabled = args.disabled;
     element.readonly = args.readonly;
@@ -88,6 +90,7 @@ export const Overview: Story = {
         placeholder: "Search cultivated rows",
         value: "",
         supportingText: "Use this for quick filtering or manual entry.",
+        errorText: "",
         invalid: false,
         disabled: false,
         readonly: false,
@@ -139,7 +142,8 @@ export const Invalid: Story = {
         label: "Quantity",
         placeholder: "Enter quantity",
         value: "",
-        supportingText: "Required before checkout can continue.",
+        supportingText: "Enter a whole number of trays.",
+        errorText: "Required before checkout can continue.",
         invalid: true,
         disabled: false,
         readonly: false,
@@ -156,6 +160,7 @@ export const Readonly: Story = {
         placeholder: "",
         value: "Midnight Roma",
         supportingText: "Readonly fields should still preserve label and value clarity.",
+        errorText: "",
         invalid: false,
         disabled: false,
         readonly: true,
@@ -172,6 +177,7 @@ export const Disabled: Story = {
         placeholder: "Unavailable while sync is running",
         value: "",
         supportingText: "Disabled fields should stay visibly unavailable without losing structure.",
+        errorText: "",
         invalid: false,
         disabled: true,
         readonly: false,
@@ -188,6 +194,7 @@ export const Password: Story = {
         placeholder: "Enter your password",
         value: "",
         supportingText: "Password fields should preserve the same structure and density model.",
+        errorText: "",
         invalid: false,
         disabled: false,
         readonly: false,
@@ -204,6 +211,7 @@ export const Telephone: Story = {
         placeholder: "Add a callback number",
         value: "",
         supportingText: "Telephone is useful for native keypad and autofill semantics.",
+        errorText: "",
         invalid: false,
         disabled: false,
         readonly: false,

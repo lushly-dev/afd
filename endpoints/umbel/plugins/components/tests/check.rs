@@ -145,9 +145,9 @@ async fn nothing_from_the_pack_but_identifiers_is_in_the_answer() {
     assert!(!result.to_string().contains(&summary), "{result}");
 }
 
-/// The case that reopened D1: a consumer application bound `error-text` on `violet-text-field`,
-/// which declares no such attribute, so every failed save showed nothing. With the two the
-/// owner's one-off scan found, on FAST-AF's real pack.
+/// The case that reopened D1: a consumer application bound an undeclared attribute on
+/// `violet-text-field` (originally `error-text`, which #1586 later declared), along with the two
+/// the owner's one-off scan found, on FAST-AF's real pack.
 #[tokio::test]
 async fn fast_af_flags_what_a_consumer_application_shipped() {
     let fx = Pack::fast_af().host();
@@ -156,7 +156,7 @@ async fn fast_af_flags_what_a_consumer_application_shipped() {
   label="Email"
   type="email"
   required
-  error-text="${x => x.error}"
+  helper-text="${x => x.hint}"
   :value=${x => x.email}
   @input=${(x, c) => x.update(c.event)}
 ></violet-text-field>
@@ -178,7 +178,7 @@ async fn fast_af_flags_what_a_consumer_application_shipped() {
             finding(
                 "unknown-attribute",
                 "violet-text-field",
-                Some("error-text"),
+                Some("helper-text"),
                 6
             ),
             finding("unknown-attribute", "violet-button", Some("size"), 10),

@@ -185,6 +185,19 @@
 			"appliesTo": {
 				"tags": [
 					"violet-checkbox",
+					"violet-switch",
+					"violet-text-area",
+					"violet-text-field"
+				]
+			},
+			"basis": "authored",
+			"id": "form.error-text",
+			"text": "Shows an error only while invalid is set (not from required alone, nor while disabled or readonly), using error-text or the browser's validation message. Replaces supporting text, describes the control, and uses role alert."
+		},
+		{
+			"appliesTo": {
+				"tags": [
+					"violet-checkbox",
 					"violet-color-picker",
 					"violet-combobox",
 					"violet-date-picker",
@@ -817,7 +830,7 @@
 			},
 			"basis": "authored",
 			"id": "taxonomy.error-text",
-			"text": "Provides explicit validation copy that a component renders when it is invalid or required validation fails. Not for: helper copy; browser-generated validation text passthrough without component-owned UI; non-validation warnings."
+			"text": "Explicit validation copy rendered while invalid (older controls may also show it on required failure). Not for: helper copy; browser-generated validation text passthrough without component-owned UI; non-validation warnings."
 		},
 		{
 			"appliesTo": {
