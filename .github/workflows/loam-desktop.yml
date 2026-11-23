@@ -1,9 +1,9 @@
 name: Loam desktop
 
-# Loam's desktop lane (phase 6 specification, 10.7): the web shell in Tauri 2's webview, its Rust host and the
-# WebDriver suite, P6-D1 to P6-D4 and phase 5's P5-A2 (the copilot's frame), under `tauri-driver` with WebKitGTK's
-# driver on Linux; and macOS cfg-branch linting, Rust tests, app build and WKWebView frame-to-IPC barrier checks
-# (D153 and P6-D4, without WebDriver) on macOS (#1400, #1779). Step 12 adds Windows and the installers.
+# Loam's desktop lane (phase 6 specification, 10.7, 11.3, P6-D1 to P6-D7): the web shell in Tauri 2's webview,
+# its Rust host, the WebDriver suite under `tauri-driver` on Linux (PRs, daily, manual) and Windows (daily, manual),
+# WKWebView frame-to-IPC barrier checks on macOS (#1400, #1779), and unsigned installers with SHA-256 sums and
+# P6-D5 HTTPS updater checks on all three operating systems (step 12).
 on:
   push:
     branches: [main]
@@ -130,7 +130,7 @@ jobs:
       - name: Install WebKitGTK, its WebDriver and a display
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev libxdo-dev librsvg2-dev xvfb dbus-x11
+          sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev libxdo-dev librsvg2-dev patchelf xdg-utils file xvfb dbus-x11
           # WebKitWebDriver: `webkitgtk-webdriver` from Ubuntu 24.04 on, `webkit2gtk-driver` before it.
           sudo apt-get install -y --no-install-recommends webkitgtk-webdriver || sudo apt-get install -y --no-install-recommends webkit2gtk-driver
           command -v WebKitWebDriver
@@ -168,8 +168,19 @@ jobs:
       # A session bus for single instance, and a display for the webview.
       - name: Desktop suite under tauri-driver
         run: dbus-run-session -- xvfb-run -a pnpm -F @lushly-dev/loam-desktop test:desktop
+      - name: Build the installers
+        run: |
+          pnpm -F @lushly-dev/loam-desktop build:installers
+          pnpm -F @lushly-dev/loam-desktop test:installers
       - name: The run leaves tracked files unchanged
         run: test -z "$(git status --porcelain)"
+      - name: Upload installers
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: loam-desktop-installers-linux
+          path: endpoints/loam/packages/desktop/dist-installers/
+          if-no-files-found: error
+          retention-days: 30
       - name: Upload test results
         if: ${{ always() }}
         # A diagnostic: an outage of the artifact service must not fail a job whose suites passed.
@@ -177,6 +188,266 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: loam-desktop-test-results
+          path: endpoints/loam/packages/desktop/test-results/
+          if-no-files-found: ignore
+          retention-days: 30
+
+  windows:
+    name: Desktop on Windows
+    needs: scope
+    if: needs.scope.outputs.run == 'true' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: '.nvmrc'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Locate msedgedriver and record WebView2 version
+        shell: pwsh
+        run: |
+          $edgeCandidates = @(
+            if (${env:ProgramFiles(x86)}) { Join-Path ${env:ProgramFiles(x86)} "Microsoft\Edge\Application\msedge.exe" }
+            if ($env:ProgramFiles) { Join-Path $env:ProgramFiles "Microsoft\Edge\Application\msedge.exe" }
+          )
+          $edgeExe = Get-ChildItem $edgeCandidates -ErrorAction SilentlyContinue | Select-Object -First 1
+          $edgeVersion = if ($edgeExe) { $edgeExe.VersionInfo.ProductVersion } else { "unknown" }
+          $webview2Version = "unknown"
+          foreach ($regPath in @(
+            "HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}",
+            "HKLM:\SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}",
+            "HKCU:\SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}"
+          )) {
+            $pv = (Get-ItemProperty -Path $regPath -Name pv -ErrorAction SilentlyContinue).pv
+            if ($pv) { $webview2Version = $pv; break }
+          }
+          $driver = $null
+          if ($env:EDGEWEBDRIVER -and (Test-Path (Join-Path $env:EDGEWEBDRIVER "msedgedriver.exe"))) {
+            $driver = Join-Path $env:EDGEWEBDRIVER "msedgedriver.exe"
+          } else {
+            $cmd = Get-Command msedgedriver -ErrorAction SilentlyContinue
+            if ($cmd) { $driver = $cmd.Source }
+          }
+          if (-not $driver) {
+            throw "msedgedriver.exe not found on windows-latest runner"
+          }
+          $driverVersion = & $driver --version
+          "LOAM_DESKTOP_NATIVE_DRIVER=$driver" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          @(
+            "Windows $([System.Environment]::OSVersion.Version)"
+            "WebView2 Runtime $webview2Version"
+            "Edge $edgeVersion"
+            "EdgeDriver $driverVersion ($driver)"
+          ) | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
+      - name: Install Rust toolchain
+        working-directory: endpoints/loam/packages/desktop/src-tauri
+        run: rustup toolchain install
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+          workspaces: endpoints/loam/packages/desktop/src-tauri
+      - name: Install tauri-driver
+        working-directory: endpoints/loam/packages/desktop/src-tauri
+        run: cargo install tauri-driver --version 2.1.0 --locked
+      - name: Build the web host and its dependencies
+        run: pnpm -F "@lushly-dev/loam-desktop..." build
+      - name: Build the bundled empty shell
+        run: pnpm -F @lushly-dev/loam-desktop build:site
+      - name: Format
+        working-directory: endpoints/loam/packages/desktop/src-tauri
+        run: cargo fmt --check
+      - name: Clippy
+        working-directory: endpoints/loam/packages/desktop/src-tauri
+        run: cargo clippy --locked --all-targets -- -D warnings
+      - name: Rust tests, with P6-D4's pin on Tauri's ACL exemptions
+        working-directory: endpoints/loam/packages/desktop/src-tauri
+        run: cargo test --locked
+      - name: Build the app
+        run: pnpm -F @lushly-dev/loam-desktop build:app
+      # WebView2 Runtime 150+ ignores `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` (which `msedgedriver`
+      # uses to pass `--remote-debugging-port`) when the host process runs elevated as Administrator.
+      # `windows-latest` runs steps elevated, so drop to a Medium Integrity Level token (standard
+      # user, matching how Loam runs on a user's machine) via SaferComputeTokenFromLevel.
+      - name: Desktop suite under tauri-driver
+        shell: pwsh
+        run: |
+          $sid = (& (Join-Path $env:SystemRoot "System32\whoami.exe") /user /fo csv /nh).Trim().Split(',')[-1].Trim('"')
+          $resultsDir = Join-Path $PWD "endpoints\loam\packages\desktop\test-results"
+          New-Item -ItemType Directory -Force -Path $resultsDir | Out-Null
+          $mediumTmp = Join-Path $env:RUNNER_TEMP "loam-desktop-medium-tmp"
+          New-Item -ItemType Directory -Force -Path $mediumTmp | Out-Null
+          $icacls = Join-Path $env:SystemRoot "System32\icacls.exe"
+          & $icacls $resultsDir /grant "*${sid}:(OI)(CI)(F)" | Out-Null
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $icacls $mediumTmp /grant "*${sid}:(OI)(CI)(F)" | Out-Null
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $env:TEMP = $mediumTmp
+          $env:TMP = $mediumTmp
+          $code = @'
+          using System;
+          using System.ComponentModel;
+          using System.Runtime.InteropServices;
+          using System.Text;
+
+          public static class MediumRunner {
+              const uint SAFER_SCOPEID_USER = 2;
+              const uint SAFER_LEVELID_NORMALUSER = 0x20000;
+              const uint SAFER_LEVEL_OPEN = 1;
+              const int TokenIntegrityLevel = 25;
+              const uint SE_GROUP_INTEGRITY = 0x00000020;
+              const uint INFINITE = 0xFFFFFFFF;
+
+              [StructLayout(LayoutKind.Sequential)]
+              struct SID_AND_ATTRIBUTES {
+                  public IntPtr Sid;
+                  public uint Attributes;
+              }
+
+              [StructLayout(LayoutKind.Sequential)]
+              struct TOKEN_MANDATORY_LABEL {
+                  public SID_AND_ATTRIBUTES Label;
+              }
+
+              [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+              struct STARTUPINFO {
+                  public int cb;
+                  public string lpReserved;
+                  public string lpDesktop;
+                  public string lpTitle;
+                  public int dwX, dwY, dwXSize, dwYSize, dwXCountChars, dwYCountChars, dwFillAttribute, dwFlags;
+                  public short wShowWindow, cbReserved2;
+                  public IntPtr lpReserved2, hStdInput, hStdOutput, hStdError;
+              }
+
+              [StructLayout(LayoutKind.Sequential)]
+              struct PROCESS_INFORMATION {
+                  public IntPtr hProcess, hThread;
+                  public int dwProcessId, dwThreadId;
+              }
+
+              [DllImport("advapi32.dll", SetLastError = true)]
+              static extern bool SaferCreateLevel(uint scopeId, uint levelId, uint openFlags, out IntPtr levelHandle, IntPtr reserved);
+
+              [DllImport("advapi32.dll", SetLastError = true)]
+              static extern bool SaferComputeTokenFromLevel(IntPtr levelHandle, IntPtr inAccessToken, out IntPtr outAccessToken, uint flags, IntPtr reserved);
+
+              [DllImport("advapi32.dll", SetLastError = true)]
+              static extern bool SaferCloseLevel(IntPtr levelHandle);
+
+              [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+              static extern bool ConvertStringSidToSidW(string stringSid, out IntPtr sid);
+
+              [DllImport("advapi32.dll", SetLastError = true)]
+              static extern uint GetLengthSid(IntPtr sid);
+
+              [DllImport("advapi32.dll", SetLastError = true)]
+              static extern bool SetTokenInformation(IntPtr tokenHandle, int tokenInformationClass, IntPtr tokenInformation, uint tokenInformationLength);
+
+              [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+              static extern bool CreateProcessAsUserW(
+                  IntPtr hToken, string lpApplicationName, StringBuilder lpCommandLine,
+                  IntPtr lpProcessAttributes, IntPtr lpThreadAttributes, bool bInheritHandles,
+                  uint dwCreationFlags, IntPtr lpEnvironment, string lpCurrentDirectory,
+                  ref STARTUPINFO lpStartupInfo, out PROCESS_INFORMATION lpProcessInformation);
+
+              [DllImport("kernel32.dll", SetLastError = true)]
+              static extern uint WaitForSingleObject(IntPtr hHandle, uint dwMilliseconds);
+
+              [DllImport("kernel32.dll", SetLastError = true)]
+              static extern bool GetExitCodeProcess(IntPtr hProcess, out uint lpExitCode);
+
+              [DllImport("kernel32.dll", SetLastError = true)]
+              static extern bool CloseHandle(IntPtr hObject);
+
+              [DllImport("kernel32.dll", SetLastError = true)]
+              static extern IntPtr LocalFree(IntPtr hMem);
+
+              public static int Run(string commandLine) {
+                  IntPtr level = IntPtr.Zero;
+                  IntPtr token = IntPtr.Zero;
+                  IntPtr sid = IntPtr.Zero;
+                  IntPtr labelPtr = IntPtr.Zero;
+                  try {
+                      if (!SaferCreateLevel(SAFER_SCOPEID_USER, SAFER_LEVELID_NORMALUSER, SAFER_LEVEL_OPEN, out level, IntPtr.Zero))
+                          throw new Win32Exception(Marshal.GetLastWin32Error(), "SaferCreateLevel failed");
+                      if (!SaferComputeTokenFromLevel(level, IntPtr.Zero, out token, 0, IntPtr.Zero))
+                          throw new Win32Exception(Marshal.GetLastWin32Error(), "SaferComputeTokenFromLevel failed");
+                      if (!ConvertStringSidToSidW("S-1-16-8192", out sid))
+                          throw new Win32Exception(Marshal.GetLastWin32Error(), "ConvertStringSidToSidW failed");
+                      var label = new TOKEN_MANDATORY_LABEL {
+                          Label = new SID_AND_ATTRIBUTES { Sid = sid, Attributes = SE_GROUP_INTEGRITY }
+                      };
+                      uint len = (uint)Marshal.SizeOf(typeof(TOKEN_MANDATORY_LABEL)) + GetLengthSid(sid);
+                      labelPtr = Marshal.AllocHGlobal((int)len);
+                      Marshal.StructureToPtr(label, labelPtr, false);
+                      if (!SetTokenInformation(token, TokenIntegrityLevel, labelPtr, len))
+                          throw new Win32Exception(Marshal.GetLastWin32Error(), "SetTokenInformation(TokenIntegrityLevel) failed");
+                      var si = new STARTUPINFO { cb = Marshal.SizeOf(typeof(STARTUPINFO)) };
+                      var mutableCmd = new StringBuilder(commandLine);
+                      PROCESS_INFORMATION pi;
+                      if (!CreateProcessAsUserW(token, null, mutableCmd, IntPtr.Zero, IntPtr.Zero, true, 0, IntPtr.Zero, Environment.CurrentDirectory, ref si, out pi))
+                          throw new Win32Exception(Marshal.GetLastWin32Error(), "CreateProcessAsUserW failed");
+                      try {
+                          if (WaitForSingleObject(pi.hProcess, INFINITE) != 0)
+                              throw new Win32Exception(Marshal.GetLastWin32Error(), "WaitForSingleObject failed");
+                          uint exitCode;
+                          if (!GetExitCodeProcess(pi.hProcess, out exitCode))
+                              throw new Win32Exception(Marshal.GetLastWin32Error(), "GetExitCodeProcess failed");
+                          return unchecked((int)exitCode);
+                      } finally {
+                          CloseHandle(pi.hThread);
+                          CloseHandle(pi.hProcess);
+                      }
+                  } finally {
+                      if (labelPtr != IntPtr.Zero) Marshal.FreeHGlobal(labelPtr);
+                      if (sid != IntPtr.Zero) LocalFree(sid);
+                      if (token != IntPtr.Zero) CloseHandle(token);
+                      if (level != IntPtr.Zero) SaferCloseLevel(level);
+                  }
+              }
+          }
+          '@
+          Add-Type -TypeDefinition $code -Language CSharp
+          $pwsh = (Get-Process -Id $PID).Path
+          $whoami = Join-Path $env:SystemRoot "System32\whoami.exe"
+          $rc = [MediumRunner]::Run("`"$pwsh`" -NoProfile -Command `"`$ErrorActionPreference = 'Stop'; & '$whoami' /groups | Select-String Mandatory; `$LASTEXITCODE = 1; pnpm -F @lushly-dev/loam-desktop test:desktop; exit `$LASTEXITCODE`"")
+          exit $rc
+      - name: Build the installers
+        shell: pwsh
+        run: |
+          pnpm -F @lushly-dev/loam-desktop build:installers
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          pnpm -F @lushly-dev/loam-desktop test:installers
+          exit $LASTEXITCODE
+      - name: The run leaves tracked files unchanged
+        shell: pwsh
+        run: |
+          $dirty = git status --porcelain
+          if ($dirty) {
+            Write-Error "Tracked or untracked files left behind:`n$dirty"
+            exit 1
+          }
+      - name: Upload installers
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: loam-desktop-installers-windows
+          path: endpoints/loam/packages/desktop/dist-installers/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload test results
+        if: ${{ always() }}
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: loam-desktop-windows-test-results
           path: endpoints/loam/packages/desktop/test-results/
           if-no-files-found: ignore
           retention-days: 30
@@ -231,8 +502,19 @@ jobs:
         run: pnpm -F @lushly-dev/loam-desktop build:app
       - name: WKWebView frame-to-IPC barrier (D153 and P6-D4)
         run: pnpm -F @lushly-dev/loam-desktop test:macos
+      - name: Build the installers
+        run: |
+          pnpm -F @lushly-dev/loam-desktop build:installers
+          pnpm -F @lushly-dev/loam-desktop test:installers
       - name: The run leaves tracked files unchanged
         run: test -z "$(git status --porcelain)"
+      - name: Upload installers
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: loam-desktop-installers-macos
+          path: endpoints/loam/packages/desktop/dist-installers/
+          if-no-files-found: error
+          retention-days: 30
       - name: Upload test results
         if: ${{ always() }}
         # A diagnostic: an outage of the artifact service must not fail a job whose suites passed.

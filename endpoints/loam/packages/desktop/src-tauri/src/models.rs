@@ -1371,7 +1371,15 @@ mod tests {
             .unwrap()
             .trim_matches('"')
             .to_owned();
-        let status = std::process::Command::new(system.join("icacls.exe"))
+        let icacls = system.join("icacls.exe");
+        let reset = std::process::Command::new(&icacls)
+            .arg(path)
+            .arg("/reset")
+            .stdout(std::process::Stdio::null())
+            .status()
+            .unwrap();
+        assert!(reset.success());
+        let status = std::process::Command::new(&icacls)
             .arg(path)
             .args(["/inheritance:r", "/grant:r"])
             .arg(format!("*{sid}:F"))
@@ -1379,6 +1387,13 @@ mod tests {
             .status()
             .unwrap();
         assert!(status.success());
+        let owner = std::process::Command::new(&icacls)
+            .arg(path)
+            .args(["/setowner", &format!("*{sid}")])
+            .stdout(std::process::Stdio::null())
+            .status()
+            .unwrap();
+        assert!(owner.success());
     }
 
     #[test]

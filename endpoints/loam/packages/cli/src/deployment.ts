@@ -342,7 +342,20 @@ async function restrictToOwner(path: string): Promise<void> {
 	});
 	const sid = /"(S-1-[0-9-]+)"\s*$/.exec(stdout.trim())?.[1];
 	if (!sid) throw new Error('whoami named no security identifier for this user');
-	await run(join(system, 'icacls.exe'), [path, '/inheritance:r', '/grant:r', `*${sid}:F`], {
+	const icacls = join(system, 'icacls.exe');
+	// Reset explicit ACEs first (for example `BUILTIN\Administrators:(F)` expanded from
+	// `CREATOR OWNER` under elevated Administrator tokens), then strip inherited ACEs so
+	// only `*<sid>:F` remains.
+	await run(icacls, [path, '/reset'], {
+		windowsHide: true,
+	});
+	await run(icacls, [path, '/inheritance:r', '/grant:r', `*${sid}:F`], {
+		windowsHide: true,
+	});
+	// Under an elevated Administrator token (such as GitHub Actions `windows-latest`), newly
+	// created files default to `BUILTIN\Administrators` as owner rather than the user's SID;
+	// explicitly set the file owner so the Rust host's strict `EqualSid(owner, TokenUser)` holds.
+	await run(icacls, [path, '/setowner', `*${sid}`], {
 		windowsHide: true,
 	});
 }

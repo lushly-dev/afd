@@ -25,6 +25,7 @@ tauri-build = { version = "=2.7.4", features = [] }
 tauri = { version = "=2.12.5", features = ["tracing"] }
 tracing = "=0.1.44"
 tauri-plugin-single-instance = "=2.5.5"
+tauri-plugin-updater = { version = "=2.14.1", default-features = false, features = ["rustls-tls", "zip"] }
 reqwest = { version = "=0.13.5", default-features = false, features = ["rustls", "stream", "http2"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -65,3 +66,11 @@ tauri = { version = "=2.12.5", features = ["test"] }
 [features]
 # `tauri build` turns this on, so the release binary serves its own protocols rather than a dev server.
 custom-protocol = ["tauri/custom-protocol"]
+
+# P6-D5 updater harness: runs standalone checks under `cargo test`, drives real `tauri-plugin-updater`
+# HTTPS installs when invoked by `test/installers/p6-d5.test.ts`, and acts as the signed PE payload on
+# Windows (with an embedded `asInvoker` manifest so `ShellExecuteW` never prompts UAC).
+[[test]]
+name = "updater"
+path = "tests/updater.rs"
+harness = false

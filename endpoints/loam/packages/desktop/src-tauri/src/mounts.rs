@@ -1069,7 +1069,17 @@ mod tests {
             .unwrap()
             .trim_matches('"')
             .to_owned();
-        let status = std::process::Command::new(system.join("icacls.exe"))
+        let icacls = system.join("icacls.exe");
+        // Reset any explicit ACEs first (e.g., `BUILTIN\Administrators:(F)` expanded from
+        // `CREATOR OWNER` on elevated tokens) before stripping inherited ACEs.
+        let reset = std::process::Command::new(&icacls)
+            .arg(path)
+            .arg("/reset")
+            .stdout(Stdio::null())
+            .status()
+            .unwrap();
+        assert!(reset.success());
+        let status = std::process::Command::new(&icacls)
             .arg(path)
             .args(["/inheritance:r", "/grant:r"])
             .arg(format!("*{sid}:F"))
@@ -1077,6 +1087,15 @@ mod tests {
             .status()
             .unwrap();
         assert!(status.success());
+        // Elevated tokens (such as `windows-latest`) create files owned by BUILTIN\Administrators;
+        // set the file owner to this user's SID so `handle_owner_only` matches.
+        let owner = std::process::Command::new(&icacls)
+            .arg(path)
+            .args(["/setowner", &format!("*{sid}")])
+            .stdout(Stdio::null())
+            .status()
+            .unwrap();
+        assert!(owner.success());
     }
 
     #[test]
@@ -1108,9 +1127,34 @@ mod tests {
             path
         };
 
-        // Owner-only passes.
+        // Owner-only passes, including after clearing a pre-existing explicit `BUILTIN\Administrators:(F)`
+        // ACE (the shape `CREATOR OWNER` leaves on elevated Windows accounts).
         let owned = make("owned.json");
-        assert!(owner_only(&owned));
+        assert!(
+            std::process::Command::new(&icacls)
+                .arg(&owned)
+                .args(["/grant", "*S-1-5-32-544:F"])
+                .stdout(Stdio::null())
+                .status()
+                .unwrap()
+                .success()
+        );
+        assert!(!owner_only(&owned));
+        restrict(&owned);
+        if !owner_only(&owned) {
+            let acl = std::process::Command::new(&icacls)
+                .arg(&owned)
+                .output()
+                .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
+                .unwrap_or_default();
+            let owner = std::process::Command::new(system.join("cmd.exe"))
+                .args(["/c", "dir", "/Q"])
+                .arg(&owned)
+                .output()
+                .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
+                .unwrap_or_default();
+            panic!("owner_only(&owned) returned false;\nicacls:\n{acl}\nowner:\n{owner}");
+        }
         assert!(read(&owned).is_ok());
 
         // Granting Users read fails.

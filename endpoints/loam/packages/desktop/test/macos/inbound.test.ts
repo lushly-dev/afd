@@ -6,7 +6,9 @@
  * the DOM, a reload.
  */
 import { type ChildProcess, spawn } from 'node:child_process';
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { binary, desktopDeployment, pipeRedactedStderr, writeData } from '../harness';
 import {
@@ -54,19 +56,63 @@ async function stop(app: App): Promise<number | null> {
 	return code;
 }
 
+const RESULTS = fileURLToPath(new URL('../../test-results/', import.meta.url));
+/** Cold starts per run on macOS WKWebView, each from its own empty data directory (section 14). */
+const COLD_STARTS = 3;
+
 let app: App;
+let starting: App | undefined;
 let connection: Connection;
+let coldStartMs = 0;
+const coldStarts: number[] = [];
+
 beforeAll(async () => {
-	app = launch(await writeData());
-	connection = await untilConnection(app.data, 60_000);
-	await untilReady(connection, 60_000);
-}, 120_000);
+	// Section 14's macOS cold-start row (step 12): median of 3 fresh-profile starts from process
+	// spawn to stage B inbound readiness, recorded only until CI runs set a ceiling (#1125).
+	for (let sample = 1; sample <= COLD_STARTS; sample += 1) {
+		const data = await writeData();
+		const startedAt = Date.now();
+		starting = launch(data);
+		const conn = await untilConnection(starting.data, 60_000);
+		await untilReady(conn, 60_000);
+		coldStarts.push(Date.now() - startedAt);
+		if (sample < COLD_STARTS) {
+			await stop(starting);
+			starting = undefined;
+		} else {
+			app = starting;
+			starting = undefined;
+			connection = conn;
+		}
+	}
+	coldStartMs = [...coldStarts].sort((a, b) => a - b)[Math.floor(COLD_STARTS / 2)] as number;
+	mkdirSync(RESULTS, { recursive: true });
+	writeFileSync(
+		join(RESULTS, 'cold-start-darwin.json'),
+		`${JSON.stringify(
+			{
+				platform: process.platform,
+				metric: 'spawn-to-inbound-ready',
+				coldStartMs,
+				coldStarts,
+			},
+			null,
+			'\t'
+		)}\n`
+	);
+	process.stderr.write(
+		`Cold start on ${process.platform} (WKWebView to inbound ready): ${coldStartMs} ms (median of ${coldStarts.join(', ')}; recorded only)\n`
+	);
+}, 180_000);
 afterAll(async () => {
+	if (starting && starting !== app) await stop(starting);
 	if (app) await stop(app);
 });
 
 describe('P6-D6 and P6-D7 on WKWebView', () => {
-	it('P6-D6: inbound.json is owner-only and names this run', () => {
+	it('P6-D6: inbound.json is owner-only and names this run, and macOS cold start is recorded', () => {
+		expect(coldStarts).toHaveLength(COLD_STARTS);
+		expect(coldStartMs).toBeGreaterThan(0);
 		expect(connection.url).toBe(`http://127.0.0.1:${connection.port}/mcp`);
 		expect(connection.pid).toBe(app.child.pid);
 		expect(modeOf(app.data)).toBe(0o600);

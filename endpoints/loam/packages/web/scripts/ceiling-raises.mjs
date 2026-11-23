@@ -59,7 +59,7 @@ export function parseCeilings(source, name) {
 	const open = source.indexOf('{', start);
 	if (open < 0) return { error: `\`${name}\` has no object` };
 	const rows = {};
-	for (const raw of source.slice(open + 1).split('\n')) {
+	for (const raw of source.slice(open + 1).split(/\r?\n/)) {
 		const line = raw.replace(/\/\/.*$/, '').trim();
 		if (line === '') continue;
 		if (/^\}/.test(line)) break;
@@ -86,7 +86,7 @@ export function ceilingChanges(base, head) {
 
 /** The decision log's row for `id` (`| D161 | ...`), or `null`. */
 export function decisionRow(decisions, id) {
-	return decisions.split('\n').find((line) => line.startsWith(`| ${id} |`)) ?? null;
+	return decisions.split(/\r?\n/).find((line) => line.startsWith(`| ${id} |`)) ?? null;
 }
 
 /** What is wrong with D115's recorded end date: its form, and D161 stating it as `D115 ends on <date>`. */
@@ -138,7 +138,7 @@ export function headingAnchor(heading) {
 
 /** The text of the section `anchor` names in `markdown`, to the next heading of its level or above, or `null`. */
 export function sectionText(markdown, anchor) {
-	const lines = markdown.split('\n');
+	const lines = markdown.split(/\r?\n/);
 	const start = lines.findIndex(
 		(line) => /^#{1,6} /.test(line) && headingAnchor(line.replace(/^#+ /, '')) === anchor
 	);

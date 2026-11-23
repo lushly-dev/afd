@@ -15,6 +15,8 @@ fn main() {
         .expect("../dist/index.html");
     }
     println!("cargo:rerun-if-changed=../dist");
+    println!("cargo:rerun-if-env-changed=LOAM_UPDATER_PUBKEY");
+    println!("cargo:rerun-if-env-changed=LOAM_UPDATER_ENDPOINT");
     // A test binary that links Tauri's mock runtime needs Common Controls 6 on Windows, as the app has through
     // its own manifest; without it, the test exits with STATUS_ENTRYPOINT_NOT_FOUND before it runs.
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows")
