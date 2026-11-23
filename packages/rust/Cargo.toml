@@ -133,6 +133,11 @@ tower = { version = "0.5", features = ["util"] }
 aws-lc-rs = "1.15"
 tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "std"] }
 
+# `cargo bench --bench execute`: the per-call cost of `CommandRegistry::execute` (#1764).
+[[bench]]
+name = "execute"
+harness = false
+
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]

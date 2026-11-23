@@ -137,13 +137,13 @@ pub(crate) fn read_limit(
 ) -> CommandMiddleware {
     Arc::new(
         move |_name: String,
-              _input: Value,
+              _input: std::sync::Arc<Value>,
               context: CommandContext,
               next: MiddlewareNext|
               -> BoxFuture<'static, CommandResult<Value>> {
             let caller = Caller::of(workspace.config(), &context);
             if !caller.gets_one_answer() {
-                return next();
+                return next(context);
             }
             let principal = caller.principal().unwrap_or("-").to_owned();
             let limits = Arc::clone(&limits);
@@ -180,7 +180,7 @@ pub(crate) fn read_limit(
                         return failure(store_failed());
                     }
                 };
-                let result = next().await;
+                let result = next(context).await;
                 let bytes = serde_json::to_vec(&result).map_or(0, |bytes| bytes.len());
                 let bytes = u64::try_from(bytes).unwrap_or(u64::MAX);
                 let counted = tokio::task::spawn_blocking(move || {

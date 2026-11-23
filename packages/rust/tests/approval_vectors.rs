@@ -97,10 +97,10 @@ async fn call(
         let iface: CommandInterface = serde_json::from_value(json!(interface)).unwrap();
         context = context.with_interface(iface);
     }
-    let next: MiddlewareNext = Arc::new(|| Box::pin(async { success(json!("ran")) }));
+    let next: MiddlewareNext = Arc::new(|_context| Box::pin(async { success(json!("ran")) }));
     middleware(
         command.as_str().unwrap().to_owned(),
-        input.clone(),
+        Arc::new(input.clone()),
         context,
         next,
     )

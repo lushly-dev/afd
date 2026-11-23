@@ -847,3 +847,35 @@ async fn a_panicking_filter_records_nothing() {
     assert!(sink.entries().is_empty());
     assert_eq!(*errors.lock().unwrap(), 1);
 }
+
+#[tokio::test]
+async fn a_middleware_that_replaces_the_context_cannot_detach_the_tape() {
+    // A middleware passes `next` a fresh context, or one it kept from an earlier call (with that
+    // call's recording clock and random source): the handler still reads through this call's
+    // recorder, so the tape holds this call's reads.
+    let registry = registry();
+    let sink = recorded(&registry, |recorder| recorder);
+    let kept: Arc<std::sync::Mutex<Option<CommandContext>>> = Arc::default();
+    let slot = Arc::clone(&kept);
+    registry.add_middleware(Arc::new(move |_, _, context, next| {
+        let mut slot = slot.lock().unwrap();
+        let passed = slot.clone().unwrap_or_default();
+        slot.get_or_insert(context);
+        next(passed)
+    }));
+    for _ in 0..2 {
+        let result = registry
+            .execute("secret-ping", json!({}), Some(context()))
+            .await;
+        assert!(result.success, "{result:?}");
+    }
+    let entries = sink.entries();
+    assert_eq!(entries.len(), 2);
+    let random = seeded_random("journal-test");
+    let expected = [random.next(), random.next()];
+    for entry in &entries {
+        let tape = entry.tape.as_ref().expect("a tape");
+        assert_eq!(tape.clock, [1_767_225_600_000.0], "entry {}", entry.seq);
+        assert_eq!(tape.random, expected, "entry {}", entry.seq);
+    }
+}

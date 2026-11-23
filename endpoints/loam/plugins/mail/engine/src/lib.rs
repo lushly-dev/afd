@@ -228,7 +228,7 @@ fn strip_non_approver_token(engine: Arc<engine::Engine>) -> afd::CommandMiddlewa
         let should_strip =
             context.interface == Some(CommandInterface::Mcp) && !is_approver(&engine, &context);
         Box::pin(async move {
-            let mut result = next().await;
+            let mut result = next(context).await;
             if should_strip
                 && let Some(error) = result.error.as_mut()
                 && error.code == "APPROVAL_REQUIRED"
@@ -271,7 +271,7 @@ fn pre_approval_check(engine: Arc<engine::Engine>) -> afd::CommandMiddleware {
             {
                 return afd::failure(error);
             }
-            next().await
+            next(context).await
         })
     })
 }
@@ -284,12 +284,13 @@ fn reply_limit(engine: Arc<engine::Engine>) -> afd::CommandMiddleware {
     Arc::new(move |_name, _input, context, next| {
         let engine = Arc::clone(&engine);
         Box::pin(async move {
-            let result = next().await;
+            let interface = context.interface;
+            let result = next(context).await;
             if !engine.work().serving() {
                 return result;
             }
             let limit = engine.limits().reply;
-            let size = reply_size(&result, context.interface);
+            let size = reply_size(&result, interface);
             if size <= limit {
                 return result;
             }

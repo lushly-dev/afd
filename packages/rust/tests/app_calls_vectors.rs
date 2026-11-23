@@ -204,7 +204,7 @@ async fn the_refusal_comes_before_the_middleware() {
             "{name} {}",
             context.interface.map_or("none", CommandInterface::as_str)
         ));
-        Box::pin(async move { next().await })
+        Box::pin(async move { next(context).await })
     }));
     for caller in ["checklist", "hello"] {
         registry

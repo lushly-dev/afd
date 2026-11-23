@@ -87,7 +87,7 @@ impl Gate {
         &self,
         up_front: &UpFrontApproval,
         name: String,
-        input: Value,
+        input: Arc<Value>,
         context: CommandContext,
         next: MiddlewareNext,
     ) -> CommandResult<Value> {
@@ -111,7 +111,7 @@ impl Gate {
             UpFrontPlan::Run(approved) => approved,
         };
         if !self.requires_approval(&name, &input, &context).await {
-            return next().await;
+            return next(context).await;
         }
         let Ok(input) = canonical_json(&input) else {
             return failure(input_not_canonical(&name));
@@ -131,7 +131,7 @@ impl Gate {
                 .is_some()
         };
         if taken {
-            return next().await;
+            return next(context).await;
         }
         failure(unplanned_error(up_front.tool, &name))
     }

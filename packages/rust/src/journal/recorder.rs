@@ -38,9 +38,10 @@ pub(crate) struct JournalContextState {
 ///
 /// Set it with [`CommandRegistry::set_journal`](crate::CommandRegistry::set_journal). The
 /// registry runs it after lookup, exposure and input validation, so a call rejected there is
-/// never recorded, and around the whole middleware chain: Rust middleware cannot change the
-/// context the handler sees, so the recorder swaps the clock and random source before the
-/// chain starts. The tape therefore holds what the middleware and the handler read.
+/// never recorded, and around the whole middleware chain: the recorder swaps the clock and
+/// random source before the chain starts, and every step of the chain keeps them whatever
+/// context a middleware passes to `next`. The tape therefore holds what the middleware and the
+/// handler read.
 ///
 /// Each entry holds the command, its validated input, the actor, the trace ID, a context
 /// digest (a hash plus the interface), the values of the registry's declared context fields

@@ -405,12 +405,12 @@ async fn a_panic_is_not_journaled_unless_failures_are() {
 #[tokio::test]
 async fn a_panicking_middleware_is_a_failure_too() {
     let registry = registry();
-    let middleware: CommandMiddleware = Arc::new(|name, _input, _context, next| {
+    let middleware: CommandMiddleware = Arc::new(|name, _input, context, next| {
         Box::pin(async move {
             if name == "todo-fine" {
                 panic!("middleware detail: {SECRET}");
             }
-            next().await
+            next(context).await
         })
     });
     registry.add_middleware(middleware);

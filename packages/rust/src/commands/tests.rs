@@ -409,12 +409,12 @@ async fn test_execute_turns_a_middleware_panic_into_execution_failure() {
     // One layer panics while building its future, the other while it runs.
     for panic_while_building in [true, false] {
         let registry = panic_registry();
-        registry.add_middleware(Arc::new(move |_name, _input, _context, next| {
+        registry.add_middleware(Arc::new(move |_name, _input, context, next| {
             if panic_while_building {
                 panic!("middleware bug before the future");
             }
             Box::pin(async move {
-                let _ = next().await;
+                let _ = next(context).await;
                 panic!("middleware bug in the future");
             })
         }));
@@ -886,13 +886,13 @@ async fn test_execute_honors_context_timeout() {
 type Log = Arc<std::sync::Mutex<Vec<String>>>;
 
 fn recording_middleware(label: &'static str, log: Log) -> CommandMiddleware {
-    Arc::new(move |name, input, _context, next| {
+    Arc::new(move |name, input, context, next| {
         let log = Arc::clone(&log);
         Box::pin(async move {
             log.lock()
                 .unwrap()
                 .push(format!("{label}:before:{name}:{}", input["priority"]));
-            let result = next().await;
+            let result = next(context).await;
             log.lock().unwrap().push(format!("{label}:after"));
             result
         })
@@ -939,7 +939,7 @@ async fn test_middleware_wraps_execution_in_order() {
 #[tokio::test]
 async fn test_middleware_can_short_circuit_and_retry() {
     let (registry, calls) = validating_registry();
-    registry.add_middleware(Arc::new(|_name, input, _context, next| {
+    registry.add_middleware(Arc::new(|_name, input, context, next| {
         Box::pin(async move {
             if input["title"] == "blocked" {
                 return failure(
@@ -947,9 +947,9 @@ async fn test_middleware_can_short_circuit_and_retry() {
                         .with_suggestion("Use another title"),
                 );
             }
-            let first = next().await;
+            let first = next(context.clone()).await;
             if input["title"] == "twice" {
-                return next().await;
+                return next(context.clone()).await;
             }
             first
         })
@@ -1174,9 +1174,9 @@ async fn test_handler_and_middleware_never_see_undeclared_keys() {
     let (registry, _) = validating_registry();
     let seen: Log = Arc::default();
     let log = Arc::clone(&seen);
-    registry.add_middleware(Arc::new(move |_name, input, _context, next| {
+    registry.add_middleware(Arc::new(move |_name, input, context, next| {
         log.lock().unwrap().push(input.to_string());
-        next()
+        next(context.clone())
     }));
 
     let result = registry
@@ -1294,9 +1294,9 @@ async fn middleware_sees_the_filled_context_and_batches_keep_the_actor() {
     registry.add_middleware(Arc::new(move |_name, _input, context, next| {
         record.lock().unwrap().push((
             context.clock.is_some(),
-            context.actor.map(|actor| actor.kind),
+            context.actor.as_ref().map(|actor| actor.kind),
         ));
-        Box::pin(async move { next().await })
+        Box::pin(async move { next(context).await })
     }));
     let request = BatchRequest::new(vec![
         BatchCommand::new("context-probe", serde_json::json!({})),
@@ -1436,7 +1436,7 @@ async fn a_step_approved_up_front_runs_on_the_input_validated_then() {
                 ),
             );
         }
-        next()
+        next(context)
     }));
     // An input a second validation would not give: the id the human was shown.
     let step = |index: usize, id: &str| UpFrontStep {
@@ -1509,4 +1509,189 @@ async fn a_step_approved_up_front_runs_on_the_input_validated_then() {
         .execute("note-list", serde_json::json!({}), Some(context.clone()))
         .await;
     assert_eq!(listed.data, Some(serde_json::json!({ "id": "kept" })));
+}
+
+/// Echoes what the handler's context holds: the trace ID, an `extra` field and the actor kind.
+struct ContextEcho;
+
+#[async_trait]
+impl CommandHandler for ContextEcho {
+    async fn execute(
+        &self,
+        _input: serde_json::Value,
+        context: CommandContext,
+    ) -> CommandResult<serde_json::Value> {
+        success(serde_json::json!({
+            "traceId": context.trace_id,
+            "tenant": context.extra.get("tenant"),
+            "clock": context.clock.is_some(),
+            "random": context.random.is_some(),
+            "padding": "x".repeat(64),
+        }))
+    }
+}
+
+#[tokio::test]
+async fn a_middleware_refines_the_context_the_handler_sees() {
+    let registry = CommandRegistry::new();
+    registry
+        .register(CommandDefinition::new(
+            "context-echo",
+            "Echo the context",
+            vec![],
+            ContextEcho,
+        ))
+        .unwrap();
+    // The outer layer refines the context; the inner one passes it on unchanged.
+    registry.add_middleware(Arc::new(|_, _, mut context, next| {
+        context.trace_id = Some("trace-1".into());
+        context
+            .extra
+            .insert("tenant".into(), serde_json::json!("acme"));
+        context = context.with_actor(crate::Actor::new(crate::ActorKind::Agent));
+        next(context)
+    }));
+    let seen = Arc::new(std::sync::Mutex::new(None));
+    let inner = Arc::clone(&seen);
+    registry.add_middleware(Arc::new(move |_, _, context, next| {
+        *inner.lock().unwrap() = context.trace_id.clone();
+        next(context)
+    }));
+
+    let result = registry
+        .execute("context-echo", serde_json::json!({}), None)
+        .await;
+    assert!(result.success, "{result:?}");
+    let data = result.data.as_ref().unwrap();
+    assert_eq!(data["traceId"], "trace-1");
+    assert_eq!(data["tenant"], "acme");
+    assert_eq!(seen.lock().unwrap().as_deref(), Some("trace-1"));
+    assert_eq!(
+        result.metadata.and_then(|metadata| metadata.actor_kind),
+        Some(crate::ActorKind::Agent)
+    );
+}
+
+#[tokio::test]
+async fn a_middleware_cannot_drop_the_call_state_by_replacing_the_context() {
+    // A middleware that passes a new context keeps its public fields but not the call's
+    // crate-owned state: the output budget `execute` set still applies.
+    let registry = CommandRegistry::new();
+    registry
+        .register(
+            CommandDefinition::new("context-echo", "Echo the context", vec![], ContextEcho)
+                .with_output_budget(20, 40),
+        )
+        .unwrap();
+    registry.add_middleware(Arc::new(|_, _, _context, next| {
+        next(CommandContext::new().with_trace_id("fresh"))
+    }));
+
+    let result = registry
+        .execute("context-echo", serde_json::json!({}), None)
+        .await;
+    assert!(!result.success);
+    assert_eq!(
+        result.error.map(|error| error.code),
+        Some(error_codes::OUTPUT_BUDGET_EXCEEDED.to_string())
+    );
+}
+
+#[tokio::test]
+async fn a_replaced_context_keeps_the_calls_clock_and_random() {
+    // `execute` gives every call a clock and a random source; a middleware that passes a new
+    // context does not leave the handler without (the journal's tests check the recording
+    // wrappers themselves).
+    let registry = CommandRegistry::new();
+    registry
+        .register(CommandDefinition::new(
+            "context-echo",
+            "Echo the context",
+            vec![],
+            ContextEcho,
+        ))
+        .unwrap();
+    registry.add_middleware(Arc::new(|_, _, _context, next| next(CommandContext::new())));
+
+    let result = registry
+        .execute("context-echo", serde_json::json!({}), None)
+        .await;
+    let data = result.data.expect("succeeds");
+    assert_eq!(data["clock"], true);
+    assert_eq!(data["random"], true);
+}
+
+#[tokio::test]
+async fn an_inner_layer_sees_the_calls_state_whatever_the_outer_one_passes() {
+    // The outer layer passes a fresh context; the inner layer (as an approval or scope check
+    // would) still sees the call's interface, credentials and output budget.
+    let registry = CommandRegistry::new();
+    registry
+        .register(
+            CommandDefinition::new("context-echo", "Echo the context", vec![], ContextEcho)
+                .with_output_budget(1000, 2000)
+                .with_expose(ExposeOptions::new().with_mcp(true)),
+        )
+        .unwrap();
+    registry.add_middleware(Arc::new(|_, _, _context, next| next(CommandContext::new())));
+    let seen = Arc::new(std::sync::Mutex::new(None));
+    let inner = Arc::clone(&seen);
+    registry.add_middleware(Arc::new(move |_, _, context, next| {
+        *inner.lock().unwrap() = Some((
+            context.interface,
+            context
+                .credentials
+                .as_ref()
+                .map(|credentials| credentials.subject.clone()),
+            context.output_budget,
+        ));
+        next(context)
+    }));
+
+    let credentials = crate::Credentials::new("issuer", "subject-1", "client", "resource", 0, 1);
+    let context = CommandContext::new()
+        .with_interface(CommandInterface::Mcp)
+        .with_credentials(credentials);
+    let result = registry
+        .execute("context-echo", serde_json::json!({}), Some(context))
+        .await;
+    assert!(result.success, "{result:?}");
+    assert_eq!(
+        *seen.lock().unwrap(),
+        Some((
+            Some(CommandInterface::Mcp),
+            Some("subject-1".to_string()),
+            Some(1000)
+        ))
+    );
+}
+
+#[tokio::test]
+async fn a_replaced_context_keeps_the_servers_default_deadline_choice() {
+    // The server's choice of default deadline (`Some(None)`: none) reaches the inner layers and
+    // the handler, and so the calls it makes, whatever context an outer layer passes on.
+    let registry = CommandRegistry::new();
+    registry
+        .register(CommandDefinition::new(
+            "context-echo",
+            "Echo the context",
+            vec![],
+            ContextEcho,
+        ))
+        .unwrap();
+    registry.add_middleware(Arc::new(|_, _, _context, next| next(CommandContext::new())));
+    let seen = Arc::new(std::sync::Mutex::new(None));
+    let inner = Arc::clone(&seen);
+    registry.add_middleware(Arc::new(move |_, _, context, next| {
+        *inner.lock().unwrap() = Some(context.default_timeout_override);
+        next(context)
+    }));
+
+    let mut context = CommandContext::new();
+    context.default_timeout_override = Some(None);
+    let result = registry
+        .execute("context-echo", serde_json::json!({}), Some(context))
+        .await;
+    assert!(result.success, "{result:?}");
+    assert_eq!(*seen.lock().unwrap(), Some(Some(None)));
 }

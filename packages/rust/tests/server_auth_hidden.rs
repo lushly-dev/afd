@@ -184,12 +184,12 @@ fn registry(hidden: bool, seen: &Arc<Seen>) -> Arc<CommandRegistry> {
     let seen = Arc::clone(seen);
     let middleware: CommandMiddleware = Arc::new(
         move |name: String,
-              _input: Value,
-              _context: CommandContext,
+              _input: Arc<Value>,
+              context: CommandContext,
               next: MiddlewareNext|
               -> BoxFuture<'static, CommandResult<Value>> {
             seen.middleware.lock().unwrap().push(name);
-            next()
+            next(context)
         },
     );
     registry.add_middleware(middleware);

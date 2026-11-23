@@ -53,37 +53,7 @@ fn exceeds_reference_length(value: &str) -> bool {
         && value.encode_utf16().take(MAX_REFERENCE_LENGTH + 1).count() > MAX_REFERENCE_LENGTH
 }
 
-/// The step `$prev` reads while one step input resolves under the budget: the step's entry in
-/// `steps` when it holds the same step and data as `previous_result` (the executor stores a clone
-/// there), so `$prev` and `$steps[N]` reach one value and a repeat is recognized by address.
-/// Otherwise `previous_result`, which is always what `$prev` means.
-fn canonical_previous(context: &PipelineContext) -> Option<&StepResult> {
-    let previous = context.previous_result.as_ref()?;
-    Some(
-        context
-            .steps
-            .get(previous.index)
-            .filter(|step| {
-                step.index == previous.index
-                    && step.status == previous.status
-                    && step.command == previous.command
-                    && step.alias == previous.alias
-                    && step.data == previous.data
-            })
-            .unwrap_or(previous),
-    )
-}
-
 fn resolve_string<'s, 'c>(value: &'s str, context: &'c PipelineContext) -> Resolution<'s, 'c> {
-    resolve_string_with(value, context, context.previous_result.as_ref())
-}
-
-/// [`resolve_string`], with `previous` as the step `$prev` reads.
-fn resolve_string_with<'s, 'c>(
-    value: &'s str,
-    context: &'c PipelineContext,
-    previous: Option<&'c StepResult>,
-) -> Resolution<'s, 'c> {
     if value.starts_with("$$") {
         return Resolution::Literal(&value[1..]);
     }
@@ -96,7 +66,9 @@ fn resolve_string_with<'s, 'c>(
 
     let root = if let Some(name) = captures.get(1) {
         match name.as_str() {
-            "prev" => previous.and_then(|step| step.data.as_ref()),
+            "prev" => context
+                .previous_result()
+                .and_then(|step| step.data.as_ref()),
             "first" => context.steps.first().and_then(|step| step.data.as_ref()),
             _ => context.pipeline_input.as_ref(),
         }
@@ -303,8 +275,6 @@ fn limit(limit: ResolutionLimit) -> ResolutionLimitError {
 
 /// The expansion budget of one step input.
 struct Budget<'c> {
-    /// The step `$prev` reads ([`canonical_previous`]), found at the first `$prev`.
-    previous: Option<Option<&'c StepResult>>,
     nodes: usize,
     chars: usize,
     /// Containers already expanded, by address, and non-empty strings, by value.
@@ -315,7 +285,6 @@ struct Budget<'c> {
 impl<'c> Budget<'c> {
     fn new() -> Self {
         Self {
-            previous: None,
             nodes: MAX_RESOLVED_NODES,
             chars: MAX_RESOLVED_CHARS,
             seen_containers: HashSet::new(),
@@ -400,14 +369,9 @@ fn resolve_bounded<'c>(
     budget: &mut Budget<'c>,
 ) -> Result<Option<serde_json::Value>, ResolutionLimitError> {
     if let serde_json::Value::String(text) = input {
-        let previous = if text.starts_with("$prev") {
-            *budget
-                .previous
-                .get_or_insert_with(|| canonical_previous(context))
-        } else {
-            context.previous_result.as_ref()
-        };
-        return match resolve_string_with(text, context, previous) {
+        // `$prev` is an entry of `steps`, so it and `$steps[N]` reach one value, and a repeat
+        // is recognized by address.
+        return match resolve_string(text, context) {
             Resolution::Literal(literal) => {
                 budget.node(true)?;
                 budget.text(literal, true)?;

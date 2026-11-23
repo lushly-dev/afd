@@ -1116,8 +1116,9 @@ pub struct PipelineContext {
     /// The pipeline request's `input`, referenced as `$input`.
     pub pipeline_input: Option<serde_json::Value>,
 
-    /// Result of the previous successful step, referenced as `$prev`.
-    pub previous_result: Option<StepResult>,
+    /// The position in [`Self::steps`] of the previous successful step, referenced as `$prev`
+    /// (read it with [`Self::previous_result`]). `$prev` reads that entry, not a copy of it.
+    pub previous: Option<usize>,
 
     /// All step results so far, in step order.
     pub steps: Vec<StepResult>,
@@ -1132,10 +1133,16 @@ impl PipelineContext {
         }
     }
 
+    /// The previous successful step, referenced as `$prev`: the entry of [`Self::steps`] at
+    /// [`Self::previous`].
+    pub fn previous_result(&self) -> Option<&StepResult> {
+        self.previous.and_then(|position| self.steps.get(position))
+    }
+
     /// Record a step result. Successful steps also become `$prev`.
     pub fn push_step(&mut self, step: StepResult) {
         if step.status == StepStatus::Success {
-            self.previous_result = Some(step.clone());
+            self.previous = Some(self.steps.len());
         }
         self.steps.push(step);
     }

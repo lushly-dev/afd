@@ -47,6 +47,74 @@ pub(crate) fn nearest(value: &Value) -> String {
     out
 }
 
+/// The UTF-8 length of [`nearest`]`(value)`, counted without writing it: no string, key list or
+/// number is allocated, so the output budget (`spec/output-budgets.md`, B5) measures a large
+/// result in one pass. Key order does not change a length, so keys are not sorted.
+pub(crate) fn nearest_len(value: &Value) -> u64 {
+    match value {
+        Value::Null => 4,
+        Value::Bool(flag) => {
+            if *flag {
+                4
+            } else {
+                5
+            }
+        }
+        Value::Number(number) => number_len(number),
+        Value::String(text) => string_json_len(text),
+        Value::Array(items) => {
+            // The brackets, and a comma between items.
+            let commas = items.len().saturating_sub(1) as u64;
+            2 + commas + items.iter().map(nearest_len).sum::<u64>()
+        }
+        Value::Object(map) => {
+            // The braces, a comma between members, and a colon in each.
+            let commas = map.len().saturating_sub(1) as u64;
+            2 + commas
+                + map
+                    .iter()
+                    .map(|(key, item)| string_json_len(key) + 1 + nearest_len(item))
+                    .sum::<u64>()
+        }
+    }
+}
+
+/// The length of [`string_json`]`(text)`: the quotes, two bytes for each of `"`, `\\` and the
+/// controls serde_json writes as a short escape, six for any other control (`\u00xx`), and each
+/// other character's UTF-8 length.
+fn string_json_len(text: &str) -> u64 {
+    2 + text
+        .bytes()
+        .map(|byte| match byte {
+            b'"' | b'\\' | 0x08 | 0x0c | b'\n' | b'\r' | b'\t' => 2,
+            0..=0x1f => 6,
+            _ => 1,
+        })
+        .sum::<u64>()
+}
+
+/// The length of [`number_json`]`(number, Integers::Nearest)`, through the same spelling on the
+/// stack: an integer's digits, or `ryu_js`'s buffer for a float.
+fn number_len(number: &Number) -> u64 {
+    let integer = number
+        .as_i64()
+        .map(i128::from)
+        .or_else(|| number.as_u64().map(i128::from))
+        .filter(|integer| integer.unsigned_abs() <= u128::from(MAX_SAFE_INTEGER));
+    if let Some(integer) = integer {
+        let sign = u64::from(integer < 0);
+        let digits = integer
+            .unsigned_abs()
+            .checked_ilog10()
+            .map_or(1, |log| log + 1);
+        return sign + u64::from(digits);
+    }
+    match number.as_f64().filter(|float| float.is_finite()) {
+        Some(float) => ryu_js::Buffer::new().format(float).len() as u64,
+        None => 4,
+    }
+}
+
 /// The digest of a validated input that a person decides on (`spec/command-metadata.md`,
 /// "Host-verified confirmation", step 2): the unpadded base64url SHA-256 of the input's canonical
 /// JSON (the approval tokens' canonical JSON, "Approvals", rule 3). The server computes it from
@@ -203,6 +271,40 @@ fn number_json(number: &Number, integers: Integers) -> Result<String, Inexact> {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn counts_the_length_nearest_writes() {
+        let cases = [
+            json!(null),
+            json!(true),
+            json!(false),
+            json!(0),
+            json!(-7),
+            json!(9_007_199_254_740_991_i64),
+            json!(-9_007_199_254_740_991_i64),
+            json!(99_999_999_999_999_999_u64),
+            json!(u64::MAX),
+            json!(i64::MIN),
+            json!(1.0),
+            json!(-0.0),
+            json!(1e21),
+            json!(1.5e-7),
+            json!(0.1),
+            json!(""),
+            json!("plain"),
+            json!("quote \" slash \\ controls \u{8}\u{c}\n\r\t \u{1} \u{1f} end \u{7f}"),
+            json!("é ☃ 😀 \u{2028}"),
+            json!([]),
+            json!({}),
+            json!([1, [2, [3]], {"b": 1, "a": [null, "x"]}]),
+            json!({"z": {"é": 1.25, "a\nb": [true, false]}, "a": "😀", "m": {}}),
+        ];
+        let controls: String = (0u8..=0x1f).map(char::from).chain(['"', '\\']).collect();
+        let more = [json!(controls), json!(-9_007_199_254_740_993_i64)];
+        for value in cases.into_iter().chain(more) {
+            assert_eq!(nearest_len(&value), nearest(&value).len() as u64, "{value}");
+        }
+    }
 
     #[test]
     fn writes_numbers_as_javascript_does() {

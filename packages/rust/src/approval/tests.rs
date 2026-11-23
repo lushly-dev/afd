@@ -931,10 +931,10 @@ async fn uses_summarize_then_the_confirm_prompt_for_the_summary() {
 
     // Without summarize, the confirm prompt. Called directly, outside the registry.
     let gate = create_approval_middleware(summarized(false)).unwrap();
-    let next: crate::MiddlewareNext = Arc::new(|| Box::pin(async { success(json!(null)) }));
+    let next: crate::MiddlewareNext = Arc::new(|_context| Box::pin(async { success(json!(null)) }));
     let held = gate(
         "todo-delete".into(),
-        json!({}),
+        Arc::new(json!({})),
         CommandContext::new(),
         Arc::clone(&next),
     )
@@ -1179,11 +1179,11 @@ impl Direct {
 
     async fn call(&self, input: Value, context: CommandContext) -> CommandResult<Value> {
         let handled = Arc::clone(&self.handled);
-        let next: crate::MiddlewareNext = Arc::new(move || {
+        let next: crate::MiddlewareNext = Arc::new(move |_context| {
             handled.fetch_add(1, Ordering::SeqCst);
             Box::pin(async { success(json!(null)) })
         });
-        (self.gate)("todo-delete".into(), input, context, next).await
+        (self.gate)("todo-delete".into(), Arc::new(input), context, next).await
     }
 }
 

@@ -1,8 +1,7 @@
 //! The host's middleware: the event stamp and the space check.
 //!
-//! AFD middleware receives the validated input and the context and calls `next()`, which takes no
-//! arguments: it can refuse before the handler or rewrite the result after it, but it cannot
-//! change what the handler sees. So the host owns two result keys, `dev.umbel/space` and
+//! AFD middleware receives the validated input and the context and calls `next(context)`: it can
+//! refuse before the handler or rewrite the result after it. The host owns two result keys, `dev.umbel/space` and
 //! `dev.umbel/mutation`, and these layers **always overwrite** them: a handler (or a plugin) can
 //! neither forge a mutation, nor hide one, nor redirect an event to another space.
 //!
@@ -125,7 +124,7 @@ pub(crate) fn event_stamp(
     let mutations = Arc::new(mutations);
     Arc::new(
         move |name: String,
-              _input: Value,
+              _input: std::sync::Arc<Value>,
               context: CommandContext,
               next: MiddlewareNext|
               -> BoxFuture<'static, CommandResult<Value>> {
@@ -138,7 +137,7 @@ pub(crate) fn event_stamp(
                 .map(|principal| principal.delegation_chain)
                 .unwrap_or_default();
             Box::pin(async move {
-                let mut result = next().await;
+                let mut result = next(context).await;
                 let unchanged = result.metadata.as_ref().is_some_and(|metadata| {
                     metadata.extra.get(NO_CHANGE_KEY) == Some(&Value::Bool(true))
                 });
@@ -192,7 +191,7 @@ pub(crate) fn space_check(
 ) -> CommandMiddleware {
     Arc::new(
         move |name: String,
-              input: Value,
+              input: std::sync::Arc<Value>,
               context: CommandContext,
               next: MiddlewareNext|
               -> BoxFuture<'static, CommandResult<Value>> {
@@ -245,7 +244,7 @@ pub(crate) fn space_check(
                         result
                     }
                     Some(Ok(space)) => {
-                        let mut result = next().await;
+                        let mut result = next(context).await;
                         let refused = result
                             .error
                             .as_ref()
@@ -260,7 +259,7 @@ pub(crate) fn space_check(
                         result
                     }
                     None => {
-                        let mut result = next().await;
+                        let mut result = next(context).await;
                         remove(&mut result, SPACE_KEY);
                         result
                     }
@@ -288,12 +287,12 @@ pub(crate) fn access_check(
 ) -> CommandMiddleware {
     Arc::new(
         move |name: String,
-              input: Value,
+              input: std::sync::Arc<Value>,
               context: CommandContext,
               next: MiddlewareNext|
               -> BoxFuture<'static, CommandResult<Value>> {
             let spaces = match spaced.get(&name) {
-                None => return next(),
+                None => return next(context),
                 Some(true) => resolve_many(&input, &context),
                 Some(false) => Ok(vec![workspace.default_space().as_str().to_owned()]),
             };
@@ -302,7 +301,7 @@ pub(crate) fn access_check(
             // Mode `none` and the operator keep phases 2 to 4's checks (each handler's own, and the
             // plugin gate's), as section 14's point 10 asks.
             if !caller.gets_one_answer() && caller.narrowing() == &crate::access::Narrowing::None {
-                return next();
+                return next(context);
             }
             let refused = match spaces {
                 Ok(spaces) => spaces
@@ -319,7 +318,7 @@ pub(crate) fn access_check(
             };
             match refused {
                 Some(error) => Box::pin(async move { failure(error) }),
-                None => next(),
+                None => next(context),
             }
         },
     )
@@ -372,12 +371,12 @@ pub(crate) fn plugin_gate(
     let gate = Arc::new(gate);
     Arc::new(
         move |name: String,
-              input: Value,
+              input: std::sync::Arc<Value>,
               context: CommandContext,
               next: MiddlewareNext|
               -> BoxFuture<'static, CommandResult<Value>> {
             let Some(entry) = entries.get(&name).cloned() else {
-                return next();
+                return next(context);
             };
             let gate = Arc::clone(&gate);
             let spaces = if entry.space_command || entry.spaces_command {
@@ -438,7 +437,7 @@ pub(crate) fn plugin_gate(
                         Ok(held) => held_mark = held,
                     }
                 }
-                let mut result = next().await;
+                let mut result = next(context).await;
                 // Whatever the handler did not take goes with the call.
                 drop(held_mark);
                 let record = gate.ledger.take(&trace);
