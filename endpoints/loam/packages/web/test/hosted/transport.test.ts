@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import { FileJournalSink } from '@lushly-dev/afd-core/journal-file';
 import { type DevHost, scanSecrets, startDevHost } from '@lushly-dev/loam-host/testing';
 import { TEST_RATE_LIMIT } from '@lushly-dev/loam-identity/testing';
-import type { Browser } from 'playwright';
+import type { Browser, Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
 	deploymentEntry,
@@ -66,6 +66,7 @@ beforeAll(async () => {
 }, 120_000);
 afterAll(async () => {
 	await Promise.all(opened.splice(0).map((page) => page.context.close()));
+	await Promise.all(hostedOnly.splice(0).map((page) => page.context().close()));
 	await browser?.close();
 	await host?.close();
 });
@@ -137,6 +138,8 @@ const projectNames = async (page: ShellPage) =>
 	).map((project) => project.name);
 
 let owner: ShellPage;
+/** Pages outside `opened`, which the secret scan reads too. */
+const hostedOnly: Page[] = [];
 let ownerId: string;
 
 describe('P6-H5: the trust-record transport', () => {
@@ -148,6 +151,69 @@ describe('P6-H5: the trust-record transport', () => {
 			/\/late-hosted-[^/]+\.js$/.test(url)
 		);
 		expect(chunks).toHaveLength(1);
+	});
+
+	it("P6-E9: the request for late-hosted starts after the stage B mark and is made by stage B's end, before any sign-in, and never again", async () => {
+		const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+		const urls: string[] = [];
+		context.on('request', (request) => urls.push(request.url()));
+		// Stage B's end, observed from before the first byte: when the kernel's apps are ready, which waits on
+		// `late` and its chunks, recorded by a script the page runs before its own, so no harness step comes first.
+		await context.addInitScript(() => {
+			// The shell's own document only: a view's frame has no shell to wait for.
+			if (window !== window.top) return;
+			const start = () => {
+				const shell = document.querySelector('loam-shell') as unknown as {
+					kernel?: { appsReady: Promise<void> };
+				} | null;
+				if (!shell?.kernel) return void requestAnimationFrame(start);
+				void shell.kernel.appsReady.then(() => {
+					(window as unknown as { __appsReadyAt: number }).__appsReadyAt = performance.now();
+				});
+			};
+			start();
+		});
+		// A plain page, not `openShell`: no harness action between the navigation and stage B's end. Not in
+		// `opened` either, since a later case reads the second person's page from it; the scan reads it below.
+		const page = await context.newPage();
+		hostedOnly.push(page);
+		await page.goto(host.root);
+		const isHosted = (url: string) => /\/late-hosted-[^/]+\.js$/.test(url);
+		await page.waitForFunction(
+			() => typeof (window as unknown as { __appsReadyAt?: number }).__appsReadyAt === 'number'
+		);
+		const timing = await page.evaluate(() => {
+			const mark = performance.getEntriesByName('loam-stage-b')[0] as PerformanceEntry | undefined;
+			const chunks = (
+				performance.getEntriesByType('resource') as PerformanceResourceTiming[]
+			).filter((entry) => /\/late-hosted-[^/]+\.js$/.test(entry.name));
+			return {
+				mark: mark?.startTime,
+				end: (window as unknown as { __appsReadyAt: number }).__appsReadyAt,
+				starts: chunks.map((entry) => entry.startTime),
+				ends: chunks.map((entry) => entry.responseEnd),
+			};
+		});
+		expect(urls.filter(isHosted)).toHaveLength(1);
+		expect(timing.mark).toEqual(expect.any(Number));
+		expect(timing.starts).toHaveLength(1);
+		// In stage B: started at or after the shell's mark that stage A has ended, and fetched whole before its apps
+		// were ready, which a request made only once they were could not be.
+		expect(timing.starts[0]).toBeGreaterThanOrEqual(timing.mark as number);
+		expect(timing.ends[0]).toBeLessThanOrEqual(timing.end);
+		// A sign-in and a call after it request it no more.
+		const answer = (await kernelCall(page, 'auth-sign-in', {
+			method: 'credentials',
+			email: 'olu@acme.example',
+			password: PASSWORD,
+		})) as { success: boolean; error?: unknown };
+		expect(answer.success, JSON.stringify(answer.error)).toBe(true);
+		expect(((await kernelCall(page, 'account-get', {})) as { success: boolean }).success).toBe(
+			true
+		);
+		expect(urls.filter(isHosted)).toHaveLength(1);
+		for (const cookie of await context.cookies(host.origin))
+			if (cookie.value.length >= 16) seenSecrets.add(cookie.value);
 	});
 
 	it("an owner's project-create, workspace-app-set and agent-member-add each land in loam.sqlite", async () => {
@@ -204,6 +270,15 @@ describe('P6-H5: the trust-record transport', () => {
 	it("refuses each of 6.2's cases before anything runs, the store unchanged", async () => {
 		const cookie = await cookieOf(owner);
 		const before = rows('project').length;
+		// The whole store, row by row, and the server's journal: nothing runs for a refused request, not only no project.
+		const store = () =>
+			host.db().loam.prepare('SELECT tbl, id, value FROM records ORDER BY tbl, id').all() as Array<{
+				tbl: string;
+				id: string;
+				value: string;
+			}>;
+		const storeBefore = store();
+		const journalBefore = serverJournal().length;
 		const body = JSON.stringify({
 			command: 'project-create',
 			input: { name: 'X' },
@@ -305,6 +380,13 @@ describe('P6-H5: the trust-record transport', () => {
 			expect(JSON.parse(answer.body).code, label).toBe(code);
 		}
 		expect(rows('project').length).toBe(before);
+		expect(store()).toEqual(storeBefore);
+		// No entry for the refused requests' commands. Only theirs: the other open pages' refreshes may journal reads.
+		expect(
+			serverJournal()
+				.slice(journalBefore)
+				.filter((entry) => ['project-create', 'member-invite'].includes(entry.command))
+		).toEqual([]);
 	});
 
 	it("/organization/leave is 404, and member-leave runs the server's agent-member-settle exactly once", async () => {
@@ -355,7 +437,10 @@ describe('P6-H5: the trust-record transport', () => {
 	it('P6-H5: scanSecrets finds no cookie value or session id in the served files, either journal, the logs or any store row', async () => {
 		// After every case of the scenario, the stopped server's refusal in the browser's journal included.
 		const cookies = (
-			await Promise.all(opened.map((page) => page.context.cookies(host.origin)))
+			await Promise.all([
+				...opened.map((page) => page.context.cookies(host.origin)),
+				...hostedOnly.map((page) => page.context().cookies(host.origin)),
+			])
 		).flat();
 		// Every cookie value as it went over the wire and decoded: each page's at its sign-in (a session that ended
 		// since included) and each page's now.
@@ -369,7 +454,7 @@ describe('P6-H5: the trust-record transport', () => {
 		expect(known.length).toBeGreaterThan(0);
 		const scan = await scanSecrets(
 			host,
-			opened.map((page) => page.page),
+			[...opened.map((page) => page.page), ...hostedOnly],
 			known
 		);
 		expect(scan.found).toEqual([]);

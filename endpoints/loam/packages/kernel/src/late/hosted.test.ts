@@ -17,12 +17,13 @@ import { MemoryAdapter } from '@lushly-dev/local-db';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createKernelParts, type KernelParts } from '../kernel.js';
 import { SCOPED_PROJECTS, scopedDeployment, scopedPorts } from '../scope/fixtures.js';
-import type { ProjectV1 } from '../scope/records.js';
+import type { ProjectV1, WorkspaceAppV1 } from '../scope/records.js';
 import { PROJECT_TABLE, WORKSPACE_APP_TABLE } from '../scope/records.js';
 import { createFixedEnvironment, createSeededRandom, createSteppingClock } from '../session.js';
 import { replayKernel } from '../testing.js';
 import {
 	canonicalJson,
+	ROUTED_WRITES,
 	SERVER_COMMANDS,
 	type ServerCallAnswerV1,
 	type ServerCallRequestV1,
@@ -81,6 +82,8 @@ function fakeServer() {
 			name: 'B',
 		},
 	];
+	// The workspace's apps as the server holds them: a case changes them to see the copy's table replaced.
+	const workspaceApps: WorkspaceAppV1[] = [];
 	const calls: ServerCallRequestV1[] = [];
 	let person = OLU;
 	let answer: ((request: ServerCallRequestV1) => ServerCallAnswerV1 | undefined) | undefined;
@@ -89,7 +92,7 @@ function fakeServer() {
 			projects: projects.filter(
 				(project) => project.access.mode !== 'restricted' || project.access.members.includes(person)
 			),
-			workspaceApps: [],
+			workspaceApps: structuredClone(workspaceApps),
 			// A copy, so a kernel that changed a stored row in place cannot still match the server's own object.
 			agents: structuredClone(agents) as TrustRecordSnapshotV1['agents'],
 		};
@@ -98,6 +101,7 @@ function fakeServer() {
 	return {
 		projects,
 		agents,
+		workspaceApps,
 		calls,
 		as(next: string) {
 			person = next;
@@ -382,6 +386,69 @@ describe('P6-E4: the browser routes the trust-record commands and keeps a copy (
 		expect(read.success).toBe(true);
 	});
 
+	it('P6-E4: refuses every routed write of the agent interface HUMAN_REQUIRED, before any request (A6)', async () => {
+		const { parts, server, settled, writes } = await hostedKernel();
+		await settled();
+		const sent = server.calls.length;
+		const written = writes.length;
+		// Each with an input that validates. Phase 3's own gate refuses the owner's and person's commands first
+		// (`workspace-app-set`, `agent-member-*`); A6 is what refuses the four `project-*` writes, by its own message.
+		const agent = 'agt_aaaaaaaaaaaaaaaaaaaa';
+		const inputs: Record<string, unknown> = {
+			'project-create': { name: 'Fox' },
+			'project-update': { project: 'atlas', name: 'Atlas 2' },
+			'project-archive': { project: 'atlas' },
+			'project-restore': { project: 'atlas' },
+			'workspace-app-set': { instance: 'tasks', enabled: false },
+			'agent-member-add': { name: 'X', sponsor: OLU },
+			'agent-member-update': { agent, name: 'Y' },
+			'agent-member-confirm': { agent },
+			'agent-member-decline': { agent },
+			'agent-member-remove': { agent },
+		};
+		expect(Object.keys(inputs).sort()).toEqual([...ROUTED_WRITES].sort());
+		for (const command of ROUTED_WRITES) {
+			const write = await parts.kernel.agent.call(command, inputs[command]);
+			expect(write.error?.code, command).toBe('HUMAN_REQUIRED');
+			if (command.startsWith('project-'))
+				expect(write.error?.message, command).toBe(
+					`In a hosted workspace '${command}' is a person's, made in the shell`
+				);
+		}
+		expect(server.calls.length).toBe(sent);
+		expect(writes.length).toBe(written);
+	});
+
+	it('P6-E4: a settle replaces the workspace-app table with the snapshot, as it does the other two', async () => {
+		const { server, store, journal, refresh, settled } = await hostedKernel();
+		await settled();
+		const app = (id: string, title: string): WorkspaceAppV1 => ({
+			id,
+			workspace: 'personal',
+			app: 'hello',
+			package: '@lushly-dev/loam-hello',
+			overrides: { title },
+			listed: 'g1',
+			updatedAt: 1,
+			updatedBy: OLU,
+		});
+		server.workspaceApps.push(app('hello', 'One'), app('greeter', 'Two'));
+		await refresh();
+		expect(await tableIds(store, WORKSPACE_APP_TABLE)).toEqual(['greeter', 'hello']);
+		// The server's records change: one row gone, one changed. The copy holds exactly the new snapshot's.
+		server.workspaceApps.splice(0, 2, app('hello', 'Three'));
+		await refresh();
+		const rows = (await store.list<WorkspaceAppV1>(WORKSPACE_APP_TABLE)).data;
+		expect(rows).toStrictEqual([app('hello', 'Three')]);
+		const settles = (await entries(journal)).filter(
+			(entry) => entry.command === 'trust-record-settle'
+		);
+		expect(
+			((settles.at(-1) as JournalEntry).input as { snapshot: TrustRecordSnapshotV1 }).snapshot
+				.workspaceApps
+		).toStrictEqual([app('hello', 'Three')]);
+	});
+
 	it('settles again after a change of person, so one copy never serves another (6.3)', async () => {
 		const { parts, server, store, journal, auth, settled } = await hostedKernel();
 		await settled();
@@ -464,13 +531,22 @@ describe('P6-E4: the browser routes the trust-record commands and keeps a copy (
 			'recorded'
 		);
 		const sent = server.calls.length;
+		// The replay is given a transport, so a call it made would be seen: it reads the recorded settles instead.
+		const replayCalls: ServerCallRequestV1[] = [];
 		const replay = await replayKernel(recorded, {
 			identity: PROVIDER,
 			deployment: scopedDeployment() as never,
-			ports: scopedPorts(),
+			ports: {
+				...scopedPorts(),
+				serverCall: async (request: ServerCallRequestV1) => {
+					replayCalls.push(request);
+					return server.serverCall(request);
+				},
+			},
 			membership: { mode: 'provider', members: new Map([[OLU, 'owner']]), digest: 'd' },
 		});
 		expect(replay.report.diverged).toBe(false);
+		expect(replayCalls).toEqual([]);
 		expect(server.calls.length).toBe(sent);
 	});
 });

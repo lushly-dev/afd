@@ -4,6 +4,7 @@
  * scope, phase 0's axe scenarios pass, every page's response CSP is 3.5's with no violation, and a view
  * renders through the sandbox on `https://127.0.0.1:<port>`, another site.
  */
+import { createHash } from 'node:crypto';
 import { type DevHost, startDevHost } from '@lushly-dev/loam-host/testing';
 import type { Browser, Frame, Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -58,31 +59,56 @@ function expectHostedPolicy(opened: ShellPage, of: DevHost): void {
 	expect(opened.violations).toEqual([]);
 }
 
-/** The first paint's assets, by path, with the bytes each response carried, in a fresh context. */
-async function firstPaintAssets(url: string): Promise<Record<string, number>> {
+/**
+ * The first paint's assets, by path, with the SHA-256 of the bytes each response carried, in a fresh context. Both
+ * servers serve the same built files under content-hashed names, so equal digests are the same bytes.
+ */
+async function firstPaintAssets(url: string): Promise<Record<string, string>> {
 	const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
-	const sizes = new Map<string, Promise<number>>();
+	const digests = new Map<string, Promise<string>>();
 	context.on('response', (response) => {
 		const path = new URL(response.url()).pathname;
-		if (path.startsWith('/assets/') && !sizes.has(path))
-			sizes.set(
+		if (path.startsWith('/assets/') && !digests.has(path))
+			digests.set(
 				path,
-				// A chunk loaded after the first paint may still be in flight when the context closes.
+				// A chunk loaded after the first paint may still be in flight when the context closes; one of the
+				// first paint's that cannot be read fails the comparison below, never matching another's failure.
 				response.body().then(
-					(body) => body.length,
-					() => -1
+					(body) => `sha256:${createHash('sha256').update(body).digest('hex')}`,
+					(error: Error) => `unread: ${error.message}`
 				)
 			);
 	});
 	const opened = await openPage(browser, url, {}, context);
-	const paths = await measureFirstPaint(opened.page, { waitForFonts: true });
-	const assets: Record<string, number> = {};
+	// A typeface loads when text first needs its weight, before the mark or after it, so the fonts are left out
+	// as phase 2's E1 leaves them (D159): what is compared is the chunks.
+	const paths = (await measureFirstPaint(opened.page, { waitForFonts: true })).filter(
+		(path) => !/\.woff2$/.test(path)
+	);
+	const assets: Record<string, string> = {};
 	for (const path of paths.filter((path) => path.startsWith('/assets/')))
-		assets[path] = (await sizes.get(path)) ?? -1;
+		assets[path] = (await digests.get(path)) ?? 'no response';
+	expect(
+		Object.entries(assets).filter(([, digest]) => !digest.startsWith('sha256:')),
+		url
+	).toEqual([]);
 	expect(opened.errors).toEqual([]);
 	expect(opened.violations).toEqual([]);
 	await context.close();
 	return assets;
+}
+
+/** Phase 0's E4 palette: open, with its options rendered (as `browser/accessibility.test.ts` opens it). */
+async function openPalette(page: Page) {
+	await page.keyboard.press('ControlOrMeta+K');
+	await page.waitForFunction(() => {
+		const palette = document.querySelector('loam-shell')?.shadowRoot?.querySelector('loam-palette');
+		return (
+			(palette as unknown as { isOpen?: boolean } | null | undefined)?.isOpen === true &&
+			!!palette?.shadowRoot?.querySelector('violet-option')
+		);
+	});
+	await settle(page);
 }
 
 describe('P6-H2: the shell hosted, as it was static', () => {
@@ -110,7 +136,11 @@ describe('P6-H2: the shell hosted, as it was static', () => {
 			};
 			await shell.kernel.flush();
 		});
-		await page.goto(`${host.root}personal/p/reload/hello/items`);
+		// Every page's response carries 3.5's policy: the deep link's and the reload's, not only the first.
+		const expected = `${writtenPolicy(host)}; frame-ancestors 'none'`;
+		const deep = await page.goto(`${host.root}personal/p/reload/hello/items`);
+		expect(deep?.status()).toBe(200);
+		expect(deep?.headers()['content-security-policy']).toBe(expected);
 		const scopeOf = async (page: Page) =>
 			(
 				(await kernelCall(page, 'scope-get')) as {
@@ -119,7 +149,9 @@ describe('P6-H2: the shell hosted, as it was static', () => {
 			).data.project?.slug;
 		await page.waitForFunction(() => document.documentElement.dataset.loamHost === 'web');
 		await expect.poll(() => scopeOf(page)).toBe('reload');
-		await page.reload();
+		const reloaded = await page.reload();
+		expect(reloaded?.status()).toBe(200);
+		expect(reloaded?.headers()['content-security-policy']).toBe(expected);
 		await page.waitForFunction(() => document.documentElement.dataset.loamHost === 'web');
 		await expect.poll(() => scopeOf(page)).toBe('reload');
 		expectHostedPolicy(opened, host);
@@ -147,6 +179,11 @@ describe('P6-H2: the shell hosted, as it was static', () => {
 				await kernelCall(page, 'appearance-set', { theme, density });
 				await everyPart(page);
 				expect(await page.evaluate(() => document.documentElement.dataset.loamTheme)).toBe(theme);
+				expect(
+					await page.evaluate(() => document.documentElement.dataset.loamDensity ?? 'comfortable')
+				).toBe(density);
+				expect(await axe(page)).toEqual([]);
+				await openPalette(page);
 				expect(await axe(page)).toEqual([]);
 				expectHostedPolicy(opened, host);
 				await opened.context.close();
@@ -159,7 +196,45 @@ describe('P6-H2: the shell hosted, as it was static', () => {
 			reducedMotion: 'reduce',
 		});
 		await everyPart(opened.page);
+		expect(await opened.page.evaluate(() => document.documentElement.dataset.loamTheme)).toBe(
+			'high-contrast'
+		);
 		expect(await axe(opened.page)).toEqual([]);
+		await openPalette(opened.page);
+		expect(await axe(opened.page)).toEqual([]);
+		expectHostedPolicy(opened, host);
+		await opened.context.close();
+	});
+
+	it("P6-H2: phase 0's axe scenario has no violations hosted, in the compact class with a drawer open, and on the not-found route", async () => {
+		const opened = await openShell(browser, host.root, {
+			viewport: { width: 390, height: 844 },
+			reducedMotion: 'reduce',
+		});
+		const { page } = opened;
+		expect(await axe(page)).toEqual([]);
+		await page.keyboard.press('ControlOrMeta+B');
+		await settle(page);
+		expect(
+			await page
+				.locator('loam-sidebar')
+				.evaluate(
+					(element) => element.shadowRoot?.querySelector('dialog')?.matches(':modal') === true
+				)
+		).toBe(true);
+		expect(await axe(page)).toEqual([]);
+		await page.keyboard.press('Escape');
+		const elsewhere = new URL('elsewhere', host.root).pathname;
+		await page.evaluate(
+			(path) =>
+				(
+					window as unknown as { navigation: { navigate(url: string): unknown } }
+				).navigation.navigate(path),
+			elsewhere
+		);
+		await settle(page);
+		await expect.poll(() => page.locator('loam-main h1').textContent()).toBe('Nothing here');
+		expect(await axe(page)).toEqual([]);
 		expectHostedPolicy(opened, host);
 		await opened.context.close();
 	});
@@ -176,6 +251,11 @@ describe('P6-H2: the shell hosted, as it was static', () => {
 		const outer = (await (await frame.elementHandle())?.contentFrame()) as Frame;
 		expect(await outer.evaluate(() => self.origin)).toBe(viewHost.sandboxOrigin);
 		await expect.poll(() => outer.childFrames().length).toBe(1);
+		// The view renders: Hello's own page, its `hello-list` answered through the sandbox and shown.
+		const inner = outer.childFrames()[0] as Frame;
+		await expect
+			.poll(() => inner.evaluate(() => document.getElementById('count')?.textContent ?? ''))
+			.toMatch(/^\d+ greeted$/);
 		expect(opened.responsePolicy).toContain(`frame-src ${viewHost.sandboxOrigin}`);
 		expectHostedPolicy(opened, viewHost);
 		expect(opened.errors).toEqual([]);

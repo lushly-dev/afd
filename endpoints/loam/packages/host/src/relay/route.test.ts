@@ -938,6 +938,45 @@ describe("P6-E5: the re-check's fixes on the route", () => {
 		await held;
 	});
 
+	it("P6-E5: a DELETE for an evicted id is answered as a foreign or unknown one's: 204, the same bytes, nothing forwarded", async () => {
+		let issued = 0;
+		script = (body, init) => {
+			if (body.includes('"initialize"'))
+				return jsonAnswer(
+					{ jsonrpc: '2.0', id: 1, result: { protocolVersion: '2025-06-18' } },
+					200,
+					{ 'mcp-session-id': `e${issued++}` }
+				);
+			return new Response(null, { status: init.method === 'DELETE' ? 204 : 200 });
+		};
+		// Four bindings fill the person's slots; a fifth evicts the least recently used idle one, e0, with the
+		// relay's own upstream DELETE.
+		for (let index = 0; index < 5; index++) await send(initialize());
+		const evictions = sent.filter((request) => request.method === 'DELETE');
+		expect(evictions.map((request) => request.headers['mcp-session-id'])).toEqual(['e0']);
+		const count = sent.length;
+		const evicted = await send(undefined, {
+			method: 'DELETE',
+			headers: { 'mcp-session-id': 'e0' },
+		});
+		const unknown = await send(undefined, {
+			method: 'DELETE',
+			headers: { 'mcp-session-id': 'never-issued' },
+		});
+		expect(evicted.status).toBe(204);
+		// The whole answer, every header but the ones each response stamps for itself.
+		const shape = (answer: typeof evicted) => {
+			const { date: _date, connection: _connection, ...headers } = answer.headers;
+			return { status: answer.status, body: answer.body, headers };
+		};
+		expect(shape(evicted)).toEqual(shape(unknown));
+		expect(sent.length).toBe(count);
+		// Its use is MOUNT_SESSION_UNKNOWN too: the binding is gone, not merely idle.
+		expect(
+			refusalOf(await send(call('notes-get'), { headers: { 'mcp-session-id': 'e0' } })).code
+		).toBe('MOUNT_SESSION_UNKNOWN');
+	});
+
 	it('P6-E5: a refused name is recorded to 128 characters; a stream that ends with no response is recorded MOUNT_RESULT_INVALID', async () => {
 		await send(call(`x${'y'.repeat(1000)}`));
 		expect((journal.at(-1)?.input as { command?: string } | undefined)?.command).toHaveLength(128);
