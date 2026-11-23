@@ -22,13 +22,13 @@ import {
 	documentsPorts,
 	type ScopedWorkspace,
 } from '../testing.js';
-import type { LoamKernelV5 } from '../types.js';
+import type { LoamKernel } from '../types.js';
 import type { MembershipV1 } from './access.js';
 import { appInput, filled, NOT_CALLED, SHELL_INPUTS } from './call-inputs.js';
 import { SOMEONE_ELSE } from './fixtures.js';
 import type { PersonaV1, ScopeV1 } from './records.js';
 
-const kernels: LoamKernelV5[] = [];
+const kernels: LoamKernel[] = [];
 afterEach(async () => {
 	await Promise.all(kernels.splice(0).map((kernel) => kernel.dispose()));
 });

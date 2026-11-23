@@ -16,9 +16,9 @@ const EMPTY_BOOT = {
 };
 
 import { COPILOT_QUERIES } from './copilot/commands.js';
-import type { KernelEventV1, KernelOptionsV5 } from './types.js';
+import type { KernelEvent, KernelOptions } from './types.js';
 
-function options(overrides: Partial<KernelOptionsV5> = {}): KernelOptionsV5 {
+function options(overrides: Partial<KernelOptions> = {}): KernelOptions {
 	return {
 		store: new MemoryAdapter(),
 		storeKind: 'memory',
@@ -90,7 +90,7 @@ describe('stage A and stage B', () => {
 	it('runs calls in the order they were made across the boundary, and journals them so', async () => {
 		const journal = new MemoryJournalSink();
 		const kernel = await createKernel(options({ journal }));
-		const events: KernelEventV1[] = [];
+		const events: KernelEvent[] = [];
 		kernel.subscribe((event) => events.push(event));
 		await kernel.call('layout-get');
 		// The set waits for the chunk, so the get must wait behind it, as it would with every command loaded.

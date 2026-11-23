@@ -35,7 +35,7 @@ import {
 	providerKeys,
 	type ServerKernel,
 } from '@lushly-dev/loam-identity';
-import type { KernelEnvironmentV0, KernelPortsV1 } from '@lushly-dev/loam-kernel';
+import type { KernelEnvironment, KernelPorts } from '@lushly-dev/loam-kernel';
 import type { ProjectV1, WorkspaceAppV1 } from '@lushly-dev/loam-kernel/mounted';
 import type { IdentityV1, ManifestV2, ProjectionV4 } from '@lushly-dev/loam-manifest';
 import type { ServerLimitsV1 } from '@lushly-dev/loam-manifest/server';
@@ -87,7 +87,7 @@ export function hostedCommands(commands: readonly ZodCommandDefinition[]): ZodCo
 }
 
 /** A server has no page: no media query matches, and none changes. */
-const NO_PAGE: KernelEnvironmentV0 = {
+const NO_PAGE: KernelEnvironment = {
 	matches: () => false,
 	onChange: () => () => {},
 };
@@ -105,7 +105,7 @@ const serverRefusal = (what: string) =>
  * kernel knows each app's manifest and commands; its code (a native module, a handler frame, a mounted instance) is
  * never run here. The relay reaches mounted instances, in step 6.
  */
-export function serverPorts(site: string, baseUrl: string): KernelPortsV1 {
+export function serverPorts(site: string, baseUrl: string): KernelPorts {
 	const read = serveSite(site);
 	const missing = (url: string, why: string) =>
 		Object.assign(new Error(`${url} ${why}`), {

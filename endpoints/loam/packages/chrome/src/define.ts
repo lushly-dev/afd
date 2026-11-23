@@ -5,7 +5,7 @@
  */
 
 import type { FASTElement } from '@lushly-dev/fast-element';
-import type { LoamKernelV5 } from '@lushly-dev/loam-kernel';
+import type { LoamKernel } from '@lushly-dev/loam-kernel';
 import {
 	appEntryDefinition,
 	LoamAppEntry,
@@ -90,7 +90,7 @@ export function defineChrome(): Promise<void> {
 }
 
 export interface MountShellOptions {
-	kernel: LoamKernelV5;
+	kernel: LoamKernel;
 	/** The text of `@lushly-dev/loam-theme/loam-theme.css`, adopted on the document. */
 	themeCss: string;
 	/** Where the status bar reads the journal's last sequence number at boot. */
@@ -118,7 +118,7 @@ export interface MountShellOptions {
 	 */
 	copilot?: { host?: import('./copilot/panel.js').CopilotPanelHostV1 };
 	/** The object the kernel was given as `overlayAnchors`: the shell answers it once it renders (phase 4's 6.3). */
-	overlayAnchors?: import('@lushly-dev/loam-kernel').OverlayAnchorsV1;
+	overlayAnchors?: import('@lushly-dev/loam-kernel').OverlayAnchors;
 }
 
 /** Apply the theme, define the chrome and mount `loam-shell` into `container`. */

@@ -132,14 +132,18 @@ describe('P2-D10: the editor area under axe', () => {
 		const tree = page.locator('loam-documents-sidebar loam-tree');
 		await tree.locator('violet-tree-item[data-id="trash"] > .label').click();
 		await tree.locator(`violet-tree-item[data-id="trash:${one}"]`).waitFor();
-		const status = page.locator('loam-documents-section select[data-ref="status"]');
+		const status = page.locator('loam-documents-section violet-select[data-ref="status"]');
+		const chooseStatus = async (value: 'active' | 'archived' | 'trashed') => {
+			await status.locator('button.trigger').click();
+			await status.locator(`violet-option[value="${value}"]`).click();
+		};
 		for (const theme of ['light', 'dark', 'high-contrast'] as const) {
 			for (const density of ['comfortable', 'compact'] as const) {
 				await kernelCall(page, 'appearance-set', { theme, density });
 				await editorIdle(page);
-				await status.selectOption('active');
+				await chooseStatus('active');
 				expect(await settledAxe(page), `${theme} ${density}, the list`).toEqual([]);
-				await status.selectOption('trashed');
+				await chooseStatus('trashed');
 				expect(await settledAxe(page), `${theme} ${density}, the trash`).toEqual([]);
 				await tree.locator('violet-tree-item[data-id^="recent:"]').first().focus();
 				await page.keyboard.press('Shift+F10');
@@ -153,7 +157,7 @@ describe('P2-D10: the editor area under axe', () => {
 		}
 		await kernelCall(page, 'appearance-set', { theme: 'light', density: 'comfortable' });
 		await page.emulateMedia({ forcedColors: 'active' });
-		await status.selectOption('active');
+		await chooseStatus('active');
 		expect(await settledAxe(page), 'forced colors, the list').toEqual([]);
 		await tree.locator('violet-tree-item[data-id^="recent:"]').first().focus();
 		await page.keyboard.press('Shift+F10');

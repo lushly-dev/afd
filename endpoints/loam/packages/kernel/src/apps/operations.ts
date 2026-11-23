@@ -10,15 +10,15 @@ import { z } from 'zod';
 import { type AppCommandRowV1, type AppsRuntime, unknownApp } from '../apps-runtime.js';
 import { kernelFailure, LoamKernelError } from '../errors.js';
 import { appLayoutId, firstLayoutOf } from '../layout.js';
-import { shellModalOpen } from '../overlays.js';
+import { shellModalOpen } from '../overlays/store.js';
 import type {
-	AppDetailV1,
-	AppInstanceV1,
-	AppKindV1,
-	AppPortV2,
-	AppStateV1,
-	AppSummaryV2,
-	SelectionV2,
+	AppBaseState,
+	AppDetail,
+	AppInstance,
+	AppKind,
+	AppPort,
+	AppSelection,
+	AppSummary,
 } from '../types.js';
 import { declaredPartsOf } from './entry.js';
 import { boundRecorded, type MountedHost } from './mounted.js';
@@ -28,7 +28,7 @@ import { type AppsHost, layoutNamesOf } from './types.js';
 export interface AppRecord {
 	readonly instance: string;
 	readonly app: string;
-	readonly kind: AppKindV1;
+	readonly kind: AppKind;
 	readonly title: string;
 	readonly icon: string;
 	readonly order: number;
@@ -38,16 +38,16 @@ export interface AppRecord {
 	readonly entry: ProjectionAppV1;
 	/** Absent when the manifest was refused or could not be read. */
 	readonly manifest?: ManifestV2;
-	port?: AppPortV2;
+	port?: AppPort;
 	/** A mounted `http` instance's discovery and calls. */
 	mounted?: MountedHost;
-	state: AppStateV1;
+	state: AppBaseState;
 	error?: CommandError;
 	readonly warnings: ManifestRefusal[];
 	readonly notices: Array<{ code: string; message: string }>;
 	/** The fields of `app-get` that a manifest fixes. */
 	readonly detail: Pick<
-		AppDetailV1,
+		AppDetail,
 		| 'version'
 		| 'trust'
 		| 'trustLine'
@@ -66,7 +66,7 @@ export interface AppRecord {
 	 * so a late call of a surface made in Atlas cannot select under Beacon; leaving the app, or any change of
 	 * scope, clears them (4.4; phase 2 specification, 7.4).
 	 */
-	readonly selections: Map<string, SelectionV2>;
+	readonly selections: Map<string, AppSelection>;
 	/** Keyed by {@link statusKey}: a value is per instance and scope (7.6). */
 	readonly statusValues: Map<string, string>;
 }
@@ -78,7 +78,7 @@ const unselect = (record: AppRecord): void => record.selections.clear();
  * project's for an app that takes one in a project, the workspace's for an app that takes it, else the
  * project's, so a first selection's undo names a level the app has (7.4).
  */
-const selectionOf = (record: AppRecord, project: string | undefined): SelectionV2 =>
+const selectionOf = (record: AppRecord, project: string | undefined): AppSelection =>
 	record.selections.get(statusKey(record, project, '')) ?? {
 		id: null,
 		level:
@@ -107,7 +107,7 @@ function statusOf(record: AppRecord, project: string | undefined): Record<string
 }
 
 /** Its state, `gated` while its app's experiment holds a ready app out (phase 4 specification, 5.3). */
-const stateOf = (record: AppRecord, host: Pick<AppsHost, 'gate'>): AppStateV1 =>
+const stateOf = (record: AppRecord, host: Pick<AppsHost, 'gate'>): AppBaseState =>
 	record.state === 'ready' && host.gate?.gated(record.instance) === true ? 'gated' : record.state;
 
 /**
@@ -139,7 +139,7 @@ function gatesOf(
 function summaryOf(
 	record: AppRecord,
 	host: Pick<AppsHost, 'gate'>
-): AppSummaryV2 & { state: AppStateV1 } {
+): AppSummary & { state: AppBaseState } {
 	return {
 		instance: record.instance,
 		app: record.app,
@@ -157,7 +157,7 @@ function summaryOf(
 }
 
 /** A mounted record as `app-instance-list` reports it: never a location or a credential. */
-function instanceOf(record: AppRecord, host: AppsHost): AppInstanceV1 {
+function instanceOf(record: AppRecord, host: AppsHost): AppInstance {
 	const { entry, mounted } = record;
 	return {
 		instance: record.instance,

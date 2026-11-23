@@ -14,7 +14,7 @@
  * an app's section is its manifest's schema, rendered by the shell.
  */
 
-import type { AppSummaryV2, LoamKernelV5 } from '@lushly-dev/loam-kernel';
+import type { AppSummary, LoamKernel } from '@lushly-dev/loam-kernel';
 import type { LoamShell } from '../elements/shell.js';
 import { type SettingKeySchema, settingField } from '../forms/setting-field.js';
 import {
@@ -154,12 +154,12 @@ const failed = (answer: Answer): string => {
 
 /** `loam-settings-section` (3.5): the tree, the level switcher and the fields. */
 export class LoamSettingsSection extends SettingsElement {
-	kernel: LoamKernelV5 | null = null;
+	kernel: LoamKernel | null = null;
 	/** The project the call's scope names, and its name for the switcher, or none at workspace level. */
 	project: { id: string; name: string } | null = null;
 	workspace = '';
 	/** The rows `app-list` gave, for the editors' apps. */
-	apps: readonly AppSummaryV2[] = [];
+	apps: readonly AppSummary[] = [];
 	/** The level the switcher shows; kept across sections while it applies. */
 	level: Level | null = null;
 	#sections: SectionOutline[] = [];
@@ -894,7 +894,7 @@ const MAIN_WITH_SETTINGS = `
 
 /** Follow the state: show, update or remove the settings section in main (3.5). */
 export async function syncSettings(shell: LoamShell): Promise<void> {
-	const kernel = shell.kernel as LoamKernelV5;
+	const kernel = shell.kernel as LoamKernel;
 	const main = shell.shadowRoot?.querySelector<HTMLElement>('loam-main');
 	if (!kernel || !main) return;
 	const state = await shell.readState();

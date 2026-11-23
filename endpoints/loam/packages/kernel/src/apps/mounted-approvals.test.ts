@@ -22,7 +22,7 @@ import { p5Base, type SeededKernel } from '../../scenarios/seeds.js';
 import { contentParts } from '../copilot/labels.js';
 import type { CopilotTurnV1 } from '../copilot/types.js';
 import { previewDigest } from '../late/mounted-approvals.js';
-import type { LoamKernelV5 } from '../types.js';
+import type { LoamKernel } from '../types.js';
 import {
 	createInstanceHold,
 	HOLD_MS,
@@ -57,7 +57,7 @@ const data = <T>(result: CommandResult<unknown>): T => {
 	return result.data as T;
 };
 
-async function send(kernel: LoamKernelV5, text: string) {
+async function send(kernel: LoamKernel, text: string) {
 	const session = data<{ session: { id: string } }>(await kernel.call('copilot-session-start', {}))
 		.session.id;
 	const { turn } = data<{ turn: CopilotTurnV1 }>(
@@ -66,7 +66,7 @@ async function send(kernel: LoamKernelV5, text: string) {
 	return { session, turn };
 }
 
-const confirmations = async (kernel: LoamKernelV5, agent = false) =>
+const confirmations = async (kernel: LoamKernel, agent = false) =>
 	data<{ notifications: NotificationV1[] }>(
 		await (agent ? kernel.agent : kernel).call('notification-list', {
 			kind: 'confirmation',
@@ -79,7 +79,7 @@ const mailfixOf = (made: SeededKernel) => {
 	return made.mailfix;
 };
 
-const sentOf = async (kernel: LoamKernelV5) =>
+const sentOf = async (kernel: LoamKernel) =>
 	data<{ sent: Array<{ recipients: string[] }> }>(await kernel.call('mailfix-sent-list', {})).sent;
 
 /** The calls the shell sent `mailfix`, and those that carried the approval key. */

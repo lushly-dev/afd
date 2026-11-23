@@ -14,7 +14,7 @@ import { createKernel, createKernelParts } from '../kernel.js';
 import { createScopedWorkspace } from '../scope/fixtures.js';
 import { createFixedEnvironment } from '../testing.js';
 import { documentsDeployment, documentsPorts } from '../testing-documents.js';
-import type { LoamKernelV5 } from '../types.js';
+import type { LoamKernel } from '../types.js';
 import { COPILOT_TURN_TABLE } from './commands.js';
 import {
 	type CopilotHostV1,
@@ -73,7 +73,7 @@ function side(port: PortLike) {
 }
 
 interface Setup {
-	kernel: LoamKernelV5;
+	kernel: LoamKernel;
 	provider: ReturnType<typeof createTestProvider>;
 	journal: MemoryJournalSink;
 	host: CopilotHostV1;
@@ -131,7 +131,7 @@ const data = <T>(result: CommandResult<unknown>): T => {
 	return result.data as T;
 };
 
-async function startSession(kernel: LoamKernelV5): Promise<string> {
+async function startSession(kernel: LoamKernel): Promise<string> {
 	return data<{ session: { id: string } }>(await kernel.call('copilot-session-start', {})).session
 		.id;
 }

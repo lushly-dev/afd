@@ -9,9 +9,9 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { LocalAuthAdapter } from './local-auth.js';
 import { createScopedWorkspace } from './scope/fixtures.js';
 import { createSteppingClock } from './session.js';
-import type { LoamKernelV5 } from './types.js';
+import type { LoamKernel } from './types.js';
 
-const kernels: LoamKernelV5[] = [];
+const kernels: LoamKernel[] = [];
 afterEach(async () => {
 	await Promise.all(kernels.splice(0).map((kernel) => kernel.dispose()));
 });

@@ -21,7 +21,7 @@ import type { LayoutStateV0 } from './layout.js';
 import type { ProjectV1, ScopeV1 } from './scope/records.js';
 import type { ScopeRuntime } from './scope/runtime.js';
 import type { ShellState } from './shell-state.js';
-import type { AppSummaryV2, KernelEnvironmentV0 } from './types.js';
+import type { AppSummary, KernelEnvironment } from './types.js';
 
 export const emptyInput = z.strictObject({});
 
@@ -33,18 +33,18 @@ export const EMPTY_INPUT_JSON: JsonSchema = {
 
 export function withResolved(
 	state: AppearanceStateV0,
-	environment: KernelEnvironmentV0
+	environment: KernelEnvironment
 ): AppearanceV0 {
 	return { ...state, resolved: resolveTheme(state.theme, environment) };
 }
 
 export interface BootCommandDeps {
 	state: ShellState;
-	environment: KernelEnvironmentV0;
+	environment: KernelEnvironment;
 	auth: AuthAdapter;
 	apps(): AppsRuntime;
 	/** `app-list`'s rows, read against the active scope and the workspace's overrides. */
-	summaries(): AppSummaryV2[];
+	summaries(): AppSummary[];
 	scope: ScopeRuntime;
 }
 
@@ -93,7 +93,7 @@ export function createBootCommands(deps: BootCommandDeps): ZodCommandDefinition[
 
 	const appList = defineCommandWithSchema<
 		typeof emptyInput,
-		{ active: string | null; apps: AppSummaryV2[] }
+		{ active: string | null; apps: AppSummary[] }
 	>({
 		name: 'app-list',
 		description: 'List the deployed apps with their state, and which one is active',

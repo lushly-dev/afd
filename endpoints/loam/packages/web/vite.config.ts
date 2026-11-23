@@ -23,6 +23,21 @@ function copilotFrame(): Plugin {
 	};
 }
 
+/**
+ * Declarative load-staging chunk names by domain entry suffix (#1778). The kernel organizes its
+ * modules by domain; staging decisions stay here in the bundler configuration so `budget` counts
+ * each lazy domain chunk once, in its own row.
+ */
+const STAGED_DOMAIN_CHUNKS: ReadonlyArray<readonly [suffix: string, chunkName: string]> = [
+	['kernel/dist/documents/documents.js', 'assets/late-documents-[hash].js'],
+	['kernel/dist/documents/editor-commands.js', 'assets/late-editor-[hash].js'],
+	['kernel/dist/identity/session-settle.js', 'assets/late-identity-[hash].js'],
+	['kernel/dist/identity/hosted.js', 'assets/late-hosted-[hash].js'],
+	['kernel/dist/settings/settings.js', 'assets/late-settings-[hash].js'],
+	['kernel/dist/copilot/commands.js', 'assets/late-copilot-[hash].js'],
+	['chrome/dist/copilot/index.js', 'assets/copilot-panel-[hash].js'],
+];
+
 export default defineConfig({
 	base: './',
 	plugins: [zodJitlessByDefault(), narrowZodFromJsonSchema(), copilotFrame()],
@@ -34,39 +49,21 @@ export default defineConfig({
 		reportCompressedSize: false,
 		rolldownOptions: {
 			output: {
-				// The kernel's `document-*` definitions, its editor commands and its hearing of the adapter, which `late`
-				// imports in stage B, are named `late-documents`, `late-editor` and `late-identity` so `budget` counts
-				// each once, in its own row (phase 2 specification, 2.4; phase 3 specification, 13). A name only: the
-				// bundler parts the chunks as it would.
 				chunkFileNames: (chunk) => {
-					const late =
-						/kernel[\\/]dist[\\/]late[\\/](documents|editor-commands|session-settle|settings|hosted)\.js$/.exec(
-							chunk.facadeModuleId ?? ''
-						)?.[1];
-					// The copilot's panel, which the shell loads when its panel part first opens (phase 5 specification, 16).
-					if (/chrome[\\/]dist[\\/]copilot[\\/]index\.js$/.test(chunk.facadeModuleId ?? ''))
-						return 'assets/copilot-panel-[hash].js';
-					// The copilot's records and commands, which `late` loads in stage B (phase 5 specification, 2).
-					if (/kernel[/]dist[/]copilot[/]commands\.js$/.test(chunk.facadeModuleId ?? ''))
-						return 'assets/late-copilot-[hash].js';
-					// Phase 4's settings commands and their rules (phase 4 specification, 1): `late-settings`.
-					if (late === 'settings') return 'assets/late-settings-[hash].js';
-					// Phase 6's routing and copy of the trust records (its 6.1, 6.3): loaded in a hosted `provider` shell only.
-					if (late === 'hosted') return 'assets/late-hosted-[hash].js';
+					const facade = (chunk.facadeModuleId ?? '').replaceAll('\\', '/');
+					for (const [suffix, name] of STAGED_DOMAIN_CHUNKS) {
+						if (facade.endsWith(suffix)) return name;
+					}
 					// The manifest's settings checks, which `late-settings` and `apps` share, named apart from the chrome's
 					// `settings` chunk, the settings section (phase 4 specification, 3.5), so `budget` reads each by name.
 					if (
 						!chunk.facadeModuleId &&
-						chunk.moduleIds.some((id) => /manifest[\\/]dist[\\/]settings\.js$/.test(id))
+						chunk.moduleIds.some((id) =>
+							id.replaceAll('\\', '/').endsWith('manifest/dist/settings.js')
+						)
 					)
 						return 'assets/setting-checks-[hash].js';
-					return late === 'documents'
-						? 'assets/late-documents-[hash].js'
-						: late === 'session-settle'
-							? 'assets/late-identity-[hash].js'
-							: late
-								? 'assets/late-editor-[hash].js'
-								: 'assets/[name]-[hash].js';
+					return 'assets/[name]-[hash].js';
 				},
 				codeSplitting: {
 					groups: [

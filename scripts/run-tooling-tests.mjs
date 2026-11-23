@@ -26,6 +26,7 @@ export const testFiles = [
 	'scripts/check-versions.test.mjs',
 	'scripts/repository-contract.test.mjs',
 	'scripts/check-boundaries.test.mjs',
+	'scripts/check-kernel-domains.test.mjs',
 	'scripts/skill-profiles.test.mjs',
 	'scripts/specimen-provenance.test.mjs',
 	'scripts/fast-af-provenance.test.mjs',

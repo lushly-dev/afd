@@ -4,7 +4,9 @@
  * Operation A1 of the accelerator admission rule (8.2) measures it.
  */
 
-/** What the index searches. A {@link CommandSummaryV0} is one. */
+import type { CommandContext } from '@lushly-dev/afd-core';
+
+/** What the index searches. A {@link CommandSummary} is one. */
 export interface PaletteEntry {
 	name: string;
 	title?: string;
@@ -36,6 +38,13 @@ export interface PaletteItem {
 	 * shell's own.
 	 */
 	app?: string;
+}
+
+/** The palette's setting rows (phase 4 specification, 3.10): the keys the call may see whose text matches. */
+export interface SettingRows {
+	search(query: string, context: CommandContext, limit: number): Promise<PaletteItem[]>;
+	/** The instance that declared a section, none for the shell's own: its row ranks with that app (A-P0-1). */
+	ownerOf?(section: string): string | undefined;
 }
 
 export interface PaletteIndex {

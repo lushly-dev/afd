@@ -4,9 +4,9 @@
  */
 
 import type { DocumentLinkV1, DocumentRecordV1 } from '@lushly-dev/loam-sdk';
-import type { KernelInterfaceV0 } from './kernel.js';
+import type { KernelInterface } from './kernel.js';
 import { createSeededRandom, type SessionCall } from './session.js';
-import type { CommandSummaryV0 } from './types.js';
+import type { CommandSummary } from './types.js';
 
 // ─── Reference workspace (D37) ──────────────────────────────────────────────────
 
@@ -37,7 +37,7 @@ export interface ReferenceWorkspace {
 	seed: string;
 	size: number;
 	/** `size` command summaries with unique, valid names, for the palette index (A1). */
-	commands: CommandSummaryV0[];
+	commands: CommandSummary[];
 	/** Fixed queries over those summaries, some matching nothing (A1). */
 	queries: string[];
 	/**
@@ -176,8 +176,8 @@ function titleCase(name: string): string {
 		.join(' ');
 }
 
-function referenceCommands(random: () => number, size: number): CommandSummaryV0[] {
-	const commands: CommandSummaryV0[] = [];
+function referenceCommands(random: () => number, size: number): CommandSummary[] {
+	const commands: CommandSummary[] = [];
 	for (let i = 0; i < size; i++) {
 		const base = `${DOMAINS[i % DOMAINS.length]}-${ACTIONS[Math.floor(i / DOMAINS.length) % ACTIONS.length]}`;
 		const round = Math.floor(i / (DOMAINS.length * ACTIONS.length));
@@ -195,7 +195,7 @@ function referenceCommands(random: () => number, size: number): CommandSummaryV0
 
 function referenceQueries(
 	random: () => number,
-	commands: readonly CommandSummaryV0[],
+	commands: readonly CommandSummary[],
 	count: number
 ): string[] {
 	const queries: string[] = [];
@@ -227,7 +227,7 @@ function referenceQueries(
 }
 
 function referenceCall(random: () => number, signedIn: { value: boolean }): SessionCall {
-	const iface: KernelInterfaceV0 = random() < 0.7 ? 'palette' : 'agent';
+	const iface: KernelInterface = random() < 0.7 ? 'palette' : 'agent';
 	const call = (name: string, input: unknown = {}): SessionCall => ({
 		// The person's own appearance and session are the person's (phase 5's 6.1): an agent's write of either asks or
 		// is refused, so the person makes them.

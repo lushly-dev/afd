@@ -4,7 +4,7 @@
  * browser Back/hash navigation to another key (including a fast Back before `show()` catches up) opens that target and
  * discards stale reads if the URL changes mid-read.
  */
-import type { KernelEventV3, LoamKernelV5 } from '@lushly-dev/loam-kernel';
+import type { KernelEvent, LoamKernel } from '@lushly-dev/loam-kernel';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { RouterV1 } from '../router.js';
 import { createUrlSync, type MainStateV1, type UrlHostV1 } from '../url-sync.js';
@@ -150,7 +150,7 @@ describe('settingsHashTarget (#2098)', () => {
 		};
 
 		const host: UrlHostV1 = {
-			kernel: kernel as unknown as LoamKernelV5,
+			kernel: kernel as unknown as LoamKernel,
 			base: 'http://127.0.0.1:4173/',
 			ownerDocument: {
 				defaultView: {
@@ -192,7 +192,7 @@ describe('settingsHashTarget (#2098)', () => {
 			success: true,
 			mutation: true,
 			mainChanged: 'push',
-		} as KernelEventV3);
+		} as KernelEvent);
 		await new Promise((resolve) => setTimeout(resolve, 10));
 		await Promise.all(pendingHash.splice(0));
 

@@ -12,10 +12,10 @@
 
 import { FASTElement, html, observable, Updates, when } from '@lushly-dev/fast-element';
 import type {
-	KernelEventV3,
-	LoamKernelV5,
-	ProjectSummaryResultV1,
-	ProjectSummaryRowV1,
+	KernelEvent,
+	LoamKernel,
+	ProjectSummaryResult,
+	ProjectSummaryRow,
 	ProjectV1,
 	ResourceLinkV1,
 } from '@lushly-dev/loam-kernel';
@@ -234,7 +234,7 @@ const template = html<LoamProjectsSection>`
 type Status = 'project-archive' | 'project-restore';
 
 export class LoamProjectsSection extends FASTElement {
-	kernel: LoamKernelV5 | null = null;
+	kernel: LoamKernel | null = null;
 	/** The deployment's root, absolute, for the URLs the scheme formats (6.2). */
 	base = '';
 	declare workspace: string;
@@ -410,7 +410,7 @@ export class LoamProjectsSection extends FASTElement {
 				this.formOpen = true;
 			}
 			if (this.view === 'home' && this.project) {
-				const summary = await kernel.call<ProjectSummaryResultV1>('project-summary-get', {
+				const summary = await kernel.call<ProjectSummaryResult>('project-summary-get', {
 					project: this.project.id,
 				});
 				if (read !== this.#reads) return;
@@ -454,10 +454,7 @@ export class LoamProjectsSection extends FASTElement {
 	 * The `Documents` card: per type the project allows, its count and the five most recent, by
 	 * `document-list` at the project (documents specification, 8.3); none when no type is registered.
 	 */
-	async #readDocuments(
-		kernel: LoamKernelV5,
-		project: ProjectV1
-	): Promise<DocumentsCardView | null> {
+	async #readDocuments(kernel: LoamKernel, project: ProjectV1): Promise<DocumentsCardView | null> {
 		const scope = { workspace: this.workspace, project: project.id };
 		const types = await kernel.call<{ types: DocumentTypeV1[] }>(
 			'document-type-list',
@@ -495,7 +492,7 @@ export class LoamProjectsSection extends FASTElement {
 	}
 
 	/** One row's card, or its error alone: a row that cannot be shown never fails the others (T1). */
-	#safeCard(row: ProjectSummaryRowV1): CardView {
+	#safeCard(row: ProjectSummaryRow): CardView {
 		try {
 			return this.#cardOf(row);
 		} catch {
@@ -595,7 +592,7 @@ export class LoamProjectsSection extends FASTElement {
 		};
 	}
 
-	#cardOf(row: ProjectSummaryRowV1): CardView {
+	#cardOf(row: ProjectSummaryRow): CardView {
 		const lookup = this.#lookup();
 		const scope = {
 			workspace: this.workspace,
@@ -617,7 +614,7 @@ export class LoamProjectsSection extends FASTElement {
 		};
 	}
 
-	#heard(event: KernelEventV3): void {
+	#heard(event: KernelEvent): void {
 		// From anyone: a project changed, an app was enabled or disabled, or the actor changed.
 		if (!event.success || !event.mutation) return;
 		// What an action said goes with the actor that made it: a signed-out person sees no restricted name (T3),

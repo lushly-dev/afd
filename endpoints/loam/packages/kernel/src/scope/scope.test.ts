@@ -20,10 +20,10 @@ import {
 	scopedDeployment,
 	scopedPorts,
 } from '../testing.js';
-import type { AppSummaryV2, KernelEventV3, LoamKernelV5, ProjectV1, ScopeV1 } from '../types.js';
+import type { AppSummary, KernelEvent, LoamKernel, ProjectV1, ScopeV1 } from '../types.js';
 import { decideAccess, LOCAL_ACTOR, LOCAL_MEMBERSHIP, personKey } from './access.js';
 
-const kernels: LoamKernelV5[] = [];
+const kernels: LoamKernel[] = [];
 afterEach(async () => {
 	vi.useRealTimers();
 	await Promise.all(kernels.splice(0).map((kernel) => kernel.dispose()));
@@ -158,7 +158,7 @@ describe('P2-E4: each path of 3.2 reaches `context.scope`', () => {
 
 	it("puts the call's effective scope and the change on the event", async () => {
 		const workspace = await scoped();
-		const events: KernelEventV3[] = [];
+		const events: KernelEvent[] = [];
 		workspace.kernel.subscribe((event) => events.push(event));
 		await workspace.kernel.call('app-open', { instance: 'solo' });
 		await workspace.kernel.call('scope-set', { project: 'atlas' });
@@ -238,7 +238,7 @@ describe('P2-E4: a person is never locked out of the shell', () => {
 		await enterRestricted(workspace);
 		await kernel.call('app-open', { instance: 'dual' });
 		await kernel.call('dual-put', { key: 'k', value: 'vault' });
-		const events: KernelEventV3[] = [];
+		const events: KernelEvent[] = [];
 		kernel.subscribe((event) => events.push(event));
 		const out = await kernel.call('auth-sign-out');
 		expect(out.success).toBe(true);
@@ -963,7 +963,7 @@ describe("P2-E8: stage A's scope from the URL (6.3)", () => {
 
 	/** A session that `setup` left, then a reload whose URL names `initialScope`, on one journal. */
 	async function reloadAfter(
-		setup: (kernel: LoamKernelV5) => Promise<unknown>,
+		setup: (kernel: LoamKernel) => Promise<unknown>,
 		initialScope: { project: string | null }
 	) {
 		const store = new MemoryAdapter();
@@ -1042,7 +1042,7 @@ describe("P2-E8: stage A's scope from the URL (6.3)", () => {
 		const workspace = await scoped();
 		const { kernel } = workspace;
 		await kernel.call('app-open', { instance: 'dual' });
-		const events: KernelEventV3[] = [];
+		const events: KernelEvent[] = [];
 		kernel.subscribe((event) => events.push(event));
 		await kernel.call('app-route-set', { instance: 'dual', path: 'a' });
 		for (let step = 0; step < 3; step++) {
@@ -1062,7 +1062,7 @@ describe("P2-E8: stage A's scope from the URL (6.3)", () => {
 	it('P2-E8: app-close closes a section too, and an app reopened still reports mainChanged', async () => {
 		const workspace = await scoped();
 		const { kernel } = workspace;
-		const events: KernelEventV3[] = [];
+		const events: KernelEvent[] = [];
 		kernel.subscribe((event) => events.push(event));
 		await kernel.call('section-open', { section: 'projects' });
 		expect((await kernel.call('app-close')).success).toBe(true);
@@ -1102,7 +1102,7 @@ describe("P2-E8: stage A's scope from the URL (6.3)", () => {
 			},
 			{ project: 'atlas' }
 		);
-		const events: KernelEventV3[] = [];
+		const events: KernelEvent[] = [];
 		restricted.second.kernel.subscribe((event) => events.push(event));
 		const atlas = restricted.second.scopes.atlas.project as string;
 		expect((await restricted.second.kernel.call('scope-set', { project: atlas })).success).toBe(
@@ -1258,7 +1258,7 @@ describe('P2-E3: (kernel unit) what the rail and the parts read in a project (7.
 		});
 		const available = async () =>
 			Object.fromEntries(
-				((await kernel.call<{ apps: AppSummaryV2[] }>('app-list')).data?.apps ?? []).map((app) => [
+				((await kernel.call<{ apps: AppSummary[] }>('app-list')).data?.apps ?? []).map((app) => [
 					app.instance,
 					app.available,
 				])
@@ -1339,7 +1339,7 @@ describe('P2-E3: (kernel unit) an app that cannot open here, through app-open or
 
 	it('opens an app with the switch, main showing it with no section, and reports mainChanged', async () => {
 		const { kernel } = await scoped();
-		const events: KernelEventV3[] = [];
+		const events: KernelEvent[] = [];
 		kernel.subscribe((event) => events.push(event));
 		const opened = await kernel.call('scope-set', { project: 'atlas', app: 'tasks' });
 		expect(opened.data).toMatchObject({ active: 'tasks' });

@@ -16,11 +16,11 @@ import {
 	replayKernel,
 } from '../testing.js';
 import type {
-	AppInstanceV1,
-	KernelPortsV1,
-	LoamKernelV5,
+	AppInstance,
+	KernelPorts,
+	LoamKernel,
 	McpToolCallResult,
-	MountTransportV2,
+	MountTransport,
 } from '../types.js';
 import {
 	AUTO_DISCOVERY_MS,
@@ -78,7 +78,7 @@ function fakeTransport(
 	const metas: Array<{ tool: string; meta: Record<string, unknown> | undefined }> = [];
 	let closed = 0;
 	const asResult = (body: unknown): McpToolCallResult => ({ structuredContent: body });
-	const transport: MountTransportV2 & {
+	const transport: MountTransport & {
 		calls: typeof calls;
 		metas: typeof metas;
 		readonly closed: number;
@@ -139,7 +139,7 @@ const work = (extra: Record<string, unknown> = {}) => ({
 });
 
 async function boot(
-	transports: Record<string, (url: string) => Promise<MountTransportV2> | MountTransportV2>,
+	transports: Record<string, (url: string) => Promise<MountTransport> | MountTransport>,
 	entries: Array<Record<string, unknown>> = [work()],
 	options: { manifest?: ManifestV1; clock?: () => number; held?: Promise<void> } = {}
 ) {
@@ -150,7 +150,7 @@ async function boot(
 		])
 	);
 	const asked: string[] = [];
-	const ports: KernelPortsV1 = {
+	const ports: KernelPorts = {
 		...createFixturePorts(packages),
 		async mountTransport(entry, url) {
 			asked.push(url);
@@ -206,8 +206,8 @@ async function boot(
 	return { ...parts, journal, deployment, packages, asked, store };
 }
 
-async function instance(kernel: LoamKernelV5, name = 'work'): Promise<AppInstanceV1 | undefined> {
-	const { data } = await kernel.call<{ instances: AppInstanceV1[] }>('app-instance-list');
+async function instance(kernel: LoamKernel, name = 'work'): Promise<AppInstance | undefined> {
+	const { data } = await kernel.call<{ instances: AppInstance[] }>('app-instance-list');
 	return data?.instances.find((row) => row.instance === name);
 }
 
@@ -1494,7 +1494,7 @@ describe('what a hostile server cannot do with its size or its shape (9.9)', () 
 		);
 		const parts = await boot({ work: () => fakeTransport(many) });
 		await parts.kernel.startInstances();
-		const { data } = await parts.kernel.call<{ instances: AppInstanceV1[] }>('app-instance-list');
+		const { data } = await parts.kernel.call<{ instances: AppInstance[] }>('app-instance-list');
 		const row = data?.instances[0];
 		expect(row?.state).toBe('ready');
 		expect(row?.commands).toBeGreaterThan(0);
@@ -2392,7 +2392,7 @@ describe('R1 and R3: a replay reaches no port, and a kept kernel is live again',
 			return { ...entry, context } as JournalEntry;
 		});
 	const replayed = async (entries: JournalEntry[], deployment: ProjectionV3, ports: object) =>
-		replayKernel(entries, { deployment, ports: ports as KernelPortsV1 }).then(
+		replayKernel(entries, { deployment, ports: ports as KernelPorts }).then(
 			() => undefined,
 			(error: { code?: string; details?: { report?: KernelReplayReport } }) => error
 		);

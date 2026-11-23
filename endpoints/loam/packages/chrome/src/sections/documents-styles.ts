@@ -18,12 +18,14 @@ export const documentsStyles = css`
 	}
 	h1 {
 		margin: 0;
+		font-family: var(--font-family-heading);
 		font-size: var(--type-title-md-size);
 		line-height: var(--type-title-md-line);
 		font-weight: var(--type-title-md-weight);
 	}
 	h2 {
 		margin: 0;
+		font-family: var(--font-family-heading);
 		font-size: var(--type-title-sm-size);
 		line-height: var(--type-title-sm-line);
 		font-weight: var(--type-title-sm-weight);
@@ -60,22 +62,28 @@ export const documentsStyles = css`
 		margin: 0;
 		accent-color: var(--color-control-selected-background);
 	}
-	.field,
-	select {
+	.field {
 		box-sizing: border-box;
 		min-block-size: var(--size-target-natural);
 		padding-inline: var(--size-space-sm);
-		border: 1px solid var(--color-field-border);
+		border: 1px solid var(--color-border-subtle);
 		border-radius: var(--radius-md);
 		background: var(--color-field-background);
 		color: var(--color-field-text);
+		box-shadow:
+			inset 0 1px 0 var(--color-field-border),
+			var(--shadow-well);
 		font: inherit;
 		font-size: var(--type-body-md-size);
 		line-height: var(--type-body-md-line);
+		transition:
+			border-color var(--duration-fast) var(--easing-standard),
+			box-shadow var(--duration-base) var(--easing-standard);
 	}
-	.field:hover,
-	select:hover {
-		border-color: var(--color-field-border-hover);
+	.field:hover {
+		box-shadow:
+			inset 0 1px 0 var(--color-field-border-hover),
+			var(--shadow-well);
 	}
 	.field[aria-invalid='true'] {
 		border-color: var(--color-field-border-invalid);
@@ -89,7 +97,11 @@ export const documentsStyles = css`
 		color: var(--color-action-secondary-text);
 		font: inherit;
 		cursor: pointer;
-		transition: background-color var(--duration-fast) var(--easing-standard);
+		transition:
+			background-color var(--duration-fast) var(--easing-standard),
+			color var(--duration-fast) var(--easing-standard),
+			border-color var(--duration-fast) var(--easing-standard),
+			box-shadow var(--duration-fast) var(--easing-standard);
 	}
 	.button:hover {
 		background: var(--color-action-secondary-hover);
@@ -101,15 +113,20 @@ export const documentsStyles = css`
 		border-color: transparent;
 		background: var(--color-action-primary-background);
 		color: var(--color-action-primary-text);
+		box-shadow: var(--shadow-control);
 	}
 	.button.primary:hover {
 		background: var(--color-action-primary-hover);
 	}
 	.button.primary:active {
 		background: var(--color-action-primary-pressed);
+		box-shadow: none;
 	}
-	.field:focus-visible,
-	select:focus-visible,
+	.field:focus-visible {
+		border-color: var(--color-field-border-focus);
+		outline: var(--shell-size-focus) solid var(--color-focus-ring);
+		outline-offset: var(--size-space-xs);
+	}
 	.button:focus-visible,
 	.check input:focus-visible,
 	h1:focus-visible,
@@ -162,6 +179,7 @@ export const documentsStyles = css`
 		white-space: nowrap;
 	}
 	@media (prefers-reduced-motion: reduce) {
+		.field,
 		.button {
 			transition: none;
 		}
@@ -174,23 +192,23 @@ export const documentsStyles = css`
 		.failure {
 			color: CanvasText;
 		}
-		.field,
-		select {
+		.field {
 			border-color: ButtonText;
 			background: Field;
 			color: FieldText;
+			box-shadow: none;
 		}
 		.button,
 		.button.primary {
 			border-color: ButtonText;
 			background: ButtonFace;
 			color: ButtonText;
+			box-shadow: none;
 		}
 		a {
 			color: LinkText;
 		}
 		.field:focus-visible,
-		select:focus-visible,
 		.button:focus-visible,
 		.check input:focus-visible,
 		h1:focus-visible,

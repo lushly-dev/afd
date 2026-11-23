@@ -60,7 +60,8 @@ export const quietButton = css`
 		cursor: pointer;
 		transition:
 			background-color var(--duration-fast) var(--easing-standard),
-			color var(--duration-fast) var(--easing-standard);
+			color var(--duration-fast) var(--easing-standard),
+			border-color var(--duration-fast) var(--easing-standard);
 	}
 	.quiet:hover {
 		background: var(--color-action-secondary-hover);
@@ -88,6 +89,11 @@ export const quietButton = css`
 	}
 	.quiet violet-icon {
 		--violet-icon-size: var(--size-line-sm);
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.quiet {
+			transition: none;
+		}
 	}
 	@media (forced-colors: active) {
 		.quiet {

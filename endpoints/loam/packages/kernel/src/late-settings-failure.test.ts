@@ -14,7 +14,7 @@ import { createKernel, createKernelParts } from './kernel.js';
 import { LIMIT_DEFAULTS } from './limits.js';
 import { createFixedEnvironment } from './testing.js';
 
-vi.mock('./late/settings.js', () => {
+vi.mock('./settings/settings.js', () => {
 	throw new Error('The late-settings chunk did not load');
 });
 

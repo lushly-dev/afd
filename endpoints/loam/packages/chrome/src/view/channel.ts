@@ -5,7 +5,7 @@
  * of the shape JSON-RPC says, is read at all.
  */
 
-import type { FrameAdmitV1, FrameRefusalV1 } from '@lushly-dev/loam-kernel';
+import type { FrameAdmit, FrameRefusal } from '@lushly-dev/loam-kernel';
 
 /** What the outer iframe may do: a child frame takes only flags its parent has. */
 export const PROXY_SANDBOX = 'allow-scripts allow-same-origin allow-forms';
@@ -25,7 +25,7 @@ export interface ChannelOptions {
 	 * 11's `messageBytes`): a refused request is answered with the refusal, a refused reply fails the request it answers,
 	 * and a refused notification is dropped.
 	 */
-	admit?: FrameAdmitV1;
+	admit?: FrameAdmit;
 }
 
 export type RequestHandler = (method: string, params: unknown) => Promise<unknown>;
@@ -102,7 +102,7 @@ export class ProxyChannel {
 	readonly #view: Window;
 	readonly #sandboxOrigin: string;
 	readonly #html: string;
-	readonly #admit: FrameAdmitV1 | undefined;
+	readonly #admit: FrameAdmit | undefined;
 	readonly #pending = new Map<
 		number,
 		{ resolve(value: unknown): void; reject(error: Error): void }
@@ -156,7 +156,7 @@ export class ProxyChannel {
 	};
 
 	/** A refused message: a request answered with the refusal, a reply failing its request, anything else dropped. */
-	#refuse(data: unknown, refused: FrameRefusalV1): void {
+	#refuse(data: unknown, refused: FrameRefusal): void {
 		const { id, method } = (data ?? {}) as { id?: unknown; method?: unknown };
 		const error: RpcError = {
 			code: refused.rpcCode,

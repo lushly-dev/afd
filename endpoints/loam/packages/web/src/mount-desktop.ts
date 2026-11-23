@@ -6,7 +6,7 @@
  * words, never the host's.
  */
 
-import type { McpTool, McpToolCallResult, MountTransportV2 } from '@lushly-dev/loam-kernel';
+import type { McpTool, McpToolCallResult, MountTransport } from '@lushly-dev/loam-kernel';
 
 /**
  * What Tauri's IPC script puts in the page. On WebView2 the frames have it too, and their `invoke` reaches
@@ -94,7 +94,7 @@ function resultOf(answer: unknown, id: number): unknown {
 export function createDesktopMountTransport(
 	instance: string,
 	options: DesktopMountOptions = {}
-): MountTransportV2 {
+): MountTransport {
 	let handle: number | undefined;
 	let id = 0;
 	/** Whether the connection is on the modern era: its keys go on every request's `_meta`, the kernel's beside them. */

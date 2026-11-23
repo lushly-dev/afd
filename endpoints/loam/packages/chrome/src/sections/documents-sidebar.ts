@@ -10,7 +10,7 @@
  */
 
 import { css, FASTElement, html, observable, Updates } from '@lushly-dev/fast-element';
-import type { LoamKernelV5 } from '@lushly-dev/loam-kernel';
+import type { LoamKernel } from '@lushly-dev/loam-kernel';
 import type { DocumentRecordV1, DocumentTypeV1 } from '@lushly-dev/loam-sdk';
 import { trapTab } from '../elements/focus.js';
 import { documentsStyles } from './documents-styles.js';
@@ -99,7 +99,7 @@ const styles = css`
 		inline-size: min(92vw, calc(var(--shell-size-main-min) * 1.4));
 		max-block-size: 80dvh;
 		padding: var(--space-layout-sm);
-		border: 1px solid var(--color-border-subtle);
+		border: 1px solid transparent;
 		border-radius: var(--radius-lg);
 		background: var(--color-surface-floating);
 		box-shadow: var(--shadow-floating);
@@ -131,7 +131,7 @@ const styles = css`
 type Shown = { kind: 'doc'; record: DocumentRecordV1 } | { kind: 'more'; type: string };
 
 export class LoamDocumentsSidebar extends FASTElement {
-	kernel: LoamKernelV5 | null = null;
+	kernel: LoamKernel | null = null;
 	/** The compact class: no `Open beside` (5.2). */
 	compact = false;
 	declare dialogKind: 'rename' | 'links' | null;

@@ -21,10 +21,10 @@ import {
 	documentsPorts,
 	type ScopedWorkspace,
 } from '../testing.js';
-import type { KernelEventV3, LoamKernelV5 } from '../types.js';
+import type { KernelEvent, LoamKernel } from '../types.js';
 import { appInput, filled, NOT_CALLED, SHELL_INPUTS } from './call-inputs.js';
 
-const kernels: LoamKernelV5[] = [];
+const kernels: LoamKernel[] = [];
 afterEach(async () => {
 	await Promise.all(kernels.splice(0).map((kernel) => kernel.dispose()));
 });
@@ -43,7 +43,7 @@ const SECRETS = [
 
 /** One twin: the scoped workspace with the documents fixture, and the member's secrets in Citadel. */
 async function twin(): Promise<
-	ScopedWorkspace & { events: KernelEventV3[]; document: string; link: string }
+	ScopedWorkspace & { events: KernelEvent[]; document: string; link: string }
 > {
 	const workspace = await createScopedWorkspace({
 		deployment: documentsDeployment(),
@@ -79,7 +79,7 @@ async function twin(): Promise<
 		.surface({ scope: scopes.citadel })
 		.call('status-item-set', { id: 'count', value: 'secret-status' });
 	await kernel.call('auth-sign-out');
-	const events: KernelEventV3[] = [];
+	const events: KernelEvent[] = [];
 	kernel.subscribe((event) => events.push(event));
 	return Object.assign(workspace, { events, document, link });
 }

@@ -8,9 +8,9 @@ import type { JournalEntry, MemoryJournalSink } from '@lushly-dev/afd-core';
 import type { ManifestV2 } from '@lushly-dev/loam-manifest';
 import { afterEach, describe, expect, it } from 'vitest';
 import { INTERNAL_COMMANDS } from '../commands.js';
-import { HUMAN_COMMANDS } from '../late/identity-commands.js';
-import { OWNER_COMMANDS } from '../late/member-commands.js';
-import { PERSON_SESSION } from '../late/person-session.js';
+import { HUMAN_COMMANDS } from '../identity/identity-commands.js';
+import { OWNER_COMMANDS } from '../identity/member-commands.js';
+import { PERSON_SESSION } from '../identity/person-session.js';
 import {
 	createScopedWorkspace,
 	DUAL_DEFINITION,

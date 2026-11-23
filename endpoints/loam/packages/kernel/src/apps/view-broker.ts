@@ -9,7 +9,7 @@ import type { ManifestV2 } from '@lushly-dev/loam-manifest';
 import type { LoamClientV1, OverlayResultV1, ScopeV1 } from '@lushly-dev/loam-sdk';
 import { LoamKernelError } from '../errors.js';
 import { LIMIT_DEFAULTS, measureJson } from '../limits.js';
-import type { LinkedCallV1, ViewBrokerV1 } from '../types.js';
+import type { LinkedCall, ViewBroker } from '../types.js';
 import { toolCallResult, visibleToApp } from './handler-frame.js';
 import type { LimitGuard } from './limit-guard.js';
 import { asJson, refuseRequest } from './support.js';
@@ -41,7 +41,7 @@ export interface ViewHost {
 		readResource: (uri: string) => Promise<string>,
 		scope?: ScopeV1,
 		waitOverlay?: (overlayId: string) => Promise<OverlayResultV1>
-	): ViewBrokerV1;
+	): ViewBroker;
 	/**
 	 * A command of this app finished in `scope`, its effective one: tell whoever listens for the resource it
 	 * names, from a surface made in that scope, so no result crosses into another project (3.6).
@@ -91,7 +91,7 @@ export function createViewBroker({ manifest, sandboxOrigin, guard }: ViewBrokerO
 		return refuse(message, suggestion);
 	};
 	let reading = 0;
-	const listeners = new Map<string, Set<(call: LinkedCallV1, scope?: ScopeV1) => void>>();
+	const listeners = new Map<string, Set<(call: LinkedCall, scope?: ScopeV1) => void>>();
 	const own = new Set((manifest.commands ?? []).map((command) => command.name));
 	const refuse = (message: string, suggestion: string) =>
 		refuseRequest({ code: 'VIEW_CALL_REFUSED', rpcCode: -32602, message, suggestion });
@@ -197,7 +197,7 @@ export function createViewBroker({ manifest, sandboxOrigin, guard }: ViewBrokerO
 			onLinkedCall(uri, listener) {
 				const held = listeners.get(uri) ?? new Set();
 				listeners.set(uri, held);
-				const each = (linked: LinkedCallV1, scope?: ScopeV1) => {
+				const each = (linked: LinkedCall, scope?: ScopeV1) => {
 					// Fails closed: a broker with no surface, or a call with no scope, is told nothing (T4). The project
 					// decides, as `scopeKeyOf` does: one workspace per deployment in phase 2 (D32), checked first (3.4).
 					if (bound && scope && bound.project === scope.project) listener(linked);

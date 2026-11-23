@@ -24,7 +24,11 @@ export const actionButton = css`
 		line-height: var(--type-label-sm-line);
 		font-weight: var(--type-label-sm-weight);
 		cursor: pointer;
-		transition: background-color var(--duration-fast) var(--easing-standard);
+		transition:
+			background-color var(--duration-fast) var(--easing-standard),
+			color var(--duration-fast) var(--easing-standard),
+			border-color var(--duration-fast) var(--easing-standard),
+			box-shadow var(--duration-fast) var(--easing-standard);
 	}
 	.action:not([aria-disabled='true']):hover {
 		background: var(--color-action-secondary-hover);
@@ -40,31 +44,42 @@ export const actionButton = css`
 		border-color: transparent;
 		background: var(--color-action-primary-background);
 		color: var(--color-action-primary-text);
+		box-shadow: var(--shadow-control);
 	}
 	.action.primary:not([aria-disabled='true']):hover {
 		background: var(--color-action-primary-hover);
 	}
 	.action.primary:not([aria-disabled='true']):active {
 		background: var(--color-action-primary-pressed);
+		box-shadow: none;
 	}
 	.action.danger {
 		border-color: transparent;
 		background: var(--color-action-danger-background);
 		color: var(--color-action-danger-text);
+		box-shadow: var(--shadow-control);
 	}
-	.action.danger:hover {
+	.action.danger:not([aria-disabled='true']):hover {
 		background: var(--color-action-danger-hover);
 	}
-	.action.danger:active {
+	.action.danger:not([aria-disabled='true']):active {
 		background: var(--color-action-danger-pressed);
+		box-shadow: none;
 	}
 	.action[aria-disabled='true'],
-	.action.primary[aria-disabled='true'] {
+	.action.primary[aria-disabled='true'],
+	.action.danger[aria-disabled='true'] {
 		opacity: 0.55;
 		border-color: var(--color-action-secondary-border);
 		cursor: not-allowed;
 		background: var(--color-action-secondary-background);
 		color: var(--color-action-secondary-text);
+		box-shadow: none;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.action {
+			transition: none;
+		}
 	}
 	@media (forced-colors: active) {
 		.action,
@@ -73,9 +88,14 @@ export const actionButton = css`
 			border-color: ButtonText;
 			background: ButtonFace;
 			color: ButtonText;
+			box-shadow: none;
 		}
 		.action:not([aria-disabled='true']):hover,
-		.action:not([aria-disabled='true']):active {
+		.action:not([aria-disabled='true']):active,
+		.action.primary:not([aria-disabled='true']):hover,
+		.action.primary:not([aria-disabled='true']):active,
+		.action.danger:not([aria-disabled='true']):hover,
+		.action.danger:not([aria-disabled='true']):active {
 			border-color: Highlight;
 			background: Highlight;
 			color: HighlightText;
@@ -84,7 +104,8 @@ export const actionButton = css`
 			outline-color: Highlight;
 		}
 		.action[aria-disabled='true'],
-		.action.primary[aria-disabled='true'] {
+		.action.primary[aria-disabled='true'],
+		.action.danger[aria-disabled='true'] {
 			border-color: GrayText;
 			background: ButtonFace;
 			color: GrayText;

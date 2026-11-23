@@ -12,24 +12,19 @@ import type { AppStoreRecord } from '../apps/store.js';
 import type { AppsRuntime } from '../apps-runtime.js';
 import { BOOT_ONLY, INTERNAL_COMMANDS } from '../commands.js';
 import type { KernelFieldContext } from '../context-fields.js';
+import type { DocumentCheck } from '../documents/document-types.js';
 import { kernelFailure } from '../errors.js';
+import { gatedByLineZero, lineZero } from '../identity/auth-gate.js';
+import type { SessionSettle } from '../identity/session-settle.js';
 import { RECORDED_ANSWER } from '../journal-order.js';
-import type { OverlayStore } from '../overlays.js';
-import { shellModalOpen } from '../overlays.js';
+import type { OverlayStore } from '../overlays/store.js';
+import { shellModalOpen } from '../overlays/store.js';
 import {
 	type AccessActorV1,
 	AGENT_MEMBER_PREFIX,
 	inWorkspace as isMemberOf,
 	personOf,
 } from '../scope/access.js';
-import { type LateScope, projectNotFound, sessionActor } from '../scope/middleware.js';
-import type { PersonalStore } from '../scope/personal.js';
-import type { ProjectV1, ScopeChangeV2, ScopeV1 } from '../scope/records.js';
-import { CALL_MARK, type ScopeRuntime } from '../scope/runtime.js';
-import { rowProject, storeRecordId } from '../scope/store-id.js';
-import type { ShellState } from '../shell-state.js';
-import { gatedByLineZero, lineZero } from './auth-gate.js';
-import type { DocumentCheck } from './document-types.js';
 import {
 	archivedRefusal,
 	canOpen,
@@ -37,8 +32,13 @@ import {
 	mismatchRefusal,
 	setMain,
 	setScopeProject,
-} from './main-state.js';
-import type { SessionSettle } from './session-settle.js';
+} from '../scope/main-state.js';
+import { type LateScope, projectNotFound, sessionActor } from '../scope/middleware.js';
+import type { PersonalStore } from '../scope/personal.js';
+import type { ProjectV1, ScopeChangeV2, ScopeV1 } from '../scope/records.js';
+import { CALL_MARK, type ScopeRuntime } from '../scope/runtime.js';
+import { rowProject, storeRecordId } from '../scope/store-id.js';
+import type { ShellState } from '../shell-state.js';
 
 export interface LateScopeDeps {
 	scope: ScopeRuntime;

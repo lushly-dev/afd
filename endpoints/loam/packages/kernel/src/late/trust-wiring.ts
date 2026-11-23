@@ -7,11 +7,11 @@
 
 import type { CommandContext, CommandResult } from '@lushly-dev/afd-core';
 import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
+import type { HostedDeps, HostedParts } from '../identity/hosted.js';
+import type { SessionSettle } from '../identity/session-settle.js';
 import type { LateScope } from '../scope/middleware.js';
-import { DOCUMENT_KIT } from './document-kit.js';
-import type { HostedDeps, HostedParts } from './hosted.js';
+import { DOCUMENT_KIT } from './command-kit.js';
 import type { LateCommandDeps } from './index.js';
-import type { SessionSettle } from './session-settle.js';
 
 /** The settles the server's kernel does not register (9.5): it holds no person's session or membership. */
 export const SERVER_UNSETTLED: readonly string[] = Object.freeze([
@@ -77,7 +77,7 @@ export async function wireTrustRecords(
 	// A deployment the kernel was given that names another host routes nothing, whatever port the host gives (6.1).
 	const kind = (deps.deployment as { host?: { kind?: unknown } } | undefined)?.host?.kind;
 	if (!hostedReplay && deps.deployment !== undefined && kind !== 'hosted') return undefined;
-	const { createHostedParts } = await import('./hosted.js');
+	const { createHostedParts } = await import('../identity/hosted.js');
 	const parts = createHostedParts({
 		store: deps.store,
 		scope: deps.scope,

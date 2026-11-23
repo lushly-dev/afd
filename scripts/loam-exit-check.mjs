@@ -82,6 +82,15 @@ export const WORKFLOWS = {
 			// Phase 6's step 2: the hosted criterion against the development profile.
 			'Hosted development profile',
 		],
+		// The exact four jobs `loam.yml` had at phase 2's exit on 2026-11-09, before "Merge queue paths",
+		// "Firefox suites", "WebKit suites", and "Hosted development profile" were added (#2181). Accepted for
+		// standalone `--phase 2` only.
+		phase2HistoricalJobs: [
+			'Affected units',
+			'Build, unit and Chromium',
+			'Editor walk',
+			'Mounted against Umbel',
+		],
 	},
 	// Phase 6's steps 11 and 12: the desktop suite and installers (specification, 10.7 and 11.3). Read only
 	// under `--phase 6` without `--milestone` (section 19).
@@ -487,11 +496,75 @@ export function readBudgetWithin(log, labels, location = LOCATIONS.budget) {
 	return { problems, found };
 }
 
+const TIMESTAMP_CAPTURE = /^\uFEFF?(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)(?:\.\d+)?Z ?/;
+const STEP_BOUNDARY = /^##\[group\](?:Run |Post )/;
+
+/**
+ * Resolves `UNKNOWN STEP` lines that `gh run view --log` emits once GitHub Actions compacts a run's log zip
+ * to per-job `<n>_<job>.txt` files (without per-step files, #2181). Lines with an explicit step name are
+ * never altered, and jobs without step timestamps keep `UNKNOWN STEP` so checks fail closed.
+ */
+export function resolveLogSteps(log, run) {
+	if (!log.includes('\tUNKNOWN STEP\t') || !Array.isArray(run?.jobs)) return log;
+	const stepsByJob = new Map();
+	for (const job of run.jobs) {
+		const timed = (job.steps ?? [])
+			.filter((step) => step.conclusion !== 'skipped' && step.startedAt && step.completedAt)
+			.sort((a, b) => (a.number ?? 0) - (b.number ?? 0))
+			.map((step) => ({
+				name: step.name,
+				startSec: Date.parse(step.startedAt),
+				endSec: Date.parse(step.completedAt),
+			}))
+			.filter((step) => Number.isFinite(step.startSec) && Number.isFinite(step.endSec));
+		if (timed.length > 0) stepsByJob.set(job.name, timed);
+	}
+	if (stepsByJob.size === 0) return log;
+	const cursors = new Map();
+	return log
+		.split('\n')
+		.map((raw) => {
+			const first = raw.indexOf('\t');
+			if (first === -1) return raw;
+			const second = raw.indexOf('\t', first + 1);
+			if (second === -1) return raw;
+			const step = raw.slice(first + 1, second);
+			if (step !== 'UNKNOWN STEP') return raw;
+			const job = raw.slice(0, first);
+			const steps = stepsByJob.get(job);
+			if (!steps) return raw;
+			const body = raw.slice(second + 1);
+			const stamp = TIMESTAMP_CAPTURE.exec(body);
+			if (!stamp) return raw;
+			const tsSec = Date.parse(`${stamp[1]}Z`);
+			const text = body.slice(stamp[0].length);
+			let index = cursors.get(job) ?? 0;
+			let advanced = false;
+			while (index + 1 < steps.length && tsSec > steps[index].endSec) {
+				index += 1;
+				advanced = true;
+			}
+			if (
+				!advanced &&
+				index + 1 < steps.length &&
+				tsSec >= steps[index + 1].startSec &&
+				STEP_BOUNDARY.test(text)
+			) {
+				index += 1;
+			}
+			cursors.set(job, index);
+			const assigned = steps[index];
+			if (tsSec < assigned.startSec || tsSec > assigned.endSec) return raw;
+			return `${job}\t${assigned.name}\t${body}`;
+		})
+		.join('\n');
+}
+
 /**
  * Condition 1 for one run: this repository, the right workflow file, a manual run on main, completed and a
  * success, on its first attempt unless `allowRerun`, and every job a success.
  */
-export function checkRun(run, workflow, { allowRerun = false } = {}) {
+export function checkRun(run, workflow, { allowRerun = false, historicalJobs = [] } = {}) {
 	const problems = [];
 	const where = `${workflow.file} run ${run.databaseId}`;
 	if (run.repository !== REPOSITORY)
@@ -516,10 +589,18 @@ export function checkRun(run, workflow, { allowRerun = false } = {}) {
 	const skippedJobs = workflow.skippedJobs ?? [];
 	const canonicalName = (name) => aliases[name] ?? name;
 	const names = run.jobs.map((job) => canonicalName(job.name));
+	const uniqueNames = new Set(names);
+	const matchedHistorical = historicalJobs.find(
+		(expected) =>
+			names.length === expected.length &&
+			uniqueNames.size === expected.length &&
+			expected.every((name) => uniqueNames.has(name))
+	);
+	const expectedJobs = matchedHistorical ?? workflow.jobs;
 	// Exactly once each: a job listed twice is not the list, whatever its conclusions.
-	for (const name of workflow.jobs)
+	for (const name of expectedJobs)
 		if (!names.includes(name)) problems.push(`${where}: job "${name}" is missing`);
-	for (const name of new Set(names))
+	for (const name of uniqueNames)
 		if (names.filter((entry) => entry === name).length > 1)
 			problems.push(`${where}: job "${name}" appears more than once`);
 	for (const job of run.jobs) {
@@ -531,7 +612,7 @@ export function checkRun(run, workflow, { allowRerun = false } = {}) {
 				);
 			continue;
 		}
-		if (!workflow.jobs.includes(canonical))
+		if (!expectedJobs.includes(canonical))
 			problems.push(`${where}: job "${job.name}" is not one the check knows`);
 		if (job.conclusion !== 'success')
 			problems.push(`${where}: job "${job.name}" is ${job.conclusion || job.status}, not success`);
@@ -719,7 +800,10 @@ export function checkExit({
 	if (minimums !== undefined) given[phase] = minimums;
 	const minimumsOf = (id) => given[id] ?? fileMinimums(id);
 	const problems = [
-		...checkRun(loam, WORKFLOWS.loam, { allowRerun }),
+		...checkRun(loam, WORKFLOWS.loam, {
+			allowRerun,
+			historicalJobs: phase === 2 ? [WORKFLOWS.loam.phase2HistoricalJobs] : [],
+		}),
 		...checkRun(ci, WORKFLOWS.ci, { allowRerun }),
 	];
 	if (loam.headSha !== ci.headSha)
@@ -729,7 +813,8 @@ export function checkExit({
 
 	for (const key of new Set(placesOf(phase))) problems.push(...checkStep(loam, LOCATIONS[key]));
 
-	const own = checkPhase(phase, { log, minimumsOf });
+	const resolvedLog = resolveLogSteps(log, loam);
+	const own = checkPhase(phase, { log: resolvedLog, minimumsOf });
 	problems.push(...own.titleIssues, ...own.problems);
 	const { report, observed } = own;
 

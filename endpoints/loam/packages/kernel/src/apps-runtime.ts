@@ -20,12 +20,12 @@ import type { KernelFieldContext } from './context-fields.js';
 import { kernelFailure, LoamKernelError } from './errors.js';
 import type { AppKeybinding } from './keybindings.js';
 import type {
-	AppDetailV1,
-	AppInstanceV1,
-	AppPortV2,
-	AppSummaryV2,
-	CommandSummaryV1,
-	SelectionV2,
+	AppDetail,
+	AppInstance,
+	AppPort,
+	AppSelection,
+	AppSummary,
+	CommandSummary,
 } from './types.js';
 
 /** Who owns a command, for the context fields. */
@@ -57,7 +57,7 @@ export interface CommandOwner {
 }
 
 /** One row of `app-command-list`. */
-export type AppCommandRowV1 = CommandSummaryV1 & {
+export type AppCommandRowV1 = CommandSummary & {
 	inputSchema: unknown;
 	destructive?: boolean;
 	replay?: 'recorded';
@@ -75,7 +75,7 @@ export interface AppsRuntime {
 	 *
 	 * @throws LoamKernelError `APP_NOT_FOUND` or `APP_NOT_READY`
 	 */
-	port(instance: string): AppPortV2;
+	port(instance: string): AppPort;
 	/** The levels of the app owning `name`, or undefined for a command no app owns (phase 2 specification, 3.4). */
 	scopeLevelsOf(name: string): ReadonlyArray<'workspace' | 'project'> | undefined;
 	/** The input property `app.resource_keys` names for `name`, with its owner (3.5). */
@@ -86,13 +86,13 @@ export interface AppsRuntime {
 	reconcileLayouts(): void;
 	/** The mounted instances, for `startInstances`. */
 	mountedInstances(): string[];
-	summaries(): AppSummaryV2[];
+	summaries(): AppSummary[];
 	/** `statusItems` answer for `project`, the call's scope, as `setStatusItem` keys them (7.6). */
-	detail(instance: string, project?: string): CommandResult<AppDetailV1>;
+	detail(instance: string, project?: string): CommandResult<AppDetail>;
 	open(instance: string): CommandResult<{ active: string | null; previous: string | null }>;
 	close(): CommandResult<{ active: null; previous: string | null }>;
 	commandList(instance: string): CommandResult<{ commands: AppCommandRowV1[]; hidden: number }>;
-	instances(): AppInstanceV1[];
+	instances(): AppInstance[];
 	/** `app-instance-refresh`: a mounted instance's discovery, or why it cannot run. */
 	refreshInstance(instance: string): Promise<CommandResult>;
 	/**
@@ -114,14 +114,14 @@ export interface AppsRuntime {
 	/** Register a catalog a journal recorded, with no network. Only a replay has one. */
 	applyCatalog(instance: string, catalog: unknown): void;
 	/** The selected id in `project`'s scope, the call's, and the level it was made at (7.4). */
-	selection(instance: string, project?: string): CommandResult<SelectionV2>;
+	selection(instance: string, project?: string): CommandResult<AppSelection>;
 	/** Refused for a level the app does not take, or `project` with no project in the call's scope. */
 	setSelection(
 		instance: string,
 		id: string | null,
-		level: SelectionV2['level'],
+		level: AppSelection['level'],
 		project?: string
-	): CommandResult<SelectionV2>;
+	): CommandResult<AppSelection>;
 	/** A value is per instance and scope: `project` is the call's, for an app that takes one (7.6). */
 	setStatusItem(
 		caller: string | undefined,
@@ -136,7 +136,7 @@ export interface AppsRuntime {
 }
 
 /** The rail's order: `order`, then the instance (phase 2 specification, 7.3). */
-export const byOrder = (a: AppSummaryV2, b: AppSummaryV2): number =>
+export const byOrder = (a: AppSummary, b: AppSummary): number =>
 	a.order - b.order || (a.instance < b.instance ? -1 : 1);
 
 /** The answer for an instance no deployment lists. */
@@ -223,8 +223,8 @@ export interface BootAppsOptions {
  */
 export function bootApps(boot: BootProjectionV2, options: BootAppsOptions = {}): AppsRuntime {
 	const { failure } = options;
-	const entries: AppSummaryV2[] = boot.apps
-		.map((app): AppSummaryV2 => {
+	const entries: AppSummary[] = boot.apps
+		.map((app): AppSummary => {
 			const refusal =
 				failure === undefined && app.refusal !== null
 					? { ...app.refusal, retryable: false }

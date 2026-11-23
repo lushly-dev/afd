@@ -13,7 +13,7 @@
  * goes (phase 1 specification, 6.2).
  */
 
-import type { AppPortV2, LoamKernelV5 } from '@lushly-dev/loam-kernel';
+import type { AppPort, LoamKernel } from '@lushly-dev/loam-kernel';
 import { deliverSettings, settingsHeard } from '../apps/surface-calls.js';
 import type { SurfaceHostV1 } from '../editor/editor-frame.js';
 import type { LoamViewFrame } from '../view/view-frame.js';
@@ -24,7 +24,7 @@ export { type AppAccountTab, appTabs } from './account-surface.js';
 
 /** What a tab's surface needs of the shell. */
 export interface AppTabHost {
-	kernel: LoamKernelV5;
+	kernel: LoamKernel;
 	workspace: string;
 	/**
 	 * The app surfaces' way in, once the `surfaces` chunk has loaded; null when the shell has no apps, or once `stale`
@@ -67,7 +67,7 @@ export async function showAppTab(
 		el('p', { class: 'note' }, `From ${tab.app}, an app, for this workspace.`)
 	);
 	let surface: HTMLElement | null = null;
-	let port: AppPortV2 | undefined;
+	let port: AppPort | undefined;
 	const shown: ShownAppTab = {
 		key: tab.key,
 		node: wrap,

@@ -9,7 +9,7 @@
  * `provider` deployment the cap's field is section 13's message instead. Native controls, as the settings section's.
  */
 
-import type { LoamKernelV5 } from '@lushly-dev/loam-kernel';
+import type { LoamKernel } from '@lushly-dev/loam-kernel';
 import {
 	ADVISORY,
 	type AutonomyRow,
@@ -87,7 +87,7 @@ function modeSelect(
 }
 
 export class LoamAutonomySection extends SettingsElement {
-	kernel: LoamKernelV5 | null = null;
+	kernel: LoamKernel | null = null;
 	scope: PanelScope = { workspace: '' };
 	project: { id: string; name: string } | null = null;
 	apps: ReadonlyArray<{ instance: string; title: string }> = [];

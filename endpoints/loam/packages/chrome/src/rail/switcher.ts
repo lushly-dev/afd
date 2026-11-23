@@ -20,7 +20,7 @@ import {
 	Updates,
 	when,
 } from '@lushly-dev/fast-element';
-import type { LoamKernelV5, ProjectV1 } from '@lushly-dev/loam-kernel';
+import type { LoamKernel, ProjectV1 } from '@lushly-dev/loam-kernel';
 import '@lushly-dev/violet-elements/dist/listbox/violet-listbox.js';
 import '@lushly-dev/violet-elements/dist/option/violet-option.js';
 import '@lushly-dev/violet-elements/dist/popover/violet-popover.js';
@@ -162,7 +162,7 @@ export class LoamProjectList extends FASTElement {
 	declare failureLine: HTMLElement;
 	declare surface?: VioletPopover;
 	declare dialog?: HTMLDialogElement;
-	kernel: LoamKernelV5 | null = null;
+	kernel: LoamKernel | null = null;
 	shell: LoamShell | null = null;
 	switcher: LoamProjectSwitcher | null = null;
 	/** Its watch on the kernel's events, for a change of scope. */
@@ -238,7 +238,7 @@ export class LoamProjectList extends FASTElement {
 
 	/** The projects the actor may enter, and the active one. */
 	async #read(): Promise<void> {
-		const kernel = this.kernel as LoamKernelV5;
+		const kernel = this.kernel as LoamKernel;
 		const [listed, scoped] = await Promise.all([
 			kernel.call<{ projects: ProjectV1[] }>('project-list'),
 			kernel.call<{ scope: { project?: string } }>('scope-get'),
@@ -325,7 +325,7 @@ export class LoamProjectList extends FASTElement {
 	}
 
 	async #choose(value: string): Promise<void> {
-		const kernel = this.kernel as LoamKernelV5;
+		const kernel = this.kernel as LoamKernel;
 		if (value === ALL) {
 			// Opening the section leaves an open app, and focus then goes to main's heading (7.8).
 			const left = (await kernel.call<{ active: string | null }>('section-get')).data?.active;

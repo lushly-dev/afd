@@ -9,7 +9,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { CommandResult, JournalEntry } from '@lushly-dev/afd-core';
-import type { ProjectSummaryResultV1, ProjectV1 } from '@lushly-dev/loam-kernel';
+import type { ProjectSummaryResult, ProjectV1 } from '@lushly-dev/loam-kernel';
 import {
 	createFixedEnvironment,
 	createFixturePorts,
@@ -597,7 +597,7 @@ describe('P2-E12: the projects section under axe, in every theme and density, an
 			};
 			const call = kernel.call.bind(kernel);
 			const scope = { workspace: project.workspace, project: project.id };
-			const data: ProjectSummaryResultV1 = {
+			const data: ProjectSummaryResult = {
 				project,
 				summaries: [
 					{

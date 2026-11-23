@@ -19,7 +19,7 @@ import { STRANGER_TEXT } from '../../scenarios/mailfix.js';
 import { KEPT } from '../../scenarios/mailfix-mount.js';
 import { p5Base, type SeededKernel } from '../../scenarios/seeds.js';
 import { MOUNT_FAILURE_CODES, parseMountedResult } from '../apps/mounted.js';
-import type { LoamKernelV5 } from '../types.js';
+import type { LoamKernel } from '../types.js';
 import { createCopilotParts } from './commands.js';
 import { contentParts, KERNEL_ANSWERS, labelResult, mountedTool } from './labels.js';
 import { createTaint, OUTCOME_LABELS_TABLE } from './taint.js';
@@ -41,7 +41,7 @@ const data = <T>(result: CommandResult<unknown>): T => {
 	return result.data as T;
 };
 
-async function send(kernel: LoamKernelV5, text: string, session?: string) {
+async function send(kernel: LoamKernel, text: string, session?: string) {
 	const id =
 		session ??
 		data<{ session: { id: string } }>(await kernel.call('copilot-session-start', {})).session.id;
@@ -51,11 +51,11 @@ async function send(kernel: LoamKernelV5, text: string, session?: string) {
 	return { session: id, turn };
 }
 
-const sessionOf = async (kernel: LoamKernelV5, session: string) =>
+const sessionOf = async (kernel: LoamKernel, session: string) =>
 	data<{ session: CopilotSessionV1 }>(await kernel.call('copilot-session-get', { session }))
 		.session;
 
-const pending = async (kernel: LoamKernelV5) =>
+const pending = async (kernel: LoamKernel) =>
 	data<{ notifications: NotificationV1[] }>(
 		await kernel.call('notification-list', { kind: 'confirmation', body: true })
 	).notifications;
@@ -544,7 +544,7 @@ describe('P5-A4: the stored outcome, by its labels (5.1’s row)', () => {
 		const parts = createCopilotParts({
 			store,
 			workspace: 'personal',
-			kit: (await import('../late/document-kit.js')).DOCUMENT_KIT,
+			kit: (await import('../late/command-kit.js')).DOCUMENT_KIT,
 			isMutation: () => false,
 			isMounted: () => false,
 			instanceOf: (name) => name.split('-')[0],
@@ -844,7 +844,7 @@ describe('P5-A4: the re-check’s paths (stored answers, replay, held reads, ret
 		const parts = createCopilotParts({
 			store,
 			workspace: 'personal',
-			kit: (await import('../late/document-kit.js')).DOCUMENT_KIT,
+			kit: (await import('../late/command-kit.js')).DOCUMENT_KIT,
 			isMutation: () => false,
 			isMounted: () => true,
 			instanceOf: () => 'work',

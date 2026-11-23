@@ -3,10 +3,10 @@
  * `trace`, journaled, on both registries from stage B. In the `late-copilot` chunk; it imports types alone.
  */
 
-import type { DocumentKit } from '../late/document-kit.js';
-import type { ContextFieldV2 } from '../types.js';
+import type { DocumentKit } from '../scope/command-kit.js';
+import type { ContextField } from '../types.js';
 
-export function copilotContextFields(z: DocumentKit['z']): ContextFieldV2[] {
+export function copilotContextFields(z: DocumentKit['z']): ContextField[] {
 	return [
 		// `session` is a name AFD sets itself (the auth session), so the copilot's session is `copilotSession`.
 		{

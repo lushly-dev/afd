@@ -11,9 +11,9 @@ import type { CommandContext, CommandMiddleware, CommandResult } from '@lushly-d
 import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
 import type { ConfirmationAskedV1 } from '@lushly-dev/loam-sdk';
 import type { DataAdapter } from '@lushly-dev/local-db';
-import type { DocumentKit } from '../late/document-kit.js';
+import type { DocumentKit } from '../scope/command-kit.js';
 import type { ScopeV1 } from '../scope/records.js';
-import type { ContextFieldV2 } from '../types.js';
+import type { ContextField } from '../types.js';
 import {
 	type AutonomyModeV1,
 	createEnforcement,
@@ -266,7 +266,7 @@ export interface CopilotParts {
 	/** `copilot-turn-settle`, in `BOOT_ONLY`. */
 	bootOnly: ZodCommandDefinition[];
 	/** `copilotSession`, `turn` and `trace`, declared on both registries from stage B (3.2). */
-	contextFields: ContextFieldV2[];
+	contextFields: ContextField[];
 	/**
 	 * After access, before the confirmations' gate (6.1's order): the mode of every top-level call on the agent interface,
 	 * the copilot's and any other agent's, from phase 4's `resolveAutonomy` (`enforce.ts`).

@@ -8,10 +8,10 @@ import {
 	probeDeployment,
 	probeViewManifest,
 } from '../testing.js';
-import type { FrameAdmitV1, HandlerFrameV1, KernelPortsV1, LoamKernelV5 } from '../types.js';
+import type { FrameAdmit, HandlerFrame, KernelPorts, LoamKernel } from '../types.js';
 import { HANDLER_CALL_TIMEOUT_MS, HANDLER_READY_TIMEOUT_MS } from './index.js';
 
-const kernels: LoamKernelV5[] = [];
+const kernels: LoamKernel[] = [];
 afterEach(async () => {
 	vi.useRealTimers();
 	await Promise.all(kernels.splice(0).map((kernel) => kernel.dispose()));
@@ -21,7 +21,7 @@ const SANDBOX = 'https://sandbox.loam.test';
 const HANDLERS = '<!doctype html><title>Handlers</title>';
 const entry = { instance: 'probev', app: 'probev', package: 'apps/probev/' };
 
-function ports(overrides: Partial<KernelPortsV1> = {}) {
+function ports(overrides: Partial<KernelPorts> = {}) {
 	return {
 		...createFixturePorts({
 			'apps/probev/': {
@@ -34,7 +34,7 @@ function ports(overrides: Partial<KernelPortsV1> = {}) {
 	};
 }
 
-async function boot(portsGiven: KernelPortsV1 = ports()) {
+async function boot(portsGiven: KernelPorts = ports()) {
 	const { kernel, journal } = await createTestKernel({
 		deployment: probeDeployment([entry], SANDBOX),
 		ports: portsGiven,
@@ -45,7 +45,7 @@ async function boot(portsGiven: KernelPortsV1 = ports()) {
 }
 
 /** A frame whose every answer the test decides. */
-function fakeFrame(overrides: Partial<HandlerFrameV1> = {}): HandlerFrameV1 & {
+function fakeFrame(overrides: Partial<HandlerFrame> = {}): HandlerFrame & {
 	ask?: (method: string, params: unknown) => Promise<unknown>;
 	closed: number;
 } {
@@ -60,7 +60,7 @@ function fakeFrame(overrides: Partial<HandlerFrameV1> = {}): HandlerFrameV1 & {
 			frame.closed++;
 		},
 		...overrides,
-	} as HandlerFrameV1 & {
+	} as HandlerFrame & {
 		ask?: (method: string, params: unknown) => Promise<unknown>;
 		closed: number;
 	};
@@ -98,14 +98,14 @@ describe('the handler frame (6.3, D61)', () => {
 	it("passes the instance's gate as openHandlerFrame's third argument, refusing notifications and requests (phase 4's section 11)", async () => {
 		const given = ports();
 		const opener = given.openHandlerFrame;
-		const admits: Array<FrameAdmitV1 | undefined> = [];
+		const admits: Array<FrameAdmit | undefined> = [];
 		given.openHandlerFrame = (instance, text, admit) => {
 			admits.push(admit);
 			return opener(instance, text, admit);
 		};
 		const { kernel, journal } = await boot(given);
 		expect((await kernel.call('probev-list')).success).toBe(true);
-		const admit = admits[0] as FrameAdmitV1;
+		const admit = admits[0] as FrameAdmit;
 		expect(typeof admit).toBe('function');
 		expect(admit({ jsonrpc: '2.0', method: 'notifications/message', params: { data: 'hi' } })).toBe(
 			undefined
@@ -147,7 +147,7 @@ describe('the handler frame (6.3, D61)', () => {
 	it('records all concurrent app-limit-refuse entries even when journal appends complete in reverse order (#1669)', async () => {
 		const given = ports();
 		const opener = given.openHandlerFrame;
-		const admits: Array<FrameAdmitV1 | undefined> = [];
+		const admits: Array<FrameAdmit | undefined> = [];
 		given.openHandlerFrame = (instance, text, admit) => {
 			admits.push(admit);
 			return opener(instance, text, admit);
@@ -164,7 +164,7 @@ describe('the handler frame (6.3, D61)', () => {
 			}
 			return origAppend(record);
 		};
-		const admit = admits[0] as FrameAdmitV1;
+		const admit = admits[0] as FrameAdmit;
 		const pad = 'x'.repeat(1_048_576);
 		admit({ jsonrpc: '2.0', method: 'notifications/message', params: { data: pad } });
 		admit({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'probev-list', pad } });
@@ -290,7 +290,7 @@ describe('the handler frame (6.3, D61)', () => {
 		const good = fakeFrame();
 		const frames = [never, good];
 		const { kernel } = await boot(
-			ports({ openHandlerFrame: () => Promise.resolve(frames.shift() as HandlerFrameV1) })
+			ports({ openHandlerFrame: () => Promise.resolve(frames.shift() as HandlerFrame) })
 		);
 		const pending = kernel.call('probev-list');
 		await vi.advanceTimersByTimeAsync(HANDLER_READY_TIMEOUT_MS + 1);
@@ -311,7 +311,7 @@ describe('the handler frame (6.3, D61)', () => {
 			ports({
 				openHandlerFrame: (instance) => {
 					opened.push(instance);
-					return Promise.resolve(frames.shift() as HandlerFrameV1);
+					return Promise.resolve(frames.shift() as HandlerFrame);
 				},
 			})
 		);
@@ -329,7 +329,7 @@ describe('the handler frame (6.3, D61)', () => {
 		const second = fakeFrame({ call: () => new Promise(() => {}) });
 		const frames = [first, second];
 		const { kernel } = await boot(
-			ports({ openHandlerFrame: () => Promise.resolve(frames.shift() as HandlerFrameV1) })
+			ports({ openHandlerFrame: () => Promise.resolve(frames.shift() as HandlerFrame) })
 		);
 		const earliest = kernel.call('probev-list');
 		await vi.advanceTimersByTimeAsync(HANDLER_CALL_TIMEOUT_MS / 2);

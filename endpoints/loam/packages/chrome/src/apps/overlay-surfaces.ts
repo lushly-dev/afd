@@ -18,7 +18,7 @@
  */
 
 import { Updates } from '@lushly-dev/fast-element';
-import type { LoamKernelV5 } from '@lushly-dev/loam-kernel';
+import type { LoamKernel } from '@lushly-dev/loam-kernel';
 import type {
 	OverlayAnchorV1,
 	OverlayFromV1,
@@ -93,7 +93,7 @@ export function ownerLine(from: OverlayFromV1 | undefined): string {
 
 export class OverlaySurfaces {
 	readonly #shell: LoamShell;
-	readonly #kernel: LoamKernelV5;
+	readonly #kernel: LoamKernel;
 	readonly #find: AnchorFinder;
 	readonly #mountOf: OverlayMounter;
 	#layer: Promise<OverlayLayer> | undefined;
@@ -190,7 +190,7 @@ export class OverlaySurfaces {
 
 	constructor(
 		shell: LoamShell,
-		kernel: LoamKernelV5,
+		kernel: LoamKernel,
 		find: AnchorFinder = () => null,
 		mountOf: OverlayMounter = () => null
 	) {

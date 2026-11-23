@@ -17,10 +17,10 @@ import {
 	probeDefinition,
 	probeDeployment,
 } from '../testing.js';
-import type { AppDetailV1, AppSummaryV1, LoamKernelV5 } from '../types.js';
+import type { AppDetail, AppSummary, LoamKernel } from '../types.js';
 import { packageFile } from './port.js';
 
-const kernels: LoamKernelV5[] = [];
+const kernels: LoamKernel[] = [];
 const WORKSPACE = { workspace: 'personal' };
 afterEach(async () => {
 	await Promise.all(kernels.splice(0).map((kernel) => kernel.dispose()));
@@ -209,7 +209,7 @@ describe('scoping an app to itself', () => {
 		const { kernel, probe, sums } = await boot();
 		const set = await probe.call('status-item-set', { id: 'count', value: '3' });
 		expect(set.data).toEqual({ id: 'count', value: '3' });
-		const { data } = await kernel.call<AppDetailV1>('app-get', { instance: 'probe' });
+		const { data } = await kernel.call<AppDetail>('app-get', { instance: 'probe' });
 		expect(data?.statusItems).toEqual({ count: '3' });
 		expect((await sums.call('status-item-set', { id: 'count', value: '1' })).error?.code).toBe(
 			'STATUS_ITEM_UNKNOWN'
@@ -366,7 +366,7 @@ describe('the native module (5.5)', () => {
 		await expect(kernel.appPort('probe').load()).rejects.toMatchObject({
 			code: 'APP_HANDLER_MISSING',
 		});
-		const { data } = await kernel.call<{ apps: AppSummaryV1[] }>('app-list');
+		const { data } = await kernel.call<{ apps: AppSummary[] }>('app-list');
 		expect(data?.apps[0]?.state).toBe('failed');
 		const next = await kernel.agent.call('probe-hidden');
 		expect(next.error?.code).toBe('APP_NOT_READY');
@@ -381,7 +381,7 @@ describe('the native module (5.5)', () => {
 		const { kernel } = await createTestKernel({ deployment: probeDeployment(), ports });
 		kernels.push(kernel);
 		expect((await kernel.call('probe-list')).error?.code).toBe('APP_HANDLER_MISSING');
-		const { data } = await kernel.call<{ apps: AppSummaryV1[] }>('app-list');
+		const { data } = await kernel.call<{ apps: AppSummary[] }>('app-list');
 		expect(data?.apps[0]?.state).toBe('failed');
 	});
 
@@ -447,7 +447,7 @@ describe('the native module (5.5)', () => {
 	it('records an activation the chrome reports as failed', async () => {
 		const { kernel, probe } = await boot();
 		probe.reportActivationFailed('activate threw');
-		const { data } = await kernel.call<{ apps: AppSummaryV1[] }>('app-list');
+		const { data } = await kernel.call<{ apps: AppSummary[] }>('app-list');
 		const held = data?.apps.find((app) => app.instance === 'probe');
 		expect(held?.state).toBe('failed');
 		expect(held?.error?.code).toBe('APP_ACTIVATION_FAILED');

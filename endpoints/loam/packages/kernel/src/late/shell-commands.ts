@@ -38,6 +38,8 @@ import {
 	withResolved,
 } from '../boot-commands.js';
 import { PALETTE_SEARCH_LIMIT } from '../commands.js';
+import { NEW_RECENT_ID, newRecentId } from '../documents/new-list.js';
+import type { DocumentRows } from '../documents/palette-documents.js';
 import { kernelFailure } from '../errors.js';
 import {
 	isLayoutId,
@@ -51,26 +53,15 @@ import {
 	validateLayoutPatch,
 	validateLayoutState,
 } from '../layout.js';
-import type { OverlayStore } from '../overlays.js';
+import type { OverlayStore } from '../overlays/store.js';
+import type { SettingRows } from '../palette-index.js';
 import { createPaletteIndex, type PaletteIndex, type PaletteItem } from '../palette-index.js';
 import { personOf } from '../scope/access.js';
 import type { ScopeRuntime } from '../scope/runtime.js';
 import { APPS_VIEW_STATE_ID, SCOPE_VIEW_STATE_ID, type ShellState } from '../shell-state.js';
-import type {
-	CommandSummaryV1,
-	KernelEnvironmentV0,
-	KernelOptionsV0,
-	ShellInfoV5,
-} from '../types.js';
-import { NEW_RECENT_ID, newRecentId } from './new-list.js';
-import type { DocumentRows } from './palette-documents.js';
+import type { CommandSummary, KernelEnvironment, KernelOptions, ShellInfo } from '../types.js';
 
-/** The palette's setting rows (phase 4 specification, 3.10): the keys the call may see whose text matches. */
-export interface SettingRows {
-	search(query: string, context: CommandContext, limit: number): Promise<PaletteItem[]>;
-	/** The instance that declared a section, none for the shell's own: its row ranks with that app (A-P0-1). */
-	ownerOf?(section: string): string | undefined;
-}
+export type { SettingRows };
 
 /**
  * Each result's rank group (phase 4 specification, 7.1; A-P0-1): 0 for the active app's commands, 1 for the active tab
@@ -87,16 +78,16 @@ const KIND_RANK: Readonly<Record<string, number>> = { command: 0, document: 1, s
 export interface ShellCommandDeps {
 	viewState: ViewStateRegistry;
 	state: ShellState;
-	environment: KernelEnvironmentV0;
-	host: KernelOptionsV0['host'];
-	storeKind: KernelOptionsV0['storeKind'];
+	environment: KernelEnvironment;
+	host: KernelOptions['host'];
+	storeKind: KernelOptions['storeKind'];
 	/** The deployment's identity, which `shell-info-get` reports (phase 3 specification, 12). */
 	identity?: IdentityV1;
 	/** Whether stage B applied a desktop projection: `shell-info-get`'s host (phase 6 specification, 10.1). */
 	desktop?(): boolean;
 	overlays: OverlayStore;
 	/** The palette registry's commands, and a number that changes when they do. */
-	paletteRows(): CommandSummaryV1[];
+	paletteRows(): CommandSummary[];
 	/**
 	 * The only commands the palette may list now, or undefined for all: a signed-out `provider` page's (phase 3
 	 * specification, 2.1). Applied before the search ranks, so every one of them can be found (step 6's review, I4).
@@ -601,7 +592,7 @@ export function createShellCommands(deps: ShellCommandDeps): ZodCommandDefinitio
 		},
 	});
 
-	const shellInfoGet = defineCommandWithSchema<typeof emptyInput, ShellInfoV5>({
+	const shellInfoGet = defineCommandWithSchema<typeof emptyInput, ShellInfo>({
 		name: 'shell-info-get',
 		description: 'Get the shell interface versions, the host and the store backend',
 		category: 'shell',

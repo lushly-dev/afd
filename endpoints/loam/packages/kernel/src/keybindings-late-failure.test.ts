@@ -11,7 +11,7 @@ import { createKernel } from './kernel.js';
 import { SHELL_KEYBINDINGS_V0 } from './keybindings.js';
 import { createFixedEnvironment } from './testing.js';
 
-vi.mock('./late/settings.js', () => {
+vi.mock('./settings/settings.js', () => {
 	throw new Error('The settings chunk did not load');
 });
 

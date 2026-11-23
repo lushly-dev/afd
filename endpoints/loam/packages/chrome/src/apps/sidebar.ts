@@ -7,7 +7,7 @@
  * nodes are read by `readTree` (documents specification, step 11).
  */
 
-import type { LoamKernelV5 } from '@lushly-dev/loam-kernel';
+import type { LoamKernel } from '@lushly-dev/loam-kernel';
 import type { LoamList } from '../elements/list.js';
 import type { LoamTree } from '../sections/tree.js';
 import type { MainStateV1 } from '../url-sync.js';
@@ -42,7 +42,7 @@ export function sidebarLists(
 
 /** Read one list's command at its level, in the scope it was made in, and show the rows or the failure. */
 export async function readSidebarList(
-	kernel: LoamKernelV5,
+	kernel: LoamKernel,
 	sidebar: Sidebar | undefined,
 	list: SidebarList
 ): Promise<void> {

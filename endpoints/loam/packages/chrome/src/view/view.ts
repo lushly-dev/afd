@@ -3,7 +3,7 @@
  * shell with no view app loads none of it (phase 1 specification, 9.2).
  */
 
-import type { AppPortV2 } from '@lushly-dev/loam-kernel';
+import type { AppPort } from '@lushly-dev/loam-kernel';
 import type { DocumentRefV1 } from '@lushly-dev/loam-sdk';
 import {
 	documentViewSource,
@@ -40,7 +40,7 @@ export function defineViewFrame(): Promise<void> {
  * document's scope, read-only for an embed, so every `tools/call` holds to it. Not yet connected.
  */
 export async function documentView(
-	port: AppPortV2,
+	port: AppPort,
 	document: DocumentRefV1,
 	resource: string,
 	options: Pick<ViewFrameOptions, 'hostVersion' | 'theme' | 'onSettled'>

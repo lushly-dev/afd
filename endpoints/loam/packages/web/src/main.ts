@@ -6,7 +6,7 @@
  */
 
 import { mountShell, parseRoute, renderNotice, type ShellIdentity } from '@lushly-dev/loam-chrome';
-import type { AppsLoadV2 } from '@lushly-dev/loam-kernel';
+import type { AppsLoad } from '@lushly-dev/loam-kernel';
 import { readBoot } from '@lushly-dev/loam-manifest';
 import themeCss from '@lushly-dev/loam-theme/loam-theme.css?inline';
 // The theme's typefaces (D159), served with the shell: a stylesheet of `@font-face` rules the build
@@ -40,7 +40,7 @@ const base = new URL('../', /* @vite-ignore */ import.meta.url).href;
 const session = createSessionRefresh(base);
 
 /** The reader and the ports, in a chunk of their own: what stage B calls. */
-async function loadApps(raw: unknown): Promise<AppsLoadV2> {
+async function loadApps(raw: unknown): Promise<AppsLoad> {
 	// Named here because this chunk has the bundler's dynamic import helper, and that one does not.
 	return (await import('./deployment.js')).readOrNotice(
 		raw,

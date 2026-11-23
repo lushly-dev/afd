@@ -7,7 +7,7 @@
  * commands and Forward survives.
  */
 
-import type { AppSummaryV2, KernelEventV3, LoamKernelV5 } from '@lushly-dev/loam-kernel';
+import type { AppSummary, KernelEvent, LoamKernel } from '@lushly-dev/loam-kernel';
 import type { LoamShell } from './elements/shell.js';
 import { formatRoute } from './route-format.js';
 import type { RouterV1, RouteV1 } from './router.js';
@@ -27,12 +27,12 @@ export interface MainStateV1 {
 
 /** What the shell gives this chunk: `loam-shell` itself. */
 export interface UrlHostV1 {
-	readonly kernel: LoamKernelV5 | null;
+	readonly kernel: LoamKernel | null;
 	readonly base: string;
 	readonly ownerDocument: Document;
 	readonly router: RouterV1 | null;
 	/** The rows `app-list` last gave. */
-	readonly appList: readonly AppSummaryV2[];
+	readonly appList: readonly AppSummary[];
 	/** Stage B's own boot of this chunk was tried: an instance made now, after a failed load, starts late. */
 	readonly urlBooted?: boolean;
 	readState(): Promise<MainStateV1>;
@@ -58,7 +58,7 @@ export interface UrlSyncV1 {
 	/** A person's navigation: the router's `onRoute`. */
 	navigated(route: RouteV1): Promise<void>;
 	/** A kernel event: one with `scopeChanged` or `mainChanged` moves the URL. */
-	changed(event: KernelEventV3): void;
+	changed(event: KernelEvent): void;
 }
 
 /**
@@ -66,7 +66,7 @@ export interface UrlSyncV1 {
  * failed or refused one fails before any command runs.
  */
 export function supports(
-	apps: readonly AppSummaryV2[],
+	apps: readonly AppSummary[],
 	instance: string,
 	project: string | undefined
 ): boolean {
@@ -95,7 +95,7 @@ export function routeOf(state: MainStateV1): RouteV1 | undefined {
 }
 
 export function createUrlSync(host: UrlHostV1): UrlSyncV1 {
-	const kernel = host.kernel as LoamKernelV5;
+	const kernel = host.kernel as LoamKernel;
 	const router = host.router as RouterV1;
 	const { base } = host;
 	const view = host.ownerDocument.defaultView ?? window;

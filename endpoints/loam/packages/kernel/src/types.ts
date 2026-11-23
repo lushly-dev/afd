@@ -1,7 +1,8 @@
 /**
- * @fileoverview Kernel interface version 5 (phase 5 specification, 3.2), version 4 (phase 4 specification, 12), version 3
- * (phase 3 specification, 12), and versions 2 (phase 2 specification, 11.1), 1 (phase 1 specification, 9.1) and 0
- * (phase 0 specification, 6.2), which it extends: the only surface the chrome binds to.
+ * @fileoverview Loam's internal kernel interface (current shape, version 5): the surface shared
+ * between `@lushly-dev/loam-kernel` and its in-repository consumers (`chrome`, `web`, `host`,
+ * `desktop`, `testing`). External wire/manifest/SDK/persisted contracts (`ScopeV1`, `IdentityV1`,
+ * `ManifestV2`, `ResourceLinkV1`, etc.) keep their explicit version tags.
  */
 
 import type { AuthAdapter } from '@lushly-dev/afd-auth';
@@ -17,10 +18,8 @@ import type {
 	BootProjectionV2,
 	IdentityV1,
 	ManifestRefusal,
-	ManifestV1,
 	ManifestV2,
 	ProjectionMountedV1,
-	ProjectionV1,
 	ProjectionV4,
 } from '@lushly-dev/loam-manifest';
 import type {
@@ -51,93 +50,21 @@ export type {
 	WorkspaceAppV1,
 	WorkspaceV1,
 } from './scope/records.js';
-export type { IdentityV1, ScopeV1 };
+export type { IdentityV1, ProjectSummaryV1, ResourceLinkV1, ScopeV1 };
 
-/**
- * Version 5 is phase 5's. Version 4 is phase 4's, from its step 1 (settings), which landed after version 5: it adds
- * its fields under its own number, version 5 extends them, and the shell reports the highest version it implements.
- */
+/** Current kernel interface version reported by `kernel.version` and `shell-info-get`. */
 export const KERNEL_INTERFACE_VERSION = 5;
 
-export interface LoamKernelV0 {
-	readonly version: 0;
+export interface LoamKernel {
+	readonly version: typeof KERNEL_INTERFACE_VERSION;
 	call<T = unknown>(
 		name: string,
 		input?: unknown,
-		options?: CallOptionsV0
+		options?: CallOptions
 	): Promise<CommandResult<T>>;
-	listCommands(): CommandSummaryV0[];
-	subscribe(listener: (event: KernelEventV0) => void): () => void;
-	readonly agent: Pick<LoamKernelV0, 'call' | 'listCommands'>;
-	/**
-	 * Write pending view-state persistence now, without waiting for the debounce. The chrome
-	 * calls it on `pagehide` and `visibilitychange` to hidden (5.2; added by step 5, 6.7).
-	 */
-	flush(): Promise<void>;
-	dispose(): Promise<void>;
-}
-
-export interface CallOptionsV0 {
-	signal?: AbortSignal;
-}
-
-export interface CommandSummaryV0 {
-	name: string;
-	title?: string;
-	description: string;
-	mutation: boolean;
-	needsInput: boolean;
-	keybinding?: string;
-}
-
-export interface KernelEventV0 {
-	command: string;
-	interface: 'palette' | 'agent';
-	success: boolean;
-	mutation: boolean;
-	seq?: number;
-}
-
-export interface KernelEnvironmentV0 {
-	matches(query: string): boolean;
-	onChange(query: string, listener: () => void): () => void;
-}
-
-export interface KernelOptionsV0 {
-	store: DataAdapter;
-	/** `sqlite` is the hosted server's `SqliteAdapter` (phase 6 specification, section 4). */
-	storeKind: 'memory' | 'indexeddb' | 'sqlite';
-	journal: JournalSink;
-	auth: AuthAdapter;
-	environment: KernelEnvironmentV0;
-	host: 'browser' | 'desktop' | 'hosted' | 'test';
-	commands?: ZodCommandDefinition[];
-	clock?: () => number;
-	random?: () => number;
-}
-
-/** What `shell-info-get` returns. */
-export interface ShellInfoV0 {
-	kernelInterface: 0;
-	layoutState: 0;
-	storeInterface: 0;
-	tokenContract: 1;
-	host: KernelOptionsV0['host'];
-	store: KernelOptionsV0['storeKind'];
-}
-
-// ─── Version 1 ──────────────────────────────────────────────────────────────────
-
-export interface LoamKernelV1 {
-	readonly version: 1;
-	call<T = unknown>(
-		name: string,
-		input?: unknown,
-		options?: CallOptionsV1
-	): Promise<CommandResult<T>>;
-	listCommands(): CommandSummaryV1[];
-	subscribe(listener: (event: KernelEventV1) => void): () => void;
-	readonly agent: Pick<LoamKernelV1, 'call' | 'listCommands'>;
+	listCommands(): CommandSummary[];
+	subscribe(listener: (event: KernelEvent) => void): () => void;
+	readonly agent: Pick<LoamKernel, 'call' | 'listCommands'>;
 	/** Runs stage B once. The chrome calls it after the first frame; a call may start it sooner. */
 	startApps(): Promise<void>;
 	/** Resolves when stage B has ended, however it ended. Never rejects. */
@@ -150,28 +77,91 @@ export interface LoamKernelV1 {
 	 * @throws LoamKernelError `APP_NOT_FOUND` for an unknown instance, `APP_NOT_READY` for a refused
 	 *   one, which has no manifest to render from
 	 */
-	appPort(instance: string): AppPortV1;
+	appPort(instance: string): AppPort;
 	/**
-	 * The bindings in force, first to last by precedence (4.2; phase 4 specification, 8.1): a person's overrides, the
-	 * reserved chords, the active app's, then the active tab owner's, each `when` the kernel decides holding.
+	 * The bindings in force, first to last by precedence (phase 4 specification, 8.1): a person's
+	 * overrides, the reserved chords, the active app's, then the active tab owner's, each `when` the
+	 * kernel decides holding.
 	 */
 	listKeybindings(): KeybindingInForceV1[];
 	/** Calls `app-instance-refresh` for each mounted instance. The chrome calls it after first paint. */
 	startInstances(): Promise<void>;
+	/**
+	 * Write pending view-state persistence now, without waiting for the debounce. The chrome calls it
+	 * on `pagehide` and `visibilitychange` to hidden.
+	 */
 	flush(): Promise<void>;
 	dispose(): Promise<void>;
 }
 
-export type CallOptionsV1 = CallOptionsV0;
+export interface CallOptions {
+	signal?: AbortSignal;
+	/** Default: the active scope. `'workspace'` is the active workspace with no project. */
+	scope?: ScopeV1 | 'workspace';
+	/**
+	 * The agent interface's agent: 1 to 64 characters of `^[a-z0-9][a-z0-9-]*$`, default `shell-agent`,
+	 * so it can never spell an `agt_` id; `local`, `signed-out` and `shell-agent` are reserved
+	 * (`AGENT_NAME_RESERVED`). Read by `agent.call` alone: the palette's calls are the person's.
+	 */
+	agent?: string;
+	/**
+	 * The copilot's trace. Read only from the options object the kernel made for the agent port's
+	 * half: on any other call it is ignored, so no caller can claim a session or a turn.
+	 */
+	trace?: CopilotTraceV1;
+}
 
-export interface CommandSummaryV1 extends CommandSummaryV0 {
+export interface CommandSummary {
+	name: string;
+	title?: string;
+	description: string;
+	mutation: boolean;
+	needsInput: boolean;
+	keybinding?: string;
 	/** The owning instance. Absent for a shell command. */
 	instance?: string;
 }
 
-export interface KernelEventV1 extends KernelEventV0 {
+export interface KernelEvent {
+	command: string;
+	interface: 'palette' | 'agent';
+	success: boolean;
+	mutation: boolean;
+	seq?: number;
 	caller?: string;
 	instance?: string;
+	/** The call's effective scope. */
+	scope?: ScopeV1;
+	/** The active scope changed in this call, by `applyScopeChange`. */
+	scopeChanged?: ScopeChangeV2;
+	/** What main shows changed, and how the URL should follow. */
+	mainChanged?: 'push' | 'replace';
+	/**
+	 * The document an instance command that is a mutation changed, when it succeeded, so every open
+	 * editor of it re-reads.
+	 */
+	document?: string;
+	/** The person the kernel decides for changed, by `session-settle`. */
+	actorChanged?: true;
+	/** The active persona changed. */
+	personaChanged?: true;
+	/** The settings sections whose values this call changed, by full id. */
+	settings?: string[];
+	/**
+	 * A confirmation in the inbox was raised, answered or ended by this call, which may itself have
+	 * failed, as a call answered `CONFIRMATION_PENDING` has: the Inbox count reads again.
+	 */
+	inbox?: true;
+	/**
+	 * An experiment's state for the person changed (`experimentsChanged`): the chrome renders the
+	 * apps, their surfaces and the settings tree again, as gates decide what is present.
+	 */
+	experiments?: true;
+}
+
+export interface KernelEnvironment {
+	matches(query: string): boolean;
+	onChange(query: string, listener: () => void): () => void;
 }
 
 /** A tool as MCP lists it, as far as a mounted instance's discovery reads one. */
@@ -189,55 +179,29 @@ export interface McpToolCallResult {
 	isError?: boolean;
 }
 
-/** In the kernel: a port the host supplies (7.3). */
-export interface MountTransportV1 {
-	connect(signal?: AbortSignal): Promise<{ protocolVersion: string }>;
+/** In the kernel: a mounted-instance transport port supplied by the host, carrying `_meta`. */
+export interface MountTransport {
+	/**
+	 * The handshake. `approvals: true` is the transport's own word, never the server's, that this
+	 * lane carries a person's approval to the server: only the desktop's `stdio` and `http` lanes
+	 * opened on MCP 2026-07-28 say it.
+	 */
+	connect(signal?: AbortSignal): Promise<{ protocolVersion: string; approvals?: true }>;
 	listTools(signal?: AbortSignal): Promise<McpTool[]>;
-	callTool(name: string, args: unknown, signal?: AbortSignal): Promise<McpToolCallResult>;
+	callTool(
+		name: string,
+		args: unknown,
+		signal?: AbortSignal,
+		meta?: Record<string, unknown>
+	): Promise<McpToolCallResult>;
 	close(): Promise<void>;
 }
 
-/** Every URL a port receives is absolute, resolved by the kernel against `baseUrl` (9.5). */
-export interface KernelPortsV1 {
-	/** The document's base, which a package's relative path resolves against. */
-	readonly baseUrl: string;
-	fetchJson(url: string): Promise<unknown>;
-	fetchText(url: string): Promise<string>;
-	importNative(url: string): Promise<AppDefinitionV1>;
-	/** `admit`, the kernel's gate on every message the frame sends (phase 4 specification, section 11). */
-	openHandlerFrame(instance: string, html: string, admit?: FrameAdmitV1): Promise<HandlerFrameV1>;
-	/** Interface 2's transport, whose command calls carry `_meta` (phase 2 specification, 9.2). */
-	mountTransport(entry: ProjectionMountedV1, url: string): Promise<MountTransportV2>;
-	/**
-	 * Interface 3's: run `fn` at `at` on the kernel's clock, for the session's expiry timer and the
-	 * membership read's timeout (phase 3 specification, 4.4 and 7.6); tests with a fake. Returns a cancel.
-	 * Absent, `late/` uses `setTimeout` on the kernel's clock; a replay never arms the timer.
-	 */
-	schedule?(at: number, fn: () => void): () => void;
-	/**
-	 * Interface 3's: the signed-in person's membership of the bound organization now, null for none, which the
-	 * kernel reads again before an owner's command and on a change of person (phase 3 specification, 4.4 and
-	 * 7.6); the web host from `whoami` (step 3). Absent, the kernel decides with the membership it holds.
-	 */
-	readMembership?(): Promise<{ role: 'owner' | 'admin' | 'member'; digest: string } | null>;
-	/**
-	 * Interface 3's: the host tells the kernel its membership may have changed, as its periodic read of the session
-	 * finds (phase 3 specification, 4.3 and 7.6), and the kernel reads it again. Returns an unsubscribe.
-	 */
-	watchMembership?(listener: () => void): () => void;
-	/**
-	 * Phase 6's transport (its 6.1, step 5): a trust-record command run on the hosted server, answered with the server's
-	 * `CommandResult` unchanged and the person's snapshot digest after it. Only a hosted `provider` deployment's browser host
-	 * gives it; with it the kernel routes `SERVER_COMMANDS` there and keeps a copy of their records.
-	 */
-	serverCall?: ServerCallV1;
-}
-
 /**
- * A message a frame sent that the kernel refused at the boundary, before anything read it (phase 4 specification, section
- * 11's `messageBytes`): what a request is answered with, `data: { code, suggestion, details }` and the JSON-RPC code.
+ * A message a frame sent that the kernel refused at the boundary, before anything read it: what a
+ * request is answered with, `data: { code, suggestion, details }` and the JSON-RPC code.
  */
-export interface FrameRefusalV1 {
+export interface FrameRefusal {
 	code: string;
 	message: string;
 	suggestion: string;
@@ -246,13 +210,12 @@ export interface FrameRefusalV1 {
 }
 
 /**
- * The kernel's admission of each message a frame sends, as it arrives: undefined admits it; a refusal drops it, answering
- * a request with it and failing a reply's waiting request with it. The chrome's channel calls it first, for a view's frame
- * and a handler frame alike.
+ * The kernel's admission of each message a frame sends, as it arrives: undefined admits it; a
+ * refusal drops it, answering a request with it and failing a reply's waiting request with it.
  */
-export type FrameAdmitV1 = (message: unknown) => FrameRefusalV1 | undefined;
+export type FrameAdmit = (message: unknown) => FrameRefusal | undefined;
 
-export interface HandlerFrameV1 {
+export interface HandlerFrame {
 	/** Resolves with the frame's command names, from `dev.loam/handlers-ready`. */
 	readonly ready: Promise<string[]>;
 	call(
@@ -261,28 +224,109 @@ export interface HandlerFrameV1 {
 	): Promise<CommandResult>;
 	/**
 	 * The frame's `tools/call` and `dev.loam/store`, answered by the kernel. A refusal rejects with a
-	 * `LoamKernelError`; its `details.rpcCode` is the JSON-RPC code to answer with, and its `code` and
-	 * `suggestion` go in the error's `data` (9.5).
+	 * `LoamKernelError`; its `details.rpcCode` is the JSON-RPC code to answer with, and its `code`
+	 * and `suggestion` go in the error's `data`.
 	 */
 	onRequest(handler: (method: string, params: unknown) => Promise<unknown>): void;
 	close(): void;
 }
 
-export interface KernelOptionsV1 extends Omit<KernelOptionsV0, 'commands'> {
-	commands?: ZodCommandDefinition[];
-	/** The browser projection, already validated by the host through `readProjection` (9.4). */
-	deployment?: ProjectionV1;
-	/** Required when `deployment` lists an app. */
-	ports?: KernelPortsV1;
+/** Every URL a port receives is absolute, resolved by the kernel against `baseUrl`. */
+export interface KernelPorts {
+	/** The document's base, which a package's relative path resolves against. */
+	readonly baseUrl: string;
+	fetchJson(url: string): Promise<unknown>;
+	fetchText(url: string): Promise<string>;
+	importNative(url: string): Promise<AppDefinitionV1>;
+	/** `admit`, the kernel's gate on every message the frame sends. */
+	openHandlerFrame(instance: string, html: string, admit?: FrameAdmit): Promise<HandlerFrame>;
+	/** Mounted transport whose command calls carry `_meta`. */
+	mountTransport(entry: ProjectionMountedV1, url: string): Promise<MountTransport>;
 	/**
-	 * Why the host could not load what reads a deployment. Each entry of `deployment`, which then may be
-	 * unread, is listed `failed` with this reason, and nothing else of it is used (D66).
+	 * Run `fn` at `at` on the kernel's clock, for the session's expiry timer and the membership
+	 * read's timeout; tests with a fake. Absent, `identity/` uses `setTimeout`.
 	 */
-	appsUnavailable?: string;
+	schedule?(at: number, fn: () => void): () => void;
+	/**
+	 * The signed-in person's membership of the bound organization now, null for none, which the
+	 * kernel reads again before an owner's command and on a change of person.
+	 */
+	readMembership?(): Promise<{ role: 'owner' | 'admin' | 'member'; digest: string } | null>;
+	/**
+	 * The host tells the kernel its membership may have changed, and the kernel reads it again.
+	 * Returns an unsubscribe.
+	 */
+	watchMembership?(listener: () => void): () => void;
+	/**
+	 * Hosted trust-record transport: a trust-record command run on the hosted server, answered with
+	 * the server's `CommandResult` unchanged and the person's snapshot digest after it.
+	 */
+	serverCall?: ServerCallV1;
 }
 
-/** A call of one of a view app's commands, for the view its `tool_meta.ui.resourceUri` names (6.2). */
-export interface LinkedCallV1 {
+/** What stage B reads: the validated projection and the ports, or why the reader refused it. */
+export type AppsLoad =
+	| { deployment: ProjectionV4; ports: KernelPorts }
+	| {
+			/** The reader's message: each entry is listed `failed` with `DEPLOYMENT_INVALID`. */
+			refused: string;
+	  };
+
+/** Whether the page holds `data-loam-anchor="<anchor>"` inside `owner`'s surface. */
+export interface OverlayAnchors {
+	/** `owner` by kind, so an instance id never passes for the shell's own surface. */
+	resolve?(owner: { kind: 'shell' | 'app'; id: string }, anchor: OverlayAnchorV1): boolean;
+}
+
+export interface KernelOptions {
+	store: DataAdapter;
+	/** `sqlite` is the hosted server's `SqliteAdapter`. */
+	storeKind: 'memory' | 'indexeddb' | 'sqlite';
+	journal: JournalSink;
+	auth: AuthAdapter;
+	environment: KernelEnvironment;
+	host: 'browser' | 'desktop' | 'hosted' | 'test';
+	commands?: ZodCommandDefinition[];
+	clock?: () => number;
+	random?: () => number;
+	/** Required when `deployment` lists an app. */
+	ports?: KernelPorts;
+	/** With no `boot`: the validated projection, and `createKernel` runs stage B before it resolves. */
+	deployment?: ProjectionV4;
+	/** What `readBoot` read. With it, `createKernel` resolves after stage A. */
+	boot?: BootProjectionV2;
+	/** What stage B reads. Required with `boot` when it lists an app. */
+	appsLoader?: () => Promise<AppsLoad>;
+	/** The URL's project, by slug, for the first frame, or `null` for a workspace-level URL. */
+	initialScope?: { project: string | null };
+	/** The workspace when no `boot` or `deployment` names one. Default `{ id: 'personal', name: 'Personal' }`. */
+	workspace?: { id: string; name: string };
+	/** The deployment's identity. Default: the projection's, or `local`. */
+	identity?: IdentityV1;
+	/**
+	 * Stage A's membership, from the probe. Read only when its `mode` is the identity's; a `provider`
+	 * kernel given none decides with no members, so line 0 refuses every gated call until it has one.
+	 */
+	membership?: MembershipV1;
+	/**
+	 * The identity ports of a host whose apps' ports come from stage B's loader, as the web host's
+	 * do: the expiry timer's `schedule`, the membership read and its watch. `ports` serves when absent.
+	 */
+	identityPorts?: Pick<
+		KernelPorts,
+		'schedule' | 'readMembership' | 'watchMembership' | 'serverCall'
+	>;
+	/** The deployment's copilot providers, never a key or an endpoint, and the host's runner. */
+	copilot?: CopilotOptionsV1;
+	/**
+	 * The page's anchors for `popover-open`: the chrome sets `resolve` once it renders. Given and
+	 * not yet set, no anchor resolves. Absent, as in a kernel with no page, every anchor does.
+	 */
+	overlayAnchors?: OverlayAnchors;
+}
+
+/** A call of one of a view app's commands, for the view its `tool_meta.ui.resourceUri` names. */
+export interface LinkedCall {
 	command: string;
 	input: unknown;
 	result: McpToolCallResult;
@@ -291,10 +335,10 @@ export interface LinkedCallV1 {
 }
 
 /**
- * What a view's requests reach, and the boundary they cross (6.2; D54). Each runs in the kernel, since
- * a view's input is untrusted. A refusal rejects as a frame's does ({@link HandlerFrameV1.onRequest}).
+ * What a view's requests reach, and the boundary they cross (D54). Each runs in the kernel, since a
+ * view's input is untrusted. A refusal rejects as a frame's does ({@link HandlerFrame.onRequest}).
  */
-export interface ViewBrokerV1 {
+export interface ViewBroker {
 	/** `deployment.sandbox_origin`. Null only for an app that is `failed` with `VIEW_SANDBOX_ORIGIN_INVALID`. */
 	readonly sandboxOrigin: string | null;
 	/** `tools/call`, through the port's checks. */
@@ -306,21 +350,42 @@ export interface ViewBrokerV1 {
 	/** The main surface's bound command, with `{}`, as the app, so its result carries no `seq`. */
 	runBound(command: string, signal: AbortSignal): Promise<McpToolCallResult>;
 	/** Hear each finished call of a command linked to `uri`, from any interface. */
-	onLinkedCall(uri: string, listener: (call: LinkedCallV1) => void): () => void;
+	onLinkedCall(uri: string, listener: (call: LinkedCall) => void): () => void;
 	/**
-	 * `dev.loam/overlay-result`, `{ overlayId }`: the answer to one of this app's own overlays, once it closes
-	 * (phase 4 specification, 6.4); another owner's is refused `OVERLAY_NOT_OWNER`.
+	 * `dev.loam/overlay-result`, `{ overlayId }`: the answer to one of this app's own overlays, once
+	 * it closes; another owner's is refused `OVERLAY_NOT_OWNER`.
 	 */
 	overlayResult?(params: unknown): Promise<OverlayResultV1>;
-	/** The kernel's gate on every message the view's frame sends, which the chrome's channel calls first (section 11). */
-	readonly admit?: FrameAdmitV1;
+	/** The kernel's gate on every message the view's frame sends, which the chrome's channel calls first. */
+	readonly admit?: FrameAdmit;
 }
 
-/** The kernel's object for one app instance, which the chrome turns into the SDK's objects (5.3). */
-export interface AppPortV1 {
+/** A surface's port: fixed to the scope it was created in (D83). */
+export interface SurfaceOptions {
+	/** Fixed for this surface's life. Only the chrome calls `surface`; an app never holds a port. */
+	scope: ScopeV1;
+	/** An embed: every mutation is `EMBED_READ_ONLY`. */
+	readOnly?: boolean;
+}
+
+export interface SurfacePort {
+	readonly scope: ScopeV1;
+	readonly readOnly: boolean;
+	/** `options.level: 'workspace'` is the only widening. Any other scope is `SCOPE_NOT_GRANTED`. */
+	call<T = unknown>(
+		name: string,
+		input?: unknown,
+		options?: { signal?: AbortSignal; level?: 'workspace' }
+	): Promise<CommandResult<T>>;
+	/** The view's broker, closed over this surface. Absent for any other kind. */
+	readonly view?: ViewBroker;
+}
+
+/** The kernel's object for one app instance, which the chrome turns into the SDK's objects. */
+export interface AppPort {
 	readonly instance: string;
 	/** The validated manifest: what the chrome renders from. */
-	readonly manifest: ManifestV1;
+	readonly manifest: ManifestV2;
 	readonly config: Readonly<Record<string, unknown>>;
 	readonly packageUrl: string;
 	/** Imports the native module once. Rejects with `APP_HANDLER_MISSING` and sets `failed`. */
@@ -329,20 +394,17 @@ export interface AppPortV1 {
 	readResource(uri: string): Promise<string>;
 	/** The chrome's report that `activate` threw, since `activate` needs the DOM. */
 	reportActivationFailed(message: string): void;
-	call<T = unknown>(
-		name: string,
-		input?: unknown,
-		options?: CallOptionsV1
-	): Promise<CommandResult<T>>;
+	call: LoamClientV1['call'];
+	surface(options: SurfaceOptions): SurfacePort;
 	waitOverlay(overlayId: string): Promise<OverlayResultV1>;
 	/** For the chrome and tests, never given to an app's surface: a write here is not journaled. */
 	readonly store?: AppStoreV1;
 	/** A view app's broker. Absent for any other kind. */
-	readonly view?: ViewBrokerV1;
+	readonly view?: ViewBroker;
 }
 
-/** What an app may call besides its own commands, until the `calls` grant in phase 5 (D68). */
-export const APP_CALLABLE_SHELL_COMMANDS_V1 = [
+/** Base shell commands every app may call, passed by the app port into `appCallable`. */
+export const APP_CALLABLE_SHELL_COMMANDS_BASE = [
 	'toast-show',
 	'modal-open',
 	'overlay-dismiss',
@@ -354,25 +416,44 @@ export const APP_CALLABLE_SHELL_COMMANDS_V1 = [
 	'shell-info-get',
 ] as const;
 
-/** `gated` (phase 4 specification, 5.3): ready, but held out by its app's experiment, with no command registered. */
-export type AppStateV1 = 'ready' | 'loading' | 'failed' | 'refused' | 'gated';
+/** All shell commands an app may call besides its own commands (subject to declared grants). */
+export const APP_CALLABLE_SHELL_COMMANDS = [
+	...APP_CALLABLE_SHELL_COMMANDS_BASE,
+	'setting-get',
+	'setting-list',
+	'popover-open',
+	'dialog-open',
+	'prompt-open',
+	'notification-push',
+	'confirmation-get',
+	'confirmation-withdraw',
+	'experiment-check',
+] as const;
 
-export type AppKindV1 = 'native' | 'view' | 'mounted';
+export type AppBaseState = 'ready' | 'loading' | 'failed' | 'refused' | 'gated';
+export type AppState = AppBaseState | 'disabled';
+export type AppKind = 'native' | 'view' | 'mounted';
 
-export interface AppSummaryV1 {
+export interface AppSummary {
 	instance: string;
 	app: string;
 	title: string;
-	kind: AppKindV1;
+	kind: AppKind;
 	icon: string;
 	order: number;
-	state: AppStateV1;
+	state: AppState;
+	scopeLevels: Array<'workspace' | 'project'>;
+	rail: boolean;
+	/** Whether it can open in the active scope, as the rail shows. */
+	available: boolean;
+	/** Its place in the person's own rail order, `loam.rail.order`, from 0, when the list names it. */
+	railRank?: number;
 	/** Set when `state` is `failed` or `refused`. */
 	error?: CommandError;
 }
 
-export interface AppDetailV1 extends Omit<AppSummaryV2, 'state'> {
-	state: AppStateV1;
+export interface AppDetail extends Omit<AppSummary, 'state'> {
+	state: AppBaseState;
 	version: string;
 	/** "Trusted, not sandboxed", "Sandboxed", or "External". */
 	trust: 'trusted' | 'sandboxed' | 'external';
@@ -384,23 +465,23 @@ export interface AppDetailV1 extends Omit<AppSummaryV2, 'state'> {
 	skills: string[];
 	warnings: ManifestRefusal[];
 	notices: Array<{ code: string; message: string }>;
-	/** Each status item's value, for the ones the app has set (9.5). */
+	/** Each status item's value, for the ones the app has set. */
 	statusItems: Record<string, string>;
 	/**
-	 * Each gate the manifest declares on the app or a surface, with whether it is open for the person (phase 4
-	 * specification, 5.3; A-P1-2). A closed surface is left out of `surfaces`, so the chrome never creates it.
+	 * Each gate the manifest declares on the app or a surface, with whether it is open for the person.
+	 * A closed surface is left out of `surfaces`, so the chrome never creates it.
 	 */
 	gates: Record<string, { experiment: string; open: boolean }>;
 }
 
 /** Never a location, a credential or a command line. */
-export interface AppInstanceV1 {
+export interface AppInstance {
 	instance: string;
 	app: string;
 	prefix: string;
 	audience: 'team' | 'person';
 	transport: 'http' | 'stdio';
-	state: AppStateV1;
+	state: AppBaseState;
 	protocolVersion?: string;
 	toolStrategy?: string;
 	commands: number;
@@ -411,161 +492,27 @@ export interface AppInstanceV1 {
 	notices: Array<{ code: string; message: string }>;
 }
 
-/** What `shell-info-get` returns from version 1. */
-export interface ShellInfoV1 extends Omit<ShellInfoV0, 'kernelInterface'> {
-	kernelInterface: 1;
-	manifestVersion: 1;
-	appProtocol: 1;
-	surfaceCatalog: 1;
-	compositionLibrary: 1;
-	sdk: 1;
-}
-
-// ─── Version 2 ──────────────────────────────────────────────────────────────────
-
-/**
- * Kernel interface version 2 (phase 2 specification, 11.1). Step 2 adds the version and the boot in two
- * stages; `startApps`, `appsReady` and `lateFailure` came with step 1, on version 1. Step 4 adds scope:
- * in a call's options, in an event, and a surface's own port.
- */
-export interface LoamKernelV2
-	extends Omit<LoamKernelV1, 'version' | 'agent' | 'call' | 'subscribe' | 'appPort'> {
-	readonly version: 2;
-	call<T = unknown>(
-		name: string,
-		input?: unknown,
-		options?: CallOptionsV2
-	): Promise<CommandResult<T>>;
-	subscribe(listener: (event: KernelEventV2) => void): () => void;
-	readonly agent: Pick<LoamKernelV2, 'call' | 'listCommands'>;
-	/**
-	 * The port for one instance, for the chrome to give an app.
-	 *
-	 * @throws LoamKernelError `APP_NOT_FOUND` for an unknown instance, `APP_NOT_READY` for a refused
-	 *   one, which has no manifest to render from
-	 */
-	appPort(instance: string): AppPortV2;
-}
-
-export interface CallOptionsV2 extends CallOptionsV1 {
-	/** Default: the active scope. `'workspace'` is the active workspace with no project (3.2). */
-	scope?: ScopeV1 | 'workspace';
-}
-
-export interface KernelEventV2 extends KernelEventV1 {
-	/** The call's effective scope. */
-	scope?: ScopeV1;
-	/** The active scope changed in this call, by `applyScopeChange` (3.4). */
-	scopeChanged?: ScopeChangeV2;
-	/** What main shows changed, and how the URL should follow (6.3). */
-	mainChanged?: 'push' | 'replace';
-	/**
-	 * The document an instance command that is a mutation changed, when it succeeded, so every open editor
-	 * of it re-reads (documents specification, 5.7).
-	 */
-	document?: string;
-}
-
-/** A surface's port: fixed to the scope it was created in (phase 2 specification, 3.6; D83). */
-export interface SurfaceOptionsV2 {
-	/** Fixed for this surface's life. Only the chrome calls `surface`; an app never holds a port. */
-	scope: ScopeV1;
-	/** An embed: every mutation is `EMBED_READ_ONLY`. */
-	readOnly?: boolean;
-}
-
-export interface SurfacePortV2 {
-	readonly scope: ScopeV1;
-	readonly readOnly: boolean;
-	/** `options.level: 'workspace'` is the only widening. Any other scope is `SCOPE_NOT_GRANTED`. */
-	call<T = unknown>(
-		name: string,
-		input?: unknown,
-		options?: { signal?: AbortSignal; level?: 'workspace' }
-	): Promise<CommandResult<T>>;
-	/** The view's broker, closed over this surface. Absent for any other kind. */
-	readonly view?: ViewBrokerV1;
-}
-
-/**
- * The port of interface 2: it holds the manifest as version 2 reads it, and makes a port per surface.
- * `call` keeps the active scope, for the chrome and tests.
- */
-export interface AppPortV2 extends Omit<AppPortV1, 'manifest' | 'call'> {
-	readonly manifest: ManifestV2;
-	call: LoamClientV1['call'];
-	surface(options: SurfaceOptionsV2): SurfacePortV2;
-}
-
-/** What phase 6's hosted lane passes to `createMcpHandler` (phase 2 specification, 3.3). */
+/** What the hosted lane passes to `createMcpHandler`. */
 export interface KernelMcpOptions {
-	/** Every registered command but `BOOT_ONLY` and `INTERNAL_COMMANDS`, with `expose.mcp` as phase 6 will decide. */
+	/** Every registered command but `BOOT_ONLY` and `INTERNAL_COMMANDS`. */
 	commands: readonly ZodCommandDefinition[];
-	/** The auth middleware, the journal's, then the scope middleware (3.4): the kernel's own chain. */
+	/** The auth middleware, the journal's, then the scope middleware: the kernel's own chain. */
 	middleware: readonly CommandMiddleware[];
 	/** `scope` alone: the other fields are set by trusted code, and a caller must not claim them. */
-	contextFields: readonly ContextFieldV2[];
+	contextFields: readonly ContextField[];
 }
 
 /** A declared context field, as `createMcpHandler` takes one. */
-export type ContextFieldV2 = NonNullable<DirectRegistryOptions['contextFields']>[number];
+export type ContextField = NonNullable<DirectRegistryOptions['contextFields']>[number];
 
-/** Interface 2's transport: a command's call carries `_meta` (phase 2 specification, 9.2; step 8). */
-export interface MountTransportV2 extends Omit<MountTransportV1, 'callTool' | 'connect'> {
-	/**
-	 * The handshake. `approvals: true` is the transport's own word, never the server's, that this lane carries a person's
-	 * approval to the server (phase 5 specification, 7.2): only the desktop's `stdio` and `http` lanes opened on MCP
-	 * 2026-07-28 say it. Without it the kernel releases nothing, whatever version the server answered.
-	 */
-	connect(signal?: AbortSignal): Promise<{ protocolVersion: string; approvals?: true }>;
-	callTool(
-		name: string,
-		args: unknown,
-		signal?: AbortSignal,
-		meta?: Record<string, unknown>
-	): Promise<McpToolCallResult>;
-}
-
-/** What stage B reads: the validated projection and the ports, or why the reader refused it (2.2). */
-export type AppsLoadV2 =
-	| { deployment: ProjectionV4; ports: KernelPortsV1 }
-	| {
-			/** The reader's message: each entry is listed `failed` with `DEPLOYMENT_INVALID`. */
-			refused: string;
-	  };
-
-export interface KernelOptionsV2 extends Omit<KernelOptionsV1, 'deployment' | 'appsUnavailable'> {
-	/** With no `boot`: the validated projection, and `createKernel` runs stage B before it resolves. */
-	deployment?: ProjectionV4;
-	/** What `readBoot` read. With it, `createKernel` resolves after stage A (2.2). */
-	boot?: BootProjectionV2;
-	/** What stage B reads. Required with `boot` when it lists an app. */
-	appsLoader?: () => Promise<AppsLoadV2>;
-	/** The URL's project, by slug, for the first frame, or `null` for a workspace-level URL (6.3). */
-	initialScope?: { project: string | null };
-	/** The workspace when no `boot` or `deployment` names one. Default `{ id: 'personal', name: 'Personal' }`. */
-	workspace?: { id: string; name: string };
-}
-
-/** `disabled` is step 4's, from a `workspace-app` record. */
-export type AppStateV2 = AppStateV1 | 'disabled';
-
-/**
- * `app-selection-get`'s answer: the selected id and the level it was made at, so main calls its command
- * there, in a dual-scope app's sidebar of two groups (phase 2 specification, 7.4).
- */
-export interface SelectionV2 {
+/** `app-selection-get`'s answer: the selected id and the level it was made at. */
+export interface AppSelection {
 	id: string | null;
 	level: 'workspace' | 'project';
 }
 
-export type { ProjectSummaryV1, ResourceLinkV1 };
-
-/**
- * One app's row of `project-summary-get` (phase 2 specification, 7.7): its summary, as the shell read it,
- * or why there is none. One app's failure is its row alone.
- */
-export interface ProjectSummaryRowV1 {
+/** One app's row of `project-summary-get`: its summary, or why there is none. */
+export interface ProjectSummaryRow {
 	instance: string;
 	title: string;
 	icon: string;
@@ -576,202 +523,24 @@ export interface ProjectSummaryRowV1 {
 }
 
 /** `project-summary-get`'s answer: the project, through a port as an app sees it, and its rows. */
-export interface ProjectSummaryResultV1 {
+export interface ProjectSummaryResult {
 	project: ProjectV1 | AppProjectV1;
-	summaries: ProjectSummaryRowV1[];
+	summaries: ProjectSummaryRow[];
 }
 
-export interface AppSummaryV2 extends Omit<AppSummaryV1, 'state'> {
-	state: AppStateV2;
-	scopeLevels: Array<'workspace' | 'project'>;
-	rail: boolean;
-	/** Whether it can open in the active scope, as the rail shows. */
-	available: boolean;
-	/**
-	 * Its place in the person's own rail order, `loam.rail.order`, from 0, when the list names it (phase 4
-	 * specification, 3.7; R8, D75): the rail puts these first, in this order, after the persona's emphasis.
-	 */
-	railRank?: number;
-}
-
-/** What `shell-info-get` returns from version 2. */
-export interface ShellInfoV2
-	extends Omit<ShellInfoV1, 'kernelInterface' | 'manifestVersion' | 'storeInterface'> {
-	kernelInterface: 2;
-	/** The manifest version this shell reads up to: version 2 reads both (phase 2 specification, 8.1). */
-	manifestVersion: 2;
-	/** The workspace, project and scoped app stores (phase 2 specification, section 4). */
+/** What `shell-info-get` returns. */
+export interface ShellInfo {
+	kernelInterface: typeof KERNEL_INTERFACE_VERSION;
+	layoutState: 0;
 	storeInterface: 1;
-}
-
-// ─── Version 3 ──────────────────────────────────────────────────────────────────
-
-/**
- * Kernel interface version 3 (phase 3 specification, 12): identity. A call through the agent interface
- * runs as an agent (`options.agent`), every port and nested call carries its outer call's actor, and
- * `shell-info-get` reports the deployment's identity.
- */
-export interface LoamKernelV3
-	extends Omit<LoamKernelV2, 'version' | 'agent' | 'call' | 'subscribe'> {
-	readonly version: 3;
-	call<T = unknown>(
-		name: string,
-		input?: unknown,
-		options?: CallOptionsV3
-	): Promise<CommandResult<T>>;
-	subscribe(listener: (event: KernelEventV3) => void): () => void;
-	readonly agent: Pick<LoamKernelV3, 'call' | 'listCommands'>;
-}
-
-export interface CallOptionsV3 extends CallOptionsV2 {
-	/**
-	 * The agent interface's agent: 1 to 64 characters of `^[a-z0-9][a-z0-9-]*$`, default `shell-agent`, so it
-	 * can never spell an `agt_` id; `local`, `signed-out` and `shell-agent` are the kernel's
-	 * (`AGENT_NAME_RESERVED`). Read by `agent.call` alone: the palette's calls are the person's (3.1).
-	 */
-	agent?: string;
-}
-
-export interface KernelEventV3 extends KernelEventV2 {
-	/** The person the kernel decides for changed, by `session-settle` (4.4). */
-	actorChanged?: true;
-	/** The active persona changed (6.3). */
-	personaChanged?: true;
-}
-
-export interface KernelOptionsV3 extends KernelOptionsV2 {
-	/**
-	 * The deployment's identity (phase 3 specification, 2.1 and 2.2). Default: the projection's, or `local`,
-	 * where every actor is a member and an owner.
-	 */
-	identity?: IdentityV1;
-	/**
-	 * Stage A's membership, from the probe (4.2). Read only when its `mode` is the identity's; a `provider`
-	 * kernel given none decides with no members, so line 0 refuses every gated call until it has one.
-	 */
-	membership?: MembershipV1;
-	/**
-	 * The identity ports of a host whose apps' ports come from stage B's loader, as the web host's do: the expiry
-	 * timer's `schedule`, the membership read and its watch (4.3, 4.4). `ports` serves when this is absent.
-	 */
-	identityPorts?: Pick<
-		KernelPortsV1,
-		'schedule' | 'readMembership' | 'watchMembership' | 'serverCall'
-	>;
-}
-
-/** What `shell-info-get` returns from version 3. */
-export interface ShellInfoV3 extends Omit<ShellInfoV2, 'kernelInterface'> {
-	kernelInterface: 3;
-	/** The deployment's identity mode, and its bound organization's slug in `provider` mode (12). */
+	tokenContract: 1;
+	manifestVersion: 2;
+	appProtocol: 1;
+	surfaceCatalog: 1;
+	compositionLibrary: 1;
+	sdk: 1;
+	host: KernelOptions['host'];
+	store: KernelOptions['storeKind'];
+	/** The deployment's identity mode, and its bound organization's slug in `provider` mode. */
 	identity: { mode: IdentityV1['mode']; organization: string | null };
-}
-
-// ─── Version 4 ──────────────────────────────────────────────────────────────────
-
-/**
- * What an app may call besides its own commands from kernel interface 4 (phase 4 specification, 12): version 1's,
- * `setting-get` and `setting-list`, for the app's own sections, with the `settings` grant, `popover-open` (step 3) and
- * `notification-push` (step 5). The port reads the grant (`late/port-callable.ts`); the later steps of phase 4 add
- * `dialog-open`, `prompt-open`, `experiment-check`, `confirmation-get` and `confirmation-withdraw` here with their
- * commands.
- */
-export const APP_CALLABLE_SHELL_COMMANDS_V2 = [
-	...APP_CALLABLE_SHELL_COMMANDS_V1,
-	'setting-get',
-	'setting-list',
-	'popover-open',
-	'dialog-open',
-	'prompt-open',
-	// Step 5's inbox (10.2): an app pushes a notice to the person, at its own rate.
-	'notification-push',
-	// Step 6's confirmations (7.2): an app reads and withdraws the ones it raised.
-	'confirmation-get',
-	'confirmation-withdraw',
-	// Step 9's experiments (5.4): an app checks its own.
-	'experiment-check',
-] as const;
-
-/**
- * Kernel interface version 4 (phase 4 specification, 12), step 1: settings. An event names the settings sections a
- * call changed, so the chrome re-reads what follows them, appearance among them, and tells a native surface or a
- * view whose section changed (3.8).
- */
-export interface LoamKernelV4
-	extends Omit<LoamKernelV3, 'version' | 'agent' | 'call' | 'subscribe'> {
-	readonly version: 4;
-	call<T = unknown>(
-		name: string,
-		input?: unknown,
-		options?: CallOptionsV3
-	): Promise<CommandResult<T>>;
-	subscribe(listener: (event: KernelEventV4) => void): () => void;
-	readonly agent: Pick<LoamKernelV4, 'call' | 'listCommands'>;
-}
-
-export interface KernelEventV4 extends KernelEventV3 {
-	/** The settings sections whose values this call changed, by full id (3.8). */
-	settings?: string[];
-	/**
-	 * A confirmation in the inbox was raised, answered or ended by this call, which may itself have failed, as a call
-	 * answered `CONFIRMATION_PENDING` has (7.2): the Inbox count reads again.
-	 */
-	inbox?: true;
-	/**
-	 * An experiment's state for the person changed (5.3, `experimentsChanged`): the chrome renders the apps, their
-	 * surfaces and the settings tree again, as gates decide what is present.
-	 */
-	experiments?: true;
-}
-
-/** What `shell-info-get` returns from version 4. */
-export interface ShellInfoV4 extends Omit<ShellInfoV3, 'kernelInterface'> {
-	kernelInterface: 4;
-}
-
-// ─── Version 5 ──────────────────────────────────────────────────────────────────
-
-/**
- * Kernel interface version 5 (phase 5 specification, 3.2): the copilot. A call's options may carry the copilot's
- * trace, which the kernel reads only from the options object it gave the agent port's half; `copilot` joins the
- * reserved agent names; and `copilotSession`, `turn` and `trace` are declared context fields, journaled, copied to every
- * call made while a copilot call runs. It extends version 4's settings.
- */
-export interface LoamKernelV5 extends Omit<LoamKernelV4, 'version' | 'agent' | 'call'> {
-	readonly version: 5;
-	call<T = unknown>(
-		name: string,
-		input?: unknown,
-		options?: CallOptionsV5
-	): Promise<CommandResult<T>>;
-	readonly agent: Pick<LoamKernelV5, 'call' | 'listCommands'>;
-}
-
-export interface CallOptionsV5 extends CallOptionsV3 {
-	/**
-	 * The copilot's trace. Read only from the options object the kernel made for the agent port's half: on any other
-	 * call it is ignored, so no caller can claim a session or a turn (3.2).
-	 */
-	trace?: CopilotTraceV1;
-}
-
-export interface KernelOptionsV5 extends KernelOptionsV3 {
-	/** The deployment's copilot providers, never a key or an endpoint, and the host's runner (3.2, 4.1). */
-	copilot?: CopilotOptionsV1;
-	/**
-	 * The page's anchors for `popover-open` (phase 4 specification, 6.3): the chrome sets `resolve` once it renders.
-	 * Given and not yet set, no anchor resolves. Absent, as in a kernel with no page, every anchor does.
-	 */
-	overlayAnchors?: OverlayAnchorsV1;
-}
-
-/** Whether the page holds `data-loam-anchor="<anchor>"` inside `owner`'s surface (phase 4 specification, 6.3). */
-export interface OverlayAnchorsV1 {
-	/** `owner` by kind, so an instance id never passes for the shell's own surface. */
-	resolve?(owner: { kind: 'shell' | 'app'; id: string }, anchor: OverlayAnchorV1): boolean;
-}
-
-/** What `shell-info-get` returns from version 5. */
-export interface ShellInfoV5 extends Omit<ShellInfoV4, 'kernelInterface'> {
-	kernelInterface: 5;
 }

@@ -44,7 +44,7 @@ export interface ConsoleContext {
 	readonly client: LoamClientV1;
 }
 
-/** The fields of the kernel's `AppDetailV1` the console shows, so it needs no kernel dependency. */
+/** The fields of the kernel's `AppDetail` the console shows, so it needs no kernel dependency. */
 interface AppReading {
 	title: string;
 	kind: string;

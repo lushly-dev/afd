@@ -12,14 +12,12 @@
 import { css, type FASTElement, Updates } from '@lushly-dev/fast-element';
 import { ensureScopedRegistrySupport } from '@lushly-dev/fast-element/scoped.js';
 import type {
-	AppDetailV1,
-	AppPortV2,
-	AppSummaryV2,
-	KernelEventV1,
-	KernelEventV3,
-	KernelEventV4,
-	LoamKernelV5,
-	SelectionV2,
+	AppDetail,
+	AppPort,
+	AppSelection,
+	AppSummary,
+	KernelEvent,
+	LoamKernel,
 } from '@lushly-dev/loam-kernel';
 import type { AppContextV1, OverlayAnchorV1, ScopeV1 } from '@lushly-dev/loam-sdk';
 import type { SurfaceHostV1 } from '../editor/editor-frame.js';
@@ -63,7 +61,7 @@ type ScopeOf = { workspace: string; project?: string };
 /** One app the chrome has given a port, once `activate` has run or failed. */
 interface HeldApp {
 	instance: string;
-	port: AppPortV2;
+	port: AppPort;
 	registry?: CustomElementRegistry;
 	context?: AppContextV1;
 	activation?: Promise<string | undefined>;
@@ -110,14 +108,14 @@ const mainWithApp = css`
 
 export class AppSurfaces implements ShellApps {
 	readonly #shell: LoamShell;
-	readonly #kernel: LoamKernelV5;
+	readonly #kernel: LoamKernel;
 	readonly #cleanup: Array<() => void> = [];
 	readonly #held = new Map<string, HeldApp>();
 	#queue: Promise<void> = Promise.resolve();
 	#showing: string | null = null;
 	#token = 0;
 	#declared: ReadonlySet<string> | null = null;
-	#summaries: AppSummaryV2[] = [];
+	#summaries: AppSummary[] = [];
 	#started: Promise<void> | null = null;
 	#prepared: AppList | null = null;
 	#rendered = false;
@@ -138,7 +136,7 @@ export class AppSurfaces implements ShellApps {
 	/** The native editors' mounts, which sit in the editor area rather than a part's children (the review's 6). */
 	readonly #editorMounts = new Set<LoamMount>();
 
-	constructor(shell: LoamShell, kernel: LoamKernelV5) {
+	constructor(shell: LoamShell, kernel: LoamKernel) {
 		this.#shell = shell;
 		this.#kernel = kernel;
 		this.#overlays = new OverlaySurfaces(
@@ -316,7 +314,7 @@ export class AppSurfaces implements ShellApps {
 
 	// ─── Kernel events ─────────────────────────────────────────────────────────────
 
-	#onEvent(event: KernelEventV1): void {
+	#onEvent(event: KernelEvent): void {
 		const { command } = event;
 		// What changes the active app: an app opened or closed, a section opened in its place, or a change of
 		// scope that left it (phase 2 specification, 4.3), as a route's commands do (6.3).
@@ -324,10 +322,10 @@ export class AppSurfaces implements ShellApps {
 			command === 'app-open' ||
 			command === 'app-close' ||
 			command === 'section-open' ||
-			(event as KernelEventV3).scopeChanged?.left !== undefined;
+			(event as KernelEvent).scopeChanged?.left !== undefined;
 		// A change of actor moves the scope before a call that may then fail (3.4), so a failed call's
 		// `scopeChanged` recreates and drops as a successful one's does (7.6).
-		const rescoped = (event as KernelEventV3).scopeChanged !== undefined;
+		const rescoped = (event as KernelEvent).scopeChanged !== undefined;
 		if (rescoped) {
 			this.#rescoped = true;
 			// At once, so a press in a list made in the scope left selects nothing (7.6).
@@ -337,12 +335,12 @@ export class AppSurfaces implements ShellApps {
 		if (!this.#rendered) {
 			// Anything that moved main or the scope before these surfaces rendered, the URL's own
 			// `scope-set { project, app }` among them (N4), is read again once they have.
-			if (switched || rescoped || (event as KernelEventV3).mainChanged) this.#missedSwitch = true;
+			if (switched || rescoped || (event as KernelEvent).mainChanged) this.#missedSwitch = true;
 			return;
 		}
 		// An experiment's change opens or closes a gate (phase 4 specification, 5.3): the apps are read again and the
 		// showing app's surfaces made again, so a gated surface comes or goes and a gated app leaves the rail.
-		if ((event as KernelEventV4).experiments) {
+		if ((event as KernelEvent).experiments) {
 			this.#enqueue(() => this.#sync(true, true));
 			return;
 		}
@@ -363,7 +361,7 @@ export class AppSurfaces implements ShellApps {
 		if (switched) this.#enqueue(() => this.#sync());
 		// A kept app: every surface is recreated in the new scope (7.6). A route is a property (below).
 		else if (rescoped) this.#enqueue(() => this.#sync(true));
-		else if ((event as KernelEventV3).mainChanged && event.success) {
+		else if ((event as KernelEvent).mainChanged && event.success) {
 			this.#enqueue(() => this.#readRoute());
 		}
 		if (
@@ -377,7 +375,7 @@ export class AppSurfaces implements ShellApps {
 			// A change of the active tab's owner parks, closes or restores overlays (the review's 4): only the calls that
 			// move it, never a caret's `editor-selection-set`, `editor-dirty-set` or a read, each of which would journal a read.
 			/^(editor-(activate|close|move|pin)|document-open)$/.test(command) ||
-			(event as KernelEventV3).mainChanged ||
+			(event as KernelEvent).mainChanged ||
 			// A change of person closes every overlay (phase 4 specification, 6.2), in `local` mode with no switch.
 			/^(auth-sign-(in|out)|session-settle)$/.test(command) ||
 			// A modal of the palette's or a drawer's closing lets a toast go on, or its timer restart.
@@ -390,7 +388,7 @@ export class AppSurfaces implements ShellApps {
 		if (showing === null) return;
 		if (command === 'app-selection-set') this.#enqueue(() => this.#readSelection(showing));
 		// The showing app's own sections changed: each of its surfaces hears it (phase 4 specification, 3.8).
-		const changed = (event as KernelEventV4).settings;
+		const changed = (event as KernelEvent).settings;
 		if (changed?.length) {
 			const heard = settingsHeard(this.#held.get(showing)?.port.manifest, changed);
 			if (heard.length > 0) {
@@ -541,7 +539,7 @@ export class AppSurfaces implements ShellApps {
 	}
 
 	async #readDeclared(instance: string): Promise<ReadonlySet<string> | null> {
-		const detail = await this.#kernel.call<AppDetailV1>('app-get', { instance });
+		const detail = await this.#kernel.call<AppDetail>('app-get', { instance });
 		return new Set(detail.data?.surfaces ?? []);
 	}
 
@@ -569,7 +567,7 @@ export class AppSurfaces implements ShellApps {
 		const stale = () => token !== this.#token;
 		main.dataset.app = instance;
 		main.setAttribute('aria-busy', 'true');
-		const detail = (await this.#kernel.call<AppDetailV1>('app-get', { instance })).data;
+		const detail = (await this.#kernel.call<AppDetail>('app-get', { instance })).data;
 		if (stale()) return;
 		if (!detail) {
 			main.removeAttribute('aria-busy');
@@ -612,7 +610,7 @@ export class AppSurfaces implements ShellApps {
 		this.#dropMainElements();
 		if (failure !== undefined) {
 			held.failure = failure;
-			const after = (await this.#kernel.call<AppDetailV1>('app-get', { instance })).data;
+			const after = (await this.#kernel.call<AppDetail>('app-get', { instance })).data;
 			if (stale()) return;
 			this.#setEmptyStates(true);
 			this.#explain(detail.title, failure, after?.error?.code, after?.error?.suggestion);
@@ -677,7 +675,7 @@ export class AppSurfaces implements ShellApps {
 		return held.activation;
 	}
 
-	#contextOf(port: AppPortV2, registry: CustomElementRegistry): AppContextV1 {
+	#contextOf(port: AppPort, registry: CustomElementRegistry): AppContextV1 {
 		const { manifest, instance, config } = port;
 		return {
 			instance,
@@ -703,7 +701,7 @@ export class AppSurfaces implements ShellApps {
 		this.#mainElements.push(notice);
 	}
 
-	async #renderSurfaces(held: HeldApp, detail: AppDetailV1, stale: () => boolean): Promise<void> {
+	async #renderSurfaces(held: HeldApp, detail: AppDetail, stale: () => boolean): Promise<void> {
 		const { port } = held;
 		// Every surface below gets a port of its own, fixed to this scope for its life (phase 2
 		// specification, 3.6), and is made again when the scope changes (7.6). A workspace-only app's is the
@@ -834,7 +832,7 @@ export class AppSurfaces implements ShellApps {
 
 	/** The view host is its own chunk, so a shell with no view app loads none of it (9.2). */
 	async #openView(
-		port: AppPortV2,
+		port: AppPort,
 		title: string,
 		resource: string,
 		command: string | undefined,
@@ -886,7 +884,7 @@ export class AppSurfaces implements ShellApps {
 	 * it has a registry of its own, and its client makes a person's calls, with no `caller`. Its chunk loads
 	 * only here, and if that fails the shell does not (D66).
 	 */
-	async #renderConsole(detail: AppDetailV1, stale: () => boolean): Promise<void> {
+	async #renderConsole(detail: AppDetail, stale: () => boolean): Promise<void> {
 		const main = this.#part<HTMLElement>('main');
 		let registry: CustomElementRegistry;
 		try {
@@ -1019,7 +1017,7 @@ export class AppSurfaces implements ShellApps {
 	// ─── Reads ─────────────────────────────────────────────────────────────────────
 
 	async #readSelection(instance: string): Promise<void> {
-		const result = await this.#kernel.call<SelectionV2>('app-selection-get', { instance });
+		const result = await this.#kernel.call<AppSelection>('app-selection-get', { instance });
 		if (this.#showing !== instance || !result.success) return;
 		const id = result.data?.id ?? null;
 		const level = result.data?.level ?? 'workspace';
@@ -1074,7 +1072,7 @@ export class AppSurfaces implements ShellApps {
 }
 
 /** Create the controller, once the chunk's elements are defined. */
-export async function attachSurfaces(shell: LoamShell, kernel: LoamKernelV5): Promise<ShellApps> {
+export async function attachSurfaces(shell: LoamShell, kernel: LoamKernel): Promise<ShellApps> {
 	await defineAppElements();
 	// `ICONS_V1` is registered now: the rail's entries show their icons (2.4).
 	shell.rail.showIcons();

@@ -9,7 +9,7 @@
  */
 
 import { css, FASTElement, html, observable, repeat } from '@lushly-dev/fast-element';
-import type { LoamKernelV5 } from '@lushly-dev/loam-kernel';
+import type { LoamKernel } from '@lushly-dev/loam-kernel';
 import type { OverlayV1, PopoverInputV1, PopoverItemV1, ToastInputV1 } from '@lushly-dev/loam-sdk';
 import { deepActiveElement } from '../elements/events.js';
 import type { LoamShell } from '../elements/shell.js';
@@ -214,7 +214,7 @@ export interface OverlayLayer {
 /** The layer, with `loam-popover` defined once. */
 export function createPopoverLayer(
 	shell: LoamShell,
-	kernel: LoamKernelV5,
+	kernel: LoamKernel,
 	find: AnchorFinder,
 	{ ownerLine, focusFallback, anchorOwnerOf, optionsOf, bindAnswer }: LayerHelpers
 ): OverlayLayer {
@@ -349,7 +349,7 @@ export function createPopoverLayer(
 
 /** A toast's link as a URL under `base` (6.4, documents specification 9.1), or empty when this page cannot open it. */
 export async function toastHref(
-	kernel: LoamKernelV5,
+	kernel: LoamKernel,
 	base: string,
 	link: NonNullable<ToastInputV1['link']>
 ): Promise<string> {

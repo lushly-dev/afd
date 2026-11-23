@@ -9,7 +9,7 @@ import { failure } from '@lushly-dev/afd-core';
 import type { ManifestV2 } from '@lushly-dev/loam-manifest';
 import type { AppStoreV1, LoamClientV1, ScopeV1 } from '@lushly-dev/loam-sdk';
 import { kernelFailure, LoamKernelError, PAGE_DECIDED } from '../errors.js';
-import type { HandlerFrameV1, KernelPortsV1, McpToolCallResult } from '../types.js';
+import type { HandlerFrame, KernelPorts, McpToolCallResult } from '../types.js';
 import { visibilityOf } from './definitions.js';
 import { createLimitGuard } from './limit-guard.js';
 import type { AppRecord } from './operations.js';
@@ -38,7 +38,7 @@ export const CALL_META_KEY = 'dev.loam/call';
 export interface FrameHostOptions {
 	record: AppRecord;
 	host: AppsHost;
-	ports: KernelPortsV1;
+	ports: KernelPorts;
 	readHandlersHtml(): Promise<string>;
 	config: Readonly<Record<string, unknown>>;
 	granted: ReadonlySet<string>;
@@ -117,11 +117,11 @@ export function createFrameHost(options: FrameHostOptions): FrameHost {
 	/** Each call in flight: its context, and whether its command may write (phase 2 specification, 5). */
 	const inFlight = new Map<string, { context: CommandContext; mutation: boolean }>();
 	let calls = 0;
-	let opening: Promise<HandlerFrameV1> | undefined;
-	let current: HandlerFrameV1 | undefined;
+	let opening: Promise<HandlerFrame> | undefined;
+	let current: HandlerFrame | undefined;
 
 	/** Close `frame`, and open another on the next call if it is the current one. */
-	const discard = (frame: HandlerFrameV1 | undefined = current): void => {
+	const discard = (frame: HandlerFrame | undefined = current): void => {
 		frame?.close();
 		if (frame !== current) return;
 		current = undefined;
@@ -244,7 +244,7 @@ export function createFrameHost(options: FrameHostOptions): FrameHost {
 		return toolCallResult(result);
 	}
 
-	async function open(): Promise<HandlerFrameV1> {
+	async function open(): Promise<HandlerFrame> {
 		// Every message the frame sends passes the instance's gate first (phase 4 specification, section 11).
 		const frame = await ports.openHandlerFrame(
 			record.instance,
@@ -289,7 +289,7 @@ export function createFrameHost(options: FrameHostOptions): FrameHost {
 		return frame;
 	}
 
-	async function frame(): Promise<HandlerFrameV1> {
+	async function frame(): Promise<HandlerFrame> {
 		opening ??= open();
 		try {
 			return await opening;
@@ -301,7 +301,7 @@ export function createFrameHost(options: FrameHostOptions): FrameHost {
 
 	return {
 		async invoke(name, input, context) {
-			let target: HandlerFrameV1;
+			let target: HandlerFrame;
 			try {
 				target = await frame();
 			} catch (cause) {

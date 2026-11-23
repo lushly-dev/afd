@@ -9,10 +9,10 @@
 
 import type { JournalEntry, MemoryJournalSink } from '@lushly-dev/afd-core';
 import {
-	type AppDetailV1,
-	type AppPortV2,
+	type AppDetail,
+	type AppPort,
+	type LoamKernel,
 	LoamKernelError,
-	type LoamKernelV5,
 } from '@lushly-dev/loam-kernel';
 import {
 	createFixturePorts,
@@ -71,8 +71,8 @@ export interface AppTestKernelOptions {
 }
 
 export interface AppTestKernel {
-	kernel: LoamKernelV5;
-	port: AppPortV2;
+	kernel: LoamKernel;
+	port: AppPort;
 	journal: MemoryJournalSink;
 	/** Replay everything journaled so far on a fresh kernel; it throws on any difference. */
 	replay(): Promise<ReplayKernelResult>;
@@ -158,12 +158,12 @@ export async function createAppTestKernel(options: AppTestKernelOptions): Promis
 			});
 		}
 	}
-	let port: AppPortV2;
+	let port: AppPort;
 	try {
 		port = kernel.appPort(id);
 	} catch {
 		// Only a refused app has no port. The journal is thrown away with this kernel.
-		const { data } = await kernel.call<AppDetailV1>('app-get', { instance: id });
+		const { data } = await kernel.call<AppDetail>('app-get', { instance: id });
 		await kernel.dispose();
 		throw new LoamKernelError({
 			code: (data?.error?.code ?? 'APP_NOT_READY') as 'APP_NOT_READY',

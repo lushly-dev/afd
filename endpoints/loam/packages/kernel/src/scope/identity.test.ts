@@ -22,21 +22,19 @@ import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, describe, expect, it } from 'vitest';
 import * as z from 'zod/mini';
 import { INTERNAL_COMMANDS } from '../commands.js';
-import { createKernel } from '../kernel.js';
 import {
 	gatedByLineZero,
 	KERNEL_SETTLE_COMMANDS,
 	lineZero,
 	MEMBER_EXEMPT_COMMANDS,
 	SIGNED_OUT_COMMANDS,
-} from '../late/auth-gate.js';
-import { isOwner } from '../late/owners.js';
-import { personalWrites } from '../late/personal-writes.js';
-import { AGENT_MEMBER_TABLE, PERSONA_TABLE } from '../late/tables.js';
+} from '../identity/auth-gate.js';
+import { personalWrites } from '../identity/personal-writes.js';
+import { createKernel } from '../kernel.js';
 import { createFixedEnvironment } from '../session.js';
 import { SHELL_COMMAND_NAMES } from '../shell-command-names.js';
 import { replayKernel } from '../testing.js';
-import type { LoamKernelV5 } from '../types.js';
+import type { LoamKernel } from '../types.js';
 import {
 	type AccessActorV1,
 	decideAccess,
@@ -55,9 +53,11 @@ import {
 	seedProjects,
 } from './fixtures.js';
 import { createScopeMiddleware, type LateScope } from './middleware.js';
+import { isOwner } from './owners.js';
 import { personalRecordId, personalStore } from './personal.js';
 import type { AgentMemberV1, PersonaV1, ProjectV1, ScopeV1 } from './records.js';
 import { createScopeRuntime } from './runtime.js';
+import { AGENT_MEMBER_TABLE, PERSONA_TABLE } from './tables.js';
 
 const BEA = 'mock-user-bea@example.com';
 const OLU = 'mock-user-olu@example.com';
@@ -76,7 +76,7 @@ const members = (entries: Record<string, 'owner' | 'admin' | 'member'>): Members
 });
 const ACME = members({ [BEA]: 'member', [OLU]: 'owner' });
 
-const kernels: LoamKernelV5[] = [];
+const kernels: LoamKernel[] = [];
 afterEach(async () => {
 	await Promise.all(kernels.splice(0).map((kernel) => kernel.dispose()));
 });
@@ -98,7 +98,7 @@ async function providerWorkspace(
 	return workspace({ identity: PROVIDER, membership: ACME, store, empty: true, ...extra });
 }
 
-const signIn = (kernel: LoamKernelV5, who: string) =>
+const signIn = (kernel: LoamKernel, who: string) =>
 	kernel.call('auth-sign-in', { method: 'credentials', email: who, password: 'x' });
 
 const journalOf = (made: ScopedWorkspace) => made.journal.read();

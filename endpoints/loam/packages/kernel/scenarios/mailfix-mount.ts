@@ -24,7 +24,7 @@ import type { ApprovalRequest, McpServer } from '@lushly-dev/afd-server';
 import type { ManifestV2 } from '@lushly-dev/loam-manifest';
 import type { AppDefinitionV1 } from '@lushly-dev/loam-sdk';
 import { defineApp, success } from '@lushly-dev/loam-sdk';
-import type { McpToolCallResult, MountTransportV2 } from '../src/types.js';
+import type { McpToolCallResult, MountTransport } from '../src/types.js';
 import { createMailfixServer, type MailfixServerOptions } from './mailfix.js';
 
 /** `mailfix`'s manifest: a mounted app of the fixture's one domain. */
@@ -106,7 +106,7 @@ const asResult = (body: unknown): McpToolCallResult => ({
 export function mailfixTransport(
 	server: McpServer,
 	options: { textOnly?: boolean; approver?: boolean; held?: ApprovalRequest[] } = {}
-): MountTransportV2 & {
+): MountTransport & {
 	calls: Array<{ tool: string; args: unknown; meta?: Record<string, unknown> }>;
 } {
 	const calls: Array<{ tool: string; args: unknown; meta?: Record<string, unknown> }> = [];

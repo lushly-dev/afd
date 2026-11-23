@@ -17,7 +17,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { createKernel } from '../kernel.js';
 import { createFixedEnvironment } from '../testing.js';
-import type { LoamKernelV5 } from '../types.js';
+import type { LoamKernel } from '../types.js';
 import { createCopilotParts } from './commands.js';
 import { SUGGESTION_TABLE, SUGGESTION_TTL_MS } from './enforce.js';
 import { createHealth, FLAG_ASKS } from './health.js';
@@ -83,7 +83,7 @@ const data = <T>(result: CommandResult<unknown>): T => {
 	return result.data as T;
 };
 
-async function send(kernel: LoamKernelV5, text: string, session?: string) {
+async function send(kernel: LoamKernel, text: string, session?: string) {
 	const id =
 		session ??
 		data<{ session: { id: string } }>(await kernel.call('copilot-session-start', {})).session.id;
@@ -93,7 +93,7 @@ async function send(kernel: LoamKernelV5, text: string, session?: string) {
 	return { session: id, turn };
 }
 
-const confirmations = async (kernel: LoamKernelV5) =>
+const confirmations = async (kernel: LoamKernel) =>
 	data<{ notifications: NotificationV1[] }>(
 		await kernel.call('notification-list', { kind: 'confirmation', body: true })
 	).notifications;
@@ -258,7 +258,7 @@ describe('P5-A5: act, ask and suggest, in 6.1’s order', () => {
 		const parts = createCopilotParts({
 			store: new MemoryAdapter(),
 			workspace: 'personal',
-			kit: (await import('../late/document-kit.js')).DOCUMENT_KIT,
+			kit: (await import('../late/command-kit.js')).DOCUMENT_KIT,
 			isMutation: () => false,
 			isMounted: (name) => name.startsWith('work-') || name.startsWith('mail-'),
 			instanceOf: (name) => name.split('-')[0],
@@ -938,7 +938,7 @@ describe('the trust review’s findings (step 3)', () => {
 
 	it('tracks a reshow replacement raised before pending registration and lets a resumed turn read a replaced second nested confirmation (#2307)', async () => {
 		const store = new MemoryAdapter();
-		const { DOCUMENT_KIT } = await import('../late/document-kit.js');
+		const { DOCUMENT_KIT } = await import('../late/command-kit.js');
 		const RAISED = Symbol.for('dev.loam/raised');
 		let sessionId = '';
 		const cards = new Map<

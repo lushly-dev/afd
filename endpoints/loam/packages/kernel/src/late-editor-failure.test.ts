@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createKernel } from './kernel.js';
 import { createFixedEnvironment } from './testing.js';
 
-vi.mock('./late/editor-commands.js', () => {
+vi.mock('./documents/editor-commands.js', () => {
 	throw new Error('The editor chunk did not load');
 });
 

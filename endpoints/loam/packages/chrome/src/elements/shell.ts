@@ -10,16 +10,16 @@ import { FASTElement, html, observable, ref, Updates, when } from '@lushly-dev/f
 import {
 	APPEARANCE_QUERIES,
 	type AppearanceV0,
-	type AppSummaryV2,
+	type AppSummary,
 	createDefaultAppearance,
 	createDefaultLayout,
 	KERNEL_INTERFACE_VERSION,
-	type KernelEventV4,
+	type KernelEvent,
 	type KeybindingInForceV1,
 	LAYOUT_DEFAULTS_V0,
 	type LayoutPatchV0,
 	type LayoutStateV0,
-	type LoamKernelV5,
+	type LoamKernel,
 } from '@lushly-dev/loam-kernel';
 import type { SurfaceHostV1 } from '../editor/editor-frame.js';
 import { afterFirstFrame } from '../first-frame.js';
@@ -291,7 +291,7 @@ export class LoamShell extends FASTElement {
 	readonly rail = new RailBands(this);
 
 	/** The kernel the chrome binds to; set it before or after connecting. */
-	kernel: LoamKernelV5 | null = null;
+	kernel: LoamKernel | null = null;
 	/** A `provider` deployment's identity; null in `local` mode, as phases 0 to 2 have it. */
 	identity: ShellIdentity | null = null;
 	/** What main shows in place of the landing in a `provider` deployment (2.1, 2.3). */
@@ -315,7 +315,7 @@ export class LoamShell extends FASTElement {
 	 */
 	copilot: { host?: import('../copilot/panel.js').CopilotPanelHostV1 } | null = null;
 	/** The page's answer to `popover-open`'s anchors, which the kernel was given (phase 4 specification, 6.3). */
-	overlayAnchors: import('@lushly-dev/loam-kernel').OverlayAnchorsV1 | null = null;
+	overlayAnchors: import('@lushly-dev/loam-kernel').OverlayAnchors | null = null;
 	#copilot: Promise<void> | undefined;
 	readonly mac: boolean;
 	/** The deployment's root, absolute: the router's base, which `mountShell`'s `base` sets (6.2). */
@@ -336,7 +336,7 @@ export class LoamShell extends FASTElement {
 	/** Set once stage B's own boot of the URL chunk has been tried, whether or not the chunk loaded. */
 	declare urlBooted?: boolean;
 	/** The rows `app-list` last gave, for an app route's checks. */
-	appList: readonly AppSummaryV2[] = [];
+	appList: readonly AppSummary[] = [];
 	/** The URL and the state, both ways, in a chunk loaded when stage B ends (6.3). */
 	#urlSync: Promise<UrlSyncV1> | null = null;
 	#appsLoad: Promise<void> | null = null;
@@ -407,14 +407,14 @@ export class LoamShell extends FASTElement {
 	}
 
 	/** Bind to a kernel and read its state. */
-	start(kernel: LoamKernelV5): Promise<void> {
+	start(kernel: LoamKernel): Promise<void> {
 		this.kernel = kernel;
 		if (!this.$fastController.isConnected) return Promise.resolve();
 		this.#started ??= this.#start(kernel);
 		return this.#started;
 	}
 
-	async #start(kernel: LoamKernelV5): Promise<void> {
+	async #start(kernel: LoamKernel): Promise<void> {
 		if (kernel.version !== KERNEL_INTERFACE_VERSION) {
 			await defineNotice();
 			this.failure = {
@@ -548,7 +548,7 @@ export class LoamShell extends FASTElement {
 	 * The commands stage B added, for the palette's rows, and the apps it read, whose surfaces start now.
 	 * A chunk that failed says so in main.
 	 */
-	async #stageBEnded(kernel: LoamKernelV5): Promise<void> {
+	async #stageBEnded(kernel: LoamKernel): Promise<void> {
 		if (kernel.lateFailure) {
 			this.landing = COULD_NOT_LOAD;
 			this.releaseMain(true);
@@ -607,7 +607,7 @@ export class LoamShell extends FASTElement {
 
 	/** What the URL shows, from `scope-get` and `section-get`, both unjournaled. */
 	async readState(): Promise<MainStateV1> {
-		const kernel = this.kernel as LoamKernelV5;
+		const kernel = this.kernel as LoamKernel;
 		const [scope, main] = await Promise.all([
 			kernel.call<object>('scope-get'),
 			kernel.call<object>('section-get'),
@@ -645,7 +645,7 @@ export class LoamShell extends FASTElement {
 	#loadApps(): Promise<void> {
 		this.#appsLoad ??= import('../apps/surfaces.js')
 			.then(async ({ attachSurfaces }) => {
-				const apps = await attachSurfaces(this, this.kernel as LoamKernelV5);
+				const apps = await attachSurfaces(this, this.kernel as LoamKernel);
 				this.apps = apps;
 				this.#cleanup.push(() => apps.dispose());
 			})
@@ -733,7 +733,7 @@ export class LoamShell extends FASTElement {
 			this.ownerDocument.defaultView?.history.replaceState(null, '', this.base);
 	}
 
-	#onEvent(event: KernelEventV4): void {
+	#onEvent(event: KernelEvent): void {
 		if (event.seq !== undefined) this.lastSeq = Math.max(this.lastSeq, event.seq);
 		if (!this.booted) return;
 		// A change of person: nothing of the leaving person's persona shows while the next one's is read (6.1; the

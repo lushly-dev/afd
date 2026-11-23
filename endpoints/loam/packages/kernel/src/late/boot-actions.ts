@@ -8,8 +8,8 @@ import type { CommandResult } from '@lushly-dev/afd-core';
 import { success } from '@lushly-dev/afd-core';
 import { type AppsRuntime, unknownApp } from '../apps-runtime.js';
 import { kernelFailure } from '../errors.js';
-import type { OverlayStore } from '../overlays.js';
-import { shellModalOpen } from '../overlays.js';
+import type { OverlayStore } from '../overlays/store.js';
+import { shellModalOpen } from '../overlays/store.js';
 import type { ShellState } from '../shell-state.js';
 
 /**

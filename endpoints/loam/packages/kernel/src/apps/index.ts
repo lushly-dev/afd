@@ -20,7 +20,7 @@ import type { KernelFieldContext } from '../context-fields.js';
 import { kernelFailure, LoamKernelError } from '../errors.js';
 import type { AppKeybinding } from '../keybindings.js';
 import { createKernelLimits } from '../limits.js';
-import type { AppPortV2, CommandSummaryV1, KernelPortsV1 } from '../types.js';
+import type { AppPort, CommandSummary, KernelPorts } from '../types.js';
 import { defineAppCommand, type ManifestCommand } from './definitions.js';
 import {
 	baseRecord,
@@ -53,7 +53,7 @@ export {
 export { NATIVE_HANDLER_TIMEOUT_MS } from './native.js';
 export type { AppsHost, AppsHostInput } from './types.js';
 
-const NO_PORTS: KernelPortsV1 = {
+const NO_PORTS: KernelPorts = {
 	baseUrl: 'http://loam.invalid/',
 	fetchJson: () => Promise.reject(new Error('The host gave the kernel no ports')),
 	fetchText: () => Promise.reject(new Error('The host gave the kernel no ports')),
@@ -80,7 +80,7 @@ export async function loadApps(input: AppsHostInput): Promise<AppsRuntime> {
 				.filter((command) => host.owners().get(command.name)?.instance === instance)
 				.map(
 					(command): AppCommandRowV1 => ({
-						...(summaries.get(command.name) as CommandSummaryV1),
+						...(summaries.get(command.name) as CommandSummary),
 						inputSchema: command.inputSchema,
 						...(command.destructive !== undefined ? { destructive: command.destructive } : {}),
 					})
@@ -131,7 +131,7 @@ export async function loadApps(input: AppsHostInput): Promise<AppsRuntime> {
 		packageUrl: string,
 		config: Readonly<Record<string, unknown>>,
 		granted: ReadonlySet<string>
-	): { port: AppPortV2; invoke: NativeHost['invoke'] } {
+	): { port: AppPort; invoke: NativeHost['invoke'] } {
 		const names = (manifest.commands ?? []).map((command) => command.name);
 		let native: NativeHost | undefined;
 		const viewHost =

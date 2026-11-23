@@ -12,6 +12,7 @@ import { pathToFileURL } from 'node:url';
 // TypeScript 7's `typescript` package exports no compiler API; the parser comes from TypeScript 6.
 import ts from '@typescript/typescript6';
 import { parse as parseToml } from 'smol-toml';
+import { checkKernelDomains } from './check-kernel-domains.mjs';
 import {
 	cargoDevRequirements,
 	cargoRequirements,
@@ -861,6 +862,8 @@ export function checkBoundaries(root, config = JSON.parse(read(join(root, 'archi
 		};
 		visit(start, new Set([start]));
 	}
+	const kernelDomains = checkKernelDomains(root);
+	for (const error of kernelDomains.errors) fail(error);
 	return {
 		errors: [...new Set(errors)],
 		units,

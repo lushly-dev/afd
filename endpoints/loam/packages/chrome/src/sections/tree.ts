@@ -152,7 +152,7 @@ const styles = css`
 		position-area: block-end span-inline-end;
 		margin: 0;
 		padding: var(--size-space-xs);
-		border: 1px solid var(--color-border-subtle);
+		border: 1px solid transparent;
 		border-radius: var(--radius-lg);
 		background: var(--color-surface-floating);
 		box-shadow: var(--shadow-floating);
