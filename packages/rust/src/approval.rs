@@ -8,8 +8,12 @@
 //! The approval middleware ([`create_approval_middleware`], the `approval` feature, on by
 //! default) enforces it: a held call fails with `APPROVAL_REQUIRED` and a signed, short-lived
 //! token bound to the command, the validated input and the actor. Once a human approves, trusted
-//! surface code retries the same call with that token as [`CommandContext::approval`]. Without
-//! the middleware, a policy is a declaration only.
+//! surface code retries the same call with that token as [`CommandContext::approval`].
+//!
+//! A declared policy holds without the middleware too: [`CommandRegistry::execute`](crate::CommandRegistry::execute)
+//! runs a command whose policy is neither unset nor [`ApprovalPolicy::NotRequired`] only when an
+//! approval step admitted that call, and answers `APPROVAL_UNAVAILABLE` before the handler
+//! otherwise (#1886).
 //!
 //! Tokens are byte-compatible with TypeScript's `createApprovalMiddleware`: a token issued by
 //! one server verifies on another with the same secret.
@@ -21,6 +25,7 @@ use std::sync::Arc;
 
 use crate::commands::{BoxFuture, CommandContext};
 
+pub(crate) mod admission;
 pub(crate) mod approver;
 #[cfg(feature = "approval")]
 mod middleware;
@@ -54,7 +59,10 @@ pub type ApprovalPolicyFn =
 
 /// A command's approval policy: a fixed decision, or a function of the validated input and the
 /// call context (for example, "agents need approval, humans do not"). Unset means
-/// [`ApprovalPolicy::NotRequired`]. Enforced only where the approval middleware is installed.
+/// [`ApprovalPolicy::NotRequired`]. The approval middleware decides it; without an approval step
+/// that admits the call, [`CommandRegistry::execute`](crate::CommandRegistry::execute) refuses any
+/// other policy with `APPROVAL_UNAVAILABLE` before the handler runs (a function is not evaluated
+/// then).
 #[derive(Clone)]
 pub enum ApprovalPolicy {
     /// Never hold the call.

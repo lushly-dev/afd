@@ -70,12 +70,30 @@ pub(super) enum UpFrontOutcome<R> {
 impl Call<'_> {
     /// The step of a batch or pipeline as the approval middleware sees it: its validated input,
     /// or none when it names no command the caller can run or does not validate.
+    /// A step with no input to approve up front: one that reads an earlier step's data
+    /// (`dynamic`), or one whose input is over the resolution limits and fails when it runs.
+    fn unresolved_step(&self, index: usize, command: &str, dynamic: bool) -> UpFrontStep {
+        let definition = self.exposed(command);
+        UpFrontStep {
+            index,
+            command: command.to_owned(),
+            dynamic,
+            input: None,
+            sent: None,
+            approval: definition
+                .as_ref()
+                .and_then(|definition| definition.approval.clone()),
+            confirm_prompt: definition.and_then(|definition| definition.confirm_prompt.clone()),
+        }
+    }
+
     fn up_front_step(&self, index: usize, command: &str, input: Value) -> UpFrontStep {
-        let validated = self.exposed(command).and_then(|definition| {
+        let definition = self.exposed(command);
+        let validated = definition.as_ref().and_then(|definition| {
             self.server
                 .inner
                 .registry
-                .validate(&definition, input.clone())
+                .validate(definition, input.clone())
                 .ok()
         });
         UpFrontStep {
@@ -84,20 +102,23 @@ impl Call<'_> {
             dynamic: false,
             sent: validated.is_some().then_some(input),
             input: validated,
+            approval: definition
+                .as_ref()
+                .and_then(|definition| definition.approval.clone()),
+            confirm_prompt: definition.and_then(|definition| definition.confirm_prompt.clone()),
         }
     }
 
-    /// Whether any of `commands` declares an approval policy, so that a step could be gated.
+    /// Whether a step of `commands` could be gated: the request can ask, and a step names a
+    /// command the caller can run. A step is gated by its command's own policy or by the one an
+    /// approval middleware's commands list gives it, which the server cannot see, so any command
+    /// counts: the approval middleware decides each step from both.
     fn may_gate<'s>(&self, mut commands: impl Iterator<Item = &'s str>) -> bool {
-        self.can_elicit()
-            && commands.any(|name| {
-                self.exposed(name)
-                    .is_some_and(|command| command.approval.is_some())
-            })
+        self.can_elicit() && commands.any(|name| self.exposed(name).is_some())
     }
 
     /// The steps of an `afd-batch` for its up-front approval: `None` when the request cannot ask
-    /// or no step names a command with an approval policy. Every item's input is known up front.
+    /// or no step names a command the caller can run. Every item's input is known up front.
     pub(super) fn batch_up_front(&self, request: &BatchRequest<Value>) -> Option<Vec<UpFrontStep>> {
         if !self.may_gate(request.commands.iter().map(|item| item.command.as_str())) {
             return None;
@@ -133,24 +154,16 @@ impl Call<'_> {
                         dynamic: false,
                         input: None,
                         sent: None,
+                        approval: None,
+                        confirm_prompt: None,
                     },
-                    Some(input) if reads_step_data(input) => UpFrontStep {
-                        index,
-                        command: step.command.clone(),
-                        dynamic: true,
-                        input: None,
-                        sent: None,
-                    },
+                    Some(input) if reads_step_data(input) => {
+                        self.unresolved_step(index, &step.command, true)
+                    }
                     // An input over the limits fails when its step runs: nothing to approve.
                     Some(input) => match try_resolve_variables(input, &context) {
                         Ok(input) => self.up_front_step(index, &step.command, input),
-                        Err(_) => UpFrontStep {
-                            index,
-                            command: step.command.clone(),
-                            dynamic: false,
-                            input: None,
-                            sent: None,
-                        },
+                        Err(_) => self.unresolved_step(index, &step.command, false),
                     },
                     None => self.up_front_step(index, &step.command, json!({})),
                 })

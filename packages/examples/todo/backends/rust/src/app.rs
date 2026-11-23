@@ -5,9 +5,9 @@
 use std::sync::Arc;
 
 use afd::{
-    create_approval_middleware, success, ApprovalMiddlewareOptions, ApprovalRelay, CommandContext,
-    CommandDefinition, CommandHandler, CommandRegistry, CommandResult, ContextConfig,
-    ExposeOptions,
+    create_approval_middleware, success, ApprovalMiddlewareOptions, ApprovalPolicy, ApprovalRelay,
+    CommandContext, CommandDefinition, CommandHandler, CommandRegistry, CommandResult,
+    ContextConfig, ExposeOptions,
 };
 use async_trait::async_trait;
 use serde_json::{json, Value};
@@ -68,6 +68,11 @@ pub fn contexts() -> Vec<ContextConfig> {
 /// The todo commands over `store` and, with [`Approvals::Agents`], the
 /// approval middleware signing with `secret` (unused with [`Approvals::Off`]).
 ///
+/// With [`Approvals::Off`] there is no approval middleware, and the registry refuses a command
+/// whose approval policy holds calls without one (`APPROVAL_UNAVAILABLE`), so `todo-clear` is
+/// served without its policy: it runs for every caller, and `_meta.approval` does not advertise a
+/// hold the server does not make.
+///
 /// A held `todo-clear` asks the person behind an MCP client that declares form elicitation
 /// (`ApprovalRelay::McpElicitation`), with a summary of what would go; a client that cannot be
 /// asked gets `APPROVAL_REQUIRED`. The middleware runs before each handler, so a held call never
@@ -78,7 +83,20 @@ pub fn registry(
     secret: &[u8],
 ) -> Result<Arc<CommandRegistry>, String> {
     let registry = Arc::new(CommandRegistry::new());
-    register_commands(&registry, &store)?;
+    match approvals {
+        Approvals::Agents => register_commands(&registry, &store)?,
+        Approvals::Off => {
+            for (mut definition, schema) in crate::commands::definitions(&store) {
+                if !matches!(
+                    definition.approval,
+                    None | Some(ApprovalPolicy::NotRequired)
+                ) {
+                    definition.approval = None;
+                }
+                registry.register_with_schema(definition, schema)?;
+            }
+        }
+    }
     if approvals == Approvals::Agents {
         // Built after the commands are registered: `registry.list()` is a snapshot.
         let options = ApprovalMiddlewareOptions::new(secret, registry.list())

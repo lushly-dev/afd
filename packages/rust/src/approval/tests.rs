@@ -755,9 +755,11 @@ async fn fails_an_input_it_cannot_bind_without_running_the_handler() {
             None,
         )
         .await;
+    let error = result.error.unwrap();
+    assert_eq!(error.code, error_codes::APPROVAL_UNAVAILABLE);
     assert_eq!(
-        result.error.unwrap().code,
-        error_codes::COMMAND_EXECUTION_ERROR
+        error.details.unwrap()["reason"],
+        json!("input-not-canonical")
     );
     assert_eq!(harness.handled(), 0);
 }
@@ -1089,7 +1091,7 @@ async fn never_takes_security_time_from_the_context_clock() {
 }
 
 #[tokio::test]
-async fn never_holds_a_command_that_is_not_in_its_list() {
+async fn holds_a_command_that_is_not_in_its_list_by_its_own_policy() {
     let handled = Arc::new(AtomicUsize::new(0));
     let registry = CommandRegistry::new();
     let options = ApprovalMiddlewareOptions::new(SECRET, Vec::<CommandDefinition>::new());
@@ -1105,12 +1107,12 @@ async fn never_holds_a_command_that_is_not_in_its_list() {
         )
         .unwrap();
     registry.add_middleware(create_approval_middleware(options).unwrap());
-    assert!(
-        registry
-            .execute("todo-delete", json!({}), None)
-            .await
-            .success
+    let held = registry.execute("todo-delete", json!({}), None).await;
+    assert_eq!(
+        held.error.map(|error| error.code),
+        Some(error_codes::APPROVAL_REQUIRED.to_owned())
     );
+    assert_eq!(handled.load(Ordering::SeqCst), 0);
 }
 
 #[test]
@@ -1738,6 +1740,8 @@ async fn an_up_front_step_takes_only_an_approval_of_its_own_input_once() {
         dynamic: false,
         input: Some(validated(1)),
         sent: None,
+        approval: Some(ApprovalPolicy::Required),
+        confirm_prompt: None,
     };
     let up_front = Arc::new(relay::UpFrontApproval::new(
         "afd-batch",
@@ -1821,6 +1825,8 @@ async fn a_single_command_answer_is_never_an_up_front_approval() {
         dynamic: false,
         input: Some(validated(1)),
         sent: None,
+        approval: Some(ApprovalPolicy::Required),
+        confirm_prompt: None,
     };
     let mut context = CommandContext::new().with_actor(agent());
     context.up_front_approval = Some(Arc::new(relay::UpFrontApproval::new(

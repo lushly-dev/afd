@@ -940,7 +940,9 @@ impl CommandDefinition {
     /// Call the command's handler directly.
     ///
     /// This skips everything [`CommandRegistry::execute`] enforces: input
-    /// validation, parameter defaults, exposure, the timeout and middleware.
+    /// validation, parameter defaults, exposure, the timeout, middleware and
+    /// the approval admission check (a declared approval policy does not hold
+    /// here).
     pub async fn execute(
         &self,
         input: serde_json::Value,
@@ -1505,18 +1507,24 @@ impl CommandRegistry {
 
         // A step of an `afd-batch` or `afd-pipe` approved up front runs on the input validated
         // then, so the input that runs is the one the human was shown (#1414). It is still
-        // validated as sent here; only the value is kept, and only for a command with an
-        // approval policy: any other runs as it does on its own.
-        let approved = match (&context.up_front_approval, &command.approval) {
-            (Some(up_front), Some(_)) => up_front.validated(&command.name, &input),
-            _ => None,
-        };
+        // validated as sent here; only the value is kept. Every step takes it, not only one whose
+        // command declares a policy: an approval middleware's commands list can gate a command
+        // that declares none, and the registry cannot see that list.
+        let approved = context
+            .up_front_approval
+            .as_ref()
+            .and_then(|up_front| up_front.validated(&command.name, &input));
         let input = match self.validate(&command, input) {
             Ok(input) => approved.unwrap_or(input),
             Err(error) => return failure(*error),
         };
 
+        // This call's own admission record (#1886): fresh for every call, so a batch item, a
+        // pipeline step or a nested call never inherits another call's admission.
         let mut context = context;
+        context.approval_admission = Some(crate::approval::admission::Admission::begin(
+            Arc::clone(&command),
+        ));
         let context_fields = Arc::clone(&read_lock(&self.context_fields));
         if let Err(error) = apply_context_fields(&context_fields, &command.name, &mut context) {
             return failure(*error);
@@ -1888,6 +1896,29 @@ fn middleware_chain(
             let command = Arc::clone(&command);
             let input = input.clone();
             let mut context = context.clone();
+            // A declared approval policy holds without the approval middleware (#1886): a command
+            // whose policy is neither unset nor `NotRequired` runs only on an admission that names
+            // it and this validated input, taken here, so one admission runs one handler. A
+            // policy function is not evaluated here; declaring one needs an approval step.
+            // A gate declared only in the approval middleware's list is taken here too.
+            let admission = context.approval_admission.take();
+            let gated = crate::approval::admission::gates(command.approval.as_ref())
+                || admission
+                    .as_ref()
+                    .is_some_and(|admission| admission.gated());
+            let refused = gated
+                .then(|| {
+                    admission.map_or(crate::approval::admission::Taken::Missing, |admission| {
+                        admission.take(&command.name, &input)
+                    })
+                })
+                .filter(|taken| *taken != crate::approval::admission::Taken::Admitted);
+            if let Some(taken) = refused {
+                return Box::pin(std::future::ready(failure(approval_unavailable(
+                    &command.name,
+                    taken,
+                ))));
+            }
             // Relay evidence and the approval relay serve the call that reached the middleware,
             // never a command the handler runs in process with this context.
             context.relay_evidence = None;
@@ -1932,6 +1963,26 @@ fn middleware_chain(
             )
         })
     })
+}
+
+/// `APPROVAL_UNAVAILABLE` for a gated dispatch no approval step admitted (#1886):
+/// `details.reason` is `no-approval-step` when none ever did, else `admission-mismatch`.
+fn approval_unavailable(name: &str, taken: crate::approval::admission::Taken) -> CommandError {
+    use crate::approval::admission::Taken;
+    let (reason, suggestion) = match taken {
+        Taken::Missing => ("no-approval-step", format!("Tell the user that {name} needs their approval and this server has no approval step; do not retry. The operator adds the approval middleware (create_approval_middleware; enable the `approval` feature) or removes the command's approval policy.")),
+        Taken::Mismatch | Taken::Admitted => ("admission-mismatch", "Do not retry: this call is not the one approved. The operator moves middleware that retries or changes input before the approval middleware.".to_owned()),
+    };
+    CommandError::new(
+        error_codes::APPROVAL_UNAVAILABLE,
+        format!("{name} needs a person's approval, and this server cannot ask for it"),
+    )
+    .with_suggestion(suggestion)
+    .with_retryable(false)
+    .with_details(std::collections::HashMap::from([(
+        "reason".to_owned(),
+        serde_json::json!(reason),
+    )]))
 }
 
 /// Milliseconds since `start`, rounded to two decimals as in TypeScript.

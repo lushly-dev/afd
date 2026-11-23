@@ -97,14 +97,14 @@ let context = CommandContext::new().with_output_budget_ask(32_000);
 ```rust
 let delete = delete.with_approval(ApprovalPolicy::Required); // or ApprovalPolicy::when(|input, ctx| ...)
 registry.register(delete)?;
-// Build after registering the gated commands: `registry.list()` is a snapshot.
-let options = ApprovalMiddlewareOptions::new(std::env::var("AFD_APPROVAL_SECRET")?, registry.list());
-registry.add_middleware(create_approval_middleware(options)?); // after any actor-setting middleware
+let options = ApprovalMiddlewareOptions::from_secret(std::env::var("AFD_APPROVAL_SECRET")?);
+registry.add_middleware(create_approval_middleware(options)?); // after actor-setting and retrying middleware
 // APPROVAL_REQUIRED carries details.approvalToken. Once a human approves, trusted code retries:
 let context = CommandContext::new().with_approval(token); // never from tool arguments
 ```
 
-- **Gating.** A command not in the options' list is never held, whatever its policy says.
+- **Gating.** The middleware decides from the policy of the command each call runs, also one registered after it was built. `ApprovalMiddlewareOptions::new(secret, commands)` adds the list's policies: either holds the call.
+- **The policy holds without the middleware.** `CommandRegistry::execute` dispatches a command whose policy is neither unset nor `NotRequired` only on an approval step's admission of that call, command and validated input, taken once: otherwise `APPROVAL_UNAVAILABLE` before the handler (`details.reason` `no-approval-step` or `admission-mismatch`), also when only the middleware's list gates the command. When the middleware would hold a call whose input has no canonical JSON (an integer beyond 2^53), it answers `APPROVAL_UNAVAILABLE` with `input-not-canonical` and asks nobody, for every batch item, pipeline step and nested call. A policy function is not evaluated then. So a registry with no approval middleware serves gated commands without their policy, and a retrying middleware goes before the approval middleware (a retry after it is refused). Add one approval middleware per registry: a second that does not gate a command admits nothing, but two that both gate a command's own policy each ask (a `DirectClient` approval is taken by the first, and the second holds again).
 - **Secrets** must be at least 32 bytes; `create_approval_middleware` returns `Err` otherwise.
 - **Tokens** are bound to the command, the validated input and the actor. They are single-use by default (`with_replay(ApprovalReplay::WithinTtl)` allows repeats) and have a five-minute TTL. Security time comes from the options' `with_clock` only, never the context clock.
 - **Cross-language.** Tokens are byte-compatible with TypeScript's, including `canonical_json`: JavaScript number spelling and UTF-16 key order. An integer beyond 2^53 that a float cannot hold fails the call. See [spec/command-metadata.md](../../../spec/command-metadata.md), "Approvals".

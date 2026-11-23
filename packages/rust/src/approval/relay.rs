@@ -302,6 +302,11 @@ pub(crate) struct UpFrontStep {
     /// The input as sent (after `$input` references are resolved): how the registry finds the
     /// step it is about to run. `None` for a step that never runs on [`UpFrontStep::input`].
     pub(crate) sent: Option<Value>,
+    /// The approval policy of the command, as the server registered it: the approval middleware
+    /// decides each step from it (#1886). `None` for a command the caller cannot run.
+    pub(crate) approval: Option<crate::approval::ApprovalPolicy>,
+    /// The command's confirmation prompt, the default summary of its step.
+    pub(crate) confirm_prompt: Option<String>,
 }
 
 /// An approval the human gave up front, taken once by a step bound to it.

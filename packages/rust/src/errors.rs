@@ -324,8 +324,9 @@ pub mod error_codes {
     /// valid approval token.
     pub const APPROVAL_REQUIRED: &str = "APPROVAL_REQUIRED";
     /// The command declares an approval policy other than `not-required`, and the server has no
-    /// approval step that admitted the call. The Rust engine does not emit it yet; the shared
-    /// catalog lists it.
+    /// approval step that admitted the call, so nothing ran: [`CommandRegistry::execute`](crate::CommandRegistry::execute)
+    /// answers it before the handler, with `details.reason` `no-approval-step` or
+    /// `admission-mismatch`.
     pub const APPROVAL_UNAVAILABLE: &str = "APPROVAL_UNAVAILABLE";
     /// A command's successful result was larger than the call's output budget
     /// (`spec/output-budgets.md`, B5): a read fails with it, a mutation keeps its result and

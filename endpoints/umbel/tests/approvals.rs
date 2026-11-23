@@ -311,6 +311,129 @@ async fn mcp_approvals_off_disables_only_mcp_approvals_and_keeps_cli_enforced() 
     assert_eq!(runs.load(Ordering::SeqCst), 1);
 }
 
+/// A compiled plugin with a `non-human` command and a `require-human` one that also declares
+/// `approval = "required"`.
+struct OffProbe;
+
+impl umbel_sdk::Plugin for OffProbe {
+    fn manifest(&self) -> &'static str {
+        r#"manifest_version = 4
+protocol = 1
+
+[plugin]
+id = "ap"
+title = "Approval probe"
+version = "0.1.0"
+description = "Commands whose own approval policies hold calls."
+kind = "compiled"
+domains = ["ap"]
+
+[[commands]]
+name = "ap-clear"
+description = "Run unless a non-human caller is held."
+effects = ["inspect"]
+input_schema = { type = "object" }
+approval = "non-human"
+
+[[commands]]
+name = "ap-consent"
+description = "Run after a person's confirmation and approval."
+effects = ["inspect"]
+input_schema = { type = "object" }
+approval = "required"
+confirm = "require-human"
+confirm_prompt = "Consent?"
+expose = { mcp = false, agent = false, cli = true }
+"#
+    }
+
+    fn handle(&self, _name: &str, _input: Value, _cx: &mut umbel_sdk::Cx) -> umbel_sdk::Outcome {
+        umbel_sdk::success(json!({ "ran": true }))
+    }
+}
+
+#[tokio::test]
+async fn mcp_approvals_off_runs_a_commands_own_policy_over_mcp_but_not_elsewhere() {
+    // #2029: AFD's approval middleware and the registry both decide from the policy a command is
+    // registered with, so "off" is in that policy, not only in the middleware's list.
+    let dir = workspace(
+        r#"config_version = 7
+default_space = "main"
+
+[spaces.main]
+
+[mcp]
+approvals = "off"
+
+[plugins]
+enabled = ["ap"]
+
+[plugins.ap]
+source = "compiled:ap"
+"#,
+    );
+    let runs = Arc::new(AtomicUsize::new(0));
+    let host = HostBuilder::open(dir.path())
+        .unwrap()
+        .with_compiled(umbel::plugins::sdk(OffProbe))
+        .register(non_human_gated("fixture-clear", Arc::clone(&runs)))
+        .seal()
+        .unwrap();
+
+    // Over MCP, a plugin command's and an embedder's own `non-human` policy hold nothing.
+    let mut client = Client::connect(
+        &host,
+        umbel::testkit::mcp::Transport::Http,
+        umbel::testkit::Era::Modern,
+    )
+    .await;
+    let ran = client.afd_call("ap-clear", json!({})).await;
+    assert_eq!(ran["success"], true, "{ran}");
+    assert_eq!(ran["data"]["ran"], true, "{ran}");
+    let ran = client
+        .call(
+            "afd-call",
+            json!({ "command": "fixture-clear", "input": {}, "confirm": true }),
+        )
+        .await;
+    assert_eq!(ran["success"], true, "{ran}");
+    assert_eq!(runs.load(Ordering::SeqCst), 1);
+
+    // The CLI still holds an agent the policy holds.
+    for (command, input) in [
+        ("ap-clear", json!({})),
+        ("fixture-clear", json!({ "confirm": true })),
+    ] {
+        let held = host
+            .cli_client()
+            .call(
+                command,
+                input,
+                Some(host.context(Actor::new(ActorKind::Agent).with_id("a1"))),
+            )
+            .await;
+        assert!(!held.success, "{command}: {held:?}");
+        assert_eq!(held.error.unwrap().code, "APPROVAL_REQUIRED", "{command}");
+    }
+    assert_eq!(runs.load(Ordering::SeqCst), 1);
+
+    // A `require-human` command keeps its own policy, and an MCP call to it does not run (in mode
+    // `none` it is not on MCP at all).
+    let consent = host.registry().get("ap-consent").unwrap();
+    assert_eq!(
+        afd::approval_mode(consent.approval.as_ref()),
+        Some(afd::ApprovalMode::Required)
+    );
+    let mut mcp = host.context(Actor::new(ActorKind::Agent).with_id("a1"));
+    mcp.interface = Some(afd::CommandInterface::Mcp);
+    let refused = host
+        .registry()
+        .execute("ap-consent", json!({}), Some(mcp))
+        .await;
+    assert!(!refused.success, "{refused:?}");
+    assert_eq!(refused.error.unwrap().code, "COMMAND_NOT_EXPOSED");
+}
+
 async fn send_line(writer: &mut tokio::io::DuplexStream, msg: Value) {
     writer
         .write_all(format!("{msg}\n").as_bytes())

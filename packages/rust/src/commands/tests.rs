@@ -1424,6 +1424,20 @@ async fn a_step_approved_up_front_runs_on_the_input_validated_then() {
             PanickingHandler,
         ))
         .unwrap();
+    // Stands in for the approval step that admitted each step up front (#1886).
+    registry.add_middleware(Arc::new(|name, input, context, next| {
+        if let Some(admission) = &context.approval_admission {
+            admission.admit(
+                0,
+                &name,
+                crate::approval::admission::Decided::of(
+                    crate::canonical::exact(&input).ok(),
+                    &input,
+                ),
+            );
+        }
+        next()
+    }));
     // An input a second validation would not give: the id the human was shown.
     let step = |index: usize, id: &str| UpFrontStep {
         index,
@@ -1431,6 +1445,8 @@ async fn a_step_approved_up_front_runs_on_the_input_validated_then() {
         dynamic: false,
         input: Some(serde_json::json!({ "text": "milk", "id": id })),
         sent: Some(serde_json::json!({ "text": "milk" })),
+        approval: Some(ApprovalPolicy::Required),
+        confirm_prompt: None,
     };
     let mut context = CommandContext::new();
     context.up_front_approval = Some(Arc::new(UpFrontApproval::new(
@@ -1440,13 +1456,16 @@ async fn a_step_approved_up_front_runs_on_the_input_validated_then() {
         vec![
             step(0, "first"),
             step(1, "second"),
-            // A command without an approval policy runs on its own validation.
+            // A command that declares no approval policy runs on it too: an approval
+            // middleware's commands list can gate it.
             UpFrontStep {
                 index: 2,
                 command: "note-list".into(),
                 dynamic: false,
                 input: Some(serde_json::json!({ "id": "kept" })),
                 sent: Some(serde_json::json!({})),
+                approval: None,
+                confirm_prompt: None,
             },
         ],
         Arc::new(ApprovalRelayChannel::never_asks()),
@@ -1489,5 +1508,5 @@ async fn a_step_approved_up_front_runs_on_the_input_validated_then() {
     let listed = registry
         .execute("note-list", serde_json::json!({}), Some(context.clone()))
         .await;
-    assert_eq!(listed.data, Some(serde_json::json!({})));
+    assert_eq!(listed.data, Some(serde_json::json!({ "id": "kept" })));
 }

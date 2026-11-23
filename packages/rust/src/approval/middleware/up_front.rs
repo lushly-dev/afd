@@ -21,7 +21,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use serde_json::{json, Value};
 
-use super::{shown_input, Accepted, Gate};
+use super::{input_not_canonical, shown_input, Accepted, Gate};
 use crate::approval::relay::{
     AcceptedApproval, ApprovalHold, Approved, UpFrontApproval, UpFrontPlan,
 };
@@ -113,7 +113,10 @@ impl Gate {
         if !self.requires_approval(&name, &input, &context).await {
             return next().await;
         }
-        let taken = canonical_json(&input).is_ok_and(|input| {
+        let Ok(input) = canonical_json(&input) else {
+            return failure(input_not_canonical(&name));
+        };
+        let taken = {
             let bindings = self.up_front_bindings(
                 up_front,
                 &name,
@@ -126,7 +129,7 @@ impl Gate {
                 .find(|item| !item.used && bindings.contains(&item.binding))
                 .map(|item| item.used = true)
                 .is_some()
-        });
+        };
         if taken {
             return next().await;
         }
@@ -134,19 +137,10 @@ impl Gate {
     }
 
     async fn decide(&self, up_front: &UpFrontApproval, context: &CommandContext) -> UpFrontPlan {
-        let late = up_front.steps.iter().find(|step| {
-            step.dynamic
-                && self
-                    .options
-                    .commands
-                    .get(&step.command)
-                    .is_some_and(|command| {
-                        !matches!(
-                            command.approval,
-                            None | Some(crate::approval::ApprovalPolicy::NotRequired)
-                        )
-                    })
-        });
+        let late = up_front
+            .steps
+            .iter()
+            .find(|step| step.dynamic && self.may_hold(&step.command, context));
         if let Some(step) = late {
             return UpFrontPlan::Refuse(split_error(up_front.tool, step.index, &step.command));
         }
@@ -162,7 +156,7 @@ impl Gate {
                 continue;
             }
             let Ok(canonical) = canonical_json(input) else {
-                return UpFrontPlan::Refuse(not_plain_json(&step.command));
+                return UpFrontPlan::Refuse(input_not_canonical(&step.command));
             };
             gated.push(Gated {
                 index: step.index,
@@ -396,13 +390,4 @@ fn unplanned_error(tool: &str, command: &str) -> CommandError {
         "summary".to_owned(),
         json!(format!("Run {command}")),
     )]))
-}
-
-fn not_plain_json(command: &str) -> CommandError {
-    CommandError::new(
-        error_codes::COMMAND_EXECUTION_ERROR,
-        format!("The input of {command} cannot be bound to an approval"),
-    )
-    .with_suggestion("Pass plain JSON input: integers within ±2^53")
-    .with_retryable(false)
 }

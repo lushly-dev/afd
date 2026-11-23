@@ -533,11 +533,13 @@ fn every_accept_is_held_and_an_approved_one_is_refused_when_it_cannot_go_ahead()
             "{held}"
         );
     }
-    // Past the approval (a registry with no approval middleware runs the
-    // handler as an approved call does), what cannot go ahead is refused.
+    // Past the approval (a registry with no approval middleware, serving the
+    // command without its policy, runs the handler as an approved call does),
+    // what cannot go ahead is refused.
     let bare = CommandRegistry::new();
-    bare.register(loam_mail::screening::accept(Arc::clone(&fixture.engine)))
-        .unwrap();
+    let mut accept = loam_mail::screening::accept(Arc::clone(&fixture.engine));
+    accept.approval = None;
+    bare.register(accept).unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
