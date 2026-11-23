@@ -540,6 +540,80 @@ describe("a person's binding of a mounted command (phase 4 specification, 8.3; s
 			app: 'work',
 		});
 	});
+
+	it('takes a command journaled before discovery marked `replaced` as replaced when its schema is the bare object (#1673)', async () => {
+		const commands = {
+			// No schema at all: discovery made it `{ type: 'object' }` before step 7 too, then unmarked.
+			'a-omitted': { mutation: false, inputSchema: undefined },
+			// The server's own bare object: indistinguishable from the omitted one in a journal without the flag.
+			'a-bare': { mutation: false, inputSchema: { type: 'object' } },
+			'a-free': { mutation: false, inputSchema: { type: 'object', properties: {} } },
+		};
+		const live = await boot({ work: () => fakeTransport(commands) });
+		await live.kernel.startInstances();
+		const entries: JournalEntry[] = await live.journal.read();
+		await live.kernel.dispose();
+		const refresh = entries.find(({ command }) => command === 'app-instance-refresh');
+		const { catalog } = (refresh as JournalEntry).result.data as {
+			catalog: { commands: Array<Record<string, unknown>> };
+		};
+		// Discovery now always says, so a journal it writes is never read as an old one.
+		const byTool = Object.fromEntries(catalog.commands.map((each) => [each.tool, each]));
+		const tools = ['a-omitted', 'a-bare', 'a-free'];
+		expect(tools.map((tool) => byTool[tool]?.replaced)).toEqual([true, false, false]);
+		const names = tools.map((tool) => String(byTool[tool]?.name));
+		/** Each command's binding, active or not, in a kernel kept after replaying `journal`. */
+		async function activeAfter(journal: JournalEntry[]) {
+			const { kernel } = await replayKernel(journal, {
+				deployment: live.deployment,
+				ports: {
+					...createFixturePorts(live.packages),
+					mountTransport: () => Promise.reject(new Error('No network')),
+				},
+				keep: true,
+			});
+			if (!kernel) throw new Error('No kept kernel');
+			try {
+				const written = await kernel.call('setting-set', {
+					section: 'loam.keybindings',
+					key: 'overrides',
+					value: names.map((command, index) => ({ command, keys: `Mod+Shift+${index + 1}` })),
+					level: 'person',
+				});
+				expect(written.error, JSON.stringify(names)).toBeUndefined();
+				const listed = await kernel.call<{
+					bindings: Array<{ command: string; active: boolean }>;
+				}>('keybinding-list', { all: true });
+				return names.map(
+					(name) => listed.data?.bindings.find(({ command }) => command === name)?.active
+				);
+			} finally {
+				await kernel.dispose();
+			}
+		}
+		// The journal as discovery writes it now: the server's bare object keeps its shortcut, as live.
+		expect(await activeAfter(entries)).toEqual([false, true, true]);
+		// The journal as step 6 wrote it: no command says whether its schema was replaced, so a bare object is taken as
+		// replaced, the omitted one among them; one with keywords of its own was the server's, so its shortcut stays.
+		const before = entries.map((entry) => {
+			if (entry !== refresh) return entry;
+			const old = catalog.commands.map(({ replaced: _replaced, ...rest }) => rest);
+			const data = { ...(entry.result.data as object), catalog: { ...catalog, commands: old } };
+			return { ...entry, result: { ...entry.result, data } } as JournalEntry;
+		});
+		expect(await activeAfter(before)).toEqual([false, false, true]);
+		// The journal as step 7 wrote it, the flag only where true: the server's bare object is taken as replaced too,
+		// the trade-off 8.3's R11 accepts, since no field tells it from step 6's.
+		const step7 = entries.map((entry) => {
+			if (entry !== refresh) return entry;
+			const old = catalog.commands.map(({ replaced, ...rest }) =>
+				replaced === true ? { ...rest, replaced } : rest
+			);
+			const data = { ...(entry.result.data as object), catalog: { ...catalog, commands: old } };
+			return { ...entry, result: { ...entry.result, data } } as JournalEntry;
+		});
+		expect(await activeAfter(step7)).toEqual([false, false, true]);
+	});
 });
 
 describe('parseMountedResult (7.3)', () => {
@@ -1381,6 +1455,34 @@ describe('what a hostile server cannot do with its size or its shape (9.9)', () 
 		expect(catalog.commands.map((command) => command.name)).toEqual(['work-a-long']);
 		expect(catalog.commands[0]?.title).toHaveLength(DISCOVERY_LIMITS.titleChars);
 		expect(catalog.commands[0]?.description).toHaveLength(DISCOVERY_LIMITS.descriptionChars);
+	});
+
+	it('counts each command against the cap as step 7 wrote it, so `replaced: false` takes no room (#1673)', async () => {
+		const bytes = (value: unknown) => new TextEncoder().encode(JSON.stringify(value)).length;
+		const counted = ({ replaced: _replaced, ...rest }: Record<string, unknown>) => bytes(rest);
+		// Fifty commands of exactly an even share of the cap: they fit as counted, and would not with the flag's bytes.
+		const share = DISCOVERY_LIMITS.catalogBytes / 50;
+		const names = Array.from({ length: 50 }, (_, index) => `tool-n${10 + index}`);
+		const probe = await discoverInstance(
+			work(),
+			umbelManifest(),
+			fakeTransport({ [names[0] as string]: { mutation: false, description: '' } })
+		);
+		const overhead = counted(probe.commands[0] as never);
+		const description = 'd'.repeat(share - overhead);
+		const catalog = await discoverInstance(
+			work(),
+			umbelManifest(),
+			fakeTransport(
+				Object.fromEntries(names.map((name) => [name, { mutation: false, description }]))
+			)
+		);
+		expect(catalog.commands.map((command) => counted(command as never))).toEqual(
+			names.map(() => share)
+		);
+		expect(catalog.commands.every((command) => command.replaced === false)).toBe(true);
+		expect(catalog.commands).toHaveLength(50);
+		expect(catalog.warnings.map(({ code }) => code)).not.toContain('MOUNT_CATALOG_TOO_LARGE');
 	});
 
 	it('keeps a catalog small enough to journal whole, so a replay always rebuilds it', async () => {

@@ -141,10 +141,22 @@ const KEEPER_MANIFEST = {
 	ui: { surfaces: { main: { element: 'keeper-main' } } },
 } as unknown as ManifestV2;
 
+/** While set, `keeper-bump` refuses, and says so in `bumpRefused`: a confirmed run that fails (#1672). */
+let bumpRefuses = false;
+let bumpRefused = false;
+
 const KEEPER = defineApp({
 	sdk: 1,
 	handlers: {
 		'keeper-bump': (async (_input: unknown, context: AppCallContextV1) => {
+			if (bumpRefuses) {
+				bumpRefused = true;
+				return failure({
+					code: 'KEEPER_REFUSED',
+					message: 'Keeper refuses',
+					suggestion: 'Ask again',
+				});
+			}
 			const held = (await context.store?.get<number>('count')) ?? 0;
 			await context.store?.put('count', held + 1);
 			return success({ count: held + 1 });
@@ -3866,16 +3878,88 @@ describe('the fifth round', () => {
 		expect(acted.error?.code).not.toBe('KEEPER_REFUSED');
 		const entries = await journal.read();
 		const act = entries.find((entry) => entry.command === 'notification-act') as
-			| (JournalEntry & { unreplayable?: true })
+			| (JournalEntry & { unreplayable?: true; lossy?: true })
 			| undefined;
 		// Its own outcome, the one the person saw, never the action's.
 		expect(act?.result.error?.code).toBe(acted.error?.code);
 		expect(act?.unreplayable).toBe(true);
+		// Lossy, so a replay stops at it rather than compare it (#1672).
+		expect(act?.lossy).toBe(true);
 		const replayed = await replayKernel(entries, { deployment: deployment(), ports: ports() }).then(
 			() => 'same',
 			(error: { code?: string }) => error.code
 		);
 		expect(replayed).toBe('REPLAY_ENTRY_TRUNCATED');
+	});
+
+	it('seventh I2, through the kernel: a failed settle write after a failed confirmed run keeps its own error (#1672)', async () => {
+		const store = new MemoryAdapter();
+		const batch = store.batch.bind(store);
+		/** The confirmation's writes since the run refused: the run's own record of it, then the settle's. */
+		const writes: string[] = [];
+		// The settle's write of the confirmation, after the run refused and recorded so: the store refuses it.
+		store.batch = (async (operations: Array<{ method: string; path: string }>) => {
+			const path = operations.find(
+				(each) => each.method === 'DELETE' && each.path.startsWith('/notification/')
+			)?.path;
+			if (bumpRefused && path !== undefined) {
+				writes.push(path);
+				if (writes.length === 2) {
+					bumpRefused = false;
+					throw new Error('The store refused the settle');
+				}
+			}
+			return batch(operations as never);
+		}) as never;
+		const journal = new MemoryJournalSink();
+		const workspace = await createScopedWorkspace({
+			store,
+			journal,
+			deployment: deployment(),
+			ports: ports(),
+		});
+		kernels.push(workspace.kernel);
+		const { kernel } = workspace;
+		const asked = await kernel.agent.call('keeper-bump');
+		expect(asked.error?.code).toBe('CONFIRMATION_PENDING');
+		bumpRefuses = true;
+		try {
+			const acted = await kernel.call('notification-act', {
+				notification: idOf(asked),
+				answer: 'confirm',
+			});
+			expect(acted.success).toBe(false);
+			// The settle's own failure, not the run's.
+			expect(acted.error?.code).not.toBe('KEEPER_REFUSED');
+			// The run recorded its refusal, and the settle was the write refused.
+			expect(writes).toHaveLength(2);
+			const entries = await journal.read();
+			const run = entries.find((entry) => entry.command === 'keeper-bump' && entry.context?.origin);
+			expect(run?.result.error?.code).toBe('KEEPER_REFUSED');
+			const act = entries.find((entry) => entry.command === 'notification-act');
+			// The act's entry keeps the error the person saw, its own, never the run's.
+			expect(act?.result.error?.code).toBe(acted.error?.code);
+			expect(act?.result.error?.code).not.toBe('KEEPER_REFUSED');
+			// The settle's own entry holds the store's throw, which a replay with a healthy store does not repeat: a
+			// journaled command whose store threw diverges there, whatever the act keeps ([#2300](https://github.com/lushly-dev/afd/issues/2300)).
+			const settle = entries.find(
+				(entry) => entry.command === 'prompt-settle' && !entry.result.success
+			);
+			expect(settle?.result.error?.code).toBe(acted.error?.code);
+			// Today the replay diverges at that entry; once #2300 marks it lossy, it stops there instead.
+			const replayed = await replayKernel(entries, {
+				deployment: deployment(),
+				ports: ports(),
+			}).then(
+				() => 'same',
+				(error: { code?: string; details?: { firstDifference?: { seq?: number } } }) =>
+					`${error.code} ${error.details?.firstDifference?.seq}`
+			);
+			expect(replayed).toBe(`REPLAY_DIVERGED ${(settle as JournalEntry).seq}`);
+		} finally {
+			bumpRefuses = false;
+			bumpRefused = false;
+		}
 	});
 
 	it('ninth (Opus I3): a fill whose journaled target started but left no entry keeps the least, lossy', () => {

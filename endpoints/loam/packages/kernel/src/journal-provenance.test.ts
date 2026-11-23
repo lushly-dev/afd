@@ -96,4 +96,30 @@ describe('the journal provenance', () => {
 			).result.data
 		).toEqual({ state: 'done', result: { notifications: [] } });
 	});
+
+	it("(#1672) drops a nested settle's act result, which no provenance vouches for, in a fill's target and a notice's action", () => {
+		const settle = {
+			settle: {
+				id: 'ntf_aaaaaaaaaaaaaaaa',
+				person: 'ada',
+				command: 'notification-act',
+				state: 'confirmed',
+				result: { success: true, data: { state: 'done', result: { secret: 'kept?' } } },
+			},
+		};
+		const nested = { command: 'prompt-settle', input: settle };
+		for (const [command, input] of [
+			['palette-run', nested],
+			['notification-push', { title: 'x', action: { label: 'Go', ...nested } }],
+		] as const) {
+			const done = redactWrapped(
+				{ ...entry({}, undefined), command, input, result: { success: true } } as JournalRecord,
+				(each) => each,
+				() => true
+			);
+			expect(JSON.stringify(done.input), command).not.toContain('kept?');
+			// The act's own part stays: its state, never its action's result.
+			expect(JSON.stringify(done.input), command).toContain('"data":{"state":"done"}');
+		}
+	});
 });
