@@ -54,6 +54,7 @@ export {
 	type DirectRegistry,
 	DirectTransport,
 	isUnknownToolError,
+	type OutputBudgetAsk,
 	type UnknownToolError,
 } from './direct.js';
 // Built-in protocol handlers

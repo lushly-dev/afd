@@ -273,6 +273,14 @@ const HOST_IMPORTS =
  *   bringing the host, approval, and tool-surface bundles on `main` at `e28d5629` to 43,852 /
  *   57,532 / 79,726 bytes (raised 43,700 → 44,000, 57,400 → 57,700, 79,700 → 79,900); every-export
  *   stays within 119,500.
+ *   TypeScript output budgets (#1989, under D115, owner-approved 2026-11-22): `output-budget.ts` in
+ *   `@lushly-dev/afd-core` and `packages/server/src/output-budget.ts`, wired into `define-core.ts`,
+ *   `execution.ts`, `direct-registry.ts`, `direct-tool-surface.ts` (including `assertToolMeta` so
+ *   forged `dev.afd/outputBudget` `toolMeta` is refused on the direct tool surface), `journal*.ts`
+ *   and `meta-argument.ts` with zero Node built-ins, MCP SDK or `ErrorCodes` imports, bring the
+ *   host, approval, tool-surface and every-export bundles on `main` at `11331eca6` (esbuild 0.28.2)
+ *   from 43,852 / 57,532 / 79,726 / 104,974 bytes to 48,004 / 61,680 / 85,910 / 111,387 bytes
+ *   (raised 44,000 → 48,400, 57,700 → 62,100, 79,900 → 86,300; every-export stays within 119,500).
  * - 48.0 KB for a host that also imports `createApprovalMiddleware`.
  * - 68.6 KB for a host that also imports `createDirectToolSurface`: the router, the tool
  *   list, the meta-tools, `lazy-tools` and `bootstrap/`.
@@ -285,17 +293,17 @@ const DIRECT_BUDGETS = [
 	{
 		what: 'a host that imports the registry, the journal and defineCommand',
 		imports: HOST_IMPORTS,
-		bytes: 44_000,
+		bytes: 48_400,
 	},
 	{
 		what: 'the same host with the approval middleware',
 		imports: `${HOST_IMPORTS}, createApprovalMiddleware`,
-		bytes: 57_700,
+		bytes: 62_100,
 	},
 	{
 		what: 'a host with the tool surface',
 		imports: `${HOST_IMPORTS}, createDirectToolSurface`,
-		bytes: 79_900,
+		bytes: 86_300,
 	},
 	{ what: 'every export', imports: undefined, bytes: 119_500 },
 ];

@@ -10,6 +10,23 @@ import type { ApprovalPolicy } from './approval.js';
 import type { BatchRequest, BatchResult } from './batch.js';
 import type { Clock, RandomSource } from './clock.js';
 import { type CommandToolMeta, commandToolMeta } from './command-metadata.js';
+import {
+	AFD_OUTPUT_BUDGET_META_KEY,
+	MAX_OUTPUT_BUDGET_BYTES,
+	type OutputBudget,
+	type OutputBudgetAsk,
+	type OutputBudgetReport,
+	validateOutputBudget,
+} from './output-budget.js';
+
+export {
+	AFD_OUTPUT_BUDGET_META_KEY,
+	MAX_OUTPUT_BUDGET_BYTES,
+	type OutputBudget,
+	type OutputBudgetAsk,
+	type OutputBudgetReport,
+	validateOutputBudget,
+};
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // COMMAND NAME VALIDATION
@@ -363,6 +380,14 @@ export interface CommandDefinition<TInput = unknown, TOutput = unknown> {
 	 * `'not-required'`, or `confirmationMode`. Reported in `_meta.task` and `afd-detail`.
 	 */
 	task?: TaskSupport;
+
+	/**
+	 * Declared output budget in UTF-8 bytes of canonical JSON without `metadata`
+	 * (`spec/output-budgets.md`, B1). Validated at definition/registration; reported as
+	 * `_meta["dev.afd/outputBudget"]` on command tools and grouped action entries, and as
+	 * `outputBudget` in `afd-detail` and `afd-help` (`full`).
+	 */
+	outputBudget?: OutputBudget;
 }
 
 /**
@@ -426,6 +451,13 @@ export interface CommandContext {
 	 * Updates the task's `statusMessage` and `lastUpdatedAt`; undefined outside a task.
 	 */
 	reportProgress?: (message: string) => void;
+
+	/**
+	 * The call's effective output budget in bytes (`spec/output-budgets.md`, B4): set by the
+	 * execution engine before middleware and the handler run (`min(ask, maxBytes)` or
+	 * `defaultBytes`), or `undefined` when the command declares no output budget.
+	 */
+	outputBudget?: number;
 
 	/** Custom context values */
 	[key: string]: unknown;
@@ -608,7 +640,11 @@ export function createCommandRegistry(options: CommandRegistryOptions = {}): Com
 					}
 				}
 			}
-			commands.set(command.name, command as CommandDefinition);
+			const entry =
+				command.outputBudget !== undefined
+					? { ...command, outputBudget: validateOutputBudget(command.outputBudget, command.name) }
+					: command;
+			commands.set(entry.name, entry as CommandDefinition);
 		},
 
 		get(name) {

@@ -26,7 +26,8 @@
  */
 
 import type { CommandContext, ExposeOptions } from '@lushly-dev/afd-core';
-import { isMcpExposed } from '@lushly-dev/afd-core';
+import { AFD_OUTPUT_BUDGET_META_KEY, isMcpExposed } from '@lushly-dev/afd-core';
+import type { OutputBudgetAsk } from '@lushly-dev/afd-core/commands';
 import { directAllows } from '@lushly-dev/afd-core/internal/direct-allow';
 import { createContextCommands, getBootstrapCommands } from './bootstrap/registry.js';
 import { filterAllowed } from './command-allow.js';
@@ -41,6 +42,7 @@ import {
 	liftMetaArgument,
 	metaArgumentKeys,
 } from './meta-argument.js';
+import { assertToolMeta } from './meta-keys.js';
 import { META_TOOL_NAMES } from './meta-tools.js';
 import type { ZodCommandDefinition } from './schema.js';
 import type { ToolStrategy } from './server-types.js';
@@ -111,6 +113,9 @@ export function createDirectToolSurface(options: DirectToolSurfaceOptions = {}):
 
 		attach(host: DirectToolHost): DirectToolBinding {
 			assertValidCommandNames(host.commands, { bootstrap, contexts: host.contexts.length > 0 });
+			for (const command of host.commands) {
+				assertToolMeta(command.name, command.toolMeta);
+			}
 			const metaKeys = metaArgumentKeys(host.contextFields);
 			const expose = { mcp: true, [host.interface]: true } as ExposeOptions;
 			const builtins: ZodCommandDefinition[] = [];
@@ -167,16 +172,19 @@ export function createDirectToolSurface(options: DirectToolSurfaceOptions = {}):
 					return META_TOOL_NAMES.includes(name) || (groups.has(name) && !names.has(name));
 				},
 
-				liftMetaArgument(name, input, context, activeContext) {
+				liftMetaArgument(name, input, context, activeContext, outputBudget) {
 					const lifted = liftMetaArgument(
 						name,
 						input,
-						inProcessMeta(host.contextFields, context, activeContext),
+						inProcessMeta(host.contextFields, context, activeContext, outputBudget),
 						metaKeys
 					);
 					if (!lifted.ok) return lifted;
 					const meta = lifted.meta as Record<string, unknown>;
 					const requested = meta[CONTEXT_META_KEY];
+					const liftedBudget = Object.hasOwn(meta, AFD_OUTPUT_BUDGET_META_KEY)
+						? (meta[AFD_OUTPUT_BUDGET_META_KEY] as OutputBudgetAsk | undefined)
+						: outputBudget;
 					return {
 						ok: true,
 						input: lifted.args,
@@ -188,6 +196,7 @@ export function createDirectToolSurface(options: DirectToolSurfaceOptions = {}):
 								: typeof requested === 'string'
 									? requested
 									: JSON.stringify(requested),
+						outputBudget: liftedBudget,
 					};
 				},
 

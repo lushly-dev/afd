@@ -280,13 +280,13 @@ The file's sections and what a loader checks:
 
 | Rule | TypeScript | Python | Rust | C++ |
 | --- | --- | --- | --- | --- |
-| Declaration and its surfaces (B1) | Planned | Yes (#1990) | Yes (Umbel phase 2 step 0b) | Yes ([#1991](https://github.com/lushly-dev/afd/issues/1991)) |
-| The ask over MCP and in process (B2, B3) | Planned | Yes (#1990) | Yes (step 0b) | Yes (in process and `afd::mcp_stdio`, both eras; [#1991](https://github.com/lushly-dev/afd/issues/1991)) |
-| Effective budget in the context (B4) | Planned | Yes (#1990) | Yes (step 0b) | Yes ([#1991](https://github.com/lushly-dev/afd/issues/1991)) |
-| Check, replacement, warning and report (B5, B6) | Planned | Yes (#1990) | Yes (step 0b) | Yes ([#1991](https://github.com/lushly-dev/afd/issues/1991)) |
-| Batches and pipelines (B7) | Planned | Yes (#1990) | Yes (step 0b) | Yes ([#1991](https://github.com/lushly-dev/afd/issues/1991)) |
-| Journal and replay (B8) | Planned | Yes (#1990) | Yes (step 0b) | Yes ([#1991](https://github.com/lushly-dev/afd/issues/1991)) |
-| Loads [`output-budgets.json`](./output-budgets.json) | Planned | Yes (#1990) | Yes (step 0b) | Yes (`tests/output_budget_test.cpp`; skips lone-surrogate measure case; [#1991](https://github.com/lushly-dev/afd/issues/1991)) |
+| Declaration and its surfaces (B1) | Yes (#1989) | Yes (#1990) | Yes (Umbel phase 2 step 0b) | Yes ([#1991](https://github.com/lushly-dev/afd/issues/1991)) |
+| The ask over MCP and in process (B2, B3) | Yes (#1989) | Yes (#1990) | Yes (step 0b) | Yes (in process and `afd::mcp_stdio`, both eras; [#1991](https://github.com/lushly-dev/afd/issues/1991)) |
+| Effective budget in the context (B4) | Yes (#1989) | Yes (#1990) | Yes (step 0b) | Yes ([#1991](https://github.com/lushly-dev/afd/issues/1991)) |
+| Check, replacement, warning and report (B5, B6) | Yes (#1989) | Yes (#1990) | Yes (step 0b) | Yes ([#1991](https://github.com/lushly-dev/afd/issues/1991)) |
+| Batches and pipelines (B7) | Yes (#1989) | Yes (#1990) | Yes (step 0b) | Yes ([#1991](https://github.com/lushly-dev/afd/issues/1991)) |
+| Journal and replay (B8) | Yes (#1989) | Yes (#1990) | Yes (step 0b) | Yes ([#1991](https://github.com/lushly-dev/afd/issues/1991)) |
+| Loads [`output-budgets.json`](./output-budgets.json) | Yes (#1989) | Yes (#1990) | Yes (step 0b) | Yes (`tests/output_budget_test.cpp`; skips lone-surrogate measure case; [#1991](https://github.com/lushly-dev/afd/issues/1991)) |
 
 Rust implements output budgets (Umbel phase 2 step 0b): `packages/rust` `src/output_budget.rs`, with
 `tests/output_budget.rs` loading every case of [`output-budgets.json`](./output-budgets.json) in

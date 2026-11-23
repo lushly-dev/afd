@@ -50,9 +50,15 @@ export type {
 	CommandResult,
 	ExposeOptions,
 	JsonSchema,
+	OutputBudget,
 	TaskSupport,
 } from '@lushly-dev/afd-core';
-export { defaultExpose } from '@lushly-dev/afd-core/commands';
+export type { OutputBudgetAsk, OutputBudgetReport } from '@lushly-dev/afd-core/commands';
+export {
+	AFD_OUTPUT_BUDGET_META_KEY,
+	defaultExpose,
+	MAX_OUTPUT_BUDGET_BYTES,
+} from '@lushly-dev/afd-core/commands';
 export { error, failure, isFailure, isSuccess, success } from '@lushly-dev/afd-core/result';
 export {
 	defineCommandWithSchema,

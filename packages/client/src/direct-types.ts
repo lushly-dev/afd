@@ -12,6 +12,7 @@ import type {
 	McpTool,
 	RandomSource,
 } from '@lushly-dev/afd-core';
+import type { OutputBudgetAsk } from '@lushly-dev/afd-core/commands';
 import type { CommandDefinition } from './direct-validation.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -169,6 +170,14 @@ export interface DirectCallContext {
 	activeContext?: string;
 
 	/**
+	 * Per-call output budget ask (`spec/output-budgets.md`, B2): `{ maxBytes }`, standing for
+	 * `_meta["dev.afd/outputBudget"]`. Validated in its B2 shape before client middleware runs
+	 * and passed to the registry as the `outputBudget` call option beside the command context;
+	 * `pipe()` forwards it to every step, and an approval retry keeps it.
+	 */
+	outputBudget?: OutputBudgetAsk;
+
+	/**
 	 * Additional custom context values. `approval` is reserved and stripped at runtime.
 	 */
 	[key: string]: unknown;
@@ -185,6 +194,9 @@ export interface DirectExecuteOptions {
 	 * those a meta-tool or grouped tool reaches, and refuses the rest with `COMMAND_NOT_ALLOWED`.
 	 */
 	allow?: (command: string) => boolean;
+
+	/** Per-call output budget ask (`spec/output-budgets.md`, B2); see {@link DirectCallContext.outputBudget}. */
+	outputBudget?: OutputBudgetAsk;
 }
 
 /** Options of `DirectRegistry.listTools` and `DirectClient.listTools`. */

@@ -1,6 +1,7 @@
 /** Shared MCP metadata reporting rules for command definitions and server tools. */
 import { type ApprovalDecision, type ApprovalPolicy, approvalMode } from './approval.js';
 import type { CommandDefinition, JsonSchema } from './commands.js';
+import { AFD_OUTPUT_BUDGET_META_KEY, type OutputBudget } from './output-budget.js';
 
 type MetadataFields = Pick<
 	CommandDefinition,
@@ -23,6 +24,8 @@ export type CommandToolMeta = MetadataFields & {
 	// A mapped object retains schema field types and is structurally compatible with
 	// MCP's existing Record<string, unknown> metadata contract.
 	outputSchema?: { [Key in keyof JsonSchema]: JsonSchema[Key] };
+	/** Declared output budget (`spec/output-budgets.md`, B1). */
+	[AFD_OUTPUT_BUDGET_META_KEY]?: OutputBudget;
 };
 
 /**
@@ -30,7 +33,10 @@ export type CommandToolMeta = MetadataFields & {
  * command's extra `toolMeta` entries are emitted beside the server's own.
  */
 export function commandToolMeta(
-	command: MetadataFields & { approval?: ApprovalPolicy<never> },
+	command: MetadataFields & {
+		approval?: ApprovalPolicy<never>;
+		outputBudget?: OutputBudget;
+	},
 	outputSchema?: JsonSchema
 ): CommandToolMeta | undefined {
 	const approval = approvalMode(command.approval);
@@ -49,6 +55,12 @@ export function commandToolMeta(
 		...(command.contexts?.length && { contexts: command.contexts }),
 		...(command.scopes?.length && { scopes: command.scopes }),
 		...(command.task != null && { task: command.task }),
+		...(command.outputBudget && {
+			[AFD_OUTPUT_BUDGET_META_KEY]: {
+				defaultBytes: command.outputBudget.defaultBytes,
+				maxBytes: command.outputBudget.maxBytes,
+			},
+		}),
 	};
 	return Object.keys(meta).length > 0 ? meta : undefined;
 }

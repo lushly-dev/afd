@@ -113,6 +113,12 @@ export function createAfdDocsCommand(
 						lines.push(`**Approval:** ${approval}`);
 						lines.push('');
 					}
+					if (cmd.outputBudget) {
+						lines.push(
+							`**Output budget:** default ${cmd.outputBudget.defaultBytes} bytes, max ${cmd.outputBudget.maxBytes} bytes`
+						);
+						lines.push('');
+					}
 
 					// Parameters
 					const parameters =

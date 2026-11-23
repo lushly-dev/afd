@@ -78,6 +78,11 @@ export interface JournalEntry {
 	context?: Record<string, unknown>;
 	/** The names of such fields whose value was too large to keep, sorted. Omitted when none. */
 	contextOmitted?: string[];
+	/**
+	 * The call's effective output budget in bytes (`spec/output-budgets.md`, B8). Omitted when
+	 * the call had none.
+	 */
+	outputBudget?: number;
 	/** The command result, metadata included. */
 	result: CommandResult;
 	/** Wall time of the call through the rest of the middleware chain, from `context.clock`. */
@@ -248,9 +253,16 @@ export async function createContextDigest(
 	const actor = journalActor(context.actor);
 	const iface = typeof context.interface === 'string' ? context.interface : undefined;
 	const traceId = typeof context.traceId === 'string' ? context.traceId : undefined;
+	const outputBudget =
+		typeof context.outputBudget === 'number' &&
+		Number.isSafeInteger(context.outputBudget) &&
+		context.outputBudget >= 1
+			? context.outputBudget
+			: undefined;
 	const recorded = new Set([
 		...Object.keys(journaled.context ?? {}),
 		...(journaled.contextOmitted ?? []),
+		...(outputBudget !== undefined ? ['outputBudget'] : []),
 	]);
 	const keys = Object.keys(context)
 		.filter((key) => !ALLOWLISTED_KEYS.has(key) && !recorded.has(key) && context[key] !== undefined)
@@ -262,6 +274,7 @@ export async function createContextDigest(
 			...(journaled.contextOmitted ? { contextOmitted: journaled.contextOmitted } : {}),
 			interface: iface ?? null,
 			keys,
+			...(outputBudget !== undefined ? { outputBudget } : {}),
 			traceId: traceId ?? null,
 		})
 	);
@@ -313,7 +326,9 @@ export function isJournalEntry(value: unknown): value is JournalEntry {
 			(!!entry.context && typeof entry.context === 'object' && !Array.isArray(entry.context))) &&
 		(entry.contextOmitted === undefined ||
 			(Array.isArray(entry.contextOmitted) &&
-				entry.contextOmitted.every((name) => typeof name === 'string')))
+				entry.contextOmitted.every((name) => typeof name === 'string'))) &&
+		(entry.outputBudget === undefined ||
+			(Number.isSafeInteger(entry.outputBudget) && (entry.outputBudget as number) >= 1))
 	);
 }
 

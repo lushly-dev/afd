@@ -34,6 +34,7 @@ import type {
 	RandomSource,
 } from '@lushly-dev/afd-core';
 import { failure, isExposedTo as isCoreExposedTo, truncateName } from '@lushly-dev/afd-core';
+import { type OutputBudgetAsk, validateOutputBudget } from '@lushly-dev/afd-core/commands';
 import { commandNotAllowed } from '@lushly-dev/afd-core/internal/direct-allow';
 import {
 	createDirectApprovalExchange,
@@ -45,6 +46,7 @@ import { type ContextField, checkContextFields } from './context-fields.js';
 import { bindContextState, type ContextState, createContextState } from './context-scope.js';
 import { createExecutionEngine } from './execution.js';
 import type { McpToolDefinition } from './meta-tools.js';
+import { bindOutputBudgetAsk, SKIP_OUTPUT_BUDGET } from './output-budget.js';
 import type { ZodCommandDefinition } from './schema.js';
 import type { ContextConfig, ToolStrategy } from './server-types.js';
 
@@ -143,6 +145,13 @@ export interface DirectExecuteOptions {
 	 * exposed command runs.
 	 */
 	allow?: (command: string) => boolean;
+
+	/**
+	 * Per-call output budget ask (`spec/output-budgets.md`, B2): `{ maxBytes }`, standing for
+	 * `_meta["dev.afd/outputBudget"]`. Validated before middleware and the handler run; clamped
+	 * to the command's declared `maxBytes` (or ignored after validation for unbudgeted commands).
+	 */
+	outputBudget?: OutputBudgetAsk;
 }
 
 /** Options of {@link DirectCommandRegistry.listTools}. */
@@ -202,9 +211,16 @@ export interface DirectToolBinding {
 		name: string,
 		input: unknown,
 		context: CommandContext,
-		activeContext: string | undefined
+		activeContext: string | undefined,
+		outputBudget?: OutputBudgetAsk
 	):
-		| { ok: true; input: unknown; context: CommandContext; activeContext: string | undefined }
+		| {
+				ok: true;
+				input: unknown;
+				context: CommandContext;
+				activeContext: string | undefined;
+				outputBudget?: OutputBudgetAsk;
+		  }
 		| { ok: false; error: CommandError };
 	/**
 	 * The tool list of an MCP server with the same commands, contexts and strategy, narrowed to
@@ -362,7 +378,11 @@ export function createDirectRegistry(
 		if (registered.has(command.name)) {
 			throw new Error(`Duplicate command name: ${command.name}`);
 		}
-		registered.set(command.name, command);
+		const entry =
+			command.outputBudget !== undefined
+				? { ...command, outputBudget: validateOutputBudget(command.outputBudget, command.name) }
+				: command;
+		registered.set(entry.name, entry);
 	};
 	for (const command of commands) register(command);
 
@@ -418,11 +438,11 @@ export function createDirectRegistry(
 			callOptions: DirectExecuteOptions = {}
 		): Promise<CommandResult<T>> {
 			const { allow } = callOptions;
-			let { activeContext } = callOptions;
+			let { activeContext, outputBudget } = callOptions;
 			if (tools && !exposed.has(name) && tools.routes(name)) {
-				const lifted = tools.liftMetaArgument(name, input, context, activeContext);
+				const lifted = tools.liftMetaArgument(name, input, context, activeContext, outputBudget);
 				if (!lifted.ok) return failure(lifted.error);
-				({ input, context, activeContext } = lifted);
+				({ input, context, activeContext, outputBudget } = lifted);
 			}
 			if (activeContext !== undefined && !contextNames.has(activeContext)) {
 				return failure({
@@ -455,9 +475,15 @@ export function createDirectRegistry(
 			const supplied = directApprovalExchange(context);
 			const exchange = supplied ?? createDirectApprovalExchange();
 			try {
-				const scoped = exchange.bind(
+				let scoped = exchange.bind(
 					bindContextState({ ...allowed, interface: iface }, callContextState(activeContext))
 				);
+				if (outputBudget !== undefined) {
+					scoped = bindOutputBudgetAsk(scoped, outputBudget);
+				}
+				if ((context as unknown as Record<symbol, unknown>)[SKIP_OUTPUT_BUDGET]) {
+					Object.defineProperty(scoped, SKIP_OUTPUT_BUDGET, { value: true });
+				}
 				if (tools && !exposed.has(name) && tools.routes(name)) {
 					return (await tools.callTool(name, input, scoped)) as CommandResult<T>;
 				}

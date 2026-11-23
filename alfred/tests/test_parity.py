@@ -897,7 +897,10 @@ NAME_GAP_BUDGET = {
     # stayed at 76 after the measured count fell to 72 (docs/language-parity.md).
     # 77 → 73 (#547): TelemetryEvent, TelemetrySink, create_telemetry_event and is_telemetry_event
     # in afd/telemetry.hpp close the 4 telemetry core-export gaps.
-    "missing_from_cpp": 73,
+    # 73 → 74 (#1989): OutputBudget, AFD_OUTPUT_BUDGET_META_KEY, MAX_OUTPUT_BUDGET_BYTES in
+    # TypeScript (Python #2186 and Rust export all three; C++ #2187 exports OutputBudget and
+    # MAX_OUTPUT_BUDGET_BYTES, using output_budget_meta_key without the afd_ prefix).
+    "missing_from_cpp": 74,
 }
 
 # Exports every language must have; if one disappears the parser is broken.

@@ -13,6 +13,7 @@ import {
 	failure,
 	isMcpExposed,
 } from '@lushly-dev/afd-core';
+import { validateOutputBudget } from '@lushly-dev/afd-core/commands';
 import { callNotGranted } from '@lushly-dev/afd-core/internal/app-calls';
 import { upFrontApproval } from './approval-relay.js';
 import { createContextCommands, getBootstrapCommands } from './bootstrap/registry.js';
@@ -102,9 +103,15 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 	const firstClassTools = options.firstClassTools ? [...options.firstClassTools] : undefined;
 
 	assertValidCommandNames(commands, { bootstrap, contexts: Boolean(contexts?.length) });
-	// A command built by hand skips `defineCommand`'s check; registration refuses a bad key too.
-	for (const command of commands) assertToolMeta(command.name, command.toolMeta);
-	assertValidTaskCommands(commands);
+	// A command built by hand skips `defineCommand`'s check; registration refuses a bad key or budget
+	// and snapshots the validated budget so later mutation of the input object cannot alter it.
+	const validatedCommands = commands.map((command) => {
+		assertToolMeta(command.name, command.toolMeta);
+		return command.outputBudget !== undefined
+			? { ...command, outputBudget: validateOutputBudget(command.outputBudget, command.name) }
+			: command;
+	});
+	assertValidTaskCommands(validatedCommands);
 	// Resource entries and the skill catalog are checked now, so a bad one stops the server from
 	// being built. Their results do not vary by context, so contexts leave the TTL alone.
 	const resourcesTtlMs = options.toolsListTtlMs ?? DEFAULT_TOOLS_LIST_TTL_MS;
@@ -135,7 +142,7 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 			})
 		: undefined;
 
-	const registeredCommands = [...commands];
+	const registeredCommands = [...validatedCommands];
 	if (contextState && contexts) {
 		for (const command of createContextCommands(contexts, contextState)) {
 			if (registeredCommands.some((existing) => existing.name === command.name)) {

@@ -407,3 +407,71 @@ describe('DirectClient failures instead of rejections', () => {
 		});
 	});
 });
+
+describe('DirectClient outputBudget option', () => {
+	it('forwards valid outputBudget as a call option without leaking it onto command context', async () => {
+		const seen: Array<{ context: CommandContext | undefined; options: unknown }> = [];
+		const registry: DirectRegistry = {
+			async execute<T>(
+				_name: string,
+				_input?: unknown,
+				context?: CommandContext,
+				options?: unknown
+			) {
+				seen.push({ context, options });
+				return { success: true, data: {} } as CommandResult<T>;
+			},
+			listCommandNames: () => ['doc-search'],
+			listCommands: () => [{ name: 'doc-search', description: 'Search' }],
+			hasCommand: (name) => name === 'doc-search',
+		};
+		const client = createDirectClient(registry);
+
+		await client.call('doc-search', {}, { outputBudget: { maxBytes: 128 } });
+		expect(seen[0]?.options).toEqual({ outputBudget: { maxBytes: 128 } });
+		expect(seen[0]?.context?.outputBudget).toBeUndefined();
+
+		await client.call('doc-search', {}, { outputBudget: null as unknown as undefined });
+		expect(seen[1]?.options).toBeUndefined();
+
+		await client.call('doc-search', {});
+		expect(seen[2]?.options).toBeUndefined();
+
+		await client.pipe([{ command: 'doc-search', input: {} }], { outputBudget: { maxBytes: 96 } });
+		expect(seen[3]?.options).toEqual({ outputBudget: { maxBytes: 96 } });
+	});
+
+	it('rejects invalid outputBudget shapes (including bare numbers) before client middleware runs', async () => {
+		let middlewareCalls = 0;
+		let registryCalls = 0;
+		const registry: DirectRegistry = {
+			async execute<T>() {
+				registryCalls++;
+				return { success: true, data: {} } as CommandResult<T>;
+			},
+			listCommandNames: () => ['doc-search'],
+			listCommands: () => [{ name: 'doc-search', description: 'Search' }],
+			hasCommand: (name) => name === 'doc-search',
+		};
+		const client = createDirectClient(registry, {
+			middleware: [
+				async (_name, _input, _context, next) => {
+					middlewareCalls++;
+					return next();
+				},
+			],
+		});
+
+		for (const bad of [100, { maxBytes: 0 }, { maxBytes: -1 }, { maxBytes: 1.5 }, {}, '100']) {
+			const res = await client.call('doc-search', {}, { outputBudget: bad as never });
+			expect(res.success).toBe(false);
+			expect(res.error?.code).toBe('VALIDATION_ERROR');
+			expect(res.error?.details).toEqual({
+				field: 'outputBudget',
+				meta: 'dev.afd/outputBudget',
+			});
+		}
+		expect(middlewareCalls).toBe(0);
+		expect(registryCalls).toBe(0);
+	});
+});
