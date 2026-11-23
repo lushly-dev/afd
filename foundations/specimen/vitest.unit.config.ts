@@ -24,6 +24,7 @@ export const browserSuites = [
 	'src/lifecycle.test.ts',
 	'src/themes-bench.test.ts',
 	'src/pack-run.test.ts',
+	'src/pick.test.ts',
 	'src/targets.test.ts',
 ];
 
@@ -35,6 +36,7 @@ export default defineConfig({
 			...base.test?.coverage,
 			// Browser-free suites exercise only these modules; browser modules are measured by test:browser.
 			include: [
+				'src/climb.ts',
 				'src/diff.ts',
 				'src/evidence.ts',
 				'src/guide-coverage.ts',
@@ -45,6 +47,7 @@ export default defineConfig({
 				'src/pack-files.ts',
 				'src/pack-schema.ts',
 				'src/png.ts',
+				'src/pointer.ts',
 				'src/themes.ts',
 				'src/validate.ts',
 			],

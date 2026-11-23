@@ -299,13 +299,13 @@ await writeFile(
 	join(nativeRoot, 'runtime.mjs'),
 	`import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
-import { createSpecimenBench, diffObservations, normalizeDom, CAPTURE_VERSION, NORMALIZATION_VERSION } from '@lushly-dev/specimen';
+import { createSpecimenBench, diffObservations, formatPointer, normalizeDom, parsePointer, CAPTURE_VERSION, NORMALIZATION_VERSION } from '@lushly-dev/specimen';
 import * as root from '@lushly-dev/specimen';
 import * as types from '@lushly-dev/specimen/types';
 import { contextSchema, captureRequestSchema, observationSchema, buildOutputSchema } from '@lushly-dev/specimen/schema';
 import * as schema from '@lushly-dev/specimen/schema';
 import * as evidence from '@lushly-dev/specimen/evidence';
-assert.deepEqual(Object.keys(root).sort(), ['CAPTURE_VERSION', 'DEFAULT_STORY_FILES', 'DEFAULT_THEME_THRESHOLD', 'DiscoveryError', 'NORMALIZATION_VERSION', 'THEME_TAGS', 'UNSUPPORTED_ANNOTATIONS', 'composeTokenMaps', 'createSpecimenBench', 'declaredThemes', 'defineGuideSource', 'definePlugin', 'diffObservations', 'finiteValues', 'normalizeDom', 'normalizeSpecifier', 'readManifest']);
+assert.deepEqual(Object.keys(root).sort(), ['CAPTURE_VERSION', 'DEFAULT_PIN', 'DEFAULT_STORY_FILES', 'DEFAULT_THEME_THRESHOLD', 'DiscoveryError', 'INTERACTIVE_ROLES', 'MAX_POINTER_TEXT_LENGTH', 'NORMALIZATION_VERSION', 'POINTER_INVALID', 'PointerError', 'THEME_TAGS', 'UNSUPPORTED_ANNOTATIONS', 'climbElement', 'climbObservation', 'climbSelection', 'composeTokenMaps', 'createSpecimenBench', 'declaredThemes', 'defineGuideSource', 'definePlugin', 'diffObservations', 'domAccessibleNameOf', 'domClimbNode', 'domRoleOf', 'elementRef', 'finiteValues', 'formatPointer', 'isDescendantOf', 'isMeaningfulNode', 'isValidElementRef', 'normalizeDom', 'normalizeSpecifier', 'observationClimbTree', 'parentOrHost', 'parsePointer', 'readManifest', 'resolveElementRef']);
 assert.deepEqual(Object.keys(types).sort(), ['CAPTURE_VERSION', 'NORMALIZATION_VERSION']);
 assert.deepEqual(Object.keys(schema).sort(), ['a11yRequestSchema', 'a11yRunSchema', 'baselineRequestSchema', 'buildOutputSchema', 'captureRequestSchema', 'componentSchemaSchema', 'contextSchema', 'contractRequestSchema', 'contractRunSchema', 'coverageRequestSchema', 'coverageRunSchema', 'inspectRequestSchema', 'inspectResultSchema', 'matrixRequestSchema', 'matrixRunSchema', 'migrateRequestSchema', 'migrationReportSchema', 'observationSchema', 'packCheckRunSchema', 'packExportRequestSchema', 'packExportRunSchema', 'packRequestSchema', 'packRunSchema', 'profileRequestSchema', 'profileRunSchema', 'runRequestSchema', 'storyRunSchema', 'suggestRequestSchema', 'suggestRunSchema', 'suiteRequestSchema', 'suiteRunSchema', 'themeSupportSchema', 'themesRequestSchema', 'themesRunSchema']);
 assert.deepEqual(Object.keys(evidence), ['claim']);
@@ -323,6 +323,7 @@ setCustomElementsManifest({ modules: [] });
 assert.equal(CAPTURE_VERSION, '0.9');
 assert.equal(NORMALIZATION_VERSION, '0.2');
 assert.equal(typeof normalizeDom('<div> hello </div>'), 'string');
+assert.equal(parsePointer(formatPointer({ specimen: 'example', ref: 'root/div:1' })).specimen, 'example');
 assert(captureRequestSchema.safeParse({ id: 'primary' }).success);
 assert(!captureRequestSchema.safeParse({ id: '' }).success);
 assert(!contextSchema.safeParse({}).success);

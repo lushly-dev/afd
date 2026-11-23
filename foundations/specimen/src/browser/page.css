@@ -248,12 +248,82 @@ button {
 }
 /* At the stage's start, so a dragged corner follows the pointer; a wider frame scrolls the stage. */
 .specimen-viewport {
+	position: relative;
 	box-sizing: content-box;
 	min-width: 120px;
 	min-height: 80px;
 	overflow: hidden;
 	resize: both;
 	border: 1px solid var(--specimen-border);
+}
+.specimen-pick-toggle[aria-pressed="false"] {
+	border-color: var(--specimen-border);
+	background: var(--specimen-surface);
+	color: var(--specimen-text);
+}
+.specimen-pick {
+	display: grid;
+	gap: 0.5rem;
+	margin: 0 0 var(--specimen-gap);
+	padding: 0.625rem var(--specimen-gap);
+	border: 1px solid var(--specimen-border);
+	border-radius: var(--specimen-radius);
+	background: var(--specimen-raised);
+}
+.specimen-pick[hidden],
+.specimen-pick-outline[hidden] {
+	display: none;
+}
+.specimen-pick-path {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.25rem;
+	font-size: 0.9rem;
+	color: var(--specimen-muted);
+}
+.specimen-pick-crumb {
+	height: auto;
+	padding: 0.15rem 0.45rem;
+	border-color: var(--specimen-border);
+	background: var(--specimen-surface);
+	color: var(--specimen-text);
+	font-size: 0.85rem;
+	font-weight: 500;
+}
+.specimen-pick-crumb[aria-current="location"] {
+	border-color: var(--specimen-accent);
+	background: var(--specimen-accent-soft);
+	color: var(--specimen-accent);
+	font-weight: 600;
+}
+.specimen-pick-actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.5rem;
+}
+.specimen-pick-pointer {
+	flex: 1 1 16rem;
+	min-width: 0;
+	overflow-wrap: anywhere;
+	color: var(--specimen-text);
+}
+.specimen-pick-status {
+	color: var(--specimen-muted);
+	font-size: 0.85rem;
+}
+button:disabled {
+	opacity: 0.55;
+	cursor: not-allowed;
+}
+.specimen-pick-outline {
+	position: absolute;
+	box-sizing: border-box;
+	pointer-events: none;
+	border: 2px solid var(--specimen-accent);
+	background: color-mix(in srgb, var(--specimen-accent) 14%, transparent);
+	z-index: 1;
 }
 .specimen-stage figcaption {
 	margin-top: 0.5rem;

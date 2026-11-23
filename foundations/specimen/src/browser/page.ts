@@ -1,6 +1,7 @@
 import type { SpecimenContext, SpecimenEntry } from '../types.js';
 import { colorSchemeOf, contrastOf, observedContrast, sameLocale } from './capture.js';
 import styles from './page.css?url';
+import { createPickMode } from './pick.js';
 
 /**
  * An element with properties and children. The index and preview are built from these, so their
@@ -348,7 +349,33 @@ export async function installPage(
 				h('p', { className: 'specimen-meta' }, h('code', {}, entry.id), ...tags(entry))
 			);
 			const settings = controls(root, context);
-			root.append(h('div', { className: 'specimen-bar' }, settings.form));
+			const url = specimenUrl(entry.id, context, checkpoint);
+			url.searchParams.set('frame', '1');
+			const { width, height } = context.viewport;
+			const frame = h('iframe', {
+				src: url.href,
+				title: `${entry.title} specimen preview`,
+				width: String(width),
+				height: String(height),
+			});
+			frame.style.cssText = `display:block;border:0;width:100%;height:100%;color-scheme:${colorSchemeOf(context.theme)};`;
+			// Drag its corner to resize: the story sees a resized window, as on a real device.
+			const resizable = h('div', { className: 'specimen-viewport' }, frame);
+			resizable.style.cssText = `width:${width}px;height:${height}px`;
+			const pick = createPickMode({
+				specimenId: entry.id,
+				context,
+				defaults,
+				// Only encode a checkpoint the preview actually rendered; unsupported checkpoints render mount.
+				checkpoint: runs ? checkpoint : null,
+				frame,
+				viewport: resizable,
+				currentViewport: () => ({
+					width: resizable.clientWidth || width,
+					height: resizable.clientHeight || height,
+				}),
+			});
+			root.append(h('div', { className: 'specimen-bar' }, settings.form, pick.toggle));
 			const differences = hostDifferences(context);
 			if (differences.length)
 				root.append(
@@ -376,19 +403,6 @@ export async function installPage(
 						`This preview stops at mount. Checkpoint '${checkpoint}' needs the host's real input: run specimen render ${entry.id} --checkpoint ${checkpoint}.`
 					)
 				);
-			const url = specimenUrl(entry.id, context, checkpoint);
-			url.searchParams.set('frame', '1');
-			const { width, height } = context.viewport;
-			const frame = h('iframe', {
-				src: url.href,
-				title: `${entry.title} specimen preview`,
-				width: String(width),
-				height: String(height),
-			});
-			frame.style.cssText = `display:block;border:0;width:100%;height:100%;color-scheme:${colorSchemeOf(context.theme)};`;
-			// Drag its corner to resize: the story sees a resized window, as on a real device.
-			const resizable = h('div', { className: 'specimen-viewport' }, frame);
-			resizable.style.cssText = `width:${width}px;height:${height}px`;
 			const caption = h('figcaption');
 			const describe = (w: number, hgt: number) => {
 				caption.textContent = `${w} × ${hgt}, ${context.theme}${checkpoint ? `, at ${checkpoint}` : ''}. Drag the corner to resize.`;
@@ -405,8 +419,10 @@ export async function installPage(
 				const current = new URL(location.href);
 				current.searchParams.set('viewport', `${w}x${hgt}`);
 				history.replaceState(null, '', current);
+				pick.syncOverlay();
 			}).observe(resizable);
 			root.append(
+				pick.panel,
 				h(
 					'figure',
 					// A wide viewport scrolls the stage, so the keyboard can reach and scroll it.
