@@ -33,6 +33,7 @@
 		"@lushly-dev/afd-auth-convex-hosted-fixture",
 		"@lushly-dev/health-dashboard",
 		"@lushly-dev/loam-*",
+		"@lushly-dev/specimen-afd-runner",
 		"@lushly-dev/specimen-server"
 	],
 	"privatePackages": {

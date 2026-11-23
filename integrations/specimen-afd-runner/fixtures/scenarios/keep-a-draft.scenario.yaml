@@ -1,0 +1,63 @@
+name: Keep a draft when another writer saves
+description: >-
+  Create a note, open it beside itself, and keep a local draft visible when another writer saves
+  the note.
+job: keep-a-draft
+tags: [smoke, notes]
+fixture:
+  file: ../fixtures/initial-notes.json
+  base: ./base-notes.json
+  overrides:
+    setup:
+      - command: note-seed
+        input:
+          workspace: team-vault
+
+steps:
+  - description: A note is created
+    command: note-create
+    input:
+      title: Meeting notes
+      body: Initial agenda
+    expect:
+      success: true
+      data:
+        id: { exists: true }
+        title: Meeting notes
+        workspace: team-vault
+
+  - description: The note opens
+    command: note-open
+    input:
+      id: ${{ steps[0].data.id }}
+    expect:
+      success: true
+      data:
+        id: note-1
+        openEditors: 1
+
+  - description: The note opens beside itself
+    command: note-open-beside
+    input:
+      id: ${{ steps[0].data.id }}
+    expect:
+      success: true
+      data:
+        openEditors: 2
+
+  - description: No-op check leaves the screen unchanged
+    command: note-noop
+    expect:
+      success: true
+      data:
+        ok: true
+
+  - description: Another writer saves the note
+    command: note-save-external
+    input:
+      id: ${{ steps[0].data.id }}
+      body: Updated from collaborator
+    expect:
+      success: true
+      data:
+        saved: true

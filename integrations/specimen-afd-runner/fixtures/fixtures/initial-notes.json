@@ -1,0 +1,12 @@
+{
+	"app": "notes-demo",
+	"description": "Notes workspace fixture overriding the base",
+	"setup": [
+		{
+			"command": "note-seed",
+			"input": {
+				"workspace": "shared-vault"
+			}
+		}
+	]
+}

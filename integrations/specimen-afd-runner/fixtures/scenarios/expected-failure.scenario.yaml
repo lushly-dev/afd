@@ -1,0 +1,16 @@
+name: Missing note reports structured failure
+description: Opening an unknown note returns a structured AFD error with recovery suggestion.
+job: expected-failure
+tags: [refusal]
+
+steps:
+  - description: Opening an unknown note fails with NOTE_NOT_FOUND
+    command: note-open
+    input:
+      id: note-999
+    expect:
+      success: false
+      error:
+        code: NOTE_NOT_FOUND
+        suggestion:
+          contains: note-create

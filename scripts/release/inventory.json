@@ -505,6 +505,27 @@
 			]
 		},
 		{
+			"id": "specimen-afd-runner",
+			"family": "specimen",
+			"protocol": "npm-changesets",
+			"sourceRevision": "2b134a73bdec2ff0a03fd039816b7ee6b3f81ff5",
+			"authority": "none: private AFD application-command runner and job-source integration authored in lushly-dev/afd; no publisher or release route",
+			"state": "quarantined",
+			"routes": [],
+			"gates": ["pnpm check", "specimen.yml", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "@lushly-dev/specimen-afd-runner",
+					"registry": "npm",
+					"manifest": "integrations/specimen-afd-runner/package.json",
+					"format": "npm",
+					"initialVersion": "0.1.0",
+					"private": true
+				}
+			]
+		},
+		{
 			"id": "specimen-fast-af",
 			"family": "specimen",
 			"protocol": "npm-changesets",
