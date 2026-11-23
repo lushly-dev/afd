@@ -221,7 +221,7 @@
 		{
 			"basis": "authored",
 			"id": "dialog.type",
-			"text": "type is modal (default, showModal()), non-modal (show(), page stays usable) or alert: role alertdialog, described by its body, and Escape does not close it."
+			"text": "type is modal (default, showModal()), non-modal (show(), page stays usable) or alert: role alertdialog, described by its body. Escape fires request-close for every type; call preventDefault() to force a choice."
 		},
 		{
 			"basis": "authored",

@@ -231,7 +231,7 @@ export const GroupedOptions: Story = {
             throw new Error("Expected grouped violet-combobox to render.");
         }
 
-        input.focus();
+        input.click();
 
         await waitFor(() => {
             expect(combobox.open).toBe(true);

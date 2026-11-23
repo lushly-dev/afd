@@ -137,7 +137,7 @@ AFD's Loam documents; `endpoints/loam/docs/phases/0-kernel-chrome/spec.md`, sect
 - `src/foundations/token-registry.ts` and the foundations story read the export.
 
 The former registries, `tokens/master-semantic.tokens.jsonc` and `tokens/theme-presets.jsonc`,
-are retired: empty, kept only for the FAST-AF provenance records, and read by nothing.
+were retired by D50 and removed under the `removed-after-import` provenance classification.
 
 ## Runtime Theme
 

@@ -233,9 +233,42 @@ describe("violet-combobox", () => {
             expect(combobox.options.every(option => option.getAttribute("role") === "option")).toBe(true);
         });
 
-        it("opens on focus and reflects the open state in aria-expanded and the panel", async () => {
+        it("stays closed on focus by default and opens on click or opt-in open-on-focus (#1580)", async () => {
             const combobox = await renderCombobox();
             const input = getInput(combobox);
+
+            input.focus();
+            await nextFrame();
+
+            expect(combobox.open).toBe(false);
+            expect(input.getAttribute("aria-expanded")).toBe("false");
+            expect(getPanel(combobox).hasAttribute("hidden")).toBe(true);
+
+            await userEvent.click(input);
+            await nextFrame();
+
+            expect(combobox.open).toBe(true);
+            expect(input.getAttribute("aria-expanded")).toBe("true");
+            expect(getPanel(combobox).hasAttribute("hidden")).toBe(false);
+
+            combobox.hide(true);
+            input.blur();
+            combobox.setAttribute("open-on-focus", "");
+            await nextFrame();
+
+            expect(combobox.openOnFocus).toBe(true);
+            input.focus();
+            await nextFrame();
+
+            expect(combobox.open).toBe(true);
+            expect(input.getAttribute("aria-expanded")).toBe("true");
+            expect(getPanel(combobox).hasAttribute("hidden")).toBe(false);
+
+            combobox.hide(true);
+            input.blur();
+            combobox.removeAttribute("open-on-focus");
+            combobox.openOnFocus = true;
+            await nextFrame();
 
             input.focus();
             await nextFrame();
@@ -243,6 +276,40 @@ describe("violet-combobox", () => {
             expect(combobox.open).toBe(true);
             expect(input.getAttribute("aria-expanded")).toBe("true");
             expect(getPanel(combobox).hasAttribute("hidden")).toBe(false);
+        });
+
+        it("opens with Alt+ArrowDown without advancing and closes with Alt+ArrowUp (#1580)", async () => {
+            const combobox = await renderCombobox();
+            const input = getInput(combobox);
+            input.focus();
+            await nextFrame();
+
+            const openEvent = new KeyboardEvent("keydown", {
+                key: "ArrowDown",
+                altKey: true,
+                bubbles: true,
+                cancelable: true,
+                composed: true,
+            });
+            input.dispatchEvent(openEvent);
+            await nextFrame();
+
+            expect(openEvent.defaultPrevented).toBe(true);
+            expect(combobox.open).toBe(true);
+            expect(combobox.activeValue).toBe("regional");
+
+            const closeEvent = new KeyboardEvent("keydown", {
+                key: "ArrowUp",
+                altKey: true,
+                bubbles: true,
+                cancelable: true,
+                composed: true,
+            });
+            input.dispatchEvent(closeEvent);
+            await nextFrame();
+
+            expect(closeEvent.defaultPrevented).toBe(true);
+            expect(combobox.open).toBe(false);
         });
 
         it("points aria-activedescendant at the active option only while open", async () => {
@@ -634,7 +701,7 @@ describe("violet-combobox", () => {
             const combobox = await renderCombobox();
             const after = document.createElement("button");
             document.body.append(after);
-            getInput(combobox).focus();
+            await userEvent.click(getInput(combobox));
             await vi.waitFor(() => expect(combobox.open).toBe(true));
 
             await userEvent.tab();

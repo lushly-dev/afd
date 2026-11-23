@@ -94,6 +94,13 @@
 				"type": "boolean"
 			},
 			{
+				"basis": "declared",
+				"default": false,
+				"name": "open-on-focus",
+				"property": "openOnFocus",
+				"type": "boolean"
+			},
+			{
 				"basis": "observed",
 				"default": "",
 				"name": "placeholder",
@@ -191,6 +198,11 @@
 	"gaps": [
 		{
 			"kind": "unobserved",
+			"name": "open-on-focus",
+			"section": "attributes"
+		},
+		{
+			"kind": "unobserved",
 			"name": "value",
 			"section": "attributes"
 		}
@@ -248,7 +260,7 @@
 		{
 			"basis": "authored",
 			"id": "combobox.open",
-			"text": "The list opens on focus, typing and arrow keys, and the open attribute reflects it. show() opens it; hide(true) closes it and resets the text to the chosen option's label, or empties it when nothing is chosen."
+			"text": "Opens on click, typing, ArrowDown, Alt+ArrowDown or ArrowUp (not focus unless open-on-focus is set); Alt+ArrowUp closes it. open reflects state; show() opens and hide(true) closes and resets text to the chosen label, or empty."
 		},
 		{
 			"basis": "authored",

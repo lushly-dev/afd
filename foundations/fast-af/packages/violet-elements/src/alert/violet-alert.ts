@@ -162,6 +162,11 @@ const styles = css`
             grid-template-columns: auto minmax(0, 1fr);
         }
 
+        .actions[data-single-action] slot::slotted(*) {
+            flex: 1 1 100%;
+            inline-size: 100%;
+        }
+
         .dismiss {
             grid-column: 2;
             justify-self: end;
@@ -222,7 +227,12 @@ const template = html<VioletAlert>`
                         <slot></slot>
                     </div>
                 </div>
-                <div class="actions" part="actions" ?hidden="${x => !x.hasActions}">
+                <div
+                    class="actions"
+                    part="actions"
+                    ?hidden="${x => !x.hasActions}"
+                    ?data-single-action="${x => x.hasSingleAction}"
+                >
                     <slot name="actions" @slotchange="${x => x.handleActionsSlotChange()}"></slot>
                 </div>
             </div>
@@ -267,6 +277,9 @@ export class VioletAlert extends FASTElement {
     declare public hasActions: boolean;
 
     @observable
+    declare public hasSingleAction: boolean;
+
+    @observable
     declare public hasIcon: boolean;
 
     declare public tone: string;
@@ -277,6 +290,7 @@ export class VioletAlert extends FASTElement {
         super();
         this.hasTitle = false;
         this.hasActions = false;
+        this.hasSingleAction = false;
         this.hasIcon = false;
         this.tone = "default";
         this.announcement = "off";
@@ -344,7 +358,15 @@ export class VioletAlert extends FASTElement {
     }
 
     public handleActionsSlotChange(): void {
-        this.hasActions = this.#slotHasContent('slot[name="actions"]');
+        const slot = this.shadowRoot?.querySelector('slot[name="actions"]') as HTMLSlotElement | null;
+        const meaningfulNodes = (slot?.assignedNodes({ flatten: true }) ?? []).filter(node => {
+            if (node.nodeType === Node.TEXT_NODE) {
+                return Boolean(node.textContent?.trim());
+            }
+            return node.nodeType === Node.ELEMENT_NODE;
+        });
+        this.hasActions = meaningfulNodes.length > 0;
+        this.hasSingleAction = meaningfulNodes.length === 1 && meaningfulNodes[0]?.nodeType === Node.ELEMENT_NODE;
     }
 
     public handleIconSlotChange(): void {

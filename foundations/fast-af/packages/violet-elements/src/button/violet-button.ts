@@ -21,6 +21,7 @@ const styles = css`
         justify-content: center;
         /* The target size is a floor: wrapped or text-zoomed labels grow the control. */
         align-self: flex-start;
+        inline-size: 100%;
         min-block-size: var(--_target-size);
         min-inline-size: var(--_target-size);
         padding-inline: max(var(--_space-inline-md), calc(var(--_target-size) * 0.375));

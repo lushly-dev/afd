@@ -1072,7 +1072,9 @@ export const HeaderKeyboard: Story = {
 
         await userEvent.keyboard("{ArrowDown}");
         await waitFor(() => {
-            expect(shadowRoot.activeElement).toBe(scrollContainer);
+            expect(
+                shadowRoot.activeElement?.matches('td[data-column-id="family"][role="gridcell"]'),
+            ).toBe(true);
             expect(grid.activeCell?.columnId).toBe("family");
         });
     },
@@ -1462,7 +1464,7 @@ export const CellEditing: Story = {
 
             shadowRoot
                 .querySelector(".table-scroll")
-                ?.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true }));
+                ?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
 
             await waitFor(() => {
                 expect(grid.activeCell?.rowId).toBe("black-currant");
@@ -1471,7 +1473,7 @@ export const CellEditing: Story = {
 
             shadowRoot
                 .querySelector(".table-scroll")
-                ?.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true }));
+                ?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
 
             await waitFor(() => {
                 expect(grid.activeCell?.rowId).toBe("black-currant");
@@ -1513,7 +1515,7 @@ export const CellEditing: Story = {
             shadowRoot
                 .querySelector(".table-scroll")
         ?.dispatchEvent(
-          new KeyboardEvent("keydown", { key: "Tab", shiftKey: true, bubbles: true }),
+          new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }),
         );
 
             await waitFor(() => {
@@ -1524,7 +1526,7 @@ export const CellEditing: Story = {
             shadowRoot
                 .querySelector(".table-scroll")
         ?.dispatchEvent(
-          new KeyboardEvent("keydown", { key: "Tab", shiftKey: true, bubbles: true }),
+          new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }),
         );
 
             await waitFor(() => {

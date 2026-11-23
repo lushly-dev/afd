@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Resolve five `violet-elements` and `fast-af` issues (#1589, #1581, #1580, #656, #510):
+  - `violet-alert` now stretches a lone slotted action to fill the row below the `480px` breakpoint (with `.control` filling the host width on `violet-button`), while two or more actions keep wrapping side by side (#1589).
+  - `violet-dialog` with `type="alert"` now sets `closedby="closerequest"` so pressing `Escape` fires a cancelable `request-close` (`source: "keyboard"`) for every dialog type; callers requiring a forced choice can call `event.preventDefault()` (#1581).
+  - `violet-combobox` no longer opens its suggestion list on focus by default; typing, `ArrowDown`, `Alt+ArrowDown`, `ArrowUp`, or clicking the control opens the list (`Alt+ArrowUp` closes it), and the new `open-on-focus` attribute opts back in to opening on focus (#1580).
+  - Remove the retired `tokens/master-semantic.tokens.jsonc` and `tokens/theme-presets.jsonc` stubs (recorded as `removed-after-import` in FAST-AF provenance) and update export verification and consumer artifact checks (#656).
+  - Upgrade `violet-data-grid` cell focus mode to `role="grid"` with `aria-multiselectable="true"`, `role="gridcell"`, `aria-colindex`, host `aria-label` forwarded to `<table>`, range `aria-selected` on gridcells, and roving `tabindex` on real `td` cells (one body Tab stop regardless of row count or selection/checkbox columns, arrow-key reachability and `Space` toggle for selection cells and select-all, editor focus return to `td`, and `.table-scroll` fallback when the active virtualized row unmounts), plus at most one body Tab stop in row mode (#510).
+
 - Fix component defects (#2183, #1172, #1424, #712, #1436):
   - `violet-tabs` upgrades its tabs and panels when it connects, and imports them itself, so tabs mounted from parsed markup no longer throw `tab.syncPresentation is not a function`; `violet-select`, `violet-combobox` and `violet-listbox` upgrade their options when they read them, so a combobox mounted from markup with a `value` no longer throws (#1172).
   - `violet-select` and `violet-combobox` open their lists in the top layer as manual popovers, so a containing or clipping ancestor no longer moves or cuts them (#712).

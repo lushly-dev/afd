@@ -317,6 +317,14 @@ export class VioletRadio extends FASTElement {
         this.#syncTabIndex();
     }
 
+    public get managedTabIndex(): number | null {
+        return this.#managedTabIndex;
+    }
+
+    public set managedTabIndex(tabIndex: number | null) {
+        this.setManagedTabIndex(tabIndex);
+    }
+
     public setManagedTabIndex(tabIndex: number | null): void {
         this.#managedTabIndex = tabIndex;
         this.#syncTabIndex();

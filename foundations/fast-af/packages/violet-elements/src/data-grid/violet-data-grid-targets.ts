@@ -1,3 +1,17 @@
+export const customCellWidgetSelector = [
+    "a[href]",
+    "area[href]",
+    "button",
+    'input:not([type="hidden"])',
+    "select",
+    "textarea",
+    "summary",
+    "audio[controls]",
+    "video[controls]",
+    '[contenteditable]:not([contenteditable="false"])',
+    "[data-cell-widget]",
+].join(",");
+
 const nativeInteractiveSelector = [
     "a[href]",
     "area[href]",

@@ -169,20 +169,25 @@ describe("violet-data-grid column resizer keyboard support", () => {
         expect(events).toBe(0);
     });
 
-    it("names the cell-mode scroll container from the grid's aria-label", async () => {
+    it("forwards the host's aria-label to the grid without duplicating it on the scroll wrapper (#510)", async () => {
         const grid = await renderGrid({ "aria-label": "Plant inventory" });
         const scroller = grid.shadowRoot?.querySelector(".table-scroll");
+        const table = grid.shadowRoot?.querySelector("table");
 
-        expect(scroller?.getAttribute("aria-label")).toBe("Plant inventory");
-        expect(scroller?.getAttribute("role")).toBe("group");
+        expect(table?.getAttribute("role")).toBe("grid");
+        expect(table?.getAttribute("aria-label")).toBe("Plant inventory");
+        expect(scroller?.hasAttribute("aria-label")).toBe(false);
+        expect(scroller?.hasAttribute("role")).toBe(false);
     });
 
-    it("leaves the scroll container unnamed when the grid has no aria-label", async () => {
+    it("leaves the scroll container and grid unnamed when the grid has no aria-label", async () => {
         const grid = await renderGrid();
         const scroller = grid.shadowRoot?.querySelector(".table-scroll");
+        const table = grid.shadowRoot?.querySelector("table");
 
         expect(scroller?.hasAttribute("aria-label")).toBe(false);
         expect(scroller?.hasAttribute("role")).toBe(false);
+        expect(table?.hasAttribute("aria-label")).toBe(false);
     });
 });
 
@@ -296,12 +301,18 @@ describe("violet-data-grid column resizers in the tab order (real key presses)",
         grid.addEventListener("column-width-change", event => {
             widths.push((event as CustomEvent<{ columnId: string }>).detail.columnId);
         });
-        const scroller = grid.shadowRoot!.querySelector<HTMLElement>(".table-scroll")!;
-        expect(scroller.getAttribute("aria-keyshortcuts")).toBe("Control+Alt+R");
+        const firstCell = grid.shadowRoot!.querySelector<HTMLTableCellElement>(
+            'td[data-row-id="a"][data-column-id="name"]',
+        )!;
+        const statusCell = grid.shadowRoot!.querySelector<HTMLTableCellElement>(
+            'td[data-row-id="a"][data-column-id="status"]',
+        )!;
+        expect(firstCell.getAttribute("aria-keyshortcuts")).toBe("Control+Alt+R");
 
-        scroller.focus();
+        firstCell.focus();
         await userEvent.keyboard("{ArrowRight}");
         expect(grid.activeCell).toEqual({ rowId: "a", columnId: "status" });
+        expect(focusedInGrid(grid)).toBe(statusCell);
 
         await userEvent.keyboard(resizeChord);
         expect(focusedInGrid(grid)).toBe(resizerFor(grid, "status"));
@@ -309,7 +320,7 @@ describe("violet-data-grid column resizers in the tab order (real key presses)",
         await userEvent.keyboard("{Shift>}{ArrowRight}{/Shift}");
         await userEvent.keyboard("{Escape}");
         expect(widths).toEqual(["status"]);
-        expect(focusedInGrid(grid)).toBe(scroller);
+        expect(focusedInGrid(grid)).toBe(statusCell);
         expect(grid.activeCell).toEqual({ rowId: "a", columnId: "status" });
     });
 

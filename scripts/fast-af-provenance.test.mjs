@@ -164,6 +164,8 @@ test('upstream Git object ids match the bytes of every file imported unchanged',
 	// #1569, #1602, #1963) adapted the accordion's, carousel's and icon-button's specs: 436. The
 	// area:fast-af bug batch (#1577, #1578, #1579, #1377, #1197) adapted the radio's spec: 435. The
 	// bug sweep (#2183, #1172, #1436, #1424, #712) adapted the option hosts' selection helpers and the
-	// time picker's spec: 433. A removed file's record is kept but not counted.
-	assert(checked > 432, `only ${checked} unchanged upstream files`);
+	// time picker's spec: 433. The fast-af planned batch (#510, #656, #1580, #1581, #1589) adapted the
+	// data-grid's header keyboard spec and target helpers: 431. A removed file's record is kept but
+	// not counted.
+	assert(checked > 430, `only ${checked} unchanged upstream files`);
 });

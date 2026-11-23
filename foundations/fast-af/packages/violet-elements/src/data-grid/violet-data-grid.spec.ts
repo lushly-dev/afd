@@ -661,13 +661,25 @@ describe("violet-data-grid", () => {
     radio.blur();
     grid.tabIndex = -1;
     grid.focus();
-    const deliberatelyFocused = grid.shadowRoot?.activeElement;
+    const deliberatelyFocused = grid.shadowRoot?.activeElement as HTMLElement | null;
+    const expectedRowId = deliberatelyFocused?.dataset.rowId;
+    const expectedColumnId = deliberatelyFocused?.dataset.columnId;
     expect(document.activeElement).toBe(grid);
-    expect(deliberatelyFocused).toBe(grid.shadowRoot?.querySelector(".table-scroll"));
+    expect(deliberatelyFocused?.matches('td[role="gridcell"]')).toBe(true);
+    expect(expectedRowId).toBeTruthy();
+    expect(expectedColumnId).toBeTruthy();
     await nextFrames(3);
 
+    const activeAfterRefresh = grid.shadowRoot?.activeElement as HTMLElement | null;
     expect(document.activeElement).toBe(grid);
-    expect(grid.shadowRoot?.activeElement).toBe(deliberatelyFocused);
+    expect(activeAfterRefresh?.matches('td[role="gridcell"]')).toBe(true);
+    expect(activeAfterRefresh?.dataset.rowId).toBe(expectedRowId);
+    expect(activeAfterRefresh?.dataset.columnId).toBe(expectedColumnId);
+    expect(activeAfterRefresh).not.toBe(
+      grid.shadowRoot?.querySelector(
+        'tr:has(td[data-row-id="black-currant"]) violet-radio.selection-radio',
+      ),
+    );
   });
 
   it("restores same-row selection focus when the grid is nested in shadow DOM", async () => {
@@ -1445,11 +1457,11 @@ describe("violet-data-grid", () => {
         });
     });
 
-    it("moves the active cell with Tab when not editing", async () => {
+    it("lets Tab leave the grid when not editing in roving-focus cell mode (#510)", async () => {
         const grid = await renderGrid();
-    const scrollContainer = grid.shadowRoot?.querySelector(
-      ".table-scroll",
-    ) as HTMLDivElement | null;
+        const activeCell = grid.shadowRoot?.querySelector(
+            'td[data-row-id="black-currant"][data-column-id="commonName"]',
+        ) as HTMLTableCellElement | null;
 
         grid.activeCell = {
             rowId: "black-currant",
@@ -1459,18 +1471,21 @@ describe("violet-data-grid", () => {
 
         const keyEvent = new KeyboardEvent("keydown", {
             bubbles: true,
+            cancelable: true,
             key: "Tab",
         });
         Object.defineProperty(keyEvent, "target", {
             configurable: true,
-            value: scrollContainer,
+            value: activeCell,
         });
 
-        grid.handleGridKeydown(keyEvent);
+        const allowDefault = grid.handleGridKeydown(keyEvent);
 
+        expect(allowDefault).toBe(true);
+        expect(keyEvent.defaultPrevented).toBe(false);
         expect(grid.activeCell).toEqual({
             rowId: "black-currant",
-            columnId: "status",
+            columnId: "commonName",
         });
     });
 
@@ -2352,14 +2367,14 @@ describe("violet-data-grid", () => {
     expect(grid.editAnnouncement).toBe("");
 
     grid.editAnnouncement = "Unsaved invalid edit was cancelled.";
-    const tabToNextRow = new KeyboardEvent("keydown", {
-      key: "Tab",
+    const arrowToNextRow = new KeyboardEvent("keydown", {
+      key: "ArrowDown",
       bubbles: true,
       cancelable: true,
       composed: true,
     });
-    scroll.dispatchEvent(tabToNextRow);
-    expect(tabToNextRow.defaultPrevented).toBe(true);
+    scroll.dispatchEvent(arrowToNextRow);
+    expect(arrowToNextRow.defaultPrevented).toBe(true);
     expect(grid.editAnnouncement).toBe("");
 
     const rect = nextCell.getBoundingClientRect();

@@ -529,7 +529,7 @@ export class VioletDialog extends FASTElement {
         if (this.type === "alert") {
             dialog.setAttribute("role", "alertdialog");
             dialog.setAttribute("aria-describedby", this.bodyId);
-            dialog.setAttribute("closedby", "none");
+            dialog.setAttribute("closedby", "closerequest");
         } else if (this.type === "non-modal") {
             dialog.removeAttribute("role");
             dialog.removeAttribute("aria-describedby");

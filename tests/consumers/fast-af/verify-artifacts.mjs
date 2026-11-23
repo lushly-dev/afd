@@ -234,8 +234,6 @@ const assets = {};
 for (const asset of [
 	'custom-elements.json',
 	'tokens/interface.json',
-	'tokens/master-semantic.tokens.jsonc',
-	'tokens/theme-presets.jsonc',
 	'tokens/raw-palette.proposal.jsonc',
 	'tokens/violet-theme.export.json',
 	'package.json',
@@ -261,7 +259,7 @@ assert.deepEqual(tokenInterface.tokens['font.family.body'], {
 	property: '--font-family-body',
 	type: 'fontFamily',
 });
-passed(`components: manifest, package.json and 5 token assets resolve (${declared.length} tags)`);
+passed(`components: manifest, package.json and 3 token assets resolve (${declared.length} tags)`);
 
 // Vite treats port 0 as its default 5173, which other local suites use; reserve a free port.
 const freePort = () =>

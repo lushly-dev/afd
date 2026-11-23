@@ -1,0 +1,11 @@
+---
+"@lushly-dev/violet-elements": minor
+---
+
+Resolve five `violet-elements` and `fast-af` issues ([#1589](https://github.com/lushly-dev/afd/issues/1589), [#1581](https://github.com/lushly-dev/afd/issues/1581), [#1580](https://github.com/lushly-dev/afd/issues/1580), [#656](https://github.com/lushly-dev/afd/issues/656), [#510](https://github.com/lushly-dev/afd/issues/510)):
+
+- **`violet-alert` narrow lone action ([#1589](https://github.com/lushly-dev/afd/issues/1589)).** Below the `480px` breakpoint, a single slotted action stretches to fill the row (and `violet-button`'s `.control` fills its host's inline size), while multiple actions keep wrapping side by side.
+- **`violet-dialog` `type="alert"` Escape handling ([#1581](https://github.com/lushly-dev/afd/issues/1581)).** Set `closedby="closerequest"` for `type="alert"` so pressing `Escape` fires a cancelable `request-close` (`source: "keyboard"`) consistently across `modal`, `alert`, and `non-modal`; callers that need a forced choice can call `event.preventDefault()`.
+- **`violet-combobox` closed on focus by default ([#1580](https://github.com/lushly-dev/afd/issues/1580)).** Stop opening the suggestion list on focus alone; typing, `ArrowDown`, `Alt+ArrowDown`, `ArrowUp`, or clicking the control opens the list (`Alt+ArrowUp` closes it), and the new `open-on-focus` boolean attribute opts in to opening on focus.
+- **Retire deleted token stubs ([#656](https://github.com/lushly-dev/afd/issues/656)).** Remove `tokens/master-semantic.tokens.jsonc` and `tokens/theme-presets.jsonc` (classified as `removed-after-import` in FAST-AF provenance) and point package export checks at `tokens/violet-theme.export.json`.
+- **`violet-data-grid` `role="grid"` with roving focus ([#510](https://github.com/lushly-dev/afd/issues/510)).** Expose `role="grid"`, `aria-multiselectable="true"`, `role="gridcell"`, `aria-colindex`, forwarded host `aria-label` on `<table>`, range `aria-selected` on gridcells, and roving `tabindex` on real `td` cells in cell mode (one Tab stop regardless of row count or selection/checkbox columns, arrow-key reachability and `Space` toggle for selection cells and select-all, editor focus return to `td`, and `.table-scroll` Tab-stop fallback while a virtualized active row is unmounted), and keep row mode to at most one body Tab stop.
