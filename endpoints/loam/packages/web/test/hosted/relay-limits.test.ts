@@ -437,6 +437,48 @@ describe('P6-H6: the hosted relay under small limits', () => {
 		}
 	});
 
+	it('P6-H6: a JSON body past `relay_response_bytes` is 502 MOUNT_RESULT_INVALID, marked, before any status of its own', async () => {
+		// One JSON-RPC response for the request's own id, so only its size can refuse it: one under the limit passes.
+		const answer = (id: unknown, size: number) =>
+			JSON.stringify({
+				jsonrpc: '2.0',
+				id,
+				result: { content: [{ type: 'text', text: 'x'.repeat(size) }] },
+			});
+		script('"bulky"', (request, response) => {
+			const { id } = JSON.parse(request.body) as { id: unknown };
+			const text = request.body.includes('"under"') ? 1_000 : LIMITS.relay_response_bytes;
+			response.writeHead(200, { 'content-type': 'application/json' });
+			response.end(answer(id, text));
+		});
+		try {
+			const from = (await host.journal()).length;
+			const under = await relay(
+				olu,
+				'team',
+				toolCall('notes-get', { text: 'bulky', size: 'under' }, atlas(), 'small')
+			);
+			expect(under.status).toBe(200);
+			expect(JSON.parse(under.body)).toMatchObject({
+				id: 'small',
+				result: { content: [{ type: 'text' }] },
+			});
+			const over = await relay(
+				olu,
+				'team',
+				toolCall('notes-get', { text: 'bulky' }, atlas(), 'big')
+			);
+			expect(codeOf(over)).toEqual({ status: 502, code: 'MOUNT_RESULT_INVALID', marked: '1' });
+			// None of the instance's body reached the page.
+			expect(over.body).not.toContain('xxxx');
+			await expect
+				.poll(() => relayRecords(from, 'notes-get'))
+				.toEqual(['ok', 'MOUNT_RESULT_INVALID']);
+		} finally {
+			team.answer = undefined;
+		}
+	});
+
 	it.each([
 		[
 			'past `relay_response_bytes`',
