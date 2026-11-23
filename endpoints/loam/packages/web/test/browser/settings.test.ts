@@ -403,6 +403,8 @@ describe("P4-E1: step 2's reviews", () => {
 		await expect
 			.poll(() => view.locator('[role="tab"][aria-selected="true"]').textContent())
 			.toBe('Project Atlas');
+		// The tab is selected before its fields render: on a loaded host the field read below was not there yet (#1959).
+		await expect.poll(() => view.locator('#field-greeting').count()).toBe(1);
 		// The scope moves to Beacon, and the person's edit to Atlas's field lands after it, before the section reads again.
 		await page.evaluate(async (beacon) => {
 			const shell = document.querySelector('loam-shell') as unknown as {
