@@ -107,9 +107,12 @@ def test_collection_also_writes_the_record_to_the_shared_folder(machines: Machin
     }
     assert sorted(shared_state["files"]) == [store.EVENTS_FILE, store.SESSIONS_FILE]
     assert (shared_state["machine"], shared_state["unreadable"]) == ("bench", 0)
-    assert str(machines.project) in (machines.record("bench") / store.STATE_FILE).read_text()
+    project_json = json.dumps(str(machines.project))
+    project_escaped = project_json[1:-1]
+    assert project_json in (machines.record("bench") / store.STATE_FILE).read_text("utf-8")
     for found in folder.iterdir():
-        assert str(machines.project) not in found.read_text("utf-8")
+        text = found.read_text("utf-8")
+        assert str(machines.project) not in text and project_escaped not in text
 
     written = (folder / store.EVENTS_FILE).stat().st_mtime_ns
     run(skill_usage_collect())  # nothing new: nothing for a sync to send but the time
