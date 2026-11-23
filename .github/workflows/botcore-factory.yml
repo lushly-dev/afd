@@ -1,9 +1,12 @@
 name: Botcore factory
 
 # The software factory plugin (endpoints/botcore/plugins/botcore-factory) has its own gate:
-# botcore.yml tests Botcore's core and builds its other distributions, but runs no plugin's
-# tests. The plugin's pytest includes the proposal's jobs run through AFD's TypeScript scenario
-# runner, so it also runs when the runner, the jobs, the label rules or AFD's adapter change.
+# botcore.yml tests Botcore's core, its sibling packages and its other plugins, and builds its
+# distributions, but not this plugin, which has its own lock file. The plugin's pytest includes
+# the proposal's jobs run through AFD's TypeScript scenario runner, so it also runs when the
+# runner, the jobs, the label rules or AFD's adapter change. The lane runs on macOS and Windows
+# hosts as well as Linux, and its state and locks are files that each platform treats in its
+# own way, so the suite (the multi-process lock tests included) runs on all three.
 on:
   push:
     branches: [main]
@@ -77,16 +80,26 @@ jobs:
           fi
 
   plugin:
-    name: Plugin (lint, unit tests, jobs through the scenario runner)
+    name: Plugin on ${{ matrix.os }}, Python ${{ matrix.python }} (lint, unit tests, jobs through the scenario runner)
     needs: queue
     if: needs.queue.outputs.run == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
+      # Each platform reports its own result: a Linux failure must not hide a Windows one.
+      fail-fast: false
       matrix:
+        os: [ubuntu-latest]
         python: ['3.11', '3.12']
+        include:
+          - os: macos-latest
+            python: '3.12'
+          - os: windows-latest
+            python: '3.12'
     defaults:
       run:
+        # Git Bash on Windows: PowerShell would let an early failing line in a step pass.
+        shell: bash
         working-directory: endpoints/botcore/plugins/botcore-factory
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -117,6 +130,8 @@ jobs:
           uv lock --check
           uv sync --frozen --extra dev --python ${{ matrix.python }}
       - name: Lint
+        # The same files on every platform: once is enough.
+        if: runner.os == 'Linux'
         run: |
           uv run --frozen ruff check src tests
           uv run --frozen ruff format --check src tests

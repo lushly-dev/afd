@@ -199,7 +199,7 @@ export const SUITES = [
 	{
 		workflow: 'botcore-factory.yml',
 		tools: ['uv'],
-		remote: 'Python 3.11',
+		remote: 'Python 3.11, and the suite on Linux, macOS and Windows',
 		steps: [
 			{ run: 'pnpm -F "@lushly-dev/afd-testing..." build' },
 			{ cwd: 'endpoints/botcore/plugins/botcore-factory', run: 'uv lock --check' },

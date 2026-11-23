@@ -137,7 +137,14 @@ requires-dist = [
 provides-extras = ["dev", "cdp", "research", "quality", "mcp", "all"]
 
 [package.metadata.requires-dev]
-packages = [{ name = "github-copilot-sdk", specifier = ">=1.0.26" }]
+packages = [
+    { name = "aiohttp", specifier = ">=3.9.0" },
+    { name = "botbuilder-core", specifier = ">=4.16.0" },
+    { name = "botbuilder-integration-aiohttp", specifier = ">=4.16.0" },
+    { name = "github-copilot-sdk", specifier = ">=1.0.26" },
+    { name = "pytest-aiohttp", specifier = ">=1.0.0" },
+    { name = "respx", specifier = ">=0.22.0" },
+]
 
 [[package]]
 name = "lushly-health"
