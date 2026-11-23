@@ -102,6 +102,31 @@ const fixtures = {
 		targets: [['tidy-lib', 'python']],
 		policy: { checks: [] },
 	},
+	'with-measures': {
+		targets: [['tidy-lib', 'python']],
+		policy: { checks: ['gitattributes_lf', 'lefthook_configured', 'linter_strict'] },
+		measures: {
+			schema_version: '1.0',
+			source: 'fixture-producer',
+			measures: [
+				{
+					key: 'files_over_warn',
+					label: 'Files over size warning',
+					value: 2,
+					unit: 'files',
+					direction: 'lower_is_better',
+				},
+				{
+					key: 'line_coverage',
+					label: 'Line coverage',
+					value: 92.5,
+					unit: 'percent',
+					direction: 'higher_is_better',
+					target: 'tidy-lib',
+				},
+			],
+		},
+	},
 };
 
 function audit(workspace, name, fixture) {
@@ -119,6 +144,12 @@ function audit(workspace, name, fixture) {
 	const policyFile = join(workspace, `${name}.policy.json`);
 	writeFileSync(targetsFile, JSON.stringify({ schema_version: '1.0', targets }));
 	writeFileSync(policyFile, JSON.stringify({ schema_version: '1.0', ...fixture.policy }));
+	const measuresArgs = [];
+	if (fixture.measures) {
+		const measuresFile = join(workspace, `${name}.measures.json`);
+		writeFileSync(measuresFile, JSON.stringify(fixture.measures));
+		measuresArgs.push('--measures', measuresFile);
+	}
 	// Hook-inherited Git routing or an active virtual environment must not leak in.
 	const env = Object.fromEntries(
 		Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_') && key !== 'VIRTUAL_ENV')
@@ -139,6 +170,7 @@ function audit(workspace, name, fixture) {
 			targetsFile,
 			'--policy',
 			policyFile,
+			...measuresArgs,
 		],
 		{ cwd: workspace, env, encoding: 'utf8' }
 	);

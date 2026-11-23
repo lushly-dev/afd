@@ -20,12 +20,14 @@ the headless audit core uses only the Python standard library.
   `target`, `status`, `severity`, `message`, `evidence` and `remediation`. Statuses
   are `passed`, `failed`, `warn`, `skipped` (did not apply to the target), `disabled`
   (turned off by the policy), `unavailable` and `error`, each with its own summary
-  count. The report also records `generated_at` (UTC, whole seconds) and Health's
-  `verdict`. The contract is the JSON Schema
-  [`src/lushly_health/schemas/report-1.2.json`](src/lushly_health/schemas/report-1.2.json),
+  count. The report also records `generated_at` (UTC, whole seconds), Health's
+  `verdict` and `measures` (numeric trend observations read from caller-selected
+  measures files; empty when none are passed, and never affecting the verdict). The
+  contract is the JSON Schema
+  [`src/lushly_health/schemas/report-1.3.json`](src/lushly_health/schemas/report-1.3.json),
   also available as `lushly_health.report_schema()` and `python -m lushly_health schema`.
-  The earlier [`report-1.0.json`](src/lushly_health/schemas/report-1.0.json) stays
-  available as `report_schema("1.0")`.
+  Earlier schemas (`1.0`, `1.1`, `1.2`) stay available as `report_schema("1.0")`,
+  `report_schema("1.1")` and `report_schema("1.2")`.
 - **One verdict.** `verdict.status` is `passed` only when the report has at least one
   counted required check and every counted required check passed. Required checks
   disabled by the policy are not counted; any other non-passing required status,
@@ -48,6 +50,7 @@ python -m lushly_health capabilities
 python -m lushly_health audit \
   --target sample ./sample-project typescript \
   --check node_version_alignment --check gitattributes_lf \
+  --measures ./measures/sweep.json \
   --output-dir ./health-reports
 python -m lushly_health audit --targets my-targets.toml --policy my-policy.toml --require-pass
 ```
@@ -56,10 +59,14 @@ python -m lushly_health audit --targets my-targets.toml --policy my-policy.toml 
 makes it 1 when a `required` check has one of the listed statuses. Otherwise a
 completed audit exits 0. Invalid selections exit 2.
 
-Policy and targets files are TOML or JSON with `schema_version = "1.0"` (configuration
-has its own version, separate from the report's); relative
-target paths resolve against the file's own directory. See
-[`config.py`](src/lushly_health/config.py) for the format.
+Policy, targets and measures files are TOML or JSON with `schema_version = "1.0"`
+(configuration and measures inputs have their own versions, separate from the report's);
+relative target paths resolve against the file's own directory. Pass `--measures FILE`
+one or more times (or `load_measures()` / `load_measures_files()` in Python) to include
+producer-written numeric measures (`key`, `label`, `value`, `unit`, `direction`, plus
+optional `target` and `source`) in the report. Health reads only the files you pass and
+runs no producer script. See [`config.py`](src/lushly_health/config.py) and
+[`measures.py`](src/lushly_health/measures.py) for the formats.
 
 ```python
 from pathlib import Path

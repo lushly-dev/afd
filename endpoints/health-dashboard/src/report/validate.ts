@@ -2,7 +2,7 @@
  * Turn untrusted file text into a validated report or an actionable failure.
  *
  * Nothing is rendered from a file until it parses as JSON, declares the supported
- * schema_version, validates against Health's report-1.2 schema and is internally
+ * schema_version, validates against Health's report-1.3 schema and is internally
  * consistent, including Health's own verdict against the outcomes. A failure never carries a partially accepted report.
  */
 import { schemaVersion, validateReport } from 'virtual:health-report-schema';
@@ -153,6 +153,19 @@ function consistencyDetails(report: HealthReport): string[] {
 					? `outcomes[${index}] is disabled, but policy.disabled doesn't list ${outcome.check_id}.`
 					: `outcomes[${index}] is ${outcome.status}, but policy.disabled lists ${outcome.check_id}.`
 			);
+	});
+	const seenMeasures = new Set<string>();
+	report.measures.forEach((measure, index) => {
+		if (measure.target !== undefined && !targets.has(measure.target))
+			details.push(`measures[${index}] names target ${measure.target}, which isn't in targets.`);
+		const identity = `${measure.key}\0${measure.target ?? ''}`;
+		if (seenMeasures.has(identity))
+			details.push(
+				measure.target !== undefined
+					? `Measure ${measure.key} for target ${measure.target} is listed more than once.`
+					: `Measure ${measure.key} is listed more than once.`
+			);
+		seenMeasures.add(identity);
 	});
 	for (const status of STATUSES)
 		if (report.summary[status] !== counts[status])

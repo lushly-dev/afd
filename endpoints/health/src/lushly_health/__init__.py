@@ -19,23 +19,37 @@ from .core import (
     onboard,
     write_report,
 )
+from .measures import (
+    MEASURE_DIRECTIONS,
+    MEASURES_SCHEMA_VERSION,
+    Measure,
+    load_measures,
+    load_measures_files,
+    measures_from_mapping,
+)
 
 __version__ = "0.1.0"
 
 __all__ = [
     "CONFIG_SCHEMA_VERSION",
+    "MEASURE_DIRECTIONS",
+    "MEASURES_SCHEMA_VERSION",
     "REPORT_SCHEMA_VERSIONS",
     "SCHEMA_VERSION",
     "ArtifactScope",
     "HealthPlugin",
+    "Measure",
     "Policy",
     "Target",
     "__version__",
     "aggregate_verdict",
     "audit",
     "capabilities",
+    "load_measures",
+    "load_measures_files",
     "load_policy",
     "load_targets",
+    "measures_from_mapping",
     "onboard",
     "policy_from_mapping",
     "report_schema",

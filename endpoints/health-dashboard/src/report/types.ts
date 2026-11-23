@@ -1,6 +1,6 @@
 /**
- * TypeScript view of Health report schema 1.2 (endpoints/health
- * `src/lushly_health/schemas/report-1.2.json`). The schema, not these types, is the
+ * TypeScript view of Health report schema 1.3 (endpoints/health
+ * `src/lushly_health/schemas/report-1.3.json`). The schema, not these types, is the
  * contract: every file is validated against it before any of these types apply.
  */
 
@@ -17,6 +17,19 @@ export type Status = (typeof STATUSES)[number];
 
 export const SEVERITIES = ['required', 'advisory'] as const;
 export type Severity = (typeof SEVERITIES)[number];
+
+export const MEASURE_DIRECTIONS = ['higher_is_better', 'lower_is_better', 'neutral'] as const;
+export type MeasureDirection = (typeof MEASURE_DIRECTIONS)[number];
+
+export interface Measure {
+	key: string;
+	label: string;
+	value: number;
+	unit: string;
+	direction: MeasureDirection;
+	target?: string;
+	source?: string;
+}
 
 export interface ReportTarget {
 	id: string;
@@ -38,7 +51,7 @@ export interface Evidence {
 }
 
 export interface Outcome {
-	schema_version: '1.2';
+	schema_version: '1.3';
 	check_id: string;
 	target: string;
 	status: Status;
@@ -61,7 +74,7 @@ export interface ReportVerdict {
 }
 
 export interface HealthReport {
-	schema_version: '1.2';
+	schema_version: '1.3';
 	generator: { name: 'lushly-health'; version: string };
 	/** UTC, whole seconds: `YYYY-MM-DDTHH:MM:SSZ`. */
 	generated_at: string;
@@ -73,6 +86,7 @@ export interface HealthReport {
 		remediation: 'none';
 	};
 	outcomes: Outcome[];
+	measures: Measure[];
 	summary: Summary;
 	verdict: ReportVerdict;
 	effects: ['target_read'];
