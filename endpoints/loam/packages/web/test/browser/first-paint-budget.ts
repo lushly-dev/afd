@@ -9,7 +9,7 @@
  * read 880 to 1,032 ms. A ceiling raised here is a ceiling raised: `scripts/ceiling-raises.mjs` reads
  * `PAINT_CEILINGS` beside `budget.mjs`'s `CEILINGS`.
  */
-import { p95CeilingMs } from '../hosted/budget';
+import { p95CeilingMs } from '../p95-ceiling';
 
 /** The 20 `main` figures (ms), newest first, from each run's `P2-E1 first-contentful-paint` line. */
 export const FCP_MAIN_SAMPLES_MS = [

@@ -16,13 +16,8 @@ export const P6_H1_MAIN_MEDIANS_MS = [
 	203,
 ] as const;
 
-/** Nearest-rank 95th percentile plus 25%, rounded up to whole milliseconds (phase 6 spec, section 14). */
-export function p95CeilingMs(samples: readonly number[]): number {
-	if (samples.length === 0) throw new Error('at least one sample is required');
-	const sorted = [...samples].sort((a, b) => a - b);
-	const p95 = sorted[Math.ceil(sorted.length * 0.95) - 1] as number;
-	return Math.ceil(p95 * 1.25);
-}
+/** Nearest-rank 95th percentile plus 25%, rounded up (section 14); shared with first paint's ceiling, outside the lane. */
+export { p95CeilingMs } from '../p95-ceiling';
 
 /** Section 14's CI ceilings for P6-H1 (`CI=true`). */
 export const SECTION_14_CEILINGS = { coldStartMs: 405, residentMb: 117 } as const;

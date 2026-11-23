@@ -17,7 +17,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
-import { copilotFramePolicy } from '@lushly-dev/loam-host';
+import { copilotFramePolicy } from '@lushly-dev/loam-cli/frame-policy';
 import { PANEL_EVENT_FIELDS } from '@lushly-dev/loam-kernel/copilot';
 import { type Browser, chromium, type Frame, type Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';

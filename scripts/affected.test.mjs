@@ -5,12 +5,13 @@ import { tmpdir } from 'node:os';
 import { dirname, join, posix } from 'node:path';
 import test from 'node:test';
 import { changedImporters, parseLockfile } from './affected/lockfile.mjs';
-import { gitPath, OWN_TESTS, resolveScope } from './affected/scope.mjs';
+import { gitPath, OWN_TESTS, readLanes, resolveScope } from './affected/scope.mjs';
 import { matchesFilters, readSuiteTrigger, readTrigger, SUITES } from './affected/suites.mjs';
 import { readWorkspace, withDependencies, withDependents } from './affected/workspace.mjs';
 import {
 	checkEnvironment,
 	gate,
+	laneGate,
 	parseArgs,
 	plannedTools,
 	planSuites,
@@ -394,15 +395,173 @@ test('the rule for test files holds in this repository', () => {
 	const loam = workspace.filter((pkg) => pkg.dir.startsWith('endpoints/loam/'));
 	assert.ok(loam.length >= 16);
 	const gates = readTrigger(readFileSync(join(root, '.github/workflows/loam.yml'), 'utf8')).gates;
+	// The frozen hosted lane's packages are its own gate's, through `--lane`, and in no other (D162).
+	const lane = new Set(readLanes(root).flatMap((entry) => entry.packages));
+	assert.ok(lane.has('@lushly-dev/loam-host'));
+	const hosted = laneGate(scope([]), parseArgs(['gate', ...gates.get('hosted')], {})).packages;
 	for (const id of ['run', 'mounted']) {
 		const named = parseArgs(['gate', ...gates.get(id)], {}).packages;
-		for (const pkg of loam) assert.ok(named.includes(pkg.name), `loam.yml gate ${id}: ${pkg.name}`);
+		for (const pkg of loam)
+			assert.equal(
+				(lane.has(pkg.name) ? hosted : named).includes(pkg.name),
+				true,
+				`loam.yml gate ${lane.has(pkg.name) ? 'hosted' : id}: ${pkg.name}`
+			);
+		for (const name of lane) assert.ok(!named.includes(name), `loam.yml gate ${id}: ${name}`);
 	}
 	// Its `theme:check` step scans violet-elements' source, specs included: a path of the gate, as
 	// no package's suite runs the check.
 	const spec = scope(['foundations/fast-af/packages/violet-elements/src/button/a.spec.ts']);
 	assert.deepEqual(spec.affected, ['@lushly-dev/violet-elements']);
 	assert.equal(gate(spec, parseArgs(['gate', ...gates.get('run')], {})).run, true);
+});
+
+test("a lane's files reach only its packages, and its packages reach no dependent outside it", (t) => {
+	const { root, write } = fixture(t);
+	write('architecture.json', {
+		lanes: [
+			{
+				name: 'hosted',
+				packages: ['@x/host'],
+				paths: ['packages/host/', 'packages/web/test/hosted/', 'packages/web/hosted.json'],
+			},
+		],
+	});
+	write('packages/host/package.json', { name: '@x/host', dependencies: { '@x/core': '*' } });
+	write('packages/web/package.json', {
+		name: '@x/web',
+		dependencies: { '@x/core': '*' },
+		devDependencies: { '@x/host': '*' },
+	});
+	const scope = (files) => resolveScope({ root, files, git: () => '' });
+	const lane = (files) => gate(scope(files), parseArgs(['gate', '--lane', 'hosted'], {})).run;
+	const web = (files) => gate(scope(files), parseArgs(['gate', '--package', '@x/web'], {})).run;
+
+	// The server's own change: the lane alone, though the web host lists it as a devDependency.
+	assert.deepEqual(scope(['packages/host/src/a.ts']).affected, ['@x/host']);
+	assert.equal(lane(['packages/host/src/a.ts']), true);
+	assert.equal(web(['packages/host/src/a.ts']), false);
+	// A lane path inside another package's directory (and a helper there, not only a test file) is the lane's.
+	for (const file of ['packages/web/test/hosted/support.ts', 'packages/web/hosted.json']) {
+		assert.deepEqual(scope([file]).affected, [], file);
+		assert.equal(lane([file]), true, file);
+		assert.equal(web([file]), false, file);
+	}
+	// What the lane imports: both lanes run.
+	assert.deepEqual(scope(['packages/core/src/a.ts']).affected.sort(), [
+		'@x/cli',
+		'@x/core',
+		'@x/host',
+		'@x/server',
+		'@x/web',
+	]);
+	assert.equal(lane(['packages/core/src/a.ts']), true);
+	// A local change the lane does not import: the lane waits for nothing and is not run.
+	assert.equal(lane(['packages/web/src/a.ts']), false);
+	assert.equal(lane(['packages/web/test/unit/a.ts']), false);
+	assert.equal(web(['packages/web/src/a.ts']), true);
+
+	// The TypeScript gate (`affected.mjs run`) leaves the lane out, even as the web host's devDependency.
+	assert.equal(pnpmArgs(scope(['packages/host/src/a.ts']), 'test'), null);
+	assert.deepEqual(pnpmArgs(scope(['packages/web/src/a.ts']), 'build'), [
+		'-r',
+		'--filter',
+		'@x/core...',
+		'--filter',
+		'@x/web...',
+		'--filter',
+		'!@x/host',
+		'run',
+		'--if-present',
+		'build',
+	]);
+	const all = resolveScope({ root, all: true });
+	// The whole workspace (a global file, check:all, the daily run) checks the lane too: no lane job reads those files.
+	assert.deepEqual(pnpmArgs(all, 'test'), ['-r', 'run', '--if-present', 'test']);
+	assert.equal(gate(all, parseArgs(['gate', '--lane', 'hosted'], {})).run, true);
+	assert.throws(
+		() => gate(all, parseArgs(['gate', '--lane', 'nowhere'], {})),
+		/architecture.json has no lane named nowhere/
+	);
+	// No architecture.json: no lane, and the scope is as it was.
+	assert.deepEqual(readLanes(join(root, 'packages')), []);
+});
+
+test("this repository's hosted lane is gated apart from Loam's local lane (D162)", () => {
+	const root = join(import.meta.dirname, '..');
+	const workflow = readFileSync(join(root, '.github/workflows/loam.yml'), 'utf8');
+	const { gates } = readTrigger(workflow);
+	const runs = (id, files) =>
+		gate(resolveScope({ root, files, git: () => '' }), parseArgs(['gate', ...gates.get(id)], {}))
+			.run;
+	const cases = [
+		// [file, the local gate, the hosted gate]
+		['endpoints/loam/packages/host/src/host.ts', false, true],
+		['endpoints/loam/packages/web/test/hosted/support.ts', false, true],
+		['endpoints/loam/packages/web/test/hosted/relay.test.ts', false, true],
+		['endpoints/loam/packages/web/vitest.hosted.config.ts', false, true],
+		['endpoints/loam/packages/chrome/src/a.ts', true, false],
+		['endpoints/loam/packages/web/src/host.ts', true, false],
+		['endpoints/loam/packages/web/test/browser/accessibility.test.ts', true, false],
+		// The lane's inputs, which it imports or reads: both run.
+		['endpoints/loam/packages/web/test/browser/harness.ts', true, true],
+		['endpoints/loam/packages/web/test/mounted/umbel-fixture.ts', true, true],
+		['endpoints/loam/packages/web/package.json', true, true],
+		['endpoints/loam/apps/notes/src/a.ts', true, false],
+		['endpoints/loam/packages/console/src/a.ts', true, false],
+		['endpoints/loam/packages/desktop/test/a.ts', true, false],
+		// What the hosted server imports runs both.
+		['endpoints/loam/packages/kernel/src/kernel.ts', true, true],
+		['endpoints/loam/packages/identity/src/a.ts', true, true],
+		['endpoints/loam/packages/cli/src/a.ts', true, true],
+		// The theme too, through the CLI the server imports.
+		['endpoints/loam/packages/theme/src/a.ts', true, true],
+		['packages/server/src/a.ts', true, true],
+		['.github/workflows/loam.yml', true, true],
+	];
+	for (const [file, local, hosted] of cases) {
+		assert.equal(runs('run', [file]), local, `run gate: ${file}`);
+		assert.equal(runs('hosted', [file]), hosted, `hosted gate: ${file}`);
+	}
+});
+
+test("only the hosted job and its steps build or test the lane's packages (D162)", () => {
+	const root = join(import.meta.dirname, '..');
+	const lane = readLanes(root).flatMap((entry) => entry.packages);
+	assert.ok(lane.length > 0);
+	// A pnpm command whose filters can reach a lane package: a dependency closure (`x...`) or a folder glob.
+	const reaches = (command) => /^pnpm\b/.test(command) && /-F "[^"]*(?:\.\.\.|\*)"/.test(command);
+	const leavesOut = (command) => lane.every((name) => command.includes(`-F "!${name}"`));
+	// Every workflow: a closure such as `loam-desktop...` reaches the lane through the web host's devDependency.
+	let checked = 0;
+	for (const file of readdirSync(join(root, '.github/workflows'))) {
+		const workflow = readFileSync(join(root, '.github/workflows', file), 'utf8');
+		for (const job of workflow.split(/\n(?= {2}[a-z][\w-]*:\n)/).slice(1)) {
+			const id = job.match(/^ {2}([\w-]+):/)[1];
+			const commands = [...job.matchAll(/^\s+(?:run: )?(pnpm [^\n]+)$/gm)].map((match) => match[1]);
+			for (const command of commands.filter(
+				(candidate) => reaches(candidate) && /loam/.test(candidate)
+			)) {
+				checked++;
+				const where = `${file} ${id}: ${command}`;
+				if (file === 'loam.yml' && id === 'hosted') assert.ok(!leavesOut(command), where);
+				else assert.ok(leavesOut(command), `builds or tests the frozen lane: ${where}`);
+			}
+		}
+	}
+	assert.ok(checked >= 7, `only ${checked} pnpm commands read`);
+	// And every local suite: a closure over Loam leaves the lane out, but in loam.yml's hosted steps.
+	for (const suite of SUITES)
+		for (const step of suite.steps.filter(
+			(candidate) => reaches(candidate.run) && /loam/.test(candidate.run)
+		))
+			assert.equal(
+				leavesOut(step.run),
+				!(suite.workflow === 'loam.yml' && step.gate === 'hosted'),
+				`suites.mjs ${suite.workflow} ${step.gate}: ${step.run}`
+			);
+	const loam = SUITES.find((suite) => suite.workflow === 'loam.yml');
+	assert.ok(loam.steps.some((step) => step.gate === 'hosted' && /test:hosted/.test(step.run)));
 });
 
 test('provenance records reach no package', (t) => {

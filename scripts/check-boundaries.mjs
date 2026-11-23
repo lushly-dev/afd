@@ -205,6 +205,128 @@ function publicImport(target, specifier) {
 	});
 }
 
+/** A lane's path (architecture.json `lanes`): a directory with its trailing slash, or one file. */
+export const inLanePath = (path, lanePath) =>
+	lanePath.endsWith('/') ? path.startsWith(lanePath) : path === lanePath;
+const withoutExtension = (path) => path.replace(/\.[cm]?[jt]sx?$/, '');
+/** The source file a relative import names, with TypeScript's extension and index lookups; null for none. */
+function sourceFile(root, path) {
+	const candidates = [
+		path,
+		...['.ts', '.tsx', '.mts', '.js', '.mjs'].map(
+			(extension) => `${withoutExtension(path)}${extension}`
+		),
+		...['ts', 'js'].map((extension) => `${path}/index.${extension}`),
+	];
+	return (
+		candidates.find(
+			(candidate) => existsSync(join(root, candidate)) && /\.[cm]?[jt]sx?$|\.json$/.test(candidate)
+		) ?? null
+	);
+}
+const DEPENDENCY_FIELDS = [
+	'dependencies',
+	'devDependencies',
+	'peerDependencies',
+	'optionalDependencies',
+];
+
+/**
+ * A lane set apart from the code around it, such as Loam's frozen hosted lane (D162): its packages and paths are
+ * the only place that may import its packages, or reach into its paths by a relative import. A package that holds
+ * one of the lane's paths may list a lane package as a devDependency, for those files; no other manifest may list
+ * one. Every source file is read, tests included, since a test that imports the lane makes its job build it.
+ */
+function checkLanes(root, config, files, units, fail) {
+	for (const lane of config.lanes ?? []) {
+		const where = `lane ${lane.name ?? '(unnamed)'}`;
+		if (
+			typeof lane.name !== 'string' ||
+			!Array.isArray(lane.packages) ||
+			lane.packages.length === 0 ||
+			!Array.isArray(lane.paths) ||
+			lane.paths.length === 0
+		) {
+			fail(`${where}: needs a name, at least one package and at least one path`);
+			continue;
+		}
+		const inside = (path) => lane.paths.some((lanePath) => inLanePath(path, lanePath));
+		const into = (target) =>
+			lane.paths.some((lanePath) =>
+				lanePath.endsWith('/')
+					? within(target, lanePath.slice(0, -1))
+					: withoutExtension(target) === withoutExtension(lanePath)
+			);
+		const fix = `move what it needs out of the lane, or the file into the lane's paths (architecture.json's lanes say why it is ${lane.state ?? 'set apart'})`;
+		// Each path must hold a file, so a renamed directory cannot leave the lane empty and the check green.
+		for (const lanePath of lane.paths)
+			if (!files.some((file) => inLanePath(file, lanePath)))
+				fail(`${where}: its path ${lanePath} holds no file`);
+		for (const name of lane.packages) {
+			const unit = units.find((item) => item.format === 'npm' && item.name === name);
+			if (!unit) fail(`${where}: ${name} is not a classified npm distribution`);
+			else if (!inside(unit.manifestPath))
+				fail(`${where}: ${name} (${unit.manifestPath}) is outside the lane's paths`);
+		}
+		for (const unit of units.filter(
+			(item) => item.format === 'npm' && !inside(item.manifestPath)
+		)) {
+			const holdsLanePath = lane.paths.some((lanePath) => within(lanePath, unit.directory));
+			for (const field of DEPENDENCY_FIELDS)
+				for (const name of Object.keys(unit.data[field] ?? {}))
+					if (lane.packages.includes(name) && !(field === 'devDependencies' && holdsLanePath))
+						fail(
+							`${unit.manifestPath}: ${field} lists ${name}, of the ${where}; only a package that holds the lane's paths may, as a devDependency`
+						);
+		}
+		// Its inputs: the files outside it that it reads. Each holds a file, and every relative import that leaves the
+		// lane, followed through the files it reaches, lands in one, so the lane's gate opens when they change.
+		const inputs = Array.isArray(lane.inputs) ? lane.inputs : [];
+		if (lane.inputs !== undefined && !Array.isArray(lane.inputs))
+			fail(`${where}: its inputs must be a list`);
+		const isInput = (path) => inputs.some((input) => inLanePath(path, input));
+		for (const input of inputs)
+			if (!files.some((file) => inLanePath(file, input)))
+				fail(`${where}: its input ${input} holds no file`);
+		const pending = files.filter((file) => inside(file) && /\.[cm]?[jt]sx?$/.test(file));
+		const seen = new Set(pending);
+		while (pending.length > 0) {
+			const from = pending.pop();
+			for (const specifier of imports(read(join(root, from)), from)) {
+				if (!specifier.startsWith('.')) continue;
+				const named = slash(join(dirname(from), specifier.replace(/\?.*$/, '')));
+				// A file that is no source (`../../index.html?raw`) is read all the same: it must be an input too.
+				const target = sourceFile(root, named) ?? (files.includes(named) ? named : null);
+				if (!target || inside(target) || seen.has(target)) continue;
+				seen.add(target);
+				if (!isInput(target))
+					fail(
+						`${from}: imports ${specifier} (${target}), outside the ${where} and not among its inputs in architecture.json; list it there, so a change to it runs the lane's job`
+					);
+				if (/\.[cm]?[jt]sx?$/.test(target)) pending.push(target);
+			}
+		}
+		const names = [
+			...lane.packages,
+			...lane.paths.map((lanePath) => lanePath.split('/').filter(Boolean).at(-1)),
+		];
+		for (const path of files) {
+			if (!/\.[cm]?[jt]sx?$/.test(path) || inside(path)) continue;
+			const text = read(join(root, path));
+			// Only a file that names a lane package or a lane path's last segment can import one.
+			if (!names.some((name) => text.includes(withoutExtension(name)))) continue;
+			for (const specifier of imports(text, path)) {
+				if (lane.packages.includes(packageName(specifier)))
+					fail(`${path}: imports ${specifier}, of the ${where}; ${fix}`);
+				else if (specifier.startsWith('.')) {
+					const target = slash(join(dirname(path), specifier.replace(/\?.*$/, '')));
+					if (into(target)) fail(`${path}: imports ${specifier}, a path of the ${where}; ${fix}`);
+				}
+			}
+		}
+	}
+}
+
 /** Returns violations and a planning-only coverage map; never mutates files. */
 export function checkBoundaries(root, config = JSON.parse(read(join(root, 'architecture.json')))) {
 	const errors = [];
@@ -432,6 +554,7 @@ export function checkBoundaries(root, config = JSON.parse(read(join(root, 'archi
 				edge(unit, target, `${unit.manifestPath} editable source`);
 			}
 	}
+	checkLanes(root, config, files, units, fail);
 	for (const start of units) {
 		const visit = (current, seen) => {
 			for (const next of graph.get(current)) {

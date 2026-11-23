@@ -1,4 +1,6 @@
 {
+	// The hosted criterion (`test/hosted/`, `vitest.hosted.config.ts`) is the frozen hosted lane's (D162, `architecture.json`
+	// `lanes`): `tsconfig.hosted.json` checks it in `loam.yml`'s hosted job, so this check never needs `loam-host` built.
 	"extends": "../../../../tsconfig.json",
 	"compilerOptions": {
 		"target": "ES2022",
@@ -20,8 +22,7 @@
 		"vitest.config.ts",
 		"vitest.browser.config.ts",
 		"vitest.mounted.config.ts",
-		"vitest.hosted.config.ts",
 		"vitest.conformance.config.ts"
 	],
-	"exclude": ["node_modules", "dist"]
+	"exclude": ["node_modules", "dist", "test/hosted"]
 }

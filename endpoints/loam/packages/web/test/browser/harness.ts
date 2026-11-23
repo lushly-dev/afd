@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { appPack } from '@lushly-dev/loam-cli';
 import { writeDeployment } from '@lushly-dev/loam-cli/deployment';
-import { copilotFramePolicy, isCopilotFramePath } from '@lushly-dev/loam-host';
+import { copilotFramePolicy, isCopilotFramePath } from '@lushly-dev/loam-cli/frame-policy';
 import {
 	startTestAuthHost,
 	type TestAuthHost,

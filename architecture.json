@@ -21,6 +21,27 @@
 			"reason": "not a distribution: the private Changesets stub that holds this track's version (scripts/release/tracks.mjs); the pyproject.toml beside it is the classified unit"
 		}
 	],
+	"lanes": [
+		{
+			"name": "loam-hosted",
+			"state": "frozen",
+			"reason": "Loam's hosted and multi-person server, deferred to 2027 (D129) and frozen behind loam.yml's \"Hosted development profile\" job (D162); phase 6's steps 4 to 7 continue and 8 to 10 are held (D164). Code outside these paths may not import it. Its job, the only one a change scope runs it in, opens when a path or an input changes: `inputs` are the files outside it that it imports, every relative import that leaves the lane among them (scripts/check-boundaries.mjs), and what it reads besides; the built shell (web/dist) is not one: a change to the web host's source waits on nothing of the lane, and loam.yml's daily scheduled run checks the lane against main's shell",
+			"packages": ["@lushly-dev/loam-host"],
+			"paths": [
+				"endpoints/loam/packages/host/",
+				"endpoints/loam/packages/web/test/hosted/",
+				"endpoints/loam/packages/web/tsconfig.hosted.json",
+				"endpoints/loam/packages/web/vitest.hosted.config.ts"
+			],
+			"inputs": [
+				"endpoints/loam/packages/web/package.json",
+				"endpoints/loam/packages/web/tsconfig.json",
+				"endpoints/loam/packages/web/test/browser/harness.ts",
+				"endpoints/loam/packages/web/test/p95-ceiling.ts",
+				"endpoints/loam/packages/web/test/mounted/"
+			]
+		}
+	],
 	"units": [
 		{
 			"manifest": "packages/core/package.json",

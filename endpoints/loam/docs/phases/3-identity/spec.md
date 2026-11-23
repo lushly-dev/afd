@@ -316,7 +316,7 @@ It never reaches a browser: E13's scan refuses any import of it from `web/src`, 
 | | `local` | `provider` |
 | --- | --- | --- |
 | For | A personal store: the static shell, the desktop, a test | A team: one organization, one provider, on the deployment's origin |
-| Adapter | `MockAuthAdapter`, as today | `DeferredAuthAdapter`, then `BetterAuthAdapter` ([4.2](#42-first-paint-the-probe)) |
+| Adapter | `MockAuthAdapter`, as today; named `LocalAuthAdapter` since 2026-11-23 (D162), the same behaviour | `DeferredAuthAdapter`, then `BetterAuthAdapter` ([4.2](#42-first-paint-the-probe)) |
 | Signed out | Works, as `local`, as phases 0 to 2 do | Only the [signed-out commands](#signed-out-and-member-exempt-commands); main shows "Sign in" |
 | `MembershipV1` | **Every actor is a member and an owner** | The bound organization's members, read from the provider ([2.3](#23-the-workspace-bound-to-an-organization)) |
 | Default | Yes: a deployment with no `[identity]` | Only by `[identity] mode = "provider"` |
@@ -469,7 +469,7 @@ afd-auth's middleware already keeps an agent's id and replaces only its `onBehal
 
 ### 3.2 Who is who
 
-- **A person's id** is the provider's user id, or the Mock's `mock-user-<email>` in `local` mode. Never an email.
+- **A person's id** is the provider's user id, or the Mock's `mock-user-<email>` in `local` mode (which `LocalAuthAdapter`, its name since D162, keeps). Never an email.
 - **An agent member's id** is `agt_` and 20 characters of `[a-z0-9]` from the kernel's random source. **No person's id may start `agt_`**: the auth gate signs out a session whose user id does (`AGENT_CANNOT_SIGN_IN`), and `principalOf` refuses such a token subject. Better Auth's ids never do; the check is so that a forged or misconfigured adapter cannot make an agent member a person.
 - **The agent interface's** ids are `shell-agent` or phase 5's names. No agent id is ever in a project's `members`.
 

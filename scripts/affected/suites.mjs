@@ -99,15 +99,18 @@ export const SUITES = [
 		// `openssl` makes the certificates of the hosted server's TLS unit and its development profile.
 		tools: ['chromium', 'cargo', 'openssl'],
 		steps: [
-			{ gate: 'mounted', run: 'pnpm -F "@lushly-dev/loam-web..." build' },
-			{ gate: 'run', run: 'pnpm -F "@lushly-dev/loam-host..." build' },
+			// The local lane leaves out the hosted server, the frozen lane's (D162): its own gate's steps below.
 			{
-				gate: 'run',
-				run: 'pnpm -F "./endpoints/loam/packages/*" -F "./endpoints/loam/apps/*" typecheck',
+				gate: 'mounted',
+				run: 'pnpm -F "@lushly-dev/loam-web..." -F "!@lushly-dev/loam-host" build',
 			},
 			{
 				gate: 'run',
-				run: 'pnpm --no-bail -F "./endpoints/loam/packages/*" -F "./endpoints/loam/apps/*" test --coverage --reporter=verbose',
+				run: 'pnpm -F "./endpoints/loam/packages/*" -F "./endpoints/loam/apps/*" -F "!@lushly-dev/loam-host" typecheck',
+			},
+			{
+				gate: 'run',
+				run: 'pnpm --no-bail -F "./endpoints/loam/packages/*" -F "./endpoints/loam/apps/*" -F "!@lushly-dev/loam-host" test --coverage --reporter=verbose',
 			},
 			// AFD's lean path, E2's and E11's AFD side.
 			{
@@ -121,11 +124,6 @@ export const SUITES = [
 				run: 'pnpm -F @lushly-dev/afd-server exec vitest run src/authorization-cases.test.ts src/mcp-auth.test.ts src/mcp-auth-verifier.test.ts src/mcp-auth-scopes.test.ts src/mcp-auth-host.test.ts src/verified-credentials.test.ts --reporter=verbose',
 			},
 			{ gate: 'run', run: 'pnpm -F @lushly-dev/afd-auth exec vitest run --reporter=verbose' },
-			// AFD's host path, phase 6's P6-E7.
-			{
-				gate: 'run',
-				run: 'pnpm -F @lushly-dev/local-db exec vitest run src/sqlite-adapter.test.ts src/entry.test.ts --reporter=verbose',
-			},
 			{ gate: 'run', run: 'pnpm -F @lushly-dev/loam-theme theme:check' },
 			{
 				gate: 'run',
@@ -139,8 +137,24 @@ export const SUITES = [
 			{ gate: 'run', run: 'pnpm -F @lushly-dev/loam-web test:webkit' },
 			{ gate: 'run', run: 'pnpm -F @lushly-dev/loam-web budget' },
 			{ gate: 'mounted', run: 'pnpm -F @lushly-dev/loam-web test:mounted' },
-			// Phase 6's hosted criterion against the development profile; `openssl` makes its certificate.
-			{ gate: 'run', run: 'pnpm -F @lushly-dev/loam-web test:hosted' },
+			// The frozen hosted lane (D162), the "Hosted development profile" job: the hosted server and the web host it
+			// serves, their types, the server's units, its store (phase 6's P6-E7) and the hosted criterion against the
+			// development profile, whose certificate `openssl` makes.
+			{
+				gate: 'hosted',
+				run: 'pnpm -F "@lushly-dev/loam-web..." -F "@lushly-dev/loam-host..." build',
+			},
+			{ gate: 'hosted', run: 'pnpm -F @lushly-dev/loam-host typecheck' },
+			{ gate: 'hosted', run: 'pnpm -F @lushly-dev/loam-web typecheck:hosted' },
+			{
+				gate: 'hosted',
+				run: 'pnpm -F @lushly-dev/loam-host test --coverage --reporter=verbose',
+			},
+			{
+				gate: 'hosted',
+				run: 'pnpm -F @lushly-dev/local-db exec vitest run src/sqlite-adapter.test.ts src/entry.test.ts --reporter=verbose',
+			},
+			{ gate: 'hosted', run: 'pnpm -F @lushly-dev/loam-web test:hosted' },
 		],
 	},
 	{

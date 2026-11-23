@@ -238,3 +238,111 @@ test('native families classify without AFD envelopes; Cargo build paths cannot h
 	);
 	assert.match(f.check().errors.join('\n'), /foundation specimen requires foundation violet/);
 });
+
+function laneFixture(t) {
+	const f = fixture(t);
+	f.config.lanes = [
+		{
+			name: 'hosted',
+			state: 'frozen',
+			reason: 'test',
+			packages: ['@x/host'],
+			paths: [
+				'endpoints/app/host/',
+				'endpoints/app/web/test/hosted/',
+				'endpoints/app/web/hosted.json',
+			],
+		},
+	];
+	f.npm('endpoints/app/host', '@x/host', {
+		exports: { '.': './dist/index.js', './testing': './dist/testing.js' },
+	});
+	f.npm('endpoints/app/web', '@x/web', { devDependencies: { '@x/host': '*' } });
+	f.write('endpoints/app/web/test/hosted/a.test.ts', "import { start } from '@x/host/testing';\n");
+	f.write('endpoints/app/web/test/hosted/budget.ts', 'export const b = 1;\n');
+	f.write('endpoints/app/web/hosted.json', '{}');
+	return f;
+}
+
+test('a lane: its own paths may import it, and a package holding them may list it as a devDependency', (t) => {
+	const f = laneFixture(t);
+	assert.deepEqual(f.check().errors, []);
+});
+
+test('a lane: code outside its paths may not import its packages or reach into its paths, tests included', (t) => {
+	const f = laneFixture(t);
+	f.write('endpoints/app/web/test/unit/a.test.ts', "import { start } from '@x/host/testing';\n");
+	f.write('endpoints/app/web/test/unit/b.test.ts', "import { b } from '../hosted/budget';\n");
+	f.write('endpoints/app/web/src/deep/c.ts', "export type { H } from '@x/host';\n");
+	const errors = f.check().errors.join('\n');
+	assert.match(
+		errors,
+		/web\/test\/unit\/a\.test\.ts: imports @x\/host\/testing, of the lane hosted/
+	);
+	assert.match(
+		errors,
+		/web\/test\/unit\/b\.test\.ts: imports \.\.\/hosted\/budget, a path of the lane hosted/
+	);
+	assert.match(errors, /web\/src\/deep\/c\.ts: imports @x\/host, of the lane hosted/);
+});
+
+test("a lane: no manifest outside it lists its packages, but a holder's devDependency", (t) => {
+	const f = laneFixture(t);
+	f.npm('endpoints/app/chrome', '@x/chrome', { devDependencies: { '@x/host': '*' } });
+	f.npm('endpoints/app/kernel', '@x/kernel', { dependencies: { '@x/host': '*' } });
+	const errors = f.check().errors.join('\n');
+	assert.match(errors, /chrome\/package\.json: devDependencies lists @x\/host, of the lane hosted/);
+	assert.match(errors, /kernel\/package\.json: dependencies lists @x\/host, of the lane hosted/);
+	assert.doesNotMatch(errors, /web\/package\.json/);
+});
+
+test('a lane: an empty path, a package that is no distribution or sits outside it, and a malformed lane fail', (t) => {
+	const f = laneFixture(t);
+	f.config.lanes[0].paths.push('endpoints/app/gone/');
+	f.config.lanes[0].packages.push('@x/missing', '@x/web');
+	f.config.lanes.push({ name: 'empty', packages: [], paths: [] });
+	const errors = f.check().errors.join('\n');
+	assert.match(errors, /lane hosted: its path endpoints\/app\/gone\/ holds no file/);
+	assert.match(errors, /lane hosted: @x\/missing is not a classified npm distribution/);
+	assert.match(
+		errors,
+		/lane hosted: @x\/web \(endpoints\/app\/web\/package\.json\) is outside the lane's paths/
+	);
+	assert.match(errors, /lane empty: needs a name, at least one package and at least one path/);
+});
+
+test('a lane: every relative import that leaves it, followed through what it reaches, is among its inputs', (t) => {
+	const f = laneFixture(t);
+	f.write('endpoints/app/web/test/hosted/c.test.ts', "import { h } from '../browser/harness';\n");
+	f.write(
+		'endpoints/app/web/test/browser/harness.ts',
+		"import { r } from '../mounted/relay';\nexport const h = 1;\n"
+	);
+	f.write('endpoints/app/web/test/mounted/relay.ts', 'export const r = 1;\n');
+	const errors = f.check().errors.join('\n');
+	assert.match(
+		errors,
+		/web\/test\/hosted\/c\.test\.ts: imports \.\.\/browser\/harness \(endpoints\/app\/web\/test\/browser\/harness\.ts\), outside the lane hosted and not among its inputs/
+	);
+	assert.match(
+		errors,
+		/web\/test\/browser\/harness\.ts: imports \.\.\/mounted\/relay .* not among its inputs/
+	);
+	f.write('endpoints/app/web/test/hosted/d.test.ts', "import page from '../../index.html?raw';\n");
+	f.write('endpoints/app/web/index.html', '<!doctype html>');
+	assert.match(
+		f.check().errors.join('\n'),
+		/web\/test\/hosted\/d\.test\.ts: imports \.\.\/\.\.\/index\.html\?raw .* not among its inputs/
+	);
+	f.config.lanes[0].inputs = [
+		'endpoints/app/web/test/browser/harness.ts',
+		'endpoints/app/web/test/mounted/',
+		'endpoints/app/web/index.html',
+	];
+	assert.deepEqual(f.check().errors, []);
+	f.config.lanes[0].inputs.push('endpoints/app/web/gone.json');
+	assert.match(
+		f.check().errors.join('\n'),
+		/lane hosted: its input endpoints\/app\/web\/gone\.json holds no file/
+	);
+});

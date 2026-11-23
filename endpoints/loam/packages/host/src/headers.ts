@@ -7,6 +7,16 @@
 
 import { isLoopbackHost } from '@lushly-dev/loam-manifest/server';
 
+/**
+ * The copilot frame's policy is phase 5's, which a local server of the shell sends too, so it lives in
+ * `@lushly-dev/loam-cli/frame-policy` and the hosted server re-exports it (D162).
+ */
+export {
+	COPILOT_FRAME_PATH,
+	copilotFramePolicy,
+	isCopilotFramePath,
+} from '@lushly-dev/loam-cli/frame-policy';
+
 export const FRAME_ANCESTORS_NONE = "frame-ancestors 'none'";
 export const FORM_ACTION_SELF = "form-action 'self'";
 
@@ -82,28 +92,9 @@ export function shellPagePolicy(meta: string, path: string): string {
 	return `${meta}; ${FRAME_ANCESTORS_NONE}${isFormPage(path) ? `; ${FORM_ACTION_SELF}` : ''}`;
 }
 
-/** The sandbox's pages on the sandbox origin, but the copilot's ({@link copilotFramePolicy}): framed only by the shell (D62). */
+/** The sandbox's pages on the sandbox origin, but the copilot's (`copilotFramePolicy`): framed only by the shell (D62). */
 export function sandboxPolicy(origin: string): string {
 	return `frame-ancestors ${origin}`;
-}
-
-/** The copilot runtime's frame and its chunks, on the sandbox origin (phase 5 specification, 3.2). */
-export const COPILOT_FRAME_PATH = '/sandbox/copilot/';
-
-/** Whether a request's path on the sandbox origin is under the copilot's path, which carries its own policy. */
-export function isCopilotFramePath(path: string): boolean {
-	return path.startsWith(COPILOT_FRAME_PATH);
-}
-
-/**
- * The copilot frame's header policy (phase 5 specification, 3.2), on every file under its path: scripts only from
- * that path on the sandbox origin, never `'self'`, which matches nothing in an opaque-origin document on WebKitGTK
- * 2.52; workers only from `blob:`, which inherit it; no connection of its own; framed only by the shell. The path,
- * not the whole origin, since the sandbox origin also serves the sandbox proxy and app views.
- */
-export function copilotFramePolicy(sandboxOrigin: string, shellOrigin: string): string {
-	const path = new URL(COPILOT_FRAME_PATH, sandboxOrigin).href;
-	return `default-src 'none'; script-src ${path}; worker-src blob:; connect-src 'none'; frame-ancestors ${shellOrigin}`;
 }
 
 /** `Cache-Control` for a file of the site, by its path after `<base>` (3.5). */

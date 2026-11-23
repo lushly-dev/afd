@@ -158,7 +158,8 @@ export function createIdentityCommands(deps: IdentityCommandsDeps) {
 	const { kit, auth } = deps;
 	const { z } = kit;
 	const provider = deps.identity?.mode === 'provider';
-	// `local` mode's Mock answers the sessions and passkeys in memory (4.1, 4.6): its capabilities attached once,
+	// `local` mode's adapter (`LocalAuthAdapter`, the Mock's behaviour under its own name, D162) or a test's Mock
+	// answers the sessions and passkeys in memory (4.1, 4.6): its capabilities attached once,
 	// here, before any command that reads them is registered. A host's own adapter, or one attached, is left alone.
 	const mock = auth as Partial<MockAuthAdapter>;
 	if (!provider && typeof mock._setUser === 'function' && auth.sessions === undefined) {

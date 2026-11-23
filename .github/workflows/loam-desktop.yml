@@ -149,9 +149,10 @@ jobs:
       - name: Install tauri-driver
         working-directory: endpoints/loam/packages/desktop/src-tauri
         run: cargo install tauri-driver --version 2.1.0 --locked
-      # `web`'s build copies `@lushly-dev/loam-copilot`'s frame into `dist/sandbox/copilot/`, which P5-A2 serves.
+      # `web`'s build copies `@lushly-dev/loam-copilot`'s frame into `dist/sandbox/copilot/`, which P5-A2 serves. Without the
+      # hosted server, the frozen lane's (Loam's D162), which the web host lists only for its hosted criterion.
       - name: Build the web host and its dependencies
-        run: pnpm -F "@lushly-dev/loam-desktop..." build
+        run: pnpm -F "@lushly-dev/loam-desktop..." -F "!@lushly-dev/loam-host" build
       - name: Build the bundled empty shell
         run: pnpm -F @lushly-dev/loam-desktop build:site
       - name: Format
@@ -258,7 +259,7 @@ jobs:
         working-directory: endpoints/loam/packages/desktop/src-tauri
         run: cargo install tauri-driver --version 2.1.0 --locked
       - name: Build the web host and its dependencies
-        run: pnpm -F "@lushly-dev/loam-desktop..." build
+        run: pnpm -F "@lushly-dev/loam-desktop..." -F "!@lushly-dev/loam-host" build
       - name: Build the bundled empty shell
         run: pnpm -F @lushly-dev/loam-desktop build:site
       - name: Format
@@ -486,7 +487,7 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/main' }}
           workspaces: endpoints/loam/packages/desktop/src-tauri
       - name: Build the web host and its dependencies
-        run: pnpm -F "@lushly-dev/loam-desktop..." build
+        run: pnpm -F "@lushly-dev/loam-desktop..." -F "!@lushly-dev/loam-host" build
       - name: Build the bundled empty shell
         run: pnpm -F @lushly-dev/loam-desktop build:site
       - name: Format

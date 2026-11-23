@@ -7,8 +7,11 @@
  *                                                     run a package script over the scope; `build`
  *                                                     also builds the dependencies of the scope
  *   node scripts/affected.mjs gate [--package <name>...] [--path <prefix>...] [--except <prefix>...]
+ *                                  [--lane <name>...]
  *                                                     CI: write run=true|false to $GITHUB_OUTPUT;
- *                                                     a file under an --except prefix opens no --path
+ *                                                     a file under an --except prefix opens no --path;
+ *                                                     --lane adds a lane's packages, paths and
+ *                                                     inputs (architecture.json `lanes`)
  *   node scripts/affected.mjs trigger <workflow.yml>   CI, on a merge group: write run=true|false to
  *                                                     $GITHUB_OUTPUT, true when a changed file
  *                                                     matches the workflow's own pull_request.paths
@@ -47,6 +50,7 @@ export function parseArgs(argv, env = process.env) {
 		packages: [],
 		paths: [],
 		except: [],
+		lanes: [],
 		noBail: false,
 		json: false,
 		list: false,
@@ -69,6 +73,7 @@ export function parseArgs(argv, env = process.env) {
 		else if (arg === '--package') options.packages.push(argv[++index]);
 		else if (arg === '--path') options.paths.push(argv[++index]);
 		else if (arg === '--except') options.except.push(argv[++index]);
+		else if (arg === '--lane') options.lanes.push(argv[++index]);
 		else if (arg === '--files') {
 			options.files = [];
 			while (index + 1 < argv.length && !argv[index + 1].startsWith('--'))
@@ -85,9 +90,38 @@ function describe(scope, selected) {
 	return `${selected.length} of ${scope.total} packages (${scope.reason}): ${selected.join(', ')}`;
 }
 
-/** pnpm arguments that run `script` over the scope, or null when nothing is selected. */
+/** What `affected.mjs run` (the TypeScript gate) runs over, naming the lane packages its jobs run instead. */
+function describeRun(scope, selected) {
+	const lane = leftToLanes(scope);
+	const left = selected.filter((name) => lane.has(name)).sort();
+	const text = describe(
+		scope,
+		selected.filter((name) => !lane.has(name))
+	);
+	return left.length === 0 ? text : `${text}; left to their lane's job: ${left.join(', ')}`;
+}
+
+/** The packages of the scope's lanes (architecture.json `lanes`), which their own workflow jobs gate. */
+const lanePackages = (scope) => new Set((scope.lanes ?? []).flatMap((lane) => lane.packages));
+
+/**
+ * The lane packages a scope leaves to their own job: all of them for a change's scope, none for the
+ * whole workspace. A change gates a lane by its paths, inputs and imports (`gate --lane`); a global
+ * file (the root tsconfig.json, .nvmrc), `check:all` and the daily run reach every package, and no
+ * lane job's paths name those files, so there `pnpm check` builds and tests the lane too.
+ */
+const leftToLanes = (scope) => (scope.mode === 'all' ? new Set() : lanePackages(scope));
+
+/**
+ * pnpm arguments that run `script` over the scope, or null when nothing is selected. A change's
+ * scope leaves its lane packages out, even as a dependency of a selected package (a devDependency
+ * the lane's own paths use): the lane's job builds and tests them (Loam's hosted lane, D162).
+ */
 export function pnpmArgs(scope, script, { noBail = false, passthrough = [] } = {}) {
-	const selected = script === 'build' ? scope.build : scope.affected;
+	const lane = leftToLanes(scope);
+	const selected = (script === 'build' ? scope.build : scope.affected).filter(
+		(name) => !lane.has(name)
+	);
 	if (selected.length === 0) return null;
 	const filters =
 		scope.mode === 'all'
@@ -96,6 +130,7 @@ export function pnpmArgs(scope, script, { noBail = false, passthrough = [] } = {
 	return [
 		'-r',
 		...filters,
+		...[...lane].sort().flatMap((name) => ['--filter', `!${name}`]),
 		...(noBail ? ['--no-bail'] : []),
 		'run',
 		'--if-present',
@@ -104,8 +139,24 @@ export function pnpmArgs(scope, script, { noBail = false, passthrough = [] } = {
 	];
 }
 
+/** A gate's packages and paths with each `--lane`'s packages, paths and inputs added; a lane architecture.json lacks fails. */
+export function laneGate(scope, { packages = [], paths = [], except = [], lanes = [] }) {
+	const added = lanes.map((name) => {
+		const lane = (scope.lanes ?? []).find((candidate) => candidate.name === name);
+		if (!lane) throw new Error(`architecture.json has no lane named ${name}`);
+		return lane;
+	});
+	return {
+		packages: [...packages, ...added.flatMap((lane) => lane.packages)],
+		// Its paths, and its inputs: the files outside it that it reads (scripts/check-boundaries.mjs).
+		paths: [...paths, ...added.flatMap((lane) => [...lane.paths, ...(lane.inputs ?? [])])],
+		except,
+	};
+}
+
 /** Whether a gated workflow must run: whole-workspace scope, a listed path, or a listed package. */
-export function gate(scope, { packages, paths, except = [] }) {
+export function gate(scope, options) {
+	const { packages, paths, except } = laneGate(scope, options);
 	if (scope.mode === 'all') return { run: true, reason: scope.reason };
 	const file = scope.files.find(
 		(candidate) =>
@@ -258,7 +309,7 @@ function runCheck(all) {
 
 function verify(scope, options) {
 	const plan = planSuites(scope, { root });
-	console.error(`[verify] check (ci.yml): ${describe(scope, scope.affected)}`);
+	console.error(`[verify] check (ci.yml): ${describeRun(scope, scope.affected)}`);
 	let workflow = null;
 	for (const { suite, step, reason } of plan) {
 		if (suite.workflow !== workflow) {
@@ -361,14 +412,14 @@ function main(argv) {
 			if (!script) throw new Error('run needs a package script name');
 			const args = pnpmArgs(scope, script, options);
 			const selected = script === 'build' ? scope.build : scope.affected;
-			console.error(`[affected] ${script}: ${describe(scope, selected)}`);
+			console.error(`[affected] ${script}: ${describeRun(scope, selected)}`);
 			if (!args) return;
 			execFileSync('pnpm', args, { cwd: root, stdio: 'inherit', shell: windows });
 			return;
 		}
 		case 'gate': {
-			if (options.packages.length + options.paths.length === 0)
-				throw new Error('gate needs a --package or a --path');
+			if (options.packages.length + options.paths.length + options.lanes.length === 0)
+				throw new Error('gate needs a --package, a --path or a --lane');
 			const result = gate(scope, options);
 			console.log(`run=${result.run}: ${result.reason}`);
 			if (process.env.GITHUB_OUTPUT)
@@ -388,7 +439,7 @@ function main(argv) {
 			return;
 		}
 		case 'check': {
-			console.error(`[affected] check: ${describe(scope, scope.affected)}`);
+			console.error(`[affected] check: ${describeRun(scope, scope.affected)}`);
 			runCheck(options.all);
 			return;
 		}

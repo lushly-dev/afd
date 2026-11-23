@@ -1,10 +1,10 @@
 /**
  * @fileoverview The browser host's kernel (phase 0 specification, 6.6): IndexedDB stores, the
- * journal's writer lock, the Mock adapter and `matchMedia` as the environment. A second tab whose
+ * journal's writer lock, `local` mode's `LocalAuthAdapter` and `matchMedia` as the environment. A second tab whose
  * writer lock is refused gets no kernel, so the page can show "Loam is open in another tab".
  */
 
-import { type AuthAdapter, MockAuthAdapter } from '@lushly-dev/afd-auth';
+import type { AuthAdapter } from '@lushly-dev/afd-auth';
 import {
 	IndexedDbJournalError,
 	IndexedDbJournalSink,
@@ -17,6 +17,7 @@ import {
 	type KernelParts,
 	type LoamKernelV5,
 } from '@lushly-dev/loam-kernel';
+import { LocalAuthAdapter } from '@lushly-dev/loam-kernel/local-auth';
 
 import { IndexedDbAdapter } from '@lushly-dev/local-db/indexeddb';
 
@@ -64,7 +65,7 @@ export interface HostKernelOptions {
 	initialScope?: KernelOptionsV5['initialScope'];
 	/**
 	 * A `provider` deployment's adapter, membership and ports, from the probe (phase 3 specification, 4.2). Absent:
-	 * `local`, with a Mock per page.
+	 * `local`, with a `LocalAuthAdapter` per page (D162).
 	 */
 	auth?: AuthAdapter;
 	membership?: KernelOptionsV5['membership'];
@@ -146,7 +147,7 @@ export async function createHostKernel(options: HostKernelOptions): Promise<Host
 		}),
 		storeKind: 'indexeddb',
 		journal,
-		auth: options.auth ?? new MockAuthAdapter(),
+		auth: options.auth ?? new LocalAuthAdapter(),
 		...(options.membership ? { membership: options.membership } : {}),
 		...(options.identityPorts ? { identityPorts: options.identityPorts } : {}),
 		environment: options.environment,
