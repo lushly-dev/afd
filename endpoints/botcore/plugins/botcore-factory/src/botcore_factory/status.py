@@ -38,6 +38,7 @@ CELL_FIELDS = (
     "excused",
     "lastEjection",
     "thread",
+    "testChanges",
 )
 
 

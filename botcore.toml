@@ -93,6 +93,18 @@ coverage = ["pnpm", "check:all"]
 review_evidence = [
     "node", "scripts/review-record.mjs", "verify", "--head", "{head}", "--worktree", "{worktree}",
 ]
+# Reports what a branch did to its tests (deleted/skipped/loosened tests, rewritten assertions,
+# changed snapshots or runner configs). The lane runs this from its clean checkout of the base
+# so a branch cannot silence its own report; attached to attempt records and read by Phase 5's
+# "never improves by checking less" hold (lushly-dev/afd#1387).
+test_changes = [
+    "node",
+    ".claude/skills/maintain-gates/scripts/report-test-changes.mjs",
+    "--root", "{worktree}",
+    "--base", "{base}",
+    "--head", "{head}",
+    "--json",
+]
 required_check = "ci-ok"
 # When main moves under a validated branch, the lane advances it without validating it again only
 # if main's changes touch none of shared_paths or gate_paths, merge cleanly, and share no unit with

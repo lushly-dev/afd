@@ -42,6 +42,18 @@ def test_afd_s_botcore_toml_states_its_labels_cheap_checks_and_gates():
         "{worktree}",
     ]
     assert (REPO_ROOT / "scripts/review-record.mjs").is_file()  # prepare-pr lane mode writes it.
+    assert adapter.test_changes == [
+        "node",
+        ".claude/skills/maintain-gates/scripts/report-test-changes.mjs",
+        "--root",
+        "{worktree}",
+        "--base",
+        "{base}",
+        "--head",
+        "{head}",
+        "--json",
+    ]
+    assert (REPO_ROOT / ".claude/skills/maintain-gates/scripts/report-test-changes.mjs").is_file()
     # Every imported unit's records, including Health and its pin, are merged (#1410, #1472).
     [records] = adapter.regenerate
     assert records.run == ["node", "scripts/provenance-merge.mjs"]
@@ -87,6 +99,7 @@ def test_every_key_of_the_proposal_parses():
         required_check="ci-ok",
         gate_paths=["lefthook.yml", ".github/workflows/**"],
         review_evidence=["node", "scripts/verify-record.mjs"],
+        test_changes=["node", "scripts/report-test-changes.mjs", "--json"],
         receipt=["pnpm", "verify", "--verify"],
         ui_paths=["site/**"],
         screens=["node", "capture.mjs"],
@@ -107,6 +120,8 @@ def test_every_key_of_the_proposal_parses():
     [
         ({"validate": "pnpm verify"}, "list"),
         ({"validate": []}, "argument list"),
+        ({"test_changes": "node report.mjs"}, "list"),
+        ({"test_changes": []}, "argument list"),
         ({"prequeue": [{"name": "lint", "run": ["pnpm", ""]}]}, "argument list"),
         ({"prequeue": [["pnpm", "lint"]]}, "Stage"),
         ({"prequeue": [{"name": "Lint!", "run": ["x"]}]}, "pattern"),

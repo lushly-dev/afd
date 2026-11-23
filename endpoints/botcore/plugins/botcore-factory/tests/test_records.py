@@ -22,7 +22,7 @@ ENQUEUE = {
 def test_a_record_carries_schema_kind_time_and_run():
     record = rec("dropped", "t", branch="b", reason="gone")
     assert record == {
-        "schema": 4,
+        "schema": 5,
         "kind": "dropped",
         "at": "t",
         "runId": "run-1",
@@ -152,3 +152,98 @@ def test_attempt_numbers_first_enqueue_and_last_ejection():
     assert records.first_enqueued(history(), "new") is None
     assert records.last_ejection(history(), "b")["cause"] == "final-failed"
     assert records.last_ejection(history(), "c") is None
+
+
+def test_test_changes_fold_onto_attempts_and_authoritative_validation_replaces_advisory():
+    advisory = {
+        "base": "m1",
+        "mergeBase": "m1",
+        "head": "h1",
+        "testFiles": 1,
+        "totals": {},
+        "findingCount": 0,
+        "findings": [],
+    }
+    authoritative = {
+        "base": "m1",
+        "mergeBase": "m1",
+        "head": "h1+m1",
+        "testFiles": 1,
+        "totals": {},
+        "findingCount": 1,
+        "findings": [{"file": "a.test.ts", "kind": "fewer-tests", "detail": "tests 2 → 1"}],
+    }
+    log = [
+        rec(
+            "enqueued",
+            "t1",
+            branch="feat/x",
+            attempt=1,
+            head="h1",
+            state="queued",
+            firstEnqueuedAt="t1",
+            testChanges=advisory,
+            **ENQUEUE,
+        ),
+        rec(
+            "validated",
+            "t2",
+            branch="feat/x",
+            attempt=1,
+            outcome="passed",
+            head="h1+m1",
+            base="m1",
+            tree="tr1",
+            command=["pnpm", "verify"],
+            minutes=5.0,
+            testChanges=authoritative,
+        ),
+        rec("merged", "t3", branch="feat/x", attempt=1, pr=701, testChanges=authoritative),
+    ]
+    [row] = records.attempts(log)
+    assert row["testChanges"] == authoritative
+    assert records.merges(log)[0]["testChanges"] == authoritative
+    assert records.test_changes_for(log, "feat/x") == authoritative
+    assert records.test_changes_for(log, "feat/x", attempt=1) == authoritative
+    assert records.test_changes_for(log, "feat/x", attempt=2) is None
+    assert records.test_changes_for(log, "other") is None
+
+    # A held record replaces an advisory enqueue report and updates state/holdReason, and a
+    # subsequent explicit testChanges=None never erases an existing report.
+    held_log = [
+        rec(
+            "enqueued",
+            "t1",
+            branch="feat/held",
+            attempt=1,
+            head="h1",
+            state="queued",
+            firstEnqueuedAt="t1",
+            testChanges=advisory,
+            **ENQUEUE,
+        ),
+        rec(
+            "held",
+            "t2",
+            branch="feat/held",
+            attempt=1,
+            holdReason="gate-change",
+            testChanges=authoritative,
+        ),
+        rec(
+            "ejected",
+            "t3",
+            branch="feat/held",
+            attempt=1,
+            cause="final-failed",
+            testChanges=None,
+        ),
+    ]
+    [held_row] = records.attempts(held_log)
+    assert (held_row["state"], held_row["holdReason"], held_row["heldAt"]) == (
+        "held",
+        "gate-change",
+        "t2",
+    )
+    assert held_row["testChanges"] == authoritative
+    assert records.test_changes_for(held_log, "feat/held") == authoritative

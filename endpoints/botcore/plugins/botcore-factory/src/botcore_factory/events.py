@@ -36,6 +36,7 @@ EVENT_FIELDS = (
 ANSWERED_BY = {
     "ejected": ("lane-enqueue", "lane-drop"),
     "ejection-limit": ("lane-enqueue", "lane-drop", "ejection-excuse"),
+    "gate-change-held": ("lane-enqueue", "lane-drop", "measure-approve"),
     "lane-error": ("lane-resume",),
     "queue-room": ("cell-register",),
 }

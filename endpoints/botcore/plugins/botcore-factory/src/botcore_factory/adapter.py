@@ -165,6 +165,15 @@ class FactoryConfig(BaseModel):
         ),
     )
     review_evidence: Argv | None = Field(default=None, description="Verifies a head's review")
+    test_changes: Argv | None = Field(
+        default=None,
+        description=(
+            "Reports what a branch did to its tests (report-test-changes.mjs --json): {base},"
+            " {head} and {worktree} are substituted; the lane runs it from a clean checkout of"
+            " the base, attaches the report to the cell and attempt records, and reads it for"
+            " Phase 5's gate-change hold (lushly-dev/afd#1387)"
+        ),
+    )
     receipt: Argv | None = Field(default=None, description="Confirms an earlier validation")
     ui_paths: list[str] = Field(default_factory=list, description="Globs of UI source")
     screens: Argv | None = Field(default=None, description="Captures before and after screens")
@@ -184,6 +193,7 @@ class FactoryConfig(BaseModel):
         "coverage",
         "install",
         "review_evidence",
+        "test_changes",
         "receipt",
         "screens",
         "preview",

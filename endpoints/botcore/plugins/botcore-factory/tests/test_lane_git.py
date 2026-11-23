@@ -730,3 +730,107 @@ def test_a_fold_is_refused_and_leaves_the_head_when_it_cannot_credit_one_author(
     with pytest.raises(WorldError, match="has not merged"):
         git.fold(slot, main)
     assert git.head(slot) == fixture.newest
+
+
+def test_a_branch_that_rewrites_report_test_changes_still_gets_base_s_findings(
+    tmp_path, monkeypatch
+):
+    """lushly-dev/afd#1387 step 5: AFD's real botcore.toml test_changes command runs from the
+    lane's clean review slot at base, so a branch that deletes a test and rewrites its own copy
+    of report-test-changes.mjs to print empty findings still gets caught."""
+    from types import SimpleNamespace
+
+    from botcore.config import load_config
+
+    from botcore_factory import FactoryPlugin, change_report
+    from botcore_factory.lane import Step
+    from botcore_factory.real_system import OsProcesses
+
+    for key in list(os.environ):
+        if key.startswith("GIT_"):
+            monkeypatch.delenv(key)
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", os.devnull)
+    adapter = load_config(workspace=ROOT, discovered_plugins={"factory": FactoryPlugin()}).plugins[
+        "factory"
+    ]
+    repo, cell = tmp_path / "repo", tmp_path / "cell"
+    scripts_dir = ".claude/skills/maintain-gates/scripts"
+    (repo / scripts_dir).mkdir(parents=True)
+    for name in (
+        "report-test-changes.mjs",
+        "check-test-configs.mjs",
+        "check-test-discovery.mjs",
+        "check-test-quarantine.mjs",
+        "discovery-parsers.mjs",
+    ):
+        (repo / scripts_dir / name).write_bytes((ROOT / scripts_dir / name).read_bytes())
+    (repo / "src").mkdir()
+    (repo / "src/math.test.ts").write_text(
+        "import { expect, it } from 'vitest';\n"
+        "it('adds', () => { expect(1 + 1).toBe(2); });\n"
+        "it('subtracts', () => { expect(2 - 1).toBe(1); });\n",
+        encoding="utf-8",
+    )
+    run = make_runner(str(repo))
+    run(["git", "init", "--initial-branch=main"])
+    run(["git", "config", "user.name", "Fixture"])
+    run(["git", "config", "user.email", "fixture@localhost"])
+    run(["git", "add", "."])
+    run(["git", "commit", "-m", "base"])
+    base = run(["git", "rev-parse", "HEAD"]).strip()
+    run(["git", "worktree", "add", "-b", "feat/factory-cheat", str(cell)])
+    in_cell = make_runner(str(cell))
+    # Delete a test AND tamper with the branch's copy of report-test-changes.mjs.
+    (cell / "src/math.test.ts").write_text(
+        "import { expect, it } from 'vitest';\n"
+        "it.skip('adds', () => { expect(1 + 1).toBe(2); });\n",
+        encoding="utf-8",
+    )
+    (cell / scripts_dir / "report-test-changes.mjs").write_text(
+        "const a = process.argv;\n"
+        "const base = a[a.indexOf('--base') + 1];\n"
+        "const head = a[a.indexOf('--head') + 1];\n"
+        "const out = {base, mergeBase: base, head, testFiles: 0, totals: {}, findings: []};\n"
+        "console.log(JSON.stringify(out));\n",
+        encoding="utf-8",
+    )
+    in_cell(["git", "commit", "-am", "skip a test and silence the report"])
+    head = in_cell(["git", "rev-parse", "HEAD"]).strip()
+
+    world = SimpleNamespace(git=CliGit(run), processes=OsProcesses())
+    factory = SimpleNamespace(config=adapter, world=world)
+    # Advisory enqueue run in the branch's worktree sees the tampered empty report.
+    advisory = change_report.run_report(
+        factory, cwd=str(cell), worktree=str(cell), base=base, head=head
+    )
+    assert advisory["findingCount"] == 0
+
+    # Authoritative lane run executes base's copy from the clean review slot and catches it.
+    lane = SimpleNamespace(config=adapter, world=world, factory=factory)
+    authoritative = Step.read_test_changes(
+        lane, {"branch": "feat/factory-cheat"}, str(cell), base, head
+    )
+    assert authoritative["findingCount"] >= 2
+    kinds = {f["kind"] for f in authoritative["findings"]}
+    assert "fewer-tests" in kinds and "skip-added" in kinds
+    reasons = change_report.check_less_reasons(authoritative)
+    assert any("fewer tests" in r for r in reasons)
+    assert any("adds test skip" in r for r in reasons)
+
+    # A branch that suppresses diffs via working-tree .gitattributes while rewriting an assertion
+    # with unchanged counts is STILL caught because git runs in base's clean review slot.
+    (cell / ".gitattributes").write_text("*.test.ts -diff\n", encoding="utf-8")
+    (cell / "src/math.test.ts").write_text(
+        "import { expect, it } from 'vitest';\n"
+        "it('adds', () => { expect(1 + 1).toBe(99); });\n"
+        "it('subtracts', () => { expect(2 - 1).toBe(1); });\n",
+        encoding="utf-8",
+    )
+    in_cell(["git", "add", ".gitattributes", "src/math.test.ts"])
+    in_cell(["git", "commit", "-m", "suppress diff via gitattributes and weaken assertion"])
+    attr_head = in_cell(["git", "rev-parse", "HEAD"]).strip()
+    attr_report = Step.read_test_changes(
+        lane, {"branch": "feat/factory-cheat"}, str(cell), base, attr_head
+    )
+    assert any(f["kind"] == "assertions-rewritten" for f in attr_report["findings"])

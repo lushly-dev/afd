@@ -220,6 +220,7 @@ so each repository states its own contract:
 | `required_check` | A new aggregate check (see [AFD prerequisites](#afd-prerequisites)) | `ci-ok` |
 | `gate_paths` | `lefthook.yml`, `.github/workflows/**`, `.github/labels.json`, `scripts/check-*.mjs`, `scripts/policy/**`, the `maintain-gates` skill's scripts (its AFD projection and Botcore's canonical copy) and their test, `scripts/issue-labels.mjs`, `scripts/affected*`, the pre-push, verify-record and review-record scripts, `biome.json`, root `package.json`, and the adapter configuration itself | Lushly's list, plus the adapter configuration |
 | `review_evidence` | The record `prepare-pr` writes for the reviewed head | `pnpm review:lanes --verify-handoff` |
+| `test_changes` | `node .claude/skills/maintain-gates/scripts/report-test-changes.mjs --root {worktree} --base {base} --head {head} --json` | Seeded `gate-discipline` skill's `report-test-changes.mjs --json` |
 | `receipt` | Optional. Confirms an existing validation of this head, so it is reused | `validate:final --verify` |
 | `ui_paths` | `endpoints/loam/**`, `foundations/specimen/**`, `foundations/fast-af/**`, `site/**` | Lushly's app paths |
 | `screens` | Capture changed stories and routes before and after, desktop and phone | Lushly's capture script |
@@ -593,7 +594,9 @@ Verdicts in one review are taken in the order the changes were made.
   person confirms, releases it; experiments on the affected metrics end inconclusive and
   their baselines restart. Held branches are not queued by `queue-room`.
 - **It never improves by checking less.** An `area:factory` branch that touches `gate_paths`,
-  or whose validation runs fewer checks than `main`'s, or that deletes or skips a test, is
+  or whose validation runs fewer checks than `main`'s, or whose `test_changes` report
+  (`report-test-changes.mjs --json`, run from the base's clean checkout and attached to the
+  cell's attempt records) lists deleted, skipped, rewritten or loosened tests, is
   held the same way (`holdReason: gate-change`), its item saying in plain words what it stops
   checking. Adding tests holds nothing. Every experiment is paired with `checksRun`.
 - **One dial at a time, and no overlap**, so every change can be told apart from the others.

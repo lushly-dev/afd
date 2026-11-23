@@ -44,12 +44,14 @@ import contextlib
 import hashlib
 import re
 
-from botcore_factory import job
+from botcore_factory import change_report, job
 from botcore_factory.adapter import matches
 from botcore_factory.cells import disk_short
+from botcore_factory.events import is_open
 from botcore_factory.lane_base import (
     BAD_REVISION,
     INFRASTRUCTURE,
+    VALIDATION_FIELDS,
     LaneTrouble,
     first_lines,
     log_path,
@@ -187,6 +189,11 @@ class Step(Merging, Coverage):
                 command=list(self.config.validate_command or []),
                 minutes=self.minutes(entry.get("startedAt")),
                 logPath=entry.get("logPath"),
+                **(
+                    {"testChanges": entry["testChanges"]}
+                    if entry.get("testChanges") is not None
+                    else {}
+                ),
             )
             if passed:
                 entry.pop("run", None)
@@ -198,18 +205,26 @@ class Step(Merging, Coverage):
                 self.eject(entry, "final-failed", output, entry.get("logPath"), done.failures)
 
     def queue_held(self) -> None:
+        """Promote queue-full held branches as room opens; owner holds stay held."""
         room = self.dial("lane.queueMax") - len(self.state["queue"])
-        while room > 0 and self.state["held"]:
-            held = self.state["held"].pop(0)
-            held.pop("holdReason", None)
-            held["state"] = "queued"
-            self.state["queue"].append(held)
-            cell = self.cell(held["branch"])
-            if cell is not None:
-                cell["state"] = "queued"
-            self.record("queued", branch=held["branch"], attempt=held["attempt"])
-            self.actions.append(f"queued {held['branch']}")
-            room -= 1
+        if room <= 0 or not self.state["held"]:
+            return
+        remaining: list[dict] = []
+        for held in self.state["held"]:
+            reason = held.get("holdReason")
+            if room > 0 and (reason is None or reason == "queue-full"):
+                held.pop("holdReason", None)
+                held["state"] = "queued"
+                self.state["queue"].append(held)
+                cell = self.cell(held["branch"])
+                if cell is not None:
+                    cell["state"] = "queued"
+                self.record("queued", branch=held["branch"], attempt=held["attempt"])
+                self.actions.append(f"queued {held['branch']}")
+                room -= 1
+            else:
+                remaining.append(held)
+        self.state["held"] = remaining
 
     def start_validations(self) -> None:
         busy = {
@@ -384,13 +399,21 @@ class Step(Merging, Coverage):
             if folded.refused:
                 self.eject(entry, "entry-invalid", folded.refused)
                 return False
+            # What the branch changes against the base, read while the slot holds it,
+            # before start_job so nothing can raise between process spawn and entry.update.
+            changed = self.world.git.changed_files(path, base)
+            report = self.read_test_changes(entry, path, base, folded.head)
+            cell = self.cell(branch)
+            if report is not None:
+                entry["testChanges"] = report
+                if cell is not None:
+                    cell["testChanges"] = report
+            if self.hold_for_gate_change(entry, changed, report):
+                return False
             steps = self.validation_steps(entry, path, base, slot)
             if steps is None:
                 return False
             tree = self.world.git.tree(path)
-            # What the branch changes against the base, read while the slot holds it,
-            # before start_job so nothing can raise between process spawn and entry.update.
-            changed = self.world.git.changed_files(path, base)
             handle = self.world.processes.start_job(
                 steps, cwd=path, log=self.absolute(log), label="validate"
             )
@@ -406,6 +429,7 @@ class Step(Merging, Coverage):
                 startedAt=self.at,
                 run=handle,
                 logPath=log,
+                **({"testChanges": report} if report is not None else {}),
             )
             if acquired and lock is not None:
                 job_pid, job_started = parse_job_handle(handle)
@@ -501,6 +525,105 @@ class Step(Merging, Coverage):
         except WorldError as exc:
             self.world.git.abort_merge(path)
             raise LaneTrouble(f"Committing the merge for {entry['branch']} failed: {exc}") from exc
+
+    def read_test_changes(self, entry: dict, path: str, base: str, head: str) -> dict | None:
+        """Run the adapter's ``test_changes`` command from the base's clean ``review`` slot.
+
+        Running both the script and its commit-to-commit git reads from ``checkout`` (the clean
+        ``review`` slot at ``base``, never the candidate checkout ``path``) guarantees a branch
+        cannot silence findings via a tampered script or working-tree ``.gitattributes`` (same
+        trust boundary as ``review_verified``). Missing ``{base}``/``{head}`` placeholders or
+        any command failure is the lane's trouble rather than a clean report.
+        """
+        command = self.config.test_changes
+        if not command:
+            return None
+        missing = [
+            token for token in ("{base}", "{head}") if not any(token in part for part in command)
+        ]
+        if missing:
+            raise LaneTrouble(
+                f"The repository adapter's test_changes must name {', '.join(missing)}, so the "
+                "lane compares the requested base and head commits"
+            )
+        try:
+            checkout = self.world.git.prepare_slot(REVIEW_SLOT, "", base)
+        except WorldError as exc:
+            raise LaneTrouble(
+                f"Preparing the review slot at {base} for test changes failed: {exc}"
+            ) from exc
+        try:
+            return change_report.run_report(
+                self.factory, cwd=checkout, worktree=checkout, base=base, head=head
+            )
+        except WorldError as exc:
+            raise LaneTrouble(f"Reading test changes for {entry['branch']} failed: {exc}") from exc
+
+    def hold_for_gate_change(self, entry: dict, changed: list[str], report: dict | None) -> bool:
+        """Authoritative Phase 5 "never improves by checking less" hold for ``area:factory``.
+
+        Even if a branch slipped past ``lane-enqueue``'s advisory check (e.g. by altering its
+        own copy of ``report-test-changes.mjs`` or ``.gitattributes``), the lane holds it here
+        before validation and persists the authoritative report on a ``held`` attempt record.
+        """
+        changed_gate = [path for path in changed if matches(path, self.config.gate_paths)]
+        reasons = change_report.check_less_reasons(report, gate_paths=changed_gate)
+        if not reasons:
+            return False
+        branch = entry["branch"]
+        cell = self.cell(branch)
+        if change_report.is_gate_change_approved(cell, entry.get("head", "")):
+            return False
+        if not (cell or {}).get("improvement"):
+            try:
+                issues = [self.world.github.get_issue(number) for number in entry.get("issues", [])]
+            except WorldError as exc:
+                raise LaneTrouble(
+                    f"Reading issues for {branch} gate-change check failed: {exc}"
+                ) from exc
+            if not change_report.is_factory_branch(issues, cell):
+                return False
+        self.state["queue"].remove(entry)
+        for key in VALIDATION_FIELDS:
+            entry.pop(key, None)
+        if report is not None:
+            entry["testChanges"] = report
+        detail, lines = change_report.summarize_hold(reasons)
+        entry.update(
+            state="held",
+            holdReason=change_report.GATE_CHANGE_HOLD,
+            holdReasons=lines,
+            holdDetail=detail,
+        )
+        self.state["held"].append(entry)
+        if cell is not None:
+            cell["state"] = "held"
+        self.record(
+            "held",
+            branch=branch,
+            attempt=entry["attempt"],
+            holdReason=change_report.GATE_CHANGE_HOLD,
+            detail=detail,
+            **({"testChanges": report} if report is not None else {}),
+        )
+        for event in self.state["events"]:
+            if (
+                is_open(event)
+                and event.get("type") == "gate-change-held"
+                and event.get("branch") == branch
+            ):
+                event["open"] = False
+                event["resolution"] = {"by": "lane", "at": self.at}
+        self.event(
+            "gate-change-held",
+            branch=branch,
+            reason=change_report.GATE_CHANGE_HOLD,
+            detail=detail,
+            lines=lines,
+            needsOwner=change_report.GATE_CHANGE_HOLD,
+        )
+        self.actions.append(f"held {branch} ({change_report.GATE_CHANGE_HOLD})")
+        return True
 
     def review_verified(self, entry: dict, base: str) -> bool:
         """Whether the base's review verifier accepts the cell's review of the queued head.

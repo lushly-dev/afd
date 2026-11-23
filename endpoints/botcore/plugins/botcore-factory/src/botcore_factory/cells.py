@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import PurePath
 
-from botcore_factory import dials, records
+from botcore_factory import change_report, dials, records
 from botcore_factory.claims import Claim, claim_body, format_time, parse_time, release_body
 from botcore_factory.events import answer, emit
 from botcore_factory.intake import not_dispatchable_reasons, read_backlog
@@ -466,6 +466,76 @@ def gate_allow(
         cell = find(state, branch)
         cell["gateAllowed"] = {"reason": reason, "at": format_time(factory.world.clock.now())}
     return {"allowed": True, "branch": branch}
+
+
+def measure_approve(factory: Factory, branch: str, reason: str) -> dict:
+    """Release a branch held for ``gate-change`` or ``measure-change`` to the queue.
+
+    Only served on the ``factory`` host (never ``factory-cell``); approves the exact held
+    head so a later commit on the branch re-triggers the hold. When the queue is full at
+    approval time, the entry converts to a ``queue-full`` hold so ``queue_held`` promotes it
+    as soon as room opens.
+    """
+    if not reason.strip():
+        raise Refusal("VALIDATION_ERROR", "reason is empty", "Say why the change is approved")
+    with factory.store.update(f"measure-approve {branch}") as state:
+        held = next(
+            (
+                entry
+                for entry in state["held"]
+                if entry.get("branch") == branch
+                and entry.get("holdReason") in change_report.OWNER_HOLD_REASONS
+            ),
+            None,
+        )
+        if held is None:
+            raise Refusal(
+                "NOT_FOUND",
+                f"{branch} is not held for gate-change or measure-change",
+                "lane-status lists held branches and their holdReason",
+            )
+        now = format_time(factory.world.clock.now())
+        head = held.get("head", "")
+        state["held"].remove(held)
+        for key in ("holdReason", "holdReasons", "holdDetail"):
+            held.pop(key, None)
+        cell = next((c for c in state["cells"] if c.get("branch") == branch), None)
+        if cell is not None:
+            cell["gateChangeApproved"] = {"head": head, "reason": reason.strip(), "at": now}
+        most = dials.value(state["dials"], "lane.queueMax")
+        if len(state["queue"]) < most:
+            held["state"] = "queued"
+            state["queue"].append(held)
+            if cell is not None:
+                cell["state"] = "queued"
+            placed = "queued"
+            factory.store.append_record(
+                records.make(
+                    "queued",
+                    now,
+                    state["lane"].get("runId"),
+                    branch=branch,
+                    attempt=held.get("attempt", 1),
+                )
+            )
+        else:
+            held["state"] = "held"
+            held["holdReason"] = "queue-full"
+            state["held"].append(held)
+            if cell is not None:
+                cell["state"] = "held"
+            placed = "held"
+        answered = answer(state, "measure-approve", now, branch=branch)
+    result = {
+        "approved": True,
+        "branch": branch,
+        "head": head,
+        "state": placed,
+        "answered": answered,
+    }
+    if placed == "held":
+        result["holdReason"] = "queue-full"
+    return result
 
 
 def ejection_excuse(

@@ -36,6 +36,7 @@ EVERY = sorted(
         "lane_status",
         "lane_stop",
         "lane_wait",
+        "measure_approve",
         "plan_list",
     ]
 )
