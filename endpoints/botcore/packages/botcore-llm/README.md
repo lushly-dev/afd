@@ -15,7 +15,16 @@ with `UNKNOWN_COMMAND` when the session is created.
 A model's calls always run as an agent. A supplied host with no actor or an agent actor is
 used as is; one whose actor is a human with an id makes the model call on that human's
 behalf (`on_behalf_of`); any other actor (a service, a script, a human without an id) is
-refused with `TOOL_HOST_ACTOR_REFUSED` when the session is created.
+refused with `TOOL_HOST_ACTOR_REFUSED` when the session is created. The session's
+`agent_name` (a `botcore-agents` agent's configured key) is that agent's id wherever the
+host's actor gives none, so commands that key data on the caller, such as `botcore-memory`,
+tell agents apart; a host whose agent actor has an id keeps it.
+
+`agent_name` is an identity only for a local, trusted caller, such as the `botcore-agents`
+orchestrator. When `llm_session_create` itself runs inside any host call, the name only
+labels the session, and the tool host's actor decides who the tool calls run as.
+The name says which agent, not for whom: two people whose tool hosts run the same agent name
+(the agent calls on behalf of each) share that agent's memory.
 
 The host covers the current workspace. Two settings shape it:
 

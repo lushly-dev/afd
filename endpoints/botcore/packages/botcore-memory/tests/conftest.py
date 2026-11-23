@@ -49,3 +49,36 @@ def set_agent():
         current_agent.set(name)
 
     return _set
+
+
+@pytest.fixture()
+def memory_host(tmp_path: Path):
+    """Build a remote-caller host serving the memory commands, optionally with an actor.
+
+    The policies are test-only: the memory plugin declares none for managed hosts.
+    """
+    from botcore.context import ExecutionContext
+    from botcore.host import CommandHost, CommandPolicy
+
+    from botcore_memory.commands import MEMORY_COMMANDS
+
+    writes = {"memory_set", "memory_delete"}
+
+    def _build(actor=None) -> CommandHost:
+        host = CommandHost("mem", ExecutionContext(tmp_path, profile="remote-caller"), actor=actor)
+        for command in MEMORY_COMMANDS:
+            name = command.__name__
+            host.register(
+                name, command, CommandPolicy(("history-write",) if name in writes else ("inspect",))
+            )
+        return host
+
+    return _build
+
+
+@pytest.fixture()
+def no_direct_caller():
+    """Clear the direct-call name the autouse fixture sets, so host paths cannot lean on it."""
+    token = current_agent.set("")
+    yield
+    current_agent.reset(token)

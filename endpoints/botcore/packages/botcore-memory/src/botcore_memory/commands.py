@@ -6,7 +6,7 @@ from pathlib import Path
 
 from afd import CommandResult, error, success
 
-from .access import check_scope_access, current_agent, resolve_scope_id
+from .access import AccessDenied, check_scope_access, resolve_caller, resolve_scope_id
 from .local_store import LocalMemoryStore
 from .models import MemoryConfig, MemoryEntry, validate_key, validate_scope, validate_scope_id
 from .store import MemoryScopeFullError, MemoryStore
@@ -37,6 +37,14 @@ def get_store() -> MemoryStore:
         path = Path(_config.local_path).expanduser()
         _store = LocalMemoryStore(path)
     return _store
+
+
+def _caller() -> tuple[str, CommandResult | None]:
+    """The caller's principal, or the refusal for a host call that names no one."""
+    caller = resolve_caller()
+    if isinstance(caller, AccessDenied):
+        return "", error(caller.code, caller.message, suggestion=caller.suggestion)
+    return caller, None
 
 
 def _check_limit(limit: int) -> CommandResult | None:
@@ -81,12 +89,15 @@ async def memory_set(
             suggestion="Reduce value size or increase max_entry_size_bytes in config",
         )
 
-    resolved_scope_id = resolve_scope_id(scope, scope_id)
+    caller, refused = _caller()
+    if refused:
+        return refused
+
+    resolved_scope_id = resolve_scope_id(scope, scope_id, caller)
     if err := validate_scope_id(resolved_scope_id):
         return error("MEMORY_INVALID_SCOPE_ID", err)
 
     # Access check
-    caller = current_agent.get() or "default"
     if access_err := check_scope_access(caller, scope, resolved_scope_id, "write"):
         return error(access_err.code, access_err.message, suggestion=access_err.suggestion)
 
@@ -153,11 +164,14 @@ async def memory_get(
     if err := validate_scope(scope):
         return error("MEMORY_INVALID_SCOPE", err)
 
-    resolved_scope_id = resolve_scope_id(scope, scope_id)
+    caller, refused = _caller()
+    if refused:
+        return refused
+
+    resolved_scope_id = resolve_scope_id(scope, scope_id, caller)
     if err := validate_scope_id(resolved_scope_id):
         return error("MEMORY_INVALID_SCOPE_ID", err)
 
-    caller = current_agent.get() or "default"
     if access_err := check_scope_access(caller, scope, resolved_scope_id, "read"):
         return error(access_err.code, access_err.message, suggestion=access_err.suggestion)
 
@@ -195,17 +209,20 @@ async def memory_search(
     if limit_err := _check_limit(limit):
         return limit_err
 
+    caller, refused = _caller()
+    if refused:
+        return refused
+
     # For agent scope, always resolve to the caller's own scope_id to prevent
     # cross-agent memory leakage. For team/task scopes, None means "search all".
     if scope == "agent":
-        resolved_scope_id = resolve_scope_id(scope, scope_id)
+        resolved_scope_id = resolve_scope_id(scope, scope_id, caller)
     else:
         resolved_scope_id = scope_id
 
     if resolved_scope_id:
         if err := validate_scope_id(resolved_scope_id):
             return error("MEMORY_INVALID_SCOPE_ID", err)
-        caller = current_agent.get() or "default"
         if access_err := check_scope_access(caller, scope, resolved_scope_id, "read"):
             return error(access_err.code, access_err.message, suggestion=access_err.suggestion)
 
@@ -230,11 +247,14 @@ async def memory_delete(
     if err := validate_scope(scope):
         return error("MEMORY_INVALID_SCOPE", err)
 
-    resolved_scope_id = resolve_scope_id(scope, scope_id)
+    caller, refused = _caller()
+    if refused:
+        return refused
+
+    resolved_scope_id = resolve_scope_id(scope, scope_id, caller)
     if err := validate_scope_id(resolved_scope_id):
         return error("MEMORY_INVALID_SCOPE_ID", err)
 
-    caller = current_agent.get() or "default"
     if access_err := check_scope_access(caller, scope, resolved_scope_id, "write"):
         return error(access_err.code, access_err.message, suggestion=access_err.suggestion)
 
@@ -289,24 +309,29 @@ async def memory_list(
     if limit_err := _check_limit(limit):
         return limit_err
 
-    resolved_scope_id = resolve_scope_id(scope, scope_id)
+    caller, refused = _caller()
+    if refused:
+        return refused
+
+    resolved_scope_id = resolve_scope_id(scope, scope_id, caller)
     if err := validate_scope_id(resolved_scope_id):
         return error("MEMORY_INVALID_SCOPE_ID", err)
 
-    caller = current_agent.get() or "default"
     if access_err := check_scope_access(caller, scope, resolved_scope_id, "read"):
         return error(access_err.code, access_err.message, suggestion=access_err.suggestion)
 
     store = get_store()
     entries = await store.list_entries(scope, resolved_scope_id, prefix, offset, limit)
 
-    return success(data={
-        "entries": [e.to_dict() for e in entries],
-        "scope": scope,
-        "scope_id": resolved_scope_id,
-        "offset": offset,
-        "limit": limit,
-    })
+    return success(
+        data={
+            "entries": [e.to_dict() for e in entries],
+            "scope": scope,
+            "scope_id": resolved_scope_id,
+            "offset": offset,
+            "limit": limit,
+        }
+    )
 
 
 MEMORY_COMMANDS = [memory_set, memory_get, memory_search, memory_delete, memory_list]
@@ -377,6 +402,15 @@ List entries with pagination.
 
 ## Access Control
 
-- Agent scope: only the owning agent can read/write.
+- Agent scope: only the owning caller can read/write. Leave `scope_id` out to use your own.
 - Team/task scopes: open access (Phase 1).
+
+## Who the caller is
+
+- Through a Botcore host (its CLI, MCP or HTTP surface, or an LLM session's tools): the
+  actor the host verified. Its agent-scope id is `<kind>_<id>` (`agent_researcher`), or
+  `<kind>-<digest>` for any id not all lowercase `[a-z0-9_-]` (`Alex`, `lane@random`).
+  A host call whose actor has no id is refused with `MEMORY_PRINCIPAL_UNKNOWN`.
+- Directly in your own process (the `botcore` CLI, the stdio `run` tool, a script): one
+  local user, `default`, unless the embedder sets `botcore_memory.access.current_agent`.
 """

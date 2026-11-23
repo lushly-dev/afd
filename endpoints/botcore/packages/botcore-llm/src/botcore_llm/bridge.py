@@ -10,6 +10,7 @@ refusal's error code, message and suggestion.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import logging
 from typing import TYPE_CHECKING, Any
@@ -25,7 +26,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def botcore_command_to_copilot_tool(name: str, host: CommandHost) -> Tool:
+def botcore_command_to_copilot_tool(name: str, host: CommandHost, agent_name: str = "") -> Tool:
     """Serve one command of *host* as a Copilot SDK ``Tool``.
 
     The tool's name is the command's served name, its description the handler's first
@@ -36,6 +37,8 @@ def botcore_command_to_copilot_tool(name: str, host: CommandHost) -> Tool:
     Args:
         name: A command name *host* serves, in either spelling.
         host: The host whose dispatch and policy every call goes through.
+        agent_name: The configured name of the agent the session serves; it is the
+            caller's id when the host's actor names none (see :func:`model_actor`).
 
     Returns:
         A :class:`Tool` ready for use in a ``SessionConfig``.
@@ -44,7 +47,7 @@ def botcore_command_to_copilot_tool(name: str, host: CommandHost) -> Tool:
         KeyError: If *host* serves no command called *name*.
         HostActorRefused: If *host* names an actor a model's call cannot run as.
     """
-    actor = model_actor(host.actor)
+    actor = model_actor(host.actor, agent_name)
     served = host.resolve(name)
     if served is None:
         raise KeyError(f"Command {name!r} is not served by host {host.name!r}")
@@ -75,24 +78,31 @@ class HostActorRefused(ValueError):
     )
 
 
-def model_actor(host_actor: Actor | None) -> Actor:
+def model_actor(host_actor: Actor | None, agent_name: str = "") -> Actor:
     """The actor a model's tool call runs as: always an agent.
 
-    A host with no actor gives a plain agent, and one whose actor is an agent lends it. A
-    host whose actor is a human with an id keeps the agent as the caller and records that
-    human's id as ``on_behalf_of``, so policy and journals never see a model's call as the
-    human's own. Any other actor (a service, a script, a test, a human without an id) names
-    no one the model could act for, so the host is refused.
+    A host with no actor gives an agent, and one whose actor is an agent lends it. A host
+    whose actor is a human with an id keeps the agent as the caller and records that human's
+    id as ``on_behalf_of``, so policy and journals never see a model's call as the human's
+    own. Any other actor (a service, a script, a test, a human without an id) names no one
+    the model could act for, so the host is refused.
+
+    ``agent_name`` (a configured agent's name) is the agent's id wherever the host's actor
+    gives none, so commands that key data on the caller, such as agent memory, tell one
+    agent from another. A host whose agent actor has an id keeps it: the host named that
+    caller. ``agent_name`` is trusted as an identity, so pass it only for a local, trusted
+    caller; ``llm_session_create`` drops it inside any host call.
 
     Raises:
         HostActorRefused: For an actor the model cannot run as or for.
     """
+    named = agent_name or None
     if host_actor is None:
-        return Actor(kind="agent")
+        return Actor(kind="agent", id=named)
     if host_actor.kind == "agent":
-        return host_actor
+        return host_actor if host_actor.id else dataclasses.replace(host_actor, id=named)
     if host_actor.kind == "human" and host_actor.id:
-        return Actor(kind="agent", on_behalf_of=host_actor.id)
+        return Actor(kind="agent", id=named, on_behalf_of=host_actor.id)
     raise HostActorRefused(
         f"The tool host's actor ({host_actor.kind}"
         + (f" {host_actor.id!r}" if host_actor.id else ", no id")
@@ -100,12 +110,16 @@ def model_actor(host_actor: Actor | None) -> Actor:
     )
 
 
-def bridge_commands(command_names: list[str], host: CommandHost) -> list[Tool]:
+def bridge_commands(
+    command_names: list[str], host: CommandHost, agent_name: str = ""
+) -> list[Tool]:
     """Serve each named command of *host* as a Copilot ``Tool``.
 
     Args:
         command_names: Command names *host* serves.
         host: The host whose dispatch and policy every call goes through.
+        agent_name: The configured name of the agent the session serves (see
+            :func:`model_actor`).
 
     Returns:
         List of bridged :class:`Tool` objects.
@@ -113,7 +127,7 @@ def bridge_commands(command_names: list[str], host: CommandHost) -> list[Tool]:
     Raises:
         KeyError: If *host* serves no command by one of the names.
     """
-    return [botcore_command_to_copilot_tool(name, host) for name in command_names]
+    return [botcore_command_to_copilot_tool(name, host, agent_name) for name in command_names]
 
 
 def _command_result_to_tool_result(result: Any) -> ToolResult:

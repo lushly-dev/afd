@@ -283,6 +283,52 @@ class TestLlmSessionCreateTools:
         assert calls == []
 
     @pytest.mark.asyncio
+    async def test_tool_calls_run_as_the_named_agent(
+        self, patch_client_manager, mock_copilot_client, tmp_path
+    ):
+        from botcore.context import current_call
+
+        async def who() -> CommandResult[dict]:
+            """Name the caller."""
+            actor = current_call().actor
+            return success(data={"kind": actor.kind, "id": actor.id})
+
+        host = CommandHost("lane", ExecutionContext(tmp_path, profile="inspection"))
+        host.register("who", who, CommandPolicy())
+        set_tool_host(host)
+
+        assert_success(await llm_session_create(tools=["who"], agent_name="researcher"))
+        outcome = await self._call(self._tool(mock_copilot_client, "who"))
+
+        assert outcome == {"type": "success", "kind": "agent", "id": "researcher"}
+
+    @pytest.mark.parametrize("outer", [{"kind": "service", "id": "remote"}, None])
+    @pytest.mark.asyncio
+    async def test_agent_name_is_only_a_label_inside_any_host_call(
+        self, patch_client_manager, mock_copilot_client, tmp_path, outer
+    ):
+        from afd import Actor
+        from afd.core.commands import CommandContext
+        from botcore.context import current_call, use_call
+
+        async def who() -> CommandResult[dict]:
+            """Name the caller."""
+            actor = current_call().actor
+            return success(data={"kind": actor.kind, "id": actor.id})
+
+        host = CommandHost("lane", ExecutionContext(tmp_path, profile="inspection"))
+        host.register("who", who, CommandPolicy())
+        set_tool_host(host)
+
+        # A host call that names a caller, and one with no actor at all.
+        with use_call(CommandContext(actor=Actor(**outer) if outer else None)):
+            created = await llm_session_create(tools=["who"], agent_name="researcher")
+        assert_success(created)
+        outcome = await self._call(self._tool(mock_copilot_client, "who"))
+
+        assert outcome == {"type": "success", "kind": "agent", "id": None}
+
+    @pytest.mark.asyncio
     async def test_default_host_admits_inspection_and_refuses_writes(
         self, patch_client_manager, mock_copilot_client, tmp_path, monkeypatch
     ):
