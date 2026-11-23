@@ -14,8 +14,8 @@ Code paths are relative to `endpoints/umbel/`.
 - **State:** written 2026-11-12 for step A3 of the Ideas plan, beside the plugin's specification. **Decided under the
   owner's direction of 2026-11-11 and 2026-11-12** that the plan carry on through its phases on its recommendations,
   and on his requirements of 2026-11-12: review in bulk with an agent's help, confirmed in a browser and not at a
-  terminal, and authentication optional in Umbel. **The owner has not read this specification.** Every decision here
-  stays open to him (the [Ideas status](../../../../../docs/features/complete/ideas/STATUS.md), Q2). It decides D180.
+  terminal, and authentication optional in Umbel. **Confirmed by the owner on 2026-11-23**
+  ([#1932](https://github.com/lushly-dev/afd/issues/1932), [review brief](../../review-d158-d188.md), D203). It decides D180.
   Steps H0 to H3 and `person.local.public_origin` are merged ([#1081](https://github.com/lushly-dev/afd/pull/1081), [#1097](https://github.com/lushly-dev/afd/pull/1097), [#1107](https://github.com/lushly-dev/afd/pull/1107), [#1137](https://github.com/lushly-dev/afd/pull/1137), [#1188](https://github.com/lushly-dev/afd/pull/1188)). **Revised the same day after an independent review** (three blockers, nine improvements),
   all taken: section 6.2 now specifies how a call reaches the gate at all in mode `none`; an unpaged preview stays
   exactly `{ preview }`; a `local` assurance gets envelope version 4; the form's fields, the local page's rules, the
@@ -336,7 +336,7 @@ H1 needs H0; H2 needs H1; H3 needs H2. The plugin's step C4 needs H3.
 
 ## 12. For the owner
 
-**The owner has not read this specification.** Each row is a choice he could reasonably want otherwise.
+**Confirmed by the owner on 2026-11-23** ([#1932](https://github.com/lushly-dev/afd/issues/1932), [review brief](../../review-d158-d188.md), D203). Each row below records the choices reviewed.
 
 | # | Chosen here | The alternative, and its cost |
 | --- | --- | --- |

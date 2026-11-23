@@ -11,11 +11,11 @@ Code paths are relative to `endpoints/umbel/`.
 
 ## Status
 
-- **State:** written 2026-11-11 for step A2 of the Ideas plan. **Decided under the owner's direction of 2026-11-11**
-  that the plan carry on through its phases on its recommendations, with questions queued. **The owner has not yet
-  read this specification.** Every decision here stays open to him (the
-  [Ideas status](../../../../../docs/features/complete/ideas/STATUS.md), Q2), and section
-  [18](#18-for-the-owner) lists what he could reasonably want otherwise. **Step B1 of section
+- **State:** written 2026-11-11 for step A2 of the Ideas plan. Decided under the owner's direction of 2026-11-11 and
+  **confirmed by the owner on 2026-11-23** ([#1932](https://github.com/lushly-dev/afd/issues/1932),
+  [review brief](../../review-d158-d188.md), D203; D165's declared-kind write quota follow-up filed as
+  [#2342](https://github.com/lushly-dev/afd/issues/2342)). Section [18](#18-for-the-owner) records the trade-offs
+  reviewed. **Step B1 of section
   [16](#16-implementation-plan), the shapes, is implemented** (2026-11-11), amended below
   ([B1](#amendments-from-step-b1)): manifest version 6, configuration version 6, the lane's types and pure
   functions, the `Embedder` trait, the SDK's eight methods answering `not_granted`, and the version constants.
@@ -2845,10 +2845,11 @@ labels (Ideas status, Q5). So B6 records the rates and does not gate on a number
 
 ## 18. For the owner
 
-**The owner has not read this specification.** It was written under his direction of 2026-11-11 that the Ideas plan
-carry on through its phases on its recommendations. Each choice below is one he could reasonably want otherwise,
-with what the other way would cost. Those marked "differs from the plan" are where this document did not follow the
-plan's outline for step A2, because of what the code holds.
+**Confirmed by the owner on 2026-11-23** ([#1932](https://github.com/lushly-dev/afd/issues/1932),
+[review brief](../../review-d158-d188.md), D203), with D165's per-principal write quota follow-up filed under epic
+[#1546](https://github.com/lushly-dev/afd/issues/1546) as [#2342](https://github.com/lushly-dev/afd/issues/2342).
+Originally written 2026-11-11 under his direction that the Ideas plan carry on through its phases on its
+recommendations; each row below records the choices reviewed and where this document differed from the plan's outline.
 
 | # | Chosen here | The alternative, and its cost |
 | --- | --- | --- |
@@ -2937,6 +2938,6 @@ and a date of writing for a source (row 17).
 | 2026-11-12 | Step B4 | A `MatchPage` has no serialised form ([A51](#amendments-from-step-b4)). Step B6's exit runs a match over MCP and at the CLI through a fixture plugin's own result, and the plugin's specification (step A3) must say what its commands return of a hit: at least its label, unchanged | **Closed in step B6** (`tests/records_exit.rs` carries each hit's `dev.umbel/standing` label unchanged over MCP and CLI); plugin side done in step A3 |
 | 2026-11-12 | Step B4 | The identical lookup was planned by SQLite as a walk of the whole kind until its order was written `+l.id` ([A46](#amendments-from-step-b4)); a unit test now holds its plan. No other statement of the lane has such a test but a rebuild's chunk, and the plans were read on an empty store. Section [16](#16-implementation-plan) has step B6 time a match's parts apart, and `DocumentStore` gives a caller no way to time the once-a-call part, the counts, the gather and both directions separately | **Closed in step B6** ([A63](#amendments-from-step-b6), [A64](#amendments-from-step-b6)): `testkit` hooks (`lane_match_timed`, `lane_reindex_timed`, `explain_lane_plans`) inspect all 23 lane statements at 10k and 100k and fixed an O(N^2) sort in `reindex_vectors` (1 336 s -> 9.04 s at 100k) |
 | 2026-11-12 | Step B4 | Section [8.2](#82-words)'s cost paragraph asks step B6 to time "a reader who may read 1% of the kind" beside a reader of everything. The two pool different records and so need different terms: the comparison is of two different amounts of work, and should say so. Since [A52](#amendments-from-step-b4) they are refused at the same point, which is the kind's | **Closed in step B6** ([Amendments from step B6](#amendments-from-step-b6)): recorded with distinct terms counted and candidates gathered for both readers at 10k and 100k |
-| 2026-11-12 | Step B4's review | A principal who may write to a declared kind can push it past `MATCH_POSTINGS` and stop matching for every reader of it ([A52](#amendments-from-step-b4)). Declared kinds have no write quota, as memory's writes have (D74's ceilings) | The plugin's specification (step A3) or a host step: a quota on declared puts per principal, in records or postings |
+| 2026-11-12 | Step B4's review | A principal who may write to a declared kind can push it past `MATCH_POSTINGS` and stop matching for every reader of it ([A52](#amendments-from-step-b4)). Declared kinds have no write quota, as memory's writes have (D74's ceilings) | Filed 2026-11-23 under epic [#1546](https://github.com/lushly-dev/afd/issues/1546) as [#2342](https://github.com/lushly-dev/afd/issues/2342) (D203) |
 | 2026-11-12 | Step B4's review | The doctor's `records.size` counts records against 100 000, and the match bound counts postings against 4 000 000: a kind of long records reaches the bound with no warning. `lane_status` does not report the kind's postings | **Closed in step B6** ([A62](#amendments-from-step-b6)): `LaneStatus.postings` reports `record_postings.postings` and `records.size` warns against both 100 000 records and 4 000 000 postings |
 | 2026-11-22 | Step B5's review | `put_record_vector` and `reindex_records` guard vector freshness against `match_digest` (normalised match text, §5.1/§11.1), so an edit that changes only case, diacritics, punctuation or whitespace keeps the previous raw text's vector rather than re-embedding | Future schema v5 if a case/punctuation-sensitive embedding model needs raw match-text digest tracking on `record_lane` |
