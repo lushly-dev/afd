@@ -63,10 +63,68 @@ export interface TokenMap {
 	aliases?: Record<string, string>;
 }
 
+import type {
+	JobBeforeAction,
+	JobScenario,
+	ResolvedJobCapture,
+	SpecimenContext,
+	SpecimenEntry,
+	Target,
+} from './types.js';
+
 export interface CommandRunner {
 	/** The commands this runner offers on an element, when it can list them. */
 	commands?(element: Element): string[] | undefined;
 	run(element: Element, name: string, input: unknown): unknown;
+}
+
+/** One step's outcome reported by an in-page `JobDriver`. */
+export interface JobDriverStepOutcome {
+	step: number;
+	description?: string;
+	command?: string;
+	status: 'passed' | 'failed' | 'skipped';
+	error?: string;
+	/** Number of `before` person actions executed for this step. */
+	actions?: number;
+}
+
+/** Final outcome returned by an in-page `JobDriver.run()`. */
+export interface JobDriverResult {
+	status: 'passed' | 'failed';
+	steps: JobDriverStepOutcome[];
+}
+
+/** Host capabilities provided to an in-page `JobDriver` during a single fresh render. */
+export interface JobDriverHost {
+	/** Resolved root element for `entry.job.target`. */
+	element: Element;
+	/** Declared targets on the mounted specimen. */
+	targets: Record<string, Target>;
+	entry: SpecimenEntry;
+	context: SpecimenContext;
+	scenario: JobScenario;
+	capturePlan: readonly ResolvedJobCapture[];
+	signal: AbortSignal;
+	/** Invoke a registered command runner on a declared target and return its result. */
+	runCommand(runner: string, target: string, name: string, input: unknown): Promise<unknown>;
+	/** Run Specimen `before` person actions via the host's real Chromium input. */
+	runActions(actions: readonly JobBeforeAction[]): Promise<number>;
+	/** Signal the host to capture observation, ARIA snapshot, axe, and screenshot right now. */
+	captureStep(args: {
+		key: string;
+		name: string;
+		step: number;
+		description?: string;
+		actions?: number;
+	}): Promise<{ screenshot: string | null }>;
+	/** Deterministically advance a pinned clock (no-op error if clock is real). */
+	advanceClock(ms: number): void;
+}
+
+/** Browser-side plugin point that drives a job scenario inside a single fresh page. */
+export interface JobDriver {
+	run(host: JobDriverHost): Promise<JobDriverResult>;
 }
 
 export interface SpecimenPlugin {
@@ -81,6 +139,8 @@ export interface SpecimenPlugin {
 	themes?: Record<string, ThemePreset>;
 	tokens?: TokenMap;
 	runners?: Record<string, CommandRunner>;
+	/** Named in-page job drivers (e.g. `'afd'`) invoked by `bench.runJob()`. */
+	jobDrivers?: Record<string, JobDriver>;
 }
 
 /** Declare a plugin with its type checked. */

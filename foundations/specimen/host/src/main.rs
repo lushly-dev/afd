@@ -121,6 +121,8 @@ impl Bench {
             "outcome": outcome.outcome,
             "accessibility": outcome.accessibility,
             "profile": outcome.profile,
+            "captures": outcome.captures,
+            "jobOutcome": outcome.job_outcome,
             "loaded": loaded,
             "browser": self.browser.ready().await.unwrap_or_default(),
         }))

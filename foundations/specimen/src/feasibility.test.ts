@@ -447,7 +447,7 @@ export const Good = {
 		expect(result.directory).toBe(output);
 		expect(result.shellBytes).toBeGreaterThan(0);
 		expect(result.shellBytes).toBeLessThanOrEqual(result.budget);
-		expect(result.budget).toBe(68_000);
+		expect(result.budget).toBe(70_000);
 		expect(result.files.some((file) => file.endsWith('.js'))).toBe(true);
 		expect((await readFile(join(output, 'specimen.html'), 'utf8')).length).toBeGreaterThan(0);
 		const server = await serveStatic(output);

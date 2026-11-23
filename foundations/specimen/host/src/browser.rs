@@ -14,8 +14,9 @@ use crate::page::{Page, Viewport, emulate, prepare};
 use crate::process::{self, Child};
 use anyhow::{Result, anyhow};
 use base64::Engine;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -247,6 +248,38 @@ impl Browser {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct CheckpointRequest {
+    pub name: String,
+    #[serde(default)]
+    pub screenshot: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JobRunRequest {
+    pub driver: String,
+    pub target: String,
+    pub scenario: Value,
+    pub capture_plan: Value,
+    #[serde(default)]
+    pub screenshots: HashMap<String, String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CheckpointCapture {
+    pub key: Option<String>,
+    pub name: String,
+    pub step: Option<u64>,
+    pub captured: Value,
+    pub snapshot: String,
+    pub screenshot: Option<String>,
+    pub accessibility: Option<Value>,
+    pub console: Messages,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RenderRequest {
     pub entry: Value,
     pub context: Value,
@@ -276,6 +309,18 @@ pub struct RenderRequest {
     /// Inspect instead of capturing: `{ schema }`, the component's schema from the manifest.
     #[serde(default)]
     pub inspect: Option<Value>,
+    /// Optional ISO-8601 instant pinning `Date` and positive-delay timers before any module loads.
+    #[serde(default)]
+    pub pin_clock: Option<String>,
+    /// Optional list of named checkpoints to capture in a single fresh pass (empty = all `{ capture }` steps).
+    #[serde(default)]
+    pub checkpoints: Option<Vec<CheckpointRequest>>,
+    /// Optional directory for auto-named checkpoint screenshots when `checkpoints` is empty.
+    #[serde(default)]
+    pub screenshots_dir: Option<String>,
+    /// Optional in-page job driver run coordinated via CDP bindings.
+    #[serde(default)]
+    pub job_run: Option<JobRunRequest>,
 }
 
 pub struct RenderOutcome {
@@ -292,6 +337,10 @@ pub struct RenderOutcome {
     pub accessibility: Option<Value>,
     /// The page's measurements at the checkpoint, when the request asked for them.
     pub profile: Option<Value>,
+    /// Multiple kept checkpoints captured during a single fresh pass.
+    pub captures: Option<Vec<CheckpointCapture>>,
+    /// Final step outcomes returned by an in-page job driver.
+    pub job_outcome: Option<Value>,
 }
 
 /// What one attempt produced before its context was disposed.
@@ -303,6 +352,8 @@ struct Attempted {
     outcome: Option<Value>,
     accessibility: Option<Value>,
     profile: Option<Value>,
+    captures: Option<Vec<CheckpointCapture>>,
+    job_outcome: Option<Value>,
 }
 
 /// Structured metadata attached to a typed host failure (e.g. `TARGET_NOT_FOUND`, `TARGET_AMBIGUOUS`).
@@ -357,6 +408,8 @@ struct Attempt {
 
 /// The binding `vitest/browser`'s stand-in calls, in `src/browser/vitest-browser.ts`.
 const INPUT_BINDING: &str = "__specimenInput";
+/// The binding an in-page `JobDriver` calls for actions, commands, and checkpoint captures.
+const JOB_BINDING: &str = "__specimenJob";
 
 #[derive(serde::Deserialize)]
 struct InputCall {
@@ -364,11 +417,42 @@ struct InputCall {
     keys: String,
 }
 
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct JobBridgeCall {
+    id: u64,
+    token: String,
+    op: String,
+    #[serde(default)]
+    action: Option<Value>,
+    #[serde(default)]
+    runner: Option<String>,
+    #[serde(default)]
+    target: Option<String>,
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    input: Option<Value>,
+    #[serde(default)]
+    key: Option<String>,
+    #[serde(default)]
+    step: Option<u64>,
+}
+
 const RUN_PHASE: &str = "running the story's play and accessibility check";
 
 impl Attempt {
     fn enter(&self, phase: &'static str) {
         *self.phase.lock().unwrap() = phase;
+    }
+
+    fn snapshot_console(&self) -> Messages {
+        self.collector
+            .lock()
+            .unwrap()
+            .as_mut()
+            .map(Collector::snapshot)
+            .unwrap_or_default()
     }
 
     /// The phase for a deadline's message. A story's run asks the page which stage it reached;
@@ -410,18 +494,21 @@ impl Browser {
         // Startup has its own bound, as the browser launch does in Playwright.
         self.ready().await?;
         let attempt = Attempt::default();
-        let outcome = match timeout(
+        let (outcome, timed_out) = match timeout(
             Duration::from_millis(request.timeout_ms),
             self.attempt(&attempt, url, network, request),
         )
         .await
         {
-            Ok(result) => result,
-            Err(_) => Err(anyhow!(
-                "Specimen deadline exceeded after {}ms while {}",
-                request.timeout_ms,
-                attempt.deadline_phase(&self.cdp).await
-            )),
+            Ok(result) => (result, false),
+            Err(_) => (
+                Err(anyhow!(
+                    "Specimen deadline exceeded after {}ms while {}",
+                    request.timeout_ms,
+                    attempt.deadline_phase(&self.cdp).await
+                )),
+                true,
+            ),
         };
         let session = attempt.session.lock().unwrap().clone();
         let dispose_budget = request.timeout_ms.min(1000);
@@ -436,6 +523,13 @@ impl Browser {
                     cdp: &self.cdp,
                     session: session.clone(),
                 };
+                if timed_out {
+                    let _ = timeout(
+                        Duration::from_millis(200),
+                        page.evaluate("window.__specimen.cancel?.()"),
+                    )
+                    .await;
+                }
                 match timeout(
                     Duration::from_millis(dispose_budget),
                     page.evaluate("window.__specimen.dispose()"),
@@ -477,6 +571,8 @@ impl Browser {
                 outcome: attempted.outcome,
                 accessibility: attempted.accessibility,
                 profile: attempted.profile,
+                captures: attempted.captures,
+                job_outcome: attempted.job_outcome,
             }),
             (Ok(_), Err(failure)) => Err(failure.into()),
             // The page's own errors usually explain a render that failed or never became ready.
@@ -583,6 +679,13 @@ impl Browser {
         attempt
             .ready
             .store(true, std::sync::atomic::Ordering::SeqCst);
+        if let Some(clock) = &request.pin_clock {
+            page.evaluate(&format!(
+                "window.__specimen.pinClock({})",
+                serde_json::to_string(clock)?
+            ))
+            .await?;
+        }
         if let Some(inspect) = &request.inspect {
             let schema = inspect.get("schema").cloned().unwrap_or(Value::Null);
             let inspected = page
@@ -609,9 +712,252 @@ impl Browser {
                 outcome: None,
                 accessibility: None,
                 profile: None,
+                captures: None,
+                job_outcome: None,
             });
         }
         let mut context = request.context.clone();
+        if let Some(job_run) = &request.job_run {
+            let mut bridge = self.cdp.subscribe_bindings(&page.session);
+            page.send("Runtime.addBinding", json!({ "name": JOB_BINDING }))
+                .await?;
+            attempt.enter("mounting the job specimen");
+            let mounted = page
+                .evaluate(&format!(
+                    "window.__specimen.mount({}, {})",
+                    request.entry, request.context
+                ))
+                .await?;
+            let targets = mounted.get("targets").cloned().unwrap_or(json!({}));
+            if mounted
+                .get("events")
+                .and_then(Value::as_array)
+                .is_some_and(|events| !events.is_empty())
+            {
+                page.bind_event_targets(&mounted, &targets).await?;
+            }
+            let target_object = if let Some(target_def) = targets.get(&job_run.target) {
+                page.target(&job_run.target, target_def).await?
+            } else if job_run.target == "root" {
+                page.root_object_id().await?
+            } else {
+                return Err(anyhow!(
+                    "Job target '{}' is not declared on specimen targets",
+                    job_run.target
+                ));
+            };
+            attempt.enter("running the job scenario");
+            let bridge_token = uuid::Uuid::new_v4().to_string();
+            let allowed_captures: std::collections::HashSet<(String, String, u64)> = job_run
+                .capture_plan
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|item| {
+                    let key = item.get("key")?.as_str()?.to_string();
+                    let name = item.get("name")?.as_str()?.to_string();
+                    let step = item.get("step")?.as_u64()?;
+                    Some((key, name, step))
+                })
+                .collect();
+            let payload = json!({
+                "driver": job_run.driver,
+                "targets": targets,
+                "scenario": job_run.scenario,
+                "capturePlan": job_run.capture_plan,
+                "bridgeToken": bridge_token,
+            });
+            let run = page.call(
+                &target_object,
+                "function (entry, context, payload) { return window.__specimen.runJob(this, entry, context, payload); }",
+                json!([
+                    { "value": request.entry },
+                    { "value": context },
+                    { "value": payload },
+                ]),
+            );
+            let mut captures = Vec::new();
+            let job_outcome = run_with_job_bridge(
+                attempt,
+                &page,
+                run,
+                &mut bridge,
+                &bridge_token,
+                &allowed_captures,
+                &targets,
+                &viewport,
+                &job_run.screenshots,
+                request.accessibility,
+                &mut captures,
+            )
+            .await?;
+            return Ok(Attempted {
+                captured: Value::Null,
+                snapshot: String::new(),
+                screenshot: None,
+                context,
+                outcome: None,
+                accessibility: None,
+                profile: None,
+                captures: Some(captures),
+                job_outcome: Some(job_outcome),
+            });
+        }
+        if let Some(checkpoints) = &request.checkpoints {
+            attempt.enter("mounting the specimen");
+            let mounted = page
+                .evaluate(&format!(
+                    "window.__specimen.mount({}, {})",
+                    request.entry, request.context
+                ))
+                .await?;
+            let targets = mounted.get("targets").cloned().unwrap_or(json!({}));
+            let events_declared = mounted
+                .get("events")
+                .and_then(Value::as_array)
+                .is_some_and(|events| !events.is_empty());
+            if events_declared {
+                page.bind_event_targets(&mounted, &targets).await?;
+            }
+            let steps = mounted
+                .get("scenario")
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default();
+            let declared_names: Vec<String> = steps
+                .iter()
+                .filter_map(|step| {
+                    step.get("capture")
+                        .and_then(Value::as_str)
+                        .map(String::from)
+                })
+                .collect();
+            let mut seen_names = std::collections::HashSet::new();
+            for requested_cp in checkpoints {
+                if !seen_names.insert(requested_cp.name.as_str()) {
+                    return Err(anyhow!(
+                        "Duplicate checkpoint requested: {}",
+                        requested_cp.name
+                    ));
+                }
+                if requested_cp.name != "mount"
+                    && requested_cp.name != "after-run"
+                    && !declared_names.contains(&requested_cp.name)
+                {
+                    return Err(anyhow!("Checkpoint not found: {}", requested_cp.name));
+                }
+            }
+            let by_name: HashMap<&str, &CheckpointRequest> = checkpoints
+                .iter()
+                .map(|cp| (cp.name.as_str(), cp))
+                .collect();
+            let capture_all = checkpoints.is_empty();
+            let mut captures = Vec::new();
+            let resolve_shot =
+                |step_ordinal: u64, req: Option<&CheckpointRequest>| -> Option<String> {
+                    if let Some(explicit) = req.and_then(|item| item.screenshot.as_deref()) {
+                        return Some(explicit.to_string());
+                    }
+                    request.screenshots_dir.as_ref().map(|dir| {
+                        std::path::Path::new(dir)
+                            .join(format!("cp-{step_ordinal}.png"))
+                            .display()
+                            .to_string()
+                    })
+                };
+
+            if let Some(mount_cp) = by_name.get("mount").copied() {
+                attempt.enter("capturing checkpoint");
+                let shot_path = resolve_shot(0, Some(mount_cp));
+                captures.push(
+                    take_capture(
+                        attempt,
+                        &page,
+                        &viewport,
+                        shot_path.as_deref(),
+                        request.accessibility,
+                        "mount".to_string(),
+                        None,
+                        Some(0),
+                    )
+                    .await?,
+                );
+            }
+
+            let needs_after_run = by_name.contains_key("after-run");
+            let mut remaining_named: std::collections::HashSet<&str> = checkpoints
+                .iter()
+                .map(|cp| cp.name.as_str())
+                .filter(|name| *name != "mount" && *name != "after-run")
+                .collect();
+
+            if capture_all || !remaining_named.is_empty() || needs_after_run {
+                attempt.enter("running the specimen's scenario");
+                let mut scenario_capture_step: u64 = 0;
+                let mut keyboard = Keyboard::default();
+                for step in &steps {
+                    if let Some(capture_name) = step.get("capture").and_then(Value::as_str) {
+                        scenario_capture_step += 1;
+                        if capture_all || remaining_named.remove(capture_name) {
+                            attempt.enter("capturing checkpoint");
+                            let req = by_name.get(capture_name).copied();
+                            let shot_path = resolve_shot(scenario_capture_step, req);
+                            captures.push(
+                                take_capture(
+                                    attempt,
+                                    &page,
+                                    &viewport,
+                                    shot_path.as_deref(),
+                                    request.accessibility,
+                                    capture_name.to_string(),
+                                    None,
+                                    Some(scenario_capture_step),
+                                )
+                                .await?,
+                            );
+                            if !capture_all && remaining_named.is_empty() && !needs_after_run {
+                                break;
+                            }
+                            attempt.enter("running the specimen's scenario");
+                        }
+                        continue;
+                    }
+                    page.run_step(&mounted, &targets, events_declared, step, &mut keyboard)
+                        .await?;
+                }
+            }
+
+            if let Some(after_cp) = by_name.get("after-run").copied() {
+                attempt.enter("capturing checkpoint");
+                let after_step = declared_names.len() as u64 + 1;
+                let shot_path = resolve_shot(after_step, Some(after_cp));
+                captures.push(
+                    take_capture(
+                        attempt,
+                        &page,
+                        &viewport,
+                        shot_path.as_deref(),
+                        request.accessibility,
+                        "after-run".to_string(),
+                        None,
+                        Some(after_step),
+                    )
+                    .await?,
+                );
+            }
+
+            return Ok(Attempted {
+                captured: Value::Null,
+                snapshot: String::new(),
+                screenshot: None,
+                context,
+                outcome: None,
+                accessibility: None,
+                profile: None,
+                captures: Some(captures),
+                job_outcome: None,
+            });
+        }
         let mut outcome = None;
         if retained {
             if !matches!(request.checkpoint.as_str(), "mount" | "after-run") {
@@ -706,75 +1052,233 @@ impl Browser {
                 outcome,
                 accessibility,
                 profile,
+                captures: None,
+                job_outcome: None,
             });
         }
         attempt.enter("capturing the result");
         let capture_started = std::time::Instant::now();
-        // The DOM is normalized in the page, by the same `normalizeDom` the API exports.
-        let mut captured = page
-            .evaluate("(async () => { const captured = window.__specimen.capture(); captured.normalized = await window.__specimen.normalize(captured.dom); return captured; })()")
-            .await?;
-        let root = page.root_backend_id().await?;
-        let tree = page.send("Accessibility.getFullAXTree", json!({})).await?;
-        let dom = page.subtree(root).await?;
-        let snapshot = match aria::snapshot(&tree, root) {
-            Some(snapshot) => snapshot,
-            // A modal dialog has left the mount root out of the tree (#662).
-            None => aria::exposed_within(&tree, &crate::page::backend_ids(&dom)),
-        };
-        // Each accessible element's computed role and name, by the reference the page gave it.
-        // The tree is read after the page's capture: if the page changed in between, references
-        // no longer name the same elements, and no role is recorded rather than a wrong one.
-        let roles = aria::roles(&tree, &dom);
-        let page_references: std::collections::HashSet<String> = captured
-            .get("elements")
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten()
-            .filter_map(|element| element.get("ref").and_then(Value::as_str))
-            .filter(|reference| *reference != "root")
-            .map(String::from)
-            .collect();
-        if page_references == roles.references {
-            if let Some(elements) = captured.get_mut("elements").and_then(Value::as_array_mut) {
-                for element in elements {
-                    let accessible = element
-                        .get("ref")
-                        .and_then(Value::as_str)
-                        .and_then(|reference| roles.accessible.get(reference));
-                    if let (Some(accessible), Some(element)) = (accessible, element.as_object_mut())
-                    {
-                        element.insert("accessibility".into(), json!(accessible));
-                    }
-                }
-            }
-        } else if let Some(limitations) = captured
-            .get_mut("limitations")
-            .and_then(Value::as_array_mut)
-        {
-            limitations.push(json!(
-                "The page changed between its capture and the accessibility tree's, so no element's role is recorded."
-            ));
-        }
         let viewport: Viewport =
             serde_json::from_value(context.get("viewport").cloned().unwrap_or(Value::Null))
                 .unwrap_or(viewport);
-        let screenshot = match &request.screenshot {
-            Some(path) => Some(screenshot(&page, path, &viewport).await?),
-            None => None,
-        };
+        let point = take_capture(
+            attempt,
+            &page,
+            &viewport,
+            request.screenshot.as_deref(),
+            false,
+            request.checkpoint.clone(),
+            None,
+            None,
+        )
+        .await?;
         if let Some(profile) = profile.as_mut() {
             profile["captureMs"] = json!(capture_started.elapsed().as_secs_f64() * 1000.0);
         }
         Ok(Attempted {
-            captured,
-            snapshot,
-            screenshot,
+            captured: point.captured,
+            snapshot: point.snapshot,
+            screenshot: point.screenshot,
             context,
             outcome,
             accessibility,
             profile,
+            captures: None,
+            job_outcome: None,
         })
+    }
+}
+
+/// Capture observation, ARIA snapshot + roles, optional axe check, and optional screenshot at the
+/// page's current state without disposing the browser context.
+#[allow(clippy::too_many_arguments)]
+async fn take_capture(
+    attempt: &Attempt,
+    page: &Page<'_>,
+    viewport: &Viewport,
+    screenshot_path: Option<&str>,
+    accessibility: bool,
+    name: String,
+    key: Option<String>,
+    step: Option<u64>,
+) -> Result<CheckpointCapture> {
+    let axe = if accessibility {
+        Some(
+            page.evaluate("window.__specimen.checkAccessibility()")
+                .await?,
+        )
+    } else {
+        None
+    };
+    // The DOM is normalized in the page, by the same `normalizeDom` the API exports.
+    let mut captured = page
+        .evaluate("(async () => { const captured = window.__specimen.capture(); captured.normalized = await window.__specimen.normalize(captured.dom); return captured; })()")
+        .await?;
+    let root = page.root_backend_id().await?;
+    let tree = page.send("Accessibility.getFullAXTree", json!({})).await?;
+    let dom = page.subtree(root).await?;
+    let snapshot = match aria::snapshot(&tree, root) {
+        Some(snapshot) => snapshot,
+        // A modal dialog has left the mount root out of the tree (#662).
+        None => aria::exposed_within(&tree, &crate::page::backend_ids(&dom)),
+    };
+    // Each accessible element's computed role and name, by the reference the page gave it.
+    // The tree is read after the page's capture: if the page changed in between, references
+    // no longer name the same elements, and no role is recorded rather than a wrong one.
+    let roles = aria::roles(&tree, &dom);
+    let page_references: std::collections::HashSet<String> = captured
+        .get("elements")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|element| element.get("ref").and_then(Value::as_str))
+        .filter(|reference| *reference != "root")
+        .map(String::from)
+        .collect();
+    if page_references == roles.references {
+        if let Some(elements) = captured.get_mut("elements").and_then(Value::as_array_mut) {
+            for element in elements {
+                let accessible = element
+                    .get("ref")
+                    .and_then(Value::as_str)
+                    .and_then(|reference| roles.accessible.get(reference));
+                if let (Some(accessible), Some(element)) = (accessible, element.as_object_mut()) {
+                    element.insert("accessibility".into(), json!(accessible));
+                }
+            }
+        }
+    } else if let Some(limitations) = captured
+        .get_mut("limitations")
+        .and_then(Value::as_array_mut)
+    {
+        limitations.push(json!(
+            "The page changed between its capture and the accessibility tree's, so no element's role is recorded."
+        ));
+    }
+    let shot = match screenshot_path {
+        Some(path) => Some(screenshot(page, path, viewport).await?),
+        None => None,
+    };
+    let console = attempt.snapshot_console();
+    Ok(CheckpointCapture {
+        key,
+        name,
+        step,
+        captured,
+        snapshot,
+        screenshot: shot,
+        accessibility: axe,
+        console,
+    })
+}
+
+/// Drive an in-page `JobDriver`, answering its real-input actions, commands, and checkpoint
+/// captures on the live page until the driver finishes.
+#[allow(clippy::too_many_arguments)]
+async fn run_with_job_bridge(
+    attempt: &Attempt,
+    page: &Page<'_>,
+    run: impl std::future::Future<Output = Result<Value>>,
+    bridge: &mut tokio::sync::mpsc::UnboundedReceiver<crate::cdp::Event>,
+    bridge_token: &str,
+    allowed_captures: &std::collections::HashSet<(String, String, u64)>,
+    targets: &Value,
+    viewport: &Viewport,
+    screenshots: &HashMap<String, String>,
+    accessibility: bool,
+    captures: &mut Vec<CheckpointCapture>,
+) -> Result<Value> {
+    tokio::pin!(run);
+    let mut expected_context_id: Option<i64> = None;
+    let mut keyboard = Keyboard::default();
+    loop {
+        tokio::select! {
+            result = &mut run => return result,
+            Some(event) = bridge.recv() => {
+                if event.params.get("name").and_then(Value::as_str) != Some(JOB_BINDING) {
+                    continue;
+                }
+                let Ok(call) = serde_json::from_str::<JobBridgeCall>(
+                    event.params.get("payload").and_then(Value::as_str).unwrap_or(""),
+                ) else {
+                    continue;
+                };
+                if call.token != bridge_token {
+                    continue;
+                }
+                let context_id = event.params.get("executionContextId").and_then(Value::as_i64);
+                match (expected_context_id, context_id) {
+                    (Some(expected), Some(actual)) if expected != actual => continue,
+                    (None, Some(actual)) => expected_context_id = Some(actual),
+                    _ => {}
+                }
+                let outcome: Result<Value> = match call.op.as_str() {
+                    "action" => {
+                        let action = call.action.unwrap_or(Value::Null);
+                        page.act(&action, targets, &mut keyboard).await.map(|()| Value::Null)
+                    }
+                    "command" => {
+                        let cmd = json!({
+                            "runner": call.runner.unwrap_or_default(),
+                            "target": call.target.unwrap_or_default(),
+                            "name": call.name.unwrap_or_default(),
+                            "input": call.input.unwrap_or(Value::Null),
+                        });
+                        page.command_value(&cmd, targets).await
+                    }
+                    "capture" => {
+                        let key = call.key.clone().unwrap_or_default();
+                        let name = call.name.clone().unwrap_or_default();
+                        let step = call.step;
+                        if let Some(step_num) = step
+                            && allowed_captures.contains(&(key.clone(), name.clone(), step_num))
+                        {
+                            let shot_path = screenshots.get(&key).map(String::as_str);
+                            take_capture(
+                                attempt,
+                                page,
+                                viewport,
+                                shot_path,
+                                accessibility,
+                                name,
+                                Some(key),
+                                Some(step_num),
+                            )
+                            .await
+                            .map(|point| {
+                                let shot = point.screenshot.clone();
+                                captures.push(point);
+                                json!({ "screenshot": shot })
+                            })
+                        } else {
+                            Err(anyhow!(
+                                "Unexpected job capture request for key='{key}', name='{name}', step={step:?}"
+                            ))
+                        }
+                    }
+                    other => Err(anyhow!("Unsupported job bridge operation: {other}")),
+                };
+                let (error, value) = match outcome {
+                    Ok(val) => (None, val),
+                    Err(err) => (Some(format!("{err:#}")), Value::Null),
+                };
+                let expression = format!(
+                    "window.__specimenJobDone({}, {}, {})",
+                    call.id,
+                    serde_json::to_string(&error)?,
+                    serde_json::to_string(&value)?,
+                );
+                let mut reply = json!({
+                    "expression": expression,
+                    "awaitPromise": true,
+                    "returnByValue": true,
+                });
+                if let Some(ctx_id) = expected_context_id {
+                    reply["contextId"] = json!(ctx_id);
+                }
+                page.send("Runtime.evaluate", reply).await?;
+            }
+        }
     }
 }
 

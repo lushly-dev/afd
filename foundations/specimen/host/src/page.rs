@@ -262,13 +262,27 @@ impl Page<'_> {
         Self::checked(result)
     }
 
-    async fn call(&self, object: &str, function: &str, args: Value) -> Result<Value> {
+    pub async fn call(&self, object: &str, function: &str, args: Value) -> Result<Value> {
         Ok(self
             .call_on(object, function, args, true)
             .await?
             .pointer("/result/value")
             .cloned()
             .unwrap_or(Value::Null))
+    }
+
+    pub async fn root_object_id(&self) -> Result<String> {
+        let found = self
+            .send(
+                "Runtime.evaluate",
+                json!({ "expression": "document.querySelector('#specimen-root')", "returnByValue": false }),
+            )
+            .await?;
+        Self::checked(found)?
+            .pointer("/result/objectId")
+            .and_then(Value::as_str)
+            .map(String::from)
+            .ok_or_else(|| anyhow!("The bench page has no #specimen-root"))
     }
 
     /// The ARIA role Chromium computes for an element: its accessibility tree's, with `image`
@@ -327,7 +341,7 @@ impl Page<'_> {
     }
 
     /// Resolve a declared target to the one element it must identify.
-    async fn target(&self, name: &str, target: &Value) -> Result<String> {
+    pub async fn target(&self, name: &str, target: &Value) -> Result<String> {
         let (count, object) = if let Some(selector) = target.get("selector").and_then(Value::as_str)
         {
             let found = self
@@ -533,8 +547,9 @@ impl Page<'_> {
             .map(|_| ())
     }
 
-    /// An explicit command: the page's plugin runner called on the resolved target.
-    async fn command(&self, command: &Value, targets: &Value) -> Result<()> {
+    /// An explicit command: the page's plugin runner called on the resolved target, discarding its
+    /// return value so runners returning non-serializable or cyclic objects do not break scenarios.
+    pub async fn command(&self, command: &Value, targets: &Value) -> Result<()> {
         let name = command
             .get("target")
             .and_then(Value::as_str)
@@ -552,11 +567,42 @@ impl Page<'_> {
                 { "value": command.get("input").cloned().unwrap_or(Value::Null) }
             ]),
         )
-        .await?;
-        Ok(())
+        .await
+        .map(|_| ())
     }
 
-    async fn act(&self, action: &Value, targets: &Value, keyboard: &mut Keyboard) -> Result<()> {
+    /// Run a plugin command for a job driver and return its JSON-serializable value, supporting
+    /// the implicit `"root"` target fallback when `"root"` is not declared in `targets`.
+    pub async fn command_value(&self, command: &Value, targets: &Value) -> Result<Value> {
+        let name = command
+            .get("target")
+            .and_then(Value::as_str)
+            .ok_or_else(|| anyhow!("A command step names no target"))?;
+        let object = if let Some(target) = targets.get(name) {
+            self.target(name, target).await?
+        } else if name == "root" {
+            self.root_object_id().await?
+        } else {
+            return Err(anyhow!("Command step refers to an undeclared target"));
+        };
+        self.call(
+            &object,
+            "async function (runner, name, input) { return await window.__specimen.command(this, runner, name, input); }",
+            json!([
+                { "value": command.get("runner") },
+                { "value": command.get("name") },
+                { "value": command.get("input").cloned().unwrap_or(Value::Null) }
+            ]),
+        )
+        .await
+    }
+
+    pub async fn act(
+        &self,
+        action: &Value,
+        targets: &Value,
+        keyboard: &mut Keyboard,
+    ) -> Result<()> {
         if let Some(chord) = action.get("press").and_then(Value::as_str) {
             if let Some(name) = action.get("target").and_then(Value::as_str) {
                 let target = targets
@@ -682,7 +728,7 @@ impl Page<'_> {
 
     /// Give the page the declared event targets that exist now. One that does not exist yet may
     /// by a later step; one that never does is reported with the capture.
-    async fn bind_event_targets(&self, mounted: &Value, targets: &Value) -> Result<()> {
+    pub async fn bind_event_targets(&self, mounted: &Value, targets: &Value) -> Result<()> {
         let declared = mounted.get("events").and_then(Value::as_array);
         for name in declared
             .into_iter()
@@ -702,6 +748,73 @@ impl Page<'_> {
             }
         }
         Ok(())
+    }
+
+    /// Execute one non-capture native scenario step (`expect`, `command`, or `action`).
+    pub async fn run_step(
+        &self,
+        mounted: &Value,
+        targets: &Value,
+        events_declared: bool,
+        step: &Value,
+        keyboard: &mut Keyboard,
+    ) -> Result<()> {
+        if events_declared {
+            let id = step.get("id").cloned().unwrap_or(Value::Null);
+            self.bind_event_targets(mounted, targets).await?;
+            self.evaluate(&format!("window.__specimen.stepStarted({id})"))
+                .await?;
+        }
+        if let Some(expectation) = step.get("expect") {
+            // An event expectation reads the history; an a11y expectation reads CDP's AX tree;
+            // any other reads its target in the page.
+            if expectation.get("a11y").is_some() {
+                let name = expectation
+                    .get("target")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| anyhow!("a11y expectation names no target"))?;
+                let target = targets.get(name).cloned().unwrap_or(Value::Null);
+                let (object, detail) = self.expect_a11y(name, &target, expectation).await?;
+                self.call(
+                    &object,
+                    "function (expectation, detail) { return window.__specimen.expect(expectation, this, detail); }",
+                    json!([{ "value": expectation }, { "value": detail }]),
+                )
+                .await?;
+                return Ok(());
+            }
+            match expectation
+                .get("target")
+                .and_then(Value::as_str)
+                .filter(|_| expectation.get("event").is_none())
+            {
+                Some(name) => {
+                    let target = targets.get(name).cloned().unwrap_or(Value::Null);
+                    let object = self.target(name, &target).await?;
+                    self.call(
+                        &object,
+                        "function (expectation) { return window.__specimen.expect(expectation, this); }",
+                        json!([{ "value": expectation }]),
+                    )
+                    .await?;
+                }
+                None => {
+                    self.evaluate(&format!("window.__specimen.expect({expectation})"))
+                        .await?;
+                }
+            }
+            return Ok(());
+        }
+        if let Some(command) = step.get("command") {
+            self.command(command, targets).await?;
+            return Ok(());
+        }
+        self.act(
+            step.get("action").unwrap_or(&Value::Null),
+            targets,
+            keyboard,
+        )
+        .await
     }
 
     pub async fn steps(&self, mounted: &Value, checkpoint: &str) -> Result<()> {
@@ -736,62 +849,8 @@ impl Page<'_> {
                 }
                 continue;
             }
-            if events_declared {
-                let id = step.get("id").cloned().unwrap_or(Value::Null);
-                self.bind_event_targets(mounted, &targets).await?;
-                self.evaluate(&format!("window.__specimen.stepStarted({id})"))
-                    .await?;
-            }
-            if let Some(expectation) = step.get("expect") {
-                // An event expectation reads the history; an a11y expectation reads CDP's AX tree;
-                // any other reads its target in the page.
-                if expectation.get("a11y").is_some() {
-                    let name = expectation
-                        .get("target")
-                        .and_then(Value::as_str)
-                        .ok_or_else(|| anyhow!("a11y expectation names no target"))?;
-                    let target = targets.get(name).cloned().unwrap_or(Value::Null);
-                    let (object, detail) = self.expect_a11y(name, &target, expectation).await?;
-                    self.call(
-                        &object,
-                        "function (expectation, detail) { return window.__specimen.expect(expectation, this, detail); }",
-                        json!([{ "value": expectation }, { "value": detail }]),
-                    )
-                    .await?;
-                    continue;
-                }
-                match expectation
-                    .get("target")
-                    .and_then(Value::as_str)
-                    .filter(|_| expectation.get("event").is_none())
-                {
-                    Some(name) => {
-                        let target = targets.get(name).cloned().unwrap_or(Value::Null);
-                        let object = self.target(name, &target).await?;
-                        self.call(
-                            &object,
-                            "function (expectation) { return window.__specimen.expect(expectation, this); }",
-                            json!([{ "value": expectation }]),
-                        )
-                        .await?;
-                    }
-                    None => {
-                        self.evaluate(&format!("window.__specimen.expect({expectation})"))
-                            .await?;
-                    }
-                }
-                continue;
-            }
-            if let Some(command) = step.get("command") {
-                self.command(command, &targets).await?;
-                continue;
-            }
-            self.act(
-                step.get("action").unwrap_or(&Value::Null),
-                &targets,
-                &mut keyboard,
-            )
-            .await?;
+            self.run_step(mounted, &targets, events_declared, &step, &mut keyboard)
+                .await?;
         }
         Ok(())
     }

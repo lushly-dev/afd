@@ -29,6 +29,7 @@ export const browserSuites = [
 	'src/targets.test.ts',
 	'src/network.test.ts',
 	'src/sets-bench.test.ts',
+	'src/jobs-bench.test.ts',
 ];
 
 export default defineConfig({
@@ -39,11 +40,15 @@ export default defineConfig({
 			...base.test?.coverage,
 			// Browser-free suites exercise only these modules; browser modules are measured by test:browser.
 			include: [
+				'src/browser/clock.ts',
+				'src/browser/clock-parse.ts',
 				'src/climb.ts',
 				'src/diff.ts',
 				'src/evidence.ts',
 				'src/guide-coverage.ts',
 				'src/guide-source.ts',
+				'src/job-source.ts',
+				'src/jobs.ts',
 				'src/normalize.ts',
 				'src/normalize-ids.ts',
 				'src/pack.ts',

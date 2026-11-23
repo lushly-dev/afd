@@ -20,6 +20,7 @@ import { installInstrumentation } from './instrumentation.js';
 import { locate } from './locate.js';
 import { installPageErrors, takePageErrors, watchPageErrors } from './page-errors.js';
 import { describe, enrichSchema, type InstalledPlugins, installPlugins } from './plugins.js';
+import { realClearTimeout, realDelay, realSetTimeout } from './real-timers.js';
 import type { MountedStory, PreparedStory, StoryModule } from './story-runtime.js';
 import { needsScenarioSupport, validateSpecimen } from './validate.js';
 
@@ -40,7 +41,7 @@ function firstContentfulPaint(): Promise<number | null> {
 	return new Promise((resolve) => {
 		const finish = () => {
 			observer.disconnect();
-			clearTimeout(limit);
+			realClearTimeout(limit);
 			resolve(read());
 		};
 		// `first-paint` arrives first and says nothing about content, so wait for the one asked for.
@@ -48,7 +49,7 @@ function firstContentfulPaint(): Promise<number | null> {
 			if (read() !== null) finish();
 		});
 		observer.observe({ type: 'paint' });
-		const limit = setTimeout(finish, 2000);
+		const limit = realSetTimeout(finish, 2000);
 	});
 }
 
@@ -61,6 +62,8 @@ type Disposer = () => void | Promise<void>;
 
 /** Retained stories' runtime, loaded on first use so native pages do not carry it. */
 const storyRuntime = () => import('./story-runtime.js');
+/** Clock pinning and in-page job driver runtime, loaded on first use. */
+const jobRuntime = () => import('./job-runtime.js');
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -131,7 +134,7 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 	let active = false;
 	// A retained story, between resolve, mount and run.
 	let story: { prepared: PreparedStory; mounted?: MountedStory } | undefined;
-	const abort = new AbortController();
+	let abort = new AbortController();
 	// Installed once, before any specimen or story module loads.
 	let installed: Promise<InstalledPlugins> | undefined;
 	const plugins = () => {
@@ -165,10 +168,14 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 	}
 	let motion: 'natural' | 'settled' = 'natural';
 	let requested: SpecimenContext | undefined;
+	let jobMod: typeof import('./job-runtime.js') | undefined;
+	const loadJob = async () => (jobMod ??= await jobRuntime());
 	const disposers: Disposer[] = [];
 
 	async function dispose(): Promise<void> {
 		const errors: unknown[] = [];
+		abort.abort();
+		jobMod?.disposeJobRuntime();
 		for (const disposer of disposers.splice(0).reverse()) {
 			try {
 				await disposer();
@@ -182,6 +189,7 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 		nativeAccessibility = undefined;
 		eventRecorder = undefined;
 		active = false;
+		abort = new AbortController();
 		if (errors.length) {
 			const details = errors
 				.map((error) => (error instanceof Error ? error.message : String(error)))
@@ -283,10 +291,7 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 		if (story) {
 			// A component may define an element only on intent, such as opening a disclosure, so a
 			// story can hold a tag that stays undefined. Storybook does not wait for one either.
-			await Promise.race([
-				defined,
-				new Promise((resolve) => setTimeout(resolve, UNDEFINED_ELEMENT_GRACE_MS)),
-			]);
+			await Promise.race([defined, realDelay(UNDEFINED_ELEMENT_GRACE_MS)]);
 			for (const [registry, tags] of found)
 				for (const tag of tags) if (!registry.get(tag)) undefinedTags.add(tag);
 		} else await defined;
@@ -331,6 +336,20 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 	}
 
 	window.__specimen = {
+		cancel() {
+			abort.abort();
+		},
+		async pinClock(iso) {
+			(await loadJob()).pinClock(iso);
+		},
+		advanceClock(ms) {
+			if (!jobMod) throw new Error('pin.clock is not active.');
+			jobMod.advanceClock(ms);
+		},
+		async runJob(element, entry, context, payload) {
+			const [registry, mod] = await Promise.all([plugins(), loadJob()]);
+			return mod.executeJobDriver(registry, element, entry, context, payload, abort.signal, settle);
+		},
 		async resolve(entry, requestedContext, defaults, options = {}) {
 			if (!entry.story) return null;
 			// A run counts what the story's module raises as it loads, as Vitest does.
@@ -484,10 +503,13 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 			};
 		},
 		async checkAccessibility() {
-			const runtime = await storyRuntime();
-			if (story?.mounted) return runtime.checkMountedStory(story.mounted);
-			if (!active) throw new Error('Mount a specimen before checking it.');
-			return runtime.checkNativeSpecimen(mountRoot, nativeAccessibility);
+			const run = async () => {
+				const runtime = await storyRuntime();
+				if (story?.mounted) return runtime.checkMountedStory(story.mounted);
+				if (!active) throw new Error('Mount a specimen before checking it.');
+				return runtime.checkNativeSpecimen(mountRoot, nativeAccessibility);
+			};
+			return jobMod ? jobMod.withRealTimers(run) : run();
 		},
 		async mountAndRun(entry, context, options = {}) {
 			// One chain with no frame between the render and the play and no import after the

@@ -1,3 +1,4 @@
+import { isValidIsoClock } from './browser/clock-parse.js';
 import type {
 	A11yRequest,
 	BaselineRequest,
@@ -6,9 +7,17 @@ import type {
 	CaptureFilter,
 	CaptureRequest,
 	CaptureSetRequest,
+	CheckpointsRequest,
 	ContractRequest,
 	CoverageRequest,
 	ImplementationContexts,
+	JobBeforeAction,
+	JobCapturePoint,
+	JobConfig,
+	JobPin,
+	JobRunRequest,
+	JobScenario,
+	JobScenarioStep,
 	MatrixAxes,
 	MatrixRequest,
 	PackExportRequest,
@@ -16,6 +25,7 @@ import type {
 	PackRequest,
 	PatternSetupBinding,
 	ProfileRequest,
+	SpecimenAction,
 	SpecimenContext,
 	SuggestRequest,
 	SuiteFilter,
@@ -508,6 +518,219 @@ export function parseCaptureSetRequest(value: unknown): CaptureSetRequest {
 	return request;
 }
 
+const JOB_CAPTURE_NAME = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/;
+
+function parseLabel(value: unknown, path: string): string {
+	const label = text(value, path, CAPTURE_LABEL);
+	if (CAPTURE_SET_ID.test(label)) fail(path, 'must not match a capture set id');
+	if (label.split('/').some((segment) => segment === '' || segment === '.' || segment === '..'))
+		fail(path, 'must not contain empty or traversal path segments');
+	return label;
+}
+
+function parseJobPin(value: unknown, path: string): JobPin {
+	const fields = record(value, path, ['clock']);
+	const pin: JobPin = {};
+	if (fields.clock !== undefined) {
+		const clock = text(fields.clock, `${path}.clock`);
+		if (!isValidIsoClock(clock))
+			fail(`${path}.clock`, 'expected a calendar-valid ISO-8601 timestamp with timezone');
+		pin.clock = clock;
+	}
+	return pin;
+}
+
+function parseSpecimenAction(value: unknown, path: string): SpecimenAction {
+	if (typeof value !== 'object' || value === null || Array.isArray(value))
+		fail(path, 'expected an action object');
+	const keys = Object.keys(value);
+	const fields = value as Fields;
+	if (keys.length === 1 && keys[0] === 'click')
+		return { click: text(fields.click, `${path}.click`) };
+	if (keys.length === 1 && keys[0] === 'focus')
+		return { focus: text(fields.focus, `${path}.focus`) };
+	if (keys.length === 1 && keys[0] === 'hover')
+		return { hover: text(fields.hover, `${path}.hover`) };
+	if (keys.length === 2 && Object.hasOwn(fields, 'fill') && Object.hasOwn(fields, 'value')) {
+		if (typeof fields.value !== 'string') fail(`${path}.value`, 'expected a string');
+		return { fill: text(fields.fill, `${path}.fill`), value: fields.value };
+	}
+	if (
+		(keys.length === 1 && keys[0] === 'press') ||
+		(keys.length === 2 && Object.hasOwn(fields, 'press') && Object.hasOwn(fields, 'target'))
+	) {
+		const action: SpecimenAction = { press: text(fields.press, `${path}.press`) };
+		if (fields.target !== undefined) action.target = text(fields.target, `${path}.target`);
+		return action;
+	}
+	fail(path, 'expected click, focus, hover, fill+value, or press action');
+}
+
+function parseJobBefore(value: unknown, path: string): JobBeforeAction[] {
+	if (!Array.isArray(value) || value.length < 1)
+		fail(path, 'expected a non-empty array of before actions');
+	return value.map((item, index) => {
+		const itemPath = `${path}[${index}]`;
+		const fields = record(item, itemPath, ['action']);
+		return { action: parseSpecimenAction(fields.action, `${itemPath}.action`) };
+	});
+}
+
+function parseJobCapturePoint(value: unknown, path: string): JobCapturePoint {
+	const fields = record(value, path, ['after', 'name', 'before']);
+	return {
+		after: text(fields.after, `${path}.after`),
+		name: text(fields.name, `${path}.name`, JOB_CAPTURE_NAME),
+		...(fields.before === undefined
+			? {}
+			: { before: parseJobBefore(fields.before, `${path}.before`) }),
+	};
+}
+
+function parseJobConfig(value: unknown, path: string): JobConfig {
+	const fields = record(value, path, ['scenario', 'target', 'runner', 'pin', 'captures']);
+	if (!Array.isArray(fields.captures) || fields.captures.length < 1)
+		fail(`${path}.captures`, 'expected at least one capture point');
+	const captures = fields.captures.map((item, index) =>
+		parseJobCapturePoint(item, `${path}.captures[${index}]`)
+	);
+	if (new Set(captures.map((c) => c.name)).size !== captures.length)
+		fail(`${path}.captures`, 'capture names must be unique');
+	if (new Set(captures.map((c) => c.after)).size !== captures.length)
+		fail(`${path}.captures`, 'capture step descriptions must be unique');
+	return {
+		scenario: text(fields.scenario, `${path}.scenario`),
+		target: text(fields.target, `${path}.target`),
+		...(fields.runner === undefined ? {} : { runner: text(fields.runner, `${path}.runner`) }),
+		...(fields.pin === undefined ? {} : { pin: parseJobPin(fields.pin, `${path}.pin`) }),
+		captures,
+	};
+}
+
+function parseJobScenarioStep(value: unknown, path: string): JobScenarioStep {
+	const fields = record(value, path, [
+		'step',
+		'command',
+		'description',
+		'input',
+		'expect',
+		'continueOnFailure',
+	]);
+	const step: JobScenarioStep = {
+		step: integer(fields.step, `${path}.step`, 1, Number.MAX_SAFE_INTEGER),
+		command: text(fields.command, `${path}.command`),
+	};
+	if (fields.description !== undefined) {
+		if (typeof fields.description !== 'string') fail(`${path}.description`, 'expected a string');
+		step.description = fields.description;
+	}
+	if (fields.input !== undefined) {
+		if (typeof fields.input !== 'object' || fields.input === null || Array.isArray(fields.input))
+			fail(`${path}.input`, 'expected an object');
+		step.input = fields.input as Record<string, unknown>;
+	}
+	if (fields.expect !== undefined) step.expect = fields.expect;
+	if (fields.continueOnFailure !== undefined) {
+		if (typeof fields.continueOnFailure !== 'boolean')
+			fail(`${path}.continueOnFailure`, 'expected a boolean');
+		step.continueOnFailure = fields.continueOnFailure;
+	}
+	return step;
+}
+
+export function parseJobScenario(value: unknown, path = 'job scenario'): JobScenario {
+	const fields = record(value, path, ['job', 'name', 'description', 'fixture', 'steps']);
+	if (!Array.isArray(fields.steps) || fields.steps.length < 1)
+		fail(`${path}.steps`, 'expected at least one step');
+	const steps = fields.steps.map((item, index) =>
+		parseJobScenarioStep(item, `${path}.steps[${index}]`)
+	);
+	for (let index = 0; index < steps.length; index++) {
+		const expected = index + 1;
+		if (steps[index]?.step !== expected)
+			fail(
+				`${path}.steps[${index}].step`,
+				`expected sequential 1-based step number ${expected}, received ${steps[index]?.step}`
+			);
+	}
+	const scenario: JobScenario = {
+		job: text(fields.job, `${path}.job`),
+		steps,
+	};
+	if (fields.name !== undefined) {
+		if (typeof fields.name !== 'string') fail(`${path}.name`, 'expected a string');
+		scenario.name = fields.name;
+	}
+	if (fields.description !== undefined) {
+		if (typeof fields.description !== 'string') fail(`${path}.description`, 'expected a string');
+		scenario.description = fields.description;
+	}
+	if (fields.fixture !== undefined) scenario.fixture = fields.fixture;
+	return scenario;
+}
+
+export function parseCheckpointsRequest(value: unknown): CheckpointsRequest {
+	const path = 'checkpoints request';
+	const fields = record(value, path, [
+		'id',
+		'checkpoints',
+		'context',
+		'label',
+		'axe',
+		'timeoutMs',
+		'pin',
+	]);
+	const request: CheckpointsRequest = { id: text(fields.id, `${path}.id`) };
+	if (fields.checkpoints !== undefined) {
+		if (!Array.isArray(fields.checkpoints) || fields.checkpoints.length < 1)
+			fail(`${path}.checkpoints`, 'expected at least one checkpoint name');
+		const names = fields.checkpoints.map((item, index) =>
+			text(item, `${path}.checkpoints[${index}]`)
+		);
+		if (new Set(names).size !== names.length)
+			fail(`${path}.checkpoints`, 'checkpoint names must be unique');
+		request.checkpoints = names;
+	}
+	if (fields.context !== undefined)
+		request.context = parseContext(fields.context, `${path}.context`, true);
+	if (fields.label !== undefined) request.label = parseLabel(fields.label, `${path}.label`);
+	if (fields.axe !== undefined) {
+		if (typeof fields.axe !== 'boolean') fail(`${path}.axe`, 'expected a boolean');
+		request.axe = fields.axe;
+	}
+	if (fields.timeoutMs !== undefined)
+		request.timeoutMs = integer(fields.timeoutMs, `${path}.timeoutMs`, 1, 60_000);
+	if (fields.pin !== undefined) request.pin = parseJobPin(fields.pin, `${path}.pin`);
+	return request;
+}
+
+export function parseJobRunRequest(value: unknown): JobRunRequest {
+	const path = 'job run request';
+	const fields = record(value, path, [
+		'id',
+		'context',
+		'label',
+		'axe',
+		'timeoutMs',
+		'pin',
+		'scenario',
+	]);
+	const request: JobRunRequest = { id: text(fields.id, `${path}.id`) };
+	if (fields.context !== undefined)
+		request.context = parseContext(fields.context, `${path}.context`, true);
+	if (fields.label !== undefined) request.label = parseLabel(fields.label, `${path}.label`);
+	if (fields.axe !== undefined) {
+		if (typeof fields.axe !== 'boolean') fail(`${path}.axe`, 'expected a boolean');
+		request.axe = fields.axe;
+	}
+	if (fields.timeoutMs !== undefined)
+		request.timeoutMs = integer(fields.timeoutMs, `${path}.timeoutMs`, 1, 60_000);
+	if (fields.pin !== undefined) request.pin = parseJobPin(fields.pin, `${path}.pin`);
+	if (fields.scenario !== undefined)
+		request.scenario = parseJobScenario(fields.scenario, `${path}.scenario`);
+	return request;
+}
+
 const PACK_LIBRARY = /^[a-z][a-z0-9-]{0,63}$/;
 const PACK_PREFIX = /^[a-z][a-z0-9._]*-$/;
 const PACK_TAG = /^[a-z][a-z0-9._]*-[a-z0-9._-]*$/;
@@ -611,6 +834,7 @@ function specimens(value: unknown): NonNullable<BenchConfig['specimens']> {
 			'themes',
 			'patternSetup',
 			'contexts',
+			'job',
 		]);
 		return {
 			id: text(entry.id, `${path}.id`, /^[a-zA-Z0-9][a-zA-Z0-9_-]*$/),
@@ -631,6 +855,7 @@ function specimens(value: unknown): NonNullable<BenchConfig['specimens']> {
 			...(entry.contexts === undefined
 				? {}
 				: { contexts: implementationContexts(entry.contexts, `${path}.contexts`) }),
+			...(entry.job === undefined ? {} : { job: parseJobConfig(entry.job, `${path}.job`) }),
 		};
 	});
 }
@@ -796,6 +1021,7 @@ export function parseConfig(value: unknown): BenchConfig {
 		'coverage',
 		'guides',
 		'guideSources',
+		'jobSources',
 		'patterns',
 		'patternSources',
 		'pack',
@@ -871,6 +1097,15 @@ export function parseConfig(value: unknown): BenchConfig {
 								text(item, `configuration.guideSources[${index}]`)
 							)
 						: fail('configuration.guideSources', 'expected an array of module paths'),
+				}),
+		...(fields.jobSources === undefined
+			? {}
+			: {
+					jobSources: Array.isArray(fields.jobSources)
+						? fields.jobSources.map((item, index) =>
+								text(item, `configuration.jobSources[${index}]`)
+							)
+						: fail('configuration.jobSources', 'expected an array of module paths'),
 				}),
 		...(patterns === undefined ? {} : { patterns }),
 		...(patternSources === undefined ? {} : { patternSources }),

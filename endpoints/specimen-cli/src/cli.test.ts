@@ -986,4 +986,42 @@ describe('specimen CLI', () => {
 		});
 		expect(h.createBench).not.toHaveBeenCalled();
 	});
+
+	it('passes --kind to specimen-list and rejects invalid kinds', async () => {
+		const h = harness();
+		h.bench.list = () => [
+			{
+				id: 'button',
+				title: 'Components/Button',
+				module: './button.ts',
+				exportName: 'Button',
+			},
+			{
+				id: 'example-keep-a-draft',
+				title: 'Notes/Keep a draft',
+				module: './notes.ts',
+				exportName: 'NotesApp',
+				job: {
+					scenario: './keep-a-draft.scenario.yaml',
+					target: 'app',
+					captures: [{ after: 'The note opens', name: 'open' }],
+				},
+			},
+		];
+
+		expect(await runCli(['--root', '.', 'list', '--kind', 'component'], h.io)).toBe(0);
+		expect(JSON.parse(h.output[0] ?? '')).toMatchObject({
+			success: true,
+			data: { specimens: [{ id: 'button', kind: 'component' }] },
+		});
+
+		expect(await runCli(['--root', '.', 'list', '--kind', 'job'], h.io)).toBe(0);
+		expect(JSON.parse(h.output[1] ?? '')).toMatchObject({
+			success: true,
+			data: { specimens: [{ id: 'example-keep-a-draft', kind: 'job' }] },
+		});
+
+		expect(await runCli(['--root', '.', 'list', '--kind', 'invalid'], h.io)).toBe(1);
+		expect(JSON.parse(h.output[2] ?? '')).toMatchObject({ success: false });
+	});
 });

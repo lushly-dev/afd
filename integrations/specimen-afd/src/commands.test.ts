@@ -384,7 +384,57 @@ describe('specimen commands', () => {
 		}
 		const result = await executeSpecimenCommand(instance, 'specimen-list', {});
 		expect(result.success).toBe(true);
-		expect(result.data).toEqual({ specimens: instance.list() });
+		expect(result.data).toEqual({
+			specimens: instance.list().map((entry) => ({
+				...entry,
+				kind: entry.job ? 'job' : 'component',
+			})),
+		});
+
+		// specimen-list accepts job entries and filters cleanly by kind ('job' | 'component').
+		const jobBench = bench();
+		jobBench.list = vi.fn(() => [
+			{ id: 'primary', title: 'Primary', module: './primary.ts', exportName: 'Primary' },
+			{
+				id: 'example-keep-a-draft',
+				title: 'Example/Notes/Keep a draft',
+				module: './app.specimens.ts',
+				exportName: 'NotesApp',
+				job: {
+					scenario: '../scenarios/keep-a-draft.scenario.yaml',
+					target: 'app',
+					pin: { clock: '2026-03-02T09:00:00Z' },
+					captures: [
+						{ after: 'The note opens beside itself', name: 'two-editors' },
+						{
+							after: 'Another writer saves the note',
+							name: 'conflict-notice',
+							before: [{ action: { fill: 'second-editor', value: ' draft' } }],
+						},
+					],
+				},
+			},
+		]);
+		const allListed = await executeSpecimenCommand(jobBench, 'specimen-list', {});
+		expect(allListed.success).toBe(true);
+		expect(
+			(allListed.data as { specimens: { id: string; kind: string }[] }).specimens
+		).toMatchObject([
+			{ id: 'primary', kind: 'component' },
+			{ id: 'example-keep-a-draft', kind: 'job' },
+		]);
+		const jobsOnly = await executeSpecimenCommand(jobBench, 'specimen-list', { kind: 'job' });
+		expect(jobsOnly.success).toBe(true);
+		expect((jobsOnly.data as { specimens: { id: string }[] }).specimens.map((s) => s.id)).toEqual([
+			'example-keep-a-draft',
+		]);
+		const componentsOnly = await executeSpecimenCommand(jobBench, 'specimen-list', {
+			kind: 'component',
+		});
+		expect(componentsOnly.success).toBe(true);
+		expect(
+			(componentsOnly.data as { specimens: { id: string }[] }).specimens.map((s) => s.id)
+		).toEqual(['primary']);
 	});
 	it('validates stories through the bench and returns its report, issues included', async () => {
 		const instance = bench();
@@ -702,7 +752,7 @@ describe('specimen commands', () => {
 		};
 		instance.list = () => [story];
 		const result = await executeSpecimenCommand(instance, 'specimen-list', {});
-		expect(result.data).toEqual({ specimens: [story] });
+		expect(result.data).toEqual({ specimens: [{ ...story, kind: 'component' }] });
 	});
 	it('validates input before a render and rejects unknown fields', async () => {
 		const instance = bench();

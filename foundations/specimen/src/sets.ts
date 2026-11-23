@@ -75,7 +75,7 @@ function isContained(base: string, target: string): boolean {
 	return rel !== '' && rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel);
 }
 
-async function assertRealContained(
+export async function assertRealContained(
 	baseDir: string,
 	targetPath: string,
 	message: string
@@ -307,8 +307,9 @@ export function computeSetId(input: {
 /** Classify a specimen entry for capture selection and default skipping. */
 export function entryKind(entry: SpecimenEntry): CaptureEntryKind {
 	const tagged = entry as SpecimenEntry & { kind?: string; job?: unknown; gate?: unknown };
-	if (tagged.kind === 'job' || tagged.job !== undefined) return 'job';
-	if (tagged.kind === 'gate' || tagged.gate !== undefined) return 'gate';
+	const rawKind: string | undefined = tagged.kind;
+	if (rawKind === 'job' || tagged.job !== undefined) return 'job';
+	if (rawKind === 'gate' || tagged.gate !== undefined) return 'gate';
 	if (entry.story !== undefined) return 'story';
 	return 'component';
 }
@@ -709,15 +710,21 @@ export async function writeCaptureSet(
 				await moveFile(item.screenshotSource, screenshotAbs);
 			}
 			const rawObs = item.observation as Observation;
-			const savedObs: Observation = screenshotAbs
-				? {
-						...rawObs,
-						channels: {
-							...rawObs.channels,
-							visual: { path: screenshotAbs },
-						},
-					}
-				: rawObs;
+			const savedObs: Observation = {
+				...rawObs,
+				manifest: {
+					...rawObs.manifest,
+					set: setId,
+				},
+				...(screenshotAbs
+					? {
+							channels: {
+								...rawObs.channels,
+								visual: { path: screenshotAbs },
+							},
+						}
+					: {}),
+			};
 			await writeFileAtomic(obsAbs, `${JSON.stringify(savedObs, null, 2)}\n`);
 			const axeSummary = summarizeCaptureAxe(rawObs.channels.a11y.axe);
 			if (axeSummary) {

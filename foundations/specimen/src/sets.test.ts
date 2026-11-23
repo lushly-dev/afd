@@ -321,7 +321,7 @@ describe('nearestSpecimenIds and entryKind', () => {
 				...base,
 				id: 'select--gate--escape-closes',
 				kind: 'gate',
-			} as SpecimenEntry)
+			} as unknown as SpecimenEntry)
 		).toBe('gate');
 		expect(
 			entryKind({ ...base, id: 'keep-draft', job: { scenario: './a.yaml' } } as SpecimenEntry)
@@ -497,7 +497,7 @@ describe('capture set storage, runCaptureSet and diffCaptures', () => {
 				module: './s.ts',
 				exportName: 'Gate',
 				kind: 'gate',
-			} as SpecimenEntry,
+			} as unknown as SpecimenEntry,
 			{
 				id: 'notes--keep-draft',
 				title: 'Notes/Keep draft',

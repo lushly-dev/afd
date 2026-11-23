@@ -101,7 +101,7 @@ function dimensions(value: string): { width: number; height: number } {
 }
 function validateOptions(parsed: ParsedArguments): void {
 	const allowed: Record<string, Set<string>> = {
-		list: new Set(['root', 'config', 'output']),
+		list: new Set(['root', 'config', 'output', 'kind']),
 		validate: new Set(['root', 'config', 'output', 'id', 'file']),
 		migrate: new Set(['root', 'config', 'output', 'files', 'apply', 'helpers']),
 		render: new Set([
@@ -414,7 +414,9 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 				configFile: parsed.options.get('config'),
 			});
 			if (parsed.action === 'list')
-				result = await executeSpecimenCommand(bench, 'specimen-list', {});
+				result = await executeSpecimenCommand(bench, 'specimen-list', {
+					...(parsed.options.has('kind') ? { kind: parsed.options.get('kind') } : {}),
+				});
 			else if (parsed.action === 'migrate')
 				result = await executeSpecimenCommand(bench, 'specimen-migrate', {
 					...(parsed.options.has('files')
