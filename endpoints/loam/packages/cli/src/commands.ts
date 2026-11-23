@@ -4,6 +4,7 @@
  */
 
 import { type CommandResult, defineCommand, failure, success } from '@lushly-dev/afd-server/define';
+import { isExperimentDate } from '@lushly-dev/loam-manifest';
 import { z } from 'zod';
 import { appCheck } from './app-check.js';
 import { appNew } from './app-new.js';
@@ -62,7 +63,14 @@ export const appCheckCommand = defineCommand({
 	name: 'app-check',
 	title: 'Check an app',
 	description: "Check an app's manifest, files and source, running none of its code.",
-	input: z.object({ dir: z.string().optional(), manifest: z.string().optional() }),
+	input: z.object({
+		dir: z.string().optional(),
+		manifest: z.string().optional(),
+		date: z
+			.string()
+			.refine(isExperimentDate, { message: 'must be a real calendar date YYYY-MM-DD' })
+			.optional(),
+	}),
 	mutation: false,
 	expose: EXPOSE,
 	async handler(input) {

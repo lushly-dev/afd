@@ -260,4 +260,47 @@ describe('the /check entry', () => {
 		visit('./check.ts');
 		expect(seen.has('./file-rules.ts')).toBe(true);
 	});
+
+	it('warns EXPERIMENT_OVERDUE past ends when now is given, skipping graduated and removed (#2110)', () => {
+		const withExperiments = (blocks: string[]) =>
+			NATIVE.replace('manifest_version = 1', 'manifest_version = 2').concat(
+				'\n[app]\nscope_levels = ["workspace"]\n',
+				...blocks.map((block) => `\n[[ui.experiments]]\n${block}\n`)
+			);
+		const toml = withExperiments([
+			'id = "due-visible"\ntitle = "Visible"\nchanges = "Shows a panel."\nends = "2026-11-22"\nstage = "visible"',
+			'id = "due-hidden"\ntitle = "Hidden"\nchanges = "Hidden work."\nends = "2026-11-22"\nstage = "hidden"',
+			'id = "done-graduated"\ntitle = "Graduated"\nchanges = "Always on."\nends = "2026-11-22"\nstage = "graduated"',
+			'id = "done-removed"\ntitle = "Removed"\nchanges = "Gone."\nends = "2026-11-22"\nstage = "removed"',
+			'id = "future"\ntitle = "Future"\nchanges = "Later."\nends = "2027-03-01"\nstage = "visible"',
+		]);
+
+		// Pure when `now` is omitted (or non-finite): no clock read, no overdue warning.
+		expect(checkApp(files(toml)).warnings).toEqual([]);
+		expect(checkApp(files(toml), { now: Number.NaN }).warnings).toEqual([]);
+		expect(checkApp(files(toml), { now: Number.POSITIVE_INFINITY }).warnings).toEqual([]);
+		expect(checkApp(files(toml), { now: Number.NEGATIVE_INFINITY }).warnings).toEqual([]);
+
+		// On `ends` itself (even the last ms of that UTC day): not yet overdue.
+		const endStart = Date.parse('2026-11-22T00:00:00Z');
+		expect(checkApp(files(toml), { now: endStart }).warnings).toEqual([]);
+		expect(checkApp(files(toml), { now: endStart + 86_399_999 }).warnings).toEqual([]);
+
+		// Starting the UTC day after `ends`: warns for visible and hidden, never graduated/removed/future; still ok.
+		const overdue = checkApp(files(toml), { now: endStart + 86_400_000 });
+		expect(overdue.ok).toBe(true);
+		expect(overdue.refusals).toEqual([]);
+		expect(overdue.warnings).toEqual([
+			expect.objectContaining({
+				code: 'EXPERIMENT_OVERDUE',
+				key: 'ui.experiments[0].ends',
+				message: expect.stringContaining("'hello.due-visible'"),
+			}),
+			expect.objectContaining({
+				code: 'EXPERIMENT_OVERDUE',
+				key: 'ui.experiments[1].ends',
+				message: expect.stringContaining("'hello.due-hidden'"),
+			}),
+		]);
+	});
 });

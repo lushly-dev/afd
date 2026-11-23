@@ -78,12 +78,38 @@ export interface SurfaceFindingSummary {
 
 export type SurfaceCheck = (commands: SurfaceCommandSummary[]) => SurfaceFindingSummary[];
 
+const ONE_DAY_MS = 86_400_000;
+
+/**
+ * Warnings for non-graduated, non-removed experiments whose `ends` date has passed (`EXPERIMENT_OVERDUE`,
+ * phase 4 specification 5.1, #2110). Matches `kernel/src/late/experiment-rules.ts`'s UTC-day boundary:
+ * overdue starting the UTC day after `ends`.
+ */
+function overdueExperimentFindings(manifest: ManifestV2, now: number): Finding[] {
+	if (!Number.isFinite(now)) return [];
+	return (manifest.ui?.experiments ?? []).flatMap((experiment, index) => {
+		if (experiment.stage === 'graduated' || experiment.stage === 'removed') return [];
+		const end = Date.parse(`${experiment.ends}T00:00:00Z`);
+		if (!Number.isFinite(end) || now < end + ONE_DAY_MS) return [];
+		return [
+			{
+				code: 'EXPERIMENT_OVERDUE',
+				key: keyOf(`/ui/experiments/${index}/ends`),
+				message: `'${manifest.plugin.id}.${experiment.id}' was to end on ${experiment.ends}; nothing turns off on a date, so its author should graduate or remove it.`,
+				suggestion: `Set stage to "graduated" or "removed" for '${experiment.id}', or update its ends date.`,
+			},
+		];
+	});
+}
+
 export interface CheckAppOptions {
 	symlinks?: AppTree['symlinks'];
 	/** The manifest's path in the map. */
 	manifest?: string;
 	/** `validateCommandSurface`, for a caller that can load it: its package needs Node.js. */
 	surface?: SurfaceCheck;
+	/** Epoch milliseconds for time-dependent warnings (`EXPERIMENT_OVERDUE`, #2110). Omitted: pure, no clock. */
+	now?: number;
 }
 
 export interface AppCheckReport {
@@ -240,6 +266,9 @@ export function checkApp(
 	});
 	if (!read.ok) return report();
 	refusals.push(...templateFindings(read.manifest));
+	if (options.now !== undefined) {
+		warnings.push(...overdueExperimentFindings(read.manifest, options.now));
+	}
 	if (options.surface) {
 		const surface = surfaceFindings(read.manifest, options.surface);
 		refusals.push(...surface.refusals);

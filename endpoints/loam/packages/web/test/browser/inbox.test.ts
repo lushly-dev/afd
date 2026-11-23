@@ -415,3 +415,45 @@ describe('P4-E6: the inbox, after the reviews', () => {
 		await page.context().close();
 	});
 });
+
+describe("hello's own sticky toast and notice with an action (#2106)", () => {
+	it('shows the inbox path from Hello: sticky toast lands and opens inbox; notice action greets into guest book', async () => {
+		const { page, errors, violations } = await openShell(browser, site.origin);
+		await openApp(page, 'hello');
+
+		// 1. Hello's own sticky toast button opens a sticky toast that lands in the inbox and opens at it.
+		await page.locator('hello-main violet-button.sticky-toast').click();
+		const toast = page.locator('loam-toast[message="Hello from a sticky toast"]');
+		await toast.waitFor();
+		await expect.poll(() => inboxButton(page).getAttribute('aria-label')).toBe('Inbox 1 unread');
+		await toast.locator('button.inbox').click();
+		await expect.poll(() => inbox(page).count()).toBe(1);
+		await expect
+			.poll(() => inbox(page).locator('.notice').first().locator('.meta').textContent())
+			.toMatch(/^Unread · From Hello/);
+
+		// 2. Return to Hello, type a visitor name, and send Hello's notice with an action.
+		await openApp(page, 'hello');
+		await page.locator('hello-main violet-text-field input').fill('Ada');
+		await page.locator('hello-main violet-button.notice').click();
+		await expect
+			.poll(() => page.locator('hello-main .answer').textContent())
+			.toBe('Notice sent for Ada');
+		await expect.poll(() => inboxButton(page).getAttribute('aria-label')).toBe('Inbox 2 unread');
+
+		// Open the inbox and run the notice's action; Ada joins Hello's guest book.
+		await inboxButton(page).click();
+		const view = inbox(page);
+		await expect.poll(() => view.count()).toBe(1);
+		const helloNotice = view.locator('.notice', { hasText: 'Ada is waiting at the guest book' });
+		await helloNotice.locator('button', { hasText: 'Greet Ada' }).click();
+		await expect.poll(() => view.locator('.status').textContent()).toBe('Greet Ada: done');
+		await expect.poll(() => helloNotice.locator('.meta').textContent()).toContain('Done');
+		const guests = (await kernelCall(page, 'hello-guests')) as Result;
+		expect(guests.data?.guests).toEqual([expect.objectContaining({ name: 'Ada', greeted: true })]);
+
+		expect(errors).toEqual([]);
+		expect(violations).toEqual([]);
+		await page.context().close();
+	});
+});

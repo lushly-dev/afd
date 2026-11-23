@@ -36,8 +36,8 @@ const SUBCOMMANDS: Record<string, Subcommand> = {
 	},
 	'app check': {
 		command: appCheckCommand,
-		usage: 'loam app check [<dir>] [--manifest <path>]',
-		options: { manifest: 'manifest' },
+		usage: 'loam app check [<dir>] [--manifest <path>] [--date <YYYY-MM-DD>]',
+		options: { manifest: 'manifest', date: 'date' },
 		positionals: ['dir'],
 	},
 	'app pack': {

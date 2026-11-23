@@ -7,6 +7,10 @@
  * `late/settings.test.ts` and `late/settings-shell.test.ts`.
  */
 
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { appPack } from '@lushly-dev/loam-cli';
 import { type Browser, chromium, type Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
@@ -652,5 +656,135 @@ describe("P4-E1: step 2's reviews", () => {
 			.toBe('Project Beacon');
 		await expect.poll(() => view.locator('#field-greeting').inputValue()).toBe('Hi Beacon');
 		await page.close();
+	});
+});
+
+describe('P4-E1: oversized settings section key-by-key fallback (#2099)', () => {
+	/**
+	 * A native app whose `oversized.large` section fits the 16 KiB defaults limit (tiny defaults, small `setting-list`)
+	 * while its full schema exceeds `setting-schema-get`'s 16 KiB output budget, forcing `loam-settings-section` to fall
+	 * back to reading each key individually.
+	 */
+	async function packOversizedApp(dir: string): Promise<{ packed: string; keys: string[] }> {
+		const src = join(dir, 'app');
+		const packed = join(dir, 'packed');
+		await mkdir(join(src, 'dist'), { recursive: true });
+		const keys = Array.from({ length: 30 }, (_, index) => `k${index}`);
+		const choices = Array.from({ length: 8 }, (_, index) => `choice-option-value-${index}`);
+		const titles = choices.map((_, index) => `Choice Option Label Number ${index}`);
+		const description =
+			'Detailed plain-text description explaining how this setting configures the fixture app so the section schema exceeds the 16 KiB output budget.';
+		const keyBlocks = keys.map(
+			(key, index) =>
+				`[ui.settings.schema.properties.${key}]\ntype = "string"\ntitle = "Setting ${index}"\ndescription = ${JSON.stringify(description)}\nenum = ${JSON.stringify(choices)}\nenumTitles = ${JSON.stringify(titles)}\ndefault = ${JSON.stringify(choices[0])}\n`
+		);
+		const manifest = [
+			'manifest_version = 2',
+			'protocol = 1',
+			'',
+			'[plugin]',
+			'id = "oversized"',
+			'title = "Oversized"',
+			'version = "0.1.0"',
+			'description = "Fixture app with an oversized settings section schema."',
+			'kind = "native"',
+			'domains = ["oversized"]',
+			'',
+			'[native]',
+			'entry = "dist/native.js"',
+			'',
+			'[app]',
+			'scope_levels = ["workspace"]',
+			'',
+			'[[commands]]',
+			'name = "oversized-ping"',
+			'title = "Ping"',
+			'description = "No-op command for the oversized settings fixture."',
+			'effects = ["inspect"]',
+			'input_schema = { type = "object", properties = {}, additionalProperties = false }',
+			'',
+			'[[ui.settings]]',
+			'id = "large"',
+			'title = "Large"',
+			'description = "Section whose full schema exceeds setting-schema-get budget."',
+			'levels = ["workspace"]',
+			'',
+			'[ui.settings.schema]',
+			'type = "object"',
+			'additionalProperties = false',
+			'',
+			...keyBlocks,
+		].join('\n');
+		await writeFile(join(src, 'loam-app.toml'), manifest);
+		await writeFile(
+			join(src, 'dist/native.js'),
+			'export default { sdk: 1, handlers: { "oversized-ping": async () => ({ success: true, data: {} }) } };\n'
+		);
+		const result = await appPack({ dir: src, out: packed });
+		if (!result.out) throw new Error(JSON.stringify(result.report.refusals));
+		return { packed: result.out, keys };
+	}
+
+	it('renders and saves an oversized section through the key-by-key setting-schema-get fallback', async () => {
+		const dir = await mkdtemp(join(tmpdir(), 'loam-oversized-settings-'));
+		let oversizedSite: DeploymentSite | undefined;
+		let opened: Awaited<ReturnType<typeof openShell>> | undefined;
+		try {
+			const fixture = await packOversizedApp(dir);
+			oversizedSite = await serveDeployment({
+				config: deploymentFile(deploymentEntry('oversized', fixture.packed, { order: 10 })),
+			});
+			opened = await openShell(browser, oversizedSite.origin);
+			const { page } = opened;
+
+			// Confirm the kernel genuinely refuses the whole section with OUTPUT_BUDGET_EXCEEDED.
+			const whole = (await kernelCall(page, 'setting-schema-get', {
+				section: 'oversized.large',
+			})) as { success: boolean; error?: { code?: string } };
+			expect(whole.success).toBe(false);
+			expect(whole.error?.code).toBe('OUTPUT_BUDGET_EXCEEDED');
+
+			// Open Settings directly to the oversized section; the chrome must fall back to key-by-key reads.
+			const before = (await journal(page)).length;
+			await kernelCall(page, 'section-open', { section: 'settings', target: 'oversized.large' });
+			const view = section(page);
+			await expect.poll(() => view.locator('#settings-section-title').textContent()).toBe('Large');
+			await expect
+				.poll(() => view.locator('#settings-panel .field').count())
+				.toBe(fixture.keys.length);
+
+			// Verify the journal recorded the failed whole-section read followed by per-key reads for every key.
+			const schemaCalls = (await journal(page))
+				.slice(before)
+				.filter((entry) => entry.command === 'setting-schema-get');
+			expect(schemaCalls).toContainEqual(
+				expect.objectContaining({
+					command: 'setting-schema-get',
+					input: { section: 'oversized.large' },
+					success: false,
+					error: expect.objectContaining({ code: 'OUTPUT_BUDGET_EXCEEDED' }),
+				})
+			);
+			const readKeys = schemaCalls
+				.filter((entry) => entry.success && (entry.input as { key?: string }).key !== undefined)
+				.map((entry) => (entry.input as { key: string }).key);
+			expect(readKeys).toEqual(fixture.keys);
+
+			// Edit the last key through the rendered control and confirm it persists.
+			const lastSelect = view.locator('#field-k29');
+			await expect.poll(() => lastSelect.inputValue()).toBe('choice-option-value-0');
+			await lastSelect.selectOption('choice-option-value-3');
+			await expect.poll(() => view.locator('.status').textContent()).toBe('Setting 29 is saved.');
+			expect(
+				await kernelCall(page, 'setting-get', { section: 'oversized.large', key: 'k29' })
+			).toMatchObject({ data: { value: 'choice-option-value-3', from: 'workspace' } });
+
+			expect(opened.errors).toEqual([]);
+			expect(opened.violations).toEqual([]);
+		} finally {
+			await opened?.context.close();
+			await oversizedSite?.close();
+			await rm(dir, { recursive: true, force: true });
+		}
 	});
 });
