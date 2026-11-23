@@ -359,8 +359,8 @@ describe('P2-E13: E10: the console is every new app first UI', () => {
 			.toBe('probe-form did not run: 1 field needs attention.');
 		const name = page.locator('loam-console form violet-text-field').first();
 		expect(await name.locator('input').getAttribute('aria-invalid')).toBe('true');
-		expect(await name.locator('.supporting').textContent()).toBe(
-			'Error: This field is required. Who to greet At least 2 characters.'
+		expect(await name.locator('[part="error-message"]').textContent()).toBe(
+			'Error: This field is required.'
 		);
 		expect((await focused(page)).tag).toBe('input');
 
@@ -381,14 +381,14 @@ describe('P2-E13: E10: the console is every new app first UI', () => {
 			await page
 				.locator('loam-console form violet-text-field')
 				.nth(1)
-				.locator('.supporting')
+				.locator('[part="error-message"]')
 				.textContent()
-		).toBe('Error: Enter a whole number. A whole number. 1 or more.');
+		).toBe('Error: Enter a whole number.');
 		expect(
 			await page
 				.locator('loam-console form violet-text-area')
 				.nth(2)
-				.locator('.supporting')
+				.locator('[part="error-message"]')
 				.textContent()
 		).toBe('Error: Enter valid JSON.');
 		// The first error went with the edit, and each of these goes with its own.
@@ -412,8 +412,8 @@ describe('P2-E13: E10: the console is every new app first UI', () => {
 		expect(await count.locator('input').inputValue()).toBe('1e');
 		await run(page);
 		await expect
-			.poll(() => count.locator('.supporting').textContent())
-			.toBe('Error: Enter a number. A whole number. 1 or more.');
+			.poll(() => count.locator('[part="error-message"]').textContent())
+			.toBe('Error: Enter a number.');
 		await count.locator('input').fill('');
 		await settle(page);
 		expect((await journal(page)).filter(({ command }) => command === 'probe-form').length).toBe(
@@ -736,7 +736,17 @@ describe('P2-E13: E11: the console by keyboard', () => {
 		const described = await page
 			.locator('loam-console form violet-checkbox input')
 			.evaluate((input) =>
-				(input as HTMLInputElement).ariaDescribedByElements?.map((node) => node.textContent)
+				(input as HTMLInputElement).ariaDescribedByElements?.map((node) => {
+					const slot = node.querySelector('slot');
+					return (
+						slot
+							? slot
+									.assignedNodes({ flatten: true })
+									.map((n) => n.textContent ?? '')
+									.join('')
+							: (node.textContent ?? '')
+					).trim();
+				})
 			);
 		expect(described).toEqual(['In capitals']);
 		const select = page.locator('loam-console form violet-select');

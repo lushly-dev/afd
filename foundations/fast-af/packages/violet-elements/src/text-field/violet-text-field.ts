@@ -1,4 +1,4 @@
-import { FASTElement, Updates, attr, css, html, nullableNumberConverter, when } from "@lushly-dev/fast-element";
+import { FASTElement, Updates, attr, css, html, nullableNumberConverter, observable, when } from "@lushly-dev/fast-element";
 
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 import { installFormDisabled } from "../foundations/violet-form-disabled";
@@ -118,16 +118,20 @@ const styles = css`
         margin-inline-end: var(--_space-inline-sm);
     }
 
-    .supporting {
-        color: var(--_text-muted);
+    .supporting,
+    .error {
+        margin: 0;
         font-size: var(--_control-caption-size);
         line-height: var(--_type-caption-line);
         margin-block-start: var(--_space-field-gap);
     }
 
-    /* There is no error line here, so under an invalid value the supporting text is the reason. */
-    :host([invalid]) .supporting {
-        color: var(--color-state-danger-text, var(--_text-muted));
+    .supporting {
+        color: var(--_text-muted);
+    }
+
+    .error {
+        color: var(--_danger-text);
     }
 
     @media (forced-colors: active) {
@@ -182,9 +186,15 @@ const template = html<VioletTextField>`
             />
         </div>
         ${when(
-            x => Boolean(x.supportingText),
+            x => !x.displayErrorText && Boolean(x.supportingText),
             html<VioletTextField>`
                 <p class="supporting" part="supporting-text" id="${x => x.supportingId}">${x => x.supportingText}</p>
+            `,
+        )}
+        ${when(
+            x => Boolean(x.displayErrorText),
+            html<VioletTextField>`
+                <p class="error" part="error-message" id="${x => x.errorId}" role="alert">${x => x.displayErrorText}</p>
             `,
         )}
     </div>
@@ -195,7 +205,7 @@ let violetTextFieldCount = 0;
 /**
  * Violet reusable text field primitive.
  *
- * @summary Token-driven single-line text input with built-in label and supporting text.
+ * @summary Token-driven single-line text input with built-in label, supporting text, and field errors.
  * @slot before - Leading inline content such as a search or password icon.
  * @fires input - Emitted when the value changes while typing.
  * @fires change - Emitted when the value is committed.
@@ -205,6 +215,7 @@ let violetTextFieldCount = 0;
  * @csspart before - Leading slot for inline affordances.
  * @csspart control - Native input control.
  * @csspart supporting-text - Supporting text element.
+ * @csspart error-message - Error message element shown while invalid.
  */
 export class VioletTextField extends FASTElement {
     public static readonly formAssociated = true;
@@ -221,6 +232,24 @@ export class VioletTextField extends FASTElement {
      * Id of the supporting text element inside the shadow root.
      */
     public readonly supportingId: string;
+
+    /**
+     * Id of the error message element inside the shadow root.
+     */
+    public readonly errorId: string;
+
+    /**
+     * Backing state for `displayErrorText`.
+     */
+    @observable
+    private _displayErrorText = "";
+
+    /**
+     * Active error message rendered while the field is invalid.
+     */
+    public get displayErrorText(): string {
+        return this._displayErrorText;
+    }
 
     /**
      * Optional field label.
@@ -246,6 +275,11 @@ export class VioletTextField extends FASTElement {
      * Optional supporting text shown below the field.
      */
     declare public supportingText: string;
+
+    /**
+     * Optional error message shown while the field is invalid.
+     */
+    declare public errorText: string;
 
     /**
      * Disables the field.
@@ -329,11 +363,13 @@ export class VioletTextField extends FASTElement {
         violetTextFieldCount += 1;
         this.inputId = `violet-text-field-${violetTextFieldCount}`;
         this.supportingId = `${this.inputId}-supporting`;
+        this.errorId = `${this.inputId}-error`;
         this.label = "";
         this.placeholder = "";
         this.value = "";
         this.type = "text";
         this.supportingText = "";
+        this.errorText = "";
         this.disabled = false;
         this.readonly = false;
         this.invalid = false;
@@ -345,7 +381,7 @@ export class VioletTextField extends FASTElement {
     public connectedCallback(): void {
         super.connectedCallback();
         this.#writeControl();
-        this.#defaultValue = this.getAttribute("value") ?? this.value;
+        this.#defaultValue = this.getAttribute("value") ?? this.value ?? "";
         this.#syncFormState();
         this.#syncDescribedBy();
         this.#describedByObserver.observe(this, { attributes: true, attributeFilter: ["aria-describedby"] });
@@ -364,12 +400,14 @@ export class VioletTextField extends FASTElement {
         event.stopPropagation();
         const control = event.currentTarget as HTMLInputElement | null;
         this.value = control?.value ?? "";
+        this.#syncFormState();
         this.$emit("input", { value: this.value });
     }
 
     public handleCommit(event: Event): void {
         const control = event.currentTarget as HTMLInputElement | null;
         this.value = control?.value ?? "";
+        this.#syncFormState();
         this.$emit("change", { value: this.value });
     }
 
@@ -383,6 +421,7 @@ export class VioletTextField extends FASTElement {
         this.value = this.#defaultValue;
         // Also when the value is unchanged: a partial entry, such as "-", reads as "" and must go too.
         this.#writeControl(true);
+        this.#syncFormState();
     }
 
     public get form(): HTMLFormElement | null {
@@ -419,8 +458,9 @@ export class VioletTextField extends FASTElement {
     // partial entry such as `-`, so writing that `""` back, as a binding would, erased the `-` (#712).
     #writeControl(force = false): void {
         const control = this.shadowRoot?.querySelector<HTMLInputElement>("input.control");
-        if (control && (force || control.value !== this.value)) {
-            control.value = this.value;
+        const value = this.value ?? "";
+        if (control && (force || control.value !== value)) {
+            control.value = value;
         }
     }
 
@@ -456,16 +496,39 @@ export class VioletTextField extends FASTElement {
         this.#scheduleSync();
     }
 
+    public errorTextChanged(): void {
+        this.#syncFormState();
+        this.#scheduleSync();
+    }
+
+    #setDisplayErrorText(next: string): void {
+        if (this._displayErrorText === next) {
+            return;
+        }
+        this._displayErrorText = next;
+        if (!this.$fastController.isConnected) {
+            return;
+        }
+        Updates.enqueue(() => {
+            Updates.enqueue(() => {
+                this.#syncDescribedBy();
+            });
+        });
+    }
+
     public disabledChanged(): void {
         this.#syncFormState();
+        this.#scheduleSync();
     }
 
     public invalidChanged(): void {
         this.#syncFormState();
+        this.#scheduleSync();
     }
 
     public readonlyChanged(): void {
         this.#syncFormState();
+        this.#scheduleSync();
     }
 
     public requiredChanged(): void {
@@ -495,8 +558,8 @@ export class VioletTextField extends FASTElement {
     /**
      * IDREFs in a host `aria-describedby` cannot cross the shadow boundary, so the ids are
      * resolved in the host's root node and assigned to the input through element reflection
-     * (`ariaDescribedByElements`), together with the supporting text. Without element
-     * reflection only the supporting text is linked, by an IDREF inside the shadow root;
+     * (`ariaDescribedByElements`), together with the active error or supporting text. Without
+     * element reflection only the internal caption is linked, by an IDREF inside the shadow root;
      * light-DOM targets cannot be referenced in that case.
      */
     #syncDescribedBy(): void {
@@ -517,9 +580,11 @@ export class VioletTextField extends FASTElement {
             }
         }
 
-        const supporting = this.shadowRoot?.getElementById(this.supportingId) ?? null;
-        if (supporting) {
-            targets.push(supporting);
+        const error = this.displayErrorText ? (this.shadowRoot?.getElementById(this.errorId) ?? null) : null;
+        const supporting = !error ? (this.shadowRoot?.getElementById(this.supportingId) ?? null) : null;
+        const caption = error ?? supporting;
+        if (caption) {
+            targets.push(caption);
         }
 
         const hasElementReflection: boolean = "ariaDescribedByElements" in control;
@@ -529,8 +594,8 @@ export class VioletTextField extends FASTElement {
             return;
         }
 
-        if (supporting) {
-            control.setAttribute("aria-describedby", this.supportingId);
+        if (caption) {
+            control.setAttribute("aria-describedby", caption.id);
         } else {
             control.removeAttribute("aria-describedby");
         }
@@ -542,21 +607,31 @@ export class VioletTextField extends FASTElement {
         }
 
         const control = this.shadowRoot?.querySelector("input") as HTMLInputElement | null;
+        const value = this.value ?? "";
 
         this.#internals.ariaInvalid = this.invalid ? "true" : "false";
-        this.#internals.setFormValue(this.effectiveDisabled ? null : this.value);
+        this.#internals.setFormValue(this.effectiveDisabled ? null : value);
 
         if (this.effectiveDisabled || this.readonly) {
+            this.#setDisplayErrorText("");
             this.#internals.setValidity({});
             return;
         }
 
         if (this.invalid) {
-            this.#internals.setValidity({ customError: true }, "Please correct this field.", control ?? undefined);
+            const customError = (this.errorText ?? "").trim();
+            this.#setDisplayErrorText(customError || control?.validationMessage || "");
+            this.#internals.setValidity(
+                { customError: true },
+                customError || "Please correct this field.",
+                control ?? undefined,
+            );
             return;
         }
 
-        if (this.required && !this.value.trim()) {
+        this.#setDisplayErrorText("");
+
+        if (this.required && !value.trim()) {
             this.#internals.setValidity({ valueMissing: true }, "Please fill out this field.", control ?? undefined);
             return;
         }
@@ -569,7 +644,7 @@ export class VioletTextField extends FASTElement {
         // Native length validity only fires for user edits, and the `:value` binding resets that
         // flag, so length limits are evaluated here against the current value instead.
         const native = control.validity;
-        const length = this.value.length;
+        const length = value.length;
         const tooShort = native.tooShort || (this.minLength != null && length > 0 && length < this.minLength);
         const tooLong = native.tooLong || (this.maxLength != null && length > this.maxLength);
 
@@ -618,6 +693,7 @@ attr(VioletTextField.prototype, "pattern");
 attr(VioletTextField.prototype, "autocomplete");
 attr({ attribute: "inputmode" })(VioletTextField.prototype, "inputMode");
 attr({ attribute: "supporting-text" })(VioletTextField.prototype, "supportingText");
+attr({ attribute: "error-text" })(VioletTextField.prototype, "errorText");
 attr({ mode: "boolean" })(VioletTextField.prototype, "disabled");
 installFormDisabled(VioletTextField.prototype);
 attr({ mode: "boolean" })(VioletTextField.prototype, "readonly");

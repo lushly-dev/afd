@@ -26,7 +26,7 @@ export const screens = [
 				${text('title-sm', 'New command', 'default', 'h3')}
 				<violet-text-field label="Name" name="name" value="todo-create" supporting-text="Lower case, a domain and an action."></violet-text-field>
 				<violet-text-area label="What it does" name="description" rows="3" placeholder="One sentence an agent can act on"></violet-text-area>
-				<violet-text-field label="Owner" name="owner" invalid value="nobody" supporting-text="Choose someone on the team."></violet-text-field>
+				<violet-text-field label="Owner" name="owner" invalid value="nobody" error-text="Choose someone on the team." supporting-text="Choose someone on the team."></violet-text-field>
 				<violet-radio-group label="Who can run it" name="who" orientation="vertical" value="both">
 					<violet-radio name="who" value="both" checked>People and agents<span slot="supporting">The same command, from the app or over MCP.</span></violet-radio>
 					<violet-radio name="who" value="people">People only</violet-radio>

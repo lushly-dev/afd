@@ -82,6 +82,7 @@ export const violetFieldTokenDefaults: ElementStyles = css`
         --_field-placeholder: var(--color-field-placeholder, var(--_text-muted));
         --_focus-ring: var(--color-focus-ring, #146ba0);
         --_danger-border: var(--color-field-border-invalid, #c42a1a);
+        --_danger-text: var(--color-state-danger-text, #c42a1a);
         --_surface-card: var(--color-surface-card, #f8f9f3);
         --_surface-floating: var(--color-surface-floating, #ffffff);
         --_radius-md: var(--radius-md, 8px);

@@ -18,20 +18,12 @@
       "members": [
         "rows"
       ]
-    },
-    {
-      "id": "text-area.error",
-      "text": "There is no error-text attribute and no error message is rendered: invalid sets aria-invalid and turns the border and the supporting text the danger colour. Put the error wording in supporting-text while invalid.",
-      "members": [
-        "invalid",
-        "supporting-text"
-      ]
     }
   ],
   "a11y": [
     {
       "id": "text-area.describedby",
-      "text": "The textarea is described only by its supporting text; an aria-describedby on the host is not forwarded to it."
+      "text": "The textarea is described by its active error message or, when no error is shown, its supporting text; an aria-describedby on the host is not forwarded to it."
     }
   ]
 }

@@ -11,6 +11,7 @@ type VioletCheckboxStoryArgs = {
     indeterminate: boolean;
     inline: boolean;
     invalid: boolean;
+    errorText: string;
     ariaLabel: string;
     label: string;
     supporting: string;
@@ -26,6 +27,7 @@ function renderCheckbox(args: VioletCheckboxStoryArgs): HTMLElement {
     element.indeterminate = args.indeterminate;
     element.inline = args.inline;
     element.invalid = args.invalid;
+    element.errorText = args.errorText;
     element.name = args.name;
     element.value = args.value;
     element.required = args.required;
@@ -81,6 +83,7 @@ export const Overview: Story = {
         indeterminate: false,
         inline: false,
         invalid: false,
+        errorText: "",
         ariaLabel: "",
         label: "Include seedling inventory",
         supporting: "Keeps tray counts in the current plan.",
@@ -132,9 +135,10 @@ export const Invalid: Story = {
         indeterminate: false,
         inline: false,
         invalid: true,
+        errorText: "Acknowledge the crop rotation warning before continuing.",
         ariaLabel: "",
         label: "Accept crop rotation warning",
-        supporting: "Acknowledge before continuing.",
+        supporting: "Reviews rotation gaps before planting.",
         name: "acceptRotationWarning",
         value: "yes",
         required: false,
@@ -148,6 +152,7 @@ export const Checked: Story = {
         indeterminate: false,
         inline: false,
         invalid: false,
+        errorText: "",
         ariaLabel: "",
         label: "Track seed lot",
         supporting: "Selection persists when the lot is already assigned.",
@@ -164,6 +169,7 @@ export const Disabled: Story = {
         indeterminate: false,
         inline: false,
         invalid: false,
+        errorText: "",
         ariaLabel: "",
         label: "Track seed lot",
         supporting: "Disabled while this batch is locked for review.",
@@ -180,6 +186,7 @@ export const IndeterminateInline: Story = {
         indeterminate: true,
         inline: true,
         invalid: false,
+        errorText: "",
         ariaLabel: "Select all plants",
         label: "",
         supporting: "",

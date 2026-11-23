@@ -1,4 +1,4 @@
-import { FASTElement, Updates, attr, css, html, observable } from "@lushly-dev/fast-element";
+import { FASTElement, Updates, attr, css, html, observable, when } from "@lushly-dev/fast-element";
 
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 import { installFormDisabled } from "../foundations/violet-form-disabled";
@@ -203,6 +203,17 @@ const styles = css`
         overflow-wrap: break-word;
     }
 
+    .supporting[hidden] {
+        display: none;
+    }
+
+    .error {
+        color: var(--_danger-text);
+        font-size: var(--_control-caption-size);
+        line-height: var(--_type-caption-line);
+        overflow-wrap: break-word;
+    }
+
     @media (forced-colors: active) {
         .box,
         .root:hover .input:not(:checked):not(:indeterminate):not(:disabled) + .box {
@@ -259,13 +270,24 @@ const template = html<VioletCheckbox>`
                 <span class="mixed-mark" part="mark mixed-mark"></span>
             </span>
         </label>
-        <span class="content" ?hidden="${x => x.inline && !x.hasLabel && !x.hasSupporting}">
+        <span class="content" ?hidden="${x => x.inline && !x.hasLabel && !x.hasSupporting && !x.displayErrorText}">
             <label class="label" part="label" for="control" ?hidden="${x => x.inline && !x.hasLabel}">
                 <slot @slotchange="${x => x.handleDefaultSlotChange()}"></slot>
             </label>
-            <span class="supporting" part="supporting-text" id="supporting-text" ?hidden="${x => !x.hasSupporting}">
+            <span
+                class="supporting"
+                part="supporting-text"
+                id="supporting-text"
+                ?hidden="${x => !x.hasSupporting || Boolean(x.displayErrorText)}"
+            >
                 <slot name="supporting" @slotchange="${x => x.handleSupportingSlotChange()}"></slot>
             </span>
+            ${when(
+                x => Boolean(x.displayErrorText),
+                html<VioletCheckbox>`
+                    <span class="error" part="error-message" id="error-message" role="alert">${x => x.displayErrorText}</span>
+                `,
+            )}
         </span>
     </div>
 `;
@@ -273,7 +295,7 @@ const template = html<VioletCheckbox>`
 /**
  * Violet reusable checkbox primitive.
  *
- * @summary Token-driven checkbox with label, inline selection mode, and indeterminate support.
+ * @summary Token-driven checkbox with label, inline selection mode, indeterminate support, and field errors.
  * @fires change - Emitted when the checked state changes.
  * @slot - Checkbox label content.
  * @slot supporting - Optional supporting copy rendered under the label.
@@ -283,6 +305,7 @@ const template = html<VioletCheckbox>`
  * @csspart mark - Checkmark glyph inside the control.
  * @csspart label - Primary label text wrapper.
  * @csspart supporting-text - Optional supporting text wrapper.
+ * @csspart error-message - Error message element shown while invalid.
  */
 export class VioletCheckbox extends FASTElement {
     public static readonly formAssociated = true;
@@ -299,6 +322,19 @@ export class VioletCheckbox extends FASTElement {
 
     @observable
     declare public hasLabel: boolean;
+
+    /**
+     * Backing state for `displayErrorText`.
+     */
+    @observable
+    private _displayErrorText = "";
+
+    /**
+     * Active error message rendered while the checkbox is invalid.
+     */
+    public get displayErrorText(): string {
+        return this._displayErrorText;
+    }
 
     /**
      * Checked state for the checkbox.
@@ -336,6 +372,11 @@ export class VioletCheckbox extends FASTElement {
     declare public invalid: boolean;
 
     /**
+     * Optional error message shown while the checkbox is invalid.
+     */
+    declare public errorText: string;
+
+    /**
      * Native form name used during submission.
      */
     declare public name: string;
@@ -360,6 +401,7 @@ export class VioletCheckbox extends FASTElement {
         this.disabled = false;
         this.inline = false;
         this.invalid = false;
+        this.errorText = "";
         this.name = "";
         this.value = "on";
         this.required = false;
@@ -477,6 +519,25 @@ export class VioletCheckbox extends FASTElement {
         this.#syncFormState();
     }
 
+    public errorTextChanged(): void {
+        this.#syncFormState();
+    }
+
+    #setDisplayErrorText(next: string): void {
+        if (this._displayErrorText === next) {
+            return;
+        }
+        this._displayErrorText = next;
+        if (!this.$fastController.isConnected) {
+            return;
+        }
+        Updates.enqueue(() => {
+            Updates.enqueue(() => {
+                this.#syncDescribedBy();
+            });
+        });
+    }
+
     public requiredChanged(): void {
         this.#syncControlState();
         this.#syncFormState();
@@ -548,10 +609,10 @@ export class VioletCheckbox extends FASTElement {
     }
 
     /**
-     * Describes the input by the host's `aria-describedby` targets and the slotted supporting text.
-     * Host IDREFs cannot cross the shadow boundary, so they are resolved in the host's root node and
-     * assigned through element reflection (`ariaDescribedByElements`). Without element reflection only
-     * the supporting text is linked, by an IDREF inside the shadow root.
+     * Describes the input by the host's `aria-describedby` targets and the active error or slotted
+     * supporting text. Host IDREFs cannot cross the shadow boundary, so they are resolved in the
+     * host's root node and assigned through element reflection (`ariaDescribedByElements`). Without
+     * element reflection only the internal caption is linked, by an IDREF inside the shadow root.
      */
     #syncDescribedBy(): void {
         const control = this.shadowRoot?.querySelector('input[type="checkbox"]') as HTMLInputElement | null;
@@ -568,9 +629,11 @@ export class VioletCheckbox extends FASTElement {
             }
         }
 
-        const supporting = this.hasSupporting ? (this.shadowRoot?.getElementById("supporting-text") ?? null) : null;
-        if (supporting) {
-            targets.push(supporting);
+        const error = this.displayErrorText ? (this.shadowRoot?.getElementById("error-message") ?? null) : null;
+        const supporting = !error && this.hasSupporting ? (this.shadowRoot?.getElementById("supporting-text") ?? null) : null;
+        const caption = error ?? supporting;
+        if (caption) {
+            targets.push(caption);
         }
 
         const hasElementReflection: boolean = "ariaDescribedByElements" in control;
@@ -580,8 +643,8 @@ export class VioletCheckbox extends FASTElement {
             return;
         }
 
-        if (supporting) {
-            control.setAttribute("aria-describedby", "supporting-text");
+        if (caption) {
+            control.setAttribute("aria-describedby", caption.id);
         } else {
             control.removeAttribute("aria-describedby");
         }
@@ -598,14 +661,23 @@ export class VioletCheckbox extends FASTElement {
         this.#internals.setFormValue(!this.effectiveDisabled && this.checked ? this.value : null, this.checked ? "checked" : "unchecked");
 
         if (this.effectiveDisabled) {
+            this.#setDisplayErrorText("");
             this.#internals.setValidity({});
             return;
         }
 
         if (this.invalid) {
-            this.#internals.setValidity({ customError: true }, "Please correct this field.", control ?? undefined);
+            const customError = (this.errorText ?? "").trim();
+            this.#setDisplayErrorText(customError || control?.validationMessage || "");
+            this.#internals.setValidity(
+                { customError: true },
+                customError || "Please correct this field.",
+                control ?? undefined,
+            );
             return;
         }
+
+        this.#setDisplayErrorText("");
 
         if (this.required && !this.checked) {
             this.#internals.setValidity({ valueMissing: true }, "Please select this option.", control ?? undefined);
@@ -622,6 +694,7 @@ attr({ mode: "boolean" })(VioletCheckbox.prototype, "disabled");
 installFormDisabled(VioletCheckbox.prototype);
 attr({ mode: "boolean" })(VioletCheckbox.prototype, "inline");
 attr({ mode: "boolean" })(VioletCheckbox.prototype, "invalid");
+attr({ attribute: "error-text" })(VioletCheckbox.prototype, "errorText");
 attr(VioletCheckbox.prototype, "name");
 attr(VioletCheckbox.prototype, "value");
 attr({ mode: "boolean" })(VioletCheckbox.prototype, "required");

@@ -371,6 +371,18 @@
       }
     },
     {
+      "id": "form.error-text",
+      "text": "Shows an error only while invalid is set (not from required alone, nor while disabled or readonly), using error-text or the browser's validation message. Replaces supporting text, describes the control, and uses role alert.",
+      "appliesTo": {
+        "tags": [
+          "violet-checkbox",
+          "violet-switch",
+          "violet-text-area",
+          "violet-text-field"
+        ]
+      }
+    },
+    {
       "id": "toggle.label",
       "text": "The default slot is the visible label and the accessible name. When there is no slot text, as with the inline attribute in a table cell, set aria-label on the host.",
       "appliesTo": {
