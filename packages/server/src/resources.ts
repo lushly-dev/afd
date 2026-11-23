@@ -14,6 +14,7 @@
 
 import { ProtocolError, ProtocolErrorCode, type Server } from '@modelcontextprotocol/server';
 import { z } from 'zod';
+import type { Credentials } from './mcp-auth-rules.js';
 import { checkMetaEntry } from './meta-keys.js';
 import type { ScopeView } from './scope-view.js';
 import { DIGEST_META_KEY, SKILLS_EXTENSION_ID, type SkillCatalog, sha256Digest } from './skills.js';
@@ -70,22 +71,41 @@ export interface ResourceContents {
 }
 
 /**
+ * Who is listing or reading resources: what a {@link ResourceProvider} may gate on
+ * (`spec/authorization.md`, M6, "Other methods"; `spec/mcp-resources.md`, R3/R4). Fields can be
+ * added without breaking providers.
+ */
+export interface ResourceCaller {
+	/**
+	 * The verified credentials of the request on a server configured with MCP authorization;
+	 * `undefined` on unauthenticated servers and over stdio.
+	 */
+	readonly credentials?: Credentials;
+}
+
+/**
  * What a server is given to serve resources (`spec/mcp-resources.md`, "Terms").
  *
- * `list` is called each time the server lists, so a provider may change its entries while the
- * server runs; the list MUST NOT vary by caller, connection or context, and an AFD provider is
- * given no request input. An entry with `content` is served by the server; any other is read
- * through `read`.
+ * `list` is called with no `caller` at server startup (to check static entries) and with a
+ * {@link ResourceCaller} on each `resources/list` and `resources/read` request so a provider may
+ * filter entries per caller on an authorized server. The list MUST NOT vary by connection, 2025
+ * session or `_meta["dev.afd/context"]`. An entry with `content` is served by the server; any
+ * other is read through `read`.
  */
 export interface ResourceProvider {
 	/** The entries, in the order `resources/list` returns them. */
-	list(): readonly ResourceEntry[];
+	list(caller?: ResourceCaller): readonly ResourceEntry[];
 	/**
 	 * The content at `uri`, or `undefined` when the provider serves nothing there (`-32602`). A
 	 * server MAY serve a URI it does not list, so this is called for every URI that is not a skill
-	 * file and not an entry with `content`. A throw is `-32603`, reported to `onError`.
+	 * file and not an entry with `content`. Return `undefined` for a resource `caller` may not
+	 * read so that it answers identically to an absent URI. A throw is `-32603`, reported to
+	 * `onError`.
 	 */
-	read?(uri: string): ResourceContents | undefined | Promise<ResourceContents | undefined>;
+	read?(
+		uri: string,
+		caller?: ResourceCaller
+	): ResourceContents | undefined | Promise<ResourceContents | undefined>;
 }
 
 /** What `createMcpServer` and `createMcpHandler` take as `resources`: a provider, or static entries. */
@@ -212,6 +232,8 @@ function hints(modern: boolean, ttlMs: number): Record<string, unknown> {
 export interface ResourceService {
 	/** The capabilities to declare in `server/discover` and `initialize` (R1, S1). */
 	readonly capabilities: Record<string, unknown>;
+	/** Whether this service has a {@link ResourceProvider} attached (as opposed to skills only). */
+	readonly hasProvider: boolean;
 	/** Install the handlers on one `Server` instance. */
 	install(server: Server, options: ResourceServing): void;
 }
@@ -222,8 +244,12 @@ export interface ResourceServing {
 	modern: boolean;
 	/** The error a failure while serving becomes (`-32603`, reported to `onError`). */
 	internalError(error: unknown): ProtocolError;
-	/** The current request's scope view, when MCP authorization is configured. */
+	/** The current request's scope view, when MCP authorization is configured on HTTP. */
 	requestView?: () => ScopeView | undefined;
+	/** Whether MCP authorization is configured on this server (R3/R4 `cacheScope`). */
+	authConfigured?: boolean;
+	/** Whether requests must carry an admitted scope view (HTTP with `auth`, M1 fail-closed). */
+	requireView?: boolean;
 }
 
 /** Look up the provider's entries, checked again each time because a provider may change them. */
@@ -254,23 +280,29 @@ export function createResourceService(
 	}
 	if (provider) checkEntries(provider.list());
 
-	const entriesOf = (): readonly ResourceEntry[] => {
+	const entriesOf = (caller: ResourceCaller): readonly ResourceEntry[] => {
 		if (!provider) return [];
-		const entries = provider.list();
+		const entries = provider.list(caller);
 		checkEntries(entries);
 		return entries;
 	};
 
-	async function readItem(uri: string): Promise<Record<string, unknown>> {
+	async function readItem(
+		uri: string,
+		caller: ResourceCaller
+	): Promise<{ item: Record<string, unknown>; fromProvider: boolean }> {
 		const file = skills?.file(uri);
-		if (file) return contentItem(uri, file.mimeType, file.bytes);
+		if (file) return { item: contentItem(uri, file.mimeType, file.bytes), fromProvider: false };
 		// The `skill://` scheme is the catalog's alone (R2): a provider is never asked for it.
 		if (!provider || schemeOf(uri)?.toLowerCase() === 'skill') throw notFound(uri);
-		const entry = entriesOf().find((item) => item.uri === uri);
+		const entry = entriesOf(caller).find((item) => item.uri === uri);
 		if (entry?.content !== undefined) {
-			return contentItem(uri, entry.mimeType, bytesOf(entry.content));
+			return {
+				item: contentItem(uri, entry.mimeType, bytesOf(entry.content)),
+				fromProvider: true,
+			};
 		}
-		const contents = await provider.read?.(uri);
+		const contents = await provider.read?.(uri, caller);
 		if (!contents) throw notFound(uri);
 		if (contents._meta !== undefined) {
 			for (const [key, value] of Object.entries(contents._meta)) {
@@ -284,7 +316,10 @@ export function createResourceService(
 				`resource "${uri}": the listed size is ${entry.size} but the read returned ${bytes.length} bytes`
 			);
 		}
-		return contentItem(uri, entry?.mimeType ?? contents.mimeType, bytes, contents._meta);
+		return {
+			item: contentItem(uri, entry?.mimeType ?? contents.mimeType, bytes, contents._meta),
+			fromProvider: true,
+		};
 	}
 
 	const uriParams = z.looseObject({ uri: z.string() });
@@ -299,9 +334,18 @@ export function createResourceService(
 				},
 			}),
 		},
-		install(server, { modern, internalError, requestView }) {
-			const checkRequestScope = (): void => {
+		hasProvider: provider !== undefined,
+		install(server, { modern, internalError, requestView, authConfigured, requireView }) {
+			const checkRequestScope = (): ScopeView | undefined => {
 				const view = requestView?.();
+				if (requireView && !view) {
+					// M1 fail-closed: an authorized HTTP lane never serves resources without admitted credentials.
+					throw new ProtocolError(
+						ProtocolErrorCode.InvalidRequest,
+						'This server requires a verified access token',
+						{ code: 'UNAUTHORIZED' }
+					);
+				}
 				const decision = view?.decideRequest();
 				if (view && decision && decision !== 'proceed') {
 					const error = view.insufficientScope(decision.forbidden);
@@ -311,11 +355,20 @@ export function createResourceService(
 						scopes: decision.forbidden,
 					});
 				}
+				return view;
 			};
-			const guarded = async <T>(work: () => T | Promise<T>): Promise<T> => {
+			const callerFor = (view: ScopeView | undefined): ResourceCaller =>
+				Object.freeze(view?.credentials ? { credentials: view.credentials } : {});
+			// R3/R4: fail safe to "private" whenever a provider is attached on an authorized server
+			// or a request carries verified credentials; static SkillCatalog reads stay "public".
+			const providerIsPrivate = (caller: ResourceCaller): boolean =>
+				provider !== undefined && (authConfigured === true || caller.credentials !== undefined);
+			const guarded = async <T>(
+				work: (view: ScopeView | undefined) => T | Promise<T>
+			): Promise<T> => {
 				try {
-					checkRequestScope();
-					return await work();
+					const view = checkRequestScope();
+					return await work(view);
 				} catch (error) {
 					throw error instanceof ProtocolError ? error : internalError(error);
 				}
@@ -328,10 +381,13 @@ export function createResourceService(
 			});
 
 			server.setRequestHandler('resources/list', (request) =>
-				guarded(() => {
+				guarded((view) => {
 					refuseCursor(request.params?.cursor);
+					const caller = callerFor(view);
+					const cacheScope = providerIsPrivate(caller) ? 'private' : 'public';
 					return {
-						resources: [...entriesOf().map(listItem), ...(skills?.resources() ?? [])],
+						resources: [...entriesOf(caller).map(listItem), ...(skills?.resources() ?? [])],
+						...(modern && { ttlMs, cacheScope }),
 					} as never;
 				})
 			);
@@ -342,7 +398,15 @@ export function createResourceService(
 				})
 			);
 			server.setRequestHandler('resources/read', (request) =>
-				guarded(async () => ({ contents: [await readItem(request.params.uri)] }) as never)
+				guarded(async (view) => {
+					const caller = callerFor(view);
+					const { item, fromProvider } = await readItem(request.params.uri, caller);
+					const cacheScope = fromProvider && providerIsPrivate(caller) ? 'private' : 'public';
+					return {
+						contents: [item],
+						...(modern && { ttlMs, cacheScope }),
+					} as never;
+				})
 			);
 
 			if (!skills) return;
@@ -373,11 +437,12 @@ export function createResourceService(
 }
 
 /** The cache hints the SDK applies to the standard resource results of a modern-era server. */
-export function resourceCacheHints(ttlMs: number) {
-	const hint = { ttlMs, cacheScope: 'public' } as const;
+export function resourceCacheHints(ttlMs: number, privateProvider = false) {
+	const publicHint = { ttlMs, cacheScope: 'public' } as const;
+	const providerHint = { ttlMs, cacheScope: privateProvider ? 'private' : 'public' } as const;
 	return {
-		'resources/list': hint,
-		'resources/templates/list': hint,
-		'resources/read': hint,
+		'resources/list': providerHint,
+		'resources/templates/list': publicHint,
+		'resources/read': providerHint,
 	} as const;
 }

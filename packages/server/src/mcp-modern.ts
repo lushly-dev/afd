@@ -150,6 +150,8 @@ export interface ModernMcpDeps {
 	resourcesTtlMs?: number;
 	/** MCP Tasks runtime (`spec/command-metadata.md`, "Tasks"). */
 	tasks?: TaskRuntime;
+	/** Whether MCP authorization is configured on this server (R3/R4 `cacheScope` on HTTP and stdio). */
+	authConfigured?: boolean;
 	devMode: boolean;
 	/** Receives unexpected errors from tool handlers and `createContext`. */
 	onError?: (error: Error) => void;
@@ -162,6 +164,8 @@ interface FactoryOptions {
 	requestValues?: () => Promise<Record<string, unknown>>;
 	/** The scope view of the HTTP request being served (MCP authorization, M6). */
 	requestView?: () => ScopeView | undefined;
+	/** Whether requests must carry an admitted HTTP scope view (HTTP with `auth`, M1 fail-closed). */
+	requireView?: boolean;
 	/** Whether `tools/list` varies by the caller's authorization (`filterToolsByScope`). */
 	privateToolsList?: boolean;
 }
@@ -541,6 +545,7 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 			...resourceCaps,
 			...(Object.keys(extensions).length > 0 && { extensions }),
 		};
+		const authConfigured = deps.authConfigured === true || options.requireView === true;
 		const server = new Server(
 			{ name: deps.name, version: deps.version },
 			{
@@ -550,7 +555,11 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 					// A list filtered by authorization varies by caller (M6, "Listing").
 					'tools/list': { ttlMs, cacheScope: options.privateToolsList ? 'private' : 'public' },
 					'server/discover': { ttlMs, cacheScope: 'public' },
-					...(deps.resources && resourceCacheHints(deps.resourcesTtlMs ?? ttlMs)),
+					...(deps.resources &&
+						resourceCacheHints(
+							deps.resourcesTtlMs ?? ttlMs,
+							Boolean(authConfigured && deps.resources.hasProvider)
+						)),
 				},
 			}
 		);
@@ -558,6 +567,8 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 			modern: era === 'modern',
 			internalError,
 			requestView: options.requestView,
+			authConfigured,
+			requireView: options.requireView,
 		});
 		if (deps.tasks?.servesTasks) {
 			patchToolsCallForTasks(server);
@@ -766,6 +777,7 @@ export function createModernHttpLane(
 			const req = currentRequest.getStore();
 			return req ? deps.auth?.viewFor(req) : undefined;
 		},
+		requireView: Boolean(deps.auth),
 		privateToolsList: deps.auth?.filterToolsByScope === true,
 	});
 	// The SDK reports rejected requests (bad headers, unsupported versions) through `onerror`;

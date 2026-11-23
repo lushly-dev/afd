@@ -1509,12 +1509,12 @@ const server = createMcpServer({
 });
 ```
 
-`resources` takes a provider (`list()`, optional `read(uri)`) or an array of static entries. The server then declares the `resources` capability (never `subscribe` or `listChanged`) and answers `resources/list`, `resources/read` and an empty `resources/templates/list`.
+`resources` takes a provider (`list(caller?)`, optional `read(uri, caller?)`) or an array of static entries. The server then declares the `resources` capability (never `subscribe` or `listChanged`) and answers `resources/list`, `resources/read` and an empty `resources/templates/list`.
 
 - **Entries** need a `uri` (absolute, unique, no whitespace, not `skill://`) and a non-empty `name`; a `ui://` entry needs `MCP_APP_MIME_TYPE`. `_meta` follows the key rule below, without `ui`. A bad entry throws when the server is built, naming it; a provider that breaks a rule later is answered `-32603`.
 - **`content`** (a string or `Uint8Array`) is served by the server, which fills `size` and sets `_meta["dev.afd/digest"]` (`sha256:<hex>`). Bytes that are valid UTF-8 are sent as `text`, others as `blob`.
 - **An MCP Apps view** reads back with its own `_meta.ui` (`csp`, `permissions`, `domain`, `prefersBorder`): return `{ content, mimeType, _meta: { ui: { prefersBorder: true } } }` from `read`.
-- **Lists are fixed.** No cursor (a `cursor` is `-32602`), the same list for every connection, session and context. A modern-era result carries `ttlMs` (the `toolsListTtlMs` option, 300,000 by default, not lowered by `contexts`) and `cacheScope: "public"`.
+- **Per-caller filtering and caching.** No cursor (a `cursor` is `-32602`), and lists never vary by connection, session or context. Under MCP authorization (`auth`), `list(caller)` and `read(uri, caller)` receive a frozen `ResourceCaller` carrying verified `credentials` (on HTTP; `undefined` on unauthenticated servers and over stdio) so a provider may filter listings and return `undefined` for unreadable URIs (answering `-32602`, identical to an absent URI). A modern-era result carries `ttlMs` (the `toolsListTtlMs` option, 300,000 by default, not lowered by `contexts`) and `cacheScope: "private"` on `resources/list` and provider-backed `resources/read` whenever a `ResourceProvider` is attached on an authorized server or a request carries verified credentials; static `SkillCatalog` reads, `resources/templates/list`, `skills/*`, and unauthenticated or skills-only servers carry `cacheScope: "public"`.
 - **An unknown URI** is `-32602`, `Resource not found`, with `data: { uri }`, on both eras. A read runs no command, middleware, confirmation or journal entry, and `createContext` does not run for it.
 
 ### Skills

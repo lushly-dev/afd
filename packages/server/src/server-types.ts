@@ -409,10 +409,12 @@ export interface McpServerOptions {
 	 * MCP resources (`spec/mcp-resources.md`, R1 to R6): a {@link ResourceProvider}, or an array of
 	 * static entries. The server then declares the `resources` capability and answers
 	 * `resources/list`, `resources/read` and `resources/templates/list` on `/mcp` and stdio, in
-	 * both MCP eras. A list never varies by connection, session or context. Entries are checked
-	 * when the server is built, and creation throws naming the entry that breaks a rule. A
-	 * `ui://` entry needs the `text/html;profile=mcp-app` MIME type; its `_meta.ui` goes on the
-	 * content a read returns. The deprecated `/sse` and `/message` lane serves none of this.
+	 * both MCP eras. A list never varies by connection, session or context; under `auth`, providers
+	 * receive the request's verified {@link ResourceCaller} credentials and modern-era provider
+	 * responses carry `cacheScope: "private"`. Entries are checked when the server is built, and
+	 * creation throws naming the entry that breaks a rule. A `ui://` entry needs the
+	 * `text/html;profile=mcp-app` MIME type; its `_meta.ui` goes on the content a read returns.
+	 * The deprecated `/sse` and `/message` lane serves none of this.
 	 */
 	resources?: ResourcesOption;
 

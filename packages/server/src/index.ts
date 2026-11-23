@@ -260,6 +260,7 @@ export {
 } from './principal-binding.js';
 export {
 	MCP_APP_MIME_TYPE,
+	type ResourceCaller,
 	type ResourceContents,
 	type ResourceEntry,
 	type ResourceProvider,
