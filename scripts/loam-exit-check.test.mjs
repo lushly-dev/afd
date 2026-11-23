@@ -1,5 +1,5 @@
 /**
- * P2-E14 and P3-E16: the exit check over recorded runs. The fixtures in loam-exit-check/ are a manual run of each
+ * P2-E14, P3-E16 and P4-E16: the exit check over recorded runs. The fixtures in loam-exit-check/ are a manual run of each
  * workflow on one commit, every job a success, the Loam run's log in `gh run view --log`'s layout, with
  * Vitest's verbose and node's spec reporters as each step prints them, colour included, and the minimum
  * counts that log meets exactly.
@@ -16,6 +16,10 @@ import {
 	P3_BUDGET_ROWS,
 	P3_MINIMUMS_FILE,
 	P3_ROWS,
+	P4_BUDGET_ROWS,
+	P4_MINIMUMS_FILE,
+	P4_ROWS,
+	PHASES,
 	parseArgs,
 	ROWS,
 	readBudget,
@@ -645,7 +649,7 @@ test('P3-E16: the arguments: two run ids, `--phase 2` or `3` at most once, and t
 		printMinimums: true,
 	});
 	for (const argv of [
-		['1', '2', '--phase', '4'],
+		['1', '2', '--phase', '5'],
 		['1', '2', '--phase'],
 		['1', '2', '--phase', '3', '--phase', '3'],
 		['1', '--phase', '3'],
@@ -681,6 +685,173 @@ test('P3-E16: a budget row whose figure is not a number fails, as a row missing'
 });
 
 test('P3-E16: a phase the check has no rows for is refused, not read as phase 2', () => {
-	for (const phase of [1, 4, 6])
+	for (const phase of [1, 5, 6])
 		assert.throws(() => checkExit({ ...p3(), phase }), /no rows for phase/, String(phase));
+});
+
+// Phase 4 (`--phase 4`), over p3-loam-run.json and p4-loam-run-log.txt: phase 3's fixture log with section 14's
+// chunk rows added to the budget step and one passing `P4-E<n>:` title in each place section 19 names.
+const p4 = () => ({
+	loam: JSON.parse(fixture('p3-loam-run.json')),
+	ci: JSON.parse(fixture('ci-run.json')),
+	log: fixture('p4-loam-run-log.txt'),
+	phase: 4,
+	minimums: JSON.parse(fixture('p4-minimums.json')).minimums,
+	minimumsByPhase: { 3: JSON.parse(fixture('p3-minimums.json')).minimums },
+	phase2Minimums: JSON.parse(fixture('minimums.json')),
+});
+
+test('P4-E16: all green passes, E11 withdrawn, E14 as phase 3 rows with phase 2 nested inside', () => {
+	const { problems, report, observed } = checkExit(p4());
+	assert.deepEqual(problems, []);
+	assert.ok(report.includes('P4-E1: Chromium 1; Units 1'));
+	assert.ok(report.includes('P4-E11: withdrawn, menus are deferred (section 9)'));
+	assert.ok(report.includes('P4-E16: Units 1'));
+	assert.match(
+		report.find((entry) => entry.startsWith('P4-E12:')),
+		/^P4-E12: Bundle budget JavaScript, minified 329804 of 330300, JavaScript, gzip 103590 of 103700, The kernel's `late` chunk 120358 of 120800, The kernel's `late-settings` chunk 123545 of 124000, The `settings` chunk 51512 of 52000, The chrome's `inbox` chunk 11941 of 12000, The chrome's `overlays` chunk 10758 of 11000, The kernel's `apps` chunks 437173 of 437500; Chromium 1$/
+	);
+	const e14 = report.indexOf(
+		`P4-E14: phase 3's rows, in their places, at ${P3_MINIMUMS_FILE}'s counts:`
+	);
+	assert.ok(e14 > 0);
+	assert.equal(report[e14 + 1], '  P3-E1: Chromium 1; Units 1');
+	assert.ok(report.includes('  P3-E16: this check, the local part'));
+	assert.ok(
+		report.includes(`  P3-E12: phase 2's rows, in their places, at ${MINIMUMS_FILE}'s counts:`)
+	);
+	assert.ok(report.includes('    P2-E13: Chromium 3; Mounted 1; Units 1'));
+	assert.equal(report.length, 3 + P4_ROWS.length + P3_ROWS.length + ROWS.length);
+	// The counts observed are phase 4's own rows, the shape of its minimums file.
+	assert.deepEqual(observed, p4().minimums);
+});
+
+test('P4-E16: a P4 row with no passing title in a place it names fails, by name and place', () => {
+	const input = p4();
+	input.log = without(input.log, 'P4-E9: a unit of E9');
+	assert.deepEqual(problemsOf(input), [
+		'P4-E9: no passing title in Units ("Build, unit and Chromium", step "Unit suites with coverage")',
+	]);
+	input.minimums.E2.units = 2;
+	assert.ok(
+		problemsOf(input).includes(
+			`P4-E2: 1 passing titles in Units, fewer than the 2 ${P4_MINIMUMS_FILE} records`
+		)
+	);
+});
+
+test("P4-E16: a P4 title counts only in its row's places, and another phase's title never stands in for it", () => {
+	const input = p4();
+	input.log = [
+		without(input.log, 'P4-E2: a unit of E2'),
+		// E2's places are Units alone: a passing E2 title in Chromium is not counted.
+		line(
+			LOCATIONS.chromium,
+			`   ${E}[32m✓${E}[39m test/browser/settings.test.ts > P4-E2: in the wrong place`
+		),
+		// Phase 3's E2, in E2's own place, is not phase 4's.
+		unit("✓ src/late/settings.test.ts > P3-E2: not phase 4's E2 3ms"),
+	].join('\n');
+	assert.deepEqual(problemsOf(input), [
+		'P4-E2: no passing title in Units ("Build, unit and Chromium", step "Unit suites with coverage")',
+	]);
+});
+
+test("P4-E16: E14 fails on any phase 3 row, and on phase 2's through phase 3's E12, each prefixed", () => {
+	const input = p4();
+	input.log = without(input.log, 'P3-E11:');
+	input.phase2Minimums.D7.chromium = 2;
+	assert.deepEqual(problemsOf(input), [
+		'P4-E14: P3-E11: no passing title in Chromium ("Build, unit and Chromium", step "Chromium suite against the built shell (phase 0\'s E1 to E10, phase 1\'s so far, A1 to A3; the walk is its own job)")',
+		`P4-E14: P3-E12: P2-D7: 1 passing titles in Chromium, fewer than the 2 ${MINIMUMS_FILE} records`,
+	]);
+});
+
+test('P4-E16: a skipped, failed or retried title fails, of phase 4 or of a phase E14 reuses', () => {
+	const input = p4();
+	input.log += [
+		'',
+		line(LOCATIONS.chromium, `   ${E}[33m↓${E}[39m test/browser/inbox.test.ts > P4-E6: later`),
+		line(
+			LOCATIONS.chromium,
+			`   ${E}[33m↓${E}[39m test/browser/identity/oauth.test.ts > P3-E20: later`
+		),
+		unit('✓ src/scope/scope.test.ts > P2-E4: passes on a retry 3ms (retry x1)'),
+	].join('\n');
+	assert.deepEqual(
+		problemsOf(input).map((entry) => entry.slice(0, 26)),
+		['P4-E6 is marked skip in "B', 'P3-E20 is marked skip in "', 'P2-E4 is marked retried in']
+	);
+});
+
+test("P4-E16: the budget is D115's: section 14's rows present and within the ceilings the script holds", () => {
+	const input = p4();
+	input.log = without(input.log, 'The `settings` chunk');
+	assert.deepEqual(problemsOf(input), [
+		'P4-E12: Bundle budget: no "The `settings` chunk" row in the step\'s log',
+	]);
+	const over = p4();
+	over.log = over.log.replace(
+		"The chrome's `inbox` chunk, the inbox section, minified 11,941     of 12,000     100%",
+		"The chrome's `inbox` chunk, the inbox section, minified 12,941     of 12,000     OVER"
+	);
+	assert.ok(
+		problemsOf(over).includes(
+			'P4-E12: Bundle budget: "The chrome\'s `inbox` chunk, the inbox section, minified" is 12941, over 12000'
+		)
+	);
+	assert.deepEqual(readBudgetWithin(fixture('p4-loam-run-log.txt'), P4_BUDGET_ROWS).problems, []);
+});
+
+test("P4-E16: the phase 4 row table is section 19's Place column", () => {
+	const spec = readFileSync(join(root, 'endpoints/loam/docs/phases/4-settings/spec.md'), 'utf8');
+	const rows = spec
+		.split('\n')
+		.filter((entry) => /^\| P4-E\d+ \|/.test(entry))
+		.map((entry) => entry.split(' | '))
+		.map(([id, criterion, place]) => {
+			if (/^Withdrawn$/.test(criterion)) return [id.slice(5), 'withdrawn'];
+			if (/Earlier phases' places/.test(place)) return [id.slice(5), 'reuse'];
+			const places = [];
+			for (const [pattern, key] of [
+				[/\bBudget\b/, 'budget'],
+				[/\bUnits\b/, 'units'],
+				[/\bChromium\b/, 'chromium'],
+			])
+				if (pattern.test(place)) places.push(key);
+			return [id.slice(5), places.sort()];
+		});
+	assert.equal(rows.length, 17);
+	assert.deepEqual(
+		P4_ROWS.map(({ row, in: places, reuse, withdrawn }) => [
+			row,
+			withdrawn ? 'withdrawn' : reuse ? 'reuse' : [...places].sort(),
+		]),
+		rows
+	);
+	assert.equal(P4_ROWS.find(({ row }) => row === 'E14').reuse, 3);
+});
+
+test('P4-E16: the committed phase 4 minimums name every row and place the table does, each at least 1', () => {
+	const minimums = readMinimums(P4_MINIMUMS_FILE);
+	for (const { row, in: places } of P4_ROWS)
+		for (const key of places)
+			if (LOCATIONS[key].evidence !== 'budget')
+				assert.ok(minimums[row]?.[key] >= 1, `P4-${row} ${key}: ${minimums[row]?.[key]}`);
+	assert.deepEqual(
+		Object.keys(minimums),
+		P4_ROWS.filter(({ in: places }) =>
+			places.some((key) => LOCATIONS[key].evidence !== 'budget')
+		).map(({ row }) => row)
+	);
+});
+
+test('P4-E16: `--phase 4` is accepted, and every phase in the table has its rows, prefix and minimums file', () => {
+	assert.equal(parseArgs(['--phase', '4', '1', '2']).phase, 4);
+	for (const [id, phase] of Object.entries(PHASES)) {
+		assert.equal(phase.prefix, `P${id}`);
+		assert.ok(phase.rows.length > 0, id);
+		assert.match(phase.minimumsFile, /^loam-exit-check\.(?:p\d\.)?minimums\.json$/);
+		for (const { reuse } of phase.rows) if (reuse) assert.ok(Number(reuse) < Number(id), id);
+	}
 });
