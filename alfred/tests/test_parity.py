@@ -895,7 +895,9 @@ NAME_GAP_BUDGET = {
     # the deferred MCP helpers group; the C++ todo backend derives them inline.
     # 76 → 71 (#465): commandResultOutputSchema, in afd/mcp.hpp, closes one gap; the budget had
     # stayed at 76 after the measured count fell to 72 (docs/language-parity.md).
-    "missing_from_cpp": 77,
+    # 77 → 73 (#547): TelemetryEvent, TelemetrySink, create_telemetry_event and is_telemetry_event
+    # in afd/telemetry.hpp close the 4 telemetry core-export gaps.
+    "missing_from_cpp": 73,
 }
 
 # Exports every language must have; if one disappears the parser is broken.

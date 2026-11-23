@@ -271,6 +271,73 @@ export function approvalVectors(canonicalJson) {
 		),
 	];
 
+	// Rule 6 (spec/command-metadata.md, "Approvals"): on MCP calls the held result leaves
+	// `details.approvalToken` out unless the server opts in; non-MCP calls include it unless the
+	// server opts out.
+	const tokenDelivery = [
+		{
+			description: 'MCP call with default includeToken omits the token (rule 6)',
+			command: 'todo-delete',
+			input: { id: 42 },
+			actor: 'agent',
+			interface: 'mcp',
+			expectedHasToken: false,
+		},
+		{
+			description: 'agent call with default includeToken includes the token',
+			command: 'todo-delete',
+			input: { id: 42 },
+			actor: 'agent',
+			interface: 'agent',
+			expectedHasToken: true,
+		},
+		{
+			description: 'call without an interface and default includeToken includes the token',
+			command: 'todo-delete',
+			input: { id: 42 },
+			actor: 'agent',
+			interface: null,
+			expectedHasToken: true,
+		},
+		{
+			description: 'MCP call with includeToken: true opts in to returning the token',
+			command: 'todo-delete',
+			input: { id: 42 },
+			actor: 'agent',
+			interface: 'mcp',
+			includeToken: true,
+			expectedHasToken: true,
+		},
+		{
+			description: 'non-MCP call with includeToken: false omits the token',
+			command: 'todo-delete',
+			input: { id: 42 },
+			actor: 'agent',
+			interface: 'agent',
+			includeToken: false,
+			expectedHasToken: false,
+		},
+		{
+			description: 'MCP relay fallback with default includeToken omits the token (rule 6)',
+			command: 'todo-delete',
+			input: { id: 42 },
+			actor: 'agent',
+			interface: 'mcp',
+			relay: 'mcp-elicitation',
+			expectedHasToken: false,
+		},
+		{
+			description: 'MCP relay fallback with includeToken: true opts in to returning the token',
+			command: 'todo-delete',
+			input: { id: 42 },
+			actor: 'agent',
+			interface: 'mcp',
+			relay: 'mcp-elicitation',
+			includeToken: true,
+			expectedHasToken: true,
+		},
+	];
+
 	return {
 		description:
 			'Approval tokens (spec/command-metadata.md, "Approvals"). Canonical JSON from the TypeScript reference; tokens built from the documented format with fixed nonces. Regenerate with node spec/vectors/generate-approval-tokens.mjs.',
@@ -281,6 +348,7 @@ export function approvalVectors(canonicalJson) {
 		actors: ACTORS,
 		bindings,
 		verify: cases,
+		tokenDelivery,
 	};
 }
 

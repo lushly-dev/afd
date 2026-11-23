@@ -36,7 +36,7 @@ afd::DirectClient agent(registry);          // an in-process agent: sees only co
 afd::CommandResult typo = agent.call("todo-crate");  // UNKNOWN_TOOL with "Did you mean 'todo-create'?"
 ```
 
-- **Dispatch order.** `execute` follows the TypeScript engine: lookup, exposure, context, validation, middleware, handler, metadata, `on_command`. Errors carry the TypeScript codes and text.
+- **Dispatch order.** `execute` follows the TypeScript engine: lookup, exposure, context, validation, middleware, handler, metadata, `on_command`. Errors carry the TypeScript codes and text. `list_by_tags(tags, TagMatchMode::all | any)` filters registered commands by tags, and `afd/middleware.hpp` provides `default_middleware`, `compose_middleware`, `create_retry_middleware`, `create_rate_limit_middleware` and `create_telemetry_middleware` (`afd/telemetry.hpp`).
 - **Input schemas.** These are JSON Schema; `afd/schema.hpp` lists the supported subset. An unsupported keyword fails registration, so a schema is never silently under-enforced. The shared validation vectors cover every supported case and verify explicit registration rejection for optional keywords outside the subset. Error field lists and sibling issues compare as duplicate-preserving multisets, following `spec/validation.md`; `afd::Json` retains structural equality independent of object key order.
 - **Handlers are synchronous.** A timeout is a deadline on `context.cancellation` for the handler to poll, plus a TIMEOUT result for a late finish. Nothing is interrupted.
 - **Names that differ from TypeScript:** `requires` is `prerequisites` (a C++20 keyword), and the context's `interface` is `surface` (a `<windows.h>` macro).

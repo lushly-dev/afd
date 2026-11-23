@@ -40,7 +40,7 @@ async def held_clear(server, input: dict | None = None) -> str:
     error = assert_error(result, "APPROVAL_REQUIRED")
     assert_has_suggestion(result)
     assert_retryable(result, expected=False)
-    assert error.details["approvalToken"].startswith("afdap1.")
+    assert "approvalToken" not in error.details
     return error.details["summary"]
 
 

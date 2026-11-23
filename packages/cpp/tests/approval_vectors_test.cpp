@@ -45,6 +45,12 @@ afd::CommandMiddleware gate(const afd::Json& vectors, const afd::Json& config,
     if (config.contains("replay") && config.at("replay") == "within-ttl") {
         options.replay = afd::ApprovalReplay::within_ttl;
     }
+    if (config.contains("includeToken") && config.at("includeToken").is_boolean()) {
+        options.include_token = config.at("includeToken").get<bool>();
+    }
+    if (config.contains("relay") && config.at("relay") == "mcp-elicitation") {
+        options.relay = afd::ApprovalRelay::mcp_elicitation;
+    }
     if (nonce) {
         options.random_bytes = [bytes = *nonce](std::uint8_t* out, std::size_t size) {
             REQUIRE(size == bytes.size());
@@ -68,6 +74,18 @@ afd::CommandResult call(const afd::Json& vectors, const afd::CommandMiddleware& 
         context.actor = *actor;
     }
     context.approval = std::move(token);
+    if (vector.contains("interface") && vector.at("interface").is_string()) {
+        const auto iface = vector.at("interface").get<std::string>();
+        if (iface == "mcp") {
+            context.surface = afd::Interface::mcp;
+        } else if (iface == "agent") {
+            context.surface = afd::Interface::agent;
+        } else if (iface == "palette") {
+            context.surface = afd::Interface::palette;
+        } else if (iface == "cli") {
+            context.surface = afd::Interface::cli;
+        }
+    }
     const afd::Next next = [] { return afd::success("ran"); };
     return middleware(vector.at("command").get<std::string>(), vector.at("input"), context, next);
 }
@@ -121,5 +139,24 @@ TEST_CASE("approval tokens verify as the vectors expect") {
                 outcome(call(vectors, middleware, vector, vector.at("token").get<std::string>())));
         }
         CHECK(outcomes == expected);
+    }
+}
+
+TEST_CASE("approval token delivery follows rule 6 as the vectors expect") {
+    const auto vectors = load_vectors("approval-tokens.json");
+    for (const auto& vector : vectors.at("tokenDelivery")) {
+        CAPTURE(vector.at("description").get<std::string>());
+        const auto middleware = gate(vectors, vector);
+        const auto result = call(vectors, middleware, vector, std::nullopt);
+        REQUIRE_FALSE(result.success);
+        REQUIRE(result.error);
+        CHECK(result.error->code == "APPROVAL_REQUIRED");
+        REQUIRE(result.error->details);
+        if (vector.at("expectedHasToken").get<bool>()) {
+            REQUIRE(result.error->details->contains("approvalToken"));
+            CHECK(result.error->details->at("approvalToken").is_string());
+        } else {
+            CHECK_FALSE(result.error->details->contains("approvalToken"));
+        }
     }
 }

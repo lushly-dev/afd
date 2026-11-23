@@ -427,7 +427,7 @@ A declined or cancelled form, or an accepted form with `approve` not `true`, fai
 `APPROVAL_REQUIRED`, `details.reason: "declined"` and `retryable: false`, and the agent must not
 retry without asking the user.
 
-Some calls fall back to `APPROVAL_REQUIRED` without a token:
+Some calls fall back to `APPROVAL_REQUIRED` without a token (unless the server opts in under rule 6):
 
 - a request that cannot elicit: no form elicitation capability, or a 2025-era request over
   stateless HTTP;
@@ -531,8 +531,7 @@ The result is an ordinary failed `CommandResult`, so it needs no wire fixture of
 
 When a `HumanRelay` decision ([Host-verified confirmation](#host-verified-confirmation)) covers a
 command with an approval policy, the same decision is its approval. Approval tokens play no part,
-and a server that keeps them off on MCP (Rust `with_include_token(false)`, as Umbel runs) still
-issues none.
+and a server that keeps them off on MCP (the default under rule 6) still issues none.
 
 The server sets **relay evidence** on the call's context once `resume` returns `Approved`:
 

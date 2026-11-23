@@ -136,7 +136,7 @@ afd::CommandMiddleware audit = [](std::string_view name, const afd::Json& input,
 registry->use(audit);   // the first middleware added is outermost
 ```
 
-`default_middleware()` gives trace ID, logging and timing. Each can be disabled through `DefaultMiddlewareOptions`.
+`default_middleware()` gives trace ID, logging and timing. Each can be disabled through `DefaultMiddlewareOptions`. `afd/middleware.hpp` also provides `compose_middleware`, `create_retry_middleware` (returns `Expected`, capped exponential backoff, jitter, cooperative cancellation), `create_rate_limit_middleware` (returns `Expected`, thread-safe fixed windows with bounded `max_keys`) and `create_telemetry_middleware` with `afd/telemetry.hpp` (`TelemetryEvent`, `TelemetrySink`, `ConsoleTelemetrySink`). `CommandRegistry::list_by_tags(tags, TagMatchMode::all | any)` filters registered commands by tags.
 
 ## In-Process Agents: DirectClient
 
@@ -263,7 +263,7 @@ TEST_CASE("todo-create validates and stamps metadata") {
 
 The full list is in [docs/language-parity.md](../../../docs/language-parity.md); `alfred parity` budgets the missing names (`alfred/tests/test_parity.py`). What a caller trips over:
 - **No MCP client or JSON-RPC types.** The only MCP server is the opt-in `afd::mcp_stdio`: stdio, the individual, grouped (default), lazy and hybrid strategies (hybrid needs `first_class_tools`, checked by `create`), the meta-tools, the context tools and the bootstrap commands. Other transports live in hosts.
-- **No retry, rate-limit or telemetry middleware,** connectors, `CommandParameter` builders or streamable-command metadata.
+- **No tracing middleware,** connectors, `CommandParameter` builders or streamable-command metadata.
 - **`output_schema` is stored but never emitted, and `prerequisites` only as `requires` in tool `_meta` and `afd-help`.**
 - **The JSON Schema subset rejects `pattern`, `format`, `const` and the combinators.** Rust's whole-schema path accepts `const`; C++ does not.
 - **By design:** pipeline conditions stay validated JSON (no typed condition structs), `CancellationSource` replaces timeout controllers, and there is no `createCommandRegistry`.

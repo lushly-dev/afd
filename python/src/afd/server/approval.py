@@ -172,7 +172,7 @@ def create_approval_middleware(
     replay: Literal["single-use", "within-ttl"] = "single-use",
     nonce_store: Optional[ApprovalNonceStore] = None,
     summarize: Optional[Callable[[str, Any, CommandContext], Optional[str]]] = None,
-    include_token: bool = True,
+    include_token: Optional[bool] = None,
     on_approval_required: Optional[
         Callable[[ApprovalRequest], Union[None, Awaitable[None]]]
     ] = None,
@@ -227,10 +227,12 @@ def create_approval_middleware(
             (also for an empty string): the command's ``confirm_prompt``, else
             ``Run <command>``.
         include_token: Whether the ``APPROVAL_REQUIRED`` result carries
-            ``details.approvalToken``. Default ``True``, which is safe only while the
-            gated caller cannot set ``context.approval`` itself (true of MCP tool calls,
-            whose arguments never reach the context). Set ``False`` when the caller must
-            not hold the token, and deliver it through ``on_approval_required``.
+            ``details.approvalToken``. When ``None`` (the default), follows
+            ``spec/command-metadata.md``, "Approvals", rule 6: omitted on MCP calls
+            (``context.extra["interface"] == "mcp"``) and included elsewhere. Set ``True``
+            to opt in on MCP calls, or ``False`` to omit it everywhere and deliver it
+            through ``on_approval_required``. A ``DirectClient`` private exchange never
+            includes the token regardless of this setting.
         on_approval_required: Called (sync or async) for every held call that is answered
             with a token, before the result is returned, for example to notify a human. Not
             called for a call whose approval is asked over MCP (``relay``): no token exists.
@@ -273,6 +275,8 @@ def create_approval_middleware(
         raise ValueError("Approval replay must be 'single-use' or 'within-ttl'")
     if relay not in ("none", "mcp-elicitation"):
         raise ValueError("Approval relay must be 'none' or 'mcp-elicitation'")
+    if include_token is not None and not isinstance(include_token, bool):
+        raise TypeError("Approval include_token must be a bool or None")
     relays = relay == "mcp-elicitation"
     security_clock = clock or system_clock
     single_use = replay == "single-use"
@@ -599,11 +603,15 @@ def create_approval_middleware(
         if exchange is not None:
             exchange.hold(approval_token=approval_token, expires_at=expires_at,
                           summary=summary, reason=rejected)
-        public_token = include_token and exchange is None
+        on_mcp = (context.extra or {}).get("interface") == "mcp"
+        # Rule 6: omit details.approvalToken on MCP by default unless the server opted in.
+        public_token = (
+            exchange is None
+            and (not on_mcp if include_token is None else include_token)
+        )
         why = f"The approval token was not accepted ({rejected}). " if rejected else ""
         # Addressed to whoever relays the decision: the token is the approval, so the gated
         # caller must not resubmit it on its own, and tool arguments cannot carry it.
-        on_mcp = (context.extra or {}).get("interface") == "mcp"
         if public_token:
             retry = (
                 "once they approve, the application retries the same call with the same input "

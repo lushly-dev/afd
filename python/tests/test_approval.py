@@ -741,10 +741,13 @@ def _server(**options: Any):
 
 
 async def test_mcp_calls_are_held_and_tool_arguments_cannot_carry_approval():
-    server = _server()
+    issued = []
+    server = _server(on_approval_required=issued.append)
     held = await server.call_tool("todo-delete", {"id": 7})
     assert held.error.code == "APPROVAL_REQUIRED"
-    token = held.error.details["approvalToken"]
+    # Rule 6: MCP calls leave details.approvalToken out by default.
+    assert "approvalToken" not in held.error.details
+    token = issued[0].approval_token
 
     smuggled = await server.call_tool("todo-delete", {"id": 7, "approval": token})
     assert smuggled.error.code == "APPROVAL_REQUIRED"
@@ -758,6 +761,16 @@ async def test_mcp_calls_are_held_and_tool_arguments_cannot_carry_approval():
         "todo-delete", {"id": 7}, CommandContext(actor=Actor(kind="agent"), approval=token)
     )
     assert approved.success and approved.data == {"deleted": 7}
+
+
+async def test_mcp_call_includes_approval_token_only_when_opted_in():
+    opted_in = _server(include_token=True)
+    held = await opted_in.call_tool("todo-delete", {"id": 7})
+    assert held.error.code == "APPROVAL_REQUIRED"
+    assert isinstance(held.error.details.get("approvalToken"), str)
+
+    with pytest.raises(TypeError, match="include_token"):
+        create_approval_middleware(secret=SECRET, include_token="yes")  # type: ignore[arg-type]
 
 
 async def test_a_policy_error_becomes_an_execution_error_on_the_server():
@@ -811,8 +824,11 @@ async def test_request_meta_never_becomes_approval_evidence():
     pytest.importorskip("mcp")
     from mcp import Client
 
-    server = _server()
-    token = (await server.call_tool("todo-delete", {"id": 7})).error.details["approvalToken"]
+    issued = []
+    server = _server(on_approval_required=issued.append)
+    held = await server.call_tool("todo-delete", {"id": 7})
+    assert "approvalToken" not in held.error.details
+    token = issued[0].approval_token
     async with Client(server._create_mcp_server()) as client:
         for meta in ({"approval": token}, {"dev.afd/approval": token}):
             result = await client.call_tool("todo-delete", {"id": 7}, meta=meta)

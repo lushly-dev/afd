@@ -80,6 +80,7 @@ add_library(
     src/similarity.cpp
     src/stream_execution.cpp
     src/streaming.cpp
+    src/telemetry.cpp
     src/version.cpp)
 add_library(afd::afd ALIAS afd)
 if(AFD_JOURNAL_FILE)

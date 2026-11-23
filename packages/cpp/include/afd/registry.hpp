@@ -78,6 +78,14 @@ struct CommandRegistryOptions {
     std::vector<ContextField> context_fields;
 };
 
+/// How `CommandRegistry::list_by_tags` matches a command's tags.
+enum class TagMatchMode {
+    /// Every requested tag must be present on the command.
+    all,
+    /// At least one requested tag must be present on the command.
+    any,
+};
+
 /// A registered command.
 struct RegisteredCommand {
     CommandDefinition definition;
@@ -112,6 +120,10 @@ public:
     [[nodiscard]] std::vector<std::shared_ptr<const RegisteredCommand>> list() const;
     [[nodiscard]] std::vector<std::shared_ptr<const RegisteredCommand>>
     list_by_category(std::string_view category) const;
+    /// Commands matching `tags` under `mode` (`all` or `any`), in registration order. Returns empty
+    /// when `tags` is empty.
+    [[nodiscard]] std::vector<std::shared_ptr<const RegisteredCommand>>
+    list_by_tags(const std::vector<std::string>& tags, TagMatchMode mode = TagMatchMode::all) const;
     [[nodiscard]] std::vector<std::shared_ptr<const RegisteredCommand>>
     list_by_exposure(Interface surface) const;
     [[nodiscard]] std::vector<std::shared_ptr<const RegisteredCommand>>

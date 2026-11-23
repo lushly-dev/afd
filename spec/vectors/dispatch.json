@@ -5,7 +5,6 @@
 			"hooks": "https://github.com/lushly-dev/afd/issues/1551"
 		},
 		"rust": {
-			"approvalUnavailable": "https://github.com/lushly-dev/afd/issues/1886",
 			"stamping": "https://github.com/lushly-dev/afd/issues/546",
 			"hooks": "https://github.com/lushly-dev/afd/issues/546"
 		}
@@ -298,7 +297,6 @@
 			"id": "approval-unavailable",
 			"description": "Declared approval policy without approval middleware fails closed with APPROVAL_UNAVAILABLE before handler",
 			"surface": "registry",
-			"gap": "approvalUnavailable",
 			"call": {
 				"command": "item-approve",
 				"input": { "id": "doc-1" },

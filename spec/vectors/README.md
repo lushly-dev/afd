@@ -12,7 +12,7 @@ mechanically generated files are guarded in CI against unflagged drift
 | `execution-controls.json` | Server default deadline, cancellation propagation, batch size/parallelism ceilings and validation issue cap ([`spec/execution-controls.md`](../execution-controls.md)) | Specification-authored |
 | `app-calls.json` | App-to-app calls ([`spec/command-metadata.md`](../command-metadata.md#app-to-app-calls)): the `apps` exposure flag's default, and which calls with the `apps` interface run or get the one `CALL_NOT_GRANTED` refusal | Specification-authored |
 | `tool-strategies.json` | The hybrid tool strategy ([`spec/tool-strategies.md`](../tool-strategies.md#conformance)): each server's `tools/list` names in order, its `ttlMs`, call outcomes, and the configurations that must fail construction | Specification-authored |
-| `approval-tokens.json` | Approval tokens ([`spec/command-metadata.md`](../command-metadata.md#approvals)): canonical JSON, the keyed input and actor digests, the payload layout, and every acceptance and rejection reason | Format-generated (`generate-approval-tokens.mjs`) |
+| `approval-tokens.json` | Approval tokens ([`spec/command-metadata.md`](../command-metadata.md#approvals)): canonical JSON, the keyed input and actor digests, the payload layout, every acceptance and rejection reason, and rule 6 token delivery (`tokenDelivery`) | Format-generated (`generate-approval-tokens.mjs`) |
 | `approver-client.json` | Approval evidence from an approver client and the approval display rules ([`spec/command-metadata.md`](../command-metadata.md#approval-evidence-from-an-approver-client)): an approver's token and its principal binding, the `_meta` carrier over MCP, and every display limit and hidden range | Format-generated (`generate-approver-client.mjs`) |
 | `journal-context-cap.json` | The journal's 4096-byte cap on a declared context field's value ([`spec/journal.md`](../journal.md#declared-context-fields)): values just at, under and over it, where number spelling, multibyte UTF-8 and escapes decide kept or omitted | Format-generated (`generate-journal-context-cap.mjs`) |
 | `pipeline-variables.json` | Reference resolution and `when` conditions ([`spec/pipeline-variables.md`](../pipeline-variables.md)) against one fixed pipeline context | Legacy reference-generated (`generate-pipeline-variables.mjs`) |
@@ -93,7 +93,6 @@ confirmations enforced).
 metadata fields (`executionTimeMs`, `commandVersion`, `traceId`, `actorKind`), and whether
 `onCommand` (with raw input) and `onError` fired. Documented per-language gaps are listed in
 top-level `gaps` (`python.hooks` [#1551](https://github.com/lushly-dev/afd/issues/1551),
-`rust.approvalUnavailable` [#1886](https://github.com/lushly-dev/afd/issues/1886),
 `rust.stamping` / `rust.hooks` [#546](https://github.com/lushly-dev/afd/issues/546)).
 
 ### `pipeline-variables.json`

@@ -371,3 +371,41 @@ TEST_CASE("listing commands") {
     CHECK(registry.has("user-get"));
     CHECK_FALSE(registry.has("user-delete"));
 }
+
+TEST_CASE("list_by_tags filters by all or any tags in registration order") {
+    afd::CommandRegistry registry;
+    auto read_cmd = echo_command("todo-list");
+    read_cmd.tags = {"crud", "read", "safe"};
+    auto write_cmd = echo_command("todo-create");
+    write_cmd.tags = {"crud", "write"};
+    auto untagged = echo_command("todo-stats");
+    auto handoff_cmd = echo_command("chat-stream");
+    handoff_cmd.tags = {"read"};
+    handoff_cmd.handoff = true;
+    handoff_cmd.handoff_protocol = "sse";
+
+    add(registry, read_cmd);
+    add(registry, write_cmd);
+    add(registry, untagged);
+    add(registry, handoff_cmd);
+
+    const auto names = [](const auto& commands) {
+        std::vector<std::string> out;
+        for (const auto& command : commands) {
+            out.push_back(command->definition.name);
+        }
+        return out;
+    };
+
+    CHECK(registry.list_by_tags({}, afd::TagMatchMode::all).empty());
+    CHECK(registry.list_by_tags({}, afd::TagMatchMode::any).empty());
+    CHECK(names(registry.list_by_tags({"crud", "read"}, afd::TagMatchMode::all)) ==
+          std::vector<std::string>{"todo-list"});
+    CHECK(names(registry.list_by_tags({"read", "write"}, afd::TagMatchMode::any)) ==
+          std::vector<std::string>{"todo-list", "todo-create", "chat-stream"});
+    CHECK(names(registry.list_by_tags({"crud"}, afd::TagMatchMode::all)) ==
+          std::vector<std::string>{"todo-list", "todo-create"});
+    CHECK(names(registry.list_by_tags({"handoff", "handoff:sse"}, afd::TagMatchMode::all)) ==
+          std::vector<std::string>{"chat-stream"});
+    CHECK(registry.list_by_tags({"missing"}, afd::TagMatchMode::any).empty());
+}

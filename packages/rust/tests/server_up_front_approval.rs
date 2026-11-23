@@ -766,3 +766,70 @@ async fn a_pipe_step_gated_only_by_the_list_is_asked_about_before_any_step_runs(
     assert_eq!(statuses, [json!("success"), json!("success")], "{ran}");
     assert_eq!(setup.calls(), ["list", "wipe:4"]);
 }
+
+#[tokio::test]
+async fn an_unresolvable_step_does_not_mask_a_later_step_of_the_same_gated_command() {
+    let calls = Arc::new(Mutex::new(Vec::<String>::new()));
+    let registry = CommandRegistry::new();
+    let mut list = CommandDefinition::new(
+        "todo-list",
+        "List",
+        vec![],
+        Record("list", Arc::clone(&calls)),
+    );
+    list.expose.mcp = true;
+    registry.register(list).unwrap();
+    let mut delete = CommandDefinition::new(
+        "todo-delete",
+        "Delete",
+        vec![CommandParameter::required_number("id", "Todo ID")],
+        Record("delete", Arc::clone(&calls)),
+    )
+    .with_approval(ApprovalPolicy::Required);
+    delete.expose.mcp = true;
+    registry.register(delete).unwrap();
+    let clock = Arc::new(AtomicI64::new(1_790_000_000_000));
+    let options = ApprovalMiddlewareOptions::from_secret(SECRET)
+        .with_ttl_ms(TTL_MS)
+        .with_clock(Movable(Arc::clone(&clock)))
+        .with_relay(ApprovalRelay::McpElicitation);
+    registry.add_middleware(create_approval_middleware(options).unwrap());
+    let server = McpServer::new(Arc::new(registry), "up-front", "1.0.0")
+        .with_confirmations_key(ConfirmationMode::Off, vec![9u8; 32])
+        .unwrap();
+    let setup = Setup {
+        server,
+        calls,
+        clock,
+    };
+
+    // Each half stays under the 64-level request limit, while expanding `$input.deep` inside
+    // `nested` exceeds 64 levels so `try_resolve_variables` fails for step 2; step 3 calls the
+    // same gated command with a valid static input. Step 1 must not run before approval.
+    let mut deep = json!(1);
+    for _ in 0..40 {
+        deep = json!([deep]);
+    }
+    let mut nested = json!("$input.deep");
+    for _ in 0..30 {
+        nested = json!([nested]);
+    }
+    let pipe = json!({
+        "input": { "deep": deep },
+        "steps": [
+            { "command": "todo-list" },
+            { "command": "todo-delete", "input": { "id": nested } },
+            { "command": "todo-delete", "input": { "id": 7 } },
+        ],
+    });
+    let asked = setup.call("afd-pipe", pipe, true, json!({})).await;
+    assert_eq!(asked["result"]["resultType"], "input_required", "{asked}");
+    assert!(
+        question(&asked).contains("Step 3: Run todo-delete"),
+        "{asked}"
+    );
+    assert!(
+        setup.calls().is_empty(),
+        "step 1 must not run before step 3 is approved"
+    );
+}
