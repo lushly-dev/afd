@@ -29,6 +29,14 @@ async def teams_handle_message(
             retryable=False,
         )
 
+    if intent.command == "task_status" and not intent.args.get("task_id"):
+        return error(
+            "MISSING_TASK_ID",
+            "Which task? A status request needs the task's id.",
+            suggestion="Ask 'status of <task id>', using the id 'assign' replied with.",
+            retryable=False,
+        )
+
     return await _dispatch_command(intent.command, intent.args, user_id, user_name)
 
 

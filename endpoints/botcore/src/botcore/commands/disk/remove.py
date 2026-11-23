@@ -249,6 +249,7 @@ def _remove_dir_path(top: str, device: int, out: Removal) -> bool:
             out.fail(current, "changed or is on another volume; left in place")
             ok = False
             continue
+        doing("clearing", current)  # the words the handle walk says, so either is followed
         try:
             with os.scandir(current) as entries:
                 names = [entry.name for entry in each("removing", current, entries)]
@@ -263,7 +264,7 @@ def _remove_dir_path(top: str, device: int, out: Removal) -> bool:
         stack.append((current, True, identity))
         for name in names:
             child = os.path.join(current, name)
-            doing("removing", child)
+            doing("looking at", child)  # every file; each removal says "removing" right before
             try:
                 child_info = os.lstat(child)
             except OSError:

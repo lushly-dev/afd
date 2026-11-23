@@ -11,6 +11,7 @@ Botcore does not sync the folder.
 
 from __future__ import annotations
 
+import errno
 import hashlib
 import json
 import os
@@ -204,7 +205,9 @@ def _replace(path: Path, text: str) -> None:
     """Write a file in one step, so a reader never sees half of it."""
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(f"{path.name}.{os.getpid()}.tmp")
-    temporary.write_text(text, encoding="utf-8")
+    # newline="\n": text mode would write \r\n on Windows, and the record's lines must be
+    # the bytes append_events and the shared copy write
+    temporary.write_text(text, encoding="utf-8", newline="\n")
     os.replace(temporary, path)
 
 
@@ -631,6 +634,12 @@ def load_record(directory: Path, here: Local) -> Record:
     machine's own folder there is a copy and is not read. A folder that cannot be read, or
     is not whole, is named in `partial` and not read. Raises `RecordDamaged` and `OSError`
     for this machine's own record, as the single readers do."""
+    for there in (directory, *directory.parents):  # the nearest part of the path that exists
+        if there.exists():
+            if not there.is_dir():
+                # Windows reads a file under a file as missing: that would pass for no record
+                raise NotADirectoryError(errno.ENOTDIR, "not a folder", str(there))
+            break
     events, unreadable = load_events(directory)
     record = Record(state=load_state(directory), shared=here.shared)
     known = isinstance(record.state.get("recognizer"), int)

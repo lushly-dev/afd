@@ -1438,12 +1438,27 @@ def test_a_step_is_waiting_once_it_has_said_nothing_for_long_enough(
     assert step.wait(5) and setup._look(step) == ("done", None, None)
 
 
+def _plain(path: str) -> str:
+    """A path as the walkers spell it on Windows (long_path), back in ordinary syntax:
+    `\\\\?\\C:\\...` is `C:\\...`, and `\\\\?\\UNC\\server\\...` is `\\\\server\\...`."""
+    if path.startswith("\\\\?\\UNC\\"):
+        return "\\\\" + path[len("\\\\?\\UNC\\"):]
+    return path.removeprefix("\\\\?\\")
+
+
+@pytest.mark.parametrize("handles", [True, False], ids=["by-handle", "by-path"])
 def test_the_disk_work_says_what_it_does_as_it_goes(
     repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    handles: bool,
 ) -> None:
     """A reclaim that stopped saying what it does would pass for one that waits, and be left
-    behind while it works."""
+    behind while it works. Both walkers say it: Windows has only the one by path."""
     import botcore.commands.disk.reclaim as reclaim
+    import botcore.commands.disk.remove as remove
+
+    if handles and not remove.HANDLES:
+        pytest.skip("this system has no walk by folder handle")
+    monkeypatch.setattr(remove, "HANDLES", handles)
 
     age_worktree(repo["main"], repo["old"])  # idle long enough to be stripped
     heard: list[tuple[str, str]] = []
@@ -1453,7 +1468,7 @@ def test_the_disk_work_says_what_it_does_as_it_goes(
     stripped = [a["target"] for a in result.data["actions"] if a["outcome"] == "done"]
     assert stripped, result.data["actions"]
     # (on Windows the walkers spell a path with the long-path prefix)
-    said = [(what, path.removeprefix("\\\\?\\")) for what, path in heard]
+    said = [(what, _plain(path)) for what, path in heard]
     words = {what for what, _path in said}
     assert {"running git in", "checking the volume", "reading", "inspecting", "removing"} <= words
     assert {"opening", "reclaiming", "clearing", "looking at"} <= words
@@ -1511,13 +1526,18 @@ def test_a_step_is_left_only_if_it_has_said_nothing_since_it_was_seen(
     assert begun == ["the ref it made"] and isinstance(step.outcome["raised"], steps.Left)
 
 
+@pytest.mark.parametrize("handles", [True, False], ids=["by-handle", "by-path"])
 def test_a_step_left_in_a_read_removes_and_shares_nothing_when_the_read_comes_back(
     repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path,  # noqa: F811
+    handles: bool,
 ) -> None:
     """A read the system holds cannot be told anything. When it comes back, the step is
     told before it does what the read was for."""
     import botcore.commands.disk.remove as remove
 
+    if handles and not remove.HANDLES:
+        pytest.skip("this system has no walk by folder handle")
+    monkeypatch.setattr(remove, "HANDLES", handles)
     folder = tmp_path / "trees" / "dist"
     folder.mkdir(parents=True)
     (folder / "bundle.js").write_bytes(b"x" * 100)
@@ -1532,7 +1552,18 @@ def test_a_step_left_in_a_read_removes_and_shares_nothing_when_the_read_comes_ba
             release.wait(30)
             return self._entry.stat(follow_symlinks=follow_symlinks)
 
-    monkeypatch.setattr(remove, "each", lambda what, path, entries: [Held(e) for e in entries])
+    if handles:  # the walk by handle reads each entry's metadata from the listing
+        monkeypatch.setattr(remove, "each", lambda what, path, entries: [Held(e) for e in entries])
+    else:  # the walk by path reads it again, by name, just before it decides
+        lstat, bundle = os.lstat, str(folder / "bundle.js")
+
+        def held_lstat(path, *args, **more):
+            if _plain(str(path)) == bundle:
+                held.set()
+                release.wait(30)
+            return lstat(path, *args, **more)
+
+        monkeypatch.setattr(remove.os, "lstat", held_lstat)
     step = steps.Step("disk-work", lambda: remove.remove_inside(folder, tmp_path / "trees"))
     assert held.wait(10)
     step.leave()  # as a run that ends does, and a call that is cancelled
@@ -1921,13 +1952,14 @@ def test_the_status_of_a_machine_that_does_not_answer_reads_no_path(
 
     # T3 Code's worktree folder is named before its path is resolved
     t3_settings = tmp_path / "t3-settings.json"
-    t3_settings.write_text(json.dumps({"worktreesDirectory": "/Volumes/Shed/worktrees"}))
+    shed = str(tmp_path / "Shed" / "worktrees")  # absolute on every system, as T3 Code needs
+    t3_settings.write_text(json.dumps({"worktreesDirectory": shed}))
     monkeypatch.setenv("BOTCORE_DISK_T3_SETTINGS", str(t3_settings))
     said: list[tuple[str, str]] = []
     monkeypatch.setattr(steps, "SAID", said)
     setup.t3_worktree_roots(load_machine_settings()[0])
     assert said.index(("reading", str(t3_settings))) < said.index(
-        ("resolving", "/Volumes/Shed/worktrees"))
+        ("resolving", shed))
 
 
 def test_whether_a_folder_can_be_read_takes_one_entry(
