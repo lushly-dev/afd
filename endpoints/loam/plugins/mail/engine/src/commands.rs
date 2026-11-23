@@ -30,6 +30,11 @@ pub fn store_failure(error: &StoreError) -> CommandError {
         StoreError::Sending => CommandError::new("WORK_RUNNING", error.to_string())
             .with_suggestion("Wait for the in-flight send to finish, then check `mail-status`.")
             .with_retryable(true),
+        StoreError::InvalidDigest(_) => CommandError::new("INVALID_INPUT", error.to_string())
+            .with_retryable(false)
+            .with_suggestion(
+                "Dismiss this proposal with mail-operation-dismiss and recreate it with exact JSON integers.",
+            ),
         other => CommandError::new("STORE_FAILED", other.to_string())
             .with_suggestion("Check the data directory and its disk, then try again."),
     }
@@ -40,6 +45,17 @@ pub fn store_failure(error: &StoreError) -> CommandError {
 pub(crate) fn command_line_only() -> ExposeOptions {
     ExposeOptions::new()
         .with_cli(true)
+        .with_agent(false)
+        .with_palette(false)
+}
+
+/// Exposed to the command line and MCP, not the in-app agent or the palette:
+/// for the four person-approved commands released over MCP (plugin.spec.md,
+/// section 5.1; M18).
+pub(crate) fn released_exposure() -> ExposeOptions {
+    ExposeOptions::new()
+        .with_cli(true)
+        .with_mcp(true)
         .with_agent(false)
         .with_palette(false)
 }

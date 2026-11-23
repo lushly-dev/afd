@@ -42,9 +42,9 @@ pub use drafts::{
     SendState, normalize_domain,
 };
 pub use operations::{
-    Action, ItemStep, Kind, MOST_PROPOSALS, NewItem, NewOperation, OperationItem, OperationRow,
-    OperationState, OperationStates, PROPOSAL_LIFETIME, PlacesIn, Proposal, ProposalPreview, Step,
-    StepCounts, flags_after,
+    Action, ApprovalRefusal, ItemStep, Kind, MOST_PROPOSALS, NewItem, NewOperation, OperationItem,
+    OperationRow, OperationState, OperationStates, PROPOSAL_LIFETIME, PlacesIn, Proposal,
+    ProposalPreview, Step, StepCounts, flags_after,
 };
 pub use policy::{MOST_ASK_ABOVE, MOST_PER_CALL, MOST_PER_DAY, Policy, PolicyRow};
 pub use read::{Evidence, LinkRow, MessageListed, PartRow, Shown};
@@ -114,6 +114,9 @@ pub enum StoreError {
     IndexStale,
     /// A send is currently in progress for the account being removed.
     Sending,
+    /// A proposal's canonical digest could not be computed (e.g. an integer
+    /// outside JavaScript's exact safe range `±(2^53 - 1)`).
+    InvalidDigest(String),
     /// SQLite refused.
     Sqlite(rusqlite::Error),
 }
@@ -143,6 +146,9 @@ impl fmt::Display for StoreError {
                 "the search index is older than the store; run `mail-rebuild`"
             ),
             Self::Sending => write!(f, "a send is in progress for this account"),
+            Self::InvalidDigest(reason) => {
+                write!(f, "the proposal cannot be digested canonically: {reason}")
+            }
             Self::Sqlite(error) => write!(f, "the store's database refused: {error}"),
         }
     }

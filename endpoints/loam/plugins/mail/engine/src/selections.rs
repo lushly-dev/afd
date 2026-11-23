@@ -77,19 +77,32 @@ fn query_input(input: &Value) -> Result<(SelectionQuery, Option<i64>), Box<Comma
             Some(text.to_string())
         }
     };
+    let safe_int = |name: &str| -> Result<Option<i64>, Box<CommandError>> {
+        const MAX_SAFE: i64 = (1i64 << 53) - 1;
+        let value = integer(input, name)?;
+        if let Some(n) = value
+            && !(-MAX_SAFE..=MAX_SAFE).contains(&n)
+        {
+            return Err(invalid(
+                &format!("`{name}` is outside the exact JSON integer range (±{MAX_SAFE})"),
+                &format!("Pass `{name}` within ±{MAX_SAFE}."),
+            ));
+        }
+        Ok(value)
+    };
     let query = SelectionQuery {
-        account: integer(input, "account")?.map(AccountId),
-        mailbox: integer(input, "mailbox")?.map(MailboxId),
+        account: safe_int("account")?.map(AccountId),
+        mailbox: safe_int("mailbox")?.map(MailboxId),
         // The sender's address is read from the store by its id.
         sender: None,
-        story: integer(input, "story")?,
+        story: safe_int("story")?,
         class,
-        after: integer(input, "after")?,
-        before: integer(input, "before")?,
+        after: safe_int("after")?,
+        before: safe_int("before")?,
         unread,
         text,
     };
-    let sender = integer(input, "sender")?;
+    let sender = safe_int("sender")?;
     if query.is_empty() && sender.is_none() {
         return Err(invalid(
             "a selection names at least one of its fields",

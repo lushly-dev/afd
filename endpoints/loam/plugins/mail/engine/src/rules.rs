@@ -9,6 +9,15 @@ use afd::{ApprovalPolicy, CommandDefinition, CommandRegistry};
 
 use crate::DOMAIN;
 
+/// The four person-approved commands allowed on MCP beside `cli` (plugin.spec.md,
+/// section 5.1; M18).
+pub const RELEASED_OVER_MCP: &[&str] = &[
+    "mail-draft-send",
+    "mail-replyset-send",
+    "mail-unsubscribe",
+    "mail-operation-approve",
+];
+
 /// Returns one sentence for each rule a command in `registry` breaks, in the
 /// order of the commands' names. An empty list means the registry is sound.
 #[must_use]
@@ -49,13 +58,22 @@ fn check_command(command: &CommandDefinition) -> Vec<String> {
     if command.destructive == Some(true) && !command.mutation {
         broken.push(format!("{name}: a destructive command is a mutation"));
     }
-    // M18: a command that waits for a person is the command line's alone. The
-    // crate turns `palette` and `agent` on by default, so each is named.
+    // M18 (amended, plugin.spec.md sections 5.1 and 5.4): a command with an
+    // approval policy is exposed to `cli` alone, except the four released over
+    // MCP, which must be exposed to `mcp` alone of (`mcp`, `agent`, `palette`)
+    // and always hold (`ApprovalPolicy::Required`).
     let expose = &command.expose;
     if holds_for_approval && (expose.mcp || expose.agent || expose.palette) {
-        broken.push(format!(
-            "{name}: a command with an approval policy is exposed to `cli` only (M18)"
-        ));
+        let allowed_release = RELEASED_OVER_MCP.contains(&name.as_str())
+            && expose.mcp
+            && !expose.agent
+            && !expose.palette
+            && always_held;
+        if !allowed_release {
+            broken.push(format!(
+                "{name}: a command with an approval policy is exposed to `cli` only (M18)"
+            ));
+        }
     }
     if !(expose.cli || expose.mcp) {
         broken.push(format!(

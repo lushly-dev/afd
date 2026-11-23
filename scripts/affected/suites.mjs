@@ -266,7 +266,8 @@ export const SUITES = [
 	{
 		workflow: 'loam-plugins.yml',
 		tools: ['cargo'],
-		remote: 'Linux, and the release-profile test-doubles check',
+		remote:
+			'Linux, the release-profile test-doubles check, and the Linux scenario run against loam-mail test-world',
 		steps: [
 			{ gate: 'mail', cwd: 'endpoints/loam/plugins/mail/engine', run: 'cargo fmt --check' },
 			{

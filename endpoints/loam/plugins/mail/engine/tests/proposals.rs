@@ -123,10 +123,21 @@ impl Fixture {
         (status, out, err)
     }
 
-    /// The person's approval of operation `id` as the middleware issues it:
-    /// held first, its token then good for a retry.
-    fn token(&self, id: &Value) -> String {
-        let held = self.person("mail-operation-approve", json!({ "operation": id }));
+    /// The current preview digest of open proposal `id`.
+    fn digest(&self, id: &Value) -> String {
+        self.show(id)["preview"]["digest"]
+            .as_str()
+            .expect("open proposal preview carries a digest")
+            .to_string()
+    }
+
+    /// The person's approval of open proposal `id` as the middleware issues it:
+    /// held first, its token then good for a retry with the same `digest`.
+    fn token(&self, id: &Value, digest: &str) -> String {
+        let held = self.person(
+            "mail-operation-approve",
+            json!({ "operation": id, "digest": digest }),
+        );
         assert_eq!(held["error"]["code"], "APPROVAL_REQUIRED", "{held}");
         held["error"]["details"]["approvalToken"]
             .as_str()
@@ -135,15 +146,15 @@ impl Fixture {
     }
 
     /// `mail-operation-approve` of `id`, run with the person's approval
-    /// `token`, past the middleware into the command.
-    fn approved_with(&self, id: &Value, token: String) -> Value {
+    /// `token` and preview `digest`, past the middleware into the command.
+    fn approved_with(&self, id: &Value, digest: &str, token: String) -> Value {
         let context = CommandContext::new()
             .with_interface(CommandInterface::Cli)
             .with_actor(ActorKind::Human)
             .with_approval(token);
         self.execute(
             "mail-operation-approve",
-            json!({ "operation": id }),
+            json!({ "operation": id, "digest": digest }),
             context,
         )
     }
@@ -231,15 +242,22 @@ fn an_agents_change_over_the_policy_waits_and_changes_nothing_until_approved() {
     assert_eq!(resumed["error"]["code"], "INVALID_INPUT", "{resumed}");
     let undone = fixture.agent("a", "mail-operation-undo", json!({ "operation": id }));
     assert_eq!(undone["error"]["code"], "INVALID_INPUT", "{undone}");
-    // A person's command is not exposed to MCP (M18); over a server's MCP
-    // route it is not listed at all.
-    let approved = fixture.agent("a", "mail-operation-approve", json!({ "operation": id }));
-    assert_eq!(
-        approved["error"]["code"], "COMMAND_NOT_EXPOSED",
-        "{approved}"
+    // `mail-operation-approve` is released over MCP (M18 amended, F2a), held
+    // for approval for every caller; a non-approver agent gets no token.
+    let digest = fixture.digest(&id);
+    let approved = fixture.agent(
+        "a",
+        "mail-operation-approve",
+        json!({ "operation": id, "digest": digest }),
+    );
+    assert_eq!(approved["error"]["code"], "APPROVAL_REQUIRED", "{approved}");
+    assert_eq!(approved["error"]["retryable"], false, "{approved}");
+    assert!(
+        approved["error"]["details"].get("approvalToken").is_none(),
+        "non-approver must never receive an approval token: {approved}"
     );
     // Nor can a script at the command line, which has no terminal.
-    let input = json!({ "operation": id }).to_string();
+    let input = json!({ "operation": id, "digest": digest }).to_string();
     let (status, out) = fixture.as_script(&["mail-operation-approve", &input]);
     assert_eq!(status, EXIT_FAILED);
     assert!(out.contains("PERSON_REQUIRED"), "{out}");
@@ -267,8 +285,11 @@ fn an_agents_change_over_the_policy_waits_and_changes_nothing_until_approved() {
     assert!(done["proposal"]["approvedAt"].is_i64());
     assert_eq!(subjects(&fixture, "INBOX"), ["About late"]);
     assert_eq!(subjects(&fixture, "Deleted Messages").len(), 6);
-    // Approved once, it is not approved again, even with an approval.
-    let again = fixture.approved_with(&id, fixture.token(&id));
+    // Approved once, it is not approved again, and refuses before any hold.
+    let again = fixture.person(
+        "mail-operation-approve",
+        json!({ "operation": id, "digest": digest }),
+    );
     assert_eq!(again["error"]["code"], "PROPOSAL_NOT_OPEN", "{again}");
 
     // It does not count against the proposer's day: two to the trash a day
@@ -397,18 +418,26 @@ fn a_caller_has_five_proposals_waiting_and_dismissing_one_makes_room() {
         json!({ "operation": made[0] }),
     );
     assert_eq!(again["error"]["code"], "PROPOSAL_NOT_OPEN", "{again}");
-    let approved = fixture.approved_with(&made[0], fixture.token(&made[0]));
+    let dummy_digest = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+    let approved = fixture.person(
+        "mail-operation-approve",
+        json!({ "operation": made[0], "digest": dummy_digest }),
+    );
     assert_eq!(approved["error"]["code"], "PROPOSAL_NOT_OPEN", "{approved}");
     // An approval taken while it was open is refused once it is dismissed.
-    let token = fixture.token(&made[2]);
+    let digest2 = fixture.digest(&made[2]);
+    let token = fixture.token(&made[2], &digest2);
     let dismissed = fixture.person("mail-operation-dismiss", json!({ "operation": made[2] }));
     assert_eq!(dismissed["data"]["state"], "dismissed", "{dismissed}");
-    let late = fixture.approved_with(&made[2], token);
+    let late = fixture.approved_with(&made[2], &digest2, token);
     assert_eq!(late["error"]["code"], "PROPOSAL_NOT_OPEN", "{late}");
-    // One that is not there is not open either (12.3).
+    // One that is not there is not open either (12.3), refused before any hold.
     let none = fixture.person("mail-operation-dismiss", json!({ "operation": 999 }));
     assert_eq!(none["error"]["code"], "PROPOSAL_NOT_OPEN", "{none}");
-    let none = fixture.approved_with(&json!(999), fixture.token(&json!(999)));
+    let none = fixture.person(
+        "mail-operation-approve",
+        json!({ "operation": 999, "digest": dummy_digest }),
+    );
     assert_eq!(none["error"]["code"], "PROPOSAL_NOT_OPEN", "{none}");
     let resumed = fixture.agent(
         "a",
@@ -452,7 +481,10 @@ fn a_proposal_expires_after_seven_days() {
     let shown = fixture.show(&made[0]);
     assert_eq!(shown["state"], "expired", "{shown}");
     assert_eq!(shown["places"], 0);
-    let approved = fixture.approved_with(&made[0], fixture.token(&made[0]));
+    let approved = fixture.person(
+        "mail-operation-approve",
+        json!({ "operation": made[0], "digest": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" }),
+    );
     assert_eq!(approved["error"]["code"], "PROPOSAL_NOT_OPEN", "{approved}");
     let (status, _, _) = fixture.approve(&made[1], true);
     assert_eq!(status, EXIT_FAILED);
@@ -612,6 +644,7 @@ fn an_approved_proposal_too_large_for_a_call_runs_as_the_servers_work() {
     let ids: Vec<i64> = (0..4).map(|n| fixture.message(&format!("n{n}"))).collect();
     let proposal = fixture.proposal("a", "mail-archive", json!({ "messages": ids }));
     let id = proposal["operation"].clone();
+    let digest = fixture.digest(&id);
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
@@ -624,11 +657,12 @@ fn an_approved_proposal_too_large_for_a_call_runs_as_the_servers_work() {
         let run = |context: CommandContext| {
             let registry = &fixture.registry;
             let id = id.clone();
+            let digest = digest.clone();
             async move {
                 let result = registry
                     .execute(
                         "mail-operation-approve",
-                        json!({ "operation": id }),
+                        json!({ "operation": id, "digest": digest }),
                         Some(context),
                     )
                     .await;
@@ -685,10 +719,11 @@ fn the_screening_must_be_ready_for_an_approval() {
         json!({ "messages": [fixture.message("s0")] }),
     );
     let id = proposal["operation"].clone();
-    let token = fixture.token(&id);
+    let digest = fixture.digest(&id);
+    let token = fixture.token(&id, &digest);
     // Classes could be wrong while messages wait to be derived again.
     fixture.make_stale();
-    let refused = fixture.approved_with(&id, token);
+    let refused = fixture.approved_with(&id, &digest, token);
     assert_eq!(refused["error"]["code"], "SCREENING_NOT_READY", "{refused}");
     assert_eq!(fixture.show(&id)["preview"]["approvable"], false);
     let (status, _, _) = fixture.approve(&id, true);

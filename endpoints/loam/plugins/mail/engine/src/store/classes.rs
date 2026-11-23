@@ -471,16 +471,24 @@ impl Readiness {
     }
 }
 
+/// [`Store::screening_readiness`] on `connection`, for checks inside an open
+/// transaction.
+pub(super) fn screening_readiness_on(
+    connection: &rusqlite::Connection,
+) -> Result<Readiness, StoreError> {
+    Ok(Readiness {
+        stale: super::derived::stale_count_on(connection)?,
+        rebuilding: super::derived::rebuild_cursor(connection)?.is_some(),
+    })
+}
+
 impl Store {
     /// Whether screening can be read, and if not, what it waits for.
     ///
     /// # Errors
     /// When the database refuses.
     pub fn screening_readiness(&self) -> Result<Readiness, StoreError> {
-        Ok(Readiness {
-            stale: self.stale_count()?,
-            rebuilding: self.rebuilding()?,
-        })
+        screening_readiness_on(&self.connection)
     }
 
     /// How many of `address`'s held messages are in each class.

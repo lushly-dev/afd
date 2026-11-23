@@ -143,6 +143,21 @@ impl From<StoreError> for Failure {
     }
 }
 
+/// Normalizes an operation's stored `asked` JSON for display and digesting
+/// (plugin.spec.md, sections 6 and 7): ensures `mail-archive` carries `copy`
+/// derived from the stored action for both new and existing rows.
+#[must_use]
+pub fn normalized_asked(row: &OperationRow) -> Value {
+    let mut asked = serde_json::from_str::<Value>(&row.asked).unwrap_or(Value::Null);
+    if row.command == "mail-archive"
+        && let Some(obj) = asked.as_object_mut()
+        && !obj.contains_key("copy")
+    {
+        obj.insert("copy".to_string(), json!(row.action == Action::Copy));
+    }
+    asked
+}
+
 /// An operation and its counts as a result gives them: ids, counts and the
 /// engine's words.
 #[must_use]
@@ -155,7 +170,7 @@ pub fn operation_json(
         "operation": row.id,
         "command": row.command,
         "state": row.state.as_str(),
-        "asked": serde_json::from_str::<Value>(&row.asked).unwrap_or(Value::Null),
+        "asked": normalized_asked(row),
         "selection": row.selection,
         // The query the selection was made with, as its caller wrote it.
         // Mail may have steered its words, so it is labelled as content
@@ -172,6 +187,7 @@ pub fn operation_json(
         // until when it waits for the person (9.4).
         "proposal": row.proposal.as_ref().map(|proposal| json!({
             "proposer": crate::screening::proposer_json(&proposal.proposer, tokens),
+            "generation": proposal.generation,
             "proposedAt": proposal.proposed_at,
             "expiresAt": proposal.expires_at,
             "approvedAt": proposal.approved_at,

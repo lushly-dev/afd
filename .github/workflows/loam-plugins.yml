@@ -9,6 +9,7 @@ on:
     paths:
       - 'endpoints/loam/plugins/**'
       - '!endpoints/loam/plugins/*/docs/**'
+      - 'endpoints/loam/plugins/*/docs/scenarios/**'
       # The crate Mail's engine builds on.
       - 'packages/rust/**'
       - '.cargo/config.toml'
@@ -20,6 +21,7 @@ on:
     paths:
       - 'endpoints/loam/plugins/**'
       - '!endpoints/loam/plugins/*/docs/**'
+      - 'endpoints/loam/plugins/*/docs/scenarios/**'
       - 'packages/rust/**'
       - '.cargo/config.toml'
       - '.github/workflows/loam-plugins.yml'
@@ -81,7 +83,7 @@ jobs:
           filter: blob:none
           persist-credentials: false
       - id: mail
-        run: node scripts/affected.mjs gate --path endpoints/loam/plugins/mail/ --except endpoints/loam/plugins/mail/docs/ --path packages/rust/ --path .cargo/config.toml --path .github/workflows/loam-plugins.yml
+        run: node scripts/affected.mjs gate --path endpoints/loam/plugins/mail/engine/ --path endpoints/loam/plugins/mail/scripts/ --path endpoints/loam/plugins/mail/docs/scenarios/ --path packages/rust/ --path .cargo/config.toml --path .github/workflows/loam-plugins.yml
 
   mail:
     name: Mail engine (fmt, clippy, test)
@@ -115,6 +117,24 @@ jobs:
         run: cargo test --no-fail-fast --locked
       - name: Test (test-doubles)
         run: cargo test --no-fail-fast --locked --features test-doubles
+      - name: Build test-doubles binary
+        run: cargo build --locked --features test-doubles --bin loam-mail
+      - name: Install pnpm
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Install workspace dependencies
+        working-directory: .
+        run: pnpm install --frozen-lockfile
+      - name: Build AFD CLI
+        working-directory: .
+        run: pnpm -F "@lushly-dev/afd-cli..." build
+      - name: Scenario 3 (approve-what-was-proposed)
+        working-directory: .
+        run: node endpoints/loam/plugins/mail/scripts/run-scenarios.mjs endpoints/loam/plugins/mail/docs/scenarios/approve-what-was-proposed.scenario.yaml
       - name: Release build (no test-doubles)
         run: |
           cargo build --locked --release --bin loam-mail

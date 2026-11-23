@@ -250,10 +250,11 @@ fn strip_non_approver_token(engine: Arc<engine::Engine>) -> afd::CommandMiddlewa
 /// call, so a missing/unusable/incomplete target or stale preview fails without
 /// issuing a token.
 fn pre_approval_check(engine: Arc<engine::Engine>) -> afd::CommandMiddleware {
-    Arc::new(move |name, input, _context, next| {
+    Arc::new(move |name, input, context, next| {
         let engine = Arc::clone(&engine);
         let name = name.to_string();
         let input = input.clone();
+        let now = context.clock().now();
         Box::pin(async move {
             if name == unsubscribe::UNSUBSCRIBE
                 && let Some(error) = unsubscribe::pre_approval_check(&engine, &input)
@@ -262,6 +263,11 @@ fn pre_approval_check(engine: Arc<engine::Engine>) -> afd::CommandMiddleware {
             }
             if name == replysets::SEND
                 && let Some(error) = replysets::pre_approval_check(&engine, &input)
+            {
+                return afd::failure(error);
+            }
+            if name == operations::APPROVE
+                && let Some(error) = operations::pre_approval_check(&engine, &input, now)
             {
                 return afd::failure(error);
             }

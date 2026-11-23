@@ -1059,6 +1059,17 @@ pub(super) const MIGRATIONS: &[&str] = &[
     ) STRICT;
     CREATE INDEX replyset_event_reply ON replyset_event (reply_id, id);
     ",
+    // 20: proposal generation (step F2a; plugin.spec.md section 7). Raised each
+    // time an operation enters `proposed`, so a resume dismissed and proposed
+    // again under the same id gets a new generation and cannot be released by an
+    // earlier approval's digest. Every existing proposal starts at 1.
+    "
+    ALTER TABLE operation
+        ADD COLUMN proposal_generation INTEGER NOT NULL DEFAULT 0
+            CHECK (proposal_generation >= 0);
+
+    UPDATE operation SET proposal_generation = 1 WHERE proposer_kind IS NOT NULL;
+    ",
 ];
 
 /// Brings `connection` to the newest schema, one migration and one

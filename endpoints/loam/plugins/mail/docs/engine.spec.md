@@ -88,7 +88,7 @@ record what he added when he answered [section 16](#16-for-the-owner).
 | M15 | The engine is one program, `loam-mail`, from one crate, `loam_mail`. One process at a time owns the store | One writer keeps SQLite and the search index simple and makes "is it syncing" a question with one answer |
 | M16 | The engine has its own command line, in the same program. It adds no command line to the `afd` crate | The proposal left this open. A person must be able to sync, read and send with nothing else installed, and a terminal is where a person confirms a send until Loam can ([3.5](#35-commands-only-a-person-may-run)). `@lushly-dev/afd-cli` still reaches the engine over MCP like any client |
 | M17 | Agents reach the engine over MCP on a loopback HTTP port, each with its own token. Stdio is offered only when no server is running | Mail must sync with no client attached, so the server is long-lived, and a stdio child would be a second process on the store |
-| M18 | In phases B to E, commands only a person may run are not exposed over MCP at all. They run at the terminal | An elicitation's answer is the client's, not a person's, and the route by which a shell's approval reaches a mounted server does not exist yet (L7, A1). Not listing the command is the strongest rule available today. It holds against a caller that has only MCP, and not against one that also has a shell ([3.5](#35-commands-only-a-person-may-run)) |
+| M18 | Commands only a person may run are exposed to `cli` alone, except four, which are also listed over MCP: `mail-draft-send`, `mail-replyset-send`, `mail-unsubscribe` and `mail-operation-approve` (released one step at a time from F2a). Each is held by its approval policy (`ApprovalPolicy::Required`) for every caller, and only the person at the terminal or an approver's evidence ([plugin.spec.md](plugin.spec.md#5-the-four-released-commands)) releases it. A caller that is not an approver gets `APPROVAL_REQUIRED` with no token. The approval's summary holds no content | Amended in step F2a (`plugin.spec.md` §5.4): the route by which a shell's approval reaches a mounted server now exists (AFD's approver carrier and Loam's 7.2) once Loam's desktop transport speaks MCP 2026-07-28. `rules.rs` enforces that only those four held commands may be exposed to `mcp` (never `agent` or `palette`, always `Required`) ([3.5](#35-commands-only-a-person-may-run)) |
 | M19 | The log is a file per message, named by the hash of its bytes. SQLite holds what is derived, and the index holds the text | M3: one copy of the source, and everything else can be rebuilt from it by a command |
 | M20 | On IMAP, a message of 1 MiB or less is fetched whole. A larger one is fetched as its headers and text, and its attachments when someone opens them | In the census 99.8% of iCloud messages and 99.2% of Gmail's are 1 MiB or less, so nearly all mail is held whole, and a few large attachments do not slow a first sync. For Gmail's API see [5.5](#55-gmail) |
 | M21 | The engine does not encrypt its files itself in this version. They are readable only by the person's user account, and credentials are in the operating system's keychain | A key the engine could use unattended would sit beside the files it protects. Disk encryption covers a lost machine. A process running as the person can read the files either way. This is a choice the owner should see ([section 16](#16-for-the-owner)) |
@@ -344,9 +344,16 @@ Sending, unsubscribing, adding or removing an account, creating or revoking a to
 on a sender, changing the policy and approving what an agent proposed (M28) need a person. In
 this version (M18):
 
-- They are exposed to `cli` only: `mcp`, `agent` and `palette` are set false, since the last two
-  default to true. An agent that names one over MCP gets `COMMAND_NOT_FOUND`, as for any
-  unexposed command.
+- They are exposed to `cli` only (`mcp`, `agent` and `palette` are set false), except the four
+  released commands of [M18](#m18) (`mail-operation-approve` from step F2a; `mail-draft-send`,
+  `mail-unsubscribe` and `mail-replyset-send` in F2b and F3), which are exposed to `cli` and
+  `mcp` alone (`agent` and `palette` stay false) and always hold (`ApprovalPolicy::Required`). An
+  agent that names an unexposed command over MCP gets `COMMAND_NOT_FOUND`. For a released command,
+  a pre-approval middleware checks target state and revision/digest before any hold; a non-approver
+  calling over MCP receives `APPROVAL_REQUIRED` with `retryable: false`, a content-free summary,
+  the engine's suggestion, and no `details.approvalToken`. At the command line, if the person
+  omits a required `revision` or `digest`, the command line reads the preview first and fills it
+  in before running the command so the hold binds to what was shown.
 - Each carries an approval policy, except `mail-sender-screen`, which is local and undoable and
   needs no prompt ([7.3](#73-the-persons-decisions)). The command line runs a command once and
   receives `APPROVAL_REQUIRED`. It then reads what will happen with the command's own preview
@@ -1863,6 +1870,20 @@ frozen set and its proposer, and returns the operation's id and that state. The 
 - **Its proposer's day.** An operation made as a proposal counts against no caller's day of
   trash, approved or not. A resume proposed is the operation's own, which counted once when it
   was made.
+- **As step F2a built it (migration 20):** `operation` gains `proposal_generation` (existing
+  proposals start at 1; incremented on each `propose_resume`), exposed as `proposal.generation`
+  and `preview.proposal`. `mail-operation-show` declares `MOST_BUDGET` as both default and
+  maximum output budget, adds `preview.digest` (43-char base64url SHA-256 of canonical
+  `{ operation, proposal, proposer, command, asked, query, items }`), and accepts an optional
+  `digest` parameter: when given, it returns the stable preview-only shape (`operation`,
+  `command`, `asked`, labelled `query`, `proposal`, and `preview` without `items`, `nextCursor`,
+  or `preview.refused`), failing with `PREVIEW_CHANGED` on mismatch or `PREVIEW_TOO_LARGE` when
+  the preview exceeds `MOST_BUDGET` or the 3.5 MiB MCP reply cap. `mail-operation-approve`
+  requires `{ operation, digest }`, is exposed to `cli` and `mcp` (`ApprovalPolicy::Required`),
+  checks `PROPOSAL_NOT_OPEN` → `undo_of` → `SCREENING_NOT_READY` → `PREVIEW_CHANGED` both before
+  the hold and atomically inside the approval transaction, and runs as the person's once
+  released by the terminal or an approver's MCP 2026-07-28 evidence (counts against no caller's
+  day). At the terminal, omitting `digest` auto-fills it from the preview.
 - **What awaits the person.** `mail-status` counts the proposals waiting and names the 20 most
   recently proposed, each with its command, its count, its places left and its proposer.
   `mail-operation-list` with `proposed` lists only the proposals waiting, in the same order and
@@ -2162,9 +2183,9 @@ says otherwise.
 | `mail-story-list`, `mail-story-open`, `mail-story-changes` | C | Read | cli, mcp | Step C2's second part ([section 8](#8-stories)): the list newest first and the open paged by cursor, the open with a story's kinds and its exceptions; the changes with a cursor of the stories' epoch and a change's number |
 | `mail-selection-create` | D | Local | cli, mcp | Step D1 ([9.1](#91-selections)): the query's fields, the items it freezes, its counts and a labelled sample; ten a caller |
 | `mail-archive`, `mail-label`, `mail-mark`, `mail-trash` | D | Remote, undoable | cli, mcp | Under the policy; over a limit, a proposal ([9.4](#94-the-policy)). Step D1's second part ([9.2](#92-the-commands)): a selection with its count or up to 200 ids. Its third part: over a limit, the operation waits in `proposed`, five a caller |
-| `mail-operation-approve` | D | Remote, undoable; a person | cli | Runs an agent's proposal (M28). Step D1's third part: by the operation's id, after the preview of `mail-operation-show`; refused while screening is not ready |
+| `mail-operation-approve` | D, F2a | Remote, undoable; a person (released) | cli, mcp | Runs an agent's proposal (M28). Step D1's third part; released over MCP in step F2a (`{ operation, digest }`, `ApprovalPolicy::Required`, pre-hold + transactional check, CLI auto-fills `digest`) |
 | `mail-operation-dismiss` | D | Local | cli, mcp | The person's or the proposer's. Step D1's third part: a change that never ran is dropped with its items; a resume proposed is stopped again |
-| `mail-operation-list`, `mail-operation-show` | D | Read | cli, mcp | Step D1's second part ([9.1](#91-selections)): the list newest first, the show with a page of items, both by cursor. Its third part: the list's `proposed` filter, and the show's preview of a proposal |
+| `mail-operation-list`, `mail-operation-show` | D, F2a | Read | cli, mcp | Step D1's second part ([9.1](#91-selections)): the list newest first, the show with a page of items, both by cursor. Third part: `proposed` filter and proposal preview. Step F2a: `mail-operation-show` gains `MOST_BUDGET` default/max, `preview.proposal`, `preview.digest`, and optional `digest` preview-only mode (`PREVIEW_CHANGED`, `PREVIEW_TOO_LARGE`) |
 | `mail-operation-undo`, `mail-operation-resume`, `mail-operation-cancel` | D | Remote, undoable | cli, mcp | Under the policy, as the operation's own command. Step D1's second part: cancel stops after the batch in hand, for any caller. Its third part: an undo or a resume over a limit is a proposal |
 | `mail-thread-snooze` | D | Local, undoable | cli, mcp | Step D3: until a time within a year, or until mail arrives in the thread; `mail-thread-list` with `snoozed` lists the snoozed threads ([9.5](#95-drafts-and-sending)) |
 | `mail-draft-create`, `mail-draft-update` | D | Local | cli, mcp | Step D3: an update names the revision it read ([9.5](#95-drafts-and-sending)) |
@@ -2264,8 +2285,8 @@ Beside the crate's own codes:
 | `RECORD_NOT_FOUND` | No record has the id named (step E1) |
 | `DRAFT_NOT_FOUND` | No draft has the id named; a discarded draft goes after 30 days (step D3) |
 | `DRAFT_CHANGED` | A change names a revision the draft is no longer at (step D3) |
-| `PREVIEW_CHANGED` | A send, unsubscribe or reply-set preview/send names a revision or digest that is no longer current since its preview was read (steps D3, E3) |
-| `PREVIEW_TOO_LARGE` | A reply set would grow past what `mail-replyset-show` can return whole within `MOST_BUDGET` and the 3.5 MiB MCP reply cap (step E3) |
+| `PREVIEW_CHANGED` | A released command or its preview (`mail-draft-send`, `mail-replyset-send`, `mail-unsubscribe`, `mail-operation-approve`, and their `-show` previews) names a revision or digest that is no longer current since its preview was read (steps D3, E3, F2a) |
+| `PREVIEW_TOO_LARGE` | A draft, reply set or proposal preview would exceed `MOST_BUDGET` or the 3.5 MiB MCP reply cap (steps E3, F2a) |
 | `REPLYSET_NOT_FOUND` | No reply set has the id named (step E3) |
 | `REPLYSET_CHANGED` | `mail-replyset-update` names a revision the reply set is no longer at (step E3) |
 | `REPLYSET_INCOMPLETE` | `mail-replyset-send` attempted while one or more replies have no text (step E3) |
@@ -2342,7 +2363,7 @@ acceptance run on the owner's accounts, recorded in the status file as counts.
 
 | Phase | Exit | Tests that must pass |
 | --- | --- | --- |
-| B | The owner's iCloud and Gmail accounts synced; mail read and searched from the command line and by an agent over MCP; the large mailbox reaches "synced" with its unreturned messages counted; the limits of [4.4](#44-limits-to-meet) met | Sync resumes after a stop at every batch boundary; a read never sends a command that can change a mailbox; unreturned messages follow [5.4](#54-messages-listed-and-not-returned); a header-only mailbox reaches "synced"; a rebuild reproduces every derived table; a request with no token, a wrong `Host` or a browser `Origin` is refused on both routes, `tools/list` included, and each token is refused on the other's route; a person's command is not listed or callable over MCP; no content outside a labelled part in any result, failure or journal entry of a refusal; a new token is not in the journal; the fuzz targets run clean for the time the workflow gives them |
+| B | The owner's iCloud and Gmail accounts synced; mail read and searched from the command line and by an agent over MCP; the large mailbox reaches "synced" with its unreturned messages counted; the limits of [4.4](#44-limits-to-meet) met | Sync resumes after a stop at every batch boundary; a read never sends a command that can change a mailbox; unreturned messages follow [5.4](#54-messages-listed-and-not-returned); a header-only mailbox reaches "synced"; a rebuild reproduces every derived table; a request with no token, a wrong `Host` or a browser `Origin` is refused on both routes, `tools/list` included, and each token is refused on the other's route; of person-only commands, only the four of M18 are listed over MCP (from F2a onward) and none runs without evidence from the terminal or an approver; no content outside a labelled part in any result, failure or journal entry of a refusal; a new token is not in the journal; the fuzz targets run clean for the time the workflow gives them |
 | C | Stream stories and the screening queue on the owner's mail with no model; the burst rule tried on the period the owner names | Each class's rule; a decision reclassifies old mail; an agent's suggestion changes no class until a person accepts it, and accepting needs an approval; a burst is one story, a bulk message in it is in no stream story, and a known sender's message is never in it |
 | D | An agent archives and labels under the policy and cannot send; an agent proposes emptying a large mailbox and nothing changes until the owner approves; a person sends at the terminal; the owner moves a large selection to trash, with its unreturned messages reported, and undoes part of it | Every remote command's inverse restores the prior state on both doubles; a move without `MOVE` resumes correctly from a stop after each of its steps; a change touches the frozen set and nothing that matched later; a wrong `expectedCount` changes nothing; a call over the policy changes nothing and becomes a proposal, which runs only after a person's approval and then touches exactly its frozen set; a sixth waiting proposal is refused; an approval's preview gives the query, the counts by mailbox and by class, and a line for known senders' mail when the set holds any; every destructive command has an approval policy; a send to a recipient outside the rule is refused; a dropped connection during a send yields `SEND_OUTCOME_UNKNOWN` and no retry |
 | E | A reply set sent from a reviewed batch, each reply traceable to its inputs | A record with a passage not in the visible text is refused; a reply's recipient cannot be set by the caller |

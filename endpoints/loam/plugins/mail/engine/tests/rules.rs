@@ -165,3 +165,67 @@ fn a_command_outside_the_domain_or_on_no_surface_is_refused() {
         ]
     );
 }
+
+/// F-T5: Amended M18 allows only the four released commands on MCP beside `cli`,
+/// with `ApprovalPolicy::Required` and neither `agent` nor `palette`.
+#[test]
+fn released_commands_on_mcp_keep_amended_m18_and_fifth_is_refused() {
+    let released_expose = cli_only().with_mcp(true);
+    let registry = registry_of(vec![
+        command("mail-draft-send")
+            .as_mutation()
+            .with_destructive(true)
+            .with_approval(ApprovalPolicy::Required)
+            .with_expose(released_expose.clone()),
+        command("mail-replyset-send")
+            .as_mutation()
+            .with_destructive(true)
+            .with_approval(ApprovalPolicy::Required)
+            .with_expose(released_expose.clone()),
+        command("mail-unsubscribe")
+            .as_mutation()
+            .with_destructive(true)
+            .with_approval(ApprovalPolicy::Required)
+            .with_expose(released_expose.clone()),
+        command("mail-operation-approve")
+            .as_mutation()
+            .with_approval(ApprovalPolicy::Required)
+            .with_expose(released_expose.clone()),
+    ]);
+    assert_eq!(check(&registry), Vec::<String>::new());
+
+    // A fifth held command on MCP is refused.
+    let fifth = registry_of(vec![
+        command("mail-sender-accept")
+            .as_mutation()
+            .with_approval(ApprovalPolicy::Required)
+            .with_expose(released_expose.clone()),
+    ]);
+    assert_eq!(
+        check(&fifth),
+        ["mail-sender-accept: a command with an approval policy is exposed to `cli` only (M18)"]
+    );
+
+    // One of the four with Conditional approval, or with `agent`/`palette` on, is refused.
+    for broken in [
+        command("mail-operation-approve")
+            .as_mutation()
+            .with_approval(decided_per_call())
+            .with_expose(released_expose.clone()),
+        command("mail-operation-approve")
+            .as_mutation()
+            .with_approval(ApprovalPolicy::Required)
+            .with_expose(released_expose.clone().with_agent(true)),
+        command("mail-operation-approve")
+            .as_mutation()
+            .with_approval(ApprovalPolicy::Required)
+            .with_expose(released_expose.with_palette(true)),
+    ] {
+        assert_eq!(
+            check(&registry_of(vec![broken])),
+            [
+                "mail-operation-approve: a command with an approval policy is exposed to `cli` only (M18)"
+            ]
+        );
+    }
+}

@@ -418,6 +418,21 @@ fn run_command(
             DraftSendPrep::Stop => return Ok(EXIT_FAILED),
         }
     }
+    if let Caller::Terminal(_) = &mut caller
+        && name == crate::operations::APPROVE
+    {
+        match prepare_operation_approve(&mut input, runner, &runtime, err)? {
+            DraftSendPrep::Ready(lines) => preloaded_preview = Some(lines),
+            DraftSendPrep::Reject(error) => {
+                let result: afd::CommandResult<serde_json::Value> = failure(error);
+                let rendered =
+                    serde_json::to_string_pretty(&result).map_err(std::io::Error::other)?;
+                writeln!(out, "{rendered}")?;
+                return Ok(EXIT_FAILED);
+            }
+            DraftSendPrep::Stop => return Ok(EXIT_FAILED),
+        }
+    }
     if let Caller::Terminal(person) = &mut caller
         && let Some(change) = large_change(name, &input, runner, &runtime)
     {
@@ -803,24 +818,10 @@ fn proposer_line(proposer: Option<&serde_json::Value>) -> String {
     }
 }
 
-/// What the person reads before approving a proposal (the specification's
-/// 9.4): who proposed it, the query it was made with, where its messages
-/// are and go, their classes, and a line of its own for mail from senders
-/// the person knows. Text from mail, a mailbox's name or the query, is named
-/// as it is shown. `None` when the proposal cannot be approved now.
-fn proposal_preview(
-    input: &serde_json::Value,
-    runner: &(dyn Runner + Sync),
-    runtime: &tokio::runtime::Runtime,
-) -> Option<Vec<String>> {
-    let id = crate::operations::operation_input(input)?;
-    let shown = runtime.block_on(runner.run(
-        "mail-operation-show",
-        serde_json::json!({ "operation": id, "limit": 1 }),
-        true,
-        None,
-    ));
-    let shown = shown.data.filter(|_| shown.success)?;
+/// Formats the terminal preview lines for a proposal from a `mail-operation-show`
+/// result (normal or preview-only form). `None` when the proposal cannot be
+/// approved now.
+fn format_proposal_preview(id: i64, shown: &serde_json::Value) -> Option<Vec<String>> {
     let preview = shown.get("preview")?;
     if preview.get("approvable") != Some(&serde_json::Value::Bool(true)) {
         return None;
@@ -840,6 +841,51 @@ fn proposal_preview(
         "Operation {id} ({command}), proposed by {}.",
         proposer_line(shown.pointer("/proposal/proposer"))
     )];
+    if let Some(asked) = shown.get("asked") {
+        let effect = match command.as_str() {
+            "mail-mark" => {
+                let mut how = Vec::new();
+                match asked.get("read").and_then(serde_json::Value::as_bool) {
+                    Some(true) => how.push("read"),
+                    Some(false) => how.push("unread"),
+                    None => {}
+                }
+                match asked.get("flagged").and_then(serde_json::Value::as_bool) {
+                    Some(true) => how.push("flagged"),
+                    Some(false) => how.push("not flagged"),
+                    None => {}
+                }
+                (!how.is_empty()).then(|| format!("Mark: {}.", how.join(" and ")))
+            }
+            "mail-label" => asked
+                .get("mailbox")
+                .and_then(serde_json::Value::as_i64)
+                .map(|mailbox| {
+                    let verb = if asked.get("copy") == Some(&serde_json::Value::Bool(true)) {
+                        "Copy"
+                    } else {
+                        "Move"
+                    };
+                    format!("Action: {verb} to mailbox {mailbox}.")
+                }),
+            "mail-archive" => {
+                let verb = if asked.get("copy") == Some(&serde_json::Value::Bool(true)) {
+                    "Copy"
+                } else {
+                    "Move"
+                };
+                Some(format!("Action: {verb} to archive."))
+            }
+            crate::operations::UNDO => asked
+                .get("operation")
+                .and_then(serde_json::Value::as_i64)
+                .map(|target| format!("Action: undo operation {target}.")),
+            _ => None,
+        };
+        if let Some(line) = effect {
+            lines.push(line);
+        }
+    }
     if let Some(query) = shown.pointer("/query/written") {
         lines.push(format!(
             "The query it was made with, as the proposer wrote it: {}",
@@ -923,6 +969,136 @@ fn proposal_preview(
         }
     }
     Some(lines)
+}
+
+/// What the person reads before approving a proposal (the specification's
+/// 9.4): who proposed it, the query it was made with, where its messages
+/// are and go, their classes, and a line of its own for mail from senders
+/// the person knows. Text from mail, a mailbox's name or the query, is named
+/// as it is shown. `None` when the proposal cannot be approved now.
+fn proposal_preview(
+    input: &serde_json::Value,
+    runner: &(dyn Runner + Sync),
+    runtime: &tokio::runtime::Runtime,
+) -> Option<Vec<String>> {
+    let id = crate::operations::operation_input(input)?;
+    let shown = runtime.block_on(runner.run(
+        crate::operations::SHOW,
+        serde_json::json!({ "operation": id, "limit": 1 }),
+        true,
+        None,
+    ));
+    let shown = shown.data.filter(|_| shown.success)?;
+    format_proposal_preview(id, &shown)
+}
+
+/// Reads the proposal preview before a terminal approval: fills in `digest`
+/// when omitted, refuses closed, unready or stale proposals before asking, and
+/// formats the preview lines (plugin.spec.md, sections 6 and 7).
+fn prepare_operation_approve(
+    input: &mut serde_json::Value,
+    runner: &(dyn Runner + Sync),
+    runtime: &tokio::runtime::Runtime,
+    err: &mut dyn Write,
+) -> std::io::Result<DraftSendPrep> {
+    let Some(id) = input.get("operation").and_then(serde_json::Value::as_i64) else {
+        // Let the registry return its standard validation error.
+        return Ok(DraftSendPrep::Ready(Vec::new()));
+    };
+    if let Some(raw_digest) = input.get("digest")
+        && !raw_digest.is_null()
+        && raw_digest.as_str().is_none()
+    {
+        return Ok(DraftSendPrep::Ready(Vec::new()));
+    }
+    let explicit_digest = input
+        .get("digest")
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_string);
+    let show_input = match explicit_digest.as_deref() {
+        Some(digest) => serde_json::json!({ "operation": id, "digest": digest }),
+        None => serde_json::json!({ "operation": id, "limit": 1 }),
+    };
+    let shown = runtime.block_on(runner.run(crate::operations::SHOW, show_input, true, None));
+    let Some(data) = shown.data.filter(|_| shown.success) else {
+        if let Some(error) = shown.error {
+            if explicit_digest.is_none() && error.code == "OPERATION_NOT_FOUND" {
+                return Ok(DraftSendPrep::Reject(
+                    CommandError::new("PROPOSAL_NOT_OPEN", format!("there is no operation {id}"))
+                        .with_suggestion(
+                            "Run `loam-mail mail-operation-list` with `proposed` to see the proposals waiting.",
+                        ),
+                ));
+            }
+            return Ok(DraftSendPrep::Reject(error));
+        }
+        writeln!(
+            err,
+            "{PROGRAM}: proposal {id} could not be read; `mail-operation-show` says why. Nothing was done."
+        )?;
+        return Ok(DraftSendPrep::Stop);
+    };
+    let Some(preview) = data.get("preview") else {
+        let state = data
+            .get("state")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("unknown");
+        return Ok(DraftSendPrep::Reject(
+            CommandError::new(
+                "PROPOSAL_NOT_OPEN",
+                format!("operation {id} is not a proposal waiting for the person: it is {state}"),
+            )
+            .with_suggestion(
+                "Run `loam-mail mail-operation-list` with `proposed` to see the proposals waiting.",
+            ),
+        ));
+    };
+    if preview.get("approvable") != Some(&serde_json::Value::Bool(true)) {
+        if let Some(refused) = preview.get("refused")
+            && let (Some(code), Some(message)) = (
+                refused.get("code").and_then(serde_json::Value::as_str),
+                refused.get("message").and_then(serde_json::Value::as_str),
+            )
+        {
+            let suggestion = refused
+                .get("suggestion")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or("Run `loam-mail mail-operation-show` with the operation to see why.");
+            let mut error = CommandError::new(code, message).with_suggestion(suggestion);
+            if let Some(retryable) = refused
+                .get("retryable")
+                .and_then(serde_json::Value::as_bool)
+            {
+                error = error.with_retryable(retryable);
+            }
+            return Ok(DraftSendPrep::Reject(error));
+        }
+        writeln!(
+            err,
+            "{PROGRAM}: proposal {id} cannot go ahead now; `mail-operation-show` says why. Nothing was done."
+        )?;
+        return Ok(DraftSendPrep::Stop);
+    }
+    if explicit_digest.is_none() {
+        let Some(current_digest) = preview
+            .get("digest")
+            .and_then(serde_json::Value::as_str)
+            .filter(|d| !d.is_empty())
+        else {
+            writeln!(
+                err,
+                "{PROGRAM}: proposal {id} preview carried no digest. Nothing was done."
+            )?;
+            return Ok(DraftSendPrep::Stop);
+        };
+        if let Some(obj) = input.as_object_mut() {
+            obj.insert("digest".to_string(), serde_json::json!(current_digest));
+        }
+    }
+    match format_proposal_preview(id, &data) {
+        Some(lines) => Ok(DraftSendPrep::Ready(lines)),
+        None => Ok(DraftSendPrep::Stop),
+    }
 }
 
 /// What a person's change to mail does, in counts, when it is larger than

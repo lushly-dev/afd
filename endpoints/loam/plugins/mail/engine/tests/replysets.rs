@@ -1288,13 +1288,14 @@ fn store_upgrades_from_migration_18_to_19() {
     let home = Home::at(dir.path().join("data"));
     {
         let store = Store::open(&home).unwrap();
-        assert_eq!(store.schema_version().unwrap(), 19);
+        assert!(store.schema_version().unwrap() >= 19);
     }
     // Wind back to schema version 18 and reopen to verify forward migration 19.
     {
         let conn = rusqlite::Connection::open(home.database()).unwrap();
         conn.execute_batch(
-            "DROP TABLE replyset_event;
+            "ALTER TABLE operation DROP COLUMN proposal_generation;
+             DROP TABLE replyset_event;
              DROP TABLE replyset_question_reply;
              DROP TABLE replyset_question;
              DROP TABLE replyset_reply;
@@ -1304,7 +1305,7 @@ fn store_upgrades_from_migration_18_to_19() {
         .unwrap();
     }
     let store = Store::open(&home).unwrap();
-    assert_eq!(store.schema_version().unwrap(), 19);
+    assert!(store.schema_version().unwrap() >= 19);
 }
 
 #[test]
