@@ -21,8 +21,8 @@ export interface OverridesReaderDeps {
 }
 
 export interface OverridesReader {
-	/** Read the overrides of whom the shell is for now. */
-	read(): Promise<void>;
+	/** Read the overrides of whom the shell is for now; resolves true if the kept overrides changed. */
+	read(): Promise<boolean>;
 	/** Read again when the person changed since the last read, even when their record is the same one (`local`). */
 	follow(): Promise<void>;
 	/** The kernel is disposed: the retry and any read in flight end. */
@@ -48,10 +48,11 @@ export function createOverridesReader(deps: OverridesReaderDeps): OverridesReade
 	let stopped = false;
 	/** The person the overrides were last read for. */
 	let readFor: string | undefined | null = null;
+	let lastJson: string | undefined;
 
-	async function read(): Promise<void> {
+	async function read(): Promise<boolean> {
 		const registry = deps.keybindings;
-		if (!registry || stopped) return;
+		if (!registry || stopped) return false;
 		const person = deps.person();
 		readFor = person;
 		const generation = ++reading;
@@ -59,24 +60,30 @@ export function createOverridesReader(deps: OverridesReaderDeps): OverridesReade
 		retry = undefined;
 		if (deps.provider && person === undefined) {
 			registry.setOverrides([], person);
-			return;
+			const changed = lastJson !== undefined && lastJson !== '[]';
+			lastJson = '[]';
+			return changed;
 		}
 		let value: unknown;
 		try {
 			value = await deps.stored(person);
 		} catch {
-			if (generation !== reading || deps.person() !== person) return;
+			if (generation !== reading || deps.person() !== person) return false;
 			// A replay schedules none: its keys stay not ready, and no key is pressed in a replay.
 			if (!deps.replaying() && !stopped) {
 				retry = setTimeout(() => void read(), retryMs);
 				retryMs = Math.min(retryMs * 2, LONGEST_RETRY_MS);
 			}
-			return;
+			return false;
 		}
-		if (generation !== reading || deps.person() !== person) return;
+		if (generation !== reading || deps.person() !== person) return false;
 		retryMs = FIRST_RETRY_MS;
 		const { kept, dropped } = usableOverrides(value);
 		registry.setOverrides(kept, person, dropped);
+		const nextJson = JSON.stringify(kept);
+		const changed = lastJson !== undefined && lastJson !== nextJson;
+		lastJson = nextJson;
+		return changed;
 	}
 
 	return {

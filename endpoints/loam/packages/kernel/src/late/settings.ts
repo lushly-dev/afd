@@ -1,10 +1,6 @@
 /**
- * @fileoverview Settings (phase 4 specification, section 3; D116, D117): the `late-settings` chunk, loaded inside
- * `loadLate` beside `late-identity`. It holds the five `setting-*` commands of 3.9, the person's `loam.settings`
- * record and the workspace store's `setting` table (3.4), resolution (3.3), appearance taken over (3.6),
- * `loam.documents.trashDays` written through (A-P2-2), and section 13's hosted refusal. Everything of first paint
- * reaches it through the kit and its deps: an import of a first-paint module would part first paint's shared modules
- * into a chunk of their own (phase 3 specification, 13).
+ * @fileoverview Settings (phase 4 spec section 3; D116, D117) in `late-settings`: `setting-*` commands (3.9),
+ * person/shared storage (3.4), resolution (3.3), appearance takeover (3.6), `trashDays` write-through, hosted refusal (13).
  */
 
 import type { CommandContext, CommandResult } from '@lushly-dev/afd-core';
@@ -169,6 +165,8 @@ export interface SettingsDeps {
 	keybindings?: KeybindingRegistry;
 	/** Whether an experiment is on for the person the shell is for (5.3): a gated section is absent while it is off. */
 	experimentOpen?(experiment: string): boolean;
+	/** Notify other tabs when limits or keybinding overrides are written (#2108). */
+	onTabWrite?(kind: 'limits' | 'keybindings', person?: string): void;
 	kit: SettingsKit;
 }
 
@@ -203,23 +201,12 @@ export interface Settings {
 	 * section the call may see. Its main path, `<section>` or `<section>/<key>`, or the refusal `setting-get` would give.
 	 */
 	target(target: string, context: CommandContext): { path: string } | CommandResult<never>;
-	/**
-	 * A key of the person's own record that only its own command writes, as `loam.autonomy.cap` (4.1): read from the
-	 * store at each call, and written one at a time with the `setting-*` writes, so neither loses the other's.
-	 */
-	/**
-	 * Whether `name` with `input` is a write whose own handler refuses every agent with its hand-off (3.2, F2):
-	 * `autonomy-set` at every level, and `setting-set` or `setting-reset` of a shared value or a human key. The copilot's
-	 * gate lets these through, so they answer `HUMAN_REQUIRED` from their handlers.
-	 */
+	/** Whether `name` with `input` is a write whose own handler refuses every agent with its hand-off (3.2, F2). */
 	refusesAgent(name: string, input: unknown): boolean;
-	/**
-	 * Read the workspace's `loam.limits` into the kernel's limits (section 11): at the late load and after each write of
-	 * the section. A read that fails leaves what the kernel enforces, the defaults from boot or the last values read.
-	 */
-	readLimits(): Promise<void>;
-	/** Read the person's `loam.keybindings.overrides` into the kernel's keybindings (8.3). */
-	readOverrides(): Promise<void>;
+	/** Read workspace `loam.limits` into the kernel's limits (section 11, #2108); returns true when enforced values changed. */
+	readLimits(): Promise<boolean>;
+	/** Read the person's `loam.keybindings.overrides` into the kernel's keybindings (8.3, #2108). */
+	readOverrides(): Promise<boolean>;
 	/** The kernel is disposed: the overrides' retry and any read in flight end (the third round's improvement). */
 	stop(): void;
 	ownValue(
@@ -693,20 +680,19 @@ export function createSettings(deps: SettingsDeps): Settings {
 	const readOverrides = () => overrides.read();
 	/** The kernel is disposed: a read in flight sets nothing after (the seventh round's 2). */
 	let stopped = false;
+	let limitsReading = 0;
+	let lastLimits: string | undefined;
 
-	/** The workspace's `loam.limits`, resolved and read into the kernel's limits (section 11). */
-	async function readLimits(): Promise<void> {
-		if (!deps.limits) return;
-		// A hosted `provider` deployment, or one whose host is not known yet, enforces the defaults alone: it keeps no
-		// shared record (section 13), so a row a local deployment left in this store is never read (the trust review's R3).
-
+	/** The workspace's `loam.limits`, resolved and read into the kernel's limits (section 11, #2108). */
+	async function readLimits(): Promise<boolean> {
+		if (!deps.limits || stopped) return false;
+		const generation = ++limitsReading;
 		const known = SHELL_SECTIONS.find(
 			(entry) => entry.fullId === LIMITS_SECTION_ID
 		) as KnownSectionV1;
-		// `readRow` answers undefined for a read that fails, so the defaults hold: never no limit at all.
+		// Hosted `provider` keeps defaults alone (R3); a failed read leaves defaults.
 		const row = deps.hosted() ? undefined : await readRow(rowId(LIMITS_SECTION_ID, 'workspace'));
-		// Stopped with the kernel while the row was read: the kernel's limits are left as they were (the seventh round's 2).
-		if (stopped) return;
+		if (stopped || generation !== limitsReading) return false;
 		const resolved = {} as Record<LimitKeyV1, number>;
 		for (const key of LIMIT_KEY_ORDER) {
 			const stored = storedOf(row?.values[key]);
@@ -718,14 +704,25 @@ export function createSettings(deps: SettingsDeps): Settings {
 				'workspace'
 			).value as number;
 		}
-		deps.limits.set(enforcedLimits(resolved));
+		const next = enforcedLimits(resolved);
+		const serialized = JSON.stringify(next);
+		const changed = lastLimits !== undefined && lastLimits !== serialized;
+		lastLimits = serialized;
+		deps.limits.set(next);
+		return changed;
 	}
 
-	/** What follows a write: appearance applied, the limits read again, and the event's sections (3.6, 3.8, 11). */
+	/** What follows a write: appearance applied, limits/overrides re-read, cross-tab sync and event sections (3.6, 3.8, 11, #2108). */
 	async function afterWrite(known: KnownSectionV1, _key: string, context: CommandContext) {
 		if (known.fullId === 'loam.appearance') await applyAppearance();
-		if (known.fullId === LIMITS_SECTION_ID) await readLimits();
-		if (known.fullId === KEYBINDINGS_ID) await readOverrides();
+		if (known.fullId === LIMITS_SECTION_ID) {
+			await readLimits();
+			deps.onTabWrite?.('limits');
+		}
+		if (known.fullId === KEYBINDINGS_ID) {
+			await readOverrides();
+			deps.onTabWrite?.('keybindings', deps.provider ? personKeyOf(context) : undefined);
+		}
 		scope.note(context.traceId, { settings: [known.fullId] });
 	}
 

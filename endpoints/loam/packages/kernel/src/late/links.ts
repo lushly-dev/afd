@@ -210,7 +210,9 @@ export function createLinkCommands(deps: LinkDeps): ZodCommandDefinition[] {
 		const { actor } = context;
 		const found: LinkRowV1[] = [];
 		for (const link of links) {
+			check.order(context, `doc:${link[other]}`)?.read();
 			const record = await store.get<DocumentRecordV1>(DOCUMENT_TABLE, link[other]);
+			if (record?.scope.project !== undefined) check.order(context, 'record:project')?.read();
 			// Left out, and counted nowhere: missing, refused, or outside an app's scope (9.3).
 			if (
 				!record ||
@@ -297,6 +299,7 @@ export function createLinkCommands(deps: LinkDeps): ZodCommandDefinition[] {
 					{ method: 'PUT', path: `/${LINK_TABLE}/${encodeURIComponent(link.id)}`, body: link },
 				]);
 				if (summary.failed > 0) throw new Error('The store could not write the link');
+				check.order(context, 'record:document-link')?.wrote();
 				index.added(link);
 				return success(link, {
 					undoCommand: 'document-link-remove',
@@ -328,6 +331,7 @@ export function createLinkCommands(deps: LinkDeps): ZodCommandDefinition[] {
 				if (isRefusal(source)) return source;
 				const { summary } = await store.batch(linkDeletes([link]));
 				if (summary.failed > 0) throw new Error('The store could not remove the link');
+				check.order(context, 'record:document-link')?.wrote();
 				index.removed(link);
 				const { from, to, anchor, kind } = link;
 				return success(
@@ -355,6 +359,7 @@ export function createLinkCommands(deps: LinkDeps): ZodCommandDefinition[] {
 			const record = await check.find(input.document, 'document-link-list', context);
 			if (isRefusal(record)) return record;
 			const direction = input.direction ?? 'both';
+			check.order(context, 'record:document-link')?.read();
 			const links = await index.of(record.id);
 			return success({
 				out: direction === 'in' ? [] : await rows(links.out, 'to', context),

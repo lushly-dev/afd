@@ -6,8 +6,12 @@
  * it (phase 4's R5: a replay of an honest journal matches live).
  */
 
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { MockAuthAdapter } from '@lushly-dev/afd-auth';
-import { type JournalEntry, MemoryJournalSink } from '@lushly-dev/afd-core';
+import { StreamableHttpTransport } from '@lushly-dev/afd-client/streamable-http';
+import { type JournalEntry, type JournalRecord, MemoryJournalSink } from '@lushly-dev/afd-core';
+import { createMcpHandler } from '@lushly-dev/afd-server';
 import type { ManifestV1, ProjectionV3 } from '@lushly-dev/loam-manifest';
 import { type AppCallContextV1, defineApp, type ManifestV2, success } from '@lushly-dev/loam-sdk';
 import { MemoryAdapter } from '@lushly-dev/local-db';
@@ -17,6 +21,7 @@ import { createKernelParts } from '../kernel.js';
 import { NOTIFICATION_TABLE } from '../late/notifications.js';
 import { createScopedWorkspace, type ScopedWorkspace, scopedPackages } from '../scope/fixtures.js';
 import { createFixedEnvironment, createFixturePorts, replayKernel } from '../testing.js';
+import { PROBE_DOCUMENTS_DEFINITION, PROBE_DOCUMENTS_MANIFEST } from '../testing-documents.js';
 import type { LoamKernelV5, McpToolCallResult, MountTransportV2 } from '../types.js';
 
 const kernels: LoamKernelV5[] = [];
@@ -492,5 +497,409 @@ describe('#1936: a recorded command’s approval decision replays', () => {
 		const listed = await kernel.agent.call('work-files-list', {});
 		expect(listed.success, JSON.stringify(listed.error)).toBe(true);
 		expect(await replayMounted(await journal.read())).toEqual([]);
+	});
+});
+
+class DelayedJournal extends MemoryJournalSink {
+	constructor(private readonly delayCommand: string) {
+		super();
+	}
+	override async append(entry: JournalRecord) {
+		if (entry.command === this.delayCommand) {
+			await new Promise((resolve) => setTimeout(resolve, 25));
+		}
+		return super.append(entry);
+	}
+}
+
+describe('#2117: kernel records, WAR ordering, kernel-run reads, and hosted MCP tracking', () => {
+	it('orders confirmation-get after the confirmed run whose row write it saw, and replays identically', async () => {
+		let onConfirmedWrite: (() => void) | undefined;
+		let readPromise: Promise<unknown> | undefined;
+		const store = new MemoryAdapter();
+		const origBatch = store.batch.bind(store);
+		store.batch = (async (ops: Parameters<MemoryAdapter['batch']>[0]) => {
+			const res = await origBatch(ops);
+			if (
+				onConfirmedWrite &&
+				ops.some(
+					(op) =>
+						op.method === 'PUT' &&
+						op.path.startsWith(`/${NOTIFICATION_TABLE}/`) &&
+						(op.body as { confirmation?: { state?: string } } | undefined)?.confirmation?.state ===
+							'confirmed'
+				)
+			) {
+				const fire = onConfirmedWrite;
+				onConfirmedWrite = undefined;
+				fire();
+			}
+			return res;
+		}) as typeof store.batch;
+		const delayedJournal = new DelayedJournal('book-sign');
+		const workspace = await createScopedWorkspace({
+			store,
+			journal: delayedJournal,
+			deployment: deployment(),
+			ports: ports(),
+		});
+		kernels.push(workspace.kernel);
+		const { kernel } = workspace;
+		expect((await kernel.call('autonomy-set', { level: 'workspace', mode: 'ask' })).success).toBe(
+			true
+		);
+		const asked = await kernel.agent.call('book-sign', { name: 'Ada' });
+		expect(asked.error?.code).toBe('CONFIRMATION_PENDING');
+		const notification = notificationOf(asked);
+
+		onConfirmedWrite = () => {
+			readPromise = kernel.agent.call('confirmation-get', { notification });
+		};
+		const acted = await kernel.call('notification-act', { notification, answer: 'confirm' });
+		expect(acted.data).toMatchObject({ state: 'confirmed' });
+		const polled = (await readPromise) as { data?: { state?: string } };
+		expect(polled?.data?.state).toBe('confirmed');
+
+		const entries = await delayedJournal.read();
+		const signIdx = entries.findIndex((e) => e.command === 'book-sign' && e.result.success);
+		const getIdx = entries.findIndex((e) => e.command === 'confirmation-get');
+		expect(signIdx).toBeGreaterThan(-1);
+		expect(getIdx).toBeGreaterThan(signIdx);
+		expect(await replayed(entries)).toEqual([]);
+	});
+
+	it('orders document-get after document-create whose record write it saw, and replays identically', async () => {
+		const delayedJournal = new DelayedJournal('document-create');
+		const store = new MemoryAdapter();
+		const origBatch = store.batch.bind(store);
+		let createdDocId: string | undefined;
+		let readPromise: Promise<unknown> | undefined;
+		let kernelRef: LoamKernelV5 | undefined;
+		store.batch = (async (ops: Parameters<MemoryAdapter['batch']>[0]) => {
+			const res = await origBatch(ops);
+			if (!createdDocId && kernelRef) {
+				const put = ops.find((op) => op.method === 'PUT' && op.path.startsWith('/document/'));
+				const id = (put?.body as { id?: string } | undefined)?.id;
+				if (id) {
+					createdDocId = id;
+					readPromise = kernelRef.call('document-get', { document: id });
+				}
+			}
+			return res;
+		}) as typeof store.batch;
+		const docDeployment = () => ({
+			...deployment(),
+			apps: [...deployment().apps, { instance: 'probe', app: 'probe', package: 'fixtures/probe/' }],
+		});
+		const docPorts = () =>
+			createFixturePorts({
+				...scopedPackages(),
+				'fixtures/book/': { manifest: BOOK_MANIFEST, definition: BOOK },
+				'fixtures/probe/': {
+					manifest: PROBE_DOCUMENTS_MANIFEST,
+					definition: PROBE_DOCUMENTS_DEFINITION,
+				},
+			});
+		const workspace = await createScopedWorkspace({
+			store,
+			journal: delayedJournal,
+			deployment: docDeployment(),
+			ports: docPorts(),
+		});
+		kernels.push(workspace.kernel);
+		kernelRef = workspace.kernel;
+
+		const created = await workspace.kernel.call<{ id: string }>('document-create', {
+			type: 'probe',
+			title: 'Chapter 1',
+		});
+		expect(created.success, JSON.stringify(created.error)).toBe(true);
+		const got = (await readPromise) as { success: boolean; data?: { id?: string } };
+		expect(got?.success).toBe(true);
+		expect(got?.data?.id).toBe(created.data?.id);
+
+		const entries = await delayedJournal.read();
+		const createIdx = entries.findIndex((e) => e.command === 'document-create');
+		const getIdx = entries.findIndex((e) => e.command === 'document-get');
+		expect(getIdx).toBeGreaterThan(createIdx);
+		const { report } = await replayKernel(entries, {
+			deployment: docDeployment(),
+			ports: docPorts(),
+		});
+		expect(report.entries.filter(({ status }) => status !== 'same')).toEqual([]);
+	});
+
+	it('holds a write for an earlier read that finishes after the write (WAR), and replays identically', async () => {
+		const delayedJournal = new DelayedJournal('book-list');
+		const store = new MemoryAdapter();
+		const origList = store.list.bind(store);
+		let writePromise: Promise<unknown> | undefined;
+		let kernelRef: LoamKernelV5 | undefined;
+		let triggerWrite = false;
+		store.list = (async <T>(table: string, filter?: Parameters<MemoryAdapter['list']>[1]) => {
+			const res = await origList<T>(table, filter);
+			if (table === 'app-book' && triggerWrite && kernelRef) {
+				triggerWrite = false;
+				// Trigger write AFTER the read already read the pre-write state, while read's journal append is delayed.
+				writePromise = kernelRef.call('book-sign', { name: 'Bob' });
+			}
+			return res;
+		}) as typeof store.list;
+		const workspace = await createScopedWorkspace({
+			store,
+			journal: delayedJournal,
+			deployment: deployment(),
+			ports: ports(),
+		});
+		kernels.push(workspace.kernel);
+		kernelRef = workspace.kernel;
+		await workspace.kernel.call('book-sign', { name: 'Ada' });
+
+		triggerWrite = true;
+		const read = await workspace.kernel.call<{ names: string[] }>('book-list');
+		await writePromise;
+		expect(read.data?.names).toEqual(['Ada']);
+
+		const entries = await delayedJournal.read();
+		expect(commandsOf(entries)).toEqual([
+			{ command: 'book-sign', names: undefined },
+			{ command: 'book-list', names: ['Ada'] },
+			{ command: 'book-sign', names: undefined },
+		]);
+		expect(await replayed(entries)).toEqual([]);
+	});
+
+	it('orders palette-run’s run after a write it saw, and replays identically', async () => {
+		const store = new SlowBookkeeping();
+		const workspace = await createScopedWorkspace({
+			store,
+			deployment: deployment(),
+			ports: ports(),
+		});
+		kernels.push(workspace.kernel);
+		const { kernel, journal } = workspace;
+		const opened = await kernel.call<{ prompt: { overlayId: string } }>('palette-run', {
+			command: 'book-list',
+		});
+		expect(opened.success, JSON.stringify(opened.error)).toBe(true);
+		const prompt = opened.data?.prompt.overlayId as string;
+		let paletteRead: Promise<unknown> | undefined;
+		listeners.add(() => {
+			if (!paletteRead)
+				paletteRead = kernel.call('palette-run', { command: 'book-list', prompt, input: {} });
+		});
+		await kernel.call('autonomy-set', { level: 'workspace', mode: 'act' });
+		store.slow = true;
+		expect((await kernel.agent.call('book-sign', { name: 'Ada' })).success).toBe(true);
+		const ran = (await paletteRead) as { success: boolean; data?: { names?: string[] } };
+		expect(ran?.success).toBe(true);
+		expect(ran?.data?.names).toEqual(['Ada']);
+		const entries = await journal.read();
+		const signIdx = entries.findIndex((e) => e.command === 'book-sign');
+		const listIdx = entries.findIndex((e) => e.command === 'book-list');
+		expect(listIdx).toBeGreaterThan(signIdx);
+		expect(await replayed(entries)).toEqual([]);
+	});
+
+	it('tracks hosted MCP calls that bypass execute() so reads wait for writes they saw', async () => {
+		const delayedJournal = new DelayedJournal('book-sign');
+		const parts = await createKernelParts({
+			store: new MemoryAdapter(),
+			storeKind: 'memory',
+			journal: delayedJournal,
+			auth: new MockAuthAdapter(),
+			environment: createFixedEnvironment(),
+			host: 'test',
+			deployment: deployment(),
+			ports: ports(),
+		});
+		kernels.push(parts.kernel);
+		const mcpOpts = parts.mcpOptions();
+		expect(mcpOpts).toBeDefined();
+		const handler = createMcpHandler({
+			name: 'loam-test',
+			version: '0.1.0',
+			commands: [...(mcpOpts as NonNullable<typeof mcpOpts>).commands].map((command) => ({
+				...command,
+				expose: { ...command.expose, mcp: true },
+			})),
+			middleware: [...(mcpOpts as NonNullable<typeof mcpOpts>).middleware],
+			contextFields: [...(mcpOpts as NonNullable<typeof mcpOpts>).contextFields],
+			host: '127.0.0.1',
+			toolStrategy: 'individual',
+			bootstrap: true,
+		});
+		const server = createServer(handler);
+		await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+		const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/mcp`;
+		const transport = new StreamableHttpTransport(url, {
+			clientName: 'loam-test',
+			clientVersion: '0',
+			mode: 'auto',
+		});
+		await transport.connect();
+		let id = 0;
+		const mcpCall = async (name: string, args: Record<string, unknown>) =>
+			transport.send({
+				jsonrpc: '2.0',
+				id: ++id,
+				method: 'tools/call',
+				params: { name, arguments: args },
+			} as never);
+		try {
+			let mcpRead: Promise<unknown> | undefined;
+			listeners.add(() => {
+				if (!mcpRead) mcpRead = mcpCall('book-list', {});
+			});
+			await mcpCall('book-sign', { name: 'Ada' });
+			const listed = (await mcpRead) as {
+				result?: { structuredContent?: { data?: { names?: string[] } } };
+			};
+			expect(listed?.result?.structuredContent?.data?.names).toEqual(['Ada']);
+
+			const entries = await delayedJournal.read();
+			expect(commandsOf(entries)).toEqual([
+				{ command: 'book-sign', names: undefined },
+				{ command: 'book-list', names: ['Ada'] },
+			]);
+			expect(await replayed(entries)).toEqual([]);
+		} finally {
+			await transport.disconnect();
+			handler.dispose();
+			server.closeAllConnections();
+			await new Promise<void>((resolve) => server.close(() => resolve()));
+		}
+	});
+
+	it('orders project reads before an in-flight project write until cache publication, and replays identically', async () => {
+		const delayedJournal = new DelayedJournal('project-list');
+		const store = new MemoryAdapter();
+		const origBatch = store.batch.bind(store);
+		let kernelRef: LoamKernelV5 | undefined;
+		let readWhileWriting: Promise<unknown> | undefined;
+		let docListWhileWriting: Promise<unknown> | undefined;
+		let trigger = false;
+		store.batch = (async (ops: Parameters<MemoryAdapter['batch']>[0]) => {
+			if (trigger && kernelRef && ops.some((op) => op.path.startsWith('/project/'))) {
+				trigger = false;
+				// Reads issued while store.batch is still pending see the pre-write cache, so WAR must journal them first.
+				readWhileWriting = kernelRef.call('project-list', {});
+				docListWhileWriting = kernelRef.call('document-list', { project: 'alpha' });
+				await new Promise<void>((resolve) => setTimeout(resolve, 10));
+			}
+			return origBatch(ops);
+		}) as typeof store.batch;
+		const workspace = await createScopedWorkspace({
+			store,
+			journal: delayedJournal,
+			deployment: deployment(),
+			ports: ports(),
+		});
+		kernels.push(workspace.kernel);
+		kernelRef = workspace.kernel;
+
+		trigger = true;
+		const created = await workspace.kernel.call<{ id: string }>('project-create', {
+			name: 'Alpha',
+			slug: 'alpha',
+		});
+		expect(created.success, JSON.stringify(created.error)).toBe(true);
+		const listed = (await readWhileWriting) as {
+			success: boolean;
+			data?: { projects?: Array<{ slug: string }> };
+		};
+		const docList = (await docListWhileWriting) as {
+			success: boolean;
+			error?: { code?: string };
+		};
+		expect(listed.success).toBe(true);
+		expect(listed.data?.projects?.some((p) => p.slug === 'alpha')).toBe(false);
+		expect(docList.success).toBe(false);
+		expect(docList.error?.code).toBe('PROJECT_NOT_FOUND');
+
+		const entries = await delayedJournal.read();
+		const createIdx = entries.findIndex(
+			(e) =>
+				e.command === 'project-create' &&
+				(e.input as { slug?: string } | undefined)?.slug === 'alpha'
+		);
+		const listIdx = entries.findIndex((e) => e.command === 'project-list');
+		const docListIdx = entries.findIndex((e) => e.command === 'document-list');
+		expect(createIdx).toBeGreaterThan(-1);
+		expect(listIdx).toBeLessThan(createIdx);
+		expect(docListIdx).toBeLessThan(createIdx);
+		expect(await replayed(entries)).toEqual([]);
+	});
+
+	it('orders document-link-list after a concurrent rename of the linked target document, and replays identically', async () => {
+		const delayedJournal = new DelayedJournal('document-rename');
+		const store = new MemoryAdapter();
+		const origGet = store.get.bind(store);
+		const docDeployment = () => ({
+			...deployment(),
+			apps: [...deployment().apps, { instance: 'probe', app: 'probe', package: 'fixtures/probe/' }],
+		});
+		const docPorts = () =>
+			createFixturePorts({
+				...scopedPackages(),
+				'fixtures/book/': { manifest: BOOK_MANIFEST, definition: BOOK },
+				'fixtures/probe/': {
+					manifest: PROBE_DOCUMENTS_MANIFEST,
+					definition: PROBE_DOCUMENTS_DEFINITION,
+				},
+			});
+		const workspace = await createScopedWorkspace({
+			store,
+			journal: delayedJournal,
+			deployment: docDeployment(),
+			ports: docPorts(),
+		});
+		kernels.push(workspace.kernel);
+
+		const a = (await workspace.kernel.call<{ id: string }>('document-create', {
+			type: 'probe',
+			title: 'Doc A',
+		})) as { data: { id: string } };
+		const b = (await workspace.kernel.call<{ id: string }>('document-create', {
+			type: 'probe',
+			title: 'Doc B',
+		})) as { data: { id: string } };
+		expect(
+			(await workspace.kernel.call('document-link-add', { from: a.data.id, to: b.data.id })).success
+		).toBe(true);
+
+		let renamePromise: Promise<unknown> | undefined;
+		let intercept = true;
+		store.get = (async <T>(table: string, id: string) => {
+			const res = await origGet<T>(table, id);
+			if (intercept && table === 'document' && id === a.data.id) {
+				intercept = false;
+				// While document-link-list(A) has read A but not yet B, rename B so link-list reads B's new title.
+				renamePromise = workspace.kernel.call('document-rename', {
+					document: b.data.id,
+					title: 'Doc B Renamed',
+				});
+				// Give rename time to write B into the store before link-list reads B, while rename's journal append is delayed.
+				await new Promise<void>((resolve) => setTimeout(resolve, 10));
+			}
+			return res;
+		}) as typeof store.get;
+
+		const links = await workspace.kernel.call<{
+			out: Array<{ document: { id: string; title: string } }>;
+		}>('document-link-list', { document: a.data.id });
+		await renamePromise;
+		expect(links.success, JSON.stringify(links.error)).toBe(true);
+		expect(links.data?.out[0]?.document.title).toBe('Doc B Renamed');
+
+		const entries = await delayedJournal.read();
+		const renameIdx = entries.findIndex((e) => e.command === 'document-rename');
+		const listIdx = entries.findIndex((e) => e.command === 'document-link-list');
+		expect(listIdx).toBeGreaterThan(renameIdx);
+		const { report } = await replayKernel(entries, {
+			deployment: docDeployment(),
+			ports: docPorts(),
+		});
+		expect(report.entries.filter(({ status }) => status !== 'same')).toEqual([]);
 	});
 });

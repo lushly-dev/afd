@@ -5,9 +5,11 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+	compareSemver,
 	EXPERIMENT_ID,
 	enablementChanged,
 	experimentOn,
+	isStaleVersion,
 	overdue,
 	settledAway,
 	UNKNOWN_STATE,
@@ -118,5 +120,32 @@ describe('P4-E5: enablementChanged, settledAway and overdue', () => {
 			expect(EXPERIMENT_ID.test(id), id).toBe(true);
 		for (const id of ['hello', 'hello.', '.x', 'hello.Inspector', 'a/b.c', 'a.b.c', 'a. b'])
 			expect(EXPERIMENT_ID.test(id), id).toBe(false);
+	});
+
+	it('compares SemVer 2.0.0 plugin versions and flags strictly older or incomparable shells as stale (#2114)', () => {
+		expect(compareSemver('1.0.0', '2.0.0')).toBeLessThan(0);
+		expect(compareSemver('1.2.0', '1.10.0')).toBeLessThan(0);
+		expect(compareSemver('1.0.0-alpha.1', '1.0.0-alpha.beta')).toBeLessThan(0);
+		expect(compareSemver('1.0.0-beta', '1.0.0')).toBeLessThan(0);
+		expect(compareSemver('1.0.0+build.1', '1.0.0+build.2')).toBe(0);
+		expect(compareSemver('2.0.0', '1.9.9')).toBeGreaterThan(0);
+		// Exact arbitrary-precision integer comparison past Number.MAX_SAFE_INTEGER.
+		expect(compareSemver('9007199254740992.0.0', '9007199254740993.0.0')).toBeLessThan(0);
+		expect(compareSemver('1.0.0-9007199254740992', '1.0.0-9007199254740993')).toBeLessThan(0);
+		// Strict SemVer 2.0.0 rejects leading zeros on numeric prerelease ids and empty identifiers.
+		expect(compareSemver('1.0.0-01', '1.0.0-1')).toBeUndefined();
+		expect(compareSemver('1.0.0-alpha..1', '1.0.0-alpha.1')).toBeUndefined();
+		expect(compareSemver('1.0.0-01a', '1.0.0-01b')).toBeLessThan(0);
+		expect(compareSemver('not-semver', '1.0.0')).toBeUndefined();
+
+		expect(isStaleVersion('1.0.0', '2.0.0')).toBe(true);
+		expect(isStaleVersion('2.0.0-rc.1', '2.0.0')).toBe(true);
+		expect(isStaleVersion('1.0.0', '1.0.0')).toBe(false);
+		expect(isStaleVersion('2.0.0', '1.0.0')).toBe(false);
+		expect(isStaleVersion('1.0.0', undefined)).toBe(false);
+		// Missing or malformed version cannot override a valid recorded SemVer.
+		expect(isStaleVersion(undefined, '2.0.0')).toBe(true);
+		expect(isStaleVersion('bad', '2.0.0')).toBe(true);
+		expect(isStaleVersion('1.0.0', 'bad-recorded')).toBe(false);
 	});
 });

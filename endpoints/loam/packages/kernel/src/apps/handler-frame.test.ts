@@ -122,20 +122,72 @@ describe('the handler frame (6.3, D61)', () => {
 		expect(
 			admit({ jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'probev-list', n: 1n } })
 		).toMatchObject({ code: 'VALIDATION_ERROR', rpcCode: -32602 });
-		await expect
-			.poll(async () =>
-				(await journal.read())
-					.filter((entry) => entry.command === 'app-limit-refuse')
-					.map((entry) => [entry.input, entry.context?.caller])
-			)
-			.toEqual([
+		// Concurrent `void guard.refuse(...)` calls hash and append independently (#1669), so check as an unordered set.
+		const byKey = (pair: [unknown, unknown]) => JSON.stringify(pair);
+		const expected: Array<[unknown, unknown]> = (
+			[
 				[{ command: 'notifications/message', limit: 'messageBytes', bound: 1_048_576 }, 'probev'],
 				[{ command: 'probev-list', limit: 'messageBytes', bound: 1_048_576 }, 'probev'],
 				[
 					{ command: 'probev-list', limit: 'messageBytes', bound: 1_048_576, reason: 'json' },
 					'probev',
 				],
-			]);
+			] as Array<[unknown, unknown]>
+		).sort((a, b) => byKey(a).localeCompare(byKey(b)));
+		await expect
+			.poll(async () =>
+				(await journal.read())
+					.filter((entry) => entry.command === 'app-limit-refuse')
+					.map((entry): [unknown, unknown] => [entry.input, entry.context?.caller])
+					.sort((a, b) => byKey(a).localeCompare(byKey(b)))
+			)
+			.toEqual(expected);
+	});
+
+	it('records all concurrent app-limit-refuse entries even when journal appends complete in reverse order (#1669)', async () => {
+		const given = ports();
+		const opener = given.openHandlerFrame;
+		const admits: Array<FrameAdmitV1 | undefined> = [];
+		given.openHandlerFrame = (instance, text, admit) => {
+			admits.push(admit);
+			return opener(instance, text, admit);
+		};
+		const { kernel, journal } = await boot(given);
+		expect((await kernel.call('probev-list')).success).toBe(true);
+		const origAppend = journal.append.bind(journal);
+		let refusedSeen = 0;
+		journal.append = async (record) => {
+			if (record.command === 'app-limit-refuse') {
+				const order = ++refusedSeen;
+				// Delay earlier refusals longer so the third appends first and the first appends last.
+				await new Promise((resolve) => setTimeout(resolve, (4 - order) * 10));
+			}
+			return origAppend(record);
+		};
+		const admit = admits[0] as FrameAdmitV1;
+		const pad = 'x'.repeat(1_048_576);
+		admit({ jsonrpc: '2.0', method: 'notifications/message', params: { data: pad } });
+		admit({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'probev-list', pad } });
+		admit({ jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'probev-list', n: 1n } });
+		const byKey = (pair: [unknown, unknown]) => JSON.stringify(pair);
+		const expected: Array<[unknown, unknown]> = (
+			[
+				[{ command: 'notifications/message', limit: 'messageBytes', bound: 1_048_576 }, 'probev'],
+				[{ command: 'probev-list', limit: 'messageBytes', bound: 1_048_576 }, 'probev'],
+				[
+					{ command: 'probev-list', limit: 'messageBytes', bound: 1_048_576, reason: 'json' },
+					'probev',
+				],
+			] as Array<[unknown, unknown]>
+		).sort((a, b) => byKey(a).localeCompare(byKey(b)));
+		await expect
+			.poll(async () =>
+				(await journal.read())
+					.filter((entry) => entry.command === 'app-limit-refuse')
+					.map((entry): [unknown, unknown] => [entry.input, entry.context?.caller])
+					.sort((a, b) => byKey(a).localeCompare(byKey(b)))
+			)
+			.toEqual(expected);
 	});
 
 	it('gives a frame one clock reading and one random seed, on the tape', async () => {

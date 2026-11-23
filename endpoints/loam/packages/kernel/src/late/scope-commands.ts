@@ -64,6 +64,11 @@ export interface ScopeCommandDeps {
 	 * 3.10): its path, or the refusal `setting-get` would give. Absent while `late-settings` has not loaded.
 	 */
 	settingTarget?(target: string, context: CommandContext): { path: string } | CommandResult<never>;
+	/** What project reads and writes tell the journal's order (#2117). */
+	recordOrder?(
+		traceId: string | undefined,
+		resource: string
+	): import('../journal-order.js').StoreOrderV1 | undefined;
 }
 
 /**
@@ -396,7 +401,9 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 			updatedAt: now(context),
 			updatedBy: personOf(context),
 		};
-		await stores.putProject(next);
+		await stores.putProject(next, () =>
+			deps.recordOrder?.(context.traceId, 'record:project')?.wrote()
+		);
 		return next;
 	};
 
@@ -458,7 +465,9 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 				createdBy: actor,
 				updatedBy: actor,
 			};
-			await stores.putProject(project);
+			await stores.putProject(project, () =>
+				deps.recordOrder?.(context.traceId, 'record:project')?.wrote()
+			);
 			return success(project, {
 				undoCommand: 'project-archive',
 				undoArgs: { project: project.id },
@@ -486,6 +495,7 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 			additionalProperties: false,
 		},
 		async handler(input, context) {
+			deps.recordOrder?.(context.traceId, 'record:project')?.read();
 			const status = input.status ?? 'active';
 			const rows = scope.projects
 				.all()
@@ -512,6 +522,7 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 		input: projectInput,
 		jsonSchema: PROJECT_INPUT_JSON,
 		async handler(input, context) {
+			deps.recordOrder?.(context.traceId, 'record:project')?.read();
 			const project = named(input.project, context);
 			return project ? success(shown(project, context)) : projectNotFound();
 		},
@@ -578,7 +589,9 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 				updatedAt: now(context),
 				updatedBy: personOf(context),
 			};
-			await stores.putProject(next);
+			await stores.putProject(next, () =>
+				deps.recordOrder?.(context.traceId, 'record:project')?.wrote()
+			);
 			const undoArgs: Record<string, unknown> = { project: project.id };
 			for (const key of Object.keys(changes) as Array<keyof typeof changes>) {
 				undoArgs[key] = project[key];

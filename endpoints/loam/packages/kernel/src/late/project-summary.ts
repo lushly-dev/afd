@@ -59,6 +59,8 @@ export function createProjectSummaryCommand(deps: ProjectSummaryDeps): ZodComman
 			additionalProperties: false,
 		},
 		async handler(input, context: CommandContext) {
+			// `project-summary-get` is answered from its record in replay (`REPLAY_RECORDED_QUERIES`) and waits up to
+			// 2 s on slow app summaries, so it intentionally does not register a WAR read on `record:project`.
 			const project = scope.project(input.project);
 			const at = { workspace: scope.workspace.id, project: project?.id as string };
 			if (!project || !scope.allows(context.actor, at)) return projectNotFound();

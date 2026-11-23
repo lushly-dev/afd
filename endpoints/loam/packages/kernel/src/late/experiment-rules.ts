@@ -133,3 +133,57 @@ export function overdue(ends: string, now: number): boolean {
 	const end = Date.parse(`${ends}T00:00:00Z`);
 	return Number.isFinite(end) && now >= end + 86_400_000;
 }
+
+const SEMVER =
+	/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
+
+/** Exact unsigned decimal integer comparison (no leading zeros), avoiding `Number` precision loss. */
+const compareUint = (a: string, b: string): number =>
+	a.length !== b.length ? a.length - b.length : a < b ? -1 : a > b ? 1 : 0;
+
+/** Whether `value` is a strict SemVer 2.0.0 string (#2114). */
+export const isSemver = (value: string | undefined): value is string =>
+	value !== undefined && SEMVER.test(value);
+
+/**
+ * SemVer 2.0.0 precedence comparison between two manifest `plugin.version` strings (#2114): negative when `a < b`,
+ * zero when equal (ignoring build metadata), positive when `a > b`, or undefined if either string is not SemVer.
+ */
+export function compareSemver(a: string, b: string): number | undefined {
+	const ma = SEMVER.exec(a);
+	const mb = SEMVER.exec(b);
+	if (!ma || !mb) return undefined;
+	for (let i = 1; i <= 3; i++) {
+		const diff = compareUint(ma[i] as string, mb[i] as string);
+		if (diff !== 0) return diff;
+	}
+	const pa = ma[4];
+	const pb = mb[4];
+	if (pa === undefined && pb === undefined) return 0;
+	if (pa === undefined) return 1;
+	if (pb === undefined) return -1;
+	const ia = pa.split('.');
+	const ib = pb.split('.');
+	const len = Math.min(ia.length, ib.length);
+	for (let i = 0; i < len; i++) {
+		const sa = ia[i] as string;
+		const sb = ib[i] as string;
+		if (sa === sb) continue;
+		const na = /^\d+$/.test(sa);
+		const nb = /^\d+$/.test(sb);
+		if (na && nb) return compareUint(sa, sb);
+		if (na !== nb) return na ? -1 : 1;
+		return sa < sb ? -1 : 1;
+	}
+	return ia.length - ib.length;
+}
+
+/**
+ * Whether `current` must not override `recorded` (#2114): true when `recorded` is valid SemVer and `current` is
+ * either older or missing/incomparable, so a stale or malformed shell never drops newer ids.
+ */
+export function isStaleVersion(current: string | undefined, recorded: string | undefined): boolean {
+	if (!isSemver(recorded)) return false;
+	if (!isSemver(current)) return true;
+	return (compareSemver(current, recorded) as number) < 0;
+}

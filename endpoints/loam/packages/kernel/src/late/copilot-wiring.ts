@@ -479,15 +479,27 @@ export function copilotPartsOf(
 		journaled: (name) => deps.journaled?.(name) ?? true,
 		declares: (name) => refs.confirmPromptOf(name) !== undefined,
 		personSession: refs.personSession,
-		confirmationOf: (id, person, options = {}) =>
-			readerCard(deps.store, deps.scope, () => deps.clock?.now() ?? Date.now())(
+		confirmationOf: (id, person, options = {}) => {
+			if (options.traceId !== undefined) {
+				deps.recordOrder?.(options.traceId, 'record:confirmation')?.read();
+				if (options.reader) deps.recordOrder?.(options.traceId, 'record:project')?.read();
+			}
+			return readerCard(deps.store, deps.scope, () => deps.clock?.now() ?? Date.now())(
 				id,
 				person,
 				options
-			),
+			);
+		},
 		allows: (actor, scope) => deps.scope.allows(actor as AccessActorV1, scope),
-		pendingAsked: (person) =>
-			pendingAskedOf(deps.store, deps.scope.workspace.id, person, deps.clock?.now() ?? Date.now()),
+		pendingAsked: (person, traceId) => {
+			if (traceId !== undefined) deps.recordOrder?.(traceId, 'record:confirmation')?.read();
+			return pendingAskedOf(
+				deps.store,
+				deps.scope.workspace.id,
+				person,
+				deps.clock?.now() ?? Date.now()
+			);
+		},
 		// By the session and turn the kernel stored on each, or one id; with no call, on the kernel's clock (3.5).
 		withdraw: (context, match, person) =>
 			refs
