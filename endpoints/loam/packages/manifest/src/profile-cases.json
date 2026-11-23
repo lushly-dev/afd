@@ -6816,7 +6816,20 @@
 			"accepted": false,
 			"code": "MANIFEST_SURFACE_UNAVAILABLE",
 			"key": "ui.menus",
-			"suggestion": "phase 4"
+			"suggestion": "until that specification adds it"
+		},
+		{
+			"id": "later-ui-surfaces-menus",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/menus": {
+					"element": "hello-menus"
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_UNAVAILABLE",
+			"key": "ui.surfaces.menus",
+			"suggestion": "until that specification adds"
 		},
 		{
 			"id": "later-ui-automations",

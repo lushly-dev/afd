@@ -44,7 +44,11 @@ import { createBootCommands, takesProject } from './boot-commands.js';
 import { INTERNAL_COMMANDS, type InboundParts, inboundCache, SHELL_EXPOSE } from './commands.js';
 import { KERNEL_CONTEXT_FIELDS, type KernelCallFields } from './context-fields.js';
 import { kernelFailure, LoamKernelError } from './errors.js';
-import { createJournalOrder } from './journal-order.js';
+import { createJournalOrder, type NestedRerunV1 } from './journal-order.js';
+import type { KernelPartsInternals } from './replay-internals.js';
+
+export type { KernelPartsInternals };
+
 import {
 	createJournalProvenance,
 	JOURNAL_WRAPPERS,
@@ -543,38 +547,6 @@ export interface KernelPartsOptions extends KernelOptionsV5 {
  * gate passes with no principal. A symbol, so no caller's input or `_meta` can carry it; `execute` sets it last.
  */
 export const KERNEL_OWN = Symbol();
-
-/** What only `replayKernel` asks of a kernel. */
-export interface KernelPartsInternals {
-	/**
-	 * A nested call's answer from the journal, in place of running it (7.6), given the palette's and the agent's
-	 * commands, whose schema for `name` validates `input` as the registry will: the record is matched on the whole
-	 * validated input (#859). Undefined runs it: a refusal before the middleware, as a name neither registry holds or
-	 * an input the schema refuses, leaves no entry, and answers the same again. A recorded call (`replay: 'recorded'`) that passes
-	 * validation then stops in the scope middleware as `REPLAY_NOT_RECORDED`, before its handler could reach a
-	 * server, and the outer call is reported diverged (phase 2 specification, 10 and 12).
-	 */
-	answerNested?(
-		parent: string,
-		name: string,
-		input: unknown,
-		commands: readonly ZodCommandDefinition[]
-	): CommandResult | undefined;
-	/** A nested call ran and reached the journal, so the record has no answer for what it did. */
-	nestedUnrecorded?(parent: string, name: string): void;
-	/** A replay: stage B's own journaled work is skipped, since the entries are what ran (10). */
-	replaying?: boolean;
-	/** A replay of a journal whose `workspace-deployment-apply` records a hosted host (phase 6's A5). */
-	hostedReplay?: boolean;
-	/** The journal's actor for a trace ID, undefined for one it does not hold (10). */
-	actorOf?(traceId: string | undefined): { actor?: Actor } | undefined;
-	/** The replay's Mock set to the person a `session-settle` entry records (phase 3 specification, 4.4). */
-	drive?(person: string | null): void;
-	/** At a reload, the replay's Mock set to the person the page's first settle names (4.4). */
-	startPage?(): void;
-	/** Set by the kernel for replay: a confirmed run answered from record, with command and result (#1656). */
-	recordedRun?(confirmation: string, command: string, result: CommandResult): void;
-}
 
 /**
  * On a queued call's context, set by `run` when it queues the call: its ticket (phase 3 specification, 4.4),
@@ -1215,9 +1187,11 @@ export async function createKernelParts(
 		// Only a call the caller's interface may make: one it is not exposed to runs, and is refused as it was live, so a
 		// replay never answers it from an entry its handler could not have reached (#859).
 		const runsOn = registryFor(registries, iface, fields.caller);
+		let rerun: NestedRerunV1['rerun'] | undefined;
 		if (fields.parent !== undefined && runsOn.hasCommand(name)) {
 			const answered = internals.answerNested?.(fields.parent, name, input ?? {}, current.commands);
-			if (answered) return answered as CommandResult<T>;
+			if (answered && 'rerun' in answered) rerun = answered.rerun;
+			else if (answered) return answered as CommandResult<T>;
 		}
 		// The agent interface runs as an agent, the session's person in its `onBehalfOf` (phase 3
 		// specification, 3.1), named by `late/`, which has loaded since its calls wait for stage B; a port's or
@@ -1237,7 +1211,7 @@ export async function createKernelParts(
 		// A handler's client kept past its traced call (phase 5's 5.3): refused, so none escapes taint.
 		const late = fields.parent === undefined ? undefined : traces.refusal(fields.parent);
 		if (late) return late as CommandResult<T>;
-		const traceId = `${traceBase}-${++calls}`;
+		const traceId = rerun?.traceId ?? `${traceBase}-${++calls}`;
 		if (trace) traces.set(traceId, trace);
 		const owned = apps.contextOf(name, input);
 		// The call's person's persona, for the journal alone: no decision reads it (6.2). The person is the one the
@@ -1276,6 +1250,7 @@ export async function createKernelParts(
 			...owned,
 			...fields,
 			...(persona ? { persona } : {}),
+			...rerun?.context,
 			...(trace ? { copilotSession: trace.session, turn: trace.turn, trace } : {}),
 			actor,
 			scope:
@@ -1312,9 +1287,9 @@ export async function createKernelParts(
 		seqs.delete(traceId);
 		const seen = scope.seen.get(traceId);
 		scope.seen.delete(traceId);
-		if (fields.parent !== undefined && seq !== undefined) {
+		if (fields.parent !== undefined && seq !== undefined)
 			internals.nestedUnrecorded?.(fields.parent, name);
-		}
+		rerun?.done(result);
 		const event: KernelEventV4 = {
 			command: name,
 			interface: iface,

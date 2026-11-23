@@ -105,7 +105,13 @@ const KEY_ROWS: Readonly<Record<string, Row>> = {
 		message: '`ui.documents[].panel` is not served: no document type needs a panel yet.',
 		suggestion: 'Remove `panel`. A later version adds it when a type asks.',
 	},
-	'/ui/menus': later('ui.menus', 4),
+	// Phase 4 deferred menus to a specification of their own (its section 9, D127; #2095).
+	'/ui/menus': {
+		code: 'MANIFEST_SURFACE_UNAVAILABLE',
+		message:
+			'`ui.menus` is not served yet: menus are deferred to a specification of their own (#2095).',
+		suggestion: 'Remove `ui.menus` until that specification adds it.',
+	},
 	'/ui/automations': later('ui.automations', 7),
 	'/commands/*/output_budget': {
 		code: 'MANIFEST_BUDGET_UNAVAILABLE',
@@ -144,6 +150,15 @@ const KEY_ROWS: Readonly<Record<string, Row>> = {
 
 function surfaceRow(name: string, table: Readonly<Record<string, readonly string[]>>): Row {
 	const known = SURFACE_CATALOG_V1.find((surface) => surface.id === name);
+	// Phase 4 deferred menus (D127, #2095): `ui.menus` is refused too, so the row does not send the author there.
+	if (known?.id === 'menus') {
+		return {
+			code: 'MANIFEST_SURFACE_UNAVAILABLE',
+			message:
+				'The surface `menus` is not declared under `ui.surfaces`, and `ui.menus` is not served yet: menus are deferred to a specification of their own (#2095).',
+			suggestion: 'Remove it until that specification adds `ui.menus`.',
+		};
+	}
 	if (known) {
 		return {
 			code: 'MANIFEST_SURFACE_UNAVAILABLE',

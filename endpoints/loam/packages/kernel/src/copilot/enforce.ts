@@ -27,6 +27,8 @@ const ENFORCED = Symbol.for('dev.loam/enforced');
 const RAISED = Symbol.for('dev.loam/raised');
 /** `journal-order.ts`'s `RECORDED_AUTONOMY`: in a replay alone, the decision the entry journaled (#1936). */
 const RECORDED_AUTONOMY = Symbol.for('dev.loam/recorded-autonomy');
+/** `journal-order.ts`'s `RECORDED_TAINT`: in a replay alone, the taint sources the entry journaled (#2118). */
+const RECORDED_TAINT = Symbol.for('dev.loam/recorded-taint');
 
 /** The person's suggestion records (6.1), in the workspace store, each carrying `person`. */
 export const SUGGESTION_TABLE = 'copilot-suggestion';
@@ -283,6 +285,7 @@ export function createEnforcement(deps: EnforcementDeps): Enforcement {
 		// enforced here until milestone C (10.1, D98): that server keeps no autonomy rows and has no person's inbox.
 		// The decision is this gate's alone to journal (#1936): never a caller's, nor one an outer call left.
 		delete call.autonomy;
+		delete call.taint;
 		if (call.interface !== 'agent' || call.parent !== undefined || call.caller !== undefined)
 			return next();
 		// The shell's run of a call a person confirmed: the confirmations' gate checks its id against the act that holds it.
@@ -324,11 +327,21 @@ export function createEnforcement(deps: EnforcementDeps): Enforcement {
 		// Taint (5.3): a tainted session's call outside what its sources vouch for is at most `ask`, whatever the rows say.
 		let reason: DecisionV1['reason'] = unit ? 'unit' : 'policy';
 		let sources: string[] = [];
+		// A replay takes the decision its entry journaled, as the call was decided live (#1936), and the session's taint
+		// with it (#2118): an entry that journaled none read none.
+		const recorded = (call as unknown as Record<symbol, unknown>)[RECORDED_AUTONOMY];
+		const replayed = recorded === 'act' || recorded === 'ask' || recorded === 'suggest';
 		if (trace !== undefined) {
+			const recordedTaint = (call as unknown as Record<symbol, unknown>)[RECORDED_TAINT];
+			const session = replayed
+				? Array.isArray(recordedTaint)
+					? (recordedTaint as string[])
+					: []
+				: await deps.taintOf(trace.session);
+			// Journaled with the call, as `autonomy` is.
+			if (session.length > 0) call.taint = [...session];
 			// A unit's submit is treated as tainted by the unit's source (7.3).
-			const tainted = [
-				...new Set([...(await deps.taintOf(trace.session)), ...(unit ? [unit.source] : [])]),
-			];
+			const tainted = [...new Set([...session, ...(unit ? [unit.source] : [])])];
 			if (tainted.length > 0 && lowers(name, tainted)) {
 				sources = tainted;
 				chain.push({ id: 'taint', mode: 'ask', as: 'ceiling' });
@@ -337,9 +350,7 @@ export function createEnforcement(deps: EnforcementDeps): Enforcement {
 				if (mode === 'ask') reason = 'taint';
 			}
 		}
-		// A replay takes the decision its entry journaled, as the call was decided live (#1936).
-		const recorded = (call as unknown as Record<symbol, unknown>)[RECORDED_AUTONOMY];
-		if (recorded === 'act' || recorded === 'ask' || recorded === 'suggest') mode = recorded;
+		if (replayed) mode = recorded;
 		// A unit's text never goes into a confirmation or a suggestion record (7.3): a submit that would ask or suggest is
 		// refused, and nothing is stored or counted.
 		// A command that declares a `confirm_prompt` would be asked by phase 4's gate in `act` too: refused alike.

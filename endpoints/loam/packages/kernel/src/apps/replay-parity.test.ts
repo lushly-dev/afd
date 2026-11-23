@@ -12,15 +12,24 @@ import { MockAuthAdapter } from '@lushly-dev/afd-auth';
 import { StreamableHttpTransport } from '@lushly-dev/afd-client/streamable-http';
 import { type JournalEntry, type JournalRecord, MemoryJournalSink } from '@lushly-dev/afd-core';
 import { createMcpHandler } from '@lushly-dev/afd-server';
+import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
 import type { ManifestV1, ProjectionV3 } from '@lushly-dev/loam-manifest';
 import { type AppCallContextV1, defineApp, type ManifestV2, success } from '@lushly-dev/loam-sdk';
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import { afterEach, describe, expect, it } from 'vitest';
+import { z } from 'zod';
 import { APPROVAL_HEALTH_TABLE } from '../copilot/health.js';
+import { PAGE_DECIDED } from '../errors.js';
+import type { NestedRerunV1 } from '../journal-order.js';
 import { createKernelParts } from '../kernel.js';
 import { NOTIFICATION_TABLE } from '../late/notifications.js';
 import { createScopedWorkspace, type ScopedWorkspace, scopedPackages } from '../scope/fixtures.js';
-import { createFixedEnvironment, createFixturePorts, replayKernel } from '../testing.js';
+import {
+	createFixedEnvironment,
+	createFixturePorts,
+	nestedReplay,
+	replayKernel,
+} from '../testing.js';
 import { PROBE_DOCUMENTS_DEFINITION, PROBE_DOCUMENTS_MANIFEST } from '../testing-documents.js';
 import type { LoamKernelV5, McpToolCallResult, MountTransportV2 } from '../types.js';
 
@@ -61,6 +70,19 @@ const BOOK_MANIFEST = {
 			},
 		},
 		{
+			name: 'book-greet',
+			title: 'Greet a name',
+			description:
+				'Read the book through its own client, then add a name to it, as hello-greet reads its setting.',
+			effects: ['store-write'],
+			input_schema: {
+				type: 'object',
+				properties: { name: { type: 'string', minLength: 1 } },
+				required: ['name'],
+				additionalProperties: false,
+			},
+		},
+		{
 			name: 'book-list',
 			title: 'List the names',
 			description: 'List the names in the book.',
@@ -81,6 +103,12 @@ const BOOK = defineApp({
 			await context.store?.put(input.name, true);
 			for (const listener of listeners) listener();
 			return success({ name: input.name });
+		}) as never,
+		'book-greet': (async (input: { name: string }, context: AppCallContextV1) => {
+			const seen = await context.client?.call<{ names: string[] }>('book-list', {});
+			await context.store?.put(input.name, true);
+			for (const listener of listeners) listener();
+			return success({ name: input.name, before: seen?.data?.names ?? null });
 		}) as never,
 		'book-list': (async (_input: unknown, context: AppCallContextV1) =>
 			success({
@@ -287,8 +315,148 @@ describe('#1936, the re-check: what a read saw, not when it ran', () => {
 		const last = entries.map(({ command }) => command).lastIndexOf('book-list');
 		expect(last).toBeGreaterThan(act);
 		expect((entries[last]?.result.data as { names?: unknown })?.names).toEqual(['Ada', 'Bob']);
-		// Not replayed here: a replay answers the action, a nested call, from its record, so its write never lands in the
-		// replay's store, whatever the order (a follow-up in phase 4's specification).
+		// The action, a nested write, runs again in a replay, so its write lands in the replay's store and the read after
+		// it reads the same (#2119).
+		expect(await replayed(entries)).toEqual([]);
+	});
+});
+
+describe('#2119: a notice action runs again in a replay, on its own trace and tape', () => {
+	it('lands an action that reads through its client before it writes, as hello-greet reads its setting', async () => {
+		const { kernel, journal, reads } = await boot(false);
+		await kernel.call('book-sign', { name: 'Ada' });
+		const pushed = await kernel
+			.appPort('book')
+			.call<{ notification: { id: string } }>('notification-push', {
+				title: 'Greet Bob',
+				action: { command: 'book-greet', label: 'Greet', input: { name: 'Bob' } },
+			});
+		const acted = await kernel.call('notification-act', {
+			notification: pushed.data?.notification.id,
+		});
+		expect(acted.data).toMatchObject({ state: 'done', result: { before: ['Ada'] } });
+		await Promise.all(reads);
+		expect((await kernel.call('book-list', {})).data).toEqual({ names: ['Ada', 'Bob'] });
+		const entries = await journal.read();
+		const greet = entries.find(({ command }) => command === 'book-greet');
+		// The action's own nested read, under the action's trace ID.
+		expect(entries.some(({ context }) => context?.parent === greet?.traceId)).toBe(true);
+		expect(await replayed(entries)).toEqual([]);
+	});
+
+	const SIGN = {
+		name: 'book-sign',
+		inputSchema: z.object({ name: z.string() }),
+	} as unknown as ZodCommandDefinition;
+	const LIST = { name: 'book-list', inputSchema: z.object({}) } as unknown as ZodCommandDefinition;
+	const entry = (
+		traceId: string,
+		command: string,
+		context: Record<string, unknown> = {},
+		result: unknown = { success: true, data: { name: 'Bob' }, metadata: { executionTimeMs: 1 } }
+	) =>
+		({
+			seq: 1,
+			traceId,
+			command,
+			timestamp: '2026-11-22T00:00:00.000Z',
+			input: command.endsWith('-list') ? {} : { name: 'Bob' },
+			context,
+			result,
+			tape: { clock: [7, 8], random: [0.25] },
+		}) as unknown as JournalEntry;
+	const journal = (context: Record<string, unknown> = {}, ...more: JournalEntry[]) => [
+		entry('loam-t-1', 'notification-act'),
+		entry('loam-t-2', 'book-sign', { parent: 'loam-t-1', ...context }),
+		...more,
+	];
+	/** What the rerun answers when it answers as recorded: only its time differs. */
+	const OK = { success: true, data: { name: 'Bob' }, metadata: { executionTimeMs: 2 } };
+	const rerunOf = (answered: unknown) => {
+		if (!answered || typeof answered !== 'object' || !('rerun' in answered))
+			throw new Error(`not a rerun: ${JSON.stringify(answered)}`);
+		return (answered as NestedRerunV1).rerun;
+	};
+
+	it('runs the action under its recorded trace ID, with the clock and random values its entry recorded', () => {
+		const nested = nestedReplay(journal());
+		const rerun = rerunOf(nested.take('loam-t-1', 'book-sign', { name: 'Bob' }, SIGN));
+		expect(rerun.traceId).toBe('loam-t-2');
+		const { clock, random } = rerun.context;
+		expect([clock?.now(), clock?.now(), clock?.now()]).toEqual([7, 8, 8]);
+		expect(random?.next()).toBe(0.25);
+		rerun.done({ success: true, data: { name: 'Bob' }, metadata: { executionTimeMs: 3 } });
+		nested.finish('loam-t-1');
+		expect([...nested.problems]).toEqual([]);
+	});
+
+	it('keeps against the action what it answered otherwise, a call it added, or one it left out', () => {
+		const warned = nestedReplay(journal());
+		rerunOf(warned.take('loam-t-1', 'book-sign', { name: 'Bob' }, SIGN)).done({
+			success: true,
+			data: { name: 'Bob' },
+			metadata: { executionTimeMs: 2 },
+			warnings: [{ code: 'EXTRA', message: 'An extra warning' }],
+		});
+		expect([...warned.problems]).toEqual([
+			['loam-t-2', "The notice's action 'book-sign' answered other than its entry"],
+		]);
+		// A call the action made that its entry does not hold: answered by nothing, it runs and is journaled.
+		const added = nestedReplay(journal());
+		const rerun = rerunOf(added.take('loam-t-1', 'book-sign', { name: 'Bob' }, SIGN));
+		expect(added.take(rerun.traceId, 'book-list', {}, LIST)).toBeUndefined();
+		added.unrecorded(rerun.traceId, 'book-list');
+		rerun.done(OK);
+		expect([...added.problems.keys()]).toEqual(['loam-t-2']);
+		// The action's own nested read, answered from its entry, and missed when it is not made.
+		const read = entry('loam-t-3', 'book-list', { parent: 'loam-t-2' }, { success: true });
+		const answered = nestedReplay(journal({}, read));
+		const again = rerunOf(answered.take('loam-t-1', 'book-sign', { name: 'Bob' }, SIGN));
+		expect(answered.take(again.traceId, 'book-list', {}, LIST)).toEqual({ success: true });
+		again.done(OK);
+		expect([...answered.problems]).toEqual([]);
+		const missed = nestedReplay(journal({}, read));
+		rerunOf(missed.take('loam-t-1', 'book-sign', { name: 'Bob' }, SIGN)).done(OK);
+		expect([...missed.problems.values()]).toEqual([
+			"The handler did not call 'book-list', which the journal records",
+		]);
+	});
+
+	it('answers from the record an action the replay would at the top level, and any other handler’s call', () => {
+		const recorded = (
+			context: Record<string, unknown>,
+			result?: unknown,
+			command = 'book-sign'
+		) => {
+			const nested = nestedReplay([
+				entry('loam-t-1', 'notification-act'),
+				entry('loam-t-2', command, { parent: 'loam-t-1', ...context }, result),
+			]);
+			const answered = nested.take(
+				'loam-t-1',
+				command,
+				command === 'app-list' ? {} : { name: 'Bob' },
+				{
+					name: command,
+					inputSchema: command === 'app-list' ? z.object({}) : z.object({ name: z.string() }),
+				} as unknown as ZodCommandDefinition
+			);
+			return answered !== undefined && !('rerun' in answered);
+		};
+		// A mounted server's, a recorded query's, and a refusal the page decided.
+		expect(recorded({ replay: 'recorded' })).toBe(true);
+		expect(recorded({}, { success: true, data: [] }, 'app-list')).toBe(true);
+		expect(
+			recorded({}, { success: false, error: { code: 'X', details: { [PAGE_DECIDED]: true } } })
+		).toBe(true);
+		// Another handler's nested call is still answered from its record.
+		const app = nestedReplay([
+			entry('loam-t-1', 'book-list'),
+			entry('loam-t-2', 'book-sign', { parent: 'loam-t-1' }),
+		]);
+		expect(app.take('loam-t-1', 'book-sign', { name: 'Bob' }, SIGN)).toMatchObject({
+			data: { name: 'Bob' },
+		});
 	});
 });
 

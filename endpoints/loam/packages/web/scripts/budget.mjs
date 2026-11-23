@@ -729,7 +729,9 @@ export const CEILINGS = Object.freeze({
 	// #1045 (WAW ordering in `journal-order.ts`) merged on `main` at `bfa42bff`: within 157,200.
 	// #2128 (execution-controls batch limits in `afd-core` and validation issue cap in `afd-server/direct`)
 	// merged on `main` at `88cd5f02b`: measured 159,157; set to 159,600 under D115.
-	kernelMinified: 159_600,
+	// Bug batch #2179/#2119/#2118/#2016/#1952 merged with `main` at `b868f8c1`: measured 161,391 (+2,234 over #2128's
+	// 159,157: a replay's rerun of a notice's action in `execute`, the gate's journaled `taint`); set to 161,900 under D115.
+	kernelMinified: 161_900,
 	// Phase 4's steps 2 (+1,494) and 3 (+8,786) together: 92,316 measured with both merged; set to 93,000.
 	// Phase 4's step 5: 93,596, the inbox's wiring (above); set to 94,000.
 	// With step 8 merged beside them, 93,244; set to 94,000 (the header records it).
@@ -836,7 +838,9 @@ export const CEILINGS = Object.freeze({
 	// #871 (`fromJsonSchema` + `stripOwnProto` in `@lushly-dev/loam-manifest/validate` and parsed config) and #876 (native
 	// handler deadline and post-timeout/commit-time store/client guard in `native.ts`/`store.ts`), merged on `main` at
 	// `276855fc`: set to 474,000 under D115.
-	appsMinified: 474_000,
+	// Bug batch #2179/#2119/#2118/#2016/#1952 merged with `main` at `b868f8c1`: 474,014 (+217 over its 473,797 at
+	// `a5e79aab`, main's changes since); set to 474,500 under D115.
+	appsMinified: 474_500,
 	// Steps 4 and 5 together: 94,868 (step 4's slot and dialogs beside the inbox's Open inbox and hidden toasts' timers);
 	// set to 95,500 under D115.
 	// Phase 5's step 3 with phase 3's step 8 merged (`main` at `46f7ab11`; step 8's `surface-calls`, shared with
