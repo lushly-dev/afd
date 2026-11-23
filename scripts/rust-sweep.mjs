@@ -6,8 +6,10 @@
  *   node scripts/rust-sweep.mjs [--dir <target>...] [--days <n>] [--max-gb <n>] [--dry-run] [--force]
  *
  * Cargo names each build of a crate or test binary `<name>-<hash>` in `deps/`, `build/` and
- * `.fingerprint/`, and the hash covers the source path, so every worktree, feature set and
- * toolchain adds its own copies and nothing removes them. A sweep, per profile directory:
+ * `.fingerprint/` (to Rust 1.99), or keeps it in its own `build/<package>/<hash>/` (from Cargo
+ * 1.100, which has no `deps/` or `.fingerprint/`), and the hash covers the source path, so every
+ * worktree, feature set and toolchain adds its own copies and nothing removes them. A sweep, per
+ * profile directory:
  *   - deletes `incremental/` (the repository's .cargo/config.toml turns incremental off);
  *   - deletes every `<hash>` group none of whose files a build has read for `--days` (default 3):
  *     Cargo reads a group's fingerprint on every build that includes it, so a group still in
@@ -27,7 +29,11 @@ const DAY = 24 * 60 * 60 * 1000;
 const GIB = 1024 ** 3;
 /** Cargo's per-build hash: 16 hex digits after a dash, ending the name or before an extension. */
 const HASH = /-([0-9a-f]{16})(?=\.|$)/;
+/** Cargo 1.100's per-build directory name under `build/<package>/`. */
+const HASH_DIR = /^[0-9a-f]{16}$/;
 const HASHED = ['deps', 'build', '.fingerprint'];
+/** What only a profile directory holds, in either layout. */
+const PROFILE_MARKERS = ['deps', 'build', '.fingerprint', 'incremental'];
 const BUILDERS = new Set(['cargo', 'rustc', 'clippy-driver']);
 
 export function parseSweepArgs(argv) {
@@ -130,20 +136,44 @@ function measure(path, seen) {
 	return { bytes, used };
 }
 
-/** Profile directories (`debug`, `release`, `<triple>/debug`, ...): those holding `deps/`. */
+const isProfile = (dir) => PROFILE_MARKERS.some((marker) => existsSync(join(dir, marker)));
+
+/**
+ * Profile directories (`debug`, `release`, `<triple>/debug`, ...): those holding `deps/`,
+ * `build/`, `.fingerprint/` or `incremental/`. `tmp/` is integration tests' scratch
+ * (`CARGO_TARGET_TMPDIR`), never a profile.
+ */
 function profiles(target) {
 	const found = [];
 	for (const name of readdirSync(target)) {
 		const dir = join(target, name);
-		if (!lstatSync(dir).isDirectory()) continue;
-		if (existsSync(join(dir, 'deps'))) found.push(dir);
+		if (name === 'tmp' || !lstatSync(dir).isDirectory()) continue;
+		if (isProfile(dir)) found.push(dir);
 		else
 			for (const inner of readdirSync(dir)) {
 				const nested = join(dir, inner);
-				if (lstatSync(nested).isDirectory() && existsSync(join(nested, 'deps'))) found.push(nested);
+				if (lstatSync(nested).isDirectory() && isProfile(nested)) found.push(nested);
 			}
 	}
 	return found;
+}
+
+/** A profile's builds as `[hash, path]`: `<name>-<hash>` entries, and `build/<package>/<hash>/`. */
+function hashedEntries(profile) {
+	const entries = [];
+	for (const kind of HASHED) {
+		const dir = join(profile, kind);
+		if (!existsSync(dir)) continue;
+		for (const name of readdirSync(dir)) {
+			const path = join(dir, name);
+			const hash = HASH.exec(name)?.[1];
+			if (hash) entries.push([hash, path]);
+			else if (kind === 'build' && lstatSync(path).isDirectory())
+				for (const inner of readdirSync(path))
+					if (HASH_DIR.test(inner)) entries.push([inner, join(path, inner)]);
+		}
+	}
+	return entries;
 }
 
 /** Sweeps one target directory and reports what it freed, or why it touched nothing. */
@@ -171,18 +201,11 @@ export function sweepTarget(
 			remove(incremental);
 		}
 		const groups = new Map();
-		for (const kind of HASHED) {
-			const dir = join(profile, kind);
-			if (!existsSync(dir)) continue;
-			for (const name of readdirSync(dir)) {
-				const hash = HASH.exec(name)?.[1];
-				if (!hash) continue;
-				const group = groups.get(hash) ?? { paths: [], used: 0 };
-				const path = join(dir, name);
-				group.paths.push(path);
-				group.used = Math.max(group.used, measure(path, new Set()).used);
-				groups.set(hash, group);
-			}
+		for (const [hash, path] of hashedEntries(profile)) {
+			const group = groups.get(hash) ?? { paths: [], used: 0 };
+			group.paths.push(path);
+			group.used = Math.max(group.used, measure(path, new Set()).used);
+			groups.set(hash, group);
 		}
 		for (const group of groups.values()) {
 			if (group.used >= cutoff) continue;

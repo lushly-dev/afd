@@ -16,13 +16,13 @@ name = "loam-desktop"
 path = "src/main.rs"
 
 [build-dependencies]
-tauri-build = { version = "=2.7.4", features = [] }
+tauri-build = { version = "=2.7.6", features = [] }
 
 # Phase 6 specification, section 2: every crate exactly pinned. No `devtools` feature, and no plugin whose
 # JavaScript permissions could be granted. `tracing` is enabled on `tauri` (#1448) so `Webview::on_message`
 # routes its invoke-key mismatch through `tracing::error!` (handled by `logging::init`) instead of `eprintln!`.
 [dependencies]
-tauri = { version = "=2.12.5", features = ["tracing"] }
+tauri = { version = "=2.12.7", features = ["tracing"] }
 tracing = "=0.1.44"
 tauri-plugin-single-instance = "=2.5.5"
 tauri-plugin-updater = { version = "=2.14.1", default-features = false, features = ["rustls-tls", "zip"] }
@@ -61,7 +61,7 @@ windows-sys = { version = "=0.61.2", features = [
 [dev-dependencies]
 tempfile = "3"
 # P6-D4's origin case drives the commands through Tauri's own IPC, on its mock runtime.
-tauri = { version = "=2.12.5", features = ["test"] }
+tauri = { version = "=2.12.7", features = ["test"] }
 
 [features]
 # `tauri build` turns this on, so the release binary serves its own protocols rather than a dev server.

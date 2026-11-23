@@ -23,12 +23,14 @@ pub fn fixture_bin() -> PathBuf {
     PathBuf::from(env!("CARGO_BIN_EXE_umbel-mount-fixture"))
 }
 
-/// `hello-mcp`, which another package builds (specification section 1, M6): next to the test
-/// binaries' `deps/` directory, as `umbel.yml` builds it before the tests.
+/// `hello-mcp`, which another package builds (specification section 1, M6): in `<target>/debug/`,
+/// where `umbel.yml` builds it before the tests. The target directory is the parent of Cargo's
+/// `CARGO_TARGET_TMPDIR` (see `components::wasm` for a configured `build-dir`); the test binary's own
+/// location is no guide, since Cargo 1.100 moved test binaries from `<target>/debug/deps/` to
+/// `<target>/debug/build/<package>/<hash>/out/`.
 pub fn hello_mcp() -> PathBuf {
-    let exe = std::env::current_exe().unwrap();
-    let dir = exe.parent().and_then(Path::parent).unwrap();
-    let path = dir.join(if cfg!(windows) {
+    let target = Path::new(env!("CARGO_TARGET_TMPDIR")).parent().unwrap();
+    let path = target.join("debug").join(if cfg!(windows) {
         "hello-mcp.exe"
     } else {
         "hello-mcp"

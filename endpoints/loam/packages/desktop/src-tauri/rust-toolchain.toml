@@ -1,6 +1,6 @@
 # Umbel's toolchain (endpoints/umbel/rust-toolchain.toml), so a shared CARGO_TARGET_DIR builds third-party
 # crates once (phase 6 specification, section 2).
 [toolchain]
-channel = "1.98.0"
+channel = "1.100.0"
 components = ["clippy", "rustfmt"]
 profile = "minimal"

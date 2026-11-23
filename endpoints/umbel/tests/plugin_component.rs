@@ -159,6 +159,9 @@ fn hellos_imports_are_exactly_the_ones_its_grants_allow() {
         "umbel:plugin/packs@1.1.0",
         "umbel:plugin/clock@1.1.0",
         "wasi:clocks/monotonic-clock",
+        // Rust 1.100's standard library imports the wall clock too; the `clock` grant covers it,
+        // and the host serves it from the call's context like the monotonic clock.
+        "wasi:clocks/wall-clock",
         "wasi:cli/environment",
         "wasi:cli/exit",
         "wasi:cli/stderr",
@@ -586,8 +589,10 @@ async fn exit_ends_the_call_as_a_trap() {
     let host = probe(dir.path());
     let result = host.call("probe-exit", json!({})).await;
     assert_eq!(code(&result), "PLUGIN_TRAPPED", "{result:?}");
-    // WASI 0.2's `exit` carries success or failure, not a code: exit(3) is a failure, 1.
-    assert!(message(&result).contains("exit(1)"), "{result:?}");
+    // WASI 0.2's `exit` carries only success or failure, which a component built before Rust 1.100
+    // reported as exit(1). Rust 1.100's standard library calls WASI 0.2's `exit-with-code`, which
+    // wasmtime-wasi links, so the fixture's own code arrives.
+    assert!(message(&result).contains("exit(3)"), "{result:?}");
 }
 
 #[tokio::test(flavor = "multi_thread")]

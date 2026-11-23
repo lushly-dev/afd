@@ -344,8 +344,7 @@ async fn serve(stream: TcpStream, world: Arc<Mutex<World>>) {
     if world.lock().unwrap().stall {
         // The connection stays open, and nothing is ever written to it.
         let _held = &stream;
-        let never: std::convert::Infallible = std::future::pending().await;
-        match never {}
+        return std::future::pending().await;
     }
     let (read, mut write) = stream.into_split();
     let mut lines = BufReader::new(read);

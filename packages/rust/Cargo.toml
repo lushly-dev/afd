@@ -136,3 +136,7 @@ tracing-subscriber = { version = "0.3", default-features = false, features = ["f
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
+
+# This crate sets no lints of its own. The empty table tells Cargo 1.100 (`missing_lints_inheritance`) that it
+# does not inherit `[workspace.lints]` from Umbel, which reaches it as a path dependency.
+[lints]
