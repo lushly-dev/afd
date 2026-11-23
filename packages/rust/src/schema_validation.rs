@@ -43,10 +43,14 @@ pub(crate) fn compile(schema: &Value) -> Result<(), String> {
 }
 
 fn inspect(schema: &Value, root: &Value, path: &str) -> Result<(), String> {
+    // A boolean schema: `true` accepts any value and `false` none (spec/validation.md).
+    if schema.is_boolean() {
+        return Ok(());
+    }
     let root = resource(schema, root);
     let object = schema
         .as_object()
-        .ok_or_else(|| format!("Schema at {path} must be an object"))?;
+        .ok_or_else(|| format!("Schema at {path} must be an object or a boolean"))?;
     for (key, value) in object {
         let location = format!("{path}/{key}");
         if !KEYWORDS.contains(&key.as_str()) && !ANNOTATIONS.contains(&key.as_str()) {
@@ -155,7 +159,7 @@ fn target<'a>(root: &'a Value, reference: &str) -> Option<&'a Value> {
         return None;
     }
     root.pointer(&reference[1..])
-        .filter(|schema| schema.is_object())
+        .filter(|schema| schema.is_object() || schema.is_boolean())
 }
 
 fn kind(value: &Value) -> &'static str {
@@ -213,6 +217,10 @@ fn default_value<'a>(schema: &'a Value, root: &'a Value, depth: usize) -> Option
     })
 }
 
+/// The schema `true` stands for.
+static EMPTY_SCHEMA: std::sync::LazyLock<Value> =
+    std::sync::LazyLock::new(|| Value::Object(Map::new()));
+
 fn validate(
     value: Option<&Value>,
     schema: &Value,
@@ -231,6 +239,25 @@ fn validate(
         );
         return None;
     }
+    // A boolean schema (spec/validation.md): `true` is `{}`, and `false` is `not: {}`, which no
+    // value satisfies.
+    let schema = match schema {
+        Value::Bool(true) => &*EMPTY_SCHEMA,
+        Value::Bool(false) => {
+            issue(
+                errors,
+                path,
+                "invalid_type",
+                format!(
+                    "Invalid input: expected never, received {}",
+                    value.map(kind).unwrap_or("undefined")
+                ),
+                Some("never"),
+            );
+            return None;
+        }
+        schema => schema,
+    };
     let root = resource(schema, root);
     if value.is_none() {
         if let Some(default) = default_value(schema, root, 0) {
@@ -690,5 +717,41 @@ mod tests {
         assert!(compile(&schema)
             .unwrap_err()
             .contains("Unresolved local $ref"));
+    }
+
+    /// A boolean schema is allowed wherever a schema is: `true` is `{}`, `false` is `not: {}`
+    /// (spec/validation.md; #2047).
+    #[test]
+    fn boolean_schemas_are_schemas() {
+        let schema = json!({
+            "type": "object",
+            "properties": {
+                "t": true,
+                "f": false,
+                "r": {"$ref": "#/$defs/A"},
+                "a": {"type": "array", "items": false}
+            },
+            "required": ["t"],
+            "$defs": {"A": true}
+        });
+        compile(&schema).unwrap();
+        assert_eq!(
+            validate_value(&schema, &json!({"t": 1, "r": {"x": 1}, "a": []})).unwrap(),
+            json!({"t": 1, "r": {"x": 1}, "a": []})
+        );
+        let missing = validate_value(&schema, &json!({})).unwrap_err();
+        assert_eq!(missing[0]["path"], "t");
+        assert_eq!(
+            missing[0]["message"],
+            "Invalid input: expected nonoptional, received undefined"
+        );
+        let never = validate_value(&schema, &json!({"t": 1, "f": 1, "a": [2]})).unwrap_err();
+        assert_eq!(paths(never.clone()), vec![json!("a.0"), json!("f")]);
+        for issue in never {
+            assert_eq!(
+                issue["message"],
+                "Invalid input: expected never, received number"
+            );
+        }
     }
 }

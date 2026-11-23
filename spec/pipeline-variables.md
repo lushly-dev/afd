@@ -46,7 +46,9 @@ context (trace IDs, auth, or other values a host passes to its executor).
 ## Unresolved references
 
 If a reference cannot be resolved (unknown alias, index out of bounds, missing key, skipped or
-failed step, `__` segment, no request `input`), it resolves to **absent**:
+failed step, a successful step whose result has no `data`, `__` segment, no request `input`), it
+resolves to **absent**. A successful step whose `data` is `null` is not absent: a reference to it
+resolves to `null`, and a path below it is absent. Absent means:
 
 - as an object property value, the property is omitted from the step input;
 - as an array element, it becomes `null`.

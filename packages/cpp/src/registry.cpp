@@ -210,6 +210,11 @@ std::optional<std::string> CommandRegistry::register_command(CommandDefinition c
     if (!command.handler) {
         return "Command '" + command.name + "' has no handler";
     }
+    // A boolean schema is allowed below the root, but a command's input is an object
+    // (spec/validation.md).
+    if (!command.input_schema.is_object()) {
+        return "Command '" + command.name + "': an input schema must be a JSON Schema object";
+    }
     if (command.output_budget) {
         if (auto problem = command.output_budget->validate()) {
             return "Command '" + command.name + "' has an invalid outputBudget: " + *problem;

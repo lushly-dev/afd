@@ -524,9 +524,18 @@ def create_pipeline(
 # JSON-only traversal live in afd.core.pipeline_variables.
 
 
+def step_data(result: CommandResult[Any]) -> Dict[str, Any]:
+    """The ``data`` keyword of a successful step built from ``result``: ``None`` set explicitly
+    when the result's data was set to ``None``, nothing when the result has no data, so a
+    reference reads the first as ``null`` and the second as absent."""
+    return {"data": result.data} if "data" in result.model_fields_set else {}
+
+
 def _step_view(step: Optional[StepResult], context: PipelineContext) -> Any:
     """JSON view of a successful step's data, or ABSENT for any other step."""
-    if step is None or step.status != StepStatus.SUCCESS or step.data is None:
+    # A successful step's data is `null` when it was set to None, and absent only when it was
+    # never set, as in TypeScript, where `data: null` and `data: undefined` differ (#1961).
+    if step is None or step.status != StepStatus.SUCCESS or "data" not in step.model_fields_set:
         return ABSENT
     cached = context._views.get(id(step))
     if cached is not None and cached[0] is step:
@@ -1186,11 +1195,9 @@ async def execute_pipeline(
                 alias=step.as_,
                 command=step.command,
                 status=StepStatus.SUCCESS,
-                # Data only when the result set some, so a result without data gives a step
-                # without data, as TypeScript's `undefined` (#2073).
-                **({"data": result.data} if "data" in result.model_fields_set else {}),
                 execution_time_ms=execution_time_ms,
                 metadata=ResultMetadata(**step_metadata),
+                **step_data(result),
             )
         else:
             step_result = StepResult(

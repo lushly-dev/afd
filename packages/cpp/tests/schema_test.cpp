@@ -458,3 +458,37 @@ TEST_CASE("a $ref outside the subset fails at compile (#1910)") {
               afd::Json::parse(R"({"$defs":{"U":{"items":{"$ref":"#/$defs/U"}}}})"))
               .has_value());
 }
+
+TEST_CASE("a boolean schema: true is {} and false is not: {} (#2047)") {
+    const auto schema = compile(afd::Json::parse(R"({"type":"object",
+        "properties":{"t":true,"f":false,"r":{"$ref":"#/$defs/A"},"a":{"type":"array","items":false}},
+        "required":["t"],"$defs":{"A":true}})"));
+    CHECK(schema.validate({{"t", 1}, {"r", {{"x", 1}}}, {"a", afd::Json::array()}}).has_value());
+    const auto missing = schema.validate(afd::Json::object());
+    REQUIRE_FALSE(missing.has_value());
+    CHECK(missing.error().errors[0].expected == "nonoptional");
+    const auto never = schema.validate({{"t", 1}, {"f", 1}, {"a", {2}}});
+    REQUIRE_FALSE(never.has_value());
+    REQUIRE(never.error().errors.size() == 2);
+    for (const auto& issue : never.error().errors) {
+        CAPTURE(issue.path);
+        CHECK(issue.code == "invalid_type");
+        CHECK(issue.expected == "never");
+        CHECK(issue.message == "Invalid input: expected never, received number");
+    }
+}
+
+TEST_CASE("a command's input schema must be an object, though booleans may sit below it") {
+    afd::CommandRegistry registry;
+    for (const afd::Json& root : {afd::Json(true), afd::Json(false)}) {
+        const auto refused =
+            registry.register_command({.name = "thing-root",
+                                       .description = "Root",
+                                       .input_schema = root,
+                                       .handler = [](const afd::Json&, afd::CommandContext&) {
+                                           return afd::success(afd::Json());
+                                       }});
+        REQUIRE(refused.has_value());
+        CHECK(refused->find("must be a JSON Schema object") != std::string::npos);
+    }
+}

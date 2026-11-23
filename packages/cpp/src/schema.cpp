@@ -485,8 +485,12 @@ public:
         const Restore restore{resource_, resource_};
         const Json* schema = follow_refs(resource_, raw_schema);
         if (schema == nullptr || schema->is_boolean()) {
+            // A boolean schema (spec/validation.md): `false` is `not: {}`, which no value
+            // satisfies, so its issue is TypeScript's for `z.never()`.
             if (schema != nullptr && !schema->get<bool>()) {
-                add(path, "Invalid input", "invalid_value");
+                const std::string received = absent ? "undefined" : received_name(value);
+                add(path, "Invalid input: expected never, received " + received, "invalid_type",
+                    "never");
                 return nullptr;
             }
             if (absent) {

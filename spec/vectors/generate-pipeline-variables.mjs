@@ -10,7 +10,8 @@ import { evaluateCondition, resolveVariable } from '../../packages/core/dist/pip
 const astralBoundaryKey = '😀'.repeat(509);
 const astralOverLimitKey = `${astralBoundaryKey}a`;
 
-// Step 0 succeeded (alias "user"), step 1 failed (alias "broken"), step 2 succeeded.
+// Step 0 succeeded (alias "user"), step 1 failed (alias "broken"), step 2 succeeded; steps 3
+// and 4 succeeded with null data and with none.
 const context = {
 	input: { q: 'milk', n: 2, nested: { deep: [1, { v: 'x' }] } },
 	steps: [
@@ -40,6 +41,10 @@ const context = {
 				[astralOverLimitKey]: 'over-limit',
 			},
 		},
+		// A step that succeeded with `null` data, which a reference reads as null (#1961), and one
+		// that succeeded with no data, which is absent. `previous` stays step 2.
+		{ index: 3, alias: 'empty', status: 'success', data: null },
+		{ index: 4, alias: 'none', status: 'success' },
 	],
 	previous: 2,
 };
@@ -52,6 +57,11 @@ const tsContext = {
 tsContext.previousResult = tsContext.steps[context.previous];
 
 const references = [
+	'$steps.empty',
+	'$steps[3]',
+	'$steps.empty.x',
+	'$steps.none',
+	'$steps[4]',
 	'$prev',
 	'$prev.id',
 	'$prev.missing',
@@ -79,7 +89,7 @@ const references = [
 	'$steps[0].id',
 	'$steps[1]',
 	'$steps[2].done',
-	'$steps[3]',
+	'$steps[5]',
 	'$steps[0][1]',
 	'$steps.user.name',
 	'$steps.user[0]',
@@ -107,6 +117,10 @@ const references = [
 ];
 
 const conditions = [
+	{ $exists: '$steps.empty' },
+	{ $eq: ['$steps.empty', null] },
+	{ $ne: ['$steps.empty', null] },
+	{ $eq: ['$steps.none', null] },
 	{ $exists: '$prev.id' },
 	{ $exists: '$prev.missing' },
 	{ $exists: '$first.nothing' },

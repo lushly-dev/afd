@@ -59,7 +59,7 @@ def starts_resource(schema: Any) -> bool:
     return isinstance(value, str) and not value.startswith("#")
 
 
-def _reference(root: dict[str, Any], ref: str) -> dict[str, Any]:
+def _reference(root: dict[str, Any], ref: str) -> Any:
     if ref == "#":
         return root
     # The subset (spec/validation.md) names a definition, never a deeper pointer: one that
@@ -75,8 +75,8 @@ def _reference(root: dict[str, Any], ref: str) -> dict[str, Any]:
     if not isinstance(definitions, dict) or name not in definitions:
         raise ValueError(f"Unresolved $ref {ref!r}")
     target: Any = definitions[name]
-    if not isinstance(target, dict):
-        raise ValueError(f"$ref {ref!r} must resolve to a schema object")
+    if not isinstance(target, (dict, bool)):
+        raise ValueError(f"$ref {ref!r} must resolve to a schema")
     return target
 
 
@@ -86,8 +86,11 @@ def check_schema(schema: dict[str, Any]) -> None:
         raise TypeError("input_schema must be a JSON Schema object or a Pydantic model class")
 
     def visit(node: Any, path: str, resource: dict[str, Any]) -> None:
+        if isinstance(node, bool):
+            # A boolean schema: `true` accepts any value and `false` none (spec/validation.md).
+            return
         if not isinstance(node, dict):
-            raise ValueError(f"Schema at {path} must be an object")
+            raise ValueError(f"Schema at {path} must be an object or a boolean")
         # A subschema with its own `$id` starts a schema resource (Draft 2020-12), and a local
         # `$ref` inside it resolves against it.
         if starts_resource(node):
@@ -104,8 +107,7 @@ def check_schema(schema: dict[str, Any]) -> None:
             elif key in {"items", "not"}:
                 visit(value, here, resource)
             elif key == "additionalProperties":
-                if not isinstance(value, bool):
-                    visit(value, here, resource)
+                visit(value, here, resource)
             elif key in {"anyOf", "oneOf", "allOf"}:
                 if not isinstance(value, list) or not value:
                     raise ValueError(f"Schema keyword {key!r} at {here} must be a nonempty array")

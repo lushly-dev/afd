@@ -29,6 +29,7 @@ from afd.core.pipeline import (
     resolution_limit_failure,
     resolve_variable,
     resolve_variables,
+    step_data,
 )
 from afd.core.pipeline_variables import (
     MAX_INPUT_DEPTH,
@@ -204,8 +205,8 @@ async def run_direct_pipeline(
             alias=step.alias,
             command=step.command,
             status=_StepStatus.SUCCESS if result.success else _StepStatus.FAILURE,
-            data=result.data if result.success else None,
             execution_time_ms=step_duration,
+            **(step_data(result) if result.success else {}),
         )
         variables.steps.append(step_record)
         if result.success:

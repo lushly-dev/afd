@@ -1085,6 +1085,14 @@ impl CommandRegistry {
         schema: serde_json::Value,
         advertised: Option<serde_json::Value>,
     ) -> Result<(), String> {
+        // A boolean schema is allowed below the root, but a command's input is an object
+        // (spec/validation.md).
+        if !schema.is_object() {
+            return Err(format!(
+                "Command '{}': an input schema must be a JSON Schema object",
+                command.name
+            ));
+        }
         crate::schema_validation::compile(&schema)?;
         validate_command_name(&command.name)?;
         validate_tool_meta(&command)?;

@@ -161,6 +161,11 @@ def validate_schema(schema: dict[str, Any], value: Any) -> Any:
         errors: list[dict[str, Any]],
         refs: frozenset[tuple[int, int]] = frozenset(),
     ) -> Any:
+        # A boolean schema (spec/validation.md): `true` is `{}` and `false` is `not: {}`.
+        if node is True:
+            node = {}
+        elif node is False:
+            node = {"not": {}}
         if not starts_resource(node):
             return walk_node(node, current, path, errors, refs)
         resources.append(node)
@@ -197,14 +202,20 @@ def validate_schema(schema: dict[str, Any], value: Any) -> Any:
                 continue
             branches = node[keyword]
             # Zod's discriminated-union semantics report the selected branch.
-            if keyword == "oneOf" and isinstance(current, dict):
+            if (
+                keyword == "oneOf"
+                and isinstance(current, dict)
+                and all(isinstance(branch, dict) for branch in branches)
+            ):
                 discriminator = next(
                     (
                         key
                         for key, prop in branches[0].get("properties", {}).items()
-                        if "const" in prop
+                        if isinstance(prop, dict)
+                        and "const" in prop
                         and all(
-                            "const" in branch.get("properties", {}).get(key, {})
+                            isinstance(branch.get("properties", {}).get(key), dict)
+                            and "const" in branch["properties"][key]
                             for branch in branches
                         )
                     ),
@@ -289,7 +300,7 @@ def validate_schema(schema: dict[str, Any], value: Any) -> Any:
                 child_path = f"{path}.{key}".lstrip(".")
                 if key in current:
                     output[key] = walk(child, current[key], child_path, errors)
-                elif "default" in child:
+                elif isinstance(child, dict) and "default" in child:
                     output[key] = copy.deepcopy(child["default"])
                 elif key in required:
                     before = len(errors)
@@ -428,7 +439,8 @@ def schema_error_details(exc: SchemaValidationError) -> dict[str, Any]:
         missing = [
             key
             for key in exc.schema.get("required", [])
-            if key not in exc.value and "default" not in properties.get(key, {})
+            if key not in exc.value
+            and not (isinstance(properties.get(key), dict) and "default" in properties[key])
         ]
         if unexpected:
             details["unexpectedFields"] = unexpected

@@ -585,3 +585,78 @@ def test_a_pointer_into_a_nested_resource_is_refused():
     }
     with pytest.raises(ValueError, match=r"Unsupported \$ref"):
         check_schema(schema)
+
+
+def test_boolean_schemas_are_schemas():
+    # spec/validation.md: `true` is `{}` and `false` is `not: {}`, wherever a schema is (#2047).
+    from afd.core.schema_validation import SchemaValidationError, validate_schema
+
+    schema = {
+        "type": "object",
+        "properties": {
+            "t": True,
+            "f": False,
+            "r": {"$ref": "#/$defs/A"},
+            "a": {"type": "array", "items": False},
+            "u": {"anyOf": [False, {"type": "string"}]},
+            "o": {"oneOf": [True]},
+        },
+        "required": ["t"],
+        "$defs": {"A": True},
+    }
+    check_schema(schema)
+    value = {"t": 1, "r": {"x": 1}, "a": [], "u": "s", "o": 3}
+    assert validate_schema(schema, value) == value
+    with pytest.raises(SchemaValidationError) as missing:
+        validate_schema(schema, {})
+    assert [(i["path"], i["expected"]) for i in missing.value.issues] == [("t", "nonoptional")]
+    with pytest.raises(SchemaValidationError) as never:
+        validate_schema(schema, {"t": 1, "f": 1, "a": [2]})
+    assert [(i["path"], i["code"], i["expected"], i["message"]) for i in never.value.issues] == [
+        ("f", "invalid_type", "never", "Invalid input: expected never, received number"),
+        ("a.0", "invalid_type", "never", "Invalid input: expected never, received number"),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_boolean_property_schemas_register_and_validate_through_the_server():
+    # #2047: the registry, the server and afd-schema handle `true` and `false` properties.
+    schema = {
+        "type": "object",
+        "properties": {
+            "t": True,
+            "f": False,
+            "u": {"oneOf": [{"type": "object", "properties": {"k": True, "a": {"const": 1}}}]},
+        },
+        "required": ["t"],
+    }
+    server = create_server("booleans")
+
+    @server.command(name="thing-check", description="Check booleans", input_schema=schema)
+    async def thing_check(input):
+        return success(input)
+
+    ok = await server.execute("thing-check", {"t": 1, "u": {"k": 2, "a": 1}})
+    assert ok.success is True
+    missing = await server.execute("thing-check", {})
+    assert missing.error.code == "VALIDATION_ERROR"
+    assert missing.error.details["missingFields"] == ["t"]
+    never = await server.execute("thing-check", {"t": 1, "f": 1})
+    assert never.error.details["errors"][0]["expected"] == "never"
+    from afd.server.bootstrap.afd_schema import create_afd_schema_command
+
+    exported = await create_afd_schema_command(lambda: server.list_commands()).handler(
+        {"format": "typescript"}, None
+    )
+    assert exported.success is True
+    text = str(exported.data)
+    assert "t: unknown" in text and "f?: never" in text
+
+    registry = create_command_registry()
+    registry.register(
+        CommandDefinition(
+            name="thing-get", description="Get", input_schema=schema, handler=lambda *_: None
+        )
+    )
+    result = await registry.execute("thing-get", {})
+    assert result.error.details["missingFields"] == ["t"]
