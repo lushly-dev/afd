@@ -261,12 +261,39 @@ export interface McpServerOptions {
 	confirmations?: 'off' | 'enforce' | 'require-human';
 
 	/**
-	 * HMAC key (at least 32 bytes) that signs the `requestState` of confirmation and approval
-	 * elicitations, bound to the call's principal (see `createContext`). Every
-	 * instance that may receive a retry needs the same key. Without it, each process uses a random
-	 * key, which works only when one process serves every request.
+	 * HMAC key (a string or bytes, at least 32 bytes, as approval secrets) that signs the
+	 * `requestState` of confirmation and approval elicitations, bound to the call's principal (see
+	 * `createContext`). Every instance that may receive a retry needs the same key. Without it,
+	 * each process uses its own random key, which works only when one process serves every
+	 * request (see `instances`). Keep it out of source.
+	 *
+	 * @throws TypeError at creation when it is shorter than 32 bytes
 	 */
 	confirmationKey?: string | Uint8Array;
+
+	/**
+	 * How many processes serve this server's URL. Two things are per process unless the host shares
+	 * them: the `confirmationKey` (a random key otherwise), used when `confirmations` is not
+	 * `'off'` or an approval middleware has `relay: 'mcp-elicitation'`; and the spent single-use
+	 * tokens of each `createApprovalMiddleware` without a `nonceStore`.
+	 *
+	 * - `'multiple'`: several processes (or engines) answer the same callers, for example behind a
+	 *   load balancer. Creating the server throws unless each of those defaults that is in use is
+	 *   supplied: a shared `confirmationKey` and, for single-use approval middleware, a shared
+	 *   `nonceStore`.
+	 * - `'single'`: one process serves every request, so the defaults are enough. A supplied
+	 *   `confirmationKey` is still validated.
+	 * - Left out: as `'single'`, but a server served over HTTP (`start()` with the HTTP transport,
+	 *   or `createMcpHandler`) logs one warning to stderr when it relies on either default, once per
+	 *   process. stdio logs nothing.
+	 *
+	 * The default key is random per server or handler, so two handlers in one process do not share
+	 * it either. Approval middleware is seen in `middleware` directly or inside `composeMiddleware`,
+	 * from any installed copy of this package from this version on (older copies do not mark
+	 * theirs); one wrapped inside another middleware is not.
+	 * `taskStore` is shared separately.
+	 */
+	instances?: 'single' | 'multiple';
 
 	/**
 	 * Which callers are approvers (`spec/command-metadata.md`, "Approval evidence from an approver

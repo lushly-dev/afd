@@ -52,7 +52,7 @@ export function canonicalOrUndefined(value: unknown): string | undefined {
 	}
 }
 
-const MIN_SECRET_BYTES = 32;
+export const MIN_SECRET_BYTES = 32;
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 

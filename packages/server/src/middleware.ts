@@ -13,6 +13,7 @@ import type {
 	TelemetrySink,
 } from '@lushly-dev/afd-core';
 import { createTelemetryEvent, failure, isActorKind, systemClock } from '@lushly-dev/afd-core';
+import { carryApprovalProcessState } from './approval-process-state.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // AUTO TRACE ID MIDDLEWARE
@@ -753,7 +754,7 @@ function sleep(ms: number, signal?: AbortSignal): Promise<boolean> {
  * Compose multiple middleware functions into one.
  */
 export function composeMiddleware(...middlewares: CommandMiddleware[]): CommandMiddleware {
-	return async (commandName, input, context, next) => {
+	const composed: CommandMiddleware = async (commandName, input, context, next) => {
 		const dispatch = async (index: number): Promise<CommandResult> => {
 			if (index >= middlewares.length) {
 				return next();
@@ -768,4 +769,7 @@ export function composeMiddleware(...middlewares: CommandMiddleware[]): CommandM
 
 		return dispatch(0);
 	};
+	// The server's `instances` check sees an approval middleware inside the composition.
+	carryApprovalProcessState(composed, middlewares);
+	return composed;
 }
