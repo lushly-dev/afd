@@ -2251,6 +2251,51 @@ unless they say otherwise.
 - **`web` takes dev dependencies** on `@modelcontextprotocol/ext-apps`, pinned at 2.0.4, and `@lushly-dev/loam-sdk`, for
   the fixtures in `test/browser/pages/`. No workflow, `scripts/affected/` or root manifest changed.
 
+**In Firefox and WebKit (2026-11-23, [#706](https://github.com/lushly-dev/afd/issues/706))**
+
+E1, E2 and phase 4's I8 chord now run in Firefox 157.0 and WebKit 27.2 as well as Chromium, in `loam.yml`'s
+`Firefox suites` job on Linux and `WebKit suites` job on macOS (`vitest.engines.config.ts`). Measured with Playwright
+1.64.1 on macOS, and the GTK port in CI:
+
+- **WebKit is Apple's port, on macOS.** It has scoped registries natively, as Safari 26 does. Playwright's Linux WebKit
+  is the GTK port and has none, so CI's first run there
+  ([run 45169180782](https://github.com/lushly-dev/afd/actions/runs/45169180782)) took the polyfill and failed with
+  [#2254](https://github.com/lushly-dev/afd/issues/2254)'s error in all six E1 cases and two E2 cases. Its pages also
+  did not receive `Mod+Alt+P` ([#2314](https://github.com/lushly-dev/afd/issues/2314)), and its forced-colors title bar
+  fails as Firefox's does ([#2255](https://github.com/lushly-dev/afd/issues/2255)). So the WebKit job runs on macOS,
+  and the GTK port is covered by those issues rather than by this job. Loam's Linux desktop runs on WebKitGTK, whose
+  scoped registries were not measured here. E1's D34 case fails by name in a run that claims the platform's registries
+  and lacks them.
+- **Scoped registries in Firefox.** Playwright's Firefox 157 has them behind
+  `dom.scoped-custom-element-registries.enabled`, the preference Firefox 159 turned on, and the Firefox job sets it, so
+  it stands for Firefox 159 and later. With it off (`LOAM_SCOPED_POLYFILL=1`, which acts in Firefox alone), D34's
+  polyfill branch ran for the first time and failed: an element defined before the polyfill loads cannot be created
+  after it ("Illegal constructor"), and the chrome and Violet define
+  theirs long before the first app activates. E1 failed 7 of 7. So native apps do not work today in a Firefox before
+  159, ESR among them. That is [#2254](https://github.com/lushly-dev/afd/issues/2254), with a decision for the owner
+  on D34; until then the polyfill branch is not in CI, and `LOAM_SCOPED_POLYFILL=1` runs it.
+- **What held, in Firefox and Apple's WebKit.** 6.1's isolation: the inner document's origin is `null`, `parent.document`, `top.document`,
+  `localStorage` and `indexedDB` throw `SecurityError`, `fetch` fails, and neither `top` nor `parent` can be navigated.
+  The proxy's `frame-src 'self'` refuses a view's navigation to another site with no request sent, and a site that
+  `frame-ancestors` does not name renders nothing of the proxy. **WebRTC is reachable in both**, as in Chromium: 12's
+  gap is the same in every engine. `Mod+Alt+P` reaches the page and opens the project switcher in both (I8). Playwright
+  delivers the keys to the page itself, so this shows each engine's page handles the chord; whether a desktop Firefox
+  or Safari keeps it for itself, before the page, is [#2268](https://github.com/lushly-dev/afd/issues/2268)'s check by
+  hand.
+- **Where they differ, each still refusing.**
+  - A cookie: WebKit gives an opaque origin an empty jar, reading `""` and keeping nothing written, where Chromium and
+    Firefox throw `SecurityError`.
+  - `window.open` with no `allow-popups`: Firefox throws `InvalidAccessError`, where Chromium and WebKit answer `null`.
+  - A refused framing or navigation: Chromium shows `chrome-error:`. A navigation `frame-src` refuses leaves the view's
+    own document running in Firefox and WebKit. One to the sandbox's own origin goes out in all three, as the section
+    above says, and `frame-ancestors` refuses to render it, the request failing in each: Firefox puts an error page in
+    the view's place, which Playwright cannot evaluate and still reports as `about:srcdoc`, and WebKit an empty document
+    at the refused URL. A framing from another site fails its request the same way. E2 waits for that failure and then
+    tests what renders, the proxy's own page, rather than the URL.
+- **One finding outside the view.** Under forced colors in Firefox, the title bar's sidebar toggle fails axe's
+  `color-contrast` ([#2255](https://github.com/lushly-dev/afd/issues/2255)); E2's check around the frame pins that one
+  violation in Firefox, so its fix fails the test until the pin goes, and the view's own document passes in all three.
+
 ### 9.8 Decided by step 6
 
 What the sections above left open, and what the browser showed. Step 7 builds on these.
@@ -2837,7 +2882,7 @@ checked at load and not by the schema, and the rules and renaming cited from `sp
 
 | Date | Raised by | Follow-up | Status |
 | --- | --- | --- | --- |
-| 2026-11-01 | Phase 1 specification | Run the mount and scoped-registry suite in Firefox and WebKit, with D34's polyfill branch, since `loam.yml` is Chromium only | Open; [#706](https://github.com/lushly-dev/afd/issues/706) |
+| 2026-11-01 | Phase 1 specification | Run the mount and scoped-registry suite in Firefox and WebKit, with D34's polyfill branch, since `loam.yml` is Chromium only | Closed 2026-11-23 by [#706](https://github.com/lushly-dev/afd/issues/706): E1 runs in Firefox and WebKit ([9.7](#97-decided-by-step-5)); the polyfill branch ran and fails, [#2254](https://github.com/lushly-dev/afd/issues/2254) |
 | 2026-11-01 | Phase 1 specification | `resources/list`, `resources/read` and the skills calls in AFD's `StreamableHttpTransport` (`send` answers `-32601` for them), needed when a mounted instance's resources, skills and views surface in phase 5 | Open; for AFD, before phase 5; [#713](https://github.com/lushly-dev/afd/issues/713) |
 | 2026-11-01 | Phase 1 specification | The MCP Apps standardized style variables (`--color-background-primary` and the rest), mapped from the token contract, for views from other servers | Open; phase 5 |
 | 2026-11-01 | Phase 1 specification | A scan of mounted descriptions before they reach the agent surface, reusing `packages/testing/src/surface/injection-vectors.json` as Umbel's loader does | Open; phase 5 |
@@ -2852,7 +2897,7 @@ checked at load and not by the schema, and the rules and renaming cited from `sp
 | 2026-11-02 | Phase 1 step 5 | **For the owner.** A view's data is not confidential from its author: WebRTC reaches any host, and no policy here stops it in Chromium 156 (section 12, D62). Decide whether that is acceptable for untrusted apps as phases 6 and 7 widen who deploys them, and whether to add `webrtc 'block'` for browsers that honour it | Open; owner; [#711](https://github.com/lushly-dev/afd/issues/711) |
 | 2026-11-02 | Phase 1 step 5 | Nothing limits a view's or a frame's message size, call rate or storage: a 5,000,000-character input is journaled whole, and one view can exhaust the origin's quota, shared by the journal and every app's store (9.7). A journal that cannot append drops the entry, so this also widens what escapes it. Decide limits across the broker, the journal and the store | Open; [#710](https://github.com/lushly-dev/afd/issues/710) |
 | 2026-11-02 | Phase 1 step 5 | With focus inside a view, the shell's chords (Mod+K, F6 and the rest) go to the frame's document and do nothing, since a cross-origin frame's keys never reach the shell. A person leaves with Tab. MCP Apps has no key-forwarding message; decide with phase 4's keybindings whether the SDK offers one | Open; phase 4 |
-| 2026-11-02 | Phase 1 step 5 | Run E2 in Firefox and WebKit, as the mount's follow-up above asks of its suite. 9.7's navigation and WebRTC results are Chromium's | Open; phase 6; [#706](https://github.com/lushly-dev/afd/issues/706) |
+| 2026-11-02 | Phase 1 step 5 | Run E2 in Firefox and WebKit, as the mount's follow-up above asks of its suite. 9.7's navigation and WebRTC results are Chromium's | Closed 2026-11-23 by [#706](https://github.com/lushly-dev/afd/issues/706): E2 runs in both, with each engine's navigation and WebRTC results in [9.7](#97-decided-by-step-5) |
 | 2026-11-02 | Phase 1 step 5 | Toasts and modals do not name the app that opened them, so an app's text can pass for the shell's, or for another app's: give an overlay its owner's name | Open; phase 4 |
 | 2026-11-02 | Phase 1 step 6 | `violet-listbox`'s `handleFocus` scrolls the active row into view on a press, so the row under the pointer moves and the click is lost (`foundations/fast-af/packages/violet-elements/src/listbox/violet-listbox.ts`). The console works around it; `loam-list` and the palette do not. Scroll only for keyboard focus, in the element, with the provenance entry | Open; [#712](https://github.com/lushly-dev/afd/issues/712) |
 | 2026-11-02 | Phase 1 step 6 | `violet-select`'s `position: fixed` list is misplaced inside `loam-mount`'s `contain: content`, for any native app using the kit's select. The console overrides `::part(panel)`; the element should use the top layer (`popover`), which containment does not reach | Open; [#712](https://github.com/lushly-dev/afd/issues/712) |

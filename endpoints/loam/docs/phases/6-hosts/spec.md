@@ -222,7 +222,7 @@ Epic: [#1545](https://github.com/lushly-dev/afd/issues/1545). File new work for 
 | Phase 1's follow-up: "run the mounted suite against a real hosted server, with its secrets, membership and limits, on the same route" | P6-M1 ([section 19](#19-exit-criterion-and-tests)), in M2 |
 | Phase 1's catalog: `secrets`, "Phase 6" | [Section 13](#13-secrets-d108): resolved on the server only; the grant moves to phase 5 with `http` |
 | D52: SQLite on the desktop "admitted in phase 6 only on a measurement" | [10.5](#105-the-store-and-d52s-measurement) |
-| [#706](https://github.com/lushly-dev/afd/issues/706): run the suites in Firefox and WebKit | Partly: the desktop lane runs the shell in WebKitGTK and WebView2 (P6-D1); Firefox and Safari stay with #706 |
+| [#706](https://github.com/lushly-dev/afd/issues/706): run the suites in Firefox and WebKit | Partly: the desktop lane runs the shell in WebKitGTK and WebView2 (P6-D1); Firefox and WebKit run E1, E2 and I8 in `loam.yml` since 2026-11-23 (phase 1's 9.7) |
 | [#711](https://github.com/lushly-dev/afd/issues/711): "whether the browsers phase 6 adds differ" on WebRTC from a view | Recorded, not decided: P6-D3 records the result in each webview; the decision stays the owner's on #711 |
 | [#858](https://github.com/lushly-dev/afd/issues/858): first paint on a real low-end device | Stays open: it needs a device, not a host. The development profile makes the measurement easy to take over a network; [follow-ups](#follow-ups) |
 | OP10: "a server card, a well-known catalog entry and a plain guide for agents" | [11.5](#115-the-server-card-the-catalog-and-the-guide), in M4 |

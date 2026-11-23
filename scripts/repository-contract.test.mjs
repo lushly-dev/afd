@@ -554,6 +554,8 @@ test("loam.yml shows the titles Loam phase 2's exit check reads, and a manual ru
 	for (const [job, output] of [
 		['loam', 'run'],
 		['walk', 'run'],
+		['firefox', 'run'],
+		['webkit', 'run'],
 		['mounted', 'mounted'],
 		['hosted', 'run'],
 	]) {

@@ -62,6 +62,9 @@ export const WORKFLOWS = {
 			'Affected units',
 			'Build, unit and Chromium',
 			'Editor walk',
+			// #706: the mount, the view and phase 4's I8 chord in Firefox and in WebKit.
+			'Firefox suites',
+			'WebKit suites',
 			'Mounted against Umbel',
 			// Phase 6's step 2: the hosted criterion against the development profile.
 			'Hosted development profile',

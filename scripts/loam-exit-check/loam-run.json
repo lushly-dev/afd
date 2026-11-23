@@ -188,6 +188,82 @@
 			]
 		},
 		{
+			"name": "Firefox suites",
+			"databaseId": 8,
+			"status": "completed",
+			"conclusion": "success",
+			"steps": [
+				{
+					"name": "Set up job",
+					"number": 1,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "Build the web host and its dependencies",
+					"number": 2,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "The mount, the view and the chord in Firefox",
+					"number": 3,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "The run leaves tracked files unchanged",
+					"number": 4,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "Complete job",
+					"number": 5,
+					"status": "completed",
+					"conclusion": "success"
+				}
+			]
+		},
+		{
+			"name": "WebKit suites",
+			"databaseId": 9,
+			"status": "completed",
+			"conclusion": "success",
+			"steps": [
+				{
+					"name": "Set up job",
+					"number": 1,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "Build the web host and its dependencies",
+					"number": 2,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "The mount, the view and the chord in WebKit",
+					"number": 3,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "The run leaves tracked files unchanged",
+					"number": 4,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "Complete job",
+					"number": 5,
+					"status": "completed",
+					"conclusion": "success"
+				}
+			]
+		},
+		{
 			"name": "Mounted against Umbel",
 			"databaseId": 4,
 			"status": "completed",
