@@ -514,6 +514,18 @@ fn document_ids_follow_section_5_1() {
         Err(PathProblem::Empty)
     );
     assert_eq!(
+        document_id("c", "a/", Kind::Markdown),
+        Err(PathProblem::Empty)
+    );
+    assert_eq!(
+        document_id("c", "bad:/", Kind::Markdown),
+        Err(PathProblem::Empty)
+    );
+    assert_eq!(
+        document_id("c", ".hidden//a.md", Kind::Markdown),
+        Err(PathProblem::Hidden)
+    );
+    assert_eq!(
         document_id("c", ".md", Kind::Markdown),
         Err(PathProblem::Hidden)
     );
@@ -538,6 +550,10 @@ fn document_ids_follow_section_5_1() {
         document_id("c", &long, Kind::Markdown),
         Err(PathProblem::TooLong)
     );
+    assert_eq!(PathProblem::Empty.reason(), "empty-segment");
+    assert_eq!(PathProblem::Character.reason(), "invalid-character");
+    assert_eq!(PathProblem::Hidden.reason(), "hidden-segment");
+    assert_eq!(PathProblem::TooLong.reason(), "too-long");
 }
 
 #[test]

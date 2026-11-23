@@ -6,7 +6,10 @@ use std::collections::BTreeSet;
 
 use serde_json::{Map, Value};
 use umbel_scan::{ContentScan, scan_content};
-use umbel_store::{ByAt, Flag, MAX_DOC_ID_BYTES, Sensitivity, Status, Verification};
+use umbel_store::{
+    ByAt, Flag, MAX_DOC_ID_BYTES, RelativePathProblem, Sensitivity, Status, Verification,
+    check_visible_relative_path,
+};
 
 use crate::frontmatter::{Declared, Problem, normalize, split};
 use crate::structure::{Structure, structure};
@@ -131,7 +134,7 @@ impl PathProblem {
     pub fn reason(self) -> &'static str {
         match self {
             Self::Empty => "empty-segment",
-            Self::Character => "control-or-backslash",
+            Self::Character => "invalid-character",
             Self::Hidden => "hidden-segment",
             Self::TooLong => "too-long",
         }
@@ -144,28 +147,20 @@ impl PathProblem {
 /// # Errors
 /// The [`PathProblem`] that makes the path unusable (`SOURCE_PATH_INVALID`).
 pub fn document_id(collection: &str, path: &str, kind: Kind) -> Result<String, PathProblem> {
-    if path.is_empty() || path.starts_with('/') || path.ends_with('/') {
-        return Err(PathProblem::Empty);
-    }
-    if path
-        .chars()
-        .any(|c| c.is_control() || c == '\\' || c == ':')
-    {
-        return Err(PathProblem::Character);
-    }
-    for segment in path.split('/') {
-        if segment.is_empty() {
-            return Err(PathProblem::Empty);
-        }
-        if segment.starts_with('.') {
-            return Err(PathProblem::Hidden);
-        }
-    }
-    if !std::path::Path::new(path)
-        .components()
-        .all(|c| matches!(c, std::path::Component::Normal(_)))
-    {
-        return Err(PathProblem::Character);
+    if let Err(problem) = check_visible_relative_path(path) {
+        return Err(match problem {
+            RelativePathProblem::Empty
+            | RelativePathProblem::LeadingSlash
+            | RelativePathProblem::EmptySegment => PathProblem::Empty,
+            RelativePathProblem::DotSegment | RelativePathProblem::HiddenSegment => {
+                PathProblem::Hidden
+            }
+            RelativePathProblem::Backslash
+            | RelativePathProblem::Control
+            | RelativePathProblem::Colon
+            | RelativePathProblem::NonNormal => PathProblem::Character,
+            _ => PathProblem::Character,
+        });
     }
     let trimmed = match kind {
         Kind::Markdown => path.strip_suffix(".md").unwrap_or(path),
