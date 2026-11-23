@@ -43,6 +43,119 @@ use crate::SqliteStore;
 use crate::error::Fail;
 use crate::sql::Sql;
 
+/// Wall-clock breakdown of one [`SqliteStore::lane_match_timed`] call (records host
+/// specification, sections 8.2 and 16). Compiled in only with the `testkit` feature.
+#[cfg(feature = "testkit")]
+#[derive(Debug, Clone, Default)]
+pub struct MatchTimings {
+    /// `require_ready`, `within_bound`, and the once-a-call corpus (`N`, `L`).
+    pub once_a_call: std::time::Duration,
+    /// Identical-digest lookups across all texts.
+    pub identical: std::time::Duration,
+    /// Term document-frequency counts (`Counts::need`) across step 1 and step 6.
+    pub counts: std::time::Duration,
+    /// Gather (`candidates`, steps 2 and 3) across all texts.
+    pub gather: std::time::Duration,
+    /// Query direction (`Scope::held`, `directed(q, d)`, `keep_pool`, steps 4 and 5).
+    pub query_direction: std::time::Duration,
+    /// Vector scan (`has_missing_vector` + `scan_vectors_into_pools`, section 8.3).
+    pub vector_scan: std::time::Duration,
+    /// Both directions (`terms_of` + step 6 scoring, excluding `counts`) across all texts.
+    pub both_directions: std::time::Duration,
+    /// Loading the final hit records and standing labels.
+    pub hits: std::time::Duration,
+    /// Whole `lane_match` call wall time.
+    pub total: std::time::Duration,
+    /// Distinct terms counted in `Counts` across the call.
+    pub distinct_terms_counted: usize,
+    /// Total candidate lanes gathered across all texts.
+    pub total_candidates: usize,
+}
+
+/// Optional timer threaded through [`page`]; zero-sized when `testkit` is not enabled.
+#[cfg(feature = "testkit")]
+struct MatchProbe<'a>(Option<&'a mut MatchTimings>);
+
+#[cfg(not(feature = "testkit"))]
+struct MatchProbe;
+
+#[cfg(not(feature = "testkit"))]
+struct TimeMark;
+
+#[cfg(feature = "testkit")]
+impl MatchProbe<'_> {
+    fn mark(&self) -> Option<std::time::Instant> {
+        self.0.as_ref().map(|_| std::time::Instant::now())
+    }
+    fn add_once_a_call(&mut self, start: Option<std::time::Instant>) {
+        if let (Some(t), Some(dst)) = (start, self.0.as_deref_mut()) {
+            dst.once_a_call += t.elapsed();
+        }
+    }
+    fn add_identical(&mut self, start: Option<std::time::Instant>) {
+        if let (Some(t), Some(dst)) = (start, self.0.as_deref_mut()) {
+            dst.identical += t.elapsed();
+        }
+    }
+    fn add_counts(&mut self, start: Option<std::time::Instant>) {
+        if let (Some(t), Some(dst)) = (start, self.0.as_deref_mut()) {
+            dst.counts += t.elapsed();
+        }
+    }
+    fn add_gather(&mut self, start: Option<std::time::Instant>) {
+        if let (Some(t), Some(dst)) = (start, self.0.as_deref_mut()) {
+            dst.gather += t.elapsed();
+        }
+    }
+    fn add_query_direction(&mut self, start: Option<std::time::Instant>) {
+        if let (Some(t), Some(dst)) = (start, self.0.as_deref_mut()) {
+            dst.query_direction += t.elapsed();
+        }
+    }
+    fn add_vector_scan(&mut self, start: Option<std::time::Instant>) {
+        if let (Some(t), Some(dst)) = (start, self.0.as_deref_mut()) {
+            dst.vector_scan += t.elapsed();
+        }
+    }
+    fn add_both_directions(&mut self, start: Option<std::time::Instant>) {
+        if let (Some(t), Some(dst)) = (start, self.0.as_deref_mut()) {
+            dst.both_directions += t.elapsed();
+        }
+    }
+    fn add_hits(&mut self, start: Option<std::time::Instant>) {
+        if let (Some(t), Some(dst)) = (start, self.0.as_deref_mut()) {
+            dst.hits += t.elapsed();
+        }
+    }
+    fn add_candidates(&mut self, n: usize) {
+        if let Some(dst) = self.0.as_deref_mut() {
+            dst.total_candidates += n;
+        }
+    }
+    fn set_distinct_terms(&mut self, n: usize) {
+        if let Some(dst) = self.0.as_deref_mut() {
+            dst.distinct_terms_counted = n;
+        }
+    }
+}
+
+#[cfg(not(feature = "testkit"))]
+impl MatchProbe {
+    fn mark(&self) -> TimeMark {
+        TimeMark
+    }
+    fn add_once_a_call(&mut self, _: TimeMark) {}
+    fn add_identical(&mut self, _: TimeMark) {}
+    fn add_counts(&mut self, _: TimeMark) {}
+    fn add_gather(&mut self, _: TimeMark) {}
+    fn add_query_direction(&mut self, _: TimeMark) {}
+    fn add_vector_scan(&mut self, _: TimeMark) {}
+    fn add_both_directions(&mut self, _: TimeMark) {}
+    fn add_hits(&mut self, _: TimeMark) {}
+    fn add_candidates(&mut self, _: usize) {}
+    fn set_distinct_terms(&mut self, _: usize) {}
+}
+
 /// One pooled record with its two directed scores, unrounded, and its meaning score when served.
 struct Pooled {
     lane: i64,
@@ -69,7 +182,7 @@ struct TextPrep<'a> {
 /// The statement of a text's identical records: the lanes whose match digest is `digest`, by
 /// id, at most [`MAX_IDENTICAL`], with the key filters, the reader, the view and the
 /// exclusions. One lookup in `record_lane_by_digest`, and a sort of what it finds.
-fn identical_sql(
+pub(super) fn identical_sql(
     scope: &Scope<'_>,
     keys: &[(u8, Vec<String>)],
     digest: &[u8; 32],
@@ -106,7 +219,7 @@ fn identical(
 
 /// The statement of the pooled records' whole term lists in the match field, by lane and then
 /// by term, under the reader, the view and the exclusions again.
-fn terms_sql(scope: &Scope<'_>, lanes: &[i64]) -> Sql {
+pub(super) fn terms_sql(scope: &Scope<'_>, lanes: &[i64]) -> Sql {
     let mut sql = Sql::new(
         "SELECT t.lane, t.term, t.tf FROM record_terms t JOIN record_lane l ON l.lane = t.lane WHERE t.lane IN ",
     );
@@ -120,7 +233,7 @@ fn terms_sql(scope: &Scope<'_>, lanes: &[i64]) -> Sql {
 
 /// The statement of the hits' records, by lane, under the reader, the view and the exclusions
 /// once more, with what a label needs.
-fn hits_sql(scope: &Scope<'_>, lanes: &[i64]) -> Sql {
+pub(super) fn hits_sql(scope: &Scope<'_>, lanes: &[i64]) -> Sql {
     let mut sql = select(RECORD_COLUMNS, scope.ns, &scope.decl.kind);
     sql.push(" AND l.lane IN ").bind_list(lanes.iter().copied());
     scope.and_counted(&mut sql);
@@ -161,7 +274,11 @@ fn keep_pool(pool: &mut Vec<Pooled>) {
 /// Whether any eligible record with a match value lacks a vector of `model` (section 9.4).
 /// Held to the exact set of records eligible for the vector scan: the reader, the view, the
 /// exclusions and the key filters, with `match_digest IS NOT NULL`.
-fn missing_vector_sql(scope: &Scope<'_>, keys: &[(u8, Vec<String>)], model: &str) -> Sql {
+pub(super) fn missing_vector_sql(
+    scope: &Scope<'_>,
+    keys: &[(u8, Vec<String>)],
+    model: &str,
+) -> Sql {
     let mut sql = Sql::new("SELECT EXISTS (SELECT 1 FROM record_lane l WHERE l.ns = ");
     sql.bind(scope.ns)
         .push(" AND l.kind = ")
@@ -179,7 +296,7 @@ fn missing_vector_sql(scope: &Scope<'_>, keys: &[(u8, Vec<String>)], model: &str
 
 /// All stored vectors of `model` for records eligible for this call (section 9.4): reader, view,
 /// exclusions, key filters and non-null match digest.
-fn vectors_sql(scope: &Scope<'_>, keys: &[(u8, Vec<String>)], model: &str) -> Sql {
+pub(super) fn vectors_sql(scope: &Scope<'_>, keys: &[(u8, Vec<String>)], model: &str) -> Sql {
     let mut sql = Sql::new(
         "SELECT l.lane, l.id, v.vector FROM record_vectors v JOIN record_lane l ON l.lane = v.lane WHERE l.ns = ",
     );
@@ -234,6 +351,7 @@ fn insert_top_meaning(top: &mut Vec<(i64, String, f64)>, lane: i64, id: &str, m:
 
 /// Section 8.2's steps 1 to 5 for one text: identical lookup, term counts, gather, query
 /// direction and the top-[`MATCH_POOL`] words pool.
+#[allow(clippy::too_many_arguments)]
 fn prepare_words<'a>(
     scope: &Scope<'_>,
     plan: &MatchPlan,
@@ -241,14 +359,20 @@ fn prepare_words<'a>(
     stored: &Corpus,
     counts: &mut Counts,
     gather_postings: u64,
+    #[cfg(feature = "testkit")] probe: &mut MatchProbe<'_>,
+    #[cfg(not(feature = "testkit"))] probe: &mut MatchProbe,
 ) -> Result<TextPrep<'a>, Fail> {
     // A text whose normalised form is empty has no digest and is identical to nothing.
+    let t_id = probe.mark();
     let same = match &text.digest {
         Some(digest) => identical(scope, &plan.keys, digest)?,
         None => Vec::new(),
     };
+    probe.add_identical(t_id);
     // 1. Counts for the text's distinct terms, from the call's table.
+    let t_counts = probe.mark();
     counts.need(scope, text.terms.iter().map(|(term, _)| term.as_str()))?;
+    probe.add_counts(t_counts);
     // The text's corpus is the stored one plus the text itself, as one more record: one more
     // record, its tokens, and one more holder of each of its terms.
     let corpus = Corpus {
@@ -260,9 +384,13 @@ fn prepare_words<'a>(
         asked.iter().map(|term| (*term, counts.df0(term))).collect();
     // 2 and 3. The gather order and the gather, over the stored counts, which no key filter
     // narrows.
+    let t_gather = probe.mark();
     let (lanes, cut) = candidates(scope, &plan.keys, &stored_counts, gather_postings)?;
+    probe.add_gather(t_gather);
+    probe.add_candidates(lanes.len());
     // 4. The query direction, for every candidate. The text's terms are in byte order, so
     // every backend adds in one order.
+    let t_qdir = probe.mark();
     let own = score(
         &corpus,
         text.length,
@@ -293,6 +421,7 @@ fn prepare_words<'a>(
         .collect();
     // 5. The words pool.
     keep_pool(&mut pool);
+    probe.add_query_direction(t_qdir);
     Ok(TextPrep {
         text,
         same,
@@ -395,13 +524,20 @@ fn finish_text(
     counts: &mut Counts,
     k: usize,
     meaning_weight: Option<f64>,
+    #[cfg(feature = "testkit")] probe: &mut MatchProbe<'_>,
+    #[cfg(not(feature = "testkit"))] probe: &mut MatchProbe,
 ) -> Result<MatchResult, Fail> {
     // 6. Both directions: each pooled record's whole term list, and counts for those terms.
+    let t_terms = probe.mark();
     let held = terms_of(scope, &prep.pool)?;
+    probe.add_both_directions(t_terms);
+    let t_counts = probe.mark();
     counts.need(
         scope,
         held.values().flatten().map(|(term, _)| term.as_str()),
     )?;
+    probe.add_counts(t_counts);
+    let t_score = probe.mark();
     let in_text: BTreeMap<&str, u32> = prep
         .text
         .terms
@@ -459,8 +595,10 @@ fn finish_text(
             .then_with(|| a.0.id.as_bytes().cmp(b.0.id.as_bytes()))
     });
     ranked.truncate(k);
+    probe.add_both_directions(t_score);
     // The hits' records, by lane, under the reader, the view and the exclusions once more,
     // each with the label a read gives it.
+    let t_hits = probe.mark();
     let mut lanes: Vec<i64> = prep.same.clone();
     lanes.extend(ranked.iter().map(|(pooled, ..)| pooled.lane));
     lanes.sort_unstable();
@@ -474,7 +612,7 @@ fn finish_text(
                 .map(|read| (read.lane, read.record)),
         );
     }
-    Ok(MatchResult {
+    let out = MatchResult {
         identical: prep
             .same
             .iter()
@@ -490,7 +628,9 @@ fn finish_text(
             })
             .collect(),
         cut: prep.cut,
-    })
+    };
+    probe.add_hits(t_hits);
+    Ok(out)
 }
 
 /// The value at the match pointer of a record's body.
@@ -532,6 +672,8 @@ fn page(
     view: &StandingView,
     reader: &ReaderFilter,
     limits: umbel_store::lane::LaneLimits,
+    #[cfg(feature = "testkit")] probe: &mut MatchProbe<'_>,
+    #[cfg(not(feature = "testkit"))] probe: &mut MatchProbe,
 ) -> Result<MatchPage, Fail> {
     let fields = [plan.field];
     let scope = Scope {
@@ -544,7 +686,9 @@ fn page(
         reader,
     };
     // Once a call: the stored part of `N` and `L`, and an empty table of stored counts.
+    let t_once = probe.mark();
     let stored = scope.corpus()?;
+    probe.add_once_a_call(t_once);
     let mut counts = Counts::new();
     let mut preps = Vec::with_capacity(plan.texts.len());
     for text in &plan.texts {
@@ -555,12 +699,14 @@ fn page(
             &stored,
             &mut counts,
             limits.gather_postings,
+            probe,
         )?);
     }
     let (meaning_state, meaning_weight) = match vectors {
         None => (MeaningState::Off, None),
         Some((mv, unit_queries)) => {
-            if has_missing_vector(&scope, &plan.keys, mv.model.as_str())? {
+            let t_vec = probe.mark();
+            let res = if has_missing_vector(&scope, &plan.keys, mv.model.as_str())? {
                 (MeaningState::Incomplete, None)
             } else {
                 scan_vectors_into_pools(
@@ -572,14 +718,27 @@ fn page(
                     &counts,
                 )?;
                 (MeaningState::Served(mv.model.clone()), Some(mv.weight))
-            }
+            };
+            probe.add_vector_scan(t_vec);
+            res
         }
     };
     let k = query.k as usize;
     let mut results = Vec::with_capacity(preps.len());
     for prep in preps {
-        results.push(finish_text(&scope, prep, &mut counts, k, meaning_weight)?);
+        results.push(finish_text(
+            &scope,
+            prep,
+            &mut counts,
+            k,
+            meaning_weight,
+            probe,
+        )?);
     }
+    #[cfg(feature = "testkit")]
+    probe.set_distinct_terms(counts.counted_len());
+    #[cfg(not(feature = "testkit"))]
+    probe.set_distinct_terms(0);
     Ok(MatchPage {
         results,
         admitted: view.admit.clone(),
@@ -596,6 +755,48 @@ impl SqliteStore {
         vectors: Option<&MatchVectors>,
         view: &StandingView,
         reader: &ReaderFilter,
+    ) -> Result<MatchPage, StoreError> {
+        #[cfg(feature = "testkit")]
+        let mut probe = MatchProbe(None);
+        #[cfg(not(feature = "testkit"))]
+        let mut probe = MatchProbe;
+        self.lane_match_inner(ns, decl, query, vectors, view, reader, &mut probe)
+    }
+
+    /// Match records and return the wall-clock breakdown of each phase (records host
+    /// specification, sections 8.2 and 16). Compiled in only with the `testkit` feature.
+    ///
+    /// # Errors
+    /// Same as [`umbel_store::DocumentStore::match_records`].
+    #[cfg(feature = "testkit")]
+    pub fn lane_match_timed(
+        &self,
+        ns: &str,
+        decl: &RecordDecl,
+        query: &RecordMatch,
+        vectors: Option<&MatchVectors>,
+        view: &StandingView,
+        reader: &ReaderFilter,
+    ) -> Result<(MatchPage, MatchTimings), StoreError> {
+        let started = std::time::Instant::now();
+        let mut timings = MatchTimings::default();
+        let mut probe = MatchProbe(Some(&mut timings));
+        let page = self.lane_match_inner(ns, decl, query, vectors, view, reader, &mut probe)?;
+        timings.total = started.elapsed();
+        Ok((page, timings))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn lane_match_inner(
+        &self,
+        ns: &str,
+        decl: &RecordDecl,
+        query: &RecordMatch,
+        vectors: Option<&MatchVectors>,
+        view: &StandingView,
+        reader: &ReaderFilter,
+        #[cfg(feature = "testkit")] probe: &mut MatchProbe<'_>,
+        #[cfg(not(feature = "testkit"))] probe: &mut MatchProbe,
     ) -> Result<MatchPage, StoreError> {
         refuse_derivation(reader)?;
         let plan = query.plan(decl)?;
@@ -617,10 +818,14 @@ impl SqliteStore {
         self.pool().with(|conn| {
             // One snapshot for the kind's state, its size, the statistics, the vectors and every text.
             let tx = conn.transaction()?;
+            let t_once = probe.mark();
             require_ready(&tx, ns, decl)?;
             within_bound(&tx, ns, &decl.kind, limits.match_postings)?;
+            probe.add_once_a_call(t_once);
             let vec_arg = vectors.zip(unit_queries.as_deref());
-            page(&tx, ns, decl, query, &plan, vec_arg, view, reader, limits)
+            page(
+                &tx, ns, decl, query, &plan, vec_arg, view, reader, limits, probe,
+            )
         })
     }
 }

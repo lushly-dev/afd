@@ -16,7 +16,7 @@
 //! whole rebuild out. So the rebuild waits [`CHUNK_PAUSE`] between chunks, longer than the
 //! handler's longest sleep.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::time::Duration;
 
 use rusqlite::{OptionalExtension, TransactionBehavior, params};
@@ -44,8 +44,123 @@ pub(crate) const CHUNK_PAUSE: Duration = Duration::from_millis(120);
 /// One chunk's records: after the id `?3` (none: from the kind's first), by id, at most `?4`.
 /// The comparison is one range over the primary key `(ns, kind, id)`, so a chunk reads its own
 /// rows and never the ones before them: an id is at least one byte, so every id is after `''`.
-const CHUNK_SQL: &str = "SELECT id, rev, body, envelope FROM records
+pub(super) const CHUNK_SQL: &str = "SELECT id, rev, body, envelope FROM records
      WHERE ns = ?1 AND kind = ?2 AND id > COALESCE(?3, '') ORDER BY id LIMIT ?4";
+
+/// Check whether any record of the kind lacks a lane row before scanning `changes` (step 1.2).
+pub(super) const MISSING_LANE_SQL: &str =
+    "SELECT EXISTS (SELECT 1 FROM records r WHERE r.ns = ?1 AND r.kind = ?2 AND NOT EXISTS
+       (SELECT 1 FROM record_lane l WHERE l.ns = r.ns AND l.kind = r.kind AND l.id = r.id))";
+
+/// One grouped pass over `changes` to recover each record's first revision and timestamp (step 1.2).
+pub(super) const FIRST_PUTS_SQL: &str =
+    "SELECT target, MIN(rev), at FROM changes WHERE kind = 'record' GROUP BY target";
+
+/// One batch of records needing vectors for a model, paged by `l.id` over the unique index
+/// `(ns, kind, id)` so each batch resumes in index order with no temp B-tree sort. `+l.match_digest`
+/// prevents SQLite from choosing `record_lane_by_digest`, which is not ordered by `id` and would
+/// otherwise rescan and sort the entire kind on every 64-row batch (O(N^2)).
+pub(super) const VECTOR_BATCH_SQL: &str = "SELECT l.lane, l.id, l.match_digest, r.body
+     FROM record_lane l
+     JOIN records r ON r.ns = l.ns AND r.kind = l.kind AND r.id = l.id
+     WHERE l.ns = ?1 AND l.kind = ?2
+       AND l.id > COALESCE(?3, '')
+       AND +l.match_digest IS NOT NULL
+       AND NOT EXISTS (
+         SELECT 1 FROM record_vectors v
+         WHERE v.lane = l.lane AND v.model = ?4
+       )
+     ORDER BY l.id
+     LIMIT ?5";
+
+/// Optional timer threaded through [`SqliteStore::lane_reindex_inner`]; zero-sized when `testkit`
+/// is not enabled so shipped and test builds run one orchestration body.
+#[cfg(feature = "testkit")]
+struct RebuildProbe<'a>(Option<&'a mut RebuildTimings>);
+
+#[cfg(not(feature = "testkit"))]
+struct RebuildProbe;
+
+#[cfg(not(feature = "testkit"))]
+struct RebuildMark;
+
+#[cfg(feature = "testkit")]
+impl RebuildProbe<'_> {
+    fn mark(&self) -> Option<std::time::Instant> {
+        self.0.as_ref().map(|_| std::time::Instant::now())
+    }
+    fn set_first_puts(&mut self, start: Option<std::time::Instant>) {
+        if let (Some(t), Some(dst)) = (start, self.0.as_deref_mut()) {
+            dst.first_puts = t.elapsed();
+        }
+    }
+    fn push_chunk(&mut self, start: Option<std::time::Instant>) {
+        if let (Some(t), Some(dst)) = (start, self.0.as_deref_mut()) {
+            dst.chunks.push(t.elapsed());
+        }
+    }
+    fn add_pause(&mut self, start: Option<std::time::Instant>) {
+        if let (Some(t), Some(dst)) = (start, self.0.as_deref_mut()) {
+            dst.pause_total += t.elapsed();
+        }
+    }
+    fn set_end_rebuild(&mut self, start: Option<std::time::Instant>) {
+        if let (Some(t), Some(dst)) = (start, self.0.as_deref_mut()) {
+            dst.end_rebuild = t.elapsed();
+        }
+    }
+    fn set_vectors(&mut self, start: Option<std::time::Instant>) {
+        if let (Some(t), Some(dst)) = (start, self.0.as_deref_mut()) {
+            dst.vectors = t.elapsed();
+        }
+    }
+    fn set_total(&mut self, start: Option<std::time::Instant>) {
+        if let (Some(t), Some(dst)) = (start, self.0.as_deref_mut()) {
+            dst.total = t.elapsed();
+        }
+    }
+}
+
+#[cfg(not(feature = "testkit"))]
+impl RebuildProbe {
+    fn mark(&self) -> RebuildMark {
+        RebuildMark
+    }
+    fn set_first_puts(&mut self, _: RebuildMark) {}
+    fn push_chunk(&mut self, _: RebuildMark) {}
+    fn add_pause(&mut self, _: RebuildMark) {}
+    fn set_end_rebuild(&mut self, _: RebuildMark) {}
+    fn set_vectors(&mut self, _: RebuildMark) {}
+    fn set_total(&mut self, _: RebuildMark) {}
+}
+
+/// Wall-clock breakdown of one [`SqliteStore::lane_reindex_timed`] rebuild (records host
+/// specification, sections 12.1 and 16). Compiled in only with the `testkit` feature.
+#[cfg(feature = "testkit")]
+#[derive(Debug, Clone, Default)]
+pub struct RebuildTimings {
+    /// Total wall-clock time of the rebuild call.
+    pub total: Duration,
+    /// Time spent in step 1.2 (`first_puts`).
+    pub first_puts: Duration,
+    /// Wall-clock time of each chunk transaction (`rebuild_chunk`), in order.
+    pub chunks: Vec<Duration>,
+    /// Total wall-clock time spent sleeping between chunks (`CHUNK_PAUSE`).
+    pub pause_total: Duration,
+    /// Wall-clock time of step 1.4 (`end_rebuild`).
+    pub end_rebuild: Duration,
+    /// Wall-clock time of step 2 (`reindex_vectors`).
+    pub vectors: Duration,
+}
+
+#[cfg(feature = "testkit")]
+impl RebuildTimings {
+    /// The longest single chunk transaction, if any chunk ran.
+    #[must_use]
+    pub fn longest_chunk(&self) -> Duration {
+        self.chunks.iter().copied().max().unwrap_or(Duration::ZERO)
+    }
+}
 
 /// What a rebuild counted.
 #[derive(Default)]
@@ -95,19 +210,13 @@ impl SqliteStore {
     ) -> Result<BTreeMap<String, (Rev, String)>, StoreError> {
         let prefix = record_target(ns, kind, "");
         self.pool().with(|conn| {
-            let missing: bool = conn.query_row(
-                "SELECT EXISTS (SELECT 1 FROM records r WHERE r.ns = ?1 AND r.kind = ?2 AND NOT EXISTS
-                   (SELECT 1 FROM record_lane l WHERE l.ns = r.ns AND l.kind = r.kind AND l.id = r.id))",
-                params![ns, kind],
-                |row| row.get(0),
-            )?;
+            let missing: bool =
+                conn.query_row(MISSING_LANE_SQL, params![ns, kind], |row| row.get(0))?;
             let mut first = BTreeMap::new();
             if !missing {
                 return Ok(first);
             }
-            let mut statement = conn.prepare(
-                "SELECT target, MIN(rev), at FROM changes WHERE kind = 'record' GROUP BY target",
-            )?;
+            let mut statement = conn.prepare(FIRST_PUTS_SQL)?;
             let mut rows = statement.query([])?;
             while let Some(row) = rows.next()? {
                 let target: String = row.get(0)?;
@@ -377,141 +486,157 @@ impl SqliteStore {
             VectorInit::Active(gen_id, deleted) => (gen_id, deleted),
         };
         let mut vectors_written = 0u64;
-        let mut after_lane = 0i64;
+        // Track `(lane, match_digest)` pairs that embedded to a zero vector so catch-up sweeps do
+        // not re-embed the same wording, while still re-embedding the lane if a concurrent put
+        // changes its match wording to a new digest.
+        let mut zero_lanes: BTreeSet<(i64, Vec<u8>)> = BTreeSet::new();
         let batch_limit = MAX_MATCH_TEXTS as i64;
-        loop {
-            let Some(batch) = self.pool().with(|conn| {
-                let tx = conn.transaction()?;
-                let current: Option<i64> = tx
-                    .query_row(
-                        "SELECT generation FROM record_kinds WHERE ns = ?1 AND kind = ?2",
-                        params![ns, decl.kind],
-                        |row| row.get(0),
-                    )
-                    .optional()?;
-                if current != Some(gen_id) {
-                    return Ok(None);
-                }
-                require_ready(&tx, ns, decl)?;
-                let mut stmt = tx.prepare_cached(
-                    "SELECT l.lane, l.match_digest, r.body
-                     FROM record_lane l
-                     JOIN records r ON r.ns = l.ns AND r.kind = l.kind AND r.id = l.id
-                     WHERE l.ns = ?1 AND l.kind = ?2
-                       AND l.match_digest IS NOT NULL
-                       AND l.lane > ?3
-                       AND NOT EXISTS (
-                         SELECT 1 FROM record_vectors v
-                         WHERE v.lane = l.lane AND v.model = ?4
-                       )
-                     ORDER BY l.lane
-                     LIMIT ?5",
-                )?;
-                let rows = stmt
-                    .query_map(
-                        params![ns, decl.kind, after_lane, model, batch_limit],
-                        |row| {
-                            Ok((
-                                row.get::<_, i64>(0)?,
-                                row.get::<_, Vec<u8>>(1)?,
-                                row.get::<_, String>(2)?,
-                            ))
-                        },
-                    )?
-                    .collect::<Result<Vec<_>, _>>()?;
-                Ok(Some(rows))
-            })?
-            else {
-                return Ok((vectors_written, vectors_removed, true));
-            };
-            let Some((last_lane, ..)) = batch.last() else {
-                break;
-            };
-            after_lane = *last_lane;
-            let mut pending: Vec<(i64, Vec<u8>, String)> = Vec::with_capacity(batch.len());
-            for (lane, digest, body_text) in batch {
-                let body: Json = parse_json(&body_text)?;
-                if let Some(text) = pointer.get(&body).and_then(Json::as_str) {
-                    pending.push((lane, digest, text.to_owned()));
-                }
-            }
-            if pending.is_empty() {
-                continue;
-            }
-            let refs: Vec<&str> = pending.iter().map(|(_, _, text)| text.as_str()).collect();
-            let raw_vectors = embedder.embed(&refs).map_err(|err| match err {
-                EmbedError::Unavailable(reason) => StoreError::Io(reason),
-                EmbedError::Invalid(reason) => StoreError::Invalid(reason),
-            })?;
-            if raw_vectors.len() != pending.len() {
-                return Err(StoreError::Invalid(format!(
-                    "embedding provider returned {} vectors for {} texts",
-                    raw_vectors.len(),
-                    pending.len()
-                )));
-            }
-            let mut ready: Vec<(i64, Vec<u8>, Vec<u8>)> = Vec::with_capacity(pending.len());
-            for ((lane, digest, _), raw) in pending.into_iter().zip(raw_vectors) {
-                if raw.len() != expected_dim {
-                    return Err(StoreError::Invalid(format!(
-                        "embedding provider returned {} dimensions, expected {expected_dim}",
-                        raw.len()
-                    )));
-                }
-                if !raw.iter().all(|v| v.is_finite()) {
-                    return Err(StoreError::Invalid(
-                        "embedding provider returned a non-finite number".to_owned(),
-                    ));
-                }
-                // A zero vector is no vector (section 9.1): skip storing it.
-                if let Some(unit) = unit_vector(&raw) {
-                    ready.push((lane, digest, encode_vector(&unit)));
-                }
-            }
-            if ready.is_empty() {
-                continue;
-            }
-            let Some(written) = self.pool().with(|conn| {
-                let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
-                let current: Option<i64> = tx
-                    .query_row(
-                        "SELECT generation FROM record_kinds WHERE ns = ?1 AND kind = ?2",
-                        params![ns, decl.kind],
-                        |row| row.get(0),
-                    )
-                    .optional()?;
-                if current != Some(gen_id) {
-                    return Ok(None);
-                }
-                require_ready(&tx, ns, decl)?;
-                let mut count = 0u64;
-                for (lane, digest, encoded) in &ready {
-                    let current: Option<Vec<u8>> = tx
+        // Up to four full `l.id` embedding sweeps plus a fifth verification pass: sweep 0 embeds
+        // every missing lane in index order; whenever a sweep called the embedder (even if all
+        // vectors were zero or their digests moved concurrently before the write transaction), the
+        // next sweep checks from the start for any concurrent `put_declared_record` that inserted
+        // a lower-sorting ID or rewrote a match text while a batch was embedding (declared puts do
+        // not bump `generation`). If non-zero missing vectors still remain after four sweeps,
+        // report `superseded = true` rather than returning an incomplete lane as clean.
+        const MAX_EMBED_SWEEPS: usize = 4;
+        for sweep in 0..=MAX_EMBED_SWEEPS {
+            let mut after_id: Option<String> = None;
+            let mut embedded_in_sweep = false;
+            loop {
+                let Some(batch) = self.pool().with(|conn| {
+                    let tx = conn.transaction()?;
+                    let current: Option<i64> = tx
                         .query_row(
-                            "SELECT match_digest FROM record_lane WHERE lane = ?1",
-                            [lane],
+                            "SELECT generation FROM record_kinds WHERE ns = ?1 AND kind = ?2",
+                            params![ns, decl.kind],
                             |row| row.get(0),
                         )
-                        .optional()?
-                        .flatten();
-                    if current.as_deref() == Some(digest.as_slice()) {
-                        tx.execute(
-                            "INSERT OR REPLACE INTO record_vectors (lane, model, vector)
-                             VALUES (?1, ?2, ?3)",
-                            params![lane, model, encoded.as_slice()],
-                        )?;
-                        count += 1;
+                        .optional()?;
+                    if current != Some(gen_id) {
+                        return Ok(None);
+                    }
+                    require_ready(&tx, ns, decl)?;
+                    let mut stmt = tx.prepare_cached(VECTOR_BATCH_SQL)?;
+                    let rows = stmt
+                        .query_map(
+                            params![ns, decl.kind, after_id.as_deref(), model, batch_limit],
+                            |row| {
+                                Ok((
+                                    row.get::<_, i64>(0)?,
+                                    row.get::<_, String>(1)?,
+                                    row.get::<_, Vec<u8>>(2)?,
+                                    row.get::<_, String>(3)?,
+                                ))
+                            },
+                        )?
+                        .collect::<Result<Vec<_>, _>>()?;
+                    Ok(Some(rows))
+                })?
+                else {
+                    return Ok((vectors_written, vectors_removed, true));
+                };
+                let Some((_, last_id, ..)) = batch.last() else {
+                    break;
+                };
+                after_id = Some(last_id.clone());
+                let mut pending: Vec<(i64, Vec<u8>, String)> = Vec::with_capacity(batch.len());
+                for (lane, _, digest, body_text) in batch {
+                    if zero_lanes.contains(&(lane, digest.clone())) {
+                        continue;
+                    }
+                    let body: Json = parse_json(&body_text)?;
+                    if let Some(text) = pointer.get(&body).and_then(Json::as_str) {
+                        pending.push((lane, digest, text.to_owned()));
                     }
                 }
-                tx.commit()?;
-                Ok(Some(count))
-            })?
-            else {
-                return Ok((vectors_written, vectors_removed, true));
-            };
-            vectors_written += written;
+                if pending.is_empty() {
+                    continue;
+                }
+                if sweep == MAX_EMBED_SWEEPS {
+                    return Ok((vectors_written, vectors_removed, true));
+                }
+                embedded_in_sweep = true;
+                let refs: Vec<&str> = pending.iter().map(|(_, _, text)| text.as_str()).collect();
+                let raw_vectors = embedder.embed(&refs).map_err(|err| match err {
+                    EmbedError::Unavailable(reason) => StoreError::Io(reason),
+                    EmbedError::Invalid(reason) => StoreError::Invalid(reason),
+                })?;
+                if raw_vectors.len() != pending.len() {
+                    return Err(StoreError::Invalid(format!(
+                        "embedding provider returned {} vectors for {} texts",
+                        raw_vectors.len(),
+                        pending.len()
+                    )));
+                }
+                let mut ready: Vec<(i64, Vec<u8>, Vec<u8>)> = Vec::with_capacity(pending.len());
+                for ((lane, digest, _), raw) in pending.into_iter().zip(raw_vectors) {
+                    if raw.len() != expected_dim {
+                        return Err(StoreError::Invalid(format!(
+                            "embedding provider returned {} dimensions, expected {expected_dim}",
+                            raw.len()
+                        )));
+                    }
+                    if !raw.iter().all(|v| v.is_finite()) {
+                        return Err(StoreError::Invalid(
+                            "embedding provider returned a non-finite number".to_owned(),
+                        ));
+                    }
+                    // A zero vector is no vector (section 9.1): skip storing it and remember
+                    // `(lane, digest)` so catch-up sweeps do not re-embed the same wording.
+                    if let Some(unit) = unit_vector(&raw) {
+                        ready.push((lane, digest, encode_vector(&unit)));
+                    } else {
+                        zero_lanes.insert((lane, digest));
+                    }
+                }
+                if ready.is_empty() {
+                    continue;
+                }
+                let Some(written) = self.pool().with(|conn| {
+                    let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+                    let current: Option<i64> = tx
+                        .query_row(
+                            "SELECT generation FROM record_kinds WHERE ns = ?1 AND kind = ?2",
+                            params![ns, decl.kind],
+                            |row| row.get(0),
+                        )
+                        .optional()?;
+                    if current != Some(gen_id) {
+                        return Ok(None);
+                    }
+                    require_ready(&tx, ns, decl)?;
+                    let mut count = 0u64;
+                    for (lane, digest, encoded) in &ready {
+                        let current: Option<Vec<u8>> = tx
+                            .query_row(
+                                "SELECT match_digest FROM record_lane WHERE lane = ?1",
+                                [lane],
+                                |row| row.get(0),
+                            )
+                            .optional()?
+                            .flatten();
+                        if current.as_deref() == Some(digest.as_slice()) {
+                            tx.execute(
+                                "INSERT OR REPLACE INTO record_vectors (lane, model, vector)
+                                 VALUES (?1, ?2, ?3)",
+                                params![lane, model, encoded.as_slice()],
+                            )?;
+                            count += 1;
+                        }
+                    }
+                    tx.commit()?;
+                    Ok(Some(count))
+                })?
+                else {
+                    return Ok((vectors_written, vectors_removed, true));
+                };
+                vectors_written += written;
+            }
+            if !embedded_in_sweep {
+                return Ok((vectors_written, vectors_removed, false));
+            }
         }
-        Ok((vectors_written, vectors_removed, false))
+        Ok((vectors_written, vectors_removed, true))
     }
 
     pub(crate) fn lane_reindex(
@@ -522,11 +647,52 @@ impl SqliteStore {
         embedder: Option<&dyn Embedder>,
         vectors_only: bool,
     ) -> Result<ReindexReport, StoreError> {
+        #[cfg(feature = "testkit")]
+        let mut probe = RebuildProbe(None);
+        #[cfg(not(feature = "testkit"))]
+        let mut probe = RebuildProbe;
+        self.lane_reindex_inner(ns, decl, scan, embedder, vectors_only, &mut probe)
+    }
+
+    /// Rebuild a declared kind's lane and return the per-chunk wall-clock breakdown (records host
+    /// specification, section 16). Compiled in only with the `testkit` feature.
+    ///
+    /// # Errors
+    /// Same as [`umbel_store::DocumentStore::reindex_records`].
+    #[cfg(feature = "testkit")]
+    pub fn lane_reindex_timed(
+        &self,
+        ns: &str,
+        decl: &RecordDecl,
+        scan: &dyn Fn(&str) -> Vec<MemoryFlag>,
+        embedder: Option<&dyn Embedder>,
+        vectors_only: bool,
+    ) -> Result<(ReindexReport, RebuildTimings), StoreError> {
+        let mut timings = RebuildTimings::default();
+        let mut probe = RebuildProbe(Some(&mut timings));
+        let report = self.lane_reindex_inner(ns, decl, scan, embedder, vectors_only, &mut probe)?;
+        Ok((report, timings))
+    }
+
+    fn lane_reindex_inner(
+        &self,
+        ns: &str,
+        decl: &RecordDecl,
+        scan: &dyn Fn(&str) -> Vec<MemoryFlag>,
+        embedder: Option<&dyn Embedder>,
+        vectors_only: bool,
+        #[cfg(feature = "testkit")] probe: &mut RebuildProbe<'_>,
+        #[cfg(not(feature = "testkit"))] probe: &mut RebuildProbe,
+    ) -> Result<ReindexReport, StoreError> {
+        let started = probe.mark();
         decl.check()?;
         if vectors_only {
             let status = self.lane_state_of(ns, decl)?;
+            let v_start = probe.mark();
             let (vectors_written, vectors_removed, superseded) =
                 self.reindex_vectors(ns, decl, embedder, None)?;
+            probe.set_vectors(v_start);
+            probe.set_total(started);
             return Ok(ReindexReport {
                 records: status.records,
                 unindexed: status.unindexed,
@@ -537,11 +703,14 @@ impl SqliteStore {
             });
         }
         let generation = self.begin_rebuild(ns, decl)?;
+        let fp_start = probe.mark();
         let first = self.first_puts(ns, &decl.kind)?;
+        probe.set_first_puts(fp_start);
         let mut counts = Counts::default();
         let mut after: Option<String> = None;
         let mut superseded = false;
         for index in 0.. {
+            let chunk_start = probe.mark();
             let done = self.rebuild_chunk(
                 ns,
                 decl,
@@ -552,13 +721,16 @@ impl SqliteStore {
                 index,
                 &mut counts,
             )?;
+            probe.push_chunk(chunk_start);
             match done {
                 Chunk::More(last) => {
                     after = Some(last);
                     #[cfg(feature = "testkit")]
                     self.at_rebuild_point(crate::RebuildPoint::AfterChunk(index));
+                    let pause_start = probe.mark();
                     // The write lock is free here: a writer waiting on it gets its turn.
                     std::thread::sleep(CHUNK_PAUSE);
+                    probe.add_pause(pause_start);
                 }
                 Chunk::Last => break,
                 Chunk::Superseded => {
@@ -567,12 +739,17 @@ impl SqliteStore {
                 }
             }
         }
+        let end_start = probe.mark();
         let cleared = !superseded && self.end_rebuild(ns, decl, generation)?;
+        probe.set_end_rebuild(end_start);
+        let v_start = probe.mark();
         let (vectors_written, vectors_removed, vec_superseded) = if cleared {
             self.reindex_vectors(ns, decl, embedder, Some(generation))?
         } else {
             (0, 0, false)
         };
+        probe.set_vectors(v_start);
+        probe.set_total(started);
         Ok(ReindexReport {
             records: counts.records,
             unindexed: counts.unindexed,
@@ -716,5 +893,326 @@ mod tests {
             .expect("superseded vectors_only");
         assert!(rep.superseded, "{rep:?}");
         assert_eq!(rep.vectors_written, 0);
+    }
+
+    #[test]
+    fn vectors_only_pages_multiple_batches_non_ascii_unmatched_and_zero_vectors() {
+        use serde_json::json;
+        use umbel_store::conformance::samples;
+        use umbel_store::lane::{LaneWrite, Pointer, RecordDecl};
+        use umbel_store::{DocumentStore, EmbedError, Embedder, Expect, ModelId, ReaderFilter};
+
+        struct ZeroForMarker {
+            model: ModelId,
+        }
+        impl Embedder for ZeroForMarker {
+            fn model(&self) -> &ModelId {
+                &self.model
+            }
+            fn dimensions(&self) -> usize {
+                8
+            }
+            fn embed(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>, EmbedError> {
+                Ok(texts
+                    .iter()
+                    .map(|t| {
+                        if t.contains("ZERO_VECTOR") {
+                            vec![0.0f32; 8]
+                        } else {
+                            vec![1.0f32; 8]
+                        }
+                    })
+                    .collect())
+            }
+        }
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        let store = crate::SqliteStore::open(dir.path(), "main", crate::StoreOptions::default())
+            .expect("open");
+        let decl = RecordDecl {
+            kind: "note".to_owned(),
+            standing: false,
+            text: vec![Pointer::parse("/statement").expect("ptr")],
+            keys: Vec::new(),
+            matched: Some(0),
+        };
+        let env = samples::envelope(&["space"], "t1", "2026-11-23T00:00:00.000Z");
+        let reader = ReaderFilter::tokens(["space"]).expect("reader");
+        // 72 regular records (> 64 batch size), 2 non-ASCII IDs, 1 unmatched (null match_digest),
+        // and 1 record whose embedder returns a zero vector (must not loop forever).
+        for i in 0..72usize {
+            store
+                .put_declared_record(
+                    "notes",
+                    &decl,
+                    &format!("n{i:03}"),
+                    json!({ "statement": format!("Prune rose bush {i}.") }),
+                    env.clone(),
+                    Expect::Any,
+                    LaneWrite {
+                        flags: Vec::new(),
+                        evidence: None,
+                        model: None,
+                    },
+                    &reader,
+                )
+                .expect("put");
+        }
+        for (id, body) in [
+            ("é-rose", json!({ "statement": "Élaguer les rosiers." })),
+            ("α-herb", json!({ "statement": "Αρωματικά βότανα." })),
+            ("n-zero", json!({ "statement": "ZERO_VECTOR sentinel" })),
+            ("n-empty", json!({})),
+        ] {
+            store
+                .put_declared_record(
+                    "notes",
+                    &decl,
+                    id,
+                    body,
+                    env.clone(),
+                    Expect::Any,
+                    LaneWrite {
+                        flags: Vec::new(),
+                        evidence: None,
+                        model: None,
+                    },
+                    &reader,
+                )
+                .expect("put special");
+        }
+        let model = ModelId::parse("demo@0123456789abcdef").expect("model");
+        let stub = ZeroForMarker {
+            model: model.clone(),
+        };
+        let rep = store
+            .reindex_records("notes", &decl, &|_| Vec::new(), Some(&stub), true)
+            .expect("multi-batch vectors_only");
+        assert!(!rep.superseded);
+        assert_eq!(
+            rep.vectors_written, 74,
+            "72 ascii + 2 non-ascii, excluding zero and empty"
+        );
+        let status = store.lane_status("notes", &decl).expect("status");
+        assert_eq!(status.vectors.get(model.as_str()), Some(&74));
+    }
+
+    #[test]
+    fn vectors_only_catches_concurrent_lower_id_declared_put_during_embed() {
+        use serde_json::json;
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use umbel_store::conformance::samples;
+        use umbel_store::lane::{LaneWrite, Pointer, RecordDecl};
+        use umbel_store::{DocumentStore, EmbedError, Embedder, Expect, ModelId, ReaderFilter};
+
+        struct InsertLowerOnFirstBatch {
+            model: ModelId,
+            inserted: AtomicBool,
+            store: crate::SqliteStore,
+            decl: RecordDecl,
+        }
+        impl Embedder for InsertLowerOnFirstBatch {
+            fn model(&self) -> &ModelId {
+                &self.model
+            }
+            fn dimensions(&self) -> usize {
+                8
+            }
+            fn embed(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>, EmbedError> {
+                if !self.inserted.swap(true, Ordering::SeqCst) {
+                    // Concurrent declared put with a lower-sorting ID ("a00" < "m01"): does not
+                    // bump `record_kinds.generation`, so a single-sweep `l.id > after_id` loop
+                    // without catch-up would miss it.
+                    let env = samples::envelope(&["space"], "t2", "2026-11-23T00:00:01.000Z");
+                    let reader = ReaderFilter::tokens(["space"]).expect("reader");
+                    self.store
+                        .put_declared_record(
+                            "notes",
+                            &self.decl,
+                            "a00",
+                            json!({ "statement": "Late arriving rose note." }),
+                            env,
+                            Expect::Absent,
+                            LaneWrite {
+                                flags: Vec::new(),
+                                evidence: None,
+                                model: None,
+                            },
+                            &reader,
+                        )
+                        .expect("concurrent declared put");
+                }
+                Ok(texts.iter().map(|_| vec![1.0f32; 8]).collect())
+            }
+        }
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        let store = crate::SqliteStore::open(dir.path(), "main", crate::StoreOptions::default())
+            .expect("open");
+        let decl = RecordDecl {
+            kind: "note".to_owned(),
+            standing: false,
+            text: vec![Pointer::parse("/statement").expect("ptr")],
+            keys: Vec::new(),
+            matched: Some(0),
+        };
+        let env = samples::envelope(&["space"], "t1", "2026-11-23T00:00:00.000Z");
+        let reader = ReaderFilter::tokens(["space"]).expect("reader");
+        for id in ["m01", "m02"] {
+            store
+                .put_declared_record(
+                    "notes",
+                    &decl,
+                    id,
+                    json!({ "statement": format!("Initial note {id}.") }),
+                    env.clone(),
+                    Expect::Absent,
+                    LaneWrite {
+                        flags: Vec::new(),
+                        evidence: None,
+                        model: None,
+                    },
+                    &reader,
+                )
+                .expect("put");
+        }
+        let model = ModelId::parse("demo@0123456789abcdef").expect("model");
+        let embedder = InsertLowerOnFirstBatch {
+            model: model.clone(),
+            inserted: AtomicBool::new(false),
+            store: crate::SqliteStore::open(dir.path(), "main", crate::StoreOptions::default())
+                .expect("open 2"),
+            decl: decl.clone(),
+        };
+        let rep = store
+            .reindex_records("notes", &decl, &|_| Vec::new(), Some(&embedder), true)
+            .expect("vectors_only with concurrent lower-id insert");
+        assert!(!rep.superseded);
+        assert_eq!(rep.vectors_written, 3, "catch-up sweep must embed a00 too");
+        let status = store.lane_status("notes", &decl).expect("status");
+        assert_eq!(status.with_match, 3);
+        assert_eq!(status.vectors.get(model.as_str()), Some(&3));
+    }
+
+    #[test]
+    fn vectors_only_catches_zero_vector_rewrite_and_concurrent_update_when_sweep_writes_zero() {
+        use serde_json::json;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use umbel_store::conformance::samples;
+        use umbel_store::lane::{LaneWrite, Pointer, RecordDecl};
+        use umbel_store::{DocumentStore, EmbedError, Embedder, Expect, ModelId, ReaderFilter};
+
+        // On batch 0: returns a zero vector for "zero-only" AND concurrently rewrites "zero-only"
+        // to a non-zero wording AND inserts a lower-sorting "a00" record. Sweep 0 therefore writes
+        // 0 vectors (`ready.is_empty()`), yet sweep 1 must catch both the rewritten lane (new
+        // digest on the same lane rowid) and the lower-sorting insert.
+        struct MutateDuringZeroBatch {
+            model: ModelId,
+            calls: AtomicUsize,
+            store: crate::SqliteStore,
+            decl: RecordDecl,
+        }
+        impl Embedder for MutateDuringZeroBatch {
+            fn model(&self) -> &ModelId {
+                &self.model
+            }
+            fn dimensions(&self) -> usize {
+                8
+            }
+            fn embed(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>, EmbedError> {
+                let call = self.calls.fetch_add(1, Ordering::SeqCst);
+                if call == 0 {
+                    let env = samples::envelope(&["space"], "t2", "2026-11-23T00:00:01.000Z");
+                    let reader = ReaderFilter::tokens(["space"]).expect("reader");
+                    self.store
+                        .put_declared_record(
+                            "notes",
+                            &self.decl,
+                            "m01",
+                            json!({ "statement": "Now valid rose wording." }),
+                            env.clone(),
+                            Expect::Any,
+                            LaneWrite {
+                                flags: Vec::new(),
+                                evidence: None,
+                                model: None,
+                            },
+                            &reader,
+                        )
+                        .expect("rewrite m01");
+                    self.store
+                        .put_declared_record(
+                            "notes",
+                            &self.decl,
+                            "a00",
+                            json!({ "statement": "Lower id inserted during zero batch." }),
+                            env,
+                            Expect::Absent,
+                            LaneWrite {
+                                flags: Vec::new(),
+                                evidence: None,
+                                model: None,
+                            },
+                            &reader,
+                        )
+                        .expect("insert a00");
+                }
+                Ok(texts
+                    .iter()
+                    .map(|t| {
+                        if t.contains("zero-only") {
+                            vec![0.0f32; 8]
+                        } else {
+                            vec![1.0f32; 8]
+                        }
+                    })
+                    .collect())
+            }
+        }
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        let store = crate::SqliteStore::open(dir.path(), "main", crate::StoreOptions::default())
+            .expect("open");
+        let decl = RecordDecl {
+            kind: "note".to_owned(),
+            standing: false,
+            text: vec![Pointer::parse("/statement").expect("ptr")],
+            keys: Vec::new(),
+            matched: Some(0),
+        };
+        let env = samples::envelope(&["space"], "t1", "2026-11-23T00:00:00.000Z");
+        let reader = ReaderFilter::tokens(["space"]).expect("reader");
+        store
+            .put_declared_record(
+                "notes",
+                &decl,
+                "m01",
+                json!({ "statement": "zero-only initial text" }),
+                env,
+                Expect::Absent,
+                LaneWrite {
+                    flags: Vec::new(),
+                    evidence: None,
+                    model: None,
+                },
+                &reader,
+            )
+            .expect("put m01");
+        let model = ModelId::parse("demo@0123456789abcdef").expect("model");
+        let embedder = MutateDuringZeroBatch {
+            model: model.clone(),
+            calls: AtomicUsize::new(0),
+            store: crate::SqliteStore::open(dir.path(), "main", crate::StoreOptions::default())
+                .expect("open 2"),
+            decl: decl.clone(),
+        };
+        let rep = store
+            .reindex_records("notes", &decl, &|_| Vec::new(), Some(&embedder), true)
+            .expect("catch-up after zero-write sweep");
+        assert!(!rep.superseded);
+        assert_eq!(rep.vectors_written, 2, "must embed rewritten m01 and a00");
+        let status = store.lane_status("notes", &decl).expect("status");
+        assert_eq!(status.with_match, 2);
+        assert_eq!(status.vectors.get(model.as_str()), Some(&2));
     }
 }

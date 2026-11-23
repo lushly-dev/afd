@@ -396,7 +396,7 @@ mod records {
             (status.as_str(), message.as_str()),
             (
                 "pass",
-                "no declared record kind holds more than 100000 records in a space"
+                "no declared record kind holds more than 100000 records or 4000000 postings in a space"
             )
         );
         assert!(!dir.path().join("state/spaces/orchard/store").exists());

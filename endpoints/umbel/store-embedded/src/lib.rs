@@ -25,6 +25,8 @@ use umbel_store::StoreError;
 pub use connection::StoreOptions;
 pub use index::{INDEX_SCHEMA_DIR, IndexCheck, IndexInfo, TantivyIndex};
 pub use inspect::StoreCounts;
+#[cfg(feature = "testkit")]
+pub use lane::{MatchTimings, RebuildTimings};
 pub use memory::{
     KEYS_FILE, MEMORY_FILE, MEMORY_SCHEMA_VERSION, MemoryCheck, MemoryInfo, MemoryKeysInfo,
     MemoryMaintenance, SqliteMemoryStore, is_excluded_from_machine_backup,

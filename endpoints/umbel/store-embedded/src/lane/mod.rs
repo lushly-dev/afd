@@ -17,11 +17,18 @@
 
 mod find;
 mod matching;
+#[cfg(any(test, feature = "testkit"))]
+mod plans;
 mod rank;
 mod reindex;
 mod standing;
 mod status;
 mod write;
+
+#[cfg(feature = "testkit")]
+pub use matching::MatchTimings;
+#[cfg(feature = "testkit")]
+pub use reindex::RebuildTimings;
 
 use rusqlite::{Connection, OptionalExtension, Row, params};
 use umbel_store::lane::{LaneRecord, LaneState, RecordDecl};
