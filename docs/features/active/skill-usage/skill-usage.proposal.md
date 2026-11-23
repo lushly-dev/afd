@@ -271,15 +271,18 @@ machines gave different totals from one record
   says. A branch that has not moved is not read again; `--rebuild` reads every folder again.
 - **A folder that was removed says nothing more**, so the skills of a checkout that is gone
   leave `quiet` and lose their sizes
-  ([#2123](https://github.com/lushly-dev/afd/issues/2123)). When a folder is read, the
+  ([#2123](https://github.com/lushly-dev/afd/issues/2123),
+  [#2245](https://github.com/lushly-dev/afd/issues/2245)). When a folder is read, the
   machine records what it is kept on: its volume's mount point and the volume's own
-  number, as its links resolve, or inside a cloud drive's folder
-  (`Library/CloudStorage/<drive>`) that drive's own folder. A folder known not to be there,
-  on storage that is there (the same volume mounted at the same place, its root looked at
-  and not only named, since Windows calls every drive letter a mount point), was removed,
-  and its account is dropped. The number is where a disk is attached, so a volume that
-  comes back under another one is taken as away, which only waits. Where that storage is
-  away too, or nothing was recorded of it (an account an
+  identifier (or its device number where the system gives no identifier), as its links
+  resolve, or inside a cloud drive's folder (`Library/CloudStorage/<drive>`) that drive's
+  own folder. A folder known not to be there, on storage that is there (the same volume
+  mounted at the same place, its root looked at and not only named, since Windows calls
+  every drive letter a mount point), was removed, and its account is dropped. A volume
+  known by its identifier is still recognised when it comes back under another device
+  number, and another disk at the same mount point is not; where only a device number was
+  recorded, a volume that comes back under another number is taken as away, which only
+  waits. Where that storage is away too, or nothing was recorded of it (an account an
   earlier botcore wrote), it may only be away: it keeps speaking for thirty days from when
   it was first found missing, and no longer. A folder the user may not look at, or one of
   another system (a copied store's), is never taken as gone.

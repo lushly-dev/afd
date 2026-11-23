@@ -1758,35 +1758,79 @@ def test_what_a_folder_is_kept_on_is_its_volume_or_its_cloud_drive(
     (top / "home" / "garden").symlink_to(repo)  # a link to a checkout on the volume
     mounted = {str(volume)}
     monkeypatch.setattr(collect.os.path, "ismount", lambda path: str(path) in mounted)
+    current_id: dict[str, str | None] = {str(volume): "VOL-A"}
+    monkeypatch.setattr(collect, "volume_id", lambda path: current_id.get(str(path)))
 
-    on_volume = {"volume": str(volume), "device": os.stat(volume).st_dev}
-    assert collect.storage_of(repo) == on_volume
-    assert collect.storage_of(top / "home" / "garden") == on_volume  # as its link resolves
+    on_volume_id = {"volume": str(volume), "id": "VOL-A"}
+    assert collect.storage_of(repo) == on_volume_id
+    assert collect.storage_of(top / "home" / "garden") == on_volume_id  # as its link resolves
     assert collect.storage_of(synced) == {"folder": str(drive)}
     assert collect.storage_of(top / "home") is None  # no volume above it is known
     assert collect.storage_of(top / "not-there") is None
 
-    assert collect.storage_there(on_volume)
+    assert collect.storage_there(on_volume_id)
     assert collect.storage_there({"folder": str(drive)})
-    # another disk at the same place is not the volume the folder was on
+    # another disk at the same mount point is not the volume the folder was on
+    assert not collect.storage_there({"volume": str(volume), "id": "VOL-B"})
+    current_id[str(volume)] = None  # a disk with no identifier does not match one that had one
+    assert not collect.storage_there(on_volume_id)
+    assert not collect.storage_there({"volume": str(volume), "id": ""})
+    assert not collect.storage_there({"volume": str(volume), "id": 5})
+
+    # where the system gives no volume identifier, fall back to the device number
+    on_volume = {"volume": str(volume), "device": os.stat(volume).st_dev}
+    assert collect.storage_of(repo) == on_volume
+    assert collect.storage_of(top / "home" / "garden") == on_volume
+    assert collect.storage_there(on_volume)
     assert not collect.storage_there({**on_volume, "device": on_volume["device"] + 1})
+    assert not collect.storage_there({"volume": str(volume), "device": True})
     assert not collect.storage_there({"volume": str(volume)})
+
+    current_id[str(volume)] = "VOL-A"
     mounted.clear()  # the volume is away: its mount point may stay behind, an empty folder
+    assert not collect.storage_there(on_volume_id)
     assert not collect.storage_there(on_volume)
     # Windows calls every drive letter a mount point by its name, there or not: the root is
     # looked at too
     monkeypatch.setattr(collect.os.path, "ismount", lambda path: True)
+    assert not collect.storage_there({"volume": str(top / "no-such-drive"), "id": "VOL-A"})
     assert not collect.storage_there({"volume": str(top / "no-such-drive"), "device": 1})
+    assert collect.storage_there(on_volume_id)
     assert collect.storage_there(on_volume)
     shutil.rmtree(drive)  # the drive's app signed out
     assert not collect.storage_there({"folder": str(drive)})
+    assert not collect.storage_there({"folder": "/f\x00x"})
+    assert not collect.storage_there({"volume": "/v\x00x", "id": "VOL-A"})
+    assert not collect.storage_there({"volume": "/v\x00x", "device": 1})
     assert not collect.storage_there({}) and not collect.storage_there({"volume": 5})
     # and of a state changed by hand, only what a collection writes is read
-    odd = {"a": {"volume": "/v", "device": 7}, "b": {"volume": 5, "device": 7}, "c": "x",
-           4: {"folder": "/f"}, "d": {"other": "/x"}, "e": {"folder": "/f"},
-           "f": {"volume": "/v"}, "g": {"volume": "/v", "device": True},
-           "h": {"folder": 5}}  # fmt: skip
-    assert collect._storage(odd) == {"a": {"volume": "/v", "device": 7}, "e": {"folder": "/f"}}
+    odd = {
+        "a": {"volume": "/v", "device": 7},
+        "b": {"volume": 5, "device": 7},
+        "c": "x",
+        4: {"folder": "/f"},
+        "d": {"other": "/x"},
+        "e": {"folder": "/f"},
+        "f": {"volume": "/v"},
+        "g": {"volume": "/v", "device": True},
+        "h": {"folder": 5},
+        "i": {"volume": "/v", "id": "VOL-A"},
+        "j": {"volume": "/v", "id": "VOL-A", "device": 7},
+        "k": {"volume": "/v", "id": ""},
+        "l": {"volume": "/v", "id": "", "device": 7},
+        "m": {"volume": "/v", "id": 5},
+        "n": {"volume": 5, "id": "VOL-A"},
+        "o": {"volume": "/v\x00x", "id": "VOL-A"},
+        "p": {"folder": "/f\x00x"},
+        "q": {"volume": "", "id": "VOL-A"},
+        "r": {"folder": ""},
+    }
+    assert collect._storage(odd) == {
+        "a": {"volume": "/v", "device": 7},
+        "e": {"folder": "/f"},
+        "i": {"volume": "/v", "id": "VOL-A"},
+        "j": {"volume": "/v", "id": "VOL-A"},
+    }
     assert collect._storage("x") == {}
 
     assert collect.folder_there(repo) is True
@@ -1794,6 +1838,265 @@ def test_what_a_folder_is_kept_on_is_its_volume_or_its_cloud_drive(
     (top / "a-file").write_text("x", "utf-8")
     assert collect.folder_there(top / "a-file") is False  # a file where the folder was
     assert collect.folder_there(top / "a-file" / "under") is False
+
+
+def test_a_volume_remounted_under_another_device_number_is_still_recognised(
+    state: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When a volume remounts under a different st_dev, its identifier still matches so a
+    checkout removed from it drops at the next collection instead of waiting 30 days."""
+    volume = (tmp_path / "volume").resolve()
+    repo = checkout_at(volume / "garden")
+    built = T3Store(tmp_path / "remount.sqlite")
+    built.project("p1", repo)
+    built.skill_tool(built.thread("main-1"), "plant-beds", stamp(1))
+    monkeypatch.setenv(store.T3_STORE_ENV, str(built.path))
+    real_ismount = os.path.ismount
+    real_stat = os.stat
+    device = [100]
+
+    class FakeStat:
+        def __init__(self, inner: os.stat_result, dev: int) -> None:
+            self._inner = inner
+            self.st_dev = dev
+
+        def __getattr__(self, name: str) -> object:
+            return getattr(self._inner, name)
+
+    def fake_stat(path: object, *args: object, **kwargs: object) -> object:
+        result = real_stat(path, *args, **kwargs)
+        if str(path) == str(volume):
+            return FakeStat(result, device[0])
+        return result
+
+    monkeypatch.setattr(
+        collect.os.path, "ismount", lambda path: str(path) == str(volume) or real_ismount(path)
+    )
+    monkeypatch.setattr(collect.os, "stat", fake_stat)
+    monkeypatch.setattr(
+        collect, "volume_id", lambda path: "VOL-A" if str(path) == str(volume) else None
+    )
+
+    run(skill_usage_collect())
+    garden = store.load_state(state)["projects"]["garden"]
+    assert garden["storage"][str(repo)] == {"volume": str(volume), "id": "VOL-A"}
+    assert sorted(held(state)["held"]) == ["plant-beds", "prune-roses"]
+
+    shutil.rmtree(repo)
+    device[0] = 200  # volume came back under another device number
+    run(skill_usage_collect())
+    after = store.load_state(state)["projects"]["garden"]
+    assert held(state)["held"] == {}
+    assert (after["accounts"], after["storage"], after["missing"]) == ({}, {}, {})
+
+
+def test_another_disk_at_the_same_mount_point_is_not_the_volume(
+    state: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Another disk mounted at the same mount point, even with the same st_dev, is not
+    mistaken for the original volume: the checkout's account stays instead of being dropped."""
+    volume = (tmp_path / "volume").resolve()
+    repo = checkout_at(volume / "garden")
+    built = T3Store(tmp_path / "other-disk.sqlite")
+    built.project("p1", repo)
+    built.skill_tool(built.thread("main-1"), "plant-beds", stamp(1))
+    monkeypatch.setenv(store.T3_STORE_ENV, str(built.path))
+    real_ismount = os.path.ismount
+    current_id: list[str | None] = ["VOL-A"]
+    monkeypatch.setattr(
+        collect.os.path, "ismount", lambda path: str(path) == str(volume) or real_ismount(path)
+    )
+    monkeypatch.setattr(
+        collect, "volume_id", lambda path: current_id[0] if str(path) == str(volume) else None
+    )
+
+    run(skill_usage_collect())
+    assert store.load_state(state)["projects"]["garden"]["storage"][str(repo)] == {
+        "volume": str(volume),
+        "id": "VOL-A",
+    }
+
+    shutil.rmtree(repo)
+    current_id[0] = "VOL-B"  # another disk at the same mount point, with the exact same st_dev
+    run(skill_usage_collect())
+    assert sorted(held(state)["held"]) == ["plant-beds", "prune-roses"]
+    assert str(repo) in store.load_state(state)["projects"]["garden"]["missing"]
+
+    current_id[0] = None  # or another disk with no identifier at all
+    run(skill_usage_collect())
+    assert sorted(held(state)["held"]) == ["plant-beds", "prune-roses"]
+
+
+@pytest.mark.parametrize("swap_device", [100, 200])
+def test_a_disk_swap_during_one_collection_does_not_drop_a_missing_checkout(
+    state: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, swap_device: int
+) -> None:
+    """If volume A is replaced by volume B mid-collection (whether st_dev changes or is
+    reused), `storage_there` checks live instead of reusing volume A's cached identifier."""
+    volume = (tmp_path / "volume").resolve()
+    alpha = checkout_at(volume / "alpha")
+    beta = checkout_at(volume / "beta")
+    built = T3Store(tmp_path / "mid-swap.sqlite")
+    built.project("p1", alpha)
+    built.project("p2", beta)
+    built.skill_tool(built.thread("main-1", project_id="p1"), "plant-beds", stamp(1))
+    built.skill_tool(built.thread("main-2", project_id="p2"), "plant-beds", stamp(1))
+    monkeypatch.setenv(store.T3_STORE_ENV, str(built.path))
+    real_ismount = os.path.ismount
+    real_stat = os.stat
+    device = [100]
+    current_id: list[str | None] = ["VOL-A"]
+
+    class FakeStat:
+        def __init__(self, inner: os.stat_result, dev: int) -> None:
+            self._inner = inner
+            self.st_dev = dev
+
+        def __getattr__(self, name: str) -> object:
+            return getattr(self._inner, name)
+
+    def fake_stat(path: object, *args: object, **kwargs: object) -> object:
+        result = real_stat(path, *args, **kwargs)
+        if str(path) == str(volume):
+            return FakeStat(result, device[0])
+        return result
+
+    monkeypatch.setattr(
+        collect.os.path, "ismount", lambda path: str(path) == str(volume) or real_ismount(path)
+    )
+    monkeypatch.setattr(collect.os, "stat", fake_stat)
+    monkeypatch.setattr(
+        collect, "volume_id", lambda path: current_id[0] if str(path) == str(volume) else None
+    )
+    run(skill_usage_collect())
+    assert sorted(held(state, "beta")["held"]) == ["plant-beds", "prune-roses"]
+
+    # During the next collection: alpha is read on VOL-A, then VOL-B swaps in before beta is
+    # checked (beta is missing on VOL-B). Beta's account must NOT be dropped.
+    real_folder_there = collect.folder_there
+
+    def swap_before_beta(path: Path) -> bool | None:
+        if path == beta:
+            current_id[0] = "VOL-B"
+            device[0] = swap_device
+            shutil.rmtree(beta, ignore_errors=True)
+        return real_folder_there(path)
+
+    monkeypatch.setattr(collect, "folder_there", swap_before_beta)
+    run(skill_usage_collect())
+    assert sorted(held(state, "beta")["held"]) == ["plant-beds", "prune-roses"]
+    assert str(beta) in store.load_state(state)["projects"]["beta"]["missing"]
+
+
+def test_a_malformed_volume_path_in_saved_state_does_not_stop_collection(
+    state: Path, t3_store: T3Store, checkout: Path
+) -> None:
+    """An embedded NUL in saved storage is discarded on load so a missing checkout follows
+    the normal 30-day grace period instead of raising ValueError."""
+    t3_store.skill_tool(t3_store.thread("main-1"), "plant-beds", stamp(1))
+    run(skill_usage_collect())
+    saved = store.load_state(state)
+    saved["projects"]["garden"]["storage"][str(checkout)] = {
+        "volume": "/v\x00bad",
+        "id": "VOL-A",
+    }
+    store.save_state(state, saved)
+    shutil.rmtree(checkout)
+
+    run(skill_usage_collect())
+    after = store.load_state(state)["projects"]["garden"]
+    assert sorted(held(state)["held"]) == ["plant-beds", "prune-roses"]
+    assert str(checkout) in after["missing"]
+    assert str(checkout) not in after["storage"]
+
+
+def test_a_transient_volume_id_failure_preserves_recorded_identifier(
+    state: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """If volume_id transiently returns None (e.g. diskutil timeout) while a checkout is
+    present, keep its recorded identifier for that mount instead of downgrading to st_dev."""
+    volume = (tmp_path / "volume").resolve()
+    repo = checkout_at(volume / "garden")
+    built = T3Store(tmp_path / "transient.sqlite")
+    built.project("p1", repo)
+    built.skill_tool(built.thread("main-1"), "plant-beds", stamp(1))
+    monkeypatch.setenv(store.T3_STORE_ENV, str(built.path))
+    real_ismount = os.path.ismount
+    current_id: list[str | None] = ["VOL-A"]
+    monkeypatch.setattr(
+        collect.os.path, "ismount", lambda path: str(path) == str(volume) or real_ismount(path)
+    )
+    monkeypatch.setattr(
+        collect, "volume_id", lambda path: current_id[0] if str(path) == str(volume) else None
+    )
+
+    run(skill_usage_collect())
+    assert store.load_state(state)["projects"]["garden"]["storage"][str(repo)] == {
+        "volume": str(volume),
+        "id": "VOL-A",
+    }
+
+    current_id[0] = None  # transient lookup timeout while checkout is still present
+    run(skill_usage_collect())
+    assert store.load_state(state)["projects"]["garden"]["storage"][str(repo)] == {
+        "volume": str(volume),
+        "id": "VOL-A",
+    }
+
+    # Later a replacement disk at the same mount point (same st_dev) is NOT mistaken for VOL-A
+    shutil.rmtree(repo)
+    current_id[0] = "VOL-B"
+    run(skill_usage_collect())
+    assert sorted(held(state)["held"]) == ["plant-beds", "prune-roses"]
+    assert str(repo) in store.load_state(state)["projects"]["garden"]["missing"]
+
+
+def test_a_device_record_upgrades_to_volume_id_and_asks_once_per_mount(
+    state: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An earlier device-only entry works for removal, upgrades to the volume identifier on
+    the next read, and a collection queries each mount's identifier once for present roots."""
+    volume = (tmp_path / "volume").resolve()
+    garden = checkout_at(volume / "garden")
+    orchard = checkout_at(volume / "orchard")
+    built = T3Store(tmp_path / "upgrade.sqlite")
+    built.project("p1", garden)
+    built.project("p2", orchard)
+    built.skill_tool(built.thread("main-1", project_id="p1"), "plant-beds", stamp(1))
+    built.skill_tool(built.thread("main-2", project_id="p2"), "plant-beds", stamp(1))
+    monkeypatch.setenv(store.T3_STORE_ENV, str(built.path))
+    real_ismount = os.path.ismount
+    monkeypatch.setattr(
+        collect.os.path, "ismount", lambda path: str(path) == str(volume) or real_ismount(path)
+    )
+    calls: list[str] = []
+
+    def fake_volume_id(path: Path) -> str | None:
+        calls.append(str(path))
+        return "VOL-A" if str(path) == str(volume) else None
+
+    # First collection with no volume id available -> records device number
+    monkeypatch.setattr(collect, "volume_id", lambda _path: None)
+    run(skill_usage_collect())
+    saved = store.load_state(state)
+    assert saved["projects"]["garden"]["storage"][str(garden)] == {
+        "volume": str(volume),
+        "device": os.stat(volume).st_dev,
+    }
+
+    # Next collection with volume id available -> upgrades both and queries the mount once
+    monkeypatch.setattr(collect, "volume_id", fake_volume_id)
+    run(skill_usage_collect())
+    saved = store.load_state(state)
+    assert saved["projects"]["garden"]["storage"][str(garden)] == {
+        "volume": str(volume),
+        "id": "VOL-A",
+    }
+    assert saved["projects"]["orchard"]["storage"][str(orchard)] == {
+        "volume": str(volume),
+        "id": "VOL-A",
+    }
+    assert calls == [str(volume)]
 
 
 @pytest.mark.skipif(os.name == "nt", reason="a link needs a privilege on Windows")
@@ -1814,9 +2117,12 @@ def test_a_link_to_a_checkout_on_a_volume_that_is_away_keeps_speaking(
     real = os.path.ismount
     mounted = {str(volume)}
     monkeypatch.setattr(collect.os.path, "ismount", lambda path: str(path) in mounted or real(path))
+    monkeypatch.setattr(
+        collect, "volume_id", lambda path: "VOL-LINK" if str(path) == str(volume) else None
+    )
     run(skill_usage_collect())
     garden = store.load_state(state)["projects"]["garden"]
-    assert garden["storage"][str(link)] == {"volume": str(volume), "device": os.stat(volume).st_dev}
+    assert garden["storage"][str(link)] == {"volume": str(volume), "id": "VOL-LINK"}
 
     volume.rename(volume.with_name("unmounted"))
     mounted.clear()
