@@ -16,14 +16,20 @@ const cardStyles = css`
 	:host {
 		display: block;
 		padding: var(--space-layout-sm);
-		border: 1px solid var(--color-border-strong);
+		/* A card is a surface step with the card shadow, no drawn edge (Refined, D159); forced colors draws the border. */
+		border: 1px solid transparent;
 		border-radius: var(--radius-lg);
+		background: var(--color-surface-card);
+		box-shadow: var(--shadow-card);
+		color: var(--color-text-primary);
 		font-size: var(--type-title-md-size);
 		line-height: var(--type-title-md-line);
 	}
 	@media (forced-colors: active) {
 		:host {
 			border-color: CanvasText;
+			background: Canvas;
+			color: CanvasText;
 		}
 	}
 `;

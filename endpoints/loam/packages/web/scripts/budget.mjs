@@ -873,7 +873,11 @@ export const CEILINGS = Object.freeze({
 	// Raised from 26,800 to 27,200 by AFD #1577 (D115): `violet-elements`' token interface contract version 3
 	// adds `color.accent.background` and `color.accent.text` (119 component ids in all), which `dev.loam/tokens`
 	// reads; measured 26,891 against `main` at `11331eca`, plus a margin.
-	viewMinified: 27_200,
+	// Raised from 27,200 to 28,900 by AFD #1486 (D115): the shell's faces for a view's frame, `styles.css.fonts`
+	// (`fonts.ts`: the shell's `@font-face` rules, each same-origin file read once as a `data:` URL, with its
+	// review's timeout, type check and retry); measured 28,754 against `main` at `2e63c766` (26,891, +1,863), plus
+	// a margin. No font byte enters a chunk.
+	viewMinified: 28_900,
 	consoleMinified: 91_222,
 	// Phase 6's step 11b (10.8): the dispatcher, the direct registry's MCP tool surface (the tool router, the meta-tools,
 	// the bootstrap tools' describers) and what it shares with `apps`; 36,799, and 37,624 merged with step 5, plus a margin.

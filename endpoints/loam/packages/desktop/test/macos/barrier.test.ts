@@ -36,11 +36,11 @@ const SHELL_CSP = [
 
 /** Exact `<meta>` CSP of `web/public/sandbox/proxy.html`. */
 const PROXY_META_CSP =
-	"default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' data:; frame-src 'self'; base-uri 'none'";
+	"default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' data:; font-src data:; frame-src 'self'; base-uri 'none'";
 
 /** Exact inner CSP prefix `web/public/sandbox/proxy.js` prepends to every view's `srcdoc`. */
 const VIEW_INNER_CSP =
-	"<!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' data:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'\">";
+	"<!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' data:; font-src data:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'\">";
 
 interface FrameProbeResult {
 	origin: string;

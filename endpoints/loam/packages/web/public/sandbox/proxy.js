@@ -1,15 +1,16 @@
 /**
  * The sandbox proxy (phase 1 specification, 6.1; D62), served on `sandbox.origin`: it is the only window
  * the shell and a view each speak to. It puts the view's HTML in an opaque-origin iframe under MCP Apps'
- * default CSP, and forwards messages between the two, checking who sent each. It creates no request of
- * its own, and a view's messages about the sandbox itself go nowhere.
+ * default CSP plus `font-src data:`, for the shell's faces in `styles.css.fonts` (6.2), and forwards messages
+ * between the two, checking who sent each. It creates no request of its own, and a view's messages about the
+ * sandbox itself go nowhere.
  */
 (() => {
 	const SANDBOX_MESSAGE = 'ui/notifications/sandbox-';
 	const INNER_SANDBOX = 'allow-scripts allow-forms';
 	// First in the document, before anything of the view's. The one place this policy is written.
 	const INNER_CSP =
-		"<!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' data:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'\">";
+		"<!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' data:; font-src data:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'\">";
 
 	const query = new URLSearchParams(location.search);
 	const host = query.get('host');

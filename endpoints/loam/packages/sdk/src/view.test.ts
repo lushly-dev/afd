@@ -41,6 +41,7 @@ function installWindow(respond: Record<string, Responder> = {}) {
 		for (const listener of listeners) listener({ source, data });
 	};
 	const properties = new Map<string, string>();
+	const styles: Array<{ dataset: Record<string, string>; textContent: string }> = [];
 	vi.stubGlobal('window', {
 		parent,
 		addEventListener: (_type: string, listener: (event: never) => void) => {
@@ -51,8 +52,16 @@ function installWindow(respond: Record<string, Responder> = {}) {
 		documentElement: {
 			style: { setProperty: (name: string, value: string) => properties.set(name, value) },
 		},
+		head: {
+			querySelector: (selector: string) =>
+				selector === 'style[data-loam-fonts]'
+					? (styles.find((style) => 'loamFonts' in style.dataset) ?? null)
+					: null,
+			append: (style: (typeof styles)[number]) => styles.push(style),
+		},
+		createElement: () => ({ dataset: {}, textContent: '' }),
 	});
-	return { posted, deliver, properties };
+	return { posted, deliver, properties, styles };
 }
 
 const HOST_CONTEXT = {
@@ -87,6 +96,35 @@ describe('connectView', () => {
 		expect(posted[1]?.id).toBeUndefined();
 		expect(view.hostContext.theme).toBe('light');
 		expect(properties.get('--color-surface-page')).toBe('#FFFEFA');
+	});
+
+	it("applies the shell's fonts once, from ui/initialize or the first change that carries them", async () => {
+		const FACE =
+			'@font-face { font-family: Inter; src: url("data:font/woff2;base64,AAAA") format("woff2"); }';
+		const given = installWindow({
+			'ui/initialize': () => ({
+				protocolVersion: '2026-01-26',
+				hostContext: { ...HOST_CONTEXT, styles: { css: { fonts: FACE } } },
+			}),
+		});
+		await connectView();
+		expect(given.styles).toEqual([{ dataset: { loamFonts: '' }, textContent: FACE }]);
+		given.deliver({
+			jsonrpc: '2.0',
+			method: 'ui/notifications/host-context-changed',
+			params: { styles: { css: { fonts: '@font-face { font-family: Other; }' } } },
+		});
+		expect(given.styles).toHaveLength(1);
+
+		const late = installWindow({ 'ui/initialize': initialize });
+		await connectView();
+		expect(late.styles).toEqual([]);
+		late.deliver({
+			jsonrpc: '2.0',
+			method: 'ui/notifications/host-context-changed',
+			params: { styles: { css: { fonts: FACE } } },
+		});
+		expect(late.styles).toEqual([{ dataset: { loamFonts: '' }, textContent: FACE }]);
 	});
 
 	it('P2-D5: speaks a document editor’s protocol: its document, saves, changes, dirty and selection', async () => {

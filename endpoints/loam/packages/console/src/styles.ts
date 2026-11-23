@@ -67,15 +67,23 @@ export const consoleStyles = css`
 	.filter-status {
 		overflow-wrap: anywhere;
 	}
+	/*
+	 * A notice is a card one surface step up with the components' card shadow, as violet-card is, and a failure
+	 * the danger tint and state border, as violet-alert is (Refined, D159): the state border is transparent in
+	 * light and dark and the failure's only edge in high contrast. The transparent border keeps the box for
+	 * forced colors, below.
+	 */
 	.notice {
 		padding: var(--space-layout-sm);
-		border: 1px solid var(--color-border-subtle);
-		border-radius: var(--radius-md);
+		border: 1px solid transparent;
+		border-radius: var(--radius-lg);
 		background: var(--color-surface-card);
+		box-shadow: var(--shadow-card);
 	}
 	.failure {
 		border-color: var(--color-state-danger-border);
 		background: var(--color-state-danger-background);
+		box-shadow: none;
 		color: var(--color-state-danger-text);
 	}
 	.command-flag {
@@ -141,9 +149,10 @@ export const consoleStyles = css`
 		grid-template-columns: minmax(0, 1fr);
 		gap: var(--space-stack-sm);
 		padding: var(--space-layout-sm);
-		border: 1px solid var(--color-border-subtle);
-		border-radius: var(--radius-md);
+		border: 1px solid transparent;
+		border-radius: var(--radius-lg);
 		background: var(--color-surface-card);
+		box-shadow: var(--shadow-card);
 		overflow: auto;
 	}
 	.output pre {
@@ -236,6 +245,7 @@ export const consoleStyles = css`
 		.afd-status-muted {
 			color: CanvasText;
 		}
+		/* Forced colors drops box-shadow, so the boundary comes back as a border. */
 		.notice,
 		.failure,
 		.output {

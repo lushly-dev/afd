@@ -25,6 +25,11 @@ export interface ViewHostContext {
 	'dev.loam/document'?: DocumentRefV1;
 	/** The app's own settings sections that changed, by full id (phase 4 specification, 3.8). */
 	'dev.loam/settingsChanged'?: string[];
+	/**
+	 * MCP Apps' host styles: only `css.fonts`, the shell's `@font-face` rules with each file inline (6.2). Phase 1
+	 * still omits `variables`, which MCP Apps closes to its own names; the tokens are `dev.loam/tokens`.
+	 */
+	styles?: { css: { fonts: string } };
 }
 
 export interface ViewHostOptions {
