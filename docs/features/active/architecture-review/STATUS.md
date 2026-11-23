@@ -69,7 +69,7 @@ These keep their own work; this review only cross-references them.
 
 - [#1749](https://github.com/lushly-dev/afd/issues/1749) client and cli: _meta on calls, an authorization provider, and the session on streams
 
-- [#1750](https://github.com/lushly-dev/afd/issues/1750) client: a single call() with an unknown write outcome returns OUTCOME_UNKNOWN, not retryable
+- [#1750](https://github.com/lushly-dev/afd/issues/1750) client: a single call() with an unknown write outcome returns OUTCOME_UNKNOWN, not retryable; merged in #2308
 
 - [#1751](https://github.com/lushly-dev/afd/issues/1751) cli: output, errors and exit codes made for agents
 
@@ -79,7 +79,7 @@ These keep their own work; this review only cross-references them.
 
 - [#1754](https://github.com/lushly-dev/afd/issues/1754) auth: SessionSync's refresh lock on the Web Locks API, or removed
 
-- [#1755](https://github.com/lushly-dev/afd/issues/1755) cli: afd validate --execute calls only tools positively marked read-only
+- [#1755](https://github.com/lushly-dev/afd/issues/1755) cli: afd validate --execute calls only tools positively marked read-only; merged in #2308
 
 ### Python
 

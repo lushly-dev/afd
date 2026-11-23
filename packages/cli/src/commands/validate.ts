@@ -35,7 +35,7 @@ export function registerValidateCommand(program: Command): void {
 		)
 		.option(
 			'--execute',
-			'Also call each tool and validate its CommandResult; skips mutation/destructive tools'
+			'Also call read-only tools and validate their CommandResult; skips mutation/destructive and unmarked tools'
 		)
 		.option('--strict', 'Treat warnings as errors')
 		.option('-v, --verbose', 'Show detailed validation results')
@@ -65,12 +65,18 @@ By default, validate only inspects tools/list: names, descriptions, input
 schemas and _meta.examples. No tool is executed. A mutation or destructive
 tool whose _meta has no approval policy gets a MISSING_APPROVAL_POLICY warning.
 
-With --execute, each tool is also called and its CommandResult validated.
-Tools whose _meta marks them mutation: true or destructive: true are never
-called; they are reported as skipped. Each call uses _meta.examples[0].input
-when the server advertises one, otherwise {}.`
+With --execute, only tools positively marked read-only (annotations.readOnlyHint: true
+or _meta.mutation: false) are called and their CommandResult validated. Tools marked
+mutation: true or destructive: true, or carrying no read-only marker, are never called;
+they are reported as skipped. Each call uses _meta.examples[0].input when the server
+advertises one, otherwise {}.`
 		)
 		.action(async (options) => {
+			if (options.surface && options.execute) {
+				printError('--surface and --execute cannot be used together');
+				process.exit(1);
+				return;
+			}
 			if (options.surface) {
 				await runSurfaceValidation(options);
 			} else {
@@ -94,11 +100,22 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-/** Why `--execute` must not call a tool, or undefined when calling it is safe. */
+/**
+ * Why `--execute` must not call a tool, or undefined when calling it is safe.
+ *
+ * Under MCP, a tool without annotations may mutate state, so only tools positively
+ * marked read-only (`annotations.readOnlyHint === true` or `_meta.mutation === false`)
+ * are executed. Explicit mutation, destructive, or non-read-only markers always win.
+ */
 export function getExecutionSkipReason(tool: McpTool): string | undefined {
 	if (tool._meta?.mutation === true) return 'mutation: true';
 	if (tool._meta?.destructive === true) return 'destructive: true';
-	return undefined;
+	if (tool.annotations?.destructiveHint === true) return 'destructiveHint: true';
+	if (tool.annotations?.readOnlyHint === false) return 'readOnlyHint: false';
+	if (tool._meta?.mutation === false || tool.annotations?.readOnlyHint === true) {
+		return undefined;
+	}
+	return 'not marked read-only';
 }
 
 /** Input for an executed tool: its first advertised example, otherwise `{}`. */
@@ -317,7 +334,9 @@ async function runPerCommandValidation(options: PerCommandOptions): Promise<void
 			console.log(`  ${chalk.red(failCount)} failed`);
 		}
 		if (skipCount > 0) {
-			console.log(`  ${chalk.dim(skipCount)} not executed (mutation or destructive)`);
+			console.log(
+				`  ${chalk.dim(skipCount)} not executed (mutation, destructive, or not marked read-only)`
+			);
 		}
 		console.log();
 		printInfo(

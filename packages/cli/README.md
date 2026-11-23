@@ -155,14 +155,16 @@ afd validate --verbose
 By default, `afd validate` never calls a tool. It checks what `tools/list`
 advertises: names, descriptions, input schemas, and `_meta.examples`.
 
-`--execute` also calls each tool and validates the returned `CommandResult`:
+`--execute` also calls each read-only tool and validates the returned `CommandResult`:
 
-- Tools whose `_meta` sets `mutation: true` or `destructive: true` are never
-  called. Each one is listed as `skipped` with the reason.
+- Only tools positively marked read-only (`annotations.readOnlyHint: true` or
+  `_meta.mutation: false`, without `mutation: true`, `destructive: true`,
+  `destructiveHint: true`, or `readOnlyHint: false`) are called.
+- Tools marked mutating or destructive, or carrying no read-only marker (such as
+  unannotated tools from non-AFD MCP servers), are never called; each one is
+  listed as `skipped` with the reason.
 - Each call uses `_meta.examples[0].input` when the server advertises an
   example, and `{}` otherwise.
-- Tools without metadata are treated as safe to call. Only use `--execute`
-  against servers that mark their side-effecting commands.
 
 `--category <name>` matches the tool's `_meta.category`. Tools without a
 category match when their name starts with `<name>-` (for example, `todo`
@@ -339,7 +341,7 @@ comparison.
 | Option | Description |
 |--------|-------------|
 | `-c, --category <name>` | Validate only tools whose `_meta.category` (or `<name>-` name prefix) matches |
-| `--execute` | Also call each tool and validate its result. Skips `mutation`/`destructive` tools |
+| `--execute` | Also call read-only tools (`annotations.readOnlyHint: true` or `_meta.mutation: false`) and validate their result; skips mutation, destructive, and unmarked tools |
 | `--strict` | Treat warnings as errors |
 | `-v, --verbose` | Show detailed results |
 

@@ -225,9 +225,88 @@ describe('McpClient reconnection', () => {
 		const result = await client.call('item-get');
 		online = true;
 
-		expect(result.error?.code).toBe('CONNECTION_ERROR');
+		expect(result.error).toMatchObject({
+			code: 'OUTCOME_UNKNOWN',
+			retryable: false,
+			details: { cause: 'CONNECTION_ERROR' },
+		});
 		expect(reconnecting).toHaveBeenCalledWith(1, 5);
 		await vi.waitFor(() => expect(client.isConnected()).toBe(true));
+		await client.disconnect();
+	});
+
+	it('clears cached read-only tool metadata when tools/list fails on reconnect', async () => {
+		let failToolsList = false;
+		let failCalls = false;
+		const fetchMock = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+			if (init?.method === 'GET') return { ok: true };
+			const request = JSON.parse(String(init?.body)) as McpRequest;
+			if (request.method === 'initialize') {
+				return {
+					ok: true,
+					status: 200,
+					statusText: 'OK',
+					json: async () => ({
+						jsonrpc: '2.0',
+						id: request.id,
+						result: {
+							protocolVersion: '2024-11-05',
+							serverInfo: { name: 't', version: '1' },
+							capabilities: {},
+						},
+					}),
+				};
+			}
+			if (request.method === 'tools/list') {
+				if (failToolsList) throw new TypeError('discovery down');
+				return {
+					ok: true,
+					status: 200,
+					statusText: 'OK',
+					json: async () => ({
+						jsonrpc: '2.0',
+						id: request.id,
+						result: {
+							tools: [
+								{
+									name: 'item-get',
+									inputSchema: { type: 'object' },
+									_meta: { mutation: false },
+								},
+							],
+						},
+					}),
+				};
+			}
+			if (failCalls) throw new TypeError('socket hang up');
+			return {
+				ok: true,
+				status: 200,
+				statusText: 'OK',
+				json: async () => ({
+					jsonrpc: '2.0',
+					id: request.id,
+					result: { content: [{ type: 'text', text: '{"success":true}' }] },
+				}),
+			};
+		});
+		vi.stubGlobal('fetch', fetchMock);
+		const client = httpClient({ reconnectDelay: 1 });
+		await client.connect();
+		expect(client.getTools()).toHaveLength(1);
+
+		failToolsList = true;
+		currentTransport(client).disconnect();
+		await vi.waitFor(() => expect(client.isConnected()).toBe(true));
+		expect(client.getTools()).toEqual([]);
+
+		failCalls = true;
+		const result = await client.call('item-get');
+		expect(result.error).toMatchObject({
+			code: 'OUTCOME_UNKNOWN',
+			retryable: false,
+			details: { cause: 'CONNECTION_ERROR' },
+		});
 		await client.disconnect();
 	});
 });

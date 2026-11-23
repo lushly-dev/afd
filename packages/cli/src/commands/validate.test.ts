@@ -116,15 +116,50 @@ describe('approval policy check', () => {
 });
 
 describe('--execute safety', () => {
-	it('skips tools marked mutation or destructive', () => {
+	it('skips tools marked mutation, destructive, or non-read-only', () => {
 		expect(getExecutionSkipReason(tool({ _meta: { mutation: true } }))).toBe('mutation: true');
 		const destructive = tool({ _meta: { destructive: true } as McpTool['_meta'] });
 		expect(getExecutionSkipReason(destructive)).toBe('destructive: true');
+		expect(getExecutionSkipReason(tool({ annotations: { destructiveHint: true } }))).toBe(
+			'destructiveHint: true'
+		);
+		expect(getExecutionSkipReason(tool({ annotations: { readOnlyHint: false } }))).toBe(
+			'readOnlyHint: false'
+		);
 	});
 
-	it('executes tools that are read-only or carry no metadata', () => {
-		expect(getExecutionSkipReason(tool())).toBeUndefined();
+	it('skips tools with no metadata because MCP assumes unannotated tools may mutate', () => {
+		expect(getExecutionSkipReason(tool())).toBe('not marked read-only');
+		expect(getExecutionSkipReason(tool({ _meta: {} }))).toBe('not marked read-only');
+		expect(getExecutionSkipReason(tool({ annotations: {} }))).toBe('not marked read-only');
+	});
+
+	it('executes only tools positively marked read-only', () => {
 		expect(getExecutionSkipReason(tool({ _meta: { mutation: false } }))).toBeUndefined();
+		expect(getExecutionSkipReason(tool({ annotations: { readOnlyHint: true } }))).toBeUndefined();
+		expect(
+			getExecutionSkipReason(
+				tool({ _meta: { mutation: false }, annotations: { readOnlyHint: true } })
+			)
+		).toBeUndefined();
+	});
+
+	it('fails closed when mutation or destructive metadata contradicts readOnlyHint', () => {
+		expect(
+			getExecutionSkipReason(
+				tool({ _meta: { mutation: true }, annotations: { readOnlyHint: true } })
+			)
+		).toBe('mutation: true');
+		expect(
+			getExecutionSkipReason(
+				tool({ _meta: { mutation: false, destructive: true }, annotations: { readOnlyHint: true } })
+			)
+		).toBe('destructive: true');
+		expect(
+			getExecutionSkipReason(
+				tool({ _meta: { mutation: false }, annotations: { readOnlyHint: false } })
+			)
+		).toBe('readOnlyHint: false');
 	});
 
 	it('uses the first example input, falling back to an empty object', () => {

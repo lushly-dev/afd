@@ -369,13 +369,14 @@ describe('CLI command workflows', () => {
 	it('runs surface and per-command validation workflows', async () => {
 		const tools = [
 			{
-				name: 'todo-create',
-				description: 'Create a todo item',
+				name: 'todo-list',
+				description: 'List todo items',
 				inputSchema: { type: 'object' },
 				_meta: {
 					category: 'todo',
+					mutation: false,
 					contexts: ['editing'],
-					examples: [{ title: 'Basic', input: { title: 'Buy milk' } }],
+					examples: [{ title: 'Basic', input: { filter: 'open' } }],
 				},
 			},
 			{
@@ -385,9 +386,16 @@ describe('CLI command workflows', () => {
 				_meta: { category: 'todo', mutation: true },
 			},
 			{
+				name: 'todo-unmarked',
+				description: 'Do something without read-only metadata',
+				inputSchema: { type: 'object' },
+				_meta: { category: 'todo' },
+			},
+			{
 				name: 'user-get',
 				description: 'Get a user by id',
 				inputSchema: { type: 'object' },
+				annotations: { readOnlyHint: true },
 				_meta: { category: 'user' },
 			},
 		];
@@ -429,10 +437,10 @@ describe('CLI command workflows', () => {
 		expect(mocks.validateResult).not.toHaveBeenCalled();
 		expect(process.exit).not.toHaveBeenCalled();
 
-		// With --execute, read-only tools get their example input; mutations are skipped.
+		// With --execute, read-only tools get their example input; mutations and unmarked tools are skipped.
 		await run('validate', '--category', 'todo', '--execute');
 		expect(connected.call).toHaveBeenCalledTimes(1);
-		expect(connected.call).toHaveBeenCalledWith('todo-create', { title: 'Buy milk' });
+		expect(connected.call).toHaveBeenCalledWith('todo-list', { filter: 'open' });
 		expect(console.log).toHaveBeenCalledWith(
 			expect.anything(),
 			expect.stringContaining('todo-clear')
@@ -440,6 +448,10 @@ describe('CLI command workflows', () => {
 		expect(console.log).toHaveBeenCalledWith(
 			expect.anything(),
 			expect.stringContaining('skipped (mutation: true)')
+		);
+		expect(console.log).toHaveBeenCalledWith(
+			expect.anything(),
+			expect.stringContaining('skipped (not marked read-only)')
 		);
 		expect(process.exit).not.toHaveBeenCalled();
 	});
@@ -490,8 +502,49 @@ describe('CLI command workflows', () => {
 			expect.stringContaining('skipped (destructive: true)')
 		);
 		expect(console.log).toHaveBeenCalledWith(
-			expect.stringContaining('not executed (mutation or destructive)')
+			expect.stringContaining('not executed (mutation, destructive, or not marked read-only)')
 		);
+	});
+
+	it('skips tools with no metadata under --execute without calling them', async () => {
+		const connected = client({
+			refreshTools: vi.fn().mockResolvedValue([
+				{
+					name: 'mystery-action',
+					description: 'Tool from a non-AFD server with no annotations',
+					inputSchema: { type: 'object' },
+				},
+				{
+					name: 'annotated-read',
+					description: 'Tool marked readOnlyHint via MCP annotations',
+					inputSchema: { type: 'object' },
+					annotations: { readOnlyHint: true },
+				},
+			]),
+		});
+		mocks.ensureConnected.mockResolvedValue(connected);
+		mocks.validateResult.mockReturnValue({ valid: true, errors: [], warnings: [] });
+
+		await run('validate', '--execute');
+
+		expect(connected.call).toHaveBeenCalledTimes(1);
+		expect(connected.call).toHaveBeenCalledWith('annotated-read', {});
+		expect(console.log).toHaveBeenCalledWith(
+			expect.anything(),
+			expect.stringContaining('skipped (not marked read-only)')
+		);
+		expect(process.exit).not.toHaveBeenCalled();
+	});
+
+	it('rejects --surface combined with --execute before connecting or calling any tool', async () => {
+		const connected = client();
+		mocks.ensureConnected.mockResolvedValue(connected);
+
+		await run('validate', '--surface', '--execute');
+
+		expect(mocks.ensureConnected).not.toHaveBeenCalled();
+		expect(connected.call).not.toHaveBeenCalled();
+		expect(process.exit).toHaveBeenCalledWith(1);
 	});
 
 	it('validates, runs, and initializes scenario files', async () => {
@@ -609,6 +662,7 @@ describe('CLI command workflows', () => {
 			name,
 			description: `Return a ${name} envelope`,
 			inputSchema: { type: 'object' },
+			_meta: { mutation: false },
 		}));
 		const connected = client({
 			refreshTools: vi.fn().mockResolvedValue(tools),
@@ -649,6 +703,7 @@ describe('CLI command workflows', () => {
 						name: 'warn-result',
 						description: 'Return a warning envelope',
 						inputSchema: { type: 'object' },
+						_meta: { mutation: false },
 					},
 				]),
 			})
@@ -844,8 +899,14 @@ describe('CLI command workflows', () => {
 					name: `evil${ESC}]0;pwned\x07-tool`,
 					description: 'A tool with an evil name',
 					inputSchema: { type: 'object' },
+					_meta: { mutation: false },
 				},
-				{ name: 'throws-tool', description: 'Throws when called', inputSchema: { type: 'object' } },
+				{
+					name: 'throws-tool',
+					description: 'Throws when called',
+					inputSchema: { type: 'object' },
+					_meta: { mutation: false },
+				},
 			]),
 			call: vi
 				.fn()

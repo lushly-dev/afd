@@ -1,4 +1,5 @@
-import type { McpRequest } from '@lushly-dev/afd-core';
+import type { McpRequest, McpTool } from '@lushly-dev/afd-core';
+import { timeoutError } from '@lushly-dev/afd-core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { McpClient, SERVER_DEADLINE_MARGIN_MS } from './client.js';
 import { isOutcomeUnknown, SessionLimitError, toCommandError } from './client-errors.js';
@@ -10,7 +11,7 @@ function jsonResponse(body: unknown, status = 200, statusText = 'OK') {
 }
 
 /** Answer health, initialize and tools/list; hand every other request to `onRequest`. */
-function mockServer(onRequest: ToolCallHandler) {
+function mockServer(onRequest: ToolCallHandler, tools: McpTool[] = []) {
 	const fetchMock = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
 		if (init?.method === 'GET') return { ok: true };
 		const request = JSON.parse(String(init?.body)) as McpRequest;
@@ -26,7 +27,7 @@ function mockServer(onRequest: ToolCallHandler) {
 			});
 		}
 		if (request.method === 'tools/list') {
-			return jsonResponse({ jsonrpc: '2.0', id: request.id, result: { tools: [] } });
+			return jsonResponse({ jsonrpc: '2.0', id: request.id, result: { tools } });
 		}
 		return onRequest(request, init);
 	});
@@ -226,39 +227,125 @@ describe('McpClient.pipe() timeouts and outcomes', () => {
 	});
 });
 
+const CALL_TOOLS: McpTool[] = [
+	{
+		name: 'item-create',
+		description: 'Create an item',
+		inputSchema: { type: 'object' },
+		_meta: { mutation: true },
+		annotations: { readOnlyHint: false },
+	},
+	{
+		name: 'item-get',
+		description: 'Get an item',
+		inputSchema: { type: 'object' },
+		_meta: { mutation: false },
+		annotations: { readOnlyHint: true },
+	},
+	{
+		name: 'item-read-meta-only',
+		description: 'AFD read tool declaring _meta.mutation: false without annotations',
+		inputSchema: { type: 'object' },
+		_meta: { mutation: false },
+	},
+	{
+		name: 'external-read',
+		description: 'Non-AFD tool with readOnlyHint only and no _meta.mutation',
+		inputSchema: { type: 'object' },
+		annotations: { readOnlyHint: true },
+	},
+	{
+		name: 'item-unmarked',
+		description: 'Tool with no mutation or annotation metadata',
+		inputSchema: { type: 'object' },
+	},
+	{
+		name: 'item-contradictory',
+		description: 'Tool with conflicting mutation and readOnlyHint flags',
+		inputSchema: { type: 'object' },
+		_meta: { mutation: true },
+		annotations: { readOnlyHint: true },
+	},
+	{
+		name: 'item-destructive-contradictory',
+		description: 'Tool with conflicting destructive and mutation: false flags',
+		inputSchema: { type: 'object' },
+		_meta: { mutation: false, destructive: true },
+		annotations: { readOnlyHint: true },
+	},
+	{
+		name: 'item-meta-false-hint-false',
+		description: 'Tool with conflicting mutation: false and readOnlyHint: false',
+		inputSchema: { type: 'object' },
+		_meta: { mutation: false },
+		annotations: { readOnlyHint: false },
+	},
+	{
+		name: 'item-meta-false-destructive-hint',
+		description: 'Tool with conflicting mutation: false and destructiveHint: true',
+		inputSchema: { type: 'object' },
+		_meta: { mutation: false },
+		annotations: { destructiveHint: true },
+	},
+];
+
 describe('McpClient.call() error mapping', () => {
 	it.each([
 		[-32700, 400, 'PARSE_ERROR', false],
 		[-32600, 400, 'INVALID_REQUEST', false],
 		[-32601, 200, 'METHOD_NOT_FOUND', false],
 		[-32602, 200, 'INVALID_INPUT', false],
-		[-32603, 200, 'INTERNAL_ERROR', true],
 		[-32000, 403, 'REQUEST_REJECTED', false],
 		[-32001, 404, 'SESSION_NOT_FOUND', true],
 		[-32002, 503, 'JSON_RPC_ERROR', false],
 		[-32000, 503, 'REQUEST_REJECTED', false],
 		[-32099, 200, 'JSON_RPC_ERROR', false],
-	])('maps JSON-RPC %i (HTTP %i) to %s', async (code, status, expected, retryable) => {
-		mockServer(rpcError(code, 'Server said no', undefined, status));
+	])(
+		'maps definite JSON-RPC %i (HTTP %i) to %s on a mutation',
+		async (code, status, expected, retryable) => {
+			mockServer(rpcError(code, 'Server said no', undefined, status), CALL_TOOLS);
+			const client = await connect();
+
+			const result = await client.call('item-create', {});
+
+			expect(result.success).toBe(false);
+			expect(result.error).toEqual({
+				code: expected,
+				message: 'Server said no',
+				suggestion: expect.any(String),
+				retryable,
+				details: { jsonRpcCode: code },
+			});
+			expect(result.error?.suggestion).not.toMatch(/contact support/i);
+			expect(Object.getOwnPropertyNames(result.error)).not.toContain('stack');
+		}
+	);
+
+	it('maps JSON-RPC -32603 to OUTCOME_UNKNOWN on a mutation and INTERNAL_ERROR on a read', async () => {
+		mockServer(rpcError(-32603, 'Server failed mid-request', undefined, 200), CALL_TOOLS);
 		const client = await connect();
 
-		const result = await client.call('item-create', {});
-
-		expect(result.success).toBe(false);
-		expect(result.error).toEqual({
-			code: expected,
-			message: 'Server said no',
-			suggestion: expect.any(String),
-			retryable,
-			details: { jsonRpcCode: code },
+		const mutation = await client.call('item-create', {});
+		expect(mutation.error).toMatchObject({
+			code: 'OUTCOME_UNKNOWN',
+			retryable: false,
+			details: { cause: 'INTERNAL_ERROR', jsonRpcCode: -32603 },
 		});
-		expect(result.error?.suggestion).not.toMatch(/contact support/i);
-		expect(Object.getOwnPropertyNames(result.error)).not.toContain('stack');
+		expect(mutation.error?.suggestion).toMatch(/before retrying/);
+
+		const read = await client.call('item-get', {});
+		expect(read.error).toEqual({
+			code: 'INTERNAL_ERROR',
+			message: 'Server failed mid-request',
+			suggestion: expect.any(String),
+			retryable: true,
+			details: { jsonRpcCode: -32603 },
+		});
 	});
 
 	it('reads a session-limit refusal only from HTTP 503 with data.code SESSION_LIMIT_REACHED', async () => {
 		const limit = { code: 'SESSION_LIMIT_REACHED', retryAfter: 60 };
-		mockServer(rpcError(-32000, 'Too many live MCP sessions', limit, 503));
+		mockServer(rpcError(-32000, 'Too many live MCP sessions', limit, 503), CALL_TOOLS);
 		const client = await connect();
 
 		const result = await client.call('item-create', {});
@@ -272,7 +359,7 @@ describe('McpClient.call() error mapping', () => {
 		expect(result.error?.suggestion).not.toMatch(/Host|Origin/);
 
 		// The same data.code on another status is the plain JSON-RPC error.
-		mockServer(rpcError(-32000, 'Too many live MCP sessions', limit, 403));
+		mockServer(rpcError(-32000, 'Too many live MCP sessions', limit, 403), CALL_TOOLS);
 		expect((await client.call('item-create', {})).error).toMatchObject({
 			code: 'REQUEST_REJECTED',
 			retryable: false,
@@ -332,7 +419,10 @@ describe('McpClient.call() error mapping', () => {
 	});
 
 	it("prefers the server's suggestion", async () => {
-		mockServer(rpcError(-32000, 'Origin not allowed', { suggestion: 'Add the origin' }, 403));
+		mockServer(
+			rpcError(-32000, 'Origin not allowed', { suggestion: 'Add the origin' }, 403),
+			CALL_TOOLS
+		);
 		const client = await connect();
 
 		const result = await client.call('item-create', {});
@@ -342,29 +432,230 @@ describe('McpClient.call() error mapping', () => {
 
 	it.each([
 		[406, 'Not Acceptable', false],
-		[503, 'Service Unavailable', true],
-	])('maps HTTP %i without a JSON-RPC body', async (status, statusText, retryable) => {
-		mockServer(async () => jsonResponse('nope', status, statusText));
+		[429, 'Too Many Requests', true],
+	])(
+		'maps definite HTTP %i without a JSON-RPC body on a mutation',
+		async (status, statusText, retryable) => {
+			mockServer(async () => jsonResponse('nope', status, statusText), CALL_TOOLS);
+			const client = await connect();
+
+			const result = await client.call('item-create', {});
+
+			expect(result.error).toMatchObject({ code: `HTTP_${status}`, retryable });
+		}
+	);
+
+	it.each([
+		['item-create', 'mutation'],
+		['item-unmarked', 'unmarked tool'],
+		['item-not-listed', 'unlisted tool'],
+		['external-read', 'readOnlyHint only without _meta.mutation: false'],
+		['item-contradictory', 'contradictory mutation + readOnlyHint'],
+		['item-destructive-contradictory', 'contradictory destructive + mutation: false'],
+		['item-meta-false-hint-false', 'contradictory mutation: false + readOnlyHint: false'],
+		['item-meta-false-destructive-hint', 'contradictory mutation: false + destructiveHint: true'],
+	])('maps HTTP 5xx to OUTCOME_UNKNOWN (not retryable) for %s (%s)', async (toolName) => {
+		mockServer(async () => jsonResponse('nope', 503, 'Service Unavailable'), CALL_TOOLS);
 		const client = await connect();
 
-		const result = await client.call('item-create', {});
+		const result = await client.call(toolName, {});
 
-		expect(result.error).toMatchObject({ code: `HTTP_${status}`, retryable });
+		expect(result.error).toMatchObject({
+			code: 'OUTCOME_UNKNOWN',
+			retryable: false,
+			details: { cause: 'HTTP_503' },
+		});
+		expect(result.error?.suggestion).toMatch(/before retrying/);
 	});
 
-	it('maps a request timeout to TIMEOUT', async () => {
+	it.each([
+		['item-get', '_meta.mutation: false + readOnlyHint: true'],
+		['item-read-meta-only', '_meta.mutation: false without annotations'],
+	])('maps HTTP 5xx to retryable HTTP_503 for read-only tool %s (%s)', async (toolName) => {
+		mockServer(async () => jsonResponse('nope', 503, 'Service Unavailable'), CALL_TOOLS);
+		const client = await connect();
+
+		const result = await client.call(toolName, {});
+
+		expect(result.error).toMatchObject({ code: 'HTTP_503', retryable: true });
+	});
+
+	it('maps a request timeout to OUTCOME_UNKNOWN on a mutation and TIMEOUT on a read', async () => {
 		vi.useFakeTimers();
-		mockServer(hang);
+		mockServer(hang, CALL_TOOLS);
 		const client = await connect(50);
 
-		const pending = client.call('item-create', {});
+		const mutationPending = client.call('item-create', {});
 		await vi.advanceTimersByTimeAsync(51);
+		expect((await mutationPending).error).toMatchObject({
+			code: 'OUTCOME_UNKNOWN',
+			retryable: false,
+			details: { cause: 'TIMEOUT', method: 'tools/call', timeoutMs: 50 },
+		});
 
-		expect((await pending).error).toMatchObject({
+		const unmarkedPending = client.call('item-unmarked', {});
+		await vi.advanceTimersByTimeAsync(51);
+		expect((await unmarkedPending).error).toMatchObject({
+			code: 'OUTCOME_UNKNOWN',
+			retryable: false,
+			details: { cause: 'TIMEOUT', method: 'tools/call', timeoutMs: 50 },
+		});
+
+		const readPending = client.call('item-get', {});
+		await vi.advanceTimersByTimeAsync(51);
+		expect((await readPending).error).toMatchObject({
 			code: 'TIMEOUT',
 			retryable: true,
 			details: { method: 'tools/call', timeoutMs: 50 },
 		});
+
+		const metaOnlyReadPending = client.call('item-read-meta-only', {});
+		await vi.advanceTimersByTimeAsync(51);
+		expect((await metaOnlyReadPending).error).toMatchObject({
+			code: 'TIMEOUT',
+			retryable: true,
+			details: { method: 'tools/call', timeoutMs: 50 },
+		});
+	});
+
+	it('maps a connection loss to OUTCOME_UNKNOWN on a mutation and CONNECTION_ERROR on a read', async () => {
+		mockServer(async () => {
+			throw new TypeError('socket hang up');
+		}, CALL_TOOLS);
+		const client = await connect();
+
+		const mutation = await client.call('item-create', {});
+		expect(mutation.error).toMatchObject({
+			code: 'OUTCOME_UNKNOWN',
+			retryable: false,
+			details: { cause: 'CONNECTION_ERROR' },
+		});
+		expect(mutation.error?.message).toContain('socket hang up');
+
+		const read = await client.call('item-get', {});
+		expect(read.error).toMatchObject({
+			code: 'CONNECTION_ERROR',
+			retryable: true,
+		});
+		expect(read.error?.message).toContain('socket hang up');
+
+		const metaOnlyRead = await client.call('item-read-meta-only', {});
+		expect(metaOnlyRead.error).toMatchObject({
+			code: 'CONNECTION_ERROR',
+			retryable: true,
+		});
+	});
+
+	it('captures read-only classification before dispatch so refreshTools cannot flip an in-flight call', async () => {
+		vi.useFakeTimers();
+		let currentTools: McpTool[] = [
+			{
+				name: 'item-changing',
+				description: 'Unmarked at dispatch',
+				inputSchema: { type: 'object' },
+			},
+		];
+		const fetchMock = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+			if (init?.method === 'GET') return { ok: true };
+			const request = JSON.parse(String(init?.body)) as McpRequest;
+			if (request.method === 'initialize') {
+				return jsonResponse({
+					jsonrpc: '2.0',
+					id: request.id,
+					result: {
+						protocolVersion: '2024-11-05',
+						serverInfo: { name: 't', version: '1' },
+						capabilities: {},
+					},
+				});
+			}
+			if (request.method === 'tools/list') {
+				return jsonResponse({ jsonrpc: '2.0', id: request.id, result: { tools: currentTools } });
+			}
+			return hang(request, init);
+		});
+		vi.stubGlobal('fetch', fetchMock);
+		const client = await connect(50);
+
+		const pending = client.call('item-changing', {});
+		currentTools = [
+			{
+				name: 'item-changing',
+				description: 'Later marked read-only',
+				inputSchema: { type: 'object' },
+				_meta: { mutation: false },
+			},
+		];
+		await client.refreshTools();
+		await vi.advanceTimersByTimeAsync(51);
+
+		expect((await pending).error).toMatchObject({
+			code: 'OUTCOME_UNKNOWN',
+			retryable: false,
+			details: { cause: 'TIMEOUT' },
+		});
+	});
+
+	it('handles a malformed tools/list result without throwing on a subsequent call failure', async () => {
+		const fetchMock = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+			if (init?.method === 'GET') return { ok: true };
+			const request = JSON.parse(String(init?.body)) as McpRequest;
+			if (request.method === 'initialize') {
+				return jsonResponse({
+					jsonrpc: '2.0',
+					id: request.id,
+					result: {
+						protocolVersion: '2024-11-05',
+						serverInfo: { name: 't', version: '1' },
+						capabilities: {},
+					},
+				});
+			}
+			if (request.method === 'tools/list') {
+				return jsonResponse({ jsonrpc: '2.0', id: request.id, result: {} });
+			}
+			throw new TypeError('socket hang up');
+		});
+		vi.stubGlobal('fetch', fetchMock);
+		const client = await connect();
+
+		expect(client.getTools()).toEqual([]);
+		const result = await client.call('item-create', {});
+		expect(result.error).toMatchObject({
+			code: 'OUTCOME_UNKNOWN',
+			retryable: false,
+			details: { cause: 'CONNECTION_ERROR' },
+		});
+	});
+
+	it('keeps structured transport timeout errors on the OUTCOME_UNKNOWN path for call, batch and pipe', async () => {
+		mockServer(async () => {
+			throw timeoutError('item-create', 50);
+		}, CALL_TOOLS);
+		const client = await connect();
+
+		const called = await client.call('item-create', {});
+		expect(called.error).toMatchObject({
+			code: 'OUTCOME_UNKNOWN',
+			retryable: false,
+			details: { cause: 'TIMEOUT', operationName: 'item-create', timeoutMs: 50 },
+		});
+
+		const batched = await client.batch(commands);
+		expect(batched.error).toMatchObject({
+			code: 'OUTCOME_UNKNOWN',
+			retryable: false,
+			details: { cause: 'TIMEOUT' },
+		});
+		expect(batched.summary.failureCount).toBe(0);
+
+		const piped = await client.pipe([{ command: 'item-create', input: {} }]);
+		expect(piped.steps).toEqual([
+			expect.objectContaining({
+				index: -1,
+				error: expect.objectContaining({ code: 'OUTCOME_UNKNOWN', retryable: false }),
+			}),
+		]);
 	});
 
 	it('maps calls before connect() to NOT_CONNECTED', async () => {
@@ -378,7 +669,7 @@ describe('McpClient.call() error mapping', () => {
 	it('keeps a structured error thrown by a transport', async () => {
 		mockServer(async () => {
 			throw { code: 'CUSTOM', message: 'custom failure', suggestion: 'do the thing' };
-		});
+		}, CALL_TOOLS);
 		const client = await connect();
 
 		const result = await client.call('item-create', {});

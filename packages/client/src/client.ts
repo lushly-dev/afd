@@ -148,6 +148,7 @@ export class McpClient extends McpClientEventEmitter {
 	private pendingRequests = new Map<string | number, PendingRequest>();
 	private activeStreams = new Set<AbortController>();
 	private activeTaskPolls = new Set<AbortController>();
+	private failedTaskPollErrors = new WeakSet<object>();
 	private intentionalDisconnect = false;
 	private connectionGeneration = 0;
 	private connectionController: AbortController | null = null;
@@ -290,7 +291,7 @@ export class McpClient extends McpClientEventEmitter {
 	 */
 	async listTools(): Promise<McpTool[]> {
 		const response = await this.request<McpToolsListResult>('tools/list');
-		this.tools = response.tools;
+		this.tools = Array.isArray(response?.tools) ? response.tools : [];
 		return this.tools;
 	}
 
@@ -355,6 +356,17 @@ export class McpClient extends McpClientEventEmitter {
 		return raw as McpToolCallResult;
 	}
 
+	private markTaskPollFailure<E>(error: E): E {
+		if (typeof error === 'object' && error !== null) {
+			this.failedTaskPollErrors.add(error);
+		}
+		return error;
+	}
+
+	private isTaskPollFailure(error: unknown): boolean {
+		return typeof error === 'object' && error !== null && this.failedTaskPollErrors.has(error);
+	}
+
 	private async pollTask(
 		initial: TaskInfo & { resultType: 'task' },
 		deadline: number,
@@ -410,7 +422,7 @@ export class McpClient extends McpClientEventEmitter {
 
 			for (;;) {
 				if (pollController.signal.aborted) {
-					throw new NotConnectedError();
+					throw this.markTaskPollFailure(new NotConnectedError());
 				}
 				if (callerSignal?.aborted) {
 					cancelBestEffort();
@@ -419,7 +431,7 @@ export class McpClient extends McpClientEventEmitter {
 				const remainingBeforeWait = deadline - Date.now();
 				if (remainingBeforeWait <= 0) {
 					cancelBestEffort();
-					throw new RequestTimeoutError('tools/call', totalTimeoutMs);
+					throw this.markTaskPollFailure(new RequestTimeoutError('tools/call', totalTimeoutMs));
 				}
 
 				const waitMs = Math.min(pollIntervalMs, remainingBeforeWait, MAX_TIMER_MS);
@@ -441,7 +453,7 @@ export class McpClient extends McpClientEventEmitter {
 				});
 
 				if (pollController.signal.aborted) {
-					throw new NotConnectedError();
+					throw this.markTaskPollFailure(new NotConnectedError());
 				}
 				if (callerSignal?.aborted) {
 					cancelBestEffort();
@@ -450,7 +462,7 @@ export class McpClient extends McpClientEventEmitter {
 				const remaining = deadline - Date.now();
 				if (remaining <= 0) {
 					cancelBestEffort();
-					throw new RequestTimeoutError('tools/call', totalTimeoutMs);
+					throw this.markTaskPollFailure(new RequestTimeoutError('tools/call', totalTimeoutMs));
 				}
 
 				let detailed: DetailedTask;
@@ -458,7 +470,7 @@ export class McpClient extends McpClientEventEmitter {
 					detailed = await this.getTask(taskId, { timeout: remaining, signal });
 				} catch (error) {
 					if (pollController.signal.aborted) {
-						throw new NotConnectedError();
+						throw this.markTaskPollFailure(new NotConnectedError());
 					}
 					if (callerSignal?.aborted) {
 						cancelBestEffort();
@@ -466,9 +478,9 @@ export class McpClient extends McpClientEventEmitter {
 					}
 					if (error instanceof RequestTimeoutError) {
 						cancelBestEffort();
-						throw new RequestTimeoutError('tools/call', totalTimeoutMs);
+						throw this.markTaskPollFailure(new RequestTimeoutError('tools/call', totalTimeoutMs));
 					}
-					throw error;
+					throw this.markTaskPollFailure(error);
 				}
 
 				if (detailed.status !== lastStatus || detailed.statusMessage !== lastMessage) {
@@ -505,9 +517,13 @@ export class McpClient extends McpClientEventEmitter {
 	 * Call a command and return a CommandResult.
 	 *
 	 * This is the preferred method for AFD - it wraps the MCP response
-	 * in a standardized CommandResult. It never rejects: a JSON-RPC error becomes a failure with
-	 * a matching AFD code (`INVALID_INPUT` for -32602, `SESSION_NOT_FOUND` for -32001, ...), a
-	 * timeout becomes `TIMEOUT`, and a connection problem `CONNECTION_ERROR` or `NOT_CONNECTED`.
+	 * in a standardized CommandResult. It never rejects: a definite refusal becomes a failure with
+	 * a matching AFD code (`INVALID_INPUT` for -32602, `SESSION_NOT_FOUND` for -32001, `HTTP_4xx`,
+	 * `NOT_CONNECTED`, ...). When a timeout, connection loss, HTTP 5xx, JSON-RPC `-32603`, or a
+	 * lost task poll leaves the outcome unknown, tools not positively declared `_meta.mutation === false`
+	 * (without contradicting mutation/destructive/non-read-only markers) return `OUTCOME_UNKNOWN` with
+	 * `retryable: false` and the underlying cause in `details.cause`; read-only tools return the
+	 * underlying error (`TIMEOUT`, `CONNECTION_ERROR`, `HTTP_5xx`, `INTERNAL_ERROR`, ...).
 	 *
 	 * @param name - Command/tool name
 	 * @param args - Command arguments
@@ -517,6 +533,9 @@ export class McpClient extends McpClientEventEmitter {
 		args?: Record<string, unknown>,
 		options?: RequestOptions
 	): Promise<CommandResult<T>> {
+		// Capture read-only metadata before dispatch so a later tools/list refresh cannot
+		// flip an in-flight call's outcome classification.
+		const readOnly = this.isReadOnlyTool(name);
 		try {
 			const result = await this.callTool(name, args, options);
 			const parsed = parseTextContent(result);
@@ -541,7 +560,11 @@ export class McpClient extends McpClientEventEmitter {
 			// SAFETY: Non-AFD tools may return plain text. Preserve that established fallback.
 			return success(getTextContent(result) as unknown as T);
 		} catch (error) {
-			return failure(toCommandError(error));
+			const cause = toCommandError(error);
+			if ((this.isTaskPollFailure(error) || isOutcomeUnknown(error)) && !readOnly) {
+				return failure(outcomeUnknownError(cause, 'call'));
+			}
+			return failure(cause);
 		}
 	}
 
@@ -619,7 +642,7 @@ export class McpClient extends McpClientEventEmitter {
 			);
 		} catch (error) {
 			const cause = toCommandError(error);
-			if (isOutcomeUnknown(error)) {
+			if (this.isTaskPollFailure(error) || isOutcomeUnknown(error)) {
 				return createUnknownOutcomeBatch(commands, startedAt, outcomeUnknownError(cause, 'batch'));
 			}
 			return createBatchFailure(
@@ -697,7 +720,7 @@ export class McpClient extends McpClientEventEmitter {
 			return createPipelineFailure<T>(request);
 		} catch (error) {
 			const cause = toCommandError(error);
-			if (isOutcomeUnknown(error)) {
+			if (this.isTaskPollFailure(error) || isOutcomeUnknown(error)) {
 				return createUnknownOutcomePipeline<T>(request, outcomeUnknownError(cause, 'pipeline'));
 			}
 			return createPipelineFailure<T>(request, cause);
@@ -918,6 +941,27 @@ export class McpClient extends McpClientEventEmitter {
 	// INTERNAL
 	// ═══════════════════════════════════════════════════════════════════════════
 
+	/**
+	 * Whether the cached tool listing positively declares `_meta.mutation === false` for `name`.
+	 *
+	 * Unknown tools, tools without `_meta.mutation: false`, and tools with any contradicting
+	 * mutation, destructive, or non-read-only flag return `false` so ambiguous transport failures
+	 * fail closed as `OUTCOME_UNKNOWN`.
+	 */
+	private isReadOnlyTool(name: string): boolean {
+		const tool = this.tools.find((entry) => entry.name === name);
+		if (!tool) return false;
+		if (
+			tool._meta?.mutation !== false ||
+			tool._meta?.destructive === true ||
+			tool.annotations?.destructiveHint === true ||
+			tool.annotations?.readOnlyHint === false
+		) {
+			return false;
+		}
+		return true;
+	}
+
 	/** A request timeout that outlasts a server-side deadline by the margin. */
 	private timeoutWithMargin(serverDeadlineMs: number | undefined): number {
 		if (
@@ -1002,6 +1046,7 @@ export class McpClient extends McpClientEventEmitter {
 			this.serverInfo = initResult.serverInfo;
 			this.capabilities = initResult.capabilities;
 			this.connectedAt = new Date();
+			this.tools = [];
 			try {
 				await this.refreshTools();
 			} catch (error) {

@@ -77,6 +77,24 @@ async function startSdkTaskServer() {
 					description: 'Fails with JSON-RPC error',
 					inputSchema: { type: 'object' },
 				},
+				{
+					name: 'job-read-rpc-fail',
+					description: 'Read-only task that fails with JSON-RPC error',
+					inputSchema: { type: 'object' },
+					_meta: { mutation: false },
+					annotations: { readOnlyHint: true },
+				},
+				{
+					name: 'job-expired',
+					description: 'Task whose record disappears before tasks/get completes',
+					inputSchema: { type: 'object' },
+				},
+				{
+					name: 'job-read-expired',
+					description: 'Read-only task whose record disappears before tasks/get completes',
+					inputSchema: { type: 'object' },
+					_meta: { mutation: false },
+				},
 			],
 		}));
 		server.setRequestHandler('tools/call', async (request, ctx) => {
@@ -113,6 +131,10 @@ async function startSdkTaskServer() {
 			const { taskId } = params as { taskId: string };
 			const state = tasks.get(taskId);
 			if (!state) throw new ProtocolError(ProtocolErrorCode.InvalidParams, 'Task not found');
+			if (state.mode === 'job-expired' || state.mode === 'job-read-expired') {
+				tasks.delete(taskId);
+				throw new ProtocolError(ProtocolErrorCode.InvalidParams, 'Task expired');
+			}
 			state.polls += 1;
 			const now = new Date().toISOString();
 			if (state.cancelled) {
@@ -153,7 +175,7 @@ async function startSdkTaskServer() {
 					},
 				} as never;
 			}
-			if (state.mode === 'job-rpc-fail') {
+			if (state.mode === 'job-rpc-fail' || state.mode === 'job-read-rpc-fail') {
 				return {
 					taskId,
 					status: 'failed',
@@ -222,7 +244,29 @@ describe('McpClient MCP Tasks protocol handling', () => {
 
 		const rpcFail = await client.call('job-rpc-fail', {});
 		expect(rpcFail.success).toBe(false);
-		expect(rpcFail.error?.code).toBe('INTERNAL_ERROR');
+		expect(rpcFail.error).toMatchObject({
+			code: 'OUTCOME_UNKNOWN',
+			retryable: false,
+			details: { cause: 'INTERNAL_ERROR', jsonRpcCode: -32603 },
+		});
+
+		const readRpcFail = await client.call('job-read-rpc-fail', {});
+		expect(readRpcFail.success).toBe(false);
+		expect(readRpcFail.error?.code).toBe('INTERNAL_ERROR');
+		expect(readRpcFail.error?.retryable).toBe(true);
+
+		const expired = await client.call('job-expired', {});
+		expect(expired.success).toBe(false);
+		expect(expired.error).toMatchObject({
+			code: 'OUTCOME_UNKNOWN',
+			retryable: false,
+			details: { cause: 'INVALID_INPUT', jsonRpcCode: -32602 },
+		});
+
+		const readExpired = await client.call('job-read-expired', {});
+		expect(readExpired.success).toBe(false);
+		expect(readExpired.error?.code).toBe('INVALID_INPUT');
+		expect(readExpired.error?.retryable).toBe(false);
 
 		const ac = new AbortController();
 		const cancelled = await client.call(

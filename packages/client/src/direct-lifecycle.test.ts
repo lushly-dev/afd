@@ -54,7 +54,11 @@ describe('McpClient direct execution ownership', () => {
 		expect(settled).toBe(false);
 		await vi.advanceTimersByTimeAsync(1);
 		expect(settled).toBe(true);
-		expect((await call).error?.code).toBe('TIMEOUT');
+		expect((await call).error).toMatchObject({
+			code: 'OUTCOME_UNKNOWN',
+			retryable: false,
+			details: { cause: 'TIMEOUT' },
+		});
 		expect(seen?.signal?.aborted).toBe(true);
 		execution.resolve({ success: true });
 		await vi.advanceTimersByTimeAsync(0);
