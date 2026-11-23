@@ -1238,3 +1238,36 @@ test('loam-plugins.yml violet gate opens on transitive workspace dependency chan
 	});
 	assert.deepEqual(planSuites(docsOnly, { root: repoRoot, suites: [suite] }), []);
 });
+
+test('loam-desktop.yml runs on mail engine, mail mount and packages/rust changes (#1997)', () => {
+	const root = join(import.meta.dirname, '..');
+	const workflow = readFileSync(join(root, '.github/workflows/loam-desktop.yml'), 'utf8');
+	const { paths, gates } = readTrigger(workflow);
+	const scope = (files) => resolveScope({ root, files, git: () => '' });
+	const desktopGate = (files) =>
+		gate(scope(files), parseArgs(['gate', ...gates.get('run')], {})).run;
+
+	for (const file of [
+		'endpoints/loam/plugins/mail/engine/src/lib.rs',
+		'endpoints/loam/plugins/mail/mount/loam-app.toml',
+		'packages/rust/src/lib.rs',
+	]) {
+		assert.equal(
+			workflowTrigger(scope([file]), { paths, gates }).run,
+			true,
+			`loam-desktop.yml trigger should match ${file}`
+		);
+		assert.equal(desktopGate([file]), true, `loam-desktop.yml scope gate should run for ${file}`);
+	}
+	for (const file of [
+		'endpoints/loam/plugins/mail/docs/plugin.spec.md',
+		'endpoints/loam/plugins/other/src/index.ts',
+	]) {
+		assert.equal(
+			workflowTrigger(scope([file]), { paths, gates }).run,
+			false,
+			`loam-desktop.yml trigger should skip ${file}`
+		);
+		assert.equal(desktopGate([file]), false, `loam-desktop.yml scope gate should skip ${file}`);
+	}
+});

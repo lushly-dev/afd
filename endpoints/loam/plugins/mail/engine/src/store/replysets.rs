@@ -700,15 +700,10 @@ impl Store {
         story: Option<i64>,
         messages: &[i64],
     ) -> Result<Result<(AccountId, Vec<ResolvedSource>), SourceRefusal>, StoreError> {
-        if let Some(story_id) = story {
-            let exists = self
-                .connection
-                .query_row("SELECT 1 FROM story WHERE id = ?1", [story_id], |_| Ok(()))
-                .optional()?
-                .is_some();
-            if !exists {
-                return Ok(Err(SourceRefusal::StoryNotFound(story_id)));
-            }
+        if let Some(story_id) = story
+            && self.story(story_id)?.is_none()
+        {
+            return Ok(Err(SourceRefusal::StoryNotFound(story_id)));
         }
         let accounts = self.accounts()?;
         if let Some(named) = named_account

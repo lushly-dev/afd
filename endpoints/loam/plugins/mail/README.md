@@ -4,6 +4,7 @@ Mail as a Loam plugin with an engine of its own: a Rust program that holds a per
 their machine and serves it as AFD commands. The app over it comes later.
 
 - [The engine's specification](docs/engine.spec.md): what is being built, and in what steps.
+- [The plugin's specification](docs/plugin.spec.md): mounting in Loam, approvals, taint per account and the native app.
 - [Status](../../../../docs/features/active/mail/STATUS.md): what is done and what is next.
 - [The proposal](../../../../docs/features/active/mail/mail.proposal.md): why.
 
@@ -20,11 +21,11 @@ cargo fmt --check && cargo clippy --locked --all-targets -- -D warnings && cargo
 
 It is built a step at a time from the specification's section 15. It answers `help` and
 `version` and runs a command the registry exposes to the command line, printing its result as
-JSON: `loam-mail <command> [input]`. Its commands so far are `mail-account-add`,
-`mail-account-list`, `mail-sync`, `mail-status`, `mail-rebuild`, and the read commands
-`mail-thread-list`, `mail-thread-open`, `mail-message-open`, `mail-attachment-open`,
-`mail-search`, `mail-sender-list`, `mail-sender-show` and `mail-message-list`, and screening's
-`mail-sender-screen`, `mail-sender-suggest`, `mail-sender-accept` and `mail-sender-dismiss`. Whatever came from mail, a file's bytes included, sits in a part of a result
+JSON: `loam-mail <command> [input]`. It implements phases B through E and steps F0, F1, F2a, F4
+and F5: accounts, tokens (agent and approver), sync, threads/messages/attachments/search, senders
+and screening, stream/burst/proposed stories, selections, per-account policies, undoable mailbox
+changes and proposals, drafts, SMTP send, unsubscribe, grounded records, reply sets, and the Loam
+mount package. Whatever came from mail, a file's bytes included, sits in a part of a result
 labelled `"trust": "content"`. It syncs an iCloud account over IMAP. To add one, at a terminal on macOS, with an
 [app-specific password](https://support.apple.com/en-us/102654):
 
@@ -108,3 +109,67 @@ policy is exposed to the command line only, and every command's name starts with
 
 The [Loam plugins workflow](../../../../.github/workflows/loam-plugins.yml) runs those three
 checks when this folder, apart from `docs/`, or the `afd` crate changes.
+
+## Mounting in Loam (by hand, until Loam's step 9)
+
+`mount/` holds the Loam mount package (`mount/loam-app.toml`, `kind = "mounted"`, `plugin.id = "mail"`,
+`mount = { prefix = "mail", transport = "http" }`) with `[[mount.tools]]` effects matching the
+engine's MCP-exposed commands. See [the plugin specification](docs/plugin.spec.md#12-mounting-by-hand-until-loams-step-9)
+for the full contract.
+
+1. Start the engine on a fixed port:
+
+   ```sh
+   loam-mail serve --port 7461
+   ```
+
+2. At the engine's terminal on macOS, mint an approver token for Loam and approve the hold
+   (`--out` is refused on Windows):
+
+   ```sh
+   loam-mail mail-token-create '{"name":"Loam","role":"approver"}' --out <token-file>
+   ```
+
+3. Pack the mount package into a directory containing `app-manifest.json`:
+
+   ```sh
+   loam app check endpoints/loam/plugins/mail/mount
+   loam app pack endpoints/loam/plugins/mail/mount --out <packed-dir>
+   ```
+
+4. Add the mounted instance in a version-4 `loam.deployment.toml` (with `[host] kind = "desktop"`),
+   naming the packed mount directory, bearer file, `labels = "per-part"`, `approvals = "shell"`,
+   each released MCP command's preview (`mail-operation-approve` today; send and unsubscribe follow
+   in steps F2b/F2c), and every mutation you want exposed (`expose.apps` is set per command):
+
+   ```toml
+   deployment_version = 4
+
+   [host]
+   kind = "desktop"
+
+   [apps.mail]
+   app = "mail"
+   package = "<packed-dir>"
+   prefix = "mail"
+   audience = "person"
+   transport = "http"
+   url = "http://127.0.0.1:7461/mcp"
+   bearer_file = "<token-file>"
+   labels = "per-part"
+   approvals = "shell"
+   expose = { agent = true, palette = true }
+
+   [apps.mail.commands."mail-operation-approve"]
+   expose = { agent = true, apps = true }
+   preview = { command = "mail-operation-show", input = ["operation", "digest"] }
+   ```
+
+5. Validate and write the desktop deployment:
+
+   ```sh
+   loam deployment check loam.deployment.toml
+   loam deployment write --config loam.deployment.toml --host desktop --dist <bundled dist> --out <app data>/site --mounts-out <app data>/mounts.json
+   ```
+
+   `mounts.json` holds the copied bearer and must remain private to the person.

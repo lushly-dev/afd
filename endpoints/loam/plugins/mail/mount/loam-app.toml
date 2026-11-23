@@ -1,0 +1,209 @@
+# Loam Mail mount package (plugin.spec.md, section 12.3; step F5).
+# Mounted over HTTP against a running `loam-mail serve` instance.
+# The prefix equals the commands' domain (`mail`), so final names are the engine's own.
+manifest_version = 1
+protocol = 1
+afd_contract = "1.0"
+
+[plugin]
+id = "mail"
+title = "Mail"
+version = "0.1.0"
+description = "Local mail engine over MCP: threads, screening, stories, drafts, reply sets and policy-bounded mailbox changes."
+kind = "mounted"
+domains = ["mail"]
+license = "MIT"
+
+[mount]
+prefix = "mail"
+transport = "http"
+
+# Reads (`effects = ["inspect"]`)
+[[mount.tools]]
+tool = "mail-status"
+effects = ["inspect"]
+
+[[mount.tools]]
+tool = "mail-account-list"
+effects = ["inspect"]
+
+[[mount.tools]]
+tool = "mail-thread-list"
+effects = ["inspect"]
+
+[[mount.tools]]
+tool = "mail-thread-open"
+effects = ["inspect"]
+
+[[mount.tools]]
+tool = "mail-message-open"
+effects = ["inspect"]
+
+[[mount.tools]]
+tool = "mail-attachment-open"
+effects = ["inspect"]
+
+[[mount.tools]]
+tool = "mail-search"
+effects = ["inspect"]
+
+[[mount.tools]]
+tool = "mail-sender-list"
+effects = ["inspect"]
+
+[[mount.tools]]
+tool = "mail-sender-show"
+effects = ["inspect"]
+
+[[mount.tools]]
+tool = "mail-message-list"
+effects = ["inspect"]
+
+[[mount.tools]]
+tool = "mail-story-list"
+effects = ["inspect"]
+
+[[mount.tools]]
+tool = "mail-story-open"
+effects = ["inspect"]
+
+[[mount.tools]]
+tool = "mail-story-changes"
+effects = ["inspect"]
+
+[[mount.tools]]
+tool = "mail-policy-show"
+effects = ["inspect"]
+
+[[mount.tools]]
+tool = "mail-operation-list"
+effects = ["inspect"]
+
+[[mount.tools]]
+tool = "mail-operation-show"
+effects = ["inspect"]
+
+[[mount.tools]]
+tool = "mail-draft-list"
+effects = ["inspect"]
+
+[[mount.tools]]
+tool = "mail-draft-show"
+effects = ["inspect"]
+
+[[mount.tools]]
+tool = "mail-unsubscribe-show"
+effects = ["inspect"]
+
+[[mount.tools]]
+tool = "mail-record-list"
+effects = ["inspect"]
+
+[[mount.tools]]
+tool = "mail-replyset-show"
+effects = ["inspect"]
+
+# Provider and outbound mutations (`effects = ["external"]`)
+[[mount.tools]]
+tool = "mail-sync"
+effects = ["external"]
+
+[[mount.tools]]
+tool = "mail-archive"
+effects = ["external"]
+
+[[mount.tools]]
+tool = "mail-label"
+effects = ["external"]
+
+[[mount.tools]]
+tool = "mail-mark"
+effects = ["external"]
+
+[[mount.tools]]
+tool = "mail-trash"
+effects = ["external"]
+
+[[mount.tools]]
+tool = "mail-operation-resume"
+effects = ["external"]
+
+[[mount.tools]]
+tool = "mail-operation-undo"
+effects = ["external"]
+
+[[mount.tools]]
+tool = "mail-operation-approve"
+effects = ["external"]
+
+# Local store mutations (`effects = ["store-write"]`)
+[[mount.tools]]
+tool = "mail-selection-create"
+effects = ["store-write"]
+
+[[mount.tools]]
+tool = "mail-operation-cancel"
+effects = ["store-write"]
+
+[[mount.tools]]
+tool = "mail-operation-dismiss"
+effects = ["store-write"]
+
+[[mount.tools]]
+tool = "mail-thread-snooze"
+effects = ["store-write"]
+
+[[mount.tools]]
+tool = "mail-draft-create"
+effects = ["store-write"]
+
+[[mount.tools]]
+tool = "mail-draft-update"
+effects = ["store-write"]
+
+[[mount.tools]]
+tool = "mail-draft-discard"
+effects = ["store-write"]
+
+[[mount.tools]]
+tool = "mail-draft-restore"
+effects = ["store-write"]
+
+[[mount.tools]]
+tool = "mail-sender-suggest"
+effects = ["store-write"]
+
+[[mount.tools]]
+tool = "mail-sender-dismiss"
+effects = ["store-write"]
+
+[[mount.tools]]
+tool = "mail-record-propose"
+effects = ["store-write"]
+
+[[mount.tools]]
+tool = "mail-record-withdraw"
+effects = ["store-write"]
+
+[[mount.tools]]
+tool = "mail-story-propose"
+effects = ["store-write"]
+
+[[mount.tools]]
+tool = "mail-story-dismiss"
+effects = ["store-write"]
+
+[[mount.tools]]
+tool = "mail-replyset-create"
+effects = ["store-write"]
+
+[[mount.tools]]
+tool = "mail-replyset-update"
+effects = ["store-write"]
+
+[[mount.tools]]
+tool = "mail-replyset-next"
+effects = ["store-write"]
+
+[app]
+scope_levels = ["workspace", "project"]

@@ -1070,6 +1070,54 @@ pub(super) const MIGRATIONS: &[&str] = &[
 
     UPDATE operation SET proposal_generation = 1 WHERE proposer_kind IS NOT NULL;
     ",
+    // 21: per-account policy overrides (step F4; plugin.spec.md section 10, M36).
+    // Not derived: survives a rebuild. Each nullable limit falls back to the
+    // default `policy` row when NULL.
+    "
+    CREATE TABLE account_policy (
+        account_id INTEGER PRIMARY KEY REFERENCES account (id) ON DELETE CASCADE,
+        change_per_call INTEGER CHECK (change_per_call IS NULL OR (change_per_call >= 0 AND change_per_call <= 1000)),
+        trash_per_call INTEGER CHECK (trash_per_call IS NULL OR (trash_per_call >= 0 AND trash_per_call <= 1000)),
+        trash_per_day INTEGER CHECK (trash_per_day IS NULL OR (trash_per_day >= 0 AND trash_per_day <= 10000)),
+        ask_above INTEGER CHECK (ask_above IS NULL OR (ask_above >= 0 AND ask_above <= 1000000)),
+        set_at INTEGER NOT NULL
+    ) STRICT;
+    ",
+    // 22: proposed stories (step E2; engine.spec.md section 10.2).
+    // Not derived: survives a rebuild. Ids are allocated from `stream` so they
+    // never collide with stream or burst story ids.
+    "
+    CREATE TABLE proposed_story (
+        id INTEGER PRIMARY KEY REFERENCES stream (id),
+        kind TEXT NOT NULL CHECK (kind IN ('situation', 'cohort')),
+        title TEXT NOT NULL,
+        proposer_kind TEXT NOT NULL,
+        proposer_id TEXT CHECK (proposer_id IS NULL OR proposer_id <> ''),
+        state TEXT NOT NULL CHECK (state IN ('proposed', 'dismissed')),
+        messages INTEGER NOT NULL CHECK (messages >= 0),
+        first_date INTEGER NOT NULL,
+        last_date INTEGER NOT NULL,
+        proposed_at INTEGER NOT NULL,
+        ended_at INTEGER,
+        CHECK ((state = 'proposed') = (ended_at IS NULL))
+    ) STRICT;
+    CREATE INDEX proposed_story_recent ON proposed_story (last_date DESC, id DESC)
+        WHERE state = 'proposed';
+    CREATE INDEX proposed_story_proposer_active ON proposed_story (proposer_kind, proposer_id, id)
+        WHERE state = 'proposed';
+
+    CREATE TABLE proposed_story_member (
+        story_id INTEGER NOT NULL REFERENCES proposed_story (id) ON DELETE CASCADE,
+        message_id INTEGER NOT NULL REFERENCES message (id),
+        passage TEXT NOT NULL,
+        date INTEGER NOT NULL,
+        PRIMARY KEY (story_id, message_id)
+    ) STRICT, WITHOUT ROWID;
+    CREATE INDEX proposed_story_member_date
+        ON proposed_story_member (story_id, date DESC, message_id DESC);
+    CREATE INDEX proposed_story_member_message
+        ON proposed_story_member (message_id);
+    ",
 ];
 
 /// Brings `connection` to the newest schema, one migration and one

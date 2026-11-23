@@ -30,8 +30,12 @@ const unitResult = (record: JournalRecord): boolean => {
 	return marked(data) || marked(data?.result?.data);
 };
 
-/** Remove `input.password` from an `auth-sign-in` record, and a unit's text from its submit's (7.3). */
-export function redactJournalRecord(record: JournalRecord): JournalRecord {
+/**
+ * Remove `input.password` from an `auth-sign-in` record, a unit's text from its submit's (7.3), and mark a thrown
+ * error caught by the journal (`threw === true`) lossy so a replay stops there instead of diverging (#2300). A handler
+ * that explicitly returns a `COMMAND_EXECUTION_ERROR` failure without throwing stays replayable.
+ */
+export function redactJournalRecord(record: JournalRecord, threw = false): JournalRecord {
 	if (unitSubmit(record)) {
 		const { result } = record;
 		return {
@@ -54,9 +58,22 @@ export function redactJournalRecord(record: JournalRecord): JournalRecord {
 			lossy: true,
 		} as unknown as JournalRecord;
 	}
-	if (record.command !== 'auth-sign-in') return record;
-	const input = record.input;
-	if (typeof input !== 'object' || input === null || !('password' in input)) return record;
-	const { password: _password, ...rest } = input as Record<string, unknown>;
-	return { ...record, input: rest };
+	let clean = record;
+	if (record.command === 'auth-sign-in') {
+		const input = record.input;
+		if (typeof input === 'object' && input !== null && 'password' in input) {
+			const { password: _password, ...rest } = input as Record<string, unknown>;
+			clean = { ...record, input: rest };
+		}
+	}
+	// A handler or store throw caught by the journal as `COMMAND_EXECUTION_ERROR` cannot be reproduced by a healthy
+	// replay store, while a deterministic refusal explicitly returned by a handler stays replayable (#2300).
+	if (
+		threw &&
+		clean.result?.success === false &&
+		clean.result.error?.code === 'COMMAND_EXECUTION_ERROR'
+	) {
+		return { ...clean, unreplayable: true, lossy: true } as unknown as JournalRecord;
+	}
+	return clean;
 }

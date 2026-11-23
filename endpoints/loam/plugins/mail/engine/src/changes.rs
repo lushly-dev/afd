@@ -418,12 +418,42 @@ fn plan(
     }
 }
 
+/// Refusal when an agent or a script tries to change, resume, or undo mail
+/// across more than one account in a single call (plugin.spec.md section 10, M36).
+pub(crate) fn spans_accounts() -> CommandError {
+    CommandError::new(
+        "SELECTION_SPANS_ACCOUNTS",
+        "an agent or a script cannot change mail in more than one account in one call",
+    )
+    .with_suggestion("Make one selection per account.")
+    .with_retryable(false)
+}
+
+/// Distinct accounts represented by `mailbox_ids`, mapped through `all`.
+pub(crate) fn accounts_for_mailboxes(
+    all: &[(AccountId, MailboxRow)],
+    mailbox_ids: impl IntoIterator<Item = i64>,
+) -> Vec<AccountId> {
+    let mut accounts: Vec<AccountId> = mailbox_ids
+        .into_iter()
+        .filter_map(|id| {
+            all.iter()
+                .find(|(_, row)| row.id.0 == id)
+                .map(|(account, _)| *account)
+        })
+        .collect();
+    accounts.sort_by_key(|account| account.0);
+    accounts.dedup();
+    accounts
+}
+
 /// Why an agent's or a script's change of `messages` messages, of `kind`,
 /// is beyond the person's policy, in the engine's words, or `None`.
 /// `charged` counts it against the caller's day, for a change it makes now.
 pub(crate) fn beyond_policy(
     store: &Store,
     creator: &Proposer,
+    account: Option<AccountId>,
     kind: Kind,
     messages: u64,
     charged: bool,
@@ -432,7 +462,7 @@ pub(crate) fn beyond_policy(
     if creator.kind == "human" {
         return Ok(None);
     }
-    let policy = store.policy()?.policy;
+    let (policy, _) = store.effective_policy(account)?;
     let per_call = match kind {
         Kind::Change => policy.change_per_call,
         Kind::Trash => policy.trash_per_call,
@@ -447,7 +477,10 @@ pub(crate) fn beyond_policy(
         )));
     }
     if kind == Kind::Trash && charged {
-        let trashed = store.trashed_since(creator, now - DAY)?;
+        let trashed = match account {
+            Some(acc) => store.trashed_since_in_account(creator, acc, now - DAY)?,
+            None => store.trashed_since(creator, now - DAY)?,
+        };
         if trashed + messages > u64::from(policy.trash_per_day) {
             return Ok(Some(format!(
                 "this caller has moved {trashed} messages to the trash in the last day, and {messages} more is over the {} a day it may",
@@ -596,6 +629,13 @@ impl CommandHandler for Change {
                 Err(error) => return Ok(Err(error)),
             };
             let all = mailboxes(store)?;
+            // M36: an agent or a script never changes mail across more than one
+            // account in one call, whether or not any account is guarded.
+            let accounts = accounts_for_mailboxes(&all, items.iter().map(|item| item.mailbox));
+            if creator.kind != "human" && accounts.len() > 1 {
+                return Ok(Err(spans_accounts()));
+            }
+            let single_account = (accounts.len() == 1).then(|| accounts[0]);
             // The mailbox the selection named, if it named one.
             let named = query
                 .as_deref()
@@ -607,7 +647,7 @@ impl CommandHandler for Change {
             };
             // Over the policy, it is a proposal: nothing is asked of the
             // provider until the person approves it (M28).
-            let over = beyond_policy(store, &creator, kind, messages, true, now)?;
+            let over = beyond_policy(store, &creator, single_account, kind, messages, true, now)?;
             if over.is_some()
                 && let Some(error) = proposal_room(store, &creator, now)?
             {

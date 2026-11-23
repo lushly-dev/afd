@@ -749,9 +749,12 @@ fn a_store_whose_mailboxes_migration_10_listed_late_counts_them_from_its_first_s
              DROP TABLE operation;
              DROP TABLE selection_item;
              DROP TABLE selection;
+             DROP TABLE account_policy;
              DROP TABLE policy;
              DROP TABLE snooze;
              DROP TABLE record;
+             DROP TABLE proposed_story_member;
+             DROP TABLE proposed_story;
              DROP TABLE replyset_event;
              DROP TABLE replyset_question_reply;
              DROP TABLE replyset_question;

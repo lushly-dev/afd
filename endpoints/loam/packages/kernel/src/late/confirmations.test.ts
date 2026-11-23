@@ -9,6 +9,7 @@
 import { MockAuthAdapter } from '@lushly-dev/afd-auth';
 import type { CommandResult } from '@lushly-dev/afd-core';
 import { type JournalEntry, MemoryJournalSink } from '@lushly-dev/afd-core';
+import { defineCommand } from '@lushly-dev/afd-server/define';
 import { type BootProjectionV2, readBoot } from '@lushly-dev/loam-manifest';
 import {
 	type AppCallContextV1,
@@ -22,9 +23,11 @@ import {
 } from '@lushly-dev/loam-sdk';
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import { afterEach, describe, expect, it } from 'vitest';
+import { z } from 'zod';
 import { createJournalProvenance } from '../journal-provenance.js';
 import {
 	createKernel,
+	createKernelParts,
 	redactJournalRecord,
 	redactSafely,
 	redactWrapped,
@@ -3940,26 +3943,408 @@ describe('the fifth round', () => {
 			// The act's entry keeps the error the person saw, its own, never the run's.
 			expect(act?.result.error?.code).toBe(acted.error?.code);
 			expect(act?.result.error?.code).not.toBe('KEEPER_REFUSED');
-			// The settle's own entry holds the store's throw, which a replay with a healthy store does not repeat: a
-			// journaled command whose store threw diverges there, whatever the act keeps ([#2300](https://github.com/lushly-dev/afd/issues/2300)).
+			// The settle's own entry holds the store's throw (`COMMAND_EXECUTION_ERROR`), which a replay with a healthy
+			// store does not repeat: #2300 marks it lossy + unreplayable so replay stops there with REPLAY_ENTRY_TRUNCATED.
 			const settle = entries.find(
 				(entry) => entry.command === 'prompt-settle' && !entry.result.success
-			);
+			) as (JournalEntry & { unreplayable?: true; lossy?: true }) | undefined;
 			expect(settle?.result.error?.code).toBe(acted.error?.code);
-			// Today the replay diverges at that entry; once #2300 marks it lossy, it stops there instead.
+			expect(settle?.lossy).toBe(true);
+			expect(settle?.unreplayable).toBe(true);
 			const replayed = await replayKernel(entries, {
 				deployment: deployment(),
 				ports: ports(),
 			}).then(
 				() => 'same',
-				(error: { code?: string; details?: { firstDifference?: { seq?: number } } }) =>
-					`${error.code} ${error.details?.firstDifference?.seq}`
+				(error: { code?: string; message?: string; details?: { seq?: number } }) =>
+					`${error.code} ${error.details?.seq} ${error.message}`
 			);
-			expect(replayed).toBe(`REPLAY_DIVERGED ${(settle as JournalEntry).seq}`);
+			expect(replayed).toContain(`REPLAY_ENTRY_TRUNCATED ${(settle as JournalEntry).seq}`);
+			expect(replayed).toContain('COMMAND_EXECUTION_ERROR');
 		} finally {
 			bumpRefuses = false;
 			bumpRefused = false;
 		}
+	});
+
+	it('(#2300) a deterministic handler refusal (VALIDATION_ERROR) stays replayable, not lossy', async () => {
+		const journal = new MemoryJournalSink();
+		const workspace = await createScopedWorkspace({
+			journal,
+			deployment: deployment(),
+			ports: ports(),
+		});
+		kernels.push(workspace.kernel);
+		const bad = await workspace.kernel.call('notification-act', {
+			notification: 'ntf_0000000000000000',
+			answer: 'confirm',
+		});
+		expect(bad.success).toBe(false);
+		expect(bad.error?.code).toBe('NOTIFICATION_NOT_FOUND');
+		const entries = (await journal.read()) as Array<
+			JournalEntry & { unreplayable?: true; lossy?: true }
+		>;
+		const act = entries.find((entry) => entry.command === 'notification-act');
+		expect(act?.lossy).toBeUndefined();
+		expect(act?.unreplayable).toBeUndefined();
+		const replay = await replayKernel(entries, {
+			deployment: deployment(),
+			ports: ports(),
+		});
+		expect(replay.report.diverged).toBe(false);
+	});
+
+	it('(#2300) an explicitly returned COMMAND_EXECUTION_ERROR failure stays replayable, not lossy', async () => {
+		const journal = new MemoryJournalSink();
+		const explicitCommand = defineCommand({
+			name: 'explicit-exec-error',
+			description: 'Returns COMMAND_EXECUTION_ERROR without throwing',
+			input: z.strictObject({}),
+			mutation: true,
+			handler: async () =>
+				failure({
+					code: 'COMMAND_EXECUTION_ERROR',
+					message: 'Deterministic returned failure',
+					suggestion: 'Retry later',
+				}),
+		});
+		const kernel = await createKernel({
+			store: new MemoryAdapter(),
+			storeKind: 'memory',
+			journal,
+			auth: new MockAuthAdapter(),
+			environment: createFixedEnvironment(),
+			host: 'test',
+			deployment: deployment(),
+			ports: ports(),
+			commands: [explicitCommand],
+		});
+		kernels.push(kernel);
+		const returned = await kernel.call('explicit-exec-error', {});
+		expect(returned.success).toBe(false);
+		expect(returned.error?.code).toBe('COMMAND_EXECUTION_ERROR');
+		const entries = (await journal.read()) as Array<
+			JournalEntry & { unreplayable?: true; lossy?: true }
+		>;
+		const entry = entries.find((item) => item.command === 'explicit-exec-error');
+		expect(entry?.lossy).toBeUndefined();
+		expect(entry?.unreplayable).toBeUndefined();
+		const replay = await replayKernel(entries, {
+			deployment: deployment(),
+			ports: ports(),
+			commands: [explicitCommand],
+		});
+		expect(replay.report.diverged).toBe(false);
+	});
+
+	it('(#2253) replays an act whose nested action was refused while session was loading, and diverges on tamper', async () => {
+		const store = new MemoryAdapter();
+		const update = store.update.bind(store);
+		const auth = new MockAuthAdapter();
+		const getSession = auth.getSession.bind(auth);
+		let loadingNow = false;
+		auth.getSession = () =>
+			loadingNow ? { status: 'loading', session: null, user: null } : getSession();
+		const identity = {
+			mode: 'provider' as const,
+			organization: 'acme',
+			path: 'api/auth',
+			methods: ['password' as const],
+		};
+		const ada = 'mock-user-ada@example.com';
+		const membership = {
+			mode: 'provider' as const,
+			members: new Map([[ada, 'owner' as const]]),
+			digest: 'd1',
+		};
+		let loadOnClaim = false;
+		store.update = (async (table: string, id: string, patch: { claim?: string }) => {
+			const res = await update(table, id, patch as never);
+			if (loadOnClaim && table === 'notification' && patch?.claim !== undefined) {
+				loadOnClaim = false;
+				loadingNow = true;
+			}
+			return res;
+		}) as never;
+		const journal = new MemoryJournalSink();
+		const kernel = await createKernel({
+			store,
+			storeKind: 'memory',
+			journal,
+			auth,
+			environment: createFixedEnvironment(),
+			host: 'test',
+			identity,
+			membership,
+			deployment: deployment(),
+			ports: ports(),
+		});
+		kernels.push(kernel);
+		const signedIn = await kernel.call('auth-sign-in', {
+			method: 'credentials',
+			email: 'ada@example.com',
+			password: 'pw',
+		});
+		expect(signedIn.success, JSON.stringify(signedIn.error)).toBe(true);
+		const pushed = await kernel
+			.appPort('keeper')
+			.call<{ notification: NotificationV1 }>('notification-push', {
+				title: 'Note',
+				action: { command: 'keeper-note', input: { text: 'hello' }, label: 'Note' },
+			});
+		expect(pushed.success, JSON.stringify(pushed.error)).toBe(true);
+		loadOnClaim = true;
+		const acted = await kernel.call('notification-act', {
+			notification: (pushed.data as { notification: NotificationV1 }).notification.id,
+		});
+		loadingNow = false;
+		expect(acted.success).toBe(false);
+		expect(acted.error?.code).toBe('UNAUTHORIZED');
+		expect(acted.error?.retryable).toBe(true);
+		const entries = (await journal.read()) as Array<
+			JournalEntry & { unreplayable?: true; lossy?: true }
+		>;
+		const act = entries.find((entry) => entry.command === 'notification-act');
+		expect(act?.lossy).toBeUndefined();
+		expect(act?.unreplayable).toBeUndefined();
+		const replay = await replayKernel(entries, {
+			identity,
+			membership,
+			deployment: deployment(),
+			ports: ports(),
+		});
+		expect(replay.report.diverged).toBe(false);
+		const tampered = entries.map((entry) =>
+			entry.command === 'notification-act'
+				? {
+						...entry,
+						result: {
+							...entry.result,
+							error: {
+								...entry.result.error,
+								code: entry.result.error?.code ?? 'UNAUTHORIZED',
+								message: 'tampered loading message',
+							},
+						},
+					}
+				: entry
+		);
+		const diverged = await replayKernel(tampered, {
+			identity,
+			membership,
+			deployment: deployment(),
+			ports: ports(),
+		}).then(
+			() => 'same',
+			(error: { code?: string }) => error.code
+		);
+		expect(diverged).toBe('REPLAY_DIVERGED');
+	});
+
+	it('(#2253) replays an act whose nested action the session auth gate refused to same, and diverges on mismatch', async () => {
+		const store = new MemoryAdapter();
+		const update = store.update.bind(store);
+		const auth = new MockAuthAdapter();
+		const identity = {
+			mode: 'provider' as const,
+			organization: 'acme',
+			path: 'api/auth',
+			methods: ['password' as const],
+		};
+		const ada = 'mock-user-ada@example.com';
+		const membership = {
+			mode: 'provider' as const,
+			members: new Map([[ada, 'owner' as const]]),
+			digest: 'd1',
+		};
+		let signOutOnClaim = false;
+		store.update = (async (table: string, id: string, patch: { claim?: string }) => {
+			const res = await update(table, id, patch as never);
+			// Another tab signs out while `notification-act` claims the notice, before its nested action runs.
+			if (signOutOnClaim && table === 'notification' && patch?.claim !== undefined) {
+				signOutOnClaim = false;
+				await auth.signOut();
+			}
+			return res;
+		}) as never;
+		const journal = new MemoryJournalSink();
+		const kernel = await createKernel({
+			store,
+			storeKind: 'memory',
+			journal,
+			auth,
+			environment: createFixedEnvironment(),
+			host: 'test',
+			identity,
+			membership,
+			deployment: deployment(),
+			ports: ports(),
+		});
+		kernels.push(kernel);
+		const signedIn = await kernel.call('auth-sign-in', {
+			method: 'credentials',
+			email: 'ada@example.com',
+			password: 'pw',
+		});
+		expect(signedIn.success, JSON.stringify(signedIn.error)).toBe(true);
+		const pushed = await kernel
+			.appPort('keeper')
+			.call<{ notification: NotificationV1 }>('notification-push', {
+				title: 'Note',
+				action: { command: 'keeper-note', input: { text: 'hello' }, label: 'Note' },
+			});
+		expect(pushed.success, JSON.stringify(pushed.error)).toBe(true);
+		signOutOnClaim = true;
+		const acted = await kernel.call('notification-act', {
+			notification: (pushed.data as { notification: NotificationV1 }).notification.id,
+		});
+		expect(acted.success).toBe(false);
+		expect(acted.error?.code).toBe('UNAUTHORIZED');
+		const entries = (await journal.read()) as Array<
+			JournalEntry & { unreplayable?: true; lossy?: true }
+		>;
+		// The auth gate refused the nested action before the journal ran, so it left no entry of its own.
+		expect(entries.some((entry) => entry.command === 'keeper-note')).toBe(false);
+		const act = entries.find((entry) => entry.command === 'notification-act');
+		expect(act?.result.error?.code).toBe('UNAUTHORIZED');
+		expect(act?.lossy).toBeUndefined();
+		expect(act?.unreplayable).toBeUndefined();
+		const replay = await replayKernel(entries, {
+			identity,
+			membership,
+			deployment: deployment(),
+			ports: ports(),
+		});
+		expect(replay.report.diverged).toBe(false);
+		// A mismatch on the act's recorded refusal diverges rather than stopping with REPLAY_ENTRY_TRUNCATED.
+		const tampered = entries.map((entry) =>
+			entry.command === 'notification-act'
+				? {
+						...entry,
+						result: {
+							...entry.result,
+							error: { ...entry.result.error, code: 'FORBIDDEN', message: 'altered' },
+						},
+					}
+				: entry
+		);
+		const diverged = await replayKernel(tampered, {
+			identity,
+			membership,
+			deployment: deployment(),
+			ports: ports(),
+		}).then(
+			() => 'same',
+			(error: { code?: string }) => error.code
+		);
+		expect(diverged).toBe('REPLAY_DIVERGED');
+	});
+
+	it('(#2253) hosted principalGate refusal of a nested action keeps notification-act whole (not lossy)', async () => {
+		const store = new MemoryAdapter();
+		const update = store.update.bind(store);
+		const identity = {
+			mode: 'provider' as const,
+			organization: 'acme',
+			path: 'api/auth',
+			methods: ['password' as const],
+		};
+		const journal = new MemoryJournalSink();
+		let retireOnClaim: (() => void) | undefined;
+		store.update = (async (table: string, id: string, patch: { claim?: string }) => {
+			const res = await update(table, id, patch as never);
+			if (retireOnClaim && table === 'notification' && patch?.claim !== undefined) {
+				const retire = retireOnClaim;
+				retireOnClaim = undefined;
+				retire();
+			}
+			return res;
+		}) as never;
+		const dep = deployment();
+		const parts = await createKernelParts({
+			store,
+			storeKind: 'memory',
+			journal,
+			auth: new MockAuthAdapter(),
+			environment: createFixedEnvironment(),
+			host: 'test',
+			gate: 'principal',
+			identity,
+			deployment: dep,
+			ports: ports(),
+		});
+		kernels.push(parts.kernel);
+		const principal = parts.admitPrincipal?.({
+			actor: { kind: 'human', id: 'usr_ada' },
+			person: 'usr_ada',
+			role: 'owner',
+		});
+		if (!principal || !parts.callAs || !parts.retirePrincipal) {
+			throw new Error('principal-gated kernel missing server calls');
+		}
+		const pushed = await parts.callAs(
+			principal,
+			'notification-push',
+			{
+				title: 'Project',
+				action: { command: 'project-create', input: { name: 'Alpha' }, label: 'Create' },
+			},
+			{ workspace: dep.workspace.id }
+		);
+		expect(pushed.success, JSON.stringify(pushed.error)).toBe(true);
+		const retire = parts.retirePrincipal;
+		retireOnClaim = () => retire(principal);
+		const acted = await parts.callAs(
+			principal,
+			'notification-act',
+			{ notification: (pushed.data as { notification: NotificationV1 }).notification.id },
+			{ workspace: dep.workspace.id }
+		);
+		expect(acted.success).toBe(false);
+		expect(acted.error?.code).toBe('UNAUTHORIZED');
+		const entries = (await journal.read()) as Array<
+			JournalEntry & { unreplayable?: true; lossy?: true }
+		>;
+		expect(entries.some((entry) => entry.command === 'project-create')).toBe(false);
+		const act = entries.find((entry) => entry.command === 'notification-act');
+		expect(act?.result.error?.code).toBe('UNAUTHORIZED');
+		expect(act?.lossy).toBeUndefined();
+		expect(act?.unreplayable).toBeUndefined();
+		const hostedMembership = {
+			mode: 'provider' as const,
+			members: new Map([['usr_ada', 'owner' as const]]),
+			digest: '',
+		};
+		const replay = await replayKernel(entries, {
+			gate: 'principal',
+			identity,
+			membership: hostedMembership,
+			deployment: dep,
+			ports: ports(),
+		});
+		expect(replay.report.diverged).toBe(false);
+		const tampered = entries.map((entry) =>
+			entry.command === 'notification-act'
+				? {
+						...entry,
+						result: {
+							...entry.result,
+							error: { ...entry.result.error, code: 'FORBIDDEN', message: 'tampered hosted' },
+						},
+					}
+				: entry
+		);
+		const diverged = await replayKernel(tampered, {
+			gate: 'principal',
+			identity,
+			membership: hostedMembership,
+			deployment: dep,
+			ports: ports(),
+		}).then(
+			() => 'same',
+			(error: { code?: string }) => error.code
+		);
+		expect(diverged).toBe('REPLAY_DIVERGED');
 	});
 
 	it('ninth (Opus I3): a fill whose journaled target started but left no entry keeps the least, lossy', () => {

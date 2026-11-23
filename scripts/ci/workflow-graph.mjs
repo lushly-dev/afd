@@ -202,6 +202,7 @@ export const WORKFLOW_GRAPH = {
 		usesSetupAction: true,
 		groups: [
 			'loamCore',
+			'rust',
 			'fastAf',
 			'afdCore',
 			'afdServer',
@@ -213,7 +214,12 @@ export const WORKFLOW_GRAPH = {
 			'pnpmWorkspace',
 			'cargoConfig',
 		],
-		extra: ['foundations/violet/**', 'integrations/violet-afd/**'],
+		extra: [
+			'endpoints/loam/plugins/mail/engine/**',
+			'endpoints/loam/plugins/mail/mount/**',
+			'foundations/violet/**',
+			'integrations/violet-afd/**',
+		],
 	},
 	'loam-plugins.yml': {
 		usesSetupAction: true,

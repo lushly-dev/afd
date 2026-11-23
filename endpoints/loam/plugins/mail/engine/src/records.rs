@@ -582,7 +582,7 @@ fn validate_passages(raw: Option<&Value>) -> Result<Vec<String>, Box<CommandErro
 /// body text or its decoded visible `Subject` (with invisible characters
 /// removed per §6.2). Refuses the whole proposal with `PASSAGE_NOT_FOUND` on
 /// the first missing passage without echoing passage text.
-fn verify_passages(
+pub(crate) fn verify_passages(
     passages: &[String],
     visible_text: &str,
     subject: &str,

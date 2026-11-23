@@ -11,6 +11,7 @@ on:
       - 'endpoints/loam/**'
       - '!endpoints/loam/docs/**'
       - '!endpoints/loam/plugins/**'
+      - 'packages/rust/**'
       - 'foundations/fast-af/**'
       - 'packages/core/**'
       - 'packages/server/**'
@@ -21,6 +22,8 @@ on:
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - '.cargo/config.toml'
+      - 'endpoints/loam/plugins/mail/engine/**'
+      - 'endpoints/loam/plugins/mail/mount/**'
       - 'foundations/violet/**'
       - 'integrations/violet-afd/**'
       - '.github/workflows/loam-desktop.yml'
@@ -34,6 +37,7 @@ on:
       - 'endpoints/loam/**'
       - '!endpoints/loam/docs/**'
       - '!endpoints/loam/plugins/**'
+      - 'packages/rust/**'
       - 'foundations/fast-af/**'
       - 'packages/core/**'
       - 'packages/server/**'
@@ -44,6 +48,8 @@ on:
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - '.cargo/config.toml'
+      - 'endpoints/loam/plugins/mail/engine/**'
+      - 'endpoints/loam/plugins/mail/mount/**'
       - 'foundations/violet/**'
       - 'integrations/violet-afd/**'
       - '.github/workflows/loam-desktop.yml'
@@ -91,7 +97,7 @@ jobs:
           filter: blob:none
           persist-credentials: false
       - id: run
-        run: node scripts/affected.mjs gate --package @lushly-dev/loam-desktop --path endpoints/loam/packages/desktop/ --path .cargo/config.toml --path .github/workflows/loam-desktop.yml --path .github/actions/setup-node-pnpm/
+        run: node scripts/affected.mjs gate --package @lushly-dev/loam-desktop --path endpoints/loam/packages/desktop/ --path endpoints/loam/plugins/mail/engine/ --path endpoints/loam/plugins/mail/mount/ --path packages/rust/ --path .cargo/config.toml --path .github/workflows/loam-desktop.yml --path .github/actions/setup-node-pnpm/
 
   linux:
     name: Desktop on Linux

@@ -24,7 +24,9 @@ use afd::{
 use async_trait::async_trait;
 use serde_json::{Value, json};
 
-use crate::changes::{beyond_policy, carry_out, proposal_room, proposed};
+use crate::changes::{
+    accounts_for_mailboxes, beyond_policy, carry_out, proposal_room, proposed, spans_accounts,
+};
 use crate::commands::{released_exposure, store_failure};
 use crate::engine::Engine;
 use crate::operate::{normalized_asked, operation_json};
@@ -420,10 +422,28 @@ impl CommandHandler for Resume {
                     "Run `loam-mail mail-operation-show` to see what it did.",
                 )));
             }
-            // An operation the caller made was counted against its day when
-            // it was made. Over the policy, carrying it on is a proposal.
-            if let Some(why) = beyond_policy(store, &creator, row.kind, counts.waiting, false, now)?
-            {
+            // M36: an agent or a script never resumes an operation whose open
+            // items span more than one account, whether or not any account is
+            // guarded.
+            let accounts = store.operation_open_accounts(id)?;
+            if creator.kind != "human" && accounts.len() > 1 {
+                return Ok(Err(spans_accounts()));
+            }
+            let single_account = (accounts.len() == 1).then(|| accounts[0]);
+            // An operation this caller already made and was charged for is not
+            // counted twice against its day; resuming another caller's (e.g. a
+            // human's) stopped trash operation still checks this caller's daily
+            // trash budget.
+            let already_charged = row.charged && row.creator == creator;
+            if let Some(why) = beyond_policy(
+                store,
+                &creator,
+                single_account,
+                row.kind,
+                counts.waiting,
+                !already_charged,
+                now,
+            )? {
                 if let Some(error) = proposal_room(store, &creator, now)? {
                     return Ok(Err(error));
                 }
@@ -700,17 +720,24 @@ impl CommandHandler for Undo {
             let messages = items.len() as u64;
             // An undo that moves mail into the trash, or junk, counts as
             // trash.
-            let trash_boxes: Vec<i64> = {
-                let mut boxes = Vec::new();
-                for account in store.accounts()? {
-                    for mailbox in store.mailboxes(account.id)? {
-                        if matches!(mailbox.role, Role::Trash | Role::Junk) {
-                            boxes.push(mailbox.id.0);
-                        }
+            let mut all_mailboxes = Vec::new();
+            let mut trash_boxes = Vec::new();
+            for account in store.accounts()? {
+                for mailbox in store.mailboxes(account.id)? {
+                    if matches!(mailbox.role, Role::Trash | Role::Junk) {
+                        trash_boxes.push(mailbox.id.0);
                     }
+                    all_mailboxes.push((account.id, mailbox));
                 }
-                boxes
-            };
+            }
+            // M36: an agent or a script never undoes an operation spanning more
+            // than one account, whether or not any account is guarded.
+            let accounts =
+                accounts_for_mailboxes(&all_mailboxes, items.iter().map(|item| item.mailbox));
+            if creator.kind != "human" && accounts.len() > 1 {
+                return Ok(Err(spans_accounts()));
+            }
+            let single_account = (accounts.len() == 1).then(|| accounts[0]);
             let kind = if action == Action::Move
                 && items
                     .iter()
@@ -721,7 +748,7 @@ impl CommandHandler for Undo {
                 Kind::Change
             };
             // Over the policy, the undo is a proposal.
-            let over = beyond_policy(store, &creator, kind, messages, true, now)?;
+            let over = beyond_policy(store, &creator, single_account, kind, messages, true, now)?;
             if over.is_some()
                 && let Some(error) = proposal_room(store, &creator, now)?
             {

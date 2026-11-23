@@ -1167,8 +1167,8 @@ fn large_change(
         }
         _ => return None,
     };
-    let policy =
-        runtime.block_on(runner.run("mail-policy-show", serde_json::json!({}), true, None));
+    let q = crate::policy::target_input(name, input);
+    let policy = runtime.block_on(runner.run("mail-policy-show", q, true, None));
     let ask_above = policy
         .data
         .filter(|_| policy.success)?
