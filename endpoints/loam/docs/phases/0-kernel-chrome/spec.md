@@ -1342,7 +1342,7 @@ ceilings:
 The ceilings assume the deep imports of section 7. Step 7 records the
 measured values in this specification's amendments. When a measurement is
 under 70% of its ceiling, the ceiling is lowered to the measured value plus
-10%. Raising a ceiling needs an amendment with the reason. **Amended by D115 (owner, 2026-11-13):** for the rest of the epic the step raises it in its own pull request, recording the reason, with no approval first.
+10%. Raising a ceiling needs an amendment with the reason. **Amended by D115 (owner, 2026-11-13):** for the rest of the epic the step raises it in its own pull request, recording the reason, with no approval first. **D161 (2026-11-21)** ends D115 on a date the owner names; from the day after it, this rule applies as written, and `budget`'s `ceiling-raises` check fails a ceiling raised, added or removed without an entry in `web/scripts/ceiling-amendments.mjs` naming the specification section that records the amendment, its reason and its approval ([#1929](https://github.com/lushly-dev/afd/issues/1929)).
 
 Measured by step 5 (2026-11-01), `dist/index.js` bundled by esbuild 0.27
 for the browser, minified: 520,541 bytes, of which the kernel's own code is
