@@ -8,14 +8,16 @@
 
 import { dirname } from 'node:path';
 import type { CommandContext, CommandResult } from '@lushly-dev/afd-core';
-import type { ScenarioResult, StepResult } from '../types/report.js';
+import type { ScenarioResult } from '../types/report.js';
 import { createStepError } from '../types/report.js';
 import type { Scenario, Step } from '../types/scenario.js';
 import { applyFixture, type FixtureData, loadFixture } from './fixture-loader.js';
 import {
+	type ExecutedStepResult,
 	type ExecuteScenarioOptions,
 	evaluateStep,
 	runScenario,
+	type ScenarioHooks,
 	type SetupOutcome,
 } from './scenario-runner.js';
 
@@ -36,7 +38,7 @@ export type CommandHandler = (
 /**
  * Executor config for in-process mode.
  */
-export interface InProcessExecutorConfig {
+export interface InProcessExecutorConfig extends ScenarioHooks {
 	/** Command handler function */
 	handler: CommandHandler;
 
@@ -69,15 +71,6 @@ export interface InProcessExecutorConfig {
 	 */
 	dryRun?: boolean;
 
-	/** Step completion callback */
-	onStepComplete?: (step: Step, result: StepResult) => void;
-
-	/** Scenario start callback */
-	onScenarioStart?: (scenario: Scenario) => void;
-
-	/** Scenario complete callback */
-	onScenarioComplete?: (result: ScenarioResult) => void;
-
 	/** Fixture loaded callback with the applied commands and any adapter warnings */
 	onFixtureLoaded?: (
 		fixture: FixtureData,
@@ -108,6 +101,8 @@ export class InProcessExecutor {
 			fixtureRoot: config.fixtureRoot,
 			context: config.context,
 			dryRun: config.dryRun ?? false,
+			beforeStep: config.beforeStep,
+			afterStep: config.afterStep,
 			onStepComplete: config.onStepComplete,
 			onScenarioStart: config.onScenarioStart,
 			onScenarioComplete: config.onScenarioComplete,
@@ -125,6 +120,8 @@ export class InProcessExecutor {
 			stopOnFailure: this.config.stopOnFailure ?? true,
 			dryRun: this.config.dryRun,
 			signal: options.signal,
+			beforeStep: this.config.beforeStep,
+			afterStep: this.config.afterStep,
 			onStepComplete: this.config.onStepComplete,
 			onScenarioStart: this.config.onScenarioStart,
 			onScenarioComplete: this.config.onScenarioComplete,
@@ -133,7 +130,11 @@ export class InProcessExecutor {
 		});
 	}
 
-	private async runStep(step: Step, stepId: string, signal: AbortSignal): Promise<StepResult> {
+	private async runStep(
+		step: Step,
+		stepId: string,
+		signal: AbortSignal
+	): Promise<ExecutedStepResult> {
 		const startTime = Date.now();
 		let commandResult: CommandResult<unknown>;
 		try {

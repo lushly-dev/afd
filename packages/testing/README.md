@@ -636,6 +636,51 @@ remaining steps are skipped, and the result has `outcome: 'error'` with
 `error: { type: 'timeout' | 'aborted', message }`. `ScenarioExecutor` (which runs
 steps through the `afd` CLI) behaves the same way and kills the CLI process.
 
+### Browser-Safe Entry Point and Awaited Step Hooks
+
+Import from `@lushly-dev/afd-testing/browser` when running parsed scenarios inside
+a browser page, web worker, or webview. It exports `runScenario`, `evaluateStep`,
+`evaluateResult`, `applyFixture`, `resolveStepReferences`, and the scenario,
+report, and adapter helpers with no Node.js built-in imports:
+
+```typescript
+import {
+  applyFixture,
+  evaluateStep,
+  runScenario,
+} from '@lushly-dev/afd-testing/browser';
+
+const result = await runScenario(parsedScenario, {
+  stopOnFailure: true,
+  signal,
+  setup: fixtureData
+    ? async (runSignal) => {
+        const applied = await applyFixture(fixtureData, appCall, { signal: runSignal });
+        return applied.success
+          ? { warnings: applied.warnings }
+          : { error: applied.error, warnings: applied.warnings };
+      }
+    : undefined,
+  beforeStep: async (step, stepId, runSignal) => {
+    // Awaited before each non-skipped step executes
+  },
+  runStep: async (step, stepId, runSignal) => {
+    const start = Date.now();
+    const commandResult = await appCall(step.command, step.input, { signal: runSignal });
+    return evaluateStep(step, stepId, commandResult, Date.now() - start);
+  },
+  afterStep: async (step, stepResult, runSignal) => {
+    // Awaited after each non-skipped step completes
+  },
+});
+```
+
+`beforeStep` and `afterStep` are awaited in step order, respect `AbortSignal`
+cancellation and scenario timeouts, and are not called for skipped steps (such as
+after a previous failure, a fixture error, or cancellation) or during dry runs.
+The existing synchronous `onStepComplete` callback remains unchanged and still
+fires for every step, including skipped steps.
+
 ### Deterministic Time, Randomness and Actor
 
 Steps run as `actor: { kind: 'test' }`. Pass `context` to give every step a fixed

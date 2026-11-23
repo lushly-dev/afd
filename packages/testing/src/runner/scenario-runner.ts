@@ -14,6 +14,7 @@ import type {
 	ScenarioOutcome,
 	ScenarioResult,
 	StepError,
+	StepOutcome,
 	StepResult,
 } from '../types/report.js';
 import { createStepError } from '../types/report.js';
@@ -38,8 +39,29 @@ export interface ExecuteScenarioOptions {
 	signal?: AbortSignal;
 }
 
-/** Lifecycle callbacks shared by both executors. */
-interface ScenarioHooks {
+/** Step outcomes produced by executing a step (never `'skip'`, which the runner owns). */
+export type ExecutedStepOutcome = Exclude<StepOutcome, 'skip'>;
+
+/** Result of executing a non-skipped step. */
+export type ExecutedStepResult = Omit<StepResult, 'outcome'> & {
+	outcome: ExecutedStepOutcome;
+};
+
+/** Lifecycle callbacks shared by executors and `runScenario`. */
+export interface ScenarioHooks {
+	/**
+	 * Awaited hook invoked immediately before a non-skipped step executes (after
+	 * step references resolve). Not called for skipped steps, reference-resolution
+	 * errors, or during dry runs.
+	 */
+	beforeStep?: (step: Step, stepId: string, signal: AbortSignal) => Promise<void> | void;
+	/**
+	 * Awaited hook invoked immediately after a non-skipped step finishes (including
+	 * expectation failures and non-abort step errors), unless reference resolution
+	 * failed, `beforeStep` failed, or the run was aborted. Not called for skipped
+	 * steps or during dry runs.
+	 */
+	afterStep?: (step: Step, result: StepResult, signal: AbortSignal) => Promise<void> | void;
 	onStepComplete?: (step: Step, result: StepResult) => void;
 	onScenarioStart?: (scenario: Scenario) => void;
 	onScenarioComplete?: (result: ScenarioResult) => void;
@@ -53,12 +75,13 @@ export interface SetupOutcome {
 	warnings?: string[];
 }
 
-interface RunConfig extends ScenarioHooks {
+/** Configuration for `runScenario`. */
+export interface RunConfig extends ScenarioHooks {
 	stopOnFailure: boolean;
 	dryRun?: boolean;
 	signal?: AbortSignal;
 	setup?: (signal: AbortSignal) => Promise<SetupOutcome>;
-	runStep: (step: Step, stepId: string, signal: AbortSignal) => Promise<StepResult>;
+	runStep: (step: Step, stepId: string, signal: AbortSignal) => Promise<ExecutedStepResult>;
 }
 
 // ============================================================================
@@ -118,7 +141,7 @@ export function evaluateStep(
 	commandResult: CommandResult<unknown>,
 	durationMs: number,
 	withDetails = false
-): StepResult {
+): ExecutedStepResult {
 	let evaluation: ReturnType<typeof evaluateResult>;
 	try {
 		evaluation = evaluateResult(commandResult, step.expect);
@@ -159,7 +182,7 @@ function errorStep(
 	startTime: number,
 	type: StepError['type'],
 	message: string
-): StepResult {
+): ExecutedStepResult {
 	return {
 		stepId,
 		command: step.command,
@@ -243,11 +266,25 @@ function createRunSignal(
 }
 
 /**
- * Settle with the promise, or reject with the abort reason as soon as the
- * signal aborts, whichever happens first.
+ * Invoke `fn` only if `signal` is not already aborted, then settle with its
+ * result or reject with the abort reason as soon as `signal` aborts.
+ *
+ * When `fn` aborts synchronously and returns a rejecting promise, the returned
+ * promise is still observed so it never leaks an unhandled rejection.
  */
-function raceAbort<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+function runWithAbort<T>(fn: () => Promise<T> | T, signal: AbortSignal): Promise<T> {
 	if (signal.aborted) {
+		return Promise.reject(signal.reason);
+	}
+	let returned: Promise<T> | T;
+	try {
+		returned = fn();
+	} catch (err) {
+		return Promise.reject(err);
+	}
+	const promise = Promise.resolve(returned);
+	if (signal.aborted) {
+		promise.catch(() => {});
 		return Promise.reject(signal.reason);
 	}
 	return new Promise<T>((resolve, reject) => {
@@ -311,21 +348,66 @@ async function executeStep(
 		return errorStep(step, stepId, startTime, type, messageOf(err));
 	}
 
+	// Always pass a shallow copy so hooks or executors cannot mutate the parsed Scenario.
+	const resolvedStep: Step = input !== undefined ? { ...step, input } : { ...step };
+
+	const abortOrError = (
+		err: unknown,
+		existing?: Pick<StepResult, 'commandResult' | 'assertions'>
+	): StepResult => {
+		const base = signal.aborted
+			? (() => {
+					const reason = describeAbort(signal);
+					return errorStep(
+						step,
+						stepId,
+						startTime,
+						reason.type === 'timeout' ? 'timeout' : 'unknown',
+						reason.message
+					);
+				})()
+			: errorStep(step, stepId, startTime, 'unknown', messageOf(err));
+
+		return {
+			...base,
+			...(existing?.commandResult !== undefined ? { commandResult: existing.commandResult } : {}),
+			...(existing?.assertions ? { assertions: existing.assertions } : {}),
+		};
+	};
+
+	if (config.beforeStep) {
+		try {
+			await runWithAbort(() => config.beforeStep?.(resolvedStep, stepId, signal), signal);
+		} catch (err) {
+			return abortOrError(err);
+		}
+	}
+
+	let result: StepResult;
 	try {
-		return await raceAbort(config.runStep({ ...step, input }, stepId, signal), signal);
+		result = await runWithAbort(() => config.runStep(resolvedStep, stepId, signal), signal);
 	} catch (err) {
 		if (signal.aborted) {
-			const reason = describeAbort(signal);
-			return errorStep(
-				step,
-				stepId,
-				startTime,
-				reason.type === 'timeout' ? 'timeout' : 'unknown',
-				reason.message
-			);
+			return abortOrError(err);
 		}
-		return errorStep(step, stepId, startTime, 'unknown', messageOf(err));
+		// Non-abort rejections become error step results and flow through afterStep
+		// just like executors that catch and return an error StepResult.
+		result = errorStep(step, stepId, startTime, 'unknown', messageOf(err));
 	}
+
+	if (signal.aborted) {
+		return abortOrError(signal.reason, result);
+	}
+
+	if (config.afterStep && result.outcome !== 'skip') {
+		try {
+			await runWithAbort(() => config.afterStep?.(resolvedStep, result, signal), signal);
+		} catch (err) {
+			return abortOrError(err, result);
+		}
+	}
+
+	return result;
 }
 
 /**
@@ -348,8 +430,9 @@ export async function runScenario(scenario: Scenario, config: RunConfig): Promis
 
 	try {
 		if (!scenarioError && config.setup) {
+			const setupFn = config.setup;
 			try {
-				const setup = await raceAbort(config.setup(run.signal), run.signal);
+				const setup = await runWithAbort(() => setupFn(run.signal), run.signal);
 				warnings = setup.warnings && setup.warnings.length > 0 ? setup.warnings : undefined;
 				if (setup.error) {
 					scenarioError = { type: 'fixture_failed', message: setup.error };
