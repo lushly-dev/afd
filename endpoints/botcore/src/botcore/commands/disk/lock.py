@@ -91,10 +91,11 @@ def holder(path: Path) -> dict:
 
 
 class RunLock:
-    """`with RunLock(path):` holds the machine's run lock or raises LockHeld."""
+    """`with RunLock(path):` holds a process lock or raises LockHeld."""
 
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: Path, *, label: str = "disk run") -> None:
         self.path = path
+        self.label = label
         self.fd: int | None = None
 
     @property
@@ -107,9 +108,12 @@ class RunLock:
         if not _try_lock(fd):
             os.close(fd)
             who = holder(self.path)
-            detail = (f" (last taken by pid {who['pid']} on {who.get('host', '?')})"
-                      if "pid" in who else "")
-            raise LockHeld(f"another disk run holds {self.path}{detail}")
+            detail = (
+                f" (last taken by pid {who['pid']} on {who.get('host', '?')})"
+                if "pid" in who
+                else ""
+            )
+            raise LockHeld(f"another {self.label} holds {self.path}{detail}")
         self.fd = fd
         record = {"pid": os.getpid(), "host": socket.gethostname(), "at": time.time()}
         try:

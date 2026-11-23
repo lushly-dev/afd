@@ -26,7 +26,8 @@ def _run_async(coro: Any) -> Any:
             click.secho(
                 "Error: botcore CLI cannot run inside an existing event loop "
                 "(e.g. Jupyter). Use the Python API directly instead.",
-                fg="red", err=True,
+                fg="red",
+                err=True,
             )
             sys.exit(1)
         raise
@@ -138,7 +139,11 @@ def _select_extensions(
 # ── Shared option ────────────────────────────────────────────────────────────
 
 _json_option = click.option(
-    "--json", "json_mode", is_flag=True, default=False, help="Output as JSON",
+    "--json",
+    "json_mode",
+    is_flag=True,
+    default=False,
+    help="Output as JSON",
 )
 
 # ── CLI Group ────────────────────────────────────────────────────────────────
@@ -175,7 +180,9 @@ def cli(ctx: click.Context, json_mode: bool) -> None:
 @cli.command()
 @click.option("--non-interactive", is_flag=True, default=False, help="Accept all defaults")
 @click.option(
-    "--language", "-l", default=None,
+    "--language",
+    "-l",
+    default=None,
     type=click.Choice(_SUPPORTED_LANGUAGES, case_sensitive=False),
     help="Override detected language",
 )
@@ -210,11 +217,16 @@ def init(
     # Check for existing config
     if config_path.exists() and not force:
         if json_out:
-            click.echo(json.dumps({
-                "status": "skipped",
-                "config_path": str(config_path),
-                "reason": "already exists (use --force to overwrite)",
-            }, indent=2))
+            click.echo(
+                json.dumps(
+                    {
+                        "status": "skipped",
+                        "config_path": str(config_path),
+                        "reason": "already exists (use --force to overwrite)",
+                    },
+                    indent=2,
+                )
+            )
         else:
             click.echo(f"botcore.toml already exists at {config_path}")
             click.echo("Use --force to overwrite.")
@@ -238,7 +250,10 @@ def init(
 
     # Extension preferences
     extensions_selected = _select_extensions(
-        non_interactive, with_agents=with_agents, with_llm=with_llm, with_memory=with_memory,
+        non_interactive,
+        with_agents=with_agents,
+        with_llm=with_llm,
+        with_memory=with_memory,
     )
 
     # Generate config
@@ -260,19 +275,22 @@ def init(
                 click.secho(f"  Warning: skill seeding failed: {exc}", fg="yellow", err=True)
 
     # Extension install commands
-    extensions_available = {
-        name: f"pip install {pkg}" for name, pkg in _EXTENSION_EXTRAS.items()
-    }
+    extensions_available = {name: f"pip install {pkg}" for name, pkg in _EXTENSION_EXTRAS.items()}
 
     if json_out:
-        click.echo(json.dumps({
-            "status": "success",
-            "config_path": str(config_path),
-            "language": lang,
-            "skills_seeded": skills_seeded,
-            "extensions_selected": extensions_selected,
-            "extensions_available": extensions_available,
-        }, indent=2))
+        click.echo(
+            json.dumps(
+                {
+                    "status": "success",
+                    "config_path": str(config_path),
+                    "language": lang,
+                    "skills_seeded": skills_seeded,
+                    "extensions_selected": extensions_selected,
+                    "extensions_available": extensions_available,
+                },
+                indent=2,
+            )
+        )
     else:
         click.secho(f"Created {config_path}", fg="green")
         click.echo(f"  Language: {lang or 'none detected'}")
@@ -318,7 +336,8 @@ def serve(name: str, transport: str) -> None:
             "to the client that started it. To serve commands over HTTP, serve a managed "
             "host with botcore.host_http (create_host_http_app, run with serve_hosts), which "
             "checks bearer tokens from `botcore host-token issue` (docs/host-composition.md).",
-            fg="red", err=True,
+            fg="red",
+            err=True,
         )
         sys.exit(2)
     try:
@@ -328,9 +347,9 @@ def serve(name: str, transport: str) -> None:
         server.run(transport=transport)
     except ImportError:
         click.secho(
-            "Error: MCP dependencies not installed. "
-            "Run: pip install 'lushly-botcore[mcp]'",
-            fg="red", err=True,
+            "Error: MCP dependencies not installed. Run: pip install 'lushly-botcore[mcp]'",
+            fg="red",
+            err=True,
         )
         sys.exit(1)
     except KeyboardInterrupt:
@@ -441,7 +460,7 @@ def skill_status_cmd(ctx: click.Context, **_kwargs: Any) -> None:
 @_json_option
 @click.pass_context
 def skill_lint_cmd(ctx: click.Context, path: str | None, **_kwargs: Any) -> None:
-    """Lint SKILL.md files under PATH (default: current directory), rules SK001-SK019."""
+    """Lint SKILL.md files under PATH (default: current directory), rules SK001-SK020."""
     from botcore.commands.skill_lint import skill_lint_spec
 
     result = _run_async(skill_lint_spec(path=path))
@@ -449,18 +468,31 @@ def skill_lint_cmd(ctx: click.Context, path: str | None, **_kwargs: Any) -> None
 
 
 @cli.command("skill-usage-collect")
-@click.option("--since-days", type=int, default=None,
-              help="Re-read this many days instead of continuing from the last collection")
-@click.option("--t3-store", default=None,
-              help="Read this T3 Code store, not this machine's (needs --machine)")
+@click.option(
+    "--since-days",
+    type=int,
+    default=None,
+    help="Re-read this many days instead of continuing from the last collection",
+)
+@click.option(
+    "--t3-store", default=None, help="Read this T3 Code store, not this machine's (needs --machine)"
+)
 @click.option("--machine", default=None, help="The machine a copied store came from")
-@click.option("--rebuild", is_flag=True, default=False,
-              help="Read everything again and replace what an older botcore recognised")
+@click.option(
+    "--rebuild",
+    is_flag=True,
+    default=False,
+    help="Read everything again and replace what an older botcore recognised",
+)
 @_json_option
 @click.pass_context
 def skill_usage_collect_cmd(  # noqa: PLR0913 - the command's options
-    ctx: click.Context, since_days: int | None, t3_store: str | None, machine: str | None,
-    rebuild: bool, **_kwargs: Any,
+    ctx: click.Context,
+    since_days: int | None,
+    t3_store: str | None,
+    machine: str | None,
+    rebuild: bool,
+    **_kwargs: Any,
 ) -> None:
     """Add the skill loads the harnesses recorded to this machine's record."""
     from botcore.commands.skill_usage import skill_usage_collect
@@ -479,22 +511,39 @@ def skill_usage_collect_cmd(  # noqa: PLR0913 - the command's options
 @click.option("--harness", default=None, help="Only this harness: claude or codex")
 @click.option("--skill", default=None, help="Only this skill")
 @click.option("--agent", default=None, help="Only loads by main, delegate or subagent")
-@click.option("--ending-days-ago", type=int, default=0, show_default=True,
-              help="End the window this many days ago, to compare two periods")
+@click.option(
+    "--ending-days-ago",
+    type=int,
+    default=0,
+    show_default=True,
+    help="End the window this many days ago, to compare two periods",
+)
 @click.option("--limit", type=int, default=50, show_default=True, help="Skills to list")
 @_json_option
 @click.pass_context
 def skill_usage_report_cmd(  # noqa: PLR0913 - the command's options
-    ctx: click.Context, days: int, project: str | None, harness: str | None,
-    skill: str | None, agent: str | None, ending_days_ago: int, limit: int, **_kwargs: Any,
+    ctx: click.Context,
+    days: int,
+    project: str | None,
+    harness: str | None,
+    skill: str | None,
+    agent: str | None,
+    ending_days_ago: int,
+    limit: int,
+    **_kwargs: Any,
 ) -> None:
     """Report which skills were used, how often, and by which harness. Read-only."""
     from botcore.commands.skill_usage import skill_usage_report
 
     result = _run_async(
         skill_usage_report(
-            days=days, project=project, harness=harness, ending_days_ago=ending_days_ago,
-            skill=skill, agent=agent, limit=limit,
+            days=days,
+            project=project,
+            harness=harness,
+            ending_days_ago=ending_days_ago,
+            skill=skill,
+            agent=agent,
+            limit=limit,
         )
     )
     _format_result(result, _is_json(ctx))
@@ -502,12 +551,18 @@ def skill_usage_report_cmd(  # noqa: PLR0913 - the command's options
 
 @cli.command("skill-usage-triggers")
 @click.option("--days", type=int, default=30, show_default=True, help="Days to report")
-@click.option("--repo", default=None,
-              help="The repository's checkout (default: the one holding the working directory)")
+@click.option(
+    "--repo",
+    default=None,
+    help="The repository's checkout (default: the one holding the working directory)",
+)
 @_json_option
 @click.pass_context
 def skill_usage_triggers_cmd(
-    ctx: click.Context, days: int, repo: str | None, **_kwargs: Any,
+    ctx: click.Context,
+    days: int,
+    repo: str | None,
+    **_kwargs: Any,
 ) -> None:
     """Report the merged changes whose opener had not loaded a required skill. Read-only."""
     from botcore.commands.skill_usage import skill_usage_triggers
@@ -519,17 +574,26 @@ def skill_usage_triggers_cmd(
 @cli.command("disk-report")
 @click.option("--repo", default=None, help="Report one repository instead of the registered ones")
 @click.option(
-    "--unclassified", is_flag=True, default=False,
+    "--unclassified",
+    is_flag=True,
+    default=False,
     help="List ignored paths no [disk] pattern covers",
 )
 @click.option(
-    "--budget", "budget_seconds", type=float, default=180.0, show_default=True,
+    "--budget",
+    "budget_seconds",
+    type=float,
+    default=180.0,
+    show_default=True,
     help="Seconds to spend measuring before reporting what is left unmeasured",
 )
 @_json_option
 @click.pass_context
 def disk_report_cmd(
-    ctx: click.Context, repo: str | None, unclassified: bool, budget_seconds: float,
+    ctx: click.Context,
+    repo: str | None,
+    unclassified: bool,
+    budget_seconds: float,
     **_kwargs: Any,
 ) -> None:
     """Report worktrees, caches and volumes, and what a reclaim would free. Read-only."""
@@ -554,50 +618,90 @@ def disk_report_cmd(
 
 
 @cli.command("disk-reclaim")
-@click.option("--tier", type=click.IntRange(0, 2), default=1, show_default=True,
-              help="0: caches and aged folders; 1: also idle build output; "
-                   "2: also finished worktrees")
-@click.option("--include-restorable", is_flag=True, default=False,
-              help="With --tier 2, also remove worktrees that hold nothing unique but have "
-                   "not landed")
+@click.option(
+    "--tier",
+    type=click.IntRange(0, 2),
+    default=1,
+    show_default=True,
+    help="0: caches and aged folders; 1: also idle build output; 2: also finished worktrees",
+)
+@click.option(
+    "--include-restorable",
+    is_flag=True,
+    default=False,
+    help="With --tier 2, also remove worktrees that hold nothing unique but have not landed",
+)
 @click.option("--apply", is_flag=True, default=False, help="Carry out the plan (default: dry run)")
 @click.option("--repo", default=None, help="Reclaim one repository instead of the registered ones")
-@click.option("--pressure", is_flag=True, default=False,
-              help="Act as if a watched volume were low on space")
+@click.option(
+    "--pressure", is_flag=True, default=False, help="Act as if a watched volume were low on space"
+)
 @_json_option
 @click.pass_context
 def disk_reclaim_cmd(  # noqa: PLR0913 - one argument per option
-    ctx: click.Context, tier: int, include_restorable: bool, apply: bool, repo: str | None,
-    pressure: bool, **_kwargs: Any,
+    ctx: click.Context,
+    tier: int,
+    include_restorable: bool,
+    apply: bool,
+    repo: str | None,
+    pressure: bool,
+    **_kwargs: Any,
 ) -> None:
     """Prune caches, strip build output, remove finished worktrees. Dry run unless --apply."""
     from botcore.commands.disk import disk_reclaim
 
-    result = _run_async(disk_reclaim(tier=tier, apply=apply, repo=repo, pressure=pressure,
-                                     include_restorable=include_restorable))
+    result = _run_async(
+        disk_reclaim(
+            tier=tier,
+            apply=apply,
+            repo=repo,
+            pressure=pressure,
+            include_restorable=include_restorable,
+        )
+    )
     _format_result(result, _is_json(ctx))
 
 
 @cli.command("disk-setup")
-@click.option("--uninstall", is_flag=True, default=False,
-              help="Remove the scheduled job (settings and receipts stay)")
+@click.option(
+    "--uninstall",
+    is_flag=True,
+    default=False,
+    help="Remove the scheduled job (settings and receipts stay)",
+)
 @click.option("--repo", "repos", multiple=True, help="Also register this repository")
-@click.option("--no-schedule", is_flag=True, default=False,
-              help="Write the settings without installing the job")
-@click.option("--remove-landed/--keep-landed", default=None,
-              help="Let the job remove finished worktrees (tier 2); off unless asked")
+@click.option(
+    "--no-schedule",
+    is_flag=True,
+    default=False,
+    help="Write the settings without installing the job",
+)
+@click.option(
+    "--remove-landed/--keep-landed",
+    default=None,
+    help="Let the job remove finished worktrees (tier 2); off unless asked",
+)
 @_json_option
 @click.pass_context
 def disk_setup_cmd(  # noqa: PLR0913 - one argument per option
-    ctx: click.Context, uninstall: bool, repos: tuple[str, ...], no_schedule: bool,
-    remove_landed: bool | None, **_kw: Any,
+    ctx: click.Context,
+    uninstall: bool,
+    repos: tuple[str, ...],
+    no_schedule: bool,
+    remove_landed: bool | None,
+    **_kw: Any,
 ) -> None:
     """Register repositories and volumes, and install the hourly disk job."""
     from botcore.commands.disk import disk_setup
 
-    result = _run_async(disk_setup(uninstall=uninstall, repos=list(repos),
-                                   install_schedule=not no_schedule,
-                                   remove_landed=remove_landed))
+    result = _run_async(
+        disk_setup(
+            uninstall=uninstall,
+            repos=list(repos),
+            install_schedule=not no_schedule,
+            remove_landed=remove_landed,
+        )
+    )
     _format_result(result, _is_json(ctx))
 
 
@@ -608,7 +712,11 @@ def disk_setup_cmd(  # noqa: PLR0913 - one argument per option
 @_json_option
 @click.pass_context
 def disk_keep_cmd(
-    ctx: click.Context, path: str, until: str | None, reason: str, **_kw: Any,
+    ctx: click.Context,
+    path: str,
+    until: str | None,
+    reason: str,
+    **_kw: Any,
 ) -> None:
     """Protect a worktree from every disk-* action until a date."""
     from botcore.commands.disk import disk_keep
@@ -680,7 +788,9 @@ _CHANGESET_TYPES = ["added", "changed", "deprecated", "removed", "fixed", "secur
 
 @cli.command("changeset-create")
 @click.option(
-    "--type", "change_type", required=True,
+    "--type",
+    "change_type",
+    required=True,
     type=click.Choice(_CHANGESET_TYPES, case_sensitive=False),
     help="Type of change",
 )
@@ -688,7 +798,10 @@ _CHANGESET_TYPES = ["added", "changed", "deprecated", "removed", "fixed", "secur
 @_json_option
 @click.pass_context
 def changeset_create_cmd(
-    ctx: click.Context, change_type: str, description: str, **_kw: Any,
+    ctx: click.Context,
+    change_type: str,
+    description: str,
+    **_kw: Any,
 ) -> None:
     """Create a changeset file for the next release."""
     from botcore.commands.changeset import changeset_create
@@ -718,3 +831,165 @@ def changeset_consume_cmd(ctx: click.Context, version: str | None, **_kwargs: An
 
     result = _run_async(changeset_consume(version=version))
     _format_result(result, _is_json(ctx))
+
+
+# ── Snapshot & PR inspection commands (read-only by default) ─────────────────
+
+
+@cli.command("dev-snapshot")
+@click.option("--base", default=None, help="Git ref or SHA for diff-size stats (default: HEAD)")
+@click.option(
+    "--compare-to",
+    "compare_to",
+    default=None,
+    help="Prior dev-snapshot JSON string or 64-char sha256 digest",
+)
+@click.option("--path", default=None, help="Directory inside the target git checkout")
+@_json_option
+@click.pass_context
+def dev_snapshot_cmd(
+    ctx: click.Context,
+    base: str | None,
+    compare_to: str | None,
+    path: str | None,
+    **_kwargs: Any,
+) -> None:
+    """Capture a read-only checkout integrity snapshot and optional diff-size comparison."""
+    from botcore.commands.dev.snapshot import dev_snapshot
+
+    result = _run_async(dev_snapshot(base=base, compare_to=compare_to, path=path))
+    _format_result(result, _is_json(ctx))
+
+
+@cli.command("pr-status")
+@click.argument("pr", required=False, default=None)
+@click.option("--repo", default=None, help="Repository slug (owner/name)")
+@_json_option
+@click.pass_context
+def pr_status_cmd(
+    ctx: click.Context,
+    pr: str | None,
+    repo: str | None,
+    **_kwargs: Any,
+) -> None:
+    """Inspect a pull request's checks, bots, merge queue, and readiness. Read-only."""
+    from botcore.commands.pr.status import pr_status
+
+    result = _run_async(pr_status(pr=pr, repo=repo))
+    _format_result(result, _is_json(ctx))
+
+
+@cli.command("pr-drift")
+@click.argument("pr", required=False, default=None)
+@click.option("--repo", default=None, help="Repository slug (owner/name)")
+@click.option(
+    "--fetch",
+    is_flag=True,
+    default=False,
+    help="Fetch origin's base ref before inspecting (default: read-only, no fetch)",
+)
+@click.option(
+    "--after-rebase-from",
+    default=None,
+    help="Pre-rebase head SHA to summarize with git range-diff",
+)
+@click.option(
+    "--scan-overlapping-prs",
+    type=int,
+    default=10,
+    show_default=True,
+    help="Recent open/merged PRs to scan for overlapping files (0 skips)",
+)
+@_json_option
+@click.pass_context
+def pr_drift_cmd(  # noqa: PLR0913 - one argument per CLI option
+    ctx: click.Context,
+    pr: str | None,
+    repo: str | None,
+    fetch: bool,
+    after_rebase_from: str | None,
+    scan_overlapping_prs: int,
+    **_kwargs: Any,
+) -> None:
+    """Gather PR staleness, base-branch drift, overlapping PRs, and author credits."""
+    from botcore.commands.pr.drift import pr_drift
+
+    result = _run_async(
+        pr_drift(
+            pr=pr,
+            repo=repo,
+            fetch=fetch,
+            after_rebase_from=after_rebase_from,
+            scan_overlapping_prs=scan_overlapping_prs,
+        )
+    )
+    _format_result(result, _is_json(ctx))
+
+
+@cli.command("pr-wait")
+@click.argument("pr", required=False, default=None)
+@click.option("--repo", default=None, help="Repository slug (owner/name)")
+@click.option(
+    "--until",
+    type=click.Choice(["ready", "green", "any-change"], case_sensitive=False),
+    default="ready",
+    show_default=True,
+    help="Condition to wait for",
+)
+@click.option("--interval", type=int, default=None, help="Seconds between polls")
+@click.option("--timeout", "timeout_seconds", type=int, default=1800, show_default=True)
+@click.option("--max-polls", type=int, default=None, help="Stop after at most this many polls")
+@click.option(
+    "--persist-state",
+    is_flag=True,
+    default=False,
+    help="Hold a cross-platform single-instance lock and save event watermarks on disk",
+)
+@_json_option
+@click.pass_context
+def pr_wait_cmd(  # noqa: PLR0913 - one argument per CLI option
+    ctx: click.Context,
+    pr: str | None,
+    repo: str | None,
+    until: str,
+    interval: int | None,
+    timeout_seconds: int,
+    max_polls: int | None,
+    persist_state: bool,
+    **_kwargs: Any,
+) -> None:
+    """Wait for PR events until ready, green, or any change. Read-only by default."""
+    from botcore.commands.pr.wait import pr_wait
+
+    json_mode = _is_json(ctx)
+
+    def _emit_line(event: dict[str, Any]) -> None:
+        if not json_mode:
+            suffix = f" {event['url']}" if event.get("url") else ""
+            click.echo(f"{event['message']}{suffix}")
+
+    result = _run_async(
+        pr_wait(
+            pr=pr,
+            repo=repo,
+            until=until.lower(),  # type: ignore[arg-type]
+            interval=interval,
+            timeout_seconds=timeout_seconds,
+            max_polls=max_polls,
+            persist_state=persist_state,
+            on_event=_emit_line,
+        )
+    )
+    normalized = _to_dict(result)
+    if json_mode:
+        click.echo(json.dumps(normalized, indent=2, default=str))
+        if _is_error(normalized):
+            sys.exit(1)
+        data = normalized.get("data") or {}
+        sys.exit(int(data.get("exit_code", 0)))
+    if _is_error(normalized):
+        _format_result(normalized, False)
+        return
+    data = normalized.get("data") or {}
+    click.echo(f"{data.get('repo', '')}#{data.get('number', '')}: {data.get('outcome', 'done')}")
+    sys.exit(int(data.get("exit_code", 0)))

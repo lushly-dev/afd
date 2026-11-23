@@ -45,6 +45,35 @@ Detect hardcoded/non-portable paths.
 
 ## dev_skill_lint()
 Run skill_lint over the configured skills directory.
+
+## dev_snapshot(base=None, compare_to=None, exclude_ref_prefixes=None, path=None)
+Read-only. Capture a checkout integrity snapshot (HEAD, refs excluding `refs/t3/`, stash,
+porcelain status, working-tree diff, untracked file hashes, and `diff_stat` against `base`).
+Pass `compare_to` (prior snapshot dict, JSON string, or 64-char digest) to verify nothing
+changed during a delegated review and measure diff-size deltas across rounds.
+""",
+    "pr": """\
+# PR Inspection Commands (read-only by default)
+
+Settings live under `[pr]` in `botcore.toml` (`gating_bots`, `advisory_bots`, `status_bots`,
+`state_dir`, `stale_state_seconds`, `default_interval`).
+
+## pr_status(pr=None, repo=None)
+Read-only. Inspect a PR's state, checks (collapsed to worst bucket), gating/advisory bots,
+unresolved review threads, merge-queue status, base-branch file overlap, and readiness.
+Uses GraphQL via `gh` and automatically falls back to REST when GraphQL rate limits expire.
+
+## pr_drift(pr=None, repo=None, fetch=False, after_rebase_from=None, scan_overlapping_prs=10)
+Read-only by default (`fetch=False`). Gather base commits since divergence, PR files deleted
+or renamed on base, recent open/merged PRs touching overlapping files, original commit authors
+and attribution trailers, and optional `git range-diff` summary (`after_rebase_from`).
+
+## pr_wait(pr=None, repo=None, until="ready", interval=None, timeout_seconds=1800,
+##   max_polls=None, persist_state=False)
+Read-only by default (`persist_state=False`). Wait for PR events (`ready`, `green`, or
+`any-change`), filtering noisy deploy/status bots and reporting base-branch file overlap.
+Set `persist_state=True` to hold a cross-platform single-instance lock and save event
+watermarks so restarts never miss events.
 """,
     "skill": """\
 # Skill Commands: registry, lint and usage
@@ -80,14 +109,16 @@ Lint skills in the configured skills directory. `botcore skill-lint [path]`
 - Errors: SK001 no SKILL.md or frontmatter, SK002 no `name`, SK003 no `description`,
   SK004 name not kebab-case, over 64 characters or unlike its directory, SK005
   description over 1,024 characters, SK008 missing `references/` file, SK015
-  duplicate name.
+  duplicate name, SK020 invalid `agents/openai.yaml` (malformed YAML, missing `interface`,
+  non-string keys, or empty text fields).
 - Warnings: SK009 body over 500 lines, SK010 placeholder text (TODO, FIXME, TBD,
   Lorem ipsum), SK012 `skill.md` instead of `SKILL.md`, SK014 orphan reference file,
   SK016 description over 300 characters, SK017 `triggers` field or "Triggers:" list,
   SK018 field outside the open standard and Claude Code (top-level `source`, `version`
   or `portable` belongs under `metadata:`), SK019 listing over `[skills]
   listing_budget` (default 8000: description plus `when_to_use`, skipping
-  `disable-model-invocation: true`).
+  `disable-model-invocation: true`), SK020 unknown keys or overlong/missing summary
+  fields in `agents/openai.yaml`.
 - Result: per-skill violations plus `listing: {characters, budget}`.
 - `path`: Lint a specific skill path (default: all in skills dir)
 - `strict`: Report every warning as an error

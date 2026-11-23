@@ -439,3 +439,58 @@ def test_init_reports_seeded_count_text(tmp_path):
         result = runner.invoke(cli, ["init", "--non-interactive"])
         assert result.exit_code == 0, result.output
         assert "Skills seeded:" in result.output
+
+
+def test_dev_snapshot_and_pr_cli_commands():
+    from afd import success as afd_success
+
+    runner = CliRunner()
+
+    with patch(
+        "botcore.commands.dev.snapshot.dev_snapshot",
+        new_callable=AsyncMock,
+        return_value=afd_success({"digest": "a" * 64, "dirty_count": 0}),
+    ):
+        res = runner.invoke(cli, ["dev-snapshot", "--json"])
+        assert res.exit_code == 0, res.output
+        assert json.loads(res.output)["data"]["digest"] == "a" * 64
+
+    with patch(
+        "botcore.commands.pr.status.pr_status",
+        new_callable=AsyncMock,
+        return_value=afd_success({"repo": "acme/app", "number": 7, "ready": True}),
+    ):
+        res = runner.invoke(cli, ["pr-status", "7", "--json"])
+        assert res.exit_code == 0, res.output
+        assert json.loads(res.output)["data"]["ready"] is True
+
+    with patch(
+        "botcore.commands.pr.drift.pr_drift",
+        new_callable=AsyncMock,
+        return_value=afd_success({"repo": "acme/app", "number": 7, "base_overlap_files": []}),
+    ):
+        res = runner.invoke(cli, ["pr-drift", "7", "--json"])
+        assert res.exit_code == 0, res.output
+        assert json.loads(res.output)["data"]["number"] == 7
+
+    with patch(
+        "botcore.commands.pr.wait.pr_wait",
+        new_callable=AsyncMock,
+        return_value=afd_success(
+            {"repo": "acme/app", "number": 7, "outcome": "ready", "exit_code": 0, "events": []}
+        ),
+    ):
+        res = runner.invoke(cli, ["pr-wait", "7"])
+        assert res.exit_code == 0, res.output
+        assert "acme/app#7: ready" in res.output
+
+    with patch(
+        "botcore.commands.pr.wait.pr_wait",
+        new_callable=AsyncMock,
+        return_value=afd_success(
+            {"repo": "acme/app", "number": 7, "outcome": "timeout", "exit_code": 1, "events": []}
+        ),
+    ):
+        res_json = runner.invoke(cli, ["pr-wait", "7", "--json"])
+        assert res_json.exit_code == 1
+        assert json.loads(res_json.output)["data"]["outcome"] == "timeout"
