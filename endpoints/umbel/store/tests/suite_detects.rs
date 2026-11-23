@@ -30,9 +30,9 @@ fn a_correct_in_memory_backend_passes_every_case() {
     let (matching, other): (Vec<_>, Vec<_>) = other
         .into_iter()
         .partition(|s| s.starts_with("matching::") && s.contains("no record lane"));
-    assert_eq!(lane.len(), 16, "every lane case: {skipped:?}");
+    assert_eq!(lane.len(), 17, "every lane case: {skipped:?}");
     assert_eq!(standing.len(), 17, "every standing case: {skipped:?}");
-    assert_eq!(matching.len(), 15, "every matching case: {skipped:?}");
+    assert_eq!(matching.len(), 18, "every matching case: {skipped:?}");
     assert!(
         other
             .iter()

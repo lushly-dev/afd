@@ -14,12 +14,13 @@ use serde_json::Value;
 use umbel_store::conformance::{Outcome, Stores, run_groups};
 use umbel_store::lane::{
     Decided, Decision, DeclaredPut, FindOrder, FindPage, LaneLimits, LaneRecord, LaneStatus,
-    LaneWrite, MAX_MATCH_K, Marked, MatchPage, MatchResult, MatchVectors, OwnInfo, OwnMark,
-    RecordDecision, RecordDecl, RecordFind, RecordMatch, ReindexReport, Standing, StandingView,
+    LaneWrite, MAX_MATCH_K, Marked, MatchPage, MatchResult, MatchVectors, MeaningState, OwnInfo,
+    OwnMark, RecordDecision, RecordDecl, RecordFind, RecordMatch, ReindexReport, Standing,
+    StandingView,
 };
 use umbel_store::{
     AccessSet, Change, ContentHash, DocMeta, Document, DocumentStore, DocumentWrite, Embedder,
-    Envelope, Expect, ListQuery, MemoryFlag, Page, ReaderFilter, Record, RecordMeta, Rev,
+    Envelope, Expect, ListQuery, MemoryFlag, ModelId, Page, ReaderFilter, Record, RecordMeta, Rev,
     StoreError,
 };
 use umbel_store_embedded::{SqliteStore, StoreOptions};
@@ -88,6 +89,14 @@ enum Fault {
     MatchAdmitsEverything,
     /// A hit's label shows its source to a reader who may not read the cited document.
     MatchShowsSource,
+    /// `put_record_vector` ignores the digest check and stores for whatever digest the record holds.
+    VectorDigestIgnored,
+    /// `match_records` checks missing vectors across every record, not only the reader's.
+    IncompleteCountsUnreadable,
+    /// `match_records` with vectors answers as a reader of every record.
+    VectorsIgnoreReader,
+    /// `match_records` ignores `vectors.weight` and always uses `0.0`.
+    WeightIgnored,
 }
 
 thread_local! {
@@ -241,6 +250,30 @@ impl DocumentStore for Faulty {
     ) -> Result<DeclaredPut, StoreError> {
         self.inner
             .put_declared_record(ns, decl, id, body, envelope, expect, lane, writer)
+    }
+    fn put_record_vector(
+        &self,
+        ns: &str,
+        decl: &RecordDecl,
+        id: &str,
+        digest: &[u8; 32],
+        model: &ModelId,
+        vector: Vec<f32>,
+    ) -> Result<bool, StoreError> {
+        if self.fault == Fault::VectorDigestIgnored
+            && let Some(record) = self.inner.get_record(ns, &decl.kind, id, &everything())?
+            && let Some(actual) = decl
+                .match_pointer()
+                .and_then(|p| p.get(&record.body))
+                .and_then(Value::as_str)
+                .and_then(umbel_store::lane::match_digest)
+        {
+            return self
+                .inner
+                .put_record_vector(ns, decl, id, &actual, model, vector);
+        }
+        self.inner
+            .put_record_vector(ns, decl, id, digest, model, vector)
     }
     fn read_record(
         &self,
@@ -480,6 +513,33 @@ impl DocumentStore for Faulty {
                 }
                 Ok(page)
             }
+            Fault::IncompleteCountsUnreadable if vectors.is_some() => {
+                let page = honest?;
+                if matches!(page.meaning, MeaningState::Served(_))
+                    && matches!(everyones()?.meaning, MeaningState::Incomplete)
+                {
+                    let mut fallback = self
+                        .inner
+                        .match_records(ns, decl, query, None, view, reader)
+                        .map(as_asked)?;
+                    fallback.meaning = MeaningState::Incomplete;
+                    return Ok(fallback);
+                }
+                Ok(page)
+            }
+            Fault::VectorsIgnoreReader if vectors.is_some() => everyones(),
+            Fault::WeightIgnored => match vectors {
+                Some(mv) => {
+                    let zeroed = MatchVectors {
+                        weight: 0.0,
+                        ..mv.clone()
+                    };
+                    self.inner
+                        .match_records(ns, decl, query, Some(&zeroed), view, reader)
+                        .map(as_asked)
+                }
+                None => honest,
+            },
             _ => honest,
         }
     }
@@ -703,6 +763,10 @@ fn each_lane_fault_fails_where_it_should() {
             Fault::StaleServed,
             "an_undeclared_put_on_a_declared_kind_makes_it_stale",
         ),
+        (
+            Fault::VectorDigestIgnored,
+            "put_record_vector_stores_for_the_digest_embedded_and_reindex_manages_vectors",
+        ),
     ] {
         let failed = failures(fault);
         assert!(
@@ -824,6 +888,17 @@ fn each_matching_fault_of_access_fails_where_it_should() {
         (Fault::RefusedForAHiddenWord, &[PROBE]),
         (Fault::FindRefusedPastTheBound, &[BOUND]),
         (Fault::RankedFindNeverRefused, &[BOUND]),
+        (
+            Fault::IncompleteCountsUnreadable,
+            &[
+                "incomplete_when_a_readable_record_lacks_a_vector_and_served_when_only_an_unreadable_one_does",
+                "records_a_reader_cannot_read_change_no_vector_match_of_its_own",
+            ],
+        ),
+        (
+            Fault::VectorsIgnoreReader,
+            &["records_a_reader_cannot_read_change_no_vector_match_of_its_own"],
+        ),
     ]);
 }
 
@@ -842,6 +917,10 @@ fn each_matching_fault_of_scoring_fails_where_it_should() {
         (
             Fault::KIgnored,
             &["the_pool_keeps_sixty_four_and_k_cuts_the_nearest"],
+        ),
+        (
+            Fault::WeightIgnored,
+            &["with_vectors_meaning_and_fused_hold_to_four_places_and_order_by_fused_then_id"],
         ),
     ]);
 }

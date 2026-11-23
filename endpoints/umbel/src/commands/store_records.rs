@@ -1,18 +1,16 @@
 //! `store-records-reindex`, `store-documents-hold` and the doctor's `records.declared`,
-//! `records.standing`, `records.own` and `records.size` (records host specification, sections
-//! 12.1 to 12.3).
+//! `records.standing`, `records.meaning`, `records.own` and `records.size` (records host
+//! specification, sections 12.1 to 12.3).
 //!
-//! The command rebuilds the lane of each declared kind it names, in one space, in chunks: a kind
-//! being rebuilt is offline until the rebuild ends, and the rest of the store is not. It changes
-//! no record and makes no event; its inputs are a space, an instance and a kind, none of which is
-//! content, and its journal entry is a digest that keeps them. For the CLI and the operator only.
-//!
-//! Vectors (`vectorsOnly`, the model, and whether a meaning lane is served) join with that
-//! specification's step B5.
+//! `store-records-reindex` rebuilds the lane of each declared kind it names, in one space, in
+//! chunks, then rebuilds missing vectors (and removes other models' vectors) when the space's
+//! model loaded, and re-reads the kind's eval gate report. With `vectorsOnly = true` it skips the
+//! lane rebuild and runs only the vector pass. For the CLI and the operator only.
 
 use super::store_common::{space_property, view};
 use super::{Builtin, blocking, returns_object};
 use crate::doctor::Check;
+use crate::meaning::{GateState, MeaningHub, ModelState};
 use crate::plugins::{LoadedPlugins, Status};
 use crate::store::{Hub, command_error, records};
 use crate::workspace::Workspace;
@@ -28,17 +26,18 @@ use umbel_store::lane::{LANE_DESIGN_RECORDS, LaneState, LaneStatus, RecordDecl};
 /// The command's name.
 pub(crate) const REINDEX: &str = "store-records-reindex";
 /// The inputs its journal digest keeps: none is content.
-pub(crate) const REINDEX_KEPT: &[&str] = &["space", "plugin", "kind"];
+pub(crate) const REINDEX_KEPT: &[&str] = &["space", "plugin", "kind", "vectorsOnly"];
 
 struct Handler {
     workspace: Arc<Workspace>,
     stores: Hub,
     loaded: Arc<OnceLock<Arc<LoadedPlugins>>>,
+    meaning: Arc<MeaningHub>,
 }
 
 /// Every declared kind of every loaded instance enabled for `space`: the instance and the
 /// declaration, in instance order and manifest order.
-fn declared_in(loaded: &LoadedPlugins, space: &str) -> Vec<(String, RecordDecl)> {
+pub(crate) fn declared_in(loaded: &LoadedPlugins, space: &str) -> Vec<(String, RecordDecl)> {
     loaded
         .instances
         .iter()
@@ -55,12 +54,18 @@ fn declared_in(loaded: &LoadedPlugins, space: &str) -> Vec<(String, RecordDecl)>
         .collect()
 }
 
-fn not_declared(message: String, plugin: Option<&str>) -> CommandError {
+pub(crate) fn not_declared(message: String, plugin: Option<&str>) -> CommandError {
     CommandError::new(records::RECORD_KIND_NOT_DECLARED, message)
         .with_suggestion(format!(
             "List the instance's declared kinds with `umbel plugin-show {}`.",
             plugin.unwrap_or("<plugin>")
         ))
+        .with_retryable(false)
+}
+
+fn model_unavailable(message: String) -> CommandError {
+    CommandError::new(records::RECORD_MODEL_UNAVAILABLE, message)
+        .with_suggestion("Run umbel workspace-doctor and fix what records.meaning reports.")
         .with_retryable(false)
 }
 
@@ -95,11 +100,38 @@ fn selected(
     Ok(chosen)
 }
 
+struct ReindexOutcome {
+    data: Value,
+    superseded: Vec<String>,
+    model_warning: Option<String>,
+}
+
 fn run(
     stores: &Hub,
+    meaning: &MeaningHub,
     space: &str,
     chosen: &[(String, RecordDecl)],
-) -> Result<(Value, Vec<String>), CommandError> {
+    vectors_only: bool,
+) -> Result<ReindexOutcome, CommandError> {
+    let embedder = meaning.space_embedder(space);
+    let model_problem = meaning.space_model_failed(space);
+    if vectors_only && embedder.is_none() {
+        let reason = match model_problem {
+            Some(problem) => format!(
+                "the embedding model configured for space `{space}` did not load: {problem}"
+            ),
+            None => format!("no embedding model is configured for space `{space}`"),
+        };
+        return Err(model_unavailable(reason));
+    }
+    let model_warning = (!vectors_only).then(|| {
+        model_problem.map(|problem| {
+            format!(
+                "The embedding model configured for space `{space}` did not load ({problem}): the lane rebuilt, and its vector pass was skipped."
+            )
+        })
+    }).flatten();
+
     let opened = stores.space(space).map_err(|e| command_error(&e))?;
     let mut kinds = Vec::new();
     let mut superseded = Vec::new();
@@ -110,13 +142,22 @@ fn run(
                 instance,
                 decl,
                 &crate::plugins::scan_record_text,
-                None,
-                false,
+                embedder.as_deref(),
+                vectors_only,
             )
             .map_err(|e| command_error(&e))?;
         if report.superseded {
             superseded.push(format!("{instance}.{}", decl.kind));
+        } else if decl.matched.is_some() {
+            // Section 12.1 step 3: re-read the kind's gate report after rebuild.
+            let _ = meaning.refresh_gate(space, instance, decl);
         }
+        let meaning_state =
+            if decl.matched.is_some() && meaning.is_served(space, instance, &decl.kind) {
+                "served"
+            } else {
+                "off"
+            };
         kinds.push(json!({
             "plugin": instance,
             "kind": decl.kind,
@@ -126,9 +167,14 @@ fn run(
             "superseded": report.superseded,
             "vectorsWritten": report.vectors_written,
             "vectorsRemoved": report.vectors_removed,
+            "meaning": meaning_state,
         }));
     }
-    Ok((json!({ "space": space, "kinds": kinds }), superseded))
+    Ok(ReindexOutcome {
+        data: json!({ "space": space, "kinds": kinds }),
+        superseded,
+        model_warning,
+    })
 }
 
 #[async_trait]
@@ -144,6 +190,10 @@ impl CommandHandler for Handler {
         let space = space.to_string();
         let name = |key: &str| input.get(key).and_then(Value::as_str).map(str::to_owned);
         let (plugin, kind) = (name("plugin"), name("kind"));
+        let vectors_only = input
+            .get("vectorsOnly")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
         let declared = self
             .loaded
             .get()
@@ -154,22 +204,32 @@ impl CommandHandler for Handler {
             Err(error) => return failure(error),
         };
         let stores = Arc::clone(&self.stores);
-        match blocking(move || run(&stores, &space, &chosen)).await {
-            Ok((data, superseded)) if superseded.is_empty() => success(data),
-            Ok((data, superseded)) => {
-                // A write the rebuild did not see is never forgotten: the kind stays stale.
-                let warning = Warning::new(
-                    records::RECORD_LANE_STALE,
-                    format!(
-                        "A record was written, or another rebuild began, while {} was rebuilt: this rebuild stopped and cleared nothing; run it again.",
-                        superseded.join(", ")
-                    ),
-                );
-                let options = ResultOptions {
-                    warnings: Some(vec![warning]),
-                    ..ResultOptions::default()
-                };
-                success_with(data, options)
+        let meaning = Arc::clone(&self.meaning);
+        match blocking(move || run(&stores, &meaning, &space, &chosen, vectors_only)).await {
+            Ok(outcome) => {
+                let mut warnings = Vec::new();
+                if !outcome.superseded.is_empty() {
+                    // A write the rebuild did not see is never forgotten: the kind stays stale.
+                    warnings.push(Warning::new(
+                        records::RECORD_LANE_STALE,
+                        format!(
+                            "A record was written, or another rebuild began, while {} was rebuilt: this rebuild stopped and cleared nothing; run it again.",
+                            outcome.superseded.join(", ")
+                        ),
+                    ));
+                }
+                if let Some(message) = outcome.model_warning {
+                    warnings.push(Warning::new(records::RECORD_MODEL_UNAVAILABLE, message));
+                }
+                if warnings.is_empty() {
+                    success(outcome.data)
+                } else {
+                    let options = ResultOptions {
+                        warnings: Some(warnings),
+                        ..ResultOptions::default()
+                    };
+                    success_with(outcome.data, options)
+                }
             }
             Err(error) => failure(error),
         }
@@ -181,20 +241,22 @@ pub(crate) fn store_records_reindex(
     workspace: Arc<Workspace>,
     stores: Hub,
     loaded: Arc<OnceLock<Arc<LoadedPlugins>>>,
+    meaning: Arc<MeaningHub>,
 ) -> Builtin {
     let definition = CommandDefinition::new(
         REINDEX,
-        "Rebuild the record lane of a space's declared record kinds from their stored records, in chunks; a kind is offline while it is rebuilt",
+        "Rebuild the record lane of a space's declared record kinds from their stored records, in chunks, and compute missing vectors; a kind is offline while it is rebuilt",
         vec![],
         Handler {
             workspace,
             stores,
             loaded,
+            meaning,
         },
     )
     .with_category("store")
     .with_returns(returns_object(
-        "space and kinds: per kind its plugin, kind, records, unindexed, wordingsChanged, superseded, vectorsWritten and vectorsRemoved",
+        "space and kinds: per kind its plugin, kind, records, unindexed, wordingsChanged, superseded, vectorsWritten, vectorsRemoved and meaning",
     ))
     .as_mutation()
     .with_expose(
@@ -219,6 +281,10 @@ pub(crate) fn store_records_reindex(
                     "type": "string",
                     "minLength": 1,
                     "description": "A declared record kind; default: every kind the instances declare"
+                },
+                "vectorsOnly": {
+                    "type": "boolean",
+                    "description": "Skip the lane rebuild and compute missing vectors (and remove other models' vectors) only; default false"
                 },
             },
             "additionalProperties": false,
@@ -653,13 +719,130 @@ fn own_check(unheld: &[(String, u64)], failed: &[String], collections: usize) ->
     )
 }
 
-/// The doctor's four record checks on a sealed host, in order: `records.declared`,
-/// `records.standing`, `records.own` and `records.size`. The first and the last read the lane
-/// of every declared kind of every loaded instance, and the third the documents of every own
-/// collection, in each space that already has a store: a space nothing has written to is not
-/// given an empty store by a health check. The second reads the configuration and the loaded
-/// manifests alone.
-pub(crate) fn checks(workspace: &Workspace, stores: &Hub, loaded: &LoadedPlugins) -> [Check; 4] {
+/// `records.meaning` (section 12.3): each configured model loaded, has no missing vector, and
+/// has a passing, bound, non-stale eval report for each kind with a match field. Always warns
+/// for an `http` model, naming the host record text is sent to.
+fn meaning_check(
+    workspace: &Workspace,
+    loaded: &LoadedPlugins,
+    meaning: &MeaningHub,
+    found: &[Found],
+) -> Check {
+    const ID: &str = "records.meaning";
+    let mut failures = Vec::new();
+    let mut warnings = Vec::new();
+    for (id, slot) in meaning.models() {
+        if let Some(host) = slot.config.http_host() {
+            warnings.push(format!(
+                "model `{id}` uses the http provider and sends record text to `{host}`"
+            ));
+        }
+        if let ModelState::Failed(problem) = &slot.state {
+            failures.push(format!("model `{id}`: {problem}"));
+        }
+    }
+    if !failures.is_empty() {
+        let mut details = vec![format!(
+            "embedding model load failure(s): {}",
+            failures.join("; ")
+        )];
+        details.extend(warnings);
+        return Check::fail(
+            ID,
+            details.join("; "),
+            "Check [models.<id>] in umbel.toml: verify every pinned file exists with its SHA-256 digest and build umbel with the provider's Cargo feature (embed-static, embed-onnx or embed-http).",
+        );
+    }
+    let configured_spaces: Vec<&crate::workspace::SpaceConfig> = workspace
+        .spaces()
+        .iter()
+        .filter(|space| space.meaning.is_some())
+        .collect();
+    if configured_spaces.is_empty() {
+        if warnings.is_empty() {
+            return Check::pass(ID, "No space configures an embedding model");
+        }
+        return Check::warn(
+            ID,
+            warnings.join("; "),
+            "An http embedding model sends record text off the machine; confirm the endpoint host is intended.",
+        );
+    }
+    for space in &configured_spaces {
+        let space_id = space.id.as_str();
+        let active_model = meaning.space_embedder(space_id).map(|e| e.model().clone());
+        for (instance, decl) in declared_in(loaded, space_id) {
+            if decl.matched.is_none() {
+                continue;
+            }
+            let name = format!("{instance}.{}", decl.kind);
+            let status = found
+                .iter()
+                .find(|f| f.space == space_id && f.name == name)
+                .map(|f| &f.status);
+            if let (Some(model), Some(status)) = (&active_model, status) {
+                let present = status.vectors.get(model.as_str()).copied().unwrap_or(0);
+                let missing = status.with_match.saturating_sub(present);
+                if missing > 0 {
+                    warnings.push(format!(
+                        "{space_id}: {name} has {missing} record(s) missing vectors for {model}"
+                    ));
+                }
+            }
+            match meaning.evaluate_gate(space_id, &instance, &decl) {
+                GateState::Passed { records } => {
+                    if let Some(status) = status
+                        && status.records > records.saturating_mul(4)
+                    {
+                        warnings.push(format!(
+                            "{space_id}: {name} holds {} records, more than four times the {records} its eval report scored",
+                            status.records
+                        ));
+                    }
+                }
+                GateState::Missing => warnings.push(format!(
+                    "{space_id}: {name} has no eval report; meaning stays off"
+                )),
+                GateState::Invalid(why) => warnings.push(format!(
+                    "{space_id}: {name} has an unreadable eval report ({why}); meaning stays off"
+                )),
+                GateState::Unbound(which) => warnings.push(format!(
+                    "{space_id}: {name} eval report is bound to another {which}; meaning stays off"
+                )),
+                GateState::Failed(why) => warnings.push(format!(
+                    "{space_id}: {name} eval report did not pass ({why}); meaning stays off"
+                )),
+            }
+        }
+    }
+    if warnings.is_empty() {
+        Check::pass(
+            ID,
+            format!(
+                "{} space(s) configured for meaning: every model loaded, vectors complete, and eval gates passing",
+                configured_spaces.len()
+            ),
+        )
+    } else {
+        Check::warn(
+            ID,
+            warnings.join("; "),
+            "Run umbel store-records-reindex to fill missing vectors and umbel store-records-eval to refresh eval reports, then restart the server.",
+        )
+    }
+}
+
+/// The doctor's five record checks on a sealed host, in order: `records.declared`,
+/// `records.standing`, `records.meaning`, `records.own` and `records.size`. The first and the
+/// last read the lane of every declared kind of every loaded instance, and the fourth the
+/// documents of every own collection, in each space that already has a store: a space nothing
+/// has written to is not given an empty store by a health check.
+pub(crate) fn checks(
+    workspace: &Workspace,
+    stores: &Hub,
+    loaded: &LoadedPlugins,
+    meaning: &MeaningHub,
+) -> [Check; 5] {
     let mut found = Vec::new();
     let mut failed = Vec::new();
     let (mut unheld, mut own_failed, mut own_collections) = (Vec::new(), Vec::new(), 0usize);
@@ -719,6 +902,7 @@ pub(crate) fn checks(workspace: &Workspace, stores: &Hub, loaded: &LoadedPlugins
     [
         declared_check(&found, &failed),
         standing_check(&standing_spaces(workspace, loaded)),
+        meaning_check(workspace, loaded, meaning, &found),
         own_check(&unheld, &own_failed, own_collections),
         size_check(&found, LANE_DESIGN_RECORDS),
     ]

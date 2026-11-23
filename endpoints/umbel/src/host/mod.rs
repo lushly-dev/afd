@@ -109,6 +109,8 @@ pub struct HostBuilder {
     auth_environment: crate::auth::fetch::AuthEnvironment,
     /// A test's view of every held approval (`testkit` only); always `None` in a shipped build.
     approval_observer: Option<ApprovalObserver>,
+    /// Stub embedders keyed by `[models.<id>]` (`testkit` only); always empty in a shipped build.
+    embedders: BTreeMap<String, Arc<dyn umbel_store::Embedder>>,
     /// How usage is recorded (phase 5 section 12.1): the system clock and the default bounds,
     /// unless a test sets them.
     #[cfg(feature = "auth")]
@@ -141,6 +143,7 @@ impl HostBuilder {
             #[cfg(feature = "auth")]
             auth_environment: crate::auth::fetch::AuthEnvironment::default(),
             approval_observer: None,
+            embedders: BTreeMap::new(),
             #[cfg(feature = "auth")]
             usage: crate::usage::Setup::default(),
         }
@@ -287,6 +290,21 @@ impl HostBuilder {
         self
     }
 
+    /// Supply a stub [`umbel_store::Embedder`] for the configured model id `model_id` (the key of
+    /// `[models.<id>]`). **Test seam** (`testkit` only): lets integration tests exercise meaning
+    /// serving, post-put vector writes, `store-records-reindex` and `store-records-eval` without
+    /// loading a real model file or linking a provider feature.
+    #[cfg(feature = "testkit")]
+    #[must_use]
+    pub fn with_embedder(
+        mut self,
+        model_id: impl Into<String>,
+        embedder: impl umbel_store::Embedder + 'static,
+    ) -> Self {
+        self.embedders.insert(model_id.into(), Arc::new(embedder));
+        self
+    }
+
     /// Add a command. A registration problem (a reserved CLI verb, a name already taken) is
     /// reported by [`seal`](Self::seal), which is where every command is checked together.
     #[must_use]
@@ -329,6 +347,10 @@ impl HostBuilder {
         let loaded_cell: Arc<OnceLock<Arc<LoadedPlugins>>> = Arc::new(OnceLock::new());
         let projector = Arc::new(Projector::new(Arc::clone(&workspace)));
         let stores: Hub = Arc::new(Stores::new(Arc::clone(&workspace)));
+        let meaning = Arc::new(crate::meaning::MeaningHub::load(
+            Arc::clone(&workspace),
+            self.embedders,
+        ));
         let ledger = Arc::new(plugins::Ledger::default());
         let attestations = Arc::new(plugins::PipelineAttestations::default());
         // The local page's arm and the marks it hands a handler (the Ideas host-review
@@ -372,6 +394,7 @@ impl HostBuilder {
                 Arc::clone(&loaded_cell),
                 Arc::clone(&compiled_catalog),
                 Arc::clone(&stores),
+                Arc::clone(&meaning),
                 #[cfg(feature = "auth")]
                 self.auth_environment.clone(),
             ),
@@ -401,6 +424,13 @@ impl HostBuilder {
                 Arc::clone(&workspace),
                 Arc::clone(&stores),
                 Arc::clone(&loaded_cell),
+                Arc::clone(&meaning),
+            ));
+            builtins.push(commands::store_records_eval(
+                Arc::clone(&workspace),
+                Arc::clone(&stores),
+                Arc::clone(&loaded_cell),
+                Arc::clone(&meaning),
             ));
             builtins.push(commands::store_documents_hold(
                 Arc::clone(&workspace),
@@ -446,7 +476,9 @@ impl HostBuilder {
             mount_roots: &self.mount_roots,
             prompts: &prompts,
             local_marks: &local_marks,
+            meaning: &meaning,
         })?);
+        meaning.populate_gates(&loaded);
         let _ = loaded_cell.set(Arc::clone(&loaded));
         let _ = prompts.set(terminal_prompts(&loaded));
         for command in get_bootstrap_commands(&registry) {
@@ -929,9 +961,9 @@ fn terminal_prompts(loaded: &LoadedPlugins) -> crate::authority::Prompts {
 }
 
 /// The digest commands and their kept keys, fixed at seal (phase 3 section 7.1): the plugin
-/// commands declared `journal.mode = "digest"`, and the one built-in journaled so, the rebuild of
-/// a record lane (the records host specification, section 12), whose inputs are all kept since
-/// none is content.
+/// commands declared `journal.mode = "digest"`, and the built-ins journaled so (`store-records-reindex`,
+/// `store-records-eval`, and `store-documents-hold`; records host specification, section 12), whose
+/// kept inputs are all non-content metadata.
 fn digest_commands(loaded: &LoadedPlugins) -> digest::DigestCommands {
     #[cfg_attr(not(feature = "store-embedded"), allow(unused_mut))]
     let mut commands: digest::DigestCommands = loaded
@@ -944,6 +976,10 @@ fn digest_commands(loaded: &LoadedPlugins) -> digest::DigestCommands {
         (
             commands::STORE_RECORDS_REINDEX,
             commands::STORE_RECORDS_REINDEX_KEPT,
+        ),
+        (
+            commands::STORE_RECORDS_EVAL,
+            commands::STORE_RECORDS_EVAL_KEPT,
         ),
         (
             commands::STORE_DOCUMENTS_HOLD,

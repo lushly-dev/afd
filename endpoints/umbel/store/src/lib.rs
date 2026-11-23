@@ -34,7 +34,7 @@ pub use document::{
     Tier, Verification, check_identifier, check_record, check_relative_path,
     check_visible_relative_path, is_slug, record_target,
 };
-pub use embed::{EmbedError, Embedder, ModelId};
+pub use embed::{EmbedError, Embedder, ModelId, unit_vector};
 pub use envelope::{
     Actor, ActorKind, Assurance, Authority, ByAt, ChainLink, Confirmation, DerivedFrom,
     ENVELOPE_VERSION, Envelope, LATEST_ENVELOPE_VERSION, LOCAL_ASSURANCE_ENVELOPE_VERSION,

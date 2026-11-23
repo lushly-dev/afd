@@ -106,6 +106,9 @@ pub(crate) struct Shared {
     /// new record of a declared kind (section 4.2).
     #[cfg_attr(not(feature = "store-embedded"), allow(dead_code))]
     pub(crate) records_default_access: crate::workspace::DefaultAccess,
+    /// Loaded embedding models and per-kind eval gate states (sections 9 and 10).
+    #[cfg_attr(not(feature = "store-embedded"), allow(dead_code))]
+    pub(crate) meaning: Arc<crate::meaning::MeaningHub>,
 }
 
 /// The host services granted to one plugin instance. Cheap to clone.

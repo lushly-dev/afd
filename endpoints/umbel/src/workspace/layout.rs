@@ -152,4 +152,13 @@ impl Layout {
     pub fn cursor_file(&self, space: &SpaceId, cursor_key: &str) -> PathBuf {
         self.cursors_dir(space).join(format!("{cursor_key}.json"))
     }
+
+    /// `evals/records/<space>/<plugin>.<kind>.json` (records host specification, section 10).
+    pub fn record_eval_report(&self, space: &str, plugin: &str, kind: &str) -> PathBuf {
+        self.root
+            .join("evals")
+            .join("records")
+            .join(space)
+            .join(format!("{plugin}.{kind}.json"))
+    }
 }

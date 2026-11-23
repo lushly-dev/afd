@@ -27,7 +27,7 @@ mod mounted;
 mod packs;
 mod pipelines;
 #[cfg(feature = "store-embedded")]
-mod record_services;
+pub(crate) mod record_services;
 mod skills;
 mod source;
 mod store_services;

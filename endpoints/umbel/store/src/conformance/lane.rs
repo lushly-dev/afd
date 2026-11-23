@@ -24,7 +24,10 @@ use crate::lane::{
     Pointer, RecordDecl, RecordFind, Standing, StandingView, TextQuery, match_digest,
 };
 use crate::memory::tokenizer::tokens;
-use crate::{DocumentStore, Expect, MemoryFlag, ModelId, ReaderFilter, StoreError, canonical_json};
+use crate::{
+    DocumentStore, EmbedError, Embedder, Expect, MemoryFlag, ModelId, ReaderFilter, StoreError,
+    canonical_json,
+};
 
 /// Opens the document store of a space under a directory with the record lane's bounds set to
 /// the given ones: how the suite passes a bound with a handful of records.
@@ -87,6 +90,10 @@ pub(super) const CASES: &[(&str, super::CaseFn)] = &[
     (
         "a_ranking_counts_only_what_its_reader_may_read",
         statistics_are_the_readers,
+    ),
+    (
+        "put_record_vector_stores_for_the_digest_embedded_and_reindex_manages_vectors",
+        vectors_and_reindex,
     ),
     (
         "records_a_reader_cannot_read_change_no_read_of_its_own",
@@ -1877,6 +1884,189 @@ fn everything(
         }
     }
     Ok(out.join("\n"))
+}
+
+struct ConstEmbedder {
+    model: ModelId,
+    vector: Vec<f32>,
+}
+
+impl Embedder for ConstEmbedder {
+    fn model(&self) -> &ModelId {
+        &self.model
+    }
+    fn dimensions(&self) -> usize {
+        self.vector.len()
+    }
+    fn embed(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>, EmbedError> {
+        Ok(texts.iter().map(|_| self.vector.clone()).collect())
+    }
+}
+
+fn vectors_and_reindex(env: &Env<'_>) -> CaseResult {
+    let Some((s, _)) = lane(env)? else {
+        return skip(NO_LANE);
+    };
+    let d = &*s.stores.documents;
+    let decl = decl()?;
+    let model_a = ModelId::parse("potion@0123456789abcdef").ctx("model_a")?;
+    let model_b = ModelId::parse("potion@fedcba9876543210").ctx("model_b")?;
+    let statement = "Prune roses in late winter, before the buds swell.";
+    let digest = match_digest(statement).ok_or("a digest")?;
+    let other_digest = match_digest("Mulch keeps the soil cool.").ok_or("other digest")?;
+
+    put(
+        d,
+        &decl,
+        "a",
+        json!({ "statement": statement, "why": "First reason.", "bed": "north" }),
+        &["space"],
+    )
+    .ctx("put a")?;
+    put(
+        d,
+        &decl,
+        "b",
+        json!({ "statement": "Water tomatoes at the base.", "bed": "south" }),
+        &["space"],
+    )
+    .ctx("put b")?;
+    // A record with no match value never receives a vector.
+    put(d, &decl, "c", json!({ "bed": "east" }), &["space"]).ctx("put c")?;
+
+    // Wrong digest or absent record returns Ok(false) and stores nothing.
+    ensure_eq(
+        d.put_record_vector(
+            NS,
+            &decl,
+            "a",
+            &other_digest,
+            &model_a,
+            vec![1.0, 0.0, 0.0, 0.0],
+        )
+        .ctx("put_record_vector wrong digest")?,
+        false,
+        "put_record_vector ignores a stale digest",
+    )?;
+    ensure_eq(
+        d.put_record_vector(
+            NS,
+            &decl,
+            "missing",
+            &digest,
+            &model_a,
+            vec![1.0, 0.0, 0.0, 0.0],
+        )
+        .ctx("put_record_vector absent")?,
+        false,
+        "put_record_vector ignores an absent record",
+    )?;
+    // Invalid vectors are refused.
+    for bad in [
+        vec![],
+        vec![0.0, 0.0, 0.0, 0.0],
+        vec![1.0, f32::NAN, 0.0, 0.0],
+        vec![1.0, f32::INFINITY, 0.0, 0.0],
+    ] {
+        expect_err(
+            d.put_record_vector(NS, &decl, "a", &digest, &model_a, bad),
+            "invalid vector",
+            invalid,
+        )?;
+    }
+
+    // Matching digest stores (scaling a non-unit vector to length 1).
+    ensure_eq(
+        d.put_record_vector(NS, &decl, "a", &digest, &model_a, vec![3.0, 4.0, 0.0, 0.0])
+            .ctx("put_record_vector matching digest")?,
+        true,
+        "put_record_vector stores for the matching digest",
+    )?;
+    let status = d.lane_status(NS, &decl).ctx("status")?;
+    ensure_eq(
+        status.vectors.get(model_a.as_str()).copied(),
+        Some(1),
+        "lane_status counts the stored vector",
+    )?;
+
+    // Changing only an unrelated text pointer and rebuilding preserves the vector on the
+    // unchanged match digest.
+    d.put_record(
+        NS,
+        &decl.kind,
+        "a",
+        json!({ "statement": statement, "why": "Second reason.", "bed": "north" }),
+        samples::envelope(&["space"], "lane", AT),
+        Expect::Any,
+    )
+    .ctx("undeclared put changing /why")?;
+    // vectors_only on a stale kind is refused with LaneStale.
+    let emb_a = ConstEmbedder {
+        model: model_a.clone(),
+        vector: vec![0.8, 0.6, 0.0, 0.0],
+    };
+    expect_err(
+        d.reindex_records(NS, &decl, &no_scan, Some(&emb_a), true),
+        "vectors_only on stale kind",
+        stale,
+    )?;
+    // Full rebuild with no embedder keeps `a`'s vector (digest did not move) and counts wording change.
+    let report = d
+        .reindex_records(NS, &decl, &no_scan, None, false)
+        .ctx("full rebuild without embedder")?;
+    ensure_eq(
+        report.wordings_changed,
+        1,
+        "changing /why counted as a wording change",
+    )?;
+    let status = d.lane_status(NS, &decl).ctx("status after rebuild")?;
+    ensure_eq(
+        status.vectors.get(model_a.as_str()).copied(),
+        Some(1),
+        "vector survived because match digest did not move",
+    )?;
+
+    // vectors_only with model_a fills only `b` (`a` already has model_a, `c` has no match value).
+    let report = d
+        .reindex_records(NS, &decl, &no_scan, Some(&emb_a), true)
+        .ctx("vectors_only model_a")?;
+    ensure_eq(
+        (report.vectors_written, report.vectors_removed),
+        (1, 0),
+        "vectors_only embeds only missing records",
+    )?;
+    let status = d.lane_status(NS, &decl).ctx("status after model_a")?;
+    ensure_eq(
+        status.vectors.get(model_a.as_str()).copied(),
+        Some(2),
+        "both records with a match value hold a vector for model_a",
+    )?;
+
+    // Switching to model_b removes model_a's 2 vectors and writes 2 for model_b.
+    let emb_b = ConstEmbedder {
+        model: model_b.clone(),
+        vector: vec![0.0, 0.0, 0.8, 0.6],
+    };
+    let report = d
+        .reindex_records(NS, &decl, &no_scan, Some(&emb_b), true)
+        .ctx("vectors_only model_b")?;
+    ensure_eq(
+        (report.vectors_written, report.vectors_removed),
+        (2, 2),
+        "switching model removes old vectors and writes new ones",
+    )?;
+    let status = d.lane_status(NS, &decl).ctx("status after model_b")?;
+    ensure_eq(
+        status.vectors.get(model_a.as_str()).copied(),
+        None,
+        "old model has no vectors left",
+    )?;
+    ensure_eq(
+        status.vectors.get(model_b.as_str()).copied(),
+        Some(2),
+        "new model holds both vectors",
+    )?;
+    pass()
 }
 
 fn differential(env: &Env<'_>) -> CaseResult {

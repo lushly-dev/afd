@@ -1,0 +1,23 @@
+{
+	"version": 1,
+	"space": "garden",
+	"plugin": "notes",
+	"kind": "note",
+	"declHash": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+	"normalisation": 1,
+	"model": "potion@0123456789abcdef",
+	"weight": 0.5,
+	"k": 5,
+	"probes": 60,
+	"n": 50,
+	"hits": {
+		"words": { "1": 22, "3": 31, "5": 36, "10": 41, "20": 44, "k": 36 },
+		"fused": { "1": 26, "3": 35, "5": 40, "10": 45, "20": 47, "k": 40 }
+	},
+	"leaks": 0,
+	"records": 240,
+	"probesDigest": "sha256:fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210",
+	"hostVersion": "0.1.0",
+	"at": "2026-11-22T12:00:00.000Z",
+	"passed": true
+}

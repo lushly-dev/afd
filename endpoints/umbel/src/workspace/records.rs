@@ -6,17 +6,20 @@
 //! This module parses, validates and stores them, with every rule section 3 checks when the
 //! configuration is read, each a `WORKSPACE_CONFIG_INVALID` naming the key. The record services
 //! act on a space's `person` and `verified_admits`, a collection's `own` and `speaker`, and the
-//! command-writable collections (`crate::plugins`' record and store services). Nothing acts on
-//! `[spaces.<id>.meaning]` and `[models]` yet: matching by meaning and the models themselves
-//! arrive in that specification's step B5.
+//! command-writable collections (`crate::plugins`' record and store services). `[models]` and
+//! `[spaces.<id>.meaning]` are acted on by `crate::meaning::MeaningHub`, post-put embedding and
+//! `record_match` in `crate::plugins::record_services`, `store-records-reindex`,
+//! `store-records-eval`, and `workspace-doctor`'s `records.meaning` check.
 
 use std::collections::BTreeMap;
 use std::ffi::OsString;
-use std::net::Ipv4Addr;
+use std::net::{Ipv4Addr, Ipv6Addr};
 use std::path::{Component, Path, PathBuf};
 
+use serde_json::json;
+use sha2::{Digest as _, Sha256};
 use toml::{Table, Value};
-use umbel_store::ContentHash;
+use umbel_store::{ContentHash, ModelId, canonical_json};
 
 use super::access::parse_principal;
 use super::config::{
@@ -201,6 +204,82 @@ pub struct ModelConfig {
     pub name: String,
     /// What runs it, with that provider's keys.
     pub provider: ModelProvider,
+}
+
+impl ModelConfig {
+    /// `<mid>@<16 hex>`: the configured id and the first 16 lowercase hexadecimal digits of the
+    /// SHA-256 of the canonical JSON of the resolved model table, without `bearer_env` and
+    /// `timeout_ms` (records host specification, section 9.2; A7). Defaults (`pooling = "mean"`,
+    /// `max_length = 512`) are included in their resolved form so omitting a default gives the
+    /// same model id as writing it explicitly.
+    #[must_use]
+    pub fn model_id(&self) -> ModelId {
+        let canonical_table = match &self.provider {
+            ModelProvider::Static { dir, files } => json!({
+                "provider": "static",
+                "name": self.name,
+                "dir": dir,
+                "files": files,
+            }),
+            ModelProvider::Onnx {
+                dir,
+                files,
+                pooling,
+                max_length,
+            } => json!({
+                "provider": "onnx",
+                "name": self.name,
+                "dir": dir,
+                "files": files,
+                "pooling": pooling.as_str(),
+                "max_length": max_length,
+            }),
+            ModelProvider::Http {
+                url,
+                dimensions,
+                version,
+                ..
+            } => json!({
+                "provider": "http",
+                "name": self.name,
+                "url": url,
+                "dimensions": dimensions,
+                "version": version,
+            }),
+        };
+        let digest = Sha256::digest(canonical_json(&canonical_table).as_bytes());
+        let mut hex = String::with_capacity(16);
+        for byte in &digest[..8] {
+            use std::fmt::Write as _;
+            let _ = write!(hex, "{byte:02x}");
+        }
+        let formatted = format!("{}@{hex}", self.id);
+        // `self.id` was validated by `is_model_id` and `hex` is 16 lowercase hex digits.
+        match ModelId::parse(&formatted) {
+            Ok(id) => id,
+            Err(_) => unreachable!("validated model id and 16-hex digest always parse"),
+        }
+    }
+
+    /// For an `http` model, the host (without credentials, port or path) record text is sent to,
+    /// for the doctor's `records.meaning` warning (section 9.2 and 12.3).
+    #[must_use]
+    pub fn http_host(&self) -> Option<String> {
+        let ModelProvider::Http { url, .. } = &self.provider else {
+            return None;
+        };
+        let rest = url
+            .strip_prefix("https://")
+            .or_else(|| url.strip_prefix("http://"))?;
+        let authority = rest.split(['/', '?', '#']).next().unwrap_or(rest);
+        let host = if let Some(inner) = authority.strip_prefix('[') {
+            let addr = inner.split(']').next()?;
+            format!("[{addr}]")
+        } else {
+            authority.split(':').next()?.to_owned()
+        };
+        (!host.is_empty()).then_some(host)
+    }
 }
 
 /// What version 6 adds to a space.
@@ -606,12 +685,7 @@ fn check_model_url(url: &str) -> Result<(), String> {
                     .chars()
                     .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-')
         }
-        (true, true) => {
-            !host.is_empty()
-                && host
-                    .chars()
-                    .all(|c| c.is_ascii_hexdigit() || c == ':' || c == '.')
-        }
+        (true, true) => host.parse::<Ipv6Addr>().is_ok(),
         (false, false) => host
             .parse::<Ipv4Addr>()
             .is_ok_and(|address| address.octets()[0] == 127),
@@ -672,7 +746,7 @@ const MAX_ROOT_LINKS: usize = 40;
 /// can write to. The part that exists is resolved as the file system resolves it; a link whose
 /// target is missing is followed to where the target would be; and the segments after the last
 /// one that exists are taken as written.
-fn effective_root(workspace: &Path, root: &str) -> PathBuf {
+pub(crate) fn effective_root(workspace: &Path, root: &str) -> PathBuf {
     let mut pending: Vec<OsString> = workspace
         .join(root)
         .components()

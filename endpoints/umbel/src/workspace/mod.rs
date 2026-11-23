@@ -44,6 +44,7 @@ pub use person::{
 pub use plugins_config::{
     DefaultAccess, InstanceJournal, Limits, MemoryWritePolicy, PluginInstance, PluginsConfig, caps,
 };
+pub(crate) use records::effective_root;
 pub use records::{
     DEFAULT_MEANING_K, DEFAULT_MEANING_WEIGHT, DEFAULT_MODEL_MAX_LENGTH, DEFAULT_MODEL_TIMEOUT_MS,
     MeaningConfig, ModelConfig, ModelProvider, Pooling, VerifiedAdmits,

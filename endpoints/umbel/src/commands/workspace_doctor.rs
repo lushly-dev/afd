@@ -33,6 +33,8 @@ struct Handler {
     catalog: Arc<CompiledCatalog>,
     #[cfg_attr(not(feature = "store-embedded"), allow(dead_code))]
     stores: Hub,
+    #[cfg_attr(not(feature = "store-embedded"), allow(dead_code))]
+    meaning: Arc<crate::meaning::MeaningHub>,
     #[cfg(feature = "auth")]
     auth_environment: crate::auth::fetch::AuthEnvironment,
 }
@@ -146,13 +148,16 @@ impl CommandHandler for Handler {
         {
             let stores = Arc::clone(&self.stores);
             let workspace = Arc::clone(&self.workspace);
+            let meaning = Arc::clone(&self.meaning);
             let now = context.clock().now();
             let loaded = self.loaded.get().cloned();
             let found = tokio::task::spawn_blocking(move || {
                 let mut found: Vec<Check> = super::store_doctor_checks(&workspace, &stores).into();
                 found.extend(super::store_memory_checks(&workspace, &stores, now));
                 if let Some(loaded) = &loaded {
-                    found.extend(super::store_record_checks(&workspace, &stores, loaded));
+                    found.extend(super::store_record_checks(
+                        &workspace, &stores, loaded, &meaning,
+                    ));
                 }
                 found
             })
@@ -223,6 +228,7 @@ pub(crate) fn workspace_doctor(
     loaded: Arc<OnceLock<Arc<LoadedPlugins>>>,
     catalog: Arc<CompiledCatalog>,
     stores: Hub,
+    meaning: Arc<crate::meaning::MeaningHub>,
     #[cfg(feature = "auth")] auth_environment: crate::auth::fetch::AuthEnvironment,
 ) -> Builtin {
     let expose = if workspace.config().auth.mode.is_hosted() {
@@ -246,6 +252,7 @@ pub(crate) fn workspace_doctor(
             loaded,
             catalog,
             stores,
+            meaning,
             #[cfg(feature = "auth")]
             auth_environment,
         },

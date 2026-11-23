@@ -185,3 +185,35 @@ fn and_visible(
     sql.and_readable("record_access", LANE_ACCESS, reader);
     standing::and_admitted(sql, decl, view);
 }
+
+/// Encode a unit vector as little-endian `f32` bytes (section 5.1).
+pub(super) fn encode_vector(vector: &[f32]) -> Vec<u8> {
+    let mut bytes = Vec::with_capacity(vector.len() * 4);
+    for value in vector {
+        bytes.extend_from_slice(&value.to_le_bytes());
+    }
+    bytes
+}
+
+/// Decode little-endian `f32` bytes stored in `record_vectors.vector`.
+pub(super) fn decode_vector(bytes: &[u8]) -> Result<Vec<f32>, Fail> {
+    if bytes.is_empty() || !bytes.len().is_multiple_of(4) {
+        return Err(StoreError::Corrupt(format!(
+            "a stored vector has {} bytes, not a non-empty multiple of 4",
+            bytes.len()
+        ))
+        .into());
+    }
+    let mut out = Vec::with_capacity(bytes.len() / 4);
+    for chunk in bytes.as_chunks::<4>().0 {
+        let value = f32::from_le_bytes(*chunk);
+        if !value.is_finite() {
+            return Err(StoreError::Corrupt(
+                "a stored vector holds a non-finite number".to_owned(),
+            )
+            .into());
+        }
+        out.push(value);
+    }
+    Ok(out)
+}

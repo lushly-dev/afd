@@ -10,7 +10,9 @@ use umbel_store::{
 };
 
 use super::standing::{check_evidence, write_evidence};
-use super::{any_record, flags_text, kind_row, position, refuse_derivation};
+use super::{
+    any_record, encode_vector, flags_text, kind_row, position, refuse_derivation, require_ready,
+};
 use crate::SqliteStore;
 use crate::documents::{check_expect, insert_change, next_rev, parse_json};
 use crate::error::{Fail, to_i64, to_u64};
@@ -414,6 +416,47 @@ impl SqliteStore {
                 },
                 embed,
             })
+        })
+    }
+
+    /// Store `vector` for `(ns, decl.kind, id)` under `model` if its stored match digest still
+    /// equals `digest` (section 4.2 step 8, section 11.1). Scales to length 1 before storing.
+    pub(crate) fn lane_put_vector(
+        &self,
+        ns: &str,
+        decl: &RecordDecl,
+        id: &str,
+        digest: &[u8; 32],
+        model: &umbel_store::ModelId,
+        vector: Vec<f32>,
+    ) -> Result<bool, StoreError> {
+        decl.check()?;
+        if decl.matched.is_none() {
+            return Err(StoreError::invalid(
+                "a record vector needs a kind that declares a match field",
+            ));
+        }
+        let unit = umbel_store::unit_vector(&vector).ok_or_else(|| {
+            StoreError::invalid("a record vector must be non-empty, finite and non-zero")
+        })?;
+        let blob = encode_vector(&unit);
+        self.pool().with(|conn| {
+            let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+            require_ready(&tx, ns, decl)?;
+            let row = lane_row(&tx, ns, &decl.kind, id)?;
+            let Some(row) = row else {
+                return Ok(false);
+            };
+            if row.match_digest.as_deref() != Some(digest.as_slice()) {
+                return Ok(false);
+            }
+            tx.execute(
+                "INSERT INTO record_vectors (lane, model, vector) VALUES (?1, ?2, ?3)
+                 ON CONFLICT (lane, model) DO UPDATE SET vector = excluded.vector",
+                params![row.lane, model.as_str(), blob.as_slice()],
+            )?;
+            tx.commit()?;
+            Ok(true)
         })
     }
 }

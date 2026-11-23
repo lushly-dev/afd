@@ -1,0 +1,40 @@
+[package]
+name = "umbel-embed"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+publish = false
+license = "MIT"
+description = "Optional embedding providers for Umbel record lanes (static, ONNX, HTTP)"
+repository = "https://github.com/lushly-dev/afd"
+
+[features]
+default = []
+# Local static lookup embeddings (Model2Vec), with downloads compiled out.
+static = ["dep:model2vec-rs"]
+# Local ONNX transformer embeddings (fastembed), with downloads compiled out.
+# Uses pure-Rust `fancy-regex` so no C Oniguruma build is required.
+onnx = ["dep:fastembed"]
+# Remote or loopback HTTP embeddings endpoint (OpenAI-compatible JSON).
+http = ["dep:reqwest", "dep:serde", "dep:serde_json"]
+
+[dependencies]
+umbel-store = { path = "../store" }
+
+# Optional: static provider (records host specification, sections 1 and 9.2).
+model2vec-rs = { version = "0.5", default-features = false, features = ["local-only", "fancy-regex"], optional = true }
+
+# Optional: ONNX provider (records host specification, sections 1 and 9.2).
+fastembed = { version = "7.8", default-features = false, features = ["ort-download-binaries-rustls-tls", "fancy-regex"], optional = true }
+
+# Optional: HTTP provider (records host specification, sections 1 and 9.2).
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "blocking"], optional = true }
+serde = { version = "1", features = ["derive"], optional = true }
+serde_json = { version = "1", optional = true }
+
+[dev-dependencies]
+serde_json = "1"
+tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread", "net", "io-util"] }
+
+[lints]
+workspace = true

@@ -1,0 +1,68 @@
+{
+	"description": "Four-dimension unit vectors for the record lane's fixture (records host specification, sections 8.3 and 15.1), paired with `records.json`. `records` gives each record's unit vector; `matches` gives each match text of `records.json` a unit vector and its expected `meaning` and `fused` scores at `weight`, ordered by rounded `fused` descending then id. `store/tests/lane_fixture.rs` recomputes every score from unrounded `words`, `cosine`, and `fused`, so this file cannot drift from the formulas.",
+	"model": "fixture@0123456789abcdef",
+	"weight": 0.5,
+	"records": {
+		"n1": [0.8, 0.6, 0.0, 0.0],
+		"n2": [0.6, 0.8, 0.0, 0.0],
+		"n3": [0.0, 0.0, 0.8, 0.6],
+		"n4": [0.0, 0.0, 0.6, 0.8],
+		"n5": [0.0, 0.6, 0.8, 0.0]
+	},
+	"matches": [
+		{
+			"text": "Prune your roses in late winter before the buds swell.",
+			"vector": [0.0, 0.8, 0.6, 0.0],
+			"scores": [
+				{ "id": "n1", "words": 0.8304, "meaning": 0.48, "fused": 0.6552 },
+				{ "id": "n2", "words": 0.6428, "meaning": 0.64, "fused": 0.6414 },
+				{ "id": "n5", "words": 0.0422, "meaning": 0.96, "fused": 0.5011 },
+				{ "id": "n3", "words": 0.0, "meaning": 0.48, "fused": 0.24 },
+				{ "id": "n4", "words": 0.0341, "meaning": 0.36, "fused": 0.1971 }
+			]
+		},
+		{
+			"text": "PRUNE ROSES  in late winter, before the buds swell.",
+			"vector": [0.0, 1.0, 0.0, 0.0],
+			"scores": [
+				{ "id": "n1", "words": 1.0, "meaning": 0.6, "fused": 0.8 },
+				{ "id": "n2", "words": 0.6714, "meaning": 0.8, "fused": 0.7357 },
+				{ "id": "n5", "words": 0.0441, "meaning": 0.6, "fused": 0.322 },
+				{ "id": "n4", "words": 0.0356, "meaning": 0.0, "fused": 0.0178 },
+				{ "id": "n3", "words": 0.0, "meaning": 0.0, "fused": 0.0 }
+			]
+		},
+		{
+			"text": "Roses are pruned in late winter before their buds swell.",
+			"exclude": ["n2"],
+			"vector": [0.0, 0.0, 0.8, 0.6],
+			"scores": [
+				{ "id": "n3", "words": 0.0, "meaning": 1.0, "fused": 0.5 },
+				{ "id": "n4", "words": 0.0, "meaning": 0.96, "fused": 0.48 },
+				{ "id": "n1", "words": 0.7481, "meaning": 0.0, "fused": 0.3741 },
+				{ "id": "n5", "words": 0.0, "meaning": 0.64, "fused": 0.32 }
+			]
+		},
+		{
+			"text": "Water the tomatoes, then water the soil: never the leaves.",
+			"vector": [0.0, 0.0, 0.6, -0.8],
+			"scores": [
+				{ "id": "n5", "words": 0.4625, "meaning": 0.48, "fused": 0.4713 },
+				{ "id": "n3", "words": 0.1096, "meaning": 0.0, "fused": 0.0548 },
+				{ "id": "n1", "words": 0.0695, "meaning": 0.0, "fused": 0.0348 },
+				{ "id": "n2", "words": 0.0, "meaning": 0.0, "fused": 0.0 },
+				{ "id": "n4", "words": 0.1922, "meaning": -0.28, "fused": -0.0439 }
+			]
+		},
+		{
+			"text": "Prune roses in late winter, before the buds swell.",
+			"exclude": ["n1", "n3"],
+			"vector": [0.8, 0.6, 0.0, 0.0],
+			"scores": [
+				{ "id": "n2", "words": 0.7279, "meaning": 0.96, "fused": 0.844 },
+				{ "id": "n5", "words": 0.0424, "meaning": 0.36, "fused": 0.2012 },
+				{ "id": "n4", "words": 0.0349, "meaning": 0.0, "fused": 0.0174 }
+			]
+		}
+	]
+}

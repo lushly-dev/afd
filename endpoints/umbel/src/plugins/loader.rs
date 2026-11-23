@@ -315,6 +315,8 @@ pub(crate) struct Inputs<'a> {
     /// The marks the plugin gate's local arm hands to a handler (the Ideas host-review
     /// specification, section 6.2), which each plugin handler's wrapper takes.
     pub local_marks: &'a Arc<crate::person::LocalMarks>,
+    /// Loaded embedding models and per-kind eval gate states (sections 9 and 10).
+    pub meaning: &'a Arc<crate::meaning::MeaningHub>,
 }
 
 /// An instance past steps 1 and 2.
@@ -1009,6 +1011,7 @@ fn prepare(
             .map(|decl| (decl.kind.clone(), decl.clone()))
             .collect(),
         records_default_access: instance.records_default_access,
+        meaning: Arc::clone(inputs.meaning),
     });
     let pack_checks: Vec<PackCheck> = match &resolved.compiled {
         Some(plugin) => pack_states

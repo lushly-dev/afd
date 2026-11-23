@@ -167,7 +167,7 @@ impl Scope<'_> {
         for lanes in candidates.chunks(LANE_BATCH) {
             // Each candidate's frequencies, by lane and then by term.
             let mut frequencies: BTreeMap<i64, BTreeMap<String, u32>> = BTreeMap::new();
-            {
+            if !terms.is_empty() {
                 let sql = self.frequencies_sql(lanes, terms);
                 let mut statement = self.conn.prepare_cached(&sql.text)?;
                 let mut rows = statement.query(params_from_iter(&sql.params))?;

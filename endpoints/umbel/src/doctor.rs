@@ -193,9 +193,10 @@ pub const MEMORY_CHECKS: [&str; 8] = [
 
 /// The doctor's record lane checks (the records host specification, section 12.3), which only a
 /// sealed host runs: it reads the lane of each declared kind of each loaded plugin instance.
-pub const RECORD_CHECKS: [&str; 4] = [
+pub const RECORD_CHECKS: [&str; 5] = [
     "records.declared",
     "records.standing",
+    "records.meaning",
     "records.own",
     "records.size",
 ];

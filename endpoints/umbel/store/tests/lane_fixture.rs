@@ -12,15 +12,29 @@ use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
 use serde_json::Value;
-use umbel_store::lane::score::{Corpus, Posting, directed, round4, score, words};
+use umbel_store::lane::score::{Corpus, Posting, cosine, directed, fused, round4, score, words};
 use umbel_store::lane::{Extracted, Pointer, RecordDecl, extract, match_digest};
 use umbel_store::memory::tokenizer::tokens;
-use umbel_store::{AccessSet, check_identifier};
+use umbel_store::{AccessSet, ModelId, check_identifier};
 
 const FIXTURE: &str = include_str!("../fixtures/lane/records.json");
+const VECTORS: &str = include_str!("../fixtures/lane/vectors.json");
 
 fn fixture() -> Value {
     serde_json::from_str(FIXTURE).unwrap()
+}
+
+fn vectors() -> Value {
+    serde_json::from_str(VECTORS).unwrap()
+}
+
+fn f32_vec(value: &Value) -> Vec<f32> {
+    value
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|item| item.as_f64().unwrap() as f32)
+        .collect()
 }
 
 fn hex(digest: [u8; 32]) -> String {
@@ -345,4 +359,102 @@ fn the_first_rows_are_the_specifications_worked_examples() {
     };
     assert_eq!(words_of("n1"), "1.0000");
     assert_eq!(words_of("n2"), "0.6714");
+}
+
+#[test]
+fn every_vector_fixture_score_is_what_the_formulas_give() {
+    let fixture = fixture();
+    let vectors = vectors();
+    let decl = declaration(&fixture);
+    let all = records(&fixture, &decl);
+    ModelId::parse(vectors["model"].as_str().unwrap()).unwrap();
+    let weight = vectors["weight"].as_f64().unwrap();
+    let record_vectors: BTreeMap<String, Vec<f32>> = vectors["records"]
+        .as_object()
+        .unwrap()
+        .iter()
+        .map(|(id, vec)| {
+            let values = f32_vec(vec);
+            assert_eq!(values.len(), 4, "{id}");
+            let norm: f64 = values
+                .iter()
+                .map(|v| f64::from(*v) * f64::from(*v))
+                .sum::<f64>()
+                .sqrt();
+            assert!((norm - 1.0).abs() < 1e-6, "{id} is not unit length: {norm}");
+            (id.clone(), values)
+        })
+        .collect();
+    assert_eq!(record_vectors.len(), all.len());
+
+    let record_matches = fixture["matches"].as_array().unwrap();
+    let vector_matches = vectors["matches"].as_array().unwrap();
+    assert_eq!(record_matches.len(), vector_matches.len());
+
+    for (rec_case, vec_case) in record_matches.iter().zip(vector_matches) {
+        let text = rec_case["text"].as_str().unwrap();
+        assert_eq!(vec_case["text"].as_str().unwrap(), text);
+        let qvec = f32_vec(&vec_case["vector"]);
+        assert_eq!(qvec.len(), 4, "{text}");
+        let norm: f64 = qvec
+            .iter()
+            .map(|v| f64::from(*v) * f64::from(*v))
+            .sum::<f64>()
+            .sqrt();
+        assert!((norm - 1.0).abs() < 1e-6, "{text} query vector not unit");
+
+        let excluded: Vec<&str> = rec_case.get("exclude").map(strings).unwrap_or_default();
+        let vec_excluded: Vec<&str> = vec_case.get("exclude").map(strings).unwrap_or_default();
+        assert_eq!(excluded, vec_excluded, "{text}");
+
+        let query = Terms::of(text);
+        let kept: Vec<&(String, Extracted, Terms)> = all
+            .iter()
+            .filter(|(id, _, _)| !excluded.contains(&id.as_str()))
+            .collect();
+        let corpus = Corpus {
+            records: kept.len() as u64 + 1,
+            tokens: kept
+                .iter()
+                .map(|(_, _, terms)| u64::from(terms.length))
+                .sum::<u64>()
+                + u64::from(query.length),
+        };
+        let mut df: BTreeMap<&str, u64> = BTreeMap::new();
+        for terms in kept.iter().map(|(_, _, terms)| terms).chain([&query]) {
+            for term in terms.counts.keys() {
+                *df.entry(term.as_str()).or_default() += 1;
+            }
+        }
+        let own = score_of(&corpus, &df, &query, &query);
+        let mut scored: Vec<(&str, f64, f64, f64)> = kept
+            .iter()
+            .map(|(id, _, record)| {
+                let to_record = directed(score_of(&corpus, &df, &query, record), own);
+                let to_query = directed(
+                    score_of(&corpus, &df, record, &query),
+                    score_of(&corpus, &df, record, record),
+                );
+                let w = words(to_record, to_query);
+                let m = cosine(&qvec, &record_vectors[id]);
+                let f = fused(weight, m, w);
+                (id.as_str(), round4(w), round4(m), round4(f))
+            })
+            .collect();
+        scored.sort_by(|a, b| b.3.total_cmp(&a.3).then_with(|| a.0.cmp(b.0)));
+
+        let expected = vec_case["scores"].as_array().unwrap();
+        assert_eq!(expected.len(), scored.len(), "{text}");
+        for ((id, w, m, f), expected) in scored.iter().zip(expected) {
+            assert_eq!(*id, expected["id"].as_str().unwrap(), "{text}: order");
+            for (name, found) in [("words", w), ("meaning", m), ("fused", f)] {
+                let want = expected[name].as_f64().unwrap();
+                assert_eq!(
+                    format!("{found:.4}"),
+                    format!("{want:.4}"),
+                    "{text}: {id} {name}"
+                );
+            }
+        }
+    }
 }

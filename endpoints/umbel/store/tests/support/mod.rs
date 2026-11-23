@@ -325,6 +325,18 @@ impl DocumentStore for Fake {
         Err(no_lane())
     }
 
+    fn put_record_vector(
+        &self,
+        _ns: &str,
+        _decl: &RecordDecl,
+        _id: &str,
+        _digest: &[u8; 32],
+        _model: &umbel_store::ModelId,
+        _vector: Vec<f32>,
+    ) -> Result<bool, StoreError> {
+        Err(no_lane())
+    }
+
     fn read_record(
         &self,
         _ns: &str,

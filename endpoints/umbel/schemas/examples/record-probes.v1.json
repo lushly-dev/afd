@@ -1,0 +1,22 @@
+{
+	"version": 1,
+	"space": "garden",
+	"plugin": "notes",
+	"kind": "note",
+	"probes": [
+		{
+			"id": "p-01",
+			"text": "Cut the roses back before spring growth starts.",
+			"duplicates": ["n1"],
+			"self": null,
+			"reader": null
+		},
+		{
+			"id": "p-02",
+			"text": "Roses are pruned in late winter before their buds swell.",
+			"duplicates": ["n1"],
+			"self": "n2",
+			"reader": "human:local"
+		}
+	]
+}
