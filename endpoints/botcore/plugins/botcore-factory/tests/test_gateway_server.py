@@ -115,6 +115,9 @@ def test_every_route_answers_with_its_own_writes(gateway):
     for route, token in tokens.items():
         status = call(client, token, route, "gateway-status")
         assert status["success"], status
+        assert status["data"]["ages"] == {"appKey": 0, "token": 3600}
+        assert "readOnlyToken" not in status["data"]["ages"]
+        assert status["data"]["rateLimit"]["graphql"]["remaining"] == 5000
     cell = call(client, tokens["cell"], "cell", "pr-merge", repo=REPO, number=44, head="a" * 40)
     assert cell["error"]["code"] == "COMMAND_NOT_FOUND"
 

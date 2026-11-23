@@ -39,8 +39,11 @@ export FACTORY_GATEWAY_TOKEN_FILE=~/.config/factory-gateway/owner.token
 uv run --frozen --project endpoints/botcore/plugins/botcore-factory factory-gateway call gateway-status
 ```
 
-A healthy answer has `success: true`, `identity` `lushly-factory-gateway[bot]`, both repositories
-and GitHub's remaining rate limit for the App. From a machine without a checkout, the same call
+A healthy answer has `success: true`, `identity` `lushly-factory-gateway[bot]`, both repositories,
+GitHub's remaining REST rate limit (`rateLimit`, plus `rateLimit.graphql` when GitHub supplies
+the GraphQL budget), and `ages` (`appKey`: seconds since the private key file was installed or
+replaced; `token`: seconds left on the current installation token). From a machine without a
+checkout, the same call
 is one request:
 
 ```bash
@@ -196,7 +199,7 @@ that stages the file.
 
 Generate a second key under Credentials, then Key pairs (an App may hold several). Stage as in
 [Update the code](#update-the-code), run `install.sh` with the new file as its second argument,
-and confirm `gateway-status` answers. Then
+and confirm `gateway-status` answers with a fresh `ages.appKey`. Then
 delete the old key on the same page and the downloaded file. Do the same at once if the key may
 have left `random`: the old key works until GitHub deletes it.
 
@@ -244,7 +247,7 @@ did not author, and how it merges decides who authors the commit on `main`.
 | `GATEWAY_UNAVAILABLE`, or the connection is refused | The daemon is down, or Tailscale is, on either machine | `launchctl print` and the log on `random`; the Tailscale app on both |
 | `UNAUTHORIZED` (HTTP 401) | No token, or one that was revoked or never issued here | Check the token file; issue a new token |
 | `FORBIDDEN`: "This token opens /cell, not /lane" | A token used on another route | Use the token's own route, or issue one for the route |
-| `GITHUB_UNAVAILABLE` | GitHub did not answer, or one of the App's rate limits is spent | Retry. `gateway-status` shows the limit for GitHub's REST calls and when it resets; its GraphQL calls have a budget of their own, which nothing here shows |
+| `GITHUB_UNAVAILABLE` | GitHub did not answer, or one of the App's rate limits is spent | Retry. `gateway-status` shows both GitHub's REST (`rateLimit`) and GraphQL (`rateLimit.graphql`) budgets and when each resets |
 | `GITHUB_REFUSED` | GitHub refused the write; the message is GitHub's own | Fix what it names: a permission the App lacks, a rule on the branch |
 | `MERGE_METHOD_NOT_ALLOWED` | `mergeMethods` names a method the repository does not allow | [Merges and credit](#merges-and-credit) |
 | The daemon exits at once, again and again | A configuration it refuses, a key others can read, or the tailnet address is not up | The log names it |

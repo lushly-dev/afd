@@ -369,7 +369,7 @@ O owner.
 
 | Command | Routes | Input | Result `data` | Refusals | From |
 |---|---|---|---|---|---|
-| `gateway-status` | all | — | `host`, `writes[]` (this route's write commands), `identity`, `repos[]`, `rateLimit { remaining, resetAt }`, `ages { appKey, token, readOnlyToken }`, `journal { bytes, oldest }`, `lastEvent?`, `lane { host, running, queued, lastMergeAt }` (G1) | — | G0 |
+| `gateway-status` | all | — | `host`, `writes[]` (this route's write commands), `identity`, `app`, `repos[]`, `rateLimit { remaining, resetAt, graphql? { remaining, resetAt } }`, `ages { appKey, token, readOnlyToken? }` (`appKey`: seconds since the key file was modified; `token`: seconds left on the current installation token; `readOnlyToken` enters with the cells' read-only token in G1), `journal { bytes, oldest }`, `lastEvent?`, `lane { host, running, queued, lastMergeAt }` (G1) | — | G0 |
 | `issue-get` | all | `number` | `state`, `title`, `labels[]`, `assignees[]`, `claim?`, `author { login, association }`, `body { trust, text }`, `linkedPrs[]` | `NOT_FOUND` | G1 |
 | `comment-list` | all | `number`, `limit?`, `cursor?` | `comments[] { id, author, association, trust, text, at }`, `nextCursor?` | `NOT_FOUND` | G1 |
 | `claim-list` | all | `stale?` | `claims[] { number, holder { branch, machine }, leaseUntil, stale, legacy, labelMatches }` | — | G1 |

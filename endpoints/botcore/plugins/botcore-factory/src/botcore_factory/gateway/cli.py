@@ -99,11 +99,11 @@ def _github(config: GatewayConfig, data_dir: Path, fake: Path | None, key: Path 
             "Writing to GitHub needs githubApp {appId, installationId} in the configuration and "
             "--app-key <the App's .pem>; pass --fake-github instead to test locally"
         )
-    from botcore_factory.gateway.github_app import GitHubApp, read_private_key
+    from botcore_factory.gateway.github_app import GitHubApp, read_private_key_with_mtime
 
     try:
-        private_key = read_private_key(key)
-    except ValueError as exc:
+        private_key, key_mtime = read_private_key_with_mtime(key)
+    except (OSError, ValueError) as exc:
         raise click.UsageError(str(exc)) from None
     return GitHubApp(
         app_id=config.github_app.app_id,
@@ -111,6 +111,7 @@ def _github(config: GatewayConfig, data_dir: Path, fake: Path | None, key: Path 
         private_key=private_key,
         bot=config.bot,
         data_dir=data_dir,
+        key_mtime=key_mtime,
     )
 
 
