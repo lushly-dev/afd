@@ -184,10 +184,42 @@
 				]
 			}
 		},
-		"set-1b5d3c7f8e20": {
+		"set-6c9a1e4b8f22": {
+			"kind": "compare",
+			"revision": "8d7c6b5",
+			"dirty": false,
+			"context": {
+				"theme": "light",
+				"viewport": {
+					"width": 1280,
+					"height": 800
+				},
+				"locale": "en-US"
+			},
+			"checkpoint": "mount",
+			"axe": true,
+			"captures": {
+				"empty--hint": {
+					"hash": "c31",
+					"axe": {
+						"status": "passed",
+						"incompleteChecks": []
+					}
+				},
+				"empty--plain": {
+					"hash": "c32",
+					"axe": {
+						"status": "passed",
+						"incompleteChecks": []
+					}
+				}
+			}
+		},
+		"set-4f1c0a9e2b7d": {
 			"kind": "capture",
-			"label": "branch-quiet",
-			"revision": "b7c8d9e",
+			"label": "main",
+			"revision": "a1b2c3d",
+			"revisions": ["a1b2c3d", "b7c8d9e"],
 			"dirty": false,
 			"context": {
 				"theme": "light",
@@ -285,7 +317,7 @@
 	"labels": {
 		"main": "set-4f1c0a9e2b7d",
 		"branch": "set-7e2a90c4d311",
-		"branch-quiet": "set-1b5d3c7f8e20",
+		"branch-quiet": "set-4f1c0a9e2b7d",
 		"dark": "set-5a6e8d2c1f09"
 	},
 	"decisions": [
@@ -320,12 +352,17 @@
 			"slug": "empty-state-copy",
 			"status": "current",
 			"question": "Should the empty list explain how to add an item?",
-			"options": ["hint", "no-hint"],
-			"chosen": "hint",
+			"variants": ["empty--hint", "empty--plain"],
+			"chosen": "empty--hint",
+			"kept": [],
+			"discarded": ["empty--plain"],
+			"discardedAt": {
+				"empty--plain": "9f8e7d6"
+			},
 			"reason": "First-run sessions stalled on the empty list without it.",
 			"evidence": {
-				"set": "set-4f1c0a9e2b7d",
-				"dir": "specimens/evidence/set-4f1c0a9e2b7d/"
+				"set": "set-6c9a1e4b8f22",
+				"dir": "specimens/evidence/set-6c9a1e4b8f22/"
 			},
 			"subjects": {
 				"files": ["src/empty/**"]

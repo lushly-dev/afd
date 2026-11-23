@@ -1,6 +1,5 @@
-# Draft JTBD scenario for the Design Decisions proposal. The commands and their shapes are proposals;
-# the data is invented. Lists are asserted with dotted index paths where only part of an item
-# matters, because a list under `expect.data` is compared whole.
+# JTBD scenario for Design Decisions (Slice 1). Lists are asserted with dotted index paths where
+# only part of an item matters, because a list under `expect.data` is compared whole.
 # main was captured in the light theme. toolbar--airy declares light only.
 
 name: Refuse a comparison of different setups
@@ -8,7 +7,7 @@ description: >-
   When two captures or sets were made under different conditions, I want the comparison refused
   with the difference named, so that I never take a theme change for a design change.
 job: refuse-a-misleading-comparison
-tags: [slice, refuse]
+tags: [slice-1, refuse]
 fixture:
   file: fixtures/toolbar.json
 

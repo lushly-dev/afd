@@ -1,6 +1,5 @@
-# Draft JTBD scenario for the Design Decisions proposal. The commands and their shapes are proposals;
-# the data is invented. Lists are asserted with dotted index paths where only part of an item
-# matters, because a list under `expect.data` is compared whole.
+# JTBD scenario for Design Decisions (Slice 1). Lists are asserted with dotted index paths where
+# only part of an item matters, because a list under `expect.data` is compared whole.
 # main and branch were captured with axe. On branch the toolbar gap token changed, which moves
 # every toolbar; axe could not decide the empty list's contrast in either set. toolbar--airy and
 # toolbar--grouped are kept, unchosen variants.
@@ -10,7 +9,7 @@ description: >-
   When I review a change, I want to see only what no gate settled, grouped by cause, each with
   its before and after captures, so that my attention goes where a machine cannot decide.
 job: review-only-what-needs-eyes
-tags: [slice]
+tags: [slice-1]
 fixture:
   file: fixtures/decided.json
   base: toolbar.json
