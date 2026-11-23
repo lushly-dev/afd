@@ -1,5 +1,9 @@
 # @lushly-dev/violet-core
 
+## 0.3.0-preview.5
+
+No changes in this release.
+
 ## 0.3.0-preview.4
 
 ### Minor Changes

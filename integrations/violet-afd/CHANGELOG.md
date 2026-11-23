@@ -1,5 +1,11 @@
 # @lushly-dev/violet-afd
 
+## 0.3.0-preview.5
+
+### Patch Changes
+
+- [#2166](https://github.com/lushly-dev/afd/pull/2166) [`56681d5`](https://github.com/lushly-dev/afd/commit/56681d57aa645402fad648d615f4111ec189cdeb) Thanks [@Falkicon](https://github.com/Falkicon)! - Preserve non-derivable Violet token categories (`spacing`, `radius`, `z-index`, `typography` on `dimension` tokens, etc.) in token-level `$extensions["dev.lushly.violet"].category` during `export.tree` and restore them in `import.tree` / `import.json`, so `export.tree` no longer drops them and `tokens.catalog --category` keeps working after a DTCG round-trip ([#1974](https://github.com/lushly-dev/afd/issues/1974)).
+
 ## 0.3.0-preview.4
 
 ### Patch Changes
