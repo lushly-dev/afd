@@ -1010,12 +1010,53 @@ Set-Acl -LiteralPath $env:UMBEL_ACL_TEST_PATH -AclObject $acl
         assert!(read.is_err());
     }
 
+    /// `path`'s ACL replaced by full control for this user, SYSTEM and Administrators alone,
+    /// inherited by what is created under it: a temporary directory then holds only what the
+    /// test grants, whatever `%TEMP%` inherits (#2169).
+    #[cfg(windows)]
+    fn private(path: &Path) {
+        let me = umbel_windows::security::current_user().unwrap();
+        let grants: Vec<String> = [me.as_str(), "S-1-5-18", "S-1-5-32-544"]
+            .iter()
+            .map(|sid| format!("*{sid}:(OI)(CI)(F)"))
+            .collect();
+        let mut args = vec!["/inheritance:r", "/grant:r"];
+        args.extend(grants.iter().map(String::as_str));
+        icacls(path, &args);
+    }
+
+    /// A temporary directory made [`private`].
+    #[cfg(windows)]
+    fn private_tempdir_in(parent: &Path) -> tempfile::TempDir {
+        let temp = tempfile::tempdir_in(parent).unwrap();
+        private(temp.path());
+        temp
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn a_private_test_directory_drops_the_read_access_its_parent_passes_down() {
+        // BUILTIN\Users stands for the `CodexSandboxUsers` read ACE a profile can pass down to
+        // `%TEMP%`: every key a test writes under it is too open.
+        let parent = tempfile::tempdir().unwrap();
+        private(parent.path());
+        icacls(parent.path(), &["/grant", "*S-1-5-32-545:(OI)(CI)(RX)"]);
+        let open = parent.path().join("key.pem");
+        std::fs::write(&open, "x").unwrap();
+        let problem = too_open(&open, Secrecy::Secret).unwrap();
+        assert!(problem.contains("S-1-5-32-545"), "{problem}");
+        let temp = private_tempdir_in(parent.path());
+        let key = temp.path().join("key.pem");
+        std::fs::write(&key, "x").unwrap();
+        assert_eq!(too_open(&key, Secrecy::Secret), None);
+    }
+
     #[cfg(windows)]
     #[test]
     fn acls_follow_the_files_secrecy() {
         // BUILTIN\Users, which every account is a member of.
         const USERS: &str = "*S-1-5-32-545";
-        let temp = tempfile::tempdir().unwrap();
+        let temp = private_tempdir_in(&std::env::temp_dir());
         let path = temp.path().join("file");
         std::fs::write(&path, "x").unwrap();
         // A new file in a temporary directory: this user, SYSTEM and Administrators only.

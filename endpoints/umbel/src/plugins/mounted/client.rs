@@ -46,8 +46,14 @@ const STDERR_TAIL_BYTES: usize = 2048;
 const STDERR_LOG_LINE_BYTES: usize = 4096;
 /// How long to wait for a stdio child that closed stdout to report its exit status.
 const EXIT_WAIT: Duration = Duration::from_millis(500);
-/// How long to wait for the stderr reader task to hit EOF after the child exits.
-const STDERR_DRAIN_WAIT: Duration = Duration::from_millis(200);
+/// How long to wait for the stderr reader task to hit EOF after the child exits. The child is
+/// gone, so EOF comes once the reader has caught up with the pipe; the bound only matters when a
+/// process the child started still holds the pipe open. 200 ms was too short for a loaded
+/// Windows host, where the reader dropped the last lines of a dying child's stderr (#2170).
+const STDERR_DRAIN_WAIT: Duration = Duration::from_secs(2);
+/// How long before `connect_timeout` a dying child's diagnosis stops waiting, so the deadline
+/// never discards an exit status and stderr tail already read.
+const DIAGNOSIS_MARGIN: Duration = Duration::from_millis(50);
 
 /// A credential the deployer's environment holds. Never printed.
 #[derive(Clone)]
@@ -362,18 +368,18 @@ fn unavailable(instance: &str, problem: impl std::fmt::Display) -> CommandResult
 /// Connect and list the tools, within `connect_timeout`.
 async fn open(spec: &MountSpec) -> Result<(Conn, Vec<Value>), String> {
     let timeout = spec.connect_timeout;
+    let deadline = Instant::now() + timeout;
     tokio::time::timeout(timeout, async {
-        let (service, limit, watch) =
-            match handshake(spec, Handshake::Discover).await {
-                Ok(connected) => connected,
-                Err(Failure::Legacy) => handshake(spec, Handshake::Initialize).await.map_err(
-                    |failure| match failure {
-                        Failure::Legacy => "the server rejected the handshake".to_owned(),
-                        Failure::Other(message) => message,
-                    },
-                )?,
-                Err(Failure::Other(message)) => return Err(message),
-            };
+        let (service, limit, watch) = match handshake(spec, Handshake::Discover, deadline).await {
+            Ok(connected) => connected,
+            Err(Failure::Legacy) => handshake(spec, Handshake::Initialize, deadline)
+                .await
+                .map_err(|failure| match failure {
+                    Failure::Legacy => "the server rejected the handshake".to_owned(),
+                    Failure::Other(message) => message,
+                })?,
+            Err(Failure::Other(message)) => return Err(message),
+        };
         let tools = match service.peer().list_all_tools().await {
             Ok(tools) => tools,
             Err(error) => {
@@ -430,6 +436,7 @@ fn client_info(handshake: Handshake) -> InitializeRequestParams {
 async fn handshake(
     spec: &MountSpec,
     handshake: Handshake,
+    deadline: Instant,
 ) -> Result<
     (
         RunningService<RoleClient, InitializeRequestParams>,
@@ -448,7 +455,8 @@ async fn handshake(
     let info = client_info(handshake);
     let (served, watch) = match &spec.endpoint {
         Endpoint::Stdio(stdio) => {
-            let (transport, watch) = spawn(spec, stdio, &limit).map_err(Failure::Other)?;
+            let (transport, watch) =
+                spawn(spec, stdio, &limit, deadline).map_err(Failure::Other)?;
             (
                 info.serve_with_lifecycle(transport, lifecycle).await,
                 Some(watch),
@@ -557,9 +565,20 @@ struct ChildWatch {
     child: Arc<Mutex<Option<Child>>>,
     stderr_tail: Arc<Mutex<StderrTail>>,
     stderr_done: tokio::sync::watch::Receiver<bool>,
+    /// The connect deadline: no wait of the diagnosis runs past it (less [`DIAGNOSIS_MARGIN`]).
+    deadline: Instant,
 }
 
 impl ChildWatch {
+    /// `cap`, or less when the connect deadline comes first.
+    fn within_deadline(&self, cap: Duration) -> Duration {
+        cap.min(
+            self.deadline
+                .saturating_duration_since(Instant::now())
+                .saturating_sub(DIAGNOSIS_MARGIN),
+        )
+    }
+
     async fn diagnose(mut self, wait_for_exit: bool) -> Option<String> {
         let child = self
             .child
@@ -570,7 +589,8 @@ impl ChildWatch {
             Some(mut child) => match child.try_wait() {
                 Ok(Some(status)) => Some(status),
                 Ok(None) if wait_for_exit => {
-                    match tokio::time::timeout(EXIT_WAIT, child.wait()).await {
+                    match tokio::time::timeout(self.within_deadline(EXIT_WAIT), child.wait()).await
+                    {
                         Ok(Ok(status)) => Some(status),
                         _ => None,
                     }
@@ -581,9 +601,8 @@ impl ChildWatch {
         };
         // `child` is dropped here: if it had not exited, `kill_on_drop(true)` kills it now.
         if wait_for_exit || status.is_some() {
-            let _ =
-                tokio::time::timeout(STDERR_DRAIN_WAIT, self.stderr_done.wait_for(|done| *done))
-                    .await;
+            let wait = self.within_deadline(STDERR_DRAIN_WAIT);
+            let _ = tokio::time::timeout(wait, self.stderr_done.wait_for(|done| *done)).await;
         }
         let stderr = self
             .stderr_tail
@@ -637,6 +656,7 @@ fn spawn(
     spec: &MountSpec,
     stdio: &StdioSpec,
     limit: &Arc<Limit>,
+    deadline: Instant,
 ) -> Result<(ChildTransport, ChildWatch), String> {
     let mut command = Command::new(&stdio.program);
     command
@@ -665,7 +685,7 @@ fn spawn(
     let instance = spec.instance.clone();
     tokio::spawn(async move {
         let mut reader = stderr;
-        let mut buf = [0u8; 1024];
+        let mut buf = [0u8; 8192];
         let mut line = Vec::new();
         let mut line_truncated = false;
         while let Ok(read) = reader.read(&mut buf).await {
@@ -716,6 +736,7 @@ fn spawn(
         child: shared_child,
         stderr_tail: tail,
         stderr_done: stderr_done_rx,
+        deadline,
     };
     Ok((transport, watch))
 }
@@ -749,7 +770,56 @@ fn http_transport(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
-    use super::{STDERR_TAIL_BYTES, StderrTail, append_diagnostics, format_child_diagnostics};
+    use std::sync::{Arc, Mutex};
+    use std::time::{Duration, Instant};
+
+    use super::{
+        ChildWatch, STDERR_TAIL_BYTES, StderrTail, append_diagnostics, format_child_diagnostics,
+    };
+
+    /// A dead child's last stderr lines are kept when the reader drains them slowly, as on a
+    /// loaded Windows host (#2170): diagnosis waits up to two seconds for the reader's end, where
+    /// it waited 200 ms.
+    #[tokio::test]
+    async fn diagnosis_waits_for_a_slow_stderr_reader_to_reach_the_end() {
+        let tail = Arc::new(Mutex::new(StderrTail::default()));
+        let (done, stderr_done) = tokio::sync::watch::channel(false);
+        tail.lock().unwrap().push(b"padding line\n");
+        let reader = Arc::clone(&tail);
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(600)).await;
+            reader.lock().unwrap().push(b"FINAL_FAILURE_LINE\n");
+            let _ = done.send(true);
+        });
+        let watch = ChildWatch {
+            child: Arc::new(Mutex::new(None)),
+            stderr_tail: tail,
+            stderr_done,
+            deadline: Instant::now() + Duration::from_secs(10),
+        };
+        let diagnosis = watch.diagnose(true).await.unwrap();
+        assert!(diagnosis.contains("FINAL_FAILURE_LINE"), "{diagnosis}");
+    }
+
+    /// A pipe a grandchild holds open never ends, and the wait for it stops before the connect
+    /// deadline: the diagnosis keeps what it read instead of the deadline discarding it.
+    #[tokio::test]
+    async fn diagnosis_stops_before_the_connect_deadline_with_what_it_read() {
+        let tail = Arc::new(Mutex::new(StderrTail::default()));
+        tail.lock().unwrap().push(b"startup boom\n");
+        let (_held, stderr_done) = tokio::sync::watch::channel(false);
+        let watch = ChildWatch {
+            child: Arc::new(Mutex::new(None)),
+            stderr_tail: tail,
+            stderr_done,
+            deadline: Instant::now() + Duration::from_millis(300),
+        };
+        let diagnosis = tokio::time::timeout(Duration::from_millis(300), watch.diagnose(true))
+            .await
+            .expect("the diagnosis outran the connect deadline")
+            .unwrap();
+        assert!(diagnosis.contains("startup boom"), "{diagnosis}");
+    }
 
     #[test]
     fn stderr_tail_keeps_short_output_and_strips_control_chars() {
