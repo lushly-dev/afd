@@ -12,21 +12,20 @@
  * drops a message for its key, and on WebKitGTK that key is the copilot frame's barrier (phase 5 specification, D153),
  * so no CI log holds it. Each refusal is still counted, in `Desktop.stderr`.
  */
-import { type ChildProcess, spawn } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
-import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { appPack } from '@lushly-dev/loam-cli';
 import { writeDeployment } from '@lushly-dev/loam-cli/deployment';
-import { remote } from 'webdriverio';
+import { type DesktopBrowser, startDesktopSession } from './driver-lifecycle';
 import { INVOKE_KEY_LINE, pipeRedactedStderr, redactInvokeKey } from './stderr-filter';
 
 export { INVOKE_KEY_LINE, pipeRedactedStderr, redactInvokeKey };
 
-type Browser = Awaited<ReturnType<typeof remote>>;
+type Browser = DesktopBrowser;
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url));
 export const LOAM = fileURLToPath(new URL('../../..', import.meta.url));
@@ -79,32 +78,6 @@ export function desktopDeployment(apps: string[] = []): string {
 		...(apps.length ? apps : ['[apps]']),
 		'',
 	].join('\n');
-}
-
-function freePort(): Promise<number> {
-	return new Promise((resolve, reject) => {
-		const server = createServer();
-		server.once('error', reject);
-		server.listen(0, '127.0.0.1', () => {
-			const { port } = server.address() as { port: number };
-			server.close(() => resolve(port));
-		});
-	});
-}
-
-async function waitForPort(port: number, child: ChildProcess, deadline = 30_000): Promise<void> {
-	const until = Date.now() + deadline;
-	while (Date.now() < until) {
-		if (child.exitCode !== null) throw new Error(`tauri-driver exited with ${child.exitCode}`);
-		try {
-			const response = await fetch(`http://127.0.0.1:${port}/status`);
-			if (response.ok) return;
-		} catch {
-			// Not listening yet.
-		}
-		await new Promise((resolve) => setTimeout(resolve, 100));
-	}
-	throw new Error('tauri-driver did not start');
 }
 
 export interface Desktop {
@@ -162,40 +135,46 @@ export async function openDesktop(options: OpenOptions = {}): Promise<Desktop> {
 	const app = binary();
 	if (!existsSync(app))
 		throw new Error(`${app} is not built: run \`pnpm -F @lushly-dev/loam-desktop build:app\``);
-	const data = options.data ?? (await writeData(options.deployment));
-	await options.prepare?.(data);
 
-	const port = await freePort();
-	const nativePort = await freePort();
+	let callerDataPrepared = false;
 	const native = process.env.LOAM_DESKTOP_NATIVE_DRIVER;
-	const driver = spawn(
-		process.env.LOAM_DESKTOP_TAURI_DRIVER ?? 'tauri-driver',
-		[
-			'--port',
-			String(port),
-			'--native-port',
-			String(nativePort),
-			...(native ? ['--native-driver', native] : []),
-		],
-		{ env: { ...process.env, LOAM_DESKTOP_DATA_DIR: data }, stdio: ['ignore', 'ignore', 'pipe'] }
-	);
-	const stderr = { lines: [] as string[], keyRefusals: 0 };
-	pipeRedactedStderr(driver.stderr, stderr);
-	await waitForPort(port, driver);
-	const began = performance.now();
-	let browser: Browser;
-	try {
-		browser = await remote({
-			hostname: '127.0.0.1',
-			port,
-			logLevel: 'error',
-			connectionRetryCount: 0,
-			capabilities: { 'tauri:options': { application: app } } as never,
-		});
-	} catch (cause) {
-		driver.kill();
-		throw cause;
-	}
+	const started = await startDesktopSession({
+		async prepareData() {
+			if (options.data) {
+				if (!callerDataPrepared) {
+					callerDataPrepared = true;
+					await options.prepare?.(options.data);
+				}
+				return { data: options.data, owned: false };
+			}
+			// Each retry gets a freshly written data directory and empty webview profile so cold-start
+			// measurements (`boot.test.ts`) never measure a warm profile left by an earlier failed attempt.
+			const data = await writeData(options.deployment);
+			await options.prepare?.(data);
+			return { data, owned: true };
+		},
+		spawnDriver(port, nativePort, data, detached) {
+			return spawn(
+				process.env.LOAM_DESKTOP_TAURI_DRIVER ?? 'tauri-driver',
+				[
+					'--port',
+					String(port),
+					'--native-port',
+					String(nativePort),
+					...(native ? ['--native-driver', native] : []),
+				],
+				{
+					env: { ...process.env, LOAM_DESKTOP_DATA_DIR: data },
+					stdio: ['ignore', 'ignore', 'pipe'],
+					detached,
+				}
+			);
+		},
+		capabilities: { 'tauri:options': { application: app } },
+		onStderr: pipeRedactedStderr,
+	});
+
+	const { browser, stderr, data, began, getAppPid, close } = started;
 	const ready = async () => {
 		await browser.waitUntil(
 			async () =>
@@ -223,9 +202,9 @@ export async function openDesktop(options: OpenOptions = {}): Promise<Desktop> {
 	if (!options.raw) {
 		try {
 			await ready();
+			getAppPid();
 		} catch (cause) {
-			await browser.deleteSession().catch(() => {});
-			driver.kill();
+			await close();
 			throw cause;
 		}
 	}
@@ -270,12 +249,7 @@ export async function openDesktop(options: OpenOptions = {}): Promise<Desktop> {
 		call: run(false),
 		agentCall: run(true),
 		ready,
-		async close() {
-			await browser.deleteSession().catch(() => {});
-			driver.kill();
-			// The app is single-instance: the next one started before this one has gone would exit at once.
-			await new Promise((resolve) => setTimeout(resolve, 3_000));
-		},
+		close,
 	};
 }
 
