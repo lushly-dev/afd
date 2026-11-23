@@ -13,9 +13,14 @@ metadata:
 
 # Browser automation with botcore CDP
 
-The `cdp_*` functions in `botcore.commands.cdp` are async and return a `CommandResult`, so most failures come back as `success=False`. The exceptions raise instead: `cdp_list_pages`, `cdp_new_page` and `cdp_close_page` when the browser is unreachable, and `cdp_console` given an invalid `grep` pattern. They need `lushly-botcore[cdp]` (Playwright, httpx, Perfetto) and `playwright install chromium`. `cdp_launch` starts Playwright's Chromium, not a system Chrome.
+The `cdp_*` functions in `botcore.commands.cdp` are async and return a `CommandResult`, so failures (including unreachable browsers and invalid regex patterns) come back as `success=False` with a structured error and suggestion. They need `lushly-botcore[cdp]` (Playwright, httpx, Perfetto) and `playwright install chromium`. `cdp_launch` starts Playwright's Chromium, not a system Chrome.
 
-Botcore core doesn't expose them. There is no `botcore cdp` command, and neither the MCP namespace (`botcore.commands.__all__`) nor `build_host` includes them. Call them from Python or register them in a plugin. An error suggestion that says "re-run with --force" means `force=True`. Parameters are documented only in the signatures and docstrings in `src/botcore/commands/cdp/`.
+They are exposed through:
+- `botcore cdp <subcommand>` on the CLI (for example `botcore cdp launch --headless`, `botcore cdp list-pages`, `botcore cdp close`)
+- `botcore.commands` (`__all__`, which `build_namespace()` and `botcore serve` load)
+- `CDP_POLICIES` in `botcore.host` (pass `core_commands=(*CORE_POLICIES, *CDP_POLICIES)` to `build_host()` to admit them with their `"browser"` effect and confined paths)
+
+Parameters are documented in `botcore cdp <subcommand> --help` and in `src/botcore/commands/cdp/`.
 
 | Area | Commands |
 |---|---|
@@ -30,17 +35,17 @@ Botcore core doesn't expose them. There is no `botcore cdp` command, and neither
 ## Session file and directories
 
 - The session is `.botcore/cdp-session.json` in the workspace root. That is the nearest directory at or above the working directory holding `pnpm-workspace.yaml`, `Cargo.toml`, `pyproject.toml`, `package.json` or `.git`. A nested package with its own manifest therefore has a different session, or none.
-- `cdp_launch` and `cdp_attach` return `CDP_SESSION_EXISTS` while that file exists, unless `force=True`. `force` overwrites the file without closing the old browser. If Chrome has died, `cdp_close` fails with `CDP_CLOSE_FAILED` and keeps the file, so relaunch with `force=True`.
+- `cdp_launch` and `cdp_attach` return `CDP_SESSION_EXISTS` while that file exists, unless `force=True` (`--force`). `force` overwrites the file without closing the old browser. If Chrome has died, `cdp_close` fails with `CDP_CLOSE_FAILED` and keeps the file, so relaunch with `force=True`.
 - Defaults under `.botcore/` are `chrome-profile/` (cookies and logins persist between launches), `screenshots/screenshot-<timestamp>.png` and `traces/<name>-<timestamp>.json`. On Windows, the profile moves to `%LOCALAPPDATA%\botcore\` when the workspace is on another drive.
 
 ## Every command is a new connection
 
-Each command connects over CDP, acts on the first tab (index 0 in `cdp_list_pages`) and disconnects. Page JavaScript state survives, but per-connection state doesn't:
+Each command connects over CDP, acts on the selected tab (`selected_page` in `.botcore/cdp-session.json`, default 0) and disconnects. Page JavaScript state and persisted session settings survive:
 
-- **Console:** messages are captured only while a command runs, then appended to the session file for `cdp_console` (`level`, `grep`, `tail`, `clear=True`). Anything logged between commands is lost, as is load-time output from `cdp_launch(url=...)`. Load the page with `cdp_navigate` to capture it.
-- **Emulation:** `cdp_resize` and `cdp_emulate` last only for their own call. `cdp_emulate` never applies `user_agent` or `cpu_throttle`; it only echoes them back.
+- **Tabs:** `cdp_select_page(index)` validates the index against open tabs and stores `selected_page` and its CDP `selected_target_id` in the session file so subsequent commands and `cdp_trace_capture` target that exact tab even if earlier tabs close; if the selected tab closes externally, commands fail with `CDP_SELECTED_PAGE_CLOSED`. `cdp_close_page` updates selection when closing tabs.
+- **Emulation and viewport:** `cdp_resize` and `cdp_emulate` (`color_scheme`, `viewport`, `offline`, `user_agent`, `cpu_throttle`) apply via Playwright and CDP `Emulation.*` and persist their settings in the session file so subsequent commands, `cdp_new_page`, and `cdp_trace_capture` re-apply them automatically. Pass `reset=True` (`--reset`) to `cdp_emulate` to clear persisted overrides.
+- **Console:** messages are captured only while a command runs, then appended to the session file for `cdp_console` (`level`, `grep`, `tail`, `clear=True`). Anything logged between commands is lost, as is load-time output from `cdp_launch(url=...)`. Load the page with `cdp_navigate` to capture it. Invalid `grep` regexes return `CDP_INVALID_PATTERN`.
 - **Dialogs:** the `cdp_handle_dialog` handler ends with its call, so Playwright dismisses a dialog that a later `cdp_click` opens. Stub it first instead: `cdp_eval("window.confirm = () => true")`.
-- **Tabs:** `cdp_select_page` reports "Page selection stored" but stores nothing. To work in another tab, close the tabs before it with `cdp_close_page`.
 
 ## Shadow DOM
 
@@ -50,11 +55,11 @@ Leave `deep` off. Without it, commands use Playwright CSS selectors, which wait 
 
 ## Network and traces
 
-`cdp_list_network` and `cdp_get_network` capture nothing. They return success with a `note` suggesting `cdp_eval` with `performance.getEntriesByType('resource')`.
+`cdp_list_network(resource_type=..., limit=50)` and `cdp_get_network(url_pattern)` read the page's Performance Resource Timing API (`performance.getEntriesByType('navigation')` and `'resource'`), returning URL, resource type, timing, sizes, protocol and response status. Invalid regexes in `cdp_get_network` return `CDP_INVALID_PATTERN`.
 
 `cdp_trace_capture` records a real DevTools trace within one call: an optional navigation (`url`, `wait_until`), then `settle_ms` of idle time. It can't span other commands, so it traces page loads, not clicks. `cdp_trace_summary(path)` returns fixed-shape JSON, in which `signals.hasMainThreadJank` and `slices.primaryThreadLongTasks` (50 ms threshold by default) are the strongest regression signal. `cdp_trace_query(path, sql, limit=100)` runs PerfettoSQL over tables such as `slice`, `thread` and `process`, returning 1 to 5,000 rows. Perfetto downloads its pinned `trace_processor_shell` on first use, so the first summary or query needs network access.
 
-Ignore `botcore.commands.cdp_perf`. It isn't exported, and its `perf_trace_start`/`perf_trace_stop` pair holds a CDP session that closes when the first call returns.
+In `botcore.commands.cdp_perf`, `perf_trace_start` and `perf_trace_stop` return `CDP_TRACE_UNSUPPORTED` directing callers to `cdp_trace_capture` / `cdp_trace_summary` / `cdp_trace_query` (a CDP tracing session cannot span separate stateless connections).
 
 ## Example
 

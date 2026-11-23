@@ -9,7 +9,14 @@ from botcore.config import (
     load_config,
 )
 from botcore.context import ExecutionContext
-from botcore.host import CommandHost, CommandPolicy, QualityVerdict, aggregate_quality, build_host
+from botcore.host import (
+    CDP_POLICIES,
+    CommandHost,
+    CommandPolicy,
+    QualityVerdict,
+    aggregate_quality,
+    build_host,
+)
 from botcore.host_surfaces import create_host_cli, create_host_mcp_server
 from botcore.plugin import (
     BotCorePlugin,
@@ -30,6 +37,7 @@ __all__ = [
     "ExecutionContext",
     "CommandHost",
     "CommandPolicy",
+    "CDP_POLICIES",
     "QualityVerdict",
     "aggregate_quality",
     "build_host",

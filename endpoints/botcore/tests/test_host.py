@@ -442,3 +442,84 @@ async def test_real_missing_python_tool_is_unavailable_in_native_wrapper(tmp_pat
         result = await host.execute("dev_lint", {"language": "python"})
     assert result.error.code == "TOOL_UNAVAILABLE"
     assert result.metadata.quality["status"] == "unavailable"
+
+
+async def test_host_runs_sync_command_body_off_event_loop_with_context(tmp_path):
+    """lushly-dev/afd#1794: CommandHost runs synchronous handlers via to_thread with ContextVars."""
+    import threading
+    import time
+
+    from afd import Actor
+    from afd.core.commands import CommandContext
+
+    from botcore.context import current_call
+
+    loop_thread = threading.get_ident()
+    ticks = 0
+    seen: dict[str, object] = {}
+
+    def sync_work(label: str) -> object:
+        seen["thread"] = threading.get_ident()
+        seen["target"] = current_context().target
+        seen["actor"] = current_call().actor.id
+        time.sleep(0.15)
+        return success({"label": label})
+
+    async def ticker() -> None:
+        nonlocal ticks
+        for _ in range(5):
+            await asyncio.sleep(0.02)
+            ticks += 1
+
+    host = CommandHost("alfred", ExecutionContext(tmp_path))
+    host.register("sync_work", sync_work, CommandPolicy())
+    result, _ = await asyncio.gather(
+        host.execute(
+            "sync_work", {"label": "ok"}, CommandContext(actor=Actor(kind="agent", id="tester"))
+        ),
+        ticker(),
+    )
+    assert result.success is True
+    assert result.data == {"label": "ok"}
+    assert seen["thread"] != loop_thread
+    assert seen["target"] == tmp_path.resolve()
+    assert seen["actor"] == "tester"
+    assert ticks == 5
+
+
+async def test_disk_reclaim_runs_blocking_body_off_event_loop(tmp_path, monkeypatch):
+    """lushly-dev/afd#1794: disk_reclaim offloads its synchronous body so the event loop ticks."""
+    import threading
+    import time
+
+    from botcore.commands.disk import reclaim as reclaim_mod
+    from botcore.commands.disk.settings import MachineSettings
+
+    loop_thread = threading.get_ident()
+    worker_thread: list[int] = []
+    ticks = 0
+
+    monkeypatch.setattr(
+        reclaim_mod,
+        "load_machine_settings",
+        lambda: (MachineSettings(), tmp_path / "disk.toml", True),
+    )
+    monkeypatch.setattr(reclaim_mod, "state_path", lambda: tmp_path)
+
+    def slow_reclaim(*_args, **_kwargs):
+        worker_thread.append(threading.get_ident())
+        time.sleep(0.15)
+        return {"apply": False, "actions": [], "failures": [], "still_low": [], "error": None}
+
+    monkeypatch.setattr(reclaim_mod, "_reclaim", slow_reclaim)
+
+    async def ticker() -> None:
+        nonlocal ticks
+        for _ in range(5):
+            await asyncio.sleep(0.02)
+            ticks += 1
+
+    result, _ = await asyncio.gather(reclaim_mod.disk_reclaim(tier=0, apply=False), ticker())
+    assert result.success is True
+    assert worker_thread == [worker_thread[0]] and worker_thread[0] != loop_thread
+    assert ticks == 5

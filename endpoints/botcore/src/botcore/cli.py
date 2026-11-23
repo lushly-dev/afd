@@ -34,13 +34,12 @@ def _run_async(coro: Any) -> Any:
 
 
 def _is_json(ctx: click.Context) -> bool:
-    """Check if JSON output is requested (subcommand flag or group flag)."""
-    if ctx.params.get("json_mode"):
-        return True
-    # Walk up to parent (group) context
-    parent = ctx.parent
-    if parent and parent.params.get("json_mode"):
-        return True
+    """Check if JSON output is requested on this command or any enclosing Click group."""
+    current: click.Context | None = ctx
+    while current is not None:
+        if current.params.get("json_mode"):
+            return True
+        current = current.parent
     return False
 
 
@@ -993,3 +992,8 @@ def pr_wait_cmd(  # noqa: PLR0913 - one argument per CLI option
     data = normalized.get("data") or {}
     click.echo(f"{data.get('repo', '')}#{data.get('number', '')}: {data.get('outcome', 'done')}")
     sys.exit(int(data.get("exit_code", 0)))
+
+
+from botcore.cli_cdp import cdp_group  # noqa: E402
+
+cli.add_command(cdp_group)

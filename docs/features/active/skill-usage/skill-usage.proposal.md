@@ -517,9 +517,9 @@ for the schedule.
   until the next merge. Every reader still agrees.
 - **A folder name no load is recorded under** (one with a space, or that begins with `_`
   or a dot) is not a listed skill.
-- **A project named while git could not read its origin** keeps its folder's name after
-  git answers, apart from the same repository's `owner/name` on other machines
-  ([#2052](https://github.com/lushly-dev/afd/issues/2052)).
+- **A project first named while git could not read its origin** is moved to `owner/name`
+  once git answers for that folder, and its recorded events and sessions on that machine are
+  refiled under `owner/name` ([#2052](https://github.com/lushly-dev/afd/issues/2052)).
 - **Skills outside a project's skill folders.** Size, context cost and the `quiet` list come
   from `.claude/skills`, `.agents/skills` and `.codex/skills` of the project's default
   branch. A skill folder or `SKILL.md` that is a link is not followed in a commit. A load

@@ -19,6 +19,7 @@ from botcore.commands.disk.finished import keep_reason, keep_until
 from botcore.commands.disk.git import GitError, git_out, list_worktrees, path_key
 from botcore.commands.disk.removal import find_record, restore
 from botcore.commands.disk.settings import expand
+from botcore.commands.disk.steps import run_blocking
 
 DEFAULT_KEEP_DAYS = 14
 
@@ -40,8 +41,7 @@ def _linked_worktree(path: Path):
                        suggestion="Pass the top folder of a linked worktree")
 
 
-async def disk_keep(path: str, until: str | None = None, reason: str = "") -> CommandResult[dict]:
-    """Protect a worktree from every disk-* action until a date (14 days by default)."""
+def _disk_keep_sync(path: str, until: str | None = None, reason: str = "") -> CommandResult[dict]:
     target = expand(path)
     found, failure = _linked_worktree(target)
     if failure:
@@ -71,6 +71,11 @@ async def disk_keep(path: str, until: str | None = None, reason: str = "") -> Co
                    suggestions=[f"disk-unkeep {entry.path} releases it"])
 
 
+async def disk_keep(path: str, until: str | None = None, reason: str = "") -> CommandResult[dict]:
+    """Protect a worktree from every disk-* action until a date (14 days by default)."""
+    return await run_blocking(_disk_keep_sync, path, until, reason)
+
+
 def _renew(admin: Path | None, reason: str) -> None:
     """Replace a keep's reason in git's own lock file, so the worktree never goes unlocked."""
     if admin is None:
@@ -81,8 +86,7 @@ def _renew(admin: Path | None, reason: str) -> None:
     os.replace(tmp, lock)
 
 
-async def disk_unkeep(path: str) -> CommandResult[dict]:
-    """Release a keep that disk-keep made. Another tool's lock is left alone."""
+def _disk_unkeep_sync(path: str) -> CommandResult[dict]:
     target = expand(path)
     found, failure = _linked_worktree(target)
     if failure:
@@ -102,8 +106,12 @@ async def disk_unkeep(path: str) -> CommandResult[dict]:
     return success(data={"path": str(entry.path), "released": True})
 
 
-async def disk_restore(path: str) -> CommandResult[dict]:
-    """Recreate a worktree a tier 2 run removed, at the same path and commit."""
+async def disk_unkeep(path: str) -> CommandResult[dict]:
+    """Release a keep that disk-keep made. Another tool's lock is left alone."""
+    return await run_blocking(_disk_unkeep_sync, path)
+
+
+def _disk_restore_sync(path: str) -> CommandResult[dict]:
     record = find_record(expand(path))
     if record is None:
         return error("DISK_NOT_REMOVED", f"no removal of {path} is recorded",
@@ -116,6 +124,11 @@ async def disk_restore(path: str) -> CommandResult[dict]:
     return success(data={"path": record["path"], "how": how, "removed_at": removed_at,
                          "pinned": record.get("refs", [])},
                    suggestions=["Install and build again before running anything in it"])
+
+
+async def disk_restore(path: str) -> CommandResult[dict]:
+    """Recreate a worktree a tier 2 run removed, at the same path and commit."""
+    return await run_blocking(_disk_restore_sync, path)
 
 
 __all__ = ["disk_keep", "disk_restore", "disk_unkeep"]

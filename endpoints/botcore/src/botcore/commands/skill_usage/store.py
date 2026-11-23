@@ -211,9 +211,33 @@ def _replace(path: Path, text: str) -> None:
     os.replace(temporary, path)
 
 
-def rewrite_events(directory: Path, events: list[Event]) -> None:
-    """Replace the whole record: what a rebuild does, and nothing else."""
+def unreadable_lines(directory: Path) -> list[str]:
+    """Raw lines in `events.jsonl` that `parse_events` could not parse as valid events."""
+    try:
+        data = (directory / EVENTS_FILE).read_bytes()
+    except FileNotFoundError:
+        return []
+    bad: list[str] = []
+    for line in data.decode("utf-8", errors="replace").splitlines():
+        if not line.strip():
+            continue
+        try:
+            parsed = json.loads(line)
+        except ValueError:
+            bad.append(line)
+            continue
+        if not isinstance(parsed, dict) or Event.from_json(parsed) is None:
+            bad.append(line)
+    return bad
+
+
+def rewrite_events(
+    directory: Path, events: list[Event], extra_lines: list[str] | tuple[str, ...] = ()
+) -> None:
+    """Replace the whole record, optionally keeping raw lines (e.g. unreadable lines during
+    automatic refiling so damage evidence is never silently dropped)."""
     lines = [json.dumps(event.to_json(), sort_keys=True) for event in events]
+    lines.extend(extra_lines)
     _replace(directory / EVENTS_FILE, "".join(line + "\n" for line in lines))
 
 

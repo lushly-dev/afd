@@ -75,6 +75,29 @@ Read-only by default (`persist_state=False`). Wait for PR events (`ready`, `gree
 Set `persist_state=True` to hold a cross-platform single-instance lock and save event
 watermarks so restarts never miss events.
 """,
+    "cdp": """\
+# CDP Browser Automation Commands
+
+Requires `lushly-botcore[cdp]` (`playwright`, `httpx`, `perfetto`) and
+`playwright install chromium`.
+Exposed in `botcore.commands`, `botcore cdp <subcommand>`, and `CDP_POLICIES` for `build_host`.
+
+## Session
+`cdp_launch`, `cdp_attach`, `cdp_close`
+
+## Navigation and input
+`cdp_navigate`, `cdp_wait`, `cdp_click`, `cdp_hover`, `cdp_scroll`, `cdp_drag`,
+`cdp_type`, `cdp_press`
+
+## Inspection, forms and tabs
+`cdp_inspect`, `cdp_query`, `cdp_snapshot`, `cdp_fill`, `cdp_fill_form`, `cdp_upload`,
+`cdp_handle_dialog`, `cdp_list_pages`, `cdp_select_page`, `cdp_new_page`, `cdp_close_page`,
+`cdp_resize`
+
+## Diagnostics and traces
+`cdp_screenshot`, `cdp_console`, `cdp_get_console_message`, `cdp_eval`, `cdp_list_network`,
+`cdp_get_network`, `cdp_emulate`, `cdp_trace_capture`, `cdp_trace_summary`, `cdp_trace_query`
+""",
     "skill": """\
 # Skill Commands: registry, lint and usage
 

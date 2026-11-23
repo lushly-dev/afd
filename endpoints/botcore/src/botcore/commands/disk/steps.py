@@ -16,6 +16,7 @@ before whatever it would have done with what it read.
 
 from __future__ import annotations
 
+import asyncio
 import os
 import sys
 import threading
@@ -59,6 +60,18 @@ def doing(what: str, path: object = "", allow: float = 0.0) -> None:
         step.say(what, str(path), allow)
     if SAID is not None:
         SAID.append((what, str(path)))
+
+
+async def run_blocking(fn: Callable[..., T], *args: Any, **kwargs: Any) -> T:
+    """Run synchronous work off the event loop, or directly when already inside a `Step` thread.
+
+    Calling `asyncio.to_thread` from an MCP host keeps the event loop responsive for other
+    requests. Inside a `Step` daemon thread (`_HERE.step` is set), running directly preserves
+    `doing()` heartbeats, `Left` cancellation and `Step.where()` stack traces.
+    """
+    if getattr(_HERE, "step", None) is not None:
+        return fn(*args, **kwargs)
+    return await asyncio.to_thread(fn, *args, **kwargs)
 
 
 def each(what: str, path: object, entries: Iterable[T]) -> Iterator[T]:
