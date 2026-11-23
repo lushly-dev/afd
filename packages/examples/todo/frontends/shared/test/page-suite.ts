@@ -94,8 +94,11 @@ export function describePage(name: string, distUrl: URL): void {
 		await new Promise((done) => site?.close(() => done(undefined)));
 	});
 
-	async function openPage(): Promise<Page> {
-		const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+	async function openPage(colorScheme: 'light' | 'dark' = 'light'): Promise<Page> {
+		const context = await browser.newContext({
+			viewport: { width: 1280, height: 900 },
+			colorScheme,
+		});
 		const page = await context.newPage();
 		await page.goto(pageUrl);
 		await page.waitForFunction(() => document.documentElement.dataset.ready === 'true');
@@ -259,6 +262,68 @@ export function describePage(name: string, distUrl: URL): void {
 			// The list follows: no open todo is shown
 			await expect.poll(() => page.locator('li.todo:not([data-completed])').count()).toBe(0);
 			await page.context().close();
+		});
+
+		it('applies the AFD Refined theme in light, dark and forced-colors modes', async () => {
+			const page = await openPage('light');
+			const light = await page.evaluate(() => {
+				const headingEl = document.querySelector('h1');
+				const cardEl = document.querySelector('.insight > section');
+				const codeEl = document.querySelector('code');
+				if (!headingEl || !cardEl || !codeEl) throw new Error('Expected page elements');
+				const body = getComputedStyle(document.body);
+				const heading = getComputedStyle(headingEl);
+				const card = getComputedStyle(cardEl);
+				const code = getComputedStyle(codeEl);
+				return {
+					preset: document.documentElement.getAttribute('data-violet-theme'),
+					pageBg: body.backgroundColor,
+					bodyFont: body.fontFamily,
+					headingFont: heading.fontFamily,
+					monoFont: code.fontFamily,
+					cardBg: card.backgroundColor,
+					cardBorderWidth: card.borderTopWidth,
+					cardShadow: card.boxShadow,
+				};
+			});
+			expect(light.preset).toBe('light');
+			expect(light.pageBg).toBe('rgb(244, 240, 234)');
+			expect(light.cardBg).toBe('rgb(248, 249, 243)');
+			expect(light.bodyFont).toContain('Inter');
+			expect(light.bodyFont).not.toContain('Montserrat');
+			expect(light.headingFont).toContain('Space Grotesk');
+			expect(light.monoFont).toContain('IBM Plex Mono');
+			expect(light.cardBorderWidth).toBe('0px');
+			expect(light.cardShadow).not.toBe('none');
+
+			await page.emulateMedia({ forcedColors: 'active' });
+			const forced = await page.evaluate(() => {
+				const cardEl = document.querySelector('.insight > section');
+				if (!cardEl) throw new Error('Expected card element');
+				const card = getComputedStyle(cardEl);
+				return {
+					cardBorderWidth: card.borderTopWidth,
+					cardShadow: card.boxShadow,
+				};
+			});
+			expect(forced.cardBorderWidth).toBe('1px');
+			expect(forced.cardShadow).toBe('none');
+			await page.context().close();
+
+			const darkPage = await openPage('dark');
+			const dark = await darkPage.evaluate(() => {
+				const cardEl = document.querySelector('.insight > section');
+				if (!cardEl) throw new Error('Expected card element');
+				return {
+					preset: document.documentElement.getAttribute('data-violet-theme'),
+					pageBg: getComputedStyle(document.body).backgroundColor,
+					cardBg: getComputedStyle(cardEl).backgroundColor,
+				};
+			});
+			expect(dark.preset).toBe('dark');
+			expect(dark.pageBg).toBe('rgb(20, 21, 21)');
+			expect(dark.cardBg).toBe('rgb(27, 28, 28)');
+			await darkPage.context().close();
 		});
 
 		it('has no serious or critical accessibility violations', async () => {
