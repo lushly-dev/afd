@@ -5,10 +5,13 @@ import type {
 	CaptureRequest,
 	ContractRequest,
 	CoverageRequest,
+	ImplementationContexts,
 	MatrixAxes,
 	MatrixRequest,
 	PackExportRequest,
+	PackLocalElements,
 	PackRequest,
+	PatternSetupBinding,
 	ProfileRequest,
 	SpecimenContext,
 	SuggestRequest,
@@ -438,6 +441,95 @@ export function parseCaptureRequest(value: unknown): CaptureRequest {
 	return request;
 }
 
+const PACK_LIBRARY = /^[a-z][a-z0-9-]{0,63}$/;
+const PACK_PREFIX = /^[a-z][a-z0-9._]*-$/;
+const PACK_TAG = /^[a-z][a-z0-9._]*-[a-z0-9._-]*$/;
+const PACK_PATTERN = /^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/;
+const PACK_SETUP = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
+// biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what it refuses
+const SINGLE_LINE_TEXT = /^[^\u0000-\u001F\u007F-\u009F\u202A-\u202E\u2066-\u2069]*$/;
+const CONTEXT_THEMES = ['dark', 'high-contrast', 'light'] as const;
+
+function singleLineText(value: unknown, path: string, max: number): string {
+	const raw = text(value, path);
+	if ([...raw].length > max) fail(path, `expected at most ${max} characters`);
+	if (!SINGLE_LINE_TEXT.test(raw) || !raw.isWellFormed())
+		fail(path, 'must not contain control characters, line breaks or lone surrogates');
+	return raw;
+}
+
+function patternSetupBinding(value: unknown, path: string): PatternSetupBinding {
+	const fields = record(value, path, ['library', 'pattern', 'setup']);
+	const pattern = text(fields.pattern, `${path}.pattern`, PACK_PATTERN);
+	if (pattern.length > 64) fail(`${path}.pattern`, 'expected at most 64 characters');
+	const setup = text(fields.setup, `${path}.setup`, PACK_SETUP);
+	if (setup.length > 64) fail(`${path}.setup`, 'expected at most 64 characters');
+	const binding: PatternSetupBinding = { pattern, setup };
+	if (fields.library !== undefined) {
+		const library = text(fields.library, `${path}.library`, PACK_LIBRARY);
+		binding.library = library;
+	}
+	return binding;
+}
+
+function implementationContexts(value: unknown, path: string): ImplementationContexts {
+	const fields = record(value, path, ['viewport', 'themes', 'reason']);
+	const reason = singleLineText(fields.reason, `${path}.reason`, 240);
+	let viewport: ImplementationContexts['viewport'];
+	if (fields.viewport !== undefined) {
+		const bounds = record(fields.viewport, `${path}.viewport`, [
+			'minWidth',
+			'maxWidth',
+			'minHeight',
+			'maxHeight',
+		]);
+		const parsed: NonNullable<ImplementationContexts['viewport']> = {};
+		if (bounds.minWidth !== undefined)
+			parsed.minWidth = integer(bounds.minWidth, `${path}.viewport.minWidth`, 1, 8192);
+		if (bounds.maxWidth !== undefined)
+			parsed.maxWidth = integer(bounds.maxWidth, `${path}.viewport.maxWidth`, 1, 8192);
+		if (bounds.minHeight !== undefined)
+			parsed.minHeight = integer(bounds.minHeight, `${path}.viewport.minHeight`, 1, 8192);
+		if (bounds.maxHeight !== undefined)
+			parsed.maxHeight = integer(bounds.maxHeight, `${path}.viewport.maxHeight`, 1, 8192);
+		if (Object.keys(parsed).length === 0)
+			fail(`${path}.viewport`, 'expected at least one viewport bound');
+		if (
+			parsed.minWidth !== undefined &&
+			parsed.maxWidth !== undefined &&
+			parsed.maxWidth < parsed.minWidth
+		)
+			fail(`${path}.viewport.maxWidth`, 'must be >= minWidth');
+		if (
+			parsed.minHeight !== undefined &&
+			parsed.maxHeight !== undefined &&
+			parsed.maxHeight < parsed.minHeight
+		)
+			fail(`${path}.viewport.maxHeight`, 'must be >= minHeight');
+		viewport = parsed;
+	}
+	let themes: ImplementationContexts['themes'];
+	if (fields.themes !== undefined) {
+		if (!Array.isArray(fields.themes) || fields.themes.length < 1 || fields.themes.length > 3)
+			fail(`${path}.themes`, 'expected between 1 and 3 themes');
+		const parsed = fields.themes.map((theme, index) =>
+			choice(theme, `${path}.themes[${index}]`, CONTEXT_THEMES)
+		);
+		for (let index = 1; index < parsed.length; index++) {
+			if ((parsed[index - 1] as string) >= (parsed[index] as string))
+				fail(`${path}.themes`, 'expected unique themes in ascending order');
+		}
+		themes = parsed;
+	}
+	if (viewport === undefined && themes === undefined)
+		fail(path, 'expected at least one of viewport or themes');
+	return {
+		...(viewport === undefined ? {} : { viewport }),
+		...(themes === undefined ? {} : { themes }),
+		reason,
+	};
+}
+
 function specimens(value: unknown): NonNullable<BenchConfig['specimens']> {
 	if (!Array.isArray(value) || value.length < 1)
 		fail('configuration.specimens', 'expected at least one specimen');
@@ -450,6 +542,8 @@ function specimens(value: unknown): NonNullable<BenchConfig['specimens']> {
 			'exportName',
 			'component',
 			'themes',
+			'patternSetup',
+			'contexts',
 		]);
 		return {
 			id: text(entry.id, `${path}.id`, /^[a-zA-Z0-9][a-zA-Z0-9_-]*$/),
@@ -464,6 +558,12 @@ function specimens(value: unknown): NonNullable<BenchConfig['specimens']> {
 			...(entry.themes === undefined
 				? {}
 				: { themes: themeSupport(entry.themes, `${path}.themes`) }),
+			...(entry.patternSetup === undefined
+				? {}
+				: { patternSetup: patternSetupBinding(entry.patternSetup, `${path}.patternSetup`) }),
+			...(entry.contexts === undefined
+				? {}
+				: { contexts: implementationContexts(entry.contexts, `${path}.contexts`) }),
 		};
 	});
 }
@@ -594,6 +694,8 @@ export function parseConfig(value: unknown): BenchConfig {
 		'coverage',
 		'guides',
 		'guideSources',
+		'patterns',
+		'patternSources',
 		'pack',
 	]);
 	if (fields.specimens === undefined && fields.stories === undefined)
@@ -606,8 +708,31 @@ export function parseConfig(value: unknown): BenchConfig {
 		fail('configuration.guides', 'guides are checked against a manifest');
 	if (fields.guideSources !== undefined && fields.manifest === undefined)
 		fail('configuration.guideSources', 'guide sources are checked against a manifest');
-	if (fields.pack !== undefined && fields.manifest === undefined)
-		fail('configuration.pack', 'a pack is built from a manifest');
+	const patterns =
+		fields.patterns === undefined
+			? undefined
+			: Array.isArray(fields.patterns)
+				? fields.patterns.map((item, index) => text(item, `configuration.patterns[${index}]`))
+				: fail('configuration.patterns', 'expected an array of file patterns');
+	const patternSources =
+		fields.patternSources === undefined
+			? undefined
+			: Array.isArray(fields.patternSources)
+				? fields.patternSources.map((item, index) =>
+						text(item, `configuration.patternSources[${index}]`)
+					)
+				: fail('configuration.patternSources', 'expected an array of pack paths or package names');
+	const pack = fields.pack === undefined ? undefined : packConfig(fields.pack);
+	if (pack !== undefined && fields.manifest === undefined) {
+		const hasAppElements =
+			(pack.dependencies !== undefined && pack.dependencies.length > 0) ||
+			pack.localElements !== undefined;
+		if (patterns === undefined || patterns.length === 0 || !hasAppElements)
+			fail(
+				'configuration.pack',
+				'a pack without a manifest requires patterns and at least one of pack.dependencies or pack.localElements'
+			);
+	}
 	return {
 		...(fields.specimens === undefined ? {} : { specimens: specimens(fields.specimens) }),
 		...(fields.stories === undefined ? {} : { stories: stories(fields.stories) }),
@@ -644,12 +769,35 @@ export function parseConfig(value: unknown): BenchConfig {
 							)
 						: fail('configuration.guideSources', 'expected an array of module paths'),
 				}),
-		...(fields.pack === undefined ? {} : { pack: packConfig(fields.pack) }),
+		...(patterns === undefined ? {} : { patterns }),
+		...(patternSources === undefined ? {} : { patternSources }),
+		...(pack === undefined ? {} : { pack }),
 	};
 }
 
-const PACK_LIBRARY = /^[a-z][a-z0-9-]{0,63}$/;
-const PACK_PREFIX = /^[a-z][a-z0-9._]*-$/;
+function packLocalElements(value: unknown): PackLocalElements {
+	const path = 'configuration.pack.localElements';
+	const fields = record(value, path, ['manifest', 'tags']);
+	const manifest =
+		fields.manifest === undefined ? undefined : text(fields.manifest, `${path}.manifest`);
+	let tags: string[] | undefined;
+	if (fields.tags !== undefined) {
+		if (!Array.isArray(fields.tags) || fields.tags.length < 1 || fields.tags.length > 256)
+			fail(`${path}.tags`, 'expected between 1 and 256 custom element tags');
+		tags = fields.tags.map((item, index) => {
+			const tag = text(item, `${path}.tags[${index}]`, PACK_TAG);
+			if (tag.length > 100) fail(`${path}.tags[${index}]`, 'expected at most 100 characters');
+			return tag;
+		});
+		if (new Set(tags).size !== tags.length) fail(`${path}.tags`, 'names a tag twice');
+	}
+	if (manifest === undefined && tags === undefined)
+		fail(path, 'expected at least one of manifest or non-empty tags');
+	return {
+		...(manifest === undefined ? {} : { manifest }),
+		...(tags === undefined ? {} : { tags }),
+	};
+}
 
 function packConfig(value: unknown): NonNullable<BenchConfig['pack']> {
 	const fields = record(value, 'configuration.pack', [
@@ -660,6 +808,9 @@ function packConfig(value: unknown): NonNullable<BenchConfig['pack']> {
 		'package',
 		'import',
 		'examples',
+		'dependencies',
+		'localElements',
+		'themeStylesheet',
 	]);
 	const library = text(fields.library, 'configuration.pack.library');
 	if (!PACK_LIBRARY.test(library))
@@ -669,6 +820,16 @@ function packConfig(value: unknown): NonNullable<BenchConfig['pack']> {
 		fail('configuration.pack.prefix', 'expected a tag prefix ending in -, such as example-');
 	const title = text(fields.title, 'configuration.pack.title');
 	if ([...title].length > 80) fail('configuration.pack.title', 'expected at most 80 characters');
+	const dependencies =
+		fields.dependencies === undefined
+			? undefined
+			: Array.isArray(fields.dependencies)
+				? fields.dependencies.map((item, index) =>
+						text(item, `configuration.pack.dependencies[${index}]`)
+					)
+				: fail('configuration.pack.dependencies', 'expected an array of manifest or pack paths');
+	const localElements =
+		fields.localElements === undefined ? undefined : packLocalElements(fields.localElements);
 	return {
 		library,
 		title,
@@ -681,5 +842,10 @@ function packConfig(value: unknown): NonNullable<BenchConfig['pack']> {
 		...(fields.examples === undefined
 			? {}
 			: { examples: integer(fields.examples, 'configuration.pack.examples', 0, 16) }),
+		...(dependencies === undefined ? {} : { dependencies }),
+		...(localElements === undefined ? {} : { localElements }),
+		...(fields.themeStylesheet === undefined
+			? {}
+			: { themeStylesheet: text(fields.themeStylesheet, 'configuration.pack.themeStylesheet') }),
 	};
 }

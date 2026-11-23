@@ -7,6 +7,7 @@ import {
 	TEXT_INVALID,
 	TEXT_TOO_LONG,
 } from './pack-schema.js';
+import { guidePatternClaimSchema, implementationContextsSchema } from './pattern-schema.js';
 
 /**
  * Authored guidance, as a library's guide files state it. These are separate from the pack's
@@ -48,6 +49,18 @@ export const guideComponentSchema = z
 			.max(16)
 			.optional(),
 		detail: packText(PACK_TEXT_LIMITS.detail, 'multi').optional(),
+		implements: z
+			.array(guidePatternClaimSchema)
+			.max(16)
+			.refine((items) => {
+				const keys = items.map((item) =>
+					typeof item === 'string' ? `\0${item}` : `${item.library}\0${item.pattern}`
+				);
+				return new Set(keys).size === keys.length;
+			}, 'List each implemented pattern at most once')
+			.meta({ uniqueItems: true })
+			.optional(),
+		contexts: implementationContextsSchema.optional(),
 	})
 	.refine(
 		(value) => value.replacedBy === undefined || value.status === 'deprecated',

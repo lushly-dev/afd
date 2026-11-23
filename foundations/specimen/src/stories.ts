@@ -76,6 +76,11 @@ export interface DiscoveryProblem {
 	code: string;
 	message: string;
 }
+export interface StoryPatternBinding {
+	id: string;
+	patternSetup?: unknown;
+	contexts?: unknown;
+}
 export interface Discovery {
 	entries: SpecimenEntry[];
 	/** Storybook's default project tags and the preview's own. */
@@ -86,6 +91,8 @@ export interface Discovery {
 	warnings: DiscoveryProblem[];
 	/** Every file discovery read. */
 	files: string[];
+	/** Raw `parameters.specimen.{patternSetup,contexts}` extracted statically from stories. */
+	patternBindings?: StoryPatternBinding[];
 }
 
 interface HostEntry extends StoryIdentity {
@@ -94,6 +101,8 @@ interface HostEntry extends StoryIdentity {
 	importPath: string;
 	exportName: string;
 	component?: string;
+	patternSetup?: unknown;
+	contexts?: unknown;
 }
 interface HostIndex {
 	entries: HostEntry[];
@@ -141,9 +150,26 @@ export async function discoverStories(
 	} finally {
 		await host.close();
 	}
-	return {
-		entries: index.entries.map(
-			({ id, title, importPath, exportName, component, ...story }): SpecimenEntry => ({
+	const patternBindings: StoryPatternBinding[] = [];
+	const entries = index.entries.map(
+		({
+			id,
+			title,
+			importPath,
+			exportName,
+			component,
+			patternSetup,
+			contexts,
+			...story
+		}): SpecimenEntry => {
+			if (patternSetup !== undefined || contexts !== undefined) {
+				patternBindings.push({
+					id,
+					...(patternSetup === undefined ? {} : { patternSetup }),
+					...(contexts === undefined ? {} : { contexts }),
+				});
+			}
+			return {
 				id,
 				title,
 				module: importPath,
@@ -157,13 +183,17 @@ export async function discoverStories(
 					unresolved: story.unresolved,
 					annotations: story.annotations,
 				},
-			})
-		),
+			};
+		}
+	);
+	return {
+		entries,
 		projectTags: index.projectTags,
 		projectAnnotations: index.projectAnnotations,
 		errors: index.errors,
 		warnings: index.warnings,
 		files: index.files,
+		...(patternBindings.length ? { patternBindings } : {}),
 	};
 }
 

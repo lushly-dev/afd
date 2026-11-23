@@ -10,6 +10,7 @@ import {
 	writePack,
 	writePackIndex,
 } from './pack-files.js';
+import { withPatterns } from './patterns.js';
 import { migrateStories, validateDiscovery } from './stories.js';
 import type {
 	A11yRequest,
@@ -301,7 +302,13 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 		},
 		validate(target) {
 			const snapshot = ensureOpen();
-			return withGuides(validateEntries(snapshot, target), snapshot.guides, snapshot.root, target);
+			const withGuideIssues = withGuides(
+				validateEntries(snapshot, target),
+				snapshot.guides,
+				snapshot.root,
+				target
+			);
+			return withPatterns(withGuideIssues, snapshot.patterns, snapshot.root, target);
 		},
 		async render(rawRequest) {
 			const snapshot = ensureDiscovered();

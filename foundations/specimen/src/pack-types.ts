@@ -1,5 +1,13 @@
 /** Public contracts for building, checking and exporting a component pack. */
 
+/** App-local custom elements for applications without a full Custom Elements Manifest. */
+export interface PackLocalElements {
+	/** Optional relative path to a local Custom Elements Manifest JSON file. */
+	manifest?: string;
+	/** Optional explicit list of app-local custom element tags (each matches `PACK_PATTERNS.tag`, max 256). */
+	tags?: string[];
+}
+
 /** One library's component pack, as `specimen pack` builds it and `specimen pack-export` stamps it. */
 export interface PackConfig {
 	/** The library's id in the pack, such as `example`. */
@@ -19,6 +27,15 @@ export interface PackConfig {
 	import?: string;
 	/** The most examples a record keeps, the first by case id. Defaults to 3. */
 	examples?: number;
+	/**
+	 * Paths to dependency Custom Elements Manifests (or exported pack roots) describing
+	 * third-party custom elements used in saved copies.
+	 */
+	dependencies?: string[];
+	/** App-local custom elements admitted for applications without a full Custom Elements Manifest. */
+	localElements?: PackLocalElements;
+	/** Optional theme stylesheet specifier or repo-relative path required to render saved copies. */
+	themeStylesheet?: string;
 }
 /** Build the configured library's pack and write it, or check it against the committed one. */
 export interface PackRequest {

@@ -67,6 +67,12 @@ pub struct Entry {
     pub unresolved: Vec<Unresolved>,
     /// Annotation fields set at each level; `*` when a level may set fields that cannot be read.
     pub annotations: Annotations,
+    /// Statically read `parameters.specimen.patternSetup`, when present.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pattern_setup: Option<serde_json::Value>,
+    /// Statically read `parameters.specimen.contexts`, when present.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub contexts: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -338,6 +344,8 @@ struct Story<'p, 'a> {
     explicit_id: Option<String>,
     /// Identifier-keyed annotations: `None` for a method.
     annotations: Vec<(String, Option<&'p Expression<'a>>)>,
+    /// Imperative `Story.parameters = ...` (or `Story.story = { parameters: ... }`) assignments.
+    assigned_parameters: Vec<&'p Expression<'a>>,
 }
 
 impl<'p, 'a> Story<'p, 'a> {
@@ -500,6 +508,7 @@ fn read_stories<'p, 'a>(program: &'p Program<'a>) -> Result<Read<'p, 'a>, String
                             export_name,
                             explicit_id: None,
                             annotations: Vec::new(),
+                            assigned_parameters: Vec::new(),
                         };
                         if let Some(Expression::ObjectExpression(object)) = node {
                             for (key, value) in identifier_members(object) {
@@ -535,6 +544,7 @@ fn read_stories<'p, 'a>(program: &'p Program<'a>) -> Result<Read<'p, 'a>, String
                                 export_name,
                                 explicit_id: None,
                                 annotations: Vec::new(),
+                                assigned_parameters: Vec::new(),
                             },
                         );
                     }
@@ -564,6 +574,7 @@ fn read_stories<'p, 'a>(program: &'p Program<'a>) -> Result<Read<'p, 'a>, String
                         export_name,
                         explicit_id: None,
                         annotations: Vec::new(),
+                        assigned_parameters: Vec::new(),
                     };
                     if let Some(Expression::ObjectExpression(object)) = decl.map(bare) {
                         for (key, value) in identifier_members(object) {
@@ -607,9 +618,17 @@ fn read_stories<'p, 'a>(program: &'p Program<'a>) -> Result<Read<'p, 'a>, String
                         && let Expression::ObjectExpression(object) = bare(value)
                     {
                         for (key, value) in identifier_members(object) {
+                            if key == "parameters"
+                                && let Some(expr) = value
+                            {
+                                story.assigned_parameters.push(expr);
+                            }
                             story.annotate(key, value);
                         }
                     } else {
+                        if key == "parameters" {
+                            story.assigned_parameters.push(value);
+                        }
                         story.annotate(key, Some(value));
                     }
                     if key == "storyName"
@@ -703,6 +722,112 @@ fn unresolved(level: &'static str, value: &Value, out: &mut Vec<Unresolved>) {
     }
 }
 
+/// Convert a statically evaluated `Value` into JSON when every leaf is a literal JSON value.
+fn value_to_json(value: &Value) -> Option<serde_json::Value> {
+    match value {
+        Value::Null => Some(serde_json::Value::Null),
+        Value::Bool(flag) => Some(serde_json::Value::Bool(*flag)),
+        Value::Number(number) => {
+            if number.is_finite()
+                && number.fract() == 0.0
+                && *number >= -9_007_199_254_740_991.0
+                && *number <= 9_007_199_254_740_991.0
+            {
+                Some(serde_json::Value::Number(serde_json::Number::from(
+                    *number as i64,
+                )))
+            } else {
+                serde_json::Number::from_f64(*number).map(serde_json::Value::Number)
+            }
+        }
+        Value::String(text) => Some(serde_json::Value::String(text.clone())),
+        Value::Array(items) => items
+            .iter()
+            .map(value_to_json)
+            .collect::<Option<Vec<_>>>()
+            .map(serde_json::Value::Array),
+        Value::Object(object) => {
+            if object.open.is_some() {
+                return None;
+            }
+            let mut map = serde_json::Map::new();
+            for (key, field_value) in &object.fields {
+                if matches!(field_value, Value::Undefined) {
+                    continue;
+                }
+                map.insert(key.clone(), value_to_json(field_value)?);
+            }
+            Some(serde_json::Value::Object(map))
+        }
+        Value::Undefined | Value::RegExp(..) | Value::Function | Value::Unknown(_) => None,
+    }
+}
+
+fn merge_json(base: serde_json::Value, overlay: serde_json::Value) -> serde_json::Value {
+    match (base, overlay) {
+        (serde_json::Value::Object(mut base_map), serde_json::Value::Object(overlay_map)) => {
+            for (key, value) in overlay_map {
+                let merged = match base_map.remove(&key) {
+                    Some(existing) => merge_json(existing, value),
+                    None => value,
+                };
+                base_map.insert(key, merged);
+            }
+            serde_json::Value::Object(base_map)
+        }
+        (_, other) => other,
+    }
+}
+
+fn specimen_from_parameters(parameters: &Value) -> Option<serde_json::Value> {
+    let Value::Object(params) = parameters else {
+        return None;
+    };
+    let Field::Set(specimen) = params.get("specimen") else {
+        return None;
+    };
+    value_to_json(specimen)
+}
+
+fn specimen_parameters_json(value: &Value) -> Option<serde_json::Value> {
+    let Value::Object(root) = value else {
+        return None;
+    };
+    let Field::Set(parameters) = root.get("parameters") else {
+        return None;
+    };
+    specimen_from_parameters(parameters)
+}
+
+fn story_specimen_parameters(
+    story: &Story<'_, '_>,
+    scope: &Scope<'_, '_>,
+    story_value: &Value,
+    meta_value: &Value,
+) -> Option<serde_json::Map<String, serde_json::Value>> {
+    let mut merged: Option<serde_json::Value> = specimen_parameters_json(meta_value);
+    if let Some(story_specimen) = specimen_parameters_json(story_value) {
+        merged = Some(match merged {
+            Some(base) => merge_json(base, story_specimen),
+            None => story_specimen,
+        });
+    }
+    // Also honor imperative `Story.parameters = ...` assignments without re-applying
+    // object-literal `parameters:` properties already folded into `story_value`.
+    for expr in &story.assigned_parameters {
+        if let Some(assigned) = specimen_from_parameters(&scope.evaluate(expr)) {
+            merged = Some(match merged {
+                Some(base) => merge_json(base, assigned),
+                None => assigned,
+            });
+        }
+    }
+    match merged {
+        Some(serde_json::Value::Object(specimen)) => Some(specimen),
+        _ => None,
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn entries<'p, 'a>(
     result: &mut FileIndex,
@@ -791,6 +916,13 @@ fn entries<'p, 'a>(
         let mut missing = Vec::new();
         unresolved("meta", &meta_value, &mut missing);
         unresolved("story", &value, &mut missing);
+        let mut specimen_params = story_specimen_parameters(&story, scope, &value, &meta_value);
+        let pattern_setup = specimen_params
+            .as_mut()
+            .and_then(|map| map.remove("patternSetup"));
+        let contexts = specimen_params
+            .as_mut()
+            .and_then(|map| map.remove("contexts"));
         result.entries.push(Entry {
             play: play_presence(&story, &value, &meta_value),
             id,
@@ -813,6 +945,8 @@ fn entries<'p, 'a>(
                     names
                 },
             },
+            pattern_setup,
+            contexts,
         });
     }
     if result.entries.is_empty() {
@@ -1162,6 +1296,119 @@ mod tests {
                 .iter()
                 .any(|item| item.field == "*" && item.reason.contains("make"))
         );
+    }
+
+    #[test]
+    fn reads_specimen_pattern_setup_and_contexts_from_story_and_meta() {
+        let file = read(
+            "export default {\n\
+               title: 'Components/Select',\n\
+               parameters: {\n\
+                 specimen: {\n\
+                   patternSetup: { pattern: 'select', setup: 'default' },\n\
+                   contexts: { viewport: { minWidth: 640 }, reason: 'Desktop layout only.' },\n\
+                 },\n\
+               },\n\
+             };\n\
+             export const Default = {\n\
+               parameters: {\n\
+                 specimen: {\n\
+                   patternSetup: { setup: 'with-value' },\n\
+                 },\n\
+               },\n\
+             };\n\
+             export const WithPlay = {\n\
+               parameters: {\n\
+                 specimen: {\n\
+                   patternSetup: { library: 'acme', pattern: 'select', setup: 'open' },\n\
+                 },\n\
+               },\n\
+               play: async () => {},\n\
+             };\n\
+             export function Assigned() {}\n\
+             Assigned.parameters = { specimen: { patternSetup: { pattern: 'select', setup: 'assigned' } } };\n\
+             Assigned.play = async () => {};\n",
+        );
+        assert!(file.errors.is_empty(), "{:?}", file.errors);
+        assert_eq!(file.entries.len(), 3);
+        assert_eq!(
+            file.entries[0].pattern_setup,
+            Some(serde_json::json!({ "pattern": "select", "setup": "with-value" }))
+        );
+        assert_eq!(
+            file.entries[0].contexts,
+            Some(serde_json::json!({
+                "viewport": { "minWidth": 640 },
+                "reason": "Desktop layout only."
+            }))
+        );
+        assert_eq!(file.entries[0].play, Presence::Absent);
+        assert_eq!(
+            file.entries[1].pattern_setup,
+            Some(serde_json::json!({ "library": "acme", "pattern": "select", "setup": "open" }))
+        );
+        assert_eq!(file.entries[1].play, Presence::Present);
+        assert_eq!(
+            file.entries[2].pattern_setup,
+            Some(serde_json::json!({ "pattern": "select", "setup": "assigned" }))
+        );
+        assert_eq!(file.entries[2].play, Presence::Present);
+    }
+
+    #[test]
+    fn preserves_specimen_parameters_beside_non_json_siblings_and_respects_spread_override() {
+        let file = read(
+            "import { sharedParams } from './shared';\n\
+             const override = {\n\
+               parameters: {\n\
+                 specimen: {\n\
+                   patternSetup: { pattern: 'select', setup: 'from-spread' },\n\
+                 },\n\
+               },\n\
+             };\n\
+             export default {\n\
+               title: 'Components/Select',\n\
+               parameters: {\n\
+                 ...sharedParams,\n\
+                 controls: { matchers: { color: /background/i } },\n\
+                 docs: { source: { transform: (src) => src } },\n\
+                 specimen: {\n\
+                   patternSetup: { pattern: 'select', setup: 'default' },\n\
+                   contexts: { themes: ['dark'], reason: 'Dark mode only.' },\n\
+                 },\n\
+               },\n\
+             };\n\
+             export const WithSiblingRegex = {\n\
+               parameters: {\n\
+                 actions: { argTypesRegex: /^on.*/ },\n\
+                 specimen: { patternSetup: { setup: 'sibling-safe' } },\n\
+               },\n\
+             };\n\
+             export const SpreadWins = {\n\
+               parameters: {\n\
+                 specimen: { patternSetup: { pattern: 'select', setup: 'earlier-literal' } },\n\
+               },\n\
+               ...override,\n\
+             };\n",
+        );
+        assert!(file.errors.is_empty(), "{:?}", file.errors);
+        assert_eq!(file.entries.len(), 2);
+        assert_eq!(
+            file.entries[0].pattern_setup,
+            Some(serde_json::json!({ "pattern": "select", "setup": "sibling-safe" }))
+        );
+        assert_eq!(
+            file.entries[0].contexts,
+            Some(serde_json::json!({ "themes": ["dark"], "reason": "Dark mode only." }))
+        );
+        assert_eq!(
+            file.entries[1].pattern_setup,
+            Some(serde_json::json!({ "pattern": "select", "setup": "from-spread" }))
+        );
+    }
+
+    #[test]
+    fn rejects_unindexable_files() {
         for (source, error) in [
             ("export const A = {};", "missing default export"),
             (

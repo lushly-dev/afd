@@ -46,6 +46,8 @@ export default defineConfig({
 				'src/pack.ts',
 				'src/pack-files.ts',
 				'src/pack-schema.ts',
+				'src/pattern-schema.ts',
+				'src/patterns.ts',
 				'src/png.ts',
 				'src/pointer.ts',
 				'src/themes.ts',
