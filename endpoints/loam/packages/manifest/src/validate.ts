@@ -4,6 +4,7 @@
  */
 
 export { needsInput } from './core-rules.js';
+export { fromJsonSchema, stripOwnProto } from './json-schema.js';
 export { deriveMutation, mountCommandName } from './naming.js';
 export { keyOf } from './pointers.js';
 export { readCoreManifest } from './read-core-manifest.js';

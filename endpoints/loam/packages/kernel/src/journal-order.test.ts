@@ -39,7 +39,7 @@ function harness(replaying = false) {
 	const log: string[] = [];
 	async function call(traceId: string, options: Options = {}): Promise<CommandResult> {
 		const { mutation = false, top = true, external = true, name = 'book-list' } = options;
-		order.begin(traceId, mutation, top ? {} : { parent: 'outer' }, !external);
+		order.begin(traceId, mutation, top ? {} : { parent: 'outer' }, !external, name);
 		const context = {
 			traceId,
 			...(options.signal ? { signal: options.signal } : {}),
@@ -108,7 +108,7 @@ describe('journal-order (#1936)', () => {
 		expect(log).toEqual(['w', 'r']);
 	});
 
-	it('holds a write for an earlier read of the same resource so the read journals first (#2117 WAR)', async () => {
+	it('holds a write for an earlier read of the same resource so the read journals first (#2117 WAR, #1045)', async () => {
 		const { log, call } = harness();
 		const readIssued = deferred();
 		const releaseRead = deferred();
@@ -140,6 +140,7 @@ describe('journal-order (#1936)', () => {
 		releaseRead.resolve();
 		await Promise.all([write, read]);
 		expect(log).toEqual(['r', 'w']);
+		// And an early read that finishes quickly is never held by a slow later write.
 		const { log: second, call: again } = harness();
 		const earlyRead = deferred();
 		const writeIssued = deferred();
@@ -167,7 +168,49 @@ describe('journal-order (#1936)', () => {
 		expect(second).toEqual(['r', 'w']);
 	});
 
-	it('never holds a write, a nested call, the kernel’s own call or an unjournaled read', async () => {
+	it('orders two concurrent writes to the same instance and breaks cycles safely (#1045)', async () => {
+		const { log, call } = harness();
+		let secondWrite: Promise<unknown> | undefined;
+		await call('w1', {
+			mutation: true,
+			name: 'book-sign',
+			handler: async (store) => {
+				store.wrote();
+				secondWrite = call('w2', {
+					mutation: true,
+					name: 'book-sign',
+					handler: async (own) => own.wrote(),
+				});
+			},
+			after: () => tick(10),
+		});
+		await secondWrite;
+		expect(log).toEqual(['w1', 'w2']);
+
+		// A read that reads both before and after a write cannot deadlock (acyclic wait graph).
+		const { log: cyclic, call: run } = harness();
+		let read: Promise<unknown> | undefined;
+		await run('w', {
+			mutation: true,
+			name: 'book-sign',
+			handler: async (store) => {
+				read = run('r', {
+					handler: async (own) => {
+						own.read();
+						await tick(10);
+						own.read();
+					},
+				});
+				await tick(1);
+				store.wrote();
+			},
+			after: tick,
+		});
+		await read;
+		expect(cyclic).toEqual(['r', 'w']);
+	});
+
+	it('never holds a non-writing mutation, a nested call, the kernel’s own call or an unjournaled read', async () => {
 		const { log, call } = harness();
 		const started: Promise<unknown>[] = [];
 		const write = call('w', {

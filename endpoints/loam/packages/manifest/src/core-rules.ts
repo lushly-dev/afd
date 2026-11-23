@@ -4,8 +4,8 @@
  * in that page's `rules` section runs through this code.
  */
 
-import { z } from 'zod';
 import { AFD_CONTRACT } from './_generated/facts.js';
+import { fromJsonSchema } from './json-schema.js';
 import { needsInputShape } from './needs-input.js';
 import { unfaithful } from './schema-fidelity.js';
 import { saysShellName } from './shell-name.js';
@@ -92,10 +92,10 @@ export function toolMetaAllowed(key: string, value: unknown): boolean {
 	);
 }
 
-/** Loam's AFD checker: `z.fromJSONSchema` refuses keywords JSON Schema allows. */
+/** Loam's AFD checker: `fromJsonSchema` refuses keywords Zod's JSON Schema converter rejects. */
 function zodAccepts(schema: object): boolean {
 	try {
-		z.fromJSONSchema(schema as Parameters<typeof z.fromJSONSchema>[0]);
+		fromJsonSchema(schema);
 		return true;
 	} catch {
 		return false;
@@ -116,8 +116,7 @@ export function needsInput(schema: unknown): boolean {
 	if (!isObject(schema)) return false;
 	if (needsInputShape(schema)) return true;
 	try {
-		return !z.fromJSONSchema(schema as Parameters<typeof z.fromJSONSchema>[0]).safeParse({})
-			.success;
+		return !fromJsonSchema(schema).safeParse({}).success;
 	} catch {
 		return false;
 	}
@@ -136,15 +135,17 @@ export function inputSchemaProblem(schema: unknown): SchemaProblem | undefined {
 	return checkerProblem(schema);
 }
 
-/** The shape, then Loam's AFD checker, then what that checker would accept and not honour. */
+/** The shape, then what the checker would accept and not honour, then Loam's AFD checker. */
 function checkerProblem(schema: Json): SchemaProblem | undefined {
 	if (!validSchema(schema)) return ['it is not a valid JSON Schema'];
-	if (!zodAccepts(schema)) return ["it uses a keyword Loam's AFD checker refuses"];
 	try {
-		return unfaithful(schema);
+		const problem = unfaithful(schema);
+		if (problem) return problem;
 	} catch {
 		return ['it is not a valid JSON Schema'];
 	}
+	if (!zodAccepts(schema)) return ["it uses a keyword Loam's AFD checker refuses"];
+	return undefined;
 }
 
 function configSchemaProblem(schema: unknown): SchemaProblem | undefined {

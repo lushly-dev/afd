@@ -9,9 +9,9 @@
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { z } from 'zod';
 import { coreRules, inputSchemaProblem, needsInput } from './core-rules.js';
 import { documentRules } from './document-rules.js';
+import { fromJsonSchema } from './json-schema.js';
 import { needsInputShape } from './needs-input.js';
 import { unfaithful } from './schema-fidelity.js';
 
@@ -54,8 +54,7 @@ function renamed(schema: object, from: string, to: string): Validate {
 /** The kernel's answer: accepted, refused, or a throw, which refuses the call. */
 function kernel(schema: object, input: unknown): boolean | 'throws' {
 	try {
-		return z.fromJSONSchema(schema as Parameters<typeof z.fromJSONSchema>[0]).safeParse(input)
-			.success;
+		return fromJsonSchema(schema).safeParse(input).success;
 	} catch {
 		return 'throws';
 	}
@@ -118,8 +117,8 @@ interface Row {
 }
 
 /** The table's size, so a report of it can be checked. */
-const ACCEPTED = 47;
-const REFUSED = 76;
+const ACCEPTED = 53;
+const REFUSED = 71;
 
 const TABLE: Row[] = [
 	// `required` and `minProperties` in branches: the follow-up itself.
@@ -626,8 +625,14 @@ const TABLE: Row[] = [
 	{
 		construct: 'pattern with a Unicode property escape',
 		schema: property({ type: 'string', pattern: '^\\p{L}+$' }),
-		refused: 'pattern',
+		refused: null,
 		inputs: [{ v: 'é' }, { v: 'p{L}' }],
+	},
+	{
+		construct: 'pattern invalid under the u flag',
+		schema: property({ type: 'string', pattern: 'a\\-b' }),
+		refused: 'pattern',
+		inputs: [{ v: 'a-b' }],
 	},
 	// What Zod reads as JSON Schema does.
 	{
@@ -723,13 +728,13 @@ const TABLE: Row[] = [
 			patternProperties: { '^\\p{L}$': { type: 'number' } },
 			additionalProperties: false,
 		},
-		refused: 'patternProperties',
+		refused: null,
 		inputs: [{ é: 1 }, { 'p{L}': 1 }],
 	},
 	{
 		construct: 'a patternProperties key with a property escape, open',
 		schema: { type: 'object', patternProperties: { '^\\p{L}$': { type: 'number' } } },
-		refused: 'patternProperties',
+		refused: null,
 		inputs: [{ é: 's' }, { 'p{L}': 's' }],
 	},
 	{
@@ -741,19 +746,19 @@ const TABLE: Row[] = [
 	{
 		construct: 'a pattern with a character beyond U+FFFF in a class',
 		schema: property({ type: 'string', pattern: '^[😀]$' }),
-		refused: 'pattern',
+		refused: null,
 		inputs: [{ v: '😀' }],
 	},
 	{
 		construct: 'a pattern quantifying a character beyond U+FFFF',
 		schema: property({ type: 'string', pattern: '^😀+$' }),
-		refused: 'pattern',
+		refused: null,
 		inputs: [{ v: '😀😀' }],
 	},
 	{
 		construct: 'a pattern with surrogate escapes in a class',
 		schema: property({ type: 'string', pattern: '^[\\uD83D\\uDE00]$' }),
-		refused: 'pattern',
+		refused: null,
 		inputs: [{ v: '😀' }],
 	},
 	{
@@ -1154,29 +1159,186 @@ describe('the input-schema rule against the kernel and a reference', () => {
 });
 
 /**
- * Accepted schemas that still differ on these inputs. Each is narrow, and recorded in the documents
- * specification's Follow-ups: the rule cannot refuse `pattern` or `integer`, and the fix is the kernel's.
+ * The three differences #871 closed in the kernel's validator (`fromJsonSchema`), pinned beside Ajv:
+ * `u`-flag patterns, integers above 2^53 and an input's own `__proto__` key.
  */
-describe('known differences, pinned', () => {
-	it('`.` in a pattern meets half of an astral character, with no `u` flag', () => {
-		const schema = property({ type: 'string', pattern: '^.$' });
-		expect(inputSchemaProblem(schema)).toBeUndefined();
-		expect(kernel(schema, { v: '😀' })).toBe(false);
-		expect(reference.validate(schema, { v: '😀' })).toBe(true);
-	});
-
-	it('`\\S` and `[^a]` meet half of an astral character, with no `u` flag', () => {
-		for (const pattern of ['^\\S$', '^[^a]$']) {
+describe('closed differences (#871)', () => {
+	it('compiles `pattern` with the `u` flag so `.`, `\\S`, `\\W`, `\\D`, negated classes and Unicode escape ranges match Ajv', () => {
+		for (const pattern of ['^.$', '^\\S$', '^\\W$', '^\\D$', '^[^a]$']) {
 			const schema = property({ type: 'string', pattern });
 			expect(inputSchemaProblem(schema)).toBeUndefined();
-			expect(kernel(schema, { v: '😀' })).toBe(false);
-			expect(reference.validate(schema, { v: '😀' })).toBe(true);
+			expect(kernel(schema, { v: '😀' }), pattern).toBe(true);
+			expect(reference.validate(schema, { v: '😀' }), pattern).toBe(true);
+			expect(kernel(schema, { v: '😀😀' }), pattern).toBe(false);
+			expect(reference.validate(schema, { v: '😀😀' }), pattern).toBe(false);
 		}
+		// Unicode escape character-class ranges require `u` at compile time (`zodAccepts` uses `fromJsonSchema`).
+		for (const [pattern, good, bad] of [
+			['^[\\u{61}-\\u{7a}]+$', 'abc', 'ABC'],
+			['^[\\u{1F600}-\\u{1F64F}]+$', '😀😁', 'a'],
+		] as const) {
+			const schema = property({ type: 'string', pattern });
+			expect(inputSchemaProblem(schema), pattern).toBeUndefined();
+			expect(kernel(schema, { v: good }), pattern).toBe(true);
+			expect(reference.validate(schema, { v: good }), pattern).toBe(true);
+			expect(kernel(schema, { v: bad }), pattern).toBe(false);
+			expect(reference.validate(schema, { v: bad }), pattern).toBe(false);
+		}
+		// Inside `anyOf`, where an outer wrapper alone would fail.
+		const branched = property({ anyOf: [{ type: 'string', pattern: '^.$' }, { type: 'number' }] });
+		expect(kernel(branched, { v: '😀' })).toBe(true);
+		expect(kernel(branched, { v: '😀😀' })).toBe(false);
 	});
 
-	it('an integer above 2^53 is refused, which JSON numbers cannot carry exactly anyway', () => {
+	it('still refuses unsupported keywords beside `pattern` or `integer`', () => {
+		const conditional = JSON.parse(
+			'{"type":"object","properties":{"v":{"type":"string","pattern":"^.$"}},"if":{"type":"object","required":["v"]},"then":{"type":"object"}}'
+		) as Record<string, unknown>;
+		expect(inputSchemaProblem(conditional)).toBeDefined();
+		expect(() => fromJsonSchema(conditional)).toThrow();
+	});
+
+	it('keeps `type: "object"` active on `oneOf` with non-object branches while keeping closed tagged unions closed', () => {
+		const mixedOneOf = {
+			type: 'object',
+			oneOf: [{ type: 'string', pattern: '^.$' }, { type: 'integer' }],
+		};
+		expect(inputSchemaProblem(mixedOneOf)).toBeUndefined();
+		expect(kernel(mixedOneOf, 'a')).toBe(false);
+		expect(reference.validate(mixedOneOf, 'a')).toBe(false);
+		expect(kernel(mixedOneOf, 42)).toBe(false);
+		expect(reference.validate(mixedOneOf, 42)).toBe(false);
+
+		const taggedUnion = {
+			type: 'object',
+			oneOf: [
+				{
+					type: 'object',
+					properties: { kind: { const: 'a' }, v: { type: 'string', pattern: '^.$' } },
+					required: ['kind', 'v'],
+					additionalProperties: false,
+				},
+				{
+					type: 'object',
+					properties: { kind: { const: 'b' }, n: { type: 'integer' } },
+					required: ['kind', 'n'],
+					additionalProperties: false,
+				},
+			],
+		};
+		expect(inputSchemaProblem(taggedUnion)).toBeUndefined();
+		expect(kernel(taggedUnion, { kind: 'a', v: '😀' })).toBe(true);
+		expect(kernel(taggedUnion, { kind: 'b', n: 2 ** 60 })).toBe(true);
+		expect(kernel(taggedUnion, { kind: 'a', v: '😀', extra: 1 })).toBe(false);
+		expect(kernel(taggedUnion, JSON.parse('{"kind":"a","v":"😀","__proto__":1}'))).toBe(false);
+	});
+
+	it('compiles `patternProperties` with the `u` flag', () => {
+		const schema = {
+			type: 'object',
+			patternProperties: { '^.$': { type: 'number' } },
+			additionalProperties: false,
+		};
+		expect(inputSchemaProblem(schema)).toBeUndefined();
+		expect(kernel(schema, { '😀': 1 })).toBe(true);
+		expect(reference.validate(schema, { '😀': 1 })).toBe(true);
+		expect(kernel(schema, { '😀': 'bad' })).toBe(false);
+		expect(reference.validate(schema, { '😀': 'bad' })).toBe(false);
+	});
+
+	it('accepts finite integers above 2^53 and still rejects fractions and non-finite numbers', () => {
 		const schema = property({ type: 'integer' });
-		expect(kernel(schema, { v: 2 ** 60 })).toBe(false);
-		expect(reference.validate(schema, { v: 2 ** 60 })).toBe(true);
+		expect(inputSchemaProblem(schema)).toBeUndefined();
+		for (const value of [2 ** 60, -(2 ** 60), 0, -0, 42]) {
+			expect(kernel(schema, { v: value }), String(value)).toBe(true);
+			expect(reference.validate(schema, { v: value }), String(value)).toBe(true);
+		}
+		for (const value of [1.5, -0.1, Number.POSITIVE_INFINITY, Number.NaN]) {
+			expect(kernel(schema, { v: value }), String(value)).toBe(false);
+		}
+		const nullable = property({ type: ['integer', 'null'] });
+		expect(kernel(nullable, { v: 2 ** 60 })).toBe(true);
+		expect(kernel(nullable, { v: null })).toBe(true);
+		expect(kernel(nullable, { v: 1.5 })).toBe(false);
+	});
+
+	it('checks `uniqueItems` on the raw array before item defaults apply', () => {
+		const schema = property({
+			type: 'array',
+			uniqueItems: true,
+			items: {
+				type: 'object',
+				properties: {
+					a: { type: 'string', default: 'x' },
+					n: { type: 'integer' },
+				},
+				required: ['n'],
+			},
+		});
+		const input = { v: [{ n: 1 }, { a: 'x', n: 1 }] };
+		expect(kernel(schema, input)).toBe(true);
+		expect(reference.validate(schema, input)).toBe(true);
+	});
+
+	it('enforces `additionalProperties` and `patternProperties` on an own `__proto__` key, preserves defaults and strips `__proto__`', () => {
+		const strict = {
+			type: 'object',
+			properties: { a: { type: 'string' } },
+			additionalProperties: false,
+		};
+		const patternClosed = {
+			type: 'object',
+			properties: { a: { type: 'string' } },
+			patternProperties: { '^x': { type: 'number' } },
+			additionalProperties: false,
+		};
+		const patternMatching = {
+			type: 'object',
+			patternProperties: { '^_': { type: 'number' } },
+		};
+		const patternNested = {
+			type: 'object',
+			additionalProperties: false,
+			patternProperties: {
+				'^x_': {
+					type: 'object',
+					properties: {
+						ok: { type: 'number' },
+						tag: { type: 'string', default: 'def' },
+					},
+				},
+			},
+		};
+		const catchall = {
+			type: 'object',
+			properties: { a: { type: 'string' } },
+			additionalProperties: { type: 'number' },
+		};
+		const withBadProto = JSON.parse('{"a":"x","__proto__":"bad"}');
+		const withNumProto = JSON.parse('{"a":"x","__proto__":1}');
+		const withPatternClosedProto = JSON.parse('{"x1":1,"__proto__":1}');
+
+		expect(kernel(strict, withNumProto)).toBe(false);
+		expect(kernel(patternClosed, withPatternClosedProto)).toBe(false);
+		expect(kernel(patternMatching, withBadProto)).toBe(false);
+		expect(kernel(catchall, withBadProto)).toBe(false);
+
+		const matched = fromJsonSchema(patternMatching).safeParse(withNumProto);
+		expect(matched.success).toBe(true);
+		if (matched.success) expect(Object.hasOwn(matched.data as object, '__proto__')).toBe(false);
+
+		const nested = fromJsonSchema(patternNested).safeParse(
+			JSON.parse('{"x_1":{"ok":1,"__proto__":{"polluted":true}}}')
+		);
+		expect(nested.success).toBe(true);
+		if (nested.success) {
+			const item = (nested.data as Record<string, Record<string, unknown>>).x_1;
+			expect(item).toEqual({ ok: 1, tag: 'def' });
+			expect(Object.hasOwn(item ?? {}, '__proto__')).toBe(false);
+		}
+
+		const caught = fromJsonSchema(catchall).safeParse(withNumProto);
+		expect(caught.success).toBe(true);
+		if (caught.success) expect(Object.hasOwn(caught.data as object, '__proto__')).toBe(false);
 	});
 });

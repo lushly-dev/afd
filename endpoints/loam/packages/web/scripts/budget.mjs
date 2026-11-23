@@ -637,7 +637,9 @@ export const CEILINGS = Object.freeze({
 	// (gzip 107,828, within 108,100); set to 341,600 under D115.
 	// Raised under D115 by #2117 (cycle-free RAW/WAR `journal-order.ts`, `track` for hosted MCP, `suspend`):
 	// measured 342,980 against `main` at `804e17cc`; set to 343,500.
-	jsMinified: 343_500,
+	// Raised under D115 by #1045 (WAW ordering in `journal-order.ts`) and #1634 (`waitForLock` in `host.ts` and
+	// `main.ts`), merged on `main` at `bfa42bff`: set to 344,000.
+	jsMinified: 344_000,
 	// Raised from 96,500 to 97,000 under D115 by phase 4's step 4 with `main` at `8c3425d8` (phase 5's step 0b) merged,
 	// both measured from clean builds in one tree: 96,436 to 96,527 gzip (+91) and 309,074 to 309,275 minified (+201,
 	// within its row): the answer registry the `surfaces` and `editor` chunks share, in `events` (+180), and 21 in `layout`.
@@ -667,6 +669,7 @@ export const CEILINGS = Object.freeze({
 	// measured 107,631; set to 108,100 under D115.
 	// Bug batch #2111/#2112 merged with `main` at `9c3f9f24`: 107,828, within 108,100.
 	// #2117 (`journal-order.ts` RAW/WAR DAG, `track`, `suspend`) on `main` at `804e17cc`: measured 108,293; set to 108,800 under D115.
+	// #1045 and #1634 merged on `main` at `bfa42bff`: within 108,800.
 	jsGzip: 108_800,
 	// Raised from 8,496 to 10,500 by AFD's theme, Refined (D159, D115): `loam-theme.css` 8,217 to 8,431 (+214, the
 	// longer shadows and the three font stacks), and the theme's typefaces' `@font-face` rules, 1,820, the first
@@ -717,6 +720,7 @@ export const CEILINGS = Object.freeze({
 	// measured 153,404; set to 153,900 under D115.
 	// Bug batch #2111/#2112 merged with `main` at `9c3f9f24`: 154,150 (stage A `boot.gated` and lazily hydrated project layout reconciliation in `shell-state.ts`); set to 154,600 under D115.
 	// #2117 (`journal-order.ts` RAW/WAR DAG, `track`, `suspend`, `emit` helper) on `main` at `804e17cc`: measured 156,690; set to 157,200 under D115.
+	// #1045 (WAW ordering in `journal-order.ts`) merged on `main` at `bfa42bff`: within 157,200.
 	kernelMinified: 157_200,
 	// Phase 4's steps 2 (+1,494) and 3 (+8,786) together: 92,316 measured with both merged; set to 93,000.
 	// Phase 4's step 5: 93,596, the inbox's wiring (above); set to 94,000.
@@ -821,7 +825,10 @@ export const CEILINGS = Object.freeze({
 	// #2137 (step 5's follow-ups), against `main` at `e28d5629`: 464,046 (+678: the preview's walk bound, the dispose
 	// checks, the era's words for `http`); set to 464,600 under D115.
 	// Bug batch #2111/#2112 merged with `main` at `dbc84611`: 464,400, within 464,600.
-	appsMinified: 464_600,
+	// #871 (`fromJsonSchema` + `stripOwnProto` in `@lushly-dev/loam-manifest/validate` and parsed config) and #876 (native
+	// handler deadline and post-timeout/commit-time store/client guard in `native.ts`/`store.ts`), merged on `main` at
+	// `276855fc`: set to 474,000 under D115.
+	appsMinified: 474_000,
 	// Steps 4 and 5 together: 94,868 (step 4's slot and dialogs beside the inbox's Open inbox and hidden toasts' timers);
 	// set to 95,500 under D115.
 	// Phase 5's step 3 with phase 3's step 8 merged (`main` at `46f7ab11`; step 8's `surface-calls`, shared with

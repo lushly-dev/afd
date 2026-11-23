@@ -7820,10 +7820,26 @@
 					}
 				}
 			},
+			"accepted": true
+		},
+		{
+			"id": "input-schema-pattern-invalid-unicode",
+			"base": "native",
+			"set": {
+				"/commands/0/input_schema": {
+					"type": "object",
+					"properties": {
+						"name": {
+							"type": "string",
+							"pattern": "a\\-b"
+						}
+					}
+				}
+			},
 			"accepted": false,
 			"code": "MANIFEST_INPUT_SCHEMA_INVALID",
 			"key": "commands[0].input_schema",
-			"suggestion": "valid with and without the `u` flag"
+			"suggestion": "compiles with the JavaScript `u` flag"
 		},
 		{
 			"id": "input-schema-min-items-without-items",

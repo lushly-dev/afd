@@ -27,7 +27,7 @@ export const JOURNAL_NAME = 'loam-journal';
 export const OTHER_TAB_NOTICE = {
 	heading: 'Loam is open in another tab',
 	message:
-		'Loam keeps one journal per browser profile. Use the other tab, or close it and reload this one.',
+		'Loam keeps one journal per browser profile. Use the other tab, or close it and this tab will open.',
 } as const;
 
 /** `window.matchMedia` as the kernel's environment. */
@@ -85,10 +85,19 @@ export type HostKernel =
 			/** What the desktop's inbound dispatcher reads (phase 6 specification, 10.8). */
 			inboundCommands: KernelParts['inboundCommands'];
 	  }
-	| { kind: 'locked'; error: IndexedDbJournalError };
+	| {
+			kind: 'locked';
+			error: IndexedDbJournalError;
+			/**
+			 * Keep a blocking Web Lock request until the writer lock is free, then try again to open the host kernel
+			 * (#1634). Resolves to `'ready'`, or `'locked'` again if another tab won the race.
+			 */
+			waitForLock(signal?: AbortSignal): Promise<HostKernel>;
+	  };
 
 /** Take the journal's writer lock, then create the kernel over the IndexedDB stores. */
 export async function createHostKernel(options: HostKernelOptions): Promise<HostKernel> {
+	const locks = options.locks ?? globalThis.navigator?.locks;
 	const journal = new IndexedDbJournalSink({
 		name: JOURNAL_NAME,
 		...(options.indexedDB ? { indexedDB: options.indexedDB } : {}),
@@ -103,7 +112,29 @@ export async function createHostKernel(options: HostKernelOptions): Promise<Host
 			if (!(error instanceof IndexedDbJournalError) || error.code !== 'JOURNAL_LOCKED') throw error;
 			if (Date.now() >= deadline) {
 				await journal.close();
-				return { kind: 'locked', error };
+				return {
+					kind: 'locked',
+					error,
+					async waitForLock(signal?: AbortSignal): Promise<HostKernel> {
+						const checkAborted = (): void => {
+							if (signal?.aborted) {
+								throw signal.reason ?? new DOMException('Aborted', 'AbortError');
+							}
+						};
+						checkAborted();
+						if (locks) {
+							if (signal) await locks.request(journal.lockName, { signal }, () => undefined);
+							else await locks.request(journal.lockName, () => undefined);
+						}
+						checkAborted();
+						const next = await createHostKernel(options);
+						if (signal?.aborted) {
+							if (next.kind === 'ready') await next.journal.close();
+							throw signal.reason ?? new DOMException('Aborted', 'AbortError');
+						}
+						return next;
+					},
+				};
 			}
 			await new Promise((resolve) => setTimeout(resolve, LOCK_RETRY_MS));
 		}

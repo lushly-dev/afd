@@ -17,7 +17,8 @@ import {
 import { type DataAdapter, MemoryAdapter } from '@lushly-dev/local-db';
 import { IndexedDbAdapter } from '@lushly-dev/local-db/indexeddb';
 import { IDBFactory } from 'fake-indexeddb';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { NATIVE_HANDLER_TIMEOUT_MS } from '../apps/index.js';
 import type { AppStoreRecord } from '../apps/store.js';
 import { EMPTY_APPS } from '../apps-runtime.js';
 import { createBootCommands } from '../boot-commands.js';
@@ -1471,5 +1472,130 @@ describe("phase 4's section 11: a document's content is charged to its type's st
 		now += 31 * 86_400_000;
 		await documents({ store, clock });
 		expect(await usedOf(store)).toBe(0);
+	});
+});
+
+describe('native handler document-chain deadline (#876)', () => {
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it('times out a hanging native document mutation, releases the chain for rename/move/trash/restore, and blocks late store writes', async () => {
+		let wakeHandler: (() => void) | undefined;
+		let lateWriteError: unknown;
+		let abortedByDeadline = false;
+		const basePorts = documentsPorts();
+		const hangingPorts = {
+			...basePorts,
+			async importNative(url: string) {
+				const def = await basePorts.importNative(url);
+				if (!url.includes('/probe/')) return def;
+				return {
+					...def,
+					handlers: {
+						...def.handlers,
+						'probe-content-set': async (
+							input: { document: string; text: string },
+							context: {
+								signal?: AbortSignal;
+								store?: { put(key: string, value: unknown): Promise<void> };
+							}
+						) => {
+							context.signal?.addEventListener('abort', () => {
+								abortedByDeadline = true;
+							});
+							await new Promise<void>((resolve) => {
+								wakeHandler = resolve;
+							});
+							try {
+								await context.store?.put(documentContentKey(input.document), { text: input.text });
+							} catch (error) {
+								lateWriteError = error;
+							}
+							return { success: true, data: { text: input.text } };
+						},
+					},
+				};
+			},
+		};
+
+		const store = new MemoryAdapter();
+		const workspace = await documents({ store, ports: hangingPorts });
+		const { kernel, scopes } = workspace;
+		const at = { scope: scopes.atlas };
+		const record = await created(workspace, { type: 'probe', title: 'Initial' }, scopes.atlas);
+		const initialUpdatedAt = record.updatedAt;
+
+		// First, verify a standalone timed-out handler does not stamp `updatedAt`.
+		vi.useFakeTimers();
+		const soloHang = kernel.call(
+			'probe-content-set',
+			{ document: record.id, text: 'Never stamped' },
+			at
+		);
+		await vi.advanceTimersByTimeAsync(NATIVE_HANDLER_TIMEOUT_MS + 1);
+		const soloResult = await soloHang;
+		expect(soloResult.success).toBe(false);
+		expect(soloResult.error?.code).toBe('HANDLER_TIMEOUT');
+		const afterSolo = await kernel.call<DocumentRecordV1>(
+			'document-get',
+			{ document: record.id },
+			at
+		);
+		expect(afterSolo.data?.updatedAt).toBe(initialUpdatedAt);
+		wakeHandler?.();
+		await vi.advanceTimersByTimeAsync(1);
+		abortedByDeadline = false;
+		lateWriteError = undefined;
+
+		// Next, verify queued document operations proceed once the chain is released on timeout.
+		const hanging = kernel.call(
+			'probe-content-set',
+			{ document: record.id, text: 'Stale write after timeout' },
+			at
+		);
+		const rename = kernel.call('document-rename', { document: record.id, title: 'Renamed' }, at);
+		const move = kernel.call('document-move', { document: record.id, project: 'beacon' }, at);
+		const trash = kernel.call('document-trash', { document: record.id }, { scope: scopes.beacon });
+		const restore = kernel.call(
+			'document-restore',
+			{ document: record.id },
+			{ scope: scopes.beacon }
+		);
+
+		await vi.advanceTimersByTimeAsync(NATIVE_HANDLER_TIMEOUT_MS + 1);
+		const timedOut = await hanging;
+		expect(timedOut.success).toBe(false);
+		expect(timedOut.error?.code).toBe('HANDLER_TIMEOUT');
+		expect(timedOut.error?.retryable).toBe(true);
+		expect(abortedByDeadline).toBe(true);
+
+		// Every queued document operation now runs once the chain is released.
+		const renamed = await rename;
+		expect(renamed.success).toBe(true);
+		expect((renamed.data as DocumentRecordV1).title).toBe('Renamed');
+
+		const moved = await move;
+		expect(moved.success).toBe(true);
+		expect((moved.data as DocumentRecordV1).scope.project).toBe(scopes.beacon.project);
+
+		const trashed = await trash;
+		expect(trashed.success).toBe(true);
+		expect((trashed.data as DocumentRecordV1).status).toBe('trashed');
+
+		const restored = await restore;
+		expect(restored.success).toBe(true);
+		expect((restored.data as DocumentRecordV1).status).toBe('active');
+
+		// If the timed-out native handler later wakes up and tries to write, the store rejects it.
+		wakeHandler?.();
+		await vi.advanceTimersByTimeAsync(1);
+		expect(lateWriteError).toMatchObject({ code: 'HANDLER_TIMEOUT' });
+		const readBack = await kernel.call<{ content: { text?: string } | null }>(
+			'probe-content-get',
+			{ document: record.id },
+			{ scope: scopes.beacon }
+		);
+		expect(readBack.data?.content?.text).not.toBe('Stale write after timeout');
 	});
 });

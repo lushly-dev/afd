@@ -18,8 +18,12 @@ import {
 	NOTICES_V1,
 	SHELL_DOMAINS_V1,
 } from '@lushly-dev/loam-manifest';
-import { keyOf, readDeployment, readManifest } from '@lushly-dev/loam-manifest/validate';
-import { z } from 'zod';
+import {
+	fromJsonSchema,
+	keyOf,
+	readDeployment,
+	readManifest,
+} from '@lushly-dev/loam-manifest/validate';
 import { parseManifestToml } from './check.js';
 import { isWithin, realish } from './tree.js';
 
@@ -166,9 +170,7 @@ function configFindings(
 	if (schema === undefined) {
 		return entry.config === undefined ? [] : refuse('This app declares no `config.schema`.');
 	}
-	const parsed = z
-		.fromJSONSchema(schema as Parameters<typeof z.fromJSONSchema>[0])
-		.safeParse(entry.config ?? {});
+	const parsed = fromJsonSchema(schema).safeParse(entry.config ?? {});
 	if (parsed.success) return [];
 	// The paths and rules, never the values: a config may hold what a log should not.
 	const issues = parsed.error.issues.map(
