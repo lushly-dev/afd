@@ -25,6 +25,7 @@ import type {
 	Clock,
 	CommandContext,
 	CommandError,
+	CommandExample,
 	CommandMiddleware,
 	CommandResult,
 	ExposeOptions,
@@ -256,7 +257,15 @@ export interface DirectRegistryCommand {
 	category?: string;
 	mutation?: boolean;
 	destructive?: boolean;
+	/** Custom confirmation prompt for destructive commands, when set. */
+	confirmPrompt?: string;
 	undoable?: boolean;
+	/** Commands that should be called before this one, when declared. */
+	requires?: string[];
+	/** Categorization tags, when declared. */
+	tags?: string[];
+	/** Concrete input examples, when declared. */
+	examples?: CommandExample[];
 	/** JSON Schema of the command input. */
 	inputSchema: JsonSchema;
 }
@@ -549,7 +558,13 @@ export function createDirectRegistry(
 				category: command.category,
 				mutation: command.mutation,
 				destructive: command.destructive,
+				...(command.confirmPrompt !== undefined && { confirmPrompt: command.confirmPrompt }),
 				undoable: command.undoable,
+				...(command.requires?.length && { requires: [...command.requires] }),
+				...(command.tags?.length && { tags: [...command.tags] }),
+				...(command.examples?.length && {
+					examples: structuredClone(command.examples),
+				}),
 				inputSchema: command.jsonSchema,
 			}));
 		},

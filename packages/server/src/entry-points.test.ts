@@ -289,6 +289,10 @@ const HOST_IMPORTS =
  *   Execution controls enforcement (#2128, under D115): `checkBatchLimits` in `command-execution.ts`
  *   and `DEFAULT_MAX_VALIDATION_ISSUES` truncation in `validation.ts` / `execution.ts` merged on
  *   `main` at `804e17cc3` (`command-timeout.ts` stays outside `/direct`).
+ *   DirectRegistryCommand metadata (#2274, under D115): carrying `confirmPrompt`, `requires`,
+ *   `tags`, and `examples` in `direct-registry.ts` brings the approval bundle on `main` at
+ *   `bc316e8e4` (esbuild 0.28.2) to 64,203 bytes (raised 64,200 → 64,600); host (50,347),
+ *   tool-surface (88,450), and every-export (114,344) stay within their ceilings.
  * - 48.0 KB for a host that also imports `createApprovalMiddleware`.
  * - 68.6 KB for a host that also imports `createDirectToolSurface`: the router, the tool
  *   list, the meta-tools, `lazy-tools` and `bootstrap/`.
@@ -306,7 +310,7 @@ const DIRECT_BUDGETS = [
 	{
 		what: 'the same host with the approval middleware',
 		imports: `${HOST_IMPORTS}, createApprovalMiddleware`,
-		bytes: 64_200,
+		bytes: 64_600,
 	},
 	{
 		what: 'a host with the tool surface',

@@ -8,7 +8,7 @@ import { isSuccess } from '@lushly-dev/afd-core';
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import { createDirectClient, type DirectRegistry, isUnknownToolError } from './direct.js';
 import { isEnforceableTimeout, runWithTimeout } from './direct-timeout.js';
-import type { UnknownToolError } from './unknown-tool.js';
+import type { UnknownToolError, UnknownToolFailureResult } from './unknown-tool.js';
 
 interface Todo {
 	id: string;
@@ -288,7 +288,8 @@ describe('isUnknownToolError', () => {
 
 		expect(isUnknownToolError(result)).toBe(true);
 		if (isUnknownToolError(result)) {
-			expectTypeOf(result).toEqualTypeOf<CommandResult<UnknownToolError>>();
+			expectTypeOf(result).toEqualTypeOf<UnknownToolFailureResult>();
+			expectTypeOf(result).toExtend<CommandResult<UnknownToolError>>();
 			expect(result.data?.hint).toBe("Did you mean 'todo-create'?");
 			expect(result.error?.suggestion).toBe("Did you mean 'todo-create'?");
 		}

@@ -53,18 +53,23 @@ import type {
 	ReconnectionOptions,
 } from './handoff.js';
 import { connectHandoff, createReconnectingHandoff } from './handoff.js';
-import type { UnknownToolError } from './unknown-tool.js';
+import type { UnknownToolFailureResult } from './unknown-tool.js';
 import { unknownToolFailure } from './unknown-tool.js';
 
 // Re-export extracted modules for backward compatibility
 export { DirectTransport } from './direct-transport.js';
 export type { CommandDefinition, CommandParameter } from './direct-validation.js';
-export { isUnknownToolError, type UnknownToolError } from './unknown-tool.js';
+export {
+	isUnknownToolError,
+	type UnknownToolError,
+	type UnknownToolFailureResult,
+} from './unknown-tool.js';
 
 // Option, context and registry types live in direct-types.ts
 import type {
 	DirectCallContext,
 	DirectClientOptions,
+	DirectCommandSummary,
 	DirectExecuteOptions,
 	DirectListToolsOptions,
 	DirectRegistry,
@@ -76,10 +81,24 @@ export type {
 	DirectApprovalRequest,
 	DirectCallContext,
 	DirectClientOptions,
+	DirectCommandSummary,
 	DirectExecuteOptions,
 	DirectListToolsOptions,
 	DirectRegistry,
 } from './direct-types.js';
+export {
+	type EmptyResultState,
+	type ErrorResultState,
+	type LoadingResultState,
+	loadingResultState,
+	type NormalizedResultState,
+	type NormalizeResultOptions,
+	normalizeResultState,
+	type ReadyResultState,
+	type ResultEnvelopeFields,
+	type ResultStateStatus,
+	type SettledResultState,
+} from './result-state.js';
 
 /**
  * Generate a unique trace ID.
@@ -181,7 +200,7 @@ export class DirectClient {
 		name: string,
 		args?: Record<string, unknown>,
 		context?: DirectCallContext | CommandContext
-	): Promise<CommandResult<T> | CommandResult<UnknownToolError>> {
+	): Promise<CommandResult<T> | UnknownToolFailureResult> {
 		const startTime = this.options.debug ? performance.now() : 0;
 		const traceId = context?.traceId ?? generateTraceId();
 
@@ -352,7 +371,7 @@ export class DirectClient {
 	/**
 	 * List available commands (those the `allow` option permits).
 	 */
-	listCommands(): Array<{ name: string; description: string }> {
+	listCommands(): DirectCommandSummary[] {
 		return this.registry.listCommands().filter((command) => this.isAllowed(command.name));
 	}
 

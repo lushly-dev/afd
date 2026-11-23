@@ -222,9 +222,21 @@ export class DirectTransport implements Transport {
 			}
 		}
 		return this.registry.listCommands().map((cmd) => {
-			const { name, description, inputSchema, ...metadata } = cmd;
+			const {
+				name,
+				title,
+				description,
+				inputSchema,
+				confirmPrompt: _confirmPrompt,
+				tags: _tags,
+				...rawMeta
+			} = cmd;
+			const metadata = Object.fromEntries(
+				Object.entries(rawMeta).filter(([, value]) => value !== undefined)
+			);
 			return {
 				name,
+				...(title !== undefined ? { title } : {}),
 				description,
 				// Validating registries advertise object input schemas; legacy registries may omit one.
 				inputSchema: (inputSchema ?? { type: 'object', properties: {} }) as McpTool['inputSchema'],

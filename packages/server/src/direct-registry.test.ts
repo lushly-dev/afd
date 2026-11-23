@@ -300,6 +300,67 @@ describe('createDirectRegistry', () => {
 			mutation: true,
 			inputSchema: { type: 'object', properties: { title: { type: 'string' } } },
 		});
+		expect(create).not.toHaveProperty('confirmPrompt');
+		expect(create).not.toHaveProperty('examples');
+		expect(create).not.toHaveProperty('requires');
+		expect(create).not.toHaveProperty('tags');
+	});
+
+	it('carries confirmPrompt, examples, requires, and tags on listCommands() when set', () => {
+		const detailed = defineCommand({
+			name: 'todo-delete',
+			title: 'Delete todo',
+			description: 'Delete a todo permanently',
+			category: 'todo',
+			mutation: true,
+			destructive: true,
+			confirmPrompt: 'Delete this todo permanently?',
+			undoable: false,
+			requires: ['todo-get'],
+			tags: ['cleanup', 'destructive'],
+			examples: [{ title: 'Delete one', input: { id: 'todo-1' } }],
+			input: z.object({ id: z.string() }),
+			handler: async () => success({ deleted: true }),
+		});
+		const minimal = defineCommand({
+			name: 'todo-ping',
+			description: 'Ping',
+			requires: [],
+			tags: [],
+			examples: [],
+			input: z.object({}),
+			handler: async () => success({ ok: true }),
+		});
+		const registry = createDirectRegistry([detailed, minimal]);
+		const client = createDirectClient(registry);
+
+		const [listedDetailed, listedMinimal] = client.listCommands();
+		expect(listedDetailed).toMatchObject({
+			name: 'todo-delete',
+			title: 'Delete todo',
+			confirmPrompt: 'Delete this todo permanently?',
+			destructive: true,
+			undoable: false,
+			requires: ['todo-get'],
+			tags: ['cleanup', 'destructive'],
+			examples: [{ title: 'Delete one', input: { id: 'todo-1' } }],
+		});
+		expect(listedMinimal).not.toHaveProperty('confirmPrompt');
+		expect(listedMinimal).not.toHaveProperty('requires');
+		expect(listedMinimal).not.toHaveProperty('tags');
+		expect(listedMinimal).not.toHaveProperty('examples');
+
+		// Mutating returned arrays/entries (including nested example input) does not mutate registry definitions.
+		listedDetailed?.requires?.push('mutated');
+		listedDetailed?.tags?.push('mutated');
+		if (listedDetailed?.examples?.[0]) {
+			listedDetailed.examples[0].title = 'mutated';
+			(listedDetailed.examples[0].input as { id: string }).id = 'mutated-id';
+		}
+		const [listedAgain] = registry.listCommands();
+		expect(listedAgain?.requires).toEqual(['todo-get']);
+		expect(listedAgain?.tags).toEqual(['cleanup', 'destructive']);
+		expect(listedAgain?.examples).toEqual([{ title: 'Delete one', input: { id: 'todo-1' } }]);
 	});
 
 	it('rejects duplicate command names', () => {
