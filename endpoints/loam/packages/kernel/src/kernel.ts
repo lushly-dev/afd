@@ -502,26 +502,15 @@ export interface KernelParts extends InboundParts {
 	setAppCommands(commands: readonly ZodCommandDefinition[]): void;
 	/** Register a mounted instance's catalog from a journal: a replay's discovery, with no network (7.6). */
 	applyCatalog(instance: string, catalog: unknown): void;
-	/**
-	 * Forget what a page holds only in memory, as a reload does: overlays, selections, status values, and
-	 * the session, since the Mock's does not survive a reload; the active scope is read again from its
-	 * record, as stage A does (phase 2 specification, 10).
-	 */
+	/** Forget page-only memory (overlays, selections, status, session) and re-read active scope (phase 2, 10). */
 	resetSession(): Promise<void>;
-	/** What phase 6's hosted lane passes to `createMcpHandler` (phase 2 specification, 3.3). */
-	/** Undefined until stage B has loaded `late/`, which builds it. */
+	/** What phase 6's hosted lane passes to `createMcpHandler` (3.3); undefined until stage B loads `late/`. */
 	mcpOptions(): KernelMcpOptions | undefined;
-	/**
-	 * Boot's own journaled work, with `BOOT_FIELDS`: never queued behind stage B, and only a `BOOT_ONLY`
-	 * command, from the boot registry; any other name answers `COMMAND_NOT_FOUND` (2.2).
-	 */
+	/** Boot's own journaled work (`BOOT_FIELDS`): unqueued, `BOOT_ONLY` commands alone (2.2). */
 	runBoot(name: string, input: unknown): Promise<CommandResult>;
 	/** The limits the kernel enforces (phase 4 specification, section 11): for tests, and the notice's seam. */
 	readonly limits: KernelLimits;
-	/**
-	 * A principal-gated kernel's (phase 3 specification, 9.5): mint the principal of one request, which `credentialsGate`
-	 * puts on the call's context. Undefined on a session-gated kernel, which takes none.
-	 */
+	/** Principal-gated kernel (9.5): mint one request's principal; undefined on session-gated kernels. */
 	readonly admitPrincipal?: (input: PrincipalInputV1) => KernelPrincipalV1;
 	/** End a principal when its request ends (9.5): nothing made after it, a kept nested client included, runs under it. */
 	readonly retirePrincipal?: (principal: KernelPrincipalV1) => void;
@@ -736,7 +725,11 @@ export async function createKernelParts(
 		...tracker,
 		journals: (command) => !UNJOURNALED_COMMANDS.includes(command),
 	};
-	const order = createJournalOrder(provenance.journals, () => internals.replaying === true);
+	const order = createJournalOrder(
+		provenance.journals,
+		() => internals.replaying === true,
+		(name) => mutations?.get(name) === true
+	);
 	// One journal middleware, shared by every registry, so they share one journal sequence. Each entry is held to
 	// `loam.limits.journalEntryBytes` whole, after the redaction (phase 4 specification, section 11).
 	const journal = createJournalMiddleware(
@@ -796,8 +789,10 @@ export async function createKernelParts(
 		principalGate ??
 			lateParts?.authGate(held) ??
 			createAuthMiddleware(options.auth, { exclude: held.map((command) => command.name), clock }),
+		// Outside the journal: tracks hosted MCP calls that enter the chain without `execute` (#2117).
+		order.track,
 		journal,
-		// Right inside the journal: a read waits for the app-store writes it saw (#1936); `order.handler` is last.
+		// Right inside the journal: a read waits for the writes it saw (#1936, #2117); `order.handler` is last.
 		order.turn,
 		// Right inside the journal, so the scope middleware's own writes are written through too (#861).
 		...(lateParts ? [lateParts.writeThrough] : []),
@@ -902,7 +897,10 @@ export async function createKernelParts(
 				journaled: (name) => !UNJOURNALED_COMMANDS.includes(name),
 				// A top-level call past the queue, journaled as its own: a confirmed run, or `palette-run`'s (phase 4's 7.1, 7.2).
 				runNow: (iface, name, input, fields) =>
-					execute(iface, name, input, {}, order.own(fields as KernelCallFields)),
+					execute(iface, name, input, {}, fields as KernelCallFields),
+				recordOrder: (traceId, resource) => order.store(traceId, resource),
+				suspendOrder: (traceId) => order.suspend(traceId),
+				emit,
 				// The command a notice's act runs, the journal's private provenance (step 6's sixth round, B7).
 				noteAction: (trace, command) => tracker.noteAction(trace, command),
 				noteReturned: (trace) => tracker.noteReturned(trace),
@@ -1046,8 +1044,8 @@ export async function createKernelParts(
 				owners: () => apps.owners,
 				isMutation: (name) => mutations.get(name) === true,
 				setCommands: setAppCommands,
-				// What each call's store operations tell the journal's order (#1936).
-				storeOrder: (traceId, instance) => order.store(traceId, instance),
+				// What each call's store operations tell the journal's order (#1936, #2117).
+				storeOrder: (traceId, instance) => order.store(traceId, `app:${instance}`),
 				palette: () => ({
 					commands: registries.palette.listCommands(),
 					rows: summarize(registries.palette),
@@ -1124,6 +1122,15 @@ export async function createKernelParts(
 	}
 
 	const listeners = new Set<(event: KernelEventV4) => void>();
+	const emit = (event: KernelEventV4): void => {
+		for (const listener of [...listeners]) {
+			try {
+				listener(event);
+			} catch (error) {
+				reportKernelError(error);
+			}
+		}
+	};
 	const traceBase = `loam-${Math.floor(options.clock?.() ?? Date.now()).toString(36)}`;
 	let calls = 0;
 	let disposed = false;
@@ -1290,7 +1297,7 @@ export async function createKernelParts(
 		// A wrapper is tracked while it runs: its entry, written before `execute` returns, forwards its children's.
 		const wrapping = JOURNAL_WRAPPERS.includes(name) && tracker.begin(traceId);
 		const writes = mutations.get(name) === true || fields === BOOT_FIELDS;
-		order.begin(traceId, writes, fields, own ?? mine);
+		order.begin(traceId, writes, fields, own, name);
 		try {
 			result = await registry.execute<T>(name, input ?? {}, context);
 		} finally {
@@ -1317,13 +1324,7 @@ export async function createKernelParts(
 			...(owned.instance !== undefined ? { instance: owned.instance } : {}),
 			...seen,
 		};
-		for (const listener of [...listeners]) {
-			try {
-				listener(event);
-			} catch (error) {
-				reportKernelError(error);
-			}
-		}
+		emit(event);
 		// A change of person stops every copilot turn and removes its runtimes (phase 5 specification, 3.2). A `local`
 		// deployment marks no `actorChanged` (its records are everyone's), yet its person changes on a sign-in or a
 		// sign-out, which phase 5's step 2 decided to treat the same way: any that succeeds stops the copilot.

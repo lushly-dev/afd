@@ -654,6 +654,214 @@ describe("P4-E5: the reviews' cases (step 9)", () => {
 		).toEqual({ on: false, by: null });
 	});
 
+	it('does not let a stale older shell remove or void a newer version’s experiments (#2114)', async () => {
+		const store = new MemoryAdapter();
+		let tick = Date.parse('2026-05-01T00:00:00Z');
+		const options = {
+			store,
+			identity: PROVIDER,
+			membership: ACME(),
+			empty: true,
+			clock: () => tick++,
+		} as const;
+		const withVersion = (version: string, experiments: Experiment[]): ManifestV2 => {
+			const base = gatedProbe(experiments);
+			return { ...base, plugin: { ...base.plugin, version } };
+		};
+		const v1 = withVersion('1.0.0', [experiment('beta'), experiment('pane')]);
+		const v2 = withVersion('2.0.0', [experiment('beta'), experiment('pane'), experiment('extra')]);
+		const v3 = withVersion('3.0.0', [experiment('beta'), experiment('pane')]);
+
+		// Newer 2.0.0 shell boots and Bea enables its new experiment `probe.extra`.
+		const newer = await workspace({ ...options, manifest: v2 });
+		await signIn(newer.kernel, 'bea@example.com');
+		expect(
+			(
+				await newer.kernel.call('experiment-enable', {
+					experiment: 'probe.extra',
+					audience: 'person',
+				})
+			).data
+		).toEqual({ on: true, by: 'person' });
+		await newer.kernel.dispose();
+
+		// Stale 1.0.0 shell boots against the same store: must NOT remove `probe.extra` or downgrade `~declared/probe`.
+		const stale = await workspace({ ...options, manifest: v1 });
+		await signIn(stale.kernel, 'olu@example.com');
+		await stale.kernel.dispose();
+
+		// Returning to 2.0.0: Bea's enablement of `probe.extra` is still intact!
+		const back = await workspace({ ...options, manifest: v2 });
+		await signIn(back.kernel, 'bea@example.com');
+		expect(
+			(await back.kernel.call('experiment-check', { experiment: 'probe.extra' })).data
+		).toEqual({ on: true, by: 'person' });
+		await back.kernel.dispose();
+
+		// A real drop in 3.0.0 still removes `probe.extra` and voids Bea's enablement even if 4.0.0 re-ships it.
+		const dropped = await workspace({ ...options, manifest: v3 });
+		await signIn(dropped.kernel, 'olu@example.com');
+		await dropped.kernel.dispose();
+
+		// Another stale 2.0.0 boot after 3.0.0 dropped it must not revive or overwrite `~declared/probe`.
+		const stale2 = await workspace({ ...options, manifest: v2 });
+		await signIn(stale2.kernel, 'bea@example.com');
+		expect(
+			(await stale2.kernel.call('experiment-check', { experiment: 'probe.extra' })).data
+		).toEqual({ on: false, by: null });
+		await stale2.kernel.dispose();
+
+		const v4 = withVersion('4.0.0', [experiment('beta'), experiment('pane'), experiment('extra')]);
+		const reshipped = await workspace({ ...options, manifest: v4 });
+		await signIn(reshipped.kernel, 'bea@example.com');
+		expect(
+			(await reshipped.kernel.call('experiment-check', { experiment: 'probe.extra' })).data
+		).toEqual({ on: false, by: null });
+	});
+
+	it('re-checks recorded versions at commit time during concurrent boots and accepts long SemVer strings (#2114)', async () => {
+		const store = new MemoryAdapter();
+		const longV2 =
+			'2.0.0-prerelease.with.a.very.long.identifier.segment.over.sixty.four.chars+build.20261122';
+		const withVersion = (version: string, experiments: Experiment[]): ManifestV2 => {
+			const base = gatedProbe(experiments);
+			return { ...base, plugin: { ...base.plugin, version } };
+		};
+		const v1 = withVersion('1.0.0', [experiment('beta'), experiment('pane')]);
+		const v2 = withVersion(longV2, [experiment('beta'), experiment('pane'), experiment('extra')]);
+
+		// Seed a legacy store (declared without a version) so v1 plans to drop `probe.extra` and write `1.0.0`.
+		await store.create(EXPERIMENT_TABLE, {
+			id: 'personal/~declared/probe',
+			workspace: 'personal',
+			kind: 'declared',
+			plugin: 'probe',
+			ids: ['probe.beta', 'probe.pane', 'probe.extra'],
+		});
+
+		// Intercept v1's settle write: pause right before its `experiment-settle` handler reads the store while v2 boots.
+		let pauseV1 = true;
+		let v1Paused!: () => void;
+		const v1AtSettle = new Promise<void>((resolve) => {
+			v1Paused = resolve;
+		});
+		let resumeV1!: () => void;
+		const v1CanCommit = new Promise<void>((resolve) => {
+			resumeV1 = resolve;
+		});
+		let listCalls = 0;
+		const origList = store.list.bind(store);
+		store.list = (async <T>(table: string, filter?: Parameters<MemoryAdapter['list']>[1]) => {
+			if (pauseV1 && table === EXPERIMENT_TABLE) {
+				listCalls += 1;
+				// Call 1 is settleChanges(); call 2 is inside experiment-settle handler's snapshot().
+				if (listCalls === 2) {
+					pauseV1 = false;
+					v1Paused();
+					await v1CanCommit;
+				}
+			}
+			return origList<T>(table, filter);
+		}) as typeof store.list;
+
+		const v1Boot = workspace({ store, manifest: v1 });
+		await v1AtSettle;
+
+		// While v1's settle is paused after planning, v2 boots, commits longV2, and enables `probe.extra`.
+		const v2Shell = await workspace({ store, manifest: v2 });
+		expect(
+			(
+				await v2Shell.kernel.call('experiment-enable', {
+					experiment: 'probe.extra',
+					audience: 'workspace',
+				})
+			).data
+		).toEqual({ on: true, by: 'workspace' });
+
+		// Now let v1's planned experiment-settle run: commit-time re-check MUST skip removing `probe.extra` and downgrading version!
+		resumeV1();
+		await v1Boot;
+
+		const check = await v2Shell.kernel.call('experiment-check', { experiment: 'probe.extra' });
+		expect(check.data).toEqual({ on: true, by: 'workspace' });
+		const declaredRow = await store.get<{ version?: string; ids?: string[] }>(
+			EXPERIMENT_TABLE,
+			'personal/~declared/probe'
+		);
+		expect(declaredRow?.version).toBe(longV2);
+		expect(declaredRow?.ids).toContain('probe.extra');
+	});
+
+	it('does not let a concurrent unlisted legacy shell wipe a newer versioned declaration (#2114)', async () => {
+		const store = new MemoryAdapter();
+		const withVersion = (version: string, experiments: Experiment[]): ManifestV2 => {
+			const base = gatedProbe(experiments);
+			return { ...base, plugin: { ...base.plugin, version } };
+		};
+		const v2 = withVersion('2.0.0', [experiment('beta'), experiment('pane'), experiment('extra')]);
+		await store.create(EXPERIMENT_TABLE, {
+			id: 'personal/~declared/probe',
+			workspace: 'personal',
+			kind: 'declared',
+			plugin: 'probe',
+			ids: ['probe.beta'],
+		});
+
+		let pauseUnlisted = true;
+		let unlistedPaused!: () => void;
+		const atSettle = new Promise<void>((resolve) => {
+			unlistedPaused = resolve;
+		});
+		let resumeUnlisted!: () => void;
+		const canCommit = new Promise<void>((resolve) => {
+			resumeUnlisted = resolve;
+		});
+		let listCalls = 0;
+		const origList = store.list.bind(store);
+		store.list = (async <T>(table: string, filter?: Parameters<MemoryAdapter['list']>[1]) => {
+			if (pauseUnlisted && table === EXPERIMENT_TABLE) {
+				listCalls += 1;
+				if (listCalls === 2) {
+					pauseUnlisted = false;
+					unlistedPaused();
+					await canCommit;
+				}
+			}
+			return origList<T>(table, filter);
+		}) as typeof store.list;
+
+		// An older deployment that does not list `probe` plans to remove `probe.beta` with an unversioned `declared`.
+		const unlistedBoot = workspace({ store, empty: true, deployment: scopedDeployment() });
+		await atSettle;
+
+		// Concurrently, a newer deployment listing `probe@2.0.0` boots and enables `probe.beta`.
+		const v2Shell = await workspace({ store, manifest: v2 });
+		expect(
+			(
+				await v2Shell.kernel.call('experiment-enable', {
+					experiment: 'probe.beta',
+					audience: 'workspace',
+				})
+			).data
+		).toEqual({ on: true, by: 'workspace' });
+
+		resumeUnlisted();
+		await unlistedBoot;
+
+		expect(
+			(await v2Shell.kernel.call('experiment-check', { experiment: 'probe.beta' })).data
+		).toEqual({
+			on: true,
+			by: 'workspace',
+		});
+		const declaredRow = await store.get<{ version?: string; ids?: string[] }>(
+			EXPERIMENT_TABLE,
+			'personal/~declared/probe'
+		);
+		expect(declaredRow?.version).toBe('2.0.0');
+		expect(declaredRow?.ids).toContain('probe.beta');
+	});
+
 	it('removes the experiments of an app the deployment no longer lists', async () => {
 		const store = new MemoryAdapter();
 		const first = await workspace({ store });

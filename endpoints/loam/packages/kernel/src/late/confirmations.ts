@@ -1,18 +1,7 @@
 /**
- * @fileoverview Confirmations (phase 4 specification, 7.2; D122), in the `late-settings` chunk beside the inbox (its
- * section 1): the kernel enforces a command's `confirm_prompt` in process, after validation, line 0, access and the
- * decline window (F9), as the last middleware of the kernel's chain. A person's own gesture, and the active app's port,
- * ask in the overlay slot and wait; an agent, the copilot among them, and an app that is not active get
- * `CONFIRMATION_PENDING` at once, and the confirmation waits in the inbox for a person's gesture. The shell runs a
- * confirmed call itself, once, journaled with the confirmation's id. `confirmation-get` and `confirmation-withdraw` are
- * the raising caller's; `palette-run` (7.1) is the person's, and its confirmation replaces its input prompt (R15).
- *
- * **Replay.** A call that waits is journaled after the answer that ended its wait, so the slot's prompt is opened by
- * the internal `prompt-settle`, journaled before the answer; a run the shell makes for a confirmation or for
- * `palette-run` is a top-level call of its own, journaled before the call that made it, with `origin`, and a replay of
- * that call answers from it rather than run it again.
- *
- * Everything of `late` and first paint reaches this module through its deps, so it imports types alone (13).
+ * @fileoverview Confirmations (phase 4 spec 7.2, D122) in `late-settings`: enforces `confirm_prompt` in process,
+ * opens slot prompts or inbox `CONFIRMATION_PENDING`, runs confirmed calls once with `origin`, and replays from records.
+ * Imports types alone from first paint (13).
  */
 
 import type { Actor, CommandContext, CommandMiddleware, CommandResult } from '@lushly-dev/afd-core';
@@ -109,16 +98,13 @@ export interface Confirmations {
 		answer: 'confirm' | 'decline' | undefined,
 		context: CommandContext
 	): Promise<CommandResult>;
-	/**
-	 * End as `withdrawn` every pending confirmation `match` selects, of the person the call is for or of `person`: an
-	 * unload of an app (R14, step 9's seam) or a change of person. Never opens the decline window.
-	 */
 	/** Whether `person` has a pending confirmation `match` selects (step 9's R14 at boot). */
 	pending(
 		person: string,
 		match: (row: StoredConfirmation) => boolean,
 		now: number
 	): Promise<boolean>;
+	/** End as `withdrawn` every pending confirmation `match` selects (R14 or person change); never opens the decline window. */
 	withdraw(
 		context: CommandContext,
 		match: (row: StoredConfirmation) => boolean,
@@ -142,11 +128,7 @@ interface SlotRecord {
 	overlayId: string;
 	key: string;
 	command: string;
-	/** The overlay's answer once it closed: its result and reason. */
-	/**
-	 * The overlay's answer once it closed: its result, its reason, and whether it was the person's own gesture, kept here
-	 * until the run reads it, never read again from the overlays' bounded history (step 6's sixth round, B4).
-	 */
+	/** The overlay's answer once closed (kept here until read, never re-read from bounded overlay history). */
 	answer?: { result: string; reason: string; byPerson: boolean };
 }
 
@@ -186,8 +168,16 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 		);
 	}
 
+	const readOrder = (ctx: CommandContext) => {
+		if (ctx.traceId !== undefined) deps.recordOrder?.(ctx.traceId, 'record:confirmation')?.read();
+	};
+	const wroteOrder = (ctx: CommandContext) => {
+		if (ctx.traceId !== undefined) deps.recordOrder?.(ctx.traceId, 'record:confirmation')?.wrote();
+	};
+
 	/** A row put back whole, in one batch: a `PUT` merges, so a field the write drops (`claim`) would survive it. */
-	async function putBack(row: StoredConfirmation): Promise<void> {
+	async function putBack(row: StoredConfirmation, ctx?: CommandContext): Promise<void> {
+		if (ctx) wroteOrder(ctx);
 		const path = `/${TABLE}/${encodeURIComponent(row.id)}`;
 		const { summary } = await store.batch([
 			{ method: 'DELETE', path },
@@ -280,16 +270,9 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 
 	/** Slot confirmations, by id: opened by `prompt-settle`, answered in the slot. */
 	const slots = new Map<string, SlotRecord>();
-	/**
-	 * The keys a question in the slot holds, from the moment the call asks until it settles, with its overlay once open
-	 * (step 6's third round, D): a repeat of the same key from any path, the inbox's among them after its app stopped
-	 * being active, gets `CONFIRMATION_PENDING` with the question already asked, never a second one.
-	 */
+	/** Keys held in the slot until settled (repeat calls get CONFIRMATION_PENDING, never a second prompt). */
 	const reserved = new Map<string, { overlay?: string }>();
-	/**
-	 * By person and app's bucket, the ids of its slot declines being written now, which its bound counts until each row
-	 * is visible, so none counts twice (step 6's fourth round, 7; fifth round, 6).
-	 */
+	/** Per person+bucket, slot decline ids currently being written (counted toward bound until visible). */
 	const declining = new Map<string, Set<string>>();
 	const decliningOf = (person: string, bucket: string): Set<string> => {
 		const at = `${person} ${bucket}`;
@@ -297,41 +280,38 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 		declining.set(at, held);
 		return held;
 	};
-	/** The replay's confirmed runs it answered from their records, by confirmation (fifth round, 3; #1656). */
+	/** Replay confirmed runs answered from their records, by confirmation id (#1656). */
 	const recordedRuns = new Map<string, { command: string; outcome: unknown }>();
-	/**
-	 * The confirmations a person confirmed whose run this page is making now, by id (live only), with the claim this page
-	 * wrote: the run is allowed only while the stored row still holds that claim (R2).
-	 */
+	/** Live confirmed runs approved by this page, keyed by id with the stored claim (R2). */
 	const approved = new Map<string, { command: string; key: string; claim: string }>();
-	/** The input prompts a fill has taken, so a second fill of the same prompt finds none (blocker 7). */
+	/** Input prompts already consumed by a fill. */
 	const consumed = new Set<string>();
-	/** A replay's runs by the trace that made them (`origin`), so that call answers from it and runs nothing again. */
+	/** Replay runs by `origin` trace so the outer call answers from it without re-running. */
 	const ran = new Map<string, CommandResult>();
 
-	/**
-	 * What the rows already say of a key (F5, R16), on the person's chain, for the inbox's path and the active app's slot
-	 * alike (blocker 6): a decline within its window, or the key's live row (pending, declined, or confirmed with its
-	 * stored outcome). Undefined when a new confirmation may be raised.
-	 */
+	/** Prior state of a key on the person's chain (F5, R16): decline window or live row; undefined if a new prompt may open. */
 	async function priorAnswer(
 		rows: readonly StoredConfirmation[],
 		key: string,
 		name: string,
-		now: number
+		now: number,
+		ctx: CommandContext
 	): Promise<CommandResult | undefined> {
 		const same = rows
 			.filter((row) => row.ckey === key)
 			.sort((a, b) => b.createdAt - a.createdAt || (a.id < b.id ? -1 : 1));
 		/** Refused without asking (R16): counted on the declined row, which the inbox lists "Declined automatically". */
 		const refuseAgain = async (row: StoredConfirmation) => {
-			await putBack({
-				...row,
-				confirmation: {
-					...row.confirmation,
-					declinedAgain: (row.confirmation.declinedAgain ?? 0) + 1,
+			await putBack(
+				{
+					...row,
+					confirmation: {
+						...row.confirmation,
+						declinedAgain: (row.confirmation.declinedAgain ?? 0) + 1,
+					},
 				},
-			});
+				ctx
+			);
 			return declined(
 				name,
 				row.confirmation.reason === 'access' ? { reason: 'access' } : undefined
@@ -650,6 +630,7 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 			const ended = (await rowsOf(person)).filter(
 				(each) => each.cslot === true && each.confirmation.expiresAt <= now
 			);
+			wroteOrder(context);
 			const { summary } = await store.batch([
 				...ended.map((each) => ({
 					method: 'DELETE' as const,
@@ -683,8 +664,9 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 		deps.noteInbox(call);
 		return serial(person, async () => {
 			const now = kit.callNow(call);
+			readOrder(call);
 			const rows = await rowsOf(person);
-			const prior = await priorAnswer(rows, key, name, now);
+			const prior = await priorAnswer(rows, key, name, now, call);
 			if (prior) {
 				// The row this key holds pending, and no stored outcome that merely names one (re-check 2, B1).
 				const held = rows.find(
@@ -756,6 +738,7 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 				)
 				.sort((a, b) => b.createdAt - a.createdAt)
 				.slice(ENDED_KEPT);
+			wroteOrder(call);
 			const { summary } = await store.batch([
 				...ended.map((row) => ({
 					method: 'DELETE' as const,
@@ -826,8 +809,9 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 				if (opener.kind === 'app' && !replayed) {
 					const prior = await serial(person, async () => {
 						const now = kit.callNow(call);
+						readOrder(call);
 						const rows = await rowsOf(person);
-						const answered = await priorAnswer(rows, key, name, now);
+						const answered = await priorAnswer(rows, key, name, now, call);
 						if (answered) return answered;
 						// At most SLOT_KEPT live declines per person and app (third round, E): a live window is never evicted, so a
 						// new question at capacity is refused until the earliest window ends, and one app's never touch another's.
@@ -931,16 +915,19 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 			await serial(row.person, async () => {
 				const stored = (await store.get<StoredConfirmation>(TABLE, id)) ?? row;
 				const { claim: _claim, ...kept } = stored;
-				await putBack({
-					...kept,
-					confirmation: {
-						...kept.confirmation,
-						state: 'confirmed',
-						reason: 'person',
-						answeredAt: now,
-						result: outcomeOf(result),
+				await putBack(
+					{
+						...kept,
+						confirmation: {
+							...kept.confirmation,
+							state: 'confirmed',
+							reason: 'person',
+							answeredAt: now,
+							result: outcomeOf(result),
+						},
 					},
-				});
+					call
+				);
 			});
 		};
 		const released = deps.release
@@ -958,22 +945,28 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 		await serial(row.person, async () => {
 			const stored = (await store.get<StoredConfirmation>(TABLE, id)) ?? row;
 			const { claim: _claim, ...kept } = stored;
-			await putBack({
-				...kept,
-				confirmation: { ...kept.confirmation, state: 'withdrawn' },
-				...(kept.readAt === undefined ? { readAt: now } : {}),
-			});
-			const { readAt: _readAt, ...unread } = kept;
-			await putBack({
-				...unread,
-				id: fresh,
-				createdAt: now,
-				confirmation: {
-					...kept.confirmation,
-					preview: released[RESHOW] as never,
-					expiresAt: now + CONFIRMATION_TTL_MS,
+			await putBack(
+				{
+					...kept,
+					confirmation: { ...kept.confirmation, state: 'withdrawn' },
+					...(kept.readAt === undefined ? { readAt: now } : {}),
 				},
-			} as StoredConfirmation);
+				call
+			);
+			const { readAt: _readAt, ...unread } = kept;
+			await putBack(
+				{
+					...unread,
+					id: fresh,
+					createdAt: now,
+					confirmation: {
+						...kept.confirmation,
+						preview: released[RESHOW] as never,
+						expiresAt: now + CONFIRMATION_TTL_MS,
+					},
+				} as StoredConfirmation,
+				call
+			);
 		});
 		await deps.observe?.('withdrawn', row);
 		await deps.observe?.('asked', { ...row, id: fresh });
@@ -1174,21 +1167,24 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 			recordedRuns.delete(ended.id);
 			const now = kit.callNow(context);
 			const { claim: _claim, ...kept } = row;
-			await putBack({
-				...kept,
-				confirmation: {
-					...kept.confirmation,
-					state: ended.state,
-					reason: ended.state === 'confirmed' ? 'person' : 'access',
-					answeredAt: kept.confirmation.answeredAt ?? now,
-					...(kept.confirmation.result !== undefined && ended.state === 'confirmed'
-						? {}
-						: ended.result !== undefined
-							? { result: jsonOf(ended.result) as CommandResult }
-							: {}),
+			await putBack(
+				{
+					...kept,
+					confirmation: {
+						...kept.confirmation,
+						state: ended.state,
+						reason: ended.state === 'confirmed' ? 'person' : 'access',
+						answeredAt: kept.confirmation.answeredAt ?? now,
+						...(kept.confirmation.result !== undefined && ended.state === 'confirmed'
+							? {}
+							: ended.result !== undefined
+								? { result: jsonOf(ended.result) as CommandResult }
+								: {}),
+					},
+					...(kept.readAt === undefined ? { readAt: now } : {}),
 				},
-				...(kept.readAt === undefined ? { readAt: now } : {}),
-			});
+				context
+			);
 			// Counted here, by the act's journaled end, so a replay that answers the run from its record counts it too (B14).
 			if (from === 'pending' || ended.state === 'confirmed') await deps.observe?.(ended.state, row);
 			return undefined;
@@ -1217,6 +1213,7 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 		// By bucket (R1): the raising app's instance, or any agent of the same person on the agent interface, which share
 		// one, or the copilot for its own.
 		const caller = bucketOf(opener);
+		if (person !== undefined) readOrder(context);
 		const row =
 			person === undefined
 				? undefined
@@ -1290,11 +1287,14 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 					});
 				}
 				// Withdrawn before the person acted on it is not news (R3): marked read.
-				await putBack({
-					...stored,
-					confirmation: { ...stored.confirmation, state: 'withdrawn' },
-					...(stored.readAt === undefined ? { readAt: kit.callNow(context) } : {}),
-				});
+				await putBack(
+					{
+						...stored,
+						confirmation: { ...stored.confirmation, state: 'withdrawn' },
+						...(stored.readAt === undefined ? { readAt: kit.callNow(context) } : {}),
+					},
+					context
+				);
 				await deps.observe?.('withdrawn', stored);
 				return kit.success({ state: 'withdrawn' as const });
 			});
@@ -1355,7 +1355,7 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 				if (state !== 'pending' || row.claim !== undefined || acting.has(row.id)) {
 					// Ended, or running: nothing more runs. A person's answer to one that ended marks it read.
 					if (state !== 'pending' && row.readAt === undefined)
-						await putBack({ ...row, readAt: now });
+						await putBack({ ...row, readAt: now }, context);
 					// As the answer that ended it said (a person's confirm or decline says no reason), so a replay answers the
 					// same.
 					return {
@@ -1366,7 +1366,7 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 					};
 				}
 				if (given === 'decline') {
-					await putBack(marked({ state: 'declined', reason: 'person', answeredAt: now }));
+					await putBack(marked({ state: 'declined', reason: 'person', answeredAt: now }), context);
 					await deps.observe?.('declined', row);
 					return { done: kit.success({ state: 'declined' as const }) };
 				}
@@ -1376,7 +1376,7 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 					refusedAccess(row.cactor, row.confirmation.command, caller, row.scope) ||
 					(caller !== undefined && deps.inputOver(row.confirmation.input ?? {}))
 				) {
-					await putBack(marked({ state: 'declined', reason: 'access', answeredAt: now }));
+					await putBack(marked({ state: 'declined', reason: 'access', answeredAt: now }), context);
 					await deps.observe?.('declined', row);
 					return { done: kit.success({ state: 'declined' as const, reason: 'access' as const }) };
 				}
@@ -1481,11 +1481,14 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 				for (const row of await rowsOf(whose)) {
 					if (stateNow(row.confirmation, now) !== 'pending' || row.claim !== undefined) continue;
 					if (!match(row)) continue;
-					await putBack({
-						...row,
-						confirmation: { ...row.confirmation, state: 'withdrawn' },
-						...(row.readAt === undefined ? { readAt: now } : {}),
-					});
+					await putBack(
+						{
+							...row,
+							confirmation: { ...row.confirmation, state: 'withdrawn' },
+							...(row.readAt === undefined ? { readAt: now } : {}),
+						},
+						context
+					);
 					await deps.observe?.('withdrawn', row);
 					count++;
 				}

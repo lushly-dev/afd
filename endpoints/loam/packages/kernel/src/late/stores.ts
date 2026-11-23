@@ -52,7 +52,8 @@ export interface ShellStores {
 	/** With `also`, those operations in the same batch, so both are written or neither (phase 4's A-P2-2). */
 	putWorkspace(record: WorkspaceV1, also?: BatchOperation[]): Promise<void>;
 	putWorkspaceApp(record: WorkspaceAppV1): Promise<void>;
-	putProject(record: ProjectV1): Promise<void>;
+	/** `onPublish` runs synchronously right before the cache publishes the written record, after the store commits (#2117). */
+	putProject(record: ProjectV1, onPublish?: () => void): Promise<void>;
 }
 
 export function createShellStores(store: DataAdapter, scope: ScopeRuntime): ShellStores {
@@ -62,7 +63,8 @@ export function createShellStores(store: DataAdapter, scope: ScopeRuntime): Shel
 		table: string,
 		record: T,
 		cache: RecordCache<T>,
-		also: BatchOperation[] = []
+		also: BatchOperation[] = [],
+		onPublish?: () => void
 	): Promise<void> {
 		checkStamped(table, record);
 		// A batch's PUT upserts; `update` does so only in the adapter's named tables.
@@ -71,6 +73,7 @@ export function createShellStores(store: DataAdapter, scope: ScopeRuntime): Shel
 			{ method: 'PUT', path: `/${table}/${encodeURIComponent(record.id)}`, body: record },
 		]);
 		if (summary.failed > 0) throw new Error(`The store could not write '${record.id}'`);
+		onPublish?.();
 		cache.put(record);
 	}
 	return {
@@ -81,6 +84,6 @@ export function createShellStores(store: DataAdapter, scope: ScopeRuntime): Shel
 		},
 		putWorkspace: (record, also) => put(WORKSPACE_TABLE, record, workspaces, also),
 		putWorkspaceApp: (record) => put(WORKSPACE_APP_TABLE, record, scope.workspaceApps),
-		putProject: (record) => put(PROJECT_TABLE, record, scope.projects),
+		putProject: (record, onPublish) => put(PROJECT_TABLE, record, scope.projects, [], onPublish),
 	};
 }

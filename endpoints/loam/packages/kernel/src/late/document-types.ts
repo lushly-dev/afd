@@ -135,6 +135,11 @@ export interface DocumentCheckDeps {
 	changed?(): void;
 	/** The kernel's limits, whose `inputBytes` bounds an instance command's input (A-P2-3); absent, the default. */
 	limits?: KernelLimits;
+	/** What document-record and content reads/writes tell the journal's order (#2117). */
+	recordOrder?(
+		traceId: string | undefined,
+		resource: string
+	): import('../journal-order.js').StoreOrderV1 | undefined;
 }
 
 export interface DocumentCheck {
@@ -170,7 +175,12 @@ export interface DocumentCheck {
 	 * A record written with its workspace, actor and time, or refused (architecture section 7), in one batch
 	 * with `with`, what must land with it or not at all: a new document's content, a moved one's row.
 	 */
-	put(record: DocumentRecordV1, with_?: BatchOperation[]): Promise<void>;
+	put(record: DocumentRecordV1, with_?: BatchOperation[], traceId?: string): Promise<void>;
+	/** Tell the journal's order that `context` is reading or writing document (or app content) records (#2117). */
+	order(
+		context: CommandContext,
+		resource?: string
+	): import('../journal-order.js').StoreOrderV1 | undefined;
 	/** Why `type`'s instance cannot open at `at` (`canOpen`): disabled, gone, or not listing its project. */
 	opens(type: RegisteredTypeV1, at: ScopeV1): CommandResult<never> | undefined;
 	/**
@@ -279,10 +289,14 @@ export function createDocumentCheck(deps: DocumentCheckDeps): DocumentCheck {
 	): Promise<DocumentRecordV1 | CommandResult<never>> {
 		const call = context as CommandContext & KernelFieldContext;
 		const here = call.scope as ScopeV1;
+		if (typeof document === 'string' && document !== '')
+			deps.recordOrder?.(call.traceId, `doc:${document}`)?.read();
 		const record =
 			typeof document === 'string' && document !== ''
 				? await store.get<DocumentRecordV1>(DOCUMENT_TABLE, document)
 				: undefined;
+		if (record?.scope.project !== undefined || here.project !== undefined)
+			deps.recordOrder?.(call.traceId, 'record:project')?.read();
 		// An app's call, a document outside its scope: the same bytes as a missing one, first, so it learns
 		// nothing, not its project, not that it exists, not its type. Then missing, and refused, alike.
 		if (
@@ -325,8 +339,14 @@ export function createDocumentCheck(deps: DocumentCheckDeps): DocumentCheck {
 		return record;
 	}
 
-	async function put(record: DocumentRecordV1, with_: BatchOperation[] = []): Promise<void> {
+	async function put(
+		record: DocumentRecordV1,
+		with_: BatchOperation[] = [],
+		traceId?: string
+	): Promise<void> {
 		checkStamped(DOCUMENT_TABLE, record);
+		deps.recordOrder?.(traceId, `doc:${record.id}`)?.wrote();
+		deps.recordOrder?.(traceId, 'record:document')?.wrote();
 		const { summary } = await store.batch([
 			...with_,
 			{ method: 'PUT', path: `/${DOCUMENT_TABLE}/${encodeURIComponent(record.id)}`, body: record },
@@ -348,6 +368,7 @@ export function createDocumentCheck(deps: DocumentCheckDeps): DocumentCheck {
 		quota: () => deps.apps().storeQuota,
 		find,
 		put,
+		order: (context, resource = 'record:document') => deps.recordOrder?.(context.traceId, resource),
 		opens: (type, at) => canOpen(deps.apps(), scope, type.instance, at.project),
 		async instance(name, input, call) {
 			const owned = typeOfCommand(name);
@@ -384,7 +405,11 @@ export function createDocumentCheck(deps: DocumentCheckDeps): DocumentCheck {
 			const record = await store.get<DocumentRecordV1>(DOCUMENT_TABLE, id);
 			if (!record) return;
 			// So `document-list`'s recents are right however the content changes (3).
-			await put({ ...record, updatedAt: callNow(call), updatedBy: personOf(call) });
+			await put(
+				{ ...record, updatedAt: callNow(call), updatedBy: personOf(call) },
+				[],
+				call.traceId
+			);
 			scope.note(call.traceId, { document: record.id });
 		},
 	};

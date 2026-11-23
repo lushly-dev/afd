@@ -20,12 +20,15 @@ import type { ScopeRuntime } from '../scope/runtime.js';
 import type { DocumentKit } from './document-kit.js';
 import { workspaceNotice, workspaceToken } from './experiment-notices.js';
 import {
+	compareSemver,
 	type DeclaredExperimentV1,
 	EXPERIMENT_ID,
 	type ExperimentByV1,
 	type ExperimentStateV1,
 	enablementChanged,
 	experimentOn,
+	isSemver,
+	isStaleVersion,
 	LISTED_STAGES,
 	live,
 	overdue,
@@ -123,6 +126,10 @@ export interface ExperimentsDeps {
 	unload(instance: string, context: CommandContext | undefined): Promise<boolean>;
 	/** An app's gate opened or closed: its commands are registered again, or not. */
 	regate(): void;
+	/** Notify other tabs that experiment enablements changed (#2108). */
+	onTabWrite?(person?: string): void;
+	/** Whether a replay is running (skip live `noticedHeld` dedupe so repeated journaled `defer` notices replay identically). */
+	replaying?(): boolean;
 	kit: ExperimentsKit;
 }
 
@@ -140,28 +147,33 @@ export interface Experiments {
 	/**
 	 * What a settle would do now (5.1): the experiments to remove, the person's own enablements made for other `changes`,
 	 * whether the person has workspace changes to be told of (5.2), and, once the gates are read, the held-out apps
-	 * whose pending confirmations must end `withdrawn` (R14). Undefined when nothing; never called in a replay.
+	 * whose pending confirmations must end `withdrawn` (R14). With `postRefresh: true`, skips manifest-drop planning
+	 * (`removed`/`declared`) so a post-refresh withdraw/defer pass never retries a commit-time skipped removal.
 	 */
-	settleChanges(): Promise<SettleInput | undefined>;
+	settleChanges(options?: { postRefresh?: boolean }): Promise<SettleInput | undefined>;
 	/**
 	 * Read the gates again for the person the shell is for, and apply them: at stage B, after a change of person, after
-	 * each enablement's write and after each call while an unload waits on a dirty tab. `context` is the call's, which
-	 * the notices of 5.2 and the unload's withdrawals are made in; with none (stage B), gates are set and nothing told.
+	 * each enablement's write, after another tab's write (#2108), and after each call while an unload waits on a dirty
+	 * tab. `context` is the call's, which the notices of 5.2 and the unload's withdrawals are made in; returns true when
+	 * any gate or app state changed.
 	 */
-	refresh(context?: CommandContext): Promise<void>;
+	refresh(context?: CommandContext): Promise<boolean>;
 	/** Whether the gates have been read at least once for this kernel. */
 	ready(): boolean;
+	/** Stop any further in-flight refreshes from mutating state after kernel disposal (#2108). */
+	stop(): void;
 	/** Whether an app unload waits on a dirty tab, so each call's end must read the gates again (R14). */
 	waiting(): boolean;
 }
 
-/** `experiment-settle`'s input (5.1, 5.2, R14). */
+/** `experiment-settle`'s input (5.1, 5.2, R14, #2114, #2108). */
 interface SettleInput {
 	removed: string[];
 	changed: string[];
 	tell: boolean;
 	withdraw: string[];
-	declared: Array<{ plugin: string; ids: string[] }>;
+	declared: Array<{ plugin: string; ids: string[]; version?: string }>;
+	defer?: string[];
 }
 
 const bytesOf = (value: unknown): number => new TextEncoder().encode(JSON.stringify(value)).length;
@@ -187,12 +199,14 @@ interface Snapshot {
 	experiments: Map<string, DeclaredExperimentV1>;
 	/** The plugins whose manifest was read, and those the deployment lists at all (5.1's settle). */
 	plugins: Set<string>;
+	/** Each read plugin's manifest version (`manifest.plugin.version`), for stale-shell detection (#2114). */
+	pluginVersions: Map<string, string>;
 	listed: Set<string>;
 	rows: Map<string, WorkspaceEnablementV1>;
 	/** Each removed experiment, by the time of its last removal. */
 	removals: Map<string, number>;
-	/** By plugin, the ids its manifest declared at the last settle, so an id it drops is seen gone by any shell (5.1). */
-	declaredBefore: Map<string, string[]>;
+	/** By plugin, the ids (and highest manifest version, #2114) declared at the last settle. */
+	declaredBefore: Map<string, { ids: string[]; version?: string }>;
 	own: Map<string, PersonEnablementV1>;
 	told: Record<string, string>;
 }
@@ -241,6 +255,7 @@ export function createExperiments(deps: ExperimentsDeps): Experiments {
 	async function snapshot(person: string | undefined, listedOnly = false): Promise<Snapshot> {
 		const experiments = new Map<string, DeclaredExperimentV1>();
 		const plugins = new Set<string>();
+		const pluginVersions = new Map<string, string>();
 		const listed = new Set<string>();
 		for (const app of deps.apps().summaries()) {
 			listed.add(app.app);
@@ -250,6 +265,8 @@ export function createExperiments(deps: ExperimentsDeps): Experiments {
 			if (!manifest) continue;
 			const plugin = manifest.plugin.id;
 			plugins.add(plugin);
+			if (typeof manifest.plugin.version === 'string' && !pluginVersions.has(plugin))
+				pluginVersions.set(plugin, manifest.plugin.version);
 			for (const experiment of (manifest.ui?.experiments ?? []) as ExperimentV1[]) {
 				const fullId = `${plugin}.${experiment.id}`;
 				if (experiments.has(fullId)) continue;
@@ -268,9 +285,15 @@ export function createExperiments(deps: ExperimentsDeps): Experiments {
 		]);
 		const rows = new Map<string, WorkspaceEnablementV1>();
 		const removals = new Map<string, number>();
-		const declaredBefore = new Map<string, string[]>();
+		const declaredBefore = new Map<string, { ids: string[]; version?: string }>();
 		for (const row of table.data as Array<
-			WorkspaceEnablementV1 & { kind?: string; removedAt?: number; plugin?: string; ids?: unknown }
+			WorkspaceEnablementV1 & {
+				kind?: string;
+				removedAt?: number;
+				plugin?: string;
+				ids?: unknown;
+				version?: unknown;
+			}
 		>) {
 			// A row keyed for another workspace, or not as this table keys it, is never read.
 			if (row.workspace !== scope.workspace.id) continue;
@@ -280,10 +303,10 @@ export function createExperiments(deps: ExperimentsDeps): Experiments {
 					row.id === declaredKey(row.plugin) &&
 					Array.isArray(row.ids)
 				)
-					declaredBefore.set(
-						row.plugin,
-						row.ids.filter((id): id is string => typeof id === 'string')
-					);
+					declaredBefore.set(row.plugin, {
+						ids: row.ids.filter((id): id is string => typeof id === 'string'),
+						...(typeof row.version === 'string' ? { version: row.version } : {}),
+					});
 				continue;
 			}
 			if (typeof row.experiment !== 'string') continue;
@@ -303,6 +326,7 @@ export function createExperiments(deps: ExperimentsDeps): Experiments {
 		return {
 			experiments,
 			plugins,
+			pluginVersions,
 			listed,
 			rows,
 			removals,
@@ -356,10 +380,25 @@ export function createExperiments(deps: ExperimentsDeps): Experiments {
 
 	// ─── What each person is told (5.2) ────────────────────────────────────────────
 
+	/** Plugins whose loaded manifest version is older than the highest settled version (#2114). */
+	const stalePluginsOf = (read: Snapshot): Set<string> => {
+		const stale = new Set<string>();
+		for (const plugin of read.plugins) {
+			if (isStaleVersion(read.pluginVersions.get(plugin), read.declaredBefore.get(plugin)?.version))
+				stale.add(plugin);
+		}
+		return stale;
+	};
+
 	/** The workspace's tokens now, for every experiment declared or removed. */
-	function tokens(read: Snapshot): Record<string, string> {
+	function tokens(
+		read: Snapshot,
+		stale: ReadonlySet<string> = stalePluginsOf(read)
+	): Record<string, string> {
 		const now: Record<string, string> = {};
 		for (const id of new Set([...read.experiments.keys(), ...read.removals.keys()])) {
+			const plugin = id.slice(0, id.indexOf('.'));
+			if (stale.has(plugin)) continue;
 			const experiment = read.experiments.get(id);
 			const token = workspaceToken(
 				experiment && experiment.stage !== 'removed' ? experiment.digest : undefined,
@@ -368,10 +407,15 @@ export function createExperiments(deps: ExperimentsDeps): Experiments {
 			);
 			if (token !== 'off' || read.told[id] !== undefined) now[id] = token;
 		}
-		// An app whose package could not be read this time decides nothing: what its person was told stands.
+		// An app whose package could not be read, or whose manifest is stale (#2114), decides nothing: what its person was told stands.
 		for (const [id, token] of Object.entries(read.told)) {
 			const plugin = id.slice(0, id.indexOf('.'));
-			if (!(id in now) && read.listed.has(plugin) && !read.plugins.has(plugin)) now[id] = token;
+			if (
+				!(id in now) &&
+				read.listed.has(plugin) &&
+				(!read.plugins.has(plugin) || stale.has(plugin))
+			)
+				now[id] = token;
 		}
 		return now;
 	}
@@ -421,9 +465,13 @@ export function createExperiments(deps: ExperimentsDeps): Experiments {
 
 	/** For the person the shell is for, as last read: each experiment's state, and the apps held out or kept loaded. */
 	let states = new Map<string, boolean>();
+	/** Full listing signature (`on:by:workspace:changed`) so cross-tab workspace switches also emit `experiments: true`. */
+	let listingSig = new Map<string, string>();
 	const gatedApps = new Set<string>();
 	/** Closed, but kept loaded while a dirty tab of the app's document types is open (R14). */
 	const held = new Set<string>();
+	/** Held instances whose R14 deferral notice was already sent to the current person. */
+	const noticedHeld = new Set<string>();
 	/** Apps whose unload/tab cleanup was interrupted (e.g. store error) and must retry before settling (#2113). */
 	const needsCleanup = new Set<string>();
 	let readOnce = false;
@@ -453,43 +501,82 @@ export function createExperiments(deps: ExperimentsDeps): Experiments {
 		return deps.provider && person === undefined ? undefined : person;
 	};
 
+	let stopped = false;
 	let refreshing: Promise<unknown> = Promise.resolve();
-	async function refreshNow(context: CommandContext | undefined): Promise<void> {
-		const person = deps.person();
-		const currentPerson = shellPerson();
-		const read = await snapshot(currentPerson);
-		const next = new Map([...read.experiments.keys()].map((id) => [id, stateIn(read, id).on]));
-		const changedAny =
-			next.size !== states.size || [...next].some(([id, on]) => states.get(id) !== on);
+	async function refreshNow(context: CommandContext | undefined): Promise<boolean> {
+		if (stopped) return false;
+		const person = shellPerson();
+		const read = await snapshot(person);
+		if (stopped || shellPerson() !== person) return false;
+		const next = new Map<string, boolean>();
+		const nextSig = new Map<string, string>();
+		for (const [id, exp] of read.experiments) {
+			const removedAt = read.removals.get(id);
+			const mine = live(read.own.get(id)?.at, removedAt) ? read.own.get(id) : undefined;
+			const theirs = live(read.rows.get(id)?.updatedAt, removedAt) ? read.rows.get(id) : undefined;
+			const state = stateIn(read, id);
+			next.set(id, state.on);
+			nextSig.set(
+				id,
+				`${state.on}:${state.by ?? ''}:${theirs?.digest === exp.digest}:${enablementChanged(exp, mine, theirs)}`
+			);
+		}
+		const gates = appGates();
 		const first = !readOnce;
-		const personChanged = !first && currentPerson !== evaluatedPerson;
+		const personChanged = !first && person !== evaluatedPerson;
+		const unsavedByInstance = new Map<string, UnsavedTabV1[]>();
+		if (!first) {
+			for (const { instance, experiment } of gates) {
+				if (next.get(experiment) === true) continue;
+				if (gatedApps.has(instance) && !personChanged && !needsCleanup.has(instance)) continue;
+				unsavedByInstance.set(instance, await deps.unsavedTabs(instance));
+				if (stopped || shellPerson() !== person) return false;
+			}
+		}
+		if (personChanged) noticedHeld.clear();
+		const changedAny =
+			next.size !== states.size ||
+			nextSig.size !== listingSig.size ||
+			[...next].some(([id, on]) => states.get(id) !== on) ||
+			[...nextSig].some(([id, sig]) => listingSig.get(id) !== sig);
 		states = next;
-		readOnce = true;
+		listingSig = nextSig;
 		let regate = false;
+		readOnce = true;
+		const abortRefresh = () => {
+			if (regate && !stopped) deps.regate();
+			return false;
+		};
 		const tellable = person !== undefined && context !== undefined && deps.notice;
-		const deferDirty = async (instance: string, title: string) => {
+		const deferDirty = async (instance: string, title: string): Promise<boolean> => {
 			if (!held.has(instance)) {
 				held.add(instance);
-				if (tellable)
+				if (tellable) {
+					noticedHeld.add(instance);
 					await deps.notice?.(context, person, {
 						title: `${title} stays open until your changes are saved`,
 						body: `The experiment that shows ${title} was turned off. It closes once you save or discard the open tabs that hold unsaved changes.`,
 						tone: 'info',
 					});
+					if (stopped || shellPerson() !== person) return false;
+				}
 			}
+			return true;
 		};
-		for (const { instance, experiment, title } of appGates()) {
+		for (const { instance, experiment, title } of gates) {
 			const closed = next.get(experiment) !== true;
 			if (!closed) {
 				held.delete(instance);
+				noticedHeld.delete(instance);
 				needsCleanup.delete(instance);
 				if (gatedApps.delete(instance) || first) regate = true;
 				continue;
 			}
 			if (gatedApps.has(instance) && !personChanged && !needsCleanup.has(instance)) continue;
 			// At stage B nothing is loaded yet, and no tab is dirty: a closed app is simply held out, any persisted
-			// tabs of its documents closed (#2113), and boot's settle withdraws what it had pending.
-			if (first || context === undefined) {
+			// tabs of its documents closed (#2113), and boot's settle withdraws what it had pending. After stage B,
+			// including cross-tab sync (#2108), R14's dirty-tab check runs.
+			if (first) {
 				gatedApps.add(instance);
 				regate = true;
 				try {
@@ -499,11 +586,12 @@ export function createExperiments(deps: ExperimentsDeps): Experiments {
 				} catch {
 					needsCleanup.add(instance);
 				}
+				if (stopped || shellPerson() !== person) return abortRefresh();
 				continue;
 			}
-			const unsaved = await deps.unsavedTabs(instance);
+			const unsaved = unsavedByInstance.get(instance) ?? [];
 			if (unsaved.length > 0) {
-				await deferDirty(instance, title);
+				if (!(await deferDirty(instance, title))) return abortRefresh();
 				continue;
 			}
 			// Only mark cleanup pending if unload actually throws, so concurrent calls (like editor-dirty-set) don't
@@ -515,32 +603,37 @@ export function createExperiments(deps: ExperimentsDeps): Experiments {
 				needsCleanup.add(instance);
 				throw cause;
 			}
+			if (stopped || shellPerson() !== person) return abortRefresh();
 			if (!unloaded) {
 				needsCleanup.delete(instance);
-				await deferDirty(instance, title);
+				if (!(await deferDirty(instance, title))) return abortRefresh();
 				continue;
 			}
 			needsCleanup.delete(instance);
 			const wasHeld = held.delete(instance);
+			noticedHeld.delete(instance);
 			gatedApps.add(instance);
 			regate = true;
-			if (wasHeld && tellable)
+			if (wasHeld && tellable) {
 				await deps.notice?.(context, person, {
 					title: `${title} has closed`,
 					body: `Your changes are saved, so ${title} closed: the experiment that shows it is off.`,
 					tone: 'info',
 				});
+				if (stopped || shellPerson() !== person) return abortRefresh();
+			}
 		}
-		evaluatedPerson = currentPerson;
+		evaluatedPerson = person;
 		if (regate) deps.regate();
 		// Undeclare and close any layout part whose surface gate just closed, or re-declare one that opened (#2112).
 		const gatesMoved = changedAny || regate || (personChanged && next.size > 0);
 		if (gatesMoved) deps.apps().reconcileLayouts();
 		if (context) await tell(context);
 		if (gatesMoved && context) scope.note(context.traceId, { experiments: true });
+		return gatesMoved;
 	}
 
-	const refresh = (context?: CommandContext): Promise<void> => {
+	const refresh = (context?: CommandContext): Promise<boolean> => {
 		const run = refreshing.then(
 			() => refreshNow(context),
 			() => refreshNow(context)
@@ -801,6 +894,7 @@ export function createExperiments(deps: ExperimentsDeps): Experiments {
 		scope.note(context.traceId, { settings: [EXPERIMENTS_SECTION], experiments: true });
 		// The gates, and each affected person told on their own next call (5.2), this one's now.
 		await refresh(context);
+		deps.onTabWrite?.(input.audience === 'person' && deps.provider ? person : undefined);
 		return kit.success(stateIn(await snapshot(person), id));
 	}
 
@@ -844,9 +938,14 @@ export function createExperiments(deps: ExperimentsDeps): Experiments {
 		withdraw: INSTANCES,
 		declared: z
 			.array(
-				z.strictObject({ plugin: z.string().check(z.minLength(1), z.maxLength(64)), ids: IDS })
+				z.strictObject({
+					plugin: z.string().check(z.minLength(1), z.maxLength(64)),
+					ids: IDS,
+					version: z.optional(z.string().check(z.minLength(1))),
+				})
 			)
 			.check(z.maxLength(1_000)),
+		defer: z.optional(INSTANCES),
 	});
 	const settle = kit.define<typeof settleInput, { removed: number; changed: number }>({
 		name: 'experiment-settle',
@@ -875,10 +974,16 @@ export function createExperiments(deps: ExperimentsDeps): Experiments {
 						properties: {
 							plugin: { type: 'string', minLength: 1, maxLength: 64 },
 							ids: IDS_JSON,
+							version: { type: 'string', minLength: 1 },
 						},
 						required: ['plugin', 'ids'],
 						additionalProperties: false,
 					},
+				},
+				defer: {
+					type: 'array',
+					maxItems: 100,
+					items: { type: 'string', minLength: 1, maxLength: 128 },
 				},
 			},
 			required: ['removed', 'changed', 'tell', 'withdraw', 'declared'],
@@ -890,6 +995,29 @@ export function createExperiments(deps: ExperimentsDeps): Experiments {
 				const person = deps.person();
 				const read = await snapshot(person);
 				const at = kit.callNow(context);
+				// Re-check against the latest recorded plugin versions at commit time so a concurrent newer shell cannot be
+				// overwritten by an older or unlisted shell whose settle planned before the newer shell wrote (#2114).
+				const incomingDeclared = new Map(
+					input.declared.map((entry) => [entry.plugin, entry.version])
+				);
+				const staleAtCommit = (plugin: string, id?: string): boolean => {
+					const recorded = read.declaredBefore.get(plugin)?.version;
+					if (incomingDeclared.has(plugin))
+						return isStaleVersion(incomingDeclared.get(plugin), recorded);
+					if (read.plugins.has(plugin))
+						return isStaleVersion(read.pluginVersions.get(plugin), recorded);
+					return (
+						id !== undefined &&
+						isSemver(recorded) &&
+						(read.declaredBefore.get(plugin)?.ids.includes(id) ?? false)
+					);
+				};
+				const removed = input.removed.filter(
+					(id) => !staleAtCommit(id.slice(0, id.indexOf('.')), id)
+				);
+				const declared = input.declared.filter(
+					(entry) => !isStaleVersion(entry.version, read.declaredBefore.get(entry.plugin)?.version)
+				);
 				const lost: string[] = [];
 				const optedOut: string[] = [];
 				const changed: string[] = [];
@@ -908,7 +1036,7 @@ export function createExperiments(deps: ExperimentsDeps): Experiments {
 						if ((await store.get(EXPERIMENT_TABLE, row.id)) === null) throw cause;
 					}
 				};
-				for (const id of input.removed) {
+				for (const id of removed) {
 					// The removal, kept as its time, voids every enablement made before it, every person's (5.1).
 					const removal = {
 						id: removalKey(id),
@@ -927,6 +1055,7 @@ export function createExperiments(deps: ExperimentsDeps): Experiments {
 					}
 				}
 				for (const id of input.changed) {
+					if (staleAtCommit(id.slice(0, id.indexOf('.')), id)) continue;
 					const own = read.own.get(id);
 					const digest = read.experiments.get(id)?.digest;
 					if (!own?.on || digest === undefined || own.told === digest) continue;
@@ -957,24 +1086,43 @@ export function createExperiments(deps: ExperimentsDeps): Experiments {
 							body: 'What it may change is new, so it is off for you until you turn it on again in Settings, Experiments.',
 							tone: 'warning',
 						});
+					// R14 deferral notices for dirty tabs held open after a cross-tab disable (#2108).
+					const isReplaying = deps.replaying?.() === true;
+					for (const instance of input.defer ?? []) {
+						if (!isReplaying && noticedHeld.has(instance)) continue;
+						if (!isReplaying) noticedHeld.add(instance);
+						const title =
+							deps
+								.apps()
+								.summaries()
+								.find((app) => app.instance === instance)?.title ?? instance;
+						await deps.notice(context, person, {
+							title: `${title} stays open until your changes are saved`,
+							body: `The experiment that shows ${title} was turned off. It closes once you save or discard the open tabs that hold unsaved changes.`,
+							tone: 'info',
+						});
+					}
 				}
 				// Each held-out app's pending confirmations end `withdrawn`, as an unload's do (R14).
 				for (const instance of input.withdraw) await deps.unload(instance, context);
-				// Each plugin's ids as declared now, so an id it later drops is seen gone by any shell (5.1).
-				for (const { plugin, ids } of input.declared) {
+				// Each plugin's ids (and highest manifest version, #2114) as declared now, so a dropped id is seen gone.
+				for (const { plugin, ids, version } of declared) {
 					const row = {
 						id: declaredKey(plugin),
 						workspace: scope.workspace.id,
 						kind: 'declared',
 						plugin,
 						ids,
+						...(version !== undefined ? { version } : {}),
 					};
 					await writeSettled(row, read.declaredBefore.has(plugin));
 				}
 				if (input.tell) await tell(context, new Set([...lost, ...optedOut]));
-				if (input.removed.length + changed.length > 0)
+				if (removed.length + changed.length > 0) {
 					scope.note(context.traceId, { settings: [EXPERIMENTS_SECTION], experiments: true });
-				return kit.success({ removed: input.removed.length, changed: changed.length });
+					if (removed.length > 0) deps.onTabWrite?.();
+				}
+				return kit.success({ removed: removed.length, changed: changed.length });
 			}),
 	});
 
@@ -992,43 +1140,87 @@ export function createExperiments(deps: ExperimentsDeps): Experiments {
 		ready: () => readOnce && evaluatedPerson === shellPerson(),
 		waiting: () => held.size > 0,
 		refresh,
-		async settleChanges() {
+		stop: () => {
+			stopped = true;
+		},
+		async settleChanges(options) {
 			const read = await snapshot(shellPerson());
-			const removable = new Set<string>();
-			// An enablement still standing for an experiment now removed or gone, or a removal not yet recorded.
-			for (const [id, row] of read.rows)
-				if (live(row.updatedAt, read.removals.get(id))) removable.add(id);
-			for (const [id, own] of read.own) if (live(own.at, read.removals.get(id))) removable.add(id);
-			for (const [id, experiment] of read.experiments)
-				if (experiment.stage === 'removed' && !read.removals.has(id)) removable.add(id);
-			// An id a plugin declared live at the last settle and no longer does (dropped, or staged `removed`), whoever
-			// holds an enablement of it and whatever removal it had before a re-ship: the row then forgets it, so once.
-			const liveNow = (id: string) => {
-				const experiment = read.experiments.get(id);
-				return experiment !== undefined && experiment.stage !== 'removed';
-			};
-			for (const ids of read.declaredBefore.values())
-				for (const id of ids) if (!liveNow(id)) removable.add(id);
-			const removed = settledAway([...removable], read.experiments, read.plugins, read.listed);
-			// Each plugin's live ids now, where they differ from those kept: a read plugin's, and none for a plugin the
-			// deployment no longer lists, so its row names nothing to remove at the next boot.
-			const declared: Array<{ plugin: string; ids: string[] }> = [];
-			for (const plugin of new Set([...read.plugins, ...read.declaredBefore.keys()])) {
-				if (!read.plugins.has(plugin) && read.listed.has(plugin)) continue;
-				const ids = [...read.experiments.values()]
-					.filter((experiment) => experiment.plugin === plugin && experiment.stage !== 'removed')
-					.map(({ fullId }) => fullId)
-					.sort();
-				const before = [...(read.declaredBefore.get(plugin) ?? [])].sort();
-				if (ids.join() !== before.join()) declared.push({ plugin, ids });
+			const stalePlugins = stalePluginsOf(read);
+			const removed: string[] = [];
+			const declared: Array<{ plugin: string; ids: string[]; version?: string }> = [];
+			if (!options?.postRefresh) {
+				const removable = new Set<string>();
+				// An enablement still standing for an experiment now removed or gone, or a removal not yet recorded.
+				for (const [id, row] of read.rows)
+					if (live(row.updatedAt, read.removals.get(id))) removable.add(id);
+				for (const [id, own] of read.own)
+					if (live(own.at, read.removals.get(id))) removable.add(id);
+				for (const [id, experiment] of read.experiments)
+					if (
+						!stalePlugins.has(experiment.plugin) &&
+						experiment.stage === 'removed' &&
+						!read.removals.has(id)
+					)
+						removable.add(id);
+				// An id a plugin declared live at the last settle and no longer does (dropped, or staged `removed`), whoever
+				// holds an enablement of it and whatever removal it had before a re-ship: the row then forgets it, so once.
+				// Stale shells (older `plugin.version` than recorded, #2114) never drop or void newer declarations.
+				const liveNow = (id: string) => {
+					const experiment = read.experiments.get(id);
+					return experiment !== undefined && experiment.stage !== 'removed';
+				};
+				for (const [plugin, entry] of read.declaredBefore) {
+					if (stalePlugins.has(plugin)) continue;
+					for (const id of entry.ids) if (!liveNow(id)) removable.add(id);
+				}
+				const currentPlugins =
+					stalePlugins.size === 0
+						? read.plugins
+						: new Set([...read.plugins].filter((plugin) => !stalePlugins.has(plugin)));
+				const currentExperiments =
+					stalePlugins.size === 0
+						? read.experiments
+						: new Map([...read.experiments].filter(([, exp]) => !stalePlugins.has(exp.plugin)));
+				removed.push(
+					...settledAway([...removable], currentExperiments, currentPlugins, read.listed)
+				);
+				// Each plugin's live ids (and highest manifest version, #2114) now, where they differ from those kept:
+				// a read non-stale plugin's, and none for a plugin the deployment no longer lists.
+				for (const plugin of new Set([...read.plugins, ...read.declaredBefore.keys()])) {
+					if (stalePlugins.has(plugin)) continue;
+					if (!read.plugins.has(plugin) && read.listed.has(plugin)) continue;
+					const ids = [...read.experiments.values()]
+						.filter((experiment) => experiment.plugin === plugin && experiment.stage !== 'removed')
+						.map(({ fullId }) => fullId)
+						.sort();
+					const before = read.declaredBefore.get(plugin);
+					const beforeIds = [...(before?.ids ?? [])].sort();
+					const rawVersion = read.pluginVersions.get(plugin);
+					const version = isSemver(rawVersion) ? rawVersion : undefined;
+					const beforeVersion = isSemver(before?.version) ? before.version : undefined;
+					const versionAdvanced =
+						version !== undefined &&
+						(beforeVersion === undefined
+							? before !== undefined || ids.length > 0
+							: (compareSemver(version, beforeVersion) ?? 0) > 0);
+					if (ids.join() !== beforeIds.join() || versionAdvanced) {
+						const nextVersion = version ?? beforeVersion;
+						declared.push({
+							plugin,
+							ids,
+							...(nextVersion !== undefined ? { version: nextVersion } : {}),
+						});
+					}
+				}
 			}
 			const gone = new Set(removed);
 			const changed = [...read.own]
 				.filter(([id, own]) => {
-					const digest = read.experiments.get(id)?.digest;
+					const experiment = read.experiments.get(id);
+					if (!experiment || stalePlugins.has(experiment.plugin)) return false;
+					const digest = experiment.digest;
 					return (
 						!gone.has(id) &&
-						digest !== undefined &&
 						own.on &&
 						own.digest !== digest &&
 						own.told !== digest &&
@@ -1037,12 +1229,24 @@ export function createExperiments(deps: ExperimentsDeps): Experiments {
 				})
 				.map(([id]) => id);
 			const tell = shellPerson() !== undefined && toldDiffers(read);
-			// Once the gates are read: each held-out app with a confirmation still pending (R14 at boot).
+			// Once the gates are read: each held-out app with a confirmation still pending (R14 at boot or cross-tab),
+			// and each dirty-tab held app whose deferral notice has not yet been sent (#2108).
 			const withdraw: string[] = [];
-			if (readOnce)
+			const defer: string[] = [];
+			if (readOnce) {
 				for (const instance of gatedApps) if (await deps.pending(instance)) withdraw.push(instance);
-			return removed.length + changed.length + withdraw.length + declared.length > 0 || tell
-				? { removed, changed, tell, withdraw, declared }
+				for (const instance of held) if (!noticedHeld.has(instance)) defer.push(instance);
+			}
+			return removed.length + changed.length + withdraw.length + declared.length + defer.length >
+				0 || tell
+				? {
+						removed,
+						changed,
+						tell,
+						withdraw,
+						declared,
+						...(defer.length > 0 ? { defer } : {}),
+					}
 				: undefined;
 		},
 	};

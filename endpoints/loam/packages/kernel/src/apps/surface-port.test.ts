@@ -536,12 +536,21 @@ describe("P2-E7: a view's broker is its surface's", () => {
 		// Sent while the modal is open, so it waits for it rather than racing the person's close.
 		const again = view.toolsCall(modal);
 		await new Promise((resolve) => setTimeout(resolve, 0));
+		const beforeDismiss = (await journal.read()).length;
 		await kernel.call('overlay-dismiss', {
 			overlayId: opened.data?.overlayId,
 			result: 'cancel',
 		});
 		expect(((await again).structuredContent as CommandResult).error?.code).toBe('OVERLAY_COOLDOWN');
-		expect((await journal.read()).at(-1)?.command).toBe('app-modal-refuse');
+		// `overlay-dismiss` and the `app-modal-refuse` it releases settle concurrently (#1573), so check as an unordered set.
+		const afterDismiss = (await journal.read()).slice(beforeDismiss);
+		expect(afterDismiss.map((entry) => entry.command).sort()).toEqual([
+			'app-modal-refuse',
+			'overlay-dismiss',
+		]);
+		expect(
+			afterDismiss.find((entry) => entry.command === 'app-modal-refuse')?.context?.caller
+		).toBe('probev');
 		const listed = await kernel.call<{ overlays: unknown[] }>('overlay-list', {});
 		expect(listed.data?.overlays).toEqual([]);
 	});

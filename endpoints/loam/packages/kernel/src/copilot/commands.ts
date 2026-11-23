@@ -244,13 +244,14 @@ export interface CopilotDeps {
 		id: string,
 		person: string,
 		/** `reader`: a caller reading it, whose access to its scope is checked, an absent actor included. */
-		options?: { now?: number; reader?: { actor: unknown } }
+		options?: { now?: number; reader?: { actor: unknown }; traceId?: string | undefined }
 	): Promise<CopilotConfirmationCardV1 | undefined>;
 	/** `decideAccess` on a record's scope, for the actor reading it now (the inbox's rule). Absent: every scope. */
 	allows?(actor: unknown, scope: ScopeV1): boolean;
 	/** The person's confirmations an agent raised that still wait, for approval health's `expired` (6.3). */
 	pendingAsked?(
-		person: string
+		person: string,
+		traceId?: string
 	): Promise<Array<{ command: string; scope: ScopeV1; reason: HealthReasonV1; createdAt: number }>>;
 	/**
 	 * Withdraw the person's pending confirmations a turn raised, by the session and turn the kernel stored on them, or
@@ -417,6 +418,7 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 			const card = await deps.confirmationOf?.(id, kit.personOf(context), {
 				now: kit.callNow(context),
 				reader: { actor: context.actor },
+				traceId: context.traceId,
 			});
 			return card?.state === 'pending'
 				? fail(
@@ -1266,6 +1268,7 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 					// As the person may read it now (the inbox's rule): a project they left shows nothing (re-check 3).
 					const card = await deps.confirmationOf?.(call.notification, session.person, {
 						reader: { actor: context.actor },
+						traceId: context.traceId,
 					});
 					if (card && card.session === session.id) confirmations.push(card);
 				}
@@ -1349,7 +1352,7 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 		async handler(input, context) {
 			const person = kit.personOf(context);
 			// 6.3's daily counters, and the confirmations still waiting, so what expired is what was asked less the rest.
-			const pending = (await deps.pendingAsked?.(person)) ?? [];
+			const pending = (await deps.pendingAsked?.(person, context.traceId)) ?? [];
 			const keys = pending.map((row) =>
 				enforcement.keyOf(person, row.command, row.scope, row.reason, row.createdAt)
 			);

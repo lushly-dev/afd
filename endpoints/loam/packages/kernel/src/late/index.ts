@@ -16,6 +16,7 @@ import { BOOT_ONLY, INTERNAL_COMMANDS } from '../commands.js';
 import type { KernelCallFields } from '../context-fields.js';
 import type { CopilotParts } from '../copilot/commands.js';
 import type { CopilotOptionsV1, CopilotTraceV1 } from '../copilot/types.js';
+import type { StoreOrderV1 } from '../journal-order.js';
 import type { KeybindingRegistry } from '../keybindings.js';
 import { createDefaultLayout } from '../layout.js';
 import type { KernelLimits } from '../limits.js';
@@ -69,6 +70,7 @@ import type { SessionSettle } from './session-settle.js';
 import type { Settings } from './settings.js';
 import { createShellCommands, paletteGroupOf, type ShellCommandDeps } from './shell-commands.js';
 import { createShellStores, type ShellStores } from './stores.js';
+import { type TabSync, wireTabSync } from './tab-sync.js';
 import {
 	preparedUnlessRouted,
 	SERVER_UNSETTLED,
@@ -173,16 +175,18 @@ export type LateCommandDeps = ShellCommandDeps &
 		disposed?(): boolean;
 		/** An app's experiment gate opened or closed: the kernel registers the apps' commands again (phase 4's 5.3). */
 		regate?(): void;
-		/**
-		 * The server's kernel (phase 3 specification, 9.5): its chain opens with `principalGate`, so nothing here reads the
-		 * adapter's session; `session-settle`, `membership-settle` and `agent-member-settle` are not registered, the
-		 * kernel hears no adapter, and `mcpOptions()` has no page-event middleware.
-		 */
+		/** The server's kernel (9.5): principalGate, no adapter session, no page-event middleware. */
 		gated?: boolean;
-		/** The symbol `execute` marks the kernel's own calls under, for line 0's exemption of them on the server (9.5). */
+		/** The symbol `execute` marks the kernel's own calls under, for line 0's exemption on the server (9.5). */
 		own?: symbol;
 		/** `startInstances`' refresh's fields, which the principal gate passes for `app-instance-refresh` alone (9.5). */
 		instanceFields?: KernelCallFields;
+		/** Record-level journal ordering for confirmations, documents and projects (#2117). */
+		recordOrder?(traceId: string, resource: string): StoreOrderV1;
+		/** Drop pre-wait reads when a call suspends for human confirmation (#2117). */
+		suspendOrder?(traceId: string): void;
+		/** Emit a kernel event to subscribers (cross-tab sync, #2108). */
+		emit?(event: KernelEventV4): void;
 	} & Pick<ProjectSummaryDeps, 'summaries' | 'run' | 'deadlineMs'> &
 	/** What stage B reads of the apps, from the kernel's options (phase 2 specification, 2.2). */
 	Pick<KernelOptionsV5, 'boot' | 'appsLoader' | 'deployment' | 'identityPorts' | 'overlayAnchors'>;
@@ -290,13 +294,7 @@ export interface LateParts {
 	 * `loam.apps` and `loam.scope` written through before the journal records the call that changed them (#861).
 	 */
 	writeThrough: CommandMiddleware;
-	/**
-	 * What phase 6's hosted lane passes to `createMcpHandler` (phase 2 specification, 3.3): every registered
-	 * command but `INTERNAL_COMMANDS` (`BOOT_ONLY`'s are in no registry but boot's), the kernel's own chain,
-	 * and `scope` alone. Outside that chain, each of a server's mutations that succeeds, in a scope the page's
-	 * actor may enter, reaches `listeners` as the kernel's event, with what the call noted, so a page renders
-	 * what a server changed (documents specification, 5.4).
-	 */
+	/** Phase 6's `createMcpHandler` options (2.3, 3.3, 5.4): filtered commands, middleware chain and `scope`. */
 	mcpOptions(
 		current: {
 			commands: readonly ZodCommandDefinition[];
@@ -304,48 +302,29 @@ export interface LateParts {
 		},
 		listeners: ReadonlySet<(event: KernelEventV4) => void>
 	): KernelMcpOptions;
-	/** A reload, for a replay: the session is forgotten, as the Mock's page forgets it (10). */
+	/** A reload, for a replay: forgets session state (10). */
 	reload(): Promise<void>;
-	/**
-	 * Stage B's first act, after its own journaled work and before any queued call: the first `session-settle` in
-	 * `provider` mode, then the adapter's listener and the expiry timer (phase 3 specification, 4.4).
-	 */
+	/** Stage B's first act before queued calls: first `session-settle`, adapter listener and expiry timer (4.4). */
 	begin(): Promise<void>;
-	/**
-	 * What stage B reads of the apps: the host's loader with `boot`, else the options themselves. Here, since
-	 * stage B reads them only once this chunk has loaded (phase 3 specification, 13).
-	 */
+	/** Stage B's app loader (phase 3 spec 13). */
 	readApps(): Promise<AppsLoadV2 | { unavailable: string }>;
-	/** `app-instance-refresh` for each mounted instance: the chrome calls it after first paint (13). */
+	/** `app-instance-refresh` for each mounted instance (13). */
 	startInstances(): Promise<void>;
-	/**
-	 * Stage B's own journaled work, with `run` boot's own (2.2, step 5); never re-run in a replay, whose
-	 * entries are what ran. It keeps whether the store now holds the projection's entries. Then the trash's
-	 * expiry (documents specification, 4.1), and, with `settle` (stage A has hydrated the persisted state),
-	 * {@link LateParts.settle}: here rather than in the kernel's stage B, so first paint holds no call of it.
-	 */
+	/** Stage B's journaled boot work (deployment apply, trash expiry, settles; skipped in replay). */
 	apply(
 		projection: AppliedProjection,
 		run: (name: string, input: unknown) => Promise<{ success: boolean }>,
 		settle?: boolean
 	): Promise<void>;
-	/**
-	 * Boot's `app-settle`, once the persisted state is read and after the apply, which may drop the recorded
-	 * project from an instance's list: only when the active app cannot open in the recorded scope, and never
-	 * in a replay, whose entries are what ran (F3).
-	 */
+	/** Boot's `app-settle` after hydration/apply; skipped in replay (F3). */
 	settle(run: (name: string, input: unknown) => Promise<{ success: boolean }>): Promise<void>;
-	/** The instances whose commands the palette and `listCommands` leave out: not available here (11.2). */
+	/** Instances hidden from palette and `listCommands` (11.2). */
 	hidden(apps: readonly AppSummaryV2[]): ReadonlySet<string>;
-	/** Whether an experiment is on for the person the shell is for, as last read (phase 4 specification, 5.3). */
+	/** Whether an experiment is on for the shell's person (5.3). */
 	experimentOpen(experiment: string): boolean;
-	/** Whether an instance's app gate holds it out, its commands unregistered (5.3, R14). */
+	/** Whether an instance's app gate holds it out (5.3, R14). */
 	appGated(instance: string): boolean;
-	/**
-	 * After stage A has hydrated and stage B's commands are in (phase 4 specification, 3.6): an old `loam.appearance`
-	 * record moved into the person's `loam.settings`, journaled as `setting-set` with `migrated: true` through `run`,
-	 * the palette's call past the queue. Never in a replay, whose entries are what ran.
-	 */
+	/** Migrate legacy `loam.appearance` into `loam.settings` via `setting-set` (3.6; skipped in replay). */
 	migrate(run: (name: string, input: unknown) => Promise<CommandResult>): Promise<void>;
 }
 
@@ -436,12 +415,10 @@ export async function createLateParts(
 	// The port reads its list from here, so `apps` does not hold it (2.4); set once both chunks have loaded,
 	// before any app, so a late load that fails sets nothing.
 	deps.scope.callable = appCallable;
-	/** The kernel's hearing of the adapter (phase 3 specification, 4.4), built below with what it needs. */
 	let sessions: SessionSettle | undefined;
-	/** Phase 4's settings (its section 3), built below once the workspace row's store is. */
 	let settings: Settings | undefined;
-	/** Phase 4's experiments (its section 5), built below with the inbox and the confirmations they tell and withdraw. */
 	let experiments: Experiments | undefined;
+	let tabSync: TabSync | undefined;
 	/** The person the shell is for: the last settle's once there is one, the adapter's until then (4.4, B2). */
 	const shellPerson = (): string | undefined => {
 		// The server's kernel is for no one person and reads no adapter (9.5).
@@ -607,8 +584,9 @@ export async function createLateParts(
 	deps.viewState.destroy = () => {
 		sessions?.stop();
 		trust?.stop();
-		// The overrides' retry and any read in flight end with the kernel (the third round's improvement).
+		tabSync?.stop();
 		settings?.stop();
+		experiments?.stop();
 		return destroy();
 	};
 	// The active scope's editor record registers in stage B and is read then (documents specification, 6):
@@ -682,6 +660,7 @@ export async function createLateParts(
 		...(deps.limits ? { limits: deps.limits } : {}),
 		...(deps.keybindings ? { keybindings: deps.keybindings } : {}),
 		experimentOpen: (experiment) => experiments?.open(experiment) === true,
+		onTabWrite: (kind, person) => tabSync?.notify(kind, person),
 		kit: { ...DOCUMENT_KIT, archivedRefusal, personKey },
 	});
 	// Made after a disposal, it reads nothing (the fifth round's 1).
@@ -963,9 +942,12 @@ export async function createLateParts(
 				return settled === adapter ? settled : undefined;
 			},
 			inputOver: (input) => overBound(deps.limits?.values().inputBytes, input),
-			releaseQueue: (context) =>
-				(context as unknown as Record<symbol, QueuedTicket | undefined>)[deps.queued]?.release?.(),
+			releaseQueue: (context) => {
+				if (context.traceId !== undefined) deps.suspendOrder?.(context.traceId);
+				(context as unknown as Record<symbol, QueuedTicket | undefined>)[deps.queued]?.release?.();
+			},
 			digest: (value) => sha256(canonical(value)),
+			...(deps.recordOrder ? { recordOrder: deps.recordOrder } : {}),
 			kit: { ...DOCUMENT_KIT, archivedRefusal, personKey },
 		})
 	);
@@ -994,14 +976,42 @@ export async function createLateParts(
 			confirmations,
 		}),
 		regate: () => deps.regate?.(),
+		onTabWrite: (person) => tabSync?.notify('experiments', person),
+		replaying: () => deps.internals?.replaying === true,
 		kit: { ...DOCUMENT_KIT, personKey },
 	});
+	if (deps.disposed?.()) experiments.stop();
+	let tabSyncReady = false;
 	/** The removed experiments' enablements, deleted by boot's journaled settle, and changed ones told; never in a replay. */
-	const settleExperiments = async (): Promise<void> => {
-		if (deps.internals?.replaying === true || !experiments) return;
-		const changed = await experiments.settleChanges();
-		if (changed) await deps.runBoot('experiment-settle', changed);
+	let settlingExperiments: Promise<void> = Promise.resolve();
+	const settleExperiments = (postRefresh = false): Promise<void> => {
+		const run = settlingExperiments.then(async () => {
+			if (deps.internals?.replaying === true || !experiments || deps.disposed?.()) return;
+			const changed = await experiments.settleChanges(
+				postRefresh ? { postRefresh: true } : undefined
+			);
+			if (changed && !deps.disposed?.()) await deps.runBoot('experiment-settle', changed);
+		});
+		settlingExperiments = run.catch(() => undefined);
+		return run;
 	};
+	if (!deps.gated && deps.internals?.replaying !== true && !deps.disposed?.()) {
+		tabSync = wireTabSync({
+			workspace: deps.scope.workspace.id,
+			provider,
+			person: () => shellPerson() ?? (provider ? undefined : 'local'),
+			ready: () => tabSyncReady && !deps.disposed?.(),
+			readLimits: () => (settings as Settings).readLimits(),
+			readOverrides: () => (settings as Settings).readOverrides(),
+			refreshExperiments: async () => {
+				const changed = await (experiments as Experiments).refresh();
+				if (changed && !deps.disposed?.()) await declare();
+				if (!deps.disposed?.()) await settleExperiments(true);
+				return changed;
+			},
+			emit: deps.emit,
+		});
+	}
 	const byName: Map<string, ZodCommandDefinition> = new Map(
 		[
 			...boot,
@@ -1091,13 +1101,10 @@ export async function createLateParts(
 	appearance = byName.get('appearance-set');
 	const own = { agentMembers, shellPerson, lateScope, sha256, identityCommands, sessions };
 	trust = await wireTrustRecords(byName, deps, own);
-	// 8.1's precedence for the kernel's keybindings, with whom the shell is for and what a command an override names
-	// is (the reviews' 7): registered, listed in the palette and taking the chord's input, `section-open`'s section or
-	// none; a layout toggle only through its reserved chord. Then the person's overrides (8.3).
+	// 8.1's precedence for kernel keybindings and overrides (8.3).
 	deps.keybindings?.setResolver(KEYBINDING_RESOLVER, {
 		person: shellPerson,
-		// An expired session still names its user, whose keys stay until the settle ends it; a sign-out names no one (the
-		// fifth round's 5, as `expiredOnly` decides an expiry).
+		// Expired sessions still name their user until settled; sign-out names no one.
 		adapter: () => {
 			const state = deps.auth.getSession();
 			return (
@@ -1183,11 +1190,7 @@ export async function createLateParts(
 		'document-create',
 		created.recording(byName.get('document-create') as ZodCommandDefinition)
 	);
-	// After stage B, every layout read an agent can make, `layout-get`, `layout-set`'s and `layout-reset`'s results and
-	// `view-state-get` of a layout record, answers an inspector `~documents` does not declare as closed, its drawer
-	// too, writing nothing: the shell then hides the part and closes its drawer as for any closed part, and the
-	// person's layout stays theirs, so a note shows the inspector again as they left it, and an undo, built from
-	// the record, applies as it was recorded (5.1; step 12's re-checks, B1 and S-2).
+	// After stage B, layout reads present `~documents` inspector as closed when no inspector is declared (5.1).
 	const presented = (layout: Presented): Presented =>
 		inspector
 			? layout
@@ -1384,8 +1387,7 @@ export async function createLateParts(
 			} catch (cause) {
 				reportLate(cause);
 			}
-			// Then the autonomy rows the apps no longer back, flagged, and those backed again, unflagged: journaled, and
-			// only when there is some, so an unchanged workspace's journal is unchanged (phase 4 specification, 4.2).
+			// Autonomy rows no longer backed (or backed again): journaled only when changed (4.2).
 			try {
 				const changed = replaying ? undefined : await autonomy.orphanChanges();
 				if (changed && (changed.orphaned.length > 0 || changed.restored.length > 0))
@@ -1393,28 +1395,26 @@ export async function createLateParts(
 			} catch (cause) {
 				reportLate(cause);
 			}
-			// Then the enablements of experiments now removed or no longer declared, deleted before any enable can run, and
-			// changed ones told: journaled, and only when there is some (phase 4 specification, 5.1, I6).
+			// Removed/changed experiments settled before any enable can run (5.1, I6).
 			try {
 				const changed = replaying ? undefined : await experiments?.settleChanges();
 				if (changed) await run('experiment-settle', changed);
 			} catch (cause) {
 				reportLate(cause);
 			}
-			// The gates, read for the person the shell is for before the apps' commands are registered (5.3): a replay reads
-			// the same store and manifests, so decides the same, and a failed read holds every gated app out. Then a held-out
-			// app's pending confirmations end `withdrawn`, as an unload's do (R14).
+			// Read gates for the shell's person before app commands register (5.3), then withdraw held-out confirmations (R14).
 			try {
 				gatesPerson = shellPerson();
 				await experiments?.refresh();
 				await declare();
-				const held = replaying ? undefined : await experiments?.settleChanges();
+				const held = replaying
+					? undefined
+					: await experiments?.settleChanges({ postRefresh: true });
 				if (held) await run('experiment-settle', held);
 			} catch (cause) {
 				reportLate(cause);
 			}
-			// Then each app's stored bytes counted afresh where its row differs, journaled, and only when one does, so an
-			// unchanged workspace's journal is unchanged (section 11).
+			// Recount app stored bytes where rows differ (section 11).
 			try {
 				const usage = replaying
 					? []
@@ -1455,6 +1455,7 @@ export async function createLateParts(
 		begin: async () => {
 			await sessions?.begin();
 			await trust?.begin();
+			tabSyncReady = true;
 		},
 		async readApps() {
 			try {

@@ -211,13 +211,17 @@ export function createDocumentCommands(
 	): ScopeV1 | CommandResult<never> {
 		const here = callOf(context).scope as ScopeV1;
 		// The call's own scope, which the middleware already decided; decided here too, as a named one is.
-		if (named === undefined) return scope.allows(context.actor, here) ? here : projectNotFound();
+		if (named === undefined) {
+			if (here.project !== undefined) check.order(context, 'record:project')?.read();
+			return scope.allows(context.actor, here) ? here : projectNotFound();
+		}
 		// The workspace is a scope like any other: decided too, so an agent member with `workspace: false` reaches no
 		// workspace-level document by naming `null` (phase 3 specification, 3.3; step 6's final check, B1).
 		if (named === null) {
 			const at = { workspace };
 			return scope.allows(context.actor, at) ? at : projectNotFound();
 		}
+		check.order(context, 'record:project')?.read();
 		const found = scope.project(named);
 		const at = { workspace, project: found?.id as string };
 		return found && scope.allows(context.actor, at) ? at : projectNotFound();
@@ -310,7 +314,7 @@ export function createDocumentCommands(
 			updatedAt: callNow(context),
 			updatedBy: personOf(context),
 		};
-		await check.put(next);
+		await check.put(next, [], context.traceId);
 		return success(next, { undoCommand: undo.command, undoArgs: undo.args });
 	}
 
@@ -394,11 +398,17 @@ export function createDocumentCommands(
 				bytes,
 			};
 			// The record, its template's content and the instance's count in one batch, so none lands alone (4.1).
-			const write = (usage: BatchOperation[]) =>
-				check.put(record, [
-					{ method: 'PUT', path: contentPath(type.instance, at, record.id), body: content },
-					...usage,
-				]);
+			const write = (usage: BatchOperation[]) => {
+				check.order(context, `app:${type.instance}`)?.wrote();
+				return check.put(
+					record,
+					[
+						{ method: 'PUT', path: contentPath(type.instance, at, record.id), body: content },
+						...usage,
+					],
+					context.traceId
+				);
+			};
 			const quota = check.quota();
 			try {
 				if (quota)
@@ -486,6 +496,8 @@ export function createDocumentCommands(
 			const { actor } = context;
 			const status = input.status ?? 'active';
 			const query = input.query?.toLowerCase();
+			check.order(context)?.read();
+			if (all) check.order(context, 'record:project')?.read();
 			const rows = (await store.list<DocumentRecordV1>(DOCUMENT_TABLE)).data.filter(
 				(record) =>
 					record.workspace === workspace &&
@@ -595,6 +607,7 @@ export function createDocumentCommands(
 				const key = documentContentKey(record.id);
 				const table = `app-${record.instance}`;
 				const content = await store.get<AppStoreRecord>(table, storeRecordId(from, key));
+				if (content) check.order(context, `app:${record.instance}`)?.wrote();
 				await check.put(
 					next,
 					content
@@ -611,7 +624,8 @@ export function createDocumentCommands(
 								},
 								{ method: 'DELETE' as const, path: contentPath(record.instance, from, record.id) },
 							]
-						: []
+						: [],
+					context.traceId
 				);
 				return success(next, { undoCommand: 'document-move', undoArgs: back });
 			}),
@@ -796,7 +810,7 @@ export function createDocumentCommands(
 			if (bad) return bad;
 			// The record alone: a nested mutation is refused (D68), so the type's import command is the next call.
 			const record = recordOf(type, at, title, tags, context);
-			await check.put(record);
+			await check.put(record, [], context.traceId);
 			return success(
 				{ ...record, next: { command, input: { document: record.id, content: envelope.content } } },
 				{ undoCommand: 'document-trash', undoArgs: { document: record.id } }
@@ -836,8 +850,15 @@ export function createDocumentCommands(
 			}
 			// The record, its content, deleted without reading the content (3), and every link from or to it, in
 			// one batch, so none is left alone (4.1, 9.3).
-			const expire = (links: BatchOperation[]) =>
-				batch(
+			const expire = (links: BatchOperation[]) => {
+				if (expired.length > 0) {
+					check.order(context)?.wrote();
+					for (const record of expired) check.order(context, `doc:${record.id}`)?.wrote();
+					if (links.length > 0) check.order(context, 'record:document-link')?.wrote();
+					for (const instance of new Set(expired.map((record) => record.instance)))
+						check.order(context, `app:${instance}`)?.wrote();
+				}
+				return batch(
 					[
 						...expired.flatMap((record) => [
 							{
@@ -850,6 +871,7 @@ export function createDocumentCommands(
 					],
 					'expire the trash'
 				);
+			};
 			await (deps.links ? deps.links.expire(ids, expire) : expire([]));
 			// After the delete: a refund that does not land leaves the count high, never low, until the daily count corrects
 			// it (14), and never fails an expiry whose deletion has happened.

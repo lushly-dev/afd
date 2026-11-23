@@ -635,7 +635,9 @@ export const CEILINGS = Object.freeze({
 	// Bug batch #2111/#2112 merged with `main` at `9c3f9f24` (stage A `boot.gated`, lazily hydrated project layout
 	// reconciliation in `shell-state.ts`, and `event.experiments` layout refresh in `shell.ts`): measured 341,192
 	// (gzip 107,828, within 108,100); set to 341,600 under D115.
-	jsMinified: 341_600,
+	// Raised under D115 by #2117 (cycle-free RAW/WAR `journal-order.ts`, `track` for hosted MCP, `suspend`):
+	// measured 342,980 against `main` at `804e17cc`; set to 343,500.
+	jsMinified: 343_500,
 	// Raised from 96,500 to 97,000 under D115 by phase 4's step 4 with `main` at `8c3425d8` (phase 5's step 0b) merged,
 	// both measured from clean builds in one tree: 96,436 to 96,527 gzip (+91) and 309,074 to 309,275 minified (+201,
 	// within its row): the answer registry the `surfaces` and `editor` chunks share, in `events` (+180), and 21 in `layout`.
@@ -664,7 +666,8 @@ export const CEILINGS = Object.freeze({
 	// #1989 / PR #2215 (TypeScript output budgets in `afd-core` and `afd-server`) on `main` at `0b56ceecb`:
 	// measured 107,631; set to 108,100 under D115.
 	// Bug batch #2111/#2112 merged with `main` at `9c3f9f24`: 107,828, within 108,100.
-	jsGzip: 108_100,
+	// #2117 (`journal-order.ts` RAW/WAR DAG, `track`, `suspend`) on `main` at `804e17cc`: measured 108,293; set to 108,800 under D115.
+	jsGzip: 108_800,
 	// Raised from 8,496 to 10,500 by AFD's theme, Refined (D159, D115): `loam-theme.css` 8,217 to 8,431 (+214, the
 	// longer shadows and the three font stacks), and the theme's typefaces' `@font-face` rules, 1,820, the first
 	// stylesheet `index.html` links; measured 10,251, plus a margin.
@@ -713,7 +716,8 @@ export const CEILINGS = Object.freeze({
 	// #1989 / PR #2215 (TypeScript output budgets in `afd-core` and `afd-server`) on `main` at `0b56ceecb`:
 	// measured 153,404; set to 153,900 under D115.
 	// Bug batch #2111/#2112 merged with `main` at `9c3f9f24`: 154,150 (stage A `boot.gated` and lazily hydrated project layout reconciliation in `shell-state.ts`); set to 154,600 under D115.
-	kernelMinified: 154_600,
+	// #2117 (`journal-order.ts` RAW/WAR DAG, `track`, `suspend`, `emit` helper) on `main` at `804e17cc`: measured 156,690; set to 157,200 under D115.
+	kernelMinified: 157_200,
 	// Phase 4's steps 2 (+1,494) and 3 (+8,786) together: 92,316 measured with both merged; set to 93,000.
 	// Phase 4's step 5: 93,596, the inbox's wiring (above); set to 94,000.
 	// With step 8 merged beside them, 93,244; set to 94,000 (the header records it).
@@ -740,8 +744,11 @@ export const CEILINGS = Object.freeze({
 	// #2137 (step 5's follow-ups), against `main` at `e28d5629`: 134,928 (+604: the server's code kept out of the
 	// shell's words, the refused preview's own suggestion); set to 135,500 under D115.
 	// Bug batch #2097/#2098/#2111/#2112/#2113 merged with `main` at `dbc84611`: 135,291, within 135,500.
-	lateMinified: 135_500,
-	lateDocumentsMinified: 13_218,
+	// #2108 and #2117 (`tab-sync.ts` cross-tab sync, `recordOrder` in `document-types.ts`/`scope-commands.ts`/`links.ts`/`copilot-wiring.ts`, `suspendOrder`):
+	// measured 139,141 against `main` at `804e17cc`; set to 139,700 under D115.
+	lateMinified: 139_700,
+	// #2117 (`recordOrder` calls in `documents.ts`): measured 13,584 against `main` at `804e17cc`; set to 13,800 under D115.
+	lateDocumentsMinified: 13_800,
 	// Bug batch #2113: 17,514 (`closeApp` across persisted scopes with R14 dirty re-check, `document-open` gated refusal, `isTypeGated`, `Editors.projects()`); set to 18,000 under D115.
 	lateEditorMinified: 18_000,
 	// Phase 3's step 7, against `main` at `0ab76415`: 62,702 to 64,976 (+2,274): `account-agent-list` and `-disconnect`,
@@ -765,7 +772,9 @@ export const CEILINGS = Object.freeze({
 	// it"); set to 124,000 under D115.
 	// Phase 5's step 5, against `main` at `fa8ab4a5`: 124,934 (+1,466: the preview on a confirmation, the release around
 	// its run, a changed preview's new confirmation); set to 125,500 under D115.
-	lateSettingsMinified: 125_500,
+	// #2108, #2114, #2117 (cross-tab sync change detection + R14 deferral, SemVer stale-shell protection, confirmation `recordOrder`):
+	// measured 129,394 against `main` at `804e17cc`; set to 129,900 under D115.
+	lateSettingsMinified: 129_900,
 	// Phase 6's step 5: the trust records' routing, the copy and its settle, 3,964 at its first measurement; set to 4,400,
 	// that plus 10%. After its trust review and re-check, 5,829 (the copy's holder record and one batch, the person rule, the journal's
 	// bound, the strip, the agent reads from the copy and a replay's periods); set to 6,200 under D115.

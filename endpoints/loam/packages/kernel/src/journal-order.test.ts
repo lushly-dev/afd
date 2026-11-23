@@ -1,7 +1,7 @@
 /**
- * `journal-order.ts`'s rule (#1936), on its own: a top-level read from outside the kernel that read an instance's store
- * after a write to it was issued waits for that write's entry; nothing else waits, so the kernel's own work after a
- * handler is never held by the reads it starts, and a read that read before the write journals where it ends.
+ * `journal-order.ts`'s rules (#1936, #2117), on their own: RAW waits for pending writes, WAR waits for earlier pending
+ * reads, cycle freedom breaks back-edges across `waitsOn` and `origin`/`parent` execution waits, `suspend()` drops
+ * pre-wait reads and stale WAR edges during human slot waits, and `track` begins/ends hosted MCP calls.
  */
 
 import type { CommandContext, CommandResult } from '@lushly-dev/afd-core';
@@ -108,16 +108,17 @@ describe('journal-order (#1936)', () => {
 		expect(log).toEqual(['w', 'r']);
 	});
 
-	it('never holds a read that read before the write was issued (Opus 1)', async () => {
+	it('holds a write for an earlier read of the same resource so the read journals first (#2117 WAR)', async () => {
 		const { log, call } = harness();
 		const readIssued = deferred();
 		const releaseRead = deferred();
+		const writeDoneAfter = deferred();
 		let read: Promise<unknown> | undefined;
-		await call('w', {
+		const write = call('w', {
 			mutation: true,
 			name: 'book-sign',
 			handler: async (store) => {
-				// Told before it writes: the read lists first, then stays open past the write's entry.
+				// The read lists first, then stays open past the write's handler and after-work.
 				read = call('r', {
 					handler: async (own) => {
 						own.read();
@@ -128,11 +129,17 @@ describe('journal-order (#1936)', () => {
 				await readIssued.promise;
 				store.wrote();
 			},
-			after: tick,
+			after: async () => {
+				writeDoneAfter.resolve();
+			},
 		});
+		await writeDoneAfter.promise;
+		await tick();
+		// WAR holds w until r journals, even though w's handler and after-work finished first.
+		expect(log).toEqual([]);
 		releaseRead.resolve();
-		await read;
-		expect(log).toEqual(['w', 'r']);
+		await Promise.all([write, read]);
+		expect(log).toEqual(['r', 'w']);
 		const { log: second, call: again } = harness();
 		const earlyRead = deferred();
 		const writeIssued = deferred();
@@ -241,5 +248,287 @@ describe('journal-order (#1936)', () => {
 		expect(answer.answered).toBe(true);
 		expect(answered).toEqual(result);
 		expect(answered).not.toBe(result);
+	});
+});
+
+describe('journal-order (#2117)', () => {
+	it('breaks WAR/RAW cycles cleanly on single- and two-resource interleavings without deadlocking', async () => {
+		// Single resource: r reads before w writes, then reads again after w writes -> w waits on r, r skips back-edge.
+		const { order, log } = harness();
+		const run = async (
+			id: string,
+			mutation: boolean,
+			work: () => Promise<void>,
+			afterWork?: () => Promise<void>
+		) => {
+			order.begin(id, mutation, {}, false, mutation ? 'book-sign' : 'book-list');
+			try {
+				await order.turn(
+					mutation ? 'book-sign' : 'book-list',
+					{},
+					{ traceId: id } as CommandContext,
+					async () => {
+						await work();
+						await afterWork?.();
+						return ok;
+					}
+				);
+				log.push(id);
+				order.appended(id);
+			} finally {
+				order.end(id);
+			}
+		};
+		let releaseRead!: () => void;
+		const readHold = new Promise<void>((resolve) => {
+			releaseRead = resolve;
+		});
+		const readPromise = run('r', false, async () => {
+			order.store('r', 'book').read();
+			await readHold;
+			// Second read after w has written would create r -> w while w -> r already exists.
+			order.store('r', 'book').read();
+		});
+		const writePromise = run('w', true, async () => {
+			order.store('w', 'book').wrote();
+			releaseRead();
+		});
+		await Promise.all([readPromise, writePromise]);
+		expect(log).toEqual(['r', 'w']);
+
+		// Two resources: r reads A, w writes A (w -> r), w writes B, r reads B (cycle r -> w skipped).
+		const two = harness();
+		let releaseR2!: () => void;
+		const holdR2 = new Promise<void>((resolve) => {
+			releaseR2 = resolve;
+		});
+		const run2 = async (id: string, mutation: boolean, work: () => Promise<void>) => {
+			two.order.begin(id, mutation, {}, false, mutation ? 'book-sign' : 'book-list');
+			try {
+				await two.order.turn(
+					mutation ? 'book-sign' : 'book-list',
+					{},
+					{ traceId: id } as CommandContext,
+					async () => {
+						await work();
+						return ok;
+					}
+				);
+				two.log.push(id);
+				two.order.appended(id);
+			} finally {
+				two.order.end(id);
+			}
+		};
+		const r2 = run2('r2', false, async () => {
+			two.order.store('r2', 'resA').read();
+			await holdR2;
+			two.order.store('r2', 'resB').read();
+		});
+		const w2 = run2('w2', true, async () => {
+			two.order.store('w2', 'resA').wrote();
+			two.order.store('w2', 'resB').wrote();
+			releaseR2();
+		});
+		await Promise.all([r2, w2]);
+		expect(two.log).toEqual(['r2', 'w2']);
+	});
+
+	it('orders origin runs behind unrelated writes, but never waits on the awaiting origin write itself', async () => {
+		const { order, log } = harness();
+		const run = async (
+			id: string,
+			mutation: boolean,
+			fields: { origin?: string },
+			work: () => Promise<void>,
+			afterWork?: () => Promise<void>
+		) => {
+			order.begin(id, mutation, fields, false, mutation ? 'book-sign' : 'book-list');
+			try {
+				await order.turn(
+					mutation ? 'book-sign' : 'book-list',
+					{},
+					{ traceId: id } as CommandContext,
+					async () => {
+						await work();
+						await afterWork?.();
+						return ok;
+					}
+				);
+				log.push(id);
+				order.appended(id);
+			} finally {
+				order.end(id);
+			}
+		};
+		// Unrelated write finishes after an origin-run read that saw it -> origin-run waits on unrelated write.
+		let originRun!: Promise<void>;
+		await run(
+			'unrelated-w',
+			true,
+			{},
+			async () => {
+				order.store('unrelated-w', 'book').wrote();
+				originRun = run('outer', true, {}, async () => {
+					order.store('outer', 'record:confirmation').wrote();
+					await run('inner', false, { origin: 'outer' }, async () => {
+						// Reads both unrelated-w's resource AND its own awaiting origin's resource.
+						order.store('inner', 'book').read();
+						order.store('inner', 'record:confirmation').read();
+					});
+				});
+			},
+			() => tick(10)
+		);
+		await originRun;
+		// inner waits for unrelated-w, does NOT deadlock on outer, and outer finishes after inner.
+		expect(log).toEqual(['unrelated-w', 'inner', 'outer']);
+	});
+
+	it('tracks calls entering through `track` middleware without `execute()` (hosted MCP)', async () => {
+		const order = createJournalOrder(
+			() => true,
+			() => false,
+			(name) => name === 'book-sign'
+		);
+		const log: string[] = [];
+		const invoke = async (
+			traceId: string,
+			name: string,
+			work: () => Promise<void>,
+			afterWork?: () => Promise<void>
+		) => {
+			const context = { traceId } as CommandContext;
+			await order.track(name, {}, context, async () => {
+				const result = await order.turn(name, {}, context, async () => {
+					await work();
+					await afterWork?.();
+					return ok;
+				});
+				log.push(traceId);
+				order.appended(traceId);
+				return result;
+			});
+		};
+		let mcpRead!: Promise<void>;
+		await invoke(
+			'mcp-w',
+			'book-sign',
+			async () => {
+				order.store('mcp-w', 'book').wrote();
+				mcpRead = invoke('mcp-r', 'book-list', async () => {
+					order.store('mcp-r', 'book').read();
+				});
+			},
+			() => tick(10)
+		);
+		await mcpRead;
+		expect(log).toEqual(['mcp-w', 'mcp-r']);
+	});
+
+	it('releases pre-wait reads on suspend() so writes during a slot confirmation never deadlock on WAR', async () => {
+		const { order, log } = harness();
+		let releaseSuspended!: () => void;
+		const waiting = new Promise<void>((resolve) => {
+			releaseSuspended = resolve;
+		});
+		order.begin('slot-r', false, {}, false, 'probe-export');
+		const suspendedRead = (async () => {
+			try {
+				await order.turn('probe-export', {}, { traceId: 'slot-r' } as CommandContext, async () => {
+					order.store('slot-r', 'record:document').read();
+					order.suspend('slot-r');
+					await waiting;
+					return ok;
+				});
+				log.push('slot-r');
+				order.appended('slot-r');
+			} finally {
+				order.end('slot-r');
+			}
+		})();
+
+		order.begin('move-w', true, {}, false, 'document-move');
+		try {
+			await order.turn('document-move', {}, { traceId: 'move-w' } as CommandContext, async () => {
+				order.store('move-w', 'record:document').wrote();
+				return ok;
+			});
+			log.push('move-w');
+			order.appended('move-w');
+		} finally {
+			order.end('move-w');
+		}
+		releaseSuspended();
+		await suspendedRead;
+		expect(log).toEqual(['move-w', 'slot-r']);
+	});
+
+	it('purges stale WAR edges on suspend() so a post-resume re-read still waits on an in-flight writer (#2117)', async () => {
+		const { order, log } = harness();
+		let releaseRead!: () => void;
+		const readHold = new Promise<void>((resolve) => {
+			releaseRead = resolve;
+		});
+		let releaseWriteAppend!: () => void;
+		const writeAppendHold = new Promise<void>((resolve) => {
+			releaseWriteAppend = resolve;
+		});
+		let writeRegistered!: () => void;
+		const writeReady = new Promise<void>((resolve) => {
+			writeRegistered = resolve;
+		});
+		let readResumed!: () => void;
+		const readReReadDone = new Promise<void>((resolve) => {
+			readResumed = resolve;
+		});
+
+		order.begin('r', false, {}, false, 'probe-export');
+		const readPromise = (async () => {
+			try {
+				await order.turn('probe-export', {}, { traceId: 'r' } as CommandContext, async () => {
+					order.store('r', 'doc:1').read();
+					// Wait until w has called wrote() and attached a WAR edge w -> r, then suspend r.
+					await writeReady;
+					order.suspend('r');
+					await readHold;
+					// After resuming, r re-reads doc:1 while w's append is still pending -> r MUST wait on w!
+					order.store('r', 'doc:1').read();
+					readResumed();
+					return ok;
+				});
+				log.push('r');
+				order.appended('r');
+			} finally {
+				order.end('r');
+			}
+		})();
+
+		order.begin('w', true, {}, false, 'document-rename');
+		const writePromise = (async () => {
+			try {
+				await order.turn('document-rename', {}, { traceId: 'w' } as CommandContext, async () => {
+					order.store('w', 'doc:1').wrote();
+					writeRegistered();
+					await writeAppendHold;
+					return ok;
+				});
+				log.push('w');
+				order.appended('w');
+			} finally {
+				order.end('w');
+			}
+		})();
+
+		// Let r suspend, then resume r while w has not yet appended.
+		await tick(5);
+		releaseRead();
+		await readReReadDone;
+		await tick(5);
+		// r must still be waiting on w, not yet appended.
+		expect(log).toEqual([]);
+		releaseWriteAppend();
+		await Promise.all([readPromise, writePromise]);
+		expect(log).toEqual(['w', 'r']);
 	});
 });

@@ -127,5 +127,10 @@ export interface ConfirmationDeps {
 	): Promise<CommandResult | ReshowV1>;
 	/** Phase 5's suggestion records (its 6.1), which `palette-run`'s "Run it" opens and runs once. */
 	suggestions?: import('./palette-run.js').SuggestionReader;
+	/** What a call's confirmation-row reads and writes tell the journal's order (#2117). */
+	recordOrder?(
+		traceId: string | undefined,
+		resource: string
+	): import('../journal-order.js').StoreOrderV1 | undefined;
 	kit: SettingsKit;
 }
