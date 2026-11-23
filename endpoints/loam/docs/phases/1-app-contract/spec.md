@@ -1217,8 +1217,8 @@ and "The Sandbox MUST have ... `allow-scripts`, `allow-same-origin`". D62 follow
   it, and phase 6's distribution documents it. Every file under `sandbox/copilot/` takes
   the copilot frame's policy in its place ([phase 5's 3.2](../5-copilot/spec.md#32-where-the-runtime-runs-and-its-ports-the-trust-boundary)):
   `default-src 'none'; script-src <sandbox origin>/sandbox/copilot/; worker-src blob:;
-  connect-src 'none'; frame-ancestors <shell origin>`, which `loam-host`'s
-  `copilotFramePolicy` builds.
+  connect-src 'none'; frame-ancestors <shell origin>`, which `copilotFramePolicy` builds
+  (`@lushly-dev/loam-cli/frame-policy`, which `loam-host` re-exports; moved there by D162's lane split).
 
 ### 6.2 The view protocol
 

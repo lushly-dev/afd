@@ -14,6 +14,11 @@
  * Dependents of affected packages are affected too, unless only the package's own test files
  * changed (packages/server/src/a.test.ts affects afd-server alone); builds also include the
  * dependencies of the affected packages.
+ * A lane (architecture.json `lanes`, such as Loam's frozen hosted lane) is set apart: a file under
+ * one of its paths affects only its packages, whatever package directory holds it, and a lane
+ * package's change reaches no dependent outside the lane, since only the lane's own paths may
+ * import it (scripts/check-boundaries.mjs). Its own workflow job gates it (`affected.mjs gate
+ * --lane`), and `affected.mjs run`, the TypeScript gate, leaves its packages out.
  * GLOBAL_FILES, an unresolvable base or an unreadable lockfile select the whole workspace.
  */
 import { execFileSync } from 'node:child_process';
@@ -74,9 +79,13 @@ export const EXTRA_INPUTS = [
 	{ prefix: 'endpoints/loam/packages/web/index.html', packages: ['@lushly-dev/loam-host'] },
 	// Loam's identity scans what a browser loads for an import of it (phase 3 specification, E13). The
 	// kernel is its dependency, but the kernel's test files, which the scan reads too, reach no dependent.
-	{ prefix: 'endpoints/loam/packages/web/src/', packages: ['@lushly-dev/loam-identity'] },
-	{ prefix: 'endpoints/loam/packages/chrome/src/', packages: ['@lushly-dev/loam-identity'] },
-	{ prefix: 'endpoints/loam/packages/kernel/src/', packages: ['@lushly-dev/loam-identity'] },
+	// Only identity's own scan reads them, so they select none of its dependents: not the hosted server, which the
+	// frozen lane's job gates when what it imports changes (D162).
+	...[
+		'endpoints/loam/packages/web/src/',
+		'endpoints/loam/packages/chrome/src/',
+		'endpoints/loam/packages/kernel/src/',
+	].map((prefix) => ({ prefix, packages: ['@lushly-dev/loam-identity'], ownTests: true })),
 	// Loam's scenario runner runs phase 5's jobs from the specification's folder (phase 5 specification, Jobs and
 	// scenarios), so a change to one runs the kernel's tests.
 	{
@@ -127,6 +136,20 @@ export const EXTRA_INPUTS = [
 ];
 
 export const DEFAULT_BASES = ['origin/main', 'main'];
+
+/**
+ * The lanes architecture.json sets apart (its `lanes`): each `{ name, packages, paths }`, a path a
+ * directory with its trailing slash or one file. None when the file is absent (a test's fixture).
+ */
+export function readLanes(root) {
+	const file = join(root, 'architecture.json');
+	if (!existsSync(file)) return [];
+	return JSON.parse(readFileSync(file, 'utf8')).lanes ?? [];
+}
+
+/** Whether `file` lies under the lane path `lanePath`. */
+export const inLanePath = (file, lanePath) =>
+	lanePath.endsWith('/') ? file.startsWith(lanePath) : file === lanePath;
 
 function defaultGit(root) {
 	return (args) =>
@@ -236,6 +259,10 @@ const TRACK_STUBS = new Set(Object.values(TRACKS).map((track) => track.package))
 export function resolveScope({ root, all = false, bases = DEFAULT_BASES, files, git } = {}) {
 	const packages = readWorkspace(root);
 	const everything = packages.map((pkg) => pkg.name);
+	const lanes = readLanes(root);
+	const lanePackages = new Set(lanes.flatMap((lane) => lane.packages));
+	const laneOf = (file) =>
+		lanes.find((lane) => lane.paths.some((lanePath) => inLanePath(file, lanePath)));
 	const whole = (reason, extra = {}) => ({
 		mode: 'all',
 		reason,
@@ -247,6 +274,7 @@ export function resolveScope({ root, all = false, bases = DEFAULT_BASES, files, 
 		build: everything,
 		reasons: new Map(),
 		total: everything.length,
+		lanes,
 	});
 	if (all) return whole('the whole workspace was requested');
 
@@ -294,7 +322,10 @@ export function resolveScope({ root, all = false, bases = DEFAULT_BASES, files, 
 		// package: it owns none of that project's files, which reach their readers as before.
 		let owners = packages.filter((pkg) => !TRACK_STUBS.has(pkg.name) && inside(file, pkg.dir));
 		const ownTests = owners.length > 0 && TEST_FILE.test(file);
-		if (owners.length === 0) {
+		// A lane's file is the lane's alone (web/test/hosted/ belongs to the hosted lane, not to the web host).
+		const lane = laneOf(file);
+		if (lane) owners = owners.filter((pkg) => lane.packages.includes(pkg.name));
+		else if (owners.length === 0) {
 			const unit = unitRoot(file);
 			if (unit !== file && !unitDocs(file, unit))
 				owners = packages.filter((pkg) => !TRACK_STUBS.has(pkg.name) && inside(pkg.dir, unit));
@@ -311,7 +342,16 @@ export function resolveScope({ root, all = false, bases = DEFAULT_BASES, files, 
 		...new Set([
 			...changed,
 			...withDependents(
-				packages,
+				// A package outside a lane reaches a lane package only from the lane's paths, which check-boundaries
+				// holds to: the edge is the lane's, so the lane's change does not select that package.
+				packages.map((pkg) =>
+					lanePackages.has(pkg.name)
+						? pkg
+						: {
+								...pkg,
+								dependencies: pkg.dependencies.filter((name) => !lanePackages.has(name)),
+							}
+				),
 				changed.filter((name) => spreading.has(name))
 			),
 		]),
@@ -326,5 +366,6 @@ export function resolveScope({ root, all = false, bases = DEFAULT_BASES, files, 
 		build: [...withDependencies(packages, affected)].sort(),
 		reasons,
 		total: everything.length,
+		lanes,
 	};
 }

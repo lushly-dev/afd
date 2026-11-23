@@ -61,7 +61,9 @@ person's work and personal accounts side by side in one client. And a hosted
 collaboration Loam for the Lushly organization, with Lushly and AFD as its
 projects, which holds the team's shared project work and internal
 communication tools as people join. The local one comes first; the hosted
-one waits until sometime in 2027 (D129). The hosted deployment is specified
+one waits until sometime in 2027 (D129), and its code is frozen behind its
+own CI job until then ([the frozen hosted lane](docs/STATUS.md#the-frozen-hosted-lane),
+D162). The hosted deployment is specified
 in Lushly's repository; Loam records only the shell needs either surfaces,
 and nothing Lushly-specific lives here.
 

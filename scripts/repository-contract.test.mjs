@@ -540,9 +540,11 @@ test('a workflow reads the one output its affected.mjs gate writes', () => {
 	}
 });
 
-test("loam.yml shows the titles Loam phase 2's exit check reads, and a manual run opens every gate", () => {
+test("loam.yml shows the titles Loam phase 2's exit check reads, and manual and scheduled runs open every gate", () => {
 	// scripts/loam-exit-check.mjs reads a manual run's jobs and log; a skipped job or a hidden title fails it.
 	const loam = read('.github/workflows/loam.yml');
+	// The frozen hosted lane's daily check (D162, #1930): a scheduled run opens every gate as a manual one does.
+	assert.match(loam, /^ {2}schedule:\n {4}- cron: '\d{1,2} \d{1,2} \* \* \*'$/m);
 	for (const workflow of [loam, read('.github/workflows/ci.yml')]) {
 		assert.match(workflow, /^ {2}workflow_dispatch:$/m);
 		assert.match(
@@ -557,7 +559,7 @@ test("loam.yml shows the titles Loam phase 2's exit check reads, and a manual ru
 		['firefox', 'run'],
 		['webkit', 'run'],
 		['mounted', 'mounted'],
-		['hosted', 'run'],
+		['hosted', 'hosted'],
 	]) {
 		const block = new RegExp(
 			`^ {2}${job}:\\n[\\s\\S]*?(?=^ {2}[\\w-]+:\\n|$(?![\\s\\S]))`,
@@ -573,7 +575,7 @@ test("loam.yml shows the titles Loam phase 2's exit check reads, and a manual ru
 	}
 	assert.match(
 		loam,
-		/- name: Unit suites with coverage\n {8}run: pnpm -F "\.\/endpoints\/loam\/packages\/\*" -F "\.\/endpoints\/loam\/apps\/\*" test --coverage --reporter=verbose\b/
+		/- name: Unit suites with coverage\n {8}run: pnpm -F "\.\/endpoints\/loam\/packages\/\*" -F "\.\/endpoints\/loam\/apps\/\*" -F "!@lushly-dev\/loam-host" test --coverage --reporter=verbose\b/
 	);
 	assert.ok(
 		loam.includes(
@@ -582,9 +584,16 @@ test("loam.yml shows the titles Loam phase 2's exit check reads, and a manual ru
 				'          node --test --test-reporter=spec scripts/plugin-manifest.test.mjs\n'
 		)
 	);
+	// The frozen hosted lane's units and P6-E7 run in its own job, which the exit check reads (D162).
+	const hostedJob = /^ {2}hosted:\n[\s\S]*?(?=^ {2}[\w-]+:\n|$(?![\s\S]))/m.exec(loam)?.[0] ?? '';
+	assert.match(
+		hostedJob,
+		/- name: The hosted server's unit suites with coverage\n {8}run: pnpm -F @lushly-dev\/loam-host test --coverage --reporter=verbose\b/
+	);
+	assert.match(hostedJob, /- name: AFD's host path\n/);
 	// Phase 6's P6-E7 titles, which ci.yml's log cannot show: local-db's SQLite contract, verbose.
 	assert.ok(
-		loam.includes(
+		hostedJob.includes(
 			"- name: AFD's host path\n" +
 				'        run: pnpm -F @lushly-dev/local-db exec vitest run src/sqlite-adapter.test.ts src/entry.test.ts --reporter=verbose --reporter=github-actions\n'
 		)

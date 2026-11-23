@@ -29,6 +29,10 @@
 			"types": "./dist/deployment.d.ts",
 			"import": "./dist/deployment.js"
 		},
+		"./frame-policy": {
+			"types": "./dist/frame-policy.d.ts",
+			"import": "./dist/frame-policy.js"
+		},
 		"./vite": {
 			"types": "./dist/vite.d.ts",
 			"import": "./dist/vite.js"

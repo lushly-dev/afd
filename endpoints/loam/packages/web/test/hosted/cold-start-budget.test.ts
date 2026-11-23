@@ -10,7 +10,7 @@ import {
 	P6_H1_MAIN_MEDIANS_MS,
 	p95CeilingMs,
 	SECTION_14_CEILINGS,
-} from '../hosted/budget';
+} from './budget';
 
 describe('P6-H1 section 14 cold-start ceiling (#1125)', () => {
 	it('computes nearest-rank p95 plus 25%, rounded up, regardless of input order', () => {

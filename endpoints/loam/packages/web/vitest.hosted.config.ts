@@ -4,7 +4,8 @@ import { defineConfig } from 'vitest/config';
  * The hosted criterion (phase 6 specification, section 19's "Hosted" place): Chromium against the built
  * shell served by `loam-host dev` in a child process, through `startDevHost`. Build the web host and
  * `loam-host` first. Run by `loam.yml`'s "Hosted development profile" job; one file at a time, since each
- * starts a server child beside Chromium.
+ * starts a server child beside Chromium. Part of the frozen hosted lane (Loam's D162; `architecture.json`'s
+ * `lanes`), with `test/hosted/`, whose `cold-start-budget.test.ts` is a unit of P6-H1's ceiling and runs here too.
  */
 export default defineConfig({
 	test: {

@@ -1,0 +1,8 @@
+{
+	// The hosted criterion, in the frozen hosted lane (Loam's D162; `architecture.json`'s `lanes`): checked by
+	// `typecheck:hosted` in `loam.yml`'s "Hosted development profile" job, after `loam-host` is built. It reads the
+	// browser suite's harness, which `tsconfig.json` checks too.
+	"extends": "./tsconfig.json",
+	"include": ["test/hosted/**/*", "vitest.hosted.config.ts"],
+	"exclude": ["node_modules", "dist"]
+}

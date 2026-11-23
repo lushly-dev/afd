@@ -35,6 +35,8 @@ on:
       - '.cargo/config.toml'
       - '.github/workflows/loam.yml'
       - '.github/actions/playwright-install/**'
+      # Its `lanes` define the frozen hosted lane, which the `hosted` gate reads.
+      - 'architecture.json'
   # The merge queue. No path filter applies to it: the `queue` job below does that work.
   merge_group:
   pull_request:
@@ -67,6 +69,14 @@ on:
       - '.cargo/config.toml'
       - '.github/workflows/loam.yml'
       - '.github/actions/playwright-install/**'
+      # Its `lanes` define the frozen hosted lane, which the `hosted` gate reads.
+      - 'architecture.json'
+  # Daily, off the other workflows' hour (06:41 to 08:11 UTC): `AFD_SCOPE` is `all` for a scheduled run, as for a manual
+  # one, so every gate opens and the frozen hosted lane runs against the shell `main` builds (Loam's D162; #1930). A
+  # break only the built shell causes shows within a day, and no pull request waits on it. ci-ok reads only pull
+  # request and merge group runs.
+  schedule:
+    - cron: '17 9 * * *'
   workflow_dispatch:
 
 permissions:
@@ -105,7 +115,7 @@ jobs:
 
   scope:
     # Triggered by a shared input such as a foundation or pnpm-lock.yaml, the suite below runs only
-    # when the change reaches Loam's packages (scripts/affected.mjs). Manual runs check everything.
+    # when the change reaches Loam's packages (scripts/affected.mjs). Manual and scheduled runs check everything.
     name: Affected units
     needs: queue
     if: needs.queue.outputs.run == 'true'
@@ -114,6 +124,7 @@ jobs:
     outputs:
       run: ${{ steps.run.outputs.run }}
       mounted: ${{ steps.mounted.outputs.run }}
+      hosted: ${{ steps.hosted.outputs.run }}
     env:
       AFD_BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || github.event.merge_group.base_sha || github.event.before }}
       AFD_SCOPE: ${{ (github.event_name == 'pull_request' || github.event_name == 'push' || github.event_name == 'merge_group') && 'affected' || 'all' }}
@@ -125,10 +136,17 @@ jobs:
       # `theme:check` below scans every `.ts` file of violet-elements' source, specs included, and a
       # spec reaches no dependent, so the path is named: no other workflow runs that check.
       - id: run
-        run: node scripts/affected.mjs gate --package @lushly-dev/loam-app-checklist --package @lushly-dev/loam-app-hello --package @lushly-dev/loam-app-notes --package @lushly-dev/loam-app-tally --package @lushly-dev/loam-app-tasks --package @lushly-dev/loam-chrome --package @lushly-dev/loam-cli --package @lushly-dev/loam-console --package @lushly-dev/loam-copilot --package @lushly-dev/loam-desktop --package @lushly-dev/loam-host --package @lushly-dev/loam-identity --package @lushly-dev/loam-kernel --package @lushly-dev/loam-manifest --package @lushly-dev/loam-sdk --package @lushly-dev/loam-testing --package @lushly-dev/loam-theme --package @lushly-dev/loam-web --path foundations/fast-af/packages/violet-elements/src/ --path .cargo/config.toml --path .github/workflows/loam.yml --path .github/actions/playwright-install/
-      # The same packages, and an Umbel or `afd` crate change, which reaches this job and not the one below.
+        run: node scripts/affected.mjs gate --package @lushly-dev/loam-app-checklist --package @lushly-dev/loam-app-hello --package @lushly-dev/loam-app-notes --package @lushly-dev/loam-app-tally --package @lushly-dev/loam-app-tasks --package @lushly-dev/loam-chrome --package @lushly-dev/loam-cli --package @lushly-dev/loam-console --package @lushly-dev/loam-copilot --package @lushly-dev/loam-desktop --package @lushly-dev/loam-identity --package @lushly-dev/loam-kernel --package @lushly-dev/loam-manifest --package @lushly-dev/loam-sdk --package @lushly-dev/loam-testing --package @lushly-dev/loam-theme --package @lushly-dev/loam-web --path foundations/fast-af/packages/violet-elements/src/ --path .cargo/config.toml --path .github/workflows/loam.yml --path .github/actions/playwright-install/
+      # The same packages, and an Umbel or `afd` crate change, which reaches this job and not the ones below.
       - id: mounted
-        run: node scripts/affected.mjs gate --package @lushly-dev/loam-app-checklist --package @lushly-dev/loam-app-hello --package @lushly-dev/loam-app-notes --package @lushly-dev/loam-app-tally --package @lushly-dev/loam-app-tasks --package @lushly-dev/loam-chrome --package @lushly-dev/loam-cli --package @lushly-dev/loam-console --package @lushly-dev/loam-copilot --package @lushly-dev/loam-desktop --package @lushly-dev/loam-host --package @lushly-dev/loam-identity --package @lushly-dev/loam-kernel --package @lushly-dev/loam-manifest --package @lushly-dev/loam-sdk --package @lushly-dev/loam-testing --package @lushly-dev/loam-theme --package @lushly-dev/loam-web --path .cargo/config.toml --path .github/workflows/loam.yml --path .github/actions/playwright-install/ --path endpoints/umbel/ --except endpoints/umbel/docs/ --path packages/rust/
+        run: node scripts/affected.mjs gate --package @lushly-dev/loam-app-checklist --package @lushly-dev/loam-app-hello --package @lushly-dev/loam-app-notes --package @lushly-dev/loam-app-tally --package @lushly-dev/loam-app-tasks --package @lushly-dev/loam-chrome --package @lushly-dev/loam-cli --package @lushly-dev/loam-console --package @lushly-dev/loam-copilot --package @lushly-dev/loam-desktop --package @lushly-dev/loam-identity --package @lushly-dev/loam-kernel --package @lushly-dev/loam-manifest --package @lushly-dev/loam-sdk --package @lushly-dev/loam-testing --package @lushly-dev/loam-theme --package @lushly-dev/loam-web --path .cargo/config.toml --path .github/workflows/loam.yml --path .github/actions/playwright-install/ --path endpoints/umbel/ --except endpoints/umbel/docs/ --path packages/rust/
+      # The frozen hosted lane (Loam's D162 and D164): `@lushly-dev/loam-host` and the hosted criterion, whose packages
+      # and paths architecture.json's `lanes` lists once. Its packages are named in neither gate above, and the jobs above
+      # leave them out of their builds and suites, so a local change waits on nothing of the lane. This gate opens when a
+      # lane path or input changes (`inputs`: the files outside it that it reads) or a package the server imports does
+      # (the kernel, the CLI, identity, an AFD package).
+      - id: hosted
+        run: node scripts/affected.mjs gate --lane loam-hosted --path .github/workflows/loam.yml --path .github/actions/playwright-install/ --path architecture.json
 
   loam:
     name: Build, unit and Chromium
@@ -144,14 +162,16 @@ jobs:
           node-version-file: '.nvmrc'
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      # The hosted server and its dependencies too: its units read the built shell and the CLI.
+      # Without the hosted server, the frozen lane's (D162), which the web host lists only for its hosted criterion: the
+      # "Hosted development profile" job builds and tests it. scripts/affected.test.mjs holds every job but that one to
+      # the `!` filter.
       - name: Build the web host and its dependencies
-        run: pnpm -F "@lushly-dev/loam-web..." -F "@lushly-dev/loam-host..." build
+        run: pnpm -F "@lushly-dev/loam-web..." -F "!@lushly-dev/loam-host" build
       - name: Typecheck the packages and apps
-        run: pnpm -F "./endpoints/loam/packages/*" -F "./endpoints/loam/apps/*" typecheck
+        run: pnpm -F "./endpoints/loam/packages/*" -F "./endpoints/loam/apps/*" -F "!@lushly-dev/loam-host" typecheck
       # Verbose, so each test's title is in the log for the exit check (scripts/loam-exit-check.mjs).
       - name: Unit suites with coverage
-        run: pnpm -F "./endpoints/loam/packages/*" -F "./endpoints/loam/apps/*" test --coverage --reporter=verbose --reporter=github-actions
+        run: pnpm -F "./endpoints/loam/packages/*" -F "./endpoints/loam/apps/*" -F "!@lushly-dev/loam-host" test --coverage --reporter=verbose --reporter=github-actions
       # E2's and E11's AFD side, whose titles ci.yml's log cannot show: lefthook prints only a summary.
       - name: AFD's lean path
         run: |
@@ -163,10 +183,6 @@ jobs:
         run: |
           pnpm -F @lushly-dev/afd-server exec vitest run src/authorization-cases.test.ts src/mcp-auth.test.ts src/mcp-auth-verifier.test.ts src/mcp-auth-scopes.test.ts src/mcp-auth-host.test.ts src/verified-credentials.test.ts --reporter=verbose --reporter=github-actions
           pnpm -F @lushly-dev/afd-auth exec vitest run --reporter=verbose --reporter=github-actions
-      # Phase 6's P6-E7: local-db's SqliteAdapter, the hosted server's store, against the DataAdapter contract,
-      # and its entry kept out of the root; verbose, since ci.yml's log cannot show its titles.
-      - name: AFD's host path
-        run: pnpm -F @lushly-dev/local-db exec vitest run src/sqlite-adapter.test.ts src/entry.test.ts --reporter=verbose --reporter=github-actions
       - name: Theme contract against the tree
         run: pnpm -F @lushly-dev/loam-theme theme:check
       - name: Token-only lint
@@ -222,7 +238,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Build the web host and its dependencies
-        run: pnpm -F "@lushly-dev/loam-web..." build
+        run: pnpm -F "@lushly-dev/loam-web..." -F "!@lushly-dev/loam-host" build
       - uses: ./.github/actions/playwright-install
         with:
           package: '@lushly-dev/loam-web'
@@ -260,7 +276,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Build the web host and its dependencies
-        run: pnpm -F "@lushly-dev/loam-web..." build
+        run: pnpm -F "@lushly-dev/loam-web..." -F "!@lushly-dev/loam-host" build
       - uses: ./.github/actions/playwright-install
         with:
           package: '@lushly-dev/loam-web'
@@ -299,7 +315,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Build the web host and its dependencies
-        run: pnpm -F "@lushly-dev/loam-web..." build
+        run: pnpm -F "@lushly-dev/loam-web..." -F "!@lushly-dev/loam-host" build
       - uses: ./.github/actions/playwright-install
         with:
           package: '@lushly-dev/loam-web'
@@ -348,7 +364,7 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/main' }}
           workspaces: endpoints/umbel
       - name: Build the web host and its dependencies
-        run: pnpm -F "@lushly-dev/loam-web..." build
+        run: pnpm -F "@lushly-dev/loam-web..." -F "!@lushly-dev/loam-host" build
       - uses: ./.github/actions/playwright-install
         with:
           package: '@lushly-dev/loam-web'
@@ -369,12 +385,18 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  # Phase 6's hosted criterion: Chromium against `loam-host dev`, the development profile on https://localhost
-  # with a generated certificate (`openssl`, on the runner), its server a child process per test file.
+  # The frozen hosted lane (Loam's D162 and D164; architecture.json's `lanes`), and the only job a change's scope builds,
+  # typechecks and tests it in: the hosted server's units, its store (P6-E7) and phase 6's hosted criterion, Chromium against
+  # `loam-host dev`, the development profile on https://localhost with a generated certificate (`openssl`, on the
+  # runner), its server a child process per test file. A pull request or merge group runs it when the `hosted` gate
+  # opens, as a push to main does for the same change, and ci-ok then requires it like any job of this workflow. A
+  # local change it does not read (the web host's source, which the criterion serves built) waits on nothing of it, so
+  # a break shows in the daily scheduled run, when the gate next opens or in a manual run; fixes that keep this job
+  # green are allowed while the lane is frozen.
   hosted:
     name: Hosted development profile
     needs: scope
-    if: needs.scope.outputs.run == 'true'
+    if: needs.scope.outputs.hosted == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -385,8 +407,20 @@ jobs:
           node-version-file: '.nvmrc'
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # The web host too: the server's units and the criterion read the built shell.
       - name: Build the web host, the hosted server and their dependencies
         run: pnpm -F "@lushly-dev/loam-web..." -F "@lushly-dev/loam-host..." build
+      - name: Typecheck the hosted server and the hosted criterion
+        run: |
+          pnpm -F @lushly-dev/loam-host typecheck
+          pnpm -F @lushly-dev/loam-web typecheck:hosted
+      # Verbose, so each P6- title is in the log for the exit check (scripts/loam-exit-check.mjs).
+      - name: The hosted server's unit suites with coverage
+        run: pnpm -F @lushly-dev/loam-host test --coverage --reporter=verbose --reporter=github-actions
+      # Phase 6's P6-E7: local-db's SqliteAdapter, the hosted server's store, against the DataAdapter contract,
+      # and its entry kept out of the root; verbose, since ci.yml's log cannot show its titles.
+      - name: AFD's host path
+        run: pnpm -F @lushly-dev/local-db exec vitest run src/sqlite-adapter.test.ts src/entry.test.ts --reporter=verbose --reporter=github-actions
       - uses: ./.github/actions/playwright-install
         with:
           package: '@lushly-dev/loam-web'

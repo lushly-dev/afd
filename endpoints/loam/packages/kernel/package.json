@@ -18,6 +18,10 @@
 			"types": "./dist/testing.d.ts",
 			"import": "./dist/testing.js"
 		},
+		"./local-auth": {
+			"types": "./dist/local-auth.d.ts",
+			"import": "./dist/local-auth.js"
+		},
 		"./copilot": {
 			"types": "./dist/copilot/index.d.ts",
 			"import": "./dist/copilot/index.js"
