@@ -1389,3 +1389,58 @@ TEST_CASE("StdioServer catches throwing context_hook and group_by and joins read
     }
 }
 #endif
+
+TEST_CASE("StdioServer restores Interface::mcp after context_hook") {
+    int app_runs = 0;
+    auto reg = afd::CommandRegistry::create(
+        {.call_grant = [](std::string_view, const afd::CommandContext&) { return true; }});
+    REQUIRE(reg.has_value());
+    REQUIRE_FALSE((*reg)
+                      ->register_command({.name = "app-secret",
+                                          .description = "Apps-only command",
+                                          .handler =
+                                              [&app_runs](const afd::Json&, afd::CommandContext&) {
+                                                  ++app_runs;
+                                                  return afd::success(afd::Json{{"ok", true}});
+                                              },
+                                          .expose = {.palette = false,
+                                                     .mcp = false,
+                                                     .agent = false,
+                                                     .cli = false,
+                                                     .apps = true}})
+                      .has_value());
+
+    for (const std::optional<afd::Interface> mutated :
+         {std::optional<afd::Interface>{afd::Interface::apps}, std::optional<afd::Interface>{}}) {
+        auto server = make_server(**reg, {.context_hook = [mutated](afd::CommandContext& ctx,
+                                                                    const afd::mcp::RequestInfo&) {
+            ctx.surface = mutated;
+        }});
+
+        const auto direct = modern_call(*server, "app-secret", Json::object(), Json::object());
+        CHECK(direct["isError"] == true);
+        CHECK(direct["structuredContent"]["error"]["code"] == "COMMAND_NOT_FOUND");
+
+        const auto via_call =
+            modern_call(*server, "afd-call", {{"command", "app-secret"}, {"input", Json::object()}},
+                        Json::object());
+        CHECK(via_call["isError"] == true);
+        CHECK(via_call["structuredContent"]["error"]["code"] == "COMMAND_NOT_FOUND");
+
+        const auto via_batch = modern_call(
+            *server, "afd-batch",
+            {{"commands", Json::array({{{"command", "app-secret"}, {"input", Json::object()}}})}},
+            Json::object());
+        CHECK(via_batch["structuredContent"]["results"][0]["result"]["success"] == false);
+        CHECK(via_batch["structuredContent"]["results"][0]["result"]["error"]["code"] ==
+              "COMMAND_NOT_FOUND");
+
+        const auto via_pipe = modern_call(
+            *server, "afd-pipe",
+            {{"steps", Json::array({{{"command", "app-secret"}, {"input", Json::object()}}})}},
+            Json::object());
+        CHECK(via_pipe["isError"] == true);
+        CHECK(via_pipe["structuredContent"]["steps"][0]["error"]["code"] == "COMMAND_NOT_FOUND");
+    }
+    CHECK(app_runs == 0);
+}

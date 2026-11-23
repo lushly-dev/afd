@@ -107,13 +107,16 @@
 			"evidence": ["python/src/afd/server/factory.py", "python/tests/test_expose_options.py"]
 		},
 		"single.app-calls": {
-			"status": "planned",
-			"note": "([#1513](https://github.com/lushly-dev/afd/issues/1513)); `apps` names no surface, so `COMMAND_NOT_FOUND` or `COMMAND_NOT_EXPOSED`",
+			"status": "yes",
+			"note": "(`ExposeOptions.apps`, `create_command_registry(call_grant=...)` and `create_server(..., call_grant=...)`)",
 			"views": {
-				"app-calls": "([#1513](https://github.com/lushly-dev/afd/issues/1513)): `apps` names no surface yet, so calls return `COMMAND_NOT_FOUND` or `COMMAND_NOT_EXPOSED` rather than one `CALL_NOT_GRANTED`"
+				"app-calls": "(`ExposeOptions.apps`, `create_command_registry(call_grant=...)` and `create_server(..., call_grant=...)`)"
 			},
-			"issue": "#1513",
-			"evidence": ["python/tests/test_app_calls_vectors.py"]
+			"evidence": [
+				"python/src/afd/core/commands.py",
+				"python/src/afd/server/factory.py",
+				"python/tests/test_app_calls_vectors.py"
+			]
 		},
 		"single.active-context": {
 			"status": "yes",

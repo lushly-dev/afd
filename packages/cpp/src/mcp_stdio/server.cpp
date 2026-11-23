@@ -752,20 +752,20 @@ struct StdioServer::State {
         CommandContext context;
         context.surface = Interface::mcp;
         context.actor = Actor{.kind = ActorKind::agent};
-        // `context.approval` stays unset: approval evidence comes only from trusted surface code
-        // after a human approved, never from the arguments or `_meta` of a tool call.
+        // `context.approval` stays unset: approval evidence comes only from trusted surface code.
         context.trace_id = "trace-" + std::to_string(options.clock->wall_ms()) + "-" +
                            random_uuid(random).substr(0, 8);
         context.cancellation = cancellation;
         if (options.context_hook) {
             options.context_hook(context, info);
         }
+        // Transport-owned: context_hook cannot move MCP off Interface::mcp or forge approvals.
+        context.surface = Interface::mcp;
         context.approval.reset();
         context.mcp_approval_relay.reset();
         context.output_budget_meta_ask.reset();
-        // The output budget ask (spec/output-budgets.md, B2): trusted code (`context_hook`) wins
-        // over `_meta`. `null` is no ask; an invalid value is kept so `CommandRegistry::execute`
-        // fails the call with VALIDATION_ERROR before middleware and the handler run.
+        // Output budget ask (spec/output-budgets.md, B2): `context_hook` wins over `_meta`.
+        // `null` is no ask; invalid values are kept for `CommandRegistry::execute` to reject.
         if (!context.output_budget_ask.has_value()) {
             const auto budget = info.meta.find(std::string(output_budget_meta_key));
             if (budget != info.meta.end() && !budget->is_null()) {
@@ -773,8 +773,7 @@ struct StdioServer::State {
                     detail::RawOutputBudgetAsk{*budget});
             }
         }
-        // The server's: what the request named, or the connection's stack. The registry runs the
-        // call in the scope's active context.
+        // Scope's active context (the request's or connection stack's).
         context.context_scope = scope;
         // A remote caller: an unexposed command is an unknown one (D4).
         context.remote = true;

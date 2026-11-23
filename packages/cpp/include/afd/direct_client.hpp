@@ -29,6 +29,9 @@ struct DirectApprovalRequest {
 
 struct DirectClientOptions {
     /// The surface calls come through. Only commands exposed to it are visible. Default: agent.
+    /// `Interface::apps` is not served by `DirectClient` (its `allow`, `UNKNOWN_TOOL` and client
+    /// middleware would answer before `call_grant`): call `CommandRegistry::execute` directly for
+    /// app-to-app calls.
     Interface surface = Interface::agent;
     /// Further restricts which commands this client may call.
     std::function<bool(std::string_view name)> allow;

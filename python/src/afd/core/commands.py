@@ -41,6 +41,7 @@ from typing import (
 from afd.core.actor import Actor, with_context_defaults
 from afd.core.approval import ApprovalPolicy, approval_mode
 from afd.core.clock import Clock, RandomSource
+from afd.core.errors import CommandError, ErrorCodes
 from afd.core.output_budget import (
     AFD_OUTPUT_BUDGET_META_KEY,
     OutputBudget,
@@ -124,25 +125,27 @@ class ExposeOptions:
     """Controls which interfaces a command is exposed to.
 
     Security-first defaults: palette and agent are on by default,
-    MCP and CLI are opt-in.
+    MCP, CLI and apps are opt-in.
 
     Attributes:
         palette: Expose to command palette (default: True).
         mcp: Expose to external MCP agents (default: False -- opt-in for security).
         agent: Expose to in-app AI assistant (default: True).
         cli: Expose to terminal/CLI (default: False).
+        apps: Expose to other apps under a host's call grant (default: False -- opt-in).
     """
 
     palette: bool = True
     mcp: bool = False
     agent: bool = True
     cli: bool = False
+    apps: bool = False
 
 
 DEFAULT_EXPOSE = ExposeOptions()
 """Default exposure options. Frozen dataclass prevents accidental mutation."""
 
-_VALID_INTERFACES = frozenset({"palette", "mcp", "agent", "cli"})
+_VALID_INTERFACES = frozenset({"palette", "mcp", "agent", "cli", "apps"})
 
 TInput = TypeVar("TInput")
 TOutput = TypeVar("TOutput")
@@ -263,6 +266,49 @@ CommandMiddleware = Callable[
     Awaitable[CommandResult[Any]],
 ]
 """Middleware: ``(command_name, input, context, next_fn) -> CommandResult``."""
+
+CallGrant = Callable[[str, CommandContext], bool]
+"""Host grant predicate for app-to-app calls: ``(command_name, context) -> bool``."""
+
+
+def call_not_granted() -> CommandError:
+    """The fixed ``CALL_NOT_GRANTED`` refusal for app-to-app calls.
+
+    Names neither the command nor the reason (``spec/command-metadata.md``,
+    "App-to-app calls").
+    """
+    return CommandError(
+        code=ErrorCodes.CALL_NOT_GRANTED,
+        message="This app may not call that command",
+        suggestion=(
+            "Ask the deployer for a calls grant that names the command; "
+            "the command must also set expose.apps"
+        ),
+        retryable=False,
+    )
+
+
+def app_call_granted(
+    command: Optional["CommandDefinition"],
+    name: str,
+    context: CommandContext,
+    call_grant: Optional[CallGrant],
+) -> bool:
+    """Whether an ``interface == 'apps'`` call to ``name`` is admitted.
+
+    Runs only when the command exists, sets ``expose.apps`` to ``True``, and
+    ``call_grant(name, context)`` returns strictly ``True``. Missing grants,
+    any other return value, or an exception all refuse.
+    """
+    if command is None or call_grant is None:
+        return False
+    expose = command.expose if command.expose is not None else DEFAULT_EXPOSE
+    if expose.apps is not True:
+        return False
+    try:
+        return call_grant(name, context) is True
+    except Exception:
+        return False
 
 
 @dataclass
@@ -402,6 +448,17 @@ class CommandRegistry(Protocol):
         """
         ...
 
+    def list_by_exposure(self, interface: str) -> List[CommandDefinition]:
+        """Get commands exposed to ``interface``.
+
+        Args:
+            interface: Surface name (``palette``, ``mcp``, ``agent``, ``cli``, or ``apps``).
+
+        Returns:
+            List of commands exposed to that interface.
+        """
+        ...
+
     async def execute(
         self,
         name: str,
@@ -426,9 +483,14 @@ class CommandRegistry(Protocol):
 class _CommandRegistryImpl:
     """Default command registry implementation."""
 
-    def __init__(self, *, dev_mode: bool = False) -> None:
+    def __init__(
+        self, *, dev_mode: bool = False, call_grant: Optional[CallGrant] = None
+    ) -> None:
+        if call_grant is not None and not callable(call_grant):
+            raise TypeError("call_grant must be callable")
         self._commands: Dict[str, CommandDefinition] = {}
         self._dev_mode = dev_mode
+        self._call_grant = call_grant
 
     def register(self, command: CommandDefinition) -> None:
         if command.name in self._commands:
@@ -483,6 +545,16 @@ class _CommandRegistryImpl:
     def list_by_category(self, category: str) -> List[CommandDefinition]:
         return [cmd for cmd in self._commands.values() if cmd.category == category]
 
+    def list_by_exposure(self, interface: str) -> List[CommandDefinition]:
+        if interface not in _VALID_INTERFACES:
+            return []
+        return [
+            cmd
+            for cmd in self._commands.values()
+            if getattr(cmd.expose if cmd.expose is not None else DEFAULT_EXPOSE, interface, False)
+            is True
+        ]
+
     async def execute(
         self,
         name: str,
@@ -493,6 +565,12 @@ class _CommandRegistryImpl:
     ) -> CommandResult[Any]:
         from afd.core.direct_allow import _is_allowed, _not_allowed
         from afd.core.result import failure
+
+        interface = context.extra.get("interface") if context and context.extra else None
+        if interface == "apps":
+            command = self._commands.get(name)
+            if not app_call_granted(command, name, context, self._call_grant):
+                return failure(call_not_granted())
 
         if not _is_allowed(context, name):
             return failure(_not_allowed(name))
@@ -512,7 +590,6 @@ class _CommandRegistryImpl:
         # Check exposure if interface context is provided. An empty interface is
         # no interface, and an unknown one exposes nothing, as in TypeScript's
         # isExposedTo (spec/error-codes.md, D4).
-        interface = context.extra.get("interface") if context else None
         if interface is not None and interface != "":
             known = isinstance(interface, str) and interface in _VALID_INTERFACES
             expose = command.expose if command.expose is not None else DEFAULT_EXPOSE
@@ -591,7 +668,9 @@ class _CommandRegistryImpl:
             return execution_failure(exc, self._dev_mode)
 
 
-def create_command_registry(*, dev_mode: bool = False) -> CommandRegistry:
+def create_command_registry(
+    *, dev_mode: bool = False, call_grant: Optional[CallGrant] = None
+) -> CommandRegistry:
     """Create a new command registry.
 
     Args:
@@ -599,6 +678,9 @@ def create_command_registry(*, dev_mode: bool = False) -> CommandRegistry:
             COMMAND_EXECUTION_ERROR result. When False (the default), the
             message is "An internal error occurred" and the exception is only
             logged to the ``afd.core`` logger, as in the MCP server.
+        call_grant: Host predicate ``(command_name, context) -> bool`` for
+            app-to-app calls (``context.extra["interface"] == "apps"``). When
+            omitted, every ``apps`` call is refused with ``CALL_NOT_GRANTED``.
 
     Returns:
         A CommandRegistry instance for registering and executing commands.
@@ -608,7 +690,7 @@ def create_command_registry(*, dev_mode: bool = False) -> CommandRegistry:
         >>> registry.register(my_command)
         >>> result = await registry.execute("my-command", {"arg": "value"})
     """
-    return _CommandRegistryImpl(dev_mode=dev_mode)
+    return _CommandRegistryImpl(dev_mode=dev_mode, call_grant=call_grant)
 
 
 def validate_command_name(name: str) -> dict[str, Any]:

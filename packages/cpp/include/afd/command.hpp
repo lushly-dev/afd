@@ -8,6 +8,7 @@
 #include "afd/result.hpp"
 #include "afd/runtime.hpp"
 
+#include <concepts>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -32,17 +33,18 @@ struct RawOutputBudgetAsk;
 
 /// A surface a command can be exposed to. TypeScript calls this the command's `interface`; C++
 /// avoids that word because <windows.h> defines `interface` as a macro.
-enum class Interface { palette, mcp, agent, cli };
+enum class Interface { palette, mcp, agent, cli, apps };
 
-/// Where a command may be called from. Defaults: palette and agent on, MCP and CLI opt-in.
+/// Where a command may be called from. Defaults: palette and agent on, MCP, CLI and apps opt-in.
 struct ExposeOptions {
     bool palette = true;
     bool mcp = false;
     bool agent = true;
     bool cli = false;
+    bool apps = false;
 };
 
-/// The default exposure: `{palette: true, agent: true, mcp: false, cli: false}`.
+/// The default exposure: `{palette: true, agent: true, mcp: false, cli: false, apps: false}`.
 ExposeOptions default_expose() noexcept;
 
 /// Whether `expose` allows `surface`.
@@ -210,6 +212,61 @@ using Next = std::function<CommandResult()>;
 /// may short-circuit by returning without calling `next`, or call `next` more than once (retry).
 using CommandMiddleware = std::function<CommandResult(std::string_view name, const Json& input,
                                                       CommandContext& context, const Next& next)>;
+
+/// Host grant check for app-to-app calls (`spec/command-metadata.md`, "App-to-app calls"):
+/// whether the caller in `context` holds a grant naming `command`. Runs synchronously before
+/// lookup, context, input and declared context-field validation; any exception or false answer
+/// refuses the call with `CALL_NOT_GRANTED`.
+///
+/// Rejects callables whose return type is not strictly `bool` (so truthy non-booleans cannot
+/// satisfy a grant), and shares one predicate instance across copies so stateful grants are not
+/// duplicated on each call and no user copy constructor runs under the registry lock.
+class CallGrant {
+public:
+    CallGrant() noexcept = default;
+    CallGrant(std::nullptr_t) noexcept {}
+
+    template <typename Fn>
+        requires(!std::same_as<std::remove_cvref_t<Fn>, CallGrant>) &&
+                (!std::same_as<std::remove_cvref_t<Fn>, std::nullptr_t>) &&
+                std::invocable<std::decay_t<Fn>&, std::string_view, const CommandContext&> &&
+                std::same_as<std::invoke_result_t<std::decay_t<Fn>&, std::string_view,
+                                                  const CommandContext&>,
+                             bool>
+    CallGrant(Fn&& fn) {
+        using Decayed = std::decay_t<Fn>;
+        if constexpr (requires(const Decayed& f) { static_cast<bool>(f == nullptr); }) {
+            if (fn == nullptr) {
+                return;
+            }
+        }
+        target_ = std::make_shared<Model<Decayed>>(std::forward<Fn>(fn));
+    }
+
+    explicit operator bool() const noexcept { return target_ != nullptr; }
+
+    bool operator()(std::string_view command, const CommandContext& context) const {
+        return target_ ? target_->invoke(command, context) : false;
+    }
+
+private:
+    struct Concept {
+        virtual ~Concept() = default;
+        virtual bool invoke(std::string_view command, const CommandContext& context) = 0;
+    };
+
+    template <typename Fn>
+    struct Model final : Concept {
+        Fn fn;
+        template <typename U>
+        explicit Model(U&& f) : fn(std::forward<U>(f)) {}
+        bool invoke(std::string_view command, const CommandContext& context) override {
+            return fn(command, context);
+        }
+    };
+
+    std::shared_ptr<Concept> target_;
+};
 
 /// A command. Fields are in the order designated initializers must follow:
 ///

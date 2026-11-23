@@ -78,9 +78,7 @@ Rules:
    context check, then input validation follow.
 3. **An empty interface is no interface.** An interface that names no surface (anything other than
    `palette`, `mcp`, `agent`, `cli` or `apps`) exposes nothing, so the command is
-   `COMMAND_NOT_EXPOSED`. Python and C++ do not implement `apps` yet
-   ([#1513](https://github.com/lushly-dev/afd/issues/1513)), so there it names no surface either:
-   lookup comes first, and a missing command is `COMMAND_NOT_FOUND`.
+   `COMMAND_NOT_EXPOSED`.
    Python's former `INVALID_INTERFACE` code is gone.
 4. **Close matches never include a hidden command.** `COMMAND_NOT_FOUND` and `UNKNOWN_TOOL`
    suggestions offer at most three close matches from the names the caller can call, and never echo

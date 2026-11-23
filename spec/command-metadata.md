@@ -841,10 +841,10 @@ refusal.
 A journaled app call replays with the `apps` interface, so the replaying registry runs the check
 again and needs the same `callGrant` ([journal replay](./journal.md#replay)); a target that cannot
 check it refuses the entry before any handler runs, whatever context the replay adds (TypeScript:
-any target but `createAppCallRegistry`, the core registry included; Python and C++, every target
-until #1513). In Rust, `ExposeOptions` serializes `apps` only
-when it is `true`, so a serialized default stays valid where core manifest version 1 refuses the
-key. A refusal is returned before
+any target but `createAppCallRegistry`, the core registry included; Python: any target but
+`CommandRegistry` or `MCPServer`; C++: any bare `CommandExecutor`). In Rust, `ExposeOptions`
+serializes `apps` only when it is `true`, so a serialized default stays valid where core manifest
+version 1 refuses the key. A refusal is returned before
 middleware, so AFD's journal middleware never records one; a host that journals refusals, as Loam
 does, records it where it receives the app's call.
 
@@ -853,7 +853,7 @@ The shared plugin manifest carries the flag from [core version 2](./plugin-manif
 <!-- generated:capabilities:spec.command-metadata.app-calls:start -->
 |  | TypeScript | Python | Rust | C++ |
 | --- | --- | --- | --- | --- |
-| App-to-app calls (`expose.apps`, `apps` interface, `CALL_NOT_GRANTED`) | Yes (`ExposeOptions.apps`, `createCommandRegistry({ callGrant })` and `createAppCallRegistry` in `@lushly-dev/afd-server` and `/direct`) | Planned ([#1513](https://github.com/lushly-dev/afd/issues/1513)): `apps` names no surface yet, so calls return `COMMAND_NOT_FOUND` or `COMMAND_NOT_EXPOSED` rather than one `CALL_NOT_GRANTED` | Yes (`ExposeOptions::apps`, `CommandInterface::Apps` and `CommandRegistry::set_call_grant`) | Planned ([#1513](https://github.com/lushly-dev/afd/issues/1513)): no `Interface::apps` yet; calls return `COMMAND_NOT_FOUND` or `COMMAND_NOT_EXPOSED` |
+| App-to-app calls (`expose.apps`, `apps` interface, `CALL_NOT_GRANTED`) | Yes (`ExposeOptions.apps`, `createCommandRegistry({ callGrant })` and `createAppCallRegistry` in `@lushly-dev/afd-server` and `/direct`) | Yes (`ExposeOptions.apps`, `create_command_registry(call_grant=...)` and `create_server(..., call_grant=...)`) | Yes (`ExposeOptions::apps`, `CommandInterface::Apps` and `CommandRegistry::set_call_grant`) | Yes (`ExposeOptions::apps`, `Interface::apps`, `CommandRegistryOptions::call_grant` and `CommandRegistry::set_call_grant`) |
 <!-- generated:capabilities:spec.command-metadata.app-calls:end -->
 
 The cases are in [`vectors/app-calls.json`](./vectors/app-calls.json).

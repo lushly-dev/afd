@@ -354,7 +354,8 @@ void diff_json(const Json& recorded, const Json& replayed, const std::string& pa
 
 ReplayEntryReport replay_entry(const CommandExecutor& execute, const JournalEntry& entry,
                                const ReplayJournalOptions& options,
-                               const std::set<std::string, std::less<>>& ignore) {
+                               const std::set<std::string, std::less<>>& ignore,
+                               bool target_checks_app_calls) {
     ReplayEntryReport outcome{.seq = entry.seq,
                               .command = entry.command,
                               .status = ReplayStatus::error,
@@ -380,11 +381,14 @@ ReplayEntryReport replay_entry(const CommandExecutor& execute, const JournalEntr
         clock = std::make_shared<TapeClock>(entry.tape->clock, static_cast<double>(*start));
     }
 
-    // An app's call (spec/command-metadata.md, "App-to-app calls") needs the grant check C++ does
-    // not have yet (#1513): run without a surface, it would be a trusted call, so it is refused.
-    if (entry.context_digest.surface && *entry.context_digest.surface == "apps") {
-        outcome.error = "the entry is an app's call (interface 'apps'), which C++ cannot check "
-                        "against a grant yet; not replayed";
+    const bool recorded_apps =
+        entry.context_digest.surface && *entry.context_digest.surface == "apps";
+    // An app's call (`spec/command-metadata.md`, "App-to-app calls") replays only on a target
+    // that checks call grants (`CommandRegistry`); an arbitrary `CommandExecutor` might ignore
+    // `context.surface`, so it is refused rather than run unchecked.
+    if (recorded_apps && !target_checks_app_calls) {
+        outcome.error = "the entry is an app's call (interface 'apps'), which this replay target "
+                        "cannot check against a grant; not replayed";
         return outcome;
     }
 
@@ -425,6 +429,15 @@ ReplayEntryReport replay_entry(const CommandExecutor& execute, const JournalEntr
     const auto run = [&]() {
         if (options.context) {
             options.context(entry, context);
+        }
+        if (recorded_apps) {
+            // Keep `Interface::apps` even if `options.context` tried to override it.
+            context.surface = Interface::apps;
+        }
+        if (!target_checks_app_calls && context.surface == Interface::apps) {
+            outcome.error = "the entry is an app's call (interface 'apps'), which this replay "
+                            "target cannot check against a grant; not replayed";
+            return;
         }
         // A journal middleware in the replayed chain rewinds the tape where it sits, so
         // middleware outside it does not shift the handler's readings.
@@ -474,6 +487,41 @@ ReplayEntryReport replay_entry(const CommandExecutor& execute, const JournalEntr
     auto notes = tape_notes(entry, clock.get(), *random);
     outcome.notes.insert(outcome.notes.end(), notes.begin(), notes.end());
     return outcome;
+}
+
+ReplayReport replay_journal_impl(const CommandExecutor& execute,
+                                 const std::vector<JournalEntry>& entries,
+                                 const ReplayJournalOptions& options,
+                                 bool target_checks_app_calls) {
+    const std::vector<std::string> default_ignore = {"metadata.executionTimeMs"};
+    const auto& paths = options.ignore ? *options.ignore : default_ignore;
+    const std::set<std::string, std::less<>> ignore(paths.begin(), paths.end());
+    std::vector<const JournalEntry*> ordered;
+    ordered.reserve(entries.size());
+    for (const auto& entry : entries) {
+        ordered.push_back(&entry);
+    }
+    std::stable_sort(ordered.begin(), ordered.end(),
+                     [](const JournalEntry* a, const JournalEntry* b) { return a->seq < b->seq; });
+
+    ReplayReport report;
+    for (std::size_t index = 0; index < ordered.size(); ++index) {
+        ReplayEntryReport outcome =
+            replay_entry(execute, *ordered[index], options, ignore, target_checks_app_calls);
+        const ReplayStatus status = outcome.status;
+        report.entries.push_back(std::move(outcome));
+        if (status == ReplayStatus::same) {
+            ++report.same;
+            continue;
+        }
+        (status == ReplayStatus::different ? report.different : report.errors) += 1;
+        report.diverged = true;
+        if (options.stop_on_divergence) {
+            report.skipped = ordered.size() - index - 1;
+            break;
+        }
+    }
+    return report;
 }
 
 } // namespace
@@ -589,34 +637,7 @@ CommandMiddleware create_journal_middleware(std::shared_ptr<JournalSink> sink,
 ReplayReport replay_journal(const CommandExecutor& execute,
                             const std::vector<JournalEntry>& entries,
                             const ReplayJournalOptions& options) {
-    const std::vector<std::string> default_ignore = {"metadata.executionTimeMs"};
-    const auto& paths = options.ignore ? *options.ignore : default_ignore;
-    const std::set<std::string, std::less<>> ignore(paths.begin(), paths.end());
-    std::vector<const JournalEntry*> ordered;
-    ordered.reserve(entries.size());
-    for (const auto& entry : entries) {
-        ordered.push_back(&entry);
-    }
-    std::stable_sort(ordered.begin(), ordered.end(),
-                     [](const JournalEntry* a, const JournalEntry* b) { return a->seq < b->seq; });
-
-    ReplayReport report;
-    for (std::size_t index = 0; index < ordered.size(); ++index) {
-        ReplayEntryReport outcome = replay_entry(execute, *ordered[index], options, ignore);
-        const ReplayStatus status = outcome.status;
-        report.entries.push_back(std::move(outcome));
-        if (status == ReplayStatus::same) {
-            ++report.same;
-            continue;
-        }
-        (status == ReplayStatus::different ? report.different : report.errors) += 1;
-        report.diverged = true;
-        if (options.stop_on_divergence) {
-            report.skipped = ordered.size() - index - 1;
-            break;
-        }
-    }
-    return report;
+    return replay_journal_impl(execute, entries, options, false);
 }
 
 ReplayReport replay_journal(const CommandRegistry& registry,
@@ -628,14 +649,14 @@ ReplayReport replay_journal(const CommandRegistry& registry,
         return registry.execute_impl(name, input, context, check_budget);
     };
     if (options.context_fields) {
-        return replay_journal(execute, entries, options);
+        return replay_journal_impl(execute, entries, options, true);
     }
     ReplayJournalOptions declared = options;
     declared.context_fields.emplace();
     for (const auto& field : registry.context_fields()) {
         declared.context_fields->push_back(field.name);
     }
-    return replay_journal(execute, entries, declared);
+    return replay_journal_impl(execute, entries, declared, true);
 }
 
 std::string_view replay_status_name(ReplayStatus status) noexcept {

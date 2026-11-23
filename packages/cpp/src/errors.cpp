@@ -88,6 +88,13 @@ CommandError validation_error(std::string message, std::optional<Json> details) 
                          .details = std::move(details)});
 }
 
+CommandError call_not_granted() {
+    return create_error(error_codes::CALL_NOT_GRANTED, "This app may not call that command",
+                        {.suggestion = "Ask the deployer for a calls grant that names the command; "
+                                       "the command must also set expose.apps",
+                         .retryable = false});
+}
+
 CommandError not_found_error(std::string_view resource_type, std::string_view resource_id) {
     std::string message =
         std::string(resource_type) + " with ID '" + std::string(resource_id) + "' not found";

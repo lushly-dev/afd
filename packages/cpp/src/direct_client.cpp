@@ -69,6 +69,9 @@ bool DirectClient::is_allowed(std::string_view name) const {
 }
 
 std::vector<std::string> DirectClient::list_command_names() const {
+    if (options_.surface == Interface::apps) {
+        return {};
+    }
     std::vector<std::string> names;
     for (const auto& command : registry_->list_by_exposure(options_.surface)) {
         if (is_allowed(command->definition.name)) {
@@ -79,6 +82,9 @@ std::vector<std::string> DirectClient::list_command_names() const {
 }
 
 bool DirectClient::has_command(std::string_view name) const {
+    if (options_.surface == Interface::apps) {
+        return false;
+    }
     const auto command = registry_->get(name);
     return command && is_exposed_to(command->definition.expose, options_.surface) &&
            is_allowed(name);
@@ -86,6 +92,12 @@ bool DirectClient::has_command(std::string_view name) const {
 
 CommandResult DirectClient::call(std::string_view name, const Json& args,
                                  CommandContext context) const {
+    // App-to-app calls (`spec/command-metadata.md`, "App-to-app calls") go directly through
+    // CommandRegistry::execute, never DirectClient (whose allow, UNKNOWN_TOOL and client
+    // middleware would answer before call_grant).
+    if (options_.surface == Interface::apps || context.surface == Interface::apps) {
+        return failure(call_not_granted());
+    }
     // 1. The client's own allow-list.
     if (!is_allowed(name)) {
         return failure(

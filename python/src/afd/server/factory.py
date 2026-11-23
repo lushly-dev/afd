@@ -12,13 +12,10 @@ import os
 from collections.abc import AsyncIterator, Callable, Iterator, Mapping, Sequence
 from contextlib import asynccontextmanager, contextmanager
 from contextvars import ContextVar
-from dataclasses import dataclass, field
 from typing import (
     Any,
     Literal,
-    Protocol,
     TypeVar,
-    runtime_checkable,
 )
 
 from pydantic import BaseModel, ConfigDict, create_model
@@ -35,12 +32,15 @@ from afd.core.clock import Clock, RandomSource, system_clock
 from afd.core.direct_allow import _is_allowed, _not_allowed
 from afd.core.commands import (
     DEFAULT_EXPOSE,
+    CallGrant,
     CommandContext,
     CommandDefinition,
     CommandExample,
     CommandRegistry,
     ExposeOptions,
     TaskSupport,
+    app_call_granted,
+    call_not_granted,
     create_command_registry,
     validate_command_scopes,
     validate_task_declaration,
@@ -78,7 +78,6 @@ from afd.core.similarity import truncate_name
 from afd.core.wire import to_wire
 from afd.server.bootstrap import ContextState, get_bootstrap_commands
 from afd.server.principal import IncompleteCredentials, principal_binding, sdk_credentials
-from afd.server.bootstrap.afd_context import AFD_CONTEXT_META_KEY
 from afd.server.decorators import (
     CommandMetadata,
     command_to_definition,
@@ -172,6 +171,15 @@ from afd.server.tool_router import (
     create_tool_router,
     new_trace_id,
 )
+from afd.server.config import (
+    DEFAULT_COMMAND_TIMEOUT_MS,
+    DEFAULT_TOOLS_LIST_TTL_MS,
+    MCPTransport as MCPTransport,
+    ServerConfig,
+    _resolve_default_timeout_ms,
+    default_instructions,
+    refuse_apps_tool_call,
+)
 from afd.server.tools import get_tools_list
 from afd.server.types import ContextConfig, GroupByFn, ToolStrategy
 from afd.server.validation import _input_validation_failure
@@ -188,133 +196,15 @@ these names, and batch items and pipeline steps cannot call them."""
 
 _CONTEXT_COMMAND_NAMES = frozenset({"afd-context-enter", "afd-context-exit"})
 
-DEFAULT_COMMAND_TIMEOUT_MS = 30_000
-"""Normative server-level default per-command deadline in milliseconds (``spec/execution-controls.md``)."""
-
-
-def _resolve_default_timeout_ms(value: int | float | None) -> int | float | None:
-    """Validate and normalize ``default_timeout_ms`` (``None`` or ``0`` disables)."""
-    if value is None or (isinstance(value, (int, float)) and not isinstance(value, bool) and value == 0):
-        return None
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0:
-        raise ValueError("default_timeout_ms must be a positive finite number, 0, or None")
-    return value
-
 
 def _consume_task_exception(task: asyncio.Task[Any]) -> None:
     if not task.cancelled():
         task.exception()
 
 
-@runtime_checkable
-class MCPTransport(Protocol):
-    """Protocol for MCP transport implementations."""
-
-    async def start(self) -> None:
-        ...
-
-    async def stop(self) -> None:
-        ...
-
-
-@dataclass
-class ServerConfig:
-    """Configuration for an AFD server."""
-
-    name: str
-    version: str = "1.0.0"
-    description: str | None = None
-    transport: str | None = "fastmcp"
-    middleware: list[CommandMiddleware] = field(default_factory=list)
-    tool_strategy: ToolStrategy = "grouped"
-    contexts: list[ContextConfig] = field(default_factory=list)
-    group_by: GroupByFn | None = None
-    dev_mode: bool = False
-    default_timeout_ms: int | float | None = DEFAULT_COMMAND_TIMEOUT_MS
-    """Server-level default per-command deadline in milliseconds (``0`` or ``None`` disables)."""
-    max_batch_size: int = DEFAULT_MAX_BATCH_SIZE
-    max_batch_parallelism: int = DEFAULT_MAX_BATCH_PARALLELISM
-    max_validation_issues: int = DEFAULT_MAX_VALIDATION_ISSUES
-    """Maximum validation issues reported per ``VALIDATION_ERROR`` (default 100)."""
-    instructions: str | None = None
-    tools_list_ttl_ms: int | None = None
-    clock: Clock | None = None
-    random: RandomSource | None = None
-    actor: Actor | None = None
-    context_hook: ContextHook | None = None
-    """Per-request hook (``afd.server.context_hook``) invoked once per MCP ``tools/call`` before
-    the request-state boundary, confirmation gate and command lookup."""
-    confirmations: str = "off"
-    confirmation_key: bytes | str | None = None
-    first_class_tools: list[str] | None = None
-    """``tool_strategy="hybrid"`` only: the commands listed as tools after the meta-tools, in
-    order (1 to 8 names). Checked against the registered commands before the first request."""
-    advertise_output_schema: bool = True
-    """Advertise the CommandResult envelope as a command tool's top-level ``outputSchema``
-    (``spec/command-metadata.md``, "Structured results"). ``_meta.outputSchema`` stays either way."""
-    context_fields: list[ContextField] = field(default_factory=list)
-    """Request values the host declares (``spec/context-fields.md``), checked at construction.
-    MCP ``tools/call`` reads them from ``params._meta``; ``server/discover`` and ``afd-help``
-    list them."""
-    bootstrap: bool = False
-    """Register ``afd-help``, ``afd-docs`` and ``afd-schema``, as TypeScript's ``bootstrap: true``
-    does (parity decision D5). Off by default; the context tools do not depend on it."""
-    task_store: TaskStore | None = None
-    """Pluggable :class:`~afd.server.tasks.TaskStore` for MCP Tasks (default: bounded in-memory)."""
-    task_options: TaskOptions | None = None
-    """MCP Tasks runtime options (TTL, polling interval, concurrency and caller identification)."""
-    auth: McpAuthOptions | None = None
-    """OAuth 2.1 protected-resource authorization on HTTP (``spec/authorization.md``, M1–M7)."""
-    resources: ResourcesOption | None = None
-    """Opt-in MCP resource provider or static entries (``spec/mcp-resources.md``, R1–R6)."""
-    skills: SkillCatalog | None = None
-    """Opt-in Agent Skills catalog served through ``io.modelcontextprotocol/skills`` (S1–S6)."""
-
-
-DEFAULT_TOOLS_LIST_TTL_MS = 300_000
-"""Default ``ttlMs`` of MCP 2026-07-28 ``tools/list`` and ``server/discover`` results."""
-
 # The SDK request context (``ServerRequestContext``) of the MCP request being handled,
 # captured by middleware so tools/list and tools/call can bind its context state.
 _CURRENT_REQUEST: ContextVar[Any] = ContextVar("afd_mcp_request", default=None)
-
-
-def default_instructions(
-    name: str, tool_strategy: str, contexts: list[ContextConfig], bootstrap: bool = False
-) -> str:
-    """The ``server/discover`` instructions: how an agent should use this server's tools."""
-    lines = [
-        f"{name} is an AFD server. Every tool returns a CommandResult as JSON text: "
-        "{ success, data, error: { code, message, suggestion } }; follow error.suggestion "
-        "to recover."
-    ]
-    if tool_strategy == "lazy":
-        lines.append(
-            "Call afd-discover to find commands, afd-detail for a command schema, and "
-            "afd-call to run one."
-        )
-    elif tool_strategy == "grouped":
-        lines.append(
-            "Each tool groups related commands: pass { action, params }. afd-detail returns "
-            "a command schema; afd-call runs any command by name."
-        )
-    elif tool_strategy == "hybrid":
-        lines.append(
-            "The command tools listed are the common ones. Call afd-discover to find others, "
-            "afd-detail for a schema, and afd-call to run one."
-        )
-    else:
-        lines.append("Each command is its own tool; afd-call also runs any command by name.")
-    lines.append("Use afd-batch for several independent commands and afd-pipe to chain them.")
-    if bootstrap:
-        lines.append("afd-help, afd-docs and afd-schema describe this server.")
-    if contexts:
-        lines.append(
-            "Commands are scoped by context (afd-context-list lists them). Send "
-            f'_meta["{AFD_CONTEXT_META_KEY}"] with a context name on tools/list and '
-            "tools/call to work in that context."
-        )
-    return " ".join(lines)
 
 
 class MCPServer:
@@ -334,6 +224,8 @@ class MCPServer:
         self._max_validation_issues = resolve_max_validation_issues(config.max_validation_issues)
         if config.context_hook is not None and not callable(config.context_hook):
             raise TypeError("context_hook must be callable")
+        if config.call_grant is not None and not callable(config.call_grant):
+            raise TypeError("call_grant must be callable")
         if config.task_options is not None and not isinstance(config.task_options, TaskOptions):
             raise TypeError("task_options must be a TaskOptions instance")
         if config.tools_list_ttl_ms is not None and (
@@ -358,7 +250,7 @@ class MCPServer:
             ttl_ms=resources_ttl_ms,
             dev_mode=config.dev_mode,
         )
-        self._registry = create_command_registry()
+        self._registry = create_command_registry(call_grant=config.call_grant)
         self._commands: dict[str, Callable] = {}
         self._metadata: dict[str, CommandMetadata] = {}
         self._mcp_server = None
@@ -819,7 +711,7 @@ class MCPServer:
 
     def _is_exposed_to(self, command: CommandDefinition, interface: Any) -> bool:
         # An unknown interface exposes nothing, and is never looked up as an attribute.
-        if interface not in ("palette", "mcp", "agent", "cli"):
+        if interface not in ("palette", "mcp", "agent", "cli", "apps"):
             return False
         expose = command.expose if command.expose is not None else DEFAULT_EXPOSE
         return bool(getattr(expose, interface, False))
@@ -847,6 +739,8 @@ class MCPServer:
         name: str,
         input: Any,
         context: CommandContext,
+        *,
+        check_before_request: bool = False,
     ) -> tuple[CommandDefinition, Any] | CommandResult:
         """Check a call before any middleware runs.
 
@@ -855,12 +749,26 @@ class MCPServer:
         Returns the command and the validated input that the middleware chain
         and the handler receive, or the failure that rejects the call.
         """
-        if not _is_allowed(context, name):
-            return failure(_not_allowed(name))
         interface = context.extra.get("interface") if context.extra else None
         active_context = self._context_state.get_active()
-
         view = scope_view_of(context)
+
+        # App-to-app calls (spec/command-metadata.md, "App-to-app calls"): check
+        # existence, expose.apps and call_grant FIRST, before configuration
+        # preflight, allow, lookup suggestions, active context, input validation,
+        # context fields and middleware.
+        if interface == "apps":
+            command = self._registry.get(name)
+            if command is not None and view is not None and not view.known(command.name):
+                command = None
+            if not app_call_granted(command, name, context, self.config.call_grant):
+                return failure(call_not_granted())
+            if check_before_request:
+                self._check_before_request()
+
+        if not _is_allowed(context, name):
+            return failure(_not_allowed(name))
+
         command = self._find_command(name)
         # A remote caller (the MCP router) gets the unknown-command answer for a
         # command hidden from it, so it cannot learn that the command exists
@@ -1007,6 +915,7 @@ class MCPServer:
         context: CommandContext | None = None,
         *,
         output_budget: Any = None,
+        _check_before_request: bool = False,
     ) -> Any:
         """Run a command (never a built-in tool) in the reference order.
 
@@ -1028,7 +937,9 @@ class MCPServer:
         )
         if output_budget is not None:
             context._output_budget_ask = normalize_ask_option(output_budget)
-        prepared = self._prepare_command(name, input, context)
+        prepared = self._prepare_command(
+            name, input, context, check_before_request=_check_before_request
+        )
         if isinstance(prepared, CommandResult):
             return prepared
         command, data = prepared
@@ -1214,6 +1125,15 @@ class MCPServer:
     ) -> Any:
         """Execute a command or built-in tool by name."""
 
+        interface = context.extra.get("interface") if context is not None and context.extra else None
+        if interface == "apps":
+            return await self._execute_command(
+                name,
+                input,
+                context,
+                output_budget=output_budget,
+                _check_before_request=True,
+            )
         self._check_before_request()
         if name in META_TOOL_NAMES:
             meta_keys = meta_argument_keys(self.config.context_fields)
@@ -1511,6 +1431,9 @@ class MCPServer:
     ) -> Any:
         """Route a tool call through the shared tool router."""
 
+        refused = refuse_apps_tool_call(tool_name, caller_context)
+        if refused is not None:
+            return refused
         return await self._get_router()(tool_name, {} if args is None else args, caller_context)
 
     async def call_tool(self, tool_name: str, args: Any = None) -> Any:
@@ -2312,6 +2235,7 @@ def create_server(
     auth: McpAuthOptions | None = None,
     resources: ResourcesOption | None = None,
     skills: SkillCatalog | None = None,
+    call_grant: CallGrant | None = None,
 ) -> MCPServer:
     """Create a new AFD MCP server.
 
@@ -2407,6 +2331,12 @@ def create_server(
             describe the server's commands, and name them in the default instructions. Off by
             default, as TypeScript's ``bootstrap`` option (parity decision D5); earlier releases
             always registered them. The meta-tools and context tools are listed either way.
+        call_grant: Synchronous host grant predicate ``(command, context) -> bool`` for
+            app-to-app calls (``context.extra["interface"] == "apps"``;
+            ``spec/command-metadata.md``, "App-to-app calls"). Must return strictly ``True`` to
+            permit a call; when omitted, or when the command does not exist, does not set
+            ``expose.apps = True``, or the predicate returns anything else or raises, the call
+            fails before lookup, validation, middleware and handler with ``CALL_NOT_GRANTED``.
     """
     if confirmations not in CONFIRMATION_MODES:
         raise ValueError("confirmations must be 'off', 'enforce' or 'require-human'")
@@ -2456,5 +2386,6 @@ def create_server(
         auth=auth,
         resources=resources,
         skills=skills,
+        call_grant=call_grant,
     )
     return MCPServer(config)

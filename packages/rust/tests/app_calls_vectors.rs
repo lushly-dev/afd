@@ -91,12 +91,10 @@ fn check(label: &str, result: &CommandResult<Value>, expected: &Value, refusal: 
 }
 
 #[test]
-fn the_refusal_is_the_catalog_code_and_python_and_cpp_are_a_gap() {
+fn the_refusal_is_the_catalog_code_and_there_are_no_language_gaps() {
     let vectors = vectors();
     assert_eq!(vectors["refusal"]["code"], error_codes::CALL_NOT_GRANTED);
-    let mut gaps: Vec<&String> = vectors["gaps"].as_object().unwrap().keys().collect();
-    gaps.sort();
-    assert_eq!(gaps, ["cpp", "python"]);
+    assert!(vectors["gaps"].as_object().unwrap().is_empty());
     assert!(!ExposeOptions::default().apps);
 }
 

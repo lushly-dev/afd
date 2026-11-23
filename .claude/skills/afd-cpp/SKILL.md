@@ -114,6 +114,7 @@ afd::CommandResult result = registry->execute("todo-create", {{"title", "Buy mil
 ```
 
 `execute` runs in the TypeScript engine's order:
+0. **App-to-app calls** (`context.surface == Interface::apps`) run only when the command sets `expose.apps = true` and `call_grant` (`CommandRegistryOptions::call_grant` or `set_call_grant`) returns `true`; anything else, a missing command included, is one fixed `CALL_NOT_GRANTED` (`spec/command-metadata.md`, "App-to-app calls"). `DirectClient` refuses `Interface::apps`.
 1. **Lookup.** An unknown name gets COMMAND_NOT_FOUND with "did you mean" matches.
 2. **Exposure**, when `context.surface` is set: COMMAND_NOT_EXPOSED.
 3. **Context:** COMMAND_NOT_IN_CONTEXT.

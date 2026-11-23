@@ -315,7 +315,7 @@ class TestRegistryExposureCheck:
         assert result.success is False
         assert result.error.code == "COMMAND_NOT_EXPOSED"
         assert result.error.retryable is False
-        assert "agent, cli, mcp, palette" in result.error.suggestion
+        assert "agent, apps, cli, mcp, palette" in result.error.suggestion
 
     @pytest.mark.asyncio
     async def test_non_string_interface_rejected(self):

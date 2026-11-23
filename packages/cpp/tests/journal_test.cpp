@@ -470,14 +470,29 @@ TEST_CASE("replay restores trace ID, actor and surface, and context adjustments 
     REQUIRE(unknown.entries[0].notes.size() == 1);
     CHECK(unknown.entries[0].notes[0].find("carrier-pigeon") != std::string::npos);
 
-    // An app's call has no grant check in C++ yet (#1513): it is refused, never run unchecked.
+    // An app's call replays with Interface::apps on a CommandRegistry (refused with
+    // CALL_NOT_GRANTED when no matching call_grant is installed, never running the handler), and
+    // errors on a bare CommandExecutor that cannot check grants.
     seen.reset();
     entry.context_digest.surface = "apps";
     const auto app_call =
         afd::replay_journal(registry, {entry}, {.ignore = std::vector<std::string>{"metadata"}});
-    CHECK(app_call.errors == 1);
-    REQUIRE(app_call.entries[0].error.has_value());
-    CHECK(app_call.entries[0].error->find("interface 'apps'") != std::string::npos);
+    CHECK(app_call.different == 1);
+    REQUIRE(app_call.entries[0].replayed.has_value());
+    REQUIRE(app_call.entries[0].replayed->error.has_value());
+    CHECK(app_call.entries[0].replayed->error->code == afd::error_codes::CALL_NOT_GRANTED);
+    CHECK_FALSE(seen.has_value());
+
+    const afd::CommandExecutor bare = [&seen](std::string_view, const afd::Json&,
+                                              afd::CommandContext& context) {
+        seen = context;
+        return afd::success(afd::Json::object());
+    };
+    const auto bare_app_call =
+        afd::replay_journal(bare, {entry}, {.ignore = std::vector<std::string>{"metadata"}});
+    CHECK(bare_app_call.errors == 1);
+    REQUIRE(bare_app_call.entries[0].error.has_value());
+    CHECK(bare_app_call.entries[0].error->find("interface 'apps'") != std::string::npos);
     CHECK_FALSE(seen.has_value());
 }
 
