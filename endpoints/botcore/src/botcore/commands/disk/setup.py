@@ -764,17 +764,17 @@ def _with_hint(text: str, path: str) -> str:
 Said = tuple[str, str, float]  # what a step is doing, to which path, for how many seconds
 
 
-def _look(step: Step) -> tuple[str, Said | None, float | None]:
-    """`done`, `working` or `waiting`, what the step was doing, and when it said so: from
+def _look(step: Step) -> tuple[str, Said | None, int | None]:
+    """`done`, `working` or `waiting`, what the step was doing, and which word it was: from
     one look, since a step can come back between two."""
     if step.done:
         return "done", None, None
     seen = step.seen()
     if seen is None:  # it came back this instant
         return "working", None, None
-    what, path, lasted, quiet, at = seen
+    what, path, lasted, quiet, word = seen
     limit = USAGE_SECONDS if step.name == "skill-usage-collect" else QUIET_SECONDS
-    return ("waiting" if quiet >= limit else "working"), (what, path, lasted), at
+    return ("waiting" if quiet >= limit else "working"), (what, path, lasted), word
 
 
 def _disk_outcome(step: Step, look: str, said: Said | None) -> tuple[str | None, dict]:
@@ -958,7 +958,7 @@ async def _run(  # noqa: C901, PLR0912 - one run, start to end
         return (*seen, usage_seen[0])
 
     while True:
-        look, said, at = _look(disk)
+        look, said, word = _look(disk)
         if look == "working":
             await _wait([disk], lambda: _look(disk)[0] == "waiting")
         elif look == "done" or not own_process:
@@ -968,7 +968,7 @@ async def _run(  # noqa: C901, PLR0912 - one run, start to end
             # or not. Only if it has said nothing since this look: one that has spoken again
             # is working, and is waited for.
             stack = disk.where()
-            if disk.leave(at):
+            if disk.leave(word):
                 left, where = ("waiting", said), stack
                 break
     if look != "done":
@@ -981,13 +981,13 @@ async def _run(  # noqa: C901, PLR0912 - one run, start to end
         # Waited for while it reports progress (reading a large store on a busy machine), and
         # left only once it has been quiet for USAGE_SECONDS (lushly-dev/afd#2160).
         while True:
-            u_look, u_said, u_at = _look(usage)
+            u_look, u_said, u_word = _look(usage)
             if u_look == "working":
                 await _wait([usage], lambda: _look(usage)[0] == "waiting")
             elif u_look == "done" or not own_process:
                 break
             else:
-                if usage.leave(u_at):
+                if usage.leave(u_word):
                     usage_left = ("waiting", u_said)
                     break
     look, said, usage_look = await record()

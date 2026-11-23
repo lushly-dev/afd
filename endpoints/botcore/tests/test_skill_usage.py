@@ -7,7 +7,9 @@ import json
 import os
 import shutil
 import sqlite3
+import stat
 import subprocess
+import sys
 import threading
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -214,6 +216,21 @@ def rows(data: dict) -> dict[str, dict]:
 
 def collected(state: Path) -> list[Event]:
     return store.load_events(state)[0]
+
+
+def _rmtree(path: Path) -> None:
+    """Remove a directory tree, clearing read-only attributes on Windows (e.g. `.git/objects`)."""
+
+    def clear_readonly(func, target: str, exc: BaseException) -> None:
+        if not isinstance(exc, PermissionError):
+            raise exc
+        os.chmod(target, stat.S_IRWXU)
+        func(target)
+
+    if sys.version_info >= (3, 12):
+        shutil.rmtree(path, onexc=clear_readonly)
+    else:
+        shutil.rmtree(path, onerror=lambda f, p, info: clear_readonly(f, p, info[1]))
 
 
 def git(root: Path, *args: str, at: str | None = None) -> None:
@@ -1611,12 +1628,12 @@ def test_a_folder_that_was_removed_says_nothing_more(
     run(skill_usage_collect())
     assert sorted(held(state, "acme/garden")["held"]) == ["build-beds", "prune-roses"]
 
-    shutil.rmtree(checkout)
+    _rmtree(checkout)
     run(skill_usage_collect())
     # the clone that is left speaks for the project, old as it is
     assert sorted(held(state, "acme/garden")["held"]) == ["plant-beds", "prune-roses"]
 
-    shutil.rmtree(old)
+    _rmtree(old)
     run(skill_usage_collect())
     data = run(skill_usage_report())
     assert held(state, "acme/garden") == {"at": None, "commit": None, "held": {}, "renames": {}}

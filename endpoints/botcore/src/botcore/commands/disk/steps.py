@@ -99,8 +99,11 @@ class Step:
         self.outcome: dict[str, Any] = {}
         self._work = work
         self._lock = threading.Lock()
-        # what it is doing, to which path, when it said so, how long that may take
-        self._word: tuple[str, str, float, float] | None = None
+        # what it is doing, to which path, when it said so, how long that may take, and
+        # which word it is (a monotonic count, since time.monotonic on Windows ticks in ~15.6 ms
+        # steps and two words within one tick would share the same timestamp)
+        self._word: tuple[str, str, float, float, int] | None = None
+        self._words = 0
         self._left = False
         self._thread = threading.Thread(target=self._run, name=name, daemon=True)
         self._thread.start()
@@ -121,7 +124,8 @@ class Step:
         with self._lock:
             if told and self._left:
                 raise Left(what)
-            self._word = (what, path, time.monotonic(), max(0.0, allow))
+            self._words += 1
+            self._word = (what, path, time.monotonic(), max(0.0, allow), self._words)
 
     @property
     def done(self) -> bool:
@@ -132,30 +136,30 @@ class Step:
         self._thread.join(max(0.0, seconds))
         return self.done
 
-    def leave(self, said_at: float | None = None) -> bool:
+    def leave(self, said_word: int | None = None) -> bool:
         """Stop counting on the step, for good: at its next word it stops, having begun
         nothing more. One that the system holds in a read stays there until it is let go.
 
-        With `said_at`, the time of the word it was seen waiting at, only if it has said
+        With `said_word`, the word count it was seen waiting at, only if it has said
         nothing since: a step that has spoken again is working, and is not left. Whether it
         was left."""
         with self._lock:
-            if said_at is not None and (self._word is None or self._word[2] != said_at):
+            if said_word is not None and (self._word is None or self._word[4] != said_word):
                 return False
             self._left = True
             return True
 
-    def seen(self) -> tuple[str, str, float, float, float] | None:
+    def seen(self) -> tuple[str, str, float, float, int] | None:
         """From one look: what it is doing, to which path, for how many seconds, how many
-        of those are beyond what its last word allowed, and when it said so. None once it
+        of those are beyond what its last word allowed, and which word it was. None once it
         is done."""
         with self._lock:
             word = self._word  # (None from the moment its work ends)
         if word is None:
             return None
-        what, path, at, allow = word
+        what, path, at, allow, number = word
         lasted = time.monotonic() - at
-        return what, path, lasted, max(0.0, lasted - allow), at
+        return what, path, lasted, max(0.0, lasted - allow), number
 
     def now(self) -> tuple[str, str, float] | None:
         """What it is doing, to which path, and for how many seconds. None once it is done."""

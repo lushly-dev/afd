@@ -377,7 +377,7 @@ class Looks:
         monkeypatch.setattr(setup, "_look", self)
 
     def __call__(self, step: steps.Step):
-        seen = step.seen()  # what it said, and when: as the job's own look takes them
+        seen = step.seen()  # what it said, and which word: as the job's own look takes them
         if step.done:
             look = "done"
         elif seen is None or step.name not in self.held:
@@ -1319,7 +1319,7 @@ def test_a_step_keeps_what_it_did_and_says_how_long_it_has_been_silent(
     assert said.wait(10)
     clock.at += 20
     assert step.now() == ("pruning the uv cache", "", 20.0) and step.quiet() == 0
-    assert step.seen() == ("pruning the uv cache", "", 20.0, 0.0, 1000.0)
+    assert step.seen() == ("pruning the uv cache", "", 20.0, 0.0, 2)
     where = step.where()  # the stack, and no line of source: reading one opens a file
     assert ", in pause\n" in where and "go.wait" not in where
     clock.at += 25  # past what the command was allowed
@@ -1431,9 +1431,9 @@ def test_a_step_is_waiting_once_it_has_said_nothing_for_long_enough(
     assert said.wait(10)
     clock.at += setup.QUIET_SECONDS - 1
     quiet = setup.QUIET_SECONDS
-    assert setup._look(step) == ("working", ("reading", "/Volumes/Shed", quiet - 1), 1000.0)
+    assert setup._look(step) == ("working", ("reading", "/Volumes/Shed", quiet - 1), 2)
     clock.at += 1
-    assert setup._look(step) == ("waiting", ("reading", "/Volumes/Shed", quiet), 1000.0)
+    assert setup._look(step) == ("waiting", ("reading", "/Volumes/Shed", quiet), 2)
     go.set()
     assert step.wait(5) and setup._look(step) == ("done", None, None)
 
@@ -1499,6 +1499,8 @@ def test_a_step_is_left_only_if_it_has_said_nothing_since_it_was_seen(
     def work() -> str:
         steps.doing("reading", "/Volumes/Shed")
         pause()
+        steps.doing("opening", "/Volumes/Shed")
+        pause()
         with steps.command("running git in", "/repo", allow=30):
             pause()
             ref = "the ref it made"  # what the command did goes back to its caller
@@ -1514,6 +1516,10 @@ def test_a_step_is_left_only_if_it_has_said_nothing_since_it_was_seen(
 
     step = steps.Step("test", work)
     assert said.wait(10)
+    same_tick = step.seen()[4]
+    next_word()  # spoke again within the same clock tick (Windows time.monotonic ~15.6 ms)
+    assert step.leave(same_tick) is False  # still working, even without the clock advancing
+    assert step.now()[:2] == ("opening", "/Volumes/Shed")
     seen_at = step.seen()[4]
     clock.at += 400
     next_word()  # it spoke again just as the job made up its mind
