@@ -78,7 +78,95 @@ def test_setup_registers_the_repository_and_its_volumes(
     assert settings.volume and all(v.low_space_gb >= 20 for v in settings.volume)
     again = run(setup.disk_setup(install_schedule=False))
     assert again["added_repos"] == [] and again["added_volumes"] == []
+    assert again["updated_volumes"] == {}
     assert again["changed_tools"] == {}
+
+
+def test_setup_migrates_macos_root_snapshot_volume_id_without_touching_external_volumes(
+    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+) -> None:
+    """lushly-dev/afd#2267: rerunning `disk-setup` replaces an ephemeral macOS APFS snapshot
+    UUID on an internal `/` volume with `APFSVolumeGroupID`, while leaving external volumes,
+    external-boot `/` volumes and `id=None` entries untouched."""
+    from botcore.commands.disk import scan
+
+    monkeypatch.chdir(repo["main"])
+    monkeypatch.setattr(scan.sys, "platform", "darwin")
+    monkeypatch.setattr(scan.os.path, "ismount", lambda _p: True)
+
+    # Booted from an external drive (Internal=False): `/` must NOT be overwritten.
+    monkeypatch.setattr(
+        scan,
+        "_darwin_diskutil_info",
+        lambda _m: {
+            "APFSSnapshot": True,
+            "APFSSnapshotUUID": "EXT-SNAP",
+            "APFSVolumeGroupID": "EXTERNAL-BOOT-GROUP",
+            "Internal": False,
+            "VolumeUUID": "EXT-SNAP",
+        },
+    )
+    external_boot = MachineSettings(
+        repos=[str(repo["main"])],
+        volume=[
+            {"mount": "/", "id": "RECORDED-GROUP", "low_space_gb": 46.0},
+            {"mount": "/Volumes/Dev", "id": "EXTERNAL-OLD-UUID", "low_space_gb": 93.0},
+        ],
+    )
+    repo["settings"].write_text(setup.settings_toml(external_boot), encoding="utf-8")
+    ext_data = run(setup.disk_setup(install_schedule=False))
+    assert ext_data["updated_volumes"] == {}
+    assert {v.mount: v.id for v in load_machine_settings()[0].volume}["/"] == "RECORDED-GROUP"
+
+    # Unset id=None on `/` must stay None.
+    monkeypatch.setattr(
+        scan,
+        "_darwin_diskutil_info",
+        lambda _m: {
+            "APFSSnapshot": True,
+            "APFSSnapshotUUID": "SNAP-NEW",
+            "APFSVolumeGroupID": "GROUP-UUID-STABLE",
+            "Internal": True,
+            "VolumeUUID": "SNAP-NEW",
+        },
+    )
+    no_id = MachineSettings(
+        repos=[str(repo["main"])],
+        volume=[{"mount": "/", "id": None, "low_space_gb": 46.0}],
+    )
+    repo["settings"].write_text(setup.settings_toml(no_id), encoding="utf-8")
+    no_id_data = run(setup.disk_setup(install_schedule=False))
+    assert no_id_data["updated_volumes"] == {}
+    assert {v.mount: v.id for v in load_machine_settings()[0].volume}["/"] is None
+
+    # Internal `/` with an ephemeral snapshot UUID migrates to APFSVolumeGroupID; external stays.
+    initial = MachineSettings(
+        repos=[str(repo["main"])],
+        volume=[
+            {"mount": "/", "id": "OLD-SNAPSHOT-UUID", "low_space_gb": 46.0},
+            {"mount": "/Volumes/Dev", "id": "EXTERNAL-OLD-UUID", "low_space_gb": 93.0},
+        ],
+    )
+    repo["settings"].write_text(setup.settings_toml(initial), encoding="utf-8")
+    data = run(setup.disk_setup(install_schedule=False))
+    assert data["updated_volumes"] == {
+        "/": {"was": "OLD-SNAPSHOT-UUID", "now": "GROUP-UUID-STABLE"}
+    }
+    saved = {v.mount: v.id for v in load_machine_settings()[0].volume}
+    assert saved["/"] == "GROUP-UUID-STABLE"
+    assert saved["/Volumes/Dev"] == "EXTERNAL-OLD-UUID"
+
+    again = run(setup.disk_setup(install_schedule=False))
+    assert again["updated_volumes"] == {}
+
+    # Schedule-install failure after writing disk.toml still reports updated_volumes in details.
+    repo["settings"].write_text(setup.settings_toml(initial), encoding="utf-8")
+    monkeypatch.setattr(setup.shutil, "which", lambda _name: None)
+    failed = asyncio.run(setup.disk_setup(install_schedule=True))
+    assert not failed.success and failed.error.code == "DISK_TOOL_NOT_INSTALLED"
+    assert failed.error.details["updated_volumes"] == {
+        "/": {"was": "OLD-SNAPSHOT-UUID", "now": "GROUP-UUID-STABLE"}
+    }
 
 
 def test_setup_rerun_keeps_usable_tools_and_reports_changes(

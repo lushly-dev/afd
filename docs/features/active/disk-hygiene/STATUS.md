@@ -14,6 +14,24 @@ Read this before the [proposal](disk-hygiene.proposal.md). Active since 2026-11-
 
 ## Findings
 
+### Air check and macOS boot-snapshot volume IDs, 2026-11-23 (#1693, #2267)
+
+- **macOS updates change `/`’s `VolumeUUID` and stop `disk-reclaim`.** After the MacBook Air
+  rebooted into macOS 27.2.1 (`26B131`), `diskutil info -plist /` reported a new
+  `APFSSnapshotUUID` as `VolumeUUID` (`A1C60873-3A07-4715-9EBE-706397D96C4E` →
+  `4A1CF365-F960-4F6F-8FE0-69F82179D917`), while `APFSVolumeGroupID` stayed
+  `C900986E-2973-4757-BA84-0844B6A9EED8` (matching `/System/Volumes/Data`). Because `disk.toml`
+  recorded `VolumeUUID`, `disk-status` went unhealthy and `disk-reclaim` blocked both `afd` and
+  `lushly`, reclaiming `0.00 GB` while `/` sat at 32.46 GB free (< 46 GB threshold).
+  `_darwin_volume_id` now prefers `APFSVolumeGroupID` for APFS snapshots, `volume_state` still
+  accepts the current snapshot UUID from the same `diskutil` read until `disk-setup` reruns,
+  and `disk-setup` migrates an internal `/` without ever overwriting external volumes (#2267).
+- **Air `--unclassified` check (102 afd worktrees, `complete: True`):** only intentionally
+  unnamed or one-off entries remained: `foundations/specimen/packages/host-darwin-arm64/bin/`
+  (13), `endpoints/loam/packages/desktop/src-tauri/gen/` (7), `packages/rust/Cargo.lock` (6),
+  `.umbel/` (5), `.factory/` (3), `.claude/worktrees/` (1), `.playwright-mcp/` (1),
+  `python/.mypy_cache/` (1) and `.claude/*.DS_Store` (2).
+
 ### afd's `regenerable` list finished, 2026-11-22 (#1693, #1686)
 
 - **T3 Code's storage cleanup is on** on Random, the Air and Hero, as the owner confirmed
@@ -218,6 +236,8 @@ Read this before the [proposal](disk-hygiene.proposal.md). Active since 2026-11-
 - Rollout to the Air, Random and Hero, and retiring the cleanup agent (#1693): rolled out 2026-11-20; afd's `regenerable` list finished and Random set up again 2026-11-22 (see Findings); a week of receipts, then the cleanup agent is retired.
 
 - A scheduled run that waits for ever (#1902): merged in #1923.
+
+- Stable APFS volume-group ID on macOS `/` snapshots (#2267): merged in #2285.
 
 ## Phase 3. Removing finished worktrees
 

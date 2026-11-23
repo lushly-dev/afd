@@ -192,6 +192,108 @@ def test_every_worktree_volume_is_watched(repo: dict[str, Path]) -> None:  # noq
     assert str(mount_point(repo["old"])) in mounts
 
 
+def test_darwin_volume_id_prefers_apfs_volume_group_for_boot_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """lushly-dev/afd#2267: macOS `/` is a sealed APFS boot snapshot whose VolumeUUID changes
+    on every OS update; `_darwin_volume_id` must prefer persistent `APFSVolumeGroupID`."""
+    import plistlib
+
+    def fake_stdout(raw: bytes) -> None:
+        def fake_run(*_args, **_kwargs):
+            return subprocess.CompletedProcess(["diskutil"], 0, stdout=raw, stderr=b"")
+
+        monkeypatch.setattr(scan.subprocess, "run", fake_run)
+
+    def fake_plist(payload: dict) -> None:
+        fake_stdout(plistlib.dumps(payload))
+
+    monkeypatch.setattr(scan.sys, "platform", "darwin")
+    monkeypatch.setattr(scan.os.path, "ismount", lambda _p: True)
+
+    fake_plist({
+        "APFSSnapshot": True,
+        "APFSSnapshotUUID": "SNAP-UUID-NEW",
+        "APFSVolumeGroupID": "GROUP-UUID-STABLE",
+        "Internal": True,
+        "VolumeUUID": "SNAP-UUID-NEW",
+    })
+    assert scan._darwin_volume_id(Path("/")) == "GROUP-UUID-STABLE"
+    assert scan.snapshot_volume_group_id(Path("/")) == "GROUP-UUID-STABLE"
+
+    # External macOS boot drive (Internal=False): snapshot_volume_group_id refuses migration.
+    fake_plist({
+        "APFSSnapshot": True,
+        "APFSSnapshotUUID": "EXT-SNAP-UUID",
+        "APFSVolumeGroupID": "EXT-GROUP-UUID",
+        "Internal": False,
+        "VolumeUUID": "EXT-SNAP-UUID",
+    })
+    assert scan._darwin_volume_id(Path("/")) == "EXT-GROUP-UUID"
+    assert scan.snapshot_volume_group_id(Path("/")) is None
+
+    # Non-snapshot APFS volume carrying APFSVolumeGroupID still uses VolumeUUID.
+    fake_plist({
+        "APFSSnapshot": False,
+        "APFSVolumeGroupID": "SOME-GROUP-UUID",
+        "Internal": True,
+        "VolumeUUID": "EXTERNAL-DEV-UUID",
+    })
+    assert scan._darwin_volume_id(Path("/Volumes/Dev")) == "EXTERNAL-DEV-UUID"
+    assert scan.snapshot_volume_group_id(Path("/Volumes/Dev")) is None
+
+    # Snapshot without a volume group ID falls back to VolumeUUID.
+    fake_plist({
+        "APFSSnapshot": True,
+        "Internal": True,
+        "VolumeUUID": "STANDALONE-SNAP-UUID",
+    })
+    assert scan._darwin_volume_id(Path("/")) == "STANDALONE-SNAP-UUID"
+    assert scan.snapshot_volume_group_id(Path("/")) is None
+
+    # Malformed XML plist returns None instead of raising ExpatError.
+    fake_stdout(b"<?xml version='1.0'?><plist><dict><key>broken")
+    assert scan._darwin_volume_id(Path("/")) is None
+
+    # Non-darwin platforms never report a macOS snapshot volume group.
+    monkeypatch.setattr(scan.sys, "platform", "linux")
+    assert scan.snapshot_volume_group_id(Path("/")) is None
+
+
+def test_volume_state_accepts_current_darwin_snapshot_uuid_until_setup_reruns(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Upgrading botcore on a macOS machine whose disk.toml still holds the current boot
+    snapshot's VolumeUUID must keep verifying `/` in a single diskutil observation until
+    `disk-setup` migrates it, while a stale or unrelated UUID still fails verification
+    (lushly-dev/afd#2267)."""
+    monkeypatch.setattr(scan.sys, "platform", "darwin")
+    monkeypatch.setattr(scan.os.path, "ismount", lambda _p: True)
+    calls = 0
+
+    def fake_info(_m: Path) -> dict:
+        nonlocal calls
+        calls += 1
+        return {
+            "APFSSnapshot": True,
+            "APFSSnapshotUUID": "SNAP-CURRENT",
+            "APFSVolumeGroupID": "GROUP-STABLE",
+            "Internal": True,
+            "VolumeUUID": "SNAP-CURRENT",
+        }
+
+    monkeypatch.setattr(scan, "_darwin_diskutil_info", fake_info)
+
+    stable = scan.volume_state(tmp_path, "GROUP-STABLE", 20.0)
+    assert stable.verified and stable.id_found == "GROUP-STABLE" and calls == 1
+
+    legacy = scan.volume_state(tmp_path, "SNAP-CURRENT", 20.0)
+    assert legacy.verified and legacy.id_found == "SNAP-CURRENT" and calls == 2
+
+    stale = scan.volume_state(tmp_path, "SNAP-PRE-UPDATE", 20.0)
+    assert not stale.verified and stale.id_found == "GROUP-STABLE" and calls == 3
+
+
 # ── Patterns, copies and tracked files ──────────────────────────────────────
 
 
