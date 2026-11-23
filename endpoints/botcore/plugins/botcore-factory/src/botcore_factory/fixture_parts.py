@@ -678,6 +678,8 @@ class FixtureProcesses:
     ) -> Completed:
         if label == "units":
             return _units_run(self.store, tuple(args))
+        if label == "test-changes":
+            return _test_changes_run(self.store, tuple(args), cwd)
         if label and label.startswith("regenerate:"):
             # ``outcomes.regenerate[name]``: ``pass`` (the default), ``fail: why`` (exits 1) or
             # ``error: why`` (cannot run).
@@ -895,6 +897,92 @@ def _units_run(store: FixtureWorld, args: tuple[str, ...]) -> Completed:
         if prefixes:
             found += table[max(prefixes, key=len)]
     return Completed(args, 0, json.dumps(sorted(set(found))), "")
+
+
+def _test_changes_run(store: FixtureWorld, args: tuple[str, ...], cwd: str) -> Completed:
+    """Answer the adapter's ``test_changes`` command in a fixture world.
+
+    Checks ``outcomes.testChanges[branch]`` (or scalar ``outcomes.testChanges``), then the
+    worktree's ``testChanges`` dict/string, then synthesizes ``skip-added`` findings from
+    ``testsSkipped`` (the Phase 5 ``guardrails.json`` fixture shape), else returns a clean
+    zero-findings report.
+    """
+    worktrees = store.data.get("worktrees", {})
+    base = args[args.index("--base") + 1] if "--base" in args[:-1] else "main-0"
+    head = args[args.index("--head") + 1] if "--head" in args[:-1] else "HEAD"
+    root = args[args.index("--root") + 1] if "--root" in args[:-1] else cwd
+    worktree = worktrees.get(root) or worktrees.get(cwd)
+    branch = worktree.get("branch") if worktree else None
+    if branch is None and root.startswith("slots/"):
+        slot = root.split("/", 1)[1]
+        checkout = store.data.get("checkouts", {}).get(slot, {})
+        branch = checkout.get("branch") or None
+        if branch is None:
+            # The trusted review slot holds base, so identify the candidate branch by ``--head``.
+            matched = next(
+                (
+                    item
+                    for item in store.data.get("checkouts", {}).values()
+                    if item.get("head") == head and item.get("branch")
+                ),
+                None,
+            )
+            if matched is not None:
+                branch = matched["branch"]
+        if branch:
+            worktree = next(
+                (wt for wt in worktrees.values() if wt.get("branch") == branch),
+                None,
+            )
+    if branch is None:
+        matched_wt = next((wt for wt in worktrees.values() if wt.get("head") == head), None)
+        if matched_wt is not None:
+            worktree = matched_wt
+            branch = matched_wt.get("branch")
+    scripted = store.data.get("outcomes", {}).get("testChanges")
+    if isinstance(scripted, dict) and branch in scripted:
+        value = scripted[branch]
+    elif scripted is not None and not isinstance(scripted, dict):
+        value = scripted
+    elif worktree and "testChanges" in worktree:
+        value = worktree["testChanges"]
+    else:
+        value = None
+    if isinstance(value, str):
+        if value.startswith("error"):
+            raise WorldError(value.removeprefix("error").lstrip(": ") or "test_changes error")
+        if value.startswith("fail"):
+            return Completed(args, 1, "", value.removeprefix("fail").lstrip(": "))
+        return Completed(args, 0, value, "")
+    if isinstance(value, dict):
+        report = {
+            "base": base,
+            "mergeBase": base,
+            "head": head,
+            "testFiles": value.get("testFiles", len(value.get("findings", []))),
+            "totals": value.get("totals", {}),
+            "findings": value.get("findings", []),
+            **{k: v for k, v in value.items() if k not in ("testFiles", "totals", "findings")},
+        }
+        return Completed(args, 0, json.dumps(report), "")
+    skipped = (worktree or {}).get("testsSkipped") or []
+    findings = [
+        {
+            "file": item.split(" > ", 1)[0],
+            "kind": "skip-added",
+            "detail": f"skips 0 -> 1 ({item})",
+        }
+        for item in skipped
+    ]
+    report = {
+        "base": base,
+        "mergeBase": base,
+        "head": head,
+        "testFiles": len(findings),
+        "totals": {},
+        "findings": findings,
+    }
+    return Completed(args, 0, json.dumps(report), "")
 
 
 def _worktree_run(args: tuple[str, ...], worktree: dict, label: str) -> Completed:

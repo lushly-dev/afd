@@ -80,6 +80,7 @@ VALIDATION_FIELDS = (
     "checkStandsIn",
     "checkBase",
     "mergeQueue",
+    "testChanges",
 )
 
 
@@ -310,6 +311,11 @@ class StepBase:
             counted=excuse is None,
             **({"excuse": excuse} if excuse else {}),
             **({"failures": tests[:FAILURES_KEPT], "failureCount": len(tests)} if tests else {}),
+            **(
+                {"testChanges": entry["testChanges"]}
+                if entry.get("testChanges") is not None
+                else {}
+            ),
         )
         self.event(
             "ejected",

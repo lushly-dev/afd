@@ -74,8 +74,11 @@ and counts no ejection, once per attempt, and coverage stays owed; it paused and
 since the last green run; or, with `reason` `unchecked-merge`, a check on main's merge commit
 failed after a merge that advanced past a moved base without a new validation, `suspects` the
 PRs merged so; the lane paused), `queue-empty` (a drained move happens here) and
-`lane-stopped` (the lane process is gone; `lane_start`). Any open event can be answered with
-`event_resolve(id, note)`. `openEvents` in `lane_status` lists what is open.
+`lane-stopped` (the lane process is gone; `lane_start`) and `gate-change-held` (an
+`area:factory` or improvement branch stopped checking something, held for the owner with
+`holdReason` `gate-change`; answered by `measure_approve`, `lane_enqueue` once clean,
+`lane_drop`, or `event_resolve`). Any open event can be answered with `event_resolve(id, note)`.
+`openEvents` in `lane_status` lists what is open.
 
 ## The lane
 
@@ -178,7 +181,7 @@ The lane never edits code, and nothing is killed unless its pid and start time b
   another lane owns or leads the shared host validation lock), `hostLock {version, owner,
   waiters[]}`, `draining`, `slots {total, busy}`, `queue[]`, `held[]`,
   `cells[] {branch, issue, issues, relatedBecause?, state, plan, route, ejections, excused,
-  countedEjections, lastEjection}`, `openEvents[]`,
+  countedEjections, lastEjection, testChanges?}`, `openEvents[]`,
   (a `queue[]` entry's `state` is `queued`, `validating`, `validated`, `merging`, its pull
   request open and its check awaited, or `merge-queued`, in GitHub's merge queue, with
   `mergeQueue {since, queuedAt, state, position, groupHead}` and the lane's own notes:
@@ -189,8 +192,12 @@ The lane never edits code, and nothing is killed unless its pid and start time b
   this machine; empty without disk hygiene), `canStartCell` with `plan` (with its `pace`) and
   `nextIssue`, or `reason`. `slots.busy` leaves out a validated branch that gave its slot up.
 - `lane_enqueue(worktree, title?, body_file?)` -> `state` (`queued` or `held`), `position`,
-  `head`, `attempt`, `prequeue {stages[]}`, `answered[]`, `holdReason` when held. A repaired
-  (ejected) branch goes to the front; a full queue (`lane.queueMax`) holds the branch. The head
+  `head`, `attempt`, `prequeue {stages[]}`, `answered[]`, `holdReason` when held (`queue-full`,
+  or `gate-change` with `holdReasons` and `holdDetail` when an `area:factory` branch edits
+  `gate_paths` or reports test-change findings), `testChanges` when the adapter configures
+  `test_changes`. A repaired
+  (ejected) branch goes to the front; a full queue (`lane.queueMax`) holds the branch, and a
+  `gate-change` hold stays held for the owner even when queue space opens. The head
   is pushed to `refs/factory/queue/<branch>` on origin. Refusals, in this order: `NOT_FOUND` (no
   worktree), `IGNORED_BRANCH` (`ignore_branches`), `BODY_FILE_OUTSIDE` (`body_file` must be a
   relative path inside the worktree), `NOT_FOUND` (no cell for its branch), `NOT_LANE_HOST`,
@@ -202,7 +209,8 @@ The lane never edits code, and nothing is killed unless its pid and start time b
   merge brings in do not),
   `GATE_CHECK_FAILED` (those edits could not be read; the repair waits), `PREQUEUE_FAILED`
   (names the stage, with its first lines, and the adapter's `install` command for a new or
-  rebased worktree not installed since), `MERGE_QUEUED` (the branch's pull request is in
+  rebased worktree not installed since), `TEST_CHANGES_FAILED` (the adapter's `test_changes`
+  command failed or printed invalid JSON), `MERGE_QUEUED` (the branch's pull request is in
   GitHub's merge queue, which locks the branch), `HEAD_MOVED` (the worktree changed while the checks
   ran; they run outside the state lock), `WRITE_FAILED`. A refusal writes nothing.
 - `lane_wait(consumer, timeout_ms?, session?)` -> `events[] {id, type, branch?, reason?,
@@ -220,6 +228,11 @@ The lane never edits code, and nothing is killed unless its pid and start time b
 - `gate_allow(branch, reason, session?)` -> `allowed`: a diagnosis found the gate edit to be the
   right repair. A foreman names its `session`; the owner names none. Refuses
   `VALIDATION_ERROR`, `FOREMAN_STALE`, `FOREMAN_BUSY`, `FOREMAN_LOST` and `NOT_FOUND`.
+- `measure_approve(branch, reason)` -> `approved`, `branch`, `head`, `state` (`queued`, or `held`
+  with `holdReason` `queue-full` when the queue is full), `answered[]`: releases a branch held for
+  `gate-change` or `measure-change` to the queue and approves that exact head (a later commit
+  re-triggers the hold). Served on `factory` only, never `factory-cell`. Refuses
+  `VALIDATION_ERROR` and `NOT_FOUND`.
 - `lane_drop(branch, reason, session?)` -> `dropped`, `released[]`: dequeues the branch, puts
   each issue back to `status:planned` with one comment and forgets the cell. A foreman names its
   `session`; the owner names none. Refuses `VALIDATION_ERROR`, `FOREMAN_STALE`, `FOREMAN_BUSY`,
@@ -308,7 +321,11 @@ plan, route and execution profile, with incremental branch and run summaries cac
 `{ name, run }`), `review_evidence` (`{head}` stands for the head being enqueued, `{worktree}`
 for the cell's worktree, which the lane's own run needs: it runs from a clean `review` slot at the
 base, so a change to the verifier binds only once it is on the base and the lane restarts; it
-exits 0 to accept and 3 to refuse, and any other exit is the lane's trouble),
+exits 0 to accept and 3 to refuse, and any other exit is the lane's trouble), `test_changes`
+(`{base}`, `{head}` and `{worktree}` substituted; prints `report-test-changes.mjs --json`; the
+lane runs it from the clean `review` slot at the base on the folded commit before validation,
+attaches the report to the cell and attempt records, and holds `area:factory` branches with
+`holdReason` `gate-change` when it reports findings),
 `gate_paths`, `regenerate` (`[[plugins.factory.regenerate]]`: `name`, `paths` globs and
 `run`; when a merge of the base conflicts only in those paths, the lane runs `run` in the slot
 while the merge is open, and it writes and stages them, then the lane commits the merge; a `run`

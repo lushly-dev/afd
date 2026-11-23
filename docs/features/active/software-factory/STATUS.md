@@ -29,6 +29,36 @@ plugin's tests.
 
 The queue, validation, base moves, merges, ejections and repairs.
 
+#### Test-change reports attached to cell records and Phase 5 `gate-change` hold, 2026-11-22
+
+Step 5 of [#1387](https://github.com/lushly-dev/afd/issues/1387), pull request
+[#2161](https://github.com/lushly-dev/afd/pull/2161):
+
+- **Adapter and trusted run:** `[plugins.factory]` gains `test_changes` (`botcore.toml` points it
+  at `.claude/skills/maintain-gates/scripts/report-test-changes.mjs --root {worktree} --base
+  {base} --head {head} --json`). `lane-enqueue` runs it in the cell's worktree as fast feedback
+  (refusing `TEST_CHANGES_FAILED` on a failure, mismatched `base`/`head` or malformed JSON), and
+  `Step.start_validation` runs both the script and its commit-to-commit git reads from the base's
+  clean `review` slot (`cwd` and `{worktree}` both bound to that slot, requiring `{base}` and
+  `{head}` placeholders) so neither a tampered script nor branch `.gitattributes` can silence the
+  diff (`LaneTrouble` on failure).
+- **Records and cell view:** `botcore_factory.change_report.parse_report` validates and bounds the
+  JSON report (`MAX_FINDINGS = 200`, keeping the true `findingCount`). The lane attaches
+  `testChanges` to the cell (`lane-status` exposes it in `cells[]`) and to the attempt's records
+  (`enqueued`, `held`, `validated`, `ejected`, `merged`; `records.SCHEMA` raised to 5 for `held`),
+  folded into `records.attempts` and readable via `records.test_changes_for`.
+- **Phase 5 "never improves by checking less" hold:** `check_less_reasons` turns `testChanges`
+  findings and `gate_paths` edits into bounded plain-English reasons (adding tests produces no
+  findings and holds nothing; `checks_run_delta` is accepted by the helper for Phase 5 once
+  validations report `checksRun`, and is not yet wired in production). On an `area:factory` (or
+  improvement-experiment) branch without a head-matched approval, both `lane-enqueue` (fetching
+  `base_branch`, never `origin/HEAD`, even when `test_changes` is unset) and
+  `Step.start_validation` hold the branch (`holdReason: "gate-change"`), write the `held` record
+  and emit `gate-change-held` (`needsOwner: "gate-change"`). `Step.queue_held` promotes only
+  `queue-full` holds so owner-held branches stay held while later `queue-full` entries advance.
+  `measure-approve` (`factory` host only, never `factory-cell`) approves that exact head and
+  releases the held entry to the queue (or to a `queue-full` hold when the queue is full).
+
 #### Provenance-only merge covers Health, Violet and `lane-report`, 2026-11-22
 
 Pull request [#2028](https://github.com/lushly-dev/afd/pull/2028), for
@@ -584,7 +614,7 @@ for the real output and re-check the fixes before shipping the branch.
 | 2. Concurrency | Not started | After Phase 1's measured run |
 | 3. Cells on other machines | Not started | After Phase 2 |
 | 4. Lushly moves on | Not started | A Lushly adapter at parity with Lushly's `scripts/merge-lane.mjs` |
-| 5. The improvement loop | Not started | First in Lushly's lane; in the plugin once AFD's lane has a week of runs after Phase 2 |
+| 5. The improvement loop | In progress (guardrail prerequisite) | One line per piece under [Phase 5](#phase-5-the-improvement-loop); loop itself starts after Phase 2 |
 
 The plugin lives in `endpoints/botcore/plugins/botcore-factory/`, and its jobs run from this
 folder's [`scenarios/`](scenarios/) through AFD's scenario runner, in the `botcore-factory`
@@ -613,3 +643,9 @@ conflict when two branches change adjacent lines.
 - Experience review (`pr-preview` and the before-and-after screens): not done.
 
 - One measured AFD fleet run on the workstation, with its numbers reported, after the webhook wake and experience review: not done.
+
+## Phase 5. The improvement loop
+
+- Test-change reports attached to cell/attempt records and the `gate-change` hold with `measure-approve` (`#1387` step 5; `checksRun` comparison waits on check-count reporting): merged in #2161.
+
+- Scheduled health reviews, anomalies, `factory-health`, `health-explain`, `improvement-propose`, `improvement-list`, `measure-change` holds and `checksRun` comparison: not done.

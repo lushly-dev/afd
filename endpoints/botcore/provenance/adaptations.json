@@ -1341,15 +1341,37 @@
       "import_reason": "Imported exact frozen staged-input bytes"
     },
     {
+      "path": "plugins/botcore-factory/src/botcore_factory/adapter.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "aa4dd90f2448912d467cee56e1a6d21468dcd80ae4560d6256d8245e672186ed",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Attach test_changes reports to factory cell and attempt records and enforce Phase 5 gate-change hold (#1387 step 5); Attach test_changes reports to factory cell and attempt records, enforce Phase 5 gate-change hold and add measure-approve (#1387 step 5)"
+    },
+    {
       "path": "plugins/botcore-factory/src/botcore_factory/cells.py",
       "origin": "local-after-import",
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "03da64005a1ea09cf3af66fd6d763f44f73137e60d976be8d19dbb857464e010",
+      "current_import_sha256": "fb8298dde673924d15929166b163b3bc6fdcd170cf24506cc1ad9adb140da155",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633); Add shared host validation lock (botcore_factory.validation_lock) and coverage stop/resume handling for #1309 (Phase A: AFD); Fix botcore bug batch: factory state durability (#1796), teams missing-command errors (#1797), provenance archive member hardening (#1671), and ignored-only tier-2 disk classification (#1933)"
+      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633); Add shared host validation lock (botcore_factory.validation_lock) and coverage stop/resume handling for #1309 (Phase A: AFD); Fix botcore bug batch: factory state durability (#1796), teams missing-command errors (#1797), provenance archive member hardening (#1671), and ignored-only tier-2 disk classification (#1933); Attach test_changes reports to factory cell and attempt records, enforce Phase 5 gate-change hold and add measure-approve (#1387 step 5)"
+    },
+    {
+      "path": "plugins/botcore-factory/src/botcore_factory/change_report.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "a9008de91b19b0577aca62a9b88d37eb490a41d6a20900bdbb2839e9aea90ba1",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Attach test_changes reports to factory cell and attempt records and enforce Phase 5 gate-change hold (#1387 step 5); Attach test_changes reports to factory cell and attempt records, enforce Phase 5 gate-change hold and add measure-approve (#1387 step 5)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/claims.py",
@@ -1390,10 +1412,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "48fe52b742f2f964f2bc0cd06c12c3a82aee9778b6a606baa71d783a9a97dd39",
+      "current_import_sha256": "073cf238e87b3c6dda0f919e3bf5842289dfa5de43cb1bca3d8d574cb48b7fa2",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498); Eject a branch that deletes .nvmrc as node-missing (lushly-dev/afd#1505); Eject a branch that deletes or blanks .nvmrc as node-missing (lushly-dev/afd#1505); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); lane-enqueue names the install command on PREQUEUE_FAILED (#1594); Skip resolved events when delivering a lane wake (#1608); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633); Disk hygiene prevention: idle-worktree warning, Cargo arrangement check, Factory slots managed (#1695); The lane folds each branch it validates into one commit (lushly-dev/afd#1809); The texts assume the merge queue rebases (lushly-dev/afd#1809, step 3); Emit provenance-rerecorded record (schema 4), count it in lane-report, and include Health in regenerate paths (lushly-dev/afd#1472); Add shared host validation lock (botcore_factory.validation_lock) and coverage stop/resume handling for #1309 (Phase A: AFD); Fix botcore bug batch: factory state durability (#1796), teams missing-command errors (#1797), provenance archive member hardening (#1671), and ignored-only tier-2 disk classification (#1933)"
+      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498); Eject a branch that deletes .nvmrc as node-missing (lushly-dev/afd#1505); Eject a branch that deletes or blanks .nvmrc as node-missing (lushly-dev/afd#1505); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); lane-enqueue names the install command on PREQUEUE_FAILED (#1594); Skip resolved events when delivering a lane wake (#1608); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633); Disk hygiene prevention: idle-worktree warning, Cargo arrangement check, Factory slots managed (#1695); The lane folds each branch it validates into one commit (lushly-dev/afd#1809); The texts assume the merge queue rebases (lushly-dev/afd#1809, step 3); Emit provenance-rerecorded record (schema 4), count it in lane-report, and include Health in regenerate paths (lushly-dev/afd#1472); Add shared host validation lock (botcore_factory.validation_lock) and coverage stop/resume handling for #1309 (Phase A: AFD); Fix botcore bug batch: factory state durability (#1796), teams missing-command errors (#1797), provenance archive member hardening (#1671), and ignored-only tier-2 disk classification (#1933); Attach test_changes reports to factory cell and attempt records and enforce Phase 5 gate-change hold (#1387 step 5); Attach test_changes reports to factory cell and attempt records, enforce Phase 5 gate-change hold and add measure-approve (#1387 step 5)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/events.py",
@@ -1401,10 +1423,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "bdba8c8f8c4f7f7360be7acbf6fd7c9970972461ac484ef6d3b3e2f530a29856",
+      "current_import_sha256": "8b6c48ec43fd41faaba19eb6c103c04a45eb9c708e2ac48ba55b022a55561292",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Skip resolved events when delivering a lane wake (#1608); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633); Add shared host validation lock (botcore_factory.validation_lock) and coverage stop/resume handling for #1309 (Phase A: AFD)"
+      "import_reason": "Skip resolved events when delivering a lane wake (#1608); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633); Add shared host validation lock (botcore_factory.validation_lock) and coverage stop/resume handling for #1309 (Phase A: AFD); Attach test_changes reports to factory cell and attempt records and enforce Phase 5 gate-change hold (#1387 step 5); Attach test_changes reports to factory cell and attempt records, enforce Phase 5 gate-change hold and add measure-approve (#1387 step 5)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/failures.py",
@@ -1423,10 +1445,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "5a72887fa7c1f655cc35619bc6c8b4c11282fc60a9354e72e7f91821f15c6f78",
+      "current_import_sha256": "6caf12b9cc9f89649a5abe395d9a79c73a97e27337e7dfba880167d3ade08e13",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); Factory lane ejections list every failing test from the whole job log (lushly-dev/afd#1607); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633); Disk hygiene prevention: idle-worktree warning, Cargo arrangement check, Factory slots managed (#1695); The lane folds each branch it validates into one commit (lushly-dev/afd#1809); The texts assume the merge queue rebases (lushly-dev/afd#1809, step 3); Add shared host validation lock (botcore_factory.validation_lock) and coverage stop/resume handling for #1309 (Phase A: AFD)"
+      "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); Factory lane ejections list every failing test from the whole job log (lushly-dev/afd#1607); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633); Disk hygiene prevention: idle-worktree warning, Cargo arrangement check, Factory slots managed (#1695); The lane folds each branch it validates into one commit (lushly-dev/afd#1809); The texts assume the merge queue rebases (lushly-dev/afd#1809, step 3); Add shared host validation lock (botcore_factory.validation_lock) and coverage stop/resume handling for #1309 (Phase A: AFD); Attach test_changes reports to factory cell and attempt records and enforce Phase 5 gate-change hold (#1387 step 5); Attach test_changes reports to factory cell and attempt records, enforce Phase 5 gate-change hold and add measure-approve (#1387 step 5)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/fixture_world.py",
@@ -1544,10 +1566,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "9169a0bb7b247c9cb4393bfe587e953dfe1908d730b09d74e7b92fd91b554423",
+      "current_import_sha256": "00cd7b3a834ae5957873bc242c20be7e859a8976cce79668162d9d6d4eae23a1",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Eject a branch that deletes .nvmrc as node-missing (lushly-dev/afd#1505); Eject a branch that deletes or blanks .nvmrc as node-missing (lushly-dev/afd#1505); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); Factory lane ejections list every failing test from the whole job log (lushly-dev/afd#1607); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633); The lane folds each branch it validates into one commit (lushly-dev/afd#1809); Emit provenance-rerecorded record (schema 4), count it in lane-report, and include Health in regenerate paths (lushly-dev/afd#1472); Add shared host validation lock (botcore_factory.validation_lock) and coverage stop/resume handling for #1309 (Phase A: AFD)"
+      "import_reason": "lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Eject a branch that deletes .nvmrc as node-missing (lushly-dev/afd#1505); Eject a branch that deletes or blanks .nvmrc as node-missing (lushly-dev/afd#1505); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); Factory lane ejections list every failing test from the whole job log (lushly-dev/afd#1607); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633); The lane folds each branch it validates into one commit (lushly-dev/afd#1809); Emit provenance-rerecorded record (schema 4), count it in lane-report, and include Health in regenerate paths (lushly-dev/afd#1472); Add shared host validation lock (botcore_factory.validation_lock) and coverage stop/resume handling for #1309 (Phase A: AFD); Attach test_changes reports to factory cell and attempt records and enforce Phase 5 gate-change hold (#1387 step 5); Attach test_changes reports to factory cell and attempt records, enforce Phase 5 gate-change hold and add measure-approve (#1387 step 5)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/lane_base.py",
@@ -1555,10 +1577,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "334125f09076503674590e7676bbfa92e8e0243e3391acac39908e43fcc5ea9d",
+      "current_import_sha256": "7fca61ff4df6ee890e4bd21e1c12ea9ffece6a0654d780b4f2a6292ccdc5fe57",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); Factory lane ejections list every failing test from the whole job log (lushly-dev/afd#1607); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633); Add shared host validation lock (botcore_factory.validation_lock) and coverage stop/resume handling for #1309 (Phase A: AFD)"
+      "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); Factory lane ejections list every failing test from the whole job log (lushly-dev/afd#1607); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633); Add shared host validation lock (botcore_factory.validation_lock) and coverage stop/resume handling for #1309 (Phase A: AFD); Attach test_changes reports to factory cell and attempt records and enforce Phase 5 gate-change hold (#1387 step 5); Attach test_changes reports to factory cell and attempt records, enforce Phase 5 gate-change hold and add measure-approve (#1387 step 5)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/lane_commands.py",
@@ -1566,10 +1588,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "2f121df390fabb0f37fc4186851317c2a2296367517a436632d34ae244659d18",
+      "current_import_sha256": "90e4c7870b2b8aa2000fa4d912679406fa78947919db645d59719a750962edda",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633)"
+      "import_reason": "Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633); Attach test_changes reports to factory cell and attempt records, enforce Phase 5 gate-change hold and add measure-approve (#1387 step 5)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/lane_coverage.py",
@@ -1588,10 +1610,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "ec64a78da5a5a93167627119ecb3dbab117d11ba08a271d809a12f8ab68f459c",
+      "current_import_sha256": "4d5eaf3174f9981686807dac9ef362600293f9ea17cfe9613cb726d398a54ebf",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); The texts assume the merge queue rebases (lushly-dev/afd#1809, step 3)"
+      "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); The texts assume the merge queue rebases (lushly-dev/afd#1809, step 3); Attach test_changes reports to factory cell and attempt records and enforce Phase 5 gate-change hold (#1387 step 5); Attach test_changes reports to factory cell and attempt records, enforce Phase 5 gate-change hold and add measure-approve (#1387 step 5)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/lane_process.py",
@@ -1632,10 +1654,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "1c71518402f9b667e41b054bf4d130b1064862a36ea5713723f2c87e8ca6f746",
+      "current_import_sha256": "ab650dbc6ad1c05303bfe726070823273b4bdb92ab3bd2db096f221663fb35c1",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); lane-enqueue names the install command on PREQUEUE_FAILED (#1594); Fix botcore bug batch: factory state durability (#1796), teams missing-command errors (#1797), provenance archive member hardening (#1671), and ignored-only tier-2 disk classification (#1933)"
+      "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); lane-enqueue names the install command on PREQUEUE_FAILED (#1594); Fix botcore bug batch: factory state durability (#1796), teams missing-command errors (#1797), provenance archive member hardening (#1671), and ignored-only tier-2 disk classification (#1933); Attach test_changes reports to factory cell and attempt records and enforce Phase 5 gate-change hold (#1387 step 5); Attach test_changes reports to factory cell and attempt records, enforce Phase 5 gate-change hold and add measure-approve (#1387 step 5)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/real_run.py",
@@ -1676,10 +1698,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "f4020f469a9669fae6a7504ec81aa33b62dbc166e71a844555c4d8b738cefcbc",
+      "current_import_sha256": "3c8e1eff2de02d24aaebfbac096efabeef3e41898544aba6e102ccf1366f3987",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory lane ejections list every failing test from the whole job log (lushly-dev/afd#1607); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633); Emit provenance-rerecorded record (schema 4), count it in lane-report, and include Health in regenerate paths (lushly-dev/afd#1472)"
+      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Factory lane ejections list every failing test from the whole job log (lushly-dev/afd#1607); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633); Emit provenance-rerecorded record (schema 4), count it in lane-report, and include Health in regenerate paths (lushly-dev/afd#1472); Attach test_changes reports to factory cell and attempt records and enforce Phase 5 gate-change hold (#1387 step 5); Attach test_changes reports to factory cell and attempt records, enforce Phase 5 gate-change hold and add measure-approve (#1387 step 5)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/report.py",
@@ -1709,10 +1731,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "6732a924224bd3ccb82bfe1fa132e09a338f56d8deee3bb78972fe43add3db2d",
+      "current_import_sha256": "cafd2c7347c71899891f083fc738044b812b59186e07f4c69e885afbcca1774c",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Fix botcore bug batch: factory state durability (#1796), teams missing-command errors (#1797), provenance archive member hardening (#1671), and ignored-only tier-2 disk classification (#1933)"
+      "import_reason": "Fix botcore bug batch: factory state durability (#1796), teams missing-command errors (#1797), provenance archive member hardening (#1671), and ignored-only tier-2 disk classification (#1933); Attach test_changes reports to factory cell and attempt records, enforce Phase 5 gate-change hold and add measure-approve (#1387 step 5)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/status.py",
@@ -1720,10 +1742,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "b13a980721914caf65e1c5f5e8022cb161a79c570e99051aac6e95eb7d8505e5",
+      "current_import_sha256": "3aa870da9a2f5a240384ef9d9f8bec77710268d4afe36abd3a1b4dd5407a7c31",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633); Disk hygiene prevention: idle-worktree warning, Cargo arrangement check, Factory slots managed (#1695); Add shared host validation lock (botcore_factory.validation_lock) and coverage stop/resume handling for #1309 (Phase A: AFD)"
+      "import_reason": "cell-register takes a package of related issues the foreman names (lushly-dev/afd#1431); Factory: start cells only on a Claude plan (cells.claudeOnly); skip Claude's Fable window as a plan (#1498); Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633); Disk hygiene prevention: idle-worktree warning, Cargo arrangement check, Factory slots managed (#1695); Add shared host validation lock (botcore_factory.validation_lock) and coverage stop/resume handling for #1309 (Phase A: AFD); Attach test_changes reports to factory cell and attempt records and enforce Phase 5 gate-change hold (#1387 step 5); Attach test_changes reports to factory cell and attempt records, enforce Phase 5 gate-change hold and add measure-approve (#1387 step 5)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/validation_lock.py",
@@ -1764,10 +1786,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "16a94a318a17fdf059827103ca9545263fa24f4935f15c0eba0a23f38e1fea9c",
+      "current_import_sha256": "09ad2afc5723fc9171dfd3de3060cf5d5a922438f24fa9a0e0e786135177c829",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Factory lane ejections list every failing test from the whole job log (lushly-dev/afd#1607); Emit provenance-rerecorded record (schema 4), count it in lane-report, and include Health in regenerate paths (lushly-dev/afd#1472)"
+      "import_reason": "Factory lane ejections list every failing test from the whole job log (lushly-dev/afd#1607); Emit provenance-rerecorded record (schema 4), count it in lane-report, and include Health in regenerate paths (lushly-dev/afd#1472); Attach test_changes reports to factory cell and attempt records and enforce Phase 5 gate-change hold (#1387 step 5); Attach test_changes reports to factory cell and attempt records, enforce Phase 5 gate-change hold and add measure-approve (#1387 step 5)"
     },
     {
       "path": "plugins/botcore-factory/tests/test_claims.py",
@@ -1847,6 +1869,17 @@
       "import_reason": "Give every Factory squash merge the branch's own messages as its body, so GitHub credits no co-author; send stdin as bytes (lushly-dev/afd#1515); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598)"
     },
     {
+      "path": "plugins/botcore-factory/tests/test_hosts.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "11bbb1f379e459e93a04dd1869ec607251d7c8e240be2e3ff1f13c8384d70094",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Attach test_changes reports to factory cell and attempt records, enforce Phase 5 gate-change hold and add measure-approve (#1387 step 5)"
+    },
+    {
       "path": "plugins/botcore-factory/tests/test_lane.py",
       "origin": "local-after-import",
       "upstream_sha256": null,
@@ -1863,10 +1896,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "675ef048dc1d61f6f17cd171898858482baf87bdb5d9b9c6f916f64adfb916b8",
+      "current_import_sha256": "1978ebb48835b9029d8f104a8db6b709b45a2ca4547c6e25eb6a1e1bc467e290",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Count only run_external_tool's own warning in its not-found test (lushly-dev/afd#1467); compare worktree paths as git lists them, with forward slashes on Windows; lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Eject a branch that deletes .nvmrc as node-missing (lushly-dev/afd#1505); Eject a branch that deletes or blanks .nvmrc as node-missing (lushly-dev/afd#1505); The lane folds each branch it validates into one commit (lushly-dev/afd#1809)"
+      "import_reason": "Count only run_external_tool's own warning in its not-found test (lushly-dev/afd#1467); compare worktree paths as git lists them, with forward slashes on Windows; lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Eject a branch that deletes .nvmrc as node-missing (lushly-dev/afd#1505); Eject a branch that deletes or blanks .nvmrc as node-missing (lushly-dev/afd#1505); The lane folds each branch it validates into one commit (lushly-dev/afd#1809); Attach test_changes reports to factory cell and attempt records and enforce Phase 5 gate-change hold (#1387 step 5); Attach test_changes reports to factory cell and attempt records, enforce Phase 5 gate-change hold and add measure-approve (#1387 step 5)"
     },
     {
       "path": "plugins/botcore-factory/tests/test_lane_host_lock.py",
@@ -1907,10 +1940,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "b4b6cf6311ec2b0b0f2703a38805a7674ebb9b25cbb0b4ed4eb0e731d1812ef2",
+      "current_import_sha256": "e5e0c34be644d0eb731119ac5c13fd38a9881db581319721d658e6b96a97d701",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "lane-enqueue names the install command on PREQUEUE_FAILED (#1594); Emit provenance-rerecorded record (schema 4), count it in lane-report, and include Health in regenerate paths (lushly-dev/afd#1472)"
+      "import_reason": "lane-enqueue names the install command on PREQUEUE_FAILED (#1594); Emit provenance-rerecorded record (schema 4), count it in lane-report, and include Health in regenerate paths (lushly-dev/afd#1472); Attach test_changes reports to factory cell and attempt records, enforce Phase 5 gate-change hold and add measure-approve (#1387 step 5)"
     },
     {
       "path": "plugins/botcore-factory/tests/test_real_world.py",
@@ -1929,10 +1962,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "7691644c9c8ea5ca2138ce1bac6f5e734f6fa7fb1728dd48b67ee5c7aed6271d",
+      "current_import_sha256": "2eb4d66666099e1ca8dec719a327281f8c6cddbd12c4cfb469a4541e6665a4a6",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Emit provenance-rerecorded record (schema 4), count it in lane-report, and include Health in regenerate paths (lushly-dev/afd#1472)"
+      "import_reason": "Emit provenance-rerecorded record (schema 4), count it in lane-report, and include Health in regenerate paths (lushly-dev/afd#1472); Attach test_changes reports to factory cell and attempt records and enforce Phase 5 gate-change hold (#1387 step 5); Attach test_changes reports to factory cell and attempt records, enforce Phase 5 gate-change hold and add measure-approve (#1387 step 5)"
     },
     {
       "path": "plugins/botcore-factory/tests/test_report.py",
@@ -1966,6 +1999,17 @@
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Fix botcore bug batch: factory state durability (#1796), teams missing-command errors (#1797), provenance archive member hardening (#1671), and ignored-only tier-2 disk classification (#1933)"
+    },
+    {
+      "path": "plugins/botcore-factory/tests/test_test_changes.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "4421b0d78bf8ef3b58c9e6eaa4bf35532d9892a410c160e007a367434f9728e9",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Attach test_changes reports to factory cell and attempt records and enforce Phase 5 gate-change hold (#1387 step 5); Attach test_changes reports to factory cell and attempt records, enforce Phase 5 gate-change hold and add measure-approve (#1387 step 5)"
     },
     {
       "path": "plugins/botcore-factory/tests/test_validation_lock.py",

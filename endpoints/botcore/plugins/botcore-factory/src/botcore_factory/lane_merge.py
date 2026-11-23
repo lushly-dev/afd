@@ -447,6 +447,11 @@ class Merging(Advancing):
                 if waited
                 else {}
             ),
+            **(
+                {"testChanges": entry["testChanges"]}
+                if entry.get("testChanges") is not None
+                else {}
+            ),
         )
         self.watch_unchecked(entry, pr)
         cell = self.cell(branch)

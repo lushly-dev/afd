@@ -29,6 +29,8 @@ LANE_POLICIES: dict[str, CommandPolicy] = {
     "foreman_handoff": CommandPolicy(("history-write",)),
     # Stops counting an ejection that was not the branch's fault.
     "ejection_excuse": CommandPolicy(("history-write",)),
+    # Owner approval releasing a gate-change or measure-change held head to the queue.
+    "measure_approve": CommandPolicy(("history-write",)),
 }
 
 
@@ -109,6 +111,15 @@ def make_lane_commands(get: Callable[[], Factory]) -> list[Callable]:
 
         return await execute(body)
 
+    async def measure_approve(branch: str, reason: str) -> CommandResult:
+        """Release a branch held for gate-change or measure-change to the queue.
+
+        Args:
+            branch: The held cell's branch.
+            reason: Why the owner approves this exact head's gate or measurement change.
+        """
+        return await execute(lambda: success(cells.measure_approve(get(), branch, reason)))
+
     return [
         lane_start,
         lane_stop,
@@ -119,4 +130,5 @@ def make_lane_commands(get: Callable[[], Factory]) -> list[Callable]:
         lane_report,
         foreman_handoff,
         ejection_excuse,
+        measure_approve,
     ]

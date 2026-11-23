@@ -18,13 +18,13 @@ from __future__ import annotations
 import shlex
 from pathlib import PurePosixPath
 
-from botcore_factory import dials, records
+from botcore_factory import change_report, dials, records
 from botcore_factory.adapter import matches
 from botcore_factory.claims import format_time
-from botcore_factory.events import answer
+from botcore_factory.events import answer, emit
 from botcore_factory.lane_base import MERGE_QUEUED, open_index
 from botcore_factory.runtime import Factory, Refusal
-from botcore_factory.world import LANE_HOST_VARIABLE, WorldError
+from botcore_factory.world import LANE_HOST_VARIABLE, Issue, WorldError
 
 FIRST_LINES = 20
 REVIEW_TIMEOUT = 120  # Seconds; the verifier only reads a record.
@@ -182,14 +182,36 @@ def _prequeue(factory: Factory, worktree: str) -> list[dict]:
     return stages
 
 
-def _profile(factory: Factory, issues: list[int]) -> str:
+def _profile_from_issues(issues: list[Issue]) -> str:
     """The issue's execution profile, which Measurement weighs a merge by."""
-    profiles = []
-    for number in issues:
-        labels = factory.world.github.get_issue(number).labels
-        found = [name for name in labels if name.startswith("execution:")]
-        profiles += [name.removeprefix("execution:") for name in found]
+    profiles = [
+        name.removeprefix("execution:")
+        for issue in issues
+        for name in issue.labels
+        if name.startswith("execution:")
+    ]
     return profiles[0] if profiles else "unknown"
+
+
+def _read_test_changes(
+    factory: Factory, worktree: str, branch: str, head: str
+) -> tuple[dict | None, str | None]:
+    """Advisory test-change report at enqueue (the lane runs the base's copy before validation)."""
+    if not factory.config.test_changes:
+        return None, None
+    try:
+        base = factory.world.git.fetch_base(factory.config.base_branch)
+        report = change_report.run_report(
+            factory, cwd=worktree, worktree=worktree, base=base, head=head
+        )
+        return report, base
+    except WorldError as exc:
+        raise Refusal(
+            "TEST_CHANGES_FAILED",
+            f"Could not read test changes for {branch}: {exc}",
+            "Check that origin is reachable and the adapter's test_changes command prints valid "
+            "JSON, then lane-enqueue again",
+        ) from exc
 
 
 def _check_inputs(factory: Factory, branch: str, body_file: str | None) -> None:
@@ -209,24 +231,39 @@ def _check_inputs(factory: Factory, branch: str, body_file: str | None) -> None:
             )
 
 
-def _admit(state: dict, entry: dict, repaired: bool) -> tuple[str, int]:
+def _admit(
+    state: dict,
+    entry: dict,
+    repaired: bool,
+    *,
+    hold_reason: str | None = None,
+    hold_reasons: list[str] | None = None,
+) -> tuple[str, int, str | None]:
     """Queue the entry (a repair at the front, behind a branch already merging) or hold it when
-    the queue is full."""
+    an owner hold applies (``gate-change``) or the queue is full."""
     previous = next((e for e in state["queue"] if e.get("branch") == entry["branch"]), None)
     if previous is not None and previous.get("pr"):
         entry["pr"] = previous["pr"]  # Its PR stays open; the next push updates it.
     for listing in (state["queue"], state["held"]):
         listing[:] = [item for item in listing if item.get("branch") != entry["branch"]]
+    if hold_reason is not None:
+        held_entry = {**entry, "state": "held", "holdReason": hold_reason}
+        if hold_reasons:
+            detail, lines = change_report.summarize_hold(hold_reasons)
+            held_entry["holdReasons"] = lines
+            held_entry["holdDetail"] = detail
+        state["held"].append(held_entry)
+        return "held", len(state["held"]), hold_reason
     most = dials.value(state["dials"], "lane.queueMax")
     if repaired:
         index = open_index(state["queue"])
         state["queue"].insert(index, entry)
-        return "queued", index + 1
+        return "queued", index + 1, None
     if len(state["queue"]) >= most:
         state["held"].append({**entry, "holdReason": "queue-full"})
-        return "held", len(state["held"])
+        return "held", len(state["held"]), "queue-full"
     state["queue"].append(entry)
-    return "queued", len(state["queue"])
+    return "queued", len(state["queue"]), None
 
 
 def _find_cell(state: dict, branch: str) -> dict:
@@ -252,9 +289,31 @@ def enqueue(factory: Factory, worktree: str, title: str | None, body_file: str |
     _check_review(factory, worktree, head)
     _check_gate(factory, worktree, branch, cell, factory.store.read())
     stages = _prequeue(factory, worktree)
-    profile = _profile(factory, cell.get("issues", []))
+    issues = [factory.world.github.get_issue(number) for number in cell.get("issues", [])]
+    profile = _profile_from_issues(issues)
+    report, base = _read_test_changes(factory, worktree, branch, head)
+    hold_reasons: list[str] = []
+    if change_report.is_factory_branch(issues, cell):
+        if base is None:
+            try:
+                base = factory.world.git.fetch_base(factory.config.base_branch)
+            except WorldError as exc:
+                raise Refusal(
+                    "GATE_CHECK_FAILED",
+                    f"{branch}'s gate changes could not be read against "
+                    f"{factory.config.base_branch}: {exc}",
+                    "Check the network and origin, then lane-enqueue again",
+                ) from exc
+        changed_gate = [
+            path
+            for path in factory.world.git.changed_files(worktree, base)
+            if matches(path, factory.config.gate_paths)
+        ]
+        hold_reasons = change_report.check_less_reasons(report, gate_paths=changed_gate)
     with factory.store.update(f"lane-enqueue {branch}") as state:
         cell = _find_cell(state, branch)
+        if hold_reasons and change_report.is_gate_change_approved(cell, head):
+            hold_reasons = []
         waiting = next((e for e in state["queue"] if e.get("branch") == branch), None)
         if waiting is not None and waiting.get("state") == MERGE_QUEUED:
             raise Refusal(
@@ -292,10 +351,28 @@ def enqueue(factory: Factory, worktree: str, title: str | None, body_file: str |
             "title": title,
             "bodyFile": body_file,
             "issues": cell.get("issues", []),
+            **({"testChanges": report} if report is not None else {}),
         }
-        placed, position = _admit(state, entry, repaired)
+        gate_hold = change_report.GATE_CHANGE_HOLD if hold_reasons else None
+        placed, position, hold_reason = _admit(
+            state, entry, repaired, hold_reason=gate_hold, hold_reasons=hold_reasons
+        )
         cell.update(state=placed, head=head, title=title, bodyFile=body_file, worktree=worktree)
+        if report is not None:
+            cell["testChanges"] = report
         answered = answer(state, "lane-enqueue", now, branch=branch)
+        if gate_hold:
+            detail, lines = change_report.summarize_hold(hold_reasons)
+            emit(
+                state,
+                now,
+                "gate-change-held",
+                branch=branch,
+                reason=gate_hold,
+                detail=detail,
+                lines=lines,
+                needsOwner=gate_hold,
+            )
         record = records.make(
             "enqueued",
             now,
@@ -310,8 +387,9 @@ def enqueue(factory: Factory, worktree: str, title: str | None, body_file: str |
             state=placed,
             firstEnqueuedAt=first_enqueued_at,
             position=position,
-            holdReason="queue-full" if placed == "held" else None,
+            holdReason=hold_reason,
             repair=repaired,
+            **({"testChanges": report} if report is not None else {}),
         )
         factory.store.append_record(record)
     result = {
@@ -323,6 +401,12 @@ def enqueue(factory: Factory, worktree: str, title: str | None, body_file: str |
         "prequeue": {"stages": stages},
         "answered": answered,
     }
-    if placed == "held":
-        result["holdReason"] = "queue-full"
+    if hold_reason is not None:
+        result["holdReason"] = hold_reason
+    if hold_reasons:
+        detail, lines = change_report.summarize_hold(hold_reasons)
+        result["holdReasons"] = lines
+        result["holdDetail"] = detail
+    if report is not None:
+        result["testChanges"] = report
     return result

@@ -16,8 +16,14 @@ kind                    required fields                                     writ
                         relatedBecause (why a package of issues shares
                         the cell)
 ``enqueued``            branch, attempt, head, issues, plan, route,         lane-enqueue
-                        profile, state (queued | held), firstEnqueuedAt
+                        profile, state (queued | held), firstEnqueuedAt;
+                        optional testChanges (from the adapter's
+                        test_changes report, advisory at enqueue)
 ``queued``              branch, attempt (a held attempt joins the queue)    the lane loop
+``held``                branch, attempt, holdReason (the lane held an       the lane loop
+                        attempt for a person, e.g. ``gate-change``);
+                        optional detail, testChanges (authoritative report
+                        run from the base's clean checkout)
 ``provenance-rerecorded`` branch, attempt, base, names, paths: the lane   the lane loop
                         merged provenance-only conflicts with the
                         adapter's ``regenerate`` command instead of
@@ -29,7 +35,9 @@ kind                    required fields                                     writ
                         base, tree, command, minutes: the lane's own record
                         of a validation, for every repository; optional
                         checksRun, testsRun (when the adapter reports
-                        them), flaky, logPath
+                        them), flaky, logPath, testChanges (authoritative,
+                        run from the base's clean checkout on the folded
+                        commit, lushly-dev/afd#1387)
 ``rerun``               branch, attempt, reason (main-moved | restart |     the lane loop
                         slot-needed | disk-full); optional detail (why
                         main's move needs a new validation)
@@ -53,7 +61,7 @@ kind                    required fields                                     writ
                         own failure, so it does not count toward
                         cells.maxEjections), excuse (why not), failures
                         and failureCount (every failing test the job's
-                        log names, lushly-dev/afd#1607)
+                        log names, lushly-dev/afd#1607), testChanges
 ``ejection-excused``    branch, attempt, cause, reason: the foreman found   ejection-excuse
                         the latest ejection was not the branch's fault
 ``slot-released``       branch, attempt, slot, path: a validated branch     the lane loop
@@ -68,7 +76,8 @@ kind                    required fields                                     writ
                         checkBase, the base at the push, which its check
                         ran onto or past, and base), mergeQueue (true:
                         it merged through GitHub's merge queue) with
-                        queueMinutes (how long it waited there)
+                        queueMinutes (how long it waited there),
+                        testChanges
 ``dropped``             branch, reason                                      lane-drop
 ``coverage``            main, outcome (passed | failed), minutes;           the lane loop
                         optional logPath, after (the PRs since the last)
@@ -86,7 +95,7 @@ from __future__ import annotations
 
 from typing import Any
 
-SCHEMA = 4
+SCHEMA = 5
 REQUIRED: dict[str, tuple[str, ...]] = {
     "cell-registered": ("branch", "issues", "plan", "route", "profile"),
     "enqueued": (
@@ -101,6 +110,7 @@ REQUIRED: dict[str, tuple[str, ...]] = {
         "firstEnqueuedAt",
     ),
     "queued": ("branch", "attempt"),
+    "held": ("branch", "attempt", "holdReason"),
     "provenance-rerecorded": ("branch", "attempt", "base", "names", "paths"),
     "validation-started": ("branch", "attempt", "head", "base", "slot"),
     "validated": (
@@ -151,6 +161,7 @@ _COUNTS = {
 _TIMES = {
     "enqueued": "enqueuedAt",
     "queued": "queuedAt",
+    "held": "heldAt",
     "validation-started": "validationStartedAt",
     "validated": "validatedAt",
     "ejected": "ejectedAt",
@@ -229,18 +240,38 @@ def _fold(row: dict, kind: str, record: dict) -> None:
         if record["state"] == "held":
             row["heldAt"] = record["at"]
             row["holdReason"] = record.get("holdReason")
+        if record.get("testChanges") is not None:
+            row["testChanges"] = record["testChanges"]
     elif kind == "queued":
         row["state"] = "queued"
+        row.pop("holdReason", None)
+    elif kind == "held":
+        row["state"] = "held"
+        row["holdReason"] = record["holdReason"]
+        if record.get("testChanges") is not None:
+            row["testChanges"] = record["testChanges"]
     elif kind == "validation-started":
         row["state"] = "validating"
     elif kind == "validated":
         row["state"] = "validated"
-        for name in ("checksRun", "testsRun", "minutes", "flaky", "logPath", "tree", "base"):
+        for name in (
+            "checksRun",
+            "testsRun",
+            "minutes",
+            "flaky",
+            "logPath",
+            "tree",
+            "base",
+        ):
             if name in record:
                 row[name] = record[name]
+        if record.get("testChanges") is not None:
+            row["testChanges"] = record["testChanges"]
         row["validation"] = record["outcome"]
     elif kind in ("ejected", "merged"):
         row["outcome"] = kind
+        if record.get("testChanges") is not None:
+            row["testChanges"] = record["testChanges"]
         if kind == "ejected":
             row["cause"] = record["cause"]
             row["logPath"] = record.get("logPath", row.get("logPath"))
@@ -250,6 +281,18 @@ def _fold(row: dict, kind: str, record: dict) -> None:
             row["advanced"] = bool(record.get("advanced"))
             row["checkStoodIn"] = bool(record.get("checkStoodIn"))
     row.setdefault("state", None)
+
+
+def test_changes_for(records: list[dict], branch: str, attempt: int | None = None) -> dict | None:
+    """The latest test-change report attached to ``branch`` (or its specific ``attempt``)."""
+    rows = [
+        row
+        for row in attempts(records)
+        if row["branch"] == branch
+        and (attempt is None or row["attempt"] == attempt)
+        and "testChanges" in row
+    ]
+    return rows[-1]["testChanges"] if rows else None
 
 
 def merges(records: list[dict]) -> list[dict]:

@@ -67,7 +67,7 @@ _REPOSITORY = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
 _EVENT_ID = re.compile(r"ev-(\d+)")
 _RUN_ID = re.compile(r"run-(\d+)")
 _ATTEMPT_RECORD_KINDS = frozenset(
-    {"enqueued", "queued", "validation-started", "validated", "ejected", "merged"}
+    {"enqueued", "queued", "held", "validation-started", "validated", "ejected", "merged"}
 )
 STATE_SECTIONS: dict[str, Any] = {
     "lane": {},
