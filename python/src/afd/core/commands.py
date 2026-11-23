@@ -178,6 +178,10 @@ class CommandContext:
             requires it: the ``approvalToken`` from an ``APPROVAL_REQUIRED``
             result, set by the surface once a human approved. Only trusted
             surface code sets it, never tool arguments.
+        credentials: Verified OAuth access-token claims (``afd.server.Credentials``,
+            ``spec/authorization.md``, M4), set by the server's authorization layer
+            on verified HTTP requests. Never the raw token; never journaled or
+            forwarded.
     """
 
     trace_id: Optional[str] = None
@@ -189,6 +193,7 @@ class CommandContext:
     approval: Optional[str] = None
     report_progress: Optional[Callable[[str], None]] = None
     cancel: Optional[asyncio.Event] = None
+    credentials: Optional[Any] = None
     _direct_approval: Any = field(default=None, repr=False, compare=False)
     _direct_allow: Any = field(default=None, repr=False, compare=False)
 

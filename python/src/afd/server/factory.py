@@ -100,6 +100,18 @@ from afd.server.approval_admission import (
     take_admission,
 )
 from afd.server.approval_relay import bind_approval_relay, current_up_front_approval
+from afd.server.auth import (
+    AuthLayer,
+    McpAuthOptions,
+    admitted_credentials_for,
+    bind_trusted_transport,
+    claim_admitted_dispatch,
+    create_auth_layer,
+    credentials_actor,
+    is_trusted_transport,
+)
+from afd.server.auth_resource import ProtectedResource
+from afd.server.auth_rules import Credentials
 from afd.server.batch_execution import execute_batch, execute_pipeline_request
 from afd.server.confirmations import (
     CONFIRMATION_MODES,
@@ -205,6 +217,8 @@ class ServerConfig:
     """Pluggable :class:`~afd.server.tasks.TaskStore` for MCP Tasks (default: bounded in-memory)."""
     task_options: TaskOptions | None = None
     """MCP Tasks runtime options (TTL, polling interval, concurrency and caller identification)."""
+    auth: McpAuthOptions | None = None
+    """OAuth 2.1 protected-resource authorization on HTTP (``spec/authorization.md``, M1–M5, M7)."""
 
 
 DEFAULT_TOOLS_LIST_TTL_MS = 300_000
@@ -281,6 +295,9 @@ class MCPServer:
         self._command_index: dict[str, CommandDefinition] | None = None
         self._router: Callable[[str, Any], Any] | None = None
         self._first_class_checked = False
+        self._auth_layer: AuthLayer | None = (
+            create_auth_layer(config.auth, clock=config.clock) if config.auth is not None else None
+        )
         self._task_runtime = TaskRuntime(
             get_exposed_commands=lambda: self.list_exposed_commands(
                 interface="mcp", include_bootstrap=False, context_filtered=False
@@ -294,6 +311,7 @@ class MCPServer:
             run_context_hook=(
                 self._run_context_hook if config.context_hook is not None else None
             ),
+            get_admitted_credentials=self._current_admitted_credentials,
         )
 
     @property
@@ -322,6 +340,53 @@ class MCPServer:
     def task_store(self) -> TaskStore:
         """The :class:`~afd.server.tasks.TaskStore` backing MCP Tasks on this server."""
         return self._task_runtime.store
+
+    @property
+    def protected_resource(self) -> ProtectedResource | None:
+        """The server's RFC 9728 protected-resource metadata when ``auth`` is configured."""
+        return self._auth_layer.protected_resource if self._auth_layer is not None else None
+
+    def trusted_transport(self) -> Any:
+        """Context manager marking a non-HTTP transport explicitly trusted for this server
+        (``spec/authorization.md``, M1)."""
+        return bind_trusted_transport(self._auth_layer)
+
+    def _current_admitted_credentials(self) -> Credentials | None:
+        if self._auth_layer is None:
+            return None
+        return admitted_credentials_for(self._auth_layer)
+
+    def _is_auth_admitted(self) -> bool:
+        """Whether the current MCP request may proceed under M1's fail-closed rule."""
+        if self._auth_layer is None:
+            return True
+        if admitted_credentials_for(self._auth_layer) is not None:
+            return True
+        return is_trusted_transport(self._auth_layer)
+
+    def _unauthorized_error(self) -> CommandError:
+        suggestion = (
+            self._auth_layer.protected_resource.unauthorized_body()["suggestion"]
+            if self._auth_layer is not None
+            else "Obtain a valid access token and retry."
+        )
+        return CommandError(
+            code=ErrorCodes.UNAUTHORIZED,
+            message="This server requires a verified access token",
+            suggestion=suggestion,
+            retryable=False,
+        )
+
+    def _unauthorized_rpc_error(self) -> Exception:
+        from mcp import MCPError
+        from mcp_types import INVALID_REQUEST
+
+        err = self._unauthorized_error()
+        return MCPError(
+            code=INVALID_REQUEST,
+            message=err.message,
+            data={"code": err.code, "suggestion": err.suggestion, "retryable": False},
+        )
 
     def stop_tasks(self) -> None:
         """Stop all locally running MCP tasks without overwriting shared store state."""
@@ -1034,6 +1099,7 @@ class MCPServer:
                     validate_step=self._validate_step,
                     dispatch_task=self._task_runtime.dispatch_command,
                     refuse_composite_task=composite_task_error,
+                    get_admitted_credentials=self._current_admitted_credentials,
                 )
             )
         return self._router
@@ -1287,18 +1353,81 @@ class MCPServer:
                 ) from exc
 
         class SessionMCPServer(SdkMCPServer):
+            def streamable_http_app(self, **options: Any) -> Any:
+                app = super().streamable_http_app(**options)
+                if server._auth_layer is not None:
+                    return server._auth_layer.wrap_asgi_app(
+                        app, max_body_bytes=options.get("max_request_body_size")
+                    )
+                return app
+
+            def sse_app(self, **options: Any) -> Any:
+                app = super().sse_app(**options)
+                if server._auth_layer is not None:
+                    return server._auth_layer.wrap_asgi_app(
+                        app,
+                        max_body_bytes=options.get("max_request_body_size"),
+                    )
+                return app
+
+            async def run_stdio_async(self) -> None:
+                with bind_trusted_transport(server._auth_layer):
+                    await super().run_stdio_async()
+
+            async def run_sse_async(
+                self, *, host: str = "127.0.0.1", port: int = 8000, **options: Any
+            ) -> None:
+                if server._auth_layer is None:
+                    await super().run_sse_async(host=host, port=port, **options)
+                    return
+                import uvicorn
+
+                starlette_app = self.sse_app(host=host, **options)
+                # Disable Uvicorn access logs when auth is configured so raw query strings
+                # (e.g. a rejected `?access_token=...`) are never written to logs (M2/M5).
+                config = uvicorn.Config(
+                    starlette_app,
+                    host=host,
+                    port=port,
+                    log_level=self.settings.log_level.lower(),
+                    access_log=False,
+                )
+                uvicorn_server = uvicorn.Server(config)
+                await uvicorn_server.serve()
+
+            async def run_streamable_http_async(
+                self, *, host: str = "127.0.0.1", port: int = 8000, **options: Any
+            ) -> None:
+                if server._auth_layer is None:
+                    await super().run_streamable_http_async(host=host, port=port, **options)
+                    return
+                import uvicorn
+
+                starlette_app = self.streamable_http_app(host=host, **options)
+                config = uvicorn.Config(
+                    starlette_app,
+                    host=host,
+                    port=port,
+                    log_level=self.settings.log_level.lower(),
+                    access_log=False,
+                )
+                uvicorn_server = uvicorn.Server(config)
+                await uvicorn_server.serve()
+
             async def list_tools(self):
                 from mcp.types import Tool as MCPTool
 
+                if not server._is_auth_admitted():
+                    raise server._unauthorized_rpc_error()
                 with bound_request():
                     return [MCPTool(**definition) for definition in server.get_tool_definitions()]
 
             async def _dispatch_tool_call(
                 self, name: Any, arguments: Any, context: Any, outcome: HookOutcome | None
             ) -> Any:
-                # A hook refusal answers every route before meta-argument lifting, context
-                # checks, confirmations or command lookup, so a refused caller learns nothing
-                # about which tools or contexts exist.
+                # A hook or fail-closed auth refusal answers every route before meta-argument
+                # lifting, context checks, confirmations or command lookup, so a refused caller
+                # learns nothing about which tools or contexts exist.
                 if outcome is not None and outcome.refusal is not None:
                     return _tool_call_result(failure(outcome.refusal))
                 # A meta-tool's `meta` argument counts as _meta from here on.
@@ -1315,6 +1444,8 @@ class MCPServer:
                     return await super().call_tool(name, lifted.arguments, context)
 
             async def call_tool(self, name, arguments, context=None):
+                if not server._is_auth_admitted():
+                    return _tool_call_result(failure(server._unauthorized_error()))
                 outcome = current_hook_outcome()
                 if outcome is None and server.config.context_hook is not None:
                     # Direct SDK call_tool outside ServerRunner middleware: still run the hook.
@@ -1377,6 +1508,7 @@ class MCPServer:
                 actor=self.config.actor,
             ),
             new_trace_id(trace_prefix_for_tool(tool_name)),
+            credentials=self._current_admitted_credentials(),
         )
 
     def _install_pre_boundary_middleware(self) -> None:
@@ -1411,36 +1543,55 @@ class MCPServer:
                 raise MCPError(code=INTERNAL_ERROR, message="Internal error") from None
 
         async def pre_boundary(ctx: Any, call_next: Any) -> Any:
-            params = getattr(ctx, "params", None)
-            method = getattr(ctx, "method", None)
-            if server.config.context_hook is not None and method == "tools/call":
-                raw_name = params.get("name") if isinstance(params, Mapping) else None
-                tool_name = raw_name if isinstance(raw_name, str) else ""
-                outcome = await server._run_context_hook(tool_name, ctx)
-                if outcome.refusal is not None:
-                    if isinstance(params, Mapping) and (
-                        params.get("requestState") is not None or "inputResponses" in params
-                    ):
-                        cleaned = {
-                            key: value
-                            for key, value in params.items()
-                            if key not in ("requestState", "inputResponses")
-                        }
-                        ctx = dataclasses.replace(ctx, params=cleaned)
-                    with bind_hook_outcome(outcome):
-                        return await call_next(ctx)
-                with bind_hook_outcome(outcome):
-                    if isinstance(params, Mapping) and params.get("requestState") is not None:
-                        check_bindable_principal(method)
-                    return await call_next(ctx)
+            with claim_admitted_dispatch(server._auth_layer):
+                params = getattr(ctx, "params", None)
+                method = getattr(ctx, "method", None)
+                # M1 fail closed: when authorization is configured, refuse any request whose
+                # credentials were not admitted by this server's own HTTP layer (unless stdio or
+                # explicitly marked trusted), before context_hook, requestState or lookup.
+                if not server._is_auth_admitted():
+                    if method == "tools/call":
+                        if isinstance(params, Mapping) and (
+                            params.get("requestState") is not None or "inputResponses" in params
+                        ):
+                            cleaned = {
+                                key: value
+                                for key, value in params.items()
+                                if key not in ("requestState", "inputResponses")
+                            }
+                            ctx = dataclasses.replace(ctx, params=cleaned)
+                        with bind_hook_outcome(HookOutcome(refusal=server._unauthorized_error())):
+                            return await call_next(ctx)
+                    raise server._unauthorized_rpc_error()
 
-            if (
-                method in INPUT_REQUIRED_METHODS
-                and isinstance(params, Mapping)
-                and params.get("requestState") is not None
-            ):
-                check_bindable_principal(method)
-            return await call_next(ctx)
+                if server.config.context_hook is not None and method == "tools/call":
+                    raw_name = params.get("name") if isinstance(params, Mapping) else None
+                    tool_name = raw_name if isinstance(raw_name, str) else ""
+                    outcome = await server._run_context_hook(tool_name, ctx)
+                    if outcome.refusal is not None:
+                        if isinstance(params, Mapping) and (
+                            params.get("requestState") is not None or "inputResponses" in params
+                        ):
+                            cleaned = {
+                                key: value
+                                for key, value in params.items()
+                                if key not in ("requestState", "inputResponses")
+                            }
+                            ctx = dataclasses.replace(ctx, params=cleaned)
+                        with bind_hook_outcome(outcome):
+                            return await call_next(ctx)
+                    with bind_hook_outcome(outcome):
+                        if isinstance(params, Mapping) and params.get("requestState") is not None:
+                            check_bindable_principal(method)
+                        return await call_next(ctx)
+
+                if (
+                    method in INPUT_REQUIRED_METHODS
+                    and isinstance(params, Mapping)
+                    and params.get("requestState") is not None
+                ):
+                    check_bindable_principal(method)
+                return await call_next(ctx)
 
         lowlevel = getattr(self._mcp_server, "_lowlevel_server", None)
         chain = getattr(lowlevel, "middleware", None)
@@ -1454,21 +1605,25 @@ class MCPServer:
 
     def _request_principal(self) -> str:
         """The principal binding of the MCP request being served: the actor its commands run
-        with (from ``context_hook`` when set, else the server's configured ``actor`` or
-        ``Actor(kind="agent")``) and the identity of the access token the SDK verified, if any.
+        with (from ``context_hook`` when set, else the verified credentials' default actor, else
+        the server's configured ``actor`` or ``Actor(kind="agent")``) and the identity of the
+        verified access token, if any.
 
         Raises:
             IncompleteCredentials: A verified token lacks an issuer, subject or client id. The
                 SDK then refuses to seal a state with an internal error, and
                 ``_install_pre_boundary_middleware`` refuses a retry the same way.
         """
+        admitted = self._current_admitted_credentials()
         outcome = current_hook_outcome()
-        actor = (
-            outcome.actor_at_start
-            if outcome is not None and outcome.actor_at_start is not None
-            else self.config.actor or Actor(kind="agent")
-        )
-        return principal_binding(actor, sdk_credentials())
+        if outcome is not None and outcome.actor_at_start is not None:
+            actor = outcome.actor_at_start
+        elif admitted is not None:
+            actor = credentials_actor(admitted)
+        else:
+            actor = self.config.actor or Actor(kind="agent")
+        creds = admitted if self._auth_layer is not None else sdk_credentials()
+        return principal_binding(actor, creds)
 
     def streamable_http_app(self, **options: Any) -> Any:
         """The Streamable HTTP ASGI app, for mounting in a host application.
@@ -1476,11 +1631,22 @@ class MCPServer:
         ``options`` are those of the SDK's ``MCPServer.streamable_http_app``, such as
         ``stateless_http``, ``json_response``, ``transport_security`` and
         ``max_request_body_size``. One app serves MCP 2026-07-28 statelessly and 2025
-        clients that send ``initialize``.
+        clients that send ``initialize``. When ``auth`` is configured, the returned app
+        enforces bearer-token verification and serves RFC 9728 metadata (M1–M5, M7).
         """
         mcp = self._create_mcp_server()
         self._stateless_http = bool(options.get("stateless_http", False))
         return mcp.streamable_http_app(**options)
+
+    def sse_app(self, **options: Any) -> Any:
+        """The deprecated SSE ASGI app, for mounting in a host application.
+
+        When ``auth`` is configured, the returned app enforces bearer-token verification and
+        serves RFC 9728 metadata (M1–M5, M7).
+        """
+        mcp = self._create_mcp_server()
+        self._stateless_http = False
+        return mcp.sse_app(**options)
 
     def run(self, transport: str = "stdio", **options: Any) -> None:
         """Run the server.
@@ -1668,6 +1834,7 @@ def create_server(
     bootstrap: bool = False,
     task_store: TaskStore | None = None,
     task_options: TaskOptions | None = None,
+    auth: McpAuthOptions | None = None,
 ) -> MCPServer:
     """Create a new AFD MCP server.
 
@@ -1807,5 +1974,6 @@ def create_server(
         context_fields=[] if context_fields is None else context_fields,  # type: ignore[arg-type]
         task_store=task_store,
         task_options=task_options,
+        auth=auth,
     )
     return MCPServer(config)

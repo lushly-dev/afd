@@ -646,8 +646,24 @@ Each binds it to confirmation state as integrity-protected input, never as reada
   sets, which on a server with `auth` are the verified credentials (Loam phase 3 step 0a).
 - **Python:** the SDK's sealed `requestState`, through `RequestStateSecurity(bind_principal=...)`,
   with the call's `actor` (from `create_server(context_hook=...)`, [#800](https://github.com/lushly-dev/afd/issues/800),
-  or the server's default `actor`) and the access token the SDK verified. The
-  SDK refuses a mismatch with `-32602` before any handler runs, as it refuses a tampered state.
+  the verified credentials' default actor, or the server's default `actor`) and the verified
+  credentials (from AFD's `auth` layer when configured, [#2154](https://github.com/lushly-dev/afd/issues/2154),
+  else the access token the SDK verified). The SDK refuses a mismatch with `-32602` before any
+  handler runs, as it refuses a tampered state.
+
+Python verifies ([#2154](https://github.com/lushly-dev/afd/issues/2154)) on every HTTP ASGI
+transport of `create_server(..., auth=McpAuthOptions(...))` (`streamable_http_app`, `sse_app`, and
+HTTP/SSE `run`/`run_async`), serving RFC 9728 metadata publicly and failing closed (M1) on
+unadmitted transports (stdio and `server.trusted_transport()` remain unaffected). `JwtVerifier`
+applies every M3 rule in AFD code, using `cryptography` for signatures only (RSA, EC P-256/P-384,
+Ed25519), with `KeySource`, `jwks_key_source` and `create_introspection_verifier`. Verified
+`CommandContext.credentials` are frozen, redact every field but `issuer` and `expires_at` in
+`repr`/`str`, and carry an identity-keyed brand for `is_verified_credentials` until the request
+(or background MCP task) ends. `python/tests/test_authorization_cases.py` loads all nine
+verification sections of `spec/authorization.json`; `test_auth_verifier.py` covers every M3 rule
+with signed tokens; `test_mcp_auth.py` covers the HTTP bearer layer, header stripping, journal
+redaction, fail-closed M1, confirmation binding and MCP Tasks. Scope enforcement (M6) remains
+planned ([#2155](https://github.com/lushly-dev/afd/issues/2155)).
 
 Credentials with a missing or empty `issuer`, `subject` or `clientId` (a host's own credentials in
 Rust and TypeScript, a token verifier's incomplete answer in Python) fail closed in all three: no
@@ -660,11 +676,11 @@ Rust ask again, Python answers `-32602`.
 
 | Rule | TypeScript | Python | Rust | C++ |
 | --- | --- | --- | --- | --- |
-| Bearer token, verification, audience, credentials (M1 to M4) | Yes (Loam phase 3 step 0a; `createMcpHandler({ auth })`, `JwtVerifier` on `jose`, `KeySource`, `jwksKeySource`, `createIntrospectionVerifier`, `TokenVerifier`, `context.credentials`) | Planned | Yes (Umbel phase 5 step 0b; `server-auth`: `BearerLayer`, `JwtVerifier`, `KeySource`, `TokenVerifier`, `CommandContext::credentials`) | N/A: no HTTP server |
-| 401 and 403, rule codes (M5) | Yes (step 0a; the 403's challenge and body are built, and sent once M6 lands; rule codes to `auth.onRefusal`) | Planned | Yes (step 0b) | N/A |
-| Static scopes, the resolver, the 403 before dispatch, `INSUFFICIENT_SCOPE`, listing (M6) | Yes (Loam phase 3 step 0c; `scopes`, `requiredScopes`, `ScopeResolver`, `filterToolsByScope`, `staticDecision`, `requestDecision`) | Planned | Yes (step 0b; `ScopeResolver`, `Authorization::with_filter_tools_by_scope`) | N/A |
-| [A host's own layer](#before-dispatch-the-403) running the decision before dispatch (M6) | Yes (step 0c; `handler.admit`, `handler.preDispatchCheck`, `ScopeChallenge`; `mcp-auth-host.test.ts`) | Planned | Yes (`McpServer::pre_dispatch_check`, `PreDispatchCheck`, `ScopeChallenge`; `tests/server_auth_pre_dispatch.rs`) | N/A |
-| [Hidden commands](#hidden-commands) (M6): unknown on every route before validation, `resolve` never asked about them, decided once per request, `requires` filtered, `tasks/*` | Yes (step 0c; `ScopeResolver.known`, but no `tasks/*`: TypeScript serves no tasks; `mcp-auth-scopes.test.ts`) | Planned | Yes (`ScopeResolver::known`; `tests/server_auth_hidden.rs`) | N/A |
-| Protected-resource metadata (M7) | Yes (step 0a; `createProtectedResource`) | Planned | Yes (step 0b; `ProtectedResource`) | N/A |
-| The principal binding in confirmation state ([#532](https://github.com/lushly-dev/afd/issues/532), M8) | Yes (step 0c; `principalBinding`, with `createContext`'s `actor` and `credentials`; loads `principalBindings`) | Yes (step 0c; `afd.server.principal_binding`, with the SDK-verified token; loads `principalBindings`) | Yes (step 0c; `afd::principal_binding` in the gate's associated data; step 0d: the approval-relay state, `RelayCall::principal_binding` and relay evidence too) | N/A: no confirmation gate |
-| `tasks/*` and task owners ([M6, other methods](#other-methods); M8; [tasks](./command-metadata.md#tasks)) | Planned | Planned | Yes (Umbel phase 5 step 0e): `tasks/get`, `tasks/update` and `tasks/cancel` fail closed, need the required scopes and run the context hook; the owner is the principal binding, checked by the `TaskStore` and again by the server; the owner must still hold the task's command's `scopes` (or its resolver `visible` and `known`), and a task whose command no longer exists for the owner answers as an unknown task; a task stops at `credentials.expiresAt` | N/A: no MCP server |
+| Bearer token, verification, audience, credentials (M1 to M4) | Yes (Loam phase 3 step 0a; `createMcpHandler({ auth })`, `JwtVerifier` on `jose`, `KeySource`, `jwksKeySource`, `createIntrospectionVerifier`, `TokenVerifier`, `context.credentials`) | Yes ([#2154](https://github.com/lushly-dev/afd/issues/2154); `create_server(auth=McpAuthOptions(...))`, `JwtVerifier` on `cryptography`, `KeySource`, `jwks_key_source`, `create_introspection_verifier`, `TokenVerifier`, `context.credentials`, `is_verified_credentials`) | Yes (Umbel phase 5 step 0b; `server-auth`: `BearerLayer`, `JwtVerifier`, `KeySource`, `TokenVerifier`, `CommandContext::credentials`) | N/A: no HTTP server |
+| 401 and 403, rule codes (M5) | Yes (step 0a; the 403's challenge and body are built, and sent once M6 lands; rule codes to `auth.onRefusal`) | Yes ([#2154](https://github.com/lushly-dev/afd/issues/2154); 401 sent and 403 builders ready for M6; rule codes to `auth.on_refusal`) | Yes (step 0b) | N/A |
+| Static scopes, the resolver, the 403 before dispatch, `INSUFFICIENT_SCOPE`, listing (M6) | Yes (Loam phase 3 step 0c; `scopes`, `requiredScopes`, `ScopeResolver`, `filterToolsByScope`, `staticDecision`, `requestDecision`) | Planned ([#2155](https://github.com/lushly-dev/afd/issues/2155)) | Yes (step 0b; `ScopeResolver`, `Authorization::with_filter_tools_by_scope`) | N/A |
+| [A host's own layer](#before-dispatch-the-403) running the decision before dispatch (M6) | Yes (step 0c; `handler.admit`, `handler.preDispatchCheck`, `ScopeChallenge`; `mcp-auth-host.test.ts`) | Planned ([#2155](https://github.com/lushly-dev/afd/issues/2155)) | Yes (`McpServer::pre_dispatch_check`, `PreDispatchCheck`, `ScopeChallenge`; `tests/server_auth_pre_dispatch.rs`) | N/A |
+| [Hidden commands](#hidden-commands) (M6): unknown on every route before validation, `resolve` never asked about them, decided once per request, `requires` filtered, `tasks/*` | Yes (step 0c; `ScopeResolver.known`, but no `tasks/*`: TypeScript serves no tasks; `mcp-auth-scopes.test.ts`) | Planned ([#2155](https://github.com/lushly-dev/afd/issues/2155)) | Yes (`ScopeResolver::known`; `tests/server_auth_hidden.rs`) | N/A |
+| Protected-resource metadata (M7) | Yes (step 0a; `createProtectedResource`) | Yes ([#2154](https://github.com/lushly-dev/afd/issues/2154); `create_protected_resource`, `ProtectedResource`) | Yes (step 0b; `ProtectedResource`) | N/A |
+| The principal binding in confirmation state ([#532](https://github.com/lushly-dev/afd/issues/532), M8) | Yes (step 0c; `principalBinding`, with `createContext`'s `actor` and `credentials`; loads `principalBindings`) | Yes (step 0c, [#800](https://github.com/lushly-dev/afd/issues/800), [#2154](https://github.com/lushly-dev/afd/issues/2154); `afd.server.principal_binding`, with AFD's verified credentials or the SDK token; loads `principalBindings`) | Yes (step 0c; `afd::principal_binding` in the gate's associated data; step 0d: the approval-relay state, `RelayCall::principal_binding` and relay evidence too) | N/A: no confirmation gate |
+| `tasks/*` and task owners ([M6, other methods](#other-methods); M8; [tasks](./command-metadata.md#tasks)) | Planned | Partial ([#1972](https://github.com/lushly-dev/afd/issues/1972), [#2154](https://github.com/lushly-dev/afd/issues/2154)): `tasks/*` fail closed, bind AFD verified credentials as owner, stop at `credentials.expires_at` and preserve cloned verified credentials until task completion; M6 scope checks remain in [#2155](https://github.com/lushly-dev/afd/issues/2155) | Yes (Umbel phase 5 step 0e): `tasks/get`, `tasks/update` and `tasks/cancel` fail closed, need the required scopes and run the context hook; the owner is the principal binding, checked by the `TaskStore` and again by the server; the owner must still hold the task's command's `scopes` (or its resolver `visible` and `known`), and a task whose command no longer exists for the owner answers as an unknown task; a task stops at `credentials.expiresAt` | N/A: no MCP server |

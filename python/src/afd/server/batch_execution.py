@@ -191,6 +191,7 @@ async def execute_batch(
                     clock=context.clock,
                     random=context.random,
                     approval=getattr(context, "approval", None),
+                    credentials=getattr(context, "credentials", None),
                 )
                 item = commands[index]
                 task = asyncio.ensure_future(run_command(item.command, item.input, item_context))

@@ -23,6 +23,12 @@ from afd.core.errors import CommandError, ErrorCodes
 from afd.core.result import CommandResult, failure
 from afd.core.similarity import truncate_name
 from afd.server.approval_relay import bind_approval_relay
+from afd.server.auth import credentials_actor
+from afd.server.auth_rules import (
+    Credentials,
+    _clone_verified_credentials,
+    _unbrand_verified_credentials,
+)
 from afd.server.confirmations import bind_confirmation_channel
 from afd.server.context_hook import HookOutcome, copy_extra, current_hook_outcome
 from afd.server.principal import (
@@ -422,6 +428,7 @@ class TaskRuntime:
         actor: Actor | None = None,
         has_context_hook: bool = False,
         run_context_hook: Callable[[str, Any], Awaitable[HookOutcome]] | None = None,
+        get_admitted_credentials: Callable[[], Credentials | None] | None = None,
     ) -> None:
         self._get_exposed_commands = get_exposed_commands
         self._execute_command = execute_command
@@ -431,6 +438,7 @@ class TaskRuntime:
         self._actor = actor
         self._has_context_hook = has_context_hook
         self._run_context_hook = run_context_hook
+        self._get_admitted_credentials = get_admitted_credentials
         self._running: dict[str, _RunningTask] = {}
 
     @property
@@ -444,12 +452,19 @@ class TaskRuntime:
     def _hook_identifies_callers(self) -> bool:
         return self.options.callers_identified_by_hook and self._has_context_hook
 
+    def _admitted_credentials(self) -> Credentials | None:
+        return (
+            self._get_admitted_credentials() if self._get_admitted_credentials is not None else None
+        )
+
     def identifies_caller(self, request_context: Any) -> bool:
         """Whether callers can be told apart on the transport of ``request_context``."""
         is_http = getattr(request_context, "request", None) is not None
         if not is_http:
             return True
         if self._hook_identifies_callers:
+            return True
+        if self._admitted_credentials() is not None:
             return True
         return sdk_access_token() is not None
 
@@ -502,14 +517,18 @@ class TaskRuntime:
         slot: _TaskCallSlot,
     ) -> Any:
         outcome = current_hook_outcome()
+        admitted = self._admitted_credentials()
+        default_actor = (
+            credentials_actor(admitted) if admitted is not None else (self._actor or Actor(kind="agent"))
+        )
         actor = (
             outcome.actor_at_start
             if outcome is not None and outcome.actor_at_start is not None
-            else context.actor or self._actor or Actor(kind="agent")
+            else context.actor or default_actor
         )
-        token = sdk_access_token()
+        token = None if admitted is not None else sdk_access_token()
         try:
-            credentials = sdk_credentials()
+            credentials = admitted if admitted is not None else sdk_credentials()
             owner = principal_binding(actor, credentials)
         except (IncompleteCredentials, TypeError):
             logger.warning("refusing task start for '%s': incomplete credentials", command.name)
@@ -521,10 +540,13 @@ class TaskRuntime:
         except Exception:
             pass
 
-        raw_exp = getattr(token, "expires_at", None) if token is not None else None
-        expires_at_seconds = (
-            raw_exp if isinstance(raw_exp, int) and not isinstance(raw_exp, bool) else None
-        )
+        if admitted is not None:
+            expires_at_seconds: int | None = admitted.expires_at
+        else:
+            raw_exp = getattr(token, "expires_at", None) if token is not None else None
+            expires_at_seconds = (
+                raw_exp if isinstance(raw_exp, int) and not isinstance(raw_exp, bool) else None
+            )
         ttl_ms = task_ttl_for(self.options, now, expires_at_seconds)
         task_id = new_task_id()
         record = TaskRecord(
@@ -545,6 +567,7 @@ class TaskRuntime:
         running = _RunningTask()
         self._running[task_id] = running
         transferred = False
+        task_credentials: Credentials | None = None
         try:
             try:
                 await self.store.create(
@@ -589,6 +612,9 @@ class TaskRuntime:
                 progress_state["message"] = None
                 return msg
 
+            if admitted is not None:
+                task_credentials = _clone_verified_credentials(admitted) or admitted
+
             task_context = CommandContext(
                 trace_id=context.trace_id,
                 timeout=context.timeout,
@@ -597,6 +623,7 @@ class TaskRuntime:
                 clock=context.clock,
                 random=context.random,
                 approval=None,
+                credentials=task_credentials,
                 report_progress=report_progress,
                 cancel=running.cancel_event,
             )
@@ -626,6 +653,8 @@ class TaskRuntime:
         finally:
             if not transferred:
                 self._running.pop(task_id, None)
+                if task_credentials is not None:
+                    _unbrand_verified_credentials(task_credentials)
 
         wire = _wire_create_task(record)
         slot.created_task = wire
@@ -671,6 +700,8 @@ class TaskRuntime:
             outcome_kind = "internal"
         finally:
             self._running.pop(task_id, None)
+            if isinstance(task_context.credentials, Credentials):
+                _unbrand_verified_credentials(task_context.credentials)
 
         now = int(self._clock.now())
         change: TaskChange
@@ -871,6 +902,10 @@ class TaskRuntime:
         if not request_declares_tasks(ctx):
             raise missing_tasks_capability()
 
+        admitted = self._admitted_credentials()
+        default_actor = (
+            credentials_actor(admitted) if admitted is not None else (self._actor or Actor(kind="agent"))
+        )
         if self._run_context_hook is not None:
             outcome = await self._run_context_hook(method, ctx)
             if outcome.refusal is not None:
@@ -889,13 +924,13 @@ class TaskRuntime:
             actor = (
                 outcome.actor_at_start
                 if outcome.actor_at_start is not None
-                else self._actor or Actor(kind="agent")
+                else default_actor
             )
         else:
-            actor = self._actor or Actor(kind="agent")
+            actor = default_actor
 
         try:
-            credentials = sdk_credentials()
+            credentials = admitted if admitted is not None else sdk_credentials()
             return principal_binding(actor, credentials)
         except (IncompleteCredentials, TypeError):
             logger.warning("refusing %s: incomplete credentials", method)
