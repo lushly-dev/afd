@@ -232,8 +232,11 @@ describe("P4-E10: each limit's refusal (section 11, 16)", () => {
 			details: { limit: 262_144 },
 		});
 		expect(over.error?.suggestion).toContain('loam.limits.inputBytes');
-		const entry = (await journal.read()).at(-1) as JournalEntry;
-		expect(entry.command).toBe('app-limit-refuse');
+		// The first refusal in an hour also schedules the owners' notice (`limit-notice-push`), which may be journaled
+		// before this read (#2016), so find the refusal rather than take the last entry.
+		const refusals = (await journal.read()).filter((each) => each.command === 'app-limit-refuse');
+		expect(refusals).toHaveLength(1);
+		const entry = refusals[0] as JournalEntry;
 		expect(entry.input).toEqual({ command: 'dual-put', limit: 'inputBytes', bound: 262_144 });
 		expect((await port.call('dual-put', { key: 'k', value: 'small' })).success).toBe(true);
 		// An owner lowers it, and the port holds to the new value at once.

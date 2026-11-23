@@ -11,6 +11,7 @@ import {
 	type JournalEntry,
 	type JournalRecord,
 	MemoryJournalSink,
+	seededRandom,
 } from '@lushly-dev/afd-core';
 import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
 import {
@@ -27,7 +28,7 @@ import type { AppearanceV0 } from './appearance.js';
 import { oversizedInput } from './apps/mounted.js';
 import { BOOT_ONLY } from './commands.js';
 import { LoamKernelError, PAGE_DECIDED } from './errors.js';
-import { RECORDED_ANSWER, type RecordedAnswerV1 } from './journal-order.js';
+import { type NestedRerunV1, RECORDED_ANSWER, type RecordedAnswerV1 } from './journal-order.js';
 import {
 	createKernelParts,
 	type KernelParts,
@@ -286,9 +287,20 @@ function sameCall(recorded: JournalEntry, given: unknown, inputBytes: number): b
 /**
  * A handler's nested calls during a replay: answered from the entries with that `parent`, in order, and
  * what differs from them is kept against the outer call, whose result may not show it.
+ *
+ * A notice's action is the exception (#2119): `notification-act` runs it nested, and a write answered from its record
+ * would never land in the replay's store, so a later read of it would diverge. Its handler runs again instead, under
+ * its recorded trace ID, so its own nested calls are answered from their entries as any handler's are (a write among
+ * them still lands only through its own handler), with the clock and random values its entry recorded
+ * ({@link nestedTape}). Its whole result is compared with its entry's, by `ignore`, and what differs, a call it made
+ * or did not make among it, is kept against its entry. Not when the replay would answer it from its record at the top
+ * level too: a mounted command's, a recorded query's, a refusal the page decided.
  */
 /** @internal Exported for its unit test alone. */
-export function nestedReplay(entries: readonly JournalEntry[]) {
+export function nestedReplay(
+	entries: readonly JournalEntry[],
+	ignore: readonly string[] = REPLAY_IGNORE
+) {
 	const byParent = new Map<string, JournalEntry[]>();
 	for (const entry of entries) {
 		const parent = entry.context?.parent;
@@ -298,58 +310,123 @@ export function nestedReplay(entries: readonly JournalEntry[]) {
 	// In the order the calls were made: `run` numbers a trace ID when a call starts, and the journal gives
 	// it a `seq` when it finishes, so a handler's calls made together can be journaled in the other order.
 	for (const queue of byParent.values()) queue.sort((a, b) => callNumber(a) - callNumber(b));
+	const commandOf = new Map(entries.map((entry) => [entry.traceId, entry.command]));
 	const problems = new Map<string, string>();
 	let last: JournalEntry | undefined;
+	/** The outer call has finished: every call the record holds for it should have happened. */
+	const finish = (parent: string): void => {
+		const left = byParent.get(parent)?.[0];
+		if (left && !problems.has(parent)) {
+			problems.set(parent, `The handler did not call '${left.command}', which the journal records`);
+		}
+	};
+	/**
+	 * The next call `parent` made, by its trace ID's number, when it is this one; undefined runs the call,
+	 * as `KernelPartsInternals.answerNested` says, and a call out of order or with another input diverges. A notice's
+	 * action is a `rerun` instead (#2119).
+	 */
+	function take(
+		parent: string,
+		name: string,
+		input: unknown,
+		command: ZodCommandDefinition | undefined,
+		inputBytes: number = DOCUMENT_INPUT_MAX_BYTES
+	): CommandResult | NestedRerunV1 | undefined {
+		const queue = byParent.get(parent);
+		const next = queue?.[0];
+		// A nested call the call rate refused, recorded as `app-limit-refuse` for it: a replay takes no rate, so it
+		// answers the call with that refusal, matched by the command it names (phase 4's section 11; the review's 10).
+		const refused = next?.input as { command?: unknown; limit?: unknown } | undefined;
+		if (
+			next?.command === 'app-limit-refuse' &&
+			refused?.limit === 'callsPerSecond' &&
+			refused.command === name.slice(0, 256)
+		) {
+			queue?.shift();
+			last = next;
+			return next.result;
+		}
+		if (next?.command !== name) return undefined;
+		const validated = validatedInput(command, input);
+		if (!validated || !sameCall(next, validated.input, inputBytes)) return undefined;
+		queue?.shift();
+		const traceId = next.traceId;
+		if (
+			traceId !== undefined &&
+			commandOf.get(parent) === 'notification-act' &&
+			!answeredFromRecord({ ...next, context: { ...next.context, parent: undefined } })
+		) {
+			// Run again, so its write lands (#2119), and compared whole with its entry once it returns.
+			const done = (result: CommandResult) => {
+				if (!sameJson(stripPaths(result, ignore), stripPaths(next.result, ignore)))
+					problems.set(traceId, `The notice's action '${name}' answered other than its entry`);
+				finish(traceId);
+			};
+			return { rerun: { traceId, context: nestedTape(next), done } };
+		}
+		last = next;
+		return next.result;
+	}
 	return {
 		problems,
 		/** The entry the last answer came from, which the replay counts when it is a limit's refusal (section 11). */
 		lastAnswered: () => last,
-		/**
-		 * The next call `parent` made, by its trace ID's number, when it is this one; undefined runs the call,
-		 * as `KernelPartsInternals.answerNested` says, and a call out of order or with another input diverges.
-		 */
-		answer(
-			parent: string,
-			name: string,
-			input: unknown,
-			command: ZodCommandDefinition | undefined,
-			inputBytes: number = DOCUMENT_INPUT_MAX_BYTES
-		): CommandResult | undefined {
-			const queue = byParent.get(parent);
-			const next = queue?.[0];
-			// A nested call the call rate refused, recorded as `app-limit-refuse` for it: a replay takes no rate, so it
-			// answers the call with that refusal, matched by the command it names (phase 4's section 11; the review's 10).
-			const refused = next?.input as { command?: unknown; limit?: unknown } | undefined;
-			if (
-				next?.command === 'app-limit-refuse' &&
-				refused?.limit === 'callsPerSecond' &&
-				refused.command === name.slice(0, 256)
-			) {
-				queue?.shift();
-				last = next;
-				return next.result;
-			}
-			if (next?.command !== name) return undefined;
-			const validated = validatedInput(command, input);
-			if (!validated || !sameCall(next, validated.input, inputBytes)) return undefined;
-			queue?.shift();
-			last = next;
-			return next.result;
+		/** {@link take}'s answer from the record alone: undefined for a call it runs, again or for the first time. */
+		answer(...args: Parameters<typeof take>): CommandResult | undefined {
+			const taken = take(...args);
+			return taken && 'rerun' in taken ? undefined : taken;
 		},
+		take,
 		unrecorded(parent: string, name: string): void {
 			problems.set(parent, `The handler called '${name}', which the journal does not record there`);
 		},
-		/** The outer call has finished: every call the record holds for it should have happened. */
-		finish(parent: string): void {
-			const left = byParent.get(parent)?.[0];
-			if (left && !problems.has(parent)) {
-				problems.set(
-					parent,
-					`The handler did not call '${left.command}', which the journal records`
-				);
-			}
+		finish,
+	};
+}
+
+/** `replayJournal`'s mark (afd-server's `JOURNAL_REPLAY`, a registered symbol): the journal rewinds the tape there. */
+const JOURNAL_REPLAY = Symbol.for('@lushly-dev/afd-server/journal-replay');
+
+/**
+ * A nested entry's tape as its call's clock and random source, as `replayJournal` gives a top-level entry's: the journal
+ * middleware rewinds it where it sits, so readings outside it shift nothing, and records no entry for it (#2119).
+ */
+function nestedTape(entry: JournalEntry): CommandContext {
+	const readings = entry.tape?.clock ?? [];
+	const values = entry.tape?.random ?? [];
+	const start = Date.parse(entry.timestamp) || 0;
+	// `replayJournal`'s own, for its default seed: what a top-level entry's random source falls back to.
+	const seed = `afd-replay:${entry.seq}`;
+	let read = 0;
+	let drawn = 0;
+	let last = start;
+	let ended = false;
+	let fallback = seededRandom(seed);
+	const context: CommandContext = {
+		clock: {
+			now() {
+				if (!ended && read < readings.length) last = readings[read++] as number;
+				return last;
+			},
+		},
+		random: {
+			seed,
+			next: () => (!ended && drawn < values.length ? (values[drawn++] as number) : fallback.next()),
 		},
 	};
+	(context as Record<symbol, unknown>)[JOURNAL_REPLAY] = {
+		rewind() {
+			read = 0;
+			drawn = 0;
+			last = start;
+			ended = false;
+			fallback = seededRandom(seed);
+		},
+		end() {
+			ended = true;
+		},
+	};
+	return context;
 }
 
 /** The number `run` gave a call's trace ID, `<base>-<n>`, in the order calls start; else its `seq`. */
@@ -466,7 +543,7 @@ export async function replayKernel(
 			});
 		}
 	}
-	const nested = nestedReplay(ordered);
+	const nested = nestedReplay(ordered, [...REPLAY_IGNORE, ...(options.ignore ?? [])]);
 	const byTrace = new Map(ordered.map((entry) => [entry.traceId, entry]));
 	/**
 	 * The calls whose run, journaled as its own entry with `origin` (phase 4's 7.1, 7.2), the replay answers from its
@@ -517,7 +594,7 @@ export async function replayKernel(
 	let counted: KernelParts['limits'] | undefined;
 	const internals: KernelPartsInternals = {
 		answerNested: (parent, name, input, commands) => {
-			const answered = nested.answer(
+			const answered = nested.take(
 				parent,
 				name,
 				input,
@@ -526,7 +603,7 @@ export async function replayKernel(
 			);
 			// A nested refusal answered from its record still counts, as its handler counted it live, at the time it
 			// read (phase 4's section 11): `limit-usage-get` then replays the same.
-			const entry = answered ? nested.lastAnswered() : undefined;
+			const entry = answered && !('rerun' in answered) ? nested.lastAnswered() : undefined;
 			const caller = entry?.context?.caller;
 			const limit = (entry?.input as { limit?: unknown } | undefined)?.limit;
 			if (
@@ -594,14 +671,14 @@ export async function replayKernel(
 						(entry.traceId !== undefined && recordedOrigins.has(entry.traceId)));
 				// An agent's call the enforcement gate decided (#1936): it reached the gates live, so they run again with the
 				// decision its entry journaled, and the handler alone answers from the record, a refusal the page decided in
-				// the handler among them. Never a nested call, the run of a recorded act, or a copilot call, whose trace
-				// the journal does not keep, which the gate's key and suggestion read (a follow-up).
+				// the handler among them. A copilot call too: its entry journals its `trace` (and `copilotSession`, `turn`),
+				// which the replay restores to its context, so the gate reads the same trace for its key, its confirmation
+				// and its suggestion (#2118). Never a nested call or the run of a recorded act.
 				const gated =
 					fromRecord &&
 					entry.context?.autonomy !== undefined &&
 					entry.context?.parent === undefined &&
 					entry.context?.origin === undefined &&
-					entry.context?.copilotSession === undefined &&
 					!(entry.traceId !== undefined && recordedOrigins.has(entry.traceId));
 				const answer: RecordedAnswerV1 | undefined = gated
 					? { result: entry.result, answered: false }

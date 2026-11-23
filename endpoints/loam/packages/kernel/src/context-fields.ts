@@ -39,6 +39,11 @@ export const KERNEL_CONTEXT_FIELDS: NonNullable<DirectRegistryOptions['contextFi
 			schema: z.literal(['act', 'ask', 'suggest']),
 			journal: true,
 		},
+		// The copilot session's taint sources that gate read for that call, when any (phase 5's 5.3; #2118): set by it
+		// alone, after it clears any other value, and journaled, so a replay decides the call with the same sources, its
+		// confirmation's reason, sources and chain among it, though the replay holds no copilot session. Unbounded, as the
+		// session's taint is: the gate writes it past this schema, and a replay that checks it must take what was written.
+		{ name: 'taint', meta: 'dev.loam/taint', schema: z.array(id), journal: true },
 	]);
 
 /** What the kernel sets for a call. */
@@ -75,4 +80,6 @@ export interface KernelFieldContext extends KernelCallFields {
 	oversized?: true;
 	/** The enforcement gate's decision on an agent's call (#1936). */
 	autonomy?: 'act' | 'ask' | 'suggest';
+	/** The copilot session's taint sources that gate read for the call (#2118). */
+	taint?: string[];
 }

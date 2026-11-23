@@ -34,6 +34,14 @@ import type { CommandContext, CommandMiddleware, CommandResult } from '@lushly-d
  */
 export const RECORDED_ANSWER = Symbol('dev.loam/recorded-answer');
 
+/**
+ * In a replay, a nested call run again rather than answered from its record, a notice's action (#2119): under its
+ * recorded trace ID, so its own nested calls find their entries, on its context (its entry's tape), and told its result.
+ */
+export interface NestedRerunV1 {
+	rerun: { traceId: string; context: CommandContext; done(result: CommandResult): void };
+}
+
 /** What {@link RECORDED_ANSWER} holds: the entry's result, and whether the handler was reached and answered with it. */
 export interface RecordedAnswerV1 {
 	result: CommandResult;
@@ -46,6 +54,9 @@ export interface RecordedAnswerV1 {
  * `Symbol.for`, as `copilot/enforce.ts` imports nothing of this module; set only here, and only in a replay.
  */
 export const RECORDED_AUTONOMY = Symbol.for('dev.loam/recorded-autonomy');
+
+/** In a replay, the taint sources the gate read for the call as its entry journaled them (`taint`; #2118). */
+export const RECORDED_TAINT = Symbol.for('dev.loam/recorded-taint');
 
 interface Call {
 	traceId: string;
@@ -119,8 +130,8 @@ export interface JournalOrder {
 	readonly handler: CommandMiddleware;
 	/**
 	 * Right inside the journal: waits here for every write it saw and every earlier read of a resource it wrote. It also
-	 * clears `autonomy`, a field only the enforcement gate sets, before anything else in the chain reads the context; in
-	 * a replay it is handed to the gate as {@link RECORDED_AUTONOMY}.
+	 * clears `autonomy` and `taint`, fields only the enforcement gate sets, before anything else in the chain reads the
+	 * context; in a replay they are handed to the gate as {@link RECORDED_AUTONOMY} and {@link RECORDED_TAINT}.
 	 */
 	readonly turn: CommandMiddleware;
 }
@@ -338,10 +349,15 @@ export function createJournalOrder(
 		},
 		turn: async (name, _input, context, next) => {
 			const given = (context as { autonomy?: unknown }).autonomy;
+			const taint = (context as { taint?: unknown }).taint;
 			delete (context as { autonomy?: unknown }).autonomy;
+			delete (context as { taint?: unknown }).taint;
 			if (given !== undefined && replaying())
 				(context as Record<symbol, unknown>)[RECORDED_AUTONOMY] = given;
 			else delete (context as Record<symbol, unknown>)[RECORDED_AUTONOMY];
+			if (given !== undefined && taint !== undefined && replaying())
+				(context as Record<symbol, unknown>)[RECORDED_TAINT] = taint;
+			else delete (context as Record<symbol, unknown>)[RECORDED_TAINT];
 			const call = typeof context.traceId === 'string' ? calls.get(context.traceId) : undefined;
 			const waits = journaled(name);
 			if (call) call.journaled = waits;
