@@ -3,12 +3,12 @@ name: Auth browser integration
 on:
   push:
     branches: [main]
-    paths: ['packages/auth/**', 'packages/core/**', 'pnpm-lock.yaml', '.github/workflows/auth-browser.yml']
+    paths: ['packages/auth/**', 'packages/core/**', 'pnpm-lock.yaml', '.github/workflows/auth-browser.yml', '.github/actions/playwright-install/**']
   # The merge queue. No path filter applies to it: the `queue` job below does that work.
   merge_group:
   pull_request:
     branches: [main]
-    paths: ['packages/auth/**', 'packages/core/**', 'pnpm-lock.yaml', '.github/workflows/auth-browser.yml']
+    paths: ['packages/auth/**', 'packages/core/**', 'pnpm-lock.yaml', '.github/workflows/auth-browser.yml', '.github/actions/playwright-install/**']
   workflow_dispatch:
 
 permissions:
@@ -60,5 +60,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm -F @lushly-dev/afd-auth... build
-      - run: pnpm -F @lushly-dev/afd-auth exec playwright install --with-deps chromium
+      - uses: ./.github/actions/playwright-install
+        with:
+          package: '@lushly-dev/afd-auth'
       - run: pnpm -F @lushly-dev/afd-auth test:browser

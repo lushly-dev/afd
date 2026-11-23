@@ -16,6 +16,7 @@ on:
       - 'pnpm-lock.yaml'
       - '.cargo/config.toml'
       - '.github/workflows/specimen.yml'
+      - '.github/actions/playwright-install/**'
   # The merge queue. No path filter applies to it: the `queue` job below does that work.
   merge_group:
   pull_request:
@@ -33,6 +34,7 @@ on:
       - 'pnpm-lock.yaml'
       - '.cargo/config.toml'
       - '.github/workflows/specimen.yml'
+      - '.github/actions/playwright-install/**'
   workflow_dispatch:
 
 permissions:
@@ -91,13 +93,13 @@ jobs:
           fetch-depth: 0
           filter: blob:none
       - id: run
-        run: node scripts/affected.mjs gate --package @lushly-dev/specimen --package @lushly-dev/specimen-afd --package @lushly-dev/specimen-cli --package @lushly-dev/specimen-fast-af --path tests/consumers/specimen/ --path .github/workflows/specimen.yml
+        run: node scripts/affected.mjs gate --package @lushly-dev/specimen --package @lushly-dev/specimen-afd --package @lushly-dev/specimen-cli --package @lushly-dev/specimen-fast-af --path tests/consumers/specimen/ --path .github/workflows/specimen.yml --path .github/actions/playwright-install/
       - id: host
         run: node scripts/affected.mjs gate --path foundations/specimen/host/ --path .cargo/config.toml --path .github/workflows/specimen.yml
       - id: hosts
-        run: node scripts/affected.mjs gate --path foundations/specimen/host/ --path foundations/specimen/packages/ --path foundations/specimen/src/host.ts --path tests/consumers/specimen/ --path .cargo/config.toml --path .github/workflows/specimen.yml
+        run: node scripts/affected.mjs gate --path foundations/specimen/host/ --path foundations/specimen/packages/ --path foundations/specimen/src/host.ts --path tests/consumers/specimen/ --path .cargo/config.toml --path .github/workflows/specimen.yml --path .github/actions/playwright-install/
       - id: stories
-        run: node scripts/affected.mjs gate --package @lushly-dev/violet-elements --path .github/workflows/specimen.yml
+        run: node scripts/affected.mjs gate --package @lushly-dev/violet-elements --path .github/workflows/specimen.yml --path .github/actions/playwright-install/
 
   host:
     name: Specimen native host (format, clippy, tests)
@@ -160,7 +162,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm -F "@lushly-dev/specimen-cli..." build
       # Under a minute as a rule; apt held this step for 50 when a runner could not resolve Ubuntu's mirrors.
-      - run: pnpm -F @lushly-dev/specimen exec playwright install --with-deps chromium
+      - uses: ./.github/actions/playwright-install
+        with:
+          package: '@lushly-dev/specimen'
         timeout-minutes: 10
       - name: Install Rust toolchain
         working-directory: foundations/specimen/host
@@ -204,7 +208,9 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm -F "@lushly-dev/violet-elements..." build
-      - run: pnpm -F @lushly-dev/specimen exec playwright install --with-deps chromium
+      - uses: ./.github/actions/playwright-install
+        with:
+          package: '@lushly-dev/specimen'
         timeout-minutes: 10
       - name: Install Rust toolchain
         working-directory: foundations/specimen/host
@@ -237,7 +243,9 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm -F "@lushly-dev/specimen-cli..." -F "@lushly-dev/specimen-fast-af..." build
-      - run: pnpm -F @lushly-dev/specimen exec playwright install --with-deps chromium
+      - uses: ./.github/actions/playwright-install
+        with:
+          package: '@lushly-dev/specimen'
         timeout-minutes: 10
       - name: Install Rust toolchain
         working-directory: foundations/specimen/host

@@ -13,6 +13,7 @@ on:
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - '.github/workflows/violet.yml'
+      - '.github/actions/playwright-install/**'
   # The merge queue. No path filter applies to it: the `queue` job below does that work.
   merge_group:
   pull_request:
@@ -27,6 +28,7 @@ on:
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - '.github/workflows/violet.yml'
+      - '.github/actions/playwright-install/**'
   workflow_dispatch:
 
 permissions:
@@ -82,7 +84,7 @@ jobs:
           fetch-depth: 0
           filter: blob:none
       - id: run
-        run: node scripts/affected.mjs gate --package @lushly-dev/violet-core --package @lushly-dev/violet-runtime --package @lushly-dev/violet-afd --package @lushly-dev/violet-cli --package @lushly-dev/violet-server --path tests/consumers/violet/ --path .github/workflows/violet.yml
+        run: node scripts/affected.mjs gate --package @lushly-dev/violet-core --package @lushly-dev/violet-runtime --package @lushly-dev/violet-afd --package @lushly-dev/violet-cli --package @lushly-dev/violet-server --path tests/consumers/violet/ --path .github/workflows/violet.yml --path .github/actions/playwright-install/
 
   suites-and-consumers:
     name: Violet full suites, upstream lint and packed consumers
@@ -116,7 +118,9 @@ jobs:
       - name: Runtime, CLI and server suites
         run: pnpm -F @lushly-dev/violet-runtime -F @lushly-dev/violet-cli -F @lushly-dev/violet-server test
       # Under a minute as a rule; apt held this step for 50 when a runner could not resolve Ubuntu's mirrors.
-      - run: pnpm -F @lushly-dev/specimen exec playwright install --with-deps chromium
+      - uses: ./.github/actions/playwright-install
+        with:
+          package: '@lushly-dev/specimen'
         timeout-minutes: 10
       - name: Packed-artifact consumers outside the workspace
         run: node tests/consumers/violet/verify-artifacts.mjs --output "$RUNNER_TEMP/violet-receipt"

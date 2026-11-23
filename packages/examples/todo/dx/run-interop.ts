@@ -20,12 +20,11 @@
 import { deepStrictEqual, strictEqual } from 'node:assert/strict';
 import { type ChildProcess, spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Client } from '@modelcontextprotocol/client';
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
+import { exited, withTempDir } from './cleanup.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PYTHON = path.join(__dirname, '../backends/python');
@@ -88,7 +87,15 @@ async function start(
 			}
 			return result.data as T;
 		},
-		close: () => client.close(),
+		// The client kills a server that has not exited 2 s after its stdin closed, and does not
+		// wait for the kill to land; wait, so no server still writes to the database (#1653).
+		async close() {
+			const pid = transport.pid;
+			await client.close();
+			// `uv run` waits for its Python child, so its exit follows the server's. Only after the
+			// client's SIGKILL can the child outlive it; the removal's retries cover that case.
+			if (!(await exited(pid))) console.warn(`${name}: process ${pid} has not exited`);
+		},
 		stderr: () => log,
 	};
 }
@@ -150,7 +157,12 @@ function spawnPythonOpen(file: string): {
 					: reject(new Error(`Python exited with ${code}: ${output}`))
 			);
 		});
-	return { child, ready: seen('ready'), done: seen('done') };
+	const exit = new Promise<void>((resolve) => {
+		if (child.exitCode !== null || child.signalCode !== null) resolve();
+		else child.once('exit', () => resolve());
+	});
+	// `done` also waits for the process to exit, so it no longer holds the database (#1653).
+	return { child, ready: seen('ready'), done: seen('done').then(() => exit) };
 }
 
 type Todo = { id: string; title: string; completed: boolean; deletedAt?: string };
@@ -384,17 +396,15 @@ async function bothCreate(dir: string, store: TsStoreModule, rounds: number): Pr
 }
 
 async function run(): Promise<void> {
-	const dir = await mkdtemp(path.join(tmpdir(), 'todo-interop-'));
-	try {
+	// A cleanup that fails is logged, so it cannot hide the error of a step (#1653).
+	await withTempDir('todo-interop-', async (dir) => {
 		const store = (await import(pathToFileURL(TS_STORE).href)) as TsStoreModule;
 		await changesCrossOver(path.join(dir, 'todos.db'));
 		await pythonCreates(path.join(dir, 'python-created.db'));
 		await typescriptCreates(path.join(dir, 'typescript-created.db'), store);
 		await bothCreate(dir, store, 5);
 		console.log(`\nSummary: ${checks} checks passed; both backends share one database`);
-	} finally {
-		await rm(dir, { recursive: true, force: true });
-	}
+	});
 }
 
 run().catch((error) => {

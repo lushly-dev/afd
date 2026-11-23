@@ -1,0 +1,32 @@
+name: Playwright browsers
+description: >-
+  Installs Playwright browsers with their system packages, and tries once more after a failure. A
+  runner whose apt package lists are stale or half synced fails `--with-deps` with "Unable to
+  locate package" although the next run passes (#1674), so a failed install refreshes the lists,
+  waits and runs again before the job fails.
+
+inputs:
+  package:
+    description: The workspace package whose Playwright runs the install (`pnpm -F <package>`).
+    required: true
+  browsers:
+    description: The browsers to install, separated by spaces.
+    default: chromium
+
+runs:
+  using: composite
+  steps:
+    - name: Install Playwright browsers
+      shell: bash
+      env:
+        PACKAGE: ${{ inputs.package }}
+        BROWSERS: ${{ inputs.browsers }}
+      run: |
+        # $BROWSERS is unquoted on purpose: it is a list.
+        # shellcheck disable=SC2086
+        install() { pnpm -F "$PACKAGE" exec playwright install --with-deps $BROWSERS; }
+        if install; then exit 0; fi
+        echo "::warning::Playwright's install failed; refreshing the package lists and trying once more (#1674)"
+        if [ "$RUNNER_OS" = Linux ]; then sudo apt-get update || true; fi
+        sleep 15
+        install

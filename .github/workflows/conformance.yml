@@ -33,6 +33,7 @@ on:
       - 'pnpm-lock.yaml'
       - '.cargo/config.toml'
       - '.github/workflows/conformance.yml'
+      - '.github/actions/playwright-install/**'
       - '.github/actions/cpp-dependencies/**'
   # The merge queue. No path filter applies to it: the `queue` job below does that work.
   merge_group:
@@ -59,6 +60,7 @@ on:
       - 'pnpm-lock.yaml'
       - '.cargo/config.toml'
       - '.github/workflows/conformance.yml'
+      - '.github/actions/playwright-install/**'
       - '.github/actions/cpp-dependencies/**'
   workflow_dispatch:
 
@@ -116,7 +118,7 @@ jobs:
           fetch-depth: 0
           filter: blob:none
       - id: todo
-        run: node scripts/affected.mjs gate --package @afd/example-todo-ts --package @afd/example-todo --package @afd/example-todo-ui --package @afd/example-todo-fast-af --package @afd/example-todo-react --package @afd/example-todo-directclient --package @afd/example-todo-directclient-page --path python/ --path packages/cli/ --path spec/protocol-conformance.json --path spec/schema/ --path tests/consumers/afd/ --path .github/workflows/conformance.yml
+        run: node scripts/affected.mjs gate --package @afd/example-todo-ts --package @afd/example-todo --package @afd/example-todo-ui --package @afd/example-todo-fast-af --package @afd/example-todo-react --package @afd/example-todo-directclient --package @afd/example-todo-directclient-page --path python/ --path packages/cli/ --path spec/protocol-conformance.json --path spec/schema/ --path tests/consumers/afd/ --path .github/workflows/conformance.yml --path .github/actions/playwright-install/
       - id: rust
         run: node scripts/affected.mjs gate --path packages/rust/ --path packages/examples/todo/backends/rust/ --path packages/examples/todo/spec/ --path packages/examples/todo/dx/ --path packages/examples/todo/package.json --path spec/protocol-conformance.json --path spec/schema/ --path .cargo/config.toml --path .github/workflows/conformance.yml
       - id: cpp
@@ -221,7 +223,9 @@ jobs:
       # and deny a clear in the page, an agent narrowing the view (job 6) and axe, one shared suite
       # (frontends/shared/test/page-suite.ts).
       - name: Install Chromium
-        run: pnpm -F @afd/example-todo-ui exec playwright install --with-deps chromium
+        uses: ./.github/actions/playwright-install
+        with:
+          package: '@afd/example-todo-ui'
 
       - name: The page (Chromium, TypeScript backend)
         run: pnpm --dir packages/examples/todo test:page

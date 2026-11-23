@@ -34,6 +34,7 @@ on:
       - 'pnpm-workspace.yaml'
       - '.cargo/config.toml'
       - '.github/workflows/loam.yml'
+      - '.github/actions/playwright-install/**'
   # The merge queue. No path filter applies to it: the `queue` job below does that work.
   merge_group:
   pull_request:
@@ -65,6 +66,7 @@ on:
       - 'pnpm-workspace.yaml'
       - '.cargo/config.toml'
       - '.github/workflows/loam.yml'
+      - '.github/actions/playwright-install/**'
   workflow_dispatch:
 
 permissions:
@@ -123,10 +125,10 @@ jobs:
       # `theme:check` below scans every `.ts` file of violet-elements' source, specs included, and a
       # spec reaches no dependent, so the path is named: no other workflow runs that check.
       - id: run
-        run: node scripts/affected.mjs gate --package @lushly-dev/loam-app-checklist --package @lushly-dev/loam-app-hello --package @lushly-dev/loam-app-notes --package @lushly-dev/loam-app-tally --package @lushly-dev/loam-app-tasks --package @lushly-dev/loam-chrome --package @lushly-dev/loam-cli --package @lushly-dev/loam-console --package @lushly-dev/loam-copilot --package @lushly-dev/loam-desktop --package @lushly-dev/loam-host --package @lushly-dev/loam-identity --package @lushly-dev/loam-kernel --package @lushly-dev/loam-manifest --package @lushly-dev/loam-sdk --package @lushly-dev/loam-testing --package @lushly-dev/loam-theme --package @lushly-dev/loam-web --path foundations/fast-af/packages/violet-elements/src/ --path .cargo/config.toml --path .github/workflows/loam.yml
+        run: node scripts/affected.mjs gate --package @lushly-dev/loam-app-checklist --package @lushly-dev/loam-app-hello --package @lushly-dev/loam-app-notes --package @lushly-dev/loam-app-tally --package @lushly-dev/loam-app-tasks --package @lushly-dev/loam-chrome --package @lushly-dev/loam-cli --package @lushly-dev/loam-console --package @lushly-dev/loam-copilot --package @lushly-dev/loam-desktop --package @lushly-dev/loam-host --package @lushly-dev/loam-identity --package @lushly-dev/loam-kernel --package @lushly-dev/loam-manifest --package @lushly-dev/loam-sdk --package @lushly-dev/loam-testing --package @lushly-dev/loam-theme --package @lushly-dev/loam-web --path foundations/fast-af/packages/violet-elements/src/ --path .cargo/config.toml --path .github/workflows/loam.yml --path .github/actions/playwright-install/
       # The same packages, and an Umbel or `afd` crate change, which reaches this job and not the one below.
       - id: mounted
-        run: node scripts/affected.mjs gate --package @lushly-dev/loam-app-checklist --package @lushly-dev/loam-app-hello --package @lushly-dev/loam-app-notes --package @lushly-dev/loam-app-tally --package @lushly-dev/loam-app-tasks --package @lushly-dev/loam-chrome --package @lushly-dev/loam-cli --package @lushly-dev/loam-console --package @lushly-dev/loam-copilot --package @lushly-dev/loam-desktop --package @lushly-dev/loam-host --package @lushly-dev/loam-identity --package @lushly-dev/loam-kernel --package @lushly-dev/loam-manifest --package @lushly-dev/loam-sdk --package @lushly-dev/loam-testing --package @lushly-dev/loam-theme --package @lushly-dev/loam-web --path .cargo/config.toml --path .github/workflows/loam.yml --path endpoints/umbel/ --except endpoints/umbel/docs/ --path packages/rust/
+        run: node scripts/affected.mjs gate --package @lushly-dev/loam-app-checklist --package @lushly-dev/loam-app-hello --package @lushly-dev/loam-app-notes --package @lushly-dev/loam-app-tally --package @lushly-dev/loam-app-tasks --package @lushly-dev/loam-chrome --package @lushly-dev/loam-cli --package @lushly-dev/loam-console --package @lushly-dev/loam-copilot --package @lushly-dev/loam-desktop --package @lushly-dev/loam-host --package @lushly-dev/loam-identity --package @lushly-dev/loam-kernel --package @lushly-dev/loam-manifest --package @lushly-dev/loam-sdk --package @lushly-dev/loam-testing --package @lushly-dev/loam-theme --package @lushly-dev/loam-web --path .cargo/config.toml --path .github/workflows/loam.yml --path .github/actions/playwright-install/ --path endpoints/umbel/ --except endpoints/umbel/docs/ --path packages/rust/
 
   loam:
     name: Build, unit and Chromium
@@ -170,7 +172,9 @@ jobs:
       - name: Token-only lint
         run: pnpm -F @lushly-dev/loam-theme -F @lushly-dev/loam-chrome -F @lushly-dev/loam-console -F @lushly-dev/loam-app-hello -F @lushly-dev/loam-app-tally -F @lushly-dev/loam-app-tasks -F @lushly-dev/loam-app-notes -F @lushly-dev/loam-app-checklist lint:tokens
       # Under a minute as a rule; apt held this step for 50 when a runner could not resolve Ubuntu's mirrors.
-      - run: pnpm -F @lushly-dev/loam-web exec playwright install --with-deps chromium
+      - uses: ./.github/actions/playwright-install
+        with:
+          package: '@lushly-dev/loam-web'
         timeout-minutes: 10
       # Specimen's native host renders the chrome's fixtures for E2 and E4; test:browser builds it.
       - name: Install Rust toolchain
@@ -218,7 +222,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Build the web host and its dependencies
         run: pnpm -F "@lushly-dev/loam-web..." build
-      - run: pnpm -F @lushly-dev/loam-web exec playwright install --with-deps chromium
+      - uses: ./.github/actions/playwright-install
+        with:
+          package: '@lushly-dev/loam-web'
         timeout-minutes: 10
       - name: The editor area's seeded walk, every seed, thirteen invariants after each step
         run: pnpm -F @lushly-dev/loam-web test:walk
@@ -264,7 +270,9 @@ jobs:
           workspaces: endpoints/umbel
       - name: Build the web host and its dependencies
         run: pnpm -F "@lushly-dev/loam-web..." build
-      - run: pnpm -F @lushly-dev/loam-web exec playwright install --with-deps chromium
+      - uses: ./.github/actions/playwright-install
+        with:
+          package: '@lushly-dev/loam-web'
         timeout-minutes: 10
       - name: E3, E4 and E9's mounted part, through a test-only relay
         run: pnpm -F @lushly-dev/loam-web test:mounted
@@ -300,7 +308,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Build the web host, the hosted server and their dependencies
         run: pnpm -F "@lushly-dev/loam-web..." -F "@lushly-dev/loam-host..." build
-      - run: pnpm -F @lushly-dev/loam-web exec playwright install --with-deps chromium
+      - uses: ./.github/actions/playwright-install
+        with:
+          package: '@lushly-dev/loam-web'
         timeout-minutes: 10
       # Verbose, so each P6- title is in the log for the exit check (scripts/loam-exit-check.mjs).
       - name: Hosted criterion against the development profile

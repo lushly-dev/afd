@@ -9,6 +9,7 @@ on:
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - '.github/workflows/fast-af.yml'
+      - '.github/actions/playwright-install/**'
   # The merge queue. No path filter applies to it: the `queue` job below does that work.
   merge_group:
   pull_request:
@@ -19,6 +20,7 @@ on:
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - '.github/workflows/fast-af.yml'
+      - '.github/actions/playwright-install/**'
   # fast-element's Firefox and WebKit suites run daily and on demand; pull requests and pushes
   # run its Playwright suites on Chromium.
   schedule:
@@ -84,9 +86,9 @@ jobs:
           fetch-depth: 0
           filter: blob:none
       - id: runtime
-        run: node scripts/affected.mjs gate --package @lushly-dev/fast-element --path .github/workflows/fast-af.yml
+        run: node scripts/affected.mjs gate --package @lushly-dev/fast-element --path .github/workflows/fast-af.yml --path .github/actions/playwright-install/
       - id: components
-        run: node scripts/affected.mjs gate --package @lushly-dev/violet-elements --path tests/consumers/fast-af/ --path .github/workflows/fast-af.yml
+        run: node scripts/affected.mjs gate --package @lushly-dev/violet-elements --path tests/consumers/fast-af/ --path .github/workflows/fast-af.yml --path .github/actions/playwright-install/
 
   runtime:
     name: fast-element build, migration rules and browser suites
@@ -110,9 +112,10 @@ jobs:
       # Under a minute as a rule; apt held this step for 50 when a runner could not resolve Ubuntu's mirrors.
       - name: Install Playwright browsers
         timeout-minutes: 10
-        run: >-
-          pnpm -F @lushly-dev/fast-element exec playwright install --with-deps
-          ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'chromium firefox webkit' || 'chromium' }}
+        uses: ./.github/actions/playwright-install
+        with:
+          package: '@lushly-dev/fast-element'
+          browsers: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'chromium firefox webkit' || 'chromium' }}
       - name: Upstream test:ci (docs, API reports, exports, types, migration rules, Playwright on three browsers)
         if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
         run: pnpm -F @lushly-dev/fast-element test:ci
@@ -152,7 +155,9 @@ jobs:
           git diff --exit-code -- foundations/fast-af
           test -z "$(git status --porcelain -- foundations/fast-af)"
       - run: pnpm -F @lushly-dev/violet-elements lint
-      - run: pnpm -F @lushly-dev/violet-elements exec playwright install --with-deps chromium
+      - uses: ./.github/actions/playwright-install
+        with:
+          package: '@lushly-dev/violet-elements'
         timeout-minutes: 10
       - name: Component browser suite with coverage thresholds
         run: pnpm -F @lushly-dev/violet-elements test:browser
