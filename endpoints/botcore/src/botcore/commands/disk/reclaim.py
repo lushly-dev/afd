@@ -91,6 +91,7 @@ class Action:
     root: str | None = None
     worktree: str | None = None
     pattern: str | None = None
+    target_kind: str | None = None  # "file", "dir" or "link" for strip actions
     bytes_estimate: int | None = None
     due_days: float | None = None
     planned_mtime: float | None = None
@@ -154,23 +155,30 @@ def plan_strips(
                 continue
             if only_low and not _volume_low(row["path"], ctx):
                 continue
+            wt_actions: list[Action] = []
             for item in row.get("strip", []):
                 if item["when"] == "pressure" and not include_pressure:
                     continue
                 due = item["after_days"] if step is None else min(item["after_days"], step)
                 if idle < due * DAY:
                     continue
-                actions.append(Action(
+                wt_actions.append(Action(
                     kind="strip",
                     target=str(Path(row["path"]) / item["path"]),
                     root=row["path"],
                     worktree=row["path"],
                     pattern=item["pattern"],
+                    target_kind=item.get("kind"),
                     bytes_estimate=item.get("bytes"),
                     due_days=due,
                     step="normal" if step is None else f"pressure-{step}d",
                     detail=f"due after {due} days; idle {row['idle_days']}",
                 ))
+            # Strip file candidates (such as *.tsbuildinfo) before folder candidates (such as
+            # dist) within a worktree so an interrupted or failed build-info removal never leaves
+            # build info behind after its output folder is gone (lushly-dev/afd#1939).
+            wt_actions.sort(key=lambda a: (0 if a.target_kind == "file" else 1, a.target))
+            actions.extend(wt_actions)
     return actions
 
 
@@ -260,9 +268,13 @@ def _recheck_strip(action: Action, run: Run) -> str | None:
         return f"a {st.operation} started"
     activity = last_activity(worktree, admin, st.changed, [])
     outputs = [
-        Path(a.target) for a in run.actions if a.kind == "strip" and a.worktree == action.worktree
+        Path(a.target)
+        for a in run.actions
+        if a.kind == "strip" and a.worktree == action.worktree and a.target_kind != "link"
     ]
-    for folder in outputs or [target]:
+    if not outputs and action.target_kind != "link":
+        outputs = [target]
+    for folder in outputs:
         built = newest_mtime(folder)
         if built is not None and (activity is None or built > activity):
             activity = built
@@ -360,6 +372,34 @@ def _run_cache(action: Action) -> None:
     action.detail = lines[-1] if lines else None
 
 
+def _failed_prior_file(action: Action, run: Run) -> Action | None:
+    """An earlier file strip (such as build info) in the same folder or an ancestor inside the
+    worktree that was not removed, so a folder strip must stay put (lushly-dev/afd#1939)."""
+    if action.target_kind != "dir" or not action.worktree:
+        return None
+    worktree_key = path_key(action.worktree)
+    ancestors: set[str] = set()
+    cur = Path(action.target).parent
+    while True:
+        cur_key = path_key(cur)
+        ancestors.add(cur_key)
+        if cur_key == worktree_key or cur.parent == cur:
+            break
+        cur = cur.parent
+    for prior in run.actions:
+        if (
+            prior is action
+            or prior.kind != "strip"
+            or prior.worktree != action.worktree
+            or prior.target_kind != "file"
+            or prior.outcome == "done"
+        ):
+            continue
+        if path_key(Path(prior.target).parent) in ancestors:
+            return prior
+    return None
+
+
 def carry_out(action: Action, run: Run) -> None:
     """Do one action, or record why not. Never raises for a filesystem or git problem."""
     if not run.apply:
@@ -367,6 +407,13 @@ def carry_out(action: Action, run: Run) -> None:
     doing("reclaiming", action.target)
     try:
         if action.kind == "strip":
+            blocker = _failed_prior_file(action, run)
+            if blocker is not None:
+                rel = Path(blocker.target).relative_to(Path(action.worktree or "")).as_posix()
+                why = f"{blocker.outcome}: {blocker.detail}" if blocker.detail else blocker.outcome
+                action.outcome = "skipped"
+                action.detail = f"build info {rel} was not removed ({why})"
+                return
             reason = _recheck_strip(action, run)
             if reason:
                 action.outcome, action.detail = "skipped", reason

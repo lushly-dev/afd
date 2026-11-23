@@ -323,7 +323,7 @@ def _inspect(
     st = status(wt.path, wt.admin, ctx.git_timeout())
     found, walked = find_candidates(wt.path, config.entries(), ctx.deadline)
     cands, refused = _strippable(wt.path, found, config, ctx)
-    outputs = [wt.path / c.rel for c in found if c.kind in ("dir", "checkout")]
+    outputs = [wt.path / c.rel for c in found if c.kind in ("dir", "checkout", "file")]
     activity = last_activity(wt.path, wt.admin, st.changed, [])
     for folder in outputs:
         value = newest_mtime(folder)
@@ -688,7 +688,8 @@ def build_report(
     if unclassified:
         from botcore.commands.disk.unclassified import add_unclassified
 
-        add_unclassified(pairs, ctx.deadline)
+        if not add_unclassified(pairs, ctx.deadline):
+            ctx.complete = False
     known = {path_key(w["path"]) for r in repo_rows for w in r.get("worktrees", [])}
     protected = [Path(w["path"]) for r in repo_rows for w in r.get("worktrees", [])]
     protected += [Path(r["git_common_dir"]) for r in repo_rows if r.get("git_common_dir")]

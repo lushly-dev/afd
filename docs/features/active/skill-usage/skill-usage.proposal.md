@@ -418,10 +418,11 @@ repository requires is that repository's decision: this one declares none yet.
 ### Every machine
 
 Collection runs inside botcore's hourly job, the one `disk-setup` installs, every hour
-whether or not a reclaim is due. It runs after the disk work, in a thread the job leaves
-behind after five minutes, so that nothing a harness's store or a shared drive does can fail,
-delay or hold the disk work. Left, the collection stops at its next step and writes nothing
-more. Nor does the disk work hold collection: collection waits for it only while it is
+whether or not a reclaim is due. It runs after the disk work, in a thread the job waits
+for while it reports progress (reading the store, transcripts and checkouts) and leaves
+behind after five minutes of silence, so that nothing a harness's store or a shared drive
+does can fail, delay or hold the disk work, while a slow read on a busy machine still
+finishes (#2160). Left, the collection stops at its next step and writes nothing more. Nor does the disk work hold collection: collection waits for it only while it is
 working, and a disk step that waits (for a drive, or for the owner's answer to the system)
 is left behind. The job keeps when collection last worked and since when it has
 not. `disk-status`, which a session's preflight reads, warns of a failure at once and calls

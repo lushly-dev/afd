@@ -330,7 +330,10 @@ commands instead of freeing space by hand: never `rm -rf` a worktree or run
 Read-only. Every worktree of every registered repository (machine settings `repos`, or the
 repository holding the working directory) with its tier, idle days, whether a process uses it,
 and the build output its `[disk].regenerable` patterns name. Also watched volumes, tool caches
-and aged cache folders. `unclassified=True` lists ignored paths no pattern covers.
+and aged cache folders. `unclassified=True` lists ignored paths no pattern covers (collapsing
+each uncovered ignored folder to one entry, and marking truncated or incomplete scans with
+`unclassified_truncated`, `unclassified_omitted` and `unclassified_incomplete`); the CLI's
+plain-text form prints a grouped summary across worktrees and lists incomplete scans.
 
 Tiers: 0 tool caches and aged folders; 1 build output in an idle worktree; 2 a finished
 worktree; 3 report only (missing worktrees, orphan folders). Worktrees under T3 Code's worktree
@@ -346,7 +349,9 @@ A dry run unless `apply=True`. Tier 0 prunes tool caches with their own commands
 prune`; `pnpm store prune` only where pnpm uses hard links, since with clones it would empty the
 store) and clears aged cache folders from the machine settings (an entry's age is its newest
 time up to three folders down). Tier 1 also strips the build
-output disk_report marks ready in idle worktrees. Before each deletion it checks again that the
+output disk_report marks ready in idle worktrees, removing file candidates (such as build info)
+before folder candidates in the same worktree and skipping a folder if build info in its folder
+or an ancestor could not be removed. Before each deletion it checks again that the
 worktree is idle and unused and the path is still ignored and untracked. When a watched volume
 is below its threshold (or `pressure=True`) it also strips `when = "pressure"` patterns and
 lowers the idle threshold to 1 day, then 6 hours. Never follows links or junctions. One run per
@@ -409,12 +414,13 @@ branch still points there, on a recreated branch if it was deleted, else detache
 What the job runs: checks free space and exits, unless a watched volume is low or the last
 applied run is a day old; then disk_reclaim(apply=True). Notifies once a day while space stays
 low. After the disk work it collects skill usage (`skill_usage_collect`). In the scheduler's
-run the collection has five minutes: a failure, a wrong machine name or a collection that
-does not come back never fails or holds the job. `skill_usage_collect = false` in the machine
-settings turns it off.
+run both the disk work and the collection are waited for while they report progress, and left
+only once they have said nothing for five minutes: a failure, a wrong machine name or a
+collection that stops answering never fails or holds the job. `skill_usage_collect = false` in
+the machine settings turns it off.
 
 The scheduler's run (`botcore disk-run`, which passes `own_process=True`) always ends. The
-disk work and the collection are steps that say what they are doing. The disk work is waited
+disk work and the collection are steps that say what they are doing. Each is waited
 for while it works, however long, and is never cut short; once it has said nothing for five
 minutes beyond a command's own timeout it is waiting, and the run leaves it. A step that is
 left starts nothing more: it stops at its next word, or when the system lets go of the read

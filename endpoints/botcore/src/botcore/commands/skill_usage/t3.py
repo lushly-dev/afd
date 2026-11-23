@@ -9,12 +9,15 @@ reported instead of guessed at.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import sqlite3
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
+from botcore.commands.disk.steps import Left, doing
 from botcore.commands.skill_usage.events import (
     DELEGATE,
     EDIT,
@@ -59,6 +62,10 @@ DELEGATED_PREFIX = "thread:delegated-task:"
 SUBAGENT_PREFIXES = ("thread:subagent:", "thread:provider:")
 FORK = "fork"
 OPENED = "created"  # the source of a pull request link on the thread that opened it
+# SQLite VM instructions between progress words while reading a multi-GB store on a busy machine
+PROGRESS_STEPS = 10_000
+# Python-side rows scanned between progress words
+ROW_PROGRESS_EVERY = 256
 
 
 class StoreUnreadable(Exception):
@@ -155,6 +162,32 @@ def _columns(connection: sqlite3.Connection, table: str) -> set[str]:
     return {row[1] for row in connection.execute(f"pragma table_info({table})")}
 
 
+@contextlib.contextmanager
+def progress(connection: sqlite3.Connection, path: Path | str) -> Iterator[None]:
+    """Report progress to the scheduled job while SQLite executes, and interrupt the query
+    at once if the job has left this step (lushly-dev/afd#2160)."""
+    left: list[Left | None] = [None]
+
+    def on_progress() -> int:
+        try:
+            doing("reading T3 Code's store", path)
+        except Left as exc:
+            left[0] = exc
+            return 1
+        return 0
+
+    connection.set_progress_handler(on_progress, PROGRESS_STEPS)
+    try:
+        yield
+    except sqlite3.Error:
+        if left[0] is not None:
+            raise left[0] from None
+        raise
+    finally:
+        with contextlib.suppress(sqlite3.Error):
+            connection.set_progress_handler(None, 0)
+
+
 def check_schema(connection: sqlite3.Connection) -> None:
     """Raise SchemaChanged naming every table or column that is missing."""
     missing: list[str] = []
@@ -170,13 +203,16 @@ def check_schema(connection: sqlite3.Connection) -> None:
             missing.extend(f"{table}.{column}" for column in sorted(needed - have))
     if missing:  # before any query that needs what is missing
         raise SchemaChanged(missing)
-    total = connection.execute(f"select count(*) from {ITEMS}").fetchone()[0]
     kinds = ", ".join(f"'{kind}'" for kind in KINDS)
-    known = connection.execute(f"select count(*) from {ITEMS} where type in ({kinds})").fetchone()[
-        0
-    ]
-    if total >= MIN_ITEMS_TO_JUDGE_KINDS and not known:
-        raise SchemaChanged([f"{ITEMS}.type values ({', '.join(KINDS)})"])
+    has_known = connection.execute(
+        f"select 1 from {ITEMS} where type in ({kinds}) limit 1"
+    ).fetchone()
+    if has_known is None:
+        sample = connection.execute(
+            f"select count(*) from (select 1 from {ITEMS} limit {MIN_ITEMS_TO_JUDGE_KINDS})"
+        ).fetchone()[0]
+        if sample >= MIN_ITEMS_TO_JUDGE_KINDS:
+            raise SchemaChanged([f"{ITEMS}.type values ({', '.join(KINDS)})"])
 
 
 def _object(text: str | None) -> dict:
@@ -447,7 +483,8 @@ def _native_ids(connection: sqlite3.Connection) -> set[str]:
     rows = connection.execute(
         f"""
         select json_extract(payload_json, '$.nativeItemRef.nativeId') from {ITEMS}
-        where json_valid(payload_json)
+        where (payload_json like '%nativeItemRef%' or payload_json like '%\\u%')
+          and json_valid(payload_json)
           and coalesce(json_extract(payload_json, '$.nativeItemRef.driver'), '') != 'codex'
         """
     )
@@ -456,7 +493,7 @@ def _native_ids(connection: sqlite3.Connection) -> set[str]:
 
 def read(
     connection: sqlite3.Connection, *, since: str | None, all_items: bool = False,
-    natives: bool = False,
+    natives: bool = False, path: Path | str = "",
 ) -> T3Read:  # fmt: skip
     """Every skill load, and change to a skill's files, the store shows at or after `since`
     (an ISO time), oldest first; and every session it holds.
@@ -518,6 +555,8 @@ def read(
     shapes = _Shapes()
     for item_id, thread_id, kind, updated_at, run_id, payload_json in rows:
         result.scanned += 1
+        if result.scanned % ROW_PROGRESS_EVERY == 0:
+            doing("reading T3 Code's store", path)
         payload = _object(payload_json)
         shapes.note(kind, payload)
         loads = _loads(kind, payload)
@@ -529,7 +568,7 @@ def read(
         driver = _text(native.get("driver")) or (own.provider if own else None) or ""
         harness = HARNESSES.get(driver, driver or "other")
         native_id = _text(native.get("nativeId"))
-        for name, path in loads:
+        for name, load_path in loads:
             result.loads.append(
                 Load(
                     item=str(item_id),
@@ -538,7 +577,7 @@ def read(
                     or _text(payload.get("updatedAt"))
                     or updated_at,
                     skill=name,
-                    path=path,
+                    path=load_path,
                     harness=harness,
                     thread=session,
                     root=family.root(thread_id),

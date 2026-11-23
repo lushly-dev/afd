@@ -235,11 +235,13 @@ The lane never edits code, and nothing is killed unless its pid and start time b
   `VALIDATION_ERROR` and `NOT_FOUND`.
 - `lane_drop(branch, reason, session?)` -> `dropped`, `released[]`: dequeues the branch, puts
   each issue back to `status:planned` with one comment and forgets the cell. A foreman names its
-  `session`; the owner names none. Refuses `VALIDATION_ERROR`, `FOREMAN_STALE`, `FOREMAN_BUSY`,
-  `FOREMAN_LOST`, `NOT_FOUND` and
-  `MERGE_QUEUED` (the branch is in GitHub's merge queue, where it would merge after the lane
-  forgot it: wait, or remove it from the queue on GitHub, `lane_resume` a paused lane and
-  wait for its `ejected` event first).
+  `session`; the owner names none. For a `merging` entry, reads the pull request's merge progress
+  on GitHub first so a queued, auto-merge or already-merged pull request is never dropped. Refuses
+  `VALIDATION_ERROR`, `FOREMAN_STALE`, `FOREMAN_BUSY`, `FOREMAN_LOST`, `NOT_FOUND`, `READ_FAILED`
+  and `MERGE_QUEUED` (the branch is in GitHub's merge queue, has auto-merge enabled or has already
+  merged, where dropping it would lose its landing record: wait, or remove it from the queue /
+  disable auto-merge on GitHub, `lane_resume` a paused lane and wait for its `ejected` event
+  first).
 - `plan_list()` -> `plans[] {id, provider, used, elapsed, room, left, pace, daysToReset,
   aboveCeiling, resetsAt}`, every weekly window but Claude's Fable window, which only Fable
   draws on; `ceiling`; `next` (the plan `cell_register` assigns: among Claude's plans while

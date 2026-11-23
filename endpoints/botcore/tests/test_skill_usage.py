@@ -1982,3 +1982,77 @@ def test_the_commands_run_from_the_command_line(state: Path, t3_store: T3Store) 
     assert gathered.exit_code == 0 and json.loads(gathered.output)["data"]["added"] == 1
     assert report.exit_code == 0
     assert [row["skill"] for row in json.loads(report.output)["data"]["skills"]] == ["plant-beds"]
+
+
+def test_t3_read_reports_progress_and_stops_when_left(
+    t3_store: T3Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """lushly-dev/afd#2160: SQLite reads report progress via steps.doing so the hourly job
+    never times out a busy collection, and abort immediately with steps.Left when left."""
+    from botcore.commands.disk import steps
+
+    thread = t3_store.thread("main-1")
+    for idx in range(60):
+        t3_store.skill_tool(thread, "plant-beds", stamp(1, idx))
+
+    said: list[tuple[str, str]] = []
+    monkeypatch.setattr(t3, "PROGRESS_STEPS", 10)
+    monkeypatch.setattr(t3, "ROW_PROGRESS_EVERY", 10)
+    monkeypatch.setattr(steps, "SAID", said)
+    read = collect._read_t3(t3_store.path, since=None, natives=True)
+    assert len(read.loads) == 60
+    t3_words = [word for word in said if word[0] == "reading T3 Code's store"]
+    assert len(t3_words) >= 6
+    assert all(word[1] == str(t3_store.path) for word in t3_words), t3_words
+
+    # When the step has been left, the SQLite progress handler interrupts the query and raises
+    # steps.Left instead of wrapping it as StoreUnreadable.
+    def interrupt() -> None:
+        conn = t3.open_store(t3_store.path)
+        try:
+            with t3.progress(conn, t3_store.path):
+                conn.execute(
+                    "with recursive c(x) as ("
+                    "select 1 union all select x + 1 from c where x < 50000"
+                    ") select count(*) from c"
+                ).fetchall()
+        finally:
+            conn.close()
+
+    step = steps.Step("left-t3", lambda: None)
+    step.wait(10)
+    step.leave()
+    steps._HERE.step = step  # noqa: SLF001
+    try:
+        with pytest.raises(steps.Left):
+            interrupt()
+    finally:
+        steps._HERE.step = None  # noqa: SLF001
+
+
+def test_t3_native_ids_finds_unicode_escaped_key(t3_store: T3Store) -> None:
+    """lushly-dev/afd#2160: _native_ids LIKE prefilter still matches valid JSON rows whose
+    nativeItemRef key uses RFC 8259 \\uXXXX escapes, while excluding codex items."""
+    thread = t3_store.thread("main-1")
+    claude_payload = (
+        '{"status":"completed","native\\u0049temRef":'
+        '{"driver":"claude","nativeId":"toolu_escaped"}}'
+    )
+    codex_payload = (
+        '{"status":"completed","native\\u0049temRef":'
+        '{"driver":"codex","nativeId":"toolu_codex_escaped"}}'
+    )
+    with t3_store.connect() as conn:
+        conn.execute(
+            f"insert into {t3.ITEMS} (turn_item_id, thread_id, type, updated_at, payload_json)"
+            " values (?, ?, ?, ?, ?)",
+            ("item-escaped-claude", thread, t3.TOOL, stamp(1, 0), claude_payload),
+        )
+        conn.execute(
+            f"insert into {t3.ITEMS} (turn_item_id, thread_id, type, updated_at, payload_json)"
+            " values (?, ?, ?, ?, ?)",
+            ("item-escaped-codex", thread, t3.TOOL, stamp(1, 1), codex_payload),
+        )
+        conn.commit()
+        found = t3._native_ids(conn)
+    assert found == {"toolu_escaped"}

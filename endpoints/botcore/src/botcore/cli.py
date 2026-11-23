@@ -538,7 +538,19 @@ def disk_report_cmd(
     result = _run_async(
         disk_report(repo=repo, unclassified=unclassified, budget_seconds=budget_seconds)
     )
-    _format_result(result, _is_json(ctx))
+    json_out = _is_json(ctx)
+    if unclassified and not json_out:
+        rendered = _to_dict(result)
+        if (
+            isinstance(rendered, dict)
+            and not _is_error(rendered)
+            and isinstance(rendered.get("data"), dict)
+        ):
+            from botcore.commands.disk.unclassified import format_unclassified_summary
+
+            click.echo(format_unclassified_summary(rendered["data"]))
+            return
+    _format_result(result, json_out)
 
 
 @cli.command("disk-reclaim")

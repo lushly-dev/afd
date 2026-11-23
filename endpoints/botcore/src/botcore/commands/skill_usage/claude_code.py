@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from botcore.commands.disk.git import GitError, git_out
+from botcore.commands.disk.steps import doing
 from botcore.commands.skill_usage.events import (
     EDIT,
     FILE_READ,
@@ -49,6 +50,7 @@ GIT_SECONDS = 10
 # those that were loads first, since a load counted twice is what that would cost
 SAMPLE = 32
 FIRST_LINE = 1 << 20
+LINE_PROGRESS_EVERY = 256  # report progress inside large transcripts so the job waits
 # Only lines that can hold a tool call, its result or a typed command are parsed: a
 # transcript is mostly text that is none of them
 _WANTED = ('"tool_use"', '"tool_result"', "command-name")
@@ -123,6 +125,7 @@ def _transcripts(root: Path) -> dict[str, list[Path]]:
     except OSError:
         return found
     for folder in folders:
+        doing("reading Claude Code's transcripts in", folder)
         try:
             tops = sorted(folder.glob("*.jsonl"))
         except OSError:
@@ -306,11 +309,14 @@ def _transcript(home: str, files: list[Path], others: set[str]) -> _Transcript |
     half of a session is not what the record should be replaced with."""
     found = _Transcript()
     for file in files:
+        doing("reading Claude Code's transcripts in", file.parent)
         subagent = file.stem != home
         try:
             with file.open(encoding="utf-8", errors="replace") as handle:
                 placed = False
-                for line in handle:
+                for line_number, line in enumerate(handle, 1):
+                    if line_number % LINE_PROGRESS_EVERY == 0:
+                        doing("reading Claude Code's transcripts in", file.parent)
                     # where a session ran and what started it is on its rows: the first that
                     # says is read, whatever else it holds
                     wanted = any(marker in line for marker in _WANTED)
@@ -374,6 +380,7 @@ def read(root: Path, known: dict, held: set[str], *, everything: bool = False) -
     found = _transcripts(root)
     others = set(found)
     for home, files in found.items():
+        doing("reading Claude Code's transcripts in", root)
         result.transcripts += 1
         before = _entry(known.get(home))
         stamp = _stamp(files)

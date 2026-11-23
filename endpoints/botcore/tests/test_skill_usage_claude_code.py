@@ -751,3 +751,38 @@ def test_a_load_t3_code_shows_too_goes_even_when_its_transcript_is_not_read_agai
     assert opened == []  # the transcript did not change, and was not opened
     assert [(event.source, event.thread) for event in collected(state)] == [("t3-code", "main")]
     assert source(data)["removed"] == 1
+
+
+def test_claude_code_read_reports_progress_inside_a_transcript_and_stops_when_left(
+    transcripts: Transcripts, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """lushly-dev/afd#2160: reading a single large Claude Code transcript reports progress
+    periodically inside the line loop and stops with steps.Left when the step is left."""
+    from botcore.commands.disk import steps
+
+    for idx in range(30):
+        transcripts.say("big", f"step {idx}", stamp(2, idx % 60))
+    transcripts.call("big", "Skill", {"skill": "plant-beds"}, stamp(1))
+
+    said: list[tuple[str, str]] = []
+    monkeypatch.setattr(claude_code, "LINE_PROGRESS_EVERY", 5)
+    monkeypatch.setattr(steps, "SAID", said)
+    found = claude_code.read(transcripts.root, {}, set())
+    assert [load.skill for load in found.loads] == ["plant-beds"]
+    folder_words = [
+        word
+        for word in said
+        if word == ("reading Claude Code's transcripts in", str(transcripts.file("big").parent))
+    ]
+    # folder scan + file open + >= 6 line-loop heartbeats (32 lines / 5)
+    assert len(folder_words) >= 8, folder_words
+
+    step = steps.Step("left-claude", lambda: None)
+    step.wait(10)
+    step.leave()
+    steps._HERE.step = step  # noqa: SLF001
+    try:
+        with pytest.raises(steps.Left):
+            claude_code.read(transcripts.root, {}, set())
+    finally:
+        steps._HERE.step = None  # noqa: SLF001

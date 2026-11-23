@@ -49,8 +49,9 @@ NOTIFY_SECONDS = 24 * 3600
 # How long skill usage may fail to collect before the status calls it a problem. What a
 # harness drops in the meantime cannot be collected later.
 USAGE_STALE_SECONDS = 24 * 3600
-# How long the job waits for one collection. A full read of a large store takes a quarter
-# of a minute.
+# How long a skill usage collection may say nothing before the job stops counting on it. A
+# collection that keeps reporting progress (reading a large store on a busy machine) runs
+# until it finishes, as the disk work does (lushly-dev/afd#2160).
 USAGE_SECONDS = 300
 # How long a step may say nothing, beyond what its last word allowed, before the job stops
 # counting on it. A step that is working says so for every folder, file and command.
@@ -772,7 +773,8 @@ def _look(step: Step) -> tuple[str, Said | None, float | None]:
     if seen is None:  # it came back this instant
         return "working", None, None
     what, path, lasted, quiet, at = seen
-    return ("waiting" if quiet >= QUIET_SECONDS else "working"), (what, path, lasted), at
+    limit = USAGE_SECONDS if step.name == "skill-usage-collect" else QUIET_SECONDS
+    return ("waiting" if quiet >= limit else "working"), (what, path, lasted), at
 
 
 def _disk_outcome(step: Step, look: str, said: Said | None) -> tuple[str | None, dict]:
@@ -810,7 +812,7 @@ def _usage_outcome(step: Step, look: str, said: Said | None) -> tuple[str | None
             text = (f"this machine's record was collected, but the shared folder did not "
                     f"answer in {USAGE_SECONDS:g} seconds: {path}")
         else:
-            text = f"it did not finish in {USAGE_SECONDS:g} seconds"
+            text = f"it made no progress for {USAGE_SECONDS:g} seconds"
             if what != "starting":
                 text += f": it was {what} {path}".rstrip()
         return _with_hint(text, path), {}
@@ -873,11 +875,11 @@ async def disk_run(force: bool = False, own_process: bool = False) -> CommandRes
     and then the hourly collection of skill usage.
 
     `own_process` says this process exists for the run and ends with it, as the scheduler's
-    does. Such a run always ends. The disk work is waited for while it says it is working;
-    once it has said nothing for `QUIET_SECONDS` it is waiting, for a drive or for the
-    owner's answer to the operating system, and the run leaves it. The collection has
-    `USAGE_SECONDS`. A step that is left starts nothing more: it stops at its next word,
-    and the status says what it was doing.
+    does. Such a run always ends. Both the disk work and the skill usage collection are
+    waited for while they report progress; once a step has said nothing for `QUIET_SECONDS`
+    (or `USAGE_SECONDS` for collection) it is waiting, for a drive or for the owner's answer
+    to the operating system, and the run leaves it. A step that is left starts nothing more:
+    it stops at its next word, and the status says what it was doing.
 
     In a process that lives on (a host, a caller's own program) a step left in a read would
     stay there, holding its lock. So there the call waits for its steps however long they
@@ -915,10 +917,11 @@ async def _run(  # noqa: C901, PLR0912 - one run, start to end
     usage: Step | None = None
     collected: dict | None = None
     unwritten: str | None = None
-    # What was seen of the disk work when the run left it, and where it was. That stands
-    # for the rest of the run: the step ends later only because it was told to stop.
+    # What was seen of each step when the run left it, and where it was. That stands for the
+    # rest of the run: the step ends later only because it was told to stop.
     left: tuple[str, Said | None] | None = None
     where = ""
+    usage_left: tuple[str, Said | None] | None = None
 
     async def record() -> tuple[str, Said | None, str]:
         """Write what stands of each step. Returns what was seen of the disk work, and of
@@ -927,8 +930,12 @@ async def _run(  # noqa: C901, PLR0912 - one run, start to end
         nonlocal collected, unwritten
         seen = left or _look(disk)[:2]
         work = None if seen[0] == "working" else _disk_outcome(disk, *seen)
-        usage_look = _look(usage)[:2] if usage is not None else ("done", None)
-        collection = None if usage is None else _usage_outcome(usage, *usage_look)
+        usage_seen = usage_left or (_look(usage)[:2] if usage is not None else ("done", None))
+        collection = (
+            None
+            if usage is None or usage_seen[0] == "working"
+            else _usage_outcome(usage, *usage_seen)
+        )
         kept: dict = {}
 
         def change(data: dict) -> None:
@@ -948,7 +955,7 @@ async def _run(  # noqa: C901, PLR0912 - one run, start to end
             unwritten = str(exc)
         if collection is not None:
             collected = kept.get("usage") or _outcome(None, *collection)
-        return (*seen, usage_look[0])
+        return (*seen, usage_seen[0])
 
     while True:
         look, said, at = _look(disk)
@@ -969,11 +976,20 @@ async def _run(  # noqa: C901, PLR0912 - one run, start to end
     if settings.skill_usage_collect:
         from botcore.commands.skill_usage import skill_usage_collect
 
-        began = time.monotonic()
         usage = Step("skill-usage-collect", lambda: asyncio.run(skill_usage_collect()))
         started.append(usage)
-        # past its time it is left, however busy it is: the run ends now, and tells it
-        await _wait([usage], lambda: time.monotonic() - began >= USAGE_SECONDS)
+        # Waited for while it reports progress (reading a large store on a busy machine), and
+        # left only once it has been quiet for USAGE_SECONDS (lushly-dev/afd#2160).
+        while True:
+            u_look, u_said, u_at = _look(usage)
+            if u_look == "working":
+                await _wait([usage], lambda: _look(usage)[0] == "waiting")
+            elif u_look == "done" or not own_process:
+                break
+            else:
+                if usage.leave(u_at):
+                    usage_left = ("waiting", u_said)
+                    break
     look, said, usage_look = await record()
     if not own_process and (look != "done" or usage_look != "done"):
         # what was just written says a step was not done: wait for them all, and write how
