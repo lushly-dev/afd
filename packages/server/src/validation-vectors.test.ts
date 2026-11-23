@@ -37,6 +37,9 @@ interface VectorTest {
 			expectedFields?: string[];
 			unexpectedFields?: string[];
 			missingFields?: string[];
+			truncated?: boolean;
+			limit?: number;
+			totalErrors?: number;
 		};
 	};
 }

@@ -4,6 +4,8 @@ import pytest
 from pydantic import BaseModel, Field
 
 from afd.server.validation import (
+    DEFAULT_MAX_VALIDATION_ISSUES,
+    VALIDATION_ISSUE_CODES,
     DateRangeParams,
     EmailStr,
     EnhancedValidationResult,
@@ -17,6 +19,7 @@ from afd.server.validation import (
     format_enhanced_validation_error,
     format_validation_errors,
     is_valid,
+    map_pydantic_issue_code,
     validate_input,
     validate_input_enhanced,
     validate_or_throw,
@@ -367,3 +370,75 @@ class TestDateRangeParams:
         # Non-parseable dates skip the comparison validator
         params = DateRangeParams(start="not-a-date", end="also-not-a-date")
         assert params.start == "not-a-date"
+
+
+class TestValidationIssueCatalogAndCap:
+    def test_pydantic_codes_map_into_afd_nine_code_catalog(self):
+        from typing import Literal
+        from pydantic import ConfigDict, field_validator
+
+        class RichModel(BaseModel):
+            model_config = ConfigDict(extra="forbid")
+            name: str = Field(min_length=2, max_length=5)
+            count: int = Field(ge=1, le=10, multiple_of=2)
+            kind: Literal["a", "b"]
+            slug: str = Field(pattern=r"^[a-z]+$")
+
+            @field_validator("name")
+            @classmethod
+            def no_bad(cls, value: str) -> str:
+                if value == "bad":
+                    raise ValueError("not allowed")
+                return value
+
+        cases = [
+            {},  # missing -> invalid_type
+            {"name": "a", "count": 0, "kind": "c", "slug": "123", "extra": 1},
+            {"name": "toolong", "count": 11, "kind": "a", "slug": "abc"},
+            {"name": "ok", "count": 3, "kind": "a", "slug": "abc"},
+            {"name": "bad", "count": 2, "kind": "a", "slug": "abc"},
+        ]
+        allowed = set(VALIDATION_ISSUE_CODES)
+        seen_codes: set[str] = set()
+        for payload in cases:
+            res = validate_input(RichModel, payload)
+            assert res.success is False
+            for err in res.errors:
+                assert err.code in allowed, f"unmapped code: {err.code}"
+                seen_codes.add(err.code)
+
+        assert {
+            "invalid_type",
+            "too_small",
+            "too_big",
+            "invalid_value",
+            "invalid_format",
+            "unrecognized_keys",
+            "not_multiple_of",
+            "custom",
+        }.issubset(seen_codes)
+        assert map_pydantic_issue_code("union_tag_invalid") == "invalid_union"
+
+    def test_truncates_issues_above_cap(self):
+        class ManyItems(BaseModel):
+            values: list[str]
+
+        assert DEFAULT_MAX_VALIDATION_ISSUES == 100
+        res_exact = validate_input_enhanced(ManyItems, {"values": [0] * 100})
+        assert res_exact.success is False
+        assert len(res_exact.errors) == 100
+        assert res_exact.truncated is False
+        assert res_exact.limit is None
+        assert res_exact.total_errors is None
+
+        res_over = validate_input_enhanced(ManyItems, {"values": [0] * 101})
+        assert res_over.success is False
+        assert len(res_over.errors) == 100
+        assert res_over.truncated is True
+        assert res_over.limit == 100
+        assert res_over.total_errors == 101
+        suggestion = format_enhanced_validation_error(
+            res_over.errors,
+            {"truncated": res_over.truncated, "limit": res_over.limit},
+        )
+        assert "Showing first 100 validation issues; fix these and retry" in suggestion

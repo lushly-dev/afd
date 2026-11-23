@@ -30,7 +30,12 @@ from pydantic import ValidationError as PydanticValidationError
 
 from afd.core.errors import CommandError
 from afd.core.result import CommandResult, failure
-from afd.core.schema_validation import SchemaValidationError, schema_error_details
+from afd.core.schema_validation import (
+    DEFAULT_MAX_VALIDATION_ISSUES,
+    SchemaValidationError,
+    resolve_max_validation_issues,
+    schema_error_details,
+)
 
 T = TypeVar("T")
 
@@ -39,6 +44,109 @@ T = TypeVar("T")
 # ═══════════════════════════════════════════════════════════════════════════════
 
 UUID_REGEX = r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+
+VALIDATION_ISSUE_CODES: tuple[str, ...] = (
+    "invalid_type",
+    "invalid_value",
+    "too_small",
+    "too_big",
+    "unrecognized_keys",
+    "invalid_format",
+    "invalid_union",
+    "not_multiple_of",
+    "custom",
+)
+"""AFD's normative nine-code validation issue catalog (``spec/validation.md``)."""
+
+_VALIDATION_ISSUE_CODE_SET = frozenset(VALIDATION_ISSUE_CODES)
+
+_PYDANTIC_CODE_MAP: dict[str, str] = {
+    # Unrecognized keys
+    "extra_forbidden": "unrecognized_keys",
+    # Multiple of
+    "multiple_of": "not_multiple_of",
+    # Unions
+    "union_tag_invalid": "invalid_union",
+    "union_tag_not_found": "invalid_union",
+    # Value / enum / literal
+    "enum": "invalid_value",
+    "literal_error": "invalid_value",
+    "finite_number": "invalid_value",
+    # Too small
+    "string_too_short": "too_small",
+    "too_short": "too_small",
+    "bytes_too_short": "too_small",
+    "list_too_short": "too_small",
+    "set_too_short": "too_small",
+    "tuple_too_short": "too_small",
+    "greater_than": "too_small",
+    "greater_than_equal": "too_small",
+    # Too big
+    "string_too_long": "too_big",
+    "too_long": "too_big",
+    "bytes_too_long": "too_big",
+    "list_too_long": "too_big",
+    "set_too_long": "too_big",
+    "tuple_too_long": "too_big",
+    "less_than": "too_big",
+    "less_than_equal": "too_big",
+    "decimal_max_digits": "too_big",
+    "decimal_max_places": "too_big",
+    "decimal_whole_digits": "too_big",
+    # Format / pattern
+    "string_pattern_mismatch": "invalid_format",
+    "uuid_parsing": "invalid_format",
+    "uuid_version": "invalid_format",
+    "date_parsing": "invalid_format",
+    "date_from_datetime_parsing": "invalid_format",
+    "date_from_datetime_inexact": "invalid_format",
+    "time_parsing": "invalid_format",
+    "datetime_parsing": "invalid_format",
+    "datetime_from_date_parsing": "invalid_format",
+    "datetime_object_invalid": "invalid_format",
+    "timezone_naive": "invalid_format",
+    "timezone_aware": "invalid_format",
+    "timezone_offset": "invalid_format",
+    "url_parsing": "invalid_format",
+    "url_syntax_violation": "invalid_format",
+    "url_too_long": "invalid_format",
+    "url_scheme": "invalid_format",
+    "json_invalid": "invalid_format",
+    "ip_any_address": "invalid_format",
+    "ip_v4_address": "invalid_format",
+    "ip_v6_address": "invalid_format",
+    "ip_v4_network": "invalid_format",
+    "ip_v6_network": "invalid_format",
+    "ip_v4_interface": "invalid_format",
+    "ip_v6_interface": "invalid_format",
+    # Type / missing
+    "missing": "invalid_type",
+    "none_required": "invalid_type",
+    "int_from_float": "invalid_type",
+    "int_parsing_size": "invalid_type",
+    "string_unicode": "invalid_type",
+    "is_instance_of": "invalid_type",
+    "is_subclass_of": "invalid_type",
+    "missing_argument": "invalid_type",
+    "missing_positional_only_argument": "invalid_type",
+    "missing_keyword_only_argument": "invalid_type",
+    "unexpected_positional_argument": "invalid_type",
+    "unexpected_keyword_argument": "invalid_type",
+}
+
+
+def map_pydantic_issue_code(pydantic_type: str) -> str:
+    """Map a Pydantic v2 error ``type`` into AFD's closed nine-code validation catalog."""
+    if pydantic_type in _VALIDATION_ISSUE_CODE_SET:
+        return pydantic_type
+    mapped = _PYDANTIC_CODE_MAP.get(pydantic_type)
+    if mapped is not None:
+        return mapped
+    if pydantic_type.endswith(("_pattern_mismatch", "_format")):
+        return "invalid_format"
+    if pydantic_type.endswith(("_type", "_parsing")):
+        return "invalid_type"
+    return "custom"
 
 
 @dataclass
@@ -59,6 +167,9 @@ class ValidationResult(Generic[T]):
     success: bool
     data: T | None = None
     errors: list[ValidationError] = field(default_factory=list)
+    truncated: bool = False
+    limit: int | None = None
+    total_errors: int | None = None
 
 
 @dataclass
@@ -71,6 +182,9 @@ class EnhancedValidationResult(Generic[T]):
     expected_fields: list[str] | None = None
     unexpected_fields: list[str] | None = None
     missing_fields: list[str] | None = None
+    truncated: bool = False
+    limit: int | None = None
+    total_errors: int | None = None
 
 
 class ValidationException(Exception):  # noqa: N818 — matches TypeScript API name
@@ -96,12 +210,18 @@ class ValidationException(Exception):  # noqa: N818 — matches TypeScript API n
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-def validate_input(model_class: type[BaseModel], input_data: object) -> ValidationResult:
+def validate_input(
+    model_class: type[BaseModel],
+    input_data: object,
+    *,
+    max_issues: int = DEFAULT_MAX_VALIDATION_ISSUES,
+) -> ValidationResult:
     """Validate input data against a Pydantic model.
 
     Args:
         model_class: The Pydantic model class to validate against.
         input_data: The data to validate (dict or similar mapping).
+        max_issues: Maximum number of issues to report (default: 100).
 
     Returns:
         A ValidationResult with success/data or errors.
@@ -114,19 +234,29 @@ def validate_input(model_class: type[BaseModel], input_data: object) -> Validati
         >>> result.success
         True
     """
+    limit = resolve_max_validation_issues(max_issues)
     try:
         data = model_class.model_validate(input_data)
         return ValidationResult(success=True, data=data, errors=[])
     except PydanticValidationError as exc:
+        all_errors = _convert_pydantic_errors(exc)
+        total = len(all_errors)
+        truncated = total > limit
         return ValidationResult(
             success=False,
             data=None,
-            errors=_convert_pydantic_errors(exc),
+            errors=all_errors[:limit] if truncated else all_errors,
+            truncated=truncated,
+            limit=limit if truncated else None,
+            total_errors=total if truncated else None,
         )
 
 
 def validate_input_enhanced(
-    model_class: type[BaseModel], input_data: object
+    model_class: type[BaseModel],
+    input_data: object,
+    *,
+    max_issues: int = DEFAULT_MAX_VALIDATION_ISSUES,
 ) -> EnhancedValidationResult:
     """Validate input with field introspection (expected/unexpected/missing).
 
@@ -136,6 +266,7 @@ def validate_input_enhanced(
     Args:
         model_class: The Pydantic model class to validate against.
         input_data: The data to validate.
+        max_issues: Maximum number of issues to report (default: 100).
 
     Returns:
         An EnhancedValidationResult with field introspection details.
@@ -149,11 +280,15 @@ def validate_input_enhanced(
         >>> result.unexpected_fields
         ['extra']
     """
+    limit = resolve_max_validation_issues(max_issues)
     try:
         data = model_class.model_validate(input_data)
         return EnhancedValidationResult(success=True, data=data, errors=[])
     except PydanticValidationError as exc:
-        errors = _convert_pydantic_errors(exc)
+        all_errors = _convert_pydantic_errors(exc)
+        total = len(all_errors)
+        truncated = total > limit
+        errors = all_errors[:limit] if truncated else all_errors
         schema_info = _extract_schema_info(model_class, input_data)
         return EnhancedValidationResult(
             success=False,
@@ -162,6 +297,9 @@ def validate_input_enhanced(
             expected_fields=schema_info["expected_fields"] or None,
             unexpected_fields=schema_info["unexpected_fields"] or None,
             missing_fields=schema_info["missing_fields"] or None,
+            truncated=truncated,
+            limit=limit if truncated else None,
+            total_errors=total if truncated else None,
         )
 
 
@@ -257,7 +395,7 @@ def format_validation_errors(errors: list[ValidationError]) -> str:
 
 def format_enhanced_validation_error(
     errors: list[ValidationError],
-    schema_info: dict[str, list[str] | None] | None = None,
+    schema_info: dict[str, Any] | None = None,
 ) -> str:
     """Format validation errors with field introspection details.
 
@@ -267,7 +405,8 @@ def format_enhanced_validation_error(
         errors: List of validation errors.
         schema_info: Optional dict with expected_fields, unexpected_fields and
             missing_fields (the camelCase wire keys expectedFields,
-            unexpectedFields and missingFields are accepted too).
+            unexpectedFields and missingFields are accepted too), plus optional
+            ``truncated`` and ``limit``.
 
     Returns:
         Formatted string with all available context.
@@ -292,6 +431,9 @@ def format_enhanced_validation_error(
         expected = schema_info.get("expected_fields") or schema_info.get("expectedFields")
         if expected:
             parts.append(f"Expected fields: {', '.join(expected)}")
+        if schema_info.get("truncated"):
+            shown = schema_info.get("limit") or len(errors)
+            parts.append(f"Showing first {shown} validation issues; fix these and retry")
     return ". ".join(parts)
 
 
@@ -391,15 +533,16 @@ def _convert_pydantic_errors(exc: PydanticValidationError) -> list[ValidationErr
         loc = issue.get("loc", ())
         path = ".".join(str(p) for p in loc) if loc else "(root)"
         msg = issue.get("msg", "Validation error")
-        code = issue.get("type", "validation_error")
+        raw_code = str(issue.get("type", "custom"))
+        code = map_pydantic_issue_code(raw_code)
 
         error = ValidationError(path=path, message=msg, code=code)
 
-        # Add expected/received for type errors
+        # Add expected/received for type errors (`spec/validation.md`: `expected` only on `invalid_type`).
         ctx = issue.get("ctx", {})
-        if "expected" in ctx:
+        if code == "invalid_type" and "expected" in ctx:
             error.expected = str(ctx["expected"])
-        if "received" in ctx:
+        if code == "invalid_type" and "received" in ctx:
             error.received = str(ctx["received"])
 
         errors.append(error)
@@ -444,25 +587,44 @@ def _input_validation_failure(
     model_class: type[BaseModel] | dict[str, Any],
     input_data: object,
     exc: PydanticValidationError | SchemaValidationError,
+    *,
+    max_issues: int = DEFAULT_MAX_VALIDATION_ISSUES,
 ) -> CommandResult[Any]:
     """Build a VALIDATION_ERROR result from a pydantic error raised while parsing input.
 
     Reports field paths, messages and expected/unknown/missing fields under the
     TypeScript server's keys (``errors``, ``expectedFields``,
     ``unexpectedFields``, ``missingFields``), not the exception text or input
-    values.
+    values. Caps reported issues at ``max_issues`` and records ``truncated``,
+    ``limit``, and ``totalErrors`` when exceeded.
     """
+    resolved_limit = resolve_max_validation_issues(max_issues)
+    truncated = False
+    limit: int | None = None
+    total_errors: int | None = None
     if isinstance(exc, SchemaValidationError):
-        errors = [ValidationError(**issue) for issue in exc.issues]
-        details = schema_error_details(exc)
-        schema_info = {
-            "expected_fields": details.get("expectedFields", []),
-            "unexpected_fields": details.get("unexpectedFields", []),
-            "missing_fields": details.get("missingFields", []),
+        raw_details = schema_error_details(exc, max_issues=resolved_limit)
+        errors = [ValidationError(**issue) for issue in raw_details["errors"]]
+        schema_info: dict[str, Any] = {
+            "expected_fields": raw_details.get("expectedFields", []),
+            "unexpected_fields": raw_details.get("unexpectedFields", []),
+            "missing_fields": raw_details.get("missingFields", []),
         }
+        if raw_details.get("truncated"):
+            truncated = True
+            limit = raw_details.get("limit", resolved_limit)
+            total_errors = raw_details.get("totalErrors")
     else:
-        errors = _convert_pydantic_errors(exc)
-        schema_info = _extract_schema_info(model_class, input_data)
+        all_errors = _convert_pydantic_errors(exc)
+        total = len(all_errors)
+        if total > resolved_limit:
+            truncated = True
+            limit = resolved_limit
+            total_errors = total
+            errors = all_errors[:resolved_limit]
+        else:
+            errors = all_errors
+        schema_info = dict(_extract_schema_info(model_class, input_data))
     details: dict[str, Any] = {"errors": [_error_to_dict(e) for e in errors]}
     for key, wire_key in (
         ("expected_fields", "expectedFields"),
@@ -471,6 +633,13 @@ def _input_validation_failure(
     ):
         if schema_info[key]:
             details[wire_key] = schema_info[key]
+    if truncated:
+        details["truncated"] = True
+        details["limit"] = limit if limit is not None else len(errors)
+        if total_errors is not None:
+            details["totalErrors"] = total_errors
+        schema_info["truncated"] = True
+        schema_info["limit"] = details["limit"]
     return failure(
         CommandError(
             code="VALIDATION_ERROR",

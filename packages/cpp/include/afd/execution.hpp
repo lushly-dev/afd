@@ -7,11 +7,18 @@
 #include "afd/result.hpp"
 #include "afd/runtime.hpp"
 
+#include <cstddef>
 #include <functional>
 #include <memory>
 #include <string_view>
 
 namespace afd {
+
+/// Normative default maximum number of commands in a single batch (spec/execution-controls.md).
+inline constexpr std::size_t default_max_batch_size = 500;
+
+/// Normative default maximum concurrent commands in a single batch (spec/execution-controls.md).
+inline constexpr std::size_t default_max_batch_parallelism = 16;
 
 /// Executes one command. `CommandRegistry::execute` and `DirectClient::call` are the usual
 /// executors; tests pass their own.
@@ -27,6 +34,10 @@ struct ExecutorOptions {
     std::shared_ptr<RandomSource> random;
     /// Runs batch workers. Defaults to `InlineTaskRunner`.
     std::shared_ptr<TaskRunner> runner;
+    /// Maximum number of commands accepted in a single batch (default: 500).
+    std::size_t max_batch_size = default_max_batch_size;
+    /// Maximum `options.parallelism` accepted in a single batch (default: 16).
+    std::size_t max_batch_parallelism = default_max_batch_parallelism;
 };
 
 } // namespace afd

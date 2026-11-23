@@ -19,15 +19,39 @@ from afd.core.schema_registration import check_schema as check_schema
 
 MISSING = object()
 
+DEFAULT_MAX_VALIDATION_ISSUES = 100
+"""Normative default cap on reported issues per ``VALIDATION_ERROR`` (``spec/execution-controls.md``)."""
+
+
+def resolve_max_validation_issues(max_issues: int | None) -> int:
+    """Validate and normalize ``max_validation_issues`` (positive integer, default 100)."""
+    if max_issues is None:
+        return DEFAULT_MAX_VALIDATION_ISSUES
+    if isinstance(max_issues, bool) or not isinstance(max_issues, int) or max_issues < 1:
+        raise ValueError("max_validation_issues must be a positive integer")
+    return max_issues
+
 
 class SchemaValidationError(ValueError):
     """A rejected input, carrying the standard validation issue dictionaries."""
 
-    def __init__(self, schema: dict[str, Any], value: Any, issues: list[dict[str, Any]]):
+    def __init__(
+        self,
+        schema: dict[str, Any],
+        value: Any,
+        issues: list[dict[str, Any]],
+        *,
+        truncated: bool = False,
+        limit: int | None = None,
+        total_errors: int | None = None,
+    ):
         super().__init__("Input validation failed")
         self.schema = schema
         self.value = value
         self.issues = issues
+        self.truncated = truncated
+        self.limit = limit
+        self.total_errors = total_errors
 
 
 def _kind(value: Any) -> str:
@@ -103,8 +127,14 @@ def _format_valid(value: str, name: str) -> bool:
         return False
 
 
-def validate_schema(schema: dict[str, Any], value: Any) -> Any:
+def validate_schema(
+    schema: dict[str, Any],
+    value: Any,
+    *,
+    max_issues: int = DEFAULT_MAX_VALIDATION_ISSUES,
+) -> Any:
     """Validate, strip unknown properties, and insert unvalidated defaults."""
+    limit = resolve_max_validation_issues(max_issues)
     issues: list[dict[str, Any]] = []
 
     def issue(
@@ -424,14 +454,39 @@ def validate_schema(schema: dict[str, Any], value: Any) -> Any:
 
     parsed = walk(schema, value, "", issues)
     if issues:
-        raise SchemaValidationError(schema, value, issues)
+        total = len(issues)
+        truncated = total > limit
+        kept = issues[:limit] if truncated else issues
+        raise SchemaValidationError(
+            schema,
+            value,
+            kept,
+            truncated=truncated,
+            limit=limit if truncated else None,
+            total_errors=total if truncated else None,
+        )
     return parsed
 
 
-def schema_error_details(exc: SchemaValidationError) -> dict[str, Any]:
+def schema_error_details(
+    exc: SchemaValidationError,
+    *,
+    max_issues: int | None = None,
+) -> dict[str, Any]:
     """Build portable issue and top-level field metadata for a rejected input."""
+    issues = exc.issues
+    truncated = exc.truncated
+    limit = exc.limit
+    total_errors = exc.total_errors
+    if max_issues is not None:
+        resolved = resolve_max_validation_issues(max_issues)
+        if len(issues) > resolved:
+            total_errors = total_errors if total_errors is not None else len(issues)
+            issues = issues[:resolved]
+            truncated = True
+            limit = resolved
     properties = exc.schema.get("properties", {})
-    details: dict[str, Any] = {"errors": exc.issues}
+    details: dict[str, Any] = {"errors": issues}
     if properties:
         details["expectedFields"] = list(properties)
     if isinstance(exc.value, dict):
@@ -446,15 +501,24 @@ def schema_error_details(exc: SchemaValidationError) -> dict[str, Any]:
             details["unexpectedFields"] = unexpected
         if missing:
             details["missingFields"] = missing
+    if truncated:
+        details["truncated"] = True
+        details["limit"] = limit if limit is not None else len(issues)
+        if total_errors is not None:
+            details["totalErrors"] = total_errors
     return details
 
 
-def schema_validation_failure(exc: SchemaValidationError) -> Any:
+def schema_validation_failure(
+    exc: SchemaValidationError,
+    *,
+    max_issues: int | None = None,
+) -> Any:
     """A framework-independent VALIDATION_ERROR result for core execution."""
     from afd.core.errors import CommandError
     from afd.core.result import failure
 
-    details = schema_error_details(exc)
+    details = schema_error_details(exc, max_issues=max_issues)
     errors = details["errors"]
     rendered = [
         item["message"] if item["path"] == "(root)" else f"{item['path']}: {item['message']}"
@@ -468,6 +532,9 @@ def schema_validation_failure(exc: SchemaValidationError) -> Any:
     ):
         if key in details:
             parts.append(f"{label}: {', '.join(details[key])}")
+    if details.get("truncated"):
+        shown = details.get("limit", len(errors))
+        parts.append(f"Showing first {shown} validation issues; fix these and retry")
     return failure(
         CommandError(
             code="VALIDATION_ERROR",

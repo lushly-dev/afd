@@ -159,8 +159,8 @@
 			"evidence": ["packages/cpp/tests/registry_test.cpp"]
 		},
 		"single.cancellation": {
-			"status": "yes",
-			"note": "cooperative `CancellationToken` and deadline",
+			"status": "partial",
+			"note": "cooperative `CancellationToken` on batch/direct execution; per-call/default registry deadlines and single-command cancellation tracked in #1766",
 			"evidence": [
 				"packages/cpp/include/afd/runtime.hpp",
 				"packages/cpp/tests/execution_controls_vectors_test.cpp"
@@ -344,6 +344,7 @@
 		},
 		"exec.batch": {
 			"status": "yes",
+			"note": "`max_batch_size = 500`, `max_batch_parallelism = 16` and `check_batch_limits` (#2131)",
 			"evidence": [
 				"packages/cpp/include/afd/batch.hpp",
 				"packages/cpp/tests/batch_vectors_test.cpp"

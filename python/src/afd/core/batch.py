@@ -27,6 +27,86 @@ from afd.core.wire import WIRE_MODEL_CONFIG, WireModel, json_number, omitted_not
 
 T = TypeVar("T")
 
+DEFAULT_MAX_BATCH_SIZE = 500
+"""Normative default maximum number of commands in one batch request (``spec/execution-controls.md``)."""
+
+DEFAULT_MAX_BATCH_PARALLELISM = 16
+"""Normative default maximum ``options.parallelism`` for one batch request (``spec/execution-controls.md``)."""
+
+
+def check_batch_limits(
+    request: "BatchRequest | dict[str, Any]",
+    *,
+    max_batch_size: int = DEFAULT_MAX_BATCH_SIZE,
+    max_batch_parallelism: int = DEFAULT_MAX_BATCH_PARALLELISM,
+) -> Optional[CommandError]:
+    """Validate batch size and parallelism against configured ceilings.
+
+    Returns an ``INVALID_BATCH_REQUEST`` ``CommandError`` (``retryable=False``)
+    when either limit is exceeded, or ``None`` when the request is within bounds.
+    """
+    if isinstance(request, BatchRequest):
+        count = len(request.commands)
+        parallelism = request.options.parallelism if request.options else 1
+    elif isinstance(request, dict):
+        commands = request.get("commands")
+        count = len(commands) if isinstance(commands, list) else 0
+        opts = request.get("options")
+        raw_p = opts.get("parallelism", 1) if isinstance(opts, dict) else 1
+        parallelism = raw_p if isinstance(raw_p, int) and not isinstance(raw_p, bool) else 1
+    else:
+        return None
+
+    suggestion = (
+        f"Send between 1 and {max_batch_size} commands with parallelism "
+        f"at most {max_batch_parallelism}"
+    )
+    if count > max_batch_size:
+        message = f"Batch size {count} exceeds maximum of {max_batch_size} commands"
+        return CommandError(
+            code="INVALID_BATCH_REQUEST",
+            message=message,
+            suggestion=suggestion,
+            retryable=False,
+            details={
+                "count": count,
+                "maxBatchSize": max_batch_size,
+                "errors": [
+                    {
+                        "path": "commands",
+                        "message": f"A batch accepts at most {max_batch_size} commands (got {count})",
+                        "code": "too_long",
+                    }
+                ],
+            },
+        )
+    if parallelism > max_batch_parallelism:
+        message = (
+            f"Batch parallelism {parallelism} exceeds maximum of "
+            f"{max_batch_parallelism}"
+        )
+        return CommandError(
+            code="INVALID_BATCH_REQUEST",
+            message=message,
+            suggestion=suggestion,
+            retryable=False,
+            details={
+                "parallelism": parallelism,
+                "maxBatchParallelism": max_batch_parallelism,
+                "errors": [
+                    {
+                        "path": "options.parallelism",
+                        "message": (
+                            f"parallelism must be at most {max_batch_parallelism} "
+                            f"(got {parallelism})"
+                        ),
+                        "code": "less_than_equal",
+                    }
+                ],
+            },
+        )
+    return None
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # BATCH REQUEST TYPES

@@ -630,7 +630,9 @@ class TaskRuntime:
 
             task_context = CommandContext(
                 trace_id=context.trace_id,
-                timeout=context.timeout,
+                # MCP Tasks are bounded by their own TTL (default 5 min) and cancel_event
+                # rather than the inline server default_timeout_ms; keep an explicit timeout if set.
+                timeout=context.timeout if context.timeout is not None else 0,
                 extra=copy_extra(context.extra) if isinstance(context.extra, Mapping) else {},
                 actor=copy.copy(actor) if actor is not None else None,
                 clock=context.clock,
@@ -639,6 +641,7 @@ class TaskRuntime:
                 credentials=task_credentials,
                 report_progress=report_progress,
                 cancel=running.cancel_event,
+                signal=running.cancel_event,
                 _output_budget_ask=getattr(context, "_output_budget_ask", None),
                 _scope_view=task_view,
             )

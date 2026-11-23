@@ -217,7 +217,7 @@ class CommandContext:
     """
 
     trace_id: Optional[str] = None
-    timeout: Optional[int] = None
+    timeout: Optional[int | float] = None
     extra: Dict[str, Any] = field(default_factory=dict)
     actor: Optional[Actor] = None
     clock: Optional[Clock] = None
@@ -225,12 +225,22 @@ class CommandContext:
     approval: Optional[str] = None
     report_progress: Optional[Callable[[str], None]] = None
     cancel: Optional[asyncio.Event] = None
+    signal: Optional[asyncio.Event] = None
     credentials: Optional[Any] = None
     output_budget: Optional[int] = None
     _direct_approval: Any = field(default=None, repr=False, compare=False)
     _direct_allow: Any = field(default=None, repr=False, compare=False)
+    _server_signal: Optional[asyncio.Event] = field(default=None, repr=False, compare=False)
+    _server_signal_fields: tuple[str, ...] = field(default=(), repr=False, compare=False)
     _output_budget_ask: Any = field(default=None, repr=False, compare=False)
     _scope_view: Any = field(default=None, repr=False, compare=False)
+
+    def is_cancelled(self) -> bool:
+        """Whether cooperative cancellation has been signalled on this context."""
+        return bool(
+            (self.cancel is not None and self.cancel.is_set())
+            or (self.signal is not None and self.signal.is_set())
+        )
 
     def with_output_budget_ask(self, max_bytes: Any) -> "CommandContext":
         """Return a copy of this context carrying an output budget ask (B2)."""

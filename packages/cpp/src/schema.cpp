@@ -783,7 +783,10 @@ Expected<CompiledSchema> CompiledSchema::compile(const Json& schema) {
     return CompiledSchema(std::make_shared<const Json>(schema));
 }
 
-Expected<Json, ValidationFailure> CompiledSchema::validate(const Json& input) const {
+Expected<Json, ValidationFailure> CompiledSchema::validate(const Json& input,
+                                                           std::size_t max_issues) const {
+    const std::size_t effective_limit =
+        max_issues == 0 ? default_max_validation_issues : max_issues;
     std::vector<ValidationIssue> issues;
     Validator validator(*schema_, issues);
     Json parsed = validator.run(*schema_, input, "");
@@ -791,6 +794,12 @@ Expected<Json, ValidationFailure> CompiledSchema::validate(const Json& input) co
         return parsed;
     }
     ValidationFailure failure;
+    if (issues.size() > effective_limit) {
+        failure.total_errors = issues.size();
+        failure.limit = effective_limit;
+        failure.truncated = true;
+        issues.resize(effective_limit);
+    }
     failure.errors = std::move(issues);
     describe_fields(*schema_, input, failure);
     return unexpected(std::move(failure));
@@ -827,6 +836,11 @@ CommandError validation_failure_error(const ValidationFailure& failure) {
     if (!failure.expected_fields.empty()) {
         parts.push_back("Expected fields: " + join(failure.expected_fields, ", "));
     }
+    if (failure.truncated) {
+        const std::size_t shown = failure.limit.value_or(failure.errors.size());
+        parts.push_back("Showing first " + std::to_string(shown) +
+                        " validation issues; fix these and retry");
+    }
 
     Json errors = Json::array();
     for (const auto& issue : failure.errors) {
@@ -845,6 +859,13 @@ CommandError validation_failure_error(const ValidationFailure& failure) {
     }
     if (!failure.missing_fields.empty()) {
         details["missingFields"] = failure.missing_fields;
+    }
+    if (failure.truncated) {
+        details["truncated"] = true;
+        details["limit"] = failure.limit.value_or(failure.errors.size());
+        if (failure.total_errors) {
+            details["totalErrors"] = *failure.total_errors;
+        }
     }
     return create_error(error_codes::VALIDATION_ERROR, "Input validation failed",
                         {.suggestion = join(parts, ". "), .details = std::move(details)});

@@ -39,6 +39,13 @@ struct BatchRequest {
     std::optional<BatchOptions> options;
 };
 
+/// Checks `request` against configured batch size and parallelism ceilings
+/// (spec/execution-controls.md). Returns an `INVALID_BATCH_REQUEST` error when a ceiling is
+/// exceeded, or `std::nullopt` when within limits.
+std::optional<CommandError>
+check_batch_limits(const BatchRequest& request, std::size_t max_batch_size = default_max_batch_size,
+                   std::size_t max_batch_parallelism = default_max_batch_parallelism);
+
 /// Checks a batch envelope the way TypeScript's `isBatchRequest` does, before anything runs: a
 /// non-empty list of commands with non-blank names and string IDs, a boolean `stopOnError`, a
 /// finite `timeout` >= 0 and an integer `parallelism` > 0. Rejects with INVALID_BATCH_REQUEST.

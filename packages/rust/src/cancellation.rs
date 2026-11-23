@@ -13,7 +13,7 @@ use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Weak};
 use std::task::{Context, Poll, Waker};
 
 /// The longest progress message a task keeps, in bytes; a longer one is cut at a character
@@ -24,22 +24,44 @@ pub const MAX_PROGRESS_MESSAGE_BYTES: usize = 1024;
 struct SignalState {
     fired: AtomicBool,
     wakers: Mutex<Vec<Waker>>,
+    children: Mutex<Vec<Weak<SignalState>>>,
 }
 
-/// A signal that fires once and stays fired: [`CommandContext::cancellation`] of a command that
-/// runs as an MCP task.
+/// Cooperative cancellation token alias (`spec/execution-controls.md`).
+pub type CancellationToken = CancellationSignal;
+
+/// A signal that fires once and stays fired: [`CommandContext::cancellation`].
 ///
-/// Clones share the signal. Read it with [`Self::is_cancelled`], or await [`Self::cancelled`].
+/// Clones share the signal. Read it with [`Self::is_cancelled`], await [`Self::cancelled`],
+/// trigger it with [`Self::cancel`], or derive a linked child with [`Self::child`].
 ///
 /// [`CommandContext::cancellation`]: crate::CommandContext::cancellation
 #[derive(Clone, Default)]
 pub struct CancellationSignal(Arc<SignalState>);
 
 impl CancellationSignal {
-    /// A signal that has not fired. Only the server fires one.
-    #[cfg_attr(not(feature = "server"), allow(dead_code))]
-    pub(crate) fn new() -> Self {
+    /// Create a signal that has not fired yet.
+    pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Create a child signal that fires automatically when this signal fires (or immediately if
+    /// this signal has already fired). Cancelling the child does not cancel the parent.
+    pub fn child(&self) -> Self {
+        let child = Self::new();
+        if self.is_cancelled() {
+            child.cancel();
+            return child;
+        }
+        let mut children = lock(&self.0.children);
+        if self.is_cancelled() {
+            drop(children);
+            child.cancel();
+            return child;
+        }
+        children.retain(|weak| weak.strong_count() > 0);
+        children.push(Arc::downgrade(&child.0));
+        child
     }
 
     /// Whether the signal fired.
@@ -52,15 +74,21 @@ impl CancellationSignal {
         Cancelled(self.clone())
     }
 
-    /// Fire the signal and wake everything waiting on it. Firing again does nothing.
-    #[cfg_attr(not(feature = "server"), allow(dead_code))]
-    pub(crate) fn cancel(&self) {
+    /// Fire the signal, cascade to any linked child signals, and wake everything waiting on it.
+    /// Firing again does nothing.
+    pub fn cancel(&self) {
         if self.0.fired.swap(true, Ordering::SeqCst) {
             return;
         }
         let wakers = std::mem::take(&mut *lock(&self.0.wakers));
         for waker in wakers {
             waker.wake();
+        }
+        let children = std::mem::take(&mut *lock(&self.0.children));
+        for child in children {
+            if let Some(state) = child.upgrade() {
+                CancellationSignal(state).cancel();
+            }
         }
     }
 }

@@ -354,6 +354,11 @@ function cloneTaskContext(
 	for (const key of Object.keys(context)) {
 		copy[key] = (context as Record<string, unknown>)[key];
 	}
+	// MCP Tasks are bounded by their own TTL (default 5 min) and cancellation signal rather than
+	// the inline server defaultTimeoutMs; keep an explicit per-request timeout if the hook set one.
+	if (copy.timeout === undefined) {
+		copy.timeout = 0;
+	}
 	let taskContext: CommandContext = {
 		...(copy as CommandContext),
 		signal,

@@ -16,6 +16,7 @@
 #include "afd/expected.hpp"
 #include "afd/json.hpp"
 
+#include <cstddef>
 #include <memory>
 #include <optional>
 #include <string>
@@ -23,6 +24,9 @@
 #include <vector>
 
 namespace afd {
+
+/// Normative default cap on reported issues per `VALIDATION_ERROR` (spec/execution-controls.md).
+inline constexpr std::size_t default_max_validation_issues = 100;
 
 /// One validation problem. `path` joins keys and array indices with dots ("todos.1.title");
 /// "(root)" is the input itself. `code` uses Zod 4's issue codes: invalid_type, too_small,
@@ -42,6 +46,9 @@ struct ValidationFailure {
     std::vector<std::string> expected_fields;
     std::vector<std::string> unexpected_fields;
     std::vector<std::string> missing_fields;
+    bool truncated = false;
+    std::optional<std::size_t> limit;
+    std::optional<std::size_t> total_errors;
 };
 
 /// A schema checked once at registration and reused for every call.
@@ -51,8 +58,9 @@ public:
     static Expected<CompiledSchema> compile(const Json& schema);
 
     /// Returns the parsed input: defaults applied, and undeclared object members removed unless
-    /// `additionalProperties` allows them. Never throws.
-    [[nodiscard]] Expected<Json, ValidationFailure> validate(const Json& input) const;
+    /// `additionalProperties` allows them. Caps reported issues at `max_issues`. Never throws.
+    [[nodiscard]] Expected<Json, ValidationFailure>
+    validate(const Json& input, std::size_t max_issues = default_max_validation_issues) const;
 
     [[nodiscard]] const Json& schema() const noexcept { return *schema_; }
 

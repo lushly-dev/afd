@@ -7,32 +7,10 @@
 		"maxValidationIssues": 100
 	},
 	"gaps": {
-		"typescript": {
-			"defaultDeadline": "https://github.com/lushly-dev/afd/issues/2128",
-			"batchLimits": "https://github.com/lushly-dev/afd/issues/2128",
-			"validationIssueCap": "https://github.com/lushly-dev/afd/issues/2128"
-		},
-		"python": {
-			"deadline": "https://github.com/lushly-dev/afd/issues/2129",
-			"defaultDeadline": "https://github.com/lushly-dev/afd/issues/2129",
-			"singleCancellation": "https://github.com/lushly-dev/afd/issues/2129",
-			"batchCancellation": "https://github.com/lushly-dev/afd/issues/2129",
-			"validationIssueCap": "https://github.com/lushly-dev/afd/issues/2129"
-		},
-		"rust": {
-			"deadlineSignal": "https://github.com/lushly-dev/afd/issues/2130",
-			"defaultDeadline": "https://github.com/lushly-dev/afd/issues/2130",
-			"singleCancellation": "https://github.com/lushly-dev/afd/issues/2130",
-			"batchCancellation": "https://github.com/lushly-dev/afd/issues/2130",
-			"batchLimits": "https://github.com/lushly-dev/afd/issues/2130",
-			"validationIssueCap": "https://github.com/lushly-dev/afd/issues/2130"
-		},
 		"cpp": {
 			"deadline": "https://github.com/lushly-dev/afd/issues/1766",
 			"defaultDeadline": "https://github.com/lushly-dev/afd/issues/1766",
-			"singleCancellation": "https://github.com/lushly-dev/afd/issues/1766",
-			"batchLimits": "https://github.com/lushly-dev/afd/issues/2131",
-			"validationIssueCap": "https://github.com/lushly-dev/afd/issues/2131"
+			"singleCancellation": "https://github.com/lushly-dev/afd/issues/1766"
 		}
 	},
 	"cases": [

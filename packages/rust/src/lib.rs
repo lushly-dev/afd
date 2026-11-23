@@ -175,15 +175,18 @@ pub use metadata::{
 // ═══════════════════════════════════════════════════════════════════════════════
 
 pub use commands::{
-    command_result_output_schema, command_to_mcp_tool, command_tool_annotations,
-    create_command_registry, default_expose, is_exposed_to, validate_command_name, BoxFuture,
-    CallGrant, CommandConfirmationMode, CommandContext, CommandDefinition, CommandExample,
-    CommandHandler, CommandInterface, CommandMiddleware, CommandParameter, CommandRegistry,
-    ExecutionTime, ExposeOptions, JsonSchema, JsonSchemaType, McpInputSchema, McpTool,
-    MiddlewareNext, TaskSupport,
+    check_batch_limits, command_result_output_schema, command_to_mcp_tool,
+    command_tool_annotations, create_command_registry, default_expose, is_exposed_to,
+    validate_command_name, BoxFuture, CallGrant, CommandConfirmationMode, CommandContext,
+    CommandDefinition, CommandExample, CommandHandler, CommandInterface, CommandMiddleware,
+    CommandParameter, CommandRegistry, ExecutionTime, ExposeOptions, JsonSchema, JsonSchemaType,
+    McpInputSchema, McpTool, MiddlewareNext, TaskSupport, DEFAULT_COMMAND_TIMEOUT_MS,
+    DEFAULT_MAX_BATCH_PARALLELISM, DEFAULT_MAX_BATCH_SIZE, DEFAULT_MAX_VALIDATION_ISSUES,
 };
 
-pub use cancellation::{CancellationSignal, Cancelled, MAX_PROGRESS_MESSAGE_BYTES};
+pub use cancellation::{
+    CancellationSignal, CancellationToken, Cancelled, MAX_PROGRESS_MESSAGE_BYTES,
+};
 
 pub use canonical::input_digest;
 pub use credentials::{

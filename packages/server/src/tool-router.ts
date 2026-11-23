@@ -17,6 +17,7 @@ import type {
 	PipelineResult,
 } from '@lushly-dev/afd-core';
 import {
+	checkBatchLimits,
 	createFailedBatchResult,
 	failedBatchRequest,
 	failure,
@@ -96,6 +97,10 @@ export interface ToolRouterDeps {
 	contextState?: ContextState;
 	/** Confirmation enforcement (`confirmations` server option); none means off. */
 	confirmations?: ConfirmationGate;
+	/** Maximum commands accepted in a single batch (default: 500). */
+	maxBatchSize?: number;
+	/** Maximum parallelism accepted in a single batch (default: 16). */
+	maxBatchParallelism?: number;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -397,6 +402,13 @@ export function createToolRouter(deps: ToolRouterDeps) {
 					),
 					true
 				);
+			}
+			const limitError = checkBatchLimits(args, {
+				maxBatchSize: deps.maxBatchSize,
+				maxBatchParallelism: deps.maxBatchParallelism,
+			});
+			if (limitError) {
+				return resultContent(createFailedBatchResult(limitError, {}), true);
 			}
 			const batchArgs = args as unknown as Record<string, unknown>;
 			const requiredBatch = requiredTaskIn(args.commands);

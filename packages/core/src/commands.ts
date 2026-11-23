@@ -598,6 +598,10 @@ export interface CommandRegistryOptions {
 	 * (`spec/command-metadata.md`, "App-to-app calls").
 	 */
 	callGrant?: CallGrant;
+	/** Maximum commands accepted in a single batch (default: 500). */
+	maxBatchSize?: number;
+	/** Maximum parallelism accepted in a single batch (default: 16). */
+	maxBatchParallelism?: number;
 }
 
 /**
@@ -609,6 +613,13 @@ export interface CommandRegistryOptions {
  * deadline and error redaction behave the same on every entry point.
  */
 export function createCommandRegistry(options: CommandRegistryOptions = {}): CommandRegistry {
+	const validatePositiveInt = (value: number | undefined, name: string): void => {
+		if (value !== undefined && (!Number.isInteger(value) || value < 1)) {
+			throw new RangeError(`${name} must be a positive integer`);
+		}
+	};
+	validatePositiveInt(options.maxBatchSize, 'maxBatchSize');
+	validatePositiveInt(options.maxBatchParallelism, 'maxBatchParallelism');
 	const commands = new Map<string, CommandDefinition>();
 	const devMode = options.devMode === true;
 
@@ -740,7 +751,11 @@ export function createCommandRegistry(options: CommandRegistryOptions = {}): Com
 				request,
 				(name, input, commandContext) => registry.execute(name, input, commandContext),
 				context,
-				{ devMode }
+				{
+					devMode,
+					maxBatchSize: options.maxBatchSize,
+					maxBatchParallelism: options.maxBatchParallelism,
+				}
 			);
 			return result as BatchResult<TOutput>;
 		},

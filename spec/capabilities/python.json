@@ -144,9 +144,13 @@
 			"evidence": ["python/tests/test_exception_redaction.py"]
 		},
 		"single.cancellation": {
-			"status": "partial",
-			"note": "DirectClient enforces positive finite millisecond deadlines; server per-command timeout remains deferred",
-			"evidence": ["python/src/afd/direct.py", "python/tests/test_execution_controls_vectors.py"]
+			"status": "yes",
+			"note": "`asyncio` cancellation and `context.signal` (`asyncio.Event`); DirectClient and `MCPServer` enforce positive finite `context.timeout` and default `30000` ms (`default_timeout_ms`) deadlines, returning `TIMEOUT`; pre-cancelled single and batch calls return `COMMAND_CANCELLED` (#2129)",
+			"evidence": [
+				"python/src/afd/direct.py",
+				"python/src/afd/server/factory.py",
+				"python/tests/test_execution_controls_vectors.py"
+			]
 		},
 		"single.clock-random": {
 			"status": "yes",
@@ -312,8 +316,9 @@
 		},
 		"exec.batch": {
 			"status": "partial",
-			"note": "private `MCPServer._execute_batch`, with limits of 500 commands and parallelism 16; observed failure stops new starts and drains running work normally",
+			"note": "private `MCPServer._execute_batch`, with limits of 500 commands and parallelism 16 (`check_batch_limits`); observed failure stops new starts and drains running work normally; caller cancellation stops scheduling (#2129)",
 			"evidence": [
+				"python/src/afd/core/batch.py",
 				"python/src/afd/server/batch_execution.py",
 				"python/tests/test_batch_controls_vectors.py"
 			]

@@ -163,6 +163,8 @@ export function createDirectToolSurface(options: DirectToolSurfaceOptions = {}):
 				devMode: host.devMode,
 				allCommands: listed,
 				exposedCommandNames: names,
+				maxBatchSize: host.maxBatchSize,
+				maxBatchParallelism: host.maxBatchParallelism,
 			});
 
 			return {

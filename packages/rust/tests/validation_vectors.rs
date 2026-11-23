@@ -138,6 +138,13 @@ async fn shared_validation_vectors() {
                         assert_eq!(sorted(actual), sorted(expected), "{label}: {field}");
                     }
                 }
+                for field in ["truncated", "limit", "totalErrors"] {
+                    assert_eq!(
+                        error["details"].get(field),
+                        test["error"]["details"].get(field),
+                        "{label}: {field}: {error}"
+                    );
+                }
                 let errors = error["details"]["errors"].as_array().unwrap();
                 let mut parts = vec![errors
                     .iter()
@@ -174,6 +181,14 @@ async fn shared_validation_vectors() {
                                 .join(", ")
                         ));
                     }
+                }
+                if error["details"].get("truncated") == Some(&json!(true)) {
+                    let limit = error["details"]["limit"]
+                        .as_u64()
+                        .unwrap_or(errors.len() as u64);
+                    parts.push(format!(
+                        "Showing first {limit} validation issues; fix these and retry"
+                    ));
                 }
                 assert_eq!(error["suggestion"], json!(parts.join(". ")), "{label}");
             }

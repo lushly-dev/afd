@@ -129,6 +129,18 @@ CommandRegistry::CommandRegistry(CommandRegistryOptions options) : options_(std:
     if (!options_.random) {
         options_.random = std::make_shared<SystemRandom>();
     }
+    if (options_.max_batch_size == 0) {
+        options_error_ = "max_batch_size must be at least 1";
+        return;
+    }
+    if (options_.max_batch_parallelism == 0) {
+        options_error_ = "max_batch_parallelism must be at least 1";
+        return;
+    }
+    if (options_.max_validation_issues == 0) {
+        options_error_ = "max_validation_issues must be at least 1";
+        return;
+    }
     auto fields = detail::compile_context_fields(options_.context_fields);
     if (fields) {
         context_schemas_ = std::move(fields->schemas);
@@ -150,7 +162,9 @@ ExecutorOptions CommandRegistry::executor_options() const {
     return {.dev_mode = options_.dev_mode,
             .clock = options_.clock,
             .random = options_.random,
-            .runner = options_.runner};
+            .runner = options_.runner,
+            .max_batch_size = options_.max_batch_size,
+            .max_batch_parallelism = options_.max_batch_parallelism};
 }
 
 CommandExecutor CommandRegistry::executor() const {
@@ -375,7 +389,7 @@ CommandResult CommandRegistry::execute_impl(std::string_view name, const Json& i
         return failure(create_error(
             error_codes::INTERNAL_ERROR,
             "The command registry is misconfigured: " + *options_error_,
-            {.suggestion = "Fix CommandRegistryOptions::context_fields; CommandRegistry::create "
+            {.suggestion = "Fix the invalid CommandRegistryOptions; CommandRegistry::create "
                            "reports this error when the registry is created",
              .retryable = false}));
     }
@@ -457,7 +471,7 @@ CommandResult CommandRegistry::execute_impl(std::string_view name, const Json& i
     }
 
     // 4. Validation.
-    auto validated = command->input_schema.validate(input);
+    auto validated = command->input_schema.validate(input, options_.max_validation_issues);
     if (!validated) {
         return failure(validation_failure_error(validated.error()));
     }

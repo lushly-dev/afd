@@ -19,7 +19,7 @@ import { upFrontApproval } from './approval-relay.js';
 import { createContextCommands, getBootstrapCommands } from './bootstrap/registry.js';
 import { assertValidCommandNames, assertValidFirstClassTools } from './command-names.js';
 import { filterByContext } from './command-routing.js';
-import { withCommandDeadlines } from './command-timeout.js';
+import { resolveDefaultTimeoutMs, withCommandDeadlines } from './command-timeout.js';
 import { createConfirmationGate } from './confirmation-gate.js';
 import { checkContextFields } from './context-fields.js';
 import { createContextState, resolveContextState } from './context-scope.js';
@@ -50,7 +50,7 @@ import { assertValidTaskCommands } from './tasks.js';
 import { TaskRuntime } from './tasks-runtime.js';
 import { createToolRouter } from './tool-router.js';
 import { getToolsList } from './tools.js';
-import { validateInputEnhanced } from './validation.js';
+import { resolveMaxValidationIssues, validateInputEnhanced } from './validation.js';
 
 export type {
 	CommandMiddleware,
@@ -184,8 +184,24 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		commandMap.set(cmd.name, cmd);
 	}
 
+	const defaultTimeoutMs = resolveDefaultTimeoutMs(options.defaultTimeoutMs);
+	const maxValidationIssues = resolveMaxValidationIssues(options.maxValidationIssues);
+	if (
+		options.maxBatchSize !== undefined &&
+		(!Number.isSafeInteger(options.maxBatchSize) || options.maxBatchSize <= 0)
+	) {
+		throw new RangeError('maxBatchSize must be a positive integer');
+	}
+	if (
+		options.maxBatchParallelism !== undefined &&
+		(!Number.isSafeInteger(options.maxBatchParallelism) || options.maxBatchParallelism <= 0)
+	) {
+		throw new RangeError('maxBatchParallelism must be a positive integer');
+	}
+	const { maxBatchSize, maxBatchParallelism } = options;
+
 	const contextDefaults = { clock: options.clock, random: options.random };
-	const commandMiddleware = withCommandDeadlines(middleware);
+	const commandMiddleware = withCommandDeadlines(middleware, defaultTimeoutMs);
 	const engine = createExecutionEngine({
 		commandMap,
 		middleware: commandMiddleware,
@@ -194,6 +210,9 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		onError,
 		contextDefaults,
 		contextFields,
+		maxBatchSize,
+		maxBatchParallelism,
+		maxValidationIssues,
 	});
 
 	const remoteCommands = registeredCommands.filter((command) => isMcpExposed(command));
@@ -217,7 +236,7 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 			const command = remoteCommandMap.get(commandName);
 			const approved = command && (await upFrontApproval(context)?.validated(commandName, input));
 			if (!approved) return undefined;
-			const checked = validateInputEnhanced(command.inputSchema, input);
+			const checked = validateInputEnhanced(command.inputSchema, input, maxValidationIssues);
 			return checked.success ? { ...checked, data: approved.input } : checked;
 		},
 		devMode,
@@ -226,6 +245,9 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		contextState,
 		contextDefaults: { ...contextDefaults, actor: options.actor ?? { kind: 'agent' } },
 		contextFields,
+		maxBatchSize,
+		maxBatchParallelism,
+		maxValidationIssues,
 	});
 	const exposedCommandNames = new Set(remoteCommands.map((c) => c.name));
 	const confirmations = createConfirmationGate(options.confirmations ?? 'off', remoteCommands);
@@ -245,6 +267,8 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		exposedCommandNames,
 		contextState,
 		confirmations,
+		maxBatchSize,
+		maxBatchParallelism,
 	});
 
 	const boundGetToolsList = (context: CommandContext = {}) =>
@@ -334,6 +358,8 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		modern,
 		auth,
 		tasks: taskRuntime,
+		maxBatchSize,
+		maxBatchParallelism,
 	});
 	const dispose = () => {
 		taskRuntime.dispose();

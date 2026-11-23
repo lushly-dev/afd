@@ -179,11 +179,17 @@ pub struct CommandContext {
     /// client"): only the MCP server sets it, for a caller its `with_approver` predicate names. It
     /// holds the evidence of `_meta["dev.afd/approval"]` until the first approval check takes it.
     pub(crate) approver: Option<Arc<crate::approval::approver::ApproverCall>>,
-    /// The cancellation signal of a call the MCP server runs as a task (`spec/command-metadata.md`,
-    /// "Tasks"): only the server sets it. Read it with [`CommandContext::cancellation`].
+    /// The cancellation signal of a call (`spec/execution-controls.md`, `spec/command-metadata.md`):
+    /// set by a caller with [`CommandContext::with_cancellation`], by a command deadline, or by the
+    /// MCP server when running a task. Read it with [`CommandContext::cancellation`].
     pub(crate) cancellation: Option<crate::cancellation::CancellationSignal>,
     /// Where a task's progress goes ([`CommandContext::report_progress`]): only the server sets it.
     pub(crate) task_progress: Option<Arc<crate::cancellation::TaskProgress>>,
+    /// Optional per-call override for the registry's `default_timeout_ms`:
+    /// `Some(Some(ms))` applies a server default deadline without mutating `timeout_ms`
+    /// (preserving journal context digests), and `Some(None)` disables the default deadline
+    /// (e.g. `McpServer::with_default_timeout_ms(None)` or MCP Tasks bounded by TTL).
+    pub(crate) default_timeout_override: Option<Option<u64>>,
     /// Which command this call runs and whether an approval step admitted it (#1886): only
     /// [`CommandRegistry::execute`](super::CommandRegistry::execute) sets it, afresh for every
     /// call, and it is removed before the handler runs.
@@ -331,23 +337,29 @@ impl CommandContext {
         self
     }
 
-    /// The cancellation signal of a call the MCP server runs as a task (`spec/command-metadata.md`,
-    /// "Tasks"): it fires on `tasks/cancel`, when the task's `ttlMs` ends, and when the token
-    /// that started the task expires. `None` for every other call.
-    ///
-    /// The server stops the handler when it fires, at the handler's next `.await`, and settles
-    /// the task itself (`cancelled`, `TASK_TOKEN_EXPIRED`, or gone at its TTL). Work the handler
-    /// spawned elsewhere, and a loop that does not await, should read it and stop.
+    /// Attach a cooperative cancellation signal to this call (`spec/execution-controls.md`).
+    pub fn with_cancellation(mut self, signal: crate::cancellation::CancellationSignal) -> Self {
+        self.cancellation = Some(signal);
+        self
+    }
+
+    /// The cancellation signal of this call (`spec/execution-controls.md`, `spec/command-metadata.md`):
+    /// set by a caller via [`Self::with_cancellation`], linked to a command deadline, or attached by
+    /// the MCP server for a task. `None` when none applies.
     pub fn cancellation(&self) -> Option<&crate::cancellation::CancellationSignal> {
         self.cancellation.as_ref()
     }
 
-    /// Whether this call runs as a task whose cancellation signal fired (see
-    /// [`Self::cancellation`]); always `false` for a call that is not a task.
+    /// Whether this call's cancellation signal has fired (see [`Self::cancellation`]).
     pub fn is_cancelled(&self) -> bool {
         self.cancellation
             .as_ref()
             .is_some_and(crate::cancellation::CancellationSignal::is_cancelled)
+    }
+
+    /// Whether this call is running as an MCP task (`spec/command-metadata.md`, "Tasks").
+    pub fn is_task(&self) -> bool {
+        self.task_progress.is_some()
     }
 
     /// Report progress: for a call the MCP server runs as a task, `message` becomes the task's

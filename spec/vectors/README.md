@@ -160,11 +160,11 @@ Comparison rules:
 - A case with `optionalKeywords` must fail to register in a language that does not support one
   of them.
 - `exceptions` marks tests where a named language may differ, and says why.
-- The legacy `issue-count-uncapped` case predates the `maxValidationIssues = 100` cap in
-  [`spec/execution-controls.md`](../execution-controls.md#validation-issue-cap) and will be updated
-  with a `Behaviour change:` changeset when
+- `issue-count-capped` verifies the `maxValidationIssues = 100` cap in
+  [`spec/execution-controls.md`](../execution-controls.md#validation-issue-cap) (replacing the
+  pre-cap `issue-count-uncapped` case when
   [#2128](https://github.com/lushly-dev/afd/issues/2128)–[#2131](https://github.com/lushly-dev/afd/issues/2131)
-  land.
+  landed).
 
 ### `approval-tokens.json`
 

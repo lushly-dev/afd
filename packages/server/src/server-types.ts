@@ -438,6 +438,37 @@ export interface McpServerOptions {
 	 * `callersIdentifiedByHook`.
 	 */
 	taskOptions?: TaskOptions;
+
+	/**
+	 * Server-level default per-command deadline in milliseconds (`spec/execution-controls.md`).
+	 * Applied when a call does not specify its own `context.timeout`. Pass `0` or `null` to
+	 * disable the default deadline for trusted long-running deployments.
+	 *
+	 * @default 30000
+	 */
+	defaultTimeoutMs?: number | null;
+
+	/**
+	 * Maximum number of commands accepted in a single batch (`spec/execution-controls.md`).
+	 *
+	 * @default 500
+	 */
+	maxBatchSize?: number;
+
+	/**
+	 * Maximum `options.parallelism` accepted in a single batch (`spec/execution-controls.md`).
+	 *
+	 * @default 16
+	 */
+	maxBatchParallelism?: number;
+
+	/**
+	 * Maximum number of validation issues reported per `VALIDATION_ERROR`
+	 * (`spec/execution-controls.md`).
+	 *
+	 * @default 100
+	 */
+	maxValidationIssues?: number;
 }
 
 /**

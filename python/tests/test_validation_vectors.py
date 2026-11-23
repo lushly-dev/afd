@@ -76,6 +76,10 @@ async def test_validation_vector(case, test):
     for key in ("expectedFields", "unexpectedFields", "missingFields"):
         assert (key in actual["details"]) == (key in expected["details"])
         assert sorted(actual["details"].get(key, [])) == sorted(expected["details"].get(key, []))
+    for key in ("truncated", "limit", "totalErrors"):
+        assert (key in actual["details"]) == (key in expected["details"])
+        if key in expected["details"]:
+            assert actual["details"][key] == expected["details"][key]
     assert actual["suggestion"] == format_enhanced_validation_error(
         [ValidationError(**issue) for issue in actual["details"]["errors"]], actual["details"]
     )

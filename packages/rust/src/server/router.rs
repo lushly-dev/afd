@@ -263,6 +263,10 @@ impl Call<'_> {
     fn execution_context(&self) -> CommandContext {
         let mut context = self.base.clone();
         context.context_scope = self.scope.clone();
+        // Apply the server's default deadline without mutating `context.timeout_ms`, so
+        // journal context digests match calls that supply no explicit per-call timeout and
+        // `with_default_timeout_ms(None)` overrides any registry-level default.
+        context.default_timeout_override = Some(self.server.inner.default_timeout_ms);
         let mut surface = self.server.tool_surface();
         // `afd-help` reports the first-class tools: only those this caller's list shows.
         if let (Some(names), Some(visible)) = (&surface.first_class_tools, &self.visible) {
@@ -283,6 +287,14 @@ impl Call<'_> {
         context.known = self.known.clone();
         context.approver = self.approver.clone();
         context.scope_check = authz::execution_check(self.server, context.credentials.as_ref());
+        context
+    }
+
+    /// Context for an MCP Task run: keeps any explicit hook `timeout_ms`, otherwise lets the
+    /// task's own `ttl_ms` govern execution rather than the inline server `default_timeout_ms`.
+    fn task_execution_context(&self) -> CommandContext {
+        let mut context = self.execution_context();
+        context.default_timeout_override = Some(None);
         context
     }
 
@@ -458,7 +470,7 @@ impl Call<'_> {
             if tasks::declares_tasks(self.context) {
                 return self
                     .server
-                    .start_task(command, input, self.execution_context())
+                    .start_task(command, input, self.task_execution_context())
                     .await;
             }
             if support == TaskSupport::Required {
@@ -712,6 +724,9 @@ impl Call<'_> {
             Ok(request) => request,
             Err(_) => return invalid(USAGE.to_owned(), None),
         };
+        if let Some(error) = self.server.inner.registry.check_batch_limits(&request) {
+            return batch_failure(error);
+        }
         let steps: Vec<Step> = request
             .commands
             .iter()

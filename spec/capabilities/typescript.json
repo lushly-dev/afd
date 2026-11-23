@@ -173,7 +173,7 @@
 		},
 		"single.cancellation": {
 			"status": "yes",
-			"note": "`AbortSignal`; DirectClient and the server engine enforce positive finite `context.timeout` millisecond deadlines, returning `TIMEOUT` and aborting the signal (#543)",
+			"note": "`AbortSignal`; DirectClient and the server engine enforce positive finite `context.timeout` and default `30000` ms (`defaultTimeoutMs`) deadlines, returning `TIMEOUT` and aborting the signal; pre-cancelled calls return `COMMAND_CANCELLED` (#543, #2128)",
 			"evidence": [
 				"packages/server/src/command-timeout.ts",
 				"packages/server/src/command-timeout.test.ts",
@@ -355,6 +355,7 @@
 		},
 		"exec.batch": {
 			"status": "yes",
+			"note": "`maxBatchSize = 500`, `maxBatchParallelism = 16`, `checkBatchLimits` (#2128)",
 			"evidence": ["packages/core/src/command-execution.ts", "spec/vectors/batch-controls.json"]
 		},
 		"exec.pipeline-variables": {

@@ -260,13 +260,13 @@ impl Refusal {
 /// A task's checks before each host service, its batches (phase 5 section 12.2): a stopped task
 /// gets nothing more, and the reader filter is rebuilt from the current configuration and the
 /// call's stored scopes and claim groups for every space of the call, refusing one the caller can
-/// no longer read. A call that is not a task (no cancellation signal) passes.
+/// no longer read. A call that is not a task passes.
 pub(crate) fn task_guard(
     config: &crate::workspace::Config,
     context: &CommandContext,
     spaces: &[SpaceId],
 ) -> Result<(), Refusal> {
-    if context.cancellation().is_none() {
+    if !context.is_task() {
         return Ok(());
     }
     if context.is_cancelled() {
@@ -501,7 +501,7 @@ impl CallServices {
             self.revoked.store(true, Ordering::SeqCst);
         }
         #[cfg(feature = "testkit")]
-        if self.context.cancellation().is_some() {
+        if self.context.is_task() {
             crate::testkit::note_task_service(
                 self.command.as_deref().unwrap_or_default(),
                 outcome.is_err(),
@@ -1162,7 +1162,13 @@ mod task_guard_tests {
             &ada,
             &[SpaceId::parse("gone").unwrap()]
         ));
-        // A call that is not a task is never refused by the guard.
+        // A call that is not a task is never refused by the guard, even when carrying a
+        // deadline-linked cancellation signal.
         assert_eq!(task_guard(after.config(), &ada, &alpha), Ok(()));
+        let inline_with_signal = ada.with_cancellation(afd::CancellationSignal::new());
+        assert_eq!(
+            task_guard(after.config(), &inline_with_signal, &alpha),
+            Ok(())
+        );
     }
 }

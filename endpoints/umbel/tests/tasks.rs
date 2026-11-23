@@ -135,7 +135,7 @@ fn seen(input: &Value, context: &CommandContext) -> CommandResult<Value> {
         "space": input["space"],
         "actor": context.actor,
         "principal": context.extra.get("dev.umbel/principal"),
-        "task": context.cancellation().is_some(),
+        "task": context.is_task(),
     }))
 }
 
