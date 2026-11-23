@@ -187,9 +187,9 @@ describe('P2-E1: one first paint', () => {
 		// phase 5's step 4 (the app-call registry and the refusal of a client kept past a copilot call), and phase 3's
 		// step 9 (R9, the identity pages' appearance), phase 6's step 11b, phase 5's step 6 (the journal's rule for a
 		// unit's entries), #865 (`JOURNAL_RESULT_UNSERIALIZABLE` fallback in `afd-server`'s journal middleware), and
-		// #1989 / PR #2215 (TypeScript output budgets in `afd-core` and `afd-server`, measured 340,626 against `main`
-		// at `0b56ceecb`).
-		expect(javascript).toBeLessThanOrEqual(341_100);
+		// #1989 / PR #2215 (TypeScript output budgets in `afd-core` and `afd-server`), and the Phase 4 bug batch
+		// (#2111/#2112 stage A `boot.gated` and layout reconciliation).
+		expect(javascript).toBeLessThanOrEqual(341_600);
 		expect(javascript).toBe(budgetRow());
 		// Stage B still runs in every deployment: `late` loads after the mark, on the empty shell too.
 		await expect

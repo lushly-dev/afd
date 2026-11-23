@@ -15,6 +15,7 @@ import {
 	deploymentEntry,
 	deploymentFile,
 	focused,
+	journal,
 	kernelCall,
 	openApp,
 	openShell,
@@ -212,6 +213,8 @@ describe('P4-E1: the settings section by keyboard, and under axe (15)', () => {
 			.toBe('Project');
 		// The level switcher's arrows choose a level.
 		await kernelCall(page, 'section-open', { section: 'settings', target: 'hello.general' });
+		// Wait for General to paint (Project also had a "Project Atlas" tab, alone).
+		await expect.poll(() => view.locator('#settings-section-title').textContent()).toBe('General');
 		await expect
 			.poll(() => view.locator('[role="tab"][aria-selected="true"]').textContent())
 			.toBe('Project Atlas');
@@ -502,12 +505,20 @@ describe("P4-E1: step 2's reviews", () => {
 			target: 'loam.appearance.theme',
 		});
 		await expect.poll(target).toBe('theme');
+		const beforeDensity = (await journal(page)).filter(
+			({ command }) => command === 'section-open'
+		).length;
 		await kernelCall(page, 'section-open', {
 			section: 'settings',
 			target: 'loam.appearance.density',
 		});
 		await expect.poll(target).toBe('density');
 		await expect.poll(() => new URL(page.url()).hash).toBe('#density');
+		await settle(page);
+		// #2098: the shell's own `#density` write must not trigger a duplicate journaled `section-open`.
+		expect((await journal(page)).filter(({ command }) => command === 'section-open').length).toBe(
+			beforeDensity + 1
+		);
 		await page.goBack();
 		await expect.poll(() => new URL(page.url()).hash).toBe('#theme');
 		await expect.poll(target).toBe('theme');
@@ -538,6 +549,106 @@ describe("P4-E1: step 2's reviews", () => {
 		expect(
 			await kernelCall(page, 'setting-get', { section: 'hello.general', key: 'signoff' })
 		).toMatchObject({ data: { value: '', from: 'workspace' } });
+		await page.close();
+	});
+
+	it('keeps the new project tree and level tabs when a panel re-read lands mid-show() (#2097)', async () => {
+		const { page } = await inAtlas();
+		const beacon = (
+			(await kernelCall(page, 'project-create', { name: 'Beacon', slug: 'beacon' })) as {
+				data: { id: string };
+			}
+		).data.id;
+		// Give Beacon its own project-level greeting so we can verify the panel also reflects Beacon.
+		await kernelCall(page, 'scope-set', { project: beacon });
+		await kernelCall(page, 'setting-set', {
+			section: 'hello.general',
+			key: 'greeting',
+			value: 'Hi Beacon',
+			level: 'project',
+		});
+		await kernelCall(page, 'scope-set', { project: 'atlas' });
+		await kernelCall(page, 'section-open', {
+			section: 'settings',
+			target: 'hello.general.greeting',
+		});
+		const view = section(page);
+		await expect
+			.poll(() => view.locator('[role="tab"][aria-selected="true"]').textContent())
+			.toBe('Project Atlas');
+
+		// Hold show()'s setting-schema-get when switching to Beacon, fire a settings mutation while show() is
+		// paused, and confirm the panel neither calls setting-list nor repaints Beacon values under the stale
+		// Project Atlas tab, and does not abort show() once the schema read resolves.
+		const paused = await page.evaluate(async (beaconId) => {
+			const shell = document.querySelector('loam-shell') as unknown as {
+				shadowRoot: ShadowRoot;
+				kernel: {
+					call(name: string, input?: unknown, options?: unknown): Promise<unknown>;
+				};
+			};
+			const orig = shell.kernel.call.bind(shell.kernel);
+			let releaseSchema: (() => void) | undefined;
+			let schemaHeld = false;
+			let settingListWhilePaused = false;
+			let resolveSchemaStarted!: () => void;
+			const schemaStarted = new Promise<void>((resolve) => {
+				resolveSchemaStarted = resolve;
+			});
+
+			shell.kernel.call = async (name: string, input?: unknown, options?: unknown) => {
+				if (name === 'setting-schema-get' && !schemaHeld) {
+					schemaHeld = true;
+					resolveSchemaStarted();
+					await new Promise<void>((resolve) => {
+						releaseSchema = resolve;
+					});
+				}
+				if (name === 'setting-list' && schemaHeld && releaseSchema) {
+					settingListWhilePaused = true;
+				}
+				return orig(name, input, options);
+			};
+
+			try {
+				await orig('scope-set', { project: beaconId });
+				await schemaStarted;
+				// Trigger a settings event while show() is paused on Beacon's schema read.
+				await orig('setting-set', {
+					section: 'hello.general',
+					key: 'signoff',
+					value: 'Best',
+					level: 'workspace',
+				});
+				await new Promise((resolve) => setTimeout(resolve, 25));
+				const fields =
+					shell.shadowRoot
+						.querySelector('loam-settings-section')
+						?.shadowRoot?.querySelectorAll('#settings-panel .field').length ?? -1;
+				const release = releaseSchema;
+				releaseSchema = undefined;
+				release?.();
+				return { fields, settingListWhilePaused };
+			} finally {
+				shell.kernel.call = orig;
+			}
+		}, beacon);
+
+		// While Beacon's schema read was held, #readPanel() neither read setting-list nor painted Beacon fields under Project Atlas.
+		expect(paused).toEqual({ fields: 0, settingListWhilePaused: false });
+		// scope-set resets path to '', so show() completed and painted the updated tree (not stuck on Project Atlas).
+		await expect
+			.poll(() => view.locator('[role="treeitem"][aria-selected="true"]').textContent())
+			.toBe('Appearance');
+		// Selecting General in Beacon shows Project Beacon's tab and value (not Atlas).
+		await view.locator('[role="treeitem"][data-section="hello.general"]').click();
+		await expect
+			.poll(() => view.locator('[role="tab"]').allTextContents())
+			.toEqual(['Workspace', 'Project Beacon']);
+		await expect
+			.poll(() => view.locator('[role="tab"][aria-selected="true"]').textContent())
+			.toBe('Project Beacon');
+		await expect.poll(() => view.locator('#field-greeting').inputValue()).toBe('Hi Beacon');
 		await page.close();
 	});
 });

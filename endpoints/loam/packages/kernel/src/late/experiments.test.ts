@@ -805,6 +805,472 @@ describe('P4-E5: R14: an unload never loses a dirty tab', () => {
 	});
 });
 
+describe('surface-gate layout declaration (#2112)', () => {
+	it('undeclares a gated surface until opened, closes it when disabled, and preserves it on reload when enabled', async () => {
+		const store = new MemoryAdapter();
+		const journal = new MemoryJournalSink();
+		const first = await workspace({ store, journal });
+		await first.kernel.call('experiment-enable', { experiment: BETA, audience: 'person' });
+		await first.kernel.call('app-open', { instance: 'probe' });
+
+		// With probe.pane off, opening the inspector or its compact drawer fails LAYOUT_PART_UNDECLARED.
+		expect((await first.kernel.call('layout-set', { inspector: { open: true } })).error?.code).toBe(
+			'LAYOUT_PART_UNDECLARED'
+		);
+		expect(
+			(await first.kernel.call('layout-set', { compact: { drawer: 'inspector' } })).error?.code
+		).toBe('LAYOUT_PART_UNDECLARED');
+		expect(
+			(
+				await first.kernel.call('view-state-set', {
+					id: 'loam.layout.probe',
+					state: { inspector: { open: true } },
+				})
+			).error?.code
+		).toBe('LAYOUT_PART_UNDECLARED');
+		// Sizing an undeclared part still succeeds, matching normal undeclared parts.
+		expect((await first.kernel.call('layout-set', { inspector: { width: 320 } })).success).toBe(
+			true
+		);
+
+		// Opening the gate declares the part and allows opening the inspector and its drawer.
+		await first.kernel.call('experiment-enable', { experiment: PANE, audience: 'person' });
+		expect((await first.kernel.call('layout-set', { inspector: { open: true } })).success).toBe(
+			true
+		);
+		expect(
+			(
+				await first.kernel.call<{
+					inspector: { open: boolean };
+					compact: { drawer: string | null };
+				}>('layout-get')
+			).data
+		).toMatchObject({ inspector: { open: true } });
+
+		// Reloading while the gate is still on keeps the persisted open inspector.
+		await first.kernel.dispose();
+		const kept = await workspace({ store, empty: true });
+		expect(
+			(await kept.kernel.call<{ inspector: { open: boolean } }>('layout-get')).data?.inspector.open
+		).toBe(true);
+
+		// Closing the gate closes the open inspector and drawer, and refuses reopening.
+		await kept.kernel.call('layout-set', { compact: { drawer: 'inspector' } });
+		await kept.kernel.call('experiment-disable', { experiment: PANE, audience: 'person' });
+		expect(
+			(
+				await kept.kernel.call<{
+					inspector: { open: boolean };
+					compact: { drawer: string | null };
+				}>('layout-get')
+			).data
+		).toMatchObject({ inspector: { open: false }, compact: { drawer: null } });
+		expect((await kept.kernel.call('layout-set', { inspector: { open: true } })).error?.code).toBe(
+			'LAYOUT_PART_UNDECLARED'
+		);
+
+		// Replay of the first session matches with zero differences.
+		const { report } = await replayKernel(await journal.read(), {
+			deployment: deployment() as never,
+			ports: ports(),
+		});
+		expect(report.entries.filter(({ status }) => status !== 'same')).toEqual([]);
+	});
+
+	it('closes a persisted open gated part on reload when the gate is off at boot', async () => {
+		const store = new MemoryAdapter();
+		const first = await workspace({ store });
+		await first.kernel.call('experiment-enable', { experiment: BETA, audience: 'person' });
+		await first.kernel.call('experiment-enable', { experiment: PANE, audience: 'person' });
+		await first.kernel.call('app-open', { instance: 'probe' });
+		await first.kernel.call('layout-set', { inspector: { open: true } });
+		await first.kernel.dispose();
+		// Boot with changed pane experiment text so probe.pane is closed from stage B.
+		const second = await workspace({
+			store,
+			empty: true,
+			manifest: gatedProbe([
+				experiment('beta'),
+				experiment('pane', { changes: 'Adds a changed pane beside a probe note.' }),
+			]),
+		});
+		expect(
+			(await second.kernel.call<{ inspector: { open: boolean } }>('layout-get')).data?.inspector
+				.open
+		).toBe(false);
+		expect(
+			(await second.kernel.call('layout-set', { inspector: { open: true } })).error?.code
+		).toBe('LAYOUT_PART_UNDECLARED');
+	});
+
+	it('reconciles a lazily hydrated project-scoped layout when the gate was closed before entering the project (#2112)', async () => {
+		const store = new MemoryAdapter();
+		const first = await workspace({ store });
+		await first.kernel.call('experiment-enable', { experiment: BETA, audience: 'person' });
+		await first.kernel.call('experiment-enable', { experiment: PANE, audience: 'person' });
+		const project = (
+			(await first.kernel.call<{ id: string }>('project-create', { name: 'Zeta', slug: 'zeta' }))
+				.data as { id: string }
+		).id;
+		await first.kernel.call('scope-set', { project });
+		await first.kernel.call('app-open', { instance: 'probe' });
+		await first.kernel.call('layout-set', {
+			inspector: { open: true },
+			compact: { drawer: 'inspector' },
+		});
+		// Leave Zeta before reloading so Zeta's project-scoped layout is not hydrated at boot.
+		await first.kernel.call('scope-set', { project: null });
+		await first.kernel.dispose();
+
+		const second = await workspace({ store, empty: true });
+		await second.kernel.call('experiment-disable', { experiment: PANE, audience: 'person' });
+		await second.kernel.call('scope-set', { project });
+		await second.kernel.call('app-open', { instance: 'probe' });
+		expect((await detail(second.kernel)).gates.inspector?.open).toBe(false);
+		expect(
+			(
+				await second.kernel.call<{
+					inspector: { open: boolean };
+					compact: { drawer: string | null };
+				}>('layout-get')
+			).data
+		).toMatchObject({ inspector: { open: false }, compact: { drawer: null } });
+		expect(
+			(await second.kernel.call('layout-set', { inspector: { open: true } })).error?.code
+		).toBe('LAYOUT_PART_UNDECLARED');
+	});
+});
+
+describe('held-out app closes its documents tabs and unregisters its types (#2113)', () => {
+	const tabsOf = async (kernel: LoamKernelV5) =>
+		(
+			(await kernel.call<{ groups: Array<{ tabs: Array<{ document: string }> }> }>('editor-get'))
+				.data?.groups ?? []
+		).flatMap((group) => group.tabs.map((tab) => tab.document));
+
+	it('closes clean probe tabs across workspace and project scopes on disable while preserving documents', async () => {
+		const store = new MemoryAdapter();
+		const journal = new MemoryJournalSink();
+		const { kernel } = await workspace({ store, journal });
+		await kernel.call('experiment-enable', { experiment: BETA, audience: 'person' });
+		const typesWhileOn = (
+			await kernel.call<{ types: Array<{ id: string }> }>('document-type-list', { all: true })
+		).data?.types.map((type) => type.id);
+		expect(typesWhileOn).toContain('probe');
+
+		// Open one probe tab in workspace scope and one in a project scope.
+		const wsDoc = (
+			(await kernel.call<{ id: string }>('document-create', { type: 'probe' })).data as {
+				id: string;
+			}
+		).id;
+		await kernel.call('document-open', { document: wsDoc });
+		expect(await tabsOf(kernel)).toEqual([wsDoc]);
+
+		const project = (
+			(await kernel.call<{ id: string }>('project-create', { name: 'Gamma', slug: 'gamma' }))
+				.data as { id: string }
+		).id;
+		await kernel.call('scope-set', { project });
+		const projDoc = (
+			(await kernel.call<{ id: string }>('document-create', { type: 'probe' })).data as {
+				id: string;
+			}
+		).id;
+		await kernel.call('document-open', { document: projDoc });
+		expect(await tabsOf(kernel)).toEqual([projDoc]);
+
+		// Turning probe.beta off closes clean probe tabs in both scopes and unregisters the type.
+		await kernel.call('experiment-disable', { experiment: BETA, audience: 'person' });
+		expect(await stateOf(kernel)).toBe('gated');
+		expect(await tabsOf(kernel)).toEqual([]);
+		await kernel.call('scope-set', { project: null });
+		expect(await tabsOf(kernel)).toEqual([]);
+		const typesWhileOff = (
+			await kernel.call<{ types: Array<{ id: string }> }>('document-type-list', { all: true })
+		).data?.types.map((type) => type.id);
+		expect(typesWhileOff).not.toContain('probe');
+
+		// Both documents remain intact in the store and can be reopened once the experiment is back on.
+		expect(await store.get('document', wsDoc)).toBeTruthy();
+		expect(await store.get('document', projDoc)).toBeTruthy();
+		await kernel.call('experiment-enable', { experiment: BETA, audience: 'person' });
+		expect((await kernel.call('document-open', { document: wsDoc })).success).toBe(true);
+
+		const { report } = await replayKernel(await journal.read(), {
+			deployment: deployment() as never,
+			ports: ports(),
+		});
+		expect(report.entries.filter(({ status }) => status !== 'same')).toEqual([]);
+	});
+
+	it('closes a deferred dirty tab once it is saved and drops persisted tabs on boot when gated', async () => {
+		const store = new MemoryAdapter();
+		const first = await workspace({ store });
+		await first.kernel.call('experiment-enable', { experiment: BETA, audience: 'workspace' });
+		const wsDoc = (
+			(await first.kernel.call<{ id: string }>('document-create', { type: 'probe' })).data as {
+				id: string;
+			}
+		).id;
+		await first.kernel.call('document-open', { document: wsDoc });
+		await first.kernel.call('editor-dirty-set', { tab: 't1', dirty: true });
+
+		// Deferred disable keeps the dirty tab open until saved.
+		await first.kernel.call('experiment-disable', { experiment: BETA, audience: 'workspace' });
+		expect(await tabsOf(first.kernel)).toEqual([wsDoc]);
+		await first.kernel.call('editor-dirty-set', { tab: 't1', dirty: false });
+		expect(await stateOf(first.kernel)).toBe('gated');
+		expect(await tabsOf(first.kernel)).toEqual([]);
+
+		// Re-enable, open persisted tabs in workspace and project scopes, then reload with gate off.
+		await first.kernel.call('experiment-enable', { experiment: BETA, audience: 'person' });
+		await first.kernel.call('document-open', { document: wsDoc });
+		const project = (
+			(await first.kernel.call<{ id: string }>('project-create', { name: 'Delta', slug: 'delta' }))
+				.data as { id: string }
+		).id;
+		await first.kernel.call('scope-set', { project });
+		const projDoc = (
+			(await first.kernel.call<{ id: string }>('document-create', { type: 'probe' })).data as {
+				id: string;
+			}
+		).id;
+		await first.kernel.call('document-open', { document: projDoc });
+		await first.kernel.dispose();
+
+		const second = await workspace({
+			store,
+			empty: true,
+			manifest: gatedProbe([
+				experiment('beta', { changes: 'Shows Probe with new notes.' }),
+				experiment('pane'),
+			]),
+		});
+		expect(await stateOf(second.kernel)).toBe('gated');
+		expect(await tabsOf(second.kernel)).toEqual([]);
+		await second.kernel.call('scope-set', { project: null });
+		expect(await tabsOf(second.kernel)).toEqual([]);
+		expect(await store.get('document', wsDoc)).toBeTruthy();
+		expect(await store.get('document', projDoc)).toBeTruthy();
+	});
+
+	it('refuses document-open for a gated document type without moving scope, main, or allocating a tab (#2113)', async () => {
+		const { kernel } = await workspace();
+		await kernel.call('experiment-enable', { experiment: BETA, audience: 'person' });
+		const project = (
+			(await kernel.call<{ id: string }>('project-create', { name: 'Eta', slug: 'eta' })).data as {
+				id: string;
+			}
+		).id;
+		await kernel.call('scope-set', { project });
+		const doc = (
+			(await kernel.call<{ id: string }>('document-create', { type: 'probe' })).data as {
+				id: string;
+			}
+		).id;
+		await kernel.call('scope-set', { project: null });
+		await kernel.call('experiment-disable', { experiment: BETA, audience: 'person' });
+
+		const opened = await kernel.call('document-open', { document: doc });
+		expect(opened.success).toBe(false);
+		expect(opened.error?.code).toBe('APP_NOT_READY');
+		expect(opened.error?.suggestion).toContain('experiment-enable');
+		// Active scope stayed at workspace level and no tab was allocated in Eta.
+		expect(
+			(await kernel.call<{ scope: { project?: string } }>('scope-get')).data?.scope.project
+		).toBeUndefined();
+		await kernel.call('scope-set', { project });
+		expect(await tabsOf(kernel)).toEqual([]);
+	});
+
+	it('closes persisted tabs in unvisited project scopes so disable then re-enable does not resurrect them (#2113)', async () => {
+		const store = new MemoryAdapter();
+		const first = await workspace({ store });
+		await first.kernel.call('experiment-enable', { experiment: BETA, audience: 'person' });
+		const project = (
+			(await first.kernel.call<{ id: string }>('project-create', { name: 'Theta', slug: 'theta' }))
+				.data as { id: string }
+		).id;
+		await first.kernel.call('scope-set', { project });
+		const doc = (
+			(await first.kernel.call<{ id: string }>('document-create', { type: 'probe' })).data as {
+				id: string;
+			}
+		).id;
+		await first.kernel.call('document-open', { document: doc });
+		await first.kernel.call('scope-set', { project: null });
+		await first.kernel.dispose();
+
+		const second = await workspace({ store, empty: true });
+		await second.kernel.call('experiment-disable', { experiment: BETA, audience: 'person' });
+		await second.kernel.call('experiment-enable', { experiment: BETA, audience: 'person' });
+		await second.kernel.call('scope-set', { project });
+		expect(await tabsOf(second.kernel)).toEqual([]);
+	});
+
+	it('defers unload when a tab becomes dirty mid-closeApp and retries cleanly after a failed document read (#2113, R14)', async () => {
+		const { kernel, store } = await workspace();
+		await kernel.call('experiment-enable', { experiment: BETA, audience: 'workspace' });
+		const doc = (
+			(await kernel.call<{ id: string }>('document-create', { type: 'probe' })).data as {
+				id: string;
+			}
+		).id;
+		await kernel.call('document-open', { document: doc });
+
+		// 1. Interleave editor-dirty-set { dirty: true } while closeApp awaits store.get('document', doc).
+		const origGet = store.get.bind(store);
+		let releaseRead!: () => void;
+		let hitRead = false;
+		let resolveHit!: () => void;
+		const hit = new Promise<void>((resolve) => {
+			resolveHit = resolve;
+		});
+		store.get = (async (table: string, id: string) => {
+			if (table === 'document' && id === doc && !hitRead) {
+				hitRead = true;
+				resolveHit();
+				await new Promise<void>((resolve) => {
+					releaseRead = resolve;
+				});
+			}
+			return origGet(table, id);
+		}) as typeof store.get;
+
+		const disabling = kernel.call('experiment-disable', {
+			experiment: BETA,
+			audience: 'workspace',
+		});
+		await hit;
+		expect((await kernel.call('editor-dirty-set', { tab: 't1', dirty: true })).success).toBe(true);
+		releaseRead();
+		await disabling;
+		store.get = origGet;
+
+		// Must have deferred unload (R14): app stays ready and dirty tab stays open until saved.
+		expect(await stateOf(kernel)).toBe('ready');
+		expect(await tabsOf(kernel)).toEqual([doc]);
+		expect((await kernel.call('editor-dirty-set', { tab: 't1', dirty: false })).success).toBe(true);
+		expect(await stateOf(kernel)).toBe('gated');
+		expect(await tabsOf(kernel)).toEqual([]);
+
+		// 2. Re-enable, open tab, fail one document read during disable, then retry disable cleanly.
+		await kernel.call('experiment-enable', { experiment: BETA, audience: 'person' });
+		await kernel.call('document-open', { document: doc });
+		let failOnce = true;
+		store.get = (async (table: string, id: string) => {
+			if (table === 'document' && id === doc && failOnce) {
+				failOnce = false;
+				throw new Error('transient store read failure');
+			}
+			return origGet(table, id);
+		}) as typeof store.get;
+		const failed = await kernel.call('experiment-disable', {
+			experiment: BETA,
+			audience: 'person',
+		});
+		store.get = origGet;
+		expect(failed.success).toBe(false);
+		// Unrelated reads (app-list, editor-get) must stay healthy and not silently run the retry; probe stays ready
+		// with its tab still open until experiment-disable is retried.
+		expect(await stateOf(kernel)).toBe('ready');
+		expect(await tabsOf(kernel)).toEqual([doc]);
+		expect(await stateOf(kernel)).toBe('ready');
+
+		const retried = await kernel.call('experiment-disable', {
+			experiment: BETA,
+			audience: 'person',
+		});
+		expect(retried.success).toBe(true);
+		expect(await stateOf(kernel)).toBe('gated');
+		expect(await tabsOf(kernel)).toEqual([]);
+		expect(
+			(await kernel.listCommands()).some((command) => command.name === 'probe-content-get')
+		).toBe(false);
+	});
+
+	it('preserves an arriving person’s enabled gated tabs and closes disabled ones/layouts on person switch in provider mode (#2113, #2112)', async () => {
+		const store = new MemoryAdapter();
+		const SAM = 'mock-user-sam@example.com';
+		const membership: MembershipV1 = {
+			mode: 'provider',
+			members: new Map([
+				[BEA, 'member'],
+				[OLU, 'owner'],
+				[SAM, 'owner'],
+			]),
+			digest: 'd1',
+		};
+		const { kernel } = await workspace({
+			store,
+			identity: PROVIDER,
+			membership,
+			empty: true,
+		});
+		// Olu (owner) enables BETA and PANE for the workspace, opens a probe tab and probe's gated inspector.
+		await signIn(kernel, 'olu@example.com');
+		await kernel.call('experiment-enable', { experiment: BETA, audience: 'workspace' });
+		await kernel.call('experiment-enable', { experiment: PANE, audience: 'workspace' });
+		const oluDoc = (
+			(await kernel.call<{ id: string }>('document-create', { type: 'probe' })).data as {
+				id: string;
+			}
+		).id;
+		await kernel.call('document-open', { document: oluDoc });
+		await kernel.call('app-open', { instance: 'probe' });
+		await kernel.call('layout-set', { inspector: { open: true } });
+		expect(await tabsOf(kernel)).toEqual([oluDoc]);
+
+		// Bea enables BETA for herself and opens her own probe tab.
+		await kernel.call('auth-sign-out');
+		await signIn(kernel, 'bea@example.com');
+		await kernel.call('experiment-enable', { experiment: BETA, audience: 'person' });
+		const beaDoc = (
+			(await kernel.call<{ id: string }>('document-create', { type: 'probe' })).data as {
+				id: string;
+			}
+		).id;
+		await kernel.call('document-open', { document: beaDoc });
+		expect(await tabsOf(kernel)).toEqual([beaDoc]);
+
+		// Sam (second owner) turns BETA and PANE off for the workspace so both leaving (Sam) and arriving (Olu) have
+		// BETA and PANE off (`gatedApps` already holds `probe`).
+		await kernel.call('auth-sign-out');
+		await signIn(kernel, 'sam@example.com');
+		await kernel.call('experiment-disable', { experiment: PANE, audience: 'workspace' });
+		await kernel.call('experiment-disable', { experiment: BETA, audience: 'workspace' });
+		expect(await stateOf(kernel)).toBe('gated');
+
+		// Olu signs back in while both gates are already off: Olu's persisted probe tab must close and Olu's
+		// persisted inspector must reconcile closed.
+		await kernel.call('auth-sign-out');
+		await signIn(kernel, 'olu@example.com');
+		expect(await stateOf(kernel)).toBe('gated');
+		expect(await tabsOf(kernel)).toEqual([]);
+		// Verify inspector reconciled closed immediately on sign-in, before any experiment-enable runs.
+		expect(
+			(
+				await kernel.call<{ state: { inspector: { open: boolean } } }>('view-state-get', {
+					id: 'loam.layout.probe',
+				})
+			).data?.state.inspector.open
+		).toBe(false);
+		await kernel.call('experiment-enable', { experiment: BETA, audience: 'person' });
+		expect(await tabsOf(kernel)).toEqual([]);
+		await kernel.call('app-open', { instance: 'probe' });
+		expect(
+			(await kernel.call<{ inspector: { open: boolean } }>('layout-get')).data?.inspector.open
+		).toBe(false);
+
+		// Switch to Bea (who still has BETA enabled for herself): Bea's persisted probe tab is preserved!
+		await kernel.call('auth-sign-out');
+		await signIn(kernel, 'bea@example.com');
+		expect(await stateOf(kernel)).toBe('ready');
+		expect(await tabsOf(kernel)).toEqual([beaDoc]);
+	});
+});
+
 describe('#2115: experiment-settle tolerates a racing tab creating removal or declared rows', () => {
 	it('treats an existing removal or declared row created between snapshot and write as settled', async () => {
 		const store = new MemoryAdapter();

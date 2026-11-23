@@ -12,7 +12,7 @@
  */
 
 import { type FASTElement, Updates } from '@lushly-dev/fast-element';
-import type { KernelEventV3, LoamKernelV5 } from '@lushly-dev/loam-kernel';
+import type { KernelEventV4, LoamKernelV5 } from '@lushly-dev/loam-kernel';
 import type { DocumentTypeV1 } from '@lushly-dev/loam-sdk';
 import type { AskedClose } from '../elements/events.js';
 import type { LoamShell } from '../elements/shell.js';
@@ -565,7 +565,7 @@ export class EditorController implements FrameListener {
 
 	// ─── What the kernel says ──────────────────────────────────────────────────────
 
-	#onEvent(event: KernelEventV3): void {
+	#onEvent(event: KernelEventV4): void {
 		// The person's own move, from the tab's menu or an undo, may save a view editor before it (`editor-move.ts`).
 		if (event.command === 'editor-move' && event.success) {
 			this.#moved = event.interface === 'palette';
@@ -584,13 +584,15 @@ export class EditorController implements FrameListener {
 		// A modal the kernel closed, as a change of scope cancels the shell's, answers Cancel.
 		if (this.#modals.size && (event.scopeChanged || event.command === 'overlay-dismiss'))
 			void lostModals(this.#kernel, this.#modals);
-		if (!event.scopeChanged && !(event.success && event.mutation)) return;
+		if (!event.scopeChanged && !event.experiments && !(event.success && event.mutation)) return;
 		// A record's title, status or scope may have changed: each is read again.
 		if (event.command.startsWith('document-')) this.#records.clear();
+		if (event.experiments) this.#types = new Map();
 		if (
 			/^(editor-|document-|auth-|session-settle$)/.test(event.command) ||
 			event.scopeChanged ||
-			event.mainChanged
+			event.mainChanged ||
+			event.experiments
 		) {
 			void this.sync();
 		}

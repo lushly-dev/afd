@@ -9,7 +9,7 @@ import type { ManifestRefusal, ManifestV2, ProjectionAppV1 } from '@lushly-dev/l
 import { z } from 'zod';
 import { type AppCommandRowV1, type AppsRuntime, unknownApp } from '../apps-runtime.js';
 import { kernelFailure, LoamKernelError } from '../errors.js';
-import { appLayoutId } from '../layout.js';
+import { appLayoutId, firstLayoutOf } from '../layout.js';
 import { shellModalOpen } from '../overlays.js';
 import type {
 	AppDetailV1,
@@ -20,6 +20,7 @@ import type {
 	AppSummaryV2,
 	SelectionV2,
 } from '../types.js';
+import { declaredPartsOf } from './entry.js';
 import { boundRecorded, type MountedHost } from './mounted.js';
 import { type AppsHost, layoutNamesOf } from './types.js';
 
@@ -239,30 +240,37 @@ export function createOperations(
 		},
 		reconcileLayouts() {
 			// Every record of each instance: its own, and each project's (phase 2 specification, 7.6).
-			for (const id of [...records.keys()]
-				.flatMap((instance) => layoutNamesOf(host, instance))
-				.map(appLayoutId)) {
-				const layout = state.layoutOf(id);
-				if (!layout) continue;
-				const declared = state.declaredParts(id);
-				const open = (['sidebar', 'inspector', 'panel'] as const).filter(
-					(part) => !declared.has(part) && layout[part].open
+			// A surface whose experiment gate is closed is undeclared, so `layout-set` refuses to open an empty part (#2112).
+			for (const record of records.values()) {
+				const gates = gatesOf(record, host);
+				const parts = declaredPartsOf(record.manifest).filter(
+					(part) => gates[part]?.open !== false
 				);
-				const { drawer, sheet } = layout.compact;
-				const closeDrawer = drawer !== null && !declared.has(drawer);
-				const closeSheet = sheet && !declared.has('panel');
-				if (open.length === 0 && !closeDrawer && !closeSheet) continue;
-				host.viewState.set(id, {
-					...Object.fromEntries(open.map((part) => [part, { open: false }])),
-					...(closeDrawer || closeSheet
-						? {
-								compact: {
-									...(closeDrawer ? { drawer: null } : {}),
-									...(closeSheet ? { sheet: false } : {}),
-								},
-							}
-						: {}),
-				});
+				const { initial, declared } = firstLayoutOf(parts, record.manifest?.ui?.layout);
+				for (const name of layoutNamesOf(host, record.instance)) {
+					state.registerAppLayout(name, initial, declared);
+					const id = appLayoutId(name);
+					const layout = state.layoutOf(id);
+					if (!layout) continue;
+					const open = (['sidebar', 'inspector', 'panel'] as const).filter(
+						(part) => !declared.has(part) && layout[part].open
+					);
+					const { drawer, sheet } = layout.compact;
+					const closeDrawer = drawer !== null && !declared.has(drawer);
+					const closeSheet = sheet && !declared.has('panel');
+					if (open.length === 0 && !closeDrawer && !closeSheet) continue;
+					host.viewState.set(id, {
+						...Object.fromEntries(open.map((part) => [part, { open: false }])),
+						...(closeDrawer || closeSheet
+							? {
+									compact: {
+										...(closeDrawer ? { drawer: null } : {}),
+										...(closeSheet ? { sheet: false } : {}),
+									},
+								}
+							: {}),
+					});
+				}
 			}
 		},
 		scopeLevelsOf: (name) => records.get(host.owners().get(name)?.instance as string)?.scopeLevels,

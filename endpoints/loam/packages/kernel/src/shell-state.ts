@@ -295,7 +295,25 @@ export function registerShellState(
 				const { initial, declared } = record(base);
 				registerLayout(id, { state: cloneLayout(initial), initial, declared });
 				// Silent on an invalid record, as `hydrate` is: its defaults are kept.
-				reading.set(id, readOne(id));
+				// Reconcile the hydrated project record against base's current declared parts (#2112).
+				reading.set(
+					id,
+					readOne(id).then(() => {
+						const held = layouts.get(id);
+						if (!held) return;
+						const dec = record(base).declared;
+						held.declared = dec;
+						const st = held.state;
+						const patch: Record<string, unknown> = {};
+						for (const part of ['sidebar', 'inspector', 'panel'] as const)
+							if (!dec.has(part) && st[part].open) patch[part] = { open: false };
+						const compact: Record<string, unknown> = {};
+						if (st.compact.drawer !== null && !dec.has(st.compact.drawer)) compact.drawer = null;
+						if (st.compact.sheet && !dec.has('panel')) compact.sheet = false;
+						if (Object.keys(compact).length) patch.compact = compact;
+						if (Object.keys(patch).length) viewState.set(id, patch);
+					})
+				);
 			}
 			await reading.get(id);
 			return id;

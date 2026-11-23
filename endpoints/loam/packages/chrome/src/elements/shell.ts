@@ -746,6 +746,8 @@ export class LoamShell extends FASTElement {
 			this.rail.emphasis = [];
 		}
 		this.rail.heard(event);
+		// A closed surface gate undeclares and closes its part, so the shell re-reads the layout (#2112).
+		if (event.experiments) void this.readLayout();
 		// From anyone, whatever the command: a command moves the URL (6.3). Each is a late command's.
 		if (event.scopeChanged || event.mainChanged) void this.#url((url) => url.changed(event));
 		if (event.command === 'palette-open' && event.success) {

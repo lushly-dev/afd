@@ -175,6 +175,34 @@ describe('stage A: the apps from their boot records', () => {
 		expect(layout.data?.sidebar.open).toBe(true);
 		expect(kernel.listKeybindings().length).toBeGreaterThan(0);
 	});
+
+	it('lists a gated boot record as gated in stage A until stage B reads the gates (#2111)', async () => {
+		const { kernel } = await boot(
+			[
+				record('hello', { order: 1 }),
+				record('beta', { order: 2, gated: true }),
+				record('broken', {
+					order: 3,
+					gated: true,
+					refusal: { code: 'MANIFEST_INVALID', message: 'No.', suggestion: 'Fix it.' },
+				}),
+			],
+			() => Promise.reject(new Error('stage B failed'))
+		);
+		const stageA = await listOf(kernel);
+		expect(stageA?.apps.map(({ instance, state }) => [instance, state])).toEqual([
+			['hello', 'loading'],
+			['beta', 'gated'],
+			['broken', 'refused'],
+		]);
+		await kernel.startApps();
+		const failed = await listOf(kernel);
+		expect(failed?.apps.map(({ instance, state }) => [instance, state])).toEqual([
+			['hello', 'failed'],
+			['beta', 'failed'],
+			['broken', 'failed'],
+		]);
+	});
 });
 
 describe('stage B, when it cannot read the apps', () => {

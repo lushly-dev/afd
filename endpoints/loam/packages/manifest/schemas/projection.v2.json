@@ -241,6 +241,9 @@
 				"rail": {
 					"type": "boolean"
 				},
+				"gated": {
+					"type": "boolean"
+				},
 				"parts": {
 					"type": "array",
 					"items": {

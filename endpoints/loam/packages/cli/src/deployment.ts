@@ -122,6 +122,13 @@ export function bootRecordOf(
 		effect.mounted && entry.projects !== undefined
 			? ['project']
 			: (manifest?.app?.scope_levels ?? ['workspace']);
+	const appGate = (manifest?.app as { requires_experiment?: unknown } | undefined)
+		?.requires_experiment;
+	const gated =
+		typeof appGate === 'string' &&
+		!(manifest?.ui?.experiments as Array<{ id: string; stage: string }> | undefined)?.some(
+			(exp) => `${manifest?.plugin.id}.${exp.id}` === appGate && exp.stage === 'graduated'
+		);
 	return {
 		title: entry.title ?? rail?.label ?? manifest?.plugin.title ?? id,
 		kind: manifest?.plugin.kind ?? 'native',
@@ -129,6 +136,7 @@ export function bootRecordOf(
 		order: entry.order ?? rail?.order ?? DEFAULT_ORDER,
 		scope_levels: levels,
 		rail: !(documents && !rail && !surfaces.sidebar && !surfaces.main),
+		...(gated ? { gated: true } : {}),
 		parts: PARTS.filter((part) => surfaces[part] !== undefined),
 		layout: (manifest?.ui?.layout ?? {}) as ProjectionBootV2['layout'],
 		refusal: refusalFor(id, findings),
