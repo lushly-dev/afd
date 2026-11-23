@@ -16,15 +16,21 @@ for:
 
 - **1, shrink the one-line cells; the line-limit check.** Merged in [#1605](https://github.com/lushly-dev/afd/pull/1605). Left: nothing.
 
-- **2, `pnpm base:sync`, resolving provenance records.** Merged in [#1606](https://github.com/lushly-dev/afd/pull/1606). [#1610](https://github.com/lushly-dev/afd/issues/1610)'s option 2: Botcore and FAST-AF no longer commit the `adaptations.json` digest, and Botcore's build stamps it into the wheel and sdist, in [#1658](https://github.com/lushly-dev/afd/pull/1658); the owner [decided on 2026-11-20](https://github.com/lushly-dev/afd/issues/1610#issuecomment-7034626046) not to ship provenance records in FAST-AF's npm packages for now. The owner [decided on 2026-11-22](https://github.com/lushly-dev/afd/issues/1610#issuecomment-7073040838) to do the same for Specimen and Violet, repository-only since neither ships its records, and to keep committing Botcore's mirror, in [#1916](https://github.com/lushly-dev/afd/pull/1916). Health has no `adaptations.json`. Left: nothing.
+- **2, `pnpm base:sync`, resolving provenance records.** Merged in [#1606](https://github.com/lushly-dev/afd/pull/1606). [#1610](https://github.com/lushly-dev/afd/issues/1610)'s option 2: Botcore and FAST-AF no longer commit the `adaptations.json` digest, and Botcore's build stamps it into the wheel and sdist, in [#1658](https://github.com/lushly-dev/afd/pull/1658); the owner [decided on 2026-11-20](https://github.com/lushly-dev/afd/issues/1610#issuecomment-7034626046) not to ship provenance records in FAST-AF's npm packages for now. The owner [decided on 2026-11-22](https://github.com/lushly-dev/afd/issues/1610#issuecomment-7073040838) to do the same for Specimen and Violet, repository-only since neither ships its records, and to keep committing Botcore's mirror, in [#1916](https://github.com/lushly-dev/afd/pull/1916). Health has no `adaptations.json`; provenance-only merge gaps for Health, Violet and `lane-report` closed in [#2028](https://github.com/lushly-dev/afd/pull/2028). Left: nothing.
 
 - **3, Changesets for Python, Botcore and the spec contract.** Merged in
-  [#1613](https://github.com/lushly-dev/afd/pull/1613). Left: the first Python or Botcore release
-  prepared with `pnpm version-track` is its first live use.
+  [#1613](https://github.com/lushly-dev/afd/pull/1613). First live uses of `pnpm version-track`
+  merged on 2026-11-22: `lushly-botcore 0.8.0` via `pnpm version-track botcore` (22 fragments) in
+  [#1938](https://github.com/lushly-dev/afd/pull/1938), and Python `afd 0.12.0` plus the
+  `spec/CHANGELOG.md` fold via `pnpm version-track python` (13 fragments) and
+  `pnpm version-track spec` (11 fragments) in [#2021](https://github.com/lushly-dev/afd/pull/2021).
+  Left: nothing.
 
-- **4, one line per step in the STATUS files.** Merged in [#1612](https://github.com/lushly-dev/afd/pull/1612): Loam, Umbel, Mail and
-  software-factory reshaped, and the line limit at 1,500 over five documents. Left: the
-  measurement, a week after it merges.
+- **4, one line per step in the STATUS files.** Merged in [#1612](https://github.com/lushly-dev/afd/pull/1612)
+  (`2026-11-19T07:42:53Z`): Loam, Umbel, Mail and software-factory reshaped, and the line limit at
+  1,500 over five documents. Left: the 1-week measurement (due on or after `2026-11-26T07:42:53Z`),
+  feature archive and epic closeout, tracked in
+  [#2286](https://github.com/lushly-dev/afd/issues/2286).
 
 - **5, merge queue.** On for `main` since 2026-11-19: a ruleset that squashes and requires
   `ci-ok` on the queue's commit. In three parts. [#1615](https://github.com/lushly-dev/afd/pull/1615): CI answers on a merge group (the
