@@ -144,6 +144,7 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
           workspaces: endpoints/loam/packages/desktop/src-tauri
       - name: Install tauri-driver
         working-directory: endpoints/loam/packages/desktop/src-tauri
@@ -211,6 +212,7 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
           workspaces: endpoints/loam/packages/desktop/src-tauri
       - name: Build the web host and its dependencies
         run: pnpm -F "@lushly-dev/loam-desktop..." build

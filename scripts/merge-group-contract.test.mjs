@@ -13,6 +13,7 @@ import {
 	queueJob,
 	readWorkflow,
 	readWorkflows,
+	SAVE_IF,
 } from './merge-group-contract.mjs';
 
 const root = join(import.meta.dirname, '..');
@@ -780,5 +781,131 @@ describe('the verdict, held against a failure that passes', () => {
 			),
 			[]
 		);
+	});
+});
+
+describe('rust-cache saves only from main (#1683)', () => {
+	const told = (text) =>
+		problems(text).filter((problem) =>
+			/can tell a pull request from its merge group/.test(problem)
+		);
+	const unsaved = (text) => problems(text).filter((problem) => /rust-cache step/.test(problem));
+	const step = '      - run: make test';
+	const cache = (inputs) =>
+		`      - name: Cache cargo\n        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3\n        with:\n${inputs}\n${step}`;
+	const cached = (inputs = `          ${SAVE_IF}\n          workspaces: unit`) =>
+		edit(filtered(), step, cache(inputs));
+
+	it('holds for a rust-cache step that saves only from main, and for a job with none', () => {
+		assert.deepEqual(problems(cached()), []);
+		assert.deepEqual(problems(cached(`          workspaces: unit\n          ${SAVE_IF}`)), []);
+		// The control: the same workflow with no rust-cache step needs no SAVE_IF.
+		assert.deepEqual(problems(filtered()), []);
+	});
+
+	it('names a rust-cache step that would save from a pull request or a merge group', () => {
+		const missing = `unit.yml: job suite has a rust-cache step without \`${SAVE_IF}\` under its \`with:\`: "uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3". A pull request or merge group would save a cache only it can restore`;
+		assert.deepEqual(problems(cached('          workspaces: unit')), [missing]);
+		assert.deepEqual(
+			problems(
+				edit(
+					filtered(),
+					step,
+					`      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0\n${step}`
+				)
+			),
+			[missing.replace(' # v2.9.3', '')]
+		);
+		// Another expression is not SAVE_IF, whether it reads the ref, the event or nothing.
+		for (const other of [
+			"save-if: ${{ github.ref != 'refs/heads/main' }}",
+			"save-if: ${{ github.event_name == 'push' }}",
+			"save-if: ${{ github.ref == 'refs/heads/main' || github.event_name == 'merge_group' }}",
+			'save-if: true',
+			`# ${SAVE_IF}`,
+		])
+			assert.ok(
+				unsaved(cached(`          ${other}\n          workspaces: unit`)).length === 1,
+				other
+			);
+		// SAVE_IF outside the step's `with:` does not count, and is read as the ref it is.
+		const outside = edit(
+			filtered(),
+			step,
+			`${cache('          workspaces: unit')}\n        env:\n          ${SAVE_IF}`
+		);
+		assert.equal(unsaved(outside).length, 1);
+		assert.equal(told(outside).length, 1);
+		// Nor under another key of the rust-cache step itself, past its `with:`.
+		const sameStep = cached(`          workspaces: unit\n        env:\n          ${SAVE_IF}`);
+		assert.equal(unsaved(sameStep).length, 1);
+		assert.equal(told(sameStep).length, 1);
+	});
+
+	it('still names every other read of the ref in a job that caches', () => {
+		for (const [from, to] of [
+			[step, `      - if: github.ref == 'refs/heads/main'\n        run: make test`],
+			[step, '      - run: test "$GITHUB_REF" = refs/heads/main && make test'],
+			[step, `      - run: make test\n        env:\n          ${SAVE_IF}`],
+			[
+				"    needs: scope\n    if: needs.scope.outputs.run == 'true'",
+				"    needs: scope\n    if: needs.scope.outputs.run == 'true' && github.ref == 'refs/heads/main'",
+			],
+		])
+			assert.equal(told(edit(cached(), from, to)).length, 1, to);
+		// SAVE_IF under another action's `with:` is not exempt: only rust-cache's input is.
+		const elsewhere = edit(
+			filtered(),
+			step,
+			`      - uses: actions/cache@v4\n        with:\n          ${SAVE_IF}\n          path: target\n${step}`
+		);
+		assert.deepEqual(told(elsewhere), [
+			`unit.yml: job suite can tell a pull request from its merge group: "${SAVE_IF}". Drop that, or list the job in PULL_REQUEST_ONLY with its reason`,
+		]);
+		// Nor does the action's name inside another step's input make that step a rust-cache step.
+		const named = edit(
+			filtered(),
+			step,
+			`      - uses: ./custom-action\n        with:\n          ${SAVE_IF}\n          payload: |\n            uses: Swatinem/rust-cache@v2\n${step}`
+		);
+		assert.equal(told(named).length, 1, problems(named).join('\n'));
+	});
+
+	it('names a rust-cache step it cannot place instead of passing it', () => {
+		const unplaced = (text) =>
+			problems(text).filter((problem) =>
+				/outside a step's own `uses:`, where this check cannot read it/.test(problem)
+			);
+		for (const to of [
+			`${step}\n      - { uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 }`,
+			`${step}\n      - name: Cache\n        uses: >-\n          Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0`,
+		])
+			assert.equal(unplaced(edit(filtered(), step, to)).length, 1, to);
+		// A comment that names the action is not a step.
+		assert.deepEqual(
+			problems(
+				edit(
+					filtered(),
+					step,
+					`      # Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0\n${step}`
+				)
+			),
+			[]
+		);
+	});
+
+	it("holds in this repository's workflows, every one of whose rust-cache steps is counted", () => {
+		const workflows = readWorkflows(root);
+		let caches = 0;
+		for (const [file, text] of Object.entries(workflows)) {
+			const steps = text.split(/^ {8}uses: Swatinem\/rust-cache@/m).length - 1;
+			const saving = text.split(`\n        with:\n          ${SAVE_IF}\n`).length - 1;
+			if (readWorkflow(text).triggers.has('merge_group'))
+				assert.equal(saving, steps, `${file}: every rust-cache step carries SAVE_IF first`);
+			caches += steps;
+		}
+		// The population has not emptied: 17 steps in 7 workflows when #1683 landed.
+		assert.ok(caches >= 17, `${caches} rust-cache steps read`);
+		assert.deepEqual(mergeGroupProblems(workflows), []);
 	});
 });
