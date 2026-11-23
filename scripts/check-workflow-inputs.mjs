@@ -282,7 +282,28 @@ function findCmakeProjectDir(root, file, ownDirs) {
 }
 
 /**
+ * Whether git ignores `target` in `root`: build output such as a Cargo `target/` folder exists only
+ * where something was built, so counting it as an input would fail locally and pass on CI. A root
+ * that is not itself a repository (no `.git` there) ignores nothing, so a plain folder never takes
+ * an enclosing repository's rules.
+ */
+function isIgnored(root, target) {
+	if (!existsSync(join(root, '.git'))) return false;
+	try {
+		execFileSync('git', ['check-ignore', '-q', '--', target], {
+			cwd: root,
+			env: gitEnvironment(),
+			stdio: 'ignore',
+		});
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+/**
  * Extract repository-relative paths read outside `ownDirs` from a single source/test/build file.
+ * A path git ignores is build output, not an input, and is skipped.
  */
 export function extractCrossUnitReads(file, text, { root, ownDirs }) {
 	const cleaned = stripComments(text, file);
@@ -341,7 +362,7 @@ export function extractCrossUnitReads(file, text, { root, ownDirs }) {
 		if (LAYER_ROOTS.has(target) || SKIP_TARGETS.has(target)) continue;
 		if (ownDirs.some((dir) => target === dir || target.startsWith(`${dir}/`))) continue;
 		const full = join(root, target);
-		if (!existsSync(full)) continue;
+		if (!existsSync(full) || isIgnored(root, target)) continue;
 		const isDir = statSync(full).isDirectory();
 		reads.push({ file, target, isDir });
 	}
@@ -353,13 +374,18 @@ export function readPushPaths(text) {
 	return readEventPaths(text, 'push') ?? null;
 }
 
+/**
+ * The environment without `GIT_*`: inside a git hook, `GIT_DIR` and its kin point at the hook's
+ * repository and would override the `cwd` each call names.
+ */
+function gitEnvironment() {
+	return Object.fromEntries(Object.entries(process.env).filter(([name]) => !/^git_/i.test(name)));
+}
+
 function listTrackedFiles(root, dirs) {
-	const env = Object.fromEntries(
-		Object.entries(process.env).filter(([name]) => !/^git_/i.test(name))
-	);
 	const output = execFileSync('git', ['ls-files', '--', ...dirs], {
 		cwd: root,
-		env,
+		env: gitEnvironment(),
 		encoding: 'utf8',
 	});
 	return output.split(/\r?\n/).filter(Boolean);
