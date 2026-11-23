@@ -13,7 +13,8 @@
  * what a page has not loaded by then. Hello's and tally's bundles are recorded and not limited. It fails
  * when a measure is over its ceiling, when first paint holds classic Zod or `toJSONSchema`, or when it holds
  * a chunk of stage B: `late`, `apps`, the readers, `surfaces`, `url-sync` (phase 2 specification, 2.2). That first
- * paint is the same for every deployment. `dist/` is rebuilt, so run it after `build` or in its place.
+ * paint is the same for every deployment. `dist/` is rebuilt, so run it after `build` or in its place. It runs
+ * `ceiling-raises.mjs` first, which, once D115 has ended (D161), fails a ceiling raised without its amendment.
  */
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -22,6 +23,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 import { build } from 'vite';
+import { runCeilingRaiseCheck } from './ceiling-raises.mjs';
 import { narrowZodFromJsonSchema, zodJitlessByDefault } from './narrow-zod.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -1364,6 +1366,14 @@ const ROWS = [
 ];
 
 export async function measure() {
+	// Every ceiling is measured and every row has one: a row dropped from `ROWS` would leave its ceiling
+	// unenforced where `ceiling-raises`, which reads `CEILINGS`, cannot see it.
+	const measured = ROWS.map(([key]) => key).sort();
+	const ceilings = Object.keys(CEILINGS).sort();
+	if (JSON.stringify(measured) !== JSON.stringify(ceilings))
+		throw new Error(
+			`budget: ROWS and CEILINGS differ: ${[...new Set([...measured, ...ceilings])].filter((key) => !measured.includes(key) || !ceilings.includes(key)).join(', ')}`
+		);
 	const page = await measurePage();
 	const kernel = await measureKernel();
 	// The runtime frame's chunks, built by `@lushly-dev/loam-copilot` and copied to `sandbox/copilot/` (16).
@@ -1393,8 +1403,11 @@ export async function measure() {
 }
 
 async function main() {
+	// Before the build, so its verdict is not lost in the measurements; to stderr with `--json`.
+	const json = process.argv.includes('--json');
+	const raises = runCeilingRaiseCheck({ log: json ? console.error : console.log });
 	const { rows, page, kernel, apps } = await measure();
-	if (process.argv.includes('--json')) {
+	if (json) {
 		console.log(JSON.stringify({ rows, page, kernel, apps }, null, '\t'));
 	} else {
 		const pad = (text, width) => String(text).padEnd(width);
@@ -1422,6 +1435,12 @@ async function main() {
 	const over = rows.filter((row) => row.over);
 	if (over.length) {
 		console.error(`\nbudget: over the ceiling: ${over.map((row) => row.label).join('; ')}`);
+		process.exitCode = 1;
+	}
+	if (raises > 0) {
+		console.error(
+			`\nbudget: ${raises} ceiling change(s) without what D115's end restores (ceiling-raises above)`
+		);
 		process.exitCode = 1;
 	}
 }

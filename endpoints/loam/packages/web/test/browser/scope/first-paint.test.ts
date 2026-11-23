@@ -12,6 +12,7 @@ import { join } from 'node:path';
 import type { ProjectionV4 } from '@lushly-dev/loam-manifest';
 import { type Browser, type BrowserContext, chromium, type Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { assertsFcp, FCP_NOT_ASSERTED, PAINT_CEILINGS } from '../first-paint-budget';
 import {
 	closeAndRelease,
 	type DeploymentSite,
@@ -200,7 +201,7 @@ describe('P2-E1: one first paint', () => {
 		for (const site of sites) await site.close();
 	});
 
-	it('P2-E1: records first-contentful-paint under 4x CPU and an 8 Mbit/s, 70 ms network', async () => {
+	it('P2-E1: first-contentful-paint under 4x CPU and an 8 Mbit/s, 70 ms network is within its ceiling on CI', async () => {
 		const site = await serveDeployment({
 			config: deploymentFile(
 				deploymentEntry('hello', await packApp('hello')),
@@ -228,11 +229,13 @@ describe('P2-E1: one first paint', () => {
 			fcp: performance.getEntriesByName('first-contentful-paint')[0]?.startTime ?? 0,
 			stageB: performance.getEntriesByName('loam-stage-b')[0]?.startTime ?? null,
 		}));
-		// Recorded in the run, not asserted (E1).
+		// Recorded in every run; asserted against its ceiling on the CI runner it was set on (D161, 2.5).
+		const asserted = assertsFcp();
 		console.info(
-			`P2-E1 first-contentful-paint, hello and tally, throttled: ${Math.round(timings.fcp)} ms`
+			`P2-E1 first-contentful-paint, hello and tally, throttled: ${Math.round(timings.fcp)} ms (ceiling ${PAINT_CEILINGS.firstContentfulPaintMs} ms, ${asserted ? 'asserted' : FCP_NOT_ASSERTED})`
 		);
 		expect(timings.fcp).toBeGreaterThan(0);
+		if (asserted) expect(timings.fcp).toBeLessThanOrEqual(PAINT_CEILINGS.firstContentfulPaintMs);
 		await context.close();
 		await site.close();
 	}, 90_000);
