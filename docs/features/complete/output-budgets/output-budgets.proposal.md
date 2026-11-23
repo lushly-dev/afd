@@ -134,7 +134,7 @@ This pull request:
 | File | Change |
 |---|---|
 | New [`spec/output-budgets.md`](../../../../spec/output-budgets.md) | B1 to B8, options, conformance and implementation status |
-| New [`spec/output-budgets.json`](../../../../spec/output-budgets.json) | Hand-written cases: 12 declarations, 19 asks, 10 measured sizes, 11 checks, a four-item batch and 3 journal cases. Beside `mcp-resources.json`, not in `vectors/`, until all four languages load it |
+| New [`spec/vectors/output-budgets.json`](../../../../spec/vectors/output-budgets.json) | Hand-written cases: 12 declarations, 19 asks, 10 measured sizes, 11 checks, a four-item batch and 3 journal cases. Originally beside `mcp-resources.json`, moved to `vectors/` in Step 5 once all four languages loaded it |
 | [`spec/command-metadata.md`](../../../../spec/command-metadata.md) | The `outputBudget` field in [Fields](../../../../spec/command-metadata.md#fields) and [Surfaces](../../../../spec/command-metadata.md#surfaces) |
 | [`spec/context-fields.md`](../../../../spec/context-fields.md) | `outputBudget` reserved as a context name; the `meta` argument accepts `dev.afd/outputBudget` |
 | [`spec/journal.md`](../../../../spec/journal.md) | The optional `outputBudget` entry field, its place in the context digest and its replay |
@@ -163,7 +163,7 @@ block it, as for the hybrid strategy.
 
 ## Acceptance
 
-- Each language loads `spec/output-budgets.json` and matches it.
+- Each language loads `spec/vectors/output-budgets.json` and matches it.
 - A command without a declaration lists the same tool and returns the same result as before, byte
   for byte, with or without an ask.
 - On each language's server, over stdio and Streamable HTTP in both eras: a budgeted command's tool

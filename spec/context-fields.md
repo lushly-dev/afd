@@ -86,9 +86,8 @@ cannot set `_meta` (#466, recorded in [`command-metadata.md`](./command-metadata
 
 - Its keys are `dev.afd/context`, `dev.afd/outputBudget` (an output-budget ask,
   [B2](./output-budgets.md#b2-the-ask)) and the declared fields' `_meta` keys. Other keys are
-  dropped, as undeclared `_meta` keys are. [`meta-tools.json`](./meta-tools.json)'s description of
-  `meta` names `dev.afd/outputBudget` once every language accepts it. `null`, for `meta` or for a value in either
-  place, is no value.
+  dropped, as undeclared `_meta` keys are. `null`, for `meta` or for a value in either place, is no
+  value.
 - The server removes `meta` from the arguments and applies its keys as if the request had sent
   them in `_meta`, before it reads `_meta`: the context and each field then behave exactly as they
   would from `_meta`, in each era. A value trusted code sets still wins.

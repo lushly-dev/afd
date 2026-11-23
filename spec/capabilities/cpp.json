@@ -201,7 +201,7 @@
 		},
 		"single.output-budgets": {
 			"status": "yes",
-			"note": "([#1991](https://github.com/lushly-dev/afd/issues/1991), #2187): `OutputBudget` on `CommandDefinition`, in-process & `DirectClient` asks, post-handler check, batches/pipelines and journal `outputBudget`; `output_budget_test.cpp` runs `spec/output-budgets.json` (except lone-surrogate measure)",
+			"note": "([#1991](https://github.com/lushly-dev/afd/issues/1991), #2187): `OutputBudget` on `CommandDefinition`, in-process & `DirectClient` asks, post-handler check, batches/pipelines and journal `outputBudget`; `output_budget_vectors_test.cpp` runs `spec/vectors/output-budgets.json` (except lone-surrogate measure)",
 			"views": {
 				"command-metadata": "([#1991](https://github.com/lushly-dev/afd/issues/1991), #2187)",
 				"ob-b1": "(#1991)",
@@ -209,15 +209,15 @@
 				"ob-b5": "(#1991)",
 				"ob-b7": "(#1991)",
 				"ob-b8": "(#1991)",
-				"ob-vectors": "(#1991: `packages/cpp/tests/output_budget_test.cpp`)",
-				"pc-ob-b1": "(`output_budget_test.cpp`, #1991)",
-				"pc-ob-b2": "(`output_budget_test.cpp`, #1991: `afd::mcp_stdio`, both eras)",
-				"pc-ob-b7": "(`output_budget_test.cpp`, #1991)"
+				"ob-vectors": "(#1991: `packages/cpp/tests/output_budget_vectors_test.cpp`)",
+				"pc-ob-b1": "(`output_budget_vectors_test.cpp`, #1991)",
+				"pc-ob-b2": "(`output_budget_vectors_test.cpp`, #1991: `afd::mcp_stdio`, both eras)",
+				"pc-ob-b7": "(`output_budget_vectors_test.cpp`, #1991)"
 			},
 			"evidence": [
 				"packages/cpp/include/afd/output_budget.hpp",
 				"packages/cpp/src/output_budget.cpp",
-				"packages/cpp/tests/output_budget_test.cpp"
+				"packages/cpp/tests/output_budget_vectors_test.cpp"
 			]
 		},
 		"single.journal-replay": {
@@ -618,7 +618,7 @@
 			"evidence": [
 				"packages/cpp/include/afd/output_budget.hpp",
 				"packages/cpp/src/mcp_stdio/server.cpp",
-				"packages/cpp/tests/output_budget_test.cpp"
+				"packages/cpp/tests/output_budget_vectors_test.cpp"
 			]
 		},
 		"mcp.meta-tools": {

@@ -2,10 +2,11 @@
 tool surface (#466)"; ``spec/context-fields.md``, "Clients that cannot set ``_meta``").
 
 ``afd-call``, ``afd-batch``, ``afd-pipe``, ``afd-discover`` and ``afd-detail`` take an optional
-``meta`` object for clients that cannot set ``_meta``. Its keys are ``dev.afd/context`` and the
-declared context fields' ``_meta`` keys, and the server applies them as if the request had sent
-them in ``_meta``, before it reads ``_meta``. Other keys are dropped, as undeclared ``_meta``
-keys are. A key sent both ways must agree, or the call fails with ``VALIDATION_ERROR``.
+``meta`` object for clients that cannot set ``_meta``. Its keys are ``dev.afd/context``,
+``dev.afd/outputBudget`` and the declared context fields' ``_meta`` keys, and the server applies
+them as if the request had sent them in ``_meta``, before it reads ``_meta``. Other keys are
+dropped, as undeclared ``_meta`` keys are. A key sent both ways must agree, or the call fails with
+``VALIDATION_ERROR``.
 
 Mirrors ``packages/server/src/meta-argument.ts``.
 """
@@ -30,8 +31,8 @@ __all__ = [
 ]
 
 META_ARGUMENT_DESCRIPTION = (
-    "Request values for clients that cannot set _meta: dev.afd/context and the server's "
-    "declared context fields' _meta keys, applied as if sent in _meta"
+    "Request values for clients that cannot set _meta: dev.afd/context, dev.afd/outputBudget and "
+    "the server's declared context fields' _meta keys, applied as if sent in _meta"
 )
 """The description of the ``meta`` property in each meta-tool's input schema."""
 
@@ -87,8 +88,7 @@ def lift_meta_argument(
                 code="VALIDATION_ERROR",
                 message=f"The meta argument of {tool_name} must be an object",
                 suggestion=(
-                    "Send meta as an object whose keys are _meta keys: "
-                    + ", ".join(sorted(keys))
+                    "Send meta as an object whose keys are _meta keys: " + ", ".join(sorted(keys))
                 ),
                 details={"argument": "meta"},
             ),

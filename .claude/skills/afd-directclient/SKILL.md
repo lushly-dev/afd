@@ -42,6 +42,7 @@ else if (isSuccess(result)) console.log(result.data.id);
 - `call<T>()` returns `CommandResult<T> | CommandResult<UnknownToolError>`, so check `isUnknownToolError` before reading `data` as `T`. It never rejects: a throw becomes `COMMAND_EXECUTION_ERROR` without the exception text.
 - The default actor is `{ kind: 'human' }`. Set `{ kind: 'agent' }` for an assistant, so middleware, approval tokens and `metadata.actorKind` tell it from the user.
 - A context `timeout` is enforced (per step in `pipe()`) and combined with `signal`. After `TIMEOUT` the handler may still have finished, so check a mutation's effect before retrying.
+- **Output budgets.** Pass `{ outputBudget: { maxBytes } }` in `client.call` / `client.pipe` options (or `registry.execute(..., { outputBudget })`) to request a per-call budget for commands that declare `outputBudget` (`spec/output-budgets.md`). Invalid asks fail with `VALIDATION_ERROR` even on unbudgeted commands.
 - For an LLM's tool list, prefer `listTools()` (below) to `listCommands()`. `packages/examples/todo-directclient/` is a Gemini chat loop.
 
 ## `allow`

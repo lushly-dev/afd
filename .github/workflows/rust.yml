@@ -12,11 +12,10 @@ on:
       # tests/contract_version.rs checks CONTRACT_VERSION against it.
       - 'spec/VERSION'
       # tests/authorization_cases.rs loads every case (the `server-auth` feature), and the server
-      # suites load the meta-tool and output-budget cases (the tool-strategy and mcp-resources
-      # cases are in spec/vectors).
+      # suites load the meta-tool cases (the tool-strategy, mcp-resources and output-budget cases
+      # are in spec/vectors).
       - 'spec/authorization.json'
       - 'spec/meta-tools.json'
-      - 'spec/output-budgets.json'
       - '.cargo/config.toml'
       - '.github/workflows/rust.yml'
   # The merge queue. No path filter applies to it: the `queue` job below does that work.
@@ -30,7 +29,6 @@ on:
       - 'spec/VERSION'
       - 'spec/authorization.json'
       - 'spec/meta-tools.json'
-      - 'spec/output-budgets.json'
       - '.cargo/config.toml'
       - '.github/workflows/rust.yml'
   # publish-rust.yml runs these same checks before `cargo publish`.

@@ -7,7 +7,7 @@ description: >
   JSON, hangs or won't start.
 metadata:
   source: botcore
-  version: 2.1.0
+  version: 2.2.0
   portable: true
 ---
 
@@ -39,7 +39,7 @@ Where it costs depends on the client. Claude Code's tool search is on by default
 
 ## Bound prose, never structured output
 
-Truncated JSON or NDJSON is not a shorter result but a decode error. Bound only output that degrades gracefully: logs, diffs and test output. The helpers are in `botcore.utils.runner`:
+Truncated JSON or NDJSON is not a shorter result but a decode error. For structured AFD commands, declare a per-command output budget (`outputBudget` / `output_budget`) so handlers fit results structurally and the engine checks the size afterwards ([`spec/output-budgets.md`](https://github.com/lushly-dev/afd/blob/main/spec/output-budgets.md)). Bound raw text only where output degrades gracefully: logs, diffs and test output. The helpers are in `botcore.utils.runner`:
 
 - **`run_command(cmd, cwd=None, timeout=300, max_output=MAX_OUTPUT_LENGTH)`** bounds each stream to 100,000 characters.
   - Pass `max_output=None` when you parse the output.

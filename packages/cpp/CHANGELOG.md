@@ -46,6 +46,7 @@ All notable changes to afd-cpp are documented here. The package is versioned ind
 
 ### Changed
 
+- **Meta-tool `meta` description (`afd::mcp_stdio`; `spec/meta-tools.json`, [#1993](https://github.com/lushly-dev/afd/issues/1993)):** the `meta` argument description on all five meta-tools now names `dev.afd/outputBudget` beside `dev.afd/context` and declared context fields, matching `spec/meta-tools.json` across all four languages. `tests/output_budget_vectors_test.cpp` now loads `spec/vectors/output-budgets.json` via `AFD_VECTORS_DIR`.
 - **Breaking: a `$ref` outside the subset fails at compile** ([#1910](https://github.com/lushly-dev/afd/issues/1910); `spec/validation.md`). The subset is `#`, `#/$defs/<name>` and `#/definitions/<name>`, as in Rust. Before, any local pointer was followed, such as `#/$defs/A/properties/x`. A pointer into a nested `$id` subschema then resolved that subschema's own references against the wrong resource.
   - **Every `$ref` is checked:** a `$ref` inside a definition nothing references is now checked too, as Python and Rust check it.
   - **Escapes:** `~0` in a definition name is decoded once, so `#/$defs/a~00` names `a~0`. Before, it named `a~`.

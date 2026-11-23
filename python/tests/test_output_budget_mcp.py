@@ -1,8 +1,8 @@
 """Output budgets over MCP transports (``spec/output-budgets.md``, B1–B8).
 
-Exercises ``spec/output-budgets.json`` over MCP (in-process SDK client, Streamable
+Exercises ``spec/vectors/output-budgets.json`` over MCP (in-process SDK client, Streamable
 HTTP stateful/stateless, SSE and stdio) in both MCP eras (2026-07-28 modern and
-2025 legacy). Separated from ``tests/test_output_budget.py`` so pure in-process
+2025 legacy). Separated from ``tests/test_output_budget_vectors.py`` so pure in-process
 tests run even when the optional ``mcp`` extra is not installed.
 """
 
@@ -38,7 +38,7 @@ from afd.server import (  # noqa: E402
     create_server,
 )
 from tests.test_mcp_protocol_live import protocol_server  # noqa: E402
-from tests.test_output_budget import (  # noqa: E402
+from tests.test_output_budget_vectors import (  # noqa: E402
     SPEC_CASES,
     _assert_same_check,
     _make_batch_server_from_spec,
@@ -113,7 +113,9 @@ async def test_mcp_batch_pipe_call_grouped_meta_argument_and_discover_invariance
         for item in case["items"]
     ]
 
-    async with Client(_make_batch_server_from_spec("grouped")._create_mcp_server(), mode=mode) as client:
+    async with Client(
+        _make_batch_server_from_spec("grouped")._create_mcp_server(), mode=mode
+    ) as client:
         # tools/list never varies by an ask
         plain = await client.list_tools()
         with_ask = await client.list_tools(
@@ -303,7 +305,7 @@ async def _assert_live_transport(call_tool: Any, list_tools: Any) -> None:
     }
     assert AFD_OUTPUT_BUDGET_META_KEY not in (by_name["doc-tag"].meta or {})
 
-    # Every ask case from spec/output-budgets.json over the live transport
+    # Every ask case from spec/vectors/output-budgets.json over the live transport
     for index, ask_case in enumerate(SPEC_CASES["asks"]):
         label = f"live ask[{index}]: {ask_case['description']}"
         meta = {AFD_OUTPUT_BUDGET_META_KEY: ask_case["ask"]} if "ask" in ask_case else None
@@ -323,7 +325,7 @@ async def _assert_live_transport(call_tool: Any, list_tools: Any) -> None:
             assert data["success"] is True, label
             assert data["data"]["effective"] == ask_case["effective"], label
 
-    # Every check case from spec/output-budgets.json over the live transport
+    # Every check case from spec/vectors/output-budgets.json over the live transport
     for index, check_case in enumerate(SPEC_CASES["checks"]):
         label = f"live check[{index}]: {check_case['description']}"
         meta = {AFD_OUTPUT_BUDGET_META_KEY: check_case["ask"]} if "ask" in check_case else None

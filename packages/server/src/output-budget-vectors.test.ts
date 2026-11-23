@@ -1,6 +1,6 @@
 /**
  * Output budgets (`spec/output-budgets.md`, B1 to B8): every case of the shared
- * `spec/output-budgets.json` in process (`createDirectRegistry`, `DirectClient`, batches,
+ * `spec/vectors/output-budgets.json` in process (`createDirectRegistry`, `DirectClient`, batches,
  * pipelines, the journal and replay), over Streamable HTTP (`/mcp`) and stdio in both MCP eras,
  * and on AFD's HTTP lanes (`/message`, `/rpc`, `/batch`, `/stream`).
  */
@@ -84,7 +84,7 @@ interface JournalCase {
 }
 
 const spec = JSON.parse(
-	readFileSync(new URL('../../../spec/output-budgets.json', import.meta.url), 'utf8')
+	readFileSync(new URL('../../../spec/vectors/output-budgets.json', import.meta.url), 'utf8')
 ) as {
 	declarations: DeclarationCase[];
 	asks: AskCase[];
@@ -291,7 +291,7 @@ async function postJson(url: string, body: unknown, headers: Record<string, stri
 // ═══════════════════════════════════════════════════════════════════════════════
 
 describe('B1: declarations', () => {
-	it('checks every declaration case from spec/output-budgets.json in defineCommand and defineCommandWithSchema', () => {
+	it('checks every declaration case from spec/vectors/output-budgets.json in defineCommand and defineCommandWithSchema', () => {
 		for (const testCase of spec.declarations) {
 			const defineViaZod = () =>
 				defineCommand({
@@ -534,7 +534,7 @@ describe('B1: declarations', () => {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 describe('B2–B4: asks and effective budget', () => {
-	it('passes all 19 ask cases from spec/output-budgets.json in process via createDirectRegistry', async () => {
+	it('passes all 19 ask cases from spec/vectors/output-budgets.json in process via createDirectRegistry', async () => {
 		for (const testCase of spec.asks) {
 			let seen: number | undefined;
 			let ran = false;
@@ -853,7 +853,7 @@ describe('B5 & B6: measure and post-handler check', () => {
 		expect(measureOutputBudgetBytes(parsed)).toBe(Buffer.byteLength(raw, 'utf8'));
 	});
 
-	it('matches all 10 measure cases in spec/output-budgets.json (including lone surrogate)', async () => {
+	it('matches all 10 measure cases in spec/vectors/output-budgets.json (including lone surrogate)', async () => {
 		expect(spec.measure.length).toBe(10);
 		for (const testCase of spec.measure) {
 			const parsed = JSON.parse(testCase.json) as CommandResult;
@@ -889,7 +889,7 @@ describe('B5 & B6: measure and post-handler check', () => {
 		}
 	});
 
-	it('passes all 11 check cases from spec/output-budgets.json in process', async () => {
+	it('passes all 11 check cases from spec/vectors/output-budgets.json in process', async () => {
 		for (const testCase of spec.checks) {
 			const cmd = makeFixedCommand(
 				'doc-search',
@@ -977,7 +977,7 @@ describe('B5 & B6: measure and post-handler check', () => {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 describe('B7: batches, pipelines, grouped tools, meta argument and HTTP lanes', () => {
-	it('runs spec/output-budgets.json batch case via MCP _meta and meta argument, plus in-process tool surface', async () => {
+	it('runs spec/vectors/output-budgets.json batch case via MCP _meta and meta argument, plus in-process tool surface', async () => {
 		const commands = makeBatchCommands(spec.batch);
 		const batchCommands = spec.batch.items.map((item) => ({
 			id: item.id,
@@ -1370,7 +1370,7 @@ describe('B7: batches, pipelines, grouped tools, meta argument and HTTP lanes', 
 // ═══════════════════════════════════════════════════════════════════════════════
 
 describe('B8: journal and replay', () => {
-	it('passes all 3 journal cases from spec/output-budgets.json, preserves key order and replays as same', async () => {
+	it('passes all 3 journal cases from spec/vectors/output-budgets.json, preserves key order and replays as same', async () => {
 		for (const testCase of spec.journal) {
 			const cmd = makeFixedCommand(
 				'doc-search',
