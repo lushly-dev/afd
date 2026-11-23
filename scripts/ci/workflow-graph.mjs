@@ -34,10 +34,7 @@ export const GROUPS = {
 	cpp: ['packages/cpp/**'],
 
 	// Contract spec inputs
-	specCore: ['spec/wire/**', 'spec/vectors/**', 'spec/VERSION'],
-	specAuth: ['spec/authorization.json'],
-	specRustExtras: ['spec/meta-tools.json'],
-	specProtocol: ['spec/protocol-conformance.json', 'spec/schema/**'],
+	specNonMarkdown: ['spec/**', '!spec/**/*.md'],
 	specPluginManifest: ['spec/plugin-manifest*', 'spec/VERSION'],
 
 	// Foundations & integrations
@@ -149,27 +146,23 @@ export const WORKFLOW_GRAPH = {
 			'rust',
 			'cpp',
 			'python',
-			'specProtocol',
+			'specNonMarkdown',
 			'pnpmLock',
 			'cargoConfig',
 			'playwrightAction',
 			'cppDepsAction',
 		],
-		extra: ['tests/consumers/afd/**'],
+		extra: ['tests/consumers/afd/**', 'tests/consumers/pnpm.mjs', 'scripts/release/exec-tool.mjs'],
 	},
 	'cpp.yml': {
 		usesSetupAction: false,
-		groups: ['cpp', 'specCore', 'cppDepsAction'],
-		extra: [
-			'spec/pipeline-variables.md',
-			'packages/examples/todo/spec/**',
-			'packages/examples/todo/backends/cpp/**',
-		],
+		groups: ['cpp', 'specNonMarkdown', 'cppDepsAction'],
+		extra: ['packages/examples/todo/spec/**', 'packages/examples/todo/backends/cpp/**'],
 	},
 	'fast-af.yml': {
 		usesSetupAction: true,
 		groups: ['fastAf', 'pnpmLock', 'pnpmWorkspace', 'playwrightAction'],
-		extra: ['tests/consumers/fast-af/**'],
+		extra: ['tests/consumers/fast-af/**', 'scripts/release/exec-tool.mjs'],
 	},
 	'health-dashboard.yml': {
 		usesSetupAction: true,
@@ -256,12 +249,12 @@ export const WORKFLOW_GRAPH = {
 	},
 	'python.yml': {
 		usesSetupAction: false,
-		groups: ['python', 'specCore', 'specAuth'],
+		groups: ['python', 'specNonMarkdown'],
 		extra: ['.github/workflows/publish-python.yml', 'scripts/python-wheel-smoke.py'],
 	},
 	'rust.yml': {
 		usesSetupAction: false,
-		groups: ['rust', 'specCore', 'specAuth', 'specRustExtras', 'cargoConfig'],
+		groups: ['rust', 'specNonMarkdown', 'cargoConfig'],
 	},
 	'specimen.yml': {
 		usesSetupAction: true,
@@ -270,6 +263,8 @@ export const WORKFLOW_GRAPH = {
 			'foundations/fast-af/packages/element/packages/fast-element/**',
 			'foundations/fast-af/packages/violet-elements/**',
 			'tests/consumers/specimen/**',
+			'tests/consumers/pnpm.mjs',
+			'scripts/release/exec-tool.mjs',
 		],
 	},
 	'umbel.yml': {
@@ -287,15 +282,22 @@ export const WORKFLOW_GRAPH = {
 		],
 		extra: [
 			'foundations/specimen/fixtures/pack/**',
+			'foundations/specimen/schema/pack/**',
 			'foundations/specimen/docs/pack-format.md',
 			'foundations/fast-af/packages/violet-elements/pack/**',
 			'foundations/fast-af/packages/violet-elements/specimen.config.json',
+			'foundations/fast-af/packages/violet-elements/package.json',
 		],
 	},
 	'violet.yml': {
 		usesSetupAction: true,
 		groups: ['violet', 'afdCore', 'pnpmLock', 'pnpmWorkspace', 'playwrightAction'],
-		extra: ['tests/consumers/violet/**'],
+		extra: [
+			'tests/consumers/violet/**',
+			'tests/consumers/pnpm.mjs',
+			'scripts/release/exec-tool.mjs',
+			'foundations/fast-af/packages/violet-elements/tokens/interface.json',
+		],
 	},
 };
 

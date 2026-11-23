@@ -20,7 +20,12 @@ import {
 } from '../release/control.mjs';
 import { tarCommand } from '../release/exec-tool.mjs';
 import { intentFile, readIntent } from './intent.mjs';
-import { dependencyOrder, readPublished, verifyPublished } from './prerequisites.mjs';
+import {
+	dependencyWaves,
+	readPublished,
+	readPublishedBatch,
+	verifyPublished,
+} from './prerequisites.mjs';
 import {
 	hash,
 	isNodeModulesSegment,
@@ -344,6 +349,7 @@ export function publishPlan({
 	receiptFile,
 	registry = readRegistry,
 	readback = readPublished,
+	readbackBatch = readback === readPublished ? readPublishedBatch : null,
 	publisher = (artifact) =>
 		run(
 			'npm',
@@ -398,7 +404,8 @@ export function publishPlan({
 		});
 	let evidence = readEvidence();
 	validatePlan(root, plan, evidence);
-	const ordered = dependencyOrder(root, plan.artifacts, packedManifest);
+	const waves = dependencyWaves(root, plan.artifacts, packedManifest);
+	const ordered = waves.flat();
 	for (const artifact of ordered) {
 		if (
 			knownPublished.has(artifact.name) ||
@@ -421,61 +428,122 @@ export function publishPlan({
 		publishedPackages: [],
 	};
 	const save = () => writeFileSync(receiptFile, `${JSON.stringify(receipt, null, '\t')}\n`);
-	for (const artifact of ordered) {
-		const tag = `${artifact.name}@${artifact.version}`;
-		try {
-			evidence = readEvidence();
-			validatePlan(root, plan, evidence);
-			if (
-				knownPublished.has(artifact.name) ||
-				evidence.find((entry) => entry.name === artifact.name)?.versions.includes(artifact.version)
-			) {
-				receipt.state = 'checking';
+	const recordPending = (artifact) => {
+		receipt.pendingVerification ??= [];
+		if (!receipt.pendingVerification.some((entry) => entry.name === artifact.name))
+			receipt.pendingVerification.push({ name: artifact.name, version: artifact.version });
+	};
+	const clearPending = (name) => {
+		if (!receipt.pendingVerification) return;
+		receipt.pendingVerification = receipt.pendingVerification.filter(
+			(entry) => entry.name !== name
+		);
+		if (receipt.pendingVerification.length === 0) delete receipt.pendingVerification;
+	};
+	// Carry previously verified artifacts in the receipt until their tags are finalized, so a second
+	// interruption under a lagging npm version listing never loses them and re-uploads (#952).
+	for (const entry of previouslyPublished) recordPending(entry);
+	for (const wave of waves) {
+		// Upload independent packages in the wave before polling readback so propagation waits overlap (#952).
+		const waveEntries = [];
+		for (const artifact of wave) {
+			try {
+				evidence = readEvidence();
+				validatePlan(root, plan, evidence);
+				const alreadyPublished =
+					knownPublished.has(artifact.name) ||
+					evidence
+						.find((entry) => entry.name === artifact.name)
+						?.versions.includes(artifact.version);
+				if (alreadyPublished) {
+					recordPending(artifact);
+					waveEntries.push({ artifact, alreadyPublished: true });
+					continue;
+				}
+				receipt.state = 'publishing';
 				receipt.current = artifact.name;
+				recordPending(artifact);
 				save();
-				const observed = verifyPublished(artifact, readback);
+				publisher(artifact);
+				waveEntries.push({ artifact, alreadyPublished: false });
+			} catch (error) {
+				if (!existsSync(receiptFile)) throw error;
+				receipt.state = 'held';
+				receipt.reason = error.message;
+				save();
+				throw new Error(`Publication held; reconcile receipt ${receiptFile}: ${error.message}`);
+			}
+		}
+
+		// Read back every artifact in the wave together, then verify and tag each before the next wave starts.
+		let batchMetadata = null;
+		if (readbackBatch && waveEntries.length > 1) {
+			receipt.state = 'checking';
+			receipt.current = waveEntries[0].artifact.name;
+			save();
+			try {
+				const observed = readbackBatch(waveEntries.map((entry) => entry.artifact));
+				batchMetadata = new Map(
+					waveEntries.map((entry, index) => [entry.artifact.name, observed[index]])
+				);
+			} catch (error) {
+				if (error?.artifact) receipt.current = error.artifact;
+				else if (error?.pending?.[0]?.name) receipt.current = error.pending[0].name;
+				receipt.state = 'held';
+				receipt.reason = error.message;
+				save();
+				throw new Error(`Publication held; reconcile receipt ${receiptFile}: ${error.message}`);
+			}
+		}
+
+		for (const { artifact, alreadyPublished } of waveEntries) {
+			const tag = `${artifact.name}@${artifact.version}`;
+			try {
+				receipt.current = artifact.name;
+				if (alreadyPublished) {
+					receipt.state = 'checking';
+					save();
+				}
+				const observed = verifyPublished(
+					artifact,
+					batchMetadata ? () => batchMetadata.get(artifact.name) : readback
+				);
 				receipt.verifiedArtifacts ??= [];
 				receipt.verifiedArtifacts.push(observed);
+				clearPending(artifact.name);
 				receipt.publishedPackages.push({
 					name: artifact.name,
 					version: artifact.version,
 					tag,
-					publication: 'previously-published',
+					...(alreadyPublished ? { publication: 'previously-published' } : {}),
 					notes: notes(root, artifact),
 				});
-				let target;
-				try {
-					target = run('git', ['rev-parse', '--verify', `refs/tags/${tag}^{commit}`], root).trim();
-				} catch {
+				if (alreadyPublished) {
+					let target;
+					try {
+						target = run(
+							'git',
+							['rev-parse', '--verify', `refs/tags/${tag}^{commit}`],
+							root
+						).trim();
+					} catch {
+						tagger(tag);
+					}
+					if (target && target !== plan.sourceRevision)
+						throw new Error(`Existing release tag differs: ${tag}`);
+					save();
+				} else {
+					receipt.state = 'published';
+					save();
 					tagger(tag);
 				}
-				if (target && target !== plan.sourceRevision)
-					throw new Error(`Existing release tag differs: ${tag}`);
+			} catch (error) {
+				if (!existsSync(receiptFile)) throw error;
+				receipt.state = 'held';
+				receipt.reason = error.message;
 				save();
-				continue;
+				throw new Error(`Publication held; reconcile receipt ${receiptFile}: ${error.message}`);
 			}
-			receipt.state = 'publishing';
-			receipt.current = artifact.name;
-			save();
-			publisher(artifact);
-			const observed = verifyPublished(artifact, readback);
-			receipt.verifiedArtifacts ??= [];
-			receipt.verifiedArtifacts.push(observed);
-			receipt.publishedPackages.push({
-				name: artifact.name,
-				version: artifact.version,
-				tag: `${artifact.name}@${artifact.version}`,
-				notes: notes(root, artifact),
-			});
-			receipt.state = 'published';
-			save();
-			tagger(`${artifact.name}@${artifact.version}`);
-		} catch (error) {
-			if (!existsSync(receiptFile)) throw error;
-			receipt.state = 'held';
-			receipt.reason = error.message;
-			save();
-			throw new Error(`Publication held; reconcile receipt ${receiptFile}: ${error.message}`);
 		}
 	}
 	receipt.state = 'complete';

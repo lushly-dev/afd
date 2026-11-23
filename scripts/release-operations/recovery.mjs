@@ -57,6 +57,7 @@ export function reconcilePublication({
 	for (const entry of [
 		...(receipt.verifiedArtifacts ?? []),
 		...(receipt.publishedPackages ?? []),
+		...(receipt.pendingVerification ?? []),
 	]) {
 		if (!plan.artifacts.some((a) => a.name === entry.name && a.version === entry.version))
 			throw new Error('Held receipt contains a foreign artifact');

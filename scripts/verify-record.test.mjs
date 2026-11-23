@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { describe, it } from 'node:test';
-import { decide, onlyFactoryRefs } from './pre-push.mjs';
+import { cleanHookEnvironment, decide, onlyFactoryRefs, runPrePushChecks } from './pre-push.mjs';
 import {
 	acceptRecord,
 	buildRecord,
@@ -249,5 +249,73 @@ describe('in a repository', () => {
 		assert.equal(onlyFactoryRefs(push(OTHER, 'refs/heads/factory/queue/x')), false);
 		assert.equal(onlyFactoryRefs(''), false);
 		assert.equal(decide({ updates: push(OTHER), git, read, now: NOW }).accepted, false);
+	});
+
+	it('pre-push strips GIT_* hook variables before running pre-push-checks so suites cannot write to a decoy repo (#2257)', (t) => {
+		const cleaned = cleanHookEnvironment({
+			PATH: '/usr/bin',
+			GIT_DIR: '/decoy/.git',
+			GIT_INDEX_FILE: '/decoy/.git/index',
+			Git_Work_Tree: '/decoy',
+			CUSTOM_FLAG: '1',
+		});
+		assert.deepEqual(cleaned, { PATH: '/usr/bin', CUSTOM_FLAG: '1' });
+
+		// Model a real git push hook: GIT_DIR and GIT_INDEX_FILE point at the repo running lefthook.
+		const decoy = repo();
+		t.after(() => rmSync(decoy.root, { recursive: true, force: true }));
+		decoy.git(['config', 'user.name', 'Original Owner']);
+		decoy.git(['config', 'user.email', 'owner@example.invalid']);
+
+		// A check that creates its own temp repo without scrubbing GIT_* (the #2257 failure mode).
+		const marker = join(decoy.root, 'probe-ran.txt');
+		writeFileSync(
+			join(decoy.root, 'probe-git.mjs'),
+			[
+				"import { execFileSync } from 'node:child_process';",
+				"import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';",
+				"import { tmpdir } from 'node:os';",
+				"import { join } from 'node:path';",
+				"const dir = mkdtempSync(join(tmpdir(), 'afd-pre-push-probe-'));",
+				'try {',
+				"  const run = (args) => execFileSync('git', args, { cwd: dir, stdio: 'pipe' });",
+				"  run(['init', '-q', '-b', 'main']);",
+				"  run(['config', 'user.name', 'Test']);",
+				"  run(['config', 'user.email', 'test@example.invalid']);",
+				"  writeFileSync(join(dir, 'probe.txt'), 'probe\\n');",
+				"  run(['add', '.']);",
+				"  run(['commit', '-q', '-m', 'probe']);",
+				`  writeFileSync(${JSON.stringify(marker)}, 'ran\\n');`,
+				'} finally {',
+				'  rmSync(dir, { recursive: true, force: true });',
+				'}',
+			].join('\n')
+		);
+		writeFileSync(
+			join(decoy.root, 'lefthook.yml'),
+			'pre-push-checks:\n  parallel: false\n  commands:\n    probe:\n      run: node probe-git.mjs\n'
+		);
+		decoy.git(['add', 'probe-git.mjs', 'lefthook.yml']);
+		decoy.git(['commit', '-q', '-m', 'add pre-push probe']);
+		const decoyHeadBefore = decoy.git(['rev-parse', 'HEAD']).trim();
+
+		const decoyGitDir = join(decoy.root, '.git');
+		const baseEnv = { ...process.env };
+		delete baseEnv.LEFTHOOK;
+		delete baseEnv.LEFTHOOK_SKIP;
+		runPrePushChecks({
+			cwd: decoy.root,
+			env: {
+				...baseEnv,
+				GIT_DIR: decoyGitDir,
+				GIT_INDEX_FILE: join(decoyGitDir, 'index'),
+			},
+			stdio: 'pipe',
+		});
+
+		assert.equal(existsSync(marker), true, 'probe command must have executed');
+		assert.equal(decoy.git(['rev-parse', 'HEAD']).trim(), decoyHeadBefore);
+		assert.equal(decoy.git(['config', '--local', 'user.name']).trim(), 'Original Owner');
+		assert.equal(decoy.git(['config', '--local', 'user.email']).trim(), 'owner@example.invalid');
 	});
 });

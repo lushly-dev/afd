@@ -6,10 +6,8 @@ on:
     branches: [main]
     paths:
       - 'python/**'
-      - 'spec/wire/**'
-      - 'spec/vectors/**'
-      - 'spec/VERSION'
-      - 'spec/authorization.json'
+      - 'spec/**'
+      - '!spec/**/*.md'
       - '.github/workflows/publish-python.yml'
       - 'scripts/python-wheel-smoke.py'
       - '.github/workflows/python.yml'
@@ -20,10 +18,8 @@ on:
     branches: [main]
     paths:
       - 'python/**'
-      - 'spec/wire/**'
-      - 'spec/vectors/**'
-      - 'spec/VERSION'
-      - 'spec/authorization.json'
+      - 'spec/**'
+      - '!spec/**/*.md'
       - '.github/workflows/publish-python.yml'
       - 'scripts/python-wheel-smoke.py'
       - '.github/workflows/python.yml'

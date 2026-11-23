@@ -41,6 +41,20 @@ export function matchesFilters(filters, file) {
 }
 
 /**
+ * Read the `paths:` list of a top-level workflow trigger event (`pull_request`, `push`, ...).
+ * Returns `undefined` when the event is absent, or `null` when the event has no `paths:` filter.
+ */
+export function readEventPaths(text, eventName) {
+	const parsed = parseWorkflow(text);
+	const trigger = parsed.triggers[eventName];
+	if (!trigger) return undefined;
+	if (trigger.paths !== undefined && trigger.paths.length === 0) {
+		throw new Error(`unreadable ${eventName}.paths: empty list`);
+	}
+	return trigger.paths ?? null;
+}
+
+/**
  * The pull-request trigger of a workflow: `{ paths }` (null when every change triggers it) and
  * its `gate` steps by id as argument lists, or null when pull requests do not trigger it.
  */

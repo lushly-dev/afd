@@ -87,25 +87,42 @@ describe('caller cancellation scheduling', () => {
 	);
 
 	it('keeps the batch deadline active while cancelled started work drains', async () => {
-		const controller = new AbortController();
-		const result = await executeBatch(
-			{
-				commands: [
-					{ command: 'work-wait', input: {} },
-					{ command: 'work-queued', input: {} },
-				],
-				options: { timeout: 10 },
-			},
-			async () => {
+		vi.useFakeTimers();
+		try {
+			const controller = new AbortController();
+			const execute = vi.fn(async () => {
 				controller.abort();
-				return new Promise(() => {});
-			},
-			{ signal: controller.signal }
-		);
-		expect(result.results.map((entry) => entry.result.error?.code)).toEqual([
-			'BATCH_TIMEOUT',
-			'BATCH_TIMEOUT',
-		]);
+				return new Promise<ReturnType<typeof success>>(() => {});
+			});
+			let settled = false;
+			const pending = executeBatch(
+				{
+					commands: [
+						{ command: 'work-wait', input: {} },
+						{ command: 'work-queued', input: {} },
+					],
+					options: { timeout: 10 },
+				},
+				execute,
+				{ signal: controller.signal }
+			).then((value) => {
+				settled = true;
+				return value;
+			});
+			await vi.advanceTimersByTimeAsync(9);
+			expect(execute).toHaveBeenCalledTimes(1);
+			expect(controller.signal.aborted).toBe(true);
+			expect(settled).toBe(false);
+			await vi.advanceTimersByTimeAsync(1);
+			const result = await pending;
+			expect(settled).toBe(true);
+			expect(result.results.map((entry) => entry.result.error?.code)).toEqual([
+				'BATCH_TIMEOUT',
+				'BATCH_TIMEOUT',
+			]);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it('starts no pipeline steps when already cancelled, including conditional steps', async () => {
@@ -158,26 +175,42 @@ describe('caller cancellation scheduling', () => {
 	);
 
 	it('keeps the pipeline deadline active after caller cancellation', async () => {
-		const controller = new AbortController();
-		const execute = vi.fn(async () => {
-			controller.abort();
-			return new Promise<ReturnType<typeof success>>(() => {});
-		});
-		const result = await executePipeline(
-			{
-				steps: [
-					{ command: 'work-wait', input: {} },
-					{ command: 'work-queued', input: {} },
-				],
-				options: { timeoutMs: 10, continueOnFailure: true },
-			},
-			execute,
-			{ signal: controller.signal }
-		);
-		expect(execute).toHaveBeenCalledTimes(1);
-		expect(result.steps.map((step) => step.error?.code)).toEqual([
-			'PIPELINE_TIMEOUT',
-			'PIPELINE_TIMEOUT',
-		]);
+		vi.useFakeTimers();
+		try {
+			const controller = new AbortController();
+			const execute = vi.fn(async () => {
+				controller.abort();
+				return new Promise<ReturnType<typeof success>>(() => {});
+			});
+			let settled = false;
+			const pending = executePipeline(
+				{
+					steps: [
+						{ command: 'work-wait', input: {} },
+						{ command: 'work-queued', input: {} },
+					],
+					options: { timeoutMs: 10, continueOnFailure: true },
+				},
+				execute,
+				{ signal: controller.signal }
+			).then((value) => {
+				settled = true;
+				return value;
+			});
+			await vi.advanceTimersByTimeAsync(9);
+			expect(execute).toHaveBeenCalledTimes(1);
+			expect(controller.signal.aborted).toBe(true);
+			expect(settled).toBe(false);
+			await vi.advanceTimersByTimeAsync(1);
+			const result = await pending;
+			expect(settled).toBe(true);
+			expect(execute).toHaveBeenCalledTimes(1);
+			expect(result.steps.map((step) => step.error?.code)).toEqual([
+				'PIPELINE_TIMEOUT',
+				'PIPELINE_TIMEOUT',
+			]);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 });

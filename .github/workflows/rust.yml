@@ -5,11 +5,8 @@ on:
     branches: [main]
     paths:
       - 'packages/rust/**'
-      - 'spec/wire/**'
-      - 'spec/vectors/**'
-      - 'spec/VERSION'
-      - 'spec/authorization.json'
-      - 'spec/meta-tools.json'
+      - 'spec/**'
+      - '!spec/**/*.md'
       - '.cargo/config.toml'
       - '.github/workflows/rust.yml'
       - '.github/workflows/queue.yml'
@@ -19,11 +16,8 @@ on:
     branches: [main]
     paths:
       - 'packages/rust/**'
-      - 'spec/wire/**'
-      - 'spec/vectors/**'
-      - 'spec/VERSION'
-      - 'spec/authorization.json'
-      - 'spec/meta-tools.json'
+      - 'spec/**'
+      - '!spec/**/*.md'
       - '.cargo/config.toml'
       - '.github/workflows/rust.yml'
       - '.github/workflows/queue.yml'

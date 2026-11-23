@@ -30,7 +30,12 @@ import {
 	selectRelease,
 	versionSelected,
 } from './release-control.mjs';
-import { dependencyOrder, verifyPublished } from './release-operations/prerequisites.mjs';
+import {
+	dependencyOrder,
+	dependencyWaves,
+	readPublishedBatch,
+	verifyPublished,
+} from './release-operations/prerequisites.mjs';
 import {
 	assertPackedContents,
 	excludesNodeModules,
@@ -1350,4 +1355,245 @@ test('packSelected excludes existing source node_modules while preserving build 
 	assert.equal(results.length, 1);
 	assert.equal(sawBuilt, true);
 	assert.equal(sawStale, false);
+});
+
+test('independent packages share a wave and upload before readback; dependents wait for earlier waves (#952)', (t) => {
+	const f = fixture(t, { bState: 'admitted' });
+	f.evidence[1].versions = [];
+	approve(f, ['a', 'b']);
+	const plan = createPublishPlan({
+		root: f.root,
+		selectedUnits: ['a', 'b'],
+		registryEvidence: f.evidence,
+		artifactsDirectory: f.artifacts,
+	});
+	const waves = dependencyWaves(f.root, plan.artifacts, packedManifest);
+	assert.equal(waves.length, 1);
+	assert.deepEqual(
+		waves[0].map((artifact) => artifact.name),
+		['@fixture/a', '@fixture/b']
+	);
+	const events = [];
+	const receipt = publishPlan({
+		root: f.root,
+		plan,
+		receiptFile: f.receipt,
+		registry: registry(f),
+		publisher: (artifact) => events.push(`upload:${artifact.name}`),
+		readback: (artifact) => {
+			events.push(`verify:${artifact.name}`);
+			return successfulReadback(artifact);
+		},
+		tagger: (tag) => events.push(`tag:${tag}`),
+	});
+	assert.equal(receipt.state, 'complete');
+	assert.equal(receipt.pendingVerification, undefined);
+	assert.deepEqual(events, [
+		'upload:@fixture/a',
+		'upload:@fixture/b',
+		'verify:@fixture/a',
+		'tag:@fixture/a@1.0.0',
+		'verify:@fixture/b',
+		'tag:@fixture/b@1.0.0',
+	]);
+});
+
+test('mid-wave failure records pendingVerification so reconciliation verifies earlier uploads in the wave (#952)', (t) => {
+	const f = fixture(t, { bState: 'admitted' });
+	f.evidence[1].versions = [];
+	approve(f, ['a', 'b']);
+	const plan = createPublishPlan({
+		root: f.root,
+		selectedUnits: ['a', 'b'],
+		registryEvidence: f.evidence,
+		artifactsDirectory: f.artifacts,
+	});
+	assert.throws(
+		() =>
+			publishPlan({
+				root: f.root,
+				plan,
+				receiptFile: f.receipt,
+				registry: registry(f),
+				publisher: (artifact) => {
+					if (artifact.name === '@fixture/b') throw new Error('upload interrupted');
+				},
+				tagger: () => {},
+			}),
+		/Publication held.*upload interrupted/
+	);
+	const held = JSON.parse(readFileSync(f.receipt, 'utf8'));
+	assert.equal(held.state, 'held');
+	assert.equal(held.current, '@fixture/b');
+	assert.deepEqual(held.pendingVerification, [
+		{ name: '@fixture/a', version: '1.0.0' },
+		{ name: '@fixture/b', version: '1.0.0' },
+	]);
+	const proof = reconcilePublication({
+		root: f.root,
+		plan,
+		receipt: held,
+		registry: registry(f),
+		readback: successfulReadback,
+	});
+	assert.deepEqual(
+		proof.verified.map((entry) => entry.name),
+		['@fixture/a', '@fixture/b']
+	);
+	assert.deepEqual(proof.missing, []);
+});
+
+test('two consecutive recoveries with a stale npm listing never re-upload a verified artifact (#952)', (t) => {
+	const f = fixture(t, { bState: 'admitted' });
+	f.evidence[1].versions = [];
+	approve(f, ['a', 'b']);
+	const plan = createPublishPlan({
+		root: f.root,
+		selectedUnits: ['a', 'b'],
+		registryEvidence: f.evidence,
+		artifactsDirectory: f.artifacts,
+	});
+	// First recovery proved @fixture/a is already published, while npm's version listing still omits it.
+	const verifiedA = verifyPublished(plan.artifacts[0], successfulReadback);
+	const uploads = [];
+	assert.throws(
+		() =>
+			publishPlan({
+				root: f.root,
+				plan,
+				receiptFile: f.receipt,
+				registry: registry(f),
+				previouslyPublished: [verifiedA],
+				publisher: (artifact) => {
+					uploads.push(artifact.name);
+					if (artifact.name === '@fixture/b') throw new Error('second interruption');
+				},
+				tagger: () => {},
+			}),
+		/Publication held.*second interruption/
+	);
+	assert.deepEqual(uploads, ['@fixture/b']);
+	const held = JSON.parse(readFileSync(f.receipt, 'utf8'));
+	assert.equal(held.state, 'held');
+	assert.equal(held.current, '@fixture/b');
+	assert.deepEqual(held.pendingVerification, [
+		{ name: '@fixture/a', version: '1.0.0' },
+		{ name: '@fixture/b', version: '1.0.0' },
+	]);
+	// Second recovery under the same stale listing still verifies both and classifies neither as missing.
+	const proof = reconcilePublication({
+		root: f.root,
+		plan,
+		receipt: held,
+		registry: registry(f),
+		readback: successfulReadback,
+	});
+	assert.deepEqual(
+		proof.verified.map((entry) => entry.name),
+		['@fixture/a', '@fixture/b']
+	);
+	assert.deepEqual(proof.missing, []);
+});
+
+test('batch readback in publishPlan succeeds, holds with pending attribution on timeout, and attributes second-artifact lookup errors (#952)', (t) => {
+	const f = fixture(t, { bState: 'admitted' });
+	f.evidence[1].versions = [];
+	approve(f, ['a', 'b']);
+	const plan = createPublishPlan({
+		root: f.root,
+		selectedUnits: ['a', 'b'],
+		registryEvidence: f.evidence,
+		artifactsDirectory: f.artifacts,
+	});
+
+	// 1. Multi-artifact wave succeeding through readbackBatch.
+	const batchCalls = [];
+	const receiptOk = publishPlan({
+		root: f.root,
+		plan,
+		receiptFile: f.receipt,
+		registry: registry(f),
+		readbackBatch: (artifacts) => {
+			batchCalls.push(artifacts.map((a) => a.name));
+			return readPublishedBatch(artifacts, {
+				lookup: (artifact) => successfulReadback(artifact),
+				wait: () => {},
+			});
+		},
+		publisher: () => {},
+		tagger: () => {},
+	});
+	assert.equal(receiptOk.state, 'complete');
+	assert.equal(receiptOk.pendingVerification, undefined);
+	assert.deepEqual(batchCalls, [['@fixture/a', '@fixture/b']]);
+
+	// 2. Batch readback timeout holds receipt with receipt.current pointing to the still-pending second artifact.
+	const timeoutReceipt = join(dirname(f.receipt), 'timeout-receipt.json');
+	assert.throws(
+		() =>
+			publishPlan({
+				root: f.root,
+				plan,
+				receiptFile: timeoutReceipt,
+				registry: registry(f),
+				readbackBatch: (artifacts) => {
+					let time = 0;
+					return readPublishedBatch(artifacts, {
+						now: () => time,
+						lookup: (artifact) =>
+							artifact.name === '@fixture/a' ? successfulReadback(artifact) : { notVisible: true },
+						wait: (ms) => {
+							time += ms;
+						},
+					});
+				},
+				publisher: () => {},
+				tagger: () => {},
+			}),
+		/Publication held.*still not visible.*@fixture\/b/
+	);
+	const heldTimeout = JSON.parse(readFileSync(timeoutReceipt, 'utf8'));
+	assert.equal(heldTimeout.state, 'held');
+	assert.equal(heldTimeout.current, '@fixture/b');
+	assert.deepEqual(heldTimeout.pendingVerification, [
+		{ name: '@fixture/a', version: '1.0.0' },
+		{ name: '@fixture/b', version: '1.0.0' },
+	]);
+	const reconciled = reconcilePublication({
+		root: f.root,
+		plan,
+		receipt: heldTimeout,
+		registry: registry(f),
+		readback: successfulReadback,
+	});
+	assert.deepEqual(
+		reconciled.verified.map((entry) => entry.name),
+		['@fixture/a', '@fixture/b']
+	);
+
+	// 3. Immediate lookup error on the second artifact attributes receipt.current to that artifact.
+	const errorReceipt = join(dirname(f.receipt), 'error-receipt.json');
+	assert.throws(
+		() =>
+			publishPlan({
+				root: f.root,
+				plan,
+				receiptFile: errorReceipt,
+				registry: registry(f),
+				readbackBatch: (artifacts) =>
+					readPublishedBatch(artifacts, {
+						lookup: (artifact) => {
+							if (artifact.name === '@fixture/b') throw new Error('tarball checksum mismatch');
+							return successfulReadback(artifact);
+						},
+						wait: () => {},
+					}),
+				publisher: () => {},
+				tagger: () => {},
+			}),
+		/Publication held.*tarball checksum mismatch/
+	);
+	const heldError = JSON.parse(readFileSync(errorReceipt, 'utf8'));
+	assert.equal(heldError.state, 'held');
+	assert.equal(heldError.current, '@fixture/b');
 });

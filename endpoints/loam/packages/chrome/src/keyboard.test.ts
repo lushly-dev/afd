@@ -138,6 +138,18 @@ describe('reserved chords', () => {
 	it('detects the macOS platform', () => {
 		expect(isMacPlatform({ platform: 'MacIntel' })).toBe(true);
 		expect(isMacPlatform({ platform: 'Linux x86_64', userAgent: 'X11' })).toBe(false);
+		expect(
+			isMacPlatform({
+				platform: 'Win32',
+				userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15',
+			})
+		).toBe(false);
+		expect(
+			isMacPlatform({
+				platform: '',
+				userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15',
+			})
+		).toBe(true);
 		expect(isMacPlatform(undefined)).toBe(false);
 	});
 });

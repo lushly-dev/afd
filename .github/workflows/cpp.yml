@@ -5,11 +5,9 @@ on:
     branches: [main]
     paths:
       - 'packages/cpp/**'
-      - 'spec/wire/**'
-      - 'spec/vectors/**'
-      - 'spec/VERSION'
+      - 'spec/**'
+      - '!spec/**/*.md'
       - '.github/actions/cpp-dependencies/**'
-      - 'spec/pipeline-variables.md'
       - 'packages/examples/todo/spec/**'
       - 'packages/examples/todo/backends/cpp/**'
       - '.github/workflows/cpp.yml'
@@ -20,11 +18,9 @@ on:
     branches: [main]
     paths:
       - 'packages/cpp/**'
-      - 'spec/wire/**'
-      - 'spec/vectors/**'
-      - 'spec/VERSION'
+      - 'spec/**'
+      - '!spec/**/*.md'
       - '.github/actions/cpp-dependencies/**'
-      - 'spec/pipeline-variables.md'
       - 'packages/examples/todo/spec/**'
       - 'packages/examples/todo/backends/cpp/**'
       - '.github/workflows/cpp.yml'
