@@ -720,3 +720,169 @@ def test_a_pull_request_is_enqueued_and_dequeued_bound_to_its_head(github):
     mock.graphql.append({"data": {"dequeuePullRequest": None}, "errors": [{"type": "NOT_FOUND"}]})
     with pytest.raises(GitHubRefused, match="did not take #46 out"):
         app.dequeue_pull(REPO, 46)
+
+
+def test_rate_limit_reads_rest_and_graphql_from_one_call(github):
+    app, mock, _ = github
+    mock.routes[("GET", "/rate_limit")] = httpx.Response(
+        200,
+        json={
+            "resources": {
+                "core": {"limit": 5000, "remaining": 4910, "reset": 1_900_003_600},
+                "graphql": {"limit": 5000, "remaining": 4725, "reset": 1_900_004_200},
+            }
+        },
+    )
+    limit = app.rate_limit()
+    assert limit == {
+        "remaining": 4910,
+        "limit": 5000,
+        "resetAt": "2030-03-17T18:46:40Z",
+        "graphql": {
+            "remaining": 4725,
+            "limit": 5000,
+            "resetAt": "2030-03-17T18:56:40Z",
+        },
+    }
+    assert [r.url.path for r in mock.requests if r.url.path == "/rate_limit"] == ["/rate_limit"]
+    # A response without resources.graphql, or with a null/partial/bool one, degrades cleanly.
+    for extra in (
+        {},
+        {"graphql": None},
+        {"graphql": {"remaining": 4700, "limit": 5000, "reset": None}},
+        {"graphql": {"limit": 5000}},
+        {"graphql": {"remaining": True, "limit": 5000, "reset": 1_900_004_200}},
+    ):
+        resources = {"core": {"limit": 5000, "remaining": 4900, "reset": 1_900_003_600}, **extra}
+        mock.routes[("GET", "/rate_limit")] = httpx.Response(200, json={"resources": resources})
+        rest_only = app.rate_limit()
+        assert rest_only == {"remaining": 4900, "limit": 5000, "resetAt": "2030-03-17T18:46:40Z"}
+        assert "graphql" not in rest_only
+    # A missing or malformed core resource raises GitHubUnavailable instead of KeyError.
+    for malformed in ({}, {"resources": {}}, {"resources": {"core": {"remaining": True}}}):
+        mock.routes[("GET", "/rate_limit")] = httpx.Response(200, json=malformed)
+        with pytest.raises(GitHubUnavailable, match="malformed"):
+            app.rate_limit()
+
+
+def test_ages_reports_key_mtime_and_token_remaining_through_gateway_status(key_pair, tmp_path):
+    from botcore_factory.gateway.config import GatewayConfig
+    from botcore_factory.gateway.service import Gateway
+    from botcore_factory.gateway.state import GatewayState
+
+    mock = MockGitHub()
+    clock = Clock()
+    # Without key_mtime, appKey is None; before any call, token is None.
+    bare = GitHubApp(
+        app_id=5,
+        installation_id=7,
+        private_key=key_pair[0],
+        bot=BOT,
+        data_dir=tmp_path / "bare",
+        transport=httpx.MockTransport(mock),
+        clock=clock,
+    )
+    assert bare.ages() == {"appKey": None, "token": None}
+
+    # Future mtime (clock skew) clamps to 0.
+    skewed = GitHubApp(
+        app_id=5,
+        installation_id=7,
+        private_key=key_pair[0],
+        bot=BOT,
+        data_dir=tmp_path / "skewed",
+        transport=httpx.MockTransport(mock),
+        clock=clock,
+        key_mtime=clock.at + 30.0,
+    )
+    assert skewed.ages()["appKey"] == 0
+
+    app = GitHubApp(
+        app_id=5,
+        installation_id=7,
+        private_key=key_pair[0],
+        bot=BOT,
+        data_dir=tmp_path / "data",
+        transport=httpx.MockTransport(mock),
+        clock=clock,
+        key_mtime=clock.at - 7200.5,
+    )
+    assert app.ages() == {"appKey": 7200, "token": None}
+
+    mock.routes[("GET", "/rate_limit")] = httpx.Response(
+        200,
+        json={
+            "resources": {
+                "core": {"limit": 5000, "remaining": 4990, "reset": 1_900_003_600},
+                "graphql": {"limit": 5000, "remaining": 4880, "reset": 1_900_004_200},
+            }
+        },
+    )
+    config = GatewayConfig(bot=BOT, owner="o", ownerEmails=[OWNER], repositories=[REPO])
+    gateway = Gateway(app, config, GatewayState(tmp_path / "state"), "owner")
+    result = gateway.status("gateway-owner", ["pr-merge"])
+    assert result.success
+    # MockGitHub's token expires at 2030-03-17T18:33:20Z = epoch 1_900_002_800 (2800s after clock).
+    assert result.data["ages"] == {"appKey": 7200, "token": 2800}
+    assert "readOnlyToken" not in result.data["ages"]
+    assert result.data["rateLimit"] == {
+        "remaining": 4990,
+        "resetAt": "2030-03-17T18:46:40Z",
+        "graphql": {"remaining": 4880, "resetAt": "2030-03-17T18:56:40Z"},
+    }
+
+    # Past token expiry without a refresh, token clamps at 0 while appKey grows.
+    clock.at += 3000.0
+    assert app.ages() == {"appKey": 10200, "token": 0}
+
+
+def test_cli_github_wires_key_file_mtime_into_github_app(tmp_path, key_pair, monkeypatch):
+    from botcore_factory.gateway.cli import _github
+    from botcore_factory.gateway.config import GatewayConfig
+    from botcore_factory.gateway.github_app import read_private_key_with_mtime
+
+    key = tmp_path / "app.pem"
+    key.write_text(key_pair[0], encoding="utf-8")
+    share(key, shared=False)
+    installed_at = 1_700_000_000.0
+    os.utime(key, (installed_at, installed_at))
+    config = GatewayConfig(
+        bot=BOT,
+        owner="o",
+        ownerEmails=[OWNER],
+        repositories=[REPO],
+        githubApp={"appId": 5, "installationId": 7},
+    )
+    # Never re-stat the path separately after reading: permissions, content and mtime come from
+    # the same open descriptor.
+    monkeypatch.setattr(
+        Path,
+        "stat",
+        lambda self, *args, **kwargs: (_ for _ in ()).throw(AssertionError("used Path.stat")),
+    )
+    app = _github(config, tmp_path / "data", None, key)
+    assert isinstance(app, GitHubApp)
+    assert app._key_mtime == pytest.approx(installed_at, abs=2.0)
+    assert app.ages()["appKey"] is not None and app.ages()["appKey"] > 0
+
+    if os.name != "nt":
+        # Replacing the file at the path after opening must not mix the old key with the new mtime.
+        replacement = tmp_path / "replacement.pem"
+        replacement.write_text("REPLACEMENT-KEY", encoding="utf-8")
+        share(replacement, shared=False)
+        newer_at = 1_800_000_000.0
+        os.utime(replacement, (newer_at, newer_at))
+        real_fdopen = os.fdopen
+        replaced = False
+
+        def replace_before_read(fd, *args, **kwargs):
+            nonlocal replaced
+            if not replaced:
+                replaced = True
+                os.replace(replacement, key)
+            return real_fdopen(fd, *args, **kwargs)
+
+        monkeypatch.setattr(os, "fdopen", replace_before_read)
+        loaded_key, loaded_mtime = read_private_key_with_mtime(key)
+        assert loaded_key == key_pair[0]
+        assert loaded_mtime == pytest.approx(installed_at, abs=2.0)

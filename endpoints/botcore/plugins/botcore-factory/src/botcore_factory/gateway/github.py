@@ -122,6 +122,11 @@ class GitHub(Protocol):
     def comment_feed(self, repo: str) -> list[dict]: ...
     def actions_status(self) -> dict | None: ...
     def rate_limit(self) -> dict: ...
+    def ages(self) -> dict[str, int | None]:
+        """Credential ages in seconds for gateway-status: ``appKey`` (seconds since the key file
+        was modified) and ``token`` (seconds left on the current installation token)."""
+        ...
+
     def now(self) -> str | None: ...
 
 
@@ -148,6 +153,7 @@ GITHUB_KEYS = {
     "issueComments",
     "actionsStatus",
     "rateLimit",
+    "ages",
     "githubUnavailable",
     "cache",
 }
@@ -293,7 +299,17 @@ class FakeGitHub:
         return copy.deepcopy(self._data.get("actionsStatus"))
 
     def rate_limit(self):
-        return copy.deepcopy(self._data.get("rateLimit") or {"remaining": 5000, "limit": 5000})
+        return copy.deepcopy(
+            self._data.get("rateLimit")
+            or {
+                "remaining": 5000,
+                "limit": 5000,
+                "graphql": {"remaining": 5000, "limit": 5000},
+            }
+        )
+
+    def ages(self):
+        return copy.deepcopy(self._data.get("ages") or {"appKey": 0, "token": 3600})
 
     # ── writes, all as the App's bot ──────────────────────────────────────
 

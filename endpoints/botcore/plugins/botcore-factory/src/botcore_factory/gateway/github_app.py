@@ -57,19 +57,35 @@ _METHODS = {"merge": "MERGE", "squash": "SQUASH", "rebase": "REBASE"}
 _REVERT_BRANCH = re.compile(r"^revert-(\d+)-")
 
 
-def read_private_key(path: Path) -> str:
-    """The App's private key, refused when anyone but its owner can read the file."""
+def read_private_key_with_mtime(path: Path) -> tuple[str, float]:
+    """The App's private key and its modification time, read from one open descriptor so
+    permissions, contents and mtime describe the same file."""
     if os.name == "nt":
         return _read_private_key_windows(path)
-    info = path.stat()
-    if info.st_mode & (stat.S_IRWXG | stat.S_IRWXO):
-        raise ValueError(f"{path} is readable by others; chmod 600 it, owned by the service user")
-    if hasattr(os, "getuid") and info.st_uid != os.getuid():
-        raise ValueError(f"{path} belongs to another user; chown it to the service user")
-    return path.read_text(encoding="utf-8")
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0)
+    fd = os.open(path, flags)
+    try:
+        info = os.fstat(fd)
+        if info.st_mode & (stat.S_IRWXG | stat.S_IRWXO):
+            raise ValueError(
+                f"{path} is readable by others; chmod 600 it, owned by the service user"
+            )
+        if hasattr(os, "getuid") and info.st_uid != os.getuid():
+            raise ValueError(f"{path} belongs to another user; chown it to the service user")
+        with os.fdopen(fd, encoding="utf-8") as handle:
+            fd = -1  # Ownership transferred to the file object.
+            return handle.read(), info.st_mtime
+    finally:
+        if fd >= 0:
+            os.close(fd)
 
 
-def _read_private_key_windows(path: Path) -> str:
+def read_private_key(path: Path) -> str:
+    """The App's private key, refused when anyone but its owner can read the file."""
+    return read_private_key_with_mtime(path)[0]
+
+
+def _read_private_key_windows(path: Path) -> tuple[str, float]:
     # Windows reports every writable file as mode 0o666, so judge the ACL instead, by
     # Botcore's token-store rule: owned by and granted only to this user, SYSTEM and
     # Administrators, and not a reparse point. An unreadable ACL is refused.
@@ -83,13 +99,13 @@ def _read_private_key_windows(path: Path) -> str:
             "user, SYSTEM and Administrators, and make the service user its owner"
         ) from None
     with os.fdopen(descriptor, encoding="utf-8") as key:
-        return key.read()
+        return key.read(), os.fstat(key.fileno()).st_mtime
 
 
 class GitHubApp:
     """The GitHub port as one App installation."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 - keyword-only App config and test doubles
         self,
         *,
         app_id: int,
@@ -100,12 +116,14 @@ class GitHubApp:
         transport: httpx.BaseTransport | None = None,
         clock: Any = time.time,
         git_url: str = "https://github.com",
+        key_mtime: float | None = None,
     ) -> None:
         self.app_id = app_id
         self.installation_id = installation_id
         self.bot = bot
         self.data_dir = data_dir
         self._key = private_key
+        self._key_mtime = key_mtime
         self._clock = clock
         self._git_url = git_url.rstrip("/")
         self._http = httpx.Client(
@@ -153,7 +171,22 @@ class GitHubApp:
 
     def token_age(self) -> float | None:
         """Seconds the current token has left, for gateway-status; None before the first."""
-        return None if self._token is None else self._token[1] - self._clock()
+        with self._token_lock:
+            token = self._token
+        return None if token is None else token[1] - self._clock()
+
+    def key_age(self) -> float | None:
+        """Seconds since the App's private key file was modified; None when not read from disk."""
+        return None if self._key_mtime is None else max(0.0, self._clock() - self._key_mtime)
+
+    def ages(self) -> dict[str, int | None]:
+        """Credential ages in seconds for gateway-status: key age and token seconds left."""
+        key = self.key_age()
+        token = self.token_age()
+        return {
+            "appKey": None if key is None else int(key),
+            "token": None if token is None else max(0, int(token)),
+        }
 
     # ── transport ─────────────────────────────────────────────────────────
 
@@ -363,9 +396,15 @@ class GitHubApp:
         return None
 
     def rate_limit(self):
-        core = self._call("GET", "/rate_limit")["resources"]["core"]
-        reset = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(core["reset"]))
-        return {"remaining": core["remaining"], "limit": core["limit"], "resetAt": reset}
+        body = self._call("GET", "/rate_limit")
+        resources = body.get("resources") if isinstance(body, dict) else None
+        result = _budget(resources.get("core")) if isinstance(resources, dict) else None
+        if result is None:
+            raise GitHubUnavailable("the rate-limit answer was malformed")
+        graphql = _budget(resources.get("graphql"))
+        if graphql is not None:
+            result["graphql"] = graphql
+        return result
 
     # ── writes, all as the App's bot ──────────────────────────────────────
 
@@ -706,6 +745,25 @@ def _redact(text: str) -> str:
 
 def _epoch(stamp: str) -> float:
     return datetime.strptime(stamp, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC).timestamp()
+
+
+def _budget(resource: Any) -> dict | None:
+    if not isinstance(resource, dict):
+        return None
+    remaining = resource.get("remaining")
+    limit = resource.get("limit")
+    reset = resource.get("reset")
+    if (
+        isinstance(remaining, bool)
+        or not isinstance(remaining, int)
+        or isinstance(limit, bool)
+        or not isinstance(limit, int)
+        or isinstance(reset, bool)
+        or not isinstance(reset, (int, float))
+    ):
+        return None
+    reset_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(reset))
+    return {"remaining": remaining, "limit": limit, "resetAt": reset_at}
 
 
 _COMMENTS = """comments(last: 100) {

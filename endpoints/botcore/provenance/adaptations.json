@@ -1539,15 +1539,26 @@
       "import_reason": "Factory: free-disk dial, owner-waiting ejected cells free their seat, superseded foreman sessions refused (#1565, #1593, #1595); Factory: per-slot CARGO_TARGET_DIR under host.buildDir, out-of-disk validations pause the lane (#1641); foreman session checked inside each mutation, gate-allow and lane-drop take a session (#1633)"
     },
     {
+      "path": "plugins/botcore-factory/src/botcore_factory/gateway/cli.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "9c32069e862a81000d0120ac77bd8b88659cb731f27fe2ed3e89b5f66170ec03",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Report App key age, installation token remaining time, and GraphQL rate limit in gateway-status (#1833)"
+    },
+    {
       "path": "plugins/botcore-factory/src/botcore_factory/gateway/commands.py",
       "origin": "local-after-import",
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "1779be6d2e29fe993cd71a2c6d8ca6ddcbac8013f389f7f3e150d20a1c56f4d2",
+      "current_import_sha256": "b6af34a6cb67e7140eb270388965071413cf7d9066796577c3c36b7a4c206a25",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598)"
+      "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Report App key age, installation token remaining time, and GraphQL rate limit in gateway-status (#1833)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/gateway/config.py",
@@ -1577,10 +1588,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "4a7855a88b7934d137f0b64fda4cb4d56d57bd09c7ab857e05a9422de7b8ebc8",
+      "current_import_sha256": "ef9c31e9e18d5ba002cb49ddfd7b606565363e124ff379fe81de55f22fad96d2",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims (#1810), keep usable [tools] entries on disk-setup rerun (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims and retries (#1810), keep usable [tools] entries on disk-setup rerun and report changed_tools (#1934), and isolate host ~/.cargo/config.toml in tests (#1954)"
+      "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims (#1810), keep usable [tools] entries on disk-setup rerun (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims and retries (#1810), keep usable [tools] entries on disk-setup rerun and report changed_tools (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Report App key age, installation token remaining time, and GraphQL rate limit in gateway-status (#1833)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/gateway/github_app.py",
@@ -1588,10 +1599,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "0f3dd50c0baf04d5e15cbc42ddfbcac9a30bf9e45393e4d47f0baa07b9396da6",
+      "current_import_sha256": "fea7448f642e711a1f410b756bf981413346b9288926711d9c40c017eea11364",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Give every Factory squash merge the branch's own messages as its body, so GitHub credits no co-author; send stdin as bytes (lushly-dev/afd#1515); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598)"
+      "import_reason": "Give every Factory squash merge the branch's own messages as its body, so GitHub credits no co-author; send stdin as bytes (lushly-dev/afd#1515); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Report App key age, installation token remaining time, and GraphQL rate limit in gateway-status (#1833)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/gateway/service.py",
@@ -1599,10 +1610,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "dcabecbd5d81c012dc529e743ccf3800a881575571c8e56fe87c4a875574ba00",
+      "current_import_sha256": "d88bd9a484468c517bddaa2eab1ba44e0e177eadb68cd79f4becfa1cf9710c54",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); The texts assume the merge queue rebases (lushly-dev/afd#1809, step 3); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims (#1810), keep usable [tools] entries on disk-setup rerun (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims and retries (#1810), keep usable [tools] entries on disk-setup rerun and report changed_tools (#1934), and isolate host ~/.cargo/config.toml in tests (#1954)"
+      "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); The texts assume the merge queue rebases (lushly-dev/afd#1809, step 3); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims (#1810), keep usable [tools] entries on disk-setup rerun (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims and retries (#1810), keep usable [tools] entries on disk-setup rerun and report changed_tools (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Report App key age, installation token remaining time, and GraphQL rate limit in gateway-status (#1833)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/intake.py",
@@ -1918,10 +1929,21 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "e3c3fb0a774ed664b9c9317af3299c227532fa991762443676b034d65f0aee11",
+      "current_import_sha256": "13ced9740c29623bf99c906d23b2cdd2e2a8066547da8fac1f37f2788c4ff045",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims (#1810), keep usable [tools] entries on disk-setup rerun (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims and retries (#1810), keep usable [tools] entries on disk-setup rerun and report changed_tools (#1934), and isolate host ~/.cargo/config.toml in tests (#1954)"
+      "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims (#1810), keep usable [tools] entries on disk-setup rerun (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims and retries (#1810), keep usable [tools] entries on disk-setup rerun and report changed_tools (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Report App key age, installation token remaining time, and GraphQL rate limit in gateway-status (#1833)"
+    },
+    {
+      "path": "plugins/botcore-factory/tests/test_gateway_server.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "b30934e55209bc56bd6eca301385f7588cc7185873bd6ae6deaca429801f4e5d",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Report App key age, installation token remaining time, and GraphQL rate limit in gateway-status (#1833)"
     },
     {
       "path": "plugins/botcore-factory/tests/test_github_app.py",
@@ -1929,10 +1951,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "1299b988e56d0cfd580f2f115e5aec88e426c9acbec7e93ecd8e77f742f5e34b",
+      "current_import_sha256": "61ed7514e7f75e064cbb17ae026aa37adc399b4814046ddfe085e28844d4390e",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Give every Factory squash merge the branch's own messages as its body, so GitHub credits no co-author; send stdin as bytes (lushly-dev/afd#1515); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598)"
+      "import_reason": "Give every Factory squash merge the branch's own messages as its body, so GitHub credits no co-author; send stdin as bytes (lushly-dev/afd#1515); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Report App key age, installation token remaining time, and GraphQL rate limit in gateway-status (#1833)"
     },
     {
       "path": "plugins/botcore-factory/tests/test_hosts.py",

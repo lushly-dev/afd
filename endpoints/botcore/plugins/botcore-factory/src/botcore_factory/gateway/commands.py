@@ -126,7 +126,7 @@ def _reads_claims_and_issues(route: str, get: Callable[[], Gateway], host: str) 
 
     async def gateway_status() -> CommandResult:
         """Report this route's host, its write commands, the bot identity, repositories,
-        rate limit and journal."""
+        rate limit (REST and GraphQL), credential ages and journal."""
         writes = sorted(name for name in ROUTES[route] if name in WRITES)
         return await run(lambda: get().status(host, writes))
 

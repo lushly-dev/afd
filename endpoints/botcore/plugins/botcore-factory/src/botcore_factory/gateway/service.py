@@ -226,6 +226,20 @@ class Gateway:
     def status(self, host: str, writes: list[str]) -> CommandResult:
         size, oldest = journal_size(self.state.journal_dir)
         limit = self.github.rate_limit()
+        # Read credential ages after rate_limit() so the App adapter has already
+        # fetched or refreshed its installation token before reporting ages.token.
+        ages = self.github.ages()
+        default_reset = iso(self.now() + timedelta(hours=1))
+        rate_limit: dict[str, Any] = {
+            "remaining": limit.get("remaining"),
+            "resetAt": limit.get("resetAt") or default_reset,
+        }
+        graphql = limit.get("graphql")
+        if isinstance(graphql, dict):
+            rate_limit["graphql"] = {
+                "remaining": graphql.get("remaining"),
+                "resetAt": graphql.get("resetAt") or default_reset,
+            }
         return success(
             {
                 "host": host,
@@ -233,9 +247,10 @@ class Gateway:
                 "identity": self.config.bot,
                 "app": self.config.app,
                 "repos": self.config.repositories,
-                "rateLimit": {
-                    "remaining": limit.get("remaining"),
-                    "resetAt": limit.get("resetAt") or iso(self.now() + timedelta(hours=1)),
+                "rateLimit": rate_limit,
+                "ages": {
+                    "appKey": ages.get("appKey"),
+                    "token": ages.get("token"),
                 },
                 "journal": {"bytes": size, "oldest": oldest},
             },

@@ -1140,3 +1140,39 @@ def test_a_refusal_to_turn_auto_merge_off_is_reported_not_swallowed(run, monkeyp
     assert "Resource not accessible by integration" in result.error.message
     assert result.error.details["refused"] == "Resource not accessible by integration"
     assert "permission" in result.error.suggestion
+
+
+def test_gateway_status_reports_deterministic_ages_and_graphql_rate_limit_on_every_route(run):
+    gateway = run()
+    for route in ROUTES:
+        result = gateway(route, "gateway-status")
+        assert result.success, result
+        assert result.data["ages"] == {"appKey": 0, "token": 3600}
+        assert "readOnlyToken" not in result.data["ages"]
+        assert result.data["rateLimit"] == {
+            "remaining": 5000,
+            "resetAt": "2030-02-03T11:00:00Z",
+            "graphql": {"remaining": 5000, "resetAt": "2030-02-03T11:00:00Z"},
+        }
+
+
+def test_gateway_status_respects_fixture_ages_and_rate_limit_overrides(run):
+    gateway = run(
+        ages={"appKey": 86400, "token": 1800},
+        rateLimit={
+            "remaining": 4200,
+            "resetAt": "2030-02-03T10:45:00Z",
+            "graphql": {"remaining": 3100, "resetAt": "2030-02-03T10:50:00Z"},
+        },
+    )
+    data = gateway("owner", "gateway-status").data
+    assert data["ages"] == {"appKey": 86400, "token": 1800}
+    assert data["rateLimit"] == {
+        "remaining": 4200,
+        "resetAt": "2030-02-03T10:45:00Z",
+        "graphql": {"remaining": 3100, "resetAt": "2030-02-03T10:50:00Z"},
+    }
+    rest_only = run(rateLimit={"remaining": 4100, "resetAt": "2030-02-03T10:40:00Z"})
+    rest_data = rest_only("cell", "gateway-status").data
+    assert rest_data["rateLimit"] == {"remaining": 4100, "resetAt": "2030-02-03T10:40:00Z"}
+    assert "graphql" not in rest_data["rateLimit"]
