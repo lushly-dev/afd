@@ -19,10 +19,14 @@
  * Exit: 0 done, 1 usage, configuration or unexpected error (the reason on stderr).
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
+
+export const MEASURES_SCHEMA_VERSION = '1.0';
+const MEASURE_IDENTIFIER = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
+const MEASURE_DIRECTIONS = new Set(['higher_is_better', 'lower_is_better', 'neutral']);
 
 /** Normalized lines in one clone window. Shorter windows match boilerplate, not copies. */
 export const CLONE_WINDOW = 10;
@@ -62,7 +66,8 @@ const SKIPPED_SEGMENTS = new Set([
 const SKIPPED_NAME =
 	/\.(?:test|spec|stories)\.[^.]+$|\.d\.[cm]?ts$|(?:^|\/)test_[^/]*\.py$|_test\.(?:py|rs)$/u;
 const MANIFESTS = ['package.json', 'pyproject.toml', 'Cargo.toml', 'go.mod'];
-const USAGE = 'Usage: sweep.mjs area | bloat [--area <name>] [--top <n>] [--record] | trend';
+const USAGE =
+	'Usage: sweep.mjs area | bloat [--area <name>] [--top <n>] [--record] [--measures-out <file>] [--target <id>] | trend';
 
 // ── Settings ─────────────────────────────────────────────────────────────────
 
@@ -650,16 +655,21 @@ const RECORDED_KEYS = new Set([
  * `{ "measures": [{ "key", "label", "value" }], "lines": ["..."] }`.
  */
 function repositoryMeasures(root, settings) {
-	if (!settings.measures) return { metrics: {}, labels: {}, lines: [] };
+	if (!settings.measures) return { metrics: {}, labels: {}, meta: {}, lines: [] };
 	const output = JSON.parse(run(root, settings.measures, [], { shell: true }));
 	const metrics = {};
 	const labels = {};
-	for (const { key, label, value } of output.measures ?? []) {
+	const meta = {};
+	for (const { key, label, value, unit, direction } of output.measures ?? []) {
 		if (typeof key !== 'string' || !Number.isFinite(value) || RECORDED_KEYS.has(key)) continue;
 		metrics[key] = value;
-		labels[key] = typeof label === 'string' ? label : key;
+		labels[key] = typeof label === 'string' && label.trim() ? label : key;
+		meta[key] = {
+			unit: typeof unit === 'string' && unit.trim() ? unit.trim() : 'count',
+			direction: MEASURE_DIRECTIONS.has(direction) ? direction : 'lower_is_better',
+		};
 	}
-	return { metrics, labels, lines: Array.isArray(output.lines) ? output.lines : [] };
+	return { metrics, labels, meta, lines: Array.isArray(output.lines) ? output.lines : [] };
 }
 
 // ── Commands ─────────────────────────────────────────────────────────────────
@@ -705,6 +715,9 @@ function measureBloat(root, settings, area, paths) {
 	};
 	return {
 		metrics,
+		largestMeasuredLines: files.reduce((most, file) => Math.max(most, file.lines), 0),
+		cohesiveCount: oversized.filter((file) => isJudgedCohesive(file, verdicts)).length,
+		repositoryMeta: repository.meta,
 		area: area ?? free?.area,
 		pullRequestsKnown: pulls.known,
 		oversized: candidates,
@@ -721,6 +734,89 @@ function measureBloat(root, settings, area, paths) {
 				})),
 			})),
 		repositoryLines: repository.lines,
+	};
+}
+
+/** Build a Health `schema_version = "1.0"` measures document from a bloat report. */
+export function toMeasuresDocument(report, { source = 'sweep-bloat', target } = {}) {
+	if (target !== undefined && !MEASURE_IDENTIFIER.test(target)) {
+		throw new Error(`Invalid measure target identifier: ${target}`);
+	}
+	if (!MEASURE_IDENTIFIER.test(source)) {
+		throw new Error(`Invalid measure source identifier: ${source}`);
+	}
+	const { metrics } = report;
+	const measures = [
+		{
+			key: 'files_over_warn',
+			label: 'Files over size warning',
+			value: metrics.overThreshold,
+			unit: 'files',
+			direction: 'lower_is_better',
+		},
+		{
+			key: 'largest_source_lines',
+			label: 'Largest source file',
+			value: report.largestMeasuredLines ?? metrics.largestLines,
+			unit: 'lines',
+			direction: 'lower_is_better',
+		},
+		{
+			key: 'duplicated_lines',
+			label: 'Duplicated lines',
+			value: metrics.duplicatedLines,
+			unit: 'lines',
+			direction: 'lower_is_better',
+		},
+		{
+			key: 'clone_groups',
+			label: 'Clone groups',
+			value: metrics.cloneGroups,
+			unit: 'groups',
+			direction: 'lower_is_better',
+		},
+		{
+			key: 'spreading_clones',
+			label: `Copies in ${SPREADING_FILES}+ files`,
+			value: metrics.spreadingClones,
+			unit: 'groups',
+			direction: 'lower_is_better',
+		},
+		{
+			key: 'cohesive_exemptions',
+			label: 'Cohesive size exemptions',
+			value: report.cohesiveCount ?? report.judgedCohesive?.length ?? 0,
+			unit: 'files',
+			direction: 'neutral',
+		},
+	];
+	const usedKeys = new Set(measures.map((row) => row.key));
+	for (const [key, label] of Object.entries(metrics.labels ?? {})) {
+		const value = metrics[key];
+		if (!MEASURE_IDENTIFIER.test(key) || !Number.isFinite(value)) continue;
+		if (Math.abs(value) > Number.MAX_SAFE_INTEGER) {
+			throw new Error(
+				`Repository measure "${key}" value ${value} exceeds Health's safe IEEE-754 integer range.`
+			);
+		}
+		// Namespace repository-custom sweep measures so they never collide with other producers.
+		const healthKey = `sweep_custom.${key}`;
+		if (usedKeys.has(healthKey)) continue;
+		const meta = report.repositoryMeta?.[key];
+		measures.push({
+			key: healthKey,
+			label: typeof label === 'string' && label.trim() ? label : key,
+			value,
+			unit: meta?.unit ?? 'count',
+			direction: meta?.direction ?? 'lower_is_better',
+		});
+		usedKeys.add(healthKey);
+	}
+	return {
+		schema_version: MEASURES_SCHEMA_VERSION,
+		source,
+		...(target !== undefined ? { target } : {}),
+		measures,
 	};
 }
 
@@ -819,13 +915,28 @@ export function main(
 	}
 	const { values } = parseArgs({
 		args: rest,
-		options: { area: { type: 'string' }, top: { type: 'string' }, record: { type: 'boolean' } },
+		options: {
+			area: { type: 'string' },
+			top: { type: 'string' },
+			record: { type: 'boolean' },
+			'measures-out': { type: 'string' },
+			target: { type: 'string' },
+		},
 	});
 	const top = values.top === undefined ? 10 : Number(values.top);
 	if (!Number.isInteger(top) || top < 1)
 		throw new Error(`--top takes a positive whole number.\n${USAGE}`);
 	requireKnownArea(values.area, measuredAreas(paths, settings));
 	const report = measureBloat(root, settings, values.area, paths);
+	if (values['measures-out'] !== undefined) {
+		if (!values['measures-out'].trim()) {
+			throw new Error(`--measures-out takes a non-empty file path.\n${USAGE}`);
+		}
+		const outPath = resolve(values['measures-out']);
+		const doc = toMeasuresDocument(report, { target: values.target });
+		mkdirSync(dirname(outPath), { recursive: true });
+		writeFileSync(outPath, `${JSON.stringify(doc, null, 2)}\n`, 'utf8');
+	}
 	if (values.record) {
 		const issue = requireTrendIssue(settings);
 		run(root, 'gh', ['issue', 'comment', String(issue), '--body', recordBody(report)]);
@@ -833,7 +944,10 @@ export function main(
 	return formatBloat(report, settings, top);
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (
+	process.argv[1] &&
+	realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))
+) {
 	try {
 		console.log(main(process.argv.slice(2)));
 	} catch (error) {

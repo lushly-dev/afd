@@ -2313,11 +2313,11 @@
       "path": "scripts/package_smoke.py",
       "upstream_sha256": null,
       "staged_sha256": null,
-      "current_import_sha256": "8805efce64996ea9e1452252c121ae536c362f86359ee609596c88f4495d4a04",
+      "current_import_sha256": "27e3ecefdaf112011603c84b833f4bab9da87c49d19e84540203c845b298a8b6",
       "stage_classification": "not-in-staging",
       "stage_reason": "Not selected in the frozen staged-input payload",
       "import_classification": "added-after-staging",
-      "import_reason": "Build/audit all six artifacts and an isolated installed- wheel app; check the bloat-sweeper skill's script ships, among ten skills; Add the gate-discipline skill and its scripts; list all eleven skills; Added the test-change report, scripts/report-test-changes.mjs, to the gate-discipline skill (lushly-dev/afd#1387, step 4). Written in AFD, not derived from Lushly; the two checks export the patterns it shares.; Stamp the adaptations digest into the wheel and sdist at build, not in the repository (lushly-dev/afd#1610); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); Add test-discovery guard (check-test-discovery.mjs, discovery-parsers.mjs) to gate-discipline skill, re-derived under MIT from the Lushly check-test-discovery.mjs pattern named in lushly-dev/afd#1387 and #1519; report discovery register changes in report-test-changes.mjs; verify wheel ships the new scripts in package_smoke.py"
+      "import_reason": "Build/audit all six artifacts and an isolated installed- wheel app; check the bloat-sweeper skill's script ships, among ten skills; Add the gate-discipline skill and its scripts; list all eleven skills; Added the test-change report, scripts/report-test-changes.mjs, to the gate-discipline skill (lushly-dev/afd#1387, step 4). Written in AFD, not derived from Lushly; the two checks export the patterns it shares.; Stamp the adaptations digest into the wheel and sdist at build, not in the repository (lushly-dev/afd#1610); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); Add test-discovery guard (check-test-discovery.mjs, discovery-parsers.mjs) to gate-discipline skill, re-derived under MIT from the Lushly check-test-discovery.mjs pattern named in lushly-dev/afd#1387 and #1519; report discovery register changes in report-test-changes.mjs; verify wheel ships the new scripts in package_smoke.py; Add Health 1.0 trend measures producers to bloat-sweeper and gate-discipline skills (#1387)"
     },
     {
       "path": "scripts/package_tests.py",
@@ -3698,10 +3698,21 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "28cfc017991133a669a385be941676de6fb7bd2fef0e3aac9ddd12931186d1ee",
+      "current_import_sha256": "38357dd0f7560c4fb27d7f75245e273be1f3ec049de41de6da4156dc601b07c5",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Fix bloat-sweeper's story opt-in, measure display, seeded copies, area errors and trend trust (lushly-dev/afd#1124); bloat-sweeper review: ** in include_names, metadata's own source key only, source_dir at the root, trend survives a failed measures command (lushly-dev/afd#1124)"
+      "import_reason": "Fix bloat-sweeper's story opt-in, measure display, seeded copies, area errors and trend trust (lushly-dev/afd#1124); bloat-sweeper review: ** in include_names, metadata's own source key only, source_dir at the root, trend survives a failed measures command (lushly-dev/afd#1124); Add Health 1.0 trend measures producers to bloat-sweeper and gate-discipline skills (#1387)"
+    },
+    {
+      "path": "src/botcore/skills/bloat-sweeper/scripts/cognitive-complexity.mjs",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "8d377c7d335e0049f11b2c17c71028d7fc5770266a9f46a2c81b688c592a1205",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Add Health 1.0 trend measures producers to bloat-sweeper and gate-discipline skills (#1387)"
     },
     {
       "path": "src/botcore/skills/bloat-sweeper/scripts/sweep.mjs",
@@ -3709,10 +3720,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "36372ba75fb10408469e27473eaeee15724414f7fc6510ba507fbfb7b3bdc286",
+      "current_import_sha256": "c068c886630aaee9a56dbe8b0d04b1c7879b31e31a7d832b2a9f320218aaf672",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Fix bloat-sweeper's story opt-in, measure display, seeded copies, area errors and trend trust (lushly-dev/afd#1124); bloat-sweeper review: ** in include_names, metadata's own source key only, source_dir at the root, trend survives a failed measures command (lushly-dev/afd#1124)"
+      "import_reason": "Fix bloat-sweeper's story opt-in, measure display, seeded copies, area errors and trend trust (lushly-dev/afd#1124); bloat-sweeper review: ** in include_names, metadata's own source key only, source_dir at the root, trend survives a failed measures command (lushly-dev/afd#1124); Add Health 1.0 trend measures producers to bloat-sweeper and gate-discipline skills (#1387)"
     },
     {
       "path": "src/botcore/skills/botcore-config/SKILL.md",
@@ -4881,10 +4892,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "61bf0e0e3c252fb5687541c0343af695ba038c9d62aefa4f32545480e9ce0691",
+      "current_import_sha256": "e34870403fe28aed03fd3c6d533b995e2ba5c5b6a1513baff642f8860abdba56",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Re-derived, generic parts only, from the private lushly-dev/lushly at c9bc7d097bdf38a8cd8e81491d9a481715db8c11: .claude/skills/lushly-gate-discipline/SKILL.md (sha256 30284f69d10ace5a462ab22cd6b1b08e12d52f6f96bcbf66a9ec0fb4501dc53f) and scripts/check-test-quarantine.mjs (sha256 6682b73bf602a6926daaa4403944d0d0dbfe8d980da1e85a952bf510eb3a87c4), under MIT by the owner's authorization (lushly-dev/afd#1387); no Lushly data, history or product configuration taken; Added the test-change report, scripts/report-test-changes.mjs, to the gate-discipline skill (lushly-dev/afd#1387, step 4). Written in AFD, not derived from Lushly; the two checks export the patterns it shares.; Add test-discovery guard (check-test-discovery.mjs, discovery-parsers.mjs) to gate-discipline skill, re-derived under MIT from the Lushly check-test-discovery.mjs pattern named in lushly-dev/afd#1387 and #1519; report discovery register changes in report-test-changes.mjs; verify wheel ships the new scripts in package_smoke.py"
+      "import_reason": "Re-derived, generic parts only, from the private lushly-dev/lushly at c9bc7d097bdf38a8cd8e81491d9a481715db8c11: .claude/skills/lushly-gate-discipline/SKILL.md (sha256 30284f69d10ace5a462ab22cd6b1b08e12d52f6f96bcbf66a9ec0fb4501dc53f) and scripts/check-test-quarantine.mjs (sha256 6682b73bf602a6926daaa4403944d0d0dbfe8d980da1e85a952bf510eb3a87c4), under MIT by the owner's authorization (lushly-dev/afd#1387); no Lushly data, history or product configuration taken; Added the test-change report, scripts/report-test-changes.mjs, to the gate-discipline skill (lushly-dev/afd#1387, step 4). Written in AFD, not derived from Lushly; the two checks export the patterns it shares.; Add test-discovery guard (check-test-discovery.mjs, discovery-parsers.mjs) to gate-discipline skill, re-derived under MIT from the Lushly check-test-discovery.mjs pattern named in lushly-dev/afd#1387 and #1519; report discovery register changes in report-test-changes.mjs; verify wheel ships the new scripts in package_smoke.py; Add Health 1.0 trend measures producers to bloat-sweeper and gate-discipline skills (#1387)"
     },
     {
       "path": "src/botcore/skills/gate-discipline/scripts/check-test-configs.mjs",
@@ -4931,15 +4942,37 @@
       "import_reason": "Add test-discovery guard (check-test-discovery.mjs, discovery-parsers.mjs) to gate-discipline skill, re-derived under MIT from the Lushly check-test-discovery.mjs pattern named in lushly-dev/afd#1387 and #1519; report discovery register changes in report-test-changes.mjs; verify wheel ships the new scripts in package_smoke.py"
     },
     {
+      "path": "src/botcore/skills/gate-discipline/scripts/report-coverage-measures.mjs",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "02e5d85817c267c768f796e87f6fb7bb06d009ac40b25f081f900d94893172ef",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Add Health 1.0 trend measures producers to bloat-sweeper and gate-discipline skills (#1387)"
+    },
+    {
       "path": "src/botcore/skills/gate-discipline/scripts/report-test-changes.mjs",
       "origin": "local-after-import",
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "0f5d456164dea46046a1314feb41d32294f2dd526894e5e07214da1a369a13d6",
+      "current_import_sha256": "f924987724c9221aba2875c1f61fdf65969f5004d1167eb9cd5603608c957a58",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Added the test-change report, scripts/report-test-changes.mjs, to the gate-discipline skill (lushly-dev/afd#1387, step 4). Written in AFD, not derived from Lushly; the two checks export the patterns it shares.; Add test-discovery guard (check-test-discovery.mjs, discovery-parsers.mjs) to gate-discipline skill, re-derived under MIT from the Lushly check-test-discovery.mjs pattern named in lushly-dev/afd#1387 and #1519; report discovery register changes in report-test-changes.mjs; verify wheel ships the new scripts in package_smoke.py"
+      "import_reason": "Added the test-change report, scripts/report-test-changes.mjs, to the gate-discipline skill (lushly-dev/afd#1387, step 4). Written in AFD, not derived from Lushly; the two checks export the patterns it shares.; Add test-discovery guard (check-test-discovery.mjs, discovery-parsers.mjs) to gate-discipline skill, re-derived under MIT from the Lushly check-test-discovery.mjs pattern named in lushly-dev/afd#1387 and #1519; report discovery register changes in report-test-changes.mjs; verify wheel ships the new scripts in package_smoke.py; Add Health 1.0 trend measures producers to bloat-sweeper and gate-discipline skills (#1387)"
+    },
+    {
+      "path": "src/botcore/skills/gate-discipline/scripts/report-test-counts.mjs",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "6c5ef26854bc774a62c44f04d3e2aa43fbd88a8c189abc1711286e3329011b22",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Add Health 1.0 trend measures producers to bloat-sweeper and gate-discipline skills (#1387)"
     },
     {
       "path": "src/botcore/skills/git-manager/SKILL.md",

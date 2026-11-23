@@ -105,13 +105,16 @@ def audit(artifacts: Path) -> list[dict]:
                 )
                 assert "botcore/skills/disk-hygiene/SKILL.md" in names
                 # A skill's helper ships with it: seeding copies the whole directory.
-                assert "botcore/skills/bloat-sweeper/scripts/sweep.mjs" in names
+                for script in ("sweep.mjs", "cognitive-complexity.mjs"):
+                    assert f"botcore/skills/bloat-sweeper/scripts/{script}" in names
                 for script in (
                     "check-test-quarantine.mjs",
                     "check-test-configs.mjs",
                     "check-test-discovery.mjs",
                     "discovery-parsers.mjs",
+                    "report-coverage-measures.mjs",
                     "report-test-changes.mjs",
+                    "report-test-counts.mjs",
                 ):
                     assert f"botcore/skills/gate-discipline/scripts/{script}" in names
 

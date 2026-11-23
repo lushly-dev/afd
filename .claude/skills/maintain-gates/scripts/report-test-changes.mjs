@@ -30,13 +30,13 @@
  * still counts.
  *
  * Needs only Node and git. Usage:
- *   node report-test-changes.mjs [--root <dir>] [--base <ref>] [--head <ref>] [--register <path>] [--discovery-register <path>] [--json]
+ *   node report-test-changes.mjs [--root <dir>] [--base <ref>] [--head <ref>] [--register <path>] [--discovery-register <path>] [--target <id>] [--measures-out <file>] [--json]
  * The base defaults to origin/main and is compared from its merge base with the head. With
  * no head, the working tree is compared, so uncommitted edits are included.
  */
 import { execFileSync } from 'node:child_process';
-import { readFileSync, realpathSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CONFIG } from './check-test-configs.mjs';
 import { DEFAULT_REGISTER as DEFAULT_DISCOVERY_REGISTER } from './check-test-discovery.mjs';
@@ -48,6 +48,8 @@ import {
 } from './check-test-quarantine.mjs';
 
 export const DEFAULT_BASE = 'origin/main';
+export const MEASURES_SCHEMA_VERSION = '1.0';
+const MEASURE_IDENTIFIER = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
 
 const stripLineComments = (marker) => (text) =>
 	text
@@ -521,16 +523,108 @@ export function formatReport(report) {
 	return out.join('\n');
 }
 
+/** Build a Health `schema_version = "1.0"` measures document from a test-change report. */
+export function toMeasuresDocument(report, { source = 'test-change-report', target } = {}) {
+	if (target !== undefined && !MEASURE_IDENTIFIER.test(target)) {
+		throw new Error(`Invalid measure target identifier: ${target}`);
+	}
+	if (!MEASURE_IDENTIFIER.test(source)) {
+		throw new Error(`Invalid measure source identifier: ${source}`);
+	}
+	const countKind = (...kinds) =>
+		report.findings.filter((finding) => kinds.includes(finding.kind)).length;
+	let testsNetDelta = 0;
+	for (const [name, row] of Object.entries(report.totals ?? {})) {
+		if (name === 'Scenario') continue;
+		testsNetDelta += (row.after?.tests ?? 0) - (row.before?.tests ?? 0);
+	}
+	return {
+		schema_version: MEASURES_SCHEMA_VERSION,
+		source,
+		...(target !== undefined ? { target } : {}),
+		measures: [
+			{
+				key: 'test_change_findings',
+				label: 'Test-change findings',
+				value: report.findings.length,
+				unit: 'findings',
+				direction: 'lower_is_better',
+			},
+			{
+				key: 'test_files_deleted',
+				label: 'Deleted test files',
+				value: countKind('deleted-file'),
+				unit: 'files',
+				direction: 'lower_is_better',
+			},
+			{
+				key: 'test_fewer_tests_findings',
+				label: 'Files with fewer tests',
+				value: countKind('fewer-tests'),
+				unit: 'files',
+				direction: 'lower_is_better',
+			},
+			{
+				key: 'test_skips_added',
+				label: 'Skip-added findings',
+				value: countKind('skip-added'),
+				unit: 'findings',
+				direction: 'lower_is_better',
+			},
+			{
+				key: 'test_assertions_weakened',
+				label: 'Weakened or rewritten assertion findings',
+				value: countKind('fewer-assertions', 'assertions-rewritten', 'matchers-loosened'),
+				unit: 'findings',
+				direction: 'lower_is_better',
+			},
+			{
+				key: 'test_configs_changed',
+				label: 'Changed test configs or shrinking snapshots',
+				value: countKind('config-changed', 'snapshot-changed'),
+				unit: 'findings',
+				direction: 'lower_is_better',
+			},
+			{
+				key: 'test_files_changed',
+				label: 'Changed test files compared',
+				value: report.testFiles,
+				unit: 'files',
+				direction: 'neutral',
+			},
+			{
+				key: 'tests_net_delta',
+				label: 'Net test count change on branch',
+				value: testsNetDelta,
+				unit: 'tests',
+				direction: 'higher_is_better',
+			},
+		],
+	};
+}
+
+function requireValue(argv, index, flag) {
+	const value = argv[index + 1];
+	if (value === undefined || value.trim() === '') {
+		throw new Error(`${flag} requires a non-empty value.`);
+	}
+	return value;
+}
+
 function parseArguments(argv) {
 	const options = {};
 	for (let i = 0; i < argv.length; i++) {
-		if (argv[i] === '--root') options.root = resolve(argv[++i]);
-		else if (argv[i] === '--base') options.base = argv[++i];
-		else if (argv[i] === '--head') options.head = argv[++i];
-		else if (argv[i] === '--register') options.register = argv[++i];
-		else if (argv[i] === '--discovery-register') options.discoveryRegister = argv[++i];
-		else if (argv[i] === '--json') options.json = true;
-		else throw new Error(`Unknown argument ${argv[i]}.`);
+		const arg = argv[i];
+		if (arg === '--root') options.root = resolve(requireValue(argv, i++, arg));
+		else if (arg === '--base') options.base = requireValue(argv, i++, arg);
+		else if (arg === '--head') options.head = requireValue(argv, i++, arg);
+		else if (arg === '--register') options.register = requireValue(argv, i++, arg);
+		else if (arg === '--discovery-register')
+			options.discoveryRegister = requireValue(argv, i++, arg);
+		else if (arg === '--target') options.target = requireValue(argv, i++, arg);
+		else if (arg === '--measures-out') options.measuresOut = resolve(requireValue(argv, i++, arg));
+		else if (arg === '--json') options.json = true;
+		else throw new Error(`Unknown argument ${arg}.`);
 	}
 	return options;
 }
@@ -544,6 +638,11 @@ if (
 	try {
 		const options = parseArguments(process.argv.slice(2));
 		const report = reportTestChanges(options);
+		if (options.measuresOut) {
+			const doc = toMeasuresDocument(report, { target: options.target });
+			mkdirSync(dirname(options.measuresOut), { recursive: true });
+			writeFileSync(options.measuresOut, `${JSON.stringify(doc, null, 2)}\n`, 'utf8');
+		}
 		console.log(options.json ? JSON.stringify(report, null, 2) : formatReport(report));
 	} catch (cause) {
 		console.error(cause instanceof Error ? cause.message : String(cause));
