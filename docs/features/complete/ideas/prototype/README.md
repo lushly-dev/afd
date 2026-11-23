@@ -21,7 +21,7 @@ only counts, rates and the tools are here. Every example in this folder is inven
 
 ```sh
 uv run --python 3.12 --with pytest --with numpy --with scipy --with snowballstemmer \
-    pytest docs/features/active/ideas/prototype -q
+    pytest docs/features/complete/ideas/prototype -q
 ```
 
 Python 3.10 or later. `corpus.py`, `sentences.py` and `ideas.py` use the standard library only;

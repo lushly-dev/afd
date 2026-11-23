@@ -2,9 +2,9 @@
 
 | Field | Value |
 | --- | --- |
-| Plugin | `ideas`, a further first-class plugin ([D18](../../decisions.md)); the plugin of the [Ideas plan](../../../../../docs/features/active/ideas/ideas.proposal.md), step A3, cut to the daily loop |
+| Plugin | `ideas`, a further first-class plugin ([D18](../../decisions.md)); the plugin of the [Ideas plan](../../../../../docs/features/complete/ideas/ideas.proposal.md), step A3, cut to the daily loop |
 | Owner | Repository owner approves; the Ideas plan's owning agent writes and implements |
-| Read first | [STATUS.md](../../STATUS.md), the [Ideas status](../../../../../docs/features/active/ideas/STATUS.md), the [records host specification](host-records.spec.md) (sections 2 to 8, 11 and 13), the [review host specification](host-review.spec.md), the [decision log](../../decisions.md) (D24, D45, D65, D74, D86, D150, D157 to D171, and D173 to D180, made here and in the review host specification), and the [components specification](../components/spec.md) as the house shape |
+| Read first | [STATUS.md](../../STATUS.md), the [Ideas status](../../../../../docs/features/complete/ideas/STATUS.md), the [records host specification](host-records.spec.md) (sections 2 to 8, 11 and 13), the [review host specification](host-review.spec.md), the [decision log](../../decisions.md) (D24, D45, D65, D74, D86, D150, D157 to D171, and D173 to D180, made here and in the review host specification), and the [components specification](../components/spec.md) as the house shape |
 | Elevation | Exact names, shapes, codes, files, tests and pull requests. An implementing agent needs no further design decision; where it finds one, it stops and amends this document by pull request |
 
 Code paths are relative to `endpoints/umbel/`.
@@ -38,7 +38,7 @@ Code paths are relative to `endpoints/umbel/`.
 - **First use and exit, 2026-11-13 to 2026-11-22.** The owner ran a local instance from `main` at `87006e0c`: an agent captured 283 ideas over the CLI and staged 283 proposals, and he reviewed and applied them on the local page from another computer. The fixes merged 2026-11-14 in [#1186](https://github.com/lushly-dev/afd/pull/1186) (amendments F-1 to F-5), and remote private-network `person.local.public_origin` merged 2026-11-14 in [#1188](https://github.com/lushly-dev/afd/pull/1188) and [#1189](https://github.com/lushly-dev/afd/pull/1189). On 2026-11-22 the owner confirmed step C5's local exit in daily use ([#2005](https://github.com/lushly-dev/afd/issues/2005)): two reviews completed on the local/private-network review page, export/restore verified identical across machines, and `verified_levels` default kept.
 - **Not done (v1):** README `public_origin` snippet test ([#2008](https://github.com/lushly-dev/afd/issues/2008)); cloud/OAuth hosting for web and phone connectors is tracked in [#2007](https://github.com/lushly-dev/afd/issues/2007).
 - **Follow-ups:** the [table at the end](#follow-ups). The answers to the follow-ups addressed to step A3 are in the
-  [Ideas status](../../../../../docs/features/active/ideas/STATUS.md).
+  [Ideas status](../../../../../docs/features/complete/ideas/STATUS.md).
 
 ### Amendments from step C1
 

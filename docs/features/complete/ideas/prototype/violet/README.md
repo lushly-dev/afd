@@ -10,7 +10,7 @@ answers [step 0.6](../../ideas.proposal.md#8-phase-0-measure-before-specifying) 
 
 ```sh
 # from the repository root, after `pnpm check` has built Violet's dist
-fnm exec --using "$(cat .nvmrc)" -- node docs/features/active/ideas/prototype/violet/framings.mjs
+fnm exec --using "$(cat .nvmrc)" -- node docs/features/complete/ideas/prototype/violet/framings.mjs
 ```
 
 ## Method

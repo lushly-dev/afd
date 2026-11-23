@@ -1,7 +1,7 @@
 """Tests for the phase 0 tools, on invented fixtures.
 
     uv run --python 3.12 --with pytest --with numpy --with snowballstemmer \\
-        pytest docs/features/active/ideas/prototype -q
+        pytest docs/features/complete/ideas/prototype -q
 """
 
 from __future__ import annotations
