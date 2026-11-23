@@ -159,6 +159,8 @@ test('upstream Git object ids match the bytes of every file imported unchanged',
 	// alert's, the card's and the dialog's specs: 446. Removing Lushly's look outside tokens
 	// (#1492) adapted the color swatch's spec and the raw palette reference: 444. The accessibility
 	// fixes (#1576, #1583, #1584, #1585, #1588) adapted the icon registry and the icon's, the
-	// skeleton's and the tabs' specs: 440. A removed file's record is kept but not counted.
-	assert(checked > 439, `only ${checked} unchanged upstream files`);
+	// skeleton's and the tabs' specs: 440. The violet-elements bug batch (#657, #1582, #1587, #2072)
+	// adapted violet-data-grid-pill-select's spec: 439. A removed file's record is kept but not
+	// counted.
+	assert(checked > 438, `only ${checked} unchanged upstream files`);
 });

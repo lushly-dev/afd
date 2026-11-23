@@ -28,10 +28,10 @@ const styles = css`
         --violet-control-label-size: var(--_type-label-size);
         --violet-control-body-size: var(--_type-body-size);
         --violet-control-caption-size: var(--_type-caption-size);
-        --_upload-surface: var(--_surface-page);
-        --_upload-surface-hover: color-mix(in srgb, var(--_surface-page) 76%, var(--_surface-subtle));
-        --_upload-surface-active: color-mix(in srgb, var(--_focus-ring) 10%, var(--_surface-page));
-        --_upload-border: var(--_border-subtle);
+        --_upload-surface: var(--_field-background);
+        --_upload-surface-hover: color-mix(in srgb, var(--_field-background) 76%, var(--_surface-subtle));
+        --_upload-surface-active: color-mix(in srgb, var(--_focus-ring) 10%, var(--_field-background));
+        --_upload-border: var(--_field-border);
         --_upload-gap: var(--_space-stack-sm);
         --_upload-radius: calc(var(--_radius-md) * 1.5);
         --_upload-space-2xs: var(--_space-stack-2xs);
@@ -93,13 +93,13 @@ const styles = css`
     }
 
     .surface:hover {
-        border-color: color-mix(in srgb, var(--_border-subtle) 70%, var(--_focus-ring));
+        border-color: var(--_field-border-hover);
         background: var(--_upload-surface-hover);
     }
 
     .surface:focus-within {
-        border-color: color-mix(in srgb, var(--_focus-ring) 48%, var(--_border-subtle));
-        box-shadow: 0 0 0 2px var(--_focus-ring);
+        border-color: var(--_field-border-focus);
+        box-shadow: var(--_field-shadow-focus);
         transform: translateY(calc(var(--_space-inline-sm) / -4));
     }
 
@@ -124,9 +124,9 @@ const styles = css`
     }
 
     :host([data-drag-active]) .surface.dropzone {
-        border-color: color-mix(in srgb, var(--_focus-ring) 70%, var(--_border-subtle));
+        border-color: var(--_field-border-focus);
         background: var(--_upload-surface-active);
-        box-shadow: 0 0 0 2px color-mix(in srgb, var(--_focus-ring) 42%, transparent);
+        box-shadow: var(--_field-shadow-focus);
     }
 
     .button-layout {
@@ -334,7 +334,7 @@ const styles = css`
             box-shadow: none;
         }
 
-        :host([drag-active]) .surface.dropzone {
+        :host([data-drag-active]) .surface.dropzone {
             background: Canvas;
             outline: 2px solid Highlight;
         }
@@ -611,6 +611,10 @@ export class VioletFileUpload extends FASTElement {
     public customValidationMessageChanged(): void {
         this.#syncHostState();
         this.#syncFormState();
+    }
+
+    public dragActiveChanged(): void {
+        this.#syncHostState();
     }
 
     public multipleChanged(): void {

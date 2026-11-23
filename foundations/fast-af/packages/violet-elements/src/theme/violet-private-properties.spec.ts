@@ -55,6 +55,12 @@ const HOOKS: Readonly<Record<string, { readers: readonly string[]; why: string; 
         ],
         why: "a popup width for script to set; auto until then",
     },
+    // Inherited from an open select/combobox listbox or focused listbox so active rows draw a ring
+    // only while keyboard navigation is active without clobbering author --violet-option-active-ring.
+    "--_option-active-ring": {
+        readers: ["../option/violet-option.ts"],
+        why: "inherited from an open select/combobox or focused listbox; transparent at rest",
+    },
     // Constants written as hooks. The readers include a token-default block that does not carry
     // the alias, so a theme's value does not reach them (#1436). Each renders its fallback, which
     // is what the Refined design was approved with.

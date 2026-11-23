@@ -378,4 +378,29 @@ describe("violet-select", () => {
             await vi.waitFor(() => expect(displayed(select).text).toBe("Label B"));
         });
     });
+
+    it("shrinks inside 1fr grid tracks and a 120px column without overflowing (#1587)", async () => {
+        document.body.innerHTML = `
+            <div id="grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;width:296px">
+                <violet-select id="first" label="First"><violet-option>A very long option label</violet-option></violet-select>
+                <violet-select id="last" label="Last"><violet-option>Another very long option label</violet-option></violet-select>
+            </div>
+            <div style="width:120px;display:grid;grid-template-columns:1fr">
+                <violet-select id="single" label="Size"><violet-option selected>Extra extra large size</violet-option></violet-select>
+            </div>
+        `;
+        await customElements.whenDefined("violet-select");
+        await nextFrame();
+
+        const grid = document.getElementById("grid") as HTMLElement;
+        const first = document.getElementById("first") as VioletSelect;
+        const last = document.getElementById("last") as VioletSelect;
+        const single = document.getElementById("single") as VioletSelect;
+
+        expect(first.getBoundingClientRect().width).toBeLessThanOrEqual(144.5);
+        expect(last.getBoundingClientRect().right).toBeLessThanOrEqual(grid.getBoundingClientRect().right + 0.5);
+        expect(single.getBoundingClientRect().width).toBeLessThanOrEqual(120.5);
+        const singleTrigger = single.shadowRoot?.querySelector(".trigger") as HTMLElement;
+        expect(singleTrigger.getBoundingClientRect().width).toBeLessThanOrEqual(120.5);
+    });
 });

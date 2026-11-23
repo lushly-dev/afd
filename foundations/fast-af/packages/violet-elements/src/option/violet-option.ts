@@ -19,6 +19,7 @@ const styles = css`
         --_surface-selected: var(--color-surface-selected, #dfeae3);
         --_option-mark: var(--color-control-selected-foreground, #2c5e4b);
         --_option-mark-size: 0.6875rem;
+        --_focus-ring-width: var(--size-focus-ring-width, 2px);
         --_control-caption-size: var(--violet-control-caption-size, var(--type-caption-xs-size, 12px));
         --_type-caption-line: var(--type-caption-xs-line, 16px);
         --_option-padding-inline-start: var(--violet-option-padding-inline-start, calc(var(--_space-inline-md) * 1.5));
@@ -48,16 +49,23 @@ const styles = css`
     }
 
     /*
-     * The row the keys are on is tinted. Its ring is drawn only when the list that holds it says
-     * the keyboard is there (--violet-option-active-ring), not on a list at rest.
+     * The row the keys are on is tinted. Its ring is drawn when the list that holds it says
+     * the keyboard is there (--_option-active-ring), or when an author overrides
+     * --violet-option-active-ring on the option or any ancestor.
      */
-    .control.active {
-        background: var(--_surface-active);
-        box-shadow: inset 0 0 0 1px var(--violet-option-active-ring, transparent);
+    :host([active]) .control {
+        background: var(--violet-option-active-background, var(--_surface-active));
+        box-shadow: inset 0 0 0 var(--_focus-ring-width) var(--violet-option-active-ring, var(--_option-active-ring, transparent));
     }
 
     :host([selected]) .control {
         background: var(--_surface-selected);
+    }
+
+    /* When an option is both active and selected, an explicit active-background hook wins;
+       otherwise keep the selected fill so the committed choice stays recognizable. */
+    :host([active][selected]) .control {
+        background: var(--violet-option-active-background, var(--_surface-selected));
     }
 
     /* Chosen is marked, not only tinted. */
@@ -74,6 +82,11 @@ const styles = css`
 
     .control:not(.disabled):hover {
         background: var(--_surface-hover);
+    }
+
+    /* Hovering the active row keeps an explicit active-background hook instead of replacing it. */
+    :host([active]) .control:not(.disabled):hover {
+        background: var(--violet-option-active-background, var(--_surface-hover));
     }
 
     .control.disabled {
@@ -123,7 +136,9 @@ const styles = css`
             color: ButtonText;
         }
 
-        .control.active,
+        :host([active]) .control,
+        :host([active][selected]) .control,
+        :host([active]) .control:not(.disabled):hover,
         :host([selected]) .control {
             border-color: Highlight;
             background: Highlight;
@@ -173,11 +188,10 @@ const template = html<VioletOption>`
  * @csspart label - Label wrapper.
  * @csspart description - Description wrapper.
  * @csspart after - Trailing slot wrapper.
+ * @cssproperty --violet-option-active-background - Background color of the active option row.
+ * @cssproperty --violet-option-active-ring - Inset ring color of the active option row when keyboard navigation is active.
  */
 export class VioletOption extends FASTElement {
-    @observable
-    declare public active: boolean;
-
     @observable
     declare public hasDescription: boolean;
 
@@ -187,6 +201,7 @@ export class VioletOption extends FASTElement {
     declare public value: string;
     declare public label: string;
     declare public selected: boolean;
+    declare public active: boolean;
     declare public disabled: boolean;
 
     public readonly optionId: string;
@@ -289,6 +304,7 @@ export class VioletOption extends FASTElement {
 attr(VioletOption.prototype, "value");
 attr(VioletOption.prototype, "label");
 attr({ mode: "boolean" })(VioletOption.prototype, "selected");
+attr({ mode: "boolean" })(VioletOption.prototype, "active");
 attr({ mode: "boolean" })(VioletOption.prototype, "disabled");
 
 if (!customElements.get("violet-option")) {

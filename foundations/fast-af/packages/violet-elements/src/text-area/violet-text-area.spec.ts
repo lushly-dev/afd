@@ -469,3 +469,34 @@ describe("violet-text-area value attribute", () => {
         expect(area.getAttribute("value")).toBe("initial");
     });
 });
+
+describe("violet-text-area narrow column layout (#1587)", () => {
+    afterEach(() => {
+        document.body.innerHTML = "";
+    });
+
+    it("shrinks inside 1fr grid tracks and a 120px column without overflowing", async () => {
+        document.body.innerHTML = `
+            <div id="grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;width:296px">
+                <violet-text-area id="first" label="First"></violet-text-area>
+                <violet-text-area id="last" label="Last"></violet-text-area>
+            </div>
+            <div style="width:120px;display:grid;grid-template-columns:1fr">
+                <violet-text-area id="single" label="Notes"></violet-text-area>
+            </div>
+        `;
+        await customElements.whenDefined("violet-text-area");
+        await nextFrame();
+
+        const grid = document.getElementById("grid") as HTMLElement;
+        const first = document.getElementById("first") as VioletTextArea;
+        const last = document.getElementById("last") as VioletTextArea;
+        const single = document.getElementById("single") as VioletTextArea;
+
+        expect(first.getBoundingClientRect().width).toBeLessThanOrEqual(144.5);
+        expect(last.getBoundingClientRect().right).toBeLessThanOrEqual(grid.getBoundingClientRect().right + 0.5);
+        expect(single.getBoundingClientRect().width).toBeLessThanOrEqual(120.5);
+        const singleFrame = single.shadowRoot?.querySelector(".control-frame") as HTMLElement;
+        expect(singleFrame.getBoundingClientRect().width).toBeLessThanOrEqual(120.5);
+    });
+});

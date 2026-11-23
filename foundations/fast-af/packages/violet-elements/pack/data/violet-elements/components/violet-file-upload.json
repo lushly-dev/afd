@@ -186,7 +186,7 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
-				"default": "var(--_border-subtle)",
+				"default": "var(--_field-border)",
 				"name": "--_upload-border"
 			},
 			{
@@ -246,17 +246,17 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--_surface-page)",
+				"default": "var(--_field-background)",
 				"name": "--_upload-surface"
 			},
 			{
 				"basis": "declared",
-				"default": "color-mix(in srgb, var(--_focus-ring) 10%, var(--_surface-page))",
+				"default": "color-mix(in srgb, var(--_focus-ring) 10%, var(--_field-background))",
 				"name": "--_upload-surface-active"
 			},
 			{
 				"basis": "declared",
-				"default": "color-mix(in srgb, var(--_surface-page) 76%, var(--_surface-subtle))",
+				"default": "color-mix(in srgb, var(--_field-background) 76%, var(--_surface-subtle))",
 				"name": "--_upload-surface-hover"
 			},
 			{
