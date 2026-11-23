@@ -32,7 +32,8 @@
 			"!foundations/specimen/fixtures/pack",
 			"!endpoints/umbel/plugins/components/packs",
 			"!endpoints/botcore/src/botcore/provenance/*.json",
-			"!spec/wire/*.json"
+			"!spec/wire/*.json",
+			"!scripts/affected/suites.generated.mjs"
 		]
 	},
 	"formatter": {

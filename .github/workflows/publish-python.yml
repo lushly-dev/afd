@@ -43,6 +43,7 @@ jobs:
     name: Validate Python release version
     if: github.event_name == 'push' || startsWith(github.event.release.tag_name, 'python-v')
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: python
@@ -75,6 +76,7 @@ jobs:
     name: Build Package
     needs: [version, test]
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: python
@@ -130,6 +132,7 @@ jobs:
       id-token: write
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     environment:
       name: pypi
       url: https://pypi.org/project/afd/

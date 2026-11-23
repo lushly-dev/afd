@@ -55,13 +55,19 @@ def drifted_profile(tmp_path):
     # Copy the shared checker inputs; all managed checks remain read-only.
     for relative in ('skills', '.claude/skills', 'endpoints/botcore/src/botcore/skills'):
         shutil.copytree(REPO_ROOT / relative, tmp_path / relative)
-    for relative in ('scripts/skill-profiles.mjs', 'spec/VERSION', 'packages/core/src/index.ts'):
+    manifest = json.loads((tmp_path / 'skills/exports.json').read_text())
+    canonical_scripts = [item['source'] for item in manifest.get('canonicalScripts', [])]
+    for relative in (
+        'scripts/skill-profiles.mjs',
+        'spec/VERSION',
+        'packages/core/src/index.ts',
+        *canonical_scripts,
+    ):
         target = tmp_path / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(REPO_ROOT / relative, target)
     (tmp_path / '.agents').mkdir()
     (tmp_path / '.agents/skills').symlink_to('../.claude/skills')
-    manifest = json.loads((tmp_path / 'skills/exports.json').read_text())
     name = manifest['profiles']['afd']['projections'][0]['name']
     projection = tmp_path / '.claude/skills' / name / 'SKILL.md'
     projection.write_text(projection.read_text() + '\nDisposable drift\n')

@@ -6,16 +6,14 @@ on:
     branches: [main]
     paths:
       - 'python/**'
-      # The tests round-trip the golden wire fixtures and load the behavior vectors.
       - 'spec/wire/**'
       - 'spec/vectors/**'
-      # tests/test_contract_version.py checks CONTRACT_VERSION against it.
       - 'spec/VERSION'
-      # tests/test_principal_binding.py loads its principalBindings cases.
       - 'spec/authorization.json'
-      - '.github/workflows/python.yml'
       - '.github/workflows/publish-python.yml'
       - 'scripts/python-wheel-smoke.py'
+      - '.github/workflows/python.yml'
+      - '.github/workflows/queue.yml'
   # The merge queue. No path filter applies to it: the `queue` job below does that work.
   merge_group:
   pull_request:
@@ -26,9 +24,13 @@ on:
       - 'spec/vectors/**'
       - 'spec/VERSION'
       - 'spec/authorization.json'
-      - '.github/workflows/python.yml'
       - '.github/workflows/publish-python.yml'
       - 'scripts/python-wheel-smoke.py'
+      - '.github/workflows/python.yml'
+      - '.github/workflows/queue.yml'
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -40,29 +42,10 @@ concurrency:
 
 jobs:
   queue:
-    # A merge group starts every workflow, whatever its `paths`. The jobs below run for one only
-    # when the files it changes match this workflow's own pull_request.paths; every other event
-    # passes straight through (scripts/affected.mjs trigger).
     name: Merge queue paths
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      run: ${{ steps.paths.outputs.run }}
-    steps:
-      - if: github.event_name == 'merge_group'
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          filter: blob:none
-      - id: paths
-        env:
-          AFD_BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || github.event.merge_group.base_sha || github.event.before }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
-            node scripts/affected.mjs trigger python.yml
-          else
-            echo "run=true" >> "$GITHUB_OUTPUT"
-          fi
+    uses: ./.github/workflows/queue.yml
+    with:
+      workflow: python.yml
 
   test:
     name: Python ${{ matrix.python-version }}

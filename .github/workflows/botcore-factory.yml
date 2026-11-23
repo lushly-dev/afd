@@ -16,6 +16,9 @@ on:
       - 'packages/core/**'
       - 'packages/testing/**'
       - 'pnpm-lock.yaml'
+      - 'scripts/check-test-*.mjs'
+      - 'scripts/discovery-parsers.mjs'
+      - 'scripts/report-test-changes.mjs'
       - 'docs/features/active/software-factory/scenarios/**'
       - 'scripts/issue-labels.mjs'
       - 'scripts/pre-push.mjs'
@@ -25,6 +28,8 @@ on:
       - '.github/labels.json'
       - 'botcore.toml'
       - '.github/workflows/botcore-factory.yml'
+      - '.github/workflows/queue.yml'
+      - '.github/actions/setup-node-pnpm/**'
   # The merge queue. No path filter applies to it: the `queue` job below does that work.
   merge_group:
   pull_request:
@@ -35,6 +40,9 @@ on:
       - 'packages/core/**'
       - 'packages/testing/**'
       - 'pnpm-lock.yaml'
+      - 'scripts/check-test-*.mjs'
+      - 'scripts/discovery-parsers.mjs'
+      - 'scripts/report-test-changes.mjs'
       - 'docs/features/active/software-factory/scenarios/**'
       - 'scripts/issue-labels.mjs'
       - 'scripts/pre-push.mjs'
@@ -44,6 +52,8 @@ on:
       - '.github/labels.json'
       - 'botcore.toml'
       - '.github/workflows/botcore-factory.yml'
+      - '.github/workflows/queue.yml'
+      - '.github/actions/setup-node-pnpm/**'
 
 permissions:
   contents: read
@@ -55,29 +65,10 @@ concurrency:
 
 jobs:
   queue:
-    # A merge group starts every workflow, whatever its `paths`. The jobs below run for one only
-    # when the files it changes match this workflow's own pull_request.paths; every other event
-    # passes straight through (scripts/affected.mjs trigger).
     name: Merge queue paths
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      run: ${{ steps.paths.outputs.run }}
-    steps:
-      - if: github.event_name == 'merge_group'
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          filter: blob:none
-      - id: paths
-        env:
-          AFD_BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || github.event.merge_group.base_sha || github.event.before }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
-            node scripts/affected.mjs trigger botcore-factory.yml
-          else
-            echo "run=true" >> "$GITHUB_OUTPUT"
-          fi
+    uses: ./.github/workflows/queue.yml
+    with:
+      workflow: botcore-factory.yml
 
   plugin:
     name: Plugin on ${{ matrix.os }}, Python ${{ matrix.python }} (lint, unit tests, jobs through the scenario runner)
@@ -105,26 +96,20 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Install pnpm
-        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
-      - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
       - name: Install uv
         uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           enable-cache: true
+          cache-dependency-glob: endpoints/botcore/plugins/botcore-factory/uv.lock
       - name: Set up Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: ${{ matrix.python }}
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-node-pnpm
       - name: Build AFD's scenario runner
         working-directory: .
-        run: |
-          pnpm install --frozen-lockfile
-          pnpm -F "@lushly-dev/afd-testing..." build
+        run: pnpm -F "@lushly-dev/afd-testing..." build
       - name: Verify lock and install the plugin's development environment
         run: |
           uv lock --check

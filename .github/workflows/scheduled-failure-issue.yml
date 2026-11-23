@@ -1,0 +1,55 @@
+name: Scheduled failure issue
+
+# Opens or updates one GitHub issue per scheduled workflow when a scheduled run fails, and
+# closes that issue when a later scheduled run succeeds (#1799). Running via `workflow_run`
+# keeps `issues: write` out of every CI workflow.
+on:
+  workflow_run:
+    workflows:
+      - Botcore
+      - CI
+      - Conformance
+      - C++
+      - FAST-AF
+      - Loam
+      - Loam desktop
+      - Python
+      - Rust
+      - Umbel
+    types: [completed]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  report:
+    name: Record scheduled workflow result
+    if: >-
+      github.event.workflow_run.event == 'schedule' &&
+      (github.event.workflow_run.conclusion == 'failure' ||
+       github.event.workflow_run.conclusion == 'timed_out' ||
+       github.event.workflow_run.conclusion == 'startup_failure' ||
+       github.event.workflow_run.conclusion == 'success')
+    concurrency:
+      group: scheduled-failure-issue-${{ github.event.workflow_run.name }}
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            scripts/scheduled-failure-issue.mjs
+          sparse-checkout-cone-mode: false
+      - name: Update scheduled failure issue
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+          RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_DATE: ${{ github.event.workflow_run.updated_at }}
+        run: node scripts/scheduled-failure-issue.mjs

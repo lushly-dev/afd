@@ -426,3 +426,36 @@ test("the standing rule raises the listing budget up to the hosts' 8,000 fallbac
 			`Raising listingBudget to ${raise} would go past the hosts' 8000-character fallback listing, so ask the owner first.`
 		);
 });
+
+test('canonicalScripts keeps scripts/ canonical across bundled skills and projected copies', async (t) => {
+	const { root, put, manifest, save } = await fixture(t);
+	await put('scripts/check-demo.mjs', 'export const v = 2;\n');
+	await put('bundled/code-reviewer/scripts/check-demo.mjs', 'export const v = 1;\n');
+	manifest.canonicalScripts = [
+		{
+			source: 'scripts/check-demo.mjs',
+			targets: ['bundled/code-reviewer/scripts/check-demo.mjs'],
+		},
+	];
+	await save();
+	const drift = await syncProfiles(root);
+	assert.ok(drift.includes('bundled/code-reviewer/scripts/check-demo.mjs'));
+	assert.ok(drift.includes('.claude/skills/review-code/scripts/check-demo.mjs'));
+	await syncProfiles(root, { write: true });
+	assert.deepEqual(await syncProfiles(root), []);
+	assert.equal(
+		await readFile(path.join(root, 'bundled/code-reviewer/scripts/check-demo.mjs'), 'utf8'),
+		'export const v = 2;\n'
+	);
+	assert.equal(
+		await readFile(path.join(root, '.claude/skills/review-code/scripts/check-demo.mjs'), 'utf8'),
+		'export const v = 2;\n'
+	);
+
+	// Deleting the bundled mirror recovers cleanly in one --write pass without failing Unknown local resource.
+	await rm(path.join(root, 'bundled/code-reviewer/scripts/check-demo.mjs'));
+	const missing = await syncProfiles(root);
+	assert.deepEqual(missing, ['bundled/code-reviewer/scripts/check-demo.mjs']);
+	await syncProfiles(root, { write: true });
+	assert.deepEqual(await syncProfiles(root), []);
+});

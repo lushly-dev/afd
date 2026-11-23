@@ -308,6 +308,29 @@ export async function syncProfiles(root, { write = false, onListing } = {}) {
 	if (JSON.stringify(actual) !== JSON.stringify([...catalog].sort()))
 		throw new Error('Canonical catalog drift: update skills/exports.json');
 	const changes = [];
+	// Scripts canonical in `scripts/` that are mirrored into packaged skill data (and then projected).
+	const staged = new Map();
+	if (manifest.canonicalScripts !== undefined) {
+		if (!Array.isArray(manifest.canonicalScripts))
+			throw new Error('canonicalScripts must be an array');
+		for (const item of manifest.canonicalScripts) {
+			if (!item?.source || !Array.isArray(item.targets) || item.targets.length === 0)
+				throw new Error('Each canonicalScripts entry requires source and non-empty targets');
+			const sourcePath = await inside(root, item.source);
+			const expected = await readFile(sourcePath);
+			for (const targetRel of item.targets) {
+				const targetPath = await inside(root, targetRel);
+				let current;
+				try {
+					current = await readFile(targetPath);
+				} catch (error) {
+					if (error.code !== 'ENOENT') throw error;
+				}
+				staged.set(targetPath, expected);
+				if (!current?.equals(expected)) changes.push({ path: targetPath, content: expected });
+			}
+		}
+	}
 	for (const [profileName, profile] of Object.entries(manifest.profiles)) {
 		const destinationRoot = await inside(root, profile.root);
 		const entries = [
@@ -375,7 +398,11 @@ export async function syncProfiles(root, { write = false, onListing } = {}) {
 		for (const entry of profile.projections) {
 			const source = await inside(root, `${manifest.canonical.root}/${entry.canonical}`);
 			const destination = await inside(root, `${profile.root}/${entry.name}`);
-			const sourceFiles = await files(source);
+			const sourcePrefix = `${source}${path.sep}`;
+			const stagedSourceFiles = [...staged.keys()]
+				.filter((stagedPath) => stagedPath.startsWith(sourcePrefix))
+				.map((stagedPath) => path.relative(source, stagedPath).split(path.sep).join('/'));
+			const sourceFiles = [...new Set([...(await files(source)), ...stagedSourceFiles])].sort();
 			if (!sourceFiles.includes('SKILL.md'))
 				throw new Error(`Missing canonical SKILL.md: ${entry.canonical}`);
 			for (const file of await files(destination)) {
@@ -385,7 +412,8 @@ export async function syncProfiles(root, { write = false, onListing } = {}) {
 					);
 			}
 			for (const file of sourceFiles) {
-				const original = await readFile(path.join(source, file));
+				const sourceFile = path.join(source, file);
+				const original = staged.get(sourceFile) ?? (await readFile(sourceFile));
 				const expected = textExtensions.has(path.extname(file))
 					? Buffer.from(projectText(original.toString('utf8'), entry, aliases, file))
 					: original;

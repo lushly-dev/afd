@@ -58,7 +58,19 @@ export function cargoRequirements(manifest) {
 }
 
 export function npmRequirements(manifest) {
-	return ['dependencies', 'optionalDependencies', 'peerDependencies'].flatMap((field) =>
+	return npmFieldRequirements(manifest, [
+		'dependencies',
+		'optionalDependencies',
+		'peerDependencies',
+	]);
+}
+
+export function npmDevRequirements(manifest) {
+	return npmFieldRequirements(manifest, ['devDependencies']);
+}
+
+function npmFieldRequirements(manifest, fields) {
+	return fields.flatMap((field) =>
 		Object.entries(manifest[field] ?? {}).map(([key, value]) => {
 			if (typeof value !== 'string') throw new Error('Invalid npm dependency declaration');
 			const alias = value.match(/^(npm|workspace):((?:@[^/\s]+\/)?[^@\s]+)@(.+)$/);
@@ -76,4 +88,29 @@ export function npmRequirements(manifest) {
 			};
 		})
 	);
+}
+
+export function cargoDevRequirements(manifest) {
+	const sections = [manifest, ...Object.values(manifest.target ?? {})];
+	return sections.flatMap((section) =>
+		Object.entries(section['dev-dependencies'] ?? {}).map(([key, value]) => {
+			const name = typeof value === 'string' ? key : (value.package ?? key);
+			let range = typeof value === 'string' ? value : (value.version ?? null);
+			if (range) {
+				range = range.replaceAll(',', ' ');
+				if (/^\d/.test(range)) range = `^${range}`;
+			}
+			return { registry: 'crates', name, range };
+		})
+	);
+}
+
+export function pythonDevRequirements(manifest) {
+	const groups = [
+		...['dev', 'test', 'tests'].flatMap(
+			(key) => manifest.project?.['optional-dependencies']?.[key] ?? []
+		),
+		...['dev', 'test', 'tests'].flatMap((key) => manifest['dependency-groups']?.[key] ?? []),
+	].filter((item) => typeof item === 'string');
+	return pythonRequirements({ dependencies: groups });
 }

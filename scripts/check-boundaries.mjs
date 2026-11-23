@@ -1,10 +1,9 @@
 #!/usr/bin/env node
 /**
  * Static package boundaries, not installation or standalone-consumer evidence.
- * Checks repository-owned dependency closure, TS literal imports/type references,
- * Python static imports, public subpaths, config paths and literal hook references.
- * External registry dependency closure, computed imports, arbitrary hook execution,
- * Python dynamic imports and Rust/C++ source/type graphs require artifact consumers.
+ * Checks repository-owned runtime and build-time dependency closure, TS literal
+ * imports/type references, Python static imports, public subpaths, config paths,
+ * script references, family sub-layers, and example isolation.
  */
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { builtinModules } from 'node:module';
@@ -14,12 +13,28 @@ import { pathToFileURL } from 'node:url';
 import ts from '@typescript/typescript6';
 import { parse as parseToml } from 'smol-toml';
 import {
+	cargoDevRequirements,
 	cargoRequirements,
+	npmDevRequirements,
 	npmRequirements,
+	pythonDevRequirements,
 	pythonRequirements,
+	registryName,
 } from './release/manifest-requirements.mjs';
 
-const skip = new Set(['node_modules', 'dist', 'build', 'target', '.git', '.venv', '__pycache__']);
+const skip = new Set([
+	'node_modules',
+	'dist',
+	'build',
+	'target',
+	'.git',
+	'.venv',
+	'__pycache__',
+	'coverage',
+	'temp',
+	'test-results',
+	'playwright-report',
+]);
 const manifests = new Set(['package.json', 'pyproject.toml', 'Cargo.toml', 'CMakeLists.txt']);
 const slash = (path) => path.replaceAll('\\', '/');
 const within = (path, root) => path === root || path.startsWith(`${root}/`);
@@ -40,6 +55,8 @@ function classification(path, config) {
 	const explicit = config.units.find((unit) => unit.manifest === path);
 	if (explicit) return explicit;
 	const parts = path.split('/');
+	if (parts[0] === 'packages' && parts[1] === 'examples')
+		return { manifest: path, family: 'examples', layer: 'example' };
 	if (parts[0] === 'foundations' && config.families.includes(parts[1]))
 		return { manifest: path, family: parts[1], layer: 'foundation' };
 	if (['integrations', 'endpoints'].includes(parts[0]) && parts.length >= 3)
@@ -48,6 +65,19 @@ function classification(path, config) {
 			family: parts[1],
 			layer: parts[0] === 'integrations' ? 'integration' : 'endpoint',
 		};
+	return null;
+}
+
+function assignSublayer(unit, familyRules) {
+	const rule = familyRules?.[unit.family];
+	if (!rule) return undefined;
+	if (unit.sublayer) return unit.sublayer;
+	for (const entry of rule.assign ?? []) {
+		if (entry.match && unit.name === entry.match) return entry.sublayer;
+		if (entry.prefix && unit.name.startsWith(entry.prefix)) return entry.sublayer;
+		if (entry.pathPrefix && within(unit.directory, entry.pathPrefix.replace(/\/$/, '')))
+			return entry.sublayer;
+	}
 	return null;
 }
 
@@ -73,6 +103,7 @@ function loadUnit(root, entry) {
 	if (!name) throw new Error(`Missing package identity: ${entry.manifest}`);
 	const registry = { npm: 'npm', python: 'pypi', rust: 'crates', cpp: 'source' }[format];
 	let requirements = [];
+	let devRequirements = [];
 	if (format === 'npm') {
 		const peers = Object.fromEntries(
 			Object.entries(manifest.peerDependencies ?? {}).filter(
@@ -80,6 +111,7 @@ function loadUnit(root, entry) {
 			)
 		);
 		requirements = npmRequirements({ ...manifest, peerDependencies: peers });
+		devRequirements = npmDevRequirements(manifest);
 	} else if (format === 'python') {
 		const optional = Object.fromEntries(
 			Object.entries(manifest.project?.['optional-dependencies'] ?? {}).filter(
@@ -90,7 +122,11 @@ function loadUnit(root, entry) {
 			...pythonRequirements({ ...manifest.project, 'optional-dependencies': optional }),
 			...pythonRequirements({ dependencies: manifest['build-system']?.requires ?? [] }),
 		];
-	} else if (format === 'rust') requirements = cargoRequirements(manifest);
+		devRequirements = pythonDevRequirements(manifest);
+	} else if (format === 'rust') {
+		requirements = cargoRequirements(manifest);
+		devRequirements = cargoDevRequirements(manifest);
+	}
 	return {
 		...entry,
 		manifestPath: entry.manifest,
@@ -101,6 +137,7 @@ function loadUnit(root, entry) {
 		data: manifest,
 		text,
 		requirements,
+		devRequirements,
 	};
 }
 
@@ -134,7 +171,7 @@ function nativeSurfaces(unit) {
 	return [...names];
 }
 
-export function coverageMap(units, contract = {}) {
+export function coverageMap(units) {
 	return units.map((unit) => ({
 		manifest: unit.manifestPath,
 		name: unit.name,
@@ -155,7 +192,6 @@ export function coverageMap(units, contract = {}) {
 						conditions: [],
 						target: unit.manifestPath,
 					})),
-		requiredChecks: contract.checks ?? ['installation', 'import', 'types', 'dependencies'],
 		evidence: 'pending; static boundary check is not consumer execution',
 	}));
 }
@@ -202,6 +238,15 @@ function publicImport(target, specifier) {
 		if (!entry.export.includes('*')) return entry.export === subpath;
 		const [prefix, suffix] = entry.export.split('*');
 		return subpath.startsWith(prefix) && subpath.endsWith(suffix);
+	});
+}
+
+function mentionsUnit(command, from, other) {
+	const rel = slash(relative(from.directory, other.directory));
+	const patterns = [other.name, other.directory, rel].filter(Boolean);
+	return patterns.some((token) => {
+		const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+		return new RegExp(`(?:^|[\\s'"\`=:/])${escaped}(?:$|[\\s'"\`/;&|])`).test(command);
 	});
 }
 
@@ -327,11 +372,14 @@ function checkLanes(root, config, files, units, fail) {
 	}
 }
 
-/** Returns violations and a planning-only coverage map; never mutates files. */
+/** Returns violations, runtime/build-time edge graphs, and a planning-only surface map; never mutates files. */
 export function checkBoundaries(root, config = JSON.parse(read(join(root, 'architecture.json')))) {
 	const errors = [];
 	const fail = (message) => errors.push(message);
 	if (config.schemaVersion !== 1) throw new Error('Unsupported architecture schema');
+	for (const directory of config.discoveryRoots)
+		if (!existsSync(join(root, directory)))
+			fail(`Stale discoveryRoot "${directory}" does not exist; remove it from architecture.json`);
 	const files = [
 		...new Set(config.discoveryRoots.flatMap((directory) => walk(root, directory, config.exclude))),
 	];
@@ -352,14 +400,25 @@ export function checkBoundaries(root, config = JSON.parse(read(join(root, 'archi
 			continue;
 		}
 		if (
-			!['foundation', 'integration', 'endpoint'].includes(entry.layer) ||
+			!['foundation', 'integration', 'endpoint', 'example'].includes(entry.layer) ||
 			(entry.layer === 'foundation' && !config.families.includes(entry.family))
 		) {
 			fail(`Invalid classification ${path}`);
 			continue;
 		}
 		try {
-			units.push(loadUnit(root, entry));
+			const unit = loadUnit(root, entry);
+			const sublayer = assignSublayer(unit, config.familyRules);
+			if (sublayer === null) {
+				fail(`Unclassified sublayer for ${unit.name} in family ${unit.family} (${path})`);
+			} else if (sublayer !== undefined) {
+				const allowedMap = config.familyRules[unit.family]?.allowed ?? {};
+				if (!Object.hasOwn(allowedMap, sublayer)) {
+					fail(`Unknown sublayer "${sublayer}" for ${unit.name} in family ${unit.family}`);
+				}
+				unit.sublayer = sublayer;
+			}
+			units.push(unit);
 		} catch (error) {
 			fail(`${path}: ${error.message}`);
 		}
@@ -374,15 +433,77 @@ export function checkBoundaries(root, config = JSON.parse(read(join(root, 'archi
 		units
 			.filter((unit) => within(slash(relative(root, resolve(path))), unit.directory))
 			.sort((a, b) => b.directory.length - a.directory.length)[0];
+
 	const graph = new Map(units.map((unit) => [unit, new Set()]));
+	const buildGraph = new Map(units.map((unit) => [unit, new Set()]));
+	const exemptions = (config.buildTimeExemptions ?? []).map((entry) => ({
+		...entry,
+		key: `${entry.from} -> ${entry.to}`,
+	}));
+	const usedExemptions = new Set();
+	const runtimeExemptions = (config.runtimeExemptions ?? []).map((entry) => ({
+		...entry,
+		key: `${entry.from} -> ${entry.to}`,
+	}));
+	const usedRuntimeExemptions = new Set();
+
 	function edge(from, to, context) {
 		if (!to || from === to) return;
 		graph.get(from).add(to);
+		const key = `${from.name} -> ${to.name}`;
+		const exempted = runtimeExemptions.find((entry) => entry.key === key);
 		if (from.layer === 'foundation' && (to.layer !== 'foundation' || from.family !== to.family))
 			fail(`${context}: foundation ${from.name} requires ${to.layer} ${to.name} (${to.family})`);
 		if (from.layer === 'integration' && to.layer === 'endpoint')
 			fail(`${context}: integration ${from.name} requires endpoint ${to.name}`);
+		if (from.layer === 'example' && to.layer === 'endpoint') {
+			if (exempted) usedRuntimeExemptions.add(key);
+			else fail(`${context}: example ${from.name} requires endpoint ${to.name}`);
+		}
+		if (from.layer !== 'example' && to.layer === 'example') {
+			if (exempted) usedRuntimeExemptions.add(key);
+			else fail(`${context}: ${from.layer} ${from.name} requires example ${to.name}`);
+		}
+		if (from.family === to.family && from.sublayer && to.sublayer) {
+			const allowed = config.familyRules?.[from.family]?.allowed?.[from.sublayer] ?? [];
+			if (!allowed.includes(to.sublayer))
+				fail(
+					`${context}: ${from.family} sublayer "${from.sublayer}" (${from.name}) may not depend on "${to.sublayer}" (${to.name})`
+				);
+		}
 	}
+
+	function buildEdge(from, to, context) {
+		if (!to || from === to) return;
+		buildGraph.get(from).add(to);
+		const key = `${from.name} -> ${to.name}`;
+		const exempted = exemptions.find((entry) => entry.key === key);
+		const forbiddenFoundation = from.layer === 'foundation' && to.layer !== 'foundation';
+		const forbiddenExample = from.layer === 'example' && to.layer === 'endpoint';
+		const forbiddenToExample = from.layer !== 'example' && to.layer === 'example';
+		let forbiddenSublayer = false;
+		if (from.family === to.family && from.sublayer && to.sublayer) {
+			const rules = config.familyRules?.[from.family];
+			const allowed = rules?.buildAllowed?.[from.sublayer] ?? rules?.allowed?.[from.sublayer] ?? [];
+			if (!allowed.includes(to.sublayer)) forbiddenSublayer = true;
+		}
+		if (forbiddenFoundation || forbiddenExample || forbiddenToExample || forbiddenSublayer) {
+			if (exempted) {
+				usedExemptions.add(key);
+				return;
+			}
+			if (forbiddenSublayer) {
+				fail(
+					`${context}: build-time edge violates ${from.family} sublayer "${from.sublayer}" (${from.name}) -> "${to.sublayer}" (${to.name})`
+				);
+			} else {
+				fail(
+					`${context}: build-time edge from ${from.layer} ${from.name} to ${to.layer} ${to.name} (${to.family}) is refused`
+				);
+			}
+		}
+	}
+
 	for (const unit of units) {
 		for (const dependency of unit.requirements)
 			edge(
@@ -390,25 +511,33 @@ export function checkBoundaries(root, config = JSON.parse(read(join(root, 'archi
 				byName.get(`${dependency.registry}:${dependency.name}`),
 				`${unit.manifestPath} dependency`
 			);
+		for (const dependency of unit.devRequirements)
+			buildEdge(
+				unit,
+				byName.get(`${dependency.registry}:${dependency.name}`),
+				`${unit.manifestPath} devDependency`
+			);
 		for (const name of unit.configurationDependencies ?? []) {
 			const target = units.find((other) => other.name === name);
 			if (!target) fail(`${unit.manifestPath}: unknown configuration dependency ${name}`);
 			else edge(unit, target, `${unit.manifestPath} configuration`);
 		}
 		if (unit.format !== 'npm') {
-			const checkPaths = (value) => {
+			const checkPaths = (value, isDev = false) => {
 				if (!value || typeof value !== 'object') return;
 				for (const [key, nested] of Object.entries(value)) {
-					if (key === 'path' && typeof nested === 'string')
-						edge(
-							unit,
-							owner(resolve(root, unit.directory, nested)),
-							`${unit.manifestPath} native path`
-						);
-					else if (key !== 'dev-dependencies') checkPaths(nested);
+					if (key === 'path' && typeof nested === 'string') {
+						const target = owner(resolve(root, unit.directory, nested));
+						if (isDev) buildEdge(unit, target, `${unit.manifestPath} native dev path`);
+						else edge(unit, target, `${unit.manifestPath} native path`);
+					} else if (key === 'dev-dependencies') {
+						checkPaths(nested, true);
+					} else {
+						checkPaths(nested, isDev);
+					}
 				}
 			};
-			if (unit.format === 'rust') checkPaths(unit.data);
+			if (unit.format === 'rust') checkPaths(unit.data, false);
 			for (const path of unit.data['build-system']?.['backend-path'] ?? [])
 				edge(
 					unit,
@@ -455,35 +584,45 @@ export function checkBoundaries(root, config = JSON.parse(read(join(root, 'archi
 				if (value.includes(other.name) || value.includes(other.directory))
 					edge(unit, other, `${unit.manifestPath} ${field}`);
 			}
-		const hooks = Object.entries(unit.data.scripts ?? {}).filter(([name]) =>
-			/^(preinstall|install|postinstall|prepare)$/.test(name)
-		);
-		for (const [name, command] of hooks) {
-			for (const other of units)
-				if (
-					other !== unit &&
-					(command.includes(other.name) ||
+		for (const [name, command] of Object.entries(unit.data.scripts ?? {})) {
+			const isInstallHook = /^(preinstall|install|postinstall|prepare)$/.test(name);
+			for (const other of units) {
+				if (other === unit) continue;
+				if (isInstallHook) {
+					if (
+						command.includes(other.name) ||
 						command.includes(other.directory) ||
-						command.includes(slash(relative(unit.directory, other.directory))))
-				)
-					edge(unit, other, `${unit.manifestPath} ${name} hook`);
-			for (const match of command.matchAll(/(?:node|tsx|ts-node)\s+([^\s;&|]+\.[cm]?[jt]s)/g)) {
-				const path = resolve(root, unit.directory, match[1]);
-				const target = owner(path);
-				if (target !== unit) edge(unit, target, `${unit.manifestPath} ${name} hook path`);
-				else if (existsSync(path))
-					for (const specifier of imports(read(path), path))
-						inspectImport(unit, specifier, path, options);
+						command.includes(slash(relative(unit.directory, other.directory)))
+					)
+						edge(unit, other, `${unit.manifestPath} ${name} hook`);
+				} else if (mentionsUnit(command, unit, other)) {
+					buildEdge(unit, other, `${unit.manifestPath} script "${name}"`);
+				}
+			}
+			if (isInstallHook) {
+				for (const match of command.matchAll(/(?:node|tsx|ts-node)\s+([^\s;&|]+\.[cm]?[jt]s)/g)) {
+					const path = resolve(root, unit.directory, match[1]);
+					const target = owner(path);
+					if (target !== unit) edge(unit, target, `${unit.manifestPath} ${name} hook path`);
+					else if (existsSync(path))
+						for (const specifier of imports(read(path), path))
+							inspectImport(unit, specifier, path, options, false);
+				}
 			}
 		}
-		function inspectImport(from, specifier, path, compilerOptions) {
+
+		function inspectImport(from, specifier, path, compilerOptions, isBuildTime) {
 			if (specifier.startsWith('node:') || builtinModules.includes(specifier)) return;
 			const name = packageName(specifier);
 			const target = byName.get(`npm:${name}`);
-			const declared = ['dependencies', 'optionalDependencies', 'peerDependencies'].some((field) =>
-				Object.hasOwn(from.data[field] ?? {}, name)
-			);
 			if (target && target !== from) {
+				if (isBuildTime) {
+					buildEdge(from, target, `${slash(relative(root, path))} build-time import`);
+					return;
+				}
+				const declared = ['dependencies', 'optionalDependencies', 'peerDependencies'].some(
+					(field) => Object.hasOwn(from.data[field] ?? {}, name)
+				);
 				if (!declared)
 					fail(`${slash(relative(root, path))}: undeclared package import ${specifier}`);
 				if (!publicImport(target, specifier))
@@ -502,20 +641,30 @@ export function checkBoundaries(root, config = JSON.parse(read(join(root, 'archi
 						: null);
 			const pathOwner = destination && owner(destination);
 			if (pathOwner && pathOwner !== from) {
-				fail(`${slash(relative(root, path))}: cross-package source/alias bypass ${specifier}`);
-				edge(from, pathOwner, path);
+				if (isBuildTime) {
+					buildEdge(from, pathOwner, `${slash(relative(root, path))} build-time path`);
+				} else {
+					fail(`${slash(relative(root, path))}: cross-package source/alias bypass ${specifier}`);
+					edge(from, pathOwner, path);
+				}
 			}
 		}
-		for (const path of files.filter(
+
+		const unitJsFiles = files.filter(
 			(path) =>
-				within(path, `${unit.directory}/src`) &&
+				within(path, unit.directory) &&
 				/\.[cm]?[jt]sx?$/.test(path) &&
-				!/(?:^|\/)(?:__tests__|fixtures)(?:\/)|\.(?:test|spec|stories)\./.test(path)
-		)) {
+				owner(join(root, path)) === unit
+		);
+		for (const path of unitJsFiles) {
+			const isRuntimeSrc =
+				within(path, `${unit.directory}/src`) &&
+				!/(?:^|\/)(?:__tests__|fixtures)(?:\/)|\.(?:test|spec|stories)\./.test(path);
 			for (const specifier of imports(read(join(root, path)), path))
-				inspectImport(unit, specifier, join(root, path), options);
+				inspectImport(unit, specifier, join(root, path), options, !isRuntimeSrc);
 		}
 	}
+
 	for (const unit of units.filter((item) => item.format === 'python')) {
 		const modules = new Map(
 			units
@@ -525,8 +674,10 @@ export function checkBoundaries(root, config = JSON.parse(read(join(root, 'archi
 				)
 		);
 		for (const path of files.filter(
-			(path) => within(path, `${unit.directory}/src`) && path.endsWith('.py')
+			(path) =>
+				within(path, unit.directory) && path.endsWith('.py') && owner(join(root, path)) === unit
 		)) {
+			const isRuntimeSrc = within(path, `${unit.directory}/src`);
 			// Static syntax only; discard multiline docstrings before matching statements.
 			const text = read(join(root, path)).replace(/(["']{3})[\s\S]*?\1/g, '');
 			for (const match of text.matchAll(/^\s*(?:from\s+([\w.]+)\s+import|import\s+([^\n#]+))/gm)) {
@@ -535,25 +686,46 @@ export function checkBoundaries(root, config = JSON.parse(read(join(root, 'archi
 					: match[2].split(',').map((value) => value.trim().split(/\s/)[0])) {
 					const target = modules.get(module.split('.')[0]);
 					if (target && target !== unit) {
-						if (!unit.requirements.some((item) => item.name === target.name))
-							fail(`${path}: undeclared Python import ${module}`);
-						edge(unit, target, `${path} import/type reference`);
+						if (isRuntimeSrc) {
+							if (!unit.requirements.some((item) => item.name === target.name))
+								fail(`${path}: undeclared Python import ${module}`);
+							edge(unit, target, `${path} import/type reference`);
+						} else {
+							buildEdge(unit, target, `${path} build-time Python import`);
+						}
 					}
 				}
 			}
 		}
-		for (const [name, value] of Object.entries(unit.data.tool?.uv?.sources ?? {}))
+		for (const [rawName, value] of Object.entries(unit.data.tool?.uv?.sources ?? {}))
 			if (value.path) {
-				const development = ['dev', 'test', 'tests']
-					.flatMap((key) => unit.data.project?.['optional-dependencies']?.[key] ?? [])
-					.some((requirement) => requirement.match(/^[\w.-]+/)?.[0] === name);
-				if (development && !unit.requirements.some((item) => item.name === name)) continue;
+				const name = registryName('pypi', rawName);
 				const target = owner(resolve(root, unit.directory, value.path));
+				const development = unit.devRequirements.some((item) => item.name === name);
+				if (development && !unit.requirements.some((item) => item.name === name)) {
+					buildEdge(unit, target, `${unit.manifestPath} dev editable source`);
+					continue;
+				}
 				if (target && !unit.requirements.some((item) => item.name === name))
-					fail(`${unit.manifestPath}: undeclared editable source ${name}`);
+					fail(`${unit.manifestPath}: undeclared editable source ${rawName}`);
 				edge(unit, target, `${unit.manifestPath} editable source`);
 			}
 	}
+	for (const entry of exemptions) {
+		if (!usedExemptions.has(entry.key)) {
+			fail(
+				`Stale buildTimeExemption ${entry.key}: no matching forbidden build-time edge remains; delete the entry`
+			);
+		}
+	}
+	for (const entry of runtimeExemptions) {
+		if (!usedRuntimeExemptions.has(entry.key)) {
+			fail(
+				`Stale runtimeExemption ${entry.key}: no matching forbidden runtime edge remains; delete the entry`
+			);
+		}
+	}
+
 	checkLanes(root, config, files, units, fail);
 	for (const start of units) {
 		const visit = (current, seen) => {
@@ -578,11 +750,18 @@ export function checkBoundaries(root, config = JSON.parse(read(join(root, 'archi
 	return {
 		errors: [...new Set(errors)],
 		units,
-		// Direct repository-owned edges per unit name; third-party packages are not units.
+		// Direct repository-owned runtime edges per unit name; third-party packages are not units.
 		dependencies: Object.fromEntries(
 			units.map((unit) => [unit.name, [...graph.get(unit)].map((target) => target.name).sort()])
 		),
-		coverage: coverageMap(units, config.coverageContract),
+		// Direct repository-owned build-time edges (devDependencies, tests, scripts, non-src files).
+		buildTimeDependencies: Object.fromEntries(
+			units.map((unit) => [
+				unit.name,
+				[...buildGraph.get(unit)].map((target) => target.name).sort(),
+			])
+		),
+		coverage: coverageMap(units),
 	};
 }
 
@@ -597,9 +776,23 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
 				throw new Error(`--dependencies needs a classified unit name, got ${name ?? 'nothing'}`);
 			console.log(`${name} -> ${result.dependencies[name].join(', ') || '(none)'}`);
 		}
+		const shownBuild = process.argv.indexOf('--build-dependencies');
+		if (shownBuild !== -1) {
+			const name = process.argv[shownBuild + 1];
+			if (name && !name.startsWith('--')) {
+				if (!Object.hasOwn(result.buildTimeDependencies, name))
+					throw new Error(`--build-dependencies needs a classified unit name, got ${name}`);
+				console.log(
+					`${name} (build) -> ${result.buildTimeDependencies[name].join(', ') || '(none)'}`
+				);
+			} else {
+				for (const [unitName, deps] of Object.entries(result.buildTimeDependencies))
+					if (deps.length > 0) console.log(`${unitName} (build) -> ${deps.join(', ')}`);
+			}
+		}
 		for (const error of result.errors) console.error(`✘ ${error}`);
 		if (result.errors.length) process.exitCode = 1;
-		else if (!process.argv.includes('--coverage'))
+		else if (!process.argv.includes('--coverage') && shownBuild === -1)
 			console.log(
 				`✓ Static boundaries: ${result.units.length} classified distributions; isolated consumer evidence remains separate`
 			);

@@ -93,7 +93,7 @@ const edit = (text, from, to) => {
 describe('the merge-group contract', () => {
 	it('holds for a gated path-filtered workflow, an unfiltered one and one pull requests never start', () => {
 		assert.deepEqual(problems(filtered()), []);
-		assert.deepEqual(problems(unfiltered, 'ci.yml'), []);
+		assert.deepEqual(problems(unfiltered, 'plain.yml'), []);
 		assert.deepEqual(
 			problems(
 				'on:\n  push:\n    branches: [main]\njobs:\n  job:\n    runs-on: x\n',
@@ -224,9 +224,9 @@ describe('the merge-group contract', () => {
 	});
 
 	it('names an unfiltered workflow with a queue job, and a filter the queue job cannot read', () => {
-		const withQueue = edit(unfiltered, 'jobs:\n', `jobs:\n${queueJob('ci.yml')}\n\n`);
-		assert.deepEqual(problems(withQueue, 'ci.yml'), [
-			'ci.yml: has a `queue` job but no pull_request.paths for it to read',
+		const withQueue = edit(unfiltered, 'jobs:\n', `jobs:\n${queueJob('plain.yml')}\n\n`);
+		assert.deepEqual(problems(withQueue, 'plain.yml'), [
+			'plain.yml: has a `queue` job but no pull_request.paths for it to read',
 		]);
 		assert.deepEqual(
 			problems(
@@ -276,10 +276,21 @@ describe('the merge-group contract', () => {
 		const old =
 			"AFD_BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || github.event.before }}";
 		assert.deepEqual(problems(filtered().replaceAll(AFD_BASE, old)), [
-			'unit.yml: its `queue` job is missing or differs from the one scripts/merge-group-contract.mjs gives',
-			`unit.yml: AFD_BASE is not \`${AFD_BASE}\``,
 			`unit.yml: AFD_BASE is not \`${AFD_BASE}\``,
 		]);
+		const queueFile = readWorkflows(root)['queue.yml'];
+		assert.deepEqual(problems(queueFile.replaceAll(AFD_BASE, old), 'queue.yml'), [
+			`queue.yml: AFD_BASE is not \`${AFD_BASE}\``,
+		]);
+		// Disconnecting the reusable queue workflow's output chain fails loudly.
+		const disconnected = queueFile.replace(
+			'value: ${{ jobs.queue.outputs.run }}',
+			'value: ${{ jobs.queue.outputs.missing }}'
+		);
+		assert.match(
+			problems(disconnected, 'queue.yml').join('\n'),
+			/must map `workflow_call\.outputs\.run` to `\$\{\{ jobs\.queue\.outputs\.run \}\}`/
+		);
 		assert.deepEqual(
 			problems(
 				edit(filtered(), " || github.event_name == 'merge_group') && 'affected'", ") && 'affected'")
@@ -339,11 +350,15 @@ describe("this repository's workflows", () => {
 	});
 
 	it('name themselves in the queue job, and as a path, so an edit to one runs it in the queue', () => {
+		assert.ok(Object.hasOwn(workflows, 'queue.yml'), 'reusable queue.yml exists');
 		for (const file of names) {
+			if (file === 'queue.yml') continue;
 			const { jobs } = readWorkflow(workflows[file]);
 			if (!jobs.has('queue')) continue;
-			assert.ok(jobs.get('queue').block.includes(`affected.mjs trigger ${file}\n`), file);
-			assert.ok(readTrigger(workflows[file]).paths.includes(`.github/workflows/${file}`), file);
+			assert.ok(jobs.get('queue').block.includes(`workflow: ${file}`), file);
+			const paths = readTrigger(workflows[file]).paths;
+			assert.ok(paths.includes(`.github/workflows/${file}`), file);
+			assert.ok(paths.includes('.github/workflows/queue.yml'), file);
 		}
 	});
 });
@@ -518,40 +533,46 @@ describe('what the contract cannot read, or reads two ways', () => {
 	});
 
 	it('holds PULL_REQUEST_ONLY to the jobs that still need it', () => {
-		const [[file, jobs]] = Object.entries(PULL_REQUEST_ONLY);
-		const [[id, entry]] = Object.entries(jobs);
-		const real = readWorkflows(root)[file];
-		assert.ok(entry.reason.length > 20, 'the entry gives its reason');
-		const block = readWorkflow(real).jobs.get(id).block;
-		assert.ok(block.includes(entry.reads), `${id} reads ${entry.reads}`);
-		// Without its entry the real job is named, once for each line that tells the events apart.
-		const unlisted = mergeGroupProblems({ 'other.yml': real.replaceAll(file, 'other.yml') });
-		assert.ok(unlisted.length >= 2, unlisted.join('\n'));
-		for (const problem of unlisted)
-			assert.match(
-				problem,
-				new RegExp(`^other.yml: job ${id} can tell a pull request from its merge group: `)
-			);
-		// The entry is stale once the job no longer reads what made it pull-request-only, though
-		// it still names the event; and once the job is gone.
-		const stale = `${file}: job ${id} is listed in PULL_REQUEST_ONLY but no longer reads ${entry.reads}: remove the entry`;
-		assert.deepEqual(
-			mergeGroupProblems({ [file]: real.replaceAll(entry.reads, 'github.event.inputs.statement') }),
-			[stale]
-		);
-		const renamed = mergeGroupProblems({ [file]: edit(real, `\n  ${id}:\n`, '\n  renamed:\n') });
-		assert.equal(
-			renamed.at(-1),
-			`${file}: PULL_REQUEST_ONLY lists job ${id}, which it does not have: remove the entry`
-		);
-		assert.ok(renamed.length >= 3);
-		for (const problem of renamed.slice(0, -1))
-			assert.match(
-				problem,
-				new RegExp(
-					`^${file.replace('.', '\\.')}: job renamed can tell a pull request from its merge group: `
-				)
-			);
+		for (const [file, jobs] of Object.entries(PULL_REQUEST_ONLY)) {
+			const real = readWorkflows(root)[file];
+			for (const [id, entry] of Object.entries(jobs)) {
+				assert.ok(entry.reason.length > 20, `${file} ${id}: the entry gives its reason`);
+				const block = readWorkflow(real).jobs.get(id).block;
+				assert.ok(block.includes(entry.reads), `${file} ${id} reads ${entry.reads}`);
+				// Without its entry the real job is named, once for each line that tells the events apart.
+				const unlisted = mergeGroupProblems({ 'other.yml': real.replaceAll(file, 'other.yml') });
+				assert.ok(unlisted.length >= 2, `${file} ${id}: ${unlisted.join('\n')}`);
+				for (const problem of unlisted)
+					assert.match(
+						problem,
+						new RegExp(`^other.yml: job ${id} can tell a pull request from its merge group: `)
+					);
+				// The entry is stale once the job no longer reads what made it pull-request-only, though
+				// it still names the event; and once the job is gone.
+				const stale = `${file}: job ${id} is listed in PULL_REQUEST_ONLY but no longer reads ${entry.reads}: remove the entry`;
+				assert.deepEqual(
+					mergeGroupProblems({
+						[file]: real.replaceAll(entry.reads, 'github.event.inputs.statement'),
+					}),
+					[stale]
+				);
+				const renamed = mergeGroupProblems({
+					[file]: edit(real, `\n  ${id}:\n`, '\n  renamed:\n'),
+				});
+				assert.equal(
+					renamed.at(-1),
+					`${file}: PULL_REQUEST_ONLY lists job ${id}, which it does not have: remove the entry`
+				);
+				assert.ok(renamed.length >= 3);
+				for (const problem of renamed.slice(0, -1))
+					assert.match(
+						problem,
+						new RegExp(
+							`^${file.replace('.', '\\.')}: job renamed can tell a pull request from its merge group: `
+						)
+					);
+			}
+		}
 	});
 
 	it('reads a comment that holds a quote, and refuses an alias, an anchor and a mis-indented block', () => {

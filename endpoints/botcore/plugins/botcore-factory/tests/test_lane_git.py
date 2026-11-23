@@ -755,7 +755,7 @@ def test_a_branch_that_rewrites_report_test_changes_still_gets_base_s_findings(
         "factory"
     ]
     repo, cell = tmp_path / "repo", tmp_path / "cell"
-    scripts_dir = ".claude/skills/maintain-gates/scripts"
+    scripts_dir = "scripts"
     (repo / scripts_dir).mkdir(parents=True)
     for name in (
         "report-test-changes.mjs",

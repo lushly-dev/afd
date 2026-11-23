@@ -51,6 +51,7 @@ jobs:
     name: Validate Botcore release version
     if: github.event_name == 'push' || startsWith(github.event.release.tag_name, 'botcore-v')
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: endpoints/botcore
@@ -83,6 +84,7 @@ jobs:
     name: Build Package
     needs: [version, test]
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: endpoints/botcore
@@ -143,6 +145,7 @@ jobs:
       id-token: write
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     environment:
       name: pypi-botcore
       url: https://pypi.org/project/lushly-botcore/

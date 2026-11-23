@@ -199,12 +199,12 @@ Lefthook manages git hooks. Installed automatically via `pnpm install`.
 
 | Script | What it checks |
 |--------|---------------|
-| `check-file-size.mjs` | `.ts` under `packages/` and `.js`/`.mjs` under `scripts/`: warn >500 lines, error >1500 (the same pair as `botcore.toml`). A runaway guard with no override: the 500-line review belongs to the `sweep-bloat` skill's periodic pass, not to the commit. Generated files and Markdown are not size-checked |
+| `check-file-size.mjs` | Source files across `packages/`, `python/`, `alfred/`, `foundations/` (excluding upstream Microsoft FAST), `integrations/`, `endpoints/` and `scripts/` (`.ts`, `.tsx`, `.js`, `.mjs`, `.cjs`, `.rs`, `.py`, `.cpp`, `.hpp`): warn >500 lines, error >1500 (matching `botcore.toml`), with frozen grandfathered ceilings in `scripts/policy/file-size-limits.json` that may only shrink. Generated files, tests and Markdown are skipped |
 | `check-portability.mjs` | Machine-specific paths (drive letters, user homes) and package managers started without a shell, which fail on Windows. Escape: `// portability-ok: reason` |
 | `check-orphan-files.mjs` | Unreferenced `.ts` files across packages (warning only) |
 | `check-versions.mjs` | Package versions and the AFD contract version (`spec/VERSION`) against the language constants, `docs/language-parity.md` and the README table |
 
-The `maintain-gates` skill (Botcore's `gate-discipline`, `.claude/skills/maintain-gates/scripts/`) carries three checks and a report, shared with every repository that seeds it:
+The gate-discipline scripts are canonical in `scripts/` and mirrored into Botcore's `gate-discipline` skill (`.claude/skills/maintain-gates/scripts/`) by `pnpm skills:sync`, shared with every repository that seeds it:
 
 | Script | What it checks |
 |--------|---------------|

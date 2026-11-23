@@ -11,6 +11,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 import {
 	checkExit,
+	checkRun,
 	LOCATIONS,
 	MINIMUMS_FILE,
 	P3_BUDGET_ROWS,
@@ -854,4 +855,21 @@ test('P4-E16: `--phase 4` is accepted, and every phase in the table has its rows
 		assert.match(phase.minimumsFile, /^loam-exit-check\.(?:p\d\.)?minimums\.json$/);
 		for (const { reuse } of phase.rows) if (reuse) assert.ok(Number(reuse) < Number(id), id);
 	}
+});
+
+test('checkRun accepts reusable queue job names and skipped pull-request-only jobs on manual runs', () => {
+	const loamRun = JSON.parse(fixture('loam-run.json'));
+	loamRun.jobs[0].name = 'Merge queue paths / Merge queue paths';
+	assert.deepEqual(checkRun(loamRun, WORKFLOWS.loam), []);
+
+	const ciRun = JSON.parse(fixture('ci-run.json'));
+	ciRun.jobs.push({ name: 'Pull request title', conclusion: 'skipped' });
+	assert.deepEqual(checkRun(ciRun, WORKFLOWS.ci), []);
+
+	const failedPrTitle = JSON.parse(fixture('ci-run.json'));
+	failedPrTitle.jobs.push({ name: 'Pull request title', conclusion: 'failure' });
+	assert.match(
+		checkRun(failedPrTitle, WORKFLOWS.ci).join('\n'),
+		/pull-request-only job "Pull request title" is failure, not skipped/
+	);
 });

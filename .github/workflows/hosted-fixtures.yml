@@ -9,13 +9,15 @@ on:
       - 'packages/view-state/**'
       - 'packages/core/**'
       - 'packages/server/**'
+      - 'pnpm-lock.yaml'
+      - '.github/actions/playwright-install/**'
       - 'scripts/run-hosted-local.mjs'
       - 'scripts/release/exec-tool.mjs'
       - 'scripts/hosted/**'
       - 'package.json'
-      - 'pnpm-lock.yaml'
       - '.github/workflows/hosted-fixtures.yml'
-      - '.github/actions/playwright-install/**'
+      - '.github/workflows/queue.yml'
+      - '.github/actions/setup-node-pnpm/**'
   # The merge queue. No path filter applies to it: the `queue` job below does that work.
   merge_group:
   pull_request:
@@ -26,13 +28,15 @@ on:
       - 'packages/view-state/**'
       - 'packages/core/**'
       - 'packages/server/**'
+      - 'pnpm-lock.yaml'
+      - '.github/actions/playwright-install/**'
       - 'scripts/run-hosted-local.mjs'
       - 'scripts/release/exec-tool.mjs'
       - 'scripts/hosted/**'
       - 'package.json'
-      - 'pnpm-lock.yaml'
       - '.github/workflows/hosted-fixtures.yml'
-      - '.github/actions/playwright-install/**'
+      - '.github/workflows/queue.yml'
+      - '.github/actions/setup-node-pnpm/**'
   workflow_dispatch:
 
 permissions:
@@ -45,29 +49,10 @@ concurrency:
 
 jobs:
   queue:
-    # A merge group starts every workflow, whatever its `paths`. The jobs below run for one only
-    # when the files it changes match this workflow's own pull_request.paths; every other event
-    # passes straight through (scripts/affected.mjs trigger).
     name: Merge queue paths
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      run: ${{ steps.paths.outputs.run }}
-    steps:
-      - if: github.event_name == 'merge_group'
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          filter: blob:none
-      - id: paths
-        env:
-          AFD_BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || github.event.merge_group.base_sha || github.event.before }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
-            node scripts/affected.mjs trigger hosted-fixtures.yml
-          else
-            echo "run=true" >> "$GITHUB_OUTPUT"
-          fi
+    uses: ./.github/workflows/queue.yml
+    with:
+      workflow: hosted-fixtures.yml
 
   local:
     name: HTTPS/OAuth, durable REST and Convex fixture checks
@@ -79,12 +64,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 26.x
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup-node-pnpm
       # Under a minute as a rule; apt held this step for 50 when a runner could not resolve Ubuntu's mirrors.
       - uses: ./.github/actions/playwright-install
         with:

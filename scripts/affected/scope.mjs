@@ -41,7 +41,10 @@ export const GLOBAL_FILES = new Set([
 ]);
 const GLOBAL_PREFIXES = ['scripts/affected/'];
 /** Under a global prefix, but only lists what `pnpm verify` runs; no package reads it. */
-const SCOPE_INERT = new Set(['scripts/affected/suites.mjs']);
+const SCOPE_INERT = new Set([
+	'scripts/affected/suites.mjs',
+	'scripts/affected/suites.generated.mjs',
+]);
 
 /**
  * Markdown under spec/: package tests read the JSON, vectors, wire fixtures and VERSION beside it,

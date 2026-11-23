@@ -8,7 +8,7 @@ test_runner = "vitest"
 formatter = "biome"
 
 # Quality thresholds. The file-size pair is shared with scripts/check-file-size.mjs
-# (TypeScript and repository scripts); neither tool size-checks markdown.
+# (TypeScript/JS, Rust, Python, C++ and repository scripts); neither tool size-checks markdown.
 file_size_warn = 500
 file_size_error = 1500
 coverage_threshold = 80
@@ -72,6 +72,24 @@ coverage_paths = ["src/"]
 # runaway guard.
 [sweep]
 trend_issue = 1098
+extensions = [
+    ".ts",
+    ".tsx",
+    ".mts",
+    ".cts",
+    ".js",
+    ".jsx",
+    ".mjs",
+    ".cjs",
+    ".py",
+    ".rs",
+    ".cpp",
+    ".hpp",
+]
+exclude = [
+    "foundations/fast-af/packages/element/",
+    "site/js/vendor/",
+]
 
 # The software factory's repository adapter (endpoints/botcore/plugins/botcore-factory; see
 # docs/features/active/software-factory). Botcore reads a plugin's settings under
@@ -99,7 +117,7 @@ review_evidence = [
 # "never improves by checking less" hold (lushly-dev/afd#1387).
 test_changes = [
     "node",
-    ".claude/skills/maintain-gates/scripts/report-test-changes.mjs",
+    "scripts/report-test-changes.mjs",
     "--root", "{worktree}",
     "--base", "{base}",
     "--head", "{head}",
@@ -123,6 +141,8 @@ shared_paths = [
     ".github/workflows/**",
     ".github/actions/**",
     "scripts/affected*",
+    "scripts/ci/**",
+    "scripts/sync-ci.mjs",
     "scripts/factory-units.mjs",
     "scripts/pre-push.mjs",
     "scripts/verify-record.mjs",
@@ -178,12 +198,18 @@ gate_paths = [
     ".github/workflows/**",
     ".github/labels.json",
     "scripts/check-*.mjs",
+    "scripts/discovery-parsers.mjs",
+    "scripts/report-test-changes.mjs",
     "scripts/policy/**",
     "scripts/gate-discipline.test.mjs",
     ".claude/skills/maintain-gates/scripts/**",
     "endpoints/botcore/src/botcore/skills/gate-discipline/scripts/**",
     "scripts/issue-labels.mjs",
     "scripts/affected*",
+    "scripts/ci/**",
+    "scripts/sync-ci.mjs",
+    "scripts/check-pr-title.mjs",
+    "scripts/scheduled-failure-issue.mjs",
     "scripts/pre-push.mjs",
     "scripts/verify-record.mjs",
     "scripts/review-record.mjs",

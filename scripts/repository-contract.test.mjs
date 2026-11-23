@@ -267,20 +267,63 @@ test('an approved Specimen release builds and stages every prebuilt host before 
 	}
 });
 
-test('workflow actions are pinned to full commit SHAs', () => {
-	const workflowDirectory = '.github/workflows';
-	for (const entry of readdirSync(new URL(`../${workflowDirectory}/`, import.meta.url))) {
-		if (!/\.ya?ml$/.test(entry)) continue;
-		for (const line of read(`${workflowDirectory}/${entry}`).split('\n')) {
+test('workflow and composite actions are pinned to full commit SHAs', () => {
+	const checkFile = (relativePath) => {
+		for (const line of read(relativePath).split('\n')) {
 			const match = line.match(/^\s*(?:-\s+)?uses:\s*(\S+)(.*)$/);
 			if (!match || match[1].startsWith('./')) continue;
 			assert.match(
 				`${match[1]}${match[2]}`,
 				/^[\w.-]+\/[\w./-]+@[0-9a-f]{40} # v\d+\.\d+\.\d+$/,
-				`${entry}: pin "${match[1]}" to a commit SHA with a "# vX.Y.Z" comment`
+				`${relativePath}: pin "${match[1]}" to a commit SHA with a "# vX.Y.Z" comment`
+			);
+		}
+	};
+	for (const entry of readdirSync(new URL('../.github/workflows/', import.meta.url))) {
+		if (/\.ya?ml$/.test(entry)) checkFile(`.github/workflows/${entry}`);
+	}
+	for (const dir of readdirSync(new URL('../.github/actions/', import.meta.url), {
+		withFileTypes: true,
+	})) {
+		if (!dir.isDirectory()) continue;
+		for (const candidate of ['action.yml', 'action.yaml']) {
+			const rel = `.github/actions/${dir.name}/${candidate}`;
+			if (existsSync(join(repoRoot, rel))) checkFile(rel);
+		}
+	}
+});
+
+test('every non-reusable workflow job declares timeout-minutes, ci.yml disables fail-fast, and scheduled workflows are watched', async () => {
+	const { parseWorkflow } = await import('./ci/parse-workflow.mjs');
+	const wfDir = join(repoRoot, '.github/workflows');
+	const scheduledNames = [];
+	for (const entry of readdirSync(wfDir).sort()) {
+		if (!/\.ya?ml$/.test(entry)) continue;
+		const wf = parseWorkflow(read(`.github/workflows/${entry}`));
+		if (wf.triggers.schedule && wf.name) scheduledNames.push(wf.name);
+		for (const job of Object.values(wf.jobs)) {
+			if (job.uses) continue;
+			assert.ok(
+				Number.isFinite(job.timeoutMinutes) && job.timeoutMinutes > 0,
+				`${entry}: job "${job.id}" must declare a positive timeout-minutes`
 			);
 		}
 	}
+
+	const ciText = read('.github/workflows/ci.yml');
+	assert.match(ciText, /^\s+fail-fast:\s*false$/m, 'ci.yml must set fail-fast: false');
+	assert.match(ciText, /check-pr-title\.mjs/, 'ci.yml must lint pull request titles');
+
+	// Every language workflow has a daily schedule (#1799).
+	for (const file of ['python.yml', 'rust.yml', 'cpp.yml', 'botcore.yml', 'conformance.yml']) {
+		const wf = parseWorkflow(read(`.github/workflows/${file}`));
+		assert.ok(wf.triggers.schedule, `${file} must have a schedule trigger`);
+	}
+
+	// scheduled-failure-issue.yml watches every scheduled workflow in both directions.
+	const watcher = parseWorkflow(read('.github/workflows/scheduled-failure-issue.yml'));
+	const watched = watcher.triggers.workflow_run?.workflows ?? [];
+	assert.deepEqual([...watched].sort(), [...scheduledNames].sort());
 });
 
 test('agent instruction files fit what every harness loads', () => {
