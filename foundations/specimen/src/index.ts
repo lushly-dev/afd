@@ -1,4 +1,24 @@
 export { createSpecimenBench, DiscoveryError, type SpecimenBench } from './bench.js';
+export {
+	climbElement,
+	domAccessibleNameOf,
+	domClimbNode,
+	domRoleOf,
+	elementRef,
+	isDescendantOf,
+	parentOrHost,
+	resolveElementRef,
+} from './browser/climb-dom.js';
+export {
+	type ClimbNode,
+	type ClimbOptions,
+	type ClimbResult,
+	climbObservation,
+	climbSelection,
+	INTERACTIVE_ROLES,
+	isMeaningfulNode,
+	observationClimbTree,
+} from './climb.js';
 export type {
 	ComponentCoverage,
 	CoverageEvidence,
@@ -28,6 +48,18 @@ export {
 	type ThemeTarget,
 	type TokenMap,
 } from './plugin.js';
+export {
+	DEFAULT_PIN,
+	type FormatPointerInput,
+	formatPointer,
+	isValidElementRef,
+	MAX_POINTER_TEXT_LENGTH,
+	POINTER_INVALID,
+	PointerError,
+	type PointerPin,
+	parsePointer,
+	type SpecimenPointer,
+} from './pointer.js';
 export {
 	DEFAULT_STORY_FILES,
 	type Discovery,

@@ -115,20 +115,21 @@ const ENTRY = '/__specimen_entry__.js';
 /** Every story's identity and loader: sized by the consumer, so never in the entry's chunk. */
 const CATALOG = '\0specimen-catalog';
 /**
- * The proposal's shell ceiling was 50,000. The shell is Specimen's own code before a consumer adds
- * any: 49,504 bytes on the fixtures before the declared-themes tag and notice (#1001), which take it
- * to 49,793. A consumer's shell is larger than the fixtures', so 50,000 no longer fit one with
- * typical additions; 2,000 more keeps such a build passing and leaves room for a small page change.
+ * The proposal's shell ceiling was 50,000. It moved to 52,000 in #1001 (49,793 bytes on the
+ * fixtures), and to 68,000 in #2042 once the review page's Pick mode, shared two-step climb,
+ * browser ARIA inference and pointer URI formatter took the fixtures' shell to 65,222 bytes
+ * (leaving margin for consumer builds).
  */
-const SHELL_BUDGET = 52_000;
+const SHELL_BUDGET = 68_000;
 /** The index and preview pages' own stylesheet, in minified UTF-8 bytes; a story's CSS is its own. */
 const STYLE_BUDGET = 8_000;
 /**
- * The proposal's category ceilings, in minified UTF-8 JavaScript bytes. Accessibility was 650,000,
- * which no build of axe-core 4.14.0 fits: its own minified file is 652,140 bytes, and 659,293 here
- * (4.13.0 was 586,666). Its ceiling moved; the total did not.
+ * The proposal's category ceilings, in minified UTF-8 JavaScript bytes. Accessibility moved from
+ * 650,000 to 680,000 for axe-core 4.14.0 (#1022, 659,293 bytes), leaving 1,510 bytes under the
+ * original 1,300,000 total; #2042 moves total to 1,330,000 alongside the shell ceiling (68,000)
+ * as Pick mode takes the fixtures' total to 1,313,919 bytes.
  */
-const TOTAL_BUDGET = 1_300_000;
+const TOTAL_BUDGET = 1_330_000;
 const CATEGORY_BUDGETS = {
 	shell: SHELL_BUDGET,
 	interaction: 600_000,

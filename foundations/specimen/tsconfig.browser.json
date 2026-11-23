@@ -9,6 +9,8 @@
 	},
 	"include": [
 		"src/browser/**/*",
+		"src/climb.ts",
+		"src/pointer.ts",
 		"src/test.ts",
 		"src/evidence.ts",
 		"src/preview.ts",
