@@ -5,19 +5,14 @@ on:
     branches: [main]
     paths:
       - 'packages/rust/**'
-      # tests/wire_fixtures.rs round-trips these golden fixtures, and the
-      # tests/*_vectors.rs files load the behavior vectors.
       - 'spec/wire/**'
       - 'spec/vectors/**'
-      # tests/contract_version.rs checks CONTRACT_VERSION against it.
       - 'spec/VERSION'
-      # tests/authorization_cases.rs loads every case (the `server-auth` feature), and the server
-      # suites load the meta-tool cases (the tool-strategy, mcp-resources and output-budget cases
-      # are in spec/vectors).
       - 'spec/authorization.json'
       - 'spec/meta-tools.json'
       - '.cargo/config.toml'
       - '.github/workflows/rust.yml'
+      - '.github/workflows/queue.yml'
   # The merge queue. No path filter applies to it: the `queue` job below does that work.
   merge_group:
   pull_request:
@@ -31,8 +26,12 @@ on:
       - 'spec/meta-tools.json'
       - '.cargo/config.toml'
       - '.github/workflows/rust.yml'
+      - '.github/workflows/queue.yml'
   # publish-rust.yml runs these same checks before `cargo publish`.
   workflow_call:
+  schedule:
+    - cron: '29 6 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -47,29 +46,10 @@ concurrency:
 
 jobs:
   queue:
-    # A merge group starts every workflow, whatever its `paths`. The jobs below run for one only
-    # when the files it changes match this workflow's own pull_request.paths; every other event
-    # passes straight through (scripts/affected.mjs trigger).
     name: Merge queue paths
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      run: ${{ steps.paths.outputs.run }}
-    steps:
-      - if: github.event_name == 'merge_group'
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          filter: blob:none
-      - id: paths
-        env:
-          AFD_BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || github.event.merge_group.base_sha || github.event.before }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
-            node scripts/affected.mjs trigger rust.yml
-          else
-            echo "run=true" >> "$GITHUB_OUTPUT"
-          fi
+    uses: ./.github/workflows/queue.yml
+    with:
+      workflow: rust.yml
 
   check:
     name: Rust (fmt, clippy, test)

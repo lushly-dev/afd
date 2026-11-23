@@ -21,7 +21,6 @@ on:
       - 'packages/client/**'
       - 'packages/testing/**'
       - 'packages/local-db/**'
-      # The page (frontends/fast-af) is built from these and runs in Chromium in this workflow.
       - 'packages/view-state/**'
       - 'foundations/fast-af/**'
       - 'packages/rust/**'
@@ -29,12 +28,14 @@ on:
       - 'python/**'
       - 'spec/protocol-conformance.json'
       - 'spec/schema/**'
-      - 'tests/consumers/afd/**'
       - 'pnpm-lock.yaml'
       - '.cargo/config.toml'
-      - '.github/workflows/conformance.yml'
       - '.github/actions/playwright-install/**'
       - '.github/actions/cpp-dependencies/**'
+      - 'tests/consumers/afd/**'
+      - '.github/workflows/conformance.yml'
+      - '.github/workflows/queue.yml'
+      - '.github/actions/setup-node-pnpm/**'
   # The merge queue. No path filter applies to it: the `queue` job below does that work.
   merge_group:
   pull_request:
@@ -48,7 +49,6 @@ on:
       - 'packages/client/**'
       - 'packages/testing/**'
       - 'packages/local-db/**'
-      # The page (frontends/fast-af) is built from these and runs in Chromium in this workflow.
       - 'packages/view-state/**'
       - 'foundations/fast-af/**'
       - 'packages/rust/**'
@@ -56,12 +56,16 @@ on:
       - 'python/**'
       - 'spec/protocol-conformance.json'
       - 'spec/schema/**'
-      - 'tests/consumers/afd/**'
       - 'pnpm-lock.yaml'
       - '.cargo/config.toml'
-      - '.github/workflows/conformance.yml'
       - '.github/actions/playwright-install/**'
       - '.github/actions/cpp-dependencies/**'
+      - 'tests/consumers/afd/**'
+      - '.github/workflows/conformance.yml'
+      - '.github/workflows/queue.yml'
+      - '.github/actions/setup-node-pnpm/**'
+  schedule:
+    - cron: '13 8 * * *'
   workflow_dispatch:
 
 permissions:
@@ -74,29 +78,10 @@ concurrency:
 
 jobs:
   queue:
-    # A merge group starts every workflow, whatever its `paths`. The jobs below run for one only
-    # when the files it changes match this workflow's own pull_request.paths; every other event
-    # passes straight through (scripts/affected.mjs trigger).
     name: Merge queue paths
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      run: ${{ steps.paths.outputs.run }}
-    steps:
-      - if: github.event_name == 'merge_group'
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          filter: blob:none
-      - id: paths
-        env:
-          AFD_BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || github.event.merge_group.base_sha || github.event.before }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
-            node scripts/affected.mjs trigger conformance.yml
-          else
-            echo "run=true" >> "$GITHUB_OUTPUT"
-          fi
+    uses: ./.github/workflows/queue.yml
+    with:
+      workflow: conformance.yml
 
   scope:
     # Each backend's job runs only when its inputs change: the Rust and C++ jobs need their crate or library, their backend, the shared spec or harness; the TypeScript and Python job needs the AFD packages its backend builds on, python/ or the example. Manual runs check everything.
@@ -118,11 +103,11 @@ jobs:
           fetch-depth: 0
           filter: blob:none
       - id: todo
-        run: node scripts/affected.mjs gate --package @afd/example-todo-ts --package @afd/example-todo --package @afd/example-todo-ui --package @afd/example-todo-fast-af --package @afd/example-todo-react --package @afd/example-todo-directclient --package @afd/example-todo-directclient-page --path python/ --path packages/cli/ --path spec/protocol-conformance.json --path spec/schema/ --path tests/consumers/afd/ --path .github/workflows/conformance.yml --path .github/actions/playwright-install/
+        run: node scripts/affected.mjs gate --package @afd/example-todo-ts --package @afd/example-todo --package @afd/example-todo-ui --package @afd/example-todo-fast-af --package @afd/example-todo-react --package @afd/example-todo-directclient --package @afd/example-todo-directclient-page --path python/ --path packages/cli/ --path spec/protocol-conformance.json --path spec/schema/ --path tests/consumers/afd/ --path .github/workflows/conformance.yml --path .github/actions/setup-node-pnpm/ --path .github/actions/playwright-install/
       - id: rust
-        run: node scripts/affected.mjs gate --path packages/rust/ --path packages/examples/todo/backends/rust/ --path packages/examples/todo/spec/ --path packages/examples/todo/dx/ --path packages/examples/todo/package.json --path spec/protocol-conformance.json --path spec/schema/ --path .cargo/config.toml --path .github/workflows/conformance.yml
+        run: node scripts/affected.mjs gate --path packages/rust/ --path packages/examples/todo/backends/rust/ --path packages/examples/todo/spec/ --path packages/examples/todo/dx/ --path packages/examples/todo/package.json --path spec/protocol-conformance.json --path spec/schema/ --path .cargo/config.toml --path .github/workflows/conformance.yml --path .github/actions/setup-node-pnpm/
       - id: cpp
-        run: node scripts/affected.mjs gate --path packages/cpp/ --path packages/examples/todo/backends/cpp/ --path packages/examples/todo/spec/ --path packages/examples/todo/dx/ --path packages/examples/todo/package.json --path spec/protocol-conformance.json --path spec/schema/ --path .github/workflows/conformance.yml --path .github/actions/cpp-dependencies/
+        run: node scripts/affected.mjs gate --path packages/cpp/ --path packages/examples/todo/backends/cpp/ --path packages/examples/todo/spec/ --path packages/examples/todo/dx/ --path packages/examples/todo/package.json --path spec/protocol-conformance.json --path spec/schema/ --path .github/workflows/conformance.yml --path .github/actions/setup-node-pnpm/ --path .github/actions/cpp-dependencies/
 
   todo:
     name: Todo conformance (TypeScript + Python)
@@ -136,14 +121,10 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-node-pnpm
         with:
           node-version: 22.x
-          cache: pnpm
 
       # Sets UV_PYTHON, so every uv command below uses Python 3.12.
       - name: Install uv and Python 3.12
@@ -152,9 +133,6 @@ jobs:
           python-version: '3.12'
           enable-cache: true
           cache-dependency-glob: packages/examples/todo/backends/python/uv.lock
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
 
       - name: Build
         run: pnpm build
@@ -322,18 +300,11 @@ jobs:
         working-directory: packages/examples/todo/backends/rust
         run: cargo test --locked
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      # The runner needs only tsx and the MCP SDK; no package build is required.
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-node-pnpm
         with:
           node-version: 22.x
-          cache: pnpm
-
-      # The runner needs only tsx and the MCP SDK; no package build is required.
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
 
       - name: Conformance (Rust backend)
         run: pnpm --dir packages/examples/todo test:conformance:rs
@@ -397,18 +368,11 @@ jobs:
         working-directory: packages/examples/todo/backends/cpp
         run: ctest --preset release
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      # The runner needs only tsx and the MCP SDK; no package build is required.
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-node-pnpm
         with:
           node-version: 22.x
-          cache: pnpm
-
-      # The runner needs only tsx and the MCP SDK; no package build is required.
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
 
       - name: Conformance (C++ backend)
         run: pnpm --dir packages/examples/todo test:conformance:cpp

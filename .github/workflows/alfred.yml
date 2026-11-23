@@ -4,11 +4,12 @@ on:
   push:
     branches: [main]
     paths:
-      # alfred's tests read the Python package, the wire fixtures and the
-      # TypeScript/Rust export surfaces, so changes there must run them too.
       - 'alfred/**'
       - 'python/**'
       - 'endpoints/botcore/**'
+      - 'scripts/check-test-*.mjs'
+      - 'scripts/discovery-parsers.mjs'
+      - 'scripts/report-test-changes.mjs'
       - 'scripts/release*/**'
       - 'scripts/release-*.mjs'
       - 'architecture.json'
@@ -23,16 +24,19 @@ on:
       - 'spec/**'
       - 'packages/**'
       - '.github/workflows/alfred.yml'
+      - '.github/workflows/queue.yml'
+      - '.github/actions/setup-node-pnpm/**'
   # The merge queue. No path filter applies to it: the `queue` job below does that work.
   merge_group:
   pull_request:
     branches: [main]
     paths:
-      # alfred's tests read the Python package, the wire fixtures and the
-      # TypeScript/Rust export surfaces, so changes there must run them too.
       - 'alfred/**'
       - 'python/**'
       - 'endpoints/botcore/**'
+      - 'scripts/check-test-*.mjs'
+      - 'scripts/discovery-parsers.mjs'
+      - 'scripts/report-test-changes.mjs'
       - 'scripts/release*/**'
       - 'scripts/release-*.mjs'
       - 'architecture.json'
@@ -47,6 +51,8 @@ on:
       - 'spec/**'
       - 'packages/**'
       - '.github/workflows/alfred.yml'
+      - '.github/workflows/queue.yml'
+      - '.github/actions/setup-node-pnpm/**'
 
 permissions:
   contents: read
@@ -58,34 +64,16 @@ concurrency:
 
 jobs:
   queue:
-    # A merge group starts every workflow, whatever its `paths`. The jobs below run for one only
-    # when the files it changes match this workflow's own pull_request.paths; every other event
-    # passes straight through (scripts/affected.mjs trigger).
     name: Merge queue paths
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      run: ${{ steps.paths.outputs.run }}
-    steps:
-      - if: github.event_name == 'merge_group'
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          filter: blob:none
-      - id: paths
-        env:
-          AFD_BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || github.event.merge_group.base_sha || github.event.before }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
-            node scripts/affected.mjs trigger alfred.yml
-          else
-            echo "run=true" >> "$GITHUB_OUTPUT"
-          fi
+    uses: ./.github/workflows/queue.yml
+    with:
+      workflow: alfred.yml
 
   test-and-package:
     needs: queue
     if: needs.queue.outputs.run == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     strategy:
       matrix:
         python-version: ['3.11', '3.12']
@@ -100,24 +88,15 @@ jobs:
         uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           enable-cache: true
+          cache-dependency-glob: alfred/uv.lock
 
       - name: Set up Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
-
-      - name: Set up Node for disposable release-controller fixtures
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: '.nvmrc'
-          cache: pnpm
-
-      - name: Install fixture controller dependencies
-        working-directory: .
-        run: pnpm install --frozen-lockfile
+      - name: Set up Node and install fixture controller dependencies
+        uses: ./.github/actions/setup-node-pnpm
 
       - name: Check lock
         run: uv lock --check

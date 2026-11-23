@@ -36,31 +36,15 @@ export const AFD_SCOPE =
 /** The condition that opens the `if` of a job that needs `queue`. */
 export const GATE = "needs.queue.outputs.run == 'true'";
 
-/** The `queue` job of a path-filtered workflow, which names its own file. */
+/** The `queue` job of a path-filtered workflow, calling the reusable queue workflow (#1800). */
 export const queueJob = (file) => `  queue:
-    # A merge group starts every workflow, whatever its \`paths\`. The jobs below run for one only
-    # when the files it changes match this workflow's own pull_request.paths; every other event
-    # passes straight through (scripts/affected.mjs trigger).
     name: Merge queue paths
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      run: \${{ steps.paths.outputs.run }}
-    steps:
-      - if: github.event_name == 'merge_group'
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          filter: blob:none
-      - id: paths
-        env:
-          ${AFD_BASE}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
-            node scripts/affected.mjs trigger ${file}
-          else
-            echo "run=true" >> "$GITHUB_OUTPUT"
-          fi`;
+    uses: ./.github/workflows/queue.yml
+    with:
+      workflow: ${file}`;
+
+/** The reusable queue workflow file itself. */
+export const QUEUE_WORKFLOW = 'queue.yml';
 
 /** The verdict's own workflow, which reads the event to know which commits and runs to check. */
 const VERDICT = 'ci-ok.yml';
@@ -157,6 +141,13 @@ const settingApart = (block) => {
  * no longer tells the two events apart, or no longer reads that.
  */
 export const PULL_REQUEST_ONLY = {
+	'ci.yml': {
+		'pr-title': {
+			reason:
+				'lints the pull request title as a conventional commit subject; a merge group has no pull request title, and commits are checked on the pull request',
+			reads: 'github.event.pull_request.title',
+		},
+	},
 	'umbel.yml': {
 		'plugin-isolation': {
 			reason:
@@ -361,7 +352,33 @@ export function mergeGroupProblems(workflows) {
 				'has the merge_group trigger without a pull_request trigger on main to take its paths from'
 			);
 		if (!queued) {
-			if (jobs.has('queue') && /affected\.mjs trigger/.test(jobs.get('queue').block))
+			if (file === QUEUE_WORKFLOW) {
+				if (!triggers.has('workflow_call'))
+					say('reusable queue workflow must declare `workflow_call`');
+				const callLines = triggers.get('workflow_call')?.lines.join('\n') ?? '';
+				if (!/^\s+workflow:/m.test(callLines))
+					say('reusable queue workflow must declare `workflow_call.inputs.workflow`');
+				if (!/value:\s*\$\{\{\s*jobs\.queue\.outputs\.run\s*\}\}/.test(callLines))
+					say(
+						'reusable queue workflow must map `workflow_call.outputs.run` to `${{ jobs.queue.outputs.run }}`'
+					);
+				const qJob = jobs.get('queue')?.block ?? '';
+				if (!/run:\s*\$\{\{\s*steps\.paths\.outputs\.run\s*\}\}/.test(qJob))
+					say('reusable queue job must map `outputs.run` to `${{ steps.paths.outputs.run }}`');
+				if (!/^\s+-\s+id:\s*paths$/m.test(qJob))
+					say('reusable queue job must define step `id: paths`');
+				if (!text.includes(AFD_BASE)) say(`AFD_BASE is not \`${AFD_BASE}\``);
+				if (!qJob.includes('node scripts/affected.mjs trigger'))
+					say('reusable queue workflow must call `node scripts/affected.mjs trigger`');
+				if (!qJob.includes('echo "run=true" >> "$GITHUB_OUTPUT"'))
+					say('reusable queue workflow must pass non-merge-group events through with run=true');
+				continue;
+			}
+			if (
+				jobs.has('queue') &&
+				(/affected\.mjs trigger/.test(jobs.get('queue').block) ||
+					/uses:\s*\.\/\.github\/workflows\/queue\.yml/.test(jobs.get('queue').block))
+			)
 				say('has a queue job but no merge_group trigger');
 			continue;
 		}
@@ -479,6 +496,8 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
 	const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 	const workflows = readWorkflows(root);
 	const problems = mergeGroupProblems(workflows);
+	if (!Object.hasOwn(workflows, QUEUE_WORKFLOW))
+		problems.push(`${QUEUE_WORKFLOW}: reusable queue workflow is missing`);
 	for (const problem of problems) console.error(`merge-group-contract: ${problem}`);
 	if (problems.length > 0) process.exitCode = 1;
 	else console.log(`merge-group-contract: ${Object.keys(workflows).length} workflow(s) hold`);

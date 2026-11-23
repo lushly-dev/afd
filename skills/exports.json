@@ -1,5 +1,37 @@
 {
 	"version": 1,
+	"canonicalScripts": [
+		{
+			"source": "scripts/check-test-configs.mjs",
+			"targets": [
+				"endpoints/botcore/src/botcore/skills/gate-discipline/scripts/check-test-configs.mjs"
+			]
+		},
+		{
+			"source": "scripts/check-test-discovery.mjs",
+			"targets": [
+				"endpoints/botcore/src/botcore/skills/gate-discipline/scripts/check-test-discovery.mjs"
+			]
+		},
+		{
+			"source": "scripts/check-test-quarantine.mjs",
+			"targets": [
+				"endpoints/botcore/src/botcore/skills/gate-discipline/scripts/check-test-quarantine.mjs"
+			]
+		},
+		{
+			"source": "scripts/discovery-parsers.mjs",
+			"targets": [
+				"endpoints/botcore/src/botcore/skills/gate-discipline/scripts/discovery-parsers.mjs"
+			]
+		},
+		{
+			"source": "scripts/report-test-changes.mjs",
+			"targets": [
+				"endpoints/botcore/src/botcore/skills/gate-discipline/scripts/report-test-changes.mjs"
+			]
+		}
+	],
 	"canonical": {
 		"owner": "botcore",
 		"root": "endpoints/botcore/src/botcore/skills",

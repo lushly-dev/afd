@@ -1863,10 +1863,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "9b500ca004d76dba6c997826f13f942c80b6ddb9c757ba0c8e86825ab5fd81b3",
+      "current_import_sha256": "cc8d2d9394b0440468ca8a77ac4cb1a3a512d19f12bd4aac0e5262169d6ce076",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Factory lane ejections list every failing test from the whole job log (lushly-dev/afd#1607); Emit provenance-rerecorded record (schema 4), count it in lane-report, and include Health in regenerate paths (lushly-dev/afd#1472); Attach test_changes reports to factory cell and attempt records and enforce Phase 5 gate-change hold (#1387 step 5); Attach test_changes reports to factory cell and attempt records, enforce Phase 5 gate-change hold and add measure-approve (#1387 step 5); Clean configured slot_clean_paths on slot recycle, sweep and coverage (#1659); Clean configured slot_clean_paths on slot recycle, parking, sweep and coverage (#1659)"
+      "import_reason": "Factory lane ejections list every failing test from the whole job log (lushly-dev/afd#1607); Emit provenance-rerecorded record (schema 4), count it in lane-report, and include Health in regenerate paths (lushly-dev/afd#1472); Attach test_changes reports to factory cell and attempt records and enforce Phase 5 gate-change hold (#1387 step 5); Attach test_changes reports to factory cell and attempt records, enforce Phase 5 gate-change hold and add measure-approve (#1387 step 5); Clean configured slot_clean_paths on slot recycle, sweep and coverage (#1659); Clean configured slot_clean_paths on slot recycle, parking, sweep and coverage (#1659); Update report-test-changes.mjs path to canonical scripts/ location (#1801)"
     },
     {
       "path": "plugins/botcore-factory/tests/test_claims.py",
@@ -1984,10 +1984,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "1978ebb48835b9029d8f104a8db6b709b45a2ca4547c6e25eb6a1e1bc467e290",
+      "current_import_sha256": "d97c361cfc5c68c69164b2d055cd29b8181f42e35cf2e89c0d34fc7f3551a2df",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Count only run_external_tool's own warning in its not-found test (lushly-dev/afd#1467); compare worktree paths as git lists them, with forward slashes on Windows; lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Eject a branch that deletes .nvmrc as node-missing (lushly-dev/afd#1505); Eject a branch that deletes or blanks .nvmrc as node-missing (lushly-dev/afd#1505); The lane folds each branch it validates into one commit (lushly-dev/afd#1809); Attach test_changes reports to factory cell and attempt records and enforce Phase 5 gate-change hold (#1387 step 5); Attach test_changes reports to factory cell and attempt records, enforce Phase 5 gate-change hold and add measure-approve (#1387 step 5)"
+      "import_reason": "Count only run_external_tool's own warning in its not-found test (lushly-dev/afd#1467); compare worktree paths as git lists them, with forward slashes on Windows; lane-start checks the .nvmrc Node's toolchains, nvm-windows is searched, a branch's own .nvmrc bump ejects as node-missing (lushly-dev/afd#1352); Eject a branch that deletes .nvmrc as node-missing (lushly-dev/afd#1505); Eject a branch that deletes or blanks .nvmrc as node-missing (lushly-dev/afd#1505); The lane folds each branch it validates into one commit (lushly-dev/afd#1809); Attach test_changes reports to factory cell and attempt records and enforce Phase 5 gate-change hold (#1387 step 5); Attach test_changes reports to factory cell and attempt records, enforce Phase 5 gate-change hold and add measure-approve (#1387 step 5); Update report-test-changes.mjs path to canonical scripts/ location (#1801)"
     },
     {
       "path": "plugins/botcore-factory/tests/test_lane_host_lock.py",
@@ -2116,10 +2116,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "4421b0d78bf8ef3b58c9e6eaa4bf35532d9892a410c160e007a367434f9728e9",
+      "current_import_sha256": "6d302f13466939e1fb90360da077d2524ecf4d144f8b42c4605f811928c5676d",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Attach test_changes reports to factory cell and attempt records and enforce Phase 5 gate-change hold (#1387 step 5); Attach test_changes reports to factory cell and attempt records, enforce Phase 5 gate-change hold and add measure-approve (#1387 step 5)"
+      "import_reason": "Attach test_changes reports to factory cell and attempt records and enforce Phase 5 gate-change hold (#1387 step 5); Attach test_changes reports to factory cell and attempt records, enforce Phase 5 gate-change hold and add measure-approve (#1387 step 5); Update report-test-changes.mjs path to canonical scripts/ location (#1801)"
     },
     {
       "path": "plugins/botcore-factory/tests/test_validation_lock.py",

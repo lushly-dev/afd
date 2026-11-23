@@ -5,22 +5,26 @@ on:
     branches: [main]
     paths:
       - 'foundations/fast-af/**'
-      - 'tests/consumers/fast-af/**'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
-      - '.github/workflows/fast-af.yml'
       - '.github/actions/playwright-install/**'
+      - 'tests/consumers/fast-af/**'
+      - '.github/workflows/fast-af.yml'
+      - '.github/workflows/queue.yml'
+      - '.github/actions/setup-node-pnpm/**'
   # The merge queue. No path filter applies to it: the `queue` job below does that work.
   merge_group:
   pull_request:
     branches: [main]
     paths:
       - 'foundations/fast-af/**'
-      - 'tests/consumers/fast-af/**'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
-      - '.github/workflows/fast-af.yml'
       - '.github/actions/playwright-install/**'
+      - 'tests/consumers/fast-af/**'
+      - '.github/workflows/fast-af.yml'
+      - '.github/workflows/queue.yml'
+      - '.github/actions/setup-node-pnpm/**'
   # fast-element's Firefox and WebKit suites run daily and on demand; pull requests and pushes
   # run its Playwright suites on Chromium.
   schedule:
@@ -42,29 +46,10 @@ concurrency:
 
 jobs:
   queue:
-    # A merge group starts every workflow, whatever its `paths`. The jobs below run for one only
-    # when the files it changes match this workflow's own pull_request.paths; every other event
-    # passes straight through (scripts/affected.mjs trigger).
     name: Merge queue paths
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      run: ${{ steps.paths.outputs.run }}
-    steps:
-      - if: github.event_name == 'merge_group'
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          filter: blob:none
-      - id: paths
-        env:
-          AFD_BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || github.event.merge_group.base_sha || github.event.before }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
-            node scripts/affected.mjs trigger fast-af.yml
-          else
-            echo "run=true" >> "$GITHUB_OUTPUT"
-          fi
+    uses: ./.github/workflows/queue.yml
+    with:
+      workflow: fast-af.yml
 
   scope:
     # Triggered by a shared input such as pnpm-lock.yaml, the suites below run only when the
@@ -86,9 +71,9 @@ jobs:
           fetch-depth: 0
           filter: blob:none
       - id: runtime
-        run: node scripts/affected.mjs gate --package @lushly-dev/fast-element --path .github/workflows/fast-af.yml --path .github/actions/playwright-install/
+        run: node scripts/affected.mjs gate --package @lushly-dev/fast-element --path .github/workflows/fast-af.yml --path .github/actions/setup-node-pnpm/ --path .github/actions/playwright-install/
       - id: components
-        run: node scripts/affected.mjs gate --package @lushly-dev/violet-elements --path tests/consumers/fast-af/ --path .github/workflows/fast-af.yml --path .github/actions/playwright-install/
+        run: node scripts/affected.mjs gate --package @lushly-dev/violet-elements --path tests/consumers/fast-af/ --path .github/workflows/fast-af.yml --path .github/actions/setup-node-pnpm/ --path .github/actions/playwright-install/
 
   runtime:
     name: fast-element build, migration rules and browser suites
@@ -99,12 +84,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: '.nvmrc'
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup-node-pnpm
       - name: Build (exports, types, bundles, API reports)
         run: pnpm -F @lushly-dev/fast-element build
       - name: Build leaves tracked sources and API reports unchanged
@@ -136,12 +116,7 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: '.nvmrc'
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup-node-pnpm
       - run: pnpm -F "@lushly-dev/violet-elements..." build
       - name: Type-check component specs (stories are checked by Specimen)
         run: pnpm -F @lushly-dev/violet-elements typecheck

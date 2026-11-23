@@ -1,16 +1,8 @@
 {
 	"schemaVersion": 1,
 	"families": ["afd", "specimen", "violet", "fast-af"],
-	"discoveryRoots": [
-		"packages",
-		"python",
-		"alfred",
-		"foundations",
-		"integrations",
-		"endpoints",
-		"tools"
-	],
-	"exclude": ["packages/examples", "packages/auth/hosted"],
+	"discoveryRoots": ["packages", "python", "alfred", "foundations", "integrations", "endpoints"],
+	"exclude": ["packages/auth/hosted"],
 	"quarantine": [
 		{
 			"path": "python/package.json",
@@ -370,18 +362,141 @@
 			"publicSurfaces": ["rust-library"]
 		}
 	],
-	"coverageContract": {
-		"status": "required-before-family-admission",
-		"checks": [
-			"installation",
-			"import",
-			"types",
-			"dependencies",
-			"integration-absent",
-			"integration-present",
-			"integration-incompatible",
-			"integration-unavailable"
-		],
-		"evidence": "Not executed by check-boundaries; every exported condition and native surface is emitted by --coverage for isolated consumer planning."
-	}
+	"familyRules": {
+		"botcore": {
+			"allowed": {
+				"core": [],
+				"package": ["core", "package"],
+				"plugin": ["core", "package"]
+			},
+			"buildAllowed": {
+				"core": ["package"],
+				"package": ["core", "package"],
+				"plugin": ["core", "package"]
+			},
+			"assign": [
+				{ "match": "lushly-botcore", "sublayer": "core" },
+				{ "pathPrefix": "endpoints/botcore/plugins/", "sublayer": "plugin" },
+				{ "pathPrefix": "endpoints/botcore/packages/", "sublayer": "package" },
+				{ "pathPrefix": "endpoints/botcore/botcore-connectors", "sublayer": "package" }
+			]
+		},
+		"umbel": {
+			"allowed": {
+				"base": ["base"],
+				"host": ["base"],
+				"plugin": ["base", "host", "plugin"],
+				"bundle": ["base", "host", "plugin"],
+				"adapter": ["base", "host"],
+				"fixture": ["base"]
+			},
+			"buildAllowed": {
+				"base": ["base"],
+				"host": ["base", "fixture"],
+				"plugin": ["base", "host", "plugin", "fixture"],
+				"bundle": ["base", "host", "plugin", "adapter"],
+				"adapter": ["base", "host"],
+				"fixture": ["base"]
+			},
+			"assign": [
+				{ "match": "umbel", "sublayer": "host" },
+				{ "match": "umbel-first-party", "sublayer": "bundle" },
+				{ "match": "umbel-hook", "sublayer": "adapter" },
+				{ "match": "umbel-testkit-idp", "sublayer": "fixture" },
+				{ "prefix": "umbel-fixture-", "sublayer": "fixture" },
+				{ "prefix": "umbel-plugin-", "sublayer": "plugin" },
+				{ "match": "umbel-store", "sublayer": "base" },
+				{ "match": "umbel-store-embedded", "sublayer": "base" },
+				{ "match": "umbel-scan", "sublayer": "base" },
+				{ "match": "umbel-okf", "sublayer": "base" },
+				{ "match": "umbel-sdk", "sublayer": "base" },
+				{ "match": "umbel-embed", "sublayer": "base" },
+				{ "match": "umbel-windows", "sublayer": "base" }
+			]
+		},
+		"loam": {
+			"allowed": {
+				"contract": [],
+				"sdk": ["contract"],
+				"kernel": ["contract", "sdk"],
+				"app": ["contract", "sdk"],
+				"surface": ["contract", "sdk", "kernel"],
+				"host": ["contract", "sdk", "kernel", "surface", "host"],
+				"plugin": ["plugin"]
+			},
+			"buildAllowed": {
+				"contract": [],
+				"sdk": ["contract"],
+				"kernel": ["contract", "sdk", "kernel"],
+				"app": ["contract", "sdk", "surface"],
+				"surface": ["contract", "sdk", "kernel", "surface"],
+				"host": ["contract", "sdk", "kernel", "surface", "host", "app"],
+				"plugin": ["plugin"]
+			},
+			"assign": [
+				{ "match": "@lushly-dev/loam-manifest", "sublayer": "contract" },
+				{ "match": "@lushly-dev/loam-theme", "sublayer": "contract" },
+				{ "match": "@lushly-dev/loam-sdk", "sublayer": "sdk" },
+				{ "match": "@lushly-dev/loam-kernel", "sublayer": "kernel" },
+				{ "match": "@lushly-dev/loam-console", "sublayer": "kernel" },
+				{ "match": "@lushly-dev/loam-copilot", "sublayer": "kernel" },
+				{ "prefix": "@lushly-dev/loam-app-", "sublayer": "app" },
+				{ "match": "@lushly-dev/loam-chrome", "sublayer": "surface" },
+				{ "match": "@lushly-dev/loam-identity", "sublayer": "surface" },
+				{ "match": "@lushly-dev/loam-cli", "sublayer": "surface" },
+				{ "match": "@lushly-dev/loam-testing", "sublayer": "surface" },
+				{ "match": "@lushly-dev/loam-web", "sublayer": "host" },
+				{ "match": "@lushly-dev/loam-host", "sublayer": "host" },
+				{ "match": "@lushly-dev/loam-desktop", "sublayer": "host" },
+				{ "match": "loam-desktop", "sublayer": "host" },
+				{ "pathPrefix": "endpoints/loam/plugins/", "sublayer": "plugin" }
+			]
+		}
+	},
+	"buildTimeExemptions": [
+		{
+			"from": "@lushly-dev/violet-elements",
+			"to": "@lushly-dev/specimen-fast-af",
+			"reason": "violet-elements is currently classified under foundations/fast-af and uses specimen-fast-af for Specimen story/guide builds; moves out of foundation in #1783",
+			"issue": "#1783"
+		},
+		{
+			"from": "@afd/example-todo",
+			"to": "umbel",
+			"reason": "The todo conformance harness runs the shared todo conformance suite against Umbel in umbel.yml (test:conformance:umbel-mounted script)",
+			"issue": "#1782"
+		},
+		{
+			"from": "@afd/example-todo",
+			"to": "umbel-plugin-todo",
+			"reason": "The todo conformance harness builds and runs umbel-plugin-todo in umbel.yml (test:conformance:umbel script)",
+			"issue": "#1782"
+		},
+		{
+			"from": "umbel",
+			"to": "umbel-plugin-hello",
+			"reason": "Umbel's host integration tests mount the minimal hello reference plugin as a dev-dependency",
+			"issue": "#1782"
+		},
+		{
+			"from": "umbel",
+			"to": "umbel-plugin-components",
+			"reason": "Umbel's component-loader integration tests exercise the components plugin as a dev-dependency",
+			"issue": "#1782"
+		},
+		{
+			"from": "@lushly-dev/loam-theme",
+			"to": "@lushly-dev/loam-kernel",
+			"reason": "loam-theme's theme:check script validates token contracts across Loam's tree including loam-kernel",
+			"issue": "#1782"
+		}
+	],
+	"runtimeExemptions": [
+		{
+			"from": "umbel-plugin-todo",
+			"to": "todo-backend-rust",
+			"reason": "umbel-plugin-todo wraps the Rust todo example backend so Umbel runs the shared todo conformance suite in umbel.yml",
+			"issue": "#1782"
+		}
+	]
 }

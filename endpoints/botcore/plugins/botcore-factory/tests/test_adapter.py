@@ -44,7 +44,7 @@ def test_afd_s_botcore_toml_states_its_labels_cheap_checks_and_gates():
     assert (REPO_ROOT / "scripts/review-record.mjs").is_file()  # prepare-pr lane mode writes it.
     assert adapter.test_changes == [
         "node",
-        ".claude/skills/maintain-gates/scripts/report-test-changes.mjs",
+        "scripts/report-test-changes.mjs",
         "--root",
         "{worktree}",
         "--base",
@@ -53,7 +53,7 @@ def test_afd_s_botcore_toml_states_its_labels_cheap_checks_and_gates():
         "{head}",
         "--json",
     ]
-    assert (REPO_ROOT / ".claude/skills/maintain-gates/scripts/report-test-changes.mjs").is_file()
+    assert (REPO_ROOT / "scripts/report-test-changes.mjs").is_file()
     # Every imported unit's records, including Health and its pin, are merged (#1410, #1472).
     [records] = adapter.regenerate
     assert records.run == ["node", "scripts/provenance-merge.mjs"]

@@ -1,0 +1,326 @@
+/**
+ * Single declared input graph for AFD's path-filtered CI workflows (#1800).
+ *
+ * Every path-filtered workflow's `push.paths` and `pull_request.paths` are derived from this
+ * graph by `scripts/sync-ci.mjs`. Shared inputs (actions, queue workflow, lockfiles, crates,
+ * packages, spec subsets) live in one place so adding or changing a shared input updates every
+ * workflow that depends on it, and `node scripts/sync-ci.mjs --check` fails on any drift.
+ */
+
+export const GROUPS = {
+	// Shared CI infrastructure
+	queueWorkflow: ['.github/workflows/queue.yml'],
+	setupAction: ['.github/actions/setup-node-pnpm/**'],
+	playwrightAction: ['.github/actions/playwright-install/**'],
+	cppDepsAction: ['.github/actions/cpp-dependencies/**'],
+	pnpmLock: ['pnpm-lock.yaml'],
+	pnpmWorkspace: ['pnpm-workspace.yaml'],
+	cargoConfig: ['.cargo/config.toml'],
+
+	// Core AFD TypeScript packages
+	afdCore: ['packages/core/**'],
+	afdServer: ['packages/server/**'],
+	afdClient: ['packages/client/**'],
+	afdCli: ['packages/cli/**'],
+	afdAuth: ['packages/auth/**'],
+	afdLocalDb: ['packages/local-db/**'],
+	afdViewState: ['packages/view-state/**'],
+	afdTesting: ['packages/testing/**'],
+	afdAdapters: ['packages/adapters/**'],
+
+	// Native AFD implementations
+	python: ['python/**'],
+	rust: ['packages/rust/**'],
+	cpp: ['packages/cpp/**'],
+
+	// Contract spec inputs
+	specCore: ['spec/wire/**', 'spec/vectors/**', 'spec/VERSION'],
+	specAuth: ['spec/authorization.json'],
+	specRustExtras: ['spec/meta-tools.json'],
+	specProtocol: ['spec/protocol-conformance.json', 'spec/schema/**'],
+	specPluginManifest: ['spec/plugin-manifest*', 'spec/VERSION'],
+
+	// Foundations & integrations
+	fastAf: ['foundations/fast-af/**'],
+	violet: [
+		'foundations/violet/**',
+		'integrations/violet-afd/**',
+		'endpoints/violet-cli/**',
+		'endpoints/violet-server/**',
+	],
+	specimenCore: [
+		'foundations/specimen/**',
+		'integrations/specimen-afd/**',
+		'integrations/specimen-fast-af/**',
+		'endpoints/specimen-cli/**',
+	],
+
+	// Endpoints
+	alfred: ['alfred/**'],
+	botcore: ['endpoints/botcore/**'],
+	health: ['endpoints/health/**'],
+	healthDashboard: ['endpoints/health-dashboard/**'],
+	umbel: ['endpoints/umbel/**', '!endpoints/umbel/docs/**'],
+	loamCore: ['endpoints/loam/**', '!endpoints/loam/docs/**', '!endpoints/loam/plugins/**'],
+	loamWithScenarios: [
+		'endpoints/loam/**',
+		'!endpoints/loam/docs/**',
+		'endpoints/loam/docs/phases/*/scenarios/**',
+		'!endpoints/loam/plugins/**',
+	],
+	loamPlugins: [
+		'endpoints/loam/plugins/**',
+		'!endpoints/loam/plugins/*/docs/**',
+		'endpoints/loam/plugins/*/docs/scenarios/**',
+	],
+
+	// Examples
+	todoExample: ['packages/examples/todo/**'],
+	todoDirectClient: ['packages/examples/todo-directclient/**'],
+	// Shared gate scripts
+	gateScripts: [
+		'scripts/check-test-*.mjs',
+		'scripts/discovery-parsers.mjs',
+		'scripts/report-test-changes.mjs',
+	],
+};
+
+/**
+ * Per-workflow input declarations. Each entry expands its `groups` + `extra` paths, plus its
+ * own `.github/workflows/<file>` and `.github/workflows/queue.yml` (and `.github/actions/setup-node-pnpm/**`
+ * when `usesSetupAction` is true).
+ */
+export const WORKFLOW_GRAPH = {
+	'alfred.yml': {
+		usesSetupAction: true,
+		groups: ['alfred', 'python', 'botcore', 'gateScripts'],
+		extra: [
+			'scripts/release*/**',
+			'scripts/release-*.mjs',
+			'architecture.json',
+			'botcore.toml',
+			'skills/exports.json',
+			'scripts/skill-profiles*.mjs',
+			'.claude/skills/**',
+			'.agents/skills',
+			'package.json',
+			'pnpm-lock.yaml',
+			'.nvmrc',
+			'spec/**',
+			'packages/**',
+		],
+	},
+	'auth-browser.yml': {
+		usesSetupAction: true,
+		groups: ['afdAuth', 'afdCore', 'pnpmLock', 'playwrightAction'],
+	},
+	'botcore-factory.yml': {
+		usesSetupAction: true,
+		groups: ['botcore', 'python', 'afdCore', 'afdTesting', 'pnpmLock', 'gateScripts'],
+		extra: [
+			'docs/features/active/software-factory/scenarios/**',
+			'scripts/issue-labels.mjs',
+			'scripts/pre-push.mjs',
+			'scripts/verify-record.mjs',
+			'scripts/affected/**',
+			'scripts/release/exec-tool.mjs',
+			'.github/labels.json',
+			'botcore.toml',
+		],
+	},
+	'botcore.yml': {
+		usesSetupAction: false,
+		groups: ['botcore', 'python'],
+		extra: ['.github/workflows/publish-botcore.yml'],
+	},
+	'conformance.yml': {
+		usesSetupAction: true,
+		groups: [
+			'todoExample',
+			'todoDirectClient',
+			'afdServer',
+			'afdCore',
+			'afdCli',
+			'afdClient',
+			'afdTesting',
+			'afdLocalDb',
+			'afdViewState',
+			'fastAf',
+			'rust',
+			'cpp',
+			'python',
+			'specProtocol',
+			'pnpmLock',
+			'cargoConfig',
+			'playwrightAction',
+			'cppDepsAction',
+		],
+		extra: ['tests/consumers/afd/**'],
+	},
+	'cpp.yml': {
+		usesSetupAction: false,
+		groups: ['cpp', 'specCore', 'cppDepsAction'],
+		extra: [
+			'spec/pipeline-variables.md',
+			'packages/examples/todo/spec/**',
+			'packages/examples/todo/backends/cpp/**',
+		],
+	},
+	'fast-af.yml': {
+		usesSetupAction: true,
+		groups: ['fastAf', 'pnpmLock', 'pnpmWorkspace', 'playwrightAction'],
+		extra: ['tests/consumers/fast-af/**'],
+	},
+	'health-dashboard.yml': {
+		usesSetupAction: true,
+		groups: [
+			'healthDashboard',
+			'health',
+			'fastAf',
+			'pnpmLock',
+			'pnpmWorkspace',
+			'playwrightAction',
+		],
+	},
+	'health.yml': {
+		usesSetupAction: false,
+		groups: ['health', 'botcore', 'python'],
+		extra: ['LICENSE'],
+	},
+	'hosted-fixtures.yml': {
+		usesSetupAction: true,
+		groups: [
+			'afdAuth',
+			'afdLocalDb',
+			'afdViewState',
+			'afdCore',
+			'afdServer',
+			'pnpmLock',
+			'playwrightAction',
+		],
+		extra: [
+			'scripts/run-hosted-local.mjs',
+			'scripts/release/exec-tool.mjs',
+			'scripts/hosted/**',
+			'package.json',
+		],
+	},
+	'loam-desktop.yml': {
+		usesSetupAction: true,
+		groups: [
+			'loamCore',
+			'fastAf',
+			'afdCore',
+			'afdServer',
+			'afdViewState',
+			'afdAuth',
+			'afdLocalDb',
+			'afdClient',
+			'pnpmLock',
+			'pnpmWorkspace',
+			'cargoConfig',
+		],
+		extra: ['foundations/violet/**', 'integrations/violet-afd/**'],
+	},
+	'loam-plugins.yml': {
+		usesSetupAction: true,
+		groups: ['loamPlugins', 'rust', 'cargoConfig'],
+	},
+	'loam.yml': {
+		usesSetupAction: true,
+		groups: [
+			'loamWithScenarios',
+			'fastAf',
+			'afdCore',
+			'afdServer',
+			'afdViewState',
+			'afdAuth',
+			'afdLocalDb',
+			'afdClient',
+			'afdAdapters',
+			'afdTesting',
+			'umbel',
+			'rust',
+			'specPluginManifest',
+			'pnpmLock',
+			'pnpmWorkspace',
+			'cargoConfig',
+			'playwrightAction',
+		],
+		extra: [
+			'foundations/violet/**',
+			'foundations/specimen/**',
+			'integrations/violet-afd/**',
+			'architecture.json',
+		],
+	},
+	'python.yml': {
+		usesSetupAction: false,
+		groups: ['python', 'specCore', 'specAuth'],
+		extra: ['.github/workflows/publish-python.yml', 'scripts/python-wheel-smoke.py'],
+	},
+	'rust.yml': {
+		usesSetupAction: false,
+		groups: ['rust', 'specCore', 'specAuth', 'specRustExtras', 'cargoConfig'],
+	},
+	'specimen.yml': {
+		usesSetupAction: true,
+		groups: ['specimenCore', 'afdCore', 'afdServer', 'pnpmLock', 'cargoConfig', 'playwrightAction'],
+		extra: [
+			'foundations/fast-af/packages/element/packages/fast-element/**',
+			'foundations/fast-af/packages/violet-elements/**',
+			'tests/consumers/specimen/**',
+		],
+	},
+	'umbel.yml': {
+		usesSetupAction: true,
+		groups: [
+			'umbel',
+			'rust',
+			'todoExample',
+			'afdCli',
+			'afdClient',
+			'afdCore',
+			'afdServer',
+			'afdTesting',
+			'cargoConfig',
+		],
+		extra: [
+			'foundations/specimen/fixtures/pack/**',
+			'foundations/specimen/docs/pack-format.md',
+			'foundations/fast-af/packages/violet-elements/pack/**',
+			'foundations/fast-af/packages/violet-elements/specimen.config.json',
+		],
+	},
+	'violet.yml': {
+		usesSetupAction: true,
+		groups: ['violet', 'afdCore', 'pnpmLock', 'pnpmWorkspace', 'playwrightAction'],
+		extra: ['tests/consumers/violet/**'],
+	},
+};
+
+/** Resolve the deduplicated ordered path filter list for a workflow in WORKFLOW_GRAPH. */
+export function resolveWorkflowPaths(file) {
+	const spec = WORKFLOW_GRAPH[file];
+	if (!spec) throw new Error(`Unknown workflow in WORKFLOW_GRAPH: ${file}`);
+	const raw = [];
+	for (const groupName of spec.groups ?? []) {
+		const group = GROUPS[groupName];
+		if (!group) throw new Error(`Unknown group "${groupName}" referenced by ${file}`);
+		raw.push(...group);
+	}
+	raw.push(...(spec.extra ?? []));
+	raw.push(`.github/workflows/${file}`);
+	raw.push(...GROUPS.queueWorkflow);
+	if (spec.usesSetupAction) raw.push(...GROUPS.setupAction);
+
+	// Deduplicate while preserving order (important for `!` negations following their parent glob).
+	const seen = new Set();
+	const out = [];
+	for (const pattern of raw) {
+		if (seen.has(pattern)) continue;
+		seen.add(pattern);
+		out.push(pattern);
+	}
+	return out;
+}

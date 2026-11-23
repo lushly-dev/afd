@@ -17,10 +17,12 @@ import {
 	checkCeilingRaises,
 	checkEndDate,
 	DECISIONS,
+	decisionRow,
 	parseCeilings,
 	REPO_ROOT,
 	runCeilingRaiseCheck,
 	SOURCES,
+	sectionText,
 } from '../../scripts/ceiling-raises.mjs';
 import { PAINT_CEILINGS } from '../browser/first-paint-budget';
 
@@ -100,6 +102,21 @@ describe('ceiling-raises: the parser reads every row of what it guards', () => {
 			{ file: BUDGET_FILE, name: 'CEILINGS' },
 			{ file: PAINT_FILE, name: 'PAINT_CEILINGS' },
 		]);
+	});
+
+	it('parses CRLF-delimited ceilings, decision rows and spec sections cleanly', () => {
+		const crlfBudget = BUDGET(344_000).replaceAll('\n', '\r\n');
+		expect(parseCeilings(crlfBudget, 'CEILINGS')).toEqual({
+			rows: { jsMinified: 344_000, jsGzip: 108_800 },
+		});
+		const crlfDecisions = D161('2026-11-30').replaceAll('\n', '\r\n');
+		expect(decisionRow(crlfDecisions, 'D161')).toBe(
+			'| D161 | 2026-11-21 | D115 ends on 2026-11-30 |'
+		);
+		const crlfSpec = SECTION('jsMinified rises to 344,000').replaceAll('\n', '\r\n');
+		const section = sectionText(crlfSpec, '24-the-budget-and-the-rule');
+		expect(section).toContain('344,000');
+		expect(section).not.toContain('\r');
 	});
 
 	it('refuses a row it cannot read, a missing object, an empty one and a row named twice', () => {

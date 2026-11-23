@@ -155,7 +155,7 @@ These keep their own work; this review only cross-references them.
 
 - [#1781](https://github.com/lushly-dev/afd/issues/1781) violet-afd: commands on defineCommand with domain-action names, and the domain moved into violet-core
 
-- [#1782](https://github.com/lushly-dev/afd/issues/1782) boundaries: build-time edges, sub-layers in the endpoint families, examples in scope, stale entries out
+- [#1782](https://github.com/lushly-dev/afd/issues/1782) boundaries: build-time edges, sub-layers in the endpoint families, examples in scope, stale entries out; merged in #2296
 
 - [#1783](https://github.com/lushly-dev/afd/issues/1783) violet-elements: its own unit, outside FAST-AF's upstream provenance and inside the size gate
 
@@ -193,13 +193,13 @@ These keep their own work; this review only cross-references them.
 
 - [#1798](https://github.com/lushly-dev/afd/issues/1798) ci: path filters cover every input a suite reads, starting with spec/**
 
-- [#1799](https://github.com/lushly-dev/afd/issues/1799) ci: scheduled failures open an issue, fail-fast off, schedules for every language, PR titles linted, job timeouts
+- [#1799](https://github.com/lushly-dev/afd/issues/1799) ci: scheduled failures open an issue, fail-fast off, schedules for every language, PR titles linted, job timeouts; merged in #2296
 
-- [#1800](https://github.com/lushly-dev/afd/issues/1800) ci: shared setup and caching, a reusable queue job, and suites.mjs generated from the workflows
+- [#1800](https://github.com/lushly-dev/afd/issues/1800) ci: shared setup and caching, a reusable queue job, and suites.mjs generated from the workflows; merged in #2296
 
-- [#1801](https://github.com/lushly-dev/afd/issues/1801) gates: gate scripts canonical in scripts/, not inside generated skill content
+- [#1801](https://github.com/lushly-dev/afd/issues/1801) gates: gate scripts canonical in scripts/, not inside generated skill content; merged in #2296
 
-- [#1802](https://github.com/lushly-dev/afd/issues/1802) gates: the size gate and the bloat sweep over Rust, Python, C++ and code AFD authors inside imported families
+- [#1802](https://github.com/lushly-dev/afd/issues/1802) gates: the size gate and the bloat sweep over Rust, Python, C++ and code AFD authors inside imported families; merged in #2296
 
 ### Documents and owner decisions
 

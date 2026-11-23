@@ -15,7 +15,7 @@ from botcore_factory.world import WorldError
 
 TEST_CHANGES_CMD = [
     "node",
-    ".claude/skills/maintain-gates/scripts/report-test-changes.mjs",
+    "scripts/report-test-changes.mjs",
     "--root",
     "{worktree}",
     "--base",

@@ -1,4 +1,4 @@
-/** The gate-discipline skill's scripts, which Botcore ships to every repository that seeds the skill. */
+/** The gate-discipline scripts, canonical in scripts/ and mirrored into Botcore's seeded skill. */
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { cpSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
@@ -6,24 +6,19 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test, { after } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { findings } from '../endpoints/botcore/src/botcore/skills/gate-discipline/scripts/check-test-configs.mjs';
-import {
-	globToRegExp,
-	parseVitestConfig,
-} from '../endpoints/botcore/src/botcore/skills/gate-discipline/scripts/check-test-discovery.mjs';
-import {
-	findSuppressions,
-	maskSource,
-} from '../endpoints/botcore/src/botcore/skills/gate-discipline/scripts/check-test-quarantine.mjs';
-import {
-	compareTestFile,
-	LANGUAGES,
-} from '../endpoints/botcore/src/botcore/skills/gate-discipline/scripts/report-test-changes.mjs';
+import { findings } from './check-test-configs.mjs';
+import { globToRegExp, parseVitestConfig } from './check-test-discovery.mjs';
+import { findSuppressions, maskSource } from './check-test-quarantine.mjs';
+import { compareTestFile, LANGUAGES } from './report-test-changes.mjs';
 
-const scripts = join(
-	dirname(fileURLToPath(import.meta.url)),
-	'../endpoints/botcore/src/botcore/skills/gate-discipline/scripts'
-);
+const scripts = dirname(fileURLToPath(import.meta.url));
+const GATE_SCRIPTS = [
+	'check-test-configs.mjs',
+	'check-test-discovery.mjs',
+	'check-test-quarantine.mjs',
+	'discovery-parsers.mjs',
+	'report-test-changes.mjs',
+];
 const roots = [];
 after(() => {
 	for (const root of roots) rmSync(root, { recursive: true, force: true });
@@ -109,7 +104,8 @@ test('all check scripts run their check when started through a symlinked folder'
 		'vitest.config.ts': config("\t\tpassWithNoTests: true,\n\t\tinclude: ['other/**/*.test.ts'],"),
 	});
 	const copy = join(root, 'skill-scripts');
-	cpSync(scripts, copy, { recursive: true });
+	mkdirSync(copy, { recursive: true });
+	for (const file of GATE_SCRIPTS) cpSync(join(scripts, file), join(copy, file));
 	const link = join(root, 'linked-scripts');
 	symlinkSync(copy, link, 'junction');
 	for (const script of [

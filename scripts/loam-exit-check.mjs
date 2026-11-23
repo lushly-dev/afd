@@ -56,6 +56,8 @@ export const WORKFLOWS = {
 	loam: {
 		name: 'Loam',
 		file: 'loam.yml',
+		// Reusable queue.yml jobs appear as "<caller> / <callee>" in `gh run view --json jobs`.
+		jobAliases: { 'Merge queue paths / Merge queue paths': 'Merge queue paths' },
 		jobs: [
 			// The merge queue's gate: it runs on every event and passes a manual run straight through.
 			'Merge queue paths',
@@ -75,6 +77,7 @@ export const WORKFLOWS = {
 	desktop: {
 		name: 'Loam desktop',
 		file: 'loam-desktop.yml',
+		jobAliases: { 'Merge queue paths / Merge queue paths': 'Merge queue paths' },
 		jobs: [
 			'Merge queue paths',
 			'Affected units',
@@ -83,10 +86,11 @@ export const WORKFLOWS = {
 			'Desktop on macOS',
 		],
 	},
-	// A manual run's matrix (ci.yml): Node 22, 24 and 26.
+	// A manual run's matrix (ci.yml): Node 22, 24 and 26. Pull-request-only jobs are skipped on workflow_dispatch.
 	ci: {
 		name: 'CI',
 		file: 'ci.yml',
+		skippedJobs: ['Pull request title'],
 		jobs: ['TypeScript (Node 22.x)', 'TypeScript (Node 24.x)', 'TypeScript (Node 26.x)'],
 	},
 };
@@ -441,11 +445,22 @@ export function checkRun(run, workflow, { allowRerun = false } = {}) {
 		problems.push(
 			`${where} is attempt ${run.attempt}: a re-run can hide its first attempt's failure; pass --allow-rerun to accept it`
 		);
-	const names = run.jobs.map((job) => job.name);
+	const aliases = workflow.jobAliases ?? {};
+	const skippedJobs = workflow.skippedJobs ?? [];
+	const canonicalName = (name) => aliases[name] ?? name;
+	const names = run.jobs.map((job) => canonicalName(job.name));
 	for (const name of workflow.jobs)
 		if (!names.includes(name)) problems.push(`${where}: job "${name}" is missing`);
 	for (const job of run.jobs) {
-		if (!workflow.jobs.includes(job.name))
+		const canonical = canonicalName(job.name);
+		if (skippedJobs.includes(canonical)) {
+			if (job.conclusion !== 'skipped')
+				problems.push(
+					`${where}: pull-request-only job "${job.name}" is ${job.conclusion || job.status}, not skipped`
+				);
+			continue;
+		}
+		if (!workflow.jobs.includes(canonical))
 			problems.push(`${where}: job "${job.name}" is not one the check knows`);
 		if (job.conclusion !== 'success')
 			problems.push(`${where}: job "${job.name}" is ${job.conclusion || job.status}, not success`);

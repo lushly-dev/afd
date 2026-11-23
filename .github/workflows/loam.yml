@@ -6,15 +6,9 @@ on:
     paths:
       - 'endpoints/loam/**'
       - '!endpoints/loam/docs/**'
-      # Loam's scenario runner runs each phase's jobs from its specification's folder (kernel/src/scenarios.test.ts).
       - 'endpoints/loam/docs/phases/*/scenarios/**'
-      # Plugins have their own workflow, loam-plugins.yml (L8).
       - '!endpoints/loam/plugins/**'
-      # The foundations, integrations and AFD packages Loam builds on.
       - 'foundations/fast-af/**'
-      - 'foundations/violet/**'
-      - 'foundations/specimen/**'
-      - 'integrations/violet-afd/**'
       - 'packages/core/**'
       - 'packages/server/**'
       - 'packages/view-state/**'
@@ -23,20 +17,22 @@ on:
       - 'packages/client/**'
       - 'packages/adapters/**'
       - 'packages/testing/**'
-      # What the `mounted` job runs against: the stock `umbel` and the crate it builds on.
       - 'endpoints/umbel/**'
       - '!endpoints/umbel/docs/**'
       - 'packages/rust/**'
-      # The core Loam's manifest profile conforms to, and the contract version it records.
       - 'spec/plugin-manifest*'
       - 'spec/VERSION'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - '.cargo/config.toml'
-      - '.github/workflows/loam.yml'
       - '.github/actions/playwright-install/**'
-      # Its `lanes` define the frozen hosted lane, which the `hosted` gate reads.
+      - 'foundations/violet/**'
+      - 'foundations/specimen/**'
+      - 'integrations/violet-afd/**'
       - 'architecture.json'
+      - '.github/workflows/loam.yml'
+      - '.github/workflows/queue.yml'
+      - '.github/actions/setup-node-pnpm/**'
   # The merge queue. No path filter applies to it: the `queue` job below does that work.
   merge_group:
   pull_request:
@@ -44,13 +40,9 @@ on:
     paths:
       - 'endpoints/loam/**'
       - '!endpoints/loam/docs/**'
-      # Loam's scenario runner runs each phase's jobs from its specification's folder (kernel/src/scenarios.test.ts).
       - 'endpoints/loam/docs/phases/*/scenarios/**'
       - '!endpoints/loam/plugins/**'
       - 'foundations/fast-af/**'
-      - 'foundations/violet/**'
-      - 'foundations/specimen/**'
-      - 'integrations/violet-afd/**'
       - 'packages/core/**'
       - 'packages/server/**'
       - 'packages/view-state/**'
@@ -67,10 +59,14 @@ on:
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - '.cargo/config.toml'
-      - '.github/workflows/loam.yml'
       - '.github/actions/playwright-install/**'
-      # Its `lanes` define the frozen hosted lane, which the `hosted` gate reads.
+      - 'foundations/violet/**'
+      - 'foundations/specimen/**'
+      - 'integrations/violet-afd/**'
       - 'architecture.json'
+      - '.github/workflows/loam.yml'
+      - '.github/workflows/queue.yml'
+      - '.github/actions/setup-node-pnpm/**'
   # Daily, off the other workflows' hour (06:41 to 08:11 UTC): `AFD_SCOPE` is `all` for a scheduled run, as for a manual
   # one, so every gate opens and the frozen hosted lane runs against the shell `main` builds (Loam's D162; #1930). A
   # break only the built shell causes shows within a day, and no pull request waits on it. ci-ok reads only pull
@@ -89,29 +85,10 @@ concurrency:
 
 jobs:
   queue:
-    # A merge group starts every workflow, whatever its `paths`. The jobs below run for one only
-    # when the files it changes match this workflow's own pull_request.paths; every other event
-    # passes straight through (scripts/affected.mjs trigger).
     name: Merge queue paths
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      run: ${{ steps.paths.outputs.run }}
-    steps:
-      - if: github.event_name == 'merge_group'
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          filter: blob:none
-      - id: paths
-        env:
-          AFD_BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || github.event.merge_group.base_sha || github.event.before }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
-            node scripts/affected.mjs trigger loam.yml
-          else
-            echo "run=true" >> "$GITHUB_OUTPUT"
-          fi
+    uses: ./.github/workflows/queue.yml
+    with:
+      workflow: loam.yml
 
   scope:
     # Triggered by a shared input such as a foundation or pnpm-lock.yaml, the suite below runs only
@@ -136,17 +113,17 @@ jobs:
       # `theme:check` below scans every `.ts` file of violet-elements' source, specs included, and a
       # spec reaches no dependent, so the path is named: no other workflow runs that check.
       - id: run
-        run: node scripts/affected.mjs gate --package @lushly-dev/loam-app-checklist --package @lushly-dev/loam-app-hello --package @lushly-dev/loam-app-notes --package @lushly-dev/loam-app-tally --package @lushly-dev/loam-app-tasks --package @lushly-dev/loam-chrome --package @lushly-dev/loam-cli --package @lushly-dev/loam-console --package @lushly-dev/loam-copilot --package @lushly-dev/loam-desktop --package @lushly-dev/loam-identity --package @lushly-dev/loam-kernel --package @lushly-dev/loam-manifest --package @lushly-dev/loam-sdk --package @lushly-dev/loam-testing --package @lushly-dev/loam-theme --package @lushly-dev/loam-web --path foundations/fast-af/packages/violet-elements/src/ --path .cargo/config.toml --path .github/workflows/loam.yml --path .github/actions/playwright-install/
+        run: node scripts/affected.mjs gate --package @lushly-dev/loam-app-checklist --package @lushly-dev/loam-app-hello --package @lushly-dev/loam-app-notes --package @lushly-dev/loam-app-tally --package @lushly-dev/loam-app-tasks --package @lushly-dev/loam-chrome --package @lushly-dev/loam-cli --package @lushly-dev/loam-console --package @lushly-dev/loam-copilot --package @lushly-dev/loam-desktop --package @lushly-dev/loam-identity --package @lushly-dev/loam-kernel --package @lushly-dev/loam-manifest --package @lushly-dev/loam-sdk --package @lushly-dev/loam-testing --package @lushly-dev/loam-theme --package @lushly-dev/loam-web --path foundations/fast-af/packages/violet-elements/src/ --path .cargo/config.toml --path .github/workflows/loam.yml --path .github/actions/setup-node-pnpm/ --path .github/actions/playwright-install/
       # The same packages, and an Umbel or `afd` crate change, which reaches this job and not the ones below.
       - id: mounted
-        run: node scripts/affected.mjs gate --package @lushly-dev/loam-app-checklist --package @lushly-dev/loam-app-hello --package @lushly-dev/loam-app-notes --package @lushly-dev/loam-app-tally --package @lushly-dev/loam-app-tasks --package @lushly-dev/loam-chrome --package @lushly-dev/loam-cli --package @lushly-dev/loam-console --package @lushly-dev/loam-copilot --package @lushly-dev/loam-desktop --package @lushly-dev/loam-identity --package @lushly-dev/loam-kernel --package @lushly-dev/loam-manifest --package @lushly-dev/loam-sdk --package @lushly-dev/loam-testing --package @lushly-dev/loam-theme --package @lushly-dev/loam-web --path .cargo/config.toml --path .github/workflows/loam.yml --path .github/actions/playwright-install/ --path endpoints/umbel/ --except endpoints/umbel/docs/ --path packages/rust/
+        run: node scripts/affected.mjs gate --package @lushly-dev/loam-app-checklist --package @lushly-dev/loam-app-hello --package @lushly-dev/loam-app-notes --package @lushly-dev/loam-app-tally --package @lushly-dev/loam-app-tasks --package @lushly-dev/loam-chrome --package @lushly-dev/loam-cli --package @lushly-dev/loam-console --package @lushly-dev/loam-copilot --package @lushly-dev/loam-desktop --package @lushly-dev/loam-identity --package @lushly-dev/loam-kernel --package @lushly-dev/loam-manifest --package @lushly-dev/loam-sdk --package @lushly-dev/loam-testing --package @lushly-dev/loam-theme --package @lushly-dev/loam-web --path .cargo/config.toml --path .github/workflows/loam.yml --path .github/actions/setup-node-pnpm/ --path .github/actions/playwright-install/ --path endpoints/umbel/ --except endpoints/umbel/docs/ --path packages/rust/
       # The frozen hosted lane (Loam's D162 and D164): `@lushly-dev/loam-host` and the hosted criterion, whose packages
       # and paths architecture.json's `lanes` lists once. Its packages are named in neither gate above, and the jobs above
       # leave them out of their builds and suites, so a local change waits on nothing of the lane. This gate opens when a
       # lane path or input changes (`inputs`: the files outside it that it reads) or a package the server imports does
       # (the kernel, the CLI, identity, an AFD package).
       - id: hosted
-        run: node scripts/affected.mjs gate --lane loam-hosted --path .github/workflows/loam.yml --path .github/actions/playwright-install/ --path architecture.json
+        run: node scripts/affected.mjs gate --lane loam-hosted --path .github/workflows/loam.yml --path .github/actions/setup-node-pnpm/ --path .github/actions/playwright-install/ --path architecture.json
 
   loam:
     name: Build, unit and Chromium
@@ -156,12 +133,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: '.nvmrc'
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup-node-pnpm
       # Without the hosted server, the frozen lane's (D162), which the web host lists only for its hosted criterion: the
       # "Hosted development profile" job builds and tests it. scripts/affected.test.mjs holds every job but that one to
       # the `!` filter.
@@ -231,12 +203,7 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: '.nvmrc'
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup-node-pnpm
       - name: Build the web host and its dependencies
         run: pnpm -F "@lushly-dev/loam-web..." -F "!@lushly-dev/loam-host" build
       - uses: ./.github/actions/playwright-install
@@ -269,12 +236,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: '.nvmrc'
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup-node-pnpm
       - name: Build the web host and its dependencies
         run: pnpm -F "@lushly-dev/loam-web..." -F "!@lushly-dev/loam-host" build
       - uses: ./.github/actions/playwright-install
@@ -308,12 +270,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: '.nvmrc'
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup-node-pnpm
       - name: Build the web host and its dependencies
         run: pnpm -F "@lushly-dev/loam-web..." -F "!@lushly-dev/loam-host" build
       - uses: ./.github/actions/playwright-install
@@ -349,12 +306,7 @@ jobs:
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: '.nvmrc'
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup-node-pnpm
       - name: Install Rust toolchain
         working-directory: endpoints/umbel
         run: rustup toolchain install
@@ -401,12 +353,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: '.nvmrc'
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup-node-pnpm
       # The web host too: the server's units and the criterion read the built shell.
       - name: Build the web host, the hosted server and their dependencies
         run: pnpm -F "@lushly-dev/loam-web..." -F "@lushly-dev/loam-host..." build

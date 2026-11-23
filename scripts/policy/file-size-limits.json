@@ -1,0 +1,142 @@
+{
+	"$comment": "File-size gate policy for scripts/check-file-size.mjs (#1802). Files already over 1,500 lines when Rust, Python, C++ and AFD-authored files in imported families joined the gate are grandfathered here. This list may only shrink: no new file may be added, no ceiling may rise, and any file reduced to 1,500 lines or fewer (or removed) must have its entry deleted.",
+	"warn": 500,
+	"limit": 1500,
+	"grandfathered": [
+		{
+			"file": "endpoints/loam/packages/desktop/src-tauri/src/models.rs",
+			"lines": 1844,
+			"reason": "Pre-existing Rust file over 1,500 lines when Rust joined the size gate (#1802)"
+		},
+		{
+			"file": "endpoints/loam/plugins/mail/engine/src/cli.rs",
+			"lines": 1925,
+			"reason": "Pre-existing Rust file over 1,500 lines when Rust joined the size gate (#1802)"
+		},
+		{
+			"file": "endpoints/loam/plugins/mail/engine/src/derive.rs",
+			"lines": 1803,
+			"reason": "Pre-existing Rust file over 1,500 lines when Rust joined the size gate (#1802)"
+		},
+		{
+			"file": "endpoints/loam/plugins/mail/engine/src/provider/imap.rs",
+			"lines": 2111,
+			"reason": "Pre-existing Rust file over 1,500 lines when Rust joined the size gate (#1802)"
+		},
+		{
+			"file": "endpoints/loam/plugins/mail/engine/src/replysets.rs",
+			"lines": 1821,
+			"reason": "Pre-existing Rust file over 1,500 lines when Rust joined the size gate (#1802)"
+		},
+		{
+			"file": "endpoints/loam/plugins/mail/engine/src/store/operations.rs",
+			"lines": 1766,
+			"reason": "Pre-existing Rust file over 1,500 lines when Rust joined the size gate (#1802)"
+		},
+		{
+			"file": "endpoints/loam/plugins/mail/engine/src/store/replysets.rs",
+			"lines": 1589,
+			"reason": "Pre-existing Rust file over 1,500 lines when Rust joined the size gate (#1802)"
+		},
+		{
+			"file": "endpoints/umbel/src/auth/doctor.rs",
+			"lines": 1909,
+			"reason": "Pre-existing Rust file over 1,500 lines when Rust joined the size gate (#1802)"
+		},
+		{
+			"file": "endpoints/umbel/src/plugins/loader.rs",
+			"lines": 1810,
+			"reason": "Pre-existing Rust file over 1,500 lines when Rust joined the size gate (#1802)"
+		},
+		{
+			"file": "endpoints/umbel/src/plugins/manifest.rs",
+			"lines": 2248,
+			"reason": "Pre-existing Rust file over 1,500 lines when Rust joined the size gate (#1802)"
+		},
+		{
+			"file": "endpoints/umbel/src/shared/person.rs",
+			"lines": 2191,
+			"reason": "Pre-existing Rust file over 1,500 lines when Rust joined the size gate (#1802)"
+		},
+		{
+			"file": "endpoints/umbel/src/shared/tasks.rs",
+			"lines": 1757,
+			"reason": "Pre-existing Rust file over 1,500 lines when Rust joined the size gate (#1802)"
+		},
+		{
+			"file": "endpoints/umbel/src/workspace/config.rs",
+			"lines": 1905,
+			"reason": "Pre-existing Rust file over 1,500 lines when Rust joined the size gate (#1802)"
+		},
+		{
+			"file": "endpoints/umbel/src/workspace/hosted.rs",
+			"lines": 2185,
+			"reason": "Pre-existing Rust file over 1,500 lines when Rust joined the size gate (#1802)"
+		},
+		{
+			"file": "endpoints/umbel/store/src/conformance/lane.rs",
+			"lines": 2193,
+			"reason": "Pre-existing Rust file over 1,500 lines when Rust joined the size gate (#1802)"
+		},
+		{
+			"file": "endpoints/umbel/store/src/conformance/matching.rs",
+			"lines": 2672,
+			"reason": "Pre-existing Rust file over 1,500 lines when Rust joined the size gate (#1802)"
+		},
+		{
+			"file": "endpoints/umbel/store/src/conformance/standing.rs",
+			"lines": 2982,
+			"reason": "Pre-existing Rust file over 1,500 lines when Rust joined the size gate (#1802)"
+		},
+		{
+			"file": "endpoints/umbel/store/src/memory.rs",
+			"lines": 1816,
+			"reason": "Pre-existing Rust file over 1,500 lines when Rust joined the size gate (#1802)"
+		},
+		{
+			"file": "endpoints/violet-cli/src/cli.ts",
+			"lines": 2869,
+			"reason": "Pre-existing Violet CLI file over 1,500 lines when AFD-authored code in imported families joined the size gate (#1802); tracked by #1789"
+		},
+		{
+			"file": "foundations/fast-af/packages/violet-elements/src/data-grid/violet-data-grid.ts",
+			"lines": 4422,
+			"reason": "Pre-existing violet-elements file over 1,500 lines when AFD-authored code in imported families joined the size gate (#1802); tracked by #504 and #1783"
+		},
+		{
+			"file": "foundations/fast-af/packages/violet-elements/src/gantt/violet-gantt.ts",
+			"lines": 2144,
+			"reason": "Pre-existing violet-elements file over 1,500 lines when AFD-authored code in imported families joined the size gate (#1802); tracked by #504 and #1783"
+		},
+		{
+			"file": "foundations/specimen/host/src/page.rs",
+			"lines": 1658,
+			"reason": "Pre-existing Rust file over 1,500 lines when Rust joined the size gate (#1802)"
+		},
+		{
+			"file": "packages/cpp/src/mcp_stdio/frontmatter.cpp",
+			"lines": 1723,
+			"reason": "Pre-existing C++ file over 1,500 lines when C++ joined the size gate (#1802)"
+		},
+		{
+			"file": "packages/cpp/src/mcp_stdio/server.cpp",
+			"lines": 2248,
+			"reason": "Pre-existing C++ file over 1,500 lines when C++ joined the size gate (#1802)"
+		},
+		{
+			"file": "packages/rust/src/commands.rs",
+			"lines": 2577,
+			"reason": "Pre-existing Rust file over 1,500 lines when Rust joined the size gate (#1802); tracked by #1763"
+		},
+		{
+			"file": "packages/rust/src/pipeline.rs",
+			"lines": 1718,
+			"reason": "Pre-existing Rust file over 1,500 lines when Rust joined the size gate (#1802)"
+		},
+		{
+			"file": "python/src/afd/server/factory.py",
+			"lines": 2460,
+			"reason": "Pre-existing Python file over 1,500 lines when Python joined the size gate (#1802)"
+		}
+	]
+}

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
@@ -12,97 +12,243 @@ function fixture(lines, head = '') {
 	return `${head}${Array.from({ length: lines }, (_, index) => `export const value${index} = ${index};`).join('\n')}\n`;
 }
 
-test('no-argument mode discovers and rejects oversized source files', () => {
+function makeRoot(t) {
 	const root = mkdtempSync(join(tmpdir(), 'afd-file-size-'));
-	mkdirSync(join(root, 'packages', 'demo', 'src'), { recursive: true });
-	writeFileSync(join(root, 'packages', 'demo', 'src', 'large.ts'), fixture(1501));
+	t.after(() => rmSync(root, { recursive: true, force: true }));
+	return root;
+}
 
-	const result = spawnSync(process.execPath, [script], { cwd: root, encoding: 'utf8' });
+function runCheck(root, args = [], extraEnv = {}) {
+	const env = Object.fromEntries(
+		Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_') && key !== 'AFD_BASE')
+	);
+	return spawnSync(process.execPath, [script, ...args], {
+		cwd: root,
+		encoding: 'utf8',
+		env: { ...env, ...extraEnv },
+	});
+}
+
+test('no-argument mode discovers and rejects oversized source files across TS, Rust, Python and C++', (t) => {
+	const root = makeRoot(t);
+	for (const rel of [
+		'packages/demo/src/large.ts',
+		'packages/rust/src/large.rs',
+		'python/src/afd/large.py',
+		'packages/cpp/src/large.cpp',
+		'packages/cpp/include/large.hpp',
+	]) {
+		mkdirSync(join(root, dirname(rel)), { recursive: true });
+		writeFileSync(join(root, rel), fixture(1501));
+	}
+
+	const result = runCheck(root);
 	assert.equal(result.status, 1);
-	assert.match(result.stderr, /large\.ts/);
-	assert.match(result.stderr, /exceeds 1500 lines/);
-	assert.match(result.stderr, /1 file size violation/);
+	for (const name of ['large.ts', 'large.rs', 'large.py', 'large.cpp', 'large.hpp']) {
+		assert.match(result.stderr, new RegExp(name.replace('.', '\\.')));
+	}
+	assert.match(result.stderr, /5 file size violation/);
 });
 
-test('a file up to 1,500 lines only warns: the bloat sweep, not the commit, splits it', () => {
-	const root = mkdtempSync(join(tmpdir(), 'afd-file-size-'));
+test('a file up to 1,500 lines only warns: the bloat sweep, not the commit, splits it', (t) => {
+	const root = makeRoot(t);
 	const source = join(root, 'packages', 'demo', 'src');
 	mkdirSync(source, { recursive: true });
-	writeFileSync(join(source, 'busy.ts'), fixture(1499));
+	writeFileSync(join(source, 'busy.ts'), fixture(1500));
 
-	const result = spawnSync(process.execPath, [script], { cwd: root, encoding: 'utf8' });
+	const result = runCheck(root);
 	assert.equal(result.status, 0, result.stderr);
 	assert.match(result.stderr, /busy\.ts/);
+	assert.match(result.stderr, /1500 lines/);
 	assert.match(result.stderr, /the sweep-bloat skill ranks it/);
 });
 
-test('discovery skips tests and generated output, and an override comment changes nothing', () => {
-	const root = mkdtempSync(join(tmpdir(), 'afd-file-size-'));
-	const source = join(root, 'packages', 'demo', 'src');
-	mkdirSync(join(source, '_generated'), { recursive: true });
-	writeFileSync(join(source, 'large.test.ts'), fixture(1600));
-	writeFileSync(join(source, '_generated', 'types.ts'), fixture(1600));
-	writeFileSync(join(source, 'old.ts'), fixture(1600, '// afd-override: max-lines=1700\n'));
+test('authored JS files outside scripts/ are checked while *.generated.* files are skipped', (t) => {
+	const root = makeRoot(t);
+	mkdirSync(join(root, 'endpoints/loam/packages/web/public/sandbox'), { recursive: true });
+	mkdirSync(join(root, 'scripts/affected'), { recursive: true });
+	writeFileSync(join(root, 'endpoints/loam/packages/web/public/sandbox/proxy.js'), fixture(1501));
+	writeFileSync(join(root, 'scripts/affected/suites.generated.mjs'), fixture(1600));
 
-	const result = spawnSync(process.execPath, [script], { cwd: root, encoding: 'utf8' });
+	const result = runCheck(root);
 	assert.equal(result.status, 1);
-	assert.match(result.stderr, /old\.ts/);
-	assert.doesNotMatch(result.stderr, /large\.test\.ts|types\.ts/);
+	assert.match(result.stderr, /proxy\.js/);
+	assert.doesNotMatch(result.stderr, /suites\.generated\.mjs/);
 	assert.match(result.stderr, /1 file size violation/);
 });
 
-test('a file between the thresholds warns without failing', () => {
-	const root = mkdtempSync(join(tmpdir(), 'afd-file-size-'));
+test('discovery skips language-specific tests and generated output, and an override comment changes nothing', (t) => {
+	const root = makeRoot(t);
+	const files = [
+		'packages/demo/src/large.test.ts',
+		'packages/demo/src/_generated/types.ts',
+		'packages/rust/tests/integration.rs',
+		'packages/rust/src/approval/tests.rs',
+		'packages/rust/src/foo_test.rs',
+		'python/tests/test_big.py',
+		'python/src/afd/big_test.py',
+		'packages/cpp/tests/big_test.cpp',
+		'packages/cpp/src/helper_test.hpp',
+		'packages/demo/src/old.ts',
+	];
+	for (const rel of files) {
+		mkdirSync(join(root, dirname(rel)), { recursive: true });
+		const head = rel.endsWith('old.ts') ? '// afd-override: max-lines=1700\n' : '';
+		writeFileSync(join(root, rel), fixture(1600, head));
+	}
+
+	const result = runCheck(root);
+	assert.equal(result.status, 1);
+	assert.match(result.stderr, /old\.ts/);
+	assert.doesNotMatch(
+		result.stderr,
+		/large\.test\.ts|types\.ts|integration\.rs|tests\.rs|foo_test\.rs|test_big\.py|big_test\.py|big_test\.cpp|helper_test\.hpp/
+	);
+	assert.match(result.stderr, /1 file size violation/);
+});
+
+test('a file between the thresholds warns without failing', (t) => {
+	const root = makeRoot(t);
 	const source = join(root, 'packages', 'demo', 'src');
 	mkdirSync(source, { recursive: true });
 	writeFileSync(join(source, 'growing.ts'), fixture(600));
 
-	const result = spawnSync(process.execPath, [script], { cwd: root, encoding: 'utf8' });
+	const result = runCheck(root);
 	assert.equal(result.status, 0, result.stderr);
 	assert.match(result.stderr, /growing\.ts/);
 	assert.match(result.stderr, /Over the 500-line review threshold/);
 	assert.match(result.stderr, /1 file size warning/);
 });
 
-test('explicit staged-file mode still checks only supplied paths', () => {
-	const root = mkdtempSync(join(tmpdir(), 'afd-file-size-'));
+test('explicit staged-file mode still checks only supplied paths', (t) => {
+	const root = makeRoot(t);
 	const source = join(root, 'packages', 'demo', 'src');
 	mkdirSync(source, { recursive: true });
 	writeFileSync(join(source, 'large.ts'), fixture(1501));
 	writeFileSync(join(source, 'small.ts'), fixture(20));
 
-	const result = spawnSync(process.execPath, [script, join(source, 'small.ts')], {
-		cwd: root,
-		encoding: 'utf8',
-	});
+	const result = runCheck(root, [join(source, 'small.ts')]);
 	assert.equal(result.status, 0);
 	assert.doesNotMatch(result.stderr, /large\.ts/);
 });
 
-test('staged imported FAST-AF and Violet source is skipped while other staged source is checked', () => {
-	const root = mkdtempSync(join(tmpdir(), 'afd-file-size-'));
-	const imported = join('foundations', 'fast-af', 'packages', 'demo', 'src', 'large.ts');
-	const violet = [
-		join('foundations', 'violet', 'packages', 'core', 'src', 'large.ts'),
-		join('integrations', 'violet-afd', 'src', 'large.ts'),
-		join('endpoints', 'violet-cli', 'src', 'large.ts'),
-		join('endpoints', 'violet-server', 'src', 'large.ts'),
+test('upstream fast-element is skipped while AFD-authored code in imported families is checked', (t) => {
+	const root = makeRoot(t);
+	const upstream = 'foundations/fast-af/packages/element/packages/fast-element/src/di.ts';
+	const authored = [
+		'foundations/fast-af/packages/violet-elements/src/grid.ts',
+		'foundations/violet/packages/core/src/large.ts',
+		'integrations/violet-afd/src/large.ts',
+		'endpoints/violet-cli/src/large.ts',
+		'foundations/specimen/src/large.ts',
+		'endpoints/botcore/src/botcore/large.py',
 	];
-	const owned = join('foundations', 'specimen', 'src', 'large.ts');
-	for (const path of [imported, ...violet, owned]) {
-		mkdirSync(join(root, dirname(path)), { recursive: true });
-		writeFileSync(join(root, path), fixture(1501));
+	for (const rel of [upstream, ...authored]) {
+		mkdirSync(join(root, dirname(rel)), { recursive: true });
+		writeFileSync(join(root, rel), fixture(1501));
 	}
 
-	const skipped = spawnSync(process.execPath, [script, imported, ...violet], {
-		cwd: root,
-		encoding: 'utf8',
-	});
+	const skipped = runCheck(root, [upstream]);
 	assert.equal(skipped.status, 0, skipped.stderr);
-	const checked = spawnSync(process.execPath, [script, imported, ...violet, owned], {
-		cwd: root,
-		encoding: 'utf8',
-	});
+	const checked = runCheck(root);
 	assert.equal(checked.status, 1);
-	assert.match(checked.stderr, /1 file size violation/);
+	assert.doesNotMatch(checked.stderr, /fast-element\/src\/di\.ts/);
+	assert.match(checked.stderr, /6 file size violation/);
+});
+
+test('grandfathered policy allows frozen files, blocks growth, fails on recovery or deletion, and only tightens', (t) => {
+	const root = makeRoot(t);
+	const env = Object.fromEntries(
+		Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))
+	);
+	const git = (...args) =>
+		execFileSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.invalid', ...args], {
+			cwd: root,
+			env,
+			encoding: 'utf8',
+			stdio: ['ignore', 'pipe', 'ignore'],
+		});
+	git('init', '-b', 'main');
+
+	const policyFile = 'scripts/policy/file-size-limits.json';
+	const write = (rel, text) => {
+		mkdirSync(join(root, dirname(rel)), { recursive: true });
+		writeFileSync(join(root, rel), text);
+	};
+	const policy = (entries, limit = 1500) =>
+		JSON.stringify({ warn: 500, limit, grandfathered: entries }, null, '\t');
+
+	// Baseline: one grandfathered Rust file at 1,800 lines.
+	write('packages/rust/src/big.rs', fixture(1799));
+	write(
+		policyFile,
+		policy([{ file: 'packages/rust/src/big.rs', lines: 1800, reason: 'Pre-existing' }])
+	);
+	git('add', '-A');
+	git('commit', '-m', 'base');
+	git('switch', '-c', 'work');
+
+	// At ceiling -> pass.
+	assert.equal(runCheck(root).status, 0);
+
+	// Grows past ceiling -> fail.
+	write('packages/rust/src/big.rs', fixture(1805));
+	const grew = runCheck(root);
+	assert.equal(grew.status, 1);
+	assert.match(grew.stderr, /grew past its frozen ceiling of 1800 lines/);
+
+	// Shrinks below 1,500 without removing grandfathered entry -> fail.
+	write('packages/rust/src/big.rs', fixture(1400));
+	const recovered = runCheck(root);
+	assert.equal(recovered.status, 1);
+	assert.match(recovered.stderr, /within the 1500-line limit\); delete its entry/);
+
+	// Trying to add a new file to grandfathered since base -> fail.
+	write('packages/rust/src/big.rs', fixture(1799));
+	write('python/src/afd/new_big.py', fixture(1600));
+	write(
+		policyFile,
+		policy([
+			{ file: 'packages/rust/src/big.rs', lines: 1800, reason: 'Pre-existing' },
+			{ file: 'python/src/afd/new_big.py', lines: 1601, reason: 'Attempted grandfather' },
+		])
+	);
+	const added = runCheck(root);
+	assert.equal(added.status, 1);
+	assert.match(added.stderr, /was added to "grandfathered" since the merge base/);
+
+	// Trying to raise an existing ceiling -> fail.
+	rmSync(join(root, 'python/src/afd/new_big.py'));
+	write('packages/rust/src/big.rs', fixture(1805));
+	write(
+		policyFile,
+		policy([{ file: 'packages/rust/src/big.rs', lines: 1810, reason: 'Pre-existing' }])
+	);
+	const raised = runCheck(root);
+	assert.equal(raised.status, 1);
+	assert.match(raised.stderr, /grandfathered ceiling for packages\/rust\/src\/big\.rs rose/);
+
+	// Trying to raise warn threshold -> fail.
+	write('packages/rust/src/big.rs', fixture(1800));
+	write(
+		policyFile,
+		JSON.stringify(
+			{
+				warn: 900,
+				limit: 1500,
+				grandfathered: [{ file: 'packages/rust/src/big.rs', lines: 1800, reason: 'Pre-existing' }],
+			},
+			null,
+			'\t'
+		)
+	);
+	const warnRaised = runCheck(root);
+	assert.equal(warnRaised.status, 1);
+	assert.match(warnRaised.stderr, /"warn" rose from 500 to 900/);
+
+	// Deleting the policy file when the merge base had one -> fail.
+	rmSync(join(root, policyFile));
+	const deleted = runCheck(root);
+	assert.equal(deleted.status, 1);
+	assert.match(deleted.stderr, /policy file was removed since the merge base/);
 });

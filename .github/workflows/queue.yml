@@ -1,0 +1,45 @@
+name: Merge queue paths
+
+# Reusable gate for path-filtered workflows. A merge group starts every workflow with the
+# `merge_group` trigger regardless of its `paths` filter; this workflow checks the group's
+# diff against the caller's own `pull_request.paths` (scripts/affected.mjs trigger) and passes
+# every other event straight through.
+on:
+  workflow_call:
+    inputs:
+      workflow:
+        description: Caller workflow filename under .github/workflows/ (e.g. rust.yml)
+        required: true
+        type: string
+    outputs:
+      run:
+        description: Whether the caller's jobs should run
+        value: ${{ jobs.queue.outputs.run }}
+
+permissions:
+  contents: read
+
+jobs:
+  queue:
+    name: Merge queue paths
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.paths.outputs.run }}
+    steps:
+      - if: github.event_name == 'merge_group'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          filter: blob:none
+          persist-credentials: false
+      - id: paths
+        env:
+          AFD_BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || github.event.merge_group.base_sha || github.event.before }}
+          WORKFLOW_FILE: ${{ inputs.workflow }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
+            node scripts/affected.mjs trigger "$WORKFLOW_FILE"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi

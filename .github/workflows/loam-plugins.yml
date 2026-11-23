@@ -10,10 +10,11 @@ on:
       - 'endpoints/loam/plugins/**'
       - '!endpoints/loam/plugins/*/docs/**'
       - 'endpoints/loam/plugins/*/docs/scenarios/**'
-      # The crate Mail's engine builds on.
       - 'packages/rust/**'
       - '.cargo/config.toml'
       - '.github/workflows/loam-plugins.yml'
+      - '.github/workflows/queue.yml'
+      - '.github/actions/setup-node-pnpm/**'
   # The merge queue. No path filter applies to it: the `queue` job below does that work.
   merge_group:
   pull_request:
@@ -25,6 +26,8 @@ on:
       - 'packages/rust/**'
       - '.cargo/config.toml'
       - '.github/workflows/loam-plugins.yml'
+      - '.github/workflows/queue.yml'
+      - '.github/actions/setup-node-pnpm/**'
   workflow_dispatch:
 
 permissions:
@@ -40,29 +43,10 @@ concurrency:
 
 jobs:
   queue:
-    # A merge group starts every workflow, whatever its `paths`. The jobs below run for one only
-    # when the files it changes match this workflow's own pull_request.paths; every other event
-    # passes straight through (scripts/affected.mjs trigger).
     name: Merge queue paths
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      run: ${{ steps.paths.outputs.run }}
-    steps:
-      - if: github.event_name == 'merge_group'
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          filter: blob:none
-      - id: paths
-        env:
-          AFD_BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || github.event.merge_group.base_sha || github.event.before }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
-            node scripts/affected.mjs trigger loam-plugins.yml
-          else
-            echo "run=true" >> "$GITHUB_OUTPUT"
-          fi
+    uses: ./.github/workflows/queue.yml
+    with:
+      workflow: loam-plugins.yml
 
   scope:
     # One step per plugin: its own folder but its documents, and what it builds on.
@@ -83,7 +67,7 @@ jobs:
           filter: blob:none
           persist-credentials: false
       - id: mail
-        run: node scripts/affected.mjs gate --path endpoints/loam/plugins/mail/engine/ --path endpoints/loam/plugins/mail/scripts/ --path endpoints/loam/plugins/mail/docs/scenarios/ --path packages/rust/ --path .cargo/config.toml --path .github/workflows/loam-plugins.yml
+        run: node scripts/affected.mjs gate --path endpoints/loam/plugins/mail/engine/ --path endpoints/loam/plugins/mail/scripts/ --path endpoints/loam/plugins/mail/docs/scenarios/ --path packages/rust/ --path .cargo/config.toml --path .github/workflows/loam-plugins.yml --path .github/actions/setup-node-pnpm/
 
   mail:
     name: Mail engine (fmt, clippy, test)
@@ -119,16 +103,8 @@ jobs:
         run: cargo test --no-fail-fast --locked --features test-doubles
       - name: Build test-doubles binary
         run: cargo build --locked --features test-doubles --bin loam-mail
-      - name: Install pnpm
-        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
-      - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - name: Install workspace dependencies
-        working-directory: .
-        run: pnpm install --frozen-lockfile
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-node-pnpm
       - name: Build AFD CLI
         working-directory: .
         run: pnpm -F "@lushly-dev/afd-cli..." build

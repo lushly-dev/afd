@@ -33,7 +33,7 @@ pre-commit:
       run: node scripts/check-portability.mjs {staged_files}
 
     file-size:
-      glob: "*.ts"
+      glob: "*.{ts,tsx,js,mjs,cjs,rs,py,cpp,hpp}"
       run: node scripts/check-file-size.mjs {staged_files}
 
     typecheck:
@@ -100,16 +100,19 @@ pre-push-checks:
       run: node scripts/check-capabilities.mjs
 
     test-configs:
-      run: node .claude/skills/maintain-gates/scripts/check-test-configs.mjs scripts/affected/
+      run: node scripts/check-test-configs.mjs scripts/affected/
 
     test-discovery:
-      run: node .claude/skills/maintain-gates/scripts/check-test-discovery.mjs
+      run: node scripts/check-test-discovery.mjs
 
     test-quarantine:
-      run: node .claude/skills/maintain-gates/scripts/check-test-quarantine.mjs
+      run: node scripts/check-test-quarantine.mjs
 
     boundaries:
       run: pnpm check:boundaries
+
+    ci-sync:
+      run: pnpm check:ci
 
     skills:
       run: pnpm check:skills
@@ -165,16 +168,19 @@ check:
       run: node scripts/check-capabilities.mjs
 
     test-configs:
-      run: node .claude/skills/maintain-gates/scripts/check-test-configs.mjs scripts/affected/
+      run: node scripts/check-test-configs.mjs scripts/affected/
 
     test-discovery:
-      run: node .claude/skills/maintain-gates/scripts/check-test-discovery.mjs
+      run: node scripts/check-test-discovery.mjs
 
     test-quarantine:
-      run: node .claude/skills/maintain-gates/scripts/check-test-quarantine.mjs
+      run: node scripts/check-test-quarantine.mjs
 
     boundaries:
       run: pnpm check:boundaries
+
+    ci-sync:
+      run: pnpm check:ci
 
     skills:
       run: pnpm check:skills

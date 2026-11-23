@@ -12,10 +12,11 @@ function fixture(t) {
 		schemaVersion: 1,
 		families: ['afd', 'violet', 'specimen', 'fast-af'],
 		discoveryRoots: ['foundations', 'integrations', 'endpoints', 'packages'],
-		exclude: ['packages/examples'],
+		exclude: [],
 		quarantine: [],
 		units: [],
 	};
+	for (const dir of config.discoveryRoots) mkdirSync(join(root, dir), { recursive: true });
 	function write(path, value) {
 		mkdirSync(dirname(join(root, path)), { recursive: true });
 		writeFileSync(join(root, path), typeof value === 'string' ? value : JSON.stringify(value));
@@ -237,6 +238,166 @@ test('native families classify without AFD envelopes; Cargo build paths cannot h
 		'[package]\nname = "specimen"\nversion = "1.0.0"\n[build-dependencies]\nalias = { package = "violet", path = "../../violet/rust", version = "1" }\n'
 	);
 	assert.match(f.check().errors.join('\n'), /foundation specimen requires foundation violet/);
+});
+
+test('build-time edges allow foundation-to-foundation, refuse foundation-to-integration/endpoint, report others, and invalidate stale exemptions', (t) => {
+	const f = fixture(t);
+	f.npm('foundations/specimen/base', '@x/specimen');
+	f.npm('integrations/specimen-fast', '@x/specimen-fast', {
+		dependencies: { '@x/specimen': '^1' },
+	});
+	f.npm('endpoints/tool', '@x/tool');
+	// Foundation dev-depending on another family's foundation is allowed and reported.
+	f.npm('foundations/fast-af/elements', '@x/elements', {
+		devDependencies: { '@x/specimen': '^1' },
+	});
+	f.write('foundations/fast-af/elements/scripts/build.mjs', "import '@x/specimen';\n");
+	const ok = f.check();
+	assert.deepEqual(ok.errors, []);
+	assert.deepEqual(ok.buildTimeDependencies['@x/elements'], ['@x/specimen']);
+
+	// Foundation build-time edge to an integration or endpoint is refused.
+	f.write('foundations/fast-af/elements/specimen/plugins.ts', "import '@x/specimen-fast';\n");
+	f.npm('foundations/fast-af/elements', '@x/elements', {
+		devDependencies: { '@x/specimen': '^1', '@x/tool': '^1' },
+	});
+	const bad = f.check().errors.join('\n');
+	assert.match(
+		bad,
+		/build-time edge from foundation @x\/elements to integration @x\/specimen-fast/
+	);
+	assert.match(bad, /build-time edge from foundation @x\/elements to endpoint @x\/tool/);
+
+	// An exemption allows the named edge and fails loudly once the edge disappears.
+	f.config.buildTimeExemptions = [
+		{ from: '@x/elements', to: '@x/specimen-fast', reason: 'Tracked', issue: '#1' },
+		{ from: '@x/elements', to: '@x/tool', reason: 'Tracked', issue: '#2' },
+	];
+	assert.deepEqual(f.check().errors, []);
+	f.npm('foundations/fast-af/elements', '@x/elements', {
+		devDependencies: { '@x/specimen': '^1' },
+	});
+	assert.match(f.check().errors.join('\n'), /Stale buildTimeExemption @x\/elements -> @x\/tool/);
+});
+
+test('endpoint family sub-layers enforce intra-family direction and refuse unclassified units', (t) => {
+	const f = fixture(t);
+	f.config.familyRules = {
+		umbel: {
+			allowed: { base: ['base'], host: ['base'], plugin: ['base', 'host'] },
+			assign: [
+				{ match: 'umbel-sdk', sublayer: 'base' },
+				{ match: 'umbel', sublayer: 'host' },
+				{ prefix: 'umbel-plugin-', sublayer: 'plugin' },
+			],
+		},
+	};
+	f.write('endpoints/umbel/sdk/Cargo.toml', '[package]\nname = "umbel-sdk"\nversion = "1.0.0"\n');
+	f.write(
+		'endpoints/umbel/Cargo.toml',
+		'[package]\nname = "umbel"\nversion = "1.0.0"\n[dependencies]\numbel-sdk = { path = "sdk" }\n'
+	);
+	f.write(
+		'endpoints/umbel/plugins/a/Cargo.toml',
+		'[package]\nname = "umbel-plugin-a"\nversion = "1.0.0"\n[dependencies]\numbel = { path = "../.." }\numbel-sdk = { path = "../../sdk" }\n'
+	);
+	assert.deepEqual(f.check().errors, []);
+
+	// Host depending on a plugin violates the sub-layer rule.
+	f.write(
+		'endpoints/umbel/Cargo.toml',
+		'[package]\nname = "umbel"\nversion = "1.0.0"\n[dependencies]\numbel-plugin-a = { path = "plugins/a" }\n'
+	);
+	assert.match(
+		f.check().errors.join('\n'),
+		/umbel sublayer "host" \(umbel\) may not depend on "plugin" \(umbel-plugin-a\)/
+	);
+
+	// Host dev-depending on a forbidden plugin violates build-time sub-layer rules too.
+	f.write(
+		'endpoints/umbel/Cargo.toml',
+		'[package]\nname = "umbel"\nversion = "1.0.0"\n[dev-dependencies]\numbel-plugin-a = { path = "plugins/a" }\n'
+	);
+	assert.match(
+		f.check().errors.join('\n'),
+		/build-time edge violates umbel sublayer "host" \(umbel\) -> "plugin" \(umbel-plugin-a\)/
+	);
+
+	// An unclassified crate inside a family with familyRules fails.
+	f.write(
+		'endpoints/umbel/mystery/Cargo.toml',
+		'[package]\nname = "umbel-mystery"\nversion = "1.0.0"\n'
+	);
+	assert.match(
+		f.check().errors.join('\n'),
+		/Unclassified sublayer for umbel-mystery in family umbel/
+	);
+});
+
+test('examples are checked with their own rule and stale discoveryRoots fail', (t) => {
+	const f = fixture(t);
+	f.npm('foundations/afd/core', '@x/core');
+	f.npm('endpoints/umbel', 'umbel');
+	f.npm('packages/examples/todo', '@x/todo', {
+		dependencies: { '@x/core': '^1' },
+	});
+	assert.deepEqual(f.check().errors, []);
+
+	// Example depending on an endpoint (runtime or build-time script) fails.
+	f.npm('packages/examples/todo', '@x/todo', {
+		dependencies: { '@x/core': '^1' },
+		scripts: { 'test:umbel': 'cd ../../../endpoints/umbel && cargo test' },
+	});
+	assert.match(
+		f.check().errors.join('\n'),
+		/build-time edge from example @x\/todo to endpoint umbel/
+	);
+
+	// Non-example depending on an example (runtime or build-time) fails unless runtime-exempted.
+	f.npm('endpoints/umbel', 'umbel', {
+		dependencies: { '@x/todo': '^1' },
+		devDependencies: { '@x/todo': '^1' },
+	});
+	const toExample = f.check().errors.join('\n');
+	assert.match(toExample, /endpoint umbel requires example @x\/todo/);
+	assert.match(toExample, /build-time edge from endpoint umbel to example @x\/todo/);
+	f.config.runtimeExemptions = [
+		{ from: 'umbel', to: '@x/todo', reason: 'Conformance', issue: '#1' },
+	];
+	f.config.buildTimeExemptions = [
+		{ from: '@x/todo', to: 'umbel', reason: 'Conformance', issue: '#1' },
+		{ from: 'umbel', to: '@x/todo', reason: 'Conformance', issue: '#1' },
+	];
+	assert.deepEqual(f.check().errors, []);
+	f.npm('endpoints/umbel', 'umbel');
+	assert.match(f.check().errors.join('\n'), /Stale runtimeExemption umbel -> @x\/todo/);
+
+	// Python test imports outside src/ are checked as build-time edges.
+	f.write('foundations/afd-py/pyproject.toml', '[project]\nname = "afd"\nversion = "0.1.0"\n');
+	f.write('foundations/afd-py/tests/test_bad.py', 'import botcore\n');
+	f.write('endpoints/botcore/pyproject.toml', '[project]\nname = "botcore"\nversion = "0.1.0"\n');
+	f.config.units.push(
+		{
+			manifest: 'foundations/afd-py/pyproject.toml',
+			family: 'afd',
+			layer: 'foundation',
+			pythonModules: ['afd'],
+		},
+		{
+			manifest: 'endpoints/botcore/pyproject.toml',
+			family: 'botcore',
+			layer: 'endpoint',
+			pythonModules: ['botcore'],
+		}
+	);
+	assert.match(
+		f.check().errors.join('\n'),
+		/build-time Python import: build-time edge from foundation afd to endpoint botcore/
+	);
+
+	// Stale discoveryRoot fails.
+	f.config.discoveryRoots.push('nonexistent-tools');
+	assert.match(f.check().errors.join('\n'), /Stale discoveryRoot "nonexistent-tools"/);
 });
 
 function laneFixture(t) {
