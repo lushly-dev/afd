@@ -23,9 +23,10 @@ never set.
 
 ## Shape
 
-- **Type `Epic`**, the organization's issue type, which is what tools query:
-  `gh issue create --type Epic`, or `gh issue edit <n> --type Epic`. A title
-  prefix alone is not an epic; set the type on one that lacks it.
+- **Type `Epic`**, the organization's issue type, which is what tools query. A
+  title prefix alone is not an epic; set the type on one that lacks it with
+  `updateIssueIssueType` (see [The GraphQL calls](#the-graphql-calls)): `gh`
+  2.88.1 has no `--type` flag.
 - **Title** `Epic: <name>, <the outcome in a clause>`. Lushly's epics use
   `epic(<area>): <outcome>`, its own convention; tools match either.
 - **Body:** the outcome in a sentence, the plan or `STATUS.md` as a full
@@ -42,10 +43,10 @@ never set.
 
 ## Sub-issues
 
-Attach children as real sub-issues: `gh issue create --parent <epic>` when filing,
-`gh issue edit <child> --parent <epic>` for an existing issue (run
-`gh issue edit <child> --remove-parent` first if it has another parent). A "Parent: #N" line in a body is invisible to every tool
-that reads the tree.
+Attach children as real sub-issues with `addSubIssue`, and detach one with
+`removeSubIssue` (see [The GraphQL calls](#the-graphql-calls)), then read the
+link back. A "Parent: #N" line in a body is invisible to every tool that reads
+the tree.
 
 - An issue has one parent, and a parent holds at most 100 sub-issues.
 - A follow-up filed from a plan, a specification or a review goes under its epic
@@ -53,6 +54,44 @@ that reads the tree.
 - Nest an epic under a programme epic when its plan is one phase of a larger one:
   Loam's active phases sit under the Loam epic. Keep it to two levels.
 - An issue that serves no epic stays unparented; don't force a fit.
+
+## The GraphQL calls
+
+`gh` 2.88.1 (2026-03-12), on at least one of the owner's machines, has no
+`--parent`, `--remove-parent` or `--type` flag on `gh issue create` or
+`gh issue edit`, so use these calls, which work on any `gh`. Each takes node ids;
+look one up by number:
+
+```bash
+gh api graphql -F n=<number> -f query='query($n:Int!){repository(owner:"lushly-dev",name:"afd"){issue(number:$n){id}}}' --jq .data.repository.issue.id
+```
+
+- **Attach:** `addSubIssue` with `issueId` the epic's id and `subIssueId` the
+  child's. "Issue may not contain duplicate sub-issues" means it is already
+  attached there.
+
+  ```bash
+  gh api graphql -f epic=<epic id> -f child=<child id> -f query='mutation($epic:ID!,$child:ID!){addSubIssue(input:{issueId:$epic,subIssueId:$child}){issue{number}}}'
+  ```
+
+- **Move** a child that has another parent: the same call with
+  `replaceParent:true` beside `subIssueId`, which takes it from its old parent.
+
+- **Detach:** `removeSubIssue`, with the same two inputs.
+- **Type `Epic`:** `updateIssueIssueType` with `issueId` and `issueTypeId`. Read
+  the type's id from the organization, never from memory:
+
+  ```bash
+  gh api graphql -f query='{organization(login:"lushly-dev"){issueTypes(first:20){nodes{id name}}}}'
+  gh api graphql -f id=<issue id> -f type=<Epic type id> -f query='mutation($id:ID!,$type:ID!){updateIssueIssueType(input:{issueId:$id,issueTypeId:$type}){issue{number issueType{name}}}}'
+  ```
+
+- **Read back** every change; the call succeeding is not the proof. The child
+  names its parent, and the epic lists the child and its own type:
+
+  ```bash
+  gh api graphql -F n=<number> -f query='query($n:Int!){repository(owner:"lushly-dev",name:"afd"){issue(number:$n){issueType{name} parent{number} subIssues(first:100){nodes{number}}}}}'
+  ```
 
 ## Closing
 
