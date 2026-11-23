@@ -49,6 +49,7 @@ import type { McpToolDefinition } from './meta-tools.js';
 import { bindOutputBudgetAsk, SKIP_OUTPUT_BUDGET } from './output-budget.js';
 import type { ZodCommandDefinition } from './schema.js';
 import type { ContextConfig, ToolStrategy } from './server-types.js';
+import { resolveMaxValidationIssues } from './validation.js';
 
 /**
  * The options key only `createAppCallRegistry` sets, which checks every call first. Neither entry
@@ -122,6 +123,15 @@ export interface DirectRegistryOptions {
 	 * it is given, and does not load the tool router.
 	 */
 	tools?: DirectToolSurface;
+
+	/** Maximum commands accepted in a single batch (default: 500). */
+	maxBatchSize?: number;
+
+	/** Maximum parallelism accepted in a single batch (default: 16). */
+	maxBatchParallelism?: number;
+
+	/** Maximum validation issues reported per `VALIDATION_ERROR` (default: 100). */
+	maxValidationIssues?: number;
 }
 
 /** Options of one {@link DirectCommandRegistry.execute} call, passed beside the command context. */
@@ -193,6 +203,8 @@ export interface DirectToolHost {
 	executeCommand(name: string, input: unknown, context?: CommandContext): Promise<CommandResult>;
 	executeBatch(request: BatchRequest, context?: CommandContext): Promise<BatchResult>;
 	executePipeline(request: PipelineRequest, context?: CommandContext): Promise<PipelineResult>;
+	readonly maxBatchSize?: number;
+	readonly maxBatchParallelism?: number;
 }
 
 /** A tool surface attached to one registry. */
@@ -371,6 +383,19 @@ export function createDirectRegistry(
 	const contexts = [...(options.contexts ?? [])];
 	const contextNames = new Set(contexts.map((context) => context.name));
 	const contextFields = checkContextFields(options.contextFields);
+	if (
+		options.maxBatchSize !== undefined &&
+		(!Number.isInteger(options.maxBatchSize) || options.maxBatchSize < 1)
+	) {
+		throw new RangeError('maxBatchSize must be a positive integer');
+	}
+	if (
+		options.maxBatchParallelism !== undefined &&
+		(!Number.isInteger(options.maxBatchParallelism) || options.maxBatchParallelism < 1)
+	) {
+		throw new RangeError('maxBatchParallelism must be a positive integer');
+	}
+	const maxValidationIssues = resolveMaxValidationIssues(options.maxValidationIssues);
 	const devMode = options.devMode ?? false;
 
 	const registered = new Map<string, ZodCommandDefinition>();
@@ -398,6 +423,8 @@ export function createDirectRegistry(
 		executeCommand: (name, input, context) => engine.executeCommand(name, input, context),
 		executeBatch: (request, context) => engine.executeBatch(request, context),
 		executePipeline: (request, context) => engine.executePipeline(request, context),
+		maxBatchSize: options.maxBatchSize,
+		maxBatchParallelism: options.maxBatchParallelism,
 	});
 	for (const command of tools?.commands ?? []) register(command);
 
@@ -413,6 +440,9 @@ export function createDirectRegistry(
 		contextFields,
 		// Refusals name afd-discover and the context tools only where the surface serves them.
 		suggestTools: tools !== undefined,
+		maxBatchSize: options.maxBatchSize,
+		maxBatchParallelism: options.maxBatchParallelism,
+		maxValidationIssues,
 	});
 
 	/**

@@ -1412,6 +1412,10 @@ struct StdioServer::State {
         if (!parsed) {
             return invalid(parsed.error().details);
         }
+        if (auto limit_error = check_batch_limits(*parsed, registry.max_batch_size(),
+                                                  registry.max_batch_parallelism())) {
+            return batch_failure(std::move(*limit_error), now());
+        }
         std::vector<std::pair<std::string, Json>> steps;
         for (auto& item : parsed->commands) {
             // A missing or null input is an empty one, as on a command's own tool.

@@ -548,12 +548,16 @@ export function validationCases(z) {
 			],
 		},
 		{
-			id: 'issue-count-uncapped',
+			id: 'issue-count-capped',
 			section: 'issues',
 			description:
-				'Every issue is reported, including more than 100 issues and every suggestion line.',
+				'Issues are capped at maxValidationIssues (default 100); details.truncated, details.limit and details.totalErrors are set and suggestion notes truncation.',
 			zod: z.object({ values: z.array(z.string()) }),
-			tests: [test('101 invalid array items produce 101 issues', { values: Array(101).fill(0) })],
+			tests: [
+				test('101 invalid array items are capped at 100 issues with truncation metadata', {
+					values: Array(101).fill(0),
+				}),
+			],
 		},
 
 		// ── Optional keywords ────────────────────────────────────────────────────────────────

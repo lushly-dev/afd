@@ -272,7 +272,12 @@ def define_command(
     return decorator
 
 
-def validate_command_input(input_schema: Optional[Union[Type[BaseModel], Dict[str, Any]]], raw_input: Any) -> Any:
+def validate_command_input(
+    input_schema: Optional[Union[Type[BaseModel], Dict[str, Any]]],
+    raw_input: Any,
+    *,
+    max_issues: int | None = None,
+) -> Any:
     """The value a command's handler receives for ``raw_input``.
 
     Without a schema, ``raw_input`` unchanged. With one, an instance of the
@@ -288,7 +293,10 @@ def validate_command_input(input_schema: Optional[Union[Type[BaseModel], Dict[st
         return raw_input
     if not isinstance(input_schema, dict) and isinstance(raw_input, input_schema):
         return raw_input
-    data = validate_schema(_advertised_schema(input_schema), {} if raw_input is None else raw_input)
+    kwargs = {} if max_issues is None else {"max_issues": max_issues}
+    data = validate_schema(
+        _advertised_schema(input_schema), {} if raw_input is None else raw_input, **kwargs
+    )
     if isinstance(input_schema, dict):
         return data
     # Schema defaults are already trusted. Leave absent fields absent for the

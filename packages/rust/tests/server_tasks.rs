@@ -69,7 +69,7 @@ impl CommandHandler for Echo {
         success(json!({
             "input": input,
             "actor": context.actor,
-            "task": context.cancellation().is_some(),
+            "task": context.is_task(),
         }))
     }
 }

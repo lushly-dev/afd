@@ -87,6 +87,12 @@ export interface ExecutionDeps {
 		input: unknown,
 		context: CommandContext
 	) => Promise<EnhancedValidationResult<unknown> | undefined> | undefined;
+	/** Maximum commands accepted in a single batch (default: 500). */
+	maxBatchSize?: number;
+	/** Maximum parallelism accepted in a single batch (default: 16). */
+	maxBatchParallelism?: number;
+	/** Maximum validation issues reported in a single `VALIDATION_ERROR` (default: 100). */
+	maxValidationIssues?: number;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -188,7 +194,7 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 			// to run it on the input the human was shown (#1414).
 			validation =
 				(await deps.validated?.(commandName, input, context)) ??
-				validateInputEnhanced(command.inputSchema, input);
+				validateInputEnhanced(command.inputSchema, input, deps.maxValidationIssues);
 		} catch (error) {
 			const err = toError(error);
 			reportError(err);
@@ -208,12 +214,21 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 					expectedFields: validation.expectedFields,
 					unexpectedFields: validation.unexpectedFields,
 					missingFields: validation.missingFields,
+					truncated: validation.truncated,
+					limit: validation.limit,
 				}),
 				details: {
 					errors: validation.errors,
 					expectedFields: validation.expectedFields,
 					unexpectedFields: validation.unexpectedFields,
 					missingFields: validation.missingFields,
+					...(validation.truncated
+						? {
+								truncated: true,
+								limit: validation.limit,
+								totalErrors: validation.totalErrors,
+							}
+						: {}),
 				},
 			});
 		}
@@ -313,7 +328,11 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 	 * error handling as a single call.
 	 */
 	function executeBatch(request: BatchRequest, context: CommandContext = {}): Promise<BatchResult> {
-		return executeCoreBatch(request, executeCommand, context, { devMode });
+		return executeCoreBatch(request, executeCommand, context, {
+			devMode,
+			maxBatchSize: deps.maxBatchSize,
+			maxBatchParallelism: deps.maxBatchParallelism,
+		});
 	}
 
 	/**

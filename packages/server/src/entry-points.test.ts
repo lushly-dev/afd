@@ -286,6 +286,9 @@ const HOST_IMPORTS =
  *   installed copy reads it, which brings the approval bundle to 57,719 bytes with esbuild 0.28.2
  *   (57,532 at `e28d5629`); merged with the output budgets above it stays within their 62,100. The
  *   other three stay within their ceilings.
+ *   Execution controls enforcement (#2128, under D115): `checkBatchLimits` in `command-execution.ts`
+ *   and `DEFAULT_MAX_VALIDATION_ISSUES` truncation in `validation.ts` / `execution.ts` merged on
+ *   `main` at `804e17cc3` (`command-timeout.ts` stays outside `/direct`).
  * - 48.0 KB for a host that also imports `createApprovalMiddleware`.
  * - 68.6 KB for a host that also imports `createDirectToolSurface`: the router, the tool
  *   list, the meta-tools, `lazy-tools` and `bootstrap/`.
@@ -298,17 +301,17 @@ const DIRECT_BUDGETS = [
 	{
 		what: 'a host that imports the registry, the journal and defineCommand',
 		imports: HOST_IMPORTS,
-		bytes: 48_400,
+		bytes: 50_500,
 	},
 	{
 		what: 'the same host with the approval middleware',
 		imports: `${HOST_IMPORTS}, createApprovalMiddleware`,
-		bytes: 62_100,
+		bytes: 64_200,
 	},
 	{
 		what: 'a host with the tool surface',
 		imports: `${HOST_IMPORTS}, createDirectToolSurface`,
-		bytes: 86_300,
+		bytes: 88_500,
 	},
 	{ what: 'every export', imports: undefined, bytes: 119_500 },
 ];

@@ -76,6 +76,12 @@ struct CommandRegistryOptions {
     /// of fields declared `journal`. Checked when the registry is created: use
     /// `CommandRegistry::create` to get the error.
     std::vector<ContextField> context_fields;
+    /// Maximum number of commands accepted in a single batch (default: 500; must be >= 1).
+    std::size_t max_batch_size = default_max_batch_size;
+    /// Maximum `options.parallelism` accepted in a single batch (default: 16; must be >= 1).
+    std::size_t max_batch_parallelism = default_max_batch_parallelism;
+    /// Maximum validation issues reported per `VALIDATION_ERROR` (default: 100; must be >= 1).
+    std::size_t max_validation_issues = default_max_validation_issues;
 };
 
 /// How `CommandRegistry::list_by_tags` matches a command's tags.
@@ -133,6 +139,13 @@ public:
     /// apply.
     [[nodiscard]] const std::vector<ContextField>& context_fields() const noexcept {
         return options_.context_fields;
+    }
+    [[nodiscard]] std::size_t max_batch_size() const noexcept { return options_.max_batch_size; }
+    [[nodiscard]] std::size_t max_batch_parallelism() const noexcept {
+        return options_.max_batch_parallelism;
+    }
+    [[nodiscard]] std::size_t max_validation_issues() const noexcept {
+        return options_.max_validation_issues;
     }
 
     /// Executes one command, in the TypeScript engine's order:

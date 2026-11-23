@@ -189,9 +189,10 @@ describe('P2-E1: one first paint', () => {
 		// unit's entries), #865 (`JOURNAL_RESULT_UNSERIALIZABLE` fallback in `afd-server`'s journal middleware), and
 		// #1989 / PR #2215 (TypeScript output budgets in `afd-core` and `afd-server`), the Phase 4 bug batch
 		// (#2111/#2112 stage A `boot.gated` and layout reconciliation), #2117 (`journal-order.ts` cycle-free RAW/WAR
-		// DAG, `track`, `suspend`, measured 342,980 against `main` at `804e17cc`), and #1045 / #1634 (WAW ordering and
-		// blocking writer-lock wait).
-		expect(javascript).toBeLessThanOrEqual(344_000);
+		// DAG, `track`, `suspend`), #1045 / #1634 (WAW ordering and blocking writer-lock wait), and #2128
+		// (execution-controls batch limits in `afd-core` and validation issue cap in `afd-server/direct`, combined
+		// build measured 345,762 against `main` at `88cd5f02b`).
+		expect(javascript).toBeLessThanOrEqual(346_200);
 		expect(javascript).toBe(budgetRow());
 		// Stage B still runs in every deployment: `late` loads after the mark, on the empty shell too.
 		await expect

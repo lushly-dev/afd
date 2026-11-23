@@ -162,6 +162,8 @@ from afd.core.handoff import (
     create_handoff,
 )
 from afd.core.batch import (
+    DEFAULT_MAX_BATCH_PARALLELISM,
+    DEFAULT_MAX_BATCH_SIZE,
     BatchCommand,
     BatchOptions,
     BatchRequest,
@@ -170,6 +172,7 @@ from afd.core.batch import (
     BatchTiming,
     BatchWarning,
     BatchResult,
+    check_batch_limits,
     create_batch_request,
     calculate_batch_confidence,
     create_batch_result,
@@ -360,6 +363,8 @@ __all__ = [
     "get_handoff_protocol",
     "create_handoff",
     # Batch types
+    "DEFAULT_MAX_BATCH_SIZE",
+    "DEFAULT_MAX_BATCH_PARALLELISM",
     "BatchCommand",
     "BatchOptions",
     "BatchRequest",
@@ -368,6 +373,7 @@ __all__ = [
     "BatchTiming",
     "BatchWarning",
     "BatchResult",
+    "check_batch_limits",
     "create_batch_request",
     "calculate_batch_confidence",
     "create_batch_result",

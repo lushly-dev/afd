@@ -10,7 +10,12 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 from afd.core.actor import Actor
-from afd.core.batch import create_failed_batch_result
+from afd.core.batch import (
+    DEFAULT_MAX_BATCH_PARALLELISM,
+    DEFAULT_MAX_BATCH_SIZE,
+    check_batch_limits,
+    create_failed_batch_result,
+)
 from afd.core.commands import CommandContext, CommandDefinition
 from afd.core.output_budget import current_output_budget_ask
 from afd.core.pipeline import create_pipeline_failure
@@ -71,6 +76,9 @@ class ToolRouterDeps:
     # Verified credentials and per-request ScopeView admitted by AFD's HTTP auth layer, if any.
     get_admitted_credentials: Callable[[], Any] | None = None
     get_scope_view: Callable[[], ScopeView | None] | None = None
+    # Batch execution limits enforced before confirmations/approvals (spec/execution-controls.md).
+    max_batch_size: int = DEFAULT_MAX_BATCH_SIZE
+    max_batch_parallelism: int = DEFAULT_MAX_BATCH_PARALLELISM
 
 NOT_IN_CONTEXT_SUGGESTION = (
     "Use afd-context-list to see available contexts, or afd-context-enter to switch."
@@ -202,6 +210,8 @@ def create_tool_router(deps: ToolRouterDeps):
                 clock=hook_ctx.clock,
                 random=hook_ctx.random,
                 approval=hook_ctx.approval,
+                cancel=hook_ctx.cancel,
+                signal=hook_ctx.signal,
                 credentials=admitted,
                 _output_budget_ask=budget_ask,
                 _scope_view=view,
@@ -374,6 +384,13 @@ def create_tool_router(deps: ToolRouterDeps):
             return execute_detail(visible_all_commands, exposed_command_names, {} if args is None else args)
 
         if tool_name == "afd-batch":
+            limit_error = check_batch_limits(
+                args,
+                max_batch_size=deps.max_batch_size,
+                max_batch_parallelism=deps.max_batch_parallelism,
+            )
+            if limit_error is not None:
+                return create_failed_batch_result(limit_error)
             if deps.refuse_composite_task is not None:
                 required_task = _first_required_task(args, "commands", known_by_name)
                 if required_task is not None:

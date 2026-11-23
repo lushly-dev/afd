@@ -144,7 +144,7 @@ async fn whole_schema_discovery_matches_dispatch_and_registration_is_atomic() {
 }
 
 #[tokio::test]
-async fn whole_schema_reports_every_issue_and_handles_large_bounds() {
+async fn whole_schema_caps_issues_at_default_limit_and_handles_large_bounds() {
     let registry = CommandRegistry::new();
     registry.register_with_schema(CommandDefinition::new("test-many","Many",vec![],Echo),json!({"type":"object","properties":{"items":{"type":"array","items":{"type":"string"}}}})).unwrap();
     let result = registry
@@ -152,10 +152,27 @@ async fn whole_schema_reports_every_issue_and_handles_large_bounds() {
         .await
         .error
         .unwrap();
+    let details = result.details.unwrap();
     assert_eq!(
-        result.details.unwrap()["errors"].as_array().unwrap().len(),
-        125
+        details["errors"].as_array().unwrap().len(),
+        afd::DEFAULT_MAX_VALIDATION_ISSUES
     );
+    assert_eq!(details.get("truncated"), Some(&json!(true)));
+    assert_eq!(
+        details.get("limit"),
+        Some(&json!(afd::DEFAULT_MAX_VALIDATION_ISSUES))
+    );
+    assert_eq!(details.get("totalErrors"), Some(&json!(125)));
+
+    registry.set_max_validation_issues(200).unwrap();
+    let expanded = registry
+        .execute("test-many", json!({"items":vec![0;125]}), None)
+        .await
+        .error
+        .unwrap();
+    let expanded_details = expanded.details.unwrap();
+    assert_eq!(expanded_details["errors"].as_array().unwrap().len(), 125);
+    assert!(!expanded_details.contains_key("truncated"));
     registry
         .register_with_schema(
             CommandDefinition::new("test-large", "Large", vec![], Echo),

@@ -12,6 +12,7 @@ import type {
 	StreamChunk,
 } from '@lushly-dev/afd-core';
 import {
+	checkBatchLimits,
 	createErrorChunk,
 	createFailedBatchResult,
 	failedBatchRequest,
@@ -124,6 +125,10 @@ export interface HttpHandlerDeps extends HttpSecurityOptions {
 	actor?: Actor;
 	/** MCP Tasks runtime for refusing `task: 'required'` on the 2025 `/message` lane. */
 	tasks?: TaskRuntime;
+	/** Maximum commands accepted in a single batch (default: 500). */
+	maxBatchSize?: number;
+	/** Maximum parallelism accepted in a single batch (default: 16). */
+	maxBatchParallelism?: number;
 }
 
 function json(res: ServerResponse, status: number, body: unknown): void {
@@ -615,6 +620,14 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 			const request = await readJsonBody(req, maxBodyBytes);
 			if (!isBatchRequest(request)) {
 				json(res, 400, failedBatchRequest());
+				return;
+			}
+			const limitError = checkBatchLimits(request, {
+				maxBatchSize: deps.maxBatchSize,
+				maxBatchParallelism: deps.maxBatchParallelism,
+			});
+			if (limitError) {
+				json(res, 400, createFailedBatchResult(limitError, {}));
 				return;
 			}
 			const steps = request.commands.map((item) => ({

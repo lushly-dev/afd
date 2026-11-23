@@ -575,12 +575,31 @@ pub(crate) fn validate_value(schema: &Value, value: &Value) -> Result<Value, Vec
         .collect())
 }
 
+#[cfg(feature = "server")]
 pub(crate) fn execute(schema: &Value, input: Value) -> Result<Value, Box<CommandError>> {
+    execute_with_limit(
+        schema,
+        input,
+        crate::commands::DEFAULT_MAX_VALIDATION_ISSUES,
+    )
+}
+
+pub(crate) fn execute_with_limit(
+    schema: &Value,
+    input: Value,
+    max_issues: usize,
+) -> Result<Value, Box<CommandError>> {
+    let limit = max_issues.max(1);
     let input = if input.is_null() { json!({}) } else { input };
     let mut errors = Vec::new();
     let parsed = validate(Some(&input), schema, schema, "", &mut errors, 0);
     if errors.is_empty() {
         return Ok(parsed.unwrap_or(Value::Null));
+    }
+    let total_errors = errors.len();
+    let truncated = total_errors > limit;
+    if truncated {
+        errors.truncate(limit);
     }
     let properties = schema.get("properties").and_then(Value::as_object);
     let expected: Vec<String> = properties
@@ -645,6 +664,14 @@ pub(crate) fn execute(schema: &Value, input: Value) -> Result<Value, Box<Command
             details.insert(key.into(), json!(fields));
             parts.push(format!("{label}: {}", fields.join(", ")));
         }
+    }
+    if truncated {
+        details.insert("truncated".into(), json!(true));
+        details.insert("limit".into(), json!(limit));
+        details.insert("totalErrors".into(), json!(total_errors));
+        parts.push(format!(
+            "Showing first {limit} validation issues; fix these and retry"
+        ));
     }
     Err(Box::new(
         CommandError::new(error_codes::VALIDATION_ERROR, "Input validation failed")

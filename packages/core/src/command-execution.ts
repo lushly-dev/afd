@@ -25,6 +25,12 @@ import { failure } from './result.js';
 import type { ErrorChunk, StreamChunk } from './streaming.js';
 import { createCompleteChunk, createErrorChunk } from './streaming.js';
 
+/** Normative default maximum number of commands in a single batch (`spec/execution-controls.md`). */
+export const DEFAULT_MAX_BATCH_SIZE = 500;
+
+/** Normative default maximum concurrent commands in a single batch (`spec/execution-controls.md`). */
+export const DEFAULT_MAX_BATCH_PARALLELISM = 16;
+
 /**
  * Options shared by the core executors.
  */
@@ -38,6 +44,61 @@ export interface ExecutorOptions {
 	 * `createMcpServer()`.
 	 */
 	devMode?: boolean;
+	/**
+	 * Maximum number of commands accepted in a single batch (positive integer).
+	 * Default: {@link DEFAULT_MAX_BATCH_SIZE} (`500`).
+	 */
+	maxBatchSize?: number;
+	/**
+	 * Maximum `options.parallelism` accepted in a single batch (positive integer).
+	 * Default: {@link DEFAULT_MAX_BATCH_PARALLELISM} (`16`).
+	 */
+	maxBatchParallelism?: number;
+}
+
+function resolveBatchLimit(value: number | undefined, fallback: number, name: string): number {
+	if (value === undefined) return fallback;
+	if (!Number.isSafeInteger(value) || value <= 0) {
+		throw new RangeError(`${name} must be a positive integer`);
+	}
+	return value;
+}
+
+/**
+ * Validate a batch request against configured size and parallelism limits (`spec/execution-controls.md`).
+ * Returns an `INVALID_BATCH_REQUEST` error when a limit is exceeded, or `undefined` when within limits.
+ */
+export function checkBatchLimits(
+	request: BatchRequest,
+	limits?: Pick<ExecutorOptions, 'maxBatchSize' | 'maxBatchParallelism'>
+): CommandError | undefined {
+	const maxSize = resolveBatchLimit(limits?.maxBatchSize, DEFAULT_MAX_BATCH_SIZE, 'maxBatchSize');
+	const maxParallelism = resolveBatchLimit(
+		limits?.maxBatchParallelism,
+		DEFAULT_MAX_BATCH_PARALLELISM,
+		'maxBatchParallelism'
+	);
+	const limitsHint = `Send between 1 and ${maxSize} commands with parallelism at most ${maxParallelism}`;
+	if (request.commands.length > maxSize) {
+		return {
+			code: 'INVALID_BATCH_REQUEST',
+			message: `Batch size ${request.commands.length} exceeds maximum of ${maxSize} commands`,
+			suggestion: limitsHint,
+			retryable: false,
+			details: { count: request.commands.length, maxBatchSize: maxSize },
+		};
+	}
+	const requestedParallelism = request.options?.parallelism ?? 1;
+	if (requestedParallelism > maxParallelism) {
+		return {
+			code: 'INVALID_BATCH_REQUEST',
+			message: `Batch parallelism ${requestedParallelism} exceeds maximum of ${maxParallelism}`,
+			suggestion: limitsHint,
+			retryable: false,
+			details: { parallelism: requestedParallelism, maxBatchParallelism: maxParallelism },
+		};
+	}
+	return undefined;
 }
 
 function round(ms: number): number {
@@ -144,9 +205,24 @@ export async function executeBatch(
 	const startedAt = new Date().toISOString();
 	const startTime = performance.now();
 	const devMode = options.devMode === true;
+	const maxBatchSize = resolveBatchLimit(
+		options.maxBatchSize,
+		DEFAULT_MAX_BATCH_SIZE,
+		'maxBatchSize'
+	);
+	const maxBatchParallelism = resolveBatchLimit(
+		options.maxBatchParallelism,
+		DEFAULT_MAX_BATCH_PARALLELISM,
+		'maxBatchParallelism'
+	);
 
 	if (!isBatchRequest(request) || request.commands.length === 0) {
 		return failedBatchRequest({ startedAt });
+	}
+
+	const limitError = checkBatchLimits(request, { maxBatchSize, maxBatchParallelism });
+	if (limitError) {
+		return createFailedBatchResult(limitError, { startedAt });
 	}
 
 	const { commands } = request;

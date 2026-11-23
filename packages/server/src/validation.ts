@@ -42,6 +42,17 @@ export function mapZodIssueCode(zodCode: string): ValidationIssueCode {
 		: 'custom';
 }
 
+/** Normative default cap on reported issues per `VALIDATION_ERROR` (`spec/execution-controls.md`). */
+export const DEFAULT_MAX_VALIDATION_ISSUES = 100;
+
+export function resolveMaxValidationIssues(maxIssues: number | undefined): number {
+	if (maxIssues === undefined) return DEFAULT_MAX_VALIDATION_ISSUES;
+	if (!Number.isSafeInteger(maxIssues) || maxIssues <= 0) {
+		throw new RangeError('maxValidationIssues must be a positive integer');
+	}
+	return maxIssues;
+}
+
 export interface ValidationError {
 	path: string;
 	message: string;
@@ -52,7 +63,14 @@ export interface ValidationError {
 
 export type ValidationResult<T> =
 	| { success: true; data: T; errors: never[] }
-	| { success: false; data: undefined; errors: ValidationError[] };
+	| {
+			success: false;
+			data: undefined;
+			errors: ValidationError[];
+			truncated?: boolean;
+			limit?: number;
+			totalErrors?: number;
+	  };
 
 export interface SchemaInfo {
 	expectedFields: string[];
@@ -67,19 +85,36 @@ export interface EnhancedValidationResult<T> {
 	expectedFields?: string[];
 	unexpectedFields?: string[];
 	missingFields?: string[];
+	truncated?: boolean;
+	limit?: number;
+	totalErrors?: number;
 }
 
-export function validateInput<T>(schema: $ZodType<T>, input: unknown): ValidationResult<T> {
+export function validateInput<T>(
+	schema: $ZodType<T>,
+	input: unknown,
+	maxIssues = DEFAULT_MAX_VALIDATION_ISSUES
+): ValidationResult<T> {
+	const limit = resolveMaxValidationIssues(maxIssues);
 	const result = safeParse(schema, input, { reportInput: true });
 	if (result.success) return { success: true, data: result.data, errors: [] as never[] };
-	return { success: false, data: undefined, errors: result.error.issues.map(formatZodIssue) };
+	const totalErrors = result.error.issues.length;
+	const truncated = totalErrors > limit;
+	const issues = truncated ? result.error.issues.slice(0, limit) : result.error.issues;
+	return {
+		success: false,
+		data: undefined,
+		errors: issues.map(formatZodIssue),
+		...(truncated ? { truncated: true, limit, totalErrors } : {}),
+	};
 }
 
 export function validateInputEnhanced<T>(
 	schema: $ZodType<T>,
-	input: unknown
+	input: unknown,
+	maxIssues = DEFAULT_MAX_VALIDATION_ISSUES
 ): EnhancedValidationResult<T> {
-	const result = validateInput(schema, input);
+	const result = validateInput(schema, input, maxIssues);
 	if (result.success) return { success: true, data: result.data, errors: [] };
 	const schemaInfo = extractSchemaInfo(schema, input);
 	return {
@@ -90,6 +125,9 @@ export function validateInputEnhanced<T>(
 		unexpectedFields:
 			schemaInfo.unexpectedFields.length > 0 ? schemaInfo.unexpectedFields : undefined,
 		missingFields: schemaInfo.missingFields.length > 0 ? schemaInfo.missingFields : undefined,
+		...(result.truncated
+			? { truncated: true, limit: result.limit, totalErrors: result.totalErrors }
+			: {}),
 	};
 }
 
@@ -131,7 +169,13 @@ export function formatValidationErrors(errors: ValidationError[]): string {
 
 export function formatEnhancedValidationError(
 	errors: ValidationError[],
-	schemaInfo?: { expectedFields?: string[]; unexpectedFields?: string[]; missingFields?: string[] }
+	schemaInfo?: {
+		expectedFields?: string[];
+		unexpectedFields?: string[];
+		missingFields?: string[];
+		truncated?: boolean;
+		limit?: number;
+	}
 ): string {
 	const parts: string[] = [];
 	if (errors.length > 0) parts.push(formatValidationErrors(errors));
@@ -142,6 +186,10 @@ export function formatEnhancedValidationError(
 			parts.push(`Missing required field(s): ${schemaInfo.missingFields.join(', ')}`);
 		if (schemaInfo.expectedFields?.length)
 			parts.push(`Expected fields: ${schemaInfo.expectedFields.join(', ')}`);
+		if (schemaInfo.truncated) {
+			const shown = schemaInfo.limit ?? errors.length;
+			parts.push(`Showing first ${shown} validation issues; fix these and retry`);
+		}
 	}
 	return parts.join('. ');
 }

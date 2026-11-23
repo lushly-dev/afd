@@ -146,8 +146,8 @@
 			"evidence": ["packages/rust/src/commands.rs", "packages/rust/tests/server_handler_panic.rs"]
 		},
 		"single.cancellation": {
-			"status": "partial",
-			"note": "per-command timeout drops the future; no signal",
+			"status": "yes",
+			"note": "cooperative `CancellationSignal` / `CancellationToken` on `CommandContext`, linked to per-call and server default `30000` ms (`default_timeout_ms`) deadlines; pre-cancelled single and batch calls return `COMMAND_CANCELLED` (#2130)",
 			"evidence": [
 				"packages/rust/src/cancellation.rs",
 				"packages/rust/tests/execution_controls_vectors.rs"
@@ -319,7 +319,7 @@
 		},
 		"exec.batch": {
 			"status": "yes",
-			"note": "`CommandRegistry::execute_batch`, no free function",
+			"note": "`CommandRegistry::execute_batch`, with `max_batch_size = 500`, `max_batch_parallelism = 16` and `check_batch_limits`; caller cancellation stops scheduling (#2130)",
 			"evidence": ["packages/rust/src/batch.rs", "packages/rust/tests/batch_controls_vectors.rs"]
 		},
 		"exec.pipeline-variables": {

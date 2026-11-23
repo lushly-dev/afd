@@ -1,18 +1,24 @@
 /**
  * Specification-authored execution-controls vectors (`spec/vectors/execution-controls.json`;
- * `spec/execution-controls.md`, #1737).
+ * `spec/execution-controls.md`, #1737, #2128).
  *
- * Runs every case TypeScript implements today (per-call deadline, pre-cancelled single command,
- * pre-cancelled batch) and asserts that unimplemented controls remain listed in `gaps.typescript`
- * (#2128).
+ * Runs every case in the vector file and asserts that `gaps.typescript` is empty/absent.
  */
 import { readFileSync } from 'node:fs';
-import { type BatchRequest, executeBatch, success } from '@lushly-dev/afd-core';
+import {
+	type BatchRequest,
+	DEFAULT_MAX_BATCH_PARALLELISM,
+	DEFAULT_MAX_BATCH_SIZE,
+	executeBatch,
+	success,
+} from '@lushly-dev/afd-core';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { withCommandDeadlines } from './command-timeout.js';
+import { DEFAULT_COMMAND_TIMEOUT_MS, withCommandDeadlines } from './command-timeout.js';
 import { createDirectRegistry } from './direct-registry.js';
 import { defineCommand } from './schema.js';
+import { createMcpServer } from './server.js';
+import { DEFAULT_MAX_VALIDATION_ISSUES } from './validation.js';
 
 interface ExecutionControlsVectors {
 	defaults: {
@@ -29,27 +35,29 @@ const vectors: ExecutionControlsVectors = JSON.parse(
 	readFileSync(new URL('../../../spec/vectors/execution-controls.json', import.meta.url), 'utf8')
 );
 
-const EXECUTED_CONTROLS = new Set(['deadline', 'singleCancellation', 'batchCancellation']);
+const EXECUTED_CONTROLS = new Set([
+	'deadline',
+	'defaultDeadline',
+	'singleCancellation',
+	'batchCancellation',
+	'batchLimits',
+	'validationIssueCap',
+]);
 
 describe('spec/vectors/execution-controls.json', () => {
-	it('pins the normative defaults and accounts for every vector control', () => {
+	it('pins the normative defaults and has no remaining TypeScript gaps', () => {
 		expect(vectors.defaults).toEqual({
-			defaultTimeoutMs: 30_000,
-			maxBatchSize: 500,
-			maxBatchParallelism: 16,
-			maxValidationIssues: 100,
+			defaultTimeoutMs: DEFAULT_COMMAND_TIMEOUT_MS,
+			maxBatchSize: DEFAULT_MAX_BATCH_SIZE,
+			maxBatchParallelism: DEFAULT_MAX_BATCH_PARALLELISM,
+			maxValidationIssues: DEFAULT_MAX_VALIDATION_ISSUES,
 		});
-		expect(vectors.gaps.typescript).toEqual({
-			defaultDeadline: 'https://github.com/lushly-dev/afd/issues/2128',
-			batchLimits: 'https://github.com/lushly-dev/afd/issues/2128',
-			validationIssueCap: 'https://github.com/lushly-dev/afd/issues/2128',
-		});
-		const gapped = new Set(Object.keys(vectors.gaps.typescript ?? {}));
+		expect(vectors.gaps.typescript).toBeUndefined();
 		for (const entry of vectors.cases) {
 			const control = String(entry.control);
 			expect(
-				EXECUTED_CONTROLS.has(control) !== gapped.has(control),
-				`control ${control} must be either executed or listed in gaps.typescript`
+				EXECUTED_CONTROLS.has(control),
+				`control ${control} must be executed by TypeScript`
 			).toBe(true);
 		}
 	});
@@ -91,6 +99,50 @@ describe('spec/vectors/execution-controls.json', () => {
 		expect(observedSignal?.aborted).toBe(expected.signalAborted);
 	});
 
+	it('server-default-deadline: enforces configured defaultTimeoutMs when call sets no timeout', async () => {
+		const vector = vectors.cases.find((c) => c.id === 'server-default-deadline');
+		expect(vector).toBeDefined();
+		const serverCfg = vector?.server as { defaultTimeoutMs: number };
+		const call = vector?.call as {
+			command: string;
+			handler: { delayMs: number };
+		};
+		const expected = vector?.expect as {
+			success: boolean;
+			code: string;
+			retryable: boolean;
+			signalAborted: boolean;
+		};
+
+		let observedSignal: AbortSignal | undefined;
+		const slow = defineCommand({
+			name: call.command,
+			description: 'Slow command for default deadline vector',
+			input: z.object({}),
+			handler: async (_input, context) => {
+				observedSignal = context.signal;
+				await new Promise((resolve) => setTimeout(resolve, call.handler.delayMs));
+				return success({ done: true });
+			},
+		});
+		const server = createMcpServer({
+			name: 'vector-default-deadline',
+			version: '1.0.0',
+			commands: [slow],
+			defaultTimeoutMs: serverCfg.defaultTimeoutMs,
+		});
+
+		const result = await server.execute(call.command, {});
+		expect(result.success).toBe(expected.success);
+		expect(result.error?.code).toBe(expected.code);
+		expect(result.error?.retryable).toBe(expected.retryable);
+		expect(result.error?.details).toEqual({
+			command: call.command,
+			timeoutMs: serverCfg.defaultTimeoutMs,
+		});
+		expect(observedSignal?.aborted).toBe(expected.signalAborted);
+	});
+
 	it('pre-cancelled-single-command: skips handler and returns COMMAND_CANCELLED', async () => {
 		const vector = vectors.cases.find((c) => c.id === 'pre-cancelled-single-command');
 		expect(vector).toBeDefined();
@@ -119,7 +171,7 @@ describe('spec/vectors/execution-controls.json', () => {
 		const result = await registry.execute(call.command, {}, { signal: AbortSignal.abort() });
 		expect(result.success).toBe(expected.success);
 		expect(result.error?.code).toBe(expected.code);
-		expect(Boolean(result.error?.retryable)).toBe(expected.retryable);
+		expect(result.error?.retryable).toBe(expected.retryable);
 		expect(handlerRan).toBe(expected.handlerRan);
 	});
 
@@ -152,4 +204,110 @@ describe('spec/vectors/execution-controls.json', () => {
 			expect(item.durationMs).toBe(expected.durationMs);
 		}
 	});
+
+	it.each([
+		'batch-at-max-size-allowed',
+		'batch-over-max-size-refused',
+		'batch-at-max-parallelism-allowed',
+		'batch-over-max-parallelism-refused',
+	])('%s: enforces batch size and parallelism limits', async (caseId) => {
+		const vector = vectors.cases.find((c) => c.id === caseId);
+		expect(vector).toBeDefined();
+		const limits = vector?.limits as { maxBatchSize: number; maxBatchParallelism: number };
+		const commandCount = vector?.commandCount as number;
+		const parallelism = vector?.parallelism as number;
+		const expected = vector?.expect as {
+			success: boolean;
+			total?: number;
+			successCount?: number;
+			code?: string;
+			retryable?: boolean;
+			calls?: number;
+			resultsLength?: number;
+		};
+
+		let calls = 0;
+		const request: BatchRequest = {
+			commands: Array.from({ length: commandCount }, (_, i) => ({
+				command: 'work-run',
+				input: { i },
+			})),
+			options: { parallelism },
+		};
+		const result = await executeBatch(
+			request,
+			async (_cmd, input) => {
+				calls += 1;
+				return success(input);
+			},
+			{},
+			{
+				maxBatchSize: limits.maxBatchSize,
+				maxBatchParallelism: limits.maxBatchParallelism,
+			}
+		);
+
+		expect(result.success).toBe(expected.success);
+		if (expected.success) {
+			expect(result.summary.total).toBe(expected.total);
+			expect(result.summary.successCount).toBe(expected.successCount);
+		} else {
+			expect(calls).toBe(expected.calls);
+			expect(result.results.length).toBe(expected.resultsLength);
+			expect(result.error?.code).toBe(expected.code);
+			expect(result.error?.retryable).toBe(expected.retryable);
+			expect(result.error?.suggestion).toContain(String(limits.maxBatchSize));
+			expect(result.error?.suggestion).toContain(String(limits.maxBatchParallelism));
+		}
+	});
+
+	it.each(['validation-issues-at-cap-not-truncated', 'validation-issues-over-cap-truncated'])(
+		'%s: enforces maxValidationIssues cap with explicit truncation metadata',
+		async (caseId) => {
+			const vector = vectors.cases.find((c) => c.id === caseId);
+			expect(vector).toBeDefined();
+			const limit = vector?.limit as number;
+			const invalidItemCount = vector?.invalidItemCount as number;
+			const expected = vector?.expect as {
+				success: boolean;
+				code: string;
+				retryable: boolean;
+				reportedErrors: number;
+				truncated: boolean;
+				detailsLimit?: number;
+			};
+
+			const cmd = defineCommand({
+				name: 'validate-many',
+				description: 'Command for validation issue cap vector',
+				input: z.object({ values: z.array(z.string()) }),
+				handler: async (input) => success(input),
+			});
+			const registry = createDirectRegistry([cmd], { maxValidationIssues: limit });
+			const result = await registry.execute('validate-many', {
+				values: Array(invalidItemCount).fill(0),
+			});
+
+			expect(result.success).toBe(expected.success);
+			expect(result.error?.code).toBe(expected.code);
+			expect(Boolean(result.error?.retryable)).toBe(expected.retryable);
+			const details = result.error?.details as {
+				errors?: unknown[];
+				truncated?: boolean;
+				limit?: number;
+				totalErrors?: number;
+			};
+			expect(details.errors?.length).toBe(expected.reportedErrors);
+			if (expected.truncated) {
+				expect(details.truncated).toBe(true);
+				expect(details.limit).toBe(expected.detailsLimit);
+				expect(details.totalErrors).toBe(invalidItemCount);
+				expect(result.error?.suggestion).toContain(`Showing first ${limit} validation issues`);
+			} else {
+				expect(details.truncated).toBeUndefined();
+				expect(details.limit).toBeUndefined();
+				expect(details.totalErrors).toBeUndefined();
+			}
+		}
+	);
 });

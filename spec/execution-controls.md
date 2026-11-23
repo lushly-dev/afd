@@ -148,12 +148,13 @@ prove that queued work cannot start. Started commands that ignore cancellation c
 ## Conformance
 
 - [`vectors/execution-controls.json`](./vectors/execution-controls.json) pins the defaults,
-  deadlines, cancellation propagation, batch size/parallelism limits and validation issue cap. Every
-  language loads it, runs every case it supports today, and tracks remaining gaps under epic
-  [#1551](https://github.com/lushly-dev/afd/issues/1551):
-  - TypeScript: [#2128](https://github.com/lushly-dev/afd/issues/2128) (default deadline, batch limits, validation issue cap)
-  - Python: [#2129](https://github.com/lushly-dev/afd/issues/2129) (per-call and default deadlines, single-command and batch cancellation, validation issue cap)
-  - Rust: [#2130](https://github.com/lushly-dev/afd/issues/2130) (deadline cancellation signal, default deadline, single-command and batch cancellation, batch limits, validation issue cap)
-  - C++: [#1766](https://github.com/lushly-dev/afd/issues/1766) (per-call and default deadlines, single-command cancellation), [#2131](https://github.com/lushly-dev/afd/issues/2131) (batch limits and validation issue cap)
+  deadlines, cancellation propagation, batch size/parallelism limits and validation issue cap.
+  TypeScript ([#2128](https://github.com/lushly-dev/afd/issues/2128)), Python
+  ([#2129](https://github.com/lushly-dev/afd/issues/2129)) and Rust
+  ([#2130](https://github.com/lushly-dev/afd/issues/2130)) execute every case; C++
+  ([#2131](https://github.com/lushly-dev/afd/issues/2131)) executes batch cancellation, batch limits
+  and the validation issue cap, with per-call/default registry deadlines and single-command
+  cancellation tracked in [#1766](https://github.com/lushly-dev/afd/issues/1766) under epic
+  [#1551](https://github.com/lushly-dev/afd/issues/1551).
 - [`vectors/batch-controls.json`](./vectors/batch-controls.json) pins serial batch and pipeline
   control cases across all four languages.

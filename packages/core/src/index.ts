@@ -61,6 +61,9 @@ export { fixedClock, seededRandom, systemClock, systemRandom } from './clock.js'
 // Batch and stream executors (shared by the registry and hosts such as the MCP server)
 export type { ExecutorOptions, StreamExecutorOptions } from './command-execution.js';
 export {
+	checkBatchLimits,
+	DEFAULT_MAX_BATCH_PARALLELISM,
+	DEFAULT_MAX_BATCH_SIZE,
 	executeBatch,
 	executeStream,
 	executionFailure,

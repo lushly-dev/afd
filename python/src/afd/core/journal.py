@@ -367,7 +367,17 @@ def _context_values(context: Any) -> dict[str, Any]:
     if context is None:
         return {}
     if dataclasses.is_dataclass(context) and not isinstance(context, type):
-        values = {item.name: getattr(context, item.name) for item in dataclasses.fields(context)}
+        values = {
+            item.name: getattr(context, item.name)
+            for item in dataclasses.fields(context)
+            if not item.name.startswith("_")
+        }
+        server_signal = getattr(context, "_server_signal", None)
+        if server_signal is not None:
+            server_fields = getattr(context, "_server_signal_fields", None) or ("signal", "cancel")
+            for key in server_fields:
+                if values.get(key) is server_signal:
+                    values[key] = None
     elif isinstance(context, dict):
         values = dict(context)
     else:

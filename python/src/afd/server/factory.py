@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 import copy
 import dataclasses
 import json
 import logging
+import math
 import os
 from collections.abc import AsyncIterator, Callable, Iterator, Mapping, Sequence
 from contextlib import asynccontextmanager, contextmanager
@@ -23,6 +25,8 @@ from pydantic import BaseModel, ConfigDict, create_model
 from pydantic import ValidationError as PydanticValidationError
 
 from afd.core.batch import (
+    DEFAULT_MAX_BATCH_PARALLELISM,
+    DEFAULT_MAX_BATCH_SIZE,
     BatchResult,
 )
 from afd.core.actor import Actor, ContextDefaults, actor_kind_of, with_context_defaults
@@ -65,7 +69,11 @@ from afd.core.result import (
     execution_failure,
     failure,
 )
-from afd.core.schema_validation import SchemaValidationError
+from afd.core.schema_validation import (
+    DEFAULT_MAX_VALIDATION_ISSUES,
+    SchemaValidationError,
+    resolve_max_validation_issues,
+)
 from afd.core.similarity import truncate_name
 from afd.core.wire import to_wire
 from afd.server.bootstrap import ContextState, get_bootstrap_commands
@@ -180,11 +188,22 @@ these names, and batch items and pipeline steps cannot call them."""
 
 _CONTEXT_COMMAND_NAMES = frozenset({"afd-context-enter", "afd-context-exit"})
 
-DEFAULT_MAX_BATCH_SIZE = 500
-"""Default maximum number of commands in one ``afd-batch`` request."""
+DEFAULT_COMMAND_TIMEOUT_MS = 30_000
+"""Normative server-level default per-command deadline in milliseconds (``spec/execution-controls.md``)."""
 
-DEFAULT_MAX_BATCH_PARALLELISM = 16
-"""Default maximum ``options.parallelism`` of one ``afd-batch`` request."""
+
+def _resolve_default_timeout_ms(value: int | float | None) -> int | float | None:
+    """Validate and normalize ``default_timeout_ms`` (``None`` or ``0`` disables)."""
+    if value is None or (isinstance(value, (int, float)) and not isinstance(value, bool) and value == 0):
+        return None
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0:
+        raise ValueError("default_timeout_ms must be a positive finite number, 0, or None")
+    return value
+
+
+def _consume_task_exception(task: asyncio.Task[Any]) -> None:
+    if not task.cancelled():
+        task.exception()
 
 
 @runtime_checkable
@@ -211,8 +230,12 @@ class ServerConfig:
     contexts: list[ContextConfig] = field(default_factory=list)
     group_by: GroupByFn | None = None
     dev_mode: bool = False
+    default_timeout_ms: int | float | None = DEFAULT_COMMAND_TIMEOUT_MS
+    """Server-level default per-command deadline in milliseconds (``0`` or ``None`` disables)."""
     max_batch_size: int = DEFAULT_MAX_BATCH_SIZE
     max_batch_parallelism: int = DEFAULT_MAX_BATCH_PARALLELISM
+    max_validation_issues: int = DEFAULT_MAX_VALIDATION_ISSUES
+    """Maximum validation issues reported per ``VALIDATION_ERROR`` (default 100)."""
     instructions: str | None = None
     tools_list_ttl_ms: int | None = None
     clock: Clock | None = None
@@ -298,8 +321,17 @@ class MCPServer:
     """AFD MCP server for exposing commands and built-in tools."""
 
     def __init__(self, config: ServerConfig):
-        if config.max_batch_size < 1 or config.max_batch_parallelism < 1:
+        if (
+            isinstance(config.max_batch_size, bool)
+            or not isinstance(config.max_batch_size, int)
+            or config.max_batch_size < 1
+            or isinstance(config.max_batch_parallelism, bool)
+            or not isinstance(config.max_batch_parallelism, int)
+            or config.max_batch_parallelism < 1
+        ):
             raise ValueError("max_batch_size and max_batch_parallelism must be at least 1")
+        self._default_timeout_ms = _resolve_default_timeout_ms(config.default_timeout_ms)
+        self._max_validation_issues = resolve_max_validation_issues(config.max_validation_issues)
         if config.context_hook is not None and not callable(config.context_hook):
             raise TypeError("context_hook must be callable")
         if config.task_options is not None and not isinstance(config.task_options, TaskOptions):
@@ -878,9 +910,16 @@ class MCPServer:
         metadata = get_command_metadata(command.handler)
         input_schema = metadata.input_schema if metadata is not None else command.input_schema
         try:
-            data = validate_command_input(input_schema, input)
+            data = validate_command_input(
+                input_schema, input, max_issues=self._max_validation_issues
+            )
         except (PydanticValidationError, SchemaValidationError) as exc:
-            return _input_validation_failure(input_schema, {} if input is None else input, exc)
+            return _input_validation_failure(
+                input_schema,
+                {} if input is None else input,
+                exc,
+                max_issues=self._max_validation_issues,
+            )
         except Exception as exc:
             # A validator that raises something other than ValueError or
             # AssertionError: the input is still what failed, as in TypeScript.
@@ -1029,19 +1068,139 @@ class MCPServer:
         # The command this call runs, for the approval middleware to decide from and the
         # handler's dispatch to check: this dispatch's own record, which the dispatch reads
         # directly, wherever the chain ran it.
+        def _is_cancelled() -> bool:
+            cancel = getattr(context, "cancel", None)
+            signal = getattr(context, "signal", None)
+            return bool(
+                (cancel is not None and cancel.is_set())
+                or (signal is not None and signal.is_set())
+            )
+
+        def _cancelled_before_start() -> CommandResult[Any]:
+            return failure(
+                CommandError(
+                    code="COMMAND_CANCELLED",
+                    message=f"Command '{truncate_name(name)}' was cancelled before it started",
+                    suggestion="Retry with a fresh signal if the command is still needed.",
+                    retryable=False,
+                )
+            )
+
+        if _is_cancelled():
+            return _cancelled_before_start()
+
+        caller_timeout = getattr(context, "timeout", None)
+        if caller_timeout is None:
+            effective_timeout: int | float | None = self._default_timeout_ms
+        elif (
+            isinstance(caller_timeout, (int, float))
+            and not isinstance(caller_timeout, bool)
+            and math.isfinite(caller_timeout)
+            and caller_timeout > 0
+        ):
+            effective_timeout = caller_timeout
+        else:
+            effective_timeout = None
+
         with admission_for(context, command) as record:
 
             async def run_handler() -> Any:
+                # Re-check immediately before handler start (including after approval/confirmation wait).
+                if _is_cancelled():
+                    return _cancelled_before_start()
                 return await self._run_handler(command, data, context, record, effective_budget)
 
             next_fn: Callable[[], Any] = run_handler
             for middleware in reversed(self._middleware):
                 next_fn = (lambda mw, nxt: (lambda: mw(name, data, context, nxt)))(middleware, next_fn)
 
-            try:
-                result = await next_fn()
-            except Exception as exc:
-                result = self._internal_error(name, exc)
+            if effective_timeout is None:
+                try:
+                    result = await next_fn()
+                except Exception as exc:
+                    result = self._internal_error(name, exc)
+            else:
+                caller_signal = getattr(context, "signal", None)
+                caller_cancel = getattr(context, "cancel", None)
+                has_signal_attr = hasattr(context, "signal")
+                has_cancel_attr = hasattr(context, "cancel")
+                has_server_signal_attr = hasattr(context, "_server_signal")
+                has_server_signal_fields_attr = hasattr(context, "_server_signal_fields")
+                deadline_event = asyncio.Event()
+                synthesized_fields: list[str] = []
+                # Link deadline cancellation onto context.signal/cancel while keeping
+                # journal context digests unchanged for any fields the caller left unset.
+                if has_signal_attr:
+                    context.signal = deadline_event
+                    if caller_signal is None:
+                        synthesized_fields.append("signal")
+                if has_cancel_attr:
+                    context.cancel = deadline_event
+                    if caller_cancel is None:
+                        synthesized_fields.append("cancel")
+                if synthesized_fields and has_server_signal_attr:
+                    context._server_signal = deadline_event
+                    if has_server_signal_fields_attr:
+                        context._server_signal_fields = tuple(synthesized_fields)
+
+                watcher: asyncio.Task[None] | None = None
+                caller_events = [e for e in (caller_signal, caller_cancel) if e is not None]
+                if any(ev.is_set() for ev in caller_events):
+                    deadline_event.set()
+                elif caller_events:
+                    async def _mirror_caller() -> None:
+                        waits = [asyncio.create_task(ev.wait()) for ev in caller_events]
+                        try:
+                            await asyncio.wait(waits, return_when=asyncio.FIRST_COMPLETED)
+                            deadline_event.set()
+                        finally:
+                            for w in waits:
+                                if not w.done():
+                                    w.cancel()
+
+                    watcher = asyncio.create_task(_mirror_caller())
+                    watcher.add_done_callback(_consume_task_exception)
+
+                task = asyncio.create_task(next_fn())
+                try:
+                    done, _ = await asyncio.wait({task}, timeout=effective_timeout / 1000.0)
+                    if task in done:
+                        if task.cancelled():
+                            result = _cancelled_before_start()
+                        else:
+                            exc = task.exception()
+                            if exc is not None:
+                                result = self._internal_error(name, exc)
+                            else:
+                                result = task.result()
+                    else:
+                        deadline_event.set()
+                        task.cancel()
+                        task.add_done_callback(_consume_task_exception)
+                        await asyncio.sleep(0)
+                        result = failure(
+                            CommandError(
+                                code="TIMEOUT",
+                                message=f"Command '{truncate_name(name)}' timed out after {effective_timeout}ms",
+                                suggestion=(
+                                    "Retry with a larger timeout. The command was signalled to abort "
+                                    "but may have completed, so check its effect before retrying a mutation."
+                                ),
+                                retryable=True,
+                                details={"command": name, "timeoutMs": effective_timeout},
+                            )
+                        )
+                except asyncio.CancelledError:
+                    deadline_event.set()
+                    if not task.done():
+                        task.cancel()
+                        await asyncio.gather(task, return_exceptions=True)
+                    raise
+                finally:
+                    if watcher is not None and not watcher.done():
+                        watcher.cancel()
+                    if not task.done():
+                        task.add_done_callback(_consume_task_exception)
         self._refresh_dynamic_tools(name, result)
         return result
 
@@ -1305,6 +1464,8 @@ class MCPServer:
                     refuse_composite_task=composite_task_error,
                     get_admitted_credentials=self._current_admitted_credentials,
                     get_scope_view=self._current_scope_view,
+                    max_batch_size=self.config.max_batch_size,
+                    max_batch_parallelism=self.config.max_batch_parallelism,
                 )
             )
         return self._router
@@ -2130,8 +2291,10 @@ def create_server(
     contexts: list[ContextConfig] | None = None,
     group_by: GroupByFn | None = None,
     dev_mode: bool = False,
+    default_timeout_ms: int | float | None = DEFAULT_COMMAND_TIMEOUT_MS,
     max_batch_size: int = DEFAULT_MAX_BATCH_SIZE,
     max_batch_parallelism: int = DEFAULT_MAX_BATCH_PARALLELISM,
+    max_validation_issues: int = DEFAULT_MAX_VALIDATION_ISSUES,
     instructions: str | None = None,
     tools_list_ttl_ms: int | None = None,
     clock: Clock | None = None,
@@ -2271,8 +2434,10 @@ def create_server(
         contexts=normalized_contexts,
         group_by=group_by,
         dev_mode=dev_mode,
+        default_timeout_ms=default_timeout_ms,
         max_batch_size=max_batch_size,
         max_batch_parallelism=max_batch_parallelism,
+        max_validation_issues=max_validation_issues,
         instructions=instructions,
         tools_list_ttl_ms=tools_list_ttl_ms,
         clock=clock,

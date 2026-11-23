@@ -114,6 +114,7 @@ export {
 	type DescribedCommand,
 	getBootstrapCommands,
 } from './bootstrap/index.js';
+export { DEFAULT_COMMAND_TIMEOUT_MS } from './command-timeout.js';
 // Validating in-process registry for DirectClient
 export {
 	createDirectRegistry,
@@ -322,6 +323,7 @@ export {
 	taskOwnerMatches,
 } from './tasks.js';
 export {
+	DEFAULT_MAX_VALIDATION_ISSUES,
 	type EnhancedValidationResult,
 	formatEnhancedValidationError,
 	formatValidationErrors,

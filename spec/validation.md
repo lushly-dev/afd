@@ -372,10 +372,9 @@ This records source coverage, not publication of those implementations.
    `additionalProperties` keeps its keys.
 3. All issues up to `maxValidationIssues` (default `100`, see
    [`execution-controls.md#validation-issue-cap`](./execution-controls.md#validation-issue-cap)) are
-   reported; truncation past the cap is never silent (`details.truncated: true` and an explicit note
-   in `suggestion`). Legacy `vectors/validation.json` case `issue-count-uncapped` predates this cap
-   and remains frozen until the implementation follow-ups ([#2128](https://github.com/lushly-dev/afd/issues/2128)–[#2131](https://github.com/lushly-dev/afd/issues/2131))
-   land and regenerate it with a `Behaviour change:` changeset.
+   reported; truncation past the cap is never silent (`details.truncated: true`, `details.limit`,
+   `details.totalErrors` and an explicit note in `suggestion`). `vectors/validation.json` case
+   `issue-count-capped` verifies this cap across all four languages ([#2128](https://github.com/lushly-dev/afd/issues/2128)–[#2131](https://github.com/lushly-dev/afd/issues/2131)).
 4. A supported `format` with an unknown name is rejected at registration.
 5. A property with a default is optional even when listed in `required`.
 6. All implementations count Unicode code points for `minLength` and `maxLength`; legacy length-unit

@@ -93,6 +93,40 @@ std::string reasoning_for(const BatchSummary& summary) {
 
 } // namespace
 
+std::optional<CommandError> check_batch_limits(const BatchRequest& request,
+                                               std::size_t max_batch_size,
+                                               std::size_t max_batch_parallelism) {
+    const std::size_t effective_max_size =
+        max_batch_size == 0 ? default_max_batch_size : max_batch_size;
+    const std::size_t effective_max_parallelism =
+        max_batch_parallelism == 0 ? default_max_batch_parallelism : max_batch_parallelism;
+    const std::string hint = "Send between 1 and " + std::to_string(effective_max_size) +
+                             " commands with parallelism at most " +
+                             std::to_string(effective_max_parallelism);
+    if (request.commands.size() > effective_max_size) {
+        return create_error(error_codes::INVALID_BATCH_REQUEST,
+                            "Batch size " + std::to_string(request.commands.size()) +
+                                " exceeds maximum of " + std::to_string(effective_max_size) +
+                                " commands",
+                            {.suggestion = hint,
+                             .retryable = false,
+                             .details = Json{{"count", request.commands.size()},
+                                             {"maxBatchSize", effective_max_size}}});
+    }
+    const std::int64_t requested_parallelism =
+        request.options && request.options->parallelism ? *request.options->parallelism : 1;
+    if (requested_parallelism > static_cast<std::int64_t>(effective_max_parallelism)) {
+        return create_error(error_codes::INVALID_BATCH_REQUEST,
+                            "Batch parallelism " + std::to_string(requested_parallelism) +
+                                " exceeds maximum of " + std::to_string(effective_max_parallelism),
+                            {.suggestion = hint,
+                             .retryable = false,
+                             .details = Json{{"parallelism", requested_parallelism},
+                                             {"maxBatchParallelism", effective_max_parallelism}}});
+    }
+    return std::nullopt;
+}
+
 Expected<BatchRequest, CommandError> parse_batch_request(const Json& request) {
     // Every member is optional-but-typed, so null counts as a wrong type, as in TypeScript.
     if (!request.is_object()) {
@@ -277,6 +311,13 @@ BatchResult execute_batch(const BatchRequest& request, const CommandExecutor& ex
     const auto clock = clock_of(options);
     if (!valid_request(request)) {
         return rejected(*clock);
+    }
+    if (auto limit_error =
+            check_batch_limits(request, options.max_batch_size, options.max_batch_parallelism)) {
+        const std::string now = wire::iso8601_utc(clock->wall_ms());
+        return create_failed_batch_result(
+            std::move(*limit_error),
+            {.total_ms = 0, .average_ms = 0, .started_at = now, .completed_at = now});
     }
     const std::string started_at = wire::iso8601_utc(clock->wall_ms());
     const double start = clock->steady_ms();

@@ -110,10 +110,24 @@ pub(crate) fn validate_schema_definition(schema: &JsonSchema, path: &str) -> Res
 ///   schema has `additionalProperties`).
 ///
 /// Returns the input to pass to the handler, or a `VALIDATION_ERROR`.
+#[cfg(test)]
 pub(crate) fn validate_input(
     parameters: &[CommandParameter],
     input: Value,
 ) -> Result<Value, Box<CommandError>> {
+    validate_input_with_limit(
+        parameters,
+        input,
+        crate::commands::DEFAULT_MAX_VALIDATION_ISSUES,
+    )
+}
+
+pub(crate) fn validate_input_with_limit(
+    parameters: &[CommandParameter],
+    input: Value,
+    max_issues: usize,
+) -> Result<Value, Box<CommandError>> {
+    let limit = max_issues.max(1);
     let mut object = match input {
         Value::Null => Map::new(),
         Value::Object(object) => object,
@@ -127,7 +141,7 @@ pub(crate) fn validate_input(
                     value_type_name(&other)
                 ),
             );
-            return Err(validation_failure(parameters, &issues, &[], &[]));
+            return Err(validation_failure(parameters, &mut issues, &[], &[], limit));
         }
     };
 
@@ -180,9 +194,10 @@ pub(crate) fn validate_input(
         .collect();
     Err(validation_failure(
         parameters,
-        &issues,
+        &mut issues,
         &missing,
         &unexpected,
+        limit,
     ))
 }
 
@@ -435,14 +450,20 @@ fn format_values(values: &[Value]) -> String {
 
 fn validation_failure(
     parameters: &[CommandParameter],
-    issues: &Issues,
+    issues: &mut Issues,
     missing: &[String],
     unexpected: &[String],
+    limit: usize,
 ) -> Box<CommandError> {
     let expected: Vec<&str> = parameters
         .iter()
         .map(|parameter| parameter.name.as_str())
         .collect();
+    let total_errors = issues.items.len();
+    let truncated = total_errors > limit;
+    if truncated {
+        issues.items.truncate(limit);
+    }
 
     // As in TypeScript, an empty field list is left out.
     let mut details = HashMap::new();
@@ -459,10 +480,21 @@ fn validation_failure(
     if !missing.is_empty() {
         details.insert("missingFields".to_string(), serde_json::json!(missing));
     }
+    if truncated {
+        details.insert("truncated".to_string(), serde_json::json!(true));
+        details.insert("limit".to_string(), serde_json::json!(limit));
+        details.insert("totalErrors".to_string(), serde_json::json!(total_errors));
+    }
 
     Box::new(
         CommandError::new(error_codes::VALIDATION_ERROR, "Input validation failed")
-            .with_suggestion(suggestion(issues, &expected, unexpected, missing))
+            .with_suggestion(suggestion(
+                issues,
+                &expected,
+                unexpected,
+                missing,
+                truncated.then_some(limit),
+            ))
             .with_details(details),
     )
 }
@@ -474,6 +506,7 @@ fn suggestion(
     expected: &[&str],
     unexpected: &[String],
     missing: &[String],
+    truncated_limit: Option<usize>,
 ) -> String {
     let mut parts = vec![format_issues(issues)];
     if !unexpected.is_empty() {
@@ -484,6 +517,11 @@ fn suggestion(
     }
     if !expected.is_empty() {
         parts.push(format!("Expected fields: {}", expected.join(", ")));
+    }
+    if let Some(limit) = truncated_limit {
+        parts.push(format!(
+            "Showing first {limit} validation issues; fix these and retry"
+        ));
     }
     parts.join(". ")
 }
@@ -867,7 +905,7 @@ mod tests {
     }
 
     #[test]
-    fn issue_collection_reports_every_issue() {
+    fn issue_collection_caps_at_default_limit_and_honors_override() {
         let parameters = vec![CommandParameter {
             param_type: JsonSchemaType::Array,
             schema: Some(JsonSchema {
@@ -881,8 +919,31 @@ mod tests {
             ..CommandParameter::required_string("ids", "IDs")
         }];
         let input = json!({"ids": vec![0; 10_000]});
-        let error = validate_input(&parameters, input).unwrap_err();
-        assert_eq!(issues_of(&error).len(), 10_000);
-        assert_eq!(error.suggestion.as_deref().unwrap().lines().count(), 10_000);
+        let error = validate_input(&parameters, input.clone()).unwrap_err();
+        assert_eq!(
+            issues_of(&error).len(),
+            crate::DEFAULT_MAX_VALIDATION_ISSUES
+        );
+        let details = error.details.as_ref().unwrap();
+        assert_eq!(details.get("truncated"), Some(&json!(true)));
+        assert_eq!(
+            details.get("limit"),
+            Some(&json!(crate::DEFAULT_MAX_VALIDATION_ISSUES))
+        );
+        assert_eq!(details.get("totalErrors"), Some(&json!(10_000)));
+        assert!(error
+            .suggestion
+            .as_deref()
+            .unwrap()
+            .contains("Showing first 100 validation issues; fix these and retry"));
+
+        let expanded = validate_input_with_limit(&parameters, input, 10_000).unwrap_err();
+        assert_eq!(issues_of(&expanded).len(), 10_000);
+        assert!(expanded
+            .details
+            .as_ref()
+            .unwrap()
+            .get("truncated")
+            .is_none());
     }
 }

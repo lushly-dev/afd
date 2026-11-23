@@ -220,6 +220,11 @@ std::string validation_suggestion(const afd::Json& details) {
             first = false;
         }
     }
+    if (details.value("truncated", false)) {
+        const std::size_t shown = details.value("limit", issues.size());
+        suggestion += (suggestion.empty() ? "" : ". ") + std::string("Showing first ") +
+                      std::to_string(shown) + " validation issues; fix these and retry";
+    }
     return suggestion;
 }
 
@@ -280,6 +285,12 @@ TEST_CASE("command validation matches every supported shared validation vector")
                 if (wanted.contains(field)) {
                     CHECK(validation_multiset(details.at(field)) ==
                           validation_multiset(wanted.at(field)));
+                }
+            }
+            for (const char* field : {"truncated", "limit", "totalErrors"}) {
+                REQUIRE(details.contains(field) == wanted.contains(field));
+                if (wanted.contains(field)) {
+                    CHECK(details.at(field) == wanted.at(field));
                 }
             }
             CHECK(actual.at("suggestion") == validation_suggestion(details));

@@ -27,7 +27,6 @@ use crate::handoff::HandoffCommandLike;
 use crate::journal::JournalRecorder;
 use crate::result::{execution_failure, failure, CommandResult, ResultMetadata};
 use crate::time::Instant;
-use crate::validation::validate_input;
 
 mod context;
 
@@ -980,6 +979,37 @@ impl HandoffCommandLike for CommandDefinition {
 ///
 /// [`CommandRegistry::execute`] enforces each command's metadata; see its
 /// documentation.
+/// Normative server-level default per-command deadline in milliseconds (`spec/execution-controls.md`).
+pub const DEFAULT_COMMAND_TIMEOUT_MS: u64 = 30_000;
+
+/// Normative default maximum number of commands in a single batch (`spec/execution-controls.md`).
+pub const DEFAULT_MAX_BATCH_SIZE: usize = 500;
+
+/// Normative default maximum concurrent commands in a single batch (`spec/execution-controls.md`).
+pub const DEFAULT_MAX_BATCH_PARALLELISM: usize = 16;
+
+/// Normative default cap on reported issues per `VALIDATION_ERROR` (`spec/execution-controls.md`).
+pub const DEFAULT_MAX_VALIDATION_ISSUES: usize = 100;
+
+#[derive(Debug, Clone, Copy)]
+struct ExecutionLimits {
+    default_timeout_ms: Option<u64>,
+    max_batch_size: usize,
+    max_batch_parallelism: usize,
+    max_validation_issues: usize,
+}
+
+impl Default for ExecutionLimits {
+    fn default() -> Self {
+        Self {
+            default_timeout_ms: None,
+            max_batch_size: DEFAULT_MAX_BATCH_SIZE,
+            max_batch_parallelism: DEFAULT_MAX_BATCH_PARALLELISM,
+            max_validation_issues: DEFAULT_MAX_VALIDATION_ISSUES,
+        }
+    }
+}
+
 #[derive(Default)]
 pub struct CommandRegistry {
     commands: RwLock<RegisteredCommands>,
@@ -987,6 +1017,7 @@ pub struct CommandRegistry {
     journal: RwLock<Option<Arc<JournalRecorder>>>,
     context_fields: RwLock<Arc<Vec<ContextField>>>,
     call_grant: RwLock<Option<CallGrant>>,
+    limits: RwLock<ExecutionLimits>,
 }
 
 /// A host's grant check for app-to-app calls ([`CommandRegistry::set_call_grant`]): whether the
@@ -1027,10 +1058,139 @@ fn write_lock<T>(lock: &RwLock<T>) -> RwLockWriteGuard<'_, T> {
     lock.write().unwrap_or_else(PoisonError::into_inner)
 }
 
+/// Check a batch request against `max_batch_size` and `max_batch_parallelism`
+/// (`spec/execution-controls.md`).
+///
+/// Returns `Some(CommandError)` with `INVALID_BATCH_REQUEST` (`retryable: false`)
+/// when either ceiling is exceeded, or `None` when the request is within bounds.
+pub fn check_batch_limits<T>(
+    request: &BatchRequest<T>,
+    max_batch_size: usize,
+    max_batch_parallelism: usize,
+) -> Option<CommandError> {
+    let hint = format!(
+        "Send between 1 and {max_batch_size} commands with parallelism at most {max_batch_parallelism}"
+    );
+    if request.commands.len() > max_batch_size {
+        let mut details = HashMap::new();
+        details.insert(
+            "count".to_string(),
+            serde_json::json!(request.commands.len()),
+        );
+        details.insert(
+            "maxBatchSize".to_string(),
+            serde_json::json!(max_batch_size),
+        );
+        return Some(
+            CommandError::new(
+                error_codes::INVALID_BATCH_REQUEST,
+                format!(
+                    "Batch size {} exceeds maximum of {max_batch_size} commands",
+                    request.commands.len(),
+                ),
+            )
+            .with_suggestion(hint)
+            .with_retryable(false)
+            .with_details(details),
+        );
+    }
+    let requested_parallelism = request
+        .options
+        .as_ref()
+        .and_then(|opts| opts.parallelism)
+        .unwrap_or(1);
+    if requested_parallelism > max_batch_parallelism {
+        let mut details = HashMap::new();
+        details.insert(
+            "parallelism".to_string(),
+            serde_json::json!(requested_parallelism),
+        );
+        details.insert(
+            "maxBatchParallelism".to_string(),
+            serde_json::json!(max_batch_parallelism),
+        );
+        return Some(
+            CommandError::new(
+                error_codes::INVALID_BATCH_REQUEST,
+                format!(
+                    "Batch parallelism {requested_parallelism} exceeds maximum of {max_batch_parallelism}"
+                ),
+            )
+            .with_suggestion(hint)
+            .with_retryable(false)
+            .with_details(details),
+        );
+    }
+    None
+}
+
 impl CommandRegistry {
     /// Create a new empty registry.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Set the registry's default per-command deadline in milliseconds (`spec/execution-controls.md`).
+    /// `None` or `Some(0)` disables the default deadline.
+    pub fn set_default_timeout_ms(&self, timeout_ms: Option<u64>) {
+        write_lock(&self.limits).default_timeout_ms = timeout_ms.filter(|&ms| ms > 0);
+    }
+
+    /// The registry's default per-command deadline in milliseconds, if configured.
+    pub fn default_timeout_ms(&self) -> Option<u64> {
+        read_lock(&self.limits).default_timeout_ms
+    }
+
+    /// Set the maximum number of commands accepted in a single batch (default: 500).
+    pub fn set_max_batch_size(&self, max: usize) -> Result<(), String> {
+        if max == 0 {
+            return Err("max_batch_size must be at least 1".to_string());
+        }
+        write_lock(&self.limits).max_batch_size = max;
+        Ok(())
+    }
+
+    /// The maximum number of commands accepted in a single batch.
+    pub fn max_batch_size(&self) -> usize {
+        read_lock(&self.limits).max_batch_size
+    }
+
+    /// Set the maximum `options.parallelism` accepted in a single batch (default: 16).
+    pub fn set_max_batch_parallelism(&self, max: usize) -> Result<(), String> {
+        if max == 0 {
+            return Err("max_batch_parallelism must be at least 1".to_string());
+        }
+        write_lock(&self.limits).max_batch_parallelism = max;
+        Ok(())
+    }
+
+    /// The maximum `options.parallelism` accepted in a single batch.
+    pub fn max_batch_parallelism(&self) -> usize {
+        read_lock(&self.limits).max_batch_parallelism
+    }
+
+    /// Set the maximum number of validation issues reported per `VALIDATION_ERROR` (default: 100).
+    pub fn set_max_validation_issues(&self, max: usize) -> Result<(), String> {
+        if max == 0 {
+            return Err("max_validation_issues must be at least 1".to_string());
+        }
+        write_lock(&self.limits).max_validation_issues = max;
+        Ok(())
+    }
+
+    /// The maximum number of validation issues reported per `VALIDATION_ERROR`.
+    pub fn max_validation_issues(&self) -> usize {
+        read_lock(&self.limits).max_validation_issues
+    }
+
+    /// Check batch size and parallelism against the registry's configured limits
+    /// (`spec/execution-controls.md`).
+    pub(crate) fn check_batch_limits(
+        &self,
+        request: &BatchRequest<serde_json::Value>,
+    ) -> Option<CommandError> {
+        let limits = *read_lock(&self.limits);
+        check_batch_limits(request, limits.max_batch_size, limits.max_batch_parallelism)
     }
 
     /// Register a command.
@@ -1502,7 +1662,14 @@ impl CommandRegistry {
             }
         }
 
-        if context.timeout_ms.is_some() && !cfg!(feature = "native") {
+        let effective_timeout_ms = match context.timeout_ms {
+            Some(0) => None,
+            Some(ms) => Some(ms),
+            None => context
+                .default_timeout_override
+                .unwrap_or_else(|| self.default_timeout_ms()),
+        };
+        if effective_timeout_ms.is_some() && !cfg!(feature = "native") {
             return failure(
                 CommandError::new(
                     error_codes::UNSUPPORTED_OPTION,
@@ -1548,7 +1715,12 @@ impl CommandRegistry {
             }
         }
 
-        let timeout_ms = context.timeout_ms;
+        // Pre-dispatch cancellation check (`spec/execution-controls.md`): before middleware and
+        // before starting any timer, an already-cancelled call returns COMMAND_CANCELLED.
+        if context.is_cancelled() {
+            return failure(command_cancelled_error(&command.name));
+        }
+
         let middleware = read_lock(&self.middleware).clone();
         // Replayed calls, and the calls nested in them, are never recorded.
         let journal = read_lock(&self.journal)
@@ -1557,6 +1729,17 @@ impl CommandRegistry {
         let recording = journal
             .as_ref()
             .map(|recorder| recorder.start(&command.name, &input, &mut context, &context_fields));
+
+        #[cfg(feature = "native")]
+        let deadline_signal = effective_timeout_ms.map(|_| match &context.cancellation {
+            Some(parent) => parent.child(),
+            None => crate::cancellation::CancellationSignal::new(),
+        });
+        #[cfg(feature = "native")]
+        if let Some(signal) = &deadline_signal {
+            context.cancellation = Some(signal.clone());
+        }
+
         let chain = middleware_chain(&command, &middleware, input, context);
         // `chain()` runs inside the guarded future, so a middleware layer that
         // panics while building its future is caught too.
@@ -1564,12 +1747,17 @@ impl CommandRegistry {
 
         // The deadline covers the chain only: a slow journal append cannot turn a finished call
         // into a TIMEOUT, and a call that timed out is not recorded.
-        let result = match timeout_ms {
+        let result = match effective_timeout_ms {
             #[cfg(feature = "native")]
             Some(timeout_ms) => {
                 match tokio::time::timeout(Duration::from_millis(timeout_ms), run).await {
                     Ok(result) => result,
-                    Err(_) => return failure(CommandError::timeout(&command.name, timeout_ms)),
+                    Err(_) => {
+                        if let Some(signal) = &deadline_signal {
+                            signal.cancel();
+                        }
+                        return failure(command_timeout_error(&command.name, timeout_ms));
+                    }
                 }
             }
             _ => run.await,
@@ -1594,13 +1782,18 @@ impl CommandRegistry {
         command: &CommandDefinition,
         input: serde_json::Value,
     ) -> Result<serde_json::Value, Box<CommandError>> {
+        let max_issues = self.max_validation_issues();
         let schema = read_lock(&self.commands)
             .schemas
             .get(&command.name)
             .cloned();
         match schema {
-            Some(schema) => crate::schema_validation::execute(&schema, input),
-            None => validate_input(&command.parameters, input),
+            Some(schema) => {
+                crate::schema_validation::execute_with_limit(&schema, input, max_issues)
+            }
+            None => {
+                crate::validation::validate_input_with_limit(&command.parameters, input, max_issues)
+            }
         }
     }
 
@@ -1643,7 +1836,7 @@ impl CommandRegistry {
     ) -> BatchResult<serde_json::Value> {
         let start_time = Instant::now();
         let started_at = chrono::Utc::now().to_rfc3339();
-        let options = request.options.unwrap_or_default();
+        let options = request.options.clone().unwrap_or_default();
         if request.commands.is_empty()
             || request
                 .commands
@@ -1664,6 +1857,9 @@ impl CommandRegistry {
                     .with_retryable(false),
                 &started_at,
             );
+        }
+        if let Some(limit_error) = self.check_batch_limits(&request) {
+            return create_failed_batch_result(limit_error, &started_at);
         }
         #[cfg(not(feature = "native"))]
         if options.timeout.is_some() {
@@ -1720,6 +1916,21 @@ impl CommandRegistry {
         let deadline = options
             .timeout
             .and_then(|timeout| deadline_after(start_time, timeout));
+        let caller_cancellation = base_context.cancellation.clone();
+        #[cfg(feature = "native")]
+        let batch_deadline_signal = deadline.map(|_| match &caller_cancellation {
+            Some(parent) => parent.child(),
+            None => crate::cancellation::CancellationSignal::new(),
+        });
+        #[cfg(feature = "native")]
+        if let Some(signal) = &batch_deadline_signal {
+            base_context.cancellation = Some(signal.clone());
+        }
+        let caller_cancelled = || {
+            caller_cancellation
+                .as_ref()
+                .is_some_and(crate::cancellation::CancellationSignal::is_cancelled)
+        };
         let mut pending = request.commands.into_iter().enumerate();
         let mut active: FuturesUnordered<BatchExecutionFuture<'_>> = FuturesUnordered::new();
         let mut results: Vec<Option<BatchCommandResult<serde_json::Value>>> =
@@ -1729,7 +1940,7 @@ impl CommandRegistry {
         let mut timed_out = false;
 
         loop {
-            while !stopped && active.len() < parallelism {
+            while !stopped && !caller_cancelled() && active.len() < parallelism {
                 let Some((index, cmd)) = pending.next() else {
                     break;
                 };
@@ -1738,6 +1949,8 @@ impl CommandRegistry {
                     .clone()
                     .with_trace_id(format!("{batch_trace_id}-{index}"));
                 let timeout_error = &timeout_error;
+                #[cfg(feature = "native")]
+                let batch_deadline_signal = batch_deadline_signal.clone();
                 active.push(Box::pin(async move {
                     let command_start = Instant::now();
                     let name = command_name.clone();
@@ -1747,11 +1960,23 @@ impl CommandRegistry {
                         Some(deadline) => {
                             let remaining = deadline.saturating_duration_since(Instant::now());
                             if remaining.is_zero() {
+                                #[cfg(feature = "native")]
+                                if let Some(signal) = &batch_deadline_signal {
+                                    signal.cancel();
+                                }
                                 None
                             } else {
                                 #[cfg(feature = "native")]
                                 {
-                                    tokio::time::timeout(remaining, execution).await.ok()
+                                    match tokio::time::timeout(remaining, execution).await {
+                                        Ok(result) => Some(result),
+                                        Err(_) => {
+                                            if let Some(signal) = &batch_deadline_signal {
+                                                signal.cancel();
+                                            }
+                                            None
+                                        }
+                                    }
                                 }
                                 // Unreachable: deadlines are rejected above without `native`.
                                 #[cfg(not(feature = "native"))]
@@ -1795,6 +2020,13 @@ impl CommandRegistry {
                     let (id, command) = command_metadata[index].clone();
                     let error = if timed_out {
                         timeout_error()
+                    } else if caller_cancelled() {
+                        CommandError::new(
+                            error_codes::COMMAND_CANCELLED,
+                            "Command cancelled before starting",
+                        )
+                        .with_suggestion("Start the command again if the result is still needed")
+                        .with_retryable(false)
                     } else {
                         CommandError::new(
                             error_codes::COMMAND_SKIPPED,
@@ -1825,6 +2057,36 @@ impl CommandRegistry {
 // ═══════════════════════════════════════════════════════════════════════════════
 // EXECUTION HELPERS
 // ═══════════════════════════════════════════════════════════════════════════════
+
+/// Standard `COMMAND_CANCELLED` error (`spec/execution-controls.md`).
+fn command_cancelled_error(name: &str) -> CommandError {
+    CommandError::new(
+        error_codes::COMMAND_CANCELLED,
+        format!(
+            "Command '{}' was cancelled before it started",
+            truncate_name(name)
+        ),
+    )
+    .with_suggestion("Retry with a fresh signal if the command is still needed.")
+    .with_retryable(false)
+}
+
+/// Standard `TIMEOUT` error (`spec/execution-controls.md`).
+#[cfg(feature = "native")]
+fn command_timeout_error(name: &str, timeout_ms: u64) -> CommandError {
+    let mut details = HashMap::new();
+    details.insert("command".to_string(), serde_json::json!(name));
+    details.insert("timeoutMs".to_string(), serde_json::json!(timeout_ms));
+    CommandError::new(
+        error_codes::TIMEOUT,
+        format!("Command '{}' timed out after {}ms", truncate_name(name), timeout_ms),
+    )
+    .with_suggestion(
+        "Retry with a larger timeout. The command was signalled to abort but may have completed, so check its effect before retrying a mutation.",
+    )
+    .with_retryable(true)
+    .with_details(details)
+}
 
 /// Longest command name (in UTF-16 code units) echoed back in an error, as in
 /// TypeScript.
@@ -1937,6 +2199,10 @@ fn middleware_chain(
                 ));
             }
             Box::pin(async move {
+                // Re-check immediately before handler start (including after an approval wait).
+                if context.is_cancelled() {
+                    return failure(command_cancelled_error(&command.name));
+                }
                 // Only the kind is reported, never the actor's id or label.
                 let actor_kind = context.actor.as_ref().map(|actor| actor.kind);
                 let output_budget = context.output_budget;

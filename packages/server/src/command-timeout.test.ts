@@ -5,6 +5,7 @@ import { success } from '@lushly-dev/afd-core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { withCommandDeadlines } from './command-timeout.js';
+import { createDirectRegistry } from './direct-registry.js';
 import { createExecutionEngine } from './execution.js';
 import { defineCommand } from './schema.js';
 import { createMcpHandler, createMcpServer } from './server.js';
@@ -124,11 +125,13 @@ describe('per-command deadlines', () => {
 		'never starts a handler after delayed middleware resumes following %s',
 		async (mode) => {
 			vi.useFakeTimers();
+			const entered = deferred<void>();
 			const gate = deferred<void>();
 			const settled = deferred<void>();
 			const handler = vi.fn(async () => success('must not run'));
 			const { engine } = setup(handler, [
 				async (_name, _input, _context, next) => {
+					entered.resolve();
 					await gate.promise;
 					try {
 						return await next();
@@ -146,6 +149,7 @@ describe('per-command deadlines', () => {
 					signal: caller.signal,
 				}
 			);
+			await entered.promise;
 			if (mode === 'timeout') {
 				await vi.advanceTimersByTimeAsync(10);
 				expect((await running).error?.code).toBe('TIMEOUT');
@@ -157,9 +161,15 @@ describe('per-command deadlines', () => {
 		}
 	);
 
-	it('never starts a pre-cancelled command', async () => {
+	it('never starts a pre-cancelled command or its middleware', async () => {
+		const middlewareCalled = vi.fn();
 		const handler = vi.fn(async () => success('must not run'));
-		const { engine } = setup(handler);
+		const { engine } = setup(handler, [
+			async (_name, _input, _context, next) => {
+				middlewareCalled();
+				return next();
+			},
+		]);
 		const caller = new AbortController();
 		caller.abort();
 		const result = await engine.executeCommand(
@@ -169,9 +179,74 @@ describe('per-command deadlines', () => {
 		);
 		expect(result.error).toMatchObject({
 			code: 'COMMAND_CANCELLED',
+			retryable: false,
 			suggestion: expect.any(String),
 		});
+		expect(middlewareCalled).not.toHaveBeenCalled();
 		expect(handler).not.toHaveBeenCalled();
+	});
+
+	it('enforces the server defaultTimeoutMs (30_000ms) and allows disabling with 0 or null', async () => {
+		vi.useFakeTimers();
+		const late = deferred<CommandResult>();
+		const { command } = setup(async () => late.promise);
+
+		const defaultServer = createMcpServer({
+			name: 'default-deadline',
+			version: '1',
+			commands: [command],
+		});
+		const timed = defaultServer.execute('work-run', {});
+		await vi.advanceTimersByTimeAsync(29_999);
+		expect(vi.getTimerCount()).toBe(1);
+		await vi.advanceTimersByTimeAsync(1);
+		expect(await timed).toMatchObject({
+			success: false,
+			error: {
+				code: 'TIMEOUT',
+				retryable: true,
+				details: { command: 'work-run', timeoutMs: 30_000 },
+			},
+		});
+
+		const disabledZero = createMcpServer({
+			name: 'no-deadline-zero',
+			version: '1',
+			commands: [command],
+			defaultTimeoutMs: 0,
+		});
+		const disabledNull = createMcpServer({
+			name: 'no-deadline-null',
+			version: '1',
+			commands: [command],
+			defaultTimeoutMs: null,
+		});
+		const p1 = disabledZero.execute('work-run', {});
+		const p2 = disabledNull.execute('work-run', {});
+		await vi.advanceTimersByTimeAsync(60_000);
+		expect(vi.getTimerCount()).toBe(0);
+		late.resolve(success('ok'));
+		expect((await p1).success).toBe(true);
+		expect((await p2).success).toBe(true);
+	});
+
+	it('rejects invalid defaultTimeoutMs, maxBatchSize, maxBatchParallelism, and maxValidationIssues', () => {
+		const { command } = setup(async () => success('ok'));
+		expect(() =>
+			createMcpServer({ name: 'bad', version: '1', commands: [command], defaultTimeoutMs: -5 })
+		).toThrow(RangeError);
+		expect(() =>
+			createMcpServer({ name: 'bad', version: '1', commands: [command], maxBatchSize: 0 })
+		).toThrow(RangeError);
+		expect(() =>
+			createMcpServer({ name: 'bad', version: '1', commands: [command], maxBatchParallelism: 1.5 })
+		).toThrow(RangeError);
+		expect(() =>
+			createMcpServer({ name: 'bad', version: '1', commands: [command], maxValidationIssues: -1 })
+		).toThrow(RangeError);
+		expect(() => createDirectRegistry([command], { maxBatchSize: 0 })).toThrow(RangeError);
+		expect(() => createDirectRegistry([command], { maxBatchParallelism: 0 })).toThrow(RangeError);
+		expect(() => createDirectRegistry([command], { maxValidationIssues: 0 })).toThrow(RangeError);
 	});
 
 	it.each(['batch', 'pipeline'] as const)('gives each %s step its own deadline', async (mode) => {

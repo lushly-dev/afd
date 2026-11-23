@@ -283,15 +283,23 @@ TEST_CASE("schema length and item bounds never narrow outside size_t") {
     CHECK_FALSE(exact.validate("xxx").has_value());
 }
 
-TEST_CASE("validation reports every issue without a fixed cap") {
+TEST_CASE("validation caps issues at default limit and honors explicit max_issues") {
     const auto schema = compile({{"type", "array"}, {"items", {{"type", "string"}}}});
     afd::Json input = afd::Json::array();
     for (int index = 0; index < 120; ++index) {
         input.push_back(index);
     }
-    const auto result = schema.validate(input);
-    REQUIRE_FALSE(result.has_value());
-    CHECK(result.error().errors.size() == 120);
+    const auto capped = schema.validate(input);
+    REQUIRE_FALSE(capped.has_value());
+    CHECK(capped.error().errors.size() == afd::default_max_validation_issues);
+    CHECK(capped.error().truncated);
+    CHECK(capped.error().limit == afd::default_max_validation_issues);
+    CHECK(capped.error().total_errors == 120);
+
+    const auto uncapped = schema.validate(input, 150);
+    REQUIRE_FALSE(uncapped.has_value());
+    CHECK(uncapped.error().errors.size() == 120);
+    CHECK_FALSE(uncapped.error().truncated);
 }
 
 TEST_CASE("array item issues precede bounds and unknown object keys follow property issues") {

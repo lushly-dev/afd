@@ -159,6 +159,20 @@ async def execute_batch(
         suggestion="Increase timeout or reduce the number of commands",
         retryable=True,
     )
+    cancelled_error = CommandError(
+        code="COMMAND_CANCELLED",
+        message="Command cancelled before starting",
+        suggestion="Start the command again if the result is still needed",
+        retryable=False,
+    )
+
+    def caller_cancelled() -> bool:
+        cancel = getattr(context, "cancel", None)
+        signal = getattr(context, "signal", None)
+        return bool(
+            (cancel is not None and cancel.is_set())
+            or (signal is not None and signal.is_set())
+        )
 
     def record(index: int, result: CommandResult, started: float) -> None:
         item = commands[index]
@@ -175,6 +189,7 @@ async def execute_batch(
             while (
                 not stopped
                 and not timed_out
+                and not caller_cancelled()
                 and next_index < total
                 and len(in_flight) < parallelism
             ):
@@ -191,6 +206,8 @@ async def execute_batch(
                     clock=context.clock,
                     random=context.random,
                     approval=getattr(context, "approval", None),
+                    cancel=getattr(context, "cancel", None),
+                    signal=getattr(context, "signal", None),
                     credentials=getattr(context, "credentials", None),
                     _output_budget_ask=getattr(context, "_output_budget_ask", None),
                     _scope_view=getattr(context, "_scope_view", None),
@@ -239,6 +256,8 @@ async def execute_batch(
             skipped = (
                 timeout_error
                 if timed_out
+                else cancelled_error
+                if caller_cancelled()
                 else CommandError(
                     code="COMMAND_SKIPPED",
                     message="Command skipped because batch execution stopped after a failure",

@@ -216,6 +216,9 @@ struct Inner {
     /// The task store, options and running tasks (`spec/command-metadata.md`, "Tasks"), shared
     /// by every clone.
     tasks: Arc<tasks::TaskRuntime>,
+    /// Server-level default per-command deadline in milliseconds (`spec/execution-controls.md`).
+    /// Default: `Some(30_000)`; `None` disables the default deadline.
+    default_timeout_ms: Option<u64>,
 }
 
 /// An MCP server for the MCP-exposed commands of a [`CommandRegistry`].
@@ -265,6 +268,7 @@ impl McpServer {
                 trusted_transport: false,
                 serves_http: false,
                 tasks: Arc::new(tasks::TaskRuntime::default()),
+                default_timeout_ms: Some(crate::DEFAULT_COMMAND_TIMEOUT_MS),
             }),
             session: Some(ContextStack::new()),
         }
@@ -295,12 +299,21 @@ impl McpServer {
             trusted_transport: shared.trusted_transport,
             serves_http: shared.serves_http,
             tasks: Arc::clone(&shared.tasks),
+            default_timeout_ms: shared.default_timeout_ms,
         });
         change(&mut inner);
         Self {
             inner: Arc::new(inner),
             session: self.session,
         }
+    }
+
+    /// Set the server-level default per-command deadline in milliseconds
+    /// (`spec/execution-controls.md`). Applied to inline tool calls whose context hook did not
+    /// set `timeout_ms`. Default: `Some(30_000)`. Pass `None` or `Some(0)` to disable.
+    pub fn with_default_timeout_ms(self, timeout_ms: Option<u64>) -> Self {
+        let resolved = timeout_ms.filter(|&ms| ms > 0);
+        self.with(|inner| inner.default_timeout_ms = resolved)
     }
 
     /// Guidance for agents, returned by `server/discover` and `initialize`. Default: a short
