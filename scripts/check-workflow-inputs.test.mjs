@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -75,6 +76,62 @@ test('extractCrossUnitReads catches spec/ literals, joined spec segments, relati
 	]);
 
 	assert.equal(stripComments('const x = "a//b"; // c', 'a.ts').trim(), 'const x = "a//b";');
+});
+
+test('extractCrossUnitReads skips a path git ignores, such as a local Cargo target folder', (t) => {
+	const { root, write } = fixture(t);
+	// A fixture must not inherit a hook's GIT_DIR, which would point git at this repository.
+	const env = Object.fromEntries(
+		Object.entries(process.env).filter(([name]) => !/^git_/i.test(name))
+	);
+	const git = (...args) => execFileSync('git', args, { cwd: root, env, stdio: 'ignore' });
+	git('init', '-q');
+	write('endpoints/umbel/target/debug/umbel', 'binary\n');
+	write('endpoints/gen/schema.json', '{}\n');
+	write('scripts/helper.mjs', 'export const ok = true;\n');
+	const source = [
+		"const target = path.join(__dirname, '../../../endpoints/umbel/target');",
+		"const schema = '../../../endpoints/gen/schema.json';",
+		"import { ok } from '../../../scripts/helper.mjs';",
+	].join('\n');
+	const read = () =>
+		extractCrossUnitReads('packages/examples/dx/run.ts', source, {
+			root,
+			ownDirs: ['packages/examples'],
+		}).map((entry) => entry.target);
+
+	// Nothing ignored yet: the build folder counts as a read.
+	assert.deepEqual(read(), [
+		'endpoints/gen/schema.json',
+		'endpoints/umbel/target',
+		'scripts/helper.mjs',
+	]);
+
+	// Ignored output is skipped, but a tracked file under an ignored pattern is still an input.
+	writeFileSync(join(root, '.gitignore'), 'endpoints/umbel/target/\nendpoints/gen/\n');
+	git('add', '-f', 'endpoints/gen/schema.json');
+	assert.deepEqual(read(), ['endpoints/gen/schema.json', 'scripts/helper.mjs']);
+});
+
+test('extractCrossUnitReads takes no ignore rules from a repository enclosing a plain folder', (t) => {
+	const outer = mkdtempSync(join(tmpdir(), 'afd-workflow-inputs-outer-'));
+	t.after(() => rmSync(outer, { recursive: true, force: true }));
+	const env = Object.fromEntries(
+		Object.entries(process.env).filter(([name]) => !/^git_/i.test(name))
+	);
+	execFileSync('git', ['init', '-q'], { cwd: outer, env, stdio: 'ignore' });
+	writeFileSync(join(outer, '.gitignore'), 'target/\n');
+	const root = join(outer, 'plain');
+	mkdirSync(join(root, 'endpoints/umbel/target'), { recursive: true });
+	const reads = extractCrossUnitReads(
+		'packages/examples/dx/run.ts',
+		"const target = '../../../endpoints/umbel/target';",
+		{ root, ownDirs: ['packages/examples'] }
+	);
+	assert.deepEqual(
+		reads.map((entry) => entry.target),
+		['endpoints/umbel/target']
+	);
 });
 
 test('extractCrossUnitReads and workflowInputProblems resolve CARGO_MANIFEST_DIR and PROJECT_SOURCE_DIR reads (#1798)', (t) => {
