@@ -695,6 +695,13 @@ async fn approvals_off_hold_nothing() {
     let agent = CommandContext::new().with_actor(ActorKind::Agent);
     let cleared = call_with(&registry, "todo-clear", json!({}), agent).await;
     assert_eq!(cleared["success"], true);
+    // Served without its policy, so nothing advertises a hold this registry does not make; the
+    // changes keep their declared `not-required`.
+    assert!(registry.get("todo-clear").unwrap().approval.is_none());
+    assert!(matches!(
+        registry.get("todo-delete").unwrap().approval,
+        Some(afd::ApprovalPolicy::NotRequired)
+    ));
 }
 
 // ─── Contexts ────────────────────────────────────────────────────────────────

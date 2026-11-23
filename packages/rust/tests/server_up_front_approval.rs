@@ -231,6 +231,51 @@ async fn a_batch_is_asked_about_once_and_runs_on_acceptance() {
     assert!(!ran.to_string().contains("afdap1"));
 }
 
+/// The refusal of a gated step whose input has no canonical JSON (2^53 + 1): nothing ran and
+/// nobody was asked.
+fn assert_not_canonical(setup: &Setup, response: &Value) {
+    assert!(
+        response["result"]["inputRequests"].is_null(),
+        "not asked: {response}"
+    );
+    let error = refusal(response);
+    assert_eq!(error["code"], "APPROVAL_UNAVAILABLE", "{response}");
+    assert_eq!(
+        error["details"]["reason"], "input-not-canonical",
+        "{response}"
+    );
+    assert_eq!(
+        error["message"],
+        "todo-delete needs a person's approval, and this input cannot be bound to one"
+    );
+    assert!(setup.calls().is_empty());
+}
+
+#[tokio::test]
+async fn a_batch_step_whose_input_has_no_canonical_json_is_refused_up_front() {
+    let setup = setup(ConfirmationMode::Off);
+    let request = json!({ "commands": [
+        { "command": "todo-list", "input": {} },
+        { "command": "todo-delete", "input": { "id": 9_007_199_254_740_993_u64 } },
+    ]});
+    let response = setup.call("afd-batch", request, true, json!({})).await;
+    assert_not_canonical(&setup, &response);
+}
+
+#[tokio::test]
+async fn a_pipe_step_whose_input_has_no_canonical_json_is_refused_up_front() {
+    let setup = setup(ConfirmationMode::Off);
+    let pipe = json!({
+        "input": { "target": 9_007_199_254_740_993_u64 },
+        "steps": [
+            { "command": "todo-list" },
+            { "command": "todo-delete", "input": { "id": "$input.target" } },
+        ],
+    });
+    let response = setup.call("afd-pipe", pipe, true, json!({})).await;
+    assert_not_canonical(&setup, &response);
+}
+
 #[tokio::test]
 async fn a_pipeline_whose_gated_steps_read_only_input_is_asked_about_once() {
     let setup = setup(ConfirmationMode::Off);
@@ -615,4 +660,109 @@ async fn a_2025_stdio_connection_is_asked_once_in_band() {
         "{refused}"
     );
     assert!(calls.lock().unwrap().is_empty());
+}
+
+/// A server whose `todo-wipe` declares no approval policy: only the approval middleware's
+/// commands list gates it (#1886).
+fn list_only_setup() -> Setup {
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let registry = CommandRegistry::new();
+    let wipe = || {
+        let mut wipe = CommandDefinition::new(
+            "todo-wipe",
+            "Wipe a todo",
+            vec![CommandParameter::required_number("id", "Todo ID")],
+            Record("wipe", Arc::clone(&calls)),
+        );
+        wipe.expose.mcp = true;
+        wipe
+    };
+    let mut list = CommandDefinition::new(
+        "todo-list",
+        "List",
+        vec![],
+        Record("list", Arc::clone(&calls)),
+    );
+    list.expose.mcp = true;
+    registry.register(list).unwrap();
+    registry.register(wipe()).unwrap();
+    let clock = Arc::new(AtomicI64::new(1_790_000_000_000));
+    let listed = wipe().with_approval(ApprovalPolicy::Required);
+    let options = ApprovalMiddlewareOptions::new(SECRET, [listed])
+        .with_include_token(false)
+        .with_ttl_ms(TTL_MS)
+        .with_clock(Movable(Arc::clone(&clock)))
+        .with_relay(ApprovalRelay::McpElicitation);
+    registry.add_middleware(create_approval_middleware(options).unwrap());
+    let server = McpServer::new(Arc::new(registry), "up-front", "1.0.0")
+        .with_confirmations_key(ConfirmationMode::Off, vec![9u8; 32])
+        .unwrap();
+    Setup {
+        server,
+        calls,
+        clock,
+    }
+}
+
+#[tokio::test]
+async fn a_batch_step_gated_only_by_the_list_is_asked_about_before_any_step_runs() {
+    let setup = list_only_setup();
+    let request = json!({ "commands": [
+        { "command": "todo-list", "input": {} },
+        { "command": "todo-wipe", "input": { "id": 1 } },
+    ]});
+    let asked = setup
+        .call("afd-batch", request.clone(), true, json!({}))
+        .await;
+    assert_eq!(asked["result"]["resultType"], "input_required", "{asked}");
+    assert!(
+        question(&asked).contains("Step 2: Run todo-wipe"),
+        "{asked}"
+    );
+    assert!(setup.calls().is_empty(), "the earlier step did not run");
+    let ran = setup
+        .call(
+            "afd-batch",
+            request,
+            true,
+            answer(&state_of(&asked), "accept", true),
+        )
+        .await;
+    assert_eq!(body(&ran)["success"], true, "{ran}");
+    assert_eq!(setup.calls(), ["list", "wipe:1"]);
+}
+
+#[tokio::test]
+async fn a_pipe_step_gated_only_by_the_list_is_asked_about_before_any_step_runs() {
+    let setup = list_only_setup();
+    let pipe = json!({
+        "input": { "target": 4 },
+        "steps": [
+            { "command": "todo-list" },
+            { "command": "todo-wipe", "input": { "id": "$input.target" } },
+        ],
+    });
+    let asked = setup.call("afd-pipe", pipe.clone(), true, json!({})).await;
+    assert_eq!(asked["result"]["resultType"], "input_required", "{asked}");
+    assert!(
+        question(&asked).contains("Step 2: Run todo-wipe"),
+        "{asked}"
+    );
+    assert!(setup.calls().is_empty(), "the earlier step did not run");
+    let ran = setup
+        .call(
+            "afd-pipe",
+            pipe,
+            true,
+            answer(&state_of(&asked), "accept", true),
+        )
+        .await;
+    let statuses: Vec<Value> = body(&ran)["steps"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|step| step["status"].clone())
+        .collect();
+    assert_eq!(statuses, [json!("success"), json!("success")], "{ran}");
+    assert_eq!(setup.calls(), ["list", "wipe:4"]);
 }

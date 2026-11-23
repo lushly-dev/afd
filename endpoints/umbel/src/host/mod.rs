@@ -5,9 +5,12 @@
 //! surface, and returns the [`Host`]. Commands cannot be added after `seal`, which keeps the
 //! hybrid tool set fixed while serving (H2).
 
+mod approvals;
 mod digest;
 mod error;
 mod space;
+
+pub(crate) use approvals::as_registered;
 
 pub use error::HostError;
 pub use space::SPACE_NOT_FOUND;
@@ -410,7 +413,7 @@ impl HostBuilder {
             .map(|builtin| builtin.definition.name.clone())
             .collect();
         for Builtin { definition, schema } in builtins {
-            register(&registry, Pending::Schema(definition, schema))?;
+            register(&registry, &workspace, Pending::Schema(definition, schema))?;
         }
         for pending in self.commands {
             if let Some(problem) = task_refusal(pending.definition()) {
@@ -430,7 +433,7 @@ impl HostBuilder {
                     ),
                 ));
             }
-            register(&registry, pending)?;
+            register(&registry, &workspace, pending)?;
         }
         let loaded = Arc::new(plugins::load(&plugins::Inputs {
             workspace: &workspace,
@@ -448,7 +451,11 @@ impl HostBuilder {
         let _ = prompts.set(terminal_prompts(&loaded));
         for command in get_bootstrap_commands(&registry) {
             let expose = command.expose.clone().with_cli(true);
-            register(&registry, Pending::Plain(command.with_expose(expose)))?;
+            register(
+                &registry,
+                &workspace,
+                Pending::Plain(command.with_expose(expose)),
+            )?;
         }
 
         let plan = surfaces::first_class_plan(
@@ -613,11 +620,21 @@ fn reserved_verb(name: &str) -> Option<&'static str> {
     RESERVED_VERBS.iter().copied().find(|verb| *verb == first)
 }
 
-fn register(registry: &CommandRegistry, pending: Pending) -> Result<(), HostError> {
+/// Register a host command (a built-in, an embedder's or a bootstrap one) with the approval policy
+/// `mcp.approvals` serves it with ([`as_registered`]); none of them is `require-human`, which only
+/// a plugin manifest declares.
+fn register(
+    registry: &CommandRegistry,
+    workspace: &Workspace,
+    pending: Pending,
+) -> Result<(), HostError> {
     let name = pending.name().to_owned();
+    let config = workspace.config();
     let result = match pending {
-        Pending::Plain(command) => registry.register(command),
-        Pending::Schema(command, schema) => registry.register_with_schema(command, schema),
+        Pending::Plain(command) => registry.register(as_registered(config, command, false)),
+        Pending::Schema(command, schema) => {
+            registry.register_with_schema(as_registered(config, command, false), schema)
+        }
     };
     result.map_err(|message| {
         HostError::config_invalid(
@@ -839,73 +856,17 @@ fn install_middleware(
     ));
 
     let key = workspace.approval_key()?;
-    let mcp_approvals = workspace.config().mcp.approvals;
-    let gated: Vec<afd::CommandDefinition>;
-    let options = if mcp_approvals == crate::workspace::McpApprovals::Off {
-        // `mcp.approvals = "off"` (auth.mode none only, D202) disables approval holds only on MCP
-        // calls to ordinary commands; CLI calls, library calls, host-verified (`confirmation_mode`)
-        // commands and `require-human` commands keep their approval policies untouched.
-        // `ApprovalMiddlewareOptions::new` reads only `name`, `approval` and `confirm_prompt`.
-        struct NoopHandler;
-        #[async_trait::async_trait]
-        impl afd::CommandHandler for NoopHandler {
-            async fn execute(
-                &self,
-                _input: serde_json::Value,
-                _context: CommandContext,
-            ) -> afd::CommandResult<serde_json::Value> {
-                afd::success(serde_json::Value::Null)
-            }
-        }
-        gated = commands
-            .iter()
-            .map(|command| {
-                let mut definition = afd::CommandDefinition::new(
-                    &command.name,
-                    &command.description,
-                    vec![],
-                    NoopHandler,
-                );
-                definition
-                    .confirm_prompt
-                    .clone_from(&command.confirm_prompt);
-                let keep_enforced = command.confirmation_mode.is_some()
-                    || loaded
-                        .gate
-                        .get(&command.name)
-                        .is_some_and(|entry| entry.require_human);
-                definition.approval = match (&command.approval, keep_enforced) {
-                    (Some(policy), false) => {
-                        let policy = policy.clone();
-                        Some(afd::ApprovalPolicy::when_async(move |input, context| {
-                            let input = input.clone();
-                            let context = context.clone();
-                            let policy = policy.clone();
-                            Box::pin(async move {
-                                if context.interface == Some(CommandInterface::Mcp) {
-                                    afd::ApprovalDecision::NotRequired
-                                } else {
-                                    policy.decide(&input, &context).await
-                                }
-                            })
-                        }))
-                    }
-                    (policy, _) => policy.clone(),
-                };
-                definition
-            })
-            .collect();
-        ApprovalMiddlewareOptions::new(key, gated.iter()).with_include_token(false)
-    } else {
-        let options =
-            ApprovalMiddlewareOptions::new(key, commands.iter().map(|command| command.as_ref()))
-                .with_include_token(false);
-        if mcp_approvals == crate::workspace::McpApprovals::McpElicitation {
+    // `mcp.approvals = "off"` (D202) is in the policies the commands were registered with
+    // ([`as_registered`]), so every mode builds the middleware from the registry.
+    let options =
+        ApprovalMiddlewareOptions::new(key, commands.iter().map(|command| command.as_ref()))
+            .with_include_token(false);
+    let options =
+        if workspace.config().mcp.approvals == crate::workspace::McpApprovals::McpElicitation {
             options.with_relay(afd::ApprovalRelay::McpElicitation)
         } else {
             options
-        }
-    };
+        };
     // In a hosted mode, approval nonces and relay evidence (`relay:<decisionId>`) are spent once
     // across every process behind one URL (phase 5 section 10.2), not once per process; a failed
     // spend is reported as the shared store's, not as a spent token. Mode `none` keeps AFD's store

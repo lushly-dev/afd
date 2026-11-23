@@ -184,6 +184,10 @@ pub struct CommandContext {
     pub(crate) cancellation: Option<crate::cancellation::CancellationSignal>,
     /// Where a task's progress goes ([`CommandContext::report_progress`]): only the server sets it.
     pub(crate) task_progress: Option<Arc<crate::cancellation::TaskProgress>>,
+    /// Which command this call runs and whether an approval step admitted it (#1886): only
+    /// [`CommandRegistry::execute`](super::CommandRegistry::execute) sets it, afresh for every
+    /// call, and it is removed before the handler runs.
+    pub(crate) approval_admission: Option<Arc<crate::approval::admission::Admission>>,
 }
 
 impl fmt::Debug for CommandContext {
@@ -218,6 +222,7 @@ impl fmt::Debug for CommandContext {
             .field("approver", &self.approver)
             .field("cancellation", &self.cancellation)
             .field("task_progress", &self.task_progress)
+            .field("approval_admission", &self.approval_admission)
             .finish()
     }
 }

@@ -44,14 +44,17 @@ A held call fails with `APPROVAL_REQUIRED` before the handler runs; `error.detai
 same command, input and actor with `context.approval` set to the token. Tokens are HMAC-signed,
 bound to command, input and actor, expire (5 minutes by default) and work once by default.
 
-- In TypeScript, Python and C++ a declared policy holds without the middleware: `createMcpServer`
-  and `createDirectRegistry` (Python `create_server` and `create_direct_registry`, C++
+- In every language a declared policy holds without the middleware: `createMcpServer` and
+  `createDirectRegistry` (Python `create_server` and `create_direct_registry`, Rust and C++
   `CommandRegistry::execute`) refuse a command whose policy is not `'not-required'` with
   `APPROVAL_UNAVAILABLE` unless the approval middleware admitted the call, and the middleware
-  decides from each command's own policy (its `commands` option is optional). Rust does this
-  later; there, pass the middleware the same `commands` as the server, since an unlisted command
-  is not held. Install it after any middleware that sets `context.actor` (auth), since tokens bind
-  the actor. The secret must be at least 32 bytes.
+  decides from each command's own policy (its commands list is optional). Install it after any
+  middleware that sets `context.actor` (auth), since tokens bind the actor. The secret must be at
+  least 32 bytes.
+- Install one approval middleware per server or registry. A second one that does not gate a
+  command admits nothing, so the first one's admission decides; two that both gate a command's own
+  policy each ask for it (a DirectClient approval is taken by the first, and the second holds the
+  call again).
 - A policy function fails closed: anything but `'not-required'` holds the call. Write it so a
   call with no actor is held.
 - Never read `context.approval` from tool arguments. MCP results leave the token out by default

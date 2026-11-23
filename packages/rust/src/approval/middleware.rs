@@ -141,6 +141,37 @@ struct GatedCommand {
     confirm_prompt: Option<String>,
 }
 
+/// The policy and prompt of the command a call runs, borrowed from wherever it was found.
+struct Own<'c> {
+    approval: Option<&'c ApprovalPolicy>,
+    confirm_prompt: Option<&'c str>,
+}
+
+/// Whether two policies are the same declaration, so it is decided once.
+fn same_policy(a: &ApprovalPolicy, b: &ApprovalPolicy) -> bool {
+    match (a, b) {
+        (ApprovalPolicy::NotRequired, ApprovalPolicy::NotRequired)
+        | (ApprovalPolicy::Required, ApprovalPolicy::Required) => true,
+        (ApprovalPolicy::Conditional(a), ApprovalPolicy::Conditional(b)) => Arc::ptr_eq(a, b),
+        _ => false,
+    }
+}
+
+/// The answer for a call the middleware would hold whose input has no canonical JSON (#1886):
+/// no approval can be bound to it, so nobody is asked and nothing runs.
+fn input_not_canonical(name: &str) -> CommandError {
+    CommandError::new(
+        error_codes::APPROVAL_UNAVAILABLE,
+        format!("{name} needs a person's approval, and this input cannot be bound to one"),
+    )
+    .with_suggestion("Do not retry with this input: it has no exact canonical form, so an approval cannot be bound to it. Send the input in a form canonical JSON accepts (for example, an integer a JavaScript number cannot hold exactly, such as 2^53 + 1, as a string).")
+    .with_retryable(false)
+    .with_details(HashMap::from([(
+        "reason".to_owned(),
+        json!("input-not-canonical"),
+    )]))
+}
+
 /// Options for [`create_approval_middleware`].
 pub struct ApprovalMiddlewareOptions {
     secrets: Vec<Vec<u8>>,
@@ -156,9 +187,14 @@ pub struct ApprovalMiddlewareOptions {
 }
 
 impl ApprovalMiddlewareOptions {
-    /// Gate `commands` (pass the registry's, for example `registry.list()`), signing tokens with
-    /// `secret`: at least 32 bytes, with no default. Keep it out of source. A command that is
-    /// not in `commands` is never held, whatever its approval policy says.
+    /// Sign tokens with `secret` (at least 32 bytes, with no default; keep it out of source) and
+    /// also decide from the policies `commands` gives. Under
+    /// [`CommandRegistry`](crate::CommandRegistry) the middleware decides from the policy and
+    /// `confirm_prompt` of the command each call runs, and from the policy `commands` gives that
+    /// command: a call is held when either holds it, so a gate declared only here still holds,
+    /// and a command registered after this list was taken is decided by its own policy. Called
+    /// outside the registry, only `commands` decides. Without a list, use
+    /// [`ApprovalMiddlewareOptions::from_secret`].
     pub fn new<C>(secret: impl AsRef<[u8]>, commands: impl IntoIterator<Item = C>) -> Self
     where
         C: Borrow<CommandDefinition>,
@@ -186,6 +222,13 @@ impl ApprovalMiddlewareOptions {
             clock: None,
             relay: ApprovalRelay::Off,
         }
+    }
+
+    /// Sign tokens with `secret` (at least 32 bytes, with no default; keep it out of source), with
+    /// no commands list: under [`CommandRegistry`](crate::CommandRegistry) the middleware decides
+    /// from the policy of the command each call runs.
+    pub fn from_secret(secret: impl AsRef<[u8]>) -> Self {
+        Self::new(secret, std::iter::empty::<&CommandDefinition>())
     }
 
     /// Also accept tokens signed with `secret`, during a key rotation. The secret given to
@@ -284,8 +327,12 @@ impl fmt::Debug for ApprovalMiddlewareOptions {
 /// Otherwise it returns `APPROVAL_REQUIRED` with a fresh token, and the handler does not run.
 ///
 /// Add it after any middleware that sets or refines the actor (such as auth), since tokens are
-/// bound to the actor. [`CommandContext::approval`] must only ever be set by trusted surface
-/// code once a human approved, never from tool arguments: whoever holds a token can use it.
+/// bound to the actor, and after any middleware that retries: every path that lets a call through
+/// admits that one dispatch of that command on that input, and
+/// [`CommandRegistry::execute`](crate::CommandRegistry::execute) refuses a gated command no
+/// approval step admitted with `APPROVAL_UNAVAILABLE` (#1886). [`CommandContext::approval`]
+/// must only ever be set by trusted surface code once a human approved, never from tool
+/// arguments: whoever holds a token can use it.
 ///
 /// # Errors
 /// A secret is shorter than 32 bytes, or `ttl_ms` is zero or longer than 24 hours.
@@ -333,7 +380,10 @@ pub fn create_approval_middleware(
             "Approval ttl_ms must be a positive number of milliseconds, at most 24 hours".into(),
         );
     }
+    // Numbers each approval step, so an admission record can tell two apart.
+    static STEPS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let gate = Arc::new(Gate {
+        step: STEPS.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
         memory: options
             .nonce_store
             .is_none()
@@ -347,6 +397,8 @@ pub fn create_approval_middleware(
 }
 
 struct Gate {
+    /// This approval step, as admission records name it.
+    step: super::admission::Step,
     options: ApprovalMiddlewareOptions,
     /// Spent single-use nonces and their expiry, when no store was supplied.
     memory: Option<Mutex<HashMap<String, i64>>>,
@@ -366,17 +418,67 @@ impl Gate {
         }
     }
 
-    async fn requires_approval(&self, name: &str, input: &Value, context: &CommandContext) -> bool {
-        match self
+    /// The policy and confirmation prompt of the command `name` names for this call: the one the
+    /// registry runs, else, for another step of an up-front batch or pipeline, the server's
+    /// definition, else, outside the registry, the options' entry.
+    fn own<'c>(&'c self, name: &str, context: &'c CommandContext) -> Option<Own<'c>> {
+        if let Some(admission) = context
+            .approval_admission
+            .as_deref()
+            .filter(|admission| admission.command().name == name)
+        {
+            let command = admission.command();
+            return Some(Own {
+                approval: command.approval.as_ref(),
+                confirm_prompt: command.confirm_prompt.as_deref(),
+            });
+        }
+        if let Some(step) = context
+            .up_front_approval
+            .as_deref()
+            .and_then(|up_front| up_front.steps.iter().find(|step| step.command == name))
+        {
+            return Some(Own {
+                approval: step.approval.as_ref(),
+                confirm_prompt: step.confirm_prompt.as_deref(),
+            });
+        }
+        self.options.commands.get(name).map(|command| Own {
+            approval: command.approval.as_ref(),
+            confirm_prompt: command.confirm_prompt.as_deref(),
+        })
+    }
+
+    /// The policies that decide `name` for this call: the command's own (see [`Gate::own`]) and,
+    /// when it differs, the one the options list for it. The call is held when either holds it.
+    fn policies<'c>(&'c self, name: &str, context: &'c CommandContext) -> Vec<&'c ApprovalPolicy> {
+        let own = self.own(name, context).and_then(|own| own.approval);
+        let listed = self
             .options
             .commands
             .get(name)
-            .and_then(|command| command.approval.as_ref())
-        {
-            None => false,
-            // Fail closed: anything but an explicit `NotRequired` holds the call.
-            Some(policy) => policy.decide(input, context).await != ApprovalDecision::NotRequired,
+            .and_then(|command| command.approval.as_ref());
+        match (own, listed) {
+            (Some(own), Some(listed)) if !same_policy(own, listed) => vec![own, listed],
+            (own, listed) => own.or(listed).into_iter().collect(),
         }
+    }
+
+    /// Whether any policy that decides `name` could hold a call (is not `NotRequired`).
+    fn may_hold(&self, name: &str, context: &CommandContext) -> bool {
+        self.policies(name, context)
+            .into_iter()
+            .any(|policy| super::admission::gates(Some(policy)))
+    }
+
+    async fn requires_approval(&self, name: &str, input: &Value, context: &CommandContext) -> bool {
+        for policy in self.policies(name, context) {
+            // Fail closed: anything but an explicit `NotRequired` holds the call.
+            if policy.decide(input, context).await != ApprovalDecision::NotRequired {
+                return true;
+            }
+        }
+        false
     }
 
     async fn run(
@@ -386,6 +488,43 @@ impl Gate {
         context: CommandContext,
         next: crate::commands::MiddlewareNext,
     ) -> CommandResult<Value> {
+        // Every way this middleware lets a call it may gate through admits this command on the
+        // canonical input it decided on, which the registry checks, and takes, before it
+        // dispatches a command that its own or its listed policy gates (#1886). A call no policy
+        // here gates is not admitted: an admission from another approval step stands alone, and a
+        // retry placed after that step is still refused.
+        let may_gate = self.may_hold(&name, &context);
+        // Only when a policy here may gate the call: an ungated one does not need it. The binding
+        // a token is verified against below.
+        let verified = may_gate.then(|| canonical_json(&input));
+        // A gate the commands list gives the command the registry runs, though the command
+        // declares none, is taken at dispatch too, whatever name this middleware was called with:
+        // a middleware before it that calls it under another name is refused at dispatch.
+        if let Some(admission) = context.approval_admission.as_deref() {
+            if self
+                .options
+                .commands
+                .get(&admission.command().name)
+                .is_some_and(|listed| super::admission::gates(listed.approval.as_ref()))
+            {
+                admission.require();
+            }
+        }
+        let next: crate::commands::MiddlewareNext = match context.approval_admission.clone() {
+            Some(admission) if may_gate => {
+                // The input is kept only when it has no canonical JSON to bind.
+                let decided = super::admission::Decided::of(
+                    verified.as_ref().and_then(|verified| verified.clone().ok()),
+                    &input,
+                );
+                let (step, name) = (self.step, name.clone());
+                Arc::new(move || {
+                    admission.admit(step, &name, decided.clone());
+                    next()
+                })
+            }
+            _ => next,
+        };
         // An approver client's call ("Approval evidence from an approver client"): its token
         // reaches it and is never replaced by an elicitation, its carried evidence is taken by
         // the first command checked (the one the call routes to), once, and its tokens bind its
@@ -412,15 +551,10 @@ impl Gate {
         }
 
         let now = self.clock().now();
-        let input_binding = match canonical_json(&input) {
-            Ok(binding) => binding,
-            Err(message) => {
-                return failure(
-                    CommandError::new(error_codes::COMMAND_EXECUTION_ERROR, message)
-                        .with_suggestion("Pass plain JSON input: integers within ±2^53")
-                        .with_retryable(false),
-                )
-            }
+        // No token, relay or form answer can bind an input with no canonical JSON. A call is held
+        // only by a policy that gates it, so `verified` was computed.
+        let Some(Ok(input_binding)) = verified else {
+            return failure(input_not_canonical(&name));
         };
         let actor_binding = actor_json(context.actor.as_ref());
         // What a token's `a` binds: the actor, or an approver's principal binding (M8).
@@ -586,6 +720,12 @@ impl Gate {
             .as_ref()
             .and_then(|summarize| summarize(name, input, context))
             .filter(|summary| !summary.is_empty())
+            .or_else(|| {
+                self.own(name, context)
+                    .and_then(|own| own.confirm_prompt)
+                    .filter(|prompt| !prompt.is_empty())
+                    .map(str::to_owned)
+            })
             .or_else(|| {
                 self.options
                     .commands

@@ -136,6 +136,7 @@ const RESERVED_NAMES: &[&str] = &[
     "context_scope",
     "journal_state",
     "direct_approval",
+    "approval_admission",
     "remote",
     "tool_surface",
     "outputBudget",

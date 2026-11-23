@@ -404,7 +404,15 @@ Dropping the call cancels the flow. Raw registry execution remains a trusted hos
   the command, the validated input and the actor, until trusted code retries it with
   `CommandContext::with_approval(token)` (`spec/command-metadata.md`, "Approvals"). Tokens verify
   across TypeScript and Rust. Policies themselves (`CommandDefinition::with_approval`,
-  `_meta.approval`) need no feature. With `wasm`, the token nonce comes from
+  `_meta.approval`) need no feature, and hold without it: `CommandRegistry::execute` runs a
+  command whose policy is neither unset nor `NotRequired` only when an approval step admitted that
+  call (one dispatch, on the input it decided on), and answers `APPROVAL_UNAVAILABLE` before the
+  handler otherwise, so add any retrying middleware before the approval middleware. The middleware
+  decides from the policy of the command each call runs; its commands list is optional
+  (`ApprovalMiddlewareOptions::from_secret`). Add one approval middleware per registry: a second
+  one none of whose policies gate a command admits nothing, so the first one's admission decides,
+  but two that both gate a command's own policy each ask for it (a `DirectClient` approval is taken
+  by the first, and the second holds the call again). With `wasm`, the token nonce comes from
   `crypto.getRandomValues`. Behind the MCP server, the middleware also accepts relay evidence
   from a host's `HumanRelay` (below) once, and `with_relay(ApprovalRelay::McpElicitation)` asks
   the human behind an MCP client with a form elicitation instead of failing a call to one command,

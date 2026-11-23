@@ -8,7 +8,7 @@
 //! An instance that fails and is `required` (the default) fails `seal`; an optional one is
 //! skipped and reported `failed` by `plugin-list`.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -422,8 +422,21 @@ pub(crate) fn load(inputs: &Inputs<'_>) -> Result<LoadedPlugins, PluginError> {
         };
         let id = prepared.report.id.clone();
         let advertised = std::mem::take(&mut prepared.advertised);
+        // Registered with the approval policy `mcp.approvals` serves (D202): a `require-human`
+        // command keeps its own. A pipeline's gate entry is never `require-human`.
+        let require_human: HashSet<String> = prepared
+            .gate
+            .iter()
+            .filter(|(_, entry)| entry.require_human)
+            .map(|(name, _)| name.clone())
+            .collect();
         let register = |definition: CommandDefinition, schema: Value| {
             let name = definition.name.clone();
+            let definition = crate::host::as_registered(
+                inputs.workspace.config(),
+                definition,
+                require_human.contains(&name),
+            );
             match advertised.get(&name) {
                 Some(shown) => {
                     inputs
