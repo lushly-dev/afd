@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { cdp } from "vitest/browser";
 
 import "../accordion-item/violet-accordion-item";
 import "./violet-accordion";
@@ -79,6 +80,51 @@ describe("violet-accordion", () => {
             expect(press("Tab").defaultPrevented).toBe(false);
             expect(press("Enter").defaultPrevented).toBe(false);
             expect(press("ArrowDown").defaultPrevented).toBe(true);
+        });
+    });
+
+    describe("coarse pointer sizing (#1569)", () => {
+        async function emulateCoarsePointer(coarse: boolean): Promise<void> {
+            const session = cdp() as unknown as { send(method: string, params?: object): Promise<unknown> };
+            if (coarse) {
+                await session.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
+                await session.send("Emulation.setDeviceMetricsOverride", {
+                    width: 390,
+                    height: 844,
+                    deviceScaleFactor: 2,
+                    mobile: true,
+                });
+            } else {
+                await session.send("Emulation.setTouchEmulationEnabled", { enabled: false });
+                await session.send("Emulation.clearDeviceMetricsOverride");
+            }
+        }
+
+        afterEach(async () => {
+            await emulateCoarsePointer(false);
+        });
+
+        it("grows the accordion header control to the comfortable target size on coarse pointers", async () => {
+            const accordion = await renderAccordion("multi");
+            const item = accordion.querySelector("violet-accordion-item") as HTMLElement;
+            const trigger = item.shadowRoot?.querySelector(".trigger") as HTMLButtonElement;
+
+            expect(matchMedia("(any-pointer: coarse)").matches).toBe(false);
+            expect(getComputedStyle(item).getPropertyValue("--_target-size").trim()).toBe("32px");
+            expect(Number.parseFloat(getComputedStyle(trigger).minBlockSize)).toBe(32);
+
+            await emulateCoarsePointer(true);
+            await nextFrame();
+
+            expect(matchMedia("(any-pointer: coarse)").matches).toBe(true);
+            expect(getComputedStyle(item).getPropertyValue("--_target-size").trim()).toBe("44px");
+            expect(Number.parseFloat(getComputedStyle(trigger).minBlockSize)).toBe(44);
+            expect(trigger.getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
+
+            // An explicit --violet-target-size override still wins on coarse pointers.
+            item.style.setProperty("--violet-target-size", "24px");
+            await nextFrame();
+            expect(getComputedStyle(item).getPropertyValue("--_target-size").trim()).toBe("24px");
         });
     });
 });

@@ -49,8 +49,12 @@ const styles = css`
         --_carousel-border: var(--_border-subtle);
         --_carousel-shadow: var(--_shadow-card);
         --_carousel-dot-size: 0.625rem;
-        /* The surface block has no target sizes; a dot's button is three quarters of a control. */
-        --_target-size: var(--violet-target-size, var(--size-target-natural, 32px));
+        /* The surface block has no target sizes; a dot's button is three quarters of a control on fine pointers and full comfortable size on coarse pointers. */
+        --_target-size-natural: var(--size-target-natural, 32px);
+        --_target-size-comfortable: var(--size-target-comfortable, 44px);
+        --_auto-target-size: var(--_target-size-natural);
+        --_target-size: var(--violet-target-size, var(--_auto-target-size));
+        --_carousel-dot-target-size: calc(var(--_target-size) * 0.75);
         --_carousel-dot-active: var(--color-state-success-foreground, #2c5e4b);
         --_carousel-dot-idle: color-mix(in srgb, var(--_text-muted) 32%, transparent);
     }
@@ -140,10 +144,10 @@ const styles = css`
 
     .dot {
         box-sizing: border-box;
-        inline-size: calc(var(--_target-size) * 0.75);
-        block-size: calc(var(--_target-size) * 0.75);
-        min-inline-size: calc(var(--_target-size) * 0.75);
-        min-block-size: calc(var(--_target-size) * 0.75);
+        inline-size: var(--_carousel-dot-target-size);
+        block-size: var(--_carousel-dot-target-size);
+        min-inline-size: var(--_carousel-dot-target-size);
+        min-block-size: var(--_carousel-dot-target-size);
         padding: 0;
         border: 0;
         border-radius: var(--_radius-round);
@@ -189,6 +193,13 @@ const styles = css`
         clip: rect(0 0 0 0);
         white-space: nowrap;
         border: 0;
+    }
+
+    @media (any-pointer: coarse) {
+        :host {
+            --_auto-target-size: var(--_target-size-comfortable);
+            --_carousel-dot-target-size: var(--_target-size);
+        }
     }
 
     @media (prefers-reduced-motion: reduce) {

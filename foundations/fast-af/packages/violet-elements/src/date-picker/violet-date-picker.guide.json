@@ -39,11 +39,11 @@
   "a11y": [
     {
       "id": "date-picker.keyboard",
-      "text": "ArrowDown in the input opens the calendar and focuses a day. Escape closes it and returns focus to the input, and is stopped so an enclosing dialog stays open. An outside click also closes it."
+      "text": "Alt+ArrowDown in the input opens the calendar and focuses a day. Escape closes it and returns focus without closing an enclosing dialog. An outside click also closes it."
     },
     {
       "id": "date-picker.toggle",
-      "text": "The calendar button is named \"Choose date\", or \"Change date\" once a value is set, and exposes aria-expanded. The popup panel itself has no dialog role."
+      "text": "The calendar button is named \"Choose date\", or \"Change date\" once a value is set, and exposes aria-expanded. The popup panel has role=\"dialog\" and an accessible name."
     }
   ],
   "roles": [

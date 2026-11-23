@@ -85,6 +85,15 @@ const styles = css`
         }
     }
 
+    /* A dialog that connects already open starts settled rather than fading in from invisible (#1171). */
+    dialog[open][data-initial-open] {
+        transition: none;
+
+        @starting-style {
+            opacity: 1;
+        }
+    }
+
     dialog::backdrop {
         background: var(--_dialog-backdrop-off);
         transition:
@@ -98,6 +107,14 @@ const styles = css`
 
         @starting-style {
             background: var(--_dialog-backdrop-off);
+        }
+    }
+
+    dialog[open][data-initial-open]::backdrop {
+        transition: none;
+
+        @starting-style {
+            background: var(--_dialog-backdrop);
         }
     }
 
@@ -116,7 +133,7 @@ const styles = css`
 
     .title {
         flex: 1;
-        font-family: var(--font-family-heading, var(--font-family-body, "Inter", system-ui, sans-serif));
+        font-family: var(--font-family-heading, var(--violet-font-family, var(--font-family-body)));
         font-size: var(--type-title-sm-size, 18px);
         line-height: var(--type-title-sm-line, 24px);
         font-weight: var(--type-title-sm-weight, 600);
@@ -271,6 +288,7 @@ export class VioletDialog extends FASTElement {
     #triggerElement: Element | null = null;
     #closingProgrammatically = false;
     #bodyObserver: ResizeObserver | null = null;
+    #initialOpenFrame = 0;
 
     public constructor() {
         super();
@@ -337,11 +355,15 @@ export class VioletDialog extends FASTElement {
         super.connectedCallback();
 
         if (this.open) {
-            this.#openDialog();
+            this.#openDialog(true);
         }
     }
 
     public disconnectedCallback(): void {
+        this.#clearInitialOpenFrame();
+        if (this.#dialogElement) {
+            delete this.#dialogElement.dataset.initialOpen;
+        }
         this.#bodyObserver?.disconnect();
         this.#bodyObserver = null;
         super.disconnectedCallback();
@@ -409,10 +431,17 @@ export class VioletDialog extends FASTElement {
         });
     }
 
-    #openDialog(): void {
+    #openDialog(initial = false): void {
         const dialog = this.#dialogElement;
         if (!dialog || dialog.open) {
             return;
+        }
+
+        this.#clearInitialOpenFrame();
+        if (initial) {
+            dialog.dataset.initialOpen = "";
+        } else {
+            delete dialog.dataset.initialOpen;
         }
 
         this.#triggerElement = deepActiveElement();
@@ -424,6 +453,19 @@ export class VioletDialog extends FASTElement {
             dialog.showModal();
         }
 
+        if (initial) {
+            // Keep transitions off until after the first painted frame so an initially open dialog
+            // never fades in from opacity 0, then re-enable them for later close animations (#1171).
+            this.#initialOpenFrame = requestAnimationFrame(() => {
+                this.#initialOpenFrame = requestAnimationFrame(() => {
+                    this.#initialOpenFrame = 0;
+                    if (this.isConnected && dialog.open) {
+                        delete dialog.dataset.initialOpen;
+                    }
+                });
+            });
+        }
+
         this.#observeBody();
 
         this.$emit("open-change", { open: true });
@@ -431,12 +473,23 @@ export class VioletDialog extends FASTElement {
 
     #closeDialog(): void {
         const dialog = this.#dialogElement;
+        this.#clearInitialOpenFrame();
+        if (dialog) {
+            delete dialog.dataset.initialOpen;
+        }
         if (!dialog?.open) {
             return;
         }
 
         if (!this.#closingProgrammatically) {
             dialog.close();
+        }
+    }
+
+    #clearInitialOpenFrame(): void {
+        if (this.#initialOpenFrame) {
+            cancelAnimationFrame(this.#initialOpenFrame);
+            this.#initialOpenFrame = 0;
         }
     }
 

@@ -374,3 +374,21 @@ export const CustomWidth: Story = {
         return result;
     },
 };
+
+export const Open: Story = {
+    args: {
+        type: "modal",
+        padding: "medium",
+        noCloseButton: false,
+        noBackdrop: false,
+        title: "Delete project?",
+        body: "This removes the project and its files.",
+        showFooter: true,
+    },
+    render: (args: VioletDialogStoryArgs) => {
+        const result = renderDialog(args);
+        const element = result.querySelector("violet-dialog") as VioletDialog;
+        element.setAttribute("open", "");
+        return result;
+    },
+};

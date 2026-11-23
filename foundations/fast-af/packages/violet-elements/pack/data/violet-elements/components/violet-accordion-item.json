@@ -103,13 +103,28 @@
 			},
 			{
 				"basis": "declared",
+				"default": "var(--_target-size-natural)",
+				"name": "--_auto-target-size"
+			},
+			{
+				"basis": "declared",
 				"default": "var(--violet-control-body-size, var(--_body-size))",
 				"name": "--_control-body-size"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-target-size, var(--size-target-natural, 32px))",
+				"default": "var(--violet-target-size, var(--_auto-target-size))",
 				"name": "--_target-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--size-target-comfortable, 44px)",
+				"name": "--_target-size-comfortable"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--size-target-natural, 32px)",
+				"name": "--_target-size-natural"
 			}
 		],
 		"events": [

@@ -170,6 +170,29 @@ describe("violet-dialog", () => {
         expect(nativeDialog(dialog).matches(":modal")).toBe(true);
     });
 
+    it("renders immediately at full opacity when open at mount so contrast checks never see a fade-in (#1171)", async () => {
+        document.body.innerHTML = "";
+        const dialog = document.createElement("violet-dialog") as VioletDialog;
+        dialog.setAttribute("open", "");
+        const title = document.createElement("span");
+        title.slot = "title";
+        title.textContent = "Delete project?";
+        const body = document.createElement("p");
+        body.textContent = "This removes the project and its files.";
+        dialog.append(title, body);
+        document.body.append(dialog);
+
+        await customElements.whenDefined("violet-dialog");
+        // Check opacity immediately on frame 0 and across the first three animation frames.
+        for (let frame = 0; frame < 4; frame += 1) {
+            expect(getComputedStyle(nativeDialog(dialog)).opacity, `frame ${frame}`).toBe("1");
+            await nextFrame();
+        }
+        // After the initial paint settles, data-initial-open is cleared so closing can still transition.
+        expect(nativeDialog(dialog).hasAttribute("data-initial-open")).toBe(false);
+        dialog.hide();
+    });
+
     it("opens when the open property is toggled after connection", async () => {
         const dialog = await renderDialog();
 
@@ -402,6 +425,12 @@ describe("violet-dialog", () => {
             const surface = nativeDialog(dialog);
             expect(getComputedStyle(surface).forcedColorAdjust).toBe("none");
             expect(getComputedStyle(surface).backgroundColor).toBe(systemColor("Canvas"));
+
+            const closeButton = dialog.shadowRoot?.querySelector(".close-button") as HTMLElement;
+            const closeControl = closeButton.shadowRoot?.querySelector("button") as HTMLElement;
+            const closeIcon = closeButton.querySelector("violet-icon") as HTMLElement;
+            expect(getComputedStyle(closeControl).color).toBe(systemColor("ButtonText"));
+            expect(getComputedStyle(closeIcon).color).toBe(systemColor("ButtonText"));
             dialog.hide();
         });
     });

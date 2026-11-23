@@ -100,8 +100,9 @@ reads, by token id, with its type:
   when the file lists one nothing reads that is not `reserved`.
 - Typefaces come from `font.family.body`, from `font.family.heading` for a dialog's title and
   the text component's headings (its fallback is the body family) and from `font.family.mono`
-  for a tool call's command name; no component names a font family except as a fallback of
-  those tokens.
+  for a tool call's command name. When no theme or `--violet-font-family` override is installed,
+  body and heading text inherit the host page's `font-family` instead of hard-coding a literal
+  fallback stack.
 - `src/theme/violet-private-properties.spec.ts` fails when a component reads a private `--_*`
   alias with no fallback that neither it nor a token-default block it includes defines (the
   declaration would be dropped), and when one read with a fallback is not listed there with

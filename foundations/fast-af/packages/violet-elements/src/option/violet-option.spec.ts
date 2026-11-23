@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import "./violet-option";
@@ -391,6 +391,8 @@ describe("violet-option", () => {
     );
 
     it.each(["light", "dark", "high-contrast"])("keeps active text readable in %s without a palette override", async preset => {
+        await loadVioletBuiltInTheme();
+        await customElements.whenDefined("violet-theme");
         const option = await renderOption({ text: "Apple" });
         const theme = document.createElement("violet-theme");
         theme.setAttribute("preset", preset);
@@ -398,7 +400,9 @@ describe("violet-option", () => {
         option.before(theme);
         theme.append(option);
         option.active = true;
-        await nextFrame();
+        await vi.waitFor(() => {
+            expect(getComputedStyle(theme).getPropertyValue("--color-surface-subtle").trim()).not.toBe("");
+        });
         await nextFrame();
         // Exclude transition intermediates from the measured color pair.
         control(option).style.transition = "none";

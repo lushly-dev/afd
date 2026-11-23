@@ -55,7 +55,7 @@
 				"type": "boolean"
 			},
 			{
-				"basis": "declared",
+				"basis": "observed",
 				"default": false,
 				"name": "open",
 				"property": "open",
@@ -190,11 +190,6 @@
 		{
 			"kind": "unobserved",
 			"name": "no-backdrop",
-			"section": "attributes"
-		},
-		{
-			"kind": "unobserved",
-			"name": "open",
 			"section": "attributes"
 		},
 		{

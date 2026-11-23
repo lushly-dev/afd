@@ -265,6 +265,8 @@ const template = html<VioletDatePicker>`
                 id="${x => x.panelId}"
                 class="panel"
                 part="panel"
+                role="dialog"
+                aria-label="${x => (x.label ? `${x.label} calendar` : "Choose date")}"
                 hidden
                 @keydown="${(x, c) => x.handlePanelKeydown(c.event as KeyboardEvent)}"
             >
@@ -526,7 +528,7 @@ export class VioletDatePicker extends FASTElement {
             return true;
         }
 
-        if (event.key === "ArrowDown") {
+        if (event.key === "ArrowDown" && event.altKey) {
             event.preventDefault();
             this.show();
             return false;
@@ -538,7 +540,7 @@ export class VioletDatePicker extends FASTElement {
             return false;
         }
 
-        // Let every other key (typing, Tab, ...) reach the native input.
+        // Let every other key (typing, ArrowUp/ArrowDown segment editing, Tab, ...) reach the native input.
         return true;
     }
 

@@ -76,6 +76,11 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
+				"default": "var(--_target-size-natural)",
+				"name": "--_auto-target-size"
+			},
+			{
+				"basis": "declared",
 				"default": "var(--_border-subtle)",
 				"name": "--_carousel-border"
 			},
@@ -93,6 +98,11 @@
 				"basis": "declared",
 				"default": "0.625rem",
 				"name": "--_carousel-dot-size"
+			},
+			{
+				"basis": "declared",
+				"default": "calc(var(--_target-size) * 0.75)",
+				"name": "--_carousel-dot-target-size"
 			},
 			{
 				"basis": "declared",
@@ -126,8 +136,18 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-target-size, var(--size-target-natural, 32px))",
+				"default": "var(--violet-target-size, var(--_auto-target-size))",
 				"name": "--_target-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--size-target-comfortable, 44px)",
+				"name": "--_target-size-comfortable"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--size-target-natural, 32px)",
+				"name": "--_target-size-natural"
 			}
 		],
 		"events": [

@@ -24,7 +24,7 @@ const styles = css`
         min-inline-size: 0;
         max-inline-size: 100%;
         color: var(--_rating-filled);
-        font-family: var(--violet-data-grid-font-family, var(--font-family-body, "Inter", system-ui, sans-serif));
+        font-family: var(--violet-data-grid-font-family, var(--violet-font-family, var(--font-family-body)));
 
         --_surface-page: var(--color-surface-page, #f4f0ea);
         --_surface-subtle: var(--color-surface-subtle, #e9e5de);

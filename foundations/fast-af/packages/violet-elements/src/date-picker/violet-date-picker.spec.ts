@@ -158,12 +158,19 @@ describe("violet-date-picker", () => {
         it("wires the toggle button to the popup panel", async () => {
             const picker = await renderDatePicker();
             const toggle = getToggle(picker);
+            const panel = getPanel(picker);
 
             expect(toggle.getAttribute("aria-haspopup")).toBe("dialog");
             expect(toggle.getAttribute("aria-expanded")).toBe("false");
             expect(toggle.getAttribute("aria-controls")).toBe(picker.panelId);
-            expect(getPanel(picker).id).toBe(picker.panelId);
-            expect(getPanel(picker).hidden).toBe(true);
+            expect(panel.id).toBe(picker.panelId);
+            expect(panel.getAttribute("role")).toBe("dialog");
+            expect(panel.getAttribute("aria-label")).toBe("Planting date calendar");
+            expect(panel.hidden).toBe(true);
+
+            picker.label = "";
+            await nextFrame();
+            expect(panel.getAttribute("aria-label")).toBe("Choose date");
         });
 
         it("changes the toggle label depending on whether a date is chosen", async () => {
@@ -268,10 +275,14 @@ describe("violet-date-picker", () => {
             });
         });
 
-        it("opens with ArrowDown and closes with Escape from the input", async () => {
+        it("opens with Alt+ArrowDown, leaves plain ArrowDown for segment editing, and closes with Escape from the input", async () => {
             const picker = await renderDatePicker();
 
-            expect(inputKeydown(picker, "ArrowDown").defaultPrevented).toBe(true);
+            expect(inputKeydown(picker, "ArrowDown").defaultPrevented).toBe(false);
+            await nextFrame();
+            expect(picker.open).toBe(false);
+
+            expect(inputKeydown(picker, "ArrowDown", { altKey: true }).defaultPrevented).toBe(true);
             await nextFrame();
             expect(picker.open).toBe(true);
 
@@ -334,7 +345,7 @@ describe("violet-date-picker", () => {
 
             picker.show();
             picker.toggleOpen();
-            inputKeydown(picker, "ArrowDown");
+            inputKeydown(picker, "ArrowDown", { altKey: true });
             await nextFrame();
 
             expect(picker.open).toBe(false);
@@ -874,9 +885,10 @@ describe("violet-date-picker", () => {
         it("does not cancel typing, Tab or arrow keys inside the native input", async () => {
             const picker = await renderDatePicker();
 
-            for (const key of ["1", "Tab", "ArrowLeft", "ArrowRight", "Backspace"]) {
+            for (const key of ["1", "Tab", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Backspace"]) {
                 expect(inputKeydown(picker, key).defaultPrevented, key).toBe(false);
             }
+            expect(picker.open).toBe(false);
         });
 
         it("does not cancel Escape while closed", async () => {
@@ -885,10 +897,10 @@ describe("violet-date-picker", () => {
             expect(inputKeydown(picker, "Escape").defaultPrevented).toBe(false);
         });
 
-        it("still cancels ArrowDown and opens the panel", async () => {
+        it("still cancels Alt+ArrowDown and opens the panel", async () => {
             const picker = await renderDatePicker();
 
-            expect(inputKeydown(picker, "ArrowDown").defaultPrevented).toBe(true);
+            expect(inputKeydown(picker, "ArrowDown", { altKey: true }).defaultPrevented).toBe(true);
             expect(picker.open).toBe(true);
         });
     });

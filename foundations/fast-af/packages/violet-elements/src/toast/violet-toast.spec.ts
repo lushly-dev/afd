@@ -137,8 +137,14 @@ describe("violet-toast", () => {
             // Its card's slots opt slotted content back in; the toast's own layout opts out again.
             const layout = toast.shadowRoot?.querySelector(".layout") as HTMLElement;
             const leading = toast.shadowRoot?.querySelector(".leading") as HTMLElement;
+            const dismiss = toast.shadowRoot?.querySelector(".dismiss") as HTMLElement;
+            const dismissControl = dismiss.shadowRoot?.querySelector("button") as HTMLElement;
+            const dismissIcon = dismiss.querySelector("violet-icon") as HTMLElement;
+            const buttonText = systemColor("ButtonText");
             expect(getComputedStyle(layout).forcedColorAdjust).toBe("none");
-            expect(getComputedStyle(leading).color).toBe(systemColor("ButtonText"));
+            expect(getComputedStyle(leading).color).toBe(buttonText);
+            expect(getComputedStyle(dismissControl).color).toBe(buttonText);
+            expect(getComputedStyle(dismissIcon).color).toBe(buttonText);
 
             // Its own slots opt what is slotted into it back in, the title included.
             const canvasText = systemColor("CanvasText");

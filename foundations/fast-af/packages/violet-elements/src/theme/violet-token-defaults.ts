@@ -3,7 +3,7 @@ import { css, type ElementStyles } from "@lushly-dev/fast-element";
 export const violetActionTokenDefaults: ElementStyles = css`
     :host {
         color: var(--color-text-primary, #181b1a);
-        font-family: var(--font-family-body, "Inter", system-ui, sans-serif);
+        font-family: var(--violet-font-family, var(--font-family-body));
 
         --_action-primary-background: var(--color-action-primary-background, #181b1a);
         --_action-primary-text: var(--color-action-primary-text, #f4f0ea);
@@ -64,7 +64,7 @@ export const violetActionTokenDefaults: ElementStyles = css`
 export const violetFieldTokenDefaults: ElementStyles = css`
     :host {
         color: var(--color-text-primary, #181b1a);
-        font-family: var(--font-family-body, "Inter", system-ui, sans-serif);
+        font-family: var(--violet-font-family, var(--font-family-body));
 
         --_surface-page: var(--color-surface-page, #f4f0ea);
         --_surface-subtle: var(--color-surface-subtle, #e9e5de);
@@ -76,7 +76,7 @@ export const violetFieldTokenDefaults: ElementStyles = css`
         --_field-border-readonly: var(--color-border-strong, #6b7d6e);
         --_field-border-hover: var(--color-field-border-hover, #48534b);
         --_field-border-focus: var(--color-field-border-focus, var(--_focus-ring));
-        --_field-background: var(--color-field-background, var(--_surface-page));
+        --_field-background: var(--color-field-background, #ffffff);
         --_field-background-readonly: var(--color-field-background-readonly, var(--_surface-subtle));
         --_field-text: var(--color-field-text, var(--color-text-primary, #181b1a));
         --_field-placeholder: var(--color-field-placeholder, var(--_text-muted));
@@ -153,7 +153,7 @@ export const violetFieldTokenDefaults: ElementStyles = css`
 export const violetSurfaceTokenDefaults: ElementStyles = css`
     :host {
         color: var(--color-text-primary, #181b1a);
-        font-family: var(--font-family-body, "Inter", system-ui, sans-serif);
+        font-family: var(--violet-font-family, var(--font-family-body));
 
         --_surface-card: var(--color-surface-card, #f8f9f3);
         --_surface-subtle: var(--color-surface-subtle, #e9e5de);

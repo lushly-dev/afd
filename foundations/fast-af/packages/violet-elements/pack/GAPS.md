@@ -47,7 +47,7 @@ fails when it is not the report the records give.
 | `violet-data-grid` | summary, usage, a11y-statement, role | `selection-label`, `sort-mode` | - |
 | `violet-date-picker` | - | `open` | - |
 | `violet-date-range-picker` | summary, usage, a11y-statement, role | `open` | - |
-| `violet-dialog` | - | `no-backdrop`, `open`, `padding` | - |
+| `violet-dialog` | - | `no-backdrop`, `padding` | - |
 | `violet-empty-state` | role | - | - |
 | `violet-file-explorer` | summary, usage, a11y-statement, role, example | `load-error` | - |
 | `violet-file-upload` | - | `invalid`, `required`, `size` | - |
