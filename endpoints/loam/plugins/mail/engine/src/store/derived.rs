@@ -1077,12 +1077,7 @@ impl Store {
     /// # Errors
     /// When the database refuses.
     pub fn stale_count(&self) -> Result<u64, StoreError> {
-        let stale: i64 = self.connection.query_row(
-            "SELECT count(*) FROM envelope WHERE parser < ?1",
-            [PARSER_VERSION],
-            |row| row.get(0),
-        )?;
-        Ok(count(stale))
+        stale_count_on(&self.connection)
     }
 
     /// Derives again up to `limit` of the messages an older version of the
@@ -1199,4 +1194,15 @@ impl Store {
             finished: false,
         })
     }
+}
+
+/// [`Store::stale_count`] on `connection`, for checks inside an open
+/// transaction.
+pub(super) fn stale_count_on(connection: &rusqlite::Connection) -> Result<u64, StoreError> {
+    let stale: i64 = connection.query_row(
+        "SELECT count(*) FROM envelope WHERE parser < ?1",
+        [PARSER_VERSION],
+        |row| row.get(0),
+    )?;
+    Ok(count(stale))
 }

@@ -235,15 +235,25 @@ async fn a_persons_command_is_neither_listed_nor_callable_over_mcp() {
         "mail-sender-screen",
         "mail-sender-accept",
         "mail-policy-set",
-        "mail-operation-approve",
         "mail-draft-send",
     ] {
         assert!(!listed.contains(person), "{person} is listed: {listed}");
     }
-    // `mail-unsubscribe-show` is a read (listed); `mail-unsubscribe` is not.
+    // `mail-operation-approve` is released over MCP (step F2a, M18 amended),
+    // held for approval for every caller; non-approvers get no token.
+    assert!(
+        listed.contains("\"mail-operation-approve\""),
+        "mail-operation-approve is not listed: {listed}"
+    );
+    // `mail-unsubscribe-show` is a read (listed); `mail-unsubscribe` and
+    // `mail-replyset-send` are not yet released.
     assert!(
         !listed.contains("\"mail-unsubscribe\""),
         "mail-unsubscribe is listed: {listed}"
+    );
+    assert!(
+        !listed.contains("\"mail-replyset-send\""),
+        "mail-replyset-send is listed: {listed}"
     );
     // An agent suggests and dismisses its own suggestions; it never decides.
     for agents in [
@@ -272,9 +282,9 @@ async fn a_persons_command_is_neither_listed_nor_callable_over_mcp() {
         "mail-sender-screen",
         "mail-sender-accept",
         "mail-policy-set",
-        "mail-operation-approve",
         "mail-draft-send",
         "mail-unsubscribe",
+        "mail-replyset-send",
     ] {
         let call = mcp_body(
             "tools/call",
@@ -285,6 +295,16 @@ async fn a_persons_command_is_neither_listed_nor_callable_over_mcp() {
         let text = body.to_string();
         assert!(text.contains("COMMAND_NOT_FOUND"), "{person}: {text}");
     }
+    // `mail-operation-approve` is listed over MCP, but never runs without
+    // evidence from the terminal or an approver (and refuses closed/missing
+    // proposals before any hold).
+    let approve_call = mcp_body(
+        "tools/call",
+        json!({ "name": "afd-call", "arguments": { "command": "mail-operation-approve", "input": { "operation": 1, "digest": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" } } }),
+    );
+    let (status, body) = request(&app, "/mcp", sent(Some(&agent)), approve_call).await;
+    assert_eq!(status, 200, "{body}");
+    assert!(body.to_string().contains("PROPOSAL_NOT_OPEN"), "{body}");
     // Nor by its own name, nor as a step of a batch.
     let direct = mcp_body(
         "tools/call",

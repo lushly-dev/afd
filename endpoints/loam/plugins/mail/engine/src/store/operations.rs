@@ -14,10 +14,12 @@
 //! next pass of sync would find it, so that a list is right at once.
 
 use rusqlite::{OptionalExtension, Transaction, params};
+use sha2::{Digest, Sha256};
 
 use super::derived::{Touched, rebuild_cursor, settle, touch_place};
 use super::{
-    Kept, Proposer, Role, SelectionItem, Store, StoreError, count, flags_json, note_change,
+    Kept, Proposer, Readiness, Role, SelectionItem, Store, StoreError, count, flags_json,
+    note_change,
 };
 
 /// How long a proposal waits for the person, in milliseconds (9.4).
@@ -230,17 +232,45 @@ pub struct OperationRow {
     pub proposal: Option<Proposal>,
 }
 
-/// A proposal of an operation (9.4).
+/// A proposal of an operation (9.4; plugin.spec.md section 7).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Proposal {
     /// Who proposed it.
     pub proposer: Proposer,
+    /// Raised each time the operation enters `proposed`, so a resume dismissed
+    /// and proposed again under the same id cannot be released by an earlier
+    /// approval's digest.
+    pub generation: u64,
     /// When.
     pub proposed_at: i64,
     /// When it goes, if the person has not approved it.
     pub expires_at: i64,
     /// When the person approved it, if they have.
     pub approved_at: Option<i64>,
+}
+
+/// Why approving a proposal was refused inside its transaction.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ApprovalRefusal {
+    /// No operation has that id.
+    Missing,
+    /// The operation exists but is not an open proposal; carries its state.
+    NotOpen(OperationState),
+    /// The operation an undo proposal would undo does not exist.
+    UndoTargetMissing(i64),
+    /// The operation an undo proposal would undo is currently running.
+    UndoTargetRunning(i64),
+    /// The operation an undo proposal would undo was already undone.
+    UndoTargetUndone {
+        /// The original operation id.
+        original: i64,
+        /// The operation that already undid it.
+        undone_by: i64,
+    },
+    /// Screening cannot yet be read (`SCREENING_NOT_READY`).
+    ScreeningNotReady(Readiness),
+    /// The proposal's digest no longer matches the caller's (`PREVIEW_CHANGED`).
+    PreviewChanged,
 }
 
 /// How many of an operation's items reached each end.
@@ -386,7 +416,7 @@ const OPERATION_COLUMNS: &str = "id, command, action, kind, asked, undo_of,
      WHERE undo.undo_of = operation.id AND undo.started_at IS NOT NULL),
     selection_id, query, creator_kind, creator_id, state, stop_asked, created_at, ended_at,
     messages, error, started_at, charged, proposer_kind, proposer_id, proposed_at, expires_at,
-    approved_at";
+    approved_at, proposal_generation";
 
 fn operation_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<OperationRow> {
     Ok(OperationRow {
@@ -425,6 +455,7 @@ fn operation_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<OperationRow> {
                     kind,
                     id: row.get(20)?,
                 },
+                generation: count(row.get(24)?),
                 proposed_at,
                 expires_at,
                 approved_at: row.get(23)?,
@@ -432,6 +463,284 @@ fn operation_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<OperationRow> {
             _ => None,
         },
     })
+}
+
+fn operation_on(
+    connection: &rusqlite::Connection,
+    id: i64,
+) -> Result<Option<OperationRow>, StoreError> {
+    Ok(connection
+        .query_row(
+            &format!("SELECT {OPERATION_COLUMNS} FROM operation WHERE id = ?1"),
+            [id],
+            operation_row,
+        )
+        .optional()?)
+}
+
+fn operation_counts_on(
+    connection: &rusqlite::Connection,
+    id: i64,
+) -> Result<StepCounts, StoreError> {
+    let mut statement = connection.prepare_cached(
+        "SELECT step, count(*) FROM operation_item WHERE operation_id = ?1 GROUP BY step",
+    )?;
+    let mut counts = StepCounts::default();
+    let rows = statement.query_map([id], |row| {
+        Ok((row.get::<_, String>(0)?, count(row.get(1)?)))
+    })?;
+    for row in rows {
+        let (step, n) = row?;
+        match Step::parse(&step) {
+            Step::Done => counts.done += n,
+            Step::Unchanged => counts.unchanged += n,
+            Step::Missing => counts.missing += n,
+            Step::Ignored => counts.ignored += n,
+            Step::Waiting => counts.waiting += n,
+            Step::Copying | Step::Copied | Step::Flagged => {
+                counts.waiting += n;
+                counts.midway += n;
+            }
+        }
+    }
+    Ok(counts)
+}
+
+/// Encodes 32 SHA-256 bytes as 43 unpadded RFC 4648 §5 base64url characters.
+fn base64url_nopad(bytes: &[u8; 32]) -> String {
+    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    let mut out = String::with_capacity(43);
+    for chunk in bytes.chunks(3) {
+        let b0 = chunk[0];
+        let b1 = chunk.get(1).copied().unwrap_or(0);
+        let b2 = chunk.get(2).copied().unwrap_or(0);
+        out.push(TABLE[(b0 >> 2) as usize] as char);
+        out.push(TABLE[(((b0 & 0x03) << 4) | (b1 >> 4)) as usize] as char);
+        if chunk.len() > 1 {
+            out.push(TABLE[(((b1 & 0x0f) << 2) | (b2 >> 6)) as usize] as char);
+        }
+        if chunk.len() > 2 {
+            out.push(TABLE[(b2 & 0x3f) as usize] as char);
+        }
+    }
+    out
+}
+
+/// Largest integer JavaScript represents exactly (`Number.MAX_SAFE_INTEGER`).
+const MAX_SAFE_INTEGER: i64 = (1i64 << 53) - 1;
+
+fn check_safe_int(value: i64, field: &str) -> Result<i64, StoreError> {
+    if (-MAX_SAFE_INTEGER..=MAX_SAFE_INTEGER).contains(&value) {
+        Ok(value)
+    } else {
+        Err(StoreError::InvalidDigest(format!(
+            "`{field}` ({value}) is outside JavaScript's exact integer range"
+        )))
+    }
+}
+
+/// Writes canonical JSON of a `serde_json::Value` (keys sorted by UTF-16 code
+/// units, no whitespace, exact safe integers) into `out`, matching
+/// `afd::input_digest`'s canonical form byte-for-byte.
+fn write_canonical_json(value: &serde_json::Value, out: &mut String) -> Result<(), StoreError> {
+    match value {
+        serde_json::Value::Null => out.push_str("null"),
+        serde_json::Value::Bool(b) => out.push_str(if *b { "true" } else { "false" }),
+        serde_json::Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                check_safe_int(i, "number")?;
+                out.push_str(&i.to_string());
+            } else if let Some(u) = n.as_u64() {
+                if u > MAX_SAFE_INTEGER as u64 {
+                    return Err(StoreError::InvalidDigest(format!(
+                        "integer {u} is outside JavaScript's exact integer range"
+                    )));
+                }
+                out.push_str(&u.to_string());
+            } else {
+                let text = serde_json::to_string(n)
+                    .map_err(|error| StoreError::InvalidDigest(error.to_string()))?;
+                out.push_str(&text);
+            }
+        }
+        serde_json::Value::String(s) => {
+            let text = serde_json::to_string(s)
+                .map_err(|error| StoreError::InvalidDigest(error.to_string()))?;
+            out.push_str(&text);
+        }
+        serde_json::Value::Array(items) => {
+            out.push('[');
+            for (index, item) in items.iter().enumerate() {
+                if index > 0 {
+                    out.push(',');
+                }
+                write_canonical_json(item, out)?;
+            }
+            out.push(']');
+        }
+        serde_json::Value::Object(map) => {
+            let mut entries: Vec<(&String, &serde_json::Value)> = map.iter().collect();
+            entries.sort_by(|(a, _), (b, _)| a.encode_utf16().cmp(b.encode_utf16()));
+            out.push('{');
+            for (index, (k, v)) in entries.into_iter().enumerate() {
+                if index > 0 {
+                    out.push(',');
+                }
+                let key = serde_json::to_string(k)
+                    .map_err(|error| StoreError::InvalidDigest(error.to_string()))?;
+                out.push_str(&key);
+                out.push(':');
+                write_canonical_json(v, out)?;
+            }
+            out.push('}');
+        }
+    }
+    Ok(())
+}
+
+/// Streams the unpadded base64url SHA-256 of the canonical JSON array of open
+/// items for operation `id` in `(mailbox_id, validity, provider_id)` order
+/// (O(1) memory; matches `afd::input_digest` over the array byte-for-byte;
+/// plugin.spec.md, Terms and section 7).
+fn proposal_items_digest_on(
+    connection: &rusqlite::Connection,
+    id: i64,
+) -> Result<String, StoreError> {
+    let mut statement = connection.prepare_cached(&format!(
+        "SELECT mailbox_id, validity, provider_id, to_mailbox_id, to_validity,
+                to_provider_id, flags_wanted
+         FROM operation_item
+         WHERE operation_id = ?1 AND step IN {OPEN_STEPS}
+         ORDER BY mailbox_id, validity, provider_id"
+    ))?;
+    let mut hasher = Sha256::new();
+    hasher.update(b"[");
+    let mut first = true;
+    let mut entry = String::new();
+    let mut rows = statement.query([id])?;
+    while let Some(row) = rows.next()? {
+        let mailbox: i64 = check_safe_int(row.get(0)?, "mailbox")?;
+        let validity: String = row.get(1)?;
+        let provider_id: String = row.get(2)?;
+        let to_mailbox: Option<i64> = match row.get::<_, Option<i64>>(3)? {
+            Some(v) => Some(check_safe_int(v, "toMailbox")?),
+            None => None,
+        };
+        let to_validity: Option<String> = row.get(4)?;
+        let to_provider_id: Option<String> = row.get(5)?;
+        let flags_wanted: Option<String> = row.get(6)?;
+        let flags_value = match flags_wanted {
+            Some(raw) => serde_json::from_str::<serde_json::Value>(&raw).map_err(|error| {
+                StoreError::InvalidDigest(format!("invalid flags_wanted JSON: {error}"))
+            })?,
+            None => serde_json::Value::Null,
+        };
+        let place = serde_json::json!({
+            "flagsWanted": flags_value,
+            "mailbox": mailbox,
+            "providerId": provider_id,
+            "toMailbox": to_mailbox,
+            "toProviderId": to_provider_id,
+            "toValidity": to_validity,
+            "validity": validity,
+        });
+        entry.clear();
+        write_canonical_json(&place, &mut entry)?;
+        if !first {
+            hasher.update(b",");
+        }
+        first = false;
+        hasher.update(entry.as_bytes());
+    }
+    hasher.update(b"]");
+    let digest: [u8; 32] = hasher.finalize().into();
+    Ok(base64url_nopad(&digest))
+}
+
+/// Computes the 43-character base64url SHA-256 digest of
+/// `{ operation, proposal, proposer, command, asked, query, items }`
+/// (plugin.spec.md, section 7).
+fn proposal_digest_on(
+    connection: &rusqlite::Connection,
+    row: &OperationRow,
+) -> Result<String, StoreError> {
+    let items_digest = proposal_items_digest_on(connection, row.id)?;
+    let (generation, proposer) = match &row.proposal {
+        Some(proposal) => (
+            proposal.generation,
+            serde_json::json!({
+                "kind": proposal.proposer.kind,
+                "id": proposal.proposer.id,
+            }),
+        ),
+        None => (0, serde_json::Value::Null),
+    };
+    let asked = crate::operate::normalized_asked(row);
+    let query: serde_json::Value = match row.query.as_deref() {
+        Some(q) => serde_json::from_str(q)
+            .map_err(|error| StoreError::InvalidDigest(format!("invalid query JSON: {error}")))?,
+        None => serde_json::Value::Null,
+    };
+    let payload = serde_json::json!({
+        "operation": row.id,
+        "proposal": generation,
+        "proposer": proposer,
+        "command": row.command,
+        "asked": asked,
+        "query": query,
+        "items": items_digest,
+    });
+    afd::input_digest(&payload).map_err(StoreError::InvalidDigest)
+}
+
+/// Checks whether proposal `id` can be approved with `expected_digest` at
+/// `now`, inside an open transaction, in the specification's order (section 7):
+/// open -> undo target -> screening ready -> digest match.
+fn verify_proposal_on(
+    connection: &rusqlite::Connection,
+    id: i64,
+    expected_digest: &str,
+    now: i64,
+) -> Result<Result<OperationRow, ApprovalRefusal>, StoreError> {
+    let Some(row) = operation_on(connection, id)? else {
+        return Ok(Err(ApprovalRefusal::Missing));
+    };
+    let open = row.state == OperationState::Proposed
+        && row
+            .proposal
+            .as_ref()
+            .is_some_and(|proposal| proposal.expires_at > now);
+    if !open {
+        return Ok(Err(ApprovalRefusal::NotOpen(row.state)));
+    }
+    if let Some(original_id) = row.undo_of {
+        let Some(original) = operation_on(connection, original_id)? else {
+            return Ok(Err(ApprovalRefusal::UndoTargetMissing(original_id)));
+        };
+        if original.state == OperationState::Running {
+            return Ok(Err(ApprovalRefusal::UndoTargetRunning(original.id)));
+        }
+        // A stopped undo proposed for resume has `started_at IS NOT NULL`, so
+        // `original.undone_by` points to `row.id` itself; only a different undo
+        // blocks approval.
+        if let Some(undone_by) = original.undone_by
+            && undone_by != row.id
+        {
+            return Ok(Err(ApprovalRefusal::UndoTargetUndone {
+                original: original.id,
+                undone_by,
+            }));
+        }
+    }
+    let readiness = super::classes::screening_readiness_on(connection)?;
+    if !readiness.ready() {
+        return Ok(Err(ApprovalRefusal::ScreeningNotReady(readiness)));
+    }
+    let digest = proposal_digest_on(connection, &row)?;
+    if digest != expected_digest {
+        return Ok(Err(ApprovalRefusal::PreviewChanged));
+    }
+    Ok(Ok(row))
 }
 
 const ITEM_COLUMNS: &str = "mailbox_id, validity, provider_id, message_id, to_mailbox_id,
@@ -499,9 +808,9 @@ impl Store {
             "INSERT INTO operation (command, action, kind, asked, undo_of, selection_id, query,
                                     creator_kind, creator_id, state, created_at, messages,
                                     started_at, charged, proposer_kind, proposer_id, proposed_at,
-                                    expires_at)
+                                    expires_at, proposal_generation)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17,
-                     ?18)",
+                     ?18, ?19)",
             params![
                 operation.command,
                 operation.action.as_str(),
@@ -525,6 +834,7 @@ impl Store {
                 },
                 proposed.then_some(now),
                 proposed.then_some(now + PROPOSAL_LIFETIME),
+                i64::from(proposed),
             ],
         )?;
         let id = transaction.last_insert_rowid();
@@ -565,14 +875,7 @@ impl Store {
     /// # Errors
     /// When the database refuses.
     pub fn operation(&self, id: i64) -> Result<Option<OperationRow>, StoreError> {
-        Ok(self
-            .connection
-            .query_row(
-                &format!("SELECT {OPERATION_COLUMNS} FROM operation WHERE id = ?1"),
-                [id],
-                operation_row,
-            )
-            .optional()?)
+        operation_on(&self.connection, id)
     }
 
     /// The operations made before the one with id `before`, newest first,
@@ -620,28 +923,7 @@ impl Store {
     /// # Errors
     /// When the database refuses.
     pub fn operation_counts(&self, id: i64) -> Result<StepCounts, StoreError> {
-        let mut statement = self.connection.prepare_cached(
-            "SELECT step, count(*) FROM operation_item WHERE operation_id = ?1 GROUP BY step",
-        )?;
-        let mut counts = StepCounts::default();
-        let rows = statement.query_map([id], |row| {
-            Ok((row.get::<_, String>(0)?, count(row.get(1)?)))
-        })?;
-        for row in rows {
-            let (step, n) = row?;
-            match Step::parse(&step) {
-                Step::Done => counts.done += n,
-                Step::Unchanged => counts.unchanged += n,
-                Step::Missing => counts.missing += n,
-                Step::Ignored => counts.ignored += n,
-                Step::Waiting => counts.waiting += n,
-                Step::Copying | Step::Copied | Step::Flagged => {
-                    counts.waiting += n;
-                    counts.midway += n;
-                }
-            }
-        }
-        Ok(counts)
+        operation_counts_on(&self.connection, id)
     }
 
     /// Operation `id`'s items after the place `after`, in order, at most
@@ -970,8 +1252,9 @@ impl Store {
         )?))
     }
 
-    /// Proposes that stopped operation `id` be carried on, by `proposer`.
-    /// Returns whether it was stopped.
+    /// Proposes that stopped operation `id` be carried on, by `proposer`,
+    /// raising its proposal generation so any prior approval's digest is
+    /// invalidated (plugin.spec.md, section 7). Returns whether it was stopped.
     ///
     /// # Errors
     /// When the database refuses.
@@ -983,17 +1266,97 @@ impl Store {
     ) -> Result<bool, StoreError> {
         Ok(self.connection.execute(
             "UPDATE operation SET state = 'proposed', proposer_kind = ?2, proposer_id = ?3,
-                                  proposed_at = ?4, expires_at = ?5, approved_at = NULL
+                                  proposed_at = ?4, expires_at = ?5, approved_at = NULL,
+                                  proposal_generation = proposal_generation + 1
              WHERE id = ?1 AND state = 'stopped'",
             params![id, proposer.kind, proposer.id, now, now + PROPOSAL_LIFETIME],
         )? > 0)
     }
 
-    /// Approves proposal `id`: it runs from now, as the person's. Returns
-    /// whether it was open.
+    /// Computes the proposal items digest for `id` (canonical JSON array of
+    /// open items in order; plugin.spec.md, section 7).
+    ///
+    /// # Errors
+    /// When the database refuses or an item cannot be canonically encoded.
+    pub fn proposal_items_digest(&self, id: i64) -> Result<String, StoreError> {
+        proposal_items_digest_on(&self.connection, id)
+    }
+
+    /// Computes the proposal digest for `row` (plugin.spec.md, section 7).
+    ///
+    /// # Errors
+    /// When the database refuses or the proposal cannot be canonically encoded.
+    pub fn proposal_digest(&self, row: &OperationRow) -> Result<String, StoreError> {
+        proposal_digest_on(&self.connection, row)
+    }
+
+    /// Checks whether proposal `id` can be approved with `expected_digest` at
+    /// `now` (after expiring stale proposals), without changing its state.
     ///
     /// # Errors
     /// When the database refuses.
+    pub fn check_proposal_approval(
+        &mut self,
+        id: i64,
+        expected_digest: &str,
+        now: i64,
+    ) -> Result<Result<(), ApprovalRefusal>, StoreError> {
+        let transaction = self.connection.transaction()?;
+        expire_proposals(&transaction, now)?;
+        let checked = verify_proposal_on(&transaction, id, expected_digest, now)?;
+        transaction.commit()?;
+        Ok(checked.map(|_| ()))
+    }
+
+    /// Atomically verifies proposal `id` (open, undo target, screening
+    /// readiness, and digest match) and transitions it to `running` inside one
+    /// SQLite transaction (plugin.spec.md, section 7). Returns the waiting item
+    /// count on success.
+    ///
+    /// # Errors
+    /// When the database refuses.
+    pub fn approve_proposal_checked(
+        &mut self,
+        id: i64,
+        expected_digest: &str,
+        now: i64,
+    ) -> Result<Result<u64, ApprovalRefusal>, StoreError> {
+        let transaction = self.connection.transaction()?;
+        expire_proposals(&transaction, now)?;
+        let row = match verify_proposal_on(&transaction, id, expected_digest, now)? {
+            Ok(row) => row,
+            Err(refusal) => {
+                transaction.commit()?;
+                return Ok(Err(refusal));
+            }
+        };
+        let generation = row
+            .proposal
+            .as_ref()
+            .map_or(0, |proposal| proposal.generation);
+        let updated = transaction.execute(
+            "UPDATE operation SET state = 'running', started_at = coalesce(started_at, ?2),
+                                  approved_at = ?2, stop_asked = 0, error = NULL
+             WHERE id = ?1 AND state = 'proposed' AND proposal_generation = ?3
+               AND expires_at > ?2",
+            params![id, now, i64::try_from(generation).unwrap_or(i64::MAX)],
+        )?;
+        if updated == 0 {
+            transaction.commit()?;
+            return Ok(Err(ApprovalRefusal::NotOpen(row.state)));
+        }
+        let waiting = operation_counts_on(&transaction, id)?.waiting;
+        transaction.commit()?;
+        Ok(Ok(waiting))
+    }
+
+    /// Approves proposal `id`: it runs from now, as the person's. Returns
+    /// whether it was open. Kept test-only so production code always goes
+    /// through [`Self::approve_proposal_checked`].
+    ///
+    /// # Errors
+    /// When the database refuses.
+    #[cfg(test)]
     pub fn approve_proposal(&mut self, id: i64, now: i64) -> Result<bool, StoreError> {
         Ok(self.connection.execute(
             "UPDATE operation SET state = 'running', started_at = coalesce(started_at, ?2),

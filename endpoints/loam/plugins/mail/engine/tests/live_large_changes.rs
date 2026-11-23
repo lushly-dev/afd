@@ -1030,7 +1030,17 @@ fn the_change_commands_against_icloud() {
             changing_before,
             "nothing was asked of the provider while it waited"
         );
-        let held = call(&registry, person(), "mail-operation-approve", json!({ "operation": id })).await;
+        let digest = shown["preview"]["digest"]
+            .as_str()
+            .expect("proposal preview carries a digest")
+            .to_string();
+        let held = call(
+            &registry,
+            person(),
+            "mail-operation-approve",
+            json!({ "operation": id, "digest": digest }),
+        )
+        .await;
         let token = held["error"]["details"]["approvalToken"]
             .as_str()
             .expect("held for the person's approval")
@@ -1040,7 +1050,7 @@ fn the_change_commands_against_icloud() {
             &registry,
             person().with_approval(token),
             "mail-operation-approve",
-            json!({ "operation": id }),
+            json!({ "operation": id, "digest": digest }),
         )
         .await;
         let approved = data(&approved, "the approval");

@@ -18,22 +18,27 @@
 use std::sync::Arc;
 
 use afd::{
-    ApprovalPolicy, CommandContext, CommandDefinition, CommandError, CommandHandler, CommandResult,
-    JsonSchemaType, failure, success,
+    ApprovalPolicy, CommandContext, CommandDefinition, CommandError, CommandHandler,
+    CommandInterface, CommandResult, JsonSchemaType, failure, success,
 };
 use async_trait::async_trait;
 use serde_json::{Value, json};
 
 use crate::changes::{beyond_policy, carry_out, proposal_room, proposed};
-use crate::commands::{command_line_only, store_failure};
+use crate::commands::{released_exposure, store_failure};
 use crate::engine::Engine;
-use crate::operate::operation_json;
-use crate::read::{integer, limit, parameter, read_exposure, required};
-use crate::screening::{not_ready, person_at_terminal, proposer_of};
-use crate::store::{
-    Action, Kind, NewItem, NewOperation, OperationItem, OperationRow, OperationState, PlacesIn,
-    Proposer, Role, Step, Store, StoreError, TokenRow,
+use crate::operate::{normalized_asked, operation_json};
+use crate::read::{
+    MOST_BUDGET, budget, fits, integer, limit, parameter, read_exposure, required, too_small,
 };
+use crate::screening::{not_ready, person_at_terminal, proposer_json, proposer_of};
+use crate::store::{
+    Action, ApprovalRefusal, Kind, NewItem, NewOperation, OperationItem, OperationRow,
+    OperationState, PlacesIn, Proposer, Role, Step, Store, StoreError, TokenRow,
+};
+
+/// The name of the command that shows an operation or its proposal preview.
+pub const SHOW: &str = "mail-operation-show";
 
 /// The name of the command that undoes an operation.
 pub const UNDO: &str = "mail-operation-undo";
@@ -43,6 +48,14 @@ pub const RESUME: &str = "mail-operation-resume";
 
 /// The name of the command that approves a proposal.
 pub const APPROVE: &str = "mail-operation-approve";
+
+/// Default and maximum output budget for `mail-operation-show` in both forms
+/// (plugin.spec.md, section 6).
+const SHOW_BUDGET: u64 = MOST_BUDGET;
+
+/// Largest MCP reply size a preview may take: 3.5 MiB, leaving 0.5 MiB under
+/// the 4 MiB ceiling for the MCP envelope (plugin.spec.md, section 6).
+const MAX_PREVIEW_MCP_BYTES: usize = 3_670_016;
 
 fn not_found(id: i64) -> CommandError {
     CommandError::new("OPERATION_NOT_FOUND", format!("there is no operation {id}"))
@@ -217,6 +230,45 @@ impl CommandHandler for Show {
             Ok(id) => id,
             Err(error) => return failure(*error),
         };
+        let asked_digest = match optional_digest(&input) {
+            Ok(digest) => digest,
+            Err(error) => return failure(*error),
+        };
+        let now = context.clock().now();
+        // Preview-only form (plugin.spec.md, sections 6 and 7): returns the
+        // proposal's stable preview without `items`, `nextCursor`, or `refused`,
+        // and refuses a non-matching digest with `PREVIEW_CHANGED`.
+        if let Some(expected_digest) = asked_digest {
+            let previewed = self.engine.with_store(|store| {
+                store.expire_proposals(now)?;
+                let Some(row) = store.operation(id)? else {
+                    return Ok(Err(no_proposal(id)));
+                };
+                if let Some(error) = approvable(store, &row, now)? {
+                    return Ok(Err(error));
+                }
+                let digest = store.proposal_digest(&row)?;
+                if digest != expected_digest {
+                    return Ok(Err(preview_changed()));
+                }
+                let tokens = store.tokens()?;
+                let value = preview_only_json(store, &row, &tokens, &digest)?;
+                Ok(Ok(value))
+            });
+            let value = match previewed {
+                Ok(Ok(value)) => value,
+                Ok(Err(error)) => return failure(error),
+                Err(error) => return failure(store_failure(&error)),
+            };
+            let max_bytes = budget(&context, SHOW_BUDGET);
+            if !fits(&value, max_bytes)
+                || crate::reply_size(&success(value.clone()), Some(CommandInterface::Mcp))
+                    > MAX_PREVIEW_MCP_BYTES
+            {
+                return failure(preview_too_large());
+            }
+            return success(value);
+        }
         let after = match input.get("cursor") {
             None | Some(Value::Null) => None,
             Some(value) => match value.as_str().and_then(parse_item_cursor) {
@@ -235,7 +287,6 @@ impl CommandHandler for Show {
             Ok(limit) => limit,
             Err(error) => return failure(*error),
         };
-        let now = context.clock().now();
         let shown = self.engine.with_store(|store| {
             store.expire_proposals(now)?;
             let row = match named(store, id)? {
@@ -251,13 +302,14 @@ impl CommandHandler for Show {
                 }),
                 limit + 1,
             )?;
+            let is_proposal = row.state == OperationState::Proposed;
             let mut value = operation_json(&row, &counts, &tokens);
-            if row.state == OperationState::Proposed {
+            if is_proposal {
                 value["preview"] = preview_json(store, &row, now)?;
             }
-            Ok(Ok((value, items)))
+            Ok(Ok((value, items, is_proposal)))
         });
-        let (mut value, mut items) = match shown {
+        let (mut value, mut items, is_proposal) = match shown {
             Ok(Ok(shown)) => shown,
             Ok(Err(error)) => return failure(error),
             Err(error) => return failure(store_failure(&error)),
@@ -268,6 +320,17 @@ impl CommandHandler for Show {
         });
         value["items"] = json!(items.iter().map(item_json).collect::<Vec<_>>());
         value["nextCursor"] = json!(next.flatten());
+        let max_bytes = budget(&context, SHOW_BUDGET);
+        if is_proposal {
+            if !fits(&value, max_bytes)
+                || crate::reply_size(&success(value.clone()), Some(CommandInterface::Mcp))
+                    > MAX_PREVIEW_MCP_BYTES
+            {
+                return failure(preview_too_large());
+            }
+        } else if !fits(&value, max_bytes) {
+            return failure(too_small(max_bytes));
+        }
         success(value)
     }
 }
@@ -277,7 +340,7 @@ impl CommandHandler for Show {
 #[must_use]
 pub fn show(engine: Arc<Engine>) -> CommandDefinition {
     CommandDefinition::new(
-        "mail-operation-show",
+        SHOW,
         "Show one change to mail: its state, its counts and the step each message reached; for a proposal, what the person reads before approving it",
         vec![
             parameter(
@@ -298,9 +361,14 @@ pub fn show(engine: Arc<Engine>) -> CommandDefinition {
                 "How many items to give, 1 to 500; 50 by default",
                 false,
             ),
+            digest_parameter(
+                "Optional proposal digest; when given, returns the preview alone and fails with PREVIEW_CHANGED if it does not match",
+                false,
+            ),
         ],
         Show { engine },
     )
+    .with_output_budget(SHOW_BUDGET, SHOW_BUDGET)
     .with_expose(read_exposure())
 }
 
@@ -748,23 +816,24 @@ fn undo_waits(id: i64, undo: i64) -> CommandError {
 }
 
 /// The proposal named is not open.
-fn not_open(row: &OperationRow) -> CommandError {
-    let id = row.id;
-    let words = match row.state {
+fn not_open_state(id: i64, state: OperationState) -> CommandError {
+    let words = match state {
         OperationState::Dismissed | OperationState::Expired => {
-            format!(
-                "operation {id} was a proposal, and was {}",
-                row.state.as_str()
-            )
+            format!("operation {id} was a proposal, and was {}", state.as_str())
         }
-        state => format!(
+        other => format!(
             "operation {id} is not a proposal waiting for the person: it is {}",
-            state.as_str()
+            other.as_str()
         ),
     };
     CommandError::new("PROPOSAL_NOT_OPEN", words).with_suggestion(
         "Run `loam-mail mail-operation-list` with `proposed` to see the proposals waiting.",
     )
+}
+
+/// The proposal named is not open.
+fn not_open(row: &OperationRow) -> CommandError {
+    not_open_state(row.id, row.state)
 }
 
 /// Whether proposal `row` can be approved now: it is open, the operation an
@@ -790,7 +859,9 @@ fn approvable(
         if original.state == OperationState::Running {
             return Ok(Some(running(original.id)));
         }
-        if let Some(undo) = original.undone_by {
+        if let Some(undo) = original.undone_by
+            && undo != row.id
+        {
             return Ok(Some(
                 CommandError::new(
                     "INVALID_INPUT",
@@ -823,13 +894,123 @@ fn places_json(places: &PlacesIn) -> Value {
     })
 }
 
-/// What the person reads before approving proposal `row` (9.4): where its
-/// messages are and go, by account and by mailbox, their classes, and how
-/// many come from senders the person knows. The query, which the proposer
-/// wrote and mail may have steered, is in the operation's own `query`.
-fn preview_json(store: &Store, row: &OperationRow, now: i64) -> Result<Value, StoreError> {
+fn preview_changed() -> CommandError {
+    CommandError::new(
+        "PREVIEW_CHANGED",
+        "The proposal changed since its preview was read. Nothing was changed.",
+    )
+    .with_retryable(false)
+    .with_suggestion("Read it again with mail-operation-show and ask the person again.")
+}
+
+fn preview_too_large() -> CommandError {
+    CommandError::new(
+        "PREVIEW_TOO_LARGE",
+        "The proposal's preview is too large to show whole within the reply limit. Nothing was changed.",
+    )
+    .with_retryable(false)
+    .with_suggestion(
+        "Dismiss this proposal with mail-operation-dismiss and split the change into smaller selections.",
+    )
+}
+
+fn is_valid_digest(text: &str) -> bool {
+    text.len() == 43
+        && text
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
+}
+
+fn digest_parameter(description: &str, required: bool) -> afd::CommandParameter {
+    let mut param = parameter("digest", JsonSchemaType::String, description, required);
+    param.schema = Some(afd::JsonSchema {
+        schema_type: Some(JsonSchemaType::String),
+        description: Some(description.to_string()),
+        min_length: Some(43),
+        max_length: Some(43),
+        pattern: Some("^[A-Za-z0-9_-]{43}$".to_string()),
+        ..afd::JsonSchema::default()
+    });
+    param
+}
+
+fn optional_digest(input: &Value) -> Result<Option<String>, Box<CommandError>> {
+    match input.get("digest") {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::String(text)) if is_valid_digest(text) => Ok(Some(text.clone())),
+        Some(_) => Err(Box::new(
+            CommandError::new(
+                "INVALID_INPUT",
+                "`digest` must be a 43-character base64url digest",
+            )
+            .with_suggestion("Pass the `digest` returned by mail-operation-show."),
+        )),
+    }
+}
+
+fn required_digest(input: &Value) -> Result<String, Box<CommandError>> {
+    optional_digest(input)?.ok_or_else(|| {
+        Box::new(
+            CommandError::new("INVALID_INPUT", "`digest` is required").with_suggestion(
+                "Read the proposal with mail-operation-show and pass its `digest`.",
+            ),
+        )
+    })
+}
+
+fn refusal_error(id: i64, refusal: ApprovalRefusal) -> CommandError {
+    match refusal {
+        ApprovalRefusal::Missing => no_proposal(id),
+        ApprovalRefusal::NotOpen(state) => not_open_state(id, state),
+        ApprovalRefusal::UndoTargetMissing(original) => not_found(original),
+        ApprovalRefusal::UndoTargetRunning(original) => running(original),
+        ApprovalRefusal::UndoTargetUndone {
+            original,
+            undone_by,
+        } => CommandError::new(
+            "INVALID_INPUT",
+            format!("operation {original} was undone already, by operation {undone_by}"),
+        )
+        .with_suggestion("Dismiss this proposal with mail-operation-dismiss."),
+        ApprovalRefusal::ScreeningNotReady(readiness) => not_ready(readiness),
+        ApprovalRefusal::PreviewChanged => preview_changed(),
+    }
+}
+
+/// Checks `mail-operation-approve` inputs, proposal state, screening readiness
+/// and digest before the approval middleware holds the call, so a closed,
+/// unready or stale proposal never issues an approval token (plugin.spec.md, §7).
+#[must_use]
+pub fn pre_approval_check(engine: &Engine, input: &Value, now: i64) -> Option<CommandError> {
+    let id = match required(input, "operation") {
+        Ok(id) => id,
+        Err(error) => return Some(*error),
+    };
+    let digest = match required_digest(input) {
+        Ok(digest) => digest,
+        Err(error) => return Some(*error),
+    };
+    match engine.with_store(|store| store.check_proposal_approval(id, &digest, now)) {
+        Ok(Ok(())) => None,
+        Ok(Err(refusal)) => Some(refusal_error(id, refusal)),
+        Err(error) => Some(store_failure(&error)),
+    }
+}
+
+/// Builds the common preview counts object for proposal `row`.
+fn preview_body(
+    store: &Store,
+    row: &OperationRow,
+    digest: &str,
+    approvable: bool,
+    refused: Option<CommandError>,
+    include_refused: bool,
+) -> Result<Value, StoreError> {
     let preview = store.proposal_preview(row.id)?;
-    let refused = approvable(store, row, now)?;
+    let generation = row
+        .proposal
+        .as_ref()
+        .map_or(0, |proposal| proposal.generation);
     let mut accounts: Vec<(i64, String, u64)> = Vec::new();
     for places in &preview.mailboxes {
         match accounts
@@ -845,26 +1026,104 @@ fn preview_json(store: &Store, row: &OperationRow, now: i64) -> Result<Value, St
         .iter()
         .map(|(class, n)| (class.clone(), json!(n)))
         .collect();
-    Ok(json!({
-        "approvable": refused.is_none(),
+    let mut map = serde_json::Map::new();
+    map.insert("approvable".to_string(), json!(approvable));
+    if include_refused {
         // Why it cannot be approved now, in the engine's words.
-        "refused": refused.map(|error| json!({ "code": error.code, "message": error.message })),
-        "byAccount": accounts
-            .iter()
-            .map(|(account, provider, places)| {
-                json!({ "account": account, "provider": provider, "places": places })
-            })
-            .collect::<Vec<_>>(),
-        "byMailbox": preview.mailboxes.iter().map(places_json).collect::<Vec<_>>(),
-        "destinations": preview.destinations.iter().map(places_json).collect::<Vec<_>>(),
-        // Messages, each once, by screening class; `own` is the person's own
-        // mail, which has none.
-        "byClass": classes,
-        "knownSenders": {
+        map.insert(
+            "refused".to_string(),
+            json!(refused.map(|error| json!({
+                "code": error.code,
+                "message": error.message,
+                "retryable": error.retryable,
+                "suggestion": error.suggestion,
+            }))),
+        );
+    }
+    map.insert("proposal".to_string(), json!(generation));
+    map.insert("digest".to_string(), json!(digest));
+    map.insert(
+        "byAccount".to_string(),
+        json!(
+            accounts
+                .iter()
+                .map(|(account, provider, places)| {
+                    json!({ "account": account, "provider": provider, "places": places })
+                })
+                .collect::<Vec<_>>()
+        ),
+    );
+    map.insert(
+        "byMailbox".to_string(),
+        json!(
+            preview
+                .mailboxes
+                .iter()
+                .map(places_json)
+                .collect::<Vec<_>>()
+        ),
+    );
+    map.insert(
+        "destinations".to_string(),
+        json!(
+            preview
+                .destinations
+                .iter()
+                .map(places_json)
+                .collect::<Vec<_>>()
+        ),
+    );
+    // Messages, each once, by screening class; `own` is the person's own
+    // mail, which has none.
+    map.insert("byClass".to_string(), Value::Object(classes));
+    map.insert(
+        "knownSenders".to_string(),
+        json!({
             "messages": preview.known_messages,
             "senders": preview.known_senders,
-        },
-        "unreturned": preview.unreturned,
+        }),
+    );
+    map.insert("unreturned".to_string(), json!(preview.unreturned));
+    Ok(Value::Object(map))
+}
+
+/// What the person reads before approving proposal `row` (9.4): where its
+/// messages are and go, by account and by mailbox, their classes, and how
+/// many come from senders the person knows. The query, which the proposer
+/// wrote and mail may have steered, is in the operation's own `query`.
+fn preview_json(store: &Store, row: &OperationRow, now: i64) -> Result<Value, StoreError> {
+    let refused = approvable(store, row, now)?;
+    let digest = store.proposal_digest(row)?;
+    preview_body(store, row, &digest, refused.is_none(), refused, true)
+}
+
+/// The preview-only result returned by `mail-operation-show` when called with
+/// `digest` (plugin.spec.md, section 6): stable for an unchanged proposal, with
+/// no `items`, `nextCursor`, or `refused`.
+fn preview_only_json(
+    store: &Store,
+    row: &OperationRow,
+    tokens: &[TokenRow],
+    digest: &str,
+) -> Result<Value, StoreError> {
+    let preview = preview_body(store, row, digest, true, None, false)?;
+    Ok(json!({
+        "operation": row.id,
+        "command": row.command,
+        "asked": normalized_asked(row),
+        "query": row
+            .query
+            .as_deref()
+            .and_then(|query| serde_json::from_str::<Value>(query).ok())
+            .map(|query| json!({ "trust": "content", "written": query })),
+        "proposal": row.proposal.as_ref().map(|proposal| json!({
+            "proposer": proposer_json(&proposal.proposer, tokens),
+            "generation": proposal.generation,
+            "proposedAt": proposal.proposed_at,
+            "expiresAt": proposal.expires_at,
+            "approvedAt": proposal.approved_at,
+        })),
+        "preview": preview,
     }))
 }
 
@@ -892,7 +1151,7 @@ fn proposal_words(row: &OperationRow, waiting: u64) -> String {
         );
     }
     let n = row.messages;
-    let asked: Value = serde_json::from_str(&row.asked).unwrap_or(Value::Null);
+    let asked = normalized_asked(row);
     match row.command.as_str() {
         "mail-archive" => format!("archive {n} messages"),
         "mail-trash" => format!("move {n} messages to the trash"),
@@ -972,59 +1231,55 @@ impl CommandHandler for Approve {
             Ok(id) => id,
             Err(error) => return failure(*error),
         };
-        if self.engine.operation_busy(id) {
-            return failure(busy(id));
-        }
+        let digest = match required_digest(&input) {
+            Ok(digest) => digest,
+            Err(error) => return failure(*error),
+        };
         let now = context.clock().now();
-        let approved = self.engine.with_store(|store| {
-            store.expire_proposals(now)?;
-            let Some(row) = store.operation(id)? else {
-                return Ok(Err(no_proposal(id)));
-            };
-            if let Some(error) = approvable(store, &row, now)? {
-                return Ok(Err(error));
-            }
-            // From here it runs as the person's: no limit applies, and it
-            // counts against no caller's day.
-            if !store.approve_proposal(id, now)? {
-                return Ok(Err(not_open(&row)));
-            }
-            Ok(Ok(store.operation_counts(id)?.waiting))
-        });
+        // From here it runs as the person's: no limit applies, and it counts
+        // against no caller's day. Open state, undo target, screening
+        // readiness, digest match and the transition to `running` happen in one
+        // SQLite transaction (plugin.spec.md, section 7).
+        let approved = self
+            .engine
+            .with_store(|store| store.approve_proposal_checked(id, &digest, now));
         let waiting = match approved {
             Ok(Ok(waiting)) => waiting,
-            Ok(Err(error)) => return failure(error),
+            Ok(Err(refusal)) => return failure(refusal_error(id, refusal)),
             Err(error) => return failure(store_failure(&error)),
         };
         carry_out(&self.engine, id, waiting, &context).await
     }
 }
 
-/// `mail-operation-approve`: runs a proposal as the person's (M28). A
-/// person's command, held for their approval; the command line shows the
-/// preview, `mail-operation-show` with the operation, before it asks. The
-/// approval is bound to the operation's id, and its set is frozen, so what
-/// runs is what was shown.
+/// `mail-operation-approve`: runs a proposal as the person's (M28;
+/// plugin.spec.md, sections 5–8). Held for approval for every caller; exposed
+/// to `cli` and `mcp` (released over MCP for an approver's evidence). The
+/// approval is bound to the operation's id and its preview digest, so what runs
+/// is exactly what was shown.
 #[must_use]
 pub fn approve(engine: Arc<Engine>) -> CommandDefinition {
     CommandDefinition::new(
         APPROVE,
         "Approve a change to mail an agent or a script proposed, and run it",
-        vec![parameter(
-            "operation",
-            JsonSchemaType::Integer,
-            "The proposal's operation id",
-            true,
-        )],
+        vec![
+            parameter(
+                "operation",
+                JsonSchemaType::Integer,
+                "The proposal's operation id",
+                true,
+            ),
+            digest_parameter(
+                "The proposal preview's digest from mail-operation-show",
+                true,
+            ),
+        ],
         Approve { engine },
     )
     .as_mutation()
     .with_confirm_prompt("Approve the proposal and make the change it names")
-    // Every call is held; what cannot be approved is refused after it. The
-    // command line reads the preview first and asks nothing of a proposal
-    // that cannot be approved.
     .with_approval(ApprovalPolicy::Required)
-    .with_expose(command_line_only())
+    .with_expose(released_exposure())
 }
 
 struct Dismiss {
