@@ -7,7 +7,7 @@ description: >
   MCP or a CLI.
 metadata:
   source: botcore
-  version: 2.1.0
+  version: 2.2.0
   portable: true
 ---
 
@@ -74,6 +74,7 @@ create_host_mcp_server(host).run()  # notes-start, notes-call, notes-docs
 - **Policies.** A command without a policy raises `Declare command effects before admission`. Effects come from `EFFECTS` in `host.py`. Effects that depend on arguments need a callable plus `possible_effects`.
 - **Profile.** `ExecutionContext` defaults to `inspection`, which denies every effect except `inspect` before the command runs. Writers and subprocesses need `profile="trusted-local"`.
 - **Paths.** Arguments named in `paths` resolve inside the target, and escapes are rejected. Only arguments the caller passes are resolved, never a parameter's default, so make path parameters required (a default of `"."` would read the process cwd, outside the target). The host never changes the cwd, so commands use `botcore.context.current_context()` or `botcore.utils.workspace.find_workspace()`.
+- **Caller.** A command reads who is calling from `botcore.context.current_call().actor`; outside a host call `current_call()` is `None`. The HTTP surface names the token's actor and the LLM bridge the session's agent name, but the MCP `call` tool gives an agent with no id unless the host sets `CommandHost(actor=...)`. A command that keys data on the caller must refuse a host call whose actor has no id, never fall back to a shared name. `botcore_memory.access` does this.
 - **Identity.** The host name wins: `set_cli_name`/`set_mcp_name` do nothing under a host. On the legacy path, two plugins that set different names raise.
 - **Checking.** `host.catalog()` lists what was admitted. `add_middleware` wraps the handler call, after the effect check and path resolution, so middleware never sees a denied call.
 

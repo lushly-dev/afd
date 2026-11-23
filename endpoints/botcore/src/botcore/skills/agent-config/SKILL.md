@@ -6,7 +6,7 @@ description: >
   that have no effect yet. Use when writing or debugging an agent definition.
 metadata:
   source: botcore
-  version: 2.0.0
+  version: 2.1.0
   portable: true
 ---
 
@@ -18,6 +18,7 @@ The optional `botcore-agents` plugin reads `[plugins.agents]` from `botcore.toml
 
 - Config arrives only through the plugin's `configure()` hook, which `botcore serve` calls. `build_host` refuses the plugin because it doesn't declare `host_context_safe`. Without the hook, `agent_create` returns `AGENT_NOT_CONFIGURED`.
 - An agent's identity is its table key in `[plugins.agents.agents.<key>]`, which is what `agent_create(name=...)` takes. The `name` field isn't read.
+- The key is also who the agent's tool calls run as: an agent actor whose id is the key, unless the tool host's actor is an agent with an id of its own. `botcore-memory` keys agent memory on it (`agent_<key>` for a lowercase key, else a digest), so agents read and write only their own; two people running the same key share its memory. A spawned `<role>-<n>` is a different agent with its own memory.
 - Agent, plugin and state tables reject unknown keys, but `permissions` ignores them. A misspelt `allow_filesytem = true` leaves filesystem access off without any error.
 
 ## Model

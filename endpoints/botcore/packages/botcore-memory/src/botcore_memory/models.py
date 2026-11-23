@@ -70,7 +70,7 @@ def validate_key(key: str) -> str | None:
         return "Key must not be empty"
     if len(key) > MAX_KEY_LENGTH:
         return f"Key exceeds maximum length of {MAX_KEY_LENGTH} characters"
-    if not KEY_PATTERN.match(key):
+    if not KEY_PATTERN.fullmatch(key):
         return "Key must start with alphanumeric and contain only alphanumeric, '/', '_', '-'"
     return None
 
@@ -85,7 +85,7 @@ def validate_scope_id(scope_id: str) -> str | None:
         return "scope_id must not be empty"
     if len(scope_id) > MAX_SCOPE_ID_LENGTH:
         return f"scope_id exceeds maximum length of {MAX_SCOPE_ID_LENGTH} characters"
-    if not SCOPE_ID_PATTERN.match(scope_id):
+    if not SCOPE_ID_PATTERN.fullmatch(scope_id):
         return (
             "scope_id must start with alphanumeric and contain only"
             " alphanumeric, '_', '-' (no '/' or '..')"

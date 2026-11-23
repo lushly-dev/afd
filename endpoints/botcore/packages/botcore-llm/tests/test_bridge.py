@@ -229,6 +229,39 @@ class TestHostPolicy:
         assert seen == [("agent", "owner")]
 
     @pytest.mark.parametrize(
+        ("host_actor", "expected"),
+        [
+            (None, ("agent", "researcher", None)),
+            ({"kind": "agent"}, ("agent", "researcher", None)),
+            ({"kind": "agent", "id": "lane"}, ("agent", "lane", None)),
+            ({"kind": "human", "id": "owner"}, ("agent", "researcher", "owner")),
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_agent_name_is_the_caller_id_where_the_host_gives_none(
+        self, tmp_path, host_actor, expected
+    ):
+        from afd import Actor
+        from botcore.context import current_call
+
+        seen = []
+
+        async def who() -> CommandResult[dict]:
+            """Report the caller."""
+            actor = current_call().actor
+            seen.append((actor.kind, actor.id, actor.on_behalf_of))
+            return success(data={})
+
+        host = _host(tmp_path)
+        host.actor = Actor(**host_actor) if host_actor else None
+        host.register("who", who, CommandPolicy())
+        (tool,) = bridge_commands(["who"], host, agent_name="researcher")
+
+        await tool.handler(_invoke("who", None))
+
+        assert seen == [expected]
+
+    @pytest.mark.parametrize(
         "actor",
         [
             {"kind": "service", "id": "ci"},

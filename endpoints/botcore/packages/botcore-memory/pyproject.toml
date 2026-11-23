@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Agent memory plugin for botcore — persistent memory across tasks and sessions"
 requires-python = ">=3.11"
 license = { text = "MIT" }
-dependencies = ["lushly-botcore>=0.2.0", "afd>=0.9.0"]
+dependencies = ["lushly-botcore>=0.8.0", "afd>=0.9.0"]
 
 [project.optional-dependencies]
 cosmos = ["azure-cosmos>=4.7.0", "azure-identity>=1.17.0"]

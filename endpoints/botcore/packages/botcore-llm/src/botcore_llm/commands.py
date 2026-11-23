@@ -74,6 +74,19 @@ def _get_tool_host(config: LlmConfig) -> tuple[CommandHost, bool]:
     return build_host("llm", context, plugins=_tool_plugins(config)), True
 
 
+def _identity_name(agent_name: str) -> str:
+    """``agent_name`` as the tool caller's id, or ``""`` when it must stay descriptive.
+
+    The name is an identity only for a local, trusted caller (``botcore-agents``'
+    orchestrator, a script). When this command itself runs inside any host call, with or
+    without an actor, the name is the caller's own input, so it only labels the session: the
+    tool host's actor decides who the model's tool calls run as.
+    """
+    from botcore.context import current_call
+
+    return "" if current_call() is not None else agent_name
+
+
 async def _close_owned(host: CommandHost | None, owned: bool) -> None:
     """Close the plugins of a tool host this session built (their HTTP clients and such)."""
     if host is None or not owned:
@@ -159,7 +172,12 @@ async def llm_session_create(
     permissions: LlmPermissionsConfig | None = None,
     agent_name: str = "",
 ) -> CommandResult[dict]:
-    """Create a new LLM session with bridged botcore tools."""
+    """Create a new LLM session with bridged botcore tools.
+
+    ``agent_name`` labels the session and its permission log. For a local, trusted caller
+    it is also the id the model's tool calls run as where the tool host's actor gives none;
+    inside any host call it stays a label (see :func:`_identity_name`).
+    """
     config = _get_config()
     model = (model or "").strip() or config.default_model.strip()
     if not model:
@@ -200,7 +218,9 @@ async def llm_session_create(
                 ),
             )
         try:
-            bridged_tools = bridge_commands(tool_names, tool_host)
+            bridged_tools = bridge_commands(
+                tool_names, tool_host, agent_name=_identity_name(agent_name)
+            )
         except HostActorRefused as exc:
             await _close_owned(tool_host, owned_host)
             return error("TOOL_HOST_ACTOR_REFUSED", str(exc), suggestion=exc.suggestion)
