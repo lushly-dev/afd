@@ -53,6 +53,10 @@ const resultTemplate = html<PaletteResult, LoamPalette>`
 		<span slot="description" class="result-description">
 			${(x) => (x.disabled ? `${x.description} (needs input)` : x.description)}
 		</span>
+		${when(
+			(x) => Boolean(x.keybinding),
+			html<PaletteResult>`<kbd slot="after" class="result-shortcut">${(x) => x.keybinding}</kbd>`
+		)}
 	</violet-option>
 `;
 
@@ -182,6 +186,14 @@ const styles = css`
 		font-size: var(--type-label-sm-size);
 		line-height: var(--type-label-sm-line);
 	}
+	.result-shortcut {
+		font-family: var(--font-family-body);
+		font-size: var(--type-caption-xs-size);
+		line-height: var(--type-caption-xs-line);
+		font-weight: var(--type-caption-xs-weight);
+		color: var(--color-text-secondary);
+		white-space: nowrap;
+	}
 	.footer {
 		min-block-size: var(--size-target-compact);
 		padding-block: var(--space-stack-xs);
@@ -213,17 +225,21 @@ const styles = css`
 		}
 		/* violet-option sets forced-color-adjust: none, so its slotted text keeps author colors. */
 		.result-name,
-		.result-description {
+		.result-description,
+		.result-shortcut {
 			color: ButtonText;
 		}
 		violet-option[data-active] .result-name,
 		violet-option[data-active] .result-description,
+		violet-option[data-active] .result-shortcut,
 		violet-option[selected] .result-name,
-		violet-option[selected] .result-description {
+		violet-option[selected] .result-description,
+		violet-option[selected] .result-shortcut {
 			color: HighlightText;
 		}
 		violet-option[disabled] .result-name,
-		violet-option[disabled] .result-description {
+		violet-option[disabled] .result-description,
+		violet-option[disabled] .result-shortcut {
 			color: GrayText;
 		}
 		violet-option[data-active]::part(control) {

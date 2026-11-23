@@ -221,7 +221,10 @@ export function createPopoverLayer(
 	const dialogs = createDialogs(shell, { optionsOf, bindAnswer, focusFallback });
 	const globals = createGlobals(shell);
 	if (!customElements.get(popoverDefinition.name)) LoamPopover.define(popoverDefinition);
-	const shown = new Map<string, { element: LoamPopover; anchor: HTMLElement }>();
+	const shown = new Map<
+		string,
+		{ element: LoamPopover; anchor: HTMLElement; container?: HTMLElement }
+	>();
 	const dismiss = (overlayId: string, reason: 'user' | 'anchor') =>
 		void kernel.call('overlay-dismiss', { overlayId, reason });
 
@@ -229,7 +232,7 @@ export function createPopoverLayer(
 		const held = shown.get(overlayId);
 		if (!held) return;
 		shown.delete(overlayId);
-		const { element, anchor } = held;
+		const { element, anchor, container } = held;
 		const active = deepActiveElement(shell.ownerDocument);
 		const hadFocus =
 			active === element ||
@@ -238,6 +241,7 @@ export function createPopoverLayer(
 		element.closing = true;
 		if (element.matches(':popover-open')) element.hidePopover();
 		element.remove();
+		container?.remove();
 		// Focus returns to the invoker (6.7), or where it falls back when the invoker has gone.
 		if (!hadFocus) return;
 		if (anchor.isConnected) anchor.focus();
@@ -258,14 +262,21 @@ export function createPopoverLayer(
 		element.from = ownerLine(overlay.from);
 		element.popover = 'auto';
 		element.tabIndex = -1;
+		let container: HTMLElement | undefined;
 		if (input.kind === 'menu') {
+			const label = [input.label ?? 'Menu', element.from].filter(Boolean).join(', ');
 			element.setAttribute('role', 'menu');
-			element.setAttribute(
-				'aria-label',
-				[input.label ?? 'Menu', element.from].filter(Boolean).join(', ')
-			);
+			element.setAttribute('aria-label', label);
 			element.items = input.items.map((item) => ({ ...item }));
 			element.onPick = (index) => void pick(overlay.overlayId, index, input.items[index]);
+			// A menu popover sits in a named landmark so its top-layer content is contained by a landmark (#2136);
+			// fixed positioning keeps the wrapper out of `loam-shell`'s CSS grid without triggering CSP
+			// `style-src-attr` or adding to first-paint `shell-styles.ts`.
+			container = shell.ownerDocument.createElement('div');
+			container.setAttribute('role', 'region');
+			container.setAttribute('aria-label', `${label} popover`);
+			container.style.setProperty('position', 'fixed');
+			container.append(element);
 		} else {
 			element.setAttribute('role', 'dialog');
 			element.setAttribute(
@@ -280,8 +291,8 @@ export function createPopoverLayer(
 			// Light dismissal: a press outside, Escape, or another popover's opening (6.1).
 			dismiss(overlay.overlayId, 'user');
 		});
-		shell.shadowRoot?.append(element);
-		shown.set(overlay.overlayId, { element, anchor });
+		shell.shadowRoot?.append(container ?? element);
+		shown.set(overlay.overlayId, { element, anchor, ...(container ? { container } : {}) });
 		try {
 			element.showPopover({ source: anchor } as unknown as undefined);
 		} catch {

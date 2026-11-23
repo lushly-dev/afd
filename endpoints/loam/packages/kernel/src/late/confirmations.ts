@@ -95,10 +95,12 @@ export interface Confirmations {
 	/** `prompt-settle`, in `BOOT_ONLY`. */
 	settle: ZodCommandDefinition;
 	/**
-	 * A replay's: a confirmed run it answered from its record, with that outcome, so the act's settle may confirm the
-	 * row it leaves pending, and no other (step 6's fifth round, 3).
+	 * A replay's: a confirmed run it answered from its record, with its command and outcome, so the act's settle may
+	 * confirm the row it leaves pending, once, and no other (step 6's fifth round, 3; #1656).
 	 */
-	recorded(confirmation: string, result: CommandResult): void;
+	recorded(confirmation: string, command: string, result: CommandResult): void;
+	/** Forget replay credits on a session reload (#1656). */
+	reset(): void;
 	/** The person's chain every write to a confirmation row takes: a read or an archive of one too (fifth round, 5). */
 	chain<T>(person: string, work: () => Promise<T>): Promise<T>;
 	/** `notification-act { answer }` on a confirmation (10.2): only a person's gesture reaches it. */
@@ -295,8 +297,8 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 		declining.set(at, held);
 		return held;
 	};
-	/** The replay's confirmed runs it answered from their records, by confirmation (fifth round, 3). */
-	const recordedRuns = new Map<string, unknown>();
+	/** The replay's confirmed runs it answered from their records, by confirmation (fifth round, 3; #1656). */
+	const recordedRuns = new Map<string, { command: string; outcome: unknown }>();
 	/**
 	 * The confirmations a person confirmed whose run this page is making now, by id (live only), with the claim this page
 	 * wrote: the run is allowed only while the stored row still holds that claim (R2).
@@ -797,14 +799,14 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 		const caller = bucketOf(opener) as string;
 		// The copilot's key holds its session (phase 5's 6.2): two sessions never share a confirmation or a window.
 		const key = await keyOf(person, caller, name, input, scopeOf(call), asked.enforced?.session);
-		// A replay follows the route its entry recorded (fourth round, 5): a slot confirmation's id says it asked in the
-		// slot, whatever is active when the replay reaches it.
+		// A replay follows the route its entry recorded (fourth round, 5); an agent actor never takes the slot (#1656).
 		const slot =
-			(deps.replaying() &&
+			call.actor?.kind !== 'agent' &&
+			((deps.replaying() &&
 				opener.kind !== 'agent' &&
 				call.confirmation?.startsWith('cnf_') === true) ||
-			opener.kind === 'shell' ||
-			(opener.kind === 'app' && (await deps.isActive(opener.owner.id)));
+				opener.kind === 'shell' ||
+				(opener.kind === 'app' && (await deps.isActive(opener.owner.id))));
 		// Not in a replay, whose waiting call's entry already asked. A refusal decided by what this page holds in memory is
 		// answered from its record in a replay.
 		const replayed = call.confirmation !== undefined && deps.replaying();
@@ -1149,12 +1151,14 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 		return serial(ended.person, async () => {
 			const row = (await rowsOf(ended.person)).find((each) => each.id === ended.id);
 			const from = row?.confirmation.state;
-			// Pending to confirmed only for a run the replay answered from its record, with this outcome: live, the run itself
-			// writes confirmed before the act settles (fifth round, 3).
+			// Pending to confirmed only for a run the replay answered from its record, of this row's command and outcome:
+			// live, the run itself writes confirmed before the act settles (fifth round, 3; #1656).
 			const ran = recordedRuns.get(ended.id);
 			const bound =
 				ended.state === 'declined' ||
-				(ran !== undefined && JSON.stringify(ran) === JSON.stringify(jsonOf(ended.result)));
+				(ran !== undefined &&
+					ran.command === row?.confirmation.command &&
+					JSON.stringify(ran.outcome) === JSON.stringify(jsonOf(ended.result)));
 			const allowed =
 				row !== undefined &&
 				row.confirmation.command === ended.command &&
@@ -1166,6 +1170,8 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 					'None: only the kernel settles one'
 				);
 			}
+			// Consume the replay credit once so it never settles again (#1656).
+			recordedRuns.delete(ended.id);
 			const now = kit.callNow(context);
 			const { claim: _claim, ...kept } = row;
 			await putBack({
@@ -1452,8 +1458,11 @@ export function createConfirmations(deps: ConfirmationDeps): Confirmations {
 		commands: [paletteRun, get, withdrawOne] as unknown as ZodCommandDefinition[],
 		answer,
 		ask,
-		recorded(confirmation, result) {
-			recordedRuns.set(confirmation, outcomeOf(result));
+		recorded(confirmation, command, result) {
+			recordedRuns.set(confirmation, { command, outcome: outcomeOf(result) });
+		},
+		reset() {
+			recordedRuns.clear();
 		},
 		chain: serial,
 		async pending(person, match, now) {

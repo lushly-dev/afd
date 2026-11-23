@@ -804,3 +804,82 @@ describe('P4-E5: R14: an unload never loses a dirty tab', () => {
 		).toBe(true);
 	});
 });
+
+describe('#2115: experiment-settle tolerates a racing tab creating removal or declared rows', () => {
+	it('treats an existing removal or declared row created between snapshot and write as settled', async () => {
+		const store = new MemoryAdapter();
+		const realCreate = store.create.bind(store);
+		const racedIds: string[] = [];
+		// Simulate another tab settling and creating both the declared row (on first boot) and the removal row
+		// (on removal boot) between this tab's snapshot read and its `store.create` call.
+		const wrapRace = () => {
+			store.create = (async <T>(table: string, data: Partial<T>): Promise<T> => {
+				if (table === EXPERIMENT_TABLE) {
+					const id = (data as { id?: string }).id;
+					if (id && (id.includes('/~removed/') || id.includes('/~declared/'))) {
+						racedIds.push(id);
+						await realCreate(table, data);
+						throw new Error(`ConstraintError: Key already exists (${id})`);
+					}
+				}
+				return realCreate(table, data);
+			}) as typeof store.create;
+		};
+
+		// First boot: `personal/~declared/probe` is absent at snapshot and created by another tab before `create`.
+		wrapRace();
+		const firstJournal = new MemoryJournalSink();
+		const first = await workspace({ store, journal: firstJournal });
+		store.create = realCreate;
+		expect(racedIds).toContain('personal/~declared/probe');
+		expect(
+			(await firstJournal.read()).find((entry) => entry.command === 'experiment-settle')?.result
+				.success
+		).toBe(true);
+
+		await first.kernel.call('experiment-enable', { experiment: PANE, audience: 'workspace' });
+		await first.kernel.dispose();
+
+		// Removal boot: `personal/~removed/probe.pane` is absent at snapshot and created by another tab before `create`.
+		wrapRace();
+		const journal = new MemoryJournalSink();
+		const removed = gatedProbe([experiment('beta'), experiment('pane', { stage: 'removed' })]);
+		const second = await workspace({ store, journal, empty: true, manifest: removed });
+		store.create = realCreate;
+
+		expect(racedIds).toContain(`personal/~removed/${PANE}`);
+		const settleEntry = (await journal.read()).find(
+			(entry) => entry.command === 'experiment-settle'
+		);
+		expect(settleEntry?.result.success).toBe(true);
+		expect(await tableOf(store)).toEqual([
+			expect.objectContaining({
+				id: `personal/~removed/${PANE}`,
+				kind: 'removed',
+				experiment: PANE,
+			}),
+		]);
+		await second.kernel.dispose();
+	});
+
+	it('still surfaces a store.create failure when the row does not exist in the store', async () => {
+		const store = new MemoryAdapter();
+		const realCreate = store.create.bind(store);
+		store.create = (async <T>(table: string, data: Partial<T>): Promise<T> => {
+			if (table === EXPERIMENT_TABLE && (data as { id?: string }).id?.includes('/~declared/')) {
+				throw new Error('Disk full');
+			}
+			return realCreate(table, data);
+		}) as typeof store.create;
+
+		const journal = new MemoryJournalSink();
+		const booted = await workspace({ store, journal, empty: true });
+		store.create = realCreate;
+
+		const settleEntry = (await journal.read()).find(
+			(entry) => entry.command === 'experiment-settle'
+		);
+		expect(settleEntry?.result.success).toBe(false);
+		await booted.kernel.dispose();
+	});
+});

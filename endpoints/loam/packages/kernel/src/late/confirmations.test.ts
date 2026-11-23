@@ -2581,9 +2581,9 @@ describe('the fourth round', () => {
 		await store.batch([{ method: 'PUT', path: `/notification/${row.id}`, body: row }]);
 		// Another command's name: refused.
 		expect((await settle({ settle: { ...ended, command: 'keeper-set' } })).success).toBe(false);
-		// Pending to confirmed only for a run the replay recorded with this outcome (fifth round, 3).
+		// Pending to confirmed only for a run the replay recorded with this outcome (fifth round, 3; #1656).
 		expect((await settle({ settle: ended })).success).toBe(false);
-		made.recorded(row.id, ended.result as CommandResult);
+		made.recorded(row.id, ended.command, ended.result as CommandResult);
 		expect((await settle({ settle: ended })).success).toBe(true);
 		const kept = (await store.get('notification', row.id)) as typeof row & {
 			confirmation: { state: string; reason?: string; result?: unknown };
@@ -2943,9 +2943,21 @@ describe('the fifth round', () => {
 				}
 			).confirmation.state
 		).toBe('pending');
-		// The replay recorded this row's run with this outcome: accepted.
-		made.recorded('ntf_aaaaaaaaaaaaaaaa', { success: true, data: { count: 9 } } as CommandResult);
+		// Another command's credit for this confirmation is refused (#1656).
+		made.recorded('ntf_aaaaaaaaaaaaaaaa', 'keeper-set', {
+			success: true,
+			data: { count: 9 },
+		} as CommandResult);
+		expect((await settle({ settle: ended })).success).toBe(false);
+		// The replay recorded this row's run with this outcome: accepted once, then consumed (#1656).
+		made.recorded('ntf_aaaaaaaaaaaaaaaa', 'keeper-bump', {
+			success: true,
+			data: { count: 9 },
+		} as CommandResult);
 		expect((await settle({ settle: ended })).success).toBe(true);
+		// Consumed: resetting the row to pending without a fresh credit refuses a second settle.
+		await put(store, rowOf('ntf_aaaaaaaaaaaaaaaa'));
+		expect((await settle({ settle: ended })).success).toBe(false);
 		// A replayed run against a declined row runs nothing.
 		await put(store, rowOf('ntf_bbbbbbbbbbbbbbbb', 'declined'));
 		let ran = false;
@@ -3945,5 +3957,208 @@ describe("P4-E7: the active tab owner's port, on 6.1's table", () => {
 			['prompt-open', { title: 'Name?' }],
 		] as const)
 			expect((await port.call(name, input)).error?.code, name).toBe('OVERLAY_OWNER_INACTIVE');
+	});
+});
+
+describe('#1656: replay refuses crafted confirmation credit and inconsistent opener', () => {
+	it('refuses a recorded confirmation credit whose command or origin does not match its act', async () => {
+		const { kernel, journal } = await createScopedWorkspace({
+			deployment: probeDeployment(),
+			ports: probePorts(),
+		});
+		kernels.push(kernel);
+		const made = await kernel.call<{ id: string }>('document-create', { type: 'probe' });
+		const document = (made.data as { id: string }).id;
+		const asked = await kernel.agent.call('probe-content-set', { document, text: 'from agent' });
+		expect(asked.error?.code).toBe('CONFIRMATION_PENDING');
+		const notification = (asked.error?.details as { notification?: string } | undefined)
+			?.notification as string;
+		const acted = await kernel.call('notification-act', { notification, answer: 'confirm' });
+		expect(acted.success).toBe(true);
+
+		const recorded = await journal.read();
+		const runIndex = recorded.findIndex(
+			(entry) =>
+				entry.command === 'probe-content-set' && entry.context?.confirmation === notification
+		);
+		expect(runIndex).toBeGreaterThanOrEqual(0);
+		const withRecordedRun = recorded.map((entry, index) =>
+			index === runIndex ? { ...entry, context: { ...entry.context, replay: 'recorded' } } : entry
+		);
+
+		// Control: a recorded confirmed run with the right command and confirming act replays cleanly.
+		await expect(
+			replayKernel(withRecordedRun, { deployment: probeDeployment(), ports: probePorts() })
+		).resolves.toMatchObject({ report: { diverged: false } });
+
+		// Crafted 1: the credited entry names another command than the confirmation row's.
+		const wrongCommand = withRecordedRun.map((entry, index) =>
+			index === runIndex ? { ...entry, command: 'probe-content-get' } : entry
+		);
+		await expect(
+			replayKernel(wrongCommand, { deployment: probeDeployment(), ports: probePorts() })
+		).rejects.toMatchObject({
+			code: 'REPLAY_DIVERGED',
+			details: { firstDifference: { command: 'prompt-settle' } },
+		});
+
+		// Crafted 2: the credited entry has no confirming notification-act origin.
+		const missingOrigin = withRecordedRun.map((entry, index) => {
+			if (index !== runIndex) return entry;
+			const { origin: _dropped, ...rest } = entry.context ?? {};
+			return { ...entry, context: rest };
+		});
+		await expect(
+			replayKernel(missingOrigin, { deployment: probeDeployment(), ports: probePorts() })
+		).rejects.toMatchObject({
+			code: 'REPLAY_DIVERGED',
+			details: { firstDifference: { command: 'prompt-settle' } },
+		});
+
+		// Crafted 3: the credited entry points at an unrelated origin instead of the confirming act.
+		const wrongOrigin = withRecordedRun.map((entry, index) =>
+			index === runIndex
+				? { ...entry, context: { ...entry.context, origin: 'loam-other-999' } }
+				: entry
+		);
+		await expect(
+			replayKernel(wrongOrigin, { deployment: probeDeployment(), ports: probePorts() })
+		).rejects.toMatchObject({
+			code: 'REPLAY_DIVERGED',
+			details: { firstDifference: { command: 'prompt-settle' } },
+		});
+
+		// Crafted 4: the confirming notification-act origin arrived on a non-palette (mcp) interface.
+		const actIndex = withRecordedRun.findIndex(
+			(entry) => entry.traceId === withRecordedRun[runIndex]?.context?.origin
+		);
+		expect(actIndex).toBeGreaterThan(runIndex);
+		const mcpOrigin = withRecordedRun.map((entry, index) =>
+			index === actIndex
+				? { ...entry, contextDigest: { ...entry.contextDigest, interface: 'mcp' } }
+				: entry
+		);
+		await expect(
+			replayKernel(mcpOrigin, { deployment: probeDeployment(), ports: probePorts() })
+		).rejects.toMatchObject({
+			code: 'REPLAY_DIVERGED',
+			details: { firstDifference: { command: 'prompt-settle' } },
+		});
+
+		// Crafted 5: the confirming notification-act origin had answer 'decline'.
+		const declinedOrigin = withRecordedRun.map((entry, index) =>
+			index === actIndex ? { ...entry, input: { notification, answer: 'decline' } } : entry
+		);
+		await expect(
+			replayKernel(declinedOrigin, { deployment: probeDeployment(), ports: probePorts() })
+		).rejects.toMatchObject({
+			code: 'REPLAY_DIVERGED',
+			details: { firstDifference: { command: 'prompt-settle' } },
+		});
+
+		// Crafted 6: the notification-act origin returned success: true with a non-confirmed state.
+		const nonConfirmedOrigin = withRecordedRun.map((entry, index) =>
+			index === actIndex
+				? { ...entry, result: { success: true, data: { state: 'declined', reason: 'access' } } }
+				: entry
+		);
+		await expect(
+			replayKernel(nonConfirmedOrigin, { deployment: probeDeployment(), ports: probePorts() })
+		).rejects.toMatchObject({
+			code: 'REPLAY_DIVERGED',
+			details: { firstDifference: { command: 'prompt-settle' } },
+		});
+
+		// Crafted 7: the notification-act origin failed (success: false).
+		const failedOrigin = withRecordedRun.map((entry, index) =>
+			index === actIndex
+				? {
+						...entry,
+						result: {
+							success: false,
+							error: { code: 'HUMAN_REQUIRED', message: 'not confirmed', suggestion: 'ask' },
+						},
+					}
+				: entry
+		);
+		await expect(
+			replayKernel(failedOrigin, { deployment: probeDeployment(), ports: probePorts() })
+		).rejects.toMatchObject({
+			code: 'REPLAY_DIVERGED',
+			details: { firstDifference: { command: 'prompt-settle' } },
+		});
+	});
+
+	it('refuses a crafted journal entry that pairs an app caller with an agent interface or actor on the slot route', async () => {
+		const { kernel, journal } = await createScopedWorkspace({
+			deployment: probeDeployment(),
+			ports: probePorts(),
+		});
+		kernels.push(kernel);
+		const made = await kernel.call<{ id: string }>('document-create', { type: 'probe' });
+		const document = (made.data as { id: string }).id;
+		await kernel.call('app-open', { instance: 'probe' });
+
+		// Active app port asks in the slot; the person confirms it in the shell.
+		const waiting = kernel.appPort('probe').call('probe-content-set', {
+			document,
+			text: 'from active app',
+		});
+		let promptId: string | undefined;
+		for (let attempt = 0; attempt < 20 && !promptId; attempt++) {
+			const listed = await kernel.call<{ overlays: Array<{ overlayId: string; kind: string }> }>(
+				'overlay-list'
+			);
+			promptId = listed.data?.overlays.find((overlay) => overlay.kind === 'prompt')?.overlayId;
+			if (!promptId) await new Promise((resolve) => setTimeout(resolve, 10));
+		}
+		expect(promptId).toBeDefined();
+		await kernel.call('overlay-dismiss', {
+			overlayId: promptId,
+			result: 'confirm',
+			reason: 'user',
+		});
+		expect((await waiting).success).toBe(true);
+
+		const recorded = await journal.read();
+		const callIndex = recorded.findIndex(
+			(entry) =>
+				entry.command === 'probe-content-set' &&
+				entry.context?.caller === 'probe' &&
+				typeof entry.context?.confirmation === 'string' &&
+				entry.context.confirmation.startsWith('cnf_')
+		);
+		expect(callIndex).toBeGreaterThanOrEqual(0);
+
+		// Control: the recorded active-app slot confirmation replays cleanly.
+		await expect(
+			replayKernel(recorded, { deployment: probeDeployment(), ports: probePorts() })
+		).resolves.toMatchObject({ report: { diverged: false } });
+
+		// Crafted 1: caller paired with the agent interface.
+		const agentInterface = recorded.map((entry, index) =>
+			index === callIndex
+				? { ...entry, contextDigest: { ...entry.contextDigest, interface: 'agent' } }
+				: entry
+		);
+		await expect(
+			replayKernel(agentInterface, { deployment: probeDeployment(), ports: probePorts() })
+		).rejects.toMatchObject({
+			code: 'REPLAY_DIVERGED',
+			details: { firstDifference: { command: 'probe-content-set' } },
+		});
+
+		// Crafted 2: caller paired with an agent actor on the palette interface.
+		const agentActor = recorded.map((entry, index) =>
+			index === callIndex
+				? { ...entry, actor: { kind: 'agent' as const, id: 'shell-agent' } }
+				: entry
+		);
+		await expect(
+			replayKernel(agentActor, { deployment: probeDeployment(), ports: probePorts() })
+		).rejects.toMatchObject({
+			code: 'REPLAY_DIVERGED',
+			details: { firstDifference: { command: 'probe-content-set' } },
+		});
 	});
 });

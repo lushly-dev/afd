@@ -716,4 +716,50 @@ describe("P4-E9: step 7's third round", () => {
 		}
 		await page.close();
 	});
+
+	it('#1670: renders a command’s in-force shortcut in the palette row, and none when unbound or absent', async () => {
+		const { page } = await openShell(browser, site.origin);
+		await openApp(page, 'hello');
+		await page.keyboard.press('ControlOrMeta+K');
+		await expect.poll(() => paletteOpen(page)).toBe(true);
+
+		// Unconditional shell binding (`palette-open` -> `Mod+K`).
+		await page.locator('loam-palette input').fill('palette-open');
+		const openRow = page.locator('loam-palette violet-option[data-command="palette-open"]');
+		await expect.poll(() => openRow.count()).toBe(1);
+		await expect.poll(() => openRow.locator('kbd.result-shortcut').textContent()).toBe('Mod+K');
+
+		// Unconditional app binding (`hello-greet` -> `Mod+Shift+H`).
+		await page.locator('loam-palette input').fill('hello-greet');
+		const greetRow = page.locator('loam-palette violet-option[data-command="hello-greet"]');
+		await expect.poll(() => greetRow.count()).toBe(1);
+		await expect
+			.poll(() => greetRow.locator('kbd.result-shortcut').textContent())
+			.toBe('Mod+Shift+H');
+
+		// A command with no binding renders no shortcut element.
+		await page.locator('loam-palette input').fill('palette-close');
+		const closeRow = page.locator('loam-palette violet-option[data-command="palette-close"]');
+		await expect.poll(() => closeRow.count()).toBe(1);
+		expect(await closeRow.locator('kbd.result-shortcut').count()).toBe(0);
+
+		// The open palette with rendered shortcuts passes axe in every theme.
+		await page.locator('loam-palette input').fill('hello-greet');
+		await expect.poll(() => greetRow.locator('kbd.result-shortcut').count()).toBe(1);
+		for (const theme of ['light', 'dark', 'high-contrast'] as const) {
+			await setTheme(page, theme);
+			expect(await axe(page), theme).toEqual([]);
+		}
+
+		// Unbinding `hello-greet` removes the shortcut from its rendered palette row.
+		await page.keyboard.press('Escape');
+		await expect.poll(() => paletteOpen(page)).toBe(false);
+		expect((await overrides(page, [{ command: 'hello-greet', keys: null }])).success).toBe(true);
+		await page.keyboard.press('ControlOrMeta+K');
+		await expect.poll(() => paletteOpen(page)).toBe(true);
+		await page.locator('loam-palette input').fill('hello-greet');
+		await expect.poll(() => greetRow.count()).toBe(1);
+		expect(await greetRow.locator('kbd.result-shortcut').count()).toBe(0);
+		await page.close();
+	});
 });

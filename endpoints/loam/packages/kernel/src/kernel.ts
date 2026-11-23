@@ -580,11 +580,8 @@ export interface KernelPartsInternals {
 	drive?(person: string | null): void;
 	/** At a reload, the replay's Mock set to the person the page's first settle names (4.4). */
 	startPage?(): void;
-	/**
-	 * Set by the kernel for the replay: a confirmed run (`confirmation`, an `ntf_` id) the replay answered from its
-	 * record, with its result, so the act that ran it may settle its row confirmed (phase 4's step 6, fifth round, 3).
-	 */
-	recordedRun?(confirmation: string, result: CommandResult): void;
+	/** Set by the kernel for replay: a confirmed run answered from record, with command and result (#1656). */
+	recordedRun?(confirmation: string, command: string, result: CommandResult): void;
 }
 
 /**
@@ -923,8 +920,8 @@ export async function createKernelParts(
 			// among them (step 6 merged with step 7).
 			if (disposed) return;
 			lateParts = parts;
-			internals.recordedRun = (confirmation, result) =>
-				parts.confirmations.recorded(confirmation, result);
+			internals.recordedRun = (confirmation, command, result) =>
+				parts.confirmations.recorded(confirmation, command, result);
 			contextFields = [
 				...KERNEL_CONTEXT_FIELDS,
 				...parts.copilot.contextFields,
@@ -1024,6 +1021,7 @@ export async function createKernelParts(
 		}
 		// `late/` has loaded: it reads them, and says why it could not (13).
 		const loaded = await (lateParts as LateParts).readApps();
+		if (disposed) return;
 		if (!('deployment' in loaded)) {
 			fallBack(
 				'refused' in loaded
@@ -1036,7 +1034,8 @@ export async function createKernelParts(
 		applying = deployment;
 		try {
 			const { loadApps } = await import('./apps/index.js');
-			apps = await loadApps({
+			if (disposed) return;
+			const loadedApps = await loadApps({
 				deployment,
 				...(loaded.ports !== undefined ? { ports: loaded.ports } : {}),
 				store: options.store,
@@ -1067,9 +1066,12 @@ export async function createKernelParts(
 					gated: (instance) => lateParts?.appGated(instance) === true,
 				},
 			});
+			// Disposed while `loadApps` ran (#1668): tear down the hosts it created rather than leaving them live.
+			if (disposed) return void (await loadedApps.dispose());
+			apps = loadedApps;
 			keybindings.setApps(apps.keybindings);
 		} catch (cause) {
-			// A chunk that does not load refuses every app, and never the shell (D66).
+			if (disposed) return;
 			reportKernelError(cause);
 			fallBack(runtimeUnavailable(String((cause as Error)?.message ?? cause)));
 		}
