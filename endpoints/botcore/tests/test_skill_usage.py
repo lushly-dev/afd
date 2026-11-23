@@ -282,6 +282,23 @@ POWERSHELL = "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
         f'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "gc {WINDOWS_FILE}"',
         f"cmd /c type {WINDOWS_FILE}",
         f"& Get-Content -LiteralPath {WINDOWS_FILE}",
+        f'$p = "C:\\dir\\"\nGet-Content {WINDOWS_FILE}',
+        f'$p = "C:\\dir\\"; Get-Content {WINDOWS_FILE}',
+        f'$p = "C:\\dir\\"\n$x = @"\nhi\n"@\nGet-Content {WINDOWS_FILE}',
+        f"powershell.exe -Command '$p = \"C:\\dir\\\"; Get-Content {WINDOWS_FILE}'",
+        f'pwsh -Command "$p = \\"C:\\dir\\\\\\"; Get-Content {WINDOWS_FILE}"',
+        f'Set-Location "C:\\dir\\"; Get-Content {WINDOWS_FILE}',
+        f'$s = "a`"b"; Get-Content {WINDOWS_FILE}',
+        f'$s = "a``"\nGet-Content {WINDOWS_FILE}',
+        f"Get-Content `\n{WINDOWS_FILE}",
+        f'echo "a`echo hi`"; cat {FILE}',
+        f'Write-Output "hello @"\nGet-Content {WINDOWS_FILE}',
+        f'$p = "C:\\dir\\"\r\nGet-Content {WINDOWS_FILE}',
+        f'pwd; $p = "C:\\dir\\"; Get-Content {WINDOWS_FILE}',
+        f'cd "C:\\dir\\"\nGet-Content {WINDOWS_FILE}',
+        f'cd "C:\\dir\\"; Get-Content {WINDOWS_FILE}',
+        f'cmd /c "echo hi"\n$p = "C:\\dir\\"\nGet-Content {WINDOWS_FILE}',
+        f'$p = "C:\\dir\\"\nSelect-String "<<<<<<<" file.txt\nGet-Content {WINDOWS_FILE}',
     ],
 )
 def test_a_command_that_shows_the_skill_is_a_load(command: str) -> None:
@@ -323,6 +340,26 @@ def test_a_command_that_shows_the_skill_is_a_load(command: str) -> None:
         f"head -1 notes.md # {FILE}",
         f'echo "x; cat {FILE}"',
         f'python3 - <<\'PY\'\nprint("cat {FILE}")\n("cat {FILE}\nPY',
+        (
+            "cat <<'EOF' > script.ps1\n$x = @\"\nhi\n\"@\nEOF\n"
+            f'echo "a\\"b"\ncat <<\'PY\'\ncat {FILE}\nPY'
+        ),
+        (
+            'cat <<\'EOF\' > script.ps1\n$p = "C:\\dir\\"\n$x = @"\nhi\n"@\n'
+            f'Get-Content foo.txt\nEOF\necho "a\\"b"\ncat <<\'PY\'\ncat {FILE}\nPY'
+        ),
+        f'$s = "a`"b"\n$x = @"\ncat {FILE}\n"@\nWrite-Output $x.Length',
+        f'$s = "a`"b"; $x = @"\ncat {FILE}\n"@\nWrite-Output $x.Length',
+        f'$s = "a``"\n$x = @"\ncat {FILE}\n"@\nWrite-Output $x.Length',
+        f"$s = 'a`'\n$x = @\"\ncat {FILE}\n\"@\nWrite-Output $x.Length",
+        f'powershell.exe -Command \'$s = "a`"b"\n$x = @"\ncat {FILE}\n"@\'',
+        f'echo "x\\"; Get-Content {FILE}"',
+        f'echo \'\n$p = "hi"\n$x = @"\nhi\n"@\n\'\necho "a\\"b; cat {FILE}"',
+        f"$x = @\"\ncat <<'EOF'\ncat {FILE}\nEOF\n\"@",
+        f'$x = @"\n<<<<<<< HEAD\n"\ncat {FILE}\n"@',
+        f'bash -c "echo ok"\n$x = @"\ncat {FILE}\n"@',
+        f'echo "a`"b"\n$x = @"\ncat {FILE}\n"@',
+        f'powershell.exe -Command $s = "a`"b"\n$x = @"\ncat {FILE}\n"@',
     ],
 )
 def test_a_command_that_only_names_the_skill_is_not_a_load(command: str) -> None:
@@ -994,6 +1031,27 @@ def test_a_rebuild_replaces_what_was_recognised_before(state: Path, t3_store: T3
     assert sorted(found.skill for found in collected(state)) == [
         "plant-beds", "prune-roses", "water-lawn",
     ]  # fmt: skip
+
+
+def test_a_version_1_record_gets_the_rebuild_warning_after_recognizer_bump(
+    state: Path, t3_store: T3Store
+) -> None:
+    main = t3_store.thread("main-1")
+    t3_store.skill_tool(main, "plant-beds", stamp(1))
+    run(skill_usage_collect())
+    events = collected(state)
+    assert events and events[0].v >= 2
+    old = event(events[0].id, skill="plant-beds", v=1)
+    store.rewrite_events(state, [old])
+    saved = store.load_state(state)
+    saved["recognizer"] = 1
+    store.save_state(state, saved)
+
+    warnings = run(skill_usage_report())["warnings"]
+    assert any("older botcore" in warning and "--rebuild" in warning for warning in warnings)
+
+    run(skill_usage_collect(rebuild=True))
+    assert run(skill_usage_report())["warnings"] == []
 
 
 def test_a_rewrite_is_compared_as_a_share_under_one_name(

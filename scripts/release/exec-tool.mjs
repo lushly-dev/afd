@@ -125,3 +125,82 @@ export function python3() {
 	python ??= pythonCommand();
 	return python;
 }
+
+/** Whether a Windows `bash.exe` path is one of the WSL relays (System32, SysWOW64, WindowsApps). */
+function isWslBash(file, environment = process.env) {
+	const normalized = win32.normalize(file).toLowerCase();
+	const root = environment.SystemRoot ?? environment.windir;
+	if (root) {
+		const systemRoot = win32.normalize(root).toLowerCase();
+		if (
+			normalized === win32.join(systemRoot, 'system32', 'bash.exe') ||
+			normalized === win32.join(systemRoot, 'syswow64', 'bash.exe') ||
+			normalized === win32.join(systemRoot, 'sysnative', 'bash.exe')
+		)
+			return true;
+	}
+	if (/\\windows\\(?:system32|syswow64|sysnative)\\bash\.exe$/.test(normalized)) return true;
+	return normalized.endsWith('\\microsoft\\windowsapps\\bash.exe');
+}
+
+function whereWindows(command) {
+	const probe = spawnSync('where', [command], {
+		encoding: 'utf8',
+		stdio: ['ignore', 'pipe', 'ignore'],
+		timeout: 5_000,
+	});
+	if (probe.status !== 0) return [];
+	return probe.stdout
+		.split(/\r?\n/)
+		.map((line) => line.trim())
+		.filter(Boolean);
+}
+
+/**
+ * A Bash executable for running POSIX scripts on this platform. Elsewhere it is `bash`. On
+ * Windows, `System32\bash.exe` and `WindowsApps\bash.exe` are WSL relays (which fail with no
+ * distro installed, or cross into Linux where Windows binaries and paths do not match), so those
+ * are skipped in favour of a non-WSL `bash.exe` on PATH, Git for Windows beside `git.exe`, or
+ * Git's standard install locations (#2171).
+ */
+export function bashCommand({
+	environment = process.env,
+	platform = process.platform,
+	where = whereWindows,
+	exists = existsSync,
+} = {}) {
+	if (platform !== 'win32') return 'bash';
+	const candidates = [];
+	for (const hit of where('bash')) {
+		if (!isWslBash(hit, environment)) candidates.push(hit);
+	}
+	for (const git of where('git')) {
+		// Git for Windows installs git.exe under <root>\cmd\, <root>\bin\ or <root>\mingw64\bin\.
+		const parent = win32.dirname(win32.dirname(git));
+		const grandparent = win32.dirname(parent);
+		for (const root of [parent, grandparent]) {
+			candidates.push(win32.join(root, 'bin', 'bash.exe'));
+			candidates.push(win32.join(root, 'usr', 'bin', 'bash.exe'));
+		}
+	}
+	for (const base of [
+		environment.ProgramFiles,
+		environment['ProgramFiles(x86)'],
+		environment.LOCALAPPDATA ? win32.join(environment.LOCALAPPDATA, 'Programs') : undefined,
+	]) {
+		if (!base) continue;
+		candidates.push(win32.join(base, 'Git', 'bin', 'bash.exe'));
+		candidates.push(win32.join(base, 'Git', 'usr', 'bin', 'bash.exe'));
+	}
+	const seen = new Set();
+	for (const candidate of candidates) {
+		const key = win32.normalize(candidate).toLowerCase();
+		if (seen.has(key) || isWslBash(candidate, environment)) continue;
+		seen.add(key);
+		if (exists(candidate)) return candidate;
+	}
+	throw new Error(
+		'No non-WSL bash.exe found on Windows (skipped System32/WindowsApps WSL relays). ' +
+			'Install Git for Windows or put a non-WSL bash.exe on PATH.'
+	);
+}

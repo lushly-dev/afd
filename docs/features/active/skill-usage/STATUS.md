@@ -345,4 +345,4 @@ skill for `lefthook.yml`, `ci.yml` and `scripts/check-*.mjs`), before Lushly dec
 
 - Size and the quiet list for skills kept outside a project's skill folders (#1830): not started.
 
-- PowerShell quoting in the shell reader (#1847): with the rollout, against a real Windows record.
+- PowerShell quoting in the shell reader (#1847): merged in #2222.

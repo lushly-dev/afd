@@ -20,7 +20,7 @@
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, lstatSync, readdirSync, rmSync } from 'node:fs';
-import { basename, dirname, join, resolve } from 'node:path';
+import { dirname, join, resolve, win32 } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -49,9 +49,33 @@ export function parseSweepArgs(argv) {
 	return options;
 }
 
+/** Process-listing command for this platform: `tasklist` on Windows (Git Bash's `ps` has no `-A`), `ps` elsewhere (#2171). */
+export function processListCommand(platform = process.platform, env = process.env) {
+	if (platform === 'win32') {
+		const root = env.SystemRoot ?? env.windir;
+		return {
+			file: root ? win32.join(root, 'System32', 'tasklist.exe') : 'tasklist.exe',
+			args: ['/FO', 'CSV', '/NH'],
+		};
+	}
+	return { file: 'ps', args: ['-Ao', 'comm'] };
+}
+
+function processName(line) {
+	const trimmed = line.trim();
+	if (!trimmed) return '';
+	const csv = /^"([^"]+)",/.exec(trimmed);
+	const raw = csv ? csv[1] : trimmed;
+	const base = raw.split(/[\\/]/).at(-1) ?? '';
+	return base.toLowerCase().replace(/\.exe$/, '');
+}
+
 /** Whether a Rust build is running on this machine; `null` when that cannot be told. */
 export function rustBuildRunning(
-	list = () => execFileSync('ps', ['-Ao', 'comm'], { encoding: 'utf8' })
+	list = () => {
+		const { file, args } = processListCommand();
+		return execFileSync(file, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+	}
 ) {
 	let output;
 	try {
@@ -59,10 +83,9 @@ export function rustBuildRunning(
 	} catch {
 		return null;
 	}
-	return output
-		.split('\n')
-		.slice(1)
-		.some((line) => BUILDERS.has(basename(line.trim())));
+	const lines = output.split(/\r?\n/).filter((line) => line.trim() !== '');
+	if (lines.length === 0) return null;
+	return lines.some((line) => BUILDERS.has(processName(line)));
 }
 
 /** The default target directories: the environment's, then each Cargo workspace's own. */
@@ -209,7 +232,7 @@ export function sweep(targets, options, running = rustBuildRunning) {
 		.map(describeSweep);
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
 	const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 	try {
 		const options = parseSweepArgs(process.argv.slice(2));
