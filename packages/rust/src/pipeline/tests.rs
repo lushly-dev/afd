@@ -474,7 +474,7 @@ fn test_spec_double_underscore_segments_never_resolve() {
         "items": [{"__x": 1}]
     }));
     context.push_step(ok_step(1, json!({"id": 5})).with_alias("__hidden"));
-    context.previous_result = Some(context.steps[0].clone());
+    context.previous = Some(0);
 
     for reference in [
         "$prev.__proto__",
@@ -775,19 +775,6 @@ fn test_the_same_step_through_two_references_is_a_repeat() {
             &context
         ),
         ResolutionLimit::Nodes
-    );
-}
-
-#[test]
-fn test_prev_reads_previous_result_when_it_differs_from_its_steps_entry() {
-    // A hand-built context: `$prev` is `previous_result`, even beside a matching steps entry.
-    let mut context = PipelineContext::default();
-    context.push_step(ok_step(0, json!(1)));
-    context.previous_result.as_mut().unwrap().data = Some(json!(2));
-    assert_eq!(resolve_variable("$prev", &context), Some(json!(2)));
-    assert_eq!(
-        try_resolve_variables(&json!({"a": "$prev"}), &context).unwrap(),
-        json!({"a": 2})
     );
 }
 

@@ -30,6 +30,7 @@ use crate::time::Instant;
 
 mod context;
 
+use context::CallState;
 pub use context::CommandContext;
 // The MCP server sets these on a request's context.
 #[cfg(feature = "server")]
@@ -543,16 +544,23 @@ pub enum ExecutionTime {
 /// A boxed, `Send` future, as returned by middleware.
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
-/// Runs the rest of the middleware chain and then the handler.
-pub type MiddlewareNext =
-    Arc<dyn Fn() -> BoxFuture<'static, CommandResult<serde_json::Value>> + Send + Sync>;
+/// Runs the rest of the middleware chain and then the handler, with the context it is given.
+///
+/// A middleware passes on the context it received, refined if it needs to be (a trace ID, an
+/// actor, a field of `extra`): the layers after it and the handler see that context. It may call
+/// `next` more than once (a retry middleware does), cloning the context for each call. The
+/// `interface`, `credentials`, `clock`, `random` and the state only the crate sets stay as they
+/// were before the chain, at every layer and at the handler.
+pub type MiddlewareNext = Arc<
+    dyn Fn(CommandContext) -> BoxFuture<'static, CommandResult<serde_json::Value>> + Send + Sync,
+>;
 
 /// Middleware that wraps command execution, added with
 /// [`CommandRegistry::add_middleware`].
 ///
-/// It receives the command name, the validated input, the context and `next`,
-/// and returns the result: usually `next().await`, possibly inspected or
-/// replaced.
+/// It receives the command name, the validated input (shared, so no layer copies it), the
+/// context and `next`, and returns the result: usually `next(context).await`, possibly inspected
+/// or replaced. A middleware that returns without calling `next` stops the call.
 ///
 /// # Example
 ///
@@ -560,9 +568,9 @@ pub type MiddlewareNext =
 /// use afd::{CommandMiddleware, CommandRegistry};
 /// use std::sync::Arc;
 ///
-/// let logging: CommandMiddleware = Arc::new(|name, _input, _context, next| {
+/// let logging: CommandMiddleware = Arc::new(|name, _input, context, next| {
 ///     Box::pin(async move {
-///         let result = next().await;
+///         let result = next(context).await;
 ///         println!("{name}: success={}", result.success);
 ///         result
 ///     })
@@ -574,7 +582,7 @@ pub type MiddlewareNext =
 pub type CommandMiddleware = Arc<
     dyn Fn(
             String,
-            serde_json::Value,
+            Arc<serde_json::Value>,
             CommandContext,
             MiddlewareNext,
         ) -> BoxFuture<'static, CommandResult<serde_json::Value>>
@@ -1013,7 +1021,8 @@ impl Default for ExecutionLimits {
 #[derive(Default)]
 pub struct CommandRegistry {
     commands: RwLock<RegisteredCommands>,
-    middleware: RwLock<Vec<CommandMiddleware>>,
+    /// Copied on write, so a call takes the list with one reference count.
+    middleware: RwLock<Arc<Vec<CommandMiddleware>>>,
     journal: RwLock<Option<Arc<JournalRecorder>>>,
     context_fields: RwLock<Arc<Vec<ContextField>>>,
     call_grant: RwLock<Option<CallGrant>>,
@@ -1043,7 +1052,7 @@ struct RegisteredCommands {
     by_name: HashMap<String, Arc<CommandDefinition>>,
     ordered: Vec<Arc<CommandDefinition>>,
     /// The whole input schemas commands validate with ([`CommandRegistry::register_with_schema`]).
-    schemas: HashMap<String, serde_json::Value>,
+    schemas: HashMap<String, Arc<serde_json::Value>>,
     /// The input schemas commands advertise in place of the validation schema
     /// ([`CommandRegistry::register_with_schemas`]).
     advertised: HashMap<String, serde_json::Value>,
@@ -1263,7 +1272,9 @@ impl CommandRegistry {
         if commands.by_name.contains_key(&command.name) {
             return Err(format!("Command '{}' is already registered", command.name));
         }
-        commands.schemas.insert(command.name.clone(), schema);
+        commands
+            .schemas
+            .insert(command.name.clone(), Arc::new(schema));
         if let Some(advertised) = advertised {
             commands.advertised.insert(command.name.clone(), advertised);
         }
@@ -1320,7 +1331,7 @@ impl CommandRegistry {
         if let Some(schema) = commands
             .advertised
             .get(name)
-            .or_else(|| commands.schemas.get(name))
+            .or_else(|| commands.schemas.get(name).map(|schema| &**schema))
         {
             tool["inputSchema"] = schema.clone();
         }
@@ -1379,10 +1390,10 @@ impl CommandRegistry {
     ///
     /// Middleware runs in the order it was added (the first added is the
     /// outermost), after input validation, with the validated input. Each one
-    /// calls `next()` to run the rest of the chain and can inspect or replace
-    /// the result, or return without calling `next()` to short-circuit.
+    /// calls `next(context)` to run the rest of the chain with the context it passes, and can
+    /// inspect or replace the result, or return without calling `next` to short-circuit.
     pub fn add_middleware(&self, middleware: CommandMiddleware) {
-        write_lock(&self.middleware).push(middleware);
+        Arc::make_mut(&mut write_lock(&self.middleware)).push(middleware);
     }
 
     /// Record every accepted call to a journal (`spec/journal.md`), replacing any recorder set
@@ -1721,7 +1732,7 @@ impl CommandRegistry {
             return failure(command_cancelled_error(&command.name));
         }
 
-        let middleware = read_lock(&self.middleware).clone();
+        let middleware = Arc::clone(&read_lock(&self.middleware));
         // Replayed calls, and the calls nested in them, are never recorded.
         let journal = read_lock(&self.journal)
             .clone()
@@ -1740,10 +1751,18 @@ impl CommandRegistry {
             context.cancellation = Some(signal.clone());
         }
 
-        let chain = middleware_chain(&command, &middleware, input, context);
-        // `chain()` runs inside the guarded future, so a middleware layer that
-        // panics while building its future is caught too.
-        let run = run_guarded(async move { chain().await });
+        // `run_handler` and `chain(context)` run inside the guarded future, so a middleware
+        // layer that panics while building its future is caught too. With no middleware the
+        // handler takes the validated input itself, without a copy.
+        let run = run_guarded(async move {
+            if middleware.is_empty() {
+                run_handler(command, input, context).await
+            } else {
+                let state = CallState::of(&context);
+                let chain = middleware_chain(&command, &middleware, Arc::new(input), state);
+                chain(context).await
+            }
+        });
 
         // The deadline covers the chain only: a slow journal append cannot turn a finished call
         // into a TIMEOUT, and a call that timed out is not recorded.
@@ -1756,7 +1775,7 @@ impl CommandRegistry {
                         if let Some(signal) = &deadline_signal {
                             signal.cancel();
                         }
-                        return failure(command_timeout_error(&command.name, timeout_ms));
+                        return failure(command_timeout_error(name, timeout_ms));
                     }
                 }
             }
@@ -2150,92 +2169,100 @@ pub(crate) fn not_found_suggestion(name: &str, callable: &[String], remote: bool
 
 /// Build the middleware chain around `command`'s handler.
 ///
-/// The returned function can be called more than once (a retry middleware
-/// calls `next()` again); each call clones the input and context.
+/// The returned function can be called more than once (a retry middleware calls `next` again).
+/// Every layer shares `input`; the handler step makes the one copy the handler owns. The context
+/// moves down the chain, so no layer copies it unless it calls `next` more than once. Each step
+/// (every layer and the handler) puts `state`, the call's own state from before the chain, back
+/// on the context it is given, so a middleware refines only the other public fields.
 fn middleware_chain(
     command: &Arc<CommandDefinition>,
     middleware: &[CommandMiddleware],
-    input: serde_json::Value,
-    context: CommandContext,
+    input: Arc<serde_json::Value>,
+    state: CallState,
 ) -> MiddlewareNext {
+    let state = Arc::new(state);
     let handler: MiddlewareNext = {
         let command = Arc::clone(command);
-        let input = input.clone();
-        let context = context.clone();
-        Arc::new(move || {
-            let command = Arc::clone(&command);
-            let input = input.clone();
-            let mut context = context.clone();
-            // A declared approval policy holds without the approval middleware (#1886): a command
-            // whose policy is neither unset nor `NotRequired` runs only on an admission that names
-            // it and this validated input, taken here, so one admission runs one handler. A
-            // policy function is not evaluated here; declaring one needs an approval step.
-            // A gate declared only in the approval middleware's list is taken here too.
-            let admission = context.approval_admission.take();
-            let gated = crate::approval::admission::gates(command.approval.as_ref())
-                || admission
-                    .as_ref()
-                    .is_some_and(|admission| admission.gated());
-            let refused = gated
-                .then(|| {
-                    admission.map_or(crate::approval::admission::Taken::Missing, |admission| {
-                        admission.take(&command.name, &input)
-                    })
-                })
-                .filter(|taken| *taken != crate::approval::admission::Taken::Admitted);
-            if let Some(taken) = refused {
-                return Box::pin(std::future::ready(failure(approval_unavailable(
-                    &command.name,
-                    taken,
-                ))));
-            }
-            // Relay evidence and the approval relay serve the call that reached the middleware,
-            // never a command the handler runs in process with this context.
-            context.relay_evidence = None;
-            context.up_front_approval = None;
-            if context.approval_relay.is_some() {
-                context.approval_relay = Some(Arc::new(
-                    crate::approval::relay::ApprovalRelayChannel::never_asks(),
-                ));
-            }
-            Box::pin(async move {
-                // Re-check immediately before handler start (including after an approval wait).
-                if context.is_cancelled() {
-                    return failure(command_cancelled_error(&command.name));
-                }
-                // Only the kind is reported, never the actor's id or label.
-                let actor_kind = context.actor.as_ref().map(|actor| actor.kind);
-                let output_budget = context.output_budget;
-                let mut result = command.execute(input, context).await;
-                // The output budget check (`spec/output-budgets.md`, B5): right after the
-                // handler, before `metadata` is stamped and before any middleware sees it.
-                if let Some(limit) = output_budget {
-                    result = crate::output_budget::check_result(&command, limit, result);
-                }
-                if let Some(actor_kind) = actor_kind {
-                    let metadata = result.metadata.get_or_insert_with(ResultMetadata::new);
-                    metadata.actor_kind = Some(actor_kind);
-                    // A handler that still writes the key into `extra` would serialize it twice.
-                    metadata.extra.remove("actorKind");
-                }
-                result
-            })
+        let input = Arc::clone(&input);
+        let state = Arc::clone(&state);
+        Arc::new(move |mut context| {
+            state.restore(&mut context);
+            run_handler(Arc::clone(&command), (*input).clone(), context)
         })
     };
 
     middleware.iter().rev().fold(handler, |next, layer| {
         let layer = Arc::clone(layer);
         let name = command.name.clone();
-        let input = input.clone();
-        let context = context.clone();
-        Arc::new(move || {
-            layer(
-                name.clone(),
-                input.clone(),
-                context.clone(),
-                Arc::clone(&next),
-            )
+        let input = Arc::clone(&input);
+        let state = Arc::clone(&state);
+        Arc::new(move |mut context| {
+            state.restore(&mut context);
+            layer(name.clone(), Arc::clone(&input), context, Arc::clone(&next))
         })
+    })
+}
+
+/// The handler step at the end of the chain: the approval admission check, the handler, the
+/// output budget and the actor kind.
+fn run_handler(
+    command: Arc<CommandDefinition>,
+    input: serde_json::Value,
+    mut context: CommandContext,
+) -> BoxFuture<'static, CommandResult<serde_json::Value>> {
+    // A declared approval policy holds without the approval middleware (#1886): a command
+    // whose policy is neither unset nor `NotRequired` runs only on an admission that names
+    // it and this validated input, taken here, so one admission runs one handler. A
+    // policy function is not evaluated here; declaring one needs an approval step.
+    // A gate declared only in the approval middleware's list is taken here too.
+    let admission = context.approval_admission.take();
+    let gated = crate::approval::admission::gates(command.approval.as_ref())
+        || admission
+            .as_ref()
+            .is_some_and(|admission| admission.gated());
+    let refused = gated
+        .then(|| {
+            admission.map_or(crate::approval::admission::Taken::Missing, |admission| {
+                admission.take(&command.name, &input)
+            })
+        })
+        .filter(|taken| *taken != crate::approval::admission::Taken::Admitted);
+    if let Some(taken) = refused {
+        return Box::pin(std::future::ready(failure(approval_unavailable(
+            &command.name,
+            taken,
+        ))));
+    }
+    // Relay evidence and the approval relay serve the call that reached the middleware,
+    // never a command the handler runs in process with this context.
+    context.relay_evidence = None;
+    context.up_front_approval = None;
+    if context.approval_relay.is_some() {
+        context.approval_relay = Some(Arc::new(
+            crate::approval::relay::ApprovalRelayChannel::never_asks(),
+        ));
+    }
+    Box::pin(async move {
+        // Re-check immediately before handler start (including after an approval wait).
+        if context.is_cancelled() {
+            return failure(command_cancelled_error(&command.name));
+        }
+        // Only the kind is reported, never the actor's id or label.
+        let actor_kind = context.actor.as_ref().map(|actor| actor.kind);
+        let output_budget = context.output_budget;
+        let mut result = command.execute(input, context).await;
+        // The output budget check (`spec/output-budgets.md`, B5): right after the
+        // handler, before `metadata` is stamped and before any middleware sees it.
+        if let Some(limit) = output_budget {
+            result = crate::output_budget::check_result(&command, limit, result);
+        }
+        if let Some(actor_kind) = actor_kind {
+            let metadata = result.metadata.get_or_insert_with(ResultMetadata::new);
+            metadata.actor_kind = Some(actor_kind);
+            // A handler that still writes the key into `extra` would serialize it twice.
+            metadata.extra.remove("actorKind");
+        }
+        result
     })
 }
 

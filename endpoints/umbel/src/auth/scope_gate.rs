@@ -56,14 +56,14 @@ pub(crate) fn insufficient_scope(config: &Config, missing: &[String]) -> Command
 pub(crate) fn scope_gate(policy: Arc<ScopePolicy>) -> CommandMiddleware {
     Arc::new(
         move |name: String,
-              input: Value,
+              input: std::sync::Arc<Value>,
               context: CommandContext,
               next: MiddlewareNext|
               -> BoxFuture<'static, CommandResult<Value>> {
             let config = policy.workspace().config();
             let caller = Caller::of(config, &context);
             let Narrowing::Token(held) = caller.narrowing() else {
-                return next();
+                return next(context);
             };
             let held_text = caller.scope_text();
             let reads = |space: &str| {
@@ -75,7 +75,7 @@ pub(crate) fn scope_gate(policy: Arc<ScopePolicy>) -> CommandMiddleware {
             };
             let verdict = policy.decide(&name, &input, held, held_text, Some(&reads), false);
             match verdict {
-                Verdict::Allowed => next(),
+                Verdict::Allowed => next(context),
                 Verdict::Hidden => {
                     let error = policy.unknown_command(&name, &context, &|command| {
                         policy.visible(command, held, held_text, &reads)
@@ -112,17 +112,17 @@ pub(crate) fn scope_gate(policy: Arc<ScopePolicy>) -> CommandMiddleware {
 pub(crate) fn hidden_check(policy: Arc<ScopePolicy>) -> CommandMiddleware {
     Arc::new(
         move |name: String,
-              _input: Value,
+              _input: std::sync::Arc<Value>,
               context: CommandContext,
               next: MiddlewareNext|
               -> BoxFuture<'static, CommandResult<Value>> {
             let config = policy.workspace().config();
             let caller = Caller::of(config, &context);
             let Narrowing::Token(held) = caller.narrowing() else {
-                return next();
+                return next(context);
             };
             if !caller.gets_one_answer() {
-                return next();
+                return next(context);
             }
             let reads = |space: &str| {
                 config
@@ -132,7 +132,7 @@ pub(crate) fn hidden_check(policy: Arc<ScopePolicy>) -> CommandMiddleware {
                     .is_some_and(|declared| caller.reads(config, declared))
             };
             if !policy.hidden(&name, &reads) {
-                return next();
+                return next(context);
             }
             let held_text = caller.scope_text();
             let error = policy.unknown_command(&name, &context, &|command| {

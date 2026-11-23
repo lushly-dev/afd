@@ -160,7 +160,7 @@
 		},
 		"single.actor": {
 			"status": "yes",
-			"note": "typed `actor_kind`; MCP server fills `agent`, DirectClient fills `human`; no testing package; middleware `next` cannot refine context; pipelines take plain map context",
+			"note": "typed `actor_kind`; MCP server fills `agent`, DirectClient fills `human`; no testing package; middleware passes the context `next` runs with; pipelines take plain map context",
 			"evidence": ["packages/rust/src/actor.rs"]
 		},
 		"single.context-fields": {

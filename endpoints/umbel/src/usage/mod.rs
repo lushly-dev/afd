@@ -219,7 +219,7 @@ fn ran_in(result: &CommandResult<Value>) -> Option<String> {
 pub(crate) fn middleware() -> CommandMiddleware {
     Arc::new(
         move |name: String,
-              _input: Value,
+              _input: std::sync::Arc<Value>,
               context: CommandContext,
               next: MiddlewareNext|
               -> BoxFuture<'static, CommandResult<Value>> {
@@ -230,14 +230,14 @@ pub(crate) fn middleware() -> CommandMiddleware {
                 .and_then(UsageSlot::find);
             Box::pin(async move {
                 let Some(slot) = slot else {
-                    return next().await;
+                    return next(context).await;
                 };
                 let index = {
                     let mut ran = slot.ran();
                     ran.commands.push((name, None));
                     ran.commands.len() - 1
                 };
-                let result = next().await;
+                let result = next(context).await;
                 if let Some(entry) = slot.ran().commands.get_mut(index) {
                     entry.1 = ran_in(&result);
                 }

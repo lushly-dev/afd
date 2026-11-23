@@ -59,10 +59,10 @@ fn fixture_with(more: impl FnOnce(&CommandRegistry, &Arc<AtomicUsize>)) -> Fixtu
     });
     let observed = Arc::new(Mutex::new(Vec::new()));
     let seen = Arc::clone(&observed);
-    registry.add_middleware(Arc::new(move |_, _, _, next| {
+    registry.add_middleware(Arc::new(move |_, _, context, next| {
         let seen = Arc::clone(&seen);
         Box::pin(async move {
-            let result = next().await;
+            let result = next(context).await;
             seen.lock()
                 .unwrap()
                 .push(serde_json::to_value(&result).unwrap());

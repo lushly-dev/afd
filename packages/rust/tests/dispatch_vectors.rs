@@ -125,21 +125,21 @@ fn build_registry(
         registry.add_middleware(mw);
     } else {
         let h1 = Arc::clone(&hooks);
-        let mw1: CommandMiddleware = Arc::new(move |_, _, _, next| {
+        let mw1: CommandMiddleware = Arc::new(move |_name, _, context, next| {
             let h1 = Arc::clone(&h1);
             Box::pin(async move {
                 h1.lock().unwrap().push("mw1:before".to_string());
-                let res = next().await;
+                let res = next(context).await;
                 h1.lock().unwrap().push("mw1:after".to_string());
                 res
             })
         });
         let h2 = Arc::clone(&hooks);
-        let mw2: CommandMiddleware = Arc::new(move |_, _, _, next| {
+        let mw2: CommandMiddleware = Arc::new(move |_name, _, context, next| {
             let h2 = Arc::clone(&h2);
             Box::pin(async move {
                 h2.lock().unwrap().push("mw2:before".to_string());
-                let res = next().await;
+                let res = next(context).await;
                 h2.lock().unwrap().push("mw2:after".to_string());
                 res
             })

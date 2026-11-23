@@ -489,7 +489,7 @@ impl Gate {
     async fn run(
         &self,
         name: String,
-        input: Value,
+        input: Arc<Value>,
         context: CommandContext,
         next: crate::commands::MiddlewareNext,
     ) -> CommandResult<Value> {
@@ -523,9 +523,9 @@ impl Gate {
                     &input,
                 );
                 let (step, name) = (self.step, name.clone());
-                Arc::new(move || {
+                Arc::new(move |context| {
                     admission.admit(step, &name, decided.clone());
-                    next()
+                    next(context)
                 })
             }
             _ => next,
@@ -552,7 +552,7 @@ impl Gate {
                 .await;
         }
         if !self.requires_approval(&name, &input, &context).await {
-            return next().await;
+            return next(context).await;
         }
 
         let now = self.clock().now();
@@ -587,7 +587,7 @@ impl Gate {
             match self.check_relay_evidence(evidence, &name, &input, &actor_binding, &context) {
                 Ok(()) => {
                     if self.spend_relay_decision(&evidence.decision_id, now).await {
-                        return next().await;
+                        return next(context).await;
                     }
                     rejected = Some(ApprovalRejection::AlreadyUsed);
                 }
@@ -602,7 +602,7 @@ impl Gate {
                 match self.verify(evidence, &name, &input_binding, &who, now) {
                     Ok(accepted) => {
                         if self.consume(&accepted, now).await {
-                            return next().await;
+                            return next(context).await;
                         }
                         rejected = Some(ApprovalRejection::AlreadyUsed);
                     }
@@ -618,7 +618,7 @@ impl Gate {
                 .ask_over_mcp(relay, &name, &input_binding, &actor_binding, &summary, now)
                 .await
             {
-                None => next().await,
+                None => next(context).await,
                 Some(held) => held,
             };
         }
@@ -639,7 +639,7 @@ impl Gate {
         if let Some(callback) = &self.options.on_approval_required {
             callback(ApprovalRequest {
                 command: name.clone(),
-                input,
+                input: Value::clone(&input),
                 actor: context.actor.clone(),
                 approval_token: approval_token.clone(),
                 expires_at: expires_at.clone(),

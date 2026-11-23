@@ -242,13 +242,13 @@ tokio::task_local! {
 pub(crate) fn spend_failures() -> afd::CommandMiddleware {
     std::sync::Arc::new(
         move |_name: String,
-              _input: serde_json::Value,
-              _context: afd::CommandContext,
+              _input: std::sync::Arc<serde_json::Value>,
+              context: afd::CommandContext,
               next: afd::MiddlewareNext|
               -> afd::BoxFuture<'static, afd::CommandResult<serde_json::Value>> {
             Box::pin(
                 SPEND_FAILURE.scope(std::cell::RefCell::new(None), async move {
-                    let result = next().await;
+                    let result = next(context).await;
                     let failed = SPEND_FAILURE.with(|cell| cell.borrow_mut().take());
                     match failed {
                         Some(SharedError::Timeout { store }) if !result.success => {

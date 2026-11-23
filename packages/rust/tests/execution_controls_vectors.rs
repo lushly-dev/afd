@@ -227,9 +227,9 @@ async fn pre_cancelled_single_command_skips_middleware_and_handler() {
         ))
         .expect("register handler");
     let mw_counter = Arc::clone(&mw_calls);
-    registry.add_middleware(Arc::new(move |_name, _input, _ctx, next| {
+    registry.add_middleware(Arc::new(move |_name, _input, ctx, next| {
         mw_counter.fetch_add(1, Ordering::SeqCst);
-        Box::pin(async move { next().await })
+        Box::pin(async move { next(ctx).await })
     }));
 
     let signal = CancellationSignal::new();

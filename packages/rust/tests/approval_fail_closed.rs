@@ -172,13 +172,13 @@ async fn a_retry_after_the_approval_middleware_is_refused() {
     let options = ApprovalMiddlewareOptions::from_secret(SECRET);
     registry.add_middleware(create_approval_middleware(options).unwrap());
     // Retries a failed call once, behind the approval step.
-    registry.add_middleware(Arc::new(|_, _, _, next| {
+    registry.add_middleware(Arc::new(|_, _, context, next| {
         Box::pin(async move {
-            let first = next().await;
+            let first = next(context.clone()).await;
             if first.success {
                 first
             } else {
-                next().await
+                next(context.clone()).await
             }
         })
     }));
@@ -213,7 +213,7 @@ async fn an_input_other_than_the_one_approved_is_refused() {
         create_approval_middleware(ApprovalMiddlewareOptions::from_secret(SECRET)).unwrap();
     // Asks the approval step about another input, then dispatches the one sent.
     registry.add_middleware(Arc::new(move |name, _, context, next| {
-        approval(name, json!({"id": 99}), context, next)
+        approval(name, Arc::new(json!({"id": 99})), context, next)
     }));
     let result = registry
         .execute("todo-delete", json!({"id": 1}), None)
@@ -302,13 +302,49 @@ async fn a_list_only_gate_takes_its_admission_once() {
     let listed = flaky().with_approval(ApprovalPolicy::Required);
     let options = ApprovalMiddlewareOptions::new(SECRET, [listed]);
     registry.add_middleware(create_approval_middleware(options).unwrap());
-    registry.add_middleware(Arc::new(|_, _, _, next| {
+    registry.add_middleware(Arc::new(|_, _, context, next| {
         Box::pin(async move {
-            let first = next().await;
+            let first = next(context.clone()).await;
             if first.success {
                 first
             } else {
-                next().await
+                next(context.clone()).await
+            }
+        })
+    }));
+    let result = approving(&registry)
+        .call("todo-wipe", json!({"id": 1}), None)
+        .await;
+    assert_eq!(*calls.lock().unwrap(), 1, "the handler ran once");
+    expect_unavailable(&result, "todo-wipe", "admission-mismatch");
+}
+
+#[tokio::test]
+async fn a_retry_with_a_new_context_keeps_the_admission() {
+    // A retrying middleware that hands `next` a fresh context, not the one it was given, cannot
+    // drop the call's admission record: the retry is still refused.
+    let calls = Arc::new(Mutex::new(0));
+    let flaky = || {
+        CommandDefinition::new(
+            "todo-wipe",
+            "Fails once with a transient error",
+            vec![CommandParameter::required_number("id", "ID")],
+            Flaky {
+                calls: Arc::clone(&calls),
+            },
+        )
+    };
+    let registry = registry_with(vec![flaky()]);
+    let listed = flaky().with_approval(ApprovalPolicy::Required);
+    let options = ApprovalMiddlewareOptions::new(SECRET, [listed]);
+    registry.add_middleware(create_approval_middleware(options).unwrap());
+    registry.add_middleware(Arc::new(|_, _, context, next| {
+        Box::pin(async move {
+            let first = next(context).await;
+            if first.success {
+                first
+            } else {
+                next(CommandContext::new()).await
             }
         })
     }));
@@ -372,13 +408,13 @@ async fn a_middleware_that_does_not_gate_a_call_does_not_admit_its_retry() {
         calls: Arc::clone(&calls),
     });
     registry.add_middleware(gating);
-    registry.add_middleware(Arc::new(|_, _, _, next| {
+    registry.add_middleware(Arc::new(|_, _, context, next| {
         Box::pin(async move {
-            let first = next().await;
+            let first = next(context.clone()).await;
             if first.success {
                 first
             } else {
-                next().await
+                next(context.clone()).await
             }
         })
     }));
@@ -397,13 +433,13 @@ async fn a_retry_between_two_middlewares_that_admit_a_call_is_refused() {
         calls: Arc::clone(&calls),
     });
     registry.add_middleware(gating);
-    registry.add_middleware(Arc::new(|_, _, _, next| {
+    registry.add_middleware(Arc::new(|_, _, context, next| {
         Box::pin(async move {
-            let first = next().await;
+            let first = next(context.clone()).await;
             if first.success {
                 first
             } else {
-                next().await
+                next(context.clone()).await
             }
         })
     }));
@@ -515,7 +551,7 @@ async fn an_input_without_canonical_json_is_compared_as_a_value_at_dispatch() {
         create_approval_middleware(ApprovalMiddlewareOptions::from_secret(SECRET)).unwrap();
     // Asks the approval step about another such input, then dispatches the one sent.
     registry.add_middleware(Arc::new(move |name, _, context, next| {
-        approval(name, json!({"id": UNBOUND + 2}), context, next)
+        approval(name, Arc::new(json!({"id": UNBOUND + 2})), context, next)
     }));
     let result = registry
         .execute("todo-check", json!({"id": UNBOUND}), None)

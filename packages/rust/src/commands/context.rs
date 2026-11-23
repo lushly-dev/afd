@@ -109,7 +109,8 @@ pub struct CommandContext {
     /// sets it, from a verified request, never from tool arguments, `_meta` or a header; the
     /// context hook sees it and cannot change it. In process it is absent unless trusted host
     /// code sets it ([`CommandContext::with_credentials`]). It never holds the raw token, is not
-    /// journaled, and prints redacted.
+    /// journaled, and prints redacted. A middleware cannot change it: the handler runs with the
+    /// credentials the call had before the middleware chain.
     pub credentials: Option<Arc<Credentials>>,
 
     /// Approval evidence for a command whose approval policy requires it: the
@@ -248,6 +249,131 @@ impl fmt::Debug for RedactedActor<'_> {
                 &self.0.on_behalf_of.as_ref().map(|_| REDACTED),
             )
             .finish()
+    }
+}
+
+/// The state of one call that only the crate sets, with the interface, the verified credentials,
+/// and the clock and random source the call runs with (the journal's recording wrappers, or a
+/// replay's tape): what [`CommandRegistry::execute`](super::CommandRegistry::execute) built
+/// before the middleware ran. Every step of the chain (each inner layer and the handler) restores
+/// it onto the context the layer before passed to `next`, so a middleware can refine only the
+/// other public fields (`trace_id`, `actor`, `extra`, `approval`, ...): one that passes a new or
+/// stale context cannot strip a caller's restrictions, an output budget or an approval admission
+/// from the layers after it, or detach the journal's tape.
+#[derive(Clone)]
+pub(crate) struct CallState {
+    interface: Option<CommandInterface>,
+    credentials: Option<Arc<Credentials>>,
+    clock: Option<Arc<dyn Clock>>,
+    random: Option<Arc<dyn RandomSource>>,
+    journal_state: JournalContextState,
+    direct_approval: Option<Arc<std::sync::Mutex<crate::direct::Exchange>>>,
+    context_scope: Option<crate::contexts::ContextScope>,
+    remote: bool,
+    tool_surface: Option<ToolSurface>,
+    known: Option<Visibility>,
+    output_budget_ask: Option<serde_json::Value>,
+    output_budget: Option<u64>,
+    scope_check: Option<ScopeCheck>,
+    relay_evidence: Option<Arc<crate::approval::relay::RelayEvidence>>,
+    approval_relay: Option<Arc<crate::approval::relay::ApprovalRelayChannel>>,
+    up_front_approval: Option<Arc<crate::approval::relay::UpFrontApproval>>,
+    approver: Option<Arc<crate::approval::approver::ApproverCall>>,
+    cancellation: Option<crate::cancellation::CancellationSignal>,
+    task_progress: Option<Arc<crate::cancellation::TaskProgress>>,
+    default_timeout_override: Option<Option<u64>>,
+    approval_admission: Option<Arc<crate::approval::admission::Admission>>,
+}
+
+impl CallState {
+    /// The call state of `context`.
+    pub(crate) fn of(context: &CommandContext) -> Self {
+        // Every field is named, so a field added to `CommandContext` does not compile here
+        // until it is restored below or listed as one a middleware may refine.
+        let CommandContext {
+            trace_id: _,
+            timeout_ms: _,
+            actor: _,
+            approval: _,
+            extra: _,
+            interface,
+            credentials,
+            clock,
+            random,
+            journal_state,
+            direct_approval,
+            context_scope,
+            remote,
+            tool_surface,
+            known,
+            output_budget_ask,
+            output_budget,
+            scope_check,
+            relay_evidence,
+            approval_relay,
+            up_front_approval,
+            approver,
+            cancellation,
+            task_progress,
+            default_timeout_override,
+            approval_admission,
+        } = context;
+        Self {
+            interface: *interface,
+            credentials: credentials.clone(),
+            clock: clock.clone(),
+            random: random.clone(),
+            journal_state: journal_state.clone(),
+            direct_approval: direct_approval.clone(),
+            context_scope: context_scope.clone(),
+            remote: *remote,
+            tool_surface: tool_surface.clone(),
+            known: known.clone(),
+            output_budget_ask: output_budget_ask.clone(),
+            output_budget: *output_budget,
+            scope_check: scope_check.clone(),
+            relay_evidence: relay_evidence.clone(),
+            approval_relay: approval_relay.clone(),
+            up_front_approval: up_front_approval.clone(),
+            approver: approver.clone(),
+            cancellation: cancellation.clone(),
+            task_progress: task_progress.clone(),
+            default_timeout_override: *default_timeout_override,
+            approval_admission: approval_admission.clone(),
+        }
+    }
+
+    /// Put this call state back on `context`. The clock and random source are the call's too:
+    /// a journaled call records the reads of the ones the recorder gave it, and a replay reads
+    /// its tape, whatever context a middleware passes on.
+    pub(crate) fn restore(&self, context: &mut CommandContext) {
+        context.interface = self.interface;
+        context.credentials.clone_from(&self.credentials);
+        context.clock.clone_from(&self.clock);
+        context.random.clone_from(&self.random);
+        context.journal_state.clone_from(&self.journal_state);
+        context.direct_approval.clone_from(&self.direct_approval);
+        context.context_scope.clone_from(&self.context_scope);
+        context.remote = self.remote;
+        context.tool_surface.clone_from(&self.tool_surface);
+        context.known.clone_from(&self.known);
+        context
+            .output_budget_ask
+            .clone_from(&self.output_budget_ask);
+        context.output_budget = self.output_budget;
+        context.scope_check.clone_from(&self.scope_check);
+        context.relay_evidence.clone_from(&self.relay_evidence);
+        context.approval_relay.clone_from(&self.approval_relay);
+        context
+            .up_front_approval
+            .clone_from(&self.up_front_approval);
+        context.approver.clone_from(&self.approver);
+        context.cancellation.clone_from(&self.cancellation);
+        context.task_progress.clone_from(&self.task_progress);
+        context.default_timeout_override = self.default_timeout_override;
+        context
+            .approval_admission
+            .clone_from(&self.approval_admission);
     }
 }
 

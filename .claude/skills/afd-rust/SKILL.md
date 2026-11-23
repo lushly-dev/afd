@@ -69,7 +69,7 @@ let result = registry
 
 - **The handler isn't called when any check fails.** `CommandDefinition::execute` calls it directly and skips every check, so call commands through the registry.
 - **No stream executor and no stock middleware.** Rust has batch and pipeline executors only, and no default, retry, rate-limit or tracing middleware; see the Middleware rows of `docs/language-parity.md`.
-- **Middleware** (`add_middleware`; the first added is outermost) gets the name, the validated input, the context and `next`. `next` takes no arguments, so middleware cannot change the input, context or actor the handler sees. Set the actor on the context before `execute`, or in the server's context hook.
+- **Middleware** (`add_middleware`; the first added is outermost) gets the name, the validated input (an `Arc<Value>`, shared by every layer), the context and `next`. Call `next(context)`: the context passed is the one the later layers and the handler see, so a middleware may refine it (a trace ID, an actor). Clone it only to read it after `next` or to call `next` again. The input cannot be changed.
 - **Context defaults.** Handlers always get `context.clock()` and `context.random()`; use `with_clock(fixed_clock(ms))` and `with_random(seeded_random(seed))` in tests. An actor (`with_actor(ActorKind::Human)`) is reported as `metadata.actorKind`, never its id.
 
 ## Output budgets
@@ -118,7 +118,7 @@ let context = CommandContext::new().with_approval(token); // never from tool arg
 
 ## Journal, batches and pipelines
 
-- **The journal is not a middleware:** Rust middleware cannot swap the clock and random source the handler sees. Record with `registry.set_journal(JournalRecorder::new(Arc::new(MemoryJournalSink::new())).with_record_failures(true))`; `FileJournalSink` writes JSON Lines instead. Each accepted call is recorded after validation, around the middleware chain.
+- **The journal is not a middleware:** it is set on the registry, outside the chain, so it records every accepted call whatever the middleware does. Record with `registry.set_journal(JournalRecorder::new(Arc::new(MemoryJournalSink::new())).with_record_failures(true))`; `FileJournalSink` writes JSON Lines instead. Each accepted call is recorded after validation, around the middleware chain.
 - **Replay** with `replay_journal(&fresh_registry, &entries, ReplayJournalOptions::default()).await` and check `report.diverged`. Entries follow [spec/journal.md](../../../spec/journal.md); compare them with TypeScript output as JSON values, because key order differs.
 - **Batches.** `registry.execute_batch(request)`, or `execute_batch_with_context` to pass an interface or trace ID. Every item runs through `execute`. `BatchResult.success` is true whenever the batch ran; it is false only for `INVALID_BATCH_REQUEST`. An item without an id is reported as `cmd-<index>`.
 - **Pipelines.** `execute_pipeline(&request, &executor, None)` takes a `CommandExecutor` closure, usually wrapping `registry.execute`, and a plain map context. Variables follow [spec/pipeline-variables.md](../../../spec/pipeline-variables.md). An unresolved reference is omitted from objects and is `null` in arrays, and inputs deeper than 64 levels are rejected.

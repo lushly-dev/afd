@@ -105,12 +105,13 @@ fn server_metadata() -> CommandMiddleware {
     Arc::new(|_name, _input, context, next| {
         Box::pin(async move {
             let start = context.clock().now();
-            let mut result = next().await;
+            let trace_id = context.trace_id.clone();
+            let mut result = next(context.clone()).await;
             let elapsed = context.clock().now() - start;
             let metadata = result.metadata.get_or_insert_with(ResultMetadata::new);
             metadata.execution_time_ms = Some(elapsed as f64);
             metadata.command_version = Some("1.0.0".to_string());
-            metadata.trace_id.clone_from(&context.trace_id);
+            metadata.trace_id = trace_id;
             result
         })
     })

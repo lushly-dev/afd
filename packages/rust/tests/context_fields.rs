@@ -235,9 +235,9 @@ async fn an_invalid_value_fails_with_validation_error_naming_the_field_and_its_m
     let registry = registry(vec![scope(), locale()]);
     let calls = Arc::new(AtomicUsize::new(0));
     let seen = Arc::clone(&calls);
-    registry.add_middleware(Arc::new(move |_name, _input, _context, next| {
+    registry.add_middleware(Arc::new(move |_name, _input, context, next| {
         seen.fetch_add(1, Ordering::SeqCst);
-        Box::pin(async move { next().await })
+        Box::pin(async move { next(context).await })
     }));
 
     let result = registry

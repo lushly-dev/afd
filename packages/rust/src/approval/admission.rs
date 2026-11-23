@@ -10,7 +10,7 @@
 //! list declares, [`Admission::require`]) only when it takes at least one admission and every
 //! admission names this command and this input, and every approval step that ever admitted the
 //! call admitted it again since the last dispatch. It takes them all at once, under one lock: a
-//! second dispatch on the same call (a retry inside the chain, or two overlapping `next()` calls)
+//! second dispatch on the same call (a retry inside the chain, or two overlapping `next` calls)
 //! needs a fresh admission from each step. An input with no canonical JSON is compared as a value: only a
 //! policy that let the call through admits one, since the approval middleware refuses to hold such
 //! an input.

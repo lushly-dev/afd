@@ -40,7 +40,7 @@ fn context_from(spec: &Value) -> PipelineContext {
         context.steps.push(step);
     }
     let previous = spec["previous"].as_u64().expect("previous is a number") as usize;
-    context.previous_result = Some(context.steps[previous].clone());
+    context.previous = Some(previous);
     context
 }
 

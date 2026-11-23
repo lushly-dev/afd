@@ -219,10 +219,21 @@ pub(crate) fn apply_output_budget(
 }
 
 /// The UTF-8 length of `result`'s canonical JSON without its `metadata` (B5, step 2).
-fn measured_size(result: &CommandResult<Value>) -> Option<u64> {
-    let mut value = serde_json::to_value(result).ok()?;
-    value.as_object_mut()?.remove("metadata");
-    Some(crate::canonical::nearest(&value).len() as u64)
+///
+/// Counted, not written: the data is measured in place, and only the envelope's other fields
+/// (`success`, `confidence`, `reasoning`, ...) are serialized to measure them.
+fn measured_size(result: &mut CommandResult<Value>) -> Option<u64> {
+    let data = result.data.take();
+    let metadata = result.metadata.take();
+    let envelope = serde_json::to_value(&*result);
+    result.data = data;
+    result.metadata = metadata;
+    let envelope = envelope.ok()?;
+    // `success` is always present, so the data member follows a comma.
+    let data = result.data.as_ref().map_or(0, |data| {
+        ",\"data\":".len() as u64 + crate::canonical::nearest_len(data)
+    });
+    Some(crate::canonical::nearest_len(&envelope) + data)
 }
 
 /// The check after the handler (B5, B6): what the engine does with `result` under the effective
@@ -236,7 +247,7 @@ pub(crate) fn check_result(
     let Some(declaration) = command.output_budget.filter(|_| result.success) else {
         return result;
     };
-    let Some(used) = measured_size(&result) else {
+    let Some(used) = measured_size(&mut result) else {
         return result;
     };
     if used > limit && !command.mutation {

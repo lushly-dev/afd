@@ -253,9 +253,9 @@ async fn an_invalid_ask_fails_before_the_middleware_and_the_handler() {
         .unwrap();
     let middleware_ran = Arc::new(Mutex::new(false));
     let flag = Arc::clone(&middleware_ran);
-    registry.add_middleware(Arc::new(move |_name, _input, _context, next| {
+    registry.add_middleware(Arc::new(move |_name, _input, context, next| {
         *flag.lock().unwrap() = true;
-        next()
+        next(context)
     }));
     let result = registry
         .execute(
@@ -387,10 +387,10 @@ async fn middleware_and_the_journal_see_the_checked_result() {
         .unwrap();
     let seen_by_middleware = Arc::new(Mutex::new(Vec::new()));
     let sink = Arc::clone(&seen_by_middleware);
-    registry.add_middleware(Arc::new(move |_name, _input, _context, next| {
+    registry.add_middleware(Arc::new(move |_name, _input, context, next| {
         let sink = Arc::clone(&sink);
         Box::pin(async move {
-            let result = next().await;
+            let result = next(context).await;
             sink.lock().unwrap().push(result.clone());
             result
         })

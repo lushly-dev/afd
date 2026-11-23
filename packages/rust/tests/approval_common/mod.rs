@@ -103,7 +103,7 @@ pub fn ran_list(ran: &Ran) -> Vec<String> {
 }
 
 pub fn pass_through() -> CommandMiddleware {
-    Arc::new(|_, _, _, next| next())
+    Arc::new(|_, _, context, next| next(context))
 }
 
 /// Runs `inner` from its handler, on its own context, and keeps the nested result.
