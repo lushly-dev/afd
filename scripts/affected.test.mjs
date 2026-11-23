@@ -115,7 +115,20 @@ test('lockfile changes resolve to the importers whose dependency closure changed
 		changedImporters(lockfile(), lockfile().replace("'9.0'", "'6.0'")).global,
 		/could not be compared/
 	);
+	// pnpm 11 and later lead with a document for the package manager itself.
+	const manager = (version) =>
+		`---\nlockfileVersion: '9.0'\n\nimporters:\n\n  .:\n    packageManagerDependencies:\n      pnpm:\n        specifier: ${version}\n        version: ${version}\n\n---\n`;
+	const withManager = manager('12.22.0') + lockfile();
+	assert.deepEqual(changedImporters(withManager, `${manager('12.22.0')}${lockfile()}`), {
+		importers: [],
+	});
+	assert.deepEqual(changedImporters(withManager, manager('12.22.0') + lockfile({ zod: '4.7.0' })), {
+		importers: ['packages/core', 'packages/server'],
+	});
+	assert.match(changedImporters(withManager, manager('12.23.0') + lockfile()).global, /settings/);
+	assert.match(changedImporters(lockfile(), withManager).global, /settings/);
 	const parsed = parseLockfile(lockfile());
+	assert.deepEqual(parseLockfile(withManager).importers, parsed.importers);
 	assert.deepEqual(parsed.importers.get('packages/server').dependencies, [
 		{ name: '@lushly-dev/afd-core', version: 'link:../core' },
 		{ name: 'string-width-cjs', version: 'string-width@4.2.3' },

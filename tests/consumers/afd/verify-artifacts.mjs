@@ -26,6 +26,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execTool, spawnTool } from '../../../scripts/release/exec-tool.mjs';
+import { assertOverridesApplied, writeConsumer } from '../pnpm.mjs';
 
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const root = await realpath(await mkdtemp(join(tmpdir(), 'afd-packed-conformance-')));
@@ -175,13 +176,9 @@ try {
 			'@lushly-dev/afd-server': file('@lushly-dev/afd-server'),
 			zod: '^4.6.6',
 		},
-		pnpm: {
-			overrides: {
-				'@lushly-dev/afd-core': file('@lushly-dev/afd-core'),
-			},
-		},
 	};
-	await writeFile(join(consumer, 'package.json'), `${JSON.stringify(consumerManifest, null, 2)}\n`);
+	const pins = { '@lushly-dev/afd-core': file('@lushly-dev/afd-core') };
+	await writeConsumer(consumer, consumerManifest, pins);
 
 	const installed = spawnTool('pnpm', ['install', '--ignore-scripts', '--prefer-offline'], {
 		cwd: consumer,
@@ -192,6 +189,7 @@ try {
 		0,
 		`Failed to install packed tarballs:\n${installed.stdout}\n${installed.stderr}`
 	);
+	assertOverridesApplied(consumer, pins);
 
 	// Minimal scripted MCP server importing ONLY the packed tarballs.
 	const serverScript = join(consumer, 'server.mjs');

@@ -68,11 +68,18 @@ function parseEntries(lines) {
 	return entries;
 }
 
-/** Parses lockfile text into its sections. Throws on a layout the parser does not understand. */
+/**
+ * Parses lockfile text into its sections. Throws on a layout the parser does not understand.
+ * pnpm 11 and later write the package manager they install from `packageManager` as a leading YAML
+ * document; every document before the last is kept whole as global text.
+ */
 export function parseLockfile(text) {
+	const documents = text.replaceAll('\r\n', '\n').split(/^---$/m);
+	const main = documents.pop();
+	const prelude = documents.join('---').trim();
 	const sections = new Map();
 	let name = null;
-	for (const line of text.replaceAll('\r\n', '\n').split('\n')) {
+	for (const line of main.split('\n')) {
 		if (line === '' || line.startsWith('#')) {
 			if (name) sections.get(name).push(line);
 			continue;
@@ -86,10 +93,12 @@ export function parseLockfile(text) {
 	}
 	const version = sections.get('lockfileVersion')?.[0];
 	if (unquote(version ?? '') !== '9.0') throw new Error(`unsupported lockfile version ${version}`);
-	const global = [...sections]
-		.filter(([key]) => !STRUCTURED.has(key))
-		.map(([key, lines]) => `${key}\n${lines.join('\n').trim()}`)
-		.join('\n');
+	const global = [
+		prelude,
+		...[...sections]
+			.filter(([key]) => !STRUCTURED.has(key))
+			.map(([key, lines]) => `${key}\n${lines.join('\n').trim()}`),
+	].join('\n');
 	return {
 		global,
 		importers: parseEntries(sections.get('importers') ?? []),
