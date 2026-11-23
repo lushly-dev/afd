@@ -1,11 +1,13 @@
 """Agent orchestrator — pool management, task assignment, session lifecycle.
 
-Connector resolution lives in ``capabilities.py``; target resolution in ``targets.py``
-and state persistence in ``state.py`` are mixed into ``AgentOrchestrator``.
+Connector resolution lives in ``capabilities.py``; target resolution in ``targets.py``,
+task operations in ``task_ops.py``, and state persistence in ``state.py`` are mixed into
+``AgentOrchestrator``.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -19,6 +21,7 @@ from .config import AgentConfig, AgentsPluginConfig
 from .models import AgentHealth, AgentState, Task
 from .state import OrchestratorPersistenceMixin
 from .targets import TargetResolutionMixin
+from .task_ops import TaskOperationsMixin
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -33,7 +36,7 @@ logger = logging.getLogger(__name__)
 _namespace: dict[str, Callable[..., Any]] | None = None
 
 
-class AgentOrchestrator(TargetResolutionMixin, OrchestratorPersistenceMixin):
+class AgentOrchestrator(TargetResolutionMixin, TaskOperationsMixin, OrchestratorPersistenceMixin):
     """Manages agent lifecycle and task execution.
 
     Phase 1: synchronous task execution (no background loop).
@@ -48,8 +51,11 @@ class AgentOrchestrator(TargetResolutionMixin, OrchestratorPersistenceMixin):
         self._config = config
         self._agents: dict[str, AgentState] = {}
         self._tasks: dict[str, Task] = {}
-        # Live output of running tasks, in memory only: a restored task restarts.
+        # Live output, cancellation signals, and chat pumps of running tasks,
+        # in memory only: a restored task restarts from pending.
         self._progress: dict[str, dict[str, str]] = {}
+        self._cancel_events: dict[str, asyncio.Event] = {}
+        self._active_runs: dict[str, asyncio.Task[None]] = {}
         self._backend = backend
 
     @property
@@ -226,7 +232,7 @@ class AgentOrchestrator(TargetResolutionMixin, OrchestratorPersistenceMixin):
                 f"Agent {name!r} is not started",
             )
 
-        # Cancel active tasks
+        # Cancel active tasks and abort their live runs before destroying the session
         cancelled_tasks = []
         for task_id in list(state.active_tasks):
             if task_id in self._tasks:
@@ -234,6 +240,7 @@ class AgentOrchestrator(TargetResolutionMixin, OrchestratorPersistenceMixin):
                 task.status = "cancelled"
                 task.completed_at = datetime.now(UTC)
                 self._progress.pop(task_id, None)
+                await self._abort_live_run(task_id)
                 cancelled_tasks.append(task_id)
         state.active_tasks.clear()
 
@@ -356,8 +363,8 @@ class AgentOrchestrator(TargetResolutionMixin, OrchestratorPersistenceMixin):
             reasoning=f"Heartbeat for {name!r} at {now.isoformat()}",
         )
 
-    async def _begin_task(self, task: Task, agent: str) -> AgentState:
-        """Mark *task* running on *agent* and the agent busy; return the agent's state."""
+    async def _begin_task(self, task: Task, agent: str) -> tuple[AgentState, dict[str, str]]:
+        """Mark *task* running on *agent* and the agent busy; return state and progress entry."""
         state = self._agents[agent]
         task.assigned_agent = agent
         task.status = "running"
@@ -366,11 +373,12 @@ class AgentOrchestrator(TargetResolutionMixin, OrchestratorPersistenceMixin):
         self._tasks.setdefault(task.id, task)
         if task.id not in state.active_tasks:
             state.active_tasks.append(task.id)
-        self._progress[task.id] = {"partial_result": "", "progress_message": f"Started on {agent}"}
+        progress = {"partial_result": "", "progress_message": f"Started on {agent}"}
+        self._progress[task.id] = progress
         state.health.status = "busy"
         state.health.current_task = task.id
         await self._autosave_if_configured(f"task_started:{task.id}")
-        return state
+        return state, progress
 
     async def _finish_task(
         self, task: Task, state: AgentState, status: str, result: str
@@ -380,7 +388,7 @@ class AgentOrchestrator(TargetResolutionMixin, OrchestratorPersistenceMixin):
         # After a state restore the id may belong to a new run of the task; leave its progress.
         if self._tasks.get(task.id) is task:
             self._progress.pop(task.id, None)
-        # stop_agent may already have cancelled the task and stopped the agent.
+        # stop_agent or cancel_task may already have cancelled the task.
         if task.status != "cancelled":
             task.status = status
             task.result = result
@@ -390,11 +398,7 @@ class AgentOrchestrator(TargetResolutionMixin, OrchestratorPersistenceMixin):
         elif task.status == "failed":
             state.health.tasks_failed += 1
 
-        if task.id in state.active_tasks:
-            state.active_tasks.remove(task.id)
-        if state.health.status != "stopped":
-            state.health.current_task = ""
-            state.health.status = "idle" if not state.active_tasks else "busy"
+        self._release_task_from_agent(state, task.id)
         await self._autosave_if_configured(f"task_finished:{task.id}")
 
         if task.status == "failed":

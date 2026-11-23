@@ -16,8 +16,11 @@ from botcore_agents.commands import (
     state_load,
     state_save,
     task_assign,
+    task_cancel,
+    task_list,
     task_resume,
     task_status,
+    team_status,
 )
 from botcore_agents.config import AgentsPluginConfig, AgentsStateConfig
 from botcore_agents.orchestrator import reset_orchestrator
@@ -168,6 +171,141 @@ class TestTaskStatus:
     async def test_task_status_not_found(self):
         result = await task_status(task_id="no-such-id")
         assert_error(result, "TASK_NOT_FOUND")
+
+
+class TestTaskList:
+    async def test_list_empty(self):
+        result = await task_list()
+        data = assert_success(result)
+        assert data == {"tasks": [], "count": 0}
+
+    async def test_list_filters_by_status_and_agent(self, mock_llm):
+        from botcore_agents.models import Task
+        from botcore_agents.orchestrator import get_orchestrator
+
+        await agent_create(name="researcher")
+        await agent_start(name="researcher")
+        await task_assign(description="Done work", agent="researcher")
+
+        pending = Task(description="Queued work", status="pending", assigned_agent="coder")
+        get_orchestrator()._tasks[pending.id] = pending
+
+        all_data = assert_success(await task_list())
+        assert all_data["count"] == 2
+
+        by_status = assert_success(await task_list(status="pending"))
+        assert by_status["count"] == 1
+        assert by_status["tasks"][0]["id"] == pending.id
+
+        by_agent = assert_success(await task_list(agent="researcher"))
+        assert by_agent["count"] == 1
+        assert by_agent["tasks"][0]["description"] == "Done work"
+
+    async def test_list_rejects_invalid_status(self):
+        result = await task_list(status="bogus")
+        err = assert_error(result, "INVALID_STATUS")
+        assert err.suggestion
+
+
+class TestTaskCancel:
+    async def test_cancel_pending_task(self):
+        from botcore_agents.models import Task
+        from botcore_agents.orchestrator import get_orchestrator
+
+        task = Task(description="Cancel me", status="pending")
+        get_orchestrator()._tasks[task.id] = task
+
+        result = await task_cancel(task_id=task.id)
+        data = assert_success(result)
+        assert data == {
+            "task_id": task.id,
+            "status": "cancelled",
+            "cancelled": True,
+            "agent": "",
+        }
+        status_data = assert_success(await task_status(task_id=task.id))
+        assert status_data["status"] == "cancelled"
+        assert status_data["completed_at"] is not None
+
+    async def test_cancel_running_task_frees_agent_slot(self, mock_llm):
+        from botcore_agents.models import Task
+        from botcore_agents.orchestrator import get_orchestrator
+
+        await agent_create(name="researcher")
+        await agent_start(name="researcher")
+        orch = get_orchestrator()
+        task = Task(description="Active work", assigned_agent="researcher", status="running")
+        orch._tasks[task.id] = task
+        orch._agents["researcher"].active_tasks.append(task.id)
+        orch._agents["researcher"].health.status = "busy"
+        orch._agents["researcher"].health.current_task = task.id
+        orch._progress[task.id] = {"partial_result": "half", "progress_message": "Working"}
+
+        result = await task_cancel(task_id=task.id)
+        data = assert_success(result)
+        assert data["cancelled"] is True
+        assert data["agent"] == "researcher"
+        assert orch._progress == {}
+        health = assert_success(await agent_status(name="researcher"))
+        assert health["status"] == "idle"
+        assert health["current_task"] == ""
+
+    async def test_cancel_not_found(self):
+        result = await task_cancel(task_id="missing")
+        err = assert_error(result, "TASK_NOT_FOUND")
+        assert err.suggestion
+
+    @pytest.mark.parametrize("status", ["completed", "failed", "cancelled"])
+    async def test_cancel_terminal_task_returns_error(self, status: str):
+        from botcore_agents.models import Task
+        from botcore_agents.orchestrator import get_orchestrator
+
+        task = Task(description="Finished", status=status)
+        get_orchestrator()._tasks[task.id] = task
+
+        result = await task_cancel(task_id=task.id)
+        err = assert_error(result, "TASK_NOT_CANCELLABLE")
+        assert err.suggestion
+
+
+class TestTeamStatus:
+    async def test_team_status_empty(self):
+        result = await team_status()
+        data = assert_success(result)
+        assert data == {
+            "agents": [],
+            "agent_count": 0,
+            "active_tasks": 0,
+            "pending_tasks": 0,
+            "total_tasks": 0,
+        }
+        assert result.reasoning
+
+    async def test_team_status_reports_agents_and_task_counts(self, mock_llm):
+        from botcore_agents.models import Task
+        from botcore_agents.orchestrator import get_orchestrator
+
+        await agent_create(name="researcher")
+        await agent_start(name="researcher")
+        await agent_create(name="coder")
+        await task_assign(description="Completed", agent="researcher")
+
+        orch = get_orchestrator()
+        running = Task(description="Running", assigned_agent="researcher", status="running")
+        pending = Task(description="Queued", status="pending")
+        orch._tasks[running.id] = running
+        orch._tasks[pending.id] = pending
+
+        result = await team_status()
+        data = assert_success(result)
+        assert data["agent_count"] == 2
+        assert {a["name"]: a["status"] for a in data["agents"]} == {
+            "researcher": "idle",
+            "coder": "stopped",
+        }
+        assert data["active_tasks"] == 1
+        assert data["pending_tasks"] == 1
+        assert data["total_tasks"] == 3
 
 
 class TestTaskResume:

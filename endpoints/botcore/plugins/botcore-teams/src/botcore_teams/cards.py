@@ -16,6 +16,22 @@ _STATUS_ICONS: dict[PlanStepStatus, str] = {
 }
 
 
+def _dict_item_fact(key: str, index: int, item: dict[str, Any]) -> dict[str, str]:
+    """Render a dict element of a list (such as a task or agent) as a FactSet row."""
+    if "id" in item:
+        status = item.get("status", "")
+        desc = item.get("description", "")
+        summary = f"[{status}] {desc}".strip() if status else str(desc)
+        return {"title": str(item["id"]), "value": summary or str(item)}
+    if "name" in item:
+        status = str(item.get("status", ""))
+        current = item.get("current_task", "")
+        summary = f"{status} (task: {current})" if current else status
+        return {"title": str(item["name"]), "value": summary or str(item)}
+    summary = ", ".join(f"{k}={v}" for k, v in item.items())
+    return {"title": f"{key}[{index}]", "value": summary}
+
+
 def _data_to_facts(data: dict[str, Any]) -> list[dict[str, str]]:
     """Flatten a dict into Adaptive Card FactSet facts."""
     facts: list[dict[str, str]] = []
@@ -25,6 +41,9 @@ def _data_to_facts(data: dict[str, Any]) -> list[dict[str, str]]:
                 facts.append({"title": f"{key}.{sub_key}", "value": str(sub_value)})
         elif isinstance(value, list):
             facts.append({"title": str(key), "value": f"{len(value)} items"})
+            for index, item in enumerate(value):
+                if isinstance(item, dict):
+                    facts.append(_dict_item_fact(str(key), index, item))
         else:
             facts.append({"title": str(key), "value": str(value)})
     return facts
@@ -86,13 +105,15 @@ def _render_success(result: CommandResult) -> dict[str, Any]:  # type: ignore[ty
 
     # Header with reasoning
     header_text = result.reasoning or "Done"
-    body.append({
-        "type": "TextBlock",
-        "text": header_text,
-        "weight": "Bolder",
-        "size": "Medium",
-        "wrap": True,
-    })
+    body.append(
+        {
+            "type": "TextBlock",
+            "text": header_text,
+            "weight": "Bolder",
+            "size": "Medium",
+            "wrap": True,
+        }
+    )
 
     # Data as FactSet
     if result.data and isinstance(result.data, dict):
@@ -108,22 +129,26 @@ def _render_success(result: CommandResult) -> dict[str, Any]:  # type: ignore[ty
 
     # Confidence
     if result.confidence is not None:
-        body.append({
-            "type": "TextBlock",
-            "text": f"Confidence: {result.confidence:.0%}",
-            "isSubtle": True,
-            "size": "Small",
-        })
+        body.append(
+            {
+                "type": "TextBlock",
+                "text": f"Confidence: {result.confidence:.0%}",
+                "isSubtle": True,
+                "size": "Small",
+            }
+        )
 
     # Suggestion actions
     actions: list[dict[str, Any]] = []
     if result.suggestions:
         for suggestion in result.suggestions:
-            actions.append({
-                "type": "Action.Submit",
-                "title": suggestion,
-                "data": {"action": "followup", "text": suggestion},
-            })
+            actions.append(
+                {
+                    "type": "Action.Submit",
+                    "title": suggestion,
+                    "data": {"action": "followup", "text": suggestion},
+                }
+            )
 
     card: dict[str, Any] = {
         "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
@@ -153,23 +178,27 @@ def _render_error(
     ]
 
     if err and err.suggestion:
-        body.append({
-            "type": "TextBlock",
-            "text": err.suggestion,
-            "wrap": True,
-            "isSubtle": True,
-        })
+        body.append(
+            {
+                "type": "TextBlock",
+                "text": err.suggestion,
+                "wrap": True,
+                "isSubtle": True,
+            }
+        )
 
     actions: list[dict[str, Any]] = []
     if err and err.retryable:
         retry_data: dict[str, Any] = {"action": "retry"}
         if original_text:
             retry_data["original_text"] = original_text
-        actions.append({
-            "type": "Action.Submit",
-            "title": "Retry",
-            "data": retry_data,
-        })
+        actions.append(
+            {
+                "type": "Action.Submit",
+                "title": "Retry",
+                "data": retry_data,
+            }
+        )
 
     card: dict[str, Any] = {
         "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",

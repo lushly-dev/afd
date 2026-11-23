@@ -31,11 +31,15 @@ class TestRenderSuccess:
             reasoning="Done",
             plan=[
                 PlanStep(
-                    id="1", action="fetch", status=PlanStepStatus.COMPLETE,
+                    id="1",
+                    action="fetch",
+                    status=PlanStepStatus.COMPLETE,
                     description="Fetch data",
                 ),
                 PlanStep(
-                    id="2", action="process", status=PlanStepStatus.PENDING,
+                    id="2",
+                    action="process",
+                    status=PlanStepStatus.PENDING,
                     description="Process",
                 ),
             ],
@@ -118,6 +122,44 @@ class TestRenderSuccess:
         card = render_command_result(result)
         facts = card["body"][1]["facts"]
         assert any(f["value"] == "3 items" for f in facts)
+
+    def test_task_and_agent_lists_render_ids_and_names(self) -> None:
+        task_card = render_command_result(
+            success(
+                {
+                    "tasks": [
+                        {"id": "task-123", "status": "pending", "description": "Check queue"},
+                    ],
+                    "count": 1,
+                },
+                reasoning="Found 1 task(s)",
+            )
+        )
+        task_facts = task_card["body"][1]["facts"]
+        assert any(f["title"] == "task-123" and "Check queue" in f["value"] for f in task_facts)
+
+        team_card = render_command_result(
+            success(
+                {
+                    "agents": [
+                        {"name": "researcher", "status": "busy", "current_task": "task-123"},
+                    ],
+                    "agent_count": 1,
+                },
+                reasoning="Team status",
+            )
+        )
+        team_facts = team_card["body"][1]["facts"]
+        assert any(
+            f["title"] == "researcher" and "busy" in f["value"] and "task-123" in f["value"]
+            for f in team_facts
+        )
+
+        generic_card = render_command_result(
+            success({"rows": [{"k": "v"}]}, reasoning="Generic list")
+        )
+        generic_facts = generic_card["body"][1]["facts"]
+        assert any(f["title"] == "rows[0]" and "k=v" in f["value"] for f in generic_facts)
 
 
 class TestRenderError:
