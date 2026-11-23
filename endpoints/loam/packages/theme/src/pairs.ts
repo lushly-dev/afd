@@ -87,6 +87,8 @@ export const CONTRAST_PAIRS: readonly ContrastPair[] = [
 	...['primary', 'secondary', 'danger'].flatMap((name) =>
 		on([`color.action.${name}.text`], action(name), 'text')
 	),
+	// Accent text on its own background and on the surfaces that hold badges (#1577).
+	...on(['color.accent.text'], ['color.accent.background', PAGE, CARD], 'text'),
 	// State text on its own background and on the surfaces that hold messages.
 	...STATES.flatMap((state) =>
 		on([`color.state.${state}.text`], [`color.state.${state}.background`, PAGE, CARD], 'text')

@@ -2626,6 +2626,78 @@ describe("violet-data-grid", () => {
     expect(editor.getAttribute("aria-describedby")).toBe(hint?.id);
   });
 
+  it("places editing hints and errors above the cell on the last row of a short grid without clipping (#1197)", async () => {
+    const columns: VioletDataGridColumn<TestRow>[] = widgetColumns.map((column) =>
+      column.id === "dtm"
+        ? {
+            ...column,
+            editorHint: () => "Counted from transplant.",
+          }
+        : column,
+    );
+    const grid = await renderGrid({
+      columns,
+      rows: widgetRows.slice(0, 2),
+    });
+    const scroller = grid.shadowRoot?.querySelector(".table-scroll") as HTMLElement;
+    const baseScrollHeight = scroller.scrollHeight;
+    expect(baseScrollHeight).toBe(scroller.clientHeight);
+
+    // Row 1 has room below inside the 2-row scroller, so the hint stays below.
+    const firstEditor = await openRenderedEditor(grid, "black-currant", "dtm");
+    const firstHint = grid.shadowRoot?.querySelector(".cell-editor-hint") as HTMLElement;
+    expect(firstHint.dataset.placement).toBeUndefined();
+    expect(scroller.scrollHeight).toBe(scroller.clientHeight);
+    firstEditor.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Escape", bubbles: true, composed: true }),
+    );
+    await nextFrames(2);
+
+    // Row 2 is the last row: the hint flips above the cell and stays inside the scroller
+    // without growing scrollHeight beyond the active row's resting height.
+    grid.activeCell = { rowId: "romanesco", columnId: "dtm" };
+    await nextFrames(2);
+    const activeRowScrollHeight = scroller.scrollHeight;
+
+    const lastEditor = await openRenderedEditor(grid, "romanesco", "dtm");
+    const lastHint = grid.shadowRoot?.querySelector(".cell-editor-hint") as HTMLElement;
+    const scrollerRect = scroller.getBoundingClientRect();
+    const viewportTop = scrollerRect.top + scroller.clientTop;
+    const viewportBottom = viewportTop + scroller.clientHeight;
+    const hintRect = lastHint.getBoundingClientRect();
+    expect(lastHint.dataset.placement).toBe("above");
+    expect(scroller.scrollHeight).toBe(activeRowScrollHeight);
+    expect(hintRect.top).toBeGreaterThanOrEqual(viewportTop - 1);
+    expect(hintRect.bottom).toBeLessThanOrEqual(viewportBottom + 1);
+
+    // An edit error on the last row also flips above without clipping or growing scrollHeight.
+    lastEditor.value = "not-a-number";
+    lastEditor.dispatchEvent(new Event("input", { bubbles: true, composed: true }));
+    lastEditor.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Tab", bubbles: true, composed: true }),
+    );
+    await nextFrames(2);
+    const errorOverlay = grid.shadowRoot?.querySelector(".cell-editor-error") as HTMLElement;
+    const errorRect = errorOverlay.getBoundingClientRect();
+    expect(errorOverlay.dataset.placement).toBe("above");
+    expect(scroller.scrollHeight).toBe(activeRowScrollHeight);
+    expect(errorRect.top).toBeGreaterThanOrEqual(viewportTop - 1);
+    expect(errorRect.bottom).toBeLessThanOrEqual(viewportBottom + 1);
+
+    // Switching density to compact while editing a narrow column bounds a tall wrapped error
+    // inside the scroller instead of clipping past its top edge.
+    grid.density = "compact";
+    await nextFrames(3);
+    const compactScrollerRect = scroller.getBoundingClientRect();
+    const compactViewportTop = compactScrollerRect.top + scroller.clientTop;
+    const compactViewportBottom = compactViewportTop + scroller.clientHeight;
+    const compactError = grid.shadowRoot?.querySelector(".cell-editor-error") as HTMLElement;
+    const compactErrorRect = compactError.getBoundingClientRect();
+    expect(compactError.dataset.placement).toBe("above");
+    expect(compactErrorRect.top).toBeGreaterThanOrEqual(compactViewportTop - 1);
+    expect(compactErrorRect.bottom).toBeLessThanOrEqual(compactViewportBottom + 1);
+  });
+
   it("appends a column's describe text to the active-cell description but not to copied text", async () => {
     const columns: VioletDataGridColumn<TestRow>[] = widgetColumns.map((column) =>
       column.id === "commonName"

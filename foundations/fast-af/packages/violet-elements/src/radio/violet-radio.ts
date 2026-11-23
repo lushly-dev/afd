@@ -33,7 +33,7 @@ const styles = css`
 
     .root {
         display: inline-grid;
-        grid-template-columns: auto minmax(0, 1fr);
+        grid-template-columns: auto 1fr;
         gap: var(--_space-inline-md);
         align-items: start;
         min-block-size: var(--_target-size);
@@ -138,7 +138,6 @@ const styles = css`
         min-block-size: var(--_target-size);
         padding-block: calc((var(--_target-size) - var(--_type-body-line)) / 2);
         align-content: start;
-        min-inline-size: 0;
     }
 
     .content[hidden] {
@@ -155,12 +154,14 @@ const styles = css`
         color: var(--color-text-primary, #181b1a);
         font-size: var(--_control-body-size);
         line-height: var(--_type-body-line);
+        overflow-wrap: break-word;
     }
 
     .supporting {
         color: var(--_text-muted);
         font-size: var(--_control-caption-size);
         line-height: var(--_type-caption-line);
+        overflow-wrap: break-word;
     }
 
     @media (forced-colors: active) {

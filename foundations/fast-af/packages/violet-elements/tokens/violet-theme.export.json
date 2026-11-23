@@ -4,6 +4,14 @@
 	"presets": {
 		"light": [
 			{
+				"id": "color.accent.background",
+				"value": "#e2edf5"
+			},
+			{
+				"id": "color.accent.text",
+				"value": "#146ba0"
+			},
+			{
 				"id": "color.action.danger.background",
 				"value": "#c42a1a"
 			},
@@ -474,6 +482,14 @@
 		],
 		"dark": [
 			{
+				"id": "color.accent.background",
+				"value": "#182b3a"
+			},
+			{
+				"id": "color.accent.text",
+				"value": "#9fd4f5"
+			},
+			{
 				"id": "color.action.danger.background",
 				"value": "#c42a1a"
 			},
@@ -943,6 +959,14 @@
 			}
 		],
 		"high-contrast": [
+			{
+				"id": "color.accent.background",
+				"value": "#ffffff"
+			},
+			{
+				"id": "color.accent.text",
+				"value": "#004A80"
+			},
 			{
 				"id": "color.action.danger.background",
 				"value": "#A30000"

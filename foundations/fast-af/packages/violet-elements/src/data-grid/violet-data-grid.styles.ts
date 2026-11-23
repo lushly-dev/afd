@@ -538,6 +538,7 @@ export const styles = css`
     }
 
     .cell-editor-hint {
+        box-sizing: border-box;
         position: absolute;
         /* Above the fill handle, which shares the sticky layer. */
         z-index: calc(var(--_layer-sticky) + 1);
@@ -546,6 +547,7 @@ export const styles = css`
         /* A sentence rather than a word: wider than the edit error, still bounded. */
         inline-size: max-content;
         max-inline-size: 18rem;
+        overflow-y: auto;
         padding: 2px var(--_space-stack-xs);
         border: 1px solid var(--_border-strong);
         border-radius: calc(var(--_radius-md) / 2);
@@ -558,11 +560,13 @@ export const styles = css`
     }
 
     .cell-editor-error {
+        box-sizing: border-box;
         position: absolute;
-        z-index: var(--_layer-sticky);
+        z-index: calc(var(--_layer-sticky) + 1);
         inset-inline-start: var(--_row-padding-inline);
         inset-block-start: calc(100% - var(--_space-stack-xs));
         max-inline-size: calc(100% - (var(--_row-padding-inline) * 2));
+        overflow-y: auto;
         padding: 2px var(--_space-stack-xs);
         border: 1px solid var(--_error-border);
         border-radius: calc(var(--_radius-md) / 2);
@@ -572,6 +576,12 @@ export const styles = css`
         font-size: 0.75rem;
         line-height: 1.25;
         white-space: normal;
+    }
+
+    .cell-editor-hint[data-placement="above"],
+    .cell-editor-error[data-placement="above"] {
+        inset-block-start: auto;
+        inset-block-end: calc(100% - var(--_space-stack-xs));
     }
 
     .selection-cell,

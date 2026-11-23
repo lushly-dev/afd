@@ -752,6 +752,7 @@ const template = html<VioletDataGrid>`
                                 aria-describedby="${(x) => (x.focusMode === "cell" ? x.activeCellLabelId : null)}"
                                 aria-keyshortcuts="${(x) => (x.focusMode === "cell" ? columnResizeKeyShortcut : null)}"
                                 @focus="${(x) => x.handleGridFocus()}"
+                                @scroll="${(x) => x.handleGridScroll()}"
                                 @click="${(x, c) => x.handleGridClick(c.event)}"
                                 @dblclick="${(x, c) => x.handleGridDoubleClick(c.event as MouseEvent)}"
                                 @pointerdown="${(x, c) => x.handleGridPointerDown(c.event as PointerEvent)}"
@@ -1100,11 +1101,22 @@ export class VioletDataGrid extends FASTElement {
         });
     }
 
+  #overlayResizeObserver: ResizeObserver | null = null;
+  #overlayResizeFrame: number | null = null;
+  #observedOverlayTargets = new Set<Element>();
+
+  readonly #handleViewportResize = (): void => {
+    if (this.editingCell) {
+      this.positionEditingOverlay();
+    }
+  };
+
     public connectedCallback(): void {
     this.refreshPresentation();
         super.connectedCallback();
     this.ownerDocument.addEventListener("focusin", this.#handleFocusIntent, true);
     this.ownerDocument.addEventListener("pointerdown", this.#handleFocusIntent, true);
+    window.addEventListener("resize", this.#handleViewportResize);
         this.#virtualizerCleanup ??= this.#rowVirtualizer._didMount();
         this.hasToolbarSlotContent = this.querySelector('[slot="toolbar"]') !== null;
         this.syncHostStates();
@@ -1116,8 +1128,10 @@ export class VioletDataGrid extends FASTElement {
     // Disconnect is the fail-safe terminal path for anything still active,
     // including invalid drafts that cannot remain in an invisible editor.
     this.cancelActiveEdit();
+    this.disconnectOverlayResizeObserver();
     this.ownerDocument.removeEventListener("focusin", this.#handleFocusIntent, true);
     this.ownerDocument.removeEventListener("pointerdown", this.#handleFocusIntent, true);
+    window.removeEventListener("resize", this.#handleViewportResize);
         if (this.#virtualizerFrame !== null) {
             cancelAnimationFrame(this.#virtualizerFrame);
             this.#virtualizerFrame = null;
@@ -1263,8 +1277,9 @@ export class VioletDataGrid extends FASTElement {
         this.updateInteractionState();
 
     if (!this.editingCell || !this.#editingSession) {
-            return;
-        }
+      this.disconnectOverlayResizeObserver();
+      return;
+    }
 
     this.scheduleEditorRestore(this.#editingSession.id);
     }
@@ -1294,6 +1309,9 @@ export class VioletDataGrid extends FASTElement {
 
         this.syncRenderedRows();
         this.scheduleVirtualizerUpdate();
+        if (this.editingCell) {
+          this.scheduleOverlayPosition();
+        }
     }
 
     public overscanCountChanged(): void {
@@ -3088,10 +3106,111 @@ export class VioletDataGrid extends FASTElement {
     }
   }
 
+  public handleGridScroll(): void {
+    if (this.editingCell) {
+      this.positionEditingOverlay();
+    }
+  }
+
+  private disconnectOverlayResizeObserver(): void {
+    if (this.#overlayResizeFrame !== null) {
+      cancelAnimationFrame(this.#overlayResizeFrame);
+      this.#overlayResizeFrame = null;
+    }
+    this.#overlayResizeObserver?.disconnect();
+    this.#observedOverlayTargets.clear();
+  }
+
+  private scheduleOverlayPosition(): void {
+    if (this.#overlayResizeFrame !== null) {
+      cancelAnimationFrame(this.#overlayResizeFrame);
+    }
+    this.#overlayResizeFrame = requestAnimationFrame(() => {
+      this.#overlayResizeFrame = null;
+      if (this.editingCell) {
+        this.positionEditingOverlay();
+      }
+    });
+  }
+
+  private observeOverlayGeometry(targets: Element[]): void {
+    if (typeof ResizeObserver === "undefined") {
+      return;
+    }
+    this.#overlayResizeObserver ??= new ResizeObserver(() => {
+      if (this.editingCell) {
+        this.scheduleOverlayPosition();
+      }
+    });
+    const next = new Set(targets);
+    for (const existing of this.#observedOverlayTargets) {
+      if (!next.has(existing)) {
+        this.#overlayResizeObserver.unobserve(existing);
+        this.#observedOverlayTargets.delete(existing);
+      }
+    }
+    for (const target of next) {
+      if (!this.#observedOverlayTargets.has(target)) {
+        this.#overlayResizeObserver.observe(target);
+        this.#observedOverlayTargets.add(target);
+      }
+    }
+  }
+
+  /**
+   * Flips the editing hint or error overlay above the editing cell when there is
+   * not enough room below it inside `.table-scroll`, and bounds its height to the
+   * chosen side when a narrow column wraps a long message (#1197).
+   */
+  private positionEditingOverlay(): void {
+    const scrollContainer = this.getScrollContainer();
+    const cell = this.cellElementForLocation(this.editingCell);
+    const overlay = cell?.querySelector<HTMLElement>(".cell-editor-error, .cell-editor-hint") ?? null;
+    if (!scrollContainer || !cell || !overlay) {
+      this.disconnectOverlayResizeObserver();
+      return;
+    }
+
+    this.observeOverlayGeometry([scrollContainer, cell, overlay]);
+
+    const scrollerRect = scrollContainer.getBoundingClientRect();
+    const viewportTop = scrollerRect.top + scrollContainer.clientTop;
+    const viewportBottom = viewportTop + scrollContainer.clientHeight;
+    const cellRect = cell.getBoundingClientRect();
+    const overlayRect = overlay.getBoundingClientRect();
+    const borderBlock = overlay.offsetHeight - overlay.clientHeight;
+    const naturalHeight = Math.max(overlayRect.height, overlay.scrollHeight + borderBlock);
+    const overlap =
+      overlay.dataset.placement === "above"
+        ? Math.max(0, overlayRect.bottom - cellRect.top)
+        : Math.max(0, cellRect.bottom - overlayRect.top);
+    const roomBelow = viewportBottom - cellRect.bottom + overlap;
+    const roomAbove = cellRect.top + overlap - viewportTop;
+    const placeAbove = roomBelow < naturalHeight && roomAbove > roomBelow;
+    const available = placeAbove ? roomAbove : roomBelow;
+
+    if (placeAbove) {
+      overlay.dataset.placement = "above";
+    } else {
+      delete overlay.dataset.placement;
+    }
+
+    if (naturalHeight > available && available > 0) {
+      overlay.style.maxBlockSize = `${Math.floor(available)}px`;
+    } else {
+      overlay.style.maxBlockSize = "";
+    }
+  }
+
   private scheduleEditorRestore(sessionId: number | null, forceFocus = false, attempt = 0): void {
     if (!sessionId) {
       return;
     }
+    Updates.enqueue(() => {
+      if (this.#editingSession?.id === sessionId) {
+        this.positionEditingOverlay();
+      }
+    });
     if (this.#editorRestoreFrame !== null) {
       cancelAnimationFrame(this.#editorRestoreFrame);
     }
@@ -3100,6 +3219,7 @@ export class VioletDataGrid extends FASTElement {
       if (this.#editingSession?.id !== sessionId) {
         return;
       }
+      this.positionEditingOverlay();
       const editor = this.getActiveEditorElement();
       if (!editor) {
         if (this.#presentationRetainingSessionId === sessionId && attempt < 3) {

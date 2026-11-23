@@ -39,8 +39,8 @@ const styles = css`
     }
 
     :host([color="accent"]) {
-        --_badge-bg: var(--color-control-selected-background, #badecf);
-        --_badge-text: var(--color-control-selected-foreground, #2c5e4b);
+        --_badge-bg: var(--color-accent-background, #e2edf5);
+        --_badge-text: var(--color-accent-text, #146ba0);
     }
 
     :host([color="success"]) {

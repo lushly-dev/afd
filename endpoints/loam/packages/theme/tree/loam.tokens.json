@@ -6,6 +6,16 @@
     }
   },
   "color": {
+    "accent": {
+      "background": {
+        "$type": "color",
+        "$value": "{ref.color.blue.wash}"
+      },
+      "text": {
+        "$type": "color",
+        "$value": "{ref.color.blue.ink}"
+      }
+    },
     "action": {
       "danger": {
         "background": {
@@ -333,9 +343,21 @@
           "$value": "#000000"
         },
         "blue": {
+          "200": {
+            "$type": "color",
+            "$value": "#9fd4f5"
+          },
+          "950": {
+            "$type": "color",
+            "$value": "#182b3a"
+          },
           "ink": {
             "$type": "color",
             "$value": "#146ba0"
+          },
+          "wash": {
+            "$type": "color",
+            "$value": "#e2edf5"
           }
         },
         "charcoal": {
@@ -360,6 +382,10 @@
           "amber": {
             "$type": "color",
             "$value": "#6B3200"
+          },
+          "blue": {
+            "$type": "color",
+            "$value": "#004A80"
           },
           "green": {
             "$type": "color",

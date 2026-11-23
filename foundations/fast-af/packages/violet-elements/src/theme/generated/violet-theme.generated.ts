@@ -10,6 +10,8 @@ export const violetThemeBuiltInSet = {
   defaultPreset: "light",
   presets: {
     "light": [
+      { id: "color.accent.background", value: "#e2edf5" },
+      { id: "color.accent.text", value: "#146ba0" },
       { id: "color.action.danger.background", value: "#c42a1a" },
       { id: "color.action.danger.hover", value: "#ad2416" },
       { id: "color.action.danger.pressed", value: "#96200f" },
@@ -129,6 +131,8 @@ export const violetThemeBuiltInSet = {
       { id: "z-index.toast", value: "400" },
     ],
     "dark": [
+      { id: "color.accent.background", value: "#182b3a" },
+      { id: "color.accent.text", value: "#9fd4f5" },
       { id: "color.action.danger.background", value: "#c42a1a" },
       { id: "color.action.danger.hover", value: "#ad2416" },
       { id: "color.action.danger.pressed", value: "#96200f" },
@@ -248,6 +252,8 @@ export const violetThemeBuiltInSet = {
       { id: "z-index.toast", value: "400" },
     ],
     "high-contrast": [
+      { id: "color.accent.background", value: "#ffffff" },
+      { id: "color.accent.text", value: "#004A80" },
       { id: "color.action.danger.background", value: "#A30000" },
       { id: "color.action.danger.hover", value: "#8A0000" },
       { id: "color.action.danger.pressed", value: "#700000" },

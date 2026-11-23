@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Fix five component defects (#1577, #1578, #1579, #1377, #1197):
+  - **Breaking: token interface version 3 (#1577).** `tokens/interface.json` has `contractVersion` 3, adding `color.accent.background` (`--color-accent-background`) and `color.accent.text` (`--color-accent-text`) so `<violet-badge color="accent">` uses a distinct blue hue across light, dark and high-contrast presets instead of matching `success` mint. Product theme sets should add both ids (on the preview line this ships as a minor; `findVioletThemeSetGaps` names missing ids and components fall back to the built-in light blue values until supplied).
+  - `violet-checkbox` now associates its slotted label with the native input through `<label for>` instead of copying it into `aria-label` or wrapping the `supporting` slot inside `<label>`, so assistive technology announces the label once and keeps supporting text as the description (#1578).
+  - `violet-checkbox` and `violet-radio` now size their label column with `auto 1fr` and `overflow-wrap: break-word` (without `min-inline-size: 0` on `.content`) so content-sized containers and table cells include the label's longest word in their minimum width (#1579).
+  - `violet-combobox` now watches its light DOM with a `MutationObserver` so options appended inside a `violet-option-group` and edits to an option's label text, `label` attribute or `value` attribute reconcile the displayed input text and visible options (#1377).
+  - `violet-data-grid` now flips editing hints and validation error overlays above the editing cell (`data-placement="above"`) when there is not enough room below inside `.table-scroll`, preventing clipping and unwanted vertical scrollbars on the last rows of a short grid (#1197).
+
 - Fix five `violet-elements` bugs (#512, #1171, #1569, #1602, #1963):
   - Inherit the host `font-family` when un-themed (dropping hard-coded `"Inter", system-ui, sans-serif` fallbacks in `violet-token-defaults`, `violet-data-grid` and its six cell editors, `violet-dialog` and `violet-text`, and honoring `--violet-font-family`), align `--_field-background`'s unthemed fallback with `#ffffff` so resting field borders meet >= 3:1 contrast without an installed theme, give `violet-date-picker`'s popup panel `role="dialog"` and an accessible name, and switch its input keyboard open shortcut from plain `ArrowDown` to `Alt+ArrowDown` so native date-segment editing works (#512).
   - Start `<violet-dialog open>` at full opacity (`data-initial-open`) when it connects already open instead of fading in from `opacity: 0`, fixing open-dialog `color-contrast` failures on settle, and add an `Open` story and regression spec (#1171).
