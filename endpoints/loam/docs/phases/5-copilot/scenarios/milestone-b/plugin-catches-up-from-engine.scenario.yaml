@@ -1,0 +1,72 @@
+# Draft JTBD scenario for Loam's phase 5 specification, milestone B (step 10, B0 amendment).
+# Needs Loam's runner (tag loam-runner) on the seed p5-base, which from milestone B gives
+# mailfixapp the events grant and adds mailfix-thread-list to its [[calls]] (with expose.apps set
+# in mailfix's entry). Held in scenarios/milestone-b/ until step 10 moves it into scenarios/ and
+# adds it to scenarios.test.ts. The data is invented.
+name: Native plugin catches up from its mounted engine
+description: >-
+  When another actor changes my mounted engine through Loam, I want my native plugin to catch up
+  from its event cursor and refresh from its engine through its calls grant, so that its UI stays
+  current without re-reading the whole history.
+job: plugin-catches-up-from-engine
+tags: [loam-runner]
+steps:
+  - description: "[caller: mailfixapp] The native plugin reads the stream head cursor"
+    command: event-list
+    input: { limit: 1 }
+    expect:
+      success: true
+      data:
+        cursor: { exists: true }
+  - description: "[agent] The agent archives a thread in the mounted mailfix engine"
+    command: mailfix-thread-archive
+    input: { thread: thr_1 }
+    expect:
+      success: true
+  - description: "[caller: mailfixapp] The plugin catches up on mount-mutated events for its engine"
+    command: event-list
+    input:
+      since: "${{ steps[0].data.cursor }}"
+      kinds: [mount-mutated]
+      instance: mailfix
+    expect:
+      success: true
+      data:
+        events:
+          '0':
+            kind: mount-mutated
+            command: mailfix-thread-archive
+            actor: { contains: agent }
+          '1': { notExists: true }
+        cursor: { exists: true }
+        hasMore: false
+  - description: "[caller: mailfixapp] The plugin refreshes its view from the engine via its calls grant"
+    command: mailfix-thread-list
+    input: {}
+    expect:
+      success: true
+      data:
+        threads:
+          '0': { thread: thr_2, archived: false }
+          '1': { notExists: true }
+  - description: "[caller: mailfixapp] Catching up again from the advanced cursor yields nothing new"
+    command: event-list
+    input:
+      since: "${{ steps[2].data.cursor }}"
+      kinds: [mount-mutated]
+      instance: mailfix
+    expect:
+      success: true
+      data:
+        events:
+          '0': { notExists: true }
+        hasMore: false
+  - description: "[caller: mailfixapp] A malformed cursor is refused with EVENT_CURSOR_INVALID"
+    command: event-list
+    input:
+      since: not-a-cursor
+    expect:
+      success: false
+      error:
+        code: EVENT_CURSOR_INVALID
+        suggestion: { contains: cursor }

@@ -1,0 +1,109 @@
+# Draft JTBD scenario for Loam's phase 5 specification, milestone B (step 10, B0 amendment).
+# Needs Loam's runner (tag loam-runner) on the seed p5-base. Held in scenarios/milestone-b/ until
+# step 10 moves it into scenarios/ and adds it to scenarios.test.ts. The data is invented.
+name: Open what was asked
+description: >-
+  When I ask the copilot or an active app to open a document, an app, a section or a confirmation
+  in Loam, I want Loam to navigate there within what I may enter and refuse external URLs or
+  background hijack attempts, so that opening a place is fast and safe.
+job: open-what-was-asked
+tags: [loam-runner]
+steps:
+  - description: Read the active workspace scope
+    command: scope-get
+    input: {}
+    expect:
+      success: true
+      data:
+        scope:
+          workspace: { exists: true }
+  - description: "[agent] The copilot opens an app in main"
+    command: shell-open
+    input:
+      target:
+        kind: app
+        instance: tally
+        scope:
+          workspace: "${{ steps[0].data.scope.workspace }}"
+    expect:
+      success: true
+      data:
+        opened:
+          kind: app
+          instance: tally
+        changed: true
+  - description: "[agent] The copilot opens the inbox section"
+    command: shell-open
+    input:
+      target:
+        kind: section
+        section: inbox
+        scope:
+          workspace: "${{ steps[0].data.scope.workspace }}"
+    expect:
+      success: true
+      data:
+        opened:
+          kind: section
+          section: inbox
+        changed: true
+  - description: "[agent] External URLs are refused and never opened"
+    command: shell-open
+    input:
+      target:
+        kind: mounted-ui
+        instance: mailfix
+        uri: "https://example.com/phish"
+        scope:
+          workspace: "${{ steps[0].data.scope.workspace }}"
+    expect:
+      success: false
+      error:
+        code: VALIDATION_ERROR
+        suggestion: { contains: ui:// }
+  - description: "[agent] A missing or unenterable project is refused uniformly"
+    command: shell-open
+    input:
+      target:
+        kind: project
+        project: prj_missing
+        scope:
+          workspace: "${{ steps[0].data.scope.workspace }}"
+    expect:
+      success: false
+      error:
+        code: PROJECT_NOT_FOUND
+  - description: "[caller: hello, inactive] A background app cannot hijack main with shell-open"
+    command: shell-open
+    input:
+      target:
+        kind: app
+        instance: hello
+        scope:
+          workspace: "${{ steps[0].data.scope.workspace }}"
+    expect:
+      success: false
+      error:
+        code: SHELL_OPEN_NOT_ACTIVE
+        suggestion: { contains: active }
+  - description: Open hello as the active app
+    command: app-open
+    input: { instance: hello }
+    expect:
+      success: true
+  - description: "[caller: hello] The active app can open a shell settings target"
+    command: shell-open
+    input:
+      target:
+        kind: section
+        section: settings
+        target: loam.appearance
+        scope:
+          workspace: "${{ steps[0].data.scope.workspace }}"
+    expect:
+      success: true
+      data:
+        opened:
+          kind: section
+          section: settings
+        changed: true
