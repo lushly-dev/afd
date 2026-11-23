@@ -197,6 +197,10 @@ impl Store {
         transaction.execute("DELETE FROM replyset WHERE account_id = ?1", [account.0])?;
         transaction.execute("DELETE FROM outbound WHERE account_id = ?1", [account.0])?;
         transaction.execute("DELETE FROM draft WHERE account_id = ?1", [account.0])?;
+        transaction.execute(
+            "DELETE FROM account_policy WHERE account_id = ?1",
+            [account.0],
+        )?;
         transaction.execute_batch(
             "UPDATE draft SET answers_message_id = NULL, revision = revision + 1
                  WHERE answers_message_id IN (SELECT id FROM removing_message);
@@ -206,7 +210,23 @@ impl Store {
              UPDATE record SET superseded_by = NULL, state = 'withdrawn'
                  WHERE message_id IN (SELECT id FROM removing_message)
                    AND superseded_by IS NOT NULL;
-             DELETE FROM record WHERE message_id IN (SELECT id FROM removing_message);",
+             DELETE FROM record WHERE message_id IN (SELECT id FROM removing_message);
+             DELETE FROM proposed_story_member
+                 WHERE message_id IN (SELECT id FROM removing_message);
+             UPDATE proposed_story SET
+                 messages = (SELECT count(*) FROM proposed_story_member
+                             WHERE proposed_story_member.story_id = proposed_story.id),
+                 first_date = coalesce(
+                     (SELECT min(date) FROM proposed_story_member
+                      WHERE proposed_story_member.story_id = proposed_story.id),
+                     first_date
+                 ),
+                 last_date = coalesce(
+                     (SELECT max(date) FROM proposed_story_member
+                      WHERE proposed_story_member.story_id = proposed_story.id),
+                     last_date
+                 );
+             DELETE FROM proposed_story WHERE messages = 0;",
         )?;
         transaction.execute_batch(
             "DELETE FROM message WHERE id IN (SELECT id FROM removing_message);
@@ -265,6 +285,8 @@ const HANDLED: &[(&str, &str)] = &[
     ("replyset_reply", "message"),
     ("snooze", "message"),
     ("record", "message"),
+    ("account_policy", "account"),
+    ("proposed_story_member", "message"),
     // Twice: where the message was, and where it goes.
     ("operation_item", "mailbox"),
     ("operation_item", "mailbox"),

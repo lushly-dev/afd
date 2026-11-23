@@ -53,6 +53,7 @@ import {
 	createJournalProvenance,
 	JOURNAL_WRAPPERS,
 	type JournalProvenance,
+	observeGate,
 } from './journal-provenance.js';
 import { redactJournalRecord } from './journal-redact.js';
 import {
@@ -170,7 +171,7 @@ const changed = (
 export type WrapperProvenance = JournalProvenance & { journals(command: string): boolean };
 
 /** The metadata the registry sets on every result, the wrapper's own and never the child's server content. */
-const REGISTRY_METADATA = ['commandVersion', 'executionTimeMs', 'traceId'] as const;
+const REGISTRY_METADATA = ['actorKind', 'commandVersion', 'executionTimeMs', 'traceId'] as const;
 
 /**
  * A child's outcome as its entry holds it, without the journal's own sequence, with the wrapper's own registry metadata
@@ -365,8 +366,13 @@ export function redactWrapped(
 			if (!record.result.success && !provenance.returned(record.traceId))
 				return { ...record, unreplayable: true, lossy: true } as unknown as JournalRecord;
 			if (child) {
-				if (!record.result.success)
-					return { ...record, result: outcomeOfEntry(child, record.result) };
+				if (!record.result.success) {
+					const gate = provenance.gateRefusal(record.traceId);
+					const result = outcomeOfEntry(gate ? gate.result : child, record.result);
+					return gate
+						? ({ ...record, result, gateRefusal: gate } as unknown as JournalRecord)
+						: { ...record, result };
+				}
 				return {
 					...record,
 					result: {
@@ -707,6 +713,15 @@ export async function createKernelParts(
 	);
 	// One journal middleware, shared by every registry, so they share one journal sequence. Each entry is held to
 	// `loam.limits.journalEntryBytes` whole, after the redaction (phase 4 specification, section 11).
+	const thrownTraces = new Set<string>();
+	const observeThrows: CommandMiddleware = async (_name, _input, context, next) => {
+		try {
+			return await next();
+		} catch (error) {
+			if (typeof context.traceId === 'string') thrownTraces.add(context.traceId);
+			throw error;
+		}
+	};
 	const journal = createJournalMiddleware(
 		seqTrackingSink(
 			options.journal,
@@ -728,7 +743,8 @@ export async function createKernelParts(
 		{
 			...kernelJournalOptions(),
 			redact: (record) => {
-				const own = (each: JournalRecord) => apps.redact(redactJournalRecord(each));
+				const threw = record.traceId !== undefined && thrownTraces.delete(record.traceId);
+				const own = (each: JournalRecord) => apps.redact(redactJournalRecord(each, threw));
 				// A command no registry holds has no rule: its input in a wrapper is dropped (step 6's third round, B).
 				return redactSafely(record, own, (command) => mutations?.has(command) === true, provenance);
 			},
@@ -761,12 +777,17 @@ export async function createKernelParts(
 	const principalGate =
 		server && principals ? server.createPrincipalGate({ principals, own: KERNEL_OWN }) : undefined;
 	const chain = (held: readonly ZodCommandDefinition[]): CommandMiddleware[] => [
-		principalGate ??
-			lateParts?.authGate(held) ??
-			createAuthMiddleware(options.auth, { exclude: held.map((command) => command.name), clock }),
+		observeGate(
+			tracker,
+			principalGate ??
+				lateParts?.authGate(held) ??
+				createAuthMiddleware(options.auth, { exclude: held.map((command) => command.name), clock }),
+			(traceId) => thrownTraces.delete(traceId)
+		),
 		// Outside the journal: tracks hosted MCP calls that enter the chain without `execute` (#2117).
 		order.track,
 		journal,
+		observeThrows,
 		// Right inside the journal: a read waits for the writes it saw (#1936, #2117); `order.handler` is last.
 		order.turn,
 		// Right inside the journal, so the scope middleware's own writes are written through too (#861).

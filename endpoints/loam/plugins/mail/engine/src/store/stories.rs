@@ -967,7 +967,12 @@ pub(super) fn prune_sql() -> String {
     format!(
         "DELETE FROM stream
          WHERE (key LIKE 'burst %' AND id NOT IN (SELECT id FROM burst))
-            OR (key NOT LIKE 'burst %' AND key NOT IN (SELECT {STREAM} FROM envelope))"
+            OR (key NOT LIKE 'burst %'
+                AND key NOT LIKE 'proposed %'
+                AND key NOT IN (SELECT {STREAM} FROM envelope))
+            OR (key LIKE 'proposed %'
+                AND NOT EXISTS (SELECT 1 FROM proposed_story
+                                WHERE proposed_story.id = stream.id))"
     )
 }
 
@@ -1012,19 +1017,21 @@ pub(super) fn every_query() -> Vec<(&'static str, String)> {
     ]
 }
 
+pub use super::proposed_stories::ProposedMeta;
+
 /// A story as a list shows it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StoryRow {
     /// Its id.
     pub id: i64,
-    /// What made it: `stream`.
+    /// What made it: `stream`, `burst`, `situation`, or `cohort`.
     pub kind: String,
-    /// The list it is of, or empty for a story of a sender.
+    /// The list it is of, or empty for a story of a sender or a proposed story.
     pub list_id: String,
     /// Its sender, or for a list the sender of its newest message.
     pub sender_address: String,
     /// Its title: the list's id, or the name on its newest message, or
-    /// else the sender's address.
+    /// else the sender's address, or the caller's title for a proposed story.
     pub title: String,
     /// Its messages.
     pub messages: u64,
@@ -1036,6 +1043,8 @@ pub struct StoryRow {
     pub first_date: i64,
     /// The date of its last message: when it last changed by mail arriving.
     pub last_date: i64,
+    /// Present when this story was proposed by a caller (`situation` or `cohort`).
+    pub proposed: Option<ProposedMeta>,
 }
 
 /// The columns a [`StoryRow`] is read from.
@@ -1054,6 +1063,7 @@ fn story_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<StoryRow> {
         kinds: count(row.get(7)?),
         first_date: row.get(8)?,
         last_date: row.get(9)?,
+        proposed: None,
     })
 }
 
@@ -1135,6 +1145,8 @@ pub struct StoryMessage {
     pub exception: bool,
     /// Its template key: its kind.
     pub kind: Option<Vec<u8>>,
+    /// The verified verbatim passage for a proposed story member, if any.
+    pub passage: Option<String>,
 }
 
 /// The stories changed after a change's sequence number: each one once,
@@ -1218,7 +1230,8 @@ impl Store {
     }
 
     /// The stories, newest first: at most `limit`, starting before `before`
-    /// (the last date and id of the last story of the page before).
+    /// (the last date and id of the last story of the page before). Merges
+    /// derived stream/burst stories with active proposed stories.
     ///
     /// # Errors
     /// When the database refuses.
@@ -1229,8 +1242,20 @@ impl Store {
     ) -> Result<Vec<StoryRow>, StoreError> {
         let (date, id) = before.unwrap_or((i64::MAX, i64::MAX));
         let mut statement = self.connection.prepare_cached(&story_list_sql())?;
-        let rows = statement.query_map(params![date, id, limit], story_row)?;
-        Ok(rows.collect::<Result<_, _>>()?)
+        let mut rows: Vec<StoryRow> = statement
+            .query_map(params![date, id, limit], story_row)?
+            .collect::<Result<_, _>>()?;
+        let proposed = self.active_proposed_stories(before, limit)?;
+        if !proposed.is_empty() {
+            rows.extend(
+                proposed
+                    .into_iter()
+                    .map(super::ProposedStoryRow::into_story_row),
+            );
+            rows.sort_by_key(|a| std::cmp::Reverse((a.last_date, a.id)));
+            rows.truncate(limit as usize);
+        }
+        Ok(rows)
     }
 
     /// One story, or `None` when there is no such story.
@@ -1238,16 +1263,23 @@ impl Store {
     /// # Errors
     /// When the database refuses.
     pub fn story(&self, id: i64) -> Result<Option<StoryRow>, StoreError> {
-        Ok(self
+        if let Some(row) = self
             .connection
             .prepare_cached(&format!(
                 "SELECT {STORY_COLUMNS} FROM story WHERE id = ?1 AND {SHOWN}"
             ))?
             .query_row([id], story_row)
-            .optional()?)
+            .optional()?
+        {
+            return Ok(Some(row));
+        }
+        Ok(self
+            .active_proposed_story(id)?
+            .map(super::ProposedStoryRow::into_story_row))
     }
 
-    /// How many stories there are.
+    /// How many stories there are (derived stream/burst stories plus active
+    /// proposed stories).
     ///
     /// # Errors
     /// When the database refuses.
@@ -1257,7 +1289,7 @@ impl Store {
             [],
             |row| row.get(0),
         )?;
-        Ok(count(stories))
+        Ok(count(stories) + self.active_proposed_story_count()?)
     }
 
     /// A story's kinds of mail, the most common first: at most `limit`.
@@ -1321,6 +1353,12 @@ impl Store {
         before: Option<(i64, MessageId)>,
         limit: u32,
     ) -> Result<Vec<StoryMessage>, StoreError> {
+        if self.active_proposed_story(story)?.is_some() {
+            return match which {
+                StoryMessages::Every => self.proposed_story_messages(story, before, limit),
+                StoryMessages::Exceptions | StoryMessages::Kind(_) => Ok(Vec::new()),
+            };
+        }
         let (date, message) =
             before.map_or((i64::MAX, i64::MAX), |(date, message)| (date, message.0));
         let read = |row: &rusqlite::Row<'_>| -> rusqlite::Result<StoryMessage> {
@@ -1328,6 +1366,7 @@ impl Store {
                 listed: listed(row)?,
                 exception: row.get(25)?,
                 kind: row.get(26)?,
+                passage: None,
             })
         };
         let rows: Vec<StoryMessage> = match which {

@@ -31,6 +31,7 @@ import { LoamKernelError, PAGE_DECIDED } from './errors.js';
 import { type NestedRerunV1, RECORDED_ANSWER, type RecordedAnswerV1 } from './journal-order.js';
 import {
 	createKernelParts,
+	KERNEL_OWN,
 	type KernelParts,
 	type KernelPartsInternals,
 	redactJournalRecord,
@@ -158,6 +159,8 @@ export interface ReplayKernelOptions {
 	ports?: KernelPortsV1;
 	/** The recording kernel's identity (phase 3 specification, 2.1). */
 	identity?: IdentityV1;
+	/** Which auth gate the recording kernel used (`'session'` for browser, `'principal'` for hosted server). */
+	gate?: 'session' | 'principal';
 	/**
 	 * The membership the recording kernel started with. Each `session-settle` entry records the settled person's
 	 * role and digest, which the replay applies over it as the original did (4.4).
@@ -311,6 +314,20 @@ export function nestedReplay(
 	// it a `seq` when it finishes, so a handler's calls made together can be journaled in the other order.
 	for (const queue of byParent.values()) queue.sort((a, b) => callNumber(a) - callNumber(b));
 	const commandOf = new Map(entries.map((entry) => [entry.traceId, entry.command]));
+	const gateRefusals = new Map<string, { command: string; result: CommandResult }>();
+	for (const entry of entries) {
+		const refused = (
+			entry as JournalEntry & { gateRefusal?: { command?: unknown; result?: CommandResult } }
+		).gateRefusal;
+		if (
+			entry.command === 'notification-act' &&
+			typeof entry.traceId === 'string' &&
+			typeof refused?.command === 'string' &&
+			refused.result?.success === false
+		) {
+			gateRefusals.set(entry.traceId, { command: refused.command, result: refused.result });
+		}
+	}
 	const problems = new Map<string, string>();
 	let last: JournalEntry | undefined;
 	/** The outer call has finished: every call the record holds for it should have happened. */
@@ -346,7 +363,16 @@ export function nestedReplay(
 			last = next;
 			return next.result;
 		}
-		if (next?.command !== name) return undefined;
+		if (next?.command !== name) {
+			// An auth-gate refusal recorded under a running `notification-act` (#2253): the nested action never reached
+			// the journal, so replay answers it with that recorded gate refusal (tampering with `act.result` still diverges).
+			const gateRefused = next === undefined ? gateRefusals.get(parent) : undefined;
+			if (gateRefused?.command === name) {
+				gateRefusals.delete(parent);
+				return gateRefused.result;
+			}
+			return undefined;
+		}
 		const validated = validatedInput(command, input);
 		if (!validated || !sameCall(next, validated.input, inputBytes)) return undefined;
 		queue?.shift();
@@ -627,7 +653,10 @@ export async function replayKernel(
 				(entry.input as { host?: { kind?: unknown } } | undefined)?.host?.kind === 'hosted'
 		),
 		// The journal's actor, whatever the replay's one Mock holds, so a refusal stays one (10).
+		// On a principal-gated kernel, `principalGate` sets `context.actor` to the admitted principal's frozen actor
+		// (the WeakMap key `principals.of` reads), so `actorOf` must not replace it with a plain journal copy.
 		actorOf(traceId) {
+			if (options.gate === 'principal') return undefined;
 			const entry = traceId === undefined ? undefined : byTrace.get(traceId);
 			return entry ? { ...(entry.actor !== undefined ? { actor: entry.actor } : {}) } : undefined;
 		},
@@ -648,6 +677,7 @@ export async function replayKernel(
 			...(options.deployment !== undefined ? { deployment: options.deployment } : {}),
 			...(options.ports !== undefined ? { ports: options.ports } : {}),
 			...(options.identity !== undefined ? { identity: options.identity } : {}),
+			...(options.gate !== undefined ? { gate: options.gate } : {}),
 			...(options.membership !== undefined ? { membership: options.membership } : {}),
 		},
 		internals
@@ -733,7 +763,47 @@ export async function replayKernel(
 					: context.interface === 'agent'
 						? registries.agent
 						: registries.palette;
-				const result = await registry.execute(name, input, context);
+				let replayPrincipal: import('./scope/principal.js').KernelPrincipalV1 | undefined;
+				let restoreSession: { had: string | null } | undefined;
+				if (options.gate === 'principal') {
+					const ownContext = context as Record<symbol, unknown>;
+					if (BOOT_ONLY.includes(name)) ownContext[KERNEL_OWN] = 'boot';
+					else if (name === 'agent-member-settle') ownContext[KERNEL_OWN] = 'hook';
+					else if (name === 'app-instance-refresh' && entry?.actor === undefined)
+						ownContext[KERNEL_OWN] = 'instance';
+					else if (entry?.actor?.id && entry.actor.kind === 'human' && parts.admitPrincipal) {
+						const role = options.membership?.members.get(entry.actor.id) ?? null;
+						replayPrincipal = parts.admitPrincipal({
+							actor: { kind: 'human', id: entry.actor.id },
+							person: entry.actor.id,
+							role,
+							digest: options.membership?.digest ?? '',
+						});
+						(context as Record<string, unknown>).principal = replayPrincipal;
+					}
+				} else if (
+					entry?.command === 'notification-act' &&
+					(entry as JournalEntry & { gateRefusal?: unknown }).gateRefusal !== undefined &&
+					entry.actor?.kind === 'human' &&
+					typeof entry.actor.id === 'string'
+				) {
+					// A concurrent `session-settle` may have finished before `notification-act`, signing out the replay's
+					// `MockAuthAdapter` before `notification-act` replays (#2253). Restore `entry.actor.id` for the outer
+					// act so its handler runs and `nestedReplay` answers its nested action with the recorded gate refusal.
+					const current = auth.getSession();
+					const currentId = current.status === 'authenticated' ? current.user.id : null;
+					if (currentId !== entry.actor.id) {
+						restoreSession = { had: currentId };
+						drive(entry.actor.id);
+					}
+				}
+				let result: CommandResult;
+				try {
+					result = await registry.execute(name, input, context);
+				} finally {
+					if (replayPrincipal) parts.retirePrincipal?.(replayPrincipal);
+					if (restoreSession !== undefined) drive(restoreSession.had);
+				}
 				if (answer?.answered && entry) {
 					// The handler answered from its record, so its nested calls were never made again: theirs are the record's.
 					recorded.push(entry.seq);
@@ -776,7 +846,9 @@ export async function replayKernel(
 				message: (truncated as { unredacted?: unknown }).unredacted
 					? `The journal kept seq ${truncated.seq} (${truncated.command}) without its input, since its redaction failed, so the replay stops there`
 					: (truncated as { lossy?: unknown }).lossy
-						? `The journal kept seq ${truncated.seq} (${truncated.command}) at its least, since it could not vouch for its outcome, so the replay stops there`
+						? truncated.result.error?.code === 'COMMAND_EXECUTION_ERROR'
+							? `The journal kept seq ${truncated.seq} (${truncated.command}) lossy, since its handler threw (COMMAND_EXECUTION_ERROR), so the replay stops there`
+							: `The journal kept seq ${truncated.seq} (${truncated.command}) at its least, since it could not vouch for its outcome, so the replay stops there`
 						: `The journal kept seq ${truncated.seq} (${truncated.command}) truncated, over loam.limits.journalEntryBytes, so the replay stops there`,
 				suggestion: `Replay up to seq ${truncated.seq - 1} only`,
 				details: { seq: truncated.seq, command: truncated.command },

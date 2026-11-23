@@ -506,37 +506,8 @@ fn take_chars(text: &str, limit: usize) -> (&str, bool) {
     }
 }
 
-fn parse_messages(input: &Value) -> Result<Vec<i64>, Box<CommandError>> {
-    let Some(items) = input.get("messages").and_then(Value::as_array) else {
-        return Err(invalid(
-            "`messages` must be a non-empty list of message ids",
-            "Pass 1 to 50 source message ids to reply to.",
-        ));
-    };
-    if items.is_empty() || items.len() > MOST_REPLIES {
-        return Err(invalid(
-            format!("a reply set holds between 1 and {MOST_REPLIES} messages"),
-            format!("Pass 1 to {MOST_REPLIES} source message ids."),
-        ));
-    }
-    let mut seen = HashSet::with_capacity(items.len());
-    let mut out = Vec::with_capacity(items.len());
-    for (index, item) in items.iter().enumerate() {
-        let Some(id) = item.as_i64().filter(|&id| id > 0) else {
-            return Err(invalid(
-                format!("`messages[{index}]` must be a positive message id"),
-                "Pass each message id as a positive integer.",
-            ));
-        };
-        if !seen.insert(id) {
-            return Err(invalid(
-                format!("`messages` lists message {id} more than once"),
-                "Include each source message at most once in a reply set.",
-            ));
-        }
-        out.push(id);
-    }
-    Ok(out)
+fn parse_messages(input: &Value) -> Result<Option<Vec<i64>>, Box<CommandError>> {
+    crate::stories::parse_replyset_messages(input, MOST_REPLIES)
 }
 
 fn parse_questions(
@@ -640,24 +611,44 @@ impl CommandHandler for Create {
     async fn execute(&self, input: Value, context: CommandContext) -> CommandResult<Value> {
         let now = context.clock().now();
         let creator = proposer_of(&context);
-        let parsed = (|| -> Result<(Option<AccountId>, Option<i64>, Vec<i64>, String, Vec<NewQuestion>), Box<CommandError>> {
+        let parsed = (|| -> Result<_, Box<CommandError>> {
             let account = integer(&input, "account")?.map(AccountId);
             let story = integer(&input, "story")?;
             let messages = parse_messages(&input)?;
+            if messages.is_none() && story.is_none() {
+                return Err(invalid(
+                    "`messages` or `story` is required",
+                    "Pass 1 to 50 source message ids in `messages`, or name a `story`.",
+                ));
+            }
             let shared_text = match input.get("sharedText") {
                 None | Some(Value::Null) => String::new(),
                 Some(v) => validate_text(v, "sharedText", true, MOST_TEXT_CHARS)?,
             };
-            let valid_set: HashSet<i64> = messages.iter().copied().collect();
-            let questions = parse_questions(&input, &valid_set)?;
-            Ok((account, story, messages, shared_text, questions))
+            Ok((account, story, messages, shared_text))
         })();
-        let (account, story, messages, shared_text, questions) = match parsed {
+        let (account, story, explicit_messages, shared_text) = match parsed {
             Ok(parsed) => parsed,
             Err(error) => return failure(*error),
         };
 
         let created = self.engine.with_store(|store| {
+            let messages = match explicit_messages {
+                Some(messages) => messages,
+                None => match crate::stories::replyset_story_messages(
+                    store,
+                    story.unwrap_or_default(),
+                    MOST_REPLIES,
+                )? {
+                    Ok(messages) => messages,
+                    Err(error) => return Ok(Err(error)),
+                },
+            };
+            let valid_set: HashSet<i64> = messages.iter().copied().collect();
+            let questions = match parse_questions(&input, &valid_set) {
+                Ok(questions) => questions,
+                Err(error) => return Ok(Err(error)),
+            };
             let (account_id, sources) =
                 match store.resolve_replyset_sources(account, story, &messages)? {
                     Ok(resolved) => resolved,
@@ -701,8 +692,8 @@ pub fn create(engine: Arc<Engine>) -> CommandDefinition {
             parameter(
                 "messages",
                 JsonSchemaType::Array,
-                "Source message ids to reply to (1 to 50)",
-                true,
+                "Source message ids to reply to (1 to 50); optional when `story` is given",
+                false,
             ),
             parameter(
                 "account",

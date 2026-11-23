@@ -138,6 +138,8 @@ pub fn registry(engine: &Arc<Engine>) -> Result<Arc<CommandRegistry>, String> {
     registry.register(stories::story_list(Arc::clone(engine)))?;
     registry.register(stories::story_open(Arc::clone(engine)))?;
     registry.register(stories::story_changes(Arc::clone(engine)))?;
+    registry.register(stories::story_propose(Arc::clone(engine)))?;
+    registry.register(stories::story_dismiss(Arc::clone(engine)))?;
     registry.register(tokens::create(Arc::clone(engine)))?;
     registry.register(tokens::list(Arc::clone(engine)))?;
     registry.register(tokens::revoke(Arc::clone(engine)))?;

@@ -645,7 +645,10 @@ export const CEILINGS = Object.freeze({
 	// `afd-server/direct`): combined build against `main` at `88cd5f02b` measured 345,762; set to 346,200.
 	// Raised under D115 by the violet-elements bug sweep (#1436: `radius.round` in the field token block, which first
 	// paint's `violet-token-defaults` chunk carries): measured 346,220 against `main` at `bc316e8e`; set to 346,600.
-	jsMinified: 346_600,
+	// Raised under D115 by #2253/#2300 (`observeGate` + `gateRefusal` provenance in `journal-provenance.ts` and
+	// `observeThrows` + thrown `COMMAND_EXECUTION_ERROR` lossy marking in `kernel.ts`/`journal-redact.ts`): combined
+	// build measured 347,192 against `main` at `99359760a`; set to 347,600.
+	jsMinified: 347_600,
 	// Raised from 96,500 to 97,000 under D115 by phase 4's step 4 with `main` at `8c3425d8` (phase 5's step 0b) merged,
 	// both measured from clean builds in one tree: 96,436 to 96,527 gzip (+91) and 309,074 to 309,275 minified (+201,
 	// within its row): the answer registry the `surfaces` and `editor` chunks share, in `events` (+180), and 21 in `layout`.
@@ -678,7 +681,9 @@ export const CEILINGS = Object.freeze({
 	// #1045 and #1634 merged on `main` at `bfa42bff`: within 108,800.
 	// #2128 (execution-controls batch limits and validation issue cap) merged on `main` at `88cd5f02b`:
 	// measured 109,066; set to 109,500 under D115.
-	jsGzip: 109_500,
+	// #2253/#2300 (`observeGate`/`gateRefusal` and `observeThrows` throw tracking) merged on `main` at `2b134a73`:
+	// measured 109,491; set to 109,900 under D115.
+	jsGzip: 109_900,
 	// Raised from 8,496 to 10,500 by AFD's theme, Refined (D159, D115): `loam-theme.css` 8,217 to 8,431 (+214, the
 	// longer shadows and the three font stacks), and the theme's typefaces' `@font-face` rules, 1,820, the first
 	// stylesheet `index.html` links; measured 10,251, plus a margin.
@@ -733,7 +738,10 @@ export const CEILINGS = Object.freeze({
 	// merged on `main` at `88cd5f02b`: measured 159,157; set to 159,600 under D115.
 	// Bug batch #2179/#2119/#2118/#2016/#1952 merged with `main` at `b868f8c1`: measured 161,391 (+2,234 over #2128's
 	// 159,157: a replay's rerun of a notice's action in `execute`, the gate's journaled `taint`); set to 161,900 under D115.
-	kernelMinified: 161_900,
+	// Raised under D115 by #2253/#2300 (`observeGate`/`gateRefusal` in `journal-provenance.ts` and `observeThrows` /
+	// thrown `COMMAND_EXECUTION_ERROR` lossy marking in `kernel.ts`/`journal-redact.ts`): measured 162,843 against
+	// `main` at `2b134a73`; set to 163,300.
+	kernelMinified: 163_300,
 	// Phase 4's steps 2 (+1,494) and 3 (+8,786) together: 92,316 measured with both merged; set to 93,000.
 	// Phase 4's step 5: 93,596, the inbox's wiring (above); set to 94,000.
 	// With step 8 merged beside them, 93,244; set to 94,000 (the header records it).

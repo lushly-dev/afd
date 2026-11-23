@@ -4,7 +4,7 @@
  */
 import type { JournalRecord } from '@lushly-dev/afd-core';
 import { describe, expect, it } from 'vitest';
-import { createJournalProvenance, TRACKED_WRAPPERS } from './journal-provenance.js';
+import { createJournalProvenance, observeGate, TRACKED_WRAPPERS } from './journal-provenance.js';
 import { redactWrapped, type WrapperProvenance } from './kernel.js';
 
 const entry = (context: Record<string, unknown>, data: unknown): JournalRecord =>
@@ -121,5 +121,52 @@ describe('the journal provenance', () => {
 			// The act's own part stays: its state, never its action's result.
 			expect(JSON.stringify(done.input), command).toContain('"data":{"state":"done"}');
 		}
+	});
+
+	it('(#2253) observeGate records a gate refusal for a tracked wrapper without recording failures after next()', async () => {
+		const provenance = createJournalProvenance();
+		provenance.begin('act-1');
+		const refused = observeGate(provenance, async () => ({
+			success: false,
+			error: {
+				code: 'UNAUTHORIZED',
+				message: 'Authentication required',
+				suggestion: 'Sign in',
+				retryable: false,
+				details: { leaked: 'dropped' },
+			},
+		}));
+		await refused('keeper-note', {}, { parent: 'act-1' }, async () => ({ success: true }));
+		expect(provenance.gateRefusal('act-1')).toEqual({
+			command: 'keeper-note',
+			result: {
+				success: false,
+				error: {
+					code: 'UNAUTHORIZED',
+					message: 'Authentication required',
+					suggestion: 'Sign in',
+					retryable: false,
+				},
+			},
+		});
+		expect(provenance.nested('act-1')).toEqual({
+			success: false,
+			error: {
+				code: 'UNAUTHORIZED',
+				message: 'Authentication required',
+				suggestion: 'Sign in',
+				retryable: false,
+			},
+		});
+
+		// Once `next()` has been called, a downstream failure (e.g. sink rejection) is never treated as a gate refusal.
+		const provenance2 = createJournalProvenance();
+		provenance2.begin('act-2');
+		const passed = observeGate(provenance2, async (_name, _input, _ctx, next) => next());
+		await passed('keeper-note', {}, { parent: 'act-2' }, async () => ({
+			success: false,
+			error: { code: 'UNAUTHORIZED', message: 'downstream' },
+		}));
+		expect(provenance2.nested('act-2')).toBeUndefined();
 	});
 });

@@ -229,3 +229,133 @@ fn released_commands_on_mcp_keep_amended_m18_and_fifth_is_refused() {
         );
     }
 }
+
+/// Parses `[[mount.tools]]` entries (`tool = "..."`, `effects = ["..."]`) from
+/// the mount manifest so the test stays free of a TOML parser dependency.
+fn parse_mount_tools(manifest: &str) -> Vec<(String, Vec<String>)> {
+    let mut tools = Vec::new();
+    let mut in_tool = false;
+    let mut tool_name: Option<String> = None;
+    let mut effects: Option<Vec<String>> = None;
+
+    let flush = |tools: &mut Vec<(String, Vec<String>)>,
+                 name: &mut Option<String>,
+                 effs: &mut Option<Vec<String>>| {
+        if let Some(n) = name.take() {
+            tools.push((n, effs.take().expect("every [[mount.tools]] has effects")));
+        }
+    };
+
+    for raw in manifest.lines() {
+        let line = raw.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        if line == "[[mount.tools]]" {
+            flush(&mut tools, &mut tool_name, &mut effects);
+            in_tool = true;
+            continue;
+        }
+        if line.starts_with('[') {
+            flush(&mut tools, &mut tool_name, &mut effects);
+            in_tool = false;
+            continue;
+        }
+        if !in_tool {
+            continue;
+        }
+        if let Some(rest) = line.strip_prefix("tool =") {
+            let value = rest.trim();
+            assert!(
+                value.starts_with('"') && value.ends_with('"'),
+                "unexpected tool value: {value}"
+            );
+            tool_name = Some(value[1..value.len() - 1].to_string());
+        } else if let Some(rest) = line.strip_prefix("effects =") {
+            let value = rest.trim();
+            assert!(
+                value.starts_with('[') && value.ends_with(']'),
+                "unexpected effects value: {value}"
+            );
+            let inner = value[1..value.len() - 1].trim();
+            let list = if inner.is_empty() {
+                Vec::new()
+            } else {
+                inner
+                    .split(',')
+                    .map(|item| {
+                        let s = item.trim();
+                        assert!(s.starts_with('"') && s.ends_with('"'), "bad effect: {s}");
+                        s[1..s.len() - 1].to_string()
+                    })
+                    .collect()
+            };
+            effects = Some(list);
+        }
+    }
+    flush(&mut tools, &mut tool_name, &mut effects);
+    tools
+}
+
+#[test]
+fn mount_manifest_tools_agree_with_engine_registry() {
+    let manifest_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("engine/ has parent mail/")
+        .join("mount")
+        .join("loam-app.toml");
+    let manifest = std::fs::read_to_string(&manifest_path)
+        .unwrap_or_else(|e| panic!("failed to read {}: {e}", manifest_path.display()));
+    let declared = parse_mount_tools(&manifest);
+    assert!(!declared.is_empty(), "mount manifest must declare tools");
+
+    let engine = std::sync::Arc::new(loam_mail::engine::Engine::new(None));
+    let registry = loam_mail::registry(&engine).expect("the engine's registry is sound");
+    let by_name: std::collections::BTreeMap<String, std::sync::Arc<CommandDefinition>> = registry
+        .list()
+        .into_iter()
+        .map(|cmd| (cmd.name.clone(), cmd))
+        .collect();
+
+    let mut seen = std::collections::BTreeSet::new();
+    for (name, effects) in &declared {
+        assert!(seen.insert(name.clone()), "duplicate mount tool: {name}");
+        let cmd = by_name
+            .get(name)
+            .unwrap_or_else(|| panic!("mount tool not in engine registry: {name}"));
+        assert!(
+            cmd.expose.mcp,
+            "mount tool {name} is not exposed on MCP in the engine registry"
+        );
+        if cmd.mutation {
+            assert!(
+                effects == &vec!["store-write".to_string()]
+                    || effects == &vec!["external".to_string()],
+                "mutation {name} has unexpected effects: {effects:?}"
+            );
+            if cmd.destructive == Some(true) {
+                assert_eq!(
+                    effects,
+                    &vec!["external".to_string()],
+                    "destructive mutation {name} must declare external effect"
+                );
+            }
+        } else {
+            assert_eq!(
+                effects,
+                &vec!["inspect".to_string()],
+                "read command {name} must declare inspect effect"
+            );
+        }
+    }
+
+    let missing: Vec<&str> = by_name
+        .values()
+        .filter(|cmd| cmd.expose.mcp && cmd.name.starts_with("mail-") && !seen.contains(&cmd.name))
+        .map(|cmd| cmd.name.as_str())
+        .collect();
+    assert!(
+        missing.is_empty(),
+        "MCP-exposed engine commands missing from mount/loam-app.toml: {missing:?}"
+    );
+}

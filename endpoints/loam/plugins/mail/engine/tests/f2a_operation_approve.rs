@@ -187,7 +187,10 @@ fn migration_20_adds_proposal_generation_and_backfills_existing_proposals() {
     {
         let conn = rusqlite::Connection::open(home.database()).unwrap();
         conn.execute_batch(
-            "ALTER TABLE operation DROP COLUMN proposal_generation;
+            "DROP TABLE proposed_story_member;
+             DROP TABLE proposed_story;
+             DROP TABLE account_policy;
+             ALTER TABLE operation DROP COLUMN proposal_generation;
              INSERT INTO operation (id, command, action, kind, asked, creator_kind,
                                     state, created_at, ended_at, messages, started_at, charged)
                  VALUES (1, 'mail-archive', 'move', 'change', '{}', 'human',

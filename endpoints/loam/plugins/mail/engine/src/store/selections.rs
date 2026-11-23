@@ -198,10 +198,17 @@ fn places_sql(query: &SelectionQuery) -> (String, Vec<rusqlite::types::Value>) {
     if let Some(story) = query.story {
         add(
             // What the story's list shows: a burst's members are its
-            // unknown and bulk first contacts, never a known sender's.
-            " AND EXISTS (SELECT 1 FROM story_member
-                          WHERE story_member.message_id = observation.message_id
-                            AND story_member.story_id = ?#)",
+            // unknown and bulk first contacts, never a known sender's;
+            // a proposed story holds its stored `yes` members while active.
+            " AND (EXISTS (SELECT 1 FROM story_member
+                           WHERE story_member.message_id = observation.message_id
+                             AND story_member.story_id = ?#)
+                   OR EXISTS (SELECT 1 FROM proposed_story_member
+                              JOIN proposed_story
+                                ON proposed_story.id = proposed_story_member.story_id
+                              WHERE proposed_story_member.message_id = observation.message_id
+                                AND proposed_story_member.story_id = ?#
+                                AND proposed_story.state = 'proposed'))",
             Value::Integer(story),
             &mut sql,
         );

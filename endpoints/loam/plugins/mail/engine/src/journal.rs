@@ -99,6 +99,11 @@ pub fn redact(mut record: JournalRecord) -> Option<JournalRecord> {
     if let Some(data) = record.result.data.as_mut() {
         drop_draft_text(&record.command, data);
     }
+    // Refusals keep no mail-derived content (13.1): strip titles and passages
+    // from failed `mail-story-propose` inputs.
+    if !record.result.success && record.command == crate::stories::PROPOSE {
+        scrub_failed_story_input(&mut record.input);
+    }
     if record.command == tokens::CREATE {
         // The token is drawn from the operating system, not the tape; the
         // tape goes too, as the crate advises for any secret.
@@ -114,6 +119,7 @@ pub fn redact(mut record: JournalRecord) -> Option<JournalRecord> {
 fn drop_draft_text(command: &str, data: &mut serde_json::Value) {
     if (crate::drafts::RESULTS_WITH_TEXT.contains(&command)
         || command == crate::records::PROPOSE
+        || command == crate::stories::PROPOSE
         || crate::replysets::RESULTS_WITH_TEXT.contains(&command))
         && let serde_json::Value::Object(data) = data
     {
@@ -126,6 +132,22 @@ fn drop_draft_text(command: &str, data: &mut serde_json::Value) {
                         reply.remove("content");
                     }
                 }
+            }
+        }
+    }
+}
+
+/// Removes `title` and member `passage` strings from a refused
+/// `mail-story-propose` input so refusals remain content-free (13.1).
+fn scrub_failed_story_input(input: &mut serde_json::Value) {
+    let Some(obj) = input.as_object_mut() else {
+        return;
+    };
+    obj.remove("title");
+    if let Some(serde_json::Value::Array(members)) = obj.get_mut("members") {
+        for member in members {
+            if let Some(m) = member.as_object_mut() {
+                m.remove("passage");
             }
         }
     }
@@ -186,6 +208,17 @@ mod tests {
         });
         drop_draft_text(crate::records::PROPOSE, &mut record_res);
         assert_eq!(record_res, json!({ "record": 5, "message": 1 }));
+        let mut story_res = json!({
+            "story": 9,
+            "kind": "cohort",
+            "proposed": true,
+            "content": { "trust": "content", "title": "Q4 tax docs" },
+        });
+        drop_draft_text(crate::stories::PROPOSE, &mut story_res);
+        assert_eq!(
+            story_res,
+            json!({ "story": 9, "kind": "cohort", "proposed": true })
+        );
         let mut replyset_res = json!({
             "replyset": {
                 "id": 3,

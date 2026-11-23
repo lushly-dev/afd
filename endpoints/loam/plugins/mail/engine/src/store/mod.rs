@@ -15,6 +15,7 @@ mod drafts;
 mod operations;
 mod parts;
 mod policy;
+mod proposed_stories;
 mod read;
 mod records;
 mod remove;
@@ -46,7 +47,14 @@ pub use operations::{
     OperationRow, OperationState, OperationStates, PROPOSAL_LIFETIME, PlacesIn, Proposal,
     ProposalPreview, Step, StepCounts, flags_after,
 };
-pub use policy::{MOST_ASK_ABOVE, MOST_PER_CALL, MOST_PER_DAY, Policy, PolicyRow};
+pub use policy::{
+    AccountPolicyOverrides, AccountPolicyRow, MOST_ASK_ABOVE, MOST_PER_CALL, MOST_PER_DAY, Policy,
+    PolicyRow,
+};
+pub use proposed_stories::{
+    DismissStoryOutcome, MAX_PROPOSED_STORIES_PER_PROPOSER, ProposedStoryKind,
+    ProposedStoryMemberInput, ProposedStoryResult, ProposedStoryRow, ProposedStoryState,
+};
 pub use read::{Evidence, LinkRow, MessageListed, PartRow, Shown};
 pub use records::{
     NewRecord, ProposerFilter, RecordProposed, RecordQuery, RecordRow, RecordState, RecordType,
@@ -65,8 +73,8 @@ pub use selections::{
 };
 pub use senders::{SenderPlace, SenderQuery, SenderRow, domain_of, sender_id};
 pub use stories::{
-    KINDS_SHOWN, KindRow, LEAST_MESSAGES, StoryChanges, StoryCursor, StoryMessage, StoryMessages,
-    StoryRow, USUAL_SHAPE,
+    KINDS_SHOWN, KindRow, LEAST_MESSAGES, ProposedMeta, StoryChanges, StoryCursor, StoryMessage,
+    StoryMessages, StoryRow, USUAL_SHAPE,
 };
 pub use sync::{
     AccountRow, BodyWanted, MailboxRow, MailboxStatus, REFETCH_TRIES, Refetch, Refetched, Tried,

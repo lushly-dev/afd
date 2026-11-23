@@ -764,7 +764,7 @@ fn item_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<OperationItem> {
 }
 
 /// The steps an item has not finished at, as SQL.
-const OPEN_STEPS: &str = "('waiting', 'copying', 'copied', 'flagged')";
+pub(super) const OPEN_STEPS: &str = "('waiting', 'copying', 'copied', 'flagged')";
 
 /// The flags `before` with each flag of `wanted`, a JSON object of flags and
 /// whether each is set, set or cleared.

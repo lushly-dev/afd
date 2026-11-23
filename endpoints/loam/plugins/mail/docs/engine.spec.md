@@ -1500,6 +1500,12 @@ migration 9):
   migration 9.
 - **Bursts** (step C3, [7.4](#74-bursts)): a burst's `unknown` and `bulk` mail is its burst's
   story's and in no stream story; a burst is a story at any size.
+- **Proposed stories** (step E2, [10.2](#102-situation-and-cohort-stories), migration 22):
+  `situation` and `cohort` stories live in non-derived `proposed_story` and
+  `proposed_story_member` tables, allocate ids from `stream` (`proposed <id>`) so they never
+  collide with stream or burst ids and survive `mail-rebuild`, and appear alongside stream and
+  burst stories in `mail-story-list`, `mail-story-open`, `mail-story-changes`,
+  `mail-selection-create` and `mail-replyset-create`.
 
 **Measured on the owner's mail** on 2026-11-15, with `engine/tests/live_screening.rs` in a release
 build on a copy of the iCloud store the B7 server keeps, made by the copying rules and kept in an
@@ -1889,6 +1895,21 @@ frozen set and its proposer, and returns the operation's id and that state. The 
   `mail-operation-list` with `proposed` lists only the proposals waiting, in the same order and
   paged by a cursor of its own, since a resume proposed keeps its operation's older id.
   `mail-policy-show` gives the five and the seven days.
+- **As step F4 built it (migration 21, M36, taint per account):** `account_policy` stores nullable
+  per-account overrides (`change_per_call`, `trash_per_call`, `trash_per_day`, `ask_above`,
+  `set_at`), not derived and deleted when its account is removed. Each null column falls back to
+  the default `policy` row. `mail-policy-set` accepts optional `account` (validated against
+  `ACCOUNT_NOT_FOUND`) and `reset: true` (requiring `account` with no limit fields) to set or clear
+  per-account overrides, still held for the person's approval with a number-only summary naming the
+  account id. `mail-policy-show` returns `"accounts"` (all accounts with overrides, resolved and
+  raw) and accepts optional `account` to return that account's effective policy and overrides. Any
+  non-human change (`mail-archive`, `mail-label`, `mail-mark`, `mail-trash`), resume
+  (`mail-operation-resume`) or undo (`mail-operation-undo`) whose frozen or remaining items span
+  more than one account is refused with non-retryable `SELECTION_SPANS_ACCOUNTS` (suggestion
+  `"Make one selection per account."`) whether or not any account has overrides; a human caller at
+  the terminal may still span accounts. Single-account non-human changes, resumes and undos check
+  the effective policy and daily trash count for that account (a guarded account with limits of 0
+  forces every non-human change to become a proposal while other accounts keep the default policy).
 
 **What cannot be undone (M29).** Every change to mail in this section can be undone, which is
 why an agent may make small ones alone. A command that sends mail, or removes for good the
@@ -2088,6 +2109,39 @@ A caller proposes a story and its members with `mail-story-propose`. Each member
 answer of yes, no or unsure and a passage; only yes is stored. A proposed story is shown as
 proposed, with its proposer, and the person can dismiss it.
 
+**As step E2 built it** (`engine/src/store/proposed_stories.rs`, `engine/src/stories.rs`, migration 22):
+
+- **Storage and id allocation (migration 22):** `proposed_story` and `proposed_story_member` are
+  non-derived `STRICT` tables that survive `mail-rebuild`. Each new proposed story allocates its
+  id from `stream` (key `'proposed <id>'`, kept by `stream` pruning while referenced by
+  `proposed_story`) so ids never collide with stream or burst stories. Each proposer may hold at
+  most 200 active proposed stories (`POLICY_LIMIT`).
+- **`mail-story-propose` (`cli, mcp`, local mutation):** accepts `kind` (`"situation"` or
+  `"cohort"`), `title` (1–200 characters, rejecting control/bidi/hidden characters while allowing
+  emoji ZWJ/VS16), and `members` (1–200 unique message ids, each `{ message, answer: "yes" | "no" |
+  "unsure", passage }`). Every member's message must exist and be shown outside junk and trash
+  (`MESSAGE_NOT_FOUND`), its body must be held in the log (retryable `NOT_HELD` otherwise; never
+  contacting a provider), and its `passage` (non-blank, up to 1 000 characters) is verified
+  verbatim against the message's visible body text or decoded `Subject` via E1's passage verifier
+  (hidden HTML or missing passages fail the entire proposal with `PASSAGE_NOT_FOUND` naming the
+  member index). At least one member must answer `"yes"`; only `"yes"` members and their verified
+  passages are stored. Notes the new story in `change`.
+- **`mail-story-dismiss` (`cli, mcp`, local mutation, non-destructive per M29):** marks an active
+  proposed story `dismissed` and notes it in `change`. Allowed for the person at a terminal or the
+  story's own proposer (`FORBIDDEN` otherwise; `STORY_NOT_FOUND` if missing; `INVALID_INPUT` if
+  already dismissed or not a proposed story).
+- **Listing, opening, selections, reply sets and removal:** `mail-story-list`, `mail-story-open`
+  and `mail-story-changes` include active proposed stories alongside stream and burst stories,
+  marked `by: "proposed"`, `proposed: true`, `proposer` and `proposedAt`, with the title inside
+  `"content": { "trust": "content", ... }`. `mail-story-open` includes each member's verified
+  `passage` inside the member's `content` part. `mail-selection-create { story }` and
+  `mail-replyset-create { story }` (with or without explicit `messages`) resolve active proposed
+  story members. `mail-account-remove` removes members whose messages were removed, updates
+  counts/dates, and drops proposed stories left with no members. `journal.jsonl` keeps accepted
+  `mail-story-propose` inputs while stripping `content` from its journaled result and scrubbing
+  `title` and member `passage` strings from refused `mail-story-propose` inputs
+  ([13.1](#131-the-journal)).
+
 ### 10.3 Reply sets
 
 As the proposal describes. The engine adds two rules: the recipient of each reply is set by the
@@ -2180,7 +2234,7 @@ says otherwise.
 | `mail-sender-accept` | C | Local, undoable; a person | cli | Accepts an agent's suggestion (M28) |
 | `mail-sender-dismiss` | C | Local | cli, mcp | The person's or the proposer's |
 | `mail-message-list` | C | Read | cli, mcp | Added by step C2 ([7.2](#72-the-screening-class)): one class's messages, newest first, paged by cursor, while a mailbox other than junk and trash shows them |
-| `mail-story-list`, `mail-story-open`, `mail-story-changes` | C | Read | cli, mcp | Step C2's second part ([section 8](#8-stories)): the list newest first and the open paged by cursor, the open with a story's kinds and its exceptions; the changes with a cursor of the stories' epoch and a change's number |
+| `mail-story-list`, `mail-story-open`, `mail-story-changes` | C, E | Read | cli, mcp | Step C2's second part ([section 8](#8-stories)): the list newest first and the open paged by cursor, the open with a story's kinds and its exceptions; the changes with a cursor of the stories' epoch and a change's number. Step E2 ([10.2](#102-situation-and-cohort-stories)): includes active proposed stories (`by: "proposed"`, `proposed: true`, `proposer`, `proposedAt`) and each member's verified `passage` in `content` |
 | `mail-selection-create` | D | Local | cli, mcp | Step D1 ([9.1](#91-selections)): the query's fields, the items it freezes, its counts and a labelled sample; ten a caller |
 | `mail-archive`, `mail-label`, `mail-mark`, `mail-trash` | D | Remote, undoable | cli, mcp | Under the policy; over a limit, a proposal ([9.4](#94-the-policy)). Step D1's second part ([9.2](#92-the-commands)): a selection with its count or up to 200 ids. Its third part: over a limit, the operation waits in `proposed`, five a caller |
 | `mail-operation-approve` | D, F2a | Remote, undoable; a person (released) | cli, mcp | Runs an agent's proposal (M28). Step D1's third part; released over MCP in step F2a (`{ operation, digest }`, `ApprovalPolicy::Required`, pre-hold + transactional check, CLI auto-fills `digest`) |
@@ -2194,11 +2248,11 @@ says otherwise.
 | `mail-draft-send` | D | Remote, destructive; a person | cli | Step D3's second part ([9.5](#95-drafts-and-sending)): names the previewed `revision`, enforces the recipient rule, submits over SMTP, appends a sent copy with `Bcc:` and records `outbound` |
 | `mail-unsubscribe-show` | D | Read | cli, mcp | Step D3's third part ([9.5](#95-drafts-and-sending)): previews the exact `List-Unsubscribe` target labelled as content with its `digest`; contacts nothing |
 | `mail-unsubscribe` | D | Remote, destructive; a person | cli | Step D3's third part ([9.5](#95-drafts-and-sending)): names the previewed `digest`, sends RFC 8058 one-click HTTPS POST (no redirects) or RFC 2369 `mailto:` over SMTP, and records `outbound` |
-| `mail-policy-show` | D | Read | cli, mcp | Step D1 ([9.4](#94-the-policy)) |
-| `mail-policy-set` | D | Local; a person | cli | Step D1: held for approval, its summary in numbers alone; returns the numbers before |
+| `mail-policy-show` | D, F4 | Read | cli, mcp | Step D1 ([9.4](#94-the-policy)); step F4 adds `accounts` overrides list and optional `account` filter |
+| `mail-policy-set` | D, F4 | Local; a person | cli | Step D1: held for approval, its summary in numbers alone; returns the numbers before. Step F4: optional `account` and `reset: true` for per-account overrides (M36) |
 | `mail-record-list` | E | Read | cli, mcp | Step E1 ([10.1](#101-records)): newest first, cursor-paged (`proposedAt.record`), filters by `message`, `thread`, `type`, `proposer` and `includeEnded`; `fields` and `passages` labelled as content |
 | `mail-record-propose`, `mail-record-withdraw` | E | Local | cli, mcp | Step E1 ([10.1](#101-records)): 9 closed types with strict fields, verbatim visible-text/subject passage verification (`NOT_HELD`/`PASSAGE_NOT_FOUND`), 10 000 active/proposer cap, atomic supersession; withdrawal by person or proposer (`FORBIDDEN` otherwise; non-destructive per M29) |
-| `mail-story-propose`, `mail-story-dismiss` | E | Local | cli, mcp | Dismissing is the person's or the proposer's |
+| `mail-story-propose`, `mail-story-dismiss` | E | Local | cli, mcp | Step E2 ([10.2](#102-situation-and-cohort-stories)): `situation` or `cohort`, `yes`/`no`/`unsure` with verbatim passage check (only `yes` stored, 200 active/proposer cap); dismissing is the person's or the proposer's (`FORBIDDEN` otherwise; non-destructive per M29) |
 | `mail-replyset-create`, `mail-replyset-update`, `mail-replyset-next` | E | Local | cli, mcp | Step E3 ([10.3](#103-reply-sets)): 1–50 source messages with engine-derived stored recipients, cohort questions/answers, isolated per-reply units (`NOT_HELD` if body missing), optimistic `revision` updates (`REPLYSET_CHANGED`), `PREVIEW_TOO_LARGE` guard |
 | `mail-replyset-show` | E | Read | cli, mcp | Step E3 ([10.3](#103-reply-sets)): whole deterministic preview (`MOST_BUDGET`), optional `revision` check (`PREVIEW_CHANGED`), marks every reply's `differs` against `sharedText` |
 | `mail-replyset-send` | E | Remote, destructive; a person | cli | Step E3 ([10.3](#103-reply-sets)): names previewed `revision`, refuses incomplete (`REPLYSET_INCOMPLETE`) or stale (`PREVIEW_CHANGED`) before hold, sends each unsent reply over SMTP with `outbound` (`kind = 'replyset'`) and Sent copy |
@@ -2274,14 +2328,15 @@ Beside the crate's own codes:
 | `ONE_COMMAND_PER_CALL` | `afd-batch` or `afd-pipe` called on a server ([3.2](#32-modes)) |
 | `TOKEN_NOT_FOUND` | No agent's token has the id named |
 | `PERSON_REQUIRED` | A person's command with no terminal |
-| `POLICY_LIMIT` | More proposals, suggestions waiting, or active records than the policy allows this caller (10 000 active records per proposer in step E1) |
+| `POLICY_LIMIT` | More proposals, suggestions waiting, active records or active proposed stories than the policy allows this caller (10 000 active records per proposer in step E1; 200 active proposed stories per proposer in step E2) |
 | `PROPOSAL_NOT_OPEN` | The proposal or suggestion named was already approved, dismissed or expired, or there is none with that id |
 | `SCREENING_NOT_READY` | Classes or stories are read while messages wait to be derived again or a rebuild is under way ([7.1](#71-senders)); retryable |
 | `SELECTION_MISMATCH` | The count stated is not the selection's count, or the selection has expired |
+| `SELECTION_SPANS_ACCOUNTS` | A non-human change, resume or undo spans more than one account (step F4, M36; not retryable) |
 | `RECIPIENT_NOT_ALLOWED` | A recipient the rule does not allow |
 | `SEND_OUTCOME_UNKNOWN` | The send may or may not have gone |
 | `UNDO_NOT_POSSIBLE` | The provider no longer holds what an undo needs |
-| `PASSAGE_NOT_FOUND` | A proposed record's passage is not in the message's visible text or subject (step E1) |
+| `PASSAGE_NOT_FOUND` | A proposed record's or proposed story member's passage is not in the message's visible text or subject (steps E1, E2) |
 | `RECORD_NOT_FOUND` | No record has the id named (step E1) |
 | `DRAFT_NOT_FOUND` | No draft has the id named; a discarded draft goes after 30 days (step D3) |
 | `DRAFT_CHANGED` | A change names a revision the draft is no longer at (step D3) |
@@ -2325,9 +2380,9 @@ It is in the data directory and is as private as the mail.
   command input, and are journaled. That is what makes those changes replayable and auditable,
   and it means the journal must never be shared or uploaded as a log. A draft's text stays in it
   after the draft is discarded and gone; a draft command's result is journaled without the text
-  (step D3), `mail-record-propose`'s result is journaled without its `content` part (step E1), and
-  `mail-replyset-create`, `-update` and `-next` results are journaled without their `content` parts
-  (step E3).
+  (step D3), `mail-record-propose`'s and `mail-story-propose`'s results are journaled without
+  their `content` parts (steps E1, E2), and `mail-replyset-create`, `-update` and `-next` results
+  are journaled without their `content` parts (step E3).
 - **It does not hold what was read.** Read commands are left out by the recorder's filter, so
   opening and searching mail copies nothing into it.
 - **It holds no secret.** No command takes one. `mail-token-create` returns one, and the
@@ -2335,7 +2390,8 @@ It is in the data directory and is as private as the mail.
   stored. The token is drawn from the operating system's random source, not from the command
   context's, so the tape could not rebuild it in any case.
 - **It records refusals without content.** Failures are recorded, approval holds among them;
-  an approval's summary holds no content ([3.5](#35-commands-only-a-person-may-run)).
+  an approval's summary holds no content ([3.5](#35-commands-only-a-person-may-run)), and refused
+  `mail-story-propose` entries strip `title` and member `passage` strings from the journaled input.
 - **As step B5 built it.** The file is `journal.jsonl`, `0600`, written by the crate's file sink,
   which allows one writer. Only the process that owns the store writes it: a call another process
   refused because a server or `loam-mail mcp` held the store is not recorded. Before each entry
