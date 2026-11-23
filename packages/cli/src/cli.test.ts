@@ -97,6 +97,7 @@ describe('CLI program', () => {
 
 		expect(execute?.defaultValue).toBeUndefined();
 		expect(execute?.description).toMatch(/mutation\/destructive/);
+		expect(execute?.description).toMatch(/unmarked/);
 		let help = '';
 		validateCmd
 			?.configureOutput({
@@ -106,6 +107,7 @@ describe('CLI program', () => {
 			})
 			.outputHelp();
 		expect(help).toContain('No tool is executed');
+		expect(help).toContain('readOnlyHint: true');
 		expect(help).toContain('_meta.examples[0].input');
 	});
 });

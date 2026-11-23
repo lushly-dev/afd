@@ -31,6 +31,7 @@ const EXIT_DEADLINE_MS = 30_000;
 const calls = {
 	ping: [] as unknown[],
 	reset: 0,
+	unmarked: 0,
 };
 
 const ESC = '\x1b';
@@ -44,6 +45,7 @@ const commands = [
 		name: 'health-ping',
 		description: 'Report that the server is reachable',
 		category: 'health',
+		mutation: false,
 		input: z.object({ echo: z.string().optional() }),
 		examples: [{ title: 'Echo a value', input: { echo: 'hello' } }],
 		expose: { mcp: true },
@@ -56,6 +58,7 @@ const commands = [
 		name: 'health-score',
 		description: 'Return a score with an out-of-range confidence value',
 		category: 'health',
+		mutation: false,
 		input: z.object({}),
 		expose: { mcp: true },
 		async handler() {
@@ -77,6 +80,7 @@ const commands = [
 		name: 'evil-echo',
 		description: hostile('Echo text back'),
 		category: 'evil',
+		mutation: false,
 		input: z.object({}),
 		expose: { mcp: true },
 		async handler() {
@@ -90,6 +94,7 @@ const commands = [
 		name: 'evil-fail',
 		description: 'Fail with hostile error text',
 		category: 'evil',
+		mutation: false,
 		input: z.object({}),
 		expose: { mcp: true },
 		async handler() {
@@ -106,6 +111,17 @@ const commands = [
 		async handler() {
 			calls.reset++;
 			return success({ reset: true });
+		},
+	}),
+	defineCommand({
+		name: 'db-unmarked',
+		description: 'Command without mutation metadata',
+		category: 'db',
+		input: z.object({}),
+		expose: { mcp: true },
+		async handler() {
+			calls.unmarked++;
+			return success({ ran: true });
 		},
 	}),
 ];
@@ -261,6 +277,7 @@ afterAll(async () => {
 beforeEach(async () => {
 	calls.ping = [];
 	calls.reset = 0;
+	calls.unmarked = 0;
 	requiredAuth = null;
 	configHome = await mkdtemp(join(tmpdir(), 'afd-cli-e2e-'));
 });
@@ -351,22 +368,26 @@ describe('afd CLI against a real server', { timeout: 180_000 }, () => {
 			expect(run.stdout).toContain('--execute');
 		});
 
-		it('--execute runs read-only tools with example input and skips mutations', async () => {
+		it('--execute runs read-only tools with example input and skips mutations and unmarked tools', async () => {
 			const run = await runCli(['validate', '--execute', '--verbose']);
 			expect(calls.reset, 'validate --execute ran the mutation command').toBe(0);
+			expect(calls.unmarked, 'validate --execute ran an unmarked command').toBe(0);
 			expect(calls.ping).toEqual([{ echo: 'hello' }]);
 			// health-score returns confidence 1.5, which is a real validation failure.
 			expectExit(run, 1);
 			expect(run.stdout).toMatch(/db-reset.*skipped.*mutation/i);
+			expect(run.stdout).toMatch(/db-unmarked.*skipped.*not marked read-only/i);
 			expect(run.stdout).toContain('confidence must be between 0 and 1');
 		});
 
 		it('--execute --category filters on _meta.category', async () => {
 			const run = await runCli(['validate', '--execute', '--category', 'db']);
 			expect(calls.reset, 'validate --execute ran the mutation command').toBe(0);
+			expect(calls.unmarked, 'validate --execute ran an unmarked command').toBe(0);
 			expect(calls.ping).toEqual([]);
 			expectExit(run, 0);
 			expect(run.stdout).toMatch(/db-reset.*skipped/i);
+			expect(run.stdout).toMatch(/db-unmarked.*skipped.*not marked read-only/i);
 			expect(run.stdout).not.toContain('health-ping');
 		});
 	});

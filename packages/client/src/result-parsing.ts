@@ -62,21 +62,32 @@ export function createBatchFailure<T>(
 }
 
 /**
- * The error for a batch or pipeline whose request got no result: it timed out or the connection
- * failed after the request may have reached the server, so some or all commands may have run.
+ * The error for a call, batch or pipeline whose request got no result: it timed out, the server
+ * returned a 5xx or `-32603`, or the connection failed after the request may have reached the
+ * server, so the command (or some or all commands) may have run.
  *
  * @param cause - The request error, already converted with `toCommandError()`
  */
 export function outcomeUnknownError(
 	cause: CommandError,
-	operation: 'batch' | 'pipeline'
+	operation: 'call' | 'batch' | 'pipeline'
 ): CommandError {
+	if (operation === 'call') {
+		return {
+			code: 'OUTCOME_UNKNOWN',
+			message: `No command result was received (${cause.message}). The server may have run the command.`,
+			suggestion:
+				'Check the effect of the command before retrying: running it again can repeat a write that already happened.',
+			retryable: false,
+			details: { ...cause.details, cause: cause.code },
+		};
+	}
 	return {
 		code: 'OUTCOME_UNKNOWN',
 		message: `No ${operation} result was received (${cause.message}). The server may have run some or all of its commands.`,
 		suggestion: `Check the effect of each command before retrying: running the ${operation} again can repeat writes that already happened.`,
 		retryable: false,
-		details: { cause: cause.code, ...cause.details },
+		details: { ...cause.details, cause: cause.code },
 	};
 }
 

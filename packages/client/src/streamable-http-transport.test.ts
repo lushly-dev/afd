@@ -210,9 +210,15 @@ describe('streamable-http transport', () => {
 		expect(forbiddenBatch.error?.code).toBe('HTTP_403');
 
 		failWith = { status: 503, text: 'Service Unavailable' };
+		await expect(mcp.request('tools/call', { name: 'echo-run', arguments: {} })).rejects.toThrow(
+			HttpStatusError
+		);
 		const unavailable = await mcp.call('echo-run', {});
 		expect(unavailable.success).toBe(false);
-		expect(unavailable.error?.code).toBe('HTTP_503');
-		expect(unavailable.error?.retryable).toBe(true);
+		expect(unavailable.error).toMatchObject({
+			code: 'OUTCOME_UNKNOWN',
+			retryable: false,
+			details: { cause: 'HTTP_503' },
+		});
 	});
 });

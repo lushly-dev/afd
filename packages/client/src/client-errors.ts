@@ -182,6 +182,13 @@ export function jsonRpcErrorToCommandError(error: JsonRpcResponseError): Command
 	};
 }
 
+const UNKNOWN_OUTCOME_ERROR_CODES: ReadonlySet<string> = new Set([
+	ErrorCodes.TIMEOUT,
+	ErrorCodes.CONNECTION_ERROR,
+	ErrorCodes.INTERNAL_ERROR,
+	'OUTCOME_UNKNOWN',
+]);
+
 /** Whether the server can have run the request that failed with `error`. */
 export function isOutcomeUnknown(error: unknown): boolean {
 	if (error instanceof NotConnectedError) return false;
@@ -190,6 +197,15 @@ export function isOutcomeUnknown(error: unknown): boolean {
 	}
 	if (error instanceof SessionLimitError) return false;
 	if (error instanceof HttpStatusError) return error.status < 400 || error.status >= 500;
+	if (isCommandError(error)) {
+		if (UNKNOWN_OUTCOME_ERROR_CODES.has(error.code)) return true;
+		const httpMatch = /^HTTP_(\d{3})$/.exec(error.code);
+		if (httpMatch) {
+			const status = Number(httpMatch[1]);
+			return status < 400 || status >= 500;
+		}
+		return false;
+	}
 	return true;
 }
 

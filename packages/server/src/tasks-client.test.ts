@@ -217,7 +217,11 @@ describe('McpClient MCP Tasks integration', () => {
 
 		const timedOut = await client.call('job-wait', {}, { timeout: 50 });
 		expect(timedOut.success).toBe(false);
-		expect(timedOut.error?.code).toBe(ErrorCodes.TIMEOUT);
+		expect(timedOut.error).toMatchObject({
+			code: 'OUTCOME_UNKNOWN',
+			retryable: false,
+			details: { cause: ErrorCodes.TIMEOUT },
+		});
 
 		await expect(client.getTask('a'.repeat(26))).rejects.toMatchObject({
 			code: -32602,
