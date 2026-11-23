@@ -15,6 +15,8 @@ type MediaStoryArgs = {
 // Inline SVG so these stories never depend (a failed remote image now falls back to the file row) on the network.
 const GARDEN_IMAGE = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200"><rect width="400" height="200" fill="#8fbf8f"/></svg>')}`;
 
+const FERN_IMAGE = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="250"><rect width="400" height="250" fill="#dfeae3"/><path d="M200 240C190 160 150 90 90 40M200 240C210 150 250 90 310 50" stroke="#2c5e4b" stroke-width="10" fill="none"/></svg>')}`;
+
 const meta = {
     title: "Conversation/Message Media",
     component: "violet-message-media",
@@ -126,7 +128,7 @@ export const MultipleMedia: Story = {
         wrapper.style.maxInlineSize = "400px";
 
         const items = [
-            { src: "https://picsum.photos/seed/fern/400/250", type: "image/jpeg", name: "fern-detail.jpg", alt: "Close-up of a fern frond" },
+            { src: FERN_IMAGE, type: "image/svg+xml", name: "fern-detail.svg", alt: "Close-up of a fern frond" },
             { src: "https://example.com/soil-report.pdf", type: "application/pdf", name: "soil-analysis-report.pdf", alt: "" },
             { src: "https://example.com/data.csv", type: "text/csv", name: "plant-inventory.csv", alt: "" },
         ];

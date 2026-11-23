@@ -4,6 +4,14 @@ import { expect, waitFor } from "@lushly-dev/specimen/test";
 import "./violet-card";
 import type { VioletCard, VioletCardAppearance, VioletCardOrientation, VioletCardPadding } from "./violet-card";
 
+// Inline SVG, so the stories load no remote image: Specimen's pages reach only the bench's origin.
+const svgImage = (width: number, height: number, fill: string, accent: string) =>
+    `data:image/svg+xml,${encodeURIComponent(
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="${width}" height="${height}" fill="${fill}"/><circle cx="${width * 0.3}" cy="${height * 0.4}" r="${Math.min(width, height) * 0.18}" fill="${accent}"/><path d="M0 ${height}L${width * 0.45} ${height * 0.5}L${width * 0.7} ${height * 0.75}L${width} ${height * 0.45}V${height}z" fill="#2c5e4b"/></svg>`,
+    )}`;
+const BLEED_IMAGE = svgImage(400, 200, "#dfeae3", "#badecf");
+const THUMBNAIL_IMAGE = svgImage(160, 160, "#f4f0ea", "#8fbf8f");
+
 type VioletCardStoryArgs = {
     padding: VioletCardPadding;
     appearance: VioletCardAppearance;
@@ -123,7 +131,7 @@ export const NoPadding: Story = {
     render: (args: VioletCardStoryArgs) =>
         renderCard(args, card => {
             const img = document.createElement("img");
-            img.src = "https://picsum.photos/seed/violet-no-pad/400/200";
+            img.src = BLEED_IMAGE;
             img.alt = "Full-bleed image with no padding";
             img.style.display = "block";
             img.style.inlineSize = "100%";
@@ -246,7 +254,7 @@ export const Horizontal: Story = {
         element.style.maxInlineSize = "420px";
 
         const img = document.createElement("img");
-        img.src = "https://picsum.photos/seed/violet-card/160/160";
+        img.src = THUMBNAIL_IMAGE;
         img.alt = "Sample thumbnail";
         img.style.inlineSize = "160px";
         img.style.blockSize = "160px";

@@ -652,6 +652,40 @@ function staticDirs(value: unknown): NonNullable<BenchConfig['staticDirs']> {
 	});
 }
 
+/**
+ * An `http` or `https` origin with its effective port written out (`https://fonts.example.com:443`),
+ * so the host's rule admits that port alone. A host starting with `.` is refused: Chromium's
+ * bypass rules read it as every subdomain.
+ */
+function origin(value: unknown, path: string): string {
+	const entry = text(value, path);
+	const example = 'expected an origin such as https://fonts.example.com';
+	if (entry.includes('*')) fail(path, `${example}; wildcards are not supported`);
+	let url: URL;
+	try {
+		url = new URL(entry);
+	} catch {
+		fail(path, example);
+	}
+	const bare = url.pathname === '/' && !url.search && !url.hash && !url.username && !url.password;
+	const web = url.protocol === 'http:' || url.protocol === 'https:';
+	if (!web || !bare || !/^https?:\/\/[^/]/i.test(entry)) fail(path, example);
+	if (url.hostname.startsWith('.'))
+		fail(path, `${example}; a host starting with '.' would admit every subdomain`);
+	const port = url.port || (url.protocol === 'https:' ? '443' : '80');
+	return `${url.protocol}//${url.hostname}:${port}`;
+}
+
+function networkConfig(value: unknown): NonNullable<BenchConfig['network']> {
+	const fields = record(value, 'configuration.network', ['allow']);
+	if (fields.allow === undefined) return {};
+	if (!Array.isArray(fields.allow))
+		fail('configuration.network.allow', 'expected an array of origins');
+	return {
+		allow: fields.allow.map((item, index) => origin(item, `configuration.network.allow[${index}]`)),
+	};
+}
+
 function profileConfig(value: unknown): NonNullable<BenchConfig['profile']> {
 	const fields = record(value, 'configuration.profile', ['baselines']);
 	return fields.baselines === undefined
@@ -687,6 +721,7 @@ export function parseConfig(value: unknown): BenchConfig {
 		'stories',
 		'preview',
 		'staticDirs',
+		'network',
 		'test',
 		'plugins',
 		'manifest',
@@ -740,6 +775,7 @@ export function parseConfig(value: unknown): BenchConfig {
 			? {}
 			: { preview: text(fields.preview, 'configuration.preview') }),
 		...(fields.staticDirs === undefined ? {} : { staticDirs: staticDirs(fields.staticDirs) }),
+		...(fields.network === undefined ? {} : { network: networkConfig(fields.network) }),
 		...(fields.test === undefined ? {} : { test: testTags(fields.test) }),
 		...(fields.plugins === undefined
 			? {}

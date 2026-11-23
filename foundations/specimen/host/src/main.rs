@@ -2,8 +2,11 @@
 //! serves each generation from memory and renders cases in Chromium over CDP.
 //!
 //! Protocol: one JSON request per stdin line, one JSON reply per stdout line.
-//! - `{"id", "op": "open", "root", "runtime", "modules": [[id, file]], "entries", "defaults", "executable", "work"}`
-//!   starts Chromium and replies `{"browserPid"}`, the browser's process group.
+//! - `{"id", "op": "open", "root", "runtime", "modules": [[id, file]], "entries", "defaults", "executable", "work", "network"?: {"allow"}}`
+//!   starts Chromium and replies `{"browserPid", "sandbox", "isolation"}`: the browser's process
+//!   group, whether Chromium runs in its sandbox, and `ISOLATION`, which a client checks so that
+//!   a host built before these rules is refused rather than ignoring `network`. When it does not, stderr says why, in one line
+//!   starting `specimen-host: `. Pages reach only the bench's origin and `network.allow`.
 //! - `{"id", "op": "render", "entry", "context", "checkpoint", "timeoutMs", "screenshot"}`
 //! - `{"id", "op": "index", "root", "base", "stories": [{directory, files, titlePrefix}], "preview"}`
 //!   reads story files statically and replies with their Storybook identities; it needs no `open`.
@@ -21,6 +24,7 @@ mod cdp;
 mod console;
 mod csf;
 mod glob;
+mod isolation;
 mod keyboard;
 mod page;
 mod process;
@@ -48,6 +52,15 @@ struct OpenRequest {
     work: PathBuf,
     #[serde(default)]
     static_dirs: Vec<serve::StaticDir>,
+    #[serde(default)]
+    network: NetworkConfig,
+}
+
+/// The configuration's `network`: origins a page may reach besides the bench's own.
+#[derive(Deserialize, Default)]
+struct NetworkConfig {
+    #[serde(default)]
+    allow: Vec<String>,
 }
 
 struct Bench {
@@ -56,6 +69,7 @@ struct Bench {
     generation: Mutex<Option<Arc<Generation>>>,
     renders: serve::Renders,
     origin: String,
+    network: isolation::Network,
     work: PathBuf,
 }
 
@@ -90,7 +104,11 @@ impl Bench {
         self.renders.begin(&token, generation);
         let outcome = self
             .browser
-            .render(&format!("{}/r/{token}/", self.origin), &request)
+            .render(
+                &format!("{}/r/{token}/", self.origin),
+                &self.network,
+                &request,
+            )
             .await;
         let loaded = self.renders.end(&token);
         let outcome = outcome?;
@@ -115,19 +133,46 @@ impl Bench {
 }
 
 async fn open(request: OpenRequest) -> Result<Arc<Bench>> {
+    for entry in &request.network.allow {
+        isolation::allowed_origin(entry)?;
+    }
+    let setting = std::env::var(isolation::SANDBOX_VARIABLE).ok();
+    let sandbox = isolation::sandbox(setting.as_deref(), &isolation::System::current())?;
+    if let Some(reason) = &sandbox.reason {
+        eprintln!("specimen-host: Chromium runs without its sandbox: {reason}");
+    }
+    // The server is the one origin pages reach and the proxy that refuses every other.
+    let renders = serve::Renders::new(request.static_dirs);
+    let origin = serve::start(renders.clone()).await?;
+    let network = isolation::Network::new(&origin, &request.network.allow)?;
     let work = request.work.join(format!("host-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&work)?;
     // Chromium starts while the first bundle builds.
-    let browser = Browser::spawn(&request.executable, &work)?;
-    let renders = serve::Renders::new(request.static_dirs);
-    let origin = match serve::start(renders.clone()).await {
-        Ok(origin) => origin,
+    let mut browser = match Browser::spawn(&request.executable, &work, &sandbox) {
+        Ok(browser) => browser,
         Err(error) => {
-            browser.close().await;
             process::remove_tree(&work);
             return Err(error);
         }
     };
+    // Under a restriction a profile may lift, the sandboxed start is awaited: if Chromium closed
+    // its connection, as it does when the sandbox cannot start, it starts once more without.
+    if sandbox.fallback.is_some()
+        && let Some(unsandboxed) =
+            isolation::retry_without_sandbox(&sandbox, browser.start_failure().await)
+    {
+        browser.close().await;
+        if let Some(reason) = &unsandboxed.reason {
+            eprintln!("specimen-host: Chromium runs without its sandbox: {reason}");
+        }
+        browser = match Browser::spawn(&request.executable, &work, &unsandboxed) {
+            Ok(browser) => browser,
+            Err(error) => {
+                process::remove_tree(&work);
+                return Err(error);
+            }
+        };
+    }
     Ok(Arc::new(Bench {
         source: BenchSource {
             root: request.root,
@@ -141,6 +186,7 @@ async fn open(request: OpenRequest) -> Result<Arc<Bench>> {
         generation: Mutex::new(None),
         renders,
         origin,
+        network,
         work,
     }))
 }
@@ -151,6 +197,18 @@ fn request_id(line: &str) -> Option<u64> {
     let rest = line[start..].trim_start().strip_prefix(':')?.trim_start();
     let digits: String = rest.chars().take_while(char::is_ascii_digit).collect();
     digits.parse().ok()
+}
+
+/// The version of the sandbox and network rules this host applies, which `open` reports. The
+/// client refuses a host that reports another, or none.
+const ISOLATION: u32 = 1;
+
+fn opened_reply(id: &Value, pid: u32, sandbox: bool) -> Value {
+    json!({
+        "id": id,
+        "ok": true,
+        "result": { "browserPid": pid, "sandbox": sandbox, "isolation": ISOLATION }
+    })
 }
 
 fn failure(id: &Value, error: RenderFailure) -> Value {
@@ -194,9 +252,10 @@ async fn main() -> Result<()> {
                 let reply = match serde_json::from_value::<OpenRequest>(message) {
                     Ok(request) => match open(request).await {
                         Ok(opened) => {
-                            let pid = opened.browser.pid;
+                            let reply =
+                                opened_reply(&id, opened.browser.pid, opened.browser.sandbox);
                             bench = Some(opened);
-                            json!({ "id": id, "ok": true, "result": { "browserPid": pid } })
+                            reply
                         }
                         Err(error) => failure(&id, error.into()),
                     },
@@ -333,7 +392,7 @@ async fn main() -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::failure;
+    use super::{failure, opened_reply};
     use crate::browser::RenderFailure;
     use crate::page::TargetError;
     use anyhow::anyhow;
@@ -359,6 +418,18 @@ mod tests {
         assert_eq!(
             reply["error"]["details"],
             json!({ "count": 2, "target": "action" })
+        );
+    }
+
+    #[test]
+    fn open_reports_the_isolation_rules_it_applies() {
+        assert_eq!(
+            opened_reply(&json!(3), 41, true),
+            json!({
+                "id": 3,
+                "ok": true,
+                "result": { "browserPid": 41, "sandbox": true, "isolation": 1 }
+            })
         );
     }
 

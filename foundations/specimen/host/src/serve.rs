@@ -190,7 +190,21 @@ pub async fn start(renders: Renders) -> Result<String> {
     Ok(origin)
 }
 
+/// The proxy's answer to a request for an origin the bench does not let pages reach. Readable
+/// from any origin, so a page's own `fetch` can show why.
+fn refusal(target: &str) -> Vec<u8> {
+    let body = format!(
+        "Specimen refused a request to {target}: a rendered page reaches only the bench's own origin. Add the origin to the configuration's network.allow to let pages reach it.\n"
+    );
+    format!(
+        "HTTP/1.1 403 Forbidden\r\ncontent-type: text/plain; charset=utf-8\r\ncontent-length: {}\r\naccess-control-allow-origin: *\r\ncache-control: no-store\r\nconnection: close\r\n\r\n{body}",
+        body.len()
+    )
+    .into_bytes()
+}
+
 /// A minimal HTTP/1.1 GET server with keep-alive: enough for a browser loading static files.
+/// Proxied requests (an absolute target or `CONNECT`) are refused and the connection closed.
 async fn connection(mut stream: TcpStream, renders: Renders) -> Result<()> {
     let mut buffer = Vec::new();
     let mut chunk = [0u8; 8192];
@@ -210,6 +224,11 @@ async fn connection(mut stream: TcpStream, renders: Renders) -> Result<()> {
         let mut parts = head.lines().next().unwrap_or("").split_whitespace();
         let (method, path) = (parts.next().unwrap_or(""), parts.next().unwrap_or("/"));
         let close = head.to_ascii_lowercase().contains("connection: close");
+        // A request for another origin, sent here as each browser context's proxy.
+        if method == "CONNECT" || !path.starts_with('/') {
+            stream.write_all(&refusal(path)).await?;
+            return Ok(());
+        }
         let served = renders.lookup(path).or_else(|| renders.static_file(path));
         match (method, served) {
             ("GET" | "HEAD", Some(file)) => {
@@ -251,6 +270,54 @@ mod tests {
         ));
         std::fs::create_dir_all(&dir).unwrap();
         dir
+    }
+
+    /// Send one raw request to a started server and read the reply until it closes.
+    async fn exchange(origin: &str, request: &str) -> String {
+        let mut stream = TcpStream::connect(origin.trim_start_matches("http://"))
+            .await
+            .unwrap();
+        stream.write_all(request.as_bytes()).await.unwrap();
+        let mut reply = String::new();
+        tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            stream.read_to_string(&mut reply),
+        )
+        .await
+        .expect("the server closes a proxied request's connection")
+        .unwrap();
+        reply
+    }
+
+    #[tokio::test]
+    async fn refuses_requests_sent_to_it_as_a_proxy() {
+        let public = temp_dir("proxy");
+        std::fs::write(public.join("note.txt"), b"served").unwrap();
+        let origin = start(Renders::new(vec![StaticDir {
+            from: public.clone(),
+            to: "/".to_string(),
+        }]))
+        .await
+        .unwrap();
+        for request in [
+            "GET http://127.0.0.1:9/note.txt HTTP/1.1\r\nHost: 127.0.0.1:9\r\n\r\n".to_string(),
+            format!("GET {origin}/note.txt HTTP/1.1\r\nHost: x\r\n\r\n"),
+            "CONNECT example.test:443 HTTP/1.1\r\nHost: example.test:443\r\n\r\n".to_string(),
+        ] {
+            let reply = exchange(&origin, &request).await;
+            assert!(reply.starts_with("HTTP/1.1 403 Forbidden\r\n"), "{reply}");
+            assert!(reply.contains("network.allow"), "{reply}");
+            assert!(!reply.contains("served"), "{reply}");
+        }
+        // The bench's own paths are still served.
+        let own = exchange(
+            &origin,
+            "GET /note.txt HTTP/1.1\r\nHost: x\r\nconnection: close\r\n\r\n",
+        )
+        .await;
+        assert!(own.starts_with("HTTP/1.1 200 OK\r\n"), "{own}");
+        assert!(own.ends_with("served"), "{own}");
+        std::fs::remove_dir_all(&public).ok();
     }
 
     #[test]

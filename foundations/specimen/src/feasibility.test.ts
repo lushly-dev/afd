@@ -346,6 +346,8 @@ export const Stream = {
 					specimens: [
 						{ id: 'stream', title: 'Streaming', module: './stream.js', exportName: 'Stream' },
 					],
+					// The stream is another origin, which a page reaches only when allowed.
+					network: { allow: [new URL(server.url).origin] },
 				})
 			);
 			streamingBench = await createSpecimenBench({ root: project });

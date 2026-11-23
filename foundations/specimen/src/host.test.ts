@@ -12,11 +12,17 @@ import { join, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+	checkHostIsolation,
+	checkPlaywrightVersion,
 	chromiumExecutable,
+	HOST_ISOLATION,
+	HOST_LOG_PREFIX,
 	hostBinaryName,
 	hostBinaryPath,
 	hostError,
+	hostLogLines,
 	hostPackageName,
+	PLAYWRIGHT_VERSION,
 	type SpecimenHostError,
 } from './host.js';
 
@@ -151,6 +157,96 @@ describe('the Chromium headless shell', () => {
 			}
 		}
 	);
+});
+
+describe('the pinned Playwright release', () => {
+	it('is pinned exactly in the manifest, so a new release is never taken unreviewed', () => {
+		const manifest = read(join(specimen, 'package.json'));
+		expect(manifest.dependencies.playwright).toBe(PLAYWRIGHT_VERSION);
+	});
+
+	it('is the release installed, with its own playwright-core', () => {
+		const playwright = join(specimen, 'node_modules/playwright');
+		expect(read(join(playwright, 'package.json')).version).toBe(PLAYWRIGHT_VERSION);
+		const core = join(realpathSync(playwright), '..', 'playwright-core');
+		expect(read(join(core, 'package.json')).version).toBe(PLAYWRIGHT_VERSION);
+	});
+
+	it('refuses another release, naming it and what to install', () => {
+		expect(() =>
+			checkPlaywrightVersion('playwright', PLAYWRIGHT_VERSION, '/somewhere')
+		).not.toThrow();
+		let error: SpecimenHostError | undefined;
+		try {
+			checkPlaywrightVersion('playwright-core', '1.65.0', '/project/node_modules/playwright-core');
+		} catch (thrown) {
+			error = thrown as SpecimenHostError;
+		}
+		expect(error?.code).toBe('PLAYWRIGHT_VERSION_MISMATCH');
+		expect(error?.message).toContain(
+			`needs playwright-core ${PLAYWRIGHT_VERSION}, the release whose Chromium build and launch switches it mirrors, but playwright-core 1.65.0 is installed at /project/node_modules/playwright-core`
+		);
+		expect(error?.suggestion).toBe(
+			`Install playwright-core@${PLAYWRIGHT_VERSION}, or remove the override or resolution that replaces the version Specimen pins`
+		);
+		expect(error?.details).toEqual({
+			package: 'playwright-core',
+			expected: PLAYWRIGHT_VERSION,
+			found: '1.65.0',
+			directory: '/project/node_modules/playwright-core',
+		});
+	});
+});
+
+describe('the host’s isolation rules', () => {
+	it('accepts a host that reports the rules this bench needs, or newer ones', () => {
+		expect(() =>
+			checkHostIsolation({ isolation: HOST_ISOLATION }, '/bin/specimen-host')
+		).not.toThrow();
+		expect(() =>
+			checkHostIsolation({ isolation: HOST_ISOLATION + 1 }, '/bin/specimen-host')
+		).not.toThrow();
+	});
+
+	it('refuses an older host, whose open reply has no isolation, with how to rebuild it', () => {
+		let error: SpecimenHostError | undefined;
+		try {
+			// What a host built before the rules replies: the browser's group and nothing else.
+			checkHostIsolation({ browserPid: 4242 } as { isolation?: unknown }, '/old/specimen-host');
+		} catch (thrown) {
+			error = thrown as SpecimenHostError;
+		}
+		expect(error?.code).toBe('HOST_OUTDATED');
+		expect(error?.message).toContain('/old/specimen-host is older than this bench');
+		expect(error?.message).toContain('reports isolation none');
+		expect(error?.suggestion).toContain(
+			'pnpm -F @lushly-dev/specimen build:host && pnpm -F @lushly-dev/specimen stage:host'
+		);
+		expect(error?.details).toEqual({
+			binary: '/old/specimen-host',
+			expected: HOST_ISOLATION,
+			found: null,
+		});
+		expect(() =>
+			checkHostIsolation({ isolation: HOST_ISOLATION - 1 }, '/old/specimen-host')
+		).toThrow(`reports isolation ${HOST_ISOLATION - 1}, below ${HOST_ISOLATION}`);
+		expect(() => checkHostIsolation({ isolation: '1' }, '/old/specimen-host')).toThrow(
+			'older than this bench'
+		);
+	});
+});
+
+describe('the host’s log lines', () => {
+	it('passes on whole lines with the host’s prefix, however stderr is split', () => {
+		const written: string[] = [];
+		const listen = hostLogLines((line) => written.push(line));
+		listen('thread panicked\nspecimen-ho');
+		listen('st: Chromium runs without its sandbox: why\nspecimen-host: partial');
+		expect(written).toEqual([`${HOST_LOG_PREFIX}Chromium runs without its sandbox: why\n`]);
+		listen(' line\n');
+		expect(written).toHaveLength(2);
+		expect(written[1]).toBe(`${HOST_LOG_PREFIX}partial line\n`);
+	});
 });
 
 describe('hostError', () => {

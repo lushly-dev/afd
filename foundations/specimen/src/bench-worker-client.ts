@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import type { SpecimenBench } from './bench.js';
 import type { LoadedConfig } from './config.js';
-import { jsonSafeDetails, type SpecimenHostError } from './host.js';
+import { hostLogLines, jsonSafeDetails, type SpecimenHostError } from './host.js';
 import type {
 	A11yRequest,
 	A11yRun,
@@ -158,6 +158,11 @@ export class BenchWorkerClient {
 		child.stderr?.on('data', (chunk: string) => {
 			this.stderr = (this.stderr + chunk).slice(-STDERR_LIMIT);
 		});
+		// The worker's host log lines reach this process's stderr, as an in-process host's do.
+		child.stderr?.on(
+			'data',
+			hostLogLines((line) => process.stderr.write(line))
+		);
 		child.on('message', (message: WorkerReply) => {
 			const request = this.requests.get(message.id);
 			if (!request) return;
