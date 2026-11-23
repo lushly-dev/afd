@@ -7,7 +7,7 @@ description: >
   diff.
 metadata:
   source: botcore
-  version: 1.0.0
+  version: 1.1.0
   portable: true
 ---
 
@@ -105,9 +105,12 @@ every probe "fail" for the wrong reason.
 
 ## The scripts
 
-All four need only Node and git and print each finding with its file (and line where
+All six need only Node and git and print each finding with its file (and line where
 applicable). Wire the three checks into the gate CI runs; they read what `git ls-files`
-lists, so ignored directories stay out. The report is for the reviewer, not a gate.
+lists, so ignored directories stay out. The three report scripts (`report-test-changes.mjs`,
+`report-test-counts.mjs` and `report-coverage-measures.mjs`) are for review and Health
+`schema_version = "1.0"` trend measures (`--measures-out <file>`, optional `--target <id>`),
+not gates.
 
 **`scripts/check-test-quarantine.mjs`: no silent test suppression.** `.only` always
 fails. An unconditional `.skip`, `.todo` or Playwright `.fixme` on `describe`, `it`,
@@ -185,8 +188,20 @@ files shows as one fewer in the old file; the totals, which include new test fil
 it out. Not seen: a test called through an alias (`const linux = it.skipIf(...)`), a
 narrowed scenario `expect:` block, and anything a count and a changed line cannot show,
 so read the test diffs as well. It exits 0 whatever it finds, because many deletions are
-right; `--json` gives the same report to a program. Put the Markdown in the pull request
+right; `--json` gives the same report to a program and `--measures-out <file>` writes a Health
+1.0 measures file. Put the Markdown in the pull request
 with a reason for each item: a reviewer treats an unexplained one as a blocker.
+
+**`scripts/report-test-counts.mjs`: repository-wide test inventory.** Counts tracked test files,
+tests, assertions, skips, unconditional skips, scenario files and steps across JS/TS, Python,
+Rust, C++ and `*.scenario.yaml`, plus quarantined files and test-discovery exemptions. Pass
+`--measures-out <file>` to emit Health 1.0 measures.
+
+**`scripts/report-coverage-measures.mjs`: coverage measures from runner artifacts.** Reads
+Istanbul `coverage-summary.json`, Istanbul/Vitest `coverage-final.json`, Python `coverage.py`
+JSON and LCOV (`lcov.info`) via `--input [<unit>=]<path>` or `--scan`, failing on an empty
+input set unless `--allow-empty` is passed, and writes weighted totals plus per-unit coverage
+percentages with `--measures-out <file>`.
 
 If a software factory or another agent loop may repair a failing branch, list the
 scripts and the register among the paths a repair may not edit, or the repair can pass

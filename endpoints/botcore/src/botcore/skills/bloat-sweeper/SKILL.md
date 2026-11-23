@@ -7,7 +7,7 @@ description: >
 argument-hint: "[check] [area:<name>] [budget:<n>]"
 metadata:
   source: botcore
-  version: 1.1.0
+  version: 1.2.0
   portable: true
 ---
 
@@ -37,7 +37,16 @@ Start on a fresh branch off the main branch, then from the repository root:
 ```bash
 node <this skill>/scripts/sweep.mjs trend             # earlier passes and the verdict
 node <this skill>/scripts/sweep.mjs bloat --record    # this pass; --area <a> to choose
+node <this skill>/scripts/sweep.mjs bloat --measures-out <file>  # Health 1.0 measures JSON
+node <this skill>/scripts/cognitive-complexity.mjs --measures-out <file>  # trend-only complexity
 ```
+
+`bloat --measures-out <file>` writes the sweep's counts (`files_over_warn`, `largest_source_lines`,
+`duplicated_lines`, `clone_groups`, `spreading_clones`, `cohesive_exemptions` and any repository
+`[sweep] measures` under the `sweep_custom.` prefix) as a Health `schema_version = "1.0"` measures
+file (`--target <id>` is optional). `scripts/cognitive-complexity.mjs` measures Sonar-style
+cognitive complexity per function across JS/TS, Python, Rust and C++ as an advisory trend only
+(always exits 0; review one month after landing before deciding on any threshold).
 
 `bloat` ranks files at or over `file_size_warn` by lines past it times (1 + commits
 in `churn_days`), so the big file people keep editing comes first. It lists code

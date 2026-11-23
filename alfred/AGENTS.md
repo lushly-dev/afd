@@ -34,9 +34,10 @@ uv run pytest tests/test_lint.py -v
 uv run --locked ruff check .
 
 # CLI
-uv run alfred --workspace /path/to/worktree lint [--path PATH]
-uv run alfred --workspace /path/to/worktree parity [--path PATH]
-uv run alfred --workspace /path/to/worktree quality [--path PATH]
+uv run alfred --workspace /path/to/worktree lint [--path PATH] [--measures-out FILE]
+uv run alfred --workspace /path/to/worktree parity [--path PATH] [--measures-out FILE]
+uv run alfred --workspace /path/to/worktree quality [--path PATH] [--measures-out FILE]
+uv run alfred --workspace /path/to/worktree measures [--out FILE] [--measures-target ID]
 
 # MCP server
 uv run python -m alfred.mcp_server --workspace /path/to/worktree # stdio only; --sse is refused
@@ -161,8 +162,9 @@ alfred/
 ├── AGENTS.md
 ├── src/alfred/
 │   ├── __init__.py         # Package init, version
-│   ├── cli.py              # Managed catalog/call CLI plus lint/parity/quality aliases
+│   ├── cli.py              # Managed catalog/call CLI plus lint/parity/quality/measures
 │   ├── host.py             # Per-worktree host, targets, scoped AFD checks and plans
+│   ├── measures.py         # Health 1.0 trend measures extractor and writer
 │   ├── release_controller.py # Approved root npm fragment/version binding
 │   ├── npm_fragments.mjs   # Static structured-stdin fragment bridge
 │   ├── plugin.py           # BotCorePlugin (auto-discovered)
@@ -174,6 +176,7 @@ alfred/
 │       └── quality.py      # alfred_quality — description quality
 └── tests/
     ├── test_lint.py        # 6 tests
+    ├── test_measures.py    # Health 1.0 measures & CLI workspace-write guards
     ├── test_parity.py      # 22 tests
     └── test_quality.py     # 17 tests
 ```
