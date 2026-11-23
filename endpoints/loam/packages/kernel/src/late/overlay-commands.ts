@@ -142,9 +142,22 @@ export function openerOf(
 	context: CommandContext,
 	humanGesture: (context: CommandContext) => boolean
 ): Opener {
-	const { caller } = context as KernelFieldContext;
-	if (caller !== undefined) return { kind: 'app', owner: appOwner(caller) };
-	if (context.interface === 'agent' || context.actor?.kind === 'agent') {
+	const { caller, parent } = context as KernelFieldContext;
+	const agent = context.interface === 'agent' || context.actor?.kind === 'agent';
+	if (caller !== undefined) {
+		// Reject an inconsistent opener (an app caller on the agent interface, or a top-level app caller
+		// carrying an agent actor) before any route is chosen (#1656). A nested call (`parent` set) inside
+		// an agent-invoked app handler runs on `palette` with the app as `caller` and copies the outer
+		// agent actor (phase 5's L2); `confirmations.ts` still keeps it off the slot route.
+		if (
+			context.interface === 'agent' ||
+			(context.actor?.kind === 'agent' && parent === undefined)
+		) {
+			return { kind: 'none' };
+		}
+		return { kind: 'app', owner: appOwner(caller) };
+	}
+	if (agent) {
 		const person = context.actor?.onBehalfOf ?? 'local';
 		return {
 			kind: 'agent',

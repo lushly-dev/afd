@@ -584,6 +584,39 @@ describe("P4-E7: whose an overlay is, by kind (the review's R-d)", () => {
 		).toMatchObject({ bucket: 'copilot:p1' });
 		expect(openerOf({ interface: 'palette' }, human).kind).toBe('shell');
 		expect(openerOf({ interface: 'mcp' } as never, nobody).kind).toBe('none');
+		// An inconsistent opener (app caller with agent interface or top-level agent actor) is rejected (#1656).
+		expect(openerOf({ caller: 'probe', interface: 'agent' } as never, human)).toEqual({
+			kind: 'none',
+		});
+		expect(
+			openerOf(
+				{ caller: 'probe', interface: 'palette', actor: { kind: 'agent', id: 'helper' } } as never,
+				human
+			)
+		).toEqual({ kind: 'none' });
+		expect(
+			openerOf(
+				{
+					caller: 'probe',
+					parent: 'loam-1',
+					interface: 'agent',
+					actor: { kind: 'agent', id: 'copilot' },
+				} as never,
+				human
+			)
+		).toEqual({ kind: 'none' });
+		// A nested calls-grant call inside an agent-invoked app handler keeps the calling app as opener (L2).
+		expect(
+			openerOf(
+				{
+					caller: 'probe',
+					parent: 'loam-1',
+					interface: 'palette',
+					actor: { kind: 'agent', id: 'copilot' },
+				} as never,
+				human
+			)
+		).toMatchObject({ kind: 'app', owner: { kind: 'app', id: 'probe' } });
 	});
 
 	it("refuses an agent named shell, loam or as an app is, an agent's confirm, and its cancel of the shell's", async () => {

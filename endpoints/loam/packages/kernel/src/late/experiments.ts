@@ -854,6 +854,21 @@ export function createExperiments(deps: ExperimentsDeps): Experiments {
 				const lost: string[] = [];
 				const optedOut: string[] = [];
 				const changed: string[] = [];
+				/**
+				 * Write a removal or declared row idempotently across tabs (#2115): another tab's settle between our
+				 * `snapshot` and `create` leaves the row present, which we treat as settled instead of failing.
+				 */
+				const writeSettled = async (row: { id: string }, existed: boolean): Promise<void> => {
+					if (existed) {
+						await store.update(EXPERIMENT_TABLE, row.id, row);
+						return;
+					}
+					try {
+						await store.create(EXPERIMENT_TABLE, row);
+					} catch (cause) {
+						if ((await store.get(EXPERIMENT_TABLE, row.id)) === null) throw cause;
+					}
+				};
 				for (const id of input.removed) {
 					// The removal, kept as its time, voids every enablement made before it, every person's (5.1).
 					const removal = {
@@ -863,8 +878,7 @@ export function createExperiments(deps: ExperimentsDeps): Experiments {
 						kind: 'removed',
 						removedAt: at,
 					};
-					if (read.removals.has(id)) await store.update(EXPERIMENT_TABLE, removal.id, removal);
-					else await store.create(EXPERIMENT_TABLE, removal);
+					await writeSettled(removal, read.removals.has(id));
 					if (read.rows.has(id)) await store.remove(EXPERIMENT_TABLE, rowKey(id));
 					const own = read.own.get(id);
 					if (own) {
@@ -916,8 +930,7 @@ export function createExperiments(deps: ExperimentsDeps): Experiments {
 						plugin,
 						ids,
 					};
-					if (read.declaredBefore.has(plugin)) await store.update(EXPERIMENT_TABLE, row.id, row);
-					else await store.create(EXPERIMENT_TABLE, row);
+					await writeSettled(row, read.declaredBefore.has(plugin));
 				}
 				if (input.tell) await tell(context, new Set([...lost, ...optedOut]));
 				if (input.removed.length + changed.length > 0)

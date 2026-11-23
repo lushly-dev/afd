@@ -1449,6 +1449,7 @@ export async function createLateParts(
 			sessions?.reload();
 			// Dirty tabs and selections are memory alone, lost as an unsaved change is (5.2).
 			editor?.reset();
+			confirmations.reset();
 		},
 		// The server hears no adapter (9.5): nothing to begin.
 		begin: async () => {

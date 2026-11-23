@@ -610,10 +610,34 @@ export async function replayKernel(
 					(context as Record<symbol, unknown>)[RECORDED_ANSWER] = answer;
 				} else if (entry && fromRecord) {
 					recorded.push(entry.seq);
-					// A confirmed run answered from its record: the act that ran it may settle its row (step 6's fifth round, 3).
+					// A confirmed run answered from its record: credit it only when its origin is the confirming
+					// `notification-act` for this confirmation in the same session, and bind the credit to its command
+					// (step 6's fifth round, 3; #1656).
 					const confirmation = entry.context?.confirmation;
-					if (typeof confirmation === 'string' && confirmation.startsWith('ntf_'))
-						internals.recordedRun?.(confirmation, entry.result);
+					if (
+						typeof confirmation === 'string' &&
+						confirmation.startsWith('ntf_') &&
+						entry.context?.parent === undefined
+					) {
+						const origin = entry.context?.origin;
+						const act = typeof origin === 'string' ? byTrace.get(origin) : undefined;
+						const actInput = act?.input as { notification?: unknown; answer?: unknown } | undefined;
+						if (
+							act?.command === 'notification-act' &&
+							act.seq > entry.seq &&
+							traceBaseOf(act.traceId) === traceBaseOf(entry.traceId) &&
+							act.context?.parent === undefined &&
+							act.context?.caller === undefined &&
+							act.contextDigest.interface === 'palette' &&
+							act.actor?.kind !== 'agent' &&
+							act.result.success === true &&
+							(act.result.data as { state?: unknown } | undefined)?.state === 'confirmed' &&
+							actInput?.notification === confirmation &&
+							actInput?.answer === 'confirm'
+						) {
+							internals.recordedRun?.(confirmation, entry.command, entry.result);
+						}
+					}
 					if (entry.command === 'app-instance-refresh' && entry.result.success) {
 						const { instance, catalog } = entry.result.data as {
 							instance?: unknown;
@@ -690,6 +714,7 @@ export async function replayKernel(
 		delete internals.actorOf;
 		delete internals.drive;
 		delete internals.startPage;
+		delete internals.recordedRun;
 		kept = options.keep === true;
 		return {
 			report,

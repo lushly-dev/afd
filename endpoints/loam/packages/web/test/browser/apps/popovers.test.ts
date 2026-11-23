@@ -266,18 +266,7 @@ describe('P4-E13: popovers under axe in three themes (15)', () => {
 				expect.stringContaining('Greet Bo'),
 			]);
 			await expect.poll(async () => (await focused(page)).role).toBe('menuitem');
-			// A menu popover sits in the shell's shadow root outside every landmark, which axe's `region` rule (tagged
-			// best-practice alone, not WCAG) reports: #2136, filed for the chrome rather than fixed in a test-only change.
-			// Every WCAG 2.2 AA rule, and every other best-practice rule, still runs.
-			expect(await axe(page, ['region']), `${theme} menu`).toEqual([]);
-			// The exemption pinned to its one node, the open menu itself: it fails once the menu is in a landmark, or if
-			// any other element becomes an offender, and the exemption goes with #2136's fix.
-			expect(await axe(page), `${theme} menu, region`).toEqual([
-				expect.objectContaining({
-					id: 'region',
-					nodes: [{ target: [['loam-shell', 'loam-popover']] }],
-				}),
-			]);
+			expect(await axe(page), `${theme} menu`).toEqual([]);
 			expect(await page.locator('loam-popover').count()).toBe(1);
 			expect(await page.locator('loam-popover').getAttribute('role')).toBe('menu');
 			await page.keyboard.press('Escape');
