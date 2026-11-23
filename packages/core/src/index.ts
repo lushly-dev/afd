@@ -194,6 +194,9 @@ export {
 	createWarning,
 	updateStepStatus,
 } from './metadata.js';
+// Output budgets (spec/output-budgets.md)
+export type { OutputBudget } from './output-budget.js';
+export { AFD_OUTPUT_BUDGET_META_KEY, MAX_OUTPUT_BUDGET_BYTES } from './output-budget.js';
 // Pipeline types
 export type {
 	PipelineAlternative,

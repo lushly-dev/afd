@@ -9,6 +9,7 @@
 import type { ActorKind } from './actor.js';
 import type { CommandError } from './errors.js';
 import type { Alternative, PlanStep, Source, Warning } from './metadata.js';
+import type { OutputBudgetReport } from './output-budget.js';
 
 /**
  * Standard result type for all AFD commands.
@@ -165,6 +166,9 @@ export interface ResultMetadata {
 	 * an actor. Only the kind is reported, never the actor's id or label.
 	 */
 	actorKind?: ActorKind;
+
+	/** Output budget report attached on passing budgeted results (`spec/output-budgets.md`, B6). */
+	'dev.afd/outputBudget'?: OutputBudgetReport;
 
 	/** Additional arbitrary metadata */
 	[key: string]: unknown;

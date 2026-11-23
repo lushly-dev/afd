@@ -4,7 +4,7 @@
  * List all available commands with tags and grouping.
  */
 
-import type { CommandExample } from '@lushly-dev/afd-core';
+import type { CommandExample, OutputBudget } from '@lushly-dev/afd-core';
 import { AFD_CONTRACT_VERSION, success } from '@lushly-dev/afd-core';
 import { z } from 'zod';
 import type { ContextField } from '../context-fields.js';
@@ -30,6 +30,7 @@ interface CommandInfo {
 	undoable?: boolean;
 	requires?: string[];
 	examples?: CommandExample[];
+	outputBudget?: OutputBudget;
 	/** `true` for a first-class command of a hybrid server; omitted otherwise. */
 	firstClass?: true;
 }
@@ -130,6 +131,12 @@ export function createAfdHelpCommand(
 					info.destructive = cmd.destructive;
 					info.undoable = cmd.undoable;
 					if (cmd.examples?.length) info.examples = cmd.examples;
+					if (cmd.outputBudget) {
+						info.outputBudget = {
+							defaultBytes: cmd.outputBudget.defaultBytes,
+							maxBytes: cmd.outputBudget.maxBytes,
+						};
+					}
 				}
 
 				return info;

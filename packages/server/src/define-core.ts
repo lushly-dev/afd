@@ -16,9 +16,10 @@ import type {
 	CommandResult,
 	ExposeOptions,
 	JsonSchema,
+	OutputBudget,
 	TaskSupport,
 } from '@lushly-dev/afd-core';
-import { validateCommandName } from '@lushly-dev/afd-core/commands';
+import { validateCommandName, validateOutputBudget } from '@lushly-dev/afd-core/commands';
 import type { ZodType } from 'zod';
 import type { $ZodType, input, output } from 'zod/v4/core';
 import { validateInput } from './validation.js';
@@ -148,6 +149,14 @@ export interface ZodCommandOptions<TInput extends $ZodType, TOutput> {
 	task?: TaskSupport;
 
 	/**
+	 * Declared output budget in UTF-8 bytes of canonical JSON without `metadata`
+	 * (`spec/output-budgets.md`, B1): `{ defaultBytes, maxBytes }`. Validated at define time;
+	 * reported as `_meta["dev.afd/outputBudget"]` on command tools and grouped action entries,
+	 * and as `outputBudget` in `afd-detail` and `afd-help` (`full`).
+	 */
+	outputBudget?: OutputBudget;
+
+	/**
 	 * Extra `_meta` entries for this command's tool, its grouped action entry and afd-detail
 	 * (`spec/mcp-resources.md`, T1). Keys are reverse-DNS prefixed with two or more labels, outside
 	 * `dev.afd/` and the prefixes MCP reserves (`dev.umbel/origin`), or exactly `ui`, the MCP Apps
@@ -251,6 +260,9 @@ export interface ZodCommandDefinition<TInput extends $ZodType = ZodType, TOutput
 	/** MCP task support (`spec/command-metadata.md`, "Tasks") */
 	task?: TaskSupport;
 
+	/** Declared output budget (`spec/output-budgets.md`, B1) */
+	outputBudget?: OutputBudget;
+
 	/** Extra `_meta` entries for this command's tool (`spec/mcp-resources.md`, T1) */
 	toolMeta?: Record<string, unknown>;
 
@@ -318,6 +330,10 @@ export function defineCommandWithSchema<TInput extends $ZodType, TOutput>(
 	if (!isJsonObject(options.jsonSchema)) {
 		throw new Error(`command "${options.name}": jsonSchema must be an object`);
 	}
+	const outputBudget =
+		options.outputBudget !== undefined
+			? validateOutputBudget(options.outputBudget, options.name)
+			: undefined;
 
 	// An advertised schema replaces the given one on every surface; the Zod schema still validates.
 	const jsonSchema = advertisedInputSchema ?? options.jsonSchema;
@@ -355,9 +371,10 @@ export function defineCommandWithSchema<TInput extends $ZodType, TOutput>(
 		undoable: options.undoable,
 		approval: options.approval,
 		expose: options.expose,
-		// Only when set, so a command without scopes or task keeps the keys it always had.
+		// Only when set, so a command without scopes, task or outputBudget keeps the keys it always had.
 		...(options.scopes && { scopes: options.scopes }),
 		...(options.task !== undefined && { task: options.task }),
+		...(outputBudget && { outputBudget }),
 	};
 
 	return {

@@ -86,7 +86,9 @@ export default defineConfig({
 							// Phase 6's step 11b (10.8): the direct registry, its engine and the kernel's scope field, which
 							// first paint's kernel and the desktop's `inbound` chunk share, and which the bundler would otherwise
 							// part into first-paint chunks of their own (`define-core`, `direct-registry`, `field`).
-							test: /(preload-helper|chrome[\\/]dist[\\/]elements[\\/](events|entry-styles|app-entry|notice-loader)\.js|packages[\\/]auth[\\/]dist[\\/](errors|listeners|session-state|types)\.js|fast-element[\\/]dist[\\/]esm[\\/]templating[\\/]ref\.js|packages[\\/]core[\\/]dist[\\/](result|commands|clock|actor|pipeline-variables|request-validation|batch|streaming|command-execution|similarity|pipeline|pipeline-executor|direct-allow|direct-approval)\.js|packages[\\/]server[\\/]dist[\\/](issue-message|validation|define-core|command-allow|context-fields|context-scope|approval-admission|command-routing|execution|direct-registry)\.js|kernel[\\/]dist[\\/]scope[\\/]field\.js|zod[\\/]v4[\\/]mini[\\/]schemas\.js)/,
+							// Output budgets (#1989 / PR #2215): keep core and server `output-budget.js` in `events` alongside
+							// `commands`, `define-core`, `execution`, and `direct-registry` so Rollup emits no extra `output-budget` first-paint chunks.
+							test: /(preload-helper|chrome[\\/]dist[\\/]elements[\\/](events|entry-styles|app-entry|notice-loader)\.js|packages[\\/]auth[\\/]dist[\\/](errors|listeners|session-state|types)\.js|fast-element[\\/]dist[\\/]esm[\\/]templating[\\/]ref\.js|packages[\\/]core[\\/]dist[\\/](result|commands|output-budget|clock|actor|pipeline-variables|request-validation|batch|streaming|command-execution|similarity|pipeline|pipeline-executor|direct-allow|direct-approval)\.js|packages[\\/]server[\\/]dist[\\/](issue-message|validation|define-core|command-allow|context-fields|context-scope|approval-admission|command-routing|output-budget|execution|direct-registry)\.js|kernel[\\/]dist[\\/]scope[\\/]field\.js|zod[\\/]v4[\\/]mini[\\/]schemas\.js)/,
 						},
 					],
 				},

@@ -81,6 +81,7 @@ import {
 import { prereadBody } from './http-security.js';
 import type { AuthLayer } from './mcp-auth.js';
 import { liftMetaArgument, metaArgumentKeys } from './meta-argument.js';
+import { withMetaOutputBudget } from './output-budget.js';
 import { type PrincipalCredentials, principalBinding } from './principal-binding.js';
 import { requestContextValues } from './request-context.js';
 import { type ResourceService, resourceCacheHints } from './resources.js';
@@ -621,7 +622,11 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 			// Declared fields from `_meta` first, so a value `createContext` sets wins. Neither
 			// `actor` nor `credentials` can be a declared field: only `createContext` sets them.
 			const declared = contextFieldValues(deps.contextFields, meta);
-			const callValues: CommandContext = { ...declared, ...values };
+			const callValues: CommandContext = withMetaOutputBudget(
+				{ ...declared, ...values },
+				meta,
+				values
+			);
 			// Who is calling, as the call starts: the actor the commands run with (`createContext`'s,
 			// or the server's default) and `createContext`'s credentials, copied so that code
 			// changing them in place later cannot change what the state binds. They are checked

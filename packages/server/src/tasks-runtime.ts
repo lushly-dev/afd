@@ -24,6 +24,7 @@ import {
 import { z } from 'zod';
 import { bindContextState, resolveContextState } from './context-scope.js';
 import { JsonRpcError } from './json-rpc.js';
+import { bindOutputBudgetAsk, OUTPUT_BUDGET_ASK } from './output-budget.js';
 import { type PrincipalCredentials, principalBinding } from './principal-binding.js';
 import type { ZodCommandDefinition } from './schema.js';
 import { bindScopeView, type ScopeView, scopeViewOf } from './scope-view.js';
@@ -362,6 +363,12 @@ function cloneTaskContext(
 	if (view) taskContext = bindScopeView(taskContext, view);
 	const state = resolveContextState(context, undefined);
 	if (state !== undefined) taskContext = bindContextState(taskContext, state);
+	if (Object.hasOwn(context, OUTPUT_BUDGET_ASK)) {
+		taskContext = bindOutputBudgetAsk(
+			taskContext,
+			(context as Record<symbol, unknown>)[OUTPUT_BUDGET_ASK]
+		);
+	}
 	return taskContext;
 }
 

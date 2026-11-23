@@ -31,6 +31,7 @@ const RESERVED_NAMES = new Set([
 	'clock',
 	'credentials',
 	'interface',
+	'outputBudget',
 	'random',
 	'session',
 	'signal',

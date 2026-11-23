@@ -25,6 +25,7 @@ import {
 	systemRandom,
 } from '@lushly-dev/afd-core';
 import { JOURNALED_CONTEXT_FIELDS } from './context-fields.js';
+import { EFFECTIVE_OUTPUT_BUDGET } from './output-budget.js';
 
 /** Most bytes of UTF-8 canonical JSON a journaled context field value may take (`spec/journal.md`). */
 export const MAX_JOURNAL_CONTEXT_BYTES = 4096;
@@ -301,6 +302,18 @@ export function createJournalMiddleware(
 
 		const clock = context.clock ?? systemClock;
 		const random = context.random ?? systemRandom;
+		// Read the immutable effective output budget captured by the execution engine before
+		// middleware ran, so neither earlier middleware nor the handler mutating
+		// `context.outputBudget` can alter the journaled value or context digest (B8).
+		const rawEffectiveBudget =
+			(context as unknown as Record<symbol, unknown>)[EFFECTIVE_OUTPUT_BUDGET] ??
+			context.outputBudget;
+		const effectiveOutputBudget =
+			typeof rawEffectiveBudget === 'number' &&
+			Number.isSafeInteger(rawEffectiveBudget) &&
+			rawEffectiveBudget >= 1
+				? rawEffectiveBudget
+				: undefined;
 		const tape: JournalTape = { clock: [], random: [] };
 		// The same context object reaches the handler, so swapping its sources records what it reads.
 		const recording = recordingSources(clock, random, tape, maxTapeReads);
@@ -350,14 +363,19 @@ export function createJournalMiddleware(
 					? { ok: false, result: unserializableResult(), error: successThrown.error }
 					: copyResult(recorded);
 				if (!copied.ok) reportError(onError, copied.error);
+				const digestContext =
+					context.outputBudget === effectiveOutputBudget
+						? context
+						: { ...context, outputBudget: effectiveOutputBudget };
 				const record = redact({
 					timestamp: new Date(start).toISOString(),
 					...(typeof context.traceId === 'string' ? { traceId: context.traceId } : {}),
 					command: commandName,
 					input: toJson(input),
 					...(actor ? { actor } : {}),
-					contextDigest: await createContextDigest(context, journaled),
+					contextDigest: await createContextDigest(digestContext, journaled),
 					...journaled,
+					...(effectiveOutputBudget !== undefined ? { outputBudget: effectiveOutputBudget } : {}),
 					result: copied.result,
 					durationMs,
 					...(hasTape ? { tape } : {}),

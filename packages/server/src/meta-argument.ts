@@ -11,7 +11,7 @@
  */
 
 import type { CommandContext, CommandError } from '@lushly-dev/afd-core';
-import { AFD_META_TOOL_NAMES } from '@lushly-dev/afd-core';
+import { AFD_META_TOOL_NAMES, AFD_OUTPUT_BUDGET_META_KEY } from '@lushly-dev/afd-core';
 import type { ContextField } from './context-fields.js';
 
 const META_TOOLS = new Set<string>(AFD_META_TOOL_NAMES);
@@ -24,20 +24,28 @@ export const CONTEXT_META_KEY = 'dev.afd/context';
 
 /** The keys a `meta` argument may carry on a server with these declared fields. */
 export function metaArgumentKeys(fields: readonly ContextField[] | undefined): ReadonlySet<string> {
-	return new Set([CONTEXT_META_KEY, ...(fields ?? []).map((field) => field.meta)]);
+	return new Set([
+		CONTEXT_META_KEY,
+		AFD_OUTPUT_BUDGET_META_KEY,
+		...(fields ?? []).map((field) => field.meta),
+	]);
 }
 
 /**
- * The `_meta` values an in-process call stands for: the `activeContext` option, and the declared
- * fields' values on the call's context, keyed by `_meta` key.
+ * The `_meta` values an in-process call stands for: the `activeContext` and `outputBudget`
+ * options, and the declared fields' values on the call's context, keyed by `_meta` key.
  */
 export function inProcessMeta(
 	fields: readonly ContextField[],
 	context: CommandContext,
-	activeContext: string | undefined
+	activeContext: string | undefined,
+	outputBudget?: unknown
 ): Record<string, unknown> {
 	const meta: Record<string, unknown> = {};
 	if (activeContext !== undefined) meta[CONTEXT_META_KEY] = activeContext;
+	if (outputBudget !== undefined && outputBudget !== null) {
+		meta[AFD_OUTPUT_BUDGET_META_KEY] = outputBudget;
+	}
 	for (const field of fields) {
 		const value = (context as Record<string, unknown>)[field.name];
 		if (value !== undefined && value !== null) meta[field.meta] = value;

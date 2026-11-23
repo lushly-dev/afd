@@ -59,6 +59,7 @@ export type {
 	HandoffMetadata,
 	HandoffProtocol,
 	HandoffResult,
+	OutputBudget,
 	ReconnectPolicy,
 	TaskSupport,
 	TelemetryEvent,
@@ -66,6 +67,7 @@ export type {
 } from '@lushly-dev/afd-core';
 // Re-export core helpers for convenience
 export {
+	AFD_OUTPUT_BUDGET_META_KEY,
 	createHandoff,
 	createTelemetryEvent,
 	defaultExpose,
@@ -80,8 +82,10 @@ export {
 	isReconnectPolicy,
 	isSuccess,
 	isTelemetryEvent,
+	MAX_OUTPUT_BUDGET_BYTES,
 	success,
 } from '@lushly-dev/afd-core';
+export type { OutputBudgetAsk, OutputBudgetReport } from '@lushly-dev/afd-core/commands';
 // App-to-app calls (spec/command-metadata.md, "App-to-app calls")
 export type { CallGrant } from '@lushly-dev/afd-core/internal/app-calls';
 export { type AppCallRegistryOptions, createAppCallRegistry } from './app-call-registry.js';

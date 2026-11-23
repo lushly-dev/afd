@@ -40,6 +40,12 @@ import {
 } from './command-routing.js';
 import { applyContextFields, type ContextField } from './context-fields.js';
 import { type ContextState, resolveContextState } from './context-scope.js';
+import {
+	applyOutputBudget,
+	checkOutputBudgetResult,
+	EFFECTIVE_OUTPUT_BUDGET,
+	SKIP_OUTPUT_BUDGET,
+} from './output-budget.js';
 import type { ZodCommandDefinition } from './schema.js';
 import type { EnhancedValidationResult } from './validation.js';
 import { formatEnhancedValidationError, validateInputEnhanced } from './validation.js';
@@ -132,6 +138,11 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 		}
 
 		// One context object flows through every middleware into the handler.
+		// Read the non-enumerable stream marker from callerContext before spreading defaults,
+		// so it never leaks into middleware or handlers.
+		const skipOutputBudget = Boolean(
+			(callerContext as unknown as Record<symbol, unknown>)[SKIP_OUTPUT_BUDGET]
+		);
 		const context = withContextDefaults(callerContext, deps.contextDefaults);
 		// A command hidden from the caller (MCP authorization, M6) is looked up as a name that
 		// does not exist, before validation, middleware or the handler.
@@ -210,6 +221,13 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 		const invalidField = applyContextFields(deps.contextFields ?? [], context, commandName);
 		if (invalidField) return invalidField;
 
+		const invalidBudget = applyOutputBudget(command, context);
+		if (invalidBudget) return invalidBudget;
+
+		const effectiveBudget = context.outputBudget;
+		if (effectiveBudget !== undefined) {
+			Object.defineProperty(context, EFFECTIVE_OUTPUT_BUDGET, { value: effectiveBudget });
+		}
 		const data = validation.data;
 
 		// Build middleware chain
@@ -240,7 +258,14 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 			}
 			const { clock } = context;
 			const startTime = clock.now();
-			const result = await command.handler(data, context);
+			const rawResult = await command.handler(data, context);
+			// Post-handler output budget check (spec/output-budgets.md, B5 & B6): runs before
+			// metadata stamping and before middleware or the journal see the result; skipped on
+			// buffered executeStream (B7).
+			const result =
+				effectiveBudget !== undefined && !skipOutputBudget
+					? checkOutputBudgetResult(command, effectiveBudget, rawResult)
+					: rawResult;
 
 			// Build a new result rather than mutating the handler's (possibly frozen) object.
 			// Read the actor after the handler: middleware (auth) may have refined it.
@@ -327,7 +352,11 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 		input: unknown,
 		context: CommandContext = {}
 	): AsyncGenerator<StreamChunk, void, unknown> {
-		return executeCoreStream(commandName, input, executeCommand, context, { devMode });
+		// B7: a streamed command's chunks are not checked by B5 in this version.
+		// Non-enumerable symbol keeps `context` structurally equal to the caller's object.
+		const streamContext: CommandContext = { ...context };
+		Object.defineProperty(streamContext, SKIP_OUTPUT_BUDGET, { value: true });
+		return executeCoreStream(commandName, input, executeCommand, streamContext, { devMode });
 	}
 
 	return { executeCommand, executeBatch, executePipeline, executeStream };

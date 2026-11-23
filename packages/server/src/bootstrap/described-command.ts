@@ -9,6 +9,7 @@ import type {
 	CommandParameter,
 	ExposeOptions,
 	JsonSchema,
+	OutputBudget,
 } from '@lushly-dev/afd-core';
 import { isMcpExposed } from '@lushly-dev/afd-core';
 
@@ -30,6 +31,7 @@ export interface DescribedCommand {
 	approval?: ApprovalPolicy<never>;
 	requires?: string[];
 	examples?: CommandExample[];
+	outputBudget?: OutputBudget;
 	expose?: ExposeOptions;
 	parameters?: CommandParameter[];
 	jsonSchema?: JsonSchema;

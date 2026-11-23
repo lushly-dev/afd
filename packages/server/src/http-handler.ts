@@ -52,6 +52,7 @@ import {
 import type { AuthLayer } from './mcp-auth.js';
 import type { ModernHttpLane } from './mcp-modern.js';
 import { liftMetaArgument, metaArgumentKeys } from './meta-argument.js';
+import { withMetaOutputBudget } from './output-budget.js';
 import { credentialsBinding } from './principal-binding.js';
 import { requestContextValues } from './request-context.js';
 import { bindScopeView } from './scope-view.js';
@@ -259,7 +260,14 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 		// Declared fields from `_meta` first, so a value `createContext` sets wins.
 		const declared = contextFieldValues(contextFields, meta);
 		return bindScopeView(
-			scoped({ ...declared, ...custom, signal: controller.signal, interface: 'mcp' }, state),
+			scoped(
+				withMetaOutputBudget(
+					{ ...declared, ...custom, signal: controller.signal, interface: 'mcp' },
+					meta,
+					custom
+				),
+				state
+			),
 			auth?.viewFor(req)
 		);
 	}

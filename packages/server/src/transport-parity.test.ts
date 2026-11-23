@@ -15,7 +15,12 @@
  * - Server catches handler exceptions; DirectClient propagates them from registry
  */
 
-import { type CommandDefinition, DirectClient, type DirectRegistry } from '@lushly-dev/afd-client';
+import {
+	type CommandDefinition,
+	type DirectCallContext,
+	DirectClient,
+	type DirectRegistry,
+} from '@lushly-dev/afd-client';
 import type { CommandContext, CommandResult } from '@lushly-dev/afd-core';
 import { failure, success } from '@lushly-dev/afd-core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -205,7 +210,7 @@ function isZodOptional(schema: z.ZodTypeAny): boolean {
 function createDirectExecutor(client: DirectClient) {
 	return {
 		name: 'DirectClient',
-		call: (name: string, input: unknown, context?: CommandContext) =>
+		call: (name: string, input: unknown, context?: DirectCallContext) =>
 			client.call(name, (input ?? {}) as Record<string, unknown>, context),
 	};
 }

@@ -5,6 +5,8 @@
  * These types define the JSON-RPC based protocol.
  */
 
+import type { AFD_OUTPUT_BUDGET_META_KEY, OutputBudget } from './output-budget.js';
+
 /**
  * MCP JSON-RPC request format.
  */
@@ -148,6 +150,8 @@ export interface McpToolCommandMeta {
 	examples?: Array<{ title: string; input: unknown }>;
 	outputSchema?: Record<string, unknown>;
 	contexts?: string[];
+	/** Declared output budget (`spec/output-budgets.md`, B1); unset when unbudgeted. */
+	[AFD_OUTPUT_BUDGET_META_KEY]?: OutputBudget;
 }
 
 /**

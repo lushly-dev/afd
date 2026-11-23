@@ -13,12 +13,18 @@ import type {
 	JournalEntry,
 	RandomSource,
 } from '@lushly-dev/afd-core';
-import { fixedClock, journalActor, seededRandom } from '@lushly-dev/afd-core';
+import {
+	AFD_OUTPUT_BUDGET_META_KEY,
+	fixedClock,
+	journalActor,
+	seededRandom,
+} from '@lushly-dev/afd-core';
 import {
 	JOURNAL_REPLAY,
 	JOURNAL_RESULT_UNSERIALIZABLE,
 	type JournalReplayMarker,
 } from './journal.js';
+import { OUTPUT_BUDGET_ASK, SKIP_OUTPUT_BUDGET } from './output-budget.js';
 
 /** Anything that executes commands by name: `createMcpServer()`, `createDirectRegistry()`, the core registry. */
 export interface JournalReplayTarget {
@@ -349,6 +355,22 @@ export async function replayJournal(
 				},
 			};
 			(context as Record<symbol, unknown>)[JOURNAL_REPLAY] = marker;
+			// B8: restore the recorded effective budget as the call's ask (a trusted override on
+			// `options.context.outputBudget` still wins in `applyOutputBudget`). A recorded passing
+			// result with an effective budget and no `dev.afd/outputBudget` report came from a
+			// buffered stream where B5 was skipped (B7); preserve that exemption on replay so
+			// deterministic streams stay reproducible while normal budgeted calls still run B5.
+			if (entry.outputBudget !== undefined) {
+				(context as Record<symbol, unknown>)[OUTPUT_BUDGET_ASK] = {
+					maxBytes: entry.outputBudget,
+				};
+				if (
+					entry.result.success === true &&
+					entry.result.metadata?.[AFD_OUTPUT_BUDGET_META_KEY] === undefined
+				) {
+					Object.defineProperty(context, SKIP_OUTPUT_BUDGET, { value: true });
+				}
+			}
 			// An app's call replays only where its grant is checked again (`createAppCallRegistry`);
 			// any other target would run it unchecked, or as another interface.
 			// Keyed on the recorded interface too, so the `context` option cannot replay it as another.

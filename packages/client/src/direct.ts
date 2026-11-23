@@ -33,6 +33,11 @@ import {
 	truncateName,
 	validationError,
 } from '@lushly-dev/afd-core';
+import {
+	AFD_OUTPUT_BUDGET_META_KEY,
+	MAX_OUTPUT_BUDGET_BYTES,
+	type OutputBudgetAsk,
+} from '@lushly-dev/afd-core/commands';
 import { commandNotAllowed, directAllows } from '@lushly-dev/afd-core/internal/direct-allow';
 import {
 	createDirectApprovalExchange,
@@ -65,6 +70,7 @@ import type {
 	DirectRegistry,
 } from './direct-types.js';
 
+export type { OutputBudgetAsk } from '@lushly-dev/afd-core/commands';
 export type {
 	DirectApprovalHook,
 	DirectApprovalRequest,
@@ -174,7 +180,7 @@ export class DirectClient {
 	async call<T = unknown>(
 		name: string,
 		args?: Record<string, unknown>,
-		context?: DirectCallContext
+		context?: DirectCallContext | CommandContext
 	): Promise<CommandResult<T> | CommandResult<UnknownToolError>> {
 		const startTime = this.options.debug ? performance.now() : 0;
 		const traceId = context?.traceId ?? generateTraceId();
@@ -211,16 +217,34 @@ export class DirectClient {
 			}
 		}
 
-		// The active context and the allow check are registry call options, never command-context
-		// values, so a handler cannot read or set them. Every attempt (the approval retry too)
-		// passes them; the registry applies allow to each command a meta-tool or grouped tool runs.
-		// Without either, the registry is called exactly as before, with no options.
-		const { activeContext, ...callContext } = context ?? {};
+		// The active context, output budget ask and allow check are registry call options, never
+		// command-context values, so a handler cannot read or set them directly. Every attempt
+		// (the approval retry too) passes them; the registry applies allow and outputBudget to each
+		// command a meta-tool or grouped tool runs. Without any of them, the registry is called
+		// exactly as before, with no options.
+		const { activeContext, outputBudget, ...callContext } = (context ?? {}) as DirectCallContext;
+		let budgetAsk: OutputBudgetAsk | undefined;
+		if (outputBudget !== undefined && outputBudget !== null) {
+			if (!isValidOutputBudgetAsk(outputBudget)) {
+				return failure<T>({
+					code: 'VALIDATION_ERROR',
+					message: 'The output budget ask is not valid',
+					suggestion: `Send _meta["${AFD_OUTPUT_BUDGET_META_KEY}"] = { "maxBytes": <positive integer> }, or leave it out`,
+					retryable: false,
+					details: { field: 'outputBudget', meta: AFD_OUTPUT_BUDGET_META_KEY },
+				});
+			}
+			budgetAsk = outputBudget;
+		}
 		const allow = this.registryAllow;
 		const executeOptions: DirectExecuteOptions | undefined =
-			activeContext === undefined && !allow
+			activeContext === undefined && budgetAsk === undefined && !allow
 				? undefined
-				: { ...(activeContext !== undefined && { activeContext }), ...(allow && { allow }) };
+				: {
+						...(activeContext !== undefined && { activeContext }),
+						...(budgetAsk !== undefined && { outputBudget: budgetAsk }),
+						...(allow && { allow }),
+					};
 
 		// Build command context. The call's actor, clock and random win over the client's.
 		// Clock and random are only set when configured, so a registry's own defaults
@@ -250,7 +274,7 @@ export class DirectClient {
 				...commandContext,
 				actor: { ...actor },
 			});
-			return runWithTimeout<T>(name, context?.timeout, context?.signal, (signal) => {
+			return runWithTimeout<T>(name, callContext.timeout, context?.signal, (signal) => {
 				if (signal) attemptContext.signal = signal;
 				return this.execute<T>(name, args, attemptContext, executeOptions);
 			});
@@ -467,10 +491,12 @@ export class DirectClient {
 	 */
 	async pipe<T = unknown>(
 		request: PipelineRequest | PipelineStep[],
-		context?: DirectCallContext
+		context?: DirectCallContext | CommandContext
 	): Promise<PipelineResult<T>> {
 		const traceId = context?.traceId ?? generateTraceId();
 		const pipelineRequest: PipelineRequest = Array.isArray(request) ? { steps: request } : request;
+		const { outputBudget: _outputBudget, ...pipelineContext } = (context ??
+			{}) as DirectCallContext;
 		this.debug(`[${traceId}] Starting pipeline`);
 		let stepIndex = 0;
 		return executePipeline(
@@ -481,7 +507,7 @@ export class DirectClient {
 					...commandContext,
 					traceId: `${traceId}-step-${stepIndex++}`,
 				}) as Promise<CommandResult>,
-			{ ...context, traceId }
+			{ ...pipelineContext, traceId }
 		) as Promise<PipelineResult<T>>;
 	}
 
@@ -493,6 +519,23 @@ export class DirectClient {
 			console.log(`[DirectClient] ${message}`, data ?? '');
 		}
 	}
+}
+
+/** Validate a B2 output budget ask (`{ maxBytes }`, safe integer 1..2^53-1, no extra keys). */
+function isValidOutputBudgetAsk(value: unknown): value is OutputBudgetAsk {
+	if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+	const proto = Object.getPrototypeOf(value);
+	if (proto !== Object.prototype && proto !== null) return false;
+	const record = value as Record<string, unknown>;
+	const keys = Object.keys(record);
+	if (keys.length !== 1 || keys[0] !== 'maxBytes') return false;
+	const maxBytes = record.maxBytes;
+	return (
+		typeof maxBytes === 'number' &&
+		Number.isSafeInteger(maxBytes) &&
+		maxBytes >= 1 &&
+		maxBytes <= MAX_OUTPUT_BUDGET_BYTES
+	);
 }
 
 /**

@@ -2,7 +2,7 @@
  * @fileoverview Lazy-loading discovery tools: afd-discover, afd-detail.
  */
 
-import type { CommandResult, JsonSchema, TaskSupport } from '@lushly-dev/afd-core';
+import type { CommandResult, JsonSchema, OutputBudget, TaskSupport } from '@lushly-dev/afd-core';
 import { approvalMode, success, truncateName } from '@lushly-dev/afd-core';
 import { defaultCommandGroup, notFoundSuggestion } from './command-routing.js';
 import type { DetailInput, DiscoverInput } from './meta-tools.js';
@@ -61,6 +61,8 @@ interface DetailResult {
 	scopes?: string[];
 	/** MCP task support (`spec/command-metadata.md`, "Tasks"), reported only when set. */
 	task?: TaskSupport;
+	/** Declared output budget (`spec/output-budgets.md`, B1), reported only when set. */
+	outputBudget?: OutputBudget;
 }
 
 interface DetailError {
@@ -235,6 +237,12 @@ export function executeDetail(
 			...(cmd.toolMeta && Object.keys(cmd.toolMeta).length > 0 && { toolMeta: cmd.toolMeta }),
 			...(cmd.scopes?.length && { scopes: cmd.scopes }),
 			...(cmd.task !== undefined && { task: cmd.task }),
+			...(cmd.outputBudget && {
+				outputBudget: {
+					defaultBytes: cmd.outputBudget.defaultBytes,
+					maxBytes: cmd.outputBudget.maxBytes,
+				},
+			}),
 		};
 	});
 
