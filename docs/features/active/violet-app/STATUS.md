@@ -22,12 +22,13 @@ not, so an agent never has to scan the code to learn what is current. It follows
   [#1942](https://github.com/lushly-dev/afd/pull/1942). Epic
   [#1556](https://github.com/lushly-dev/afd/issues/1556) remains open: exit criterion 3 is met by
   [#1974](https://github.com/lushly-dev/afd/issues/1974) ([#2166](https://github.com/lushly-dev/afd/pull/2166)),
-  the plugin specification ([#2205](https://github.com/lushly-dev/afd/issues/2205)) is approved
-  (landing in [#2251](https://github.com/lushly-dev/afd/pull/2251)), while the remaining three exit
-  criteria in [section 10](violet-app.proposal.md#10-exit-criteria) are tracked in
-  [#2207](https://github.com/lushly-dev/afd/issues/2207) (`endpoints/loam/plugins/violet/app/` is
-  not built yet). Existing repo contracts last verified 2026-11-23 against `main` at `73f71572`.
-  (Proposal written 2026-11-15 against `main` at `6eeb545d`.)
+  the plugin specification ([#2205](https://github.com/lushly-dev/afd/issues/2205)) merged in
+  [#2251](https://github.com/lushly-dev/afd/pull/2251) (`2b134a7`), and the first slice build
+  ([#2207](https://github.com/lushly-dev/afd/issues/2207)) meets exit criteria 1 and 2 in
+  `endpoints/loam/plugins/violet/app/` (merged in [#2355](https://github.com/lushly-dev/afd/pull/2355)), leaving exit criterion 4 (manual
+  desktop Loam verification in [section 9.3](../../../../endpoints/loam/plugins/violet/docs/spec.md#93-exit-criterion-4-the-owners-desktop-loam))
+  for the owner's desktop build. Existing repo contracts last verified 2026-11-23 against `main` at
+  `2b134a7`. (Proposal written 2026-11-15 against `main` at `6eeb545d`.)
 - **Done:** what exists today, verified first-hand with file and line; fifteen jobs as scenario
   files that pass the three checks; a recommended app kind; the `violet-tree` document type;
   screens by part and layout class; twenty-two drafted commands; ten gaps (G1 to G10); the
@@ -35,18 +36,29 @@ not, so an agent never has to scan the code to learn what is current. It follows
   `violet-afd` gaps (#1322 to #1328, merged in [#1942](https://github.com/lushly-dev/afd/pull/1942));
   write-path hardening (#1957, #1958, #1973 in [#2090](https://github.com/lushly-dev/afd/pull/2090));
   Loam's token tree moved from TypeScript to DTCG files ([#1974](https://github.com/lushly-dev/afd/issues/1974),
-  [#2166](https://github.com/lushly-dev/afd/pull/2166), exit criterion 3 verified); and the approved
+  [#2166](https://github.com/lushly-dev/afd/pull/2166), exit criterion 3 verified); the approved
   [plugin specification](../../../../endpoints/loam/plugins/violet/docs/spec.md)
   ([#2205](https://github.com/lushly-dev/afd/issues/2205), owner UX sign-off U1 to U6 and Q4 to Q13
-  accepted 2026-11-23, landing in [#2251](https://github.com/lushly-dev/afd/pull/2251)).
-- **Not done:** building the first slice (`slice` scenarios, Specimen fixtures, desktop run) in
-  `endpoints/loam/plugins/violet/app/` ([#2207](https://github.com/lushly-dev/afd/issues/2207)).
+  accepted 2026-11-23, merged in [#2251](https://github.com/lushly-dev/afd/pull/2251)); and the
+  first slice in `endpoints/loam/plugins/violet/app/` ([#2207](https://github.com/lushly-dev/afd/issues/2207),
+  [#2355](https://github.com/lushly-dev/afd/pull/2355)): manifest v2 + 22 command handlers over `@lushly-dev/violet-afd/worker`,
+  `token-tree-main`/`token-tree-editor`/`token-tree-inspector`, D109 one-way boundary check in
+  `architecture.json` + `scripts/check-boundaries.mjs`, `violet` job in `loam-plugins.yml` +
+  `scripts/affected/suites.mjs`, 15/15 scenarios (10/10 `slice`) with deterministic `replay()`
+  (exit criterion 1), and 72 Specimen captures + 72 axe checks (60 desktop + 12 narrow) with
+  scoped preview isolation (exit criterion 2).
+- **Not done:** exit criterion 4 — manual desktop Loam verification and live SQLite / 1 MiB
+  history check on the owner's desktop build (`spec.md` §9.3), plus post-slice follow-ups
+  [#2329](https://github.com/lushly-dev/afd/issues/2329) and
+  [#2330](https://github.com/lushly-dev/afd/issues/2330).
 - **Order:** the [jobs-first guide](../../../../.claude/skills/afd/references/jobs-first.md),
   steps 1 to 6 done, with one walk; step 9, the owner's ranking, done 2026-11-16; the `violet-afd`
   gaps merged 2026-11-21; Loam's tree moved to DTCG files ([#1974](https://github.com/lushly-dev/afd/issues/1974))
-  2026-11-22; the specification ([#2205](https://github.com/lushly-dev/afd/issues/2205)) approved
-  2026-11-23 (landing in [#2251](https://github.com/lushly-dev/afd/pull/2251)); the build
-  ([#2207](https://github.com/lushly-dev/afd/issues/2207)) next.
+  2026-11-22; the specification ([#2205](https://github.com/lushly-dev/afd/issues/2205)) merged
+  2026-11-23 in [#2251](https://github.com/lushly-dev/afd/pull/2251); the first slice build
+  ([#2207](https://github.com/lushly-dev/afd/issues/2207)) merged in
+  [#2355](https://github.com/lushly-dev/afd/pull/2355); manual desktop check
+  (§9.3) next to close [#1556](https://github.com/lushly-dev/afd/issues/1556).
 
 ## Steps
 
@@ -54,14 +66,14 @@ not, so an agent never has to scan the code to learn what is current. It follows
 | --- | --- | --- |
 | What exists today, read first-hand | Done 2026-11-15 | Proposal, [section 2](violet-app.proposal.md#2-what-exists-today) |
 | Jobs and drafted commands | Done 2026-11-15 | Proposal, sections 3 and 5 |
-| Each job as a scenario, and the three checks | Done 2026-11-15 | [`scenarios/`](scenarios/), fifteen files, 61 steps; [How the jobs were checked](#how-the-jobs-were-checked) |
+| Each job as a scenario, and the three checks | Done 2026-11-15 | [`endpoints/loam/plugins/violet/app/scenarios/`](../../../../endpoints/loam/plugins/violet/app/scenarios/), fifteen files, 61 steps (moved from `scenarios/` in `#2207`); [How the jobs were checked](#how-the-jobs-were-checked) |
 | Walk the paths with a reader who did not write them | Done 2026-11-15: one fresh reader, three seats; six blockers and eleven improvements, all applied; three jobs and four commands added | Proposal, [section 8](violet-app.proposal.md#8-what-the-walk-changed) |
 | The owner ranks the jobs and answers section 12 | Done 2026-11-16 | Every recommendation accepted; proposal, [section 12](violet-app.proposal.md#12-for-the-owner) |
 | The seven gaps in `violet-afd`: G1 #1322, G2 #1323, G3 #1326, G4 #1327, G8 #1328, G9 #1324, G10 #1325 | Merged 2026-11-21 in [#1942](https://github.com/lushly-dev/afd/pull/1942) | `export.tree`, `interface.check`, `token.remove`, the context's `now()` and `random()`, `INVALID_TOKEN_VALUE` on write, import and CSS export, alpha in contrast, `disabledReason`; `pnpm -F @lushly-dev/violet-afd test` 780 passed and `pnpm -F @lushly-dev/violet-core test` (its unit config) 191 passed; Loam's tree round-trips through `export.tree` and `import.tree` with the same values and files (an ad hoc check against `buildLoamTree()`) |
 | Write-path hardening in `violet-core` and `violet-afd`: unsafe token ids (#1957), atomic operation sequence (#1958), `MemoryDatabase.transaction()` rollback (#1973) | Merged 2026-11-22 in [#2090](https://github.com/lushly-dev/afd/pull/2090) | `validateTokenId` refuses non-CSS and empty segments on `token.add`, `token.override`, `token.copy`, `import.json`, `import.tree`, `import.validate`, `export.tree` and CSS/SCSS export; `Database.appendOperation` allocates sequences atomically in Memory, SQLite, Postgres (`FOR UPDATE`) and `OverlayDatabase.stagingView()`; `MemoryDatabase.transaction()` snapshots, isolates and restores all mutable collections (including nested transactions); `pnpm verify` 24/24 local gates green on Node 26.13.1 |
 | Move Loam's tree from TypeScript to DTCG files (question 3) | Merged 2026-11-22 in [#2166](https://github.com/lushly-dev/afd/pull/2166) ([#1974](https://github.com/lushly-dev/afd/issues/1974)) | Seven DTCG files in `endpoints/loam/packages/theme/tree/` (`loam.tokens.json`, `loam_{light,dark,high-contrast}.tokens.json`, `loam_<theme>_compact.tokens.json`) carrying `$type` on every root token and `$extensions["dev.lushly.violet"].category` for the 71 non-derivable categories (`spacing`, `radius`, `z-index`, dimension `typography`), loaded by `buildLoamTree()` via `import.tree`; byte-identical generated outputs (`theme:check` passes); exit criterion 3 verified in `endpoints/loam/packages/theme/src/theme.test.ts` (round-trip without edits is byte-identical with `dropped: []` and all categories intact in `tokens.catalog`, and one `token.override` + `export.tree` yields a 1-line diff in `loam_dark.tokens.json`); payload size 39,674 B raw UTF-8 (38.74 KiB, 15.13% of 256 KiB) and 45,642 B as JSON-serialized `{ content: { files } }` input (44.57 KiB, 17.41% of Loam's 256 KiB bound) |
-| Specification, in the plugin's folder | Approved 2026-11-23, landing in [#2251](https://github.com/lushly-dev/afd/pull/2251) ([#2205](https://github.com/lushly-dev/afd/issues/2205)) | [`endpoints/loam/plugins/violet/docs/spec.md`](../../../../endpoints/loam/plugins/violet/docs/spec.md), checked against `violet-afd/worker`, `violet-core`, `loam-sdk`, `loam-testing`, `loam-manifest`, `loam-plugins.yml` and `check-boundaries.mjs` at `2e63c766` and re-checked at `73f71572`; twenty-one findings (F1 to F21) resolved; owner approved U1 to U6 and Q4 to Q13 on 2026-11-23; two-model review (Gemini 4 Neon `high` + GPT-6.2 Astra `high`) findings applied |
-| Build: the first slice (`slice` scenarios) | Unblocks on [#2251](https://github.com/lushly-dev/afd/pull/2251) merge ([#2207](https://github.com/lushly-dev/afd/issues/2207)) | |
+| Specification, in the plugin's folder | Merged 2026-11-23 in [#2251](https://github.com/lushly-dev/afd/pull/2251) ([#2205](https://github.com/lushly-dev/afd/issues/2205)) | [`endpoints/loam/plugins/violet/docs/spec.md`](../../../../endpoints/loam/plugins/violet/docs/spec.md), checked against `violet-afd/worker`, `violet-core`, `loam-sdk`, `loam-testing`, `loam-manifest`, `loam-plugins.yml` and `check-boundaries.mjs` at `2e63c766` and re-checked at `73f71572`; twenty-one findings (F1 to F21) resolved; owner approved U1 to U6 and Q4 to Q13 on 2026-11-23; two-model review (Gemini 4 Neon `high` + GPT-6.2 Astra `high`) findings applied |
+| Build: the first slice (`slice` scenarios, Specimen fixtures, D109 boundary, `loam-plugins.yml` job) | Merged 2026-11-23 in [#2355](https://github.com/lushly-dev/afd/pull/2355) ([#2207](https://github.com/lushly-dev/afd/issues/2207)) | `endpoints/loam/plugins/violet/app/` (`@lushly-dev/loam-app-violet`): `loam app check` / `run pack` pass; `lint:tokens` 23 files, 0 violations; `test` runs `templates/write.mjs --check` + 33/33 Vitest tests passing (15/15 scenarios including 10/10 `slice` with deterministic `replay()`, full undo/port/cache/suggestion/grant/bundled-interface/selection-bus units, engine boundary test, Q12 measured at 137,649 B / 134.42 KiB = 13.13% of 1 MiB after 50 overrides on `afd-default`); `test:specimen` 72/72 captures (20 specimens × 3 themes + 12 narrow at 800 px / 500 px) + 72/72 axe checks (60 desktop + 12 narrow) with 0 violations + scoped preview computed-style isolation proved; repo-wide D109 `oneWay` boundary check in `architecture.json` + `scripts/check-boundaries.mjs` (49/49 tests in `affected.test.mjs` + `check-boundaries.test.mjs`, `check-boundaries` 87 distributions clean). Manual desktop Loam run (`spec.md` §9.3, exit criterion 4) remains for the owner's desktop build |
 
 ## How the jobs were checked
 
@@ -116,4 +128,5 @@ On 2026-11-15, at `6eeb545d`, on Node 26.13.1, after `pnpm install --frozen-lock
 | 2026-11-22 | Loam DTCG tree (#1974) | Moved Loam's token tree from TypeScript modules to seven DTCG `.tokens.json` files in `endpoints/loam/packages/theme/tree/` loaded via `import.tree`, preserved all 71 non-derivable Violet token categories via `$extensions["dev.lushly.violet"].category` in `violet-afd`, verified byte-identical generated outputs, zero dropped fields, byte-identical round-trip, 1-line override diff (exit criterion 3), and measured payload size (39,674 B raw / 45,642 B JSON input = 17.41% of 256 KiB bound) in [#2166](https://github.com/lushly-dev/afd/pull/2166) |
 | 2026-11-22 | Closeout check (#1556) | Verified #1556 exit criteria against `main` (`ae4cdd4d`, rechecked at `dbc846114` with no diff in `endpoints/loam/packages/theme/`) after #2166: 1 of 4 met (exit criterion 3 live-verified at `ae4cdd4d` via `pnpm -F @lushly-dev/loam-theme theme:check` and `test`, 65/65 passing; criteria 1, 2 and 4 unmet because `endpoints/loam/plugins/violet/` does not exist yet). Epic #1556 stays open; filed [#2205](https://github.com/lushly-dev/afd/issues/2205) (plugin specification, `status:planned`) and [#2207](https://github.com/lushly-dev/afd/issues/2207) (first slice build, `status:deferred` blocked on #2205) as sub-issues under #1556, and refreshed `STATUS.md`, `violet-app.proposal.md`, and `docs/features/README.md` |
 | 2026-11-23 | Specification (#2205) | Wrote `endpoints/loam/plugins/violet/docs/spec.md` against `main` at `2e63c766`: manifest version 2, the `violet-tree` type and its content schema, the engine port, the twenty-two commands with input, output, error and undo contracts mapped to all fifteen scenarios, the screens and a 60-capture Specimen matrix (pending UX sign-off), the D109 boundary check and `loam-plugins.yml` job, and the plan for exit criteria 1, 2 and 4. Checking the proposal against the code found twenty contradictions (F1 to F20, four of them from the independent review), among them `export_command` being a query, `token.reset` records that `export.tree` refuses, and `size.focus.width` missing from the interface; each resolved in the spec, the ones that change an approved choice listed as Q4 to Q13; one independent review (revise, five blockers) fixed in the same pull request |
-| 2026-11-23 | Specification approval (#2205 / #2251) | Owner accepted UX sign-off U1 to U6 and technical resolutions Q4 to Q13 as recommended; synced PR #2251 with `main` (`73f71572`), filed post-slice follow-ups [#2330](https://github.com/lushly-dev/afd/issues/2330) (Q8) and [#2329](https://github.com/lushly-dev/afd/issues/2329) (Q10) under #1556, ran two-model review (Gemini 4 Neon `high` + GPT-6.2 Astra `high`), and applied all blockers and improvements (including F21 `token-tree-*` custom elements, additive-import guard, collapsed reset undo, preview/apply parity + `expectedRev`, blank round-trip, export errors, transitive CI triggers, and desktop §9.3 fixes) |
+| 2026-11-23 | Specification approval (#2205 / #2251) | Owner accepted UX sign-off U1 to U6 and technical resolutions Q4 to Q13 as recommended; synced PR #2251 with `main` (`73f71572`), filed post-slice follow-ups [#2330](https://github.com/lushly-dev/afd/issues/2330) (Q8) and [#2329](https://github.com/lushly-dev/afd/issues/2329) (Q10) under #1556, ran two-model review (Gemini 4 Neon `high` + GPT-6.2 Astra `high`), applied all blockers and improvements, and merged PR [#2251](https://github.com/lushly-dev/afd/pull/2251) (`2b134a7`) |
+| 2026-11-23 | First slice build (#2207) | Implemented `@lushly-dev/loam-app-violet` in `endpoints/loam/plugins/violet/app/` (manifest v2, 22 command schemas & handlers over `@lushly-dev/violet-afd/worker`, `token-tree-main`, `token-tree-editor`, `token-tree-inspector`, `templates/write.mjs`, moved all 15 scenarios with Q7 amendments, 20 Specimen fixtures + 72 captures + 72 axe checks with scoped preview isolation), added repo-wide D109 `oneWay` boundary check (`architecture.json`, `scripts/check-boundaries.mjs`) and `violet` job in `.github/workflows/loam-plugins.yml` + `scripts/affected/suites.mjs`. Resolved all findings from two-model independent review (Gemini 4 Neon `high` + GPT-6.2 Astra `high`), measured Q12 at 137,649 B (134.42 KiB, 13.13% of 1 MiB) after 50 overrides on `afd-default`, and verified exit criteria 1 and 2 locally; exit criterion 4 (`spec.md` §9.3 manual desktop Loam check) remains for the owner's desktop build |

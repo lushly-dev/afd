@@ -1,0 +1,51 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["document", "node", "changes"],
+	"properties": {
+		"document": { "type": "string", "minLength": 1, "maxLength": 128 },
+		"node": { "type": "string", "minLength": 1, "maxLength": 256 },
+		"changes": {
+			"type": "array",
+			"minItems": 1,
+			"maxItems": 50,
+			"items": {
+				"type": "object",
+				"additionalProperties": false,
+				"required": ["operation", "token"],
+				"properties": {
+					"operation": { "enum": ["add", "override", "reset"] },
+					"token": { "type": "string", "minLength": 1, "maxLength": 256 },
+					"value": {
+						"anyOf": [{ "type": "string" }, { "type": "number" }, { "type": "object" }]
+					},
+					"metadata": {
+						"type": "object",
+						"additionalProperties": false,
+						"properties": {
+							"type": { "type": "string", "minLength": 1, "maxLength": 64 },
+							"category": {
+								"enum": [
+									"color",
+									"spacing",
+									"typography",
+									"shadow",
+									"motion",
+									"radius",
+									"opacity",
+									"z-index",
+									"custom"
+								]
+							},
+							"tier": { "enum": ["global", "semantic", "component"] },
+							"description": { "type": "string" }
+						}
+					}
+				}
+			}
+		},
+		"reason": { "type": "string", "minLength": 1, "maxLength": 500 },
+		"expectedRev": { "type": "integer", "minimum": 0 }
+	}
+}

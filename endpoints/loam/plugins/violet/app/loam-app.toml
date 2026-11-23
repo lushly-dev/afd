@@ -1,0 +1,352 @@
+manifest_version = 2
+protocol = 1
+afd_contract = "1.0"
+
+[plugin]
+id = "violet"
+title = "Violet"
+version = "0.1.0"
+description = "Token trees: browse, compare, change with a preview first, check contrast and the components' interface, and export."
+kind = "native"
+domains = ["violet"]
+license = "MIT"
+
+[native]
+entry = "dist/native.js"
+
+[app]
+scope_levels = ["workspace", "project"]
+
+[config]
+schema = "schemas/config.json"
+
+[[grants]]
+name = "store"
+reason = "Keeps each tree's nodes, operations, rules and history."
+
+[[grants]]
+name = "clock"
+reason = "Stamps each change, so a replayed session writes the same times."
+
+[[grants]]
+name = "random"
+reason = "Draws each record's id, so a replayed session writes the same ids."
+
+[[grants]]
+name = "documents"
+reason = "Finds the other tree a comparison names, and lists trees to compare with."
+
+[[commands]]
+name = "violet-node-list"
+title = "List tree nodes"
+description = "List a token tree's nodes (ids are paths like product/dark) with each node's kind, parent and how many tokens it sets itself. Find trees with document-list { type: \"violet-tree\" }."
+category = "violet"
+effects = ["inspect"]
+input_schema = "schemas/violet-node-list.input.json"
+errors = []
+
+[[commands]]
+name = "violet-node-get"
+title = "Read a node"
+description = "Read one node of a token tree and the tokens it sets itself, each with its operation (add or override) and value."
+category = "violet"
+effects = ["inspect"]
+input_schema = "schemas/violet-node-get.input.json"
+errors = ["NODE_NOT_FOUND"]
+
+[[commands]]
+name = "violet-node-create"
+title = "Create a node"
+description = "Add a node, usually a theme, under a parent; it inherits every value until it overrides one. restore: true brings back a deleted node with its tokens."
+category = "violet"
+effects = ["store-write"]
+input_schema = "schemas/violet-node-create.input.json"
+undoable = true
+errors = ["NODE_ALREADY_EXISTS", "INVALID_PARENT", "NODE_NOT_FOUND", "VALIDATION_ERROR"]
+
+[[commands]]
+name = "violet-node-delete"
+title = "Delete a node"
+description = "Delete a node that has no children; its tokens are kept so the undo brings it back."
+category = "violet"
+effects = ["store-write"]
+input_schema = "schemas/violet-node-delete.input.json"
+undoable = true
+errors = ["NODE_NOT_FOUND", "NODE_HAS_CHILDREN"]
+
+[[commands]]
+name = "violet-token-resolve"
+title = "Resolve tokens"
+description = "Resolve the tokens a node ends up with, each with the node that set it. filter is a glob such as color.text.*; read summaries first on large trees."
+category = "violet"
+effects = ["inspect"]
+input_schema = "schemas/violet-token-resolve.input.json"
+errors = ["NODE_NOT_FOUND"]
+
+[[commands]]
+name = "violet-token-find"
+title = "Find tokens"
+description = "Find tokens by words in their id, description or category, with the nodes that set each. An empty list is not an error."
+category = "violet"
+effects = ["inspect"]
+input_schema = "schemas/violet-token-find.input.json"
+errors = []
+
+[[commands]]
+name = "violet-token-lineage"
+title = "Show token lineage"
+description = "Show where a node's value for a token comes from: each node on the way from the one that added it, and what each did (add, override, inherit)."
+category = "violet"
+effects = ["inspect"]
+input_schema = "schemas/violet-token-lineage.input.json"
+errors = ["NODE_NOT_FOUND", "TOKEN_NOT_FOUND"]
+
+[[commands]]
+name = "violet-token-compare"
+title = "Compare nodes"
+description = "Compare two to four nodes of one tree side by side, only tokens that differ; each cell says whether it differs from the first node."
+category = "violet"
+effects = ["inspect"]
+input_schema = "schemas/violet-token-compare.input.json"
+errors = ["VALIDATION_ERROR", "NODE_NOT_FOUND"]
+
+[[commands]]
+name = "violet-tree-compare"
+title = "Compare two trees"
+description = "Compare a node of this tree with a node of another tree in the same scope: tokens whose values differ, and tokens only one side has."
+category = "violet"
+effects = ["inspect"]
+input_schema = "schemas/violet-tree-compare.input.json"
+errors = ["DOCUMENT_NOT_FOUND", "NODE_NOT_FOUND"]
+
+[[commands]]
+name = "violet-change-list"
+title = "List changes"
+description = "List changes to a tree's nodes and tokens, newest first, with the old and new value, who made each and the reason given."
+category = "violet"
+effects = ["inspect"]
+input_schema = "schemas/violet-change-list.input.json"
+errors = ["NODE_NOT_FOUND"]
+
+[[commands]]
+name = "violet-change-preview"
+title = "Preview changes"
+description = "Preview token changes on a node without writing: which nodes change, which are shielded by their own override, and which contrast rules break. Apply exactly that with the apply step it returns."
+category = "violet"
+effects = ["inspect"]
+input_schema = "schemas/violet-change-preview.input.json"
+errors = ["NODE_NOT_FOUND", "TOKEN_NOT_FOUND", "TOKEN_ALREADY_EXISTS", "INVALID_TOKEN_VALUE", "OPERATION_NOT_ALLOWED", "VALIDATION_ERROR"]
+
+[[commands]]
+name = "violet-change-apply"
+title = "Apply changes"
+description = "Apply up to 50 token changes on one node as one change with one undo, as violet-change-preview showed them."
+category = "violet"
+effects = ["store-write"]
+input_schema = "schemas/violet-change-apply.input.json"
+undoable = true
+errors = ["NODE_NOT_FOUND", "TOKEN_NOT_FOUND", "TOKEN_ALREADY_EXISTS", "INVALID_TOKEN_VALUE", "OPERATION_NOT_ALLOWED", "VALIDATION_ERROR"]
+
+[[commands]]
+name = "violet-token-add"
+title = "Add a token"
+description = "Add a token a node defines (its children inherit it). To change an existing token's value use violet-token-override; writes are not checked against the rules, so preview first."
+category = "violet"
+effects = ["store-write"]
+input_schema = "schemas/violet-token-add.input.json"
+undoable = true
+errors = ["NODE_NOT_FOUND", "TOKEN_ALREADY_EXISTS", "INVALID_TOKEN_VALUE", "VALIDATION_ERROR"]
+
+[[commands]]
+name = "violet-token-override"
+title = "Override a token"
+description = "Set a node's own value for a token it already has; the result says whether the value it replaced was inherited. Preview first with violet-change-preview."
+category = "violet"
+effects = ["store-write"]
+input_schema = "schemas/violet-token-override.input.json"
+undoable = true
+errors = ["NODE_NOT_FOUND", "TOKEN_NOT_FOUND", "INVALID_TOKEN_VALUE", "VALIDATION_ERROR"]
+
+[[commands]]
+name = "violet-token-reset"
+title = "Reset a token"
+description = "Take back a node's own value for a token, so it follows its parent again; on the node that added the token, this removes it."
+category = "violet"
+effects = ["store-write"]
+input_schema = "schemas/violet-token-reset.input.json"
+undoable = true
+errors = ["NODE_NOT_FOUND", "TOKEN_NOT_FOUND", "OPERATION_NOT_ALLOWED"]
+
+[[commands]]
+name = "violet-theme-preview"
+title = "Preview a theme"
+description = "Return the custom properties a preview of a node applies (--color-text-primary: #1b1b1f), and any value refused as unsafe to draw."
+category = "violet"
+effects = ["inspect"]
+input_schema = "schemas/violet-theme-preview.input.json"
+errors = ["NODE_NOT_FOUND"]
+
+[[commands]]
+name = "violet-constraint-set"
+title = "Set node constraints"
+description = "Set a node's rules, such as contrast floors (text against the page at 4.5:1); merge: true adds to the node's rules. Rules are checked by violet-violation-list, not on write."
+category = "violet"
+effects = ["store-write"]
+input_schema = "schemas/violet-constraint-set.input.json"
+undoable = true
+errors = ["NODE_NOT_FOUND", "DUPLICATE_CONSTRAINT_ID", "VALIDATION_ERROR"]
+
+[[commands]]
+name = "violet-violation-list"
+title = "List violations"
+description = "List contrast and other rule failures across every node of the tree, each with its token, rule and measured ratio."
+category = "violet"
+effects = ["inspect"]
+input_schema = "schemas/violet-violation-list.input.json"
+errors = ["NODE_NOT_FOUND"]
+
+[[commands]]
+name = "violet-interface-check"
+title = "Check component interface"
+description = "Check that every entry of the shared components' token interface resolves in each theme node; list each missing entry by node."
+category = "violet"
+effects = ["inspect"]
+input_schema = "schemas/violet-interface-check.input.json"
+errors = ["NODE_NOT_FOUND"]
+
+[[commands]]
+name = "violet-export"
+title = "Export a theme"
+description = "Export a node's resolved tokens in one format (css under a selector, json, …), with the tree's open checks stated beside it."
+category = "violet"
+effects = ["inspect"]
+input_schema = "schemas/violet-export.input.json"
+errors = ["NODE_NOT_FOUND", "VALIDATION_ERROR", "INVALID_TOKEN_VALUE", "TOKEN_REFERENCE_NOT_FOUND", "CIRCULAR_REFERENCE", "NOT_IMPLEMENTED"]
+
+[[commands]]
+name = "violet-tree-import"
+title = "Import tree files"
+description = "Bring a tree in from DTCG token files, one node per file, all or nothing. replace: true replaces the tree, refused while changes are unexported unless exportedRev is the rev violet-tree-export returned."
+category = "violet"
+effects = ["store-write"]
+input_schema = "schemas/violet-tree-import.input.json"
+errors = ["NODE_ALREADY_EXISTS", "OPERATION_NOT_ALLOWED", "INVALID_TOKEN_VALUE", "INVALID_PARENT", "CIRCULAR_REFERENCE", "VALIDATION_ERROR"]
+
+[[commands]]
+name = "violet-tree-export"
+title = "Export tree files"
+description = "Write the tree back as DTCG files, one per node with only that node's own values, and the rev to pass to a later replacing import."
+category = "violet"
+effects = ["inspect"]
+input_schema = "schemas/violet-tree-export.input.json"
+errors = ["OPERATION_NOT_ALLOWED", "INVALID_TOKEN_VALUE"]
+
+[ui.surfaces.rail]
+label = "Violet"
+icon = "system/folder"
+order = 40
+
+[ui.surfaces.main]
+element = "token-tree-main"
+
+[[ui.documents]]
+id = "violet-tree"
+title = "Token tree"
+icon = "system/folder"
+content_schema = "schemas/violet-tree.content.json"
+content_version = 1
+instance_commands = [
+	"violet-node-list",
+	"violet-node-get",
+	"violet-node-create",
+	"violet-node-delete",
+	"violet-token-resolve",
+	"violet-token-find",
+	"violet-token-lineage",
+	"violet-token-compare",
+	"violet-tree-compare",
+	"violet-change-list",
+	"violet-change-preview",
+	"violet-change-apply",
+	"violet-token-add",
+	"violet-token-override",
+	"violet-token-reset",
+	"violet-theme-preview",
+	"violet-constraint-set",
+	"violet-violation-list",
+	"violet-interface-check",
+	"violet-export",
+	"violet-tree-import",
+	"violet-tree-export",
+]
+export_command = "violet-tree-export"
+import_command = "violet-tree-import"
+
+[ui.documents.editor]
+element = "token-tree-editor"
+
+[ui.documents.inspector]
+element = "token-tree-inspector"
+
+[ui.documents.binding]
+model = "command"
+selection = "item"
+locator = "item"
+conflict = "last-writer-wins"
+
+[[ui.documents.templates]]
+id = "blank"
+title = "Blank tree"
+
+[ui.documents.templates.content]
+format = "violet-tree"
+version = 1
+rev = 0
+syncedRev = 0
+
+[ui.documents.templates.content.seed]
+files = []
+
+[[ui.documents.templates]]
+id = "example"
+title = "Example tree"
+
+[ui.documents.templates.content]
+format = "violet-tree"
+version = 1
+rev = 0
+syncedRev = 0
+
+[ui.documents.templates.content.seed]
+files = [
+	{ name = "example.tokens.json", content = "{\"$extensions\":{\"dev.lushly.violet\":{\"node\":\"example\",\"type\":\"product\"}},\"color\":{\"$type\":\"color\",\"surface\":{\"page\":{\"$value\":\"#ffffff\"}},\"text\":{\"primary\":{\"$value\":\"#1b1b1f\"},\"muted\":{\"$value\":\"#6b6b75\"}},\"field\":{\"border\":{\"$value\":\"#8a8a94\"}},\"action\":{\"primary\":{\"background\":{\"$value\":\"#5b3fd1\"}}}},\"size\":{\"$type\":\"dimension\",\"focus-ring\":{\"width\":{\"$value\":\"2px\"}}}}" },
+	{ name = "example_light.tokens.json", content = "{\"$extensions\":{\"dev.lushly.violet\":{\"node\":\"example/light\",\"parent\":\"example\",\"type\":\"theme\"}}}" },
+	{ name = "example_dark.tokens.json", content = "{\"$extensions\":{\"dev.lushly.violet\":{\"node\":\"example/dark\",\"parent\":\"example\",\"type\":\"theme\"}},\"color\":{\"surface\":{\"page\":{\"$value\":\"#121214\"}},\"text\":{\"primary\":{\"$value\":\"#ececf1\"},\"muted\":{\"$value\":\"#9a9aa6\"}},\"field\":{\"border\":{\"$value\":\"#6e6e7a\"}}}}" },
+	{ name = "example_high-contrast.tokens.json", content = "{\"$extensions\":{\"dev.lushly.violet\":{\"node\":\"example/high-contrast\",\"parent\":\"example\",\"type\":\"theme\"}},\"color\":{\"text\":{\"primary\":{\"$value\":\"#000000\"}},\"field\":{\"border\":{\"$value\":\"#000000\"}}},\"size\":{\"focus-ring\":{\"width\":{\"$value\":\"3px\"}}}}" },
+]
+
+[ui.documents.templates.content.seed.constraints]
+example = [
+	{ id = "text-on-page", name = "Text on the page", applyTo = "color.text.*", severity = "error", enabled = true, config = { type = "contrast", against = "color.surface.page", min = 4.5 } },
+]
+
+# BEGIN GENERATED afd-default (run `pnpm -F @lushly-dev/loam-app-violet templates:write`)
+[[ui.documents.templates]]
+id = "afd-default"
+title = "AFD default tree"
+[ui.documents.templates.content]
+format = "violet-tree"
+version = 1
+rev = 0
+syncedRev = 0
+[ui.documents.templates.content.seed]
+files = [
+  { name = "loam.tokens.json", content = "{\n  \"$extensions\": {\n    \"dev.lushly.violet\": {\n      \"type\": \"product\",\n      \"tiers\": true\n    }\n  },\n  \"color\": {\n    \"accent\": {\n      \"background\": {\n        \"$type\": \"color\",\n        \"$value\": \"{ref.color.blue.wash}\"\n      },\n      \"text\": {\n        \"$type\": \"color\",\n        \"$value\": \"{ref.color.blue.ink}\"\n      }\n    },\n    \"action\": {\n      \"danger\": {\n        \"background\": {\n          \"$type\": \"color\",\n          \"$value\": \"{ref.color.red.ink}\"\n        },\n        \"hover\": {\n          \"$type\": \"color\",\n          \"$value\": \"{ref.color.red.800}\"\n        },\n        \"pressed\": {\n          \"$type\": \"color\",\n          \"$value\": \"{ref.color.red.900}\"\n        },\n        \"text\": {\n          \"$type\": \"color\",\n          \"$value\": \"{ref.color.white}\"\n        }\n      },\n      \"primary\": {\n        \"background\": {\n          \"$type\": \"color\",\n          \"$value\": \"{ref.color.ink}\"\n        },\n        \"hover\": {\n          \"$type\": \"color\",\n          \"$value\": \"{ref.color.green.700}\"\n        },\n        \"pressed\": {\n          \"$type\": \"color\",\n          \"$value\": \"{ref.color.green.800}\"\n        },\n        \"text\": {\n          \"$type\": \"color\",\n          \"$value\": \"{ref.color.paper}\"\n        }\n      },\n      \"secondary\": {\n        \"background\": {\n          \"$type\": \"color\",\n          \"$value\": \"rgba(24, 27, 26, 0.07)\"\n        },\n        \"border\": {\n          \"$type\": \"color\",\n          \"$value\": \"transparent\"\n        },\n        \"hover\": {\n          \"$type\": \"color\",\n          \"$value\": \"rgba(24, 27, 26, 0.11)\"\n        },\n        \"pressed\": {\n          \"$type\": \"color\",\n          \"$value\": \"rgba(24, 27, 26, 0.15)\"\n        },\n        \"text\": {\n          \"$type\": \"color\",\n          \"$value\": \"{ref.color.ink}\"\n        }\n      }\n    },\n    \"border\": {\n      \"strong\": {\n        \"$type\": \"color\",\n        \"$value\": \"{ref.color.sage.500}\"\n      },\n      \"subtle\": {\n        \"$type\": \"color\",\n        \"$value\": \"rgba(24, 27, 26, 0.10)\"\n      }\n    },\n    \"control\": {\n      \"selected\": {\n        \"background\": {\n          \"$type\": \"color\",\n          \"$value\": \"{ref.color.mint.soft}\"\n        },\n        \"border\": {\n          \"$type\": \"color\",\n          \"$value\": \"rgba(44, 94, 75, 0.5)\"\n        },\n        \"foreground\": {\n          \"$type\": \"color\",\n          \"$value\": \"{ref.color.mint.ink}\"\n        }\n      }\n    },\n    \"field\": {\n      \"background\": {\n        \"$type\": \"color\",\n        \"$value\": \"{ref.color.white}\"\n      },\n      \"background.readonly\": {\n        \"$type\": \"color\",\n        \"$value\": \"rgba(24, 27, 26, 0.05)\"\n      },\n      \"border\": {\n        \"$type\": \"color\",\n        \"$value\": \"{ref.color.stone.500}\"\n      },\n      \"border.focus\": {\n        \"$type\": \"color\",\n        \"$value\": \"{color.focus.ring}\"\n      },\n      \"border.hover\": {\n        \"$type\": \"color\",\n        \"$value\": \"{ref.color.ink.soft}\"\n      },\n      \"border.invalid\": {\n        \"$type\": \"color\",\n        \"$value\": \"{color.state.danger.text}\"\n      },\n      \"placeholder\": {\n        \"$type\": \"color\",\n        \"$value\": \"{color.text.muted}\"\n      },\n      \"text\": {\n        \"$type\": \"color\",\n        \"$value\": \"{color.text.primary}\"\n      }\n    },\n    \"focus\": {\n      \"ring\": {\n        \"$type\": \"color\",\n        \"$value\": \"{ref.color.blue.ink}\"\n      }\n    },\n    \"state\": {\n      \"danger\": {\n        \"background\": {\n          \"$type\": \"color\",\n          \"$value\": \"{ref.color.red.wash}\"\n        },\n        \"border\": {\n          \"$type\": \"color\",\n          \"$value\": \"transparent\"\n        },\n        \"foreground\": {\n          \"$type\": \"color\",\n          \"$value\": \"{ref.color.red.ink}\"\n        },\n        \"text\": {\n          \"$type\": \"color\",\n          \"$value\": \"{ref.color.red.ink}\"\n        }\n      },\n      \"success\": {\n        \"background\": {\n          \"$type\": \"color\",\n          \"$value\": \"{ref.color.mint.wash}\"\n        },\n        \"border\": {\n          \"$type\": \"color\",\n          \"$value\": \"transparent\"\n        },\n        \"foreground\": {\n          \"$type\": \"color\",\n          \"$value\": \"{ref.color.mint.ink}\"\n        },\n        \"text\": {\n          \"$type\": \"color\",\n          \"$value\": \"{ref.color.mint.ink}\"\n        }\n      },\n      \"warning\": {\n        \"background\": {\n          \"$type\": \"color\",\n          \"$value\": \"{ref.color.amber.wash}\"\n        },\n        \"border\": {\n          \"$type\": \"color\",\n          \"$value\": \"transparent\"\n        },\n        \"text\": {\n          \"$type\": \"color\",\n          \"$value\": \"{ref.color.amber.800}\"\n        }\n      }\n    },\n    \"surface\": {\n      \"card\": {\n        \"$type\": \"color\",\n        \"$value\": \"{ref.color.paper.bright}\"\n      },\n      \"floating\": {\n        \"$type\": \"color\",\n        \"$value\": \"{ref.color.white}\"\n      },\n      \"highlight\": {\n        \"$type\": \"color\",\n        \"$value\": \"{ref.color.white}\"\n      },\n      \"page\": {\n        \"$type\": \"color\",\n        \"$value\": \"{ref.color.paper}\"\n      },\n      \"pressed\": {\n        \"$type\": \"color\",\n        \"$value\": \"{ref.color.stone.200}\"\n      },\n      \"selected\": {\n        \"$type\": \"color\",\n        \"$value\": \"{ref.color.mint.wash}\"\n      },\n      \"subtle\": {\n        \"$type\": \"color\",\n        \"$value\": \"{ref.color.paper.200}\"\n      }\n    },\n    \"text\": {\n      \"muted\": {\n        \"$type\": \"color\",\n        \"$value\": \"{ref.color.stone.600}\"\n      },\n      \"primary\": {\n        \"$type\": \"color\",\n        \"$value\": \"{ref.color.ink}\"\n      },\n      \"secondary\": {\n        \"$type\": \"color\",\n        \"$value\": \"{ref.color.ink.soft}\"\n      }\n    }\n  },\n  \"duration\": {\n    \"base\": {\n      \"$type\": \"duration\",\n      \"$value\": \"180ms\"\n    },\n    \"fast\": {\n      \"$type\": \"duration\",\n      \"$value\": \"120ms\"\n    },\n    \"slow\": {\n      \"$type\": \"duration\",\n      \"$value\": \"280ms\"\n    }\n  },\n  \"easing\": {\n    \"emphasized\": {\n      \"$type\": \"cubicBezier\",\n      \"$value\": \"cubic-bezier(0.16, 1, 0.3, 1)\"\n    },\n    \"standard\": {\n      \"$type\": \"cubicBezier\",\n      \"$value\": \"cubic-bezier(0.2, 0, 0, 1)\"\n    }\n  },\n  \"font\": {\n    \"family\": {\n      \"body\": {\n        \"$type\": \"fontFamily\",\n        \"$value\": \"\\\"Inter\\\", system-ui, sans-serif\"\n      },\n      \"heading\": {\n        \"$type\": \"fontFamily\",\n        \"$value\": \"\\\"Space Grotesk\\\", \\\"Segoe UI\\\", system-ui, sans-serif\"\n      },\n      \"mono\": {\n        \"$type\": \"fontFamily\",\n        \"$value\": \"\\\"IBM Plex Mono\\\", ui-monospace, Consolas, monospace\"\n      }\n    }\n  },\n  \"radius\": {\n    \"lg\": {\n      \"$type\": \"dimension\",\n      \"$value\": \"12px\",\n      \"$extensions\": {\n        \"dev.lushly.violet\": {\n          \"category\": \"radius\"\n        }\n      }\n    },\n    \"md\": {\n      \"$type\": \"dimension\",\n      \"$value\": \"8px\",\n      \"$extensions\": {\n        \"dev.lushly.violet\": {\n          \"category\": \"radius\"\n        }\n      }\n    },\n    \"round\": {\n      \"$type\": \"dimension\",\n      \"$value\": \"9999px\",\n      \"$extensions\": {\n        \"dev.lushly.violet\": {\n          \"category\": \"radius\"\n        }\n      }\n    },\n    \"sm\": {\n      \"$type\": \"dimension\",\n      \"$value\": \"4px\",\n      \"$extensions\": {\n        \"dev.lushly.violet\": {\n          \"category\": \"radius\"\n        }\n      }\n    }\n  },\n  \"global\": {\n    \"ref\": {\n      \"color\": {\n        \"amber\": {\n          \"200\": {\n            \"$type\": \"color\",\n            \"$value\": \"#f3d6a3\"\n          },\n          \"800\": {\n            \"$type\": \"color\",\n            \"$value\": \"#92400e\"\n          },\n          \"950\": {\n            \"$type\": \"color\",\n            \"$value\": \"#3a2b18\"\n          },\n          \"wash\": {\n            \"$type\": \"color\",\n            \"$value\": \"#f3e8d2\"\n          }\n        },\n        \"black\": {\n          \"$type\": \"color\",\n          \"$value\": \"#000000\"\n        },\n        \"blue\": {\n          \"200\": {\n            \"$type\": \"color\",\n            \"$value\": \"#9fd4f5\"\n          },\n          \"950\": {\n            \"$type\": \"color\",\n            \"$value\": \"#182b3a\"\n          },\n          \"ink\": {\n            \"$type\": \"color\",\n            \"$value\": \"#146ba0\"\n          },\n          \"wash\": {\n            \"$type\": \"color\",\n            \"$value\": \"#e2edf5\"\n          }\n        },\n        \"charcoal\": {\n          \"800\": {\n            \"$type\": \"color\",\n            \"$value\": \"#252727\"\n          },\n          \"850\": {\n            \"$type\": \"color\",\n            \"$value\": \"#202222\"\n          },\n          \"900\": {\n            \"$type\": \"color\",\n            \"$value\": \"#1b1c1c\"\n          },\n          \"950\": {\n            \"$type\": \"color\",\n            \"$value\": \"#141515\"\n          }\n        },\n        \"contrast\": {\n          \"amber\": {\n            \"$type\": \"color\",\n            \"$value\": \"#6B3200\"\n          },\n          \"blue\": {\n            \"$type\": \"color\",\n            \"$value\": \"#004A80\"\n          },\n          \"green\": {\n            \"$type\": \"color\",\n            \"$value\": \"#0B5A1E\"\n          },\n          \"red\": {\n            \"$type\": \"color\",\n            \"$value\": \"#A30000\"\n          },\n          \"red.hover\": {\n            \"$type\": \"color\",\n            \"$value\": \"#8A0000\"\n          },\n          \"red.pressed\": {\n            \"$type\": \"color\",\n            \"$value\": \"#700000\"\n          }\n        },\n        \"green\": {\n          \"700\": {\n            \"$type\": \"color\",\n            \"$value\": \"#2e3a33\"\n          },\n          \"800\": {\n            \"$type\": \"color\",\n            \"$value\": \"#252e29\"\n          },\n          \"900\": {\n            \"$type\": \"color\",\n            \"$value\": \"#1b2823\"\n          }\n        },\n        \"grey\": {\n          \"50\": {\n            \"$type\": \"color\",\n            \"$value\": \"#F2F2F2\"\n          },\n          \"100\": {\n            \"$type\": \"color\",\n            \"$value\": \"#E6E6E6\"\n          },\n          \"150\": {\n            \"$type\": \"color\",\n            \"$value\": \"#E0E0E0\"\n          },\n          \"200\": {\n            \"$type\": \"color\",\n            \"$value\": \"#CCCCCC\"\n          },\n          \"650\": {\n            \"$type\": \"color\",\n            \"$value\": \"#595959\"\n          },\n          \"700\": {\n            \"$type\": \"color\",\n            \"$value\": \"#4D4D4D\"\n          },\n          \"750\": {\n            \"$type\": \"color\",\n            \"$value\": \"#3D3D3D\"\n          },\n          \"800\": {\n            \"$type\": \"color\",\n            \"$value\": \"#333333\"\n          },\n          \"900\": {\n            \"$type\": \"color\",\n            \"$value\": \"#1F1F1F\"\n          }\n        },\n        \"ink\": {\n          \"$type\": \"color\",\n          \"$value\": \"#181b1a\"\n        },\n        \"ink.raised\": {\n          \"$type\": \"color\",\n          \"$value\": \"#222824\"\n        },\n        \"ink.soft\": {\n          \"$type\": \"color\",\n          \"$value\": \"#48534b\"\n        },\n        \"mint\": {\n          \"$type\": \"color\",\n          \"$value\": \"#a3ebcd\"\n        },\n        \"mint.ink\": {\n          \"$type\": \"color\",\n          \"$value\": \"#2c5e4b\"\n        },\n        \"mint.soft\": {\n          \"$type\": \"color\",\n          \"$value\": \"#badecf\"\n        },\n        \"mint.wash\": {\n          \"$type\": \"color\",\n          \"$value\": \"#dfeae3\"\n        },\n        \"neutral\": {\n          \"400\": {\n            \"$type\": \"color\",\n            \"$value\": \"#999e9b\"\n          },\n          \"500\": {\n            \"$type\": \"color\",\n            \"$value\": \"#767b78\"\n          }\n        },\n        \"paper\": {\n          \"$type\": \"color\",\n          \"$value\": \"#f4f0ea\"\n        },\n        \"paper.200\": {\n          \"$type\": \"color\",\n          \"$value\": \"#e9e5de\"\n        },\n        \"paper.bright\": {\n          \"$type\": \"color\",\n          \"$value\": \"#f8f9f3\"\n        },\n        \"red\": {\n          \"200\": {\n            \"$type\": \"color\",\n            \"$value\": \"#ffab99\"\n          },\n          \"300\": {\n            \"$type\": \"color\",\n            \"$value\": \"#ff897a\"\n          },\n          \"800\": {\n            \"$type\": \"color\",\n            \"$value\": \"#ad2416\"\n          },\n          \"900\": {\n            \"$type\": \"color\",\n            \"$value\": \"#96200f\"\n          },\n          \"950\": {\n            \"$type\": \"color\",\n            \"$value\": \"#3d211d\"\n          },\n          \"ink\": {\n            \"$type\": \"color\",\n            \"$value\": \"#c42a1a\"\n          },\n          \"wash\": {\n            \"$type\": \"color\",\n            \"$value\": \"#f7e4df\"\n          }\n        },\n        \"sage\": {\n          \"500\": {\n            \"$type\": \"color\",\n            \"$value\": \"#6b7d6e\"\n          }\n        },\n        \"stone\": {\n          \"200\": {\n            \"$type\": \"color\",\n            \"$value\": \"#d8dcd6\"\n          },\n          \"300\": {\n            \"$type\": \"color\",\n            \"$value\": \"#bec6bd\"\n          },\n          \"400\": {\n            \"$type\": \"color\",\n            \"$value\": \"#adb6ab\"\n          },\n          \"450\": {\n            \"$type\": \"color\",\n            \"$value\": \"#939c95\"\n          },\n          \"500\": {\n            \"$type\": \"color\",\n            \"$value\": \"#869089\"\n          },\n          \"600\": {\n            \"$type\": \"color\",\n            \"$value\": \"#5e6460\"\n          },\n          \"700\": {\n            \"$type\": \"color\",\n            \"$value\": \"#4d5b50\"\n          }\n        },\n        \"white\": {\n          \"$type\": \"color\",\n          \"$value\": \"#ffffff\"\n        }\n      },\n      \"space\": {\n        \"2\": {\n          \"$type\": \"dimension\",\n          \"$value\": \"2px\",\n          \"$extensions\": {\n            \"dev.lushly.violet\": {\n              \"category\": \"spacing\"\n            }\n          }\n        },\n        \"4\": {\n          \"$type\": \"dimension\",\n          \"$value\": \"4px\",\n          \"$extensions\": {\n            \"dev.lushly.violet\": {\n              \"category\": \"spacing\"\n            }\n          }\n        },\n        \"6\": {\n          \"$type\": \"dimension\",\n          \"$value\": \"6px\",\n          \"$extensions\": {\n            \"dev.lushly.violet\": {\n              \"category\": \"spacing\"\n            }\n          }\n        },\n        \"8\": {\n          \"$type\": \"dimension\",\n          \"$value\": \"8px\",\n          \"$extensions\": {\n            \"dev.lushly.violet\": {\n              \"category\": \"spacing\"\n            }\n          }\n        },\n        \"12\": {\n          \"$type\": \"dimension\",\n          \"$value\": \"12px\",\n          \"$extensions\": {\n            \"dev.lushly.violet\": {\n              \"category\": \"spacing\"\n            }\n          }\n        },\n        \"16\": {\n          \"$type\": \"dimension\",\n          \"$value\": \"16px\",\n          \"$extensions\": {\n            \"dev.lushly.violet\": {\n              \"category\": \"spacing\"\n            }\n          }\n        },\n        \"24\": {\n          \"$type\": \"dimension\",\n          \"$value\": \"24px\",\n          \"$extensions\": {\n            \"dev.lushly.violet\": {\n              \"category\": \"spacing\"\n            }\n          }\n        }\n      }\n    }\n  },\n  \"shadow\": {\n    \"card\": {\n      \"$type\": \"shadow\",\n      \"$value\": \"0 0 0 1px rgba(24, 27, 26, 0.06), 0 1px 2px rgba(24, 27, 26, 0.06), 0 4px 10px -2px rgba(24, 27, 26, 0.06)\"\n    },\n    \"control\": {\n      \"$type\": \"shadow\",\n      \"$value\": \"0 0 0 1px rgba(24, 27, 26, 0.05), 0 1px 2px rgba(24, 27, 26, 0.10)\"\n    },\n    \"floating\": {\n      \"$type\": \"shadow\",\n      \"$value\": \"0 0 0 1px rgba(24, 27, 26, 0.08), 0 4px 12px -2px rgba(24, 27, 26, 0.12), 0 18px 40px -8px rgba(24, 27, 26, 0.20)\"\n    },\n    \"well\": {\n      \"$type\": \"shadow\",\n      \"$value\": \"inset 0 2px 3px -1px rgba(0, 0, 0, 0.1)\"\n    }\n  },\n  \"shell\": {\n    \"color\": {\n      \"handle\": {\n        \"active\": {\n          \"$type\": \"color\",\n          \"$value\": \"{color.focus.ring}\"\n        },\n        \"hover\": {\n          \"$type\": \"color\",\n          \"$value\": \"{color.border.strong}\"\n        },\n        \"rest\": {\n          \"$type\": \"color\",\n          \"$value\": \"{color.border.subtle}\"\n        }\n      }\n    },\n    \"size\": {\n      \"drawer\": {\n        \"max\": {\n          \"$type\": \"dimension\",\n          \"$value\": \"320px\",\n          \"$extensions\": {\n            \"dev.lushly.violet\": {\n              \"category\": \"spacing\"\n            }\n          }\n        }\n      },\n      \"focus\": {\n        \"$type\": \"dimension\",\n        \"$value\": \"2px\",\n        \"$extensions\": {\n          \"dev.lushly.violet\": {\n            \"category\": \"spacing\"\n          }\n        }\n      },\n      \"handle\": {\n        \"$type\": \"dimension\",\n        \"$value\": \"4px\",\n        \"$extensions\": {\n          \"dev.lushly.violet\": {\n            \"category\": \"spacing\"\n          }\n        }\n      },\n      \"inspector\": {\n        \"default\": {\n          \"$type\": \"dimension\",\n          \"$value\": \"300px\",\n          \"$extensions\": {\n            \"dev.lushly.violet\": {\n              \"category\": \"spacing\"\n            }\n          }\n        },\n        \"max\": {\n          \"$type\": \"dimension\",\n          \"$value\": \"520px\",\n          \"$extensions\": {\n            \"dev.lushly.violet\": {\n              \"category\": \"spacing\"\n            }\n          }\n        },\n        \"min\": {\n          \"$type\": \"dimension\",\n          \"$value\": \"240px\",\n          \"$extensions\": {\n            \"dev.lushly.violet\": {\n              \"category\": \"spacing\"\n            }\n          }\n        }\n      },\n      \"main\": {\n        \"min\": {\n          \"$type\": \"dimension\",\n          \"$value\": \"360px\",\n          \"$extensions\": {\n            \"dev.lushly.violet\": {\n              \"category\": \"spacing\"\n            }\n          }\n        }\n      },\n      \"panel\": {\n        \"default\": {\n          \"$type\": \"dimension\",\n          \"$value\": \"240px\",\n          \"$extensions\": {\n            \"dev.lushly.violet\": {\n              \"category\": \"spacing\"\n            }\n          }\n        },\n        \"min\": {\n          \"$type\": \"dimension\",\n          \"$value\": \"120px\",\n          \"$extensions\": {\n            \"dev.lushly.violet\": {\n              \"category\": \"spacing\"\n            }\n          }\n        }\n      },\n      \"rail\": {\n        \"$type\": \"dimension\",\n        \"$value\": \"48px\",\n        \"$extensions\": {\n          \"dev.lushly.violet\": {\n            \"category\": \"spacing\"\n          }\n        }\n      },\n      \"sidebar\": {\n        \"default\": {\n          \"$type\": \"dimension\",\n          \"$value\": \"260px\",\n          \"$extensions\": {\n            \"dev.lushly.violet\": {\n              \"category\": \"spacing\"\n            }\n          }\n        },\n        \"max\": {\n          \"$type\": \"dimension\",\n          \"$value\": \"480px\",\n          \"$extensions\": {\n            \"dev.lushly.violet\": {\n              \"category\": \"spacing\"\n            }\n          }\n        },\n        \"min\": {\n          \"$type\": \"dimension\",\n          \"$value\": \"200px\",\n          \"$extensions\": {\n            \"dev.lushly.violet\": {\n              \"category\": \"spacing\"\n            }\n          }\n        }\n      },\n      \"statusbar\": {\n        \"$type\": \"dimension\",\n        \"$value\": \"24px\",\n        \"$extensions\": {\n          \"dev.lushly.violet\": {\n            \"category\": \"spacing\"\n          }\n        }\n      },\n      \"tabbar\": {\n        \"$type\": \"dimension\",\n        \"$value\": \"56px\",\n        \"$extensions\": {\n          \"dev.lushly.violet\": {\n            \"category\": \"spacing\"\n          }\n        }\n      },\n      \"titlebar\": {\n        \"$type\": \"dimension\",\n        \"$value\": \"40px\",\n        \"$extensions\": {\n          \"dev.lushly.violet\": {\n            \"category\": \"spacing\"\n          }\n        }\n      }\n    }\n  },\n  \"size\": {\n    \"focus-ring\": {\n      \"width\": {\n        \"$type\": \"dimension\",\n        \"$value\": \"2px\",\n        \"$extensions\": {\n          \"dev.lushly.violet\": {\n            \"category\": \"spacing\"\n          }\n        }\n      }\n    },\n    \"font\": {\n      \"lg\": {\n        \"$type\": \"dimension\",\n        \"$value\": \"18px\",\n        \"$extensions\": {\n          \"dev.lushly.violet\": {\n            \"category\": \"typography\"\n          }\n        }\n      },\n      \"md\": {\n        \"$type\": \"dimension\",\n        \"$value\": \"14px\",\n        \"$extensions\": {\n          \"dev.lushly.violet\": {\n            \"category\": \"typography\"\n          }\n        }\n      },\n      \"sm\": {\n        \"$type\": \"dimension\",\n        \"$value\": \"12px\",\n        \"$extensions\": {\n          \"dev.lushly.violet\": {\n            \"category\": \"typography\"\n          }\n        }\n      },\n      \"xl\": {\n        \"$type\": \"dimension\",\n        \"$value\": \"24px\",\n        \"$extensions\": {\n          \"dev.lushly.violet\": {\n            \"category\": \"typography\"\n          }\n        }\n      },\n      \"xs\": {\n        \"$type\": \"dimension\",\n        \"$value\": \"11px\",\n        \"$extensions\": {\n          \"dev.lushly.violet\": {\n            \"category\": \"typography\"\n          }\n        }\n      }\n    },\n    \"line\": {\n      \"lg\": {\n        \"$type\": \"dimension\",\n        \"$value\": \"24px\",\n        \"$extensions\": {\n          \"dev.lushly.violet\": {\n            \"category\": \"typography\"\n          }\n        }\n      },\n      \"md\": {\n        \"$type\": \"dimension\",\n        \"$value\": \"20px\",\n        \"$extensions\": {\n          \"dev.lushly.violet\": {\n            \"category\": \"typography\"\n          }\n        }\n      },\n      \"sm\": {\n        \"$type\": \"dimension\",\n        \"$value\": \"16px\",\n        \"$extensions\": {\n          \"dev.lushly.violet\": {\n            \"category\": \"typography\"\n          }\n        }\n      },\n      \"xl\": {\n        \"$type\": \"dimension\",\n        \"$value\": \"32px\",\n        \"$extensions\": {\n          \"dev.lushly.violet\": {\n            \"category\": \"typography\"\n          }\n        }\n      },\n      \"xs\": {\n        \"$type\": \"dimension\",\n        \"$value\": \"14px\",\n        \"$extensions\": {\n          \"dev.lushly.violet\": {\n            \"category\": \"typography\"\n          }\n        }\n      }\n    },\n    \"space\": {\n      \"lg\": {\n        \"$type\": \"dimension\",\n        \"$value\": \"{ref.space.12}\",\n        \"$extensions\": {\n          \"dev.lushly.violet\": {\n            \"category\": \"spacing\"\n          }\n        }\n      },\n      \"md\": {\n        \"$type\": \"dimension\",\n        \"$value\": \"{ref.space.8}\",\n        \"$extensions\": {\n          \"dev.lushly.violet\": {\n            \"category\": \"spacing\"\n          }\n        }\n      },\n      \"sm\": {\n        \"$type\": \"dimension\",\n        \"$value\": \"{ref.space.4}\",\n        \"$extensions\": {\n          \"dev.lushly.violet\": {\n            \"category\": \"spacing\"\n          }\n        }\n      },\n      \"xl\": {\n        \"$type\": \"dimension\",\n        \"$value\": \"{ref.space.24}\",\n        \"$extensions\": {\n          \"dev.lushly.violet\": {\n            \"category\": \"spacing\"\n          }\n        }\n      },\n      \"xs\": {\n        \"$type\": \"dimension\",\n        \"$value\": \"{ref.space.2}\",\n        \"$extensions\": {\n          \"dev.lushly.violet\": {\n            \"category\": \"spacing\"\n          }\n        }\n      }\n    },\n    \"target\": {\n      \"comfortable\": {\n        \"$type\": \"dimension\",\n        \"$value\": \"44px\",\n        \"$extensions\": {\n          \"dev.lushly.violet\": {\n            \"category\": \"spacing\"\n          }\n        }\n      },\n      \"compact\": {\n        \"$type\": \"dimension\",\n        \"$value\": \"24px\",\n        \"$extensions\": {\n          \"dev.lushly.violet\": {\n            \"category\": \"spacing\"\n          }\n        }\n      },\n      \"natural\": {\n        \"$type\": \"dimension\",\n        \"$value\": \"32px\",\n        \"$extensions\": {\n          \"dev.lushly.violet\": {\n            \"category\": \"spacing\"\n          }\n        }\n      }\n    }\n  },\n  \"space\": {\n    \"inline\": {\n      \"lg\": {\n        \"$type\": \"dimension\",\n        \"$value\": \"{ref.space.12}\",\n        \"$extensions\": {\n          \"dev.lushly.violet\": {\n            \"category\": \"spacing\"\n          }\n        }\n      },\n      \"md\": {\n        \"$type\": \"dimension\",\n        \"$value\": \"{ref.space.8}\",\n        \"$extensions\": {\n          \"dev.lushly.violet\": {\n            \"category\": \"spacing\"\n          }\n        }\n      },\n      \"sm\": {\n        \"$type\": \"dimension\",\n        \"$value\": \"{ref.space.4}\",\n        \"$extensions\": {\n          \"dev.lushly.violet\": {\n            \"category\": \"spacing\"\n          }\n        }\n      }\n    },\n    \"layout\": {\n      \"md\": {\n        \"$type\": \"dimension\",\n        \"$value\": \"{ref.space.24}\",\n        \"$extensions\": {\n          \"dev.lushly.violet\": {\n            \"category\": \"spacing\"\n          }\n        }\n      },\n      \"sm\": {\n        \"$type\": \"dimension\",\n        \"$value\": \"{ref.space.12}\",\n        \"$extensions\": {\n          \"dev.lushly.violet\": {\n            \"category\": \"spacing\"\n          }\n        }\n      }\n    },\n    \"stack\": {\n      \"md\": {\n        \"$type\": \"dimension\",\n        \"$value\": \"{ref.space.12}\",\n        \"$extensions\": {\n          \"dev.lushly.violet\": {\n            \"category\": \"spacing\"\n          }\n        }\n      },\n      \"sm\": {\n        \"$type\": \"dimension\",\n        \"$value\": \"{ref.space.8}\",\n        \"$extensions\": {\n          \"dev.lushly.violet\": {\n            \"category\": \"spacing\"\n          }\n        }\n      },\n      \"xs\": {\n        \"$type\": \"dimension\",\n        \"$value\": \"{ref.space.4}\",\n        \"$extensions\": {\n          \"dev.lushly.violet\": {\n            \"category\": \"spacing\"\n          }\n        }\n      }\n    }\n  },\n  \"type\": {\n    \"body\": {\n      \"md\": {\n        \"line\": {\n          \"$type\": \"dimension\",\n          \"$value\": \"{size.line.md}\",\n          \"$extensions\": {\n            \"dev.lushly.violet\": {\n              \"category\": \"typography\"\n            }\n          }\n        },\n        \"size\": {\n          \"$type\": \"dimension\",\n          \"$value\": \"{size.font.md}\",\n          \"$extensions\": {\n            \"dev.lushly.violet\": {\n              \"category\": \"typography\"\n            }\n          }\n        },\n        \"weight\": {\n          \"$type\": \"fontWeight\",\n          \"$value\": \"{weight.regular}\"\n        }\n      }\n    },\n    \"caption\": {\n      \"xs\": {\n        \"line\": {\n          \"$type\": \"dimension\",\n          \"$value\": \"{size.line.sm}\",\n          \"$extensions\": {\n            \"dev.lushly.violet\": {\n              \"category\": \"typography\"\n            }\n          }\n        },\n        \"size\": {\n          \"$type\": \"dimension\",\n          \"$value\": \"{size.font.sm}\",\n          \"$extensions\": {\n            \"dev.lushly.violet\": {\n              \"category\": \"typography\"\n            }\n          }\n        },\n        \"weight\": {\n          \"$type\": \"fontWeight\",\n          \"$value\": \"{weight.regular}\"\n        }\n      }\n    },\n    \"label\": {\n      \"sm\": {\n        \"line\": {\n          \"$type\": \"dimension\",\n          \"$value\": \"{size.line.sm}\",\n          \"$extensions\": {\n            \"dev.lushly.violet\": {\n              \"category\": \"typography\"\n            }\n          }\n        },\n        \"size\": {\n          \"$type\": \"dimension\",\n          \"$value\": \"13px\",\n          \"$extensions\": {\n            \"dev.lushly.violet\": {\n              \"category\": \"typography\"\n            }\n          }\n        },\n        \"weight\": {\n          \"$type\": \"fontWeight\",\n          \"$value\": \"{weight.medium}\"\n        }\n      }\n    },\n    \"title\": {\n      \"md\": {\n        \"line\": {\n          \"$type\": \"dimension\",\n          \"$value\": \"{size.line.xl}\",\n          \"$extensions\": {\n            \"dev.lushly.violet\": {\n              \"category\": \"typography\"\n            }\n          }\n        },\n        \"size\": {\n          \"$type\": \"dimension\",\n          \"$value\": \"{size.font.xl}\",\n          \"$extensions\": {\n            \"dev.lushly.violet\": {\n              \"category\": \"typography\"\n            }\n          }\n        },\n        \"weight\": {\n          \"$type\": \"fontWeight\",\n          \"$value\": \"{weight.semibold}\"\n        }\n      },\n      \"sm\": {\n        \"line\": {\n          \"$type\": \"dimension\",\n          \"$value\": \"{size.line.lg}\",\n          \"$extensions\": {\n            \"dev.lushly.violet\": {\n              \"category\": \"typography\"\n            }\n          }\n        },\n        \"size\": {\n          \"$type\": \"dimension\",\n          \"$value\": \"{size.font.lg}\",\n          \"$extensions\": {\n            \"dev.lushly.violet\": {\n              \"category\": \"typography\"\n            }\n          }\n        },\n        \"weight\": {\n          \"$type\": \"fontWeight\",\n          \"$value\": \"{weight.semibold}\"\n        }\n      }\n    }\n  },\n  \"weight\": {\n    \"light\": {\n      \"$type\": \"fontWeight\",\n      \"$value\": \"100\"\n    },\n    \"medium\": {\n      \"$type\": \"fontWeight\",\n      \"$value\": \"500\"\n    },\n    \"regular\": {\n      \"$type\": \"fontWeight\",\n      \"$value\": \"400\"\n    },\n    \"semibold\": {\n      \"$type\": \"fontWeight\",\n      \"$value\": \"600\"\n    }\n  },\n  \"z-index\": {\n    \"base\": {\n      \"$type\": \"number\",\n      \"$value\": \"0\",\n      \"$extensions\": {\n        \"dev.lushly.violet\": {\n          \"category\": \"z-index\"\n        }\n      }\n    },\n    \"modal\": {\n      \"$type\": \"number\",\n      \"$value\": \"300\",\n      \"$extensions\": {\n        \"dev.lushly.violet\": {\n          \"category\": \"z-index\"\n        }\n      }\n    },\n    \"overlay\": {\n      \"$type\": \"number\",\n      \"$value\": \"100\",\n      \"$extensions\": {\n        \"dev.lushly.violet\": {\n          \"category\": \"z-index\"\n        }\n      }\n    },\n    \"popover\": {\n      \"$type\": \"number\",\n      \"$value\": \"200\",\n      \"$extensions\": {\n        \"dev.lushly.violet\": {\n          \"category\": \"z-index\"\n        }\n      }\n    },\n    \"raised\": {\n      \"$type\": \"number\",\n      \"$value\": \"1\",\n      \"$extensions\": {\n        \"dev.lushly.violet\": {\n          \"category\": \"z-index\"\n        }\n      }\n    },\n    \"sticky\": {\n      \"$type\": \"number\",\n      \"$value\": \"10\",\n      \"$extensions\": {\n        \"dev.lushly.violet\": {\n          \"category\": \"z-index\"\n        }\n      }\n    },\n    \"toast\": {\n      \"$type\": \"number\",\n      \"$value\": \"400\",\n      \"$extensions\": {\n        \"dev.lushly.violet\": {\n          \"category\": \"z-index\"\n        }\n      }\n    }\n  }\n}\n" },
+  { name = "loam_dark.tokens.json", content = "{\n  \"$extensions\": {\n    \"dev.lushly.violet\": {\n      \"node\": \"loam/dark\",\n      \"parent\": \"loam\",\n      \"type\": \"theme\"\n    }\n  },\n  \"color\": {\n    \"accent\": {\n      \"background\": {\n        \"$value\": \"{ref.color.blue.950}\"\n      },\n      \"text\": {\n        \"$value\": \"{ref.color.blue.200}\"\n      }\n    },\n    \"action\": {\n      \"primary\": {\n        \"background\": {\n          \"$value\": \"{ref.color.paper}\"\n        },\n        \"hover\": {\n          \"$value\": \"{ref.color.stone.200}\"\n        },\n        \"pressed\": {\n          \"$value\": \"{ref.color.stone.300}\"\n        },\n        \"text\": {\n          \"$value\": \"{ref.color.charcoal.950}\"\n        }\n      },\n      \"secondary\": {\n        \"background\": {\n          \"$value\": \"rgba(244, 240, 234, 0.09)\"\n        },\n        \"hover\": {\n          \"$value\": \"rgba(244, 240, 234, 0.13)\"\n        },\n        \"pressed\": {\n          \"$value\": \"rgba(244, 240, 234, 0.17)\"\n        },\n        \"text\": {\n          \"$value\": \"{color.text.primary}\"\n        }\n      }\n    },\n    \"border\": {\n      \"strong\": {\n        \"$value\": \"{ref.color.neutral.400}\"\n      },\n      \"subtle\": {\n        \"$value\": \"rgba(244, 240, 234, 0.10)\"\n      }\n    },\n    \"control\": {\n      \"selected\": {\n        \"background\": {\n          \"$value\": \"{ref.color.green.900}\"\n        },\n        \"border\": {\n          \"$value\": \"rgba(163, 235, 205, 0.45)\"\n        },\n        \"foreground\": {\n          \"$value\": \"{ref.color.mint}\"\n        }\n      }\n    },\n    \"field\": {\n      \"background\": {\n        \"$value\": \"rgba(0, 0, 0, 0.26)\"\n      },\n      \"background.readonly\": {\n        \"$value\": \"rgba(244, 240, 234, 0.06)\"\n      },\n      \"border\": {\n        \"$value\": \"{ref.color.neutral.500}\"\n      },\n      \"border.hover\": {\n        \"$value\": \"{ref.color.neutral.400}\"\n      },\n      \"border.invalid\": {\n        \"$value\": \"{ref.color.red.300}\"\n      }\n    },\n    \"focus\": {\n      \"ring\": {\n        \"$value\": \"{ref.color.mint}\"\n      }\n    },\n    \"state\": {\n      \"danger\": {\n        \"background\": {\n          \"$value\": \"{ref.color.red.950}\"\n        },\n        \"foreground\": {\n          \"$value\": \"{ref.color.red.300}\"\n        },\n        \"text\": {\n          \"$value\": \"{ref.color.red.200}\"\n        }\n      },\n      \"success\": {\n        \"background\": {\n          \"$value\": \"{ref.color.green.900}\"\n        },\n        \"foreground\": {\n          \"$value\": \"{ref.color.mint}\"\n        },\n        \"text\": {\n          \"$value\": \"{ref.color.mint}\"\n        }\n      },\n      \"warning\": {\n        \"background\": {\n          \"$value\": \"{ref.color.amber.950}\"\n        },\n        \"text\": {\n          \"$value\": \"{ref.color.amber.200}\"\n        }\n      }\n    },\n    \"surface\": {\n      \"card\": {\n        \"$value\": \"{ref.color.charcoal.900}\"\n      },\n      \"floating\": {\n        \"$value\": \"{ref.color.charcoal.800}\"\n      },\n      \"highlight\": {\n        \"$value\": \"{ref.color.grey.800}\"\n      },\n      \"page\": {\n        \"$value\": \"{ref.color.charcoal.950}\"\n      },\n      \"pressed\": {\n        \"$value\": \"rgba(244, 240, 234, 0.14)\"\n      },\n      \"selected\": {\n        \"$value\": \"{ref.color.green.900}\"\n      },\n      \"subtle\": {\n        \"$value\": \"{ref.color.charcoal.850}\"\n      }\n    },\n    \"text\": {\n      \"muted\": {\n        \"$value\": \"{ref.color.neutral.400}\"\n      },\n      \"primary\": {\n        \"$value\": \"{ref.color.paper}\"\n      },\n      \"secondary\": {\n        \"$value\": \"{ref.color.grey.200}\"\n      }\n    }\n  },\n  \"shadow\": {\n    \"card\": {\n      \"$value\": \"0 0 0 1px rgba(244, 240, 234, 0.07), 0 1px 2px rgba(0, 0, 0, 0.32), 0 6px 14px -2px rgba(0, 0, 0, 0.30)\"\n    },\n    \"control\": {\n      \"$value\": \"0 0 0 1px rgba(244, 240, 234, 0.07), 0 1px 2px rgba(0, 0, 0, 0.40)\"\n    },\n    \"floating\": {\n      \"$value\": \"0 0 0 1px rgba(244, 240, 234, 0.13), 0 6px 16px -2px rgba(0, 0, 0, 0.45), 0 22px 48px -8px rgba(0, 0, 0, 0.60)\"\n    },\n    \"well\": {\n      \"$value\": \"inset 0 2px 3px -1px rgba(0, 0, 0, 0.28)\"\n    }\n  }\n}\n" },
+  { name = "loam_dark_compact.tokens.json", content = "{\n  \"$extensions\": {\n    \"dev.lushly.violet\": {\n      \"node\": \"loam/dark/compact\",\n      \"parent\": \"loam/dark\",\n      \"type\": \"custom\"\n    }\n  },\n  \"shell\": {\n    \"size\": {\n      \"rail\": {\n        \"$value\": \"40px\"\n      },\n      \"tabbar\": {\n        \"$value\": \"48px\"\n      },\n      \"titlebar\": {\n        \"$value\": \"32px\"\n      }\n    }\n  },\n  \"size\": {\n    \"space\": {\n      \"lg\": {\n        \"$value\": \"{ref.space.8}\"\n      },\n      \"md\": {\n        \"$value\": \"{ref.space.6}\"\n      },\n      \"sm\": {\n        \"$value\": \"{ref.space.2}\"\n      },\n      \"xl\": {\n        \"$value\": \"{ref.space.16}\"\n      }\n    },\n    \"target\": {\n      \"comfortable\": {\n        \"$value\": \"32px\"\n      },\n      \"natural\": {\n        \"$value\": \"28px\"\n      }\n    }\n  },\n  \"space\": {\n    \"inline\": {\n      \"lg\": {\n        \"$value\": \"{ref.space.8}\"\n      },\n      \"md\": {\n        \"$value\": \"{ref.space.6}\"\n      },\n      \"sm\": {\n        \"$value\": \"{ref.space.2}\"\n      }\n    },\n    \"stack\": {\n      \"md\": {\n        \"$value\": \"{ref.space.8}\"\n      },\n      \"sm\": {\n        \"$value\": \"{ref.space.4}\"\n      },\n      \"xs\": {\n        \"$value\": \"{ref.space.2}\"\n      }\n    }\n  }\n}\n" },
+  { name = "loam_high-contrast.tokens.json", content = "{\n  \"$extensions\": {\n    \"dev.lushly.violet\": {\n      \"node\": \"loam/high-contrast\",\n      \"parent\": \"loam\",\n      \"type\": \"theme\"\n    }\n  },\n  \"color\": {\n    \"accent\": {\n      \"background\": {\n        \"$value\": \"{ref.color.white}\"\n      },\n      \"text\": {\n        \"$value\": \"{ref.color.contrast.blue}\"\n      }\n    },\n    \"action\": {\n      \"danger\": {\n        \"background\": {\n          \"$value\": \"{ref.color.contrast.red}\"\n        },\n        \"hover\": {\n          \"$value\": \"{ref.color.contrast.red.hover}\"\n        },\n        \"pressed\": {\n          \"$value\": \"{ref.color.contrast.red.pressed}\"\n        },\n        \"text\": {\n          \"$value\": \"{ref.color.white}\"\n        }\n      },\n      \"primary\": {\n        \"background\": {\n          \"$value\": \"{ref.color.black}\"\n        },\n        \"hover\": {\n          \"$value\": \"{ref.color.grey.800}\"\n        },\n        \"pressed\": {\n          \"$value\": \"{ref.color.grey.700}\"\n        },\n        \"text\": {\n          \"$value\": \"{ref.color.white}\"\n        }\n      },\n      \"secondary\": {\n        \"background\": {\n          \"$value\": \"{ref.color.white}\"\n        },\n        \"border\": {\n          \"$value\": \"{ref.color.black}\"\n        },\n        \"hover\": {\n          \"$value\": \"{ref.color.grey.100}\"\n        },\n        \"pressed\": {\n          \"$value\": \"{ref.color.grey.200}\"\n        },\n        \"text\": {\n          \"$value\": \"{ref.color.black}\"\n        }\n      }\n    },\n    \"border\": {\n      \"strong\": {\n        \"$value\": \"{ref.color.black}\"\n      },\n      \"subtle\": {\n        \"$value\": \"{ref.color.grey.650}\"\n      }\n    },\n    \"control\": {\n      \"selected\": {\n        \"background\": {\n          \"$value\": \"{ref.color.grey.150}\"\n        },\n        \"border\": {\n          \"$value\": \"{ref.color.black}\"\n        },\n        \"foreground\": {\n          \"$value\": \"{ref.color.black}\"\n        }\n      }\n    },\n    \"field\": {\n      \"background\": {\n        \"readonly\": {\n          \"$value\": \"{color.surface.subtle}\"\n        }\n      },\n      \"border\": {\n        \"$value\": \"{color.border.subtle}\"\n      },\n      \"border.hover\": {\n        \"$value\": \"{color.border.strong}\"\n      }\n    },\n    \"focus\": {\n      \"ring\": {\n        \"$value\": \"{ref.color.black}\"\n      }\n    },\n    \"state\": {\n      \"danger\": {\n        \"background\": {\n          \"$value\": \"{ref.color.white}\"\n        },\n        \"border\": {\n          \"$value\": \"{ref.color.contrast.red}\"\n        },\n        \"foreground\": {\n          \"$value\": \"{ref.color.contrast.red}\"\n        },\n        \"text\": {\n          \"$value\": \"{ref.color.contrast.red}\"\n        }\n      },\n      \"success\": {\n        \"background\": {\n          \"$value\": \"{ref.color.white}\"\n        },\n        \"border\": {\n          \"$value\": \"{ref.color.contrast.green}\"\n        },\n        \"foreground\": {\n          \"$value\": \"{ref.color.contrast.green}\"\n        },\n        \"text\": {\n          \"$value\": \"{ref.color.contrast.green}\"\n        }\n      },\n      \"warning\": {\n        \"background\": {\n          \"$value\": \"{ref.color.white}\"\n        },\n        \"border\": {\n          \"$value\": \"{ref.color.contrast.amber}\"\n        },\n        \"text\": {\n          \"$value\": \"{ref.color.contrast.amber}\"\n        }\n      }\n    },\n    \"surface\": {\n      \"card\": {\n        \"$value\": \"{ref.color.white}\"\n      },\n      \"floating\": {\n        \"$value\": \"{ref.color.white}\"\n      },\n      \"page\": {\n        \"$value\": \"{ref.color.white}\"\n      },\n      \"pressed\": {\n        \"$value\": \"{ref.color.grey.100}\"\n      },\n      \"selected\": {\n        \"$value\": \"{ref.color.grey.150}\"\n      },\n      \"subtle\": {\n        \"$value\": \"{ref.color.grey.50}\"\n      }\n    },\n    \"text\": {\n      \"muted\": {\n        \"$value\": \"{ref.color.grey.750}\"\n      },\n      \"primary\": {\n        \"$value\": \"{ref.color.black}\"\n      },\n      \"secondary\": {\n        \"$value\": \"{ref.color.grey.900}\"\n      }\n    }\n  },\n  \"shadow\": {\n    \"card\": {\n      \"$value\": \"0 0 0 1px #000000\"\n    },\n    \"control\": {\n      \"$value\": \"0 0 0 1px #000000\"\n    },\n    \"floating\": {\n      \"$value\": \"0 0 0 2px #000000\"\n    },\n    \"well\": {\n      \"$value\": \"inset 0 0 0 0 #000000\"\n    }\n  },\n  \"shell\": {\n    \"size\": {\n      \"focus\": {\n        \"$value\": \"3px\"\n      }\n    }\n  }\n}\n" },
+  { name = "loam_high-contrast_compact.tokens.json", content = "{\n  \"$extensions\": {\n    \"dev.lushly.violet\": {\n      \"node\": \"loam/high-contrast/compact\",\n      \"parent\": \"loam/high-contrast\",\n      \"type\": \"custom\"\n    }\n  },\n  \"shell\": {\n    \"size\": {\n      \"rail\": {\n        \"$value\": \"40px\"\n      },\n      \"tabbar\": {\n        \"$value\": \"48px\"\n      },\n      \"titlebar\": {\n        \"$value\": \"32px\"\n      }\n    }\n  },\n  \"size\": {\n    \"space\": {\n      \"lg\": {\n        \"$value\": \"{ref.space.8}\"\n      },\n      \"md\": {\n        \"$value\": \"{ref.space.6}\"\n      },\n      \"sm\": {\n        \"$value\": \"{ref.space.2}\"\n      },\n      \"xl\": {\n        \"$value\": \"{ref.space.16}\"\n      }\n    },\n    \"target\": {\n      \"comfortable\": {\n        \"$value\": \"32px\"\n      },\n      \"natural\": {\n        \"$value\": \"28px\"\n      }\n    }\n  },\n  \"space\": {\n    \"inline\": {\n      \"lg\": {\n        \"$value\": \"{ref.space.8}\"\n      },\n      \"md\": {\n        \"$value\": \"{ref.space.6}\"\n      },\n      \"sm\": {\n        \"$value\": \"{ref.space.2}\"\n      }\n    },\n    \"stack\": {\n      \"md\": {\n        \"$value\": \"{ref.space.8}\"\n      },\n      \"sm\": {\n        \"$value\": \"{ref.space.4}\"\n      },\n      \"xs\": {\n        \"$value\": \"{ref.space.2}\"\n      }\n    }\n  }\n}\n" },
+  { name = "loam_light.tokens.json", content = "{\n  \"$extensions\": {\n    \"dev.lushly.violet\": {\n      \"node\": \"loam/light\",\n      \"parent\": \"loam\",\n      \"type\": \"theme\"\n    }\n  }\n}\n" },
+  { name = "loam_light_compact.tokens.json", content = "{\n  \"$extensions\": {\n    \"dev.lushly.violet\": {\n      \"node\": \"loam/light/compact\",\n      \"parent\": \"loam/light\",\n      \"type\": \"custom\"\n    }\n  },\n  \"shell\": {\n    \"size\": {\n      \"rail\": {\n        \"$value\": \"40px\"\n      },\n      \"tabbar\": {\n        \"$value\": \"48px\"\n      },\n      \"titlebar\": {\n        \"$value\": \"32px\"\n      }\n    }\n  },\n  \"size\": {\n    \"space\": {\n      \"lg\": {\n        \"$value\": \"{ref.space.8}\"\n      },\n      \"md\": {\n        \"$value\": \"{ref.space.6}\"\n      },\n      \"sm\": {\n        \"$value\": \"{ref.space.2}\"\n      },\n      \"xl\": {\n        \"$value\": \"{ref.space.16}\"\n      }\n    },\n    \"target\": {\n      \"comfortable\": {\n        \"$value\": \"32px\"\n      },\n      \"natural\": {\n        \"$value\": \"28px\"\n      }\n    }\n  },\n  \"space\": {\n    \"inline\": {\n      \"lg\": {\n        \"$value\": \"{ref.space.8}\"\n      },\n      \"md\": {\n        \"$value\": \"{ref.space.6}\"\n      },\n      \"sm\": {\n        \"$value\": \"{ref.space.2}\"\n      }\n    },\n    \"stack\": {\n      \"md\": {\n        \"$value\": \"{ref.space.8}\"\n      },\n      \"sm\": {\n        \"$value\": \"{ref.space.4}\"\n      },\n      \"xs\": {\n        \"$value\": \"{ref.space.2}\"\n      }\n    }\n  }\n}\n" },
+]
+# END GENERATED afd-default

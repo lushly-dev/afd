@@ -1,0 +1,17 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["document", "node", "constraints"],
+	"properties": {
+		"document": { "type": "string", "minLength": 1, "maxLength": 128 },
+		"node": { "type": "string", "minLength": 1, "maxLength": 256 },
+		"constraints": {
+			"type": "array",
+			"minItems": 0,
+			"maxItems": 50,
+			"items": { "type": "object" }
+		},
+		"merge": { "type": "boolean" }
+	}
+}

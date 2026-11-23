@@ -30,6 +30,7 @@ const skip = new Set([
 	'.git',
 	'.venv',
 	'__pycache__',
+	'.specimen',
 	'coverage',
 	'temp',
 	'test-results',
@@ -366,6 +367,118 @@ function checkLanes(root, config, files, units, fail) {
 				else if (specifier.startsWith('.')) {
 					const target = slash(join(dirname(path), specifier.replace(/\?.*$/, '')));
 					if (into(target)) fail(`${path}: imports ${specifier}, a path of the ${where}; ${fix}`);
+				}
+			}
+		}
+	}
+}
+
+/**
+ * A one-way root (architecture.json `oneWay`, such as `endpoints/loam/plugins/` under D109): code inside it
+ * may import packages outside it, while nothing outside it (repo-wide, including root `package.json` and
+ * top-level `scripts/`) may depend on or import anything under it, and sibling subdirectories under it
+ * (separate plugins) may not depend on or import one another.
+ */
+function checkOneWay(root, config, units, fail) {
+	if (!config.oneWay?.length) return;
+	const repoFiles = walk(root, '', config.exclude);
+	const repoPackageManifests = repoFiles.filter(
+		(path) => path === 'package.json' || path.endsWith('/package.json')
+	);
+
+	for (const rule of config.oneWay) {
+		const rootPath = rule.path;
+		if (
+			typeof rootPath !== 'string' ||
+			!rootPath.endsWith('/') ||
+			typeof rule.reason !== 'string'
+		) {
+			fail(`oneWay rule: needs a directory path ending in '/' and a reason`);
+			continue;
+		}
+		// Each one-way root must hold a file so a renamed directory or typo cannot leave the check green.
+		if (!repoFiles.some((file) => file.startsWith(rootPath))) {
+			fail(`oneWay rule ${rootPath}: path holds no file`);
+			continue;
+		}
+		const prefix = rootPath.slice(0, -1);
+		const inside = (path) => path.startsWith(rootPath);
+		const pluginOf = (path) => (inside(path) ? path.slice(rootPath.length).split('/')[0] : null);
+		const pluginUnits = units.filter((unit) => inside(unit.manifestPath));
+		const pluginPackages = new Map(
+			pluginUnits
+				.filter((unit) => unit.format === 'npm')
+				.map((unit) => [unit.name, pluginOf(unit.manifestPath)])
+		);
+		// Also include any unclassified package.json under the one-way root.
+		for (const manifestPath of repoPackageManifests.filter((path) => inside(path))) {
+			try {
+				const parsed = JSON.parse(read(join(root, manifestPath)));
+				if (typeof parsed.name === 'string' && !pluginPackages.has(parsed.name)) {
+					pluginPackages.set(parsed.name, pluginOf(manifestPath));
+				}
+			} catch {
+				// Malformed package.json fails elsewhere if classified.
+			}
+		}
+		const packageNames = [...pluginPackages.keys()];
+		const lastSegment = prefix.split('/').at(-1);
+
+		for (const manifestPath of repoPackageManifests) {
+			let data;
+			try {
+				data = JSON.parse(read(join(root, manifestPath)));
+			} catch {
+				continue;
+			}
+			const callerPlugin = pluginOf(manifestPath);
+			for (const field of DEPENDENCY_FIELDS) {
+				for (const name of Object.keys(data[field] ?? {})) {
+					const targetPlugin = pluginPackages.get(name);
+					if (!targetPlugin) continue;
+					if (callerPlugin === null)
+						fail(
+							`${manifestPath}: ${field} lists ${name}, under one-way root ${rootPath} (${rule.reason})`
+						);
+					else if (callerPlugin !== targetPlugin)
+						fail(
+							`${manifestPath}: ${field} lists ${name}, of sibling plugin ${targetPlugin} under ${rootPath} (${rule.reason})`
+						);
+				}
+			}
+		}
+
+		for (const path of repoFiles) {
+			if (!/\.[cm]?[jt]sx?$/.test(path)) continue;
+			const callerPlugin = pluginOf(path);
+			const text = read(join(root, path));
+			const hasRelevantRef =
+				packageNames.some((name) => text.includes(name)) ||
+				text.includes(lastSegment) ||
+				(callerPlugin !== null && text.includes('..'));
+			if (!hasRelevantRef) continue;
+			for (const specifier of imports(text, path)) {
+				const pkg = packageName(specifier);
+				const targetPlugin = pluginPackages.get(pkg);
+				if (targetPlugin) {
+					if (callerPlugin === null)
+						fail(`${path}: imports ${specifier}, under one-way root ${rootPath} (${rule.reason})`);
+					else if (callerPlugin !== targetPlugin)
+						fail(
+							`${path}: imports ${specifier}, of sibling plugin ${targetPlugin} under ${rootPath} (${rule.reason})`
+						);
+					continue;
+				}
+				if (specifier.startsWith('.')) {
+					const target = slash(join(dirname(path), specifier.replace(/\?.*$/, '')));
+					if (!within(target, prefix)) continue;
+					const resolvedPlugin = target === prefix ? '' : pluginOf(`${target}/`);
+					if (callerPlugin === null)
+						fail(`${path}: imports ${specifier}, into one-way root ${rootPath} (${rule.reason})`);
+					else if (resolvedPlugin && callerPlugin !== resolvedPlugin)
+						fail(
+							`${path}: imports ${specifier}, into sibling plugin ${resolvedPlugin} under ${rootPath} (${rule.reason})`
+						);
 				}
 			}
 		}
@@ -727,6 +840,7 @@ export function checkBoundaries(root, config = JSON.parse(read(join(root, 'archi
 	}
 
 	checkLanes(root, config, files, units, fail);
+	checkOneWay(root, config, units, fail);
 	for (const start of units) {
 		const visit = (current, seen) => {
 			for (const next of graph.get(current)) {

@@ -1,0 +1,19 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["document", "node", "format"],
+	"properties": {
+		"document": { "type": "string", "minLength": 1, "maxLength": 128 },
+		"node": { "type": "string", "minLength": 1, "maxLength": 256 },
+		"format": {
+			"enum": ["json", "css", "scss", "typescript", "swift", "kotlin", "dart", "tailwind", "lua"]
+		},
+		"selector": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 200,
+			"pattern": "^[A-Za-z0-9_\\-\\[\\]=\"':.#>+~*(), ]+$"
+		}
+	}
+}

@@ -290,12 +290,29 @@ const SUITE_CONFIG = [
 	},
 	{
 		workflow: 'loam-plugins.yml',
-		tools: ['cargo'],
+		tools: ['cargo', 'chromium'],
 		remote:
 			'Linux, the release-profile test-doubles check, and the Linux scenario run against loam-mail test-world',
 		extract(wf) {
 			requireGate(wf, 'mail');
-			return extractCargoSteps(wf, 'mail', { gate: 'mail' });
+			requireGate(wf, 'violet');
+			const mailSteps = extractCargoSteps(wf, 'mail', { gate: 'mail' }).map((step) => ({
+				...step,
+				tools: ['cargo'],
+			}));
+			const violetJob = wf.jobs.violet;
+			if (!violetJob) throw new Error('loam-plugins.yml is missing job "violet"');
+			const violetSteps = violetJob.steps
+				.filter((s) => typeof s.run === 'string' && s.run.startsWith('pnpm '))
+				.map((s) => ({
+					gate: 'violet',
+					tools: s.run.includes('test:specimen') ? ['cargo', 'chromium'] : [],
+					run: s.run,
+				}));
+			if (violetSteps.length === 0) {
+				throw new Error('loam-plugins.yml job "violet" has no pnpm steps');
+			}
+			return [...mailSteps, ...violetSteps];
 		},
 	},
 	{

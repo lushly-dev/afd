@@ -462,34 +462,83 @@ export const SUITES = [
 	{
 		"workflow": "loam-plugins.yml",
 		"tools": [
-			"cargo"
+			"cargo",
+			"chromium"
 		],
 		"remote": "Linux, the release-profile test-doubles check, and the Linux scenario run against loam-mail test-world",
 		"steps": [
 			{
 				"gate": "mail",
 				"cwd": "endpoints/loam/plugins/mail/engine",
-				"run": "cargo fmt --check"
+				"run": "cargo fmt --check",
+				"tools": [
+					"cargo"
+				]
 			},
 			{
 				"gate": "mail",
 				"cwd": "endpoints/loam/plugins/mail/engine",
-				"run": "cargo clippy --locked --all-targets -- -D warnings"
+				"run": "cargo clippy --locked --all-targets -- -D warnings",
+				"tools": [
+					"cargo"
+				]
 			},
 			{
 				"gate": "mail",
 				"cwd": "endpoints/loam/plugins/mail/engine",
-				"run": "cargo clippy --locked --all-targets --features test-doubles -- -D warnings"
+				"run": "cargo clippy --locked --all-targets --features test-doubles -- -D warnings",
+				"tools": [
+					"cargo"
+				]
 			},
 			{
 				"gate": "mail",
 				"cwd": "endpoints/loam/plugins/mail/engine",
-				"run": "cargo test --no-fail-fast --locked"
+				"run": "cargo test --no-fail-fast --locked",
+				"tools": [
+					"cargo"
+				]
 			},
 			{
 				"gate": "mail",
 				"cwd": "endpoints/loam/plugins/mail/engine",
-				"run": "cargo test --no-fail-fast --locked --features test-doubles"
+				"run": "cargo test --no-fail-fast --locked --features test-doubles",
+				"tools": [
+					"cargo"
+				]
+			},
+			{
+				"gate": "violet",
+				"tools": [],
+				"run": "pnpm -F \"@lushly-dev/loam-app-violet...\" -F \"!@lushly-dev/loam-host\" build"
+			},
+			{
+				"gate": "violet",
+				"tools": [],
+				"run": "pnpm -F @lushly-dev/loam-app-violet typecheck"
+			},
+			{
+				"gate": "violet",
+				"tools": [],
+				"run": "pnpm -F @lushly-dev/loam-app-violet lint:tokens"
+			},
+			{
+				"gate": "violet",
+				"tools": [],
+				"run": "pnpm -F @lushly-dev/loam-app-violet test"
+			},
+			{
+				"gate": "violet",
+				"tools": [
+					"cargo",
+					"chromium"
+				],
+				"run": "pnpm -F @lushly-dev/loam-app-violet test:specimen"
+			},
+			{
+				"gate": "violet",
+				"tools": [],
+				"run": "pnpm -F @lushly-dev/loam-app-violet run pack"
 			}
 		]
 	},

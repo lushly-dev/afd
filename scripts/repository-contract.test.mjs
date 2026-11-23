@@ -523,10 +523,12 @@ test('Loam is private, route-less endpoints under endpoints/loam/packages and ap
 			/not admitted/
 		);
 	}
-	// Nothing outside Loam depends on it, at runtime or in development.
+	// Nothing outside Loam (including its plugins under endpoints/loam/plugins/) depends on it, at runtime or in development.
 	const names = new Set(loam.map((name) => `@lushly-dev/loam-${name}`));
+	const loamPlugins = new Set(['@lushly-dev/loam-app-violet']);
 	for (const [name, targets] of Object.entries(dependencies))
-		if (!names.has(name)) assert.ok(!targets.some((target) => names.has(target)), name);
+		if (!names.has(name) && !loamPlugins.has(name))
+			assert.ok(!targets.some((target) => names.has(target)), name);
 	// Strip GIT_* so a hook's environment cannot point git at another repository.
 	const env = Object.fromEntries(
 		Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))
@@ -809,6 +811,34 @@ test("Mail's engine is a private, route-less Loam plugin outside Loam's workflow
 	assert.match(plugins, /permissions:\n {2}contents: read/);
 	assert.doesNotMatch(plugins, /publish|upload|id-token|secrets\./);
 	assert.equal(plugins.split("- '!endpoints/loam/plugins/*/docs/**'").length - 1, 2);
+});
+
+test("Violet's app is a private, route-less Loam plugin outside Loam's workflow", async () => {
+	const { assertAdmission, discoverDistributions, loadInventory } = await import(
+		'./release/control.mjs'
+	);
+	const manifestPath = 'endpoints/loam/plugins/violet/app/package.json';
+	const inventory = loadInventory(repoRoot);
+	const unit = inventory.units.find((entry) => entry.id === 'loam-app-violet');
+	assert.equal(unit.family, 'loam');
+	assert.equal(unit.state, 'quarantined');
+	assert.deepEqual(unit.routes, []);
+	assert.deepEqual(unit.gates, ['pnpm check', 'loam-plugins.yml', 'release-approval']);
+	assert.deepEqual(
+		unit.distributions.map((entry) => [entry.name, entry.manifest, entry.format, entry.private]),
+		[['@lushly-dev/loam-app-violet', manifestPath, 'npm', true]]
+	);
+	assert.equal(JSON.parse(read(manifestPath)).private, true);
+	assert.ok(!discoverDistributions(repoRoot, inventory).some((entry) => entry.unit === unit.id));
+	assert.throws(
+		() => assertAdmission({ root: repoRoot, inventory, unit: unit.id, route: 'npm-main' }),
+		/not admitted/
+	);
+	assert.doesNotMatch(read('.github/workflows/loam.yml'), /loam-app-violet|plugins\/violet/);
+	assert.match(
+		read('.github/workflows/loam-plugins.yml'),
+		/--package @lushly-dev\/loam-app-violet/
+	);
 });
 
 test("Umbel's test identity provider is a private, route-less, test-only unit", async () => {

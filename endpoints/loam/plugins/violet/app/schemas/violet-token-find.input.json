@@ -1,0 +1,23 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["document", "query"],
+	"properties": {
+		"document": { "type": "string", "minLength": 1, "maxLength": 128 },
+		"query": { "type": "string", "minLength": 1, "maxLength": 200 },
+		"category": {
+			"enum": [
+				"color",
+				"spacing",
+				"typography",
+				"shadow",
+				"motion",
+				"radius",
+				"opacity",
+				"z-index",
+				"custom"
+			]
+		}
+	}
+}

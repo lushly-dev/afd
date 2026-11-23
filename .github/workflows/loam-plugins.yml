@@ -12,6 +12,27 @@ on:
       - 'endpoints/loam/plugins/*/docs/scenarios/**'
       - 'packages/rust/**'
       - '.cargo/config.toml'
+      - 'packages/auth/**'
+      - 'packages/client/**'
+      - 'packages/core/**'
+      - 'packages/local-db/**'
+      - 'packages/server/**'
+      - 'packages/testing/**'
+      - 'packages/view-state/**'
+      - 'pnpm-lock.yaml'
+      - '.github/actions/playwright-install/**'
+      - 'endpoints/loam/packages/cli/**'
+      - 'endpoints/loam/packages/copilot/**'
+      - 'endpoints/loam/packages/kernel/**'
+      - 'endpoints/loam/packages/manifest/**'
+      - 'endpoints/loam/packages/sdk/**'
+      - 'endpoints/loam/packages/testing/**'
+      - 'endpoints/loam/packages/theme/**'
+      - 'foundations/fast-af/packages/**'
+      - 'foundations/specimen/**'
+      - 'foundations/violet/**'
+      - 'integrations/specimen-fast-af/**'
+      - 'integrations/violet-afd/**'
       - '.github/workflows/loam-plugins.yml'
       - '.github/workflows/queue.yml'
       - '.github/actions/setup-node-pnpm/**'
@@ -25,6 +46,27 @@ on:
       - 'endpoints/loam/plugins/*/docs/scenarios/**'
       - 'packages/rust/**'
       - '.cargo/config.toml'
+      - 'packages/auth/**'
+      - 'packages/client/**'
+      - 'packages/core/**'
+      - 'packages/local-db/**'
+      - 'packages/server/**'
+      - 'packages/testing/**'
+      - 'packages/view-state/**'
+      - 'pnpm-lock.yaml'
+      - '.github/actions/playwright-install/**'
+      - 'endpoints/loam/packages/cli/**'
+      - 'endpoints/loam/packages/copilot/**'
+      - 'endpoints/loam/packages/kernel/**'
+      - 'endpoints/loam/packages/manifest/**'
+      - 'endpoints/loam/packages/sdk/**'
+      - 'endpoints/loam/packages/testing/**'
+      - 'endpoints/loam/packages/theme/**'
+      - 'foundations/fast-af/packages/**'
+      - 'foundations/specimen/**'
+      - 'foundations/violet/**'
+      - 'integrations/specimen-fast-af/**'
+      - 'integrations/violet-afd/**'
       - '.github/workflows/loam-plugins.yml'
       - '.github/workflows/queue.yml'
       - '.github/actions/setup-node-pnpm/**'
@@ -57,6 +99,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       mail: ${{ steps.mail.outputs.run }}
+      violet: ${{ steps.violet.outputs.run }}
     env:
       AFD_BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || github.event.merge_group.base_sha || github.event.before }}
       AFD_SCOPE: ${{ (github.event_name == 'pull_request' || github.event_name == 'push' || github.event_name == 'merge_group') && 'affected' || 'all' }}
@@ -68,6 +111,8 @@ jobs:
           persist-credentials: false
       - id: mail
         run: node scripts/affected.mjs gate --path endpoints/loam/plugins/mail/engine/ --path endpoints/loam/plugins/mail/scripts/ --path endpoints/loam/plugins/mail/docs/scenarios/ --path packages/rust/ --path .cargo/config.toml --path .github/workflows/loam-plugins.yml --path .github/actions/setup-node-pnpm/
+      - id: violet
+        run: node scripts/affected.mjs gate --package @lushly-dev/loam-app-violet --path endpoints/loam/plugins/violet/ --except endpoints/loam/plugins/violet/docs/ --path .github/actions/playwright-install/ --path .github/actions/setup-node-pnpm/ --path .github/workflows/loam-plugins.yml
 
   mail:
     name: Mail engine (fmt, clippy, test)
@@ -131,3 +176,42 @@ jobs:
             echo "$output" >&2
             exit 1
           fi
+
+  violet:
+    name: Violet plugin (scenarios, Specimen, pack)
+    needs: scope
+    if: needs.scope.outputs.violet == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-node-pnpm
+      - name: Build Violet plugin and workspace dependencies
+        run: pnpm -F "@lushly-dev/loam-app-violet..." -F "!@lushly-dev/loam-host" build
+      - name: Typecheck
+        run: pnpm -F @lushly-dev/loam-app-violet typecheck
+      - name: Lint tokens
+        run: pnpm -F @lushly-dev/loam-app-violet lint:tokens
+      - name: Unit and scenario tests
+        run: pnpm -F @lushly-dev/loam-app-violet test
+      - uses: ./.github/actions/playwright-install
+        with:
+          package: '@lushly-dev/loam-app-violet'
+        timeout-minutes: 10
+      # Specimen's native host renders the plugin's fixtures; test:specimen builds it.
+      - name: Install Rust toolchain
+        working-directory: foundations/specimen/host
+        run: rustup toolchain install
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+          workspaces: foundations/specimen/host
+          shared-key: specimen-host-release
+      - name: Specimen fixtures
+        run: pnpm -F @lushly-dev/loam-app-violet test:specimen
+      - name: Pack app
+        run: pnpm -F @lushly-dev/loam-app-violet run pack

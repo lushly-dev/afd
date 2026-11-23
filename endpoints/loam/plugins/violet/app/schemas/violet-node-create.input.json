@@ -1,0 +1,27 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["document", "parent", "id", "type"],
+	"properties": {
+		"document": { "type": "string", "minLength": 1, "maxLength": 128 },
+		"parent": {
+			"anyOf": [{ "type": "string", "minLength": 1, "maxLength": 256 }, { "type": "null" }]
+		},
+		"id": { "type": "string", "minLength": 1, "maxLength": 256 },
+		"type": {
+			"enum": [
+				"root",
+				"product",
+				"platform",
+				"device",
+				"locale",
+				"theme",
+				"experiment",
+				"shared",
+				"custom"
+			]
+		},
+		"restore": { "type": "boolean" }
+	}
+}

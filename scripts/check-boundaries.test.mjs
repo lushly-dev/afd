@@ -507,3 +507,107 @@ test('a lane: every relative import that leaves it, followed through what it rea
 		/lane hosted: its input endpoints\/app\/web\/gone\.json holds no file/
 	);
 });
+
+function oneWayFixture(t) {
+	const f = fixture(t);
+	f.config.oneWay = [
+		{
+			path: 'endpoints/loam/plugins/',
+			reason: 'D109: plugins are one-way and isolated from one another',
+		},
+	];
+	f.npm('endpoints/loam/packages/sdk', '@x/loam-sdk');
+	f.npm('endpoints/loam/packages/testing', '@x/loam-testing');
+	f.npm(
+		'endpoints/loam/plugins/violet/app',
+		'@x/loam-app-violet',
+		{
+			dependencies: { '@x/loam-sdk': '*' },
+			devDependencies: { '@x/loam-testing': '*' },
+		},
+		"export { x } from '@x/loam-sdk';\n"
+	);
+	f.npm('endpoints/loam/plugins/other/app', '@x/loam-app-other', {
+		dependencies: { '@x/loam-sdk': '*' },
+	});
+	return f;
+}
+
+test('oneWay (D109): plugins may import host packages, while host code and tests may not import plugins', (t) => {
+	const f = oneWayFixture(t);
+	assert.deepEqual(f.check().errors, []);
+	f.write(
+		'endpoints/loam/packages/sdk/test/leak.test.ts',
+		"import '@x/loam-app-violet';\nimport '../../../plugins/violet/app/src/index.js';\n"
+	);
+	f.npm('endpoints/loam/packages/web', '@x/loam-web', {
+		devDependencies: { '@x/loam-app-violet': '*' },
+	});
+	const errors = f.check().errors.join('\n');
+	assert.match(
+		errors,
+		/sdk\/test\/leak\.test\.ts: imports @x\/loam-app-violet, under one-way root endpoints\/loam\/plugins\//
+	);
+	assert.match(
+		errors,
+		/sdk\/test\/leak\.test\.ts: imports \.\.\/\.\.\/\.\.\/plugins\/violet\/app\/src\/index\.js, into one-way root endpoints\/loam\/plugins\//
+	);
+	assert.match(
+		errors,
+		/web\/package\.json: devDependencies lists @x\/loam-app-violet, under one-way root endpoints\/loam\/plugins\//
+	);
+});
+
+test('oneWay (D109): sibling plugins may not depend on or import one another', (t) => {
+	const f = oneWayFixture(t);
+	f.npm(
+		'endpoints/loam/plugins/other/app',
+		'@x/loam-app-other',
+		{ dependencies: { '@x/loam-sdk': '*', '@x/loam-app-violet': '*' } },
+		"import '@x/loam-app-violet';\nimport '../../../violet/app/src/index.js';\n"
+	);
+	const errors = f.check().errors.join('\n');
+	assert.match(
+		errors,
+		/other\/app\/package\.json: dependencies lists @x\/loam-app-violet, of sibling plugin violet/
+	);
+	assert.match(
+		errors,
+		/other\/app\/src\/index\.ts: imports @x\/loam-app-violet, of sibling plugin violet/
+	);
+	assert.match(
+		errors,
+		/other\/app\/src\/index\.ts: imports \.\.\/\.\.\/\.\.\/violet\/app\/src\/index\.js, into sibling plugin violet/
+	);
+});
+
+test('oneWay (D109): root package.json, top-level scripts/, and empty/typo roots fail', (t) => {
+	const f = oneWayFixture(t);
+	f.write('package.json', {
+		name: 'repo-root',
+		private: true,
+		devDependencies: { '@x/loam-app-violet': '*' },
+	});
+	f.write(
+		'scripts/leak.mjs',
+		"import '@x/loam-app-violet';\nimport '../endpoints/loam/plugins/violet/app/src/index.js';\n"
+	);
+	f.config.oneWay.push({
+		path: 'endpoints/loam/nonexistent/',
+		reason: 'typo should fail instead of passing silently',
+	});
+	const errors = f.check().errors.join('\n');
+	assert.match(
+		errors,
+		/package\.json: devDependencies lists @x\/loam-app-violet, under one-way root endpoints\/loam\/plugins\//
+	);
+	assert.match(
+		errors,
+		/scripts\/leak\.mjs: imports @x\/loam-app-violet, under one-way root endpoints\/loam\/plugins\//
+	);
+	assert.match(
+		errors,
+		/scripts\/leak\.mjs: imports \.\.\/endpoints\/loam\/plugins\/violet\/app\/src\/index\.js, into one-way root endpoints\/loam\/plugins\//
+	);
+	assert.match(errors, /oneWay rule endpoints\/loam\/nonexistent\/: path holds no file/);
+});

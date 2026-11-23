@@ -66,7 +66,7 @@ steps:
     expect:
       success: true
       data:
-        unexported: 0
+        rev: { exists: true }
         content:
           files:
             - { name: base.tokens.json, content: { contains: "#1b1b1f" } }
