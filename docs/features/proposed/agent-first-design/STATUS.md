@@ -78,7 +78,7 @@ shape of the [Patterns status](../../active/patterns/STATUS.md).
   since it spends the owner's allowance. Questions 4, 8, 9 and 10 of the proposal are open and
   block nothing yet.
 - **Order:** the owner answers the direction and ranks the draft jobs before commands are
-  drafted, as the [Scales scaffold](../scales/STATUS.md) does. The
+  drafted, as the [Scales scaffold](../../active/scales/STATUS.md) does. The
   [jobs-first guide](../../../../.claude/skills/afd/references/jobs-first.md) puts the owner's
   ranking after the scenarios and the reader walks, and they still follow.
 - **Last verified:** 2026-11-18 for the reference build at `f4eeba0c` (308 of 308 checks, its

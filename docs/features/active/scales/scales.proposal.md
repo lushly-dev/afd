@@ -2,21 +2,20 @@
 
 ## Status
 
-- **State:** draft (revised after three-seat walk and two-model independent review). Scaffolded 2026-11-13 against `main` at `e5d683a8`. Pivoted to the owner's two-stage direction (`#1111`) and drafted 2026-11-22 against `main` at `2ba52efcb0e` after a three-pass walkthrough with the owner; walked once across all three seats by a fresh read-only reader and reviewed by two independent reviewers (Gemini 4 Neon `high` and GPT-6.2 Astra `high`), with every finding applied. Not yet approved for promotion to `active/`. [STATUS.md](STATUS.md) tracks progress.
+- **State:** active (approved and promoted from `proposed/` on 2026-11-22). Scaffolded 2026-11-13 against `main` at `e5d683a8`. Pivoted to the owner's two-stage direction (`#1111`) and drafted 2026-11-22 against `main` at `2ba52efcb0e` after a three-pass walkthrough with the owner; walked once across all three seats by a fresh read-only reader and reviewed by two independent reviewers (Gemini 4 Neon `high` and GPT-6.2 Astra `high`), with every finding applied ([#2124](https://github.com/lushly-dev/afd/pull/2124)). [STATUS.md](STATUS.md) tracks progress.
 - **Verified:**
-  - Every claim in [What exists today](#2-what-exists-today) was verified first-hand against `main` at `2ba52efcb0e`, and cross-checked during the fresh reader walk and two-model independent review.
+  - Every claim in [What exists today](#2-what-exists-today) was verified first-hand against `main` at `2ba52efcb0e`, cross-checked during the fresh reader walk and two-model independent review, and re-verified against `main` at `91d30fcec87` after [#2166](https://github.com/lushly-dev/afd/pull/2166) migrated Loam's tree to DTCG `.tokens.json` files.
   - All 41 position-named tokens in Loam and repo-wide CSS consumers were audited on 2026-11-22.
   - All eight scenario files pass the three `jobs-first` checks plus a `REF IN EXPECT` scan ([STATUS.md](STATUS.md#how-the-jobs-were-checked)).
   - Fresh three-seat reader walk and two-model independent review completed ([section 4](#4-what-the-walk-and-review-changed)); every blocker and improvement was applied and the checks re-run clean.
 - **Not verified:**
-  - Nothing in [Design](#5-design) or [Cutover](#7-loam-and-violet-elements-cutover-contractversion-3) is implemented yet.
-  - Waiting to promote to `docs/features/active/scales/` and open Slice 1 / Slice 2 sub-issues until implementation is scheduled.
+  - Nothing in [Design](#5-design) or [Cutover](#7-loam-and-violet-elements-cutover-contractversion-3) is implemented yet; Slice 1 ([#2195](https://github.com/lushly-dev/afd/issues/2195), [#2197](https://github.com/lushly-dev/afd/issues/2197)) and Slice 2 ([#2198](https://github.com/lushly-dev/afd/issues/2198)) are tracked as sub-issues under [#1111](https://github.com/lushly-dev/afd/issues/1111).
 
 | Field | Value |
 | --- | --- |
 | Epic | [#1111](https://github.com/lushly-dev/afd/issues/1111) |
 | Units touched | `foundations/violet`, `integrations/violet-afd`, `endpoints/violet-server`, `foundations/fast-af/packages/violet-elements`, `endpoints/loam/packages/theme`, Loam chrome/consumers, `endpoints/health-dashboard`, `packages/examples/todo/frontends/shared`, `site/fast-af`, `.claude/skills/loam-design` |
-| Related | [Patterns](../../active/patterns/patterns.proposal.md) ([#1073](https://github.com/lushly-dev/afd/issues/1073)), [Design Decisions](../design-decisions/design-decisions.proposal.md) ([#1108](https://github.com/lushly-dev/afd/issues/1108)), [Screens from Jobs](../../active/screens-from-jobs/screens-from-jobs.proposal.md) ([#1109](https://github.com/lushly-dev/afd/issues/1109)), [Pointing](../../active/pointing/pointing.proposal.md) ([#1110](https://github.com/lushly-dev/afd/issues/1110)) |
+| Related | [Patterns](../patterns/patterns.proposal.md) ([#1073](https://github.com/lushly-dev/afd/issues/1073)), [Design Decisions](../../proposed/design-decisions/design-decisions.proposal.md) ([#1108](https://github.com/lushly-dev/afd/issues/1108)), [Screens from Jobs](../screens-from-jobs/screens-from-jobs.proposal.md) ([#1109](https://github.com/lushly-dev/afd/issues/1109)), [Pointing](../pointing/pointing.proposal.md) ([#1110](https://github.com/lushly-dev/afd/issues/1110)) |
 | Rank among the four | Fourth. Small, separate, and only Violet, `violet-elements`, Loam and their theme consumers need it |
 
 ---
@@ -26,8 +25,8 @@
 Size names that state a position (`xs` to `xl`, `sm`/`md`/`lg`) try to do two jobs at once — limit the choices and express what a size is for — and do both badly:
 
 1. **They are seldom semantic.** `space.stack.sm` says where a value sits in a list, not what role it plays.
-2. **Nothing fits between two steps.** When AFD's Refined theme (D159, 2026-11-17) needed a `13px` label between `size.font.sm` (`12px`) and `size.font.md` (`14px`), `type.label.sm.size` had to bypass the scale and hardcode `'13px'` (`endpoints/loam/packages/theme/src/tree/components.ts:94`).
-3. **Position tags drift from values.** In the same file, `type.caption.xs.size` now points to `size.font.sm` (`12px`), contradicting its own `.xs` suffix (`components.ts:91`).
+2. **Nothing fits between two steps.** When AFD's Refined theme (D159, 2026-11-17) needed a `13px` label between `size.font.sm` (`12px`) and `size.font.md` (`14px`), `type.label.sm.size` had to bypass the scale and hardcode `'13px'` (`endpoints/loam/packages/theme/tree/loam.tokens.json`).
+3. **Position tags drift from values.** In the same file, `type.caption.xs.size` now points to `size.font.sm` (`12px`), contradicting its own `.xs` suffix.
 4. **Public contracts leak raw ladders.** Loam exports 16 positional ladder tokens (`size.font.{xs..xl}`, `size.line.{xs..xl}`, `size.space.{xs..xl}`, `space.inline.lg`) alongside semantic `type.*` and `space.*` tokens; seven of those 16 have zero consumers outside `endpoints/loam/packages/theme/`.
 
 ### Direction (owner decisions, Passes 1–3)
@@ -45,7 +44,7 @@ Scales uses a **two-stage system** built on plain Violet references (no derived-
 
 ## 2. What exists today
 
-Verified first-hand on 2026-11-22 against `main` at `2ba52efcb0e`.
+Verified first-hand on 2026-11-22 against `main` at `2ba52efcb0e`, with Loam's DTCG tree and `import.*` lines re-verified at `91d30fcec87` (after [#2166](https://github.com/lushly-dev/afd/pull/2166) and [#2090](https://github.com/lushly-dev/afd/pull/2090)).
 
 ### Violet (`foundations/violet`, `integrations/violet-afd`, `endpoints/violet-server`)
 
@@ -56,7 +55,7 @@ Verified first-hand on 2026-11-22 against `main` at `2ba52efcb0e`.
   - `@lushly-dev/violet-core` exports `resolveTokens` and `exportTokens` (`foundations/violet/packages/core/src/tokens.ts`), but **not** a node-level constraint validation entry point; `constraints.validate` lives only in `violet-afd`.
   - `analyze.violations` (`integrations/violet-afd/src/commands/analyze/violations.ts:110-177`) validates an entire node tree in one call and returns only failing tokens.
 - **Resolved tokens** (`types/token.ts:137-165`, `engine/resolver.ts:236-440`): `ResolvedToken` already exposes `aliasOf?: string` and `referenceError?: TokenReferenceError` (`TOKEN_REFERENCE_NOT_FOUND`, `CIRCULAR_REFERENCE`, `NOT_IMPLEMENTED`). Note that a broken reference sets **both** `aliasOf` and `referenceError`. `ResolvedToken` does **not** yet carry the winning operation's `reason` (though `OperationRecord.reason` is stored in the database), and `validate.ts:18-26` (`ResolvedTokenOutput`) currently omits `aliasOf`, `referenceError` and `reason`.
-- **Bulk imports** (`integrations/violet-afd/src/commands/import/json.ts:208`, `import/tree.ts:356-359`): unconditionally write `reason: 'Imported from JSON'` on every `add`/`override` operation, which would silently satisfy `requireOffRampReason: true` for both new and historically imported trees if left unhandled.
+- **Bulk imports** (`integrations/violet-afd/src/commands/import/json.ts:222`, `import/tree.ts:368-371`): unconditionally write `reason: 'Imported from JSON'` on every `add`/`override` operation, which would silently satisfy `requireOffRampReason: true` for both new and historically imported trees if left unhandled. `export.tree` (`integrations/violet-afd/src/commands/export/tree.ts:231-238`) emits `$type`, `$value`, `$description`, and `$extensions["dev.lushly.violet"].category` only (no `reason`).
 - **Impact previews** (`integrations/violet-afd/src/commands/changes/impact.ts:29-39, 186-188, 247-309, 440-464`): `ImpactChangeSchema` omits `reason` on `add`/`override`; `stageChange` (`:297-309`) stages changes onto the overlay while `applyStep` (`:247-274`) formats returned apply commands (dropping `reason`); `valueKey(cell)` (`:186-188`) keys on `[cell.value, cell.resolvedValue]` via `MatrixCell` (which has no `reason` field), skipping violation checks on reason-only edits; and `diffViolations` (`:440-441`) keys on `${tokenId}\u0000${constraintId}` alone, collapsing multiple violations from one `ramp` constraint.
 - **Interface check** (`integrations/violet-afd/src/commands/analyze/interface.ts`, landed in `#1942`): verifies every id in a component `interface.json` resolves cleanly with a valid CSS value in every theme node (`missing`, `invalid`). It does not yet flag private/ramp tokens (`ref.*` or `tier: 'global'`) leaked into an interface.
 - **Export & resolve** (`commands/export/export.ts`, `commands/token/resolve.ts`, `core/src/tokens.ts`): support `filter` (include glob), and `export` fails on broken/cyclic references (`TOKEN_REFERENCE_NOT_FOUND`, `CIRCULAR_REFERENCE`), while `cssTransformer` (`export/transformers/css.ts:28,35`) already falls back to resolved literals when an alias target is not in the exported set. Neither command nor core helper has `excludePrefixes` yet (one of the two reasons Loam renders its own outputs alongside override diffs, `endpoints/loam/packages/theme/src/outputs.ts:1-4`).
@@ -69,8 +68,8 @@ Verified first-hand on 2026-11-22 against `main` at `2ba52efcb0e`.
   - 25 semantic tokens with positional names/tags: 15 `type.*` (`caption.xs`, `label.sm`, `body.md`, `title.sm`, `title.md` × `{size,line,weight}`), 3 `radius.{sm,md,lg}`, 2 `space.inline.{sm,md}`, 3 `space.stack.{xs,sm,md}`, 2 `space.layout.{sm,md}`.
 - **`violet-elements` interface & theme build:** `foundations/fast-af/packages/violet-elements/tokens/interface.json` (**96 tokens**, `contractVersion: 2`) contains **26 of the 41** position-named tokens. `theme:check` enforces parity between Loam's tree and `interface.json`, including `HOOK_TOKEN_TARGETS['--_space-xs'] = '--space-stack-xs'` (`endpoints/loam/packages/theme/src/components.ts:118`). `foundations/fast-af/packages/violet-elements/scripts/build-runtime-theme.mjs:27` explicitly throws if `violet-theme.export.json`'s `contractVersion !== 1`.
 - **Other monorepo CSS consumers** (repo-wide `git grep` on 2026-11-22): `endpoints/health-dashboard/src/styles.css` and `packages/examples/todo/frontends/shared/src/styles.css` read `--radius-md`, `--space-layout-sm` and `--type-body-md-size`; `site/fast-af/*` and `site/js/vendor/fast-af.js` carry vendored FAST-AF theme files; `.claude/skills/loam-design/{SKILL.md,references/patterns.md}` reference the current token names.
-- **Existing primitives & CSS lint:** `ref.space.{2,4,6,8,12,16,24}` already exists (`tree/primitives.ts:84-90`) and is excluded from export (`isPrimitive` in `tree/types.ts:39`). `endpoints/loam/packages/theme/scripts/lint-tokens.mjs:217-227` already enforces *"code uses semantic tokens only"* via its `primitive` rule (forbidding `--ref-*` in CSS/TS). Type, radius and target sizes have no `ref.*` ramps yet, and `metadataFor` (`tree/index.ts:111-119`) labels all non-color `ref.*` tokens as `category: 'spacing'`.
-- **Dependencies & reasons:** `@lushly-dev/loam-theme/package.json:34-36` depends only on `@lushly-dev/violet-core` (not `violet-afd`), writes `reason: null` on every tree operation (`tree/index.ts:87`), and declares no Violet constraints.
+- **Existing primitives & CSS lint:** `global.ref.space.{2,4,6,8,12,16,24}` already exists in `endpoints/loam/packages/theme/tree/loam.tokens.json` (with `$extensions["dev.lushly.violet"].category: "spacing"`) and is excluded from export (`isPrimitive` in `src/tree/types.ts:27`). `endpoints/loam/packages/theme/scripts/lint-tokens.mjs:217-227` already enforces *"code uses semantic tokens only"* via its `primitive` rule (forbidding `--ref-*` in CSS/TS). Type, radius and target sizes have no `ref.*` ramps yet.
+- **DTCG tree loader & constraints:** After [#2166](https://github.com/lushly-dev/afd/pull/2166) (`#1974`), Loam's seven nodes live in `endpoints/loam/packages/theme/tree/*.tokens.json` (`loam.tokens.json`, `loam_{light,dark,high-contrast}.tokens.json`, and `loam_{light,dark,high-contrast}_compact.tokens.json`). `@lushly-dev/loam-theme/package.json:35-36` depends on `@lushly-dev/violet-afd` and `@lushly-dev/violet-core`; `buildLoamTree()` (`src/tree/index.ts:114-137`) loads the DTCG files via `importTreeCommand` and currently declares no Violet constraints, while `src/theme.test.ts:406-468` verifies byte-identical `import.tree` ↔ `export.tree` round-trips and a one-line `$value`-only diff on `token.override`.
 - **Component attributes** (`foundations/fast-af/packages/violet-elements/attribute-taxonomy.jsonc:419-440, 773-782, 904-913`): out of scope for Scales (Pass 1, Q6); tracked in standalone issue [#2120](https://github.com/lushly-dev/afd/issues/2120).
 
 ---
@@ -158,7 +157,7 @@ No new top-level Violet commands are added. Every job runs on Violet's existing 
 
    - **Handler-level config checks in `constraints.set`:** Following `set.ts`'s existing pattern for `disabledReason` and `checkPattern`, `constraints.set` checks that `ramp` is a non-empty glob, `repeatThreshold >= 2`, and `warnUneven.maxRatioSpread > 1`, returning `VALIDATION_ERROR` with a field-specific `suggestion` (naming `repeatThreshold`, `maxRatioSpread`, or `ramp`).
    - **Multi-violation, sub-check `code`, and severity preservation:** Extend Violet's validator engine so a validator returns `ConstraintViolation[]`, each `ConstraintViolation` carries an optional stable `code` (for `ramp`: `'ramp:broken-ref'`, `'ramp:wrong-family'`, `'ramp:unreasoned'`, `'ramp:pair'`, `'ramp:repeat'`, `'ramp:uneven'`), and advisory sub-checks (`'ramp:repeat'`, `'ramp:uneven'`) keep `severity: 'warning'` instead of being overwritten by `constraint.severity` (`error`). A token that is both unreasoned off-ramp *and* repeated emits both violations (1 `error`, 1 `warning`).
-   - **Core entry point:** Export `validateConstraints(db, nodeId, { filter?, onlyViolating? })` from `@lushly-dev/violet-core` (mirroring `resolveTokens` and `exportTokens`) and have `constraints.validate` and `analyze.violations` call it. This lets `@lushly-dev/loam-theme`'s `theme:check` run Violet constraints without adding a dependency on `violet-afd`.
+   - **Core entry point:** Export `validateConstraints(db, nodeId, { filter?, onlyViolating? })` from `@lushly-dev/violet-core` (mirroring `resolveTokens` and `exportTokens`) and have `constraints.validate` and `analyze.violations` call it. This lets direct `@lushly-dev/violet-core` callers — including `@lushly-dev/loam-theme`'s `theme:check` — run Violet constraints directly alongside `resolveTokens` and `exportTokens`.
    - **Evaluation order for `type: 'ramp'`:**
      1. **Scope:** Semantic checks run on tokens matching `constraint.applyTo` (ignoring `ref.*` ramp tokens; unused ramp steps report nothing). When `config.pairWith` is set, pairing checks also evaluate tokens matching `applyTo` with `fromSuffix` swapped to `toSuffix` so filtering on either `.size` or `.line` catches cross-step mismatches.
      2. **Broken reference first (`ramp:broken-ref`):** If `token.referenceError` is set (`TOKEN_REFERENCE_NOT_FOUND` or `CIRCULAR_REFERENCE`), immediately emit an `error` naming the `referenceError.code` and message and stop evaluating this token against the ramp.
@@ -181,7 +180,7 @@ No new top-level Violet commands are added. Every job runs on Violet's existing 
    - `constraints.validate` gains optional `onlyViolating: z.boolean().default(false)` so agents and scripts can omit passing tokens (`violations: []`) without flooding context.
 
 5. **Bulk import hygiene & `changes.impact` parity.**
-   - `import.json` / `import.tree`: stop stamping `'Imported from JSON'`; write `reason: null` on imported operations unless a token carries `$extensions['dev.lushly.violet'].reason`. (Historical stores already containing `'Imported from JSON'` are treated as unreasoned by `ramp:unreasoned` above.)
+   - `import.json` / `import.tree`: stop stamping `'Imported from JSON'`; write `reason: null` on imported operations unless a token carries `$extensions['dev.lushly.violet'].reason`. (Historical stores already containing `'Imported from JSON'` are treated as unreasoned by `ramp:unreasoned` above.) `export.tree` stays unchanged in Phase 1 (emitting `$type`, `$value`, `$description`, and `category` only) so Loam's byte-identical round-trip and one-line `$value`-only `token.override` diff tests (`endpoints/loam/packages/theme/src/theme.test.ts:406-468`) remain intact; Phase 2 puts all semantic Loam sizes on `ref.*` ramps with no off-ramp literals, and round-tripping `$extensions['dev.lushly.violet'].reason` on `export.tree` is tracked as a follow-up in [STATUS.md](STATUS.md#follow-ups-not-yet-issues).
    - `changes.impact`:
      - Add optional `reason` to `add` and `override` in `ImpactChangeSchema` (`stageChange` already spreads `{ nodeId, ...change }` onto the overlay; update `applyStep` so the returned apply `input` and CLI string preserve `reason` / `--reason`).
      - Run `diffViolations` on every node reached by any staged `add`/`override` even when `valueKey` (`[cell.value, cell.resolvedValue]`) did not change (avoiding any Phase 1 dependency on `MatrixCellSchema.reason`, which stays a Slice 2 follow-up).
@@ -227,9 +226,9 @@ Zero new top-level commands. All **8 scenario-tested commands** and **4 Phase 1 
 
 ## 7. Loam and `violet-elements` cutover (`contractVersion: 3`)
 
-### 7.1 Four Stage 1 ramps in Loam (`endpoints/loam/packages/theme/src/tree/primitives.ts`)
+### 7.1 Four Stage 1 ramps in Loam (`endpoints/loam/packages/theme/tree/loam.tokens.json`)
 
-| Ramp | Naming | Initial Refined steps | `metadataFor` category | Semantic `applyTo` rules |
+| Ramp | Naming | Initial Refined steps | DTCG `$extensions["dev.lushly.violet"].category` | Semantic `applyTo` rules |
 | --- | --- | --- | --- | --- |
 | Spacing | Value (`ref.space.<px>`) | `2, 4, 6, 8, 12, 16, 24` | `'spacing'` | `space.*` |
 | Type | Step (`ref.type.<step>.{size,line}`) | `100` (`11px`/`14px`), `200` (`12px`/`16px`), `250` (`13px`/`16px`), `300` (`14px`/`20px`), `400` (`18px`/`24px`), `500` (`24px`/`32px`) | `'typography'` | `type.*.size` (with `pairWith`), `type.*.line` |
@@ -237,8 +236,8 @@ Zero new top-level commands. All **8 scenario-tested commands** and **4 Phase 1 
 | Target | Value (`ref.target.<px>`) | `24, 28, 32, 40, 44, 48, 56` | `'spacing'` | `size.target.*`, plus explicit rules for the 4 shell bars: `shell.size.titlebar`, `shell.size.statusbar`, `shell.size.rail`, `shell.size.tabbar` |
 
 - **Explicitly unramped:** shell layout geometry (`shell.size.sidebar.*`, `inspector.*`, `panel.*`, `main.min`, `drawer.max`, `handle`, `focus`) and `size.focus-ring.width` (`2px`).
-- **Existing literals switched to `ref.*`:** `size.target.{compact,natural,comfortable}` (`components.ts:107-109`), `radius.round` (`components.ts:127`), compact overrides (`density.ts:22-26`), and the 4 shell bar heights (`shell.ts:7-10`).
-- **Tree plumbing:** add optional `reason?: string` to `TreeToken` (`tree/types.ts:9-12`) and write `token.reason ?? null` in `tree/index.ts:87`; update `metadataFor` (`tree/index.ts:111-119`) so `ref.type.*` gets `'typography'` and `ref.radius.*` gets `'radius'`.
+- **Existing literals switched to `ref.*`:** `size.target.{compact,natural,comfortable}`, `radius.round`, and the 4 shell bar heights in `tree/loam.tokens.json`, plus compact overrides in `tree/loam_{light,dark,high-contrast}_compact.tokens.json`.
+- **DTCG tree & constraint attachment:** Add the new `global.ref.{type,radius,target}.*` steps directly in `tree/loam.tokens.json` with their `$extensions["dev.lushly.violet"].category` (`'typography'`, `'radius'`, `'spacing'`; any future off-ramp literal in a DTCG file can carry `$extensions["dev.lushly.violet"].reason` for `import.tree`). Attach Loam's `ramp` constraints and opt-in positional-name `pattern` (`target: 'id'`) constraint on the `loam` root node inside `buildLoamTree()` (`src/tree/index.ts`, or a dedicated `attachLoamConstraints(db)` helper called by `buildLoamTree()` / `check.ts`) so `theme:check` (`src/check.ts`) validates every node via `@lushly-dev/violet-core`'s `validateConstraints`.
 
 ### 7.2 Retire 16 makeshift ladder tokens
 
@@ -277,7 +276,7 @@ Lands as one coordinated cutover across every producer and consumer in the monor
   - `tokens/interface.json` (`contractVersion: 2 → 3`), component styles, fallbacks, generated theme, CEM, and `foundations/fast-af/provenance/adaptations.json`.
   - `scripts/build-runtime-theme.mjs:27` updated to accept `contractVersion === 2` from `violet-theme.export.json`.
 - `endpoints/loam/packages/theme`:
-  - `src/outputs.ts` (`CONTRACT_VERSION: 1 → 2` for `contract/tokens.json` and `violet-theme.export.json`), `src/components.ts` (`HOOK_TOKEN_TARGETS['--_space-xs']` → `'--space-stack-tight'`), `src/tree/*`, and `src/check.ts` (calling `@lushly-dev/violet-core`'s `validateConstraints` across all 7 Loam nodes).
+  - `src/outputs.ts` (`CONTRACT_VERSION: 1 → 2` for `contract/tokens.json` and `violet-theme.export.json`), `src/components.ts` (`HOOK_TOKEN_TARGETS['--_space-xs']` → `'--space-stack-tight'`), `tree/*.tokens.json` (four `global.ref.*` ramps, renamed semantic tokens, compact overrides), `src/tree/index.ts` (attaching Loam's `ramp` + positional-name constraints on `loam`), and `src/check.ts` (calling `@lushly-dev/violet-core`'s `validateConstraints` across all 7 Loam nodes).
 - Loam chrome and app CSS/TS consumers, verified by `theme:check` and `lint-tokens.mjs` (which already enforces zero `--ref-*` usage in CSS/TS).
 - **Other monorepo consumers of renamed runtime CSS custom properties:**
   - `endpoints/health-dashboard/src/styles.css` (`--radius-md`, `--space-layout-sm`, `--type-body-md-size`)
@@ -291,8 +290,8 @@ Lands as one coordinated cutover across every producer and consumer in the monor
 
 ### Slice 1 (Jobs 1–7)
 
-1. **Phase 1 — Violet core, `violet-afd` & `violet-server`:** Expose `ResolvedToken.reason` with exact `add`/`override`/`reset`/`copy`/`include` rules; add `type: 'ramp'` (excluding `warnUneven`), `pattern.target: 'id'`, multi-violation + sub-check `code` + advisory severity preservation, `excludePrefixes` on core `resolveTokens`/`exportTokens`, and `validateConstraints` export in `@lushly-dev/violet-core`; wire `constraints.set`, `constraints.validate` (`onlyViolating`), `analyze.violations`, `tokens.resolve` (`excludePrefixes`), `export` (`excludePrefixes`), `interface.check` (`leaked`), `changes.impact` (`reason` + reason-only `diffViolations` + `code`/`severity` key), `import.json`/`import.tree` (`reason: null` default + historical `'Imported from JSON'` sentinel handling), and `violet-server` instructions. Add the `app: 'violet'` fixture adapter (`integrations/violet-afd/scenarios/violet-adapter.ts`) with its own test, move scenarios 01–07 beside `violet-afd`, and pass them in Vitest alongside the Phase 1 regression tests.
-2. **Phase 2 — Loam, `violet-elements` & repo-wide `contractVersion: 3` cutover:** Add the four `ref.*` ramps, `TreeToken.reason`, `metadataFor` categories, and `ramp` + positional-name constraints to Loam; wire `validateConstraints` into `theme:check`; update `HOOK_TOKEN_TARGETS`, `CONTRACT_VERSION`, and `build-runtime-theme.mjs:27`; retire the 16 ladder tokens, add `space.inline.hairline`, and rename the 25 semantic tokens across `violet-elements`, Loam, `health-dashboard`, `todo/frontends/shared`, `site/fast-af`, and `.claude/skills/loam-design`.
+1. **Phase 1 ([#2195](https://github.com/lushly-dev/afd/issues/2195)) — Violet core, `violet-afd` & `violet-server`:** Expose `ResolvedToken.reason` with exact `add`/`override`/`reset`/`copy`/`include` rules; add `type: 'ramp'` (excluding `warnUneven`), `pattern.target: 'id'`, multi-violation + sub-check `code` + advisory severity preservation, `excludePrefixes` on core `resolveTokens`/`exportTokens`, and `validateConstraints` export in `@lushly-dev/violet-core`; wire `constraints.set`, `constraints.validate` (`onlyViolating`), `analyze.violations`, `tokens.resolve` (`excludePrefixes`), `export` (`excludePrefixes`), `interface.check` (`leaked`), `changes.impact` (`reason` + reason-only `diffViolations` + `code`/`severity` key), `import.json`/`import.tree` (`reason: null` default + historical `'Imported from JSON'` sentinel handling), and `violet-server` instructions. Add the `app: 'violet'` fixture adapter (`integrations/violet-afd/scenarios/violet-adapter.ts`) with its own test, move scenarios 01–07 beside `violet-afd`, and pass them in Vitest alongside the Phase 1 regression tests.
+2. **Phase 2 ([#2197](https://github.com/lushly-dev/afd/issues/2197)) — Loam, `violet-elements` & repo-wide `contractVersion: 3` cutover:** Add the four `global.ref.*` ramps (with `$extensions["dev.lushly.violet"].category`) in `endpoints/loam/packages/theme/tree/loam.tokens.json`, update semantic and compact overrides across `tree/*.tokens.json`, attach Loam's `ramp` + positional-name constraints on `loam` in `src/tree/index.ts` (or a shared helper), and wire `validateConstraints` into `src/check.ts` (`theme:check`); update `HOOK_TOKEN_TARGETS`, `CONTRACT_VERSION`, and `build-runtime-theme.mjs:27`; retire the 16 ladder tokens, add `space.inline.hairline`, and rename the 25 semantic tokens across `violet-elements`, Loam, `health-dashboard`, `todo/frontends/shared`, `site/fast-af`, and `.claude/skills/loam-design`.
 
 **Slice 1 exit criteria:**
 - Every scenario tagged `slice` (01–07) passes against `violet-afd` via the `app: 'violet'` fixture adapter, plus Phase 1 regression tests for `changes.impact` and `import.*`.
@@ -302,7 +301,7 @@ Lands as one coordinated cutover across every producer and consumer in the monor
 
 ### Slice 2 (Job 8 — optional)
 
-3. **Phase 3 — Uneven-jump advisory check:** Add `warnUneven: { maxRatioSpread, ignoreAbove? }` to `type: 'ramp'`. Pass scenario 08 (`optional`).
+3. **Phase 3 ([#2198](https://github.com/lushly-dev/afd/issues/2198)) — Uneven-jump advisory check:** Add `warnUneven: { maxRatioSpread, ignoreAbove? }` to `type: 'ramp'`. Pass scenario 08 (`optional`).
 
 ---
 

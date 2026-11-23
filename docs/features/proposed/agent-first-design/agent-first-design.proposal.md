@@ -9,7 +9,7 @@ defaults. Agents review early and often, and a person decides at the points that
 - **State:** scaffold with a design direction. Written 2026-11-14 against `545316f2`. It states
   the problem, what exists, a model, draft jobs, a design direction and the owner's decisions.
   It has no drafted commands and no scenario files. The owner answered the direction and ranked
-  the jobs first, the order the [Scales scaffold](../scales/STATUS.md) set; commands and
+  the jobs first, the order the [Scales scaffold](../../active/scales/STATUS.md) set; commands and
   scenarios are phase A's, after phase 0's decision. Unlike Scales, it carries a design
   direction, marked unverified. [STATUS.md](STATUS.md) tracks progress.
 - **Amended:** 2026-11-16, with [5.10](#510-where-the-parts-live), where the result-state work
@@ -41,7 +41,7 @@ defaults. Agents review early and often, and a person decides at the points that
 | --- | --- |
 | Epic | None for this proposal yet; opening one is the owner's call. [#1385](https://github.com/lushly-dev/afd/issues/1385) carries the code of [5.10](#510-where-the-parts-live) |
 | Units likely touched | The `afd` skill and `packages/core` documentation; `foundations/specimen` and `integrations/specimen-afd` (a persona runner, statuses, a decision card); `endpoints/umbel` (its `components` plugin, later a copy plugin); `packages/examples` (the bench); a new local skill; for [5.10](#510-where-the-parts-live), `foundations/fast-af`, `packages/client` and `packages/view-state` |
-| Related | [Patterns](../../active/patterns/patterns.proposal.md), [Design Decisions](../design-decisions/design-decisions.proposal.md), [Screens from Jobs](../../active/screens-from-jobs/screens-from-jobs.proposal.md), [Pointing](../../active/pointing/pointing.proposal.md), [Scales](../scales/scales.proposal.md), [Component Briefs](../../complete/component-briefs/STATUS.md), [Agent Engine research](../agent-engine/research.md), [epic #1385](https://github.com/lushly-dev/afd/issues/1385) (where FAST-AF's parts live) |
+| Related | [Patterns](../../active/patterns/patterns.proposal.md), [Design Decisions](../design-decisions/design-decisions.proposal.md), [Screens from Jobs](../../active/screens-from-jobs/screens-from-jobs.proposal.md), [Pointing](../../active/pointing/pointing.proposal.md), [Scales](../../active/scales/scales.proposal.md), [Component Briefs](../../complete/component-briefs/STATUS.md), [Agent Engine research](../agent-engine/research.md), [epic #1385](https://github.com/lushly-dev/afd/issues/1385) (where FAST-AF's parts live) |
 | Rank | Not ranked. It frames the five design proposals and adds what none of them covers |
 
 ## 1. Problem
@@ -197,7 +197,7 @@ Read first-hand on 2026-11-14 at `545316f2`.
 | [Design Decisions](../design-decisions/design-decisions.proposal.md) | Variants as specimens, a recorded choice with its reason, a review that shows only what no gate settled, `decidedBy` as `person` or `script` | Agents are told not to answer a review item; nothing reviews judgement before the person |
 | [Screens from Jobs](../../active/screens-from-jobs/screens-from-jobs.proposal.md) | A job's scenario drives the application through its states | "No automated check here can judge layout or hierarchy" |
 | [Pointing](../../active/pointing/pointing.proposal.md) | A person shows an agent which element they mean | Pointing starts on Specimen's review page; pointing in the running application is deferred |
-| [Scales](../scales/scales.proposal.md) | A rule an agent can check in place of a ladder of names | Waiting on the owner's answer to its direction |
+| [Scales](../../active/scales/scales.proposal.md) | Two-stage ramps (`ref.*`), purpose-named semantic tokens and governed off-ramp reasons | Approved under [#1111](https://github.com/lushly-dev/afd/issues/1111) (Slice 1 + Slice 2); implementation open |
 
 The [design-to-code proposal](../design-to-code/00-overview.md) assumes designs are made in a
 drawing tool. The Patterns status file already asks whether to retire or rewrite it.

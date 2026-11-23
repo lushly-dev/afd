@@ -4,7 +4,7 @@ Epic: [#1111](https://github.com/lushly-dev/afd/issues/1111). File new work for 
 
 Read this before the [proposal](scales.proposal.md). It records exactly what is done and what is not, so an
 agent never has to scan the code to learn what is current. It follows the shape of the
-[Patterns status](../../active/patterns/STATUS.md).
+[Patterns status](../patterns/STATUS.md).
 
 ## How to keep this file
 
@@ -14,30 +14,43 @@ agent never has to scan the code to learn what is current. It follows the shape 
 - Write down follow-ups that are not yet issues, with the date and who raised them. Link the issue
   when one exists.
 - Never delete history. Mark an entry superseded and point to what replaced it.
+- Edit only your phase's own blank-line-separated bullet under [Phases](#phases); never add a running
+  summary line of which phases are done or next.
 
 ## Status block
 
-- **State:** draft (walked and independently reviewed, on branch `t3/scales-proposal-walkthrough`).
-  Scaffolded 2026-11-13 against `main` at `e5d683a8`; pivoted to the two-stage system and drafted
-  2026-11-22 against `main` at `2ba52efcb0e` after three guided walkthrough passes with the owner;
-  walked once across all three seats by a fresh read-only reader and reviewed by two independent
-  reviewers (Gemini 4 Neon `high` and GPT-6.2 Astra `high`), with every finding applied. Held in
-  `proposed/` until implementation is scheduled.
-- **Epic:** [#1111](https://github.com/lushly-dev/afd/issues/1111). Its checklist mirrors the steps below; this file
-  stays the source of truth.
-- **Done:**
-  - Owner direction and core design choices locked (Pass 1, 2026-11-22).
-  - Eight jobs cut, rewritten, ranked and split into Slice 1 (1–7) and Slice 2 (8) (Pass 2, 2026-11-22).
-  - Command extensions, Violet `type: 'ramp'` design, and `contractVersion: 3` cutover map locked (Pass 3, 2026-11-22).
-  - Proposal rewritten, eight scenario files written in `scenarios/`, and all three `jobs-first` checks passing (100% command and error coverage, 0 `REF IN EXPECT`).
-  - Fresh three-seat reader walk (2026-11-22) and two-model independent review (2026-11-22) completed with every finding applied and scenario checks re-verified.
-  - Standalone `violet-elements` HTML attribute issue filed as [#2120](https://github.com/lushly-dev/afd/issues/2120).
-- **Not done:**
-  - Owner approval to promote to `docs/features/active/scales/` and open Slice 1 / Slice 2 sub-issues under `#1111` (held until implementation is scheduled, per Pass 3 Q5 Option A).
-  - Anything implemented.
+- **State:** active (approved and promoted from `proposed/` on 2026-11-22). Scaffolded 2026-11-13
+  against `main` at `e5d683a8`; pivoted to the two-stage system and drafted 2026-11-22 against `main`
+  at `2ba52efcb0e` after three guided walkthrough passes with the owner; walked once across all three
+  seats by a fresh read-only reader and reviewed by two independent reviewers (Gemini 4 Neon `high`
+  and GPT-6.2 Astra `high`), with every finding applied ([#2124](https://github.com/lushly-dev/afd/pull/2124)).
+- **Epic:** [#1111](https://github.com/lushly-dev/afd/issues/1111). Work happens in its phased
+  sub-issues under [Phases](#phases); each phase owns its own blank-line-separated line there so
+  parallel pull requests never conflict.
+- **Approved scope:**
+  - Two-stage system on plain Violet references (derived-value transforms dropped): four hand-picked
+    `ref.*` ramps (spacing, paired type size+line, radius, target; shell geometry and focus ring
+    unramped) plus purpose-named semantic tokens with governed off-ramp reasons and `>=2` repeat
+    warnings.
+  - Eight jobs written as scenarios in [`scenarios/`](scenarios/) (Slice 1 = 01–07, Slice 2 = 08
+    optional), zero new top-level Violet commands (8 scenario-tested + 4 Phase 1 plumbing commands).
+  - Coordinated `contractVersion: 3` cutover retiring 16 makeshift ladder tokens, adding
+    `space.inline.hairline` (`ref.space.2`), and renaming 25 semantic tokens across `violet-elements`,
+    Loam, `health-dashboard`, `todo/frontends/shared`, `site/fast-af`, and `.claude/skills/loam-design`.
+  - Standalone `violet-elements` HTML attribute taxonomy spun out as [#2120](https://github.com/lushly-dev/afd/issues/2120).
 - **Follow-ups:** the [table below](#follow-ups-not-yet-issues).
 
-## Steps
+## Phases
+
+Each phase owns one blank-line-separated bullet so concurrent pull requests never edit adjacent lines.
+
+- **Phase 1 ([#2195](https://github.com/lushly-dev/afd/issues/2195)) — Violet core, `violet-afd`, `violet-server`, and Slice 1 scenarios (01–07):** Open (`status:planned`, `execution:integrative`). Expose `ResolvedToken.reason` with `add`/`override`/`reset`/`copy`/`include` rules; add `type: 'ramp'` (without `warnUneven`), `pattern.target: 'id'`, multi-violation advisory severities, core `validateConstraints` and `excludePrefixes`; wire `constraints.set`, `constraints.validate` (`onlyViolating`), `analyze.violations`, `tokens.resolve`, `export`, `interface.check` (`leaked`), `changes.impact`, `import.*`, and `violet-server` instructions; add the `app: 'violet'` fixture adapter and pass scenarios 01–07.
+
+- **Phase 2 ([#2197](https://github.com/lushly-dev/afd/issues/2197)) — Loam ramps, `violet-elements`, and repo-wide `contractVersion: 3` cutover:** Deferred (`blocked` on [#2195](https://github.com/lushly-dev/afd/issues/2195)). Add the four `global.ref.*` ramps (with `$extensions["dev.lushly.violet"].category`) in `endpoints/loam/packages/theme/tree/loam.tokens.json`, update semantic and compact overrides across `tree/*.tokens.json`, attach `ramp` + positional-name constraints on `loam` in `src/tree/index.ts`, and wire `validateConstraints` into `src/check.ts` (`theme:check`); update `HOOK_TOKEN_TARGETS`, `CONTRACT_VERSION`, and `build-runtime-theme.mjs:27`; retire 16 ladder tokens, add `space.inline.hairline`, and rename 25 semantic tokens across `violet-elements`, Loam, `health-dashboard`, `todo/frontends/shared`, `site/fast-af`, and `.claude/skills/loam-design`.
+
+- **Phase 3 ([#2198](https://github.com/lushly-dev/afd/issues/2198)) — Slice 2: optional uneven-jump advisory check (`warnUneven`) and scenario 08:** Deferred (`blocked` on [#2195](https://github.com/lushly-dev/afd/issues/2195)). Add `warnUneven: { maxRatioSpread, ignoreAbove? }` to `type: 'ramp'`, handler validation in `constraints.set`, and pass scenario 08 (`optional`).
+
+## Pre-approval steps (historical)
 
 | Step | State | Evidence |
 | --- | --- | --- |
@@ -49,15 +62,15 @@ agent never has to scan the code to learn what is current. It follows the shape 
 | Write each job as a scenario and run the checks | Done 2026-11-22, merged in [#2124](https://github.com/lushly-dev/afd/pull/2124) | [`scenarios/`](scenarios/), eight files; [How the jobs were checked](#how-the-jobs-were-checked) |
 | Walk the paths with readers who did not write them | Done 2026-11-22 (three seats), merged in [#2124](https://github.com/lushly-dev/afd/pull/2124) | [The walk](#the-walk), proposal section 4 |
 | Independent review | Done 2026-11-22 (two-model review), merged in [#2124](https://github.com/lushly-dev/afd/pull/2124) | [The review](#the-review), proposal section 4 |
-| Promote to `active/` and open sub-issues | Held until implementation is scheduled | Per Pass 3 Q5 (Option A) |
+| Promote to `active/` and open sub-issues | Done 2026-11-22, merged in [#2201](https://github.com/lushly-dev/afd/pull/2201) | Promoted to `docs/features/active/scales/`; sub-issues [#2195](https://github.com/lushly-dev/afd/issues/2195), [#2197](https://github.com/lushly-dev/afd/issues/2197), [#2198](https://github.com/lushly-dev/afd/issues/2198) under [#1111](https://github.com/lushly-dev/afd/issues/1111) |
 
 ## How the jobs were checked
 
-Run on 2026-11-22 at `2ba52efcb0e` on Node `v26.13.1` (`.nvmrc`), with `@lushly-dev/afd-cli` and
-`@lushly-dev/afd-testing` built in this worktree, after applying all three-seat walk and two-model
-review revisions.
+Run on 2026-11-22 at `2ba52efcb0e` on Node `v26.13.1` (`.nvmrc`) after applying all three-seat walk
+and two-model review revisions, and re-verified on 2026-11-22 against `origin/main` at `91d30fcec87`
+on Node `v26.13.0` (`.nvmrc`) after promotion to `docs/features/active/scales/`.
 
-Parse: `node packages/cli/dist/bin.js scenario validate docs/features/proposed/scales/scenarios`
+Parse: `node packages/cli/dist/bin.js scenario validate docs/features/active/scales/scenarios`
 
 ```text
 ✓ All 8 scenario(s) are valid!
@@ -117,17 +130,23 @@ All 7 blockers and 7 improvements were applied to [scales.proposal.md](scales.pr
   - `foundations/fast-af/packages/violet-elements/{tokens/interface.json,attribute-taxonomy.jsonc,scripts/build-runtime-theme.mjs}`
   - Repo-wide CSS consumer audit (`endpoints/health-dashboard/src/styles.css`, `packages/examples/todo/frontends/shared/src/styles.css`, `site/fast-af/*`, `.claude/skills/loam-design/*`).
 
+- **Promotion & DTCG alignment (2026-11-22 at `91d30fcec87`):** re-read first-hand after [#2166](https://github.com/lushly-dev/afd/pull/2166) and [#2090](https://github.com/lushly-dev/afd/pull/2090):
+  - `endpoints/loam/packages/theme/{package.json,tree/loam.tokens.json,tree/loam_light_compact.tokens.json,src/{check,components,outputs,theme.test}.ts,src/tree/{index,types}.ts}`
+  - `integrations/violet-afd/src/commands/{import/json.ts,import/tree.ts,export/tree.ts}`
+
 ## Follow-ups not yet issues
 
 | Date | Raised by | Follow-up | Status |
 | --- | --- | --- | --- |
-| 2026-11-12 | First Patterns draft | Raised in the [Patterns status](../../active/patterns/STATUS.md#follow-ups-not-yet-issues); this proposal is where it is now tracked | Moved here |
+| 2026-11-12 | First Patterns draft | Raised in the [Patterns status](../patterns/STATUS.md#follow-ups-not-yet-issues); this proposal is where it is now tracked | Moved here |
 | 2026-11-22 | Pass 1 Q6 / Pass 3 Q4 | `violet-elements` HTML attribute taxonomy (`size` using `xs..xl` / `sm..lg` / `compact..comfortable`, `density`, `padding` using `none`/`small`/`medium`/`large` in `foundations/fast-af/packages/violet-elements/attribute-taxonomy.jsonc`). Out of scope for Scales | Filed as [#2120](https://github.com/lushly-dev/afd/issues/2120) |
 | 2026-11-22 | First walk (Seat 1) | Year-in off-ramp auditing: expose `reason` on `tokens.matrix` (`MatrixCellSchema`) or add an `onlyOffRamp` filter to `tokens.resolve` so accumulated unique reasoned off-ramp exceptions can be reviewed without dumping every token | Open (Slice 2 / follow-up) |
+| 2026-11-22 | Promotion review | Round-tripping `$extensions["dev.lushly.violet"].reason` in `export.tree` (kept unchanged in Phase 1 so Loam's byte-identical round-trip and one-line `$value` override diff test stay intact; needed only if committed DTCG files later hold off-ramp literals) | Open (follow-up) |
 
 ## Session log
 
 | Date | Session | What changed |
 | --- | --- | --- |
-| 2026-11-13 | Scaffold | After the [Patterns](../../active/patterns/patterns.proposal.md) proposal, the owner agreed to four follow-on proposals from the same discussion: Design Decisions, Screens from Jobs, Pointing and Scales. This scaffold was written from a survey of the code, reviewed once by an independent reader, and committed with its epic |
+| 2026-11-13 | Scaffold | After the [Patterns](../patterns/patterns.proposal.md) proposal, the owner agreed to four follow-on proposals from the same discussion: Design Decisions, Screens from Jobs, Pointing and Scales. This scaffold was written from a survey of the code, reviewed once by an independent reader, and committed with its epic |
 | 2026-11-22 | Walkthrough, draft, walk & review | Ran a three-pass walkthrough with the owner locking Pass 1–3 decisions, rewrote `scales.proposal.md`, updated `STATUS.md` and `docs/features/README.md`, filed standalone attribute issue [#2120](https://github.com/lushly-dev/afd/issues/2120), wrote 8 scenarios, ran a fresh three-seat reader walk (7 blockers, 7 improvements) and a two-model independent review (Gemini 4 Neon `high` + GPT-6.2 Astra `high`; all findings applied), and re-verified all three `jobs-first` checks |
+| 2026-11-22 | Promotion & sub-issues | Promoted `docs/features/proposed/scales/` to `docs/features/active/scales/`, updated `docs/features/README.md` and sibling feature links (`patterns`, `agent-first-design`, `design-decisions`), reshaped `STATUS.md` with per-phase blank-separated bullets, aligned Phase 2 & §2/§7 with [#2166](https://github.com/lushly-dev/afd/pull/2166)'s DTCG `tree/*.tokens.json` loader (caught in independent review), clarified `export.tree` round-trip behavior in Phase 1, updated epic [#1111](https://github.com/lushly-dev/afd/issues/1111) (dropped `needs:decision`, updated links and title), and filed triaged sub-issues [#2195](https://github.com/lushly-dev/afd/issues/2195) (Phase 1, `status:planned`), [#2197](https://github.com/lushly-dev/afd/issues/2197) (Phase 2, `status:deferred` / `blocked`), and [#2198](https://github.com/lushly-dev/afd/issues/2198) (Phase 3 / Slice 2, `status:deferred` / `blocked`) |
