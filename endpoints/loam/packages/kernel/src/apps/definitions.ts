@@ -5,17 +5,15 @@
 
 import type { CommandContext, CommandResult, JsonSchema } from '@lushly-dev/afd-core';
 import {
-	defineCommand,
+	defineCommandWithSchema,
 	type ExposeOptions,
 	type ZodCommandDefinition,
 } from '@lushly-dev/afd-server/define';
 import type { ManifestV2 } from '@lushly-dev/loam-manifest';
-import { deriveMutation } from '@lushly-dev/loam-manifest/validate';
-import { fromJSONSchema, z } from 'zod';
+import { deriveMutation, fromJsonSchema } from '@lushly-dev/loam-manifest/validate';
+import { z } from 'zod';
 
 export type ManifestCommand = NonNullable<ManifestV2['commands']>[number];
-
-type JsonSchemaInput = Parameters<typeof fromJSONSchema>[0];
 
 /** `tool_meta.ui.visibility`, when the manifest says who may see the command (6.2). */
 export function visibilityOf(command: ManifestCommand): readonly string[] | undefined {
@@ -44,9 +42,9 @@ export function defineAppCommand(
 ): ZodCommandDefinition {
 	const schema = command.input_schema as Record<string, unknown>;
 	const expose = exposureOf(command);
-	const declared = fromJSONSchema(schema as JsonSchemaInput);
+	const declared = fromJsonSchema(schema);
 	const prompt = (command as { confirm_prompt?: string }).confirm_prompt;
-	return defineCommand({
+	return defineCommandWithSchema({
 		name: command.name,
 		description: command.description,
 		version: command.version ?? appVersion,
@@ -65,8 +63,8 @@ export function defineAppCommand(
 						)
 						.pipe(declared)
 				: declared,
+		jsonSchema: command.input_schema as unknown as JsonSchema,
 		...(prompt !== undefined ? { confirmPrompt: prompt } : {}),
-		advertisedInputSchema: command.input_schema as unknown as JsonSchema,
 		...(command.title !== undefined ? { title: command.title } : {}),
 		...(command.category !== undefined ? { category: command.category } : {}),
 		...(command.tags !== undefined ? { tags: command.tags } : {}),
@@ -79,7 +77,10 @@ export function defineAppCommand(
 		...(command.tool_meta !== undefined ? { toolMeta: command.tool_meta } : {}),
 		...(command.execution_time !== undefined ? { executionTime: command.execution_time } : {}),
 		...(command.returns !== undefined
-			? { output: fromJSONSchema(command.returns as JsonSchemaInput) }
+			? {
+					output: fromJsonSchema(command.returns),
+					outputJsonSchema: command.returns as unknown as JsonSchema,
+				}
 			: {}),
 		...(expose !== undefined ? { expose } : {}),
 		handler,

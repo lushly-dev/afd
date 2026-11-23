@@ -667,3 +667,127 @@ describe('listCommands and the palette', () => {
 		expect((await kernel.call('probe-list')).success).toBe(true);
 	});
 });
+
+describe('JSON Schema fidelity and sanitized config (#871)', () => {
+	it('accepts astral characters for `^.$` and integers above 2^53 in app command inputs', async () => {
+		const seen: unknown[] = [];
+		const app = manifest('fidelity', {
+			commands: [
+				{
+					name: 'fidelity-check',
+					description: 'Checks unicode pattern and large integers.',
+					effects: ['inspect'],
+					input_schema: {
+						type: 'object',
+						properties: {
+							char: { type: 'string', pattern: '^.$' },
+							big: { type: 'integer' },
+						},
+						required: ['char', 'big'],
+						additionalProperties: false,
+					},
+				},
+			],
+		});
+		const { kernel } = await boot([entry('fidelity')], {
+			'apps/fidelity/': {
+				manifest: app,
+				definition: {
+					sdk: 1,
+					handlers: {
+						async 'fidelity-check'(input: unknown) {
+							seen.push(input);
+							return { success: true, data: input };
+						},
+					},
+				},
+			},
+		});
+		const ok = await kernel.call('fidelity-check', { char: '😀', big: 2 ** 60 });
+		expect(ok.success).toBe(true);
+		expect(seen).toEqual([{ char: '😀', big: 2 ** 60 }]);
+		expect((await kernel.call('fidelity-check', { char: '😀😀', big: 1 })).success).toBe(false);
+		expect((await kernel.call('fidelity-check', { char: 'a', big: 1.5 })).success).toBe(false);
+	});
+
+	it('refuses an own `__proto__` key in closed config and strips it from nested open config objects', async () => {
+		let receivedConfig: Record<string, unknown> | undefined;
+		const closedPatternApp = manifest('closedcfg', {
+			config: {
+				schema: {
+					type: 'object',
+					patternProperties: { '^x': { type: 'number' } },
+					additionalProperties: false,
+				},
+			},
+		});
+		const nestedOpenApp = manifest('opencfg', {
+			config: {
+				schema: {
+					type: 'object',
+					properties: {
+						nested: { type: 'object', properties: { ok: { type: 'number' } } },
+						bag: { type: 'object' },
+					},
+					patternProperties: {
+						'^x_': {
+							type: 'object',
+							properties: {
+								ok: { type: 'number' },
+								tag: { type: 'string', default: 'def' },
+							},
+						},
+					},
+					additionalProperties: false,
+				},
+			},
+			commands: [
+				{
+					name: 'opencfg-read',
+					description: 'Returns received config.',
+					effects: ['inspect'],
+					input_schema: { type: 'object', properties: {}, additionalProperties: false },
+				},
+			],
+		});
+		const { kernel } = await boot(
+			[
+				entry('closedcfg', 'closedcfg', {
+					config: JSON.parse('{"x1":1,"__proto__":1}'),
+				}),
+				entry('opencfg', 'opencfg', {
+					config: JSON.parse(
+						'{"nested":{"ok":1,"__proto__":{"polluted":true}},"bag":{"deep":{"__proto__":{"polluted":true}}},"x_1":{"ok":2,"__proto__":{"polluted":true}}}'
+					),
+				}),
+			],
+			{
+				'apps/closedcfg/': { manifest: closedPatternApp },
+				'apps/opencfg/': {
+					manifest: nestedOpenApp,
+					definition: {
+						sdk: 1,
+						handlers: {
+							async 'opencfg-read'(_input: unknown, context: { config: Record<string, unknown> }) {
+								receivedConfig = context.config;
+								return { success: true, data: { ok: true } };
+							},
+						},
+					},
+				},
+			}
+		);
+		expect((await statusOf(kernel, 'closedcfg'))?.error?.code).toBe('APP_CONFIG_INVALID');
+		expect((await statusOf(kernel, 'opencfg'))?.state).toBe('ready');
+		expect((await kernel.call('opencfg-read')).success).toBe(true);
+		const nested = receivedConfig?.nested as Record<string, unknown> | undefined;
+		expect(nested).toEqual({ ok: 1 });
+		expect(Object.hasOwn(nested ?? {}, '__proto__')).toBe(false);
+		const deep = (receivedConfig?.bag as Record<string, Record<string, unknown>> | undefined)?.deep;
+		expect(deep).toEqual({});
+		expect(Object.hasOwn(deep ?? {}, '__proto__')).toBe(false);
+		const x1 = receivedConfig?.x_1 as Record<string, unknown> | undefined;
+		expect(x1).toEqual({ ok: 2, tag: 'def' });
+		expect(Object.hasOwn(x1 ?? {}, '__proto__')).toBe(false);
+	});
+});

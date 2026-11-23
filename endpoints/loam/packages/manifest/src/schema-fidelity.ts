@@ -14,7 +14,8 @@
  * - an intersection, which `allOf` or a branch beside `type` makes, refuses a key only when both sides do, so
  *   `additionalProperties: false` and `propertyNames` there let keys through, and two defaults there throw;
  * - with no `type`, a second of `allOf`, `anyOf` and `oneOf` replaces the first;
- * - it compiles `pattern` and `patternProperties` without the `u` flag, so `\p{L}` is a `p`;
+ * - `pattern` and `patternProperties` are compiled with the `u` flag by `fromJsonSchema` (#871), so only
+ *   patterns that fail to compile under the `u` flag are refused;
  * - it resolves `$ref` as `#` or `#/$defs/<name>` only, from the root's `$defs` or else `definitions`, and
  *   recurses without end on references that reach themselves through branches alone, and the join that
  *   weakens a closed object reaches through `$ref` and nested branches too;
@@ -91,8 +92,8 @@ const WHY: Record<string, Refusal> = {
 		'Put the `default` on a property outside those, or remove it.',
 	],
 	pattern: [
-		'which Zod compiles without the `u` flag, so it matches differently',
-		'Write a pattern valid with and without the `u` flag, with no `\\p`, `\\u{`, surrogate or character beyond U+FFFF.',
+		'which is not a valid Unicode regular expression (`u` flag)',
+		'Write a regular expression that compiles with the JavaScript `u` flag.',
 	],
 	$ref: [
 		"which Zod resolves only as `#` or `#/$defs/<name>`, an entry of the root's `$defs`",
@@ -154,15 +155,12 @@ function subschemas(node: Node): [child: unknown, keyword: string, path: string]
 }
 
 /**
- * A pattern that means the same with and without the `u` flag: one both compile, with no property escape,
- * code point escape or surrogate, literal or escaped, which a reading without the flag splits in two.
+ * A pattern that compiles with the `u` flag (JSON Schema 2020-12's ECMA-262 Unicode regex semantics),
+ * which `fromJsonSchema` uses for `pattern` and `patternProperties` (#871).
  */
 function unicodeSafe(pattern: string): boolean {
 	try {
-		return (
-			Boolean(new RegExp(pattern, 'u')) &&
-			!/\\[pP]|\\u\{|\\u[dD][89a-fA-F]|[\uD800-\uDFFF]/.test(pattern)
-		);
+		return Boolean(new RegExp(pattern, 'u'));
 	} catch {
 		return false;
 	}

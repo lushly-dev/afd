@@ -207,7 +207,7 @@ async function boot(): Promise<void> {
 	const hosted = (raw as { host?: { kind?: unknown } } | undefined)?.host?.kind === 'hosted';
 	if (provider) session.use(provider);
 	const identityPorts = provider && session.identityPorts(provider.ports, hosted);
-	const host = await createHostKernel({
+	let host = await createHostKernel({
 		overlayAnchors,
 		...(provider ? { auth: provider.adapter, membership: provider.membership, identityPorts } : {}),
 		environment: mediaEnvironment(window),
@@ -219,9 +219,14 @@ async function boot(): Promise<void> {
 		...(copilot ? { copilot: copilot.options } : {}),
 	});
 	if (host.kind === 'locked') {
-		await renderNotice(document.body, { themeCss, ...OTHER_TAB_NOTICE });
+		const notice = await renderNotice(document.body, { themeCss, ...OTHER_TAB_NOTICE });
 		document.documentElement.dataset.loamHost = 'locked';
-		return;
+		try {
+			// Stay on the notice with a blocking Web Lock wait, then boot as soon as the predecessor or other tab lets go (#1634).
+			while (host.kind === 'locked') host = await host.waitForLock();
+		} finally {
+			notice.remove();
+		}
 	}
 	await mountShell(document.body, {
 		kernel: host.kernel,

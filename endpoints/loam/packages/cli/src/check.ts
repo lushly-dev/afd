@@ -7,9 +7,9 @@
 
 import { defaultExpose } from '@lushly-dev/afd-server/define';
 import { type ManifestV2, NOTICES_V1, TRUST_LINES_V1 } from '@lushly-dev/loam-manifest';
-import { keyOf, readManifest } from '@lushly-dev/loam-manifest/validate';
+import { fromJsonSchema, keyOf, readManifest } from '@lushly-dev/loam-manifest/validate';
 import { parse as parseToml } from 'smol-toml';
-import { z } from 'zod';
+import type { z } from 'zod';
 import { type AppTree, builtFileFindings, type FileFinding, inlineSchemas } from './file-rules.js';
 
 export const DEFAULT_MANIFEST = 'loam-app.toml';
@@ -37,7 +37,7 @@ function templateFindings(manifest: ManifestV2): Finding[] {
 	return (manifest.ui?.documents ?? []).flatMap((type, index) => {
 		let schema: z.ZodType;
 		try {
-			schema = z.fromJSONSchema(type.content_schema as Parameters<typeof z.fromJSONSchema>[0]);
+			schema = fromJsonSchema(type.content_schema);
 		} catch {
 			// The reader refused it already, as `MANIFEST_INPUT_SCHEMA_INVALID`.
 			return [];

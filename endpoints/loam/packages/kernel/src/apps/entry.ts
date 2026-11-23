@@ -12,7 +12,8 @@ import {
 	SERVED_GRANTS_V2,
 	TRUST_LINES_V1,
 } from '@lushly-dev/loam-manifest';
-import { fromJSONSchema, type ZodType } from 'zod';
+import { fromJsonSchema, stripOwnProto } from '@lushly-dev/loam-manifest/validate';
+import type { ZodType } from 'zod';
 import type { LoamKernelErrorCode } from '../errors.js';
 import { firstLayoutOf, type LayoutPart, type LayoutStateV0 } from '../layout.js';
 import type { AppKindV1 } from '../types.js';
@@ -155,39 +156,60 @@ export function kindRefusal(
 export const transportOf = (entry: ProjectionAppV1, manifest: ManifestV2): 'http' | 'stdio' =>
 	entry.transport ?? manifest.mount?.transport ?? 'http';
 
-export function configRefusal(
+export function parseAppConfig(
 	entry: ProjectionAppV1,
 	manifest: ManifestV2
-): CommandError | undefined {
+): { ok: true; config: Readonly<Record<string, unknown>> } | { ok: false; error: CommandError } {
 	const suggestion = "Match the manifest's `config.schema`.";
 	const schema = manifest.config?.schema;
 	if (schema === undefined) {
 		return entry.config === undefined
-			? undefined
-			: errorOf('APP_CONFIG_INVALID', 'This app declares no `config.schema`.', suggestion);
+			? { ok: true, config: Object.freeze({}) }
+			: {
+					ok: false,
+					error: errorOf('APP_CONFIG_INVALID', 'This app declares no `config.schema`.', suggestion),
+				};
 	}
 	let parsed: ReturnType<ZodType['safeParse']>;
 	try {
-		parsed = fromJSONSchema(schema as Parameters<typeof fromJSONSchema>[0]).safeParse(
-			entry.config ?? {}
-		);
+		parsed = fromJsonSchema(schema).safeParse(entry.config ?? {});
 	} catch {
-		return errorOf(
-			'APP_CONFIG_INVALID',
-			"The manifest's `config.schema` cannot be read.",
-			suggestion
-		);
+		return {
+			ok: false,
+			error: errorOf(
+				'APP_CONFIG_INVALID',
+				"The manifest's `config.schema` cannot be read.",
+				suggestion
+			),
+		};
 	}
-	if (parsed.success) return undefined;
+	if (parsed.success) {
+		const data =
+			typeof parsed.data === 'object' && parsed.data !== null && !Array.isArray(parsed.data)
+				? stripOwnProto(parsed.data as Record<string, unknown>)
+				: {};
+		return { ok: true, config: Object.freeze(data) };
+	}
 	// The paths and rules, never the values: a config may hold what a log should not.
 	const issues = parsed.error.issues.map(
 		(issue) => `${issue.path.join('.') || '(root)'}: ${issue.code}`
 	);
-	return errorOf(
-		'APP_CONFIG_INVALID',
-		`The config does not match its schema: ${issues.join(', ')}.`,
-		suggestion
-	);
+	return {
+		ok: false,
+		error: errorOf(
+			'APP_CONFIG_INVALID',
+			`The config does not match its schema: ${issues.join(', ')}.`,
+			suggestion
+		),
+	};
+}
+
+export function configRefusal(
+	entry: ProjectionAppV1,
+	manifest: ManifestV2
+): CommandError | undefined {
+	const result = parseAppConfig(entry, manifest);
+	return result.ok ? undefined : result.error;
 }
 
 /** The parts a manifest's surfaces declare, which a boot record's `parts` says too. */

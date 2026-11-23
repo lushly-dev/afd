@@ -1,4 +1,5 @@
 import { MockAuthAdapter } from '@lushly-dev/afd-auth';
+import { MemoryJournalSink } from '@lushly-dev/afd-core';
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import { describe, expect, it, vi } from 'vitest';
 import { LoamKernelError } from '../errors.js';
@@ -556,5 +557,138 @@ describe('P2-E13: E9 (kernel unit): replay with apps', () => {
 		const recorded = await recordSession([{ interface: 'palette', name: 'layout-get' }]);
 		const { report } = await replayKernel(recorded.entries);
 		expect(report.recorded).toEqual([]);
+	});
+
+	it('#1045: replays concurrent app-store reads and timestamped writes with zero divergences in both race orders', async () => {
+		const memoManifest = {
+			manifest_version: 2,
+			protocol: 1,
+			plugin: {
+				id: 'memo',
+				title: 'Memo',
+				version: '0.1.0',
+				description: 'Document content replay order fixture.',
+				kind: 'native',
+				domains: ['memo'],
+			},
+			grants: [
+				{ name: 'store', reason: 'Stores content' },
+				{ name: 'clock', reason: 'Records savedAt' },
+			],
+			native: { entry: 'dist/native.js' },
+			commands: [
+				{
+					name: 'memo-content-get',
+					description: 'Read content.',
+					effects: ['inspect'],
+					input_schema: {
+						type: 'object',
+						properties: { document: { type: 'string' } },
+						required: ['document'],
+						additionalProperties: false,
+					},
+				},
+				{
+					name: 'memo-content-set',
+					description: 'Write content.',
+					effects: ['store-write'],
+					input_schema: {
+						type: 'object',
+						properties: {
+							document: { type: 'string' },
+							text: { type: 'string' },
+						},
+						required: ['document', 'text'],
+						additionalProperties: false,
+					},
+				},
+			],
+		};
+		const memoDefinition = () => ({
+			sdk: 1,
+			handlers: {
+				async 'memo-content-get'(
+					input: { document: string },
+					context: {
+						store?: { get(key: string): Promise<{ text: string; savedAt?: number } | undefined> };
+					}
+				) {
+					const held = await context.store?.get(`doc/${input.document}`);
+					return { success: true, data: held ?? { text: '' } };
+				},
+				async 'memo-content-set'(
+					input: { document: string; text: string },
+					context: {
+						now?: () => number;
+						store?: { put(key: string, value: unknown): Promise<void> };
+					}
+				) {
+					const body = { text: input.text, savedAt: context.now?.() };
+					await context.store?.put(`doc/${input.document}`, body);
+					return { success: true, data: body };
+				},
+			},
+		});
+		const memoOptions = () => ({
+			deployment: probeDeployment([{ instance: 'memo', app: 'memo', package: 'apps/memo/' }]),
+			ports: createFixturePorts({
+				'apps/memo/': { manifest: memoManifest as never, definition: memoDefinition() as never },
+			}),
+		});
+
+		// Delay journal appends of `memo-content-get` vs `memo-content-set` to force both race directions:
+		// 1) read runs before write, but read's journal append is delayed past write's;
+		// 2) write starts first, concurrent read runs after write commits, and write's journal append is delayed.
+		const innerJournal = new MemoryJournalSink();
+		let delayCommand: string | undefined;
+		const racingJournal = {
+			async append(record: Parameters<MemoryJournalSink['append']>[0]) {
+				if (record.command === delayCommand) {
+					await new Promise((resolve) => setTimeout(resolve, 25));
+				}
+				return innerJournal.append(record);
+			},
+			read: innerJournal.read.bind(innerJournal),
+		};
+		const baseStore = new MemoryAdapter();
+		const racingStore = new Proxy(baseStore, {
+			get(target, prop, receiver) {
+				if (prop === 'get' || prop === 'batch') {
+					return async (...args: unknown[]) => {
+						await new Promise((resolve) => setTimeout(resolve, 3));
+						return (target[prop] as (...a: unknown[]) => Promise<unknown>)(...args);
+					};
+				}
+				return Reflect.get(target, prop, receiver);
+			},
+		});
+		const kernel = await createKernel({
+			store: racingStore,
+			storeKind: 'memory',
+			journal: racingJournal,
+			auth: new MockAuthAdapter(),
+			environment: createFixedEnvironment(),
+			host: 'test',
+			clock: createSteppingClock(10_000),
+			...memoOptions(),
+		});
+
+		// Race 2: read runs before write, read's journal append is delayed.
+		delayCommand = 'memo-content-get';
+		const r1 = kernel.call('memo-content-get', { document: 'doc-1' });
+		const w1 = kernel.call('memo-content-set', { document: 'doc-1', text: 'Alpha text' });
+		await Promise.all([r1, w1]);
+
+		// Race 1: write runs before read, write's journal append is delayed.
+		delayCommand = 'memo-content-set';
+		const w2 = kernel.call('memo-content-set', { document: 'doc-1', text: 'Beta text' });
+		const r2 = kernel.call('memo-content-get', { document: 'doc-1' });
+		await Promise.all([w2, r2]);
+
+		await kernel.dispose();
+		const entries = await innerJournal.read();
+		const { report } = await replayKernel(entries, memoOptions());
+		expect(report.diverged).toBe(false);
+		expect(report.same).toBe(entries.length);
 	});
 });

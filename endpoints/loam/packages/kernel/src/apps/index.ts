@@ -24,12 +24,12 @@ import type { AppPortV2, CommandSummaryV1, KernelPortsV1 } from '../types.js';
 import { defineAppCommand, type ManifestCommand } from './definitions.js';
 import {
 	baseRecord,
-	configRefusal,
 	DomainHolders,
 	errorOf,
 	firstLayout,
 	kindRefusal,
 	MOUNTED_KEYS,
+	parseAppConfig,
 	refusalError,
 	transportOf,
 } from './entry.js';
@@ -50,6 +50,7 @@ export {
 	HANDLER_READY_TIMEOUT_MS,
 	toolCallResult,
 } from './handler-frame.js';
+export { NATIVE_HANDLER_TIMEOUT_MS } from './native.js';
 export type { AppsHost, AppsHostInput } from './types.js';
 
 const NO_PORTS: KernelPortsV1 = {
@@ -227,15 +228,17 @@ export async function loadApps(input: AppsHostInput): Promise<AppsRuntime> {
 
 	function admit(record: AppRecord, entry: ProjectionAppV1, manifest: ManifestV2) {
 		const { kind } = record;
-		const refusal =
-			(kind !== 'mounted' && entry.instance !== entry.app
+		const instanceRefusal =
+			kind !== 'mounted' && entry.instance !== entry.app
 				? errorOf(
 						'DEPLOYMENT_INSTANCE_MISMATCH',
 						`Instance \`${entry.instance}\` of a native or view app must be named \`${entry.app}\`.`,
 						`Rename the table \`[apps.${entry.app}]\`. A mounted instance names itself, with \`audience\`.`
 					)
-				: undefined) ?? configRefusal(entry, manifest);
-		if (refusal) return settle(record, 'refused', refusal);
+				: undefined;
+		if (instanceRefusal) return settle(record, 'refused', instanceRefusal);
+		const parsedConfig = parseAppConfig(entry, manifest);
+		if (!parsedConfig.ok) return settle(record, 'refused', parsedConfig.error);
 
 		if (kind === 'mounted') {
 			const transport = transportOf(entry, manifest);
@@ -295,7 +298,8 @@ export async function loadApps(input: AppsHostInput): Promise<AppsRuntime> {
 		}
 
 		const packageUrl = packageUrlOf(entry);
-		const config = Object.freeze({ ...(entry.config ?? {}) });
+		// The parsed config, never the raw input, so an own `__proto__` key Zod dropped never reaches the app (#871).
+		const { config } = parsedConfig;
 		const granted = new Set(
 			record.detail.grants.filter((grant) => grant.served).map((grant) => grant.name)
 		);

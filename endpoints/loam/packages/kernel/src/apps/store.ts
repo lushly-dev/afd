@@ -51,6 +51,8 @@ export interface AppStoreOptions {
 	quota?: StoreQuota;
 	/** Told of each read and write the call issues, for the journal's order (#1936). */
 	order?: StoreOrderV1;
+	/** Checked inside `quota.write`'s serialized commit step right before writing (#876). */
+	beforeCommit?: () => void;
 }
 
 /** The table of each instance's stored bytes (phase 4 specification, 1 and 11): one row per workspace and instance. */
@@ -128,7 +130,8 @@ export interface StoreQuota {
 		id: string,
 		next: AppStoreRecord | undefined,
 		now: number,
-		issued?: () => void
+		issued?: () => void,
+		beforeCommit?: () => void
 	): Promise<void>;
 	/**
 	 * Charge `bytes` to `instance` in turn with its writes, `commit` writing whatever the charge pays for with the usage
@@ -221,8 +224,9 @@ export function createStoreQuota(adapter: DataAdapter, limits?: KernelLimits): S
 					)
 				)
 			).then(() => undefined),
-		write: (instance, scope, id, next, now, issued) =>
+		write: (instance, scope, id, next, now, issued, beforeCommit) =>
 			serial(instance, async () => {
+				beforeCommit?.();
 				const before = await adapter.get<AppStoreRecord>(table(instance), id);
 				// Refunded only what this workspace was charged for the row (R1).
 				const old = before && ours(before, scope.workspace) ? chargedOf(before) : 0;
@@ -234,6 +238,7 @@ export function createStoreQuota(adapter: DataAdapter, limits?: KernelLimits): S
 				const refused = bytes > old ? quotaExceeded(instance, held, after, now) : undefined;
 				if (refused) throw refused;
 				if (!next && !before) return;
+				beforeCommit?.();
 				const path = `/${table(instance)}/${encodeURIComponent(id)}`;
 				issued?.();
 				await batch(
@@ -329,11 +334,9 @@ export function createAppStore(options: AppStoreOptions): AppStoreV1 {
 	};
 	return {
 		async get<T = unknown>(key: string): Promise<T | undefined> {
+			const id = storeRecordId(scopeNow(), checked(key));
 			options.order?.read();
-			const record = await adapter.get<AppStoreRecord>(
-				table,
-				storeRecordId(scopeNow(), checked(key))
-			);
+			const record = await adapter.get<AppStoreRecord>(table, id);
 			return record ? (record.value as T) : undefined;
 		},
 		async put(key, value) {
@@ -353,13 +356,29 @@ export function createAppStore(options: AppStoreOptions): AppStoreV1 {
 				scopeKey: scopeKeyOf(scope),
 			};
 			// A batch's PUT upserts; `update` does so only in the adapter's named tables. The count lands in the same batch.
-			await quota.write(instance, scope, id, record, options.now(), options.order?.wrote);
+			await quota.write(
+				instance,
+				scope,
+				id,
+				record,
+				options.now(),
+				options.order?.wrote,
+				options.beforeCommit
+			);
 		},
 		async delete(key) {
 			const scope = scopeNow();
 			const id = storeRecordId(scope, checked(key));
 			writable();
-			await quota.write(instance, scope, id, undefined, options.now(), options.order?.wrote);
+			await quota.write(
+				instance,
+				scope,
+				id,
+				undefined,
+				options.now(),
+				options.order?.wrote,
+				options.beforeCommit
+			);
 		},
 		async list(prefix) {
 			const scope = scopeNow();

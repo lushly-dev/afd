@@ -9,13 +9,15 @@ import { failure } from '@lushly-dev/afd-core';
 import {
 	type AppCallContextV1,
 	type AppDefinitionV1,
+	type AppStoreV1,
 	type LoamClientV1,
 	projectsOver,
 	type ScopeV1,
 	settingsOver,
 } from '@lushly-dev/loam-sdk';
-import { LoamKernelError } from '../errors.js';
+import { kernelFailure, LoamKernelError } from '../errors.js';
 import type { KernelPortsV1 } from '../types.js';
+import { HANDLER_CALL_TIMEOUT_MS } from './handler-frame.js';
 import type { AppRecord } from './operations.js';
 import { createAppStore } from './store.js';
 import {
@@ -30,6 +32,14 @@ import {
 	scopeOf,
 } from './support.js';
 import type { AppsHost } from './types.js';
+
+/**
+ * A native handler unanswered by then fails with `HANDLER_TIMEOUT`, releasing any document chain it holds
+ * (#876; matches {@link HANDLER_CALL_TIMEOUT_MS} for view handlers).
+ */
+export const NATIVE_HANDLER_TIMEOUT_MS = HANDLER_CALL_TIMEOUT_MS;
+
+class NativeDeadline extends Error {}
 
 export interface NativeHostOptions {
 	record: AppRecord;
@@ -113,37 +123,79 @@ export function createNativeHost(options: NativeHostOptions): NativeHost {
 		return definition;
 	}
 
-	function callContext(name: string, context: CommandContext): AppCallContextV1 {
+	function callContext(
+		name: string,
+		context: CommandContext,
+		signal: AbortSignal,
+		isActive: () => boolean
+	): AppCallContextV1 {
 		const traceId = context.traceId ?? '';
 		const scope = scopeOf(context);
-		const client = options.nestedClient(traceId, scope, context.actor);
+		const expiredError = () =>
+			new LoamKernelError({
+				code: 'HANDLER_TIMEOUT',
+				message: `The handler of '${name}' already timed out`,
+				suggestion: 'Stop work when context.signal aborts',
+				retryable: true,
+			});
+		const rawClient = options.nestedClient(traceId, scope, context.actor);
+		const client: LoamClientV1 = {
+			call(command, input, callOptions) {
+				if (!isActive()) {
+					return Promise.resolve(
+						kernelFailure(
+							'HANDLER_TIMEOUT',
+							`The handler of '${name}' already timed out`,
+							'Stop work when context.signal aborts',
+							{ retryable: true, details: pageDecided() }
+						)
+					);
+				}
+				const callSignal = callOptions?.signal
+					? AbortSignal.any([signal, callOptions.signal])
+					: signal;
+				return rawClient.call(command, input, { ...callOptions, signal: callSignal });
+			},
+		};
+		const rawStore = granted.has('store')
+			? createAppStore({
+					adapter: host.store,
+					quota: host.storeQuota,
+					app: record.app,
+					instance: record.instance,
+					scope,
+					readOnly: !host.isMutation(name),
+					now: () => readClock(context),
+					...(context.actor !== undefined ? { actor: context.actor } : {}),
+					...(host.storeOrder ? { order: host.storeOrder(traceId, record.instance) } : {}),
+					beforeCommit: () => {
+						if (!isActive()) throw expiredError();
+					},
+				})
+			: undefined;
+		// After a handler times out and releases its document chain, late store operations must never run (#876).
+		const store: AppStoreV1 | undefined = rawStore
+			? {
+					get: (key) => (isActive() ? rawStore.get(key) : Promise.reject(expiredError())),
+					put: (key, value) =>
+						isActive() ? rawStore.put(key, value) : Promise.reject(expiredError()),
+					delete: (key) => (isActive() ? rawStore.delete(key) : Promise.reject(expiredError())),
+					list: (prefix) => (isActive() ? rawStore.list(prefix) : Promise.reject(expiredError())),
+				}
+			: undefined;
 		return {
 			traceId,
 			config,
 			client,
 			scope,
+			signal,
 			...(granted.has('projects') ? { projects: projectsOver(client, scope.project) } : {}),
 			// The app's own sections, through `setting-get` and `setting-list` (phase 4 specification, 3.8).
 			...(granted.has('settings') ? { settings: settingsOver(client) } : {}),
 			...(context.actor !== undefined ? { actor: context.actor } : {}),
-			...(context.signal ? { signal: context.signal } : {}),
 			...(granted.has('clock') ? { now: () => readClock(context) } : {}),
 			...(granted.has('random') ? { random: () => readRandom(context) } : {}),
-			...(granted.has('store')
-				? {
-						store: createAppStore({
-							adapter: host.store,
-							quota: host.storeQuota,
-							app: record.app,
-							instance: record.instance,
-							scope,
-							readOnly: !host.isMutation(name),
-							now: () => readClock(context),
-							...(context.actor !== undefined ? { actor: context.actor } : {}),
-							...(host.storeOrder ? { order: host.storeOrder(traceId, record.instance) } : {}),
-						}),
-					}
-				: {}),
+			...(store ? { store } : {}),
 		};
 	}
 
@@ -174,10 +226,39 @@ export function createNativeHost(options: NativeHostOptions): NativeHost {
 				input: unknown,
 				context: AppCallContextV1
 			) => Promise<CommandResult>;
+			const controller = new AbortController();
+			const signal = context.signal
+				? AbortSignal.any([context.signal, controller.signal])
+				: controller.signal;
+			let timedOut = false;
+			let timer: ReturnType<typeof setTimeout> | undefined;
+			const call = Promise.resolve().then(() =>
+				handler(
+					input,
+					callContext(name, context, signal, () => !timedOut)
+				)
+			);
+			const deadline = new Promise<never>((_, reject) => {
+				timer = setTimeout(() => {
+					timedOut = true;
+					controller.abort();
+					reject(new NativeDeadline());
+				}, NATIVE_HANDLER_TIMEOUT_MS);
+			});
 			let result: unknown;
 			try {
-				result = await handler(input, callContext(name, context));
+				result = await Promise.race([call, deadline]);
 			} catch (cause) {
+				if (cause instanceof NativeDeadline) {
+					// Prevent an unhandled rejection if the timed-out handler later rejects.
+					call.catch(() => {});
+					return kernelFailure(
+						'HANDLER_TIMEOUT',
+						`The handler of '${name}' did not answer in time`,
+						'Retry the call, and fix the native handler if it hangs',
+						{ retryable: true, details: pageDecided() }
+					);
+				}
 				// The kernel's own refusal, thrown into the handler by a grant (the store's `QUOTA_EXCEEDED`, phase 4's section
 				// 11): answered as that refusal, its code and details, not as the handler's throw.
 				if (cause instanceof LoamKernelError) {
@@ -191,6 +272,8 @@ export function createNativeHost(options: NativeHostOptions): NativeHost {
 					});
 				}
 				return handlerThrew(name, cause);
+			} finally {
+				clearTimeout(timer);
 			}
 			return isCommandResult(result) ? result : resultInvalid(name);
 		},

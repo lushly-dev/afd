@@ -9,8 +9,8 @@
 
 import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
-import { z } from 'zod';
 import { inputSchemaProblem } from './core-rules.js';
+import { fromJsonSchema } from './json-schema.js';
 
 type Json = Record<string, unknown>;
 
@@ -271,8 +271,7 @@ function anything(depth = 0): unknown {
 
 function kernel(schema: object, input: unknown): boolean | 'throws' {
 	try {
-		return z.fromJSONSchema(schema as Parameters<typeof z.fromJSONSchema>[0]).safeParse(input)
-			.success;
+		return fromJsonSchema(schema).safeParse(input).success;
 	} catch {
 		return 'throws';
 	}

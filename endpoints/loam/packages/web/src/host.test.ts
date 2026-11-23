@@ -3,26 +3,52 @@ import { IDBFactory } from 'fake-indexeddb';
 import { describe, expect, it } from 'vitest';
 import { createHostKernel, type HostKernelOptions } from './host.js';
 
-/** A Web Locks stand-in: one holder per name, `ifAvailable` refuses when held. */
+/** A Web Locks stand-in: one holder per name, `ifAvailable` refuses when held, blocking requests queue (#1634). */
 function fakeLocks(): NonNullable<HostKernelOptions['locks']> {
 	const held = new Set<string>();
+	const queues = new Map<string, Array<() => void>>();
+	const wake = (name: string) => {
+		const next = queues.get(name)?.shift();
+		if (next) next();
+	};
 	return {
 		async request(name: string, options: unknown, callback?: unknown) {
+			const hasOpts = typeof options === 'object' && options !== null;
 			const run = (callback ?? options) as (lock: { name: string } | null) => Promise<unknown>;
 			const ifAvailable =
-				typeof options === 'object' && options !== null && 'ifAvailable' in options;
+				hasOpts &&
+				'ifAvailable' in options &&
+				Boolean((options as { ifAvailable?: boolean }).ifAvailable);
+			const signal =
+				hasOpts && 'signal' in options ? (options as { signal?: AbortSignal }).signal : undefined;
+			if (signal?.aborted) throw new DOMException('The request was aborted.', 'AbortError');
 			if (held.has(name)) {
 				if (ifAvailable) return run(null);
-				throw new Error('queued locks are not modeled');
+				await new Promise<void>((resolve, reject) => {
+					const list = queues.get(name) ?? [];
+					queues.set(name, list);
+					const onGrant = () => {
+						signal?.removeEventListener('abort', onAbort);
+						resolve();
+					};
+					const onAbort = () => {
+						const idx = list.indexOf(onGrant);
+						if (idx >= 0) list.splice(idx, 1);
+						reject(new DOMException('The request was aborted.', 'AbortError'));
+					};
+					signal?.addEventListener('abort', onAbort, { once: true });
+					list.push(onGrant);
+				});
 			}
 			held.add(name);
 			try {
 				return await run({ name });
 			} finally {
 				held.delete(name);
+				wake(name);
 			}
 		},
-		query: async () => ({ held: [], pending: [] }),
+		query: async () => ({ held: [...held].map((name) => ({ name })), pending: [] }),
 	} as unknown as NonNullable<HostKernelOptions['locks']>;
 }
 
@@ -51,17 +77,50 @@ describe('the browser host kernel', () => {
 		await second.journal.close();
 	});
 
-	it('creates no kernel while another context holds the writer lock', async () => {
+	it('creates no kernel while another context holds the writer lock, and boots via waitForLock once released (#1634)', async () => {
 		const indexedDB = new IDBFactory();
 		const locks = fakeLocks();
 		const first = await createHostKernel({ environment, indexedDB, locks });
-		const second = await createHostKernel({ environment, indexedDB, locks, lockPatienceMs: 250 });
+		if (first.kind !== 'ready') throw new Error('expected first kernel');
+		const second = await createHostKernel({ environment, indexedDB, locks, lockPatienceMs: 50 });
 		expect(second.kind).toBe('locked');
-		if (second.kind === 'locked') expect(second.error.code).toBe('JOURNAL_LOCKED');
-		if (first.kind === 'ready') {
-			await first.kernel.dispose();
-			await first.journal.close();
-		}
+		if (second.kind !== 'locked') throw new Error('expected locked');
+		expect(second.error.code).toBe('JOURNAL_LOCKED');
+
+		// While the first tab holds the lock, waitForLock stays pending and creates no kernel.
+		let settled = false;
+		const waiting = second.waitForLock().then((result) => {
+			settled = true;
+			return result;
+		});
+		await new Promise((resolve) => setTimeout(resolve, 60));
+		expect(settled).toBe(false);
+
+		// Once the first tab releases the lock, waitForLock boots the second kernel automatically.
+		await first.kernel.dispose();
+		await first.journal.close();
+		const booted = await waiting;
+		expect(booted.kind).toBe('ready');
+		if (booted.kind !== 'ready') throw new Error('expected booted kernel');
+		const info = await booted.kernel.call<{ host: string }>('shell-info-get');
+		expect(info.data?.host).toBe('browser');
+		await booted.kernel.dispose();
+		await booted.journal.close();
+	});
+
+	it('aborts waitForLock cleanly when its signal aborts (#1634)', async () => {
+		const indexedDB = new IDBFactory();
+		const locks = fakeLocks();
+		const first = await createHostKernel({ environment, indexedDB, locks });
+		if (first.kind !== 'ready') throw new Error('expected first kernel');
+		const second = await createHostKernel({ environment, indexedDB, locks, lockPatienceMs: 10 });
+		if (second.kind !== 'locked') throw new Error('expected locked');
+		const controller = new AbortController();
+		const waiting = second.waitForLock(controller.signal);
+		controller.abort();
+		await expect(waiting).rejects.toThrow(/abort/i);
+		await first.kernel.dispose();
+		await first.journal.close();
 	});
 });
 

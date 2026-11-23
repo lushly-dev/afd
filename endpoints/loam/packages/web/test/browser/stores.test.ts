@@ -36,8 +36,15 @@ describe('P2-E13: E10: a second tab', () => {
 			() => document.querySelector('loam-shell')?.getAttribute('data-sidebar') === 'closed'
 		);
 
-		// Once the first tab is gone, a new one takes the lock.
-		await closeAndRelease(first, site.origin);
+		// Once the first tab is gone, the waiting second tab automatically takes the lock and boots (#1634).
+		await first.page.close();
+		await second.page.waitForFunction(() => document.documentElement.dataset.loamHost === 'web');
+		expect(await second.page.locator('loam-notice').count()).toBe(0);
+		expect(await second.page.locator('loam-shell').count()).toBe(1);
+		expect(second.violations).toEqual([]);
+
+		// And once the second tab closes, a new tab takes the lock cleanly.
+		await closeAndRelease(second, site.origin);
 		const third = await openPage(browser, site.origin, {}, first.context);
 		await third.page.waitForFunction(() => document.documentElement.dataset.loamHost === 'web');
 		await first.context.close();

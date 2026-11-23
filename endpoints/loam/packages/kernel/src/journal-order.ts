@@ -8,10 +8,12 @@
  * - **Read-after-write (RAW):** a top-level journaled read that reads a resource after a pending write to it was
  *   issued waits, after its handler, for that write's journal entry (or its end, with none) before its own journal
  *   turn. A nested write counts as its top-level call's.
- * - **Write-after-read (WAR, #2117):** a top-level journaled write issued while a read that already read the same
- *   resource has not yet been journaled waits for that read's entry before its own journal turn, so a read that saw
- *   the pre-write state never lands after the write in the journal.
- * - **Cycle freedom (#2117):** every dependency edge (`waitsOn`) and every execution wait (`origin` / `parent`
+ * - **Write-after-read (WAR, #2117, #1045):** a top-level journaled write issued while a read that already read the
+ *   same resource has not yet been journaled waits for that read's entry before its own journal turn, so a read that
+ *   saw the pre-write state never lands after the write in the journal.
+ * - **Write-after-write (WAW, #1045):** a top-level journaled write issued while an earlier write to the same resource
+ *   is still pending waits for that earlier write's entry, so concurrent writes journal in store order.
+ * - **Cycle freedom (#2117, #1045):** every dependency edge (`waitsOn`) and every execution wait (`origin` / `parent`
  *   children, such as `palette-run` or `notification-act` awaiting its run) forms a single wait-for graph; an edge is
  *   added only when it creates no cycle (`reaches`). Internal kernel calls (boot, instance refresh, provider hook)
  *   never wait, while `palette-run`'s run, confirmed runs and the copilot's calls do (except on their own awaiting
@@ -19,7 +21,6 @@
  * - **Hosted MCP calls (#2117):** `track`, placed right before the journal middleware, begins and ends calls that
  *   enter the chain outside `execute` (such as `createMcpHandler` on the hosted server).
  * - **Abort:** an aborted call stops waiting when its signal aborts, and cleans up its listener.
- *
  * Private to the kernel.
  */
 
@@ -222,7 +223,6 @@ export function createJournalOrder(
 			if (signal && onAbort) signal.removeEventListener('abort', onAbort);
 		}
 	};
-
 	const begin: JournalOrder['begin'] = (traceId, mutation, fields, internal, command) => {
 		const parent = typeof fields.parent === 'string' ? fields.parent : undefined;
 		const origin =
@@ -288,8 +288,10 @@ export function createJournalOrder(
 					// A nested write is its top-level call's, whose entry follows it: a notice's action under its act (#1936).
 					const call = rootOf(traceId);
 					if (!call || call.done || !call.journaled) return;
-					// WAR (#2117): any active read that already read `resource` must journal before this write.
+					// WAR (#2117, #1045): any active read that already read `resource` must journal before this write.
 					for (const reader of readers.get(resource) ?? []) addWait(call, reader);
+					// WAW (#1045): any earlier pending write to `resource` must journal before this write.
+					for (const prev of writers.get(resource) ?? []) addWait(call, prev);
 					ensureLatch(call);
 					call.wrote ??= new Set();
 					call.wrote.add(resource);
