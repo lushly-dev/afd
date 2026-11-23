@@ -55,6 +55,11 @@ describe('P2-E13: E9: layout and persistence with apps', () => {
 	it('keeps per-app layouts apart across a switch and a reload', async () => {
 		const opened = await openShell(browser, site.origin);
 		const { page, context } = opened;
+		// hello's inspector is gated by hello.inspector-v2 (#2112 undeclares a closed surface's part).
+		await kernelCall(page, 'experiment-enable', {
+			experiment: 'hello.inspector-v2',
+			audience: 'person',
+		});
 		await openApp(page, 'hello');
 
 		// The preset seeds the first open.

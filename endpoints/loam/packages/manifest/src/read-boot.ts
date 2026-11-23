@@ -21,6 +21,8 @@ export interface BootAppV2 {
 	order: number;
 	scopeLevels: Array<'workspace' | 'project'>;
 	rail: boolean;
+	/** Whether the app has an experiment gate of its own, so stage A holds it out of the rail (#2111). */
+	gated?: boolean;
 	parts: string[];
 	layout: unknown;
 	refusal: BootRefusalV2 | null;
@@ -163,6 +165,7 @@ function appOf(value: unknown): BootAppV2 | undefined {
 			? members(boot.scope_levels, 'workspace project')
 			: ['workspace']) as BootAppV2['scopeLevels'],
 		rail: typeof boot.rail === 'boolean' ? boot.rail : true,
+		...(boot.gated === true ? { gated: true } : {}),
 		parts: members(boot.parts, 'sidebar inspector panel') ?? [],
 		layout: recordOf(boot.layout) ?? {},
 		refusal:

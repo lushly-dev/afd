@@ -248,6 +248,7 @@ export function createDocumentCheck(deps: DocumentCheckDeps): DocumentCheck {
 			// one has no port (`APP_NOT_READY`), so `manifestOf` leaves it out; a disabled one is the override.
 			if (
 				summary.state === 'failed' ||
+				summary.state === 'gated' ||
 				scope.workspaceApps.get(summary.instance)?.overrides.enabled === false
 			)
 				continue;

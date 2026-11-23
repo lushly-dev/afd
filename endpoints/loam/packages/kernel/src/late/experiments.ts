@@ -117,8 +117,10 @@ export interface ExperimentsDeps {
 	unsavedTabs(instance: string): Promise<UnsavedTabV1[]>;
 	/** Whether the shell's person has a pending confirmation for one of `instance`'s commands (R14 at boot). */
 	pending(instance: string): Promise<boolean>;
-	/** Unload `instance` (R14): its open dialogs cancelled, its pending confirmations `withdrawn`, closed if active. */
-	unload(instance: string, context: CommandContext | undefined): Promise<void>;
+	/** Close every clean open tab of `instance`'s document types when its experiment holds it out (#2113). */
+	closeTabs?(instance: string, context: CommandContext | undefined): Promise<{ dirty: boolean }>;
+	/** Unload `instance` (R14): closes clean tabs (returning false if a tab became dirty mid-read), cancels dialogs, withdraws confirmations, closes if active. */
+	unload(instance: string, context: CommandContext | undefined): Promise<boolean>;
 	/** An app's gate opened or closed: its commands are registered again, or not. */
 	regate(): void;
 	kit: ExperimentsKit;
@@ -147,6 +149,8 @@ export interface Experiments {
 	 * the notices of 5.2 and the unload's withdrawals are made in; with none (stage B), gates are set and nothing told.
 	 */
 	refresh(context?: CommandContext): Promise<void>;
+	/** Whether the gates have been read at least once for this kernel. */
+	ready(): boolean;
 	/** Whether an app unload waits on a dirty tab, so each call's end must read the gates again (R14). */
 	waiting(): boolean;
 }
@@ -420,7 +424,11 @@ export function createExperiments(deps: ExperimentsDeps): Experiments {
 	const gatedApps = new Set<string>();
 	/** Closed, but kept loaded while a dirty tab of the app's document types is open (R14). */
 	const held = new Set<string>();
+	/** Apps whose unload/tab cleanup was interrupted (e.g. store error) and must retry before settling (#2113). */
+	const needsCleanup = new Set<string>();
 	let readOnce = false;
+	/** The person `states` and `gatedApps` were last evaluated for (so person switches refresh cleanly). */
+	let evaluatedPerson: string | undefined;
 
 	const appGateOf = (instance: string): string | undefined => {
 		const manifest = manifestOf(instance);
@@ -448,47 +456,74 @@ export function createExperiments(deps: ExperimentsDeps): Experiments {
 	let refreshing: Promise<unknown> = Promise.resolve();
 	async function refreshNow(context: CommandContext | undefined): Promise<void> {
 		const person = deps.person();
-		const read = await snapshot(shellPerson());
+		const currentPerson = shellPerson();
+		const read = await snapshot(currentPerson);
 		const next = new Map([...read.experiments.keys()].map((id) => [id, stateIn(read, id).on]));
 		const changedAny =
 			next.size !== states.size || [...next].some(([id, on]) => states.get(id) !== on);
-		states = next;
-		let regate = false;
 		const first = !readOnce;
+		const personChanged = !first && currentPerson !== evaluatedPerson;
+		states = next;
 		readOnce = true;
+		let regate = false;
 		const tellable = person !== undefined && context !== undefined && deps.notice;
+		const deferDirty = async (instance: string, title: string) => {
+			if (!held.has(instance)) {
+				held.add(instance);
+				if (tellable)
+					await deps.notice?.(context, person, {
+						title: `${title} stays open until your changes are saved`,
+						body: `The experiment that shows ${title} was turned off. It closes once you save or discard the open tabs that hold unsaved changes.`,
+						tone: 'info',
+					});
+			}
+		};
 		for (const { instance, experiment, title } of appGates()) {
 			const closed = next.get(experiment) !== true;
 			if (!closed) {
 				held.delete(instance);
+				needsCleanup.delete(instance);
 				if (gatedApps.delete(instance) || first) regate = true;
 				continue;
 			}
-			if (gatedApps.has(instance)) continue;
-			// At stage B nothing is loaded yet, and no tab is dirty: a closed app is simply held out, and boot's settle
-			// withdraws what it had pending.
+			if (gatedApps.has(instance) && !personChanged && !needsCleanup.has(instance)) continue;
+			// At stage B nothing is loaded yet, and no tab is dirty: a closed app is simply held out, any persisted
+			// tabs of its documents closed (#2113), and boot's settle withdraws what it had pending.
 			if (first || context === undefined) {
 				gatedApps.add(instance);
 				regate = true;
+				try {
+					const done = await deps.closeTabs?.(instance, context);
+					if (done?.dirty) needsCleanup.add(instance);
+					else needsCleanup.delete(instance);
+				} catch {
+					needsCleanup.add(instance);
+				}
 				continue;
 			}
 			const unsaved = await deps.unsavedTabs(instance);
 			if (unsaved.length > 0) {
-				if (!held.has(instance)) {
-					held.add(instance);
-					if (tellable)
-						await deps.notice?.(context, person, {
-							title: `${title} stays open until your changes are saved`,
-							body: `The experiment that shows ${title} was turned off. It closes once you save or discard the open tabs that hold unsaved changes.`,
-							tone: 'info',
-						});
-				}
+				await deferDirty(instance, title);
 				continue;
 			}
+			// Only mark cleanup pending if unload actually throws, so concurrent calls (like editor-dirty-set) don't
+			// block in settle on the in-flight refresh chain while unload awaits store reads.
+			let unloaded: boolean;
+			try {
+				unloaded = await deps.unload(instance, context);
+			} catch (cause) {
+				needsCleanup.add(instance);
+				throw cause;
+			}
+			if (!unloaded) {
+				needsCleanup.delete(instance);
+				await deferDirty(instance, title);
+				continue;
+			}
+			needsCleanup.delete(instance);
 			const wasHeld = held.delete(instance);
 			gatedApps.add(instance);
 			regate = true;
-			await deps.unload(instance, context);
 			if (wasHeld && tellable)
 				await deps.notice?.(context, person, {
 					title: `${title} has closed`,
@@ -496,9 +531,13 @@ export function createExperiments(deps: ExperimentsDeps): Experiments {
 					tone: 'info',
 				});
 		}
+		evaluatedPerson = currentPerson;
 		if (regate) deps.regate();
+		// Undeclare and close any layout part whose surface gate just closed, or re-declare one that opened (#2112).
+		const gatesMoved = changedAny || regate || (personChanged && next.size > 0);
+		if (gatesMoved) deps.apps().reconcileLayouts();
 		if (context) await tell(context);
-		if ((changedAny || regate) && context) scope.note(context.traceId, { experiments: true });
+		if (gatesMoved && context) scope.note(context.traceId, { experiments: true });
 	}
 
 	const refresh = (context?: CommandContext): Promise<void> => {
@@ -950,6 +989,7 @@ export function createExperiments(deps: ExperimentsDeps): Experiments {
 		open: (experiment) => states.get(experiment) === true,
 		// Fail closed until the gates are first read: an app with a gate of its own is held out.
 		gated: (instance) => (readOnce ? gatedApps.has(instance) : appGateOf(instance) !== undefined),
+		ready: () => readOnce && evaluatedPerson === shellPerson(),
 		waiting: () => held.size > 0,
 		refresh,
 		async settleChanges() {

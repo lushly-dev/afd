@@ -18,9 +18,10 @@ export interface ExperimentHostDeps {
 	overlays: OverlayStore;
 	state: Pick<ShellState, 'activeApp'>;
 	drafts: EditorDraftsV1;
-	/** The document table, and the instance that owns a document type. */
+	/** The document table. */
 	documentTable: string;
-	typeOwner(type: string): string | undefined;
+	/** Close every clean open tab of `instance`'s document types when its experiment holds it out (#2113). */
+	closeTabs(instance: string, context: CommandContext | undefined): Promise<{ dirty: boolean }>;
 	/** The person the shell is for, and the clock. */
 	person(): string | undefined;
 	now(): number;
@@ -40,6 +41,27 @@ export async function sha256(text: string): Promise<string> {
 		await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
 	);
 	return `sha256:${Array.from(hash, (byte) => byte.toString(16).padStart(2, '0')).join('')}`;
+}
+
+/** The instance whose manifest declares `type`, even while that app is held out by its experiment (#2113). */
+export function manifestTypeOwner(apps: AppsRuntime, type: string): string | undefined {
+	for (const summary of apps.summaries()) {
+		try {
+			if (apps.port(summary.instance).manifest.ui?.documents?.some((doc) => doc.id === type))
+				return summary.instance;
+		} catch {}
+	}
+	return undefined;
+}
+
+/** Whether `type` belongs to an app whose own experiment currently holds it out (#2113). */
+export function isManifestTypeGated(
+	apps: AppsRuntime,
+	experiments: { ready(): boolean; gated(instance: string): boolean } | undefined,
+	type: string
+): boolean {
+	const owner = manifestTypeOwner(apps, type);
+	return owner !== undefined && experiments?.ready() === true && experiments.gated(owner);
 }
 
 export function experimentHost(deps: ExperimentHostDeps) {
@@ -62,7 +84,7 @@ export function experimentHost(deps: ExperimentHostDeps) {
 				} catch {
 					unread = true;
 				}
-				if (unread || (type !== undefined && deps.typeOwner(type) === instance))
+				if (unread || (type !== undefined && manifestTypeOwner(deps.apps(), type) === instance))
 					found.push({ tab, document });
 			}
 			return found;
@@ -72,16 +94,20 @@ export function experimentHost(deps: ExperimentHostDeps) {
 			const person = deps.person();
 			return person !== undefined && deps.confirmations.pending(person, owns(instance), deps.now());
 		},
+		closeTabs: deps.closeTabs,
 		/**
-		 * R14's unload: its open dialogs and questions cancelled, its pending confirmations ended `withdrawn`, and the app
-		 * closed if it is active, as leaving it would.
+		 * R14's unload: closes clean document tabs first (aborting without side effects if a tab became dirty mid-read),
+		 * then cancels open dialogs/questions, withdraws pending confirmations, and closes the app if active.
 		 */
-		async unload(instance: string, context: CommandContext | undefined): Promise<void> {
+		async unload(instance: string, context: CommandContext | undefined): Promise<boolean> {
+			const closed = await deps.closeTabs(instance, context);
+			if (closed.dirty) return false;
 			for (const overlay of deps.overlays.list(instance)) {
 				if (overlay.kind !== 'toast') deps.overlays.close(overlay.overlayId, 'cancel', 'withdrawn');
 			}
 			if (context) await deps.confirmations.withdraw(context, owns(instance));
 			if (deps.state.activeApp() === instance) deps.apps().close();
+			return true;
 		},
 	};
 }

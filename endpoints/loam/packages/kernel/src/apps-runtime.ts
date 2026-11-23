@@ -237,7 +237,7 @@ export function bootApps(boot: BootProjectionV2, options: BootAppsOptions = {}):
 				kind: app.kind,
 				icon: app.icon,
 				order: app.order,
-				state: failure ? 'failed' : refusal ? 'refused' : 'loading',
+				state: failure ? 'failed' : refusal ? 'refused' : app.gated ? 'gated' : 'loading',
 				...(error !== undefined ? { error } : {}),
 				scopeLevels: [...app.scopeLevels],
 				rail: app.rail,

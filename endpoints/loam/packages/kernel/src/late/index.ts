@@ -49,7 +49,7 @@ import { createDocumentCheck, DOCUMENT_TABLE } from './document-types.js';
 import type { EditorParts } from './editor-commands.js';
 import type { EditorDraftsV1 } from './editor-state.js';
 import { emptyMeets } from './empty-meets.js';
-import { experimentHost, sha256 } from './experiment-host.js';
+import { experimentHost, isManifestTypeGated, sha256 } from './experiment-host.js';
 import type { Experiments } from './experiments.js';
 import { createDocumentIndex, createLinkCommands, expireLinks } from './links.js';
 import { archivedRefusal, canOpen, setMain, writeThrough } from './main-state.js';
@@ -538,10 +538,8 @@ export async function createLateParts(
 		prepare: preparedUnlessRouted(() => trust, agentMembers.prepare),
 		documents,
 		async settle(name, call) {
-			// A page's own state after a call: the editor owner, the person's settings, the inspector. The server holds no
-			// page, and none of it may read the adapter there (9.5).
+			// Page state after a call (editor, settings, inspector); the server holds no page (9.5).
 			if (deps.gated) return;
-			await editor?.settle(name, call);
 			// The person's settings, and so the appearance the shell paints, follow a change of person (phase 4's 3.6).
 			await settings?.follow();
 			// The gates follow the person too, and an unload waiting on a dirty tab completes once it is saved (5.3, R14).
@@ -550,11 +548,11 @@ export async function createLateParts(
 				const changed = person !== gatesPerson;
 				gatesPerson = person;
 				await experiments.refresh(call);
-				// The new person's enablements of removed experiments are settled after the call's entry (5.1).
 				if (changed) sessions?.follow(() => settleExperiments());
 			}
-			const seen = deps.scope.seen.get(call.traceId as string);
-			if (/^(editor-|document-)/.test(name) || seen?.mainChanged || seen?.scopeChanged)
+			await editor?.settle(name, call);
+			const s = deps.scope.seen.get(call.traceId as string);
+			if (/^(editor-|document-)/.test(name) || s?.mainChanged || s?.scopeChanged || s?.experiments)
 				await declare();
 		},
 	});
@@ -568,6 +566,7 @@ export async function createLateParts(
 			lateScope,
 			check: documents,
 			drafts,
+			isTypeGated: (type) => isManifestTypeGated(deps.apps(), experiments, type),
 			// The active tab's owner and type, which a binding's `when` reads (phase 4 specification, 8.1).
 			...(deps.keybindings ? { editorHeld: (held) => deps.keybindings?.setEditor(held) } : {}),
 		},
@@ -989,7 +988,7 @@ export async function createLateParts(
 			...deps,
 			drafts,
 			documentTable: DOCUMENT_TABLE,
-			typeOwner: (type) => documents.types().types.get(type)?.instance,
+			closeTabs: (instance, context) => editorParts.closeApp(instance, context),
 			person: () => shellPerson() ?? (provider ? undefined : 'local'),
 			now: () => deps.clock?.now() ?? Date.now(),
 			confirmations,
@@ -1408,6 +1407,7 @@ export async function createLateParts(
 			try {
 				gatesPerson = shellPerson();
 				await experiments?.refresh();
+				await declare();
 				const held = replaying ? undefined : await experiments?.settleChanges();
 				if (held) await run('experiment-settle', held);
 			} catch (cause) {

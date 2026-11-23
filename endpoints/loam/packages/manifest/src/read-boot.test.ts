@@ -175,4 +175,19 @@ describe('readBoot (phase 2 specification, 2.2)', () => {
 			name: 'acme',
 		});
 	});
+
+	it('reads boot.gated when true and ignores false or non-boolean values (#2111)', () => {
+		const read = readBoot(
+			projection([
+				{ ...hello, instance: 'gated', boot: { ...hello.boot, gated: true } },
+				{ ...hello, instance: 'open', boot: { ...hello.boot, gated: false } },
+				{ ...hello, instance: 'bad', boot: { ...hello.boot, gated: 'yes' } },
+			])
+		);
+		expect(read?.apps.map((app) => [app.instance, app.gated])).toEqual([
+			['gated', true],
+			['open', undefined],
+			['bad', undefined],
+		]);
+	});
 });

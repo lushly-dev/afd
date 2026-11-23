@@ -1142,6 +1142,7 @@ export interface ProjectionV2 {
 			 */
 			scope_levels: ['workspace' | 'project', ...('workspace' | 'project')[]];
 			rail: boolean;
+			gated?: boolean;
 			parts: ('sidebar' | 'inspector' | 'panel')[];
 			layout: {
 				sidebar?: {
@@ -1419,6 +1420,7 @@ export interface ProjectionV3 {
 			 */
 			scope_levels: ['workspace' | 'project', ...('workspace' | 'project')[]];
 			rail: boolean;
+			gated?: boolean;
 			parts: ('sidebar' | 'inspector' | 'panel')[];
 			layout: {
 				sidebar?: {
@@ -1843,6 +1845,7 @@ export interface ProjectionV4 {
 			 */
 			scope_levels: ['workspace' | 'project', ...('workspace' | 'project')[]];
 			rail: boolean;
+			gated?: boolean;
 			parts: ('sidebar' | 'inspector' | 'panel')[];
 			layout: {
 				sidebar?: {

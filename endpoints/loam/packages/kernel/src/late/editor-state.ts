@@ -422,6 +422,8 @@ export interface Editors {
 	ensure(project: string | undefined): Promise<string>;
 	/** A registered record's state, or undefined for one not yet registered. */
 	peek(project: string | undefined): EditorStateV1 | undefined;
+	/** Each scope key registered so far (`undefined` for the workspace, else its project id). */
+	projects(): Array<string | undefined>;
 	/** Write a registered record. A state the validator refuses is a bug here, so it throws. */
 	put(project: string | undefined, state: EditorStateV1): void;
 	/**
@@ -486,6 +488,10 @@ export function createEditors(
 			const held = records.get(editorStateId(project));
 			return held && clone(held);
 		},
+		projects: () =>
+			[...records.keys()].map((id) =>
+				id === EDITOR_STATE_ID ? undefined : id.slice(EDITOR_STATE_ID.length + 1)
+			),
 		put(project, state) {
 			const checked = validateEditorState(state);
 			if (!checked.valid) throw new Error(`The editor state is invalid: ${checked.reason}`);

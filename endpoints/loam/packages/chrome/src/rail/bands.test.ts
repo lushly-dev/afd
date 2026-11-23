@@ -5,7 +5,7 @@ import { bandFor, dimmedTip, railOrder } from './bands.js';
 
 const row = (
 	scopeLevels: Array<'workspace' | 'project'>,
-	extra: { available?: boolean; rail?: boolean; state?: 'ready' | 'disabled' } = {}
+	extra: { available?: boolean; rail?: boolean; state?: 'ready' | 'disabled' | 'gated' } = {}
 ) => ({
 	scopeLevels,
 	available: extra.available ?? true,
@@ -46,9 +46,10 @@ describe('P2-E3: bandFor (7.1)', () => {
 		});
 	});
 
-	it('gives no entry to a rail-less or a disabled app', () => {
+	it('gives no entry to a rail-less, disabled, or gated app (#2111)', () => {
 		expect(bandFor(row(['workspace'], { rail: false }), undefined)).toBeNull();
 		expect(bandFor(row(['project'], { state: 'disabled' }), 'prj_atlas')).toBeNull();
+		expect(bandFor(row(['workspace'], { state: 'gated' }), undefined)).toBeNull();
 	});
 
 	it('sorts by order, then instance, and says why an entry is dimmed', () => {

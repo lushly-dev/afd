@@ -1484,4 +1484,65 @@ describe('P6-E1: deployment write --host, and the version 4 projection (phase 6 
 		const analysis = await analyzeDeployment(statics.config);
 		expect(analysis.host).toBe('static');
 	});
+
+	it('marks boot.gated only for apps gated by a non-graduated experiment (#2111)', async () => {
+		const gatedApp = (id: string, stage: 'visible' | 'hidden' | 'graduated') =>
+			nativePackage(id, {
+				manifest_version: 2,
+				app: { requires_experiment: `${id}.beta` },
+				ui: {
+					experiments: [
+						{
+							id: 'beta',
+							title: `${id} beta`,
+							changes: `Shows ${id}.`,
+							ends: '2027-03-01',
+							stage,
+						},
+					],
+				},
+			});
+		const paths = await layout(
+			`deployment_version = 4
+
+[apps.plain]
+app = "plain"
+package = "plain"
+
+[apps.vis]
+app = "vis"
+package = "vis"
+
+[apps.hid]
+app = "hid"
+package = "hid"
+
+[apps.grad]
+app = "grad"
+package = "grad"
+`,
+			{
+				plain: nativePackage('plain'),
+				vis: gatedApp('vis', 'visible'),
+				hid: gatedApp('hid', 'hidden'),
+				grad: gatedApp('grad', 'graduated'),
+			}
+		);
+		const written = await write_(paths);
+		expect(written).toMatchObject({ ok: true });
+		const projection = JSON.parse(readFileSync(join(paths.out, 'deployment.json'), 'utf8'));
+		expect(readProjection(projection).ok).toBe(true);
+		const byInstance = Object.fromEntries(
+			projection.apps.map((entry: { instance: string; boot?: { gated?: boolean } }) => [
+				entry.instance,
+				entry.boot?.gated,
+			])
+		);
+		expect(byInstance).toEqual({
+			plain: undefined,
+			vis: true,
+			hid: true,
+			grad: undefined,
+		});
+	});
 });

@@ -35,6 +35,7 @@ import {
 	EXPERIMENTS_SECTION_ELEMENT,
 	type LoamExperimentsSection,
 } from './experiments.js';
+import { type SettingsSectionState, settingsHashTarget } from './hash-route.js';
 import {
 	LIMIT_KEYS,
 	type LimitKey,
@@ -165,7 +166,13 @@ export class LoamSettingsSection extends SettingsElement {
 	#selected: SectionSchema | undefined;
 	#target: string | undefined;
 	#collapsed = new Set<string>();
-	#reads = 0;
+	/** Separate counters for `show()` and `#readPanel()` so a panel re-read never aborts a scope change (#2097). */
+	#shows = 0;
+	#panelReads = 0;
+	/** True while `show()` is fetching the new scope/section schema so `#readPanel()` cannot paint under stale chrome. */
+	#showing = false;
+	/** Whether `#renderTree()` and `#renderHeader()` should paint atomically with the next panel commit. */
+	#needsChrome = false;
 	#status: HTMLElement | undefined;
 	#tree: HTMLElement | undefined;
 	#header: HTMLElement | undefined;
@@ -180,14 +187,19 @@ export class LoamSettingsSection extends SettingsElement {
 	#shown: string | undefined;
 	/** Whether the route's key is still to be given to the autonomy section, once per navigation (`#cap`). */
 	#targetPending = false;
-	/** A link within the section, `#<key>`, by Back or a person's link with no route change (3.5). */
-	#hashHeard = () => {
-		const key = decodeURIComponent(location.hash.slice(1));
-		if (!this.#selected || key === '' || key === this.#target) return;
-		void this.kernel?.call('section-open', {
-			section: 'settings',
-			target: `${this.#selected.section}.${key}`,
-		});
+	/** A link within the section, `#<key>`, by Back or a person's link with no route change (3.5, #2098). */
+	#hashHeard = async () => {
+		const target = await settingsHashTarget(
+			location,
+			this.#selected?.section,
+			() =>
+				(this.kernel?.call<SettingsSectionState>('section-get') ??
+					Promise.resolve(undefined)) as Promise<
+					{ success: boolean; data?: SettingsSectionState } | undefined
+				>
+		);
+		if (!target || !this.isConnected) return;
+		void this.kernel?.call('section-open', { section: 'settings', target });
 	};
 
 	/** The scope this panel shows. */
@@ -199,6 +211,7 @@ export class LoamSettingsSection extends SettingsElement {
 
 	/** Forget what was read in another scope: no control of it writes until the panel is read again (2). */
 	forgetScope(): void {
+		this.#panelReads++;
 		this.#current.clear();
 		this.#panel?.replaceChildren();
 	}
@@ -266,13 +279,19 @@ export class LoamSettingsSection extends SettingsElement {
 		const kernel = this.kernel;
 		if (!kernel) return;
 		this.#shown = path;
-		const generation = ++this.#reads;
+		const shown = ++this.#shows;
+		this.#panelReads++;
+		this.#showing = true;
 		// The tree from an outline, which fits the budget however large one section is; the shown section on its own.
 		const read = await this.#call<{ sections: SectionOutline[] }>('setting-schema-get', {
 			outline: true,
 		});
-		if (generation !== this.#reads) return;
+		if (shown !== this.#shows) return;
 		const failedRead = (answer: Answer) => {
+			this.#showing = false;
+			this.#needsChrome = false;
+			this.#panelReads++;
+			this.#current.clear();
 			this.#sections = [];
 			this.#selected = undefined;
 			this.#tree?.replaceChildren();
@@ -297,7 +316,7 @@ export class LoamSettingsSection extends SettingsElement {
 				: outline
 					? await this.#schemaOf(outline)
 					: undefined;
-		if (generation !== this.#reads) return;
+		if (shown !== this.#shows) return;
 		if (selected && 'success' in selected) return failedRead(selected);
 		this.#selected = selected;
 		this.#target = target;
@@ -305,9 +324,10 @@ export class LoamSettingsSection extends SettingsElement {
 		// A key named by the link chooses the level: the narrowest its own levels allow here (3.5).
 		const levels = outline?.keys.find((each) => each.key === target)?.levels;
 		if (levels) this.level = this.#narrowest(levels) ?? null;
-		this.#renderTree();
-		this.#renderHeader();
+		this.#showing = false;
+		this.#needsChrome = true;
 		await this.#readPanel();
+		if (shown !== this.#shows) return;
 		if (this.#target) {
 			this.shadowRoot
 				?.querySelector<HTMLElement>(`#key-${CSS.escape(this.#target)}`)
@@ -589,8 +609,17 @@ export class LoamSettingsSection extends SettingsElement {
 		const panel = this.#panel;
 		const section = this.#selected;
 		const level = this.shownLevel;
-		if (!kernel || !panel) return;
+		if (!kernel || !panel || this.#showing) return;
+		const read = ++this.#panelReads;
+		const shown = this.#shows;
+		const paintChrome = () => {
+			if (!this.#needsChrome) return;
+			this.#needsChrome = false;
+			this.#renderTree();
+			this.#renderHeader();
+		};
 		if (section?.section === EXPERIMENTS.section) {
+			paintChrome();
 			defineExperimentsSection();
 			const held = panel.querySelector<LoamExperimentsSection>(EXPERIMENTS_SECTION_ELEMENT);
 			const shown =
@@ -604,6 +633,7 @@ export class LoamSettingsSection extends SettingsElement {
 			return;
 		}
 		if (section?.section === AUTONOMY.section) {
+			paintChrome();
 			defineAutonomySection();
 			const held = panel.querySelector<LoamAutonomySection>(AUTONOMY_SECTION_ELEMENT);
 			const shown =
@@ -622,22 +652,24 @@ export class LoamSettingsSection extends SettingsElement {
 			return;
 		}
 		if (!section || !level) {
+			paintChrome();
 			panel.replaceChildren();
 			return;
 		}
-		const generation = ++this.#reads;
 		const scope = this.scope;
 		const listed = await this.#call<{ values: ValueRow[] }>('setting-list', {
 			section: section.section,
 			level,
 		});
-		if (generation !== this.#reads) return;
+		if (read !== this.#panelReads || shown !== this.#shows || this.#showing) return;
 		if (!listed.success || !listed.data) {
+			paintChrome();
 			panel.replaceChildren(el('p', {}, failed(listed)));
 			return;
 		}
 		const extra = await this.#editorData(section);
-		if (generation !== this.#reads) return;
+		if (read !== this.#panelReads || shown !== this.#shows || this.#showing) return;
+		paintChrome();
 		const active = this.shadowRoot?.activeElement;
 		const focusedId = active?.id;
 		this.#current = new Map(listed.data.values.map((row) => [row.key, { row, level, scope }]));

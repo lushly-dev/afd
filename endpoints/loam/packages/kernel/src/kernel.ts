@@ -1093,7 +1093,7 @@ export async function createKernelParts(
 				await state.hydrateLate();
 				if (disposed) return;
 				state.forgetUnlisted(new Set(apps.summaries().map((app) => app.instance)));
-				apps.reconcileLayouts();
+				if (!applying) apps.reconcileLayouts();
 			}
 			// Boot's own work before any late name is callable, so no call runs beside it, unqueued, and
 			// none can lose a write to it (2.2). A replay's entries are what ran, an apply among them (10).
@@ -1101,6 +1101,7 @@ export async function createKernelParts(
 				registries = { ...registries, boot: build('palette', bootOnly) };
 				await lateParts?.apply(applying, runBoot, hydrated);
 				if (disposed) return;
+				if (hydrated) apps.reconcileLayouts();
 			}
 			setAppCommands(apps.commands);
 			// Stage B's first act before any queued call: `late/` hears the adapter from here (phase 3 specification, 4.4).

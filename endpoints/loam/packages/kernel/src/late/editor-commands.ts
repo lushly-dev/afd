@@ -62,6 +62,8 @@ export interface EditorCommandDeps {
 	 * (phase 4 specification, 8.1): `documentType == <type>` reads the type.
 	 */
 	editorHeld?(editor: { owner: string; type: string } | null): void;
+	/** Whether `type`'s owning app is currently held out by its experiment, once gates have been read (#2113). */
+	isTypeGated?(type: string): boolean;
 }
 
 /** What the rest of `late` asks of the editor area. */
@@ -87,6 +89,8 @@ export interface EditorParts {
 		at: ScopeV1,
 		context: CommandContext
 	): Promise<CommandResult<never> | undefined>;
+	/** Close every open tab of `instance`'s document types across all scopes, when its experiment holds it out (#2113). */
+	closeApp(instance: string, context?: CommandContext): Promise<{ dirty: boolean }>;
 	/** `section-get`, with a document's id as the documents section's path: the active tab's (5.1). */
 	sectionGet(boot: ZodCommandDefinition): ZodCommandDefinition;
 	/** Register and read `project`'s record, or the workspace's: stage B's for the active scope (6). */
@@ -244,7 +248,8 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 			if (
 				record.workspace === at.workspace &&
 				sameScope(record.scope, at) &&
-				record.status !== 'trashed'
+				record.status !== 'trashed' &&
+				!deps.isTypeGated?.(record.type)
 			) {
 				known.add(document);
 			} else foreign.add(document);
@@ -378,6 +383,14 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 			// An app's call answers the same bytes as a missing id for a document outside its scope, first (4.2).
 			const record = await check.find(input.document, 'document-open', context);
 			if (isRefusal(record)) return record;
+			// A document whose app is held out by its experiment cannot open until the experiment is enabled (#2113).
+			if (deps.isTypeGated?.(record.type)) {
+				return kernelFailure(
+					'APP_NOT_READY',
+					`The app for document type '${record.type}' is held out by its experiment`,
+					'Turn the experiment on with experiment-enable or in Settings > Experiments, then retry'
+				);
+			}
 			// An app never switches another's screen: only the active app or the editor owner opens one, and only
 			// in the scope main shows, so it never runs scope-set (11).
 			if (
@@ -678,7 +691,13 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 		owner,
 		async settle(name, call) {
 			const seen = scope.seen.get(call.traceId as string);
-			if (!name.startsWith('editor-') && !seen?.mainChanged && !seen?.scopeChanged) return;
+			if (
+				!name.startsWith('editor-') &&
+				!seen?.mainChanged &&
+				!seen?.scopeChanged &&
+				!seen?.experiments
+			)
+				return;
 			const held = await ownerAndType();
 			deps.editorHeld?.(held);
 			const now = held?.owner ?? null;
@@ -709,6 +728,76 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 			if (showing(at) && activeTab(before)?.document === document) {
 				scope.note(context.traceId, { mainChanged: 'replace' });
 			}
+		},
+		async closeApp(instance, context) {
+			let types: Set<string>;
+			try {
+				types = new Set(
+					(deps.apps().port(instance).manifest.ui?.documents ?? []).map((each) => each.id)
+				);
+			} catch {
+				return { dirty: false };
+			}
+			if (types.size === 0) return { dirty: false };
+			// Visit workspace scope, every loaded project scope, and every persisted project scope so disabling and
+			// re-enabling before revisiting a project cannot resurrect old tabs (#2113).
+			const scopes = new Set<string | undefined>([
+				undefined,
+				...editors.projects(),
+				...scope.projects.all().map((project) => project.id),
+			]);
+			const byScope = new Map<string | undefined, Set<string>>();
+			const allClosing = new Set<string>();
+			for (const project of scopes) {
+				if (deps.disposed?.()) return { dirty: false };
+				await editors.ensure(project);
+				if (deps.disposed?.()) return { dirty: false };
+				const before = editors.peek(project);
+				if (!before) continue;
+				const docs = new Set(
+					before.groups.flatMap((group) => group.tabs.map((tab) => tab.document))
+				);
+				if (docs.size === 0) continue;
+				const closing = new Set<string>();
+				for (const document of docs) {
+					if (deps.disposed?.()) return { dirty: false };
+					const record = await store.get<DocumentRecordV1>(DOCUMENT_TABLE, document);
+					if (deps.disposed?.()) return { dirty: false };
+					if (record && types.has(record.type)) {
+						closing.add(document);
+						allClosing.add(document);
+					}
+				}
+				if (closing.size > 0) byScope.set(project, closing);
+			}
+			if (allClosing.size === 0) return { dirty: false };
+			// After the last await and before mutating any editor record, re-check dirty state so a concurrent
+			// editor-dirty-set during the reads defers the unload instead of losing unsaved work (R14).
+			for (const document of allClosing) {
+				if (editors.unsaved(document)) return { dirty: true };
+			}
+			for (const [project, closing] of byScope) {
+				const current = editors.peek(project);
+				if (!current) continue;
+				const after = keepTabs(current, (document) => !closing.has(document));
+				if (!after) continue;
+				const known = trusted.get(project ?? '');
+				for (const group of current.groups)
+					for (const tab of group.tabs)
+						if (closing.has(tab.document)) {
+							editors.setSelection(project, tab.id, null);
+							known?.delete(tab.document);
+						}
+				editors.put(project, after);
+				const at: ScopeV1 =
+					project === undefined
+						? { workspace: scope.workspace.id }
+						: { workspace: scope.workspace.id, project };
+				if (context && showing(at) && activeTab(current)?.id !== activeTab(after)?.id) {
+					scope.note(context.traceId, { mainChanged: 'replace' });
+				}
+			}
+			return { dirty: false };
 		},
 		sectionGet(boot) {
 			return {

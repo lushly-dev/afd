@@ -547,6 +547,7 @@ export const ADMITTED_KEYS: Record<string, Record<string, readonly string[]>> = 
 			"order",
 			"scope_levels",
 			"rail",
+			"gated",
 			"parts",
 			"layout",
 			"refusal"
