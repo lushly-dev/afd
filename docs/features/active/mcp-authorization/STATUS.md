@@ -2,21 +2,39 @@
 
 Epic: [#1552](https://github.com/lushly-dev/afd/issues/1552). File new work for this area as its sub-issue.
 
-Read this before the [proposal](mcp-authorization.proposal.md). Last reconciled 2026-11-13
-against `main` at `1024546b`, using source and merged history. This audit did not rerun suites
-or verify a live identity provider.
+Read this before the [proposal](mcp-authorization.proposal.md). Last reconciled 2026-11-23
+against `origin/main` at `eb457325`, using source, merged history, capability manifests and
+GitHub sub-issues. This reconciliation did not rerun implementation test suites or verify a
+live identity provider.
 
 ## Delivery
 
 | Scope | State | Evidence / next gate |
 | --- | --- | --- |
-| Phase 1: contract | Done | #793; [authorization specification](../../../../spec/authorization.md) and [cases](../../../../spec/authorization.json) |
-| Phase 4: Rust resource-server layer | Done | #798 (`server-auth`); `packages/rust/tests/authorization_cases.rs`, `server_auth.rs` and `server_auth_pre_dispatch.rs`; host scope hook in #835 |
-| Phase 2: TypeScript resource-server layer | Done | #934 (verification) and #1050 (pre-dispatch scopes); `packages/server/src/authorization-cases.test.ts`, `mcp-auth.test.ts`, `mcp-auth-verifier.test.ts` and `mcp-auth-scopes.test.ts` |
-| Confirmation state bound to the caller (#532) | Done in TypeScript, Python and Rust | #801; Python per-request context hook (`create_server(context_hook=...)`) binds the hook's actor in #800 (`python/tests/test_context_hook.py`, `test_principal_binding.py`); this alone does not implement Python's HTTP bearer/scope authorization layer |
-| Host-verified confirmation / relay | Rust done; other ports remain | #810; [Umbel phase 5 specification](../../../../endpoints/umbel/docs/phases/5-auth-hosted/spec.md) |
-| Phase 3: Python authorization | Done | #800 adds the per-request context hook and M8 principal binding; #2154 (merged in #2162) adds M1–M5, M7 and Tasks binding (`python/tests/test_authorization_cases.py`, `test_auth_verifier.py`, `test_mcp_auth.py`); #2155 (merged in #2193) adds M6 command `scopes`, `required_scopes`, `ScopeResolver` (`resolve`, `visible`, `known`), `ScopeChallenge`, pre-dispatch 403 and JSON-RPC batch 400 `-32600`, post-routing `INSUFFICIENT_SCOPE` before confirmations, execution-time resolver re-checks on validated input, `filter_tools_by_scope` (`cacheScope: "private"`), byte-identical hidden commands, `server.admit`/`server.pre_dispatch_check`, `tasks/*` scope enforcement, and `staticScopes`/`batches` conformance (`python/tests/test_mcp_auth_scopes.py`) |
+| Phase 1: contract | Done | #793; [authorization specification](../../../../spec/authorization.md), [cases](../../../../spec/authorization.json) (13 sections, 184 cases), [command metadata](../../../../spec/command-metadata.md) (`scopes`, `confirmationMode`, `HumanRelay`) and [error codes](../../../../spec/error-codes.md) (`INSUFFICIENT_SCOPE`) |
+| Phase 4: Rust resource-server layer | Done | #798 (`server-auth`), #835 (host scope hook), #810 (`HumanRelay`), #1880 (merged in #1898, per-caller `ResourceProvider` `cacheScope: "private"`); loads all 13/13 sections (184 cases) in `packages/rust/tests/authorization_cases.rs`, plus `server_auth.rs`, `server_auth_pre_dispatch.rs`, `server_auth_hidden.rs`, `server_human_relay.rs` |
+| Phase 2: TypeScript resource-server layer (M1–M7, `tasks/*`) | Done (except per-caller `ResourceProvider`) | #934 (verification), #1050 (pre-dispatch scopes), #1971 (merged in #2034, `tasks/*` auth); loads 12/13 sections (179 cases; `inputDigests` tracked with `HumanRelay`) across `packages/server/src/authorization-cases.test.ts`, `mcp-auth-scopes.test.ts`, `principal-binding.test.ts`, `mcp-auth.test.ts`, `mcp-auth-verifier.test.ts`, `mcp-auth-host.test.ts`, `tasks.test.ts` |
+| Phase 3: Python resource-server layer (M1–M7, `tasks/*`) | Done (except per-caller `ResourceProvider`) | #800 (#2025, `context_hook` + M8 binding), #1972 (#2134, base `tasks/*`), #2154 (#2162, M1–M5, M7, `tasks/*` binding), #2155 (#2193, M6 scopes, `ScopeResolver`, pre-dispatch 403, hidden commands, `server.admit`/`pre_dispatch_check`, `tasks/*` scopes); loads 12/13 sections (179 cases; `inputDigests` tracked with `HumanRelay`) in `python/tests/test_authorization_cases.py`, `test_principal_binding.py`, `test_context_hook.py`, `test_auth_verifier.py`, `test_mcp_auth.py`, `test_mcp_auth_scopes.py` |
+| Confirmation state bound to the caller (#532, M8) | Done in TypeScript, Python and Rust; C++ partial (stdio-only) | #801, #2025, #2162; TypeScript, Python and Rust load `principalBindings`. C++ (`afd::mcp_stdio`) has no HTTP server by design (M1–M7 and `HumanRelay` are N/A); its confirmation `requestState` HMAC-binds command, input and actor without HTTP credentials |
+| Host-verified confirmation / `HumanRelay` + `inputDigests` | Rust done; TypeScript and Python open | Rust done in #810 ([Umbel phase 5 specification](../../../../endpoints/umbel/docs/phases/5-auth-hosted/spec.md)); TypeScript tracked in [#2263](https://github.com/lushly-dev/afd/issues/2263), Python in [#2264](https://github.com/lushly-dev/afd/issues/2264) |
+| Per-caller `ResourceProvider` (M6 Other methods, R3/R4) | Rust done; TypeScript and Python open | Rust `ResourceProvider::list_for`/`read_for` and `cacheScope: "private"` done in #798 and #1880 (#1898); TypeScript tracked in [#2265](https://github.com/lushly-dev/afd/issues/2265), Python in [#2266](https://github.com/lushly-dev/afd/issues/2266) |
+
+## Remaining sub-issues
+
+Each remaining sub-issue under [#1552](https://github.com/lushly-dev/afd/issues/1552) has its own line; edit only your own line when closing it.
+
+- [#2263](https://github.com/lushly-dev/afd/issues/2263) (TypeScript — host-verified confirmation mode, `HumanRelay`, relay evidence and `inputDigests`): open.
+
+- [#2264](https://github.com/lushly-dev/afd/issues/2264) (Python — host-verified confirmation mode, `HumanRelay`, relay evidence and `inputDigests`): open.
+
+- [#2265](https://github.com/lushly-dev/afd/issues/2265) (TypeScript — per-caller `ResourceProvider` and `cacheScope: "private"` under M6 / R3–R4): open.
+
+- [#2266](https://github.com/lushly-dev/afd/issues/2266) (Python — per-caller `ResourceProvider` and `cacheScope: "private"` under M6 / R3–R4): open.
+
+## Separate follow-on work (outside #1552 closeout)
+
+- **Decision A8 (issuer claim profiles and scope qualifier, Umbel D184):** specified in [Umbel's auth profiles specification](../../../../endpoints/umbel/docs/phases/5-auth-hosted/auth-profiles.spec.md) (decided under the owner's direction; unread by the owner). Step A1 has yet to add it to `spec/authorization.md` and `spec/authorization.json`. Not part of `#1552`'s already-specified M1–M8 and `HumanRelay` exit criteria.
 
 ## Next gate
 
-Carry the outstanding host-verified confirmation behavior to TypeScript and Python. Rust ran before TypeScript because Umbel needed it; the proposal's numbered phases are not execution order. Keep the feature active until its cross-language scope is resolved.
+Keep the feature active and [#1552](https://github.com/lushly-dev/afd/issues/1552) open until the four open sub-issues above ([#2263](https://github.com/lushly-dev/afd/issues/2263)–[#2266](https://github.com/lushly-dev/afd/issues/2266)) are merged or explicitly dispositioned by the owner. Rust ran before TypeScript because Umbel needed it; the proposal's numbered phases are not execution order.
