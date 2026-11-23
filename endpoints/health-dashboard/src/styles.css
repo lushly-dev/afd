@@ -1,16 +1,19 @@
-/* Page styles over violet-elements' runtime theme tokens (fallbacks match its light preset). */
+/*
+ * Page styles over violet-elements' built-in theme (src/app/theme.ts), which always applies before
+ * the page renders: every colour, typeface, radius and shadow comes from its tokens, with no
+ * values of their own. Edges are surfaces and shadows, not outlines; a transparent border keeps
+ * each panel's edge where forced colours remove shadows.
+ */
 :root {
 	color-scheme: light dark;
-	--page-bg: var(--violet-color-surface-page, #fbfaf6);
-	--card-bg: var(--violet-color-surface-card, #ffffff);
-	--subtle-bg: var(--violet-color-surface-subtle, #f0efe6);
-	--text: var(--violet-color-text-primary, #18181b);
-	--text-secondary: var(--violet-color-text-secondary, #414651);
-	--border: var(--violet-color-border-subtle, rgba(28, 26, 13, 0.1));
-	--border-strong: var(--violet-color-border-strong, rgba(28, 26, 13, 0.3));
-	--focus: var(--violet-color-focus-ring, rgba(24, 24, 27, 0.5));
-	--radius: var(--violet-radius-md, 4px);
-	--gap: var(--violet-space-layout-sm, 16px);
+	--page-bg: var(--violet-color-surface-page);
+	--card-bg: var(--violet-color-surface-card);
+	--subtle-bg: var(--violet-color-surface-subtle);
+	--text: var(--violet-color-text-primary);
+	--text-secondary: var(--violet-color-text-secondary);
+	--border: var(--violet-color-border-subtle);
+	--radius: var(--violet-radius-md);
+	--gap: var(--violet-space-layout-sm);
 }
 
 * {
@@ -21,8 +24,8 @@ body {
 	margin: 0;
 	background: var(--page-bg);
 	color: var(--text);
-	font-family: "Montserrat", "Segoe UI", system-ui, sans-serif;
-	font-size: var(--violet-type-body-md-size, 14px);
+	font-family: var(--violet-font-family-body);
+	font-size: var(--violet-type-body-md-size);
 	line-height: 1.5;
 }
 
@@ -33,6 +36,7 @@ health-dashboard {
 h1,
 h2,
 h3 {
+	font-family: var(--violet-font-family-heading);
 	line-height: 1.25;
 	margin: 0;
 }
@@ -52,7 +56,7 @@ h3 {
 
 code,
 pre {
-	font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+	font-family: var(--violet-font-family-mono);
 	font-size: 0.92em;
 }
 
@@ -66,13 +70,14 @@ pre {
 }
 
 :focus-visible {
-	outline: 2px solid var(--text);
+	outline: var(--violet-size-focus-ring-width) solid var(--violet-color-focus-ring);
 	outline-offset: 2px;
 }
 
 .banner {
-	border-block-end: 1px solid var(--border);
+	border-block-end: 1px solid transparent;
 	background: var(--card-bg);
+	box-shadow: var(--violet-shadow-card);
 }
 
 .banner-inner,
@@ -104,9 +109,10 @@ pre {
 	display: grid;
 	gap: 0.75rem;
 	padding: 1.25rem;
-	border: 1px solid var(--border);
-	border-radius: var(--violet-radius-lg, 8px);
+	border: 1px solid transparent;
+	border-radius: var(--violet-radius-lg);
 	background: var(--card-bg);
+	box-shadow: var(--violet-shadow-card);
 }
 
 /* Once a report shows it is the content. The dropzone stays one, so focus and drops keep working. */
@@ -133,16 +139,17 @@ pre {
 	padding-inline-start: 1.25rem;
 }
 
+/* A filled state surface; the light and dark presets' state borders are transparent. */
 .verdict {
 	padding: 0.75rem 1rem;
-	border: 2px solid var(--violet-color-state-danger-border, #d92d20);
+	border: 2px solid var(--violet-color-state-danger-border);
 	border-radius: var(--radius);
-	background: var(--violet-color-state-danger-background, #fef3f2);
+	background: var(--violet-color-state-danger-background);
 }
 
 .verdict[data-passed="true"] {
-	border-color: var(--violet-color-state-success-border, #079455);
-	background: var(--violet-color-state-success-background, #ecfdf3);
+	border-color: var(--violet-color-state-success-border);
+	background: var(--violet-color-state-success-background);
 }
 
 .verdict-label {
@@ -173,8 +180,9 @@ pre {
 	align-items: center;
 	gap: 0.25rem 0.5rem;
 	padding: 0.625rem 0.75rem;
-	border: 1px solid var(--border);
+	border: 1px solid transparent;
 	border-radius: var(--radius);
+	background: var(--subtle-bg);
 }
 
 .summary-count {
@@ -200,8 +208,10 @@ pre {
 
 .table-scroll {
 	overflow-x: auto;
-	border: 1px solid var(--border);
+	border: 1px solid transparent;
 	border-radius: var(--radius);
+	background: var(--card-bg);
+	box-shadow: var(--violet-shadow-card);
 }
 
 table {
@@ -252,7 +262,7 @@ tbody th {
 }
 
 .path-root {
-	margin-block-start: var(--space-1, 0.25rem);
+	margin-block-start: var(--violet-space-stack-xs);
 }
 
 .severity[data-severity="advisory"] {
