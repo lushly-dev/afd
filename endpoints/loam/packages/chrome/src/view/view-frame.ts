@@ -8,6 +8,7 @@ import { attr, css, FASTElement, html, observable, when } from '@lushly-dev/fast
 import type { AppPortV2, ViewBrokerV1 } from '@lushly-dev/loam-kernel';
 import type { DocumentChangeV1, DocumentRefV1 } from '@lushly-dev/loam-sdk';
 import { ProxyChannel } from './channel.js';
+import { viewFonts } from './fonts.js';
 import { readTokens } from './tokens.js';
 import { ViewHost, type ViewHostContext } from './view-host.js';
 
@@ -170,6 +171,8 @@ export class LoamViewFrame extends FASTElement {
 	#channel: ProxyChannel | null = null;
 	#host: ViewHost | null = null;
 	#selection: string | null | undefined;
+	/** The shell's faces for the frame (`styles.css.fonts`, 6.2), once read. */
+	#fonts = '';
 	#dimensions = { width: 0, height: 0 };
 	#readyTimer: ReturnType<typeof setTimeout> | undefined;
 	#resize: ResizeObserver | null = null;
@@ -287,6 +290,9 @@ export class LoamViewFrame extends FASTElement {
 			});
 			return;
 		}
+		const { ownerDocument: document } = this;
+		// Read beside the view's HTML: after the first view, the faces are already built.
+		const fonts = viewFonts(document);
 		let source: { html: string };
 		try {
 			source = await options.source.read(options.resource);
@@ -300,7 +306,6 @@ export class LoamViewFrame extends FASTElement {
 			return;
 		}
 		if (!this.isConnected || this.#leaving) return;
-		const { ownerDocument: document } = this;
 		const channel = new ProxyChannel({
 			document,
 			sandboxOrigin,
@@ -342,6 +347,14 @@ export class LoamViewFrame extends FASTElement {
 				options.onSettled?.(false);
 			},
 		});
+		const host = this.#host;
+		// Before `ui/initialize` they go in its context; after it, in `host-context-changed` (6.2).
+		void fonts.then((css) => {
+			// Not to a view on its way out, nor one a restart replaced.
+			if (css === '' || this.#host !== host || this.#leaving) return;
+			this.#fonts = css;
+			host.changeContext({ styles: { css: { fonts: css } } });
+		});
 		this.#watch(document);
 		this.#readyTimer = setTimeout(() => {
 			this.#fail({
@@ -365,6 +378,7 @@ export class LoamViewFrame extends FASTElement {
 			...(this.#options?.scope ? { 'dev.loam/scope': this.#options.scope } : {}),
 			...(this.#options?.route !== undefined ? { 'dev.loam/route': this.#options.route } : {}),
 			...(this.#options?.document ? { 'dev.loam/document': this.#options.document } : {}),
+			...(this.#fonts !== '' ? { styles: { css: { fonts: this.#fonts } } } : {}),
 		};
 	}
 
@@ -415,6 +429,8 @@ export class LoamViewFrame extends FASTElement {
 		this.#host = null;
 		this.#channel?.close();
 		this.#channel = null;
+		// A restart reads the faces again, so a set missing a file is not handed on for good.
+		this.#fonts = '';
 	}
 
 	/**

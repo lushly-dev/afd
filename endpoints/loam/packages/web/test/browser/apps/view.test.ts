@@ -234,6 +234,8 @@ describe('P2-E13: E2: a view in real frames', () => {
 		}));
 		expect(inside.policy).toContain("connect-src 'none'");
 		expect(inside.policy).toContain("default-src 'none'");
+		// The shell's faces arrive as data: URLs (6.2); no font loads from any origin.
+		expect(inside.policy).toContain('font-src data:;');
 		expect(inside.lang).toBe('en');
 		expect(inside.title).toBe('Fixture');
 		// The shell's own CSP names the second origin and widens nothing else.
@@ -994,6 +996,35 @@ describe('P2-E13: E2: the host context', () => {
 		await opened.context.close();
 	});
 
+	it("renders hello's frame in the shell's faces, under its policy", async () => {
+		const opened = await openShell(browser, site.origin);
+		const { page } = opened;
+		await openApp(page, 'hello');
+		const { inner } = await viewFrames(page);
+		await expect
+			.poll(() =>
+				inner.evaluate(() => document.head.querySelectorAll('style[data-loam-fonts]').length)
+			)
+			.toBe(1);
+		const faces = await inner.evaluate(async () => {
+			await document.fonts.load('400 14px Inter');
+			await document.fonts.ready;
+			return {
+				family: getComputedStyle(document.body).fontFamily,
+				inter: document.fonts.check('400 14px Inter'),
+				loaded: [...document.fonts]
+					.filter((face) => face.status === 'loaded')
+					.map((face) => `${face.family.replaceAll('"', '')} ${face.weight}`),
+			};
+		});
+		expect(faces.family).toMatch(/^"?Inter"?,/);
+		expect(faces.inter).toBe(true);
+		expect(faces.loaded).toContain('Inter 400');
+		expect(opened.violations).toEqual([]);
+		expect(opened.errors).toEqual([]);
+		await opened.context.close();
+	});
+
 	it('answers ui/initialize as the schema says, and tells a recorder each change', async () => {
 		const opened = await openShell(browser, site.origin, {
 			viewport: { width: 1280, height: 800 },
@@ -1035,7 +1066,31 @@ describe('P2-E13: E2: the host context', () => {
 		expect(
 			Object.keys(context['dev.loam/tokens']).some((name) => name.startsWith('--shell-'))
 		).toBe(false);
-		expect(parsed).not.toHaveProperty('hostContext.styles');
+		// `styles` carries only `css.fonts`, the shell's faces with each file inline; `variables` stays omitted (6.2).
+		// They come with ui/initialize, or in a host-context-changed when the first view asks before they are read.
+		const fonts = async (): Promise<string | undefined> =>
+			(context as { styles?: { css?: { fonts?: string } } }).styles?.css?.fonts ??
+			(
+				await inner.evaluate(() =>
+					(
+						window as unknown as {
+							messages: Array<{
+								method: string;
+								params: { styles?: { css?: { fonts?: string } } };
+							}>;
+						}
+					).messages.find(({ params }) => params?.styles !== undefined)
+				)
+			)?.params.styles?.css?.fonts;
+		await expect.poll(fonts).toBeTypeOf('string');
+		const css = (await fonts()) as string;
+		expect(parsed).not.toHaveProperty('hostContext.styles.variables');
+		for (const family of ['Inter', 'Space Grotesk', 'IBM Plex Mono'])
+			expect(css).toMatch(new RegExp(`font-family: "?${family}"?;`));
+		expect(css.match(/@font-face/g)).toHaveLength(6);
+		expect([...css.matchAll(/url\("([^"]*)"\)/g)].map(([, url]) => url?.slice(0, 29))).toEqual(
+			Array(6).fill('data:font/woff2;base64,d09GMg')
+		);
 
 		const changes = () =>
 			inner.evaluate(() =>

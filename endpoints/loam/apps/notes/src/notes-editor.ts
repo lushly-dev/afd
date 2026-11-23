@@ -140,8 +140,12 @@ const styles = css`
 		align-items: center;
 		gap: var(--space-inline-sm);
 		padding: var(--space-stack-sm) var(--space-inline-md);
+		/*
+		 * A message is its tint and state border, as violet-alert is (Refined, D159): the border is transparent in
+		 * light and dark and the message's only edge in high contrast; forced colors draws it as CanvasText.
+		 */
 		border: 1px solid var(--color-state-warning-border);
-		border-radius: var(--radius-md);
+		border-radius: var(--radius-lg);
 		background: var(--color-state-warning-background);
 		color: var(--color-state-warning-text);
 	}
@@ -163,8 +167,11 @@ const styles = css`
 		flex-direction: column;
 		align-items: stretch;
 		padding: var(--space-stack-sm) var(--space-inline-md);
-		border: 1px solid var(--color-border-subtle);
-		border-radius: var(--radius-md);
+		/* A card one surface step up with the card shadow, no drawn edge, as violet-card is (Refined, D159). */
+		border: 1px solid transparent;
+		border-radius: var(--radius-lg);
+		background: var(--color-surface-card);
+		box-shadow: var(--shadow-card);
 	}
 	.picker[hidden],
 	.tools[hidden],
@@ -221,7 +228,8 @@ const styles = css`
 		resize: none;
 	}
 	@media (forced-colors: active) {
-		.conflict {
+		.conflict,
+		.picker {
 			border-color: CanvasText;
 			background: Canvas;
 			color: CanvasText;

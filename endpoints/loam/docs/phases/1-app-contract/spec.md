@@ -1182,7 +1182,7 @@ and "The Sandbox MUST have ... `allow-scripts`, `allow-same-origin`". D62 follow
 - **The file.** `web/public/sandbox/proxy.html` and `proxy.js`, copied by `vite build` to
   `dist/sandbox/`, and deployed by the deployer **on `sandbox.origin`**. `proxy.html`'s
   `<meta>` CSP is `default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self'
-  'unsafe-inline'; img-src 'self' data:; media-src 'self' data:; frame-src 'self';
+  'unsafe-inline'; img-src 'self' data:; media-src 'self' data:; font-src data:; frame-src 'self';
   base-uri 'none'`. It must permit what the inner document may use, since a `srcdoc`
   document inherits it; the inner document's own CSP (below) narrows it.
 - **The outer iframe.** The chrome's `loam-view-frame` creates
@@ -1196,13 +1196,19 @@ and "The Sandbox MUST have ... `allow-scripts`, `allow-same-origin`". D62 follow
   is the view's HTML with this as its very first bytes, before anything of the view's:
 
   ```html
-  <!doctype html><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' data:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'">
+  <!doctype html><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' data:; font-src data:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'">
   ```
 
   A `srcdoc` document holds the proxy's policy as well as this one, so the stricter of each directive wins:
   `base-uri` is `'none'` for a view in practice, and one violation reports twice ([9.7](#97-decided-by-step-5)).
 
-  This is MCP Apps' default CSP. **Phase 1 serves no `_meta.ui.csp`**: a resource's
+  This is MCP Apps' default CSP plus `font-src data:`. **Amended 2026-11-23**
+  ([#1486](https://github.com/lushly-dev/afd/issues/1486)): `font-src data:` (in both policies, since the
+  stricter wins) lets the shell's faces in `styles.css.fonts` ([6.2](#62-the-view-protocol)) load; before it, no
+  font loaded in a frame and a view fell back to the system face. It adds no origin and no request: a `data:` font
+  is bytes the view already holds, like its `data:` images. Nor does it give a view the browser's font parser: a view
+  could already hand it bytes of its own through the `FontFace` constructor, which no `font-src` governs (seen in
+  Chromium on 2026-11-23, under `default-src 'none'` with no `font-src`, which refused the same bytes as a `data:` URL). D62 records the choice. **Phase 1 serves no `_meta.ui.csp`**: a resource's
   declared domains (`ui.resources[].csp`) are ignored, `hostCapabilities.sandbox.csp` is empty, and `app check`
   warns `VIEW_CSP_IGNORED`. No `permissions` are granted. Phase 7 sets the sandbox policy
   for drafts (the follow-up in STATUS.md).
@@ -1266,6 +1272,15 @@ The `ui/initialize` result:
   since AFD #1190 added `violet-elements`' token interface ids; 108 before),
   with the resolved value from `getComputedStyle(document.documentElement)`, read in the
   view host's chunk from `@lushly-dev/loam-theme/contract.json`. Shell ids are not sent.
+  **`styles.css.fonts`** (amended 2026-11-23, [#1486](https://github.com/lushly-dev/afd/issues/1486)) holds the
+  `@font-face` rules of the shell's own style sheets (D159's faces, from `loam-fonts.css`), each `url()` source
+  read once per page from the shell's origin and written as a `data:` URL; a rule with a file on another origin, or
+  one that cannot be read or is not served as a font, is left out whole. The view host's chunk builds it on the first
+  view (`chrome/src/view/fonts.ts`) and keeps it for the page, unless it missed a file or found no face, when the next
+  view builds it again. It is in the `ui/initialize` result when it is ready by then, and otherwise
+  in a `host-context-changed` once it is. The SDK's `connectView` applies it once, as `@modelcontextprotocol/ext-apps`'
+  `applyHostFonts` does, so a view on either gets the faces its `font.family.*` tokens name. About 154 KB, sent
+  once per frame.
   **`styles.variables` is omitted in phase 1:** MCP Apps closes it to its standardized names
   (`--color-background-primary` and the rest), and `@modelcontextprotocol/ext-apps`' `App` refuses others at
   `ui/initialize`. `hostContext` is open, so Loam's ids take a `dev.loam/` key. The mapping onto standard names

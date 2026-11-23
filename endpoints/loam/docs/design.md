@@ -97,8 +97,9 @@ the ids `<step>.size`, `<step>.line` and `<step>.weight` (for example
   Grotesk 600 and IBM Plex Mono 400 and 500, which `loam-web` links through
   `loam-fonts.css`. Bold (700) uses the heaviest file of each family (Inter's
   and Space Grotesk's 600, IBM Plex Mono's 500), and the browser synthesizes
-  italics, since no italic file ships; nothing loads from another origin, and an app's frame,
-  which does not get them, falls back to the system face.
+  italics, since no italic file ships; nothing loads from another origin. A view's frame gets the
+  same faces from the shell, in MCP Apps' `styles.css.fonts` with each file inline as a `data:` URL,
+  and the SDK's `connectView` applies them (phase 1 specification, 6.1 and 6.2; 2026-11-23 below).
 - **Color.** `color.text.primary` for content, `color.text.secondary` for
   supporting text, `color.text.muted` for metadata and placeholders.
 
@@ -811,3 +812,28 @@ a fixture in `packages/chrome/specimens/chrome.specimens.ts`, or for what apps a
   `color.surface.pressed` (`#E7E4D8` to grey `#E6E6E6`), `color.state.danger.foreground` (`#B42318` to
   `#A30000`) and `color.state.success.foreground` (`#245C36` to `#0B5A1E`), and dark's
   `color.state.success.foreground` (light's mint ink, which does not show on dark, to mint).
+
+- **2026-11-23. Refined in the console and the apps ([#1485](https://github.com/lushly-dev/afd/issues/1485),
+  [#1486](https://github.com/lushly-dev/afd/issues/1486)).** What was still drawn the old way after D159:
+  - **Cards have no drawn edge; messages draw only their state border.** The console's notice and output, hello's and tally's `x-card`
+    and notes' embed picker are `color.surface.card` with `shadow.card` and `radius.lg`, as `violet-card` is,
+    with a transparent 1px border. The console's failure and notes' conflict are their state tint with
+    `color.state.*.border`, as `violet-alert` is: transparent in light and dark, and in high contrast, where
+    the tint is the page's white, their only edge. Forced colors paints each border `CanvasText`, since it
+    drops `box-shadow`.
+  - **A view's own field and button are drawn as the components draw them.** Checklist's editor and hello's
+    page keep native controls, on tokens: the field a well (`color.field.background`, a `color.border.subtle`
+    hairline, `shadow.well`, and the 3:1 `color.field.border` as an inset top line, hover's
+    `color.field.border.hover`, focus and invalid as the border), the filled button a key
+    (`color.action.primary.*` raised by `shadow.control`, flat while pressed, `weight.medium`), `radius.md`
+    and the components' inline padding for both; `ButtonText` borders under forced colors. The focus ring's
+    width is `size.focus-ring-width` (2 px, as `size.space.xs` was). A view bundles no `violet-*` element for
+    one field.
+  - **A view's frame gets the shell's faces.** The shell sends the `@font-face` rules its own style sheets
+    hold, each file read once from its own origin and written as a `data:` URL, in `styles.css.fonts`; the
+    frame's policy gains `font-src data:` and nothing else (D62, amended). Chosen over an app pack carrying the files,
+    which would put 154 KB of base64 in every view page, need every app rebuilt when the theme's faces
+    change, and still need the same policy; and over URLs on the sandbox origin, which would need each
+    host (web, hosted, desktop) to serve fonts there with CORS to an opaque origin. No byte is added to
+    first paint or to `fontsBytes`; the view chunk grows by the reader.
+

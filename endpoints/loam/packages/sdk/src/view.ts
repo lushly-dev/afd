@@ -41,6 +41,11 @@ export interface ViewHostContextV1 {
 	'dev.loam/settingsChanged'?: string[];
 	/** A document's editor or embed: the document it renders, and a new title (documents specification, 5.6). */
 	'dev.loam/document'?: DocumentRefV1;
+	/**
+	 * MCP Apps' host styles. Loam sends only `css.fonts`: the theme's `@font-face` rules with each file inline as a
+	 * `data:` URL, which `connectView` applies once (phase 1 specification, 6.2).
+	 */
+	styles?: { css?: { fonts?: string } };
 }
 
 export interface ViewConnectionV1 {
@@ -176,7 +181,22 @@ function applyTokens(tokens: Record<string, string> | undefined): void {
 }
 
 /**
- * Sends `ui/initialize`, applies the shell's tokens, sends `ui/notifications/initialized` and
+ * The shell's font CSS, once, as MCP Apps' `applyHostFonts` does: a `<style>` the view's policy admits
+ * (`style-src 'unsafe-inline'`), whose files are `data:` URLs (`font-src data:`). Later fonts change nothing.
+ */
+function applyFonts(styles: ViewHostContextV1['styles'] | undefined): void {
+	const fonts = styles?.css?.fonts;
+	if (typeof fonts !== 'string' || fonts === '') return;
+	const head = document.head ?? document.documentElement;
+	if (head.querySelector('style[data-loam-fonts]')) return;
+	const style = document.createElement('style');
+	style.dataset.loamFonts = '';
+	style.textContent = fonts;
+	head.append(style);
+}
+
+/**
+ * Sends `ui/initialize`, applies the shell's tokens and fonts, sends `ui/notifications/initialized` and
  * resolves. The shell sends a view nothing before that notification.
  */
 export async function connectView(info?: {
@@ -220,9 +240,11 @@ export async function connectView(info?: {
 		appCapabilities: {},
 	})) as { hostContext: ViewHostContextV1 };
 	applyTokens(hostContext['dev.loam/tokens']);
+	applyFonts(hostContext.styles);
 	peer.onNotification('ui/notifications/host-context-changed', (params) => {
 		const changed = params as Partial<ViewHostContextV1>;
 		applyTokens(changed['dev.loam/tokens']);
+		applyFonts(changed.styles);
 		Object.assign(hostContext, changed);
 		contextChanges.emit(changed);
 	});

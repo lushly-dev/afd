@@ -30,27 +30,52 @@
 				display: grid;
 				gap: var(--space-stack-xs);
 			}
+			/*
+			 * As violet-text-field and violet-button draw them (Refined, D159): the field is a well, its 3:1 rule
+			 * an inner line along the top over the well's shadow, and the button a key raised by the control
+			 * shadow. Forced colors drops box-shadow, so it draws both as borders.
+			 */
 			input,
 			button {
 				box-sizing: border-box;
 				min-block-size: var(--size-target-comfortable);
-				padding-inline: var(--space-inline-sm);
-				border: 1px solid var(--color-field-border);
-				border-radius: var(--radius-sm);
+				padding-inline: max(var(--space-inline-md), calc(var(--size-target-comfortable) * 0.375));
+				border-radius: var(--radius-md);
 				font: inherit;
 			}
 			input {
+				border: 1px solid var(--color-border-subtle);
 				background: var(--color-field-background);
+				box-shadow:
+					inset 0 1px 0 var(--color-field-border),
+					var(--shadow-well);
 				color: var(--color-field-text);
 			}
+			input:hover {
+				box-shadow:
+					inset 0 1px 0 var(--color-field-border-hover),
+					var(--shadow-well);
+			}
+			input:focus-visible {
+				border-color: var(--color-field-border-focus);
+			}
 			button {
-				border-color: var(--color-action-primary-background);
+				border: 1px solid transparent;
 				background: var(--color-action-primary-background);
+				box-shadow: var(--shadow-control);
 				color: var(--color-action-primary-text);
+				font-weight: var(--weight-medium);
 				cursor: pointer;
 			}
+			button:hover {
+				background: var(--color-action-primary-hover);
+			}
+			button:active {
+				background: var(--color-action-primary-pressed);
+				box-shadow: none;
+			}
 			:focus-visible {
-				outline: 2px solid var(--color-focus-ring);
+				outline: var(--size-focus-ring-width) solid var(--color-focus-ring);
 				outline-offset: 1px;
 			}
 			p {
@@ -60,6 +85,13 @@
 				body {
 					background: Canvas;
 					color: CanvasText;
+				}
+				input,
+				button {
+					border-color: ButtonText;
+				}
+				:focus-visible {
+					outline-color: Highlight;
 				}
 			}
 		</style>
