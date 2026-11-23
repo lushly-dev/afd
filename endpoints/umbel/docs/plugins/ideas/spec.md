@@ -15,9 +15,9 @@ Code paths are relative to `endpoints/umbel/`.
   and 2026-11-12** that the plan carry on through its phases on its recommendations. On 2026-11-12 he chose a
   version 1 without attested standing, as recommended; asked that review work in bulk, with an agent's help, away
   from the terminal; set aside his offline check of phase 0's samples (Q5) in favour of labels from use; and said
-  authentication must be optional in Umbel. **The owner has not read this specification.** Every decision here stays
-  open to him (the Ideas status, Q2), and section [17](#17-for-the-owner) lists what he could reasonably want
-  otherwise. It decides D173 to D179; its companion, the [review host specification](host-review.spec.md), decides
+  authentication must be optional in Umbel. **Confirmed by the owner on 2026-11-23** ([#1932](https://github.com/lushly-dev/afd/issues/1932),
+  [review brief](../../review-d158-d188.md), D203); section [17](#17-for-the-owner) records the choices reviewed.
+  It decides D173 to D179; its companion, the [review host specification](host-review.spec.md), decides
   D180. Version 1 (steps C1 to C5, first-use fixes, and `public_origin` docs) is merged and confirmed in daily use ([#2005](https://github.com/lushly-dev/afd/issues/2005)).
 - **Last verified:** 2026-11-12 against `origin/main` at `8a5348ce`, where step B4 of the records host specification is
   merged (`2ce8229f`, [#1071](https://github.com/lushly-dev/afd/pull/1071)). Read: the records host specification
@@ -1147,7 +1147,7 @@ records host specification run beside these; B6's figures replace the pack's ban
 
 ## 17. For the owner
 
-**The owner has not read this specification.** Each row is a choice he could reasonably want otherwise.
+**Confirmed by the owner on 2026-11-23** ([#1932](https://github.com/lushly-dev/afd/issues/1932), [review brief](../../review-d158-d188.md), D203). Each row below records the choices reviewed.
 
 **Step C5's local exit is met** (confirmed by the owner on 2026-11-22 in [#2005](https://github.com/lushly-dev/afd/issues/2005)): his instance runs in daily use over a private network (two reviews completed on the review page, export/restore verified identical across machines, `verified_levels` default kept). The repository's part merged in [#1168](https://github.com/lushly-dev/afd/pull/1168), [#1186](https://github.com/lushly-dev/afd/pull/1186), [#1188](https://github.com/lushly-dev/afd/pull/1188), and [#1189](https://github.com/lushly-dev/afd/pull/1189); `first-party/tests/ideas_first_use.rs` walks the README's local steps on invented content.
 

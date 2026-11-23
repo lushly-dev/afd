@@ -11,9 +11,11 @@ Code paths are relative to `endpoints/umbel/` unless they start with `packages/`
 
 ## Status
 
-- **State:** written 2026-11-12. **The principle is the owner's decision of 2026-11-12 (D182).** Every shape below
-  (D183 to D188) is **decided under his direction of 2026-11-12; he has not read this specification.** Each stays open
-  to him. Nothing is implemented.
+- **State:** written 2026-11-12. **The principle is the owner's decision of 2026-11-12 (D182).** On 2026-11-23
+  ([#1932](https://github.com/lushly-dev/afd/issues/1932), [review brief](../../review-d158-d188.md), D203), the owner
+  confirmed D183 to D185, D187 and D188 as written and **amended D186 in two places** (both presets ship provisional
+  until confirmed against a real deployment, and `entra` no longer raises host-wide `[auth] max_token_lifetime_s`).
+  Nothing is implemented.
 - **Last verified:** 2026-11-12 against `origin/main` at `b25d2870`, by reading the files cited at each claim. The
   provider facts come from two read-only research notes of the same day: an Entra fit study (Microsoft's public
   documentation and `curl` against public tenant metadata) and a Better Auth fit study (the published 1.7.22 and
@@ -351,7 +353,7 @@ preset is today's behaviour. `umbel doctor` prints each value a preset filled (7
 | `scope_claims` | `["scope"]` | `["scp", "roles"]` |
 | `services` | None | `{ claim = { name = "idtyp", value = "app" } }` |
 | `[auth] scope_qualifier` | None | `http.public_url` followed by `/`, when any access-token issuer has this preset; it then applies to every issuer, and `auth.provider` says so |
-| `[auth] max_token_lifetime_s` | 3600 | 5400, when any access-token issuer has this preset (Entra's 60 to 90 minutes); it then applies to every issuer, and `auth.provider` says so |
+| `[auth] max_token_lifetime_s` | 3600 (unchanged by preset) | 3600 (unchanged by preset; amended 2026-11-23 by D203 — deployers set `[auth] max_token_lifetime_s = 5400` explicitly when Entra's 60 to 90 minute tokens are used, noted in 7.4) |
 | Person `scopes` | `["openid"]` | `["openid", "profile"]` (Entra issues `oid` only with `profile`) |
 | Person `subject_claim` | `sub` | `oid` |
 | Person `claims_supported_check` | `fail` | `warn` (Entra's discovery omits `amr`, confirmed against public metadata) |
@@ -362,9 +364,15 @@ loosening: its logins are `declared`, and the doctor warns (6.2, 7.4).
 
 ### 7.3 Status of a preset
 
-`better-auth` is **supported**. `entra` is **provisional** until section 9's tests pass in a real tenant: it is
-accepted, and `auth.provider` warns "preset entra is provisional: section 9 of the auth profiles specification lists
-what is not yet confirmed against a real tenant". The pull request that records the tests removes the warning.
+Amended 2026-11-23 by D203: both `better-auth` and `entra` ship **provisional** until confirmed against a real
+deployment.
+- `better-auth` is **provisional** until its passkey `acr` and `amr` claims are confirmed against a real Better Auth
+  1.8+ release: `auth.provider` warns "preset better-auth is provisional: passkey acr and amr claims are not yet
+  confirmed against a released Better Auth 1.8+ deployment".
+- `entra` is **provisional** until section 9's tests pass in a real tenant: `auth.provider` warns "preset entra is
+  provisional: section 9 of the auth profiles specification lists what is not yet confirmed against a real tenant".
+
+Each pull request that records the real-deployment confirmation removes that preset's provisional warning.
 
 ### 7.4 Doctor `auth.provider`
 
@@ -396,6 +404,8 @@ it passes. Without a preset it passes with no notes.
 - the API app has no redirect URIs, so no ID token is issued to it (2.1, rule 7);
 - MCP clients pre-registered or pre-authorised (Entra offers neither dynamic registration nor client metadata
   documents);
+- set `[auth] max_token_lifetime_s = 5400` explicitly in `umbel.toml` when Entra's 60 to 90 minute tokens are used
+  (D203: the `entra` preset no longer raises the host-wide limit on its own);
 - no continuous access evaluation (`xms_cc`) on the API app, whose long-lived tokens exceed `max_token_lifetime_s`.
 
 ## 8. What stays as it is
@@ -433,7 +443,7 @@ date and result. Until all pass, `entra` stays provisional (7.3).
 | `packages/rust/tests/auth_verifier.rs` | One test per new rule with signed tokens: a `JWT` token passes a `JWT` profile and fails the default; GUID audience; `uti`; `azp`; `appid`; `scp` and `roles`; ID-token shapes refused with `claims` (no scope claim; `roles` with `nonce`, `at_hash` or `c_hash`); the qualifier read and published; each profile construction error |
 | `packages/server/src/authorization-cases.test.ts` | The same cases |
 | `packages/server/src/mcp-auth-verifier.test.ts` | The same signed-token tests |
-| `tests/auth_profiles_config.rs` | 3.1 and 3.2, 5's keys, 6.1's rules at open, 7's presets (each filled value, a file value winning, `entra` without `audience` refused, the `[auth]` defaults), version 5 and 6 files refused with "needs config_version = 7", and a file with no new key equal to today's parse |
+| `tests/auth_profiles_config.rs` | 3.1 and 3.2, 5's keys, 6.1's rules at open, 7's presets (each filled value, a file value winning, `entra` without `audience` refused, the `[auth] scope_qualifier` default, and `entra` leaving `[auth] max_token_lifetime_s` at 3600 per D203), version 5 and 6 files refused with "needs config_version = 7", and a file with no new key equal to today's parse |
 | `tests/auth_profiles_tokens.rs` | Through the HTTP surface with `umbel-testkit-idp` (`TokenBuilder::header_member`, `claim`, `without_claim`, `testkit-idp/src/token.rs:530-559`): an Entra-shaped token admitted and mapped by `oid`, with `scp` and `roles`; an ID token refused; qualified `scopes_supported` and challenges; an issuer without settings refusing the same token exactly as today |
 | `tests/person_assurance.rs` | With the test identity provider's `adjust_token` and `set_metadata_patch` (`testkit-idp/src/role.rs:312`, `:650`): the request's `scope`, `claims` and `acr_values` per 5; the standard rule unchanged (D181's cases repeated); each declared rule matching and not; order; `acr` absent with an `acrs` rule; refusal codes; `claims_supported` lacking `amr` failing, then warning; `evidence` and `declared` in the decision record, `PersonDecision`, the envelope and `humanPresent`; `verified_only` refusing `declared` by default and admitting it when listed; the resume gates refusing `declared` with any method but `person-page`; with no declared rule, the decision record and envelope byte-equal to today's |
 | `tests/doctor_auth_provider.rs` | 6.2's warnings, with and without the single-factor sentence; 7.4's notes, warnings and pass |
@@ -473,14 +483,12 @@ A version 8 is needed only if version 7 has shipped in a release, or a deploymen
 **Decided by you, 2026-11-12 (D182):** the deployer defines the sign-in layer; defaults stay strict; loosening is
 explicit; the doctor warns; every confirmation records how the person was proven.
 
-**Decided here under your direction; you have not read them (D183 to D188).** The ones worth your eye:
-- **A login proven by the deployer's own rule gets its own level, `declared`**, and `verified_levels` leaves it out by
-  default. So an Entra instance's Ideas `verified_only` admits nothing from the page until the deployer lists
-  `declared`. The other choice was to record `verified` with the evidence beside it, which keeps Entra working with no
-  extra step but makes the strong and the declared look alike to any reader that checks only the level.
-- **The `entra` preset ships provisional**, and its person rules (`acrs` `c1` with `fido` and `mfa`, or Windows Hello)
-  rest on Microsoft's documentation, not a tenant (section 9).
-- **Mode `gateway` takes no declared rules**, as it takes no phishable class today.
+**Reviewed by you on 2026-11-23 ([#1932](https://github.com/lushly-dev/afd/issues/1932), [review brief](../../review-d158-d188.md), D203):**
+- **Confirmed as written:** D183, D184, D185 (including `declared` excluded from `verified_levels` by default and
+  refused in mode `gateway`), D187, and D188 (already superseded by D200).
+- **Amended (D203, amending D186):** `better-auth` ships **provisional** alongside `entra` until verified against a
+  real Better Auth 1.8+ release (7.3), and `preset = "entra"` no longer silently raises host-wide
+  `[auth] max_token_lifetime_s` from 3 600 s to 5 400 s across all issuers (7.2, 7.4).
 
 ## Follow-ups
 
