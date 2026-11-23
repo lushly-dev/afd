@@ -26,6 +26,7 @@ add_executable(
     main.cpp
     mcp_test.cpp
     middleware_test.cpp
+    output_budget_test.cpp
     pipeline_test.cpp
     pipeline_variables_test.cpp
     registry_test.cpp
@@ -67,6 +68,9 @@ target_compile_definitions(afd_tests PRIVATE AFD_SPEC_VERSION_FILE="${afd_spec_v
 # The meta-tool definitions the MCP server lists, field for field.
 cmake_path(SET afd_meta_tools_file NORMALIZE "${PROJECT_SOURCE_DIR}/../../spec/meta-tools.json")
 target_compile_definitions(afd_tests PRIVATE AFD_META_TOOLS_FILE="${afd_meta_tools_file}")
+# The output-budgets conformance cases (spec/output-budgets.md, B1 to B8).
+cmake_path(SET afd_output_budgets_file NORMALIZE "${PROJECT_SOURCE_DIR}/../../spec/output-budgets.json")
+target_compile_definitions(afd_tests PRIVATE AFD_OUTPUT_BUDGETS_FILE="${afd_output_budgets_file}")
 # The todo example's shared contract, whose input schemas the validator must accept.
 cmake_path(SET afd_todo_spec_dir NORMALIZE "${PROJECT_SOURCE_DIR}/../examples/todo/spec")
 target_compile_definitions(afd_tests PRIVATE AFD_TODO_SPEC_DIR="${afd_todo_spec_dir}")

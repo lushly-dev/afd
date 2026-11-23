@@ -10,6 +10,7 @@
 #include "detail/approval_admission.hpp"
 #include "detail/context_fields.hpp"
 #include "detail/exceptions.hpp"
+#include "detail/output_budget.hpp"
 
 namespace afd {
 namespace {
@@ -157,6 +158,12 @@ CommandExecutor CommandRegistry::executor() const {
     };
 }
 
+CommandExecutor CommandRegistry::stream_executor() const {
+    return [this](std::string_view name, const Json& input, CommandContext& context) {
+        return execute_impl(name, input, context, false);
+    };
+}
+
 BatchResult CommandRegistry::execute_batch(const Json& request,
                                            const CommandContext& context) const {
     return afd::execute_batch(request, executor(), context, executor_options());
@@ -183,7 +190,8 @@ std::vector<StreamChunk> CommandRegistry::execute_stream(std::string_view name, 
     StreamOptions options;
     static_cast<ExecutorOptions&>(options) = executor_options();
     options.timeout = timeout_ms;
-    return afd::execute_stream(name, input, executor(), context, options);
+    // Buffered streaming skips the B5 output-budget check (spec/output-budgets.md, B7).
+    return afd::execute_stream(name, input, stream_executor(), context, options);
 }
 
 std::optional<std::string> CommandRegistry::register_command(CommandDefinition command) {
@@ -200,6 +208,11 @@ std::optional<std::string> CommandRegistry::register_command(CommandDefinition c
     }
     if (!command.handler) {
         return "Command '" + command.name + "' has no handler";
+    }
+    if (command.output_budget) {
+        if (auto problem = command.output_budget->validate()) {
+            return "Command '" + command.name + "' has an invalid outputBudget: " + *problem;
+        }
     }
     auto schema = CompiledSchema::compile(command.input_schema);
     if (!schema) {
@@ -308,6 +321,12 @@ void CommandRegistry::report_error(std::string_view message) const {
 
 CommandResult CommandRegistry::execute(std::string_view name, const Json& input,
                                        CommandContext context) const {
+    return execute_impl(name, input, std::move(context), true);
+}
+
+CommandResult CommandRegistry::execute_impl(std::string_view name, const Json& input,
+                                            CommandContext context,
+                                            bool check_output_budget) const {
     // A registry whose context field declarations are invalid cannot validate a call: it runs
     // none. `create` reports the problem before any call.
     if (options_error_) {
@@ -406,6 +425,10 @@ CommandResult CommandRegistry::execute(std::string_view name, const Json& input,
                                                     definition.name, context)) {
         return std::move(*invalid);
     }
+    // The output budget ask, validated even when the command declares no budget (B2-B4).
+    if (auto invalid = detail::apply_output_budget(definition, context)) {
+        return std::move(*invalid);
+    }
     context.journaled_fields = journaled_fields_;
     // This call's own admission record (approval_admission.hpp), replacing any the caller passed:
     // the command it runs, for the approval middleware to decide from, not yet admitted.
@@ -418,7 +441,7 @@ CommandResult CommandRegistry::execute(std::string_view name, const Json& input,
     CommandResult result;
 #if AFD_HAS_EXCEPTIONS
     try {
-        result = run_chain(*command, *validated, context, *admission);
+        result = run_chain(*command, *validated, context, *admission, check_output_budget);
     } catch (const std::exception& error) {
         report_error(error.what());
         return execution_failure(error.what(), options_.dev_mode);
@@ -427,7 +450,7 @@ CommandResult CommandRegistry::execute(std::string_view name, const Json& input,
         return execution_failure("unknown exception", options_.dev_mode);
     }
 #else
-    result = run_chain(*command, *validated, context, *admission);
+    result = run_chain(*command, *validated, context, *admission, check_output_budget);
 #endif
 
     // 7. on_command, which never changes the result.
@@ -449,15 +472,19 @@ CommandResult CommandRegistry::execute(std::string_view name, const Json& input,
 
 CommandResult CommandRegistry::run_chain(const RegisteredCommand& command, const Json& input,
                                          CommandContext& context,
-                                         detail::ApprovalAdmission& admission) const {
+                                         detail::ApprovalAdmission& admission,
+                                         bool check_output_budget) const {
     std::vector<CommandMiddleware> middleware;
     {
         const std::shared_lock lock(mutex_);
         middleware = options_.middleware;
     }
     const auto& definition = command.definition;
+    // Capture the B3 effective budget once before entering the chain so neither middleware nor a
+    // handler mutating `context.output_budget` can bypass B5 on retry or raise the limit.
+    const std::optional<std::uint64_t> effective_budget = context.output_budget;
 
-    // The innermost step: run the handler and stamp its result (a copy; never in place).
+    // The innermost step: run the handler, check its output budget (B5-B6) and stamp its result.
     const Next run_handler = [&]() -> CommandResult {
         // A declared approval policy holds without the approval middleware: a command whose
         // policy is neither unset nor not_required, or that an approval step marked as gated by
@@ -472,12 +499,24 @@ CommandResult CommandRegistry::run_chain(const RegisteredCommand& command, const
                 return approval_unavailable(definition.name, check);
             }
         }
+        // Restore the B3 effective budget before each attempt and on exit so a handler cannot
+        // poison retries or outer middleware.
+        context.output_budget = effective_budget;
+        struct RestoreOutputBudget {
+            CommandContext& target;
+            std::optional<std::uint64_t> budget;
+            ~RestoreOutputBudget() { target.output_budget = budget; }
+        } const restore_budget{context, effective_budget};
         // The context's clock (the registry's unless the caller set one), read again here
         // because middleware may replace it.
         const std::shared_ptr<const Clock> clock = context.clock ? context.clock : options_.clock;
         const double start = clock->steady_ms();
         CommandResult result = definition.handler(input, context);
         const double elapsed = clock->steady_ms() - start;
+        if (check_output_budget && effective_budget) {
+            result =
+                detail::enforce_output_budget(definition, *effective_budget, std::move(result));
+        }
         ResultMetadata metadata = result.metadata.value_or(ResultMetadata{});
         metadata.execution_time_ms = std::round((std::max)(0.0, elapsed));
         metadata.command_version = definition.version;

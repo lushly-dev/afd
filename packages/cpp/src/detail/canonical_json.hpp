@@ -6,6 +6,7 @@
 #include "afd/expected.hpp"
 #include "afd/json.hpp"
 
+#include <cstdint>
 #include <string>
 
 namespace afd::detail {
@@ -16,5 +17,10 @@ namespace afd::detail {
 /// number, a string that is not valid UTF-8, binary or discarded values, and nesting deeper than
 /// 256 levels.
 Expected<std::string> canonical_json_as_read(const Json& value);
+
+/// The UTF-8 byte length of `value`'s canonical JSON as JavaScript writes it, computed iteratively
+/// with no nesting-depth cap (spec/output-budgets.md, B5). Non-finite floats measure as `null`,
+/// and invalid UTF-8 strings fall back to `wire::serialize` replacement spelling.
+std::uint64_t canonical_json_byte_length_as_read(const Json& value);
 
 } // namespace afd::detail

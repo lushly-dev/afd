@@ -4,9 +4,11 @@
 
 #include "afd/actor.hpp"
 #include "afd/json.hpp"
+#include "afd/output_budget.hpp"
 #include "afd/result.hpp"
 #include "afd/runtime.hpp"
 
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -25,6 +27,7 @@ class McpApprovalRelay;
 class UpFrontApproval;
 struct JournaledContextFields;
 struct ApprovalAdmission;
+struct RawOutputBudgetAsk;
 } // namespace detail
 
 /// A surface a command can be exposed to. TypeScript calls this the command's `interface`; C++
@@ -118,6 +121,18 @@ struct CommandContext {
     /// Set by the registry for each call: the command it runs and whether an approval step
     /// admitted it. The registry replaces whatever the caller passes; leave it unset.
     std::shared_ptr<detail::ApprovalAdmission> approval_admission;
+    /// Per-call output budget ask in bytes (spec/output-budgets.md, B2). Trusted host code (an
+    /// in-process caller, `DirectClient`, or `StdioServerOptions::context_hook`) sets this; it
+    /// always wins over a `_meta["dev.afd/outputBudget"]` ask. Validated before middleware and
+    /// the handler run (`1 <= n <= 9007199254740991`), even for commands without a declaration.
+    std::optional<std::uint64_t> output_budget_ask;
+    /// Effective output budget for this call in bytes (spec/output-budgets.md, B3, B4), computed
+    /// by the registry from the command's declaration and the ask before middleware and the
+    /// handler run. Unset when the command declares no output budget.
+    std::optional<std::uint64_t> output_budget;
+    /// Internal raw `_meta["dev.afd/outputBudget"]` value set by `afd::mcp_stdio` when trusted
+    /// code did not set `output_budget_ask`. Leave unset; validated in `CommandRegistry::execute`.
+    std::shared_ptr<const detail::RawOutputBudgetAsk> output_budget_meta_ask;
 };
 
 /// Defaults for `with_context_defaults`.
@@ -242,6 +257,10 @@ struct CommandDefinition {
     /// a call with `APPROVAL_UNAVAILABLE` unless the policy is `not_required`. Reported as
     /// `_meta.approval`.
     std::optional<ApprovalPolicy> approval;
+    /// Optional declared output budget (`{ defaultBytes, maxBytes }`; spec/output-budgets.md, B1).
+    /// Validated at registration; emitted in `_meta["dev.afd/outputBudget"]`, grouped actions,
+    /// `afd-detail` and `afd-help` (full).
+    std::optional<OutputBudget> output_budget;
 };
 
 /// The result of `validate_command_name`.

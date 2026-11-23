@@ -21,11 +21,13 @@ bool is_mcp_exposed(const CommandDefinition& command) noexcept;
 /// The wire name of `time`: `instant`, `fast`, `slow` or `long-running`.
 std::string_view execution_time_name(ExecutionTime time) noexcept;
 
-/// The per-command `_meta` of a tool (spec/command-metadata.md, "Surfaces"): `category`,
-/// `requires`, `mutation`, `destructive`, `undoable`, `approval`, `examples`, `outputSchema` and
-/// `contexts`, each only when the command sets it. C++ booleans have no unset state, so
-/// `mutation`, `destructive` and `undoable` are reported when true. Never `confirmPrompt` or
-/// `title`, which are display text. `std::nullopt` when nothing is set.
+/// The per-command `_meta` of a tool (spec/command-metadata.md, "Surfaces";
+/// spec/output-budgets.md, B1): `category`, `requires`, `mutation`, `destructive`, `undoable`,
+/// `approval`, `examples`, `outputSchema`, `contexts` and `dev.afd/outputBudget`, each only when
+/// the command sets it (meta-tools and `afd-context-*` tools never emit `dev.afd/outputBudget`).
+/// C++ booleans have no unset state, so `mutation`, `destructive` and `undoable` are reported when
+/// true. Never `confirmPrompt` or `title`, which are display text. `std::nullopt` when nothing is
+/// set.
 std::optional<Json> command_tool_meta(const CommandDefinition& command);
 
 /// MCP tool annotations (spec/command-metadata.md, "Annotations"): a mutation reports
@@ -48,11 +50,13 @@ Json command_result_output_schema(const Json& data_schema);
 /// The MCP tools of the commands exposed to MCP, in the given order.
 std::vector<Json> commands_to_mcp_tools(const std::vector<CommandDefinition>& commands);
 
-/// `command` as afd-detail describes it (spec/command-metadata.md, "Surfaces"): `name`, `title`,
-/// `description`, `category`, `tags`, `mutation` (always), `executionTime`, `errors`,
-/// `inputSchema`, `outputSchema`, `destructive`, `confirmPrompt`, `undoable`, `approval`,
-/// `handoff`, `handoffProtocol`, `version`, `requires`, `contexts` and `examples`. Unset fields
-/// and empty arrays are omitted; `destructive`, `undoable` and `handoff` are reported when true.
+/// `command` as afd-detail describes it (spec/command-metadata.md, "Surfaces";
+/// spec/output-budgets.md, B1): `name`, `title`, `description`, `category`, `tags`, `mutation`
+/// (always), `executionTime`, `errors`, `inputSchema`, `outputSchema`, `destructive`,
+/// `confirmPrompt`, `undoable`, `approval`, `handoff`, `handoffProtocol`, `version`, `requires`,
+/// `contexts`, `examples` and `outputBudget` (omitted on meta-tools and `afd-context-*` tools).
+/// Unset fields and empty arrays are omitted; `destructive`, `undoable` and `handoff` are reported
+/// when true.
 Json to_json(const CommandDefinition& command);
 
 } // namespace afd

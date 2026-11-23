@@ -27,6 +27,15 @@
 
 namespace afd {
 
+struct JournalEntry;
+struct ReplayJournalOptions;
+struct ReplayReport;
+class CommandRegistry;
+
+ReplayReport replay_journal(const CommandRegistry& registry,
+                            const std::vector<JournalEntry>& entries,
+                            const ReplayJournalOptions& options);
+
 /// Names the MCP tool router handles itself; a command with one of these names is unreachable, so
 /// registration rejects it.
 inline constexpr const auto& reserved_command_names = afd_meta_tool_names;
@@ -121,10 +130,12 @@ public:
     /// 2. Exposure, when `context.surface` is set: COMMAND_NOT_EXPOSED.
     /// 3. Context, when `context.active_context` is set: COMMAND_NOT_IN_CONTEXT.
     /// 4. Validation against the input schema, then of the declared context fields in
-    ///    `context.extra`: VALIDATION_ERROR.
+    ///    `context.extra` and any output-budget ask (`spec/output-budgets.md`, B2-B4):
+    ///    VALIDATION_ERROR.
     /// 5. Middleware, then the handler with the validated input.
-    /// 6. The handler's result gets `metadata.executionTimeMs`, `commandVersion` and, when the
-    ///    context has one after middleware ran, `traceId`.
+    /// 6. For budgeted commands (not buffered `execute_stream`), the B5 output-budget check and
+    ///    B6 `metadata["dev.afd/outputBudget"]` report, then `metadata.executionTimeMs`,
+    ///    `commandVersion` and, when the context has one after middleware ran, `traceId`.
     /// 7. `on_command`.
     ///
     /// An exception escaping the chain becomes COMMAND_EXECUTION_ERROR (builds with exceptions).
@@ -150,11 +161,19 @@ public:
                    std::optional<double> timeout_ms = std::nullopt) const;
 
 private:
+    friend ReplayReport replay_journal(const CommandRegistry& registry,
+                                       const std::vector<JournalEntry>& entries,
+                                       const ReplayJournalOptions& options);
     [[nodiscard]] ExecutorOptions executor_options() const;
     [[nodiscard]] CommandExecutor executor() const;
+    [[nodiscard]] CommandExecutor stream_executor() const;
+    [[nodiscard]] CommandResult execute_impl(std::string_view name, const Json& input,
+                                             CommandContext context,
+                                             bool check_output_budget) const;
     [[nodiscard]] CommandResult run_chain(const RegisteredCommand& command, const Json& input,
                                           CommandContext& context,
-                                          detail::ApprovalAdmission& admission) const;
+                                          detail::ApprovalAdmission& admission,
+                                          bool check_output_budget) const;
     void report_error(std::string_view message) const;
 
     CommandRegistryOptions options_;

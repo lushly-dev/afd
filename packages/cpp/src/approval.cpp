@@ -1138,6 +1138,140 @@ Expected<std::string> canonical_json_as_read(const Json& value) {
     return out;
 }
 
+std::uint64_t canonical_json_byte_length_as_read(const Json& value) {
+    const auto string_length = [](const std::string& text) -> std::uint64_t {
+        if (!is_valid_utf8(text)) {
+            return static_cast<std::uint64_t>(wire::serialize(Json(text)).size());
+        }
+        std::uint64_t total = 2; // opening and closing quotes
+        for (const char c : text) {
+            const auto byte = static_cast<unsigned char>(c);
+            switch (c) {
+            case '"':
+            case '\\':
+            case '\b':
+            case '\f':
+            case '\n':
+            case '\r':
+            case '\t':
+                total += 2;
+                break;
+            default:
+                total += byte < 0x20 ? 6 : 1;
+                break;
+            }
+        }
+        return total;
+    };
+
+    const auto scalar_length = [&](const Json& node) -> std::uint64_t {
+        switch (node.type()) {
+        case Json::value_t::null:
+            return 4;
+        case Json::value_t::boolean:
+            return node.get<bool>() ? 4 : 5;
+        case Json::value_t::number_integer: {
+            const auto number = node.get<std::int64_t>();
+            if (number <= max_safe_integer && number >= -max_safe_integer) {
+                return static_cast<std::uint64_t>(std::to_string(number).size());
+            }
+            return static_cast<std::uint64_t>(format_double(static_cast<double>(number)).size());
+        }
+        case Json::value_t::number_unsigned: {
+            const auto number = node.get<std::uint64_t>();
+            if (number <= static_cast<std::uint64_t>(max_safe_integer)) {
+                return static_cast<std::uint64_t>(std::to_string(number).size());
+            }
+            return static_cast<std::uint64_t>(format_double(static_cast<double>(number)).size());
+        }
+        case Json::value_t::number_float: {
+            const auto number = node.get<double>();
+            if (!std::isfinite(number)) {
+                return 4; // JSON.stringify writes null for non-finite numbers
+            }
+            if (std::trunc(number) == number &&
+                std::fabs(number) <= static_cast<double>(max_safe_integer)) {
+                return static_cast<std::uint64_t>(
+                    std::to_string(static_cast<std::int64_t>(number)).size());
+            }
+            return static_cast<std::uint64_t>(format_double(number).size());
+        }
+        case Json::value_t::string:
+            return string_length(node.get_ref<const std::string&>());
+        case Json::value_t::binary:
+        case Json::value_t::discarded:
+        case Json::value_t::array:
+        case Json::value_t::object:
+            break;
+        }
+        return static_cast<std::uint64_t>(wire::serialize(node).size());
+    };
+
+    struct Frame {
+        bool is_object = false;
+        const Json* array = nullptr;
+        std::size_t index = 0;
+        Json::const_iterator it;
+        Json::const_iterator end;
+        bool first = true;
+    };
+
+    std::uint64_t total = 0;
+    std::vector<Frame> stack;
+    const auto visit = [&](const Json& node) {
+        if (node.is_array()) {
+            total += 1; // '['
+            Frame frame;
+            frame.is_object = false;
+            frame.array = &node;
+            frame.index = 0;
+            stack.push_back(std::move(frame));
+        } else if (node.is_object()) {
+            total += 1; // '{'
+            Frame frame;
+            frame.is_object = true;
+            frame.it = node.begin();
+            frame.end = node.end();
+            frame.first = true;
+            stack.push_back(std::move(frame));
+        } else {
+            total += scalar_length(node);
+        }
+    };
+
+    visit(value);
+    while (!stack.empty()) {
+        Frame& top = stack.back();
+        if (!top.is_object) {
+            if (top.index < top.array->size()) {
+                if (top.index > 0) {
+                    total += 1; // ','
+                }
+                const Json& item = (*top.array)[top.index++];
+                visit(item);
+            } else {
+                total += 1; // ']'
+                stack.pop_back();
+            }
+        } else {
+            if (top.it != top.end) {
+                if (!top.first) {
+                    total += 1; // ','
+                }
+                top.first = false;
+                total += string_length(top.it.key()) + 1; // key + ':'
+                const Json& member = top.it.value();
+                ++top.it;
+                visit(member);
+            } else {
+                total += 1; // '}'
+                stack.pop_back();
+            }
+        }
+    }
+    return total;
+}
+
 } // namespace detail
 
 Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions options) {

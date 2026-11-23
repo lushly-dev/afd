@@ -8,6 +8,7 @@
 #include "detail/direct_approval.hpp"
 #include "detail/exceptions.hpp"
 #include "detail/json_io.hpp"
+#include "detail/output_budget.hpp"
 #include "detail/random_unit.hpp"
 
 namespace afd {
@@ -94,13 +95,15 @@ CommandResult DirectClient::call(std::string_view name, const Json& args,
                           .retryable = false}));
     }
     // 2. Unknown to this client (unregistered, or not exposed to its surface).
-    if (!has_command(name)) {
+    const auto command = registry_->get(name);
+    if (!command || !is_exposed_to(command->definition.expose, options_.surface)) {
         return unknown_tool_failure(name, list_command_names());
     }
 
     // Public callers cannot supply approval authority, including a copied private marker.
     context.approval.reset();
     context.mcp_approval_relay.reset();
+    context.output_budget_meta_ask.reset();
     context.direct_approval = std::make_shared<detail::DirectApprovalState>();
     const detail::DisposeDirectApproval cleanup{context.direct_approval};
 
@@ -120,6 +123,18 @@ CommandResult DirectClient::call(std::string_view name, const Json& args,
     context.surface = options_.surface;
     if (options_.source) {
         context.extra["source"] = *options_.source;
+    }
+    // Validate the output-budget ask and populate context.output_budget before client middleware
+    // can observe or short-circuit the call (spec/output-budgets.md, B2-B4), while keeping
+    // COMMAND_NOT_IN_CONTEXT ahead of validation when the active context blocks the command.
+    const auto& contexts = command->definition.contexts;
+    const bool in_context =
+        !context.active_context || context.active_context->empty() || contexts.empty() ||
+        std::find(contexts.begin(), contexts.end(), *context.active_context) != contexts.end();
+    if (in_context) {
+        if (auto invalid = detail::apply_output_budget(command->definition, context)) {
+            return std::move(*invalid);
+        }
     }
 
     // 4. Timeout: a deadline on the cancellation token, and a TIMEOUT result for a late finish.
