@@ -1,20 +1,14 @@
 import {
     attr,
-  type ContentTemplate,
-  FASTElement,
-    html,
+    FASTElement,
     observable,
-    render,
-    repeat,
     Updates,
-    when,
 } from "@lushly-dev/fast-element";
 import {
     elementScroll,
     observeElementOffset,
     observeElementRect,
-    type VirtualItem,
-  Virtualizer,
+    Virtualizer,
 } from "@tanstack/virtual-core";
 
 import "../checkbox/violet-checkbox";
@@ -23,31 +17,31 @@ import "../radio/violet-radio";
 import "../text-field/violet-text-field";
 import { registerSystemSortAscendingIcon } from "../icon/generated/icons/system-sort-ascending";
 import { registerSystemSortDescendingIcon } from "../icon/generated/icons/system-sort-descending";
-import { logicalArrowKey } from "../foundations/violet-direction";
 import { styles } from "./violet-data-grid.styles";
+import { template } from "./violet-data-grid.template";
 import {
-  resolveCellPartText as composeCellPartText,
+    handleGridClickEvent,
+    handleGridFocusInEvent,
+    handleGridKeydownEvent,
+} from "./violet-data-grid-cell-keyboard";
+import {
+    resolveCellPartText as composeCellPartText,
     isCellSelected as computeIsCellSelected,
     isFillPreviewCell as computeIsFillPreviewCell,
     rangeEdgeForCell as computeRangeEdgeForCell,
 } from "./violet-data-grid-cell-state";
 import {
-    defaultCellContentTemplate,
-    inputCellEditorTemplate,
-    selectCellEditorTemplate,
-} from "./violet-data-grid-cell-templates";
-import {
-  copyTextForSelection,
-  normalizePastedText as normalizeGridPastedText,
-  resolvePasteOriginLocation,
-  sampleAutosizeRows,
+    copyTextForSelection,
+    normalizePastedText as normalizeGridPastedText,
+    resolvePasteOriginLocation,
+    sampleAutosizeRows,
 } from "./violet-data-grid-clipboard";
 import {
     cellValueFor as resolveCellValue,
     editorOptionsForColumn as resolveEditorOptionsForColumn,
     serializeCellValue as serializeGridCellValue,
     sortRows as sortGridRows,
-  stringifyCellValue,
+    stringifyCellValue,
 } from "./violet-data-grid-data";
 import {
     beginEditingState,
@@ -62,11 +56,19 @@ import {
     closestFromEventPath as eventClosestFromEventPath,
 } from "./violet-data-grid-events";
 import {
-  buildFillChanges,
-  buildPasteChanges,
-  clampFillBoundsToEditableTargets as clampEditableFillBounds,
-  hasEditableCellsInBounds,
+    buildFillChanges,
+    buildPasteChanges,
+    clampFillBoundsToEditableTargets as clampEditableFillBounds,
+    hasEditableCellsInBounds,
 } from "./violet-data-grid-fill";
+import {
+    findFocusedSelectionControl,
+    isDocumentFocusAvailableForGrid,
+    isGridCellElementNode,
+    scrollCellIntoScrollContainer,
+    selectionControlRowIdFromElement,
+    suspendRovingCellTabStops,
+} from "./violet-data-grid-focus-recovery";
 import {
     locationFromCellElement as geometryLocationFromCellElement,
     nearestLocationForPoint as nearestGeometryLocationForPoint,
@@ -74,9 +76,15 @@ import {
     rectFromCellPair,
 } from "./violet-data-grid-geometry";
 import {
-  createCellSelection as createNavigationCellSelection,
-  firstCellLocation as resolveNavigationFirstCellLocation,
-  nextCellLocationForKey as resolveNextCellLocationForKey,
+    handleColumnHeaderKeydownEvent,
+    handleColumnResizeKeyDownEvent,
+    handleSelectionHeaderKeydownEvent,
+    type HeaderKeyboardHost,
+} from "./violet-data-grid-header-nav";
+import {
+    createCellSelection as createNavigationCellSelection,
+    firstCellLocation as resolveNavigationFirstCellLocation,
+    nextCellLocationForKey as resolveNextCellLocationForKey,
 } from "./violet-data-grid-navigation";
 import {
     clearedFillSession,
@@ -85,720 +93,127 @@ import {
     isPointerSelectionEventForSession,
     markPointerSelectionMoved,
     pointerSelectionSuppressesNextClick,
-  beginFillDrag as startFillDragSession,
-  beginPointerSelection as startPointerSelectionSession,
+    beginFillDrag as startFillDragSession,
+    beginPointerSelection as startPointerSelectionSession,
     type VioletDataGridFillSession,
     type VioletDataGridPointerSelectionSession,
 } from "./violet-data-grid-pointer";
 import {
-  createPresentedColumn as buildPresentedColumn,
-  createPresentedRow as buildPresentedRow,
-  syncEditingState,
-  syncActiveCell as syncPresentedActiveCell,
-  syncCellSelection as syncPresentedCellSelection,
-  syncFillPreview as syncPresentedFillPreview,
+    createPresentedColumn as buildPresentedColumn,
+    createPresentedRow as buildPresentedRow,
+    syncEditingState,
+    syncActiveCell as syncPresentedActiveCell,
+    syncCellSelection as syncPresentedCellSelection,
+    syncFillPreview as syncPresentedFillPreview,
 } from "./violet-data-grid-presentation";
 import {
     clearedColumnResizeSession,
-    columnResizeKeyShortcut,
-    isColumnResizeShortcut,
-    keyboardResizedColumnWidth as computeKeyboardResizedColumnWidth,
     resizedColumnWidth as computeResizedColumnWidth,
-  isColumnResizeEventForSession,
-  beginColumnResize as startColumnResizeSession,
+    isColumnResizeEventForSession,
+    beginColumnResize as startColumnResizeSession,
     type VioletDataGridResizeSession,
 } from "./violet-data-grid-resize";
 import {
-  nextTabLocation,
-  selectedLocations,
-  locationForIndices as selectionLocationForIndices,
-  rangeFromBounds as selectionRangeFromBounds,
+    customCellWidgetsInCellElement,
+    findCustomCellWidgetFromTarget,
+    focusRowModeControlInShadow,
+    handleCustomCellWidgetKeydownEvent,
+    handleRowModeBodyKeydownEvent,
+    handleSelectionCellKeydownEvent,
+    syncCustomCellWidgetTabIndexesInShadow,
+} from "./violet-data-grid-roving-focus";
+import {
+    nextTabLocation,
+    selectedLocations,
+    locationForIndices as selectionLocationForIndices,
+    rangeFromBounds as selectionRangeFromBounds,
 } from "./violet-data-grid-selection";
 import {
-  autosizedColumnWidth as computeAutosizedColumnWidth,
-  cssLengthToPixels,
-  minimumColumnWidth as computeMinimumColumnWidth,
-  renderedColumnWidth as computeRenderedColumnWidth,
-  resolvedColumnWidth as resolveGridColumnWidth,
+    autosizedColumnWidth as computeAutosizedColumnWidth,
+    minimumColumnWidth as computeMinimumColumnWidth,
+    renderedColumnWidth as computeRenderedColumnWidth,
+    resolvedColumnWidth as resolveGridColumnWidth,
 } from "./violet-data-grid-sizing";
 import {
     isEditorElement as isGridEditorElement,
     isFillHandleTarget as isGridFillHandleTarget,
     isInteractiveCellWidgetTarget as isGridInteractiveCellWidgetTarget,
 } from "./violet-data-grid-targets";
+import type {
+    VioletCellEditorLike,
+    VioletCheckboxLike,
+    VioletDataGridAlignment,
+    VioletDataGridCellEditorTemplate,
+    VioletDataGridCellLocation,
+    VioletDataGridCellRange,
+    VioletDataGridCellTemplate,
+    VioletDataGridCellTemplateContext,
+    VioletDataGridChangeDetail,
+    VioletDataGridColumn,
+    VioletDataGridColumnWidthDetail,
+    VioletDataGridCopyDetail,
+    VioletDataGridDensity,
+    VioletDataGridEditingSession,
+    VioletDataGridEditor,
+    VioletDataGridEditorOption,
+    VioletDataGridFillDetail,
+    VioletDataGridFillDirection,
+    VioletDataGridFilterState,
+    VioletDataGridFocusMode,
+    VioletDataGridPasteDetail,
+    VioletDataGridRow,
+    VioletDataGridSelectionMode,
+    VioletDataGridSort,
+    VioletDataGridSortDirection,
+    VioletDataGridSortMode,
+    VioletFocusedSelectionControl,
+    VioletInteractionSnapshot,
+    VioletPresentedCell,
+    VioletPresentedColumn,
+    VioletPresentedRow,
+    VioletRenderedRow,
+    VioletTextFieldLike,
+} from "./violet-data-grid-types";
 import {
-  opensOnSingleActiveClick as editorOpensOnSingleActiveClick,
-  editStringForRawValue,
-  booleanCellValue as normalizeBooleanCellValue,
-  normalizedEditingValue as normalizeEditingValue,
-  resolveEditingValue,
+    opensOnSingleActiveClick as editorOpensOnSingleActiveClick,
+    editStringForRawValue,
+    booleanCellValue as normalizeBooleanCellValue,
+    normalizedEditingValue as normalizeEditingValue,
+    resolveEditingValue,
 } from "./violet-data-grid-values";
 import {
-  buildVirtualizerUpdateOptions,
-  buildRenderedRows as computeRenderedRows,
+    buildVirtualizerUpdateOptions,
+    buildRenderedRows as computeRenderedRows,
 } from "./violet-data-grid-virtualization";
+
+export type {
+    VioletDataGridAlignment,
+    VioletDataGridCellEditorTemplate,
+    VioletDataGridCellLocation,
+    VioletDataGridCellRange,
+    VioletDataGridCellTemplate,
+    VioletDataGridCellTemplateContext,
+    VioletDataGridChangeDetail,
+    VioletDataGridColumn,
+    VioletDataGridColumnWidthDetail,
+    VioletDataGridCopyDetail,
+    VioletDataGridDensity,
+    VioletDataGridEditor,
+    VioletDataGridEditorOption,
+    VioletDataGridFillDetail,
+    VioletDataGridFillDirection,
+    VioletDataGridFilterState,
+    VioletDataGridFocusMode,
+    VioletDataGridPasteDetail,
+    VioletDataGridRow,
+    VioletDataGridSelectionMode,
+    VioletDataGridSort,
+    VioletDataGridSortDirection,
+    VioletDataGridSortMode,
+};
 
 registerSystemSortAscendingIcon();
 registerSystemSortDescendingIcon();
-
-export type VioletDataGridAlignment = "start" | "center" | "end";
-export type VioletDataGridSelectionMode = "none" | "single" | "multiple";
-export type VioletDataGridDensity = "compact" | "natural" | "comfortable";
-export type VioletDataGridSortDirection = "ascending" | "descending";
-export type VioletDataGridSortMode = "local" | "external";
-export type VioletDataGridFocusMode = "row" | "cell";
-export type VioletDataGridEditor = "text" | "number" | "checkbox" | "select" | "custom";
-
-export interface VioletDataGridEditorOption {
-    label: string;
-    value: string;
-    description?: string;
-    src?: string;
-    initials?: string;
-    tone?: "green" | "teal" | "olive" | "gold" | "blue" | "gray";
-    background?: string;
-    foreground?: string;
-    borderColor?: string;
-    keywords?: string[];
-}
-
-export interface VioletDataGridCellTemplateContext<RowData = unknown> {
-    rowId: string;
-    rowLabel: string;
-    columnId: string;
-    columnLabel: string;
-    rowData: RowData;
-    rawValue: unknown;
-    text: string;
-    active: boolean;
-    selected: boolean;
-    editable: boolean;
-    editing: boolean;
-    fillPreview: boolean;
-    editValue?: string;
-  editingError?: string;
-  editingErrorId?: string;
-    /** The column's `editorHint` for this row while the cell is edited; empty while an error shows. */
-    editingHint?: string;
-    /** Id of the rendered hint, for a custom editor's `aria-describedby`. */
-    editingHintId?: string;
-    editorOptions?: VioletDataGridEditorOption[];
-}
-
-export type VioletDataGridCellTemplate<_RowData = unknown> = ContentTemplate;
-export type VioletDataGridCellEditorTemplate<_RowData = unknown> = ContentTemplate;
-
-export interface VioletDataGridColumn<RowData = unknown> {
-    id: string;
-    label: string;
-    sortable?: boolean;
-    filterable?: boolean;
-    editable?: boolean;
-    editor?: VioletDataGridEditor;
-    width?: string;
-    align?: VioletDataGridAlignment;
-    cellPart?: string;
-    headerPart?: string;
-    value?: (row: RowData) => unknown;
-    render?: (row: RowData) => unknown;
-    cellTemplate?: VioletDataGridCellTemplate<RowData>;
-    editorTemplate?: VioletDataGridCellEditorTemplate<RowData>;
-  editorOptions?: VioletDataGridEditorOption[] | ((row: RowData) => VioletDataGridEditorOption[]);
-    /**
-     * Text shown inside this column's open cell editor and linked to the editor as its description,
-     * such as what an edit will change. Return nothing for no hint. An edit error replaces it while
-     * the error shows.
-     */
-    editorHint?: (row: RowData) => string | undefined;
-    /**
-     * A per-cell fact appended to the cell-mode active-cell description for assistive technology.
-     * It never enters the serialized value that copy, paste and autosize read.
-     */
-    describe?: (row: RowData) => string | undefined;
-    serialize?: (value: unknown, row: RowData) => string;
-    parse?: (value: unknown, row: RowData) => unknown;
-}
-
-export interface VioletDataGridRow<RowData = unknown> {
-    id: string;
-    /** Human-readable row identity used in interactive control names. */
-    label?: string;
-    data: RowData;
-}
-
-export interface VioletDataGridSort {
-    columnId: string;
-    direction: VioletDataGridSortDirection;
-}
-
-export interface VioletDataGridFilterState {
-    query?: string;
-}
-
-export interface VioletDataGridCellLocation {
-    rowId: string;
-    columnId: string;
-}
-
-export interface VioletDataGridCellRange {
-    anchor: VioletDataGridCellLocation;
-    focus: VioletDataGridCellLocation;
-}
-
-export interface VioletDataGridChangeDetail {
-    rowId: string;
-    columnId: string;
-    value: unknown;
-}
-
-export interface VioletDataGridCopyDetail {
-    cells: VioletDataGridCellLocation[];
-    text: string;
-}
-
-export interface VioletDataGridPasteDetail {
-    origin: VioletDataGridCellLocation;
-    text: string;
-    changes: VioletDataGridChangeDetail[];
-}
-
-export interface VioletDataGridFillDetail {
-    source: VioletDataGridCellRange;
-    target: VioletDataGridCellRange;
-    changes: VioletDataGridChangeDetail[];
-}
-
-/** Direction for {@link VioletDataGrid.fillSelection}. */
-export type VioletDataGridFillDirection = "up" | "down" | "left" | "right";
-
-export interface VioletDataGridColumnWidthDetail {
-    columnId: string;
-    width: string;
-}
-
-interface VioletPresentedColumn<RowData = unknown> {
-    id: string;
-    label: string;
-    sortable: boolean;
-    width?: string;
-    widthStyle: string;
-    align: VioletDataGridAlignment;
-    headerPart?: string;
-    headerPartText: string;
-    cellPart?: string;
-    cellPartText: string;
-    source: VioletDataGridColumn<RowData>;
-}
-
-interface VioletPresentedCell {
-    rowId: string;
-    rowLabel: string;
-    columnId: string;
-    columnLabel: string;
-    rowData: unknown;
-    align: VioletDataGridAlignment;
-    rawValue: unknown;
-    text: string;
-    widthStyle: string;
-    cellId: string;
-    active: boolean;
-    selected: boolean;
-    rangeEdge: string;
-    editable: boolean;
-    editor: VioletDataGridEditor;
-    editing: boolean;
-    editValue: string;
-  editingError: string;
-  editingErrorId: string;
-    editingHint?: string;
-    editingHintId?: string;
-    fillPreview: boolean;
-    cellPart?: string;
-    cellPartText: string;
-    resolvedCellPartText: string;
-    cellTemplate?: VioletDataGridCellTemplate<unknown>;
-    editorTemplate?: VioletDataGridCellEditorTemplate<unknown>;
-    editorOptions: VioletDataGridEditorOption[];
-    parse?: (value: unknown, row: unknown) => unknown;
-}
-
-interface VioletPresentedRow<RowData = unknown> {
-    id: string;
-    label: string;
-    data: RowData;
-    cells: VioletPresentedCell[];
-}
-
-interface VioletRenderedRow {
-    item: VirtualItem;
-    row: VioletPresentedRow;
-}
-
-interface VioletFocusedSelectionControl {
-  element: HTMLElement;
-  focusGeneration: number;
-  rowId: string;
-  selector: "violet-radio.selection-radio" | "violet-checkbox.selection-checkbox";
-}
-
-interface VioletDataGridBounds {
-  rowStart: number;
-  rowEnd: number;
-  columnStart: number;
-  columnEnd: number;
-}
-
-interface VioletInteractionSnapshot {
-  selectionBounds: VioletDataGridBounds | null;
-  fillPreviewBounds: VioletDataGridBounds | null;
-  fillSourceBounds: VioletDataGridBounds | null;
-}
-
-interface VioletDataGridEditingSession {
-  id: number;
-  location: VioletDataGridCellLocation;
-}
-
-type VioletTextFieldLike = EventTarget & {
-    value?: string;
-};
-
-type VioletCheckboxLike = EventTarget & {
-    checked?: boolean;
-    indeterminate?: boolean;
-};
-
-type VioletCellEditorLike = HTMLElement & {
-    value?: string;
-  focus?: (options?: FocusOptions) => void;
-  selectionStart?: number | null;
-  selectionEnd?: number | null;
-  selectionDirection?: "forward" | "backward" | "none" | null;
-  setSelectionRange?: (
-    start: number,
-    end: number,
-    direction?: "forward" | "backward" | "none",
-  ) => void;
-};
-
-const bodyRowTemplate = html<VioletRenderedRow, VioletDataGrid>`
-    <tr
-        part="row"
-        data-index="${(x) => String(x.item.index)}"
-        data-selected="${(x, c) => String(c.parent.isRowSelected(x.row.id))}"
-        data-row-index="${(x) => String(x.item.index)}"
-        aria-rowindex="${(x) => String(x.item.index + 2)}"
-        aria-selected="${(x, c) =>
-          c.parent.selectionMode === "none" ? null : String(c.parent.isRowSelected(x.row.id))}"
-    >
-        <td
-            class="selection-cell"
-            part="cell"
-            headers="${(_x, c) => c.parent.selectionHeaderId}"
-            ?hidden="${(x, c) => c.parent.selectionMode === "none"}"
-        >
-            ${when(
-                (x, c) => c.parent.selectionMode === "single",
-                html<VioletRenderedRow, VioletDataGrid>`
-                    <violet-radio
-                        class="selection-radio"
-                        inline
-                        value="${(x) => x.row.id}"
-                        name="${(x, c) => c.parent.selectionControlName}"
-                        aria-label="${(x, c) => c.parent.selectionLabelFor(x.row.id, x.row.label)}"
-                        :checked="${(x, c) => c.parent.isRowSelected(x.row.id)}"
-                        @pointerdown="${(x, c) => c.parent.handleSelectionControlPointerDown(c.event as PointerEvent)}"
-                        @click="${(x, c) => c.parent.handleSelectionControlClick(c.event)}"
-                        @change="${(x, c) => c.parent.handleRowSelection(x.row.id, c.event)}"
-                    ></violet-radio>
-                `,
-            )}
-            ${when(
-                (x, c) => c.parent.selectionMode === "multiple",
-                html<VioletRenderedRow, VioletDataGrid>`
-                    <violet-checkbox
-                        class="selection-checkbox"
-                        inline
-                        aria-label="${(x, c) => c.parent.selectionLabelFor(x.row.id, x.row.label)}"
-                        :checked="${(x, c) => c.parent.isRowSelected(x.row.id)}"
-                        @pointerdown="${(x, c) => c.parent.handleSelectionControlPointerDown(c.event as PointerEvent)}"
-                        @click="${(x, c) => c.parent.handleRowCheckboxClick(x.row.id, c.event)}"
-                    ></violet-checkbox>
-                `,
-            )}
-        </td>
-        ${repeat(
-          (x) => x.row.cells,
-            html<VioletPresentedCell>`
-                <td
-                    id="${(x) => x.cellId}"
-                    headers="${(x, c) => (c.parentContext.parent as VioletDataGrid).columnHeaderIdFor(x.columnId)}"
-                    part="${(x) => x.resolvedCellPartText}"
-                    data-align="${(x) => x.align}"
-                    data-row-id="${(x) => x.rowId}"
-                    data-column-id="${(x) => x.columnId}"
-                    data-active="${(x) => String(x.active)}"
-                    data-selected="${(x) => String(x.selected)}"
-                    data-fill-preview="${(x) => String(x.fillPreview)}"
-                    data-editing="${(x) => String(x.editing)}"
-                    data-range-edge="${(x) => x.rangeEdge}"
-                    style="${(x) => x.widthStyle}"
-                >
-                    ${when(
-                      (x) => x.editing && (x.editor === "text" || x.editor === "number"),
-                        html<VioletPresentedCell>`
-                            <span class="cell-sizing-content" aria-hidden="true">
-                                ${render(
-                                  (x) => x,
-                                  (x) => x.cellTemplate ?? defaultCellContentTemplate,
-                                )}
-                            </span>
-                            ${inputCellEditorTemplate}
-                        `,
-                    )}
-                    ${when(
-                      (x) => x.editing && x.editor === "select",
-                        html<VioletPresentedCell>`
-                            <span class="cell-sizing-content" aria-hidden="true">
-                                ${render(
-                                  (x) => x,
-                                  (x) => x.cellTemplate ?? defaultCellContentTemplate,
-                                )}
-                            </span>
-                            ${selectCellEditorTemplate}
-                        `,
-                    )}
-                    ${when(
-                      (x) => x.editing && x.editor === "custom",
-                        html<VioletPresentedCell>`
-                            <span class="cell-sizing-content" aria-hidden="true">
-                                ${render(
-                                  (x) => x,
-                                  (x) => x.cellTemplate ?? defaultCellContentTemplate,
-                                )}
-                            </span>
-                            ${render(
-                              (x) => x,
-                              (x) => x.editorTemplate ?? defaultCellContentTemplate,
-                            )}
-                        `,
-                    )}
-                    ${when(
-                      (x) => !x.editing && x.editor === "checkbox",
-                        html<VioletPresentedCell, VioletDataGrid>`
-                            <span class="cell-widget" data-align="${(x) => x.align}">
-                                <violet-checkbox
-                                    class="cell-checkbox"
-                                    data-cell-widget="checkbox"
-                                    inline
-                                    aria-label="${(x) => `${x.columnLabel} for ${x.rowLabel}`}"
-                                    :checked="${(x) => normalizeBooleanCellValue(x.rawValue)}"
-                                    ?disabled="${(x) => !x.editable}"
-                                    @click="${(x, c) =>
-                                      (
-                                        c.parentContext.parent as VioletDataGrid
-                                      ).handleCellCheckboxClick(x.rowId, x.columnId, c.event)}"
-                                ></violet-checkbox>
-                            </span>
-                        `,
-                    )}
-                    ${when(
-                      (x) => x.editing && Boolean(x.editingError),
-                      html<VioletPresentedCell>`
-                          <span
-                              class="cell-editor-error"
-                              id="${(x) => x.editingErrorId}"
-                              role="alert"
-                          >${(x) => x.editingError}</span>
-                      `,
-                    )}
-                    ${when(
-                      (x) => x.editing && Boolean(x.editingHint),
-                      html<VioletPresentedCell>`
-                          <span class="cell-editor-hint" id="${(x) => x.editingHintId}"
-                          >${(x) => x.editingHint}</span>
-                      `,
-                    )}
-                    ${when(
-                      (x) => !x.editing && x.editor !== "checkbox",
-                        html<VioletPresentedCell>`
-                            ${render(
-                              (x) => x,
-                              (x) => x.cellTemplate ?? defaultCellContentTemplate,
-                            )}
-                        `,
-                    )}
-                    ${when(
-                        (x, c) =>
-                            (c.parentContext.parent as VioletDataGrid).shouldShowFillHandleForCell(
-                                x.rowId,
-                          x.columnId,
-                            ),
-                        html<VioletPresentedCell>`
-                            <span class="fill-handle" data-fill-handle="true" aria-hidden="true"></span>
-                        `,
-                    )}
-                </td>
-            `,
-        )}
-    </tr>
-`;
-
-const fullTableTemplate = html<VioletDataGrid>`
-    <div class="table-canvas" style="--_virtual-total-size:${(x) => `${x.virtualTotalSize}px`};">
-        <table
-            class="table-full-table"
-            part="table"
-            aria-rowcount="${(x) => String(x.logicalRowCount)}"
-            aria-colcount="${(x) => String(x.logicalColumnCount)}"
-                >
-        <colgroup>
-            <!-- With selection off the selection cells are hidden, so the column is hidden too: a hidden <col>
-                 creates no column slot, and a visible one would shift every cell one slot to the left. -->
-            <col
-                class="selection-column"
-                ?hidden="${(x) => x.selectionMode === "none"}"
-                style="width:var(--_selection-column-size);inline-size:var(--_selection-column-size);min-inline-size:var(--_selection-column-size);max-inline-size:var(--_selection-column-size);"
-            />
-                ${repeat(
-              (x) => x.presentedColumns,
-                                html<VioletPresentedColumn>`
-                    <col data-column-id="${(x) => x.id}" style="${(x) => x.widthStyle}" />
-                `,
-                            )}
-        </colgroup>
-        <thead part="head">
-            <tr part="header-row">
-                <th
-                    id="${(x) => x.selectionHeaderId}"
-                    class="selection-header"
-                    part="header-cell selection-header-cell"
-                    scope="col"
-                    aria-label="${(x) => x.selectionHeaderLabel}"
-                    ?hidden="${(x) => x.selectionMode === "none"}"
-                >
-                    <span class="visually-hidden">${(x) => x.selectionHeaderLabel}</span>
-                    ${when(
-                      (x) => x.selectionMode === "multiple" && x.presentedRows.length > 0,
-                        html<VioletDataGrid>`
-                            <violet-checkbox
-                                class="selection-checkbox"
-                                inline
-                                aria-label="Select all rows"
-                                :checked="${(x) => x.allRowsSelected}"
-                                :indeterminate="${(x) => x.partiallySelected}"
-                                @pointerdown="${(x, c) => x.handleSelectionControlPointerDown(c.event as PointerEvent)}"
-                                @click="${(x, c) => x.handleToggleAllCheckboxClick(c.event)}"
-                            ></violet-checkbox>
-                        `,
-                    )}
-                </th>
-                ${repeat(
-                  (x) => x.presentedColumns,
-                    html<VioletPresentedColumn, VioletDataGrid>`
-                        <th
-                            id="${(x, c) => c.parent.columnHeaderIdFor(x.id)}"
-                            part="${(x) => x.headerPartText}"
-                            scope="col"
-                            data-column-id="${(x) => x.id}"
-                            data-align="${(x) => x.align}"
-                            aria-sort="${(x, c) => c.parent.sortStateFor(x.id)}"
-                            style="${(x) => x.widthStyle}"
-                            tabindex="${(x, c) => (x.sortable ? null : c.parent.columnHeaderTabIndexFor(x.id))}"
-                            aria-keyshortcuts="${(x) => (x.sortable ? null : columnResizeKeyShortcut)}"
-                            @keydown="${(x, c) => c.parent.handleColumnHeaderKeydown(x.id, c.event as KeyboardEvent)}"
-                            @focusin="${(x, c) => c.parent.handleColumnHeaderFocus(x.id, c.event as FocusEvent)}"
-                        >
-                            ${when(
-                              (x) => x.sortable,
-                                html<VioletPresentedColumn, VioletDataGrid>`
-                                    <button
-                                        class="header-button"
-                                        type="button"
-                                        tabindex="${(x, c) => c.parent.columnHeaderTabIndexFor(x.id)}"
-                                        aria-keyshortcuts="${() => columnResizeKeyShortcut}"
-                                        @click="${(x, c) => c.parent.handleSortRequest(x.id)}"
-                                    >
-                                        <span class="header-label">${(x) => x.label}</span>
-                                        <violet-icon
-                                            class="sort-indicator"
-                                            data-sorted="${(x, c) => String(c.parent.isSortedColumn(x.id))}"
-                                            icon="${(x, c) => c.parent.sortIconNameFor(x.id)}"
-                                            decorative
-                                        ></violet-icon>
-                                    </button>
-                                `,
-                            )}
-                            ${when(
-                              (x) => !x.sortable,
-                                html<VioletPresentedColumn>`
-                                    <span class="header-label">${(x) => x.label}</span>
-                                `,
-                            )}
-                            <button
-                                class="column-resizer"
-                                type="button"
-                                tabindex="-1"
-                                aria-label="${(x) => `Resize ${x.label} column`}"
-                                data-column-resizer="${(x) => x.id}"
-                                @pointerdown="${(x, c) => c.parent.handleColumnResizePointerDown(x.id, c.event as PointerEvent)}"
-                                @pointermove="${(x, c) => c.parent.handleColumnResizePointerMove(c.event as PointerEvent)}"
-                                @pointerup="${(x, c) => c.parent.handleColumnResizePointerUp(c.event as PointerEvent)}"
-                                @pointercancel="${(x, c) => c.parent.handleColumnResizePointerCancel(c.event as PointerEvent)}"
-                                @dblclick="${(x, c) => c.parent.handleColumnResizeDoubleClick(x.id, c.event as MouseEvent)}"
-                                @keydown="${(x, c) => c.parent.handleColumnResizeKeyDown(x.id, c.event as KeyboardEvent)}"
-                            ></button>
-                        </th>
-                    `,
-                )}
-            </tr>
-        </thead>
-        <tbody part="body">
-            <tr
-                class="virtual-spacer-row"
-                aria-hidden="true"
-                ?hidden="${(x) => !x.virtualize || x.virtualPaddingStart <= 0}"
-            >
-                <td
-                    colspan="${(x) => String(x.columnSpan)}"
-                    style="block-size:${(x) => `${x.virtualPaddingStart}px`};"
-                ></td>
-            </tr>
-            ${repeat((x) => x.renderedRows, bodyRowTemplate)}
-            <tr
-                class="virtual-spacer-row"
-                aria-hidden="true"
-                ?hidden="${(x) => !x.virtualize || x.virtualPaddingEnd <= 0}"
-            >
-                <td
-                    colspan="${(x) => String(x.columnSpan)}"
-                    style="block-size:${(x) => `${x.virtualPaddingEnd}px`};"
-                ></td>
-            </tr>
-        </tbody>
-    </table>
-    </div>
-`;
-
-const template = html<VioletDataGrid>`
-    <div class="grid-shell">
-        ${when(
-          (x) => x.shouldShowToolbar,
-            html<VioletDataGrid>`
-                <div class="toolbar" part="toolbar">
-                    ${when(
-                      (x) => x.showsBuiltInFilter,
-                        html<VioletDataGrid>`
-                            <div class="filter-shell">
-                                <violet-text-field
-                                    class="filter-field"
-                                    aria-label="Filter rows"
-                                    type="search"
-                                    :value="${(x) => x.filterState.query ?? ""}"
-                                    placeholder="Filter visible rows"
-                                    @input="${(x, c) => x.handleFilterInput(c.event)}"
-                                ></violet-text-field>
-                            </div>
-                        `,
-                        )}
-                    ${when(
-                      (x) => x.focusMode === "cell",
-                      html<VioletDataGrid>`
-                          <div class="fill-actions" role="group" aria-label="Fill selection">
-                              <button class="fill-action" type="button"
-                                  ?disabled="${(x) => !x.canFillSelection("down")}"
-                                  @click="${(x) => x.handleFillAction("down")}"
-                              >Fill down</button>
-                              <button class="fill-action" type="button"
-                                  ?disabled="${(x) => !x.canFillSelection("right")}"
-                                  @click="${(x) => x.handleFillAction("right")}"
-                              >Fill right</button>
-                              <span class="fill-status" role="status" aria-live="polite" aria-atomic="true"
-                              >${(x) => x.fillAnnouncement}</span>
-                          </div>
-                      `,
-                    )}
-                    <div class="toolbar-meta">
-                        <span>${(x) => x.rowSummary}</span>
-                        <div class="toolbar-slot">
-                            <slot
-                                name="toolbar"
-                                @slotchange="${(x, c) => x.handleToolbarSlotChange(c.event)}"
-                            ></slot>
-                        </div>
-                    </div>
-                </div>
-            `,
-        )}
-
-        <slot class="default-slot"></slot>
-
-        <div class="table-region">
-            <div
-                class="edit-status"
-                part="edit-status"
-                role="status"
-                aria-live="polite"
-                aria-atomic="true"
-            >${(x) => x.editAnnouncement}</div>
-            ${when(
-              (x) => x.presentedRows.length > 0,
-                html<VioletDataGrid>`
-                            <div
-                                class="table-scroll"
-                                role="${(x) => (x.getAttribute("aria-label") ? "group" : null)}"
-                                aria-label="${(x) => x.getAttribute("aria-label")}"
-                                tabindex="${(x) => (x.focusMode === "cell" ? "0" : "-1")}"
-                                aria-describedby="${(x) => (x.focusMode === "cell" ? x.activeCellLabelId : null)}"
-                                aria-keyshortcuts="${(x) => (x.focusMode === "cell" ? columnResizeKeyShortcut : null)}"
-                                @focus="${(x) => x.handleGridFocus()}"
-                                @scroll="${(x) => x.handleGridScroll()}"
-                                @click="${(x, c) => x.handleGridClick(c.event)}"
-                                @dblclick="${(x, c) => x.handleGridDoubleClick(c.event as MouseEvent)}"
-                                @pointerdown="${(x, c) => x.handleGridPointerDown(c.event as PointerEvent)}"
-                                @pointermove="${(x, c) => x.handleGridPointerMove(c.event as PointerEvent)}"
-                                @pointerup="${(x, c) => x.handleGridPointerUp(c.event as PointerEvent)}"
-                                @pointercancel="${(x, c) => x.handleGridPointerCancel(c.event as PointerEvent)}"
-                                @focusout="${(x, c) => x.handleGridFocusOut(c.event)}"
-                                @input="${(x, c) => x.handleGridInput(c.event)}"
-                                @change="${(x, c) => x.handleGridChange(c.event)}"
-                                @copy="${(x, c) => x.handleGridCopy(c.event as ClipboardEvent)}"
-                                @paste="${(x, c) => x.handleGridPaste(c.event as ClipboardEvent)}"
-                                @keydown="${(x, c) => x.handleGridKeydown(c.event as KeyboardEvent)}"
-                            >
-                                ${when(
-                                  (x) => x.focusMode === "cell",
-                                    html<VioletDataGrid>`
-                                        <span class="visually-hidden" id="${(x) => x.activeCellLabelId}">
-                                            ${(x) => x.activeCellDescription}
-                                        </span>
-                                    `,
-                                )}
-                                ${fullTableTemplate}
-                            </div>
-                `,
-            )}
-
-            ${when(
-              (x) => x.presentedRows.length === 0 && !x.busy,
-                html<VioletDataGrid>`
-                    <div class="empty-state" part="empty-state">
-                        <slot name="empty">No rows available.</slot>
-                    </div>
-                `,
-            )}
-
-            ${when(
-              (x) => x.busy,
-                html<VioletDataGrid>`
-                    <div class="loading-overlay" part="loading-state">
-                        <slot name="loading">Loading rows...</slot>
-                    </div>
-                `,
-            )}
-        </div>
-    </div>
-`;
 
 /**
  * Violet reusable data grid component.
@@ -817,11 +232,15 @@ const template = html<VioletDataGrid>`
  * @fires edit-start - Emitted when a cell enters edit mode.
  * @fires edit-cancel - Emitted when a cell edit is cancelled.
  * @fires cell-change - Emitted when a cell edit is committed.
- * @remarks The column headers are part of the grid's keyboard model, so the grid adds one Tab stop, not
- * one per column. In cell focus mode the grid is that Tab stop: ArrowUp from the first row moves focus to
- * the active column's header, ArrowLeft/ArrowRight/Home/End move between headers, ArrowDown returns to the
- * first row, and Shift+Tab returns to the active cell. In row focus mode the headers share a roving Tab
- * stop (the last focused header, first by default) with the same arrow keys. Enter or Space on a sortable
+ * @remarks In cell focus mode the table exposes `role="grid"` with `aria-multiselectable="true"` and
+ * `role="gridcell"` on body cells, using roving `tabindex` on real cells so the grid adds one Tab stop
+ * regardless of row count, selection columns or checkbox columns. Arrow keys, Home and End move focus
+ * between cells (including selection cells, which toggle with Space); ArrowUp from the first row moves
+ * focus to the column header (and ArrowLeft/Home reaches select-all), ArrowDown returns to the first row,
+ * and Shift+Tab returns to the active cell. When the active virtualized row unmounts, `.table-scroll`
+ * becomes the single Tab stop and focusing it scrolls the active cell back into view. In row focus mode
+ * native table semantics are kept, headers share one roving Tab stop (including select-all) and interactive
+ * selection/checkbox controls in the body share at most one roving Tab stop. Enter or Space on a sortable
  * header sorts it. Column resizers are not Tab stops: Ctrl+Alt+R on any column header, or on the active
  * cell in cell focus mode, moves focus to that column's resizer. ArrowLeft/ArrowRight resize it (Shift for
  * larger steps), Enter autosizes it and Escape returns focus to where it came from.
@@ -992,6 +411,39 @@ export class VioletDataGrid extends FASTElement {
      */
     public declare headerFocusColumnId: string | null;
 
+    /**
+     * True while the select-all checkbox holds the header row's roving Tab stop in row focus mode.
+     */
+    public declare headerFocusSelection: boolean;
+
+    /**
+     * Forwarded `aria-label` from the host element to the semantic table/grid.
+     */
+    public declare hostAriaLabel: string | null;
+
+    /**
+     * Row identifier whose selection cell holds active grid focus in cell focus mode.
+     * Kept separate from `activeCell` so `activeCell` always names a data column.
+     */
+    public declare focusedSelectionRowId: string | null;
+
+    /**
+     * Row and optional checkbox column whose control holds the body's roving Tab stop in row mode.
+     */
+    public declare rowModeFocusRowId: string | null;
+    public declare rowModeFocusColumnId: string | null;
+
+    /**
+     * Currently mounted row id used for row-mode roving focus fallback under virtualization.
+     */
+    public declare rowModeMountedRowId: string | null;
+
+    /**
+     * True while the cell-mode roving target row is currently mounted in `renderedRows`.
+     * Tracked as an observable because `renderedRows` is mutated via `splice`.
+     */
+    public declare rovingCellMounted: boolean;
+
     private readonly instanceId = ++violetDataGridInstanceCount;
     readonly #rowVirtualizer: Virtualizer<HTMLDivElement, HTMLTableRowElement>;
     #virtualizerCleanup: (() => void) | null = null;
@@ -1035,6 +487,15 @@ export class VioletDataGrid extends FASTElement {
   #editorRecycleFocusFrame: number | null = null;
   #focusGeneration = 0;
   #selectionControlFocusRevision = 0;
+  #cellFocusRecoveryRevision = 0;
+  #pendingCellFocusRevision = 0;
+  #pendingGridFocus = false;
+  #pendingRowModeFocus: { rowId: string; columnId: string | null; focusGeneration: number } | null =
+    null;
+  #pendingRowModeFocusRevision = 0;
+  #managedCustomWidgetTabIndexes = new WeakMap<HTMLElement, string | null>();
+  #parkingFocusOnScrollContainer = false;
+  #hostAriaObserver: MutationObserver | null = null;
   #editorRestoreFrame: number | null = null;
   #editingEditorElement: VioletCellEditorLike | null = null;
   #nextEditingSessionId = 0;
@@ -1085,6 +546,13 @@ export class VioletDataGrid extends FASTElement {
     this.virtualTotalSize = 0;
         this.hasToolbarSlotContent = false;
         this.headerFocusColumnId = null;
+        this.headerFocusSelection = false;
+        this.hostAriaLabel = null;
+        this.focusedSelectionRowId = null;
+        this.rowModeFocusRowId = null;
+        this.rowModeFocusColumnId = null;
+        this.rowModeMountedRowId = null;
+        this.rovingCellMounted = false;
         this.#rowVirtualizer = new Virtualizer<HTMLDivElement, HTMLTableRowElement>({
             count: 0,
             getScrollElement: () => this.getScrollContainer(),
@@ -1112,8 +580,16 @@ export class VioletDataGrid extends FASTElement {
   };
 
     public connectedCallback(): void {
+    this.hostAriaLabel = this.getAttribute("aria-label");
     this.refreshPresentation();
         super.connectedCallback();
+    this.#hostAriaObserver ??= new MutationObserver(() => {
+      this.hostAriaLabel = this.getAttribute("aria-label");
+    });
+    this.#hostAriaObserver.observe(this, {
+      attributes: true,
+      attributeFilter: ["aria-label"],
+    });
     this.ownerDocument.addEventListener("focusin", this.#handleFocusIntent, true);
     this.ownerDocument.addEventListener("pointerdown", this.#handleFocusIntent, true);
     window.addEventListener("resize", this.#handleViewportResize);
@@ -1129,6 +605,8 @@ export class VioletDataGrid extends FASTElement {
     // including invalid drafts that cannot remain in an invisible editor.
     this.cancelActiveEdit();
     this.disconnectOverlayResizeObserver();
+    this.#hostAriaObserver?.disconnect();
+    this.#hostAriaObserver = null;
     this.ownerDocument.removeEventListener("focusin", this.#handleFocusIntent, true);
     this.ownerDocument.removeEventListener("pointerdown", this.#handleFocusIntent, true);
     window.removeEventListener("resize", this.#handleViewportResize);
@@ -1141,6 +619,9 @@ export class VioletDataGrid extends FASTElement {
       this.#editorRecycleFocusFrame = null;
     }
     this.#selectionControlFocusRevision += 1;
+    this.#cellFocusRecoveryRevision += 1;
+    this.#pendingCellFocusRevision += 1;
+    this.#pendingGridFocus = false;
     if (this.#editorRestoreFrame !== null) {
       cancelAnimationFrame(this.#editorRestoreFrame);
       this.#editorRestoreFrame = null;
@@ -1157,8 +638,14 @@ export class VioletDataGrid extends FASTElement {
 
     public selectionModeChanged(): void {
         if (this.selectionMode === "none") {
+            this.focusedSelectionRowId = null;
+            this.headerFocusSelection = false;
             this.selectedRowIds = [];
             return;
+        }
+
+        if (this.selectionMode !== "multiple") {
+            this.headerFocusSelection = false;
         }
 
         if (this.selectionMode === "single" && this.selectedRowIds.length > 1) {
@@ -1184,17 +671,22 @@ export class VioletDataGrid extends FASTElement {
     }
 
     public focusModeChanged(): void {
+        this.#pendingRowModeFocus = null;
         if (this.focusMode !== "cell") {
       this.cancelActiveEdit();
+            this.focusedSelectionRowId = null;
             this.activeCell = null;
             this.cellSelection = null;
             this.fillPreview = null;
+            Updates.enqueue(() => this.syncCustomCellWidgetTabIndexes());
             return;
         }
 
+        this.headerFocusSelection = false;
         if (!this.activeCell && this.presentedRows.length > 0 && this.presentedColumns.length > 0) {
             this.activeCell = this.firstCellLocation();
         }
+        Updates.enqueue(() => this.syncCustomCellWidgetTabIndexes());
     }
 
     public sortModeChanged(): void {
@@ -1248,9 +740,24 @@ export class VioletDataGrid extends FASTElement {
             return;
         }
 
+        if (this.activeCell && this.focusedSelectionRowId !== null) {
+            this.focusedSelectionRowId = null;
+        }
+
         this.updateInteractionState();
         this.ensureActiveCellVisible();
         this.$emit("active-cell-change", this.activeCell);
+    }
+
+    public focusedSelectionRowIdChanged(): void {
+        if (this.focusMode !== "cell") {
+            return;
+        }
+
+        this.updateInteractionState();
+        if (this.focusedSelectionRowId) {
+            this.ensureRovingRowVisible();
+        }
     }
 
     public cellSelectionChanged(): void {
@@ -1357,6 +864,205 @@ export class VioletDataGrid extends FASTElement {
 
     public get activeCellLabelId(): string {
         return `${this.localName}-active-cell-${this.instanceId}`;
+    }
+
+    public get activeCellDescribeId(): string {
+        return `${this.localName}-active-cell-describe-${this.instanceId}`;
+    }
+
+    public get activeCellDescribeText(): string {
+        if (!this.activeCell || this.focusedSelectionRowId) {
+            return "";
+        }
+
+        const rowIndex = this.#rowIndexById.get(this.activeCell.rowId) ?? -1;
+        return this.columnAccessoryText(
+            this.activeCell.columnId,
+            this.presentedRows[rowIndex]?.data,
+            "describe",
+        );
+    }
+
+    public columnAriaColIndexFor(columnId: string): number {
+        const index = this.#columnIndexById.get(columnId) ?? 0;
+        return index + (this.selectionMode === "none" ? 1 : 2);
+    }
+
+    public isSelectionCellActive(rowId: string): boolean {
+        return (
+            this.focusMode === "cell" &&
+            this.selectionMode !== "none" &&
+            this.focusedSelectionRowId === rowId
+        );
+    }
+
+    public get hasSelectAllHeaderControl(): boolean {
+        return this.selectionMode === "multiple" && this.presentedRows.length > 0;
+    }
+
+    public get selectionHeaderCellTabIndex(): string | null {
+        return this.focusMode === "cell" && this.selectionMode === "single" ? "-1" : null;
+    }
+
+    public get selectAllTabIndex(): string {
+        if (this.focusMode === "cell") {
+            return "-1";
+        }
+        return this.headerFocusSelection && this.hasSelectAllHeaderControl ? "0" : "-1";
+    }
+
+    public override focus(options?: FocusOptions): void {
+        this.#focusGeneration += 1;
+        if (this.focusMode === "cell") {
+            if (
+                !this.focusedSelectionRowId &&
+                !this.activeCell &&
+                this.presentedRows.length > 0 &&
+                this.presentedColumns.length > 0
+            ) {
+                this.activeCell = this.firstCellLocation();
+            }
+            if (this.focusActiveCell({ preventScroll: options?.preventScroll ?? false })) {
+                return;
+            }
+        }
+        super.focus(options);
+    }
+
+    public get scrollContainerTabIndex(): string {
+        if (this.focusMode !== "cell" || this.presentedRows.length === 0) {
+            return "-1";
+        }
+
+        const target = this.rovingCellTarget();
+        if (!target) {
+            return "-1";
+        }
+
+        return this.rovingCellMounted ? "-1" : "0";
+    }
+
+    public selectionCellTabIndexFor(rowId: string): string | null {
+        if (this.focusMode !== "cell" || this.selectionMode === "none") {
+            return null;
+        }
+
+        const target = this.rovingCellTarget();
+        return target?.kind === "selection" && target.rowId === rowId ? "0" : "-1";
+    }
+
+    public cellTabIndexFor(rowId: string, columnId: string): string | null {
+        if (this.focusMode !== "cell") {
+            return null;
+        }
+
+        const target = this.rovingCellTarget();
+        return target?.kind === "data" && target.rowId === rowId && target.columnId === columnId
+            ? "0"
+            : "-1";
+    }
+
+    public cellAriaSelectedFor(cell: VioletPresentedCell): string | null {
+        if (this.focusMode !== "cell") {
+            return null;
+        }
+
+        if (cell.selected) {
+            return "true";
+        }
+
+        return this.cellSelection ? "false" : null;
+    }
+
+    public cellAriaDescribedByFor(cell: VioletPresentedCell): string | null {
+        if (this.focusMode !== "cell" || !cell.active) {
+            return null;
+        }
+
+        return this.activeCellDescribeText ? this.activeCellDescribeId : null;
+    }
+
+    public rowSelectionControlTabIndexFor(rowId: string): number {
+        if (this.focusMode !== "row") {
+            return -1;
+        }
+
+        const target = this.resolveRowModeBodyTarget();
+        return target && target.rowId === rowId && target.columnId === null ? 0 : -1;
+    }
+
+    public cellCheckboxTabIndexFor(rowId: string, columnId: string): number {
+        if (this.focusMode !== "row") {
+            return -1;
+        }
+
+        const target = this.resolveRowModeBodyTarget();
+        return target && target.rowId === rowId && target.columnId === columnId ? 0 : -1;
+    }
+
+    private rovingCellTarget():
+        | { kind: "selection"; rowId: string }
+        | { kind: "data"; rowId: string; columnId: string }
+        | null {
+        if (this.focusMode !== "cell" || this.presentedRows.length === 0) {
+            return null;
+        }
+
+        if (
+            this.selectionMode !== "none" &&
+            this.focusedSelectionRowId &&
+            this.#rowIndexById.has(this.focusedSelectionRowId)
+        ) {
+            return { kind: "selection", rowId: this.focusedSelectionRowId };
+        }
+
+        if (this.activeCell && this.isValidCellLocation(this.activeCell)) {
+            return {
+                kind: "data",
+                rowId: this.activeCell.rowId,
+                columnId: this.activeCell.columnId,
+            };
+        }
+
+        const first = this.firstCellLocation();
+        return first ? { kind: "data", rowId: first.rowId, columnId: first.columnId } : null;
+    }
+
+    private rowModeInteractiveColumns(): Array<string | null> {
+        const columns: Array<string | null> = [];
+        if (this.selectionMode !== "none") {
+            columns.push(null);
+        }
+        for (const column of this.presentedColumns) {
+            if (column.source.editor === "checkbox" && column.source.editable) {
+                columns.push(column.id);
+            }
+        }
+        return columns;
+    }
+
+    private resolveRowModeBodyTarget(): { rowId: string; columnId: string | null } | null {
+        if (this.focusMode !== "row" || this.presentedRows.length === 0) {
+            return null;
+        }
+
+        const columns = this.rowModeInteractiveColumns();
+        if (columns.length === 0) {
+            return null;
+        }
+
+        const preferredRowId =
+            this.rowModeFocusRowId && this.#rowIndexById.has(this.rowModeFocusRowId)
+                ? this.rowModeFocusRowId
+                : this.presentedRows[0]!.id;
+        const rowId =
+            this.virtualize && this.rowModeMountedRowId && this.#rowIndexById.has(this.rowModeMountedRowId)
+                ? this.rowModeMountedRowId
+                : preferredRowId;
+        const columnId = columns.includes(this.rowModeFocusColumnId)
+            ? this.rowModeFocusColumnId
+            : columns[0]!;
+        return { rowId, columnId };
     }
 
     public get activeCellDescription(): string {
@@ -1560,17 +1266,63 @@ export class VioletDataGrid extends FASTElement {
         this.commitCheckboxCellToggle(location, nextChecked);
     }
 
-    public handleGridFocus(): void {
-    if (
-      this.focusMode !== "cell" ||
-      this.activeCell ||
-      !this.presentedRows.length ||
-      !this.presentedColumns.length
-    ) {
+    public handleGridFocus(event?: FocusEvent): void {
+        if (this.focusMode !== "cell" || this.#parkingFocusOnScrollContainer) {
             return;
         }
 
-        this.activeCell = this.firstCellLocation();
+        if (event && event.target !== this.getScrollContainer()) {
+            return;
+        }
+
+        if (
+            !this.focusedSelectionRowId &&
+            !this.activeCell &&
+            this.presentedRows.length > 0 &&
+            this.presentedColumns.length > 0
+        ) {
+            this.activeCell = this.firstCellLocation();
+        }
+
+        if (this.focusActiveCell({ preventScroll: true })) {
+            return;
+        }
+    }
+
+    public handleGridFocusIn(event: FocusEvent): void {
+        const self = this;
+        handleGridFocusInEvent(
+            {
+                focusMode: this.focusMode,
+                editingCell: this.editingCell,
+                activeCell: this.activeCell,
+                get focusedSelectionRowId() {
+                    return self.focusedSelectionRowId;
+                },
+                set focusedSelectionRowId(value) {
+                    self.focusedSelectionRowId = value;
+                },
+                get rowModeFocusRowId() {
+                    return self.rowModeFocusRowId;
+                },
+                set rowModeFocusRowId(value) {
+                    self.rowModeFocusRowId = value;
+                },
+                get rowModeFocusColumnId() {
+                    return self.rowModeFocusColumnId;
+                },
+                set rowModeFocusColumnId(value) {
+                    self.rowModeFocusColumnId = value;
+                },
+                setActiveCellDirect: (location) => {
+                    this.activeCell = location;
+                },
+                setFocusedSelectionRow: (rowId) => this.setFocusedSelectionRow(rowId),
+                sameEditingLocation: (left, right) => this.sameEditingLocation(left, right),
+                selectionControlRowId: (el) => this.selectionControlRowId(el),
+            },
+            event,
+        );
     }
 
     /**
@@ -1583,216 +1335,89 @@ export class VioletDataGrid extends FASTElement {
      * handler consumes.
      */
     public handleGridKeydown(event: KeyboardEvent): boolean {
-        if (this.focusMode !== "cell") {
-            return true;
-        }
-
-    if (event.isComposing || event.keyCode === 229) {
-      return true;
-    }
-
-        const target = event.target as HTMLElement | null;
-
-        if (this.isEditorElement(target)) {
-            if (event.key === "Enter") {
-                event.preventDefault();
-        if (this.commitActiveEdit()) {
-                this.getScrollContainer()?.focus({ preventScroll: true });
-        } else {
-          this.refocusActiveEditor();
-        }
-                return false;
-            }
-
-            if (event.key === "Tab") {
-                event.preventDefault();
-                this.commitEditingCellAndMove(event.shiftKey ? -1 : 1);
-                return false;
-            }
-
-            if (event.key === "Escape") {
-                event.preventDefault();
-        this.cancelActiveEdit();
-                this.getScrollContainer()?.focus({ preventScroll: true });
-                return false;
-            }
-
-            // Every other key belongs to the editor: typing, Backspace, caret
-            // movement. Cancelling here is what made cell editing impossible.
-            return true;
-        }
-
-        if (target && target !== this.getScrollContainer()) {
-            return true;
-        }
-
-        if (isColumnResizeShortcut(event) && this.activeCell) {
-            event.preventDefault();
-            return !this.focusColumnResizer(this.activeCell.columnId, this.getScrollContainer());
-        }
-
-        if (event.key === "Tab") {
-            const currentCell = this.activeCell ?? this.firstCellLocation();
-            if (!currentCell) {
-                return true;
-            }
-
-            const nextLocation = this.nextTabCellLocation(currentCell, event.shiftKey ? -1 : 1);
-            if (!nextLocation) {
-                return true;
-            }
-
-            event.preventDefault();
-            this.setActiveCell(nextLocation);
-            return false;
-        }
-
-    if (
-      (event.metaKey || event.ctrlKey) &&
-      !event.shiftKey &&
-      !event.altKey &&
-      event.key.toLowerCase() === "c"
-    ) {
-            // Let the browser run its native copy so `handleGridCopy` can write through
-            // `clipboardData` (works in insecure contexts and Safari). If no copy event
-            // follows, fall back to the async clipboard API.
-            this.#nativeCopyPending = true;
-            setTimeout(() => {
-                if (!this.#nativeCopyPending) {
-                    return;
-                }
-                this.#nativeCopyPending = false;
-                void this.handleCopyRequest();
-            }, 0);
-            return true;
-        }
-
-    if (
-      (event.key === " " || event.key === "Spacebar" || event.key === "Enter") &&
-      this.activeCell
-    ) {
-            const activeCell = this.presentedCellAt(this.activeCell);
-            if (activeCell?.editable && activeCell.editor === "checkbox") {
-                event.preventDefault();
-                this.commitCheckboxCellToggle(this.activeCell, !this.booleanCellValue(activeCell.rawValue));
-                return false;
-            }
-        }
-
-        if ((event.key === "Enter" || event.key === "F2") && this.activeCell) {
-            const editableCell = this.presentedCellAt(this.activeCell);
-            if (!editableCell?.editable) {
-                return true;
-            }
-
-            event.preventDefault();
-            this.startEditingCell(this.activeCell);
-            return false;
-        }
-
-        if (
-            event.key === "ArrowUp" &&
-            !event.shiftKey &&
-            !event.altKey &&
-            !event.ctrlKey &&
-            !event.metaKey &&
-            this.activeCell &&
-            this.activeCell.rowId === this.presentedRows[0]?.id
-        ) {
-            const header = this.columnHeaderFocusTargetFor(this.activeCell.columnId);
-            if (header) {
-                event.preventDefault();
-                header.focus();
-                return false;
-            }
-        }
-
-        const nextLocation = this.nextCellLocationForKey(event);
-        if (!nextLocation) {
-            return true;
-        }
-
-        event.preventDefault();
-        this.setActiveCell(nextLocation, { extendRange: event.shiftKey });
-        return false;
+        return handleGridKeydownEvent(
+            {
+                element: this,
+                focusMode: this.focusMode,
+                selectionMode: this.selectionMode,
+                activeCell: this.activeCell,
+                focusedSelectionRowId: this.focusedSelectionRowId,
+                presentedRows: this.presentedRows,
+                shadowActiveElement: this.shadowRoot?.activeElement ?? null,
+                handleRowModeBodyKeydown: (e) => this.handleRowModeBodyKeydown(e),
+                isEditorElement: (target) => this.isEditorElement(target),
+                commitActiveEdit: () => this.commitActiveEdit(),
+                focusActiveCell: (options) => this.focusActiveCell(options),
+                refocusActiveEditor: () => this.refocusActiveEditor(),
+                commitEditingCellAndMove: (step) => this.commitEditingCellAndMove(step),
+                cancelActiveEdit: () => this.cancelActiveEdit(),
+                customCellWidgetFromTarget: (target) => this.customCellWidgetFromTarget(target),
+                handleCustomCellWidgetKeydown: (widget, e) => this.handleCustomCellWidgetKeydown(widget, e),
+                getScrollContainer: () => this.getScrollContainer(),
+                handleSelectionCellKeydown: (e, target, move) =>
+                    this.handleSelectionCellKeydown(e, target, move),
+                focusColumnResizer: (columnId, returnTarget) =>
+                    this.focusColumnResizer(columnId, returnTarget),
+                getActiveGridCellElement: () => this.getActiveGridCellElement(),
+                scheduleNativeCopyFallback: () => {
+                    this.#nativeCopyPending = true;
+                    setTimeout(() => {
+                        if (!this.#nativeCopyPending) {
+                            return;
+                        }
+                        this.#nativeCopyPending = false;
+                        void this.handleCopyRequest();
+                    }, 0);
+                },
+                presentedCellAt: (location) => this.presentedCellAt(location),
+                booleanCellValue: (value) => this.booleanCellValue(value),
+                commitCheckboxCellToggle: (location, checked) =>
+                    this.commitCheckboxCellToggle(location, checked),
+                getActiveCellElement: () => this.getActiveCellElement(),
+                customCellWidgetsInCell: (cell) => this.customCellWidgetsInCell(cell),
+                startEditingCell: (location) => this.startEditingCell(location),
+                columnHeaderFocusTargetFor: (columnId) => this.columnHeaderFocusTargetFor(columnId),
+                columnIndexForId: (columnId) => this.#columnIndexById.get(columnId) ?? -1,
+                setFocusedSelectionRow: (rowId) => this.setFocusedSelectionRow(rowId),
+                nextCellLocationForKey: (e, key) => this.nextCellLocationForKey(e, key),
+                setActiveCell: (location, options) => this.setActiveCell(location, options),
+            },
+            event,
+        );
     }
 
     public handleGridClick(event: Event): boolean {
-        if (this.focusMode !== "cell") {
-            return true;
-        }
-
-        if (this.#suppressNextGridClick) {
-            this.#suppressNextGridClick = false;
-            return true;
-        }
-
-        const target = event.target as HTMLElement | null;
-        if (
-            this.isEditorEvent(event) ||
-            this.isEditorElement(target) ||
-            this.isInteractiveCellWidgetEvent(event) ||
-            this.isInteractiveCellWidgetTarget(target)
-        ) {
-            return true;
-        }
-
-        const pointerEvent = event as MouseEvent;
-        const location =
-            this.locationFromMouseEvent(pointerEvent) ??
-            this.locationFromEvent(event) ??
-            this.locationFromTarget(target);
-        if (!location) {
-            if (pointerEvent.detail >= 2 && this.activeCell) {
-                const activeCell = this.presentedCellAt(this.activeCell);
-                if (activeCell?.editable && activeCell.editor !== "checkbox") {
-                    this.startEditingCell(this.activeCell);
-                }
-            }
-            return true;
-        }
-
-    if (
-      this.editingCell &&
-      !this.sameEditingLocation(this.editingCell, location) &&
-      !this.commitActiveEdit()
-    ) {
-      this.refocusActiveEditor();
-            return true;
-        }
-
-        const sameActiveCell =
-            this.activeCell?.rowId === location.rowId && this.activeCell?.columnId === location.columnId;
-        const activeCell = this.presentedCellAt(location);
-
-        if (
-            sameActiveCell &&
-            activeCell?.editable &&
-            this.opensOnSingleActiveClick(activeCell.editor)
-        ) {
-            this.startEditingCell(location);
-            return true;
-        }
-
-        this.handleCellPointerActivate(location.rowId, location.columnId, pointerEvent.shiftKey);
-
-    const timestamp =
-      typeof pointerEvent.timeStamp === "number" ? pointerEvent.timeStamp : performance.now();
-        const sameCellAsLastClick =
-            this.#lastCellClickLocation?.rowId === location.rowId &&
-            this.#lastCellClickLocation?.columnId === location.columnId;
-        const withinDoubleClickWindow = timestamp - this.#lastCellClickTimestamp <= 350;
-
-        if (pointerEvent.detail >= 2 || (sameCellAsLastClick && withinDoubleClickWindow)) {
-            const cell = this.presentedCellAt(location);
-            if (cell?.editable && cell.editor !== "checkbox") {
-                this.startEditingCell(location);
-            }
-        }
-
-        this.#lastCellClickLocation = location;
-        this.#lastCellClickTimestamp = timestamp;
-        return true;
+        const self = this;
+        return handleGridClickEvent(
+            {
+                focusMode: this.focusMode,
+                get editingCell() { return self.editingCell; },
+                get activeCell() { return self.activeCell; },
+                get suppressNextGridClick() { return self.#suppressNextGridClick; },
+                set suppressNextGridClick(v) { self.#suppressNextGridClick = v; },
+                get lastCellClickLocation() { return self.#lastCellClickLocation; },
+                set lastCellClickLocation(v) { self.#lastCellClickLocation = v; },
+                get lastCellClickTimestamp() { return self.#lastCellClickTimestamp; },
+                set lastCellClickTimestamp(v) { self.#lastCellClickTimestamp = v; },
+                isEditorEvent: (e) => this.isEditorEvent(e),
+                isEditorElement: (t) => this.isEditorElement(t),
+                isInteractiveCellWidgetEvent: (e) => this.isInteractiveCellWidgetEvent(e),
+                isInteractiveCellWidgetTarget: (t) => this.isInteractiveCellWidgetTarget(t),
+                commitActiveEdit: () => this.commitActiveEdit(),
+                refocusActiveEditor: () => this.refocusActiveEditor(),
+                setFocusedSelectionRow: (rowId) => this.setFocusedSelectionRow(rowId),
+                focusActiveCell: (options) => this.focusActiveCell(options),
+                locationFromMouseEvent: (e) => this.locationFromMouseEvent(e),
+                locationFromEvent: (e) => this.locationFromEvent(e),
+                locationFromTarget: (t) => this.locationFromTarget(t),
+                presentedCellAt: (loc) => this.presentedCellAt(loc),
+                startEditingCell: (loc) => this.startEditingCell(loc),
+                sameEditingLocation: (l, r) => this.sameEditingLocation(l, r),
+                opensOnSingleActiveClick: (ed) => this.opensOnSingleActiveClick(ed),
+                handleCellPointerActivate: (r, c, s) => this.handleCellPointerActivate(r, c, s),
+            },
+            event,
+        );
     }
 
     public handleGridDoubleClick(event: MouseEvent): boolean {
@@ -1844,12 +1469,22 @@ export class VioletDataGrid extends FASTElement {
         if (
             this.focusMode !== "cell" ||
             event.button !== 0 ||
-            event.shiftKey ||
             this.isEditorEvent(event) ||
             this.isEditorElement(event.target) ||
             this.isInteractiveCellWidgetEvent(event) ||
             this.isInteractiveCellWidgetTarget(event.target)
         ) {
+            return true;
+        }
+
+        if (event.shiftKey) {
+            const location = this.locationFromEvent(event) ?? this.locationFromTarget(event.target);
+            if (location) {
+                // Keep browser mousedown focus from firing focusin and overwriting `activeCell`
+                // before `handleGridClick` extends the range from the previous anchor.
+                event.preventDefault();
+                return false;
+            }
             return true;
         }
 
@@ -1867,7 +1502,7 @@ export class VioletDataGrid extends FASTElement {
 
         this.#pointerSelectionSession = startPointerSelectionSession(event.pointerId, location);
         this.setActiveCell(location);
-        scrollContainer?.focus({ preventScroll: true });
+        this.focusActiveCell({ preventScroll: true });
         try {
             scrollContainer?.setPointerCapture(event.pointerId);
         } catch {
@@ -1956,7 +1591,7 @@ export class VioletDataGrid extends FASTElement {
             const cell = this.presentedCellAt(this.editingCell);
             if (cell?.editor === "select" || target.dataset.commitOnChange === "true") {
         if (this.commitActiveEdit()) {
-                this.getScrollContainer()?.focus({ preventScroll: true });
+                this.focusActiveCell({ preventScroll: true });
         } else {
           this.refocusActiveEditor();
         }
@@ -1968,6 +1603,7 @@ export class VioletDataGrid extends FASTElement {
     public handleGridPaste(event: ClipboardEvent): boolean {
     if (
       this.focusMode !== "cell" ||
+      this.focusedSelectionRowId !== null ||
       this.isEditorEvent(event) ||
       this.isEditorElement(event.target)
     ) {
@@ -2054,6 +1690,9 @@ export class VioletDataGrid extends FASTElement {
     }
 
     public async handleCopyRequest(): Promise<void> {
+        if (this.focusedSelectionRowId !== null) {
+            return;
+        }
         const detail = this.copyDetailForCurrentSelection();
         if (!detail) {
             return;
@@ -2078,6 +1717,7 @@ export class VioletDataGrid extends FASTElement {
     public handleGridCopy(event: ClipboardEvent): boolean {
         if (
             this.focusMode !== "cell" ||
+            this.focusedSelectionRowId !== null ||
             this.isEditorEvent(event) ||
             this.isEditorElement(event.target)
         ) {
@@ -2194,50 +1834,20 @@ export class VioletDataGrid extends FASTElement {
     }
 
     public handleColumnResizeKeyDown(columnId: string, event: KeyboardEvent): boolean {
-        if (event.key === "Escape") {
-            event.preventDefault();
-            event.stopPropagation();
-            this.returnFocusFromColumnResizer(columnId);
-            return false;
-        }
-
-        if (event.key === "Tab") {
-            // Resizers are not Tab stops: Tab continues from where Ctrl+Alt+R came from.
-            this.returnFocusFromColumnResizer(columnId);
-            return true;
-        }
-
-        if (event.altKey || event.ctrlKey || event.metaKey) {
-            return true;
-        }
-
-        if (event.key === "Enter") {
-            this.handleColumnResizeDoubleClick(columnId, event);
-            return false;
-        }
-
-        // Step from the column's own width when it is absolute: a table narrower than the grid stretches its
-        // columns, so the drawn width is larger, and stepping from it would grow the column by more than a step.
-        const declared = this.resolvedColumnWidth(columnId)?.trim();
-        const declaredPixels =
-            declared && /^\d+(\.\d+)?(px|rem)$/.test(declared) ? cssLengthToPixels(declared) : null;
-        const width = computeKeyboardResizedColumnWidth({
-            key: event.key,
-            shiftKey: event.shiftKey,
-            currentWidth: declaredPixels ?? this.renderedColumnWidth(columnId),
-            minimumWidth: this.minimumColumnWidth(columnId),
-            rtl: getComputedStyle(this).direction === "rtl",
-        });
-
-        if (width === null) {
-            return true;
-        }
-
-        event.preventDefault();
-        event.stopPropagation();
-        this.applyLiveColumnWidth(columnId, `${width}px`);
-        this.commitColumnWidth(columnId, `${width}px`);
-        return false;
+        return handleColumnResizeKeyDownEvent(
+            {
+                element: this,
+                returnFocusFromColumnResizer: (id) => this.returnFocusFromColumnResizer(id),
+                handleColumnResizeDoubleClick: (id, e) => this.handleColumnResizeDoubleClick(id, e),
+                resolvedColumnWidth: (id) => this.resolvedColumnWidth(id),
+                renderedColumnWidth: (id) => this.renderedColumnWidth(id),
+                minimumColumnWidth: (id) => this.minimumColumnWidth(id),
+                applyLiveColumnWidth: (id, w) => this.applyLiveColumnWidth(id, w),
+                commitColumnWidth: (id, w) => this.commitColumnWidth(id, w),
+            },
+            columnId,
+            event,
+        );
     }
 
     /**
@@ -2250,6 +1860,10 @@ export class VioletDataGrid extends FASTElement {
             return "-1";
         }
 
+        if (this.headerFocusSelection && this.hasSelectAllHeaderControl) {
+            return "-1";
+        }
+
         const columns = this.presentedColumns;
         const tabStopColumnId = columns.some((column) => column.id === this.headerFocusColumnId)
             ? this.headerFocusColumnId
@@ -2257,8 +1871,37 @@ export class VioletDataGrid extends FASTElement {
         return columnId === tabStopColumnId ? "0" : "-1";
     }
 
+    public handleSelectionHeaderFocus(event: FocusEvent): void {
+        if (this.hasSelectAllHeaderControl && event.target === this.selectionHeaderFocusTarget()) {
+            this.headerFocusSelection = true;
+        }
+    }
+
+    private headerKeyboardHost(): HeaderKeyboardHost {
+        return {
+            element: this,
+            focusMode: this.focusMode,
+            presentedColumns: this.presentedColumns,
+            presentedRows: this.presentedRows,
+            selectionHeaderFocusTarget: () => this.selectionHeaderFocusTarget(),
+            columnHeaderFocusTargetFor: (columnId) => this.columnHeaderFocusTargetFor(columnId),
+            focusColumnResizer: (columnId, returnTarget) =>
+                this.focusColumnResizer(columnId, returnTarget),
+            temporarilySuspendRovingCellTabStop: () => this.temporarilySuspendRovingCellTabStop(),
+            focusActiveCell: (options) => this.focusActiveCell(options),
+            setFocusedSelectionRow: (rowId) => this.setFocusedSelectionRow(rowId),
+            focusFirstRowFromHeader: (columnId, event) =>
+                this.focusFirstRowFromHeader(columnId, event),
+        };
+    }
+
+    public handleSelectionHeaderKeydown(event: KeyboardEvent): boolean {
+        return handleSelectionHeaderKeydownEvent(this.headerKeyboardHost(), event);
+    }
+
     public handleColumnHeaderFocus(columnId: string, event: FocusEvent): void {
         if (event.target === this.columnHeaderFocusTargetFor(columnId)) {
+            this.headerFocusSelection = false;
             this.headerFocusColumnId = columnId;
         }
     }
@@ -2269,64 +1912,7 @@ export class VioletDataGrid extends FASTElement {
      * and Ctrl+Alt+R moves focus to the column's resizer. Enter and Space reach the sort button natively.
      */
     public handleColumnHeaderKeydown(columnId: string, event: KeyboardEvent): boolean {
-        const header = this.columnHeaderFocusTargetFor(columnId);
-        // Keys pressed on the column's resizer bubble through the header cell.
-        if (!header || event.target !== header) {
-            return true;
-        }
-
-        if (isColumnResizeShortcut(event)) {
-            event.preventDefault();
-            return !this.focusColumnResizer(columnId, header);
-        }
-
-        if (event.altKey || event.ctrlKey || event.metaKey) {
-            return true;
-        }
-
-        if (event.key === "Tab") {
-            if (!event.shiftKey || this.focusMode !== "cell") {
-                return true;
-            }
-
-            // The header sits above the body within the grid's single Tab stop.
-            event.preventDefault();
-            this.getScrollContainer()?.focus({ preventScroll: true });
-            return false;
-        }
-
-        if (event.shiftKey) {
-            return true;
-        }
-
-        const columns = this.presentedColumns;
-        const columnIndex = columns.findIndex((column) => column.id === columnId);
-        let nextColumnId: string | undefined;
-
-        switch (logicalArrowKey(event.key, this)) {
-            case "ArrowLeft":
-                nextColumnId = columns[Math.max(0, columnIndex - 1)]?.id;
-                break;
-            case "ArrowRight":
-                nextColumnId = columns[Math.min(columns.length - 1, columnIndex + 1)]?.id;
-                break;
-            case "Home":
-                nextColumnId = columns[0]?.id;
-                break;
-            case "End":
-                nextColumnId = columns.at(-1)?.id;
-                break;
-            case "ArrowDown":
-                return this.focusFirstRowFromHeader(columnId, event);
-            default:
-                return true;
-        }
-
-        event.preventDefault();
-        if (nextColumnId) {
-            this.columnHeaderFocusTargetFor(nextColumnId)?.focus();
-        }
-        return false;
+        return handleColumnHeaderKeydownEvent(this.headerKeyboardHost(), columnId, event);
     }
 
     public handleColumnResizeDoubleClick(columnId: string, event: Event): void {
@@ -2360,6 +1946,22 @@ export class VioletDataGrid extends FASTElement {
         return header.querySelector<HTMLElement>(".header-button") ?? header;
     }
 
+    private selectionHeaderFocusTarget(): HTMLElement | null {
+        if (this.hasSelectAllHeaderControl) {
+            return (
+                this.shadowRoot?.querySelector<HTMLElement>(
+                    "th.selection-header violet-checkbox.selection-checkbox",
+                ) ?? null
+            );
+        }
+
+        if (this.focusMode === "cell" && this.selectionMode === "single") {
+            return this.shadowRoot?.querySelector<HTMLElement>("th.selection-header") ?? null;
+        }
+
+        return null;
+    }
+
     private focusFirstRowFromHeader(columnId: string, event: KeyboardEvent): boolean {
         const rowId = this.presentedRows[0]?.id;
         if (this.focusMode !== "cell" || !rowId) {
@@ -2367,8 +1969,9 @@ export class VioletDataGrid extends FASTElement {
         }
 
         event.preventDefault();
+        this.focusedSelectionRowId = null;
         this.setActiveCell({ rowId, columnId });
-        this.getScrollContainer()?.focus({ preventScroll: true });
+        this.focusActiveCell({ preventScroll: true });
         return false;
     }
 
@@ -2425,8 +2028,9 @@ export class VioletDataGrid extends FASTElement {
 
         this.editAnnouncement = "";
         this.fillAnnouncement = "";
+        this.focusedSelectionRowId = null;
         this.setActiveCell({ rowId, columnId }, { extendRange });
-        this.getScrollContainer()?.focus({ preventScroll: true });
+        this.focusActiveCell({ preventScroll: true });
     }
 
     private updateSelection(nextSelectedRowIds: string[]): void {
@@ -2519,6 +2123,14 @@ export class VioletDataGrid extends FASTElement {
     }
 
         this.syncActiveCell();
+        if (
+            this.focusedSelectionRowId &&
+            (this.focusMode !== "cell" ||
+                this.selectionMode === "none" ||
+                !this.#rowIndexById.has(this.focusedSelectionRowId))
+        ) {
+            this.focusedSelectionRowId = null;
+        }
         this.syncCellSelection();
         this.syncEditingCell();
         this.syncFillPreview();
@@ -2838,12 +2450,15 @@ export class VioletDataGrid extends FASTElement {
         ) as VioletDataGridCellLocation | null;
     }
 
-    private nextCellLocationForKey(event: KeyboardEvent): VioletDataGridCellLocation | null {
+    private nextCellLocationForKey(
+        event: KeyboardEvent,
+        key = event.key,
+    ): VioletDataGridCellLocation | null {
         return resolveNextCellLocationForKey({
             rows: this.presentedRows,
             columns: this.presentedColumns,
             activeCell: this.activeCell,
-            key: event.key,
+            key,
             metaKey: event.ctrlKey || event.metaKey,
         }) as VioletDataGridCellLocation | null;
     }
@@ -2858,6 +2473,8 @@ export class VioletDataGrid extends FASTElement {
             this.editAnnouncement = "";
         }
 
+        this.focusedSelectionRowId = null;
+
         if (extendRange) {
             const anchor = this.cellSelection?.anchor ?? this.activeCell ?? location;
             this.cellSelection = this.createCellSelection(anchor, location);
@@ -2867,6 +2484,142 @@ export class VioletDataGrid extends FASTElement {
 
         this.activeCell = location;
         this.updateInteractionState();
+    }
+
+    private setFocusedSelectionRow(rowId: string): void {
+        if (this.selectionMode === "none" || !this.#rowIndexById.has(rowId)) {
+            return;
+        }
+        this.editAnnouncement = "";
+        this.fillAnnouncement = "";
+        if (this.cellSelection) {
+            this.cellSelection = null;
+        }
+        this.focusedSelectionRowId = rowId;
+        this.updateInteractionState();
+    }
+
+    private toggleRowSelectionFromKeyboard(rowId: string): void {
+        if (this.selectionMode === "none" || !this.#rowIndexById.has(rowId)) {
+            return;
+        }
+
+        if (this.selectionMode === "single") {
+            this.updateSelection([rowId]);
+            return;
+        }
+
+        const current = new Set(this.selectedRowIds);
+        if (current.has(rowId)) {
+            current.delete(rowId);
+        } else {
+            current.add(rowId);
+        }
+        this.updateSelection([...current]);
+    }
+
+    private handleSelectionCellKeydown(
+        event: KeyboardEvent,
+        target: HTMLElement | null,
+        moveDomFocus: boolean,
+    ): boolean {
+        return handleSelectionCellKeydownEvent(
+            {
+                element: this,
+                focusedSelectionRowId: this.focusedSelectionRowId,
+                presentedRows: this.presentedRows,
+                presentedColumns: this.presentedColumns,
+                rowIndexForId: (rowId) => this.#rowIndexById.get(rowId),
+                toggleRowSelectionFromKeyboard: (rowId) => this.toggleRowSelectionFromKeyboard(rowId),
+                selectionHeaderFocusTarget: () => this.selectionHeaderFocusTarget(),
+                columnHeaderFocusTargetFor: (columnId) => this.columnHeaderFocusTargetFor(columnId),
+                setFocusedSelectionRow: (rowId) => this.setFocusedSelectionRow(rowId),
+                setActiveCell: (location) => this.setActiveCell(location),
+                focusActiveCell: (options) => this.focusActiveCell(options),
+            },
+            event,
+            target,
+            moveDomFocus,
+        );
+    }
+
+    private handleRowModeBodyKeydown(event: KeyboardEvent): boolean {
+        return handleRowModeBodyKeydownEvent(
+            {
+                element: this,
+                presentedRows: this.presentedRows,
+                rowModeInteractiveColumns: () => this.rowModeInteractiveColumns(),
+                selectionControlRowId: (el) => this.selectionControlRowId(el),
+                rowIndexForId: (rowId) => this.#rowIndexById.get(rowId),
+                setRowModeFocusTarget: (nextRowId, nextColumnId, nextRowIndex) => {
+                    this.rowModeFocusRowId = nextRowId;
+                    this.rowModeFocusColumnId = nextColumnId;
+                    if (this.virtualize) {
+                        const focusGeneration = this.#focusGeneration;
+                        this.#pendingRowModeFocus = {
+                            rowId: nextRowId,
+                            columnId: nextColumnId,
+                            focusGeneration,
+                        };
+                        this.#rowVirtualizer.scrollToIndex(nextRowIndex, { align: "auto" });
+                        if (this.focusRowModeBodyControl(nextRowId, nextColumnId, { preventScroll: false })) {
+                            this.#pendingRowModeFocus = null;
+                        }
+                    } else {
+                        this.#pendingRowModeFocus = null;
+                        this.focusRowModeBodyControl(nextRowId, nextColumnId, { preventScroll: false });
+                    }
+                },
+            },
+            event,
+        );
+    }
+
+    private focusRowModeBodyControl(
+        rowId: string,
+        columnId: string | null,
+        options: { preventScroll?: boolean } = {},
+    ): boolean {
+        return focusRowModeControlInShadow(this.shadowRoot, rowId, columnId, options);
+    }
+
+    private temporarilySuspendRovingCellTabStop(): void {
+        suspendRovingCellTabStops(this.shadowRoot, () =>
+            this.$fastController.isConnected && this.focusMode === "cell"
+                ? this.getActiveGridCellElement()
+                : null,
+        );
+    }
+
+    private customCellWidgetsInCell(cell: HTMLTableCellElement): HTMLElement[] {
+        return customCellWidgetsInCellElement(cell);
+    }
+
+    private customCellWidgetFromTarget(target: HTMLElement | null): HTMLElement | null {
+        return findCustomCellWidgetFromTarget(target);
+    }
+
+    private handleCustomCellWidgetKeydown(widget: HTMLElement, event: KeyboardEvent): boolean {
+        return handleCustomCellWidgetKeydownEvent(
+            {
+                setActiveCell: (location) => this.setActiveCell(location),
+                focusActiveCell: (options) => this.focusActiveCell(options),
+                temporarilySuspendRovingCellTabStop: () => this.temporarilySuspendRovingCellTabStop(),
+            },
+            widget,
+            event,
+        );
+    }
+
+    private syncCustomCellWidgetTabIndexes(): void {
+        if (!this.$fastController.isConnected) {
+            return;
+        }
+        syncCustomCellWidgetTabIndexesInShadow(
+            this.shadowRoot,
+            this.focusMode,
+            this.#managedCustomWidgetTabIndexes,
+        );
     }
 
     private startEditingCell(location: VioletDataGridCellLocation): void {
@@ -2965,7 +2718,7 @@ export class VioletDataGrid extends FASTElement {
 
         const nextCell = this.nextTabCellLocation(currentCell, direction);
         this.setActiveCell(nextCell ?? currentCell);
-        this.getScrollContainer()?.focus({ preventScroll: true });
+        this.focusActiveCell({ preventScroll: true });
     }
 
   /** Cancel the active edit synchronously and emit `edit-cancel` once. */
@@ -3415,6 +3168,9 @@ export class VioletDataGrid extends FASTElement {
     }
 
     private copyDetailForCurrentSelection(): VioletDataGridCopyDetail | null {
+        if (this.focusedSelectionRowId !== null) {
+            return null;
+        }
         const cells = this.selectedCellLocations();
 
         if (!cells.length) {
@@ -3455,6 +3211,9 @@ export class VioletDataGrid extends FASTElement {
     }
 
     private pasteOriginLocation(): VioletDataGridCellLocation | null {
+        if (this.focusedSelectionRowId !== null) {
+            return null;
+        }
         return resolvePasteOriginLocation({
             selection: this.normalizedCellSelection(),
             rows: this.presentedRows,
@@ -3485,6 +3244,9 @@ export class VioletDataGrid extends FASTElement {
     }
 
     private currentFillSourceRange(): VioletDataGridCellRange | null {
+        if (this.focusedSelectionRowId !== null) {
+            return null;
+        }
         const selection = this.normalizedCellSelection();
         if (selection) {
             return this.rangeFromBounds(selection);
@@ -3590,7 +3352,7 @@ export class VioletDataGrid extends FASTElement {
         const scrollContainer = this.getScrollContainer();
         this.#fillSession = session;
         this.fillPreview = null;
-        scrollContainer?.focus({ preventScroll: true });
+        this.focusActiveCell({ preventScroll: true });
         try {
             scrollContainer?.setPointerCapture(event.pointerId);
         } catch {
@@ -3914,7 +3676,11 @@ export class VioletDataGrid extends FASTElement {
     }
 
     public isActiveCell(rowId: string, columnId: string): boolean {
-        return this.activeCell?.rowId === rowId && this.activeCell?.columnId === columnId;
+        return (
+            !this.focusedSelectionRowId &&
+            this.activeCell?.rowId === rowId &&
+            this.activeCell?.columnId === columnId
+        );
     }
 
     private locationFromTarget(target: EventTarget | null): VioletDataGridCellLocation | null {
@@ -4073,6 +3839,118 @@ export class VioletDataGrid extends FASTElement {
         ) as HTMLTableCellElement | null;
     }
 
+    private selectionCellElementForRow(rowId: string | null): HTMLTableCellElement | null {
+        if (!rowId) {
+            return null;
+        }
+
+        return (
+            this.shadowRoot?.querySelector<HTMLTableCellElement>(
+                `td.selection-cell[data-selection-row-id="${CSS.escape(rowId)}"]`,
+            ) ?? null
+        );
+    }
+
+    private getActiveGridCellElement(): HTMLTableCellElement | null {
+        if (this.focusedSelectionRowId) {
+            return this.selectionCellElementForRow(this.focusedSelectionRowId);
+        }
+
+        return this.getActiveCellElement();
+    }
+
+    private parkFocusOnScrollContainer(): void {
+        const scrollContainer = this.getScrollContainer();
+        if (!scrollContainer) {
+            return;
+        }
+        this.#parkingFocusOnScrollContainer = true;
+        try {
+            scrollContainer.focus({ preventScroll: true });
+        } finally {
+            this.#parkingFocusOnScrollContainer = false;
+        }
+    }
+
+    private focusActiveCell(options: { preventScroll?: boolean } = {}): boolean {
+        const preventScroll = options.preventScroll ?? true;
+        const revision = ++this.#pendingCellFocusRevision;
+        const cell = this.getActiveGridCellElement();
+        if (cell) {
+            this.#pendingGridFocus = false;
+            cell.focus({ preventScroll });
+            // Capture generation after `cell.focus()` so our own synchronous `focusin` does not
+            // make the post-update re-check treat our own focus move as an outside departure.
+            const focusGeneration = this.#focusGeneration;
+            // Re-apply focus after FAST's `Updates` microtask in case `renderedRows.splice`
+            // replaced the `<tr>`/`<td>` DOM nodes right after this synchronous call.
+            Updates.enqueue(() => {
+                if (
+                    revision !== this.#pendingCellFocusRevision ||
+                    !this.$fastController.isConnected ||
+                    this.editingCell ||
+                    this.#focusGeneration !== focusGeneration
+                ) {
+                    return;
+                }
+                const current = this.getActiveGridCellElement();
+                const shadowActive = this.shadowRoot?.activeElement;
+                if (
+                    shadowActive?.isConnected &&
+                    (!this.isGridCellElement(shadowActive) || shadowActive === current)
+                ) {
+                    return;
+                }
+                if (current && shadowActive !== current) {
+                    const documentActive = this.ownerDocument.activeElement;
+                    if (
+                        !documentActive ||
+                        documentActive === this ||
+                        documentActive === this.ownerDocument.body
+                    ) {
+                        current.focus({ preventScroll });
+                    }
+                }
+            });
+            return true;
+        }
+
+        if (this.focusMode === "cell" && this.rovingCellTarget()) {
+            this.#pendingGridFocus = true;
+            this.ensureRovingRowVisible();
+            if (this.shadowRoot?.activeElement !== this.getScrollContainer()) {
+                this.parkFocusOnScrollContainer();
+            }
+        }
+        return false;
+    }
+
+    private ensureRovingRowVisible(): void {
+        if (this.focusedSelectionRowId) {
+            const rowIndex = this.#rowIndexById.get(this.focusedSelectionRowId);
+            if (rowIndex === undefined) {
+                return;
+            }
+            if (this.virtualize) {
+                this.#rowVirtualizer.scrollToIndex(rowIndex, { align: "auto" });
+            }
+            requestAnimationFrame(() => {
+                scrollCellIntoScrollContainer(
+                    this.selectionCellElementForRow(this.focusedSelectionRowId),
+                    this.getScrollContainer(),
+                    this.virtualize,
+                );
+            });
+            return;
+        }
+
+        this.ensureActiveCellVisible();
+    }
+
+    private isGridCellElement(element: Element | null | undefined): element is HTMLTableCellElement {
+        return isGridCellElementNode(element);
+    }
+
     private getActiveEditorElement(): VioletCellEditorLike | null {
         if (!this.editingCell) {
             return null;
@@ -4110,6 +3988,8 @@ export class VioletDataGrid extends FASTElement {
     }
 
     const focusedSelectionControl = this.focusedSelectionControl();
+    const hadGridCellFocus = this.isGridCellElement(this.shadowRoot?.activeElement);
+    const focusGenerationBeforeRender = this.#focusGeneration;
         const virtualItems = this.virtualize ? this.#rowVirtualizer.getVirtualItems() : [];
         const totalSize = this.virtualize ? this.#rowVirtualizer.getTotalSize() : 0;
         const nextState = computeRenderedRows({
@@ -4176,31 +4056,115 @@ export class VioletDataGrid extends FASTElement {
     }
         this.virtualPaddingStart = nextState.virtualPaddingStart;
         this.virtualPaddingEnd = nextState.virtualPaddingEnd;
+    const rovingTarget = this.rovingCellTarget();
+    this.rovingCellMounted = Boolean(
+      rovingTarget && nextRenderedRows.some((rendered) => rendered.row.id === rovingTarget.rowId),
+    );
+    const mountedRowIds = new Set(nextRenderedRows.map((rendered) => rendered.row.id));
+    this.rowModeMountedRowId =
+      this.rowModeFocusRowId && mountedRowIds.has(this.rowModeFocusRowId)
+        ? this.rowModeFocusRowId
+        : (nextRenderedRows[0]?.row.id ?? null);
     this.scheduleRenderedRowMeasurement();
     this.restoreSelectionControlFocus(focusedSelectionControl);
+    this.recheckCellFocusAfterRender(hadGridCellFocus, focusGenerationBeforeRender);
+    this.recheckRowModeFocusAfterRender();
+    Updates.enqueue(() => this.syncCustomCellWidgetTabIndexes());
+  }
+
+  private recheckRowModeFocusAfterRender(): void {
+    const pending = this.#pendingRowModeFocus;
+    if (!pending || this.focusMode !== "row") {
+      return;
+    }
+
+    const revision = ++this.#pendingRowModeFocusRevision;
+    Updates.enqueue(() => {
+      if (
+        revision !== this.#pendingRowModeFocusRevision ||
+        !this.$fastController.isConnected ||
+        this.focusMode !== "row"
+      ) {
+        return;
+      }
+
+      const current = this.#pendingRowModeFocus;
+      if (!current) {
+        return;
+      }
+
+      if (this.#focusGeneration !== current.focusGeneration) {
+        this.#pendingRowModeFocus = null;
+        return;
+      }
+
+      if (!isDocumentFocusAvailableForGrid(this, this.ownerDocument)) {
+        this.#pendingRowModeFocus = null;
+        return;
+      }
+
+      if (this.focusRowModeBodyControl(current.rowId, current.columnId, { preventScroll: false })) {
+        this.#pendingRowModeFocus = null;
+      }
+    });
+  }
+
+  private recheckCellFocusAfterRender(hadGridCellFocus: boolean, focusGeneration: number): void {
+    if (this.focusMode !== "cell" || (!hadGridCellFocus && !this.#pendingGridFocus)) {
+      return;
+    }
+
+    const revision = ++this.#cellFocusRecoveryRevision;
+    Updates.enqueue(() => {
+      if (revision !== this.#cellFocusRecoveryRevision || !this.$fastController.isConnected || this.editingCell) {
+        return;
+      }
+
+      if (this.#pendingGridFocus) {
+        const cell = this.getActiveGridCellElement();
+        if (cell) {
+          this.#pendingGridFocus = false;
+          if (
+            isDocumentFocusAvailableForGrid(this, this.ownerDocument) ||
+            Boolean(this.shadowRoot?.activeElement)
+          ) {
+            cell.focus({ preventScroll: true });
+          }
+        }
+        return;
+      }
+
+      if (!hadGridCellFocus || this.#focusGeneration !== focusGeneration) {
+        return;
+      }
+
+      const shadowActive = this.shadowRoot?.activeElement;
+      const activeCell = this.getActiveGridCellElement();
+      if (
+        shadowActive?.isConnected &&
+        (!this.isGridCellElement(shadowActive) || (activeCell && shadowActive === activeCell))
+      ) {
+        return;
+      }
+
+      if (!isDocumentFocusAvailableForGrid(this, this.ownerDocument)) {
+        return;
+      }
+
+      if (activeCell) {
+        activeCell.focus({ preventScroll: true });
+      } else {
+        this.parkFocusOnScrollContainer();
+      }
+    });
   }
 
   private focusedSelectionControl(): VioletFocusedSelectionControl | null {
-    const element = this.shadowRoot?.activeElement;
-    if (!(element instanceof HTMLElement)) return null;
-    const selector = element.matches("violet-radio.selection-radio")
-      ? "violet-radio.selection-radio"
-      : element.matches("violet-checkbox.selection-checkbox")
-        ? "violet-checkbox.selection-checkbox"
-        : null;
-    const rowId = selector ? this.selectionControlRowId(element) : undefined;
-    return selector && rowId
-      ? { element, focusGeneration: this.#focusGeneration, rowId, selector }
-      : null;
+    return findFocusedSelectionControl(this.shadowRoot, this.#focusGeneration);
   }
 
   private selectionControlRowId(element: Element | null): string | undefined {
-    return (
-      element
-        ?.closest("tr[data-row-index]")
-        ?.querySelector<HTMLElement>("td[data-row-id]")
-        ?.getAttribute("data-row-id") ?? undefined
-    );
+    return selectionControlRowIdFromElement(element);
   }
 
   private restoreSelectionControlFocus(focused: VioletFocusedSelectionControl | null): void {
@@ -4311,10 +4275,29 @@ export class VioletDataGrid extends FASTElement {
     if (this.#editorRecycleFocusFrame !== null) {
       cancelAnimationFrame(this.#editorRecycleFocusFrame);
     }
+    const focusGeneration = this.#focusGeneration;
     this.#editorRecycleFocusFrame = requestAnimationFrame(() => {
       this.#editorRecycleFocusFrame = null;
-      if (!this.editingCell) {
-        this.getScrollContainer()?.focus({ preventScroll: true });
+      if (
+        !this.$fastController.isConnected ||
+        this.editingCell ||
+        this.#focusGeneration !== focusGeneration
+      ) {
+        return;
+      }
+      const documentActive = this.ownerDocument.activeElement;
+      if (
+        documentActive &&
+        documentActive !== this &&
+        documentActive !== this.ownerDocument.body
+      ) {
+        return;
+      }
+      const activeCell = this.getActiveGridCellElement();
+      if (activeCell) {
+        activeCell.focus({ preventScroll: true });
+      } else {
+        this.parkFocusOnScrollContainer();
       }
     });
     }
@@ -4409,6 +4392,13 @@ observable(VioletDataGrid.prototype, "virtualPaddingEnd");
 observable(VioletDataGrid.prototype, "virtualTotalSize");
 observable(VioletDataGrid.prototype, "hasToolbarSlotContent");
 observable(VioletDataGrid.prototype, "headerFocusColumnId");
+observable(VioletDataGrid.prototype, "headerFocusSelection");
+observable(VioletDataGrid.prototype, "hostAriaLabel");
+observable(VioletDataGrid.prototype, "focusedSelectionRowId");
+observable(VioletDataGrid.prototype, "rowModeFocusRowId");
+observable(VioletDataGrid.prototype, "rowModeFocusColumnId");
+observable(VioletDataGrid.prototype, "rowModeMountedRowId");
+observable(VioletDataGrid.prototype, "rovingCellMounted");
 
 if (!customElements.get("violet-data-grid")) {
     await FASTElement.define(VioletDataGrid, {

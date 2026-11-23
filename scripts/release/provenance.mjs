@@ -208,16 +208,16 @@ export const REMOVED = 'removed-after-import';
 /** Whether a record is of a file removed after import, which the tests do not look for. */
 export const isRemoved = (file) => file.import_classification === REMOVED;
 
-/** The family's files Git sees, tracked or untracked but not ignored, outside its records. */
+/** The family's files Git sees on disk, tracked or untracked but not ignored, outside its records. */
 export function provenancePaths(root, family) {
 	const { directory, paths } = PROVENANCE_FAMILIES[family];
 	return execFileSync(
 		'git',
-		['ls-files', '--cached', '--others', '--exclude-standard', '--', ...paths],
+		['ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', ...paths],
 		{ cwd: root, encoding: 'utf8' }
 	)
-		.split('\n')
-		.filter((path) => path && !path.startsWith(`${directory}/`));
+		.split('\0')
+		.filter((path) => path && !path.startsWith(`${directory}/`) && existsSync(join(root, path)));
 }
 
 /** Records Changesets' edits for every family this repository carries; returns the paths. */

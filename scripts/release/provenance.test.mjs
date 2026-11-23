@@ -142,10 +142,16 @@ test('a removed file keeps its record, classified as removed, and a returning on
 	const records = 'foundations/specimen/provenance/adaptations.json';
 	const record = () => read(root, records).files[0];
 	const manifest = readFileSync(join(root, 'foundations/specimen/package.json'));
+	// Stage the file before removing it from the working tree so unstaged tracked deletions are covered too.
+	execFileSync('git', ['add', 'foundations/specimen/package.json'], { cwd: root });
 	rmSync(join(root, 'foundations/specimen/package.json'));
+	// Non-ASCII filenames must not be dropped by Git's default path quoting.
+	write(root, 'foundations/specimen/café.json', '{}\n');
 	// Only an explicit run records a removal: the default and the release path leave the record,
 	// so the provenance tests fail on a file deleted by accident.
-	assert.deepEqual(recordProvenance(root, 'specimen', 'Not asked'), []);
+	assert.deepEqual(recordProvenance(root, 'specimen', 'Not asked'), [
+		'foundations/specimen/café.json',
+	]);
 	assert.deepEqual(recordReleaseProvenance(root, 'Versioned'), []);
 	assert.ok(!isRemoved(record()));
 	const removed = { today: '2026-11-16', removals: true };

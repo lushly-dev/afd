@@ -371,6 +371,11 @@
 			},
 			{
 				"basis": "declared",
+				"default": "0px",
+				"name": "--_virtual-total-size"
+			},
+			{
+				"basis": "declared",
 				"default": "var(--violet-data-grid-virtualized-max-block-size, 32rem)",
 				"name": "--_virtualized-max-block-size"
 			},

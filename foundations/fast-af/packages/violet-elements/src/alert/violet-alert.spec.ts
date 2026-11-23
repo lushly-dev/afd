@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cdp } from "vitest/browser";
+import { cdp, page } from "vitest/browser";
 
+import "../button/violet-button";
 import { clearVioletIconRegistryForTesting } from "../icon/icon-registry";
 import { systemCheckmarkIcon } from "../icon/generated/icons/system-checkmark";
 import "./violet-alert";
@@ -142,5 +143,60 @@ describe("violet-alert", () => {
         expect(icon?.getAttribute("icon")).toBe("system/checkmark");
         expect(icon?.shadowRoot?.querySelector(".glyph")?.innerHTML).toContain('d="M5 12L10 17L20 7"');
         expect(systemCheckmarkIcon.svg).toContain('d="M5 12L10 17L20 7"');
+    });
+
+    describe("narrow action row (#1589)", () => {
+        afterEach(async () => {
+            await page.viewport(1280, 720);
+        });
+
+        it("expands a lone slotted action to fill the row below 480px", async () => {
+            await page.viewport(320, 600);
+            const alert = await renderAlert(`
+                <violet-alert tone="danger">
+                    <span slot="title">Could not save</span>
+                    The connection dropped.
+                    <violet-button slot="actions" appearance="primary">Try again</violet-button>
+                </violet-alert>
+            `);
+
+            const actions = alert.shadowRoot?.querySelector(".actions") as HTMLElement;
+            const button = alert.querySelector("violet-button") as HTMLElement;
+            const control = button.shadowRoot?.querySelector("button") as HTMLButtonElement;
+
+            expect(alert.hasSingleAction).toBe(true);
+            expect(actions.hasAttribute("data-single-action")).toBe(true);
+            expect(button.getBoundingClientRect().width).toBeCloseTo(actions.getBoundingClientRect().width, 0);
+            expect(control.getBoundingClientRect().width).toBeCloseTo(actions.getBoundingClientRect().width, 0);
+        });
+
+        it("keeps a lone action at content width above 480px and keeps multiple actions at content width below 480px", async () => {
+            await page.viewport(800, 600);
+            const wideAlert = await renderAlert(`
+                <violet-alert tone="danger">
+                    <span slot="title">Could not save</span>
+                    The connection dropped.
+                    <violet-button slot="actions" appearance="primary">Try again</violet-button>
+                </violet-alert>
+            `);
+            const wideActions = wideAlert.shadowRoot?.querySelector(".actions") as HTMLElement;
+            const wideButton = wideAlert.querySelector("violet-button") as HTMLElement;
+            expect(wideButton.getBoundingClientRect().width).toBeLessThan(wideActions.getBoundingClientRect().width - 20);
+
+            await page.viewport(320, 600);
+            const multiAlert = await renderAlert(`
+                <violet-alert tone="danger">
+                    <span slot="title">Could not save</span>
+                    The connection dropped.
+                    <violet-button slot="actions" appearance="primary">Try again</violet-button>
+                    <violet-button slot="actions" appearance="secondary">Dismiss</violet-button>
+                </violet-alert>
+            `);
+            const multiActions = multiAlert.shadowRoot?.querySelector(".actions") as HTMLElement;
+            const firstButton = multiAlert.querySelector("violet-button") as HTMLElement;
+            expect(multiAlert.hasSingleAction).toBe(false);
+            expect(multiActions.hasAttribute("data-single-action")).toBe(false);
+            expect(firstButton.getBoundingClientRect().width).toBeLessThan(multiActions.getBoundingClientRect().width - 20);
+        });
     });
 });

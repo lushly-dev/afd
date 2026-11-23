@@ -212,7 +212,7 @@ export const Alert: Story = {
         await waitFor(() => {
             const dialog = element.shadowRoot?.querySelector("dialog") as HTMLDialogElement | null;
             expect(dialog?.getAttribute("role")).toBe("alertdialog");
-            expect(dialog?.getAttribute("closedby")).toBe("none");
+            expect(dialog?.getAttribute("closedby")).toBe("closerequest");
         });
 
         element.hide();

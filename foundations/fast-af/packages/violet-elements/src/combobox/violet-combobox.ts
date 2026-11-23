@@ -212,7 +212,7 @@ const template = html<VioletCombobox>`
             `
         )}
         <div class="control-shell" part="control-shell">
-            <div class="control-frame" part="control-frame">
+            <div class="control-frame" part="control-frame" @click="${x => x.handleControlClick()}">
                 <input
                     id="${x => x.inputId}"
                     class="input"
@@ -358,6 +358,7 @@ export class VioletCombobox extends FASTElement {
      */
     declare public readonly effectiveDisabled: boolean;
     declare public invalid: boolean;
+    declare public openOnFocus: boolean;
 
     public readonly inputId: string;
     public readonly labelId: string;
@@ -383,6 +384,7 @@ export class VioletCombobox extends FASTElement {
         this.required = false;
         this.disabled = false;
         this.invalid = false;
+        this.openOnFocus = false;
 
         violetComboboxCount += 1;
         this.inputId = `violet-combobox-input-${violetComboboxCount}`;
@@ -537,9 +539,17 @@ export class VioletCombobox extends FASTElement {
     }
 
     public handleInputFocus(): void {
-        if (!this.effectiveDisabled) {
+        if (!this.effectiveDisabled && this.openOnFocus) {
             this.show();
         }
+    }
+
+    public handleControlClick(): boolean {
+        if (!this.effectiveDisabled) {
+            this.#input?.focus();
+            this.show();
+        }
+        return true;
     }
 
     public handleFocusOut(event: FocusEvent): boolean {
@@ -579,13 +589,23 @@ export class VioletCombobox extends FASTElement {
         switch (event.key) {
             case "ArrowDown":
                 event.preventDefault();
-                this.show();
-                this.#moveActive(1);
+                if (event.altKey) {
+                    this.show();
+                } else {
+                    this.show();
+                    this.#moveActive(1);
+                }
                 return false;
             case "ArrowUp":
                 event.preventDefault();
-                this.show();
-                this.#moveActive(-1);
+                if (event.altKey) {
+                    if (this.open) {
+                        this.hide(true);
+                    }
+                } else {
+                    this.show();
+                    this.#moveActive(-1);
+                }
                 return false;
             case "Enter":
                 if (this.open && this.activeValue) {
@@ -839,6 +859,7 @@ attr({ mode: "boolean" })(VioletCombobox.prototype, "disabled");
 installFormDisabled(VioletCombobox.prototype);
 attr({ mode: "boolean" })(VioletCombobox.prototype, "invalid");
 attr({ mode: "boolean" })(VioletCombobox.prototype, "open");
+attr({ attribute: "open-on-focus", mode: "boolean" })(VioletCombobox.prototype, "openOnFocus");
 
 if (!customElements.get("violet-combobox")) {
     await FASTElement.define(VioletCombobox, {

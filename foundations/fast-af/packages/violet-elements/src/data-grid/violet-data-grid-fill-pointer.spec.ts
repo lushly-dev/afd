@@ -140,7 +140,9 @@ describe("violet-data-grid built-in pointer fill", () => {
         expect(fills).toHaveLength(1);
         await userEvent.keyboard("{Tab}{Tab}{ArrowRight}");
         expect(grid.activeCell).toEqual({ rowId: "0", columnId: "bed" });
-        expect(grid.shadowRoot!.querySelector(".table-scroll")?.getAttribute("aria-describedby")).toBe(grid.activeCellLabelId);
+        expect(grid.shadowRoot!.querySelector(".table-scroll")?.hasAttribute("aria-describedby")).toBe(false);
+        expect(grid.shadowRoot!.activeElement).toBe(cell(grid, 0, "bed"));
+        expect(cell(grid, 0, "bed").getAttribute("role")).toBe("gridcell");
         expect(grid.activeCellDescription).toContain("column Bed");
         await expect.element(action(grid, "right")).toBeDisabled();
         await userEvent.keyboard("{F2}");

@@ -36,7 +36,7 @@ fails when it is not the report the records give.
 | `violet-checkbox` | role | - | - |
 | `violet-color-picker` | - | `invalid`, `size` | - |
 | `violet-color-swatch` | summary, usage, a11y-statement | - | - |
-| `violet-combobox` | - | `value` | - |
+| `violet-combobox` | - | `open-on-focus`, `value` | - |
 | `violet-conversation-thread` | summary, usage, a11y-statement, role | - | - |
 | `violet-data-grid-attachment-cell` | summary, usage, a11y-statement | - | - |
 | `violet-data-grid-multi-picker` | summary, usage, a11y-statement | - | - |

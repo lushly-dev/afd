@@ -200,6 +200,7 @@ export const styles = css`
     }
 
     .table-canvas {
+        --_virtual-total-size: 0px;
         min-inline-size: 100%;
         overflow: visible;
     }
@@ -414,6 +415,21 @@ export const styles = css`
         z-index: var(--_layer-raised);
         border: var(--_active-cell-ring-width) solid var(--_active-cell-ring);
         box-sizing: border-box;
+    }
+
+    td[tabindex]:focus {
+        outline: none;
+    }
+
+    td[tabindex]:focus-visible::after {
+        border-color: var(--_focus-ring);
+    }
+
+    @media (forced-colors: active) {
+        td[tabindex]:focus-visible {
+            outline: 2px solid Highlight;
+            outline-offset: -2px;
+        }
     }
 
     td[data-active="true"] {

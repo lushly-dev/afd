@@ -327,6 +327,40 @@ describe("violet-dialog", () => {
         expect(nativeDialog(dialog).open).toBe(true);
     });
 
+    it.each(["modal", "alert", "non-modal"] as const)(
+        "fires cancelable request-close with keyboard source on Escape for type=%s (#1581)",
+        async type => {
+            const dialog = await renderDialog(el => {
+                el.type = type;
+            });
+            const sources: string[] = [];
+            let cancelClose = true;
+            dialog.addEventListener("request-close", event => {
+                sources.push((event as CustomEvent<{ source: string }>).detail.source);
+                if (cancelClose) {
+                    event.preventDefault();
+                }
+            });
+            dialog.show();
+            await nextFrame();
+
+            await userEvent.keyboard("{Escape}");
+            await nextFrame();
+            await nextFrame();
+
+            expect(sources).toEqual(["keyboard"]);
+            expect(dialog.open).toBe(true);
+            expect(nativeDialog(dialog).open).toBe(true);
+
+            cancelClose = false;
+            await userEvent.keyboard("{Escape}");
+            await waitFor(() => !nativeDialog(dialog).open);
+
+            expect(sources).toEqual(["keyboard", "keyboard"]);
+            expect(dialog.open).toBe(false);
+        },
+    );
+
     it("closes from the close button and reports the close-button source", async () => {
         const dialog = await renderDialog();
         const sources: string[] = [];

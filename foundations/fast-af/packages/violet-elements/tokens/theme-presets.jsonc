@@ -1,7 +1,0 @@
-// Retired (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4 in the AFD
-// repository). The shared components take Violet themes as data: their token values now come
-// from tokens/violet-theme.export.json, the component ids of Loam's resolved light, dark and
-// high-contrast themes, written by `pnpm -F @lushly-dev/loam-theme theme:export-components`.
-// scripts/build-runtime-theme.mjs generates the presets from that export, and nothing reads
-// this file. It stays, empty, because the FAST-AF provenance records cannot yet record a deletion.
-{}

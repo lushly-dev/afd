@@ -99,7 +99,7 @@ try {
     [`${packageName}/dist/data-grid/violet-data-grid.js`]: "dist/data-grid/violet-data-grid.js",
     [`${packageName}/custom-elements.json`]: "custom-elements.json",
     [`${packageName}/package.json`]: "package.json",
-    [`${packageName}/tokens/theme-presets.jsonc`]: "tokens/theme-presets.jsonc",
+    [`${packageName}/tokens/violet-theme.export.json`]: "tokens/violet-theme.export.json",
     [`${packageName}/tokens/interface.json`]: "tokens/interface.json",
     [`${packageName}/theme-css`]: "dist/theme/violet-theme-css.js",
   };
