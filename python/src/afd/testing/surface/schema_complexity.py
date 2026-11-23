@@ -30,7 +30,8 @@ def _is_nullable_wrapper(variants: list[dict[str, Any]]) -> bool:
 	"""Detect anyOf: [T, {type: 'null'}] patterns from nullable wrappers."""
 	if len(variants) != 2:
 		return False
-	return any(v.get("type") == "null" for v in variants)
+	# A boolean variant (`true` or `false`) has no type to read.
+	return any(isinstance(v, dict) and v.get("type") == "null" for v in variants)
 
 
 def _walk(node: dict[str, Any], state: dict[str, Any], depth: int) -> None:

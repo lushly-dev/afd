@@ -198,6 +198,16 @@ sets these units.
 
 Every implementation supports these keywords, with the semantics below.
 
+**Boolean schemas.** Wherever a schema may appear (a property, `items`, `additionalProperties`, a
+definition, a `$ref` target, a branch), `true` and `false` are schemas too. `true` is `{}`: it
+accepts any value, and an absent required property under it is reported as `nonoptional`. `false`
+is `not: {}`: it accepts no value, and its issue is `invalid_type` with `expected: "never"` and the
+message `Invalid input: expected never, received <type>`. `additionalProperties: false` keeps its
+own rule (one `unrecognized_keys` issue for the object), while a `$ref` to a `false` definition
+there is a schema like any other. The root of an input schema is still an object: registration
+refuses a boolean root. [`vectors/validation.json`](./vectors/validation.json) holds the
+`boolean-schemas` case.
+
 | Keyword | Semantics |
 | --- | --- |
 | `type` | A type name, or a list of names: `string`, `number`, `integer`, `boolean`, `object`, `array`, `null`. See the rules below. |

@@ -337,18 +337,69 @@ async fn missing_unconstrained_required_fields_expect_nonoptional() {
                 .success
         );
     }
-    // Boolean schemas are outside this Rust API's supported schema representation.
+    // A `true` property, directly or through a `$ref`, is `{}`: absent and required, it expects
+    // nonoptional (spec/validation.md; #2047).
     for schema in [
         json!({"type":"object","properties":{"x":true},"required":["x"]}),
         json!({"type":"object","properties":{"x":{"$ref":"#/$defs/Any"}},"required":["x"],"$defs":{"Any":true}}),
     ] {
         let registry = CommandRegistry::new();
-        assert!(registry
+        registry
             .register_with_schema(
                 CommandDefinition::new("test-boolean", "Boolean", vec![], Echo),
-                schema
+                schema,
             )
-            .is_err());
-        assert!(!registry.has("test-boolean"));
+            .unwrap();
+        let details = registry
+            .execute("test-boolean", json!({}), None)
+            .await
+            .error
+            .unwrap()
+            .details
+            .unwrap();
+        assert_eq!(
+            details["errors"],
+            json!([{"path":"x","code":"invalid_type","expected":"nonoptional","message":"Invalid input: expected nonoptional, received undefined"}])
+        );
+        assert_eq!(details["missingFields"], json!(["x"]));
     }
+}
+
+/// A boolean schema is allowed below the root, never as a command's whole input (#2047).
+#[tokio::test]
+async fn boolean_schemas_register_below_the_root_only() {
+    let registry = CommandRegistry::new();
+    for root in [json!(true), json!(false)] {
+        let refused = registry
+            .register_with_schema(
+                CommandDefinition::new("thing-root", "Root", vec![], Echo),
+                root,
+            )
+            .unwrap_err();
+        assert!(
+            refused.contains("must be a JSON Schema object"),
+            "{refused}"
+        );
+    }
+    registry
+        .register_with_schema(
+            CommandDefinition::new("thing-check", "Booleans", vec![], Echo),
+            json!({
+                "type": "object",
+                "properties": {"t": true, "f": false, "r": {"$ref": "#/$defs/A"}},
+                "required": ["t"],
+                "$defs": {"A": true}
+            }),
+        )
+        .unwrap();
+    assert!(
+        registry
+            .execute("thing-check", json!({"t": 1, "r": [1]}), None)
+            .await
+            .success
+    );
+    let never = registry
+        .execute("thing-check", json!({"t": 1, "f": 1}), None)
+        .await;
+    assert_eq!(never.error.unwrap().code, "VALIDATION_ERROR");
 }

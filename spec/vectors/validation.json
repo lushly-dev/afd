@@ -2325,6 +2325,109 @@
 			]
 		},
 		{
+			"id": "boolean-schemas",
+			"section": "keywords",
+			"description": "A boolean schema may appear wherever a schema may: true is {} and false is not: {} (#2047). TypeScript emits {} and not: {}; the case rewrites them to true and false, below the root, which stays an object.",
+			"schema": {
+				"type": "object",
+				"properties": {
+					"t": true,
+					"f": false,
+					"r": {
+						"$ref": "#/definitions/Any"
+					},
+					"a": {
+						"type": "array",
+						"items": false
+					}
+				},
+				"required": ["t", "r"],
+				"definitions": {
+					"Any": true
+				}
+			},
+			"tests": [
+				{
+					"description": "Valid: any value under true, no value under false",
+					"input": {
+						"t": 1,
+						"r": {
+							"x": 1
+						},
+						"a": []
+					},
+					"valid": true,
+					"data": {
+						"t": 1,
+						"r": {
+							"x": 1
+						},
+						"a": []
+					}
+				},
+				{
+					"description": "A required property under true, or a $ref to true, is still required",
+					"input": {},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "- t: Invalid input: expected nonoptional, received undefined\n- r: Invalid input: expected nonoptional, received undefined. Missing required field(s): t, r. Expected fields: t, f, r, a",
+						"details": {
+							"errors": [
+								{
+									"path": "t",
+									"message": "Invalid input: expected nonoptional, received undefined",
+									"code": "invalid_type",
+									"expected": "nonoptional"
+								},
+								{
+									"path": "r",
+									"message": "Invalid input: expected nonoptional, received undefined",
+									"code": "invalid_type",
+									"expected": "nonoptional"
+								}
+							],
+							"expectedFields": ["t", "f", "r", "a"],
+							"missingFields": ["t", "r"]
+						}
+					}
+				},
+				{
+					"description": "false accepts no value, in a property and in items",
+					"input": {
+						"t": 1,
+						"r": 1,
+						"f": 1,
+						"a": [2]
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "- f: Invalid input: expected never, received number\n- a.0: Invalid input: expected never, received number. Expected fields: t, f, r, a",
+						"details": {
+							"errors": [
+								{
+									"path": "f",
+									"message": "Invalid input: expected never, received number",
+									"code": "invalid_type",
+									"expected": "never"
+								},
+								{
+									"path": "a.0",
+									"message": "Invalid input: expected never, received number",
+									"code": "invalid_type",
+									"expected": "never"
+								}
+							],
+							"expectedFields": ["t", "f", "r", "a"]
+						}
+					}
+				}
+			]
+		},
+		{
 			"id": "ref-recursive",
 			"section": "keywords",
 			"description": "A recursive $ref. Unknown keys are removed inside referenced objects, at any depth.",

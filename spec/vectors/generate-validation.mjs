@@ -423,6 +423,31 @@ export function validationCases(z) {
 			],
 		},
 		{
+			id: 'boolean-schemas',
+			section: 'keywords',
+			description:
+				'A boolean schema may appear wherever a schema may: true is {} and false is not: {} (#2047). TypeScript emits {} and not: {}; the case rewrites them to true and false, below the root, which stays an object.',
+			zod: z.object({
+				t: z.unknown().nonoptional(),
+				f: z.never().optional(),
+				r: z.unknown().nonoptional().meta({ id: 'Any' }),
+				a: z.array(z.never()).optional(),
+			}),
+			rewrite: (schema) =>
+				JSON.parse(
+					JSON.stringify(schema).replaceAll('{"not":{}}', 'false').replaceAll('{}', 'true')
+				),
+			tests: [
+				test('Valid: any value under true, no value under false', {
+					t: 1,
+					r: { x: 1 },
+					a: [],
+				}),
+				test('A required property under true, or a $ref to true, is still required', {}),
+				test('false accepts no value, in a property and in items', { t: 1, r: 1, f: 1, a: [2] }),
+			],
+		},
+		{
 			id: 'ref-recursive',
 			section: 'keywords',
 			description:

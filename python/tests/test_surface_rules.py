@@ -484,3 +484,12 @@ class TestCheckSchemaComplexityRule:
 				assert findings_above[0].severity == "warning"
 			if findings_below:
 				assert findings_below[0].severity == "info"
+
+
+def test_complexity_scores_boolean_variants():
+	# A boolean schema (`true`, `false`) is a variant like any other (#2047).
+	for schema in (
+		{"type": "object", "properties": {"x": {"anyOf": [True, {"type": "null"}]}}},
+		{"type": "object", "properties": {"x": {"anyOf": [False, True]}, "y": False}},
+	):
+		assert compute_complexity(schema).score >= 0

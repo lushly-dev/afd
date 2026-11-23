@@ -34,7 +34,8 @@ def _context(spec: Dict[str, Any]) -> PipelineContext:
             alias=entry.get("alias"),
             command=f"step-{entry['index']}",
             status=StepStatus(entry["status"]),
-            data=entry.get("data"),
+            # A step without "data" has none; "data": null is null data (#1961).
+            **({"data": entry["data"]} if "data" in entry else {}),
         )
         for entry in spec["steps"]
     ]

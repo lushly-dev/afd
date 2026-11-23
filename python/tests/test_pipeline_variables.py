@@ -780,3 +780,53 @@ class TestDirectClientPipe:
         assert calls == []
         assert result.success is False
         assert result.final.error.code == "VALIDATION_ERROR"
+
+
+class TestNullStepData:
+    """A step that succeeded with null data reads as null; one with no data is absent (#1961)."""
+
+    @pytest.mark.asyncio
+    async def test_execute_pipeline(self):
+        calls = []
+
+        async def executor(command, payload):
+            calls.append((command, payload))
+            if command == "null-get":
+                return success(None)
+            if command == "none-get":
+                return CommandResult(success=True)
+            return success(payload)
+
+        request = PipelineRequest(
+            steps=[
+                PipelineStep(command="null-get", as_="empty"),
+                PipelineStep(command="none-get", as_="none"),
+                PipelineStep(
+                    command="echo",
+                    input={"a": "$steps.empty", "b": "$steps.none", "c": ["$steps.empty", "$steps.none"]},
+                ),
+            ]
+        )
+
+        result = await execute_pipeline(request, executor)
+
+        assert calls[-1] == ("echo", {"a": None, "c": [None, None]})
+        assert result.steps[2].status == StepStatus.SUCCESS
+
+    @pytest.mark.asyncio
+    async def test_direct_client_pipe(self):
+        registry = SimpleRegistry()
+
+        @registry.command(name="null-get")
+        async def null_get():
+            return success(None)
+
+        @registry.command(name="echo")
+        async def echo(**kwargs):
+            return success(kwargs)
+
+        result = await DirectClient(registry).pipe(
+            [{"command": "null-get"}, {"command": "echo", "input": {"item": "$prev", "when": "$first"}}]
+        )
+
+        assert result.final.data == {"item": None, "when": None}
