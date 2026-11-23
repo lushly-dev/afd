@@ -11,6 +11,7 @@ from afd.core.approval import approval_mode
 from afd.core.commands import CommandContext, CommandDefinition, CommandParameter
 from afd.core.result import CommandResult, success
 from afd.core.wire import WireModel
+from afd.server.auth_view import listed_commands, scope_view_of
 from afd.server.bootstrap.afd_context import BOOTSTRAP_EXPOSE
 from afd.server.validation import _input_validation_failure
 
@@ -37,7 +38,7 @@ async def _afd_docs_handler(
     context: Optional[CommandContext],
     get_commands: Callable[[], List[CommandDefinition]],
 ) -> CommandResult[AfdDocsOutput]:
-    commands = get_commands()
+    commands = listed_commands(get_commands(), scope_view_of(context))
     if input.command:
         commands = [command for command in commands if command.name == input.command]
 

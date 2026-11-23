@@ -1,8 +1,7 @@
 """Shared MCP authorization conformance cases (``spec/authorization.json``) covering
-M2, M3 (rules 2–3 and 5–10), M3.1, M3.2, M4, M5 and M7.
+M2, M3 (rules 2–3 and 5–10), M3.1, M3.2, M4, M5, M6 (``staticScopes`` and ``batches``) and M7.
 
-``test_principal_binding.py`` loads ``principalBindings``; M6 (``staticScopes`` and
-``batches``) is tracked in the companion scope-enforcement issue.
+``test_principal_binding.py`` loads ``principalBindings``.
 """
 
 from __future__ import annotations
@@ -17,6 +16,9 @@ import pytest
 
 from afd.server import (
     Credentials,
+    RequestForbidden,
+    ScopeChallenge,
+    ScopeMissing,
     audience_accepts,
     check_claims,
     check_jws_header,
@@ -25,6 +27,8 @@ from afd.server import (
     create_token_rules,
     extract_bearer,
     parse_scope_claim,
+    request_decision,
+    static_decision,
 )
 from afd.server.auth_rules import _ABSENT
 
@@ -32,7 +36,7 @@ CASES_PATH = Path(__file__).resolve().parents[2] / "spec" / "authorization.json"
 CASES: dict[str, Any] = json.loads(CASES_PATH.read_text(encoding="utf-8"))
 
 
-def test_loads_every_case_of_the_nine_sections() -> None:
+def test_loads_every_case_of_the_eleven_sections() -> None:
     counts = [
         len(CASES[section])
         for section in (
@@ -45,9 +49,11 @@ def test_loads_every_case_of_the_nine_sections() -> None:
             "jwtHeaders",
             "keys",
             "claims",
+            "staticScopes",
+            "batches",
         )
     ]
-    assert counts == [19, 5, 4, 3, 20, 22, 24, 17, 43]
+    assert counts == [19, 5, 4, 3, 20, 22, 24, 17, 43, 8, 7]
 
 
 @pytest.mark.parametrize(
@@ -245,3 +251,76 @@ def test_bearer_token_repr_redacts_raw_token() -> None:
         assert secret not in text
         assert "canary-sig-value" not in text
         assert "[redacted]" in text
+
+
+@pytest.mark.parametrize(
+    "case", CASES["staticScopes"], ids=[case["description"] for case in CASES["staticScopes"]]
+)
+def test_static_scope_cases(case: dict[str, Any]) -> None:
+    decision = static_decision(case["requiredScopes"], case["scopes"], case["held"])
+    if case["expected"] == "allowed":
+        assert decision == "allowed"
+    else:
+        assert decision == ScopeMissing(tuple(case["expected"]["missing"]))
+
+
+@pytest.mark.parametrize(
+    "case", CASES["batches"], ids=[case["description"] for case in CASES["batches"]]
+)
+def test_batch_scope_cases(case: dict[str, Any]) -> None:
+    steps = [
+        step if isinstance(step, str) else ScopeMissing(tuple(step["missing"]))
+        for step in case["steps"]
+    ]
+    decision = request_decision(steps, warn=lambda _m: None)
+    if case["expected"] == "proceed":
+        assert decision == "proceed"
+    else:
+        assert isinstance(decision, RequestForbidden)
+        assert " ".join(decision.forbidden) == case["expected"]["forbidden"]
+
+
+def test_request_decision_warns_and_refuses_invalid_or_empty_missing() -> None:
+    from afd.server.auth_scopes import merge_decisions
+
+    warnings: list[str] = []
+    assert request_decision([ScopeMissing(("not a token",))], warn=warnings.append) == RequestForbidden(
+        ()
+    )
+    assert request_decision([ScopeMissing(())], warn=warnings.append) == RequestForbidden(())
+    # Non-string mapping items (e.g. integers) are rejected rather than stringified into scopes.
+    assert request_decision([{"missing": [123, "todo:read"]}], warn=warnings.append) == RequestForbidden(  # type: ignore[list-item]
+        ("todo:read",)
+    )
+    # Unhashable items inside ScopeMissing survive merging with required scopes without raising.
+    merged = merge_decisions(ScopeMissing(("todo:read",)), ScopeMissing((["unhashable"], "todo:write")))  # type: ignore[arg-type]
+    assert request_decision([merged], warn=warnings.append) == RequestForbidden(
+        ("todo:read", "todo:write")
+    )
+    assert len(warnings) == 4
+
+
+def test_scope_challenge_formatting_and_validation() -> None:
+    challenge = ScopeChallenge("Gateway", {"realm": "todo"})
+    assert (
+        challenge.header_value(["todo:write", "todo:admin"])
+        == 'Gateway realm="todo", error="insufficient_scope", scope="todo:write todo:admin"'
+    )
+    assert challenge.header_value(["not a token"]) == 'Gateway realm="todo", error="insufficient_scope"'
+    assert ScopeChallenge("X").header_value([]) == 'X error="insufficient_scope"'
+
+    for bad_scheme in ("", "Bearer", "bearer", "a b", 'a"b', "é"):
+        with pytest.raises(ValueError):
+            ScopeChallenge(bad_scheme)
+    for bad_params in (
+        {"error": "x"},
+        {"Scope": "x"},
+        {"a b": "x"},
+        {"realm": 'a"b'},
+        {"realm": "a\\b"},
+        {"realm": "a\nb"},
+        {"realm": "é"},
+        {"realm": "a", "REALM": "b"},
+    ):
+        with pytest.raises(ValueError):
+            ScopeChallenge("Gw", bad_params)

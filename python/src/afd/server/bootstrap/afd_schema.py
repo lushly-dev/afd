@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field, ValidationError
 from afd.core.commands import CommandContext, CommandDefinition, CommandParameter
 from afd.core.result import CommandResult, success
 from afd.core.wire import WireModel
+from afd.server.auth_view import listed_commands, scope_view_of
 from afd.server.bootstrap.afd_context import BOOTSTRAP_EXPOSE
 from afd.server.validation import _input_validation_failure
 
@@ -136,7 +137,7 @@ async def _afd_schema_handler(
     get_commands: Callable[[], List[CommandDefinition]],
     get_json_schema: Optional[Callable[[CommandDefinition], Dict[str, Any]]] = None,
 ) -> CommandResult[AfdSchemaOutput]:
-    commands = get_commands()
+    commands = listed_commands(get_commands(), scope_view_of(context))
     schemas: list[SchemaInfo] = []
 
     for command in commands:

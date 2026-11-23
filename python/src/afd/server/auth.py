@@ -1,4 +1,4 @@
-"""MCP authorization on HTTP (``spec/authorization.md``, M1 to M5 and M7): the options of
+"""MCP authorization on HTTP (``spec/authorization.md``, M1 to M7): the options of
 ``create_server(..., auth=...)`` and the ASGI bearer layer the HTTP transports run ahead of
 every route.
 
@@ -7,9 +7,12 @@ without authentication (M7); otherwise it extracts the one bearer token (M2), ve
 (M3), and either answers 401 with M5's exact challenge and body, or removes every
 ``Authorization`` header from the ASGI scope and admits the verified :class:`Credentials`
 (M4), frozen and branded, for that request alone: the brand is removed when the request ends.
-A request that reaches the MCP service without credentials admitted by this server's own
-layer fails closed with ``UNAUTHORIZED`` (M1), except on stdio or a transport the host
-explicitly marked trusted.
+Scopes (M6): each admitted request gets a :class:`ScopeView`, decided once as it arrives; the
+layer decides a ``POST`` JSON-RPC body before dispatch and answers a missing scope with M5's
+403. A host whose own layer vouches for its callers admits them with ``server.admit`` and runs
+the same decision with ``server.pre_dispatch_check``. A request that reaches the MCP service
+without credentials admitted by this server's own layer fails closed with ``UNAUTHORIZED``
+(M1), except on stdio or a transport the host explicitly marked trusted.
 """
 
 from __future__ import annotations
@@ -28,7 +31,14 @@ from typing import Any
 
 from afd.core.actor import Actor
 from afd.core.clock import Clock, system_clock
-from afd.server.auth_bearer import BearerRefusal, extract_bearer
+from afd.server.auth_bearer import BearerRefusal, extract_bearer, names_access_token
+from afd.server.auth_dispatch import (
+    PROCEED,
+    PreDispatch,
+    body_too_large,
+    decide_body,
+    forbidden_response,
+)
 from afd.server.auth_jwt import TokenRequest, TokenVerifier
 from afd.server.auth_resource import ProtectedResource, create_protected_resource, is_scope_token
 from afd.server.auth_rules import (
@@ -41,12 +51,16 @@ from afd.server.auth_rules import (
     _is_branded_credentials,
     _unbrand_verified_credentials,
 )
+from afd.server.auth_scopes import ScopeChallenge, ScopeResolver, validate_scope_list
+from afd.server.auth_view import ScopeAuthority, ScopeView
 
 logger = logging.getLogger("afd.server")
 
 _SAFE_RULE = re.compile(r"\A[A-Za-z0-9_.:-]{1,64}\Z", re.ASCII)
 _SAFE_ALIAS = re.compile(r"\A[\x21-\x7E]{1,256}\Z", re.ASCII)
 _DEFAULT_MAX_FORM_BODY_BYTES = 1_048_576
+# Matches the MCP SDK's DEFAULT_MAX_REQUEST_BODY_SIZE (mcp.server.transport_security).
+_DEFAULT_MAX_JSON_BODY_BYTES = 4 * 1024 * 1024
 
 
 @dataclass(frozen=True)
@@ -71,6 +85,9 @@ class McpAuthOptions:
     require_bound_tokens: bool | None = None
     on_refusal: Callable[[AuthRefusal], None] | None = None
     max_form_body_bytes: int = _DEFAULT_MAX_FORM_BODY_BYTES
+    required_scopes: Sequence[str] = ()
+    resolver: ScopeResolver | None = None
+    filter_tools_by_scope: bool = False
 
 
 def credentials_actor(credentials: Credentials) -> Actor:
@@ -106,7 +123,10 @@ class _AdmittedAuth:
     layer: AuthLayer
     credentials: Credentials
     skew_s: int
+    view: ScopeView | None = None
     handoff: _QueuedDispatch | None = None
+    host_admitted: bool = False
+    scopes: tuple[Mapping[str, Any], ...] = ()
 
 
 _ADMITTED_AUTH: ContextVar[_AdmittedAuth | None] = ContextVar("afd_admitted_auth", default=None)
@@ -142,6 +162,18 @@ def admitted_credentials_for(layer: AuthLayer) -> Credentials | None:
         and _is_branded_credentials(admitted.credentials)
     ):
         return admitted.credentials
+    return None
+
+
+def admitted_view_for(layer: AuthLayer) -> ScopeView | None:
+    """The :class:`ScopeView` currently admitted for ``layer`` on this request, or ``None``."""
+    admitted = _ADMITTED_AUTH.get()
+    if (
+        admitted is not None
+        and admitted.layer is layer
+        and _is_branded_credentials(admitted.credentials)
+    ):
+        return admitted.view
     return None
 
 
@@ -189,8 +221,9 @@ def claim_admitted_dispatch(layer: AuthLayer | None) -> Iterator[None]:
         return
     fresh = _copy_credentials(admitted.credentials)
     _brand_verified_credentials(fresh, admitted.skew_s)
+    fresh_view = admitted.view.with_credentials(fresh) if admitted.view is not None else None
     token = _ADMITTED_AUTH.set(
-        _AdmittedAuth(layer=layer, credentials=fresh, skew_s=admitted.skew_s)
+        _AdmittedAuth(layer=layer, credentials=fresh, skew_s=admitted.skew_s, view=fresh_view)
     )
     try:
         yield
@@ -287,6 +320,86 @@ def _is_form_body(scope: Mapping[str, Any]) -> bool:
         if media == "application/x-www-form-urlencoded":
             return True
     return False
+
+
+def _is_json_body(scope: Mapping[str, Any]) -> bool:
+    for value in _header_values(scope, b"content-type"):
+        media = value.split(";", 1)[0].strip().lower()
+        if media == "application/json":
+            return True
+    return False
+
+
+def _unwrap_scope(request_or_scope: Any) -> Mapping[str, Any]:
+    if isinstance(request_or_scope, Mapping):
+        return request_or_scope
+    scope = getattr(request_or_scope, "scope", None)
+    if isinstance(scope, Mapping):
+        return scope
+    raise ValueError("[AFD] expected an ASGI scope mapping or Starlette Request")
+
+
+def _query_string(scope: Mapping[str, Any]) -> str | None:
+    raw_query = scope.get("query_string", b"")
+    if isinstance(raw_query, (bytes, bytearray)) and raw_query:
+        return bytes(raw_query).decode("latin-1")
+    if isinstance(raw_query, str) and raw_query:
+        return raw_query
+    return None
+
+
+async def _read_body_bytes(
+    scope: Mapping[str, Any], receive: Callable[[], Any], max_bytes: int
+) -> bytes | None:
+    """Read an HTTP request body up to ``max_bytes``; ``None`` if over cap."""
+    for raw_len in _header_values(scope, b"content-length"):
+        try:
+            length = int(raw_len.strip())
+        except ValueError:
+            continue
+        if length > max_bytes:
+            return None
+    chunks: list[bytes] = []
+    size = 0
+    while True:
+        message = await receive()
+        if message.get("type") != "http.request":
+            break
+        chunk = message.get("body", b"")
+        if chunk:
+            size += len(chunk)
+            if size > max_bytes:
+                return None
+            chunks.append(bytes(chunk))
+        if not message.get("more_body", False):
+            break
+    return b"".join(chunks)
+
+
+def _replay_receive(body: bytes, original_receive: Any) -> Any:
+    """ASGI ``receive`` delivering a preread ``body`` once, then delegating disconnect events."""
+    delivered = False
+
+    async def receive() -> dict[str, Any]:
+        nonlocal delivered
+        if not delivered:
+            delivered = True
+            return {"type": "http.request", "body": body, "more_body": False}
+        return await original_receive()
+
+    return receive
+
+
+async def _send_pre_dispatch(send: Callable[[dict[str, Any]], Any], pre: PreDispatch) -> None:
+    assert pre.status is not None
+    payload = pre.body.encode("utf-8")
+    headers = [
+        (name.lower().encode("latin-1"), value.encode("latin-1"))
+        for name, value in pre.headers.items()
+    ]
+    headers.append((b"content-length", str(len(payload)).encode("ascii")))
+    await send({"type": "http.response.start", "status": pre.status, "headers": headers})
+    await send({"type": "http.response.body", "body": payload, "more_body": False})
 
 
 def _strip_authorization(scope: Mapping[str, Any]) -> dict[str, Any]:
@@ -430,6 +543,83 @@ def _request_path(scope: Mapping[str, Any]) -> str:
     return path if isinstance(path, str) else ""
 
 
+class PreDispatchCheck:
+    """The decision before dispatch for a host's own HTTP layer (``spec/authorization.md``, M6):
+    runs the bearer layer's own implementation, so the two cannot drift."""
+
+    def __init__(
+        self,
+        layer: AuthLayer,
+        *,
+        max_body_bytes: int,
+        challenge: ScopeChallenge | None = None,
+        scope_source: str | None = None,
+    ) -> None:
+        self._layer = layer
+        self._max_body_bytes = max_body_bytes
+        self._challenge = challenge
+        self._scope_source = scope_source
+
+    @property
+    def max_body_bytes(self) -> int:
+        """The largest body the decision reads; read at most this many bytes plus one before it."""
+        return self._max_body_bytes
+
+    def decide(self, request_or_scope: Any, body: bytes | bytearray | str) -> PreDispatch:
+        """Decide ``request_or_scope`` (ASGI scope or Starlette Request) whose body the host has
+        read, after admitting credentials with ``server.admit(...)``."""
+        raw_bytes = (
+            body.encode("utf-8")
+            if isinstance(body, str)
+            else bytes(body)
+        )
+        if len(raw_bytes) > self._max_body_bytes:
+            return body_too_large()
+
+        scope = _unwrap_scope(request_or_scope)
+        admitted = _ADMITTED_AUTH.get()
+        if (
+            admitted is None
+            or admitted.layer is not self._layer
+            or not _is_branded_credentials(admitted.credentials)
+            or not any(scope is admitted_scope for admitted_scope in admitted.scopes)
+        ):
+            return PROCEED
+
+        view = admitted.view
+        if view is None:
+            return PROCEED
+
+        method = (scope.get("method") or "GET").upper()
+        path = _request_path(scope)
+        if method == "GET" and path == "/sse":
+            decision = view.decide_request()
+            if decision == "proceed":
+                return PROCEED
+            return forbidden_response(
+                self._layer.protected_resource,
+                decision.forbidden,
+                challenge=self._challenge,
+                scope_source=self._scope_source,
+            )
+
+        if method != "POST" or not _is_json_body(scope):
+            return PROCEED
+
+        try:
+            text = raw_bytes.decode("utf-8")
+        except UnicodeDecodeError:
+            return PROCEED
+
+        return decide_body(
+            view,
+            text,
+            self._layer.protected_resource,
+            challenge=self._challenge,
+            scope_source=self._scope_source,
+        )
+
+
 class AuthLayer:
     """The authorization layer of one AFD MCP server."""
 
@@ -443,14 +633,27 @@ class AuthLayer:
         skew_s: int,
         require_bound_tokens: bool,
         max_form_body_bytes: int,
+        required_scopes: tuple[str, ...] = (),
+        resolver: ScopeResolver | None = None,
+        filter_tools_by_scope: bool = False,
+        get_scope_authority: Callable[[], ScopeAuthority] | None = None,
     ) -> None:
         self.protected_resource = protected_resource
+        self.required_scopes = required_scopes
+        self.resolver = resolver
+        self.filter_tools_by_scope = filter_tools_by_scope
         self._verifier = verifier
         self._clock = clock
         self._on_refusal = on_refusal
         self._skew_s = skew_s
         self._require_bound_tokens = require_bound_tokens
         self._max_form_body_bytes = max_form_body_bytes
+        self._get_scope_authority = get_scope_authority
+
+    def _build_view(self, credentials: Credentials) -> ScopeView | None:
+        if self._get_scope_authority is None:
+            return None
+        return self._get_scope_authority().view(credentials)
 
     def _report_refusal(self, rule: str, issuer: str | None = None) -> None:
         safe_rule = rule if _SAFE_RULE.match(rule) is not None else "host"
@@ -479,28 +682,120 @@ class AuthLayer:
             extra_headers=[(b"www-authenticate", challenge.encode("latin-1"))],
         )
 
+    @contextmanager
+    def host_admit(self, request_or_scope: Any, credentials: Credentials) -> Iterator[Credentials]:
+        """Admit ``credentials`` a host's own HTTP layer vouches for, for this request alone (M6)."""
+        scope = _unwrap_scope(request_or_scope)
+        query = _query_string(scope)
+        if _header_values(scope, b"authorization") or (
+            query is not None and names_access_token(query)
+        ):
+            raise ValueError(
+                "[AFD] admit refuses a request that carries a bearer token: "
+                "one request has one source of credentials"
+            )
+        existing = _ADMITTED_AUTH.get()
+        if (
+            existing is not None
+            and existing.layer is self
+            and _is_branded_credentials(existing.credentials)
+            and any(scope is admitted_scope for admitted_scope in existing.scopes)
+        ):
+            raise ValueError(
+                "[AFD] admit refuses a request whose credentials were admitted before"
+            )
+        now = math.floor(self._clock.now() / 1000)
+        checked = _admissible(
+            credentials,
+            resource=self.protected_resource.resource,
+            require_bound_tokens=self._require_bound_tokens,
+            certificate=_certificate_thumbprint(scope),
+            now=now,
+            skew_s=0,
+        )
+        if isinstance(checked, str):
+            raise ValueError(f"[AFD] admit refuses the credentials: rule {checked}")
+
+        _brand_verified_credentials(checked, 0)
+        ctx_token = None
+        try:
+            view = self._build_view(checked)
+            ctx_token = _ADMITTED_AUTH.set(
+                _AdmittedAuth(
+                    layer=self,
+                    credentials=checked,
+                    skew_s=0,
+                    view=view,
+                    host_admitted=True,
+                    scopes=(scope,),
+                )
+            )
+            yield checked
+        finally:
+            if ctx_token is not None:
+                _ADMITTED_AUTH.reset(ctx_token)
+            _unbrand_verified_credentials(checked)
+
+    def pre_dispatch_check(
+        self,
+        *,
+        challenge: ScopeChallenge | None = None,
+        scope_source: str | None = None,
+        max_body_bytes: int | None = None,
+    ) -> PreDispatchCheck:
+        """Build a :class:`PreDispatchCheck` running the bearer layer's own decision before
+        dispatch (``spec/authorization.md``, M6)."""
+        if challenge is not None and not isinstance(challenge, ScopeChallenge):
+            raise ValueError("[AFD] challenge must be a ScopeChallenge instance")
+        if scope_source is not None and not isinstance(scope_source, str):
+            raise ValueError("[AFD] scope_source must be a string")
+        cap = _DEFAULT_MAX_JSON_BODY_BYTES if max_body_bytes is None else max_body_bytes
+        if isinstance(cap, bool) or not isinstance(cap, int) or cap < 1:
+            raise ValueError("[AFD] max_body_bytes must be a positive integer")
+        return PreDispatchCheck(
+            self,
+            max_body_bytes=cap,
+            challenge=challenge,
+            scope_source=scope_source,
+        )
+
     def wrap_asgi_app(
         self,
         app: Any,
         *,
         max_body_bytes: int | None = None,
+        decide_post_body: bool = True,
     ) -> Any:
         """Wrap an ASGI application (Streamable HTTP or SSE) with AFD's bearer layer."""
-        form_cap = (
-            min(self._max_form_body_bytes, max_body_bytes)
-            if max_body_bytes is not None
-            else self._max_form_body_bytes
+        json_cap = (
+            _DEFAULT_MAX_JSON_BODY_BYTES if max_body_bytes is None else max_body_bytes
         )
-        return _BearerAuthAsgiApp(self, app, form_cap)
+        return _BearerAuthAsgiApp(
+            self,
+            app,
+            form_body_cap=self._max_form_body_bytes,
+            json_body_cap=json_cap,
+            decide_post_body=decide_post_body,
+        )
 
 
 class _BearerAuthAsgiApp:
     """ASGI wrapper enforcing AFD's bearer layer while proxying Starlette attributes (e.g. ``router``)."""
 
-    def __init__(self, layer: AuthLayer, app: Any, form_cap: int) -> None:
+    def __init__(
+        self,
+        layer: AuthLayer,
+        app: Any,
+        *,
+        form_body_cap: int,
+        json_body_cap: int,
+        decide_post_body: bool = True,
+    ) -> None:
         self._layer = layer
         self._app = app
-        self._form_cap = form_cap
+        self._form_body_cap = form_body_cap
+        self._json_body_cap = json_body_cap
+        self._decide_post_body = decide_post_body
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._app, name)
@@ -527,20 +822,82 @@ class _BearerAuthAsgiApp:
             await _send_json(send, 200, layer.protected_resource.document())
             return
 
+        # A host's own layer vouched for this caller via server.admit(...): its credentials,
+        # and its own decision before dispatch (server.pre_dispatch_check), stand for bearer auth.
+        existing = _ADMITTED_AUTH.get()
+        if (
+            existing is not None
+            and existing.layer is layer
+            and existing.host_admitted
+            and _is_branded_credentials(existing.credentials)
+            and any(scope is admitted_scope for admitted_scope in existing.scopes)
+        ):
+            query = _query_string(scope)
+            if _header_values(scope, b"authorization") or (
+                query is not None and names_access_token(query)
+            ):
+                await layer._send_unauthorized(send, "token-location")
+                return
+            # Non-POST routes handled directly by the ASGI transport (GET/DELETE /mcp, GET /sse)
+            # do not pass through JSON-RPC pre_boundary, so enforce required_scopes here too.
+            if existing.view is not None and (
+                (self._decide_post_body and method != "POST")
+                or (not self._decide_post_body and method == "GET")
+            ):
+                req_dec = existing.view.decide_request()
+                if req_dec != "proceed":
+                    await _send_pre_dispatch(
+                        send,
+                        forbidden_response(layer.protected_resource, req_dec.forbidden),
+                    )
+                    return
+            cleaned_scope = dict(scope)
+            sdk_user = _sdk_authenticated_user(existing.credentials)
+            if sdk_user is not None:
+                cleaned_scope["user"] = sdk_user
+            else:
+                cleaned_scope.pop("user", None)
+            handoff = _QueuedDispatch() if method == "POST" else None
+
+            async def _observe_host_send(message: dict[str, Any]) -> None:
+                if (
+                    handoff is not None
+                    and message.get("type") == "http.response.start"
+                    and message.get("status") == 202
+                ):
+                    handoff.queued = True
+                await send(message)
+
+            ctx_token = _ADMITTED_AUTH.set(
+                _AdmittedAuth(
+                    layer=layer,
+                    credentials=existing.credentials,
+                    skew_s=existing.skew_s,
+                    view=existing.view,
+                    handoff=handoff,
+                    host_admitted=True,
+                    scopes=(*existing.scopes, cleaned_scope),
+                )
+            )
+            try:
+                await self._app(
+                    cleaned_scope, receive, _observe_host_send if handoff is not None else send
+                )
+            finally:
+                if handoff is not None:
+                    handoff.finished = True
+                _ADMITTED_AUTH.reset(ctx_token)
+            return
+
         # M2: read form body when Content-Type is application/x-www-form-urlencoded.
         form_body: str | None = None
         if _is_form_body(scope):
-            form_body = await _read_form_body(scope, receive, self._form_cap)
+            form_body = await _read_form_body(scope, receive, self._form_body_cap)
             if form_body is None:
                 await _send_json(send, 413, {"error": "Request body is too large"})
                 return
 
-        raw_query = scope.get("query_string", b"")
-        query = (
-            bytes(raw_query).decode("latin-1")
-            if isinstance(raw_query, (bytes, bytearray)) and raw_query
-            else None
-        )
+        query = _query_string(scope)
         auth_headers = _header_values(scope, b"authorization")
         bearer = extract_bearer(auth_headers, query, form_body)
         if isinstance(bearer, BearerRefusal):
@@ -581,39 +938,94 @@ class _BearerAuthAsgiApp:
             await _send_json(send, 415, {"error": "Content-Type must be application/json"})
             return
 
-        sdk_user = _sdk_authenticated_user(admitted)
-        if sdk_user is not None:
-            cleaned_scope["user"] = sdk_user
-        else:
-            cleaned_scope.pop("user", None)
-
-        handoff = _QueuedDispatch() if method == "POST" else None
-
-        async def _observe_send(message: dict[str, Any]) -> None:
-            if (
-                handoff is not None
-                and message.get("type") == "http.response.start"
-                and message.get("status") == 202
-            ):
-                handoff.queued = True
-            await send(message)
-
         _brand_verified_credentials(admitted, layer._skew_s)
-        ctx_token = _ADMITTED_AUTH.set(
-            _AdmittedAuth(
-                layer=layer, credentials=admitted, skew_s=layer._skew_s, handoff=handoff
-            )
-        )
+        handoff: _QueuedDispatch | None = None
+        ctx_token = None
         try:
-            await self._app(cleaned_scope, receive, _observe_send if handoff is not None else send)
+            view = layer._build_view(admitted)
+            next_receive = receive
+
+            # M6: the 403 before dispatch (and 400 -32600 for JSON-RPC batches).
+            if view is not None:
+                if self._decide_post_body:
+                    if method == "POST" and _is_json_body(cleaned_scope):
+                        raw_body = await _read_body_bytes(
+                            cleaned_scope, receive, self._json_body_cap
+                        )
+                        if raw_body is None:
+                            await _send_pre_dispatch(send, body_too_large())
+                            return
+                        try:
+                            text = raw_body.decode("utf-8")
+                        except UnicodeDecodeError:
+                            pre = PROCEED
+                        else:
+                            pre = decide_body(view, text, layer.protected_resource)
+                        if not pre.proceed:
+                            await _send_pre_dispatch(send, pre)
+                            return
+                        next_receive = _replay_receive(raw_body, receive)
+                    elif method != "POST":
+                        req_dec = view.decide_request()
+                        if req_dec != "proceed":
+                            await _send_pre_dispatch(
+                                send,
+                                forbidden_response(layer.protected_resource, req_dec.forbidden),
+                            )
+                            return
+                elif method == "GET":
+                    req_dec = view.decide_request()
+                    if req_dec != "proceed":
+                        await _send_pre_dispatch(
+                            send,
+                            forbidden_response(layer.protected_resource, req_dec.forbidden),
+                        )
+                        return
+
+            sdk_user = _sdk_authenticated_user(admitted)
+            if sdk_user is not None:
+                cleaned_scope["user"] = sdk_user
+            else:
+                cleaned_scope.pop("user", None)
+
+            handoff = _QueuedDispatch() if method == "POST" else None
+
+            async def _observe_send(message: dict[str, Any]) -> None:
+                if (
+                    handoff is not None
+                    and message.get("type") == "http.response.start"
+                    and message.get("status") == 202
+                ):
+                    handoff.queued = True
+                await send(message)
+
+            ctx_token = _ADMITTED_AUTH.set(
+                _AdmittedAuth(
+                    layer=layer,
+                    credentials=admitted,
+                    skew_s=layer._skew_s,
+                    view=view,
+                    handoff=handoff,
+                    scopes=(scope, cleaned_scope),
+                )
+            )
+            await self._app(
+                cleaned_scope, next_receive, _observe_send if handoff is not None else send
+            )
         finally:
             if handoff is not None:
                 handoff.finished = True
-            _ADMITTED_AUTH.reset(ctx_token)
+            if ctx_token is not None:
+                _ADMITTED_AUTH.reset(ctx_token)
             _unbrand_verified_credentials(admitted)
 
 
-def create_auth_layer(options: McpAuthOptions, *, clock: Clock | None = None) -> AuthLayer:
+def create_auth_layer(
+    options: McpAuthOptions,
+    *,
+    clock: Clock | None = None,
+    get_scope_authority: Callable[[], ScopeAuthority] | None = None,
+) -> AuthLayer:
     """Validate ``options`` and build an :class:`AuthLayer` for one MCP server.
 
     Raises:
@@ -621,6 +1033,19 @@ def create_auth_layer(options: McpAuthOptions, *, clock: Clock | None = None) ->
     """
     if not isinstance(options, McpAuthOptions):
         raise ValueError("[AFD] auth must be an McpAuthOptions instance")
+    required_scopes = validate_scope_list("auth.required_scopes", options.required_scopes)
+    resolver = options.resolver
+    if resolver is not None:
+        if not callable(getattr(resolver, "resolve", None)) or not callable(
+            getattr(resolver, "visible", None)
+        ):
+            raise ValueError("[AFD] auth.resolver must have resolve() and visible()")
+        known_attr = getattr(resolver, "known", None)
+        if known_attr is not None and not callable(known_attr):
+            raise ValueError("[AFD] auth.resolver.known must be callable when present")
+    if not isinstance(options.filter_tools_by_scope, bool):
+        raise ValueError("[AFD] auth.filter_tools_by_scope must be a bool")
+
     verifier = options.verifier
     if not callable(getattr(verifier, "verify", None)):
         raise ValueError("[AFD] auth.verifier must be a TokenVerifier, such as a JwtVerifier")
@@ -689,6 +1114,24 @@ def create_auth_layer(options: McpAuthOptions, *, clock: Clock | None = None) ->
     if not callable(on_refusal):
         raise ValueError("[AFD] auth.on_refusal must be callable")
 
+    authority_provider = get_scope_authority
+    if authority_provider is None:
+        if resolver is not None or options.filter_tools_by_scope:
+            raise ValueError(
+                "[AFD] create_auth_layer with resolver or filter_tools_by_scope requires "
+                "get_scope_authority (use create_server(..., auth=...))"
+            )
+        default_authority = ScopeAuthority(
+            required_scopes=required_scopes,
+            resolver=None,
+            filter_tools_by_scope=False,
+            commands=(),
+            tool_strategy="individual",
+            group_by_fn=None,
+            resource=protected,
+        )
+        authority_provider = lambda: default_authority  # noqa: E731
+
     skew_s = rules.clock_skew_s if rules is not None else 0
     return AuthLayer(
         protected_resource=protected,
@@ -698,6 +1141,10 @@ def create_auth_layer(options: McpAuthOptions, *, clock: Clock | None = None) ->
         skew_s=skew_s,
         require_bound_tokens=require_bound_tokens,
         max_form_body_bytes=options.max_form_body_bytes,
+        required_scopes=required_scopes,
+        resolver=resolver,
+        filter_tools_by_scope=options.filter_tools_by_scope,
+        get_scope_authority=authority_provider,
     )
 
 
@@ -705,7 +1152,9 @@ __all__ = [
     "AuthLayer",
     "AuthRefusal",
     "McpAuthOptions",
+    "PreDispatchCheck",
     "admitted_credentials_for",
+    "admitted_view_for",
     "bind_trusted_transport",
     "claim_admitted_dispatch",
     "create_auth_layer",

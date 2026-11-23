@@ -193,6 +193,7 @@ async def execute_batch(
                     approval=getattr(context, "approval", None),
                     credentials=getattr(context, "credentials", None),
                     _output_budget_ask=getattr(context, "_output_budget_ask", None),
+                    _scope_view=getattr(context, "_scope_view", None),
                 )
                 item = commands[index]
                 task = asyncio.ensure_future(run_command(item.command, item.input, item_context))

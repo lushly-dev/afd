@@ -16,6 +16,7 @@ from afd.core.commands import (
 from afd.core.contract import CONTRACT_VERSION
 from afd.core.result import CommandResult, success
 from afd.core.wire import WireModel
+from afd.server.auth_view import listed_commands, scope_view_of
 from afd.server.bootstrap.afd_context import BOOTSTRAP_EXPOSE
 from afd.server.context_fields import ContextField, describe_context_fields
 from afd.server.validation import _input_validation_failure
@@ -41,6 +42,7 @@ class CommandInfo(WireModel):
     undoable: Optional[bool] = None
     requires: Optional[List[str]] = None
     contexts: Optional[List[str]] = None
+    scopes: Optional[List[str]] = None
     examples: Optional[List[dict[str, Any]]] = None
     output_schema: Optional[dict[str, Any]] = None
     output_budget: Optional[dict[str, int]] = None
@@ -82,8 +84,14 @@ async def _afd_help_handler(
     first_class_tools: Optional[List[str]] = None,
     context_fields: Optional[List[Dict[str, Any]]] = None,
 ) -> CommandResult[AfdHelpOutput]:
-    all_commands = get_commands()
-    first_class = set(first_class_tools or [])
+    view = scope_view_of(context)
+    all_commands = listed_commands(get_commands(), view)
+    shown_first_class = (
+        [name for name in first_class_tools if view is None or view.shown(name)]
+        if first_class_tools is not None
+        else None
+    )
+    first_class = set(shown_first_class or [])
     filtered = input.filter is not None
     commands = all_commands
 
@@ -106,6 +114,7 @@ async def _afd_help_handler(
             description=command.description,
             requires=command.requires or None,
             contexts=command.contexts or None,
+            scopes=list(command.scopes) if command.scopes else None,
             first_class=True if command.name in first_class else None,
         )
 
@@ -129,6 +138,11 @@ async def _afd_help_handler(
         category = command.category or "uncategorized"
         grouped_by_category.setdefault(category, []).append(info)
 
+    output_first_class = (
+        shown_first_class
+        if tool_strategy == "hybrid" and shown_first_class is not None
+        else (shown_first_class if shown_first_class else None)
+    )
     output = AfdHelpOutput(
         contract_version=CONTRACT_VERSION,
         commands=command_infos,
@@ -136,7 +150,7 @@ async def _afd_help_handler(
         filtered=filtered,
         grouped_by_category=grouped_by_category,
         tool_strategy=tool_strategy,
-        first_class_tools=list(first_class_tools) if first_class_tools else None,
+        first_class_tools=output_first_class,
         context_fields=copy.deepcopy(context_fields) if context_fields else None,
     )
     reasoning = (

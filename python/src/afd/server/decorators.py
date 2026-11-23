@@ -34,6 +34,7 @@ from typing import (
     List,
     Literal,
     Optional,
+    Sequence,
     Type,
     TypeVar,
     Union,
@@ -49,6 +50,7 @@ from afd.core.commands import (
     CommandParameter,
     ExposeOptions,
     TaskSupport,
+    validate_command_scopes,
     validate_task_declaration,
     warn_invalid_command_name,
 )
@@ -99,6 +101,7 @@ class CommandMetadata:
     execution_time: Optional[Literal["instant", "fast", "slow", "long-running"]] = None
     task: Optional[TaskSupport] = None
     output_budget: Optional[OutputBudget] = None
+    scopes: List[str] = field(default_factory=list)
 
 
 def define_command(
@@ -125,6 +128,7 @@ def define_command(
     execution_time: Optional[Literal["instant", "fast", "slow", "long-running"]] = None,
     task: Optional[TaskSupport] = None,
     output_budget: Optional[Union[OutputBudget, Dict[str, Any]]] = None,
+    scopes: Optional[Sequence[str]] = None,
     _stacklevel: int = 2,
 ) -> Callable:
     """Decorator to define a command with metadata.
@@ -190,6 +194,7 @@ def define_command(
         approval=approval,
     )
     normalized_output_budget = validate_output_budget_declaration(name, output_budget)
+    normalized_scopes = validate_command_scopes(name, scopes)
     if input_schema is not None:
         check_schema(_advertised_schema(input_schema))
 
@@ -216,6 +221,7 @@ def define_command(
             examples=normalized_examples,
             requires=list(requires or []),
             contexts=list(contexts or []),
+            scopes=normalized_scopes,
             handoff=handoff,
             handoff_protocol=handoff_protocol,
             expose=expose,
@@ -369,6 +375,7 @@ def command_to_definition(func: Callable) -> Optional[CommandDefinition]:
         examples=metadata.examples,
         requires=metadata.requires,
         contexts=metadata.contexts,
+        scopes=list(metadata.scopes),
         handoff=metadata.handoff,
         handoff_protocol=metadata.handoff_protocol,
         expose=metadata.expose,
