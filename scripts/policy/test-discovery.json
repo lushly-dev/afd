@@ -56,9 +56,9 @@
 			"issue": "#1519"
 		},
 		{
-			"path": "docs/features/active/ideas/prototype/test_prototype.py",
+			"path": "docs/features/complete/ideas/prototype/test_prototype.py",
 			"owner": "Falkicon",
-			"reason": "Standalone design-phase prototype test run manually per its module docstring while the ideas proposal is active",
+			"reason": "Standalone design-phase prototype test archived with the completed ideas v1 proposal and run manually per its module docstring",
 			"issue": "#1519"
 		},
 		{

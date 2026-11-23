@@ -2,9 +2,9 @@
 
 | Field | Value |
 | --- | --- |
-| Serves | The host changes the [Ideas plan](../../../../../docs/features/active/ideas/ideas.proposal.md) calls P2 (indexed records) and P3 (matching), and what [D157](../../decisions.md) left to "be specified with indexed records": the manifest declaration, the label's values and the indexing. Step A2 of that plan, first part. Its phase B implements this document |
+| Serves | The host changes the [Ideas plan](../../../../../docs/features/complete/ideas/ideas.proposal.md) calls P2 (indexed records) and P3 (matching), and what [D157](../../decisions.md) left to "be specified with indexed records": the manifest declaration, the label's values and the indexing. Step A2 of that plan, first part. Its phase B implements this document |
 | Owner | Repository owner approves; the Ideas plan's owning agent writes and implements |
-| Read first | [STATUS.md](../../STATUS.md), the [architecture](../../architecture.md) (principles 4 and 7 to 10, sections 4, 5 and 7), the [decision log](../../decisions.md) (D9, D42, D53, D55, D56, D63, D65, D68, D70 to D72, D74, D115, D125, D150, D157, open decision O4, and D158 to D171, made here), the Ideas plan's sections 4.3, 4.4, 4.9, 6, 7 and 9, and [phase 0's results](../../../../../docs/features/active/ideas/prototype/README.md) (0.2) with `prototype/match.py` (class `Lexical`) |
+| Read first | [STATUS.md](../../STATUS.md), the [architecture](../../architecture.md) (principles 4 and 7 to 10, sections 4, 5 and 7), the [decision log](../../decisions.md) (D9, D42, D53, D55, D56, D63, D65, D68, D70 to D72, D74, D115, D125, D150, D157, open decision O4, and D158 to D171, made here), the Ideas plan's sections 4.3, 4.4, 4.9, 6, 7 and 9, and [phase 0's results](../../../../../docs/features/complete/ideas/prototype/README.md) (0.2) with `prototype/match.py` (class `Lexical`) |
 | Elevation | Exact names, shapes, codes, tables, files, tests and pull requests. An implementing agent needs no further design decision; where it finds one, it stops and amends this document by pull request |
 
 Code paths are relative to `endpoints/umbel/`.
@@ -14,7 +14,7 @@ Code paths are relative to `endpoints/umbel/`.
 - **State:** written 2026-11-11 for step A2 of the Ideas plan. **Decided under the owner's direction of 2026-11-11**
   that the plan carry on through its phases on its recommendations, with questions queued. **The owner has not yet
   read this specification.** Every decision here stays open to him (the
-  [Ideas status](../../../../../docs/features/active/ideas/STATUS.md), Q2), and section
+  [Ideas status](../../../../../docs/features/complete/ideas/STATUS.md), Q2), and section
   [18](#18-for-the-owner) lists what he could reasonably want otherwise. **Step B1 of section
   [16](#16-implementation-plan), the shapes, is implemented** (2026-11-11), amended below
   ([B1](#amendments-from-step-b1)): manifest version 6, configuration version 6, the lane's types and pure
@@ -416,7 +416,7 @@ Code paths are relative to `endpoints/umbel/`.
     `memory/schema.rs`, `memory/rank.rs`; `sdk/src/store.rs` (to line 460); `src/person/mod.rs` (to line 400);
     `src/plugins/manifest/v5.rs` (to line 125), `src/plugins/mod.rs` (lines 55 to 175), `grants.rs` (to line 380),
     `store_services.rs` (to line 520), `src/store/mod.rs` (to line 140), `src/authority.rs` (to line 260);
-    `docs/features/active/ideas/prototype/match.py`.
+    `docs/features/complete/ideas/prototype/match.py`.
   - Read in part, by the lines cited here: `store/src/envelope.rs`, `memory.rs` (recall's types and limits),
     `memory/tokenizer.rs` (its header and `tokens`), `conformance/mod.rs` and `conformance/memory/mod.rs` (the group
     lists); `store-embedded/src/memory/read.rs` (recall and its statistics), `inspect.rs` (`backup_to`);
@@ -735,7 +735,7 @@ What the design leans on outside this repository, what was checked on 2026-11-11
 | `model2vec-rs` (the static provider) | `cargo info` and its source: 0.4.0, Rust 1.88, an MIT `LICENSE` file (crates.io shows no SPDX expression). `StaticModel::from_bytes(tokenizer, model, config, normalize)`, `encode`, `dim`; the feature `local-only` compiles out its downloads. It depends on `tokenizers` 0.21 and `safetensors` 0.5 | That its vectors equal the Python library's for `potion-base-8M`, which is what phase 0 measured: compare with `match.py embed` on a fixed list. That `tokenizers` builds without `onig`. The model's licence |
 | `unicode-normalization`, `caseless` (the identical digest) | `cargo info` and source: 0.1.26, `(MIT OR Apache-2.0) AND Unicode-3.0`, tables for Unicode 18.0.0; and 0.2.2, MIT, case folding for Unicode 16.0.0. Neither is in `Cargo.lock` today | That both build for `wasm32-wasip2`, which `umbel-store` must (`store/src/lib.rs:8`); that the repository's licence policy admits `Unicode-3.0`. **Checked in step B1** ([A11](#amendments-from-step-b1)): both build for it, and the repository configures no licence policy |
 | `reqwest` (the HTTP provider) | 0.13.5 is in `Cargo.lock` for the `auth` and `mounted` features, and its manifest has a `blocking` feature | That `blocking` composes with the host's runtime when called from a blocking thread |
-| Phase 0's figures | Read from its [results](../../../../../docs/features/active/ideas/prototype/README.md): across documents, 35 probes with a duplicate; within five candidates, words alone 0.886, fused 0.914 to 0.971; model labels, pooled pairs | They are indicative only (D167). The owner's check of the labels is queued (Ideas status, Q5) |
+| Phase 0's figures | Read from its [results](../../../../../docs/features/complete/ideas/prototype/README.md): across documents, 35 probes with a duplicate; within five candidates, words alone 0.886, fused 0.914 to 0.971; model labels, pooled pairs | They are indicative only (D167). The owner's check of the labels is queued (Ideas status, Q5) |
 | The phase 0 tokenizer | `match.py` tokenises with `[A-Za-z0-9]+`, drops tokens over 40 characters and stems with Snowball's English stemmer | **How much the lane's tokenizer changes the phase 0 rates.** The lane uses the memory tokenizer, which is Porter's first stemmer over `unicode61` tokens (section [8.2](#82-words)). Step B6 reruns phase 0's pairs |
 
 No row of the [trajectory watch](../../trajectory.md) is touched: no MCP surface, no client behaviour and no

@@ -541,7 +541,7 @@ material, from loosest to strongest:
   only, readable positions sealed deterministically, and readable-only totals, so that
   filtering is exact and a boundary in modes `oauth` and `gateway`.
 - *Decided 2026-11-11 ([D157](decisions.md)), for the
-  [Ideas plan](../../../docs/features/active/ideas/ideas.proposal.md), under
+  [Ideas plan](../../../docs/features/complete/ideas/ideas.proposal.md), under
   the owner's direction; he has not yet read the wording:* a third kind of
   durable content beside the two stores, **standing records**. They are a
   plugin's own records, of a kind its manifest declares, that an agent may

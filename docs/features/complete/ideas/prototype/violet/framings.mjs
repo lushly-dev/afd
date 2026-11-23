@@ -5,7 +5,7 @@
 //
 // Run from the repository root (needs the built dist of violet-core and violet-afd, which
 // `pnpm check` produces):
-//   fnm exec --using "$(cat .nvmrc)" -- node docs/features/active/ideas/prototype/violet/framings.mjs
+//   fnm exec --using "$(cat .nvmrc)" -- node docs/features/complete/ideas/prototype/violet/framings.mjs
 // Writes results.json next to this file. Invented data only; no network.
 
 import { writeFileSync } from 'node:fs';

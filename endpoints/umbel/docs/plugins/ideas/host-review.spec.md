@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Serves | The host part of what the [Ideas plan](../../../../../docs/features/active/ideas/ideas.proposal.md) calls P15, cut to what the [Ideas plugin's version 1](spec.md) needs: a preview in pages bound to one digest, items a person can pull out, a decision lifetime long enough to read them, a list of pending decisions on the page, and a page served on the local machine for an instance with no sign-in. Step A3 of that plan, host part. The part of P15 that changes AFD's relay is step A4's and is not here |
+| Serves | The host part of what the [Ideas plan](../../../../../docs/features/complete/ideas/ideas.proposal.md) calls P15, cut to what the [Ideas plugin's version 1](spec.md) needs: a preview in pages bound to one digest, items a person can pull out, a decision lifetime long enough to read them, a list of pending decisions on the page, and a page served on the local machine for an instance with no sign-in. Step A3 of that plan, host part. The part of P15 that changes AFD's relay is step A4's and is not here |
 | Owner | Repository owner approves; the Ideas plan's owning agent writes and implements |
 | Read first | [STATUS.md](../../STATUS.md), the [phase 5 specification](../../phases/5-auth-hosted/spec.md) (sections 7.1 to 7.5), the [records host specification](host-records.spec.md) (section 6.1), the [decision log](../../decisions.md) (D71, D86, D97, D115, D116, D161, and D180, made here), and the [Ideas plugin specification](spec.md) (sections 8 and 9) |
 | Elevation | Exact names, shapes, codes, files, tests and pull requests. An implementing agent needs no further design decision; where it finds one, it stops and amends this document by pull request |
@@ -15,7 +15,7 @@ Code paths are relative to `endpoints/umbel/`.
   owner's direction of 2026-11-11 and 2026-11-12** that the plan carry on through its phases on its recommendations,
   and on his requirements of 2026-11-12: review in bulk with an agent's help, confirmed in a browser and not at a
   terminal, and authentication optional in Umbel. **The owner has not read this specification.** Every decision here
-  stays open to him (the [Ideas status](../../../../../docs/features/active/ideas/STATUS.md), Q2). It decides D180.
+  stays open to him (the [Ideas status](../../../../../docs/features/complete/ideas/STATUS.md), Q2). It decides D180.
   Steps H0 to H3 and `person.local.public_origin` are merged ([#1081](https://github.com/lushly-dev/afd/pull/1081), [#1097](https://github.com/lushly-dev/afd/pull/1097), [#1107](https://github.com/lushly-dev/afd/pull/1107), [#1137](https://github.com/lushly-dev/afd/pull/1137), [#1188](https://github.com/lushly-dev/afd/pull/1188)). **Revised the same day after an independent review** (three blockers, nine improvements),
   all taken: section 6.2 now specifies how a call reaches the gate at all in mode `none`; an unpaged preview stays
   exactly `{ preview }`; a `local` assurance gets envelope version 4; the form's fields, the local page's rules, the

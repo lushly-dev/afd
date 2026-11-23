@@ -11,8 +11,7 @@ Its working name is Ideas, and the plugin id is `ideas` ([section 11](#11-for-th
 
 ## Status
 
-- **State:** active, partially complete. Phase 0's findings are recorded with owner checks
-  remaining; host steps B1 to B4, plugin steps C1 to C5 and the local review page H3 are merged. Progress is in [STATUS.md](STATUS.md), which is the
+- **State:** complete (version 1 shipped and in daily use; partially complete archive). Epic [#1548](https://github.com/lushly-dev/afd/issues/1548) closed 2026-11-22; host steps B1 to B4, review host H0 to H3, plugin steps C1 to C5, first-use fixes ([#1186](https://github.com/lushly-dev/afd/pull/1186)), and `public_origin` ([#1188](https://github.com/lushly-dev/afd/pull/1188), [#1189](https://github.com/lushly-dev/afd/pull/1189)) are merged, and C5 local exit is confirmed ([#2005](https://github.com/lushly-dev/afd/issues/2005)). Progress and carried follow-ups are in [STATUS.md](STATUS.md), which is the
   ledger; read it first. Written 2026-11-11 against `main` at `8ef7aa68`, from a design
   discussion with the owner on 2026-11-10 and 2026-11-11, and revised three times the same day
   ([Revision](#revision-of-2026-11-11)), the third time against `main` at `069af7b6`. The owner
@@ -1392,7 +1391,7 @@ direction, it is listed in [STATUS.md](STATUS.md) for him to confirm, and he can
 | 12. First-class places | `ideas-capture`, `ideas-ask` and `ideas-guide`, with `memory-remember` kept and `workspace-show` and `event-list` left out. The recommendation was to leave `memory-remember` out; a probe in phase 0.10 found that requests to remember then reach no tool, so it was changed | On recommendation, changed by phase 0.10 |
 | 13. Who may settle a finding | Any caller, recorded, counted and open to reversal | On recommendation |
 | 15. A job for finding something new | Added once the loop is in use | On recommendation |
-| 10. Scope of P9 to P12 | Open. It carried no recommendation and nothing before phase H needs it | Open |
+| 10. Scope of P9 to P12 | Separate plans: not part of this plan's Phase H ([#2015](https://github.com/lushly-dev/afd/issues/2015) closed as not planned; overlaps Umbel Phase 6 [#1546](https://github.com/lushly-dev/afd/issues/1546) and Violet in Loam [#1556](https://github.com/lushly-dev/afd/issues/1556)) | Answered 2026-11-22 |
 
 ### The questions as they were put
 
