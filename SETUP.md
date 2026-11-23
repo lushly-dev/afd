@@ -18,7 +18,7 @@ Add these for the area you touch:
 
 | Tool | Version | Needed for | Check |
 |------|---------|-----------|-------|
-| Python | 3.10+ (3.11+ for Botcore, Alfred and Health) | `python/`, `alfred/`, `endpoints/botcore/`, `endpoints/health/` | `python --version` |
+| Python | 3.11+ | `python/`, `alfred/`, `endpoints/botcore/`, `endpoints/health/` | `python --version` |
 | uv | Latest | The Python projects above | `uv --version` |
 | Rust | 1.98.0 for Umbel, Loam Mail and Specimen's host (each has a `rust-toolchain.toml` that pins it, and Umbel's adds the `wasm32-wasip2` target; `rustup` installs what they name); the `afd` crate supports 1.85+ | `packages/rust/`, `endpoints/umbel/`, `endpoints/loam/plugins/`, Specimen's native host | `rustc --version` |
 | CMake and a C++20 compiler | CMake 3.25+; GCC 12+, Clang 16+, Apple Clang 15+ or MSVC 2022 | `packages/cpp/` | `cmake --version` |
@@ -227,7 +227,7 @@ Skip hooks: `git commit --no-verify` / `git push --no-verify`
 
 ### Python (Ruff)
 
-- 100 char line width, Python 3.10 target
+- 100 char line width, Python 3.11 target
 - Pytest for testing
 
 ## Repo Configuration

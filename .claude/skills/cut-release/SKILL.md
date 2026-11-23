@@ -68,7 +68,7 @@ A native tag publishes only a commit on `main`, and a release tag cannot be move
 2. Read the new section in `python/CHANGELOG.md` and edit it where the release needs more than its entries: migration notes under the breaking changes, entries that say the same thing merged.
 3. Commit `chore(python): release afd X.Y.Z`; merge after `python.yml` passes. Run the gate as CI does (`uv sync --frozen --all-extras`): a stale local `.venv` on another interpreter fails test collection with misleading import errors.
 4. **Maintainer** tags the merge commit and pushes the tag: `git tag -a python-vX.Y.Z <merge-sha> -m "afd Python X.Y.Z; AFD contract <spec/VERSION>"`. `publish-python.yml` checks the tag against admission and `pyproject.toml`, runs `python.yml` and uploads once the maintainer approves the `pypi` deployment. A GitHub Release on the tag (`--latest=false`) reruns it, skipping existing files.
-5. Verify: download the published wheel, match its SHA-256 to PyPI's, and install base, client, server and CLI in fresh environments on Python 3.10 to 3.12.
+5. Verify: download the published wheel, match its SHA-256 to PyPI's, and install base, client, server and CLI in fresh environments on Python 3.11 to 3.14.
 
 ## Rust (crates.io)
 
