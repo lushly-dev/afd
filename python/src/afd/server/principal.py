@@ -16,6 +16,7 @@ from typing import Any
 
 from afd.core.actor import Actor
 from afd.server.approval import _canonical_json
+from afd.server.auth_rules import Credentials
 
 
 @dataclass(frozen=True)
@@ -48,10 +49,18 @@ class IncompleteCredentials(TypeError):
         super().__init__("credentials lack an issuer, subject or client id")
 
 
-def _identity(credentials: PrincipalCredentials | Mapping[str, Any] | None) -> dict[str, Any] | None:
+def _identity(
+    credentials: PrincipalCredentials | Credentials | Mapping[str, Any] | None,
+) -> dict[str, Any] | None:
     if credentials is None:
         return None
-    if isinstance(credentials, Mapping):
+    if isinstance(credentials, Credentials):
+        credentials = PrincipalCredentials(
+            issuer=credentials.issuer,
+            subject=credentials.subject,
+            client_id=credentials.client_id,
+        )
+    elif isinstance(credentials, Mapping):
         credentials = PrincipalCredentials(
             issuer=credentials.get("issuer"),
             subject=credentials.get("subject"),
@@ -78,13 +87,13 @@ def _actor_identity(actor: Actor | None) -> dict[str, Any] | None:
 
 def principal_binding(
     actor: Actor | None,
-    credentials: PrincipalCredentials | Mapping[str, Any] | None = None,
+    credentials: PrincipalCredentials | Credentials | Mapping[str, Any] | None = None,
 ) -> str:
     """A call's principal binding: the canonical JSON of ``{"actor": ..., "credentials": ...}``.
 
-    ``credentials`` is a :class:`PrincipalCredentials`, or a mapping with ``issuer``,
-    ``subject`` and ``clientId`` (other members are ignored). Two calls share a binding only
-    when their actor and their token's issuer, subject and client are the same.
+    ``credentials`` is a :class:`PrincipalCredentials`, :class:`Credentials`, or a mapping with
+    ``issuer``, ``subject`` and ``clientId`` (other members are ignored). Two calls share a
+    binding only when their actor and their token's issuer, subject and client are the same.
 
     Raises:
         TypeError: For an actor that is not an :class:`Actor`.
@@ -94,7 +103,9 @@ def principal_binding(
     return _canonical_json({"actor": _actor_identity(actor), "credentials": _identity(credentials)})
 
 
-def credentials_binding(credentials: PrincipalCredentials | Mapping[str, Any] | None = None) -> str:
+def credentials_binding(
+    credentials: PrincipalCredentials | Credentials | Mapping[str, Any] | None = None,
+) -> str:
     """The credentials' part of a principal binding alone (relay evidence's
     ``credentialsBinding``): the canonical JSON of ``{issuer, subject, clientId}``, or ``null``.
     """

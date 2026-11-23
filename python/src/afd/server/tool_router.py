@@ -28,6 +28,7 @@ from afd.server.confirmations import (
     without_confirm,
 )
 from afd.core.similarity import truncate_name
+from afd.server.auth import credentials_actor
 from afd.server.context_fields import current_context_field_values
 from afd.server.context_hook import copy_extra, current_hook_outcome
 from afd.server.lazy_tools import execute_detail, execute_discover, not_found_suggestion
@@ -58,6 +59,8 @@ class ToolRouterDeps:
     # MCP Tasks (spec/command-metadata.md, "Tasks"): single-command dispatch and composite refusal.
     dispatch_task: Callable[[CommandDefinition, Any, CommandContext], Awaitable[Any]] | None = None
     refuse_composite_task: Callable[[Literal["afd-batch", "afd-pipe"], str], Any] | None = None
+    # Verified credentials admitted by AFD's HTTP auth layer for the current request, if any.
+    get_admitted_credentials: Callable[[], Any] | None = None
 
 NOT_IN_CONTEXT_SUGGESTION = (
     "Use afd-context-list to see available contexts, or afd-context-enter to switch."
@@ -117,7 +120,13 @@ def create_tool_router(deps: ToolRouterDeps):
         # Precedence (spec/context-fields.md, "Trusted code wins"):
         # 1. Declared context fields from the request's _meta (caller claims)
         # 2. The host's context_hook values (trusted code wins over _meta)
-        # 3. The server's own invariants (interface, remote, active_context)
+        # 3. The server's own invariants (interface, remote, active_context, credentials)
+        admitted = (
+            deps.get_admitted_credentials() if deps.get_admitted_credentials is not None else None
+        )
+        default_actor = (
+            credentials_actor(admitted) if admitted is not None else (deps.actor or _MCP_ACTOR)
+        )
         outcome = current_hook_outcome()
         hook_ctx = outcome.context if outcome is not None else None
         if hook_ctx is not None:
@@ -133,10 +142,11 @@ def create_tool_router(deps: ToolRouterDeps):
                 },
                 actor=copy.copy(hook_ctx.actor)
                 if hook_ctx.actor is not None
-                else copy.copy(deps.actor or _MCP_ACTOR),
+                else copy.copy(default_actor),
                 clock=hook_ctx.clock,
                 random=hook_ctx.random,
                 approval=hook_ctx.approval,
+                credentials=admitted,
             )
         return CommandContext(
             trace_id=new_trace_id(prefix),
@@ -146,7 +156,8 @@ def create_tool_router(deps: ToolRouterDeps):
                 "remote": True,
                 "active_context": active_context,
             },
-            actor=copy.copy(deps.actor or _MCP_ACTOR),
+            actor=copy.copy(default_actor),
+            credentials=admitted,
         )
 
     def not_in_context(name: str, active_context: str | None) -> CommandResult[Any]:

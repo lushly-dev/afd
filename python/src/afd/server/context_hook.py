@@ -90,6 +90,13 @@ from afd.core.actor import Actor, ContextDefaults, is_actor, with_context_defaul
 from afd.core.commands import CommandContext
 from afd.core.errors import CommandError, ErrorCodes
 from afd.core.result import CommandResult
+from afd.server.auth import credentials_actor
+from afd.server.auth_rules import (
+    Credentials,
+    _clone_verified_credentials,
+    _copy_credentials,
+    _unbrand_verified_credentials,
+)
 from afd.server.context_fields import JOURNALED_CONTEXT_FIELDS
 
 logger = logging.getLogger("afd.server")
@@ -227,18 +234,35 @@ async def run_context_hook(
     request_context: Any,
     defaults: ContextDefaults,
     trace_id: str,
+    *,
+    credentials: Credentials | None = None,
 ) -> HookOutcome:
     """Invoke ``hook`` once and normalize its answer, failing closed on error."""
-    default_actor = defaults.actor if defaults.actor is not None else _DEFAULT_MCP_ACTOR
+    default_actor = (
+        credentials_actor(credentials)
+        if credentials is not None
+        else (defaults.actor if defaults.actor is not None else _DEFAULT_MCP_ACTOR)
+    )
     effective_defaults = ContextDefaults(
         clock=defaults.clock,
         random=defaults.random,
         actor=default_actor,
     )
-    # Give the hook the server's defaults (and no _meta context fields), so it
-    # can refine the actor rather than rebuild defaults from scratch.
+    # Give the hook the server's defaults (and an isolated copy of verified credentials when
+    # auth is on, never _meta context fields), so it can map credentials to the actor without
+    # being able to mutate the authoritative credentials object in place (e.g. via
+    # object.__setattr__).
+    hook_credentials: Credentials | None = None
+    unbrand_hook_credentials = False
+    if credentials is not None:
+        cloned = _clone_verified_credentials(credentials)
+        if cloned is not None:
+            hook_credentials = cloned
+            unbrand_hook_credentials = True
+        else:
+            hook_credentials = _copy_credentials(credentials)
     base = with_context_defaults(
-        CommandContext(trace_id=trace_id, extra={}),
+        CommandContext(trace_id=trace_id, extra={}, credentials=hook_credentials),
         effective_defaults,
     )
     hook_request = ContextHookRequest(tool=tool, request_context=request_context)
@@ -302,8 +326,9 @@ async def run_context_hook(
             return HookOutcome(refusal=_internal_hook_error())
 
         # Copy into a fresh CommandContext so DirectClient-only internal tokens
-        # (_direct_approval, _direct_allow) cannot be carried or forged, and later
-        # mutations to the returned object cannot alter the bound context.
+        # (_direct_approval, _direct_allow) cannot be carried or forged, later
+        # mutations to the returned object cannot alter the bound context, and the
+        # server's verified credentials (M4) cannot be changed or forged by the hook.
         clean = CommandContext(
             trace_id=raw.trace_id if raw.trace_id else trace_id,
             timeout=raw.timeout,
@@ -312,6 +337,7 @@ async def run_context_hook(
             clock=raw.clock,
             random=raw.random,
             approval=raw.approval,
+            credentials=credentials,
         )
         normalized = with_context_defaults(clean, effective_defaults)
         actor_at_start = copy.copy(normalized.actor)
@@ -319,6 +345,9 @@ async def run_context_hook(
     except Exception as exc:
         logger.error("Context hook raised an unhandled exception", exc_info=exc)
         return HookOutcome(refusal=_internal_hook_error())
+    finally:
+        if unbrand_hook_credentials and hook_credentials is not None:
+            _unbrand_verified_credentials(hook_credentials)
 
 
 __all__ = [

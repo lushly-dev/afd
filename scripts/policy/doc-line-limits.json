@@ -247,13 +247,6 @@
 			"reason": "One feature's row across four languages, written before the limit came down to 1,500; split it when it next changes"
 		},
 		{
-			"file": "docs/language-parity.md",
-			"startsWith": "| MCP authorization ([`spec/authorization.md`]",
-			"length": 2530,
-			"sha256": "4b1bce19bd7f2314c823152b99e8d8ce65d64be6550bd67423c9878d0e5bca96",
-			"reason": "One feature's row across four languages, written before the limit; split it when it next changes"
-		},
-		{
 			"file": "endpoints/loam/docs/STATUS.md",
 			"startsWith": "- **State:** exited 2026-11-09",
 			"length": 1557,
