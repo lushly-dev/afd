@@ -7,8 +7,10 @@ export const NORMALIZATION_VERSION = '0.2' as const;
 
 export type { Args, Decorator, Meta, Preview, StoryContext, StoryObj } from './csf-types.js';
 export type * from './pack-types.js';
+export type * from './pattern-types.js';
 
 import type { PackConfig } from './pack-types.js';
+import type { ImplementationContexts, PatternSetupBinding } from './pattern-types.js';
 
 export interface SpecimenContext {
 	viewport: { width: number; height: number };
@@ -178,6 +180,10 @@ export interface SpecimenDefinition {
 	events?: EventDeclaration[];
 	/** What this specimen's expectations prove, for coverage. */
 	coverage?: CoverageClaim[];
+	/** Pattern setup this specimen mounts, when it serves as a setup case for a pattern's gates. */
+	patternSetup?: PatternSetupBinding;
+	/** Declared context limits for this implementation of a pattern. */
+	contexts?: ImplementationContexts;
 }
 export interface SpecimenModule {
 	default?: {
@@ -198,6 +204,10 @@ export interface SpecimenEntry {
 	story?: StoryIdentity;
 	/** The themes it is meant for, when it declares a limit; absent when it follows the theme. */
 	themes?: ThemeSupport;
+	/** Pattern setup this entry mounts, when bound to a pattern's gates. */
+	patternSetup?: PatternSetupBinding;
+	/** Declared context limits for this implementation of a pattern. */
+	contexts?: ImplementationContexts;
 	/** Sent with a render, not discovered: properties to read live on each tag, for coverage. */
 	observe?: Record<string, string[]>;
 	/** Sent with a render, not discovered: markup the page mounts after loading the module. */
@@ -268,7 +278,19 @@ export interface BenchConfig {
 	 * a guide source or an array of them, which Node runs to add shared rules. Needs `manifest`.
 	 */
 	guideSources?: string[];
-	/** What `specimen pack` builds: one library's component pack. Needs `manifest`. */
+	/**
+	 * Globs finding local pattern files, relative to the configuration file.
+	 * Uses the same glob dialect as `guides` (`*`, whole-segment `**`, `?`, `{a,b}`).
+	 * Defaults to `['specimens/patterns/*\/pattern.json']` when omitted and the directory exists.
+	 */
+	patterns?: string[];
+	/**
+	 * External libraries whose patterns and gates this project may claim and run locally
+	 * with no network call: relative paths to pack root directories, or npm package specifiers
+	 * whose `package.json` exports `./pack`.
+	 */
+	patternSources?: string[];
+	/** What `specimen pack` builds: one library's component pack. Needs `manifest`, or `patterns` with `dependencies`/`localElements`. */
 	pack?: PackConfig;
 }
 export interface ValidationIssue {

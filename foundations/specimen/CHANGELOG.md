@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add `pattern.json` Zod and draft 2020-12 JSON Schema (`@lushly-dev/specimen/pattern.schema.json`), the 9 ASCII format-2 identifier forms, `PatternTarget` role sets and mutually exclusive name matchers (`name`, `nameStartsWith`, `nameContains`), `BenchConfig` `patterns`/`patternSources` (including offline resolution of local pack directories and packages exporting `./pack`) and manifest-less app `pack` configuration (`dependencies`, `localElements`, `themeStylesheet`), `guideComponentSchema` `implements`/`contexts`, static `parameters.specimen.{patternSetup,contexts}` extraction in `specimen-host`, and zero-browser `specimen-validate` portability and cross-reference checks (#2144).
+
 - Add the shared two-step meaningful-element climb (`climbSelection`, `climbElement`, `climbObservation`), the `specimen:` pointer URI parser/formatter (`parsePointer`, `formatPointer`, rejecting malformed pointers with `POINTER_INVALID`), and the static review page's **Pick** mode with outline, breadcrumb path, click-deeper, modifier-click deepest, Escape-to-parent, and **Copy pointer** (#2042). Raise the static build shell ceiling from 52,000 to 68,000 bytes (65,222 on fixtures) and total ceiling from 1,300,000 to 1,330,000 bytes (1,313,919 on fixtures).
 
 - Split Specimen host target resolution failures (`host/src/page.rs`) into typed `TARGET_NOT_FOUND` and `TARGET_AMBIGUOUS` errors carrying actionable suggestions and match counts (`details.count`), and preserve structured `code`, `suggestion`, and `details` across the host JSON-lines client and worker IPC (#2046).

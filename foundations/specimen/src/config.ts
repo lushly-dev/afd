@@ -1,8 +1,10 @@
 import { createHash } from 'node:crypto';
+import { existsSync, statSync } from 'node:fs';
 import { readFile, realpath } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { type LoadedGuides, loadGuides } from './guides.js';
 import { readManifest } from './manifest.js';
+import { DEFAULT_PATTERNS_DIRECTORY, type LoadedPatterns, loadPatterns } from './patterns.js';
 import type { ComponentSchema } from './plugin.js';
 import { type Discovery, discoverStories } from './stories.js';
 import type { BenchConfig, BenchOptions, SpecimenContext, SpecimenEntry } from './types.js';
@@ -40,6 +42,8 @@ export interface LoadedConfig {
 	baselines?: string;
 	/** The configured guide files and guide sources' rules, with what the static checks found. */
 	guides?: LoadedGuides;
+	/** Local pattern files, offline `patternSources`, and static pattern validation findings. */
+	patterns?: LoadedPatterns;
 }
 export const digest = (value: string | Uint8Array): string =>
 	createHash('sha256').update(value).digest('hex');
@@ -150,6 +154,30 @@ export async function loadConfig(options: BenchOptions): Promise<LoadedConfig> {
 					guideSources
 				)
 			: undefined;
+	const defaultPatternsDir = resolve(dirname(file), DEFAULT_PATTERNS_DIRECTORY);
+	const hasDefaultPatternsDir =
+		existsSync(defaultPatternsDir) && statSync(defaultPatternsDir).isDirectory();
+	const needsPatterns =
+		config.patterns !== undefined ||
+		config.patternSources !== undefined ||
+		hasDefaultPatternsDir ||
+		Boolean(guides?.components.some((guide) => guide.implements && guide.implements.length > 0)) ||
+		entries.some((entry) => entry.patternSetup !== undefined) ||
+		Boolean(stories?.discovery.patternBindings?.length);
+	const patterns = needsPatterns
+		? await loadPatterns({
+				root,
+				configFile: file,
+				...(config.patterns === undefined ? {} : { patterns: config.patterns }),
+				...(config.patternSources === undefined ? {} : { patternSources: config.patternSources }),
+				...(config.pack?.library === undefined ? {} : { localLibrary: config.pack.library }),
+				...(guides ? { guides } : {}),
+				entries,
+				...(stories?.discovery.patternBindings
+					? { storyBindings: stories.discovery.patternBindings }
+					: {}),
+			})
+		: undefined;
 	const baselines = config.profile?.baselines;
 	return {
 		root,
@@ -173,5 +201,6 @@ export async function loadConfig(options: BenchOptions): Promise<LoadedConfig> {
 		staticDirs,
 		...(stories ? { stories } : {}),
 		...(guides ? { guides } : {}),
+		...(patterns ? { patterns } : {}),
 	};
 }

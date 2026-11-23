@@ -494,6 +494,30 @@ describe('guide JSON Schema', () => {
 		expect(rules(await read('shared.guide.json')), ajv.errorsText()).toBe(true);
 		expect(component({ tag: 'example-button', extra: 1 })).toBe(false);
 		expect(component({ tag: 'example-button', replacedBy: 'example-link' })).toBe(false);
+		expect(
+			component({
+				tag: 'example-button',
+				implements: ['action-trigger', { library: 'violet', pattern: 'dialog.modal' }],
+				contexts: {
+					viewport: { minWidth: 320, maxWidth: 1280 },
+					themes: ['dark', 'light'],
+					reason: 'Tested on standard viewports.',
+				},
+			}),
+			ajv.errorsText()
+		).toBe(true);
+		expect(
+			component({
+				tag: 'example-button',
+				contexts: { reason: 'Neither viewport nor themes.' },
+			})
+		).toBe(false);
+		expect(
+			component({
+				tag: 'example-button',
+				implements: ['action-trigger', 'action-trigger'],
+			})
+		).toBe(false);
 		expect(rules({ rules: [{ id: 'a.b', text: 'A rule.', appliesTo: {} }] })).toBe(false);
 	});
 });

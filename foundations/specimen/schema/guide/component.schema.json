@@ -121,6 +121,95 @@
 			"minLength": 1,
 			"maxLength": 8000,
 			"pattern": "^[^\\u0000-\\u0008\\u000B-\\u001F\\u007F-\\u009F\\u202A-\\u202E\\u2066-\\u2069]*$"
+		},
+		"implements": {
+			"maxItems": 16,
+			"type": "array",
+			"items": {
+				"anyOf": [
+					{
+						"type": "string",
+						"maxLength": 64,
+						"pattern": "^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$"
+					},
+					{
+						"type": "object",
+						"properties": {
+							"library": {
+								"type": "string",
+								"maxLength": 64,
+								"pattern": "^[a-z][a-z0-9-]{0,63}$"
+							},
+							"pattern": {
+								"type": "string",
+								"maxLength": 64,
+								"pattern": "^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$"
+							}
+						},
+						"required": ["library", "pattern"],
+						"additionalProperties": false
+					}
+				]
+			},
+			"uniqueItems": true
+		},
+		"contexts": {
+			"type": "object",
+			"properties": {
+				"viewport": {
+					"type": "object",
+					"properties": {
+						"minWidth": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 8192
+						},
+						"maxWidth": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 8192
+						},
+						"minHeight": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 8192
+						},
+						"maxHeight": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 8192
+						}
+					},
+					"additionalProperties": false,
+					"minProperties": 1
+				},
+				"themes": {
+					"minItems": 1,
+					"maxItems": 3,
+					"type": "array",
+					"items": {
+						"type": "string",
+						"enum": ["dark", "high-contrast", "light"]
+					},
+					"uniqueItems": true
+				},
+				"reason": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 240,
+					"pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u202A-\\u202E\\u2066-\\u2069]*$"
+				}
+			},
+			"required": ["reason"],
+			"additionalProperties": false,
+			"anyOf": [
+				{
+					"required": ["viewport"]
+				},
+				{
+					"required": ["themes"]
+				}
+			]
 		}
 	},
 	"required": ["tag"],

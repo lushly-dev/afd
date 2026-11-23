@@ -99,6 +99,32 @@ const storySchema = z
 		annotations: z.object({ meta: z.array(z.string()), story: z.array(z.string()) }).strict(),
 	})
 	.strict();
+const patternSetupSchema = z
+	.object({
+		library: z.string().min(1).optional(),
+		pattern: z.string().min(1),
+		setup: z.string().min(1),
+	})
+	.strict();
+const implementationContextsSchema = z
+	.object({
+		viewport: z
+			.object({
+				minWidth: z.number().int().min(1).max(8192).optional(),
+				maxWidth: z.number().int().min(1).max(8192).optional(),
+				minHeight: z.number().int().min(1).max(8192).optional(),
+				maxHeight: z.number().int().min(1).max(8192).optional(),
+			})
+			.strict()
+			.optional(),
+		themes: z
+			.array(z.enum(['dark', 'high-contrast', 'light']))
+			.min(1)
+			.max(3)
+			.optional(),
+		reason: z.string().min(1),
+	})
+	.strict();
 const entrySchema = z
 	.object({
 		id: z.string(),
@@ -108,6 +134,8 @@ const entrySchema = z
 		component: z.string().optional(),
 		story: storySchema.optional(),
 		themes: themeSupportSchema.optional(),
+		patternSetup: patternSetupSchema.optional(),
+		contexts: implementationContextsSchema.optional(),
 	})
 	.strict();
 const validateInput = z
@@ -296,7 +324,7 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 		...common,
 		name: 'specimen-validate',
 		description:
-			'Validate retained stories statically: identity, format and annotation support, with what only running them can settle',
+			'Validate retained stories, guides, and pattern files statically with no browser: identity, schema, portability, cross-references, and what only running story modules can settle',
 		mutation: false,
 		input: validateInput,
 		output: validateOutput,

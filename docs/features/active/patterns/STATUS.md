@@ -18,37 +18,37 @@ not, so an agent never has to scan the code to learn what is current. It follows
 ## Status block
 
 - **State:** active (Phase 0 step 0.5 **go with changes** approved 2026-11-22 on
-  [#1966](https://github.com/lushly-dev/afd/issues/1966); promoted from `proposed/` to `active/`).
-  Phase A specification ([#2133](https://github.com/lushly-dev/afd/issues/2133)) authored 2026-11-22
-  in [`spec.md`](spec.md),
-  [Umbel Amendment A31](../../../../endpoints/umbel/docs/plugins/components/spec.md#amendment-a31-patterns-and-saved-copies-1073),
-  and [Design Decisions](../design-decisions/design-decisions.proposal.md), folding in
-  all seven Phase 0 adjustments and all deferred Phase A items. Awaiting owner approval for Phase A
-  exit; Phases B–D remain gated on Phase A exit.
+  [#1966](https://github.com/lushly-dev/afd/issues/1966); Phase A specification
+  [#2133](https://github.com/lushly-dev/afd/issues/2133) merged in
+  [#2139](https://github.com/lushly-dev/afd/pull/2139); Phase B Step B1
+  [#2144](https://github.com/lushly-dev/afd/issues/2144) merged in
+  [#2203](https://github.com/lushly-dev/afd/pull/2203)).
 - **Epic:** [#1073](https://github.com/lushly-dev/afd/issues/1073). Work happens in its sub-issues;
   this file is the source of truth for progress.
 - **Done:** the proposal; owner walkthrough decisions (section 12 and decisions 1–20); ten jobs as
   scenario files; three-seat reader walks and two-model independent review ([#1133](https://github.com/lushly-dev/afd/issues/1133),
   [#2020](https://github.com/lushly-dev/afd/pull/2020)); Phase 0 steps 0.1–0.5 ([#1966](https://github.com/lushly-dev/afd/issues/1966),
   [#2122](https://github.com/lushly-dev/afd/pull/2122), closed with 2026-11-22 **go with changes**
-  decision recorded on `#1966`); Phase A specification draft and revised scenarios ([#2133](https://github.com/lushly-dev/afd/issues/2133)).
-- **Not done:** Owner approval for Phase A exit ([#2133](https://github.com/lushly-dev/afd/issues/2133));
-  Phases B to D (gated on Phase A exit). See [Delivery steps](#delivery-steps) and
+  decision recorded on `#1966`); Phase A specification, companion amendments, and revised scenarios
+  ([#2133](https://github.com/lushly-dev/afd/issues/2133), [#2139](https://github.com/lushly-dev/afd/pull/2139));
+  Phase B Step B1 pattern schema, `patternSources`, and static `specimen-validate` checks
+  ([#2144](https://github.com/lushly-dev/afd/issues/2144), [#2203](https://github.com/lushly-dev/afd/pull/2203)).
+- **Not done:** Phase B steps B2–B5 and Phases C to D. See [Delivery steps](#delivery-steps) and
   [What is not done](#what-is-not-done).
-- **Last verified:** 2026-11-22 on Node 26.13.0 (`.nvmrc`): `afd scenario validate`, dry-run
-  (`checkFixtures: true`), zero `${{` expect refs, and `scenarioCoverage` over all 10 revised
-  scenarios in `docs/features/active/patterns/scenarios/`; `pnpm verify`.
+- **Last verified:** 2026-11-22 on Node 26.13.1 (`.nvmrc`): B1 pattern schema, `patternSources`,
+  and static `specimen-validate` checks (including Job 5 `05-refuse-an-unportable-gate`);
+  `pnpm verify`.
 - **Follow-ups:** the [table below](#follow-ups-not-yet-issues).
 
 ## Delivery steps
 
 Each step sits on its own blank-line-separated list item so concurrent pull requests never conflict.
 
-- **Phase A — Specifications and Pack Format 2 ([#2133](https://github.com/lushly-dev/afd/issues/2133)):** In review (2026-11-22). [`spec.md`](spec.md), [Umbel Amendment A31](../../../../endpoints/umbel/docs/plugins/components/spec.md#amendment-a31-patterns-and-saved-copies-1073), [Design Decisions gate-case skip](../design-decisions/design-decisions.proposal.md), and all 10 revised scenarios pass checks; awaits owner Phase A exit approval.
+- **Phase A — Specifications and Pack Format 2 ([#2133](https://github.com/lushly-dev/afd/issues/2133)):** Done 2026-11-22 ([#2139](https://github.com/lushly-dev/afd/pull/2139)). [`spec.md`](spec.md), [Umbel Amendment A31](../../../../endpoints/umbel/docs/plugins/components/spec.md#amendment-a31-patterns-and-saved-copies-1073), [Design Decisions gate-case skip](../design-decisions/design-decisions.proposal.md), and all 10 revised scenarios merged.
 
-- **Phase B — Specimen (B1–B5):** Not started (gated on Phase A exit). B1 pattern schema/validation; B2 `press`, capture 0.10 ARIA states (incl. `invalid`), `a11y`/`focus`/`layout` + host-climb; B3 setups, filtered `specimen-list`, native gate `specimen-run`, `patterns@1` (`patternLibrary`), upgraded `fixtures/pack-library/{select,field}.js` stubs (P0-4); B4 Slice 2 `specimen-pattern-save` (zero-error remount, `tokens`, `pack.localElements`, downgrade guard, batch refresh); B5 Pack Format 2 (`docs/pack-format.md`, `checkPack`, `PATTERN_SETUP_MISSING`, `fingerprintsOnly`).
+- **Phase B — Specimen (B1–B5):** In progress. B1 ([#2144](https://github.com/lushly-dev/afd/issues/2144), merged in [#2203](https://github.com/lushly-dev/afd/pull/2203)) pattern schema/validation; B2 ([#2145](https://github.com/lushly-dev/afd/issues/2145)) `press`, capture 0.10 ARIA states (incl. `invalid`), `a11y`/`focus`/`layout` + host-climb; B3 ([#2146](https://github.com/lushly-dev/afd/issues/2146)) setups, filtered `specimen-list`, native gate `specimen-run`, `patterns@1` (`patternLibrary`), upgraded `fixtures/pack-library/{select,field}.js` stubs (P0-4); B4 (Slice 2, not yet filed) `specimen-pattern-save` (zero-error remount, `tokens`, `pack.localElements`, downgrade guard, batch refresh); B5 Slice 1 ([#2147](https://github.com/lushly-dev/afd/issues/2147)) Pack Format 2 (`docs/pack-format.md`, `checkPack`, `PATTERN_SETUP_MISSING`, per-error suggestions; Slice 2 copy records and `fingerprintsOnly` follow with B4).
 
-- **Phase C — Umbel `components` plugin (C1–C3):** Not started (gated on Phase A exit). C1 format 2 reader & cross-library aggregation; C2 `components-pattern-list` & `components-pattern-open`; C3 `components-brief` patterns (compact links, `patternCustomize` shed before `usage`, `out-of-context` vs `minimum_basis`), Slice 2 `content.copies` & `components-check` `OUTDATED_COPIES`.
+- **Phase C — Umbel `components` plugin (C1–C3):** Open (blocked on Phase B). C1 ([#2148](https://github.com/lushly-dev/afd/issues/2148)) format 2 reader & cross-library aggregation; C2 Slice 1 ([#2149](https://github.com/lushly-dev/afd/issues/2149)) `components-pattern-list` & `components-pattern-open`; C3 Slice 1 ([#2150](https://github.com/lushly-dev/afd/issues/2150)) `components-brief` patterns (compact links, `patternCustomize` shed before `usage`, `out-of-context` vs `minimum_basis`), with Slice 2 `content.copies` & `components-check` `OUTDATED_COPIES` following Slice 2.
 
 - **Phase D — First consumers (D1–D3):** Not started (gated on Phases B & C). D1 `violet-elements` (`select`, `field`, `dialog.modal` + builder re-measurement per P0-7); D2 Loam (`pack.localElements`, saved copies, checklist gates); D3 second consumer library (Lushly).
 
@@ -64,19 +64,15 @@ Each step sits on its own blank-line-separated list item so concurrent pull requ
 | Walk the paths with readers who did not write them | Done 2026-11-21 ([#1133](https://github.com/lushly-dev/afd/issues/1133), [#2020](https://github.com/lushly-dev/afd/pull/2020)) | Pass 1: three fresh read-only readers (Person, Job List, Calling Agent); Pass 2: one fresh read-only reader over post-walk additions ([The walk](#the-walk)) |
 | Independent review of the proposal | Done 2026-11-21 ([#1133](https://github.com/lushly-dev/afd/issues/1133), [#2020](https://github.com/lushly-dev/afd/pull/2020)) | Two-model first review (`gemini-4-neon` + `claude-opus-5-5` `high`) + focused verification passes ([The review](#the-review)) |
 | Phase 0, steps 0.1 to 0.5 | Done 2026-11-22 ([#1966](https://github.com/lushly-dev/afd/issues/1966), [#2122](https://github.com/lushly-dev/afd/pull/2122), merged as `cfdb77d8b9`) | [Phase 0 findings](#phase-0-findings) ($2.89 of $25.00 cap spent on 0.3; step 0.5 owner decision recorded 2026-11-22: **go with changes**) |
-| Phase A, specify | Drafted 2026-11-22; awaits owner approval ([#2133](https://github.com/lushly-dev/afd/issues/2133)) | [`spec.md`](spec.md), [Umbel Amendment A31](../../../../endpoints/umbel/docs/plugins/components/spec.md#amendment-a31-patterns-and-saved-copies-1073), [Design Decisions amendment](../design-decisions/design-decisions.proposal.md), revised [`scenarios/`](scenarios/) |
-| Phases B to D | Not started; gated on Phase A exit | [`spec.md` §7](spec.md#7-phase-deliverables-and-measurement-gates) |
+| Phase A, specify | Done 2026-11-22 ([#2133](https://github.com/lushly-dev/afd/issues/2133), [#2139](https://github.com/lushly-dev/afd/pull/2139)) | [`spec.md`](spec.md), [Umbel Amendment A31](../../../../endpoints/umbel/docs/plugins/components/spec.md#amendment-a31-patterns-and-saved-copies-1073), [Design Decisions amendment](../design-decisions/design-decisions.proposal.md), revised [`scenarios/`](scenarios/) |
+| Phases B to D | In progress (B1 [#2144](https://github.com/lushly-dev/afd/issues/2144) merged in [#2203](https://github.com/lushly-dev/afd/pull/2203)) | [`spec.md` §7](spec.md#7-phase-deliverables-and-measurement-gates) |
 
 ## What is not done
 
-- **Phase A exit approval ([#2133](https://github.com/lushly-dev/afd/issues/2133)).** The Phase A
-  specifications, companion amendments, and revised scenarios are drafted and checked; Phases B–D
-  remain gated on the owner's Phase A exit approval.
-- **No production code is written yet.** All Phase 0 scripts were throwaway measurement harnesses
-  kept outside the repository. Focus capture across open shadow roots is confirmed
-  (`foundations/specimen/src/browser/capture.ts:112-123`), while capture 0.10 ARIA states (incl.
-  `invalid`), `press`, `a11y`/`focus`/`layout` expectations, pack format 2, and Umbel pattern
-  commands belong to Phases B–D.
+- **Phase B remaining steps:** Capture 0.10 ARIA states (incl. `invalid`), `press`, `a11y`/`focus`/`layout` expectations with host-climb ([#2145](https://github.com/lushly-dev/afd/issues/2145)), native gate execution and `patterns@1` coverage ([#2146](https://github.com/lushly-dev/afd/issues/2146)), Slice 2 saved copies (`specimen-pattern-save`), and Pack Format 2 ([#2147](https://github.com/lushly-dev/afd/issues/2147)) remain open.
+- **Phases C and D:** Umbel `components` plugin format-2 reader and pattern commands
+  ([#2148](https://github.com/lushly-dev/afd/issues/2148)–[#2150](https://github.com/lushly-dev/afd/issues/2150))
+  and first consumers (`violet-elements`, Loam, Lushly) remain open.
 
 ## Phase 0 findings
 
@@ -450,3 +446,4 @@ Read on `main` at `d152f3dc` (2026-11-12) and re-verified at `9e2aff933` (2026-1
 | 2026-11-21 | Walkthrough & `#1133` | Walked the proposal section by section with the owner, resolving all seven section 12 questions (decisions 1–20), reconciling shared conventions with Design Decisions / Screens from Jobs / Pointing, and filing Phase 0 ([#1966](https://github.com/lushly-dev/afd/issues/1966)), pointer context ([#1967](https://github.com/lushly-dev/afd/issues/1967)) and design-to-code ([#1968](https://github.com/lushly-dev/afd/issues/1968)). Ran three-seat reader walks (pass 1 + pass 2 on additions) and two-model independent review (`gemini-4-neon` + `claude-opus-5-5` `high`), applied all blockers and improvements, updated `docs/features/README.md`, and verified all 10 scenarios (44 steps, 12/12 commands, 5/8 errors, 0 dry-run errors) |
 | 2026-11-22 | Phase 0 (`#1966`) | Executed Phase 0 steps 0.1–0.4 via throwaway measurement harnesses with session-fixed go/no-go rules: (0.1) confirmed Specimen focus capture across open shadow roots, documented the `aria.rs` `invalid` gap, ran portable `select`/`field` gates catching 18/20 faults via shared gates (10/10 on real `violet-*`, 4/5 on each `example-*` stub, plus 2 stub-only click-change checks), and identified 4 Phase A gate/target gaps; (0.2) tested 20 saved regions (10 Loam chrome + 10 `violet-elements`), finding 15/20 (75%) faithful remount with app tags (8/20 strict CEM), 0/20 false `complete`, and 20/20 theme-token dependency; (0.3) ran 15 isolated Sonnet 5.5 builder sessions ($2.89 of $25.00 cap), cutting median tokens 43%–54% and reaching 60/60 (100%) on both pattern arms vs 58/60 (96.7%) source-only; (0.4) verified post-A24 Rust `fast_af.rs` baseline and measured `field` brief size (-103 B to -223 B at 40k and -255 B to -375 B whole once `customize` sheds before `usage`). Recorded findings and **go with changes** recommendation for step 0.5 in `STATUS.md` (merged in [#2122](https://github.com/lushly-dev/afd/pull/2122) as `cfdb77d8b9`) |
 | 2026-11-22 | Step 0.5 & Phase A (`#2133`) | Recorded owner's step 0.5 **go with changes** decision on [#1966](https://github.com/lushly-dev/afd/issues/1966) and in `STATUS.md`; promoted `docs/features/proposed/patterns/` → `docs/features/active/patterns/`, updated `docs/features/README.md` and all sibling links; opened sub-issue [#2133](https://github.com/lushly-dev/afd/issues/2133) under [#1073](https://github.com/lushly-dev/afd/issues/1073). Authored Phase A [`spec.md`](spec.md) (Specimen pattern schema, portable gates, capture 0.10 ARIA states, Slice 2 saved copies, Pack Format 2), [Umbel Amendment A31](../../../../endpoints/umbel/docs/plugins/components/spec.md#amendment-a31-patterns-and-saved-copies-1073), and [Design Decisions gate-case skip amendment](../design-decisions/design-decisions.proposal.md), folding in all seven Phase 0 adjustments and all deferred Phase A items. Revised all 10 scenarios (`patternLibrary`, compact same-library `patterns` links, `remount.errors`) and verified 10/10 valid, 0 dry-run errors, 0 expect refs, 12/12 commands (100%), 5/9 errors on Node 26.13.0 |
+| 2026-11-22 | Phase B Step B1 (`#2144`) | Implemented static pattern files (`pattern.json` Zod schema and `@lushly-dev/specimen/pattern.schema.json`), all 9 ASCII format-2 identifier forms (including split-on-`/` <= 64 `qualifiedPattern`), `PatternTarget` role sets and mutually exclusive name matchers (P0-1), `BenchConfig` `patterns`/`patternSources` and manifest-less app `pack` config (`dependencies`/`localElements`/`themeStylesheet`), `guideComponentSchema` `implements`/`contexts`, offline `patternSources` loading, static `parameters.specimen.{patternSetup,contexts}` extraction in `specimen-host`, and zero-browser `specimen-validate` portability/reference checks passing Job 5 (`05-refuse-an-unportable-gate`). Recorded newly minted [#2144](https://github.com/lushly-dev/afd/issues/2144)–[#2150](https://github.com/lushly-dev/afd/issues/2150) beside the Delivery steps (merged in [#2203](https://github.com/lushly-dev/afd/pull/2203)) |

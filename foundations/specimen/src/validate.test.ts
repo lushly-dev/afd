@@ -4,6 +4,8 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { defaultContext } from './config.js';
+import { packIdentifier } from './pack-schema.js';
+import { implementationContextsSchema, patternSetupBindingSchema } from './pattern-schema.js';
 import {
 	a11yRequestSchema,
 	baselineRequestSchema,
@@ -63,6 +65,8 @@ const configSchema = z
 							...(reason === undefined ? {} : { reason }),
 						}))
 						.optional(),
+					patternSetup: patternSetupBindingSchema.optional(),
+					contexts: implementationContextsSchema.optional(),
 				})
 			)
 			.min(1)
@@ -135,11 +139,48 @@ const configSchema = z
 		manifest: z.string().min(1).optional(),
 		profile: z.strictObject({ baselines: z.string().min(1).optional() }).optional(),
 		guides: z.array(z.string().min(1)).optional(),
+		patterns: z.array(z.string().min(1)).optional(),
+		patternSources: z.array(z.string().min(1)).optional(),
+		pack: z
+			.strictObject({
+				library: packIdentifier('library'),
+				title: z
+					.string()
+					.min(1)
+					.refine((value) => [...value].length <= 80),
+				prefix: packIdentifier('prefix'),
+				directory: z.string().min(1),
+				package: z.string().min(1),
+				import: z.string().min(1).optional(),
+				examples: z.number().int().min(0).max(16).optional(),
+				dependencies: z.array(z.string().min(1)).optional(),
+				localElements: z
+					.strictObject({
+						manifest: z.string().min(1).optional(),
+						tags: z
+							.array(packIdentifier('tag'))
+							.min(1)
+							.max(256)
+							.refine((tags) => new Set(tags).size === tags.length)
+							.optional(),
+					})
+					.refine((value) => value.manifest !== undefined || value.tags !== undefined)
+					.optional(),
+				themeStylesheet: z.string().min(1).optional(),
+			})
+			.optional(),
 	})
 	.refine((config) => config.specimens !== undefined || config.stories !== undefined)
 	.refine((config) => config.preview === undefined || config.stories !== undefined)
 	.refine((config) => config.test === undefined || config.stories !== undefined)
-	.refine((config) => config.guides === undefined || config.manifest !== undefined);
+	.refine((config) => config.guides === undefined || config.manifest !== undefined)
+	.refine((config) => {
+		if (config.pack === undefined || config.manifest !== undefined) return true;
+		const hasAppElements =
+			(config.pack.dependencies !== undefined && config.pack.dependencies.length > 0) ||
+			config.pack.localElements !== undefined;
+		return config.patterns !== undefined && config.patterns.length > 0 && hasAppElements;
+	});
 
 const verdict = (parse: () => unknown) => {
 	try {
@@ -322,8 +363,104 @@ describe('bench validation matches the Zod schemas', () => {
 			{ specimens: [entry], manifest: 'm.json', guides: [''] },
 			{ specimens: [entry], manifest: 'm.json', guides: 'src/*.json' },
 			{ specimens: [entry], guides: ['src/**/*.guide.json'] },
+			{ specimens: [entry], patterns: ['specimens/patterns/*/pattern.json'] },
+			{ specimens: [entry], patterns: [] },
+			{ specimens: [entry], patterns: [''] },
+			{ specimens: [entry], patterns: 'specimens/*.json' },
+			{ specimens: [entry], patternSources: ['../violet/pack', '@lushly-dev/violet-elements'] },
+			{ specimens: [entry], patternSources: [''] },
+			{ specimens: [entry], patternSources: '../violet/pack' },
 		];
 		for (const value of configs) agrees(configSchema, parseConfig, value);
+	});
+
+	it('validates manifest-less app packs, localElements, patternSetup, and contexts in parity with Zod', () => {
+		const entry = {
+			id: 'loam-shell',
+			title: 'Loam shell',
+			module: './shell.ts',
+			exportName: 'Default',
+		};
+		const basePack = {
+			library: 'loam',
+			title: 'Loam',
+			prefix: 'loam-',
+			directory: './pack',
+			package: './package.json',
+		};
+		const cases: unknown[] = [
+			{
+				specimens: [entry],
+				patterns: ['specimens/patterns/*/pattern.json'],
+				pack: {
+					...basePack,
+					dependencies: ['../violet/custom-elements.json'],
+					localElements: { tags: ['loam-shell', 'loam-panel'] },
+					themeStylesheet: '@lushly-dev/loam-theme/tokens.css',
+				},
+			},
+			{
+				specimens: [entry],
+				patterns: ['specimens/patterns/*/pattern.json'],
+				pack: { ...basePack, localElements: { manifest: './local-cem.json' } },
+			},
+			{ specimens: [entry], pack: basePack },
+			{ specimens: [entry], patterns: ['specimens/patterns/*/pattern.json'], pack: basePack },
+			{
+				specimens: [entry],
+				patterns: [],
+				pack: { ...basePack, localElements: { tags: ['loam-shell'] } },
+			},
+			{
+				specimens: [entry],
+				patterns: ['specimens/patterns/*/pattern.json'],
+				pack: { ...basePack, dependencies: [] },
+			},
+			{ specimens: [entry], manifest: 'm.json', pack: { ...basePack, localElements: {} } },
+			{
+				specimens: [entry],
+				manifest: 'm.json',
+				pack: { ...basePack, localElements: { tags: ['loam-shell', 'loam-shell'] } },
+			},
+			{
+				specimens: [entry],
+				manifest: 'm.json',
+				pack: { ...basePack, localElements: { tags: ['notatag'] } },
+			},
+			{
+				specimens: [
+					{
+						...entry,
+						patternSetup: { library: 'violet', pattern: 'dialog.modal', setup: 'default' },
+						contexts: {
+							viewport: { minWidth: 640, maxWidth: 1440 },
+							themes: ['dark', 'light'],
+							reason: 'Desktop dialog layout only.',
+						},
+					},
+				],
+			},
+			{
+				specimens: [
+					{
+						...entry,
+						contexts: { viewport: { minWidth: 900, maxWidth: 600 }, reason: 'Invalid range.' },
+					},
+				],
+			},
+			{
+				specimens: [
+					{
+						...entry,
+						contexts: { themes: ['light', 'dark'], reason: 'Wrong order.' },
+					},
+				],
+			},
+			{
+				specimens: [{ ...entry, contexts: { reason: 'Missing viewport and themes.' } }],
+			},
+		];
+		for (const value of cases) agrees(configSchema, parseConfig, value);
 	});
 
 	it('accepts the three themes and nothing else', () => {

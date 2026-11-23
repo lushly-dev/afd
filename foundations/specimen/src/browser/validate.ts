@@ -2,7 +2,9 @@ import type {
 	CoverageClaim,
 	EventDeclaration,
 	FormExpectation,
+	ImplementationContexts,
 	NativeAccessibility,
+	PatternSetupBinding,
 	ScenarioStep,
 	SpecimenDefinition,
 	SpecimenModule,
@@ -22,6 +24,8 @@ const specimenFields = new Set([
 	'a11y',
 	'events',
 	'coverage',
+	'patternSetup',
+	'contexts',
 ]);
 const metaFields = new Set(['title', 'description', 'component', 'args', 'render']);
 // Playwright 1.64's getByRole contract; abstract/unknown roles are not accepted.
@@ -399,6 +403,8 @@ export function needsScenarioSupport(value: unknown): boolean {
 	);
 }
 
+// Full schema validation of patternSetup and contexts runs in Node (validate.ts / patterns.ts);
+// the browser shell only accepts them as records to stay within SHELL_BUDGET.
 export function validateSpecimen(
 	module: SpecimenModule,
 	exportName: string,
@@ -419,6 +425,14 @@ export function validateSpecimen(
 	const availableTargets = targets(raw.targets);
 	const declaredEvents = events(raw.events, availableTargets);
 	const declaredScenario = scenario(raw.scenario, availableTargets, declaredEvents, support);
+	const declaredPatternSetup =
+		raw.patternSetup === undefined
+			? undefined
+			: (record(raw.patternSetup, 'specimen.patternSetup') as unknown as PatternSetupBinding);
+	const declaredContexts =
+		raw.contexts === undefined
+			? undefined
+			: (record(raw.contexts, 'specimen.contexts') as unknown as ImplementationContexts);
 	return {
 		meta,
 		specimen: {
@@ -431,6 +445,8 @@ export function validateSpecimen(
 			a11y: accessibility(raw.a11y),
 			events: declaredEvents,
 			coverage: support?.claims(raw.coverage, availableTargets, declaredScenario),
+			...(declaredPatternSetup === undefined ? {} : { patternSetup: declaredPatternSetup }),
+			...(declaredContexts === undefined ? {} : { contexts: declaredContexts }),
 		},
 	};
 }

@@ -33,7 +33,8 @@
 			"import": "./dist/pack.js"
 		},
 		"./pack/*.schema.json": "./schema/pack/*.schema.json",
-		"./guide/*.schema.json": "./schema/guide/*.schema.json"
+		"./guide/*.schema.json": "./schema/guide/*.schema.json",
+		"./pattern.schema.json": "./schema/pattern.schema.json"
 	},
 	"files": [
 		"dist",

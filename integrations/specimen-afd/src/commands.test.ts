@@ -1,3 +1,7 @@
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { createSpecimenBench } from '@lushly-dev/specimen';
 import type { Observation } from '@lushly-dev/specimen/types';
 import { describe, expect, it, vi } from 'vitest';
 import {
@@ -367,6 +371,115 @@ describe('specimen commands', () => {
 		expect(all.data).toEqual({ valid: true, scope: 'static', checked: 1, issues: [] });
 		const invalid = await executeSpecimenCommand(instance, 'specimen-validate', { name: 'x' });
 		expect(invalid.error?.code).toBe('VALIDATION_ERROR');
+	});
+	it('runs Job 5 (05-refuse-an-unportable-gate) end-to-end against a real bench and specimen-validate command', async () => {
+		const root = await mkdtemp(join(tmpdir(), 'specimen-afd-job5-'));
+		try {
+			await writeFile(join(root, 'example.specimen.js'), 'export default {};\n');
+			await writeFile(
+				join(root, 'specimen.config.json'),
+				JSON.stringify({
+					specimens: [
+						{
+							id: 'example-select',
+							title: 'Example select',
+							module: './example.specimen.js',
+							exportName: 'default',
+						},
+					],
+				})
+			);
+			await mkdir(join(root, 'specimens/patterns/select'), { recursive: true });
+			await mkdir(join(root, 'specimens/patterns/listbox'), { recursive: true });
+			await writeFile(
+				join(root, 'specimens/patterns/select/pattern.json'),
+				JSON.stringify({
+					pattern: 'select',
+					scope: 'control',
+					setups: {
+						default: {
+							text: 'Mount a labelled select.',
+							targets: { trigger: { role: ['combobox', 'button'], nameStartsWith: 'Fruit' } },
+						},
+					},
+					gates: {
+						'escape-closes': {
+							setup: 'default',
+							scenario: [
+								{ id: 'open', action: { click: 'trigger' } },
+								{ id: 'close', action: { press: 'Escape' } },
+							],
+						},
+					},
+				})
+			);
+			await writeFile(
+				join(root, 'specimens/patterns/listbox/pattern.json'),
+				JSON.stringify({
+					pattern: 'listbox',
+					scope: 'control',
+					setups: {
+						default: {
+							text: 'Mount a listbox.',
+							targets: { list: { role: 'listbox', name: 'Size' } },
+						},
+					},
+					gates: {
+						'shows-choice': {
+							setup: 'default',
+							scenario: [
+								{ id: 'pick', action: { click: { selector: 'example-option[selected]' } } },
+								{
+									id: 'check',
+									expect: { target: 'list', state: { attribute: 'selected', equals: 'true' } },
+								},
+							],
+						},
+					},
+				})
+			);
+			const realBench = await createSpecimenBench({ root });
+			try {
+				const validPattern = await executeSpecimenCommand(realBench, 'specimen-validate', {
+					file: 'specimens/patterns/select/pattern.json',
+				});
+				expect(validPattern.success).toBe(true);
+				expect(validPattern.data).toEqual({
+					valid: true,
+					scope: 'static',
+					checked: 1,
+					issues: [],
+				});
+
+				const badPattern = await executeSpecimenCommand(realBench, 'specimen-validate', {
+					file: 'specimens/patterns/listbox/pattern.json',
+				});
+				expect(badPattern.success).toBe(true);
+				expect(badPattern.data).toMatchObject({
+					valid: false,
+					scope: 'static',
+					issues: [
+						{
+							severity: 'error',
+							code: 'GATE_NOT_PORTABLE',
+							field: 'gates.shows-choice.scenario[0]',
+						},
+						{
+							severity: 'error',
+							code: 'GATE_NOT_PORTABLE',
+							field: 'gates.shows-choice.scenario[1]',
+						},
+					],
+				});
+				const issues = (badPattern.data as { issues: Array<{ suggestion: string }> }).issues;
+				expect(issues).toHaveLength(2);
+				expect(issues[0]?.suggestion).toContain('role');
+			} finally {
+				await realBench.close();
+			}
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
 	});
 	it('previews the codemod by default and applies it only when asked', async () => {
 		const instance = bench();

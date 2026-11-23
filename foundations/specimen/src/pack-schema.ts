@@ -30,6 +30,15 @@ export const PACK_PATTERNS = {
 	state: /^[a-z][a-z0-9-]*$/,
 	role: /^[a-z]+$/,
 	axeRule: /^[a-z0-9-]+$/,
+	pattern: /^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/,
+	qualifiedPattern: /^[a-z][a-z0-9-]{0,63}\/[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/,
+	copyName: /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/,
+	setup: /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/,
+	gate: /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/,
+	alias: /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/,
+	facetKey: /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/,
+	facetValue: /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/,
+	stepId: /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/,
 } as const;
 
 /** Longest identifier of each kind, in characters. */
@@ -54,6 +63,15 @@ const IDENTIFIER_MAX: Record<keyof typeof PACK_PATTERNS, number> = {
 	state: 64,
 	role: 32,
 	axeRule: 64,
+	pattern: 64,
+	qualifiedPattern: 129,
+	copyName: 64,
+	setup: 64,
+	gate: 64,
+	alias: 64,
+	facetKey: 64,
+	facetValue: 64,
+	stepId: 64,
 };
 
 /** Longest text of each kind, in Unicode code points. */
@@ -64,6 +82,8 @@ export const PACK_TEXT_LIMITS = {
 	value: 200,
 	detail: 8000,
 	example: 4000,
+	copyHtml: 16000,
+	copyCss: 8000,
 } as const;
 
 /** Marks a text issue so a check can name it apart from a shape problem. */
@@ -77,9 +97,21 @@ const SINGLE_LINE = /^[^\u0000-\u001F\u007F-\u009F\u202A-\u202E\u2066-\u2069]*$/
 // biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what it refuses
 const MULTI_LINE = /^[^\u0000-\u0008\u000B-\u001F\u007F-\u009F\u202A-\u202E\u2066-\u2069]*$/;
 
-/** An identifier field of this kind. Guide files use the same fields as the pack. */
-export const packIdentifier = (kind: keyof typeof PACK_PATTERNS) =>
-	z.string().max(IDENTIFIER_MAX[kind]).regex(PACK_PATTERNS[kind]);
+/** An identifier field of this kind. Guide and pattern files use the same fields as the pack. */
+export const packIdentifier = (kind: keyof typeof PACK_PATTERNS) => {
+	const base = z.string().max(IDENTIFIER_MAX[kind]).regex(PACK_PATTERNS[kind]);
+	if (kind !== 'qualifiedPattern') return base;
+	return base
+		.refine((value) => {
+			const slash = value.indexOf('/');
+			return (
+				slash > 0 &&
+				slash <= IDENTIFIER_MAX.library &&
+				value.length - slash - 1 <= IDENTIFIER_MAX.pattern
+			);
+		}, 'Both library and pattern segments must be at most 64 characters')
+		.meta({ allOf: [{ pattern: '/[a-z0-9.-]{1,64}$' }] });
+};
 
 /** A text field of at most `max` code points, refusing control characters. */
 export const packText = (max: number, lines: 'single' | 'multi' = 'single', min = 1) => {

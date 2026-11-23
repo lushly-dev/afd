@@ -213,6 +213,7 @@ assert.deepEqual(Object.keys(native.exports), [
 	'./pack',
 	'./pack/*.schema.json',
 	'./guide/*.schema.json',
+	'./pattern.schema.json',
 ]);
 assert(!Object.keys(native.dependencies).some((name) => name.startsWith('@lushly-dev/')));
 assert(!Object.keys(native.scripts ?? {}).some((key) => /install|prepare/.test(key)));
