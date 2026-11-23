@@ -119,6 +119,7 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
           workspaces: foundations/specimen/host
       - name: Format
         run: cargo fmt --check
@@ -172,6 +173,7 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
           workspaces: foundations/specimen/host
       - name: Native host release build
         run: pnpm -F @lushly-dev/specimen build:host
@@ -221,6 +223,7 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
           workspaces: foundations/specimen/host
           shared-key: specimen-host-release
       - name: Native host release build
@@ -256,6 +259,7 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
           workspaces: foundations/specimen/host
           shared-key: specimen-host-release
       - name: Native host release build

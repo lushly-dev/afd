@@ -14,7 +14,8 @@
  *   - without `paths` it has no `queue` job;
  *   - past that gate nothing names the `merge_group` event, and a job that can tell a pull
  *     request from its merge group (the event's name, the pull request's own fields) is listed
- *     in PULL_REQUEST_ONLY with its reason;
+ *     in PULL_REQUEST_ONLY with its reason, except SAVE_IF in a rust-cache step;
+ *   - every `Swatinem/rust-cache` step saves only from main (SAVE_IF);
  *   - its paths use only the pattern syntax the queue job implements, and read the same two ways;
  *   - its concurrency group does not collide between merge groups, which have no pull request
  *     number;
@@ -75,15 +76,81 @@ const BOTH_ALIKE = /github\.event_name\s*==\s*'(schedule|workflow_dispatch)'/g;
  */
 const SETS_APART =
 	/event_name|EVENT_NAME|github\.event\.(pull_request|number|action)\b|github\[|github\.(head_|base_)?ref(_name)?\b|GITHUB_(HEAD_|BASE_)?REF(_NAME)?\b|GITHUB_EVENT_PATH|refs\/pull\//;
+/**
+ * The input every `Swatinem/rust-cache` step in a queued workflow carries, word for word: it saves
+ * the cache only from main, so a pull request or merge group restores main's entries and adds none
+ * under its own ref, which nothing else can restore and which crowd main's out of the 10 GB the
+ * repository has (#1683). It reads the ref, but it decides only whether a cache is saved after the
+ * job, so it is the one ref read a queued job may hold, and only in a rust-cache step's `with:`.
+ */
+export const SAVE_IF = "save-if: ${{ github.ref == 'refs/heads/main' }}";
+/** A step's own `uses:` key naming rust-cache: on its list item's line, or a key at the step's depth. */
+const RUST_CACHE = /^( {6}- | {8})uses:\s*['"]?Swatinem\/rust-cache@/;
+
+/**
+ * A job's steps, each the indexes of its lines in the job's block. A step is a list item under the
+ * job's `steps:`; its lines run to the next item or to the first line back at the job's depth.
+ */
+function steps(lines) {
+	const found = [];
+	const start = lines.findIndex((line) => /^ {4}steps:\s*$/.test(line));
+	if (start < 0) return found;
+	for (let index = start + 1; index < lines.length; index++) {
+		const line = lines[index];
+		if (/^ {0,4}\S/.test(line)) break;
+		if (/^ {6}- /.test(line)) found.push([index]);
+		else if (found.length > 0) found.at(-1).push(index);
+	}
+	return found;
+}
+
+/**
+ * Where a job's rust-cache steps fall short of SAVE_IF, and the indexes of the SAVE_IF lines that
+ * sit where they belong: directly under the `with:` of a rust-cache step.
+ */
+function rustCaches(block) {
+	const lines = block.split('\n');
+	const missing = [];
+	const allowed = new Set();
+	let seen = 0;
+	for (const step of steps(lines)) {
+		const uses = step.find((index) => RUST_CACHE.test(lines[index]));
+		if (uses === undefined) continue;
+		seen++;
+		const within = step.findIndex((index) => /^ {8}with:\s*$/.test(lines[index]));
+		// The `with:` block runs to the step's next key at its own depth.
+		const inputs = [];
+		for (const index of within < 0 ? [] : step.slice(within + 1)) {
+			if (/^ {0,8}\S/.test(lines[index])) break;
+			inputs.push(index);
+		}
+		const saveIf = inputs.find((index) => lines[index] === `          ${SAVE_IF}`);
+		if (saveIf === undefined) missing.push(lines[uses].trim().replace(/^-\s+/, ''));
+		else allowed.add(saveIf);
+	}
+	// A rust-cache step this reader did not place in a step (another indentation, a flow mapping)
+	// would go unchecked, so it is named instead of passed.
+	const written = lines.filter(
+		(line) => !/^\s*#/.test(line) && line.includes('Swatinem/rust-cache@')
+	).length;
+	return { missing, allowed, unplaced: written - seen };
+}
+
 /** The lines of a job that can tell a pull request from its merge group. */
-const settingApart = (block) =>
-	block
-		.split('\n')
-		// AFD_BASE and AFD_SCOPE name the events to give a merge group its base; their own rule
-		// holds them word for word.
-		.filter((line) => !/^\s*(#|AFD_(BASE|SCOPE): )/.test(line))
-		.filter((line) => SETS_APART.test(line.replace(BOTH_ALIKE, '')))
-		.map((line) => line.trim());
+const settingApart = (block) => {
+	const { allowed } = rustCaches(block);
+	return (
+		block
+			.split('\n')
+			// SAVE_IF in its place changes what is cached, not what runs.
+			.filter((_, index) => !allowed.has(index))
+			// AFD_BASE and AFD_SCOPE name the events to give a merge group its base; their own rule
+			// holds them word for word.
+			.filter((line) => !/^\s*(#|AFD_(BASE|SCOPE): )/.test(line))
+			.filter((line) => SETS_APART.test(line.replace(BOTH_ALIKE, '')))
+			.map((line) => line.trim())
+	);
+};
 /**
  * Jobs that run for a pull request and cannot run for its merge group, by workflow: the reason,
  * and the expression in the job that makes it so (`reads`). An entry fails once its job is gone,
@@ -362,6 +429,17 @@ export function mergeGroupProblems(workflows) {
 			else if (apart.length === 0 || !job.block.includes(entry.reads))
 				say(
 					`job ${id} is listed in PULL_REQUEST_ONLY but no longer reads ${entry.reads}: remove the entry`
+				);
+		}
+		for (const [id, job] of jobs) {
+			const { missing, unplaced } = rustCaches(job.block);
+			for (const uses of missing)
+				say(
+					`job ${id} has a rust-cache step without \`${SAVE_IF}\` under its \`with:\`: "${uses}". A pull request or merge group would save a cache only it can restore`
+				);
+			if (unplaced > 0)
+				say(
+					`job ${id} names Swatinem/rust-cache outside a step's own \`uses:\`, where this check cannot read it: write it as a step under \`steps:\`, or keep the name out of scripts and values`
 				);
 		}
 		for (const id of Object.keys(allowed))
