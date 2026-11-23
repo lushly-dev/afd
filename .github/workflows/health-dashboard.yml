@@ -11,6 +11,7 @@ on:
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - '.github/workflows/health-dashboard.yml'
+      - '.github/actions/playwright-install/**'
   # The merge queue. No path filter applies to it: the `queue` job below does that work.
   merge_group:
   pull_request:
@@ -22,6 +23,7 @@ on:
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - '.github/workflows/health-dashboard.yml'
+      - '.github/actions/playwright-install/**'
   workflow_dispatch:
 
 permissions:
@@ -77,7 +79,7 @@ jobs:
           fetch-depth: 0
           filter: blob:none
       - id: run
-        run: node scripts/affected.mjs gate --package @lushly-dev/health-dashboard --path endpoints/health/ --path .github/workflows/health-dashboard.yml
+        run: node scripts/affected.mjs gate --package @lushly-dev/health-dashboard --path endpoints/health/ --path .github/workflows/health-dashboard.yml --path .github/actions/playwright-install/
 
   dashboard:
     name: Build, unit, fixtures, Chromium and axe
@@ -111,7 +113,9 @@ jobs:
       - name: Headless Health wheel has no unconditional or frontend dependency
         run: node endpoints/health-dashboard/scripts/verify-health-isolation.mjs
       # Under a minute as a rule; apt held this step for 50 when a runner could not resolve Ubuntu's mirrors.
-      - run: pnpm -F @lushly-dev/health-dashboard exec playwright install --with-deps chromium
+      - uses: ./.github/actions/playwright-install
+        with:
+          package: '@lushly-dev/health-dashboard'
         timeout-minutes: 10
       - name: Chromium suite (every status, invalid files, keyboard, CSP, axe WCAG 2.2 AA)
         run: pnpm -F @lushly-dev/health-dashboard test:browser
