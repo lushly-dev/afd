@@ -1106,7 +1106,7 @@ impl NameMatch {
     }
 }
 
-fn describe_target(target: &Value) -> String {
+pub(crate) fn describe_target(target: &Value) -> String {
     if let Some(selector) = target.get("selector").and_then(Value::as_str) {
         return format!("selector {selector:?}");
     }

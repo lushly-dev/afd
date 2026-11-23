@@ -17,6 +17,7 @@ export {
 	climbSelection,
 	INTERACTIVE_ROLES,
 	isMeaningfulNode,
+	nodeAccessible,
 	observationClimbTree,
 } from './climb.js';
 export {
@@ -79,6 +80,30 @@ export {
 	type ThemeTarget,
 	type TokenMap,
 } from './plugin.js';
+export {
+	type BuildPointInput,
+	buildPoint,
+	CROCKFORD_BASE32,
+	computeSourceDigests,
+	diffRecordedDigests,
+	evaluatePointStaleness,
+	formatPointContext,
+	generatePointId,
+	MAX_POINT_CHILDREN,
+	MAX_POINT_SIBLINGS,
+	MAX_POINT_TEXT_LENGTH,
+	nearestComponentTag,
+	normalizePointContextInput,
+	POINT_ID_LENGTH,
+	POINT_ID_PATTERN,
+	POINT_SOURCE_DIGEST_LENGTH,
+	POINTS_DIR,
+	pointError,
+	readPointFile,
+	resolvePointMove,
+	specimenNotFoundError,
+	writePointFile,
+} from './point.js';
 export {
 	DEFAULT_PIN,
 	type FormatPointerInput,

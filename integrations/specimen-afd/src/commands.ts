@@ -35,6 +35,11 @@ import {
 	packExportRunSchema,
 	packRequestSchema,
 	packRunSchema,
+	pointCheckRequestSchema,
+	pointCheckResultSchema,
+	pointMoveRequestSchema,
+	pointRequestSchema,
+	pointResultSchema,
 	profileRequestSchema,
 	profileRunSchema,
 	runRequestSchema,
@@ -54,6 +59,9 @@ export {
 	contextSchema,
 	inspectResultSchema,
 	observationSchema,
+	pointCheckResultSchema,
+	pointResultSchema,
+	pointSchema,
 	storyRunSchema,
 } from '@lushly-dev/specimen/schema';
 
@@ -85,6 +93,11 @@ import type {
 	PackExportRun,
 	PackRequest,
 	PackRun,
+	PointCheckRequest,
+	PointCheckResult,
+	PointMoveRequest,
+	PointRequest,
+	PointResult,
 	ProfileRequest,
 	ProfileRun,
 	RunRequest,
@@ -242,6 +255,9 @@ export interface SpecimenCommandBench {
 	pack(request?: PackRequest): Promise<PackRun>;
 	packCheck(request?: PackRequest): Promise<PackCheckRun>;
 	packExport(request: PackExportRequest): Promise<PackExportRun>;
+	point(request: PointRequest): Promise<PointResult>;
+	pointMove(request: PointMoveRequest): Promise<PointResult>;
+	pointCheck(request: PointCheckRequest): Promise<PointCheckResult>;
 }
 
 /** One story by id, or a suite by filter; the handler tells them apart. */
@@ -672,6 +688,54 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 				'Run specimen-pack to rebuild the records it names, and export into a directory holding only data/, rules/ and pack.toml.'
 			),
 	});
+	const point = defineCommand({
+		...common,
+		name: 'specimen-point',
+		description:
+			'Resolve a pointer URI or a named target ({ role, name? } or { selector }) into a bounded, source-tied point stored under .specimen/points/<id>.json. Run specimen-point-check before editing source for this point.',
+		mutation: true,
+		input: pointRequestSchema,
+		output: pointResultSchema,
+		handler: async (input) =>
+			result(
+				() => bench.point(input as PointRequest),
+				pointResultSchema,
+				'SPECIMEN_POINT_FAILED',
+				'Copy the pointer again from the review page, or pass a valid specimen id and target.'
+			),
+	});
+	const pointMove = defineCommand({
+		...common,
+		name: 'specimen-point-move',
+		description:
+			'Move a stored point to its parent, child (with optional 0-based index), next sibling, previous sibling, or enclosing custom element component. Checks staleness first (POINT_STALE) and refuses invalid levels (NO_SUCH_LEVEL), writing and returning a new point.',
+		mutation: true,
+		input: pointMoveRequestSchema,
+		output: pointResultSchema,
+		handler: async (input) =>
+			result(
+				() => bench.pointMove(input),
+				pointResultSchema,
+				'SPECIMEN_POINT_MOVE_FAILED',
+				'Run specimen-point to create a fresh point, or choose one of the available moves.'
+			),
+	});
+	const pointCheck = defineCommand({
+		...common,
+		name: 'specimen-point-check',
+		description:
+			'Re-render a stored point in its recorded context and report whether its source files and element identity are still current or stale. Run before editing source for a point.',
+		mutation: false,
+		input: pointCheckRequestSchema,
+		output: pointCheckResultSchema,
+		handler: async (input) =>
+			result(
+				() => bench.pointCheck(input),
+				pointCheckResultSchema,
+				'SPECIMEN_POINT_CHECK_FAILED',
+				'Run specimen-point to create a fresh point if the stored point is missing or unreadable.'
+			),
+	});
 	return [
 		list,
 		render,
@@ -694,6 +758,9 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 		packCheck,
 		packExport,
 		themes,
+		point,
+		pointMove,
+		pointCheck,
 	] as const;
 }
 
@@ -739,6 +806,9 @@ export async function executeSpecimenCommand(
 		packCheck,
 		packExport,
 		themes,
+		point,
+		pointMove,
+		pointCheck,
 	] = createSpecimenCommands(bench);
 	switch (name) {
 		case 'specimen-list':
@@ -783,12 +853,18 @@ export async function executeSpecimenCommand(
 			return execute(packExport, input);
 		case 'specimen-themes':
 			return execute(themes, input);
+		case 'specimen-point':
+			return execute(point, input);
+		case 'specimen-point-move':
+			return execute(pointMove, input);
+		case 'specimen-point-check':
+			return execute(pointCheck, input);
 		default:
 			return failure({
 				code: 'COMMAND_NOT_FOUND',
 				message: `Unknown command: ${name}`,
 				suggestion:
-					'Use specimen list, validate, inspect, render, capture, compare, run, themes, migrate, diff, or build.',
+					'Use specimen list, validate, inspect, render, capture, compare, run, themes, migrate, diff, build, point, point-move, or point-check.',
 			});
 	}
 }

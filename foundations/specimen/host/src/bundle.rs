@@ -29,6 +29,8 @@ pub struct ServedFile {
 #[derive(Debug)]
 pub struct Generation {
     pub files: HashMap<String, ServedFile>,
+    /// Project source file paths contributing to each served JS chunk, used for per-file staleness.
+    pub chunk_sources: HashMap<String, Vec<PathBuf>>,
     watched: Vec<(PathBuf, Option<SystemTime>, u64)>,
     /// A source changed while this generation was being built.
     changed_while_building: bool,
@@ -200,6 +202,7 @@ fn stylesheet(path: &Path, assets: &Assets, seen: &mut Vec<PathBuf>) -> Result<S
         let unquoted = reference.trim_matches(['"', '\'']);
         let target = directory.join(unquoted.split(['?', '#']).next().unwrap_or(unquoted));
         if relative_reference(unquoted) && target.is_file() {
+            seen.push(target.clone());
             out.push_str(&format!("url(\"./{}\")", emit(assets, &target)?));
         } else {
             out.push_str(&rest[..=close]);
@@ -213,9 +216,13 @@ fn stylesheet(path: &Path, assets: &Assets, seen: &mut Vec<PathBuf>) -> Result<S
 /// development server does, `?inline` CSS and `?raw` files become strings, and `?url` imports
 /// emit the file and resolve to its served path. Project modules have their `import.meta.glob`
 /// calls expanded (`glob.rs`) and their top-level `throw`s guarded (`guard_top_level_throws`).
+type ExtraSources = Arc<Mutex<HashMap<PathBuf, Vec<PathBuf>>>>;
+
 #[derive(Debug)]
 struct SpecimenLoad {
     assets: Assets,
+    /// Additional local files inlined while loading a module (e.g., CSS `@import` and `url()`).
+    extra_sources: ExtraSources,
     /// The bench root, which a `/` glob pattern starts from.
     root: PathBuf,
 }
@@ -264,7 +271,19 @@ impl Plugin for SpecimenLoad {
             return Err(anyhow!("Unsupported import query \"?{flag}\" in {path}"));
         }
         if path.ends_with(".css") {
-            let css = stylesheet(Path::new(path), &self.assets, &mut Vec::new())?;
+            let mut seen = Vec::new();
+            let css = stylesheet(Path::new(path), &self.assets, &mut seen)?;
+            let key = canonical(Path::new(path)).unwrap_or_else(|| PathBuf::from(path));
+            let extras: Vec<PathBuf> = seen
+                .into_iter()
+                .map(|item| canonical(&item).unwrap_or(item))
+                .collect();
+            self.extra_sources
+                .lock()
+                .unwrap()
+                .entry(key)
+                .or_default()
+                .extend(extras);
             if flags.contains(&"inline") {
                 return Self::module(format!(
                     "export default {};\n",
@@ -377,6 +396,7 @@ fn file_state(path: &Path) -> (Option<SystemTime>, u64) {
 
 struct Output {
     files: HashMap<String, ServedFile>,
+    chunk_sources: HashMap<String, Vec<PathBuf>>,
     sources: Vec<PathBuf>,
 }
 
@@ -471,8 +491,10 @@ async fn bundle(
         ..Default::default()
     };
     let assets: Assets = Arc::default();
+    let extra_sources: ExtraSources = Arc::default();
     let plugin = SpecimenLoad {
         assets: assets.clone(),
+        extra_sources: extra_sources.clone(),
         root: source.root.clone(),
     };
     let built = async {
@@ -494,19 +516,43 @@ async fn bundle(
     let _ = std::fs::remove_file(&entry);
     let output = built?;
     let mut files = HashMap::new();
+    let mut chunk_sources = HashMap::new();
     let mut sources = Vec::new();
     // Module ids are resolved paths, and a temporary directory can sit behind a symlink, as
     // macOS's `/var` does. Without this the bundle's own generated entry counts as a source
     // written during the build, and every render rebuilds.
+    let extra_sources = std::mem::take(&mut *extra_sources.lock().unwrap());
     let work = canonical(&source.work).unwrap_or_else(|| source.work.clone());
+    let root = canonical(&source.root).unwrap_or_else(|| source.root.clone());
     for asset in &output.assets {
         let name = asset.filename().to_string();
         if let rolldown_common::Output::Chunk(chunk) = asset {
+            let mut per_chunk = Vec::new();
             for id in &chunk.module_ids {
-                let path = PathBuf::from(id.as_str().split(['?', '#']).next().unwrap_or(""));
+                let raw = id.as_str().split(['?', '#']).next().unwrap_or("");
+                let path = PathBuf::from(raw);
                 if path.is_absolute() && !path.starts_with(&work) {
-                    sources.push(path);
+                    sources.push(path.clone());
+                    let resolved = canonical(&path).unwrap_or(path);
+                    if !in_node_modules(raw) && resolved.starts_with(&root) {
+                        per_chunk.push(resolved.clone());
+                    }
+                    if let Some(extras) = extra_sources.get(&resolved) {
+                        for extra in extras {
+                            sources.push(extra.clone());
+                            if !in_node_modules(&extra.to_string_lossy())
+                                && extra.starts_with(&root)
+                            {
+                                per_chunk.push(extra.clone());
+                            }
+                        }
+                    }
                 }
+            }
+            per_chunk.sort();
+            per_chunk.dedup();
+            if !per_chunk.is_empty() {
+                chunk_sources.insert(name.clone(), per_chunk);
             }
         }
         files.insert(
@@ -517,7 +563,11 @@ async fn bundle(
     for (name, body) in std::mem::take(&mut *assets.lock().unwrap()) {
         files.insert(name.clone(), served(body, &name));
     }
-    Ok(Output { files, sources })
+    Ok(Output {
+        files,
+        chunk_sources,
+        sources,
+    })
 }
 
 pub async fn build(source: &BenchSource) -> Result<Generation> {
@@ -555,6 +605,7 @@ pub async fn build(source: &BenchSource) -> Result<Generation> {
     };
     let Output {
         mut files,
+        chunk_sources,
         mut sources,
     } = output;
     files.insert(
@@ -563,7 +614,9 @@ pub async fn build(source: &BenchSource) -> Result<Generation> {
     );
     sources.sort();
     sources.dedup();
-    let mut changed_while_building = false;
+    // A generation that isolated failed modules must rebuild on the next non-reused render so
+    // fixing a transitive dependency or creating a missing imported file recovers the warm bench.
+    let mut changed_while_building = !failed.is_empty();
     let watched = sources
         .into_iter()
         .map(|path| {
@@ -574,6 +627,7 @@ pub async fn build(source: &BenchSource) -> Result<Generation> {
         .collect();
     Ok(Generation {
         files,
+        chunk_sources,
         watched,
         changed_while_building,
     })
@@ -655,7 +709,11 @@ mod tests {
         )
         .unwrap();
         let assets: Assets = Assets::default();
-        let css = stylesheet(&directory.join("main.css"), &assets, &mut Vec::new()).unwrap();
+        let mut seen = Vec::new();
+        let css = stylesheet(&directory.join("main.css"), &assets, &mut seen).unwrap();
+        assert!(seen.iter().any(|p| p.ends_with("main.css")));
+        assert!(seen.iter().any(|p| p.ends_with("base.css")));
+        assert!(seen.iter().any(|p| p.ends_with("dot.png")));
         let emitted: Vec<String> = assets.lock().unwrap().keys().cloned().collect();
         assert_eq!(emitted.len(), 1);
         assert!(emitted[0].starts_with("assets/dot-") && emitted[0].ends_with(".png"));

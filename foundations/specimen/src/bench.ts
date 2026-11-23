@@ -14,6 +14,8 @@ import {
 	writePackIndex,
 } from './pack-files.js';
 import { withPatterns } from './patterns.js';
+import { normalizePointContextInput, readPointFile, specimenNotFoundError } from './point.js';
+import { parsePointer } from './pointer.js';
 import { diffCaptures, selectCaptureEntries } from './sets.js';
 import { migrateStories, validateDiscovery } from './stories.js';
 import type {
@@ -50,6 +52,11 @@ import type {
 	PackExportRun,
 	PackRequest,
 	PackRun,
+	PointCheckRequest,
+	PointCheckResult,
+	PointMoveRequest,
+	PointRequest,
+	PointResult,
 	ProfileRequest,
 	ProfileRun,
 	RunRequest,
@@ -78,6 +85,9 @@ import {
 	parseMatrixRequest,
 	parsePackExportRequest,
 	parsePackRequest,
+	parsePointCheckRequest,
+	parsePointMoveRequest,
+	parsePointRequest,
 	parseProfileRequest,
 	parseSuggestRequest,
 	parseSuiteRequest,
@@ -203,6 +213,18 @@ export interface SpecimenBench {
 	 * guide file says something they do not.
 	 */
 	packExport(request: PackExportRequest): Promise<PackExportRun>;
+	/**
+	 * Resolve a pointer URI or named target (`{ role, name? }` or `{ selector }`) through the
+	 * shared two-step climb, store the bounded point in `.specimen/points/<id>.json`, and return it.
+	 */
+	point(request: PointRequest): Promise<PointResult>;
+	/**
+	 * Move a stored point to its `parent`, `child`, `next`, `previous`, or enclosing `component`
+	 * after verifying staleness (`POINT_STALE`), storing and returning the new point.
+	 */
+	pointMove(request: PointMoveRequest): Promise<PointResult>;
+	/** Re-render a stored point's specimen and report whether its source or identity is current or stale. */
+	pointCheck(request: PointCheckRequest): Promise<PointCheckResult>;
 	build(
 		outDir: string
 	): Promise<{ directory: string; shellBytes: number; budget: number; files: string[] }>;
@@ -305,6 +327,9 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 		| 'matrix'
 		| 'recordBaseline'
 		| 'inspect'
+		| 'point'
+		| 'pointMove'
+		| 'pointCheck'
 		| 'build'
 		| 'close'
 	>;
@@ -530,6 +555,36 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 			ensureDiscovered();
 			const directory = resolve(outDir);
 			return enqueue((client) => client.build(directory));
+		},
+		async point(rawRequest) {
+			const snapshot = ensureDiscovered();
+			const request = parsePointRequest(rawRequest);
+			const knownIds = snapshot.entries.map((item) => item.id);
+			if ('pointer' in request) {
+				const parsed = parsePointer(request.pointer);
+				if (!snapshot.entries.some((item) => item.id === parsed.specimen)) {
+					throw specimenNotFoundError(parsed.specimen, knownIds);
+				}
+				normalizePointContextInput(parsed.context, 'pointer');
+			} else {
+				if (!snapshot.entries.some((item) => item.id === request.id)) {
+					throw specimenNotFoundError(request.id, knownIds);
+				}
+				normalizePointContextInput(request.context, 'request');
+			}
+			return enqueue((client) => client.point(request));
+		},
+		async pointMove(rawRequest) {
+			const snapshot = ensureDiscovered();
+			const request = parsePointMoveRequest(rawRequest);
+			await readPointFile(snapshot.root, request.id);
+			return enqueue((client) => client.pointMove(request));
+		},
+		async pointCheck(rawRequest) {
+			const snapshot = ensureDiscovered();
+			const request = parsePointCheckRequest(rawRequest);
+			await readPointFile(snapshot.root, request.id);
+			return enqueue((client) => client.pointCheck(request));
 		},
 		close() {
 			closing ??= (async () => {

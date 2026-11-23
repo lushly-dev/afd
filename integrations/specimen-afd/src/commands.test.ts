@@ -362,8 +362,53 @@ function bench(): SpecimenCommandBench {
 			budget: 50000,
 			files: ['index.html'],
 		})),
+		point: vi.fn(async () => ({ point: samplePoint })),
+		pointMove: vi.fn(async () => ({ point: { ...samplePoint, id: 'pt-9w4m2c1x5r8k' } })),
+		pointCheck: vi.fn(async () => ({ status: 'current' as const, changed: [] })),
 	};
 }
+
+const samplePoint = {
+	id: 'pt-5r8k2w9m4c1x',
+	specimen: 'example-toolbar',
+	context: { theme: 'dark', viewport: '1280x800' },
+	element: {
+		ref: 'root/example-toolbar:1/shadow/example-button:1',
+		tag: 'example-button',
+		text: 'Share',
+		box: { x: 420, y: 12, width: 84, height: 32 },
+	},
+	accessible: {
+		role: 'button',
+		name: 'Share',
+		from: 'root/example-toolbar:1/shadow/example-button:1/shadow/button:1',
+	},
+	identity: {
+		strongest: 'role-name' as const,
+		roleName: { role: 'button', name: 'Share' },
+		componentPosition: { tag: 'example-button', index: 1 },
+		ref: 'root/example-toolbar:1/shadow/example-button:1',
+	},
+	component: { tag: 'example-button', module: 'src/example-button.ts' },
+	source: {
+		specimen: { module: 'src/toolbar/toolbar.specimens.ts', exportName: 'Toolbar' },
+		component: { module: 'src/example-button.ts' },
+		digests: { 'src/example-button.ts': '4c1e9a071234abcd' },
+	},
+	ancestors: [{ tag: 'example-toolbar', role: 'toolbar' }],
+	neighbourhood: {
+		pageData: true as const,
+		parent: { tag: 'example-toolbar', role: 'toolbar' },
+		siblings: [{ tag: 'example-button', role: 'button', name: 'Export' }],
+		children: [{ tag: 'button', role: 'button', name: 'Share' }],
+		omitted: { siblings: 0, children: 0 },
+	},
+	pin: { x: 0.5, y: 0.5 },
+	check: {
+		command: 'specimen-point-check' as const,
+		when: 'before editing source for this point' as const,
+	},
+};
 
 const packReport = {
 	library: 'example',
@@ -404,6 +449,9 @@ describe('specimen commands', () => {
 			'specimen-pack-check',
 			'specimen-pack-export',
 			'specimen-themes',
+			'specimen-point',
+			'specimen-point-move',
+			'specimen-point-check',
 		]);
 		for (const command of commands) {
 			expect(command.expose).toEqual({ mcp: true, cli: true });
@@ -661,6 +709,111 @@ describe('specimen commands', () => {
 			);
 		const commands = createSpecimenCommands(instance);
 		expect(commands.find((command) => command.name === 'specimen-themes')?.mutation).toBe(false);
+	});
+	it('exposes specimen-point, specimen-point-move, and specimen-point-check with validation and structured errors', async () => {
+		const instance = bench();
+		const commands = createSpecimenCommands(instance);
+		const byName = (name: string) => commands.find((command) => command.name === name);
+		expect(byName('specimen-point')?.mutation).toBe(true);
+		expect(byName('specimen-point')?.description).toContain('specimen-point-check');
+		expect(byName('specimen-point-move')?.mutation).toBe(true);
+		expect(byName('specimen-point-check')?.mutation).toBe(false);
+
+		const pointed = await executeSpecimenCommand(instance, 'specimen-point', {
+			pointer:
+				'specimen:example-toolbar?theme=dark&viewport=1280x800#ref=root/example-toolbar:1/shadow/example-button:1',
+		});
+		expect(pointed.success).toBe(true);
+		expect(pointed.data).toEqual({ point: samplePoint });
+
+		const byTarget = await executeSpecimenCommand(instance, 'specimen-point', {
+			id: 'example-toolbar',
+			context: { theme: 'dark', viewport: '1280x800' },
+			target: { role: 'button', name: 'Share' },
+		});
+		expect(byTarget.success).toBe(true);
+
+		const moved = await executeSpecimenCommand(instance, 'specimen-point-move', {
+			id: 'pt-5r8k2w9m4c1x',
+			to: 'next',
+		});
+		expect(moved.success).toBe(true);
+		expect(instance.pointMove).toHaveBeenCalledWith({ id: 'pt-5r8k2w9m4c1x', to: 'next' });
+
+		const checked = await executeSpecimenCommand(instance, 'specimen-point-check', {
+			id: 'pt-5r8k2w9m4c1x',
+		});
+		expect(checked.success).toBe(true);
+		expect(checked.data).toEqual({ status: 'current', changed: [] });
+
+		// Input schema rejects invalid combinations
+		expect((await executeSpecimenCommand(instance, 'specimen-point', {})).error?.code).toBe(
+			'VALIDATION_ERROR'
+		);
+		expect(
+			(
+				await executeSpecimenCommand(instance, 'specimen-point', {
+					pointer: 'specimen:a#ref=root/div:1',
+					id: 'a',
+				})
+			).error?.code
+		).toBe('VALIDATION_ERROR');
+		expect(
+			(
+				await executeSpecimenCommand(instance, 'specimen-point-move', {
+					id: 'pt-5r8k2w9m4c1x',
+					to: 'parent',
+					index: 0,
+				})
+			).error?.code
+		).toBe('VALIDATION_ERROR');
+
+		// Structured Pointing errors pass through cleanly
+		for (const [cmd, input, method, code, suggestion] of [
+			[
+				'specimen-point',
+				{ pointer: 'bad' },
+				'point',
+				'POINTER_INVALID',
+				'Copy the pointer again from the review page.',
+			],
+			[
+				'specimen-point',
+				{ id: 'nope', target: { role: 'button' } },
+				'point',
+				'SPECIMEN_NOT_FOUND',
+				'Nearest specimen ids: example-toolbar.',
+			],
+			[
+				'specimen-point-move',
+				{ id: 'pt-5r8k2w9m4c1x', to: 'next' },
+				'pointMove',
+				'POINT_STALE',
+				'Run specimen-point to point again.',
+			],
+			[
+				'specimen-point-move',
+				{ id: 'pt-5r8k2w9m4c1x', to: 'parent' },
+				'pointMove',
+				'NO_SUCH_LEVEL',
+				'Available moves from this element: child.',
+			],
+			[
+				'specimen-point-check',
+				{ id: 'pt-000000000000' },
+				'pointCheck',
+				'POINT_NOT_FOUND',
+				'Run specimen-point to create a point.',
+			],
+		] as const) {
+			vi.mocked(instance[method]).mockRejectedValueOnce(
+				Object.assign(new Error(code), { code, suggestion })
+			);
+			const res = await executeSpecimenCommand(instance, cmd, input);
+			expect(res.success).toBe(false);
+			expect(res.error?.code).toBe(code);
+			expect(res.error?.suggestion).toBe(suggestion);
+		}
 	});
 	it('builds, checks and exports a pack, the check as the one command that changes nothing', async () => {
 		const instance = bench();

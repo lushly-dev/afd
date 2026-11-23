@@ -988,6 +988,168 @@ export const packExportRunSchema = z.strictObject({
 	keptPackToml: z.boolean(),
 });
 
+const dimensionPairString = z
+	.string()
+	.regex(/^[1-9]\d*x[1-9]\d*$/)
+	.refine((value) => {
+		const [width, height] = value.split('x').map(Number);
+		return (
+			width !== undefined &&
+			height !== undefined &&
+			width >= 1 &&
+			width <= 8192 &&
+			height >= 1 &&
+			height <= 8192
+		);
+	}, 'Viewport dimensions must be between 1 and 8192.');
+const containerDimensionString = z
+	.string()
+	.regex(/^[1-9]\d*(?:x[1-9]\d*)?$/)
+	.refine((value) => {
+		const [width, height] = value.split('x').map(Number);
+		return (
+			width !== undefined &&
+			width >= 1 &&
+			width <= 8192 &&
+			(height === undefined || (height >= 1 && height <= 8192))
+		);
+	}, 'Container dimensions must be between 1 and 8192.');
+
+export const targetSchema = z.union([
+	z.strictObject({ selector: z.string().min(1) }),
+	z.strictObject({ role: z.string().min(1), name: z.string().optional() }),
+]);
+
+export const pointContextInputSchema = z.strictObject({
+	viewport: z.union([contextSchema.shape.viewport, dimensionPairString]).optional(),
+	container: z.union([contextSchema.shape.container.unwrap(), containerDimensionString]).optional(),
+	theme: contextSchema.shape.theme.optional(),
+	locale: contextSchema.shape.locale.optional(),
+	reducedMotion: contextSchema.shape.reducedMotion.optional(),
+	motion: contextSchema.shape.motion.optional(),
+	themeMedia: contextSchema.shape.themeMedia,
+});
+
+export const pointRequestSchema = z
+	.strictObject({
+		pointer: z.string().optional(),
+		id: z.string().min(1).optional(),
+		context: pointContextInputSchema.optional(),
+		checkpoint: z.string().min(1).optional(),
+		target: targetSchema.optional(),
+		timeoutMs: captureRequestSchema.shape.timeoutMs,
+	})
+	.refine((value) => {
+		const hasPointer = value.pointer !== undefined;
+		const hasNamed =
+			value.id !== undefined ||
+			value.target !== undefined ||
+			value.context !== undefined ||
+			value.checkpoint !== undefined;
+		return hasPointer ? !hasNamed : value.id !== undefined && value.target !== undefined;
+	}, 'Provide either pointer, or id and target (with optional context and checkpoint), not both.');
+
+export const pointMoveDirectionSchema = z.enum([
+	'parent',
+	'child',
+	'next',
+	'previous',
+	'component',
+]);
+
+export const pointMoveRequestSchema = z
+	.strictObject({
+		id: z.string().min(1),
+		to: pointMoveDirectionSchema,
+		index: z.number().int().nonnegative().optional(),
+		timeoutMs: captureRequestSchema.shape.timeoutMs,
+	})
+	.refine((value) => value.index === undefined || value.to === 'child', {
+		message: 'index applies only when to is "child".',
+	});
+
+export const pointCheckRequestSchema = z.strictObject({
+	id: z.string().min(1),
+	timeoutMs: captureRequestSchema.shape.timeoutMs,
+});
+
+const pointNodeSummarySchema = z.strictObject({
+	tag: z.string().min(1),
+	role: z.string().min(1).optional(),
+	name: z.string().min(1).optional(),
+});
+
+export const pointSchema = z.strictObject({
+	id: z.string().regex(/^pt-[0-9a-z]{12}$/),
+	specimen: z.string().min(1),
+	checkpoint: z.string().min(1).optional(),
+	context: z.record(z.string(), z.string()),
+	element: z.strictObject({
+		ref: z.string().min(1),
+		tag: z.string().min(1),
+		text: z.string(),
+		box: z.strictObject({
+			x: z.number(),
+			y: z.number(),
+			width: z.number(),
+			height: z.number(),
+		}),
+	}),
+	accessible: z.strictObject({
+		role: z.string().min(1).optional(),
+		name: z.string().min(1).optional(),
+		from: z.string().min(1).optional(),
+	}),
+	identity: z.strictObject({
+		strongest: z.enum(['role-name', 'component-position', 'ref']),
+		roleName: z.strictObject({ role: z.string().min(1), name: z.string().min(1) }).optional(),
+		componentPosition: z
+			.strictObject({ tag: z.string().min(1), index: z.number().int().positive() })
+			.optional(),
+		ref: z.string().min(1),
+	}),
+	component: z
+		.strictObject({
+			tag: z.string().min(1),
+			module: z.string().min(1).optional(),
+		})
+		.optional(),
+	source: z.strictObject({
+		specimen: z.strictObject({ module: z.string().min(1), exportName: z.string().min(1) }),
+		component: z.strictObject({ module: z.string().min(1) }).optional(),
+		revision: z.string().min(1).optional(),
+		digest: z.string().min(1).optional(),
+		digests: z.record(z.string(), z.string()),
+	}),
+	ancestors: z.array(pointNodeSummarySchema),
+	neighbourhood: z.strictObject({
+		pageData: z.literal(true),
+		parent: pointNodeSummarySchema.optional(),
+		siblings: z.array(pointNodeSummarySchema).max(8),
+		children: z.array(pointNodeSummarySchema).max(12),
+		omitted: z.strictObject({
+			siblings: z.number().int().nonnegative(),
+			children: z.number().int().nonnegative(),
+		}),
+	}),
+	pin: z.strictObject({
+		x: z.number().min(0).max(1),
+		y: z.number().min(0).max(1),
+	}),
+	check: z.strictObject({
+		command: z.literal('specimen-point-check'),
+		when: z.literal('before editing source for this point'),
+	}),
+});
+
+export const pointResultSchema = z.strictObject({
+	point: pointSchema,
+});
+
+export const pointCheckResultSchema = z.strictObject({
+	status: z.enum(['current', 'stale']),
+	changed: z.array(z.string()),
+});
 const captureEntryKindSchema = z.enum(['component', 'story', 'job', 'gate']);
 const captureLabelSchema = z
 	.string()

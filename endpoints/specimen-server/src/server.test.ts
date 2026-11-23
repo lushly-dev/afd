@@ -60,7 +60,7 @@ describe('Specimen MCP endpoint', () => {
 		try {
 			const definitions = createSpecimenCommands(bench).filter((command) => command.expose?.mcp);
 			const { tools } = await client.listTools();
-			expect(tools).toHaveLength(21);
+			expect(tools).toHaveLength(24);
 			expect(tools).toEqual(
 				definitions.map((command) => ({
 					name: command.name,
@@ -80,6 +80,17 @@ describe('Specimen MCP endpoint', () => {
 			expect(tools.find((tool) => tool.name === 'specimen-migrate')?.annotations).toEqual({
 				readOnlyHint: false,
 				destructiveHint: false,
+			});
+			expect(tools.find((tool) => tool.name === 'specimen-point')?.annotations).toEqual({
+				readOnlyHint: false,
+				destructiveHint: false,
+			});
+			expect(tools.find((tool) => tool.name === 'specimen-point-move')?.annotations).toEqual({
+				readOnlyHint: false,
+				destructiveHint: false,
+			});
+			expect(tools.find((tool) => tool.name === 'specimen-point-check')?.annotations).toEqual({
+				readOnlyHint: true,
 			});
 		} finally {
 			await bench.close();
@@ -123,6 +134,24 @@ describe('Specimen MCP endpoint', () => {
 		expect(envelope(unknown as CallToolResult)).toMatchObject({
 			success: false,
 			error: { code: 'COMMAND_NOT_FOUND', suggestion: expect.any(String) },
+		});
+		const missingPoint = await client.callTool({
+			name: 'specimen-point-check',
+			arguments: { id: 'pt-000000000000' },
+		});
+		expect(missingPoint.isError).toBe(true);
+		expect(envelope(missingPoint as CallToolResult)).toMatchObject({
+			success: false,
+			error: { code: 'POINT_NOT_FOUND', suggestion: expect.stringContaining('specimen-point') },
+		});
+		const badPointer = await client.callTool({
+			name: 'specimen-point',
+			arguments: { pointer: 'http://bad' },
+		});
+		expect(badPointer.isError).toBe(true);
+		expect(envelope(badPointer as CallToolResult)).toMatchObject({
+			success: false,
+			error: { code: 'POINTER_INVALID', suggestion: expect.stringContaining('review page') },
 		});
 		const missingSet = await client.callTool({
 			name: 'specimen-diff',

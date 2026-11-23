@@ -8,6 +8,7 @@ export const NORMALIZATION_VERSION = '0.2' as const;
 export type { Args, Decorator, Meta, Preview, StoryContext, StoryObj } from './csf-types.js';
 export type * from './pack-types.js';
 export type * from './pattern-types.js';
+export type * from './point-types.js';
 
 import type { PackConfig } from './pack-types.js';
 import type {
@@ -1482,6 +1483,7 @@ export interface BrowserRuntime {
 	normalize(html: string): Promise<string>;
 	dispose(): Promise<void>;
 }
+
 declare global {
 	interface Window {
 		__specimen: BrowserRuntime;

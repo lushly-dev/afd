@@ -27,6 +27,7 @@ mod glob;
 mod isolation;
 mod keyboard;
 mod page;
+mod point;
 mod process;
 mod serve;
 
@@ -110,7 +111,7 @@ impl Bench {
                 &request,
             )
             .await;
-        let loaded = self.renders.end(&token);
+        let (loaded, loaded_sources) = self.renders.end(&token);
         let outcome = outcome?;
         Ok(json!({
             "captured": outcome.captured,
@@ -124,6 +125,10 @@ impl Bench {
             "captures": outcome.captures,
             "jobOutcome": outcome.job_outcome,
             "loaded": loaded,
+            "loadedSources": loaded_sources,
+            "resolvedTargetRef": outcome.resolved_target_ref,
+            "elementTexts": outcome.element_texts,
+            "slottedParents": outcome.slotted_parents,
             "browser": self.browser.ready().await.unwrap_or_default(),
         }))
     }

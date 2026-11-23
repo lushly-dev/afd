@@ -61,6 +61,9 @@ async function execute(message: WorkerRequest): Promise<unknown> {
 	if (message.operation === 'matrix') return bench.matrix(message.request);
 	if (message.operation === 'recordBaseline') return bench.recordBaseline(message.request);
 	if (message.operation === 'inspect') return bench.inspect(message.request);
+	if (message.operation === 'point') return bench.point(message.request);
+	if (message.operation === 'pointMove') return bench.pointMove(message.request);
+	if (message.operation === 'pointCheck') return bench.pointCheck(message.request);
 	return bench.build(message.outDir);
 }
 function exitAfterCleanup(): void {
