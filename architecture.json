@@ -129,6 +129,11 @@
 			"layer": "integration"
 		},
 		{
+			"manifest": "integrations/specimen-afd-runner/package.json",
+			"family": "specimen",
+			"layer": "integration"
+		},
+		{
 			"manifest": "endpoints/specimen-cli/package.json",
 			"family": "specimen",
 			"layer": "endpoint"

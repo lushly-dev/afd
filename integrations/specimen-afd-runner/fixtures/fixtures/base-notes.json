@@ -1,0 +1,12 @@
+{
+	"app": "notes-demo",
+	"description": "Base notes workspace fixture",
+	"setup": [
+		{
+			"command": "note-seed",
+			"input": {
+				"workspace": "base-vault"
+			}
+		}
+	]
+}

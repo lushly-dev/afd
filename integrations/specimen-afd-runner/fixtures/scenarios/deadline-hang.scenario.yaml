@@ -1,0 +1,10 @@
+name: Deadline cancels a hanging command
+description: Exceeding timeoutMs cancels the render via AbortSignal and disposes the browser context.
+job: deadline-hang
+tags: [cancellation]
+
+steps:
+  - description: Command hangs past the render deadline
+    command: note-hang
+    expect:
+      success: true

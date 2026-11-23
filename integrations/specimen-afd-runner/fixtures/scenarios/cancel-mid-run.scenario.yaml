@@ -1,0 +1,26 @@
+name: AbortSignal cancels mid-run
+description: Cancelling a run aborts the active step, skips remaining steps, and skips post-abort captures.
+job: cancel-mid-run
+tags: [cancellation]
+
+steps:
+  - description: A note is created
+    command: note-create
+    input:
+      title: Before cancel
+    expect:
+      success: true
+      data:
+        id: note-1
+
+  - description: Run is cancelled mid-flight
+    command: note-cancel-mid-run
+    expect:
+      success: true
+
+  - description: This later step must be skipped
+    command: note-open
+    input:
+      id: ${{ steps[0].data.id }}
+    expect:
+      success: true

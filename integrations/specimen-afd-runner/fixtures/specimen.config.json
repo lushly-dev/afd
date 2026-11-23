@@ -1,0 +1,146 @@
+{
+	"plugins": ["./afd.plugin.ts"],
+	"jobSources": ["./afd.job-source.mjs"],
+	"specimens": [
+		{
+			"id": "notes-direct-command",
+			"title": "Notes/Direct command",
+			"module": "./app.specimens.ts",
+			"exportName": "DirectCommandApp"
+		},
+		{
+			"id": "notes-keep-a-draft",
+			"title": "Notes/Keep a draft",
+			"module": "./app.specimens.ts",
+			"exportName": "NotesApp",
+			"job": {
+				"scenario": "./scenarios/keep-a-draft.scenario.yaml",
+				"target": "app",
+				"pin": {
+					"clock": "2026-03-02T09:00:00Z"
+				},
+				"captures": [
+					{
+						"after": "The note opens beside itself",
+						"name": "two-editors"
+					},
+					{
+						"after": "No-op check leaves the screen unchanged",
+						"name": "after-noop"
+					},
+					{
+						"after": "Another writer saves the note",
+						"name": "conflict-notice",
+						"before": [
+							{
+								"action": {
+									"fill": "draft",
+									"value": "unsaved draft"
+								}
+							}
+						]
+					}
+				]
+			}
+		},
+		{
+			"id": "notes-keep-a-draft-compact",
+			"title": "Notes/Keep a draft compact",
+			"module": "./app.specimens.ts",
+			"exportName": "NotesAppCompact",
+			"job": {
+				"scenario": "./scenarios/keep-a-draft.scenario.yaml",
+				"target": "app",
+				"pin": {
+					"clock": "2026-03-02T09:00:00Z"
+				},
+				"captures": [
+					{
+						"after": "The note opens beside itself",
+						"name": "two-editors"
+					},
+					{
+						"after": "Another writer saves the note",
+						"name": "conflict-notice",
+						"before": [
+							{
+								"action": {
+									"fill": "draft",
+									"value": "compact draft"
+								}
+							}
+						]
+					}
+				]
+			}
+		},
+		{
+			"id": "notes-expected-failure",
+			"title": "Notes/Expected failure",
+			"module": "./app.specimens.ts",
+			"exportName": "NotesApp",
+			"job": {
+				"scenario": "./scenarios/expected-failure.scenario.yaml",
+				"target": "app",
+				"captures": [
+					{
+						"after": "Opening an unknown note fails with NOTE_NOT_FOUND",
+						"name": "missing-note"
+					}
+				]
+			}
+		},
+		{
+			"id": "notes-continue-after-failure",
+			"title": "Notes/Continue after failure",
+			"module": "./app.specimens.ts",
+			"exportName": "NotesApp",
+			"job": {
+				"scenario": "./scenarios/continue-after-failure.scenario.yaml",
+				"target": "app",
+				"captures": [
+					{
+						"after": "The note opens beside itself",
+						"name": "after-continued-step"
+					}
+				]
+			}
+		},
+		{
+			"id": "notes-cancel-mid-run",
+			"title": "Notes/Cancel mid-run",
+			"module": "./app.specimens.ts",
+			"exportName": "NotesApp",
+			"job": {
+				"scenario": "./scenarios/cancel-mid-run.scenario.yaml",
+				"target": "app",
+				"captures": [
+					{
+						"after": "A note is created",
+						"name": "before-cancel"
+					},
+					{
+						"after": "This later step must be skipped",
+						"name": "after-cancel"
+					}
+				]
+			}
+		},
+		{
+			"id": "notes-deadline-hang",
+			"title": "Notes/Deadline hang",
+			"module": "./app.specimens.ts",
+			"exportName": "NotesApp",
+			"job": {
+				"scenario": "./scenarios/deadline-hang.scenario.yaml",
+				"target": "app",
+				"captures": [
+					{
+						"after": "Command hangs past the render deadline",
+						"name": "never-reached"
+					}
+				]
+			}
+		}
+	]
+}

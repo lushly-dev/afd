@@ -48,6 +48,7 @@ export const GROUPS = {
 	specimenCore: [
 		'foundations/specimen/**',
 		'integrations/specimen-afd/**',
+		'integrations/specimen-afd-runner/**',
 		'integrations/specimen-fast-af/**',
 		'endpoints/specimen-cli/**',
 	],
@@ -285,7 +286,15 @@ export const WORKFLOW_GRAPH = {
 	},
 	'specimen.yml': {
 		usesSetupAction: true,
-		groups: ['specimenCore', 'afdCore', 'afdServer', 'pnpmLock', 'cargoConfig', 'playwrightAction'],
+		groups: [
+			'specimenCore',
+			'afdCore',
+			'afdServer',
+			'afdTesting',
+			'pnpmLock',
+			'cargoConfig',
+			'playwrightAction',
+		],
 		extra: [
 			'foundations/fast-af/packages/element/packages/fast-element/**',
 			'foundations/fast-af/packages/violet-elements/**',

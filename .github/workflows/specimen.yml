@@ -6,10 +6,12 @@ on:
     paths:
       - 'foundations/specimen/**'
       - 'integrations/specimen-afd/**'
+      - 'integrations/specimen-afd-runner/**'
       - 'integrations/specimen-fast-af/**'
       - 'endpoints/specimen-cli/**'
       - 'packages/core/**'
       - 'packages/server/**'
+      - 'packages/testing/**'
       - 'pnpm-lock.yaml'
       - '.cargo/config.toml'
       - '.github/actions/playwright-install/**'
@@ -28,10 +30,12 @@ on:
     paths:
       - 'foundations/specimen/**'
       - 'integrations/specimen-afd/**'
+      - 'integrations/specimen-afd-runner/**'
       - 'integrations/specimen-fast-af/**'
       - 'endpoints/specimen-cli/**'
       - 'packages/core/**'
       - 'packages/server/**'
+      - 'packages/testing/**'
       - 'pnpm-lock.yaml'
       - '.cargo/config.toml'
       - '.github/actions/playwright-install/**'
@@ -82,7 +86,7 @@ jobs:
           fetch-depth: 0
           filter: blob:none
       - id: run
-        run: node scripts/affected.mjs gate --package @lushly-dev/specimen --package @lushly-dev/specimen-afd --package @lushly-dev/specimen-cli --package @lushly-dev/specimen-fast-af --path tests/consumers/specimen/ --path tests/consumers/pnpm.mjs --path scripts/release/exec-tool.mjs --path .github/workflows/specimen.yml --path .github/actions/setup-node-pnpm/ --path .github/actions/playwright-install/
+        run: node scripts/affected.mjs gate --package @lushly-dev/specimen --package @lushly-dev/specimen-afd --package @lushly-dev/specimen-afd-runner --package @lushly-dev/specimen-cli --package @lushly-dev/specimen-fast-af --path tests/consumers/specimen/ --path tests/consumers/pnpm.mjs --path scripts/release/exec-tool.mjs --path .github/workflows/specimen.yml --path .github/actions/setup-node-pnpm/ --path .github/actions/playwright-install/
       - id: host
         run: node scripts/affected.mjs gate --path foundations/specimen/host/ --path .cargo/config.toml --path .github/workflows/specimen.yml
       - id: hosts
@@ -219,7 +223,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup-node-pnpm
-      - run: pnpm -F "@lushly-dev/specimen-cli..." -F "@lushly-dev/specimen-fast-af..." build
+      - run: pnpm -F "@lushly-dev/specimen-cli..." -F "@lushly-dev/specimen-fast-af..." -F "@lushly-dev/specimen-afd-runner..." build
       - uses: ./.github/actions/playwright-install
         with:
           package: '@lushly-dev/specimen'
@@ -241,9 +245,11 @@ jobs:
       - name: Full native suite (unit, resource, process-worker and Chromium)
         run: pnpm -F @lushly-dev/specimen test:browser
       - name: Integration and endpoint suites
-        run: pnpm -F @lushly-dev/specimen-afd -F @lushly-dev/specimen-cli -F @lushly-dev/specimen-fast-af test
+        run: pnpm -F @lushly-dev/specimen-afd -F @lushly-dev/specimen-afd-runner -F @lushly-dev/specimen-cli -F @lushly-dev/specimen-fast-af test
       - name: FAST-AF plugin through the bench
         run: pnpm -F @lushly-dev/specimen-fast-af test:browser
+      - name: AFD runner plugin through the bench
+        run: pnpm -F @lushly-dev/specimen-afd-runner test:browser
       - name: Packed-artifact consumers outside the workspace
         run: node tests/consumers/specimen/verify-artifacts.mjs --output "$RUNNER_TEMP/specimen-receipt"
       - name: Upload consumer receipt

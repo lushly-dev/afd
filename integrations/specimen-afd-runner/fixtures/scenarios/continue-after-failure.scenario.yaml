@@ -1,0 +1,31 @@
+name: Continue after failure refuses later captures
+description: Even when a failing step sets continueOnFailure, later marked captures are refused.
+job: continue-after-failure
+tags: [refusal]
+
+steps:
+  - description: A note is created
+    command: note-create
+    input:
+      title: Broken flow
+    expect:
+      success: true
+      data:
+        id: note-1
+
+  - description: Opening a missing note fails unexpectedly
+    command: note-open
+    input:
+      id: note-missing
+    continueOnFailure: true
+    expect:
+      success: true
+
+  - description: The note opens beside itself
+    command: note-open-beside
+    input:
+      id: ${{ steps[0].data.id }}
+    expect:
+      success: true
+      data:
+        openEditors: 2
