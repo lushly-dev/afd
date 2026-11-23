@@ -1,4 +1,4 @@
-import { FASTElement, attr, css, html, observable, when } from "@lushly-dev/fast-element";
+import { FASTElement, Observable, attr, css, html, observable, when } from "@lushly-dev/fast-element";
 
 import "../option/violet-option";
 import type { VioletOption } from "../option/violet-option";
@@ -312,6 +312,15 @@ export class VioletCombobox extends FASTElement {
         this.hide(true);
     };
 
+    // The slot's slotchange misses options nested in groups and edits to an
+    // option's label or value, so watch the light DOM for both (#1377).
+    // The host's own attributes are left to their change callbacks.
+    readonly #optionsObserver = new MutationObserver(records => {
+        if (records.some(record => record.target !== this)) {
+            this.handleSlotChange();
+        }
+    });
+
     @observable
     declare public open: boolean;
 
@@ -383,6 +392,13 @@ export class VioletCombobox extends FASTElement {
         this.ownerDocument.addEventListener("pointerdown", this.#handleDocumentPointerDown, true);
         window.addEventListener("resize", this.#handleViewportChange);
         window.addEventListener("scroll", this.#handleViewportChange, true);
+        this.#optionsObserver.observe(this, {
+            childList: true,
+            subtree: true,
+            characterData: true,
+            attributes: true,
+            attributeFilter: ["value", "label", "disabled"],
+        });
         this.handleSlotChange();
         this.#defaultValue = this.getAttribute("value") ?? this.value;
         this.#defaultSelectedOptionValue = this.selectedOptionValue;
@@ -391,6 +407,7 @@ export class VioletCombobox extends FASTElement {
     }
 
     public disconnectedCallback(): void {
+        this.#optionsObserver.disconnect();
         this.removeEventListener("request-select", this.handleRequestSelect as EventListener);
         this.ownerDocument.removeEventListener("pointerdown", this.#handleDocumentPointerDown, true);
         window.removeEventListener("resize", this.#handleViewportChange);
@@ -427,6 +444,7 @@ export class VioletCombobox extends FASTElement {
     }
 
     public get visibleOptions(): VioletOption[] {
+        Observable.track(this, "visibleOptions");
         const query = normalizeMatchText(this.value.trim());
         if (!query) {
             return this.options;
@@ -470,14 +488,21 @@ export class VioletCombobox extends FASTElement {
     }
 
     public handleSlotChange(): void {
-        const selectedByValue = getSelectedOption(this.options, this.selectedOptionValue || this.value);
+        // While the panel is open with no active selection, the user is filtering; do not
+        // auto-select a newly arrived option or overwrite their filter query.
+        const filteringOpen = this.open && !this.selectedOptionValue;
+        const selectedByValue = filteringOpen
+            ? null
+            : getSelectedOption(this.options, this.selectedOptionValue || this.value);
+        const hadSelection = Boolean(this.selectedOptionValue && selectedByValue?.value === this.selectedOptionValue);
         const selectedByLabel =
             selectedByValue ??
-            this.options.find(
-                option =>
-                    !isOptionDisabled(option) && normalizeMatchText(option.labelText) === normalizeMatchText(this.value)
-            ) ??
-            null;
+            (filteringOpen
+                ? null
+                : (this.options.find(
+                      option =>
+                          !isOptionDisabled(option) && normalizeMatchText(option.labelText) === normalizeMatchText(this.value)
+                  ) ?? null));
         const selected = selectedByValue ?? selectedByLabel;
 
         if (selected) {
@@ -485,6 +510,7 @@ export class VioletCombobox extends FASTElement {
 
             if (
                 !this.open ||
+                hadSelection ||
                 !this.value ||
                 this.value === selected.value ||
                 normalizeMatchText(this.value) === normalizeMatchText(selected.labelText)
@@ -501,6 +527,7 @@ export class VioletCombobox extends FASTElement {
 
         this.#syncVisibleState();
         this.#syncFormState();
+        Observable.notify(this, "visibleOptions");
     }
 
     public handleInputFocus(): void {
@@ -589,6 +616,7 @@ export class VioletCombobox extends FASTElement {
     public valueChanged(): void {
         this.#syncVisibleState();
         this.#syncFormState();
+        Observable.notify(this, "visibleOptions");
     }
 
     public requiredChanged(): void {
@@ -648,6 +676,7 @@ export class VioletCombobox extends FASTElement {
 
         this.#syncVisibleState();
         this.#syncFormState();
+        Observable.notify(this, "visibleOptions");
     }
 
     public selectValue(nextValue: string): void {

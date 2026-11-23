@@ -114,6 +114,7 @@ the ids `<step>.size`, `<step>.line` and `<step>.weight` (for example
 | Focus | `color.focus.ring` | The focus indicator, on every surface |
 | Actions | `color.action.{primary,secondary,danger}.{background,text,hover,pressed}`, `color.action.secondary.border` | Buttons, by weight: one primary per view, secondary for the rest, danger for destructive commands |
 | Selected controls | `color.control.selected.{background,foreground,border}` | A selected item in a list, segmented control or rail |
+| Accent | `color.accent.{background,text}` | Emphasis badges, kept in a blue hue apart from mint selection and status tones |
 | States | `color.state.{success,warning,danger}.{background,text,border}` | Messages and badges |
 | Fields | `color.field.{background,background.readonly,text,placeholder}`, `color.field.border` and its `.hover`, `.focus`, `.invalid` | Text inputs and the controls built on them |
 | Handles | `shell.color.handle.{rest,hover,active}` | The resize handles between parts; aliases of `color.border.subtle`, `color.border.strong` and `color.focus.ring` |
@@ -148,6 +149,7 @@ its names, with the tints Refined added under `global.ref.color` in `tree/loam.t
 | `color.action.secondary.border` | `transparent` | `transparent` | `#000000` |
 | `color.action.danger.background` / `.hover` / `.pressed` | `#c42a1a` / `#ad2416` / `#96200f` | as light | `#A30000` / `#8A0000` / `#700000` |
 | `color.action.danger.text` | `#ffffff` | `#ffffff` | `#ffffff` |
+| `color.accent.background` / `.text` | `#e2edf5` / `#146ba0` | `#182b3a` / `#9fd4f5` | `#ffffff` / `#004A80` |
 | `color.state.success.background` / `.text` / `.border` | `#dfeae3` / `#2c5e4b` / `transparent` | `#1b2823` / `#a3ebcd` / `transparent` | `#ffffff` / `#0B5A1E` / `#0B5A1E` |
 | `color.state.warning.background` / `.text` / `.border` | `#f3e8d2` / `#92400e` / `transparent` | `#3a2b18` / `#f3d6a3` / `transparent` | `#ffffff` / `#6B3200` / `#6B3200` |
 | `color.state.danger.background` / `.text` / `.border` | `#f7e4df` / `#c42a1a` / `transparent` | `#3d211d` / `#ffab99` / `transparent` | `#ffffff` / `#A30000` / `#A30000` |
@@ -161,7 +163,7 @@ The full set per theme is `dist/loam-theme.json` after `theme:build`.
 
 | Pair kind | Light and dark | High contrast |
 | --- | --- | --- |
-| Text: primary, secondary and muted on the five surfaces; each action's text on its background, hover and pressed colors; state text on its background, on page and on card; `color.control.selected.foreground` on its background; `color.field.text` on both field backgrounds; `color.field.placeholder` on the editable fill and `color.text.secondary` (a read-only field's placeholder) on the read-only fill, each over page, card, subtle and floating; `color.state.danger.foreground`, error text in several components, on page, card, subtle and floating; `color.text.primary` and `.secondary` on `color.action.secondary.hover` and `.pressed`; `color.state.danger.text` on `color.surface.floating` | 4.5:1 | 7:1 |
+| Text: primary, secondary and muted on the five surfaces; each action's text on its background, hover and pressed colors; `color.accent.text` on `color.accent.background`, on page and on card; state text on its background, on page and on card; `color.control.selected.foreground` on its background; `color.field.text` on both field backgrounds; `color.field.placeholder` on the editable fill and `color.text.secondary` (a read-only field's placeholder) on the read-only fill, each over page, card, subtle and floating; `color.state.danger.foreground`, error text in several components, on page, card, subtle and floating; `color.text.primary` and `.secondary` on `color.action.secondary.hover` and `.pressed`; `color.state.danger.text` on `color.surface.floating` | 4.5:1 | 7:1 |
 | Non-text: `color.border.strong` on page, card, subtle and floating; `color.field.border`, `color.field.border.hover` and `color.field.border.invalid` on both field backgrounds (on the read-only fill, `color.border.strong` in place of `color.field.border`; field pairs over page, card, subtle and floating; D159), plus `color.field.border`, `color.field.border.hover` and `color.field.border.focus` on `color.surface.card` and `color.surface.floating` for panel-hosted inputs (#657); `color.state.success.foreground` and `color.state.danger.foreground`, a message's icon, on their state background and on page; `shell.color.handle.hover` and `.active` on page, card and subtle; `color.focus.ring` on the five surfaces; `color.field.border.focus` on both field backgrounds | 3:1 | 3:1 |
 | Non-text, high contrast only: `color.border.subtle` and `shell.color.handle.rest` on the five surfaces; the primary and danger action backgrounds on page; `color.action.secondary.border`, `color.control.selected.border` and each state border on their backgrounds | Not held (decorative, or identified by a label) | 3:1 |
 
@@ -190,7 +192,7 @@ drawn over its background, which is drawn over `color.surface.page`.
 - **High contrast** is a light scheme on neutral colors: white surfaces with
   `#F2F2F2` subtle and `#E0E0E0` selected, black text and strong borders,
   `#595959` subtle borders, a black focus ring, a black primary action, and
-  danger, success and warning at 7:1 on white. Shadows become spread shadows
+  danger, success, warning and accent at 7:1 on white. Shadows become spread shadows
   (`0 0 0 1px #000000`, 2px for `shadow.floating`) that draw a border
   without changing layout.
 

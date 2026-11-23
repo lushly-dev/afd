@@ -7,6 +7,14 @@
     }
   },
   "color": {
+    "accent": {
+      "background": {
+        "$value": "{ref.color.blue.950}"
+      },
+      "text": {
+        "$value": "{ref.color.blue.200}"
+      }
+    },
     "action": {
       "primary": {
         "background": {

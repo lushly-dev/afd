@@ -123,7 +123,7 @@ describe("violet runtime theme", () => {
         expect(violetThemePresets).toEqual(["light", "dark", "high-contrast"]);
         expect(violetThemeBuiltInSet.defaultPreset).toBe(VIOLET_THEME_DEFAULT_PRESET);
         expect(violetThemeCssText).toBe(createVioletThemeCss(violetThemeBuiltInSet));
-        expect(violetThemeCssText.startsWith(":root,\n[data-violet-theme-root]\n{\n  --color-action-danger-background: #c42a1a;")).toBe(true);
+        expect(violetThemeCssText.startsWith(":root,\n[data-violet-theme-root]\n{\n  --color-accent-background: #e2edf5;")).toBe(true);
         expect(violetThemeCssText).toContain(':root[data-violet-theme="dark"],\n[data-violet-theme-root][data-violet-theme="dark"]\n{');
         expect(violetThemeDeclarations).toBe(violetThemeDeclarationsByPreset.light);
         expect(violetThemeDeclarations).toContain('  --font-family-body: "Inter", system-ui, sans-serif;');

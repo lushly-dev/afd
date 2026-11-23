@@ -78,4 +78,24 @@ describe("violet-radio", () => {
         expect(radio.shadowRoot?.querySelector(".content")?.hasAttribute("hidden")).toBe(true);
         expect(radio.getAttribute("aria-label")).toBe("Compact direct seed option");
     });
+
+    it("includes the label's longest word in its minimum width inside a table cell (#1579)", async () => {
+        document.body.innerHTML = `
+            <table style="width: 1px;">
+                <tr>
+                    <td><violet-radio id="rd" value="archived">Include archived items</violet-radio></td>
+                </tr>
+            </table>
+        `;
+        await customElements.whenDefined("violet-radio");
+        await nextFrame();
+
+        const radio = document.getElementById("rd") as VioletRadio;
+        const hostRect = radio.getBoundingClientRect();
+        const label = radio.shadowRoot?.querySelector(".label") as HTMLElement;
+        const control = radio.shadowRoot?.querySelector(".control-shell") as HTMLElement;
+
+        expect(hostRect.width).toBeGreaterThan(control.getBoundingClientRect().width + 30);
+        expect(label.scrollWidth).toBeLessThanOrEqual(label.clientWidth + 1);
+    });
 });

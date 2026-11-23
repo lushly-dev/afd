@@ -26,6 +26,8 @@ const CONTRACT_DIGESTS: Readonly<Record<number, string>> = {
     1: "0fd1c3c87bff39e5d24aa8e0f846e569f469bc1194fac6a8d298f595adb3eebd",
     // The Refined design: font.family.heading, shadow.well and the five color.field.* ids fields read.
     2: "a62b51f27974d98d9c78da13bd0d5ac8e5f91d0fbb8423cfff5f5148b1d34638",
+    // Distinct accent tokens (#1577): color.accent.background and color.accent.text.
+    3: "46a6fc2d8be329e3be627635fa848d92396f56d17475bbf389e6d628de5cabf2",
 };
 
 /**
@@ -134,6 +136,8 @@ describe("the token interface (tokens/interface.json)", () => {
         expect(contract.tokens["font.family.mono"]).toEqual({ property: "--font-family-mono", type: "fontFamily" });
         expect(contract.tokens["font.family.heading"]).toEqual({ property: "--font-family-heading", type: "fontFamily" });
         expect(contract.tokens["shadow.well"]).toEqual({ property: "--shadow-well", type: "shadow" });
+        expect(contract.tokens["color.accent.background"]).toEqual({ property: "--color-accent-background", type: "color" });
+        expect(contract.tokens["color.accent.text"]).toEqual({ property: "--color-accent-text", type: "color" });
     });
 
     it("is supplied in full by the built-in default set, in every preset", () => {

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { cdp } from "vitest/browser";
 
+import { applyVioletThemePreset, installVioletTheme, loadVioletBuiltInTheme } from "../theme/violet-theme-runtime";
 import "./violet-badge";
 import type { VioletBadge } from "./violet-badge";
 
@@ -63,6 +64,65 @@ describe("violet-badge", () => {
         // The light theme's values are the fallbacks: #C42A1A text on #F7E4DF.
         expect(getComputedStyle(badge).getPropertyValue("--_badge-text").trim().toLowerCase()).toBe("#c42a1a");
         expect(getComputedStyle(badge).getPropertyValue("--_badge-bg").trim().toLowerCase()).toBe("#f7e4df");
+    });
+
+    it("keeps its accent colour distinct from success with no theme installed (#1577)", async () => {
+        document.body.innerHTML =
+            `<violet-badge color="accent">New</violet-badge><violet-badge color="success">Done</violet-badge>`;
+        await customElements.whenDefined("violet-badge");
+        await nextFrame();
+        const [accent, success] = [...document.querySelectorAll<VioletBadge>("violet-badge")];
+        const accentStyle = getComputedStyle(accent!);
+        const successStyle = getComputedStyle(success!);
+
+        expect(accentStyle.getPropertyValue("--_badge-bg").trim().toLowerCase()).toBe("#e2edf5");
+        expect(accentStyle.getPropertyValue("--_badge-text").trim().toLowerCase()).toBe("#146ba0");
+        expect(accentStyle.getPropertyValue("--_badge-text").trim().toLowerCase()).not.toBe(
+            successStyle.getPropertyValue("--_badge-text").trim().toLowerCase()
+        );
+    });
+
+    describe("accent colour across presets (#1577)", () => {
+        afterEach(() => {
+            for (const node of document.querySelectorAll('style[data-violet-theme="runtime"]')) {
+                node.remove();
+            }
+            document.documentElement.removeAttribute("data-violet-theme");
+        });
+
+        for (const preset of ["light", "dark", "high-contrast"] as const) {
+            it(`renders accent in a hue distinct from every status tone in ${preset}`, async () => {
+                await loadVioletBuiltInTheme();
+                installVioletTheme(document);
+                applyVioletThemePreset(document, preset);
+
+                document.body.innerHTML = `
+                    <violet-badge color="accent">New</violet-badge>
+                    <violet-badge color="success">Done</violet-badge>
+                    <violet-badge color="warning">Review</violet-badge>
+                    <violet-badge color="danger">Blocked</violet-badge>
+                `;
+                await customElements.whenDefined("violet-badge");
+                await nextFrame();
+
+                const read = (color: string) => {
+                    const surface = document
+                        .querySelector(`violet-badge[color="${color}"]`)
+                        ?.shadowRoot?.querySelector(".badge") as HTMLElement;
+                    const style = getComputedStyle(surface);
+                    return { bg: style.backgroundColor, text: style.color };
+                };
+
+                const accent = read("accent");
+                for (const status of ["success", "warning", "danger"]) {
+                    const tone = read(status);
+                    expect(accent.text, `${preset} accent text vs ${status}`).not.toBe(tone.text);
+                    if (preset !== "high-contrast") {
+                        expect(accent.bg, `${preset} accent fill vs ${status}`).not.toBe(tone.bg);
+                    }
+                }
+            });
+        }
     });
 
     it("hides the badge from assistive technology when decorative", async () => {

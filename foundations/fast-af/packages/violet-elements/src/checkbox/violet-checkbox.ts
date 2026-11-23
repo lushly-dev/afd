@@ -28,11 +28,10 @@ const styles = css`
 
     .root {
         display: inline-grid;
-        grid-template-columns: auto minmax(0, 1fr);
+        grid-template-columns: auto 1fr;
         gap: var(--_space-inline-md);
         align-items: start;
         min-block-size: var(--_target-size);
-        cursor: pointer;
     }
 
     :host([inline]) .root {
@@ -42,6 +41,11 @@ const styles = css`
         min-block-size: auto;
     }
 
+    /*
+     * The native input sits inside its own <label class="control-shell">, while the
+     * primary label text sits in a sibling <label for="control">. That gives both the
+     * box and the label text native activation without wrapping the supporting slot.
+     */
     .input {
         position: absolute;
         inset: 0;
@@ -49,11 +53,10 @@ const styles = css`
         block-size: 100%;
         margin: 0;
         padding: 0;
+        appearance: none;
         opacity: 0;
-        overflow: hidden;
         border: 0;
-        clip: rect(0 0 0 0);
-        white-space: nowrap;
+        cursor: inherit;
     }
 
     .control-shell {
@@ -61,6 +64,7 @@ const styles = css`
         display: inline-grid;
         min-block-size: var(--_target-size);
         align-items: center;
+        cursor: pointer;
     }
 
     :host([inline]) .control-shell {
@@ -146,8 +150,10 @@ const styles = css`
         border-color: var(--_danger-border);
     }
 
-    :host([disabled]) .root,
-    :host(:disabled) .root {
+    :host([disabled]) .control-shell,
+    :host(:disabled) .control-shell,
+    :host([disabled]) .label,
+    :host(:disabled) .label {
         cursor: not-allowed;
     }
 
@@ -168,7 +174,6 @@ const styles = css`
         min-block-size: var(--_target-size);
         padding-block: calc((var(--_target-size) - var(--_type-body-line)) / 2);
         align-content: start;
-        min-inline-size: 0;
     }
 
     .content[hidden] {
@@ -185,12 +190,15 @@ const styles = css`
         color: var(--color-text-primary, #181b1a);
         font-size: var(--_control-body-size);
         line-height: var(--_type-body-line);
+        overflow-wrap: break-word;
+        cursor: pointer;
     }
 
     .supporting {
         color: var(--_text-muted);
         font-size: var(--_control-caption-size);
         line-height: var(--_type-caption-line);
+        overflow-wrap: break-word;
     }
 
     @media (forced-colors: active) {
@@ -228,18 +236,19 @@ const styles = css`
 `;
 
 const template = html<VioletCheckbox>`
-    <label class="root" part="root">
-        <span class="control-shell">
+    <div class="root" part="root">
+        <label class="control-shell">
             <input
                 class="input"
                 part="input"
+                id="control"
                 type="checkbox"
                 :checked="${x => x.checked}"
                 name="${x => x.name}"
                 value="${x => x.value}"
                 ?disabled="${x => x.effectiveDisabled}"
                 ?required="${x => x.required}"
-                aria-label="${x => x.controlAriaLabel}"
+                aria-label="${x => x.explicitAriaLabel}"
                 aria-invalid="${x => x.invalid ? "true" : "false"}"
                 @change="${(x, c) => x.handleChange(c.event)}"
             />
@@ -247,16 +256,16 @@ const template = html<VioletCheckbox>`
                 <span class="checkmark" part="mark checkmark"></span>
                 <span class="mixed-mark" part="mark mixed-mark"></span>
             </span>
-        </span>
+        </label>
         <span class="content" ?hidden="${x => x.inline && !x.hasLabel && !x.hasSupporting}">
-            <span class="label" part="label" ?hidden="${x => x.inline && !x.hasLabel}">
+            <label class="label" part="label" for="control" ?hidden="${x => x.inline && !x.hasLabel}">
                 <slot @slotchange="${x => x.handleDefaultSlotChange()}"></slot>
-            </span>
+            </label>
             <span class="supporting" part="supporting-text" id="supporting-text" ?hidden="${x => !x.hasSupporting}">
                 <slot name="supporting" @slotchange="${x => x.handleSupportingSlotChange()}"></slot>
             </span>
         </span>
-    </label>
+    </div>
 `;
 
 /**
@@ -277,7 +286,7 @@ export class VioletCheckbox extends FASTElement {
     public static readonly formAssociated = true;
 
     readonly #internals: ElementInternals;
-    readonly #describedByObserver = new MutationObserver(() => this.#syncDescribedBy());
+    readonly #hostAriaObserver = new MutationObserver(() => this.#syncControlState());
     // A described-by target can appear after the host connects without the attribute changing, so focus re-links it.
     readonly #handleFocusIn = (): void => this.#syncDescribedBy();
     #defaultChecked: boolean;
@@ -366,7 +375,10 @@ export class VioletCheckbox extends FASTElement {
         this.#syncSupportingState();
         this.#syncControlState();
         this.#syncFormState();
-        this.#describedByObserver.observe(this, { attributes: true, attributeFilter: ["aria-describedby"] });
+        this.#hostAriaObserver.observe(this, {
+            attributes: true,
+            attributeFilter: ["aria-describedby", "aria-label"],
+        });
         this.addEventListener("focusin", this.#handleFocusIn);
         // Targets rendered in the same update as the checkbox exist once that update has landed.
         Updates.enqueue(() => this.#syncDescribedBy());
@@ -374,7 +386,7 @@ export class VioletCheckbox extends FASTElement {
 
     public disconnectedCallback(): void {
         super.disconnectedCallback();
-        this.#describedByObserver.disconnect();
+        this.#hostAriaObserver.disconnect();
         this.removeEventListener("focusin", this.#handleFocusIn);
     }
 
@@ -405,8 +417,12 @@ export class VioletCheckbox extends FASTElement {
         this.indeterminate = this.#defaultIndeterminate;
     }
 
+    public get explicitAriaLabel(): string | null {
+        return this.getAttribute("aria-label")?.trim() || null;
+    }
+
     public get controlAriaLabel(): string | null {
-        const explicitLabel = this.getAttribute("aria-label");
+        const explicitLabel = this.explicitAriaLabel;
         if (explicitLabel) {
             return explicitLabel;
         }
@@ -519,9 +535,9 @@ export class VioletCheckbox extends FASTElement {
         control.value = this.value;
         control.setAttribute("aria-invalid", this.invalid ? "true" : "false");
 
-        const ariaLabel = this.controlAriaLabel;
-        if (ariaLabel) {
-            control.setAttribute("aria-label", ariaLabel);
+        const explicitAriaLabel = this.explicitAriaLabel;
+        if (explicitAriaLabel) {
+            control.setAttribute("aria-label", explicitAriaLabel);
         } else {
             control.removeAttribute("aria-label");
         }

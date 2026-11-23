@@ -10,7 +10,7 @@
 			{
 				"basis": "authored",
 				"id": "checkbox.name",
-				"text": "The slotted label text is copied to the input as a plain-text aria-label; an aria-label on the host overrides it. Text in the supporting slot describes the input."
+				"text": "The slotted label names the input through a native label association; an aria-label on the host overrides it. Text in the supporting slot describes the input."
 			},
 			{
 				"basis": "authored",

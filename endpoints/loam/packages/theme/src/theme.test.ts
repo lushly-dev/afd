@@ -67,7 +67,7 @@ describe("Loam's Violet tree", () => {
 		const entries = Object.values<{ kind: string }>(committed.tokens);
 		const componentCount = entries.filter((entry) => entry.kind === 'component').length;
 		const shellCount = entries.filter((entry) => entry.kind === 'shell').length;
-		expect(componentCount).toBe(117);
+		expect(componentCount).toBe(119);
 		expect(shellCount).toBe(19);
 		expect(contractIds).toHaveLength(componentCount + shellCount);
 		for (const id of contractIds) expect(id.startsWith('ref.')).toBe(false);
@@ -150,6 +150,19 @@ describe("Loam's Violet tree", () => {
 		expect(value(themeNode('dark'), 'shadow.well')).toBe(
 			'inset 0 2px 3px -1px rgba(0, 0, 0, 0.28)'
 		);
+	});
+
+	it('gives the accent tokens a distinct blue hue in every theme (#1577)', () => {
+		expect(value(themeNode('light'), 'color.accent.background')).toBe('#e2edf5');
+		expect(value(themeNode('light'), 'color.accent.text')).toBe('#146ba0');
+		expect(value(themeNode('dark'), 'color.accent.background')).toBe('#182b3a');
+		expect(value(themeNode('dark'), 'color.accent.text')).toBe('#9fd4f5');
+		expect(value(themeNode('high-contrast'), 'color.accent.background')).toBe('#ffffff');
+		expect(value(themeNode('high-contrast'), 'color.accent.text')).toBe('#004A80');
+		for (const theme of THEMES) {
+			const node = themeNode(theme);
+			expect(value(node, 'color.accent.text')).not.toBe(value(node, 'color.state.success.text'));
+		}
 	});
 
 	it('changes only density in compact, and never takes a target below 24px', () => {
@@ -369,7 +382,7 @@ describe('DTCG tree files (#1974)', () => {
 		const catalog = await tokensCatalogCommand.handler({}, { db: tree.db, actor: 'test' });
 		expect(catalog.success).toBe(true);
 		expect(catalog.data?.summary.categories).toEqual({
-			color: 106,
+			color: 112,
 			motion: 5,
 			typography: 32,
 			radius: 4,

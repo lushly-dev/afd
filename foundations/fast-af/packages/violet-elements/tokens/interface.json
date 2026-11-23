@@ -1,8 +1,16 @@
 {
-	"contractVersion": 2,
+	"contractVersion": 3,
 	"package": "@lushly-dev/violet-elements",
 	"description": "Every custom property the violet-elements components read, by token id, with its type. A product theme set supplies a value for each, in its default preset; reserved ids are part of the interface that no component reads yet. contractVersion changes whenever an id is added, removed, renamed or retyped.",
 	"tokens": {
+		"color.accent.background": {
+			"property": "--color-accent-background",
+			"type": "color"
+		},
+		"color.accent.text": {
+			"property": "--color-accent-text",
+			"type": "color"
+		},
 		"color.action.danger.background": {
 			"property": "--color-action-danger-background",
 			"type": "color"

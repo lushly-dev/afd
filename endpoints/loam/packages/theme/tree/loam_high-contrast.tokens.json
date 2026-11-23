@@ -7,6 +7,14 @@
     }
   },
   "color": {
+    "accent": {
+      "background": {
+        "$value": "{ref.color.white}"
+      },
+      "text": {
+        "$value": "{ref.color.contrast.blue}"
+      }
+    },
     "action": {
       "danger": {
         "background": {

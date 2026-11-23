@@ -161,7 +161,8 @@ test('upstream Git object ids match the bytes of every file imported unchanged',
 	// fixes (#1576, #1583, #1584, #1585, #1588) adapted the icon registry and the icon's, the
 	// skeleton's and the tabs' specs: 440. The violet-elements bug batch (#657, #1582, #1587, #2072)
 	// adapted violet-data-grid-pill-select's spec: 439. The violet-elements bug batch (#512, #1171,
-	// #1569, #1602, #1963) adapted the accordion's, carousel's and icon-button's specs: 436. A
+	// #1569, #1602, #1963) adapted the accordion's, carousel's and icon-button's specs: 436. The
+	// area:fast-af bug batch (#1577, #1578, #1579, #1377, #1197) adapted the radio's spec: 435. A
 	// removed file's record is kept but not counted.
-	assert(checked > 435, `only ${checked} unchanged upstream files`);
+	assert(checked > 434, `only ${checked} unchanged upstream files`);
 });

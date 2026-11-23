@@ -1,8 +1,44 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { cdp, userEvent } from "vitest/browser";
 
 import "./violet-checkbox";
-import { VioletCheckbox } from "./violet-checkbox";
+import type { VioletCheckbox } from "./violet-checkbox";
+
+interface FrameTree {
+    frame: { id: string; url: string };
+    childFrames?: FrameTree[];
+}
+
+interface AxNode {
+    role?: { value?: string };
+    name?: { value?: string };
+    description?: { value?: string };
+}
+
+function findFrame(tree: FrameTree, url: string): string | undefined {
+    if (tree.frame.url === url) {
+        return tree.frame.id;
+    }
+    for (const child of tree.childFrames ?? []) {
+        const found = findFrame(child, url);
+        if (found) {
+            return found;
+        }
+    }
+    return undefined;
+}
+
+async function getAxNodes(): Promise<AxNode[]> {
+    const session = cdp() as unknown as {
+        send(method: string, params?: object): Promise<unknown>;
+    };
+    const { frameTree } = (await session.send("Page.getFrameTree")) as { frameTree: FrameTree };
+    const frameId = findFrame(frameTree, location.href);
+    const { nodes } = (await session.send("Accessibility.getFullAXTree", { frameId })) as {
+        nodes: AxNode[];
+    };
+    return nodes;
+}
 
 function nextFrame(): Promise<void> {
     return new Promise(resolve => {
@@ -137,13 +173,35 @@ describe("violet-checkbox", () => {
         expect(details).toEqual([{ checked: true }, { checked: false }]);
     });
 
-    it("toggles when its label text is clicked", async () => {
+    it("toggles when its label text or control box is clicked, without toggling on supporting content", async () => {
+        const wrapper = document.createElement("div");
+        wrapper.className = "label";
         const { checkbox } = await renderCheckbox({ label: "Accept terms" });
+        wrapper.append(checkbox);
+        document.body.append(wrapper);
 
-        (checkbox.shadowRoot!.querySelector(".label") as HTMLElement).click();
+        const details = document.createElement("details");
+        details.slot = "supporting";
+        const summary = document.createElement("summary");
+        summary.textContent = "Read policy";
+        const body = document.createElement("p");
+        body.textContent = "Details here.";
+        details.append(summary, body);
+        checkbox.append(details);
         await nextFrame();
 
+        await userEvent.click(checkbox.shadowRoot!.querySelector(".label") as HTMLElement);
+        await nextFrame();
         expect(checkbox.checked).toBe(true);
+
+        await userEvent.click(checkbox.shadowRoot!.querySelector(".box") as HTMLElement);
+        await nextFrame();
+        expect(checkbox.checked).toBe(false);
+
+        await userEvent.click(summary);
+        await nextFrame();
+        expect(details.open).toBe(true);
+        expect(checkbox.checked).toBe(false);
     });
 
     it("toggles with the Space key when focused", async () => {
@@ -193,11 +251,40 @@ describe("violet-checkbox", () => {
     });
 
     describe("accessible name", () => {
-        it("uses the slotted label text", async () => {
+        it("names the input through its native label without duplicating aria-label (#1578)", async () => {
             const { checkbox } = await renderCheckbox({ label: "Accept terms" });
+            const label = checkbox.shadowRoot?.querySelector("label.label") as HTMLLabelElement | null;
 
-            expect(input(checkbox).getAttribute("aria-label")).toBe("Accept terms");
+            expect(label?.htmlFor).toBe(input(checkbox).id);
+            expect(input(checkbox).hasAttribute("aria-label")).toBe(false);
             expect(checkbox.controlAriaLabel).toBe("Accept terms");
+        });
+
+        it("exposes the label once in the accessibility tree and keeps supporting text as description (#1578)", async () => {
+            document.body.innerHTML = `
+                <table>
+                    <thead><tr><th>Violet</th><th>Native</th></tr></thead>
+                    <tbody><tr>
+                        <td id="violet-cell"><violet-checkbox>Send me updates<span slot="supporting">Once a week</span></violet-checkbox></td>
+                        <td id="native-cell"><input id="native-cb" type="checkbox" aria-describedby="native-desc"><label for="native-cb">Send me updates</label><span id="native-desc">Once a week</span></td>
+                    </tr></tbody>
+                </table>
+            `;
+            await customElements.whenDefined("violet-checkbox");
+            await nextFrame();
+
+            const nodes = await getAxNodes();
+            const checkboxes = nodes.filter(node => node.role?.value === "checkbox");
+            expect(checkboxes).toHaveLength(2);
+            expect(checkboxes[0]?.name?.value).toBe("Send me updates");
+            expect(checkboxes[0]?.description?.value).toBe("Once a week");
+            expect(checkboxes[0]?.name?.value).toBe(checkboxes[1]?.name?.value);
+            expect(checkboxes[0]?.description?.value).toBe(checkboxes[1]?.description?.value);
+
+            const cells = nodes.filter(node => node.role?.value === "cell");
+            expect(cells).toHaveLength(2);
+            expect(cells[0]?.name?.value).toBe(cells[1]?.name?.value);
+            expect(cells[0]?.name?.value).not.toContain("Send me updates Send me updates");
         });
 
         it("prefers an explicit aria-label on the host", async () => {
@@ -209,6 +296,11 @@ describe("violet-checkbox", () => {
             });
 
             expect(input(checkbox).getAttribute("aria-label")).toBe("Accept the terms and conditions");
+
+            checkbox.setAttribute("aria-label", "Updated label");
+            await nextFrame();
+
+            expect(input(checkbox).getAttribute("aria-label")).toBe("Updated label");
         });
 
         it("is described by its supporting text and the host's aria-describedby", async () => {
@@ -265,6 +357,28 @@ describe("violet-checkbox", () => {
             await nextFrame();
 
             expect(input(checkbox).getAttribute("aria-invalid")).toBe("true");
+        });
+    });
+
+    describe("layout sizing (#1579)", () => {
+        it("includes the label's longest word in its minimum width inside a table cell", async () => {
+            document.body.innerHTML = `
+                <table style="width: 1px;">
+                    <tr>
+                        <td><violet-checkbox id="cb">Include archived items</violet-checkbox></td>
+                    </tr>
+                </table>
+            `;
+            await customElements.whenDefined("violet-checkbox");
+            await nextFrame();
+
+            const checkbox = document.getElementById("cb") as VioletCheckbox;
+            const hostRect = checkbox.getBoundingClientRect();
+            const label = checkbox.shadowRoot?.querySelector(".label") as HTMLElement;
+            const control = checkbox.shadowRoot?.querySelector(".control-shell") as HTMLElement;
+
+            expect(hostRect.width).toBeGreaterThan(control.getBoundingClientRect().width + 30);
+            expect(label.scrollWidth).toBeLessThanOrEqual(label.clientWidth + 1);
         });
     });
 

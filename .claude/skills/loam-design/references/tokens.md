@@ -12,7 +12,7 @@ or `dist/loam-theme.json`.
    `ref.space.<px>` (2, 4, 6, 8, 12, 16, 24). Only the tree's semantic tokens
    reference them; no export contains them; the lint fails any read or set of
    `--ref-*`.
-2. **Component ids**: 117, read by `violet-elements` and every Loam
+2. **Component ids**: 119, read by `violet-elements` and every Loam
    component.
 3. **Shell ids**: 19, read only by `@lushly-dev/loam-chrome`.
 
@@ -57,6 +57,7 @@ with the tints and shades Refined added under `global.ref.color` in `tree/loam.t
 | `color.action.secondary.border` | `transparent` | `transparent` | `#000000` |
 | `color.action.danger.background` / `.hover` / `.pressed` | `#c42a1a` / `#ad2416` / `#96200f` | as light | `#A30000` / `#8A0000` / `#700000` |
 | `color.action.danger.text` | `#ffffff` | `#ffffff` | `#ffffff` |
+| `color.accent.background` / `.text` | `#e2edf5` / `#146ba0` | `#182b3a` / `#9fd4f5` | `#ffffff` / `#004A80` |
 | `color.state.success.background` / `.text` / `.border` | `#dfeae3` / `#2c5e4b` / `transparent` | `#1b2823` / `#a3ebcd` / `transparent` | `#ffffff` / `#0B5A1E` / `#0B5A1E` |
 | `color.state.warning.background` / `.text` / `.border` | `#f3e8d2` / `#92400e` / `transparent` | `#3a2b18` / `#f3d6a3` / `transparent` | `#ffffff` / `#6B3200` / `#6B3200` |
 | `color.state.danger.background` / `.text` / `.border` | `#f7e4df` / `#c42a1a` / `transparent` | `#3d211d` / `#ffab99` / `transparent` | `#ffffff` / `#A30000` / `#A30000` |

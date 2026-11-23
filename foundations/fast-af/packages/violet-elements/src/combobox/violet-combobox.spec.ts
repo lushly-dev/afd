@@ -677,6 +677,97 @@ describe("violet-combobox", () => {
             await typeText(combobox, "swap");
             expect(combobox.visibleOptions.map(option => option.value)).toEqual(["swap"]);
         });
+
+        it("resolves options added inside a violet-option-group after connect (#1377)", async () => {
+            document.body.innerHTML = "";
+            const combobox = document.createElement("violet-combobox") as VioletCombobox;
+            combobox.setAttribute("value", "b");
+            const group = document.createElement("violet-option-group");
+            group.setAttribute("label", "Sources");
+            combobox.append(group);
+            document.body.append(combobox);
+            await customElements.whenDefined("violet-combobox");
+            await nextFrame();
+
+            expect(combobox.value).toBe("b");
+
+            group.append(createOption("Label B", "b"));
+            await vi.waitFor(() => expect(combobox.value).toBe("Label B"));
+            expect(getInput(combobox).value).toBe("Label B");
+            expect(combobox.selectedOptionValue).toBe("b");
+        });
+
+        it("updates the input when the chosen option's label text or label attribute changes (#1377)", async () => {
+            const combobox = await renderCombobox();
+            combobox.selectValue("coop");
+            await nextFrame();
+            expect(getInput(combobox).value).toBe("Local co-op");
+
+            const option = getOption(combobox, "coop");
+            option.textContent = "Renamed co-op";
+            await vi.waitFor(() => expect(getInput(combobox).value).toBe("Renamed co-op"));
+
+            (option.firstChild as Text).data = "Edited co-op";
+            await vi.waitFor(() => expect(getInput(combobox).value).toBe("Edited co-op"));
+
+            option.setAttribute("label", "Attribute co-op");
+            await vi.waitFor(() => expect(getInput(combobox).value).toBe("Attribute co-op"));
+        });
+
+        it("reconciles visible options, empty state and open-panel label edits dynamically (#1377)", async () => {
+            const combobox = await renderCombobox();
+            const group = document.createElement("violet-option-group");
+            group.setAttribute("label", "Heirloom");
+            combobox.append(group);
+            await nextFrame();
+
+            await typeText(combobox, "heirloom");
+            expect(combobox.visibleOptions).toHaveLength(0);
+            expect(combobox.shadowRoot?.querySelector('[part="empty-state"]')).not.toBeNull();
+
+            const lateOption = createOption("Heirloom exchange", "heirloom");
+            const nonMatchingOption = createOption("Unrelated entry", "unrelated");
+            group.append(lateOption, nonMatchingOption);
+            await vi.waitFor(() => expect(combobox.shadowRoot?.querySelector('[part="empty-state"]')).toBeNull());
+            expect(combobox.visibleOptions.map(o => o.value)).toEqual(["heirloom"]);
+            expect(lateOption.hidden).toBe(false);
+            expect(nonMatchingOption.hidden).toBe(true);
+
+            lateOption.textContent = "Other exchange";
+            await vi.waitFor(() => expect(combobox.shadowRoot?.querySelector('[part="empty-state"]')).not.toBeNull());
+            expect(lateOption.hidden).toBe(true);
+
+            combobox.selectValue("coop");
+            await nextFrame();
+            combobox.show();
+            await nextFrame();
+            expect(combobox.open).toBe(true);
+
+            const coop = getOption(combobox, "coop");
+            coop.textContent = "Renamed co-op";
+            await vi.waitFor(() => expect(getInput(combobox).value).toBe("Renamed co-op"));
+            expect(combobox.visibleOptions.map(o => o.value)).toContain("coop");
+            expect(coop.hidden).toBe(false);
+            await vi.waitFor(() => expect(combobox.shadowRoot?.querySelector('[part="empty-state"]')).toBeNull());
+        });
+
+        it("updates the input when an option's value attribute changes to match (#1377)", async () => {
+            document.body.innerHTML = "";
+            const combobox = document.createElement("violet-combobox") as VioletCombobox;
+            combobox.setAttribute("value", "b");
+            const option = createOption("Label B", "other");
+            combobox.append(option);
+            document.body.append(combobox);
+            await customElements.whenDefined("violet-combobox");
+            await nextFrame();
+
+            expect(combobox.value).toBe("b");
+
+            option.setAttribute("value", "b");
+            await vi.waitFor(() => expect(combobox.value).toBe("Label B"));
+            expect(getInput(combobox).value).toBe("Label B");
+            expect(combobox.selectedOptionValue).toBe("b");
+        });
     });
 
     describe("opening and closing", () => {

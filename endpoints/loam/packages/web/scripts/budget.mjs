@@ -821,7 +821,10 @@ export const CEILINGS = Object.freeze({
 	// component ids two more (the heading font and the field's inner shadow; Loam already had the five field
 	// colours), 117 in all; measured 25,969, with violet-elements' built styles no longer carrying their
 	// comments, plus a margin.
-	viewMinified: 26_800,
+	// Raised from 26,800 to 27,200 by AFD #1577 (D115): `violet-elements`' token interface contract version 3
+	// adds `color.accent.background` and `color.accent.text` (119 component ids in all), which `dev.loam/tokens`
+	// reads; measured 26,891 against `main` at `11331eca`, plus a margin.
+	viewMinified: 27_200,
 	consoleMinified: 91_222,
 	// Phase 6's step 11b (10.8): the dispatcher, the direct registry's MCP tool surface (the tool router, the meta-tools,
 	// the bootstrap tools' describers) and what it shares with `apps`; 36,799, and 37,624 merged with step 5, plus a margin.

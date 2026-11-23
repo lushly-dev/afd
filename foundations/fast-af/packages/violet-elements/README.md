@@ -76,9 +76,10 @@ reads, by token id, with its type:
 
 ```json
 {
-  "contractVersion": 2,
+  "contractVersion": 3,
   "package": "@lushly-dev/violet-elements",
   "tokens": {
+    "color.accent.background": { "property": "--color-accent-background", "type": "color" },
     "color.surface.page": { "property": "--color-surface-page", "type": "color" },
     "font.family.body": { "property": "--font-family-body", "type": "fontFamily" },
     "shadow.well": { "property": "--shadow-well", "type": "shadow" }
@@ -88,11 +89,12 @@ reads, by token id, with its type:
 
 - A theme set supplies every id in its default preset. `"reserved": true` on an entry marks an
   id of the interface that no component reads yet; supply it anyway. No id is reserved in
-  version 2.
+  version 3.
 - `contractVersion` changes whenever an id is added, removed, renamed or retyped. Version 2
   (the Refined design) added `font.family.heading`, `shadow.well`, `color.field.background`,
   `color.field.background.readonly`, `color.field.text`, `color.field.placeholder` and
-  `color.field.border.focus`; `font.family.mono`, reserved in version 1, is now read.
+  `color.field.border.focus`; `font.family.mono`, reserved in version 1, is now read. Version 3
+  added `color.accent.background` and `color.accent.text` for accent badges.
 - Types: `color`, `dimension`, `duration`, `cubicBezier`, `fontWeight`, `fontFamily`, `number`
   and `shadow`.
 - `src/theme/violet-token-interface.spec.ts` fails when a component reads a property the file
