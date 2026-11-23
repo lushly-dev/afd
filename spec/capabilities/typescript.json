@@ -468,17 +468,18 @@
 		},
 		"mcp.auth.scopes": {
 			"status": "yes",
-			"note": "(#1050): command `scopes`, `requiredScopes`, `ScopeResolver` before dispatch and at execution on validated input, pre-dispatch 403 and `INSUFFICIENT_SCOPE`, `filterToolsByScope` (`cacheScope: \"private\"`), hidden commands unknown on every route, `handler.admit`, `handler.preDispatchCheck`, `ScopeChallenge`; loads `staticScopes` and `batches`. No per-caller resource provider",
+			"note": "(#1050, #2265): command `scopes`, `requiredScopes`, `ScopeResolver` before dispatch and at execution on validated input, pre-dispatch 403 and `INSUFFICIENT_SCOPE`, `filterToolsByScope` (`cacheScope: \"private\"`), hidden commands unknown on every route, `handler.admit`, `handler.preDispatchCheck`, `ScopeChallenge`, and per-caller `ResourceProvider` (`ResourceCaller`, `cacheScope: \"private\"`); loads `staticScopes` and `batches`",
 			"views": {
 				"command-metadata": "(#1050: `defineCommand({ scopes })`, in `_meta`, grouped `_meta.actions` and `afd-detail`; enforced with `auth`)",
-				"auth-m6": "(Loam phase 3 step 0c; `scopes`, `requiredScopes`, `ScopeResolver`, `filterToolsByScope`, `staticDecision`, `requestDecision`)",
+				"auth-m6": "(Loam phase 3 step 0c, #2265; `scopes`, `requiredScopes`, `ScopeResolver`, `filterToolsByScope`, `staticDecision`, `requestDecision`, per-caller `ResourceProvider`)",
 				"auth-m6-host": "(step 0c; `handler.admit`, `handler.preDispatchCheck`, `ScopeChallenge`; `mcp-auth-host.test.ts`)",
 				"auth-m6-hidden": "(step 0c + #1971; `ScopeResolver.known`, including `tasks/*`; `mcp-auth-scopes.test.ts`, `tasks.test.ts`)"
 			},
 			"evidence": [
 				"packages/server/src/mcp-auth-scopes.ts",
 				"packages/server/src/mcp-auth-scopes.test.ts",
-				"packages/server/src/mcp-auth-host.test.ts"
+				"packages/server/src/mcp-auth-host.test.ts",
+				"packages/server/src/mcp-auth-resources.test.ts"
 			]
 		},
 		"mcp.auth.combined": {
@@ -557,15 +558,16 @@
 		},
 		"mcp.resources": {
 			"status": "yes",
-			"note": "(`resources` option: a `ResourceProvider` or static entries, on `/mcp` and stdio; not the deprecated `/sse` lane)",
+			"note": "(`resources` option: a `ResourceProvider` with optional per-caller `ResourceCaller` or static entries, on `/mcp` and stdio; `cacheScope: \"private\"` under `auth`, #2265; not the deprecated `/sse` lane)",
 			"views": {
-				"res-core": "(`resources` option; `/mcp` and stdio, not the deprecated `/sse` lane)",
+				"res-core": "(`resources` option; `/mcp` and stdio; per-caller `ResourceCaller` and `\"private\"` `cacheScope` under `auth`, #2265; not the deprecated `/sse` lane)",
 				"res-vectors": "(`mcp-resources-vectors.test.ts`, over Streamable HTTP and stdio)",
-				"pc-res": "(`mcp-resources-vectors.test.ts`, Streamable HTTP and stdio, both eras)"
+				"pc-res": "(`mcp-resources-vectors.test.ts`, Streamable HTTP and stdio, both eras; per-caller `cacheScope: \"private\"` in `mcp-auth-resources.test.ts`, #2265)"
 			},
 			"evidence": [
 				"packages/server/src/resources.ts",
-				"packages/server/src/mcp-resources-vectors.test.ts"
+				"packages/server/src/mcp-resources-vectors.test.ts",
+				"packages/server/src/mcp-auth-resources.test.ts"
 			]
 		},
 		"mcp.skills": {

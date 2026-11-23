@@ -321,6 +321,7 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		resources,
 		resourcesTtlMs,
 		tasks: taskRuntime,
+		authConfigured: Boolean(auth),
 		devMode,
 		onError,
 	};

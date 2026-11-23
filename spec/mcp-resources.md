@@ -385,7 +385,7 @@ Cache hints and `resultType` are not part of the expected results; R3 and S3 sta
 <!-- generated:capabilities:spec.mcp-resources.status:start -->
 | Rule | TypeScript | Python | Rust | C++ |
 | --- | --- | --- | --- | --- |
-| Resources (R1 to R6) | Yes (`resources` option; `/mcp` and stdio, not the deprecated `/sse` lane) | Yes (`resources` option; Streamable HTTP and stdio, both eras; #1981) | Yes (Umbel phase 1 step 0b; per-caller `list_for`/`read_for` and `"private"` `cacheScope` under `server-auth`, #1880) | Yes (`StdioServerOptions::resources` on `afd::mcp_stdio`, both eras; #1983) |
+| Resources (R1 to R6) | Yes (`resources` option; `/mcp` and stdio; per-caller `ResourceCaller` and `"private"` `cacheScope` under `auth`, #2265; not the deprecated `/sse` lane) | Yes (`resources` option; Streamable HTTP and stdio, both eras; #1981) | Yes (Umbel phase 1 step 0b; per-caller `list_for`/`read_for` and `"private"` `cacheScope` under `server-auth`, #1880) | Yes (`StdioServerOptions::resources` on `afd::mcp_stdio`, both eras; #1983) |
 | Skills extension (S1 to S6) | Yes (`skills: SkillCatalog`) | Yes (`skills=SkillCatalog`, `skill_from_directory`, optional `directory_read`; #1981) | Yes (step 0b) | Yes (`StdioServerOptions::skills`, `skill_from_directory`, optional `directory_read`; #1983) |
 | Extra tool `_meta` (T1 to T3) | Yes (`defineCommand({ toolMeta })`) | Yes (`tool_meta` on `@server.command`/`define_command`/`CommandDefinition`; #1981) | Yes (step 0b) | Yes (`CommandDefinition::tool_meta`; #1983) |
 | Advertised and validation schemas (V1, V2) | Yes (`advertisedInputSchema`) | Yes (`advertised_input_schema`; #1981) | Yes (step 0b) | Yes (`CommandDefinition::advertised_input_schema`; #1983) |
@@ -397,12 +397,12 @@ All four languages — Rust (`packages/rust`, Umbel phase 1 step 0b), TypeScript
 the Skills extension and extra tool `_meta`, and keep an advertised schema apart from the validation
 schema. TypeScript serves them on `/mcp` and stdio, in both eras; its deprecated `/sse` and `/message`
 lane (MCP 2024-11-05, not an era this page governs) serves none of it and declares none of it.
-Rust supports per-caller `ResourceProvider::list_for`/`read_for` (`ResourceCaller`) and emits
-`cacheScope: "private"` on modern-era `resources/list` and provider-backed `resources/read` whenever
-a `ResourceProvider` is attached on an authorized server or a request carrying verified credentials,
-while keeping static `SkillCatalog` reads `"public"` (#1880). TypeScript's and Python's
-`ResourceProvider` are not
-yet caller-scoped (both servers still enforce authorization fail-closed under `auth`), and C++'s
+Rust (`ResourceProvider::list_for`/`read_for`, `ResourceCaller`, #1880) and TypeScript
+(`ResourceProvider.list`/`read` with `ResourceCaller`, #2265) support per-caller resource providers
+and emit `cacheScope: "private"` on modern-era `resources/list` and provider-backed `resources/read`
+whenever a `ResourceProvider` is attached on an authorized server or a request carrying verified
+credentials, while keeping static `SkillCatalog` reads `"public"`. Python's `ResourceProvider` is
+not yet caller-scoped (the server still enforces authorization fail-closed under `auth`), and C++'s
 `afd::mcp_stdio` is stdio-only with no HTTP authorization layer, so their
 resource results carry `cacheScope: "public"`. The proposal's
 [current behavior](../docs/features/complete/mcp-resources-skills/mcp-resources-skills.proposal.md#how-servers-behave-today)
