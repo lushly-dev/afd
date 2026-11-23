@@ -15,6 +15,7 @@ import type { CommandContext, CommandDefinition } from '../registry.js';
 const InputSchema = z.object({
 	nodeId: z.string().min(1),
 	filter: z.string().optional(), // Glob pattern like "color.*"
+	excludePrefixes: z.array(z.string().min(1)).optional(), // Omit tokens starting with any prefix (e.g. ["ref."])
 	includeLineage: z.boolean().optional().default(false),
 });
 
@@ -38,6 +39,7 @@ const OutputSchema = z.object({
 					path: z.array(z.string()),
 				})
 				.optional(),
+			reason: z.string().optional(),
 			metadata: z.any(),
 			resolvedAt: z.string(),
 			inheritanceChain: z.array(z.string()).optional(),
@@ -111,11 +113,15 @@ export const tokensResolveCommand: CommandDefinition<typeof InputSchema, Output>
 			throw error;
 		}
 
-		// Apply filter if provided
+		// Apply filter and excludePrefixes after full-node resolution
 		let filteredTokens = resolvedTokens;
 		if (input.filter) {
 			const filter = input.filter;
-			filteredTokens = resolvedTokens.filter((t) => matchesGlob(t.id, filter));
+			filteredTokens = filteredTokens.filter((t) => matchesGlob(t.id, filter));
+		}
+		if (input.excludePrefixes && input.excludePrefixes.length > 0) {
+			const excluded = input.excludePrefixes;
+			filteredTokens = filteredTokens.filter((t) => !excluded.some((p) => t.id.startsWith(p)));
 		}
 
 		// Broken references don't fail resolve (it is how you find them); they are

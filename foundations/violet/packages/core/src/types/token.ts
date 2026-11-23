@@ -148,6 +148,8 @@ export interface ResolvedToken {
 	aliasOf?: string;
 	/** Set when a reference could not be followed; `resolvedValue` then falls back to the literal */
 	referenceError?: TokenReferenceError;
+	/** Human reason recorded on the winning add/override operation, when set */
+	reason?: string;
 	metadata: TokenMetadata;
 
 	// Lineage information

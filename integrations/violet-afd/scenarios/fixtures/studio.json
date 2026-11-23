@@ -1,0 +1,116 @@
+{
+	"app": "violet",
+	"nodes": [
+		{ "id": "studio", "type": "product", "parentId": null },
+		{ "id": "studio/light", "type": "theme", "parentId": "studio" },
+		{ "id": "studio/light/compact", "type": "custom", "parentId": "studio/light" }
+	],
+	"tokens": {
+		"studio": {
+			"ref.space.2": { "value": "2px", "tier": "global" },
+			"ref.space.4": { "value": "4px", "tier": "global" },
+			"ref.space.6": { "value": "6px", "tier": "global" },
+			"ref.space.8": { "value": "8px", "tier": "global" },
+			"ref.space.12": { "value": "12px", "tier": "global" },
+			"ref.space.16": { "value": "16px", "tier": "global" },
+			"ref.space.24": { "value": "24px", "tier": "global" },
+			"ref.type.100.size": { "value": "11px", "tier": "global" },
+			"ref.type.100.line": { "value": "14px", "tier": "global" },
+			"ref.type.200.size": { "value": "12px", "tier": "global" },
+			"ref.type.200.line": { "value": "16px", "tier": "global" },
+			"ref.type.300.size": { "value": "14px", "tier": "global" },
+			"ref.type.300.line": { "value": "20px", "tier": "global" },
+			"ref.type.400.size": { "value": "18px", "tier": "global" },
+			"ref.type.400.line": { "value": "24px", "tier": "global" },
+			"ref.radius.4": { "value": "4px", "tier": "global" },
+			"ref.radius.8": { "value": "8px", "tier": "global" },
+			"ref.radius.12": { "value": "12px", "tier": "global" },
+			"ref.target.24": { "value": "24px", "tier": "global" },
+			"ref.target.32": { "value": "32px", "tier": "global" },
+			"ref.target.44": { "value": "44px", "tier": "global" },
+			"space.inline.tight": { "value": { "ref": "ref.space.4" }, "tier": "semantic" },
+			"space.inline.group": { "value": { "ref": "ref.space.8" }, "tier": "semantic" },
+			"space.stack.group": { "value": { "ref": "ref.space.8" }, "tier": "semantic" },
+			"type.caption.size": { "value": { "ref": "ref.type.200.size" }, "tier": "semantic" },
+			"type.caption.line": { "value": { "ref": "ref.type.200.line" }, "tier": "semantic" },
+			"type.body.size": { "value": { "ref": "ref.type.300.size" }, "tier": "semantic" },
+			"type.body.line": { "value": { "ref": "ref.type.300.line" }, "tier": "semantic" },
+			"radius.control": { "value": { "ref": "ref.radius.8" }, "tier": "semantic" },
+			"size.target.natural": { "value": { "ref": "ref.target.32" }, "tier": "semantic" }
+		},
+		"studio/light/compact": {
+			"space.inline.tight": { "value": { "ref": "ref.space.2" } },
+			"space.inline.group": { "value": { "ref": "ref.space.6" } },
+			"space.stack.group": { "value": { "ref": "ref.space.4" } }
+		}
+	},
+	"constraints": {
+		"studio": [
+			{
+				"id": "space-ramp",
+				"name": "Spacing tokens use ref.space.*",
+				"applyTo": "space.*",
+				"severity": "error",
+				"config": {
+					"type": "ramp",
+					"ramp": "ref.space.*",
+					"requireOffRampReason": true,
+					"repeatThreshold": 2
+				}
+			},
+			{
+				"id": "type-size-ramp",
+				"name": "Type sizes use ref.type.*.size and pair with line height",
+				"applyTo": "type.*.size",
+				"severity": "error",
+				"config": {
+					"type": "ramp",
+					"ramp": "ref.type.*.size",
+					"requireOffRampReason": true,
+					"repeatThreshold": 2,
+					"pairWith": {
+						"fromSuffix": ".size",
+						"toSuffix": ".line",
+						"rampTarget": "ref.type.*.line"
+					}
+				}
+			},
+			{
+				"id": "type-line-ramp",
+				"name": "Type line heights use ref.type.*.line",
+				"applyTo": "type.*.line",
+				"severity": "error",
+				"config": {
+					"type": "ramp",
+					"ramp": "ref.type.*.line",
+					"requireOffRampReason": true,
+					"repeatThreshold": 2
+				}
+			},
+			{
+				"id": "radius-ramp",
+				"name": "Radius tokens use ref.radius.*",
+				"applyTo": "radius.*",
+				"severity": "error",
+				"config": {
+					"type": "ramp",
+					"ramp": "ref.radius.*",
+					"requireOffRampReason": true,
+					"repeatThreshold": 2
+				}
+			},
+			{
+				"id": "target-ramp",
+				"name": "Target sizes use ref.target.*",
+				"applyTo": "size.target.*",
+				"severity": "error",
+				"config": {
+					"type": "ramp",
+					"ramp": "ref.target.*",
+					"requireOffRampReason": true,
+					"repeatThreshold": 2
+				}
+			}
+		]
+	}
+}

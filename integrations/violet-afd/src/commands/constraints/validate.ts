@@ -1,29 +1,15 @@
 import {
-	type ValidatorContext,
-	matchesPattern,
-	validateValue,
+	TokenDomainError,
+	resolutionCacheFor,
+	validateConstraints,
 } from '@lushly-dev/violet-core/engine';
 import {
-	type ConstraintViolation,
-	type ConstraintWithSource,
 	TokenValidationResultSchema,
 	ValidationSummarySchema,
 } from '@lushly-dev/violet-core/types';
 import { z } from 'zod';
 import type { CommandResult } from '../../types/command-result.js';
 import type { CommandContext, CommandDefinition } from '../registry.js';
-import { tokensResolveCommand } from '../token/resolve.js';
-
-// Type for resolved tokens from the resolve command output
-interface ResolvedTokenOutput {
-	id: string;
-	value?: unknown;
-	resolvedValue: string | number;
-	metadata?: unknown;
-	resolvedAt: string;
-	inheritanceChain?: string[];
-	operationHistory?: unknown[];
-}
 
 // =============================================================================
 // Input/Output Schemas
@@ -32,6 +18,7 @@ interface ResolvedTokenOutput {
 const InputSchema = z.object({
 	nodeId: z.string().min(1),
 	filter: z.string().optional(), // Token filter pattern
+	onlyViolating: z.boolean().default(false), // Omit passing tokens (violations: [])
 });
 
 const OutputSchema = z.object({
@@ -54,28 +41,6 @@ type Input = z.input<typeof InputSchema>;
 type Output = z.infer<typeof OutputSchema>;
 
 // =============================================================================
-// Helper: Get all constraints including inherited
-// =============================================================================
-
-async function getAllConstraints(
-	db: CommandContext['db'],
-	nodeId: string,
-): Promise<{ enabled: ConstraintWithSource[]; disabled: ConstraintWithSource[] }> {
-	const enabled: ConstraintWithSource[] = [];
-	const disabled: ConstraintWithSource[] = [];
-
-	// Ancestors root first, then the node's own
-	const ancestryChain = await db.getAncestryChain(nodeId);
-	for (const source of [...ancestryChain, nodeId]) {
-		for (const constraint of await db.getConstraints(source)) {
-			(constraint.enabled ? enabled : disabled).push({ ...constraint, source });
-		}
-	}
-
-	return { enabled, disabled };
-}
-
-// =============================================================================
 // Handler
 // =============================================================================
 
@@ -83,132 +48,35 @@ async function handler(rawInput: Input, context: CommandContext): Promise<Comman
 	const input = InputSchema.parse(rawInput);
 	const { db } = context;
 
-	// Validate node exists
-	const node = await db.getNode(input.nodeId);
-	if (!node) {
-		return {
-			success: false,
-			error: {
-				code: 'NODE_NOT_FOUND',
-				message: `Node '${input.nodeId}' not found`,
-				suggestion: "Use 'violet node list' to see available nodes",
-			},
-		};
-	}
-
-	// Resolve all tokens for the node
-	const resolveResult = await tokensResolveCommand.handler({ nodeId: input.nodeId }, context);
-	if (!resolveResult.success || !resolveResult.data) {
-		return {
-			success: false,
-			error: {
-				code: 'RESOLUTION_FAILED',
-				message: 'Failed to resolve tokens for validation',
-			},
-		};
-	}
-
-	// The validator context (reference/contrast lookups) must see every resolved token:
-	// a filter only narrows which tokens are checked, not which tokens exist.
-	const allTokens: ResolvedTokenOutput[] = resolveResult.data.tokens;
-	const tokenMap = new Map<string, ResolvedTokenOutput>(
-		allTokens.map((t: ResolvedTokenOutput) => [t.id, t]),
-	);
-	const validatorContext: ValidatorContext = { allTokens: tokenMap };
-
-	// Apply the filter only to the tokens that are checked
-	let tokens: ResolvedTokenOutput[] = allTokens;
-	if (input.filter) {
-		const filter = input.filter;
-		tokens = allTokens.filter((t: ResolvedTokenOutput) => matchesPattern(t.id, filter));
-	}
-
-	// Get all constraints
-	const { enabled: constraints, disabled } = await getAllConstraints(db, input.nodeId);
-
-	// Validate each token against matching constraints
-	const results: Array<{
-		tokenId: string;
-		value: unknown;
-		valid: boolean;
-		violations: ConstraintViolation[];
-	}> = [];
-
-	let errors = 0;
-	let warnings = 0;
-	let infos = 0;
-
-	for (const token of tokens) {
-		const violations: ConstraintViolation[] = [];
-
-		// Find constraints that apply to this token
-		for (const constraint of constraints) {
-			if (matchesPattern(token.id, constraint.applyTo)) {
-				const violation = validateValue(
-					token.resolvedValue,
-					constraint.config,
-					constraint.id,
-					constraint.name,
-					validatorContext,
-				);
-
-				if (violation) {
-					// Apply the constraint's severity
-					violations.push({
-						...violation,
-						severity: constraint.severity,
-					});
-
-					switch (constraint.severity) {
-						case 'error':
-							errors++;
-							break;
-						case 'warning':
-							warnings++;
-							break;
-						case 'info':
-							infos++;
-							break;
-					}
-				}
-			}
-		}
-
-		results.push({
-			tokenId: token.id,
-			value: token.resolvedValue,
-			valid: violations.filter((v) => v.severity === 'error').length === 0,
-			violations,
+	try {
+		const report = await validateConstraints(db, input.nodeId, {
+			filter: input.filter,
+			onlyViolating: input.onlyViolating,
+			cache: resolutionCacheFor(context),
 		});
+
+		const { errors, warnings, totalTokens } = report.summary;
+		return {
+			success: true,
+			data: report,
+			reasoning:
+				errors === 0
+					? `All ${totalTokens} tokens pass validation`
+					: `${errors} errors, ${warnings} warnings found in ${totalTokens} tokens`,
+		};
+	} catch (error) {
+		if (error instanceof TokenDomainError) {
+			return {
+				success: false,
+				error: {
+					code: error.code,
+					message: error.message,
+					suggestion: error.suggestion ?? "Use 'node.list' to see available nodes",
+				},
+			};
+		}
+		throw error;
 	}
-
-	const validTokens = results.filter((r) => r.valid).length;
-
-	return {
-		success: true,
-		data: {
-			nodeId: input.nodeId,
-			valid: errors === 0,
-			results,
-			summary: {
-				totalTokens: tokens.length,
-				validTokens,
-				errors,
-				warnings,
-				infos,
-			},
-			disabled: disabled.map((constraint) => ({
-				constraintId: constraint.id,
-				name: constraint.name,
-				source: constraint.source,
-				...(constraint.disabledReason ? { reason: constraint.disabledReason } : {}),
-			})),
-		},
-		reasoning:
-			errors === 0
-				? `All ${tokens.length} tokens pass validation`
-				: `${errors} errors, ${warnings} warnings found in ${tokens.length} tokens`,
-	};
 }
 
 // =============================================================================
@@ -228,8 +96,8 @@ export const validateCommand: CommandDefinition<typeof InputSchema, Output> = {
 			input: { nodeId: 'xbox' },
 		},
 		{
-			description: 'Validate only color tokens',
-			input: { nodeId: 'xbox', filter: 'color.*' },
+			description: 'Validate only violating color tokens',
+			input: { nodeId: 'xbox', filter: 'color.*', onlyViolating: true },
 		},
 	],
 };

@@ -46,3 +46,28 @@ export function globToRegExp(pattern: string): RegExp {
 export function matchesGlob(value: string, pattern: string): boolean {
 	return globToRegExp(pattern).test(value);
 }
+
+/**
+ * Match `value` against `pattern` and return the text captured by each wildcard
+ * run (`*` or `?`), or `null` when it does not match.
+ */
+export function matchGlobCaptures(value: string, pattern: string): string[] | null {
+	let source = '';
+	let prevStar = false;
+	for (const char of pattern) {
+		if (char === '*') {
+			if (!prevStar) {
+				source += `(${WILDCARD})`;
+				prevStar = true;
+			}
+		} else if (char === '?') {
+			source += `(${ANY_CHAR})`;
+			prevStar = false;
+		} else {
+			source += escapeRegexChar(char);
+			prevStar = false;
+		}
+	}
+	const match = new RegExp(`^${source}$`, 'u').exec(value);
+	return match ? match.slice(1) : null;
+}

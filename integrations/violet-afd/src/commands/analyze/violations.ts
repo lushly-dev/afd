@@ -1,13 +1,14 @@
 import {
 	InheritanceResolutionError,
+	TokenDomainError,
 	resolutionCacheFor,
 	resolveNodeTokenMap,
+	validateConstraints,
 	withResolutionCache,
 } from '@lushly-dev/violet-core/engine';
 import { ConstraintSeveritySchema } from '@lushly-dev/violet-core/types';
 import { z } from 'zod';
 import { ErrorCodes, failure, success } from '../../types/command-result.js';
-import { validateCommand } from '../constraints/validate.js';
 import { selectSubtree } from '../node/scope.js';
 import type { CommandContext, CommandDefinition } from '../registry.js';
 
@@ -31,6 +32,7 @@ export const NodeViolationSchema = z.object({
 	constraintId: z.string(),
 	constraintName: z.string(),
 	severity: ConstraintSeveritySchema,
+	code: z.string().optional(),
 	message: z.string(),
 	expected: z.string().optional(),
 	actual: z.string().optional(),
@@ -68,17 +70,23 @@ export async function nodeViolations(
 	node: { id: string; owner?: string | null },
 	severity: NodeViolation['severity'] | undefined,
 ): Promise<NodeViolation[] | null> {
+	const cache = resolutionCacheFor(context);
 	let resolved: Awaited<ReturnType<typeof resolveNodeTokenMap>>;
+	let report: Awaited<ReturnType<typeof validateConstraints>>;
 	try {
-		resolved = await resolveNodeTokenMap(context.db, node.id, resolutionCacheFor(context));
+		resolved = await resolveNodeTokenMap(context.db, node.id, cache);
+		report = await validateConstraints(context.db, node.id, {
+			onlyViolating: true,
+			cache,
+		});
 	} catch (error) {
-		if (!(error instanceof InheritanceResolutionError)) throw error;
-		return null;
+		if (error instanceof InheritanceResolutionError || error instanceof TokenDomainError) {
+			return null;
+		}
+		throw error;
 	}
-	const result = await validateCommand.handler({ nodeId: node.id }, context);
-	if (!result.success || !result.data) return null;
 
-	return result.data.results.flatMap((tokenResult) => {
+	return report.results.flatMap((tokenResult) => {
 		const source = resolved.get(tokenResult.tokenId)?.resolvedAt ?? node.id;
 		return tokenResult.violations
 			.filter((violation) => !severity || violation.severity === severity)
@@ -92,6 +100,7 @@ export async function nodeViolations(
 				constraintId: violation.constraintId,
 				constraintName: violation.constraintName,
 				severity: violation.severity,
+				...(violation.code ? { code: violation.code } : {}),
 				message: violation.message,
 				...(violation.expected ? { expected: violation.expected } : {}),
 				...(violation.actual ? { actual: violation.actual } : {}),
@@ -146,7 +155,9 @@ export const analyzeViolationsCommand: CommandDefinition<typeof InputSchema, Out
 			(a, b) =>
 				SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity] ||
 				(order.get(a.nodeId) ?? 0) - (order.get(b.nodeId) ?? 0) ||
-				a.tokenId.localeCompare(b.tokenId),
+				a.tokenId.localeCompare(b.tokenId) ||
+				a.constraintId.localeCompare(b.constraintId) ||
+				(a.code ?? '').localeCompare(b.code ?? ''),
 		);
 
 		const byNode: Record<string, number> = {};

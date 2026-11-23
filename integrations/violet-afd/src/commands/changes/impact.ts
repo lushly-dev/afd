@@ -32,8 +32,14 @@ export const ImpactChangeSchema = z.discriminatedUnion('type', [
 		tokenId,
 		value: TokenValueSchema,
 		metadata: TokenMetadataSchema.optional(),
+		reason: z.string().optional(),
 	}),
-	z.object({ type: z.literal('override'), tokenId, value: TokenValueSchema }),
+	z.object({
+		type: z.literal('override'),
+		tokenId,
+		value: TokenValueSchema,
+		reason: z.string().optional(),
+	}),
 	z.object({ type: z.literal('subtract'), tokenId }),
 	z.object({ type: z.literal('reset'), tokenId, toAncestor: z.string().min(1).optional() }),
 ]);
@@ -253,6 +259,7 @@ function applyStep(nodeId: string, change: ImpactChange): ApplyStep {
 				tokenId: change.tokenId,
 				value: change.value,
 				...(change.metadata ? { metadata: change.metadata } : {}),
+				...(change.reason !== undefined ? { reason: change.reason } : {}),
 			};
 			const metadataKeys = Object.keys(change.metadata ?? {});
 			const simple = metadataKeys.every((key) => key === 'category');
@@ -262,6 +269,7 @@ function applyStep(nodeId: string, change: ImpactChange): ApplyStep {
 						'--value',
 						cliValue(change.value),
 						...(change.metadata?.category ? ['--category', change.metadata.category] : []),
+						...(change.reason ? ['--reason', change.reason] : []),
 					]
 				: ['violet', 'call', 'token.add', '--input', JSON.stringify(input)];
 			return { command: 'token.add', input, cli: cli.map(shellArg).join(' ') };
@@ -269,8 +277,20 @@ function applyStep(nodeId: string, change: ImpactChange): ApplyStep {
 		case 'override':
 			return {
 				command: 'token.override',
-				input: { nodeId, tokenId: change.tokenId, value: change.value },
-				cli: [...base, '--value', cliValue(change.value)].map(shellArg).join(' '),
+				input: {
+					nodeId,
+					tokenId: change.tokenId,
+					value: change.value,
+					...(change.reason !== undefined ? { reason: change.reason } : {}),
+				},
+				cli: [
+					...base,
+					'--value',
+					cliValue(change.value),
+					...(change.reason ? ['--reason', change.reason] : []),
+				]
+					.map(shellArg)
+					.join(' '),
 			};
 		case 'subtract':
 			return {
@@ -438,21 +458,23 @@ function compareNodes(
 }
 
 const violationKey = (violation: NodeViolation) =>
-	`${violation.tokenId}\u0000${violation.constraintId}`;
+	`${violation.tokenId}\u0000${violation.constraintId}\u0000${violation.code ?? ''}\u0000${violation.severity}`;
 
 /**
- * Fill in the violations each node gains or loses. Rules read resolved values
- * only, so a node where no value moves keeps its violations and is skipped.
+ * Fill in the violations each node gains or loses. Staged `add`/`override`/`reset`
+ * changes can alter an operation's `reason` without moving `[value, resolvedValue]`,
+ * so nodes touched by them are checked even when `VALUE_EFFECTS` did not fire.
  */
 async function diffViolations(
 	nodes: ImpactNode[],
 	owners: Map<string, string | undefined>,
 	beforeContext: CommandContext,
 	afterContext: CommandContext,
+	checkUnchanged: boolean,
 ): Promise<void> {
 	for (const entry of nodes) {
 		const moved = entry.tokens.some((token) => VALUE_EFFECTS.has(token.effect));
-		if (entry.error || !moved) continue;
+		if (entry.error || (!moved && !checkUnchanged)) continue;
 		const target = { id: entry.id, owner: owners.get(entry.id) };
 		const was = (await nodeViolations(beforeContext, target, undefined)) ?? [];
 		const now = (await nodeViolations(afterContext, target, undefined)) ?? [];
@@ -582,7 +604,16 @@ export const changesImpactCommand: CommandDefinition<typeof InputSchema, Output>
 		const nodes = compareNodes(before, after, reach, changedTokens, changed);
 		if (input.includeViolations) {
 			const owners = new Map(columns.map((column) => [column.id, column.owner]));
-			await diffViolations(nodes, owners, beforeContext, resolvedAfterContext);
+			const hasReasonAffectingChange = changes.some(
+				(change) => change.type === 'add' || change.type === 'override' || change.type === 'reset',
+			);
+			await diffViolations(
+				nodes,
+				owners,
+				beforeContext,
+				resolvedAfterContext,
+				hasReasonAffectingChange,
+			);
 		}
 		const summary = summarize(nodes, input.includeViolations);
 

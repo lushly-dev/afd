@@ -15,6 +15,13 @@ import {
 /** Get default metadata with all required fields */
 const getDefaultMetadata = (): TokenStateEntry['metadata'] => TokenMetadataSchema.parse({});
 
+/** Trim an operation reason; treat null/empty/whitespace as unset */
+function normalizeReason(reason: string | null | undefined): string | undefined {
+	if (typeof reason !== 'string') return undefined;
+	const trimmed = reason.trim();
+	return trimmed.length > 0 ? trimmed : undefined;
+}
+
 /**
  * Thrown internally when resolution detects a cycle or exceeds the depth cap.
  * Always caught in the command handler and converted to a failure result.
@@ -239,10 +246,12 @@ async function walkChain(
 						const metadata = op.metadata
 							? { ...getDefaultMetadata(), ...JSON.parse(op.metadata) }
 							: getDefaultMetadata();
+						const reason = normalizeReason(op.reason);
 						tokenMap.set(op.tokenId, {
 							value,
 							metadata,
 							resolvedAt: currentNodeId,
+							...(reason !== undefined ? { reason } : {}),
 							history: [{ nodeId: currentNodeId, operation: 'add', value }],
 						});
 					}
@@ -252,9 +261,12 @@ async function walkChain(
 				case 'override': {
 					const existing = tokenMap.get(op.tokenId);
 					const value = op.value ? JSON.parse(op.value) : null;
+					const reason = normalizeReason(op.reason);
 					if (existing) {
 						existing.value = value;
 						existing.resolvedAt = currentNodeId;
+						// Explicitly replace/clear any ancestor's prior reason
+						existing.reason = reason;
 						existing.history.push({
 							nodeId: currentNodeId,
 							operation: 'override',
@@ -266,6 +278,7 @@ async function walkChain(
 							value,
 							metadata: getDefaultMetadata(),
 							resolvedAt: currentNodeId,
+							...(reason !== undefined ? { reason } : {}),
 							history: [{ nodeId: currentNodeId, operation: 'override', value }],
 						});
 					}
@@ -300,6 +313,7 @@ async function walkChain(
 							if (existing) {
 								existing.value = ancestorToken.value;
 								existing.resolvedAt = targetAncestor;
+								existing.reason = ancestorToken.reason;
 								existing.history.push({
 									nodeId: currentNodeId,
 									operation: 'reset',
@@ -339,12 +353,14 @@ async function walkChain(
 								existing.value = sourceToken.value;
 								existing.metadata = sourceToken.metadata;
 								existing.resolvedAt = currentNodeId;
+								existing.reason = sourceToken.reason;
 								existing.history.push(step);
 							} else {
 								tokenMap.set(targetId, {
 									value: sourceToken.value,
 									metadata: sourceToken.metadata,
 									resolvedAt: currentNodeId,
+									...(sourceToken.reason !== undefined ? { reason: sourceToken.reason } : {}),
 									history: [step],
 								});
 							}
@@ -375,6 +391,7 @@ async function walkChain(
 							value: token.value,
 							metadata: token.metadata,
 							resolvedAt: token.resolvedAt,
+							...(token.reason !== undefined ? { reason: token.reason } : {}),
 							history: existing ? [...existing.history, step] : [step],
 						});
 					}
@@ -438,6 +455,7 @@ function toResolvedToken(
 		finalValue: reference.ok ? reference.value : data.value,
 		...(aliasOf ? { aliasOf } : {}),
 		...(reference.ok ? {} : { referenceError: reference.error }),
+		...(data.reason !== undefined ? { reason: data.reason } : {}),
 		metadata: data.metadata,
 		resolvedAt: data.resolvedAt,
 		inheritanceChain: fullChain,

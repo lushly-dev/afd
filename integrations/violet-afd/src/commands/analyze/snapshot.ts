@@ -42,7 +42,7 @@ type Output = z.infer<typeof OutputSchema>;
 
 /** One issue as a stable key, to tell snapshots apart */
 export function issueKey(issue: CheckIssue): string {
-	return `${issue.nodeId}\u0000${issue.tokenId}\u0000${issue.constraintId}`;
+	return `${issue.nodeId}\u0000${issue.tokenId}\u0000${issue.constraintId}\u0000${issue.code ?? ''}\u0000${issue.severity}`;
 }
 
 /** Issues in `next` that are not in `previous`, and the other way round */
@@ -99,6 +99,7 @@ export async function recordCheckSnapshot(
 			tokenId: violation.tokenId,
 			constraintId: violation.constraintId,
 			severity: violation.severity,
+			...(violation.code ? { code: violation.code } : {}),
 		})),
 		actor: context.actor ?? null,
 	};

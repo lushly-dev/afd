@@ -13,10 +13,11 @@ import { z } from 'zod';
 export const ConstraintTypeSchema = z.enum([
 	'enum', // Value must be one of allowed values
 	'range', // Numeric value within range
-	'pattern', // Value matches regex pattern
+	'pattern', // Value or token ID matches regex pattern
 	'scale', // Value is multiple of base
 	'contrast', // Color contrast ratio (WCAG)
 	'reference', // Value references another token
+	'ramp', // Two-stage ramp membership and governed off-ramp exceptions
 ]);
 
 export type ConstraintType = z.infer<typeof ConstraintTypeSchema>;
@@ -44,6 +45,8 @@ export const PatternConfigSchema = z.object({
 	type: z.literal('pattern'),
 	pattern: z.string().min(1),
 	flags: z.string().optional(),
+	/** Validate token value (default: 'value') or token id ('id') */
+	target: z.enum(['value', 'id']).optional(),
 });
 
 export type PatternConfig = z.infer<typeof PatternConfigSchema>;
@@ -73,6 +76,29 @@ export const ReferenceConfigSchema = z.object({
 
 export type ReferenceConfig = z.infer<typeof ReferenceConfigSchema>;
 
+export const RampPairWithSchema = z.object({
+	fromSuffix: z.string().min(1),
+	toSuffix: z.string().min(1),
+	/** Ramp glob for the sibling token, e.g. 'ref.type.*.line' */
+	rampTarget: z.string().min(1),
+});
+
+export type RampPairWith = z.infer<typeof RampPairWithSchema>;
+
+export const RampConfigSchema = z.object({
+	type: z.literal('ramp'),
+	/** Glob matching allowed Stage 1 ramp tokens, e.g. 'ref.space.*' or 'ref.type.*.size' */
+	ramp: z.string(),
+	/** Require a non-empty human OperationRecord.reason on off-ramp literals (default: true) */
+	requireOffRampReason: z.boolean().default(true),
+	/** Warn when >= N semantic tokens in applyTo share the same off-ramp literal (default: 2) */
+	repeatThreshold: z.number().int().default(2),
+	/** Optional sibling pairing check (e.g. type.*.size paired with type.*.line on the same step) */
+	pairWith: RampPairWithSchema.optional(),
+});
+
+export type RampConfig = z.infer<typeof RampConfigSchema>;
+
 // Union of all config types
 export const ConstraintConfigSchema = z.discriminatedUnion('type', [
 	EnumConfigSchema,
@@ -81,6 +107,7 @@ export const ConstraintConfigSchema = z.discriminatedUnion('type', [
 	ScaleConfigSchema,
 	ContrastConfigSchema,
 	ReferenceConfigSchema,
+	RampConfigSchema,
 ]);
 
 export type ConstraintConfig = z.infer<typeof ConstraintConfigSchema>;
@@ -129,6 +156,8 @@ export const ConstraintViolationSchema = z.object({
 	constraintId: z.string(),
 	constraintName: z.string(),
 	severity: ConstraintSeveritySchema,
+	/** Optional stable sub-check identifier (e.g. 'ramp:unreasoned', 'ramp:repeat') */
+	code: z.string().optional(),
 	message: z.string(),
 	expected: z.string().optional(),
 	actual: z.string().optional(),

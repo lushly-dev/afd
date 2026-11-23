@@ -72,22 +72,48 @@ async function handler(rawInput: Input, context: CommandContext): Promise<Comman
 		};
 	}
 
-	// Reject pattern constraints whose regex is invalid or can backtrack catastrophically
+	// Reject pattern constraints whose regex is invalid or can backtrack catastrophically,
+	// and validate ramp constraints with field-specific recovery suggestions.
 	for (const constraint of input.constraints) {
-		if (constraint.config.type !== 'pattern') {
+		if (constraint.config.type === 'pattern') {
+			const check = checkPattern(constraint.config.pattern, constraint.config.flags);
+			if (!check.ok) {
+				return {
+					success: false,
+					error: {
+						code: 'VALIDATION_ERROR',
+						message: `Constraint '${constraint.id}' has an unusable pattern: ${check.reason}`,
+						suggestion:
+							'Use a valid, simple regular expression without nested quantifiers such as (a+)+',
+					},
+				};
+			}
 			continue;
 		}
-		const check = checkPattern(constraint.config.pattern, constraint.config.flags);
-		if (!check.ok) {
-			return {
-				success: false,
-				error: {
-					code: 'VALIDATION_ERROR',
-					message: `Constraint '${constraint.id}' has an unusable pattern: ${check.reason}`,
-					suggestion:
-						'Use a valid, simple regular expression without nested quantifiers such as (a+)+',
-				},
-			};
+
+		if (constraint.config.type === 'ramp') {
+			if (constraint.config.ramp.trim().length === 0) {
+				return {
+					success: false,
+					error: {
+						code: 'VALIDATION_ERROR',
+						message: `Constraint '${constraint.id}' has an empty ramp glob`,
+						suggestion:
+							"Set 'ramp' to a non-empty glob matching Stage 1 ramp tokens, such as 'ref.space.*'",
+					},
+				};
+			}
+			if (constraint.config.repeatThreshold < 2) {
+				return {
+					success: false,
+					error: {
+						code: 'VALIDATION_ERROR',
+						message: `Constraint '${constraint.id}' has repeatThreshold ${constraint.config.repeatThreshold}, which must be at least 2`,
+						suggestion:
+							"Set 'repeatThreshold' to an integer >= 2 (default: 2) so repeat warnings fire when two or more tokens share an off-ramp value",
+					},
+				};
+			}
 		}
 	}
 
@@ -159,6 +185,27 @@ export const setCommand: CommandDefinition<typeof InputSchema, Output> = {
 						name: 'Spacing must be 8px multiples',
 						config: { type: 'scale', base: 8 },
 						applyTo: 'spacing.*',
+						severity: 'error',
+					},
+				],
+			},
+		},
+		{
+			description: 'Merge a two-stage ramp constraint without replacing existing constraints',
+			input: {
+				nodeId: 'global-base',
+				merge: true,
+				constraints: [
+					{
+						id: 'space-ramp',
+						name: 'Spacing tokens use ref.space.*',
+						config: {
+							type: 'ramp',
+							ramp: 'ref.space.*',
+							requireOffRampReason: true,
+							repeatThreshold: 2,
+						},
+						applyTo: 'space.*',
 						severity: 'error',
 					},
 				],
