@@ -1,6 +1,6 @@
 //! Group `matching`: for each text, the records whose match field is identical and the nearest
-//! ones by words, with their scores (records host specification, sections 8 and 15.1; D165).
-//! Words only: meaning and `fused` beyond `words` join with the step that serves vectors.
+//! ones by words and, when vectors are given, by meaning and `fused` (records host specification,
+//! sections 8, 9.4 and 15.1; D165).
 //!
 //! Every case reaches the backend through [`DocumentStore::match_records`] and the lane's other
 //! methods alone; a backend without a record lane skips the group, as it skips `lane`. The
@@ -10,10 +10,10 @@
 //! that counting any other record would give something else.
 //!
 //! What the cases hold above all: **a record its reader may not read, or its call does not
-//! admit or excludes, changes no score, no order, no list and no `cut`**. The one refusal for
-//! size is the kind's: past its bound on postings, every match of the kind is refused alike,
-//! whoever asks what, so a refusal says nothing of which records hold a word. Every text is
-//! invented and about gardening.
+//! admit or excludes, changes no score, no order, no list, no `cut` and no `meaning` state**.
+//! The one refusal for size is the kind's: past its bound on postings, every match of the kind
+//! is refused alike, whoever asks what, so a refusal says nothing of which records hold a word.
+//! Every text is invented and about gardening.
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
@@ -33,7 +33,9 @@ use crate::lane::{
     TextQuery, match_digest,
 };
 use crate::memory::tokenizer::tokens;
-use crate::{DocumentStore, Expect, ModelId, ReaderFilter, StoreError, canonical_json};
+use crate::{
+    DocumentStore, EmbedError, Embedder, Expect, ModelId, ReaderFilter, StoreError, canonical_json,
+};
 
 pub(super) const CASES: &[(&str, super::CaseFn)] = &[
     (
@@ -93,9 +95,22 @@ pub(super) const CASES: &[(&str, super::CaseFn)] = &[
         "records_a_reader_cannot_read_change_no_match_of_its_own",
         differential,
     ),
+    (
+        "with_vectors_meaning_and_fused_hold_to_four_places_and_order_by_fused_then_id",
+        vectors_fixture_and_order,
+    ),
+    (
+        "incomplete_when_a_readable_record_lacks_a_vector_and_served_when_only_an_unreadable_one_does",
+        vectors_incomplete_and_served,
+    ),
+    (
+        "records_a_reader_cannot_read_change_no_vector_match_of_its_own",
+        vectors_differential,
+    ),
 ];
 
 const FIXTURE: &str = include_str!("../../fixtures/lane/records.json");
+const VECTORS_FIXTURE: &str = include_str!("../../fixtures/lane/vectors.json");
 const ROSES: &str = "Prune roses in late winter, before the buds swell.";
 
 /// A kind `note` without standing: a statement, matched, a second text and two keys.
@@ -1759,16 +1774,68 @@ fn refusals(env: &Env<'_>) -> CaseResult {
         "a derivation read",
         invalid,
     )?;
-    // Vectors join with the step that serves meaning: a match that carries them is refused,
-    // and never answered as if it had carried none.
-    let vectors = MatchVectors {
-        model: ModelId::parse("potion@0123456789abcdef").ctx("a model id")?,
+    // Invalid MatchVectors are refused: out-of-range weight, wrong count, empty, zero, NaN,
+    // mismatched dimensions.
+    let model = ModelId::parse("potion@0123456789abcdef").ctx("a model id")?;
+    for bad in [
+        MatchVectors {
+            model: model.clone(),
+            weight: -0.1,
+            vectors: vec![vec![1.0, 0.0, 0.0, 0.0]],
+        },
+        MatchVectors {
+            model: model.clone(),
+            weight: 1.5,
+            vectors: vec![vec![1.0, 0.0, 0.0, 0.0]],
+        },
+        MatchVectors {
+            model: model.clone(),
+            weight: f64::NAN,
+            vectors: vec![vec![1.0, 0.0, 0.0, 0.0]],
+        },
+        MatchVectors {
+            model: model.clone(),
+            weight: 0.5,
+            vectors: vec![],
+        },
+        MatchVectors {
+            model: model.clone(),
+            weight: 0.5,
+            vectors: vec![vec![]],
+        },
+        MatchVectors {
+            model: model.clone(),
+            weight: 0.5,
+            vectors: vec![vec![0.0, 0.0, 0.0, 0.0]],
+        },
+        MatchVectors {
+            model: model.clone(),
+            weight: 0.5,
+            vectors: vec![vec![1.0, f32::NAN, 0.0, 0.0]],
+        },
+    ] {
+        expect_err(
+            d.match_records(NS, &decl, &base, Some(&bad), &view(), &everyone()),
+            "invalid MatchVectors",
+            invalid,
+        )?;
+    }
+    let two_texts = asking(&decl, &["Mulch.", "Roses."]);
+    let mismatched_dims = MatchVectors {
+        model,
         weight: 0.5,
-        vectors: vec![vec![1.0, 0.0, 0.0, 0.0]],
+        vectors: vec![vec![1.0, 0.0, 0.0, 0.0], vec![1.0, 0.0]],
     };
     expect_err(
-        d.match_records(NS, &decl, &base, Some(&vectors), &view(), &everyone()),
-        "a match with vectors",
+        d.match_records(
+            NS,
+            &decl,
+            &two_texts,
+            Some(&mismatched_dims),
+            &view(),
+            &everyone(),
+        ),
+        "mismatched query vector dimensions",
         invalid,
     )?;
     // A kind with no match field has nothing to match on.
@@ -2121,6 +2188,485 @@ fn differential(env: &Env<'_>) -> CaseResult {
     ensure(
         theirs != before && theirs.contains("Soil, soil and mulch"),
         "the unreadable records are there for those who may read them",
+    )?;
+    pass()
+}
+
+fn f32_vec(value: &Value) -> Result<Vec<f32>, String> {
+    value
+        .as_array()
+        .ok_or("a vector is an array")?
+        .iter()
+        .map(|item| item.as_f64().map(|v| v as f32).ok_or("a float".to_owned()))
+        .collect()
+}
+
+fn near_triples(result: &MatchResult) -> Vec<(String, String, String, String)> {
+    result
+        .nearest
+        .iter()
+        .map(|hit| {
+            (
+                hit.id.clone(),
+                format!("{:.4}", hit.words.unwrap_or(-9.0)),
+                format!("{:.4}", hit.meaning.unwrap_or(-9.0)),
+                format!("{:.4}", hit.fused.unwrap_or(-9.0)),
+            )
+        })
+        .collect()
+}
+
+fn vectors_fixture_and_order(env: &Env<'_>) -> CaseResult {
+    let vectors_json: Value = serde_json::from_str(VECTORS_FIXTURE)
+        .map_err(|e| format!("the vectors fixture does not parse: {e}"))?;
+    let model =
+        ModelId::parse(vectors_json["model"].as_str().unwrap_or_default()).ctx("fixture model")?;
+    let weight = vectors_json["weight"].as_f64().ok_or("fixture weight")?;
+    for reversed in [false, true] {
+        let Some((s, _)) = lane(env)? else {
+            return skip(NO_LANE);
+        };
+        let d = &*s.stores.documents;
+        let (decl, fixture) = fixture()?;
+        put_fixture(d, &decl, &fixture, reversed)?;
+        for record in fixture["records"].as_array().into_iter().flatten() {
+            let id = record["id"].as_str().unwrap_or_default();
+            let statement = record["body"]["statement"].as_str().unwrap_or_default();
+            let digest = match_digest(statement).ok_or("fixture digest")?;
+            let vec = f32_vec(&vectors_json["records"][id])?;
+            let stored = d
+                .put_record_vector(NS, &decl, id, &digest, &model, vec)
+                .ctx("put_record_vector")?;
+            ensure(stored, "fixture vector stored")?;
+        }
+        let rec_rows = fixture["matches"].as_array().ok_or("record matches")?;
+        let vec_rows = vectors_json["matches"].as_array().ok_or("vector matches")?;
+        ensure_eq(rec_rows.len(), vec_rows.len(), "same fixture matches")?;
+        let mut batch_texts = Vec::new();
+        let mut batch_vecs = Vec::new();
+        let mut alone_shown = Vec::new();
+        for (rec_row, vec_row) in rec_rows.iter().zip(vec_rows) {
+            let text = rec_row["text"].as_str().unwrap_or_default();
+            let qvec = f32_vec(&vec_row["vector"])?;
+            let query = RecordMatch {
+                exclude: owned(&strings(&rec_row["exclude"])),
+                ..asking(&decl, &[text])
+            };
+            let mv = MatchVectors {
+                model: model.clone(),
+                weight,
+                vectors: vec![qvec.clone()],
+            };
+            let page = d
+                .match_records(NS, &decl, &query, Some(&mv), &view(), &everyone())
+                .ctx("match_records with vectors")?;
+            ensure_eq(
+                &page.meaning,
+                &MeaningState::Served(model.clone()),
+                "meaning is served when every eligible record has a vector",
+            )?;
+            let result = page.results.first().ok_or("one result")?;
+            ensure_eq(
+                ids(&result.identical),
+                owned(&strings(&rec_row["identical"])),
+                "identical records with vectors",
+            )?;
+            let expected: Vec<(String, String, String, String)> = vec_row["scores"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .map(|row| {
+                    (
+                        row["id"].as_str().unwrap_or_default().to_owned(),
+                        format!("{:.4}", row["words"].as_f64().unwrap_or(-9.0)),
+                        format!("{:.4}", row["meaning"].as_f64().unwrap_or(-9.0)),
+                        format!("{:.4}", row["fused"].as_f64().unwrap_or(-9.0)),
+                    )
+                })
+                .collect();
+            ensure_eq(
+                near_triples(result),
+                expected,
+                &format!("meaning and fused scores for {text}"),
+            )?;
+            if query.exclude.is_empty() {
+                batch_texts.push(text);
+                batch_vecs.push(qvec);
+                alone_shown.push(shown(result));
+            }
+        }
+        // Multiple texts in one call match each text alone.
+        let mv = MatchVectors {
+            model: model.clone(),
+            weight,
+            vectors: batch_vecs,
+        };
+        let page = d
+            .match_records(
+                NS,
+                &decl,
+                &asking(&decl, &batch_texts),
+                Some(&mv),
+                &view(),
+                &everyone(),
+            )
+            .ctx("batch vector match")?;
+        ensure_eq(&page.meaning, &MeaningState::Served(model.clone()), "batch")?;
+        for (result, before) in page.results.iter().zip(&alone_shown) {
+            ensure_eq(&shown(result), before, "batch vector result matches alone")?;
+        }
+        // Weight 0.0 gives fused == words while still serving meaning; weight 1.0 gives fused == meaning.
+        let first_text = rec_rows[0]["text"].as_str().unwrap_or_default();
+        let first_vec = f32_vec(&vec_rows[0]["vector"])?;
+        for w in [0.0_f64, 1.0_f64] {
+            let mv = MatchVectors {
+                model: model.clone(),
+                weight: w,
+                vectors: vec![first_vec.clone()],
+            };
+            let page = d
+                .match_records(
+                    NS,
+                    &decl,
+                    &asking(&decl, &[first_text]),
+                    Some(&mv),
+                    &view(),
+                    &everyone(),
+                )
+                .ctx("extreme weight")?;
+            ensure_eq(&page.meaning, &MeaningState::Served(model.clone()), "w")?;
+            for hit in &page.results[0].nearest {
+                let target = if w == 0.0 { hit.words } else { hit.meaning };
+                ensure_eq(
+                    hit.fused.map(|v| format!("{v:.4}")),
+                    target.map(|v| format!("{v:.4}")),
+                    &format!("weight {w} sets fused"),
+                )?;
+            }
+        }
+    }
+    // Tie-breaking by id in UTF-8 byte order when fused ties.
+    let Some((s, _)) = lane(env)? else {
+        return skip(NO_LANE);
+    };
+    let d = &*s.stores.documents;
+    let decl = decl()?;
+    let statement = "Mulch keeps the soil cool.";
+    let digest = match_digest(statement).ok_or("digest")?;
+    for id in ["b", "é", "a", "B", "Z"] {
+        put(d, &decl, id, note(statement, "south"), &["space"])?;
+        d.put_record_vector(NS, &decl, id, &digest, &model, vec![0.8, 0.6, 0.0, 0.0])
+            .ctx("tie vector")?;
+    }
+    let mv = MatchVectors {
+        model: model.clone(),
+        weight: 0.5,
+        vectors: vec![vec![0.8, 0.6, 0.0, 0.0]],
+    };
+    let page = d
+        .match_records(
+            NS,
+            &decl,
+            &asking(&decl, &[statement]),
+            Some(&mv),
+            &view(),
+            &everyone(),
+        )
+        .ctx("tie match")?;
+    ensure_eq(
+        ids(&page.results[0].nearest),
+        owned(&["B", "Z", "a", "b", "é"]),
+        "tied fused scores break by id in UTF-8 byte order",
+    )?;
+    pass()
+}
+
+fn vectors_incomplete_and_served(env: &Env<'_>) -> CaseResult {
+    let Some((s, _)) = lane(env)? else {
+        return skip(NO_LANE);
+    };
+    let d = &*s.stores.documents;
+    let decl = decl()?;
+    let model = ModelId::parse("potion@0123456789abcdef").ctx("model")?;
+    let a_stmt = "Prune roses in late winter.";
+    let b_stmt = "Mulch keeps the soil cool.";
+    let c_stmt = "Water tomatoes at the base.";
+    put(d, &decl, "a", note(a_stmt, "north"), &["space"])?;
+    put(d, &decl, "b", note(b_stmt, "south"), &["space"])?;
+    // A record with no match value never needs a vector.
+    put(d, &decl, "bare", json!({ "bed": "north" }), &["space"])?;
+    // An unreadable record with no vector must never make another reader's match Incomplete.
+    put(
+        d,
+        &decl,
+        "hidden",
+        note("Compost feeds the soil.", "north"),
+        &["group:other"],
+    )?;
+    d.put_record_vector(
+        NS,
+        &decl,
+        "a",
+        &match_digest(a_stmt).ok_or("a digest")?,
+        &model,
+        vec![1.0, 0.0, 0.0, 0.0],
+    )
+    .ctx("vec a")?;
+    d.put_record_vector(
+        NS,
+        &decl,
+        "b",
+        &match_digest(b_stmt).ok_or("b digest")?,
+        &model,
+        vec![0.0, 1.0, 0.0, 0.0],
+    )
+    .ctx("vec b")?;
+
+    let mv = MatchVectors {
+        model: model.clone(),
+        weight: 0.5,
+        vectors: vec![vec![1.0, 0.0, 0.0, 0.0]],
+    };
+    let query = asking(&decl, &["Prune roses."]);
+    // Unreadable `hidden` and matchless `bare` lack vectors, yet `everyone()` gets Served.
+    let served = d
+        .match_records(NS, &decl, &query, Some(&mv), &view(), &everyone())
+        .ctx("served despite unreadable missing vector")?;
+    ensure_eq(
+        &served.meaning,
+        &MeaningState::Served(model.clone()),
+        "only an unreadable record lacks a vector: served",
+    )?;
+    // A reader who CAN read `hidden` gets Incomplete, scored by words alone.
+    let incomplete_writer = d
+        .match_records(NS, &decl, &query, Some(&mv), &view(), &writer())
+        .ctx("incomplete for writer")?;
+    ensure_eq(
+        &incomplete_writer.meaning,
+        &MeaningState::Incomplete,
+        "reader of the vectorless record gets Incomplete",
+    )?;
+    let words_only_writer = run(d, &decl, &query, &writer())?;
+    ensure_eq(
+        shown(&incomplete_writer.results[0]),
+        shown(&words_only_writer.results[0]),
+        "Incomplete falls back to words-only scores",
+    )?;
+
+    // Add a readable record `c` (south) with NO vector: now `everyone()` gets Incomplete unfiltered,
+    // but Served when `c` is excluded or filtered out by keys.
+    put(d, &decl, "c", note(c_stmt, "south"), &["space"])?;
+    let incomplete = d
+        .match_records(NS, &decl, &query, Some(&mv), &view(), &everyone())
+        .ctx("incomplete for everyone")?;
+    ensure_eq(
+        &incomplete.meaning,
+        &MeaningState::Incomplete,
+        "a readable record lacking a vector produces Incomplete",
+    )?;
+    for hit in &incomplete.results[0].nearest {
+        ensure(hit.meaning.is_none(), "Incomplete hits omit meaning")?;
+        ensure_eq(hit.fused, hit.words, "Incomplete hits set fused == words")?;
+    }
+    let excluding_c = RecordMatch {
+        exclude: owned(&["c"]),
+        ..query.clone()
+    };
+    let served_excluded = d
+        .match_records(NS, &decl, &excluding_c, Some(&mv), &view(), &everyone())
+        .ctx("served when missing record is excluded")?;
+    ensure_eq(
+        &served_excluded.meaning,
+        &MeaningState::Served(model.clone()),
+        "an excluded record lacking a vector does not degrade to Incomplete",
+    )?;
+    let north_only = RecordMatch {
+        keys: vec![KeyFilter {
+            key: pointer("/bed")?,
+            any: vec!["north".to_owned()],
+        }],
+        ..query
+    };
+    let served_filtered = d
+        .match_records(NS, &decl, &north_only, Some(&mv), &view(), &everyone())
+        .ctx("served when missing record is outside key filters")?;
+    ensure_eq(
+        &served_filtered.meaning,
+        &MeaningState::Served(model),
+        "a record outside key filters lacking a vector does not degrade to Incomplete",
+    )?;
+    pass()
+}
+
+struct ReindexEmbedder {
+    model: ModelId,
+}
+
+impl Embedder for ReindexEmbedder {
+    fn model(&self) -> &ModelId {
+        &self.model
+    }
+    fn dimensions(&self) -> usize {
+        4
+    }
+    fn embed(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>, EmbedError> {
+        Ok(texts.iter().map(|_| vec![1.0, 0.0, 0.0, 0.0]).collect())
+    }
+}
+
+fn everything_with_vectors(
+    d: &dyn DocumentStore,
+    decl: &RecordDecl,
+    model: &ModelId,
+    who: &ReaderFilter,
+) -> Result<String, String> {
+    let texts = [
+        "Mulch keeps the soil cool.",
+        "Water tomatoes at the base.",
+        "Compost.",
+    ];
+    let qvecs = vec![
+        vec![1.0, 0.0, 0.0, 0.0],
+        vec![0.0, 1.0, 0.0, 0.0],
+        vec![0.0, 0.0, 1.0, 0.0],
+    ];
+    let south = KeyFilter {
+        key: pointer("/bed")?,
+        any: vec!["south".to_owned()],
+    };
+    let queries = [
+        (asking(decl, &texts), 0.5_f64),
+        (
+            RecordMatch {
+                k: 2,
+                ..asking(decl, &texts)
+            },
+            0.8,
+        ),
+        (
+            RecordMatch {
+                keys: vec![south],
+                ..asking(decl, &texts)
+            },
+            0.5,
+        ),
+        (
+            RecordMatch {
+                exclude: owned(&["b"]),
+                ..asking(decl, &texts)
+            },
+            0.5,
+        ),
+    ];
+    let mut out = Vec::new();
+    for (index, (query, weight)) in queries.iter().enumerate() {
+        let mv = MatchVectors {
+            model: model.clone(),
+            weight: *weight,
+            vectors: qvecs.clone(),
+        };
+        let page = d
+            .match_records(NS, decl, query, Some(&mv), &view(), who)
+            .ctx("vector differential match")?;
+        out.push(format!("vquery {index}: {}", page_shown(&page)));
+    }
+    Ok(out.join("\n"))
+}
+
+fn vectors_differential(env: &Env<'_>) -> CaseResult {
+    let Some((s, _)) = lane(env)? else {
+        return skip(NO_LANE);
+    };
+    let d = &*s.stores.documents;
+    let decl = decl()?;
+    let model = ModelId::parse("potion@0123456789abcdef").ctx("model")?;
+    let readable: [(&str, &str, &str, Vec<f32>); 4] = [
+        (
+            "b",
+            "Mulch keeps the soil cool.",
+            "south",
+            vec![0.8, 0.6, 0.0, 0.0],
+        ),
+        (
+            "d",
+            "Mulch holds water through summer.",
+            "south",
+            vec![0.6, 0.8, 0.0, 0.0],
+        ),
+        (
+            "f",
+            "Water tomatoes at the base.",
+            "north",
+            vec![0.0, 0.8, 0.6, 0.0],
+        ),
+        (
+            "h",
+            "Compost feeds the soil.",
+            "south",
+            vec![0.0, 0.0, 0.8, 0.6],
+        ),
+    ];
+    for (id, statement, bed, vec) in &readable {
+        put(d, &decl, id, note(statement, bed), &["space"])?;
+        d.put_record_vector(
+            NS,
+            &decl,
+            id,
+            &match_digest(statement).ok_or("digest")?,
+            &model,
+            vec.clone(),
+        )
+        .ctx("put readable vector")?;
+    }
+    let before = everything_with_vectors(d, &decl, &model, &everyone())?;
+    ensure(
+        before.contains("Served("),
+        "vector differential starts Served",
+    )?;
+
+    // Unreadable records: some with exact [1,0,0,0] vectors, some with NO vectors.
+    let hidden = [
+        ("a", "group:other", true),
+        ("c", "principal:human:local", false),
+        ("e", "group:other", true),
+        ("g", "group:growers", false),
+    ];
+    for (id, access, with_vec) in hidden {
+        let stmt = "Mulch keeps the soil cool.";
+        put(d, &decl, id, note(stmt, "south"), &[access])?;
+        if with_vec {
+            d.put_record_vector(
+                NS,
+                &decl,
+                id,
+                &match_digest(stmt).ok_or("digest")?,
+                &model,
+                vec![1.0, 0.0, 0.0, 0.0],
+            )
+            .ctx("put hidden vector")?;
+        }
+    }
+    ensure_eq(
+        everything_with_vectors(d, &decl, &model, &everyone())?,
+        before.clone(),
+        "after unreadable records with and without vectors are written",
+    )?;
+    // Reindexing vectors for hidden records also changes nothing for `everyone()`.
+    let emb = ReindexEmbedder {
+        model: model.clone(),
+    };
+    d.reindex_records(NS, &decl, &no_scan, Some(&emb), true)
+        .ctx("reindex vectors")?;
+    ensure_eq(
+        everything_with_vectors(d, &decl, &model, &everyone())?,
+        before.clone(),
+        "after hidden vectors are filled by reindex",
+    )?;
+    // Teeth: a reader of the hidden records sees them.
+    let theirs = everything_with_vectors(d, &decl, &model, &reader(&["space", "group:other"]))?;
+    ensure(
+        theirs != before,
+        "the unreadable records with vectors are seen by their own reader",
     )?;
     pass()
 }

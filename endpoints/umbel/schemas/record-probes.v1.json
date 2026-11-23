@@ -1,0 +1,70 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://afd.dev/umbel/schemas/record-probes.v1.json",
+	"title": "Umbel record match eval probes, version 1",
+	"description": "A deployer's labelled probes for store-records-eval (records host specification, section 10; D167). Each probe gives a text, the ids of its true duplicate records, an optional self record id excluded from results and statistics, and an optional reader principal (defaults to the space's person).",
+	"type": "object",
+	"required": ["version", "space", "plugin", "kind", "probes"],
+	"additionalProperties": false,
+	"properties": {
+		"version": {
+			"const": 1
+		},
+		"space": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9-]{0,62}$"
+		},
+		"plugin": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9-]{0,62}$"
+		},
+		"kind": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9-]{0,62}$"
+		},
+		"probes": {
+			"type": "array",
+			"minItems": 1,
+			"maxItems": 5000,
+			"items": {
+				"type": "object",
+				"required": ["id", "text", "duplicates"],
+				"additionalProperties": false,
+				"properties": {
+					"id": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 128,
+						"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]{1,128}$"
+					},
+					"text": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 16384
+					},
+					"duplicates": {
+						"type": "array",
+						"maxItems": 64,
+						"uniqueItems": true,
+						"items": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 512,
+							"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]{1,512}$"
+						}
+					},
+					"self": {
+						"type": ["string", "null"],
+						"minLength": 1,
+						"maxLength": 512,
+						"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]{1,512}$"
+					},
+					"reader": {
+						"type": ["string", "null"],
+						"pattern": "^(human|agent|service|script):[^\\u0000-\\u001f\\u007f-\\u009f]{1,128}$"
+					}
+				}
+			}
+		}
+	}
+}

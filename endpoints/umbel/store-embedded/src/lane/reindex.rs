@@ -21,14 +21,17 @@ use std::time::Duration;
 
 use rusqlite::{OptionalExtension, TransactionBehavior, params};
 use serde_json::Value as Json;
-use umbel_store::lane::{RecordDecl, ReindexReport, extract};
-use umbel_store::{Embedder, Envelope, MemoryFlag, Rev, StoreError, canonical_json, record_target};
+use umbel_store::lane::{MAX_MATCH_TEXTS, RecordDecl, ReindexReport, extract};
+use umbel_store::{
+    EmbedError, Embedder, Envelope, MemoryFlag, Rev, StoreError, canonical_json, record_target,
+    unit_vector,
+};
 
-use super::flags_text;
 use super::write::{
     LaneValues, add_postings, clear_standing, insert_lane, lane_row, update_lane, write_keys,
     write_terms,
 };
+use super::{encode_vector, flags_text, require_ready};
 use crate::SqliteStore;
 use crate::documents::parse_json;
 use crate::error::to_u64;
@@ -200,10 +203,11 @@ impl SqliteStore {
                             // declared as now: a wording edited while the kind was undeclared
                             // must not carry an affirmation into a later standing declaration.
                             clear_standing(&tx, row.lane)?;
-                            tx.execute("DELETE FROM record_vectors WHERE lane = ?1", [row.lane])?;
                             chunk_counts.wordings_changed += 1;
-                        } else if row.match_digest.as_deref() != values.digest {
-                            // A vector is of the match value it was embedded for.
+                        }
+                        if row.match_digest.as_deref() != values.digest {
+                            // A vector is of the match value it was embedded for; keep it when
+                            // only an unrelated text pointer changed (step B5 follow-up).
                             tx.execute("DELETE FROM record_vectors WHERE lane = ?1", [row.lane])?;
                         }
                         row.lane
@@ -267,25 +271,269 @@ impl SqliteStore {
         })
     }
 
+    /// Step 2 (section 12.1): delete vectors of every other model for the kind and embed each
+    /// record with a match value lacking a vector for `embedder.model()`, in batches of 64
+    /// outside any long transaction.
+    ///
+    /// Fenced by `record_kinds.generation`: if `expected_generation` is `Some(g)` (following a
+    /// full rebuild) the vector phase verifies `generation == g` before deleting, before each
+    /// batch embed, and inside each batch write transaction; if `None` (`vectors_only`), it
+    /// raises `generation` first so concurrent vector or full rebuilds cannot interleave stale
+    /// vectors. Returns `(vectors_written, vectors_removed, superseded)`.
+    fn reindex_vectors(
+        &self,
+        ns: &str,
+        decl: &RecordDecl,
+        embedder: Option<&dyn Embedder>,
+        expected_generation: Option<i64>,
+    ) -> Result<(u64, u64, bool), StoreError> {
+        // When `vectors_only` runs without an embedder, skip without touching the lane or
+        // requiring readiness (preserves A59's stale-lane no-op for unmatched kinds too).
+        if expected_generation.is_none() && embedder.is_none() {
+            return Ok((0, 0, false));
+        }
+        let Some(pointer) = decl.match_pointer() else {
+            return self.pool().with(|conn| {
+                let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+                if let Some(gen_id) = expected_generation {
+                    let current: Option<i64> = tx
+                        .query_row(
+                            "SELECT generation FROM record_kinds WHERE ns = ?1 AND kind = ?2",
+                            params![ns, decl.kind],
+                            |row| row.get(0),
+                        )
+                        .optional()?;
+                    if current != Some(gen_id) {
+                        return Ok((0, 0, true));
+                    }
+                }
+                require_ready(&tx, ns, decl)?;
+                let deleted = tx.execute(
+                    "DELETE FROM record_vectors
+                     WHERE lane IN (SELECT lane FROM record_lane WHERE ns = ?1 AND kind = ?2)",
+                    params![ns, decl.kind],
+                )?;
+                tx.commit()?;
+                Ok((0, deleted as u64, false))
+            });
+        };
+        let Some(embedder) = embedder else {
+            return Ok((0, 0, false));
+        };
+        let model = embedder.model().as_str();
+        let expected_dim = embedder.dimensions();
+        enum VectorInit {
+            Empty,
+            Superseded,
+            Active(i64, u64),
+        }
+        let (gen_id, vectors_removed) = match self.pool().with(|conn| {
+            let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+            let gen_id = match expected_generation {
+                Some(gen_id) => {
+                    let current: Option<i64> = tx
+                        .query_row(
+                            "SELECT generation FROM record_kinds WHERE ns = ?1 AND kind = ?2",
+                            params![ns, decl.kind],
+                            |row| row.get(0),
+                        )
+                        .optional()?;
+                    if current != Some(gen_id) {
+                        return Ok(VectorInit::Superseded);
+                    }
+                    require_ready(&tx, ns, decl)?;
+                    gen_id
+                }
+                None => {
+                    require_ready(&tx, ns, decl)?;
+                    let bumped: Option<i64> = tx
+                        .query_row(
+                            "UPDATE record_kinds SET generation = generation + 1
+                             WHERE ns = ?1 AND kind = ?2
+                             RETURNING generation",
+                            params![ns, decl.kind],
+                            |row| row.get(0),
+                        )
+                        .optional()?;
+                    let Some(gen_id) = bumped else {
+                        // `require_ready` succeeded with no `record_kinds` row, so the kind has
+                        // no stored records and nothing to embed or delete.
+                        return Ok(VectorInit::Empty);
+                    };
+                    gen_id
+                }
+            };
+            let deleted = tx.execute(
+                "DELETE FROM record_vectors
+                 WHERE lane IN (SELECT lane FROM record_lane WHERE ns = ?1 AND kind = ?2)
+                   AND model != ?3",
+                params![ns, decl.kind, model],
+            )?;
+            tx.commit()?;
+            Ok(VectorInit::Active(gen_id, deleted as u64))
+        })? {
+            VectorInit::Empty => return Ok((0, 0, false)),
+            VectorInit::Superseded => return Ok((0, 0, true)),
+            VectorInit::Active(gen_id, deleted) => (gen_id, deleted),
+        };
+        let mut vectors_written = 0u64;
+        let mut after_lane = 0i64;
+        let batch_limit = MAX_MATCH_TEXTS as i64;
+        loop {
+            let Some(batch) = self.pool().with(|conn| {
+                let tx = conn.transaction()?;
+                let current: Option<i64> = tx
+                    .query_row(
+                        "SELECT generation FROM record_kinds WHERE ns = ?1 AND kind = ?2",
+                        params![ns, decl.kind],
+                        |row| row.get(0),
+                    )
+                    .optional()?;
+                if current != Some(gen_id) {
+                    return Ok(None);
+                }
+                require_ready(&tx, ns, decl)?;
+                let mut stmt = tx.prepare_cached(
+                    "SELECT l.lane, l.match_digest, r.body
+                     FROM record_lane l
+                     JOIN records r ON r.ns = l.ns AND r.kind = l.kind AND r.id = l.id
+                     WHERE l.ns = ?1 AND l.kind = ?2
+                       AND l.match_digest IS NOT NULL
+                       AND l.lane > ?3
+                       AND NOT EXISTS (
+                         SELECT 1 FROM record_vectors v
+                         WHERE v.lane = l.lane AND v.model = ?4
+                       )
+                     ORDER BY l.lane
+                     LIMIT ?5",
+                )?;
+                let rows = stmt
+                    .query_map(
+                        params![ns, decl.kind, after_lane, model, batch_limit],
+                        |row| {
+                            Ok((
+                                row.get::<_, i64>(0)?,
+                                row.get::<_, Vec<u8>>(1)?,
+                                row.get::<_, String>(2)?,
+                            ))
+                        },
+                    )?
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok(Some(rows))
+            })?
+            else {
+                return Ok((vectors_written, vectors_removed, true));
+            };
+            let Some((last_lane, ..)) = batch.last() else {
+                break;
+            };
+            after_lane = *last_lane;
+            let mut pending: Vec<(i64, Vec<u8>, String)> = Vec::with_capacity(batch.len());
+            for (lane, digest, body_text) in batch {
+                let body: Json = parse_json(&body_text)?;
+                if let Some(text) = pointer.get(&body).and_then(Json::as_str) {
+                    pending.push((lane, digest, text.to_owned()));
+                }
+            }
+            if pending.is_empty() {
+                continue;
+            }
+            let refs: Vec<&str> = pending.iter().map(|(_, _, text)| text.as_str()).collect();
+            let raw_vectors = embedder.embed(&refs).map_err(|err| match err {
+                EmbedError::Unavailable(reason) => StoreError::Io(reason),
+                EmbedError::Invalid(reason) => StoreError::Invalid(reason),
+            })?;
+            if raw_vectors.len() != pending.len() {
+                return Err(StoreError::Invalid(format!(
+                    "embedding provider returned {} vectors for {} texts",
+                    raw_vectors.len(),
+                    pending.len()
+                )));
+            }
+            let mut ready: Vec<(i64, Vec<u8>, Vec<u8>)> = Vec::with_capacity(pending.len());
+            for ((lane, digest, _), raw) in pending.into_iter().zip(raw_vectors) {
+                if raw.len() != expected_dim {
+                    return Err(StoreError::Invalid(format!(
+                        "embedding provider returned {} dimensions, expected {expected_dim}",
+                        raw.len()
+                    )));
+                }
+                if !raw.iter().all(|v| v.is_finite()) {
+                    return Err(StoreError::Invalid(
+                        "embedding provider returned a non-finite number".to_owned(),
+                    ));
+                }
+                // A zero vector is no vector (section 9.1): skip storing it.
+                if let Some(unit) = unit_vector(&raw) {
+                    ready.push((lane, digest, encode_vector(&unit)));
+                }
+            }
+            if ready.is_empty() {
+                continue;
+            }
+            let Some(written) = self.pool().with(|conn| {
+                let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+                let current: Option<i64> = tx
+                    .query_row(
+                        "SELECT generation FROM record_kinds WHERE ns = ?1 AND kind = ?2",
+                        params![ns, decl.kind],
+                        |row| row.get(0),
+                    )
+                    .optional()?;
+                if current != Some(gen_id) {
+                    return Ok(None);
+                }
+                require_ready(&tx, ns, decl)?;
+                let mut count = 0u64;
+                for (lane, digest, encoded) in &ready {
+                    let current: Option<Vec<u8>> = tx
+                        .query_row(
+                            "SELECT match_digest FROM record_lane WHERE lane = ?1",
+                            [lane],
+                            |row| row.get(0),
+                        )
+                        .optional()?
+                        .flatten();
+                    if current.as_deref() == Some(digest.as_slice()) {
+                        tx.execute(
+                            "INSERT OR REPLACE INTO record_vectors (lane, model, vector)
+                             VALUES (?1, ?2, ?3)",
+                            params![lane, model, encoded.as_slice()],
+                        )?;
+                        count += 1;
+                    }
+                }
+                tx.commit()?;
+                Ok(Some(count))
+            })?
+            else {
+                return Ok((vectors_written, vectors_removed, true));
+            };
+            vectors_written += written;
+        }
+        Ok((vectors_written, vectors_removed, false))
+    }
+
     pub(crate) fn lane_reindex(
         &self,
         ns: &str,
         decl: &RecordDecl,
         scan: &dyn Fn(&str) -> Vec<MemoryFlag>,
-        _embedder: Option<&dyn Embedder>,
+        embedder: Option<&dyn Embedder>,
         vectors_only: bool,
     ) -> Result<ReindexReport, StoreError> {
         decl.check()?;
         if vectors_only {
-            // The rebuild is skipped, and the vectors are the specification's step B5.
             let status = self.lane_state_of(ns, decl)?;
+            let (vectors_written, vectors_removed, superseded) =
+                self.reindex_vectors(ns, decl, embedder, None)?;
             return Ok(ReindexReport {
                 records: status.records,
                 unindexed: status.unindexed,
                 wordings_changed: 0,
-                superseded: false,
-                vectors_written: 0,
-                vectors_removed: 0,
+                superseded,
+                vectors_written,
+                vectors_removed,
             });
         }
         let generation = self.begin_rebuild(ns, decl)?;
@@ -320,13 +568,18 @@ impl SqliteStore {
             }
         }
         let cleared = !superseded && self.end_rebuild(ns, decl, generation)?;
+        let (vectors_written, vectors_removed, vec_superseded) = if cleared {
+            self.reindex_vectors(ns, decl, embedder, Some(generation))?
+        } else {
+            (0, 0, false)
+        };
         Ok(ReindexReport {
             records: counts.records,
             unindexed: counts.unindexed,
             wordings_changed: counts.wordings_changed,
-            superseded: !cleared,
-            vectors_written: 0,
-            vectors_removed: 0,
+            superseded: !cleared || vec_superseded,
+            vectors_written,
+            vectors_removed,
         })
     }
 }
@@ -359,5 +612,109 @@ mod tests {
                 "{plan:?}"
             );
         }
+    }
+
+    #[test]
+    fn vectors_only_on_empty_matched_kind_succeeds_and_generation_bump_supersedes() {
+        use serde_json::json;
+        use umbel_store::conformance::samples;
+        use umbel_store::lane::{LaneWrite, Pointer, RecordDecl};
+        use umbel_store::{DocumentStore, EmbedError, Embedder, Expect, ModelId, ReaderFilter};
+
+        struct Stub {
+            model: ModelId,
+            on_embed: Option<Box<dyn Fn() + Send + Sync>>,
+        }
+        impl Embedder for Stub {
+            fn model(&self) -> &ModelId {
+                &self.model
+            }
+            fn dimensions(&self) -> usize {
+                16
+            }
+            fn embed(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>, EmbedError> {
+                if let Some(hook) = &self.on_embed {
+                    hook();
+                }
+                Ok(texts.iter().map(|_| vec![1.0f32; 16]).collect())
+            }
+        }
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        let store = crate::SqliteStore::open(dir.path(), "main", crate::StoreOptions::default())
+            .expect("open");
+        let decl = RecordDecl {
+            kind: "note".to_owned(),
+            standing: false,
+            text: vec![Pointer::parse("/statement").expect("ptr")],
+            keys: Vec::new(),
+            matched: Some(0),
+        };
+        let model = ModelId::parse("demo@0123456789abcdef").expect("model");
+        let stub = Stub {
+            model: model.clone(),
+            on_embed: None,
+        };
+
+        // 1. Empty declared matched kind with vectors_only = true must succeed with zero counts.
+        let empty = store
+            .reindex_records("notes", &decl, &|_| Vec::new(), Some(&stub), true)
+            .expect("empty matched kind vectors_only");
+        assert_eq!(empty.records, 0);
+        assert_eq!(empty.vectors_written, 0);
+        assert_eq!(empty.vectors_removed, 0);
+        assert!(!empty.superseded);
+
+        // 2. If another writer bumps generation mid-embed, reindex_vectors writes nothing and
+        //    reports superseded = true.
+        let env = samples::envelope(&["space"], "t1", "2026-11-22T00:00:00.000Z");
+        let reader = ReaderFilter::tokens(["space"]).expect("reader");
+        store
+            .put_declared_record(
+                "notes",
+                &decl,
+                "n1",
+                json!({ "statement": "Prune roses." }),
+                env.clone(),
+                Expect::Any,
+                LaneWrite {
+                    flags: Vec::new(),
+                    evidence: None,
+                    model: None,
+                },
+                &reader,
+            )
+            .expect("put");
+        let store_for_hook =
+            crate::SqliteStore::open(dir.path(), "main", crate::StoreOptions::default())
+                .expect("open 2");
+        let decl_for_hook = decl.clone();
+        let superseding_stub = Stub {
+            model,
+            on_embed: Some(Box::new(move || {
+                // Undeclared put raises generation and marks kind stale while embed() is in flight.
+                store_for_hook
+                    .put_record(
+                        "notes",
+                        &decl_for_hook.kind,
+                        "n2",
+                        json!({ "statement": "Water tomatoes." }),
+                        env.clone(),
+                        Expect::Any,
+                    )
+                    .expect("undeclared put");
+            })),
+        };
+        let rep = store
+            .reindex_records(
+                "notes",
+                &decl,
+                &|_| Vec::new(),
+                Some(&superseding_stub),
+                true,
+            )
+            .expect("superseded vectors_only");
+        assert!(rep.superseded, "{rep:?}");
+        assert_eq!(rep.vectors_written, 0);
     }
 }

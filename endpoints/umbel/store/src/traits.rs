@@ -12,7 +12,7 @@ use crate::document::{
     Change, DocId, DocMeta, Document, DocumentWrite, Expect, ListQuery, Page, Record, RecordMeta,
     Rev,
 };
-use crate::embed::Embedder;
+use crate::embed::{Embedder, ModelId};
 use crate::envelope::Envelope;
 use crate::error::Result;
 use crate::graph::{Direction, Edge, EdgeKey, GraphBatch, Node, Subgraph};
@@ -224,6 +224,25 @@ pub trait DocumentStore: Send + Sync {
         writer: &ReaderFilter,
     ) -> Result<DeclaredPut>;
 
+    /// Store `vector` for the record if its match digest is still `digest`; answers whether it
+    /// was stored (records host specification, section 4.2 step 8 and section 11.1).
+    ///
+    /// Scales `vector` to length 1 before storing and refuses an empty, non-finite or zero
+    /// vector as [`StoreError::Invalid`]. Returns `Ok(false)` without writing when the record is
+    /// absent, has no lane row, or its stored match digest no longer equals `digest`.
+    ///
+    /// # Errors
+    /// `LaneStale`, `Invalid`, `Busy`, `Io`.
+    fn put_record_vector(
+        &self,
+        ns: &str,
+        decl: &RecordDecl,
+        id: &str,
+        digest: &[u8; 32],
+        model: &ModelId,
+        vector: Vec<f32>,
+    ) -> Result<bool>;
+
     /// One record of a declared kind as its lane holds it (section 7), or `None` when it is
     /// absent, not readable by `reader` or not admitted by `view`, without saying which.
     ///
@@ -278,15 +297,12 @@ pub trait DocumentStore: Send + Sync {
     /// `fused` descending, then by id in the byte order of its UTF-8.
     ///
     /// `vectors` are the incoming texts' unit vectors, which the host computed (section 8.3).
-    /// **From step B5**, the page's `meaning` is `Served` or `Incomplete` when they are given and
-    /// `Off` otherwise, and the host sets `Failed`. Until that step a backend refuses a match
-    /// that carries vectors as `Invalid`, and never answers it as if it had carried none (after
-    /// step B4, A44): `meaning` is `Off` on every page it answers.
+    /// The page's `meaning` is `Served` or `Incomplete` when they are given and `Off` otherwise;
+    /// the host sets `Failed`.
     ///
     /// # Errors
-    /// `LaneStale`; `Invalid` for what [`RecordMatch::plan`] refuses, for a derivation
-    /// `reader` and, until step B5, for a match that carries `vectors`; `LaneTooBroad`; `Busy`,
-    /// `Corrupt`, `Io`.
+    /// `LaneStale`; `Invalid` for what [`RecordMatch::plan`] or [`MatchVectors::check`] refuses
+    /// and for a derivation `reader`; `LaneTooBroad`; `Busy`, `Corrupt`, `Io`.
     fn match_records(
         &self,
         ns: &str,
@@ -390,9 +406,10 @@ pub trait DocumentStore: Send + Sync {
     /// each record's lane row, terms and keys, a chunk to a transaction; then, only if the
     /// generation is still the one this rebuild wrote, store the declaration and clear the mark.
     /// A body [`crate::lane::extract`] refuses is left without lane rows and counted. A record
-    /// whose wording is not the one its lane row held loses its affirmation, its evidence and
-    /// its vectors, whether or not `decl` has standing, and is counted. `scan` is the host's
-    /// write scan, called for each text value. With `vectors_only` the rebuild is skipped.
+    /// whose wording is not the one its lane row held loses its affirmation and its evidence,
+    /// whether or not `decl` has standing, and is counted; its vectors are deleted only when its
+    /// match digest moved. `scan` is the host's write scan, called for each text value. With
+    /// `vectors_only` the rebuild is skipped (requiring the kind to be ready).
     ///
     /// What every backend must hold. The suite checks the second through a `scan` that unwinds;
     /// the first and the third need a second writer placed between two chunks, which a backend's
@@ -409,11 +426,13 @@ pub trait DocumentStore: Send + Sync {
     /// - **Another writer gets a turn between chunks**: the rebuild does not take the write
     ///   lock again before a writer that was waiting for it has had the chance to.
     ///
-    /// Vectors (the section's step 2) arrive with that specification's step B5: until then
-    /// `embedder` is not called, and the report's two vector counts are 0.
+    /// When `embedder` is given and step 1 was not superseded, step 2 deletes vectors of every
+    /// other model for the kind and embeds each record with a match value that lacks a vector for
+    /// `embedder.model()`, in batches of 64 outside any long transaction.
     ///
     /// # Errors
-    /// `Busy`, `Corrupt`, `Io`. Running a rebuild that stopped again finishes it.
+    /// `LaneStale` (with `vectors_only` on a stale kind), `Invalid`, `Busy`, `Corrupt`, `Io`.
+    /// Running a rebuild that stopped again finishes it.
     fn reindex_records(
         &self,
         ns: &str,

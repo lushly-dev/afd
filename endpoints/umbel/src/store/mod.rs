@@ -146,6 +146,11 @@ pub(crate) mod records {
     pub(crate) const STORE_OWN_SOURCE_MISMATCH: &str = "STORE_OWN_SOURCE_MISMATCH";
     /// A mark on a document that lies where commands write files, or is not its file on disk.
     pub(crate) const STORE_OWN_MARK_REFUSED: &str = "STORE_OWN_MARK_REFUSED";
+    /// A probes file is missing, too large, invalid against `record-probes.v1.json`, or names
+    /// another space, plugin or kind.
+    pub(crate) const RECORD_PROBES_INVALID: &str = "RECORD_PROBES_INVALID";
+    /// No model is configured for the space, or its model did not load.
+    pub(crate) const RECORD_MODEL_UNAVAILABLE: &str = "RECORD_MODEL_UNAVAILABLE";
 
     /// `RECORD_LANE_STALE`'s message for `kind`.
     #[must_use]

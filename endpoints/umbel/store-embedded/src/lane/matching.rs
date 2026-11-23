@@ -18,28 +18,32 @@
 //!
 //! The words score is [`umbel_store::lane::score`]'s: BM25 over the lane's terms, scaled so that
 //! a text scores 1 against itself, in both directions, the lower kept, with the incoming text
-//! counted as one more record of its corpus. Without vectors `meaning` is absent from every hit
-//! and `fused` equals `words`; vectors are step B5's.
+//! counted as one more record of its corpus. When `vectors` is given (section 8.3 and 9.4), if
+//! every eligible record with a match value holds a vector for the model, the pool is the union
+//! of the 64 highest in `directed(q, d)` and the 64 highest in `meaning(q, d)`, every pooled
+//! record gets all three scores, and `nearest` is ordered by `fused` descending then id. When any
+//! eligible record lacks a vector for the model, `meaning` is `Incomplete` and hits are scored by
+//! words alone.
 
 use std::collections::BTreeMap;
 
 use rusqlite::{Connection, params_from_iter};
 use serde_json::Value;
-use umbel_store::lane::score::{Corpus, Posting, directed, fused, round4, score, words};
+use umbel_store::lane::score::{Corpus, Posting, cosine, directed, fused, round4, score, words};
 use umbel_store::lane::{
     LaneRecord, MATCH_POOL, MAX_IDENTICAL, MatchHit, MatchPage, MatchPlan, MatchResult, MatchText,
     MatchVectors, MeaningState, RecordDecl, RecordMatch, StandingView,
 };
-use umbel_store::{ReaderFilter, StoreError};
+use umbel_store::{ReaderFilter, StoreError, unit_vector};
 
 use super::find::{records, select};
 use super::rank::{Counts, Scope, candidates, within_bound};
-use super::{RECORD_COLUMNS, and_keys, limit_of, refuse_derivation, require_ready};
+use super::{RECORD_COLUMNS, and_keys, decode_vector, limit_of, refuse_derivation, require_ready};
 use crate::SqliteStore;
 use crate::error::Fail;
 use crate::sql::Sql;
 
-/// One pooled record with its two directed scores, unrounded.
+/// One pooled record with its two directed scores, unrounded, and its meaning score when served.
 struct Pooled {
     lane: i64,
     id: String,
@@ -47,6 +51,19 @@ struct Pooled {
     to_record: f64,
     /// `words(q, d)`: the lower of the two directions.
     words: f64,
+    /// `meaning(q, d)` when meaning is served.
+    meaning: Option<f64>,
+}
+
+/// One text's words-pool preparation before the optional streaming vector scan and step 6.
+struct TextPrep<'a> {
+    text: &'a MatchText,
+    same: Vec<i64>,
+    corpus: Corpus,
+    asked: Vec<&'a str>,
+    own: f64,
+    pool: Vec<Pooled>,
+    cut: bool,
 }
 
 /// The statement of a text's identical records: the lanes whose match digest is `digest`, by
@@ -141,17 +158,95 @@ fn keep_pool(pool: &mut Vec<Pooled>) {
     pool.truncate(MATCH_POOL);
 }
 
-/// Section 8.2's steps for one text: its counts, the gather, the query direction, the pool and
-/// both directions. It answers the pool, each record with its words score, and whether the
-/// gather was cut.
-fn nearest(
+/// Whether any eligible record with a match value lacks a vector of `model` (section 9.4).
+/// Held to the exact set of records eligible for the vector scan: the reader, the view, the
+/// exclusions and the key filters, with `match_digest IS NOT NULL`.
+fn missing_vector_sql(scope: &Scope<'_>, keys: &[(u8, Vec<String>)], model: &str) -> Sql {
+    let mut sql = Sql::new("SELECT EXISTS (SELECT 1 FROM record_lane l WHERE l.ns = ");
+    sql.bind(scope.ns)
+        .push(" AND l.kind = ")
+        .bind(scope.decl.kind.as_str())
+        .push(" AND l.match_digest IS NOT NULL");
+    and_keys(&mut sql, keys);
+    scope.and_counted(&mut sql);
+    sql.push(
+        " AND NOT EXISTS (SELECT 1 FROM record_vectors v WHERE v.lane = l.lane AND v.model = ",
+    )
+    .bind(model)
+    .push("))");
+    sql
+}
+
+/// All stored vectors of `model` for records eligible for this call (section 9.4): reader, view,
+/// exclusions, key filters and non-null match digest.
+fn vectors_sql(scope: &Scope<'_>, keys: &[(u8, Vec<String>)], model: &str) -> Sql {
+    let mut sql = Sql::new(
+        "SELECT l.lane, l.id, v.vector FROM record_vectors v JOIN record_lane l ON l.lane = v.lane WHERE l.ns = ",
+    );
+    sql.bind(scope.ns)
+        .push(" AND l.kind = ")
+        .bind(scope.decl.kind.as_str())
+        .push(" AND l.match_digest IS NOT NULL AND v.model = ")
+        .bind(model);
+    and_keys(&mut sql, keys);
+    scope.and_counted(&mut sql);
+    sql
+}
+
+fn has_missing_vector(
     scope: &Scope<'_>,
     keys: &[(u8, Vec<String>)],
-    text: &MatchText,
+    model: &str,
+) -> Result<bool, Fail> {
+    let sql = missing_vector_sql(scope, keys, model);
+    let mut statement = scope.conn.prepare_cached(&sql.text)?;
+    let missing: bool = statement.query_row(params_from_iter(&sql.params), |row| row.get(0))?;
+    Ok(missing)
+}
+
+/// Maintain the top-[`MATCH_POOL`] meaning candidates for one query text, ordered by
+/// `round4(meaning)` descending then `id` UTF-8 byte order ascending.
+fn insert_top_meaning(top: &mut Vec<(i64, String, f64)>, lane: i64, id: &str, m: f64) {
+    let m4 = round4(m);
+    if top.len() == MATCH_POOL
+        && let Some((_, last_id, last_m)) = top.last()
+    {
+        let ord = m4
+            .total_cmp(&round4(*last_m))
+            .reverse()
+            .then_with(|| id.as_bytes().cmp(last_id.as_bytes()));
+        if !ord.is_lt() {
+            return;
+        }
+    }
+    let pos = top.partition_point(|(_, cur_id, cur_m)| {
+        let ord = round4(*cur_m)
+            .total_cmp(&m4)
+            .reverse()
+            .then_with(|| cur_id.as_bytes().cmp(id.as_bytes()));
+        ord.is_lt()
+    });
+    top.insert(pos, (lane, id.to_owned(), m));
+    if top.len() > MATCH_POOL {
+        top.pop();
+    }
+}
+
+/// Section 8.2's steps 1 to 5 for one text: identical lookup, term counts, gather, query
+/// direction and the top-[`MATCH_POOL`] words pool.
+fn prepare_words<'a>(
+    scope: &Scope<'_>,
+    plan: &MatchPlan,
+    text: &'a MatchText,
     stored: &Corpus,
     counts: &mut Counts,
     gather_postings: u64,
-) -> Result<(Vec<Pooled>, bool), Fail> {
+) -> Result<TextPrep<'a>, Fail> {
+    // A text whose normalised form is empty has no digest and is identical to nothing.
+    let same = match &text.digest {
+        Some(digest) => identical(scope, &plan.keys, digest)?,
+        None => Vec::new(),
+    };
     // 1. Counts for the text's distinct terms, from the call's table.
     counts.need(scope, text.terms.iter().map(|(term, _)| term.as_str()))?;
     // The text's corpus is the stored one plus the text itself, as one more record: one more
@@ -165,7 +260,7 @@ fn nearest(
         asked.iter().map(|term| (*term, counts.df0(term))).collect();
     // 2 and 3. The gather order and the gather, over the stored counts, which no key filter
     // narrows.
-    let (lanes, cut) = candidates(scope, keys, &stored_counts, gather_postings)?;
+    let (lanes, cut) = candidates(scope, &plan.keys, &stored_counts, gather_postings)?;
     // 4. The query direction, for every candidate. The text's terms are in byte order, so
     // every backend adds in one order.
     let own = score(
@@ -191,30 +286,135 @@ fn nearest(
                 lane: held.lane,
                 to_record: directed(score(&corpus, held.length, postings), own),
                 words: 0.0,
+                meaning: None,
                 id: held.id,
             }
         })
         .collect();
-    // 5. The pool.
+    // 5. The words pool.
     keep_pool(&mut pool);
+    Ok(TextPrep {
+        text,
+        same,
+        corpus,
+        asked,
+        own,
+        pool,
+        cut,
+    })
+}
+
+/// Section 8.3: stream eligible vectors one row at a time, updating each text's words-pool
+/// meaning scores and bounded top-[`MATCH_POOL`] meaning pool, then union the extra lanes.
+fn scan_vectors_into_pools(
+    scope: &Scope<'_>,
+    keys: &[(u8, Vec<String>)],
+    model: &str,
+    unit_queries: &[Vec<f32>],
+    preps: &mut [TextPrep<'_>],
+    counts: &Counts,
+) -> Result<(), Fail> {
+    let words_indices: Vec<BTreeMap<i64, usize>> = preps
+        .iter()
+        .map(|prep| {
+            prep.pool
+                .iter()
+                .enumerate()
+                .map(|(index, pooled)| (pooled.lane, index))
+                .collect()
+        })
+        .collect();
+    let mut top_meaning: Vec<Vec<(i64, String, f64)>> = preps
+        .iter()
+        .map(|_| Vec::with_capacity(MATCH_POOL + 1))
+        .collect();
+
+    let sql = vectors_sql(scope, keys, model);
+    let mut statement = scope.conn.prepare_cached(&sql.text)?;
+    let mut rows = statement.query(params_from_iter(&sql.params))?;
+    while let Some(row) = rows.next()? {
+        let lane: i64 = row.get(0)?;
+        let id: String = row.get(1)?;
+        let bytes: Vec<u8> = row.get(2)?;
+        let vector = decode_vector(&bytes)?;
+        for (t, qvec) in unit_queries.iter().enumerate() {
+            let m = cosine(qvec, &vector);
+            if let Some(&idx) = words_indices[t].get(&lane) {
+                preps[t].pool[idx].meaning = Some(m);
+            }
+            insert_top_meaning(&mut top_meaning[t], lane, &id, m);
+        }
+    }
+
+    for (t, prep) in preps.iter_mut().enumerate() {
+        let mut extra_lanes = Vec::new();
+        let mut extra_meaning: BTreeMap<i64, f64> = BTreeMap::new();
+        for (lane, _, m) in top_meaning[t].drain(..) {
+            if !words_indices[t].contains_key(&lane) {
+                extra_lanes.push(lane);
+                extra_meaning.insert(lane, m);
+            }
+        }
+        if !extra_lanes.is_empty() {
+            for held in scope.held(&extra_lanes, &prep.asked)? {
+                let postings = prep.asked.iter().filter_map(|term| {
+                    let tf = held.terms.get(*term).copied()?;
+                    Some(Posting {
+                        df: counts.df0(term) + 1,
+                        tf,
+                    })
+                });
+                let to_record = if prep.asked.is_empty() {
+                    0.0
+                } else {
+                    directed(score(&prep.corpus, held.length, postings), prep.own)
+                };
+                let m = extra_meaning.get(&held.lane).copied().unwrap_or(0.0);
+                prep.pool.push(Pooled {
+                    lane: held.lane,
+                    to_record,
+                    words: 0.0,
+                    meaning: Some(m),
+                    id: held.id,
+                });
+            }
+        }
+        for pooled in &mut prep.pool {
+            if pooled.meaning.is_none() {
+                pooled.meaning = Some(0.0);
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Section 8.2 step 6 and hit assembly for one text after pooling (and optional vector scan).
+fn finish_text(
+    scope: &Scope<'_>,
+    mut prep: TextPrep<'_>,
+    counts: &mut Counts,
+    k: usize,
+    meaning_weight: Option<f64>,
+) -> Result<MatchResult, Fail> {
     // 6. Both directions: each pooled record's whole term list, and counts for those terms.
-    let held = terms_of(scope, &pool)?;
+    let held = terms_of(scope, &prep.pool)?;
     counts.need(
         scope,
         held.values().flatten().map(|(term, _)| term.as_str()),
     )?;
-    let in_text: BTreeMap<&str, u32> = text
+    let in_text: BTreeMap<&str, u32> = prep
+        .text
         .terms
         .iter()
         .map(|(term, tf)| (term.as_str(), *tf))
         .collect();
-    for pooled in &mut pool {
+    for pooled in &mut prep.pool {
         let terms = held.get(&pooled.lane).map_or(&[][..], Vec::as_slice);
         let length: u32 = terms.iter().map(|(_, tf)| *tf).sum();
         // A term the text holds too has one more holder in this text's corpus.
         let df = |term: &str| counts.df0(term) + u64::from(in_text.contains_key(term));
         let own = score(
-            &corpus,
+            &prep.corpus,
             length,
             terms.iter().map(|(term, tf)| Posting {
                 df: df(term),
@@ -222,8 +422,8 @@ fn nearest(
             }),
         );
         let to_text = score(
-            &corpus,
-            text.length,
+            &prep.corpus,
+            prep.text.length,
             terms.iter().filter_map(|(term, _)| {
                 let tf = in_text.get(term.as_str()).copied()?;
                 Some(Posting { df: df(term), tf })
@@ -231,69 +431,38 @@ fn nearest(
         );
         pooled.words = words(pooled.to_record, directed(to_text, own));
     }
-    Ok((pool, cut))
-}
-
-/// The value at the match pointer of a record's body.
-fn match_text(decl: &RecordDecl, body: &Value) -> String {
-    decl.match_pointer()
-        .and_then(|pointer| pointer.get(body))
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .to_owned()
-}
-
-/// A hit of `record`, with `scores` in `nearest` and none in `identical`.
-fn hit(decl: &RecordDecl, record: &LaneRecord, scores: Option<(f64, f64)>) -> MatchHit {
-    MatchHit {
-        id: record.record.id.clone(),
-        rev: record.record.rev,
-        text: match_text(decl, &record.record.body),
-        flags: record.flags.clone(),
-        label: record.label.clone(),
-        words: scores.map(|(words, _)| words),
-        meaning: None,
-        fused: scores.map(|(_, fused)| fused),
-    }
-}
-
-/// One text's result.
-fn matched(
-    scope: &Scope<'_>,
-    plan: &MatchPlan,
-    text: &MatchText,
-    stored: &Corpus,
-    counts: &mut Counts,
-    gather_postings: u64,
-    k: usize,
-) -> Result<MatchResult, Fail> {
-    // A text whose normalised form is empty has no digest and is identical to nothing.
-    let same = match &text.digest {
-        Some(digest) => identical(scope, &plan.keys, digest)?,
-        None => Vec::new(),
-    };
-    let (pool, cut) = nearest(scope, &plan.keys, text, stored, counts, gather_postings)?;
-    // With no meaning served, `fused` is `words`, from the unrounded score. The order is by
-    // the rounded value descending, then by id, so the last bits of a float never change it.
-    let mut ranked: Vec<(&Pooled, f64, f64)> = pool
+    // `fused` is computed from the unrounded scores, then every score is rounded to four decimal
+    // places. Ordering is by rounded `fused` descending, then by id in UTF-8 byte order.
+    let mut ranked: Vec<(&Pooled, f64, Option<f64>, f64)> = prep
+        .pool
         .iter()
-        .map(|pooled| {
-            (
+        .map(|pooled| match meaning_weight {
+            Some(weight) => {
+                let m = pooled.meaning.unwrap_or(0.0);
+                (
+                    pooled,
+                    round4(pooled.words),
+                    Some(round4(m)),
+                    round4(fused(weight, m, pooled.words)),
+                )
+            }
+            None => (
                 pooled,
                 round4(pooled.words),
+                None,
                 round4(fused(0.0, 0.0, pooled.words)),
-            )
+            ),
         })
         .collect();
     ranked.sort_by(|a, b| {
-        b.2.total_cmp(&a.2)
+        b.3.total_cmp(&a.3)
             .then_with(|| a.0.id.as_bytes().cmp(b.0.id.as_bytes()))
     });
     ranked.truncate(k);
     // The hits' records, by lane, under the reader, the view and the exclusions once more,
     // each with the label a read gives it.
-    let mut lanes: Vec<i64> = same.clone();
-    lanes.extend(ranked.iter().map(|(pooled, _, _)| pooled.lane));
+    let mut lanes: Vec<i64> = prep.same.clone();
+    lanes.extend(ranked.iter().map(|(pooled, ..)| pooled.lane));
     lanes.sort_unstable();
     lanes.dedup();
     let mut by_lane: BTreeMap<i64, LaneRecord> = BTreeMap::new();
@@ -306,21 +475,49 @@ fn matched(
         );
     }
     Ok(MatchResult {
-        identical: same
+        identical: prep
+            .same
             .iter()
             .filter_map(|lane| by_lane.get(lane))
             .map(|record| hit(scope.decl, record, None))
             .collect(),
         nearest: ranked
             .iter()
-            .filter_map(|(pooled, words, fused)| {
+            .filter_map(|(pooled, words, meaning, fused)| {
                 by_lane
                     .get(&pooled.lane)
-                    .map(|record| hit(scope.decl, record, Some((*words, *fused))))
+                    .map(|record| hit(scope.decl, record, Some((*words, *meaning, *fused))))
             })
             .collect(),
-        cut,
+        cut: prep.cut,
     })
+}
+
+/// The value at the match pointer of a record's body.
+fn match_text(decl: &RecordDecl, body: &Value) -> String {
+    decl.match_pointer()
+        .and_then(|pointer| pointer.get(body))
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_owned()
+}
+
+/// A hit of `record`, with `(words, meaning, fused)` in `nearest` and none in `identical`.
+fn hit(
+    decl: &RecordDecl,
+    record: &LaneRecord,
+    scores: Option<(f64, Option<f64>, f64)>,
+) -> MatchHit {
+    MatchHit {
+        id: record.record.id.clone(),
+        rev: record.record.rev,
+        text: match_text(decl, &record.record.body),
+        flags: record.flags.clone(),
+        label: record.label.clone(),
+        words: scores.map(|(words, _, _)| words),
+        meaning: scores.and_then(|(_, meaning, _)| meaning),
+        fused: scores.map(|(_, _, fused)| fused),
+    }
 }
 
 /// Every text of a match, inside one snapshot.
@@ -331,6 +528,7 @@ fn page(
     decl: &RecordDecl,
     query: &RecordMatch,
     plan: &MatchPlan,
+    vectors: Option<(&MatchVectors, &[Vec<f32>])>,
     view: &StandingView,
     reader: &ReaderFilter,
     limits: umbel_store::lane::LaneLimits,
@@ -348,23 +546,44 @@ fn page(
     // Once a call: the stored part of `N` and `L`, and an empty table of stored counts.
     let stored = scope.corpus()?;
     let mut counts = Counts::new();
-    let k = query.k as usize;
-    let mut results = Vec::with_capacity(plan.texts.len());
+    let mut preps = Vec::with_capacity(plan.texts.len());
     for text in &plan.texts {
-        results.push(matched(
+        preps.push(prepare_words(
             &scope,
             plan,
             text,
             &stored,
             &mut counts,
             limits.gather_postings,
-            k,
         )?);
+    }
+    let (meaning_state, meaning_weight) = match vectors {
+        None => (MeaningState::Off, None),
+        Some((mv, unit_queries)) => {
+            if has_missing_vector(&scope, &plan.keys, mv.model.as_str())? {
+                (MeaningState::Incomplete, None)
+            } else {
+                scan_vectors_into_pools(
+                    &scope,
+                    &plan.keys,
+                    mv.model.as_str(),
+                    unit_queries,
+                    &mut preps,
+                    &counts,
+                )?;
+                (MeaningState::Served(mv.model.clone()), Some(mv.weight))
+            }
+        }
+    };
+    let k = query.k as usize;
+    let mut results = Vec::with_capacity(preps.len());
+    for prep in preps {
+        results.push(finish_text(&scope, prep, &mut counts, k, meaning_weight)?);
     }
     Ok(MatchPage {
         results,
         admitted: view.admit.clone(),
-        meaning: MeaningState::Off,
+        meaning: meaning_state,
     })
 }
 
@@ -380,20 +599,28 @@ impl SqliteStore {
     ) -> Result<MatchPage, StoreError> {
         refuse_derivation(reader)?;
         let plan = query.plan(decl)?;
-        // Step B5 serves vectors. Until then a match that carries them is refused, and never
-        // answered as if it had carried none.
-        if vectors.is_some() {
-            return Err(StoreError::invalid(
-                "a match with vectors is not served yet",
-            ));
-        }
+        let unit_queries: Option<Vec<Vec<f32>>> = match vectors {
+            Some(mv) => {
+                mv.check(plan.texts.len())?;
+                let mut scaled = Vec::with_capacity(mv.vectors.len());
+                for raw in &mv.vectors {
+                    let unit = unit_vector(raw).ok_or_else(|| {
+                        StoreError::invalid("a query vector must be finite and non-zero")
+                    })?;
+                    scaled.push(unit);
+                }
+                Some(scaled)
+            }
+            None => None,
+        };
         let limits = self.lane_limits();
         self.pool().with(|conn| {
-            // One snapshot for the kind's state, its size, the statistics and every text.
+            // One snapshot for the kind's state, its size, the statistics, the vectors and every text.
             let tx = conn.transaction()?;
             require_ready(&tx, ns, decl)?;
             within_bound(&tx, ns, &decl.kind, limits.match_postings)?;
-            page(&tx, ns, decl, query, &plan, view, reader, limits)
+            let vec_arg = vectors.zip(unit_queries.as_deref());
+            page(&tx, ns, decl, query, &plan, vec_arg, view, reader, limits)
         })
     }
 }
@@ -506,6 +733,7 @@ mod tests {
         };
         let lanes = [1, 2, 3];
         let terms = ["mulch", "rose"];
+        let keys = [(0, vec!["north".to_owned()])];
         for (what, sql) in [
             ("a term's count", counts_sql(&scope, &terms)),
             (
@@ -518,6 +746,20 @@ mod tests {
         ] {
             holds(&conn, what, &sql, &COUNTED);
         }
+        let mut with_keys = vec!["record_keys k"];
+        with_keys.extend(COUNTED);
+        for (what, sql) in [
+            (
+                "missing vector check",
+                missing_vector_sql(&scope, &keys, "potion@0123456789abcdef"),
+            ),
+            (
+                "vector scan",
+                vectors_sql(&scope, &keys, "potion@0123456789abcdef"),
+            ),
+        ] {
+            holds(&conn, what, &sql, &with_keys);
+        }
     }
 
     fn pooled(id: &str, to_record: f64) -> Pooled {
@@ -526,6 +768,7 @@ mod tests {
             id: id.to_owned(),
             to_record,
             words: 0.0,
+            meaning: None,
         }
     }
 
@@ -580,5 +823,36 @@ mod tests {
             within_bound(&conn, "notes", "other", 0).is_ok(),
             "another kind"
         );
+    }
+
+    #[test]
+    fn insert_top_meaning_matches_full_sort_and_truncate_with_ties_at_four_places() {
+        let mut candidates: Vec<(i64, String, f64)> = (0..100usize)
+            .map(|i| {
+                // Scores tie at four decimal places (0.5000) and differ past the fourth.
+                let score = 0.5000 + (i as f64) * 1e-7;
+                (i as i64, format!("n{i:03}"), score)
+            })
+            .collect();
+        candidates.push((999, "z".to_owned(), 0.5002));
+        candidates.reverse();
+
+        let mut streamed = Vec::with_capacity(MATCH_POOL + 1);
+        for (lane, id, m) in &candidates {
+            insert_top_meaning(&mut streamed, *lane, id, *m);
+        }
+        assert_eq!(streamed.len(), MATCH_POOL);
+
+        let mut sorted = candidates;
+        sorted.sort_by(|a, b| {
+            round4(b.2)
+                .total_cmp(&round4(a.2))
+                .then_with(|| a.1.as_bytes().cmp(b.1.as_bytes()))
+        });
+        sorted.truncate(MATCH_POOL);
+
+        let streamed_ids: Vec<&str> = streamed.iter().map(|(_, id, _)| id.as_str()).collect();
+        let sorted_ids: Vec<&str> = sorted.iter().map(|(_, id, _)| id.as_str()).collect();
+        assert_eq!(streamed_ids, sorted_ids);
     }
 }

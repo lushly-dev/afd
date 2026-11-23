@@ -639,7 +639,7 @@ async fn a_put_on_a_stale_kind_is_refused_until_the_lane_is_rebuilt() {
         rebuilt.json()["data"],
         json!({ "space": "garden", "kinds": [{
             "plugin": "notes", "kind": "note", "records": 1, "unindexed": 0, "wordingsChanged": 0,
-            "superseded": false, "vectorsWritten": 0, "vectorsRemoved": 0,
+            "superseded": false, "vectorsWritten": 0, "vectorsRemoved": 0, "meaning": "off",
         }] })
     );
     let everything = reindex(&["call", "store-records-reindex", "{}", "--yes"]).await;
@@ -706,4 +706,104 @@ async fn a_put_on_a_stale_kind_is_refused_until_the_lane_is_rebuilt() {
     // Over MCP and the library the command is not exposed to anyone but the operator's CLI.
     let definition = next.registry().get("store-records-reindex").unwrap();
     assert!(definition.expose.cli && !definition.expose.mcp && !definition.expose.agent);
+}
+
+#[tokio::test]
+async fn a_stub_embedder_is_called_only_on_committed_puts_with_a_new_match_value() {
+    use std::sync::{Arc, Mutex};
+    use umbel_store::{EmbedError, Embedder, ModelId};
+
+    struct SpyEmbedder {
+        model: ModelId,
+        calls: Arc<Mutex<Vec<Vec<String>>>>,
+    }
+    impl Embedder for SpyEmbedder {
+        fn model(&self) -> &ModelId {
+            &self.model
+        }
+        fn dimensions(&self) -> usize {
+            16
+        }
+        fn embed(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>, EmbedError> {
+            self.calls
+                .lock()
+                .unwrap()
+                .push(texts.iter().map(|t| (*t).to_owned()).collect());
+            Ok(texts
+                .iter()
+                .map(|_| {
+                    let mut v = vec![0.0; 16];
+                    v[0] = 1.0;
+                    v
+                })
+                .collect())
+        }
+    }
+
+    let model_cfg = r#"
+[spaces.garden.meaning]
+model = "spy"
+
+[models.spy]
+provider = "http"
+name = "spy-v1"
+url = "http://127.0.0.1:18080/v1/embeddings"
+dimensions = 16
+version = "1"
+"#;
+    let dir = support::workspace(&config("default_access = \"space\"", model_cfg));
+    let ws = umbel::Workspace::open(dir.path()).unwrap();
+    let model_id = ws.config().models[0].model_id();
+    drop(ws);
+
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let spy = SpyEmbedder {
+        model: model_id,
+        calls: Arc::clone(&calls),
+    };
+    let host = seal(dir.path(), |b| {
+        b.with_compiled(sdk(Notes::new())).with_embedder("spy", spy)
+    })
+    .unwrap();
+
+    // 1. Committed put with match value -> embedder called once, vector stored.
+    assert!(
+        put(&host, agent("ada"), note("n1", STATEMENT))
+            .await
+            .success
+    );
+    assert_eq!(calls.lock().unwrap().len(), 1);
+    assert_eq!(calls.lock().unwrap()[0], vec![STATEMENT.to_owned()]);
+    assert_eq!(count(dir.path(), "SELECT COUNT(*) FROM record_vectors"), 1);
+
+    // 2. Key-only update (same statement, different bed) -> embedder NOT called.
+    let key_update = json!({
+        "kind": "note",
+        "id": "n1",
+        "body": { "statement": STATEMENT, "bed": "south", "tags": ["roses"] }
+    });
+    assert!(put(&host, agent("ada"), key_update).await.success);
+    assert_eq!(calls.lock().unwrap().len(), 1);
+
+    // 3. Put refused for fixed wording -> embedder NOT called.
+    let bad_wording = note("n1", "Different statement that breaks fixed wording.");
+    assert_eq!(
+        code(&put(&host, agent("ada"), bad_wording).await),
+        "INVALID"
+    );
+    assert_eq!(calls.lock().unwrap().len(), 1);
+
+    // 4. Put refused for Expect::Absent -> embedder NOT called.
+    let mut absent_conflict = note("n1", STATEMENT);
+    absent_conflict["expect"] = json!("absent");
+    assert_eq!(
+        code(&put(&host, agent("ada"), absent_conflict).await),
+        "CONFLICT"
+    );
+    assert_eq!(calls.lock().unwrap().len(), 1);
+
+    // 5. Put on a kind with no match field (`bed`) -> embedder NOT called.
+    let bed = json!({ "kind": "bed", "id": "b1", "body": { "name": "North", "sun": "full" } });
+    assert!(put(&host, agent("ada"), bed).await.success);
+    assert_eq!(calls.lock().unwrap().len(), 1);
 }

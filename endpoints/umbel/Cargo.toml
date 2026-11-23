@@ -9,7 +9,7 @@ description = "AFD Umbel: an empty host for capability plugins over MCP and CLI"
 repository = "https://github.com/lushly-dev/afd"
 
 [workspace]
-members = [".", "sdk", "store", "store-embedded", "scan", "okf", "plugins/hello", "plugins/todo", "plugins/sources-filesystem", "plugins/knowledge", "plugins/memory", "plugins/context", "plugins/components", "plugins/ideas", "plugins/curator", "first-party", "adapters/hook", "testkit-idp", "windows", "tests/fixtures/components/*"]
+members = [".", "sdk", "store", "store-embedded", "embed", "scan", "okf", "plugins/hello", "plugins/todo", "plugins/sources-filesystem", "plugins/knowledge", "plugins/memory", "plugins/context", "plugins/components", "plugins/ideas", "plugins/curator", "first-party", "adapters/hook", "testkit-idp", "windows", "tests/fixtures/components/*"]
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
@@ -61,6 +61,12 @@ mounted = [
 # it the host links neither, and every store grant answers `PLUGIN_GRANT_UNAVAILABLE`.
 # The host's write scan of memory records (phase 3 section 6.2) uses `umbel-scan` too.
 store-embedded = ["dep:umbel-store-embedded", "dep:umbel-scan"]
+
+# Optional embedding providers for record lanes (records host specification, sections 1 and 9.2).
+# None is in `default`; `umbel-first-party` enables none.
+embed-static = ["dep:umbel-embed", "umbel-embed/static"]
+embed-onnx = ["dep:umbel-embed", "umbel-embed/onnx"]
+embed-http = ["dep:umbel-embed", "umbel-embed/http"]
 
 [[bin]]
 name = "umbel"
@@ -163,6 +169,8 @@ umbel-sdk = { path = "sdk" }
 # The store traits and shared types, and (feature `store-embedded`) the embedded backend.
 umbel-store = { path = "store" }
 umbel-store-embedded = { path = "store-embedded", optional = true }
+# Optional: the record lane's embedding providers (features `embed-static`, `embed-onnx`, `embed-http`).
+umbel-embed = { path = "embed", optional = true }
 # Optional: the `mounted` feature scans tool descriptions with the patterns the OKF reader shares.
 umbel-scan = { path = "scan", optional = true }
 

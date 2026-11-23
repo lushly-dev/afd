@@ -16,17 +16,17 @@ fn the_suite_passes() {
     let skipped = report.skipped();
     assert!(skipped.is_empty(), "skipped: {skipped:?}");
     assert!(
-        report.passed() >= 55 + 16 + 17 + 15 + 44,
+        report.passed() >= 55 + 17 + 17 + 18 + 44,
         "the suite ran only {} cases",
         report.passed()
     );
     // The record lane's groups (the records host specification, section 15.1), whole.
     let lane = report.group("lane").expect("the lane group ran");
-    assert_eq!(lane.cases.len(), 16, "{lane:?}");
+    assert_eq!(lane.cases.len(), 17, "{lane:?}");
     let standing = report.group("standing").expect("the standing group ran");
     assert_eq!(standing.cases.len(), 17, "{standing:?}");
     let matching = report.group("matching").expect("the matching group ran");
-    assert_eq!(matching.cases.len(), 15, "{matching:?}");
+    assert_eq!(matching.cases.len(), 18, "{matching:?}");
 }
 
 #[test]

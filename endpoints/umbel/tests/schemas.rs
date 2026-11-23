@@ -27,7 +27,7 @@ use umbel::plugins::{Manifest, PackManifest};
 use umbel::provenance::Envelope;
 use umbel::workspace::ConfigFile;
 
-const STEMS: [&str; 48] = [
+const STEMS: [&str; 50] = [
     "workspace-config.v1",
     "workspace-config.v2",
     "workspace-config.v3",
@@ -61,6 +61,8 @@ const STEMS: [&str; 48] = [
     "curator-report.v1",
     "eval-queries.v1",
     "eval-report.v1",
+    "record-probes.v1",
+    "record-eval-report.v1",
     "principal.v1",
     "provenance-envelope.v3",
     "event.v3",
@@ -1630,4 +1632,59 @@ fn the_version_4_config_examples_open_in_the_host_too() {
     let v3 = self::validator("workspace-config.v3");
     assert!(!v3.is_valid(&example("workspace-config.v4", "full")));
     assert!(v3.is_valid(&example("workspace-config.v3", "full")));
+}
+
+#[test]
+fn record_probes_and_eval_report_schemas_refuse_invalid_shapes() {
+    let probes = validator("record-probes.v1");
+    let (_, base_probes) = examples("record-probes.v1").remove(0);
+    assert!(probes.is_valid(&base_probes));
+
+    let mut bad_probes_version = base_probes.clone();
+    bad_probes_version["version"] = json!(2);
+    assert!(!probes.is_valid(&bad_probes_version));
+
+    let mut extra_probes_key = base_probes.clone();
+    extra_probes_key["extra"] = json!(true);
+    assert!(!probes.is_valid(&extra_probes_key));
+
+    let mut empty_probes = base_probes.clone();
+    empty_probes["probes"] = json!([]);
+    assert!(!probes.is_valid(&empty_probes));
+
+    let mut bad_probe_entry = base_probes.clone();
+    bad_probe_entry["probes"][0]["text"] = json!("");
+    assert!(!probes.is_valid(&bad_probe_entry));
+
+    let mut extra_probe_key = base_probes;
+    extra_probe_key["probes"][0]["unknown"] = json!(1);
+    assert!(!probes.is_valid(&extra_probe_key));
+
+    let report = validator("record-eval-report.v1");
+    let (_, base_report) = examples("record-eval-report.v1").remove(0);
+    assert!(report.is_valid(&base_report));
+
+    let mut bad_report_version = base_report.clone();
+    bad_report_version["version"] = json!(2);
+    assert!(!report.is_valid(&bad_report_version));
+
+    let mut extra_report_key = base_report.clone();
+    extra_report_key["extra"] = json!(1);
+    assert!(!report.is_valid(&extra_report_key));
+
+    let mut bad_digest = base_report.clone();
+    bad_digest["probesDigest"] = json!("md5:1234");
+    assert!(!report.is_valid(&bad_digest));
+
+    let mut negative_leaks = base_report.clone();
+    negative_leaks["leaks"] = json!(-1);
+    assert!(!report.is_valid(&negative_leaks));
+
+    let mut bad_k = base_report.clone();
+    bad_k["k"] = json!(21);
+    assert!(!report.is_valid(&bad_k));
+
+    let mut too_many_probes = base_report;
+    too_many_probes["probes"] = json!(5001);
+    assert!(!report.is_valid(&too_many_probes));
 }

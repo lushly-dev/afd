@@ -328,6 +328,49 @@ impl RecordMatch {
     }
 }
 
+impl super::MatchVectors {
+    /// Validate the incoming query vectors for a match of `texts` texts (sections 8.3 and 9.4):
+    /// `weight` in `0.0..=1.0`, one non-empty finite non-zero vector per text, all of one
+    /// dimension.
+    ///
+    /// # Errors
+    /// [`StoreError::Invalid`] naming the rule broken.
+    pub fn check(&self, texts: usize) -> Result<()> {
+        if !self.weight.is_finite() || !(0.0..=1.0).contains(&self.weight) {
+            return Err(StoreError::invalid(
+                "meaning weight must be a finite number between 0 and 1",
+            ));
+        }
+        if self.vectors.len() != texts {
+            return Err(StoreError::invalid(format!(
+                "vectors must hold one vector per text ({texts}), got {}",
+                self.vectors.len()
+            )));
+        }
+        let mut dim: Option<usize> = None;
+        for vector in &self.vectors {
+            if vector.is_empty() {
+                return Err(StoreError::invalid("a query vector must not be empty"));
+            }
+            if let Some(expected) = dim {
+                if vector.len() != expected {
+                    return Err(StoreError::invalid(
+                        "every query vector of a call must have the same dimension",
+                    ));
+                }
+            } else {
+                dim = Some(vector.len());
+            }
+            if crate::embed::unit_vector(vector).is_none() {
+                return Err(StoreError::invalid(
+                    "a query vector must be finite and non-zero",
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
 /// A pointer's position in its list, which [`RecordDecl::check`] holds under 256 entries.
 fn position_of(index: usize) -> u8 {
     u8::try_from(index).unwrap_or(u8::MAX)

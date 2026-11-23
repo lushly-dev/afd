@@ -28,6 +28,8 @@ mod store_memory;
 #[cfg(feature = "store-embedded")]
 mod store_records;
 #[cfg(feature = "store-embedded")]
+mod store_records_eval;
+#[cfg(feature = "store-embedded")]
 mod store_show;
 #[cfg(feature = "auth")]
 mod usage_list;
@@ -62,6 +64,10 @@ pub(crate) use store_records::{
     HOLD as STORE_DOCUMENTS_HOLD, HOLD_KEPT as STORE_DOCUMENTS_HOLD_KEPT,
     REINDEX as STORE_RECORDS_REINDEX, REINDEX_KEPT as STORE_RECORDS_REINDEX_KEPT,
     checks as store_record_checks, store_documents_hold, store_records_reindex,
+};
+#[cfg(feature = "store-embedded")]
+pub(crate) use store_records_eval::{
+    EVAL as STORE_RECORDS_EVAL, EVAL_KEPT as STORE_RECORDS_EVAL_KEPT, store_records_eval,
 };
 #[cfg(feature = "store-embedded")]
 pub(crate) use store_show::store_show;

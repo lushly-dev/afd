@@ -90,9 +90,54 @@ pub trait Embedder: Send + Sync {
     fn embed(&self, texts: &[&str]) -> std::result::Result<Vec<Vec<f32>>, EmbedError>;
 }
 
+/// Scale `raw` to length 1 (records host specification, section 9.1).
+///
+/// Returns `None` for an empty slice, a slice holding any non-finite number, or a zero vector
+/// ("a zero vector is no vector").
+#[must_use]
+pub fn unit_vector(raw: &[f32]) -> Option<Vec<f32>> {
+    if raw.is_empty() || !raw.iter().all(|v| v.is_finite()) {
+        return None;
+    }
+    let norm = raw
+        .iter()
+        .map(|v| f64::from(*v) * f64::from(*v))
+        .sum::<f64>()
+        .sqrt();
+    if !norm.is_finite() || norm == 0.0 {
+        return None;
+    }
+    let mut scaled = Vec::with_capacity(raw.len());
+    for v in raw {
+        let value = (f64::from(*v) / norm) as f32;
+        if !value.is_finite() {
+            return None;
+        }
+        scaled.push(value);
+    }
+    Some(scaled)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unit_vector_scales_non_zero_finite_vectors_and_refuses_zero_or_non_finite() {
+        assert_eq!(unit_vector(&[]), None);
+        assert_eq!(unit_vector(&[0.0, 0.0, 0.0]), None);
+        assert_eq!(unit_vector(&[1.0, f32::NAN]), None);
+        assert_eq!(unit_vector(&[1.0, f32::INFINITY]), None);
+        let scaled = unit_vector(&[3.0, 4.0]).unwrap();
+        assert!((scaled[0] - 0.6).abs() < 1e-6);
+        assert!((scaled[1] - 0.8).abs() < 1e-6);
+        let len: f64 = scaled
+            .iter()
+            .map(|v| f64::from(*v) * f64::from(*v))
+            .sum::<f64>()
+            .sqrt();
+        assert!((len - 1.0).abs() < 1e-6);
+    }
 
     #[test]
     fn a_model_id_is_the_configured_id_and_sixteen_hex_digits() {

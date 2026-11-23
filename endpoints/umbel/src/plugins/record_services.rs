@@ -15,22 +15,25 @@
 //!
 //! No message here holds a record's text or a key's value.
 //!
-//! **Seam.** Meaning is that specification's step B5: the vector after a put's write joins in
-//! [`CallServices::put_declared`], and a match's texts are embedded in
-//! [`CallServices::svc_record_match`], after its query passed its checks. Until then a match is
-//! scored by words alone and says `meaning` is off.
+//! **Meaning lane.** When a space configures `[spaces.<id>.meaning]` and its model is loaded,
+//! [`CallServices::put_declared`] embeds the match value after the put commits (step 8) and never
+//! fails the put on an embedding error; [`CallServices::svc_record_match`] embeds incoming query
+//! texts only when the kind's eval gate has passed and the lane is ready, falling back to words
+//! alone with `MeaningState::Failed` on any runtime embedding error.
 
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
 
 use serde_json::Value;
 use umbel_sdk::HostError as ServiceError;
 use umbel_store::lane::{
-    Decision, Evidence, FindPage, LaneRecord, LaneWrite, MatchPage, OwnCollection, OwnInfo,
-    OwnMark, RecordDecision, RecordDecl, RecordFind, RecordMatch, Standing, StandingLabel,
-    StandingView, extract, is_speaker,
+    Decision, Evidence, FindPage, LaneRecord, LaneState, LaneWrite, MAX_MATCH_TEXTS, MatchPage,
+    MatchVectors, MeaningState, OwnCollection, OwnInfo, OwnMark, RecordDecision, RecordDecl,
+    RecordFind, RecordMatch, Standing, StandingLabel, StandingView, extract, is_speaker,
 };
 use umbel_store::{
-    Assurance, ContentHash, Envelope, Expect, MemoryFlag, RecordMeta, Rev, StoreError,
+    Assurance, ContentHash, Embedder, Envelope, Expect, MemoryFlag, RecordMeta, Rev, StoreError,
+    unit_vector,
 };
 
 use super::grants::CallServices;
@@ -48,11 +51,133 @@ fn not_granted(code: &str, message: impl std::fmt::Display) -> ServiceError {
     ServiceError::NotGranted(format!("{code}: {message}"))
 }
 
+/// Embed one record's match value after its put committed and write the vector (section 4.2,
+/// step 8). Never fails the put: logs a warning naming only the kind and step (never any text)
+/// on any embedding or store error.
+fn embed_after_put(
+    ns: &str,
+    decl: &RecordDecl,
+    id: &str,
+    digest: &[u8; 32],
+    text: &str,
+    embedder: &dyn Embedder,
+    store: &dyn umbel_store::DocumentStore,
+) {
+    let raw = match catch_unwind(AssertUnwindSafe(|| embedder.embed(&[text]))) {
+        Ok(Ok(mut vectors)) if vectors.len() == 1 => vectors.remove(0),
+        Ok(Ok(vectors)) => {
+            tracing::warn!(
+                kind = %decl.kind,
+                step = "put_vector_embed",
+                model = %embedder.model(),
+                "embedding provider returned {} vectors for 1 text; record waits for reindex",
+                vectors.len()
+            );
+            return;
+        }
+        Ok(Err(err)) => {
+            tracing::warn!(
+                kind = %decl.kind,
+                step = "put_vector_embed",
+                model = %embedder.model(),
+                "embedding after put failed ({err}); record waits for reindex"
+            );
+            return;
+        }
+        Err(_) => {
+            tracing::warn!(
+                kind = %decl.kind,
+                step = "put_vector_embed",
+                model = %embedder.model(),
+                "embedding provider panicked after put; record waits for reindex"
+            );
+            return;
+        }
+    };
+    if raw.len() != embedder.dimensions() {
+        tracing::warn!(
+            kind = %decl.kind,
+            step = "put_vector_embed",
+            model = %embedder.model(),
+            "embedding provider returned {} dimensions, expected {}; record waits for reindex",
+            raw.len(),
+            embedder.dimensions()
+        );
+        return;
+    }
+    let Some(unit) = unit_vector(&raw) else {
+        tracing::warn!(
+            kind = %decl.kind,
+            step = "put_vector_embed",
+            model = %embedder.model(),
+            "embedding provider returned a zero or non-finite vector; record waits for reindex"
+        );
+        return;
+    };
+    match store.put_record_vector(ns, decl, id, digest, embedder.model(), unit) {
+        Ok(true) => {}
+        Ok(false) => {
+            tracing::warn!(
+                kind = %decl.kind,
+                step = "put_vector_store",
+                model = %embedder.model(),
+                "record match digest moved before vector was stored; record waits for reindex"
+            );
+        }
+        Err(err) => {
+            tracing::warn!(
+                kind = %decl.kind,
+                step = "put_vector_store",
+                model = %embedder.model(),
+                "storing vector after put failed ({err}); record waits for reindex"
+            );
+        }
+    }
+}
+
+/// Embed incoming match texts in batches of [`MAX_MATCH_TEXTS`] (section 9.4), scaling each to
+/// unit length. No returned error message holds any text.
+pub(crate) fn embed_match_texts(
+    embedder: &dyn Embedder,
+    texts: &[String],
+) -> std::result::Result<Vec<Vec<f32>>, String> {
+    let expected_dim = embedder.dimensions();
+    let mut out = Vec::with_capacity(texts.len());
+    for chunk in texts.chunks(MAX_MATCH_TEXTS) {
+        let refs: Vec<&str> = chunk.iter().map(String::as_str).collect();
+        let batch = catch_unwind(AssertUnwindSafe(|| embedder.embed(&refs)))
+            .map_err(|_| "embedding provider panicked".to_owned())?
+            .map_err(|err| err.to_string())?;
+        if batch.len() != chunk.len() {
+            return Err(format!(
+                "provider returned {} vectors for {} texts",
+                batch.len(),
+                chunk.len()
+            ));
+        }
+        for raw in batch {
+            if raw.len() != expected_dim {
+                return Err(format!(
+                    "provider returned {} dimensions, expected {expected_dim}",
+                    raw.len()
+                ));
+            }
+            let unit = unit_vector(&raw)
+                .ok_or_else(|| "provider returned a zero or non-finite vector".to_owned())?;
+            out.push(unit);
+        }
+    }
+    Ok(out)
+}
+
 /// The principal strings the space's person decides as (section 6.1, check 3): the configured
 /// `person`, and the principal `[principal.equivalents]` maps it to. A caller is the person
 /// when its effective principal is one of them, and a stored decision or mark counts only when
 /// its `by` is one of them.
-fn person_identities(config: &crate::workspace::Config, person: Option<&str>) -> Vec<String> {
+pub(crate) fn person_identities(
+    config: &crate::workspace::Config,
+    person: Option<&str>,
+) -> Vec<String> {
     let Some(person) = person else {
         return Vec::new();
     };
@@ -273,8 +398,8 @@ impl CallServices {
 
     /// `record_put` and `record_put_cited` on a declared kind (section 4.2), after step 1, the
     /// grant and the space, which the caller made. `evidence` is `record_put_cited`'s; `None`
-    /// leaves the record's stored evidence as it is. Step 8, the vector after the write, is
-    /// step B5's.
+    /// leaves the record's stored evidence as it is. Step 8 embeds and writes the vector after the
+    /// put commits when the space configures a loaded model, never failing the put.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn put_declared(
         &self,
@@ -332,10 +457,11 @@ impl CallServices {
         // 7. One transaction, as the writer: an existing record it may not read is taken, and
         // evidence must cite a document it may read.
         let writer = self.filter(space)?;
+        let embedder = self.shared.meaning.space_embedder(space);
         let lane = LaneWrite {
             evidence,
             flags,
-            model: None,
+            model: embedder.as_ref().map(|e| e.model().clone()),
         };
         let done = stores
             .documents
@@ -351,6 +477,24 @@ impl CallServices {
             )
             .map_err(|error| lane_error(&decl.kind, error))?;
         self.note_write(done.meta.rev);
+        // 8. A vector, after the write (section 4.2, step 8): only when step 7 committed and says
+        // one is needed, and the space's model loaded. No failure here fails the put.
+        if let (Some(digest), Some(embedder)) = (done.embed, embedder)
+            && let Some(match_text) = decl
+                .matched
+                .and_then(|pos| found.texts.get(pos))
+                .and_then(Option::as_deref)
+        {
+            embed_after_put(
+                &self.shared.instance,
+                decl,
+                id,
+                &digest,
+                match_text,
+                embedder.as_ref(),
+                stores.documents.as_ref(),
+            );
+        }
         Ok(done.meta)
     }
 
@@ -409,8 +553,9 @@ impl CallServices {
     /// from a reader who is neither the operator nor the space's person, as `record_read` and
     /// `record_find` withhold it.
     ///
-    /// No model is loaded before step B5, so no text is embedded: `meaning` is off, and each
-    /// hit's `fused` is its `words`.
+    /// When the space's model is loaded and the kind's eval gate has passed, incoming texts are
+    /// embedded after the query checks and readiness check pass; otherwise `meaning` is `off` and
+    /// each hit's `fused` is its `words`.
     pub(super) fn svc_record_match(&self, space: &str, query: &RecordMatch) -> Result<MatchPage> {
         let (stores, filter) = self.reading("records", space)?;
         let decl = self.lane_kind(&query.kind)?;
@@ -429,10 +574,59 @@ impl CallServices {
             other => host_error(other),
         })?;
         let view = self.standing_view(space, decl, &query.standings, query.verified_only)?;
-        let mut page = stores
-            .documents
-            .match_records(&self.shared.instance, decl, query, None, &view, &filter)
-            .map_err(|error| lane_error(&query.kind, error))?;
+        // Section 9.4: embed incoming texts only when meaning is served for this (space, plugin,
+        // kind) AND after the query passed every check AND `lane_status` says the kind is ready.
+        let mut page = if let Some((embedder, weight)) =
+            self.shared
+                .meaning
+                .serving(space, &self.shared.instance, &query.kind)
+        {
+            let status = stores
+                .documents
+                .lane_status(&self.shared.instance, decl)
+                .map_err(|error| lane_error(&query.kind, error))?;
+            if status.state == LaneState::Stale {
+                return Err(lane_error(&query.kind, StoreError::LaneStale));
+            }
+            match embed_match_texts(embedder.as_ref(), &query.texts) {
+                Ok(vectors) => {
+                    let mv = MatchVectors {
+                        model: embedder.model().clone(),
+                        weight,
+                        vectors,
+                    };
+                    stores
+                        .documents
+                        .match_records(
+                            &self.shared.instance,
+                            decl,
+                            query,
+                            Some(&mv),
+                            &view,
+                            &filter,
+                        )
+                        .map_err(|error| lane_error(&query.kind, error))?
+                }
+                Err(reason) => {
+                    tracing::warn!(
+                        kind = %decl.kind,
+                        model = %embedder.model(),
+                        "embedding incoming match texts failed; falling back to words alone: {reason}"
+                    );
+                    let mut fallback = stores
+                        .documents
+                        .match_records(&self.shared.instance, decl, query, None, &view, &filter)
+                        .map_err(|error| lane_error(&query.kind, error))?;
+                    fallback.meaning = MeaningState::Failed;
+                    fallback
+                }
+            }
+        } else {
+            stores
+                .documents
+                .match_records(&self.shared.instance, decl, query, None, &view, &filter)
+                .map_err(|error| lane_error(&query.kind, error))?
+        };
         if !self.sees_decider(space) {
             for result in &mut page.results {
                 for hit in result.identical.iter_mut().chain(&mut result.nearest) {

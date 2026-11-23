@@ -485,6 +485,18 @@ impl DocumentStore for SqliteStore {
         self.lane_put(ns, decl, id, body, envelope, expect, lane, writer)
     }
 
+    fn put_record_vector(
+        &self,
+        ns: &str,
+        decl: &RecordDecl,
+        id: &str,
+        digest: &[u8; 32],
+        model: &umbel_store::ModelId,
+        vector: Vec<f32>,
+    ) -> Result<bool, StoreError> {
+        self.lane_put_vector(ns, decl, id, digest, model, vector)
+    }
+
     fn read_record(
         &self,
         ns: &str,

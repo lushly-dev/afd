@@ -1,0 +1,128 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://afd.dev/umbel/schemas/record-eval-report.v1.json",
+	"title": "Umbel record match eval report, version 1",
+	"description": "What store-records-eval writes to evals/records/<space>/<plugin>.<kind>.json (records host specification, section 10; D167). Holds counts only and no record text. The host recomputes the gate rule from the counts and checks every binding, never trusting passed.",
+	"type": "object",
+	"required": [
+		"version",
+		"space",
+		"plugin",
+		"kind",
+		"declHash",
+		"normalisation",
+		"model",
+		"weight",
+		"k",
+		"probes",
+		"n",
+		"hits",
+		"leaks",
+		"records",
+		"probesDigest",
+		"hostVersion",
+		"at",
+		"passed"
+	],
+	"additionalProperties": false,
+	"properties": {
+		"version": {
+			"const": 1
+		},
+		"space": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9-]{0,62}$"
+		},
+		"plugin": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9-]{0,62}$"
+		},
+		"kind": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9-]{0,62}$"
+		},
+		"declHash": {
+			"type": "string",
+			"pattern": "^sha256:[0-9a-f]{64}$"
+		},
+		"normalisation": {
+			"type": "integer",
+			"minimum": 1
+		},
+		"model": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9-]{0,31}@[0-9a-f]{16}$"
+		},
+		"weight": {
+			"type": "number",
+			"minimum": 0,
+			"maximum": 1
+		},
+		"k": {
+			"type": "integer",
+			"minimum": 1,
+			"maximum": 20
+		},
+		"probes": {
+			"type": "integer",
+			"minimum": 0,
+			"maximum": 5000
+		},
+		"n": {
+			"type": "integer",
+			"minimum": 0,
+			"maximum": 5000
+		},
+		"hits": {
+			"type": "object",
+			"required": ["words", "fused"],
+			"additionalProperties": false,
+			"properties": {
+				"words": {
+					"$ref": "#/$defs/hitCounts"
+				},
+				"fused": {
+					"$ref": "#/$defs/hitCounts"
+				}
+			}
+		},
+		"leaks": {
+			"type": "integer",
+			"minimum": 0
+		},
+		"records": {
+			"type": "integer",
+			"minimum": 0
+		},
+		"probesDigest": {
+			"type": "string",
+			"pattern": "^sha256:[0-9a-f]{64}$"
+		},
+		"hostVersion": {
+			"type": "string",
+			"minLength": 1
+		},
+		"at": {
+			"type": "string",
+			"minLength": 1
+		},
+		"passed": {
+			"type": "boolean"
+		}
+	},
+	"$defs": {
+		"hitCounts": {
+			"type": "object",
+			"required": ["1", "3", "5", "10", "20", "k"],
+			"additionalProperties": false,
+			"properties": {
+				"1": { "type": "integer", "minimum": 0 },
+				"3": { "type": "integer", "minimum": 0 },
+				"5": { "type": "integer", "minimum": 0 },
+				"10": { "type": "integer", "minimum": 0 },
+				"20": { "type": "integer", "minimum": 0 },
+				"k": { "type": "integer", "minimum": 0 }
+			}
+		}
+	}
+}

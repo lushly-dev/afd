@@ -87,6 +87,7 @@ pub(crate) const UNPROJECTED_MUTATIONS: &[&str] = &[
     "plugin-new",
     "store-backup",
     "store-records-reindex",
+    "store-records-eval",
     "store-documents-hold",
 ];
 

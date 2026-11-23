@@ -24,6 +24,7 @@ mod commands;
 mod host;
 #[cfg(feature = "cli")]
 mod logging;
+pub(crate) mod meaning;
 mod middleware;
 mod person;
 #[cfg(feature = "auth")]
