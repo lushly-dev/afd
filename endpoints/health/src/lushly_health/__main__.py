@@ -15,6 +15,7 @@ from pathlib import Path
 from . import report_schema
 from .config import load_policy, load_targets
 from .core import STATUSES, ArtifactScope, Policy, Target, audit, capabilities, write_report
+from .measures import load_measures_files
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -39,6 +40,12 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument("--policy", type=Path, help="A caller-owned policy file (TOML or JSON)")
     run.add_argument("--check", action="append", help="Select a check id (repeatable)")
     run.add_argument("--disable", action="append", help="Disable a selected check id")
+    run.add_argument(
+        "--measures",
+        action="append",
+        type=Path,
+        help="A producer-written measures file (TOML or JSON, repeatable)",
+    )
     run.add_argument(
         "--output-dir", type=Path, help="Write the report here (must be outside every target)"
     )
@@ -92,7 +99,8 @@ def main(argv: list[str] | None = None) -> int:
         if fail_on - set(STATUSES):
             raise ValueError("Unknown --fail-on status")
         targets, policy = _selection(options)
-        report = audit(targets, policy)
+        measures = load_measures_files(options.measures or ())
+        report = audit(targets, policy, measures=measures)
         output = (
             write_report(report, ArtifactScope(options.output_dir), options.report_name)
             if options.output_dir

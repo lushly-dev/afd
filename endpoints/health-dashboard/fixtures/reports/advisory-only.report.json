@@ -1,5 +1,5 @@
 {
-	"schema_version": "1.2",
+	"schema_version": "1.3",
 	"generator": {
 		"name": "lushly-health",
 		"version": "0.1.0"
@@ -40,7 +40,7 @@
 				"metric": "LF"
 			},
 			"remediation": null,
-			"schema_version": "1.2"
+			"schema_version": "1.3"
 		},
 		{
 			"check_id": "linter_strict",
@@ -58,9 +58,10 @@
 				"metric": "ruff"
 			},
 			"remediation": null,
-			"schema_version": "1.2"
+			"schema_version": "1.3"
 		}
 	],
+	"measures": [],
 	"summary": {
 		"passed": 2,
 		"failed": 0,

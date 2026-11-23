@@ -8,7 +8,7 @@ import re
 import shutil
 import subprocess
 from collections import Counter
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -16,6 +16,7 @@ from types import MappingProxyType
 from typing import Literal
 
 from . import checks, drift, workflows
+from .measures import MEASURE_DIRECTIONS, MEASURES_SCHEMA_VERSION, Measure, validate_measures
 
 Status = Literal["passed", "failed", "warn", "skipped", "disabled", "unavailable", "error"]
 Severity = Literal["required", "advisory"]
@@ -25,8 +26,8 @@ VERDICTS = ("passed", "not_passed", "no_required_checks")
 # Remediation is not implemented; a policy may only declare that it is off.
 REMEDIATION_POLICIES = ("none",)
 # The report contract this version emits; earlier report schemas stay readable.
-SCHEMA_VERSION = "1.2"
-REPORT_SCHEMA_VERSIONS = ("1.0", "1.1", "1.2")
+SCHEMA_VERSION = "1.3"
+REPORT_SCHEMA_VERSIONS = ("1.0", "1.1", "1.2", "1.3")
 # Caller-owned policy and targets files have their own, separate version.
 CONFIG_SCHEMA_VERSION = "1.0"
 GENERATOR = {"name": "lushly-health", "version": "0.1.0"}
@@ -393,9 +394,11 @@ def capabilities() -> dict:
         "schema_version": SCHEMA_VERSION,
         "generator": dict(GENERATOR),
         "config_schema_version": CONFIG_SCHEMA_VERSION,
+        "measures_schema_version": MEASURES_SCHEMA_VERSION,
         "statuses": list(STATUSES),
         "severities": list(SEVERITIES),
         "verdicts": list(VERDICTS),
+        "measure_directions": list(MEASURE_DIRECTIONS),
         "remediation_policies": list(REMEDIATION_POLICIES),
         "checks": [
             {
@@ -527,16 +530,23 @@ def _timestamp(moment: datetime | None) -> str:
 
 
 def audit(
-    targets: tuple[Target, ...], policy: Policy, *, generated_at: datetime | None = None
+    targets: tuple[Target, ...],
+    policy: Policy,
+    *,
+    generated_at: datetime | None = None,
+    measures: Iterable[Measure] = (),
 ) -> dict:
     """Read the explicitly selected targets and return a versioned report (no writes).
 
     ``generated_at`` defaults to now; pass a fixed time for reproducible output.
+    ``measures`` carries numeric trend observations read from producer-written files;
+    they do not affect the verdict.
     """
     targets = tuple(targets)
     timestamp = _timestamp(generated_at)
     if len({t.id for t in targets}) != len(targets):
         raise ValueError("Target ids must be unique")
+    validated_measures = validate_measures(measures, known_targets={t.id for t in targets})
     outcomes = []
     for target in targets:
         issue = _target_issue(target.path)
@@ -562,6 +572,7 @@ def audit(
         "targets": [t.describe() for t in targets],
         "policy": policy.describe(),
         "outcomes": outcomes,
+        "measures": [measure.describe() for measure in validated_measures],
         "summary": {status: counts[status] for status in STATUSES},
         "verdict": aggregate_verdict(outcomes),
         "effects": ["target_read"],

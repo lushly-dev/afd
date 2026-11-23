@@ -5,7 +5,7 @@ import { STATUSES } from './types';
 import { deriveVerdict, expectedReportVerdict } from './verdict';
 
 const outcome = (status: Status, severity: Severity = 'required'): Outcome => ({
-	schema_version: '1.2',
+	schema_version: '1.3',
 	check_id: 'gitattributes_lf',
 	target: 'app',
 	status,

@@ -40,12 +40,14 @@ MODULES = {
     "config.py",
     "core.py",
     "drift.py",
+    "measures.py",
     "workflows.py",
 }
 WHEEL_PACKAGE = {f"lushly_health/{name}" for name in MODULES} | {
     "lushly_health/schemas/report-1.0.json",
     "lushly_health/schemas/report-1.1.json",
     "lushly_health/schemas/report-1.2.json",
+    "lushly_health/schemas/report-1.3.json",
 }
 SDIST_ROOT_FILES = {
     "PKG-INFO",
@@ -98,7 +100,7 @@ def audit_artifacts(artifacts: Path, deny: list[str]) -> list[dict]:
         assert archive.read("lushly_health-0.1.0.dist-info/licenses/LICENSE") == license_text
         entry_points = archive.read("lushly_health-0.1.0.dist-info/entry_points.txt").decode()
         assert "[botcore.plugins]\nhealth = lushly_health:HealthPlugin" in entry_points
-        for version in ("1.0", "1.1", "1.2"):
+        for version in ("1.0", "1.1", "1.2", "1.3"):
             schema = (ROOT / f"src/lushly_health/schemas/report-{version}.json").read_bytes()
             assert archive.read(f"lushly_health/schemas/report-{version}.json") == schema
         for name in sorted(names):
@@ -248,7 +250,7 @@ def main() -> None:
     parser.add_argument("--skip-botcore", action="store_true", help="Skip the Botcore consumer")
     options = parser.parse_args()
     deny = load_deny_terms(options.deny_file)
-    schema = json.loads((ROOT / "src/lushly_health/schemas/report-1.2.json").read_text())
+    schema = json.loads((ROOT / "src/lushly_health/schemas/report-1.3.json").read_text())
     with tempfile.TemporaryDirectory(prefix="health-wheel-smoke-") as temporary:
         work = Path(temporary).resolve()
         assert not work.is_relative_to(REPOSITORY)
@@ -273,6 +275,24 @@ def main() -> None:
             'schema_version = "1.0"\nchecks = ["node_version_alignment", "linter_strict", '
             '"ci_present", "gitattributes_lf", "dependabot_configured", "last_commit"]\n'
             '[severity]\ndependabot_configured = "advisory"\n'
+        )
+        (config / "measures.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": "1.0",
+                    "source": "smoke-producer",
+                    "measures": [
+                        {
+                            "key": "files_over_warn",
+                            "label": "Files over size warning",
+                            "value": 0,
+                            "unit": "files",
+                            "direction": "lower_is_better",
+                        }
+                    ],
+                },
+                indent=2,
+            )
         )
         python = consumer_python(work, "headless-env", [wheel])
         installed = run(
@@ -302,6 +322,8 @@ def main() -> None:
                 str(config / "targets.toml"),
                 "--policy",
                 str(config / "policy.toml"),
+                "--measures",
+                str(config / "measures.json"),
                 "--output-dir",
                 str(work / "reports"),
                 "--fail-on",
@@ -312,6 +334,16 @@ def main() -> None:
         receipt = json.loads(cli.stdout)
         report = json.loads(Path(receipt["artifacts_written"][0]).read_text())
         jsonschema.Draft202012Validator(schema).validate(report)
+        assert report["measures"] == [
+            {
+                "key": "files_over_warn",
+                "label": "Files over size warning",
+                "value": 0,
+                "unit": "files",
+                "direction": "lower_is_better",
+                "source": "smoke-producer",
+            }
+        ], report["measures"]
         headless = json.loads(
             run(
                 [

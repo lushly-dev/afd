@@ -52,7 +52,8 @@ class HealthFixture(unittest.TestCase):
         self.assertEqual(self.snapshot(), before)
         self.assertEqual(report["artifacts_written"], [])
         self.assertEqual(set(report["summary"]), set(STATUSES))
-        self.assertTrue(all(o["schema_version"] == "1.2" for o in report["outcomes"]))
+        self.assertTrue(all(o["schema_version"] == "1.3" for o in report["outcomes"]))
+        self.assertEqual(report["measures"], [])
         self.assertEqual(report["outcomes"][0]["target"], "sample-project")
 
     def test_missing_version_is_failure_with_remediation(self):

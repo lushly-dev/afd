@@ -12,7 +12,7 @@ const mixed = () => JSON.parse(fixture('reports/mixed-status.report.json')) as H
 
 describe('parseReport', () => {
 	it('supports exactly the schema version Health publishes', () => {
-		expect(SUPPORTED_SCHEMA_VERSION).toBe('1.2');
+		expect(SUPPORTED_SCHEMA_VERSION).toBe('1.3');
 	});
 
 	it.each(fixtureNames('reports'))('accepts the Health CLI fixture %s', (name) => {
@@ -114,12 +114,146 @@ describe('parseReport', () => {
 		const first = report.outcomes[0] as HealthReport['outcomes'][0];
 		first.target = 'ghost';
 		first.check_id = 'not_in_policy';
+		report.measures.push(
+			{
+				key: 'files_over_warn',
+				label: 'Files over size warning',
+				value: 3,
+				unit: 'files',
+				direction: 'lower_is_better',
+			},
+			{
+				key: 'files_over_warn',
+				label: 'Files over size warning',
+				value: 4,
+				unit: 'files',
+				direction: 'lower_is_better',
+			},
+			{
+				key: 'line_coverage',
+				label: 'Line coverage',
+				value: 90,
+				unit: 'percent',
+				direction: 'higher_is_better',
+				target: 'ghost',
+			}
+		);
 		const result = parseReport(JSON.stringify(report), 'x.json');
 		expect(result.ok ? [] : result.details).toEqual([
 			'Target web-app is listed more than once.',
 			"outcomes[0] names target ghost, which isn't in targets.",
 			"outcomes[0] names check not_in_policy, which isn't in policy.check_ids.",
+			'Measure files_over_warn is listed more than once.',
+			"measures[2] names target ghost, which isn't in targets.",
 		]);
+	});
+
+	it('allows the same measure key across different targets and rejects 1.2 reports', () => {
+		const report = mixed();
+		report.measures = [
+			{
+				key: 'line_coverage',
+				label: 'Line coverage',
+				value: 80,
+				unit: 'percent',
+				direction: 'higher_is_better',
+			},
+			{
+				key: 'line_coverage',
+				label: 'Line coverage',
+				value: 90,
+				unit: 'percent',
+				direction: 'higher_is_better',
+				target: 'web-app',
+			},
+			{
+				key: 'line_coverage',
+				label: 'Line coverage',
+				value: 85,
+				unit: 'percent',
+				direction: 'higher_is_better',
+				target: 'api-service',
+			},
+		];
+		expect(parseReport(JSON.stringify(report), 'ok.json').ok).toBe(true);
+
+		const dupTarget = mixed();
+		dupTarget.measures = [
+			{
+				key: 'line_coverage',
+				label: 'Line coverage',
+				value: 90,
+				unit: 'percent',
+				direction: 'higher_is_better',
+				target: 'web-app',
+			},
+			{
+				key: 'line_coverage',
+				label: 'Line coverage',
+				value: 91,
+				unit: 'percent',
+				direction: 'higher_is_better',
+				target: 'web-app',
+			},
+		];
+		const dupResult = parseReport(JSON.stringify(dupTarget), 'dup.json');
+		expect(dupResult.ok ? [] : dupResult.details).toEqual([
+			'Measure line_coverage for target web-app is listed more than once.',
+		]);
+
+		const older = parseReport(JSON.stringify({ ...report, schema_version: '1.2' }), 'v12.json');
+		expect(older).toMatchObject({ ok: false, kind: 'unsupported-version' });
+	});
+
+	it('enforces safe integer bounds and non-blank measure labels and units', () => {
+		const validBounds = mixed();
+		validBounds.measures = [
+			{
+				key: 'max_safe',
+				label: 'Max safe',
+				value: 9007199254740991,
+				unit: 'count',
+				direction: 'neutral',
+			},
+			{
+				key: 'min_safe',
+				label: 'Min safe',
+				value: -9007199254740991,
+				unit: 'count',
+				direction: 'neutral',
+			},
+		];
+		expect(parseReport(JSON.stringify(validBounds), 'bounds.json').ok).toBe(true);
+
+		for (const rawValue of ['9007199254740992', '9007199254740993', '-9007199254740992']) {
+			const base = mixed();
+			base.measures = [
+				{
+					key: 'overflow',
+					label: 'Overflow',
+					value: 0,
+					unit: 'count',
+					direction: 'neutral',
+				},
+			];
+			const text = JSON.stringify(base).replace('"value":0', `"value":${rawValue}`);
+			expect(parseReport(text, 'overflow.json')).toMatchObject({
+				ok: false,
+				kind: 'schema-mismatch',
+			});
+		}
+
+		for (const bad of [
+			{ key: 'blank_label', label: '   ', value: 1, unit: 'count', direction: 'neutral' as const },
+			{ key: 'blank_unit', label: 'Label', value: 1, unit: '   ', direction: 'neutral' as const },
+		]) {
+			const report = mixed();
+			report.measures = [bad];
+			expect(parseReport(JSON.stringify(report), 'blank.json')).toMatchObject({
+				ok: false,
+				kind: 'schema-mismatch',
+			});
+		}
 	});
 
 	it('limits the number of details shown', () => {

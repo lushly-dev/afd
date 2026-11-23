@@ -12,9 +12,12 @@ import pytest
 
 from lushly_health import (
     CONFIG_SCHEMA_VERSION,
+    MEASURE_DIRECTIONS,
+    MEASURES_SCHEMA_VERSION,
     REPORT_SCHEMA_VERSIONS,
     SCHEMA_VERSION,
     ArtifactScope,
+    Measure,
     Policy,
     Target,
     __version__,
@@ -54,6 +57,7 @@ def test_schema_is_valid_and_matches_the_emitting_code():
     assert SCHEMA["properties"]["schema_version"]["const"] == SCHEMA_VERSION
     assert defs["status"]["enum"] == list(STATUSES)
     assert defs["severity"]["enum"] == list(SEVERITIES)
+    assert defs["direction"]["enum"] == list(MEASURE_DIRECTIONS)
     assert SCHEMA["properties"]["summary"]["required"] == list(STATUSES)
     assert SCHEMA["properties"]["verdict"]["properties"]["status"]["enum"] == list(VERDICTS)
     assert {"name": "lushly-health", "version": __version__} == GENERATOR
@@ -100,10 +104,82 @@ def test_every_check_and_status_validates_against_the_schema(project):
         lambda r: r.pop("verdict"),
         lambda r: r["verdict"].update(status="pass"),
         lambda r: r["summary"].pop("disabled"),
+        lambda r: r.pop("measures"),
+        lambda r: r.update(measures=[{"key": "x"}]),
+        lambda r: r.update(
+            measures=[
+                {
+                    "key": "x",
+                    "label": "X",
+                    "value": True,
+                    "unit": "count",
+                    "direction": "neutral",
+                }
+            ]
+        ),
+        lambda r: r.update(
+            measures=[
+                {
+                    "key": "x",
+                    "label": "X",
+                    "value": 1,
+                    "unit": "count",
+                    "direction": "sideways",
+                }
+            ]
+        ),
+        lambda r: r.update(
+            measures=[
+                {
+                    "key": "x",
+                    "label": "   ",
+                    "value": 1,
+                    "unit": "count",
+                    "direction": "neutral",
+                }
+            ]
+        ),
+        lambda r: r.update(
+            measures=[
+                {
+                    "key": "x",
+                    "label": "X",
+                    "value": 1,
+                    "unit": "   ",
+                    "direction": "neutral",
+                }
+            ]
+        ),
+        lambda r: r.update(
+            measures=[
+                {
+                    "key": "x",
+                    "label": "X",
+                    "value": 9007199254740992,
+                    "unit": "count",
+                    "direction": "neutral",
+                }
+            ]
+        ),
+        lambda r: r.update(
+            measures=[
+                {
+                    "key": "x",
+                    "label": "X",
+                    "value": -9007199254740992,
+                    "unit": "count",
+                    "direction": "neutral",
+                }
+            ]
+        ),
     ],
 )
 def test_schema_rejects_contract_drift(project, mutation):
-    report = audit((Target("plain-app", project, "typescript"),), Policy(("ci_present",)))
+    report = audit(
+        (Target("plain-app", project, "typescript"),),
+        Policy(("ci_present",)),
+        measures=(Measure("x", "X", 1, "count", "neutral"),),
+    )
     VALIDATOR.validate(report)
     mutation(report)
     with pytest.raises(jsonschema.ValidationError):
@@ -196,6 +272,7 @@ def test_cli_schema_and_capabilities(capsys):
     declared = json.loads(capsys.readouterr().out)
     assert declared["schema_version"] == SCHEMA_VERSION
     assert declared["config_schema_version"] == CONFIG_SCHEMA_VERSION == "1.0"
+    assert declared["measures_schema_version"] == MEASURES_SCHEMA_VERSION == "1.0"
 
 
 def test_write_report_rejects_other_schema_versions(tmp_path, project):
@@ -248,10 +325,11 @@ def test_generated_at_is_utc_and_can_be_pinned(project):
 
 
 def test_earlier_report_schemas_stay_available():
-    assert REPORT_SCHEMA_VERSIONS == ("1.0", "1.1", SCHEMA_VERSION)
-    earlier = report_schema("1.0")
-    jsonschema.Draft202012Validator.check_schema(earlier)
-    assert earlier["properties"]["schema_version"]["const"] == "1.0"
+    assert REPORT_SCHEMA_VERSIONS == ("1.0", "1.1", "1.2", SCHEMA_VERSION)
+    for version in ("1.0", "1.1", "1.2"):
+        earlier = report_schema(version)
+        jsonschema.Draft202012Validator.check_schema(earlier)
+        assert earlier["properties"]["schema_version"]["const"] == version
     with pytest.raises(ValueError):
         report_schema("0.9")
 

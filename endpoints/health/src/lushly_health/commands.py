@@ -8,6 +8,7 @@ from afd import error, success
 from botcore.context import current_context
 
 from .core import Policy, Target, audit, capabilities
+from .measures import load_measures_files
 
 
 async def health_capabilities():
@@ -26,6 +27,7 @@ async def health_audit(
     check_ids: list[str],
     disabled: list[str] | None = None,
     severity: dict[str, str] | None = None,
+    measures_files: list[str] | None = None,
 ):
     """Audit explicitly selected targets with an explicit check policy (read-only)."""
     try:
@@ -39,14 +41,32 @@ async def health_audit(
             for t in targets
         )
         policy = Policy(tuple(check_ids), frozenset(disabled or []), dict(severity or {}))
+        if measures_files is not None and (
+            not isinstance(measures_files, list)
+            or not all(isinstance(path, str) for path in measures_files)
+        ):
+            raise ValueError("measures_files must be a list of path strings")
+        resolved_measures = [_selected_path(path) for path in (measures_files or ())]
+        try:
+            measures = load_measures_files(resolved_measures)
+        except OSError as exc:
+            return error(
+                "INVALID_AUDIT_SELECTION",
+                f"Measures file could not be read: {type(exc).__name__}",
+                suggestion="Pass readable measures files inside the selected target",
+            )
         return success(
-            data=audit(selection, policy), reasoning="Audited explicitly selected targets"
+            data=audit(selection, policy, measures=measures),
+            reasoning="Audited explicitly selected targets",
         )
     except (KeyError, TypeError, ValueError) as exc:
         return error(
             "INVALID_AUDIT_SELECTION",
             str(exc),
-            suggestion="Pass explicit target ids, paths, languages and known check ids",
+            suggestion=(
+                "Pass explicit target ids, paths, languages, known check ids "
+                "and valid measures files"
+            ),
         )
 
 
