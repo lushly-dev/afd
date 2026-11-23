@@ -45,8 +45,10 @@ const mainTemplate = html<HelloMain>`
 	</div>
 	<p class="greeting" role="status">${(x) => x.greeting}</p>
 	<x-card class="selected">${(x) => (x.selection ? `Selected: ${x.selection}` : 'Nothing selected')}</x-card>
-	<div class="actions" role="group" aria-label="Overlays">
+	<div class="actions" role="group" aria-label="Overlays and notices">
 		<violet-button class="toast" @click="${(x) => x.toast()}">Show a toast</violet-button>
+		<violet-button class="sticky-toast" @click="${(x) => x.stickyToast()}">Show a sticky toast</violet-button>
+		<violet-button class="notice" @click="${(x) => x.notify()}">Send a notice</violet-button>
 		<violet-button class="modal" @click="${(x) => x.modal()}">Ask in a modal</violet-button>
 	</div>
 	<p class="answer" role="status">${(x) => x.answer}</p>
@@ -178,6 +180,44 @@ export class HelloMain extends FASTElement implements LoamSurfaceElementV1 {
 			},
 			(cause: unknown) => this.#refused(cause)
 		);
+	}
+
+	/** A sticky toast from Hello, landing in the inbox with Open inbox (phase 4 specification, section 1; #2106). */
+	stickyToast(): void {
+		this.context?.overlays
+			.toast({ message: 'Hello from a sticky toast', tone: 'info', sticky: true })
+			.then(
+				(result) => {
+					if (!result.success) this.answer = result.error?.message ?? 'The toast was refused';
+				},
+				(cause: unknown) => this.#refused(cause)
+			);
+	}
+
+	/** A notice from Hello with an inbox action running `hello-greet` (phase 4 specification, section 1; #2106). */
+	async notify(): Promise<void> {
+		const notifications = this.context?.notifications;
+		if (!notifications) {
+			this.answer = 'Inbox is not available';
+			return;
+		}
+		const name =
+			this.field?.value.trim() ||
+			(typeof this.context?.config.default_name === 'string'
+				? this.context.config.default_name
+				: 'world');
+		try {
+			const label = name.length <= 34 ? `Greet ${name}` : 'Greet visitor';
+			await notifications.push({
+				title: `${name} is waiting at the guest book`,
+				body: 'Greet them from the inbox to add them to the guest book.',
+				tone: 'info',
+				action: { command: 'hello-greet', label, input: { name } },
+			});
+			this.answer = `Notice sent for ${name}`;
+		} catch (cause) {
+			this.#refused(cause);
+		}
 	}
 
 	async modal(): Promise<void> {

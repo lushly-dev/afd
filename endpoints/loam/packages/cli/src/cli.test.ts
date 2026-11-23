@@ -34,6 +34,36 @@ describe('the loam bin', () => {
 		expect(packed.result.data.files).toContain('app-manifest.json');
 	});
 
+	it('warns EXPERIMENT_OVERDUE from `loam app check --date` and rejects bad dates (#2110)', async () => {
+		const dir = join(await temporaryDirectory(), 'demo');
+		await loam('app', 'new', 'demo', '--kind', 'native', '--dir', dir);
+		await mkdir(join(dir, 'dist'));
+		await writeFile(join(dir, 'dist/native.js'), 'export default {};\n');
+		const manifestPath = join(dir, 'loam-app.toml');
+		const { readFile } = await import('node:fs/promises');
+		const toml = (await readFile(manifestPath, 'utf8'))
+			.replace('manifest_version = 1', 'manifest_version = 2')
+			.concat(
+				'\n[app]\nscope_levels = ["workspace"]\n',
+				'\n[[ui.experiments]]\nid = "beta"\ntitle = "Beta"\nchanges = "Tries beta."\nends = "2027-03-01"\nstage = "visible"\n'
+			);
+		await writeFile(manifestPath, toml);
+
+		const before = await loam('app', 'check', dir, '--date', '2027-03-01');
+		expect(before.code).toBe(0);
+		expect(before.result.data.warnings).toEqual([]);
+
+		const overdue = await loam('app', 'check', dir, '--date', '2027-03-02');
+		expect(overdue.code).toBe(0);
+		expect(overdue.result.data.warnings).toEqual([
+			expect.objectContaining({ code: 'EXPERIMENT_OVERDUE', key: 'ui.experiments[0].ends' }),
+		]);
+
+		const bad = await loam('app', 'check', dir, '--date', '2027-02-30');
+		expect(bad.code).toBe(1);
+		expect(bad.result.error.code).toBe('CLI_USAGE');
+	});
+
 	it('prints D55 for a mounted manifest', async () => {
 		const dir = join(await temporaryDirectory(), 'demo');
 		const { result } = await loam('app', 'new', 'demo', '--kind', 'mounted', '--dir', dir);

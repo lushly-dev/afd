@@ -78,6 +78,42 @@ describe('loam app check', () => {
 		const report = await appCheck({ dir: join(await temporaryDirectory(), 'gone') });
 		expect(report.refusals[0]?.code).toBe('APP_MANIFEST_MISSING');
 	});
+
+	it('warns EXPERIMENT_OVERDUE against the system clock and an explicit date, and refuses an invalid date (#2110)', async () => {
+		const dir = await scaffolded();
+		const path = join(dir, 'loam-app.toml');
+		const toml = (await readFile(path, 'utf8'))
+			.replace('manifest_version = 1', 'manifest_version = 2')
+			.concat(
+				'\n[app]\nscope_levels = ["workspace"]\n',
+				'\n[[ui.experiments]]\nid = "old"\ntitle = "Old"\nchanges = "Legacy toggle."\nends = "2020-01-01"\nstage = "visible"\n'
+			);
+		await writeFile(path, toml);
+
+		// Default clock (today > 2020-01-01): warns without failing.
+		const today = await appCheck({ dir });
+		expect(today.ok).toBe(true);
+		expect(today.warnings).toContainEqual(
+			expect.objectContaining({ code: 'EXPERIMENT_OVERDUE', key: 'ui.experiments[0].ends' })
+		);
+
+		// On `ends` itself via explicit `date`: no overdue warning.
+		const onEnd = await appCheck({ dir, date: '2020-01-01' });
+		expect(onEnd.ok).toBe(true);
+		expect(onEnd.warnings.map(({ code }) => code)).not.toContain('EXPERIMENT_OVERDUE');
+
+		// The day after `ends` via explicit `date`: warns.
+		const afterEnd = await appCheck({ dir, date: '2020-01-02' });
+		expect(afterEnd.ok).toBe(true);
+		expect(afterEnd.warnings).toContainEqual(
+			expect.objectContaining({ code: 'EXPERIMENT_OVERDUE', key: 'ui.experiments[0].ends' })
+		);
+
+		// Invalid calendar date refused.
+		const bad = await appCheck({ dir, date: '2026-02-30' });
+		expect(bad.ok).toBe(false);
+		expect(bad.refusals[0]?.code).toBe('VALIDATION_ERROR');
+	});
 });
 
 describe('readAppManifest', () => {

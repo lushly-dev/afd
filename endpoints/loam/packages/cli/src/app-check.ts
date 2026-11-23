@@ -8,7 +8,7 @@ import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateCommandSurface } from '@lushly-dev/afd-testing';
-import type { ManifestV2 } from '@lushly-dev/loam-manifest';
+import { isExperimentDate, type ManifestV2 } from '@lushly-dev/loam-manifest';
 import {
 	type AppCheckReport,
 	checkApp,
@@ -23,6 +23,10 @@ export interface AppCheckOptions {
 	dir?: string;
 	/** The manifest, relative to `dir`: how one source packs several ways. */
 	manifest?: string;
+	/** Calendar date (`YYYY-MM-DD`, UTC) for time-dependent warnings (`EXPERIMENT_OVERDUE`, #2110). */
+	date?: string;
+	/** Epoch milliseconds for time-dependent warnings (`EXPERIMENT_OVERDUE`); overridden by `date`, defaults to `Date.now()`. */
+	now?: number;
 }
 
 const surface: SurfaceCheck = (commands) =>
@@ -101,10 +105,30 @@ export async function appCheck(options: AppCheckOptions = {}): Promise<AppCheckR
 			exposure: {},
 		};
 	}
+	if (options.date !== undefined && !isExperimentDate(options.date)) {
+		return {
+			ok: false,
+			refusals: [
+				{
+					code: 'VALIDATION_ERROR',
+					key: 'date',
+					message: `\`${options.date}\` is not a day of the calendar.`,
+					suggestion: 'Give `date` as YYYY-MM-DD, a real day, such as 2027-03-01.',
+				},
+			],
+			warnings: [],
+			exposure: {},
+		};
+	}
+	const now =
+		options.date !== undefined
+			? Date.parse(`${options.date}T00:00:00Z`)
+			: (options.now ?? Date.now());
 	const { files, symlinks } = await readAppTree(root);
 	const report = checkApp(files, {
 		symlinks,
 		surface,
+		now,
 		...(options.manifest ? { manifest: options.manifest } : {}),
 	});
 	if ((report.kind === 'native' || report.kind === 'view') && existsSync(join(root, 'src'))) {
