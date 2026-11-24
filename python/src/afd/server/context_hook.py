@@ -27,8 +27,8 @@ journal downstream.
   Nothing runs: not the command, not a confirmation prompt, not request-state
   unsealing, and an unknown or unexposed tool answers identically to a real one
   so a refused caller learns nothing about which tools or contexts exist.
-- **Refusals are redacted.** Only ``code``, ``message``, ``suggestion`` and
-  ``retryable`` reach the client; ``details`` and ``cause`` are dropped. Do not
+- **Refusals are redacted.** Only ``code``, ``message``, ``suggestion``,
+  ``retryable`` and ``recovery`` reach the client; ``details`` and ``cause`` are dropped. Do not
   put credential rejection reasons, usernames or policy names in ``message``; log
   them on the server and return a generic refusal (``UNAUTHORIZED`` or
   ``FORBIDDEN``).
@@ -193,12 +193,14 @@ def trace_prefix_for_tool(tool_name: str) -> str:
 
 
 def visible_hook_error(err: CommandError) -> CommandError:
-    """A hook refusal as the caller sees it: ``details`` and ``cause`` are dropped."""
+    """A hook refusal as the caller sees it: ``details`` and ``cause`` are dropped, and the
+    ``recovery`` kept, since a refused caller needs it (a sign-in, for one)."""
     return CommandError(
         code=err.code,
         message=err.message,
         suggestion=err.suggestion,
         retryable=err.retryable,
+        recovery=err.recovery,
     )
 
 

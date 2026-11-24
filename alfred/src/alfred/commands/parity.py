@@ -121,6 +121,10 @@ _TS_ONLY_NAMES = {
     # observable results with the shared vectors; these names are not cross-language APIs.
     "command_tool_meta",
     "failed_batch_request",
+    # TypeScript reads a wire CommandError without parsing it, so it drops an unreadable
+    # recovery with this helper; Python, Rust and C++ do it as they parse (spec/recovery.md,
+    # rule 7), and their shared vectors check the result.
+    "with_readable_recovery",
 }
 
 

@@ -24,6 +24,10 @@
 			"description": "Whether retrying the same call may succeed. Absence is read as false.",
 			"type": "boolean"
 		},
+		"recovery": {
+			"description": "The step the suggestion describes, in a form a program can follow and a test can check (spec/recovery.md). The prose suggestion stays for people and models.",
+			"$ref": "#/$defs/recovery"
+		},
 		"details": {
 			"description": "Structured debugging context for the caller.",
 			"type": "object",
@@ -32,6 +36,185 @@
 		"cause": {
 			"description": "The CommandError that caused this error. Native exceptions never cross the wire.",
 			"$ref": "#"
+		}
+	},
+	"allOf": [
+		{
+			"description": "A retry recovery is only for a transient failure.",
+			"if": {
+				"required": ["recovery"],
+				"properties": {
+					"recovery": {
+						"properties": {
+							"kind": {
+								"const": "retry"
+							}
+						},
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"required": ["retryable"],
+				"properties": {
+					"retryable": {
+						"const": true
+					}
+				}
+			}
+		},
+		{
+			"description": "Nothing makes a stopped call succeed, so it is not retryable.",
+			"if": {
+				"required": ["recovery"],
+				"properties": {
+					"recovery": {
+						"properties": {
+							"kind": {
+								"const": "stop"
+							}
+						},
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"retryable": {
+						"const": false
+					}
+				}
+			}
+		}
+	],
+	"$defs": {
+		"recovery": {
+			"description": "A structured recovery step (spec/recovery.md).",
+			"type": "object",
+			"required": ["kind"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"description": "call another command, fix-input and call again, retry unchanged, an external step, or stop.",
+					"type": "string",
+					"enum": ["call", "fix-input", "retry", "external", "stop"]
+				},
+				"command": {
+					"description": "call only: the command to call next, by its registered name.",
+					"type": "string",
+					"minLength": 1
+				},
+				"input": {
+					"description": "call: arguments for command. fix-input: replacement values for the failed call's top-level input members. Never an acknowledgement (confirm), approval or credential.",
+					"type": "object",
+					"minProperties": 1,
+					"additionalProperties": true,
+					"not": {
+						"required": ["confirm"]
+					}
+				},
+				"needs": {
+					"description": "call and fix-input: top-level input fields the caller must choose.",
+					"type": "array",
+					"items": {
+						"type": "string",
+						"minLength": 1
+					},
+					"uniqueItems": true,
+					"minItems": 1
+				},
+				"thenRetry": {
+					"description": "call only: once command succeeds, repeat the failed call unchanged.",
+					"type": "boolean"
+				},
+				"afterMs": {
+					"description": "retry only: wait at least this many milliseconds first; at most 2^53 - 1, the largest integer every language reads exactly.",
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 9007199254740991
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"kind": {
+								"const": "call"
+							}
+						}
+					},
+					"then": {
+						"required": ["command"]
+					},
+					"else": {
+						"not": {
+							"anyOf": [
+								{
+									"required": ["command"]
+								},
+								{
+									"required": ["thenRetry"]
+								}
+							]
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"kind": {
+								"const": "retry"
+							}
+						}
+					},
+					"else": {
+						"not": {
+							"required": ["afterMs"]
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"kind": {
+								"enum": ["call", "fix-input"]
+							}
+						}
+					},
+					"else": {
+						"not": {
+							"anyOf": [
+								{
+									"required": ["input"]
+								},
+								{
+									"required": ["needs"]
+								}
+							]
+						}
+					}
+				},
+				{
+					"description": "A fix-input recovery says what to change.",
+					"if": {
+						"properties": {
+							"kind": {
+								"const": "fix-input"
+							}
+						}
+					},
+					"then": {
+						"anyOf": [
+							{
+								"required": ["input"]
+							},
+							{
+								"required": ["needs"]
+							}
+						]
+					}
+				}
+			]
 		}
 	}
 }

@@ -4,15 +4,14 @@
 #include "afd/afd.hpp"
 
 #include <algorithm>
-#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
-#include <map>
-#include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
+#include "json_schema_validator.hpp"
 #include <doctest.h>
 
 namespace {
@@ -85,262 +84,6 @@ afd::Json round_trip(const std::string& name, const afd::Json& original) {
     return {};
 }
 
-// Self-contained JSON Schema 2020-12 evaluator covering the keywords used by spec/schema/*.json.
-struct SchemaRegistry {
-    std::map<std::string, afd::Json> by_id;
-    std::map<std::string, std::string> by_file;
-
-    static SchemaRegistry load() {
-        SchemaRegistry reg;
-        for (const char* file : {"error.json", "result.json", "output-envelope.json", "batch.json",
-                                 "pipeline.json", "stream.json"}) {
-            std::ifstream in(fs::path(AFD_SCHEMA_DIR) / file, std::ios::binary);
-            const std::string text{std::istreambuf_iterator<char>(in),
-                                   std::istreambuf_iterator<char>()};
-            auto parsed = afd::parse_bounded(text);
-            REQUIRE_MESSAGE(parsed.has_value(), file << ": " << parsed.error().message);
-            const std::string id = parsed->at("$id").get<std::string>();
-            reg.by_file[file] = id;
-            reg.by_id[id] = std::move(*parsed);
-        }
-        return reg;
-    }
-
-    static std::string resolve_relative(const std::string& base_id, const std::string& rel) {
-        if (rel.find("://") != std::string::npos) {
-            return rel;
-        }
-        const auto slash = base_id.rfind('/');
-        return slash == std::string::npos ? rel : base_id.substr(0, slash + 1) + rel;
-    }
-
-    static const afd::Json* resolve_pointer(const afd::Json& root, std::string_view fragment) {
-        if (fragment.empty()) {
-            return &root;
-        }
-        if (fragment.front() != '/') {
-            return nullptr;
-        }
-        const afd::Json* node = &root;
-        std::string_view rest = fragment.substr(1);
-        while (true) {
-            const auto slash = rest.find('/');
-            std::string token(rest.substr(0, slash));
-            for (std::size_t pos = token.find("~1"); pos != std::string::npos;
-                 pos = token.find("~1", pos + 1)) {
-                token.replace(pos, 2, "/");
-            }
-            for (std::size_t pos = token.find("~0"); pos != std::string::npos;
-                 pos = token.find("~0", pos + 1)) {
-                token.replace(pos, 2, "~");
-            }
-            if (!node->is_object() || !node->contains(token)) {
-                return nullptr;
-            }
-            node = &node->at(token);
-            if (slash == std::string_view::npos) {
-                return node;
-            }
-            rest = rest.substr(slash + 1);
-        }
-    }
-
-    static bool matches_type(const afd::Json& value, std::string_view expected) {
-        if (expected == "null")
-            return value.is_null();
-        if (expected == "boolean")
-            return value.is_boolean();
-        if (expected == "string")
-            return value.is_string();
-        if (expected == "array")
-            return value.is_array();
-        if (expected == "object")
-            return value.is_object();
-        if (expected == "number")
-            return value.is_number();
-        if (expected == "integer") {
-            if (value.is_number_integer() || value.is_number_unsigned())
-                return true;
-            if (value.is_number_float()) {
-                const double n = value.get<double>();
-                return std::isfinite(n) && std::trunc(n) == n;
-            }
-            return false;
-        }
-        return false;
-    }
-
-    std::optional<std::string> validate_node(const std::string& current_id, const afd::Json& schema,
-                                             const afd::Json& value,
-                                             const std::string& path) const {
-        if (schema.is_boolean()) {
-            return schema.get<bool>() ? std::nullopt
-                                      : std::optional<std::string>(path + ": schema is false");
-        }
-        if (!schema.is_object()) {
-            return path + ": schema must be object or bool";
-        }
-        if (const auto it = schema.find("$ref"); it != schema.end()) {
-            const std::string ref = it->get<std::string>();
-            const auto hash = ref.find('#');
-            const std::string target_id =
-                hash == 0 ? current_id
-                          : resolve_relative(current_id,
-                                             hash == std::string::npos ? ref : ref.substr(0, hash));
-            const std::string fragment =
-                hash == std::string::npos ? std::string() : ref.substr(hash + 1);
-            const auto root_it = by_id.find(target_id);
-            if (root_it == by_id.end()) {
-                return path + ": unresolved $ref " + ref;
-            }
-            const afd::Json* target = resolve_pointer(root_it->second, fragment);
-            if (target == nullptr) {
-                return path + ": unresolved pointer " + ref;
-            }
-            if (auto err = validate_node(target_id, *target, value, path)) {
-                return err;
-            }
-        }
-        if (const auto it = schema.find("const"); it != schema.end()) {
-            if (value != *it) {
-                return path + ": const mismatch";
-            }
-        }
-        if (const auto it = schema.find("enum"); it != schema.end()) {
-            bool found = false;
-            for (const auto& item : *it) {
-                if (item == value) {
-                    found = true;
-                    break;
-                }
-            }
-            if (!found) {
-                return path + ": enum mismatch";
-            }
-        }
-        if (const auto it = schema.find("type"); it != schema.end()) {
-            bool matched = false;
-            if (it->is_string()) {
-                matched = matches_type(value, it->get<std::string>());
-            } else if (it->is_array()) {
-                for (const auto& item : *it) {
-                    if (matches_type(value, item.get<std::string>())) {
-                        matched = true;
-                        break;
-                    }
-                }
-            }
-            if (!matched) {
-                return path + ": type mismatch";
-            }
-        }
-        if (value.is_string()) {
-            if (const auto it = schema.find("minLength"); it != schema.end()) {
-                const auto& str = value.get_ref<const std::string&>();
-                std::size_t code_points = 0;
-                for (char ch : str) {
-                    if ((static_cast<unsigned char>(ch) & 0xC0u) != 0x80u) {
-                        ++code_points;
-                    }
-                }
-                if (code_points < it->get<std::size_t>()) {
-                    return path + ": minLength failed";
-                }
-            }
-        }
-        if (value.is_number()) {
-            const double n = value.get<double>();
-            if (const auto it = schema.find("minimum"); it != schema.end()) {
-                if (n < it->get<double>())
-                    return path + ": minimum failed";
-            }
-            if (const auto it = schema.find("maximum"); it != schema.end()) {
-                if (n > it->get<double>())
-                    return path + ": maximum failed";
-            }
-        }
-        if (value.is_array()) {
-            if (const auto it = schema.find("items"); it != schema.end()) {
-                for (std::size_t i = 0; i < value.size(); ++i) {
-                    if (auto err = validate_node(current_id, *it, value[i],
-                                                 path + "[" + std::to_string(i) + "]")) {
-                        return err;
-                    }
-                }
-            }
-        }
-        if (value.is_object()) {
-            if (const auto it = schema.find("required"); it != schema.end()) {
-                for (const auto& req : *it) {
-                    const std::string key = req.get<std::string>();
-                    if (!value.contains(key)) {
-                        return path + ": missing required property " + key;
-                    }
-                }
-            }
-            const auto props = schema.find("properties");
-            const auto addl = schema.find("additionalProperties");
-            for (const auto& [k, v] : value.items()) {
-                if (props != schema.end() && props->contains(k)) {
-                    if (auto err = validate_node(current_id, props->at(k), v, path + "." + k)) {
-                        return err;
-                    }
-                } else if (addl != schema.end()) {
-                    if (addl->is_boolean() && !addl->get<bool>()) {
-                        return path + ": unexpected property " + k;
-                    }
-                    if (addl->is_object()) {
-                        if (auto err = validate_node(current_id, *addl, v, path + "." + k)) {
-                            return err;
-                        }
-                    }
-                }
-            }
-        }
-        if (const auto it = schema.find("allOf"); it != schema.end()) {
-            for (const auto& branch : *it) {
-                if (auto err = validate_node(current_id, branch, value, path)) {
-                    return err;
-                }
-            }
-        }
-        if (const auto it = schema.find("oneOf"); it != schema.end()) {
-            int matches = 0;
-            for (const auto& branch : *it) {
-                if (!validate_node(current_id, branch, value, path).has_value()) {
-                    ++matches;
-                }
-            }
-            if (matches != 1) {
-                return path + ": oneOf matched " + std::to_string(matches) + " branches";
-            }
-        }
-        if (const auto it = schema.find("if"); it != schema.end()) {
-            const bool matched = !validate_node(current_id, *it, value, path).has_value();
-            if (matched) {
-                if (const auto then_it = schema.find("then"); then_it != schema.end()) {
-                    if (auto err = validate_node(current_id, *then_it, value, path))
-                        return err;
-                }
-            } else if (const auto else_it = schema.find("else"); else_it != schema.end()) {
-                if (auto err = validate_node(current_id, *else_it, value, path))
-                    return err;
-            }
-        }
-        if (const auto it = schema.find("not"); it != schema.end()) {
-            if (!validate_node(current_id, *it, value, path).has_value()) {
-                return path + ": matched forbidden not schema";
-            }
-        }
-        return std::nullopt;
-    }
-
-    std::optional<std::string> validate(const std::string& file, const afd::Json& value) const {
-        const std::string& id = by_file.at(file);
-        return validate_node(id, by_id.at(id), value, "$");
-    }
-};
-
 } // namespace
 
 TEST_CASE("every wire fixture round-trips") {
@@ -397,6 +140,9 @@ TEST_CASE("result-failure carries the error and stamped metadata") {
     REQUIRE(result.error.has_value());
     CHECK(result.error->code == afd::error_codes::NOT_FOUND);
     CHECK(result.error->retryable == false);
+    REQUIRE(result.error->recovery.has_value());
+    CHECK(result.error->recovery->kind == afd::RecoveryKind::call);
+    CHECK(result.error->recovery->command == "todo-list");
     REQUIRE(result.error->details.has_value());
     CHECK(result.error->details->at("id") == "todo-42");
 }
@@ -445,7 +191,7 @@ TEST_CASE("stream-chunks has one of each chunk type") {
 }
 
 TEST_CASE("every wire fixture validates against spec/schema/ (JSON Schema 2020-12)") {
-    const auto schemas = SchemaRegistry::load();
+    const auto schemas = afd_test::SchemaRegistry::load();
     for (const auto& [fixture, schema] : std::vector<std::pair<std::string, std::string>>{
              {"result-success-minimal.json", "result.json"},
              {"result-success-full.json", "result.json"},

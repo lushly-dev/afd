@@ -4,6 +4,18 @@ All notable changes to afd-cpp are documented here. The package is versioned ind
 
 ## [Unreleased]
 
+### Added
+
+- **Structured recovery on `CommandError`** ([`spec/recovery.md`](../../spec/recovery.md)): `CommandError::recovery` and `ErrorOptions::recovery` hold an `afd::Recovery`, the step the `suggestion` describes in a form a program can follow and a test can check. `RecoveryKind` is `call`, `fix_input` (`fix-input` on the wire), `retry`, `external` or `stop`; `Recovery` carries `command`, `input`, `needs`, `then_retry` and `after_ms`, written as camelCase with unset fields omitted. `recovery_kind_name`, `parse_recovery_kind` and `recovery_kinds` (TypeScript's `RECOVERY_KINDS`) map kinds to their wire names.
+  - **Rules:** `Recovery::validate()` names the first `$defs/recovery` rule a value breaks: each field on its kinds (rule 4), a non-empty `command` for `call`, an `after_ms` of at least 0, an `input` object with at least one member and no `confirm` (rule 5), a `needs` of at least one distinct, non-empty name, and `input` or `needs` on `fix-input`. It does not check the error-level rules that tie `retry` and `stop` to `retryable`.
+  - **Construction:** `Recovery` is an aggregate built with designated initializers, so a value that breaks the rules can be built. It never reaches the wire: `create_error` and `error` leave a recovery that fails `validate()` off the error, and `to_json` of a `CommandError` omits one set on the field directly.
+  - **Reading:** `Recovery::from_json` and `is_command_recovery` accept exactly the values that match `$defs/recovery`. They refuse a non-object, an unknown kind or member, a `null` member, a member of the wrong JSON type (nothing is coerced, so `"30000"` and `true` are not an `afterMs`) and any value `validate()` refuses. A whole number with a zero fraction, such as `30000.0`, is read as that integer. An `afterMs` above 2^53 − 1, the schema's maximum, is refused, as in every language. `CommandError::from_json` reads leniently (rule 7): a recovery that does not match is read as absent, on the error and on each `cause`, and the rest of the error is kept, `suggestion` included. It does not enforce the `retryable` rules.
+  - **Tests:** `tests/recovery_vectors_test.cpp` runs all three lists of `spec/vectors/recovery.json` against `spec/schema/error.json`: each `valid` case round-trips unchanged, the `normalizes` case and each `invalid` case read and write back to exactly their `readsAs`. The test schema validator gained `minProperties` and `minItems`, and fails the test outright on a keyword it does not implement or a `$ref` it cannot resolve, checked for every schema when they are loaded, instead of reporting an ordinary validation failure that a `not`, `if` or `anyOf` would invert.
+
+### Changed
+
+- **Breaking (ABI):** `CommandError` and `ErrorOptions` gained `recovery`, between `retryable` and `details`. Designated initializers are unaffected; positional aggregate initialization that sets `details` must add the new field.
+
 ## [0.3.0] - 2026-11-24
 
 Implements AFD contract `1.0-rc`.

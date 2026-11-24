@@ -143,6 +143,7 @@ const commands = [
 				message: 'Todo todo-42 not found',
 				suggestion: 'Use todo-list to see available todos',
 				retryable: false,
+				recovery: { kind: 'call', command: 'todo-list' },
 				details: { id: 'todo-42' },
 			}),
 	}),

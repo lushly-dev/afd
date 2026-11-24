@@ -1,0 +1,851 @@
+{
+	"description": "Structured recovery on CommandError (spec/recovery.md). Each case is a whole CommandError. Every implementation validates each against spec/schema/error.json: valid and normalizes cases pass, invalid ones fail. A valid case round-trips through the native CommandError type to the same JSON value; a normalizes case reads to its readsAs; an invalid case reads to its readsAs, the error with every recovery that breaks $defs/recovery dropped (rule 7).",
+	"valid": [
+		{
+			"name": "call another command",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"recovery": {
+					"kind": "call",
+					"command": "issue-check"
+				}
+			}
+		},
+		{
+			"name": "call with input and a choice left to the caller",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"recovery": {
+					"kind": "call",
+					"command": "cell-register",
+					"input": {
+						"route": "sol/high"
+					},
+					"needs": ["issues"]
+				}
+			}
+		},
+		{
+			"name": "call that fixes the refusal, then repeat it",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"recovery": {
+					"kind": "call",
+					"command": "lane-resume",
+					"thenRetry": true
+				}
+			}
+		},
+		{
+			"name": "call with thenRetry false",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"recovery": {
+					"kind": "call",
+					"command": "issue-check",
+					"thenRetry": false
+				}
+			}
+		},
+		{
+			"name": "fix-input with replacement values",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"recovery": {
+					"kind": "fix-input",
+					"input": {
+						"limit": 100
+					}
+				}
+			}
+		},
+		{
+			"name": "fix-input naming the fields to choose",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"recovery": {
+					"kind": "fix-input",
+					"needs": ["branch"]
+				}
+			}
+		},
+		{
+			"name": "fix-input with values and a choice",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"recovery": {
+					"kind": "fix-input",
+					"input": {
+						"drain": true
+					},
+					"needs": ["id"]
+				}
+			}
+		},
+		{
+			"name": "retry after a wait",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"retryable": true,
+				"recovery": {
+					"kind": "retry",
+					"afterMs": 30000
+				}
+			}
+		},
+		{
+			"name": "retry with no wait",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"retryable": true,
+				"recovery": {
+					"kind": "retry"
+				}
+			}
+		},
+		{
+			"name": "retry after zero milliseconds",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"retryable": true,
+				"recovery": {
+					"kind": "retry",
+					"afterMs": 0
+				}
+			}
+		},
+		{
+			"name": "retry after the longest wait",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"retryable": true,
+				"recovery": {
+					"kind": "retry",
+					"afterMs": 9007199254740991
+				}
+			}
+		},
+		{
+			"name": "external step",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"recovery": {
+					"kind": "external"
+				}
+			}
+		},
+		{
+			"name": "stop",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"recovery": {
+					"kind": "stop"
+				}
+			}
+		},
+		{
+			"name": "stop with retryable false",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"retryable": false,
+				"recovery": {
+					"kind": "stop"
+				}
+			}
+		},
+		{
+			"name": "an error without recovery",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next"
+			}
+		},
+		{
+			"name": "a cause with its own recovery",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"cause": {
+					"code": "SOME_ERROR",
+					"message": "It failed",
+					"suggestion": "What to do next",
+					"recovery": {
+						"kind": "external"
+					}
+				},
+				"recovery": {
+					"kind": "call",
+					"command": "auth-sign-in",
+					"thenRetry": true
+				}
+			}
+		},
+		{
+			"name": "input values that are null or nested",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"recovery": {
+					"kind": "call",
+					"command": "item-find",
+					"input": {
+						"filter": null,
+						"range": {
+							"from": 1
+						}
+					}
+				}
+			}
+		}
+	],
+	"normalizes": [
+		{
+			"name": "a whole number written with a zero fraction",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"retryable": true,
+				"recovery": {
+					"kind": "retry",
+					"afterMs": 30000.0
+				}
+			},
+			"readsAs": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"retryable": true,
+				"recovery": {
+					"kind": "retry",
+					"afterMs": 30000
+				}
+			}
+		}
+	],
+	"invalid": [
+		{
+			"name": "unknown kind",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"recovery": {
+					"kind": "reboot"
+				}
+			},
+			"rule": "kind is one of call, fix-input, retry, external, stop",
+			"readsAs": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next"
+			}
+		},
+		{
+			"name": "no kind",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"recovery": {
+					"command": "issue-check"
+				}
+			},
+			"rule": "kind is required",
+			"readsAs": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next"
+			}
+		},
+		{
+			"name": "recovery that is not an object",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"recovery": "call"
+			},
+			"rule": "recovery is an object",
+			"readsAs": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next"
+			}
+		},
+		{
+			"name": "call without a command",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"recovery": {
+					"kind": "call"
+				}
+			},
+			"rule": "call names its command",
+			"readsAs": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next"
+			}
+		},
+		{
+			"name": "empty command name",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"recovery": {
+					"kind": "call",
+					"command": ""
+				}
+			},
+			"rule": "command is a non-empty name",
+			"readsAs": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next"
+			}
+		},
+		{
+			"name": "command that is not a string",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"recovery": {
+					"kind": "call",
+					"command": 7
+				}
+			},
+			"rule": "command is a string",
+			"readsAs": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next"
+			}
+		},
+		{
+			"name": "command on another kind",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"recovery": {
+					"kind": "external",
+					"command": "issue-check"
+				}
+			},
+			"rule": "command belongs to call only",
+			"readsAs": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next"
+			}
+		},
+		{
+			"name": "thenRetry on fix-input",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"recovery": {
+					"kind": "fix-input",
+					"needs": ["a"],
+					"thenRetry": true
+				}
+			},
+			"rule": "thenRetry belongs to call only",
+			"readsAs": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next"
+			}
+		},
+		{
+			"name": "thenRetry that is not a boolean",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"recovery": {
+					"kind": "call",
+					"command": "issue-check",
+					"thenRetry": "true"
+				}
+			},
+			"rule": "thenRetry is a boolean",
+			"readsAs": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next"
+			}
+		},
+		{
+			"name": "afterMs on call",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"recovery": {
+					"kind": "call",
+					"command": "issue-check",
+					"afterMs": 10
+				}
+			},
+			"rule": "afterMs belongs to retry only",
+			"readsAs": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next"
+			}
+		},
+		{
+			"name": "input on retry",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"retryable": true,
+				"recovery": {
+					"kind": "retry",
+					"input": {
+						"a": 1
+					}
+				}
+			},
+			"rule": "input belongs to call and fix-input only",
+			"readsAs": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"retryable": true
+			}
+		},
+		{
+			"name": "needs on stop",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"recovery": {
+					"kind": "stop",
+					"needs": ["a"]
+				}
+			},
+			"rule": "needs belongs to call and fix-input only",
+			"readsAs": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next"
+			}
+		},
+		{
+			"name": "negative wait",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"retryable": true,
+				"recovery": {
+					"kind": "retry",
+					"afterMs": -1
+				}
+			},
+			"rule": "afterMs is at least 0",
+			"readsAs": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"retryable": true
+			}
+		},
+		{
+			"name": "fractional wait",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"retryable": true,
+				"recovery": {
+					"kind": "retry",
+					"afterMs": 1.5
+				}
+			},
+			"rule": "afterMs is an integer",
+			"readsAs": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"retryable": true
+			}
+		},
+		{
+			"name": "wait written as a string",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"retryable": true,
+				"recovery": {
+					"kind": "retry",
+					"afterMs": "30000"
+				}
+			},
+			"rule": "afterMs is an integer",
+			"readsAs": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"retryable": true
+			}
+		},
+		{
+			"name": "wait written as a boolean",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"retryable": true,
+				"recovery": {
+					"kind": "retry",
+					"afterMs": true
+				}
+			},
+			"rule": "afterMs is an integer",
+			"readsAs": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"retryable": true
+			}
+		},
+		{
+			"name": "input that is not an object",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"recovery": {
+					"kind": "fix-input",
+					"input": [1]
+				}
+			},
+			"rule": "input is an object",
+			"readsAs": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next"
+			}
+		},
+		{
+			"name": "empty input",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"recovery": {
+					"kind": "call",
+					"command": "issue-check",
+					"input": {}
+				}
+			},
+			"rule": "input has at least one member",
+			"readsAs": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next"
+			}
+		},
+		{
+			"name": "repeated need",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"recovery": {
+					"kind": "call",
+					"command": "x-y",
+					"needs": ["a", "a"]
+				}
+			},
+			"rule": "needs holds distinct field names",
+			"readsAs": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next"
+			}
+		},
+		{
+			"name": "empty need",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"recovery": {
+					"kind": "fix-input",
+					"needs": [""]
+				}
+			},
+			"rule": "needs holds non-empty field names",
+			"readsAs": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next"
+			}
+		},
+		{
+			"name": "empty needs",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"recovery": {
+					"kind": "fix-input",
+					"needs": []
+				}
+			},
+			"rule": "needs names at least one field",
+			"readsAs": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next"
+			}
+		},
+		{
+			"name": "fix-input that changes nothing",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"recovery": {
+					"kind": "fix-input"
+				}
+			},
+			"rule": "a fix-input recovery sets input or needs",
+			"readsAs": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next"
+			}
+		},
+		{
+			"name": "an acknowledgement in input",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"recovery": {
+					"kind": "fix-input",
+					"input": {
+						"confirm": true
+					}
+				}
+			},
+			"rule": "input never carries confirm",
+			"readsAs": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next"
+			}
+		},
+		{
+			"name": "a null member",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"recovery": {
+					"kind": "fix-input",
+					"input": null
+				}
+			},
+			"rule": "no member is null",
+			"readsAs": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next"
+			}
+		},
+		{
+			"name": "unknown recovery field",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"recovery": {
+					"kind": "stop",
+					"reason": "x"
+				}
+			},
+			"rule": "recovery has no other fields",
+			"readsAs": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next"
+			}
+		},
+		{
+			"name": "a member spelled in snake_case",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"recovery": {
+					"kind": "call",
+					"command": "issue-check",
+					"then_retry": true
+				}
+			},
+			"rule": "members are spelled as the specification spells them",
+			"readsAs": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next"
+			}
+		},
+		{
+			"name": "a wait past 2^53 - 1",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"retryable": true,
+				"recovery": {
+					"kind": "retry",
+					"afterMs": 9007199254740992
+				}
+			},
+			"rule": "afterMs is at most 2^53 - 1",
+			"readsAs": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"retryable": true
+			}
+		},
+		{
+			"name": "retry without retryable",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"recovery": {
+					"kind": "retry"
+				}
+			},
+			"rule": "a retry recovery sets retryable: true",
+			"readsAs": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"recovery": {
+					"kind": "retry"
+				}
+			}
+		},
+		{
+			"name": "retry marked not retryable",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"retryable": false,
+				"recovery": {
+					"kind": "retry"
+				}
+			},
+			"rule": "a retry recovery sets retryable: true",
+			"readsAs": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"retryable": false,
+				"recovery": {
+					"kind": "retry"
+				}
+			}
+		},
+		{
+			"name": "stop marked retryable",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"retryable": true,
+				"recovery": {
+					"kind": "stop"
+				}
+			},
+			"rule": "a stop recovery is not retryable",
+			"readsAs": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"retryable": true,
+				"recovery": {
+					"kind": "stop"
+				}
+			}
+		},
+		{
+			"name": "invalid recovery on a cause",
+			"error": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"cause": {
+					"code": "SOME_ERROR",
+					"message": "It failed",
+					"suggestion": "What to do next",
+					"recovery": {
+						"kind": "call"
+					}
+				}
+			},
+			"rule": "a cause's recovery follows the same rules",
+			"readsAs": {
+				"code": "SOME_ERROR",
+				"message": "It failed",
+				"suggestion": "What to do next",
+				"cause": {
+					"code": "SOME_ERROR",
+					"message": "It failed",
+					"suggestion": "What to do next"
+				}
+			}
+		}
+	]
+}

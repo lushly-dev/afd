@@ -20,8 +20,8 @@
 //! - **Fail closed.** Return `Err` when the request cannot be attributed. Nothing runs: not the
 //!   command, not a confirmation prompt, and an unknown tool name answers the same way as a real
 //!   one, so a refused caller learns nothing about which tools exist.
-//! - **A refusal is shown to the caller.** Only the `code`, `message`, `suggestion` and
-//!   `retryable` of the [`CommandError`] reach the client; `details` and `cause` are dropped.
+//! - **A refusal is shown to the caller.** Only the `code`, `message`, `suggestion`, `retryable`
+//!   and `recovery` of the [`CommandError`] reach the client; `details` and `cause` are dropped.
 //!   Do not put the reason a credential was rejected, a user name or a policy name in the message.
 //!   Log the reason on the server and return a generic one (`UNAUTHORIZED` or `FORBIDDEN`).
 //! - **A panic is a refusal.** A hook that panics refuses the request with a generic
@@ -165,7 +165,7 @@ where
     Arc::new(move |request, context| hook(request, context).boxed())
 }
 
-/// A refusal as the caller sees it: nothing beyond the four fields a client can act on.
+/// A refusal as the caller sees it: nothing beyond the five fields a client can act on.
 fn visible(error: CommandError) -> CommandError {
     CommandError {
         details: None,

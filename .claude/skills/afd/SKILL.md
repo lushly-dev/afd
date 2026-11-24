@@ -48,7 +48,11 @@ looking at the UI.
   `CommandResult`, `CommandError`, `BatchResult`, `PipelineResult` and `StreamChunk` live in
   [`spec/schema/`](../../../spec/schema/README.md). Every error emitted by a command or engine
   should carry a `suggestion` saying how to recover: `Use todo-list to see available todos` (it is
-  optional in the wire schema so consumers tolerate compact errors).
+  optional in the wire schema so consumers tolerate compact errors). Where the step is one a
+  program can take, also set `recovery` ([`spec/recovery.md`](../../../spec/recovery.md)):
+  `{ kind: 'call', command: 'todo-list' }`, `fix-input`, `retry` (with `retryable: true`),
+  `external` or `stop`. Name in `recovery.command` only a command the caller can call, and name
+  the same command in the prose.
 - **Error codes** come from the shared catalog first: `ErrorCodes` / `ERROR_CODE_CATALOG` in
   `packages/core/src/errors.ts`, with meaning, retryability, profile and the reserved `HOST_`
   host-code prefix in [`spec/error-codes.md`](../../../spec/error-codes.md). Add an application

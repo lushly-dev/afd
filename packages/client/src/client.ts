@@ -61,6 +61,7 @@ import {
 	isPipelineResult,
 	outcomeUnknownError,
 	parseTextContent,
+	withReadableRecoveries,
 } from './result-parsing.js';
 import { DEFAULT_MAX_SSE_EVENT_SIZE } from './sse-parser.js';
 import { StreamableHttpTransport } from './streamable-http-transport.js';
@@ -541,7 +542,7 @@ export class McpClient extends McpClientEventEmitter {
 			const parsed = parseTextContent(result);
 
 			if (isCommandResult(parsed)) {
-				return parsed as CommandResult<T>;
+				return withReadableRecoveries(parsed as CommandResult<T>);
 			}
 
 			if (result.isError) {
@@ -612,7 +613,7 @@ export class McpClient extends McpClientEventEmitter {
 			const parsed = parseTextContent(result);
 
 			if (isBatchResult(parsed)) {
-				return parsed as BatchResult<T>;
+				return withReadableRecoveries(parsed as BatchResult<T>);
 			}
 
 			if (result.isError) {
@@ -704,7 +705,7 @@ export class McpClient extends McpClientEventEmitter {
 			const parsed = parseTextContent(result);
 
 			if (isPipelineResult(parsed)) {
-				return parsed as PipelineResult<T>;
+				return withReadableRecoveries(parsed as PipelineResult<T>);
 			}
 
 			if (result.isError) {

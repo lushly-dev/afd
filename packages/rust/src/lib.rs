@@ -162,9 +162,10 @@ pub use result::{
 // ═══════════════════════════════════════════════════════════════════════════════
 
 pub use errors::{
-    create_error, error_codes, internal_error, is_command_error, not_found_error, rate_limit_error,
-    timeout_error, validation_error, wrap_error, CommandError, ErrorCode, ErrorCodeInfo,
-    ERROR_CODE_CATALOG, HOST_ERROR_CODE_PREFIX,
+    create_error, error_codes, internal_error, is_command_error, is_command_recovery,
+    not_found_error, rate_limit_error, timeout_error, validation_error, wrap_error, CommandError,
+    ErrorCode, ErrorCodeInfo, InvalidRecovery, Recovery, ERROR_CODE_CATALOG,
+    HOST_ERROR_CODE_PREFIX, MAX_AFTER_MS, RECOVERY_KINDS,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════

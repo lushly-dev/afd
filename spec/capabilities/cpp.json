@@ -17,6 +17,13 @@
 			"status": "yes",
 			"evidence": ["packages/cpp/include/afd/errors.hpp", "packages/cpp/tests/vectors_test.cpp"]
 		},
+		"wire.error-recovery": {
+			"status": "yes",
+			"evidence": [
+				"packages/cpp/include/afd/errors.hpp",
+				"packages/cpp/tests/recovery_vectors_test.cpp"
+			]
+		},
 		"wire.result-constructors": {
 			"status": "yes",
 			"evidence": ["packages/cpp/include/afd/result.hpp", "packages/cpp/tests/result_test.cpp"]

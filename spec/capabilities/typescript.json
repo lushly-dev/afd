@@ -14,6 +14,10 @@
 			"status": "yes",
 			"evidence": ["packages/core/src/error-catalog.ts", "spec/vectors/error-codes.json"]
 		},
+		"wire.error-recovery": {
+			"status": "yes",
+			"evidence": ["packages/core/src/errors.ts", "packages/server/src/recovery-vectors.test.ts"]
+		},
 		"wire.result-constructors": {
 			"status": "yes",
 			"evidence": ["packages/core/src/result.ts"]

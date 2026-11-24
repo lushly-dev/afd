@@ -28,7 +28,7 @@ validator loads every file in this directory into its schema registry before com
 - All AFD envelope keys are `camelCase`.
 - Unset optional fields **MUST** be omitted on the wire, never serialized as `null`.
 - Free-form payload fields — `CommandResult.data`, `CommandError.details`,
-  `CommandResult.undoArgs`, `Alternative.data`, `PlanStep.result`, `Warning.details`,
+  `CommandError.recovery.input`, `CommandResult.undoArgs`, `Alternative.data`, `PlanStep.result`, `Warning.details`,
   `DataChunk.data`, `CompleteChunk.data`, `PipelineResult.data`, `StepResult.data` and extra keys in
   `ResultMetadata` — **MAY** hold `null` or arbitrary key conventions chosen by the command.
 
@@ -68,6 +68,11 @@ validator loads every file in this directory into its schema registry before com
 - `retryable`, when omitted, is read by consumers as `false` (not retryable). The shared catalog's
   retryability rules are pinned in [`../error-codes.md`](../error-codes.md) and
   [`../vectors/error-codes.json`](../vectors/error-codes.json).
+- `recovery` is optional: the step `suggestion` describes, structured so a program can follow it
+  and a test can check it (`call`, `fix-input`, `retry`, `external` or `stop`). The schema keeps
+  each field to its kind, requires `retryable: true` with a `retry` recovery and forbids it with
+  `stop`. A consumer reads a recovery it does not understand as none
+  ([`../recovery.md`](../recovery.md)).
 - `cause` on the wire is always another `CommandError`. Native language exceptions and stack traces
   **MUST NOT** be serialized into `cause` or `details` (stack traces belong in `details` only when
   `devMode` is explicitly enabled).

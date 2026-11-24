@@ -6,6 +6,122 @@
  */
 
 /**
+ * The step a failed command's `suggestion` describes, in a form a program can follow and a test
+ * can check (`spec/recovery.md`). It sits beside the prose `suggestion`, never in its place.
+ *
+ * - `call`: call `command` next; with `thenRetry`, repeat the failed call once it succeeds.
+ * - `fix-input`: call the same command again with `input`'s values, choosing the `needs` fields.
+ * - `retry`: call the same command again unchanged, after `afterMs`; the error is `retryable`.
+ * - `external`: a step outside the command surface, described only in the suggestion.
+ * - `stop`: no step makes the call succeed; do something else.
+ *
+ * @example
+ * ```typescript
+ * failure({
+ *   code: 'ALREADY_CLAIMED',
+ *   message: 'Issue #205 is claimed by fix/client-timeout',
+ *   suggestion: "Take another issue from issue-check's dispatchable list",
+ *   recovery: { kind: 'call', command: 'issue-check' },
+ * });
+ * ```
+ */
+export type Recovery =
+	| {
+			kind: 'call';
+			/** The command to call next, by its registered name; one the caller can call. */
+			command: string;
+			/** Arguments known to work. A field the caller must decide goes in `needs`. */
+			input?: Record<string, unknown>;
+			/** Top-level input fields the caller must choose. */
+			needs?: string[];
+			/** Once `command` succeeds, repeat the failed call unchanged. */
+			thenRetry?: boolean;
+	  }
+	| {
+			kind: 'fix-input';
+			/** Replacement values for the failed call's input. */
+			input?: Record<string, unknown>;
+			/** Input fields the caller must choose new values for. */
+			needs?: string[];
+	  }
+	| {
+			kind: 'retry';
+			/** Wait at least this many milliseconds (0 to 2^53 − 1) before repeating the call. */
+			afterMs?: number;
+	  }
+	| { kind: 'external' }
+	| { kind: 'stop' };
+
+/** The kinds of {@link Recovery}, in `spec/recovery.md` order. */
+export const RECOVERY_KINDS = ['call', 'fix-input', 'retry', 'external', 'stop'] as const;
+
+/** What the caller does next: one of {@link RECOVERY_KINDS}. */
+type RecoveryKind = Recovery['kind'];
+
+/** The members each kind of recovery may have (`spec/recovery.md`, rule 4). */
+const RECOVERY_MEMBERS: Readonly<Record<RecoveryKind, readonly string[]>> = {
+	call: ['kind', 'command', 'input', 'needs', 'thenRetry'],
+	'fix-input': ['kind', 'input', 'needs'],
+	retry: ['kind', 'afterMs'],
+	external: ['kind'],
+	stop: ['kind'],
+};
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Whether `value` is a {@link Recovery} as `spec/schema/error.json`'s `$defs/recovery`
+ * defines it: a known kind, only that kind's members, none of them `null`, each of the right type
+ * and in range, and a `fix-input` that sets `input` or `needs`. A reader treats an error whose
+ * recovery fails this check as having none, and still reads its `suggestion` (rule 7), so new
+ * kinds and members may arrive without a breaking change.
+ */
+export function isCommandRecovery(value: unknown): value is Recovery {
+	if (!isPlainRecord(value)) return false;
+	const kind = value.kind;
+	if (typeof kind !== 'string' || !Object.hasOwn(RECOVERY_MEMBERS, kind)) return false;
+	const allowed = RECOVERY_MEMBERS[kind as RecoveryKind];
+	for (const [key, member] of Object.entries(value)) {
+		// An unset member is omitted; `undefined` is how JavaScript spells omitted.
+		if (member === undefined) continue;
+		if (!allowed.includes(key) || member === null) return false;
+	}
+	const { command, input, needs, thenRetry, afterMs } = value;
+	if (kind === 'call' && !(typeof command === 'string' && command.length > 0)) return false;
+	if (input !== undefined) {
+		if (!isPlainRecord(input) || Object.keys(input).length === 0 || 'confirm' in input) {
+			return false;
+		}
+	}
+	if (needs !== undefined) {
+		if (!Array.isArray(needs) || needs.length === 0) return false;
+		if (!needs.every((field) => typeof field === 'string' && field.length > 0)) return false;
+		if (new Set(needs).size !== needs.length) return false;
+	}
+	if (thenRetry !== undefined && typeof thenRetry !== 'boolean') return false;
+	if (afterMs !== undefined && !(Number.isSafeInteger(afterMs) && (afterMs as number) >= 0)) {
+		return false;
+	}
+	return kind !== 'fix-input' || input !== undefined || needs !== undefined;
+}
+
+/**
+ * The error as a reader sees it (`spec/recovery.md`, rule 7): every `recovery` that fails
+ * {@link isCommandRecovery} removed, on the error and on each `cause`. Everything else is kept.
+ */
+export function withReadableRecovery(error: CommandError): CommandError {
+	const { recovery, cause, ...rest } = error;
+	const read: CommandError = { ...rest };
+	if (recovery !== undefined && isCommandRecovery(recovery)) read.recovery = recovery;
+	if (cause !== undefined) {
+		read.cause = isCommandError(cause) ? withReadableRecovery(cause) : cause;
+	}
+	return read;
+}
+
+/**
  * Standard error structure for command failures.
  *
  * All errors should be actionable - users should know what to do next.
@@ -59,6 +175,14 @@ export interface CommandError {
 	 * - `undefined`: Unknown, treat as non-retryable
 	 */
 	retryable?: boolean;
+
+	/**
+	 * The step `suggestion` describes, structured so a program can follow it and a test can
+	 * check it (`spec/recovery.md`). Set `suggestion` too: agents read the prose. A value read
+	 * from the wire is unchecked until it passes {@link isCommandRecovery}: `McpClient` drops one
+	 * that fails (rule 7), and {@link withReadableRecovery} does the same for any error.
+	 */
+	recovery?: Recovery;
 
 	/**
 	 * Additional technical details for debugging.

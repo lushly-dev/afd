@@ -88,6 +88,7 @@ Rendered from [`spec/capabilities/`](../spec/capabilities/README.md) (`typescrip
 | `CommandResult`, `CommandError`, metadata shapes (camelCase, unset omitted) | Yes | Yes | Yes | Yes |
 | `Warning`, `Source`, `PlanStep`, `Alternative` | Yes | Yes | Yes | Yes |
 | `ErrorCodes` and `ERROR_CODE_CATALOG`: 50 shared codes (33 core + 17 profile) with `{ code, retryable, profile }` and `HOST_` prefix ([`spec/error-codes.md`](../spec/error-codes.md)), checked against `spec/vectors/error-codes.json` (#1740) | Yes | Yes | Yes | Yes |
+| `CommandError.recovery`: a structured `call`, `fix-input`, `retry`, `external` or `stop` step beside the suggestion, read leniently ([`spec/recovery.md`](../spec/recovery.md)), checked against `spec/vectors/recovery.json` | Yes | Yes | Yes | Yes |
 | `success` / `failure` / `error` constructors | Yes | Yes (#545 candidate): every result option except success/data/error | Partial: `FailureOptions` has no `alternatives` or `undo*` | Yes |
 | `isSuccess` / `isFailure` test only `success` | Yes | Yes, including `success(None)` | Yes | Yes |
 <!-- generated:capabilities:parity.wire:end -->

@@ -7,7 +7,12 @@ import type {
 	PipelineRequest,
 	PipelineResult,
 } from '@lushly-dev/afd-core';
-import { isBatchResult, isPipelineResult } from '@lushly-dev/afd-core';
+import {
+	isBatchResult,
+	isCommandError,
+	isPipelineResult,
+	withReadableRecovery,
+} from '@lushly-dev/afd-core';
 
 export function getTextContent(result: McpToolCallResult): string {
 	return result.content
@@ -152,3 +157,29 @@ export function createPipelineFailure<T>(
 }
 
 export { isBatchResult, isPipelineResult };
+
+/**
+ * A result as `spec/recovery.md` rule 7 says a reader sees it: every error's `recovery` that does
+ * not match the schema is dropped, on the result, on each batch item and on each pipeline step,
+ * and the rest of each error is kept. The wire is untrusted, so a `recovery` an agent may follow
+ * passes the same check as one built in code.
+ */
+export function withReadableRecoveries<R>(result: R): R {
+	if (typeof result !== 'object' || result === null) return result;
+	const record = result as Record<string, unknown>;
+	const read = (value: unknown) => (isCommandError(value) ? withReadableRecovery(value) : value);
+	const items = (list: unknown) =>
+		Array.isArray(list)
+			? list.map((item) =>
+					typeof item === 'object' && item !== null && 'error' in item
+						? { ...item, error: read((item as { error: unknown }).error) }
+						: item
+				)
+			: list;
+	return {
+		...record,
+		...('error' in record ? { error: read(record.error) } : {}),
+		...('results' in record ? { results: items(record.results) } : {}),
+		...('steps' in record ? { steps: items(record.steps) } : {}),
+	} as R;
+}
