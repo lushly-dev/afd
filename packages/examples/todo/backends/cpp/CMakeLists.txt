@@ -10,6 +10,23 @@ option(TODO_BUILD_TESTS "Build the backend's tests" ON)
 
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# On Windows, deep worktree paths combined with FetchContent's nested checkout directories
+# exceed MAX_PATH and fail MSBuild with MSB4023 (#1636). Place FetchContent under a short
+# per-build-dir path in TEMP unless the caller already configured FETCHCONTENT_BASE_DIR.
+if(WIN32 AND NOT FETCHCONTENT_BASE_DIR)
+    set(_afd_tmp "$ENV{TEMP}")
+    if(NOT _afd_tmp)
+        set(_afd_tmp "$ENV{TMP}")
+    endif()
+    if(_afd_tmp)
+        file(TO_CMAKE_PATH "${_afd_tmp}" _afd_tmp)
+        string(SHA256 _afd_bin_hash "${CMAKE_BINARY_DIR}")
+        string(SUBSTRING "${_afd_bin_hash}" 0 8 _afd_bin_hash)
+        set(FETCHCONTENT_BASE_DIR "${_afd_tmp}/afd-fc-${_afd_bin_hash}" CACHE PATH
+            "Short FetchContent directory on Windows to avoid MAX_PATH (MSB4023, #1636)")
+    endif()
+endif()
+
 # The library, from this repository. Its own tests are not built here.
 set(AFD_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 # The MCP stdio server comes from the library's afd::mcp_stdio target.

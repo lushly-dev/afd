@@ -168,7 +168,9 @@ public:
     /// 4. Validation against the input schema, then of the declared context fields in
     ///    `context.extra` and any output-budget ask (`spec/output-budgets.md`, B2-B4):
     ///    VALIDATION_ERROR.
-    /// 5. Middleware, then the handler with the validated input.
+    /// 5. Pre-dispatch cancellation check (`COMMAND_CANCELLED`, `retryable: false`), per-call
+    ///    deadline (`context.timeout_ms`, late finish -> `TIMEOUT`), middleware, a pre-handler
+    ///    cancellation check, then the handler with the validated input.
     /// 6. For budgeted commands (not buffered `execute_stream`), the B5 output-budget check and
     ///    B6 `metadata["dev.afd/outputBudget"]` report, then `metadata.executionTimeMs`,
     ///    `commandVersion` and, when the context has one after middleware ran, `traceId`.

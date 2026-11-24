@@ -4,6 +4,11 @@ All notable changes to afd-cpp are documented here. The package is versioned ind
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking (ABI):** `CommandError` and `ErrorOptions` gained `recovery`, between `retryable` and `details`. Designated initializers are unaffected; positional aggregate initialization that sets `details` must add the new field.
+- **ABI:** `CommandContext` gained internal `default_timeout_ms` and `deadline_armed` fields and `StdioServerOptions` gained `default_timeout_ms` (appended after existing fields); binary consumers must rebuild against matching headers and library.
+
 ### Added
 
 - **Structured recovery on `CommandError`** ([`spec/recovery.md`](../../spec/recovery.md)): `CommandError::recovery` and `ErrorOptions::recovery` hold an `afd::Recovery`, the step the `suggestion` describes in a form a program can follow and a test can check. `RecoveryKind` is `call`, `fix_input` (`fix-input` on the wire), `retry`, `external` or `stop`; `Recovery` carries `command`, `input`, `needs`, `then_retry` and `after_ms`, written as camelCase with unset fields omitted. `recovery_kind_name`, `parse_recovery_kind` and `recovery_kinds` (TypeScript's `RECOVERY_KINDS`) map kinds to their wire names.
@@ -11,10 +16,12 @@ All notable changes to afd-cpp are documented here. The package is versioned ind
   - **Construction:** `Recovery` is an aggregate built with designated initializers, so a value that breaks the rules can be built. It never reaches the wire: `create_error` and `error` leave a recovery that fails `validate()` off the error, and `to_json` of a `CommandError` omits one set on the field directly.
   - **Reading:** `Recovery::from_json` and `is_command_recovery` accept exactly the values that match `$defs/recovery`. They refuse a non-object, an unknown kind or member, a `null` member, a member of the wrong JSON type (nothing is coerced, so `"30000"` and `true` are not an `afterMs`) and any value `validate()` refuses. A whole number with a zero fraction, such as `30000.0`, is read as that integer. An `afterMs` above 2^53 − 1, the schema's maximum, is refused, as in every language. `CommandError::from_json` reads leniently (rule 7): a recovery that does not match is read as absent, on the error and on each `cause`, and the rest of the error is kept, `suggestion` included. It does not enforce the `retryable` rules.
   - **Tests:** `tests/recovery_vectors_test.cpp` runs all three lists of `spec/vectors/recovery.json` against `spec/schema/error.json`: each `valid` case round-trips unchanged, the `normalizes` case and each `invalid` case read and write back to exactly their `readsAs`. The test schema validator gained `minProperties` and `minItems`, and fails the test outright on a keyword it does not implement or a `$ref` it cannot resolve, checked for every schema when they are loaded, instead of reporting an ordinary validation failure that a `not`, `if` or `anyOf` would invert.
+- **Registry cancellation, per-command deadlines, and `StdioServerOptions::default_timeout_ms`** (`spec/execution-controls.md`, [#1766](https://github.com/lushly-dev/afd/issues/1766)): `CommandRegistry::execute` now checks `context.cancellation` after validation before entering middleware and again immediately before the handler (returning `COMMAND_CANCELLED` with `retryable: false`), and enforces `context.timeout_ms` via a child `CancellationSource` and late-finish `TIMEOUT`. `StdioServer::serve` skips `handle` for requests cancelled while waiting in the queue so their handlers never run, and `StdioServerOptions::default_timeout_ms` (default `default_command_timeout_ms = 30000.0`, disable with `0` or `std::nullopt`) applies a server-level per-command deadline. `tests/execution_controls_vectors_test.cpp` now passes every case in `spec/vectors/execution-controls.json` with no remaining C++ gaps.
 
-### Changed
+### Fixed
 
-- **Breaking (ABI):** `CommandError` and `ErrorOptions` gained `recovery`, between `retryable` and `details`. Designated initializers are unaffected; positional aggregate initialization that sets `details` must add the new field.
+- **Iterative JSON copy on schema pass-through branches** ([#2404](https://github.com/lushly-dev/afd/issues/2404)): `CompiledSchema::validate` now copies pass-through subtrees (boolean `true`, untyped `{}`, arrays without `items`, open objects, `additionalProperties: true`, and defaults) iteratively on the heap instead of invoking `nlohmann::json`'s recursive copy constructor, preventing stack overflow on Emscripten's 64 KiB Wasm stack.
+- **Full single-TU unity build symbol collisions** ([#2225](https://github.com/lushly-dev/afd/issues/2225)): deduplicated `max_safe_integer`, `examples_json`, `round2`, and `max_timeout_ms` into `src/detail/json_io.hpp` so all `afd` and `afd_mcp_stdio` sources compile cleanly under `-DCMAKE_UNITY_BUILD=ON -DCMAKE_UNITY_BUILD_BATCH_SIZE=64 -DAFD_WARNINGS_AS_ERRORS=ON`.
 
 ## [0.3.0] - 2026-11-24
 

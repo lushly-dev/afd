@@ -1,9 +1,13 @@
 // Specification-authored execution-controls vectors (spec/vectors/execution-controls.json;
-// spec/execution-controls.md, #1737, #2131).
+// spec/execution-controls.md, #1737, #2131, #1766).
 //
-// Runs the pre-cancelled batch, batch size/parallelism limit, and validation issue cap vectors,
-// and verifies that only the #1766 single-command deadline/cancellation gaps remain in gaps.cpp.
+// Runs every vector case (per-call deadline, server default deadline, pre-cancelled single
+// command, pre-cancelled batch, batch size/parallelism limits, and validation issue cap) and
+// verifies that no C++ gaps remain in `gaps`.
 #include "afd/afd.hpp"
+#if defined(AFD_HAS_MCP_STDIO)
+#include "afd/mcp_stdio.hpp"
+#endif
 
 #include <fstream>
 #include <iterator>
@@ -37,33 +41,300 @@ const afd::Json& find_case(const afd::Json& vectors, std::string_view id) {
 } // namespace
 } // namespace execution_controls_vectors
 
-TEST_CASE("execution-controls vectors pin normative defaults and C++ gaps") {
+TEST_CASE("execution-controls vectors pin normative defaults and have no C++ gaps") {
     const afd::Json vectors = execution_controls_vectors::load("execution-controls.json");
     const afd::Json& defaults = vectors.at("defaults");
     CHECK(defaults.at("defaultTimeoutMs").get<int>() == 30000);
+#if defined(AFD_HAS_MCP_STDIO)
+    CHECK(defaults.at("defaultTimeoutMs").get<double>() == afd::mcp::default_command_timeout_ms);
+#endif
     CHECK(defaults.at("maxBatchSize").get<std::size_t>() == afd::default_max_batch_size);
     CHECK(defaults.at("maxBatchParallelism").get<std::size_t>() ==
           afd::default_max_batch_parallelism);
     CHECK(defaults.at("maxValidationIssues").get<std::size_t>() ==
           afd::default_max_validation_issues);
 
-    const afd::Json& gaps = vectors.at("gaps").at("cpp");
-    CHECK(gaps.size() == 3);
-    CHECK(gaps.at("deadline").get<std::string>() ==
-          "https://github.com/lushly-dev/afd/issues/1766");
-    CHECK(gaps.at("defaultDeadline").get<std::string>() ==
-          "https://github.com/lushly-dev/afd/issues/1766");
-    CHECK(gaps.at("singleCancellation").get<std::string>() ==
-          "https://github.com/lushly-dev/afd/issues/1766");
+    CHECK_FALSE(vectors.at("gaps").contains("cpp"));
 
     for (const auto& entry : vectors.at("cases")) {
         const std::string control = entry.at("control").get<std::string>();
-        const bool executed = (control == "batchCancellation" || control == "batchLimits" ||
-                               control == "validationIssueCap");
-        const bool gapped = gaps.contains(control);
-        CHECK_MESSAGE(executed != gapped,
-                      "control '" << control << "' must be either executed or listed in gaps.cpp");
+        const bool executed = (control == "deadline" || control == "defaultDeadline" ||
+                               control == "singleCancellation" || control == "batchCancellation" ||
+                               control == "batchLimits" || control == "validationIssueCap");
+        CHECK_MESSAGE(executed, "control '" << control << "' must be executed by C++ tests");
     }
+}
+
+TEST_CASE(
+    "execution-controls per-call deadline times out a handler that never polls cancellation") {
+    const afd::Json vectors = execution_controls_vectors::load("execution-controls.json");
+    const afd::Json& entry =
+        execution_controls_vectors::find_case(vectors, "per-call-deadline-timeout");
+    const afd::Json& call = entry.at("call");
+    const afd::Json& expected = entry.at("expect");
+
+    auto clock = std::make_shared<afd::ManualClock>();
+    afd::CommandRegistry registry({.clock = clock});
+    const double delay_ms = call.at("handler").at("delayMs").get<double>();
+    bool signal_aborted = false;
+    REQUIRE_FALSE(
+        registry
+            .register_command({.name = call.at("command").get<std::string>(),
+                               .description = "Slow command that never polls cancellation",
+                               .handler =
+                                   [clock, delay_ms, &signal_aborted](
+                                       const afd::Json&, afd::CommandContext& context) {
+                                       // Advance time past the deadline without checking
+                                       // cancellation to stop work; only observe whether the token
+                                       // is now aborted.
+                                       clock->advance(delay_ms);
+                                       signal_aborted = context.cancellation.is_cancelled();
+                                       return afd::success(afd::Json{{"done", true}});
+                                   }})
+            .has_value());
+
+    afd::CommandContext context;
+    context.timeout_ms = call.at("timeoutMs").get<double>();
+    const afd::CommandResult result =
+        registry.execute(call.at("command").get<std::string>(), afd::Json::object(), context);
+
+    CHECK(result.success == expected.at("success").get<bool>());
+    REQUIRE(result.error.has_value());
+    CHECK(result.error->code == expected.at("code").get<std::string>());
+    CHECK(result.error->retryable.value_or(false) == expected.at("retryable").get<bool>());
+    CHECK(signal_aborted == expected.at("signalAborted").get<bool>());
+    REQUIRE(result.error->details.has_value());
+    CHECK((*result.error->details)["command"] == call.at("command"));
+    CHECK((*result.error->details)["timeoutMs"] == call.at("timeoutMs"));
+}
+
+#if defined(AFD_HAS_MCP_STDIO)
+TEST_CASE("execution-controls server default deadline applies when call omits timeout") {
+    const afd::Json vectors = execution_controls_vectors::load("execution-controls.json");
+    const afd::Json& entry =
+        execution_controls_vectors::find_case(vectors, "server-default-deadline");
+    const afd::Json& call = entry.at("call");
+    const afd::Json& expected = entry.at("expect");
+
+    auto clock = std::make_shared<afd::ManualClock>();
+    afd::CommandRegistry registry({.clock = clock});
+    const double delay_ms = call.at("handler").at("delayMs").get<double>();
+    bool signal_aborted = false;
+    REQUIRE_FALSE(
+        registry
+            .register_command({.name = call.at("command").get<std::string>(),
+                               .description = "Slow command that never polls cancellation",
+                               .handler =
+                                   [clock, delay_ms, &signal_aborted](
+                                       const afd::Json&, afd::CommandContext& context) {
+                                       clock->advance(delay_ms);
+                                       signal_aborted = context.cancellation.is_cancelled();
+                                       return afd::success(afd::Json{{"done", true}});
+                                   },
+                               .expose = {.mcp = true}})
+            .has_value());
+
+    auto server = afd::mcp::StdioServer::create(
+        registry, {.clock = clock,
+                   .default_timeout_ms = entry.at("server").at("defaultTimeoutMs").get<double>()});
+    REQUIRE(server.has_value());
+
+    const afd::Json request = {{"jsonrpc", "2.0"},
+                               {"id", 1},
+                               {"method", "tools/call"},
+                               {"params", {{"name", call.at("command")}}}};
+    const auto reply = (*server)->handle_message(afd::wire::serialize(request));
+    REQUIRE(reply.has_value());
+    const auto parsed = afd::parse_bounded(*reply);
+    REQUIRE(parsed.has_value());
+    const afd::Json& body = parsed->at("result").at("structuredContent");
+    CHECK(body.at("success").get<bool>() == expected.at("success").get<bool>());
+    CHECK(body.at("error").at("code").get<std::string>() == expected.at("code").get<std::string>());
+    CHECK(body.at("error").at("retryable").get<bool>() == expected.at("retryable").get<bool>());
+    CHECK(signal_aborted == expected.at("signalAborted").get<bool>());
+    CHECK(body.at("error").at("details").at("command") == call.at("command"));
+    CHECK(body.at("error").at("details").at("timeoutMs") ==
+          entry.at("server").at("defaultTimeoutMs"));
+    CHECK(body.at("error").at("suggestion").is_string());
+    CHECK_FALSE(body.at("error").at("suggestion").get<std::string>().empty());
+}
+
+TEST_CASE("StdioServer default_timeout_ms preserves JournalContextDigest hashes (#1766)") {
+    auto clock = std::make_shared<afd::ManualClock>(1700000000000);
+    auto sink = std::make_shared<afd::MemoryJournalSink>();
+    afd::CommandRegistry registry(
+        {.middleware = {afd::create_journal_middleware(sink)}, .clock = clock});
+    REQUIRE_FALSE(registry
+                      .register_command({.name = "work-ping",
+                                         .description = "Fast command",
+                                         .handler =
+                                             [](const afd::Json&, afd::CommandContext&) {
+                                                 return afd::success(afd::Json{{"ok", true}});
+                                             },
+                                         .expose = {.mcp = true}})
+                      .has_value());
+
+    const std::string request =
+        R"({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"work-ping"}})";
+    const auto fix_trace = [](afd::CommandContext& ctx, const afd::mcp::RequestInfo&) {
+        ctx.trace_id = "fixed-trace";
+    };
+    auto with_default =
+        afd::mcp::StdioServer::create(registry, {.clock = clock, .context_hook = fix_trace});
+    REQUIRE(with_default.has_value());
+    REQUIRE((*with_default)->handle_message(request).has_value());
+
+    auto without_default = afd::mcp::StdioServer::create(
+        registry, {.clock = clock, .context_hook = fix_trace, .default_timeout_ms = 0.0});
+    REQUIRE(without_default.has_value());
+    REQUIRE((*without_default)->handle_message(request).has_value());
+
+    auto with_explicit = afd::mcp::StdioServer::create(
+        registry, {.clock = clock,
+                   .context_hook = [](afd::CommandContext& ctx, const afd::mcp::RequestInfo&) {
+                       ctx.trace_id = "fixed-trace";
+                       ctx.timeout_ms = 5000.0;
+                   }});
+    REQUIRE(with_explicit.has_value());
+    REQUIRE((*with_explicit)->handle_message(request).has_value());
+
+    const auto read_result = sink->read();
+    REQUIRE(read_result.has_value());
+    const auto& recorded = *read_result;
+    REQUIRE(recorded.size() == 3);
+    // Default server deadline must not add `timeoutMs` to the journal context digest.
+    CHECK(recorded[0].context_digest.hash == recorded[1].context_digest.hash);
+    CHECK(recorded[0].context_digest.surface == recorded[1].context_digest.surface);
+    // An explicit per-call `timeout_ms` still changes the digest.
+    CHECK(recorded[2].context_digest.hash != recorded[0].context_digest.hash);
+}
+#endif
+
+TEST_CASE("execution-controls pre-cancelled single command runs neither middleware nor handler") {
+    const afd::Json vectors = execution_controls_vectors::load("execution-controls.json");
+    const afd::Json& entry =
+        execution_controls_vectors::find_case(vectors, "pre-cancelled-single-command");
+    const afd::Json& call = entry.at("call");
+    const afd::Json& expected = entry.at("expect");
+
+    bool middleware_ran = false;
+    bool handler_ran = false;
+    afd::CommandRegistry registry(
+        {.middleware = {[&middleware_ran](std::string_view, const afd::Json&, afd::CommandContext&,
+                                          const afd::Next& next) {
+             middleware_ran = true;
+             return next();
+         }}});
+    REQUIRE_FALSE(
+        registry
+            .register_command({.name = call.at("command").get<std::string>(),
+                               .description = "Command that must not run when cancelled",
+                               .input_schema = {{"type", "object"},
+                                                {"properties", {{"x", {{"type", "string"}}}}},
+                                                {"required", {"x"}}},
+                               .handler =
+                                   [&handler_ran](const afd::Json&, afd::CommandContext&) {
+                                       handler_ran = true;
+                                       return afd::success(afd::Json{{"ran", true}});
+                                   }})
+            .has_value());
+
+    afd::CancellationSource source;
+    source.cancel();
+    afd::CommandContext context;
+    context.cancellation = source.token();
+
+    // Validation runs before the pre-dispatch cancellation check (#1766).
+    const afd::CommandResult invalid =
+        registry.execute(call.at("command").get<std::string>(), afd::Json::object(), context);
+    CHECK_FALSE(invalid.success);
+    REQUIRE(invalid.error.has_value());
+    CHECK(invalid.error->code == "VALIDATION_ERROR");
+    CHECK_FALSE(middleware_ran);
+    CHECK_FALSE(handler_ran);
+
+    // Valid input with a cancelled token returns COMMAND_CANCELLED before middleware and handler.
+    const afd::CommandResult result =
+        registry.execute(call.at("command").get<std::string>(), afd::Json{{"x", "ok"}}, context);
+    CHECK(result.success == expected.at("success").get<bool>());
+    REQUIRE(result.error.has_value());
+    CHECK(result.error->code == expected.at("code").get<std::string>());
+    CHECK(result.error->retryable.value_or(true) == expected.at("retryable").get<bool>());
+    CHECK_FALSE(middleware_ran);
+    CHECK(handler_ran == expected.at("handlerRan").get<bool>());
+}
+
+TEST_CASE("CommandRegistry skips handler when middleware cancels the call before next()") {
+    afd::CancellationSource source;
+    bool handler_ran = false;
+    afd::CommandRegistry registry(
+        {.middleware = {[&source](std::string_view, const afd::Json&, afd::CommandContext&,
+                                  const afd::Next& next) {
+             source.cancel();
+             return next();
+         }}});
+    REQUIRE_FALSE(
+        registry
+            .register_command({.name = "work-run",
+                               .description = "Cancelled during middleware",
+                               .handler =
+                                   [&handler_ran](const afd::Json&, afd::CommandContext&) {
+                                       handler_ran = true;
+                                       return afd::success(afd::Json{{"ran", true}});
+                                   }})
+            .has_value());
+    afd::CommandContext context;
+    context.cancellation = source.token();
+    const afd::CommandResult result = registry.execute("work-run", afd::Json::object(), context);
+    CHECK_FALSE(result.success);
+    REQUIRE(result.error.has_value());
+    CHECK(result.error->code == "COMMAND_CANCELLED");
+    CHECK_FALSE(handler_ran);
+}
+
+TEST_CASE("CommandRegistry snapshots timeout_ms and turns late exceptions into TIMEOUT (#1766)") {
+    auto clock = std::make_shared<afd::ManualClock>();
+    afd::CommandRegistry registry({.clock = clock});
+    REQUIRE_FALSE(registry
+                      .register_command({.name = "work-clear-timeout",
+                                         .description = "Clears context.timeout_ms then times out",
+                                         .handler =
+                                             [clock](const afd::Json&, afd::CommandContext& ctx) {
+                                                 ctx.timeout_ms.reset();
+                                                 clock->advance(50);
+                                                 return afd::success(afd::Json{{"ok", true}});
+                                             }})
+                      .has_value());
+    afd::CommandContext context;
+    context.timeout_ms = 20;
+    const afd::CommandResult cleared =
+        registry.execute("work-clear-timeout", afd::Json::object(), context);
+    CHECK_FALSE(cleared.success);
+    REQUIRE(cleared.error.has_value());
+    CHECK(cleared.error->code == "TIMEOUT");
+    REQUIRE(cleared.error->details.has_value());
+    CHECK((*cleared.error->details)["timeoutMs"] == 20);
+
+#if defined(__cpp_exceptions) || defined(_CPPUNWIND)
+    REQUIRE_FALSE(registry
+                      .register_command({.name = "work-late-throw",
+                                         .description = "Throws after deadline expires",
+                                         .handler =
+                                             [clock](const afd::Json&, afd::CommandContext&) {
+                                                 clock->advance(50);
+                                                 throw std::runtime_error("late failure");
+                                                 return afd::success(afd::Json{});
+                                             }})
+                      .has_value());
+    const afd::CommandResult thrown =
+        registry.execute("work-late-throw", afd::Json::object(), context);
+    CHECK_FALSE(thrown.success);
+    REQUIRE(thrown.error.has_value());
+    CHECK(thrown.error->code == "TIMEOUT");
+    CHECK(thrown.error->retryable == true);
+    REQUIRE(thrown.error->details.has_value());
+    CHECK((*thrown.error->details)["timeoutMs"] == 20);
+#endif
 }
 
 TEST_CASE("execution-controls pre-cancelled batch starts no command") {

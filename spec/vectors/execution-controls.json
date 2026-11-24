@@ -6,13 +6,7 @@
 		"maxBatchParallelism": 16,
 		"maxValidationIssues": 100
 	},
-	"gaps": {
-		"cpp": {
-			"deadline": "https://github.com/lushly-dev/afd/issues/1766",
-			"defaultDeadline": "https://github.com/lushly-dev/afd/issues/1766",
-			"singleCancellation": "https://github.com/lushly-dev/afd/issues/1766"
-		}
-	},
+	"gaps": {},
 	"cases": [
 		{
 			"id": "per-call-deadline-timeout",

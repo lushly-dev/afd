@@ -5,6 +5,8 @@
 #include <utility>
 #include <vector>
 
+#include "detail/json_io.hpp"
+
 namespace afd {
 
 namespace {
@@ -124,8 +126,7 @@ Json number(double value) {
     if (!std::isfinite(value)) {
         return nullptr;
     }
-    constexpr double max_safe_integer = 9007199254740991.0; // 2^53 - 1
-    if (std::trunc(value) == value && std::fabs(value) <= max_safe_integer) {
+    if (std::trunc(value) == value && std::fabs(value) <= detail::max_safe_integer_double) {
         return static_cast<std::int64_t>(value); // -0.0 becomes 0, as in JavaScript
     }
     return value;

@@ -7,6 +7,7 @@
 #include "afd/command.hpp"
 #include "afd/errors.hpp"
 #include "afd/json.hpp"
+#include "afd/mcp_stdio.hpp"
 #include "afd/result.hpp"
 
 #include <functional>
@@ -54,5 +55,10 @@ CommandResult discover(const std::vector<const CommandDefinition*>& commands, co
 /// `args`. `not_found` gives the suggestion for a name that is not among them.
 CommandResult detail(const std::vector<const Listed*>& commands, const Json& args,
                      const std::function<std::string(std::string_view)>& not_found);
+
+/// The first-class set checked against the strategy and the registry (spec/tool-strategies.md,
+/// H1, H2 and H5). Every message names the offending entry or option.
+std::optional<std::string> first_class_fault(const CommandRegistry& registry,
+                                             const StdioServerOptions& options);
 
 } // namespace afd::mcp::surface

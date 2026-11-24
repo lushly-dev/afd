@@ -259,13 +259,40 @@ export function plannedTools(plan) {
 const SHELL_META = /[&|;<>"'`$%^*?[\]{}()!\r\n]/;
 
 /**
- * How a verify step is launched. On Windows, a leading `bash <script> [args...]` step resolves a
- * non-WSL `bash.exe` (such as Git Bash) so `cmd.exe` does not invoke `System32\bash.exe` (the WSL
- * relay) when it precedes Git Bash on PATH (#2171). Simple `bash <args...>` invocations launch
- * `bash.exe` directly via `execFileSync` (avoiding `cmd.exe` metacharacter parsing on the resolved
- * path); compound shell lines quote the resolved executable for `cmd.exe`.
+ * How a verify step is launched.
+ *
+ * - On Windows, `cargo fmt --all ...` passes every workspace file to `rustfmt` on one command line
+ *   and hits the OS command-line limit (os error 206) in large workspaces such as Umbel (#1636).
+ *   Expand it into one `cargo fmt -p <crate> ...` call per workspace member from `cargo metadata`.
+ * - On Windows, a leading `bash <script> [args...]` step resolves a non-WSL `bash.exe` (such as
+ *   Git Bash) so `cmd.exe` does not invoke `System32\bash.exe` (the WSL relay) when it precedes
+ *   Git Bash on PATH (#2171). Simple `bash <args...>` invocations launch `bash.exe` directly via
+ *   `execFileSync` (avoiding `cmd.exe` metacharacter parsing on the resolved path); compound shell
+ *   lines quote the resolved executable for `cmd.exe`.
  */
-export function stepExecution(run, { platform = process.platform, bash = bashCommand } = {}) {
+export function stepExecution(
+	run,
+	{
+		platform = process.platform,
+		bash = bashCommand,
+		cwd = root,
+		workspaceCrates = cargoWorkspaceCrates,
+	} = {}
+) {
+	if (platform === 'win32' && /^cargo\s+fmt\b/.test(run) && /\s--all(?:\s|$)/.test(run)) {
+		const rest = run.replace(/^cargo\s+fmt\b/, '').trim();
+		if (!SHELL_META.test(rest)) {
+			const args = rest.split(/\s+/).filter((arg) => arg !== '--all');
+			const crates = workspaceCrates(cwd);
+			if (crates.length === 0) {
+				throw new Error(`cargo metadata in ${cwd} reported no workspace crates`);
+			}
+			return {
+				kind: 'execFiles',
+				commands: crates.map((crate) => ({ file: 'cargo', args: ['fmt', '-p', crate, ...args] })),
+			};
+		}
+	}
 	if (platform !== 'win32' || !/^bash(?:\s|$)/.test(run)) return { kind: 'shell', command: run };
 	const file = bash();
 	const rest = run.replace(/^bash\b/, '').trim();
@@ -275,6 +302,17 @@ export function stepExecution(run, { platform = process.platform, bash = bashCom
 	if (/["%\r\n]/.test(file))
 		throw new Error(`Refusing to pass ${JSON.stringify(file)} through cmd.exe`);
 	return { kind: 'shell', command: run.replace(/^bash\b/, () => `"${file}"`) };
+}
+
+/** Workspace member package names in `cwd`, from `cargo metadata --no-deps --format-version 1`. */
+export function cargoWorkspaceCrates(cwd) {
+	const output = execFileSync('cargo', ['metadata', '--no-deps', '--format-version', '1'], {
+		cwd,
+		encoding: 'utf8',
+		maxBuffer: 16 * 1024 * 1024,
+	});
+	const metadata = JSON.parse(output);
+	return (metadata.packages ?? []).map((pkg) => pkg.name).sort();
 }
 
 function missingTools(plan) {
@@ -364,10 +402,13 @@ function verify(scope, options) {
 		for (const { suite, step } of plan)
 			record(`${suite.workflow}: ${step.run}`, () => {
 				console.error(`\n[verify] ${suite.workflow}: ${step.run}`);
-				const exec = stepExecution(step.run);
 				const cwd = join(root, step.cwd ?? '.');
+				const exec = stepExecution(step.run, { cwd });
 				if (exec.kind === 'execFile') execFileSync(exec.file, exec.args, { cwd, stdio: 'inherit' });
-				else execSync(exec.command, { cwd, stdio: 'inherit' });
+				else if (exec.kind === 'execFiles') {
+					for (const cmd of exec.commands)
+						execFileSync(cmd.file, cmd.args, { cwd, stdio: 'inherit' });
+				} else execSync(exec.command, { cwd, stdio: 'inherit' });
 			});
 	} finally {
 		console.error('\n[verify] summary');

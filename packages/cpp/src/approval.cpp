@@ -18,6 +18,7 @@
 #include "detail/approval_relay.hpp"
 #include "detail/direct_approval.hpp"
 #include "detail/hmac.hpp"
+#include "detail/json_io.hpp"
 #include "detail/utf8.hpp"
 
 namespace afd {
@@ -30,7 +31,6 @@ constexpr std::int64_t max_ttl_ms = std::int64_t{24} * 60 * 60 * 1000;
 /// Longer evidence is rejected unread, so a caller cannot make the server hash megabytes.
 constexpr std::size_t max_token_length = 1024;
 constexpr std::size_t max_canonical_depth = 256;
-constexpr std::int64_t max_safe_integer = 9007199254740991; // 2^53 - 1
 
 // --- canonical JSON ---------------------------------------------------------------------------
 
@@ -240,14 +240,15 @@ std::optional<std::string> encode(const Json& value, std::string& out, std::size
         return std::nullopt;
     case Json::value_t::number_integer: {
         const auto number = value.get<std::int64_t>();
-        return encode_integer(std::to_string(number), static_cast<double>(number),
-                              number <= max_safe_integer && number >= -max_safe_integer, unsafe,
-                              out);
+        return encode_integer(
+            std::to_string(number), static_cast<double>(number),
+            number <= detail::max_safe_integer && number >= -detail::max_safe_integer, unsafe, out);
     }
     case Json::value_t::number_unsigned: {
         const auto number = value.get<std::uint64_t>();
         return encode_integer(std::to_string(number), static_cast<double>(number),
-                              number <= static_cast<std::uint64_t>(max_safe_integer), unsafe, out);
+                              number <= static_cast<std::uint64_t>(detail::max_safe_integer),
+                              unsafe, out);
     }
     case Json::value_t::number_float: {
         const auto number = value.get<double>();
@@ -255,7 +256,7 @@ std::optional<std::string> encode(const Json& value, std::string& out, std::size
             return std::string("a non-finite number has no JSON form");
         }
         if (std::trunc(number) == number &&
-            std::fabs(number) <= static_cast<double>(max_safe_integer)) {
+            std::fabs(number) <= static_cast<double>(detail::max_safe_integer)) {
             out += std::to_string(static_cast<std::int64_t>(number)); // -0 is "0", as in JavaScript
         } else {
             out += format_double(number);
@@ -1172,14 +1173,14 @@ std::uint64_t canonical_json_byte_length_as_read(const Json& value) {
             return node.get<bool>() ? 4 : 5;
         case Json::value_t::number_integer: {
             const auto number = node.get<std::int64_t>();
-            if (number <= max_safe_integer && number >= -max_safe_integer) {
+            if (number <= detail::max_safe_integer && number >= -detail::max_safe_integer) {
                 return static_cast<std::uint64_t>(std::to_string(number).size());
             }
             return static_cast<std::uint64_t>(format_double(static_cast<double>(number)).size());
         }
         case Json::value_t::number_unsigned: {
             const auto number = node.get<std::uint64_t>();
-            if (number <= static_cast<std::uint64_t>(max_safe_integer)) {
+            if (number <= static_cast<std::uint64_t>(detail::max_safe_integer)) {
                 return static_cast<std::uint64_t>(std::to_string(number).size());
             }
             return static_cast<std::uint64_t>(format_double(static_cast<double>(number)).size());
@@ -1190,7 +1191,7 @@ std::uint64_t canonical_json_byte_length_as_read(const Json& value) {
                 return 4; // JSON.stringify writes null for non-finite numbers
             }
             if (std::trunc(number) == number &&
-                std::fabs(number) <= static_cast<double>(max_safe_integer)) {
+                std::fabs(number) <= static_cast<double>(detail::max_safe_integer)) {
                 return static_cast<std::uint64_t>(
                     std::to_string(static_cast<std::int64_t>(number)).size());
             }

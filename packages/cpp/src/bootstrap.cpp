@@ -18,6 +18,7 @@
 #include <utility>
 #include <vector>
 
+#include "detail/json_io.hpp"
 #include "detail/output_budget.hpp"
 
 namespace afd {
@@ -79,14 +80,6 @@ std::string string_or_empty(const Json& object, std::string_view key) {
     return found != object.end() && found->is_string() ? found->get<std::string>() : std::string();
 }
 
-Json examples_json(const std::vector<CommandExample>& examples) {
-    Json out = Json::array();
-    for (const auto& example : examples) {
-        out.push_back(Json{{"title", example.title}, {"input", example.input}});
-    }
-    return out;
-}
-
 CommandResult described(Json data, std::string reasoning) {
     return success(std::move(data), {.confidence = 1.0, .reasoning = std::move(reasoning)});
 }
@@ -116,7 +109,7 @@ Json help_entry(const CommandDefinition& command, bool full) {
             info["undoable"] = true;
         }
         if (!command.examples.empty()) {
-            info["examples"] = examples_json(command.examples);
+            info["examples"] = detail::examples_json(command.examples);
         }
         if (command.output_budget && !detail::omits_output_budget_surface(command.name)) {
             info["outputBudget"] = *command.output_budget;

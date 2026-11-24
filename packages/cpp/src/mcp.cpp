@@ -6,18 +6,11 @@
 #include <string_view>
 #include <utility>
 
+#include "detail/json_io.hpp"
 #include "detail/output_budget.hpp"
 
 namespace afd {
 namespace {
-
-Json examples_json(const std::vector<CommandExample>& examples) {
-    Json out = Json::array();
-    for (const auto& example : examples) {
-        out.push_back(Json{{"title", example.title}, {"input", example.input}});
-    }
-    return out;
-}
 
 // Whether `schema` starts a schema resource: a string `$id` that is not a bare fragment, the
 // validators' test (spec/validation.md), so its local references resolve against it.
@@ -114,7 +107,7 @@ std::optional<Json> command_tool_meta(const CommandDefinition& command) {
         meta["approval"] = std::string(approval_mode_name(*mode));
     }
     if (!command.examples.empty()) {
-        meta["examples"] = examples_json(command.examples);
+        meta["examples"] = detail::examples_json(command.examples);
     }
     if (command.output_schema) {
         meta["outputSchema"] = *command.output_schema;
@@ -252,7 +245,7 @@ Json to_json(const CommandDefinition& command) {
         out["contexts"] = command.contexts;
     }
     if (!command.examples.empty()) {
-        out["examples"] = examples_json(command.examples);
+        out["examples"] = detail::examples_json(command.examples);
     }
     if (command.output_budget && !detail::omits_output_budget_surface(command.name)) {
         out["outputBudget"] = *command.output_budget;

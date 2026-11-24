@@ -17,10 +17,6 @@ constexpr char invalid_batch_suggestion[] =
     "Provide at least one command with a nonempty command name and optional string ID, and valid "
     "boolean stopOnError, nonnegative timeout, and positive integer parallelism options";
 
-double round2(double ms) {
-    return std::round(ms * 100) / 100;
-}
-
 std::shared_ptr<const Clock> clock_of(const ExecutorOptions& options) {
     return options.clock ? options.clock : std::make_shared<SystemClock>();
 }
@@ -395,7 +391,8 @@ BatchResult execute_batch(const BatchRequest& request, const CommandExecutor& ex
             const bool failed = !result.success;
             BatchCommandResult entry{command.id.value_or("cmd-" + std::to_string(index)),
                                      static_cast<std::int64_t>(index), command.command,
-                                     std::move(result), round2(clock->steady_ms() - command_start)};
+                                     std::move(result),
+                                     detail::round2(clock->steady_ms() - command_start)};
             {
                 const std::lock_guard lock(results_mutex);
                 results[index] = std::move(entry);
@@ -433,8 +430,8 @@ BatchResult execute_batch(const BatchRequest& request, const CommandExecutor& ex
     metadata.trace_id = batch_trace;
     const auto count = static_cast<double>(completed.size());
     return create_batch_result(std::move(completed),
-                               {.total_ms = round2(total_ms),
-                                .average_ms = round2(total_ms / count),
+                               {.total_ms = detail::round2(total_ms),
+                                .average_ms = detail::round2(total_ms / count),
                                 .started_at = started_at,
                                 .completed_at = wire::iso8601_utc(clock->wall_ms())},
                                std::move(metadata));

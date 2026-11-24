@@ -54,8 +54,7 @@ bool read_value(const Json& value, const std::string& path, std::int64_t& out, s
     }
     // Another implementation may write an integral count as a float, such as 2.0.
     if (const auto* real = value.get_ptr<const Json::number_float_t*>()) {
-        constexpr double max_safe_integer = 9007199254740991.0;
-        if (std::trunc(*real) == *real && std::fabs(*real) <= max_safe_integer) {
+        if (std::trunc(*real) == *real && std::fabs(*real) <= max_safe_integer_double) {
             out = static_cast<std::int64_t>(*real);
             return true;
         }

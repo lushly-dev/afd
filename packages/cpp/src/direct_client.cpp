@@ -14,9 +14,6 @@
 namespace afd {
 namespace {
 
-// Node timers fire at once for delays above 2^31 - 1 ms, so TypeScript caps timeouts there.
-constexpr double max_timeout_ms = 2147483647.0;
-
 // "trace-<ms>-<7 base-36 characters>", as TypeScript's generateTraceId.
 std::string generate_trace_id(const Clock& clock, RandomSource& random) {
     constexpr char digits[] = "0123456789abcdefghijklmnopqrstuvwxyz";
@@ -152,15 +149,21 @@ CommandResult DirectClient::call(std::string_view name, const Json& args,
     // 4. Timeout: a deadline on the cancellation token, and a TIMEOUT result for a late finish.
     // The deadline token keeps the caller's token as its parent, so cancelling the caller (or a
     // pipeline's deadline) still reaches the handler, as with TypeScript's `AbortSignal.any`.
+    // Snapshot the requested duration before dispatch and mark `deadline_armed` so the registry
+    // does not stack a second later deadline on top.
+    const std::optional<double> requested_timeout = context.timeout_ms;
     const std::optional<double> timeout =
-        context.timeout_ms && std::isfinite(*context.timeout_ms) && *context.timeout_ms > 0
-            ? std::optional<double>((std::min)(std::ceil(*context.timeout_ms), max_timeout_ms))
+        requested_timeout && std::isfinite(*requested_timeout) && *requested_timeout > 0
+            ? std::optional<double>(
+                  (std::min)(std::ceil(*requested_timeout), detail::max_timeout_ms))
             : std::nullopt;
+    const double reported_timeout_ms = timeout ? *requested_timeout : 0.0;
     std::optional<CancellationSource> deadline;
     if (timeout) {
         deadline.emplace(context.cancellation, options_.clock->steady_ms() + *timeout,
                          options_.clock);
         context.cancellation = deadline->token();
+        context.deadline_armed = true;
     }
 
     // 5. Client middleware around the registry.
@@ -180,8 +183,14 @@ CommandResult DirectClient::call(std::string_view name, const Json& args,
     try {
         result = chain.front()();
     } catch (const std::exception& error) {
+        if (deadline && deadline->token().deadline_passed()) {
+            return detail::command_timed_out(command_name, reported_timeout_ms);
+        }
         return execution_failure(error.what());
     } catch (...) {
+        if (deadline && deadline->token().deadline_passed()) {
+            return detail::command_timed_out(command_name, reported_timeout_ms);
+        }
         return execution_failure("unknown exception");
     }
 #else
@@ -233,16 +242,7 @@ CommandResult DirectClient::call(std::string_view name, const Json& args,
 
     // Only this call's own deadline is a TIMEOUT; a cancelled caller gets the handler's result.
     if (deadline && deadline->token().deadline_passed()) {
-        return failure(create_error(
-            error_codes::TIMEOUT,
-            "Command '" + truncate_name(name) + "' timed out after " +
-                detail::format_number(*context.timeout_ms) + "ms",
-            {.suggestion =
-                 "Retry with a larger timeout. The command was signalled to abort but may have "
-                 "completed, so check its effect before retrying a mutation.",
-             .retryable = true,
-             .details = Json{{"command", command_name},
-                             {"timeoutMs", wire::number(*context.timeout_ms)}}}));
+        return detail::command_timed_out(command_name, reported_timeout_ms);
     }
     return result;
 }

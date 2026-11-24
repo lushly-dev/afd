@@ -10,6 +10,7 @@
 #include "detail/approval_admission.hpp"
 #include "detail/context_fields.hpp"
 #include "detail/exceptions.hpp"
+#include "detail/json_io.hpp"
 #include "detail/meta_keys.hpp"
 #include "detail/output_budget.hpp"
 
@@ -17,6 +18,14 @@ namespace afd {
 namespace {
 
 constexpr std::size_t max_not_found_matches = 3;
+
+CommandResult cancelled_before_start(std::string_view name) {
+    return failure(
+        create_error(error_codes::COMMAND_CANCELLED,
+                     "Command '" + truncate_name(name) + "' was cancelled before it started",
+                     {.suggestion = "Retry with a fresh signal if the command is still needed.",
+                      .retryable = false}));
+}
 
 std::string interface_name(Interface surface) {
     switch (surface) {
@@ -534,21 +543,60 @@ CommandResult CommandRegistry::execute_impl(std::string_view name, const Json& i
     // run_chain keeps it, so a dispatch takes only this record's admission.
     context.approval_admission = admission;
 
+    // 4.5. Pre-dispatch cancellation check (after validation, before middleware; #1766).
+    if (context.cancellation.is_cancelled()) {
+        return cancelled_before_start(definition.name);
+    }
+
+    // Per-call deadline: attach a child cancellation token that keeps the caller's token as its
+    // parent, and replace a late finish (including a late exception) with TIMEOUT
+    // (spec/execution-controls.md, #1766). Snapshot the duration before dispatch so middleware or
+    // handler mutations of `context.timeout_ms` cannot invalidate or skew the TIMEOUT result.
+    // Skip arming a second deadline when `DirectClient` or `afd::mcp_stdio` already armed one.
+    const std::optional<double> requested_timeout =
+        context.deadline_armed
+            ? std::nullopt
+            : (context.timeout_ms.has_value() ? context.timeout_ms : context.default_timeout_ms);
+    const std::optional<double> timeout =
+        requested_timeout && std::isfinite(*requested_timeout) && *requested_timeout > 0
+            ? std::optional<double>(
+                  (std::min)(std::ceil(*requested_timeout), detail::max_timeout_ms))
+            : std::nullopt;
+    const double reported_timeout_ms = timeout ? *requested_timeout : 0.0;
+    std::optional<CancellationSource> deadline;
+    if (timeout) {
+        const std::shared_ptr<const Clock> deadline_clock =
+            context.clock ? context.clock : options_.clock;
+        deadline.emplace(context.cancellation, deadline_clock->steady_ms() + *timeout,
+                         deadline_clock);
+        context.cancellation = deadline->token();
+    }
+
     // 5-6. Middleware and handler.
     CommandResult result;
+    bool threw = false;
 #if AFD_HAS_EXCEPTIONS
     try {
         result = run_chain(*command, *validated, context, *admission, check_output_budget);
     } catch (const std::exception& error) {
+        threw = true;
         report_error(error.what());
-        return execution_failure(error.what(), options_.dev_mode);
+        result = execution_failure(error.what(), options_.dev_mode);
     } catch (...) {
+        threw = true;
         report_error("unknown exception");
-        return execution_failure("unknown exception", options_.dev_mode);
+        result = execution_failure("unknown exception", options_.dev_mode);
     }
 #else
     result = run_chain(*command, *validated, context, *admission, check_output_budget);
 #endif
+
+    // Only this call's own deadline is a TIMEOUT; a cancelled caller keeps the handler's result.
+    if (deadline && deadline->token().deadline_passed()) {
+        result = detail::command_timed_out(definition.name, reported_timeout_ms);
+    } else if (threw) {
+        return result;
+    }
 
     // 7. on_command, which never changes the result.
     if (options_.on_command) {
@@ -595,6 +643,11 @@ CommandResult CommandRegistry::run_chain(const RegisteredCommand& command, const
             if (check != detail::AdmissionCheck::admitted) {
                 return approval_unavailable(definition.name, check);
             }
+        }
+        // Check cancellation again immediately before the handler starts (e.g. after a middleware
+        // or approval wait), so a cancelled or already-timed-out call never runs its handler.
+        if (context.cancellation.is_cancelled()) {
+            return cancelled_before_start(definition.name);
         }
         // Restore the B3 effective budget before each attempt and on exit so a handler cannot
         // poison retries or outer middleware.
