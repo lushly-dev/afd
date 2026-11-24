@@ -44,6 +44,7 @@ export default defineConfig({
 			include: [
 				'src/browser/clock.ts',
 				'src/browser/clock-parse.ts',
+				'src/browser/instrumentation.ts',
 				'src/climb.ts',
 				'src/compare.ts',
 				'src/compare-page.ts',

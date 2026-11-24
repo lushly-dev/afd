@@ -318,6 +318,136 @@ describe('native specimen feasibility in Chromium', () => {
 		}
 	});
 
+	it('settles primary, inert-document, and iframe-created shadow roots without throwing under motion: settled (#2384)', async () => {
+		const project = await realpath(await mkdtemp(join(tmpdir(), 'specimen-multidoc-motion-')));
+		const outDir = join(project, 'built');
+		let multiDocBench: Awaited<ReturnType<typeof createSpecimenBench>> | undefined;
+		let browser: Browser | undefined;
+		let server: Awaited<ReturnType<typeof serveStatic>> | undefined;
+		try {
+			await writeFile(
+				join(project, 'multidoc.js'),
+				`
+const animationCss = '@keyframes specimen-shadow-motion { from { transform: translateX(0); } to { transform: translateX(80px); } } .animated { animation: specimen-shadow-motion 2s linear infinite; width: 40px; height: 20px; background: red; }';
+let inertDocument;
+export const MultiDocMotion = {
+ render() {
+  const container = document.createElement('div');
+  // 1. Inert secondary document (like FAST's inertDocument / scoped-registry helper):
+  // attach a shadow root that stays inert AND one that is adopted into the live document.
+  inertDocument ??= document.implementation.createHTMLDocument('');
+  const inertOnly = inertDocument.createElement('div');
+  inertOnly.attachShadow({ mode: 'open' }).innerHTML = '<p>Inert template</p>';
+
+  const adoptedHost = inertDocument.createElement('div');
+  adoptedHost.dataset.role = 'adopted';
+  const adoptedRoot = adoptedHost.attachShadow({ mode: 'open' });
+  adoptedRoot.innerHTML = '<style>' + animationCss + '</style><div class="animated">Adopted</div>';
+
+  // 2. Same-origin iframe realm: attachShadow runs on the iframe's own Element.prototype,
+  // then the host is adopted into the primary document.
+  const iframe = document.createElement('iframe');
+  document.body.append(iframe);
+  const iframeDoc = iframe.contentDocument;
+  const iframeHost = iframeDoc.createElement('div');
+  iframeHost.dataset.role = 'iframe-adopted';
+  const iframeRoot = iframeHost.attachShadow({ mode: 'open' });
+  iframeRoot.innerHTML = '<style>' + animationCss + '</style><div class="animated">IframeAdopted</div>';
+  iframe.remove();
+
+  // 3. Primary-document shadow root with an animation.
+  const primaryHost = document.createElement('div');
+  primaryHost.dataset.role = 'primary';
+  const primaryRoot = primaryHost.attachShadow({ mode: 'open' });
+  primaryRoot.innerHTML = '<style>' + animationCss + '</style><div class="animated">Primary</div>';
+
+  container.append(adoptedHost, iframeHost, primaryHost);
+  window.__multiDocRoots = [adoptedRoot, iframeRoot, primaryRoot];
+  window.__multiDocContainer = container;
+  return container;
+ }
+};`
+			);
+			await writeFile(
+				join(project, 'specimen.config.json'),
+				JSON.stringify({
+					specimens: [
+						{
+							id: 'multi-doc-motion',
+							title: 'Feasibility/MultiDocMotion',
+							module: './multidoc.js',
+							exportName: 'MultiDocMotion',
+						},
+					],
+				})
+			);
+			multiDocBench = await createSpecimenBench({ root: project });
+			const natural = await multiDocBench.render({
+				id: 'multi-doc-motion',
+				context: { motion: 'natural' },
+			});
+			expect(natural.channels.console.errors).toEqual([]);
+			expect(natural.completeness.layout.status).toBe('partial');
+			expect(natural.completeness.styles.status).toBe('partial');
+
+			const settled = await multiDocBench.render({
+				id: 'multi-doc-motion',
+				context: { motion: 'settled' },
+			});
+			const repeated = await multiDocBench.render({
+				id: 'multi-doc-motion',
+				context: { motion: 'settled' },
+			});
+			expect(settled.channels.console.errors).toEqual([]);
+			expect(settled.completeness.layout.status).toBe('complete');
+			expect(settled.completeness.styles.status).toBe('complete');
+			expect(settled.channels.dom.raw).toContain('>Adopted<');
+			expect(settled.channels.dom.raw).toContain('>IframeAdopted<');
+			expect(settled.channels.dom.raw).toContain('>Primary<');
+			expect(settled.channels.dom.raw).not.toContain('data-specimen-motion');
+			expect(diffObservations(settled, repeated).status).toBe('no-change-observed');
+
+			// Verify in-page settled -> natural restoration on the exact same shadow roots in Chromium.
+			await multiDocBench.build(outDir);
+			server = await serveStatic(outDir);
+			browser = await chromium.launch({ headless: true });
+			const page = await browser.newPage();
+			await page.goto(`${server.url}/specimen.html?id=multi-doc-motion&motion=settled`);
+			await page.frameLocator('iframe').locator('html[data-specimen-preview="ready"]').waitFor();
+			const frame = page.frames().find((candidate) => candidate.parentFrame());
+			if (!frame) throw new Error('No built specimen iframe for multi-doc-motion');
+			const transition = await frame.evaluate(async () => {
+				const win = window as unknown as {
+					__multiDocRoots: ShadowRoot[];
+					__multiDocContainer: HTMLElement;
+					__specimen: { dispose(): Promise<void> };
+				};
+				const durations = () =>
+					win.__multiDocRoots.map((root) => {
+						const el = root.querySelector('.animated');
+						return el ? getComputedStyle(el).animationDuration : null;
+					});
+				const settledDurations = durations();
+				const settledCounts = win.__multiDocRoots.map((root) => root.adoptedStyleSheets.length);
+				await win.__specimen.dispose();
+				// Re-attach the same container after dispose() restored natural mode to check its roots.
+				document.body.append(win.__multiDocContainer);
+				const restoredDurations = durations();
+				const restoredCounts = win.__multiDocRoots.map((root) => root.adoptedStyleSheets.length);
+				return { settledDurations, settledCounts, restoredDurations, restoredCounts };
+			});
+			expect(transition.settledDurations).toEqual(['0s', '0s', '0s']);
+			expect(transition.settledCounts).toEqual([1, 1, 1]);
+			expect(transition.restoredDurations).toEqual(['2s', '2s', '2s']);
+			expect(transition.restoredCounts).toEqual([0, 0, 0]);
+		} finally {
+			await browser?.close();
+			await server?.close();
+			await multiDocBench?.close();
+			await rm(project, { recursive: true, force: true });
+		}
+	});
+
 	it('marks a native declarative closed shadow root inaccessible', async () => {
 		const capture = await bench.render({ id: 'declarative-closed' });
 		expect(capture.completeness.dom.status).toBe('partial');
