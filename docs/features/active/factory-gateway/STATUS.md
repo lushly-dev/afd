@@ -80,7 +80,8 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   prompt straight to the service user, never through chat.
 - **The service on `random` (G0):** installed 2026-11-19 as the launch daemon
   `dev.lushly.factory-gateway`, running as the hidden account `_factorygw` (no login). The app
-  and its Python live root-owned in `/Library/FactoryGateway/app`; state in `data` (service
+  and its Python live root-owned in `/Library/FactoryGateway/app` (a link to a release in
+  `releases` once the install of 2026-11-24, below, runs there); state in `data` (service
   only), the configuration and key in `etc` (the key mode 0600, the service's), the log in `log`.
   It listens on `random`'s tailnet address, port 8787. The owner's token is in
   `~/.config/factory-gateway/owner.token` on `random`. Its configuration squashes in both
@@ -429,6 +430,52 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   - Lushly's own check;
   - proof that `.claude/settings.json` denies `gh` writes. G1's entry asks only that the file
     name `gh` and `git push`, which a read permission satisfies.
+- 2026-11-24: `install.sh` builds beside the running gateway and switches (the follow-up of
+  2026-11-21).
+  - Each update builds a release of its own in `/Library/FactoryGateway/releases` while the old
+    code serves.
+  - The new code checks the configuration it will read (the installed one when none is staged)
+    and a key passed to it. A staged launch daemon must parse and name its address and port.
+    The owner's token is issued if there is none.
+  - Only then does the daemon stop, `app` (now a link) switch and the daemon start. A failed
+    build or check removes the new release and leaves the gateway running. A lock keeps to one
+    run at a time, and a signal ends the run through the same cleanup.
+  - The switch counts once the daemon's address answers HTTP. The script waits up to 15 minutes
+    while launchd shows it running, since a first start fetches the mirrors before it listens,
+    and fails after 10 seconds of launchd showing it not running.
+  - The script keeps the new release, `app.last-good` (the last that answered, which a failed
+    run never replaces) and the release `app` left. On a failure it prints a way back that
+    starts the daemon whether or not launchd still holds it.
+  - `gateway.json.prev` and the launch daemon's `.prev` keep the last good release's copies.
+  - The first update moves the old `app` aside and removes it once the new release answers.
+  - `reconfigure.sh` no longer ends at its state line when launchd prints none or the pipe
+    closes early.
+
+  An independent review (Opus 5.5) found three blockers, all fixed: a 30-second start window
+  too short for a first start; a way back that only `kickstart`ed, which cannot start a daemon
+  launchd no longer holds; and pruning that could delete a release the owner had gone back to.
+  A second review (Opus 5.5) found no blocker and confirmed the eight earlier items fixed. Its
+  improvements were taken: links read as the directories they name, so a link written by hand
+  with a trailing slash still keeps its release; the wait counted in seconds, not passes; a
+  daemon launchd restarts under a new process counted as a failed start; the plist's `Label`
+  and account checked; and clearer messages and runbook text.
+  Proved as a normal user against a scratch root, with stubs for `sudo`, `dscl`, ownership and a
+  `launchctl` that refuses `kickstart` on an unloaded label and `bootstrap` on a loaded one. The
+  real `uv` and the real gateway served `127.0.0.1`:
+  - a first install with a generated key, and an update of a layout the old script installed;
+  - a daemon that listens only after 45 seconds, waited on;
+  - seven failures before the stop (a refused configuration, key, plist, a plist without an
+    address, a failed build, a revision that is not a commit, a held lock), each leaving the
+    same process answering with no call to `launchctl`;
+  - a `SIGHUP` during the build (exit 129, release removed, lock freed);
+  - a daemon that never starts, twice, and a `bootstrap` that fails: each printed way back
+    brought the last good release up, and `gateway.json.prev` kept the good configuration;
+  - a by-hand switch back, after which an update kept the release it ran;
+  - launchd holding the daemon after `bootout`: the run ended with the start command;
+  - after the second review: a by-hand switch back through links with a trailing slash and a
+    relative path, a plist under another `Label` (refused before the stop), and a daemon that
+    lives 25 seconds and is restarted (failed in 30 seconds, not 15 minutes).
+  Not yet run as root on `random`: it runs at the next update there, from `main`.
 - 2026-11-14: filed [lushly#2392](https://github.com/lushly-dev/lushly/issues/2392), Lushly's side
   of G1 (claim script, lane steps, flake filer, process files and checks), as G1 started.
 
@@ -457,4 +504,4 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 | 2026-11-14 | Proposal session | ~~A Lushly issue tracking Lushly's side of G1 (claim script, lane steps, flake filer, process files and checks), filed when G1 starts~~. Superseded: filed as [lushly#2392](https://github.com/lushly-dev/lushly/issues/2392) on 2026-11-14 |
 | 2026-11-14 | Proposal session | botcore's host changes ([What botcore needs](factory-gateway.proposal.md#what-botcore-needs)) overlap the factory's Phase 1 host changes; whichever starts first does them once for both. Superseded: taken 2026-11-14 by the gateway's G1 session on `random`: the gateway's host changes are done once, for both |
 | 2026-11-18 | Commit-credit session | `lushly-dev/afd` now allows squash merges only, at the owner's direction: a merge commit or rebase merge carried branch commits, co-author lines included, onto `main` unchanged ([#1523](https://github.com/lushly-dev/afd/pull/1523)). A gateway that serves AFD needs `"mergeMethods": {"lushly-dev/afd": "squash"}`. Its default merge commit is now refused with `MERGE_METHOD_NOT_ALLOWED`. Its squashes already give their own commit message ([#1520](https://github.com/lushly-dev/afd/pull/1520)). Superseded: the merge queue rebases since 2026-11-22 ([#1809](https://github.com/lushly-dev/afd/issues/1809)), and the gateway's `mergeMethods` for AFD is `rebase` since 2026-11-23 |
-| 2026-11-21 | Gateway session, from the runbook's review | The install script removes the running code before it builds the new, so a failed build leaves the gateway down: build beside it and switch. Its first-install form and a real key passed in have not run in its present shape. `reconfigure.sh`'s state line can still end its run after the restart. ~~Separately, `gateway-status` does not report the key's age the proposal promises: [#1833](https://github.com/lushly-dev/afd/issues/1833)~~ (merged in [#2303](https://github.com/lushly-dev/afd/pull/2303) on 2026-11-23: `ages { appKey, token }` on every route, plus `rateLimit.graphql` when GitHub supplies the GraphQL budget; `random` serves them after its next `install.sh` update) |
+| 2026-11-21 | Gateway session, from the runbook's review | ~~The install script removes the running code before it builds the new, so a failed build leaves the gateway down: build beside it and switch~~ (done 2026-11-24, session log). Its first-install form and a real key passed in have not run as root in its present shape; the first install ran only against a scratch root. ~~`reconfigure.sh`'s state line can still end its run after the restart~~ (fixed 2026-11-24). ~~Separately, `gateway-status` does not report the key's age the proposal promises: [#1833](https://github.com/lushly-dev/afd/issues/1833)~~ (merged in [#2303](https://github.com/lushly-dev/afd/pull/2303) on 2026-11-23: `ages { appKey, token }` on every route, plus `rateLimit.graphql` when GitHub supplies the GraphQL budget; `random` serves them after its next `install.sh` update) |
