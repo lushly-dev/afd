@@ -353,6 +353,12 @@ importers:
         specifier: workspace:*
         version: link:../../packages/sdk
     devDependencies:
+      '@lushly-dev/afd-testing':
+        specifier: workspace:*
+        version: link:../../../../packages/testing
+      '@lushly-dev/loam-chrome':
+        specifier: workspace:*
+        version: link:../../packages/chrome
       '@lushly-dev/loam-cli':
         specifier: workspace:*
         version: link:../../packages/cli
@@ -365,6 +371,9 @@ importers:
       '@lushly-dev/specimen':
         specifier: workspace:*
         version: link:../../../../foundations/specimen
+      '@lushly-dev/specimen-afd-runner':
+        specifier: workspace:*
+        version: link:../../../../integrations/specimen-afd-runner
       '@lushly-dev/violet-elements':
         specifier: workspace:*
         version: link:../../../../foundations/fast-af/packages/violet-elements

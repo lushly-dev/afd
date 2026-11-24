@@ -21,10 +21,13 @@
 		"@lushly-dev/loam-sdk": "workspace:*"
 	},
 	"devDependencies": {
+		"@lushly-dev/afd-testing": "workspace:*",
+		"@lushly-dev/loam-chrome": "workspace:*",
 		"@lushly-dev/loam-cli": "workspace:*",
 		"@lushly-dev/loam-testing": "workspace:*",
 		"@lushly-dev/loam-theme": "workspace:*",
 		"@lushly-dev/specimen": "workspace:*",
+		"@lushly-dev/specimen-afd-runner": "workspace:*",
 		"@lushly-dev/violet-elements": "workspace:*",
 		"@types/node": "^26.6.6",
 		"@vitest/coverage-v8": "^5.1.1",

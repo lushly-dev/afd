@@ -1,0 +1,51 @@
+name: Keep a draft when another writer saves
+description: >-
+  Create a note, open it in two editor groups, and save another writer's update to the same note.
+  In a browser job run, a person types a draft into the second editor before step 4 so that editor
+  shows "This note changed elsewhere" without losing the draft.
+job: notes-conflict
+tags: [notes, documents, conflict]
+
+steps:
+  - description: A note is created
+    command: document-create
+    input:
+      type: notes
+      title: Roadmap
+    expect:
+      success: true
+      data:
+        id: { exists: true }
+        type: notes
+        title: Roadmap
+
+  - description: The note opens
+    command: document-open
+    input:
+      document: ${{ steps[0].data.id }}
+    expect:
+      success: true
+      data:
+        tab: t1
+        group: g1
+
+  - description: The note opens beside itself
+    command: document-open
+    input:
+      document: ${{ steps[0].data.id }}
+      group: beside
+    expect:
+      success: true
+      data:
+        tab: t2
+        group: g2
+
+  - description: Another writer saves the note
+    command: notes-content-set
+    input:
+      document: ${{ steps[0].data.id }}
+      text: Ship the editor area next week.
+    expect:
+      success: true
+      data:
+        text: Ship the editor area next week.

@@ -4,7 +4,10 @@
  * sessions are equal under `diffObservations`, and every part and the whole shell is captured,
  * with an ARIA snapshot, in light, dark and high contrast (D53).
  */
-import { fileURLToPath } from 'node:url';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createSpecimenBench, diffObservations, type SpecimenBench } from '@lushly-dev/specimen';
 import type { Observation, SpecimenContext } from '@lushly-dev/specimen/types';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -218,10 +221,6 @@ const EDITOR_CAPTURES: [string, string[]][] = [
 /** `notes-editor`, from the type's own fixtures, since no chrome file names a type (D2). */
 const NOTES_CAPTURES: [string, string[]][] = [
 	['notes-editor', ['textbox "Roadmap"']],
-	[
-		'notes-editor-conflict',
-		['alert', 'This note changed elsewhere', 'button "Keep mine"', 'button "Use theirs"'],
-	],
 	// Step 12: its inspector's links and backlinks, and a note as another embeds it.
 	[
 		'notes-inspector',
@@ -239,6 +238,41 @@ const NOTES_CAPTURES: [string, string[]][] = [
 	[`${id}-compact`, expected] as [string, string[]],
 ]);
 
+/**
+ * Specimen wraps `#specimen-root` in a `<main>` landmark, so mounting the whole `loam-shell`
+ * (which brings its own `banner`, `main`, and `contentinfo` landmarks) triggers these five
+ * exact `(rule, targets)` harness-wrapper landmark violations, identical to `chrome/specimens`'s
+ * `shell` fixture. Any other rule or target fails the test.
+ */
+const SPECIMEN_SHELL_HARNESS_A11Y_VIOLATIONS = new Map<string, readonly string[]>([
+	['landmark-banner-is-top-level', ['loam-shell,loam-titlebar']],
+	['landmark-contentinfo-is-top-level', ['loam-shell,loam-statusbar']],
+	['landmark-main-is-top-level', ['loam-shell,loam-main']],
+	['landmark-no-duplicate-main', ['#specimen-root']],
+	['landmark-unique', ['#specimen-root']],
+]);
+
+function isShellHarnessViolation(violation: { id: string; targets: string[] }): boolean {
+	const expectedTargets = SPECIMEN_SHELL_HARNESS_A11Y_VIOLATIONS.get(violation.id);
+	return (
+		expectedTargets !== undefined &&
+		violation.targets.length === expectedTargets.length &&
+		violation.targets.every((target, index) => target === expectedTargets[index])
+	);
+}
+
+/**
+ * Job specimens mount `loam-shell` with a scoped `CustomElementRegistry` for `notes-editor`,
+ * where FAST's inert-document template cloning interacts with `motion: 'settled'` in Specimen's
+ * instrumentation (tracked in #2384); `reducedMotion: 'reduce'` with `motion: 'natural'` keeps
+ * transitions off without mutating `foundations/specimen`.
+ */
+const JOB_CONTEXT: Partial<SpecimenContext> = {
+	viewport: { width: 1280, height: 800 },
+	reducedMotion: 'reduce',
+	motion: 'natural',
+};
+
 describe("P2-D10: Specimen captures of notes' editor, inspector and embed", () => {
 	let notes: SpecimenBench;
 	beforeAll(async () => {
@@ -248,13 +282,196 @@ describe("P2-D10: Specimen captures of notes' editor, inspector and embed", () =
 		await notes?.close();
 	});
 	for (const theme of ['light', 'dark', 'high-contrast'] as const)
-		it(`P2-D10: captures the editor with a draft and with its conflict notice, the inspector and the embed in ${theme}, in both densities`, async () => {
+		it(`P2-D10: captures the editor with a draft, the inspector and the embed in ${theme}, in both densities`, async () => {
 			for (const [id, expected] of NOTES_CAPTURES) {
 				const observation = await notes.render({ id, context: { ...CONTEXT, theme } });
 				expectClean(observation);
 				for (const each of expected) expect(observation.channels.a11y.snapshot, id).toContain(each);
 			}
 		}, 300_000);
+
+	for (const theme of ['light', 'dark', 'high-contrast'] as const)
+		it(`P2-D10: runs the notes-conflict job specimen in ${theme}, in both densities, capturing two-editors and conflict-notice without hand-built stubs`, async () => {
+			// A browserless bench proves specimen-render(set) and specimen-a11y(set) launch zero
+			// browsers and replay zero steps (Screens from Jobs Slice 1 exit criterion 4).
+			const browserless = await createSpecimenBench({
+				root: NOTES_SPECIMENS,
+				executablePath: join(NOTES_SPECIMENS, 'no-browser-here'),
+			});
+			try {
+				const conflictByDensity = new Map<
+					'notes-conflict' | 'notes-conflict-compact',
+					Observation
+				>();
+				for (const id of ['notes-conflict', 'notes-conflict-compact'] as const) {
+					const run = await notes.runJob({ id, context: { ...JOB_CONTEXT, theme } });
+					expect(run.status, id).toBe('passed');
+					expect(run.job, id).toBe('notes-conflict');
+					expect(run.pinned.clock, id).toBe('2026-03-02T09:00:00Z');
+					expect(run.steps, id).toHaveLength(4);
+					expect(
+						run.captures.map((capture) => [capture.key, capture.name, capture.status]),
+						id
+					).toEqual([
+						[`${id}/3`, 'two-editors', 'captured'],
+						[`${id}/4`, 'conflict-notice', 'captured'],
+					]);
+					expect(run.steps[3]?.capture?.actions, id).toBe(1);
+
+					const twoEditors = await browserless.render({
+						id,
+						set: run.set,
+						checkpoint: 'two-editors',
+					});
+					expectClean(twoEditors, `${id}/3`);
+					expect(twoEditors.manifest.context.theme, id).toBe(theme);
+					expect(twoEditors.manifest.job?.step, id).toBe(3);
+					expect(twoEditors.manifest.set, id).toBe(run.set);
+					expect(twoEditors.channels.a11y.snapshot, id).toContain('tablist "Documents, group 1"');
+					expect(twoEditors.channels.a11y.snapshot, id).toContain('tablist "Documents, group 2"');
+					expect(twoEditors.channels.a11y.snapshot.match(/textbox "Roadmap"/g), id).toHaveLength(2);
+					expect(twoEditors.channels.a11y.snapshot, id).not.toContain(
+						'This note changed elsewhere'
+					);
+
+					const conflictNotice = await browserless.render({
+						id,
+						set: run.set,
+						checkpoint: 'conflict-notice',
+					});
+					expectClean(conflictNotice, `${id}/4`);
+					expect(conflictNotice.manifest.context.theme, id).toBe(theme);
+					expect(conflictNotice.manifest.job?.step, id).toBe(4);
+					expect(conflictNotice.manifest.set, id).toBe(run.set);
+					for (const expected of [
+						'tab "Roadmap, unsaved"',
+						'alert',
+						'This note changed elsewhere',
+						'button "Keep mine"',
+						'button "Use theirs"',
+					]) {
+						expect(conflictNotice.channels.a11y.snapshot, id).toContain(expected);
+					}
+					const incomingIndex = conflictNotice.channels.a11y.snapshot.indexOf(
+						'Ship the editor area next week.'
+					);
+					const draftIndex = conflictNotice.channels.a11y.snapshot.indexOf(
+						'Ship the editor area, then the documents section.'
+					);
+					expect(incomingIndex, `${id}/4 incoming text`).toBeGreaterThan(-1);
+					expect(draftIndex, `${id}/4 preserved draft`).toBeGreaterThan(incomingIndex);
+					conflictByDensity.set(id, conflictNotice);
+
+					// Exit criterion 4: reading accessibility from the saved capture set replays zero steps.
+					const a11y = await browserless.a11y({ set: run.set });
+					expect(a11y.counts.total, id).toBe(2);
+					expect(a11y.counts.notRun, id).toBe(0);
+					expect(
+						a11y.reports.map((item) => [item.id, item.checkpoint, item.job?.step]),
+						id
+					).toEqual([
+						[id, 'two-editors', 3],
+						[id, 'conflict-notice', 4],
+					]);
+					const recordedObservations = [twoEditors, conflictNotice];
+					for (const [index, item] of a11y.reports.entries()) {
+						expect(item.job?.name, `${id} ${item.checkpoint}`).toBe('notes-conflict');
+						expect(item.status, `${id} ${item.checkpoint}`).not.toBe('not-run');
+						expect(item.engine, `${id} ${item.checkpoint}`).toBeTruthy();
+						const recordedAxe = recordedObservations[index]?.channels.a11y.axe;
+						expect(recordedAxe, `${id} ${item.checkpoint}`).not.toBe('not-run');
+						if (recordedAxe && recordedAxe !== 'not-run') {
+							expect(item.violations, `${id} ${item.checkpoint}`).toEqual(recordedAxe.violations);
+						}
+						const appViolations = item.violations.filter(
+							(violation) => !isShellHarnessViolation(violation)
+						);
+						expect(appViolations, `${id} ${item.checkpoint}`).toEqual([]);
+					}
+				}
+				const comfortable = conflictByDensity.get('notes-conflict');
+				const compact = conflictByDensity.get('notes-conflict-compact');
+				expect(comfortable && compact, theme).toBeTruthy();
+				if (comfortable && compact) {
+					expect(diffObservations(comfortable, compact).differences.length, theme).toBeGreaterThan(
+						0
+					);
+				}
+			} finally {
+				await browserless.close();
+			}
+		}, 300_000);
+
+	it('validates the live notes specimen configuration including both job specimens', async () => {
+		const report = await notes.validate();
+		expect(report).toMatchObject({ valid: true, issues: [] });
+		const jobs = await notes.list({ kind: 'job' });
+		expect(jobs.map((entry) => entry.id)).toEqual(['notes-conflict', 'notes-conflict-compact']);
+	});
+
+	it('fails specimen-validate with CAPTURE_STEP_UNKNOWN when a marked step description is renamed', async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), 'loam-notes-rename-'));
+		try {
+			const originalScenario = await readFile(
+				join(NOTES_SPECIMENS, 'scenarios/notes-conflict.scenario.yaml'),
+				'utf8'
+			);
+			const renamedScenario = originalScenario.replace(
+				'The note opens beside itself',
+				'The note splits into two panes'
+			);
+			expect(renamedScenario).not.toBe(originalScenario);
+			await writeFile(join(tempRoot, 'notes-conflict.scenario.yaml'), renamedScenario, 'utf8');
+			await writeFile(
+				join(tempRoot, 'notes.specimens.ts'),
+				'export const NotesConflict = {};\n',
+				'utf8'
+			);
+			const jobSourceUrl = pathToFileURL(join(NOTES_SPECIMENS, 'afd.job-source.mjs')).href;
+			await writeFile(
+				join(tempRoot, 'afd.job-source.mjs'),
+				`export { default } from ${JSON.stringify(jobSourceUrl)};\n`,
+				'utf8'
+			);
+			await writeFile(
+				join(tempRoot, 'specimen.config.json'),
+				JSON.stringify(
+					{
+						jobSources: ['./afd.job-source.mjs'],
+						specimens: [
+							{
+								id: 'notes-conflict',
+								title: 'Loam/Notes/Keep a draft',
+								module: './notes.specimens.ts',
+								exportName: 'NotesConflict',
+								job: {
+									scenario: './notes-conflict.scenario.yaml',
+									target: 'shell',
+									captures: [
+										{ after: 'The note opens beside itself', name: 'two-editors' },
+										{ after: 'Another writer saves the note', name: 'conflict-notice' },
+									],
+								},
+							},
+						],
+					},
+					null,
+					2
+				),
+				'utf8'
+			);
+			const staleBench = await createSpecimenBench({ root: tempRoot });
+			try {
+				const report = await staleBench.validate({ id: 'notes-conflict' });
+				expect(report.valid).toBe(false);
+				expect(report.issues.some((issue) => issue.code === 'CAPTURE_STEP_UNKNOWN')).toBe(true);
+			} finally {
+				await staleBench.close();
+			}
+		} finally {
+			await rm(tempRoot, { recursive: true, force: true });
+		}
+	});
 });
 
 describe('P2-D10: Specimen captures of the editor area', () => {

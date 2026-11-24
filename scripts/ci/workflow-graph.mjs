@@ -277,6 +277,7 @@ export const WORKFLOW_GRAPH = {
 		extra: [
 			'foundations/violet/**',
 			'foundations/specimen/**',
+			'integrations/specimen-afd-runner/**',
 			'integrations/violet-afd/**',
 			'architecture.json',
 		],
