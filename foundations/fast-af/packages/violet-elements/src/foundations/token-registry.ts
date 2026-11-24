@@ -1,6 +1,6 @@
 // The token values come from Loam's Violet themes, as a committed export of the component ids per
-// theme (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4). The retired
-// master-semantic registry is no longer read; categories and tiers follow its families.
+// theme (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4). Categories and
+// tiers follow the families of the retired master-semantic registry, removed in #656.
 import exportText from "../../tokens/violet-theme.export.json?raw";
 
 type TokenMetadata = {
