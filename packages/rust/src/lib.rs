@@ -106,6 +106,7 @@ mod schema_validation;
 #[cfg_attr(docsrs, doc(cfg(feature = "server")))]
 pub mod server;
 pub mod similarity;
+pub mod stream_executor;
 pub mod streaming;
 pub mod telemetry;
 mod validation;
@@ -243,6 +244,7 @@ pub use batch::{
 // RE-EXPORTS: Streaming types
 // ═══════════════════════════════════════════════════════════════════════════════
 
+pub use stream_executor::{execute_stream, StreamExecutorOptions};
 pub use streaming::{
     collect_stream_data, consume_stream, create_complete_chunk, create_data_chunk,
     create_error_chunk, create_progress_chunk, create_progress_chunk_with_steps,

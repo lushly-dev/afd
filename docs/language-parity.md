@@ -35,7 +35,7 @@ Versions below describe repository manifests; repository versions alone do not i
 | Version | 2.5.0 | 0.13.0 | 0.3.0 | 0.3.0 |
 | Contract | 1.0-rc (`AFD_CONTRACT_VERSION`) | 1.0-rc (`afd.CONTRACT_VERSION`) | 1.0-rc (`afd::CONTRACT_VERSION`) | 1.0-rc (`afd::contract_version`) |
 | Distribution | npm | PyPI | [crates.io](https://crates.io/crates/afd); published 0.3.0 | CMake `FetchContent`, `find_package`, `add_subdirectory`; published [cpp-v0.3.0](https://github.com/lushly-dev/afd/releases/tag/cpp-v0.3.0) |
-| Scope | Full stack: core, MCP server, MCP client, DirectClient, CLI, auth, testing, UI packages | Full stack in one package: core, MCP server (the `mcp` SDK's `MCPServer`), client, DirectClient, CLI, testing, platform and connectors | Core library, validating registry, batch and pipeline executors, bootstrap commands, optional MCP server (`server` feature), approval-aware in-process `DirectClient`. No remote client | Core library, validating registry, middleware, `DirectClient`, batch, pipeline and stream executors, commands as MCP tools (`afd/mcp.hpp`), and an opt-in MCP stdio server (`afd::mcp_stdio`). No client |
+| Scope | Full stack: core, MCP server, MCP client, DirectClient, CLI, auth, testing, UI packages | Full stack in one package: core, MCP server (the `mcp` SDK's `MCPServer`), client, DirectClient, CLI, testing, platform and connectors | Core library, validating registry, batch, pipeline and stream executors, bootstrap commands, optional MCP server (`server` feature), approval-aware in-process `DirectClient`. No remote client | Core library, validating registry, middleware, `DirectClient`, batch, pipeline and stream executors, commands as MCP tools (`afd/mcp.hpp`), and an opt-in MCP stdio server (`afd::mcp_stdio`). No client |
 | Todo backend | stdio (SDK v2), both MCP eras | stdio (`mcp` 2.x), both eras | stdio and Streamable HTTP (`server` feature, on axum), both eras | stdio (hand-rolled), both eras |
 | CI | `ci.yml` (`pnpm check`) | `python.yml` | `rust.yml` | `cpp.yml` |
 | Skill | `afd-typescript` | `afd-python` | `afd-rust` | `afd-cpp` |
@@ -58,13 +58,13 @@ Versions below describe repository manifests; repository versions alone do not i
 | `spec/vectors/mcp-resources.json`, 28 `_meta` keys, two-skill catalog and 12 catalog failures (#1986) | MCP resources, the Skills extension (`io.modelcontextprotocol/skills`), extra tool `_meta` key rules and catalog validation (`spec/mcp-resources.md`) | Yes (`mcp-resources-vectors.test.ts`, HTTP and stdio, both eras) | Yes (`test_mcp_resources_vectors.py`, HTTP and stdio, both eras) | Yes (`mcp_resources_vectors.rs`, `server` feature, HTTP and stdio, both eras) | Yes (`mcp_resources_vectors_test.cpp`, `AFD_BUILD_MCP_STDIO`, stdio, both eras) |
 | [AFD protocol conformance tier](../spec/protocol-conformance.md) | Both MCP eras over real transports: `spec/protocol-conformance.json` (27 tests + 1 stream case, #1739), discovery, `_meta`, headers, exposure, contexts, cache hints, tool fields | `/mcp` and stdio, both eras | Streamable HTTP and stdio, both eras | `server` feature over Streamable HTTP and stdio | `afd::mcp_stdio` (todo backend) |
 | Todo conformance, 50 shared cases (`conformance.yml`) | Domain results through MCP `tools/call` | Yes (plus confirmations, approvals and tasks suites) | Yes (plus confirmations, approvals and tasks suites) | Yes (plus confirmations, approvals and tasks suites) | Yes (plus confirmations and approvals suites) |
-| `alfred parity` name budget (`alfred/tests/test_parity.py`) | Historical name measurement; current configured upper budgets | Reference | Budget 93 | Budget 9 | Budget 74 |
+| `alfred parity` name budget (`alfred/tests/test_parity.py`) | Historical name measurement; current configured upper budgets | Reference | Budget 93 | Budget 7 | Budget 74 |
 | `alfred parity` contract version, `scripts/check-versions.mjs` | The contract constant equals `spec/VERSION` | Yes | Yes | Yes | Yes |
 
 Limits of these checks:
 
 - **The todo conformance suite tests the todo domain; `spec/protocol-conformance.json` tests the AFD protocol.** The 50 todo cases call todo commands and check result fields; `--suite protocol` (27 tests + 1 stream case, #1739) now exercises discovery, D4 exposure hiding, batch, pipeline and contexts in both MCP eras across all four backends.
-- **Name parity is not behavioral parity.** Rust is 9 names short of TypeScript but has no stream executor. Python is 93 names short, but 56 of those exist and are just not exported (see [Name parity](#name-parity-alfred-parity)).
+- **Name parity is not behavioral parity.** Rust is 7 names short of TypeScript, most of them export artifacts. Python is 93 names short, but 56 of those exist and are just not exported (see [Name parity](#name-parity-alfred-parity)).
 - **The behavior vectors cover pipeline references, conditions, executor controls, validation, single-command dispatch, MCP resources/skills/`toolMeta`, and the error-code catalog (all loaded by all four implementations).** Streams have no behavior vectors yet, so a change there can still drift unnoticed.
 
 ## Capability matrix
@@ -165,7 +165,7 @@ Rendered from [`spec/capabilities/`](../spec/capabilities/README.md) (`typescrip
 | Pipeline aggregation (confidence, reasoning, warnings, sources, alternatives) | Yes | Yes | Yes | Yes (internal helpers) |
 | One pipeline engine | Yes | No: core `execute_pipeline` and `DirectClient.pipe` differ in options and result shape ([#1535](https://github.com/lushly-dev/afd/issues/1535)) | Yes | Yes |
 | Stream chunk types, `consumeStream`, `collectStreamData` | Yes | Yes | Yes (`consume_stream` takes a synchronous iterator) | Yes |
-| Stream executor | Yes (runs to completion, then chunks) | No ([#1535](https://github.com/lushly-dev/afd/issues/1535)) | No (planned per D6) | Yes (returns a vector) |
+| Stream executor | Yes (runs to completion, then chunks) | No ([#1535](https://github.com/lushly-dev/afd/issues/1535)) | Yes (#1601): `execute_stream` and `CommandRegistry::execute_stream` return a lazy `Stream` that runs to completion, then chunks; `StreamExecutorOptions::timeout_ms` needs `native` | Yes (returns a vector) |
 | Timeout controller, progress-with-steps helpers | Yes | Yes, with a Pythonic shape: `TimeoutController` is a deadline, not an `AbortController`; `run()` bounds an await by the time left, with `remaining_ms` and `is_expired` | Partial: `TimeoutController` tracks elapsed time only | N/A: `CancellationSource` covers the timeout controller |
 <!-- generated:capabilities:parity.batch-pipeline-stream:end -->
 
@@ -268,7 +268,7 @@ These gaps are planned. They are listed so the name budgets stay honest. D1/D2/D
 **Accepted role decisions (D6).** Native MCP clients, CLIs, testing toolkits and handoff clients are N/A; Python auth is planned. Remaining implementation gaps include:
 
 - **C++:** tracing middleware is N/A (`compose_middleware` and retry/rate-limit/telemetry middleware landed in #547).
-- **Rust:** planned stream executor ([#1601](https://github.com/lushly-dev/afd/issues/1601)); the tracing middleware is N/A, as in C++ (a host wraps calls in `tracing` or OpenTelemetry spans in its own middleware).
+- **Rust:** the tracing middleware is N/A, as in C++ (a host wraps calls in `tracing` or OpenTelemetry spans in its own middleware).
 - **Python:** planned auth adapter.
 
 ## Unintended gaps
@@ -296,7 +296,7 @@ Ordered by how much an agent or a security boundary is affected.
     - **Rust** skipped every step for `timeoutMs: 0`, where TypeScript fails step 0. It also failed the step after one that overran the deadline, instead of skipping it.
 
     Fixed in the candidate: TypeScript MCP `afd-batch` and POST `/batch` return the canonical failed `BatchResult` for malformed AFD envelopes (#314). Non-object MCP arguments are rejected earlier as JSON-RPC `-32602`.
-10. **Add a stream executor to Python and Rust,** and a public batch executor to Python. Python consolidation across the core registry, SimpleRegistry, MockServer and DirectClient.pipe is tracked in [#1535](https://github.com/lushly-dev/afd/issues/1535), split from #545.
+10. **Add a stream executor to Python** (Rust's landed in [#1601](https://github.com/lushly-dev/afd/issues/1601)), and a public batch executor to Python. Python consolidation across the core registry, SimpleRegistry, MockServer and DirectClient.pipe is tracked in [#1535](https://github.com/lushly-dev/afd/issues/1535), split from #545.
 11. **Rust single-command engine:**
     - result metadata stamping;
     - `onCommand` and `onError` hooks.
@@ -340,9 +340,9 @@ Ordered by how much an agent or a security boundary is affected.
 
 ## Name parity (`alfred parity`)
 
-Fresh measurement, 2026-11-22 on `main` at `9c3f9f24`:
-`uv run --project alfred alfred --workspace . parity --path .` reports 241 TypeScript,
-246 Python, 327 Rust and 262 C++ exports, with 93, 9 and 74 names missing respectively, matching
+Fresh measurement, 2026-11-24 on the #1601 branch (after #2328 and #2356):
+`uv run --project alfred alfred --workspace . parity --path .` reports 244 TypeScript,
+251 Python, 335 Rust and 268 C++ exports, with 93, 7 and 74 names missing respectively, matching
 the budgets in `alfred/tests/test_parity.py`.
 The wire/vector loader coverage checks report zero gaps, and all four contract constants
 match `1.0-rc`. This inspects source; it does not run the implementations' suites.
@@ -352,7 +352,7 @@ Measured at `0777217`: TypeScript 186 exports, Python 179, Rust 225, C++ 158. Th
 | Language | Missing | What the missing names are |
 |---|---|---|
 | Python | 93 | **5 are the approval display rules** (Loam phase 5 step 0c, [#1466](https://github.com/lushly-dev/afd/issues/1466)). **56 exist but are not exported from `afd`:** the pipeline contract in `afd.core.pipeline` and `pipeline_variables` (38), similarity (4), `execution_failure`, and 13 MCP names with Pythonic spellings. Re-exporting the pipeline names is blocked by collisions: `afd.PipelineStep`, `PipelineResult`, `CommandDefinition` and `CommandContext` are the `afd.direct` dataclasses, not the core types. **13 are real gaps:** the batch and stream executors and their options, the registry and executor options types (`create_command_registry` and `execute_pipeline` take a `dev_mode` keyword instead), the exposure helpers, `DEFAULT_RECONNECT_POLICY`, and the MCP error-code constants and notification and list types. **19 are TypeScript typing artifacts:** the condition guards, `McpId` and similar. [#348](https://github.com/lushly-dev/afd/issues/348) exported the core registry, middleware, `WarningSeverity` and `ErrorCode` names and added the timeout controller and progress-with-steps; [#400](https://github.com/lushly-dev/afd/issues/400) added the 15 context primitives; [#425](https://github.com/lushly-dev/afd/issues/425) added the 13 command journal names; [#420](https://github.com/lushly-dev/afd/issues/420) added the 3 approval policy names. |
-| Rust | 9 | **Export artifacts:** `is_mcp_exposed` (`is_exposed_to(Mcp)`), `max_similarity_input_length` (at `afd::similarity`), `truncate_name` (private), `execute_batch` (a registry method). **A convenience:** `commands_to_mcp_tools`. **Real gaps:** `execute_stream` and `stream_executor_options`. **No dev mode:** `executor_options` and `command_registry_options`. [#426](https://github.com/lushly-dev/afd/issues/426) closed the 13 command journal names; [#421](https://github.com/lushly-dev/afd/issues/421) the 3 approval policy names. |
+| Rust | 7 | **Export artifacts:** `is_mcp_exposed` (`is_exposed_to(Mcp)`), `max_similarity_input_length` (at `afd::similarity`), `truncate_name` (private), `execute_batch` (a registry method). **A convenience:** `commands_to_mcp_tools`. **No dev mode:** `executor_options` and `command_registry_options`. [#426](https://github.com/lushly-dev/afd/issues/426) closed the 13 command journal names; [#421](https://github.com/lushly-dev/afd/issues/421) the 3 approval policy names. |
 | C++ | 74 | **5 are the approval display rules** (Loam phase 5 step 0c, [#1466](https://github.com/lushly-dev/afd/issues/1466)). **1 is `TaskSupport`** (MCP Tasks, #1971; N/A for C++). **1 is `AFD_OUTPUT_BUDGET_META_KEY`** (C++ exports `output_budget_meta_key` without the `afd_` prefix, #1989). #341 closed `is_mcp_exposed`, `command_to_mcp_tool`, `commands_to_mcp_tools` and `command_tool_annotations`, [#465](https://github.com/lushly-dev/afd/issues/465) `command_result_output_schema`, and [#547](https://github.com/lushly-dev/afd/issues/547) the 4 telemetry names (`TelemetryEvent`, `TelemetrySink`, `create_telemetry_event`, `is_telemetry_event`). #427 closed the 13 command-journal names and [#422](https://github.com/lushly-dev/afd/issues/422) the 3 approval-policy names. **By design (1, #402):** `ClockInstant`; C++ clocks take epoch milliseconds only. #402 closed the other nine context primitives. **Deferred (29):** 26 MCP types and helpers, `CommandParameter`, and the 2 streamable-command names. **By design (25):** 21 typed condition types and guards, the timeout controller (2), `json_schema` and `create_command_registry`. **Cheap to close (12):** `is_pipeline_condition` over JSON, `is_batch_command`, `is_pipeline_step`, `get_nested_value`, `stream_executor_options` (an alias of `StreamOptions`), `create_progress_chunk_with_steps`, and the 6 aggregation helpers. |
 
 The budgets in `alfred/tests/test_parity.py` equal these counts. #460 adds client-layer APIs; the core-export name gaps remain unchanged. Lower a budget in the same pull request that closes a gap.
