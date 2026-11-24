@@ -78,6 +78,8 @@ class GatewayConfig(_Model):
     )
     cutover: Cutover | None = None
     stall_minutes: float = Field(15, alias="stallMinutes")
+    #: Minutes after its last lane-heartbeat that a repository's lane counts as stopped.
+    lane_stale_minutes: float = Field(5, gt=0, allow_inf_nan=False, alias="laneStaleMinutes")
     lease_hours: float = Field(24, alias="leaseHours")
     body_max_bytes: int = Field(64 * 1024, alias="bodyMaxBytes")
     writes_per_hour: dict[str, int | None] = Field(

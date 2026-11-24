@@ -1,16 +1,17 @@
 """The gateway's own state, beside GitHub: small, and mostly rebuildable.
 
-``state.json`` holds bundle uploads, review records (G2), the validations the gateway recorded
-in the last week (``verifications``, which decide a merge before GitHub lists their check run),
-each consumer's delivered events (G3), the write log behind the write budget, and seeded audit
-rows a fixture supplies. Claims
-are not here: GitHub holds them and every read rebuilds them. The journal is AFD's JSON Lines
-journal, one file per UTC day under ``journal/``, kept for ``journal.keepDays``.
+``state.json`` holds bundle uploads, review records (G2), each repository's lane's last
+``lane-heartbeat`` (``lanes``), the validations the gateway recorded in the last week
+(``verifications``, which decide a merge before GitHub lists their check run), each consumer's
+delivered events (G3), the write log behind the write budget, and seeded audit rows a fixture
+supplies. Claims are not here: GitHub holds them and every read rebuilds them. The journal is
+AFD's JSON Lines journal, one file per UTC day under ``journal/``, never pruned yet (#2413).
 """
 
 from __future__ import annotations
 
 import json
+import os
 import threading
 from datetime import UTC, datetime
 from pathlib import Path
@@ -24,7 +25,7 @@ from afd.core.journal import (
     parse_journal,
 )
 
-STATE_KEYS = {"uploads", "reviews", "journal", "verifications"}
+STATE_KEYS = {"uploads", "reviews", "journal", "verifications", "lanes"}
 
 
 class GatewayState:
@@ -46,6 +47,7 @@ class GatewayState:
             "uploads": fixture.get("uploads", {}),
             "reviews": {review["head"]: review for review in fixture.get("reviews", [])},
             "verifications": fixture.get("verifications", {}),
+            "lanes": fixture.get("lanes", {}),
             "auditSeed": fixture.get("journal", []),
             "delivered": {},
             "writes": [],
@@ -59,7 +61,14 @@ class GatewayState:
     def put(self, key: str, value: Any) -> None:
         self._data[key] = value
         self.directory.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps(self._data, indent=2), encoding="utf-8")
+        # Written beside it and moved over it, so a crash mid-write leaves the old file whole
+        # rather than JSON the next start cannot read.
+        partial = self.path.with_name(f"{self.path.name}.partial")
+        with partial.open("w", encoding="utf-8") as file:
+            file.write(json.dumps(self._data, indent=2))
+            file.flush()
+            os.fsync(file.fileno())  # On disk before the rename, so a power cut keeps one.
+        os.replace(partial, self.path)
 
 
 class DailyJournalSink:
