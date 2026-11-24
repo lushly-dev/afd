@@ -3439,9 +3439,9 @@
       "path": "integrations/violet-afd/src/commands/token/resolution-cache.test.ts",
       "upstream_path": "packages/core/src/commands/token/resolution-cache.test.ts",
       "upstream_sha256": "3a636f83cc07da6b495690658977a684ffdd9a7a915ede28b4276fa29b7f8f9e",
-      "current_import_sha256": "33495b7398e51a75e1f09aaf44c0d04ecc2ba3f030878166b22ea1b5fbe58cac",
+      "current_import_sha256": "b4b651dc77125fe5df394330023a5d7d3551ace4c9ded514ffea68954ef1dd45",
       "classification": "adapted",
-      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9; Biome 2 lint and format (#599): import specifier order, formatter output and fixes for findings new in Biome 2 (Object.hasOwn, non-null assertions after optional chains in tests, optional chain, unused catch binding)",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9; Biome 2 lint and format (#599): import specifier order, formatter output and fixes for findings new in Biome 2 (Object.hasOwn, non-null assertions after optional chains in tests, optional chain, unused catch binding); explicit 30s timeout on full-system realistic demo resolution tests (#2392)",
       "candidate": {
         "path": "packages/afd/src/commands/token/resolution-cache.test.ts",
         "sha256": "f5a12ed49ef6d73f48eb729e82790e0241eda5f62d39c1330cf76f0811d0d146",

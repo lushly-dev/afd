@@ -51,6 +51,9 @@ async function resolveAll(db: Database, nodeIds: string[], cache?: ResolutionCac
 	return resolved;
 }
 
+// Full-system resolution over the 37-node realistic demo system can exceed Vitest's 5s default under CI load
+const DEMO_RESOLVE_TIMEOUT = 30_000;
+
 describe('resolution cache on the realistic demo system', () => {
 	let db: Database;
 	let nodeIds: string[];
@@ -61,37 +64,49 @@ describe('resolution cache on the realistic demo system', () => {
 		nodeIds = (await db.listNodes()).map((node) => node.id);
 	}, 60_000);
 
-	it('resolves every node to the same tokens and lineage', async () => {
-		const uncached = await resolveAll(db, nodeIds);
-		const cached = await resolveAll(db, nodeIds, new ResolutionCache(db));
+	it(
+		'resolves every node to the same tokens and lineage',
+		async () => {
+			const uncached = await resolveAll(db, nodeIds);
+			const cached = await resolveAll(db, nodeIds, new ResolutionCache(db));
 
-		expect(nodeIds).toHaveLength(37);
-		expect(cached).toEqual(uncached);
-	});
+			expect(nodeIds).toHaveLength(37);
+			expect(cached).toEqual(uncached);
+		},
+		DEMO_RESOLVE_TIMEOUT,
+	);
 
-	it('reads each node from the store once instead of once per descendant', async () => {
-		const spy = countingStore(db);
-		await resolveAll(spy.store, nodeIds);
-		const uncached = { ...spy.counts, total: spy.total() };
+	it(
+		'reads each node from the store once instead of once per descendant',
+		async () => {
+			const spy = countingStore(db);
+			await resolveAll(spy.store, nodeIds);
+			const uncached = { ...spy.counts, total: spy.total() };
 
-		spy.reset();
-		await resolveAll(spy.store, nodeIds, new ResolutionCache(spy.store));
-		const cached = { ...spy.counts, total: spy.total() };
+			spy.reset();
+			await resolveAll(spy.store, nodeIds, new ResolutionCache(spy.store));
+			const cached = { ...spy.counts, total: spy.total() };
 
-		// Each node's operations and record are read at most once per run
-		expect(cached.getOperations).toBeLessThanOrEqual(nodeIds.length);
-		expect(cached.getNode).toBeLessThanOrEqual(nodeIds.length);
-		expect(cached.getOperations).toBeLessThan(uncached.getOperations / 2);
-		expect(cached.total).toBeLessThan(uncached.total / 2);
-	});
+			// Each node's operations and record are read at most once per run
+			expect(cached.getOperations).toBeLessThanOrEqual(nodeIds.length);
+			expect(cached.getNode).toBeLessThanOrEqual(nodeIds.length);
+			expect(cached.getOperations).toBeLessThan(uncached.getOperations / 2);
+			expect(cached.total).toBeLessThan(uncached.total / 2);
+		},
+		DEMO_RESOLVE_TIMEOUT,
+	);
 
-	it('makes tokens.matrix read each node once', async () => {
-		const spy = countingStore(db);
-		const result = await tokensMatrixCommand.handler({}, { db: spy.store });
+	it(
+		'makes tokens.matrix read each node once',
+		async () => {
+			const spy = countingStore(db);
+			const result = await tokensMatrixCommand.handler({}, { db: spy.store });
 
-		expect(result.success).toBe(true);
-		expect(spy.counts.getOperations).toBeLessThanOrEqual(nodeIds.length);
-	});
+			expect(result.success).toBe(true);
+			expect(spy.counts.getOperations).toBeLessThanOrEqual(nodeIds.length);
+		},
+		DEMO_RESOLVE_TIMEOUT,
+	);
 });
 
 describe('resolution cache scope', () => {
