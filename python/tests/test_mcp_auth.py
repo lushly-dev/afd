@@ -706,8 +706,26 @@ async def test_mcp_tasks_bind_afd_credentials_and_preserve_brand_until_completio
         assert created["resultType"] == "task"
         task_id = created["taskId"]
 
-        # Wait for the background task to run (after the creating HTTP response already closed).
-        await asyncio.sleep(0.08)
+        # Poll until the background task finishes (after the creating HTTP response already closed).
+        detailed: dict[str, Any] = {}
+        for _ in range(50):
+            alice_get = await client.post(
+                "/mcp",
+                json=_rpc("tasks/get", {"taskId": task_id, "_meta": task_meta}),
+                headers={
+                    **MODERN_HEADERS,
+                    "Mcp-Method": "tasks/get",
+                    "Mcp-Name": task_id,
+                    "Authorization": f"Bearer {alice}",
+                },
+            )
+            detailed = alice_get.json()["result"]
+            if detailed["status"] in ("completed", "failed"):
+                break
+            await asyncio.sleep(0.02)
+        assert detailed["status"] == "completed"
+        task_payload = json.loads(detailed["result"]["content"][0]["text"])
+        assert task_payload["data"] == {"verifiedDuringTask": True, "subject": "alice"}
 
         # Bob gets "Task not found" on tasks/get.
         bob_get = await client.post(
@@ -722,22 +740,6 @@ async def test_mcp_tasks_bind_afd_credentials_and_preserve_brand_until_completio
         )
         assert bob_get.json()["error"]["code"] == -32602
         assert bob_get.json()["error"]["message"] == "Task not found"
-
-        # Alice reads the completed result; credentials stayed verified during background run.
-        alice_get = await client.post(
-            "/mcp",
-            json=_rpc("tasks/get", {"taskId": task_id, "_meta": task_meta}),
-            headers={
-                **MODERN_HEADERS,
-                "Mcp-Method": "tasks/get",
-                "Mcp-Name": task_id,
-                "Authorization": f"Bearer {alice}",
-            },
-        )
-        detailed = alice_get.json()["result"]
-        assert detailed["status"] == "completed"
-        task_payload = json.loads(detailed["result"]["content"][0]["text"])
-        assert task_payload["data"] == {"verifiedDuringTask": True, "subject": "alice"}
 
     # Once the task finished, its cloned credentials were unbranded.
     assert len(seen) == 1

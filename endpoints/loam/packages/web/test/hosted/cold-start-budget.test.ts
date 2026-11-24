@@ -4,6 +4,7 @@
  * replacing the interim 750 ms ceiling from #1062.
  */
 import { describe, expect, it } from 'vitest';
+import hostedConfig, { orderHostedSpecs, ProfileFirstSequencer } from '../../vitest.hosted.config';
 import {
 	COLD_STARTS,
 	LOCAL_BOUNDS,
@@ -34,5 +35,52 @@ describe('P6-H1 section 14 cold-start ceiling (#1125)', () => {
 		expect(SECTION_14_CEILINGS.coldStartMs).toBeGreaterThan(Math.max(...P6_H1_MAIN_MEDIANS_MS));
 		expect(COLD_STARTS).toBe(5);
 		expect(LOCAL_BOUNDS).toEqual({ coldStartMs: 3_000, residentMb: 300 });
+	});
+
+	it('schedules profile.test.ts first across POSIX and Windows paths while preserving the rest (#2239)', () => {
+		const ordered = orderHostedSpecs([
+			{ moduleId: '/repo/endpoints/loam/packages/web/test/hosted/relay.test.ts' },
+			{ moduleId: '/repo/endpoints/loam/packages/web/test/hosted/mcp.test.ts' },
+			{ moduleId: '/repo/endpoints/loam/packages/web/test/hosted/profile.test.ts' },
+			{ moduleId: '/repo/endpoints/loam/packages/web/test/hosted/shell.test.ts' },
+		]);
+		expect(ordered.map((spec) => spec.moduleId.split('/').at(-1))).toEqual([
+			'profile.test.ts',
+			'relay.test.ts',
+			'mcp.test.ts',
+			'shell.test.ts',
+		]);
+
+		const winOrdered = orderHostedSpecs([
+			{
+				moduleId: [
+					'repo',
+					'endpoints',
+					'loam',
+					'packages',
+					'web',
+					'test',
+					'hosted',
+					'relay.test.ts',
+				].join('\\'),
+			},
+			{
+				moduleId: [
+					'repo',
+					'endpoints',
+					'loam',
+					'packages',
+					'web',
+					'test',
+					'hosted',
+					'profile.test.ts',
+				].join('\\'),
+			},
+		]);
+		expect(winOrdered.map((spec) => spec.moduleId.split('\\').at(-1))).toEqual([
+			'profile.test.ts',
+			'relay.test.ts',
+		]);
+		expect(hostedConfig.test?.sequence?.sequencer).toBe(ProfileFirstSequencer);
 	});
 });
