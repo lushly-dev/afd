@@ -173,6 +173,27 @@ middleware (`afd.server.journal.create_journal_middleware`) runs behind the host
 and records the actor, and a handler reads it with
 `botcore.context.current_call()` instead of taking the caller as an input.
 
+`create_host_mcp_server(host, command_tools=True)` also serves each command as its own MCP
+tool, named as the host serves it, beside the `start`, `call` and `docs` meta-tools. Its input
+schema is the catalog's `input_schema`, and its annotations come from the command's declared
+effects: `readOnlyHint` when every possible effect is `inspect`, otherwise `destructiveHint`,
+so a client's permission rules can tell a write from a read. The MCP SDK does not model a
+command tool's arguments (SDK 2 only compares `Mcp-Param` headers with the catalog schema, which
+declares none): a call is handed whole to the `call` meta-tool, so it enters
+`host.execute` as any other call does, as an agent unless the host names its actor, and the
+host is the only validator. A `**kwargs` handler is served, and an unknown or ill-typed input is
+refused with AFD's `VALIDATION_ERROR` and its suggestion instead of being dropped or refused by
+the SDK. A command named like a meta-tool (`start`, `call`, `docs`, or `run` even when raw
+Python is off) is refused when the server is built. Commands are read on each request, so one
+registered later is listed and called alike. Only the served spelling is a tool (`issue_claim`
+does not reach `issue-claim`), and each tool declares the `call` meta-tool's output schema, the
+reply it shares.
+
+The annotations are hints for a client's own rules, not a boundary: `<host>-call`, and
+`<host>-run` when raw Python is on, still reach every command, so a rule that denies `pr-merge`
+must deny those too. A host's profile still decides: an `inspection` host lists its write
+commands, marked destructive, and refuses each call with `EFFECT_DENIED`, as `start` lists them.
+
 Managed raw Python requires BOTH `raw_python=True` and an explicit
 `ExecutionContext(..., profile="trusted-local")`. It adds `alfred-run` and is
 absent from inspection hosts. Supplied command functions still dispatch through

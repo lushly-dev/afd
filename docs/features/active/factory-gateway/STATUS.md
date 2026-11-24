@@ -254,8 +254,8 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   GraphQL budget ([#1833](https://github.com/lushly-dev/afd/issues/1833)) landed in
   [#2303](https://github.com/lushly-dev/afd/pull/2303). Both run on `random` since the update
   to `3fe08c00` on 2026-11-23.
-- **Next, in order:** change 3 redesigned so the host is the only validator (held on
-  `lush/botcore-command-tools`); the lane on `random`
+- **Next, in order:** merge botcore's change 3 (below; the gateway serves no MCP yet, so its
+  callers keep the CLI); the lane on `random`
   with its health in `gateway-status`; the factory plugin on the gateway (after
   `feat/factory-lane-loop` lands); Lushly's side ([lushly#2392](https://github.com/lushly-dev/lushly/issues/2392));
   the process files and the two process checks.
@@ -359,6 +359,17 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   from being built on an unresolvable hint, and answers bad input outside AFD's error shape
   while dropping unknown keys. The fix is to publish the catalog's schema and pass arguments
   through so the host is the only validator, which needs a different hook into the SDK.
+- 2026-11-24: change 3 redesigned on `lush/host-command-tools`, replacing
+  `lush/botcore-command-tools`. `create_host_mcp_server(host, command_tools=True)` subclasses
+  the SDK's server (SDK 1 and 2) and overrides `list_tools`, which lists each command with the
+  catalog's schema and its read-only or destructive hint, and `call_tool`, which hands a
+  command tool's arguments whole to the `-call` meta-tool. The SDK never models them, so the
+  host is the only validator: `**kwargs` handlers and unresolvable hints are served, bad input
+  is refused as `VALIDATION_ERROR` with its suggestion, and no key is dropped. Commands are
+  read per request; only the served spelling is a tool; SDK 2's `Mcp-Param` header check
+  reads the catalog schema. The tests pass on SDK 2.3.0 and 1.30.0, over each SDK's in-memory
+  client too. Reviewed by Opus and Gemini 4 Neon; their findings applied, the type-ignore
+  blocker among them. The annotations are hints: `-call` still reaches every command.
 - 2026-11-14: filed [lushly#2392](https://github.com/lushly-dev/lushly/issues/2392), Lushly's side
   of G1 (claim script, lane steps, flake filer, process files and checks), as G1 started.
 
