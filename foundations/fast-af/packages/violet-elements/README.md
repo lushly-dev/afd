@@ -140,6 +140,36 @@ AFD's Loam documents; `endpoints/loam/docs/phases/0-kernel-chrome/spec.md`, sect
 The former registries, `tokens/master-semantic.tokens.jsonc` and `tokens/theme-presets.jsonc`,
 were retired by D50 and removed under the `removed-after-import` provenance classification.
 
+## Token pipeline
+
+The components' token interface, [tokens/interface.json](./tokens/interface.json), is the
+contract between Violet's token engine and these components. Today a theme reaches them this way:
+
+1. Violet's token engine (`@lushly-dev/violet-core`) holds a theme tree. Loam's is in
+   `endpoints/loam/packages/theme/tree`, and Loam's theme package loads it with the `import.tree`
+   command of `@lushly-dev/violet-afd`.
+2. Loam's theme package resolves each theme and writes its component ids (every id outside
+   `shell.*` and `ref.*`) to `tokens/violet-theme.export.json` (`theme:export-components`), without
+   reading `interface.json`. `theme:check` holds Loam's tree to `interface.json`: it fails when a
+   theme does not supply an interface id with its property and type, when the committed export
+   differs from the tree, or when a literal fallback in `src/` differs from the light value.
+3. `theme:build` here checks the export against `interface.json` and compiles it into the
+   built-in set (`src/theme/generated/`). `installVioletTheme()` installs that set as one
+   stylesheet keyed on `data-violet-theme`; `installVioletThemeSet()` installs a product's own set
+   in its place.
+
+[#1786](https://github.com/lushly-dev/afd/issues/1786) narrows this to one source and one runtime
+path:
+
+- Violet's engine, exporting against `interface.json`, becomes the only producer. Violet's
+  specimens take their component model from `interface.json` instead of a second hard-coded one.
+- The stylesheet becomes the only runtime path, installed through `adoptedStyleSheets` so that a
+  page's Content Security Policy can forbid inline styles. `violet-runtime`'s inline
+  `applyToDocument` is deprecated in favour of the same stylesheet.
+- Semantic properties take the `--violet-` prefix, which is what violet-core's CSS exporter
+  emits with `prefix: 'violet'` and violet-runtime with `cssPrefix: 'violet'`, with aliases for the unprefixed names for one preview release and a migration
+  note for Loam.
+
 ## Runtime Theme
 
 The theme is a stylesheet the runtime installs once, so components work without a provider

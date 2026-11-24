@@ -434,7 +434,8 @@ not something the components load.
   - they are classified `modified-after-staging`;
   - nothing reads them.
 
-  A deletion classification for the provenance test is a follow-up.
+  Since then the provenance recorder has learned to record a removal
+  (`removed-after-import`), and #656 deleted both files.
 - **Baked-in defaults are checked, not generated (D38).** Defaults live in
   two places:
   - the literal fallbacks across 42 component files (674 of them);
