@@ -54,6 +54,9 @@ import {
     findFocusedSelectionControl,
     isDocumentFocusAvailableForGrid,
     isGridCellElementNode,
+    mergePendingCellFocusRecovery,
+    type PendingCellFocusRecovery,
+    recoverGridCellFocusAfterRender,
     scrollCellIntoScrollContainer,
     selectionControlRowIdFromElement,
     suspendRovingCellTabStops,
@@ -473,8 +476,10 @@ export class VioletDataGrid extends FASTElement {
   #editorRecycleInProgress = false;
   #editorRecycleFocusFrame: number | null = null;
   #focusGeneration = 0;
+  #gridCellFocusGeneration = 0;
   #selectionControlFocusRevision = 0;
   #cellFocusRecoveryRevision = 0;
+  #pendingCellFocusRecovery: PendingCellFocusRecovery | null = null;
   #pendingCellFocusRevision = 0;
   #pendingGridFocus = false;
   #pendingRowModeFocus: { rowId: string; columnId: string | null; focusGeneration: number } | null =
@@ -614,6 +619,7 @@ export class VioletDataGrid extends FASTElement {
     this.#cellFocusRecoveryRevision += 1;
     this.#pendingCellFocusRevision += 1;
     this.#pendingGridFocus = false;
+    this.#pendingCellFocusRecovery = null;
     if (this.#editorRestoreFrame !== null) {
       cancelAnimationFrame(this.#editorRestoreFrame);
       this.#editorRestoreFrame = null;
@@ -1597,7 +1603,9 @@ export class VioletDataGrid extends FASTElement {
       this.focusMode !== "cell" ||
       this.focusedSelectionRowId !== null ||
       this.isEditorEvent(event) ||
-      this.isEditorElement(event.target)
+      this.isEditorElement(event.target) ||
+      this.isInteractiveCellWidgetEvent(event) ||
+      this.isInteractiveCellWidgetTarget(event.target)
     ) {
             return true;
         }
@@ -1711,7 +1719,9 @@ export class VioletDataGrid extends FASTElement {
             this.focusMode !== "cell" ||
             this.focusedSelectionRowId !== null ||
             this.isEditorEvent(event) ||
-            this.isEditorElement(event.target)
+            this.isEditorElement(event.target) ||
+            this.isInteractiveCellWidgetEvent(event) ||
+            this.isInteractiveCellWidgetTarget(event.target)
         ) {
             return true;
         }
@@ -4028,10 +4038,10 @@ export class VioletDataGrid extends FASTElement {
         row,
       } satisfies VioletRenderedRow;
     });
-    if (
+    const didSpliceRenderedRows =
       nextRenderedRows.length !== this.renderedRows.length ||
-      nextRenderedRows.some((rendered, index) => rendered !== this.renderedRows[index])
-    ) {
+      nextRenderedRows.some((rendered, index) => rendered !== this.renderedRows[index]);
+    if (didSpliceRenderedRows) {
       this.renderedRows.splice(0, this.renderedRows.length, ...nextRenderedRows);
     }
     this.#renderedPresentationRevision = this.#presentationRevision;
@@ -4059,7 +4069,11 @@ export class VioletDataGrid extends FASTElement {
         : (nextRenderedRows[0]?.row.id ?? null);
     this.scheduleRenderedRowMeasurement();
     this.restoreSelectionControlFocus(focusedSelectionControl);
-    this.recheckCellFocusAfterRender(hadGridCellFocus, focusGenerationBeforeRender);
+    this.recheckCellFocusAfterRender(
+      hadGridCellFocus,
+      focusGenerationBeforeRender,
+      didSpliceRenderedRows,
+    );
     this.recheckRowModeFocusAfterRender();
     Updates.enqueue(() => this.syncCustomCellWidgetTabIndexes());
   }
@@ -4101,14 +4115,24 @@ export class VioletDataGrid extends FASTElement {
     });
   }
 
-  private recheckCellFocusAfterRender(hadGridCellFocus: boolean, focusGeneration: number): void {
-    if (this.focusMode !== "cell" || (!hadGridCellFocus && !this.#pendingGridFocus)) {
+  private recheckCellFocusAfterRender(hadGridCellFocus: boolean, focusGeneration: number, didSpliceRenderedRows: boolean): void {
+    if (
+      this.focusMode !== "cell" ||
+      (!hadGridCellFocus && !didSpliceRenderedRows && !this.#pendingGridFocus && !this.#pendingCellFocusRecovery)
+    ) {
       return;
     }
 
+    const pending = mergePendingCellFocusRecovery(this.#pendingCellFocusRecovery, hadGridCellFocus, focusGeneration);
+    this.#pendingCellFocusRecovery = pending;
+
     const revision = ++this.#cellFocusRecoveryRevision;
     Updates.enqueue(() => {
-      if (revision !== this.#cellFocusRecoveryRevision || !this.$fastController.isConnected || this.editingCell) {
+      if (revision !== this.#cellFocusRecoveryRevision) {
+        return;
+      }
+      this.#pendingCellFocusRecovery = null;
+      if (!this.$fastController.isConnected || this.editingCell) {
         return;
       }
 
@@ -4116,38 +4140,23 @@ export class VioletDataGrid extends FASTElement {
         const cell = this.getActiveGridCellElement();
         if (cell) {
           this.#pendingGridFocus = false;
-          if (
-            isDocumentFocusAvailableForGrid(this, this.ownerDocument) ||
-            Boolean(this.shadowRoot?.activeElement)
-          ) {
+          if (isDocumentFocusAvailableForGrid(this, this.ownerDocument) || Boolean(this.shadowRoot?.activeElement)) {
             cell.focus({ preventScroll: true });
           }
         }
         return;
       }
 
-      if (!hadGridCellFocus || this.#focusGeneration !== focusGeneration) {
-        return;
-      }
-
-      const shadowActive = this.shadowRoot?.activeElement;
-      const activeCell = this.getActiveGridCellElement();
-      if (
-        shadowActive?.isConnected &&
-        (!this.isGridCellElement(shadowActive) || (activeCell && shadowActive === activeCell))
-      ) {
-        return;
-      }
-
-      if (!isDocumentFocusAvailableForGrid(this, this.ownerDocument)) {
-        return;
-      }
-
-      if (activeCell) {
-        activeCell.focus({ preventScroll: true });
-      } else {
-        this.parkFocusOnScrollContainer();
-      }
+      recoverGridCellFocusAfterRender({
+        grid: this,
+        ownerDocument: this.ownerDocument,
+        shadowRoot: this.shadowRoot,
+        pending,
+        focusGeneration: this.#focusGeneration,
+        gridCellFocusGeneration: this.#gridCellFocusGeneration,
+        activeCell: this.getActiveGridCellElement(),
+        parkFocusOnScrollContainer: () => this.parkFocusOnScrollContainer(),
+      });
     });
   }
 
@@ -4188,8 +4197,11 @@ export class VioletDataGrid extends FASTElement {
     });
   }
 
-  readonly #handleFocusIntent = (): void => {
+  readonly #handleFocusIntent = (event: Event): void => {
     this.#focusGeneration += 1;
+    if (event.type === "focusin" && this.isGridCellElement(this.shadowRoot?.activeElement)) {
+      this.#gridCellFocusGeneration = this.#focusGeneration;
+    }
   };
 
   private interactionSnapshot(): VioletInteractionSnapshot {

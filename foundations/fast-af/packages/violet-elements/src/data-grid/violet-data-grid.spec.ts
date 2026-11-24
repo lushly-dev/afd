@@ -1337,6 +1337,67 @@ describe("violet-data-grid", () => {
         }
     });
 
+    it("lets native copy and paste pass through inside a custom cellTemplate interactive widget (#2368)", async () => {
+        const columns: VioletDataGridColumn<TestRow>[] = [
+            { ...widgetColumns[1]!, cellTemplate: nativeWidgetCellTemplate },
+            { ...widgetColumns[2]!, cellTemplate: shadowWidgetCellTemplate },
+        ];
+        const grid = await renderGrid({ columns });
+        grid.activeCell = { rowId: "black-currant", columnId: "commonName" };
+        await nextFrame();
+
+        const cellInput = grid.shadowRoot!.querySelector<HTMLInputElement>(
+            'td[data-row-id="black-currant"][data-column-id="commonName"] input[type="text"]',
+        )!;
+        const shadowWidget = grid.shadowRoot!.querySelector<HTMLElement>(
+            'td[data-row-id="black-currant"][data-column-id="status"] [data-cell-widget]',
+        )!;
+        const shadowInner = shadowWidget.shadowRoot!.querySelector<HTMLElement>("button")!;
+        expect(cellInput).toBeTruthy();
+        expect(shadowInner).toBeTruthy();
+
+        const copies: unknown[] = [];
+        const pastes: unknown[] = [];
+        grid.addEventListener("cell-copy", (event) => copies.push((event as CustomEvent).detail));
+        grid.addEventListener("cell-paste", (event) => pastes.push((event as CustomEvent).detail));
+
+        for (const target of [cellInput, shadowInner]) {
+            target.focus();
+
+            const copyData = new DataTransfer();
+            const copyEvent = new ClipboardEvent("copy", {
+                bubbles: true,
+                cancelable: true,
+                composed: true,
+                clipboardData: copyData,
+            });
+            if (copyEvent.clipboardData !== copyData) {
+                Object.defineProperty(copyEvent, "clipboardData", { value: copyData });
+            }
+            target.dispatchEvent(copyEvent);
+
+            expect(copyEvent.defaultPrevented).toBe(false);
+            expect(copyData.getData("text/plain")).toBe("");
+            expect(copies).toEqual([]);
+
+            const pasteData = new DataTransfer();
+            pasteData.setData("text/plain", "Gooseberry");
+            const pasteEvent = new ClipboardEvent("paste", {
+                bubbles: true,
+                cancelable: true,
+                composed: true,
+                clipboardData: pasteData,
+            });
+            if (pasteEvent.clipboardData !== pasteData) {
+                Object.defineProperty(pasteEvent, "clipboardData", { value: pasteData });
+            }
+            target.dispatchEvent(pasteEvent);
+
+            expect(pasteEvent.defaultPrevented).toBe(false);
+            expect(pastes).toEqual([]);
+        }
+    });
+
     it("commits text and number edits with normalized values", async () => {
         const grid = await renderGrid();
         const privateGrid = grid as any;

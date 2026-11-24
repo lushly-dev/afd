@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Fix five `violet-elements` bugs (#2435, #2429, #2383, #2382, #2368):
+  - `violet-data-grid` now preserves cell focus across a queued `renderedRows.splice` in Firefox when focus leaves and returns to a cell within the same frame, removing the `await nextFrame()` workaround in `violet-data-grid-header-keyboard.spec.ts` (#2383).
+  - `violet-color-picker` now syncs its hex `<input>` imperatively via `syncHexInputValue()` instead of a deferred `:value` template binding so same-frame edits after a 6-digit preview are not overwritten on the next animation frame (programmatic `value` updates now display the normalized hex value, or empty for invalid values), removing the double-rAF workaround in `violet-color-picker.spec.ts` (#2382).
+  - `violet-data-grid`'s `handleGridCopy` and `handleGridPaste` now guard custom `cellTemplate` interactive widgets (`isInteractiveCellWidgetEvent` / `isInteractiveCellWidgetTarget`) so native clipboard behavior inside embedded inputs is not intercepted (#2368).
+  - `violet-dialog`'s `Overview` and `Alert` stories now wait for the close transition to reach `display: none` before `play` finishes, preventing intermittent `color-contrast` failures when Specimen runs axe mid-fade (#2435).
+  - `violet-data-grid-fill-pointer.spec.ts` now awaits frame settlement and focus on the active cell between `{Tab}{Tab}` and `{ArrowRight}` after `{Enter}` fill activation, eliminating a WebKit focus race (#2429).
+
 - Give each element its own entries, so one import registers one element (#1785): `@lushly-dev/violet-elements/<name>` exports the class and its definition and registers nothing, and `@lushly-dev/violet-elements/<name>/define` registers the element and the elements it uses, and exports `define<Class>(registry = customElements)` for a scoped registry, composing the FAST definition once per class. `sideEffects` lists only the define modules, `all.js` and the root, which still registers every element. Add `icons/*`, `icon-registry`, `theme` and `theme-builtin` entries and remove `./dist/*` (deep imports move to the subpaths; the changeset has the table). System icons register when an element is defined, not when its module loads. The split was made by `scripts/codemods/split-define.mjs`, and the bundle test in `tests/consumers/fast-af/verify-artifacts.mjs` checks that `button/define` bundles and registers `violet-button` alone.
 
 - Preserve explicit empty `value=""` on `violet-option` and support empty-value options in `violet-select`, `violet-listbox` and `violet-combobox` (#2235):
