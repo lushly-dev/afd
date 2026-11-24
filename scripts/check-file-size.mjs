@@ -10,7 +10,10 @@
  *
  * Scope:
  *   - Source extensions: .ts, .tsx, .js, .mjs, .cjs, .rs, .py, .cpp, .hpp
- *   - Source roots: packages/, python/, alfred/, foundations/, integrations/, endpoints/, scripts/
+ *   - Source roots: packages/, python/, alfred/, foundations/, integrations/, endpoints/, scripts/,
+ *     spec/, site/ and .claude/skills/ (skill scripts; .claude/worktrees/ holds nested checkouts). docs/ (feature prototypes) is out of scope, and
+ *     site/js/vendor/ holds bundles the site build scripts write, so it is skipped.
+ *   - Staged mode applies the same roots and skips as a full scan.
  *   - AFD-authored code inside imported families (violet-elements, violet, specimen, botcore,
  *     health) is checked; upstream Microsoft FAST source (`foundations/fast-af/packages/element/`)
  *     is skipped.
@@ -50,6 +53,10 @@ const SOURCE_ROOTS = [
 	'integrations',
 	'endpoints',
 	'scripts',
+	'spec',
+	'site',
+	// Only the skills: .claude/worktrees/ holds whole nested checkouts of the repository.
+	'.claude/skills',
 ];
 const SOURCE_EXTENSIONS = new Set([
 	'.ts',
@@ -87,6 +94,8 @@ const SKIP_SEGMENTS = new Set([
 // Upstream Microsoft FAST source tracked via three-way merge; AFD-authored code in imported
 // families (violet-elements, violet, specimen, botcore, health) is checked.
 const UPSTREAM_PREFIXES = ['foundations/fast-af/packages/element'];
+// Bundles written by scripts/build-site-*.mjs, not authored code.
+const GENERATED_PREFIXES = ['site/js/vendor'];
 
 // ─── Path rules ──────────────────────────────────────────────────────────────
 
@@ -101,7 +110,9 @@ function toPosix(filePath, root = process.cwd()) {
 function isSkippedDirectory(workspacePath) {
 	const normalized = workspacePath.replace(/\\/g, '/').replace(/^\.\//, '');
 	if (
-		UPSTREAM_PREFIXES.some((prefix) => normalized === prefix || normalized.startsWith(`${prefix}/`))
+		[...UPSTREAM_PREFIXES, ...GENERATED_PREFIXES].some(
+			(prefix) => normalized === prefix || normalized.startsWith(`${prefix}/`)
+		)
 	) {
 		return true;
 	}
@@ -139,6 +150,9 @@ export function shouldSkip(filePath, root = process.cwd()) {
 	}
 	if (isLanguageTestFile(name, ext)) return true;
 	if (isSkippedDirectory(normalized)) return true;
+	// Staged mode is handed any changed file, a merge's included; only the roots a full scan walks
+	// are in scope, so both modes agree on what is checked.
+	if (!SOURCE_ROOTS.some((sourceRoot) => normalized.startsWith(`${sourceRoot}/`))) return true;
 
 	return false;
 }
