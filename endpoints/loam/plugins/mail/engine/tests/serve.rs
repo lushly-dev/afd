@@ -238,23 +238,21 @@ async fn a_persons_command_is_neither_listed_nor_callable_over_mcp() {
     ] {
         assert!(!listed.contains(person), "{person} is listed: {listed}");
     }
-    // `mail-operation-approve` (F2a), `mail-draft-send` and `mail-unsubscribe`
-    // (F2b) are released over MCP (M18 amended), held for approval for every
-    // caller; non-approvers get no token. `mail-replyset-send` waits for F3.
+    // All four released commands (`mail-operation-approve` from F2a,
+    // `mail-draft-send` and `mail-unsubscribe` from F2b, and
+    // `mail-replyset-send` from F3) are listed over MCP (M18 amended), held for
+    // approval for every caller; non-approvers get no token.
     for released in [
         "\"mail-operation-approve\"",
         "\"mail-draft-send\"",
         "\"mail-unsubscribe\"",
+        "\"mail-replyset-send\"",
     ] {
         assert!(
             listed.contains(released),
             "{released} is not listed: {listed}"
         );
     }
-    assert!(
-        !listed.contains("\"mail-replyset-send\""),
-        "mail-replyset-send is listed: {listed}"
-    );
     // An agent suggests and dismisses its own suggestions; it never decides.
     for agents in [
         "mail-sender-suggest",
@@ -270,6 +268,8 @@ async fn a_persons_command_is_neither_listed_nor_callable_over_mcp() {
         "mail-record-list",
         "mail-record-propose",
         "mail-record-withdraw",
+        "mail-replyset-next",
+        "mail-replyset-submit",
     ] {
         assert!(listed.contains(agents), "{agents} is not listed: {listed}");
     }
@@ -282,7 +282,6 @@ async fn a_persons_command_is_neither_listed_nor_callable_over_mcp() {
         "mail-sender-screen",
         "mail-sender-accept",
         "mail-policy-set",
-        "mail-replyset-send",
     ] {
         let call = mcp_body(
             "tools/call",
@@ -293,9 +292,9 @@ async fn a_persons_command_is_neither_listed_nor_callable_over_mcp() {
         let text = body.to_string();
         assert!(text.contains("COMMAND_NOT_FOUND"), "{person}: {text}");
     }
-    // `mail-operation-approve`, `mail-draft-send` and `mail-unsubscribe` are
-    // listed over MCP, but never run without evidence from the terminal or an
-    // approver (and refuse missing/closed targets before any hold).
+    // All four released commands are listed over MCP, but never run without
+    // evidence from the terminal or an approver (and refuse missing/closed
+    // targets before any hold).
     for (cmd, input, expected_code) in [
         (
             "mail-operation-approve",
@@ -311,6 +310,11 @@ async fn a_persons_command_is_neither_listed_nor_callable_over_mcp() {
             "mail-unsubscribe",
             json!({ "message": 1, "digest": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" }),
             "MESSAGE_NOT_FOUND",
+        ),
+        (
+            "mail-replyset-send",
+            json!({ "replyset": 1, "revision": 1 }),
+            "REPLYSET_NOT_FOUND",
         ),
     ] {
         let call = mcp_body(

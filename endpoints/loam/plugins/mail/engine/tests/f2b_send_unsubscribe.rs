@@ -246,6 +246,8 @@ fn ft3_ft5_non_approver_holds_without_token_and_tools_list_matches_m18() {
             "mail-unsubscribe-show",
             "mail-operation-approve",
             "mail-operation-show",
+            "mail-replyset-send",
+            "mail-replyset-submit",
         ] {
             let quoted = format!("\"{expected}\"");
             assert!(
@@ -267,7 +269,6 @@ fn ft3_ft5_non_approver_holds_without_token_and_tools_list_matches_m18() {
             "mail-sender-screen",
             "mail-sender-accept",
             "mail-rebuild",
-            "mail-replyset-send",
         ] {
             let quoted = format!("\"{forbidden}\"");
             assert!(

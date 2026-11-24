@@ -1125,6 +1125,20 @@ pub(super) const MIGRATIONS: &[&str] = &[
     "
     ALTER TABLE draft ADD COLUMN recipient_bases TEXT;
     ",
+    // 24: reply-set unit claim key and instructions version (step F3; plugin.spec.md
+    // sections 9.1 and 9.4). Neither is derived from mail: both survive restarts and rebuilds.
+    // The claim key is initialized once from the operating system's random source on store open.
+    "
+    CREATE TABLE replyset_claim_key (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        secret BLOB NOT NULL CHECK (length(secret) = 32),
+        created_at INTEGER NOT NULL
+    ) STRICT;
+
+    ALTER TABLE replyset_reply ADD COLUMN instructions_version TEXT;
+    ALTER TABLE replyset_reply ADD COLUMN known_source_digest TEXT;
+    ALTER TABLE replyset_event ADD COLUMN instructions_version TEXT;
+    ",
 ];
 
 /// Brings `connection` to the newest schema, one migration and one

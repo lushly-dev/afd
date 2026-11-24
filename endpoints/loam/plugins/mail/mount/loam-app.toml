@@ -103,6 +103,10 @@ effects = ["inspect"]
 tool = "mail-replyset-show"
 effects = ["inspect"]
 
+[[mount.tools]]
+tool = "mail-replyset-next"
+effects = ["inspect"]
+
 # Provider and outbound mutations (`effects = ["external"]`)
 [[mount.tools]]
 tool = "mail-sync"
@@ -142,6 +146,10 @@ effects = ["external"]
 
 [[mount.tools]]
 tool = "mail-unsubscribe"
+effects = ["external"]
+
+[[mount.tools]]
+tool = "mail-replyset-send"
 effects = ["external"]
 
 # Local store mutations (`effects = ["store-write"]`)
@@ -210,7 +218,7 @@ tool = "mail-replyset-update"
 effects = ["store-write"]
 
 [[mount.tools]]
-tool = "mail-replyset-next"
+tool = "mail-replyset-submit"
 effects = ["store-write"]
 
 [app]

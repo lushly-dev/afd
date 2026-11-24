@@ -466,6 +466,30 @@ pub async fn start_world(
             .await?;
             run_approved(&registry, "mail-sync", json!({})).await?;
 
+            // Seed reply set 1 for Scenario 5 (compose-replies-apart):
+            // reply 1 -> Ada (msg 7, Thursday), reply 2 -> Bea (msg 8, invoice),
+            // both questions answered by the person, neither reply has text yet.
+            run_approved(
+                &registry,
+                crate::replysets::CREATE,
+                json!({
+                    "messages": [7, 8],
+                    "questions": [
+                        {
+                            "question": "Does Thursday work?",
+                            "messages": [7],
+                            "answer": "Thursday works.",
+                        },
+                        {
+                            "question": "Can you send the invoice?",
+                            "messages": [8],
+                            "answer": "The invoice is attached.",
+                        },
+                    ],
+                }),
+            )
+            .await?;
+
             let agent = run_approved(
                 &registry,
                 crate::tokens::CREATE,

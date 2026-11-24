@@ -21,8 +21,8 @@ cargo fmt --check && cargo clippy --locked --all-targets -- -D warnings && cargo
 
 It is built a step at a time from the specification's section 15. It answers `help` and
 `version` and runs a command the registry exposes to the command line, printing its result as
-JSON: `loam-mail <command> [input]`. It implements phases B through E and steps F0, F1, F2a, F4
-and F5: accounts, tokens (agent and approver), sync, threads/messages/attachments/search, senders
+JSON: `loam-mail <command> [input]`. It implements phases B through E and steps F0, F1, F2a, F2b,
+F3, F4 and F5: accounts, tokens (agent and approver), sync, threads/messages/attachments/search, senders
 and screening, stream/burst/proposed stories, selections, per-account policies, undoable mailbox
 changes and proposals, drafts, SMTP send, unsubscribe, grounded records, reply sets, and the Loam
 mount package. Whatever came from mail, a file's bytes included, sits in a part of a result
@@ -139,9 +139,9 @@ for the full contract.
 
 4. Add the mounted instance in a version-4 `loam.deployment.toml` (with `[host] kind = "desktop"`),
    naming the packed mount directory, bearer file, `labels = "per-part"`, `approvals = "shell"`,
-   each released MCP command's preview (`mail-operation-approve`, `mail-draft-send`, and
-   `mail-unsubscribe` today; `mail-replyset-send` follows in step F3), and every mutation you want
-   exposed (`expose.apps` is set per command):
+   all four released MCP commands' previews (`mail-operation-approve`, `mail-draft-send`,
+   `mail-unsubscribe`, and `mail-replyset-send`), `mail-replyset-submit` for fresh-context units,
+   and every other mutation you want exposed (`expose.apps` is set per command):
 
    ```toml
    deployment_version = 4
@@ -172,6 +172,13 @@ for the full contract.
    [apps.mail.commands."mail-unsubscribe"]
    expose = { agent = true, apps = true }
    preview = { command = "mail-unsubscribe-show", input = ["message", "digest"] }
+
+   [apps.mail.commands."mail-replyset-send"]
+   expose = { agent = true, apps = true }
+   preview = { command = "mail-replyset-show", input = ["replyset", "revision"] }
+
+   [apps.mail.commands."mail-replyset-submit"]
+   expose = { agent = true }
    ```
 
 5. Validate and write the desktop deployment:

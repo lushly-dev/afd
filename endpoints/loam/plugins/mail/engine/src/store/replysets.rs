@@ -8,15 +8,19 @@
 //! engine from the source message at creation and stored with the reply so
 //! callers cannot set recipients and re-deriving a message cannot change them.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
 use serde::{Deserialize, Serialize};
 
+use super::derived::unreadable;
+use super::parts::body_bytes_readonly_on;
 use super::senders::own_addresses;
-use super::{AccountId, AccountRow, MessageId, Store, StoreError};
+use super::{AccountId, MessageId, Store, StoreError};
 use crate::derive;
 use crate::drafts::{MOST_SUBJECT, address, unsafe_in_subject};
+use crate::log::Log;
+use crate::replysets::source_digest;
 use crate::store::Proposer;
 
 /// Overall state of a reply set.
@@ -207,12 +211,8 @@ pub struct ReplyRow {
     pub source_text_digest: Option<String>,
     /// Answer `(question, revision)` pairs recorded at submission.
     pub answers_snapshot: Vec<AnswerRef>,
-    /// Latest unit id handed out for this reply's current generation.
-    pub handed_unit: Option<String>,
-    /// Exact source text digest handed out with `handed_unit`.
-    pub handed_source_text_digest: Option<String>,
-    /// Exact serialized answer `(question, revision)` snapshot handed out with `handed_unit`.
-    pub handed_answers_snapshot: Option<String>,
+    /// Version of the engine instructions handed to the composer at submission.
+    pub instructions_version: Option<String>,
     /// Digest of the current `text`.
     pub text_digest: Option<String>,
     /// When the reply last changed (ms).
@@ -376,16 +376,22 @@ pub struct ReplySetChange {
     pub edit: Option<ReplyEdit>,
 }
 
-/// Payload for submitting a composed reply against a handed-out unit.
+/// Payload for submitting a composed reply via `mail-replyset-submit` against
+/// a statelessly verified unit and claim (plugin.spec.md 9.1, 9.2, 9.4).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReplySubmission {
     /// Composed reply text.
     pub text: String,
     /// Digest of `text`.
     pub text_digest: String,
-    /// Optional unit id echoed from `mail-replyset-next`; when present it must
-    /// match the reply's currently handed-out unit.
-    pub unit: Option<String>,
+    /// Unit id returned by `mail-replyset-next` (`rsu_<set>_<reply>_<generation>`).
+    pub unit: String,
+    /// Canonical source text digest derived for the reply's source message.
+    pub source_text_digest: String,
+    /// Serialized `Vec<AnswerRef>` for the reply's linked questions.
+    pub answers_snapshot: String,
+    /// Version of the fixed engine instructions included in the unit.
+    pub instructions_version: String,
 }
 
 /// Why a reply set mutation was refused.
@@ -479,7 +485,207 @@ fn token_name_on(
         .optional()?)
 }
 
-fn load_replyset_on(
+/// Ensures the persistent 32-byte HMAC-SHA256 claim key exists in
+/// `replyset_claim_key` (plugin.spec.md section 9.1). Created once from the
+/// operating system's random source; survives restarts and rebuilds.
+pub(super) fn ensure_claim_key(connection: &Connection, now: i64) -> Result<(), StoreError> {
+    let exists: Option<i64> = connection
+        .query_row("SELECT 1 FROM replyset_claim_key WHERE id = 1", [], |row| {
+            row.get(0)
+        })
+        .optional()?;
+    if exists.is_some() {
+        return Ok(());
+    }
+    let mut secret = [0u8; 32];
+    getrandom::fill(&mut secret).map_err(|_| StoreError::Random)?;
+    connection.execute(
+        "INSERT OR IGNORE INTO replyset_claim_key (id, secret, created_at)
+         VALUES (1, ?1, ?2)",
+        params![secret.as_slice(), now],
+    )?;
+    Ok(())
+}
+
+/// Computes the derived `(subject, visible_text)` digest for `message` without
+/// writing to SQLite (returns `Ok(None)` when the message is not yet derived,
+/// has no body held, or has an unreadable blob).
+fn derived_source_digest_on(
+    connection: &Connection,
+    log: &Log,
+    message: i64,
+) -> Result<Option<String>, StoreError> {
+    let subject: Option<String> = connection
+        .query_row(
+            "SELECT subject FROM envelope WHERE message_id = ?1",
+            [message],
+            |row| row.get(0),
+        )
+        .optional()?;
+    let Some(subject) = subject else {
+        return Ok(None);
+    };
+    let whole = match body_bytes_readonly_on(connection, log, MessageId(message)) {
+        Ok(Some(bytes)) => bytes,
+        Ok(None) => return Ok(None),
+        Err(error) if unreadable(&error) => return Ok(None),
+        Err(error) => return Err(error),
+    };
+    let reading = derive::reading(&whole);
+    Ok(Some(source_digest(&subject, &reading.visible)))
+}
+
+/// Populates baseline `known_source_digest` on any pre-migration-24 unwritten
+/// replies so subsequent derived-source changes advance their unit generation
+/// (plugin.spec.md section 9.1).
+pub(super) fn backfill_source_digests(
+    connection: &Connection,
+    log: &Log,
+) -> Result<(), StoreError> {
+    let rows: Vec<(i64, i64)> = {
+        let mut stmt = connection.prepare_cached(
+            "SELECT r.id, r.message_id
+             FROM replyset_reply r
+             JOIN replyset s ON s.id = r.replyset_id
+             WHERE r.text IS NULL
+               AND r.known_source_digest IS NULL
+               AND r.message_id IS NOT NULL
+               AND s.state IN ('open', 'partial')",
+        )?;
+        stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+            .collect::<Result<_, _>>()?
+    };
+    for (reply_id, msg_id) in rows {
+        if let Some(digest) = derived_source_digest_on(connection, log, msg_id)? {
+            connection.execute(
+                "UPDATE replyset_reply SET known_source_digest = ?2 WHERE id = ?1 AND known_source_digest IS NULL",
+                params![reply_id, digest],
+            )?;
+        }
+    }
+    Ok(())
+}
+
+/// Synchronizes `known_source_digest` for open unwritten replies whose source
+/// message was derived (or across all open replies when `filter` is `None`,
+/// e.g. at `rebuild_begin`). Whenever a message's derived `(subject, visible)`
+/// changes, raises `replyset_reply.generation` and `replyset.revision` so no
+/// earlier unit id or claim can ever become valid again (plugin.spec.md 9.1).
+/// An unchanged rebuild leaves `generation` and open claims intact.
+pub(super) fn sync_source_digests_on(
+    connection: &Connection,
+    log: &Log,
+    filter: Option<&BTreeSet<i64>>,
+    now: i64,
+) -> Result<(), StoreError> {
+    let rows: Vec<(i64, i64, i64, Option<String>)> = match filter {
+        Some(allowed) => {
+            if allowed.is_empty() {
+                return Ok(());
+            }
+            let mut stmt = connection.prepare_cached(
+                "SELECT r.id, r.replyset_id, r.message_id, r.known_source_digest
+                 FROM replyset_reply r
+                 JOIN replyset s ON s.id = r.replyset_id
+                 WHERE r.message_id = ?1
+                   AND r.text IS NULL
+                   AND s.state IN ('open', 'partial')",
+            )?;
+            let mut found = Vec::new();
+            for &msg_id in allowed {
+                let mut mapped = stmt.query_map([msg_id], |row| {
+                    Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+                })?;
+                for row in &mut mapped {
+                    found.push(row?);
+                }
+            }
+            found
+        }
+        None => {
+            let mut stmt = connection.prepare_cached(
+                "SELECT r.id, r.replyset_id, r.message_id, r.known_source_digest
+                 FROM replyset_reply r
+                 JOIN replyset s ON s.id = r.replyset_id
+                 WHERE r.text IS NULL
+                   AND r.message_id IS NOT NULL
+                   AND s.state IN ('open', 'partial')",
+            )?;
+            stmt.query_map([], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+            })?
+            .collect::<Result<_, _>>()?
+        }
+    };
+    if rows.is_empty() {
+        return Ok(());
+    }
+    let mut digest_cache: HashMap<i64, Option<String>> = HashMap::new();
+    let mut bumped_sets: BTreeSet<i64> = BTreeSet::new();
+    for (reply_id, set_id, msg_id, known) in rows {
+        let current = match digest_cache.get(&msg_id) {
+            Some(cached) => cached.clone(),
+            None => {
+                let computed = derived_source_digest_on(connection, log, msg_id)?;
+                digest_cache.insert(msg_id, computed.clone());
+                computed
+            }
+        };
+        let Some(current) = current else {
+            continue;
+        };
+        match known {
+            None => {
+                connection.execute(
+                    "UPDATE replyset_reply SET known_source_digest = ?2 WHERE id = ?1",
+                    params![reply_id, current],
+                )?;
+            }
+            Some(prev) if prev != current => {
+                let updated = connection.execute(
+                    "UPDATE replyset_reply
+                     SET generation = generation + 1,
+                         known_source_digest = ?2,
+                         handed_unit = NULL, handed_source_text_digest = NULL,
+                         handed_answers_snapshot = NULL,
+                         updated_at = ?3
+                     WHERE id = ?1 AND text IS NULL",
+                    params![reply_id, current, now],
+                )?;
+                if updated == 1 {
+                    bumped_sets.insert(set_id);
+                }
+            }
+            Some(_) => {}
+        }
+    }
+    for set_id in bumped_sets {
+        connection.execute(
+            "UPDATE replyset SET revision = revision + 1, updated_at = ?2
+             WHERE id = ?1 AND state IN ('open', 'partial')",
+            params![set_id, now],
+        )?;
+    }
+    Ok(())
+}
+
+/// Reads the 32-byte HMAC-SHA256 claim key from `connection`.
+fn claim_key_on(connection: &Connection) -> Result<[u8; 32], StoreError> {
+    let bytes: Vec<u8> = connection
+        .query_row(
+            "SELECT secret FROM replyset_claim_key WHERE id = 1",
+            [],
+            |row| row.get(0),
+        )
+        .optional()?
+        .ok_or(StoreError::NotFound("replyset_claim_key"))?;
+    let key: [u8; 32] = bytes
+        .try_into()
+        .map_err(|_| StoreError::NotFound("replyset_claim_key"))?;
+    Ok(key)
+}
+
+pub(super) fn load_replyset_on(
     connection: &Connection,
     id: i64,
 ) -> Result<Option<ReplySetDetail>, StoreError> {
@@ -517,8 +723,7 @@ fn load_replyset_on(
         "SELECT r.id, r.replyset_id, r.ordinal, r.message_id, r.recipient_address,
                 r.recipient_name, r.reply_to_differs, r.subject, r.text, r.source,
                 r.generation, r.author_kind, r.author_id, r.author_name, r.source_unit,
-                r.source_text_digest, r.answers_snapshot, r.handed_unit,
-                r.handed_source_text_digest, r.handed_answers_snapshot,
+                r.source_text_digest, r.answers_snapshot, r.instructions_version,
                 r.text_digest, r.updated_at, r.send_state, r.outbound_id,
                 (SELECT count(*) FROM replyset_event e WHERE e.reply_id = r.id AND e.kind = 'submitted'),
                 (SELECT count(*) FROM replyset_event e WHERE e.reply_id = r.id AND e.kind = 'edited')
@@ -533,9 +738,9 @@ fn load_replyset_on(
             let author_kind: Option<String> = row.get(11)?;
             let author_id: Option<String> = row.get(12)?;
             let snapshot_raw: Option<String> = row.get(16)?;
-            let send_state: String = row.get(22)?;
-            let submissions: i64 = row.get(24)?;
-            let edits: i64 = row.get(25)?;
+            let send_state: String = row.get(20)?;
+            let submissions: i64 = row.get(22)?;
+            let edits: i64 = row.get(23)?;
             let answers_snapshot: Vec<AnswerRef> = snapshot_raw
                 .as_deref()
                 .and_then(|raw| serde_json::from_str(raw).ok())
@@ -560,13 +765,11 @@ fn load_replyset_on(
                 source_unit: row.get(14)?,
                 source_text_digest: row.get(15)?,
                 answers_snapshot,
-                handed_unit: row.get(17)?,
-                handed_source_text_digest: row.get(18)?,
-                handed_answers_snapshot: row.get(19)?,
-                text_digest: row.get(20)?,
-                updated_at: row.get(21)?,
+                instructions_version: row.get(17)?,
+                text_digest: row.get(18)?,
+                updated_at: row.get(19)?,
                 send_state: ReplySendState::parse(&send_state),
-                outbound: row.get(23)?,
+                outbound: row.get(21)?,
                 submissions: u64::try_from(submissions).unwrap_or(0),
                 edits: u64::try_from(edits).unwrap_or(0),
             })
@@ -663,29 +866,14 @@ fn answers_for_reply(
 }
 
 impl Store {
-    /// Settles any reply set left in `sending` from a previous process that
-    /// ended unexpectedly: any reply that was mid-SMTP becomes `unknown` (and
-    /// its set `unknown`), while sets interrupted between replies or after the
-    /// last acceptance recover cleanly to `sent`, `partial`, or `open`.
-    pub(super) fn mark_interrupted_replysets(
-        connection: &Connection,
-        now: i64,
-    ) -> Result<(), StoreError> {
-        let set_ids: Vec<i64> = {
-            let mut stmt = connection.prepare("SELECT id FROM replyset WHERE state = 'sending'")?;
-            stmt.query_map([], |row| row.get(0))?
-                .collect::<Result<_, _>>()?
-        };
-        for set_id in set_ids {
-            settle_sending_replyset_on(connection, set_id, now)?;
-        }
-        // Defensive sweep for any orphaned sending reply outside a sending parent.
-        connection.execute(
-            "UPDATE replyset_reply SET send_state = 'unknown', updated_at = ?1
-             WHERE send_state = 'sending'",
-            [now],
-        )?;
-        Ok(())
+    /// Returns the store's persistent 32-byte HMAC-SHA256 key used to derive
+    /// stateless unit claims for `mail-replyset-next` and `mail-replyset-submit`.
+    /// Never returned in any command result, error, or journal entry.
+    ///
+    /// # Errors
+    /// When the database refuses.
+    pub fn replyset_claim_key(&self) -> Result<[u8; 32], StoreError> {
+        claim_key_on(&self.connection)
     }
 
     /// Resolves source messages for a new reply set, verifying each exists, is
@@ -868,11 +1056,14 @@ impl Store {
 
         let mut reply_by_message: HashMap<i64, i64> = HashMap::with_capacity(new.sources.len());
         for (ordinal, src) in new.sources.iter().enumerate() {
+            let known_source_digest =
+                derived_source_digest_on(&transaction, &self.log, src.message)?;
             transaction.execute(
                 "INSERT INTO replyset_reply
                      (replyset_id, ordinal, message_id, recipient_address, recipient_name,
-                      reply_to_differs, subject, generation, updated_at, send_state)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 1, ?8, 'none')",
+                      reply_to_differs, subject, generation, known_source_digest, updated_at,
+                      send_state)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 1, ?8, ?9, 'none')",
                 params![
                     set_id,
                     i64::try_from(ordinal).unwrap_or(i64::MAX),
@@ -881,6 +1072,7 @@ impl Store {
                     src.recipient_name,
                     i64::from(src.reply_to_differs),
                     src.subject,
+                    known_source_digest,
                     now,
                 ],
             )?;
@@ -1074,46 +1266,20 @@ impl Store {
         Ok(Ok(detail))
     }
 
-    /// Records the exact unit id, source text digest, and answer revisions
-    /// handed out by `mail-replyset-next` for a reply's current generation,
-    /// without mutating `replyset.revision` or `updated_at`.
+    /// Records a composed reply submitted through `mail-replyset-submit`,
+    /// verifying in one transaction that the set is open/partial, the reply has
+    /// no text yet and matches `submission.unit` (which encodes the reply's
+    /// `generation`, raised by `update_replyset` whenever linked answers change
+    /// and by `sync_source_digests_on` whenever the derived source changes),
+    /// the current linked answers inside the transaction still match the
+    /// pre-transaction snapshot, and `verify_claim` accepts the cryptographic
+    /// HMAC-SHA256 claim for `(unit_id, source_text_digest)`. Raises the
+    /// reply's generation (spending the claim) and the set's revision, and
+    /// checks `check_preview` before committing.
     ///
     /// # Errors
     /// When the database refuses.
-    pub fn record_replyset_handout(
-        &mut self,
-        set_id: i64,
-        reply_id: i64,
-        generation: i64,
-        unit_id: &str,
-        source_text_digest: &str,
-        answers_snapshot: &str,
-    ) -> Result<bool, StoreError> {
-        let changed = self.connection.execute(
-            "UPDATE replyset_reply
-             SET handed_unit = ?4, handed_source_text_digest = ?5,
-                 handed_answers_snapshot = ?6
-             WHERE id = ?1 AND replyset_id = ?2 AND generation = ?3
-               AND text IS NULL AND send_state IN ('none', 'failed')",
-            params![
-                reply_id,
-                set_id,
-                generation,
-                unit_id,
-                source_text_digest,
-                answers_snapshot,
-            ],
-        )?;
-        Ok(changed == 1)
-    }
-
-    /// Records a composed reply submitted through `mail-replyset-next`, verifying
-    /// that an open handout exists for the reply's current generation and answers
-    /// and keeping the exact handed-out unit id, source message text digest, and
-    /// answer revisions in the reply row and in `replyset_event`.
-    ///
-    /// # Errors
-    /// When the database refuses.
+    #[allow(clippy::too_many_arguments)]
     pub fn submit_replyset_reply(
         &mut self,
         set_id: i64,
@@ -1121,6 +1287,7 @@ impl Store {
         submission: &ReplySubmission,
         submitter: &Proposer,
         now: i64,
+        verify_claim: impl FnOnce(&[u8; 32], &str) -> bool,
         check_preview: impl FnOnce(&ReplySetDetail) -> bool,
     ) -> Result<Result<(ReplySetDetail, ReplyRow), ReplySetRefusal>, StoreError> {
         let transaction = self.connection.transaction()?;
@@ -1142,39 +1309,37 @@ impl Store {
         ) {
             return Ok(Err(ReplySetRefusal::ReplyLocked(reply_id)));
         }
-
-        let unit_id = reply.current_unit_id();
-        if let Some(named_unit) = submission.unit.as_deref()
-            && named_unit != unit_id
-        {
+        // Only unwritten replies have an open unit; once submitted or edited
+        // the reply's generation rises and `mail-replyset-next` moves on.
+        if reply.text.is_some() {
             return Ok(Err(ReplySetRefusal::UnitNotOpen));
         }
-        let (Some(handed_unit), Some(handed_digest), Some(handed_answers)) = (
-            reply.handed_unit.as_deref(),
-            reply.handed_source_text_digest.as_deref(),
-            reply.handed_answers_snapshot.as_deref(),
-        ) else {
-            return Ok(Err(ReplySetRefusal::UnitNotOpen));
-        };
-        if handed_unit != unit_id {
+
+        let unit_id = reply.current_unit_id();
+        if submission.unit != unit_id {
             return Ok(Err(ReplySetRefusal::UnitNotOpen));
         }
         let current_answers = answers_for_reply(&transaction, reply_id)?;
         let current_answers_json =
             serde_json::to_string(&current_answers).unwrap_or_else(|_| "[]".to_string());
-        if current_answers_json != handed_answers {
+        if current_answers_json != submission.answers_snapshot {
+            return Ok(Err(ReplySetRefusal::UnitNotOpen));
+        }
+        let claim_key = claim_key_on(&transaction)?;
+        if !verify_claim(&claim_key, &unit_id) {
             return Ok(Err(ReplySetRefusal::UnitNotOpen));
         }
         let submitter_name = token_name_on(&transaction, submitter)?;
 
-        transaction.execute(
+        let updated = transaction.execute(
             "UPDATE replyset_reply
              SET text = ?2, source = 'submitted', generation = generation + 1,
                  author_kind = ?3, author_id = ?4, author_name = ?5,
                  source_unit = ?6, source_text_digest = ?7, answers_snapshot = ?8,
+                 instructions_version = ?9,
                  handed_unit = NULL, handed_source_text_digest = NULL,
-                 handed_answers_snapshot = NULL, text_digest = ?9, updated_at = ?10
-             WHERE id = ?1 AND replyset_id = ?11",
+                 handed_answers_snapshot = NULL, text_digest = ?10, updated_at = ?11
+             WHERE id = ?1 AND replyset_id = ?12 AND generation = ?13 AND text IS NULL",
             params![
                 reply_id,
                 submission.text,
@@ -1182,24 +1347,31 @@ impl Store {
                 submitter.id,
                 submitter_name,
                 unit_id,
-                handed_digest,
-                handed_answers,
+                submission.source_text_digest,
+                current_answers_json,
+                submission.instructions_version,
                 submission.text_digest,
                 now,
                 set_id,
+                reply.generation,
             ],
         )?;
+        if updated != 1 {
+            return Ok(Err(ReplySetRefusal::UnitNotOpen));
+        }
         transaction.execute(
             "INSERT INTO replyset_event
                  (reply_id, kind, unit_id, source_message_id, source_text_digest,
-                  answers_snapshot, actor_kind, actor_id, actor_name, text_digest, at)
-             VALUES (?1, 'submitted', ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                  answers_snapshot, instructions_version, actor_kind, actor_id, actor_name,
+                  text_digest, at)
+             VALUES (?1, 'submitted', ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
             params![
                 reply_id,
                 unit_id,
                 reply.message,
-                handed_digest,
-                handed_answers,
+                submission.source_text_digest,
+                current_answers_json,
+                submission.instructions_version,
                 submitter.kind,
                 submitter.id,
                 submitter_name,
@@ -1226,359 +1398,4 @@ impl Store {
         transaction.commit()?;
         Ok(Ok((detail, updated_reply)))
     }
-
-    /// Atomically verifies `set_id` is sendable at `expected_revision` and
-    /// every reply has non-empty text, then transitions `replyset.state` to
-    /// `'sending'`.
-    ///
-    /// # Errors
-    /// When the database refuses.
-    pub fn begin_replyset_send(
-        &mut self,
-        set_id: i64,
-        expected_revision: i64,
-    ) -> Result<Result<(ReplySetDetail, AccountRow), ReplySetSendRefusal>, StoreError> {
-        let transaction = self.connection.transaction()?;
-        let Some(mut detail) = load_replyset_on(&transaction, set_id)? else {
-            return Ok(Err(ReplySetSendRefusal::NotFound));
-        };
-        match detail.set.state {
-            ReplySetState::Sending => return Ok(Err(ReplySetSendRefusal::Sending)),
-            ReplySetState::Sent => return Ok(Err(ReplySetSendRefusal::Sent)),
-            ReplySetState::Unknown => return Ok(Err(ReplySetSendRefusal::Unknown)),
-            ReplySetState::Open | ReplySetState::Partial => {}
-        }
-        if detail.set.revision != expected_revision {
-            return Ok(Err(ReplySetSendRefusal::Changed {
-                revision: detail.set.revision,
-            }));
-        }
-        if detail
-            .replies
-            .iter()
-            .any(|r| r.send_state == ReplySendState::Unknown)
-        {
-            return Ok(Err(ReplySetSendRefusal::Unknown));
-        }
-        let missing = detail
-            .replies
-            .iter()
-            .filter(|r| r.text.as_deref().is_none_or(|t| t.trim().is_empty()))
-            .count();
-        if missing > 0 {
-            return Ok(Err(ReplySetSendRefusal::Incomplete { missing }));
-        }
-        let pending = detail
-            .replies
-            .iter()
-            .filter(|r| matches!(r.send_state, ReplySendState::None | ReplySendState::Failed))
-            .count();
-        if pending == 0 {
-            return Ok(Err(ReplySetSendRefusal::NothingToSend));
-        }
-        let account: Option<AccountRow> = transaction
-            .query_row(
-                "SELECT id, provider, address FROM account WHERE id = ?1",
-                [detail.set.account.0],
-                |row| {
-                    Ok(AccountRow {
-                        id: AccountId(row.get(0)?),
-                        provider: row.get(1)?,
-                        address: row.get(2)?,
-                    })
-                },
-            )
-            .optional()?;
-        let Some(account) = account else {
-            return Ok(Err(ReplySetSendRefusal::AccountNotFound));
-        };
-        let changed = transaction.execute(
-            "UPDATE replyset SET state = 'sending'
-             WHERE id = ?1 AND revision = ?2 AND state IN ('open', 'partial')",
-            params![set_id, expected_revision],
-        )?;
-        if changed != 1 {
-            return Ok(Err(ReplySetSendRefusal::Changed {
-                revision: detail.set.revision,
-            }));
-        }
-        transaction.commit()?;
-        detail.set.state = ReplySetState::Sending;
-        Ok(Ok((detail, account)))
-    }
-
-    /// Marks one reply of a sending reply set as `'sending'` and inserts its
-    /// `outbound` row (`kind = 'replyset'`).
-    ///
-    /// # Errors
-    /// When the database refuses.
-    #[allow(clippy::too_many_arguments)]
-    pub fn begin_replyset_reply_send(
-        &mut self,
-        set_id: i64,
-        reply_id: i64,
-        account: AccountId,
-        approved_revision: i64,
-        message_id: &str,
-        sender: &Proposer,
-        now: i64,
-    ) -> Result<i64, StoreError> {
-        let transaction = self.connection.transaction()?;
-        transaction.execute(
-            "INSERT INTO outbound
-                 (account_id, draft_id, draft_revision, kind, message_id, recipients, state,
-                  sent_copy, sender_kind, sender_id, started_at)
-             VALUES (?1, NULL, ?2, 'replyset', ?3, 1, 'sending', 0, ?4, ?5, ?6)",
-            params![
-                account.0,
-                approved_revision,
-                message_id,
-                sender.kind,
-                sender.id,
-                now,
-            ],
-        )?;
-        let outbound_id = transaction.last_insert_rowid();
-        let changed = transaction.execute(
-            "UPDATE replyset_reply SET send_state = 'sending', outbound_id = ?2, updated_at = ?3
-             WHERE id = ?1 AND replyset_id = ?4 AND send_state IN ('none', 'failed')",
-            params![reply_id, outbound_id, now, set_id],
-        )?;
-        if changed != 1 {
-            return Err(StoreError::NotFound("replyset_reply"));
-        }
-        transaction.commit()?;
-        Ok(outbound_id)
-    }
-
-    /// Marks one reply and its `outbound` row as `'sent'`.
-    ///
-    /// # Errors
-    /// When the database refuses.
-    pub fn finish_replyset_reply_sent(
-        &mut self,
-        outbound_id: i64,
-        reply_id: i64,
-        now: i64,
-    ) -> Result<(), StoreError> {
-        let transaction = self.connection.transaction()?;
-        let out_changed = transaction.execute(
-            "UPDATE outbound SET state = 'sent', finished_at = ?2
-             WHERE id = ?1 AND state = 'sending'",
-            params![outbound_id, now],
-        )?;
-        let reply_changed = transaction.execute(
-            "UPDATE replyset_reply SET send_state = 'sent', updated_at = ?2
-             WHERE id = ?1 AND send_state = 'sending'",
-            params![reply_id, now],
-        )?;
-        if out_changed != 1 || reply_changed != 1 {
-            return Err(StoreError::NotFound("outbound"));
-        }
-        transaction.commit()?;
-        Ok(())
-    }
-
-    /// Marks one reply and its `outbound` row as `'failed'` (definitely not sent).
-    ///
-    /// # Errors
-    /// When the database refuses.
-    pub fn finish_replyset_reply_failed(
-        &mut self,
-        outbound_id: i64,
-        reply_id: i64,
-        error: &str,
-        now: i64,
-    ) -> Result<(), StoreError> {
-        let transaction = self.connection.transaction()?;
-        let out_changed = transaction.execute(
-            "UPDATE outbound SET state = 'failed', finished_at = ?2, error = ?3
-             WHERE id = ?1 AND state = 'sending'",
-            params![outbound_id, now, error],
-        )?;
-        let reply_changed = transaction.execute(
-            "UPDATE replyset_reply SET send_state = 'failed', updated_at = ?2
-             WHERE id = ?1 AND send_state = 'sending'",
-            params![reply_id, now],
-        )?;
-        if out_changed != 1 || reply_changed != 1 {
-            return Err(StoreError::NotFound("outbound"));
-        }
-        transaction.commit()?;
-        Ok(())
-    }
-
-    /// Marks one reply, its `outbound` row, and its parent reply set as
-    /// `'unknown'` (never retried), raising the set's revision.
-    ///
-    /// # Errors
-    /// When the database refuses.
-    pub fn finish_replyset_reply_unknown(
-        &mut self,
-        outbound_id: i64,
-        reply_id: i64,
-        set_id: i64,
-        error: &str,
-        now: i64,
-    ) -> Result<i64, StoreError> {
-        let transaction = self.connection.transaction()?;
-        transaction.execute(
-            "UPDATE outbound SET state = 'unknown', finished_at = ?2, error = ?3
-             WHERE id = ?1 AND state = 'sending'",
-            params![outbound_id, now, error],
-        )?;
-        transaction.execute(
-            "UPDATE replyset_reply SET send_state = 'unknown', updated_at = ?2
-             WHERE id = ?1 AND send_state = 'sending'",
-            params![reply_id, now],
-        )?;
-        transaction.execute(
-            "UPDATE replyset SET state = 'unknown', revision = revision + 1, updated_at = ?2
-             WHERE id = ?1 AND state = 'sending'",
-            params![set_id, now],
-        )?;
-        let revision: i64 = transaction
-            .query_row(
-                "SELECT revision FROM replyset WHERE id = ?1",
-                [set_id],
-                |row| row.get(0),
-            )
-            .optional()?
-            .ok_or(StoreError::NotFound("replyset"))?;
-        transaction.commit()?;
-        Ok(revision)
-    }
-
-    /// Finalizes `replyset.state` out of `'sending'`, optionally raising
-    /// `revision`, and returns the resulting revision.
-    ///
-    /// When `raise_revision` is `false` (used only when restoring `'open'`
-    /// before any reply row was mutated), `updated_at` is also left unchanged
-    /// so the rendered preview remains identical under the same revision.
-    ///
-    /// # Errors
-    /// When the database refuses.
-    pub fn finish_replyset_send(
-        &mut self,
-        set_id: i64,
-        final_state: ReplySetState,
-        raise_revision: bool,
-        now: i64,
-    ) -> Result<i64, StoreError> {
-        let transaction = self.connection.transaction()?;
-        if raise_revision {
-            transaction.execute(
-                "UPDATE replyset SET state = ?2, revision = revision + 1, updated_at = ?3
-                 WHERE id = ?1 AND state = 'sending'",
-                params![set_id, final_state.as_str(), now],
-            )?;
-        } else {
-            transaction.execute(
-                "UPDATE replyset SET state = ?2
-                 WHERE id = ?1 AND state = 'sending'",
-                params![set_id, final_state.as_str()],
-            )?;
-        }
-        let revision: i64 = transaction
-            .query_row(
-                "SELECT revision FROM replyset WHERE id = ?1",
-                [set_id],
-                |row| row.get(0),
-            )
-            .optional()?
-            .ok_or(StoreError::NotFound("replyset"))?;
-        transaction.commit()?;
-        Ok(revision)
-    }
-
-    /// Settles a reply set whose future was dropped mid-batch: marks any
-    /// in-flight reply + outbound as `'unknown'`, or transitions the set cleanly
-    /// to `'sent'`, `'partial'`, or `'open'` based on its replies' states.
-    ///
-    /// # Errors
-    /// When the database refuses.
-    pub fn settle_interrupted_replyset(&mut self, set_id: i64, now: i64) -> Result<(), StoreError> {
-        let transaction = self.connection.transaction()?;
-        settle_sending_replyset_on(&transaction, set_id, now)?;
-        transaction.commit()?;
-        Ok(())
-    }
-}
-
-/// Shared settlement logic for both in-process drop recovery and store reopen:
-/// marks any reply still in `'sending'` (and its `'sending'` outbound row) as
-/// `'unknown'` and sets the parent `'unknown'`, or otherwise derives the parent
-/// state from the persisted child reply states (`'unknown'`, `'sent'`,
-/// `'partial'`, or `'open'`).
-fn settle_sending_replyset_on(
-    connection: &Connection,
-    set_id: i64,
-    now: i64,
-) -> Result<(), StoreError> {
-    let why =
-        "the send was interrupted before its outcome was recorded; whether it went is not known";
-    let in_flight: Vec<(i64, Option<i64>)> = {
-        let mut stmt = connection.prepare(
-            "SELECT id, outbound_id FROM replyset_reply
-             WHERE replyset_id = ?1 AND send_state = 'sending'",
-        )?;
-        stmt.query_map([set_id], |row| Ok((row.get(0)?, row.get(1)?)))?
-            .collect::<Result<_, _>>()?
-    };
-    if !in_flight.is_empty() {
-        for (reply_id, outbound_id) in in_flight {
-            if let Some(outbound_id) = outbound_id {
-                connection.execute(
-                    "UPDATE outbound SET state = 'unknown', finished_at = ?2, error = ?3
-                     WHERE id = ?1 AND state = 'sending'",
-                    params![outbound_id, now, why],
-                )?;
-            }
-            connection.execute(
-                "UPDATE replyset_reply SET send_state = 'unknown', updated_at = ?2
-                 WHERE id = ?1",
-                params![reply_id, now],
-            )?;
-        }
-        connection.execute(
-            "UPDATE replyset SET state = 'unknown', revision = revision + 1, updated_at = ?2
-             WHERE id = ?1 AND state = 'sending'",
-            params![set_id, now],
-        )?;
-        return Ok(());
-    }
-    let (total, sent, failed, unknown): (i64, i64, i64, i64) = connection.query_row(
-        "SELECT count(*),
-                coalesce(sum(CASE WHEN send_state = 'sent' THEN 1 ELSE 0 END), 0),
-                coalesce(sum(CASE WHEN send_state = 'failed' THEN 1 ELSE 0 END), 0),
-                coalesce(sum(CASE WHEN send_state = 'unknown' THEN 1 ELSE 0 END), 0)
-         FROM replyset_reply WHERE replyset_id = ?1",
-        [set_id],
-        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
-    )?;
-    let (state, bump) = if unknown > 0 {
-        ("unknown", true)
-    } else if sent == total && total > 0 {
-        ("sent", true)
-    } else if sent > 0 {
-        ("partial", true)
-    } else if failed > 0 {
-        ("open", true)
-    } else {
-        ("open", false)
-    };
-    if bump {
-        connection.execute(
-            "UPDATE replyset SET state = ?2, revision = revision + 1, updated_at = ?3
-             WHERE id = ?1 AND state = 'sending'",
-            params![set_id, state, now],
-        )?;
-    } else {
-        connection.execute(
-            "UPDATE replyset SET state = ?2
-             WHERE id = ?1 AND state = 'sending'",
-            params![set_id, state],
-        )?;
-    }
-    Ok(())
 }

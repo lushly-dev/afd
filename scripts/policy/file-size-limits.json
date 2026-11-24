@@ -24,18 +24,8 @@
 			"reason": "Pre-existing Rust file over 1,500 lines when Rust joined the size gate (#1802)"
 		},
 		{
-			"file": "endpoints/loam/plugins/mail/engine/src/replysets.rs",
-			"lines": 1821,
-			"reason": "Pre-existing Rust file over 1,500 lines when Rust joined the size gate (#1802)"
-		},
-		{
 			"file": "endpoints/loam/plugins/mail/engine/src/store/operations.rs",
 			"lines": 1766,
-			"reason": "Pre-existing Rust file over 1,500 lines when Rust joined the size gate (#1802)"
-		},
-		{
-			"file": "endpoints/loam/plugins/mail/engine/src/store/replysets.rs",
-			"lines": 1589,
 			"reason": "Pre-existing Rust file over 1,500 lines when Rust joined the size gate (#1802)"
 		},
 		{

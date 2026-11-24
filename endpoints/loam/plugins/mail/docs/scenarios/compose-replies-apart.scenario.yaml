@@ -1,10 +1,9 @@
-# Draft JTBD scenario for Mail's step F (plugin.spec.md, "Jobs and scenarios"). It runs against
+# JTBD scenario for Mail's step F (plugin.spec.md, "Jobs and scenarios"). It runs against
 # `loam-mail serve` on the scripted IMAP server, seeded as `mail-f-base`, with
 # `afd scenario run <dir> --server <url>` and an ordinary agent's token. The data is invented.
-# mail-f-base holds reply set 3, answering a cohort story: reply 1 to ada@example.com, who asked
-# about Thursday, and reply 2 to bea@example.com, who asked about the invoice. The person's
-# answers are recorded, and neither reply has text. The reply-set commands' keys are step E3's;
-# the step F pull request that builds units aligns this file with E3 as merged.
+# mail-f-base holds reply set 1: reply 1 to ada@example.com, who asked about Thursday, and
+# reply 2 to bea@example.com, who asked about the invoice. The person's answers are recorded,
+# and neither reply has text.
 # What a scenario cannot show: the result's `dev.loam/unit` marker, because the matcher and the
 # step references read a key with a dot as a path, so the unit's id and claim are used where the
 # result repeats them (`unit`, `claim`); that the stored unit equals the one handed out, since
@@ -22,19 +21,19 @@ tags: [slice, mail-engine]
 steps:
   - description: The first unit is Ada's reply, holding her address as content
     command: mail-replyset-next
-    input: { replyset: 3 }
+    input: { replyset: 1 }
     expect:
       success: true
       data:
-        replyset: 3
+        replyset: 1
         reply: 1
-        unit: { matches: '^rsu_3_1_[0-9]+$' }
+        unit: { matches: '^rsu_1_1_[0-9]+$' }
         claim: { matches: '^[A-Za-z0-9_-]{43}$' }
         content: { trust: content, recipient: { address: ada@example.com } }
   - description: The composed text is submitted against that unit, with its claim
     command: mail-replyset-submit
     input:
-      replyset: 3
+      replyset: 1
       reply: 1
       unit: "${{ steps[0].data.unit }}"
       claim: "${{ steps[0].data.claim }}"
@@ -46,7 +45,7 @@ steps:
   - description: The same claim cannot be used twice
     command: mail-replyset-submit
     input:
-      replyset: 3
+      replyset: 1
       reply: 1
       unit: "${{ steps[0].data.unit }}"
       claim: "${{ steps[0].data.claim }}"
@@ -58,7 +57,7 @@ steps:
         suggestion: { contains: mail-replyset-next }
   - description: The next unit is Bea's
     command: mail-replyset-next
-    input: { replyset: 3 }
+    input: { replyset: 1 }
     expect:
       success: true
       data:
@@ -67,7 +66,7 @@ steps:
   - description: Ada's claim cannot submit Bea's reply
     command: mail-replyset-submit
     input:
-      replyset: 3
+      replyset: 1
       reply: 2
       unit: "${{ steps[3].data.unit }}"
       claim: "${{ steps[0].data.claim }}"
@@ -79,7 +78,7 @@ steps:
   - description: Bea's reply is submitted with her own unit's claim
     command: mail-replyset-submit
     input:
-      replyset: 3
+      replyset: 1
       reply: 2
       unit: "${{ steps[3].data.unit }}"
       claim: "${{ steps[3].data.claim }}"
@@ -90,7 +89,7 @@ steps:
         reply: { reply: 2, source: submitted }
   - description: The set shows each reply with what it was written from
     command: mail-replyset-show
-    input: { replyset: 3 }
+    input: { replyset: 1 }
     expect:
       success: true
       data:
@@ -99,7 +98,7 @@ steps:
             '0':
               reply: 1
               source: submitted
-              unit: { matches: '^rsu_3_1_[0-9]+$' }
+              unit: { matches: '^rsu_1_1_[0-9]+$' }
               inputs: { message: { exists: true }, answers: { exists: true } }
               content: { trust: content, recipient: { address: ada@example.com }, text: "Dear Ada, Thursday works." }
             '1':
@@ -108,14 +107,14 @@ steps:
               content: { trust: content, recipient: { address: bea@example.com }, text: "Dear Bea, the invoice is attached." }
   - description: A preview asked for a revision the set is not at shows nothing
     command: mail-replyset-show
-    input: { replyset: 3, revision: 999 }
+    input: { replyset: 1, revision: 999 }
     expect:
       success: false
       error:
         code: PREVIEW_CHANGED
   - description: Sending the set at the revision shown is held for the person
     command: mail-replyset-send
-    input: { replyset: 3, revision: "${{ steps[6].data.replyset.revision }}" }
+    input: { replyset: 1, revision: "${{ steps[6].data.replyset.revision }}" }
     expect:
       success: false
       error:

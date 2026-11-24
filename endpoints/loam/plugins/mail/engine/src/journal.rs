@@ -104,6 +104,14 @@ pub fn redact(mut record: JournalRecord) -> Option<JournalRecord> {
     if !record.result.success && record.command == crate::stories::PROPOSE {
         scrub_failed_story_input(&mut record.input);
     }
+    // Unit submission claims are spent by the time the mutation succeeds, and
+    // must never be kept in the journal even when a submit fails before
+    // spending the claim (plugin.spec.md 9.4).
+    if record.command == crate::replysets::SUBMIT
+        && let Some(obj) = record.input.as_object_mut()
+    {
+        obj.remove("claim");
+    }
     if record.command == tokens::CREATE {
         // The token is drawn from the operating system, not the tape; the
         // tape goes too, as the crate advises for any secret.
@@ -240,15 +248,46 @@ mod tests {
                 }
             })
         );
-        let mut next_res = json!({
-            "replyset": 3,
-            "reply": 1,
-            "content": { "trust": "content", "message": { "text": "private body" } },
-        });
-        drop_draft_text(crate::replysets::NEXT, &mut next_res);
-        assert_eq!(next_res, json!({ "replyset": 3, "reply": 1 }));
         let mut other = json!({ "content": { "body": "kept" } });
         drop_draft_text("mail-sync", &mut other);
         assert_eq!(other["content"]["body"], "kept");
+    }
+
+    #[test]
+    fn a_replyset_submit_journal_record_drops_claim() {
+        let record = afd::JournalRecord {
+            timestamp: "2026-11-24T00:00:00Z".to_string(),
+            trace_id: None,
+            command: crate::replysets::SUBMIT.to_string(),
+            input: json!({
+                "replyset": 1,
+                "reply": 1,
+                "unit": "rsu_1_1_1",
+                "claim": "secret_43_char_claim_value_that_must_go_now",
+                "text": "Dear Ada, Thursday works.",
+            }),
+            actor: None,
+            context_digest: afd::JournalContextDigest {
+                hash: "sha256:0".to_string(),
+                interface: Some("mcp".to_string()),
+            },
+            context: None,
+            context_omitted: None,
+            output_budget: None,
+            result: afd::success(json!({
+                "reply": { "reply": 1, "source": "submitted", "unit": "rsu_1_1_1" },
+                "revision": 2,
+            })),
+            duration_ms: 1.0,
+            tape: None,
+        };
+        let redacted = super::redact(record).expect("submit is still journaled");
+        assert!(
+            redacted.input.get("claim").is_none(),
+            "{:?}",
+            redacted.input
+        );
+        assert_eq!(redacted.input["unit"], "rsu_1_1_1");
+        assert_eq!(redacted.input["text"], "Dear Ada, Thursday works.");
     }
 }

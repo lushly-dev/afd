@@ -359,3 +359,93 @@ fn mount_manifest_tools_agree_with_engine_registry() {
         "MCP-exposed engine commands missing from mount/loam-app.toml: {missing:?}"
     );
 }
+
+/// plugin.spec.md section 11 item 2: every command that writes the store or a
+/// provider declares `as_mutation()`, and every pure read (including
+/// `mail-replyset-next` from step F3) declares `mutation == false`.
+#[test]
+fn mutation_declarations_match_expected_store_writers() {
+    let engine = std::sync::Arc::new(loam_mail::engine::Engine::new(None));
+    let registry = loam_mail::registry(&engine).expect("the engine's registry is sound");
+
+    const EXPECTED_MUTATIONS: &[&str] = &[
+        "mail-account-add",
+        "mail-account-remove",
+        "mail-archive",
+        "mail-draft-create",
+        "mail-draft-discard",
+        "mail-draft-restore",
+        "mail-draft-send",
+        "mail-draft-update",
+        "mail-label",
+        "mail-mark",
+        "mail-operation-approve",
+        "mail-operation-cancel",
+        "mail-operation-dismiss",
+        "mail-operation-resume",
+        "mail-operation-undo",
+        "mail-policy-set",
+        "mail-rebuild",
+        "mail-record-propose",
+        "mail-record-withdraw",
+        "mail-replyset-create",
+        "mail-replyset-send",
+        "mail-replyset-submit",
+        "mail-replyset-update",
+        "mail-selection-create",
+        "mail-sender-accept",
+        "mail-sender-dismiss",
+        "mail-sender-screen",
+        "mail-sender-suggest",
+        "mail-story-dismiss",
+        "mail-story-propose",
+        "mail-sync",
+        "mail-thread-snooze",
+        "mail-token-create",
+        "mail-token-revoke",
+        "mail-trash",
+        "mail-unsubscribe",
+    ];
+    const EXPECTED_READS: &[&str] = &[
+        "afd-docs",
+        "afd-help",
+        "afd-schema",
+        "mail-account-list",
+        "mail-attachment-open",
+        "mail-draft-list",
+        "mail-draft-show",
+        "mail-message-list",
+        "mail-message-open",
+        "mail-operation-list",
+        "mail-operation-show",
+        "mail-policy-show",
+        "mail-record-list",
+        "mail-replyset-next",
+        "mail-replyset-show",
+        "mail-search",
+        "mail-sender-list",
+        "mail-sender-show",
+        "mail-status",
+        "mail-story-changes",
+        "mail-story-list",
+        "mail-story-open",
+        "mail-thread-list",
+        "mail-thread-open",
+        "mail-token-list",
+        "mail-unsubscribe-show",
+    ];
+
+    let mut actual_mutations = Vec::new();
+    let mut actual_reads = Vec::new();
+    for command in registry.list() {
+        if command.mutation {
+            actual_mutations.push(command.name.clone());
+        } else {
+            actual_reads.push(command.name.clone());
+        }
+    }
+    actual_mutations.sort();
+    actual_reads.sort();
+    assert_eq!(actual_mutations, EXPECTED_MUTATIONS);
+    assert_eq!(actual_reads, EXPECTED_READS);
+}
