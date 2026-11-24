@@ -8,6 +8,93 @@ Changes that are not released yet are the files in [`.changeset/`](../.changeset
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-11-24
+
+Implements AFD contract `1.0-rc`.
+
+Brings Python to parity across MCP HTTP authorization and scope enforcement, MCP Tasks, opt-in resources and Skills over MCP, output budgets, per-request context hooks, app-to-app calls, and execution controls, while raising the minimum Python version to 3.11.
+
+### Breaking changes
+
+- **`afd` now requires Python 3.11 or newer** (`requires-python >=3.11`). Python 3.10 reached end of life in October 2026. On 3.10, pip and uv keep resolving `afd` 0.12, the last release that supports it, and a pin to this release or later fails to install; move to 3.11 to upgrade. CI tests 3.11, 3.12, 3.13 and 3.14, and the classifiers list the same four ([#1805](https://github.com/lushly-dev/afd/issues/1805)).
+
+- **A `$ref` outside the subset fails at registration** ([#1910](https://github.com/lushly-dev/afd/issues/1910); `spec/validation.md`). The subset is `#`, `#/$defs/<name>` and `#/definitions/<name>`, as in Rust. Before, any deeper pointer under `#/$defs/` or `#/definitions/` was followed, such as `#/$defs/A/properties/x`. A pointer into a nested `$id` subschema then resolved that subschema's own references against the wrong resource. Name the target as its own definition instead.
+
+- **`create_approval_middleware`'s `include_token` now defaults to `None`**, matching `spec/command-metadata.md`, "Approvals", rule 6 ([#1665](https://github.com/lushly-dev/afd/issues/1665)). When unset, `APPROVAL_REQUIRED` omits `details.approvalToken` for calls whose `context.extra["interface"]` is `"mcp"` and includes it elsewhere, matching TypeScript, Rust and C++. Pass `include_token=True` to opt in on MCP calls, or `include_token=False` to omit it on non-MCP calls.
+
+- **MCP commands now time out after 30 seconds by default** (`spec/execution-controls.md`, [#2129](https://github.com/lushly-dev/afd/issues/2129)). `ServerConfig.default_timeout_ms` defaults to `DEFAULT_COMMAND_TIMEOUT_MS` (`30000`), and `MCPServer` returns `TIMEOUT` when a command without a caller timeout runs past that limit (MCP Tasks remain bounded by their task TTL). Commands that run longer than 30 seconds now fail with `TIMEOUT` after upgrading: pass `create_server(default_timeout_ms=None)` (or `0`) to restore the unbounded default, or pass a larger millisecond limit.
+
+- **`VALIDATION_ERROR` issue codes use AFD's nine-code catalog and cap at 100 issues by default** (`spec/validation.md`, `spec/execution-controls.md`, [#2129](https://github.com/lushly-dev/afd/issues/2129)). `afd.server.validation` maps Pydantic v2 error types into AFD's nine-code catalog (`VALIDATION_ISSUE_CODES`, `map_pydantic_issue_code`: `invalid_type`, `invalid_value`, `too_small`, `too_big`, `unrecognized_keys`, `invalid_format`, `invalid_union`, `not_multiple_of`, `custom`) instead of emitting raw Pydantic strings such as `missing` or `string_type`, and `ServerConfig.max_validation_issues` caps `VALIDATION_ERROR` issue lists at `DEFAULT_MAX_VALIDATION_ISSUES` (`100`, setting `details.truncated: True`). Update clients matching Pydantic error strings to match the nine-code catalog, and pass a larger `max_validation_issues` to `create_server()` (or handle `details.truncated`) if you need more than 100 issues reported.
+
+### Added
+
+- **App-to-app calls and `ExposeOptions.apps` parity** (`spec/command-metadata.md`, "App-to-app calls"; Loam phase 5 step 0b; #1513): `ExposeOptions.apps` (default `False`), `CallGrant`, `call_not_granted()`, `create_command_registry(call_grant=...)`, `create_server(..., call_grant=...)`, `list_by_exposure("apps")` on core `CommandRegistry`, `DirectCommandRegistry` refusing `interface="apps"`, and grant-checked `replay_journal` on `CommandRegistry` and `MCPServer`. `tests/test_app_calls_vectors.py` now runs and passes every case of `spec/vectors/app-calls.json`.
+
+- **Execution controls enforcement parity (`spec/execution-controls.md`, #2129):**
+  - `DEFAULT_COMMAND_TIMEOUT_MS` (`30000`), `default_timeout_ms` on `ServerConfig` / `create_server()` (0 or `None` disables; MCP Tasks remain bounded by their task TTL), and per-call `context.timeout` enforcement in `MCPServer` returning `TIMEOUT` (`retryable=True`, `details={"command", "timeoutMs"}`) while signalling `context.signal`.
+  - Cooperative cancellation on `CommandContext` (`signal`, `cancel`, `is_cancelled()`): pre-cancelled single commands skip middleware/handlers with `COMMAND_CANCELLED` (`retryable=False`), and `afd-batch` stops scheduling unstarted items on caller cancellation (`COMMAND_CANCELLED`, `durationMs=0`) while allowing in-flight items to finish cooperatively.
+  - `DEFAULT_MAX_BATCH_SIZE` (`500`), `DEFAULT_MAX_BATCH_PARALLELISM` (`16`), and `check_batch_limits` exported from `afd` and `afd.core`.
+  - `DEFAULT_MAX_VALIDATION_ISSUES` (`100`) and `max_validation_issues` on `ServerConfig` / `create_server()` capping `VALIDATION_ERROR` issue lists with `details.truncated: True`, `details.limit`, `details.totalErrors`, and a truncation notice in `suggestion`.
+
+- **Per-request context hook** (`#800`): `create_server(context_hook=...)` (`ServerConfig.context_hook`, `afd.server.ContextHook`, `afd.server.ContextHookRequest`) runs once per MCP `tools/call` before the request-state boundary, confirmation gate and command lookup, on every route (individual, grouped, hybrid, `afd-call`, `afd-batch`, `afd-pipe`, `afd-discover`, `afd-detail`, unknown and unexposed tools). Sync or async, it receives `ContextHookRequest(tool, request_context)` (with `.http_request` for the Starlette `Request` over HTTP/SSE, `None` over stdio, and `.header(name)`) plus a base `CommandContext` with server defaults (no `_meta` context fields). Returning a `CommandError` or failed `CommandResult` refuses the call with `details` and `cause` stripped; raising an exception or returning an invalid value fails closed with `INTERNAL_ERROR`. Server invariants (`interface="mcp"`, `remote=True`, `active_context`, `trace_id`, defaults, DirectClient tokens cleared) hold after the hook, hook `extra` values win over declared `_meta` context fields (`spec/context-fields.md`), and the snapshotted actor at call start binds confirmation and approval-relay `requestState` alongside any SDK-verified access token (`spec/authorization.md`, M8; `#532`).
+
+- **MCP authorization scope enforcement (M6):** command `scopes` metadata (`CommandDefinition`, `@define_command`, `@server.command`, `_meta.scopes`, `afd-detail`, `afd-help`), `required_scopes`, `ScopeResolver`, `ScopeChallenge`, `ScopeView`, `static_decision`, `request_decision`, `PreDispatch`, `PreDispatchCheck`, and `filter_tools_by_scope` on `McpAuthOptions`; pre-dispatch HTTP 403 and JSON-RPC batch 400 `-32600` refusal on Streamable HTTP, post-routing `INSUFFICIENT_SCOPE` before confirmations, execution-time resolver re-checks on validated input, filtered listings (`cacheScope: "private"`) with byte-identical hidden commands, `server.admit` and `server.pre_dispatch_check`, and `tasks/*` scope enforcement (#2155).
+
+- **MCP HTTP authorization (`create_server(..., auth=McpAuthOptions(...))`)** verifies OAuth 2.1 bearer tokens on `streamable_http_app`, `sse_app`, and HTTP/SSE `run`/`run_async` per `spec/authorization.md` (M1–M5, M7, M8): RFC 9728 protected-resource metadata (`create_protected_resource`, `ProtectedResource`), strict M2 bearer extraction (`extract_bearer`), `JwtVerifier` (with `cryptography` for signatures only), `jwks_key_source`, `create_introspection_verifier`, frozen redacted `CommandContext.credentials` with identity-keyed `is_verified_credentials`, fail-closed transport enforcement with `server.trusted_transport()`, and principal binding on confirmations and MCP Tasks (#2154).
+
+- **MCP resources, Skills over MCP, and extra tool `_meta`:**
+  - Opt-in MCP resources (`create_server(..., resources=...)`, `ResourceEntry`, `ResourceContents`, `ResourceProvider`, `MCP_APP_MIME_TYPE`, `check_entries`) serving `resources/list`, `resources/read`, and `resources/templates/list` across Streamable HTTP and stdio in both MCP eras (R1–R6), with `dev.afd/digest` SHA-256 metadata on upfront content and modern-era cache hints (`ttlMs`, `cacheScope: "public"`).
+  - Per-caller `ResourceProvider` support under MCP authorization (`afd.server.ResourceCaller` passed to `list` and `read` when accepted, preserving existing 0-arg `list()` and 1-arg `read(uri)` providers), forwarding verified credentials on Streamable HTTP (both eras), SSE and host-admitted (`server.admit`) requests, returning `-32602` (`Resource not found`) identically for unreadable and absent URIs, and emitting modern-era `cacheScope: "private"` on `resources/list` and provider-backed `resources/read` when a resource provider or static resource entries are configured alongside `auth` (or verified credentials) while keeping skills-only servers and static `SkillCatalog` reads `"public"` (`spec/authorization.md` M6, `spec/mcp-resources.md` R3/R4).
+  - Opt-in Skills over MCP extension (`io.modelcontextprotocol/skills`, SEP-2640: `Skill`, `SkillCatalog`, `skill_from_directory`, `sha256_digest`, `skill_mime_type`, `parse_frontmatter`, `FrontmatterError`) serving `skills/list`, `skills/get`, skill files as `skill://` resources, and optional `resources/directory/read` (S1–S7). Promoted `pyyaml>=6.0` to the `afd[server]` extra and added a YAML 1.2 core frontmatter parser over `yaml.parse()` events.
+  - Extra command tool `_meta` (`tool_meta`, `check_meta_entry`, `assert_tool_meta`, `MCP_APPS_META_KEY`) with T2 key-rule validation and `advertised_input_schema` (`assert_advertised_input_schema`) kept separate from runtime input validation (T1–T3, V1–V2).
+
+- **MCP Tasks (`spec/command-metadata.md`, "Tasks"; SEP-2663)** across core, server and client (#1972):
+  - `TaskSupport` (`"never" | "optional" | "required"`), `CommandDefinition.task`, `CommandContext.report_progress`/`cancel`, `task` on `define_command` and `@server.command`, `_meta.task` / grouped `_meta.actions[].task` / `afd-detail` surfacing, and registration refusal beside `confirm_prompt`, an `approval` other than `"not-required"`, or `confirmation_mode`.
+  - `afd.server.tasks` (`TaskStore`, bounded `InMemoryTaskStore`, `TaskOptions`, `TaskRecord`, `TaskChange` types) and `afd.server.tasks_runtime` (`tasks/get`, `tasks/update`, `tasks/cancel` via `mcp` 2.x `Extension` / `MethodBinding`), `task_store` and `task_options` on `create_server`, principal-binding owner checks, caller-identification guards, `TASK_TOKEN_EXPIRED` handling, TTL expiry, cooperative cancellation, progress to `statusMessage`, and composite (`afd-batch`/`afd-pipe`) refusal for `task="required"`.
+  - `McpClientConfig.tasks` / `create_client(..., tasks=True)` and `StreamableHttpTransport(..., tasks=True)`: `io.modelcontextprotocol/tasks` capability advertisement, `resultType: "task"` interception, `tasks/get` polling with `on_task_progress`, `cancel` / `timeout` / disconnect cleanup, `get_task` / `cancel_task`, and `-32021` -> `MISSING_CLIENT_CAPABILITY` mapping.
+
+- **Output budgets (`spec/output-budgets.md`, B1–B8)** across core, server, DirectClient, and journal (#1990, #1993):
+  - `OutputBudget(default_bytes=..., max_bytes=...)`, `AFD_OUTPUT_BUDGET_META_KEY`, and `MAX_OUTPUT_BUDGET_BYTES` exported from `afd`, `afd.core`, and `afd.server`; `output_budget` declaration on `CommandDefinition`, `define_command`, and `@server.command`, validated at definition and registration.
+  - Declaration surfacing in `_meta["dev.afd/outputBudget"]` on individual and hybrid first-class tools and grouped `_meta.actions` entries, `dev.afd/outputBudget` named in `META_ARGUMENT_DESCRIPTION` and all five MCP meta-tools' `meta` argument descriptions (`spec/meta-tools.json`), plus `outputBudget` in `afd-detail`, `afd-help` (`full`), and `afd-docs`.
+  - Per-call ask from MCP `_meta["dev.afd/outputBudget"]` (both eras over Streamable HTTP, SSE, and stdio), the meta-tools' `meta` argument (`afd-call`, `afd-batch`, `afd-pipe`), `context_hook`, and in-process `output_budget=` call options (`MCPServer.execute`, `CommandRegistry.execute`, `DirectCommandRegistry.execute`, `DirectClient.call`/`pipe`, `DirectCallContext`), validated before middleware with `context.output_budget: int | None` exposed to handlers and `output_budget`/`outputBudget` reserved in `check_context_fields`.
+  - Post-handler B5/B6 check before metadata stamping measuring canonical JSON without `metadata`: attaches `metadata["dev.afd/outputBudget"]` on passing budgeted results, replaces over-budget reads with `ErrorCodes.OUTPUT_BUDGET_EXCEEDED`, keeps over-budget mutations with a caution warning, and applies per item in `afd-batch` and per step in `afd-pipe`.
+  - Journal `outputBudget` field on `JournalRecord`/`JournalEntry`, included in the context digest only when present, and restored as the per-call ask in `replay_journal`.
+
+- **`afd.core.pipeline_variables`:** adds `MAX_RESOLVED_NODES`, `MAX_RESOLVED_CHARS` and `PipelineResolutionLimitError`, a `ValueError` whose `limit` is `"depth"`, `"nodes"` or `"chars"`. `resolve_variables` and `resolve_input` raise it.
+
+### Fixed
+
+- **Pipeline reference keys and aliases match JavaScript's `\s` whitespace set** ([#1962](https://github.com/lushly-dev/afd/issues/1962); `spec/pipeline-variables.md`). `parse_reference`, `parse_path`, `get_nested_value`, `resolve_variable`, `resolve_variables`, `evaluate_condition` and `reads_step_data` now use an explicit 25-code-point character class matching ECMAScript `WhiteSpace` and `LineTerminator` instead of Python `re`'s Unicode `\s`: `U+001C`–`U+001F` and `U+0085` are now allowed in keys and aliases (resolving and enforcing expansion limits as in TypeScript and C++), and `U+FEFF` (BOM) is treated as whitespace (making strings containing it literals).
+
+- Removed the MCP SDK's default `prompts` capability (always) and `resources` capability (unless `resources` or `skills` is configured), and set `resources.subscribe` and `resources.listChanged` to `false` when resources are enabled (R1).
+
+- **A step that succeeded with `null` data reads as `null`** ([#1961](https://github.com/lushly-dev/afd/issues/1961); `spec/pipeline-variables.md`). This applies to `execute_pipeline`, `afd-pipe` and `DirectClient.pipe`, and matches TypeScript.
+  - **Before:** `$prev` and `$steps.<alias>` read such a step as absent, so a reference to it was dropped from an object, and `$eq` against `null` was false.
+  - **No data:** a step whose result has no data at all is still absent. `StepResult.data` is now set only when the result's data was set.
+
+- **Boolean schemas are accepted wherever a schema may appear** ([#2047](https://github.com/lushly-dev/afd/issues/2047); `spec/validation.md`), as in C++.
+  - **`true`:** it is `{}`.
+  - **`false`:** it is `not: {}`, whose issue is `invalid_type` with `expected: "never"`.
+  - **Command paths:** schema registration, the missing-field details, the `oneOf` discriminator and the surface complexity score all handle a boolean property. `@server.command` and `afd-schema`'s TypeScript export already handled one (#2192).
+  - **Before:** registration refused `"properties": {"x": true}` and a `$ref` to a `true` definition.
+
+- **`command_result_output_schema` follows the validators' resource rule:** `data` keeps its definitions only when its `$id` is a string that is not a bare fragment. In any other `data` schema, a `"$ref": "#"` naming `data` becomes `"#/properties/data"`. Before, it named the envelope, which is the form a recursive root schema takes. Draft-07 `dependencies` schemas are retargeted too.
+
+- **The output schema's nullable pass walks only schema positions.** A `required` list inside a `const`, `enum`, `default` or `examples` value is data, and is now left as it is. The pass also decodes `~1` and `~0` in a reference.
+
+- **Pipeline step inputs are bounded as in TypeScript** ([#1722](https://github.com/lushly-dev/afd/issues/1722); `spec/pipeline-variables.md`, "Limits"). Before, Python checked only the depth of the template. A step input that repeated a reference to a large value expanded it in full each time, so a small request could build an arbitrarily large input.
+  - **Engines:** `execute_pipeline`, `afd-pipe` and `DirectClient.pipe` now fail the step with `VALIDATION_ERROR` (`retryable: false`, `details: {"stepIndex", "limit"}`) without running its command in these cases:
+    - a value copied into the input nests deeper than 64 levels;
+    - the resolved input exceeds 100,000 values;
+    - it exceeds 16 MiB of string and key characters, counted in UTF-16 code units.
+  - **What is charged:** only a repeated expansion of the same referenced value is charged for its contents, so one large step output still flows through `$prev`.
+  - **Deep or circular step data:** before, step data nested 255 levels or deeper, or circular, could not be converted to JSON, so a reference to it resolved as absent and the step ran without it. Such data is now still viewed, as TypeScript sees it: a reference may pass through it, and copying more than 64 levels of it, or a cycle, into a step input fails on `depth`.
+  - **Up-front approvals:** a step input over the limits is not resolved for approval; the step fails when it runs.
+
+- **Referenced values in a resolved step input are copies:** a handler that mutates its input no longer changes another step's data.
+
+- **`afd.core.wire.to_wire`** keeps `"data": null` on a `CommandResult`, a `StepResult` and a `PipelineResult` whose `data` was set to `None`, and still omits `data` that was never set, as TypeScript does. `success(None)` from a Python MCP server, its `afd-pipe` steps and its pipeline result now reach a client as `null`, not as absent. A pipeline that fails sends no `data` (#2073).
+
 ## [0.12.0] - 2026-11-22
 
 Implements AFD contract `1.0-rc`.
@@ -339,7 +426,8 @@ These were released together with the repository-wide releases of the same perio
 
 - Published to PyPI: `pip install afd>=0.1.1`
 
-[Unreleased]: https://github.com/lushly-dev/afd/compare/python-v0.12.0...main
+[Unreleased]: https://github.com/lushly-dev/afd/compare/python-v0.13.0...main
+[0.13.0]: https://github.com/lushly-dev/afd/compare/python-v0.12.0...python-v0.13.0
 [0.12.0]: https://github.com/lushly-dev/afd/compare/python-v0.11.0...python-v0.12.0
 [0.11.0]: https://github.com/lushly-dev/afd/compare/python-v0.10.0...python-v0.11.0
 [0.10.0]: https://github.com/lushly-dev/afd/compare/python-v0.9.0...python-v0.10.0

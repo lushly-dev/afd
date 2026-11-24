@@ -2237,10 +2237,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "edb4e51d1a5477872ebc79a49436c2bd0471565729f96e885e7b524dfc8a54cc",
+      "current_import_sha256": "d93af11cb14e1b47e09b57e8e5cd9e0ee0f3bf9f9056e3150ca54eb72934c567",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Run every sibling package's, plugin's and mock integration scenario's tests in CI, the factory on macOS and Windows, and a multi-process lock test (lushly-dev/afd#1793); Format Botcore, add mypy type checking and py.typed marker (#1757)"
+      "import_reason": "Run every sibling package's, plugin's and mock integration scenario's tests in CI, the factory on macOS and Windows, and a multi-process lock test (lushly-dev/afd#1793); Format Botcore, add mypy type checking and py.typed marker (#1757); Versioned by pnpm version-track python (afd-python 0.13.0)"
     },
     {
       "path": "plugins/botcore-teams/LICENSE",
@@ -7257,11 +7257,11 @@
       "path": "uv.lock",
       "upstream_sha256": "de195f74ec7cf4a8bc26f1d03a89ece63b7607f23433c23b86ab342dc335cd95",
       "staged_sha256": "de195f74ec7cf4a8bc26f1d03a89ece63b7607f23433c23b86ab342dc335cd95",
-      "current_import_sha256": "acb4b89ad3ed39b0de17d262c63ac7316385c408a8dbf6fab7318fbfeb807549",
+      "current_import_sha256": "0d522b2586c04f254d3aaaa4a31bef10407d5a4ca5bec1ad69ab94f7368ae53a",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Lock local AFD 0.10 and MCP 2.3; refresh dependencies within declared constraints; Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); Lock the editable afd source at 0.11.0; Versioned by pnpm version-track botcore (lushly-botcore 0.8.0); Versioned by pnpm version-track python (afd-python 0.12.0); Refresh uv.lock after promoting pyyaml to afd[server] (#1981); Run every sibling package's, plugin's and mock integration scenario's tests in CI, the factory on macOS and Windows, and a multi-process lock test (lushly-dev/afd#1793); Format Botcore, add mypy type checking and py.typed marker (#1757)"
+      "import_reason": "Lock local AFD 0.10 and MCP 2.3; refresh dependencies within declared constraints; Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); Lock the editable afd source at 0.11.0; Versioned by pnpm version-track botcore (lushly-botcore 0.8.0); Versioned by pnpm version-track python (afd-python 0.12.0); Refresh uv.lock after promoting pyyaml to afd[server] (#1981); Run every sibling package's, plugin's and mock integration scenario's tests in CI, the factory on macOS and Windows, and a multi-process lock test (lushly-dev/afd#1793); Format Botcore, add mypy type checking and py.typed marker (#1757); Versioned by pnpm version-track python (afd-python 0.13.0)"
     }
   ]
 }
