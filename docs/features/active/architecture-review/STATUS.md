@@ -85,7 +85,7 @@ These keep their own work; this review only cross-references them.
 
 - [#1756](https://github.com/lushly-dev/afd/issues/1756) python: a tested mcp SDK range, a weekly newest-SDK run, and fewer private internals
 
-- [#1757](https://github.com/lushly-dev/afd/issues/1757) python: lint and type gates across afd, Botcore, Alfred and Health
+- [#1757](https://github.com/lushly-dev/afd/issues/1757) python: lint and type gates across afd, Botcore, Alfred and Health; merged in #2357
 
 - [#1758](https://github.com/lushly-dev/afd/issues/1758) python: afd.testing installs and imports alone, transports load lazily, root names stop colliding
 
@@ -103,7 +103,7 @@ These keep their own work; this review only cross-references them.
 
 - [#1764](https://github.com/lushly-dev/afd/issues/1764) rust: per-call allocation and a file journal that does not block async threads
 
-- [#1765](https://github.com/lushly-dev/afd/issues/1765) rust: gates for the crate (MSRV per tier, a CI lockfile, fuzzing, lints, the missing feature build, a wasm run)
+- [#1765](https://github.com/lushly-dev/afd/issues/1765) rust: gates for the crate (MSRV per tier, a CI lockfile, fuzzing, lints, the missing feature build, a wasm run); merged in #2357
 
 ### C++
 
@@ -125,7 +125,7 @@ These keep their own work; this review only cross-references them.
 
 - [#1773](https://github.com/lushly-dev/afd/issues/1773) umbel: metrics per command and structured logs for operators
 
-- [#1774](https://github.com/lushly-dev/afd/issues/1774) umbel: a crate and test layout that stops the 14 GB target directory
+- [#1774](https://github.com/lushly-dev/afd/issues/1774) umbel: a crate and test layout that stops the 14 GB target directory; merged in #2357
 
 - [#1775](https://github.com/lushly-dev/afd/issues/1775) umbel: the plugin SDK's HostServices split by grant family, with SDK semver
 
