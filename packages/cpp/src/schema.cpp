@@ -470,109 +470,350 @@ const Json* default_of(const Json& root, const Json& property) {
 class Validator {
 public:
     Validator(const Json& root, std::vector<ValidationIssue>& issues)
-        : resource_(&root), issues_(issues) {}
+        : root_(&root), issues_(issues) {}
 
-    Json run(const Json& raw_schema, const Json& value, const std::string& path,
-             bool absent = false, int depth = 0) {
-        if (depth > max_validation_depth) {
-            add(path,
-                "Too deep: input exceeds maximum validation depth of " +
-                    std::to_string(max_validation_depth),
-                "too_deep");
-            return nullptr;
-        }
-        // The resource of the schema being walked, restored when this level returns.
-        const Restore restore{resource_, resource_};
-        const Json* schema = follow_refs(resource_, raw_schema);
-        if (schema == nullptr || schema->is_boolean()) {
-            // A boolean schema (spec/validation.md): `false` is `not: {}`, which no value
-            // satisfies, so its issue is TypeScript's for `z.never()`.
-            if (schema != nullptr && !schema->get<bool>()) {
-                const std::string received = absent ? "undefined" : received_name(value);
-                add(path, "Invalid input: expected never, received " + received, "invalid_type",
-                    "never");
-                return nullptr;
-            }
-            if (absent) {
-                add_missing_required(path);
-                return nullptr;
-            }
-            return value;
-        }
+    // Iterative explicit-stack validation: keeps O(1) C++/Wasm call-stack depth even at
+    // max_validation_depth (128), avoiding Emscripten's 64 KiB stack overflow (#1719).
+    Json run(const Json& raw_schema, const Json& value) {
+        Json root_result;
+        std::vector<Frame> stack;
 
-        if (const auto options = schema->find("enum"); options != schema->end()) {
-            if (absent || std::none_of(options->begin(), options->end(),
-                                       [&](const Json& option) { return option == value; })) {
-                std::string listed;
-                for (const Json& option : *options) {
-                    listed += (listed.empty() ? "" : "|") + wire::serialize(option);
-                }
-                add(path,
-                    (options->size() == 1 ? "Invalid input: expected "
-                                          : "Invalid option: expected one of ") +
-                        listed,
-                    "invalid_value");
-                return nullptr;
+        const auto deliver = [&](Target target, Json result) {
+            switch (target) {
+            case Target::root:
+                root_result = std::move(result);
+                return;
+            case Target::array_push:
+                stack.back().parsed.push_back(std::move(result));
+                return;
+            case Target::object_key:
+                stack.back().parsed[std::move(stack.back().pending_key)] = std::move(result);
+                return;
+            case Target::discard:
+                return;
             }
-        }
+        };
 
-        if (const auto type = schema->find("type"); type != schema->end()) {
-            bool ok = false;
-            std::string expected;
-            std::size_t non_null_types = 0;
-            const auto consider = [&](const Json& t) {
-                const auto& name = t.get_ref<const std::string&>();
-                ok = ok || (!absent && matches_type(value, name));
-                if (name != "null") {
-                    ++non_null_types;
-                    expected = name == "integer" ? (!absent && value.is_number() ? "int" : "number")
-                                                 : name;
-                }
-            };
-            if (type->is_array()) {
-                for (const Json& t : *type) {
-                    consider(t);
-                }
-            } else {
-                consider(*type);
+        const auto enter = [&](const Json* resource, const Json& current_schema,
+                               const Json& current_value, std::string current_path, bool is_absent,
+                               int depth, Target target) {
+            if (depth > max_validation_depth) {
+                add(current_path,
+                    "Too deep: input exceeds maximum validation depth of " +
+                        std::to_string(max_validation_depth),
+                    "too_deep");
+                deliver(target, nullptr);
+                return;
             }
-            if (!ok) {
-                if (non_null_types > 1) {
-                    add(path, "Invalid input", "invalid_union");
-                } else {
-                    if (expected.empty()) {
-                        expected = "null";
+            const Json* schema = follow_refs(resource, current_schema);
+            if (schema == nullptr || schema->is_boolean()) {
+                // A boolean schema (spec/validation.md): `false` is `not: {}`, which no value
+                // satisfies, so its issue is TypeScript's for `z.never()`.
+                if (schema != nullptr && !schema->get<bool>()) {
+                    const std::string received =
+                        is_absent ? "undefined" : received_name(current_value);
+                    add(current_path, "Invalid input: expected never, received " + received,
+                        "invalid_type", "never");
+                    deliver(target, nullptr);
+                    return;
+                }
+                if (is_absent) {
+                    add_missing_required(current_path);
+                    deliver(target, nullptr);
+                    return;
+                }
+                deliver(target, current_value);
+                return;
+            }
+
+            if (const auto options = schema->find("enum"); options != schema->end()) {
+                if (is_absent ||
+                    std::none_of(options->begin(), options->end(),
+                                 [&](const Json& option) { return option == current_value; })) {
+                    std::string listed;
+                    for (const Json& option : *options) {
+                        listed += (listed.empty() ? "" : "|") + wire::serialize(option);
                     }
-                    const std::string received = absent ? "undefined" : received_name(value);
-                    add(path, "Invalid input: expected " + expected + ", received " + received,
-                        "invalid_type", expected);
+                    add(current_path,
+                        (options->size() == 1 ? "Invalid input: expected "
+                                              : "Invalid option: expected one of ") +
+                            listed,
+                        "invalid_value");
+                    deliver(target, nullptr);
+                    return;
                 }
-                return nullptr;
             }
-        }
-        if (absent) {
-            add_missing_required(path);
-            return nullptr;
+
+            if (const auto type = schema->find("type"); type != schema->end()) {
+                bool ok = false;
+                std::string expected;
+                std::size_t non_null_types = 0;
+                const auto consider = [&](const Json& t) {
+                    const auto& name = t.get_ref<const std::string&>();
+                    ok = ok || (!is_absent && matches_type(current_value, name));
+                    if (name != "null") {
+                        ++non_null_types;
+                        expected =
+                            name == "integer"
+                                ? (!is_absent && current_value.is_number() ? "int" : "number")
+                                : name;
+                    }
+                };
+                if (type->is_array()) {
+                    for (const Json& t : *type) {
+                        consider(t);
+                    }
+                } else {
+                    consider(*type);
+                }
+                if (!ok) {
+                    if (non_null_types > 1) {
+                        add(current_path, "Invalid input", "invalid_union");
+                    } else {
+                        if (expected.empty()) {
+                            expected = "null";
+                        }
+                        const std::string received =
+                            is_absent ? "undefined" : received_name(current_value);
+                        add(current_path,
+                            "Invalid input: expected " + expected + ", received " + received,
+                            "invalid_type", expected);
+                    }
+                    deliver(target, nullptr);
+                    return;
+                }
+            }
+            if (is_absent) {
+                add_missing_required(current_path);
+                deliver(target, nullptr);
+                return;
+            }
+
+            if (current_value.is_string()) {
+                check_string(*schema, current_value.get_ref<const std::string&>(), current_path);
+                deliver(target, current_value);
+                return;
+            }
+            if (current_value.is_number()) {
+                check_number(*schema, current_value.get<double>(), current_path);
+                deliver(target, current_value);
+                return;
+            }
+            if (current_value.is_array()) {
+                const auto items = schema->find("items");
+                if (items == schema->end()) {
+                    check_array_bounds(*schema, current_value.size(), current_path);
+                    deliver(target, current_value);
+                    return;
+                }
+                Frame array_frame;
+                array_frame.kind = Frame::Kind::array;
+                array_frame.target = target;
+                array_frame.resource = resource;
+                array_frame.schema = schema;
+                array_frame.value = &current_value;
+                array_frame.path = std::move(current_path);
+                array_frame.depth = depth;
+                array_frame.items_schema = &*items;
+                array_frame.parsed = Json::array();
+                stack.push_back(std::move(array_frame));
+                return;
+            }
+            if (current_value.is_object()) {
+                const auto properties = schema->find("properties");
+                const auto required = schema->find("required");
+                const auto additional = schema->find("additionalProperties");
+                const bool has_properties = properties != schema->end() && properties->is_object();
+
+                Frame object_frame;
+                object_frame.kind = Frame::Kind::object;
+                object_frame.target = target;
+                object_frame.resource = resource;
+                object_frame.schema = schema;
+                object_frame.value = &current_value;
+                object_frame.path = std::move(current_path);
+                object_frame.depth = depth;
+                object_frame.properties = has_properties ? &*properties : nullptr;
+                object_frame.required = required != schema->end() ? &*required : nullptr;
+                object_frame.additional = additional != schema->end() ? &*additional : nullptr;
+                if (object_frame.properties != nullptr) {
+                    object_frame.prop_it = object_frame.properties->begin();
+                }
+                object_frame.val_it = current_value.begin();
+                object_frame.parsed = Json::object();
+                stack.push_back(std::move(object_frame));
+                return;
+            }
+            deliver(target, current_value);
+        };
+
+        enter(root_, raw_schema, value, "", false, 0, Target::root);
+
+        while (!stack.empty()) {
+            Frame& frame = stack.back();
+            if (frame.kind == Frame::Kind::array) {
+                if (frame.next_index < frame.value->size()) {
+                    const std::size_t index = frame.next_index++;
+                    const Json* items_schema = frame.items_schema;
+                    const Json* item_value = &(*frame.value)[index];
+                    std::string child_path = join_path(frame.path, std::to_string(index));
+                    const Json* resource = frame.resource;
+                    const int child_depth = frame.depth + 1;
+                    enter(resource, *items_schema, *item_value, std::move(child_path), false,
+                          child_depth, Target::array_push);
+                    continue;
+                }
+                check_array_bounds(*frame.schema, frame.value->size(), frame.path);
+                Json finished = std::move(frame.parsed);
+                const Target target = frame.target;
+                stack.pop_back();
+                deliver(target, std::move(finished));
+                continue;
+            }
+
+            if (frame.phase == Frame::Phase::properties) {
+                bool pushed = false;
+                while (frame.properties != nullptr && frame.prop_it != frame.properties->end()) {
+                    const auto it = frame.prop_it++;
+                    const auto present = frame.value->find(it.key());
+                    if (present != frame.value->end()) {
+                        frame.pending_key = it.key();
+                        const Json* prop_schema = &it.value();
+                        const Json* prop_value = &*present;
+                        std::string child_path = join_path(frame.path, it.key());
+                        const Json* resource = frame.resource;
+                        const int child_depth = frame.depth + 1;
+                        enter(resource, *prop_schema, *prop_value, std::move(child_path), false,
+                              child_depth, Target::object_key);
+                        pushed = true;
+                        break;
+                    }
+                    if (const Json* fallback = default_of(*frame.resource, it.value())) {
+                        frame.parsed[it.key()] = *fallback;
+                    }
+                }
+                if (pushed) {
+                    continue;
+                }
+                frame.phase = Frame::Phase::required;
+            }
+
+            if (frame.phase == Frame::Phase::required) {
+                bool pushed = false;
+                while (frame.required != nullptr && frame.req_index < frame.required->size()) {
+                    const auto& name =
+                        (*frame.required)[frame.req_index++].get_ref<const std::string&>();
+                    if (frame.value->contains(name) || frame.parsed.contains(name)) {
+                        continue;
+                    }
+                    const auto declared = frame.properties != nullptr ? frame.properties->find(name)
+                                                                      : frame.schema->end();
+                    if (frame.properties != nullptr && declared != frame.properties->end()) {
+                        const Json* declared_schema = &*declared;
+                        std::string child_path = join_path(frame.path, name);
+                        const Json* resource = frame.resource;
+                        const int child_depth = frame.depth + 1;
+                        enter(resource, *declared_schema, null_json_, std::move(child_path), true,
+                              child_depth, Target::discard);
+                        pushed = true;
+                        break;
+                    }
+                    add_missing_required(join_path(frame.path, name));
+                }
+                if (pushed) {
+                    continue;
+                }
+                frame.phase = Frame::Phase::additional;
+            }
+
+            bool pushed = false;
+            while (frame.val_it != frame.value->end()) {
+                const auto it = frame.val_it++;
+                if (frame.properties != nullptr && frame.properties->contains(it.key())) {
+                    continue;
+                }
+                if (frame.additional == nullptr) {
+                    if (frame.properties == nullptr) {
+                        frame.parsed[it.key()] = it.value(); // no declared shape: keep everything
+                    }
+                    continue; // declared shape: strip undeclared members, as Zod does
+                }
+                if (frame.additional->is_boolean()) {
+                    if (frame.additional->get<bool>()) {
+                        frame.parsed[it.key()] = it.value();
+                    } else {
+                        frame.unknown.push_back(it.key());
+                    }
+                    continue;
+                }
+                frame.pending_key = it.key();
+                const Json* add_schema = frame.additional;
+                const Json* add_value = &it.value();
+                std::string child_path = join_path(frame.path, it.key());
+                const Json* resource = frame.resource;
+                const int child_depth = frame.depth + 1;
+                enter(resource, *add_schema, *add_value, std::move(child_path), false, child_depth,
+                      Target::object_key);
+                pushed = true;
+                break;
+            }
+            if (pushed) {
+                continue;
+            }
+
+            if (!frame.unknown.empty()) {
+                std::string listed;
+                for (const auto& key : frame.unknown) {
+                    listed += (listed.empty() ? "" : ", ") + wire::serialize(Json(key));
+                }
+                add(frame.path,
+                    std::string(frame.unknown.size() == 1 ? "Unrecognized key: "
+                                                          : "Unrecognized keys: ") +
+                        listed,
+                    "unrecognized_keys");
+            }
+            Json finished = std::move(frame.parsed);
+            const Target target = frame.target;
+            stack.pop_back();
+            deliver(target, std::move(finished));
         }
 
-        if (value.is_string()) {
-            check_string(*schema, value.get_ref<const std::string&>(), path);
-            return value;
-        }
-        if (value.is_number()) {
-            check_number(*schema, value.get<double>(), path);
-            return value;
-        }
-        if (value.is_array()) {
-            return check_array(*schema, value, path, depth);
-        }
-        if (value.is_object()) {
-            return check_object(*schema, value, path, depth);
-        }
-        return value;
+        return root_result;
     }
 
 private:
+    enum class Target { root, array_push, object_key, discard };
+
+    struct Frame {
+        enum class Kind { array, object };
+        enum class Phase { properties, required, additional };
+
+        Kind kind = Kind::object;
+        Target target = Target::root;
+        const Json* resource = nullptr;
+        const Json* schema = nullptr;
+        const Json* value = nullptr;
+        std::string path;
+        int depth = 0;
+
+        // Array state.
+        const Json* items_schema = nullptr;
+        std::size_t next_index = 0;
+
+        // Object state.
+        Phase phase = Phase::properties;
+        const Json* properties = nullptr;
+        const Json* required = nullptr;
+        const Json* additional = nullptr;
+        Json::const_iterator prop_it{};
+        std::size_t req_index = 0;
+        Json::const_iterator val_it{};
+        std::string pending_key;
+        std::vector<std::string> unknown;
+
+        Json parsed;
+    };
+
     void add(const std::string& path, std::string message, std::string code,
              std::optional<std::string> expected = std::nullopt) {
         issues_.push_back({path.empty() ? std::string("(root)") : path, std::move(message),
@@ -621,107 +862,21 @@ private:
         bound("exclusiveMaximum", false, true, "too_big", "Too big", "<");
     }
 
-    Json check_array(const Json& schema, const Json& value, const std::string& path, int depth) {
-        const auto items = schema.find("items");
-        Json parsed = items == schema.end() ? value : Json::array();
-        if (items != schema.end()) {
-            for (std::size_t i = 0; i < value.size(); ++i) {
-                parsed.push_back(
-                    run(*items, value[i], join_path(path, std::to_string(i)), false, depth + 1));
-            }
-        }
+    void check_array_bounds(const Json& schema, std::size_t size, const std::string& path) {
         if (const auto min = schema.find("minItems");
-            min != schema.end() && compare_size(value.size(), *min) < 0) {
+            min != schema.end() && compare_size(size, *min) < 0) {
             add(path, "Too small: expected array to have >=" + wire::serialize(*min) + " items",
                 "too_small");
         }
         if (const auto max = schema.find("maxItems");
-            max != schema.end() && compare_size(value.size(), *max) > 0) {
+            max != schema.end() && compare_size(size, *max) > 0) {
             add(path, "Too big: expected array to have <=" + wire::serialize(*max) + " items",
                 "too_big");
         }
-
-        return parsed;
     }
 
-    Json check_object(const Json& schema, const Json& value, const std::string& path, int depth) {
-        const auto properties = schema.find("properties");
-        const auto required = schema.find("required");
-        const auto additional = schema.find("additionalProperties");
-        const bool has_properties = properties != schema.end() && properties->is_object();
-
-        Json parsed = Json::object();
-        if (has_properties) {
-            for (auto it = properties->begin(); it != properties->end(); ++it) {
-                const auto present = value.find(it.key());
-                if (present != value.end()) {
-                    parsed[it.key()] =
-                        run(it.value(), *present, join_path(path, it.key()), false, depth + 1);
-                    continue;
-                }
-                if (const Json* fallback = default_of(*resource_, it.value())) {
-                    parsed[it.key()] = *fallback;
-                }
-            }
-        }
-
-        if (required != schema.end()) {
-            for (const Json& name_json : *required) {
-                const auto& name = name_json.get_ref<const std::string&>();
-                if (value.contains(name) || parsed.contains(name)) {
-                    continue;
-                }
-                const auto declared = has_properties ? properties->find(name) : schema.end();
-                if (has_properties && declared != properties->end()) {
-                    run(*declared, nullptr, join_path(path, name), true, depth + 1);
-                } else {
-                    add_missing_required(join_path(path, name));
-                }
-            }
-        }
-
-        std::vector<std::string> unknown;
-        for (auto it = value.begin(); it != value.end(); ++it) {
-            if (has_properties && properties->contains(it.key())) {
-                continue;
-            }
-            if (additional == schema.end()) {
-                if (!has_properties) {
-                    parsed[it.key()] = it.value(); // no declared shape: keep everything
-                }
-                continue; // declared shape: strip undeclared members, as Zod does
-            }
-            if (additional->is_boolean()) {
-                if (additional->get<bool>()) {
-                    parsed[it.key()] = it.value();
-                } else {
-                    unknown.push_back(it.key());
-                }
-                continue;
-            }
-            parsed[it.key()] =
-                run(*additional, it.value(), join_path(path, it.key()), false, depth + 1);
-        }
-        if (!unknown.empty()) {
-            std::string listed;
-            for (const auto& key : unknown) {
-                listed += (listed.empty() ? "" : ", ") + wire::serialize(Json(key));
-            }
-            add(path,
-                std::string(unknown.size() == 1 ? "Unrecognized key: " : "Unrecognized keys: ") +
-                    listed,
-                "unrecognized_keys");
-        }
-        return parsed;
-    }
-
-    struct Restore {
-        const Json*& slot;
-        const Json* saved;
-        ~Restore() { slot = saved; }
-    };
-
-    const Json* resource_;
+    const Json* root_;
+    const Json null_json_{};
     std::vector<ValidationIssue>& issues_;
 };
 
@@ -789,7 +944,7 @@ Expected<Json, ValidationFailure> CompiledSchema::validate(const Json& input,
         max_issues == 0 ? default_max_validation_issues : max_issues;
     std::vector<ValidationIssue> issues;
     Validator validator(*schema_, issues);
-    Json parsed = validator.run(*schema_, input, "");
+    Json parsed = validator.run(*schema_, input);
     if (issues.empty()) {
         return parsed;
     }
