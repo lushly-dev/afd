@@ -227,8 +227,9 @@ did not author, and how it merges decides who authors the commit on `main`.
 
 - **`rebase` keeps the owner as author.** GitHub lands the pull request's commits as they are.
   Merged directly (Lushly), the bot is only the committer, the commits are unsigned and their
-  subjects carry no pull request number; who commits and signs a merge queue's rebase, and
-  whether its subject gains one, is settled with AFD's switch ([#1809](https://github.com/lushly-dev/afd/issues/1809)). A pull
+  subjects carry no pull request number. Queued by the App in AFD, the same holds: the bot
+  commits the queue's rebase, unsigned, and the subject keeps only the number
+  `pnpm branch:squash --pr` put there ([#1809](https://github.com/lushly-dev/afd/issues/1809)). A pull
   request should hold one commit: every commit of the branch lands.
 - **`squash` by the App credits the bot**, with no line for the owner. Do not merge work the
   owner should be credited for that way.
@@ -250,6 +251,7 @@ did not author, and how it merges decides who authors the commit on `main`.
 | `FORBIDDEN`: "This token opens /cell, not /lane" | A token used on another route | Use the token's own route, or issue one for the route |
 | `GITHUB_UNAVAILABLE` | GitHub did not answer, or one of the App's rate limits is spent | Retry. `gateway-status` shows both GitHub's REST (`rateLimit`) and GraphQL (`rateLimit.graphql`) budgets and when each resets |
 | `GITHUB_REFUSED` | GitHub refused the write; the message is GitHub's own | Fix what it names: a permission the App lacks, a rule on the branch |
+| `VALIDATION_MISSING` from `pr-merge` | No passed `verification-record` for that exact head: none was made, the last one failed, or the branch was pushed again after its validation | Validate the head and record it, then merge. A record counts at once; the gateway keeps its own for a week, then reads the check run from GitHub |
 | `MERGE_METHOD_NOT_ALLOWED` | `mergeMethods` names a method the repository does not allow | [Merges and credit](#merges-and-credit) |
 | The daemon exits at once, again and again | A configuration it refuses, a key others can read, or the tailnet address is not up | The log names it |
 | An upload is `BUNDLE_INVALID` | The bundle needs commits the gateway's mirror lacks | The caller fetches `main` and bundles again (`git bundle create head.bundle origin/main..<branch>`), or bundles the whole branch |

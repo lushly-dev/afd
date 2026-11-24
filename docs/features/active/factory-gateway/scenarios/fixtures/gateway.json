@@ -225,7 +225,7 @@
 		}
 	],
 	"claimComments": [],
-	"verifications": [],
+	"verifications": {},
 	"journal": [],
 	"reviews": [],
 	"allowedVariables": ["FACTORY_LANE_HOST"],

@@ -1,7 +1,9 @@
 """The gateway's own state, beside GitHub: small, and mostly rebuildable.
 
-``state.json`` holds bundle uploads, review records (G2), each consumer's delivered events
-(G3), the write log behind the write budget, and seeded audit rows a fixture supplies. Claims
+``state.json`` holds bundle uploads, review records (G2), the validations the gateway recorded
+in the last week (``verifications``, which decide a merge before GitHub lists their check run),
+each consumer's delivered events (G3), the write log behind the write budget, and seeded audit
+rows a fixture supplies. Claims
 are not here: GitHub holds them and every read rebuilds them. The journal is AFD's JSON Lines
 journal, one file per UTC day under ``journal/``, kept for ``journal.keepDays``.
 """
@@ -43,6 +45,7 @@ class GatewayState:
         data = {
             "uploads": fixture.get("uploads", {}),
             "reviews": {review["head"]: review for review in fixture.get("reviews", [])},
+            "verifications": fixture.get("verifications", {}),
             "auditSeed": fixture.get("journal", []),
             "delivered": {},
             "writes": [],
