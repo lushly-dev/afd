@@ -355,8 +355,8 @@ export function createJournalOrder(
 			if (given !== undefined && replaying())
 				(context as Record<symbol, unknown>)[RECORDED_AUTONOMY] = given;
 			else delete (context as Record<symbol, unknown>)[RECORDED_AUTONOMY];
-			if (given !== undefined && taint !== undefined && replaying())
-				(context as Record<symbol, unknown>)[RECORDED_TAINT] = taint;
+			if (replaying())
+				(context as Record<symbol, unknown>)[RECORDED_TAINT] = Array.isArray(taint) ? taint : [];
 			else delete (context as Record<symbol, unknown>)[RECORDED_TAINT];
 			const call = typeof context.traceId === 'string' ? calls.get(context.traceId) : undefined;
 			const waits = journaled(name);

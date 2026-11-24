@@ -75,5 +75,10 @@ export function redactJournalRecord(record: JournalRecord, threw = false): Journ
 	) {
 		return { ...clean, unreplayable: true, lossy: true } as unknown as JournalRecord;
 	}
+	// A taint list over the journal's 4 KB context limit is omitted into `contextOmitted`; replay cannot reconstruct the
+	// gate's taint decision without it, so mark the entry unreplayable (#2325).
+	if (clean.contextOmitted?.includes('taint')) {
+		return { ...clean, unreplayable: true, lossy: true } as unknown as JournalRecord;
+	}
 	return clean;
 }

@@ -515,6 +515,37 @@ describe('P2-D10: checklist’s view editor', () => {
 		await kernelCall(page, 'appearance-set', { theme: 'light', density: 'comfortable' });
 		await page.emulateMedia({ forcedColors: 'active' });
 		await editorIdle(page);
+		// #2380: a ticked checklist box keeps a SelectedItem fill and SelectedItemText tick under forced colors.
+		const boxColors = await frame.evaluate(() => {
+			const probe = document.createElement('span');
+			probe.style.setProperty('forced-color-adjust', 'none');
+			probe.style.setProperty('background', 'SelectedItem');
+			probe.style.setProperty('color', 'SelectedItemText');
+			document.body.append(probe);
+			const expected = {
+				background: getComputedStyle(probe).backgroundColor,
+				color: getComputedStyle(probe).color,
+			};
+			probe.remove();
+			const checked = document.querySelector<HTMLElement>('button.item[aria-checked="true"] .box');
+			const unchecked = document.querySelector<HTMLElement>(
+				'button.item[aria-checked="false"] .box'
+			);
+			const checkedStyle = checked ? getComputedStyle(checked) : null;
+			const uncheckedStyle = unchecked ? getComputedStyle(unchecked) : null;
+			return {
+				forcedColorAdjust: checkedStyle?.forcedColorAdjust,
+				background: checkedStyle?.backgroundColor,
+				color: checkedStyle?.color,
+				uncheckedBackground: uncheckedStyle?.backgroundColor,
+				expected,
+			};
+		});
+		expect(boxColors.forcedColorAdjust).toBe('none');
+		expect(boxColors.background).toBe(boxColors.expected.background);
+		expect(boxColors.color).toBe(boxColors.expected.color);
+		expect(boxColors.background).not.toBe(boxColors.color);
+		expect(boxColors.background).not.toBe(boxColors.uncheckedBackground);
 		expect(await axe(frame), 'inside the frame, forced colors').toEqual([]);
 		expect(await settledAxe(page), 'forced colors').toEqual([]);
 		await page.emulateMedia({ forcedColors: 'none' });

@@ -183,6 +183,12 @@ const styles = [
 			.count {
 				color: CanvasText;
 			}
+			.quiet:hover kbd,
+			.quiet:active kbd,
+			.quiet:hover .count,
+			.quiet:active .count {
+				color: inherit;
+			}
 		}
 	`,
 ];

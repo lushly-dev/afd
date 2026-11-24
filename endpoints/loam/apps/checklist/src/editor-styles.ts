@@ -236,9 +236,10 @@ export const EDITOR_STYLES = css`
 		}
 
 		button.item[aria-checked='true'] .box {
-			border-color: Highlight;
-			background: Highlight;
-			color: HighlightText;
+			forced-color-adjust: none;
+			border-color: SelectedItem;
+			background: SelectedItem;
+			color: SelectedItemText;
 		}
 
 		button.item[aria-checked='true'] .text,

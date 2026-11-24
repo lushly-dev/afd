@@ -106,9 +106,10 @@ drawn in is Lushly's and lives in Lushly.
   measured over page, card, subtle and floating.
 - Forced colors: system colors only inside `@media (forced-colors: active)`;
   `CanvasText`/`Canvas`, `ButtonText`/`ButtonFace`, `Highlight`/`HighlightText`
-  for focus and selection, `GrayText` for disabled. Forced colors removes
-  `box-shadow`, so a shadow-only boundary needs an `outline` or `border`
-  there.
+  for focus and selection, `SelectedItem`/`SelectedItemText` with
+  `forced-color-adjust: none` for pressed toggles and checked boxes, `GrayText`
+  for disabled. Forced colors removes `box-shadow`, so a shadow-only boundary
+  needs an `outline` or `border` there.
 
 ## Density
 

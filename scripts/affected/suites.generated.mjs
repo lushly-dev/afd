@@ -1,7 +1,7 @@
 // Auto-generated from .github/workflows/*.yml by scripts/sync-ci.mjs (#1800).
 // Do not edit by hand; run `pnpm ci:sync` after changing workflow steps or gates.
 
-/** @type {{ workflow: string, tools: string[], steps: { run: string, cwd?: string, gate?: string, tools?: string[] }[], remote?: string }[]} */
+/** @type {{ workflow: string, tools: string[], steps: { run: string, cwd?: string, gate?: string, platform?: string, tools?: string[] }[], remote?: string }[]} */
 export const SUITES = [
 	{
 		"workflow": "violet.yml",
@@ -188,6 +188,7 @@ export const SUITES = [
 			},
 			{
 				"gate": "run",
+				"platform": "darwin",
 				"run": "pnpm -F @lushly-dev/loam-web test:webkit"
 			},
 			{

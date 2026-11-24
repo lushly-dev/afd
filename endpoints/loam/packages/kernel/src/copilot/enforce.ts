@@ -240,9 +240,14 @@ export function createEnforcement(deps: EnforcementDeps): Enforcement {
 		trace: CopilotTraceV1,
 		next: () => Promise<CommandResult>
 	): Promise<CommandResult> {
+		delete call.taint;
 		if (call.confirmation !== undefined) return next();
 		if (deps.exempt(name, input) || !deps.journaled(name)) return next();
-		const sources = await deps.taintOf(trace.session);
+		const recordedTaint = (call as unknown as Record<symbol, unknown>)[RECORDED_TAINT];
+		const sources = Array.isArray(recordedTaint)
+			? (recordedTaint as string[])
+			: await deps.taintOf(trace.session);
+		if (sources.length > 0) call.taint = [...sources];
 		const tainted = sources.length > 0 && lowers(name, sources);
 		// A destructive or approval-held command is at most `ask` on a copilot's behalf, nested too (6.1, the review's B6).
 		const held = deps.heldBy(name);

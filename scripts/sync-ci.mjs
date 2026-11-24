@@ -172,6 +172,7 @@ const SUITE_CONFIG = [
 			});
 			steps.push({
 				gate: 'run',
+				platform: 'darwin',
 				run: findStep(wf, 'webkit', (s) => s.run.includes('test:webkit')).run,
 			});
 			steps.push({ gate: 'run', run: findStep(wf, 'loam', (s) => s.run.includes('budget')).run });
@@ -635,7 +636,7 @@ export function renderSuitesModule(suites) {
 		'// Auto-generated from .github/workflows/*.yml by scripts/sync-ci.mjs (#1800).',
 		'// Do not edit by hand; run `pnpm ci:sync` after changing workflow steps or gates.',
 		'',
-		'/** @type {{ workflow: string, tools: string[], steps: { run: string, cwd?: string, gate?: string, tools?: string[] }[], remote?: string }[]} */',
+		'/** @type {{ workflow: string, tools: string[], steps: { run: string, cwd?: string, gate?: string, platform?: string, tools?: string[] }[], remote?: string }[]} */',
 		`export const SUITES = ${JSON.stringify(suites, null, '\t')};`,
 		'',
 	].join('\n');

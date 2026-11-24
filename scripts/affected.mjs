@@ -197,9 +197,13 @@ export function workflowTrigger(scope, trigger) {
 
 /**
  * The local suite steps a change selects, in order: a suite whose workflow's pull-request path
- * filter matches a changed file, minus the steps whose `Affected units` gate would not pass.
+ * filter matches a changed file, minus the steps whose `Affected units` gate would not pass or
+ * whose `platform` does not match the current host (#2366).
  */
-export function planSuites(scope, { root, suites = SUITES, read = readSuiteTrigger } = {}) {
+export function planSuites(
+	scope,
+	{ root, suites = SUITES, read = readSuiteTrigger, platform = process.platform } = {}
+) {
 	const plan = [];
 	for (const suite of suites) {
 		const trigger = read(root, suite);
@@ -215,6 +219,7 @@ export function planSuites(scope, { root, suites = SUITES, read = readSuiteTrigg
 		const reason = file ? `${file} changed` : scope.reason;
 		const gates = new Map();
 		for (const step of suite.steps) {
+			if (step.platform && step.platform !== platform) continue;
 			if (!step.gate) {
 				plan.push({ suite, step, reason });
 				continue;
@@ -228,6 +233,14 @@ export function planSuites(scope, { root, suites = SUITES, read = readSuiteTrigg
 		}
 	}
 	return plan;
+}
+
+/** What a suite leaves to remote CI on `platform`: its `remote` note plus any steps gated to another platform. */
+export function suiteRemoteOnly(suite, platform = process.platform) {
+	const skipped = suite.steps
+		.filter((step) => step.platform && step.platform !== platform)
+		.map((step) => `${step.run} (${step.platform} only)`);
+	return [suite.remote, ...skipped].filter(Boolean).join('; ');
 }
 
 // The tools verify checks for before it runs anything. `chromium` is not one: no `which` finds
@@ -315,7 +328,8 @@ function verify(scope, options) {
 		if (suite.workflow !== workflow) {
 			workflow = suite.workflow;
 			console.error(`[verify] ${workflow} (${reason})`);
-			if (suite.remote) console.error(`           remote only: ${suite.remote}`);
+			const remote = suiteRemoteOnly(suite);
+			if (remote) console.error(`           remote only: ${remote}`);
 		}
 		console.error(`           ${step.cwd ? `(${step.cwd}) ` : ''}${step.run}`);
 	}

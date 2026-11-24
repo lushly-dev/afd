@@ -741,7 +741,9 @@ export const CEILINGS = Object.freeze({
 	// Raised under D115 by #2253/#2300 (`observeGate`/`gateRefusal` in `journal-provenance.ts` and `observeThrows` /
 	// thrown `COMMAND_EXECUTION_ERROR` lossy marking in `kernel.ts`/`journal-redact.ts`): measured 162,843 against
 	// `main` at `2b134a73`; set to 163,300.
-	kernelMinified: 163_300,
+	// Raised under D115 by #2325 (`rerun.done` early-return/throw handling in `kernel.ts` and `contextOmitted` taint
+	// unreplayable marking in `journal-redact.ts`): measured 163,350 against `main` at `f7bdb229`; set to 163,900.
+	kernelMinified: 163_900,
 	// Phase 4's steps 2 (+1,494) and 3 (+8,786) together: 92,316 measured with both merged; set to 93,000.
 	// Phase 4's step 5: 93,596, the inbox's wiring (above); set to 94,000.
 	// With step 8 merged beside them, 93,244; set to 94,000 (the header records it).
