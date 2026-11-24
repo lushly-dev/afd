@@ -8,27 +8,29 @@ owner to approve the domain and the budget before any session runs. Read
 ## Status
 
 - **State:** drafted 2026-11-14 against `fd0781e4`. The application is built (#1239), the held
-  material is written and frozen, the runner is written without its report of steps 0.3 and 0.4
-  and its statistics ([STATUS.md](STATUS.md#the-runner)), and the reference build is written,
+  material is written and frozen, the runner is written, its reports and statistics included
+  ([STATUS.md](STATUS.md#the-runner)), and the reference build is written,
   reviewed and approved by the owner, and a copy of it holds the faults
-  ([STATUS.md](STATUS.md#the-reference-build)). Only the pilots have run
-  ([STATUS.md](STATUS.md#the-pilots)).
+  ([STATUS.md](STATUS.md#the-reference-build)). The pilots and step 0.1's first fifteen builds have run
+  ([STATUS.md](STATUS.md#step-01)).
 - **Decided by the owner on 2026-11-15** ([For the owner](#for-the-owner)): the domain, the
   model, the bare arm, and the budget. The sessions run on a second machine of the owner's,
   draw on its subscription allowance and not on API billing, and take no more than a fifth
   of a week's allowance in any one week. Later the same day, with the runner: a session's
   tree is a plain export and not a worktree, and no arm reads the neighbouring proposals
   ([What a session is given](#what-a-session-is-given), [Runs](#runs)).
-- **Not approved:** the rest of this file, and above all the
-  [rules for "go"](#rules-for-go), which the owner confirms before the first run of step 0.1.
-  The owner was asked three questions, which cover the points above, and later ruled on the
+- **Confirmed by the owner on 2026-11-21:** the [rules for "go"](#rules-for-go) and how step
+  0.4 reads a path, as proposed, with step 0.3's "a persona of that modality" read as one
+  persona alone.
+- **Not approved:** the rest of this file. The owner was asked three questions, which cover the points above, and later ruled on the
   runner's points named there; nothing else here is the owner's.
 - **Measured:** the cost and size of a page-building session, from the [Component Briefs
   prototype](../../complete/component-briefs/prototype.md). Everything else in [Budget](#budget)
   is an assumption, marked as one. Two pilot builds and two pilot walks measured a build and a
   walk on 2026-11-20, and a reader of the bare pilot build measured a reader
-  ([STATUS.md](STATUS.md#the-pilots)). The Budget's lines stand as written, as first estimated,
-  until step 0.1's first fifteen builds give the share of the allowance.
+  ([STATUS.md](STATUS.md#the-pilots)). The Budget's lines stand as written, as first estimated.
+  Step 0.1's first fifteen builds were to give the share of the allowance and did not: the
+  figure was not read when they ended ([STATUS.md](STATUS.md#step-01)). The share is unknown.
 - **Deliberately not in this file:** the planted faults, the checks, the persona cards, the
   walk scripts and the two jobs held back for the panel loop. A session that could read them
   would be scored on what it had read. They were written on 2026-11-15 and are kept in a
@@ -275,7 +277,11 @@ phase 0 has no step for it.
 
 ## Rules for "go"
 
-Proposed here and not confirmed. The numbers are starting points, as the review triggers are.
+Proposed with numbers as starting points, as the review triggers are, and confirmed by the owner
+on 2026-11-21 as proposed, with one reading: in step 0.3, "a persona of that modality reports at
+least 2" means one persona on its own, not the modality's personas together, so the pointer
+modality's two personas' findings are not pooled for it: either pointer persona can meet
+the two-fault threshold on its own. Every persona's findings count toward the panel's 8 of 12.
 
 - **The owner confirms all of them before the first run of step 0.1,** and none changes after
   it. Step 0.2 compares arm 2 with the arm 0 builds of step 0.1, and step 0.5 compares arm 3
@@ -291,7 +297,7 @@ Proposed here and not confirmed. The numbers are starting points, as the review 
 | 0.4 | A persona and job pair meets a fault when its screen carries a fault aimed at its modality. A path is worse when the job's last command never ran, or when failed commands, repeated commands and commands outside the scenario's steps add up to more. In at least three quarters of the pairs that meet a fault, the path is worse than the clean one in both walks of the seeded build. In the pairs that meet none, if there are any, that total on a seeded walk differs from the clean walk's by no more than the two seeded walks' totals differ from each other |
 | 0.5 | The owner, blind, prefers arm 3's build in at least 10 of 12 pairs with arm 2's, which chance alone gives about one time in fifty. The pairs are three a screen, each an arm 2 build and an arm 3 build of that screen drawn at random. Arm 3's mean share of checks passed is not below arm 2's. Otherwise the skill is not written |
 
-**How step 0.4 reads a path,** proposed with its rule and confirmed with it. Each walked job has
+**How step 0.4 reads a path,** proposed with its rule and confirmed with it on 2026-11-21. Each walked job has
 a list of the scenario's steps, and the journal is read against it:
 
 - **A read is free.** A query does not count as outside the steps, since screens load and
@@ -341,7 +347,10 @@ a list of the scenario's steps, and the journal is read against it:
   recorded. No command prints the weekly figure, so a person reads it. (Not met: on 2026-11-20
   it was not read before the pilots, and the fallback below was applied by the owner's word,
   under a cap of $50 at list prices in all for those fifteen builds; see
-  [STATUS.md](STATUS.md#the-pilots).) A session's result
+  [STATUS.md](STATUS.md#the-pilots). Not met either: the fifteen builds began on 2026-11-21 just
+  after the weekly reset, so the figure stood at a full week before them, but it was not read
+  when they ended, and other sessions on the machine moved it before it was; see
+  [STATUS.md](STATUS.md#step-01).) A session's result
   does carry its cost at list prices. That gives the share a dollar at list price takes, and
   from it the share each step will take, which comes back to the owner before step 0.1. If
   four pilots do not move a figure shown in whole percents, the runs pause after the first
@@ -405,7 +414,7 @@ built.*
 ## For the owner
 
 The owner ruled on the first three on 2026-11-15. The fourth was not put to the owner, and
-the fifth is open.
+the owner confirmed the fifth on 2026-11-21.
 
 1. **Domain.** **Decided: the seed library,** because every result state arises from the
    subject and a judge needs no expertise. The tool library was the fallback.
@@ -414,7 +423,9 @@ the fifth is open.
    The pilots run first to measure what a session takes. The session counts are firm. The
    size of a session rests on assumptions the pilots replace, and the fifth is a guess until
    the pilots give the conversion. Both come back to the owner before step 0.1, or after its
-   first fifteen builds if the pilots do not move the weekly figure.
+   first fifteen builds if the pilots do not move the weekly figure. (Neither gave it: the
+   figure was not read before the pilots, nor when the fifteen builds ended; see
+   [STATUS.md](STATUS.md#step-01).)
 3. **The bare arm.** **Decided: step 0.1 has one.** The proposal's section 5.9 has every task
    list the screen's states. Phase 0 would then test how well each state is rendered, and
    not whether an agent leaves states undesigned when nobody lists them, which is half of
@@ -427,5 +438,6 @@ the fifth is open.
    sessions is an Apple silicon Mac, which Specimen supports, so the checks can run there too
    and nothing is installed here or added to CI. Specimen's host was built there and its
    suite passed on 2026-11-15.
-5. **The rules for "go".** **Open.** The owner has not been asked. They are confirmed before
-   the first run of step 0.1, after the pilots, together with how step 0.4 reads a path.
+5. **The rules for "go".** **Decided 2026-11-21: confirmed as proposed,** together with how
+   step 0.4 reads a path, after the pilots and before the first run of step 0.1. Step 0.3's "a
+   persona of that modality" is read as one persona alone.
