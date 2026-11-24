@@ -136,6 +136,14 @@ effects = ["external"]
 tool = "mail-operation-approve"
 effects = ["external"]
 
+[[mount.tools]]
+tool = "mail-draft-send"
+effects = ["external"]
+
+[[mount.tools]]
+tool = "mail-unsubscribe"
+effects = ["external"]
+
 # Local store mutations (`effects = ["store-write"]`)
 [[mount.tools]]
 tool = "mail-selection-create"

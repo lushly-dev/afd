@@ -166,12 +166,13 @@ fn person_sends_reply_at_terminal_with_preview_smtp_and_sent_copy() {
     let copy_text = String::from_utf8(appended.bytes.clone()).unwrap();
     assert!(copy_text.contains("Bcc: person@example.com"), "{copy_text}");
 
-    // The sent draft left the active draft list and cannot be sent or edited again.
+    // The sent draft left the active draft list and cannot be sent or edited
+    // again; refused before any approval hold.
     let listed = fixture.person("mail-draft-list", json!({}));
     assert_eq!(listed["data"]["drafts"], json!([]));
     let shown = fixture.person("mail-draft-show", json!({ "draft": draft }));
     assert_eq!(shown["data"]["state"], "sent");
-    let again = approved_send(&fixture, json!({ "draft": draft, "revision": 2 }));
+    let again = fixture.person("mail-draft-send", json!({ "draft": draft, "revision": 2 }));
     assert_eq!(again["error"]["code"], "INVALID_INPUT", "{again}");
     assert_eq!(fixture.smtp.received().len(), 1);
 }
@@ -242,15 +243,17 @@ fn agent_and_script_cannot_send_and_stale_revision_is_preview_changed() {
     );
     let draft = made["data"]["draft"].as_i64().unwrap();
 
-    // Agent over MCP is refused (M18).
+    // Agent over MCP is held (M18 amended, F2b): non-approver gets no token.
     let over_mcp = fixture.agent(
         "tok_a",
         "mail-draft-send",
         json!({ "draft": draft, "revision": 1 }),
     );
-    assert_eq!(
-        over_mcp["error"]["code"], "COMMAND_NOT_EXPOSED",
-        "{over_mcp}"
+    assert_eq!(over_mcp["error"]["code"], "APPROVAL_REQUIRED", "{over_mcp}");
+    assert_eq!(over_mcp["error"]["retryable"], false, "{over_mcp}");
+    assert!(
+        over_mcp["error"]["details"].get("approvalToken").is_none(),
+        "non-approver must never receive an approval token: {over_mcp}"
     );
 
     // Script at CLI with no terminal gets PERSON_REQUIRED.
@@ -269,14 +272,16 @@ fn agent_and_script_cannot_send_and_stale_revision_is_preview_changed() {
     let script_out = String::from_utf8(out).unwrap();
     assert!(script_out.contains("PERSON_REQUIRED"), "{script_out}");
 
-    // Update draft to revision 2, then try sending revision 1 -> PREVIEW_CHANGED.
+    // Update draft to revision 2, then try sending revision 1 -> PREVIEW_CHANGED
+    // before any approval hold.
     let updated = fixture.person(
         "mail-draft-update",
         json!({ "draft": draft, "revision": 1, "body": "Changed body." }),
     );
     assert_eq!(updated["data"]["revision"], 2);
-    let stale = approved_send(&fixture, json!({ "draft": draft, "revision": 1 }));
+    let stale = fixture.person("mail-draft-send", json!({ "draft": draft, "revision": 1 }));
     assert_eq!(stale["error"]["code"], "PREVIEW_CHANGED", "{stale}");
+    assert!(stale.pointer("/error/details/approvalToken").is_none());
     assert!(fixture.smtp.received().is_empty());
 }
 
@@ -360,13 +365,15 @@ fn drop_after_handover_is_unknown_reported_in_status_and_never_retried() {
         draft
     );
 
-    // Draft is now `unknown` at revision 2 and cannot be retried or updated.
+    // Draft is now `unknown` at revision 2 and cannot be retried or updated
+    // (refused before any approval hold).
     let shown = fixture.person("mail-draft-show", json!({ "draft": draft }));
     assert_eq!(shown["data"]["state"], "unknown");
     assert_eq!(shown["data"]["revision"], 2);
     fixture.smtp.world().fault = None;
-    let retry = approved_send(&fixture, json!({ "draft": draft, "revision": 2 }));
+    let retry = fixture.person("mail-draft-send", json!({ "draft": draft, "revision": 2 }));
     assert_eq!(retry["error"]["code"], "SEND_OUTCOME_UNKNOWN", "{retry}");
+    assert!(retry.pointer("/error/details/approvalToken").is_none());
     // Still only the one handover attempt reached SMTP.
     assert_eq!(fixture.smtp.received().len(), 1);
 }
@@ -808,6 +815,7 @@ fn verbatim_typing_local_part_case_account_remove_guard_and_journal_redaction() 
                 d2,
                 2,
                 &std::collections::HashSet::new(),
+                false,
                 "inflight@example.com",
                 &loam_mail::store::Proposer {
                     kind: "human".to_string(),

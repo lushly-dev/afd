@@ -407,6 +407,9 @@ impl Store {
             // A proposal that waited its seven days while no process ran
             // goes now.
             Self::expire_proposals_on(&connection, wall_clock())?;
+            // Backfill fixed recipient bases on any pre-migration-23 drafts
+            // so their previews and terminal checks never drift across syncs.
+            drafts::backfill_recipient_bases(&mut connection, &log)?;
         }
         // The write-ahead log and its index take the database file's mode
         // when SQLite creates them; this covers ones left from before.

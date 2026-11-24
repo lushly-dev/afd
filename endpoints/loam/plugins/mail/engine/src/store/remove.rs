@@ -3,9 +3,12 @@
 //! other account's mailbox has shown, with the files in the log only those
 //! messages held. Nothing at the provider is touched.
 
+use std::collections::HashSet;
+
 use rusqlite::OptionalExtension;
 
 use super::{AccountId, AccountRow, Store, StoreError, note_change};
+use crate::derive;
 use crate::log::BlobId;
 
 /// What removing an account would take, for the person to read before they
@@ -201,6 +204,14 @@ impl Store {
             "DELETE FROM account_policy WHERE account_id = ?1",
             [account.0],
         )?;
+        let cleared_drafts: Vec<i64> = {
+            let mut stmt = transaction.prepare(
+                "SELECT id FROM draft
+                 WHERE answers_message_id IN (SELECT id FROM removing_message)",
+            )?;
+            let rows = stmt.query_map([], |row| row.get(0))?;
+            rows.collect::<Result<_, _>>()?
+        };
         transaction.execute_batch(
             "UPDATE draft SET answers_message_id = NULL, revision = revision + 1
                  WHERE answers_message_id IN (SELECT id FROM removing_message);
@@ -240,6 +251,23 @@ impl Store {
             [],
         )?;
         transaction.execute("DELETE FROM account WHERE id = ?1", [account.0])?;
+        // Refresh fixed recipient bases on surviving drafts after the removed
+        // account and its mailboxes are deleted, deriving surviving `own` and
+        // `written-to` evidence directly from surviving accounts, decisions,
+        // and held sent-mailbox headers (independent of the cleared derived
+        // tables). Skip header decompression when no surviving drafts exist.
+        let has_surviving_drafts: bool =
+            transaction.query_row("SELECT EXISTS (SELECT 1 FROM draft)", [], |row| row.get(0))?;
+        if has_surviving_drafts {
+            let (surviving_own, surviving_written) =
+                surviving_mail_evidence(&transaction, &self.log)?;
+            super::drafts::refresh_draft_bases_after_account_remove(
+                &transaction,
+                &cleared_drafts,
+                &surviving_own,
+                &surviving_written,
+            )?;
+        }
         note_change(&transaction, now, "account-removed", account.0)?;
         transaction.commit()?;
         let mut removed = Removed {
@@ -259,6 +287,73 @@ impl Store {
         }
         Ok(removed)
     }
+}
+
+/// Derives surviving `own` and `written-to` addresses from surviving accounts,
+/// `sender_decision = 'mine'` rows, and held headers of messages in surviving
+/// `sent` mailboxes (independent of derived tables cleared by `rebuild_begin`).
+fn surviving_mail_evidence(
+    connection: &rusqlite::Connection,
+    log: &crate::log::Log,
+) -> Result<(HashSet<String>, HashSet<String>), StoreError> {
+    const HEADER_READ_LIMIT: u64 = 1024 * 1024;
+    let mut own = HashSet::new();
+    {
+        let mut stmt = connection.prepare(
+            "SELECT lower(address) FROM account
+             UNION
+             SELECT lower(address) FROM sender_decision WHERE decision = 'mine'",
+        )?;
+        let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+        for addr in rows {
+            let addr = addr?;
+            if !addr.is_empty() {
+                own.insert(addr);
+            }
+        }
+    }
+    let mut written = HashSet::new();
+    let blobs: Vec<Vec<u8>> = {
+        let mut stmt = connection.prepare(
+            "SELECT DISTINCT held.blob
+             FROM mailbox AS sent
+             JOIN observation AS mine ON mine.mailbox_id = sent.id
+             JOIN held ON held.message_id = mine.message_id
+             WHERE sent.role = 'sent'
+               AND held.part = (
+                   SELECT part FROM held AS h2
+                   WHERE h2.message_id = mine.message_id
+                     AND h2.part IN ('header', 'whole')
+                   ORDER BY CASE h2.part WHEN 'header' THEN 0 ELSE 1 END
+                   LIMIT 1
+               )",
+        )?;
+        let rows = stmt.query_map([], |row| row.get::<_, Vec<u8>>(0))?;
+        rows.collect::<Result<_, _>>()?
+    };
+    for raw in blobs {
+        let Some(blob_id) = BlobId::from_bytes(&raw) else {
+            continue;
+        };
+        let Ok(header_bytes) = log.get(blob_id, HEADER_READ_LIMIT) else {
+            continue;
+        };
+        let fields = derive::header_fields(&header_bytes);
+        let sender = if fields.resent_from.is_empty() {
+            fields.sender_address
+        } else {
+            fields.resent_from
+        };
+        if !sender.is_empty() {
+            own.insert(sender);
+        }
+        for recipient in fields.recipients {
+            if !recipient.is_empty() {
+                written.insert(recipient);
+            }
+        }
+    }
+    Ok((own, written))
 }
 
 /// Every table that refers to a message, a mailbox or an account, and what

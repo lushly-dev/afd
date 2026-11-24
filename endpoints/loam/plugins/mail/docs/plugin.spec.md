@@ -393,11 +393,22 @@ further bounds that make the measure rarely matter (M39): a draft at most 100 re
 set at most 50 replies. F-T6 builds the largest target that passes from worst-case text (quotes,
 backslashes and control characters) and reads it through a preview over HTTP within both limits.
 An unsubscribe target and a proposal's preview are not built by a command of the engine's, so the
-same two measures are applied when they are read, and one that does not fit fails with
-`PREVIEW_TOO_LARGE`. In practice they are small: an unsubscribe target longer than 2,048 characters
-is not offered (`mail-unsubscribe-show` fails with D3's code for a message with no usable header),
-never shortened; a proposal's preview is counts and names, and its query at most what
-`mail-selection-create` accepts.
+same two measures are applied when they are read (and before any hold on `mail-unsubscribe`), and
+one that does not fit fails with `PREVIEW_TOO_LARGE`. In practice they are small: an unsubscribe
+target longer than 2,048 characters is not offered (`mail-unsubscribe-show` fails with D3's code for
+a message with no usable header), never shortened; a proposal's preview is counts and names, and its
+query at most what `mail-selection-create` accepts.
+
+**Two ceilings: engine transport vs. Loam shell confirmation.** The engine's `MOST_BUDGET` (1.75
+MiB) and 3.5 MiB MCP reply cap govern the transport contract so every draft or reply set up to M39's
+bounds is readable whole over HTTP MCP and at the terminal without `OUTPUT_BUDGET_EXCEEDED` or
+`REPLY_TOO_LARGE`. Loam's desktop confirmation shell (`mounted-approvals.ts`, phase 5 §7.2) enforces
+a tighter fail-closed display ceiling of **64 KiB canonical JSON and 200 JSON values**
+(`MOUNT_APPROVAL_UNAVAILABLE`, directing the person to the server's own terminal rather than cutting
+any value). Ordinary drafts (and every unsubscribe and proposal preview) stay well under 64 KiB and
+200 values and confirm directly in Loam; extreme M39 targets (such as 100 recipients or 48 KiB of
+heavily escaped control characters) remain readable whole over MCP and sendable at the terminal
+while Loam fails closed.
 
 **Stable for an unchanged target.** Loam calls the preview again under its hold and compares the
 two results' canonical digests. So a preview's result holds no time of reading, no cursor that
@@ -409,7 +420,7 @@ does not cover them (section 7).
 
 | Preview | Input keys (`preview.input`) | Returns |
 | --- | --- | --- |
-| `mail-draft-show` | `["draft", "revision"]` | `draft`: `id`, `revision`, `state`; `account`: the sending account's `id` and provider, and its address in a labelled part; `recipients`, each with its `role` (`to`, `cc`, `bcc`), its `basis` (section 8.2) and its address and display name in a labelled part; the thread or message it answers, by id; `content`, labelled: subject and body; who wrote each part (the engine's 9.5), as the token's id and name for each part, never a second copy of the text |
+| `mail-draft-show` | `["draft", "revision"]` | Top-level fields as D3 ships them: `draft` (id), `revision`, `state`, `account` (id), `from` (sending address), `answers` (answered message id or null), `recipients` (count), `recipientBasis` (`{ to, cc, bcc }` parallel arrays of `own` / `thread` / `written-to` / `new`, section 8.2), `replyToDiffers`, `authors` (who wrote `recipients`, `subject` and `body`, by kind and token id/name, never a second copy of text), `createdAt`, `updatedAt`, `discardedAt` (when discarded), and `content` (`"trust": "content"`, with `to`, `cc`, `bcc`, `subject` and `body`) |
 | `mail-replyset-show` | `["replyset", "revision"]` | `replyset`: `id`, `revision`, `state`, the account, the shared text in a labelled part, and every reply, each with its id, `recipient` (labelled; stored when the set was made, section 9.4), `text` (labelled), `differs` (whether its text differs from the shared text), `source` (`submitted` or `edited`), the submitter or editor by token id and name, and its `inputs` (section 9.4) |
 | `mail-unsubscribe-show` (new) | `["message", "digest"]` | `unsubscribe`: `message`, `account`, `method` (`one-click` for an HTTPS post the message declares with `List-Unsubscribe-Post`, or `mail`), the target URL or address in a labelled part, the list's id in a labelled part, and `digest` |
 | `mail-operation-show` | `["operation", "digest"]` | `operation`, `command`, `asked`, `query` (labelled), the proposal (its proposer, generation and times), and `preview` as step D1's third part built it, gaining `digest`; no `items`, `nextCursor` or `refused` |

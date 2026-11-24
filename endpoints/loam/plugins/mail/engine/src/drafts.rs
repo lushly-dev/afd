@@ -11,29 +11,24 @@
 //! draft as it was previewed, and an update names the revision it read: a
 //! change made by another caller in between fails it with `DRAFT_CHANGED`.
 
-use std::collections::HashSet;
 use std::sync::Arc;
 
 use afd::{
-    ActorKind, ApprovalPolicy, CommandContext, CommandDefinition, CommandError, CommandHandler,
-    CommandInterface, CommandResult, JsonSchemaType, Warning, failure, success,
+    CommandContext, CommandDefinition, CommandError, CommandHandler, CommandInterface,
+    CommandResult, JsonSchemaType, failure, success,
 };
 use async_trait::async_trait;
 use serde_json::{Value, json};
 
-use crate::commands::{command_line_only, store_failure};
+use crate::commands::store_failure;
 use crate::engine::Engine;
-use crate::provider::ProviderError;
-use crate::provider::smtp::{OutgoingMessage, SendOutcome, build_message, new_message_id};
 use crate::read::{
     MOST_BUDGET, budget, content, cursor, fits, integer, limit, parameter, read_exposure, required,
-    too_small,
 };
 use crate::screening::{proposer_json, proposer_of};
 use crate::store::{
     AccountId, DISCARD_LIFETIME, DraftChange, DraftRefusal, DraftRow, NewDraft, RecipientBases,
-    RecipientBasis, Recipients, SendRefusal, SendState, StoreError, ThreadId, TokenRow,
-    normalize_domain,
+    RecipientBasis, Recipients, StoreError, ThreadId, TokenRow,
 };
 
 /// The name of the command that sends a draft.
@@ -52,6 +47,11 @@ pub const MOST_SNOOZE: i64 = 366 * 24 * 60 * 60 * 1000;
 /// budget, since it is the preview of a send and is never cut, and a caller
 /// such as Loam may ask for no budget (step F's specification).
 const SHOW_BUDGET: u64 = crate::read::MOST_BUDGET;
+
+/// Maximum MCP wire size for a rendered draft preview: 3.5 MiB, leaving
+/// 0.5 MiB under the 4 MiB server/desktop ceiling for the envelope
+/// (plugin.spec.md, section 6).
+pub const MAX_PREVIEW_MCP_BYTES: usize = 3_670_016;
 
 /// The commands whose results give a draft's text, which the journal
 /// leaves out of their results (13.1).
@@ -73,6 +73,75 @@ fn draft_not_found(id: i64) -> CommandError {
     )
     .with_suggestion(
         "Run `loam-mail mail-draft-list` to see the drafts, and with `discarded` those discarded.",
+    )
+}
+
+fn preview_changed(revision: i64) -> CommandError {
+    CommandError::new(
+        "PREVIEW_CHANGED",
+        format!(
+            "The draft changed since its preview was read (now at revision {revision}). Nothing was sent."
+        ),
+    )
+    .with_suggestion("Read it again with mail-draft-show and ask the person again.")
+    .with_retryable(false)
+}
+
+fn preview_too_large() -> CommandError {
+    CommandError::new(
+        "PREVIEW_TOO_LARGE",
+        "the draft's preview exceeds what one call can show whole",
+    )
+    .with_suggestion("Shorten the draft's subject or body, or reduce the number of recipients.")
+    .with_retryable(false)
+}
+
+/// Whether a rendered `mail-draft-show` preview fits both `max_budget` (single
+/// JSON payload) and `max_mcp` (doubled/escaped MCP reply size; plugin.spec.md
+/// section 6).
+fn preview_fits_limits(preview: &Value, max_budget: usize, max_mcp: usize) -> bool {
+    if !fits(preview, max_budget) {
+        return false;
+    }
+    let result = success(preview.clone());
+    crate::reply_size(&result, Some(CommandInterface::Mcp)) <= max_mcp
+}
+
+/// Checks both the current rendered draft preview and its worst-case state/id/
+/// basis headroom (longest state string `"discarded"`, `i64::MAX` revision/
+/// timestamps, `answers: null`, `replyToDiffers: false`, and longest basis
+/// string `"written-to"` for every recipient so account removal cannot push a
+/// draft over the cap) against `SHOW_BUDGET` and `MAX_PREVIEW_MCP_BYTES`.
+fn preview_fits_with_headroom(
+    row: &DraftRow,
+    bases: &RecipientBases,
+    account: Option<&str>,
+    tokens: &[TokenRow],
+) -> bool {
+    let current = draft_json(row, account, tokens, Some(bases), true);
+    if !preview_fits_limits(&current, SHOW_BUDGET as usize, MAX_PREVIEW_MCP_BYTES) {
+        return false;
+    }
+    let mut worst = row.clone();
+    worst.revision = i64::MAX;
+    worst.updated_at = i64::MAX;
+    worst.discarded_at = Some(i64::MAX - DISCARD_LIFETIME);
+    let worst_bases = RecipientBases {
+        to: vec![RecipientBasis::WrittenTo; bases.to.len()],
+        cc: vec![RecipientBasis::WrittenTo; bases.cc.len()],
+        bcc: vec![RecipientBasis::WrittenTo; bases.bcc.len()],
+        reply_to_differs: false,
+    };
+    let expanded_kept = draft_json(&worst, account, tokens, Some(&worst_bases), true);
+    if !preview_fits_limits(&expanded_kept, SHOW_BUDGET as usize, MAX_PREVIEW_MCP_BYTES) {
+        return false;
+    }
+    worst.answers = None;
+    let expanded_cleared = draft_json(&worst, account, tokens, Some(&worst_bases), true);
+    preview_fits_limits(
+        &expanded_cleared,
+        SHOW_BUDGET as usize,
+        MAX_PREVIEW_MCP_BYTES,
     )
 }
 
@@ -111,6 +180,7 @@ fn refusal(id: i64, why: DraftRefusal) -> CommandError {
         .with_suggestion(
             "Check your Sent mailbox and mail-status; write a new draft if it did not go.",
         ),
+        DraftRefusal::PreviewTooLarge => preview_too_large(),
     }
 }
 
@@ -380,17 +450,19 @@ impl CommandHandler for Create {
             Ok(draft) => draft,
             Err(error) => return failure(*error),
         };
-        let row = match self.engine.with_store(|store| {
+        let created = self.engine.with_store(|store| {
             store.purge_drafts(now)?;
-            store.create_draft(&draft, &creator, now)
-        }) {
-            Ok(row) => row,
-            Err(error) => return failure(store_failure(&error)),
-        };
-        match result_of(&self.engine, &row) {
-            Ok(result) => success(result),
-            Err(error) => failure(store_failure(&error)),
-        }
+            let accounts = store.accounts()?;
+            let tokens = store.tokens()?;
+            let account_addr = accounts
+                .iter()
+                .find(|account| account.id == draft.account)
+                .map(|account| account.address.clone());
+            store.create_draft(&draft, &creator, now, |row, bases| {
+                preview_fits_with_headroom(row, bases, account_addr.as_deref(), &tokens)
+            })
+        });
+        finish(&self.engine, 0, created)
     }
 }
 
@@ -536,7 +608,15 @@ impl CommandHandler for Update {
         };
         let changed = self.engine.with_store(|store| {
             store.purge_drafts(now)?;
-            store.update_draft(id, revision, &change, &author, now)
+            let accounts = store.accounts()?;
+            let tokens = store.tokens()?;
+            store.update_draft(id, revision, &change, &author, now, |row, bases| {
+                let account_addr = accounts
+                    .iter()
+                    .find(|account| account.id == row.account)
+                    .map(|account| account.address.as_str());
+                preview_fits_with_headroom(row, bases, account_addr, &tokens)
+            })
         });
         finish(&self.engine, id, changed)
     }
@@ -747,6 +827,10 @@ impl CommandHandler for Show {
             Ok(id) => id,
             Err(error) => return failure(*error),
         };
+        let asked_revision = match integer(&input, "revision") {
+            Ok(revision) => revision,
+            Err(error) => return failure(*error),
+        };
         let row = match self.engine.with_store(|store| {
             store.purge_drafts(now)?;
             store.draft(id)
@@ -755,9 +839,22 @@ impl CommandHandler for Show {
             Ok(None) => return failure(draft_not_found(id)),
             Err(error) => return failure(store_failure(&error)),
         };
+        if let Some(expected) = asked_revision
+            && row.revision != expected
+        {
+            return failure(preview_changed(row.revision));
+        }
         match result_of(&self.engine, &row) {
-            Ok(result) if fits(&result, budget(&context, SHOW_BUDGET)) => success(result),
-            Ok(_) => failure(too_small(budget(&context, SHOW_BUDGET))),
+            Ok(result)
+                if preview_fits_limits(
+                    &result,
+                    budget(&context, SHOW_BUDGET),
+                    MAX_PREVIEW_MCP_BYTES,
+                ) =>
+            {
+                success(result)
+            }
+            Ok(_) => failure(preview_too_large()),
             Err(error) => failure(store_failure(&error)),
         }
     }
@@ -770,491 +867,25 @@ pub fn show(engine: Arc<Engine>) -> CommandDefinition {
     CommandDefinition::new(
         "mail-draft-show",
         "Show a draft whole: its account, recipients, subject, body and who wrote each",
-        vec![parameter(
-            "draft",
-            JsonSchemaType::Integer,
-            "The draft, by id",
-            true,
-        )],
+        vec![
+            parameter("draft", JsonSchemaType::Integer, "The draft, by id", true),
+            parameter(
+                "revision",
+                JsonSchemaType::Integer,
+                "Optional revision to verify against the draft's current revision",
+                false,
+            ),
+        ],
         Show { engine },
     )
     .with_output_budget(SHOW_BUDGET, MOST_BUDGET)
     .with_expose(read_exposure())
 }
 
-/// Content-free approval summary for `mail-draft-send` (the specification's
-/// 3.5 and step F's 5.2).
-#[must_use]
-pub fn approval_summary(engine: &Engine, input: &Value) -> Option<String> {
-    let id = input.get("draft")?.as_i64()?;
-    let row = engine.with_store(|store| store.draft(id)).ok()??;
-    if row.discarded_at.is_some() || row.send_state != SendState::None {
-        return None;
-    }
-    let count = row.recipients.envelope_all().len();
-    if count == 0 {
-        return None;
-    }
-    let noun = if count == 1 {
-        "recipient"
-    } else {
-        "recipients"
-    };
-    Some(format!(
-        "Send draft {id} from account {} to {count} {noun}",
-        row.account.0
-    ))
-}
+#[path = "drafts_send.rs"]
+mod send_cmd;
 
-fn send_refusal(id: i64, why: SendRefusal) -> CommandError {
-    match why {
-        SendRefusal::NotFound => draft_not_found(id),
-        SendRefusal::Discarded => {
-            CommandError::new("INVALID_INPUT", format!("draft {id} is discarded"))
-                .with_suggestion("Restore it with mail-draft-restore before sending.")
-        }
-        SendRefusal::Sending => CommandError::new(
-            "WORK_RUNNING",
-            format!("draft {id} is already being sent"),
-        )
-        .with_suggestion("Wait for the send to finish, then check mail-draft-show.")
-        .with_retryable(true),
-        SendRefusal::Sent => CommandError::new(
-            "INVALID_INPUT",
-            format!("draft {id} has already been sent"),
-        )
-        .with_suggestion("Write a new draft with mail-draft-create."),
-        SendRefusal::Unknown => CommandError::new(
-            "SEND_OUTCOME_UNKNOWN",
-            format!(
-                "a previous send of draft {id} ended with an unknown outcome and is never retried"
-            ),
-        )
-        .with_suggestion(
-            "Check your Sent mailbox and mail-status before deciding whether to write a new draft.",
-        )
-        .with_retryable(false),
-        SendRefusal::Changed { revision } => CommandError::new(
-            "PREVIEW_CHANGED",
-            format!(
-                "The draft changed since its preview was read (now at revision {revision}). Nothing was sent."
-            ),
-        )
-        .with_suggestion("Read it again with mail-draft-show and ask the person again.")
-        .with_retryable(false),
-        SendRefusal::NoRecipients => {
-            CommandError::new("INVALID_INPUT", format!("draft {id} has no recipients"))
-                .with_suggestion("Add at least one recipient with mail-draft-update before sending.")
-        }
-        SendRefusal::RecipientNotAllowed { count } => {
-            let phrase = if count == 1 {
-                "1 recipient is".to_string()
-            } else {
-                format!("{count} recipients are")
-            };
-            CommandError::new(
-                "RECIPIENT_NOT_ALLOWED",
-                format!(
-                    "{phrase} not in the thread being answered and not an address you have written to"
-                ),
-            )
-            .with_suggestion(
-                "Run mail-draft-send at a terminal to type each new address, or change the recipients with mail-draft-update.",
-            )
-            .with_retryable(false)
-        }
-        SendRefusal::AccountNotFound => {
-            CommandError::new("ACCOUNT_NOT_FOUND", "the draft's account no longer exists")
-                .with_suggestion("Run `loam-mail mail-account-list` to see the accounts.")
-        }
-    }
-}
-
-/// A provider's refusal during `mail-draft-send`, in send-specific engine words.
-fn send_provider_failure(error: &ProviderError) -> CommandError {
-    match error {
-        ProviderError::SignIn => CommandError::new("SIGN_IN_REQUIRED", error.to_string())
-            .with_suggestion("Sign in to the account again."),
-        ProviderError::Keychain => CommandError::new("SIGN_IN_REQUIRED", error.to_string())
-            .with_suggestion("Unlock the keychain, then try again."),
-        ProviderError::NoCredential => CommandError::new("SIGN_IN_REQUIRED", error.to_string())
-            .with_suggestion("Store the account's sign-in, then try again."),
-        ProviderError::Limit(_) => CommandError::new("PROVIDER_LIMIT", error.to_string())
-            .with_suggestion("Wait a while before trying to send again.")
-            .with_retryable(true),
-        ProviderError::Refused(_) => CommandError::new("PROVIDER_REFUSED", error.to_string())
-            .with_suggestion(
-                "The provider refused the send permanently. Check the recipients and draft before trying again.",
-            )
-            .with_retryable(false),
-        ProviderError::TooDeep => CommandError::new("PROVIDER_UNAVAILABLE", error.to_string())
-            .with_suggestion("The provider's reply could not be read.")
-            .with_retryable(false),
-        ProviderError::Unavailable(_) | ProviderError::Protocol(_) => {
-            CommandError::new("PROVIDER_UNAVAILABLE", error.to_string())
-                .with_suggestion(
-                    "Nothing was sent. Check the network, then run mail-draft-send again.",
-                )
-                .with_retryable(true)
-        }
-    }
-}
-
-/// Ensures an in-flight send never stays stranded in `sending` if the future is
-/// dropped by a server call deadline or Ctrl-C before SMTP finalization runs.
-struct InFlightSend {
-    engine: Arc<Engine>,
-    outbound_id: i64,
-    draft_id: i64,
-    armed: bool,
-}
-
-impl InFlightSend {
-    fn arm(engine: Arc<Engine>, outbound_id: i64, draft_id: i64) -> Self {
-        Self {
-            engine,
-            outbound_id,
-            draft_id,
-            armed: true,
-        }
-    }
-
-    fn disarm(&mut self) {
-        self.armed = false;
-    }
-}
-
-impl Drop for InFlightSend {
-    fn drop(&mut self) {
-        if !self.armed {
-            return;
-        }
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX));
-        let _ = self.engine.with_store(|store| {
-            store.finish_draft_send_unknown(
-                self.outbound_id,
-                self.draft_id,
-                "the send was interrupted before its outcome was recorded; whether it went is not known",
-                now,
-            )
-        });
-    }
-}
-
-/// How long to wait on the best-effort IMAP `APPEND` copy after SMTP has
-/// already accepted the message, so a slow IMAP server cannot eat the call's
-/// deadline.
-const SENT_COPY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
-
-struct SendDraft {
-    engine: Arc<Engine>,
-}
-
-#[async_trait]
-impl CommandHandler for SendDraft {
-    async fn execute(&self, input: Value, context: CommandContext) -> CommandResult<Value> {
-        let is_terminal_human = context.interface == Some(CommandInterface::Cli)
-            && context
-                .actor
-                .as_ref()
-                .is_some_and(|actor| actor.kind == ActorKind::Human);
-        if !is_terminal_human {
-            return failure(
-                CommandError::new(
-                    "PERSON_REQUIRED",
-                    "`mail-draft-send` is a person's command and must be run at a terminal",
-                )
-                .with_suggestion("Run `loam-mail mail-draft-send` at a terminal."),
-            );
-        }
-        let now = context.clock().now();
-        let sender_proposer = proposer_of(&context);
-        let parsed = (|| -> Result<(i64, i64, HashSet<String>), Box<CommandError>> {
-            let id = required(&input, "draft")?;
-            let revision = integer(&input, "revision")?.ok_or_else(|| {
-                invalid(
-                    "`revision` is required",
-                    "Pass the revision mail-draft-show gave, so that only what was previewed is sent.",
-                )
-            })?;
-            let mut seen = 0;
-            let typed_raw = address_list(&input, "typedRecipients", &mut seen)?;
-            let typed: HashSet<String> = typed_raw
-                .map(|list| {
-                    list.into_iter()
-                        .map(|addr| normalize_domain(&addr))
-                        .collect()
-                })
-                .unwrap_or_default();
-            Ok((id, revision, typed))
-        })();
-        let (id, revision, typed) = match parsed {
-            Ok(parsed) => parsed,
-            Err(error) => return failure(*error),
-        };
-
-        let Some(mail_sender) = self.engine.sender().cloned() else {
-            return failure(
-                CommandError::new(
-                    "PROVIDER_UNAVAILABLE",
-                    "this build of the engine cannot send mail",
-                )
-                .with_suggestion("Configure an SMTP sender for the engine."),
-            );
-        };
-
-        // Pick the account's address first to build a Message-ID in its domain,
-        // then atomically verify revision + recipients and record `outbound`
-        // as `sending` in one transaction.
-        let account_addr = match self.engine.with_store(|store| {
-            store.purge_drafts(now)?;
-            let Some(draft) = store.draft(id)? else {
-                return Ok(None);
-            };
-            let accounts = store.accounts()?;
-            Ok(accounts
-                .into_iter()
-                .find(|account| account.id == draft.account)
-                .map(|account| account.address))
-        }) {
-            Ok(addr) => addr.unwrap_or_default(),
-            Err(error) => return failure(store_failure(&error)),
-        };
-        let message_id = match new_message_id(&account_addr) {
-            Ok(id) => id,
-            Err(why) => {
-                return failure(
-                    CommandError::new("STORE_FAILED", why)
-                        .with_suggestion("Check the operating system's random source."),
-                );
-            }
-        };
-
-        let begun = self.engine.with_store(|store| {
-            store.begin_draft_send(id, revision, &typed, &message_id, &sender_proposer, now)
-        });
-        let (draft, account, outbound_id) = match begun {
-            Ok(Ok(begun)) => begun,
-            Ok(Err(why)) => return failure(send_refusal(id, why)),
-            Err(error) => return failure(store_failure(&error)),
-        };
-        let mut guard = InFlightSend::arm(Arc::clone(&self.engine), outbound_id, draft.id);
-
-        // Read optional threading headers from the answered message.
-        let reply_headers = match draft.answers {
-            Some(answered_id) => self
-                .engine
-                .with_store(|store| store.reply_headers(answered_id))
-                .ok()
-                .flatten()
-                .unwrap_or_default(),
-            None => crate::store::ReplyHeaders::default(),
-        };
-        let (in_reply_to, references) = (reply_headers.in_reply_to, reply_headers.references);
-
-        let envelope_to = draft.recipients.envelope_all();
-        let wire_bytes = build_message(&OutgoingMessage {
-            from: &account.address,
-            to: &draft.recipients.to,
-            cc: &draft.recipients.cc,
-            bcc: &draft.recipients.bcc,
-            subject: &draft.subject,
-            body: &draft.body,
-            date_ms: now,
-            message_id: &message_id,
-            in_reply_to: in_reply_to.as_deref(),
-            references: &references,
-            include_bcc: false,
-        });
-
-        let outcome = mail_sender
-            .send(&account, &account.address, &envelope_to, &wire_bytes)
-            .await;
-        let finished_at = context.clock().now();
-
-        match outcome {
-            SendOutcome::Sent => {
-                let saved = self.engine.with_store(|store| {
-                    store.finish_draft_send_sent(outbound_id, draft.id, finished_at)
-                });
-                guard.disarm();
-                let (new_revision, record_saved) = match saved {
-                    Ok(rev) => (Some(rev), true),
-                    Err(_) => (None, false),
-                };
-                // Append a copy (including Bcc) to the provider's sent mailbox
-                // on a bounded best-effort basis: SMTP already accepted the message.
-                let sent_copy = tokio::time::timeout(
-                    SENT_COPY_TIMEOUT,
-                    append_sent_copy(
-                        &self.engine,
-                        &account,
-                        &draft,
-                        &message_id,
-                        in_reply_to.as_deref(),
-                        &references,
-                        now,
-                    ),
-                )
-                .await
-                .unwrap_or(false);
-                if sent_copy && record_saved {
-                    let _ = self
-                        .engine
-                        .with_store(|store| store.mark_outbound_sent_copy(outbound_id));
-                }
-                let mut result = success(json!({
-                    "outbound": outbound_id,
-                    "draft": draft.id,
-                    "revision": new_revision,
-                    "account": account.id.0,
-                    "recipients": envelope_to.len(),
-                    "state": "sent",
-                    "sentCopy": sent_copy,
-                    "recordSaved": record_saved,
-                }));
-                let mut warnings = Vec::new();
-                if !record_saved {
-                    warnings.push(Warning::new(
-                        "OUTBOUND_RECORD_FAILED",
-                        "the message was accepted by the provider, but the local send record could not be updated",
-                    ));
-                }
-                if !sent_copy {
-                    warnings.push(Warning::new(
-                        "SENT_COPY_FAILED",
-                        "the message was sent, but a copy could not be placed in the sent mailbox",
-                    ));
-                }
-                if !warnings.is_empty() {
-                    result.warnings = Some(warnings);
-                }
-                result
-            }
-            SendOutcome::Failed(error) => {
-                let why = error.to_string();
-                let saved = self.engine.with_store(|store| {
-                    store.finish_draft_send_failed(outbound_id, draft.id, &why, finished_at)
-                });
-                guard.disarm();
-                if saved.is_err() {
-                    return failure(
-                        CommandError::new(
-                            "STORE_FAILED",
-                            "the send failed before handover, and the local draft record could not be reopened",
-                        )
-                        .with_retryable(false)
-                        .with_suggestion(
-                            "Check the store and run mail-draft-show before deciding whether to write a new draft.",
-                        ),
-                    );
-                }
-                failure(send_provider_failure(&error))
-            }
-            SendOutcome::Unknown(why) => {
-                let saved = self.engine.with_store(|store| {
-                    store.finish_draft_send_unknown(outbound_id, draft.id, why, finished_at)
-                });
-                guard.disarm();
-                let (new_revision, record_saved) = match saved {
-                    Ok(rev) => (json!(rev), true),
-                    Err(_) => (Value::Null, false),
-                };
-                failure(
-                    CommandError::new("SEND_OUTCOME_UNKNOWN", why)
-                        .with_retryable(false)
-                        .with_details(std::collections::HashMap::from([
-                            ("outbound".to_string(), json!(outbound_id)),
-                            ("draft".to_string(), json!(draft.id)),
-                            ("revision".to_string(), new_revision),
-                            ("recordSaved".to_string(), json!(record_saved)),
-                        ]))
-                        .with_suggestion(
-                            "Check your Sent mailbox and mail-status before deciding whether to write a new draft; this send is never retried.",
-                        ),
-                )
-            }
-        }
-    }
-}
-
-/// Best-effort append of the sent message copy (with `Bcc:` when present) to
-/// the account's sent mailbox.
-async fn append_sent_copy(
-    engine: &Engine,
-    account: &crate::store::AccountRow,
-    draft: &DraftRow,
-    message_id: &str,
-    in_reply_to: Option<&str>,
-    references: &[String],
-    date_ms: i64,
-) -> bool {
-    let Some(connector) = engine.connector().cloned() else {
-        return false;
-    };
-    let sent_mailbox = engine
-        .with_store(|store| store.sent_mailbox(account.id))
-        .ok()
-        .flatten();
-    let Some(sent_mailbox) = sent_mailbox else {
-        return false;
-    };
-    let copy_bytes = build_message(&OutgoingMessage {
-        from: &account.address,
-        to: &draft.recipients.to,
-        cc: &draft.recipients.cc,
-        bcc: &draft.recipients.bcc,
-        subject: &draft.subject,
-        body: &draft.body,
-        date_ms,
-        message_id,
-        in_reply_to,
-        references,
-        include_bcc: true,
-    });
-    let Ok(mut provider) = connector.connect(account).await else {
-        return false;
-    };
-    let appended = provider
-        .append(&sent_mailbox.provider_key, &["\\Seen"], &copy_bytes)
-        .await
-        .is_ok();
-    provider.close().await;
-    appended
-}
-
-/// `mail-draft-send`: sends a draft at the terminal after preview and approval
-/// (the specification's 9.5, M18 and M29).
-#[must_use]
-pub fn send(engine: Arc<Engine>) -> CommandDefinition {
-    CommandDefinition::new(
-        SEND,
-        "Send a draft; only a person can run it, after previewing the revision named",
-        vec![
-            parameter("draft", JsonSchemaType::Integer, "The draft, by id", true),
-            parameter(
-                "revision",
-                JsonSchemaType::Integer,
-                "The revision previewed with mail-draft-show",
-                true,
-            ),
-            parameter(
-                "typedRecipients",
-                JsonSchemaType::Array,
-                "New recipient addresses typed at the terminal for this send",
-                false,
-            ),
-        ],
-        SendDraft { engine },
-    )
-    .as_mutation()
-    .with_destructive(true)
-    .with_confirm_prompt("Send this draft")
-    .with_approval(ApprovalPolicy::Required)
-    .with_expose(command_line_only())
-}
+pub use send_cmd::{approval_summary, pre_approval_check, send};
 
 struct Snooze {
     engine: Arc<Engine>,
@@ -1330,7 +961,14 @@ pub fn snooze(engine: Arc<Engine>) -> CommandDefinition {
 
 #[cfg(test)]
 mod tests {
-    use super::address;
+    use super::{
+        MAX_PREVIEW_MCP_BYTES, MOST_BODY, MOST_RECIPIENTS, MOST_SUBJECT, SHOW_BUDGET, address,
+        draft_json, preview_fits_limits,
+    };
+    use crate::store::{
+        AccountId, Authors, DraftRow, Proposer, RecipientBases, RecipientBasis, Recipients,
+        SendState,
+    };
 
     #[test]
     fn an_address_is_plain_or_refused() {
@@ -1352,5 +990,62 @@ mod tests {
         ] {
             assert_eq!(address(refused), None, "{refused:?}");
         }
+    }
+
+    #[test]
+    fn worst_case_draft_preview_fits_both_caps_and_tight_cap_refuses() {
+        let to: Vec<String> = (0..MOST_RECIPIENTS)
+            .map(|i| format!("r{i:03}.{}@example.org", "a".repeat(40)))
+            .collect();
+        let bases = RecipientBases {
+            to: vec![RecipientBasis::New; MOST_RECIPIENTS],
+            cc: Vec::new(),
+            bcc: Vec::new(),
+            reply_to_differs: true,
+        };
+        let person = Proposer {
+            kind: "agent".to_string(),
+            id: Some("tok_worst".to_string()),
+        };
+        let row = DraftRow {
+            id: i64::MAX,
+            account: AccountId(1),
+            answers: Some(7),
+            recipients: Recipients {
+                to,
+                cc: Vec::new(),
+                bcc: Vec::new(),
+            },
+            subject: "\"\\".repeat(MOST_SUBJECT / 2),
+            body: "\x01\"\\".repeat(MOST_BODY / 3),
+            authors: Authors {
+                recipients: person.clone(),
+                subject: person.clone(),
+                body: person.clone(),
+            },
+            revision: i64::MAX,
+            creator: person,
+            created_at: i64::MAX,
+            updated_at: i64::MAX,
+            discarded_at: None,
+            send_state: SendState::None,
+            recipient_bases: Some(bases.clone()),
+        };
+        let preview = draft_json(&row, Some("me@example.com"), &[], Some(&bases), true);
+        assert!(preview_fits_limits(
+            &preview,
+            SHOW_BUDGET as usize,
+            MAX_PREVIEW_MCP_BYTES
+        ));
+        assert!(!preview_fits_limits(
+            &preview,
+            64 * 1024,
+            MAX_PREVIEW_MCP_BYTES
+        ));
+        assert!(!preview_fits_limits(
+            &preview,
+            SHOW_BUDGET as usize,
+            64 * 1024
+        ));
     }
 }

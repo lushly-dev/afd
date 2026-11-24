@@ -139,8 +139,9 @@ for the full contract.
 
 4. Add the mounted instance in a version-4 `loam.deployment.toml` (with `[host] kind = "desktop"`),
    naming the packed mount directory, bearer file, `labels = "per-part"`, `approvals = "shell"`,
-   each released MCP command's preview (`mail-operation-approve` today; send and unsubscribe follow
-   in steps F2b/F2c), and every mutation you want exposed (`expose.apps` is set per command):
+   each released MCP command's preview (`mail-operation-approve`, `mail-draft-send`, and
+   `mail-unsubscribe` today; `mail-replyset-send` follows in step F3), and every mutation you want
+   exposed (`expose.apps` is set per command):
 
    ```toml
    deployment_version = 4
@@ -163,6 +164,14 @@ for the full contract.
    [apps.mail.commands."mail-operation-approve"]
    expose = { agent = true, apps = true }
    preview = { command = "mail-operation-show", input = ["operation", "digest"] }
+
+   [apps.mail.commands."mail-draft-send"]
+   expose = { agent = true, apps = true }
+   preview = { command = "mail-draft-show", input = ["draft", "revision"] }
+
+   [apps.mail.commands."mail-unsubscribe"]
+   expose = { agent = true, apps = true }
+   preview = { command = "mail-unsubscribe-show", input = ["message", "digest"] }
    ```
 
 5. Validate and write the desktop deployment:

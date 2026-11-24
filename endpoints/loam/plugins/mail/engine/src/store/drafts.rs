@@ -18,14 +18,19 @@
 //! apart two events in one millisecond. A pass of sync removes a snooze so
 //! ended, so that the reply's leaving later does not bring it back.
 
-use std::collections::{HashMap, HashSet, VecDeque};
+#[path = "draft_bases.rs"]
+mod bases;
+
+pub use bases::{RecipientBases, RecipientBasis};
+pub(super) use bases::{backfill_recipient_bases, refresh_draft_bases_after_account_remove};
+use bases::{compute_recipient_bases, recipient_bases_from_json, recipient_bases_json};
+
+use std::collections::HashSet;
 
 use rusqlite::{Connection, OptionalExtension, params};
 use serde_json::{Value, json};
 
-use super::senders::own_addresses;
 use super::{AccountId, AccountRow, MailboxRow, MessageId, Role, Store, StoreError};
-use crate::log::{BlobId, Log};
 use crate::provider::smtp::clean_message_id;
 use crate::store::Proposer;
 
@@ -76,48 +81,6 @@ impl SendState {
             _ => Self::None,
         }
     }
-}
-
-/// Why a recipient on a draft is allowed or requires confirmation (the
-/// specification's 9.5 and step F's 8.2).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RecipientBasis {
-    /// One of the person's own addresses.
-    Own,
-    /// A participant of the thread being answered.
-    Thread,
-    /// An address the person has written to before.
-    WrittenTo,
-    /// None of the above: must be typed at the terminal for this send.
-    New,
-}
-
-impl RecipientBasis {
-    /// As returned in JSON results.
-    #[must_use]
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Own => "own",
-            Self::Thread => "thread",
-            Self::WrittenTo => "written-to",
-            Self::New => "new",
-        }
-    }
-}
-
-/// The basis of each recipient on a draft, parallel to `to`, `cc` and `bcc`,
-/// plus whether the answered message's `Reply-To` differs from its sender.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct RecipientBases {
-    /// Basis for each `to` recipient.
-    pub to: Vec<RecipientBasis>,
-    /// Basis for each `cc` recipient.
-    pub cc: Vec<RecipientBasis>,
-    /// Basis for each `bcc` recipient.
-    pub bcc: Vec<RecipientBasis>,
-    /// Whether the message the draft answers has a `Reply-To` that differs
-    /// from its sender (flagged in the preview; never silently trusted).
-    pub reply_to_differs: bool,
 }
 
 /// A draft's recipients, each list of addresses in the order given.
@@ -193,6 +156,9 @@ pub struct DraftRow {
     pub discarded_at: Option<i64>,
     /// Its sending state.
     pub send_state: SendState,
+    /// Fixed recipient bases stored when the draft was created or its
+    /// recipients were last replaced (step F2b; `None` on pre-migration-23 rows).
+    pub recipient_bases: Option<RecipientBases>,
 }
 
 impl DraftRow {
@@ -258,6 +224,8 @@ pub enum DraftRefusal {
     Sent,
     /// Its previous send had an unknown outcome.
     Unknown,
+    /// The rendered preview would exceed the whole-preview caps (`PREVIEW_TOO_LARGE`).
+    PreviewTooLarge,
 }
 
 /// Why a draft send was refused before anything reached the provider.
@@ -381,20 +349,25 @@ fn addresses(text: &str) -> Vec<String> {
 
 const DRAFT_COLUMNS: &str = "id, account_id, answers_message_id, to_addresses, cc_addresses,
     bcc_addresses, subject, body, authors, revision, creator_kind, creator_id, created_at,
-    updated_at, discarded_at, send_state";
+    updated_at, discarded_at, send_state, recipient_bases";
 
 fn draft_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<DraftRow> {
     let authors: Value = serde_json::from_str(&row.get::<_, String>(8)?).unwrap_or(Value::Null);
     let send_state: String = row.get(15)?;
+    let recipients = Recipients {
+        to: addresses(&row.get::<_, String>(3)?),
+        cc: addresses(&row.get::<_, String>(4)?),
+        bcc: addresses(&row.get::<_, String>(5)?),
+    };
+    let raw_bases: Option<String> = row.get(16)?;
+    let recipient_bases = raw_bases
+        .as_deref()
+        .and_then(|text| recipient_bases_from_json(text, &recipients));
     Ok(DraftRow {
         id: row.get(0)?,
         account: AccountId(row.get(1)?),
         answers: row.get(2)?,
-        recipients: Recipients {
-            to: addresses(&row.get::<_, String>(3)?),
-            cc: addresses(&row.get::<_, String>(4)?),
-            bcc: addresses(&row.get::<_, String>(5)?),
-        },
+        recipients,
         subject: row.get(6)?,
         body: row.get(7)?,
         authors: Authors {
@@ -411,6 +384,7 @@ fn draft_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<DraftRow> {
         updated_at: row.get(13)?,
         discarded_at: row.get(14)?,
         send_state: SendState::parse(&send_state),
+        recipient_bases,
     })
 }
 
@@ -436,224 +410,6 @@ fn outbound_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<OutboundRow> {
         finished_at: row.get(12)?,
         error: row.get(13)?,
     })
-}
-
-/// Computes the recipient basis for every recipient of `draft` on `connection`.
-fn compute_recipient_bases(
-    connection: &Connection,
-    log: &Log,
-    draft: &DraftRow,
-) -> Result<RecipientBases, StoreError> {
-    let own = own_addresses(connection)?;
-    let (thread_participants, reply_to_differs) = match draft.answers {
-        Some(message_id) => thread_participants_for(connection, log, draft.account, message_id)?,
-        None => (HashSet::new(), false),
-    };
-    let mut written_stmt =
-        connection.prepare_cached("SELECT written > 0 FROM sender WHERE address = ?1")?;
-    let mut classify = |list: &[String]| -> Result<Vec<RecipientBasis>, StoreError> {
-        let mut bases = Vec::with_capacity(list.len());
-        for addr in list {
-            let lower = addr.to_lowercase();
-            let basis = if own.contains(&lower) {
-                RecipientBasis::Own
-            } else if thread_participants.contains(&lower) {
-                RecipientBasis::Thread
-            } else {
-                let written: bool = written_stmt
-                    .query_row([&lower], |row| row.get(0))
-                    .optional()?
-                    .unwrap_or(false);
-                if written {
-                    RecipientBasis::WrittenTo
-                } else {
-                    RecipientBasis::New
-                }
-            };
-            bases.push(basis);
-        }
-        Ok(bases)
-    };
-    Ok(RecipientBases {
-        to: classify(&draft.recipients.to)?,
-        cc: classify(&draft.recipients.cc)?,
-        bcc: classify(&draft.recipients.bcc)?,
-        reply_to_differs,
-    })
-}
-
-/// Maximum number of visible messages in a thread walked for `thread`
-/// recipient authorization; larger threads fall back to the answered message
-/// alone so work stays bounded and fail-closed.
-const MAX_THREAD_WALK: usize = 500;
-/// Maximum header block size read when checking thread links (1 MiB, §6.4).
-const HEADER_READ_LIMIT: u64 = 1024 * 1024;
-
-/// Every participant address in the thread of `message_id` (`From`,
-/// `Resent-From`, and `To`/`Cc`/`Bcc` of messages reachable from `message_id`
-/// solely through messages currently shown in `account` outside junk and
-/// trash — never `Reply-To`, which is flagged separately when it differs).
-///
-/// If `message_id` itself is shown only in junk or trash, no address receives
-/// `thread` eligibility. Walking links only across non-junk/trash messages
-/// also prevents a spam message carrying forged `References` from bridging
-/// two unrelated threads into one eligible set.
-fn thread_participants_for(
-    connection: &Connection,
-    log: &Log,
-    account: AccountId,
-    message_id: i64,
-) -> Result<(HashSet<String>, bool), StoreError> {
-    let answered: Option<(i64, i64)> = connection
-        .query_row(
-            "SELECT thread_id, reply_to_differs FROM envelope WHERE message_id = ?1",
-            [message_id],
-            |row| Ok((row.get(0)?, row.get(1)?)),
-        )
-        .optional()?;
-    let Some((thread_id, reply_to_differs)) = answered else {
-        return Ok((HashSet::new(), false));
-    };
-    let answered_visible: bool = connection.query_row(
-        "SELECT EXISTS (
-                 SELECT 1 FROM observation
-                 JOIN mailbox ON mailbox.id = observation.mailbox_id
-                 WHERE observation.message_id = ?1
-                   AND observation.ended_at IS NULL
-                   AND mailbox.account_id = ?2
-                   AND mailbox.role NOT IN ('junk', 'trash')
-             )",
-        params![message_id, account.0],
-        |row| row.get(0),
-    )?;
-    if !answered_visible {
-        return Ok((HashSet::new(), reply_to_differs != 0));
-    }
-    let mut visible_stmt = connection.prepare_cached(
-        "SELECT envelope.message_id FROM envelope
-         WHERE envelope.thread_id = ?1
-           AND EXISTS (
-               SELECT 1 FROM observation
-               JOIN mailbox ON mailbox.id = observation.mailbox_id
-               WHERE observation.message_id = envelope.message_id
-                 AND observation.ended_at IS NULL
-                 AND mailbox.account_id = ?2
-                 AND mailbox.role NOT IN ('junk', 'trash')
-           )
-         LIMIT ?3",
-    )?;
-    let candidates: Vec<i64> = visible_stmt
-        .query_map(
-            params![thread_id, account.0, (MAX_THREAD_WALK + 1) as i64],
-            |row| row.get(0),
-        )?
-        .collect::<Result<_, _>>()?;
-
-    let connected: Vec<i64> = if candidates.len() <= 1 || candidates.len() > MAX_THREAD_WALK {
-        vec![message_id]
-    } else {
-        connected_visible_messages(connection, log, &candidates, message_id)?
-    };
-
-    let mut env_stmt = connection
-        .prepare_cached("SELECT sender_address, resent_from FROM envelope WHERE message_id = ?1")?;
-    let mut rcpt_stmt =
-        connection.prepare_cached("SELECT address FROM recipient WHERE message_id = ?1")?;
-    let mut participants = HashSet::new();
-    for id in connected {
-        if let Some((sender, resent)) = env_stmt
-            .query_row([id], |row| {
-                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
-            })
-            .optional()?
-        {
-            if !sender.is_empty() {
-                participants.insert(sender.to_lowercase());
-            }
-            if !resent.is_empty() {
-                participants.insert(resent.to_lowercase());
-            }
-        }
-        let rows = rcpt_stmt.query_map([id], |row| row.get::<_, String>(0))?;
-        for address in rows {
-            participants.insert(address?.to_lowercase());
-        }
-    }
-    Ok((participants, reply_to_differs != 0))
-}
-
-/// Computes the connected component of `candidates` reachable from `start`
-/// through `Message-ID`, `In-Reply-To` and `References` headers of the
-/// `candidates` themselves (excluding any junk/trash bridge messages).
-fn connected_visible_messages(
-    connection: &Connection,
-    log: &Log,
-    candidates: &[i64],
-    start: i64,
-) -> Result<Vec<i64>, StoreError> {
-    let mut blob_stmt = connection
-        .prepare_cached("SELECT blob FROM held WHERE message_id = ?1 AND part = 'header'")?;
-    let mut keys_of: HashMap<i64, Vec<String>> = HashMap::with_capacity(candidates.len());
-    let mut by_key: HashMap<String, Vec<i64>> = HashMap::new();
-    for &id in candidates {
-        let Some(blob) = blob_stmt
-            .query_row([id], |row| row.get::<_, Vec<u8>>(0))
-            .optional()?
-        else {
-            continue;
-        };
-        let Some(blob_id) = BlobId::from_bytes(&blob) else {
-            continue;
-        };
-        let Ok(raw) = log.get(blob_id, HEADER_READ_LIMIT) else {
-            continue;
-        };
-        let Some(parsed) = mail_parser::MessageParser::new().parse_headers(&raw) else {
-            continue;
-        };
-        let mut keys = Vec::new();
-        if let Some(mid) = parsed.message_id().and_then(clean_message_id) {
-            keys.push(mid);
-        }
-        if let Some(list) = parsed.in_reply_to() {
-            for item in list.iter().take(200) {
-                if let Some(mid) = clean_message_id(item) {
-                    keys.push(mid);
-                }
-            }
-        }
-        if let Some(list) = parsed.references() {
-            let skip = list.len().saturating_sub(200);
-            for item in list.iter().skip(skip) {
-                if let Some(mid) = clean_message_id(item) {
-                    keys.push(mid);
-                }
-            }
-        }
-        for key in &keys {
-            by_key.entry(key.clone()).or_default().push(id);
-        }
-        keys_of.insert(id, keys);
-    }
-
-    let mut visited: HashSet<i64> = HashSet::new();
-    let mut queue: VecDeque<i64> = VecDeque::new();
-    visited.insert(start);
-    queue.push_back(start);
-    while let Some(current) = queue.pop_front() {
-        if let Some(keys) = keys_of.get(&current) {
-            for key in keys {
-                if let Some(neighbors) = by_key.get(key) {
-                    for &neighbor in neighbors {
-                        if visited.insert(neighbor) {
-                            queue.push_back(neighbor);
-                        }
-                    }
-                }
-            }
-        }
-    }
-    Ok(visited.into_iter().collect())
 }
 
 /// Threading headers read from the message a draft answers.
@@ -700,26 +456,48 @@ impl Store {
         Ok(removed as u64)
     }
 
-    /// Makes a draft written wholly by `creator`.
+    /// Makes a draft written wholly by `creator`, computing and storing its
+    /// fixed recipient bases inside the transaction and checking
+    /// `check_preview` before committing (plugin.spec.md, sections 6, 7 and 8.2).
     ///
     /// # Errors
     /// When the database refuses.
     pub fn create_draft(
-        &self,
+        &mut self,
         draft: &NewDraft,
         creator: &Proposer,
         now: i64,
-    ) -> Result<DraftRow, StoreError> {
+        check_preview: impl FnOnce(&DraftRow, &RecipientBases) -> bool,
+    ) -> Result<Result<DraftRow, DraftRefusal>, StoreError> {
         let authors = Authors {
             recipients: creator.clone(),
             subject: creator.clone(),
             body: creator.clone(),
         };
-        self.connection.execute(
+        let transaction = self.connection.transaction()?;
+        let preview_row = DraftRow {
+            id: 0,
+            account: draft.account,
+            answers: draft.answers,
+            recipients: draft.recipients.clone(),
+            subject: draft.subject.clone(),
+            body: draft.body.clone(),
+            authors: authors.clone(),
+            revision: 1,
+            creator: creator.clone(),
+            created_at: now,
+            updated_at: now,
+            discarded_at: None,
+            send_state: SendState::None,
+            recipient_bases: None,
+        };
+        let bases = compute_recipient_bases(&transaction, &self.log, &preview_row)?;
+        let bases_json = recipient_bases_json(&bases);
+        transaction.execute(
             "INSERT INTO draft (account_id, answers_message_id, to_addresses, cc_addresses,
                  bcc_addresses, subject, body, authors, revision, creator_kind, creator_id,
-                 created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 1, ?9, ?10, ?11, ?11)",
+                 created_at, updated_at, recipient_bases)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 1, ?9, ?10, ?11, ?11, ?12)",
             params![
                 draft.account.0,
                 draft.answers,
@@ -732,10 +510,24 @@ impl Store {
                 creator.kind,
                 creator.id,
                 now,
+                bases_json,
             ],
         )?;
-        let id = self.connection.last_insert_rowid();
-        self.draft(id)?.ok_or(StoreError::NotFound("draft"))
+        let id = transaction.last_insert_rowid();
+        let row: DraftRow = transaction
+            .query_row(
+                &format!("SELECT {DRAFT_COLUMNS} FROM draft WHERE id = ?1"),
+                [id],
+                draft_row,
+            )
+            .optional()?
+            .ok_or(StoreError::NotFound("draft"))?;
+        if !check_preview(&row, &bases) {
+            // Dropping the uncommitted transaction leaves nothing stored.
+            return Ok(Err(DraftRefusal::PreviewTooLarge));
+        }
+        transaction.commit()?;
+        Ok(Ok(row))
     }
 
     /// Draft `id`, in any state.
@@ -786,19 +578,31 @@ impl Store {
 
     /// Changes the parts of draft `id` that `change` sets, if its revision
     /// is still `revision`: each part set is then `author`'s, and the
-    /// revision rises by one.
+    /// revision rises by one. Recomputes fixed `recipient_bases` only when
+    /// `recipients` change (or were absent on a pre-migration-23 row), and
+    /// checks `check_preview` before committing (plugin.spec.md, sections 6, 7
+    /// and 8.2).
     ///
     /// # Errors
     /// When the database refuses.
     pub fn update_draft(
-        &self,
+        &mut self,
         id: i64,
         revision: i64,
         change: &DraftChange,
         author: &Proposer,
         now: i64,
+        check_preview: impl FnOnce(&DraftRow, &RecipientBases) -> bool,
     ) -> Result<Result<DraftRow, DraftRefusal>, StoreError> {
-        let Some(mut row) = self.draft(id)? else {
+        let transaction = self.connection.transaction()?;
+        let row: Option<DraftRow> = transaction
+            .query_row(
+                &format!("SELECT {DRAFT_COLUMNS} FROM draft WHERE id = ?1"),
+                [id],
+                draft_row,
+            )
+            .optional()?;
+        let Some(mut row) = row else {
             return Ok(Err(DraftRefusal::NotFound));
         };
         if row.discarded_at.is_some() {
@@ -815,6 +619,9 @@ impl Store {
                 revision: row.revision,
             }));
         }
+        let old_recipients = row.recipients.clone();
+        let old_bases = row.recipient_bases.clone();
+        let recipients_changed = change.recipients.is_some();
         if let Some(recipients) = &change.recipients {
             row.recipients = recipients.clone();
             row.authors.recipients = author.clone();
@@ -827,11 +634,52 @@ impl Store {
             row.body.clone_from(body);
             row.authors.body = author.clone();
         }
+        let bases = if recipients_changed {
+            let fresh = compute_recipient_bases(&transaction, &self.log, &row)?;
+            if let Some(prev) = &old_bases {
+                // Preserve each retained recipient's fixed basis; classify only newly added ones.
+                let mut prior: std::collections::HashMap<String, RecipientBasis> =
+                    std::collections::HashMap::new();
+                for (addr, basis) in old_recipients
+                    .to
+                    .iter()
+                    .zip(&prev.to)
+                    .chain(old_recipients.cc.iter().zip(&prev.cc))
+                    .chain(old_recipients.bcc.iter().zip(&prev.bcc))
+                {
+                    prior.entry(addr.to_lowercase()).or_insert(*basis);
+                }
+                let merge =
+                    |addrs: &[String], computed: &[RecipientBasis]| -> Vec<RecipientBasis> {
+                        addrs
+                            .iter()
+                            .zip(computed)
+                            .map(|(addr, basis)| {
+                                prior.get(&addr.to_lowercase()).copied().unwrap_or(*basis)
+                            })
+                            .collect()
+                    };
+                RecipientBases {
+                    to: merge(&row.recipients.to, &fresh.to),
+                    cc: merge(&row.recipients.cc, &fresh.cc),
+                    bcc: merge(&row.recipients.bcc, &fresh.bcc),
+                    reply_to_differs: prev.reply_to_differs,
+                }
+            } else {
+                fresh
+            }
+        } else if let Some(prev) = old_bases {
+            prev
+        } else {
+            compute_recipient_bases(&transaction, &self.log, &row)?
+        };
+        let bases_json = recipient_bases_json(&bases);
         // The revision and state are checked again in the statement, so two
         // callers that read the same revision cannot both change it.
-        let changed = self.connection.execute(
+        let changed = transaction.execute(
             "UPDATE draft SET to_addresses = ?3, cc_addresses = ?4, bcc_addresses = ?5,
-                 subject = ?6, body = ?7, authors = ?8, revision = revision + 1, updated_at = ?9
+                 subject = ?6, body = ?7, authors = ?8, revision = revision + 1, updated_at = ?9,
+                 recipient_bases = ?10
              WHERE id = ?1 AND revision = ?2 AND discarded_at IS NULL AND send_state = 'none'",
             params![
                 id,
@@ -843,9 +691,37 @@ impl Store {
                 row.body,
                 authors_json(&row.authors),
                 now,
+                bases_json,
             ],
         )?;
-        self.after_change(id, changed)
+        let updated: Option<DraftRow> = transaction
+            .query_row(
+                &format!("SELECT {DRAFT_COLUMNS} FROM draft WHERE id = ?1"),
+                [id],
+                draft_row,
+            )
+            .optional()?;
+        match (changed, updated) {
+            (1, Some(updated_row)) => {
+                if !check_preview(&updated_row, &bases) {
+                    return Ok(Err(DraftRefusal::PreviewTooLarge));
+                }
+                transaction.commit()?;
+                Ok(Ok(updated_row))
+            }
+            (_, Some(cur)) if cur.discarded_at.is_some() => Ok(Err(DraftRefusal::Discarded)),
+            (_, Some(cur)) if cur.send_state == SendState::Sending => {
+                Ok(Err(DraftRefusal::Sending))
+            }
+            (_, Some(cur)) if cur.send_state == SendState::Sent => Ok(Err(DraftRefusal::Sent)),
+            (_, Some(cur)) if cur.send_state == SendState::Unknown => {
+                Ok(Err(DraftRefusal::Unknown))
+            }
+            (_, Some(cur)) => Ok(Err(DraftRefusal::Changed {
+                revision: cur.revision,
+            })),
+            (_, None) => Ok(Err(DraftRefusal::NotFound)),
+        }
     }
 
     /// Discards draft `id` (`discard`) or restores it, raising its revision.
@@ -900,11 +776,16 @@ impl Store {
     }
 
     /// The basis of each recipient on `draft`, and whether the answered
-    /// message has a differing `Reply-To`.
+    /// message has a differing `Reply-To`. Returns the fixed bases stored with
+    /// the draft when present, falling back to dynamic computation only for
+    /// pre-migration-23 rows.
     ///
     /// # Errors
     /// When the database refuses.
     pub fn recipient_bases(&self, draft: &DraftRow) -> Result<RecipientBases, StoreError> {
+        if let Some(stored) = &draft.recipient_bases {
+            return Ok(stored.clone());
+        }
         compute_recipient_bases(&self.connection, &self.log, draft)
     }
 
@@ -959,8 +840,10 @@ impl Store {
 
     /// Atomically verifies draft `draft_id` at `expected_revision` and every
     /// recipient against the recipient rule (plus `typed_recipients`, already
-    /// lowercased), marks the draft `sending`, and inserts a `sending` row in
-    /// `outbound`. Nothing can change between the checks and marking the send.
+    /// lowercased; or allowing `new` recipients when `allow_new_recipients` is
+    /// true for an approver-released send per Q2 (a)), marks the draft
+    /// `sending`, and inserts a `sending` row in `outbound`. Nothing can change
+    /// between the checks and marking the send.
     ///
     /// # Errors
     /// When the database refuses.
@@ -970,6 +853,7 @@ impl Store {
         draft_id: i64,
         expected_revision: i64,
         typed_recipients: &HashSet<String>,
+        allow_new_recipients: bool,
         message_id: &str,
         sender: &Proposer,
         now: i64,
@@ -1019,23 +903,29 @@ impl Store {
         let Some(account) = account else {
             return Ok(Err(SendRefusal::AccountNotFound));
         };
-        let bases = compute_recipient_bases(&transaction, &self.log, &row)?;
-        let mut disallowed = 0usize;
-        for (addr, basis) in row
-            .recipients
-            .to
-            .iter()
-            .zip(&bases.to)
-            .chain(row.recipients.cc.iter().zip(&bases.cc))
-            .chain(row.recipients.bcc.iter().zip(&bases.bcc))
-        {
-            if *basis == RecipientBasis::New && !typed_recipients.contains(&normalize_domain(addr))
+        if !allow_new_recipients {
+            let bases = match &row.recipient_bases {
+                Some(stored) => stored.clone(),
+                None => compute_recipient_bases(&transaction, &self.log, &row)?,
+            };
+            let mut disallowed = 0usize;
+            for (addr, basis) in row
+                .recipients
+                .to
+                .iter()
+                .zip(&bases.to)
+                .chain(row.recipients.cc.iter().zip(&bases.cc))
+                .chain(row.recipients.bcc.iter().zip(&bases.bcc))
             {
-                disallowed += 1;
+                if *basis == RecipientBasis::New
+                    && !typed_recipients.contains(&normalize_domain(addr))
+                {
+                    disallowed += 1;
+                }
             }
-        }
-        if disallowed > 0 {
-            return Ok(Err(SendRefusal::RecipientNotAllowed { count: disallowed }));
+            if disallowed > 0 {
+                return Ok(Err(SendRefusal::RecipientNotAllowed { count: disallowed }));
+            }
         }
         let updated = transaction.execute(
             "UPDATE draft SET send_state = 'sending'
