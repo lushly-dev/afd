@@ -3,7 +3,7 @@
 	"title": "Touch",
 	"note": "Soft keys on paper: rounded, a little taller, filled with a quiet tint instead of outlined, with soft depth instead of hard edges.",
 	"status": "draft",
-	"built": "2026-11-17",
+	"built": "2026-11-24",
 	"from": "site/css/tokens-m2.css",
 	"palette": {
 		"site": {
@@ -12,6 +12,7 @@
 			"stone-100": "#eceee8",
 			"white": "#ffffff",
 			"stone-200": "#d8dcd6",
+			"mint-ink": "#2c5e4b",
 			"ink": "#181b1a",
 			"ink-soft": "#48534b",
 			"stone-600": "#5e6460",
@@ -19,7 +20,6 @@
 			"stone-700": "#4d5b50",
 			"red-ink": "#c42a1a",
 			"mint": "#a3ebcd",
-			"mint-ink": "#2c5e4b",
 			"blue-ink": "#146ba0",
 			"red-300": "#ff897a",
 			"mint-600": "#92dfbf",
@@ -144,6 +144,20 @@
 			"back": "color.surface.floating",
 			"floor": 4.5,
 			"ratio": 16.39
+		},
+		{
+			"preset": "light",
+			"front": "color.accent.text",
+			"back": "color.accent.background",
+			"floor": 4.5,
+			"ratio": 6.6
+		},
+		{
+			"preset": "light",
+			"front": "color.accent.text",
+			"back": "color.surface.page",
+			"floor": 4.5,
+			"ratio": 6.58
 		},
 		{
 			"preset": "light",
@@ -343,6 +357,20 @@
 		},
 		{
 			"preset": "dark",
+			"front": "color.accent.text",
+			"back": "color.accent.background",
+			"floor": 4.5,
+			"ratio": 9.53
+		},
+		{
+			"preset": "dark",
+			"front": "color.accent.text",
+			"back": "color.surface.page",
+			"floor": 4.5,
+			"ratio": 12.66
+		},
+		{
+			"preset": "dark",
 			"front": "color.action.primary.text",
 			"back": "color.action.primary.background",
 			"floor": 4.5,
@@ -539,6 +567,20 @@
 		},
 		{
 			"preset": "high-contrast",
+			"front": "color.accent.text",
+			"back": "color.accent.background",
+			"floor": 4.5,
+			"ratio": 9.17
+		},
+		{
+			"preset": "high-contrast",
+			"front": "color.accent.text",
+			"back": "color.surface.page",
+			"floor": 4.5,
+			"ratio": 9.17
+		},
+		{
+			"preset": "high-contrast",
 			"front": "color.action.primary.text",
 			"back": "color.action.primary.background",
 			"floor": 4.5,
@@ -682,6 +724,14 @@
 		"defaultPreset": "light",
 		"presets": {
 			"light": [
+				{
+					"id": "color.accent.background",
+					"value": "#dff6ec"
+				},
+				{
+					"id": "color.accent.text",
+					"value": "#2c5e4b"
+				},
 				{
 					"id": "color.action.danger.background",
 					"value": "#c42a1a"
@@ -899,6 +949,10 @@
 					"value": "\"Space Grotesk\", \"Segoe UI\", system-ui, sans-serif"
 				},
 				{
+					"id": "font.family.heading",
+					"value": "\"Space Grotesk\", \"Segoe UI\", system-ui, sans-serif"
+				},
+				{
 					"id": "font.family.mono",
 					"value": "\"IBM Plex Mono\", ui-monospace, Consolas, monospace"
 				},
@@ -929,6 +983,10 @@
 				{
 					"id": "shadow.floating",
 					"value": "0 0 0 1px rgba(24, 27, 26, 0.10), 0 2px 6px rgba(24, 27, 26, 0.08), 0 16px 32px -8px rgba(24, 27, 26, 0.20)"
+				},
+				{
+					"id": "shadow.well",
+					"value": "0 0 0 0 transparent"
 				},
 				{
 					"id": "size.focus-ring.width",
@@ -1052,7 +1110,7 @@
 				},
 				{
 					"id": "type.caption.xs.line",
-					"value": "14px"
+					"value": "16px"
 				},
 				{
 					"id": "type.caption.xs.size",
@@ -1060,7 +1118,7 @@
 				},
 				{
 					"id": "type.caption.xs.weight",
-					"value": "500"
+					"value": "400"
 				},
 				{
 					"id": "type.label.sm.line",
@@ -1167,6 +1225,14 @@
 				{
 					"id": "color.surface.selected",
 					"value": "#20352c"
+				},
+				{
+					"id": "color.accent.background",
+					"value": "#20352c"
+				},
+				{
+					"id": "color.accent.text",
+					"value": "#a3ebcd"
 				},
 				{
 					"id": "color.text.primary",
@@ -1309,6 +1375,10 @@
 					"value": "#f3d6a3"
 				},
 				{
+					"id": "shadow.well",
+					"value": "0 0 0 0 transparent"
+				},
+				{
 					"id": "shadow.card",
 					"value": "0 0 0 1px #48534b, 0 1px 2px rgba(0, 0, 0, 0.4)"
 				},
@@ -1323,6 +1393,14 @@
 			],
 			"high-contrast": [
 				{
+					"id": "color.accent.background",
+					"value": "#ffffff"
+				},
+				{
+					"id": "color.accent.text",
+					"value": "#004A80"
+				},
+				{
 					"id": "color.action.danger.background",
 					"value": "#A30000"
 				},
@@ -1336,7 +1414,7 @@
 				},
 				{
 					"id": "color.action.danger.text",
-					"value": "#FFFFFF"
+					"value": "#ffffff"
 				},
 				{
 					"id": "color.action.primary.background",
@@ -1352,11 +1430,11 @@
 				},
 				{
 					"id": "color.action.primary.text",
-					"value": "#FFFFFF"
+					"value": "#ffffff"
 				},
 				{
 					"id": "color.action.secondary.background",
-					"value": "#FFFFFF"
+					"value": "#ffffff"
 				},
 				{
 					"id": "color.action.secondary.border",
@@ -1396,7 +1474,7 @@
 				},
 				{
 					"id": "color.field.background",
-					"value": "#FFFFFF"
+					"value": "#ffffff"
 				},
 				{
 					"id": "color.field.background.readonly",
@@ -1432,7 +1510,7 @@
 				},
 				{
 					"id": "color.state.danger.background",
-					"value": "#FFFFFF"
+					"value": "#ffffff"
 				},
 				{
 					"id": "color.state.danger.border",
@@ -1440,7 +1518,7 @@
 				},
 				{
 					"id": "color.state.danger.foreground",
-					"value": "#B42318"
+					"value": "#A30000"
 				},
 				{
 					"id": "color.state.danger.text",
@@ -1448,7 +1526,7 @@
 				},
 				{
 					"id": "color.state.success.background",
-					"value": "#FFFFFF"
+					"value": "#ffffff"
 				},
 				{
 					"id": "color.state.success.border",
@@ -1456,7 +1534,7 @@
 				},
 				{
 					"id": "color.state.success.foreground",
-					"value": "#245C36"
+					"value": "#0B5A1E"
 				},
 				{
 					"id": "color.state.success.text",
@@ -1464,7 +1542,7 @@
 				},
 				{
 					"id": "color.state.warning.background",
-					"value": "#FFFFFF"
+					"value": "#ffffff"
 				},
 				{
 					"id": "color.state.warning.border",
@@ -1476,23 +1554,23 @@
 				},
 				{
 					"id": "color.surface.card",
-					"value": "#FFFFFF"
+					"value": "#ffffff"
 				},
 				{
 					"id": "color.surface.floating",
-					"value": "#FFFFFF"
+					"value": "#ffffff"
 				},
 				{
 					"id": "color.surface.highlight",
-					"value": "#FFFFFF"
+					"value": "#ffffff"
 				},
 				{
 					"id": "color.surface.page",
-					"value": "#FFFFFF"
+					"value": "#ffffff"
 				},
 				{
 					"id": "color.surface.pressed",
-					"value": "#E7E4D8"
+					"value": "#E6E6E6"
 				},
 				{
 					"id": "color.surface.selected",
@@ -1525,6 +1603,10 @@
 				{
 					"id": "shadow.floating",
 					"value": "0 0 0 2px #000000, 4px 4px 0 #000000"
+				},
+				{
+					"id": "shadow.well",
+					"value": "inset 0 0 0 0 #000000"
 				}
 			]
 		}
