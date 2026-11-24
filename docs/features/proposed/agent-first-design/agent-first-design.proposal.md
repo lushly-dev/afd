@@ -34,7 +34,7 @@ defaults. Agents review early and often, and a person decides at the points that
   - The owner's earlier design-engine brainstorm and its app specification, in a private
     repository. Nothing here depends on them, and none of their text or data is used.
 - **Next:** the bench in the [bench specification](bench.md) is built. The owner approved
-  its domain and its budget on 2026-11-15 and has not confirmed its rules for "go". The owner
+  its domain and its budget on 2026-11-15 and confirmed its rules for "go" on 2026-11-21. The owner
   also answers the questions still open in [For the owner](#9-for-the-owner): 4, 8, 9 and 10.
 
 | Field | Value |
@@ -798,8 +798,8 @@ Each recommendation is for the owner to decide.
 12. **Phase 0.** Whether to run it, and its budget. **Decided 2026-11-14: run it.** The budget
     is in the [bench specification](bench.md) (step 0.0). **Decided 2026-11-15:** the sessions
     run on Opus 5.5 at `medium` on a second machine of the owner's, draw on its subscription
-    allowance, and take no more than a fifth of a week's allowance in any one week. The rules
-    for "go" are not confirmed.
+    allowance, and take no more than a fifth of a week's allowance in any one week. The owner
+    confirmed the rules for "go" on 2026-11-21.
 13. **Where the parts live.** Raised 2026-11-16 by a review of what FAST-AF added for AFD.
     **Decided 2026-11-16:** the owner set the test in [5.10](#510-where-the-parts-live), asked
     for this amendment, and asked for the plan as an epic and to start it

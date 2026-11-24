@@ -29,9 +29,10 @@ shape of the [Patterns status](../../active/patterns/STATUS.md).
   passes.
 - **In progress:** the [bench specification](bench.md), step 0.0 of phase 0, drafted
   2026-11-14 and merged in #1234. On 2026-11-15 the owner decided its domain, its model and
-  budget, and its bare arm, and an independent reader reviewed it. Its rules for "go" are not
-  confirmed. Its application, held material and reference build are built; its runner is not
-  finished, and only its pilots have run ([The pilots](#the-pilots)).
+  budget, and its bare arm, and an independent reader reviewed it. The owner confirmed its rules
+  for "go" on 2026-11-21. Its application, held material and reference build are built; its
+  runner is written but for arm 2's statements and arm 3's skill, and its pilots and step 0.1's
+  first fifteen builds have run ([Step 0.1](#step-01)).
 - **In progress:** the seed library's
   [jobs and drafted commands](bench/seed-library.md), drafted 2026-11-15 and merged in
   #1236: seventeen jobs as scenario files and twenty-four commands. The scenario checks
@@ -56,32 +57,37 @@ shape of the [Patterns status](../../active/patterns/STATUS.md).
   outside the repository on the second machine's external drive, as a local repository with no
   remote: its code that matches the checks shows how builds are scored. It sets up each
   session, runs it, checks its tool calls for leaks, keeps the budget and scores the story file
-  through Specimen. Its walks and readers were written on 2026-11-18; the report of steps 0.3
-  and 0.4 and step 0.2's statistics are not. Its pinned commit has
+  through Specimen. Its walks and readers were written on 2026-11-18, and its reports of steps
+  0.1 to 0.4 and step 0.2's statistics on 2026-11-21. Its pinned commit has
   moved four times as `main` gained what the bench uses, last to `f4eeba0c` on 2026-11-18; at
   each move the checks were confirmed to stand and the reference build was scored again. See
   [the runner](#the-runner).
 - **Done:** the bench's reference build, built 2026-11-15 and kept beside the runner, outside
   the repository, since it answers every task. It passes all 308 checks and runs each screen's
   jobs end to end. Three models reviewed it, then a panel of five lenses in four rounds, with
-  three more checking the fixes, and the owner looked at every state; the owner approved it on 2026-11-18. A copy of it holds
+  three more checking the fixes, and the owner looked at every state; the owner approved it on 2026-11-18, and on 2026-11-24
+  looked again at the screenshot page made on 2026-11-16 and marked none. A copy of it holds
   the twelve faults, each proved present there and absent from the clean build. See
   [the reference build](#the-reference-build).
 - **Not done:** for the proposal's own thirteen jobs, drafted commands, scenario files, the
   three scenario checks and reader walks; the owner's remaining answers; moving each part
-  into the proposal that owns it; and everything in the phases. See
+  into the proposal that owns it; step 0.1's other 30 builds and 10 readers, the rest of
+  phase 0, and phases A to D. See
   [What is not done](#what-is-not-done).
-- **Blocked on:** the owner confirming the bench's rules for "go", due before the first run of
-  step 0.1, and a reading of the weekly usage figure before step 0.1's first fifteen builds. The
-  pilots gave no share of the allowance, so those fifteen builds measure it, and the runs pause
-  after them for the owner ([The pilots](#the-pilots)). Every session needs the owner's word,
-  since it spends the owner's allowance. Questions 4, 8, 9 and 10 of the proposal are open and
+- **Blocked on:** the owner, after step 0.1's first fifteen builds ([Step 0.1](#step-01)):
+  arms 0 and 1 both pass nine checks in ten, so whether to go on is the owner's to decide, and
+  the weekly figure was not read when the builds ended, so how to measure the share of the
+  allowance is too, and so is confirming the reading that let the runs go on past a build
+  that reported no cost. Every session needs the owner's word, since it spends the owner's
+  allowance. Questions 4, 8, 9 and 10 of the proposal are open and
   block nothing yet.
 - **Order:** the owner answers the direction and ranks the draft jobs before commands are
   drafted, as the [Scales scaffold](../../active/scales/STATUS.md) does. The
   [jobs-first guide](../../../../.claude/skills/afd/references/jobs-first.md) puts the owner's
   ranking after the scenarios and the reader walks, and they still follow.
-- **Last verified:** 2026-11-18 for the reference build at `f4eeba0c` (308 of 308 checks, its
+- **Last verified:** 2026-11-24 for the reference build at `f4eeba0c` (308 of 308 checks on the
+  rebuilt scoring checkout) and step 0.1's first fifteen builds and their report.
+  2026-11-18 for the reference build at `f4eeba0c` (308 of 308 checks, its
   scripted browser runs clean), the twelve faults' proofs on both builds, three runs each, and the stage 2
   manifest. 2026-11-16 for section 5.10 and the two facts it added to section 2: the
   link check and an independent review, below. Otherwise 2026-11-15, the runner's tests and dry runs on the second machine, the
@@ -103,15 +109,16 @@ shape of the [Patterns status](../../active/patterns/STATUS.md).
 | Write each job as a scenario and run the checks | Not started | [Jobs first](../../../../.claude/skills/afd/references/jobs-first.md) |
 | Walk the paths with readers who did not write them | Not started | Three seats, as jobs first describes |
 | Independent review of the proposal | Done 2026-11-14: one broad pass and one pass on its blockers | [How it was checked](#how-it-was-checked) |
-| Phase 0, step 0.0: the bench's specification | In progress. The specification is written, and merged in #1234. Drafted 2026-11-14 with a recommended domain, 209 sessions and an estimate of about $260 at list prices, used as a measure of size. The owner decided three of its points on 2026-11-15: a seed library; Opus 5.5 at `medium` on a second machine's subscription allowance, no more than a fifth of a week's allowance in any one week; and a bare arm in step 0.1. An independent reader reviewed it the same day. The rules for "go" are proposed and not confirmed, and so are the readings of a path for step 0.4 that sit beside them | [`bench.md`](bench.md) |
+| Phase 0, step 0.0: the bench's specification | In progress. The specification is written, and merged in #1234. Drafted 2026-11-14 with a recommended domain, 209 sessions and an estimate of about $260 at list prices, used as a measure of size. The owner decided three of its points on 2026-11-15: a seed library; Opus 5.5 at `medium` on a second machine's subscription allowance, no more than a fifth of a week's allowance in any one week; and a bare arm in step 0.1. An independent reader reviewed it the same day. The owner confirmed the rules for "go" and the reading of a path for step 0.4 on 2026-11-21, as proposed, with step 0.3's "a persona of that modality" read as one persona alone | [`bench.md`](bench.md) |
 | The bench: its jobs and drafted commands | In progress. Drafted 2026-11-15: 17 jobs as scenario files in 113 steps, and 24 commands. The parse, dry-run and coverage checks pass. Three readers walked the paths, and an independent reviewer read the result and walked the two commands their findings added. Merged in #1236. The owner decided three of its design points on 2026-11-15 | [`bench/seed-library.md`](bench/seed-library.md) |
 | The bench: the task for each screen and its result fixtures | In progress. Drafted 2026-11-15: four tasks, 50 states and 74 results, checked against the drafted commands, the States table and the fixtures, and reviewed in two passes. Merged in #1238 | [`bench/tasks/`](bench/tasks/README.md) |
 | The bench: the application and its schemas | In progress. Built 2026-11-15 on `feat/seed-library-example`, merged in #1239: 24 commands with zod input and output schemas, an in-memory store, the approval hook and the steward's middleware. Its tests run the 17 jobs, 113 of 113 steps passing, two of them over MCP with confirmations enforced, and check the 74 results against the output schemas | [`packages/examples/seed-library`](../../../../packages/examples/seed-library/README.md) |
 | The bench: the held material | Done. Written 2026-11-15 outside the repository and reviewed in two passes. Stage 1, the checks (308 over 50 states) and the two held-back jobs, frozen 2026-11-15, its manifest's SHA-256 `6e2a2d7d7daeb8326ef32f7dbae8f405ec40f59bf6cd2604732b822c396cdb31`. Stage 2, the twelve faults with their proofs, five persona cards and four walk scripts, settled against the reference build after the owner's look, reviewed once more and frozen 2026-11-18, its manifest's SHA-256 `e293ce7f690b09ecb8af1cd76a957ef25b16ebccc4744cc035a4f9996c3853c4` | [`bench.md`](bench.md#status) |
-| The bench: the runner | In progress. Written 2026-11-15 outside the repository, on the second machine's external drive, as the owner decided for the held material, and approved in its design by the owner the same day. Session setup, the `claude -p` session, the leak check, the budget and scoring the checks are written and tested without a model session, and two smoke sessions ran, the second inside the sandbox with the narrowed tools. Recorded in #1253. Walks, the reading of a path and the readers written 2026-11-18 and tested without a model session. Not written: the report of steps 0.3 and 0.4 across walks, and step 0.2's statistics | [The runner](#the-runner) |
-| The bench: the reference build | Done. Built 2026-11-15 outside the repository, on the second machine's external drive, kept there like the held material because it answers every task, T4 included; the session sandbox refuses it. All four screens, one story per state and the running app with its journal. It passes all 308 checks and every walked job runs end to end. Three reviewers of different models reviewed it, then a five-lens panel in four rounds, with three more checking the fixes; the owner looked at every state on 2026-11-16 and approved the result on 2026-11-18. The twelve faults are planted in a copy, each with its proof run on both builds. On 2026-11-21, by the owner's decision after a pilot walk, a refusal's feedback was corrected in both builds, with every proof and check run again ([The pilots](#the-pilots)) | [The reference build](#the-reference-build) |
-| The bench: the pilots | Done 2026-11-21, except the conversion, which step 0.1's first fifteen builds give. Run at the owner's word: two builds and two walks, $3.67 at list prices, and on 2026-11-21 the bare build's reader. No leak, and no session over twice its line. The weekly figure was not read first. Their records are the runner's ledger and run folders and the held folder's notes on stage 2, committed with the record after phase 0 | [The pilots](#the-pilots) |
-| Phase 0, steps 0.1 to 0.6 | Not started. Each waits on the bench being built and the owner confirming the rules for "go"; step 0.1's first fifteen builds also wait on a reading of the weekly figure ([The pilots](#the-pilots)) | Proposal, section 7 |
+| The bench: the runner | In progress. Written 2026-11-15 outside the repository, on the second machine's external drive, as the owner decided for the held material, and approved in its design by the owner the same day. Session setup, the `claude -p` session, the leak check, the budget and scoring the checks are written and tested without a model session, and two smoke sessions ran, the second inside the sandbox with the narrowed tools. Recorded in #1253. Walks, the reading of a path and the readers written 2026-11-18 and tested without a model session. Each step's report from 0.1 to 0.4 and step 0.2's statistics written 2026-11-21 and tested on invented runs. Not written: arm 2's statements and arm 3's skill | [The runner](#the-runner) |
+| The bench: the reference build | Done. Built 2026-11-15 outside the repository, on the second machine's external drive, kept there like the held material because it answers every task, T4 included; the session sandbox refuses it. All four screens, one story per state and the running app with its journal. It passes all 308 checks and every walked job runs end to end. Three reviewers of different models reviewed it, then a five-lens panel in four rounds, with three more checking the fixes; the owner looked at every state on 2026-11-16 and approved the result on 2026-11-18. The twelve faults are planted in a copy, each with its proof run on both builds. On 2026-11-21, by the owner's decision after a pilot walk, a refusal's feedback was corrected in both builds, with every proof and check run again ([The pilots](#the-pilots)). On 2026-11-24 the owner looked again at the screenshot page made on 2026-11-16 and marked none | [The reference build](#the-reference-build) |
+| The bench: the pilots | Done 2026-11-21, except the conversion, which step 0.1's first fifteen builds did not give either ([Step 0.1](#step-01)). Run at the owner's word: two builds and two walks, $3.67 at list prices, and on 2026-11-21 the bare build's reader. No leak, and no session over twice its line. The weekly figure was not read first. Their records are the runner's ledger and run folders and the held folder's notes on stage 2, committed with the record after phase 0 | [The pilots](#the-pilots) |
+| Phase 0, step 0.1 | In progress. The first fifteen of its 45 builds ran on 2026-11-21 at the owner's word, and on 2026-11-24 they were scored, the five bare builds' readers ran at the owner's word and the step's report was written. Paused for the owner: both arms pass nine checks in ten, and the weekly figure was not read when the builds ended | [Step 0.1](#step-01) |
+| Phase 0, steps 0.2 to 0.6 | Not started. Step 0.2 waits on step 0.1 and arm 2's statements | Proposal, section 7 |
 | Phases A to D | Not started; each needs phase 0's decision | Proposal, section 7 |
 
 ## What is not done
@@ -120,12 +127,12 @@ shape of the [Patterns status](../../active/patterns/STATUS.md).
   jobs.** They are sentences, and nothing shows that commands can express them. The seed
   library's seventeen jobs are a different list: the bench's application, not this proposal's
   product.
-- **The bench is built but for the runner's reports and statistics, and only its pilots have
-  run.** Its application is built and merged in #1239 (2026-11-15). Outside the repository, its
+- **The bench is built but for arm 2's statements and arm 3's skill, and only its pilots and
+  step 0.1's first fifteen builds have run.** Its application is built and merged in #1239 (2026-11-15). Outside the repository, its
   held material is written and frozen, its reference build is approved and a copy of it holds
-  the faults, and its runner is written without the report of steps 0.3 and 0.4 or step 0.2's
-  statistics. The pilots measured what a build and a walk cost at list prices, not what share of
-  the allowance that is. Its rules for "go" are proposed and not confirmed.
+  the faults, and its runner is written, its reports and statistics included (2026-11-21). The pilots and
+  the first fifteen builds measured what a session costs at list prices, not what share of the
+  allowance that is. The owner confirmed its rules for "go" on 2026-11-21.
 - **No reader has walked the proposal's jobs.** There are no commands to walk. The design
   direction is one session's draft, written with the owner in conversation and reviewed
   once.
@@ -432,12 +439,14 @@ the last run of phase 0. What it does, without its check matching:
   and at its reported cost at list prices when it ends; a session that reports no cost stays at
   its most. No session starts that could take the week's spend past the cap, a dollar figure set
   from the pilots, which has no default. On 2026-11-21 the owner set it at $50 at list prices in
-  all for step 0.1's first fifteen builds. Once they give the share of the allowance a dollar
-  takes, the cap becomes the fifth of a week, converted. A session that reports more than twice
+  all for step 0.1's first fifteen builds. They were to give the share of the allowance a dollar
+  takes, after which the cap becomes the fifth of a week, converted; they did not
+  ([Step 0.1](#step-01)), so the cap stays a dollar figure the owner sets. A session that reports more than twice
   its line, or no cost, stops the runs. One runner runs at a time. The week starts at the
-  allowance's own reset, read from the owner's screenshot on 2026-11-15; whether the weekly
-  figure in it is the share left or the share used is confirmed with the owner before step 0.1's
-  first fifteen builds, which read it before and after (the pilots did not).
+  allowance's own reset, read from the owner's screenshot on 2026-11-15 and corrected to 04:00
+  on 2026-11-21. The owner confirmed on 2026-11-15 that the weekly figure is the share left. The
+  plan was to read it before and after step 0.1's first fifteen builds; it was not read after
+  them (nor before the pilots), so no reading yet gives the conversion.
 - **Scoring** loads the checks only after stage 1's manifest verifies, refuses a control
   character and compiles every pattern. A story's mount, console and settled accessibility
   check come from Specimen's own run. What Specimen's capture does not carry, the runner
@@ -506,7 +515,12 @@ the last run of phase 0. What it does, without its check matching:
   reviewer on Claude Opus 5.5 found one blocker (typing could carry a key press a pointer
   persona does not have) and seven improvements; all were fixed and a focused pass confirmed
   them. Where the tools depart from the frozen cards is recorded beside them in the held folder.
-- **Not written:** the report of steps 0.3 and 0.4 across walks; step 0.2's statistics; arm 2's
+- **The reports and statistics,** written 2026-11-21 and tested on invented runs: each step's
+  report from 0.1 to 0.4, step 0.2's permutation test (arm labels shuffled within each screen,
+  exact when there are few arrangements), and step 0.1's question of whether fifteen runs
+  resolve 15 points, simulated from an arm's own runs. None decides "go"; each sets the figures
+  beside its rule for the owner.
+- **Not written:** arm 2's
   statements and their wiring into the brief, which Umbel can now serve (#1394); and arm 3's
   skill.
 
@@ -534,7 +548,8 @@ result. Costs are at list prices, as each session reports them.
   it is unknown, and they do not give the share of the allowance a dollar at list price takes.
   In its place the owner agreed on 2026-11-21 to apply the Budget's fallback: step 0.1's first
   fifteen builds are the measurement, under a cap of $50 at list prices, with the figure read
-  before and after them, and the runs pause there for the owner.
+  before and after them, and the runs pause there for the owner. (It was not read after them;
+  see [Step 0.1](#step-01).)
 - **A walk's path and its report are separate:** the path is read from the application's
   journal, so a walk can finish its job with a clean path while its persona reports trouble on
   the way.
@@ -556,11 +571,71 @@ result. Costs are at list prices, as each session reports them.
 - **Found outside the runner:** the scoring checkout's two Rust builds at `f4eeba0c`,
   Specimen's host and Umbel's components server, were deleted on 2026-11-20 after the pilots,
   by something other than the runner, and were rebuilt from the locked sources on 2026-11-21.
-  The runner now refuses to start build sessions or score when either is missing.
+  The runner now refuses to start build sessions or score when either is missing. It happened
+  again on 2026-11-23, and the cause was found on 2026-11-24 ([Step 0.1](#step-01)).
 - **Issue [#1699](https://github.com/lushly-dev/afd/issues/1699),** filed at the owner's word on
   2026-11-20: a browser app with AFD's approval middleware is blank when opened over plain HTTP
   from another device on the network. The owner's look at the reference build from a phone met
   it; the walks serve the build on the machine itself and are not affected.
+
+## Step 0.1
+
+The first fifteen of its 45 builds ran on 2026-11-21 on the second machine, at the owner's word,
+under a cap of $50 at list prices: arms 0 and 1 and the bare arm, T1 to T3, in turn, so that
+each screen and arm had its first run before any had a second. T1 and T2 have two runs an arm,
+T3 one. The runs then paused for the owner, as the Budget says. On 2026-11-24 the builds were
+scored, a reader ran for each bare build at the owner's word, and the runner wrote the step's
+report. Shares are of a screen's checks passed; a bare build is scored on how many of the task's
+states have a story, by its reader (ruling 3), with its checks only as a diagnostic.
+
+| Arm | T1, 83 checks, 14 states | T2, 83 checks, 13 states | T3, 62 checks, 10 states | Mean share | Cost |
+| --- | --- | --- | --- | --- | --- |
+| Arm 0 | 100.0 %, 97.6 % | 98.8 %, 97.6 % | 80.6 % | 94.9 % | $7.68 |
+| Arm 1 | 98.8 %, 90.4 % | 85.5 %, 97.6 % | 83.9 % | 91.2 % | $8.11 |
+| Bare, states with a story | 12, 13 | 9, 9 | 10 | | $7.72 |
+| Bare, checks as a diagnostic | 59.0 %, 65.1 % | 38.6 %, 30.1 % | 61.3 % | | |
+
+- **Both arms already pass nine checks in ten.** Step 0.1's row in the
+  [rules for "go"](bench.md#rules-for-go) leaves it to the owner whether to go on when arms 0
+  and 1 do, since a default then has little to fix. The mean in the table is over runs, so T3's
+  one run weighs half what T1's or T2's two do; averaged by screen, arm 0 is at 92.5 % and arm 1
+  at 90.0 %, on the line. The rule reads the whole step; these are the first five runs an arm.
+  T3 is where both fall short.
+- **Whether fifteen runs resolve 15 points:** the report's simulation says they do, for both
+  arms, in every simulated study, and the figure answers nothing yet. It adds the gain to a
+  share and caps it at 100 %, so arm 0's T1 and T2 runs, at 97.6 to 100 %, take a simulated gain
+  of at most 2.4 points, not 15, and T3's single run an arm has no spread at all. The ceiling is a separate question
+  from power: at arm 0's mean of 94.9 % over runs, or 92.5 % by screen, a perfect arm 2 could
+  gain 5.1 to 7.5 points, short of the 15 that step 0.2's rule asks. Once each arm has five
+  runs a screen, the two means agree.
+- **Cost:** the fifteen counted builds $23.51, $1.26 to $1.83 each, a mean of $1.57 against a
+  line of $1.50, none past twice it. Two more builds cost about $2.16 and count in nothing. One
+  was cut off when the program hosting the runs restarted; it never ended, so it reported no
+  cost, and about $0.60 is an estimate. The Budget says a session that reports no cost stops
+  the runs; the session running the builds read that as not meeting a session the runner
+  itself lost, and restarted the runs at once without asking the owner, so the reading is the
+  owner's to confirm. The runner's own ledger rule counts such a session at its maximum,
+  $3.00, which would put the week at $28.93 rather than $26.53, still under the cap. One was
+  thrown out by the leak check, at $1.56: a shell command named the session's own folder,
+  above its tree, and Claude Code refused it, so nothing was read. Each was run again. The five
+  readers cost $0.86, none past twice their line, $26.53 in all that week with the estimate.
+- **No conversion, a second time.** The builds began just after the second machine's weekly
+  reset, so the weekly figure stood at a full week before them. It was not read when they
+  ended, and other sessions on that machine used the allowance in the days before anyone
+  looked, so the fifteen builds do not give the share of the allowance a dollar takes. How to
+  measure it is the owner's.
+- **The scoring checkout, stripped again.** On 2026-11-23 the scoring checkout lost its
+  packages and builds as well, and on 2026-11-24 the cause of both losses was found: Botcore's disk cleaner,
+  run by other sessions on the second machine, strips build output from linked worktrees, which
+  the scoring checkouts are. The checkout was rebuilt from the locked sources on 2026-11-24 and
+  scores the reference build 308 of 308, and it is now kept from every `disk-*` action with
+  `botcore disk-keep`.
+- **The owner's look, again,** on 2026-11-24: every state on the reference build's screenshot
+  page looked right, none marked. That page was made on 2026-11-16, before the theme changed with
+  the pin and before the refusal change of 2026-11-21; the owner approved the build on a phone
+  on 2026-11-18, before that change. Its screenshots were taken again from the current build.
+- **Records:** the runner's ledger, run folders and report, committed with the record after
+  phase 0.
 
 ## The reference build
 
@@ -699,7 +774,8 @@ specification. No text, identifier or data from the brainstorm is in the proposa
 | 2026-11-15 | The bench's reference build | `violet-alert` registers its tone icons in `connectedCallback` after `super.connectedCallback()` has rendered its template, so the first alert of each tone shows the icon registry's fallback, a cross (`foundations/fast-af/packages/violet-elements/src/alert/violet-alert.ts`). Registering before rendering fixes it. Violet is an imported unit, so the change needs a provenance record | Open; worth an issue |
 | 2026-11-15 | The bench's reference build | Specimen's settled accessibility check can run while a component's entry animation inside a shadow root is still under way, and report a colour-contrast violation that is gone once it ends: a story of a dialog failed it three times in three and passed three times in three with `motion: 'settled'`. Either the settled check should wait for animations in shadow roots, or settledAccessibility should imply settled motion | Open; worth an issue |
 | 2026-11-15 | The bench's runner, the smoke session | Proposals that discuss result states and design review (Patterns, Design Decisions, Screens from Jobs, Pointing, Scales, Component Briefs) are in every arm's tree. The runner counts reads of them; whether to remove them is the owner's call | Closed 2026-11-15: the owner decided to remove them from every arm's tree, and the runner does |
-| 2026-11-21 | The pilots | The scoring checkout's Rust builds (Specimen's host, Umbel's components server) were deleted on 2026-11-20 by something other than the runner; the cause is unknown. The runner now refuses to start build sessions or score without them | Open |
+| 2026-11-21 | The pilots | The scoring checkout's Rust builds (Specimen's host, Umbel's components server) were deleted on 2026-11-20 by something other than the runner; the cause is unknown. The runner now refuses to start build sessions or score without them | Closed 2026-11-24: Botcore's disk cleaner, run by other sessions on the second machine, strips build output from linked worktrees, which the scoring checkouts are. The checkout in use is now kept with `botcore disk-keep` |
+| 2026-11-24 | Step 0.1 | The leak check throws out a build whose shell command names the session's own folder, the one above its tree, though Claude Code refuses the change of directory and nothing is read: one build of the first fifteen, $1.56, went that way | Closed 2026-11-24, not changed: that folder also holds the session's server configuration and sandbox profile, so the check is right to count it. A throw-out for this cause counts toward the runner's limit like any other: a run thrown out a third time stops the runs |
 
 ## Session log
 
@@ -712,7 +788,7 @@ specification. No text, identifier or data from the brainstorm is in the proposa
 | 2026-11-14 | First draft, continued | The owner asked for it to be committed and merged, and answered questions 3, 5, 6 and 12: agreed, agreed, agreed, and run phase 0. The owner asked for a proposed rank of the jobs, which is in the proposal's section 4 and not yet confirmed. `main` was merged at `dd080235`, which moved Component Briefs to `complete/`, and two paths were corrected. An independent review raised four blockers and eleven improvements; all four blockers and the improvements were applied |
 | 2026-11-14 | After the merge of #1223 | The owner confirmed the rank of the jobs as proposed. Section 4 of the proposal now carries it: job 3 merged into job 2, job 11 folded into job 10, job 13 deferred and job 15 added, with the numbers kept. The bench specification was drafted as step 0.0 of phase 0: a seed library, four screens of which one is held back from whoever writes the statements, 209 sessions, an estimate of about $260 at list prices with a proposed cap of $400, rules for "go", and four points for the owner. Checking it settled one point the proposal had left unverified: Botcore cannot emulate forced colours |
 | 2026-11-15 | Bench specification, after the owner's reply | The owner decided that the bench's sessions run on a second machine, on its subscription allowance, and take a small share of a week's allowance. That machine is an Apple silicon Mac, which Specimen supports, so scoring runs there too and the question of where to score is settled (superseded: it was not a ruling of the owner's, and it holds only once Specimen's host builds there; see item 4 of For the owner in the bench specification). The budget's cap became a share of the week, proposed at a fifth and open (superseded by the next row, where the owner accepted the fifth), with the pilots measuring what a session takes. A section on when the bench runs was added: phase 0 once, and afterwards only on a named event |
-| 2026-11-15 | Bench specification, the owner's second reply | The owner accepted three recommendations: no more than a fifth of the second machine's weekly allowance in any one week, the seed library, and a bare arm in step 0.1. The owner noted that another session runs on that machine, and asked for a commit and a pull request after an independent review. The review found that the files claimed more approval than the owner gave, that a figure from Component Briefs was misattributed, and that several rules for "go" could not be computed. The six blockers and the improvements were fixed. A second pass found one more place that called scoring settled and ten smaller points, and those were fixed too. The rules for "go" stay unconfirmed |
+| 2026-11-15 | Bench specification, the owner's second reply | The owner accepted three recommendations: no more than a fifth of the second machine's weekly allowance in any one week, the seed library, and a bare arm in step 0.1. The owner noted that another session runs on that machine, and asked for a commit and a pull request after an independent review. The review found that the files claimed more approval than the owner gave, that a figure from Component Briefs was misattributed, and that several rules for "go" could not be computed. The six blockers and the improvements were fixed. A second pass found one more place that called scoring settled and ten smaller points, and those were fixed too. The rules for "go" stay unconfirmed (superseded: confirmed on 2026-11-21, in the row of that date) |
 | 2026-11-15 | After the merge of #1234 | The owner said to start the bench. The seed library's jobs and commands were drafted jobs first: 17 jobs as scenario files across the four screens and 22 commands, with two fixtures of invented data. Writing them changed the sketch: asking the steward is a held `loan-create` and not a command of its own, every mutation with a way back got its command, and warnings now arise on the held-back screen. Three readers then walked the paths, and their findings added two commands, gave donations a way back, and stopped the design leaning on the host for things it does not do. The scenario checks pass on the result. A read-only check of the second machine's tools was started |
 | 2026-11-15 | Specimen's host on the second machine | At the owner's word, a session on the second machine built Specimen's host with its Rust output on the machine's external drive, as the owner asked. The host rendered a specimen and Specimen's suite passed, so the bench can score builds there. Two follow-ups are recorded: the build script ignores `CARGO_TARGET_DIR`, and the suite needs the TypeScript build first |
 | 2026-11-15 | Specimen's build script | The owner agreed to make `build:host` honour `CARGO_TARGET_DIR`. The fix worked on the second machine, and an independent review then found that it undoes a deliberate pin and lets worktrees that share a target directory use each other's host. It was withdrawn: the machine's cargo `build-dir` setting already keeps the build's bulk on the external drive. Specimen's README now says its suite needs the TypeScript build first |
@@ -727,4 +803,6 @@ specification. No text, identifier or data from the brainstorm is in the proposa
 | 2026-11-16 | The reference build's panel and the owner's look | A panel of five lenses reviewed the reference build in rounds 1 to 4, and fewer reviewers checked the fixes in rounds 5 to 7; round 8 fixed what round 7 found. Most of it was how a screen behaves under repeated presses. The pinned commit moved to `c3884d85`. The owner looked at all 50 states and marked 11, and round 9 answered them. Counts are in the reference build's section; nothing here quotes the screens |
 | 2026-11-17 | Arm 2's delivery, and a variety at intake | The owner agreed to land arm 2's delivery before step 0.1 (#1394): a consumer profile's statements are served once in every brief for that consumer, never shed, with briefs byte for byte unchanged when none is set. The pinned commit moved to `3ea05bb6`. The owner decided the bench gains no command to add a variety in phase 0 (#1380) |
 | 2026-11-18 | The faults, and the freeze of stage 2 | The pinned commit moved to `42473ccc`, then to `f4eeba0c` with AFD's Refined theme as Violet's default; the checks stand and the reference build passes all 308 at each. The owner looked at it again on a phone and approved it. The twelve faults were planted in a copy, eight reworded to fit the build, and each proof ran three times on both builds with the expected result every time. An independent reviewer read the faults, proofs and walks, stage 2 was frozen, and its manifest's hash recorded here. `bench.md` now says stage 2 was frozen before any walk, the pilots' included, as the held material's own record says. Recorded in #1574 |
-| 2026-11-20 | The pilots | On 2026-11-18 the runner's walks and readers were written and reviewed with no model session, the walks on a server of the runner's on Playwright rather than Botcore's `cdp_*` commands. The owner gave the word for the four pilots under a cap of $15, and for filing #1699, which the owner's phone look had met. The two builds and two walks ran for $3.67 at list prices with no leak; a build costs about its line and a walk far less. The weekly figure was not read first, so step 0.1's first fifteen builds give the conversion. Three runner changes followed: two faults fixed, and the screen reader hearing live regions inside shadow roots. On 2026-11-21 the owner agreed to run the bare build's reader ($0.18), to cap the first fifteen builds at $50, and to correct a refusal's feedback in the reference build, done in both builds with every proof and check as before. Recorded in #1811 |
+| 2026-11-20 | The pilots | On 2026-11-18 the runner's walks and readers were written and reviewed with no model session, the walks on a server of the runner's on Playwright rather than Botcore's `cdp_*` commands. The owner gave the word for the four pilots under a cap of $15, and for filing #1699, which the owner's phone look had met. The two builds and two walks ran for $3.67 at list prices with no leak; a build costs about its line and a walk far less. The weekly figure was not read first, so step 0.1's first fifteen builds give the conversion (superseded: they did not; see the 2026-11-24 row). Three runner changes followed: two faults fixed, and the screen reader hearing live regions inside shadow roots. On 2026-11-21 the owner agreed to run the bare build's reader ($0.18), to cap the first fifteen builds at $50, and to correct a refusal's feedback in the reference build, done in both builds with every proof and check as before. Recorded in #1811 |
+| 2026-11-21 | The rules for "go", and step 0.1's first fifteen builds | The owner confirmed the rules for "go" and the reading of a path for step 0.4 as proposed, reading step 0.3's "a persona of that modality" as one persona alone, and gave the word for the first fifteen builds under a cap of $50. The runner's reports of steps 0.1 to 0.4 and step 0.2's statistics were written and tested on invented runs. The allowance week's reset was corrected to 04:00. The builds ran after the reset for $25.67 at list prices, one cut off and one thrown out among them, and paused for the owner |
+| 2026-11-24 | Step 0.1's first fifteen builds, scored | The owner looked again at the reference build's screenshot page made on 2026-11-16 and marked none. The scoring checkout was found stripped a second time, by Botcore's disk cleaner, which also explains 2026-11-20; it was rebuilt, scores the reference build 308 of 308, and is kept from the cleaner. The builds were scored, the five bare builds' readers ran at the owner's word for $0.86, and the step's report was written. Both arms pass nine checks in ten, which puts whether to go on to the owner, and the weekly figure was not read when the builds ended, so they give no conversion |
