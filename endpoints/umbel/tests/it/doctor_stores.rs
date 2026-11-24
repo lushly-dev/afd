@@ -434,7 +434,7 @@ mod records {
             "declared record kinds whose lane must be rebuilt: garden: notes.note"
         );
         assert!(
-            suggestion.contains("umbel store-records-reindex"),
+            suggestion.contains("umbel store records-reindex"),
             "{suggestion}"
         );
         let outcome = call(&host, agent("a"), "workspace-doctor", json!({})).await;

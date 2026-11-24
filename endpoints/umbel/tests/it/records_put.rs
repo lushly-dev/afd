@@ -665,7 +665,7 @@ async fn a_put_on_a_stale_kind_is_refused_until_the_lane_is_rebuilt() {
         unknown.json()["error"]["suggestion"]
             .as_str()
             .unwrap()
-            .contains("umbel plugin-show notes")
+            .contains("umbel plugin show plugin=notes")
     );
     // Its journal entry is a digest that keeps its inputs, and it makes no event.
     let journal = std::fs::read_to_string(journal_path(dir.path())).unwrap();

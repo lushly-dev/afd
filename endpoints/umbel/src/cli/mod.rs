@@ -16,6 +16,8 @@ mod preview;
 mod prompt;
 mod serve;
 mod stdin;
+#[cfg(test)]
+mod suggested_commands;
 mod terminal;
 // The test kit's stand-ins for a frozen clock and a person at a terminal: never in a normal build.
 #[cfg(feature = "testkit")]

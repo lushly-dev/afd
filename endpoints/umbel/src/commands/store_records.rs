@@ -57,7 +57,7 @@ pub(crate) fn declared_in(loaded: &LoadedPlugins, space: &str) -> Vec<(String, R
 pub(crate) fn not_declared(message: String, plugin: Option<&str>) -> CommandError {
     CommandError::new(records::RECORD_KIND_NOT_DECLARED, message)
         .with_suggestion(format!(
-            "List the instance's declared kinds with `umbel plugin-show {}`.",
+            "List the instance's declared kinds with `umbel plugin show plugin={}`.",
             plugin.unwrap_or("<plugin>")
         ))
         .with_retryable(false)
@@ -65,7 +65,7 @@ pub(crate) fn not_declared(message: String, plugin: Option<&str>) -> CommandErro
 
 fn model_unavailable(message: String) -> CommandError {
     CommandError::new(records::RECORD_MODEL_UNAVAILABLE, message)
-        .with_suggestion("Run umbel workspace-doctor and fix what records.meaning reports.")
+        .with_suggestion("Run umbel workspace doctor and fix what records.meaning reports.")
         .with_retryable(false)
 }
 
@@ -395,7 +395,7 @@ impl CommandHandler for HoldHandler {
                     ),
                 )
                 .with_suggestion(
-                    "Name a collection whose table sets own = true in umbel.toml; umbel workspace-doctor lists each space's own collections under records.standing.",
+                    "Name a collection whose table sets own = true in umbel.toml; umbel workspace doctor lists each space's own collections under records.standing.",
                 )
                 .with_retryable(false),
             );
@@ -520,7 +520,7 @@ fn declared_check(found: &[Found], failed: &[String]) -> Check {
                 "declared record kinds whose lane must be rebuilt: {}",
                 stale.join("; ")
             ),
-            "Run umbel store-records-reindex for the space; until then every lane service on the kind answers RECORD_LANE_STALE.",
+            "Run umbel store records-reindex space=<id>; until then every lane service on the kind answers RECORD_LANE_STALE.",
         );
     }
     let unindexed: Vec<String> = found
@@ -722,7 +722,7 @@ fn own_check(unheld: &[(String, u64)], failed: &[String], collections: usize) ->
                 "own collections that could not be read: {}",
                 failed.join("; ")
             ),
-            "Run umbel store-check for the space.",
+            "Run umbel store check space=<id>.",
         );
     }
     if unheld.is_empty() {
@@ -747,7 +747,7 @@ fn own_check(unheld: &[(String, u64)], failed: &[String], collections: usize) ->
             "stored documents of own collections that the host has not held to their file on disk, so they are nobody's own and attest nothing: {}",
             listed.join("; ")
         ),
-        "Run umbel store-documents-hold with collection=<id> (and space=<id>) for each: it compares each stored document with its file and holds those that are equal. A document that differs is stored again by the collection's next sync.",
+        "Run umbel store documents-hold collection=<id> space=<id> for each (space= may be left out for the default space): it compares each stored document with its file and holds those that are equal. A document that differs is stored again by the collection's next sync.",
     )
 }
 
@@ -859,7 +859,7 @@ fn meaning_check(
         Check::warn(
             ID,
             warnings.join("; "),
-            "Run umbel store-records-reindex to fill missing vectors and umbel store-records-eval to refresh eval reports, then restart the server.",
+            "Run umbel store records-reindex to fill missing vectors and umbel store records-eval plugin=<id> kind=<kind> probes=<file> to refresh eval reports, then restart the server.",
         )
     }
 }
@@ -988,7 +988,7 @@ mod tests {
                 .suggestion
                 .as_deref()
                 .unwrap()
-                .contains("umbel store-records-reindex")
+                .contains("umbel store records-reindex")
         );
     }
 
@@ -1109,7 +1109,7 @@ mod tests {
                 .suggestion
                 .as_deref()
                 .unwrap()
-                .contains("umbel store-documents-hold")
+                .contains("umbel store documents-hold collection=<id> space=<id>")
         );
         let unread = own_check(&[], &["garden/journal: busy".to_owned()], 1);
         assert_eq!(unread.status, CheckStatus::Fail);
@@ -1221,7 +1221,12 @@ mod tests {
         ] {
             let error = names(plugin, kind).unwrap_err();
             assert_eq!(error.code, "RECORD_KIND_NOT_DECLARED");
-            assert!(error.suggestion.unwrap().contains("umbel plugin-show"));
+            assert!(
+                error
+                    .suggestion
+                    .unwrap()
+                    .contains("umbel plugin show plugin=")
+            );
             assert_eq!(error.retryable, Some(false));
         }
         // A space where nothing is declared has nothing to rebuild, and that is no failure.

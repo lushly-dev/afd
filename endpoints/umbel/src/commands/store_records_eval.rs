@@ -77,7 +77,7 @@ fn probes_invalid(message: impl Into<String>) -> CommandError {
 
 fn model_unavailable(message: impl Into<String>) -> CommandError {
     CommandError::new(records::RECORD_MODEL_UNAVAILABLE, message.into())
-        .with_suggestion("Run umbel workspace-doctor and fix what records.meaning reports.")
+        .with_suggestion("Run umbel workspace doctor and fix what records.meaning reports.")
         .with_retryable(false)
 }
 
@@ -496,7 +496,7 @@ fn evaluate_probes_with_status(
                 ),
             )
             .with_suggestion(
-                "Run umbel store-check for the space and retry umbel store-records-eval.",
+                "Run umbel store check space=<id> and retry umbel store records-eval.",
             )
             .with_retryable(false));
         }
@@ -594,7 +594,7 @@ fn write_report_atomic(
             crate::store::codes::STORE_IO,
             "eval report path has no parent directory",
         )
-        .with_suggestion("Check the workspace path and run umbel workspace-doctor.")
+        .with_suggestion("Check the workspace path and run umbel workspace doctor.")
         .with_retryable(false)
     })?;
     fs::create_dir_all(parent).map_err(|err| {
@@ -673,7 +673,7 @@ fn run(
                 crate::host::SPACE_NOT_FOUND,
                 format!("space `{space_id}` is not declared"),
             )
-            .with_suggestion("Pass a declared space id from umbel workspace-show.")
+            .with_suggestion("Pass a declared space id from umbel workspace show.")
             .with_retryable(false)
         })?;
     let meaning_cfg = space.meaning.as_ref().ok_or_else(|| {
@@ -783,7 +783,7 @@ impl CommandHandler for Handler {
                     let options = ResultOptions {
                         warnings: Some(vec![Warning::new(
                             records::RECORD_MODEL_UNAVAILABLE,
-                            "One or more probes ran with incomplete vectors so fused scores fell back to words alone; run `umbel store-records-reindex` and re-run `umbel store-records-eval`.",
+                            "One or more probes ran with incomplete vectors so fused scores fell back to words alone; run `umbel store records-reindex` and re-run `umbel store records-eval`.",
                         )]),
                         ..ResultOptions::default()
                     };
@@ -793,7 +793,7 @@ impl CommandHandler for Handler {
                     let options = ResultOptions {
                         warnings: Some(vec![Warning::new(
                             records::RECORD_MODEL_UNAVAILABLE,
-                            "One or more probes failed meaning scoring and fell back to words alone; run `umbel workspace-doctor` and re-run `umbel store-records-eval`.",
+                            "One or more probes failed meaning scoring and fell back to words alone; run `umbel workspace doctor` and re-run `umbel store records-eval`.",
                         )]),
                         ..ResultOptions::default()
                     };
