@@ -24,12 +24,10 @@ from afd import (
 from afd.core import CommandContext, CommandDefinition, ExposeOptions, create_command_registry
 from afd.core.wire import to_wire
 from afd.direct import (
-    CommandContext as DirectContext,
-)
-from afd.direct import (
     DirectCallContext,
     DirectClient,
     DirectClientOptions,
+    DirectContext,
     SimpleRegistry,
 )
 from afd.server import create_server

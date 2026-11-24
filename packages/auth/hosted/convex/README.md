@@ -16,7 +16,7 @@ From `packages/auth`, run:
 node hosted/convex/check.mjs
 ```
 
-This uses the installed Convex 1.32.0 and Convex Auth 0.0.95 SDKs to typecheck the deployable
+This uses the installed Convex 1.32.0 and Convex Auth 0.0.96 SDKs to typecheck the deployable
 schema/functions and bundle the real React fixture. It checks backend module paths using the
 pinned CLI's entrypoint filters and the hosted deployment's path-name constraint. It also checks
 configuration failure,
@@ -218,7 +218,7 @@ When configured, OAuth also checks unsupported per-sign-in scopes, real redirect
 callback completion, the expected synthetic identity, and the same backend preflight. Without
 OAuth, that assertion is `not-run` and the receipt is partial.
 
-The receipt includes assertion statuses, package versions, revision, deployment origin, cleanup
+The receipt includes assertion statuses, package versions (`provider.convex` and `provider.convexAuth`, read from `hosted/convex/package.json` manifest pins), revision, deployment origin, cleanup
 statuses, runtime, and limits. `runtime` is read once Chromium has launched: the executor's Node
 (`process.versions.node`), the Playwright version this process loaded, and the launched browser's
 name and `browser.version()`. A run that never launched the browser records each as

@@ -25,7 +25,7 @@ from afd.core.errors import (
     wrap_error,
 )
 from afd.core.result import CommandResult, error, failure
-from afd.direct import CommandParameter, DirectClient, SimpleRegistry
+from afd.direct import DirectClient, DirectCommandParameter, SimpleRegistry
 from afd.server import create_server
 
 FACTORY_ERRORS = {
@@ -118,7 +118,7 @@ class TestDirectClientErrorPaths:
 
         @registry.command(
             name="todo-create",
-            parameters=[CommandParameter(name="title", type="string")],
+            parameters=[DirectCommandParameter(name="title", type="string")],
         )
         async def todo_create(title: str):
             return success({"title": title})

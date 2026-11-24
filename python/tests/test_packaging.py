@@ -76,6 +76,58 @@ class TestBaseInstallImports:
         assert proc.returncode == 0, proc.stderr
         assert "afd[client]" in proc.stdout
 
+    def test_star_import_afd_without_optional_extras(self):
+        proc = _run_without(
+            EXTRA_ONLY_MODULES,
+            """
+            ns = {}
+            exec("from afd import *", ns)
+            assert "CommandResult" in ns
+            assert "DirectContext" in ns
+            assert "McpClient" not in ns
+            print("ok")
+            """,
+        )
+        assert proc.returncode == 0, proc.stderr
+        assert proc.stdout.strip() == "ok"
+
+    def test_testing_extra_imports_without_client_or_server_extras(self):
+        proc = _run_without(
+            ("httpx", "httpx_sse", "mcp", "websockets", "click", "rich"),
+            """
+            import afd.testing
+            from afd.testing import assert_success
+            from afd.testing.fixtures import MockServer
+            from afd.transports import MockTransport
+
+            assert MockServer is not None
+            assert MockTransport is not None
+            assert callable(assert_success)
+            print("ok")
+            """,
+        )
+        assert proc.returncode == 0, proc.stderr
+        assert proc.stdout.strip() == "ok"
+
+    def test_transports_lazy_imports_explain_missing_extra(self):
+        proc = _run_without(
+            EXTRA_ONLY_MODULES,
+            """
+            import afd.transports
+            from afd.transports import MockTransport
+
+            assert MockTransport is not None
+            try:
+                afd.transports.HttpTransport
+            except ModuleNotFoundError as exc:
+                print(exc)
+            else:
+                raise SystemExit("HttpTransport imported without the client extra")
+            """,
+        )
+        assert proc.returncode == 0, proc.stderr
+        assert "afd[client]" in proc.stdout
+
     def test_cli_help_without_testing_extra(self):
         proc = _run_without(
             TESTING_EXTRA_MODULES,

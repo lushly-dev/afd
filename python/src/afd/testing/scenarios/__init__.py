@@ -45,6 +45,7 @@ from afd.testing.scenarios.types import (
     AssertionResult,
     Expectation,
     FixtureConfig,
+    InvalidExpectationError,
     Scenario,
     ScenarioOutcome,
     ScenarioResult,
@@ -58,6 +59,7 @@ from afd.testing.scenarios.types import (
     calculate_summary,
     create_empty_summary,
     create_step_error,
+    find_expectation_problems,
     is_assertion_matcher,
     is_scenario,
 )
@@ -80,6 +82,8 @@ __all__ = [
     "TestSummary",
     "TestReport",
     # Type guards
+    "InvalidExpectationError",
+    "find_expectation_problems",
     "is_assertion_matcher",
     "is_scenario",
     # Factory functions

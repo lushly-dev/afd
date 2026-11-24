@@ -15,7 +15,9 @@ from typing import Any
 from afd.testing.scenarios.types import (
     AssertionResult,
     Expectation,
+    InvalidExpectationError,
     StepError,
+    find_expectation_problems,
     is_assertion_matcher,
 )
 
@@ -52,7 +54,16 @@ def evaluate_result(actual: dict[str, Any], expected: Expectation) -> Evaluation
 
     Returns:
         EvaluationResult with pass/fail status and detailed assertions.
+
+    Raises:
+        InvalidExpectationError: When an assertion is malformed, such as a
+            matcher object mixed with other keys or a matcher given the wrong
+            type.
     """
+    problems = find_expectation_problems(expected)
+    if problems:
+        raise InvalidExpectationError(problems)
+
     assertions: list[AssertionResult] = []
     all_passed = True
 
@@ -100,7 +111,7 @@ def evaluate_result(actual: dict[str, Any], expected: Expectation) -> Evaluation
                 _evaluate_matcher_assertions(
                     "error.suggestion", actual_suggestion, expected_suggestion
                 )
-                if is_assertion_matcher(expected_suggestion)
+                if is_assertion_matcher(expected_suggestion, "error.suggestion")
                 else [
                     _evaluate_assertion(
                         "error.suggestion", actual_suggestion, expected_suggestion, "contains"
@@ -146,17 +157,41 @@ def _evaluate_data_assertions(
 
     for key, expected_value in expected.items():
         path = f"{base_path}.{key}"
-        actual_value = get_value_at_path(actual, key)
+        results.extend(_evaluate_value(path, get_value_at_path(actual, key), expected_value))
 
-        if is_assertion_matcher(expected_value):
-            matcher_results = _evaluate_matcher_assertions(path, actual_value, expected_value)
-            results.extend(matcher_results)
-        elif isinstance(expected_value, dict) and not isinstance(expected_value, list):
-            nested_results = _evaluate_data_assertions(actual_value, expected_value, path)
-            results.extend(nested_results)
-        else:
-            results.append(_evaluate_assertion(path, actual_value, expected_value, "equals"))
+    return results
 
+
+def _is_object_like(value: Any) -> bool:
+    return isinstance(value, (dict, list))
+
+
+def _evaluate_value(path: str, actual: Any, expected: Any) -> list[AssertionResult]:
+    """Evaluate one expected value: a matcher, a nested object of field assertions,
+    a list holding objects (matched item by item), or a literal compared with deep equality."""
+    if is_assertion_matcher(expected, path):
+        return _evaluate_matcher_assertions(path, actual, expected)
+    if isinstance(expected, list) and any(_is_object_like(item) for item in expected):
+        return _evaluate_array_assertions(path, actual, expected)
+    if isinstance(expected, dict):
+        return _evaluate_data_assertions(actual, expected, path)
+    return [_evaluate_assertion(path, actual, expected, "equals")]
+
+
+def _evaluate_array_assertions(
+    path: str, actual: Any, expected: list[Any]
+) -> list[AssertionResult]:
+    """An expected list holding objects is matched item by item: the lists must be the same
+    length, and each item is evaluated like any expected value, so an object item checks only
+    the fields it names and may use matchers. A list of plain values is compared whole, and
+    ``{ equals: [...] }`` compares any list literally."""
+    items = actual if isinstance(actual, list) else []
+    results: list[AssertionResult] = []
+    if not isinstance(actual, list) or len(actual) != len(expected):
+        results.append(_evaluate_assertion(path, actual, len(expected), "length"))
+    shared = min(len(items), len(expected))
+    for index in range(shared):
+        results.extend(_evaluate_value(f"{path}[{index}]", items[index], expected[index]))
     return results
 
 
@@ -368,8 +403,13 @@ def _deep_equal(a: Any, b: Any) -> bool:
         return True
 
     if type(a) is not type(b):
-        # Allow int/float comparison
-        if isinstance(a, (int, float)) and isinstance(b, (int, float)):
+        # Allow int/float comparison, but never treat bool as int
+        if (
+            isinstance(a, (int, float))
+            and isinstance(b, (int, float))
+            and not isinstance(a, bool)
+            and not isinstance(b, bool)
+        ):
             return a == b
         return False
 

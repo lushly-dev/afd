@@ -7,6 +7,7 @@ a sequence of commands with expected outcomes.
 
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -380,16 +381,52 @@ _MATCHER_KEYS = frozenset(
 )
 
 
-def is_assertion_matcher(value: Any) -> bool:
-    """Check if a value is an AssertionMatcher-like dict."""
+class InvalidExpectationError(ValueError):
+    """Raised when a scenario expectation is malformed (for example a matcher
+    object mixed with field keys, or a matcher given the wrong type of value)."""
+
+    def __init__(self, problems: list[str]) -> None:
+        super().__init__("; ".join(problems))
+        self.problems = problems
+
+
+def _quote_list(keys: list[str]) -> str:
+    return ", ".join(f"'{key}'" for key in keys)
+
+
+def _is_finite_number(value: Any) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+
+
+def is_assertion_matcher(value: Any, path: str = "value") -> bool:
+    """Check if a value is an AssertionMatcher-like dict.
+
+    An object is a matcher only when every one of its keys is a matcher key.
+    Mixing matcher keys with other keys raises ``ValueError`` so typos or
+    ambiguous assertions are never silently ignored.
+    """
     if not isinstance(value, dict):
         return False
-    return bool(set(value.keys()) & _MATCHER_KEYS)
+    keys = list(value.keys())
+    other_keys = [key for key in keys if key not in _MATCHER_KEYS]
+    if len(other_keys) == len(keys):
+        return False
+    if other_keys:
+        matcher_keys = [key for key in keys if key in _MATCHER_KEYS]
+        matcher_verb = "is a matcher key" if len(matcher_keys) == 1 else "are matcher keys"
+        other_verb = "is" if len(other_keys) == 1 else "are"
+        allowed = ", ".join(sorted(_MATCHER_KEYS))
+        raise ValueError(
+            f"Invalid assertion at {path}: {_quote_list(matcher_keys)} {matcher_verb} "
+            f"but {_quote_list(other_keys)} {other_verb} not. "
+            f"Use only matcher keys ({allowed}), or nest field assertions in their own object. "
+            "To compare against a literal object, use { equals: ... }."
+        )
+    return True
 
 
 def _matcher_value_problem(key: str, value: Any) -> str | None:
     """What is wrong with one matcher's value, as the TypeScript runner judges it."""
-    number = (int, float)
     if key == "contains":
         return None if isinstance(value, str) else "expects a string"
     if key == "matches":
@@ -406,17 +443,62 @@ def _matcher_value_problem(key: str, value: Any) -> str | None:
         ok = isinstance(value, int) and not isinstance(value, bool) and value >= 0
         return None if ok else "expects a non-negative integer"
     if key in ("gte", "lte"):
-        ok = isinstance(value, number) and not isinstance(value, bool)
-        return None if ok else "expects a number"
+        return None if _is_finite_number(value) else "expects a number"
     if key == "between":
         ok = (
-            isinstance(value, list)
+            isinstance(value, (list, tuple))
             and len(value) == 2
-            and all(isinstance(v, number) and not isinstance(v, bool) for v in value)
+            and _is_finite_number(value[0])
+            and _is_finite_number(value[1])
             and value[0] <= value[1]
         )
         return None if ok else "expects [min, max] with min <= max"
     return None  # equals and includes take any value
+
+
+def _collect_problems(expected: dict[str, Any], base_path: str, problems: list[str]) -> None:
+    for key, value in expected.items():
+        _collect_value_problems(value, f"{base_path}.{key}", problems)
+
+
+def _collect_value_problems(value: Any, path: str, problems: list[str]) -> None:
+    try:
+        matcher = is_assertion_matcher(value, path)
+    except ValueError as exc:
+        problems.append(str(exc))
+        return
+    if matcher:
+        for matcher_key, matcher_value in value.items():
+            problem = _matcher_value_problem(matcher_key, matcher_value)
+            if problem:
+                problems.append(f"Invalid assertion at {path}: '{matcher_key}' {problem}")
+    elif isinstance(value, list):
+        # Items of an array that holds objects are evaluated item by item, so check them too.
+        for index, item in enumerate(value):
+            _collect_value_problems(item, f"{path}[{index}]", problems)
+    elif isinstance(value, dict):
+        _collect_problems(value, path, problems)
+
+
+def find_expectation_problems(expectation: Expectation) -> list[str]:
+    """List every problem in an expectation that would otherwise be silently
+    ignored (empty when valid): malformed data assertions, ``data`` assertions on
+    an expected failure, and ``error`` assertions on an expected success."""
+    problems: list[str] = []
+    if expectation.data is not None:
+        if expectation.success:
+            _collect_problems(expectation.data, "data", problems)
+        else:
+            problems.append("'data' assertions are only checked when 'success' is true")
+    if expectation.error is not None and expectation.success:
+        problems.append("'error' assertions are only checked when 'success' is false")
+    suggestion = expectation.error.get("suggestion") if expectation.error else None
+    if suggestion is not None and not isinstance(suggestion, str):
+        before = len(problems)
+        _collect_problems({"suggestion": suggestion}, "error", problems)
+        if len(problems) == before and not is_assertion_matcher(suggestion):
+            problems.append("'error.suggestion' must be a string or a matcher object")
+    return problems
 
 
 def matcher_problem(value: Any, path: str) -> str | None:

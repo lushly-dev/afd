@@ -72,17 +72,36 @@ class TestRootExports:
         assert name in afd.core.__all__
         assert getattr(afd, name) is getattr(afd.core, name)
 
-    def test_colliding_root_names_stay_the_direct_types(self):
-        # Changing these would break `from afd import CommandDefinition` users.
-        for name in ("CommandDefinition", "CommandContext", "CommandParameter"):
-            assert getattr(afd, name) is getattr(afd.direct, name)
-            assert getattr(afd, name) is not getattr(afd.core, name)
+    def test_direct_types_have_non_colliding_root_names_and_old_names_warn(self):
+        import afd.direct_pipeline
+
+        renames = (
+            ("CommandDefinition", "DirectCommandDefinition", False),
+            ("CommandContext", "DirectContext", False),
+            ("CommandParameter", "DirectCommandParameter", False),
+            ("PipelineStep", "DirectPipelineStep", True),
+            ("PipelineStepResult", "DirectPipelineStepResult", True),
+            ("PipelineResult", "DirectPipelineResult", True),
+        )
+        for old_name, new_name, in_pipeline_mod in renames:
+            assert new_name in afd.__all__
+            assert old_name not in afd.__all__
+            assert getattr(afd, new_name) is getattr(afd.direct, new_name)
+            with pytest.warns(DeprecationWarning, match=new_name):
+                resolved = getattr(afd, old_name)
+            assert resolved is getattr(afd.direct, new_name)
+            with pytest.warns(DeprecationWarning, match=new_name):
+                direct_resolved = getattr(afd.direct, old_name)
+            assert direct_resolved is getattr(afd.direct, new_name)
+            if in_pipeline_mod:
+                with pytest.warns(DeprecationWarning, match=new_name):
+                    pipe_resolved = getattr(afd.direct_pipeline, old_name)
+                assert pipe_resolved is getattr(afd.direct_pipeline, new_name)
 
     def test_root_all_has_no_duplicates_and_resolves(self):
         assert len(afd.__all__) == len(set(afd.__all__))
         for name in afd.__all__:
-            if name not in ("McpClient", "McpClientConfig", "ClientStatus", "create_client"):
-                assert hasattr(afd, name), name
+            assert hasattr(afd, name), name
 
     def test_warning_severity_is_the_metadata_enum(self):
         from afd.core.metadata import WarningSeverity as Owned

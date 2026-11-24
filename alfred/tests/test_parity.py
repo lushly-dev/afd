@@ -895,7 +895,11 @@ NAME_GAP_BUDGET = {
     # Python 93 → 94, C++ 76 → 77 (#1971): TaskSupport in TypeScript (matching Rust's TaskSupport).
     # Python 94 → 93 (#1972): TaskSupport exported from afd; MCP Tasks are N/A for C++.
     # Rust 9 → 7 (#1601): afd exports execute_stream and StreamExecutorOptions.
-    "missing_from_python": 93,
+    # Python 93 → 98 (#1758): afd.direct's colliding CommandContext, CommandDefinition,
+    # CommandParameter, PipelineStep and PipelineResult were renamed to Direct* with a
+    # one-minor deprecation __getattr__ instead of squatting in afd.__all__. Tracked in
+    # #550 (Wave 3) to lower once the core types take the root names.
+    "missing_from_python": 98,
     "missing_from_rust": 7,
     # 73 at first measurement (Phase 5 of the C++ plan). The deferred groups: MCP JSON-RPC
     # types and helpers; the typed pipeline-condition structs and their guards (C++ keeps
@@ -984,7 +988,10 @@ async def test_parity_on_real_repo():
             ),
         ),
     ):
-        missing = CORE_EXPORTS - {e.normalized for e in entries}
+        # Python's root PipelineResult was previously afd.direct's colliding dataclass (#1758);
+        # it stays in __getattr__ with a deprecation warning until #550 Wave 3 exports the core type.
+        expected_core = CORE_EXPORTS - ({"pipeline_result"} if language == "python" else set())
+        missing = expected_core - {e.normalized for e in entries}
         assert not missing, f"{language} parser lost core exports: {sorted(missing)}"
         assert all(e.name.isidentifier() for e in entries), language
 

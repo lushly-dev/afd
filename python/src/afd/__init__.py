@@ -41,6 +41,7 @@ Handoff Example:
     ...     ))
 """
 
+import warnings
 from typing import TYPE_CHECKING
 
 from afd.connectors import (
@@ -107,10 +108,12 @@ from afd.core.clock import (
     system_random,
 )
 
-# CommandDefinition, CommandContext and CommandParameter at the root are the
-# afd.direct dataclasses (see below). The core registry's own types of those
-# names stay at afd.core: build definitions for create_command_registry() with
-# afd.core.CommandDefinition, and handlers receive afd.core.CommandContext.
+# The core registry's CommandDefinition, CommandContext and CommandParameter
+# live at afd.core. The direct-client dataclasses are exported as DirectContext,
+# DirectCommandDefinition, DirectCommandParameter, DirectPipelineStep,
+# DirectPipelineStepResult and DirectPipelineResult; the old colliding root
+# names stay reachable through __getattr__ with a DeprecationWarning for one
+# minor release.
 from afd.core.commands import (
     DEFAULT_EXPOSE,
     CallGrant,
@@ -272,19 +275,19 @@ from afd.core.telemetry import (
 )
 from afd.core.wire import WireModel, to_wire, to_wire_json
 from afd.direct import (
-    CommandContext,
-    CommandDefinition,
     CommandInfo,
-    CommandParameter,
     DirectApprovalRequest,
     DirectCallContext,
     DirectClient,
     DirectClientOptions,
+    DirectCommandDefinition,
+    DirectCommandParameter,
     DirectCommandRegistry,
+    DirectContext,
+    DirectPipelineResult,
+    DirectPipelineStep,
+    DirectPipelineStepResult,
     DirectRegistry,
-    PipelineResult,
-    PipelineStep,
-    PipelineStepResult,
     SimpleRegistry,
     create_direct_client,
     create_direct_registry,
@@ -331,18 +334,34 @@ from afd.platform import (
 
 if TYPE_CHECKING:
     from afd.client import (
-        ClientStatus,
-        DetailedTask,
-        McpClient,
-        McpClientConfig,
-        TaskInfo,
-        TaskProgressCallback,
-        create_client,
+        ClientStatus as ClientStatus,
+    )
+    from afd.client import (
+        DetailedTask as DetailedTask,
+    )
+    from afd.client import (
+        McpClient as McpClient,
+    )
+    from afd.client import (
+        McpClientConfig as McpClientConfig,
+    )
+    from afd.client import (
+        TaskInfo as TaskInfo,
+    )
+    from afd.client import (
+        TaskProgressCallback as TaskProgressCallback,
+    )
+    from afd.client import (
+        create_client as create_client,
     )
     from afd.transports.streamable_http import (
-        ElicitationHandler,
-        ElicitationRequest,
-        ElicitationResponse,
+        ElicitationHandler as ElicitationHandler,
+    )
+    from afd.transports.streamable_http import (
+        ElicitationRequest as ElicitationRequest,
+    )
+    from afd.transports.streamable_http import (
+        ElicitationResponse as ElicitationResponse,
     )
 
 # The MCP client needs the optional ``client`` extra (httpx, mcp), so its
@@ -361,7 +380,28 @@ _LAZY_EXPORTS = {
 }
 
 
+# Deprecated colliding root names kept for one minor release (#1758).
+_DEPRECATED_DIRECT_EXPORTS: dict[str, tuple[str, str]] = {
+    "CommandContext": ("DirectContext", "afd.core.CommandContext"),
+    "CommandDefinition": ("DirectCommandDefinition", "afd.core.CommandDefinition"),
+    "CommandParameter": ("DirectCommandParameter", "afd.core.CommandParameter"),
+    "PipelineStep": ("DirectPipelineStep", "afd.core.pipeline.PipelineStep"),
+    "PipelineStepResult": ("DirectPipelineStepResult", "afd.core.pipeline.StepResult"),
+    "PipelineResult": ("DirectPipelineResult", "afd.core.pipeline.PipelineResult"),
+}
+
+
 def __getattr__(name: str) -> object:
+    deprecated = _DEPRECATED_DIRECT_EXPORTS.get(name)
+    if deprecated is not None:
+        replacement, core_path = deprecated
+        warnings.warn(
+            f"afd.{name} is deprecated and will be removed in the next minor release; "
+            f"use afd.{replacement} (or {core_path} for the core type) instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return globals()[replacement]
     module_name = _LAZY_EXPORTS.get(name)
     if module_name is None:
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
@@ -596,26 +636,15 @@ __all__ = [
     "SimpleRegistry",
     "DirectClientOptions",
     "DirectCallContext",
-    "CommandContext",
+    "DirectContext",
     "CommandInfo",
-    "CommandDefinition",
-    "CommandParameter",
-    "PipelineStep",
-    "PipelineStepResult",
-    "PipelineResult",
+    "DirectCommandDefinition",
+    "DirectCommandParameter",
+    "DirectPipelineStep",
+    "DirectPipelineStepResult",
+    "DirectPipelineResult",
     "create_direct_client",
     "create_registry",
-    # MCP Client (network)
-    "McpClient",
-    "McpClientConfig",
-    "ClientStatus",
-    "TaskInfo",
-    "DetailedTask",
-    "TaskProgressCallback",
-    "create_client",
-    "ElicitationHandler",
-    "ElicitationRequest",
-    "ElicitationResponse",
     # Platform utilities
     "ExecErrorCode",
     "ExecOptions",

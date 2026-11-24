@@ -28,6 +28,7 @@ import logging
 import math
 import time
 import uuid
+import warnings
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import (
@@ -71,9 +72,9 @@ from afd.core.result import (
 )
 from afd.core.similarity import find_similar_tools, truncate_name
 from afd.direct_pipeline import (
-    PipelineResult,
-    PipelineStep,
-    PipelineStepResult,  # noqa: F401 (re-exported)
+    DirectPipelineResult,
+    DirectPipelineStep,
+    DirectPipelineStepResult,  # noqa: F401 (re-exported)
     run_direct_pipeline,
 )
 
@@ -91,8 +92,8 @@ _HUMAN_ACTOR = Actor(kind="human")
 
 
 @dataclass
-class CommandContext:
-    """Context for command execution; ``timeout`` is in milliseconds.
+class DirectContext:
+    """Context for direct command execution; ``timeout`` is in milliseconds.
 
     ``actor`` is who is calling (``human`` unless the client or call sets
     another). ``clock`` and ``random`` are set only when the client or call
@@ -125,7 +126,7 @@ class CommandContext:
             or (self.signal is not None and self.signal.is_set())
         )
 
-    def with_output_budget_ask(self, max_bytes: Any) -> CommandContext:
+    def with_output_budget_ask(self, max_bytes: Any) -> DirectContext:
         """Return a copy of this context carrying an output budget ask (B2)."""
         return dataclasses.replace(self, _output_budget_ask=normalize_ask_option(max_bytes))
 
@@ -139,8 +140,8 @@ class CommandInfo:
 
 
 @dataclass
-class CommandParameter:
-    """Command parameter definition for validation."""
+class DirectCommandParameter:
+    """Direct command parameter definition for validation."""
 
     name: str
     type: str  # 'string', 'number', 'boolean', 'object', 'array'
@@ -151,12 +152,12 @@ class CommandParameter:
 
 
 @dataclass
-class CommandDefinition:
-    """Full command definition with parameters."""
+class DirectCommandDefinition:
+    """Full direct command definition with parameters."""
 
     name: str
     description: str
-    parameters: list[CommandParameter] = field(default_factory=list)
+    parameters: list[DirectCommandParameter] = field(default_factory=list)
 
 
 @dataclass
@@ -277,7 +278,7 @@ class DirectRegistry(Protocol):
         self,
         name: str,
         args: dict[str, Any] | None = None,
-        context: CommandContext | None = None,
+        context: DirectContext | None = None,
     ) -> CommandResult:
         """Execute a command by name."""
         ...
@@ -295,7 +296,7 @@ class DirectRegistry(Protocol):
         ...
 
     # Optional method for validation support
-    def get_command(self, name: str) -> CommandDefinition | None:
+    def get_command(self, name: str) -> DirectCommandDefinition | None:
         """Get command definition for validation (optional)."""
         ...
 
@@ -312,7 +313,7 @@ class RegisteredCommand:
     name: str
     description: str
     handler: Callable
-    parameters: list[CommandParameter] = field(default_factory=list)
+    parameters: list[DirectCommandParameter] = field(default_factory=list)
 
 
 def _takes_context(handler: Callable) -> bool:
@@ -375,7 +376,7 @@ class SimpleRegistry:
         self,
         name: str,
         description: str = "",
-        parameters: list[CommandParameter] | None = None,
+        parameters: list[DirectCommandParameter] | None = None,
     ) -> Callable:
         """Decorator to register a command.
 
@@ -401,7 +402,7 @@ class SimpleRegistry:
         name: str,
         handler: Callable,
         description: str = "",
-        parameters: list[CommandParameter] | None = None,
+        parameters: list[DirectCommandParameter] | None = None,
     ) -> None:
         """Register a command imperatively."""
         self._commands[name] = RegisteredCommand(
@@ -415,7 +416,7 @@ class SimpleRegistry:
         self,
         name: str,
         args: dict[str, Any] | None = None,
-        context: CommandContext | None = None,
+        context: DirectContext | None = None,
     ) -> CommandResult:
         """Execute a command by name."""
         if _is_apps_context(context):
@@ -466,12 +467,12 @@ class SimpleRegistry:
         """List command names only."""
         return list(self._commands.keys())
 
-    def get_command(self, name: str) -> CommandDefinition | None:
+    def get_command(self, name: str) -> DirectCommandDefinition | None:
         """Get command definition for validation."""
         cmd = self._commands.get(name)
         if not cmd:
             return None
-        return CommandDefinition(
+        return DirectCommandDefinition(
             name=cmd.name,
             description=cmd.description,
             parameters=cmd.parameters,
@@ -529,7 +530,7 @@ class DirectClient:
     def _is_allowed(self, name: str) -> bool:
         return self.options.allow is None or _direct_allows(self.options.allow, name)
 
-    async def _execute(self, name: str, args: Any, context: CommandContext) -> CommandResult:
+    async def _execute(self, name: str, args: Any, context: DirectContext) -> CommandResult:
         # A fresh context per attempt keeps a middleware's mutations out of a retry.
         context = copy.copy(context)
         context.extra = dict(context.extra)
@@ -625,7 +626,7 @@ class DirectClient:
         raw_ask = normalize_ask_option(ask_source)
         if raw_ask is not None and parse_ask(raw_ask) is None:
             return ask_validation_failure()
-        cmd_context = CommandContext(
+        cmd_context = DirectContext(
             trace_id=trace_id,
             source=self.options.source,
             timeout=context.timeout if context else None,
@@ -752,7 +753,7 @@ class DirectClient:
     def _validate_input(
         self,
         args: dict[str, Any] | None,
-        parameters: list[CommandParameter],
+        parameters: list[DirectCommandParameter],
     ) -> list[str]:
         """Validate input against parameter definitions."""
         issues = []
@@ -832,12 +833,12 @@ class DirectClient:
 
     async def pipe(
         self,
-        steps: list[PipelineStep | dict[str, Any]],
+        steps: list[DirectPipelineStep | dict[str, Any]],
         context: DirectCallContext | None = None,
         *,
         input: dict[str, Any] | None = None,
         output_budget: Any = None,
-    ) -> PipelineResult:
+    ) -> DirectPipelineResult:
         """Execute a pipeline of commands with variable resolution.
 
         Step inputs and conditions use the pipeline variable references of
@@ -859,12 +860,12 @@ class DirectClient:
         is skipped, before any command runs.
 
         Args:
-            steps: List of pipeline steps (dicts or PipelineStep objects)
+            steps: List of pipeline steps (dicts or DirectPipelineStep objects)
             context: Optional context for tracing
             input: Optional pipeline input, referenced as ``$input``
 
         Returns:
-            PipelineResult with all step results and outputs
+            DirectPipelineResult with all step results and outputs
 
         Example:
             >>> result = await client.pipe([
@@ -875,7 +876,7 @@ class DirectClient:
         start_time = time.perf_counter()
         trace_id = (context.trace_id if context else None) or _generate_trace_id()
         if _is_apps_context(context):
-            return PipelineResult(
+            return DirectPipelineResult(
                 success=False,
                 steps=[],
                 outputs={},
@@ -889,7 +890,7 @@ class DirectClient:
         )
         raw_ask = normalize_ask_option(ask_source)
         if raw_ask is not None and parse_ask(raw_ask) is None:
-            return PipelineResult(
+            return DirectPipelineResult(
                 success=False,
                 steps=[],
                 outputs={},
@@ -1021,7 +1022,7 @@ class DirectCommandRegistry:
 
         if _is_apps_context(context):
             return failure(call_not_granted())
-        context = _bind_allow(context or CommandContext(trace_id=_generate_trace_id()), allow)
+        context = _bind_allow(context or DirectContext(trace_id=_generate_trace_id()), allow)
         if not _is_allowed(context, name):
             return failure(_not_allowed(name))
         # server.execute also routes MCP meta-tools, which build a fresh MCP context.
@@ -1080,3 +1081,26 @@ def create_direct_registry(
     for command in commands:
         server.register(command)
     return DirectCommandRegistry(server, interface=interface)
+
+
+_DEPRECATED_NAMES = {
+    "CommandContext": DirectContext,
+    "CommandDefinition": DirectCommandDefinition,
+    "CommandParameter": DirectCommandParameter,
+    "PipelineStep": DirectPipelineStep,
+    "PipelineStepResult": DirectPipelineStepResult,
+    "PipelineResult": DirectPipelineResult,
+}
+
+
+def __getattr__(name: str) -> Any:
+    target = _DEPRECATED_NAMES.get(name)
+    if target is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    warnings.warn(
+        f"afd.direct.{name} is deprecated and will be removed in the next minor release; "
+        f"use afd.direct.{target.__name__} instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return target

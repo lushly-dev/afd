@@ -27,14 +27,6 @@ NOT_HERE = {
     ),
 }
 
-KNOWN_GAPS = {
-    "09-see-what-changed.scenario.yaml": (
-        "afd.testing's evaluator compares an expected array of objects whole, where TypeScript's "
-        "matches it item by item with matchers, so data.entries cannot match; "
-        "test_commands.py's history tests cover the job"
-    ),
-}
-
 
 def scenario_files() -> list[Path]:
     return sorted(SCENARIOS.glob("*.scenario.yaml"))
@@ -45,12 +37,9 @@ def test_has_the_jobs():
 
 
 @pytest.mark.parametrize("path", scenario_files(), ids=lambda path: path.name)
-async def test_job(path: Path, store, request: pytest.FixtureRequest):
+async def test_job(path: Path, store):
     if path.name in NOT_HERE:
         pytest.skip(NOT_HERE[path.name])
-    if path.name in KNOWN_GAPS:
-        # Strict: once the library matches arrays item by item, this fails until it is removed.
-        request.applymarker(pytest.mark.xfail(reason=KNOWN_GAPS[path.name], strict=True))
     parsed = parse_scenario_file(str(path))
     assert parsed.success, getattr(parsed, "error", None)
 
