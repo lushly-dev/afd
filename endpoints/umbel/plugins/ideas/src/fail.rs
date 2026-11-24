@@ -112,7 +112,7 @@ pub(crate) fn host(error: &HostError) -> Outcome {
                 Some("RECORD_LANE_STALE") => failure(
                     "SERVICE_UNAVAILABLE",
                     "the store's record lane is being rebuilt",
-                    "Retry once after a few seconds; if it persists, ask the operator to run umbel store-records-reindex",
+                    "Retry once after a few seconds; if it persists, ask the operator to run umbel store records-reindex",
                 )
                 .with_retryable(true)
                 .with_error_details(json!({ "host": "RECORD_LANE_STALE" })),
@@ -165,7 +165,7 @@ pub(crate) fn host(error: &HostError) -> Outcome {
         _ => failure(
             "INTERNAL_ERROR",
             "the store failed",
-            "Retry; if it persists, tell the operator to run umbel store-check.",
+            "Retry; if it persists, tell the operator to run umbel store check.",
         ),
     }
 }

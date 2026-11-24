@@ -141,7 +141,7 @@ fn status(cx: &Cx) -> Result<Outcome, Outcome> {
         };
         outcome = outcome.with_warning(
             code,
-            "the memory key file is not this database's: no record opens until it is restored; run umbel doctor",
+            "the memory key file is not this database's: no record opens until it is restored; run umbel workspace doctor",
         );
     }
     if counts.as_ref().is_some_and(|c| c.unreadable > 0) {

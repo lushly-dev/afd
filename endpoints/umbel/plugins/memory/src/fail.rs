@@ -94,7 +94,7 @@ fn suggestion(code: &str) -> &'static str {
         }
         "MEMORY_TTL_TOO_LONG" => "Pass a shorter ttlDays, or leave it out.",
         "MEMORY_CONFIRM_NOT_ALLOWED" => {
-            "Only a person confirms, and only their own records: at a terminal with umbel call memory-confirm and no --yes, no --approve and no agent environment variable, or over MCP on the person page in a hosted workspace."
+            "Only a person confirms, and only their own records: at a terminal with umbel memory confirm id=<id> contentHash=<hash>, with no --yes, no --approve and no agent environment variable, or over MCP on the person page in a hosted workspace."
         }
         "MEMORY_ERASE_NOT_ALLOWED" => {
             "Only a person the deployer lists under the memory_write grant's erasers erases, verified on the person page; ask one of them."
@@ -186,12 +186,12 @@ pub(crate) fn host(error: &HostError) -> Outcome {
         HostError::KeysMissing => failure(
             "MEMORY_KEYS_MISSING",
             &message,
-            "Restore memory.keys beside memory.sqlite3 from your separate copy; without it no record opens. Run umbel doctor.",
+            "Restore memory.keys beside memory.sqlite3 from your separate copy; without it no record opens. Run umbel workspace doctor.",
         ),
         HostError::KeysMismatch => failure(
             "MEMORY_KEYS_MISMATCH",
             &message,
-            "Put back the memory.keys that belongs to this memory.sqlite3; run umbel doctor and store-check.",
+            "Put back the memory.keys that belongs to this memory.sqlite3; run umbel workspace doctor and umbel store check.",
         ),
         HostError::KeyAbsent { .. } => failure(
             "MEMORY_KEY_ABSENT",

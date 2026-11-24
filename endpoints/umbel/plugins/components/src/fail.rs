@@ -16,7 +16,7 @@ pub(crate) fn pack_empty() -> Outcome {
     failure(
         "PACK_EMPTY",
         "the space's component pack holds no library",
-        "Export a library into the space's pack with `specimen pack-export`, or list what the pack holds with `umbel plugin-show components`.",
+        "Export a library into the space's pack with `specimen pack-export`, or list what the pack holds with `umbel plugin show plugin=components`.",
     )
 }
 

@@ -161,7 +161,7 @@ included, or set it to the bind, `127.0.0.1:7421`: a proxy that drops the port g
 
 The page then also accepts that origin's `Host` and a form posted from it, and the link the
 agent gives, the list `person-page-serve` prints, and `--open` name the public origin. The
-origin must be `https`, with no path, query or user information. `umbel doctor` warns while it
+origin must be `https`, with no path, query or user information. `umbel workspace doctor` warns while it
 is set: anyone who can reach that origin can approve the person's decisions with no sign-in, so
 never expose it beyond a private network you control, and keep the proxy on the computer that
 serves the page.

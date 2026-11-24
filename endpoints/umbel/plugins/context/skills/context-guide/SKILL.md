@@ -86,7 +86,7 @@ for size. An empty bundle is a success.
 - `KNOWLEDGE_NOT_BITEMPORAL`: `asOf` reads memory as of a past instant, but knowledge is current.
 - `MEMORY_KEYS_MISSING`, `MEMORY_KEYS_MISMATCH`: memory's key file is gone or foreign, so every
   memory section is `lane-unavailable` and knowledge is still returned. Restore `memory.keys`
-  and run `umbel doctor`.
+  and run `umbel workspace doctor`.
 - `BUNDLE_LIMITED`: items were left out for size.
 
 ## Determinism
