@@ -104,6 +104,7 @@ shape of the [Patterns status](../../active/patterns/STATUS.md).
 | Open the epic | Not started; the owner's call | |
 | The owner answers the proposal's section 9 | In progress. Answered 2026-11-14: questions 1, 2, 3, 5, 6, 11 and 12, and the todo example in question 7. Answered 2026-11-15: the bench's domain in 7 and the budget in 12. Answered 2026-11-16: question 13. Open: 4, 8, 9 and 10 | Proposal, section 9 |
 | Amend with where the parts live (5.10) | Done 2026-11-16, merged in #1386: the owner's test for the component layer, the layer map, two facts in section 2 and question 13. Its code changes are [epic #1385](https://github.com/lushly-dev/afd/issues/1385)'s | Proposal, sections 2 and 5.10 |
+| Amend with the screen an agent sees (5.10) | Done 2026-11-24, merged in #2466: a row in the layer map for an agent seeing and filling what is on the screen, the owner's answer under question 13, and UI SDK as a published design to compare. Open: where its code goes, in `afd-view-state` or in a layer of its own, and how much of the screen an agent sees. [#2275](https://github.com/lushly-dev/afd/issues/2275)'s scope covers neither until its approach or a new sub-issue under [epic #1385](https://github.com/lushly-dev/afd/issues/1385) says so | Proposal, sections 5.10 and 9 |
 | Move each part into the proposal that owns it | Not started. Ready to move: customizing a default (5.1) and who owns the result-state patterns (5.2) into Patterns; the panel's provisional answer and the triggers (5.5) into Design Decisions | Question 1 |
 | Draft the commands against the ranked jobs | Not started. The rank is confirmed; this is phase A's, after phase 0's decision | |
 | Write each job as a scenario and run the checks | Not started | [Jobs first](../../../../.claude/skills/afd/references/jobs-first.md) |
@@ -177,7 +178,10 @@ shape of the [Patterns status](../../active/patterns/STATUS.md).
   - on 2026-11-20, for the bench: the four pilots under a cap of $15 at list prices;
   - on 2026-11-21, for the bench: the bare pilot's reader; a cap of $50 at list prices for step
     0.1's first fifteen builds, which measure the share of the allowance; and correcting a
-    refusal's feedback in the reference build and its seeded copy.
+    refusal's feedback in the reference build and its seeded copy;
+  - on 2026-11-24, an addition to question 13: an agent inside an application sees and fills
+    what is on the screen, with no actions declared by components. Where its code goes, and how
+    much of the screen an agent sees, stay open.
 
 ## How it was checked
 
@@ -406,6 +410,41 @@ Run 2026-11-14 in this worktree at `545316f2`, and the links again after merging
     FAST-AF plugin named as the one user of `@command`; the view-state row marked as proposed,
     with the two applications' current wiring as its evidence; the epic lines; the order of the
     decisions; and this entry.
+- **The amendment of 2026-11-24** (a row and a subsection in section 5.10, an addition to
+  question 13), on a branch from `main` at `8c2e1e2a`:
+  - *Claims about UI SDK:* each quotation and figure in the subsection was found by a text
+    search in the downloaded copy of its documentation for agents, and the version and the
+    first publication date were read from the npm registry. Nothing in the subsection rests on
+    a summary.
+  - *Claims about AFD:* that `violet-elements`' npm package leaves out its pack was read from
+    the `files` list of its `package.json`; Loam's three hints from section 11 of its phase 5
+    specification, and that its projection is not started from Loam's status file.
+  - *The owner's answer* is quoted whole in question 13, after the question and its stated
+    confidence, also quoted.
+  - *Links:* a throwaway script resolved every relative link and anchor in the proposal and in
+    this file, and found none broken.
+  - *The verify plan:* `pnpm verify --list --files` on both files printed "no packages
+    affected" and "no path-filtered workflow is triggered".
+  - *Independent review:* two fresh read-only reviewers on one brief, Claude Opus 5.5 at
+    `high` and Gemini 4 Neon at `high`, given the question, the owner's reply and the
+    downloaded documentation. Both said revise. *Blockers, all fixed:* the subsection said
+    nothing runs without the component on the screen, where a step opens a closed tab or
+    section to reach one; it gave every package a skill, where only `@ui-sdk/core` carries
+    one; a quotation ended on a full stop the source does not have, and left out the
+    arguments the bridge does check; the open point was worded three ways, as commands
+    inside `afd-view-state` only, and its code was assigned to #2275, whose scope covers
+    neither the reading nor the filling; and this file's row said "not merged".
+    *Improvements taken:* that the `agent` key is optional and experimental; what `allow`
+    does with a confirmation's text; "registered" components and the snapshot's limit; that
+    its history can undo an agent's changes; "a published design close to" in place of "the
+    nearest"; Loam's projection stated as specified and not started; the paragraph on what
+    is out of scope moved above the subsection and extended to the new row; how much of the
+    screen an agent sees named as open; the question quoted as it was put; this decision in
+    the list of the owner's decisions and in the proposal's section 6; and that the
+    documentation carries no version number. *Not taken:* an entry in "Last verified" and
+    the additions first made to the State line and to the row for the owner's answers, which
+    are lines every pull request to this file would edit; this entry and the step's own row
+    carry them.
 
 ## The runner
 
@@ -747,6 +786,17 @@ Read from outside the repository, for ideas only: six public design skills at th
 branches on 2026-11-14, and the owner's earlier design-engine brainstorm with its application
 specification. No text, identifier or data from the brainstorm is in the proposal.
 
+Read on 2026-11-24, for the amendment of that day:
+
+- **UI SDK, from outside the repository:** the plain-text copy of its documentation for agents
+  (`https://ui-sdk.dev/docs/agents/llms.txt`, 98,191 bytes) and its documentation index, and
+  the npm registry's record of `@ui-sdk/core` for its versions and dates. Its other sections
+  were read through a summarising reader and are quoted nowhere in the proposal. It was not
+  installed or run, and its source was not read.
+- **AFD:** epic #1385 and its sub-issues #1157, #2275 and #2278; `packages/view-state/README.md`;
+  the FAST-AF foundation's and `violet-elements`' READMEs; section 11 of Loam's phase 5
+  specification and the line for its step 15 in Loam's status file.
+
 ## Follow-ups not yet issues
 
 | Date | Raised by | Follow-up | Status |
@@ -776,6 +826,7 @@ specification. No text, identifier or data from the brainstorm is in the proposa
 | 2026-11-15 | The bench's runner, the smoke session | Proposals that discuss result states and design review (Patterns, Design Decisions, Screens from Jobs, Pointing, Scales, Component Briefs) are in every arm's tree. The runner counts reads of them; whether to remove them is the owner's call | Closed 2026-11-15: the owner decided to remove them from every arm's tree, and the runner does |
 | 2026-11-21 | The pilots | The scoring checkout's Rust builds (Specimen's host, Umbel's components server) were deleted on 2026-11-20 by something other than the runner; the cause is unknown. The runner now refuses to start build sessions or score without them | Closed 2026-11-24: Botcore's disk cleaner, run by other sessions on the second machine, strips build output from linked worktrees, which the scoring checkouts are. The checkout in use is now kept with `botcore disk-keep` |
 | 2026-11-24 | Step 0.1 | The leak check throws out a build whose shell command names the session's own folder, the one above its tree, though Claude Code refuses the change of directory and nothing is read: one build of the first fifteen, $1.56, went that way | Closed 2026-11-24, not changed: that folder also holds the session's server configuration and sandbox profile, so the check is right to count it. A throw-out for this cause counts toward the runner's limit like any other: a run thrown out a third time stops the runs |
+| 2026-11-24 | The comparison with UI SDK | UI SDK's benchmark task is public (`benchmarks/agent` in `vercel-labs/ui`): one settings screen, where its bridge took 2 tool calls and 21.8k tokens. No AFD application has been measured on it, so that commands need fewer calls than a bridge is reasoning, not a result. Running the task against an AFD application through its commands would measure it | Open; the owner's call |
 
 ## Session log
 
@@ -806,3 +857,4 @@ specification. No text, identifier or data from the brainstorm is in the proposa
 | 2026-11-20 | The pilots | On 2026-11-18 the runner's walks and readers were written and reviewed with no model session, the walks on a server of the runner's on Playwright rather than Botcore's `cdp_*` commands. The owner gave the word for the four pilots under a cap of $15, and for filing #1699, which the owner's phone look had met. The two builds and two walks ran for $3.67 at list prices with no leak; a build costs about its line and a walk far less. The weekly figure was not read first, so step 0.1's first fifteen builds give the conversion (superseded: they did not; see the 2026-11-24 row). Three runner changes followed: two faults fixed, and the screen reader hearing live regions inside shadow roots. On 2026-11-21 the owner agreed to run the bare build's reader ($0.18), to cap the first fifteen builds at $50, and to correct a refusal's feedback in the reference build, done in both builds with every proof and check as before. Recorded in #1811 |
 | 2026-11-21 | The rules for "go", and step 0.1's first fifteen builds | The owner confirmed the rules for "go" and the reading of a path for step 0.4 as proposed, reading step 0.3's "a persona of that modality" as one persona alone, and gave the word for the first fifteen builds under a cap of $50. The runner's reports of steps 0.1 to 0.4 and step 0.2's statistics were written and tested on invented runs. The allowance week's reset was corrected to 04:00. The builds ran after the reset for $25.67 at list prices, one cut off and one thrown out among them, and paused for the owner |
 | 2026-11-24 | Step 0.1's first fifteen builds, scored | The owner looked again at the reference build's screenshot page made on 2026-11-16 and marked none. The scoring checkout was found stripped a second time, by Botcore's disk cleaner, which also explains 2026-11-20; it was rebuilt, scores the reference build 308 of 308, and is kept from the cleaner. The builds were scored, the five bare builds' readers ran at the owner's word for $0.86, and the step's report was written. Both arms pass nine checks in ten, which puts whether to go on to the owner, and the weekly figure was not read when the builds ended, so they give no conversion |
+| 2026-11-24 | The screen an agent sees | The owner asked how UI SDK's concepts align with AFD's FAST-AF components. Its documentation was read: a core of interface behaviours with five renderers, and a bridge through which an agent reads and changes the components on a page. The bridge is close to what `fast-element`'s command layer was before #1398, and to what epic #1385's step 8 plans for `afd-view-state`. Asked whether an agent inside an application should see and fill what is on the screen, the owner agreed, with no actions declared by components. Section 5.10 gains the row and UI SDK as a published design to compare, and question 13 the answer in the owner's words. Where its code goes, in `afd-view-state` or in a layer of its own, and how much of the screen an agent sees, stay open. Two independent reviewers found five blockers, all fixed. Nothing was built |
