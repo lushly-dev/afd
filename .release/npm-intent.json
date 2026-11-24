@@ -10,7 +10,7 @@
 		"violet-npm"
 	],
 	"inventoryHash": "a8297b7d2f682905203e5ca3d5ce3e39af28eb11fbed726ae206a0741c5dd1e8",
-	"sourceDigest": "a1a67764e019313aac267bf518ff11bb65160c53ac417181bb2d3a2f48768e03",
+	"sourceDigest": "469dfc9d96eb1bfc3efe8cb62bf43c4f22b7de12a9a1e2e6a825ae50baa9f846",
 	"distributions": [
 		{
 			"name": "@lushly-dev/fast-element",
@@ -76,7 +76,7 @@
 			"name": "@lushly-dev/violet-elements",
 			"version": "0.2.0-preview.6",
 			"manifest": "foundations/fast-af/packages/violet-elements/package.json",
-			"manifestHash": "ccf39db285beeee0f0b7a7e37afbd04240c891ac7c24c778b7043a45cc59ac2c"
+			"manifestHash": "f984d3b4b5a622c1d1553a17725ad69a01baaf795a347d1cc830894172aac3cc"
 		},
 		{
 			"name": "@lushly-dev/violet-core",

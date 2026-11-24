@@ -72,6 +72,12 @@
 
 - [#2353](https://github.com/lushly-dev/afd/pull/2353) [`9935976`](https://github.com/lushly-dev/afd/commit/99359760a6aee0ff07f8733626d38e8c59d16b69) Thanks [@Falkicon](https://github.com/Falkicon)! - Add `specimen-point`, `specimen-point-move`, and `specimen-point-check` (and matching `SpecimenBench` methods, CLI subcommands `point` / `point-move` / `point-check`, and warm-bench MCP tools in `endpoints/specimen-server`) to resolve `specimen:` pointer URIs or named targets through the shared two-step climb, persist bounded point records in `.specimen/points/pt-<12>.json` with zero-build CEM component/source info and loaded-file digests, move across relative levels (`parent`, `child`, `next`, `previous`, `component`), and detect stale references (`POINT_STALE`, `NO_SUCH_LEVEL`, `POINT_NOT_FOUND`, nearest-id `SPECIMEN_NOT_FOUND`) ([#2043](https://github.com/lushly-dev/afd/issues/2043)).
 
+### Patch Changes
+
+- [#2434](https://github.com/lushly-dev/afd/pull/2434) [`4d075a4`](https://github.com/lushly-dev/afd/commit/4d075a439e3c5a21b0881b20142effd28578e958) Thanks [@Falkicon](https://github.com/Falkicon)! - `computeSourceDigests` now hashes files named under a root that sits behind a symlink, such as macOS's `/var` temporary folders. It took each file's path relative to the root's real path only, so every file looked outside the root and a point recorded no source digests ([#2416](https://github.com/lushly-dev/afd/issues/2416)).
+
+- [#2415](https://github.com/lushly-dev/afd/pull/2415) [`44e711e`](https://github.com/lushly-dev/afd/commit/44e711eb43e4dd3b2828620b3363cb7f10e82d46) Thanks [@Falkicon](https://github.com/Falkicon)! - Fix `motion: 'settled'` instrumentation throwing `DOMException` on shadow roots created in secondary documents (such as inert documents used by scoped custom element registries) by constructing per-document `CSSStyleSheet` instances via `ownerDocument.defaultView?.CSSStyleSheet` and cleaning up managed sheets and fallback styles across mode and document transitions ([#2384](https://github.com/lushly-dev/afd/issues/2384)).
+
 ## 2.2.0-preview.9
 
 ### Minor Changes
