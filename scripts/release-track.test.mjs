@@ -1,5 +1,14 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	realpathSync,
+	rmSync,
+	symlinkSync,
+	writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
@@ -771,4 +780,39 @@ test('lock directories are the uv projects that lock the track as an editable so
 		'endpoints/botcore/plugins/factory',
 	]);
 	assert.deepEqual(lockDirectories(f.root, 'spec'), []);
+});
+
+test('default versionTrack invoke runs Changesets directly under pnpm 12 without mutating node_modules or pnpm-lock.yaml', (t) => {
+	const f = fixture(t, {
+		fragments: {
+			py: fragment('afd-python', 'patch', '### Fixed\n\n- A fix.'),
+		},
+	});
+	const repoPkg = JSON.parse(readFileSync(join(repository, 'package.json'), 'utf8'));
+	const lockfile = "lockfileVersion: '9.0'\n# sentinel\n";
+	writeFileSync(
+		join(f.root, 'package.json'),
+		`${JSON.stringify({ name: 'fixture', private: true, packageManager: repoPkg.packageManager }, null, '\t')}\n`
+	);
+	writeFileSync(join(f.root, '.gitignore'), 'node_modules\n');
+	writeFileSync(join(f.root, 'pnpm-lock.yaml'), lockfile);
+	commit(f.root, 'configure pnpm 12 and lockfile');
+	// Isolated fixture-local node_modules so a regression can never mutate repository/node_modules.
+	const linkType = process.platform === 'win32' ? 'junction' : 'dir';
+	const nm = join(f.root, 'node_modules');
+	mkdirSync(join(nm, '@changesets'), { recursive: true });
+	writeFileSync(join(nm, '.sentinel'), 'intact\n');
+	symlinkSync(
+		realpathSync(join(repository, 'node_modules/@changesets/cli')),
+		join(nm, '@changesets/cli'),
+		linkType
+	);
+	versionTrack({
+		root: f.root,
+		name: 'python',
+		date: '2026-11-24',
+		tools: false,
+	});
+	assert.equal(JSON.parse(f.read('python/package.json')).version, '0.11.1');
+	assert.equal(readFileSync(join(nm, '.sentinel'), 'utf8'), 'intact\n');
 });
