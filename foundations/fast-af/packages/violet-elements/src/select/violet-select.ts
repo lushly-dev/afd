@@ -1,6 +1,5 @@
-import { attr, css, FASTElement, html, Observable, observable, when } from "@lushly-dev/fast-element";
+import { attr, css, FASTElement, html, Observable, observable, when, type PartialFASTElementDefinition, type FASTElementExtension } from "@lushly-dev/fast-element";
 
-import "../option/violet-option";
 import {
     findOriginatingOption,
     findTypeaheadMatch,
@@ -964,17 +963,15 @@ installFormDisabled(VioletSelect.prototype);
 attr({ mode: "boolean" })(VioletSelect.prototype, "invalid");
 attr({ mode: "boolean" })(VioletSelect.prototype, "open");
 
-if (!customElements.get("violet-select")) {
-    await FASTElement.define(
-        VioletSelect,
-        {
-            name: "violet-select",
-            template,
-            styles,
-            shadowOptions: {
-                delegatesFocus: true,
-            },
-        },
-        [observeAttribute("value")]
-    );
-}
+/** The FAST definition of `<violet-select>`; `defineVioletSelect` in `./violet-select.define` registers it. */
+export const violetSelectDefinition = {
+    name: "violet-select",
+    template,
+    styles,
+    shadowOptions: {
+        delegatesFocus: true,
+    },
+} satisfies PartialFASTElementDefinition;
+
+/** The FAST extensions `<violet-select>` is defined with. */
+export const violetSelectExtensions: FASTElementExtension[] = [observeAttribute("value")];

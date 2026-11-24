@@ -3,7 +3,7 @@ import { cdp, server, userEvent } from "vitest/browser";
 
 const isChromium = server.browser === "chromium";
 
-import "./violet-button";
+import "./violet-button.define";
 import type { VioletButton } from "./violet-button";
 
 function nextFrame(): Promise<void> {

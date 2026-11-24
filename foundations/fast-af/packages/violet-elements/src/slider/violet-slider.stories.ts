@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect, waitFor } from "@lushly-dev/specimen/test";
 
-import "./violet-slider";
+import "./violet-slider.define";
 import type { VioletSlider, VioletSliderOrientation } from "./violet-slider";
 
 type VioletSliderStoryArgs = {

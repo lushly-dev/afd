@@ -4,7 +4,7 @@ import { cdp, server } from "vitest/browser";
 const isChromium = server.browser === "chromium";
 
 import { applyVioletThemePreset, installVioletTheme, loadVioletBuiltInTheme } from "../theme/violet-theme-runtime";
-import "./violet-badge";
+import "./violet-badge.define";
 import type { VioletBadge } from "./violet-badge";
 
 function nextFrame(): Promise<void> {

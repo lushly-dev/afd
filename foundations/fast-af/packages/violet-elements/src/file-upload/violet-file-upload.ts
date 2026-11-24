@@ -1,11 +1,8 @@
-import { FASTElement, Observable, Updates, attr, css, html, observable, repeat, when } from "@lushly-dev/fast-element";
+import { FASTElement, Observable, Updates, attr, css, html, observable, repeat, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
 import { registerSystemAttachIcon } from "../icon/generated/icons/system-attach";
 import { registerSystemDismissIcon } from "../icon/generated/icons/system-dismiss";
 import { registerSystemDocumentIcon } from "../icon/generated/icons/system-document";
-import "../button/violet-button";
-import "../icon-button/violet-icon-button";
-import "../icon/violet-icon";
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 import { installFormDisabled } from "../foundations/violet-form-disabled";
 import { resolveFieldErrorText } from "../shared/field-error";
@@ -1205,10 +1202,9 @@ observable(VioletFileUpload.prototype, "files");
 observable(VioletFileUpload.prototype, "customValidationMessage");
 observable(VioletFileUpload.prototype, "dragActive");
 
-if (!customElements.get("violet-file-upload")) {
-    await FASTElement.define(VioletFileUpload, {
-        name: "violet-file-upload",
-        template,
-        styles,
-    });
-}
+/** The FAST definition of `<violet-file-upload>`; `defineVioletFileUpload` in `./violet-file-upload.define` registers it. */
+export const violetFileUploadDefinition = {
+    name: "violet-file-upload",
+    template,
+    styles,
+} satisfies PartialFASTElementDefinition;

@@ -4,7 +4,7 @@ import { cdp, page, server, userEvent } from "vitest/browser";
 
 const isChromium = server.browser === "chromium";
 
-import "./violet-data-grid";
+import "./violet-data-grid.define";
 import type { VioletDataGrid, VioletDataGridFillDetail } from "./violet-data-grid";
 
 const nextFrame = () => new Promise<void>(resolve => requestAnimationFrame(() => resolve()));

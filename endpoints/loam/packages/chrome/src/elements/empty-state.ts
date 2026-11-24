@@ -4,7 +4,7 @@
  */
 
 import { attr, css, FASTElement, html } from '@lushly-dev/fast-element';
-import '@lushly-dev/violet-elements/dist/empty-state/violet-empty-state.js';
+import '@lushly-dev/violet-elements/empty-state/define';
 
 const template = html<LoamEmptyState>`
 	<violet-empty-state message="${(x) => x.message}"></violet-empty-state>

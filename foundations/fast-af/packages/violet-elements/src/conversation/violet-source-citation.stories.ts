@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect } from "@lushly-dev/specimen/test";
 
-import "./violet-source-citation";
+import "./violet-source-citation.define";
 import type { VioletSourceCitation, VioletSourceCitationType } from "./violet-source-citation";
 
 type CitationStoryArgs = {

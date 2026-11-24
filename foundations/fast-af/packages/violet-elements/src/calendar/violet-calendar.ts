@@ -1,4 +1,4 @@
-import { FASTElement, attr, css, html, observable, repeat } from "@lushly-dev/fast-element";
+import { FASTElement, attr, css, html, observable, repeat, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 import { logicalArrowKey } from "../foundations/violet-direction";
@@ -547,10 +547,9 @@ attr(VioletCalendar.prototype, "min");
 attr(VioletCalendar.prototype, "max");
 attr({ mode: "boolean" })(VioletCalendar.prototype, "disabled");
 
-if (!customElements.get("violet-calendar")) {
-    await FASTElement.define(VioletCalendar, {
-        name: "violet-calendar",
-        template,
-        styles,
-    });
-}
+/** The FAST definition of `<violet-calendar>`; `defineVioletCalendar` in `./violet-calendar.define` registers it. */
+export const violetCalendarDefinition = {
+    name: "violet-calendar",
+    template,
+    styles,
+} satisfies PartialFASTElementDefinition;

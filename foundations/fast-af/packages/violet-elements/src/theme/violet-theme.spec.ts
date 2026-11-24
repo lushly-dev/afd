@@ -30,7 +30,7 @@ import {
 } from "./violet-theme-builtin";
 import runtimeSource from "./violet-theme-runtime.ts?raw";
 import elementSource from "./violet-theme.ts?raw";
-import "./violet-theme";
+import "./violet-theme.define";
 
 /** The built-in light accent fill, read from the set so a palette change does not break these specs. */
 const builtInAccentBackground = violetThemeBuiltInSet.presets.light.find(

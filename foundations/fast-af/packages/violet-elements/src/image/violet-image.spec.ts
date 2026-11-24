@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import "./violet-image";
+import "./violet-image.define";
 import type { VioletImage } from "./violet-image";
 
 function nextFrame(): Promise<void> {

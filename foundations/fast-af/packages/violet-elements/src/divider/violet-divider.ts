@@ -1,4 +1,4 @@
-import { FASTElement, attr, css, html, when } from "@lushly-dev/fast-element";
+import { FASTElement, attr, css, html, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
@@ -97,10 +97,9 @@ attr(VioletDivider.prototype, "appearance");
 attr(VioletDivider.prototype, "orientation");
 attr({ mode: "boolean" })(VioletDivider.prototype, "decorative");
 
-if (!customElements.get("violet-divider")) {
-    await FASTElement.define(VioletDivider, {
-        name: "violet-divider",
-        template,
-        styles,
-    });
-}
+/** The FAST definition of `<violet-divider>`; `defineVioletDivider` in `./violet-divider.define` registers it. */
+export const violetDividerDefinition = {
+    name: "violet-divider",
+    template,
+    styles,
+} satisfies PartialFASTElementDefinition;

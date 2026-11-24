@@ -1,4 +1,4 @@
-import { FASTElement, attr, css, html, observable, repeat, when } from "@lushly-dev/fast-element";
+import { FASTElement, attr, css, html, observable, repeat, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 import {
@@ -402,13 +402,12 @@ attr({ attribute: "aria-label", mode: "fromView" })(VioletDataGridRating.prototy
 observable(VioletDataGridRating.prototype, "rating");
 observable(VioletDataGridRating.prototype, "max");
 
-if (!customElements.get("violet-data-grid-rating")) {
-    await FASTElement.define(VioletDataGridRating, {
-        name: "violet-data-grid-rating",
-        template,
-        styles,
-        shadowOptions: {
-            delegatesFocus: true,
-        },
-    });
-}
+/** The FAST definition of `<violet-data-grid-rating>`; `defineVioletDataGridRating` in `./violet-data-grid-rating.define` registers it. */
+export const violetDataGridRatingDefinition = {
+    name: "violet-data-grid-rating",
+    template,
+    styles,
+    shadowOptions: {
+        delegatesFocus: true,
+    },
+} satisfies PartialFASTElementDefinition;

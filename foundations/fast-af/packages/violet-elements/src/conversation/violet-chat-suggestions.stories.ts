@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect, fn, userEvent } from "@lushly-dev/specimen/test";
 
-import "./violet-chat-suggestions";
+import "./violet-chat-suggestions.define";
 import type { VioletChatSuggestions } from "./violet-chat-suggestions";
 
 type SuggestionsStoryArgs = {

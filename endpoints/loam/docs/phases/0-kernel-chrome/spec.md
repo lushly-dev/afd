@@ -164,7 +164,7 @@ Four TypeScript packages, all private and quarantined, under
 | --- | --- | --- | --- |
 | `theme/` | `@lushly-dev/loam-theme` | Loam's Violet tree (light, dark, high contrast), its exports, the token contract, the component token export and the token-only lint | `@lushly-dev/violet-core` (build-time, Node); dev: `@lushly-dev/loam-kernel` (for `LAYOUT_DEFAULTS_V0`) |
 | `kernel/` | `@lushly-dev/loam-kernel` | The registries with name refusal, kernel interface version 0, the shell commands, the layout model, the palette index, the journal, replay and the test kit, and Mock identity. No DOM dependency | `@lushly-dev/afd-core`, `@lushly-dev/afd-server` (`/direct` and `/define` only), `@lushly-dev/afd-view-state`, `@lushly-dev/afd-auth` (root and `/commands`), `@lushly-dev/local-db`, `zod` |
-| `chrome/` | `@lushly-dev/loam-chrome` | The parts as FAST-AF elements, the palette, keyboard, the responsive rules, the router seam and the kit's first components | `@lushly-dev/fast-element`, `@lushly-dev/violet-elements` (only through `./dist/*` deep imports), `@lushly-dev/loam-kernel` (types and the kernel interface), `@lushly-dev/loam-theme` (CSS) |
+| `chrome/` | `@lushly-dev/loam-chrome` | The parts as FAST-AF elements, the palette, keyboard, the responsive rules, the router seam and the kit's first components | `@lushly-dev/fast-element`, `@lushly-dev/violet-elements` (only through its per-element subpaths, `<name>/define` and `<name>`; `./dist/*` before AFD #1785), `@lushly-dev/loam-kernel` (types and the kernel interface), `@lushly-dev/loam-theme` (CSS) |
 | `web/` | `@lushly-dev/loam-web` | The browser host: builds the static shell with Vite, wires kernel and chrome, and holds the Chromium suite and the budget | the three above; dev: `@lushly-dev/specimen`, `@lushly-dev/violet-runtime`, `axe-core` 4.13.0, `playwright`, `fake-indexeddb`, `vite`, `vitest` |
 
 - **Workspace.** `pnpm-workspace.yaml` gains `endpoints/loam/packages/*`,
@@ -1193,7 +1193,9 @@ consistent with them (amended 2026-11-01):
   deep imports. The package root registers all 77 elements and is
   `sideEffects: true`, so a root import costs the whole set (the Health
   dashboard's bundle is 941,989 bytes). `chrome`'s `test` fails on a root
-  import. Loam's elements register globally under the `loam-` prefix in
+  import. *Amended by AFD #1785:* `dist/` is no longer exported; Loam imports
+  each element through `@lushly-dev/violet-elements/<name>/define` (its class
+  through `…/<name>`), and the test also fails on a `dist/` import. Loam's elements register globally under the `loam-` prefix in
   phase 0; scoped registries arrive with apps in phase 1.
 - **Theme application.**
   - It applies `loam-theme.css` through `adoptedStyleSheets`.

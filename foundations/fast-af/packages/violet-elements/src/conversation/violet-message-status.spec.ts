@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import "./violet-message-status";
+import "./violet-message-status.define";
 import type { VioletMessageStatus } from "./violet-message-status";
 
 function nextFrame(): Promise<void> {

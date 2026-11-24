@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import "./violet-color-swatch";
+import "./violet-color-swatch.define";
 import type { VioletColorSwatch } from "./violet-color-swatch";
 
 async function renderSwatch(): Promise<VioletColorSwatch> {

@@ -85,3 +85,6 @@ export * from "./tooltip/violet-tooltip";
 export * from "./toast/violet-toast";
 export * from "./tree-item/violet-tree-item";
 export * from "./tree/violet-tree";
+
+// The root entry registers every element; each `<name>/define` subpath registers one.
+import "./all";

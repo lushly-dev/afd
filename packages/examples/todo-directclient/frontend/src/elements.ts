@@ -3,5 +3,5 @@
  * copilot panel, each from its own module.
  */
 import '@afd/example-todo-ui/elements';
-import '@lushly-dev/violet-elements/dist/conversation/violet-message.js';
-import '@lushly-dev/violet-elements/dist/conversation/violet-message-text.js';
+import '@lushly-dev/violet-elements/message/define';
+import '@lushly-dev/violet-elements/message-text/define';

@@ -7,14 +7,14 @@
 import type { AppContextV1, DocumentRefV1 } from '@lushly-dev/loam-sdk';
 import themeCss from '@lushly-dev/loam-theme/loam-theme.css?inline';
 import type { SpecimenDefinition } from '@lushly-dev/specimen';
-import '@lushly-dev/violet-elements/dist/badge/violet-badge.js';
-import '@lushly-dev/violet-elements/dist/button/violet-button.js';
-import '@lushly-dev/violet-elements/dist/checkbox/violet-checkbox.js';
-import '@lushly-dev/violet-elements/dist/divider/violet-divider.js';
-import '@lushly-dev/violet-elements/dist/empty-state/violet-empty-state.js';
-import '@lushly-dev/violet-elements/dist/option/violet-option.js';
-import '@lushly-dev/violet-elements/dist/select/violet-select.js';
-import '@lushly-dev/violet-elements/dist/text-field/violet-text-field.js';
+import '@lushly-dev/violet-elements/badge/define';
+import '@lushly-dev/violet-elements/button/define';
+import '@lushly-dev/violet-elements/checkbox/define';
+import '@lushly-dev/violet-elements/divider/define';
+import '@lushly-dev/violet-elements/empty-state/define';
+import '@lushly-dev/violet-elements/option/define';
+import '@lushly-dev/violet-elements/select/define';
+import '@lushly-dev/violet-elements/text-field/define';
 import type { EditorViewId } from '../src/elements/editor-views.js';
 import {
 	defineVioletElements,

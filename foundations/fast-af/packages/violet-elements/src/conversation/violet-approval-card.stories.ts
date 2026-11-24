@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect, userEvent, fn } from "@lushly-dev/specimen/test";
 
-import "./violet-approval-card";
+import "./violet-approval-card.define";
 import type { VioletApprovalCard, VioletApprovalState } from "./violet-approval-card";
 
 type ApprovalStoryArgs = {

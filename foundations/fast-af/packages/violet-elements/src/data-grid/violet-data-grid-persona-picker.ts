@@ -1,18 +1,6 @@
-import {
-  attr,
-  css,
-  FASTElement,
-  html,
-  observable,
-  repeat,
-  Updates,
-  when,
-} from "@lushly-dev/fast-element";
+import { attr, css, FASTElement, html, observable, repeat, Updates, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
-import "../listbox/violet-listbox";
 import type { VioletListbox } from "../listbox/violet-listbox";
-import "../option/violet-option";
-import "../persona/violet-persona";
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 import type { VioletDataGridEditorOption } from "./violet-data-grid";
 import {
@@ -988,13 +976,12 @@ observable(VioletDataGridPersonaPicker.prototype, "options");
 observable(VioletDataGridPersonaPicker.prototype, "open");
 observable(VioletDataGridPersonaPicker.prototype, "filterQuery");
 
-if (!customElements.get("violet-data-grid-persona-picker")) {
-  await FASTElement.define(VioletDataGridPersonaPicker, {
-    name: "violet-data-grid-persona-picker",
-    template,
-    styles,
-    shadowOptions: {
-      delegatesFocus: true,
-    },
-  });
-}
+/** The FAST definition of `<violet-data-grid-persona-picker>`; `defineVioletDataGridPersonaPicker` in `./violet-data-grid-persona-picker.define` registers it. */
+export const violetDataGridPersonaPickerDefinition = {
+  name: "violet-data-grid-persona-picker",
+  template,
+  styles,
+  shadowOptions: {
+    delegatesFocus: true,
+  },
+} satisfies PartialFASTElementDefinition;

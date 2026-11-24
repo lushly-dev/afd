@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect, waitFor } from "@lushly-dev/specimen/test";
 
-import "../option-group/violet-option-group";
-import "../option/violet-option";
-import "./violet-combobox";
+import "../option-group/violet-option-group.define";
+import "../option/violet-option.define";
+import "./violet-combobox.define";
 import type { VioletCombobox } from "./violet-combobox";
 
 type VioletComboboxStoryArgs = {

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import "./violet-snackbar";
+import "./violet-snackbar.define";
 import type { VioletSnackbar } from "./violet-snackbar";
 
 function nextFrame(): Promise<void> {

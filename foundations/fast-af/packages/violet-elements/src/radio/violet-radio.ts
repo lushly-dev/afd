@@ -1,4 +1,4 @@
-import { FASTElement, Updates, attr, css, html, observable, when } from "@lushly-dev/fast-element";
+import { FASTElement, Updates, attr, css, html, observable, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 import { isDisabledByFieldset } from "../foundations/violet-form-disabled";
@@ -604,10 +604,9 @@ attr({ attribute: "error-text" })(VioletRadio.prototype, "errorText");
 attr(VioletRadio.prototype, "name");
 attr(VioletRadio.prototype, "value");
 
-if (!customElements.get("violet-radio")) {
-    await FASTElement.define(VioletRadio, {
-        name: "violet-radio",
-        template,
-        styles,
-    });
-}
+/** The FAST definition of `<violet-radio>`; `defineVioletRadio` in `./violet-radio.define` registers it. */
+export const violetRadioDefinition = {
+    name: "violet-radio",
+    template,
+    styles,
+} satisfies PartialFASTElementDefinition;

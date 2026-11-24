@@ -5,11 +5,13 @@
  * Packs the package, extracts it into a throwaway consumer's node_modules and checks that:
  *  - the contents are intended (built dist and metadata only; no src, specs or stories, because
  *    the shipped source maps embed their sources instead of pointing at an unpacked ../../src);
- *  - per-element imports such as `@lushly-dev/violet-elements/dist/button/violet-button.js`
- *    resolve at runtime through the `exports` map and resolve to their `.d.ts` for TypeScript;
- *  - the existing entries (`.`, `theme-css`, `theme-runtime`, `custom-elements.json`, `tokens/*`,
- *    `package.json`) still resolve;
- *  - non-published paths (`src/*`, `scripts/*`) stay blocked;
+ *  - every tag in `custom-elements.json` has a class entry (`./button`) and a define entry
+ *    (`./button/define`), and the `exports` map has no other element entries; each resolves at
+ *    runtime to a packed file and to its `.d.ts` for TypeScript;
+ *  - the other entries (`.`, `icon-registry`, `icons/*`, `theme`, `theme-css`, `theme-runtime`,
+ *    `theme-builtin`, `custom-elements.json`, `tokens/*`, `package.json`) resolve;
+ *  - non-published paths (`dist/*`, `src/*`, `scripts/*`) stay blocked;
+ *  - `sideEffects` lists only the define modules, `all.js` and the root `index.js`;
  *  - every shipped source map carries `sourcesContent`.
  *
  * Run `pnpm --dir packages/violet-elements build` first.
@@ -58,6 +60,9 @@ try {
     "dist/index.js",
     "dist/button/violet-button.js",
     "dist/button/violet-button.d.ts",
+    "dist/button/violet-button.define.js",
+    "dist/button/violet-button.define.d.ts",
+    "dist/all.js",
     "tokens/interface.json",
   ]) {
     check(files.includes(required), `tarball is missing ${required}`);
@@ -93,46 +98,91 @@ try {
     }
   };
 
+  const pkg = JSON.parse(readFileSync(path.join(installed, "package.json"), "utf8"));
+  const manifest = JSON.parse(readFileSync(path.join(installed, "custom-elements.json"), "utf8"));
+  const elements = manifest.modules.flatMap((module) =>
+    (module.declarations ?? [])
+      .filter((declaration) => declaration.customElement && declaration.tagName)
+      .map((declaration) => ({
+        subpath: declaration.tagName.replace(/^violet-/, ""),
+        module: module.path.replace(/^src\//, "dist/").replace(/\.ts$/, ""),
+      })),
+  );
+  // `./theme` is the theme barrel, which exports `VioletTheme` with the theme functions.
+  const classModule = (element) => (element.subpath === "theme" ? "dist/theme/index" : element.module);
+  check(elements.length > 0, "custom-elements.json declares no elements");
+
+  // Every element's class and define entries, and no others.
+  const nonElementKeys = [
+    ".",
+    "./icon-registry",
+    "./icons/*",
+    "./theme-css",
+    "./theme-runtime",
+    "./theme-builtin",
+    "./custom-elements.json",
+    "./tokens/*",
+    "./package.json",
+  ];
+  const expectedKeys = new Set([
+    ...nonElementKeys,
+    ...elements.flatMap((element) => [`./${element.subpath}`, `./${element.subpath}/define`]),
+  ]);
+  const actualKeys = Object.keys(pkg.exports);
+  const missingKeys = [...expectedKeys].filter((key) => !actualKeys.includes(key));
+  const extraKeys = actualKeys.filter((key) => !expectedKeys.has(key));
+  check(missingKeys.length === 0, `exports is missing ${missingKeys.join(", ")}`);
+  check(extraKeys.length === 0, `exports has entries no element or shared module needs: ${extraKeys.join(", ")}`);
+
   const mustResolve = {
     [packageName]: "dist/index.js",
-    [`${packageName}/dist/button/violet-button.js`]: "dist/button/violet-button.js",
-    [`${packageName}/dist/segment/violet-segment.js`]: "dist/segment/violet-segment.js",
-    [`${packageName}/dist/data-grid/violet-data-grid.js`]: "dist/data-grid/violet-data-grid.js",
+    [`${packageName}/icon-registry`]: "dist/icon/icon-registry.js",
+    [`${packageName}/icons/system-close`]: "dist/icon/generated/icons/system-close.js",
     [`${packageName}/custom-elements.json`]: "custom-elements.json",
     [`${packageName}/package.json`]: "package.json",
     [`${packageName}/tokens/violet-theme.export.json`]: "tokens/violet-theme.export.json",
     [`${packageName}/tokens/interface.json`]: "tokens/interface.json",
     [`${packageName}/theme-css`]: "dist/theme/violet-theme-css.js",
     [`${packageName}/theme-runtime`]: "dist/theme/violet-theme-runtime.js",
+    [`${packageName}/theme-builtin`]: "dist/theme/violet-theme-builtin.js",
   };
+  for (const element of elements) {
+    mustResolve[`${packageName}/${element.subpath}`] = `${classModule(element)}.js`;
+    mustResolve[`${packageName}/${element.subpath}/define`] = `${element.module}.define.js`;
+  }
   for (const [specifier, expected] of Object.entries(mustResolve)) {
     const actual = resolveRuntime(specifier);
     check(actual === expected, `${specifier} should resolve to ${expected}, got ${actual}`);
+    check(actual === null || files.includes(actual), `${specifier} resolves to ${actual}, which is not packed`);
   }
-  for (const blocked of ["src/index.ts", "scripts/verify-package-exports.mjs"]) {
+  for (const blocked of [
+    "dist/index.js",
+    "dist/button/violet-button.js",
+    "src/index.ts",
+    "scripts/verify-package-exports.mjs",
+  ]) {
     check(resolveRuntime(`${packageName}/${blocked}`) === null, `${packageName}/${blocked} must not be exported`);
   }
 
   // TypeScript 7 exports no compiler API; its TypeScript 6 API package resolves the same way.
   const { default: ts } = await import("@typescript/typescript6");
   const options = { moduleResolution: ts.ModuleResolutionKind.Bundler, module: ts.ModuleKind.ESNext };
-  for (const element of ["button/violet-button", "segment/violet-segment", "data-grid/violet-data-grid"]) {
-    const { resolvedModule } = ts.resolveModuleName(
-      `${packageName}/dist/${element}.js`,
-      path.join(consumer, "index.ts"),
-      options,
-      ts.sys,
-    );
-    const resolved =
-      resolvedModule && path.relative(installed, resolvedModule.resolvedFileName).split(path.sep).join("/");
-    check(resolved === `dist/${element}.d.ts`, `TypeScript should resolve ${element}.js to its .d.ts, got ${resolved}`);
+  const typesFor = {
+    "theme-css": "dist/theme/violet-theme-css.d.ts",
+    "theme-runtime": "dist/theme/violet-theme-runtime.d.ts",
+    "theme-builtin": "dist/theme/violet-theme-builtin.d.ts",
+    "icon-registry": "dist/icon/icon-registry.d.ts",
+    "icons/system-close": "dist/icon/generated/icons/system-close.d.ts",
+  };
+  for (const element of elements) {
+    typesFor[element.subpath] = `${classModule(element)}.d.ts`;
+    typesFor[`${element.subpath}/define`] = `${element.module}.define.d.ts`;
   }
-
-  for (const entry of ["theme-css", "theme-runtime"]) {
+  for (const [entry, expected] of Object.entries(typesFor)) {
     const { resolvedModule } = ts.resolveModuleName(`${packageName}/${entry}`, path.join(consumer, "index.ts"), options, ts.sys);
     const resolved =
       resolvedModule && path.relative(installed, resolvedModule.resolvedFileName).split(path.sep).join("/");
-    check(resolved === `dist/theme/violet-${entry}.d.ts`, `TypeScript should resolve ${entry} to its .d.ts, got ${resolved}`);
+    check(resolved === expected, `TypeScript should resolve ${entry} to ${expected}, got ${resolved}`);
   }
 
   // A product's build checks its theme set in plain Node: theme-css and the interface must import
@@ -163,8 +213,11 @@ try {
     );
   }
 
-  const pkg = JSON.parse(readFileSync(path.join(installed, "package.json"), "utf8"));
-  check(pkg.sideEffects === true, "sideEffects must stay true: every element file registers itself on import");
+  // Only the define modules, `all.js` and the root register elements; class modules are pure.
+  check(
+    JSON.stringify(pkg.sideEffects) === JSON.stringify(["./dist/**/*.define.js", "./dist/all.js", "./dist/index.js"]),
+    `sideEffects must list only the define modules, all.js and index.js, got ${JSON.stringify(pkg.sideEffects)}`,
+  );
 
   let maps = 0;
   const walk = (directory) => {

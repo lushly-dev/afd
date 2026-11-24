@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect } from "@lushly-dev/specimen/test";
 
-import "./violet-color-swatch";
+import "./violet-color-swatch.define";
 
 type VioletColorSwatchStoryArgs = {
     value: string;

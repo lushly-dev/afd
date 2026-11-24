@@ -1,8 +1,5 @@
-import { FASTElement, attr, css, html, observable, repeat, when } from "@lushly-dev/fast-element";
+import { FASTElement, attr, css, html, observable, repeat, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
-import "../color-swatch/violet-color-swatch";
-import "../icon/violet-icon";
-import { registerSystemChevronRightIcon } from "../icon/generated/icons/system-chevron-right";
 import { installFormDisabled } from "../foundations/violet-form-disabled";
 import {
     clamp,
@@ -22,7 +19,6 @@ const DEFAULT_COLOR = "#146ba0";
 const DEFAULT_PRESETS = ["#181b1a", "#2c5e4b", "#a3ebcd", "#146ba0", "#c42a1a", "#f96e5b", "#92400e", "#6b7d6e"];
 
 let violetColorPickerCount = 0;
-registerSystemChevronRightIcon();
 
 const styles = css`
     ${violetFieldTokenDefaults}
@@ -1161,13 +1157,12 @@ observable(VioletColorPicker.prototype, "lightness");
 observable(VioletColorPicker.prototype, "hexDraft");
 observable(VioletColorPicker.prototype, "validationInvalid");
 
-if (!customElements.get("violet-color-picker")) {
-    await VioletColorPicker.define({
-        name: "violet-color-picker",
-        template,
-        styles,
-        shadowOptions: {
-            delegatesFocus: true,
-        },
-    });
-}
+/** The FAST definition of `<violet-color-picker>`; `defineVioletColorPicker` in `./violet-color-picker.define` registers it. */
+export const violetColorPickerDefinition = {
+    name: "violet-color-picker",
+    template,
+    styles,
+    shadowOptions: {
+        delegatesFocus: true,
+    },
+} satisfies PartialFASTElementDefinition;

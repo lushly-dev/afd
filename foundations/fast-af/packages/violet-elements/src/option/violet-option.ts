@@ -1,4 +1,4 @@
-import { FASTElement, Observable, attr, css, html, observable } from "@lushly-dev/fast-element";
+import { FASTElement, Observable, attr, css, html, observable, type PartialFASTElementDefinition, type FASTElementExtension } from "@lushly-dev/fast-element";
 
 import { observeAttribute, reflectStringAttribute } from "../listbox/violet-selection-helpers";
 import { violetActionTokenDefaults } from "../theme/violet-token-defaults";
@@ -347,14 +347,12 @@ attr({ mode: "boolean" })(VioletOption.prototype, "selected");
 attr({ mode: "boolean" })(VioletOption.prototype, "active");
 attr({ mode: "boolean" })(VioletOption.prototype, "disabled");
 
-if (!customElements.get("violet-option")) {
-    await FASTElement.define(
-        VioletOption,
-        {
-            name: "violet-option",
-            template,
-            styles,
-        },
-        [observeAttribute("value")]
-    );
-}
+/** The FAST definition of `<violet-option>`; `defineVioletOption` in `./violet-option.define` registers it. */
+export const violetOptionDefinition = {
+    name: "violet-option",
+    template,
+    styles,
+} satisfies PartialFASTElementDefinition;
+
+/** The FAST extensions `<violet-option>` is defined with. */
+export const violetOptionExtensions: FASTElementExtension[] = [observeAttribute("value")];

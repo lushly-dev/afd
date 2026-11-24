@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect } from "@lushly-dev/specimen/test";
 
-import "./violet-persona";
+import "./violet-persona.define";
 import type { VioletPersona } from "./violet-persona";
 
 // An inline SVG portrait, so the story loads no remote image: Specimen's pages reach only the bench's origin.

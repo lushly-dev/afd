@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect } from "@lushly-dev/specimen/test";
 
-import "./violet-calendar";
+import "./violet-calendar.define";
 import type { VioletCalendar } from "./violet-calendar";
 
 type Story = StoryObj<VioletCalendar>;

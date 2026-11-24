@@ -1,17 +1,6 @@
-import {
-  attr,
-  css,
-  FASTElement,
-  html,
-  observable,
-  repeat,
-  Updates,
-  when,
-} from "@lushly-dev/fast-element";
+import { attr, css, FASTElement, html, observable, repeat, Updates, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
-import "../listbox/violet-listbox";
 import type { VioletListbox } from "../listbox/violet-listbox";
-import "../option/violet-option";
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 import type { VioletDataGridEditorOption } from "./violet-data-grid";
 import {
@@ -928,13 +917,12 @@ observable(VioletDataGridMultiPicker.prototype, "options");
 observable(VioletDataGridMultiPicker.prototype, "open");
 observable(VioletDataGridMultiPicker.prototype, "filterQuery");
 
-if (!customElements.get("violet-data-grid-multi-picker")) {
-  await FASTElement.define(VioletDataGridMultiPicker, {
-    name: "violet-data-grid-multi-picker",
-    template,
-    styles,
-    shadowOptions: {
-      delegatesFocus: true,
-    },
-  });
-}
+/** The FAST definition of `<violet-data-grid-multi-picker>`; `defineVioletDataGridMultiPicker` in `./violet-data-grid-multi-picker.define` registers it. */
+export const violetDataGridMultiPickerDefinition = {
+  name: "violet-data-grid-multi-picker",
+  template,
+  styles,
+  shadowOptions: {
+    delegatesFocus: true,
+  },
+} satisfies PartialFASTElementDefinition;

@@ -3,8 +3,8 @@ import { cdp, server, userEvent } from "vitest/browser";
 
 const isChromium = server.browser === "chromium";
 
-import "./violet-file-upload";
-import "../theme/violet-theme";
+import "./violet-file-upload.define";
+import "../theme/violet-theme.define";
 import { loadVioletBuiltInTheme } from "../theme/violet-theme-runtime";
 import type { VioletFileUpload } from "./violet-file-upload";
 

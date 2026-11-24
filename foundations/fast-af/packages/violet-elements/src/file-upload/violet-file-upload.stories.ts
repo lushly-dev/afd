@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect, userEvent, waitFor } from "@lushly-dev/specimen/test";
 
-import "./violet-file-upload";
+import "./violet-file-upload.define";
 import type { VioletFileUpload } from "./violet-file-upload";
 
 type VioletFileUploadStoryArgs = {

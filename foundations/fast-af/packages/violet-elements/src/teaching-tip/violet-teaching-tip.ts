@@ -1,16 +1,11 @@
-import { FASTElement, attr, css, html, observable } from "@lushly-dev/fast-element";
+import { FASTElement, attr, css, html, observable, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
-import "../icon/violet-icon";
-import "../icon-button/violet-icon-button";
-import { registerSystemCloseIcon } from "../icon/generated";
 import {
     LazyFallbackPositionController,
     bindOverlayAnchor,
     createAnchorName,
 } from "../shared/overlay-anchor";
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
-
-registerSystemCloseIcon();
 
 let violetTeachingTipId = 0;
 
@@ -516,10 +511,9 @@ attr({ attribute: "no-close-button", mode: "boolean" })(VioletTeachingTip.protot
 attr({ attribute: "current-step", converter: { fromView: (val: string) => Number.parseInt(val, 10) || 0, toView: (val: number) => String(val) } })(VioletTeachingTip.prototype, "currentStep");
 attr({ attribute: "total-steps", converter: { fromView: (val: string) => Number.parseInt(val, 10) || 0, toView: (val: number) => String(val) } })(VioletTeachingTip.prototype, "totalSteps");
 
-if (!customElements.get("violet-teaching-tip")) {
-    await FASTElement.define(VioletTeachingTip, {
-        name: "violet-teaching-tip",
-        template,
-        styles,
-    });
-}
+/** The FAST definition of `<violet-teaching-tip>`; `defineVioletTeachingTip` in `./violet-teaching-tip.define` registers it. */
+export const violetTeachingTipDefinition = {
+    name: "violet-teaching-tip",
+    template,
+    styles,
+} satisfies PartialFASTElementDefinition;

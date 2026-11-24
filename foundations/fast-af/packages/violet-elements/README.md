@@ -48,13 +48,49 @@ The older `packages/components` package remains available as a Fluent-era legacy
 ```ts
 // Registers every Violet element and exports their classes and types.
 import "@lushly-dev/violet-elements";
+
+// Registers <violet-button> alone. <violet-alert> also registers the button, card, icon and
+// icon-button it uses.
+import "@lushly-dev/violet-elements/button/define";
+import "@lushly-dev/violet-elements/alert/define";
+
+// The class and its FAST definition, registering nothing.
+import { VioletButton, violetButtonDefinition } from "@lushly-dev/violet-elements/button";
+
+// Into a scoped registry: the element and the elements it uses.
+import { defineVioletButton } from "@lushly-dev/violet-elements/button/define";
+await defineVioletButton(new CustomElementRegistry());
 ```
 
+- Each element has two entries, named after its tag without `violet-`: `@lushly-dev/violet-elements/<name>`
+  exports the class (`VioletButton`) and its definition (`violetButtonDefinition`) and registers
+  nothing; `@lushly-dev/violet-elements/<name>/define` registers it in the global registry when
+  imported and exports `define<Class>(registry = customElements)`, which defines it, after the
+  elements it uses, in the registry given. Defining it again does nothing. A scoped
+  registry holds the element, but the elements it creates in its own shadow root are still created
+  in the global registry: full isolation is a follow-up,
+  [#2437](https://github.com/lushly-dev/afd/issues/2437).
+- `@lushly-dev/violet-elements/theme` is the theme API with `VioletTheme`, registering nothing;
+  `@lushly-dev/violet-elements/theme/define` registers `<violet-theme>`.
+- `@lushly-dev/violet-elements/icons/system-<name>` exports one system icon and its register
+  function (`registerSystemSearchIcon`); `@lushly-dev/violet-elements/icon-registry` is the icon
+  registry (`registerVioletIcon`, `resolveVioletIcon`).
 - `@lushly-dev/violet-elements/custom-elements.json` is the Custom Elements Manifest (also referenced by the `customElements` field).
 - `@lushly-dev/violet-elements/tokens/*` exposes the token sources: `tokens/interface.json`, the custom properties the components read, and `tokens/violet-theme.export.json`, the built-in default theme.
 - `@lushly-dev/violet-elements/theme-css` is the Node-safe theme-set helpers (`findVioletThemeSetGaps` and the types), side-effect free; see [Runtime Theme](#runtime-theme).
 - `@lushly-dev/violet-elements/theme-runtime` is the runtime theme alone (`installVioletTheme`, `installVioletThemeSet`, `loadVioletBuiltInTheme`, the preset functions), without the built-in set's values or any element; see [Runtime Theme](#runtime-theme).
-- Element modules register themselves when imported, so the package declares `sideEffects: true`.
+- `@lushly-dev/violet-elements/theme-builtin` is the built-in set's values (`violetThemeBuiltInSet`, `violetThemeCssText`).
+- **Adding or changing an element.** The class module holds the class and exports
+  `violet<Name>Definition` and nothing that registers; the sibling `violet-<x>.define.ts` defines
+  the elements it uses (`await defineVioletIcon(registry)`), registers its system icons and calls
+  `defineVioletElement`. Add the element to `src/index.ts`, run `pnpm cem:analyze` (the codemod
+  reads the element list from the manifest), then run
+  `node scripts/codemods/split-define.mjs` from the repository root: it writes `src/all.ts` and
+  the `exports` entries, and its `--check` (part of `pnpm lint`) fails when a class module imports
+  an element its define module does not define.
+- Only the define modules and the root register elements, so `sideEffects` lists
+  `./dist/**/*.define.js`, `./dist/all.js` and `./dist/index.js`, and a bundler drops the rest of
+  what a product does not use. The build layout (`dist/*`) is not exported.
 
 ## Story Review
 
@@ -227,13 +263,13 @@ that fails is reported with `console.error`, not cached, and retried by the next
 `loadVioletBuiltInTheme()` rejects, so a page that awaits it at startup catches that rejection and
 carries on with the fallbacks.
 
-The laziness helps only a consumer that deep-imports the runtime and the element modules. The
+The laziness helps only a consumer that imports the runtime and the element subpaths. The
 package root and `theme/index.ts` statically re-export the built-in module (`violetThemeCssText`,
 `violetThemeBuiltInSet` and the rest), so importing either loads it eagerly, and Vite may warn that
 the module is imported both statically and dynamically (it then stays in the same chunk). A product
 that installs its own set and wants the built-in values out of its bundle imports the element
-modules (`@lushly-dev/violet-elements/dist/<element>/<element>.js`) and
-`@lushly-dev/violet-elements/theme-runtime`, never the root.
+subpaths (`@lushly-dev/violet-elements/<name>/define`) and
+`@lushly-dev/violet-elements/theme-runtime`, never the root or `./theme`.
 
 A product that brings its own Violet tree installs its complete theme set as data instead. The
 set replaces the built-in default, which is then never written, wherever this package installed a

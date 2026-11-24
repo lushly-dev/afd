@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import "./violet-gantt";
+import "./violet-gantt.define";
 import {
   VIOLET_GANTT_DATE_LIMITS,
   type VioletGantt,

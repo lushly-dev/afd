@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { claim } from "@lushly-dev/specimen/evidence";
 import { expect, userEvent, waitFor, within } from "@lushly-dev/specimen/test";
 
-import "./violet-switch";
+import "./violet-switch.define";
 import type { VioletSwitch } from "./violet-switch";
 
 type VioletSwitchStoryArgs = {

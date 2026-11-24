@@ -16,11 +16,11 @@ import {
 	Updates,
 	when,
 } from '@lushly-dev/fast-element';
-import '@lushly-dev/violet-elements/dist/dialog/violet-dialog.js';
-import '@lushly-dev/violet-elements/dist/listbox/violet-listbox.js';
-import '@lushly-dev/violet-elements/dist/option/violet-option.js';
-import type { VioletDialog } from '@lushly-dev/violet-elements/dist/dialog/violet-dialog.js';
-import type { VioletListbox } from '@lushly-dev/violet-elements/dist/listbox/violet-listbox.js';
+import '@lushly-dev/violet-elements/dialog/define';
+import '@lushly-dev/violet-elements/listbox/define';
+import '@lushly-dev/violet-elements/option/define';
+import type { VioletDialog } from '@lushly-dev/violet-elements/dialog';
+import type { VioletListbox } from '@lushly-dev/violet-elements/listbox';
 import { trapTab } from './focus.js';
 
 export interface PaletteResult {

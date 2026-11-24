@@ -21,11 +21,11 @@ import {
 	when,
 } from '@lushly-dev/fast-element';
 import type { LoamKernel, ProjectV1 } from '@lushly-dev/loam-kernel';
-import '@lushly-dev/violet-elements/dist/listbox/violet-listbox.js';
-import '@lushly-dev/violet-elements/dist/option/violet-option.js';
-import '@lushly-dev/violet-elements/dist/popover/violet-popover.js';
-import type { VioletListbox } from '@lushly-dev/violet-elements/dist/listbox/violet-listbox.js';
-import type { VioletPopover } from '@lushly-dev/violet-elements/dist/popover/violet-popover.js';
+import '@lushly-dev/violet-elements/listbox/define';
+import '@lushly-dev/violet-elements/option/define';
+import '@lushly-dev/violet-elements/popover/define';
+import type { VioletListbox } from '@lushly-dev/violet-elements/listbox';
+import type { VioletPopover } from '@lushly-dev/violet-elements/popover';
 import { focusMainHeading } from '../apps/focus-fallback.js';
 import { registerAppIcons } from '../apps/icons.js';
 import type { LoamProjectSwitcher } from '../elements/project-switcher.js';

@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect } from "@lushly-dev/specimen/test";
 
-import "./violet-message-media";
+import "./violet-message-media.define";
 import type { VioletMessageMedia } from "./violet-message-media";
 
 type MediaStoryArgs = {

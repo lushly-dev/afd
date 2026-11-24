@@ -1,4 +1,4 @@
-import { FASTElement, attr, css, html } from "@lushly-dev/fast-element";
+import { FASTElement, attr, css, html, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
@@ -241,13 +241,12 @@ attr({
     },
 })(VioletAccordionItem.prototype, "headingLevel");
 
-if (!customElements.get("violet-accordion-item")) {
-    await FASTElement.define(VioletAccordionItem, {
-        name: "violet-accordion-item",
-        template,
-        styles,
-        shadowOptions: {
-            delegatesFocus: true,
-        },
-    });
-}
+/** The FAST definition of `<violet-accordion-item>`; `defineVioletAccordionItem` in `./violet-accordion-item.define` registers it. */
+export const violetAccordionItemDefinition = {
+    name: "violet-accordion-item",
+    template,
+    styles,
+    shadowOptions: {
+        delegatesFocus: true,
+    },
+} satisfies PartialFASTElementDefinition;

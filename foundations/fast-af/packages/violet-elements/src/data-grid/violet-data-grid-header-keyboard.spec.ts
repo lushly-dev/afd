@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import "./violet-data-grid";
+import "./violet-data-grid.define";
 import type { VioletDataGrid } from "./violet-data-grid";
 
 const resizeChord = "{Control>}{Alt>}r{/Alt}{/Control}";
@@ -571,7 +571,7 @@ describe("violet-data-grid role=grid and roving focus (#510)", () => {
 
     it("keeps a single Tab stop and keyboard access for custom cell widgets in cell mode", async () => {
         const { html } = await import("@lushly-dev/fast-element");
-        await import("../button/violet-button");
+        await import("../button/violet-button.define");
         document.body.innerHTML = `<button id="before" type="button">Before</button>`;
         const grid = document.createElement("violet-data-grid") as VioletDataGrid;
         const target = grid as unknown as Record<string, unknown>;

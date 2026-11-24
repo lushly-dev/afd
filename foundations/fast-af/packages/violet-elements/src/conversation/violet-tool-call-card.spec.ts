@@ -1,7 +1,7 @@
 import { Observable } from "@lushly-dev/fast-element";
 import { afterEach, describe, expect, it } from "vitest";
 
-import "./violet-tool-call-card";
+import "./violet-tool-call-card.define";
 import type { VioletApprovalCard } from "./violet-approval-card";
 import type { VioletToolCallCard } from "./violet-tool-call-card";
 

@@ -3,8 +3,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { server, userEvent } from "vitest/browser";
 import type { VioletListbox } from "../listbox/violet-listbox";
 
-import "./violet-data-grid-multi-picker";
-import "./violet-data-grid";
+import "./violet-data-grid-multi-picker.define";
+import "./violet-data-grid.define";
 import type {
   VioletDataGrid,
   VioletDataGridCellTemplateContext,

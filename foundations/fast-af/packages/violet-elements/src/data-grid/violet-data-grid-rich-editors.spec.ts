@@ -2,12 +2,12 @@ import { html, Updates } from "@lushly-dev/fast-element";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import "./violet-data-grid";
-import "./violet-data-grid-attachment-cell";
-import "./violet-data-grid-multi-picker";
-import "./violet-data-grid-persona-picker";
-import "./violet-data-grid-reference-picker";
-import "./violet-data-grid-rating";
+import "./violet-data-grid.define";
+import "./violet-data-grid-attachment-cell.define";
+import "./violet-data-grid-multi-picker.define";
+import "./violet-data-grid-persona-picker.define";
+import "./violet-data-grid-reference-picker.define";
+import "./violet-data-grid-rating.define";
 import type {
   VioletDataGrid,
   VioletDataGridCellLocation,

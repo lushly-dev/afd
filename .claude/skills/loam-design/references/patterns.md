@@ -268,8 +268,8 @@ text while invalid).
 ## Icons
 
 ```ts
-import '@lushly-dev/violet-elements/dist/icon/violet-icon.js';
-import { registerSystemSearchIcon } from '@lushly-dev/violet-elements/dist/icon/generated/icons/system-search.js';
+import '@lushly-dev/violet-elements/icon/define';
+import { registerSystemSearchIcon } from '@lushly-dev/violet-elements/icons/system-search';
 
 registerSystemSearchIcon();
 ```
@@ -292,8 +292,9 @@ renders the fallback glyph.
 - `size.line.sm` (16px) in the title bar and status bar; `size.line.md`
   (20px) in the rail, the tab bar and part headers. Beside text, leave the
   default 1em.
-- Import `violet-icon` from `@lushly-dev/violet-elements/dist/<component>/…`,
-  never the package root.
+- Register an element through its subpath, `@lushly-dev/violet-elements/<name>/define`
+  (its class alone is `@lushly-dev/violet-elements/<name>`), never the package root,
+  which registers every element.
 
 ## A layout class rule
 

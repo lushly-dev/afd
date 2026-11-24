@@ -1,4 +1,4 @@
-import { FASTElement, Observable, attr, css, html } from "@lushly-dev/fast-element";
+import { FASTElement, Observable, attr, css, html, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
 import { violetActionTokenDefaults, violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
@@ -178,13 +178,12 @@ attr({ mode: "boolean" })(VioletSegment.prototype, "checked");
 attr({ mode: "boolean" })(VioletSegment.prototype, "disabled");
 attr(VioletSegment.prototype, "value");
 
-if (!customElements.get("violet-segment")) {
-    await FASTElement.define(VioletSegment, {
-        name: "violet-segment",
-        template,
-        styles,
-        shadowOptions: {
-            delegatesFocus: true,
-        },
-    });
-}
+/** The FAST definition of `<violet-segment>`; `defineVioletSegment` in `./violet-segment.define` registers it. */
+export const violetSegmentDefinition = {
+    name: "violet-segment",
+    template,
+    styles,
+    shadowOptions: {
+        delegatesFocus: true,
+    },
+} satisfies PartialFASTElementDefinition;

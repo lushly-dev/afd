@@ -163,7 +163,11 @@ export const WORKFLOW_GRAPH = {
 	'fast-af.yml': {
 		usesSetupAction: true,
 		groups: ['fastAf', 'pnpmLock', 'pnpmWorkspace', 'playwrightAction'],
-		extra: ['tests/consumers/fast-af/**', 'scripts/release/exec-tool.mjs'],
+		extra: [
+			'tests/consumers/fast-af/**',
+			'scripts/release/exec-tool.mjs',
+			'scripts/codemods/split-define.mjs',
+		],
 	},
 	'health-dashboard.yml': {
 		usesSetupAction: true,

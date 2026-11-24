@@ -1,8 +1,7 @@
-import { FASTElement, attr, css, html, observable } from "@lushly-dev/fast-element";
+import { FASTElement, attr, css, html, observable, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 import { registerSystemAttachIcon } from "../icon/generated/icons/system-attach";
-import "../icon/violet-icon";
 
 const styles = css`
     ${violetSurfaceTokenDefaults}
@@ -238,10 +237,9 @@ attr(VioletMessageMedia.prototype, "filename");
 attr(VioletMessageMedia.prototype, "alt");
 attr({ attribute: "allowed-origins" })(VioletMessageMedia.prototype, "allowedOrigins");
 
-if (!customElements.get("violet-message-media")) {
-    await FASTElement.define(VioletMessageMedia, {
-        name: "violet-message-media",
-        template,
-        styles,
-    });
-}
+/** The FAST definition of `<violet-message-media>`; `defineVioletMessageMedia` in `./violet-message-media.define` registers it. */
+export const violetMessageMediaDefinition = {
+    name: "violet-message-media",
+    template,
+    styles,
+} satisfies PartialFASTElementDefinition;

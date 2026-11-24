@@ -1,20 +1,8 @@
-import { FASTElement, Updates, attr, css, html, observable, repeat, when } from "@lushly-dev/fast-element";
+import { FASTElement, Updates, attr, css, html, observable, repeat, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 import type { ViewTemplate } from "@lushly-dev/fast-element";
 
-import "../breadcrumb-item/violet-breadcrumb-item";
-import "../breadcrumb/violet-breadcrumb";
-import "../button/violet-button";
-import "../empty-state/violet-empty-state";
-import { registerSystemDocumentIcon, registerSystemFolderIcon } from "../icon/generated";
-import "../icon/violet-icon";
-import "../spinner/violet-spinner";
 import { violetFieldTokenDefaults, violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
-import "../tree-item/violet-tree-item";
-import "../tree/violet-tree";
 import type { VioletTree } from "../tree/violet-tree";
-
-registerSystemFolderIcon();
-registerSystemDocumentIcon();
 
 /** Whether an explorer item is a folder (navigable) or a file (activatable). */
 export type VioletFileExplorerItemKind = "file" | "folder";
@@ -1237,10 +1225,9 @@ attr({ mode: "boolean" })(VioletFileExplorer.prototype, "busy");
 attr({ attribute: "load-error" })(VioletFileExplorer.prototype, "loadError");
 attr(VioletFileExplorer.prototype, "label");
 
-if (!customElements.get("violet-file-explorer")) {
-    await FASTElement.define(VioletFileExplorer, {
-        name: "violet-file-explorer",
-        template,
-        styles,
-    });
-}
+/** The FAST definition of `<violet-file-explorer>`; `defineVioletFileExplorer` in `./violet-file-explorer.define` registers it. */
+export const violetFileExplorerDefinition = {
+    name: "violet-file-explorer",
+    template,
+    styles,
+} satisfies PartialFASTElementDefinition;

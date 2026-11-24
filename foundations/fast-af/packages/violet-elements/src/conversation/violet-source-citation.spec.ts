@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import "./violet-source-citation";
+import "./violet-source-citation.define";
 import type { VioletSourceCitation } from "./violet-source-citation";
 
 function nextFrame(): Promise<void> {

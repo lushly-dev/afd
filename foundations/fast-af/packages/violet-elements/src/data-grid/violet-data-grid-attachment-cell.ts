@@ -1,20 +1,5 @@
-import {
-  attr,
-  css,
-  FASTElement,
-  html,
-  observable,
-  repeat,
-  Updates,
-  when,
-} from "@lushly-dev/fast-element";
+import { attr, css, FASTElement, html, observable, repeat, Updates, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
-import { registerSystemDismissIcon } from "../icon/generated/icons/system-dismiss";
-import { registerSystemDocumentIcon } from "../icon/generated/icons/system-document";
-import "../file-upload/violet-file-upload";
-import "../icon-button/violet-icon-button";
-import "../icon/violet-icon";
-import "../image/violet-image";
 import type { VioletFileUpload } from "../file-upload/violet-file-upload";
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 import {
@@ -31,9 +16,6 @@ import {
 let violetDataGridAttachmentCellInstanceCount = 0;
 
 const MAX_VISIBLE_ATTACHMENTS = 2;
-
-registerSystemDocumentIcon();
-registerSystemDismissIcon();
 
 export type VioletDataGridAttachmentCellChangeDetail = {
   attachments: VioletDataGridAttachmentItem[];
@@ -964,13 +946,12 @@ attr({ mode: "boolean" })(VioletDataGridAttachmentCell.prototype, "readonly");
 observable(VioletDataGridAttachmentCell.prototype, "attachments");
 observable(VioletDataGridAttachmentCell.prototype, "open");
 
-if (!customElements.get("violet-data-grid-attachment-cell")) {
-  await FASTElement.define(VioletDataGridAttachmentCell, {
-    name: "violet-data-grid-attachment-cell",
-    template,
-    styles,
-    shadowOptions: {
-      delegatesFocus: true,
-    },
-  });
-}
+/** The FAST definition of `<violet-data-grid-attachment-cell>`; `defineVioletDataGridAttachmentCell` in `./violet-data-grid-attachment-cell.define` registers it. */
+export const violetDataGridAttachmentCellDefinition = {
+  name: "violet-data-grid-attachment-cell",
+  template,
+  styles,
+  shadowOptions: {
+    delegatesFocus: true,
+  },
+} satisfies PartialFASTElementDefinition;

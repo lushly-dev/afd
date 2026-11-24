@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import "./violet-text-field";
+import "./violet-text-field.define";
 import type { VioletTextField } from "./violet-text-field";
 
 function nextFrame(): Promise<void> {

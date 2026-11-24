@@ -1,11 +1,7 @@
-import { FASTElement, attr, css, html, observable } from "@lushly-dev/fast-element";
+import { FASTElement, attr, css, html, observable, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 import { registerSystemCloseIcon } from "../icon/generated/icons/system-close";
-import "../button/violet-button";
-import "../card/violet-card";
-import "../icon/violet-icon";
-import "../icon-button/violet-icon-button";
 
 const styles = css`
     ${violetSurfaceTokenDefaults}
@@ -341,13 +337,12 @@ attr(VioletSnackbar.prototype, "announcement");
 attr({ mode: "boolean" })(VioletSnackbar.prototype, "dismissible");
 attr(VioletSnackbar.prototype, "timeout");
 
-if (!customElements.get("violet-snackbar")) {
-    await FASTElement.define(VioletSnackbar, {
-        name: "violet-snackbar",
-        template,
-        styles,
-        shadowOptions: {
-            delegatesFocus: true,
-        },
-    });
-}
+/** The FAST definition of `<violet-snackbar>`; `defineVioletSnackbar` in `./violet-snackbar.define` registers it. */
+export const violetSnackbarDefinition = {
+    name: "violet-snackbar",
+    template,
+    styles,
+    shadowOptions: {
+        delegatesFocus: true,
+    },
+} satisfies PartialFASTElementDefinition;

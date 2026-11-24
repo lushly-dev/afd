@@ -1,4 +1,4 @@
-import { FASTElement, attr, css, html, when } from "@lushly-dev/fast-element";
+import { FASTElement, attr, css, html, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 import { installFormDisabled } from "../foundations/violet-form-disabled";
@@ -987,13 +987,12 @@ attr({ mode: "boolean" })(VioletRangeSlider.prototype, "invalid");
 attr({ attribute: "show-ticks", mode: "boolean" })(VioletRangeSlider.prototype, "showTicks");
 attr(VioletRangeSlider.prototype, "orientation");
 
-if (!customElements.get("violet-range-slider")) {
-    await FASTElement.define(VioletRangeSlider, {
-        name: "violet-range-slider",
-        template,
-        styles,
-        shadowOptions: {
-            delegatesFocus: true,
-        },
-    });
-}
+/** The FAST definition of `<violet-range-slider>`; `defineVioletRangeSlider` in `./violet-range-slider.define` registers it. */
+export const violetRangeSliderDefinition = {
+    name: "violet-range-slider",
+    template,
+    styles,
+    shadowOptions: {
+        delegatesFocus: true,
+    },
+} satisfies PartialFASTElementDefinition;

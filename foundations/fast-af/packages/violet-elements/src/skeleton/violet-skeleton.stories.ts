@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect } from "@lushly-dev/specimen/test";
 
-import "./violet-skeleton";
-import "../card/violet-card";
+import "./violet-skeleton.define";
+import "../card/violet-card.define";
 import type { VioletSkeleton } from "./violet-skeleton";
 
 type Story = StoryObj<VioletSkeleton>;

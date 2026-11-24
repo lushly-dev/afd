@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect, userEvent, waitFor } from "@lushly-dev/specimen/test";
 
-import "../button/violet-button";
-import "../text-field/violet-text-field";
-import "./violet-dialog";
+import "../button/violet-button.define";
+import "../text-field/violet-text-field.define";
+import "./violet-dialog.define";
 import type { VioletDialog, VioletDialogType } from "./violet-dialog";
 
 type VioletDialogStoryArgs = {

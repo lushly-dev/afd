@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect, fn, userEvent } from "@lushly-dev/specimen/test";
 
-import "../button/violet-button";
-import "./violet-snackbar";
+import "../button/violet-button.define";
+import "./violet-snackbar.define";
 import type { VioletSnackbar } from "./violet-snackbar";
 
 function nextFrame(): Promise<void> {

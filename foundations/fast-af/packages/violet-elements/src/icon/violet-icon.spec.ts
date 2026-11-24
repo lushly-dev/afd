@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import { hasVioletIcon, registerVioletIcon, resolveVioletIcon } from "./icon-registry";
-import "./violet-icon";
+import "./violet-icon.define";
 import type { VioletIcon } from "./violet-icon";
 
 function nextFrame(): Promise<void> {

@@ -1,11 +1,11 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect, waitFor } from "@lushly-dev/specimen/test";
 
-import "../tab-panel/violet-tab-panel";
+import "../tab-panel/violet-tab-panel.define";
 import type { VioletTabPanel } from "../tab-panel/violet-tab-panel";
-import "../tab/violet-tab";
+import "../tab/violet-tab.define";
 import type { VioletTab } from "../tab/violet-tab";
-import "./violet-tabs";
+import "./violet-tabs.define";
 import type { VioletTabs, VioletTabsAppearance, VioletTabsOrientation } from "./violet-tabs";
 
 type VioletTabsStoryArgs = {

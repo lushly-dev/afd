@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import "../tree-item/violet-tree-item";
-import "./violet-tree";
+import "../tree-item/violet-tree-item.define";
+import "./violet-tree.define";
 import type { VioletTree } from "./violet-tree";
 
 function nextFrame(): Promise<void> {

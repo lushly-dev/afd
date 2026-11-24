@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect, waitFor } from "@lushly-dev/specimen/test";
 
-import "../button/violet-button";
-import "./violet-theme";
+import "../button/violet-button.define";
+import "./violet-theme.define";
 import type { VioletBuiltInThemePreset as VioletThemePreset } from "./violet-theme-runtime";
 
 type ScopedThemeArgs = {

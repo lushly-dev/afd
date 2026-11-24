@@ -15,7 +15,7 @@ function expectInternalsElements(actual: readonly Element[] | null | undefined, 
     }
 }
 
-import "./violet-radio";
+import "./violet-radio.define";
 import type { VioletRadio } from "./violet-radio";
 
 function nextFrame(): Promise<void> {

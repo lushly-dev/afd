@@ -1,4 +1,4 @@
-import { FASTElement, attr, css, html } from "@lushly-dev/fast-element";
+import { FASTElement, attr, css, html, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
 import { violetActionTokenDefaults } from "../theme/violet-token-defaults";
 
@@ -215,13 +215,12 @@ attr(VioletIconButton.prototype, "label");
 attr(VioletIconButton.prototype, "type");
 attr({ mode: "boolean" })(VioletIconButton.prototype, "disabled");
 
-if (!customElements.get("violet-icon-button")) {
-    await FASTElement.define(VioletIconButton, {
-        name: "violet-icon-button",
-        template,
-        styles,
-        shadowOptions: {
-            delegatesFocus: true,
-        },
-    });
-}
+/** The FAST definition of `<violet-icon-button>`; `defineVioletIconButton` in `./violet-icon-button.define` registers it. */
+export const violetIconButtonDefinition = {
+    name: "violet-icon-button",
+    template,
+    styles,
+    shadowOptions: {
+        delegatesFocus: true,
+    },
+} satisfies PartialFASTElementDefinition;

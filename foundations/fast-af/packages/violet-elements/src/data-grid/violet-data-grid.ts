@@ -1,9 +1,4 @@
-import {
-    attr,
-    FASTElement,
-    observable,
-    Updates,
-} from "@lushly-dev/fast-element";
+import { attr, FASTElement, observable, Updates, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 import {
     elementScroll,
     observeElementOffset,
@@ -11,12 +6,6 @@ import {
     Virtualizer,
 } from "@tanstack/virtual-core";
 
-import "../checkbox/violet-checkbox";
-import "../icon/violet-icon";
-import "../radio/violet-radio";
-import "../text-field/violet-text-field";
-import { registerSystemSortAscendingIcon } from "../icon/generated/icons/system-sort-ascending";
-import { registerSystemSortDescendingIcon } from "../icon/generated/icons/system-sort-descending";
 import { styles } from "./violet-data-grid.styles";
 import { template } from "./violet-data-grid.template";
 import {
@@ -211,9 +200,6 @@ export type {
     VioletDataGridSortDirection,
     VioletDataGridSortMode,
 };
-
-registerSystemSortAscendingIcon();
-registerSystemSortDescendingIcon();
 
 /**
  * Violet reusable data grid component.
@@ -4406,13 +4392,12 @@ observable(VioletDataGrid.prototype, "rowModeFocusColumnId");
 observable(VioletDataGrid.prototype, "rowModeMountedRowId");
 observable(VioletDataGrid.prototype, "rovingCellMounted");
 
-if (!customElements.get("violet-data-grid")) {
-    await FASTElement.define(VioletDataGrid, {
-        name: "violet-data-grid",
-        template,
-        styles,
-        shadowOptions: {
-            delegatesFocus: true,
-        },
-    });
-}
+/** The FAST definition of `<violet-data-grid>`; `defineVioletDataGrid` in `./violet-data-grid.define` registers it. */
+export const violetDataGridDefinition = {
+    name: "violet-data-grid",
+    template,
+    styles,
+    shadowOptions: {
+        delegatesFocus: true,
+    },
+} satisfies PartialFASTElementDefinition;

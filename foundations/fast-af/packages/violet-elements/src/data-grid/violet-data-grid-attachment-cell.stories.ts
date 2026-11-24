@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect, waitFor } from "@lushly-dev/specimen/test";
 
-import "./violet-data-grid-attachment-cell";
+import "./violet-data-grid-attachment-cell.define";
 import type {
   VioletDataGridAttachmentCell,
   VioletDataGridAttachmentCellUploadRequestDetail,

@@ -1,4 +1,4 @@
-import { FASTElement, attr, css, html, observable } from "@lushly-dev/fast-element";
+import { FASTElement, attr, css, html, observable, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
 import {
     LazyFallbackPositionController,
@@ -466,10 +466,9 @@ attr({ converter: { fromView: (val: string) => Number.parseInt(val, 10) || 250, 
 attr({ mode: "boolean" })(VioletTooltip.prototype, "open");
 attr(VioletTooltip.prototype, "anchor");
 
-if (!customElements.get("violet-tooltip")) {
-    await FASTElement.define(VioletTooltip, {
-        name: "violet-tooltip",
-        template,
-        styles,
-    });
-}
+/** The FAST definition of `<violet-tooltip>`; `defineVioletTooltip` in `./violet-tooltip.define` registers it. */
+export const violetTooltipDefinition = {
+    name: "violet-tooltip",
+    template,
+    styles,
+} satisfies PartialFASTElementDefinition;

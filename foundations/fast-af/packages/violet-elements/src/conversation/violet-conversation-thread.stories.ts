@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect, waitFor } from "@lushly-dev/specimen/test";
 
-import "./violet-conversation-thread";
-import "./violet-message";
-import "./violet-message-text";
+import "./violet-conversation-thread.define";
+import "./violet-message.define";
+import "./violet-message-text.define";
 import type { VioletConversationThread } from "./violet-conversation-thread";
 
 type ThreadStoryArgs = {

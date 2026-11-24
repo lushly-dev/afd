@@ -513,7 +513,7 @@ describe('P3-E10: budgets in Chromium', () => {
 			'utf8'
 		);
 		const listed = /const FIRST_PAINT_CHUNKS = \[([^\]]+)\]/.exec(source)?.[1] ?? '';
-		const expected = [...listed.matchAll(/'([\w-]+)'/g)].map((match) => match[1]).sort();
+		const expected = [...listed.matchAll(/'([\w.-]+)'/g)].map((match) => match[1]).sort();
 		expect(expected.length).toBeGreaterThan(10);
 		const local = await serveDist();
 		try {

@@ -15,16 +15,16 @@ import {
 	Updates,
 	when,
 } from '@lushly-dev/fast-element';
-import '@lushly-dev/violet-elements/dist/button/violet-button.js';
-import '@lushly-dev/violet-elements/dist/listbox/violet-listbox.js';
-import '@lushly-dev/violet-elements/dist/option/violet-option.js';
-import '@lushly-dev/violet-elements/dist/spinner/violet-spinner.js';
-import '@lushly-dev/violet-elements/dist/text-field/violet-text-field.js';
+import '@lushly-dev/violet-elements/button/define';
+import '@lushly-dev/violet-elements/listbox/define';
+import '@lushly-dev/violet-elements/option/define';
+import '@lushly-dev/violet-elements/spinner/define';
+import '@lushly-dev/violet-elements/text-field/define';
 import type { CommandResult } from '@lushly-dev/afd-core';
 import type { LoamClientV1 } from '@lushly-dev/loam-sdk';
-import type { VioletButton } from '@lushly-dev/violet-elements/dist/button/violet-button.js';
-import type { VioletListbox } from '@lushly-dev/violet-elements/dist/listbox/violet-listbox.js';
-import type { VioletTextField } from '@lushly-dev/violet-elements/dist/text-field/violet-text-field.js';
+import type { VioletButton } from '@lushly-dev/violet-elements/button';
+import type { VioletListbox } from '@lushly-dev/violet-elements/listbox';
+import type { VioletTextField } from '@lushly-dev/violet-elements/text-field';
 import {
 	type ConsoleCommand,
 	filterCommands,

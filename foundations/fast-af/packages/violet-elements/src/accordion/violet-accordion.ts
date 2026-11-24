@@ -1,6 +1,5 @@
-import { FASTElement, attr, css, html, observable } from "@lushly-dev/fast-element";
+import { FASTElement, attr, css, html, observable, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
-import "../accordion-item/violet-accordion-item";
 import type { VioletAccordionItem } from "../accordion-item/violet-accordion-item";
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
@@ -156,10 +155,9 @@ export class VioletAccordion extends FASTElement {
 
 attr({ attribute: "expand-mode" })(VioletAccordion.prototype, "expandMode");
 
-if (!customElements.get("violet-accordion")) {
-    await FASTElement.define(VioletAccordion, {
-        name: "violet-accordion",
-        template,
-        styles,
-    });
-}
+/** The FAST definition of `<violet-accordion>`; `defineVioletAccordion` in `./violet-accordion.define` registers it. */
+export const violetAccordionDefinition = {
+    name: "violet-accordion",
+    template,
+    styles,
+} satisfies PartialFASTElementDefinition;

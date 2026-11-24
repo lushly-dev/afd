@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import "./violet-chat-suggestions";
+import "./violet-chat-suggestions.define";
 import type { VioletChatSuggestions } from "./violet-chat-suggestions";
 
 function nextFrame(): Promise<void> {

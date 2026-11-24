@@ -17,9 +17,9 @@
  */
 
 import { attr, css, FASTElement, html, observable, Updates } from '@lushly-dev/fast-element';
-import '@lushly-dev/violet-elements/dist/tree/violet-tree.js';
-import type { VioletTree } from '@lushly-dev/violet-elements/dist/tree/violet-tree.js';
-import type { VioletTreeItem } from '@lushly-dev/violet-elements/dist/tree-item/violet-tree-item.js';
+import '@lushly-dev/violet-elements/tree/define';
+import type { VioletTree } from '@lushly-dev/violet-elements/tree';
+import type { VioletTreeItem } from '@lushly-dev/violet-elements/tree-item';
 
 /** One node of a tree: an app's `tree` command returns these (7.4), and the documents sidebar builds them. */
 export interface LoamTreeNode {

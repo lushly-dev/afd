@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import "./violet-accordion-item";
+import "./violet-accordion-item.define";
 import type { VioletAccordionItem } from "./violet-accordion-item";
 
 function nextFrame(): Promise<void> {

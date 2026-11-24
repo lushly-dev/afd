@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect, waitFor } from "@lushly-dev/specimen/test";
 
-import "./violet-card";
+import "./violet-card.define";
 import type { VioletCard, VioletCardAppearance, VioletCardOrientation, VioletCardPadding } from "./violet-card";
 
 // Inline SVG, so the stories load no remote image: Specimen's pages reach only the bench's origin.

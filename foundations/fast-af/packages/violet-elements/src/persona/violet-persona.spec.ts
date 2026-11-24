@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import "./violet-persona";
+import "./violet-persona.define";
 import type { VioletPersona } from "./violet-persona";
 
 function nextFrame(): Promise<void> {

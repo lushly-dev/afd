@@ -180,6 +180,12 @@
           ],
           "customElement": true,
           "tagName": "violet-accordion-item"
+        },
+        {
+          "kind": "variable",
+          "name": "violetAccordionItemDefinition",
+          "default": "{ name: \"violet-accordion-item\", template, styles, shadowOptions: { delegatesFocus: true, }, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-accordion-item>`; `defineVioletAccordionItem` in `./violet-accordion-item.define` registers it."
         }
       ],
       "exports": [
@@ -188,6 +194,14 @@
           "name": "VioletAccordionItem",
           "declaration": {
             "name": "VioletAccordionItem",
+            "module": "src/accordion-item/violet-accordion-item.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetAccordionItemDefinition",
+          "declaration": {
+            "name": "violetAccordionItemDefinition",
             "module": "src/accordion-item/violet-accordion-item.ts"
           }
         }
@@ -323,6 +337,12 @@
           ],
           "customElement": true,
           "tagName": "violet-accordion"
+        },
+        {
+          "kind": "variable",
+          "name": "violetAccordionDefinition",
+          "default": "{ name: \"violet-accordion\", template, styles, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-accordion>`; `defineVioletAccordion` in `./violet-accordion.define` registers it."
         }
       ],
       "exports": [
@@ -331,6 +351,14 @@
           "name": "VioletAccordion",
           "declaration": {
             "name": "VioletAccordion",
+            "module": "src/accordion/violet-accordion.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetAccordionDefinition",
+          "declaration": {
+            "name": "violetAccordionDefinition",
             "module": "src/accordion/violet-accordion.ts"
           }
         }
@@ -597,6 +625,12 @@
           ],
           "customElement": true,
           "tagName": "violet-alert"
+        },
+        {
+          "kind": "variable",
+          "name": "violetAlertDefinition",
+          "default": "{ name: \"violet-alert\", template, styles, shadowOptions: { delegatesFocus: true, }, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-alert>`; `defineVioletAlert` in `./violet-alert.define` registers it."
         }
       ],
       "exports": [
@@ -605,6 +639,14 @@
           "name": "VioletAlert",
           "declaration": {
             "name": "VioletAlert",
+            "module": "src/alert/violet-alert.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetAlertDefinition",
+          "declaration": {
+            "name": "violetAlertDefinition",
             "module": "src/alert/violet-alert.ts"
           }
         }
@@ -793,6 +835,12 @@
           ],
           "customElement": true,
           "tagName": "violet-badge"
+        },
+        {
+          "kind": "variable",
+          "name": "violetBadgeDefinition",
+          "default": "{ name: \"violet-badge\", template, styles, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-badge>`; `defineVioletBadge` in `./violet-badge.define` registers it."
         }
       ],
       "exports": [
@@ -801,6 +849,14 @@
           "name": "VioletBadge",
           "declaration": {
             "name": "VioletBadge",
+            "module": "src/badge/violet-badge.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetBadgeDefinition",
+          "declaration": {
+            "name": "violetBadgeDefinition",
             "module": "src/badge/violet-badge.ts"
           }
         }
@@ -920,6 +976,12 @@
           ],
           "customElement": true,
           "tagName": "violet-breadcrumb-item"
+        },
+        {
+          "kind": "variable",
+          "name": "violetBreadcrumbItemDefinition",
+          "default": "{ name: \"violet-breadcrumb-item\", template, styles, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-breadcrumb-item>`; `defineVioletBreadcrumbItem` in `./violet-breadcrumb-item.define` registers it."
         }
       ],
       "exports": [
@@ -928,6 +990,14 @@
           "name": "VioletBreadcrumbItem",
           "declaration": {
             "name": "VioletBreadcrumbItem",
+            "module": "src/breadcrumb-item/violet-breadcrumb-item.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetBreadcrumbItemDefinition",
+          "declaration": {
+            "name": "violetBreadcrumbItemDefinition",
             "module": "src/breadcrumb-item/violet-breadcrumb-item.ts"
           }
         }
@@ -1044,6 +1114,12 @@
           ],
           "customElement": true,
           "tagName": "violet-breadcrumb"
+        },
+        {
+          "kind": "variable",
+          "name": "violetBreadcrumbDefinition",
+          "default": "{ name: \"violet-breadcrumb\", template, styles, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-breadcrumb>`; `defineVioletBreadcrumb` in `./violet-breadcrumb.define` registers it."
         }
       ],
       "exports": [
@@ -1052,6 +1128,14 @@
           "name": "VioletBreadcrumb",
           "declaration": {
             "name": "VioletBreadcrumb",
+            "module": "src/breadcrumb/violet-breadcrumb.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetBreadcrumbDefinition",
+          "declaration": {
+            "name": "violetBreadcrumbDefinition",
             "module": "src/breadcrumb/violet-breadcrumb.ts"
           }
         }
@@ -1597,6 +1681,12 @@
           ],
           "customElement": true,
           "tagName": "violet-button"
+        },
+        {
+          "kind": "variable",
+          "name": "violetButtonDefinition",
+          "default": "{ name: \"violet-button\", template, styles, shadowOptions: { delegatesFocus: true, }, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-button>`; `defineVioletButton` in `./violet-button.define` registers it."
         }
       ],
       "exports": [
@@ -1605,6 +1695,14 @@
           "name": "VioletButton",
           "declaration": {
             "name": "VioletButton",
+            "module": "src/button/violet-button.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetButtonDefinition",
+          "declaration": {
+            "name": "violetButtonDefinition",
             "module": "src/button/violet-button.ts"
           }
         }
@@ -2162,6 +2260,12 @@
           "customElement": true,
           "tagName": "violet-calendar",
           "slots": []
+        },
+        {
+          "kind": "variable",
+          "name": "violetCalendarDefinition",
+          "default": "{ name: \"violet-calendar\", template, styles, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-calendar>`; `defineVioletCalendar` in `./violet-calendar.define` registers it."
         }
       ],
       "exports": [
@@ -2170,6 +2274,14 @@
           "name": "VioletCalendar",
           "declaration": {
             "name": "VioletCalendar",
+            "module": "src/calendar/violet-calendar.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetCalendarDefinition",
+          "declaration": {
+            "name": "violetCalendarDefinition",
             "module": "src/calendar/violet-calendar.ts"
           }
         }
@@ -2360,6 +2472,12 @@
           ],
           "customElement": true,
           "tagName": "violet-card"
+        },
+        {
+          "kind": "variable",
+          "name": "violetCardDefinition",
+          "default": "{ name: \"violet-card\", template, styles, shadowOptions: { delegatesFocus: true, }, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-card>`; `defineVioletCard` in `./violet-card.define` registers it."
         }
       ],
       "exports": [
@@ -2368,6 +2486,14 @@
           "name": "VioletCard",
           "declaration": {
             "name": "VioletCard",
+            "module": "src/card/violet-card.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetCardDefinition",
+          "declaration": {
+            "name": "violetCardDefinition",
             "module": "src/card/violet-card.ts"
           }
         }
@@ -2927,6 +3053,12 @@
           ],
           "customElement": true,
           "tagName": "violet-carousel"
+        },
+        {
+          "kind": "variable",
+          "name": "violetCarouselDefinition",
+          "default": "{ name: \"violet-carousel\", template, styles, shadowOptions: { delegatesFocus: true, }, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-carousel>`; `defineVioletCarousel` in `./violet-carousel.define` registers it."
         }
       ],
       "exports": [
@@ -2935,6 +3067,14 @@
           "name": "VioletCarousel",
           "declaration": {
             "name": "VioletCarousel",
+            "module": "src/carousel/violet-carousel.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetCarouselDefinition",
+          "declaration": {
+            "name": "violetCarouselDefinition",
             "module": "src/carousel/violet-carousel.ts"
           }
         }
@@ -3601,6 +3741,12 @@
           ],
           "customElement": true,
           "tagName": "violet-checkbox"
+        },
+        {
+          "kind": "variable",
+          "name": "violetCheckboxDefinition",
+          "default": "{ name: \"violet-checkbox\", template, styles, shadowOptions: { delegatesFocus: true, }, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-checkbox>`; `defineVioletCheckbox` in `./violet-checkbox.define` registers it."
         }
       ],
       "exports": [
@@ -3609,6 +3755,14 @@
           "name": "VioletCheckbox",
           "declaration": {
             "name": "VioletCheckbox",
+            "module": "src/checkbox/violet-checkbox.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetCheckboxDefinition",
+          "declaration": {
+            "name": "violetCheckboxDefinition",
             "module": "src/checkbox/violet-checkbox.ts"
           }
         }
@@ -4850,6 +5004,12 @@
           ],
           "customElement": true,
           "tagName": "violet-color-picker"
+        },
+        {
+          "kind": "variable",
+          "name": "violetColorPickerDefinition",
+          "default": "{ name: \"violet-color-picker\", template, styles, shadowOptions: { delegatesFocus: true, }, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-color-picker>`; `defineVioletColorPicker` in `./violet-color-picker.define` registers it."
         }
       ],
       "exports": [
@@ -4858,6 +5018,14 @@
           "name": "VioletColorPicker",
           "declaration": {
             "name": "VioletColorPicker",
+            "module": "src/color-picker/violet-color-picker.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetColorPickerDefinition",
+          "declaration": {
+            "name": "violetColorPickerDefinition",
             "module": "src/color-picker/violet-color-picker.ts"
           }
         }
@@ -5309,6 +5477,12 @@
           "customElement": true,
           "tagName": "violet-color-swatch",
           "slots": []
+        },
+        {
+          "kind": "variable",
+          "name": "violetColorSwatchDefinition",
+          "default": "{ name: \"violet-color-swatch\", template, styles, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-color-swatch>`; `defineVioletColorSwatch` in `./violet-color-swatch.define` registers it."
         }
       ],
       "exports": [
@@ -5317,6 +5491,14 @@
           "name": "VioletColorSwatch",
           "declaration": {
             "name": "VioletColorSwatch",
+            "module": "src/color-swatch/violet-color-swatch.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetColorSwatchDefinition",
+          "declaration": {
+            "name": "violetColorSwatchDefinition",
             "module": "src/color-swatch/violet-color-swatch.ts"
           }
         }
@@ -6376,6 +6558,12 @@
           ],
           "customElement": true,
           "tagName": "violet-combobox"
+        },
+        {
+          "kind": "variable",
+          "name": "violetComboboxDefinition",
+          "default": "{ name: \"violet-combobox\", template, styles, shadowOptions: { delegatesFocus: true, }, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-combobox>`; `defineVioletCombobox` in `./violet-combobox.define` registers it."
         }
       ],
       "exports": [
@@ -6384,6 +6572,14 @@
           "name": "VioletCombobox",
           "declaration": {
             "name": "VioletCombobox",
+            "module": "src/combobox/violet-combobox.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetComboboxDefinition",
+          "declaration": {
+            "name": "violetComboboxDefinition",
             "module": "src/combobox/violet-combobox.ts"
           }
         }
@@ -6539,6 +6735,12 @@
           ],
           "customElement": true,
           "tagName": "violet-approval-card"
+        },
+        {
+          "kind": "variable",
+          "name": "violetApprovalCardDefinition",
+          "default": "{ name: \"violet-approval-card\", template, styles, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-approval-card>`; `defineVioletApprovalCard` in `./violet-approval-card.define` registers it."
         }
       ],
       "exports": [
@@ -6547,6 +6749,14 @@
           "name": "VioletApprovalCard",
           "declaration": {
             "name": "VioletApprovalCard",
+            "module": "src/conversation/violet-approval-card.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetApprovalCardDefinition",
+          "declaration": {
+            "name": "violetApprovalCardDefinition",
             "module": "src/conversation/violet-approval-card.ts"
           }
         }
@@ -6866,6 +7076,12 @@
           "summary": "Prompt input shell with auto-growing textarea, submit/stop\ntoggle, and optional action and footer slots.",
           "customElement": true,
           "tagName": "violet-chat-composer"
+        },
+        {
+          "kind": "variable",
+          "name": "violetChatComposerDefinition",
+          "default": "{ name: \"violet-chat-composer\", template, styles, shadowOptions: { delegatesFocus: true }, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-chat-composer>`; `defineVioletChatComposer` in `./violet-chat-composer.define` registers it."
         }
       ],
       "exports": [
@@ -6874,6 +7090,14 @@
           "name": "VioletChatComposer",
           "declaration": {
             "name": "VioletChatComposer",
+            "module": "src/conversation/violet-chat-composer.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetChatComposerDefinition",
+          "declaration": {
+            "name": "violetChatComposerDefinition",
             "module": "src/conversation/violet-chat-composer.ts"
           }
         }
@@ -7024,6 +7248,12 @@
           ],
           "customElement": true,
           "tagName": "violet-chat-suggestions"
+        },
+        {
+          "kind": "variable",
+          "name": "violetChatSuggestionsDefinition",
+          "default": "{ name: \"violet-chat-suggestions\", template, styles, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-chat-suggestions>`; `defineVioletChatSuggestions` in `./violet-chat-suggestions.define` registers it."
         }
       ],
       "exports": [
@@ -7032,6 +7262,14 @@
           "name": "VioletChatSuggestions",
           "declaration": {
             "name": "VioletChatSuggestions",
+            "module": "src/conversation/violet-chat-suggestions.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetChatSuggestionsDefinition",
+          "declaration": {
+            "name": "violetChatSuggestionsDefinition",
             "module": "src/conversation/violet-chat-suggestions.ts"
           }
         }
@@ -7251,6 +7489,12 @@
           ],
           "customElement": true,
           "tagName": "violet-conversation-thread"
+        },
+        {
+          "kind": "variable",
+          "name": "violetConversationThreadDefinition",
+          "default": "{ name: \"violet-conversation-thread\", template, styles, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-conversation-thread>`; `defineVioletConversationThread` in `./violet-conversation-thread.define` registers it."
         }
       ],
       "exports": [
@@ -7259,6 +7503,14 @@
           "name": "VioletConversationThread",
           "declaration": {
             "name": "VioletConversationThread",
+            "module": "src/conversation/violet-conversation-thread.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetConversationThreadDefinition",
+          "declaration": {
+            "name": "violetConversationThreadDefinition",
             "module": "src/conversation/violet-conversation-thread.ts"
           }
         }
@@ -7445,6 +7697,12 @@
           "customElement": true,
           "tagName": "violet-message-media",
           "slots": []
+        },
+        {
+          "kind": "variable",
+          "name": "violetMessageMediaDefinition",
+          "default": "{ name: \"violet-message-media\", template, styles, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-message-media>`; `defineVioletMessageMedia` in `./violet-message-media.define` registers it."
         }
       ],
       "exports": [
@@ -7453,6 +7711,14 @@
           "name": "VioletMessageMedia",
           "declaration": {
             "name": "VioletMessageMedia",
+            "module": "src/conversation/violet-message-media.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetMessageMediaDefinition",
+          "declaration": {
+            "name": "violetMessageMediaDefinition",
             "module": "src/conversation/violet-message-media.ts"
           }
         }
@@ -7526,6 +7792,12 @@
           ],
           "customElement": true,
           "tagName": "violet-message-status"
+        },
+        {
+          "kind": "variable",
+          "name": "violetMessageStatusDefinition",
+          "default": "{ name: \"violet-message-status\", template, styles, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-message-status>`; `defineVioletMessageStatus` in `./violet-message-status.define` registers it."
         }
       ],
       "exports": [
@@ -7534,6 +7806,14 @@
           "name": "VioletMessageStatus",
           "declaration": {
             "name": "VioletMessageStatus",
+            "module": "src/conversation/violet-message-status.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetMessageStatusDefinition",
+          "declaration": {
+            "name": "violetMessageStatusDefinition",
             "module": "src/conversation/violet-message-status.ts"
           }
         }
@@ -7593,6 +7873,12 @@
           ],
           "customElement": true,
           "tagName": "violet-message-text"
+        },
+        {
+          "kind": "variable",
+          "name": "violetMessageTextDefinition",
+          "default": "{ name: \"violet-message-text\", template, styles, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-message-text>`; `defineVioletMessageText` in `./violet-message-text.define` registers it."
         }
       ],
       "exports": [
@@ -7601,6 +7887,14 @@
           "name": "VioletMessageText",
           "declaration": {
             "name": "VioletMessageText",
+            "module": "src/conversation/violet-message-text.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetMessageTextDefinition",
+          "declaration": {
+            "name": "violetMessageTextDefinition",
             "module": "src/conversation/violet-message-text.ts"
           }
         }
@@ -7756,6 +8050,12 @@
           ],
           "customElement": true,
           "tagName": "violet-message"
+        },
+        {
+          "kind": "variable",
+          "name": "violetMessageDefinition",
+          "default": "{ name: \"violet-message\", template, styles, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-message>`; `defineVioletMessage` in `./violet-message.define` registers it."
         }
       ],
       "exports": [
@@ -7764,6 +8064,14 @@
           "name": "VioletMessage",
           "declaration": {
             "name": "VioletMessage",
+            "module": "src/conversation/violet-message.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetMessageDefinition",
+          "declaration": {
+            "name": "violetMessageDefinition",
             "module": "src/conversation/violet-message.ts"
           }
         }
@@ -7875,6 +8183,12 @@
           ],
           "customElement": true,
           "tagName": "violet-reasoning-block"
+        },
+        {
+          "kind": "variable",
+          "name": "violetReasoningBlockDefinition",
+          "default": "{ name: \"violet-reasoning-block\", template, styles, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-reasoning-block>`; `defineVioletReasoningBlock` in `./violet-reasoning-block.define` registers it."
         }
       ],
       "exports": [
@@ -7883,6 +8197,14 @@
           "name": "VioletReasoningBlock",
           "declaration": {
             "name": "VioletReasoningBlock",
+            "module": "src/conversation/violet-reasoning-block.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetReasoningBlockDefinition",
+          "declaration": {
+            "name": "violetReasoningBlockDefinition",
             "module": "src/conversation/violet-reasoning-block.ts"
           }
         }
@@ -8049,6 +8371,12 @@
           ],
           "customElement": true,
           "tagName": "violet-source-citation"
+        },
+        {
+          "kind": "variable",
+          "name": "violetSourceCitationDefinition",
+          "default": "{ name: \"violet-source-citation\", template, styles, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-source-citation>`; `defineVioletSourceCitation` in `./violet-source-citation.define` registers it."
         }
       ],
       "exports": [
@@ -8057,6 +8385,14 @@
           "name": "VioletSourceCitation",
           "declaration": {
             "name": "VioletSourceCitation",
+            "module": "src/conversation/violet-source-citation.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetSourceCitationDefinition",
+          "declaration": {
+            "name": "violetSourceCitationDefinition",
             "module": "src/conversation/violet-source-citation.ts"
           }
         }
@@ -8272,6 +8608,12 @@
           ],
           "customElement": true,
           "tagName": "violet-tool-call-card"
+        },
+        {
+          "kind": "variable",
+          "name": "violetToolCallCardDefinition",
+          "default": "{ name: \"violet-tool-call-card\", template, styles, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-tool-call-card>`; `defineVioletToolCallCard` in `./violet-tool-call-card.define` registers it."
         }
       ],
       "exports": [
@@ -8280,6 +8622,14 @@
           "name": "VioletToolCallCard",
           "declaration": {
             "name": "VioletToolCallCard",
+            "module": "src/conversation/violet-tool-call-card.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetToolCallCardDefinition",
+          "declaration": {
+            "name": "violetToolCallCardDefinition",
             "module": "src/conversation/violet-tool-call-card.ts"
           }
         }
@@ -8407,6 +8757,12 @@
           ],
           "customElement": true,
           "tagName": "violet-tool-result-card"
+        },
+        {
+          "kind": "variable",
+          "name": "violetToolResultCardDefinition",
+          "default": "{ name: \"violet-tool-result-card\", template, styles, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-tool-result-card>`; `defineVioletToolResultCard` in `./violet-tool-result-card.define` registers it."
         }
       ],
       "exports": [
@@ -8415,6 +8771,14 @@
           "name": "VioletToolResultCard",
           "declaration": {
             "name": "VioletToolResultCard",
+            "module": "src/conversation/violet-tool-result-card.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetToolResultCardDefinition",
+          "declaration": {
+            "name": "violetToolResultCardDefinition",
             "module": "src/conversation/violet-tool-result-card.ts"
           }
         }
@@ -9230,6 +9594,12 @@
           "customElement": true,
           "tagName": "violet-data-grid-attachment-cell",
           "slots": []
+        },
+        {
+          "kind": "variable",
+          "name": "violetDataGridAttachmentCellDefinition",
+          "default": "{ name: \"violet-data-grid-attachment-cell\", template, styles, shadowOptions: { delegatesFocus: true, }, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-data-grid-attachment-cell>`; `defineVioletDataGridAttachmentCell` in `./violet-data-grid-attachment-cell.define` registers it."
         }
       ],
       "exports": [
@@ -9238,6 +9608,14 @@
           "name": "VioletDataGridAttachmentCell",
           "declaration": {
             "name": "VioletDataGridAttachmentCell",
+            "module": "src/data-grid/violet-data-grid-attachment-cell.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetDataGridAttachmentCellDefinition",
+          "declaration": {
+            "name": "violetDataGridAttachmentCellDefinition",
             "module": "src/data-grid/violet-data-grid-attachment-cell.ts"
           }
         }
@@ -11841,6 +12219,12 @@
           "customElement": true,
           "tagName": "violet-data-grid-multi-picker",
           "slots": []
+        },
+        {
+          "kind": "variable",
+          "name": "violetDataGridMultiPickerDefinition",
+          "default": "{ name: \"violet-data-grid-multi-picker\", template, styles, shadowOptions: { delegatesFocus: true, }, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-data-grid-multi-picker>`; `defineVioletDataGridMultiPicker` in `./violet-data-grid-multi-picker.define` registers it."
         }
       ],
       "exports": [
@@ -11849,6 +12233,14 @@
           "name": "VioletDataGridMultiPicker",
           "declaration": {
             "name": "VioletDataGridMultiPicker",
+            "module": "src/data-grid/violet-data-grid-multi-picker.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetDataGridMultiPickerDefinition",
+          "declaration": {
+            "name": "violetDataGridMultiPickerDefinition",
             "module": "src/data-grid/violet-data-grid-multi-picker.ts"
           }
         }
@@ -12813,6 +13205,12 @@
           "customElement": true,
           "tagName": "violet-data-grid-persona-picker",
           "slots": []
+        },
+        {
+          "kind": "variable",
+          "name": "violetDataGridPersonaPickerDefinition",
+          "default": "{ name: \"violet-data-grid-persona-picker\", template, styles, shadowOptions: { delegatesFocus: true, }, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-data-grid-persona-picker>`; `defineVioletDataGridPersonaPicker` in `./violet-data-grid-persona-picker.define` registers it."
         }
       ],
       "exports": [
@@ -12821,6 +13219,14 @@
           "name": "VioletDataGridPersonaPicker",
           "declaration": {
             "name": "VioletDataGridPersonaPicker",
+            "module": "src/data-grid/violet-data-grid-persona-picker.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetDataGridPersonaPickerDefinition",
+          "declaration": {
+            "name": "violetDataGridPersonaPickerDefinition",
             "module": "src/data-grid/violet-data-grid-persona-picker.ts"
           }
         }
@@ -13408,6 +13814,12 @@
           "customElement": true,
           "tagName": "violet-data-grid-pill-select",
           "slots": []
+        },
+        {
+          "kind": "variable",
+          "name": "violetDataGridPillSelectDefinition",
+          "default": "{ name: \"violet-data-grid-pill-select\", template, styles, shadowOptions: { delegatesFocus: true, }, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-data-grid-pill-select>`; `defineVioletDataGridPillSelect` in `./violet-data-grid-pill-select.define` registers it."
         }
       ],
       "exports": [
@@ -13416,6 +13828,14 @@
           "name": "VioletDataGridPillSelect",
           "declaration": {
             "name": "VioletDataGridPillSelect",
+            "module": "src/data-grid/violet-data-grid-pill-select.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetDataGridPillSelectDefinition",
+          "declaration": {
+            "name": "violetDataGridPillSelectDefinition",
             "module": "src/data-grid/violet-data-grid-pill-select.ts"
           }
         }
@@ -14308,6 +14728,12 @@
           "customElement": true,
           "tagName": "violet-data-grid-rating",
           "slots": []
+        },
+        {
+          "kind": "variable",
+          "name": "violetDataGridRatingDefinition",
+          "default": "{ name: \"violet-data-grid-rating\", template, styles, shadowOptions: { delegatesFocus: true, }, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-data-grid-rating>`; `defineVioletDataGridRating` in `./violet-data-grid-rating.define` registers it."
         }
       ],
       "exports": [
@@ -14316,6 +14742,14 @@
           "name": "VioletDataGridRating",
           "declaration": {
             "name": "VioletDataGridRating",
+            "module": "src/data-grid/violet-data-grid-rating.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetDataGridRatingDefinition",
+          "declaration": {
+            "name": "violetDataGridRatingDefinition",
             "module": "src/data-grid/violet-data-grid-rating.ts"
           }
         }
@@ -15310,6 +15744,12 @@
           "customElement": true,
           "tagName": "violet-data-grid-reference-picker",
           "slots": []
+        },
+        {
+          "kind": "variable",
+          "name": "violetDataGridReferencePickerDefinition",
+          "default": "{ name: \"violet-data-grid-reference-picker\", template, styles, shadowOptions: { delegatesFocus: true, }, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-data-grid-reference-picker>`; `defineVioletDataGridReferencePicker` in `./violet-data-grid-reference-picker.define` registers it."
         }
       ],
       "exports": [
@@ -15318,6 +15758,14 @@
           "name": "VioletDataGridReferencePicker",
           "declaration": {
             "name": "VioletDataGridReferencePicker",
+            "module": "src/data-grid/violet-data-grid-reference-picker.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetDataGridReferencePickerDefinition",
+          "declaration": {
+            "name": "violetDataGridReferencePickerDefinition",
             "module": "src/data-grid/violet-data-grid-reference-picker.ts"
           }
         }
@@ -22046,6 +22494,12 @@
           ],
           "customElement": true,
           "tagName": "violet-data-grid"
+        },
+        {
+          "kind": "variable",
+          "name": "violetDataGridDefinition",
+          "default": "{ name: \"violet-data-grid\", template, styles, shadowOptions: { delegatesFocus: true, }, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-data-grid>`; `defineVioletDataGrid` in `./violet-data-grid.define` registers it."
         }
       ],
       "exports": [
@@ -22134,6 +22588,14 @@
           "name": "VioletDataGridCopyDetail",
           "declaration": {
             "name": "VioletDataGridCopyDetail",
+            "module": "src/data-grid/violet-data-grid.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetDataGridDefinition",
+          "declaration": {
+            "name": "violetDataGridDefinition",
             "module": "src/data-grid/violet-data-grid.ts"
           }
         },
@@ -23112,6 +23574,12 @@
           "customElement": true,
           "tagName": "violet-date-picker",
           "slots": []
+        },
+        {
+          "kind": "variable",
+          "name": "violetDatePickerDefinition",
+          "default": "{ name: \"violet-date-picker\", template, styles, shadowOptions: { delegatesFocus: true, }, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-date-picker>`; `defineVioletDatePicker` in `./violet-date-picker.define` registers it."
         }
       ],
       "exports": [
@@ -23120,6 +23588,14 @@
           "name": "VioletDatePicker",
           "declaration": {
             "name": "VioletDatePicker",
+            "module": "src/date-picker/violet-date-picker.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetDatePickerDefinition",
+          "declaration": {
+            "name": "violetDatePickerDefinition",
             "module": "src/date-picker/violet-date-picker.ts"
           }
         }
@@ -23697,6 +24173,12 @@
           "customElement": true,
           "tagName": "violet-date-range-picker",
           "slots": []
+        },
+        {
+          "kind": "variable",
+          "name": "violetDateRangePickerDefinition",
+          "default": "{ name: \"violet-date-range-picker\", template, styles, shadowOptions: { delegatesFocus: true, }, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-date-range-picker>`; `defineVioletDateRangePicker` in `./violet-date-range-picker.define` registers it."
         }
       ],
       "exports": [
@@ -23705,6 +24187,14 @@
           "name": "VioletDateRangePicker",
           "declaration": {
             "name": "VioletDateRangePicker",
+            "module": "src/date-range-picker/violet-date-range-picker.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetDateRangePickerDefinition",
+          "declaration": {
+            "name": "violetDateRangePickerDefinition",
             "module": "src/date-range-picker/violet-date-range-picker.ts"
           }
         }
@@ -24786,6 +25276,12 @@
           ],
           "customElement": true,
           "tagName": "violet-dialog"
+        },
+        {
+          "kind": "variable",
+          "name": "violetDialogDefinition",
+          "default": "{ name: \"violet-dialog\", template, styles, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-dialog>`; `defineVioletDialog` in `./violet-dialog.define` registers it."
         }
       ],
       "exports": [
@@ -24794,6 +25290,14 @@
           "name": "VioletDialog",
           "declaration": {
             "name": "VioletDialog",
+            "module": "src/dialog/violet-dialog.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetDialogDefinition",
+          "declaration": {
+            "name": "violetDialogDefinition",
             "module": "src/dialog/violet-dialog.ts"
           }
         }
@@ -24882,6 +25386,12 @@
           "customElement": true,
           "tagName": "violet-divider",
           "slots": []
+        },
+        {
+          "kind": "variable",
+          "name": "violetDividerDefinition",
+          "default": "{ name: \"violet-divider\", template, styles, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-divider>`; `defineVioletDivider` in `./violet-divider.define` registers it."
         }
       ],
       "exports": [
@@ -24890,6 +25400,14 @@
           "name": "VioletDivider",
           "declaration": {
             "name": "VioletDivider",
+            "module": "src/divider/violet-divider.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetDividerDefinition",
+          "declaration": {
+            "name": "violetDividerDefinition",
             "module": "src/divider/violet-divider.ts"
           }
         }
@@ -25096,6 +25614,12 @@
           ],
           "customElement": true,
           "tagName": "violet-empty-state"
+        },
+        {
+          "kind": "variable",
+          "name": "violetEmptyStateDefinition",
+          "default": "{ name: \"violet-empty-state\", template, styles, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-empty-state>`; `defineVioletEmptyState` in `./violet-empty-state.define` registers it."
         }
       ],
       "exports": [
@@ -25104,6 +25628,14 @@
           "name": "VioletEmptyState",
           "declaration": {
             "name": "VioletEmptyState",
+            "module": "src/empty-state/violet-empty-state.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetEmptyStateDefinition",
+          "declaration": {
+            "name": "violetEmptyStateDefinition",
             "module": "src/empty-state/violet-empty-state.ts"
           }
         }
@@ -26266,6 +26798,12 @@
           ],
           "customElement": true,
           "tagName": "violet-file-explorer"
+        },
+        {
+          "kind": "variable",
+          "name": "violetFileExplorerDefinition",
+          "default": "{ name: \"violet-file-explorer\", template, styles, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-file-explorer>`; `defineVioletFileExplorer` in `./violet-file-explorer.define` registers it."
         }
       ],
       "exports": [
@@ -26274,6 +26812,14 @@
           "name": "VioletFileExplorer",
           "declaration": {
             "name": "VioletFileExplorer",
+            "module": "src/file-explorer/violet-file-explorer.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetFileExplorerDefinition",
+          "declaration": {
+            "name": "violetFileExplorerDefinition",
             "module": "src/file-explorer/violet-file-explorer.ts"
           }
         }
@@ -27504,6 +28050,12 @@
           "customElement": true,
           "tagName": "violet-file-upload",
           "slots": []
+        },
+        {
+          "kind": "variable",
+          "name": "violetFileUploadDefinition",
+          "default": "{ name: \"violet-file-upload\", template, styles, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-file-upload>`; `defineVioletFileUpload` in `./violet-file-upload.define` registers it."
         }
       ],
       "exports": [
@@ -27512,6 +28064,14 @@
           "name": "VioletFileUpload",
           "declaration": {
             "name": "VioletFileUpload",
+            "module": "src/file-upload/violet-file-upload.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetFileUploadDefinition",
+          "declaration": {
+            "name": "violetFileUploadDefinition",
             "module": "src/file-upload/violet-file-upload.ts"
           }
         }
@@ -29788,6 +30348,12 @@
           ],
           "customElement": true,
           "tagName": "violet-gantt"
+        },
+        {
+          "kind": "variable",
+          "name": "violetGanttDefinition",
+          "default": "{ name: \"violet-gantt\", template, styles: violetGanttStyles, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-gantt>`; `defineVioletGantt` in `./violet-gantt.define` registers it."
         }
       ],
       "exports": [
@@ -29804,6 +30370,14 @@
           "name": "VioletGantt",
           "declaration": {
             "name": "VioletGantt",
+            "module": "src/gantt/violet-gantt.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetGanttDefinition",
+          "declaration": {
+            "name": "violetGanttDefinition",
             "module": "src/gantt/violet-gantt.ts"
           }
         }
@@ -29928,6 +30502,12 @@
           ],
           "customElement": true,
           "tagName": "violet-icon-button"
+        },
+        {
+          "kind": "variable",
+          "name": "violetIconButtonDefinition",
+          "default": "{ name: \"violet-icon-button\", template, styles, shadowOptions: { delegatesFocus: true, }, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-icon-button>`; `defineVioletIconButton` in `./violet-icon-button.define` registers it."
         }
       ],
       "exports": [
@@ -29936,6 +30516,14 @@
           "name": "VioletIconButton",
           "declaration": {
             "name": "VioletIconButton",
+            "module": "src/icon-button/violet-icon-button.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetIconButtonDefinition",
+          "declaration": {
+            "name": "violetIconButtonDefinition",
             "module": "src/icon-button/violet-icon-button.ts"
           }
         }
@@ -30172,6 +30760,12 @@
           "customElement": true,
           "tagName": "violet-icon",
           "slots": []
+        },
+        {
+          "kind": "variable",
+          "name": "violetIconDefinition",
+          "default": "{ name: \"violet-icon\", template, styles, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-icon>`; `defineVioletIcon` in `./violet-icon.define` registers it."
         }
       ],
       "exports": [
@@ -30180,6 +30774,14 @@
           "name": "VioletIcon",
           "declaration": {
             "name": "VioletIcon",
+            "module": "src/icon/violet-icon.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetIconDefinition",
+          "declaration": {
+            "name": "violetIconDefinition",
             "module": "src/icon/violet-icon.ts"
           }
         }
@@ -30432,6 +31034,12 @@
           ],
           "customElement": true,
           "tagName": "violet-image"
+        },
+        {
+          "kind": "variable",
+          "name": "violetImageDefinition",
+          "default": "{ name: \"violet-image\", template, styles, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-image>`; `defineVioletImage` in `./violet-image.define` registers it."
         }
       ],
       "exports": [
@@ -30440,6 +31048,14 @@
           "name": "VioletImage",
           "declaration": {
             "name": "VioletImage",
+            "module": "src/image/violet-image.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetImageDefinition",
+          "declaration": {
+            "name": "violetImageDefinition",
             "module": "src/image/violet-image.ts"
           }
         }
@@ -31060,6 +31676,21 @@
           "summary": "Always-visible list of options for choosing one, or several with multiple.",
           "customElement": true,
           "tagName": "violet-listbox"
+        },
+        {
+          "kind": "variable",
+          "name": "violetListboxDefinition",
+          "default": "{ name: \"violet-listbox\", template, styles, shadowOptions: { delegatesFocus: true, }, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-listbox>`; `defineVioletListbox` in `./violet-listbox.define` registers it."
+        },
+        {
+          "kind": "variable",
+          "name": "violetListboxExtensions",
+          "type": {
+            "text": "FASTElementExtension[]"
+          },
+          "default": "[observeAttribute(\"value\")]",
+          "description": "The FAST extensions `<violet-listbox>` is defined with."
         }
       ],
       "exports": [
@@ -31068,6 +31699,22 @@
           "name": "VioletListbox",
           "declaration": {
             "name": "VioletListbox",
+            "module": "src/listbox/violet-listbox.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetListboxDefinition",
+          "declaration": {
+            "name": "violetListboxDefinition",
+            "module": "src/listbox/violet-listbox.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetListboxExtensions",
+          "declaration": {
+            "name": "violetListboxExtensions",
             "module": "src/listbox/violet-listbox.ts"
           }
         }
@@ -31567,6 +32214,12 @@
           ],
           "customElement": true,
           "tagName": "violet-menu-item"
+        },
+        {
+          "kind": "variable",
+          "name": "violetMenuItemDefinition",
+          "default": "{ name: \"violet-menu-item\", template, styles, shadowOptions: { delegatesFocus: true, }, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-menu-item>`; `defineVioletMenuItem` in `./violet-menu-item.define` registers it."
         }
       ],
       "exports": [
@@ -31575,6 +32228,14 @@
           "name": "VioletMenuItem",
           "declaration": {
             "name": "VioletMenuItem",
+            "module": "src/menu/violet-menu-item.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetMenuItemDefinition",
+          "declaration": {
+            "name": "violetMenuItemDefinition",
             "module": "src/menu/violet-menu-item.ts"
           }
         }
@@ -32036,6 +32697,12 @@
           ],
           "customElement": true,
           "tagName": "violet-menu"
+        },
+        {
+          "kind": "variable",
+          "name": "violetMenuDefinition",
+          "default": "{ name: \"violet-menu\", template, styles, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-menu>`; `defineVioletMenu` in `./violet-menu.define` registers it."
         }
       ],
       "exports": [
@@ -32044,6 +32711,14 @@
           "name": "VioletMenu",
           "declaration": {
             "name": "VioletMenu",
+            "module": "src/menu/violet-menu.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetMenuDefinition",
+          "declaration": {
+            "name": "violetMenuDefinition",
             "module": "src/menu/violet-menu.ts"
           }
         }
@@ -32183,6 +32858,12 @@
           ],
           "customElement": true,
           "tagName": "violet-option-group"
+        },
+        {
+          "kind": "variable",
+          "name": "violetOptionGroupDefinition",
+          "default": "{ name: \"violet-option-group\", template, styles, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-option-group>`; `defineVioletOptionGroup` in `./violet-option-group.define` registers it."
         }
       ],
       "exports": [
@@ -32191,6 +32872,14 @@
           "name": "VioletOptionGroup",
           "declaration": {
             "name": "VioletOptionGroup",
+            "module": "src/option-group/violet-option-group.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetOptionGroupDefinition",
+          "declaration": {
+            "name": "violetOptionGroupDefinition",
             "module": "src/option-group/violet-option-group.ts"
           }
         }
@@ -32537,6 +33226,21 @@
           "summary": "One choice inside a violet-select, violet-combobox or violet-listbox.",
           "customElement": true,
           "tagName": "violet-option"
+        },
+        {
+          "kind": "variable",
+          "name": "violetOptionDefinition",
+          "default": "{ name: \"violet-option\", template, styles, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-option>`; `defineVioletOption` in `./violet-option.define` registers it."
+        },
+        {
+          "kind": "variable",
+          "name": "violetOptionExtensions",
+          "type": {
+            "text": "FASTElementExtension[]"
+          },
+          "default": "[observeAttribute(\"value\")]",
+          "description": "The FAST extensions `<violet-option>` is defined with."
         }
       ],
       "exports": [
@@ -32545,6 +33249,22 @@
           "name": "VioletOption",
           "declaration": {
             "name": "VioletOption",
+            "module": "src/option/violet-option.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetOptionDefinition",
+          "declaration": {
+            "name": "violetOptionDefinition",
+            "module": "src/option/violet-option.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetOptionExtensions",
+          "declaration": {
+            "name": "violetOptionExtensions",
             "module": "src/option/violet-option.ts"
           }
         }
@@ -32934,6 +33654,12 @@
           "customElement": true,
           "tagName": "violet-pagination",
           "slots": []
+        },
+        {
+          "kind": "variable",
+          "name": "violetPaginationDefinition",
+          "default": "{ name: \"violet-pagination\", template, styles, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-pagination>`; `defineVioletPagination` in `./violet-pagination.define` registers it."
         }
       ],
       "exports": [
@@ -32942,6 +33668,14 @@
           "name": "VioletPagination",
           "declaration": {
             "name": "VioletPagination",
+            "module": "src/pagination/violet-pagination.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetPaginationDefinition",
+          "declaration": {
+            "name": "violetPaginationDefinition",
             "module": "src/pagination/violet-pagination.ts"
           }
         }
@@ -33179,6 +33913,12 @@
           "customElement": true,
           "tagName": "violet-persona",
           "slots": []
+        },
+        {
+          "kind": "variable",
+          "name": "violetPersonaDefinition",
+          "default": "{ name: \"violet-persona\", template, styles, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-persona>`; `defineVioletPersona` in `./violet-persona.define` registers it."
         }
       ],
       "exports": [
@@ -33187,6 +33927,14 @@
           "name": "VioletPersona",
           "declaration": {
             "name": "VioletPersona",
+            "module": "src/persona/violet-persona.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetPersonaDefinition",
+          "declaration": {
+            "name": "violetPersonaDefinition",
             "module": "src/persona/violet-persona.ts"
           }
         }
@@ -33496,6 +34244,12 @@
           ],
           "customElement": true,
           "tagName": "violet-popover"
+        },
+        {
+          "kind": "variable",
+          "name": "violetPopoverDefinition",
+          "default": "{ name: \"violet-popover\", template, styles, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-popover>`; `defineVioletPopover` in `./violet-popover.define` registers it."
         }
       ],
       "exports": [
@@ -33504,6 +34258,14 @@
           "name": "VioletPopover",
           "declaration": {
             "name": "VioletPopover",
+            "module": "src/popover/violet-popover.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetPopoverDefinition",
+          "declaration": {
+            "name": "violetPopoverDefinition",
             "module": "src/popover/violet-popover.ts"
           }
         }
@@ -33685,6 +34447,12 @@
           "customElement": true,
           "tagName": "violet-progress",
           "slots": []
+        },
+        {
+          "kind": "variable",
+          "name": "violetProgressDefinition",
+          "default": "{ name: \"violet-progress\", template, styles, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-progress>`; `defineVioletProgress` in `./violet-progress.define` registers it."
         }
       ],
       "exports": [
@@ -33693,6 +34461,14 @@
           "name": "VioletProgress",
           "declaration": {
             "name": "VioletProgress",
+            "module": "src/progress/violet-progress.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetProgressDefinition",
+          "declaration": {
+            "name": "violetProgressDefinition",
             "module": "src/progress/violet-progress.ts"
           }
         }
@@ -34356,6 +35132,12 @@
           ],
           "customElement": true,
           "tagName": "violet-radio-group"
+        },
+        {
+          "kind": "variable",
+          "name": "violetRadioGroupDefinition",
+          "default": "{ name: \"violet-radio-group\", template, styles, shadowOptions: { delegatesFocus: true, }, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-radio-group>`; `defineVioletRadioGroup` in `./violet-radio-group.define` registers it."
         }
       ],
       "exports": [
@@ -34364,6 +35146,14 @@
           "name": "VioletRadioGroup",
           "declaration": {
             "name": "VioletRadioGroup",
+            "module": "src/radio-group/violet-radio-group.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetRadioGroupDefinition",
+          "declaration": {
+            "name": "violetRadioGroupDefinition",
             "module": "src/radio-group/violet-radio-group.ts"
           }
         }
@@ -34953,6 +35743,12 @@
           ],
           "customElement": true,
           "tagName": "violet-radio"
+        },
+        {
+          "kind": "variable",
+          "name": "violetRadioDefinition",
+          "default": "{ name: \"violet-radio\", template, styles, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-radio>`; `defineVioletRadio` in `./violet-radio.define` registers it."
         }
       ],
       "exports": [
@@ -34961,6 +35757,14 @@
           "name": "VioletRadio",
           "declaration": {
             "name": "VioletRadio",
+            "module": "src/radio/violet-radio.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetRadioDefinition",
+          "declaration": {
+            "name": "violetRadioDefinition",
             "module": "src/radio/violet-radio.ts"
           }
         }
@@ -35203,6 +36007,12 @@
           ],
           "customElement": true,
           "tagName": "violet-segment"
+        },
+        {
+          "kind": "variable",
+          "name": "violetSegmentDefinition",
+          "default": "{ name: \"violet-segment\", template, styles, shadowOptions: { delegatesFocus: true, }, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-segment>`; `defineVioletSegment` in `./violet-segment.define` registers it."
         }
       ],
       "exports": [
@@ -35211,6 +36021,14 @@
           "name": "VioletSegment",
           "declaration": {
             "name": "VioletSegment",
+            "module": "src/segment/violet-segment.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetSegmentDefinition",
+          "declaration": {
+            "name": "violetSegmentDefinition",
             "module": "src/segment/violet-segment.ts"
           }
         }
@@ -35822,6 +36640,12 @@
           ],
           "customElement": true,
           "tagName": "violet-segmented-control"
+        },
+        {
+          "kind": "variable",
+          "name": "violetSegmentedControlDefinition",
+          "default": "{ name: \"violet-segmented-control\", template, styles, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-segmented-control>`; `defineVioletSegmentedControl` in `./violet-segmented-control.define` registers it."
         }
       ],
       "exports": [
@@ -35830,6 +36654,14 @@
           "name": "VioletSegmentedControl",
           "declaration": {
             "name": "VioletSegmentedControl",
+            "module": "src/segmented-control/violet-segmented-control.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetSegmentedControlDefinition",
+          "declaration": {
+            "name": "violetSegmentedControlDefinition",
             "module": "src/segmented-control/violet-segmented-control.ts"
           }
         }
@@ -36869,6 +37701,21 @@
           "summary": "Button-triggered popup list for choosing one option; the form receives the chosen option's value.",
           "customElement": true,
           "tagName": "violet-select"
+        },
+        {
+          "kind": "variable",
+          "name": "violetSelectDefinition",
+          "default": "{ name: \"violet-select\", template, styles, shadowOptions: { delegatesFocus: true, }, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-select>`; `defineVioletSelect` in `./violet-select.define` registers it."
+        },
+        {
+          "kind": "variable",
+          "name": "violetSelectExtensions",
+          "type": {
+            "text": "FASTElementExtension[]"
+          },
+          "default": "[observeAttribute(\"value\")]",
+          "description": "The FAST extensions `<violet-select>` is defined with."
         }
       ],
       "exports": [
@@ -36878,6 +37725,80 @@
           "declaration": {
             "name": "VioletSelect",
             "module": "src/select/violet-select.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetSelectDefinition",
+          "declaration": {
+            "name": "violetSelectDefinition",
+            "module": "src/select/violet-select.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetSelectExtensions",
+          "declaration": {
+            "name": "violetSelectExtensions",
+            "module": "src/select/violet-select.ts"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "src/shared/define-element.ts",
+      "declarations": [
+        {
+          "kind": "function",
+          "name": "defineVioletElement",
+          "return": {
+            "type": {
+              "text": "Promise<void>"
+            }
+          },
+          "parameters": [
+            {
+              "name": "type",
+              "type": {
+                "text": "TType"
+              },
+              "description": "The element class."
+            },
+            {
+              "name": "partial",
+              "type": {
+                "text": "PartialFASTElementDefinition<TType>"
+              },
+              "description": "Its name, template, styles and shadow options."
+            },
+            {
+              "name": "registry",
+              "default": "customElements",
+              "type": {
+                "text": "CustomElementRegistry"
+              },
+              "description": "The registry to define it in."
+            },
+            {
+              "name": "extensions",
+              "optional": true,
+              "type": {
+                "text": "FASTElementExtension[]"
+              },
+              "description": "FAST extensions applied once per registry before the element is defined."
+            }
+          ],
+          "description": "Defines a Violet element in `registry`, composing its FAST definition once per class."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "defineVioletElement",
+          "declaration": {
+            "name": "defineVioletElement",
+            "module": "src/shared/define-element.ts"
           }
         }
       ]
@@ -37677,6 +38598,12 @@
           "customElement": true,
           "tagName": "violet-skeleton",
           "slots": []
+        },
+        {
+          "kind": "variable",
+          "name": "violetSkeletonDefinition",
+          "default": "{ name: \"violet-skeleton\", template, styles, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-skeleton>`; `defineVioletSkeleton` in `./violet-skeleton.define` registers it."
         }
       ],
       "exports": [
@@ -37685,6 +38612,14 @@
           "name": "VioletSkeleton",
           "declaration": {
             "name": "VioletSkeleton",
+            "module": "src/skeleton/violet-skeleton.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetSkeletonDefinition",
+          "declaration": {
+            "name": "violetSkeletonDefinition",
             "module": "src/skeleton/violet-skeleton.ts"
           }
         }
@@ -38801,6 +39736,12 @@
           "customElement": true,
           "tagName": "violet-range-slider",
           "slots": []
+        },
+        {
+          "kind": "variable",
+          "name": "violetRangeSliderDefinition",
+          "default": "{ name: \"violet-range-slider\", template, styles, shadowOptions: { delegatesFocus: true, }, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-range-slider>`; `defineVioletRangeSlider` in `./violet-range-slider.define` registers it."
         }
       ],
       "exports": [
@@ -38809,6 +39750,14 @@
           "name": "VioletRangeSlider",
           "declaration": {
             "name": "VioletRangeSlider",
+            "module": "src/slider/violet-range-slider.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetRangeSliderDefinition",
+          "declaration": {
+            "name": "violetRangeSliderDefinition",
             "module": "src/slider/violet-range-slider.ts"
           }
         }
@@ -39765,6 +40714,12 @@
           "customElement": true,
           "tagName": "violet-slider",
           "slots": []
+        },
+        {
+          "kind": "variable",
+          "name": "violetSliderDefinition",
+          "default": "{ name: \"violet-slider\", template, styles, shadowOptions: { delegatesFocus: true, }, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-slider>`; `defineVioletSlider` in `./violet-slider.define` registers it."
         }
       ],
       "exports": [
@@ -39773,6 +40728,14 @@
           "name": "VioletSlider",
           "declaration": {
             "name": "VioletSlider",
+            "module": "src/slider/violet-slider.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetSliderDefinition",
+          "declaration": {
+            "name": "violetSliderDefinition",
             "module": "src/slider/violet-slider.ts"
           }
         }
@@ -40070,6 +41033,12 @@
           ],
           "customElement": true,
           "tagName": "violet-snackbar"
+        },
+        {
+          "kind": "variable",
+          "name": "violetSnackbarDefinition",
+          "default": "{ name: \"violet-snackbar\", template, styles, shadowOptions: { delegatesFocus: true, }, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-snackbar>`; `defineVioletSnackbar` in `./violet-snackbar.define` registers it."
         }
       ],
       "exports": [
@@ -40078,6 +41047,14 @@
           "name": "VioletSnackbar",
           "declaration": {
             "name": "VioletSnackbar",
+            "module": "src/snackbar/violet-snackbar.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetSnackbarDefinition",
+          "declaration": {
+            "name": "violetSnackbarDefinition",
             "module": "src/snackbar/violet-snackbar.ts"
           }
         }
@@ -40175,6 +41152,12 @@
           "customElement": true,
           "tagName": "violet-spinner",
           "slots": []
+        },
+        {
+          "kind": "variable",
+          "name": "violetSpinnerDefinition",
+          "default": "{ name: \"violet-spinner\", template, styles, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-spinner>`; `defineVioletSpinner` in `./violet-spinner.define` registers it."
         }
       ],
       "exports": [
@@ -40183,6 +41166,14 @@
           "name": "VioletSpinner",
           "declaration": {
             "name": "VioletSpinner",
+            "module": "src/spinner/violet-spinner.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetSpinnerDefinition",
+          "declaration": {
+            "name": "violetSpinnerDefinition",
             "module": "src/spinner/violet-spinner.ts"
           }
         }
@@ -40809,6 +41800,12 @@
           ],
           "customElement": true,
           "tagName": "violet-switch"
+        },
+        {
+          "kind": "variable",
+          "name": "violetSwitchDefinition",
+          "default": "{ name: \"violet-switch\", template, styles, shadowOptions: { delegatesFocus: true, }, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-switch>`; `defineVioletSwitch` in `./violet-switch.define` registers it."
         }
       ],
       "exports": [
@@ -40817,6 +41814,14 @@
           "name": "VioletSwitch",
           "declaration": {
             "name": "VioletSwitch",
+            "module": "src/switch/violet-switch.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetSwitchDefinition",
+          "declaration": {
+            "name": "violetSwitchDefinition",
             "module": "src/switch/violet-switch.ts"
           }
         }
@@ -40850,6 +41855,12 @@
           "customElement": true,
           "tagName": "violet-tab-panel",
           "members": []
+        },
+        {
+          "kind": "variable",
+          "name": "violetTabPanelDefinition",
+          "default": "{ name: \"violet-tab-panel\", template, styles, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-tab-panel>`; `defineVioletTabPanel` in `./violet-tab-panel.define` registers it."
         }
       ],
       "exports": [
@@ -40858,6 +41869,14 @@
           "name": "VioletTabPanel",
           "declaration": {
             "name": "VioletTabPanel",
+            "module": "src/tab-panel/violet-tab-panel.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetTabPanelDefinition",
+          "declaration": {
+            "name": "violetTabPanelDefinition",
             "module": "src/tab-panel/violet-tab-panel.ts"
           }
         }
@@ -40981,6 +42000,12 @@
           ],
           "customElement": true,
           "tagName": "violet-tab"
+        },
+        {
+          "kind": "variable",
+          "name": "violetTabDefinition",
+          "default": "{ name: \"violet-tab\", template, styles, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-tab>`; `defineVioletTab` in `./violet-tab.define` registers it."
         }
       ],
       "exports": [
@@ -40989,6 +42014,14 @@
           "name": "VioletTab",
           "declaration": {
             "name": "VioletTab",
+            "module": "src/tab/violet-tab.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetTabDefinition",
+          "declaration": {
+            "name": "violetTabDefinition",
             "module": "src/tab/violet-tab.ts"
           }
         }
@@ -41436,6 +42469,12 @@
           ],
           "customElement": true,
           "tagName": "violet-tabs"
+        },
+        {
+          "kind": "variable",
+          "name": "violetTabsDefinition",
+          "default": "{ name: \"violet-tabs\", template, styles, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-tabs>`; `defineVioletTabs` in `./violet-tabs.define` registers it."
         }
       ],
       "exports": [
@@ -41444,6 +42483,14 @@
           "name": "VioletTabs",
           "declaration": {
             "name": "VioletTabs",
+            "module": "src/tabs/violet-tabs.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetTabsDefinition",
+          "declaration": {
+            "name": "violetTabsDefinition",
             "module": "src/tabs/violet-tabs.ts"
           }
         }
@@ -41948,6 +42995,12 @@
           ],
           "customElement": true,
           "tagName": "violet-teaching-tip"
+        },
+        {
+          "kind": "variable",
+          "name": "violetTeachingTipDefinition",
+          "default": "{ name: \"violet-teaching-tip\", template, styles, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-teaching-tip>`; `defineVioletTeachingTip` in `./violet-teaching-tip.define` registers it."
         }
       ],
       "exports": [
@@ -41956,6 +43009,14 @@
           "name": "VioletTeachingTip",
           "declaration": {
             "name": "VioletTeachingTip",
+            "module": "src/teaching-tip/violet-teaching-tip.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetTeachingTipDefinition",
+          "declaration": {
+            "name": "violetTeachingTipDefinition",
             "module": "src/teaching-tip/violet-teaching-tip.ts"
           }
         }
@@ -42611,6 +43672,12 @@
           ],
           "customElement": true,
           "tagName": "violet-text-area"
+        },
+        {
+          "kind": "variable",
+          "name": "violetTextAreaDefinition",
+          "default": "{ name: \"violet-text-area\", template, styles, shadowOptions: { delegatesFocus: true, }, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-text-area>`; `defineVioletTextArea` in `./violet-text-area.define` registers it."
         }
       ],
       "exports": [
@@ -42619,6 +43686,14 @@
           "name": "VioletTextArea",
           "declaration": {
             "name": "VioletTextArea",
+            "module": "src/text-area/violet-text-area.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetTextAreaDefinition",
+          "declaration": {
+            "name": "violetTextAreaDefinition",
             "module": "src/text-area/violet-text-area.ts"
           }
         }
@@ -43526,6 +44601,12 @@
           ],
           "customElement": true,
           "tagName": "violet-text-field"
+        },
+        {
+          "kind": "variable",
+          "name": "violetTextFieldDefinition",
+          "default": "{ name: \"violet-text-field\", template, styles, shadowOptions: { delegatesFocus: true, }, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-text-field>`; `defineVioletTextField` in `./violet-text-field.define` registers it."
         }
       ],
       "exports": [
@@ -43534,6 +44615,14 @@
           "name": "VioletTextField",
           "declaration": {
             "name": "VioletTextField",
+            "module": "src/text-field/violet-text-field.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetTextFieldDefinition",
+          "declaration": {
+            "name": "violetTextFieldDefinition",
             "module": "src/text-field/violet-text-field.ts"
           }
         }
@@ -43646,6 +44735,12 @@
           ],
           "customElement": true,
           "tagName": "violet-text"
+        },
+        {
+          "kind": "variable",
+          "name": "violetTextDefinition",
+          "default": "{ name: \"violet-text\", template, styles, shadowOptions: { delegatesFocus: true, }, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-text>`; `defineVioletText` in `./violet-text.define` registers it."
         }
       ],
       "exports": [
@@ -43654,6 +44749,14 @@
           "name": "VioletText",
           "declaration": {
             "name": "VioletText",
+            "module": "src/text/violet-text.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetTextDefinition",
+          "declaration": {
+            "name": "violetTextDefinition",
             "module": "src/text/violet-text.ts"
           }
         }
@@ -44329,6 +45432,12 @@
           "customElement": true,
           "tagName": "violet-theme",
           "cssParts": []
+        },
+        {
+          "kind": "variable",
+          "name": "violetThemeDefinition",
+          "default": "{ name: \"violet-theme\", template, styles, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-theme>`; `defineVioletTheme` in `./violet-theme.define` registers it."
         }
       ],
       "exports": [
@@ -44337,6 +45446,14 @@
           "name": "VioletTheme",
           "declaration": {
             "name": "VioletTheme",
+            "module": "src/theme/violet-theme.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetThemeDefinition",
+          "declaration": {
+            "name": "violetThemeDefinition",
             "module": "src/theme/violet-theme.ts"
           }
         }
@@ -45027,6 +46144,12 @@
           "customElement": true,
           "tagName": "violet-time-picker",
           "slots": []
+        },
+        {
+          "kind": "variable",
+          "name": "violetTimePickerDefinition",
+          "default": "{ name: \"violet-time-picker\", template, styles, shadowOptions: { delegatesFocus: true, }, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-time-picker>`; `defineVioletTimePicker` in `./violet-time-picker.define` registers it."
         }
       ],
       "exports": [
@@ -45035,6 +46158,14 @@
           "name": "VioletTimePicker",
           "declaration": {
             "name": "VioletTimePicker",
+            "module": "src/time-picker/violet-time-picker.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetTimePickerDefinition",
+          "declaration": {
+            "name": "violetTimePickerDefinition",
             "module": "src/time-picker/violet-time-picker.ts"
           }
         }
@@ -45405,6 +46536,12 @@
           ],
           "customElement": true,
           "tagName": "violet-toast"
+        },
+        {
+          "kind": "variable",
+          "name": "violetToastDefinition",
+          "default": "{ name: \"violet-toast\", template, styles, shadowOptions: { delegatesFocus: true, }, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-toast>`; `defineVioletToast` in `./violet-toast.define` registers it."
         }
       ],
       "exports": [
@@ -45413,6 +46550,14 @@
           "name": "VioletToast",
           "declaration": {
             "name": "VioletToast",
+            "module": "src/toast/violet-toast.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetToastDefinition",
+          "declaration": {
+            "name": "violetToastDefinition",
             "module": "src/toast/violet-toast.ts"
           }
         }
@@ -45851,6 +46996,12 @@
           ],
           "customElement": true,
           "tagName": "violet-tooltip"
+        },
+        {
+          "kind": "variable",
+          "name": "violetTooltipDefinition",
+          "default": "{ name: \"violet-tooltip\", template, styles, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-tooltip>`; `defineVioletTooltip` in `./violet-tooltip.define` registers it."
         }
       ],
       "exports": [
@@ -45859,6 +47010,14 @@
           "name": "VioletTooltip",
           "declaration": {
             "name": "VioletTooltip",
+            "module": "src/tooltip/violet-tooltip.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetTooltipDefinition",
+          "declaration": {
+            "name": "violetTooltipDefinition",
             "module": "src/tooltip/violet-tooltip.ts"
           }
         }
@@ -46323,6 +47482,12 @@
           ],
           "customElement": true,
           "tagName": "violet-tree-item"
+        },
+        {
+          "kind": "variable",
+          "name": "violetTreeItemDefinition",
+          "default": "{ name: \"violet-tree-item\", template, styles, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-tree-item>`; `defineVioletTreeItem` in `./violet-tree-item.define` registers it."
         }
       ],
       "exports": [
@@ -46331,6 +47496,14 @@
           "name": "VioletTreeItem",
           "declaration": {
             "name": "VioletTreeItem",
+            "module": "src/tree-item/violet-tree-item.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetTreeItemDefinition",
+          "declaration": {
+            "name": "violetTreeItemDefinition",
             "module": "src/tree-item/violet-tree-item.ts"
           }
         }
@@ -46882,6 +48055,12 @@
           ],
           "customElement": true,
           "tagName": "violet-tree"
+        },
+        {
+          "kind": "variable",
+          "name": "violetTreeDefinition",
+          "default": "{ name: \"violet-tree\", template, styles, } satisfies PartialFASTElementDefinition",
+          "description": "The FAST definition of `<violet-tree>`; `defineVioletTree` in `./violet-tree.define` registers it."
         }
       ],
       "exports": [
@@ -46890,6 +48069,14 @@
           "name": "VioletTree",
           "declaration": {
             "name": "VioletTree",
+            "module": "src/tree/violet-tree.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "violetTreeDefinition",
+          "declaration": {
+            "name": "violetTreeDefinition",
             "module": "src/tree/violet-tree.ts"
           }
         }

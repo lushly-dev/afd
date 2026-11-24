@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect } from "@lushly-dev/specimen/test";
 
-import "./violet-date-picker";
+import "./violet-date-picker.define";
 import type { VioletDatePicker } from "./violet-date-picker";
 
 type Story = StoryObj<VioletDatePicker>;

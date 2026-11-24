@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect, userEvent, waitFor } from "@lushly-dev/specimen/test";
 
-import "../accordion-item/violet-accordion-item";
-import "./violet-accordion";
+import "../accordion-item/violet-accordion-item.define";
+import "./violet-accordion.define";
 import type { VioletAccordion } from "./violet-accordion";
 
 type VioletAccordionStoryArgs = {

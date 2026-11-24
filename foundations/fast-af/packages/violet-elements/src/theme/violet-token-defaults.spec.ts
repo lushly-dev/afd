@@ -1,21 +1,21 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import "../button/violet-button";
-import "../calendar/violet-calendar";
-import "../card/violet-card";
-import "../conversation/violet-tool-result-card";
-import "../data-grid/violet-data-grid";
-import "../data-grid/violet-data-grid-attachment-cell";
-import "../data-grid/violet-data-grid-multi-picker";
-import "../data-grid/violet-data-grid-persona-picker";
-import "../data-grid/violet-data-grid-pill-select";
-import "../data-grid/violet-data-grid-rating";
-import "../data-grid/violet-data-grid-reference-picker";
-import "../dialog/violet-dialog";
-import "../select/violet-select";
-import "../text/violet-text";
-import "../text-field/violet-text-field";
-import "./violet-theme";
+import "../button/violet-button.define";
+import "../calendar/violet-calendar.define";
+import "../card/violet-card.define";
+import "../conversation/violet-tool-result-card.define";
+import "../data-grid/violet-data-grid.define";
+import "../data-grid/violet-data-grid-attachment-cell.define";
+import "../data-grid/violet-data-grid-multi-picker.define";
+import "../data-grid/violet-data-grid-persona-picker.define";
+import "../data-grid/violet-data-grid-pill-select.define";
+import "../data-grid/violet-data-grid-rating.define";
+import "../data-grid/violet-data-grid-reference-picker.define";
+import "../dialog/violet-dialog.define";
+import "../select/violet-select.define";
+import "../text/violet-text.define";
+import "../text-field/violet-text-field.define";
+import "./violet-theme.define";
 import { loadVioletBuiltInTheme } from "./violet-theme-runtime";
 
 function nextFrame(): Promise<void> {

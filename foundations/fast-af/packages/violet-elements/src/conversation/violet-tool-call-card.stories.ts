@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect } from "@lushly-dev/specimen/test";
 
-import "./violet-tool-call-card";
+import "./violet-tool-call-card.define";
 import type { VioletToolCallCard, VioletToolCallState } from "./violet-tool-call-card";
 
 type ToolCallStoryArgs = {

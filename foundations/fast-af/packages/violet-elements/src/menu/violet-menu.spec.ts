@@ -3,9 +3,9 @@ import { cdp, server, userEvent } from "vitest/browser";
 
 const isChromium = server.browser === "chromium";
 
-import "../button/violet-button";
-import "./violet-menu";
-import "./violet-menu-item";
+import "../button/violet-button.define";
+import "./violet-menu.define";
+import "./violet-menu-item.define";
 import type { VioletMenu } from "./violet-menu";
 
 function nextFrame(): Promise<void> {

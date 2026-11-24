@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect, waitFor } from "@lushly-dev/specimen/test";
 
-import "./violet-range-slider";
+import "./violet-range-slider.define";
 import type { VioletRangeSlider, VioletRangeSliderOrientation } from "./violet-range-slider";
 
 type VioletRangeSliderStoryArgs = {

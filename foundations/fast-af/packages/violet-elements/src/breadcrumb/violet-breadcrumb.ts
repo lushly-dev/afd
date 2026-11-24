@@ -1,6 +1,5 @@
-import { FASTElement, attr, css, html, observable } from "@lushly-dev/fast-element";
+import { FASTElement, attr, css, html, observable, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
-import "../breadcrumb-item/violet-breadcrumb-item";
 import type { VioletBreadcrumbItem } from "../breadcrumb-item/violet-breadcrumb-item";
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
@@ -91,10 +90,9 @@ export class VioletBreadcrumb extends FASTElement {
 
 attr(VioletBreadcrumb.prototype, "label");
 
-if (!customElements.get("violet-breadcrumb")) {
-    await FASTElement.define(VioletBreadcrumb, {
-        name: "violet-breadcrumb",
-        template,
-        styles,
-    });
-}
+/** The FAST definition of `<violet-breadcrumb>`; `defineVioletBreadcrumb` in `./violet-breadcrumb.define` registers it. */
+export const violetBreadcrumbDefinition = {
+    name: "violet-breadcrumb",
+    template,
+    styles,
+} satisfies PartialFASTElementDefinition;

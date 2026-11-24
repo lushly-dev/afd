@@ -1,4 +1,4 @@
-import { FASTElement, attr, css, html } from "@lushly-dev/fast-element";
+import { FASTElement, attr, css, html, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
 import {
     LazyFallbackPositionController,
@@ -272,10 +272,9 @@ attr({ mode: "boolean" })(VioletPopover.prototype, "open");
 attr(VioletPopover.prototype, "positioning");
 attr(VioletPopover.prototype, "anchor");
 
-if (!customElements.get("violet-popover")) {
-    await FASTElement.define(VioletPopover, {
-        name: "violet-popover",
-        template,
-        styles,
-    });
-}
+/** The FAST definition of `<violet-popover>`; `defineVioletPopover` in `./violet-popover.define` registers it. */
+export const violetPopoverDefinition = {
+    name: "violet-popover",
+    template,
+    styles,
+} satisfies PartialFASTElementDefinition;

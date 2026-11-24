@@ -22,6 +22,786 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
+    "./accordion": {
+      "types": "./dist/accordion/violet-accordion.d.ts",
+      "import": "./dist/accordion/violet-accordion.js",
+      "default": "./dist/accordion/violet-accordion.js"
+    },
+    "./accordion/define": {
+      "types": "./dist/accordion/violet-accordion.define.d.ts",
+      "import": "./dist/accordion/violet-accordion.define.js",
+      "default": "./dist/accordion/violet-accordion.define.js"
+    },
+    "./accordion-item": {
+      "types": "./dist/accordion-item/violet-accordion-item.d.ts",
+      "import": "./dist/accordion-item/violet-accordion-item.js",
+      "default": "./dist/accordion-item/violet-accordion-item.js"
+    },
+    "./accordion-item/define": {
+      "types": "./dist/accordion-item/violet-accordion-item.define.d.ts",
+      "import": "./dist/accordion-item/violet-accordion-item.define.js",
+      "default": "./dist/accordion-item/violet-accordion-item.define.js"
+    },
+    "./alert": {
+      "types": "./dist/alert/violet-alert.d.ts",
+      "import": "./dist/alert/violet-alert.js",
+      "default": "./dist/alert/violet-alert.js"
+    },
+    "./alert/define": {
+      "types": "./dist/alert/violet-alert.define.d.ts",
+      "import": "./dist/alert/violet-alert.define.js",
+      "default": "./dist/alert/violet-alert.define.js"
+    },
+    "./approval-card": {
+      "types": "./dist/conversation/violet-approval-card.d.ts",
+      "import": "./dist/conversation/violet-approval-card.js",
+      "default": "./dist/conversation/violet-approval-card.js"
+    },
+    "./approval-card/define": {
+      "types": "./dist/conversation/violet-approval-card.define.d.ts",
+      "import": "./dist/conversation/violet-approval-card.define.js",
+      "default": "./dist/conversation/violet-approval-card.define.js"
+    },
+    "./badge": {
+      "types": "./dist/badge/violet-badge.d.ts",
+      "import": "./dist/badge/violet-badge.js",
+      "default": "./dist/badge/violet-badge.js"
+    },
+    "./badge/define": {
+      "types": "./dist/badge/violet-badge.define.d.ts",
+      "import": "./dist/badge/violet-badge.define.js",
+      "default": "./dist/badge/violet-badge.define.js"
+    },
+    "./breadcrumb": {
+      "types": "./dist/breadcrumb/violet-breadcrumb.d.ts",
+      "import": "./dist/breadcrumb/violet-breadcrumb.js",
+      "default": "./dist/breadcrumb/violet-breadcrumb.js"
+    },
+    "./breadcrumb/define": {
+      "types": "./dist/breadcrumb/violet-breadcrumb.define.d.ts",
+      "import": "./dist/breadcrumb/violet-breadcrumb.define.js",
+      "default": "./dist/breadcrumb/violet-breadcrumb.define.js"
+    },
+    "./breadcrumb-item": {
+      "types": "./dist/breadcrumb-item/violet-breadcrumb-item.d.ts",
+      "import": "./dist/breadcrumb-item/violet-breadcrumb-item.js",
+      "default": "./dist/breadcrumb-item/violet-breadcrumb-item.js"
+    },
+    "./breadcrumb-item/define": {
+      "types": "./dist/breadcrumb-item/violet-breadcrumb-item.define.d.ts",
+      "import": "./dist/breadcrumb-item/violet-breadcrumb-item.define.js",
+      "default": "./dist/breadcrumb-item/violet-breadcrumb-item.define.js"
+    },
+    "./button": {
+      "types": "./dist/button/violet-button.d.ts",
+      "import": "./dist/button/violet-button.js",
+      "default": "./dist/button/violet-button.js"
+    },
+    "./button/define": {
+      "types": "./dist/button/violet-button.define.d.ts",
+      "import": "./dist/button/violet-button.define.js",
+      "default": "./dist/button/violet-button.define.js"
+    },
+    "./calendar": {
+      "types": "./dist/calendar/violet-calendar.d.ts",
+      "import": "./dist/calendar/violet-calendar.js",
+      "default": "./dist/calendar/violet-calendar.js"
+    },
+    "./calendar/define": {
+      "types": "./dist/calendar/violet-calendar.define.d.ts",
+      "import": "./dist/calendar/violet-calendar.define.js",
+      "default": "./dist/calendar/violet-calendar.define.js"
+    },
+    "./card": {
+      "types": "./dist/card/violet-card.d.ts",
+      "import": "./dist/card/violet-card.js",
+      "default": "./dist/card/violet-card.js"
+    },
+    "./card/define": {
+      "types": "./dist/card/violet-card.define.d.ts",
+      "import": "./dist/card/violet-card.define.js",
+      "default": "./dist/card/violet-card.define.js"
+    },
+    "./carousel": {
+      "types": "./dist/carousel/violet-carousel.d.ts",
+      "import": "./dist/carousel/violet-carousel.js",
+      "default": "./dist/carousel/violet-carousel.js"
+    },
+    "./carousel/define": {
+      "types": "./dist/carousel/violet-carousel.define.d.ts",
+      "import": "./dist/carousel/violet-carousel.define.js",
+      "default": "./dist/carousel/violet-carousel.define.js"
+    },
+    "./chat-composer": {
+      "types": "./dist/conversation/violet-chat-composer.d.ts",
+      "import": "./dist/conversation/violet-chat-composer.js",
+      "default": "./dist/conversation/violet-chat-composer.js"
+    },
+    "./chat-composer/define": {
+      "types": "./dist/conversation/violet-chat-composer.define.d.ts",
+      "import": "./dist/conversation/violet-chat-composer.define.js",
+      "default": "./dist/conversation/violet-chat-composer.define.js"
+    },
+    "./chat-suggestions": {
+      "types": "./dist/conversation/violet-chat-suggestions.d.ts",
+      "import": "./dist/conversation/violet-chat-suggestions.js",
+      "default": "./dist/conversation/violet-chat-suggestions.js"
+    },
+    "./chat-suggestions/define": {
+      "types": "./dist/conversation/violet-chat-suggestions.define.d.ts",
+      "import": "./dist/conversation/violet-chat-suggestions.define.js",
+      "default": "./dist/conversation/violet-chat-suggestions.define.js"
+    },
+    "./checkbox": {
+      "types": "./dist/checkbox/violet-checkbox.d.ts",
+      "import": "./dist/checkbox/violet-checkbox.js",
+      "default": "./dist/checkbox/violet-checkbox.js"
+    },
+    "./checkbox/define": {
+      "types": "./dist/checkbox/violet-checkbox.define.d.ts",
+      "import": "./dist/checkbox/violet-checkbox.define.js",
+      "default": "./dist/checkbox/violet-checkbox.define.js"
+    },
+    "./color-picker": {
+      "types": "./dist/color-picker/violet-color-picker.d.ts",
+      "import": "./dist/color-picker/violet-color-picker.js",
+      "default": "./dist/color-picker/violet-color-picker.js"
+    },
+    "./color-picker/define": {
+      "types": "./dist/color-picker/violet-color-picker.define.d.ts",
+      "import": "./dist/color-picker/violet-color-picker.define.js",
+      "default": "./dist/color-picker/violet-color-picker.define.js"
+    },
+    "./color-swatch": {
+      "types": "./dist/color-swatch/violet-color-swatch.d.ts",
+      "import": "./dist/color-swatch/violet-color-swatch.js",
+      "default": "./dist/color-swatch/violet-color-swatch.js"
+    },
+    "./color-swatch/define": {
+      "types": "./dist/color-swatch/violet-color-swatch.define.d.ts",
+      "import": "./dist/color-swatch/violet-color-swatch.define.js",
+      "default": "./dist/color-swatch/violet-color-swatch.define.js"
+    },
+    "./combobox": {
+      "types": "./dist/combobox/violet-combobox.d.ts",
+      "import": "./dist/combobox/violet-combobox.js",
+      "default": "./dist/combobox/violet-combobox.js"
+    },
+    "./combobox/define": {
+      "types": "./dist/combobox/violet-combobox.define.d.ts",
+      "import": "./dist/combobox/violet-combobox.define.js",
+      "default": "./dist/combobox/violet-combobox.define.js"
+    },
+    "./conversation-thread": {
+      "types": "./dist/conversation/violet-conversation-thread.d.ts",
+      "import": "./dist/conversation/violet-conversation-thread.js",
+      "default": "./dist/conversation/violet-conversation-thread.js"
+    },
+    "./conversation-thread/define": {
+      "types": "./dist/conversation/violet-conversation-thread.define.d.ts",
+      "import": "./dist/conversation/violet-conversation-thread.define.js",
+      "default": "./dist/conversation/violet-conversation-thread.define.js"
+    },
+    "./data-grid": {
+      "types": "./dist/data-grid/violet-data-grid.d.ts",
+      "import": "./dist/data-grid/violet-data-grid.js",
+      "default": "./dist/data-grid/violet-data-grid.js"
+    },
+    "./data-grid/define": {
+      "types": "./dist/data-grid/violet-data-grid.define.d.ts",
+      "import": "./dist/data-grid/violet-data-grid.define.js",
+      "default": "./dist/data-grid/violet-data-grid.define.js"
+    },
+    "./data-grid-attachment-cell": {
+      "types": "./dist/data-grid/violet-data-grid-attachment-cell.d.ts",
+      "import": "./dist/data-grid/violet-data-grid-attachment-cell.js",
+      "default": "./dist/data-grid/violet-data-grid-attachment-cell.js"
+    },
+    "./data-grid-attachment-cell/define": {
+      "types": "./dist/data-grid/violet-data-grid-attachment-cell.define.d.ts",
+      "import": "./dist/data-grid/violet-data-grid-attachment-cell.define.js",
+      "default": "./dist/data-grid/violet-data-grid-attachment-cell.define.js"
+    },
+    "./data-grid-multi-picker": {
+      "types": "./dist/data-grid/violet-data-grid-multi-picker.d.ts",
+      "import": "./dist/data-grid/violet-data-grid-multi-picker.js",
+      "default": "./dist/data-grid/violet-data-grid-multi-picker.js"
+    },
+    "./data-grid-multi-picker/define": {
+      "types": "./dist/data-grid/violet-data-grid-multi-picker.define.d.ts",
+      "import": "./dist/data-grid/violet-data-grid-multi-picker.define.js",
+      "default": "./dist/data-grid/violet-data-grid-multi-picker.define.js"
+    },
+    "./data-grid-persona-picker": {
+      "types": "./dist/data-grid/violet-data-grid-persona-picker.d.ts",
+      "import": "./dist/data-grid/violet-data-grid-persona-picker.js",
+      "default": "./dist/data-grid/violet-data-grid-persona-picker.js"
+    },
+    "./data-grid-persona-picker/define": {
+      "types": "./dist/data-grid/violet-data-grid-persona-picker.define.d.ts",
+      "import": "./dist/data-grid/violet-data-grid-persona-picker.define.js",
+      "default": "./dist/data-grid/violet-data-grid-persona-picker.define.js"
+    },
+    "./data-grid-pill-select": {
+      "types": "./dist/data-grid/violet-data-grid-pill-select.d.ts",
+      "import": "./dist/data-grid/violet-data-grid-pill-select.js",
+      "default": "./dist/data-grid/violet-data-grid-pill-select.js"
+    },
+    "./data-grid-pill-select/define": {
+      "types": "./dist/data-grid/violet-data-grid-pill-select.define.d.ts",
+      "import": "./dist/data-grid/violet-data-grid-pill-select.define.js",
+      "default": "./dist/data-grid/violet-data-grid-pill-select.define.js"
+    },
+    "./data-grid-rating": {
+      "types": "./dist/data-grid/violet-data-grid-rating.d.ts",
+      "import": "./dist/data-grid/violet-data-grid-rating.js",
+      "default": "./dist/data-grid/violet-data-grid-rating.js"
+    },
+    "./data-grid-rating/define": {
+      "types": "./dist/data-grid/violet-data-grid-rating.define.d.ts",
+      "import": "./dist/data-grid/violet-data-grid-rating.define.js",
+      "default": "./dist/data-grid/violet-data-grid-rating.define.js"
+    },
+    "./data-grid-reference-picker": {
+      "types": "./dist/data-grid/violet-data-grid-reference-picker.d.ts",
+      "import": "./dist/data-grid/violet-data-grid-reference-picker.js",
+      "default": "./dist/data-grid/violet-data-grid-reference-picker.js"
+    },
+    "./data-grid-reference-picker/define": {
+      "types": "./dist/data-grid/violet-data-grid-reference-picker.define.d.ts",
+      "import": "./dist/data-grid/violet-data-grid-reference-picker.define.js",
+      "default": "./dist/data-grid/violet-data-grid-reference-picker.define.js"
+    },
+    "./date-picker": {
+      "types": "./dist/date-picker/violet-date-picker.d.ts",
+      "import": "./dist/date-picker/violet-date-picker.js",
+      "default": "./dist/date-picker/violet-date-picker.js"
+    },
+    "./date-picker/define": {
+      "types": "./dist/date-picker/violet-date-picker.define.d.ts",
+      "import": "./dist/date-picker/violet-date-picker.define.js",
+      "default": "./dist/date-picker/violet-date-picker.define.js"
+    },
+    "./date-range-picker": {
+      "types": "./dist/date-range-picker/violet-date-range-picker.d.ts",
+      "import": "./dist/date-range-picker/violet-date-range-picker.js",
+      "default": "./dist/date-range-picker/violet-date-range-picker.js"
+    },
+    "./date-range-picker/define": {
+      "types": "./dist/date-range-picker/violet-date-range-picker.define.d.ts",
+      "import": "./dist/date-range-picker/violet-date-range-picker.define.js",
+      "default": "./dist/date-range-picker/violet-date-range-picker.define.js"
+    },
+    "./dialog": {
+      "types": "./dist/dialog/violet-dialog.d.ts",
+      "import": "./dist/dialog/violet-dialog.js",
+      "default": "./dist/dialog/violet-dialog.js"
+    },
+    "./dialog/define": {
+      "types": "./dist/dialog/violet-dialog.define.d.ts",
+      "import": "./dist/dialog/violet-dialog.define.js",
+      "default": "./dist/dialog/violet-dialog.define.js"
+    },
+    "./divider": {
+      "types": "./dist/divider/violet-divider.d.ts",
+      "import": "./dist/divider/violet-divider.js",
+      "default": "./dist/divider/violet-divider.js"
+    },
+    "./divider/define": {
+      "types": "./dist/divider/violet-divider.define.d.ts",
+      "import": "./dist/divider/violet-divider.define.js",
+      "default": "./dist/divider/violet-divider.define.js"
+    },
+    "./empty-state": {
+      "types": "./dist/empty-state/violet-empty-state.d.ts",
+      "import": "./dist/empty-state/violet-empty-state.js",
+      "default": "./dist/empty-state/violet-empty-state.js"
+    },
+    "./empty-state/define": {
+      "types": "./dist/empty-state/violet-empty-state.define.d.ts",
+      "import": "./dist/empty-state/violet-empty-state.define.js",
+      "default": "./dist/empty-state/violet-empty-state.define.js"
+    },
+    "./file-explorer": {
+      "types": "./dist/file-explorer/violet-file-explorer.d.ts",
+      "import": "./dist/file-explorer/violet-file-explorer.js",
+      "default": "./dist/file-explorer/violet-file-explorer.js"
+    },
+    "./file-explorer/define": {
+      "types": "./dist/file-explorer/violet-file-explorer.define.d.ts",
+      "import": "./dist/file-explorer/violet-file-explorer.define.js",
+      "default": "./dist/file-explorer/violet-file-explorer.define.js"
+    },
+    "./file-upload": {
+      "types": "./dist/file-upload/violet-file-upload.d.ts",
+      "import": "./dist/file-upload/violet-file-upload.js",
+      "default": "./dist/file-upload/violet-file-upload.js"
+    },
+    "./file-upload/define": {
+      "types": "./dist/file-upload/violet-file-upload.define.d.ts",
+      "import": "./dist/file-upload/violet-file-upload.define.js",
+      "default": "./dist/file-upload/violet-file-upload.define.js"
+    },
+    "./gantt": {
+      "types": "./dist/gantt/violet-gantt.d.ts",
+      "import": "./dist/gantt/violet-gantt.js",
+      "default": "./dist/gantt/violet-gantt.js"
+    },
+    "./gantt/define": {
+      "types": "./dist/gantt/violet-gantt.define.d.ts",
+      "import": "./dist/gantt/violet-gantt.define.js",
+      "default": "./dist/gantt/violet-gantt.define.js"
+    },
+    "./icon": {
+      "types": "./dist/icon/violet-icon.d.ts",
+      "import": "./dist/icon/violet-icon.js",
+      "default": "./dist/icon/violet-icon.js"
+    },
+    "./icon/define": {
+      "types": "./dist/icon/violet-icon.define.d.ts",
+      "import": "./dist/icon/violet-icon.define.js",
+      "default": "./dist/icon/violet-icon.define.js"
+    },
+    "./icon-button": {
+      "types": "./dist/icon-button/violet-icon-button.d.ts",
+      "import": "./dist/icon-button/violet-icon-button.js",
+      "default": "./dist/icon-button/violet-icon-button.js"
+    },
+    "./icon-button/define": {
+      "types": "./dist/icon-button/violet-icon-button.define.d.ts",
+      "import": "./dist/icon-button/violet-icon-button.define.js",
+      "default": "./dist/icon-button/violet-icon-button.define.js"
+    },
+    "./image": {
+      "types": "./dist/image/violet-image.d.ts",
+      "import": "./dist/image/violet-image.js",
+      "default": "./dist/image/violet-image.js"
+    },
+    "./image/define": {
+      "types": "./dist/image/violet-image.define.d.ts",
+      "import": "./dist/image/violet-image.define.js",
+      "default": "./dist/image/violet-image.define.js"
+    },
+    "./listbox": {
+      "types": "./dist/listbox/violet-listbox.d.ts",
+      "import": "./dist/listbox/violet-listbox.js",
+      "default": "./dist/listbox/violet-listbox.js"
+    },
+    "./listbox/define": {
+      "types": "./dist/listbox/violet-listbox.define.d.ts",
+      "import": "./dist/listbox/violet-listbox.define.js",
+      "default": "./dist/listbox/violet-listbox.define.js"
+    },
+    "./menu": {
+      "types": "./dist/menu/violet-menu.d.ts",
+      "import": "./dist/menu/violet-menu.js",
+      "default": "./dist/menu/violet-menu.js"
+    },
+    "./menu/define": {
+      "types": "./dist/menu/violet-menu.define.d.ts",
+      "import": "./dist/menu/violet-menu.define.js",
+      "default": "./dist/menu/violet-menu.define.js"
+    },
+    "./menu-item": {
+      "types": "./dist/menu/violet-menu-item.d.ts",
+      "import": "./dist/menu/violet-menu-item.js",
+      "default": "./dist/menu/violet-menu-item.js"
+    },
+    "./menu-item/define": {
+      "types": "./dist/menu/violet-menu-item.define.d.ts",
+      "import": "./dist/menu/violet-menu-item.define.js",
+      "default": "./dist/menu/violet-menu-item.define.js"
+    },
+    "./message": {
+      "types": "./dist/conversation/violet-message.d.ts",
+      "import": "./dist/conversation/violet-message.js",
+      "default": "./dist/conversation/violet-message.js"
+    },
+    "./message/define": {
+      "types": "./dist/conversation/violet-message.define.d.ts",
+      "import": "./dist/conversation/violet-message.define.js",
+      "default": "./dist/conversation/violet-message.define.js"
+    },
+    "./message-media": {
+      "types": "./dist/conversation/violet-message-media.d.ts",
+      "import": "./dist/conversation/violet-message-media.js",
+      "default": "./dist/conversation/violet-message-media.js"
+    },
+    "./message-media/define": {
+      "types": "./dist/conversation/violet-message-media.define.d.ts",
+      "import": "./dist/conversation/violet-message-media.define.js",
+      "default": "./dist/conversation/violet-message-media.define.js"
+    },
+    "./message-status": {
+      "types": "./dist/conversation/violet-message-status.d.ts",
+      "import": "./dist/conversation/violet-message-status.js",
+      "default": "./dist/conversation/violet-message-status.js"
+    },
+    "./message-status/define": {
+      "types": "./dist/conversation/violet-message-status.define.d.ts",
+      "import": "./dist/conversation/violet-message-status.define.js",
+      "default": "./dist/conversation/violet-message-status.define.js"
+    },
+    "./message-text": {
+      "types": "./dist/conversation/violet-message-text.d.ts",
+      "import": "./dist/conversation/violet-message-text.js",
+      "default": "./dist/conversation/violet-message-text.js"
+    },
+    "./message-text/define": {
+      "types": "./dist/conversation/violet-message-text.define.d.ts",
+      "import": "./dist/conversation/violet-message-text.define.js",
+      "default": "./dist/conversation/violet-message-text.define.js"
+    },
+    "./option": {
+      "types": "./dist/option/violet-option.d.ts",
+      "import": "./dist/option/violet-option.js",
+      "default": "./dist/option/violet-option.js"
+    },
+    "./option/define": {
+      "types": "./dist/option/violet-option.define.d.ts",
+      "import": "./dist/option/violet-option.define.js",
+      "default": "./dist/option/violet-option.define.js"
+    },
+    "./option-group": {
+      "types": "./dist/option-group/violet-option-group.d.ts",
+      "import": "./dist/option-group/violet-option-group.js",
+      "default": "./dist/option-group/violet-option-group.js"
+    },
+    "./option-group/define": {
+      "types": "./dist/option-group/violet-option-group.define.d.ts",
+      "import": "./dist/option-group/violet-option-group.define.js",
+      "default": "./dist/option-group/violet-option-group.define.js"
+    },
+    "./pagination": {
+      "types": "./dist/pagination/violet-pagination.d.ts",
+      "import": "./dist/pagination/violet-pagination.js",
+      "default": "./dist/pagination/violet-pagination.js"
+    },
+    "./pagination/define": {
+      "types": "./dist/pagination/violet-pagination.define.d.ts",
+      "import": "./dist/pagination/violet-pagination.define.js",
+      "default": "./dist/pagination/violet-pagination.define.js"
+    },
+    "./persona": {
+      "types": "./dist/persona/violet-persona.d.ts",
+      "import": "./dist/persona/violet-persona.js",
+      "default": "./dist/persona/violet-persona.js"
+    },
+    "./persona/define": {
+      "types": "./dist/persona/violet-persona.define.d.ts",
+      "import": "./dist/persona/violet-persona.define.js",
+      "default": "./dist/persona/violet-persona.define.js"
+    },
+    "./popover": {
+      "types": "./dist/popover/violet-popover.d.ts",
+      "import": "./dist/popover/violet-popover.js",
+      "default": "./dist/popover/violet-popover.js"
+    },
+    "./popover/define": {
+      "types": "./dist/popover/violet-popover.define.d.ts",
+      "import": "./dist/popover/violet-popover.define.js",
+      "default": "./dist/popover/violet-popover.define.js"
+    },
+    "./progress": {
+      "types": "./dist/progress/violet-progress.d.ts",
+      "import": "./dist/progress/violet-progress.js",
+      "default": "./dist/progress/violet-progress.js"
+    },
+    "./progress/define": {
+      "types": "./dist/progress/violet-progress.define.d.ts",
+      "import": "./dist/progress/violet-progress.define.js",
+      "default": "./dist/progress/violet-progress.define.js"
+    },
+    "./radio": {
+      "types": "./dist/radio/violet-radio.d.ts",
+      "import": "./dist/radio/violet-radio.js",
+      "default": "./dist/radio/violet-radio.js"
+    },
+    "./radio/define": {
+      "types": "./dist/radio/violet-radio.define.d.ts",
+      "import": "./dist/radio/violet-radio.define.js",
+      "default": "./dist/radio/violet-radio.define.js"
+    },
+    "./radio-group": {
+      "types": "./dist/radio-group/violet-radio-group.d.ts",
+      "import": "./dist/radio-group/violet-radio-group.js",
+      "default": "./dist/radio-group/violet-radio-group.js"
+    },
+    "./radio-group/define": {
+      "types": "./dist/radio-group/violet-radio-group.define.d.ts",
+      "import": "./dist/radio-group/violet-radio-group.define.js",
+      "default": "./dist/radio-group/violet-radio-group.define.js"
+    },
+    "./range-slider": {
+      "types": "./dist/slider/violet-range-slider.d.ts",
+      "import": "./dist/slider/violet-range-slider.js",
+      "default": "./dist/slider/violet-range-slider.js"
+    },
+    "./range-slider/define": {
+      "types": "./dist/slider/violet-range-slider.define.d.ts",
+      "import": "./dist/slider/violet-range-slider.define.js",
+      "default": "./dist/slider/violet-range-slider.define.js"
+    },
+    "./reasoning-block": {
+      "types": "./dist/conversation/violet-reasoning-block.d.ts",
+      "import": "./dist/conversation/violet-reasoning-block.js",
+      "default": "./dist/conversation/violet-reasoning-block.js"
+    },
+    "./reasoning-block/define": {
+      "types": "./dist/conversation/violet-reasoning-block.define.d.ts",
+      "import": "./dist/conversation/violet-reasoning-block.define.js",
+      "default": "./dist/conversation/violet-reasoning-block.define.js"
+    },
+    "./segment": {
+      "types": "./dist/segment/violet-segment.d.ts",
+      "import": "./dist/segment/violet-segment.js",
+      "default": "./dist/segment/violet-segment.js"
+    },
+    "./segment/define": {
+      "types": "./dist/segment/violet-segment.define.d.ts",
+      "import": "./dist/segment/violet-segment.define.js",
+      "default": "./dist/segment/violet-segment.define.js"
+    },
+    "./segmented-control": {
+      "types": "./dist/segmented-control/violet-segmented-control.d.ts",
+      "import": "./dist/segmented-control/violet-segmented-control.js",
+      "default": "./dist/segmented-control/violet-segmented-control.js"
+    },
+    "./segmented-control/define": {
+      "types": "./dist/segmented-control/violet-segmented-control.define.d.ts",
+      "import": "./dist/segmented-control/violet-segmented-control.define.js",
+      "default": "./dist/segmented-control/violet-segmented-control.define.js"
+    },
+    "./select": {
+      "types": "./dist/select/violet-select.d.ts",
+      "import": "./dist/select/violet-select.js",
+      "default": "./dist/select/violet-select.js"
+    },
+    "./select/define": {
+      "types": "./dist/select/violet-select.define.d.ts",
+      "import": "./dist/select/violet-select.define.js",
+      "default": "./dist/select/violet-select.define.js"
+    },
+    "./skeleton": {
+      "types": "./dist/skeleton/violet-skeleton.d.ts",
+      "import": "./dist/skeleton/violet-skeleton.js",
+      "default": "./dist/skeleton/violet-skeleton.js"
+    },
+    "./skeleton/define": {
+      "types": "./dist/skeleton/violet-skeleton.define.d.ts",
+      "import": "./dist/skeleton/violet-skeleton.define.js",
+      "default": "./dist/skeleton/violet-skeleton.define.js"
+    },
+    "./slider": {
+      "types": "./dist/slider/violet-slider.d.ts",
+      "import": "./dist/slider/violet-slider.js",
+      "default": "./dist/slider/violet-slider.js"
+    },
+    "./slider/define": {
+      "types": "./dist/slider/violet-slider.define.d.ts",
+      "import": "./dist/slider/violet-slider.define.js",
+      "default": "./dist/slider/violet-slider.define.js"
+    },
+    "./snackbar": {
+      "types": "./dist/snackbar/violet-snackbar.d.ts",
+      "import": "./dist/snackbar/violet-snackbar.js",
+      "default": "./dist/snackbar/violet-snackbar.js"
+    },
+    "./snackbar/define": {
+      "types": "./dist/snackbar/violet-snackbar.define.d.ts",
+      "import": "./dist/snackbar/violet-snackbar.define.js",
+      "default": "./dist/snackbar/violet-snackbar.define.js"
+    },
+    "./source-citation": {
+      "types": "./dist/conversation/violet-source-citation.d.ts",
+      "import": "./dist/conversation/violet-source-citation.js",
+      "default": "./dist/conversation/violet-source-citation.js"
+    },
+    "./source-citation/define": {
+      "types": "./dist/conversation/violet-source-citation.define.d.ts",
+      "import": "./dist/conversation/violet-source-citation.define.js",
+      "default": "./dist/conversation/violet-source-citation.define.js"
+    },
+    "./spinner": {
+      "types": "./dist/spinner/violet-spinner.d.ts",
+      "import": "./dist/spinner/violet-spinner.js",
+      "default": "./dist/spinner/violet-spinner.js"
+    },
+    "./spinner/define": {
+      "types": "./dist/spinner/violet-spinner.define.d.ts",
+      "import": "./dist/spinner/violet-spinner.define.js",
+      "default": "./dist/spinner/violet-spinner.define.js"
+    },
+    "./switch": {
+      "types": "./dist/switch/violet-switch.d.ts",
+      "import": "./dist/switch/violet-switch.js",
+      "default": "./dist/switch/violet-switch.js"
+    },
+    "./switch/define": {
+      "types": "./dist/switch/violet-switch.define.d.ts",
+      "import": "./dist/switch/violet-switch.define.js",
+      "default": "./dist/switch/violet-switch.define.js"
+    },
+    "./tab": {
+      "types": "./dist/tab/violet-tab.d.ts",
+      "import": "./dist/tab/violet-tab.js",
+      "default": "./dist/tab/violet-tab.js"
+    },
+    "./tab/define": {
+      "types": "./dist/tab/violet-tab.define.d.ts",
+      "import": "./dist/tab/violet-tab.define.js",
+      "default": "./dist/tab/violet-tab.define.js"
+    },
+    "./tab-panel": {
+      "types": "./dist/tab-panel/violet-tab-panel.d.ts",
+      "import": "./dist/tab-panel/violet-tab-panel.js",
+      "default": "./dist/tab-panel/violet-tab-panel.js"
+    },
+    "./tab-panel/define": {
+      "types": "./dist/tab-panel/violet-tab-panel.define.d.ts",
+      "import": "./dist/tab-panel/violet-tab-panel.define.js",
+      "default": "./dist/tab-panel/violet-tab-panel.define.js"
+    },
+    "./tabs": {
+      "types": "./dist/tabs/violet-tabs.d.ts",
+      "import": "./dist/tabs/violet-tabs.js",
+      "default": "./dist/tabs/violet-tabs.js"
+    },
+    "./tabs/define": {
+      "types": "./dist/tabs/violet-tabs.define.d.ts",
+      "import": "./dist/tabs/violet-tabs.define.js",
+      "default": "./dist/tabs/violet-tabs.define.js"
+    },
+    "./teaching-tip": {
+      "types": "./dist/teaching-tip/violet-teaching-tip.d.ts",
+      "import": "./dist/teaching-tip/violet-teaching-tip.js",
+      "default": "./dist/teaching-tip/violet-teaching-tip.js"
+    },
+    "./teaching-tip/define": {
+      "types": "./dist/teaching-tip/violet-teaching-tip.define.d.ts",
+      "import": "./dist/teaching-tip/violet-teaching-tip.define.js",
+      "default": "./dist/teaching-tip/violet-teaching-tip.define.js"
+    },
+    "./text": {
+      "types": "./dist/text/violet-text.d.ts",
+      "import": "./dist/text/violet-text.js",
+      "default": "./dist/text/violet-text.js"
+    },
+    "./text/define": {
+      "types": "./dist/text/violet-text.define.d.ts",
+      "import": "./dist/text/violet-text.define.js",
+      "default": "./dist/text/violet-text.define.js"
+    },
+    "./text-area": {
+      "types": "./dist/text-area/violet-text-area.d.ts",
+      "import": "./dist/text-area/violet-text-area.js",
+      "default": "./dist/text-area/violet-text-area.js"
+    },
+    "./text-area/define": {
+      "types": "./dist/text-area/violet-text-area.define.d.ts",
+      "import": "./dist/text-area/violet-text-area.define.js",
+      "default": "./dist/text-area/violet-text-area.define.js"
+    },
+    "./text-field": {
+      "types": "./dist/text-field/violet-text-field.d.ts",
+      "import": "./dist/text-field/violet-text-field.js",
+      "default": "./dist/text-field/violet-text-field.js"
+    },
+    "./text-field/define": {
+      "types": "./dist/text-field/violet-text-field.define.d.ts",
+      "import": "./dist/text-field/violet-text-field.define.js",
+      "default": "./dist/text-field/violet-text-field.define.js"
+    },
+    "./theme": {
+      "types": "./dist/theme/index.d.ts",
+      "import": "./dist/theme/index.js",
+      "default": "./dist/theme/index.js"
+    },
+    "./theme/define": {
+      "types": "./dist/theme/violet-theme.define.d.ts",
+      "import": "./dist/theme/violet-theme.define.js",
+      "default": "./dist/theme/violet-theme.define.js"
+    },
+    "./time-picker": {
+      "types": "./dist/time-picker/violet-time-picker.d.ts",
+      "import": "./dist/time-picker/violet-time-picker.js",
+      "default": "./dist/time-picker/violet-time-picker.js"
+    },
+    "./time-picker/define": {
+      "types": "./dist/time-picker/violet-time-picker.define.d.ts",
+      "import": "./dist/time-picker/violet-time-picker.define.js",
+      "default": "./dist/time-picker/violet-time-picker.define.js"
+    },
+    "./toast": {
+      "types": "./dist/toast/violet-toast.d.ts",
+      "import": "./dist/toast/violet-toast.js",
+      "default": "./dist/toast/violet-toast.js"
+    },
+    "./toast/define": {
+      "types": "./dist/toast/violet-toast.define.d.ts",
+      "import": "./dist/toast/violet-toast.define.js",
+      "default": "./dist/toast/violet-toast.define.js"
+    },
+    "./tool-call-card": {
+      "types": "./dist/conversation/violet-tool-call-card.d.ts",
+      "import": "./dist/conversation/violet-tool-call-card.js",
+      "default": "./dist/conversation/violet-tool-call-card.js"
+    },
+    "./tool-call-card/define": {
+      "types": "./dist/conversation/violet-tool-call-card.define.d.ts",
+      "import": "./dist/conversation/violet-tool-call-card.define.js",
+      "default": "./dist/conversation/violet-tool-call-card.define.js"
+    },
+    "./tool-result-card": {
+      "types": "./dist/conversation/violet-tool-result-card.d.ts",
+      "import": "./dist/conversation/violet-tool-result-card.js",
+      "default": "./dist/conversation/violet-tool-result-card.js"
+    },
+    "./tool-result-card/define": {
+      "types": "./dist/conversation/violet-tool-result-card.define.d.ts",
+      "import": "./dist/conversation/violet-tool-result-card.define.js",
+      "default": "./dist/conversation/violet-tool-result-card.define.js"
+    },
+    "./tooltip": {
+      "types": "./dist/tooltip/violet-tooltip.d.ts",
+      "import": "./dist/tooltip/violet-tooltip.js",
+      "default": "./dist/tooltip/violet-tooltip.js"
+    },
+    "./tooltip/define": {
+      "types": "./dist/tooltip/violet-tooltip.define.d.ts",
+      "import": "./dist/tooltip/violet-tooltip.define.js",
+      "default": "./dist/tooltip/violet-tooltip.define.js"
+    },
+    "./tree": {
+      "types": "./dist/tree/violet-tree.d.ts",
+      "import": "./dist/tree/violet-tree.js",
+      "default": "./dist/tree/violet-tree.js"
+    },
+    "./tree/define": {
+      "types": "./dist/tree/violet-tree.define.d.ts",
+      "import": "./dist/tree/violet-tree.define.js",
+      "default": "./dist/tree/violet-tree.define.js"
+    },
+    "./tree-item": {
+      "types": "./dist/tree-item/violet-tree-item.d.ts",
+      "import": "./dist/tree-item/violet-tree-item.js",
+      "default": "./dist/tree-item/violet-tree-item.js"
+    },
+    "./tree-item/define": {
+      "types": "./dist/tree-item/violet-tree-item.define.d.ts",
+      "import": "./dist/tree-item/violet-tree-item.define.js",
+      "default": "./dist/tree-item/violet-tree-item.define.js"
+    },
+    "./icon-registry": {
+      "types": "./dist/icon/icon-registry.d.ts",
+      "import": "./dist/icon/icon-registry.js",
+      "default": "./dist/icon/icon-registry.js"
+    },
+    "./icons/*": {
+      "types": "./dist/icon/generated/icons/*.d.ts",
+      "import": "./dist/icon/generated/icons/*.js",
+      "default": "./dist/icon/generated/icons/*.js"
+    },
     "./theme-css": {
       "types": "./dist/theme/violet-theme-css.d.ts",
       "import": "./dist/theme/violet-theme-css.js",
@@ -32,13 +812,21 @@
       "import": "./dist/theme/violet-theme-runtime.js",
       "default": "./dist/theme/violet-theme-runtime.js"
     },
-    "./dist/*": "./dist/*",
+    "./theme-builtin": {
+      "types": "./dist/theme/violet-theme-builtin.d.ts",
+      "import": "./dist/theme/violet-theme-builtin.js",
+      "default": "./dist/theme/violet-theme-builtin.js"
+    },
     "./custom-elements.json": "./custom-elements.json",
     "./tokens/*": "./tokens/*",
     "./package.json": "./package.json"
   },
   "customElements": "custom-elements.json",
-  "sideEffects": true,
+  "sideEffects": [
+    "./dist/**/*.define.js",
+    "./dist/all.js",
+    "./dist/index.js"
+  ],
   "engines": {
     "node": ">=22.12.0"
   },
@@ -47,7 +835,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.spec.json",
     "dev": "tsc -p tsconfig.lib.json --watch",
     "clean": "rimraf dist",
-    "lint": "biome lint src",
+    "lint": "biome lint src && node ../../../../scripts/codemods/split-define.mjs --check",
     "test:browser": "vitest --run --coverage",
     "test:browser:firefox": "node scripts/run-browser-tests.mjs firefox",
     "test:browser:webkit": "node scripts/run-browser-tests.mjs webkit",

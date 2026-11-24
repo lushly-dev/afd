@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect, userEvent } from "@lushly-dev/specimen/test";
 
-import "./violet-pagination";
+import "./violet-pagination.define";
 import type { VioletPagination } from "./violet-pagination";
 
 type VioletPaginationStoryArgs = {

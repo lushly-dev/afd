@@ -16,9 +16,9 @@ import {
 	Updates,
 	when,
 } from '@lushly-dev/fast-element';
-import '@lushly-dev/violet-elements/dist/listbox/violet-listbox.js';
-import '@lushly-dev/violet-elements/dist/option/violet-option.js';
-import type { VioletListbox } from '@lushly-dev/violet-elements/dist/listbox/violet-listbox.js';
+import '@lushly-dev/violet-elements/listbox/define';
+import '@lushly-dev/violet-elements/option/define';
+import type { VioletListbox } from '@lushly-dev/violet-elements/listbox';
 
 /** What a `list` sidebar's command returns per item. */
 export interface LoamListItem {

@@ -1,4 +1,4 @@
-import { attr, css, FASTElement, html, observable, repeat, when } from "@lushly-dev/fast-element";
+import { attr, css, FASTElement, html, observable, repeat, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 import { resolveFieldErrorText } from "../shared/field-error";
@@ -747,13 +747,12 @@ observable(VioletDataGridPillSelect.prototype, "options");
 observable(VioletDataGridPillSelect.prototype, "open");
 observable(VioletDataGridPillSelect.prototype, "filterQuery");
 
-if (!customElements.get("violet-data-grid-pill-select")) {
-    await FASTElement.define(VioletDataGridPillSelect, {
-        name: "violet-data-grid-pill-select",
-        template,
-        styles,
-        shadowOptions: {
-            delegatesFocus: true,
-        },
-    });
-}
+/** The FAST definition of `<violet-data-grid-pill-select>`; `defineVioletDataGridPillSelect` in `./violet-data-grid-pill-select.define` registers it. */
+export const violetDataGridPillSelectDefinition = {
+    name: "violet-data-grid-pill-select",
+    template,
+    styles,
+    shadowOptions: {
+        delegatesFocus: true,
+    },
+} satisfies PartialFASTElementDefinition;

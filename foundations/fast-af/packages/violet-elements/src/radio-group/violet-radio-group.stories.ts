@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect, userEvent, waitFor } from "@lushly-dev/specimen/test";
 
-import "../radio/violet-radio";
+import "../radio/violet-radio.define";
 import type { VioletRadio } from "../radio/violet-radio";
-import "./violet-radio-group";
+import "./violet-radio-group.define";
 import type { VioletRadioGroup, VioletRadioGroupOrientation } from "./violet-radio-group";
 
 type VioletRadioGroupStoryArgs = {

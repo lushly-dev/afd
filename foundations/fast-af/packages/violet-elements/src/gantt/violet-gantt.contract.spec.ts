@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import "./violet-gantt";
+import "./violet-gantt.define";
 import {
   VIOLET_GANTT_DATE_LIMITS,
   type VioletGantt,

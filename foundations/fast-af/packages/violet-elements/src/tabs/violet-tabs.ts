@@ -1,7 +1,5 @@
-import { FASTElement, attr, css, html, observable } from "@lushly-dev/fast-element";
+import { FASTElement, attr, css, html, observable, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
-import "../tab/violet-tab";
-import "../tab-panel/violet-tab-panel";
 import { violetFieldTokenDefaults, violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 import type { VioletTab } from "../tab/violet-tab";
 import type { VioletTabPanel } from "../tab-panel/violet-tab-panel";
@@ -492,10 +490,9 @@ attr(VioletTabs.prototype, "orientation");
 attr(VioletTabs.prototype, "activeid");
 attr(VioletTabs.prototype, "label");
 
-if (!customElements.get("violet-tabs")) {
-    await FASTElement.define(VioletTabs, {
-        name: "violet-tabs",
-        template,
-        styles,
-    });
-}
+/** The FAST definition of `<violet-tabs>`; `defineVioletTabs` in `./violet-tabs.define` registers it. */
+export const violetTabsDefinition = {
+    name: "violet-tabs",
+    template,
+    styles,
+} satisfies PartialFASTElementDefinition;

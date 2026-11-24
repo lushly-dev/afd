@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect, waitFor } from "@lushly-dev/specimen/test";
 
-import "../tree-item/violet-tree-item";
-import "./violet-tree";
+import "../tree-item/violet-tree-item.define";
+import "./violet-tree.define";
 import type { VioletTree } from "./violet-tree";
 
 type VioletTreeStoryArgs = {

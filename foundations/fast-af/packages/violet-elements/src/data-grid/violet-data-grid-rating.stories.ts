@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect, userEvent, waitFor } from "@lushly-dev/specimen/test";
 
-import "./violet-data-grid-rating";
+import "./violet-data-grid-rating.define";
 import type { VioletDataGridRating } from "./violet-data-grid-rating";
 
 type RatingStoryArgs = {

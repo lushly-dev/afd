@@ -14,7 +14,7 @@ const supportsSegmentedDateInput =
     })();
 
 import type { VioletCalendar } from "../calendar/violet-calendar";
-import "./violet-date-picker";
+import "./violet-date-picker.define";
 import type { VioletDatePicker } from "./violet-date-picker";
 
 function nextFrame(): Promise<void> {
@@ -570,7 +570,7 @@ describe("violet-date-picker", () => {
             });
 
             it.each(presses)("stays open for a $input on the heading and a disabled day in a scrolling violet-dialog", async ({ press }) => {
-                await import("../dialog/violet-dialog");
+                await import("../dialog/violet-dialog.define");
                 const dialog = document.createElement("violet-dialog") as HTMLElement & {
                     show(): void;
                     bodyScrollable: boolean;
@@ -692,7 +692,7 @@ describe("violet-date-picker", () => {
         });
 
         it("defers top-layer promotion for an initially open picker inside a closed violet-dialog until the dialog opens", async () => {
-            await import("../dialog/violet-dialog");
+            await import("../dialog/violet-dialog.define");
             document.body.innerHTML = "";
             const openButton = document.createElement("button");
             openButton.textContent = "Open dialog";

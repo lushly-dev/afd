@@ -1,4 +1,4 @@
-import { FASTElement, attr, css, html, observable } from "@lushly-dev/fast-element";
+import { FASTElement, attr, css, html, observable, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
@@ -97,8 +97,6 @@ const styles = css`
     :host([orientation="horizontal"]) .body {
         flex-direction: row;
     }
-
-
 
     .footer[hidden] {
         display: none;
@@ -254,13 +252,12 @@ attr(VioletCard.prototype, "appearance");
 attr({ mode: "boolean" })(VioletCard.prototype, "interactive");
 attr(VioletCard.prototype, "orientation");
 
-if (!customElements.get("violet-card")) {
-    await FASTElement.define(VioletCard, {
-        name: "violet-card",
-        template,
-        styles,
-        shadowOptions: {
-            delegatesFocus: true,
-        },
-    });
-}
+/** The FAST definition of `<violet-card>`; `defineVioletCard` in `./violet-card.define` registers it. */
+export const violetCardDefinition = {
+    name: "violet-card",
+    template,
+    styles,
+    shadowOptions: {
+        delegatesFocus: true,
+    },
+} satisfies PartialFASTElementDefinition;
