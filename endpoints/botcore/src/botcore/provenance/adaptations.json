@@ -1577,10 +1577,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "894f794a10bb03928a8f7544f8ca60f0103bb13258dc554eea158e506f4ac2a2",
+      "current_import_sha256": "821921cc4ebb4a1b2aac00bb538a44c3627eb032884c825049f32f4749456483",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "The texts assume the merge queue rebases (lushly-dev/afd#1809, step 3); Format Botcore, add mypy type checking and py.typed marker (#1757); Share the gateway's repository scans in a read cache and cut issue-get and pr-status to the reads they need (#2385); factory gateway: lane-heartbeat and each repository's lane in gateway-status (job 16); factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; host HTTP upload_routes"
+      "import_reason": "The texts assume the merge queue rebases (lushly-dev/afd#1809, step 3); Format Botcore, add mypy type checking and py.typed marker (#1757); Share the gateway's repository scans in a read cache and cut issue-get and pr-status to the reads they need (#2385); factory gateway: lane-heartbeat and each repository's lane in gateway-status (job 16); factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; host HTTP upload_routes; Fix provenance CRLF guard (#2390), skill-usage dubious-ownership git config fallback (#2370), and factory gateway journal pruning and scoped reads (#2413)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/gateway/docs.py",
@@ -1621,10 +1621,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "74059063acb88d5afeaa7a59e1a7dfee103fe55026df9ada125e23cac8834a1e",
+      "current_import_sha256": "4687bf856b59564f1e6df8b02e5f0059db30da417e6d841e7e6088a1a040a095",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; host HTTP upload_routes"
+      "import_reason": "factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; host HTTP upload_routes; Fix provenance CRLF guard (#2390), skill-usage dubious-ownership git config fallback (#2370), and factory gateway journal pruning and scoped reads (#2413)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/gateway/hosts.py",
@@ -1632,10 +1632,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "6f03cc4a983b73f5ce62048df18e017b3df407ed8ee5f04077a0d18b0adc7814",
+      "current_import_sha256": "be69e9bed0888e84cf9f58cfc12415aa0217adbe2c92d409246e3d383a788e78",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "factory gateway: lane-heartbeat and each repository's lane in gateway-status (job 16); factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; host HTTP upload_routes"
+      "import_reason": "factory gateway: lane-heartbeat and each repository's lane in gateway-status (job 16); factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; host HTTP upload_routes; Fix provenance CRLF guard (#2390), skill-usage dubious-ownership git config fallback (#2370), and factory gateway journal pruning and scoped reads (#2413)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/gateway/records.py",
@@ -1643,10 +1643,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "9af86a20591aacb8bdb126cff7133ac270f57733f30ebe0c7affd434cb7610be",
+      "current_import_sha256": "98d029a6bdeca14929871af2b2391310781245aedb2388fd2067e7954078adb1",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Share the gateway's repository scans in a read cache and cut issue-get and pr-status to the reads they need (#2385)"
+      "import_reason": "Share the gateway's repository scans in a read cache and cut issue-get and pr-status to the reads they need (#2385); Fix provenance CRLF guard (#2390), skill-usage dubious-ownership git config fallback (#2370), and factory gateway journal pruning and scoped reads (#2413)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/gateway/server.py",
@@ -1676,10 +1676,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "3cac6e262d83d95660b3f6621606cab4fc6735b8860647d92590aab06f7dfa6f",
+      "current_import_sha256": "4f05c1f87e5f0add4ad31ab73169847bd597a70214f2aea7a5d373fa2820a7f5",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "factory gateway: trust its own verification record over GitHub's lagging check-runs list (#2401); factory gateway: lane-heartbeat and each repository's lane in gateway-status (job 16)"
+      "import_reason": "factory gateway: trust its own verification record over GitHub's lagging check-runs list (#2401); factory gateway: lane-heartbeat and each repository's lane in gateway-status (job 16); Fix provenance CRLF guard (#2390), skill-usage dubious-ownership git config fallback (#2370), and factory gateway journal pruning and scoped reads (#2413)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/gateway/uploads.py",
@@ -2039,10 +2039,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "13ced9740c29623bf99c906d23b2cdd2e2a8066547da8fac1f37f2788c4ff045",
+      "current_import_sha256": "1a99ce16f74eb9b07c8d438784b5b0ec0282b330ff2cbf219f0e61efac91ca3b",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims (#1810), keep usable [tools] entries on disk-setup rerun (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims and retries (#1810), keep usable [tools] entries on disk-setup rerun and report changed_tools (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Report App key age, installation token remaining time, and GraphQL rate limit in gateway-status (#1833)"
+      "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims (#1810), keep usable [tools] entries on disk-setup rerun (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims and retries (#1810), keep usable [tools] entries on disk-setup rerun and report changed_tools (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Report App key age, installation token remaining time, and GraphQL rate limit in gateway-status (#1833); Fix provenance CRLF guard (#2390), skill-usage dubious-ownership git config fallback (#2370), and factory gateway journal pruning and scoped reads (#2413)"
     },
     {
       "path": "plugins/botcore-factory/tests/test_gateway_scenarios.py",
@@ -2061,10 +2061,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "14217de3bb8d48a96029200dc40a236c70b37c962c6dfc7abbc3d12089fd2c91",
+      "current_import_sha256": "419e9029395a989cfa82fec4416b03ee6cb16aeaafbc76764283be98a21ea6e5",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Report App key age, installation token remaining time, and GraphQL rate limit in gateway-status (#1833); factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; host HTTP upload_routes"
+      "import_reason": "Report App key age, installation token remaining time, and GraphQL rate limit in gateway-status (#1833); factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; host HTTP upload_routes; Fix provenance CRLF guard (#2390), skill-usage dubious-ownership git config fallback (#2370), and factory gateway journal pruning and scoped reads (#2413)"
     },
     {
       "path": "plugins/botcore-factory/tests/test_gateway_validation.py",
@@ -2532,11 +2532,11 @@
       "path": "scripts/record_provenance.py",
       "upstream_sha256": null,
       "staged_sha256": null,
-      "current_import_sha256": "7a5cfbee0a369e1b25e0d54e73a91553d91cc8d1b43cf6afb05582f61b904b86",
+      "current_import_sha256": "9736419e6bafc832d65a8954bde316a517d7a14e7d5a1e172e21a46d538bcffd",
       "stage_classification": "not-in-staging",
       "stage_reason": "Not selected in the frozen staged-input payload",
       "import_classification": "added-after-staging",
-      "import_reason": "Derive immutable Git-object evidence and explicit adaptation chain; record the lushly-botcore publisher handoff; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Stamp the adaptations digest into the wheel and sdist at build, not in the repository (lushly-dev/afd#1610); Repair a committed adaptations digest on refresh; refuse python -O; check each record's canonical manifest (lushly-dev/afd#1610)"
+      "import_reason": "Derive immutable Git-object evidence and explicit adaptation chain; record the lushly-botcore publisher handoff; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Stamp the adaptations digest into the wheel and sdist at build, not in the repository (lushly-dev/afd#1610); Repair a committed adaptations digest on refresh; refuse python -O; check each record's canonical manifest (lushly-dev/afd#1610); Fix provenance CRLF guard (#2390), skill-usage dubious-ownership git config fallback (#2370), and factory gateway journal pruning and scoped reads (#2413)"
     },
     {
       "path": "scripts/verify_provenance.py",
@@ -3246,10 +3246,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "933ae8483e84318dd194efa18d89e7d599635079d8658467da3b837ec6289708",
+      "current_import_sha256": "0a44c1f79bd96fcf6d38b555f3f395e4e1d8b01f3f63361a1580677f6d3bda86",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill-usage-collect also reads Claude Code's transcripts, for sessions T3 Code did not run (lushly-dev/afd#1820); The hourly job always ends and says what it waited for (#1902, #1903); skill usage reads what a project holds from its default branch (lushly-dev/afd#1904); a folder git refuses is read as it lies (lushly-dev/afd#2051); a removed folder's account is dropped (lushly-dev/afd#2123); Fix botcore bug batch: refuse lane-drop when GitHub holds merging PR (#1628), strip build info before output and align file activity (#1939), collapse/mark truncated unclassified folders with plain-text summary (#1955), and report SQLite/transcript progress so busy hourly collections finish (#2160); Fix Botcore bugs #1628, #1939, #1955, #2160 and review findings; Know a folder's volume by its identifier, falling back to device number (lushly-dev/afd#2245); Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778); Format Botcore, add mypy type checking and py.typed marker (#1757); Format and type-check botcore after base sync (#1757)"
+      "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill-usage-collect also reads Claude Code's transcripts, for sessions T3 Code did not run (lushly-dev/afd#1820); The hourly job always ends and says what it waited for (#1902, #1903); skill usage reads what a project holds from its default branch (lushly-dev/afd#1904); a folder git refuses is read as it lies (lushly-dev/afd#2051); a removed folder's account is dropped (lushly-dev/afd#2123); Fix botcore bug batch: refuse lane-drop when GitHub holds merging PR (#1628), strip build info before output and align file activity (#1939), collapse/mark truncated unclassified folders with plain-text summary (#1955), and report SQLite/transcript progress so busy hourly collections finish (#2160); Fix Botcore bugs #1628, #1939, #1955, #2160 and review findings; Know a folder's volume by its identifier, falling back to device number (lushly-dev/afd#2245); Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778); Format Botcore, add mypy type checking and py.typed marker (#1757); Format and type-check botcore after base sync (#1757); Fix provenance CRLF guard (#2390), skill-usage dubious-ownership git config fallback (#2370), and factory gateway journal pruning and scoped reads (#2413)"
     },
     {
       "path": "src/botcore/commands/skill_usage/events.py",
@@ -7097,11 +7097,11 @@
       "path": "tests/test_provenance.py",
       "upstream_sha256": null,
       "staged_sha256": null,
-      "current_import_sha256": "5c5c82cecff5791cf85a18561c5d7a80d0a2ce44ed120abb1ed7949af1db7272",
+      "current_import_sha256": "1010840747c743ee48020ea1b2e293f9f7b3b5be785e71e51093693172ff58be",
       "stage_classification": "not-in-staging",
       "stage_reason": "Not selected in the frozen staged-input payload",
       "import_classification": "added-after-staging",
-      "import_reason": "Reject rehashed false provenance and incorrect change classifications; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Stamp the adaptations digest into the wheel and sdist at build, not in the repository (lushly-dev/afd#1610); Repair a committed adaptations digest on refresh; refuse python -O; check each record's canonical manifest (lushly-dev/afd#1610); Fix botcore bug batch: factory state durability (#1796), teams missing-command errors (#1797), provenance archive member hardening (#1671), and ignored-only tier-2 disk classification (#1933)"
+      "import_reason": "Reject rehashed false provenance and incorrect change classifications; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Stamp the adaptations digest into the wheel and sdist at build, not in the repository (lushly-dev/afd#1610); Repair a committed adaptations digest on refresh; refuse python -O; check each record's canonical manifest (lushly-dev/afd#1610); Fix botcore bug batch: factory state durability (#1796), teams missing-command errors (#1797), provenance archive member hardening (#1671), and ignored-only tier-2 disk classification (#1933); Fix provenance CRLF guard (#2390), skill-usage dubious-ownership git config fallback (#2370), and factory gateway journal pruning and scoped reads (#2413)"
     },
     {
       "path": "tests/test_registry.py",
@@ -7229,10 +7229,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "2a363385aa0e7d94cc892b61fe95d2349eaeea875a54e201c25215b8874802d9",
+      "current_import_sha256": "cb4007bc9c5614338bba0c135ae59063ee69090d785981f707f0cc4b305bd8a3",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill usage reads what a project holds from its default branch (lushly-dev/afd#1904); a folder git refuses is read as it lies (lushly-dev/afd#2051); a removed folder's account is dropped (lushly-dev/afd#2123); Fix botcore bug batch: refuse lane-drop when GitHub holds merging PR (#1628), strip build info before output and align file activity (#1939), collapse/mark truncated unclassified folders with plain-text summary (#1955), and report SQLite/transcript progress so busy hourly collections finish (#2160); Fix Botcore bugs #1628, #1939, #1955, #2160 and review findings; Fix PowerShell quoting in the skill-usage shell reader (#1847); Fix Windows disk-walk words, skill usage record line endings and file-as-folder handling (#2173); Teams task_status passes task_id (#2174); Count step words monotonically for Windows clock ticks; handle read-only git objects and JSON-escaped Windows paths in tests (#2258, #2176); Know a folder's volume by its identifier, falling back to device number (lushly-dev/afd#2245); Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778)"
+      "import_reason": "Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill usage reads what a project holds from its default branch (lushly-dev/afd#1904); a folder git refuses is read as it lies (lushly-dev/afd#2051); a removed folder's account is dropped (lushly-dev/afd#2123); Fix botcore bug batch: refuse lane-drop when GitHub holds merging PR (#1628), strip build info before output and align file activity (#1939), collapse/mark truncated unclassified folders with plain-text summary (#1955), and report SQLite/transcript progress so busy hourly collections finish (#2160); Fix Botcore bugs #1628, #1939, #1955, #2160 and review findings; Fix PowerShell quoting in the skill-usage shell reader (#1847); Fix Windows disk-walk words, skill usage record line endings and file-as-folder handling (#2173); Teams task_status passes task_id (#2174); Count step words monotonically for Windows clock ticks; handle read-only git objects and JSON-escaped Windows paths in tests (#2258, #2176); Know a folder's volume by its identifier, falling back to device number (lushly-dev/afd#2245); Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778); Fix provenance CRLF guard (#2390), skill-usage dubious-ownership git config fallback (#2370), and factory gateway journal pruning and scoped reads (#2413)"
     },
     {
       "path": "tests/test_skill_usage_claude_code.py",

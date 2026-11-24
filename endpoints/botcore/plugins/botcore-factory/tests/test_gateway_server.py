@@ -41,7 +41,13 @@ class Clock:
 @pytest.fixture
 def gateway(tmp_path):
     fixture = json.loads((FIXTURES / "gateway.json").read_text(encoding="utf-8"))
-    config = GatewayConfig(**{k: v for k, v in fixture.items() if k in CONFIG_KEYS})
+    config = GatewayConfig(
+        **{
+            k: v
+            for k, v in fixture.items()
+            if k in CONFIG_KEYS and not (k == "journal" and isinstance(v, list))
+        }
+    )
     github_file = tmp_path / "github.json"
     github_file.write_text(json.dumps(fake_world(fixture, REPO)), encoding="utf-8")
     clock = Clock()
@@ -189,7 +195,13 @@ def test_the_upload_handler_refuses_a_route_that_cannot_push(gateway, tmp_path):
     _, _, data_dir, *_ = gateway
     state = GatewayState(data_dir)
     fixture = json.loads((FIXTURES / "gateway.json").read_text(encoding="utf-8"))
-    config = GatewayConfig(**{k: v for k, v in fixture.items() if k in CONFIG_KEYS})
+    config = GatewayConfig(
+        **{
+            k: v
+            for k, v in fixture.items()
+            if k in CONFIG_KEYS and not (k == "journal" and isinstance(v, list))
+        }
+    )
     gw = Gateway(FakeGitHub(tmp_path / "github.json", bot=config.bot), config, state, "heartbeat")
     data, _ = make_bundle(tmp_path, [OWNER])
     result = BundleUploads(gw, data_dir).receive(

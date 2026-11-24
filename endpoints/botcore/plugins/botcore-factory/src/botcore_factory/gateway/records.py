@@ -9,6 +9,7 @@ event once.
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime
 from typing import Any
 
 from afd import Actor, CommandResult, error, success
@@ -84,10 +85,12 @@ def _actor(actor: Actor | None) -> dict[str, Any]:
     return {key: value for key, value in row.items() if value is not None}
 
 
-def journal_rows(gateway: Gateway, repo: str) -> list[dict[str, Any]]:
+def journal_rows(
+    gateway: Gateway, repo: str, *, since: datetime | None = None
+) -> list[dict[str, Any]]:
     heads = {pull["head"]: pull["number"] for pull in gateway.scans.cached_pulls(repo)}
     rows = [{**row, "targets": [row["target"]]} for row in gateway.state.get("auditSeed", [])]
-    for entry in read_journal(gateway.state.journal_dir):
+    for entry in read_journal(gateway.state.journal_dir, since=since):
         if entry.command not in WRITE_COMMANDS:
             continue
         if isinstance(entry.input, dict) and entry.input.get("repo") not in (None, repo):
@@ -140,21 +143,30 @@ def outside_writes(gateway: Gateway, repo: str, since: str | None) -> list[dict[
                     "by": comment.get("by"),
                 }
             )
-    pushed = {
-        row["target"]: row
-        for row in journal_rows(gateway, repo)
-        if row["command"] == "branch-push" and row["success"]
-    }
-    for pull in gateway.scans.cached_pulls(repo):
-        ref = f"refs/heads/{pull.get('branch')}"
-        ours = pull.get("author") == bot and pull.get("state") == "open" and ref in pushed
-        head = gateway.github.ref(repo, ref) if ours else None
-        if ours and head != pull["head"]:
-            # The scan may be from before the gateway's own push or a merge the queue made:
-            # confirm with a fresh read that the pull request is still open at another head.
-            current = gateway.github.pull(repo, pull["number"])
-            if current and gateway.pull_state(current) == "open" and head != current["head"]:
-                found.append({"at": None, "kind": "pushed", "target": f"pr#{pull['number']}"})
+    open_bot_pulls = [
+        pull
+        for pull in gateway.scans.cached_pulls(repo)
+        if pull.get("author") == bot and pull.get("state") == "open"
+    ]
+    if open_bot_pulls:
+        # Unscoped by `since`: a branch-push older than `since` still marks an open bot PR as
+        # gateway-owned. Bounded by journal.keepDays and skipped whenever no bot PR is open.
+        pushed = {
+            row["target"]: row
+            for row in journal_rows(gateway, repo)
+            if row["command"] == "branch-push" and row["success"]
+        }
+        for pull in open_bot_pulls:
+            ref = f"refs/heads/{pull.get('branch')}"
+            if ref not in pushed:
+                continue
+            head = gateway.github.ref(repo, ref)
+            if head != pull["head"]:
+                # The scan may be from before the gateway's own push or a merge the queue made:
+                # confirm with a fresh read that the pull request is still open at another head.
+                current = gateway.github.pull(repo, pull["number"])
+                if current and gateway.pull_state(current) == "open" and head != current["head"]:
+                    found.append({"at": None, "kind": "pushed", "target": f"pr#{pull['number']}"})
     found = [
         {key: value for key, value in row.items() if value is not None}
         for row in found
@@ -181,7 +193,7 @@ def gateway_audit(
     wanted = {f"issue#{filters['issue']}"} if filters.get("issue") is not None else set()
     wanted |= {f"pr#{filters['pr']}"} if filters.get("pr") is not None else set()
     rows = []
-    for row in journal_rows(gateway, repo):
+    for row in journal_rows(gateway, repo, since=start):
         if wanted and not wanted & set(row["targets"]):
             continue
         if start and (ts := parse_time(row["timestamp"])) is not None and ts < start:
@@ -255,7 +267,7 @@ def review_get(gateway: Gateway, repo: str, head: str) -> CommandResult[Any]:
 # ── events (G3) ────────────────────────────────────────────────────────────
 
 
-def events(gateway: Gateway, repo: str) -> list[dict[str, Any]]:
+def events(gateway: Gateway, repo: str, kinds: set[str] | None = None) -> list[dict[str, Any]]:
     found = []
     for pull in gateway.scans.cached_pulls(repo):
         number, state = pull["number"], gateway.pull_state(pull)
@@ -292,16 +304,17 @@ def events(gateway: Gateway, repo: str) -> list[dict[str, Any]]:
                     "sharedAccount": True,
                 }
             )
-    for row in outside_writes(gateway, repo, None):
-        found.append(
-            {
-                "id": f"outside-write:{row.get('at')}:{row['target']}:{row['kind']}",
-                "kind": "outside-write",
-                "target": row["target"],
-                "at": row.get("at"),
-                "detail": row,
-            }
-        )
+    if kinds is None or "outside-write" in kinds:
+        for row in outside_writes(gateway, repo, None):
+            found.append(
+                {
+                    "id": f"outside-write:{row.get('at')}:{row['target']}:{row['kind']}",
+                    "kind": "outside-write",
+                    "target": row["target"],
+                    "at": row.get("at"),
+                    "detail": row,
+                }
+            )
     return sorted(found, key=lambda event: event.get("at") or "")
 
 
@@ -319,12 +332,13 @@ async def gateway_wait(
     timeout_ms = min(timeout_ms, gateway.config.wait_max_ms)
     delivered = dict(gateway.state.get("delivered", {}))
     seen = set(delivered.get(consumer, []))
+    wanted = set(kinds) if kinds else None
 
     def fresh() -> list[dict[str, Any]]:
         return [
             event
-            for event in events(gateway, repo)
-            if event["id"] not in seen and (not kinds or event["kind"] in kinds)
+            for event in events(gateway, repo, wanted)
+            if event["id"] not in seen and (not wanted or event["kind"] in wanted)
         ]
 
     found = await asyncio.to_thread(fresh)  # GitHub reads block; keep the event loop free.

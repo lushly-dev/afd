@@ -417,12 +417,97 @@ def _renames_in(root: Path, ref: str) -> dict[str, str]:
     return renames
 
 
+_ORIGIN_SECTION = re.compile(r'^\s*\[\s*(?i:remote)\s+"origin"\s*\]\s*(?:[#;].*)?$')
+_ANY_SECTION = re.compile(r"^\s*\[")
+_URL_LINE = re.compile(r"^\s*url\s*=\s*(.+?)\s*$", re.IGNORECASE)
+
+
+def _git_config_paths(root: Path) -> list[Path]:
+    """Candidate git config files for a checkout or worktree, without invoking git."""
+    for candidate in (root, *root.parents):
+        dotgit = candidate / ".git"
+        try:
+            is_dir = dotgit.is_dir()
+            is_file = not is_dir and dotgit.is_file()
+        except OSError:
+            return []
+        if is_dir:
+            return [dotgit / "config"]
+        if is_file:
+            try:
+                first = dotgit.read_text(encoding="utf-8", errors="replace").splitlines()[0]
+            except (OSError, IndexError):
+                return []
+            if not first.lower().startswith("gitdir:"):
+                return []
+            raw_dir = first.split(":", 1)[1].strip()
+            if not raw_dir:
+                return []
+            try:
+                gitdir = Path(raw_dir)
+                if not gitdir.is_absolute():
+                    gitdir = (dotgit.parent / gitdir).resolve()
+                configs = [gitdir / "config"]
+                commondir_file = gitdir / "commondir"
+                if commondir_file.is_file():
+                    raw_common = commondir_file.read_text(
+                        encoding="utf-8", errors="replace"
+                    ).strip()
+                    if raw_common:
+                        common = Path(raw_common)
+                        if not common.is_absolute():
+                            common = (gitdir / common).resolve()
+                        configs.append(common / "config")
+            except OSError:
+                return []
+            return configs
+    return []
+
+
+def _parse_origin_url(text: str) -> str | None:
+    """Return the first `url` inside `[remote "origin"]` in a git config file."""
+    in_origin = False
+    for line in text.splitlines():
+        if _ORIGIN_SECTION.match(line):
+            in_origin = True
+            continue
+        if _ANY_SECTION.match(line):
+            in_origin = False
+            continue
+        if not in_origin:
+            continue
+        match = _URL_LINE.match(line)
+        if not match:
+            continue
+        value = match.group(1).strip()
+        if value.startswith('"') and '"' in value[1:]:
+            value = value[1 : value.index('"', 1)]
+        else:
+            value = re.split(r"\s+[#;]", value, maxsplit=1)[0].strip()
+        if value:
+            return value
+    return None
+
+
+def _origin_from_git_config(root: Path) -> str | None:
+    """Read `[remote "origin"]` url directly from `.git/config` when git refuses the folder."""
+    for config in _git_config_paths(root):
+        try:
+            text = config.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        url = _parse_origin_url(text)
+        if url:
+            return url
+    return None
+
+
 def project_remote(root: Path) -> str | None:
     """`owner/name` from a checkout's origin: the same on every machine and for every clone."""
     try:
         url = git_out(root, "remote", "get-url", "origin", timeout=GIT_SECONDS).strip()
     except GitError:
-        return None
+        url = _origin_from_git_config(root) or ""
     match = _REMOTE.search(url)
     return match.group(1) if match else None
 

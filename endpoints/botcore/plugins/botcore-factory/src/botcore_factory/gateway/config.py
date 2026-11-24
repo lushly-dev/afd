@@ -53,6 +53,12 @@ class Cache(_Model):
     graphql_seconds: float = Field(default=15, ge=0, alias="graphqlSeconds")
 
 
+class Journal(_Model):
+    #: UTC days of daily journal files to retain; older day files are pruned at start and on
+    #: UTC day rollover. 0 disables pruning.
+    keep_days: int = Field(default=365, ge=0, alias="keepDays")
+
+
 class GitHubAppConfig(_Model):
     """The App the gateway writes as. Neither id is secret; the private key is a file on the
     gateway's machine, passed to ``serve --app-key``."""
@@ -102,6 +108,7 @@ class GatewayConfig(_Model):
     #: Most milliseconds gateway-wait blocks on one call over MCP.
     wait_max_ms: int = Field(300_000, alias="waitMaxMs")
     cache: Cache = Field(default_factory=lambda: Cache())
+    journal: Journal = Field(default_factory=lambda: Journal())
 
     @model_validator(mode="after")
     def _merge_methods_name_served_repositories(self) -> GatewayConfig:

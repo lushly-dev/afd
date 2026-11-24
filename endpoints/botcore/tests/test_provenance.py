@@ -140,7 +140,7 @@ def test_refresh_records_local_bytes_and_keeps_the_mirrors_and_frozen_evidence(
             (directory / name).write_bytes(raw)
     monkeypatch.setattr(recorder, "ROOT", tmp_path)
     local = tmp_path / "src/botcore/new_local.py"
-    local.write_text("# AFD-authored fixture\n")
+    local.write_text("# AFD-authored fixture\n", encoding="utf-8", newline="\n")
     recorder.refresh(["src/botcore/new_local.py"], "Fixture addition")
     first = (tmp_path / "provenance/adaptations.json").read_bytes()
     recorder.refresh(["src/botcore/new_local.py"], "Fixture addition")
@@ -558,3 +558,33 @@ def test_artifact_check_refuses_case_mismatched_dir_leading_dot_and_symlinks(tmp
         f"lushly_botcore-{version}-py3-none-any.whl",
         f"lushly_botcore-{version}.tar.gz",
     ]
+
+
+def test_refresh_refuses_crlf_in_text_files_and_accepts_lf_and_binary(tmp_path, monkeypatch):
+    """lushly-dev/afd#2390: Windows checkouts must not record CRLF digests that fail Linux CI."""
+    recorder = recorder_over_a_copy(tmp_path, monkeypatch)
+    before = {path.name: path.read_bytes() for path in (tmp_path / "provenance").glob("*.json")}
+    crlf_file = tmp_path / "src/botcore/crlf_fixture.py"
+    crlf_file.write_bytes(b"# line one\r\n# line two\r\n")
+    with pytest.raises(ValueError, match="CRLF"):
+        recorder.refresh(["src/botcore/crlf_fixture.py"], "CRLF fixture")
+    # Provenance files remain untouched on refusal.
+    for directory in (tmp_path / "provenance", tmp_path / "src/botcore/provenance"):
+        assert {path.name: path.read_bytes() for path in directory.glob("*.json")} == before
+
+    # Converting to LF succeeds and passes verification.
+    crlf_file.write_bytes(b"# line one\n# line two\n")
+    recorder.refresh(["src/botcore/crlf_fixture.py"], "LF fixture")
+    refreshed = {path.name: path.read_bytes() for path in (tmp_path / "provenance").glob("*.json")}
+    verifier().verify_records(refreshed.__getitem__, current=tmp_path)
+
+    # Binary files are accepted via either suffix (no NUL) or NUL byte (non-binary suffix).
+    suffix_binary = tmp_path / "src/botcore/fixture.png"
+    suffix_binary.write_bytes(b"PNG-HEADER\r\nNO-NUL\r\n")
+    nul_binary = tmp_path / "src/botcore/fixture.bin"
+    nul_binary.write_bytes(b"\x00\x01\r\n\x02")
+    recorder.refresh(["src/botcore/fixture.png", "src/botcore/fixture.bin"], "Binary fixtures")
+    refreshed_bin = {
+        path.name: path.read_bytes() for path in (tmp_path / "provenance").glob("*.json")
+    }
+    verifier().verify_records(refreshed_bin.__getitem__, current=tmp_path)
