@@ -264,7 +264,7 @@ assert_eq!(request.steps[1].alias, None);
   and interface, the values of the declared context fields marked `journal: true`, a context hash
   (never other context values), the result and the tape of clock and random values read. It runs after validation and around the middleware chain, records successes
   only unless `with_record_failures(true)`, and skips `auth-*` commands unless `with_filter` allows
-  them. Sinks: `MemoryJournalSink` and `FileJournalSink` (JSON Lines). `parse_journal` and
+  them. Sinks: `MemoryJournalSink`, `FileJournalSink` (JSON Lines; `with_sync_data` waits for the device after each append) and, on an async server, `AsyncFileJournalSink`, which runs the file calls on Tokio's blocking pool. `parse_journal` and
   `serialize_journal` read and write the format TypeScript writes, and
   `replay_journal(&registry, &entries, options)` re-runs entries with their tapes restored and
   reports each as `same`, `different` (with paths) or `error`.
@@ -382,8 +382,9 @@ Dropping the call cancels the flow. Raw registry execution remains a trusted hos
 ## Features
 
 - `native` (default) - Deadlines through `tokio::time::timeout`: command timeouts
-  (`CommandContext::timeout_ms`), batch `timeout` and pipeline `timeoutMs`. It enables only Tokio's
-  `time` feature; the application provides the runtime, with its time driver enabled (for example
+  (`CommandContext::timeout_ms`), batch `timeout` and pipeline `timeoutMs`; with `journal-file`,
+  `AsyncFileJournalSink`. It enables Tokio's `time`, `rt` and `sync` features (no runtime of its
+  own); the application provides the runtime, with its time driver enabled (for example
   `#[tokio::main]`).
 - `wasm` - Browser WebAssembly (`wasm32-unknown-unknown`). Durations are measured with
   [`web-time`](https://crates.io/crates/web-time), because `std::time::Instant::now()` traps on that
@@ -396,7 +397,7 @@ Dropping the call cancels the flow. Raw registry execution remains a trusted hos
   offset and line, and sets no size cap: cap the input first. It works without the MCP server
   (`default-features = false, features = ["frontmatter"]`).
 - `journal-file` (default) - `FileJournalSink`, a command journal in a JSON Lines file, through
-  blocking `std::fs`. The rest of the journal (entries, `MemoryJournalSink`, recording, replay) is in
+  blocking `std::fs` (with `native`, `AsyncFileJournalSink` runs it on Tokio's blocking pool). The rest of the journal (entries, `MemoryJournalSink`, recording, replay) is in
   every build, WebAssembly included.
 - `journal-file-shared` - `FileJournalSink::shared`: several sinks and processes append to one
   journal file under an exclusive OS file lock (`lock`, `append_locked`, `JournalFileLock`), reading

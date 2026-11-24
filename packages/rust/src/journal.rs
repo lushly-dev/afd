@@ -28,6 +28,8 @@ use crate::result::CommandResult;
 
 #[cfg(feature = "journal-file")]
 mod file;
+#[cfg(all(feature = "native", feature = "journal-file"))]
+mod file_async;
 #[cfg(feature = "journal-file-shared")]
 mod file_shared;
 mod recorder;
@@ -35,6 +37,8 @@ mod replay;
 
 #[cfg(feature = "journal-file")]
 pub use file::FileJournalSink;
+#[cfg(all(feature = "native", feature = "journal-file"))]
+pub use file_async::AsyncFileJournalSink;
 #[cfg(feature = "journal-file-shared")]
 pub use file_shared::{JournalFileLock, JournalLockError};
 pub use recorder::JournalRecorder;

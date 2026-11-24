@@ -22,9 +22,17 @@ use super::{
 /// append reads the whole existing file once, to find the last `seq`.
 ///
 /// The sink uses blocking `std::fs` calls on the calling thread, holding a lock: each append is
-/// one small write, but a read loads the whole file. For a busy server, wrap a sink of your own
-/// around it that runs the calls with `tokio::task::spawn_blocking`. It needs the `journal-file`
-/// feature (on by default) and a platform with a file system.
+/// one small write, but a read loads the whole file. On an async server use
+/// `AsyncFileJournalSink` (the `native` feature), which runs them on Tokio's blocking pool. It
+/// needs the `journal-file` feature (on by default) and a platform with a file system.
+///
+/// **Durability.** Each append is one write of a whole line, handed to the operating system before
+/// `append` returns: a process that crashes afterwards keeps the entry, and a crash during the
+/// write leaves a torn last line that the next append removes. By default the sink does not wait
+/// for the device, so a power loss or an OS crash can lose the latest entries.
+/// [`Self::with_sync_data`] waits for the data to reach the device after each append
+/// (`File::sync_data`, and on Unix the folder of a file the append created), at the cost of that
+/// wait on every call. A failed append leaves at most a torn line, which the next append cuts.
 ///
 /// A sink made with `new` caches the last `seq` and allows one writer per file. For several sinks
 /// or processes on one file, use `FileJournalSink::shared` (the `journal-file-shared` feature).
@@ -45,6 +53,8 @@ pub struct FileJournalSink {
     /// Set by `shared`: the lock file and how long an append waits for it.
     #[cfg(feature = "journal-file-shared")]
     pub(super) shared: Option<super::file_shared::SharedMode>,
+    /// Wait for each append to reach the device ([`Self::with_sync_data`]).
+    pub(super) sync_data: bool,
 }
 
 /// What [`FileJournalSink`] found in its file.
@@ -65,7 +75,19 @@ impl FileJournalSink {
             last_seq: Mutex::new(None),
             #[cfg(feature = "journal-file-shared")]
             shared: None,
+            sync_data: false,
         }
+    }
+
+    /// Wait for each append's data to reach the device (`File::sync_data`) before `append`
+    /// returns, and on Unix the folder entry of a file the append created, so a power loss or an
+    /// OS crash keeps every entry `append` returned (on other platforms, a file created just
+    /// before the loss may itself be lost). Folders the first append creates are not synced into
+    /// their own parents, so create the folder beforehand when a new one must survive a power
+    /// loss too. Default: off.
+    pub fn with_sync_data(mut self, sync_data: bool) -> Self {
+        self.sync_data = sync_data;
+        self
     }
 
     /// The file this sink writes.
@@ -115,9 +137,9 @@ impl FileJournalSink {
     }
 }
 
-#[async_trait]
-impl JournalSink for FileJournalSink {
-    async fn append(&self, record: JournalRecord) -> Result<JournalEntry, String> {
+impl FileJournalSink {
+    /// [`JournalSink::append`], on the calling thread.
+    pub(super) fn append_blocking(&self, record: JournalRecord) -> Result<JournalEntry, String> {
         #[cfg(feature = "journal-file-shared")]
         if self.shared.is_some() {
             let lock = self.lock().map_err(|error| self.describe(error))?;
@@ -151,17 +173,37 @@ impl JournalSink for FileJournalSink {
         };
         let entry = record.into_entry(last + 1);
         let line = format!("{prefix}{}\n", serialize_journal_entry(&entry));
-        OpenOptions::new()
+        let created = self.sync_data && !self.path.exists();
+        let written = OpenOptions::new()
             .create(true)
             .append(true)
             .open(&self.path)
-            .and_then(|mut file| file.write_all(line.as_bytes()))
-            .map_err(|error| self.describe(error))?;
+            .and_then(|mut file| {
+                file.write_all(line.as_bytes())?;
+                if self.sync_data {
+                    file.sync_data()?;
+                }
+                Ok(())
+            })
+            .and_then(|()| {
+                if created {
+                    sync_parent(&self.path)
+                } else {
+                    Ok(())
+                }
+            });
+        if let Err(error) = written {
+            // Part of the line may be on disk: read the file again on the next append, so its
+            // `seq` follows what is there (a torn line is cut first).
+            *last_seq = None;
+            return Err(self.describe(error));
+        }
         *last_seq = Some(entry.seq);
         Ok(entry)
     }
 
-    async fn read(&self, range: JournalRange) -> Result<Vec<JournalEntry>, String> {
+    /// [`JournalSink::read`], on the calling thread.
+    pub(super) fn read_blocking(&self, range: JournalRange) -> Result<Vec<JournalEntry>, String> {
         // A shared sink reads without a lock: a torn last line is skipped.
         #[cfg(feature = "journal-file-shared")]
         if self.shared.is_some() {
@@ -170,5 +212,35 @@ impl JournalSink for FileJournalSink {
         // Wait for a pending append, so a read sees every entry appended before it.
         let _appending = self.last_seq.lock().unwrap_or_else(PoisonError::into_inner);
         Ok(range.select(&self.read_file()?.entries))
+    }
+}
+
+#[async_trait]
+impl JournalSink for FileJournalSink {
+    async fn append(&self, record: JournalRecord) -> Result<JournalEntry, String> {
+        self.append_blocking(record)
+    }
+
+    async fn read(&self, range: JournalRange) -> Result<Vec<JournalEntry>, String> {
+        self.read_blocking(range)
+    }
+}
+
+/// Sync the folder that holds `path`, so a file just created there survives a power loss
+/// (`File::sync_data` covers the file's data, not its folder entry). Unix only: elsewhere a folder
+/// cannot be opened to sync, and this does nothing.
+pub(super) fn sync_parent(path: &Path) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        let parent = path
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+            .unwrap_or_else(|| Path::new("."));
+        fs::File::open(parent)?.sync_all()
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = path;
+        Ok(())
     }
 }

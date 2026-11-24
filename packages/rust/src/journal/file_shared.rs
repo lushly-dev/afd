@@ -95,7 +95,8 @@ impl FileJournalSink {
     ///
     /// The lock assumes a local file system. The file and the lock file are created on first
     /// use, with their directories. `append` blocks the calling thread while it waits for the
-    /// lock and writes, so a server should run it with `tokio::task::spawn_blocking`.
+    /// lock and writes, so an async server should wrap it in `AsyncFileJournalSink` (the
+    /// `native` feature).
     pub fn shared(path: impl Into<PathBuf>, lock_path: impl Into<PathBuf>) -> Self {
         let mut sink = Self::new(path);
         sink.shared = Some(SharedMode {
@@ -194,6 +195,7 @@ impl FileJournalSink {
         {
             fs::create_dir_all(parent).map_err(|error| self.describe(error))?;
         }
+        let created = self.sync_data && !self.path().exists();
         let mut file = OpenOptions::new()
             .create(true)
             .truncate(false)
@@ -210,6 +212,20 @@ impl FileJournalSink {
         let line = format!("{prefix}{}\n", serialize_journal_entry(&entry));
         file.seek(SeekFrom::End(0))
             .and_then(|_| file.write_all(line.as_bytes()))
+            .and_then(|()| {
+                if self.sync_data {
+                    file.sync_data()
+                } else {
+                    Ok(())
+                }
+            })
+            .and_then(|()| {
+                if created {
+                    super::file::sync_parent(self.path())
+                } else {
+                    Ok(())
+                }
+            })
             .map_err(|error| self.describe(error))?;
         Ok(entry)
     }
